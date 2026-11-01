@@ -1,4 +1,3 @@
-import { FORWARD_VISITS } from '../domain/rating-claim-scheduling.ts';
 import type {
   ClaimStateFence,
   ClaimStateResult,
@@ -67,9 +66,7 @@ export function sweepCommands(
             workToken: entry.workToken,
           })),
           exhausted,
-          // ميزانية الدور هي اللي بتحدّد حجم الصفحة المسموح؛ والافتراضي هو
-          // ميزانية الـ domain لما أي متصل تاني ينادي المنفذ من غير ميزانية.
-          maxEntries: maxEntries ?? FORWARD_VISITS,
+          maxEntries,
         }),
       ),
     finish: (fence, sweepId) =>

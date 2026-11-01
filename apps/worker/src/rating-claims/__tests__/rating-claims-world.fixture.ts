@@ -191,11 +191,19 @@ function buildClaim(
     base.clock,
   );
   return {
-    execute: (tx, input) => {
-      if (claimTrap.failBefore.has(input.request.id)) {
-        return Promise.reject(new Error('RATING_CLAIM_ROLLED_BACK'));
+    execute: async (tx, input) => {
+      // الخطّاف بيقع بعد المطالبة جوّه نفس المعاملة: التحديث والحدث اتكتبوا فعلاً،
+      // والخطأ بيرجّع المعاملة، فالداتابيز بترجع كل حاجة.
+      const outcome = await realClaim.execute(tx, input);
+      // الساعة بتتحرّك مرة واحدة بعد أول مطالبة، عشان التجديد اللي بعدها يبقى مستحق.
+      if (claimTrap.clockJumpMs > 0) {
+        base.clock.at = new Date(base.clock.at.getTime() + claimTrap.clockJumpMs);
+        claimTrap.clockJumpMs = 0;
       }
-      return realClaim.execute(tx, input);
+      if (claimTrap.failAfter.has(input.request.id)) {
+        throw new Error('RATING_CLAIM_ROLLED_BACK');
+      }
+      return outcome;
     },
   };
 }
@@ -399,7 +407,7 @@ export async function ratingClaimsWorld(
     });
     const state = tracedState(rawState);
     const tokens = { allow: (): boolean => options.tokens === true };
-    const claimTrap: ClaimTrap = { failBefore: new Set<string>() };
+    const claimTrap: ClaimTrap = { failAfter: new Set<string>(), clockJumpMs: 0 };
     const txTrap: TransactionTrap = { lostReplies: new Set<string>() };
     const claim = buildClaim(base, claimTrap, tokens);
     const transactions = buildTransactions(ratingClaimTransactions(base.db), txTrap);

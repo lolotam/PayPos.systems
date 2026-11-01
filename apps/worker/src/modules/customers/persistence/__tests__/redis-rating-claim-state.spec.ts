@@ -1,9 +1,8 @@
-import { setTimeout as delay } from 'node:timers/promises';
-
 import { systemUuidV7 } from '@pospay/ids';
 import { Redis } from 'ioredis';
 import { afterAll, afterEach, beforeAll, expect, it } from 'vitest';
 
+import { FORWARD_VISITS } from '../../domain/rating-claim-scheduling.ts';
 import type {
   ClaimStateFence,
   ClaimStateSnapshot,
@@ -13,6 +12,7 @@ import {
   redisRatingClaimState,
   type RatingClaimStateOptions,
 } from '../redis-rating-claim-state.ts';
+import { waitForLeaseExpiry } from './rating-claim-state-lease.fixture.ts';
 
 const ids = systemUuidV7();
 const redisUrl =
@@ -100,6 +100,7 @@ async function enrolledPage(world: Harness, sweep: Awaited<ReturnType<typeof beg
       { requestId: sweep.second, workToken: secondToken },
     ],
     false,
+    FORWARD_VISITS,
   );
   expect(enrolled.code).toBe('OK');
   return { pageId, firstToken, secondToken, version: enrolled.version };
@@ -126,7 +127,7 @@ it('takeover after the lease expiry keeps the progress and moves the version', a
   const sweepId = ids.newId();
   const begun = await world.state.begin(world.fence, sweepId, null);
   expect(begun.code).toBe('OK');
-  await delay(1300);
+  await waitForLeaseExpiry(world.state, world.companyId, redis);
   const taken = await world.state.acquire(world.companyId, ids.newId(), ids.newId());
   expect(taken.code).toBe('OK');
   expect(taken.version).toBeGreaterThan(world.snapshot.version);
@@ -169,6 +170,7 @@ it('enrollPage refuses ids that are not increasing inside the captured bound', a
       { requestId: sweep.first, workToken: ids.newId() },
     ],
     false,
+    FORWARD_VISITS,
   );
   expect(descending.code).toBe('LIMIT');
   const aboveBound = await world.state.enrollPage(
@@ -178,6 +180,7 @@ it('enrollPage refuses ids that are not increasing inside the captured bound', a
     ids.newId(),
     [{ requestId: ids.newId(), workToken: ids.newId() }],
     false,
+    FORWARD_VISITS,
   );
   expect(aboveBound.code).toBe('LIMIT');
   await enrolledPage(world, sweep);
@@ -197,6 +200,7 @@ it('an open journal refuses a second page, and the drained journal still fences'
     ids.newId(),
     [{ requestId: sweep.third, workToken: ids.newId() }],
     false,
+    FORWARD_VISITS,
   );
   expect(busy.code).toBe('BUSY');
   const settledFirst = await world.state.settlePage(
@@ -223,6 +227,7 @@ it('an open journal refuses a second page, and the drained journal still fences'
     ids.newId(),
     [{ requestId: sweep.third, workToken: ids.newId() }],
     false,
+    FORWARD_VISITS,
   );
   expect(wrongLowerBound.code).toBe('STALE');
 });
@@ -239,6 +244,7 @@ it('an empty sweep refuses a page with entries', async () => {
     ids.newId(),
     [{ requestId: ids.newId(), workToken: ids.newId() }],
     false,
+    FORWARD_VISITS,
   );
   expect(refused.code).toBe('LIMIT');
 });
@@ -258,6 +264,7 @@ it('enrollPage refuses a page larger than the forward budget', async () => {
     ids.newId(),
     entries,
     false,
+    FORWARD_VISITS,
   );
   expect(refused.code).toBe('LIMIT');
 });
@@ -371,7 +378,7 @@ it('a corrupt state is reported and never overwritten', async () => {
 
 it('an expired owner can neither renew nor release', async () => {
   const world = await harness({ leaseMs: 1000 });
-  await delay(1300);
+  await waitForLeaseExpiry(world.state, world.companyId, redis);
   const renewed = await world.state.renew(world.fence);
   expect(renewed.code).toBe('BUSY');
   const released = await world.state.release(world.fence);

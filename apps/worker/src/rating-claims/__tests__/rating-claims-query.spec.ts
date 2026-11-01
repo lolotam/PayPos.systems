@@ -164,15 +164,17 @@ it('query_shape_and_explain_use_company_primary_key', async () => {
     WHERE company_id = ${TENANT.A.company} ORDER BY id DESC LIMIT 1`;
   expect(upper).toBe(upperRows[0]?.['id']);
 
+  // ترتيب الصفحات لازم يطابق ترتيب المعرّفات بالظبط: مفيش معرّف اتخطّى بين صفحتين.
+  const ordered = await f.owner`SELECT id FROM rating_requests
+    WHERE company_id = ${TENANT.A.company} ORDER BY id LIMIT 20`;
+  const expectedIds = ordered.map((row) => String(row['id']));
+
   const firstPage = await transactions.pageIds(TENANT.A.company, null, upper ?? '', 3);
-  expect(firstPage).toHaveLength(3);
-  expect([...firstPage].sort()).toEqual(firstPage);
-  expect(firstPage.every((id) => id <= (upper ?? ''))).toBe(true);
+  expect(firstPage).toEqual(expectedIds.slice(0, 3));
 
   const cursor = firstPage[firstPage.length - 1] ?? '';
   const secondPage = await transactions.pageIds(TENANT.A.company, cursor, upper ?? '', 10);
-  expect(secondPage.length).toBeGreaterThan(0);
-  expect(secondPage.every((id) => id > cursor && id <= (upper ?? ''))).toBe(true);
+  expect(secondPage).toEqual(expectedIds.slice(3, 13));
 
   const otherUpper = await transactions.upperId(TENANT.B.company);
   const otherRows = await f.owner`SELECT id FROM rating_requests

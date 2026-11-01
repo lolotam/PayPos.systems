@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import { HealthController } from './health.controller.ts';
+import type { ClaimedEvent, DeliveryOutcome } from '@pospay/db';
 import type * as Notifications from '@pospay/notifications';
 import type * as StaffModule from '../modules/staff/index.ts';
 import type * as NotificationModule from '../modules/notifications/index.ts';
 import type * as Customers from '../modules/customers/index.ts';
 import type * as BullMq from 'bullmq';
+import { RATING_CLAIMS_QUEUE } from '../modules/customers/jobs/rating-claims.processor.ts';
 // تحميل تركيب القنوات ووظائف staff خارج مهلة بدء التشغيل حتى لا يستهلك التحويل البارد مهلة العزل.
 // تحميل bullmq كمان بره الاختبارات: التحميل البارد كان بيقع جوّه أول اختبار وبياكل مهلة العزل.
 import 'bullmq';
@@ -28,7 +30,8 @@ const resources = vi.hoisted(() => ({
   otp: { ready: vi.fn(), stop: vi.fn(), close: vi.fn() },
   otpOptions: vi.fn(),
   bullmq: { constructed: [] as { kind: string; name: string }[] },
-  redis: { set: vi.fn(), del: vi.fn(), get: vi.fn() },
+  redis: { set: vi.fn(), del: vi.fn(), get: vi.fn(), evalsha: vi.fn() },
+  ratingClaims: undefined as Customers.RatingClaimsLifecycle | undefined,
   deliverer: vi.fn(),
   maintenance: vi.fn((options: { databaseUrl: string }) => {
     new URL(options.databaseUrl);
@@ -55,6 +58,7 @@ vi.mock('ioredis', () => ({
     set = resources.redis.set;
     del = resources.redis.del;
     get = resources.redis.get;
+    evalsha = resources.redis.evalsha;
   },
 }));
 // الطابور والعامل الحقيقيين بيسجّلوا اللي اتعمل، عشان نعرف إن مجدول المطالبات ما اتفتحش.
@@ -81,7 +85,15 @@ const customersActual = vi.hoisted(() => ({ module: undefined as typeof Customer
 vi.mock('../modules/customers/index.ts', async (original) => {
   const actual = customersActual.module ?? (await original<typeof Customers>());
   customersActual.module = actual;
-  return { ...actual };
+  return {
+    ...actual,
+    // المجدول المُسجّل في الإقلاع بيتشقط هنا، عشان الاختبار يمرّر بيه حدث.
+    closedRatingClaimsLifecycle: () => {
+      const lifecycle = actual.closedRatingClaimsLifecycle();
+      resources.ratingClaims = lifecycle;
+      return lifecycle;
+    },
+  };
 });
 vi.mock('../worker.ts', () => ({
   createWorker: async (options: unknown) => {
@@ -334,19 +346,33 @@ it('runtime_stays_dormant_with_valid_token_settings', async () => {
     }),
     'rating token capability',
   );
-  expect(resources.bullmq.constructed.filter((entry) => entry.name === 'rating-claims')).toEqual(
+  const lifecycle = resources.ratingClaims;
+  expect(lifecycle).toBeDefined();
+  // الحدث يعدّي من المجدول المسجّل في الإقلاع، فبيعدّي زي ما هو من غير ما يفتح
+  // طابور: المجدول بيبني الطابور بس لو الحدث هو اللي طلبه.
+  const event: ClaimedEvent = {
+    companyId: '01920000-0000-7000-8000-0000000000a1',
+    id: '01920000-0000-7000-8000-0000000000a2',
+    aggregateType: 'service_session',
+    aggregateId: '01920000-0000-7000-8000-0000000000a3',
+    eventType: 'ServiceSessionRecorded',
+    payload: {},
+    attempt: 1,
+  };
+  const next = vi.fn(async (): Promise<DeliveryOutcome> => ({ delivered: true }));
+  const outcome = await lifecycle?.deliver(event, next);
+  expect(outcome?.delivered).toBe(true);
+  expect(next).toHaveBeenCalledOnce();
+  expect(next).toHaveBeenCalledWith(event);
+  // مفيش طابور ولا عامل اتفتحوا: لا وقت الإقلاع ولا وقت الحدث.
+  expect(resources.bullmq.constructed.filter((entry) => entry.name === RATING_CLAIMS_QUEUE)).toEqual(
     [],
   );
+  // منفذ حالة الجدولة بيكتب بـ eval، فمفيش eval ولا evalsha حصل.
+  expect(resources.redis.evalsha).not.toHaveBeenCalled();
   const written = resources.redis.set.mock.calls
     .map((call) => call.map(String).join(' '))
     .join(' ');
   expect(written).not.toMatch(/rating-claims/);
   expect(resources.database.withTenant).not.toHaveBeenCalled();
-  const raw = resources.deliverer.mock.calls.at(-1)?.[1] as
-    ({ id?: string } | undefined)[] | undefined;
-  const consumerIds = (raw ?? [])
-    .map((consumer) => consumer?.id)
-    .filter((id): id is string => typeof id === 'string');
-  expect(consumerIds).toContain('customers.rating-scheduling-v1');
-  expect(consumerIds.some((id) => id.includes('rating-claims'))).toBe(false);
 });

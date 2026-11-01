@@ -5,6 +5,7 @@ import type {
   ClaimStateResult,
   ClaimStateSnapshot,
 } from '../../modules/customers/ports/rating-claim-state.port.ts';
+import { FORWARD_VISITS } from '../../modules/customers/domain/rating-claim-scheduling.ts';
 import { startBullRunner, type BullRunner } from './rating-claims-bull.fixture.ts';
 import {
   at,
@@ -86,7 +87,7 @@ async function crashBeforeEnrollment(): Promise<void> {
   // العامل بيقع جوّه المهمة، فالخطأ بيتسجل فيه بدل ما يطير على الاختبار.
   const crashing = await openRunner(world);
   await crashing.enqueue(world.company);
-  expect(errorMessage(crashing.errors[0])).toMatch(/CRASH/);
+  expect(crashing.errors.map(errorMessage)).toEqual(['RATING_CLAIM_STATE_CRASH:enrollPage']);
   const crashed = await world.readState();
   expect(crashed.cursorId).toBeUndefined();
   expect(crashed.page).toBeUndefined();
@@ -128,6 +129,7 @@ async function crashAfterEnrollment(): Promise<void> {
     pageId,
     entries,
     true,
+    FORWARD_VISITS,
   );
   expect(enrolled.code).toBe('OK');
   expect((await world.readState()).page?.entries).toHaveLength(3);
@@ -151,7 +153,7 @@ async function loseEnrollmentReply(): Promise<void> {
   world.state.loseReply('enrollPage');
   const losing = await openRunner(world);
   await losing.enqueue(world.company);
-  expect(errorMessage(losing.errors[0])).toMatch(/REPLY_LOST/);
+  expect(losing.errors.map(errorMessage)).toEqual(['RATING_CLAIM_STATE_REPLY_LOST:enrollPage']);
   const enrolled = await world.readState();
   expect(enrolled.page?.entries).toHaveLength(3);
   expect(await world.readyRequestIds()).toHaveLength(0);
@@ -167,52 +169,86 @@ async function loseEnrollmentReply(): Promise<void> {
   await closeWorld(world);
 }
 
-it('crash_before_and_after_page_enrollment', async () => {
+it('crash_before_page_enrollment', async () => {
   await crashBeforeEnrollment();
+}, 300_000);
+
+it('crash_after_page_enrollment', async () => {
   await crashAfterEnrollment();
+}, 300_000);
+
+it('a_lost_enrollment_reply_is_reconciled_by_the_next_turn', async () => {
   await loseEnrollmentReply();
 }, 300_000);
 
-it('crash_at_db_commit_and_settlement', async () => {
+it('a_rolled_back_claim_leaves_no_trace_and_the_next_turn_claims_it_once', async () => {
   const w = await openWorld({ budget: { forward: 4, retry: 1 }, state: { leaseMs: 1000 } });
   const seeded = await w.seedDueRequests({ count: 4 });
   const rolledBack = at(seeded.requestIds, 0);
-  const uncertain = at(seeded.requestIds, 1);
   w.tokens.allow = () => true;
-  // الصف الأول بيرجع من المعاملة، والتاني الـ commit بتاعه بيتم بس الرد بيضيع.
-  w.claimTrap.failBefore.add(rolledBack);
-  w.txTrap.lostReplies.add(uncertain);
+  // الخطّاف بيقع بعد المطالبة جوّه المعاملة: تحديث الحالة والحدث اتكتبوا فعلاً،
+  // وبعدين رجعوا كلهم لحد ما الداتابيز ترفض المعاملة.
+  w.claimTrap.failAfter.add(rolledBack);
   const first = await openRunner(w);
   await first.enqueue(w.company);
   const afterFirst = await w.readState();
   expect(afterFirst.retries[rolledBack]).toBeDefined();
-  expect(afterFirst.retries[uncertain]).toBeDefined();
-  const statuses = await w.requestStatuses();
-  expect(statuses.get(rolledBack)).toBe('SCHEDULED');
-  expect(statuses.get(uncertain)).toBe('SENDING');
+  expect((await w.requestStatuses()).get(rolledBack)).toBe('SCHEDULED');
   const ready = await w.readyRequestIds();
-  expect(ready).toHaveLength(3);
-  expect(ready).not.toContain(rolledBack);
+  expect(ready.filter((id) => id === rolledBack)).toHaveLength(0);
+  // الخطّاف اتشال، فالدور الجاي بيطالب بالطلب من خريطة الإعادة ويكتب المطالبة مرة واحدة.
+  w.claimTrap.failAfter.delete(rolledBack);
+  await first.enqueue(w.company);
+  expect((await w.requestStatuses()).get(rolledBack)).toBe('SENDING');
+  const afterSecond = await w.readyRequestIds();
+  expect(afterSecond.filter((id) => id === rolledBack)).toHaveLength(1);
+}, 300_000);
+
+it('an_uncertain_commit_keeps_the_row_sending_without_a_second_claim', async () => {
+  const w = await openWorld({ budget: { forward: 4, retry: 1 }, state: { leaseMs: 1000 } });
+  const seeded = await w.seedDueRequests({ count: 4 });
+  const uncertain = at(seeded.requestIds, 1);
+  w.tokens.allow = () => true;
+  // الـ commit بيتم، بس الرد بيضيع، فالدور مالوش idea إن المطالبة نجحت.
+  w.txTrap.lostReplies.add(uncertain);
+  const first = await openRunner(w);
+  await first.enqueue(w.company);
+  expect(w.diagnostics.failures.map(errorMessage)).toEqual(['RATING_CLAIM_COMMIT_REPLY_LOST']);
+  expect((await w.requestStatuses()).get(uncertain)).toBe('SENDING');
+  const ready = await w.readyRequestIds();
   expect(ready.filter((id) => id === uncertain)).toHaveLength(1);
-  // عدم اليقين مرة واحدة بس: الدور الجاي يشوف السطر نفسه وما يحصلوش تاني.
+  // عدم اليقين مرة واحدة بس: الدور الجاي بيشوف السطر نفسه وما بيطلبش تاني.
   w.txTrap.lostReplies.delete(uncertain);
+  await first.enqueue(w.company);
+  const afterSecond = await w.readyRequestIds();
+  expect(afterSecond.filter((id) => id === uncertain)).toHaveLength(1);
+  expect((await w.requestStatuses()).get(uncertain)).toBe('SENDING');
+}, 300_000);
+
+it('a_lost_settlement_reply_keeps_the_request_in_the_retry_map', async () => {
+  const w = await openWorld({ budget: { forward: 4, retry: 1 }, state: { leaseMs: 1000 } });
+  const seeded = await w.seedDueRequests({ count: 4 });
+  const rolledBack = at(seeded.requestIds, 0);
+  w.tokens.allow = () => true;
+  w.claimTrap.failAfter.add(rolledBack);
+  const first = await openRunner(w);
+  await first.enqueue(w.company);
+  expect((await w.readState()).retries[rolledBack]).toBeDefined();
   // ضياع رد الإقرار: التسوية اتنفّذت والعميل ما عرفش، فالطلب ما يتشالش.
   w.state.loseReply('settleRetry');
   await first.enqueue(w.company);
-  expect(errorMessage(first.errors[0])).toMatch(/REPLY_LOST/);
+  expect(first.errors.map(errorMessage)).toEqual(['RATING_CLAIM_STATE_REPLY_LOST:settleRetry']);
   const afterLost = await w.readState();
   expect(afterLost.retries[rolledBack]).toBeDefined();
   expect(await w.readyRequestIds()).toHaveLength(3);
-  // الدور اللي بعده بياخد الشغل المعلّق ويكمّله: الصف المؤكد بيتشال، والحدث ما يتضاعفش.
+  // الدور اللي بعده بياخد الشغل المعلّق ويكمّله، بس الطلب الفاشل يفضل في الخريطة.
   await first.close();
   await waitForLeaseExpiry(w);
   const taking = await openRunner(w);
   await taking.enqueue(w.company);
   const finished = await w.readState();
-  expect(finished.retries[uncertain]).toBeUndefined();
   expect(finished.retries[rolledBack]).toBeDefined();
   const finalReady = await w.readyRequestIds();
   expect(finalReady).toHaveLength(3);
-  expect(finalReady.filter((id) => id === uncertain)).toHaveLength(1);
-  expect((await w.requestStatuses()).get(uncertain)).toBe('SENDING');
+  expect(finalReady.filter((id) => id === rolledBack)).toHaveLength(0);
 }, 300_000);

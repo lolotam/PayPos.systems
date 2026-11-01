@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { retryDelayMs } from '../../../../outbox/retry-policy.ts';
 import {
+  closeRedisClient,
   RATING_CLAIMS_QUEUE,
   RATING_CLAIMS_TRIGGERS,
   startRatingClaimsProcessor,
@@ -55,13 +56,16 @@ async function harness(): Promise<Harness> {
       },
     },
   });
-  const queue = new Queue(RATING_CLAIMS_QUEUE, { connection: new Redis(redisUrl), prefix });
+  const connection = new Redis(redisUrl);
+  const queue = new Queue(RATING_CLAIMS_QUEUE, { connection, prefix });
   cleanups.push(async () => {
     await processor.close();
     const schedulers = await queue.getJobSchedulers();
     for (const scheduler of schedulers) await queue.removeJobScheduler(scheduler.key);
     await queue.obliterate({ force: true });
     await queue.close();
+    // BullMQ مش بيقفل اتصال مُسلّم له، فقفل الاتصال علينا.
+    await closeRedisClient(connection);
   });
   return { processor, queue, prefix, turns };
 }
@@ -88,15 +92,18 @@ describe('معالج مطالبة طلبات التقييم', () => {
       .spyOn(Queue.prototype, 'upsertJobScheduler')
       .mockRejectedValue(new Error('SYNTHETIC_SCHEDULER_FAILURE'));
     const delays: (number | null)[] = [];
-    for (let attempt = 1; attempt <= 10; attempt += 1) {
-      const outcome = await world.processor.deliver(triggerEvent(companyId, attempt), next);
-      expect(outcome.delivered).toBe(false);
-      if (!outcome.delivered) {
-        expect(outcome.error).toBe('RATING_CLAIMS_SCHEDULE_RETRY');
-        delays.push(outcome.retryInMs);
+    try {
+      for (let attempt = 1; attempt <= 10; attempt += 1) {
+        const outcome = await world.processor.deliver(triggerEvent(companyId, attempt), next);
+        expect(outcome.delivered).toBe(false);
+        if (!outcome.delivered) {
+          expect(outcome.error).toBe('RATING_CLAIMS_SCHEDULE_RETRY');
+          delays.push(outcome.retryInMs);
+        }
       }
+    } finally {
+      spy.mockRestore();
     }
-    spy.mockRestore();
     const firstNine = delays.slice(0, 9);
     expect(firstNine).toEqual([
       5_000, 10_000, 20_000, 40_000, 80_000, 160_000, 320_000, 640_000, 1_280_000,
@@ -113,13 +120,30 @@ describe('معالج مطالبة طلبات التقييم', () => {
     const schedulerId = `${RATING_CLAIMS_QUEUE}-${companyId}`;
     await world.processor.deliver(triggerEvent(companyId), next);
     const first = await world.queue.getJobScheduler(schedulerId);
+    expect(first).toBeDefined();
     expect(first?.template?.data).toEqual({ companyId });
+    const firstNext = first?.next;
+    const firstIteration = first?.iterationCount;
+    const delayedBefore = (await world.queue.getDelayed()).map(
+      (job) => `${job.id ?? ''}@${job.timestamp}`,
+    );
+    expect(delayedBefore.length).toBeGreaterThan(0);
     const spy = vi.spyOn(Queue.prototype, 'upsertJobScheduler');
-    await world.processor.deliver(triggerEvent(companyId), next);
-    spy.mockRestore();
+    try {
+      await world.processor.deliver(triggerEvent(companyId), next);
+    } finally {
+      spy.mockRestore();
+    }
     expect(spy).not.toHaveBeenCalled();
     const second = await world.queue.getJobScheduler(schedulerId);
     expect(second?.template?.data).toEqual({ companyId });
+    // الجدولة نفسها ما اتغيّرتش: ميعاد الدور، ورقم الدورة، والمهمة المؤجلة.
+    expect(second?.next).toBe(firstNext);
+    expect(second?.iterationCount).toBe(firstIteration);
+    const delayedAfter = (await world.queue.getDelayed()).map(
+      (job) => `${job.id ?? ''}@${job.timestamp}`,
+    );
+    expect(delayedAfter).toEqual(delayedBefore);
   });
 });
 
@@ -136,6 +160,8 @@ describe('أحداث الزيارة', () => {
       await world.processor.deliver(triggerEvent(companyId, 1, trigger), counting);
     }
     expect(delegated).toBe(RATING_CLAIMS_TRIGGERS.length);
+    // الزيارة بتسجّل الجدولة بس: مفيش دور اتنفّذ من الحدث نفسه.
+    expect(world.turns).toHaveLength(0);
     const schedulers = await world.queue.getJobSchedulers();
     expect(schedulers).toHaveLength(1);
     expect(schedulers[0]?.key).toBe(`${RATING_CLAIMS_QUEUE}-${companyId}`);
@@ -147,8 +173,11 @@ describe('أحداث الزيارة', () => {
     const companyId = ids.newId();
     await world.processor.ensureRegistered(companyId);
     const spy = vi.spyOn(Queue.prototype, 'upsertJobScheduler');
-    await world.processor.ensureRegistered(companyId);
-    spy.mockRestore();
+    try {
+      await world.processor.ensureRegistered(companyId);
+    } finally {
+      spy.mockRestore();
+    }
     expect(spy).not.toHaveBeenCalled();
     const schedulers = await world.queue.getJobSchedulers();
     expect(schedulers).toHaveLength(1);

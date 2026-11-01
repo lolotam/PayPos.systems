@@ -67,14 +67,16 @@ if state['incarnation'] ~= env['incarnation'] then return reply('STALE', version
 if state['version'] ~= env['version'] then return reply('STALE', version) end
 if state['ownerToken'] ~= env['ownerToken'] then return reply('BUSY', version) end
 
--- سقف الدور بيتحسب قبل حارس الحجز: لو الوقت خلص لازم يوصل LIMIT مش BUSY،
--- وإلا الدور يقف بفقد سور كاذب بدل ما يوقّف نفسه وهو مالك الحالة.
+-- The turn ceiling is checked before the lease guard: a turn whose time is up
+-- must answer LIMIT, not BUSY, or it stops with a false fence loss while it still
+-- owns the state.
 if env['action'] == 'renew' then
   local turnStartedAt = state['turnStartedAt']
   if type(turnStartedAt) ~= 'number' then return reply('STALE', version) end
   local ceiling = turnStartedAt + env['maxTurnMs']
-  -- تجديد ما يبقاش حجز كامل معناها إن وقت الدور خلص؛ الحجز الجديد ما بيعديش
-  -- السقف، فالدور يوقّف بدل ما يكمّل مطالبة من غير سور.
+  -- A renewal that cannot hold a full lease means the turn is over; the renewed
+  -- lease never reaches past the ceiling, so the turn stops instead of claiming
+  -- without a fence.
   if now + env['leaseMs'] > ceiling then return reply('LIMIT', version) end
 end
 
@@ -84,8 +86,8 @@ if type(leaseUntil) ~= 'number' or leaseUntil <= now then return reply('BUSY', v
 if env['action'] == 'renew' then
   local renewed = now + env['leaseMs']
   state['leaseUntil'] = renewed
-  -- حجوزات الإعادة اللي المالك ده ماسكها بتتجدد معاه، وإلا المسار الطويل
-  -- للإعادة بيقع BUSY وسط ما السور لسه صالح.
+  -- Retry entries the same owner holds are renewed with it, or a long retry lane
+  -- hits BUSY in the middle while the fence is still valid.
   for _, entry in pairs(state['retries']) do
     if entry['ownerToken'] == env['ownerToken'] then
       entry['leaseUntil'] = renewed

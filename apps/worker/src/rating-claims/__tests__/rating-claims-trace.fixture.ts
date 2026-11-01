@@ -39,7 +39,11 @@ export function createGate(): Gate {
 /** أثر أوامر حالة الجدولة: الأوامر اللي اتبعت بسورها، والصفحات اللي اتسجلت. */
 export interface StateTrace {
   readonly calls: { readonly method: string; readonly fence: ClaimStateFence }[];
-  readonly pages: { readonly pageId: string; readonly requestIds: readonly string[] }[];
+  readonly pages: {
+    readonly pageId: string;
+    readonly requestIds: readonly string[];
+    readonly workTokens: readonly string[];
+  }[];
 }
 
 /** منفذ حالة بخطافات: بيوقف عند طريقة، أو بيطيح قبلها، أو بيضيّع الرد بعدها. */
@@ -135,10 +139,14 @@ function tracedPort(real: RatingClaimState, hooks: TraceHooks): RatingClaimState
     release: (fence) => call('release', fence, () => real.release(fence)),
     begin: (fence, sweepId, upperId) =>
       call('begin', fence, () => real.begin(fence, sweepId, upperId)),
-    enrollPage: (fence, sweepId, fromId, pageId, entries, exhausted) => {
-      hooks.trace.pages.push({ pageId, requestIds: entries.map((entry) => entry.requestId) });
+    enrollPage: (fence, sweepId, fromId, pageId, entries, exhausted, maxEntries) => {
+      hooks.trace.pages.push({
+        pageId,
+        requestIds: entries.map((entry) => entry.requestId),
+        workTokens: entries.map((entry) => entry.workToken),
+      });
       return call('enrollPage', fence, () =>
-        real.enrollPage(fence, sweepId, fromId, pageId, entries, exhausted),
+        real.enrollPage(fence, sweepId, fromId, pageId, entries, exhausted, maxEntries),
       );
     },
     reserveRetries: (fence, limit, workTokens) =>

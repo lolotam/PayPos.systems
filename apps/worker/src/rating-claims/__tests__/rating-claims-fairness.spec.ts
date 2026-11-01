@@ -228,7 +228,7 @@ it('retry_failures_rotate_and_preserve_forward_budget', async () => {
   const blocked = at(seeded.requestIds, 1);
   const survivor = at(seeded.requestIds, 2);
   // فشل دائم في أقدم طلب: لازم يلفّ على الذيل ولا يسدّ رأس المسار.
-  w.claimTrap.failBefore.add(oldest);
+  w.claimTrap.failAfter.add(oldest);
   // وصف تاني مقفل في معاملة تانية، فالمطالبة بتتخطاه بدل ما تستنى.
   const lock = await w.holdRequestLock(blocked);
   const first = await w.turn();
@@ -251,6 +251,8 @@ it('retry_failures_rotate_and_preserve_forward_budget', async () => {
   const tickets = Object.fromEntries(
     Object.entries(afterSecond.retries).map(([id, entry]) => [id, entry.ticket]),
   );
+  // الناجي لازم يكون موجود في الخريطة، وإلا المقارنة بتعدّي على فراغ.
+  expect(tickets[survivor]).toBeDefined();
   expect(tickets[oldest] ?? 0).toBeGreaterThan(tickets[survivor] ?? 0);
   // الحجز المحجوز ما بيتحجزش تاني في نفس الدور.
   const ownerToken = w.base.ids.newId();

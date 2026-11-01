@@ -17,9 +17,11 @@ import type { RatingClaimsFixture } from './rating-claims.fixture.ts';
 import type { SeededRows, SeedOptions } from './rating-claims-rows.fixture.ts';
 import type { RecordingDiagnostics, TracedState } from './rating-claims-trace.fixture.ts';
 
-/** خطّاف المطالبة: الطلبات اللي تفشل قبل التنفيذ، فالمعاملة بترجع وما بتكتبش. */
+/** خطّاف المطالبة: الطلبات اللي تفشل بعد التنفيذ، والمقدار اللي بتتحرّك بيه الساعة. */
 export interface ClaimTrap {
-  readonly failBefore: Set<string>;
+  readonly failAfter: Set<string>;
+  /** مللي ثانية بتتحرّك بيه الساعة بعد أول مطالبة، عشان التجديد يبقى مستحق. */
+  clockJumpMs: number;
 }
 
 /** خطّاف المعاملات: الطلبات اللي ضاع رد الـ commit بتاعها بعد ما اتنفّذ. */

@@ -121,6 +121,7 @@ class FakeState implements RatingClaimState {
     pageId: string,
     entries: readonly ClaimStatePageEntry[],
     exhausted: boolean,
+    _maxEntries: number,
   ): Promise<ClaimStateResult<ClaimStateSnapshot>> {
     this.calls.push('enrollPage');
     if (fence.companyId !== COMPANY) return { code: 'STALE', version: this.version };

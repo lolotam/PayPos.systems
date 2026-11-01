@@ -464,12 +464,26 @@ called".
   writes, settlements, renewals and releases are all rejected, the recovery is bounded, and each successful claim yields one event.
 - `recreated_state_rejects_all_old_fences` — only the test company's state is deleted while A holds work, and B recreates it
   with a fresh incarnation and the same numeric version: A can neither mutate nor delete B's state, including a retry ack.
-- `crash_before_and_after_page_enrollment` — a crash after the SELECT and before the CAS, a crash after the CAS and before the
-  claim, and a lost CAS reply: the cursor is unchanged or the journal is fully recoverable, and the page-id reconciliation
-  prevents a loss.
-- `crash_at_db_commit_and_settlement` — a rollback, an uncertain commit, a commit before the ack, a lost ack reply and a
-  completion after a takeover: the uncertainty is retained, there is one committed claim and one outbox event, and nothing
-  is removed prematurely.
+- `crash_before_page_enrollment` — a crash after the SELECT and before the CAS: the cursor is unchanged and no journal
+  exists.
+- `crash_after_page_enrollment` — a crash after the CAS and before the claim: the journal is fully recoverable and the
+  next turn completes the page.
+- `a_lost_enrollment_reply_is_reconciled_by_the_next_turn` — a lost CAS reply: the page-id reconciliation prevents a loss
+  and the next turn claims every row of the page.
+- `a_rolled_back_claim_leaves_no_trace_and_the_next_turn_claims_it_once` — the claim's UPDATE and outbox insert are rolled
+  back inside the transaction: the row stays `SCHEDULED` with no event, and the next turn yields exactly one committed claim
+  and one `RatingRequestReady` event for it.
+- `an_uncertain_commit_keeps_the_row_sending_without_a_second_claim` — the commit lands and its reply is lost: the row stays
+  `SENDING` with exactly one event, and the uncertainty is retained instead of being claimed twice.
+- `a_lost_settlement_reply_keeps_the_request_in_the_retry_map` — the settlement runs and its reply is lost: the request stays
+  in the retry map, nothing is removed prematurely, and the next turn completes it.
+- `the_turn_stops_at_its_ceiling_instead_of_losing_its_fence` — the renewal can no longer hold a full lease before the turn
+  ceiling: the turn ends `LIMIT_REACHED` with no fence-loss diagnostic, no claim starts after the ceiling, and the journal is
+  completed by the next turn.
+- `renew_extends_only_the_retry_leases_of_the_same_owner` — the owner's renewal extends the retry entries it holds, so the
+  settlement still succeeds after the entry's original lease would have expired; an entry held by another owner is not extended.
+- `a_removal_only_settlement_is_stored_against_the_full_byte_cap` — with a small reserved cap a `TERMINAL` settlement succeeds
+  although the state is above `maxBytes − reserveBytes`, while an insertion at the same size reports the overflow.
 - `retry_failures_rotate_and_preserve_forward_budget` — `SKIPPED`, `TOKEN_UNAVAILABLE` and errors including a permanently
   failing oldest row: the tickets rotate, the retry bound is finite, the forward visits continue, and the deduplication
   covers leased retries.

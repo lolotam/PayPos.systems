@@ -168,7 +168,7 @@ export interface RatingClaimState {
    * @param entries طلبات الصفحة ورموز شغلها الطازجة
    * @param exhausted هل الصفحة دي آخر الجولة
    * @param maxEntries ميزانية الدور الأمامية، وهي أقصى عدد بنود الصفحة المسموح؛
-   *   ولما ما تتحدّدش، الحد الافتراضي في الـ domain هو المرجع
+   *   المجدول بيبعتها من ميزانية الدور نفسها، فمفيش حد تاني بيقرّر الحجم
    * @returns النتيجة واللقطة بعد التسجيل
    */
   enrollPage(
@@ -178,7 +178,7 @@ export interface RatingClaimState {
     pageId: string,
     entries: readonly ClaimStatePageEntry[],
     exhausted: boolean,
-    maxEntries?: number,
+    maxEntries: number,
   ): Promise<ClaimStateResult<ClaimStateSnapshot>>;
   /**
    * يحجز إعادات المحاولة المستحقة، الأقدم تذكرة الأول. المجدول بيحتاجها عشان
