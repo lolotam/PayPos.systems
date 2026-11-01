@@ -1,8 +1,5 @@
 'use client';
-import {
-  serviceCategoryPage,
-  type ServiceCategoryListItem,
-} from '@pospay/contracts';
+import { serviceCategoryPage, type ServiceCategoryListItem } from '@pospay/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 
@@ -56,7 +53,6 @@ export function useOpenServiceCategories(companyId: string, businessId: string, 
   return useQuery({
     queryKey: ['service-categories', companyId, businessId, userId, 'open'],
     queryFn: ({ signal }) => readOpenServiceCategories(companyId, businessId, signal),
-    retry: (failureCount, error) =>
-      failureCount < 3 && !serviceCategoryListRefused(error),
+    retry: (failureCount, error) => failureCount < 3 && !serviceCategoryListRefused(error),
   });
 }

@@ -103,10 +103,12 @@ it('renders duration and category cells with a closed mark and dashes for missin
   );
   const secondRow = screen.getByRole('row', { name: /Second service/ });
   expect(within(secondRow).getAllByText('—')).toHaveLength(2);
-  expect(screen.getByRole('columnheader', { name: t('en', 'catalogServices.durationColumn') }))
-    .toBeTruthy();
-  expect(screen.getByRole('columnheader', { name: t('en', 'catalogServices.categoryColumn') }))
-    .toBeTruthy();
+  expect(
+    screen.getByRole('columnheader', { name: t('en', 'catalogServices.durationColumn') }),
+  ).toBeTruthy();
+  expect(
+    screen.getByRole('columnheader', { name: t('en', 'catalogServices.categoryColumn') }),
+  ).toBeTruthy();
 });
 
 it('hides the category filter after a 403 and still renders services', async () => {
@@ -144,7 +146,9 @@ it('keeps a loaded category filter visible after a background refetch fails', ()
       onChange={vi.fn()}
     />,
   );
-  const picker = screen.getByLabelText(t('en', 'catalogServices.categoryFilter')) as HTMLSelectElement;
+  const picker = screen.getByLabelText(
+    t('en', 'catalogServices.categoryFilter'),
+  ) as HTMLSelectElement;
   expect(picker.value).toBe(openCategory.id);
   expect(picker.selectedOptions[0]?.textContent).toBe('Hair');
 });

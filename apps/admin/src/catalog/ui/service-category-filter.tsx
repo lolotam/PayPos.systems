@@ -18,9 +18,7 @@ export function ServiceCategoryFilter({
   if (categoryQuery.isError && categoryQuery.data === undefined) return null;
   return (
     <div className="flex flex-col gap-2">
-      <Label htmlFor="service-category-filter">
-        {t(locale, 'catalogServices.categoryFilter')}
-      </Label>
+      <Label htmlFor="service-category-filter">{t(locale, 'catalogServices.categoryFilter')}</Label>
       <select
         id="service-category-filter"
         value={value}

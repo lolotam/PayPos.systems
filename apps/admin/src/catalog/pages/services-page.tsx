@@ -17,11 +17,7 @@ type ServicesPageProps = {
   userId: string;
 };
 
-export function ServicesPage({
-  companyId,
-  business,
-  userId,
-}: ServicesPageProps) {
+export function ServicesPage({ companyId, business, userId }: ServicesPageProps) {
   const locale = useLocale();
   const [cursor, setCursor] = useState<string>();
   const [serviceId, setServiceId] = useState('');
@@ -51,11 +47,7 @@ export function ServicesPage({
           </Button>
         }
       />
-      <ServiceCategoryFilter
-        categoryQuery={categoryQuery}
-        value={categoryId}
-        onChange={filter}
-      />
+      <ServiceCategoryFilter categoryQuery={categoryQuery} value={categoryId} onChange={filter} />
       <ServicesListPanel
         list={list}
         selectedId={serviceId}

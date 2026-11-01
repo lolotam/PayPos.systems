@@ -5,10 +5,7 @@ import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { FormProvider, useForm } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
-import {
-  omitRefusedCategory,
-  type ServiceCategoriesQuery,
-} from '../api/use-service-categories';
+import { omitRefusedCategory, type ServiceCategoriesQuery } from '../api/use-service-categories';
 import { ServiceAttributesFields } from './service-attributes-fields';
 import { ServiceBasicsFields } from './service-basics-fields';
 import { ServiceRuleFields } from './service-rule-fields';

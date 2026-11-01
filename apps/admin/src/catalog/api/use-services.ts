@@ -102,12 +102,7 @@ export function useServices(
   options: { cursor?: string | undefined; categoryId?: string | undefined } = {},
 ) {
   return useQuery({
-    queryKey: [
-      ...key(companyId, businessId, userId),
-      'list',
-      options.cursor,
-      options.categoryId,
-    ],
+    queryKey: [...key(companyId, businessId, userId), 'list', options.cursor, options.categoryId],
     queryFn: ({ signal }) => list(companyId, businessId, options, signal),
     refetchInterval: 30_000,
   });
