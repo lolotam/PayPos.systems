@@ -179,21 +179,33 @@ ADR-0012. Changing the id needs an explicit dedupe transition (ADR-0012 §1).
 
 ### 4. Root-bound readers (D-15, D-16)
 
-The bindings this slice needs, each one an interface **owned by commissions** in its `ports/` folder, implemented by a
+The bindings this slice needs, each one an interface **owned by commissions**, implemented by a
 provider-owned reader and bound at the composition root, the way the root-bound `DaySessionsPort` is
 (`docs/module-map.md` §3):
 
 | What it reads | Provider |
 | --- | --- |
-| the business timezone and creation date (`BusinessCalendarPort`, 48-2) | `tenancy` |
-| the in-transaction recheck of `manage:commission-plans:business` and the `commissions` feature, under `FOR SHARE` on the company and its memberships (`CommissionPlanAccessPort`, 48-2, FR-010) | `identity` |
-| the `FOR NO KEY UPDATE` lock on the employee row that orders version numbers (`EmployeeRowLockPort`, 48-2, FR-008) | `staff` |
+| the business timezone and creation date for the two input writers (`BusinessCalendarPort`, 48-2 and 49-1) | `tenancy` |
+| the in-transaction recheck of `manage:commission-plans:business` and the `commissions` feature, under `FOR SHARE` on the company and its memberships, including before replay (`CommissionPlanAccessPort`, 48-2 and 49-1, FR-010) | `identity` |
+| the `FOR NO KEY UPDATE` lock on the employee row that orders version allocation and service-override writes (`EmployeeRowLockPort`, 48-2 and 49-1, FR-008/FR-012) | `staff` |
+| service existence in the target business, read through readSessionServices on the writer's transaction without using its live rule to price history (`CommissionServiceReaderPort`, 49-1, FR-011) | `catalog` |
+| unlocked permission/feature recheck through readCommissionPlanListAccess, active employee existence through employeeExistsInBusiness, and the business timezone through businessTimeZone (`CommissionServiceOverrideListReads`, 49-1, FR-013) | `identity`, `staff`, `tenancy` |
 | service names | `catalog` |
 | notification recipients | `identity` |
 | the employee's business and dated branch attachments (FR-018b, FR-033) | `staff` |
 | customer full names (D-20) | `customers` |
 | tips and package sales for the bootstrap (ADR-0041 §6) | `orders` |
 | the names of the branches where the work was done, read live by the open month's view and review (they enter the statement fingerprint) and again at approval, which freezes them in the statement lines (CS-Q35 settled: freeze; 56-1b-fz removed the export's live `CommissionBranchNamesReader`, #718; the first statement builder, 51-1, names the port and 53-2 reuses it) | `tenancy` |
+
+Write-side interfaces live in `ports/`. The service-override list's read-only interface lives beside its query,
+following the existing `EmployeeAppLinkNames` pattern, so queries do not import write ports. Its callback adapter
+captures the caller's `Tx`; app.ts supplies provider-owned reads and commissions.module.ts checks the adapter's
+shape against `CommissionServiceOverrideListReadsFactory`. PostgreSQL derives the business-local date from the
+timezone within that same transaction. The list first rechecks the human actor's permission and feature through
+the unlocked identity reader; the writer reuses the same decision only after its existing company/membership locks.
+No employee query is copied into commissions, no provider join or read use
+case is introduced, and the query imports no domain or engine. This is the manager-confirmed query-local design
+of 49-1 ([plan](../specs/059-commissions-statements/plan-49-1.md), 2026-11-01).
 
 **Lines and salaries are not a binding.** Spec 059 D-15 (decided 2026-10-25) replays the retained `ServiceSessionRecorded`,
 `ServiceSessionLinesAdded`, `ServiceLineChanged` and `SalaryChanged` events from the outbox through a typed replay facade

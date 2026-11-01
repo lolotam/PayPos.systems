@@ -32,20 +32,35 @@ import {
   identityControllers,
   identityProviders,
   readCommissionPlanAccess,
+  readCommissionPlanListAccess,
 } from './modules/identity/index.ts';
 import { settingsControllers, settingsProviders } from './modules/settings/index.ts';
 import { notificationsControllers, notificationsProviders } from './modules/notifications/index.ts';
 import { mountWhatsappSecurity, type WhatsappIntake } from './modules/notifications/index.ts';
-import { businessCalendar, tenancyControllers, tenancyProviders } from './modules/tenancy/index.ts';
+import {
+  businessCalendar,
+  businessTimeZone,
+  tenancyControllers,
+  tenancyProviders,
+} from './modules/tenancy/index.ts';
 import {
   customersControllers,
   customersProviders,
   RATING_ROUTE,
   ratingAdmissionHook,
 } from './modules/customers/index.ts';
-import { catalogControllers, catalogProviders } from './modules/catalog/index.ts';
+import {
+  catalogControllers,
+  catalogProviders,
+  readSessionServices,
+} from './modules/catalog/index.ts';
 import { ordersControllers, ordersProviders } from './modules/orders/index.ts';
-import { lockEmployeeForUpdate, staffControllers, staffProviders } from './modules/staff/index.ts';
+import {
+  employeeExistsInBusiness,
+  lockEmployeeForUpdate,
+  staffControllers,
+  staffProviders,
+} from './modules/staff/index.ts';
 import { commissionsControllers, commissionsProviders } from './modules/commissions/index.ts';
 import { filesControllers, filesProviders, type FilesRuntime } from './modules/files/index.ts';
 import { mountAuthRoutes } from './shared/auth-routes.ts';
@@ -136,6 +151,27 @@ class ShutdownHook implements OnApplicationShutdown {
   }
 }
 
+function commissionBindings(deps: AppDependencies) {
+  return commissionsProviders(
+    deps.database,
+    deps.ids ?? systemUuidV7(),
+    {
+      businessCalendar,
+      employeeLock: lockEmployeeForUpdate,
+      access: readCommissionPlanAccess,
+      // وجود الخدمة بس: قاعدة الكتالوج الحية مش مرجع تاريخ، واللقطة المحفوظة على السطر هي المرجع.
+      serviceReader: async (tx, companyId, businessId, serviceId) =>
+        (await readSessionServices(tx, companyId, businessId, [serviceId])).length > 0,
+    },
+    {
+      access: readCommissionPlanListAccess,
+      timeZone: businessTimeZone,
+      employeeExists: employeeExistsInBusiness,
+    },
+    deps.commissionsClock,
+  );
+}
+
 @Module({})
 class AppModule {
   static forRoot(
@@ -171,16 +207,7 @@ class AppModule {
         ),
         ...catalogProviders(deps.database, deps.ids ?? systemUuidV7()),
         ...ordersProviders(deps.database, deps.ids ?? systemUuidV7(), deps.ordersClock),
-        ...commissionsProviders(
-          deps.database,
-          deps.ids ?? systemUuidV7(),
-          {
-            businessCalendar,
-            employeeLock: lockEmployeeForUpdate,
-            access: readCommissionPlanAccess,
-          },
-          deps.commissionsClock,
-        ),
+        ...commissionBindings(deps),
         ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
         ...notificationsProviders(deps.database, deps.whatsapp, deps.push),
         ...staffProviders(

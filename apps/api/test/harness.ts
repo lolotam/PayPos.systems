@@ -31,8 +31,12 @@ import { createApp } from '../src/app.ts';
 import { API_LOG_EVENTS } from '../src/shared/log-events.ts';
 import type { FilesRuntime } from '../src/modules/files/index.ts';
 
-export { readCommissionPlanAccess } from '../src/modules/identity/index.ts';
-export { lockEmployeeForUpdate } from '../src/modules/staff/index.ts';
+export { readSessionServices } from '../src/modules/catalog/index.ts';
+export {
+  readCommissionPlanAccess,
+  readCommissionPlanListAccess,
+} from '../src/modules/identity/index.ts';
+export { employeeExistsInBusiness, lockEmployeeForUpdate } from '../src/modules/staff/index.ts';
 export { businessCalendar, businessTimeZone } from '../src/modules/tenancy/index.ts';
 
 // A real API over a cloned database with real Better Auth sessions. Users are made the way an operator makes them,

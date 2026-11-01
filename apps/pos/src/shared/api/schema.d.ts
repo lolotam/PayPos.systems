@@ -191,6 +191,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/employees/{employeeId}/commission-overrides": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Current and historical service overrides of the employee (FR-013). is_current is the server’s own verdict on the single row the engine applies today for that service, so the client reads it and never recomputes it from the dates; every other row is history, and each row keeps the effective date it was saved with, so a future row stays visible. service_id narrows the list to one service. Requires manage:commission-plans:business and the commissions feature. Reads only. */
+        get: operations["listCommissionServiceOverrides"];
+        put?: never;
+        /** @description Creates one insert-only service override for the employee (FR-011). The rule is FOLLOW_PLAN, ZERO, PCT (basis points 0…10000) or FIXED (a KWD amount with exactly three decimals). FOLLOW_PLAN means the employee plan; only the absence of an eligible override falls back to the rule snapshot saved on the sale line. The service is checked in the business before anything is written. Requires manage:commission-plans:business and the commissions feature. The row and its audit entry commit in one transaction; the table is append-only, so a later override supersedes an earlier one by the engine order and never by an update. */
+        post: operations["createCommissionServiceOverride"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/document-types": {
         parameters: {
             query?: never;
@@ -2890,6 +2908,80 @@ export interface components {
             code: "IDEMPOTENCY_KEY_REUSED";
             message_ar: string;
             message_en: string;
+        };
+        CreateCommissionServiceOverrideInput: {
+            /** Format: uuid */
+            service_id: string;
+            rule: components["schemas"]["ServiceCommissionRule"];
+            effective_from: components["schemas"]["CommissionPlanDate"];
+        };
+        CommissionServiceOverride: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            employee_id: string;
+            /** Format: uuid */
+            service_id: string;
+            rule: {
+                /** @enum {string} */
+                kind: "FOLLOW_PLAN";
+            } | {
+                /** @enum {string} */
+                kind: "ZERO";
+            } | {
+                /** @enum {string} */
+                kind: "PCT";
+                value: number;
+            } | {
+                /** @enum {string} */
+                kind: "FIXED";
+                value: components["schemas"]["ServicePrice"];
+            };
+            effective_from: components["schemas"]["CommissionPlanDate"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            created_by: string;
+        };
+        CommissionServiceOverrideListQuery: {
+            /** Format: uuid */
+            service_id?: string;
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        CommissionServiceOverrideListItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            employee_id: string;
+            /** Format: uuid */
+            service_id: string;
+            rule: {
+                /** @enum {string} */
+                kind: "FOLLOW_PLAN";
+            } | {
+                /** @enum {string} */
+                kind: "ZERO";
+            } | {
+                /** @enum {string} */
+                kind: "PCT";
+                value: number;
+            } | {
+                /** @enum {string} */
+                kind: "FIXED";
+                value: components["schemas"]["ServicePrice"];
+            };
+            effective_from: components["schemas"]["CommissionPlanDate"];
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            created_by: string;
+            is_current: boolean;
+        };
+        CommissionServiceOverrideList: {
+            items: components["schemas"]["CommissionServiceOverrideListItem"][];
+            next_cursor: string | null;
         };
         /** @enum {string} */
         EmployeeDocumentStatus: "NO_EXPIRY" | "VALID" | "EXPIRING" | "EXPIRED";
@@ -8189,6 +8281,155 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommissionPlanInvalidError"] | components["schemas"]["CommissionEffectiveFromPastError"] | components["schemas"]["CommissionPeriodBeforeBusinessError"] | components["schemas"]["CommissionPlanIdempotencyKeyReusedError"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listCommissionServiceOverrides: {
+        parameters: {
+            query?: {
+                service_id?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current and historical overrides of the employee */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionServiceOverrideList"];
+                };
+            };
+            /** @description Invalid cursor or query */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform 403 refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description EMPLOYEE_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createCommissionServiceOverride: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCommissionServiceOverrideInput"];
+            };
+        };
+        responses: {
+            /** @description Stored service override */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionServiceOverride"];
+                };
+            };
+            /** @description Malformed request body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform 403 refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description EMPLOYEE_NOT_FOUND or SERVICE_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description COMMISSION_EFFECTIVE_FROM_PAST when effective_from is before today, or IDEMPOTENCY_KEY_REUSED when the same Idempotency-Key is sent with another body. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionEffectiveFromPastError"] | components["schemas"]["CommissionPlanIdempotencyKeyReusedError"];
                 };
             };
             /** @description Bilingual refusal */

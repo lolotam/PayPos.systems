@@ -22,6 +22,25 @@ export async function readCommissionPlanAccess(
   await tx.execute(
     sql`SELECT id FROM memberships WHERE company_id=${companyId} ORDER BY id FOR SHARE`,
   );
+  return readCommissionPlanListAccess(tx, companyId, userId, businessId);
+}
+
+/**
+ * بيعيد قرار صلاحية العمولة والميزة للقائمة داخل معاملة القراءة، من غير أقفال كتابة.
+ * الكاتب يعيد استخدام القرار نفسه بعد أقفاله؛ القائمة لا تحمل نتيجة الحارس من معاملة سابقة.
+ *
+ * @param tx معاملة الشركة الحالية
+ * @param companyId الشركة المطلوبة
+ * @param userId المستخدم البشري
+ * @param businessId النشاط المطلوب
+ * @returns سبب الرفض، أو null عند السماح
+ */
+export async function readCommissionPlanListAccess(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  businessId: string,
+): Promise<'FORBIDDEN' | 'FEATURE_DISABLED' | null> {
   const [business] = await tx.execute(sql`SELECT id FROM businesses
     WHERE company_id=${companyId} AND id=${businessId}
       AND EXISTS (SELECT 1 FROM companies WHERE id=${companyId} AND deleted_at IS NULL)`);

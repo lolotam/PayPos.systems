@@ -63,7 +63,8 @@ export const commissionPlanTiers = z
   ])
   .meta({ id: 'CommissionPlanTiers' });
 
-const commissionPlanDate = z.iso
+// التاريخ بيبدأ من سنة حقيقية (مفيش سنة صفر في PostgreSQL)، فالسكيما بترفض «0000-…» بدل ما تسيبه للـ DB.
+export const commissionPlanDate = z.iso
   .date()
   .regex(/^(?!0000)/)
   .meta({ id: 'CommissionPlanDate' });

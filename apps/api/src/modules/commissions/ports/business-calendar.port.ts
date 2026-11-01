@@ -1,13 +1,13 @@
 import type { Tx } from '@pospay/db';
 
-/** قارئ تقويم النشاط يرتبط عند جذر التركيب، فلا تستورد commissions وحدة tenancy. */
+/** قارئ تقويم النشاط يرتبط عند جذر التركيب، فلا تستورد commissions وحدة tenancy؛ يخدم كاتبَي إصدارات الخطة وتجاوزات الخدمة. */
 export interface BusinessCalendarPort {
   /**
    * بيرجّع توقيت النشاط وتاريخ إنشائه من معاملة الكاتب لتحديد اليوم المحلي وأول شهر مسموح.
    *
    * @param tx معاملة commissions الحالية
    * @param companyId الشركة المؤكدة
-   * @param businessId النشاط المالك للخطة
+   * @param businessId النشاط المالك لتعديل الخطة أو تجاوز الخدمة
    * @returns التوقيت وتاريخ الإنشاء، أو null عند غياب النشاط
    */
   read(
