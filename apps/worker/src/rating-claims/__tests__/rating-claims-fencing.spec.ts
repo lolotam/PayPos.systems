@@ -146,7 +146,10 @@ it('two_workers_expired_owner_cannot_regress_state', async () => {
   // A بيرجع، فأي كتابة ليه مرفوضة بسور قديم.
   expect(runnerA.summaries[0]?.end).toBe('FENCE_LOST');
   expect(w.diagnostics.fenceLosses).toContain('STALE');
-  const enrollCall = at(aState.trace.calls.filter((call) => call.method === 'enrollPage'), 0);
+  const enrollCall = at(
+    aState.trace.calls.filter((call) => call.method === 'enrollPage'),
+    0,
+  );
   const staleFence = enrollCall.fence;
   const staleSettlement = await w.state.port.settlePage(
     staleFence,
@@ -219,11 +222,7 @@ it('recreated_state_rejects_all_old_fences', async () => {
   const seeded = await w.seedDueRequests({ count: 3 });
   // حالة الشركة التانية موجودة، والحذف لازم ما يمسّهاش.
   const otherOwner = w.base.ids.newId();
-  const otherAcquired = await w.state.port.acquire(
-    w.otherCompany,
-    w.base.ids.newId(),
-    otherOwner,
-  );
+  const otherAcquired = await w.state.port.acquire(w.otherCompany, w.base.ids.newId(), otherOwner);
   expect(otherAcquired.code).toBe('OK');
   const otherFence = fenceOf(otherAcquired, otherOwner);
   // العامل A ياخد الحالة ويسجل صفحة فيها شغل.
@@ -301,11 +300,7 @@ it('tenant_isolation_covers_state_and_claims', async () => {
   const acquired = await w.state.port.acquire(w.company, w.base.ids.newId(), ownerToken);
   const fence = fenceOf(acquired, ownerToken);
   const otherOwner = w.base.ids.newId();
-  const otherAcquired = await w.state.port.acquire(
-    w.otherCompany,
-    w.base.ids.newId(),
-    otherOwner,
-  );
+  const otherAcquired = await w.state.port.acquire(w.otherCompany, w.base.ids.newId(), otherOwner);
   expect(otherAcquired.code).toBe('OK');
   // سور الشركة الأولى مرفوض على حالة الشركة التانية.
   const crossed = await w.state.port.settlePage(

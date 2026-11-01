@@ -1,4 +1,4 @@
-﻿// مُنشئ عالم القبول: القاعدة الحقيقية، وRedis الحقيقية، ومهايات المطالبة الحقيقية.
+// مُنشئ عالم القبول: القاعدة الحقيقية، وRedis الحقيقية، ومهايات المطالبة الحقيقية.
 import { Redis } from 'ioredis';
 import { sql } from 'drizzle-orm';
 
@@ -207,8 +207,7 @@ function buildTransactions(
 ): RatingClaimTransactions<Tx> {
   return {
     upperId: (companyId) => raw.upperId(companyId),
-    pageIds: (companyId, after, through, limit) =>
-      raw.pageIds(companyId, after, through, limit),
+    pageIds: (companyId, after, through, limit) => raw.pageIds(companyId, after, through, limit),
     withRequest: async (companyId, requestId, work) => {
       const result = await raw.withRequest(companyId, requestId, work);
       if (txTrap.lostReplies.has(requestId)) {
@@ -251,10 +250,7 @@ async function openRatingRequests(base: RatingClaimsFixture): Promise<void> {
 }
 
 /** يزرع دفعة طلبات مستحقة مع زياراتها، كلها في معاملة واحدة. */
-async function seedDueRequestsOf(
-  parts: WorldParts,
-  options: SeedOptions,
-): Promise<SeededRows> {
+async function seedDueRequestsOf(parts: WorldParts, options: SeedOptions): Promise<SeededRows> {
   const plan = seedPlan(seedTarget(parts), options);
   await seedDueRows(parts.base.owner, plan);
   return { requestIds: plan.requestIds, customerIds: plan.customerIds };
