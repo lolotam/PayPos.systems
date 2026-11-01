@@ -97,6 +97,10 @@ export function decodeCommissionServiceOverrideCursor(
   }
   if (record['e'] !== context.employeeId) return { kind: 'invalid' };
   if ((record['f'] ?? undefined) !== context.serviceId) return { kind: 'invalid' };
+  // فلتر خدمة واحدة لا يقبل موضع خدمة أخرى؛ UUID بنفس القيمة يظل صالحاً مع اختلاف حالة الحروف.
+  if (record.f !== null && record.s.toLowerCase() !== record.f.toLowerCase()) {
+    return { kind: 'invalid' };
+  }
   return {
     kind: 'valid',
     position: {

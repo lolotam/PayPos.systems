@@ -68,6 +68,43 @@ it('a cursor from another employee or another filter is refused', async () => {
   expect([otherFilter.status, otherFilter.body['code']]).toEqual([400, 'VALIDATION_FAILED']);
 });
 
+it('a filtered cursor refuses a service position before or after its filter', async () => {
+  const cursor = await firstCursor();
+  const payload = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+  for (const serviceId of [
+    '00000000-0000-7000-8000-000000000001',
+    'ffffffff-ffff-7fff-bfff-ffffffffffff',
+  ]) {
+    const inconsistent = Buffer.from(
+      JSON.stringify({ ...payload, f: f.service, s: serviceId }),
+    ).toString('base64url');
+    const response = await f.getOverrides(
+      `?limit=1&service_id=${f.service}&cursor=${inconsistent}`,
+    );
+    expect([response.status, response.body['code']]).toEqual([400, 'VALIDATION_FAILED']);
+    expect(JSON.stringify(response.body)).not.toContain(f.company);
+  }
+});
+
+it('a filtered cursor accepts the same service UUID with different letter cases', async () => {
+  const cursor = await firstCursor();
+  const payload = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+  for (const [filter, position] of [
+    [f.service, f.service.toUpperCase()],
+    [f.service.toUpperCase(), f.service],
+  ]) {
+    const equivalent = Buffer.from(JSON.stringify({ ...payload, f: filter, s: position })).toString(
+      'base64url',
+    );
+    const response = await f.getOverrides(`?limit=1&service_id=${filter}&cursor=${equivalent}`);
+    expect(response.status).toBe(200);
+    const body = commissionServiceOverrideList.parse(response.body);
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0]?.service_id).toBe(f.service);
+    expect(body.next_cursor).toBeNull();
+  }
+});
+
 it('an impossible instant or an extra payload field is refused before PostgreSQL can return 500', async () => {
   const cursor = await firstCursor();
   const payload = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
