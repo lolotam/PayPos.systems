@@ -1,682 +1,198 @@
 ---
 name: pospay-pipeline
-description: "PosPay's fixed delivery pipeline, decided by the owner (Waleed) on 2026-10-07 and updated 2026-10-20. Use it for every row of a phase implementation plan, every new slice or use case, and every fix PR that touches production code in this repo. It pins who does each role (Kimi k3.1-pro#high via opencode implements by default, MiniMax-M3.1-Flash for small pinned backend slices, Codex and the MergePilot panel review, Claude orchestrates), the review-round cap, the parallel-task cap, the database review, the guard pass, the staging deploy, the status page and the owner report, so they are never re-asked. It runs on top of waleed-implementation-v2 and replaces that skill's questions and fallback chains for this project. Not for a typo or a question. A docs-only change follows the docs-only lane (§2), and every merge, docs-only included, still updates the decisions page's status tab (§6 step 8)."
+description: "Apply PosPay's owner-confirmed delivery pipeline to phase-plan rows, slices, use cases and fix PRs. Use MiniMax for initial implementation, GLM 5.3 Flash for small exactly pinned tasks, Kimi for corrections after clean handoff, built-in delegation, three concurrent tasks and five GitHub reviews. Apply the lighter docs-only lane to documentation changes."
 ---
 
 # PosPay delivery pipeline
 
-You are the **orchestrator** (Claude Code in the owner's session). You do not write large amounts of production code
-yourself. You write specs and briefs, dispatch the lanes below, judge every delivery, run every gate, and land the
-work.
+## 1. Authority and required reading
 
-**Precedence.** The project documents win over this skill: `CLAUDE.md`, `CLAUDE.architecture.md`,
-`docs/06_Tech_Stack_Architecture_EN.md`, `docs/module-map.md`, `docs/adr/*`. This skill wins over
-`waleed-implementation-v2` for PosPay: use v2 for its process mechanics (baselines, judging deliveries, landing order),
-but take the lanes, limits and answers from here and **do not ask v2's Phase 0 questions** — they are answered below.
-If a rule here conflicts with a project document, follow the document and tell the owner this skill must be fixed.
+Read `AGENTS.md` and all six governing documents it lists, then
+[the owner-confirmed delivery policy](../../../docs/agent-delivery-pipeline.md).
+Apply that policy as the authoritative source for roles, transport, fallback, reviewer counts,
+concurrency and handoff. This skill is its operational companion, aligned with PP-69, PP-73,
+PP-84 and PP-91/PP-92 (owner-decision items 31, 35–39 and 43–44; PR #749).
 
-The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief points the implementer at them (§4).
+Preserve every technical, architectural, database, security and testing requirement in the
+six governing documents and applicable ADRs. If a technical or security rule conflicts,
+follow the governing document and report the conflict to Waleed. Use
+`waleed-implementation-v2` only for compatible process mechanics; do not reopen owner choices
+already settled by the policy. Historical decisions remain audit records, not active alternatives.
 
----
+Act as the orchestrator: prepare bounded briefs, judge deliveries personally, run checks and
+coordinate authorized publication. Do not take over production implementation to bypass a lane.
 
-## 1. The lanes
+## 2. Roles and transport
 
-| Role | Who (friendly name → live id) | Writes files? |
-|---|---|---|
-| Orchestrator | Claude Code (this session) | yes — specs, briefs, renumbering, fixes on docs-only PRs (never production code, PP-10.1), and merges without asking once every gate passes (Waleed, SA-11 «ج»: a PosPay merge reaches staging only; production, production data and server changes still need his yes; `docs/owner-decisions.ar.md` item 17) |
-| Design advisors (risky slices only, §3 step 2) | Codex astra 6 medium (`gpt-6-astra`, effort medium) **and** Claude Fable 5.1 medium (`claude-fable-5-1`) | no — read-only |
-| **Implementer** — code, tests, migrations **and PR-finding fix rounds** | **opencode `kimi-code-plan-global/k3.1-pro#high` by default; `minimax-coding-plan/MiniMax-M3.1-Flash` (default variant) for small, fully pinned backend and data slices (SQL, RLS, domain math)** — owner's choice 2026-10-24 after the six-task trial (PP-55.1, `docs/owner-decisions.ar.md` item 26), replacing PP-10.1 «MiniMax only». Both run under the same guarded dispatch (§4); only `-m` changes. No Grok or Codex implementation runs. **Wherever this skill says "MiniMax", read "the implementer", whichever of the two the task uses.** Every implementer brief bans all git commands, edits outside the task, unrelated reformatting and line-squashing to dodge `max-lines`; the reviewer diffs every rewritten SQL function body against the old one and reviews money, DB and permission changes strictly | yes, in its own worktree |
-| **Database reviewer** | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) | no |
-| Review layer 1 | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) — owner's choice 2026-10-11 | no |
-| Review layer 2 | **one** fresh Claude reviewer, **Sonnet 5.5 at medium effort** (`claude-sonnet-5-5`), given the diff, the spec and the governing documents (§8 rule 5), never the session history; **high** effort for money, tenant isolation (RLS), auth and migrations; none for a docs-only PR (§8 rule 5) | no |
-| Review layer 3 — **four bots** | the Codex GitHub bot (`chatgpt-codex-connector[bot]`, `@codex review` after every push; Codex CLI when out of quota) **and** the MergePilot panel (`mergepilot-review[bot]`): MergePilot (`gpt-6.1-sol`), waleed_bot (`claude-sonnet-5-5`), mohamed_bot (`grok-4.7`), which reviews every pushed commit on its own | no |
-| Draft writer (§8 rule 6) | MiniMax writes first drafts of specs, ADRs, journey docs and the HANDOVER; the orchestrator edits and owns the result | yes |
-| Fixer | the implementer, continuing **its own MiniMax session** with only the findings (§4), for every production-code finding, a one-line one included (PP-10.1); the orchestrator (or a doc-writing session) only for a fix on a docs-only PR, where no implementer session exists | yes |
-| Staging server | the orchestrator only, over the `abdulaziz` SSH profile | — |
+Use the runtime's **built-in delegation facility only** (`delegate_task` in T3 Code;
+`functions.delegate` in the Codex runtime described by the policy). Match the current configured
+lane; do not invent an API, provider, model id, variant or effort when it is unavailable.
 
-There is no separate model check before the first dispatch. Any `opencode` command started outside §4's guarded setup
-loads plugins and config before `check-opencode.cjs` has vetted them, and a bare `opencode run` would also run the model
-under opencode's default, unrestricted permissions. The first guarded run is the check: a missing model id, or an auth
-or quota failure, shows as a nonzero exit (§4 rule 8). Then stop and ask the owner. Never substitute a provider outside these two (PP-55.1), and never switch a task between them without the owner's yes. **A Kimi usage limit is the exception, and the procedure is the owner's PP-60 yes already given:** do not stop and ask; switch that task to MiniMax in a new session (§4) and return to Kimi after the renewal. The cases: (1) a task that runs on MiniMax by design hits MiniMax's usage limit: hold, then resume the same session after the renewal, and never move it to Kimi without the owner's yes; (2) a temporary PP-60 MiniMax session goes back to Kimi as soon as Kimi renews, and if MiniMax runs out first, hold until either one renews; (3) any failure that is not a usage limit (authentication, configuration, an unavailable model) follows the rule above: stop and ask the owner. Hold-and-resume applies only to the usage-limit cases (1) and (2).
+| Role | Primary lane | Fallback |
+| --- | --- | --- |
+| Spec, plan, design and `grill-me` questions; documentation only | Claude Code, `claude-opus-5-5`, effort `high` | Cursor, same model and effort |
+| Initial implementation | MiniMax `M3.1-Flash · thinking`, T3 MiniMax Code provider | Claude Code, `claude-opus-5-5` |
+| Small, exactly pinned initial tasks, beside MiniMax | GLM `5.3 Flash`, T3 OpenCode provider, `opencode/glm-5.3-flash-free`, variant `high` | MiniMax, then Claude Code, `claude-opus-5-5` |
+| Corrections after clean initial handoff | Kimi `K3.1 Pro`, T3 OpenCode provider, `kimi-code-plan-global/k3.1-pro`, variant `high`; `max` for money and database work | Claude Code, `claude-opus-5-5` |
+| Risky-slice design advice; read-only | Codex `gpt-6-astra`, effort `high` | Claude Code, `claude-opus-5-5` |
+| Single internal code review, including database/security review; read-only | Codex `gpt-6-astra`, effort `high` | Claude Code, `claude-opus-5-5` |
+| Hard-decision advisor, only when asked | Claude `claude-fable-5-1` | — |
 
----
+Move to the stated fallback only after **two availability or rate-limit failures**, not poor
+work quality, and record the switch in the PR. Confirmed exhausted native planner quota permits
+the same-model Cursor fallback without another quota probe. Apply PP-84.2 as the exception:
+when T3 cannot reach the OpenCode server, **hold Kimi dispatches until Waleed starts it**;
+do not start it yourself or switch those dispatches to Claude Code without Waleed's instruction.
 
-## 2. Limits
+If the configured fleet lacks a required lane, stop that dispatch and ask Waleed to add or
+enable it. Do not create a login, API key or alternative provider. T3's OpenCode provider is
+allowed; shell-run `opencode run`, `codex exec`, external CLIs, relays and process substitutes
+are forbidden. Do not use the legacy CLI generator, checker or session-stopper files beside
+this skill as a dispatch recipe. Built-in transport alone proves no technical sandbox.
 
-- **Review rounds: at most 5 per PR**, counting every review → fix cycle across all three layers and the database
-  review. After round 5, sort what is left by severity:
-  - **P0 / P1** (security, money, tenant isolation, data loss, correctness): both design advisors propose a fix, the
-    implementer applies it, and the PR **stays blocked** until it is fixed and confirmed. The cap never lowers the bar.
-  - **P2 / P3**: open a GitHub issue per finding, linked from its review thread, then merge.
-- **Parallel work: keep 5 to 6 tasks running at all times, 6 at most** (Waleed, PP-59, 2026-10-25, `docs/owner-decisions.ar.md` item 28; it replaces the old cap of 3, and `.specify/memory/constitution.md` Principle I carries the same limit since version 3.1.0). When a task merges, open a replacement at once. Pick tasks whose file paths are **disjoint**, and run **one migration lane at a time**. Implementation runs on Kimi/MiniMax and Codex gives advice and review, to save Claude quota. Two tasks that touch the
-  same file wait for each other. Each task has its own branch, worktree (`F:\Dev\Worktrees\PosPay\<branch>`) and PR.
-  Migration and ADR numbers are assigned **at merge time**: renumber the later PR after the earlier one lands. Each
-  slice still merges only when it is green on its own head (constitution Principle I, as amended 2026-10-07).
-- **One use case per PR** (`CLAUDE.md` §1). A task that needs two use cases is two PRs.
-- **Docs-only lane** (owner, 2026-10-17). A PR whose files are all under `docs/**`, `*.md`, `.claude/skills/**` or
-  `.specify/**` (no code, no migration, no generated file) skips §3 steps 2, 5 (except `docs-guard`), 6, 7, 8 and 14, needs no implementer dispatch (§3 step 3; specs and ADRs are drafted by MiniMax and edited and owned by the orchestrator, §8 rule 6) and no spec (§3 step 1) unless the PR is itself a spec, judges §3 step 4 by `pnpm format:check` (`prettier --check .`, which covers Markdown) instead of the full `pnpm check`, and skips the
-  5-round cap. It merges when `ci-gate` is green on the exact head, the Codex bot and the MergePilot panel have
-  completed on that head, and no P0/P1 is open. A P1 here means a wrong or contradictory rule in any governing or operational document (a spec, an ADR, `CLAUDE.md`, a skill, `docs/security.md`, a runbook); the bar
-  for it does not move. P2/P3 findings on prose are fixed in one batch commit at most; the rest become linked issues.
-  The status-page update (§6 step 8) still applies after the merge.
-- **waleed_Bot failing (PP-5.2, owner, 2026-10-19).** While **waleed_Bot** returns `❌ failed` on every review,
-  "the panel completed" means every *other* panel bot completed on the head. The Codex bot must still complete, and
-  no P0/P1 may be open. The merge report names waleed_Bot's failure. The exception covers waleed_Bot only and ends when
-  it completes again. Any other bot that fails blocks the merge until the owner decides.
+## 3. Scope, concurrency and lifecycle
 
----
+- Run **at most three tasks**, including GLM tasks. The four-task PP-88 evaluation was temporary,
+  not a standing exception. Choose unrelated work; dependent tasks wait for their prerequisite
+  to merge. Never let two authors touch the same file or two open tasks change the same table.
+- Keep one use case per PR, with its own task session, branch and worktree. Keep a persistent
+  management session for priorities and coordination. Keep related tests and fixes with the task;
+  a new session or worktree never resets its correction budget or ownership.
+- Allow concurrent migration tasks only with separate local Postgres containers and ports per
+  worktree. Reserve migration and ADR numbers in expected merge order; finalize at merge and
+  rebase later migrations on `main`. Never test on shared or staging databases.
+- Give reviewers independent fresh context: diff, spec and governing documents, never implementer
+  history. A read-only reviewer may inspect the existing task worktree.
+- Hand off current scope, branch/worktree/HEAD, decisions, actual check and review receipts,
+  blockers, remaining work, correction-budget usage and live workers/processes, without secrets.
+- Account for workers, tests, owned containers and processes before closing a session. Remove a
+  worktree only after merge and delivery verification, preserving audit evidence and checking
+  tracked, untracked and valuable ignored files. Never force cleanup or remove another task's work.
 
-## 3. The steps
+## 4. Preparation and delegated brief
 
-| # | Step | Owner | Done when |
-|---|---|---|---|
-| 0 | Pick the next row of the phase plan, or the task the owner names | orchestrator + owner | row named in the report |
-| 1 | Spec: `/speckit-specify` → `docs/specs/NNN-<module>-<use-case>/spec.md`; owner questions → the slice's `owner-questions.ar.md` (a question that belongs to no slice, such as a pipeline, docs or process rule, goes to `docs/owner-decisions.ar.md` instead), then sent to Waleed as cards; feature and business questions are also published on the decisions page as a new numbered batch (on a difference Abu Salem's pick wins), and technical questions go to Waleed only, never on the page (`CLAUDE.md` §1 5b, V3.17); a feature's questions are asked together before its first sub-PR, in one batch | orchestrator | every business rule is in the spec or asked; an unknown rule is a `TODO(spec)` and a stop. **Ask the whole feature at once** (owner, 2026-10-17): before the first sub-PR of a feature starts, list every sub-PR in the plan, collect all of their owner questions: the feature and business ones in one numbered batch on the page (also sent to Waleed as cards), the technical ones to Waleed only as cards, and add a clickable mockup (an HTML artifact, or a Lovable prototype) when the answer is a screen; late-found questions are the exception, not the routine |
-| 2 | Design advice — **only** when the slice parses files, runs long work, may cross 200 ms, moves money, or changes auth/RLS | both advisors, read-only | the chosen design is written into the spec |
-| 3 | Brief and dispatch the implementer (§4), baseline captured first | orchestrator → MiniMax | MiniMax reports done; the delivery is kept as the first commit, as delivered |
-| 4 | Judge the delivery: diff against the baseline, read it against the spec, merge `main`, renumber migrations/ADRs, `pnpm check` | orchestrator | `pnpm check` green |
-| 5 | Guard pass: `clean-code-guard` on production code, `test-guard` on tests, `docs-guard` on docs (global `CLAUDE.md` guard workflow) | orchestrator | findings fixed or recorded |
-| 6 | Database review — **mandatory** when the PR touches `packages/db/**` (schema, migration, RLS, grants, seed) | Codex astra 6 medium | no open P0/P1 (§5 checklist) |
-| 7 | Review layer 1 | Codex astra 6 medium | findings fixed by MiniMax in its continued session, or deferred per §2 |
-| 8 | Review layer 2 — one Sonnet 5.5 reviewer (§8 rule 5); no separate confirm round, the four bots confirm on the head SHA in step 9 | fresh Claude reviewer | its findings fixed by MiniMax or deferred per §2 |
-| 9 | Push, open the PR (spec link + checklist), comment `@codex review` | orchestrator | **all four bots answered on the head SHA**: Codex summary says Completed for that SHA, the MergePilot review for that SHA shows all three bots completed (a failing waleed_Bot is handled by the PP-5.2 exception in §2), and every inline finding is fixed or deferred per §2 |
-| 10 | CI `ci-gate` green **on the exact head being merged** | GitHub Actions | green |
-| 11 | Merge: `gh pr merge <n> --squash --delete-branch --match-head-commit <reviewed-sha>` — a push after the reviews makes the merge fail instead of landing an unreviewed head | orchestrator | merged |
-| 12 | Deploy to staging (§6) | orchestrator | `/ready` answers ready on the new SHA |
-| 13 | Update the decisions page's «المشروع أول بأول» tab (§6 step 8) | orchestrator | `roadmap.json` pushed to `lolotam/plan` and live |
-| 14 | Journey doc `docs/journey/NN-<name>.md` (Arabic + English) in its own docs PR | orchestrator | merged after Codex review |
-| 15 | Owner report (§7) | orchestrator | sent |
+1. Refresh repository/history, the live roadmap, both owners' reviews/answers and partner requests.
+   Follow `docs/decisions-site.md`; do not infer readiness from an old note.
+2. Use the installed `grill-me`/`grilling` skill before every new task, following policy §2.
+   Discover facts first, do not re-ask settled decisions, then ask unresolved questions in numbered
+   rounds with recommendations and wait for answers/confirmation. If the skill cannot be found,
+   tell Waleed and ask; never silently substitute another interview skill.
+3. Record questions and answers verbatim in Arabic in the slice's `owner-questions.ar.md`, or
+   `docs/owner-decisions.ar.md` for process questions. Technical questions go only to Waleed;
+   feature/business questions also go to the shared decisions page, where Abu Salem's pick binds
+   on a difference and Waleed's pick applies until then. Follow the orchestrator-only routing
+   rules in `CLAUDE.md` §1 5b. Unknown business rules become `TODO(spec)` and defer affected work.
+   Preserve live answers using the ETag/`If-Match` discipline; on `412`, re-read and re-decide.
+4. Draft the spec and then plan on the planner lane. The lead personally reviews them once before
+   implementation. Request Astra's read-only design advice for risky work; consult Fable only
+   on hard decisions when needed. Resolve findings before writing code.
+5. Capture the baseline and declare exact writable paths, task bounds and acceptance criteria.
+   Point to `CLAUDE.md`, `CLAUDE.architecture.md`, the spec, plan, applicable ADRs and starting files;
+   quote applicable rules verbatim. Send paths rather than unnecessary source dumps.
+6. Put role and fences first, required reading next, applicable rules next, and the task or new
+   findings last. Corrections use `file:line — defect — expected outcome`. Keep evaluation notes
+   outside the deliverable diff: first-pass checks, fix rounds, missed findings, violations and time.
 
-After **every** push, comment `@codex review` again — the Codex bot reviews automatically only when a PR is opened;
-the MergePilot panel reviews each pushed commit by itself. Read every result before merging (owner, 2026-10-14):
-`gh api repos/lolotam/PayPos.systems/pulls/<n>/reviews` (one review per bot run and commit) and
-`gh api repos/lolotam/PayPos.systems/pulls/<n>/comments` (inline findings, "Found by: …" names the MergePilot bots).
+## 5. Implementation fences and handoff
 
----
+Use MiniMax for initial implementation. GLM may instead take a **small, exactly pinned task**
+(one error fix, a contract bound, an error-code mapping) in **any code area**, including money,
+auth or database code (PP-92). Do not impose a backend-only or sensitive-area exclusion.
+Try a medium database or UI task before anything bigger; everything else stays on MiniMax.
+Keep the Zen free-tier data-usage terms review pending as recorded in owner-decision item 43;
+PP-92 permits any code area but does not resolve that review or relax the data fences.
 
-## 4. Dispatching MiniMax (opencode)
+Apply these fences to implementers and correction workers:
 
-The implementer runs through the **opencode CLI** (`opencode` on `PATH`, under `F:\Dev\Runtimes\npm-global`). The
-default model is **`kimi-code-plan-global/k3.1-pro#high`** (Kimi For Coding plan, variant `high`); small, fully pinned
-backend and data slices use **`minimax-coding-plan/MiniMax-M3.1-Flash`**, on Waleed's flat-rate coding plan, which
-offers no `#high` variant and runs at its default (PP-55.1). **When Kimi hits its usage limit** (a 5-hour window), switch that task to MiniMax in a **new session** briefed on what is done and what is left, and go back to Kimi once its quota renews (Waleed, PP-60, 2026-10-25, `docs/owner-decisions.ar.md` item 29). Everything below applies to both; only `-m` differs. The `opencode-delegate` skill holds the run and relay mechanics. This section
-pins the PosPay rules on top of it.
+- Read and edit only the declared task files inside the assigned worktree. **No shell, command,
+  test, build, script, git, network or MCP tool access**; no publication or server access.
+- Never read, list or write `.git`, read `.env*`, or access anything outside the worktree.
+  For GLM these read restrictions are explicit PP-91 conditions, including when reading references
+  or following links. Keep its brief free of **secrets, keys, customer data and real phone numbers**.
+  Do not send secrets to any delegated lane. Do not claim fences are enforced unless verified;
+  if required access controls cannot be provided, hold the dispatch.
+- Do not edit unrelated paths, reformat unrelated lines or squash lines to evade `max-lines`.
+  Preserve the no-shell security boundary when replacing the old CLI instructions.
 
-1. **One session per task, and only one session works on it at a time.** The one exception to a single session id is PP-60: a Kimi usage limit moves the task to a new MiniMax session, which replaces the Kimi session while the limit lasts (the Kimi session stays idle, never running beside it), and the task goes back to a Kimi session after the renewal. Give the first run a session id with `-s`, and record it in the task's notes
-   (`F:\Dev\Worktrees\PosPay\briefs\<task>\sid.txt`). The installed opencode CLI (v2.1.4, as v2.0.32 before it) documents `-s` as
-   "Session ID to continue, or to create if it does not exist". It refuses an id that does not start with `ses`
-   (`Expected a string starting with "ses"`, 2026-10-20), so a plain UUID fails before the model runs. Use opencode's
-   own shape, `ses_` followed by 12 hex and 14 base62 characters. If a later version stops creating it, run round one
-   without `-s`, take the generated id from the `--format json` output, and use that id from round two on. Run it from
-   the worktree:
+The initial implementer retains its own failed attempt until required checks and review are
+complete and ownership is handed back cleanly. Do not reset or discard partial work to bypass
+a failure, and do not mark a failing delivery complete to force a model switch.
+**Only after clean initial handoff**, create a bounded Kimi correction task for subsequent
+review, PR and CI findings; reuse that worker for its own rounds. Apply §2's fallback and wait
+rules. Never revive the old automatic Kimi-to-MiniMax quota-switch procedure.
 
-   **MiniMax has no shell (Waleed, SA-7.1, 2026-10-20: «sa 7.1 ب»).** It only reads and edits files inside its
-   worktree. It runs no command, test, build or script. The orchestrator reviews the diff line by line **first**,
-   then runs every gate and test itself (`pnpm check`, the integration tests, the guards). This replaced SA-6's
-   shell rules after a test showed that any shell, however filtered, lets MiniMax write a script and read files
-   outside the worktree. The record is `docs/owner-decisions.ar.md` item 16. Waleed rotates the SSH passwords and
-   tokens himself. Production actions still need his typed yes in the orchestrator's chat.
+## 6. Verification and review
 
-   **Known residual risk: the gates run MiniMax's code.** The permission file limits what MiniMax can do while it
-   runs. It does not sandbox what runs afterwards: `pnpm check` and the tests execute MiniMax-authored source,
-   tests, package scripts and build config under the orchestrator's own Windows account (Codex on #416). Waleed
-   chose to keep it that way: no separate OS account and no container, only the passwords move out of the global
-   opencode config («(ب) نشيل الباسوردات بس», 2026-10-20, `docs/owner-decisions.ar.md` item 19). That move, the
-   password rotation and the removal of the global MCP servers wait for the end of the PosPay plan («SEE LETS PROCEED
-   IN OUR POSPAY PLANE LATER POSTPOND TILL THE END»); until then nobody edits the global opencode config, and the
-   secrets in it stay readable by any code the gates run. So the line-by-line review is the barrier. Read every changed script, test, config file and anything a
-   gate imports before running a gate, and treat an unexplained `child_process`, network, `fs` access outside the
-   worktree, or a changed `package.json` script as a stop-and-report finding.
+Read every delivered change before executing it, including tests, scripts, package or build
+configuration. Inspect the diff against the baseline and account for unexpected tracked,
+untracked and ignored artifacts; report scope violations without discarding unrelated work.
+Diff rewritten SQL functions line by line, especially money, database and permission guards.
+The orchestrator runs checks itself: a worker's claim is not a receipt. Executing authored code
+under the orchestrator's account remains a residual risk; transport does not isolate it.
 
-   **Every limit below must be in place before each run.** `check-opencode.cjs` refuses the run when one is missing:
-   - the shell is denied outright (`bash` and `shell`), as are `execute`, which is code mode and reaches opencode's
-     internal `tools.opencode.*` (eyadex saw MiniMax use it to hunt for the banned `grep`), and `grep`, which
-     ignores path rules;
-   - every MCP tool is denied, including `list`/`read_mcp_resource`;
-   - `search`, `fetch`, `webfetch`, `websearch`, `question`, `list`, `todowrite`, `todoread`, `task`/`subagent` and
-     `skill` are denied, each by name;
-   - `external_directory` is denied, so no tool reaches outside the worktree, the main checkout's `.git` included.
-     `read` and `edit` also deny every drive but `F:` by name (`C:*`, `c:*`, …) and every path that starts
-     with a backslash or a slash (a UNC share, a `\\?\` namespace path, a root on the drive), because opencode has a
-     reported Windows bug that treats another drive as inside the project (opencode issue 27596). On 2026-10-20 a
-     MiniMax smoke test on opencode 2.0.32 asked to read a harmless file on `C:` and was refused with
-     `external_directory` both with and without these denies, so they are a second layer. A second test the same day
-     tried the `\\?\C:\…`, `\\localhost\C$\…` and `//localhost/C$/…` forms: all were refused, while `README.md` and
-     its absolute `F:\` path inside the worktree still read. Both tests were repeated on opencode 2.1.4 on
-     2026-10-24 (Kimi and MiniMax) with the same results. Repeat both before raising the opencode pin again;
-   - `read` and `edit` deny `.git` and anything under it, in both slash styles;
-   - `read` and `edit` deny any path with a colon after its first two characters (`??*:*`), that is, an NTFS stream.
-     `.env::$DATA` is the `.env` file itself, and a named stream such as `.env:hidden` is a hidden file that git
-     never shows. A 2026-10-20 smoke test read a planted `.env` through `.env::$DATA` before this deny, and refused
-     both forms after it, while `README.md` and its absolute `F:\` path still read (Codex on #416);
-   - the checker refuses the run when the volume creates NTFS 8.3 short names (`GIT~1` for `.git` would match none
-     of the name rules; Codex on #416), probed by making a long-named folder in the isolated config home and reading
-     `dir /x`, or when any entry still has one in any folder the link scan visits (every folder outside
-     `node_modules` and `.git`, at any depth), because disabling creation keeps old aliases. On 2026-10-20 F: created
-     none and the worktree had none, the whole check took 1.7 s, and the same probe on C: was refused. Folder names
-     reach `cmd.exe` only double-quoted on a command line the checker builds, with delayed expansion off, so a
-     MiniMax-made folder such as `probe&pwn.cmd` stays a name. A folder name holding `%` stops the run. Tested:
-     `probe&pwn.cmd` and `(dashboard)` passed without running anything, and `x%PATH%y` was refused;
-   - the checker refuses the run when a file outside `node_modules` and `.git` has more than one hard-link name,
-     because a hard link to another worktree's `.env` would expose it through an allowed path (Codex on #416). None
-     existed on 2026-10-20 (3,830 files in a worktree, 18,758 in the main checkout), and a planted one was refused.
-     pnpm hard-links `node_modules` files to its store of public package code, which MiniMax may read but not edit.
-     Those links cannot be told apart from a planted one without listing each file's other names, so a hard link
-     placed inside `node_modules` to a secret is a known residual risk. MiniMax cannot create one without a shell,
-     the worktree's `node_modules` comes from a fresh `pnpm install`, and the separate-account question covers it;
-   - the checker validates the worktree's root `.git` before trusting it: it must be a plain file with one name (not
-     a symlink, junction or hard link) holding `gitdir:` set to a folder directly under the PosPay main checkout's
-     `.git\worktrees`, whose own `gitdir` backlink names this exact `.git` file, because git status and reset
-     follow it (Codex on #416). A `.git` folder, a hard-linked pointer and a pointer elsewhere were all refused;
-   - the checker refuses the run when any symlink or junction exists outside `node_modules` (none did on
-     2026-10-20), and when a link inside `node_modules` resolves outside the worktree, or would if it is broken, or
-     into a protected path (`.git`, `.claude`, `.opencode`, `.agents`, `.vscode`, `.idea`, `.playwright-mcp`,
-     `.specify`, `opencode.*`, an env file or a log). opencode authorizes the written path and then follows the link,
-     so even a link to `.claude` inside the worktree would give it an allowed name (Codex and MergePilot on #416).
-     MiniMax cannot make one without a shell. Tested: `docs/guard-link` to `.claude` and `node_modules/evil` to
-     `.vscode` were refused, and a pnpm-style link was allowed. In `node_modules` it reads only the levels pnpm links
-     at (the top, `@scope`
-     folders and each `.pnpm/<package>/node_modules`), about 1.2 s. pnpm's store files are hard links, and on
-     2026-10-20 all 2,832 links of the main checkout stayed inside it, except 5 stale `apps/pos` links to the old
-     `F:\Dev\Projects\PayPos.systems` path, which the check rightly refuses. Run `pnpm install` in a worktree that
-     has them;
-   - `read` and `edit` deny any path whose name component ends in a space or a dot (`* `, `* /*`, `*.`, `*./*`).
-     opencode 2.0.32 writes such a path literally, so a 2026-10-20 smoke test created folders named `.opencode ` and
-     `.claude.` beside the real names, which other Windows tools would treat as the protected folder. After the
-     deny both writes were refused, while `./sub/a.txt`, `sub/../README.md`, a new file and an edit still worked;
-   - `glob` is denied too. opencode checks its permission against the search pattern only, never the folder it
-     searches, so no path rule could keep a glob out of `.git`, another drive or a share (Codex on #416). Briefs
-     name every file MiniMax needs (rule 5), so it reads them directly;
-   - every run has a **hard 45-minute limit**: opencode runs as its own process, and past the limit the dispatch
-     kills its whole process tree, and the `finally` stopper interrupts its session. On 2026-10-20 Emlaa saw MiniMax
-     loop for 7+ minutes, write probe files and edit a file it was never asked to touch. A killed standalone session
-     stays marked busy in `opencode.db` but is frozen. A test killed at 21 s had no update a minute later, and the
-     stopper's interrupt of it is harmless;
-   - `read` also denies every `opencode.*` file, anything under `.opencode`, and all of `.claude` (where the template
-     lives), as `edit` does: MiniMax tried to read its own rules (Emlaa, 2026-10-20);
-   - **secret env files are not in the worktree during a run.** The dispatch moves every ignored `.env`, `.env.*`,
-     `*.env` and `*.env.*` file (`.env.example` templates excepted) to `briefs\guard\<worktree>\env-stash` before the
-     run, and moves them back only after MiniMax has stopped. A file MiniMax planted under the same name is set aside
-     and reported. The next dispatch refuses to start while the stash still holds a file. A deny list alone kept losing
-     to one more spelling of the same file (`.env::$DATA` read a planted secret; Codex on #416), and a file that is not
-     there cannot be read. The scan uses `git ls-files --directory`, so it does not open wholly ignored folders such as
-     `node_modules`; an env file inside one is still covered by the `*.env` deny. A 2026-10-20 smoke test refused
-     `.playwright-mcp/profile.env`, and its trailing-space and trailing-dot spellings (`.env `, `.env.`,
-     `.claude /x`) found no file on opencode 2.0.32;
-   - as a second layer, `read` and `edit` deny `.env`, `.env.*`, `*.env` and `*.env.*` at any depth, the forms the
-     root `.gitignore` ignores. A worktree's copied `.env` holds database passwords (HANDOVER §3.3), and an explicit `"*": "allow"`
-     would otherwise lift opencode's default protection for it. A 2026-10-20 smoke test read a planted
-     `production.env` before `*.env` was added. opencode matches paths case-insensitively on Windows, and the same
-     test confirmed that `.ENV` and `.Env` are refused. The tracked `.env.example` and `*.env.example` templates hold
-     no secret, and a slice that adds an env var must update one, so they are allowed again right after the env
-     denies;
-   - `edit` denies everything under `.claude`, where the guard scripts, this template and the skills live;
-   - `read` also denies the local tool state folders `.agents`, `.vscode`, `.idea` and `.playwright-mcp`, because
-     they can hold credentials (Playwright MCP storage-state files keep cookies and local storage; Codex on #416). A
-     2026-10-20 smoke test refused reads of `.playwright-mcp/storage-state.json` and `.vscode/settings.json`, and
-     `README.md` still read. The tracked Spec Kit skills (`.agents/skills/speckit-*/SKILL.md`, which `.gitignore`
-     exempts) stay readable and editable through a later allow, placed before the other-drive, stream and
-     trailing-alias denies so it cannot reopen them;
-   - `read` and `edit` deny the logs the root `.gitignore` ignores (`*.log` and the npm/pnpm `*-debug.log*`), which
-     can hold tokens, request bodies or customer data and never show in `git status` when unchanged (Codex on #416).
-     A 2026-10-20 smoke test refused `apps/api/server.log` and `pnpm-debug.log.1`;
-   - `edit` also denies every path the root `.gitignore` ignores, outside `.env` and `.claude` (denied above): the
-     dependency and build folders (`node_modules`, `.pnpm-store`, `dist`, `build`, `.next`, `out`, `.turbo`,
-     `coverage`), local tool state other agents or IDEs load (`.agents`, `.vscode`, `.idea`, `.playwright-mcp`), and
-     `*.tsbuildinfo`, `*.log`, `.DS_Store`, `Thumbs.db` and `next-env.d.ts`. It also denies the entries of the one
-     nested ignore file, `.specify/.gitignore`: `.specify/feature.json`, the Spec Kit pointer to the active slice, and
-     `.specify/extensions/*/local-config.yml`. The gates and tools read what is there, and `git status` cannot show
-     an edit to a file that was already ignored. A new entry in any `.gitignore`, root or nested (list them with
-     `git ls-files '*.gitignore'`), gets a matching deny in the same PR;
-   - `edit` also denies every `opencode.*` file (config, or an `opencode.cmd` a later shell could run) and anything under `.opencode`. A config, agent or plugin file
-     MiniMax wrote would load on its next round, and a plugin runs as code outside every rule. The dispatch also
-     stops if a `.opencode` folder or an `opencode.jsonc` already exists;
-   - each path map holds exactly its rules in a fixed order, with no other key, because the last matching rule
-     wins: `"*": "allow"`, the env denies, the `.env.example` allows, then the git, config and `.claude` denies, so
-     no allow can re-open a protected tree. Any unknown permission key or top-level config key is refused;
-   - MiniMax runs only at a worktree root, so the dispatch requires `.git` to be a file there;
-   - every run pins the project's own agent, `--agent pospay-minimax`, whose permission map is the same allowlist.
-     Agent permissions win over top-level ones. So a `default_agent`, or agent permissions added later to the
-     untouched global config, cannot loosen the rules. The checker refuses any other agent, a `default_agent`, or a
-     global config that mentions `pospay-minimax`;
-   - every run uses `--standalone`, a private opencode server started from this checked environment. The shared
-     `opencode serve --service` keeps the `OPENCODE_*` variables and config it started with, so checking this
-     shell's environment would prove nothing about it. **No opencode command runs without `--standalone` and an
-     isolated `XDG_CONFIG_HOME`, diagnostics included** (`opencode debug config`, `models`, `auth list`): a bare
-     command starts that shared service as a background daemon (2.1.4; three times on 2026-10-25, #635 item 3).
-     Measured on 2.1.4: `opencode models` starts it even under an isolated `XDG_CONFIG_HOME`; `--standalone`,
-     `--version` and `service get` do not, and no flag or variable turns the autostart off. The checker refuses the
-     dispatch while an `opencode serve --service` process is running, and the `finally` stopper ends any that started
-     during the run (process tree, PID logged; one still alive fails the cleanup);
-   - opencode must be signed in to no account. A signed-in organization's config is fetched and merged after the
-     project file, so it could override every rule here (Codex on #416). The checker reads the `account`,
-     `account_state` and `control_account` tables of `~/.local/share/opencode/opencode.db` read-only and refuses the
-     run if any has a row, or if it cannot read them. All three were empty on 2026-10-20. It also refuses a
-     `wellknown` credential in `auth.json` (reading only each entry's `type`), because opencode fetches that
-     provider's `/.well-known/opencode` config and merges it. None existed on 2026-10-20: the entries were `oauth`
-     and `api` only;
-   - `formatter` and `lsp` are `false` in the template, and the checker requires it. opencode runs formatters
-     (prettier, and others) after every edit, and starts built-in LSP servers when a file opens, as host processes
-     outside every permission rule. A formatter also loads project config that MiniMax could edit. The orchestrator
-     formats with `pnpm format` when it runs the gates. A 2026-10-20 run wrote `const   x  =  1` and it stayed
-     unformatted;
-   - **every run uses an isolated global config home**: the dispatch points `XDG_CONFIG_HOME` at a fresh
-     `briefs\guard\<worktree>\xdg-config`, outside the worktree, holding only a fixed one-line `AGENTS.md` and an
-     `opencode.json` that only sets `"autoupdate": false`. None of
-     Waleed's global opencode config loads. On 2026-10-20 that global config started 28 MCP servers on every run,
-     some connecting to outside services such as `mcp.facebook.com` and `n8n`, even with every MCP tool denied. Under
-     isolation the log showed zero MCP lines, and MiniMax still signed in, because its credentials sit in the data
-     folder (`auth.json`), not in the config. Isolation also keeps out global plugins, custom tools (which could
-     replace `read` or `edit`), agent and mode files (which could redefine `pospay-minimax`) and instruction files
-     (which enter the model's context past every read rule). The fixed `AGENTS.md` stops opencode falling back to
-     `~/.claude/CLAUDE.md`. The checker refuses the run unless `XDG_CONFIG_HOME` is set to a folder outside the
-     worktree that holds exactly those two files;
-   - **opencode is pinned to the version the smoke tests passed on** (2.1.4; every smoke test in this list was
-     rerun on it on 2026-10-24, with Kimi and MiniMax, and matched 2.0.32). opencode can update itself in place
-     (Codex on #416). The isolated config turns auto-update off, but the guard that holds is the checker: it refuses
-     the run when the `package.json` beside the exact `opencode.exe` the dispatch runs (passed as its second argument)
-     has a version other than `PINNED_OPENCODE`. To upgrade, rerun both smoke
-     tests on the new version first, then raise the pin in the same PR. Note: `opencode debug config` still lists
-     `~/.config/opencode/opencode.json` under isolation, but a real isolated run on 2026-10-20 logged zero MCP
-     lines and loaded only the isolated `AGENTS.md`. Judge isolation by a real run's `--print-logs`, not by
-     `debug config`;
-   - the checker refuses an `.opencode`, `opencode.json` or `opencode.jsonc` in any folder above the worktree, up to
-     the drive root, because opencode loads config from every ancestor. None exists today;
-   - the checker also refuses a run when a higher-precedence source exists: the system config folder
-     `%ProgramData%\opencode`, or any `OPENCODE_CONFIG*`/`OPENCODE_PERMISSION*`/`OPENCODE_DB*` or `XDG_DATA_HOME`
-     environment variable (the last two would also move the database the session stopper reads). None exists
-     on the host today;
-   - git, the GitHub CLI, OpenSSH and Docker are off `PATH`, as a second layer, and `PATH` is restored after the
-     run.
+Run locally scoped checks for affected packages, with the full `pnpm check` required on CI on
+the exact head for code changes. Include relevant typecheck, lint, `pnpm lint:docs`, boundaries,
+cycles, module-map, unit, integration, RLS negative, EXPLAIN, generated API/client, UI/E2E and
+build checks. Use `clean-code-guard`, `test-guard` and `docs-guard` where applicable. Record the
+exact commands and failures; never label an unavailable or unrun check passed.
 
-   **The permission file is an allowlist.** `"*"` is denied first, so every tool not allowed after it is refused,
-   whatever an MCP server or a later opencode version names it. Only `read` and `edit` (which covers `write`) are
-   allowed. `gen-opencode.cjs` writes the tracked template `opencode-pospay.json` next to this skill, and
-   the dispatch copies it to `<worktree>\opencode.json`. Never edit the template by hand: opencode **silently
-   ignores an invalid `opencode.json` and then runs with no restrictions at all**, which happened on 2026-10-20
-   when a lost backslash broke the JSON. A template change gets one MiniMax smoke run before it is used. The file
-   only takes effect as a project-level `opencode.json`, because the `OPENCODE_CONFIG` env var did not apply it. The
-   global opencode config is left untouched (Waleed's call).
+Use **one internal Astra review**, not a second Sonnet layer or mandatory Fable review.
+For every PR touching `packages/db/**`, include the database/security checklist:
 
-   **Write dispatch scripts with the file-writing tool, never a shell heredoc.** A heredoc once ate the backslashes
-   of the `PATH` filter and left an invalid regex.
+- Tenant tables: `company_id`, composite primary key `(company_id, id)`, ENABLE and FORCE RLS,
+  policy and negative isolation test in the same PR (`CLAUDE.md` §5, ADR-0007).
+- Grant allowlist in `packages/db/src/__tests__/privileges.spec.ts`; no runtime `BYPASSRLS`;
+  auth follows ADR-0003. Index RLS predicates/FKs; existing-table indexes use CONCURRENTLY
+  (ADR-0033). Use expand/contract migrations, `numeric(14,3)` money, UUID v7 and `timestamptz`.
 
-   **After every run:**
-   - review the diff line by line;
-   - check `git stash list`, the reflog and `git status` of the shared checkout;
-   - report anything suspicious to Waleed's super agent at once: a tool call outside the task, an attempt around a
-     block, a read outside the worktree, or an unexplained change.
+Re-review and re-test fixes. Allow at most **five review/fix cycles**, with **no open P0/P1**.
+If those remain after cycle five, split into smaller PRs; do not add cycles or reset the budget.
+Defer lower severities only under the documented policy, with linked issues. A narrower runtime
+budget requires stopping/reporting, never a workaround.
 
-   **What the 2026-10-20 tests showed, under the earlier rules that still allowed a filtered shell.**
-   - MCP: under the old bash-only file, MiniMax's tool list held `webfetch`, `skill`, `subagent`,
-     `opencode.read_mcp_resource` and `opencode.worktree_create`. The allowlist removed them.
-   - Refused: every direct route to `.git`, git, `gh`, `ssh`, `docker`, `curl`, a Node `fetch`, and a fake secret
-     outside the worktree.
-   - Not stopped: a Node script MiniMax wrote in the worktree and ran printed that fake secret. That is why the
-     shell is now gone.
-   - An audit of all 92 local opencode sessions found no MCP tool call in any of them.
+## 7. Docs-only quality lane
 
-   The orchestrator (never MiniMax) adds `/opencode.json` to the clone's shared `info/exclude` once per clone, as
-   the `$exclude` lines below do, so the copy never lands in a diff. The rule stays local because `.gitignore` is a
-   config file outside the docs-only lane.
+Use the lighter lane only when there is no code, migration or generated-file change. Apply
+formatting and relevant guards, not unrelated application database tests. A pure docs fix needs
+no production implementer dispatch or slice spec unless it is itself a spec. Use the planner
+lane for specs/plans/questions as required by §2. Do not change `docs/module-map.md` or
+`docs/module-map.yaml` under a non-code classification: CI consumes them as code.
 
-   **The setup fails closed.** Every setup step runs under `$ErrorActionPreference = 'Stop'`, so a failed
-   `Set-Location`, `Copy-Item` or check stops the dispatch. The preference goes back to `Continue` just before
-   `opencode run`, because Windows PowerShell 5.1 turns any stderr line of a native command into a terminating
-   error under `Stop`. A nonzero opencode exit is a failed run (rule 8). Save the block as a `.ps1` file and
-   parse-check it before the first run
-   (`$errors = $null; $null = [System.Management.Automation.Language.Parser]::ParseFile(<path>, [ref]$null,
-   [ref]$errors); $errors.Count` must print 0; `[ref]` needs the variable to exist first).
-   A parse error stops the whole file before any line runs. That is safe, but it hides a broken block until it is
-   used: on 2026-10-20 `"…still in $envStash: move…"` would not parse, because PowerShell reads `$name:` inside a
-   double-quoted string as a drive-qualified variable. Write `${name}:` instead.
+Run the formatting check (`pnpm format:check`, or a scoped Prettier check with the scope recorded)
+and the relevant documentation guard. Keep prose P2/P3 fixes to one batch and link deferred issues.
+Treat a contradictory operational or governing rule as P1. Do not use docs-only status to waive
+review receipts, CI, the no-P0/P1 bar, pre-merge backup or the roadmap update. Follow the current
+CI classification and report the actual skipped/passed jobs. No application rollout is required.
 
-   **The guard scripts run from a trusted copy, never from the worktree.** MiniMax may not edit `.claude` (an `edit`
-   deny), and as a second barrier the checker, the template and the session stopper are staged before every run
-   from the last reviewed `main` into `F:\Dev\Worktrees\PosPay\briefs\guard\<worktree folder>\`, one folder per
-   worktree so parallel tasks never replace each other's copy. That folder is outside the worktree,
-   so `external_directory` keeps MiniMax out of it. The `finally` block runs only those copies, because it executes
-   after MiniMax returns and before the diff is reviewed. The session stopper calls `opencode.exe` by its absolute
-   path with no shell, so an `opencode.cmd` planted in the worktree cannot run.
+## 8. PR, merge and delivery
 
-   ```powershell
-   & {   # a child scope, so the caller's $ErrorActionPreference comes back after any outcome
-   $ErrorActionPreference = 'Stop'
-   $savedCwd = Get-Location   # restored by the finally block below, and by this trap when setup refuses earlier
-   trap { Set-Location $savedCwd; break }
-   Set-Location F:\Dev\Worktrees\PosPay\<branch>
-   if (-not (Test-Path .git -PathType Leaf)) { throw 'MiniMax runs only at a worktree root, where .git is a file' }
-   # git fetch and git archive below stage the guards through this worktree's .git pointer, so it must lead to the
-   # PosPay main checkout and nowhere else before git runs (Codex on #416)
-   $commonDir = [IO.Path]::GetFullPath((git rev-parse --git-common-dir))
-   if ($commonDir -ne 'F:\Dev\Projects\PosPay.systems\main\.git') { throw "this worktree's .git leads to $commonDir, not the PosPay main checkout: stop" }
-   if ((Test-Path .opencode) -or (Test-Path opencode.jsonc)) { throw 'a .opencode folder or opencode.jsonc exists: inspect it, stop' }
-   $worktree = (Get-Location).Path
-   $guard = Join-Path 'F:\Dev\Worktrees\PosPay\briefs\guard' (Split-Path $worktree -Leaf)
-   if (Get-ChildItem (Join-Path $guard 'env-stash') -Recurse -File -Force -ErrorAction SilentlyContinue) {
-     throw "env files from an earlier run are still in $guard\env-stash: move them back before a new run"
-   }
-   if (Test-Path $guard) { Remove-Item $guard -Recurse -Force }
-   New-Item -ItemType Directory $guard | Out-Null
-   git fetch -q origin main; if ($LASTEXITCODE) { throw 'git fetch failed: a stale guard copy could be trusted, stop' }
-   $mainSha = git rev-parse FETCH_HEAD
-   git archive -o "$guard\guard.tar" $mainSha .claude/skills/pospay-pipeline; if ($LASTEXITCODE) { throw 'git archive failed: stop' }
-   # Windows' own tar: under a PowerShell started from Git Bash, plain `tar` is GNU tar, which reads F: as a remote host
-   & "$env:SystemRoot\System32\tar.exe" -xf "$guard\guard.tar" -C $guard
-   if ($LASTEXITCODE) { throw 'could not stage the guard scripts: stop' }
-   $tools = "$guard\.claude\skills\pospay-pipeline"
-   $exclude = Join-Path (git rev-parse --git-common-dir) 'info\exclude'
-   if (-not (Select-String -Path $exclude -SimpleMatch '/opencode.json' -Quiet)) { Add-Content $exclude "`n/opencode.json" }
-   Copy-Item "$tools\opencode-pospay.json" .\opencode.json -Force
-   $isolatedConfig = Join-Path $guard 'xdg-config'
-   New-Item -ItemType Directory (Join-Path $isolatedConfig 'opencode') | Out-Null
-   [IO.File]::WriteAllText((Join-Path $isolatedConfig 'opencode\AGENTS.md'),
-     "PosPay MiniMax run: follow the attached brief only. Read and edit files in this worktree only.`n")
-   [IO.File]::WriteAllText((Join-Path $isolatedConfig 'opencode\opencode.json'), "{ `"autoupdate`": false }`n")
-   # Secret env files leave the worktree for the whole run (Codex on #416): a deny list can be dodged by one more
-   # spelling of the same file (.env::$DATA read one), and a file that is not there cannot be read. MiniMax never needs
-   # them; the orchestrator runs every gate after the run, with the files back in place.
-   $envStash = Join-Path $guard 'env-stash'
-   $envFiles = @(git -c core.quotePath=false ls-files --others --ignored --exclude-standard --directory |
-     Where-Object { $_ -match '(^|/)[^/]*\.env(\.[^/]+)?$' -and $_ -notmatch '\.example$' })
-   if ($LASTEXITCODE) { throw 'could not list the ignored files: stop' }
-   $stashed = @()
-   $restoreFailed = $false
-   $savedPath = $env:PATH
-   $savedXdg = $env:XDG_CONFIG_HOME
-   $savedPwd = $env:PWD
-   $opencodeExit = 1
-   $stopExit = 1
-   $runStart = $null
-   try {
-     foreach ($rel in $envFiles) {
-       $dest = Join-Path $envStash $rel
-       New-Item -ItemType Directory (Split-Path $dest) -Force | Out-Null
-       Move-Item -LiteralPath (Join-Path $worktree $rel) -Destination $dest
-       $stashed += $rel
-     }
-     $env:XDG_CONFIG_HOME = $isolatedConfig   # no global config: no MCP servers, plugins, agents or instructions
-     # opencode takes its project folder from the inherited PWD variable, not from Set-Location. Launched from Git Bash,
-     # PWD is the caller's folder, no project opencode.json loads, and the run stops with "Agent not found" (#423).
-     $env:PWD = $worktree
-     if (-not (Get-Command opencode -ErrorAction SilentlyContinue)) { throw 'opencode is not on PATH: stop' }
-     $opencodeExe = Join-Path (Split-Path (Get-Command opencode).Source) 'node_modules\@opencode\cli\bin\opencode.exe'
-     if (-not (Test-Path $opencodeExe)) { throw 'opencode.exe not found: stop' }
-     # the checker pins the version of this exact binary, the one Start-Process runs below
-     # some Node 24 releases (24.13) print an ExperimentalWarning for node:sqlite, which PowerShell 5.1 turns into a fatal
-     # error under Stop; only that warning class is silenced, every real error still reaches stderr
-     node --disable-warning=ExperimentalWarning "$tools\check-opencode.cjs" opencode.json $opencodeExe
-     if ($LASTEXITCODE) { throw 'opencode.json refused: stop' }
-     $env:PATH = (($env:PATH -split ';') | Where-Object { $_ -and ($_ -notmatch '\\(Git|GitHub CLI|OpenSSH|Docker|DockerDesktop)(\\|$)') }) -join ';'
-     foreach ($tool in 'git', 'gh', 'ssh', 'scp', 'docker') {
-       if (Get-Command "$tool.exe" -ErrorAction SilentlyContinue) { throw "$tool is still on PATH: stop" }
-     }
-     $ErrorActionPreference = 'Continue'
-     $runArgs = @('run', '--standalone', '--agent', 'pospay-minimax', '-m', 'minimax-coding-plan/MiniMax-M3.1-Flash',
-       '-s', '<sid>', '--title', '"<task>"', '-f', 'F:\Dev\Worktrees\PosPay\briefs\<task>\brief.txt',
-       '"Implement the attached brief."')
-     $runStart = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
-     $run = Start-Process -FilePath $opencodeExe -ArgumentList $runArgs -NoNewWindow -PassThru `
-       -RedirectStandardOutput "$guard\run.out.txt" -RedirectStandardError "$guard\run.err.txt"
-     $null = $run.Handle   # keeps ExitCode readable after the process ends (Windows PowerShell 5.1)
-     if (-not $run.WaitForExit(45 * 60 * 1000)) {   # hard limit: 45 minutes
-       & taskkill /PID $run.Id /T /F | Out-Null
-       $opencodeExit = 124
-     } else {
-       $opencodeExit = $run.ExitCode
-     }
-   } finally {
-     try {
-       # The stopper launches opencode.exe, so it runs only after the checks passed and the run started, while the
-       # isolated config is still active. A refused setup never starts opencode, not even to clean up.
-       if ($runStart) {
-         node --disable-warning=ExperimentalWarning "$tools\stop-opencode-sessions.cjs" $worktree --exe $opencodeExe --since $runStart
-         $stopExit = $LASTEXITCODE
-       } else {
-         $stopExit = 0
-       }
-     } finally {
-       $env:PATH = $savedPath
-       $env:XDG_CONFIG_HOME = $savedXdg
-       $env:PWD = $savedPwd
-       Set-Location $savedCwd
-       # The env files come back only once the stopper confirmed MiniMax has stopped ($stopExit is 0, or the run never
-       # started); after a failed or thrown stop they stay stashed (MergePilot on #416). A file MiniMax planted under the
-       # same name is moved aside to the guard folder and reported, never overwritten silently.
-       $restorable = if ($stopExit -eq 0) { $stashed } else { @() }
-       foreach ($rel in $restorable) {
-         try {
-           $target = Join-Path $worktree $rel
-           if (Test-Path -LiteralPath $target) {
-             $planted = Join-Path (Join-Path $guard 'planted') $rel
-             New-Item -ItemType Directory (Split-Path $planted) -Force | Out-Null
-             Move-Item -LiteralPath $target -Destination $planted -ErrorAction Stop
-             Write-Warning "MiniMax created $rel during the run: moved to $planted, report it to the super agent"
-           }
-           Move-Item -LiteralPath (Join-Path $envStash $rel) -Destination $target -ErrorAction Stop
-         } catch {
-           $restoreFailed = $true
-           Write-Warning "could not restore $rel from $envStash`: $_"
-         }
-       }
-     }
-   }
-   if ($restoreFailed) { throw "an env file is still in ${envStash}: move it back by hand before the gates run" }
-   if ($stopExit -ne 0) {
-     throw "a MiniMax session could not be stopped: interrupt it by hand, confirm it stopped, then move the env files back from $envStash"
-   }
-   if ($opencodeExit -eq 124) { throw 'MiniMax hit the 45-minute limit: report it, then treat it as a failed run (rule 8)' }
-   if ($opencodeExit -ne 0) { throw "opencode run exited $($opencodeExit), so treat it as a failed run (rule 8)" }
-   }
-   ```
+Commit, push and open the PR only within the user's authorized task; include the spec when
+applicable and a delivery checklist. Require **five completed GitHub reviews**: Codex plus all
+**four MergePilot panel bots**, on the exact head being merged. Discover live identities and
+configuration rather than pinning stale panel model names. Trigger `@codex review` after every
+push. Comment/neutral reviews count as completed, but pending, missing, failed or stale receipts
+do not. Do not revive the old waleed_Bot failure waiver or substitute a CLI review for a bot.
+Require green CI on the same head and fixed/properly deferred findings with no open P0/P1.
 
-2. **Every later round, review-fix rounds included, continues that session** with the same `-s <sid>`, and attaches
-   only the new fix brief (`-f …\fix-<round>.txt`).
-3. **Keep briefs outside the worktree** (`F:\Dev\Worktrees\PosPay\briefs\<task>\`) so they never land in the diff. Pass
-   them by absolute path.
-4. **The brief header is fixed, in this order:**
-   1. Role and fences: "You implement only task N. **You have no shell:** you read and edit files in this worktree
-      only, and you run no command, test, build or script. The orchestrator runs the gates and tests after it
-      reviews your diff, so stop when the code is written. Do not try to reach a shell, git, the network or any
-      file outside the worktree by another route. **Never read, list or write anything under `.git`.** Do not touch
-      files outside: …. Do not reformat lines you do not change. Never squash lines to get under `max-lines`; split
-      by responsibility instead."
-   2. Required reading, as file **paths** only: `CLAUDE.md`, `CLAUDE.architecture.md`, the spec, the plan, the ADRs,
-      then the source files the task starts from.
-   3. The `CLAUDE.md` rules that apply, quoted verbatim.
-   4. **Last:** the task, or the findings to fix.
-5. **Send paths, not file contents.** A fix brief carries only the new findings, each written as
-   `file:line — what is wrong — what done looks like`.
-6. **After every run, or after killing one, stop its opencode session first.** Killing the `opencode run` CLI does
-   not stop a session inside the shared `opencode serve --service`; one kept working for 14 more minutes on
-   2026-10-20. The dispatch block's `finally` runs the staged `stop-opencode-sessions.cjs <worktree>`. It reads
-   `opencode.db` read-only for sessions under the worktree that are not idle, and calls
-   `opencode.exe api post /api/session/<id>/interrupt` on each, by absolute path and with no shell. `--since
-   <run start>` limits it to sessions touched during this run, so an old abandoned record cannot fail every later
-   dispatch. The endpoint answers 200 with `{"interrupted": false}` when it stops nothing, as it did for a killed
-   standalone session on 2026-10-20. So the stopper accepts only `interrupted: true` or a database that no longer
-   shows the claim. Otherwise it fails, and **that session is never continued with `-s`**: its claim could be
-   recovered later, so the next round starts a new session (rule 8). Run the staged copy by hand after any kill,
-   with `--exe` set to the same checked `opencode.exe` (the stopper refuses any other path); `--dry-run` only lists.
-   The stopper calls `opencode.exe api --standalone`, a private server for that one call (about 2 s), never the shared
-   background service, and gives it the run's isolation on its own: `PWD` set to the worktree, a fresh
-   config home holding only the two fixed files, and no `OPENCODE_*`, `XDG_DATA_HOME` or caller `XDG_CONFIG_HOME`.
-   A manual cleanup from any shell is therefore as isolated as the dispatch. After a failed stop the env files stay
-   in `env-stash`; move them back by hand only once the session is confirmed stopped. Until the PR that adds these scripts reaches `main`, stage
-   them from that PR's reviewed head instead of `origin/main`.
-   **Then look for anything nobody asked for:** save `git status --porcelain --ignored --untracked-files=all` before
-   the run and again after it. Plain `--porcelain` hides ignored files, and MiniMax can create one (a `.log`, a
-   `dist/` file). Every line the second snapshot adds must be a file the brief names, so any new file, ignored or not
-   (a probe, a scratch script), or an edit to an unnamed file is reverted and reported to Waleed's super agent at once.
-   An edit to a file already inside an ignored folder does not change either snapshot, which is why the
-   permission file denies edits to those folders.
-   **Then diff the worktree against the baseline, and run the gates yourself.** A run with no change
-   is a failed candidate, whatever it reports. Check `git stash list`. MiniMax cannot run tests, so a failing gate
-   becomes a fix brief for its next round. **Diff every rewritten SQL function body line by line against the old one**:
-   on #338 a one-letter slip silently weakened a money guard.
-7. **Keep `briefs/<task>/EVAL.md`** (owner, 2026-10-20). For each round record whether the first delivery passed the
-   gates, the fix rounds, the findings MiniMax missed, any `CLAUDE.md` violations, and the wall time, then end with a
-   short verdict.
-8. **When a run is dry or fails**, stop its process, save its partial diff as a patch outside the repo, and reset the
-   worktree to the baseline:
-   - **First failure:** retry once in a new session with the same brief, plus one line on what went wrong.
-   - **Second failure on the same brief:** stop and report it to Waleed through his super agent. **Never** switch to
-     Grok, Codex or another provider without his word (PP-10.1).
+Follow policy §10 and `docs/decisions-site.md` for delivery rather than an older SSH recipe:
 
----
-
-## 5. Database work
-
-- **MiniMax writes** migrations, schema, RLS policies, grants and seed with the rest of the slice. The database reviewer
-  (Codex astra 6 medium, read-only) reviews every PR that touches `packages/db/**` against this list:
-  - every tenant table has `company_id`, primary key `(company_id, id)`, `ENABLE` + `FORCE ROW LEVEL SECURITY`, a
-    policy, and a negative isolation test in the same PR (`CLAUDE.md` §5, ADR-0007);
-  - the reviewed grant allowlist in `packages/db/src/__tests__/privileges.spec.ts` matches the new grants;
-  - every RLS predicate column and FK is indexed; indexes on existing tables are `CONCURRENTLY` (ADR-0033);
-  - the migration is expand/contract — nothing destructive in the same release as the code;
-  - money is `numeric(14,3)`, IDs are UUID v7, timestamps `timestamptz`;
-  - no runtime role gains `BYPASSRLS`; auth tables follow ADR-0003.
-- **The staging database is changed only by the orchestrator**, only through the deploy script's migrate step, and any
-  manual change (roles, ownership, grants) needs the owner's explicit "موافق" for that change, with a backup taken and
-  restore-checked first.
-
----
-
-## 6. Staging deploy — after every merge that changes code
-
-Staging is the Dokploy **compose service `pospay-staging`** (composeId `9hu_-BekJdhi05exz7bGg`) in its own Dokploy
-**project `PosPay Staging`** (moved into Dokploy on 2026-10-23, Waleed: «أيوه، انقله»; its own project the same day,
-Waleed: «مشروع جديد بـ Compose واحد»). Its compose file is `deploy/docker-compose.staging-shared.yml` from the repo and
-its environment lives in Dokploy (secrets included; never print them). The three hosts are **Dokploy domains** on that
-service (Domains tab: api -> `api`:3000, app -> `admin`:3000, pos -> `pos`:8080, HTTPS, Let's Encrypt), so the compose
-file carries no Traefik labels; never add them back (a second router for the same host). The earlier compose in
-`PayPos.Systems` / environment `staging` (`hjvMzqQ-SyAm0wSaWxkzW`) was deleted with Waleed's yes on 2026-10-23; it was never the
-rollback path. Never start a second copy of this compose next to the live one (two workers would share the queues). Following ADR-0001 §6 the `PosPay Staging` service serves the API at
-https://api.staging.pospay.systems, the back-office at https://app.staging.pospay.systems and the cashier at
-https://pos.staging.pospay.systems, on the server's shared Postgres and Redis. Waleed's standing rule (2026-10-23):
-**staging is updated after every merge**, so every new feature can be tested there live; its data is demo data only.
-
-The environment must hold the ADR-0001 hosts, which the CI staging builds bake in: `STAGING_HOST=api.staging.pospay.systems`,
-`ADMIN_STAGING_HOST=app.staging.pospay.systems`, `POS_STAGING_HOST=pos.staging.pospay.systems`,
-`COOKIE_DOMAIN=.staging.pospay.systems`, `STAFF_OTP_POS_ORIGIN=https://pos.staging.pospay.systems` (staff PIN sign-in on the
-cashier refuses every request without it, even with OTP off), and `AUTH_TRUSTED_ORIGINS` either unset or exactly the app and pos origins. A
-legacy value (`staging.pospay.systems`, an older origin list) is replaced, never kept; all three hosts have DNS A
-records to the server (2026-10-23).
-
-1. Confirm the main CI run for the merged SHA is green (it pushes the images to GHCR, the `-staging` admin and POS
-   variants included). The server pulled GHCR images without a registry login on 2026-10-07; if a pull ever fails with
-   an auth error, stop and ask the owner for a read-only package token (`docker login ghcr.io`) — never copy images by
-   hand.
-2. Take a backup: `docker run --rm --network dokploy-network --env-file /opt/pospay-staging/backup.env ghcr.io/lolotam/pospay-backup:<sha>`.
-3. Note the SHA that is live now: it is the rollback target. The compose file is uploaded on every release, pinned, in
-   step 4; it is never uploaded raw (with its `${IMAGE_TAG:?}` placeholders).
-4. **Pin the tag in the compose file, not the environment.** Dokploy encrypts the service environment at rest once it is
-   saved from its UI (`enc:v1:`; first seen 2026-10-23), so it can no longer be edited by SQL, and sending it through
-   `compose.saveEnvironment` would carry every secret. Take the SHA's `deploy/docker-compose.staging-shared.yml` (or the
-   rollback compose file, below), replace every `${IMAGE_TAG:?}` with `<full-sha>`, check that no `${IMAGE_TAG` expression is left and that every `image:` line ends with
-   `:<full-sha>` (the
-   environment's old `IMAGE_TAG` line is stale and must never be read), and send that text with `compose.update`
-   (`composeFile`; it holds no secret), then `compose.deploy`. A variable the SHA's file needs that the
-   environment lacks is added by Waleed in the Dokploy UI first (`deploy/staging.env.example` lists them), or the
-   interpolation aborts before any service starts. Prove it:
-   `https://api.staging.pospay.systems/ready` answers 200, the worker's own `/ready` answers 200 from inside its
-   container (`docker exec <worker> node -e "fetch('http://127.0.0.1:3001/ready')…"`, as the retired script did), both front ends answer 200, and the `migrate` container exited 0.
-5. **When the release adds a migration, prove rollback** (constitution, Development Workflow): redeploy
-   `<previous-sha>` with **the rollback compose file** (below) and that tag against the new schema, confirm `/ready`, then restore the current compose file and redeploy `<full-sha>`. A
-   previous image that does not start on the new schema is a P1 against the migration: redeploy `<full-sha>` at once,
-   keep the release blocked, and open the P1.
-6. On a failure of step 4, redeploy the previous SHA at once, **with the rollback compose file** (below), then diagnose. Never leave staging down while diagnosing.
-
-**The rollback compose file** of `<sha>`: that SHA's own `deploy/docker-compose.staging-shared.yml` when the SHA is #545 or
-later (a newer file may ask for images an older SHA never built); for a SHA from before #545 (the move to Dokploy
-domains), the current label-free file. Never upload an older file that still carries Traefik labels to this service:
-with its Dokploy domains it would add a second router for every host. Only SHAs from #533 (`4bfef627`) on can be
-restored at all, because the admin and POS `-staging` images exist only from there.
-
-**Restore `<sha>`:** take the rollback compose file of `<sha>`, pin it to `<sha>` exactly as step 4 does (every
-`${IMAGE_TAG:?}` replaced, none left), send it with `compose.update`, and redeploy;
-Dokploy keeps every deployment and its log. The old `deploy/staging-deploy.sh` path and the server `.env` in
-`/opt/pospay-staging` are retired (the script was deleted with #545): a plain `docker compose up` of this file would start a
-second api/worker stack on the same queues with no public routes. The rollback is always a pinned compose upload on the
-`PosPay Staging` service (Restore, above), never an environment edit. The stopped compose in `PayPos.Systems` was
-deleted with Waleed's yes on 2026-10-23.
-7. **Standing yes for this one cron line** (Waleed, PP-12.2, 2026-10-20: «(a) Yes, now and on every future
-   release.»). Every other change to the server itself still needs his yes (PP-12.1). Point
-   `/etc/cron.d/pospay-backup` at the new `pospay-backup:<sha>` image from GHCR, never a locally built tag (a
-   local image is removed by the server's cleanup and the nightly backup then fails silently).
-8. Update the decisions page's «المشروع أول بأول» tab (`CLAUDE.md` §1 5c) at https://plan.pospay.systems
-   (`docs/decisions-site.md` §B): `git pull` the `lolotam/plan` clone, set the merged rows, sub-tasks and any partner
-   requests they close to done with the PR number in `public/roadmap.json`, add any new rows, bump `updated`, push to
-   `main`, and confirm the live `roadmap.json` shows the change. Then read the answers back (§C of the same doc). If
-   the merge adds or changes something users see, send 2–3 plain Arabic lines to `pospay-features` (§D, PP-13.2),
-   never a bare merge notice; an internal fix gets none. A docs-only merge updates the tab too. A release is not reported to the owner until this is done.
-
-The server is shared: never touch another project's containers, databases or files.
-
----
-
-## 7. Talking to the owner
-
-- Egyptian Arabic, simple words — the owner is not technical. English terms stay in English on their own bullet.
-- After every merge, and from time to time during long work, send a progress report in this fixed shape, with every
-  count recounted from `roadmap.json`, `git log` and `gh pr list` each time:
-  1. the 7 phases and the status of each;
-  2. the current phase's groups, each with done / in progress / not started counts;
-  3. what runs now (row, PR, review round, MiniMax round count);
-  4. what comes next;
-  5. what waits on the owner (questions, approvals, server changes).
-- Ask the owner — with options and a recommended one — for every business rule, every server change, and every
-  merge that skips a gate. Never guess a business rule.
-
----
-
-## 8. Claude quota discipline
-
-Claude is the scarce quota (owner's Max plan, 2026-10-18: weekly 74 % used with 4 days left, plus metered overage). Every
-rule below moves work to a model or a script that does not draw on it. Judgement stays on Claude; reading, waiting and
-typing do not.
-
-1. **Wait with scripts, not with the model.** A background watcher is a shell loop that exits on the one event that
-   matters (merged, CI failed, all bots answered on the head SHA). Never wake the orchestrator on a timer or per
-   notification to look at nothing. Each wake-up re-reads the whole context, so a 700 K context makes every idle poll
-   expensive.
-2. **Keep the orchestrator context small.** Past roughly 300 K tokens, write a handover note (state of every open PR,
-   branch, worktree, session id, next action — about 30 lines, in `docs/journey/` or the scratchpad) and continue in a
-   fresh session from that note instead of carrying the history.
-3. **Choose the model per session.** Sessions that only continue a PR, write documentation or answer bot findings run on
-   Sonnet or Haiku at medium effort. High effort and the strongest model are for design advice, risky slices (§3 step 2)
-   and P0/P1 judgement only.
-4. **Fix rounds go to MiniMax.** When a bot finds something, the findings go to the implementer's continued MiniMax
-   session (§4 rule 2), each written as `file:line — what is wrong — what done looks like`. Claude judges whether the
-   fix is right; it does not retype it. Every production-code finding goes to MiniMax, a one-line one included
-   (PP-10.1). A Claude session fixes a finding itself only when the PR is docs-only and so has no implementer
-   session. After two MiniMax failures on one brief, stop and report
-   to Waleed (§4 rule 8). Never switch to another provider.
-5. **One cheaper review layer 2.** One fresh Sonnet 5.5 reviewer at medium effort replaces the two Opus-class reviewers
-   (review and confirm round). It gets the diff, the spec and the governing documents (`CLAUDE.md`, `CLAUDE.architecture.md`, `docs/06_Tech_Stack_Architecture_EN.md`, `docs/module-map.md`, the ADRs the slice cites), never the session history, so its context stays small. Use high
-   effort when the PR touches money, tenant isolation, auth or migrations, (the other-vendor reviewer is review layer 1, Codex astra 6, which already runs on every code PR in §3 step 7; the docs-only lane skips it and has no layer 2 either). A docs-only
-   PR gets no Claude reviewer. The confirm round is dropped: the four bots re-review the head SHA after every push.
-6. **Drafts are written by MiniMax.** This is the draft-writer role in §1, set by PP-10.1. MiniMax writes the first
-   drafts of specs, ADRs, journey docs and the HANDOVER, and Claude edits and owns them. Claude writes a document from
-   scratch only when it records a decision that only Claude has the context for.
-7. **The roadmap is edited by a script.** After a merge, write the changed rows as `[{ "code": "…", "status": "done",
-   "ref": "PR #n" }]` and, from this repo's root, run `node scripts/roadmap/cli.mjs F:/Dev/Projects/plan-pospay/public/roadmap.json updates.json`
-   (the `lolotam/plan` clone's file). It sets status and ref by
-   code anywhere in the file (phases, gates, track items, partner requests), bumps `updated`, and refuses an unknown
-   code or status before changing anything. It cannot add a row: add a new row by hand in the right group of
-   `roadmap.json` first, then run the script for the statuses. `git pull` the `lolotam/plan` clone, run the script on
-   its `public/roadmap.json`, push. Do not write a new script each time.
-8. **Report the draw.** When the owner asks about quota, answer from the context sizes of the sessions and the number of
-   wake-ups, not from guesses; the app does not expose per-session numbers.
-
----
-
-## 9. Never
-
-- Never let MiniMax run any git command, read or write anything under `.git`, use any MCP tool, merge, push, or
-  touch the server.
-- Never merge with a P0/P1 open, or with CI red on the head being merged.
-- Never exceed 5 review rounds without applying §2 (a docs-only PR has no cap, see the docs-only lane in §2), and never exceed 6 parallel tasks (PP-59).
-- Never run two tasks in parallel that touch the same file.
-- Never change the staging database by hand without the owner's explicit approval for that change.
-- Never rewrite a pushed branch's history (`--force`) without the owner's explicit approval.
+- The standing reviewed-PR → merge → staging authorization covers the delivery queue only;
+  do not assume it covers unrelated documentation saves. Never skip a gate without current consent.
+- Before **every merge**, run and verify the backup using `deploy/backup/`; Dokploy does not take
+  it automatically. If Dokploy authentication fails, prepare the PR but do not merge without an
+  authorized alternative. The SSH exception for PR #701 is not a general authorization.
+- A merge or `autoDeploy` flag does not prove a release. For a code rollout, verify green merged-SHA
+  CI and published images, backup/restore, the existing Dokploy compose's pinned SHA/migration,
+  readiness/live SHA/smoke checks, rollback proof and forward deployment. Never start a second
+  stack or edit the database manually. A docs-only merge needs no application rollout.
+- No production/server/credential/cost change without specific owner consent. Never print secrets
+  or touch another project's containers, data or files.
+- After every merge or task/partner-request change, pull and update the existing roadmap in place,
+  then verify the live page. Never rebuild it or edit SQLite directly. Follow the existing roadmap
+  CLI in `scripts/roadmap/cli.mjs` and the decisions-site instructions. Read owners' answers back.
+- Give user-visible releases Arabic and English journey/testing guides. Use only the existing
+  confirmed notification topics and rules in policy §12; internal documentation saves send none.
+  Send messages only when authorized by the user or an explicitly invoked workflow.
+- Report in Egyptian Arabic: done, running, next and blockers, with counts recounted from current
+  roadmap/repository/PR evidence and actual review/fix rounds. Keep identifiers untranslated.
+  Do not report delivery complete before verification, or invent quota/usage figures.
