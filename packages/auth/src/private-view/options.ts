@@ -1,7 +1,14 @@
 import type { AuthDatabase } from '@pospay/db';
 
+/** حد الخمول: أقصى فترة بلا لمس قبل ما النافذة تصرف. */
 export const PRIVATE_VIEW_IDLE_MS = 60_000;
+/** سقف عمر النافذة من فتحها؛ الخمول عمره ما بيعديش السقف. */
 export const PRIVATE_VIEW_CAP_MS = 300_000;
+/**
+ * عمر دليل PIN: قاعدة مستقلة عن حد الخمول.
+ * القيمتين النهارده سواء، بس كل واحد بيلزمه سطر في الـ ADR: الدليل بتقادمه، والنافذة بلمسها.
+ */
+export const PRIVATE_VIEW_PROOF_MAX_AGE_MS = 60_000;
 
 /** مصدر عشوائي مستقل عن الزمن والجلسة حتى لا يصبح window_id قابلاً للتنبؤ. */
 export interface PrivateViewEntropy {

@@ -95,6 +95,7 @@ export {
   type StaffPrivateViewCheckOutcome,
   type StaffPrivateViewCheckRequest,
   type StaffPrivateViewCloseRequest,
+  type StaffPrivateViewDecisionRow,
   type StaffPrivateViewOpenDecision,
   type StaffPrivateViewOpenOutcome,
   type StaffPrivateViewOpenRequest,

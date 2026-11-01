@@ -4,7 +4,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { AuthDatabase } from '../auth-database.ts';
 import { staffPrivateViewIdentifier, staffPrivateViewSequenceIdentifier } from './identifiers.ts';
 import { timestamp, toDate } from './timestamp.ts';
-import type { StaffPrivateViewSessionRow } from './types.ts';
+import type { StaffPrivateViewDecisionRow, StaffPrivateViewSessionRow } from './types.ts';
 
 /**
  * قرار الفتح: العينة اللي اتؤخذت تحت قفل صف الجلسة ونهاية السقف.
@@ -25,9 +25,12 @@ export type StaffPrivateViewOpenRequest = {
   readonly windowRowId: string;
   /** مفتاح صف عداد الجلسة لو اتشال. */
   readonly counterRowId: string;
-  /** قرار auth تحت قفل صف الجلسة؛ null يعني رفض بدون أي كتابة. */
+  /**
+   * قرار auth تحت قفل صف الجلسة؛ null يعني رفض بدون أي كتابة.
+   * القرار غير الفارض عقد: الصف موجود وموعده صالح، وإلا رميت الدالة خطأ عقد.
+   */
   readonly accept: (
-    row: StaffPrivateViewSessionRow | null,
+    row: StaffPrivateViewDecisionRow | null,
   ) => StaffPrivateViewOpenDecision | null;
 };
 
@@ -59,10 +62,12 @@ export async function openStaffPrivateView(
     const [session] = await tx.execute<StaffPrivateViewSessionRow>(sql`
       SELECT user_id,purpose,staff_device_context,staff_absolute_deadline
       FROM session WHERE id=${request.sessionId}::uuid FOR UPDATE`);
-    const decision = request.accept(session ?? null);
+    // التطبيع قبل القرار: الموعد بيتقارن مرة واحدة، والعداد بيكتب نفس القيمة اللي قارنها auth.
+    const row = session ? normalizeSessionRow(session) : null;
+    const decision = request.accept(row);
     if (decision === null) return { kind: 'refused' };
-    const deadline = absoluteDeadline(session);
-    if (deadline === null) return { kind: 'refused' };
+    const deadline = row === null ? null : row.staff_absolute_deadline;
+    if (deadline === null) throw new Error('PRIVATE_VIEW_SESSION_DEADLINE_MISSING');
     const windowSeq = await nextWindowSequence(tx, request, decision, deadline);
     const identifier = staffPrivateViewIdentifier(request.sessionId);
     await tx.execute(sql`DELETE FROM verification WHERE identifier=${identifier}`);
@@ -109,14 +114,15 @@ async function nextWindowSequence(
 }
 
 /**
- * يحوّل الموعد المطلق للصف المقفل إلى تاريخ؛ الصف من غير موعد مابيشتغلش مع النافذة.
+ * يطبّع صف الجلسة المقفل قبل القرار: الموعد بيتحوّل لتاريخ هنا مرة واحدة.
+ * صف من غير موعد صالح مابيشتغلش مع النافذة، فالقرار في auth بيشوف null بدل تاريخ مكسور.
  *
- * @param session الصف المقفل، أو undefined لو الصف مش موجود
- * @returns الموعد المطلق، أو null لو الصف مالوش موعد صالح
+ * @param row الصف كما وصل من القاعدة
+ * @returns صف القرار بموعد تاريخ، أو null لما الموعد ناقص أو تالف
  */
-function absoluteDeadline(session: StaffPrivateViewSessionRow | undefined): Date | null {
-  const value = session?.staff_absolute_deadline ?? null;
-  if (value === null) return null;
-  const deadline = toDate(value);
-  return Number.isNaN(deadline.getTime()) ? null : deadline;
+function normalizeSessionRow(row: StaffPrivateViewSessionRow): StaffPrivateViewDecisionRow {
+  const raw = row.staff_absolute_deadline;
+  if (raw === null) return { ...row, staff_absolute_deadline: null };
+  const deadline = toDate(raw);
+  return { ...row, staff_absolute_deadline: Number.isNaN(deadline.getTime()) ? null : deadline };
 }

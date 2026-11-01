@@ -18,4 +18,7 @@ export {
   type StaffPrivateViewOpenOutcome,
   type StaffPrivateViewOpenRequest,
 } from './staff-private-view/open.ts';
-export type { StaffPrivateViewSessionRow } from './staff-private-view/types.ts';
+export type {
+  StaffPrivateViewDecisionRow,
+  StaffPrivateViewSessionRow,
+} from './staff-private-view/types.ts';

@@ -26,7 +26,9 @@ export type StaffPrivateViewCheckOutcome =
 
 /**
  * يتحقق ويلمس في عبارة واحدة؛ شرط window_id يمنع طلب قديم من تمديد نافذة أحدث.
- * ولما اللمسة ماتفعش، الحذف بيتقفل بمفتاح النافذة نفسه عشان الطلب القديم مايمسحش صف أحدث.
+ * ووقت اللمسة ما بيرجعش لورا: updated_at بيكبر بس، فلمسين متزامنين ما يقصروش نافذة بعض
+ * لو ات-commitوا بترتيب معكوس.
+ * ولما اللمسة ماتفعش، الحذف بيتقفل بمفتاح النافذة ونطاقها نفسه عشان الطلب القديم مايمسحش صف أحدث.
  *
  * @param database واجهة pospay_auth
  * @param request قيم الطلب وحدود الخمول والسقف
@@ -38,7 +40,7 @@ export async function checkStaffPrivateView(
 ): Promise<StaffPrivateViewCheckOutcome> {
   const identifier = staffPrivateViewIdentifier(request.sessionId);
   const [passed] = await database.db.execute<{ created_at: Date | string }>(sql`
-    UPDATE verification SET updated_at=${timestamp(request.now)}
+    UPDATE verification SET updated_at=GREATEST(updated_at,${timestamp(request.now)})
     WHERE identifier=${identifier}
       AND value::jsonb->>'window_id'=${request.windowId}
       AND value::jsonb->>'user_id'=${request.userId}
@@ -51,8 +53,10 @@ export async function checkStaffPrivateView(
   if (passed !== undefined) {
     return { kind: 'passed', createdAt: toDate(passed.created_at) };
   }
+  // الحذف بيقفل على النطاق كمان: اختلاف المستخدم أو الجهاز يبقى mismatch والتخزين زي ما هو.
   const deleted = await database.db.execute<{ id: string }>(sql`
     DELETE FROM verification WHERE identifier=${identifier} AND value::jsonb->>'window_id'=${request.windowId}
+      AND value::jsonb->>'user_id'=${request.userId} AND value::jsonb->>'device_id'=${request.deviceId}
       AND (updated_at<${timestamp(request.idleFloor)} OR created_at<${timestamp(request.capFloor)}) RETURNING id`);
   return deleted.length > 0 ? { kind: 'expired' } : { kind: 'mismatch' };
 }

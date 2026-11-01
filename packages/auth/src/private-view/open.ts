@@ -1,4 +1,4 @@
-import { openStaffPrivateView, type StaffPrivateViewSessionRow } from '@pospay/db';
+import { openStaffPrivateView, type StaffPrivateViewDecisionRow } from '@pospay/db';
 import { sameDevice } from '../staff-otp/policy.ts';
 import type { StaffDeviceContext } from '../staff-otp/types.ts';
 import {
@@ -10,6 +10,7 @@ import {
 import {
   PRIVATE_VIEW_CAP_MS,
   PRIVATE_VIEW_IDLE_MS,
+  PRIVATE_VIEW_PROOF_MAX_AGE_MS,
   type PrivateViewStoreOptions,
 } from './options.ts';
 
@@ -39,6 +40,7 @@ type ProofState = NonNullable<ReturnType<typeof consumePrivateViewProof>>;
 
 /**
  * يفتح نافذة واحدة للجلسة بترتيب قفل يمنع تزامن الفتح من ترك صفين أو إعادة صف بعد إنهائها.
+ * النافذة بتتقفل على جهاز الجلسة نفسها: نطاق فيه جهاز تاني يترفض كـ session وما بيكتبش سطر واحد.
  *
  * @param options اتصال الاعتماد والساعة والمعرفات والعشوائية المحقونة
  * @param input دليل PIN ونطاق الفتح وسياق الجهاز المثبت
@@ -97,11 +99,13 @@ export async function openPrivateView(
  */
 function proofFresh(proof: ProofState, now: Date): boolean {
   const age = now.getTime() - proof.verifiedAtMs;
-  return age >= 0 && age <= PRIVATE_VIEW_IDLE_MS;
+  return age >= 0 && age <= PRIVATE_VIEW_PROOF_MAX_AGE_MS;
 }
 
 /**
  * يتأكد إن صف الجلسة هو جلسة الطلب نفسها: نفس الغاية، ونفس المشغل، ونفس الجهاز، وموعدها لسه قدام.
+ * وجهاز النطاق لازم يكون جهاز الصف نفسه: من غير الشرط ده كان caller يكتب device_id بتاعه
+ * في النافذة، فالمسح والفحص الجايين يميلوا على قيمة من العميل مش من الجلسة المقفولة.
  *
  * @param session الصف المقفل أو null لما الصف يكون مش موجود
  * @param input نطاق الفتح وسياق الجهاز المثبت
@@ -109,7 +113,7 @@ function proofFresh(proof: ProofState, now: Date): boolean {
  * @returns true طول ما الصف يطابق الطلب
  */
 function sessionLive(
-  session: StaffPrivateViewSessionRow | null,
+  session: StaffPrivateViewDecisionRow | null,
   input: PrivateViewOpenInput,
   now: Date,
 ): boolean {
@@ -125,7 +129,8 @@ function sessionLive(
   }
   const device = session.staff_device_context as StaffDeviceContext;
   return (
+    device.deviceId === input.scope.deviceId &&
     sameDevice(device, input.device) &&
-    now.getTime() < new Date(session.staff_absolute_deadline).getTime()
+    now.getTime() < session.staff_absolute_deadline.getTime()
   );
 }
