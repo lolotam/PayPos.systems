@@ -1,5 +1,6 @@
 // أدوات التعافي: شركة تانية بطلباتها، وحالة جديدة، وانتظار التعافي على جدولة حقيقية.
 import type { Queue } from 'bullmq';
+import type postgres from 'postgres';
 
 import { TENANT, USER } from '../../../../../packages/db/test/tenancy-fixtures.ts';
 import { RATING_CLAIMS_QUEUE } from '../../modules/customers/jobs/rating-claims.processor.ts';
@@ -29,8 +30,10 @@ export function schedulerIdOf(companyId: string): string {
  * بتلغي الطلب بدل ما تطلبه.
  */
 export async function openSecondCompany(world: RatingClaimsWorld): Promise<void> {
+  // المواعيد بتتحفظ ككائن jsonb، مش كنص: الـ json helper بتاع postgres هو اللي بيعمل ده.
   await world.base.owner`UPDATE branches
-    SET opening_hours = ${JSON.stringify(TEN_TO_TEN)}::jsonb, timezone = ${KUWAIT}
+    SET opening_hours = ${world.base.owner.json(TEN_TO_TEN as unknown as postgres.JSONValue)},
+        timezone = ${KUWAIT}
     WHERE company_id = ${TENANT.B.company} AND id = ${TENANT.B.branch}`;
   await world.base.owner`INSERT INTO rating_settings
       (company_id, id, business_id, requests_enabled, updated_by, updated_at, revision)

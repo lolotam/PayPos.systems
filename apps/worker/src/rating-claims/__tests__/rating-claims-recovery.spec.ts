@@ -65,13 +65,18 @@ it('lost_scheduler_recovers_without_new_visit', async () => {
       await world.redis.del(stateKeyOf(world.prefix, companyId));
     }
     expect(await schedulerOf(queue, world.company)).toBeUndefined();
+    // الطلبات المستحقة بتتزرع وسط الضياع، فالتعافي لازم يطلّعها من غير زيارة جديدة.
+    const first = await seedOneRequest(world, firstCompanyTarget(world), 70);
+    const second = await seedOneRequest(world, secondCompanyTarget(), 80);
+    // الضياع حقيقي: مفيش job مؤجل ولا حدث جاهزية لأي شركة.
+    expect(await queue.getDelayedCount()).toBe(0);
+    const lost = await readyRequestIdsByCompany(world, companies);
+    expect(lost.get(world.company)).toEqual([]);
+    expect(lost.get(world.otherCompany)).toEqual([]);
     // التسجيل من جديد بمخزون الشركات كامل ومصرّح بيه.
     for (const companyId of companies) await processor.ensureRegistered(companyId);
     expect(await schedulerOf(queue, world.company)).toBeDefined();
     expect(await schedulerOf(queue, world.otherCompany)).toBeDefined();
-    // الطلبات المستحقة موجودة من الأول ولسه ما اتطالبتش.
-    const first = await seedOneRequest(world, firstCompanyTarget(world), 70);
-    const second = await seedOneRequest(world, secondCompanyTarget(), 80);
     // الجدولة الحقيقية بتشتغل، فالمطالبات بتتعافى من غير زيارة جديدة.
     const ready = await waitForReadyEvents(world, companies);
     expect(ready.get(world.company)).toEqual([at(first.requestIds, 0)]);
