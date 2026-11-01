@@ -112,6 +112,7 @@ it('publishes a sale event that carries the selling branch and the business date
   expect(packageSaleChanged.safeParse({ ...event, schema_version: 2 }).success).toBe(false);
   expect(packageSaleChanged.safeParse(withoutKey(event, 'branch_id')).success).toBe(false);
   expect(packageSaleChanged.safeParse(withoutKey(event, 'business_date')).success).toBe(false);
+  expect(packageSaleChanged.safeParse({ ...event, business_date: '2026-13-45' }).success).toBe(false);
 });
 
 it('returns the entitlement as the sale and refuses an entitlement without components', () => {

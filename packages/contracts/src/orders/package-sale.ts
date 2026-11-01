@@ -4,7 +4,7 @@ import { timestamp } from '../scalars/timestamp.js';
 import { sessionMoney } from './service-session.js';
 
 const id = sharedId.toLowerCase();
-const businessDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+const businessDate = z.iso.date();
 
 // PK-Q4، أبو سالم: CARD هو KNET، ومفيش تحويل بنكي.
 export const packagePaidMethod = z.enum(['CASH', 'CARD']).meta({ id: 'PackagePaidMethod' });

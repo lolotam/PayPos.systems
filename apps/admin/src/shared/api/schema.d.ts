@@ -5563,8 +5563,10 @@ export interface components {
             seller_employee_id: string;
             /** Format: date-time */
             sold_at: string;
+            /** Format: date */
             sold_business_date: string;
             late: boolean;
+            /** Format: date */
             expires_on: string;
             refunded_amount: components["schemas"]["SessionMoney"];
             revision: number;
@@ -5582,6 +5584,7 @@ export interface components {
             branch_id: string;
             /** Format: date-time */
             sold_at: string;
+            /** Format: date */
             business_date: string;
             /** Format: uuid */
             seller_employee_id: string;
