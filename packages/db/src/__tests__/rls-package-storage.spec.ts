@@ -40,6 +40,9 @@ beforeAll(async () => {
       VALUES (${tenant.company},${IDS.packageType},${tenant.business},'Synthetic package',30.000,30)`;
   }
   db = createDatabase({ url: testDb.appUrl, ids: { newId: () => IDS.entitlement } });
+  // الشركتين ليهم صفوف قبل أي فحص عزل، عشان "صفر صفوف" يبقى معناه إن السياسة خبّتها.
+  await sell(A, 3);
+  await sell(B, 3);
 });
 
 afterAll(async () => {
@@ -109,37 +112,38 @@ async function rejected(work: Promise<unknown>, code: string, constraint?: strin
   expect([found.code, found.constraint]).toEqual([code, constraint]);
 }
 
-it.each(TABLES)('%s forces tenant isolation and hides rows without tenant context', async (table) => {
-  expect(
-    await owner`SELECT relrowsecurity,relforcerowsecurity FROM pg_class WHERE relname=${table}`,
-  ).toEqual([{ relrowsecurity: true, relforcerowsecurity: true }]);
-  expect(
-    Array.from(
-      await asTenant(
-        A.company,
-        sql`SELECT company_id FROM ${sql.identifier(table)} WHERE company_id=${B.company}`,
+it.each(TABLES)(
+  '%s forces tenant isolation and hides rows without tenant context',
+  async (table) => {
+    expect(
+      await owner`SELECT relrowsecurity,relforcerowsecurity FROM pg_class WHERE relname=${table}`,
+    ).toEqual([{ relrowsecurity: true, relforcerowsecurity: true }]);
+    expect(
+      Array.from(
+        await asTenant(
+          A.company,
+          sql`SELECT company_id FROM ${sql.identifier(table)} WHERE company_id=${B.company}`,
+        ),
       ),
-    ),
-  ).toEqual([]);
-  expect(
-    Array.from(
-      await asTenant(
-        B.company,
-        sql`SELECT company_id FROM ${sql.identifier(table)} WHERE company_id=${A.company}`,
+    ).toEqual([]);
+    expect(
+      Array.from(
+        await asTenant(
+          B.company,
+          sql`SELECT company_id FROM ${sql.identifier(table)} WHERE company_id=${A.company}`,
+        ),
       ),
-    ),
-  ).toEqual([]);
-  const app = postgres(testDb.appUrl, { max: 1, onnotice: () => undefined });
-  try {
-    expect(await app.unsafe(`SELECT company_id FROM ${table}`)).toEqual([]);
-  } finally {
-    await app.end();
-  }
-});
+    ).toEqual([]);
+    const app = postgres(testDb.appUrl, { max: 1, onnotice: () => undefined });
+    try {
+      expect(await app.unsafe(`SELECT company_id FROM ${table}`)).toEqual([]);
+    } finally {
+      await app.end();
+    }
+  },
+);
 
 it('same identifiers in two companies do not collide or expose foreign rows', async () => {
-  await sell(A, 3);
-  await sell(B, 3);
   expect(
     Array.from(
       await asTenant(
@@ -180,21 +184,18 @@ it('cross-tenant writes are refused on every table', async () => {
   await rejected(asTenant(A.company, slotSql(B, 1)), '42501');
 });
 
-it('an upsert from another company is refused as well', async () => {
-  await rejected(
-    asTenant(
-      A.company,
-      sql`INSERT INTO package_entitlements
-        (company_id,id,business_id,customer_id,package_type_id,provenance,name_en,validity_days,list_price,
-         price_paid,discount,discount_bps,paid_method,seller_employee_id,sold_branch_id,sold_at,
-         sold_business_date,sold_timezone,recorded_by,recorded_by_membership_id,expires_on)
-        VALUES (${B.company},${IDS.entitlement},${B.business},${ORDER_IDS.customer},${IDS.packageType},
-          'SOLD','Foreign package',30,30.000,30.000,0.000,0,'CASH',${ORDER_IDS.employee},${B.branch},
-          now(),current_date,'Asia/Kuwait',${USER},${ORDER_IDS.membership},current_date + 30)
-        ON CONFLICT(company_id,id) DO UPDATE SET name_en=excluded.name_en`,
-    ),
-    '42501',
+const upsertSql = (tenant: Tenant) =>
+  sql`${entitlementSql(tenant)} ON CONFLICT(company_id,id) DO UPDATE SET revision=excluded.revision`;
+
+// revision عليه منحة UPDATE وقيمته مش بتتغير، فالرفض الوحيد الممكن هو سياسة RLS مش الصلاحيات.
+it('an upsert from another company is refused by the policy, while the same upsert passes at home', async () => {
+  await asTenant(A.company, upsertSql(A));
+  const error = await asTenant(A.company, upsertSql(B)).then(
+    () => null,
+    (caught: unknown) => caught,
   );
+  expect(detail(error).code).toBe('42501');
+  expect(String((error as { cause?: unknown }).cause ?? error)).toMatch(/row-level security/);
 });
 
 it('the other runtime roles reach no package storage table', async () => {

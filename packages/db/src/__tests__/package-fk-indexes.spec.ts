@@ -172,8 +172,10 @@ it('a partial index counts only when its predicate is the nullable foreign key c
 
 it('include columns never make an index support a foreign key', async () => {
   const table = 'package_session_slots';
-  const [foreign] = await foreignKeys(table);
-  if (foreign === undefined) throw new Error('the session slot table carries no foreign key');
+  const foreign = (await foreignKeys(table)).find(
+    (key) => key.name === 'package_session_slots_component_fk',
+  );
+  if (foreign === undefined) throw new Error('the session slot component foreign key is missing');
   const nullable = await nullableColumns(table);
   await owner`CREATE INDEX package_session_slots_include_probe
     ON package_session_slots (company_id, business_id) INCLUDE (entitlement_id, component_id)`;
