@@ -5,7 +5,7 @@ imports:
   catalog: [tenancy]
   channels: [tenancy]
   commissions: [staff, settings]
-  customers: [tenancy, settings]
+  customers: [tenancy, settings, staff]
   expenses: [tenancy]
   files: [tenancy]
   identity: [tenancy]
@@ -48,6 +48,8 @@ reads:
   - { from: orders, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/orders/persistence/branch-manager-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: branchPlace, file: apps/worker/src/modules/orders/persistence/branch-place.adapter.ts }
   - { from: customers, to: tenancy, symbol: branchScheduleHours, file: apps/worker/src/modules/customers/persistence/branch-schedule-hours.adapter.ts }
+  - { from: customers, to: tenancy, symbol: businessNames, file: apps/worker/src/modules/customers/persistence/business-names.adapter.ts }
+  - { from: customers, to: staff, symbol: readEmployeeDisplayNames, file: apps/worker/src/modules/customers/persistence/performer-name.adapter.ts }
   - { from: orders, to: identity, symbol: branchManagerRecipients, file: apps/worker/src/modules/orders/persistence/price-edit-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/orders/persistence/price-edit-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: branchPlace, file: apps/worker/src/modules/orders/persistence/price-edit-place.adapter.ts }

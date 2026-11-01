@@ -208,3 +208,46 @@ lists by name, not for the adapters that implement them. The `StaffColumnsPort` 
   and 61-1 add their `AlertRulesPort` lines; 59-1 adds `customers -> tenancy.branchScheduleHours`.
 - **Not in this addendum:** customers' `RatingAlertRecipientsPort` (docs PR A-1, postponed with the rating track), and
   the `NotificationDelivered` ⇒ `customers` event row (spec 060 D-B8, in 59b-3).
+
+## Addendum 2026-10-31 — 59b-2 worker-customer claim reads and the dormant claim core
+
+### 5. Worker `customers → staff` is one bounded public read
+
+The rating claim needs the performers' current, display-safe first names while it composes
+`RatingRequestReady`; an event cannot answer that synchronous question, and a second stored name
+projection could be stale at the authoritative claim. Worker `customers` therefore keeps its
+consumer-owned `PerformerNamePort`, implemented only by
+`apps/worker/src/modules/customers/persistence/performer-name.adapter.ts`. The adapter calls
+`readEmployeeDisplayNames` from worker `staff/index.ts` on the caller's existing tenant
+transaction. The read returns names only: no staff write, lock, internal path, new role, grant or
+second connection is allowed.
+
+The compile-time arrow is `customers → staff`, confined to that persistence adapter. It is acyclic:
+`staff` imports `tenancy`, `identity`, `files` and `settings`, and none of those imports `customers`;
+`staff` does not import `customers`. The declaration is `module-map.md` §2 (`customers` may import
+`staff`), §3 (`PerformerNamePort`), and §6 (`customers: [tenancy, settings, staff]` plus the exact
+`customers -> staff.readEmployeeDisplayNames` `reads` row). This records the existing technical
+adapter boundary; it is not a new owner or business decision.
+
+### 6. The claim core of 59b-2a merges dormant, and the rest is a later slice
+
+Sub-PR 59b-2a ships only the claim core: the single-request `ClaimRatingRequest` use case with its
+domain decisions and its ports, the `RatingRequestReady` event and its contracts. It merges
+**dormant**: no runtime call site, no scheduler, no queue, no migration and no data step, so nothing
+in a running system claims a request yet.
+
+The following parts of the 59b-2 design are **not** in this slice and land with the later sub-PRs
+59b-2b/59b-2c:
+
+- the per-company BullMQ claim scheduler `rating-claims-<companyId>` and its one-minute cadence;
+- the keyset `(due_at, id)` continuation across pages of at most 100 due requests, written to
+  `job.data` through `job.updateData` so a failed or rescheduled first page cannot starve later
+  candidates, and a trigger that creates a missing scheduler without rewriting an existing one;
+- the ADR-0038 discovery data step of migration 0194, which emits one discovery event per company
+  that already has unclaimed requests;
+- the dispatcher-read-only recovery of a parked discovery or of a late visit an older worker already
+  acknowledged, and its `docs/runbook.md` entry.
+
+The decisions above stay as they are: the scheduler that drives them calls the claim core merged
+here, unchanged, and per-request diagnostics follow ADR-0037 §9 (safe error type/code and immediate
+cause type/code only) once that scheduler lands.

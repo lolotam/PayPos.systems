@@ -3,6 +3,7 @@ import { ar } from './ar.js';
 import { commissionStatementAr, commissionStatementEn } from './commission-statement-catalog.js';
 import { en } from './en.js';
 import { nativeShellAr, nativeShellEn } from './native-shell-catalog.js';
+import { ratingRequestAr, ratingRequestEn } from './rating-catalog.js';
 import { sessionTipsAr, sessionTipsEn } from './session-tips-catalog.js';
 import { serviceLineCancelAr, serviceLineCancelEn } from './service-line-cancel-catalog.js';
 import { serviceLineEditAr, serviceLineEditEn } from './service-line-edit-catalog.js';
@@ -31,6 +32,7 @@ type RegisteredCatalog = Catalog & {
   readonly staffAppColumns: Record<keyof typeof staffAppColumnsEn, string>;
   readonly staffPush: Record<keyof typeof staffPushEn, string>;
   readonly nativeShell: Record<keyof typeof nativeShellEn, string>;
+  readonly ratingRequest: Record<keyof typeof ratingRequestEn, string>;
 };
 
 /** مفتاح رسالة: <القسم>.<الاسم>، زي errors.NOT_READY. */
@@ -54,6 +56,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     staffAppColumns: staffAppColumnsAr,
     staffPush: staffPushAr,
     nativeShell: nativeShellAr,
+    ratingRequest: ratingRequestAr,
   },
   en: {
     ...en,
@@ -67,6 +70,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     staffAppColumns: staffAppColumnsEn,
     staffPush: staffPushEn,
     nativeShell: nativeShellEn,
+    ratingRequest: ratingRequestEn,
   },
 };
 
