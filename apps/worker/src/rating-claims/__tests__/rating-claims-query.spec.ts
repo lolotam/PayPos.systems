@@ -38,9 +38,9 @@ async function seedCustomer(companyId: string, id: string, phone: string): Promi
 }
 
 /**
- * دفعة صفوف كبيرة لشركة واحدة، في جملة واحدة: تاريخ مستحق، صف مستحق، صف مستقبلي،
- * وحالات مختلفة (SCHEDULED وSENDING وSENT وCANCELLED). المعرّفات مرتّبة بالرقم
- * عشان الحد الأعلى والإحصاءات تبقى من واقع البيانات.
+ * دفعة صفوف كبيرة لشركة واحدة، في جملة واحدة: صف مستحق، صف مستقبلي، وصف ملغى.
+ * قاعدة الإدراج بتسمح بالحالة المجدولة أو الملغاة بس، فالدفعة بتدخل كده وبعدين
+ * بتتحرك على المسار المسموح بجملتين محددتين.
  */
 async function seedBulk(
   companyId: string,
@@ -51,9 +51,7 @@ async function seedBulk(
 ): Promise<void> {
   await f.owner`
     INSERT INTO rating_requests
-      (company_id, id, business_id, customer_id, business_date, branch_id, due_at, status,
-       cancel_reason, token_hash, token_key_version, expires_at, claimed_at, ready_event_id,
-       sent_at, claim_xact_id)
+      (company_id, id, business_id, customer_id, business_date, branch_id, due_at, status, cancel_reason)
     SELECT
       ${companyId},
       ('0192' || lpad(to_hex(n), 4, '0') || '-7000-8000-0000-' || lpad(to_hex(n), 12, '0'))::uuid,
@@ -64,22 +62,47 @@ async function seedBulk(
       CASE n % 3 WHEN 0 THEN TIMESTAMPTZ '2026-01-01 09:00:00+00'
                  WHEN 1 THEN TIMESTAMPTZ '2026-06-01 09:00:00+00'
                  ELSE TIMESTAMPTZ '2027-01-01 09:00:00+00' END,
-      CASE n % 6 WHEN 0 THEN 'CANCELLED' WHEN 1 THEN 'SENDING' WHEN 2 THEN 'SENT' ELSE 'SCHEDULED' END,
-      CASE n % 6 WHEN 0 THEN 'REQUESTS_OFF' ELSE NULL END,
-      CASE WHEN n % 6 IN (1, 2) THEN decode(md5(n::text) || md5(n::text || 'x'), 'hex') ELSE NULL END,
-      CASE WHEN n % 6 IN (1, 2) THEN 1 ELSE NULL END,
-      CASE WHEN n % 6 IN (1, 2) THEN TIMESTAMPTZ '2026-05-01 09:00:00+00' + interval '168 hours' END,
-      CASE WHEN n % 6 IN (1, 2) THEN TIMESTAMPTZ '2026-05-01 09:00:00+00' END,
-      CASE WHEN n % 6 IN (1, 2)
-        THEN ('0193' || lpad(to_hex(n), 4, '0') || '-7000-8000-0000-' || lpad(to_hex(n), 12, '0'))::uuid END,
-      CASE WHEN n % 6 = 2 THEN TIMESTAMPTZ '2026-05-02 09:00:00+00' END,
-      CASE WHEN n % 6 IN (1, 2) THEN pg_current_xact_id() END
+      CASE n % 6 WHEN 0 THEN 'CANCELLED' ELSE 'SCHEDULED' END,
+      CASE n % 6 WHEN 0 THEN 'REQUESTS_OFF' ELSE NULL END
     FROM generate_series(1, ${count}::int) AS n`;
+}
+
+/**
+ * بيعني جزء من الصفوف للإرسال: من مجدول لمُرسل، ببصمة الرابط ودليل الجاهزية
+ * اللي القيود بتطلبهم، وكل القيم بتتم في جملة واحدة.
+ */
+async function advanceToSending(companyId: string, customerId: string): Promise<void> {
+  await f.owner`
+    UPDATE rating_requests
+       SET status = 'SENDING',
+           token_hash = decode(md5(id::text) || md5(id::text || 'x'), 'hex'),
+           token_key_version = 1,
+           claimed_at = TIMESTAMPTZ '2026-05-01 09:00:00+00',
+           expires_at = TIMESTAMPTZ '2026-05-01 09:00:00+00' + interval '168 hours',
+           ready_event_id = md5(id::text)::uuid,
+           updated_at = now()
+     WHERE company_id = ${companyId}
+       AND customer_id = ${customerId}
+       AND status = 'SCHEDULED'
+       AND (business_date - DATE '2025-01-01') % 6 IN (1, 2)`;
+}
+
+/** بيبعت جزء من الصفوف المرسلة، وده آخر انتقال مسموح في المسار. */
+async function advanceToSent(companyId: string, customerId: string): Promise<void> {
+  await f.owner`
+    UPDATE rating_requests
+       SET status = 'SENT', sent_at = TIMESTAMPTZ '2026-05-02 09:00:00+00', updated_at = now()
+     WHERE company_id = ${companyId}
+       AND customer_id = ${customerId}
+       AND status = 'SENDING'
+       AND (business_date - DATE '2025-01-01') % 6 = 2`;
 }
 
 /** صفوف شركة الأولى: حجم كافي يخلي المخطط يختار فهرس المفتاح الأساسي. */
 async function seedTenantA(customerId: string, branchId: string): Promise<void> {
   await seedBulk(TENANT.A.company, TENANT.A.business, branchId, customerId, TENANT_A_ROWS);
+  await advanceToSending(TENANT.A.company, customerId);
+  await advanceToSent(TENANT.A.company, customerId);
 }
 
 /** صفوف الشركة التانية، بأقل حجم، عشان عزل المستأجر يتأكد. */
@@ -87,6 +110,8 @@ async function seedTenantB(): Promise<void> {
   const customerId = f.ids.newId();
   await seedCustomer(TENANT.B.company, customerId, '+99999990001');
   await seedBulk(TENANT.B.company, TENANT.B.business, TENANT.B.branch, customerId, TENANT_B_ROWS);
+  await advanceToSending(TENANT.B.company, customerId);
+  await advanceToSent(TENANT.B.company, customerId);
 }
 
 /** خطة التنفيذ لنص جملة، مجمّعة من سطور EXPLAIN. */

@@ -86,7 +86,7 @@ async function begunSweep(world: Harness) {
 }
 
 /** صفحة فيها بندين اتسجلت في الجولة، وده أساس اختبارات التسوية. */
-async function enrolledPage(world: Harness, sweep: ReturnType<typeof begunSweep>) {
+async function enrolledPage(world: Harness, sweep: Awaited<ReturnType<typeof begunSweep>>) {
   const pageId = ids.newId();
   const firstToken = ids.newId();
   const secondToken = ids.newId();
@@ -122,11 +122,11 @@ it('acquire against a live owner is refused with BUSY', async () => {
 });
 
 it('takeover after the lease expiry keeps the progress and moves the version', async () => {
-  const world = await harness({ leaseMs: 50 });
+  const world = await harness({ leaseMs: 1000 });
   const sweepId = ids.newId();
   const begun = await world.state.begin(world.fence, sweepId, null);
   expect(begun.code).toBe('OK');
-  await delay(150);
+  await delay(1300);
   const taken = await world.state.acquire(world.companyId, ids.newId(), ids.newId());
   expect(taken.code).toBe('OK');
   expect(taken.version).toBeGreaterThan(world.snapshot.version);
@@ -372,8 +372,8 @@ it('a corrupt state is reported and never overwritten', async () => {
 });
 
 it('an expired owner can neither renew nor release', async () => {
-  const world = await harness({ leaseMs: 50 });
-  await delay(150);
+  const world = await harness({ leaseMs: 1000 });
+  await delay(1300);
   const renewed = await world.state.renew(world.fence);
   expect(renewed.code).toBe('BUSY');
   const released = await world.state.release(world.fence);
