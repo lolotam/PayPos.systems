@@ -77,7 +77,7 @@ follow this order: Zod contract → migration + RLS policy → domain functions 
 use case → adapters (persistence, http) → integration tests → UI. A slice MUST NOT touch
 modules outside its scope without stating why. Five task sessions (slices and other tasks together) are kept running at all times, started one after another rather than all at once, chosen to be as unrelated as possible,
 and only when their file paths are disjoint (except a shared file where each slice only adds its own line, such as the permission list, migration numbers or the
-OpenAPI contract: those merge in an order the manager sets, each later slice rebasing on `main`, PP-111.2) and no two of them change the same table; a slice that depends on another waits until that one merges.
+OpenAPI contract: those merge in an order the manager sets, each later slice rebasing on `main` and regenerating any generated file, PP-111.2) and no two of them change the same table; a slice that depends on another waits until that one merges.
 More than one may carry a migration, each tested on its own local Postgres; each merges only when it is green on its own head, and migration
 and ADR numbers are reserved in the expected merge order and made final at merge (Waleed, 2026-10-07; PP-59, 2026-10-25; PP-69, 2026-10-27; PP-111, 2026-11-01). Every architectural decision MUST be recorded as
 `docs/adr/NNNN-title.md`. A slice is done only when the checklist in
