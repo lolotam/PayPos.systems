@@ -365,9 +365,9 @@ it('runtime_stays_dormant_with_valid_token_settings', async () => {
   expect(next).toHaveBeenCalledOnce();
   expect(next).toHaveBeenCalledWith(event);
   // مفيش طابور ولا عامل اتفتحوا: لا وقت الإقلاع ولا وقت الحدث.
-  expect(resources.bullmq.constructed.filter((entry) => entry.name === RATING_CLAIMS_QUEUE)).toEqual(
-    [],
-  );
+  expect(
+    resources.bullmq.constructed.filter((entry) => entry.name === RATING_CLAIMS_QUEUE),
+  ).toEqual([]);
   // منفذ حالة الجدولة بيكتب بـ eval، فمفيش eval ولا evalsha حصل.
   expect(resources.redis.evalsha).not.toHaveBeenCalled();
   const written = resources.redis.set.mock.calls
