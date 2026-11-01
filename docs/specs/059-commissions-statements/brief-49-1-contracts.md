@@ -1,9 +1,9 @@
-# 49-1 initial implementation — five approved override contract kinds
+# 49-1 implementation — four approved override contract kinds
 
-Owner authorization: the manager's 2026-11-01 12:03 message reports Waleed's choice 0 on CS-Q39 = PP-104.1,
-batch 89, from the decisions page at 12:01 Kuwait. Add the fifth kind FOLLOW_SERVICE; Abu Salem remains pending,
-and his later differing pick would replace Waleed's. This is the first bounded stage of the
-same 49-1 delivery, not a new PR or an approval to take the migration lane.
+Final owner authorization: CS-Q39 = PP-104.1, batch 89, both owners' page choice 1, relayed by the manager on
+2026-11-01 at 16:06 Kuwait. Waleed confirmed «لأ، الأربع اختيارات بس» (2026-11-01, channel «كارت في شات مدير الويب»,
+relayed at 16:07). This supersedes the earlier choice 0. Keep only FOLLOW_PLAN, ZERO, PCT and FIXED; the audit
+retains the earlier choice. This remains the same 49-1 delivery and one PR.
 
 ## Write scope
 
@@ -25,11 +25,9 @@ generated OpenAPI/client, owner audit or plan changes. The parent regenerates ar
 Reuse `serviceCommissionRule` and `serviceCommissionRuleView` from `catalog/service.ts` in this same contracts
 package. They already encode the settled four kinds: `FOLLOW_PLAN`, `ZERO`, `PCT` with integer `value` from 0 to
 10000 bps, and `FIXED` with a nonnegative KWD string carrying exactly three decimal places within numeric(14,3).
-Extend this union for overrides only with strict `{kind:'FOLLOW_SERVICE'}` and its response twin. It has no value.
-Reuse the existing union's options rather than copying four rule validators. The ordinary catalog rule remains four
-kinds; do not modify catalog/service.ts or broaden service snapshots to admit FOLLOW_SERVICE.
-The winning eligible FOLLOW_SERVICE override means the saved snapshot of this line, not the live catalog or an
-older override. Its effect starts on effective_from; this contract stage does not implement engine behavior.
+Use those schemas directly for overrides; do not copy the validators or extend either union. Reject FOLLOW_SERVICE
+as an unknown kind. No reset-to-service behavior is approved; FOLLOW_PLAN means the employee plan, and only the
+absence of an eligible override falls back to the saved line snapshot. Keep catalog/service.ts unchanged.
 Never use a JS number for a monetary amount. Do not add an optional extension hook.
 
 Export the input/output types inferred from these schemas, following existing contracts naming and metadata:
@@ -47,8 +45,8 @@ Export the input/output types inferred from these schemas, following existing co
   Reuse the package's page helper where it fits without weakening these bounds.
 - `commissionServiceOverrideSchemas`: the new named schemas for the OpenAPI registry. Reused named schemas are
   already registered; avoid duplicate components with the same metadata id.
-- Export the override-specific rule schema/type and response twin as needed by the actual consumers. Register each
-  new metadata id exactly once, including the override rule. Keep existing serviceCommissionRule unchanged.
+- Export rule types only where actual consumers need them. Reuse the existing serviceCommissionRule component;
+  no separate override-rule component is needed. Keep the exact OpenAPI inventory aligned with the registered schemas.
 
 OpenAPI paths are the existing FR-011 / FR-013 route:
 `/v1/businesses/{businessId}/employees/{employeeId}/commission-overrides`.
@@ -65,8 +63,7 @@ Operation ids: `createCommissionServiceOverride` and `listCommissionServiceOverr
 Add meaningful contract tests for every valid rule and its invalid boundary, fixed-money losslessness and exact
 precision, year-zero rejection and valid leap date, strict input/no `whole_period`, cursor alphabet and bounds,
 limit coercion/default/bounds, stored/list response shape including `is_current`, and OpenAPI registration/path
-references. Include FOLLOW_SERVICE input/output round trips and rejection of a numeric/value payload on that kind;
-prove the ordinary catalog service rule still rejects FOLLOW_SERVICE. Keep existing plan-version tests and behavior
+references. Prove FOLLOW_SERVICE is rejected by override and ordinary catalog contracts. Keep existing plan-version tests and behavior
 unchanged. Do not weaken the OpenAPI schema inventory or skip generation checks.
 
 ## Working limits

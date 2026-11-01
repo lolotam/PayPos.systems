@@ -2,7 +2,8 @@
 
 Continue the same initial MiniMax delivery. The lead verified contracts, private storage, the reset resolver and
 the transactional writer. See plan-49-1.md for receipts and corrections. Finish the HTTP/list/root-binding stage
-inside the same eventual 49-1 PR. The migration lane is still held by 32b-pre-1; no branch push or PR is authorized.
+inside the same eventual 49-1 PR. The manager granted the lane at 16:06 Kuwait on 2026-11-01, after #757 merged.
+The lead may publish after final four-kind correction, generation and validation; the implementer does not publish.
 
 ## Required reading and operating limits
 
@@ -110,8 +111,8 @@ should seed and read within one transaction where possible, avoiding assumptions
 
 Sort service_id ASC, created_at DESC, id DESC. A row is current iff effective_from <= business today and no eligible
 same-company/business/employee/service competitor has a greater (created_at,id). Use correlated NOT EXISTS. Do not
-filter competitors by the page cursor. A future reset does not supersede today's winner; a winning FOLLOW_SERVICE
-row is current like any other kind. Do not choose by greatest effective_from or add predictive statuses.
+filter competitors by the page cursor. A future override does not supersede today's winner. Only the four agreed
+kinds are accepted (final CS-Q39 decision). Do not choose by greatest effective_from or add predictive statuses.
 
 Keyset next page: greater service_id OR same service_id and smaller (created_at,id). Preserve raw UTC microseconds
 using to_char with US for cursor time. The API created_at response uses MS as before; never derive the cursor by
@@ -128,7 +129,7 @@ strict responses. Do not import the persistence writer mapper into queries.
 
 ## Required proof
 
-- HTTP happy path and all five rule kinds, strict invalid input/no whole_period, date errors, service/employee
+- HTTP happy path and all four rule kinds, rejection of FOLLOW_SERVICE, strict invalid input/no whole_period, date errors, service/employee
   refusals, closed period, replay once, changed-body 422, missing Idempotency-Key 400 and busy 409 mapping.
 - Uniform 403 on both routes for missing permission/disabled feature, a real device principal and other invalid
   principal kinds as the existing access machinery requires. GET and POST must not leak another tenant's data.

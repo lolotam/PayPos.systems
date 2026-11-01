@@ -11,7 +11,7 @@ The manager confirmed exclusive ownership on 2026-11-01 at 11:16 Kuwait. Row 48a
 and 49, 51, 55 and 55b have not shipped, according to the manager's 11:15 decisions-site API read. There were no
 partner suggestions. The dependency, 48-2, merged in #730 (444a7ee1).
 
-CS-Q39 = PP-104.1, batch 89: Waleed selected choice 0 on the decisions page at 2026-11-01T09:01:31Z (12:01 Kuwait), without note text or source. The manager relayed the source at 12:03; the final decisions document also has choice 0 at 09:01:32Z. At 16:04 Kuwait on 2026-11-01 the manager reported Abu Salem's agreement and explicitly directed no implementation change, but called his choice "1" and the same as Waleed's. That numeric discrepancy is pending source verification by the manager; the verbatim relay and the request for the raw page note are recorded in owner-questions.ar.md §41. Implementation remains unchanged under that direction: add the override-only kind FOLLOW_SERVICE, effective from its saved date and resolving to the snapshot on each line. FR-011 remains resolved on Waleed's recorded choice pending that verification. The earlier four-kind-only authorization remains history in the audit record.
+CS-Q39 = PP-104.1, batch 89, final decision 2026-11-01: retain only FOLLOW_PLAN, ZERO, PCT and FIXED. Waleed changed his page choice from 0 to 1 at 2026-11-01T10:58:53.996Z; Abu Salem chose 1 at 2026-11-01T12:05:48.706Z. Both notes have empty text and no source. The manager relayed the API records at 16:06 Kuwait, correcting the erroneous 16:04 direction. At 16:07 he relayed Waleed's verbatim confirmation «لأ، الأربع اختيارات بس», dated 2026-11-01, channel «كارت في شات مدير الويب». FR-011 is resolved on four kinds; remove the previous FOLLOW_SERVICE implementation before publication. The full chronological record, including the superseded choice 0, remains in owner-questions.ar.md §41.
 
 At 12:28 Kuwait on 2026-11-01 the manager accepted the contracts and authorized MiniMax to draft the migration
 and RLS in this worktree, and the lead to run unnumbered work on this task's private database only, using provisional
@@ -36,7 +36,7 @@ CM-11's calculation proof still belongs here: read a saved override and pass it 
 The existing engine resolves rules as follows: among overrides for the same employee/service eligible on the
 line's business date, latest `createdAt` wins, then greatest `id`. It does not choose the greatest effective date.
 With no eligible override it returns that line's rule snapshot. `FOLLOW_PLAN` means the employee plan, not the
-service's snapshot. The original four kinds are FOLLOW_PLAN, ZERO, PCT and FIXED. CS-Q39 adds the override-only FOLLOW_SERVICE kind: once selected by the same eligibility/tie order, it returns the line snapshot and does not resume an older override or read the live catalog.
+service's snapshot. The only kinds are FOLLOW_PLAN, ZERO, PCT and FIXED. CS-Q39's final decision rejects a reset-to-service kind; preserve the existing engine resolver and its four-kind types.
 
 Preserve the 48-2 write invariants: one tenant transaction; access and feature checks before idempotent replay;
 employee row lock; ordered month locks; date validation before statement rows are created; time recheck after a
@@ -50,7 +50,7 @@ through T3, with file reads/edits only and no shell, git, network, secrets or pu
 
 Reuse `serviceCommissionRule` and `serviceCommissionRuleView` from the same contracts package's catalog module:
 PCT integer bps 0..10000; FIXED nonnegative numeric(14,3) KWD string with exactly three decimal places.
-Export the existing `commissionPlanDate` scalar without changing validation or metadata. The override-specific contract extends the reused four-rule options with a valueless FOLLOW_SERVICE branch; ordinary catalog rules remain unchanged. Request schemas are
+Export the existing `commissionPlanDate` scalar without changing validation or metadata. Reuse the catalog's four-kind input and response rule schemas directly; do not extend their unions. Request schemas are
 strict; responses use `responseObject` without forcing unconditional strict behavior.
 
 POST `/v1/businesses/{businessId}/employees/{employeeId}/commission-overrides` takes `{service_id, rule,
@@ -80,9 +80,9 @@ commissions-plan-versions.ts and its migration/RLS/grants tests. The physical ru
 
 PK `(company_id,id)`. Tenant-qualified FKs for business and `(company_id,business_id,employee_id)` and
 `(company_id,business_id,service_id)`. Use the existing parent unique keys. created_by references global user.id.
-CHECKs admit FOLLOW_PLAN, FOLLOW_SERVICE, ZERO, PCT and FIXED, require exactly the corresponding numeric column for PCT/FIXED, forbid values
-for FOLLOW_PLAN/FOLLOW_SERVICE/ZERO, bound bps to 0..10000 and fixed amount to the nonnegative numeric(14,3) range.
-Apply the CS-Q39 answer in contracts, this representation and the existing engine resolver/types/tests before delivery; do not add FOLLOW_SERVICE to ordinary service rule snapshots.
+CHECKs admit only FOLLOW_PLAN, ZERO, PCT and FIXED, require exactly the corresponding numeric column for PCT/FIXED, forbid values
+for FOLLOW_PLAN/ZERO, bound bps to 0..10000 and fixed amount to the nonnegative numeric(14,3) range.
+Apply the final CS-Q39 answer in contracts and this representation; the engine keeps its existing four-kind behavior.
 
 Indexes:
 
@@ -167,9 +167,9 @@ returns a known 400. Read only, no lock, no statement row, no audit. EXPLAIN bot
 
 | Area | Evidence |
 | --- | --- |
-| Contracts | Five override kinds, unchanged four-kind catalog rules, valueless FOLLOW_SERVICE, and boundaries, lossless FIXED money, strict body/no whole_period, dates/year zero/leap day, cursor/page bounds, OpenAPI references. |
+| Contracts | Four reused rule kinds; reject the unapproved fifth kind; boundaries, lossless FIXED money, strict body/no whole_period, dates/year zero/leap day, cursor/page bounds, OpenAPI references. |
 | CM-11 | Save PCT 1500; read saved row; computePeriod for 20.000 KWD line at 50% share yields 1.500 KWD. Different snapshot/plan prove override priority; exactly one row and audit. |
-| CM-12 | FOLLOW_PLAN, FOLLOW_SERVICE, ZERO, PCT and FIXED; missing override and winning FOLLOW_SERVICE use the saved line snapshot. Before the reset date the prior override still applies; after it an older override is not resumed. Different line snapshots remain different; live catalog changes are irrelevant. Latest creation then id wins. |
+| CM-12 | FOLLOW_PLAN, ZERO, PCT and FIXED only; no eligible override uses the saved line snapshot. Future overrides do not supersede today's winner. Different line snapshots remain different; live catalog changes are irrelevant. Latest creation then id wins. |
 | CM-13 | Past date, future date, closed period, REVIEWED reopen/rollback, day/month rollover during lock waits, access/feature revoked while waiting, approval race and lock-before-first-write gate. |
 | Idempotency | Replay same body once, mismatch 422, concurrency once, failed attempt rollback, revoked access cannot replay stored result. |
 | List | DTO, service filter, complete stable pagination, off-page current competitor, equal timestamps/id tie and distinct microseconds within one millisecond, missing employee and wrong business/tenant. |
@@ -386,3 +386,26 @@ After the explicit release:
 Keep pospay-test-commission-49-1 running from this task worktree while it is needed. Tear it down from this same
 worktree when done, through the repository's lane helper and its ownership checks. No other lane is part of cleanup.
 This instruction does not grant the lane, authorize a push or waive the original 125/127 failure receipt.
+
+## 17. Final four-kind decision and migration-lane release
+
+On 2026-11-01 at 16:06 Kuwait the manager explicitly granted the migration lane after #757 merged at
+185f328f3b0ff50c916a6c62eea5ec96a188c1db. Main's last migration is 0195. The lead rebased this branch onto
+that commit, preserving main's 0194/0195 snapshots and journal when the provisional metadata conflicted.
+The provisional override SQL files remain unregistered until replacement by fresh generation as 0196/0197;
+no previous main migration or snapshot is changed. 34-pre-1 follows this task and waits for the manager's handoff.
+
+The same message corrected CS-Q39: both owners selected zero-based choice 1, retaining only the four agreed
+kinds. Waleed's earlier choice 0 was superseded on the page at 10:58:53.996Z. Abu Salem selected 1 at
+12:05:48.706Z. Neither wrote note text or a source. At 16:07 the manager relayed Waleed's exact confirmation
+???? ?????? ???????? ???, dated 2026-11-01, channel ????? ?? ??? ???? ??????. See owner-questions.ar.md ?41
+for the raw API records and all earlier answers and corrections.
+
+This decision supersedes the fifth-kind instructions and historical receipts in sections 10?16. Update active
+briefs, spec and index; remove FOLLOW_SERVICE from production contracts, storage, engine and positive fixtures;
+retain negative rejection proofs. The engine returns to its unchanged four-kind implementation. Kimi K3.1 Pro
+on T3's OpenCode provider, variant max, owns the bounded correction at baseline a37f4f8a; the lead owns docs,
+metadata generation and execution. All earlier test and review receipts describe their original heads and do
+not certify this changed head. Regenerate OpenAPI and both clients, test the final migrations on the private
+lane, rerun the full assembled API command, complete the affected gates and obtain a fresh independent review
+before publishing one PR. Report lane completion to the manager; no merge or release gate is waived.

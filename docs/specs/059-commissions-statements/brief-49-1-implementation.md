@@ -3,13 +3,14 @@
 The contracts are accepted and CS-Q39's answer is incorporated. On 2026-11-01 at 12:28 Kuwait the manager authorized
 the private database draft stage in [brief-49-1-database.md](brief-49-1-database.md): MiniMax may author the schema,
 migration/RLS and isolation proof; the lead may run provisional migrations only on this worktree's private database.
-The lane remains with 32b-pre-1. No push carrying a migration and no 49-1 PR until the manager explicitly releases it.
+The manager explicitly released the lane at 16:06 Kuwait on 2026-11-01 after #757 merged at 185f328f; final generation
+starts after main's 0195. The lead publishes only after the four-kind correction, regeneration and required validation.
 The approved design and evidence are in [plan-49-1.md](plan-49-1.md), incorporating the independent Astra design advice.
 Keep the same initial implementer's ownership and one 49-1 PR; this document is not a new task or PR split.
 
 ## Scope and boundaries
 
-Deliver FR-011 to FR-013, CM-11 to CM-13 and CM-R02. CS-Q39 now has Waleed's page choice 0; add the fifth override-only kind FOLLOW_SERVICE while Abu Salem remains pending.
+Deliver FR-011 to FR-013, CM-11 to CM-13 and CM-R02. CS-Q39's final decision is choice 1 from both owners, relayed 2026-11-01 at 16:06 Kuwait; Waleed confirmed «لأ، الأربع اختيارات بس». Only FOLLOW_PLAN, ZERO, PCT and FIXED are accepted. Remove the earlier fifth-kind implementation before publication.
 No UI, estimate endpoint, notification, extra permission seed, generic transaction framework, or live catalog
 repricing. Keep every existing 48-2 behavior. Do not touch customers, packages, catalog mutation paths or other lanes.
 
@@ -21,12 +22,12 @@ write lock is inappropriate for a GET. No second direct employees-table query is
 
 ## Implementation order
 
-1. Keep the settled contract delivery and inspect any approved CS-Q39 amendment before extending its rule kinds.
+1. Reuse the four-kind catalog input/response rule contracts directly; no override-specific union extension.
 2. Under the 12:28 private-draft authorization, author the override Drizzle schema, tenant-qualified FKs, CHECKs and planned indexes,
    migration/RLS/grants and negative tests. Parent runs generation and tests after reviewing source; the implementer
    does not run commands. Local generated numbers are provisional placeholders, never reservations; final numbers
-   are regenerated against main after the manager releases the lane. A new table and its isolation proof land together.
-3. Extend the existing engine override types and resolver for FOLLOW_SERVICE: the eligible winning reset returns line.ruleSnapshot rather than an older override or a live catalog rule. Test dates before/after reset, latest-created/id ordering and different saved snapshots; ordinary ServiceCommissionRule remains four kinds. Reuse domain/plan-periods.ts unchanged where possible. Add SERVICE_NOT_FOUND to the existing typed error union
+   are regenerated against main as 0196/0197 under the 16:06 lane grant. A new table and its isolation proof land together.
+3. Keep the existing four-kind engine override types and resolver unchanged, including latest-created/id ordering and fallback to the saved snapshot only when no eligible override exists. Reuse domain/plan-periods.ts unchanged where possible. Add SERVICE_NOT_FOUND to the existing typed error union
    and update its Arabic documentation. Move lockThroughDecision into a narrow use-cases helper shared by the two
    writers. No clock calls, async locks or I/O callbacks enter domain/.
 4. Share the concrete lock-scope construction. Create the override transaction/scope/writer ports and adapters,
@@ -76,7 +77,7 @@ unfiltered shapes with EXPLAIN. No additional speculative index or cross-module 
 
 - CM-11: save PCT 1500, read the saved override and feed it to the existing computePeriod with a 20.000 KWD service
   and a 50% performer share. Expect 1.500 KWD. Make snapshot and plan different to prove precedence; one row/audit.
-- CM-12: all five override kinds, missing override and FOLLOW_SERVICE snapshot fallback, dated reset without resuming an older override, unchanged catalog rule union, and same-time id tie breaking.
+- CM-12: all four override kinds, missing-override snapshot fallback, rejection of the unapproved fifth kind, unchanged catalog rule union, and same-time id tie breaking.
 - CM-13: past/future dates, closed periods, review invalidation and rollback, midnight/month rollover during locks,
   permission/feature revocation while waiting, approval race and lock-before-first-write gate.
 - Idempotency: identical replay once, mismatch 422 IDEMPOTENCY_KEY_REUSED, busy 409, concurrent duplicates once,

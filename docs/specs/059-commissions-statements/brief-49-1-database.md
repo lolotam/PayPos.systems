@@ -2,8 +2,10 @@
 
 Continue the same initial MiniMax implementation. Contracts are accepted; this stage authors storage and its
 isolation proof only. It is part of the same 49-1 delivery and eventual PR, not a second slice or clean application
-handoff. The manager authorized this private draft on 2026-11-01 at 12:28 Kuwait. The migration lane still belongs
-to 32b-pre-1. No push, PR, shared database, staging operation or final migration-number reservation is authorized.
+handoff. The manager authorized this private draft on 2026-11-01 at 12:28 Kuwait, then granted the migration lane
+at 16:06 after #757 merged on main. Final generation starts after main's 0195, against the final four-kind schema.
+The lead generates and validates; the implementer still runs no commands and does not publish. No shared database
+or staging operation is authorized by the lane grant.
 
 ## Required reading
 
@@ -77,14 +79,14 @@ Reuse existing parent keys; do not modify employees, services, user or businesse
 
 Reuse the services column/check pattern with override names:
 
-- Kind must be FOLLOW_PLAN, FOLLOW_SERVICE, ZERO, PCT or FIXED.
+- Kind must be FOLLOW_PLAN, ZERO, PCT or FIXED only (final CS-Q39 decision, 2026-11-01).
 - PCT iff rule_pct_bps is non-null; bounds 0..10000.
 - FIXED iff rule_fixed_amount is non-null; bounds 0..99999999999.999.
-- FOLLOW_PLAN, FOLLOW_SERVICE and ZERO have both value columns null.
+- FOLLOW_PLAN and ZERO have both value columns null.
 - Avoid a nullable CHECK whose UNKNOWN result admits an invalid shape. The kind column is non-null.
 
-FOLLOW_SERVICE is an override-only valueless kind. Its application semantics are settled: when the winning eligible
-override, return the line's saved snapshot from its effective date. Do not change ordinary catalog kinds here.
+The final CS-Q39 decision rejects FOLLOW_SERVICE. Prove the override CHECK refuses that kind; do not change
+ordinary catalog kinds or the existing four-kind engine behavior.
 Do not add database date-vs-clock checks, eligibility rules or a trigger: past-date rejection belongs to the writer.
 
 Indexes, and no speculative extras:
@@ -105,7 +107,8 @@ grant only SELECT, INSERT to pospay_app. No UPDATE, DELETE, TRUNCATE or column-l
 The lead will review the schema and draft before running the repository db:generate wrapper for schema SQL, then
 db:generate with --custom for its RLS entry. The lead transfers the reviewed RLS into that generated custom entry
 and removes the unregistered 9999 draft. Generated sequential numbers in this private checkout remain placeholders,
-not reservations. Final SQL and metadata are regenerated against main after the manager releases the lane.
+not reservations. The manager released the lane at 16:06; the lead regenerates final SQL and metadata as 0196/0197
+against main after the final four-kind schema is reviewed.
 No existing migration or generator is changed. A new table's indexes are created with its table; no concurrent
 index operation on an existing populated table is needed.
 

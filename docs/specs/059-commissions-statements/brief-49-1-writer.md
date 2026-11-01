@@ -1,9 +1,11 @@
 # 49-1 — remaining initial writer stage
 
 Continue the same initial MiniMax implementation, in the task's current worktree. Contracts, private DB storage
-and FOLLOW_SERVICE engine support are accepted locally; plan-49-1.md records the lead's executed receipts.
+are accepted locally; plan-49-1.md records the lead's executed receipts. The final CS-Q39 decision keeps only
+FOLLOW_PLAN, ZERO, PCT and FIXED; previous fifth-kind implementation and proofs are superseded.
 Implement the writer and its database proofs next. HTTP/query wiring remains the subsequent bounded stage of the
-same 49-1 delivery and eventual PR. No push or PR until the manager releases the migration lane.
+same 49-1 delivery and eventual PR. The manager released the lane at 16:06 Kuwait on 2026-11-01; the lead must
+complete the final four-kind correction, generation and validation before publishing. The implementer does not publish.
 
 ## Required reading
 
@@ -95,7 +97,7 @@ on its supplied Tx. The test root binds it to readSessionServices(tx, companyId,
 returned array's existence only. Do not import catalog inside commissions or use its live rule to price history.
 
 The accepted contract's PCT is {kind:'PCT', value:number} in bps, and FIXED is {kind:'FIXED', value:string} in KWD.
-Do not invent bps/amount property names or coerce FIXED money through number. Map the five rule shapes to their
+Do not invent bps/amount property names or coerce FIXED money through number. Map the four rule shapes to their
 existing storage columns; parse the RETURNING shape using commissionServiceOverride. created_at is supplied
 explicitly and the returned response retains the existing millisecond timestamp convention. No new outbox event.
 
@@ -107,7 +109,7 @@ runs them on this task's private lane. Do not alter existing 48-2 assertions to 
 - CM-11's writer proof: create PCT 1500, read the saved row from the DB, feed the saved rule to computePeriod on
   net 20.000 KWD with a 50% performer share (netShare=10000n, shareBps=5000n). Expect 1500n mills / 1.500 KWD,
   with a distinct saved snapshot and plan. Assert one saved override and its audit. HTTP proof comes next.
-- Persist and round-trip all five rules, including valueless FOLLOW_SERVICE. No override must still mean saved
+- Persist and round-trip all four rules. No override must still mean saved
   snapshot, not ZERO. The accepted engine tests already prove rule selection; do not clone that suite here.
 - Missing/deleted employee, missing service, or wrong business/tenant; no row, audit or idempotent success survives
   refusal. Services currently have no deleted_at or active flag; do not invent one.
