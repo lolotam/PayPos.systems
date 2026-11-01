@@ -188,7 +188,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 
 - **CM-11** ليلى sets هبة's override for "صبغة" to `PCT 1500` effective today: one insert-only row and one audit entry; the
   estimate of a 50 % shared line follows SPEC §5.2 (the override wins over the snapshot and the plan, for that line only).
-- **CM-12** Rules accepted: `FOLLOW_PLAN`, `ZERO`, `PCT 0…10000`, `FIXED ≥ 0`; an absent override is not `ZERO` (no row means
+- **CM-12** Rules accepted: `FOLLOW_PLAN`, `FOLLOW_SERVICE` (CS-Q39 = PP-104.1: dated return to the line snapshot), `ZERO`, `PCT 0…10000`, `FIXED ≥ 0`; an absent override is not `ZERO` (no row means
   the line's snapshot). Two overrides on the same date: the latest `created_at`, then `id`, wins (engine `service-rule.ts`).
 - **CM-13** Same date and lock rules as plan versions (CM-07, CM-08), same permission (CS-Q1).
 
@@ -583,11 +583,11 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 ### 49 — service overrides
 
 - **FR-011** `POST /v1/businesses/:businessId/employees/:employeeId/commission-overrides` (Idempotency-Key) `{ service_id, rule,
-  effective_from }`, `rule` one of `FOLLOW_PLAN | ZERO | PCT bps | FIXED KWD`, the service checked in the business through a
-  catalog reader bound at the root (D-16).
+  effective_from }`, `rule` one of `FOLLOW_PLAN | FOLLOW_SERVICE | ZERO | PCT bps | FIXED KWD`, the service checked in the business through a
+  catalog reader bound at the root (D-16). **CS-Q39 = PP-104.1 (batch 89, Waleed, decisions page, 2026-11-01 12:01 Kuwait, choice 0; Abu Salem pending):** add the override-only kind `FOLLOW_SERVICE`, with no numeric value, effective from its saved `effective_from`. If this is the eligible winning override, resolve to the service-rule snapshot saved on that line; do not fall through to an older override, read the live catalog rule, or affect lines before its effective date. `FOLLOW_PLAN` continues to mean the employee plan.
 - **FR-012** Same lock and date rules as FR-007 (an override has no `whole_period`); insert-only `commission_service_overrides`;
   audit `commission_override.created`.
-- **FR-013** `GET …/commission-overrides` (`queries/`), current and history per service. Permission as FR-010.
+- **FR-013** `GET …/commission-overrides` (`queries/`), current and history per service, with an optional `service_id` filter and cursor pagination. Each saved row carries `is_current` and its `effective_from`; current means eligible on the business-local date and latest by `(created_at, id)`, as the engine selects it (CM-12). Competitors outside the returned page still count; the cursor retains database timestamp precision. Business timezone and active employee existence come from query-local readers bound at the root on the same transaction, never a cross-module join or a read use case. Permission as FR-010.
 
 ### 50 — projection consumer and estimate
 
@@ -1027,7 +1027,7 @@ same migration (CLAUDE.md §5). Expand-only; migration numbers are taken at merg
 | --- | --- | --- |
 | `commission_statements` (48a) | `period char(7)`, `status`, `current_fingerprint`, `reviewed_fingerprint`, `reviewed_statement_fingerprint`, `reviewed_by`, `reviewed_membership_id`, `reviewed_at`, `input_fingerprint`, `statement_fingerprint`, `approved_by`, `approved_at`, `revision`; the payment columns `paid_by`, `paid_at`, `paid_on date`, `paid_method` (and its note, CS-Q6) are added by 54-1 (expand-only), not 48a-2 | `UNIQUE (company_id, business_id, period)`; `UNIQUE (company_id, business_id, period, id)` (the target key of `commission_carries`' two FKs, D-22); `CHECK` period format; FR-001 trigger; `SELECT, INSERT, UPDATE (status, …)` to `pospay_app` |
 | `commission_plan_versions` (48) | `employee_id`, `version`, `effective_from date`, `whole_period`, `repair_period char(7) NULL`, `plan jsonb`, `created_at`, `created_by` | `UNIQUE (company_id, employee_id, version)`; `CHECK NOT (whole_period AND repair_period IS NOT NULL)`; insert-only (`SELECT, INSERT`) |
-| `commission_service_overrides` (49) | `employee_id`, `service_id`, `rule_kind`, `rule_value`, `effective_from`, `created_at`, `created_by` | `CHECK` per kind (bps 0…10000, mills ≥ 0); index `(company_id, employee_id, service_id, effective_from)`; insert-only |
+| `commission_service_overrides` (49) | `employee_id`, `service_id`, `rule_kind`, `rule_pct_bps integer NULL`, `rule_fixed_amount numeric(14,3) NULL`, `effective_from date`, `created_at`, `created_by` | `CHECK` per kind: only PCT has bps (0…10000), only FIXED has a nonnegative KWD amount, FOLLOW_PLAN/FOLLOW_SERVICE/ZERO have neither; tenant/business-qualified employee and service FKs; lookup index `(company_id, business_id, employee_id, service_id, created_at DESC, id DESC)`, service FK index `(company_id, business_id, service_id)`, global creator FK index `(created_by)`; insert-only (`SELECT, INSERT`), FORCE RLS; CM-R02 |
 | `commission_line_heads` (50) | `line_id`, `session_id`, `branch_id`, `service_id`, `customer_id`, `revision`, `status`, `business_date`, `period` | `UNIQUE (company_id, line_id)`; `SELECT, INSERT, UPDATE` |
 | `commission_lines` (50) | `line_id`, `branch_id`, `employee_id`, `service_id`, `occurred_at`, `recorded_at`, `business_date`, `period`, `net`, `net_share`, `share_bps`, `rule_kind`, `rule_value`, `counts`, `status` | `UNIQUE (company_id, line_id, employee_id)`; index `(company_id, business_id, period, employee_id)`; `SELECT, INSERT, UPDATE, DELETE` (a projection, D-11) |
 | `commission_tip_heads` / `commission_tips` (50) | head: `session_id`, `branch_id`, `revision`, `business_date`, `period`; rows: `session_id`, `employee_id`, `method`, `amount` | `UNIQUE (company_id, session_id)` / `UNIQUE (company_id, session_id, employee_id, method)`; projection grants |
