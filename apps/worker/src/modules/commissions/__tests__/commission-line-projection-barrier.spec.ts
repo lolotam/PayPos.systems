@@ -29,6 +29,10 @@ const businessTimeZone = fakeBusinessTimeZone(A.business);
 const clock = { now: () => new Date('2026-12-05T09:00:00Z') };
 const POLL_INTERVAL_MS = 25;
 const POLL_LIMIT_MS = 5_000;
+// النص اللي بيتحجّز عليه قفل هوية البند: نفس نص المحول بالظبط
+// (app_company_id()::text || ':commission-line:' || <lineId>::uuid::text)،
+// مكان واحد للحاجز والاستطلاع، فمقدرش يختلفوا من غير ما الاختبار يقع.
+const IDENTITY_LOCK_KEY = `${A.company}:commission-line:${COMMISSION_LINE_IDS.lineA}`;
 
 beforeAll(async () => {
   testDb = await createTestDatabase();
@@ -83,8 +87,7 @@ async function holdIdentityLock(): Promise<HeldIdentityLock> {
     signalRelease = () => resolve(undefined);
   });
   const finished = locker.begin(async (tx) => {
-    await tx`SELECT pg_advisory_xact_lock(hashtextextended(
-      ${A.company}::uuid::text || ':commission-line:' || ${COMMISSION_LINE_IDS.lineA}::uuid::text, 0))`;
+    await tx`SELECT pg_advisory_xact_lock(hashtextextended(${IDENTITY_LOCK_KEY}, 0))`;
     signalAcquired();
     await released;
   });
@@ -97,10 +100,24 @@ async function holdIdentityLock(): Promise<HeldIdentityLock> {
   return { release: signalRelease, finished };
 }
 
-/** بيعدّ الأقفال الاستشارية المعلّقة في الـ pg_locks: رقم لكل جلسة لسه واقفة على قفل الهوية. */
+/** بيعدّ الأقفال الاستشارية المعلّقة على قفل هوية البند ده في داتابيز الاختبار — صفر لو مفيش تسليمة واقفة. */
 async function countWaitingAdvisoryLocks(): Promise<number> {
+  // pg_locks بيشوف السيرفر كله، فلازم نقصر العدّ على داتابيز الاختبار وعلى المفتاح بتاعنا بالظبط:
+  // database هي OID الداتابيز اللي القفل اتحجّز فيه، وclassid وobjid هما نصفي المفتاح
+  // (32 بت عالي و32 بت واطي) بتوع صيغة bigint، وobjsubid = 1 هي صيغة الـ bigint نفسها.
+  // والمفتاح اللي hashtextextended بيرجّعه signed، فبنقارنه بالشكل غير الموقع (64 بت)
+  // عشان المطابقة تبقى صح سواء كان سالب أو موجب.
+  // والـ oid مافيهوش cast مباشر لـ numeric، فنمرّيه على bigint الأول (قيمته 0..2^32-1).
   const [row] = await owner<{ waiting: number }[]>`
-    SELECT count(*)::int AS waiting FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`;
+    WITH identity AS (SELECT hashtextextended(${IDENTITY_LOCK_KEY}, 0) AS key)
+    SELECT count(*)::int AS waiting
+    FROM pg_locks
+    WHERE locktype = 'advisory'
+      AND objsubid = 1
+      AND NOT granted
+      AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
+      AND classid::bigint::numeric * 4294967296 + objid::bigint::numeric
+          = (SELECT CASE WHEN key >= 0 THEN key::numeric ELSE key::numeric + 18446744073709551616 END FROM identity)`;
   return row?.waiting ?? 0;
 }
 
