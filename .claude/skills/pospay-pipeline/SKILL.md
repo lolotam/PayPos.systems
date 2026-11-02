@@ -26,10 +26,8 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 | Orchestrator | Claude Code (this session) | yes — specs, briefs, renumbering, fixes on docs-only PRs (never production code, PP-10.1), and merges without asking once every gate passes (Waleed, SA-11 «ج»: a PosPay merge reaches staging only; production, production data and server changes still need his yes; `docs/owner-decisions.ar.md` item 17) |
 | Design advisors (risky slices only, §3 step 2) | Codex astra 6 medium (`gpt-6-astra`, effort medium) **and** Claude Fable 5.1 medium (`claude-fable-5-1`) | no — read-only |
 | **Initial implementer** — code, tests and migrations | **MiniMax-M3.1-Flash · thinking** builds new tasks (Waleed, 2026-11-02, Q3 = أ, `docs/owner-decisions.ar.md` item 49), replacing PP-55.1's Kimi default. The existing GLM exception for small, exactly pinned tasks remains in `docs/agent-delivery-pipeline.md` §5. Dispatch follows that document's §§0 and 5. Every implementer brief bans all git commands, edits outside the task, unrelated reformatting and line-squashing to dodge `max-lines`; the reviewer diffs every rewritten SQL function body against the old one and reviews money, DB and permission changes strictly | yes, in its own worktree |
-| **Database reviewer** | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) | no |
-| Review layer 1 | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) — owner's choice 2026-10-11 | no |
-| Review layer 2 | **one** fresh Claude reviewer, **Sonnet 5.5 at medium effort** (`claude-sonnet-5-5`), given the diff, the spec and the governing documents (§8 rule 5), never the session history; **high** effort for money, tenant isolation (RLS), auth and migrations; none for a docs-only PR (§8 rule 5) | no |
-| Review layer 3 — **four bots** | the Codex GitHub bot (`chatgpt-codex-connector[bot]`, `@codex review` after every push; Codex CLI when out of quota) **and** the MergePilot panel (`mergepilot-review[bot]`): MergePilot (`gpt-6.1-sol`), waleed_bot (`claude-sonnet-5-5`), mohamed_bot (`grok-4.7`), which reviews every pushed commit on its own | no |
+| **Internal reviewer, including database and security review** | **Astra** (`gpt-6-astra`, effort `high`; fallback `claude-opus-5-5`), read-only through built-in delegation, with fresh context. One review covers database/security when `packages/db/**` changes; the former Sonnet layer is removed (`docs/agent-delivery-pipeline.md` §§0 and 8). The docs-only exception is in §2 | no |
+| **Five external reviewers** | the Codex GitHub bot (`chatgpt-codex-connector[bot]`, `@codex review` after every push) **and all four MergePilot panel bots**. Discover actual panel identities and configuration at PR time. All five must complete on the exact head, with findings resolved under the current severity policy (`docs/agent-delivery-pipeline.md` §9); no external CLI fallback | no |
 | Draft writer (§8 rule 6) | MiniMax writes first drafts of specs, ADRs, journey docs and the HANDOVER; the orchestrator edits and owns the result | yes |
 | Fixer | **Kimi K3.1 Pro** handles correction rounds only, after a clean initial handoff (Waleed, 2026-11-02, Q3 = أ, `docs/owner-decisions.ar.md` item 49; `docs/agent-delivery-pipeline.md` §7). The initial implementer keeps its own failed attempt until that handoff; the same correction worker keeps its own correction rounds. The orchestrator (or a doc-writing session) fixes docs-only PRs, where no implementer session exists | yes |
 | Staging server | the orchestrator only, over the `abdulaziz` SSH profile | — |
@@ -46,9 +44,10 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
     implementer applies it, and the PR **stays blocked** until it is fixed and confirmed. The cap never lowers the bar.
   - **P2 / P3**: open a GitHub issue per finding, linked from its review thread, then merge.
 - **Parallel work: keep 5 task sessions running at all times, started one after another, never all at once** (Waleed, PP-111, 2026-11-01, `docs/owner-decisions.ar.md` item 48; it replaces PP-59's 5 to 6 and PP-69.3's 3, and `.specify/memory/constitution.md` Principle I carries the same limit since version 3.3.0). When a task merges and its delivery is verified, settle (archive) its session, delete its worktree under the checks of `docs/agent-delivery-pipeline.md` §1.1, and open a replacement at once. A task that depends on another starts only after that one merges. Pick tasks whose file paths are **disjoint**, and keep **one migration lane** for the final step only: more than one task may build and test a migration in parallel, each on its own local Postgres, and only the final step (renumber, `db:generate` and push) runs one task at a time. MiniMax builds new tasks and Kimi handles correction rounds after clean handoff (Q3, item 49); Codex gives advice and review. Two tasks that touch the
-  same file wait for each other, except a shared file where each feature only adds its own line (the permission list, migration numbers, `packages/contracts/openapi/openapi.json`): those run in parallel, the manager owns the merge order, and after each merge it tells the sessions sharing that file to rebase on `main` (PP-111.2). A generated shared file is never resolved by hand: after the rebase, regenerate it (`pnpm contracts:openapi`, `pnpm db:generate`) and rerun the checks before review and merge. Each task has its own branch, worktree (`F:\Dev\Worktrees\PosPay\<branch>`) and PR.
+  same file wait for each other, except a shared file where each feature only adds its own line (the permission list, migration numbers, `packages/contracts/openapi/openapi.json`): those run in parallel, the manager owns the merge order, and after each merge it tells the sessions sharing that file to rebase on `main` (PP-111.2). A generated shared file is never resolved by hand: after the rebase, regenerate it (`pnpm contracts:openapi`, `pnpm db:generate <kebab-case-name>`) and rerun the checks before review and merge. Each task has its own branch, worktree (`F:\Dev\Worktrees\PosPay\<branch>`) and PR.
   Migration and ADR numbers are assigned **at merge time**: renumber the later PR after the earlier one lands. Each
   slice still merges only when it is green on its own head (constitution Principle I, as amended 2026-10-07).
+  For migration regeneration, follow `docs/agent-delivery-pipeline.md` §13: preserve reviewed custom SQL and data-step markers, replace only branch-owned unmerged artifacts against the current `main` journal, and never change merged migrations. The generator requires `<kebab-case-name>`; use `--custom` for custom entries and transfer the preserved reviewed statements before testing.
 - **One use case per PR** (`CLAUDE.md` §1). A task that needs two use cases is two PRs.
 - **Docs-only lane** (owner, 2026-10-17). A PR whose files are all under `docs/**`, `*.md`, `.claude/skills/**` or
   `.specify/**` (no code, no migration, no generated file) skips §3 steps 2, 5 (except `docs-guard`), 6, 7, 8 and 14, needs no implementer dispatch (§3 step 3; specs and ADRs are drafted by MiniMax and edited and owned by the orchestrator, §8 rule 6) and no spec (§3 step 1) unless the PR is itself a spec, judges §3 step 4 by `pnpm format:check` (`prettier --check .`, which covers Markdown) instead of the full `pnpm check`, and skips the
@@ -56,10 +55,7 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
   completed on that head, and no P0/P1 is open. A P1 here means a wrong or contradictory rule in any governing or operational document (a spec, an ADR, `CLAUDE.md`, a skill, `docs/security.md`, a runbook); the bar
   for it does not move. P2/P3 findings on prose are fixed in one batch commit at most; the rest become linked issues.
   The status-page update (§6 step 8) still applies after the merge.
-- **waleed_Bot failing (PP-5.2, owner, 2026-10-19).** While **waleed_Bot** returns `❌ failed` on every review,
-  "the panel completed" means every *other* panel bot completed on the head. The Codex bot must still complete, and
-  no P0/P1 may be open. The merge report names waleed_Bot's failure. The exception covers waleed_Bot only and ends when
-  it completes again. Any other bot that fails blocks the merge until the owner decides.
+- **No inherited bot-failure waiver.** Follow `docs/agent-delivery-pipeline.md` §9: all five external reviews must complete on the exact head; an old bot-failure waiver is not reused without fresh, explicit owner authorization.
 
 ---
 
@@ -73,10 +69,10 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 | 3 | Brief and dispatch the implementer (§4), baseline captured first | orchestrator → MiniMax | MiniMax reports done; the delivery is kept as the first commit, as delivered |
 | 4 | Judge the delivery: diff against the baseline, read it against the spec, merge `main`, renumber migrations/ADRs, `pnpm check` | orchestrator | `pnpm check` green |
 | 5 | Guard pass: `clean-code-guard` on production code, `test-guard` on tests, `docs-guard` on docs (global `CLAUDE.md` guard workflow) | orchestrator | findings fixed or recorded |
-| 6 | Database review — **mandatory** when the PR touches `packages/db/**` (schema, migration, RLS, grants, seed) | Codex astra 6 medium | no open P0/P1 (§5 checklist) |
-| 7 | Review layer 1 | Codex astra 6 medium | findings after clean handoff fixed by Kimi under `docs/agent-delivery-pipeline.md` §7, or deferred per §2 |
-| 8 | Review layer 2 — one Sonnet 5.5 reviewer (§8 rule 5); no separate confirm round, the four bots confirm on the head SHA in step 9 | fresh Claude reviewer | findings after clean handoff fixed by Kimi, or deferred per §2 |
-| 9 | Push, open the PR (spec link + checklist), comment `@codex review` | orchestrator | **all four bots answered on the head SHA**: Codex summary says Completed for that SHA, the MergePilot review for that SHA shows all three bots completed (a failing waleed_Bot is handled by the PP-5.2 exception in §2), and every inline finding is fixed or deferred per §2 |
+| 6 | Include the database/security checklist in step 7 when the PR touches `packages/db/**` | the same internal reviewer as step 7 | §5 checklist covered in that single review |
+| 7 | One independent internal review, read-only through built-in delegation (`docs/agent-delivery-pipeline.md` §§0 and 8) | Astra `gpt-6-astra`, effort `high`; fallback `claude-opus-5-5` | findings after clean handoff fixed by Kimi under the current pipeline, with no open P0/P1 |
+| 8 | Former Sonnet layer removed; no additional review stage | — | step 7 covers the internal review |
+| 9 | Push, open the PR (spec link + checklist), comment `@codex review` | orchestrator | **all five external reviews completed on the head SHA**: Codex plus all four MergePilot panel bots; findings resolved under `docs/agent-delivery-pipeline.md` §§8–9, no open P0/P1; no stale or failed receipt counts |
 | 10 | CI `ci-gate` green **on the exact head being merged** | GitHub Actions | green |
 | 11 | Merge: `gh pr merge <n> --squash --delete-branch --match-head-commit <reviewed-sha>` — a push after the reviews makes the merge fail instead of landing an unreviewed head | orchestrator | merged |
 | 12 | Deploy to staging (§6) | orchestrator | `/ready` answers ready on the new SHA |
@@ -527,7 +523,7 @@ pins the PosPay rules on top of it.
 ## 5. Database work
 
 - **MiniMax writes** migrations, schema, RLS policies, grants and seed with the rest of the slice. The database reviewer
-  (Codex astra 6 medium, read-only) reviews every PR that touches `packages/db/**` against this list:
+  (Astra, effort `high`, read-only through built-in delegation) covers every PR that touches `packages/db/**` in the single internal review, against this list:
   - every tenant table has `company_id`, primary key `(company_id, id)`, `ENABLE` + `FORCE ROW LEVEL SECURITY`, a
     policy, and a negative isolation test in the same PR (`CLAUDE.md` §5, ADR-0007);
   - the reviewed grant allowlist in `packages/db/src/__tests__/privileges.spec.ts` matches the new grants;
@@ -644,10 +640,7 @@ typing do not.
    fresh session from that note instead of carrying the history.
 3. **Choose the model by delivery stage.** Follow `docs/agent-delivery-pipeline.md` §§0, 5 and 7: MiniMax builds new tasks; Kimi handles correction rounds after clean handoff. Documentation keeps the docs-only lane of §2.
 4. **Correction rounds after clean handoff go to Kimi.** Send findings as `file:line — what is wrong — what done looks like`; the orchestrator judges the fix and runs the gates. The initial implementer retains its own failed attempt until clean handoff, and the same Kimi worker keeps its own correction rounds. Docs-only fixes stay with the orchestrator. Follow `docs/agent-delivery-pipeline.md` §§0, 7 and 8 for fallback and correction limits (Q3, item 49).
-5. **One cheaper review layer 2.** One fresh Sonnet 5.5 reviewer at medium effort replaces the two Opus-class reviewers
-   (review and confirm round). It gets the diff, the spec and the governing documents (`CLAUDE.md`, `CLAUDE.architecture.md`, `docs/06_Tech_Stack_Architecture_EN.md`, `docs/module-map.md`, the ADRs the slice cites), never the session history, so its context stays small. Use high
-   effort when the PR touches money, tenant isolation, auth or migrations, (the other-vendor reviewer is review layer 1, Codex astra 6, which already runs on every code PR in §3 step 7; the docs-only lane skips it and has no layer 2 either). A docs-only
-   PR gets no Claude reviewer. The confirm round is dropped: the four bots re-review the head SHA after every push.
+5. **One internal review, five external reviews.** Follow `docs/agent-delivery-pipeline.md` §§0, 8 and 9: one fresh, read-only Astra review through built-in delegation, including database/security where applicable; no Sonnet layer. The docs-only exception stays in §2. Codex and all four MergePilot panel bots must complete on the exact head after every push, with no open P0/P1.
 6. **Drafts are written by MiniMax.** This is the draft-writer role in §1, set by PP-10.1. MiniMax writes the first
    drafts of specs, ADRs, journey docs and the HANDOVER, and Claude edits and owns them. Claude writes a document from
    scratch only when it records a decision that only Claude has the context for.
