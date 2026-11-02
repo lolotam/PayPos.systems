@@ -1172,3 +1172,5 @@
 - الفشل اللي بيتكرر في CI بيتعامل معاه كفشل حقيقي: الجلسة بتوقف وتحلّله، ومفيش إعادة تشغيل لحد ما يبقى أخضر. الـ draft PR بيتفتح عشان جولة CI بس، من غير طلب مراجعين.
 - `docs/agent-delivery-pipeline.md` §0 و§6 و§7، و`.claude/skills/pospay-pipeline/SKILL.md` §1 و§2 والخطوة 4 من §3، اتعدّلوا على القرار ده في نفس الـ PR.
 - مفيش أثر على الفلوس ولا الصلاحيات ولا الـ migrations.
+
+**ملاحظة (قاعدة من الـ super admin، مش كارت PP):** SA-16 (2 نوفمبر 2026). المديرين والجلسات مبقوش يكلّموا وليد مباشرة (لا ntfy ولا Slack ولا شات). كل سؤال بيروح لثريد الـ super admin ومعاه القرار المطلوب والاختيارات والمقترح أولًا وإيه اللي واقف لحد الإجابة، والـ super admin بيوصّله لوليد على Slack والإجابة بترجع بالنص. ده بيعدّل خطوة `pospay-waleed` بتاعة PP-112 (البند 50) في `docs/agent-delivery-pipeline.md` §12 وskill الـ pipeline §2. المصدر: `F:\Dev\Projects\SuperAgent-Jahra\handoff\SA-16-slack-and-memory.md`.

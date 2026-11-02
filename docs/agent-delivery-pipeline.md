@@ -12,7 +12,7 @@
 >
 > **Revised on 2026-11-01 (PP-111, `docs/owner-decisions.ar.md` item 48):** five task sessions, started one after another, replace the three parallel tasks of PP-69; the manager owns the merge order, and shared add-one-line files may change in parallel (§13).
 >
-> **Revised on 2026-11-02 (PP-112, `docs/owner-decisions.ar.md` item 50):** a fallback chain for every delivery role, an automatic switch after two failed attempts, one `pospay-waleed` notice per request waiting on Waleed, a stuck-session check every 30 minutes, waiting on background work with `t3_background_wait`, and the refusal of a delivery more than twice the size the brief set (§§0, 7, 8, 10, 12 and 14). It replaces the PP-84.2 wait.
+> **Revised on 2026-11-02 (PP-112, `docs/owner-decisions.ar.md` item 50):** a fallback chain for every delivery role, an automatic switch after two failed attempts, one `pospay-waleed` notice per request waiting on Waleed (replaced by the super admin route of SA-16, §12), a stuck-session check every 30 minutes, waiting on background work with `t3_background_wait`, and the refusal of a delivery more than twice the size the brief set (§§0, 7, 8, 10, 12 and 14). It replaces the PP-84.2 wait.
 >
 > **Revised on 2026-11-02 (PP-113, `docs/owner-decisions.ar.md` item 51):** the heavy suites run in CI only, and locally only the typecheck, lint, the doc and boundary checks and the slice's own tests run, so there is no machine "slot" to wait for (§6); a clear Kimi quota error skips the Kimi CLI lane and goes to MiniMax at once (§§0 and 7).
 >
@@ -159,9 +159,9 @@
 
 ## 12. Notifications (ntfy)
 
-Only the existing confirmed topics are used: `pospay-features` (shared — a plain-Arabic notice of something **users can see or do**, not technical merge or test noise), `pospay-questions` (shared — a new question batch) and `pospay-waleed` (private — anything waiting on Waleed).
+Only the existing confirmed topics are used: `pospay-features` (shared — a plain-Arabic notice of something **users can see or do**, not technical merge or test noise), `pospay-questions` (shared — a new question batch) and `pospay-waleed` (private — no longer used by managers and sessions, SA-16).
 
-**`pospay-waleed` on every «المطلوب منك» (PP-112).** Whenever a report carries something waiting on Waleed («المطلوب منك»), one notice goes to `pospay-waleed`: a single line that names the request, with no secret, token, answer or personal data. It is sent **once per request**: a request still pending in a later report does not send again; a new request does. No all-engineering milestone feed was requested, so none is sent.
+**Questions for Waleed go through the super admin, not `pospay-waleed` (SA-16; amends the PP-112 notice).** Managers and sessions no longer contact Waleed directly: no ntfy, no Slack, no chat message. Whenever something waits on Waleed («المطلوب من وليد»), the question is sent to the super admin thread with the decision that is needed, the options with the recommendation first, and what stays blocked until the answer comes. The super admin relays it to Waleed on Slack, and the answer comes back word for word. Do not send to `pospay-waleed` any more. No all-engineering milestone feed was requested, so none is sent.
 
 The publish API, the topics and the credential handling are in `docs/decisions-site.md`: publish as JSON so the Arabic stays intact, keep the server credential in an environment variable only, verify that the message was sent, and never put an answer, personal data or a secret in a message. An internal documentation save like this one triggers no notification.
 
