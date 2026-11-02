@@ -581,6 +581,28 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   امكانية اعطاء الصلاحيه»): the default holders are the owner (`owner`) and the accountant (`accountant`, the role key in
   `packages/db/src/role-defaults.ts`), and only the owner may grant it to another role or revoke it, as with review and
   approve; this replaces Waleed's owner-only pick (card, 2026-10-22).
+- **FR-010a** The plan screens' own employee list (48-2b; Astra review of 48-3, manager decision 2026-11-02). A holder of
+  `manage:commission-plans:business` without `manage:employees:business` (the accountant by default, CS-Q27) must reach
+  the plan builder, and the staff employee routes stay closed to them. `GET /v1/businesses/{businessId}/commission-plan-employees`
+  (`cursor?`, `limit` 1…50, default 20) returns `{ time_zone, items: [{ id, name_ar, name_en }], next_cursor }`:
+  - `time_zone` is the business's own `businesses.timezone`, never a branch's; the builder's default effective date uses it.
+  - The items are the business's employees with `deleted_at IS NULL`, ordered by `(name_en_key, id)`. They carry the
+    names only: no number, branch, role, salary, phone, document or user link (CS-Q40 = PP-113.1 is PENDING; names
+    only until it is answered).
+  - The cursor is opaque, bounded and validated, and bound to the company, the business and that order. A malformed
+    cursor, or one taken from another scope, is `VALIDATION_FAILED`.
+  - The guard is the same permission, the `commissions` feature and an individual login (a device → 403). Access and
+    the feature are rechecked first inside the same `withTenant`, then the timezone and the names are read on that
+    transaction, in the refusal order of the 49-1 list (`CommissionServiceOverrideListReads`): uniform 403, then
+    `FEATURE_DISABLED`, then the 49-1 refusal for a missing business. The response never tells whether a foreign
+    business exists.
+  - The reads are a read-side interface beside the query, bound at `app.ts` (identity access, the tenancy timezone,
+    a staff names reader). There is no import arrow and no cross-context join (module-map row like 49-1's).
+  - An empty list is a 200 with `time_zone` set, and the screen invents no employee.
+  - No grant, role or permission changes. The admin builder lives under `app/(dashboard)/commissions/plans`, composed in
+    `app/(dashboard)/_frame/commission-plans-route.tsx` with workspace and session passed down as props
+    (CLAUDE.architecture.md §11.2). It is no longer mounted on the staff employee page, and there is no free-text or
+    UUID employee field.
 
 ### 49 — service overrides
 
@@ -1170,7 +1192,8 @@ row 53's dependency on 55b and the round-4 finding #4 require. Sizes are hand-wr
 | **48a-2** | Statements and the lock | 1. `commission_statements` + RLS + grants + FR-001 trigger + negative tests, and the two frozen-statement tables `commission_statement_lines` and `commission_statement_attachments` (schema, RLS, grants, the insert-only trigger, CM-R08), so 55-1's seed (FR-044) and 53-2's freeze both find them. 2. `lockStatementPeriods` (with the injected `IdGenerator`, FR-002) + typed errors. 3. Lock tests CM-01…CM-04 and the FR-004 check | 48a-1 | 400–540 |
 | **48-1** | Plan storage and contracts | 1. Zod contracts and OpenAPI. 2. `commission_plan_versions` + RLS. 3. The plan permission (CS-Q1, Abu Salem; its default roles, the owner and the accountant, and its grant policy per CS-Q27) and its role defaults (`owner` and `accountant` in `packages/db/src/role-defaults.ts`), added to `deviceForbidden` (a device can never hold it, FR-010), to `OWNER_GRANTED_PERMISSIONS` in identity and `packages/db` (a non-owner cannot save an ALLOW) and to identity's `OWNER_ONLY_EDIT_PERMISSIONS` (a non-owner cannot revoke it), with tests for a refused non-owner `SAVE` and `REVOKE` and for the accountant holding it by default; a **seeding migration** grants the permission to the `accountant` role of every existing company (and to `owner`), as #510 did for its permission, with a test that an accountant of a company created before the migration holds it | 48a-2 (CS-Q27 answered: owner and accountant by default, owner-granted, FR-010) | 250–380 |
 | **48-2** | Create and list plan versions | 1. Use case (FR-007/FR-008) and ports. 2. HTTP + list query + `EXPLAIN`. 3. CM-05…CM-08, CM-10 | 48-1 | 350–480 |
-| **48-3** | The builder screen | 1. Blocks with switches, validated before submit through `packages/commissions-engine/validation` (D-17). 2. History list. 3. ar/en keys, component tests (CM-06 builder half, CM-09) | 48-2 | 300–450 |
+| **48-2b** | The plan screens' employee list (FR-010a) | 1. Contract + OpenAPI. 2. Query with its read interface bound at `app.ts` (access, business timezone, staff names reader) + HTTP + `EXPLAIN` on representative data over the existing `employees` index. 3. Tests: the accountant without the employees permission reaches it; an employees manager without the plan permission gets 403; feature off; device; RLS negative; deleted and other-business employees absent; exact item keys; business timezone, not the branch's; empty list; malformed and cross-scope cursor | 48-2 | 180–250 (tests 250–350) |
+| **48-3** | The builder screen | 1. Blocks with switches, validated before submit through `packages/commissions-engine/validation` (D-17). 2. History list. 3. ar/en keys, component tests (CM-06 builder half, CM-09) | 48-2, 48-2b | 300–450 (the cycle-4 addition of the entry and the move off the staff page: 170–230, manager 2026-11-02) |
 | **49-1** | Overrides | 1. Contracts + table + RLS. 2. Use case + HTTP + list. 3. CM-11…CM-13 | 48-2 | 350–480 |
 | **49-2** | Overrides screen | 1. Per-employee service table. 2. Edit dialog. 3. ar/en keys, component tests | 49-1, 48-3 | 200–320 |
 | **50-0** | Outbox replay facade for lines and salaries (`packages/db`; was the orders line reader, D-15 decided 2026-10-25) | 1. A bounded, typed replay facade on `createOutboxDispatcherDatabase` (`pospay_dispatcher`), following `serviceSessionReplayPage` / `readServiceSessionReplayPage` in `packages/db/src/dispatcher.ts`, covering `ServiceSessionRecorded`, `ServiceSessionLinesAdded`, `ServiceLineChanged` and `SalaryChanged`: company-qualified, UUID checkpoint, fixed upper bound, keyset paging, published and unpublished rows alike, no join to `consumed_events`. 2. **An index-only migration** (`CREATE INDEX CONCURRENTLY`, extending the 0132 `outbox_service_session_replay_idx` shape to the four types; `packages/db/schema/outbox.ts` updated): no column, no function, no grant, no `BYPASSRLS`. 3. Shape, paging, isolation (a page never returns another tenant's row) and `EXPLAIN` tests, modelled on `service-session-replay-explain.spec.ts` | 59-0; D-15 (decided) | 200–300 |
