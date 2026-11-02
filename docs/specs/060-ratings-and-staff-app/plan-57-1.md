@@ -113,14 +113,18 @@ The functions return discriminated results, as `SignOutOutcome` does:
 
   ```sql
   DELETE … WHERE identifier = $w AND value::jsonb->>'window_id' = $wid
+    AND value::jsonb->>'user_id' = $userId AND value::jsonb->>'device_id' = $deviceId
     AND (updated_at < $idleFloor OR created_at < $capFloor) RETURNING id
   ```
 
   A deleted row means `expired`, and no row means `mismatch`. A missing or different `window_id` changes nothing, and
-  the `window_id` match makes a late delete safe. The touch of ADR item 5 is this same `check`.
+  the `window_id` match makes a late delete safe. The user and device predicates keep a wrong-scope check a `mismatch`
+  that deletes nothing, even when the window has expired. The touch of ADR item 5 is this same `check`.
 - **`close(scope, windowId)`** returns a boolean. Its delete is conditional on the session's identifier and the
   `window_id`.
-- **Not here.** There is no background sweep (orphans live at most 5 minutes, like the passkey challenges). A dead
+- **Not here.** There is no background sweep. Past its limits, an expired window row is inert. No check passes it,
+  and the next opening replaces it. Sign-out, rotation and phone approval delete both rows. A session that just runs
+  out at its deadline leaves its two rows behind; the sweep for those goes with session-row retention (#776). A dead
   session is answered 401 by the guard before any check (57-1c), and a session that dies between the guard and the
   check simply fails the `EXISTS`.
 
@@ -137,14 +141,16 @@ The functions return discriminated results, as `SignOutOutcome` does:
 
 ### 6. Tests (auth level, real Postgres of the test cluster, no HTTP)
 
-They live in `packages/auth/src/__tests__/private-view.spec.ts`, on `staffAuthFixture`, with a mutable Clock and
-deterministic entropy. The concurrency case holds the session row `FOR UPDATE` from a second connection and waits on
+They live in `packages/auth/src/__tests__/private-view.spec.ts` and `private-view-boundaries.spec.ts`, on
+`privateViewFixture` (`private-view.fixture.ts`, built on `staffAuthFixture`), with a mutable Clock and deterministic
+entropy. The concurrency case holds the window's `verification` row `FOR UPDATE` from a second connection
+(`holdWindowLock`) and waits on
 `pg_locks` (`locktype IN ('transactionid', 'tuple')`), adapting `waitForLockWaiters` from `staff-sign-out-race.spec.ts`.
 
 - **Concurrent openings.** Two concurrent openings leave one window with one `window_id`, and every later opening gets
   a strictly greater `window_seq`.
 - **The proof.** A proof at exactly 60 s opens. A proof at 61 s, a reused proof, a forged object and a proof whose
-  scope differs from the session open nothing. An opening after the session row is gone refuses and inserts nothing.
+  scope differs from the session open nothing. Two simultaneous openings with the same proof open exactly once. An opening after the session row is gone refuses and inserts nothing.
 - **The idle limit.**
   - A check at 60 s passes, extends the window and returns the remaining times.
   - A check at 61 s is `expired` and deletes the window.
@@ -162,9 +168,11 @@ deterministic entropy. The concurrency case holds the session row `FOR UPDATE` f
 ### 7. Files
 
 - **Create:**
-  - `packages/auth/src/private-view.ts` (facade, proof, SQL; split by responsibility if it nears 300 lines);
-  - `packages/db/src/staff-private-view.ts` (identifiers and the shared delete);
-  - `packages/auth/src/__tests__/private-view.spec.ts`.
+  - `packages/auth/src/private-view.ts` (the facade) and `packages/auth/src/private-view/{open,check,options,proof}.ts`
+    (the decisions, the limits and the proof). `packages/auth` holds no SQL: it has no `drizzle-orm` dependency;
+  - `packages/db/src/staff-private-view/{open,check,close,identifiers,types,timestamp}.ts` (all the SQL, the
+    identifiers and the shared delete), re-exported by the surface file `packages/db/src/staff-private-view.ts`;
+  - `packages/auth/src/__tests__/private-view.spec.ts`, `private-view-boundaries.spec.ts` and `private-view.fixture.ts`.
 - **Change:**
   - `packages/auth/src/config.ts` (the `entropy` option and `privateView` on `AuthService`, wired from the new module);
   - `packages/auth/src/index.ts`;

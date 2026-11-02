@@ -88,6 +88,23 @@ it.each(['stale', 'reused', 'forged', 'session', 'user', 'device'] as const)(
   },
 );
 
+it('lets exactly one of two simultaneous openings consume the same proof', async () => {
+  const session = await f.issue();
+  const proof = present(await f.prove(session.scope));
+  const results = await Promise.all([
+    f.auth.privateView.open({ proof, scope: session.scope, device: session.device }),
+    f.auth.privateView.open({ proof, scope: session.scope, device: session.device }),
+  ]);
+  expect(results.map((result) => result.kind).sort()).toEqual(['opened', 'refused']);
+  expect(results.find((result) => result.kind === 'refused')).toEqual({
+    kind: 'refused',
+    reason: 'proof',
+  });
+  const rows = await f.rows(session.scope.sessionId);
+  expect(rows.window).toHaveLength(1);
+  expect(rows.counter[0]?.value).toBe('1');
+});
+
 it('returns no proof for a wrong PIN and stores nothing', async () => {
   const session = await f.issue();
   expect(

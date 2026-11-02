@@ -57,7 +57,7 @@ export interface PrivateViewFixture extends Omit<StaffAuthFixture, 'auth' | 'clo
   close(): Promise<void>;
 }
 
-/** Keeps the shared staff database setup while making every private window id reproducible. */
+/** بيستخدم إعداد قاعدة الموظفين المشترك، وبيخلّي كل window_id يطلع هو هو في كل تشغيل عشان الاختبار يتحقق منه. */
 export async function privateViewFixture(): Promise<PrivateViewFixture> {
   const fixture = await staffAuthFixture();
   await fixture.auth.close();
@@ -95,7 +95,7 @@ export async function privateViewFixture(): Promise<PrivateViewFixture> {
   };
 }
 
-/** The auth the private-view specs drive: the same staff auth on a reproducible entropy. */
+/** نفس auth بتاع الموظفين، بس بـ entropy ثابتة عشان معرّفات النوافذ تتكرر بالظبط في كل تشغيل. */
 async function createPrivateViewAuth(fixture: StaffAuthFixture): Promise<AuthService> {
   let sequence = 0;
   return createAuth({
@@ -170,7 +170,8 @@ async function holdWindowLock(
     acquired();
     await released;
   });
-  await locked;
+  // لو المعاملة وقعت قبل ما تمسك القفل، الخطأ لازم يوصل للاختبار بدل ما يفضل مستني القفل للأبد.
+  await Promise.race([locked, holding]);
   return { release: () => release(), holding };
 }
 
