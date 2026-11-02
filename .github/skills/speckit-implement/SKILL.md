@@ -183,8 +183,8 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Check that implemented features match the original specification
    - Validate that tests pass and coverage meets requirements
    - Confirm the implementation follows the technical plan
-   - **Mandatory final gate — `pnpm check`**: run `pnpm check` from the repo root. `CLAUDE.md` §1: a slice is not done until it passes. Never report completion, or call the work done, while it has not run or has failed:
-     - If it fails, fix the cause within the slice's tasks and run it again. Do not skip, weaken or comment out a check, and do not narrow its scope to get a pass
+   - **Mandatory final gate — local gates, not the full `pnpm check`** (PP-113): from the repo root run the typecheck, lint, `pnpm lint:docs`, boundaries, `pnpm module-map:check` and the slice's own tests, scoped to the packages the slice changed. The full `pnpm check` and the API shards run only on CI and are decided by the `ci-gate` result on the exact head. `CLAUDE.md` §1: a slice is not done until these pass locally and `ci-gate` is green on the head. Never report completion, or call the work done, while a local gate has not run or has failed:
+     - If it fails, fix the cause within the slice's tasks and run it again. Do not skip, weaken or comment out a check to get a pass
      - If it cannot run (missing dependencies, services down), or it fails for a cause outside this slice's tasks (for example another module's failing tests), report the slice as NOT complete, name the blocker or the failing check, and stop. Do not edit code outside the slice to get a pass
      - Record the command, its exit status and the date for the Completion Report
 
@@ -225,13 +225,13 @@ Check if `.specify/extensions.yml` exists in the project root.
     To execute: `/{command}`
     ```
 
-**Re-run the final gate after the hooks.** The `pnpm check` run in the validation step describes the worktree as it was *before* the hooks, and a hook can change source, generated or untracked files, or commit. Do not try to detect what a hook changed: a status or diff snapshot misses untracked and ignored files and hook-made commits.
-- If no hook ran (none registered, all disabled or skipped for a `condition`, or only optional hooks the user did not run), the earlier `pnpm check` result stands. If you cannot tell whether a hook ran, including an optional hook the user may have run elsewhere, treat it as having run
-- If any hook ran, run `pnpm check` again from the repo root after the last hook has finished, under the same rules as the final gate above (fix causes within the slice's tasks, never skip or weaken a check, stop and report the slice as NOT complete when it cannot run or fails outside the slice), and record that run's command, exit status and date. If a hook changes files again while you fix a failure, repeat this step
+**Re-run the final gate after the hooks.** The local-gate run in the validation step describes the worktree as it was *before* the hooks, and a hook can change source, generated or untracked files, or commit. Do not try to detect what a hook changed: a status or diff snapshot misses untracked and ignored files and hook-made commits.
+- If no hook ran (none registered, all disabled or skipped for a `condition`, or only optional hooks the user did not run), the earlier local-gate result stands. If you cannot tell whether a hook ran, including an optional hook the user may have run elsewhere, treat it as having run
+- If any hook ran, run the local gates again from the repo root after the last hook has finished, under the same rules as the final gate above (fix causes within the slice's tasks, never skip or weaken a check, stop and report the slice as NOT complete when it cannot run or fails outside the slice), and record that run's command, exit status and date. If a hook changes files again while you fix a failure, repeat this step
 
 ## Completion Report
 
-Report final status with summary of completed work, including the result (exit status) of the last `pnpm check` run, which is the one made after the hooks when any hook ran. If that run did not exit 0, report the slice as not complete.
+Report final status with summary of completed work, including the result (exit status) of the last local-gate run, which is the one made after the hooks when any hook ran, and the `ci-gate` result of the head once known. If that run did not exit 0, report the slice as not complete.
 
 ## Done When
 
@@ -239,5 +239,5 @@ Report final status with summary of completed work, including the result (exit s
 - [ ] No business-rule checklist item was open when implementation started (the gate was not overridden)
 - [ ] Implementation validated against specification, plan, and test coverage
 - [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
-- [ ] `pnpm check` ran from the repo root on the final worktree (again after the hooks if any hook ran) and exited 0
+- [ ] The local gates (PP-113: typecheck, lint, `pnpm lint:docs`, boundaries, `pnpm module-map:check`, the slice's own tests) ran from the repo root on the final worktree (again after the hooks if any hook ran) and exited 0; the full `pnpm check` is left to `ci-gate` on CI
 - [ ] Completion reported to user with summary of completed work

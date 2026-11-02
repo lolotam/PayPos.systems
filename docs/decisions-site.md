@@ -149,7 +149,7 @@ Waleed and Abu Salem get phone notifications from https://ntfy.pospay.systems (t
 |---|---|---|
 | `pospay-features` | Waleed and Abu Salem | Something new or changed that users can see, in 2–3 plain Arabic lines (PP-13.2) |
 | `pospay-questions` | Waleed and Abu Salem | Every question waiting for them, money question batches included (PP-13) |
-| `pospay-waleed` | Waleed | Every review or suggestion Abu Salem saves (the site sends it on its own); anything waiting on Waleed |
+| `pospay-waleed` | Waleed | Every review or suggestion Abu Salem saves (the site sends it on its own); nothing from managers or sessions any more (SA-16) |
 | `pospay-team` | Waleed and Abu Salem | Nothing today; kept so existing subscriptions do not break |
 
 Abu Salem is not technical. Never send a bare «تم الـ merge»: a merge is announced only as what it changed for the
@@ -165,11 +165,9 @@ never in git, a doc or a message.
 - after step 8 of §A: one notification to `pospay-questions` naming the batch;
 - after a merge that adds or changes something users see (§B): one to `pospay-features`, saying in plain words what
   they can now do;
-- whenever work stops on an owner decision, and whenever a report carries something waiting on Waleed («المطلوب
-  منك»): one to `pospay-waleed`, once per request (PP-112, `docs/agent-delivery-pipeline.md` §12).
+- nothing to `pospay-waleed` from managers or sessions: whatever waits on Waleed goes to the super admin thread, which relays it on Slack `#sa-decisions` (SA-16, `docs/agent-delivery-pipeline.md` §12).
 
-A question or feature notification names the batch or the row and links to the page. A `pospay-waleed` request
-notice (PP-112) names the request only, with no page link, because a technical request never goes on the page. It never quotes an answer or the text of a review.
+A question or feature notification names the batch or the row and links to the page. It never quotes an answer or the text of a review.
 
 **How.** Publish with JSON, so the Arabic arrives intact. A plain `-d` body from a Windows shell mangles it.
 

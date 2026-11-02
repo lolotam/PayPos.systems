@@ -1,5 +1,6 @@
 <!--
 Sync Impact Report
+- 3.3.1 (2026-11-02, PATCH): Principle I's done-criterion names where `pnpm check` runs: a slice is done when the local gates (typecheck, lint, `pnpm lint:docs`, boundaries, `pnpm module-map:check` and the slice's own tests) pass and `ci-gate` is green on the exact head, which runs the full `pnpm check` and the API shards (Waleed, PP-113, `docs/owner-decisions.ar.md` item 51). Rationale: `pnpm check` stays required and must be green before merge; only where it runs is clarified, so the rule keeps its meaning (PATCH). `CLAUDE.md` V3.20 and `docs/agent-delivery-pipeline.md` §6 carry the same rule.
 - 3.3.0 (2026-11-01, MINOR): Principle I sets the limit to five task sessions (slices and other tasks together), started one after another rather than all at once; a
   slice that depends on another still waits until that one merges; shared files where each slice only adds its own line may change in parallel,
   merged in the manager's order with a rebase on `main` after each merge (Waleed, PP-111, `docs/owner-decisions.ar.md` item 48). Rationale: the
@@ -81,7 +82,7 @@ OpenAPI contract: those merge in an order the manager sets, each later slice reb
 More than one may carry a migration, each tested on its own local Postgres; each merges only when it is green on its own head, and migration
 and ADR numbers are reserved in the expected merge order and made final at merge (Waleed, 2026-10-07; PP-59, 2026-10-25; PP-69, 2026-10-27; PP-111, 2026-11-01). Every architectural decision MUST be recorded as
 `docs/adr/NNNN-title.md`. A slice is done only when the checklist in
-`CLAUDE.architecture.md` §15 passes and `pnpm check` is green. Unknown business rules are
+`CLAUDE.architecture.md` §15 passes, the local gates pass and `pnpm check` is green on CI (`ci-gate` on the exact head, PP-113). Unknown business rules are
 marked `TODO(spec)` and work stops there; guessing is forbidden.
 
 Rationale: a solo developer working with AI needs small, verifiable increments; a spec
@@ -455,7 +456,7 @@ guidance, PATCH for clarifications. Every PR review MUST verify compliance with 
 I–VII; any added complexity MUST be justified against `CLAUDE.architecture.md` §12.
 `CLAUDE.md` remains the runtime guidance file for day-to-day development.
 
-**Version**: 3.3.0 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-11-01
+**Version**: 3.3.1 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-11-02
 
 ## PR 6 amendment — ADR-0019, 2026-10-02
 
