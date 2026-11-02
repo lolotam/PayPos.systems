@@ -16051,6 +16051,12 @@
     "/v1/staff/me/private-view": {
       "post": {
         "operationId": "openPrivateView",
+        "security": [
+          {
+            "DeviceToken": [],
+            "KioskStaffSession": []
+          }
+        ],
         "description": "Opens the private-view window for the signed-in operator after a fresh PIN. The PIN proves the operator only; it is never stored, logged or returned. The window is bound to the session, the operator and the device, and the same attempt counter as the PIN sign-in counts it.",
         "requestBody": {
           "required": true,
@@ -16129,6 +16135,12 @@
     "/v1/staff/me/private-view/touch": {
       "post": {
         "operationId": "touchPrivateView",
+        "security": [
+          {
+            "DeviceToken": [],
+            "KioskStaffSession": []
+          }
+        ],
         "description": "Keeps the private-view window alive and answers the two remaining times. The window id travels in the header; a missing, malformed or expired window answers 403 PRIVATE_VIEW_EXPIRED and never a 400.",
         "parameters": [
           {
@@ -16198,6 +16210,12 @@
     "/v1/staff/me/private-view/close": {
       "post": {
         "operationId": "closePrivateView",
+        "security": [
+          {
+            "DeviceToken": [],
+            "KioskStaffSession": []
+          }
+        ],
         "description": "Closes the private-view window. The answer is 204 whether the window was there or not, so it never tells the caller whether a window id was live.",
         "parameters": [
           {
