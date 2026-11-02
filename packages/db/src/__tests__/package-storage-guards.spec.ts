@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
@@ -96,6 +96,9 @@ interface EntitlementOptions {
   sellerEmployeeId?: string | null;
   sellerLinkedUserId?: string | null;
   soldBusinessDate?: string | null;
+  soldAt?: SQL | string | null;
+  soldBranchId?: string | null;
+  soldTimezone?: string | null;
   systemId?: string;
   txid?: string;
 }
@@ -116,9 +119,12 @@ const entitlementInsert = (o: EntitlementOptions) => {
       ${o.discount === undefined ? (sold ? '0.000' : null) : o.discount},0,
       ${o.paidMethod === undefined ? (sold ? 'CASH' : null) : o.paidMethod},
       ${o.sellerEmployeeId === undefined ? (sold ? ORDER_IDS.employee : null) : o.sellerEmployeeId},
-      ${o.sellerLinkedUserId ?? null},${sold ? A.branch : null},${sold ? sql`now()` : null},
+      ${o.sellerLinkedUserId ?? null},
+      ${o.soldBranchId === undefined ? (sold ? A.branch : null) : o.soldBranchId},
+      ${o.soldAt === undefined ? (sold ? sql`now()` : null) : o.soldAt},
       ${o.soldBusinessDate === undefined ? (sold ? sql`current_date` : null) : o.soldBusinessDate},
-      ${sold ? 'Asia/Kuwait' : null},${USER},${ORDER_IDS.membership},
+      ${o.soldTimezone === undefined ? (sold ? 'Asia/Kuwait' : null) : o.soldTimezone},
+      ${USER},${ORDER_IDS.membership},
       ${o.externalRef === undefined ? (sold ? null : 'EXT-1') : o.externalRef},
       ${o.importBatchId === undefined ? (sold ? null : PREVIEW) : o.importBatchId},
       ${o.importRow === undefined ? (sold ? null : 1) : o.importRow},
@@ -360,6 +366,28 @@ it('the row shape follows its provenance', async () => {
   );
   await rejected(
     attempt(entitlementInsert({ id: nextId(), provenance: 'IMPORTED', sellerLinkedUserId: USER })),
+    '23514',
+    'package_entitlements_imported_shape_check',
+  );
+  // الاستيراد مالوش لحظة بيع ولا فرع ولا منطقة زمنية؛ السطر كله يترفض بالقيد (FR-065).
+  await rejected(
+    attempt(entitlementInsert({ id: nextId(), provenance: 'IMPORTED', soldAt: sql`now()` })),
+    '23514',
+    'package_entitlements_imported_shape_check',
+  );
+  await rejected(
+    attempt(entitlementInsert({ id: nextId(), provenance: 'IMPORTED', soldBranchId: A.branch })),
+    '23514',
+    'package_entitlements_imported_shape_check',
+  );
+  await rejected(
+    attempt(
+      entitlementInsert({
+        id: nextId(),
+        provenance: 'IMPORTED',
+        soldTimezone: 'Asia/Kuwait',
+      }),
+    ),
     '23514',
     'package_entitlements_imported_shape_check',
   );
