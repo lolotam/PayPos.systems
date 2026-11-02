@@ -1,6 +1,6 @@
 ---
 name: pospay-pipeline
-description: "PosPay's fixed delivery pipeline, decided by the owner (Waleed) on 2026-10-07 and updated 2026-10-20. Use it for every row of a phase implementation plan, every new slice or use case, and every fix PR that touches production code in this repo. It pins who does each role (Kimi k3.1-pro#high via opencode implements by default, MiniMax-M3.1-Flash for small pinned backend slices, Codex and the MergePilot panel review, Claude orchestrates), the review-round cap, the parallel-task cap, the database review, the guard pass, the staging deploy, the status page and the owner report, so they are never re-asked. It runs on top of waleed-implementation-v2 and replaces that skill's questions and fallback chains for this project. Not for a typo or a question. A docs-only change follows the docs-only lane (§2), and every merge, docs-only included, still updates the decisions page's status tab (§6 step 8)."
+description: "PosPay's fixed delivery pipeline, decided by the owner (Waleed) on 2026-10-07 and updated 2026-11-02. Use it for every row of a phase implementation plan, every new slice or use case, and every fix PR that touches production code in this repo. It pins who does each role (MiniMax builds new tasks, Kimi handles correction rounds after clean handoff, Codex and the MergePilot panel review, Claude orchestrates), the review-round cap, the parallel-task cap, the database review, the guard pass, the staging deploy, the status page and the owner report, so they are never re-asked. It runs on top of waleed-implementation-v2 and replaces that skill's questions and fallback chains for this project. Not for a typo or a question. A docs-only change follows the docs-only lane (§2), and every merge, docs-only included, still updates the decisions page's status tab (§6 step 8)."
 ---
 
 # PosPay delivery pipeline
@@ -24,45 +24,36 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 | Role | Who (friendly name → live id) | Writes files? |
 |---|---|---|
 | Orchestrator | Claude Code (this session) | yes — specs, briefs, renumbering, fixes on docs-only PRs (never production code, PP-10.1), and merges without asking once every gate passes (Waleed, SA-11 «ج»: a PosPay merge reaches staging only; production, production data and server changes still need his yes; `docs/owner-decisions.ar.md` item 17) |
-| Design advisors (risky slices only, §3 step 2) | Codex astra 6 medium (`gpt-6-astra`, effort medium) **and** Claude Fable 5.1 medium (`claude-fable-5-1`) | no — read-only |
-| **Implementer** — code, tests, migrations **and PR-finding fix rounds** | **opencode `kimi-code-plan-global/k3.1-pro#high` by default; `minimax-coding-plan/MiniMax-M3.1-Flash` (default variant) for small, fully pinned backend and data slices (SQL, RLS, domain math)** — owner's choice 2026-10-24 after the six-task trial (PP-55.1, `docs/owner-decisions.ar.md` item 26), replacing PP-10.1 «MiniMax only». Both run under the same guarded dispatch (§4); only `-m` changes. No Grok or Codex implementation runs. **Wherever this skill says "MiniMax", read "the implementer", whichever of the two the task uses.** Every implementer brief bans all git commands, edits outside the task, unrelated reformatting and line-squashing to dodge `max-lines`; the reviewer diffs every rewritten SQL function body against the old one and reviews money, DB and permission changes strictly | yes, in its own worktree |
-| **Database reviewer** | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) | no |
-| Review layer 1 | **Codex astra 6 medium** (`gpt-6-astra`, effort medium, `codex exec -s read-only`) — owner's choice 2026-10-11 | no |
-| Review layer 2 | **one** fresh Claude reviewer, **Sonnet 5.5 at medium effort** (`claude-sonnet-5-5`), given the diff, the spec and the governing documents (§8 rule 5), never the session history; **high** effort for money, tenant isolation (RLS), auth and migrations; none for a docs-only PR (§8 rule 5) | no |
-| Review layer 3 — **four bots** | the Codex GitHub bot (`chatgpt-codex-connector[bot]`, `@codex review` after every push; Codex CLI when out of quota) **and** the MergePilot panel (`mergepilot-review[bot]`): MergePilot (`gpt-6.1-sol`), waleed_bot (`claude-sonnet-5-5`), mohamed_bot (`grok-4.7`), which reviews every pushed commit on its own | no |
+| Design advice (risky slices only, §3 step 2) | **Astra** (`gpt-6-astra`, effort `high`) through built-in delegation. Fable is optional only when the orchestrator is undecided on a hard design decision (`docs/agent-delivery-pipeline.md` §§0 and 4) | no — read-only |
+| **Initial implementer** — code, tests and migrations | **MiniMax-M3.1-Flash · thinking** builds new tasks (Waleed, 2026-11-02, Q3 = أ, `docs/owner-decisions.ar.md` item 49), replacing PP-55.1's Kimi default. The existing GLM exception for small, exactly pinned tasks remains in `docs/agent-delivery-pipeline.md` §5. Dispatch follows that document's §§0 and 5. Every implementer brief bans all git commands, edits outside the task, unrelated reformatting and line-squashing to dodge `max-lines`; the reviewer diffs every rewritten SQL function body against the old one and reviews money, DB and permission changes strictly | yes, in its own worktree |
+| **Internal reviewer, including database and security review** | **Astra** (`gpt-6-astra`, effort `high`; fallback `claude-opus-5-5`), read-only through built-in delegation, with fresh context, for every PR including docs-only. One review covers database/security when `packages/db/**` changes; the former Sonnet layer is removed (`docs/agent-delivery-pipeline.md` §§0 and 8) | no |
+| **Five external reviewers** | the Codex GitHub bot (`chatgpt-codex-connector[bot]`, `@codex review` after every push) **and all four MergePilot panel bots**. Discover actual panel identities and configuration at PR time. All five must complete on the exact head, with findings resolved under the current severity policy (`docs/agent-delivery-pipeline.md` §9); no external CLI fallback | no |
 | Draft writer (§8 rule 6) | MiniMax writes first drafts of specs, ADRs, journey docs and the HANDOVER; the orchestrator edits and owns the result | yes |
-| Fixer | the implementer, continuing **its own MiniMax session** with only the findings (§4), for every production-code finding, a one-line one included (PP-10.1); the orchestrator (or a doc-writing session) only for a fix on a docs-only PR, where no implementer session exists | yes |
+| Fixer | **Kimi K3.1 Pro** handles correction rounds only, after a clean initial handoff (Waleed, 2026-11-02, Q3 = أ, `docs/owner-decisions.ar.md` item 49; `docs/agent-delivery-pipeline.md` §7). The initial implementer keeps its own failed attempt until that handoff; the same correction worker keeps its own correction rounds. The orchestrator (or a doc-writing session) fixes docs-only PRs, where no implementer session exists | yes |
 | Staging server | the orchestrator only, over the `abdulaziz` SSH profile | — |
 
-There is no separate model check before the first dispatch. Any `opencode` command started outside §4's guarded setup
-loads plugins and config before `check-opencode.cjs` has vetted them, and a bare `opencode run` would also run the model
-under opencode's default, unrestricted permissions. The first guarded run is the check: a missing model id, or an auth
-or quota failure, shows as a nonzero exit (§4 rule 8). Then stop and ask the owner. Never substitute a provider outside these two (PP-55.1), and never switch a task between them without the owner's yes. **A Kimi usage limit is the exception, and the procedure is the owner's PP-60 yes already given:** do not stop and ask; switch that task to MiniMax in a new session (§4) and return to Kimi after the renewal. The cases: (1) a task that runs on MiniMax by design hits MiniMax's usage limit: hold, then resume the same session after the renewal, and never move it to Kimi without the owner's yes; (2) a temporary PP-60 MiniMax session goes back to Kimi as soon as Kimi renews, and if MiniMax runs out first, hold until either one renews; (3) any failure that is not a usage limit (authentication, configuration, an unavailable model) follows the rule above: stop and ask the owner. Hold-and-resume applies only to the usage-limit cases (1) and (2).
+**Current dispatch and fallback rules:** `docs/agent-delivery-pipeline.md` §§0, 5 and 7 govern the transport, model identities, fallback and handoff. Q3 keeps MiniMax on new tasks and Kimi on correction rounds only. The older CLI examples in §4 are historical reference, not authorization to use an external process or to transfer a failed initial attempt to Kimi.
 
 ---
 
 ## 2. Limits
 
-- **Review rounds: at most 5 per PR**, counting every review → fix cycle across all three layers and the database
-  review. After round 5, sort what is left by severity:
-  - **P0 / P1** (security, money, tenant isolation, data loss, correctness): both design advisors propose a fix, the
-    implementer applies it, and the PR **stays blocked** until it is fixed and confirmed. The cap never lowers the bar.
+- **Review rounds: at most 5 per PR**, counting review → fix cycles across the single internal review (including database/security) and external reviews. The docs-only correction policy below still applies. After round 5, sort what is left by severity:
+  - **P0 / P1** (security, money, tenant isolation, data loss, correctness): split the task into smaller PRs, as required by `docs/agent-delivery-pipeline.md` §8 (PP-69.8), instead of adding cycles. No PR merges with a P0/P1 open.
   - **P2 / P3**: open a GitHub issue per finding, linked from its review thread, then merge.
-- **Parallel work: keep 5 to 6 tasks running at all times, 6 at most** (Waleed, PP-59, 2026-10-25, `docs/owner-decisions.ar.md` item 28; it replaces the old cap of 3, and `.specify/memory/constitution.md` Principle I carries the same limit since version 3.1.0). When a task merges, open a replacement at once. Pick tasks whose file paths are **disjoint**, and run **one migration lane at a time**. Implementation runs on Kimi/MiniMax and Codex gives advice and review, to save Claude quota. Two tasks that touch the
-  same file wait for each other. Each task has its own branch, worktree (`F:\Dev\Worktrees\PosPay\<branch>`) and PR.
+- **Parallel work: keep 5 task sessions running at all times, started one after another, never all at once** (Waleed, PP-111, 2026-11-01, `docs/owner-decisions.ar.md` item 48; it replaces PP-59's 5 to 6 and PP-69.3's 3, and `.specify/memory/constitution.md` Principle I carries the same limit since version 3.3.0). When a task merges and its delivery is verified, settle (archive) its session, delete its worktree under the checks of `docs/agent-delivery-pipeline.md` §1.1, and open a replacement at once. A task that depends on another starts only after that one merges. Pick tasks whose file paths are **disjoint**, and keep **one migration lane** for the final step only: more than one task may build and test a migration in parallel, each on its own local Postgres, and only the final step (renumber, `db:generate` and push) runs one task at a time. MiniMax builds new tasks and Kimi handles correction rounds after clean handoff (Q3, item 49); Codex gives advice and review. Two tasks that touch the
+  same file wait for each other, except a shared file where each feature only adds its own line (the permission list, migration numbers, `packages/contracts/openapi/openapi.json`): those run in parallel, the manager owns the merge order, and after each merge it tells the sessions sharing that file to rebase on `main` (PP-111.2). A generated shared file is never resolved by hand: after the rebase, regenerate it (`pnpm contracts:openapi`, `pnpm db:generate <kebab-case-name>`) and rerun the checks before review and merge. Each task has its own branch, worktree (`F:\Dev\Worktrees\PosPay\<branch>`) and PR.
   Migration and ADR numbers are assigned **at merge time**: renumber the later PR after the earlier one lands. Each
   slice still merges only when it is green on its own head (constitution Principle I, as amended 2026-10-07).
+  For migration regeneration, follow `docs/agent-delivery-pipeline.md` §13: preserve reviewed custom SQL, data-step markers and their original dependency order (including custom/data steps before dependent schema changes), replace only branch-owned unmerged artifacts against the current `main` journal, and never change merged migrations. The generator requires `<kebab-case-name>`; use `--custom` for custom entries and transfer the preserved reviewed statements before testing.
 - **One use case per PR** (`CLAUDE.md` §1). A task that needs two use cases is two PRs.
 - **Docs-only lane** (owner, 2026-10-17). A PR whose files are all under `docs/**`, `*.md`, `.claude/skills/**` or
-  `.specify/**` (no code, no migration, no generated file) skips §3 steps 2, 5 (except `docs-guard`), 6, 7, 8 and 14, needs no implementer dispatch (§3 step 3; specs and ADRs are drafted by MiniMax and edited and owned by the orchestrator, §8 rule 6) and no spec (§3 step 1) unless the PR is itself a spec, judges §3 step 4 by `pnpm format:check` (`prettier --check .`, which covers Markdown) instead of the full `pnpm check`, and skips the
-  5-round cap. It merges when `ci-gate` is green on the exact head, the Codex bot and the MergePilot panel have
+  `.specify/**` (no code, no migration, no generated file) skips §3 steps 2, 5 (except `docs-guard`), 6, 8 and 14, needs no implementer dispatch (§3 step 3; specs and ADRs are drafted by MiniMax and edited and owned by the orchestrator, §8 rule 6) and no spec (§3 step 1) unless the PR is itself a spec, and judges §3 step 4 by `pnpm format:check` (`prettier --check .`) instead of the full `pnpm check`.
+  The five-cycle split rule for remaining P0/P1 applies to docs-only PRs too. Step 7's single internal Astra review is mandatory, including for docs-only PRs (`docs/agent-delivery-pipeline.md` §8). It merges when `ci-gate` is green on the exact head, the Codex bot and the MergePilot panel have
   completed on that head, and no P0/P1 is open. A P1 here means a wrong or contradictory rule in any governing or operational document (a spec, an ADR, `CLAUDE.md`, a skill, `docs/security.md`, a runbook); the bar
   for it does not move. P2/P3 findings on prose are fixed in one batch commit at most; the rest become linked issues.
   The status-page update (§6 step 8) still applies after the merge.
-- **waleed_Bot failing (PP-5.2, owner, 2026-10-19).** While **waleed_Bot** returns `❌ failed` on every review,
-  "the panel completed" means every *other* panel bot completed on the head. The Codex bot must still complete, and
-  no P0/P1 may be open. The merge report names waleed_Bot's failure. The exception covers waleed_Bot only and ends when
-  it completes again. Any other bot that fails blocks the merge until the owner decides.
+- **No inherited bot-failure waiver.** Follow `docs/agent-delivery-pipeline.md` §9: all five external reviews must complete on the exact head; an old bot-failure waiver is not reused without fresh, explicit owner authorization.
 
 ---
 
@@ -72,14 +63,14 @@ or quota failure, shows as a nonzero exit (§4 rule 8). Then stop and ask the ow
 |---|---|---|---|
 | 0 | Pick the next row of the phase plan, or the task the owner names | orchestrator + owner | row named in the report |
 | 1 | Spec: `/speckit-specify` → `docs/specs/NNN-<module>-<use-case>/spec.md`; owner questions → the slice's `owner-questions.ar.md` (a question that belongs to no slice, such as a pipeline, docs or process rule, goes to `docs/owner-decisions.ar.md` instead), then sent to Waleed as cards; feature and business questions are also published on the decisions page as a new numbered batch (on a difference Abu Salem's pick wins), and technical questions go to Waleed only, never on the page (`CLAUDE.md` §1 5b, V3.17); a feature's questions are asked together before its first sub-PR, in one batch | orchestrator | every business rule is in the spec or asked; an unknown rule is a `TODO(spec)` and a stop. **Ask the whole feature at once** (owner, 2026-10-17): before the first sub-PR of a feature starts, list every sub-PR in the plan, collect all of their owner questions: the feature and business ones in one numbered batch on the page (also sent to Waleed as cards), the technical ones to Waleed only as cards, and add a clickable mockup (an HTML artifact, or a Lovable prototype) when the answer is a screen; late-found questions are the exception, not the routine |
-| 2 | Design advice — **only** when the slice parses files, runs long work, may cross 200 ms, moves money, or changes auth/RLS | both advisors, read-only | the chosen design is written into the spec |
+| 2 | Design advice — **only** when the slice parses files, runs long work, may cross 200 ms, moves money, or changes auth/RLS | Astra `gpt-6-astra`, effort `high`, read-only through built-in delegation; Fable only if the orchestrator is undecided | the chosen design is written into the spec |
 | 3 | Brief and dispatch the implementer (§4), baseline captured first | orchestrator → MiniMax | MiniMax reports done; the delivery is kept as the first commit, as delivered |
 | 4 | Judge the delivery: diff against the baseline, read it against the spec, merge `main`, renumber migrations/ADRs, `pnpm check` | orchestrator | `pnpm check` green |
 | 5 | Guard pass: `clean-code-guard` on production code, `test-guard` on tests, `docs-guard` on docs (global `CLAUDE.md` guard workflow) | orchestrator | findings fixed or recorded |
-| 6 | Database review — **mandatory** when the PR touches `packages/db/**` (schema, migration, RLS, grants, seed) | Codex astra 6 medium | no open P0/P1 (§5 checklist) |
-| 7 | Review layer 1 | Codex astra 6 medium | findings fixed by MiniMax in its continued session, or deferred per §2 |
-| 8 | Review layer 2 — one Sonnet 5.5 reviewer (§8 rule 5); no separate confirm round, the four bots confirm on the head SHA in step 9 | fresh Claude reviewer | its findings fixed by MiniMax or deferred per §2 |
-| 9 | Push, open the PR (spec link + checklist), comment `@codex review` | orchestrator | **all four bots answered on the head SHA**: Codex summary says Completed for that SHA, the MergePilot review for that SHA shows all three bots completed (a failing waleed_Bot is handled by the PP-5.2 exception in §2), and every inline finding is fixed or deferred per §2 |
+| 6 | Include the database/security checklist in step 7 when the PR touches `packages/db/**` | the same internal reviewer as step 7 | §5 checklist covered in that single review |
+| 7 | One independent internal review, read-only through built-in delegation (`docs/agent-delivery-pipeline.md` §§0 and 8) | Astra `gpt-6-astra`, effort `high`; fallback `claude-opus-5-5` | findings after clean handoff fixed by Kimi under the current pipeline, with no open P0/P1 |
+| 8 | Former Sonnet layer removed; no additional review stage | — | step 7 covers the internal review |
+| 9 | Push, open the PR (spec link + checklist), comment `@codex review` | orchestrator | **all five external reviews completed on the head SHA**: Codex plus all four MergePilot panel bots; findings resolved under `docs/agent-delivery-pipeline.md` §§8–9, no open P0/P1; no stale or failed receipt counts |
 | 10 | CI `ci-gate` green **on the exact head being merged** | GitHub Actions | green |
 | 11 | Merge: `gh pr merge <n> --squash --delete-branch --match-head-commit <reviewed-sha>` — a push after the reviews makes the merge fail instead of landing an unreviewed head | orchestrator | merged |
 | 12 | Deploy to staging (§6) | orchestrator | `/ready` answers ready on the new SHA |
@@ -94,7 +85,9 @@ the MergePilot panel reviews each pushed commit by itself. Read every result bef
 
 ---
 
-## 4. Dispatching MiniMax (opencode)
+## 4. Historical dispatch reference (opencode)
+
+**Historical only:** the CLI setup, model defaults, quota switching and session-continuation instructions in this section are superseded by `docs/agent-delivery-pipeline.md` §§0, 5 and 7. Current dispatch uses built-in delegation: MiniMax for new tasks and Kimi for corrections after clean handoff (Q3, item 49).
 
 The implementer runs through the **opencode CLI** (`opencode` on `PATH`, under `F:\Dev\Runtimes\npm-global`). The
 default model is **`kimi-code-plan-global/k3.1-pro#high`** (Kimi For Coding plan, variant `high`); small, fully pinned
@@ -528,7 +521,7 @@ pins the PosPay rules on top of it.
 ## 5. Database work
 
 - **MiniMax writes** migrations, schema, RLS policies, grants and seed with the rest of the slice. The database reviewer
-  (Codex astra 6 medium, read-only) reviews every PR that touches `packages/db/**` against this list:
+  (Astra, effort `high`, read-only through built-in delegation) covers every PR that touches `packages/db/**` in the single internal review, against this list:
   - every tenant table has `company_id`, primary key `(company_id, id)`, `ENABLE` + `FORCE ROW LEVEL SECURITY`, a
     policy, and a negative isolation test in the same PR (`CLAUDE.md` §5, ADR-0007);
   - the reviewed grant allowlist in `packages/db/src/__tests__/privileges.spec.ts` matches the new grants;
@@ -643,19 +636,9 @@ typing do not.
 2. **Keep the orchestrator context small.** Past roughly 300 K tokens, write a handover note (state of every open PR,
    branch, worktree, session id, next action — about 30 lines, in `docs/journey/` or the scratchpad) and continue in a
    fresh session from that note instead of carrying the history.
-3. **Choose the model per session.** Sessions that only continue a PR, write documentation or answer bot findings run on
-   Sonnet or Haiku at medium effort. High effort and the strongest model are for design advice, risky slices (§3 step 2)
-   and P0/P1 judgement only.
-4. **Fix rounds go to MiniMax.** When a bot finds something, the findings go to the implementer's continued MiniMax
-   session (§4 rule 2), each written as `file:line — what is wrong — what done looks like`. Claude judges whether the
-   fix is right; it does not retype it. Every production-code finding goes to MiniMax, a one-line one included
-   (PP-10.1). A Claude session fixes a finding itself only when the PR is docs-only and so has no implementer
-   session. After two MiniMax failures on one brief, stop and report
-   to Waleed (§4 rule 8). Never switch to another provider.
-5. **One cheaper review layer 2.** One fresh Sonnet 5.5 reviewer at medium effort replaces the two Opus-class reviewers
-   (review and confirm round). It gets the diff, the spec and the governing documents (`CLAUDE.md`, `CLAUDE.architecture.md`, `docs/06_Tech_Stack_Architecture_EN.md`, `docs/module-map.md`, the ADRs the slice cites), never the session history, so its context stays small. Use high
-   effort when the PR touches money, tenant isolation, auth or migrations, (the other-vendor reviewer is review layer 1, Codex astra 6, which already runs on every code PR in §3 step 7; the docs-only lane skips it and has no layer 2 either). A docs-only
-   PR gets no Claude reviewer. The confirm round is dropped: the four bots re-review the head SHA after every push.
+3. **Choose the model by delivery stage.** Follow `docs/agent-delivery-pipeline.md` §§0, 5 and 7: MiniMax builds new tasks; Kimi handles correction rounds after clean handoff. Documentation keeps the docs-only lane of §2.
+4. **Correction rounds after clean handoff go to Kimi.** Send findings as `file:line — what is wrong — what done looks like`; the orchestrator judges the fix and runs the gates. The initial implementer retains its own failed attempt until clean handoff, and the same Kimi worker keeps its own correction rounds. Docs-only fixes stay with the orchestrator. Follow `docs/agent-delivery-pipeline.md` §§0, 7 and 8 for fallback and correction limits (Q3, item 49).
+5. **One internal review, five external reviews.** Follow `docs/agent-delivery-pipeline.md` §§0, 8 and 9: every PR, including docs-only, gets one fresh, read-only Astra review through built-in delegation, including database/security where applicable; no Sonnet layer. Codex and all four MergePilot panel bots must complete on the exact head after every push, with no open P0/P1.
 6. **Drafts are written by MiniMax.** This is the draft-writer role in §1, set by PP-10.1. MiniMax writes the first
    drafts of specs, ADRs, journey docs and the HANDOVER, and Claude edits and owns them. Claude writes a document from
    scratch only when it records a decision that only Claude has the context for.
@@ -676,7 +659,7 @@ typing do not.
 - Never let MiniMax run any git command, read or write anything under `.git`, use any MCP tool, merge, push, or
   touch the server.
 - Never merge with a P0/P1 open, or with CI red on the head being merged.
-- Never exceed 5 review rounds without applying §2 (a docs-only PR has no cap, see the docs-only lane in §2), and never exceed 6 parallel tasks (PP-59).
-- Never run two tasks in parallel that touch the same file.
+- Never exceed 5 review rounds without applying §2, including the P0/P1 split rule for docs-only PRs, and never exceed 5 parallel tasks (PP-111).
+- Never run two tasks in parallel that touch the same file, except the shared add-one-line files of §2 (PP-111.2).
 - Never change the staging database by hand without the owner's explicit approval for that change.
 - Never rewrite a pushed branch's history (`--force`) without the owner's explicit approval.

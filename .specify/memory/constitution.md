@@ -1,5 +1,11 @@
 <!--
 Sync Impact Report
+- 3.3.0 (2026-11-01, MINOR): Principle I sets the limit to five task sessions (slices and other tasks together), started one after another rather than all at once; a
+  slice that depends on another still waits until that one merges; shared files where each slice only adds its own line may change in parallel,
+  merged in the manager's order with a rebase on `main` after each merge (Waleed, PP-111, `docs/owner-decisions.ar.md` item 48). Rationale: the
+  green-on-own-head and merge-order numbering rules are unchanged; the limit moves and the disjoint-paths rule gains one narrow exception
+  for shared add-one-line files, which expands guidance without redefining the principle (MINOR).
+  `docs/agent-delivery-pipeline.md` §13 and `.claude/skills/pospay-pipeline/SKILL.md` §2 carry the same limit.
 - 3.2.0 (2026-10-27, MINOR): Principle I sets the in-flight limit to three slices and allows more than one migration lane, provided no two
   slices change the same table, each tests on its own local Postgres, and migration numbers are reserved in merge order and made final at
   merge (Waleed, PP-69, `docs/owner-decisions.ar.md` item 31). Rationale: disjoint paths and green-on-own-head are unchanged, so the
@@ -69,10 +75,11 @@ spec at `docs/specs/NNN-<module>-<use-case>/spec.md` covering requirements, busi
 acceptance criteria, schema changes, API contract, permissions and tests. Implementation MUST
 follow this order: Zod contract → migration + RLS policy → domain functions + unit tests →
 use case → adapters (persistence, http) → integration tests → UI. A slice MUST NOT touch
-modules outside its scope without stating why. Up to three slices are kept in flight at once, chosen to be as unrelated as possible,
-and only when their file paths are disjoint and no two of them change the same table; a slice that depends on another waits until that one merges.
+modules outside its scope without stating why. Five task sessions (slices and other tasks together) are kept running at all times, started one after another rather than all at once, chosen to be as unrelated as possible,
+and only when their file paths are disjoint (except a shared file where each slice only adds its own line, such as the permission list, migration numbers or the
+OpenAPI contract: those merge in an order the manager sets, each later slice rebasing on `main` and regenerating any generated file, PP-111.2) and no two of them change the same table; a slice that depends on another waits until that one merges.
 More than one may carry a migration, each tested on its own local Postgres; each merges only when it is green on its own head, and migration
-and ADR numbers are reserved in the expected merge order and made final at merge (Waleed, 2026-10-07; PP-59, 2026-10-25; PP-69, 2026-10-27). Every architectural decision MUST be recorded as
+and ADR numbers are reserved in the expected merge order and made final at merge (Waleed, 2026-10-07; PP-59, 2026-10-25; PP-69, 2026-10-27; PP-111, 2026-11-01). Every architectural decision MUST be recorded as
 `docs/adr/NNNN-title.md`. A slice is done only when the checklist in
 `CLAUDE.architecture.md` §15 passes and `pnpm check` is green. Unknown business rules are
 marked `TODO(spec)` and work stops there; guessing is forbidden.
@@ -448,7 +455,7 @@ guidance, PATCH for clarifications. Every PR review MUST verify compliance with 
 I–VII; any added complexity MUST be justified against `CLAUDE.architecture.md` §12.
 `CLAUDE.md` remains the runtime guidance file for day-to-day development.
 
-**Version**: 3.2.0 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-10-27
+**Version**: 3.3.0 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-11-01
 
 ## PR 6 amendment — ADR-0019, 2026-10-02
 
