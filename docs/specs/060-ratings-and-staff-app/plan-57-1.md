@@ -25,7 +25,12 @@ the split on 2026-11-01):
   proves it.
 - **A wrong step-up PIN is `PIN_INVALID` (401)**, as for PIN sign-in. **57-4 must not treat a `PIN_INVALID` from the
   step-up as a sign-out:** the operator is still signed in, and the screen stays on the PIN step.
-- **The three routes are declared `DEVICE_ONLY`** in `authenticated-writes.ts`, checked in the `SessionGuard` staff path.
+- **The three routes are declared `PERSONAL`** in `authenticated-writes.ts`, checked in the `SessionGuard` staff path
+  (`session.guard.ts##staff`), with staff policy `'staff'` and no personal marker. `DEVICE_ONLY` was the first pick, but
+  `route-declarations.spec.ts` requires a `DEVICE_ONLY` route on that guard to need the device alone, and these routes
+  need the operator session too. `OwnLeaveController` uses the same `PERSONAL` declaration on that guard, but it carries
+  the personal marker; these routes do not, because a personal session without an Authorization header would then skip
+  the staff path (project manager, review of Q4, 2026-11-02).
 
 ## 57-1b design
 

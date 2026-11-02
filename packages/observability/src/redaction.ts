@@ -50,6 +50,8 @@ const SECRET_SUFFIXES = [
   'connectionstring',
   // a raw attendance installation id is advisory, not a secret, but ADR-0029 keeps it out of every log
   'installationid',
+  // the private-view window id is the credential of the private view: it opens the window on its own
+  'windowid',
 ];
 const STRUCTURAL_KEYS = new Set([
   'sortkey',

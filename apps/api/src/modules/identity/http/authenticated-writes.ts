@@ -181,6 +181,18 @@ export const AUTHENTICATED_WRITES: Readonly<Record<string, AuthenticatedWriteDec
       'PERSONAL',
       'apps/api/src/shared/sign-out.guard.ts#signOutRequest',
     ),
+    'PrivateViewController.close': declared(
+      'PERSONAL',
+      'apps/api/src/shared/session.guard.ts##staff',
+    ),
+    'PrivateViewController.open': declared(
+      'PERSONAL',
+      'apps/api/src/shared/session.guard.ts##staff',
+    ),
+    'PrivateViewController.touch': declared(
+      'PERSONAL',
+      'apps/api/src/shared/session.guard.ts##staff',
+    ),
     'PushSubscriptionController.register': declared(
       'PERSONAL',
       'apps/api/src/shared/personal-session.guard.ts#personalSessionRequest',

@@ -27,6 +27,7 @@ import {
   type PersonalAuthentication,
 } from './personal-authentication.ts';
 import { personalSessionRequest } from './personal-session.guard.ts';
+import { PRIVATE_VIEW_ROUTE, privateViewRequest } from './private-view.guard.ts';
 import type { RateLimiter } from './ports/rate-limiter.port.ts';
 import { PUBLIC_ROUTE } from './public.decorator.ts';
 import { SIGN_OUT_ROUTE, signOutRequest } from './sign-out.guard.ts';
@@ -118,8 +119,16 @@ export class SessionGuard implements CanActivate {
     const allowClosedCompany =
       this.#reflector.get<true | undefined>(CLOSED_COMPANY_DEVICE_OTP, context.getHandler()) ===
       true;
-    if (policy !== undefined)
-      return this.#staff(request, authorization, policy, allowClosedCompany);
+    if (policy !== undefined) {
+      await this.#staff(request, authorization, policy, allowClosedCompany);
+      // نافذة العرض الخاص بعد جلسة الموظف بس: جلسة ميتة ترد 401 الأول، مش 403.
+      if (
+        policy === 'staff' &&
+        this.#reflector.get<true | undefined>(PRIVATE_VIEW_ROUTE, context.getHandler()) === true
+      )
+        await privateViewRequest(request, http.getResponse<FastifyReply>(), this.#auth);
+      return true;
+    }
     if (/^device(\s|$)/i.test(authorization)) {
       return this.#device(request, authorization.slice('device'.length).trim(), allowClosedCompany);
     }
