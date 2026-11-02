@@ -187,6 +187,8 @@ test('a task that ends before it starts has no duration', () => {
   const run = summariseTurboRun(summary);
   assert.equal(run.tasks[0].durationMs, null);
   assert.equal(run.tasks[0].startTime, 1793646205552);
+  assert.equal(run.complete, false);
+  assert.equal(run.reason, 'unfinished');
 });
 
 test('a replayed task keeps the time it saved and is marked as replayed', () => {

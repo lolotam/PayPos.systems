@@ -96,6 +96,7 @@ const completenessReason = ({ attempted, exitCode, startTime, endTime, tasks }) 
   if (tasks.length === 0) return 'empty';
   if (exitCode === null) return 'unfinished';
   if (startTime === null || endTime === null || endTime < startTime) return 'unfinished';
+  if (tasks.some((task) => task.durationMs === null)) return 'unfinished';
   if (attempted === null || attempted !== tasks.length) return 'count-mismatch';
   if (tasks.some((task) => task.cacheStatus !== 'HIT' && task.exitCode === null)) {
     return 'task-without-exit';

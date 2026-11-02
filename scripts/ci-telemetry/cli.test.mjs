@@ -65,6 +65,34 @@ test('two valid summaries produce a report with two runs', (t) => {
   assert.equal(markdown.includes('turbo run 2'), true);
 });
 
+test('invalid task timing is incomplete in JSON and Markdown, while zero duration is valid', (t) => {
+  const root = workspace(t);
+  const runs = join(root, 'runs');
+  const out = join(root, 'out');
+  mkdirSync(runs);
+  for (const status of ['MISS', 'HIT']) {
+    for (const timing of ['missing-start', 'missing-end', 'reversed', 'zero']) {
+      const raw = summary(status);
+      const execution = raw.tasks[0].execution;
+      if (status === 'HIT') delete execution.exitCode;
+      if (timing === 'missing-start') delete execution.startTime;
+      if (timing === 'missing-end') delete execution.endTime;
+      if (timing === 'reversed') execution.endTime = execution.startTime - 1;
+      if (timing === 'zero') execution.endTime = execution.startTime;
+      writeFileSync(join(runs, 'a.json'), JSON.stringify(raw));
+      const result = runCli(['--label', 'check', '--turbo-runs', runs, '--out', out]);
+      assert.equal(result.status, 0);
+      const report = JSON.parse(readFileSync(join(out, 'check.json'), 'utf8'));
+      const markdown = readFileSync(join(out, 'check.md'), 'utf8');
+      const valid = timing === 'zero';
+      assert.equal(report.runs[0].complete, valid, `${status}: ${timing}`);
+      assert.equal(report.runs[0].reason, valid ? null : 'unfinished');
+      assert.equal(report.runs[0].tasks[0].durationMs, valid ? 0 : null);
+      assert.equal(markdown.includes('INCOMPLETE turbo run 1 (unfinished)'), !valid);
+    }
+  }
+});
+
 test('an empty array file is one incomplete run with a shape reason', (t) => {
   const root = workspace(t);
   const runs = join(root, 'runs');
