@@ -55,22 +55,23 @@ The full delivery pipeline — lanes, review rounds, guard pass, merge, staging 
    Waleed only (`CLAUDE.md` §1 5b, V3.17). On the page, when Waleed and his partner (Abu Salem) differ, the partner's
    pick binds.
    Ask the questions of a whole feature before its first sub-PR, with a mockup when the answer is a screen, in one batch.
-3. The default implementer is **opencode with `kimi-code-plan-global/k3.1-pro#high`**, and
-   **`minimax-coding-plan/MiniMax-M3.1-Flash`** stays for small, fully pinned backend and data slices (owner, PP-55.1,
-   2026-10-24, after the six-task trial; it replaces PP-10.1 «MiniMax only»). Both run under the same guarded dispatch
-   (`--agent pospay-minimax`, no shell), for new tasks and for PR-finding fix rounds, one continued session per task. Its briefs ban every git command,
-   any read or write under `.git`, edits outside the task, and line-squashing. Claude Code orchestrates, judges the diff (including a line-by-line diff
-   of every rewritten SQL function) and runs `pnpm check`. MiniMax has no shell (Waleed, SA-7.1): it only reads and
-   edits files in its worktree, and the orchestrator runs every gate and test. Skill §4 has the dispatch rules.
-4. Guard pass (`clean-code-guard`, `test-guard`, `docs-guard`), then up to **5 review rounds**: Codex astra 6 →
-   fresh Claude reviewers → the four PR bots: the Codex GitHub bot (`@codex review` after every push) and the
-   MergePilot panel (MergePilot, waleed_bot, mohamed_bot). Every bot's result on the head SHA is read before a merge.
-   While waleed_Bot fails on every review (since 2026-10-19), the other bots completing is enough and the merge
-   report names its failure (PP-5.2, skill §2). This covers waleed_Bot only. Any other failing bot blocks the merge.
-5. Fix every security or correctness finding before merge; P2/P3 left after the cap become linked GitHub issues.
-   **Docs-only PRs** (docs, skills, spec-kit files; no code or migration) use the lighter lane of the skill's section 2:
-   no round cap and no layer 1/2 reviews, merged on a green ci-gate with both bot groups completed on the head and no
-   P0/P1 open; P2/P3 on prose get at most one batch fix, the rest become issues.
+3. Lanes, transport and fallback follow `docs/agent-delivery-pipeline.md` §§0, 5 and 7: every model through T3's
+   built-in delegation, never a shell-run `opencode` or `codex`. MiniMax (`M3.1-Flash · thinking`, MiniMax Code) builds
+   new tasks, GLM takes small pinned ones, and Kimi `K3.1 Pro` handles correction rounds after a clean handoff (Q3, item
+   49). Each role has a fallback chain, with an automatic switch after two failed availability attempts (PP-112, item
+   50). Briefs ban every git command, any read or write under `.git` or `.env*`, edits outside the task, and
+   line-squashing. Claude Code orchestrates, judges the diff (including a line-by-line diff of every rewritten SQL
+   function) and runs the gates itself. Skill §4 is historical (#777).
+4. Guard pass (`clean-code-guard`, `test-guard`, `docs-guard`), then up to **5 review rounds**: one internal Astra
+   review (`gpt-6-astra`, effort `high`, fallback `claude-fable-5-1`; the database/security review included), then the
+   **five** external reviewers: the Codex GitHub bot (`@codex review` after every push) and all four MergePilot panel
+   bots. All five must complete on the exact head; no old bot-failure waiver is reused without a fresh owner yes
+   (`docs/agent-delivery-pipeline.md` §§8–9).
+5. Fix every security or correctness finding before merge; P2/P3 left after the cap become linked GitHub issues, and
+   a P0/P1 still open after five rounds splits the task (PP-69.8). **Docs-only PRs** (docs, skills, spec-kit files; no
+   code or migration) use the lighter lane of the skill's section 2: the same five-round cap and split rule, the
+   single internal Astra review, a green ci-gate with all five external reviews completed on the head and no P0/P1
+   open; P2/P3 on prose get at most one batch fix, the rest become issues.
 6. Merge with `gh pr merge <n> --squash --delete-branch --match-head-commit <reviewed-sha>` once `ci-gate` is green on
    that head; deploy to staging (code changes only); update the decisions page's status tab; journey doc in its own PR
    (every code merge; never after a docs-only PR).
