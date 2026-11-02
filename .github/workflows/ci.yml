@@ -147,7 +147,8 @@ jobs:
           CI_TELEMETRY_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           CI_TELEMETRY_PNPM_VERSION="$(pnpm --version 2>/dev/null || true)"
-          export CI_TELEMETRY_PNPM_VERSION
+          CI_TELEMETRY_CHECKOUT_SHA="$(git rev-parse HEAD)"
+          export CI_TELEMETRY_PNPM_VERSION CI_TELEMETRY_CHECKOUT_SHA
           node scripts/ci-telemetry/cli.mjs --label check --turbo-runs .turbo/runs --out "$RUNNER_TEMP/ci-telemetry"
 
       # Best-effort: a hard cancel can skip it, so an artifact is not guaranteed.
@@ -225,7 +226,8 @@ jobs:
           CI_TELEMETRY_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           CI_TELEMETRY_PNPM_VERSION="$(pnpm --version 2>/dev/null || true)"
-          export CI_TELEMETRY_PNPM_VERSION
+          CI_TELEMETRY_CHECKOUT_SHA="$(git rev-parse HEAD)"
+          export CI_TELEMETRY_PNPM_VERSION CI_TELEMETRY_CHECKOUT_SHA
           node scripts/ci-telemetry/cli.mjs --label full-check --turbo-runs .turbo/runs --out "$RUNNER_TEMP/ci-telemetry"
 
       # Best-effort: a hard cancel can skip it, so an artifact is not guaranteed.
@@ -306,7 +308,8 @@ jobs:
           CI_TELEMETRY_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           CI_TELEMETRY_PNPM_VERSION="$(pnpm --version 2>/dev/null || true)"
-          export CI_TELEMETRY_PNPM_VERSION
+          CI_TELEMETRY_CHECKOUT_SHA="$(git rev-parse HEAD)"
+          export CI_TELEMETRY_PNPM_VERSION CI_TELEMETRY_CHECKOUT_SHA
           node scripts/ci-telemetry/cli.mjs --label api-tests-shard-${{ matrix.shard }} --turbo-runs .turbo/runs --out "$RUNNER_TEMP/ci-telemetry"
 
       # Best-effort: a hard cancel can skip it, so an artifact is not guaranteed.

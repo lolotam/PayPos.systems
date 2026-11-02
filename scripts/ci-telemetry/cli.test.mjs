@@ -14,9 +14,9 @@ const INTERNAL_ERROR = '::error title=ci-telemetry::telemetry report failed (E_I
 const summary = (status) => ({
   turboVersion: '2.11.2',
   execution: {
-    success: 1,
+    success: status === 'HIT' ? 0 : 1,
     failed: 0,
-    cached: 0,
+    cached: status === 'HIT' ? 1 : 0,
     attempted: 1,
     startTime: 1793646205131,
     endTime: 1793646209367,
@@ -27,7 +27,7 @@ const summary = (status) => ({
       taskId: '@pospay/ids#build',
       task: 'build',
       package: '@pospay/ids',
-      cache: { local: false, remote: false, status, timeSaved: 0 },
+      cache: { status, ...(status === 'HIT' ? { source: 'LOCAL' } : {}), timeSaved: 0 },
       execution: { startTime: 1793646205552, endTime: 1793646209365, exitCode: 0 },
       dependencies: [],
     },

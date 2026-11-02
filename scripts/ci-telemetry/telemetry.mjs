@@ -16,6 +16,7 @@ const COMPLETENESS_REASONS = new Set([
   'unfinished',
   'count-mismatch',
   'task-without-exit',
+  'malformed',
 ]);
 
 export const isPackage = (value) => typeof value === 'string' && PACKAGE_PATTERN.test(value);
@@ -85,6 +86,23 @@ const buildTask = (raw) => {
   };
 };
 
+// A MISS omits its source; a HIT needs a source and saved time, even without an exit code.
+const malformedTask = (raw, task) => {
+  if (!task.taskId || task.cacheStatus === 'UNKNOWN') return true;
+  if (!isNonNegative(raw.cache?.timeSaved)) return true;
+  if (task.cacheStatus === 'HIT' && task.cacheSource === null) return true;
+  if (
+    task.cacheStatus === 'MISS' &&
+    (raw.cache.timeSaved !== 0 || raw.cache.source !== undefined)
+  ) {
+    return true;
+  }
+  if (!Array.isArray(raw.dependencies) || raw.dependencies.length !== task.dependencies.length) {
+    return true;
+  }
+  return raw.execution?.exitCode != null && task.exitCode === null;
+};
+
 const sortByDuration = (tasks) =>
   tasks.filter(isPlainObject).sort((left, right) => {
     if (left.durationMs === null) return right.durationMs === null ? 0 : 1;
@@ -113,9 +131,16 @@ const buildRun = (fields, tasks, forcedReason) => {
   const failed = asCount(fields.failed);
   const succeeded = asCount(fields.succeeded);
   const builtTasks = sortByDuration(tasks);
+  const countsMatch =
+    cached + failed + succeeded === attempted &&
+    cached === builtTasks.filter((task) => task.cacheStatus === 'HIT').length;
   const reason =
     forcedReason ??
-    completenessReason({ attempted, exitCode, startTime, endTime, tasks: builtTasks });
+    (isTurboVersion(fields.turboVersion) && [cached, failed, succeeded].every((n) => n !== null)
+      ? null
+      : 'malformed') ??
+    completenessReason({ attempted, exitCode, startTime, endTime, tasks: builtTasks }) ??
+    (countsMatch ? null : 'count-mismatch');
   return {
     complete: reason === null,
     reason,
@@ -143,6 +168,7 @@ export function summariseTurboRun(summary) {
   if (!execution || !tasks) {
     return buildRun({}, [], 'shape');
   }
+  const builtTasks = tasks.map(buildTask);
   return buildRun(
     {
       turboVersion: source.turboVersion,
@@ -154,7 +180,8 @@ export function summariseTurboRun(summary) {
       failed: execution.failed,
       succeeded: execution.success,
     },
-    tasks.map(buildTask),
+    builtTasks,
+    tasks.some((raw, index) => malformedTask(raw, builtTasks[index])) ? 'malformed' : undefined,
   );
 }
 

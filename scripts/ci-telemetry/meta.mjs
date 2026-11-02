@@ -13,7 +13,7 @@ const RUNNER_ARCH_PATTERN = /^(X86|X64|ARM|ARM64)$/;
 const NODE_VERSION_PATTERN = /^v\d{1,3}\.\d{1,3}\.\d{1,3}$/;
 
 export const META_FIELDS = {
-  commit: { source: 'GITHUB_SHA', pattern: COMMIT_PATTERN },
+  commit: { source: 'CI_TELEMETRY_CHECKOUT_SHA', pattern: COMMIT_PATTERN },
   prHead: { source: 'CI_TELEMETRY_PR_HEAD_SHA', pattern: COMMIT_PATTERN },
   prBase: { source: 'CI_TELEMETRY_PR_BASE_SHA', pattern: COMMIT_PATTERN },
   event: { source: 'GITHUB_EVENT_NAME', pattern: EVENT_PATTERN },

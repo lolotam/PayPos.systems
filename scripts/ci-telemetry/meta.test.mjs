@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { buildMeta } from './meta.mjs';
 
 const VALID = {
-  GITHUB_SHA: 'a'.repeat(40),
+  CI_TELEMETRY_CHECKOUT_SHA: 'a'.repeat(40),
   CI_TELEMETRY_PR_HEAD_SHA: 'b'.repeat(40),
   CI_TELEMETRY_PR_BASE_SHA: 'c'.repeat(40),
   GITHUB_EVENT_NAME: 'pull_request',
@@ -39,7 +39,7 @@ test('every known variable with a valid value reaches the meta', () => {
     'runnerArch',
     'runnerOs',
   ]);
-  assert.equal(meta.commit, VALID.GITHUB_SHA);
+  assert.equal(meta.commit, VALID.CI_TELEMETRY_CHECKOUT_SHA);
   assert.equal(meta.prHead, VALID.CI_TELEMETRY_PR_HEAD_SHA);
   assert.equal(meta.pnpm, VALID.CI_TELEMETRY_PNPM_VERSION);
   assert.equal(meta.node, 'v24.11.0');
@@ -65,4 +65,5 @@ test('an unknown variable never reaches the meta', () => {
 test('an absent variable is left out', () => {
   const meta = buildMeta({}, 'v24.11.0');
   assert.deepEqual(Object.keys(meta), ['node']);
+  assert.equal(buildMeta({ GITHUB_SHA: 'b'.repeat(40) }, 'v24.11.0').commit, undefined);
 });
