@@ -1,4 +1,7 @@
-export { createCommissionStatementExportReader } from './commissions.module.ts';
+export {
+  createCommissionInputsConsumer,
+  createCommissionStatementExportReader,
+} from './commissions.module.ts';
 export {
   CommissionStatementExportRequestMissing,
   CommissionStatementPaymentDataUnavailable,

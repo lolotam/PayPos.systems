@@ -58,10 +58,12 @@ export { appendOutboxEvent, appendOutboxEvents, type OutboxEvent } from './outbo
 export {
   assertStatementPeriodsOpen,
   lockStatementPeriods,
+  reopenReviewedStatementPeriods,
   StatementPeriodClosedError,
   StatementPeriodFormatError,
   type LockedStatementPeriod,
   type LockStatementPeriodsInput,
+  type ReopenReviewedStatementPeriodsInput,
   type StatementStatus,
 } from './statement-periods.ts';
 export type { IdGenerator, TenantOptions, TenantWrappers, Tx } from './with-tenant.ts';

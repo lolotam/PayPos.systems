@@ -48,6 +48,7 @@ const PUBLIC_EXPORTS = [
   'markEventConsumed',
   'openStaffPrivateView',
   'readBusinessIdentity',
+  'reopenReviewedStatementPeriods',
   'revokePlatformPermission',
   'runIdempotent',
   'staffPrivateViewIdentifier',
