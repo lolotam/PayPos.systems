@@ -36,6 +36,7 @@ let seen: { method: string; url: string; body: string; cookie: string | null } |
 const fakeAuth: AuthService = {
   personal: {} as AuthService['personal'],
   passkeys: {} as AuthService['passkeys'],
+  privateView: {} as AuthService['privateView'],
   staff: refusingStaffSessions,
   handler: async (request) => {
     seen = {

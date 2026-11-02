@@ -9,6 +9,7 @@ import { otpAttempts } from './staff-otp-attempts.ts';
 import { createOtpRuntime } from './staff-otp-runtime.ts';
 import type { OtpDeviceContext } from './staff-otp-types.ts';
 import { assertOtpInventory } from './staff-otp-inventory.ts';
+import { deleteStaffPrivateViewRows } from './staff-private-view.ts';
 
 /** وصول عالمي خاص بالاعتماد؛ لا عميل خام ولا بيانات شركة أو جسر. */
 export function createStaffOtpDatabase(options: {
@@ -89,7 +90,7 @@ const otpRotate = async <T extends { id: string }>(
         sql`SELECT pg_advisory_xact_lock(hashtextextended(${`pospay:staff-session:v1:${device.deviceId}`},0))`,
       );
       const made = await create();
-      await tx
+      const removed = await tx
         .delete(session)
         .where(
           and(
@@ -97,7 +98,12 @@ const otpRotate = async <T extends { id: string }>(
             sql`${session.staffDeviceContext}->>'deviceId' = ${device.deviceId}`,
             sql`${session.id} <> ${made.id}`,
           ),
-        );
+        )
+        .returning({ id: session.id });
+      await deleteStaffPrivateViewRows(
+        tx,
+        removed.map((row) => row.id),
+      );
       return made;
     },
     new Date(Date.now() + 5000),
@@ -124,14 +130,19 @@ const otpApprovePhone = async (
       .update(challenges)
       .set({ status: 'SUPERSEDED', codeMac: null, finishedAt: input.at, updatedAt: input.at })
       .where(and(eq(challenges.userId, input.userId), eq(challenges.status, 'ACTIVE')));
-    await tx
+    const removed = await tx
       .delete(session)
       .where(
         and(
           eq(session.userId, input.userId),
           sql`${session.purpose} IN ('STAFF_POS','STAFF_PERSONAL')`,
         ),
-      );
+      )
+      .returning({ id: session.id });
+    await deleteStaffPrivateViewRows(
+      tx,
+      removed.map((row) => row.id),
+    );
     await tx
       .update(user)
       .set({ phoneNumber: input.phone, phoneNumberVerified: false })

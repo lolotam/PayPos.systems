@@ -65,4 +65,18 @@ export type {
   ActivePasskeyBindings,
 } from './passkeys.ts';
 export type { StaffOtpApiOptions } from './staff-otp/api.ts';
+export type {
+  PrivateViewCheckResult,
+  PrivateViewExpired,
+  PrivateViewFacade,
+  PrivateViewMismatch,
+  PrivateViewOpened,
+  PrivateViewOpenInput,
+  PrivateViewOpenResult,
+  PrivateViewPassed,
+  PrivateViewPinInput,
+  PrivateViewProof,
+  PrivateViewRefused,
+  PrivateViewScope,
+} from './private-view.ts';
 export { deriveEmployeeCardKey } from './employee-card-key.ts';

@@ -5,6 +5,7 @@ import { createAuthDatabase, createStaffOtpDatabase } from '@pospay/db';
 import { betterAuth, type BetterAuthOptions } from 'better-auth';
 import { twoFactor } from 'better-auth/plugins';
 import { createPersonalSessions, type PersonalSessions } from './personal-sessions.ts';
+import { configuredPrivateView, type PrivateViewFacade } from './private-view.ts';
 import { passkeyPolicy, registrationPlugin, isPasskeyRoute } from './passkey-policy.ts';
 import { createPasskeyFacade, type ActivePasskeyBindings, type PasskeyFacade } from './passkeys.ts';
 import { sessionFromRecord } from './staff-session-fence.ts';
@@ -16,6 +17,7 @@ import { createStaffSessions, type StaffSessions } from './staff-sessions.ts';
 export interface AuthOptions {
   readonly staffPhoneLockKey: (hash: Uint8Array) => bigint;
   readonly clock?: { now(): Date };
+  readonly entropy?: { bytes(n: number): Uint8Array } | undefined;
   /** القارئ من staff عبر composition root؛ غيابه يقفل خيارات التسجيل فقط. */
   readonly passkeyBindings?: ActivePasskeyBindings | undefined;
   /** AUTH_DATABASE_URL — pospay_auth; the pool is opened here and never leaves this package. */
@@ -71,6 +73,7 @@ export interface AuthService {
   readonly staff: StaffSessions;
   readonly personal: PersonalSessions;
   readonly passkeys: PasskeyFacade;
+  readonly privateView: PrivateViewFacade;
   /** بيرد على /v1/auth/* (sign-in، sign-out، الـ TOTP…). */
   handler(request: Request): Promise<Response>;
   /** بيرجّع الـ session لو الـ cookie صالح (ومعاها cookies التجديد)، وإلا null. */
@@ -123,6 +126,7 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
     staff,
     personal,
     passkeys,
+    privateView: configuredPrivateView(options, database),
     handler: async (request) => {
       if (
         isPasskeyRoute(request.url) ||

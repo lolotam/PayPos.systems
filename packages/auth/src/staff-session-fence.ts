@@ -1,4 +1,4 @@
-import type { AuthDatabase } from '@pospay/db';
+import { deleteStaffPrivateViewRows, type AuthDatabase } from '@pospay/db';
 
 import type { StaffDeviceContext } from './staff-otp/types.ts';
 import type { SessionRow } from './staff-sessions.ts';
@@ -29,7 +29,7 @@ export function staffDeviceSessionLockKey(deviceId: string): string {
 }
 
 /**
- * يحذف الجلسة تحت قفل الجهاز حتى ينتظر الخروج المتزامن أو يسبقه.
+ * يحذف الجلسة ونافذتها وعدادها تحت قفل الجهاز حتى لا يسبق فتح خاص إنهاءها أو يتبعها بصف يتيم.
  *
  * @param database اتصال الاعتماد
  * @param sessionId معرّف الجلسة الحية
@@ -48,13 +48,17 @@ export async function retireStaffSession(
     const rows = await tx.execute<{ id: string }>(
       `DELETE FROM session WHERE id = '${sessionId}'::uuid AND purpose = 'STAFF_POS' RETURNING id`,
     );
+    await deleteStaffPrivateViewRows(
+      tx,
+      rows.map((row) => row.id),
+    );
     return rows.length > 0;
   });
 }
 
 /**
- * يحذف صف الجلسة بمعرّفه وغايته من غير قفل: صف STAFF_POS بسياق مش مظبوط مايعرفش
- * جهاز يطلبه، فمفيش حاجة تقدر تسابقه؛ وصف STAFF_PERSONAL بيتسلسل على حذف نفسه.
+ * يحذف صف الجلسة بمعرّفه وغايته من غير قفل الجهاز: صف STAFF_POS المشوه لا يملك جهازاً يطلبه،
+ * لكنه يحتاج معاملة واحدة مع نافذته وعداده؛ وصف STAFF_PERSONAL يتسلسل على حذف نفسه.
  *
  * @param database اتصال الاعتماد
  * @param sessionId معرّف الجلسة
@@ -67,10 +71,22 @@ export async function deleteStaffSessionRow(
   purpose: 'STAFF_POS' | 'STAFF_PERSONAL',
 ): Promise<boolean> {
   if (!UUID.test(sessionId)) return false;
-  const rows = await database.db.execute<{ id: string }>(
-    `DELETE FROM session WHERE id = '${sessionId}'::uuid AND purpose = '${purpose}' RETURNING id`,
-  );
-  return rows.length > 0;
+  if (purpose === 'STAFF_PERSONAL') {
+    const rows = await database.db.execute<{ id: string }>(
+      `DELETE FROM session WHERE id = '${sessionId}'::uuid AND purpose = '${purpose}' RETURNING id`,
+    );
+    return rows.length > 0;
+  }
+  return database.db.transaction(async (tx) => {
+    const rows = await tx.execute<{ id: string }>(
+      `DELETE FROM session WHERE id = '${sessionId}'::uuid AND purpose = '${purpose}' RETURNING id`,
+    );
+    await deleteStaffPrivateViewRows(
+      tx,
+      rows.map((row) => row.id),
+    );
+    return rows.length > 0;
+  });
 }
 
 /** يطبع صف الجلسة الذي يعيده محول الاعتماد، والتواريخ قد تصل نصاً. */
