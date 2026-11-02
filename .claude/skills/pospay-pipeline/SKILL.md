@@ -48,8 +48,8 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
   For migration regeneration, follow `docs/agent-delivery-pipeline.md` §13: preserve reviewed custom SQL, data-step markers and their original dependency order (including custom/data steps before dependent schema changes), replace only branch-owned unmerged artifacts against the current `main` journal, and never change merged migrations. The generator requires `<kebab-case-name>`; use `--custom` for custom entries and transfer the preserved reviewed statements before testing.
 - **One use case per PR** (`CLAUDE.md` §1). A task that needs two use cases is two PRs.
 - **Docs-only lane** (owner, 2026-10-17). A PR whose files are all under `docs/**`, `*.md`, `.claude/skills/**` or
-  `.specify/**` (no code, no migration, no generated file) skips §3 steps 2, 5 (except `docs-guard`), 6, 8 and 14, needs no implementer dispatch (§3 step 3; specs and ADRs are drafted by MiniMax and edited and owned by the orchestrator, §8 rule 6) and no spec (§3 step 1) unless the PR is itself a spec, judges §3 step 4 by `pnpm format:check` (`prettier --check .`) instead of the full `pnpm check`, and skips the
-  5-round cap. Step 7's single internal Astra review is mandatory, including for docs-only PRs (`docs/agent-delivery-pipeline.md` §8). It merges when `ci-gate` is green on the exact head, the Codex bot and the MergePilot panel have
+  `.specify/**` (no code, no migration, no generated file) skips §3 steps 2, 5 (except `docs-guard`), 6, 8 and 14, needs no implementer dispatch (§3 step 3; specs and ADRs are drafted by MiniMax and edited and owned by the orchestrator, §8 rule 6) and no spec (§3 step 1) unless the PR is itself a spec, and judges §3 step 4 by `pnpm format:check` (`prettier --check .`) instead of the full `pnpm check`.
+  The five-cycle split rule for remaining P0/P1 applies to docs-only PRs too. Step 7's single internal Astra review is mandatory, including for docs-only PRs (`docs/agent-delivery-pipeline.md` §8). It merges when `ci-gate` is green on the exact head, the Codex bot and the MergePilot panel have
   completed on that head, and no P0/P1 is open. A P1 here means a wrong or contradictory rule in any governing or operational document (a spec, an ADR, `CLAUDE.md`, a skill, `docs/security.md`, a runbook); the bar
   for it does not move. P2/P3 findings on prose are fixed in one batch commit at most; the rest become linked issues.
   The status-page update (§6 step 8) still applies after the merge.
@@ -659,7 +659,7 @@ typing do not.
 - Never let MiniMax run any git command, read or write anything under `.git`, use any MCP tool, merge, push, or
   touch the server.
 - Never merge with a P0/P1 open, or with CI red on the head being merged.
-- Never exceed 5 review rounds without applying §2 (a docs-only PR has no cap, see the docs-only lane in §2), and never exceed 5 parallel tasks (PP-111).
+- Never exceed 5 review rounds without applying §2, including the P0/P1 split rule for docs-only PRs, and never exceed 5 parallel tasks (PP-111).
 - Never run two tasks in parallel that touch the same file, except the shared add-one-line files of §2 (PP-111.2).
 - Never change the staging database by hand without the owner's explicit approval for that change.
 - Never rewrite a pushed branch's history (`--force`) without the owner's explicit approval.
