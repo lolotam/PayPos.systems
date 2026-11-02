@@ -1,11 +1,12 @@
-import { StatementPeriodClosedError, type LockedStatementPeriod } from '@pospay/db';
 import { expect, it } from 'vitest';
 
 import type {
   CommissionLineEventInput,
   CommissionLineSnapshot,
   HeldCommissionLineHead,
+  LockedCommissionPeriod,
 } from '../domain/commission-line-types.ts';
+import { CommissionPeriodClosedError } from '../domain/errors.ts';
 import type {
   CommissionLineProjectionScope,
   CommissionLineReplacement,
@@ -26,17 +27,16 @@ function line(overrides: Partial<CommissionLineSnapshot> = {}): CommissionLineSn
 }
 
 const input = (lines: readonly CommissionLineSnapshot[]): CommissionLineEventInput => ({
-  companyId: 'company-a', businessId: 'business-a', lines,
+  companyId: 'company-a', businessId: 'business-a', sessionId: 'session-a', lines,
 });
 
 class FakeScope implements CommissionLineProjectionScope {
   readonly calls: string[] = [];
   readonly replacements: CommissionLineReplacement[] = [];
   heads: readonly HeldCommissionLineHead[] = [];
-  locked: readonly LockedStatementPeriod[] = [];
+  locked: readonly LockedCommissionPeriod[] = [];
   lockInput: CommissionPeriodLockInput | undefined;
   reopenInput: CommissionPeriodReopenInput | undefined;
-  closedPeriods: readonly string[] = [];
 
   async lockLines(): Promise<void> { this.calls.push('lockLines'); }
   async readHeads(): Promise<readonly HeldCommissionLineHead[]> {
@@ -47,12 +47,9 @@ class FakeScope implements CommissionLineProjectionScope {
     this.calls.push('businessTimeZone');
     return 'Asia/Kuwait';
   }
-  async lockPeriods(input: CommissionPeriodLockInput): Promise<readonly LockedStatementPeriod[]> {
+  async lockPeriods(input: CommissionPeriodLockInput): Promise<readonly LockedCommissionPeriod[]> {
     this.calls.push('lockPeriods');
     this.lockInput = input;
-    if (input.affectedPeriods.some((period) => this.closedPeriods.includes(period))) {
-      throw new StatementPeriodClosedError(input.affectedPeriods);
-    }
     return this.locked;
   }
   async replaceLines(replacements: readonly CommissionLineReplacement[]): Promise<void> {
@@ -72,9 +69,9 @@ it('runs locks, head read, one period lock, replacement and affected-only reopen
   const scope = new FakeScope();
   scope.heads = [{ lineId: 'line-a', revision: 1, period: '2026-10' }];
   scope.locked = [
-    { period: '2026-10', statementId: 'statement-10', status: 'REVIEWED' },
-    { period: '2026-11', statementId: 'statement-11', status: 'REVIEWED' },
-    { period: '2026-12', statementId: 'statement-12', status: 'DRAFT' },
+    { period: '2026-10', status: 'REVIEWED' },
+    { period: '2026-11', status: 'REVIEWED' },
+    { period: '2026-12', status: 'DRAFT' },
   ];
   await new ProjectServiceLines(scope, clock, ids).execute(input([line()]));
   expect(scope.calls).toEqual([
@@ -94,22 +91,34 @@ it.each([1, 2])('revision %i not newer than the head skips periods and every wri
   expect(scope.reopenInput).toBeUndefined();
 });
 
-it('a closed affected period throws before replacement and reopen', async () => {
-  const scope = new FakeScope();
-  scope.heads = [{ lineId: 'line-a', revision: 1, period: '2026-10' }];
-  scope.closedPeriods = ['2026-10'];
-  const work = new ProjectServiceLines(scope, clock, ids).execute(input([line()]));
-  await expect(work).rejects.toBeInstanceOf(StatementPeriodClosedError);
-  expect(scope.calls).toEqual(['lockLines', 'readHeads', 'businessTimeZone', 'lockPeriods']);
-  expect(scope.replacements).toEqual([]);
-  expect(scope.reopenInput).toBeUndefined();
-});
+it.each(['APPROVED', 'PAID'] as const)(
+  'a closed affected month (%s) throws before replacement and reopen',
+  async (status) => {
+    const scope = new FakeScope();
+    scope.heads = [{ lineId: 'line-a', revision: 1, period: '2026-10' }];
+    scope.locked = [{ period: '2026-10', status }];
+    const work = new ProjectServiceLines(scope, clock, ids).execute(input([line()]));
+    await expect(work).rejects.toBeInstanceOf(CommissionPeriodClosedError);
+    await expect(work).rejects.toMatchObject({
+      code: 'COMMISSION_PERIOD_CLOSED',
+      periods: ['2026-10'],
+    });
+    expect(scope.calls).toEqual(['lockLines', 'readHeads', 'businessTimeZone', 'lockPeriods']);
+    expect(scope.replacements).toEqual([]);
+    expect(scope.reopenInput).toBeUndefined();
+  },
+);
 
 it('a business-date change locks removal and addition months through the current month', async () => {
   const scope = new FakeScope();
   scope.heads = [{ lineId: 'line-a', revision: 1, period: '2026-09' }];
+  scope.locked = [
+    { period: '2026-09', status: 'REVIEWED' },
+    { period: '2026-10', status: 'REVIEWED' },
+    { period: '2026-11', status: 'REVIEWED' },
+  ];
   await new ProjectServiceLines(scope, clock, ids).execute(input([line({ businessDate: '2026-10-15' })]));
-  expect(scope.lockInput?.affectedPeriods).toEqual(['2026-09', '2026-10']);
   expect(scope.lockInput?.periods).toEqual(['2026-09', '2026-10', '2026-11', '2026-12']);
+  expect(scope.reopenInput?.periods).toEqual(['2026-09', '2026-10']);
   expect(scope.replacements[0]?.head.period).toBe('2026-10');
 });

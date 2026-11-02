@@ -8,7 +8,8 @@ import type {
 
 /**
  * يفحص هويات البنود والمنفّذين قبل أي قفل أو حساب؛ حدث واحد لا يكرر بنداً أو موظفة
- * ولا يخلط نشاطين، وحصص كل بند تساوي 10000 bps حتى لا يضيع أو يتضاعف صافي.
+ * ولا يخلط نشاطين، ولا يخلط بنوداً من جلسات مختلفة، وحصص كل بند تساوي 10000 bps
+ * حتى لا يضيع أو يتضاعف صافي.
  *
  * @param input الحدث الموحّد بكل لقطات بنوده
  * @returns لا شيء عند صحة الحدث، ويرمي CommissionLineEventInvalidError عند أول مخالفة
@@ -22,6 +23,9 @@ export function validateCommissionLineEvent(input: CommissionLineEventInput): vo
     lineIds.add(line.lineId);
     if (line.businessId !== input.businessId) {
       throw new CommissionLineEventInvalidError('LINE_BUSINESS_MISMATCH', line.lineId);
+    }
+    if (line.sessionId !== input.sessionId) {
+      throw new CommissionLineEventInvalidError('LINE_SESSION_MISMATCH', line.lineId);
     }
     validatePerformers(line);
   }

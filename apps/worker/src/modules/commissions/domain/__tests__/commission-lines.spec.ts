@@ -34,6 +34,7 @@ function line(overrides: Partial<CommissionLineSnapshot> = {}): CommissionLineSn
 const input = (lines: readonly CommissionLineSnapshot[]) => ({
   companyId: 'company-a',
   businessId: 'business-a',
+  sessionId: 'session-a',
   lines,
 });
 
@@ -50,6 +51,7 @@ it('accepts unique lines and unique performers whose shares total 10000', () => 
 const invalidEvents = [
   ['DUPLICATE_LINE_ID', [line(), line()], 'line-a'],
   ['LINE_BUSINESS_MISMATCH', [line({ businessId: 'business-b' })], 'line-a'],
+  ['LINE_SESSION_MISMATCH', [line({ sessionId: 'session-b' })], 'line-a'],
   ['DUPLICATE_PERFORMER', [line({ performers: [
     { employeeId: 'employee-a', shareBps: 5000 },
     { employeeId: 'employee-a', shareBps: 5000 },

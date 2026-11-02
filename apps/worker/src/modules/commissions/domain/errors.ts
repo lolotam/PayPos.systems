@@ -34,3 +34,20 @@ export class CommissionBusinessMissingError extends Error {
     this.businessId = businessId;
   }
 }
+
+/** شهر عمولة مغلق؛ الإسقاط عليه يُرفض حتى لا يتبدل كشف مالي مجمد. */
+export class CommissionPeriodClosedError extends Error {
+  readonly code = 'COMMISSION_PERIOD_CLOSED';
+  readonly periods: readonly string[];
+
+  /**
+   * يحتفظ بالشهور المرفوضة حتى يعرف الحكم أي شهر أُغلق ومتى تم رفض الإسقاط.
+   *
+   * @param periods الشهور المغلقة التي رفضت الإسقاط عليها
+   */
+  constructor(periods: readonly string[]) {
+    super(`Commission statement periods are closed: ${periods.join(', ')}`);
+    this.name = 'CommissionPeriodClosedError';
+    this.periods = [...periods];
+  }
+}

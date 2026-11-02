@@ -31,7 +31,14 @@ export interface CommissionLineSnapshot {
 export interface CommissionLineEventInput {
   readonly companyId: string;
   readonly businessId: string;
+  readonly sessionId: string;
   readonly lines: readonly CommissionLineSnapshot[];
+}
+
+/** شهر كشف مقفول بحالته بعد أخذ الأقفال؛ حالة الشهر هي التي تقرر إن كان مغلقاً ولا يُفتح. */
+export interface LockedCommissionPeriod {
+  readonly period: string;
+  readonly status: 'DRAFT' | 'REVIEWED' | 'APPROVED' | 'PAID';
 }
 
 export interface HeldCommissionLineHead {

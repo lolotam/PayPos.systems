@@ -1,5 +1,4 @@
 import {
-  assertStatementPeriodsOpen,
   lockStatementPeriods,
   reopenReviewedStatementPeriods,
   type Tx,
@@ -23,7 +22,8 @@ export function createCommissionLineProjectionScope(
 ): CommissionLineProjectionScope {
   return {
     lockLines: async (lineIds) => {
-      for (const lineId of lineIds) {
+      // الترتيب والفرز داخل المحول نفسه، عشان أي مستقبِل للقفل يجد نفس الترتيب المتصاعد.
+      for (const lineId of [...new Set(lineIds)].sort()) {
         await tx.execute(sql`SELECT pg_advisory_xact_lock(
           hashtextextended(app_company_id()::text || ':commission-line:' || ${lineId}::uuid::text, 0))`);
       }
@@ -48,9 +48,7 @@ async function lockPeriods(tx: Tx, input: CommissionPeriodLockInput) {
     periods: input.periods,
     ids: input.ids,
   });
-  const affected = new Set(input.affectedPeriods);
-  assertStatementPeriodsOpen(locked.filter((row) => affected.has(row.period)));
-  return locked;
+  return locked.map((row) => ({ period: row.period, status: row.status }));
 }
 
 async function replaceLines(

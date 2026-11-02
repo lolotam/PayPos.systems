@@ -302,6 +302,7 @@ it('reopens only the affected REVIEWED periods and clears every reviewed field',
   const untouched = await owner`SELECT business_id,status,reviewed_by FROM commission_statements
     WHERE period='2028-01' AND (business_id=${OTHER_COMMISSION_IDS.business} OR company_id=${COMMISSION_TENANT.B.company})
     ORDER BY business_id`;
+  expect(untouched).toHaveLength(2);
   expect(untouched.every((row) => row.status === 'REVIEWED' && row.reviewed_by !== null)).toBe(true);
 });
 

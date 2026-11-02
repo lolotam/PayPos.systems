@@ -39,8 +39,8 @@ CREATE TABLE "commission_lines" (
 	CONSTRAINT "commission_lines_pkey" PRIMARY KEY("company_id","line_id","employee_id"),
 	CONSTRAINT "commission_lines_period_format" CHECK ("commission_lines"."period" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
 	CONSTRAINT "commission_lines_period_business_date" CHECK ("commission_lines"."period" = to_char("commission_lines"."business_date", 'YYYY-MM')),
-	CONSTRAINT "commission_lines_net_nonnegative" CHECK ("commission_lines"."net" >= 0),
-	CONSTRAINT "commission_lines_net_share_nonnegative" CHECK ("commission_lines"."net_share" >= 0),
+	CONSTRAINT "commission_lines_net_nonnegative" CHECK ("commission_lines"."net" BETWEEN 0 AND 99999999999.999),
+	CONSTRAINT "commission_lines_net_share_nonnegative" CHECK ("commission_lines"."net_share" BETWEEN 0 AND 99999999999.999),
 	CONSTRAINT "commission_lines_net_share_within_net" CHECK ("commission_lines"."net_share" <= "commission_lines"."net"),
 	CONSTRAINT "commission_lines_share_bps_bounds" CHECK ("commission_lines"."share_bps" BETWEEN 1 AND 10000),
 	CONSTRAINT "commission_lines_rule_kind" CHECK ("commission_lines"."rule_kind" IN ('FOLLOW_PLAN','ZERO','PCT','FIXED')),
@@ -59,8 +59,12 @@ ALTER TABLE "commission_line_heads" ADD CONSTRAINT "commission_line_heads_custom
 ALTER TABLE "commission_lines" ADD CONSTRAINT "commission_lines_head_fk" FOREIGN KEY ("company_id","line_id") REFERENCES "public"."commission_line_heads"("company_id","line_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "commission_lines" ADD CONSTRAINT "commission_lines_employee_fk" FOREIGN KEY ("company_id","business_id","employee_id") REFERENCES "public"."employees"("company_id","business_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "commission_lines" ADD CONSTRAINT "commission_lines_business_fk" FOREIGN KEY ("company_id","business_id") REFERENCES "public"."businesses"("company_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "commission_lines" ADD CONSTRAINT "commission_lines_branch_fk" FOREIGN KEY ("company_id","business_id","branch_id") REFERENCES "public"."branches"("company_id","business_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "commission_lines" ADD CONSTRAINT "commission_lines_service_fk" FOREIGN KEY ("company_id","business_id","service_id") REFERENCES "public"."services"("company_id","business_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "commission_line_heads_branch_idx" ON "commission_line_heads" USING btree ("company_id","business_id","branch_id");--> statement-breakpoint
 CREATE INDEX "commission_line_heads_service_idx" ON "commission_line_heads" USING btree ("company_id","business_id","service_id");--> statement-breakpoint
 CREATE INDEX "commission_line_heads_customer_idx" ON "commission_line_heads" USING btree ("company_id","customer_id");--> statement-breakpoint
 CREATE INDEX "commission_lines_period_employee_idx" ON "commission_lines" USING btree ("company_id","business_id","period","employee_id");--> statement-breakpoint
-CREATE INDEX "commission_lines_employee_idx" ON "commission_lines" USING btree ("company_id","business_id","employee_id");
+CREATE INDEX "commission_lines_employee_idx" ON "commission_lines" USING btree ("company_id","business_id","employee_id");--> statement-breakpoint
+CREATE INDEX "commission_lines_branch_idx" ON "commission_lines" USING btree ("company_id","business_id","branch_id");--> statement-breakpoint
+CREATE INDEX "commission_lines_service_idx" ON "commission_lines" USING btree ("company_id","business_id","service_id");

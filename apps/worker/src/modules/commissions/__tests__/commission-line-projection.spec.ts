@@ -140,7 +140,9 @@ it('CM-17 cancellation and performer replacement carry status and remove the old
   await deliver(event('ServiceSessionRecorded'));
   await deliver(event('ServiceLineChanged', { revision: 2, changeKind: 'LINE_CANCELLED' }));
   expect((await heads())[0]).toMatchObject({ status: 'CANCELLED' });
-  expect((await lines()).every((row) => row.status === 'CANCELLED')).toBe(true);
+  const cancelled = await lines();
+  expect(cancelled).toHaveLength(1);
+  expect(cancelled.every((row) => row.status === 'CANCELLED')).toBe(true);
   await deliver(event('ServiceLineChanged', {
     revision: 3,
     changeKind: 'PERFORMERS_CHANGE',
@@ -184,4 +186,18 @@ it('a malformed performer sum fails delivery without rows or a consumer mark', a
   expect(await heads()).toEqual([]);
   expect(await lines()).toEqual([]);
   expect(await marks()).toEqual([]);
+});
+
+it('an equal revision under a new event id is delivered and marked without touching a row', async () => {
+  await deliver(event('ServiceSessionRecorded'));
+  const headsBefore = await heads();
+  const linesBefore = await lines();
+  const added = event('ServiceSessionLinesAdded', {
+    id: '01920000-0000-7000-8000-00000000e301',
+    lineId: COMMISSION_LINE_IDS.lineA,
+  });
+  expect(await deliver(added)).toEqual({ delivered: true });
+  expect(await heads()).toEqual(headsBefore);
+  expect(await lines()).toEqual(linesBefore);
+  expect(await marks()).toHaveLength(2);
 });

@@ -1,6 +1,14 @@
+import type { LockedCommissionPeriod } from './commission-line-types.ts';
+
 export interface CommissionPeriodLockPlan {
   readonly affectedPeriods: readonly string[];
   readonly periodsToLock: readonly string[];
+}
+
+/** نتيجة تصنيف الشهور المقفولة: المغلق منها والمراجع منها، والشهور المرشحة غير مصنّفة. */
+export interface CommissionPeriodClassification {
+  readonly closed: readonly string[];
+  readonly reviewed: readonly string[];
 }
 
 /**
@@ -70,4 +78,28 @@ function nextPeriod(period: string): string {
   const nextYear = month === 12 ? year + 1 : year;
   const nextMonth = month === 12 ? 1 : month + 1;
   return `${String(nextYear).padStart(4, '0')}-${String(nextMonth).padStart(2, '0')}`;
+}
+
+/**
+ * يصنّف الشهور المقفولة في المتأثر والمراجع؛ الشهر المرشّح وحده لا يُصنّف أبداً،
+ * فإغلاق شهر مرشّح لا يمنع إسقاط بنود لأن مدخلات ذلك الشهر لم تتغيّر.
+ * التصنيف هنا قرار عمل لا قراءة قاعدة بيانات، عشان يبقى له اختبار وحدة حقيقي.
+ *
+ * @param locked الشهور المقفولة بحالاتها بعد اكتمال انتظار الأقفال
+ * @param affectedPeriods الشهور المتأثرة بالحذف أو الإضافة
+ * @returns الشهور المغلقة والشهور المراجعة، كل قائمة مرتبة تصاعدياً
+ */
+export function classifyCommissionPeriods(
+  locked: readonly LockedCommissionPeriod[],
+  affectedPeriods: readonly string[],
+): CommissionPeriodClassification {
+  const affected = new Set(affectedPeriods);
+  const closed: string[] = [];
+  const reviewed: string[] = [];
+  for (const row of locked) {
+    if (!affected.has(row.period)) continue;
+    if (row.status === 'APPROVED' || row.status === 'PAID') closed.push(row.period);
+    else if (row.status === 'REVIEWED') reviewed.push(row.period);
+  }
+  return { closed: closed.sort(), reviewed: reviewed.sort() };
 }

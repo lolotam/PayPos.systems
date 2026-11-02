@@ -11,24 +11,24 @@ import {
   type ProjectServiceLines,
 } from '../../use-cases/project-service-lines/project-service-lines.ts';
 
+type CommissionEventSchema =
+  | typeof serviceSessionRecorded
+  | typeof serviceSessionLinesAdded
+  | typeof serviceLineChanged;
+
+const eventSchemas: Record<string, CommissionEventSchema | undefined> = {
+  ServiceSessionRecorded: serviceSessionRecorded,
+  ServiceSessionLinesAdded: serviceSessionLinesAdded,
+  ServiceLineChanged: serviceLineChanged,
+};
+
 export async function onCommissionInputEvent(
   useCase: ProjectServiceLines,
   event: ClaimedEvent,
 ): Promise<void> {
-  if (event.eventType === 'ServiceSessionRecorded' || event.eventType === 'ServiceSessionLinesAdded') {
-    const schema = event.eventType === 'ServiceSessionRecorded'
-      ? serviceSessionRecorded
-      : serviceSessionLinesAdded;
-    const parsed = schema.safeParse(event.payload);
-    if (!parsed.success) throw new CommissionLineEventInvalidError('EVENT_SCHEMA');
-    await useCase.execute(normalizeCommissionLineEvent(event, parsed.data));
-    return;
-  }
-  if (event.eventType === 'ServiceLineChanged') {
-    const parsed = serviceLineChanged.safeParse(event.payload);
-    if (!parsed.success) throw new CommissionLineEventInvalidError('EVENT_SCHEMA');
-    await useCase.execute(normalizeCommissionLineEvent(event, parsed.data));
-    return;
-  }
-  throw new CommissionLineEventInvalidError('EVENT_TYPE');
+  const schema = eventSchemas[event.eventType];
+  if (schema === undefined) throw new CommissionLineEventInvalidError('EVENT_TYPE');
+  const parsed = schema.safeParse(event.payload);
+  if (!parsed.success) throw new CommissionLineEventInvalidError('EVENT_SCHEMA');
+  await useCase.execute(normalizeCommissionLineEvent(event, parsed.data));
 }

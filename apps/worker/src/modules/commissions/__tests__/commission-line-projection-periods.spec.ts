@@ -64,14 +64,22 @@ const projectionCount = async () => ({
   marks: await owner`SELECT event_id FROM consumed_events WHERE consumer_id='commissions.project-inputs'`,
 });
 
-it('an APPROVED affected month refuses delivery before rows or a mark', async () => {
-  await walkCommissionStatement(db, { tenant: A, period: '2027-01', ids });
-  const outcome = await deliverAt('2027-03-05T09:00:00Z', event({ businessDate: '2027-01-15' }));
-  expect(outcome).toMatchObject({ delivered: false });
-  expect(await projectionCount()).toEqual({ heads: [], lines: [], marks: [] });
-  expect(await owner`SELECT status FROM commission_statements WHERE period='2027-01'`)
-    .toEqual([{ status: 'APPROVED' }]);
-});
+const closedAffectedMonths = [
+  { status: 'APPROVED', period: '2027-01', now: '2027-03-05T09:00:00Z' },
+  { status: 'PAID', period: '2027-02', now: '2027-03-05T09:00:00Z' },
+] as const;
+
+it.each(closedAffectedMonths)(
+  'an $status affected month refuses delivery before rows or a mark',
+  async ({ status, period, now }) => {
+    await walkCommissionStatement(db, { tenant: A, period, ids, to: status });
+    const outcome = await deliverAt(now, event({ businessDate: `${period}-15` }));
+    expect(outcome).toMatchObject({ delivered: false });
+    expect(await projectionCount()).toEqual({ heads: [], lines: [], marks: [] });
+    expect(await owner`SELECT status FROM commission_statements WHERE period=${period}`)
+      .toEqual([{ status }]);
+  },
+);
 
 it('REVIEWED affected month reopens while a later REVIEWED candidate stays reviewed', async () => {
   await walkCommissionStatement(db, { tenant: A, period: '2027-04', ids, to: 'REVIEWED' });
@@ -113,4 +121,21 @@ it('a missing business fails with the named error before any write', async () =>
     .rejects.toBeInstanceOf(CommissionBusinessMissingError);
   expect(await deliverAt('2027-10-05T09:00:00Z', missing)).toMatchObject({ delivered: false });
   expect(await projectionCount()).toEqual({ heads: [], lines: [], marks: [] });
+});
+
+it('an approved candidate month is not classified and stays approved', async () => {
+  await walkCommissionStatement(db, { tenant: A, period: '2027-12', ids });
+  expect(await deliverAt('2028-01-05T09:00:00Z', event({ businessDate: '2027-11-15' })))
+    .toEqual({ delivered: true });
+  const projection = await projectionCount();
+  expect(projection.heads).toHaveLength(1);
+  expect(projection.lines).toHaveLength(1);
+  expect(projection.marks).toHaveLength(1);
+  expect(await owner`SELECT period,status FROM commission_statements
+    WHERE company_id=${A.company} AND business_id=${A.business}
+      AND period IN ('2027-11','2027-12') ORDER BY period`)
+    .toEqual([
+      { period: '2027-11', status: 'DRAFT' },
+      { period: '2027-12', status: 'APPROVED' },
+    ]);
 });

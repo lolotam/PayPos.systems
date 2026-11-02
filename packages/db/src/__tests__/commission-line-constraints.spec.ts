@@ -150,6 +150,13 @@ it('refuses negative net and a net_share greater than net', async () => {
   await expectPgError(insert({ net: '1.000', netShare: '1.001' }), '23514', 'commission_lines_net_share_within_net');
 });
 
+it.each([
+  ['net', { net: 'NaN', netShare: '10.001' }, 'commission_lines_net_nonnegative'],
+  ['net_share', { net: '10.001', netShare: 'NaN' }, 'commission_lines_net_share_nonnegative'],
+] as const)('refuses %s = NaN', async (_label, row, constraint) => {
+  await expectPgError(insert({ ...row }), '23514', constraint);
+});
+
 it('refuses a bad status in either projection table', async () => {
   await expectPgError(head({ status: 'VOID' }), '23514', 'commission_line_heads_status');
   const lineId = await head();
@@ -197,4 +204,16 @@ it('refuses an employee from another business or tenant', async () => {
   const lineId = await head();
   await expectPgError(line({ lineId, employeeId: OTHER_COMMISSION_IDS.employee }), '23503', 'commission_lines_employee_fk');
   await expectPgError(line({ lineId, employeeId: B.employee }), '23503', 'commission_lines_employee_fk');
+});
+
+const foreignLineReferences = [
+  ['branch of another business', { branchId: OTHER_COMMISSION_IDS.branch }, 'commission_lines_branch_fk'],
+  ['branch that does not exist', { branchId: '01920000-0000-7000-8000-00000000e401' }, 'commission_lines_branch_fk'],
+  ['service of another business', { serviceId: OTHER_COMMISSION_IDS.service }, 'commission_lines_service_fk'],
+  ['service that does not exist', { serviceId: '01920000-0000-7000-8000-00000000e402' }, 'commission_lines_service_fk'],
+] as const;
+
+it.each(foreignLineReferences)('refuses a performer row with a %s', async (_label, row, constraint) => {
+  const lineId = await head();
+  await expectPgError(line({ lineId, ...row }), '23503', constraint);
 });

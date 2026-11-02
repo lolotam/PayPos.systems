@@ -67,9 +67,11 @@ it('has exactly the head and line indexes required by the PK, statement read and
   const lines = await owner<{ indexname: string }[]>`
     SELECT indexname FROM pg_indexes WHERE tablename='commission_lines' ORDER BY indexname`;
   expect(lines.map((row) => row.indexname)).toEqual([
+    'commission_lines_branch_idx',
     'commission_lines_employee_idx',
     'commission_lines_period_employee_idx',
     'commission_lines_pkey',
+    'commission_lines_service_idx',
   ]);
 });
 

@@ -13,7 +13,11 @@ import {
   selectNewerCommissionLines,
   validateCommissionLineEvent,
 } from '../../domain/commission-lines.ts';
-import { commissionPeriodLockPlan, currentBusinessPeriod } from '../../domain/commission-periods.ts';
+import {
+  classifyCommissionPeriods,
+  commissionPeriodLockPlan,
+  currentBusinessPeriod,
+} from '../../domain/commission-periods.ts';
 import type {
   CommissionLineEventInput,
   CommissionLineSnapshot,
@@ -21,6 +25,7 @@ import type {
 import {
   CommissionBusinessMissingError,
   CommissionLineEventInvalidError,
+  CommissionPeriodClosedError,
 } from '../../domain/errors.ts';
 import type {
   Clock,
@@ -66,13 +71,11 @@ export class ProjectServiceLines {
     const locked = await this.scope.lockPeriods({
       businessId: input.businessId,
       periods: plan.periodsToLock,
-      affectedPeriods: plan.affectedPeriods,
       ids: this.ids,
     });
+    const { closed, reviewed } = classifyCommissionPeriods(locked, plan.affectedPeriods);
+    if (closed.length > 0) throw new CommissionPeriodClosedError(closed);
     await this.scope.replaceLines(newer.map(projectLine));
-    const reviewed = locked
-      .filter((row) => row.status === 'REVIEWED' && plan.affectedPeriods.includes(row.period))
-      .map((row) => row.period);
     await this.scope.reopenReviewed({ businessId: input.businessId, periods: reviewed });
   }
 }
@@ -88,6 +91,7 @@ export function normalizeCommissionLineEvent(
   return {
     companyId: event.companyId,
     businessId: payload.business_id,
+    sessionId: payload.session_id,
     lines: lines.map(normalizeCommissionLine),
   };
 }
@@ -126,12 +130,21 @@ function projectLine(line: CommissionLineSnapshot): CommissionLineReplacement {
     })),
   );
   const rule = commissionRuleColumns(line.ruleSnapshot);
-  const rows: CommissionLinePerformerWrite[] = [...shares.entries()].map(
-    ([employeeId, netShare]) => ({
+  // ترتيب المنفّذين بهويتهم هو ترتيب ناتج التوزيع نفسه، عشان يبقى ترتيب الصفوف ثابتاً.
+  const performers = [...line.performers].sort((a, b) =>
+    a.employeeId < b.employeeId ? -1 : a.employeeId > b.employeeId ? 1 : 0,
+  );
+  const rows: CommissionLinePerformerWrite[] = performers.map((performer) => {
+    const netShare = shares.get(performer.employeeId);
+    if (netShare === undefined) {
+      // التوزيع مبني على المنفّذين نفسهم، فغياب نصيب هنا كسر داخلي لا خطأ في الحدث.
+      throw new CommissionLineEventInvalidError('PERFORMER_SHARE_MISSING', line.lineId);
+    }
+    return {
       businessId: line.businessId,
       lineId: line.lineId,
       branchId: line.branchId,
-      employeeId,
+      employeeId: performer.employeeId,
       serviceId: line.serviceId,
       occurredAt: line.occurredAt,
       recordedAt: line.recordedAt,
@@ -139,13 +152,12 @@ function projectLine(line: CommissionLineSnapshot): CommissionLineReplacement {
       period,
       net: moneyToString(net),
       netShare: moneyToString(netShare),
-      shareBps: line.performers.find((performer) => performer.employeeId === employeeId)
-        ?.shareBps as number,
+      shareBps: performer.shareBps,
       ...rule,
       counts: line.countsSnapshot,
       status: line.status,
-    }),
-  );
+    };
+  });
   return {
     head: {
       businessId: line.businessId,

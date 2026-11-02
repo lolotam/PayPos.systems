@@ -1,8 +1,10 @@
-import type { LockedStatementPeriod, Tx } from '@pospay/db';
+import type { Tx } from '@pospay/db';
 
 import type {
+  CommissionLineRuleSnapshot,
   CommissionLineStatus,
   HeldCommissionLineHead,
+  LockedCommissionPeriod,
 } from '../domain/commission-line-types.ts';
 
 export interface Clock {
@@ -47,7 +49,7 @@ export interface CommissionLinePerformerWrite {
   readonly net: string;
   readonly netShare: string;
   readonly shareBps: number;
-  readonly ruleKind: 'FOLLOW_PLAN' | 'ZERO' | 'PCT' | 'FIXED';
+  readonly ruleKind: CommissionLineRuleSnapshot['kind'];
   readonly rulePctBps: number | null;
   readonly ruleFixedAmount: string | null;
   readonly counts: boolean;
@@ -62,7 +64,6 @@ export interface CommissionLineReplacement {
 export interface CommissionPeriodLockInput {
   readonly businessId: string;
   readonly periods: readonly string[];
-  readonly affectedPeriods: readonly string[];
   readonly ids: IdGenerator;
 }
 
@@ -92,11 +93,11 @@ export interface CommissionLineProjectionScope {
    */
   businessTimeZone(companyId: string, businessId: string): Promise<string | null>;
   /**
-   * يقفل المتأثر والمرشحين مرة واحدة ويرفض المغلق من المتأثر قبل أي كتابة.
+   * يقفل كل شهر مذكور مرة واحدة ويرجع حالته بعد القفل، ولا يصنّف شيئاً بنفسه.
    *
-   * @param input الشهور المتأثرة والمرشحة ومولّد هويات الكشوف الجديدة
+   * @param input النشاط والشهور المطلوب قفلها ومولّد هويات الكشوف الجديدة
    */
-  lockPeriods(input: CommissionPeriodLockInput): Promise<readonly LockedStatementPeriod[]>;
+  lockPeriods(input: CommissionPeriodLockInput): Promise<readonly LockedCommissionPeriod[]>;
   /**
    * يستبدل رؤوس البنود وصفوف منفّذيها دفعة واحدة داخل معاملة الحدث.
    *
