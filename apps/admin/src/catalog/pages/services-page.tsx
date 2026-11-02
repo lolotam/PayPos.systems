@@ -5,25 +5,41 @@ import { Button, PageHeader } from '@pospay/ui';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
+import { useOpenServiceCategories } from '../api/use-service-categories';
 import { useServices } from '../api/use-services';
+import { ServiceCategoryFilter } from '../ui/service-category-filter';
 import { ServiceEditPanel } from '../ui/service-edit-panel';
 import { ServicesListPanel } from '../ui/services-list-panel';
 
-export function ServicesPage({
-  companyId,
-  business,
-  userId,
-}: {
+type ServicesPageProps = {
   companyId: string;
   business: WorkspaceBusiness;
   userId: string;
-}) {
+};
+
+export function ServicesPage({ companyId, business, userId }: ServicesPageProps) {
   const locale = useLocale();
   const [cursor, setCursor] = useState<string>();
   const [serviceId, setServiceId] = useState('');
-  const list = useServices(companyId, business.id, userId, cursor);
+  const [categoryId, setCategoryId] = useState('');
+  const categoryQuery = useOpenServiceCategories(companyId, business.id, userId);
+  // التصنيف المختار ممكن يختفي من القائمة بعد إعادة الجلب، فنبعث الطلب بدون تصنيف
+  // عشان ما يبقاش الاختيار الظاهر على الشاشة مخالف للصفوف المعروضة.
+  const activeCategoryId =
+    categoryQuery.data && !categoryQuery.data.some((category) => category.id === categoryId)
+      ? ''
+      : categoryId;
+  const list = useServices(companyId, business.id, userId, {
+    cursor,
+    categoryId: activeCategoryId || undefined,
+  });
   const page = (next: string | undefined) => {
     setCursor(next);
+    setServiceId('');
+  };
+  const filter = (nextCategoryId: string) => {
+    setCategoryId(nextCategoryId);
+    setCursor(undefined);
     setServiceId('');
   };
   return (
@@ -36,6 +52,11 @@ export function ServicesPage({
             <Link href="/catalog/create">{t(locale, 'catalogServices.create')}</Link>
           </Button>
         }
+      />
+      <ServiceCategoryFilter
+        categoryQuery={categoryQuery}
+        value={activeCategoryId}
+        onChange={filter}
       />
       <ServicesListPanel
         list={list}

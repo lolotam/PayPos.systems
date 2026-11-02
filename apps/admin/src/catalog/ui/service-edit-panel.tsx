@@ -3,6 +3,7 @@ import { t } from '@pospay/i18n';
 import { Button, Card, CircleAlert, EmptyState, LoaderCircle } from '@pospay/ui';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
+import { useOpenServiceCategories } from '../api/use-service-categories';
 import { useServiceEdit } from '../api/use-services';
 import { EditServiceForm } from './edit-service-form';
 
@@ -21,6 +22,7 @@ export function ServiceEditPanel({
 }) {
   const locale = useLocale();
   const { record, save } = useServiceEdit(companyId, businessId, userId, serviceId);
+  const categoryQuery = useOpenServiceCategories(companyId, businessId, userId);
   return (
     <Card className="flex max-w-xl flex-col gap-4 p-6">
       <h2 className="text-xl font-bold">{t(locale, 'catalogServices.editTitle')}</h2>
@@ -38,6 +40,7 @@ export function ServiceEditPanel({
       {record.data && !record.isError ? (
         <EditServiceForm
           key={`${record.data.id}:${record.data.revision}`}
+          categoryQuery={categoryQuery}
           record={record.data}
           pending={save.isPending}
           onSave={(terms) => save.mutate(terms)}

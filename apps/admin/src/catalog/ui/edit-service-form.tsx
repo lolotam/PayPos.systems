@@ -5,14 +5,18 @@ import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { FormProvider, useForm } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
+import { omitRefusedCategory, type ServiceCategoriesQuery } from '../api/use-service-categories';
+import { ServiceAttributesFields } from './service-attributes-fields';
 import { ServiceBasicsFields } from './service-basics-fields';
 import { ServiceRuleFields } from './service-rule-fields';
 
 export function EditServiceForm({
+  categoryQuery,
   record,
   pending,
   onSave,
 }: {
+  categoryQuery: ServiceCategoriesQuery;
   record: Service;
   pending: boolean;
   onSave: (terms: UpdateServiceInput) => void;
@@ -27,13 +31,23 @@ export function EditServiceForm({
       price: record.price,
       commission_rule: record.commission_rule,
       counts_toward_threshold: record.counts_toward_threshold,
+      duration_minutes: record.duration_minutes,
+      category_id: record.category_id,
     },
+  });
+  const submit = form.handleSubmit((terms) => {
+    onSave(omitRefusedCategory(terms, categoryQuery.error));
   });
   return (
     <FormProvider {...form}>
-      <form onSubmit={form.handleSubmit(onSave)} className="flex flex-col gap-3 text-start">
+      <form onSubmit={submit} className="flex flex-col gap-3 text-start">
         <fieldset disabled={pending} className="flex flex-col gap-3">
           <ServiceBasicsFields />
+          <ServiceAttributesFields
+            categoryQuery={categoryQuery}
+            currentCategoryId={record.category_id}
+            currentCategory={record.category}
+          />
           <ServiceRuleFields />
           <Button type="submit">{t(locale, 'catalogServices.save')}</Button>
         </fieldset>

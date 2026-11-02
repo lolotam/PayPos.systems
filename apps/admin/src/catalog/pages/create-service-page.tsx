@@ -3,6 +3,7 @@ import type { WorkspaceBusiness } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
+import { useOpenServiceCategories } from '../api/use-service-categories';
 import { useCreateService } from '../api/use-services';
 import { ServiceForm } from '../ui/service-form';
 
@@ -17,10 +18,15 @@ export function CreateServicePage({
 }) {
   const locale = useLocale();
   const save = useCreateService(companyId, business.id, userId);
+  const categoryQuery = useOpenServiceCategories(companyId, business.id, userId);
   return (
     <section className="mx-auto flex w-full max-w-xl flex-col gap-4 text-start">
       <h1 className="text-xl font-semibold">{t(locale, 'catalogServices.title')}</h1>
-      <ServiceForm pending={save.isPending} onSave={(terms) => save.mutate(terms)} />
+      <ServiceForm
+        categoryQuery={categoryQuery}
+        pending={save.isPending}
+        onSave={(terms) => save.mutate(terms)}
+      />
       {save.isError ? <p role="alert">{envelopeMessage(save.error, locale)}</p> : null}
       {save.isSuccess ? (
         <p role="status">

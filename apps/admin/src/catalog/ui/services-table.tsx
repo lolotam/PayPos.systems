@@ -24,6 +24,8 @@ export function ServicesTable({
     columns: [
       { id: 'name', header: t(locale, 'catalogServices.nameEn') },
       { id: 'price', header: t(locale, 'catalogServices.price') },
+      { id: 'duration', header: t(locale, 'catalogServices.durationColumn') },
+      { id: 'category', header: t(locale, 'catalogServices.categoryColumn') },
       { id: 'rule', header: t(locale, 'catalogServices.rule') },
       { id: 'edit', header: t(locale, 'catalogServices.edit') },
     ],

@@ -3,6 +3,7 @@ import type { ServiceListItem } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
+import { serviceCategoryLabel } from '../model/service-category-label';
 import { SERVICE_RULE_LABEL } from '../model/service-rule';
 
 export function ServiceTableRow({
@@ -19,6 +20,17 @@ export function ServiceTableRow({
     <tr className={selected ? 'bg-secondary/50' : ''}>
       <td>{locale === 'ar' ? (item.name_ar ?? item.name_en) : item.name_en}</td>
       <td dir="ltr">{item.price}</td>
+      <td>
+        {item.duration_minutes === null ? (
+          '—'
+        ) : (
+          <>
+            <span dir="ltr">{item.duration_minutes}</span>{' '}
+            {t(locale, 'catalogServices.minutesShort')}
+          </>
+        )}
+      </td>
+      <td>{item.category ? serviceCategoryLabel(item.category, locale) : '—'}</td>
       <td>{t(locale, SERVICE_RULE_LABEL[item.commission_rule.kind])}</td>
       <td>
         <Button
