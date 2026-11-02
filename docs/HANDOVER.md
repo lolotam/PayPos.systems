@@ -113,9 +113,10 @@ running and `pnpm infra:up` done — the db tests use the compose Postgres (ADR-
 
 **Two facts that cost time before:**
 
-- **DB-backed vitest runs share one Postgres and one advisory lock.** Every spec that touches the cluster roles takes
-  the advisory lock `pospay:test-cluster-roles` (`packages/db/test/role-lock.ts`), so two DB test runs started at once
-  — two worktrees, or two shells — block or fail each other. Run **one DB-backed run at a time** on the machine.
+- **Each worktree tests on its own local Postgres container** (`docs/agent-delivery-pipeline.md` §6, PP-69.9), so
+  parallel worktrees may run DB tests at the same time. Every spec that touches the cluster roles takes the advisory
+  lock `pospay:test-cluster-roles` (`packages/db/test/role-lock.ts`), so two DB test runs on the **same** container —
+  two shells in one worktree — block or fail each other: run one at a time per container.
 - **Deleting a merged worktree on Windows** fails on long `node_modules` paths. Empty it with
   `robocopy <empty-dir> <worktree-dir> /MIR`, then `Remove-Item` the folder, then `git worktree prune`, then
   `git branch -D <branch>`. `/MIR` deletes without asking, so first run `git status --porcelain` in that worktree and
@@ -241,7 +242,8 @@ drill, production sizing and the salon pilot (row 63, partner request AS-17).
 - The staging host key changed on 2026-10-19; Waleed confirmed the new fingerprint on 2026-10-20 (PP-5.1), so the
   hold is lifted.
 - Staging is the Dokploy project **PosPay Staging** (one compose, `pospay-staging`; Dokploy domains api/app/pos.staging);
-  images come from GHCR tagged by commit SHA; each release sets `IMAGE_TAG` and redeploys, and rollback is the previous
-  `IMAGE_TAG`; a nightly backup runs from `pospay-backup:<sha>`. The old `staging-deploy.sh` path is retired. Steps:
+  images come from GHCR tagged by commit SHA; each release pins the SHA inside the compose file and sends it with
+  `compose.update`, then `compose.deploy` (the environment's old `IMAGE_TAG` is never read), and rollback uploads the
+  previous SHA's rollback compose file pinned the same way; a nightly backup runs from `pospay-backup:<sha>`. The old `staging-deploy.sh` path is retired. Steps:
   pipeline skill §6.
 - The server is shared: never touch other projects there.
