@@ -30,8 +30,8 @@ export interface RatingClaimRepository<Transaction = unknown> {
    */
   upperId(tx: Transaction, companyId: string): Promise<string | null>;
   /**
-   * يقرأ صفحة معرّفات بترتيب تصاعدي، من غير أي فلتر على الحالة أو الموعد؛
-   * الفلتر ده كان بيبطّل الصفحة عشان يلاقي غير المستحق بس.
+   * يقرأ صفحة معرّفات الطلبات بحالة SCHEDULED بترتيب تصاعدي، من غير فلتر على
+   * موعد الاستحقاق؛ الطلب المستقبلي يفضل ظاهرًا للجولة من غير ما يتطالب به.
    *
    * @param tx معاملة المستأجر
    * @param companyId الشركة المالكة للطلبات

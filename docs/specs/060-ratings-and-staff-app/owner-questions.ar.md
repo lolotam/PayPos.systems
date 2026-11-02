@@ -965,3 +965,27 @@ amendment (§8).
 **PP-110.1: الإجابة حرفيًا (وليد، شات مدير الويب، 1 نوفمبر 2026، 21:3x، نقلها المدير):** «ب: نقبل الجولة ونسيب MiniMax.»
 
 **الأثر:** جولة 5 (`9cf035ed`) اتقبلت. أي إصلاح كود يطلع بعد كده يروح لـ MiniMax، وأول الـ brief بيفضل فيه نفس التشديد. ودي كانت آخر جولة من الخمسة، فلو طلع P0 أو P1 الشغل يقف ويدخل المستشارين الاتنين حسب §2، ولو طلع P2 أو P3 يتفتح issues.
+
+### استثناء SA محدود بعد R5/5 لشريحة 59b-2b / #785 (3 نوفمبر 2026)
+
+**المصدر:** قرار وليد، منقول حرفيًا برسالة المدير في شات جلسة المهمة بتاريخ 3 نوفمبر 2026. سُجّل قبل التنفيذ؛ سؤال تقني، لا يُنشر على صفحة قرارات الشريك.
+
+**القرار حرفيًا:**
+
+> approve ONE explicitly recorded limited exception after R5/5 for the four documentation/comment corrections matching current behavior: scheduled-only pageIds contract, factory JSDoc placement, Arabic Lua prose without protocol changes, and the obsolete delivered-test entry. Preserve the R5/5 record; no reset or general sixth behavioral-fix round.
+> Separate oldestEligibleAt decision: approve focused pure unit coverage for empty map, single entry and a minimum not first in iteration order as part of this same bounded exception. Do not alter production behavior to make a test pass; if it reveals a real bug, stop that change and escalate with the failing evidence. Keep existing assertions. Verify scoped tests/docs, then CI and the required review receipts on the resulting exact head. The current MergePilot receipt is PARTIAL, not completed; do not waive it or reuse old-head review receipts. Reply/resolve with evidence. No merge or production SQL/migration approval is granted by this message; existing activation blockers #803/#804/#805 stay in force.
+> Lane decision: keep acpRegistry_minimax_code paused for no-shell briefs until tool access is technically constrained and verified. A prompt-only no-shell promise is insufficient. Do not switch providers/models without existing explicit authorization. Already authorized work on Kimi may continue.
+> #785's partial MergePilot review is a separate gate from MergePilot product PR #196; the latter's disposition decision does not complete #785's receipt.
+
+**حدود التنفيذ والتسليم:** يبقى السجل `R5/5` كما هو، والاستثناء المحدود بند مستقل لا `R6` ولا إعادة ضبط. التغييرات الأربعة تعليقات وتوثيق للسلوك الحالي فقط؛ تغطية `oldestEligibleAt` ثلاث حالات نقية مع إبقاء كل التأكيدات القديمة. لا تغيير سلوك إنتاجي، ولا SQL أو migration أو config، ولا merge أو deploy. تظل #803 و#804 و#805 موانع تفعيل. يلزم guards واختبارات وتوثيق بنطاق التغيير، ثم مراجعة مستقلة جديدة وCI وCodex والأربع panel bots على الرأس الناتج نفسه. لا يُعاد استخدام إيصال `606859df` الجزئي أو أي إيصال لرأس قديم.
+
+**سجل تحقق الاستثناء المحلي (3 نوفمبر 2026):**
+
+- نفّذت الجلسة التصحيحات الصغيرة للتعليقات والتوثيق والاختبار فقط؛ لم يُشغّل MiniMax أو يُبدّل مسار منفّذ إلى مزوّد آخر. يظل `acpRegistry_minimax_code` موقوفًا حتى التقييد التقني والتحقق منه.
+- `test-guard` و`docs-guard` و`clean-code-guard`: مراجعة النطاق أظهرت اختبارات نقية بلا mock، مع إبقاء التأكيدات القديمة، وتصحيح التوثيق بمقارنته بالمصدر. لا تعليمات إنتاجية جديدة.
+- المحاولة الأولى بـ `pnpm --filter @pospay/worker exec vitest run src/modules/customers/domain/__tests__/rating-claim-scheduling.spec.ts` لم تشغّل الاختبارات: تهيئة Postgres العامة فشلت بـ `password authentication failed for user "pospay_owner"` على `127.0.0.1:5432`. لم تُغيّر بيانات اعتماد أو قاعدة بيانات. أُعيد التشغيل بالمسار النقي الموجود: `pnpm --filter @pospay/worker exec vitest run --config ../api/vitest.unit.config.ts src/modules/customers/domain/__tests__/rating-claim-scheduling.spec.ts`؛ نجح الملف و35 اختبارًا، منها الحالات الثلاث الجديدة، دون تهيئة قاعدة بيانات أو تعديل config.
+- المحاولة الأولى لـ ESLint رفضت العربية داخل نصوص Lua بقاعدة `no-restricted-syntax` الخاصة بـ i18n. نُقل الشرح العربي إلى تعليقات TypeScript المحيطة بالسكريبت؛ لا تعطيل قاعدة ولا تعديل إعداد. إعادة ESLint على ملفات TypeScript الستة نجحت، مع تحذير deprecation موجود لقاعدة boundaries.
+- مقارنة ناتج TypeScript بعد إزالة التعليقات، واستبعاد تعليقات Lua فقط من النصين، أثبتت تطابق المحتوى التنفيذي للملفات الإنتاجية الخمسة مع `606859df`؛ الاختلاف في Lua شرح فقط، لا بروتوكول أو أوامر.
+- `pnpm lint:docs`: صفر أخطاء و29 تحذيرًا موجودًا خارج نطاق الاستثناء. Prettier على الملفات الثمانية و`git diff --check` نجحا.
+- `pnpm --filter @pospay/worker typecheck` نجح (`tsc --noEmit`). المراجعة المستقلة الجديدة من `gpt-6-astra` بجهد `high`، بسياق جديد ودون كتابة، انتهت بلا عيوب في التغييرات الثمانية؛ شغّل المراجع اختبار الوحدة نفسه ونجحت الاختبارات 35/35. هذه مراجعة للتغيير المحلي فوق `606859df`، لا إيصال GitHub ولا اعتماد دمج.
+- CI والمراجعة المستقلة الجديدة وإيصالات Codex والأربع panel bots على الرأس الناتج تظل مطلوبة؛ نجاح الاختبارات المحلية ليس اعتماد دمج. أي finding سلوكي جديد خارج هذا الاستثناء يوقف التغيير ويُرفع للمدير.

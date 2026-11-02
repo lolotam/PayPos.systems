@@ -10,6 +10,7 @@ import {
   assertVisitBudget,
   isClaimable,
   leaseRenewalDue,
+  oldestEligibleAt,
   rereadObservation,
   settleClaim,
   type ClaimableRequest,
@@ -19,6 +20,20 @@ import {
 } from '../rating-claim-scheduling.ts';
 
 const now = new Date('2026-11-01T08:00:00.000Z');
+
+describe('أقدم استحقاق في خريطة الإعادة', () => {
+  it.each<[string, Record<string, { eligibleAt: number }>, number | null]>([
+    ['empty_map_has_no_oldest', {}, null],
+    ['single_entry_is_the_oldest', { a: { eligibleAt: 5 } }, 5],
+    [
+      'the_minimum_wins_when_it_is_not_first',
+      { a: { eligibleAt: 9 }, b: { eligibleAt: 3 }, c: { eligibleAt: 7 } },
+      3,
+    ],
+  ])('%s', (_scenario, retries, expected) => {
+    expect(oldestEligibleAt(retries)).toBe(expected);
+  });
+});
 
 // الميزانية: المسار الأمامي ومسار الإعادة محجوزين مع بعض، ومجموعهم ما بيتعداش
 // مئة زيارة في الدور الواحد، ومفيش مسار بيستعير من التاني.

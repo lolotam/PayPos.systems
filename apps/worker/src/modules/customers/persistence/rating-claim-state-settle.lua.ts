@@ -8,6 +8,19 @@
  * حال عشان الجولة ما تقفش. تسوية إعادة بتشيل الطلب أو بتعيده لآخر الطابور،
  * والنتيجة المجهولة عمر ما بتتحول لنهائية.
  *
+ * eligible_at بيحدد نافذة الاستحقاق بسقف now + backoffMs؛ الموعد المخزّن
+ * المستقبلي اللي قبل السقف بيقرّبه. الموعد الغائب أو اللي فات أو عند السقف
+ * أو بعده بيخلّي الاستحقاق عند السقف.
+ * record_overflow بيزيد العدّاد ويحفظ أول لحظة، ويعلّم الجولة للمصالحة
+ * لحد ما جولة من غير فيضان تكتمل.
+ *
+ * في settlePage الإعادة اللي مش بتسع في الحالة المرمّزة ما بتتقبلش: البند
+ * بيرجع للجولة الكاملة والفيضان بيتسجل، فالمجلة بتفضى بدل ما تفضل مفتوحة
+ * للأبد. التسوية اللي بتشيل بند بس ما بتكبّرش الحالة، فبتاخد سقف البايتات
+ * كله؛ التسوية اللي بتضيف إعادة لازم تسيب احتياطي الصفحة فاضي. نفس القاعدة
+ * لتسوية طلب الإعادة: الحذف بياخد السقف كله، وإعادة الطلب للطابور لازم
+ * تسيب احتياطي الصفحة فاضي للصفحة الجاية.
+ *
  * السكربت مستقل بذاته وقت التشغيل لأن Redis مفيش فيه استيراد لسكربت تاني؛ وفحص
  * سلامة الحالة مشترك بين السكربتات وبتترجم جوه النص وقت البناء.
  */
@@ -55,8 +68,6 @@ local function bump(state)
   return state['version']
 end
 
--- The eligibility window: the cap is the longest wait, and the stored due time
--- only pulls it earlier, never past the moment the request is actually due.
 local function eligible_at(now, dueAt, backoffMs)
   local cap = now + backoffMs
   if type(dueAt) ~= 'number' then return cap end
@@ -71,8 +82,6 @@ local function count_entries(retries)
   return total
 end
 
--- The overflow evidence: the count grows, the first moment is kept, and the
--- sweep is marked for reconciliation until a clean sweep completes.
 local function record_overflow(state, now)
   state['overflowCount'] = state['overflowCount'] + 1
   if state['overflowSince'] == nil then state['overflowSince'] = now end
@@ -148,9 +157,6 @@ if env['action'] == 'settlePage' then
   end
   if overflowed then record_overflow(state, now) end
   if bump(state) == nil then return reply('LIMIT', version) end
-  -- A retry that does not fit the encoded state is not admitted: the item goes
-  -- back to the full sweep and the overflow is recorded, so the journal still
-  -- drains instead of staying open for ever.
   if inserted ~= nil and #cjson.encode(state) > limit then
     retries[requestId] = nil
     state['nextTicket'] = inserted['ticket']
@@ -161,8 +167,6 @@ if env['action'] == 'settlePage' then
     if not store(KEYS[1], state, env['maxBytes']) then return reply('LIMIT', version) end
     return reply('OVERFLOW', state['version'], state)
   end
-  -- A settlement that only removes an entry never grows the state, so it gets the
-  -- full byte cap; a settlement that adds a retry must leave the page reserve free.
   local storeLimit = inserted == nil and env['maxBytes'] or limit
   if not store(KEYS[1], state, storeLimit) then return reply('LIMIT', version) end
   return reply('OK', state['version'], state)
@@ -191,8 +195,6 @@ else
   return reply('STALE', version)
 end
 if bump(state) == nil then return reply('LIMIT', version) end
--- A settlement that removes the request never grows the state, so it gets the
--- full byte cap; a requeue must leave the page reserve free for the next page.
 local removal = settlement == 'TERMINAL' or settlement == 'ABSENT'
 local limit = removal and env['maxBytes'] or env['maxBytes'] - env['reserveBytes']
 if not store(KEYS[1], state, limit) then return reply('LIMIT', version) end

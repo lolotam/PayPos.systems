@@ -9,6 +9,13 @@
  * المالك اللي حجزه انتهى مش بيقدر يجدّد ولا يسلّم، حتى لو محدش أخذ الحالة بعده.
  * والقراءة مبتعملش أي تعديل، ودي طريق المراقبة اللي بيقرأ الحالة من برّه.
  *
+ * في renew سقف الدور بيتفحص قبل حارس الحجز: الدور اللي وقته خلص لازم يرجع
+ * LIMIT، مش BUSY، عشان ما يقفش بسبب فقد سور غير حقيقي وهو لسه مالك الحالة.
+ * لو الوقت المتبقي مش كافي لحجز كامل، الدور خلص؛ الحجز المتجدد ما بيعدّيش
+ * السقف، والدور بيقف بدل ما يطالب بطلبات من غير سور. بنود الإعادة اللي ماسكها
+ * نفس المالك بتتجدد معاه، عشان مسار الإعادة الطويل ما يرجعش BUSY في النص
+ * والسور لسه صالح.
+ *
  * السكربت مستقل بذاته وقت التشغيل لأن Redis مفيش فيه استيراد لسكربت تاني؛ وفحص
  * سلامة الحالة مشترك بين السكربتات وبتترجم جوه النص وقت البناء.
  */
@@ -72,16 +79,10 @@ if state['incarnation'] ~= env['incarnation'] then return reply('STALE', version
 if state['version'] ~= env['version'] then return reply('STALE', version) end
 if state['ownerToken'] ~= env['ownerToken'] then return reply('BUSY', version) end
 
--- The turn ceiling is checked before the lease guard: a turn whose time is up
--- must answer LIMIT, not BUSY, or it stops with a false fence loss while it still
--- owns the state.
 if env['action'] == 'renew' then
   local turnStartedAt = state['turnStartedAt']
   if type(turnStartedAt) ~= 'number' then return reply('STALE', version) end
   local ceiling = turnStartedAt + env['maxTurnMs']
-  -- A renewal that cannot hold a full lease means the turn is over; the renewed
-  -- lease never reaches past the ceiling, so the turn stops instead of claiming
-  -- without a fence.
   if now + env['leaseMs'] > ceiling then return reply('LIMIT', version) end
 end
 
@@ -91,8 +92,6 @@ if type(leaseUntil) ~= 'number' or leaseUntil <= now then return reply('BUSY', v
 if env['action'] == 'renew' then
   local renewed = now + env['leaseMs']
   state['leaseUntil'] = renewed
-  -- Retry entries the same owner holds are renewed with it, or a long retry lane
-  -- hits BUSY in the middle while the fence is still valid.
   for _, entry in pairs(state['retries']) do
     if entry['ownerToken'] == env['ownerToken'] then
       entry['leaseUntil'] = renewed

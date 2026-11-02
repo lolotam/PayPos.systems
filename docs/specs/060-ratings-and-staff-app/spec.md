@@ -530,9 +530,7 @@ called".
   test rating registry that has a sender: the consumption and attempt dedupe prevent any authorization, the request stays
   `SENDING`, and nothing is reset or resent.
 
-**Delivered earlier in the slice:** `query_shape_and_explain_use_company_primary_key` (the read path's
-projections, bounds and plans over a representative tenant mix, without disabling sequential scans);
-`trigger_preserves_running_progress`, `registration_backoff_follows_pp97` and
+**Delivered earlier in the slice:** `trigger_preserves_running_progress`, `registration_backoff_follows_pp97` and
 `new_visit_registers_without_discovery` (the processor's registration behaviour); and
 `runtime_stays_dormant_with_valid_token_settings` (the shipped composition stays dormant with valid
 token settings and requests enabled).

@@ -183,6 +183,13 @@ export interface RatingClaimsRuntimeDeps extends RatingClaimDeps {
 }
 
 /**
+ * مهلة أمر Redis في حالة الجدولة: اتصال نصف مفتوح كان هيعليق الدور للأبد، ومن غير
+ * حدّ زمني كل الشركات على العامل بتتوقف. نفس مهلة منتج الطابور المجاور؛ والمهلة
+ * بتيجي على مسار ضياع الرد، والسور بيخلي المسار ده آمن.
+ */
+const STATE_COMMAND_TIMEOUT_MS = 5_000;
+
+/**
  * يبني المجدول الحيّ: حالة الجدولة في Redis، ودور الخدمة، ومعالج الطابور.
  *
  * المصنع ده مش بيتنادى من الإقلاع (تصميم 7)، والتركيب الفعلي بيسجّل دورة الحياة
@@ -191,13 +198,6 @@ export interface RatingClaimsRuntimeDeps extends RatingClaimDeps {
  * @param deps منافذ المطالبة وداتابيز المستأجر ورابط Redis والبادئة والسجل
  * @returns دورة حياة المجدول الحيّ
  */
-/**
- * مهلة أمر Redis في حالة الجدولة: اتصال نصف مفتوح كان هيعليق الدور للأبد، ومن غير
- * حدّ زمني كل الشركات على العامل بتتوقف. نفس مهلة منتج الطابور المجاور؛ والمهلة
- * بتيجي على مسار ضياع الرد، والسور بيخلي المسار ده آمن.
- */
-const STATE_COMMAND_TIMEOUT_MS = 5_000;
-
 export function createRatingClaimsRuntime(deps: RatingClaimsRuntimeDeps): RatingClaimsLifecycle {
   const redis = new Redis(deps.redisUrl, {
     maxRetriesPerRequest: null,

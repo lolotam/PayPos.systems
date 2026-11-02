@@ -7,8 +7,6 @@
  * والمفتاح بيفضل زي ما هو بالبايت.
  */
 export const RATING_CLAIM_STATE_VALIDATE = `
--- A damaged state is never written over: the fence fields, the journal and every
--- retry entry are checked before any command touches the state.
 local function validate_state(state)
   if type(state['incarnation']) ~= 'string' then return false end
   if type(state['nextTicket']) ~= 'number' then return false end
