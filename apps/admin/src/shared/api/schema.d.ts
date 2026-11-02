@@ -209,6 +209,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/commission-plan-employees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The plan screens’ own employee list (FR-010a). A holder of manage:commission-plans:business without manage:employees:business (the accountant by default) reaches the plan builder through this read; the staff employee routes stay closed to them. The items are the business’s employees with deleted_at IS NULL, ordered by (name_en_key, id), and carry the names and the employee number only — no branch, role, salary, phone, document or user link. time_zone is the business’s own timezone, never a branch’s. The cursor is opaque, bounded and bound to the company, the business and that order; a malformed cursor, or one from another scope, is VALIDATION_FAILED. Requires manage:commission-plans:business and the commissions feature; a device session is refused. Reads only. */
+        get: operations["listCommissionPlanEmployees"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/document-types": {
         parameters: {
             query?: never;
@@ -3083,6 +3100,23 @@ export interface components {
         };
         CommissionServiceOverrideList: {
             items: components["schemas"]["CommissionServiceOverrideListItem"][];
+            next_cursor: string | null;
+        };
+        CommissionPlanEmployeeListQuery: {
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        CommissionPlanEmployeeListItem: {
+            /** Format: uuid */
+            id: string;
+            name_ar: string | null;
+            name_en: string;
+            employee_number: number;
+        };
+        CommissionPlanEmployeeList: {
+            time_zone: components["schemas"]["TimeZone"];
+            items: components["schemas"]["CommissionPlanEmployeeListItem"][];
             next_cursor: string | null;
         };
         /** @enum {string} */
@@ -8601,6 +8635,69 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommissionEffectiveFromPastError"] | components["schemas"]["CommissionPlanIdempotencyKeyReusedError"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listCommissionPlanEmployees: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The business employees the plan builder offers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionPlanEmployeeList"];
+                };
+            };
+            /** @description Invalid cursor or query */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No individual session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform 403 refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bilingual refusal */
