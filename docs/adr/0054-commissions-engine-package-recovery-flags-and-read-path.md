@@ -190,6 +190,7 @@ provider-owned reader and bound at the composition root, the way the root-bound 
 | the `FOR NO KEY UPDATE` lock on the employee row that orders version allocation and service-override writes (`EmployeeRowLockPort`, 48-2 and 49-1, FR-008/FR-012) | `staff` |
 | service existence in the target business, read through readSessionServices on the writer's transaction without using its live rule to price history (`CommissionServiceReaderPort`, 49-1, FR-011) | `catalog` |
 | unlocked permission/feature recheck through readCommissionPlanListAccess, active employee existence through employeeExistsInBusiness, and the business timezone through businessTimeZone (`CommissionServiceOverrideListReads`, 49-1, FR-013) | `identity`, `staff`, `tenancy` |
+| unlocked permission/feature recheck through readCommissionPlanListAccess, the business timezone through businessTimeZone, and the plan screens' employee names and numbers through readCommissionPlanEmployeeNames (`CommissionPlanEmployeeListReads`, 48-2b, FR-010a; addendum 2026-11-02 below) | `identity`, `staff`, `tenancy` |
 | service names | `catalog` |
 | notification recipients | `identity` |
 | the employee's business and dated branch attachments (FR-018b, FR-033) | `staff` |
@@ -218,6 +219,46 @@ import). 59-0 adds those Port rows to `docs/module-map.md` §3 in the same PR.
 
 **The rule from D-16:** if a reader cannot be bound at the root, the sub-PR that needs it stops and adds an ADR and the
 module-map row first.
+
+**Addendum (2026-11-02, 48-2b): the plan screens' employee list (FR-010a).**
+
+- **What it serves.** `GET /v1/businesses/{businessId}/commission-plan-employees` lets a holder of
+  `manage:commission-plans:business` without `manage:employees:business` pick employees in the plan builder. The
+  staff employee routes stay closed to that holder.
+- **The port.** `CommissionPlanEmployeeListReads` is a read-only interface owned by commissions. It lives beside its query
+  in `queries/commission-plan-employees.query.ts`, as the 49-1 list's interface does, and has three methods, each with
+  its adapter:
+  - `access` → `readCommissionPlanListAccess` (`identity`, `persistence/commission-plan-access.ts`)
+  - `timeZone` → `businessTimeZone` (`tenancy`, `queries/business-time-zone.query.ts`)
+  - `employeeNames` → `readCommissionPlanEmployeeNames` (`staff`, `persistence/commission-plan-employee-names.ts`,
+    exported from the staff `index.ts`)
+
+  The staff reader owns the limited SQL. It reads only `id`, `name_ar`, `name_en` and `employee_number` of the
+  business's employees with `deleted_at IS NULL`, in `(name_en_key, id)` order. No employee query is copied into
+  commissions.
+- **The root binding.** `app.ts` (`commissionBindings`) passes the three tx-first provider functions as
+  `CommissionPlanEmployeeListReadProviders`. `commissions.module.ts` binds the token `COMMISSION_PLAN_EMPLOYEE_LIST` to
+  `createCommissionPlanEmployeeList(database, providers)`, and the controller injects only that runner.
+- **How it differs from 49-1.** In 49-1 the controller opens `withTenant` and passes `Tx` into the query. Here the runner
+  in `queries/` opens the single `withTenant(companyId, …, { userId })` itself. It reads in this order: access, then the
+  business timezone (`null` → `FORBIDDEN`), then the cursor (invalid → `VALIDATION_FAILED`), then the names. All four run
+  sequentially on that one transaction, with no nested or concurrent transaction.
+- **§4.1 is unchanged.** Because the controller takes the runner, it imports no `TenantWrappers`, and the cursor validates
+  with `id` from `@pospay/contracts` instead of `zod`. The new files therefore need no entry in the §4.1 list. The query
+  file's type-only imports of `TenantWrappers` and `Tx` from `@pospay/db` are the `queries/` row of the import matrix,
+  not a scoped addition.
+- **The cursor anchors on the employee id only, on purpose.** It holds `{v, c, b, i}` (company, business and the last
+  employee's id, lower-cased) as canonical base64url, and the next page re-reads that employee's stored `name_en_key`.
+  Two reasons:
+  - `name_en_key` is unbounded, so carrying it would break the 512-character cursor cap.
+  - Carrying it would put a normalised employee name into a cursor that travels in URLs and logs.
+
+  The trade-off: renaming the anchor employee between two page requests can skip or repeat rows in that one walk. This
+  is tracked in [issue #796](https://github.com/lolotam/PayPos.systems/issues/796). A soft-deleted anchor does not end
+  the list, and a missing anchor yields an empty page without revealing whether the id exists.
+
+The addendum adds one Port row to `docs/module-map.md` §3. It adds no import arrow, no `reads:` line, no write port,
+no grant and no migration.
 
 ### 4.1 Scoped layer imports for 48-2/49-1 (PP-108.1)
 
