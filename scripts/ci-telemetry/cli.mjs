@@ -48,10 +48,7 @@ const readRuns = (directory) => {
       incomplete.push(`turbo-run ${position + 1}: invalid-json`);
       return;
     }
-    // A Turbo run file holds one summary; a list of summaries is read too, so a batch file does not
-    // turn into a shape error that hides the tasks it holds.
-    const summaries = Array.isArray(parsed) ? parsed : [parsed];
-    for (const summary of summaries) runs.push(summariseTurboRun(summary));
+    runs.push(summariseTurboRun(parsed));
   });
   return { runs, incomplete };
 };

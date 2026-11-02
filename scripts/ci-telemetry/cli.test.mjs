@@ -65,6 +65,68 @@ test('two valid summaries produce a report with two runs', (t) => {
   assert.equal(markdown.includes('turbo run 2'), true);
 });
 
+test('an empty array file is one incomplete run with a shape reason', (t) => {
+  const root = workspace(t);
+  const runs = join(root, 'runs');
+  mkdirSync(runs);
+  writeFileSync(join(runs, 'a.json'), '[]');
+  const out = join(root, 'out');
+  const result = runCli(['--label', 'check', '--turbo-runs', runs, '--out', out]);
+
+  assert.equal(result.status, 0);
+  const report = JSON.parse(readFileSync(join(out, 'check.json'), 'utf8'));
+  assert.equal(report.runs.length, 1);
+  assert.equal(report.runs[0].complete, false);
+  assert.equal(report.runs[0].reason, 'shape');
+  assert.deepEqual(report.incomplete, []);
+  const markdown = readFileSync(join(out, 'check.md'), 'utf8');
+  assert.equal(markdown.includes('INCOMPLETE turbo run 1 (shape)'), true);
+});
+
+test('an array containing a valid summary is not unpacked', (t) => {
+  const root = workspace(t);
+  const runs = join(root, 'runs');
+  mkdirSync(runs);
+  writeFileSync(join(runs, 'a.json'), JSON.stringify([summary('MISS')]));
+  const out = join(root, 'out');
+  const result = runCli(['--label', 'check', '--turbo-runs', runs, '--out', out]);
+
+  assert.equal(result.status, 0);
+  const report = JSON.parse(readFileSync(join(out, 'check.json'), 'utf8'));
+  assert.equal(report.runs.length, 1);
+  assert.equal(report.runs[0].complete, false);
+  assert.equal(report.runs[0].reason, 'shape');
+  assert.deepEqual(report.incomplete, []);
+});
+
+test('a report without a complete run never looks clean', (t) => {
+  const root = workspace(t);
+  const emptyArray = join(root, 'empty-array');
+  mkdirSync(emptyArray);
+  writeFileSync(join(emptyArray, 'a.json'), '[]');
+  const missing = join(root, 'missing');
+  const empty = join(root, 'empty');
+  mkdirSync(empty);
+  const unreadable = join(root, 'unreadable');
+  mkdirSync(unreadable);
+  writeFileSync(join(unreadable, 'a.json'), '{not json');
+  const directories = [emptyArray, missing, empty, unreadable];
+  const out = join(root, 'out');
+
+  for (const [index, runs] of directories.entries()) {
+    const label = `case-${index}`;
+    const result = runCli(['--label', label, '--turbo-runs', runs, '--out', out]);
+
+    assert.equal(result.status, 0);
+    const report = JSON.parse(readFileSync(join(out, `${label}.json`), 'utf8'));
+    assert.equal(report.runs.length === 0 && report.incomplete.length === 0, false);
+    assert.equal(report.runs.some((run) => run.complete === true), false);
+    const hasIncompleteEvidence =
+      report.runs.some((run) => run.complete === false) || report.incomplete.length > 0;
+    assert.equal(hasIncompleteEvidence, true);
+  }
+});
+
 test('a missing folder is reported, never counted as zero tasks', (t) => {
   const root = workspace(t);
   const out = join(root, 'out');
