@@ -31,6 +31,7 @@ function fakeTransactions() {
     auditRows.push(entry);
   });
   const transaction: { commitError: Error | null } = { commitError: null };
+  const credential = { id: 'synthetic-record' };
   const run = vi.fn(
     async (
       _companyId: string,
@@ -39,7 +40,7 @@ function fakeTransactions() {
     ) => {
       const pending: AuditEntry[] = [];
       const value = await work({
-        find: async () => ({ id: 'synthetic-record', hash: 'synthetic-hash' }),
+        find: async () => ({ id: credential.id, hash: 'synthetic-hash' }),
         audit: {
           record: async (entry: AuditEntry) => {
             pending.push(entry);
@@ -52,7 +53,7 @@ function fakeTransactions() {
     },
   );
   const db = { run } as unknown as StaffPinTransactions;
-  return { auditRows, transaction, record, run, db };
+  return { auditRows, transaction, credential, record, run, db };
 }
 
 /** العدّاد بيرجع نجاح افتراضياً؛ الاختبار اللي عايز القفل هو اللي بيستبدله. */
@@ -117,6 +118,7 @@ function fixture() {
   return {
     auditRows: store.auditRows,
     transaction: store.transaction,
+    credential: store.credential,
     record: store.record,
     run: store.run,
     reserve: attempts.reserve,
@@ -228,6 +230,18 @@ it('an opened window writes one audit row and answers the window', async () => {
       action: 'staff.private_view_opened',
     },
   ]);
+});
+
+it('a PIN reset during the comparison opens nothing and writes no audit row', async () => {
+  const f = fixture();
+  const compare = f.provePin.getMockImplementation();
+  f.provePin.mockImplementation(async (args) => {
+    f.credential.id = 'synthetic-reset-record';
+    return compare === undefined ? null : compare(args);
+  });
+  expect(await f.open.execute({ pin, session })).toEqual({ kind: 'refused' });
+  expect(f.auditRows).toEqual([]);
+  expect(f.openWindow).not.toHaveBeenCalled();
 });
 
 it('a commit failure after the window opened closes the window and rethrows', async () => {

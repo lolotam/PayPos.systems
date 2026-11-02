@@ -23,6 +23,12 @@ export type OpenPrivateViewResult = OpenPrivateViewOpened | OpenPrivateViewRefus
 
 class OpeningRefused extends Error {}
 
+/** إثبات الـ PIN ومعه id سجل الاعتماد اللي اتقارن بيه. */
+interface ProvenPin {
+  readonly proof: PrivateViewProof;
+  readonly revision: string;
+}
+
 /** يفتح نافذة العرض الخاص بعد PIN جديد، بنفس عدّاد محاولات دخول الموظف. */
 export class OpenPrivateView {
   private active = 0;
@@ -68,9 +74,9 @@ export class OpenPrivateView {
       await this.privateView.provePin({ pin: input.pin, hash: null, scope });
       return { kind: 'refused' };
     }
-    const proof = await this.prove(input.pin, session, scope, target, reservation.reservation);
-    if (proof === null) return { kind: 'refused' };
-    return this.finish(proof, session, scope);
+    const proven = await this.prove(input.pin, session, scope, target, reservation.reservation);
+    if (proven === null) return { kind: 'refused' };
+    return this.finish(proven, session, scope);
   }
 
   private async prove(
@@ -79,27 +85,29 @@ export class OpenPrivateView {
     scope: PrivateViewScope,
     target: PinTarget,
     reservation: string,
-  ): Promise<PrivateViewProof | null> {
+  ): Promise<ProvenPin | null> {
     let proof: PrivateViewProof | null;
+    let revision: string | null;
     try {
       const row = await this.db.run(session.context.companyId, null, (read) =>
         read.find(session.userId),
       );
+      revision = row?.id ?? null;
       proof = await this.privateView.provePin({ pin, hash: row?.hash ?? null, scope });
     } catch (error) {
       await this.attempts.release(target, reservation);
       throw error;
     }
-    if (proof === null) {
+    if (proof === null || revision === null) {
       await this.attempts.failed(target, reservation);
       return null;
     }
     if ((await this.attempts.succeeded(target, reservation)) !== 'ok') return null;
-    return proof;
+    return { proof, revision };
   }
 
   private async finish(
-    proof: PrivateViewProof,
+    { proof, revision }: ProvenPin,
     session: StaffSession,
     scope: PrivateViewScope,
   ): Promise<OpenPrivateViewResult> {
@@ -111,6 +119,8 @@ export class OpenPrivateView {
     // مخزن النافذة وPostgres ما يشاركوش معاملة واحدة، فسطر التدقيق أولاً وفشل الـ commit يقفل النافذة عشان مفيش نافذة تعيش بلا سطر تدقيقها.
     try {
       await this.db.run(session.context.companyId, session.userId, async (read) => {
+        // إعادة تعيين الـ PIN أثناء المقارنة بتغيّر id السجل؛ المقارنة على اعتماد ملغى ما تفتحش نافذة.
+        if ((await read.find(session.userId))?.id !== revision) throw new OpeningRefused();
         await read.audit.record({
           entity: 'cashier_pin',
           entityId: session.userId,
