@@ -2,10 +2,12 @@ import type { TenantWrappers, Tx } from '@pospay/db';
 
 import type { OutboxConsumer } from '../../outbox/consumer.ts';
 import { onCommissionInputEvent } from './events/handlers/on-commission-input-event.handler.ts';
-import { createCommissionLineProjectionScope } from './persistence/commission-line-projection.scope.ts';
+import {
+  createCommissionLineProjectionScope,
+  type BusinessTimeZoneReader,
+} from './persistence/commission-line-projection.scope.ts';
 import { commissionStatementExportTransactions } from './persistence/commission-statement-export.transactions.ts';
 import type {
-  BusinessTimeZoneReader,
   Clock,
   IdGenerator,
 } from './ports/commission-line-projection.port.ts';

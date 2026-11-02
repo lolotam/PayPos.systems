@@ -1,5 +1,3 @@
-import type { Tx } from '@pospay/db';
-
 import type {
   CommissionLineRuleSnapshot,
   CommissionLineStatus,
@@ -16,12 +14,6 @@ export interface IdGenerator {
   /** يرجع UUID v7 جديداً لصفوف الكشوف التي ينشئها قفل الشهور. */
   newId(): string;
 }
-
-export type BusinessTimeZoneReader = (
-  tx: Tx,
-  companyId: string,
-  businessId: string,
-) => Promise<string | null>;
 
 export interface CommissionLineHeadWrite {
   readonly businessId: string;

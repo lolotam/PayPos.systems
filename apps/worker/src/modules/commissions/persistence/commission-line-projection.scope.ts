@@ -6,13 +6,18 @@ import {
 import { sql } from 'drizzle-orm';
 
 import type {
-  BusinessTimeZoneReader,
   CommissionLineHeadWrite,
   CommissionLinePerformerWrite,
   CommissionLineProjectionScope,
   CommissionLineReplacement,
   CommissionPeriodLockInput,
 } from '../ports/commission-line-projection.port.ts';
+
+export type BusinessTimeZoneReader = (
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+) => Promise<string | null>;
 
 type HeadRow = { lineId: string; revision: number; period: string };
 

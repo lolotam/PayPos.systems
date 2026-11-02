@@ -1,4 +1,4 @@
-import type { BusinessTimeZoneReader } from '../ports/commission-line-projection.port.ts';
+import type { BusinessTimeZoneReader } from '../persistence/commission-line-projection.scope.ts';
 
 export function fakeBusinessTimeZone(existingBusinessId: string): BusinessTimeZoneReader {
   return async (_tx, _companyId, businessId) =>
