@@ -1,12 +1,9 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
-
-const cliPath = fileURLToPath(new URL('./cli.mjs', import.meta.url));
+import { runCli } from './test-cli.mjs';
 
 const USAGE_ERROR = 'ci-telemetry: usage error (E_USAGE)\n';
 const INTERNAL_ERROR = '::error title=ci-telemetry::telemetry report failed (E_INTERNAL)\n';
@@ -33,13 +30,6 @@ const summary = (status) => ({
     },
   ],
 });
-
-// The child never inherits a step summary, unless the test points it at one.
-const runCli = (args, extraEnv = {}) => {
-  const env = { ...process.env, ...extraEnv };
-  if (!('GITHUB_STEP_SUMMARY' in extraEnv)) delete env.GITHUB_STEP_SUMMARY;
-  return spawnSync(process.execPath, [cliPath, ...args], { encoding: 'utf8', env });
-};
 
 const workspace = (t) => {
   const root = mkdtempSync(join(tmpdir(), 'ci-telemetry-'));

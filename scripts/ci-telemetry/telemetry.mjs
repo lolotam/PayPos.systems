@@ -132,7 +132,7 @@ const buildRun = (fields, tasks, forcedReason) => {
   const failed = asCount(fields.failed);
   const succeeded = asCount(fields.succeeded);
   const builtTasks = sortByDuration(tasks);
-  const countsMatch = outcomesMatch({ tasks: builtTasks, attempted, cached, failed, succeeded });
+  const countsMatch = outcomesMatch(builtTasks, { attempted, cached, failed, succeeded, exitCode });
   const reason =
     forcedReason ??
     (isTurboVersion(fields.turboVersion) && [cached, failed, succeeded].every((n) => n !== null)

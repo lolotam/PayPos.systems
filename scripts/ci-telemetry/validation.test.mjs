@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { runCli } from './test-cli.mjs';
 
 const sample = () => ({
   turboVersion: '2.11.2',
@@ -39,6 +38,9 @@ test('malformed required fields and absent execution stay visible through the CL
     ['execution.cached', -1],
     ['execution.failed', 1, 'count-mismatch'],
     ['execution', { ...sample().execution, failed: 1, success: 0 }, 'count-mismatch'],
+    ['execution', { ...sample().execution, failed: 1, success: 0 }, 'count-mismatch', 1],
+    ['execution', { ...sample().execution, failed: 1, success: 0, exitCode: 1 }, null, 1],
+    ['execution.exitCode', 1, null],
     ['tasks.0.execution.exitCode', 1, 'count-mismatch'],
     ['tasks.0.cache.status', 'PARTIAL'],
     ['tasks.0.cache.status', undefined],
@@ -50,38 +52,28 @@ test('malformed required fields and absent execution stay visible through the CL
     ['tasks.0.execution.exitCode', '0'],
     ['tasks.0.execution', undefined, 'unfinished'],
   ];
-  for (const [field, value, reason = 'malformed'] of mutations) {
+  for (const [field, value, reason = 'malformed', taskExit] of mutations) {
     const raw = sample();
     const path = field.split('.');
     const key = path.pop();
     path.reduce((node, part) => node[part], raw)[key] = value;
+    if (taskExit !== undefined) raw.tasks[0].execution.exitCode = taskExit;
     writeFileSync(join(runs, 'a.json'), JSON.stringify(raw));
     const env = {
-      ...process.env,
       CI_TELEMETRY_CHECKOUT_SHA: 'a'.repeat(40),
       GITHUB_SHA: 'b'.repeat(40),
     };
-    delete env.GITHUB_STEP_SUMMARY;
-    const result = spawnSync(
-      process.execPath,
-      [
-        fileURLToPath(new URL('./cli.mjs', import.meta.url)),
-        '--label',
-        'check',
-        '--turbo-runs',
-        runs,
-        '--out',
-        root,
-      ],
-      { encoding: 'utf8', env },
-    );
+    const result = runCli(['--label', 'check', '--turbo-runs', runs, '--out', root], env);
     assert.equal(result.status, 0, result.stderr);
     const report = JSON.parse(readFileSync(join(root, 'check.json'), 'utf8'));
     assert.equal(report.runs.length, 1);
     assert.equal(report.runs[0].tasks.length, 1);
-    assert.equal(report.runs[0].complete, false);
+    assert.equal(report.runs[0].complete, reason === null);
     assert.equal(report.runs[0].reason, reason);
     assert.equal(report.meta.commit, 'a'.repeat(40));
-    assert.match(readFileSync(join(root, 'check.md'), 'utf8'), /INCOMPLETE turbo run 1/);
+    assert.equal(
+      readFileSync(join(root, 'check.md'), 'utf8').includes('INCOMPLETE turbo run 1'),
+      reason !== null,
+    );
   }
 });
