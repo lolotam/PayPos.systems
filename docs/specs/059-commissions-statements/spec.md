@@ -611,9 +611,11 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   one identity serialize: the lock order is always identity locks, then statement rows, and only the consumer and the
   bootstrap take identity locks, so no writer can deadlock against them.
   - _What 50-1 ships of this order:_ service lines only, under the consumer `commissions.project-inputs`. Until 55-1/55-2
-    add the correction step, an affected period that is APPROVED or PAID under the lock makes the delivery throw
-    `StatementPeriodClosedError` before any projection write. The event rolls back and is retried, then parked (no
-    correction yet). Candidate-only months are locked and not classified. The current month comes from the injected
+    add the correction step, an affected period that is APPROVED or PAID under the lock makes the delivery throw the
+    worker's domain error `CommissionPeriodClosedError` before any projection write; the decision is the pure
+    `classifyCommissionPeriods` in the worker's `domain/`, as the API's writers decide it in their own `domain/`. The
+    event rolls back and is retried, then parked (no correction yet). Candidate-only months are locked and not
+    classified. The current month comes from the injected
     Clock and the business time zone, read once before the lock. Re-reading it when the month rolls over while the
     delivery waits on the lock is deferred to 55-1, where a correction target depends on it. A missing business throws
     `CommissionBusinessMissingError` before any write. REVIEWED affected periods return to DRAFT through
