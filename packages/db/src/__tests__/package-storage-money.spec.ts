@@ -77,7 +77,12 @@ const entitlementInsert = (id: string, o: MoneyOptions = {}) => sql`
     ${A.branch},now(),current_date,'Asia/Kuwait',${USER},${ORDER_IDS.membership},current_date + 30,
     ${o.refundedAmount ?? '0.000'})`;
 
-const componentInsert = (id: string, entitlementId: string, value: string, listPrice?: string) => sql`
+const componentInsert = (
+  id: string,
+  entitlementId: string,
+  value: string,
+  listPrice?: string,
+) => sql`
   INSERT INTO package_components
     (company_id,id,business_id,entitlement_id,service_id,position,name_en,list_price_snapshot,sessions_total,component_value)
   VALUES (${A.company},${id},${A.business},${entitlementId},${ORDER_IDS.service},1,'Synthetic service',

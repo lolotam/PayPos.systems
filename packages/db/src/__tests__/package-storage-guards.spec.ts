@@ -213,7 +213,10 @@ it('the entitlement refuses every transition until its own row exists', async ()
     '23514',
     'package_entitlements_immutable',
   );
-  await rejected(asApp(sql`UPDATE package_entitlements SET name_en='Changed' WHERE id=${SALE}`), '42501');
+  await rejected(
+    asApp(sql`UPDATE package_entitlements SET name_en='Changed' WHERE id=${SALE}`),
+    '42501',
+  );
 });
 
 it('the creation seal is kept from the creating transaction and never resealed', async () => {
@@ -290,8 +293,7 @@ it('an entitlement starts with no refunded amount and at revision one', async ()
 it('a new session starts free and carries no redemption', async () => {
   const entitlementId = nextId();
   const componentId = nextId();
-  const slot = (options: SlotOptions) =>
-    slotInsert(nextId(), entitlementId, componentId, options);
+  const slot = (options: SlotOptions) => slotInsert(nextId(), entitlementId, componentId, options);
   // حالة USED من غير استرداع بتقع على قيد الجدول نفسه قبل تريغر التركيب.
   const states: [string, string][] = [
     ['REFUNDED', 'package_session_slots_initial_state'],

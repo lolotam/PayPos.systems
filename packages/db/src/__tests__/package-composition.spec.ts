@@ -95,7 +95,7 @@ const entitlementInsert = (id: string, o: EntitlementOptions = {}) => {
       ${sold ? 'CASH' : null},${sold ? ORDER_IDS.employee : null},${sold ? A.branch : null},
       ${sold ? sql`now()` : null},${sold ? sql`current_date` : null},${sold ? 'Asia/Kuwait' : null},
       ${USER},${ORDER_IDS.membership},
-      ${sold ? null : o.externalRef ?? 'EXT-C'},${sold ? null : PREVIEW},${sold ? null : (o.importRow ?? 1)},
+      ${sold ? null : (o.externalRef ?? 'EXT-C')},${sold ? null : PREVIEW},${sold ? null : (o.importRow ?? 1)},
       current_date + 30)`;
 };
 
