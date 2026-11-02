@@ -42,6 +42,11 @@ telemetry allowlist. No command, environment value or source path is added to up
 ## Instrumented evidence
 
 Run [41514441911](https://github.com/lolotam/PayPos.systems/actions/runs/41514441911) was still in progress with zero
-artifacts at the R3 inspection. Baseline section 4 remains pending completion; no inferred timings or speedup are added.
-The manager owns monitoring and completion notification. The correction is held locally through independent review
-and the first run's completion, because pushing earlier would cancel it under the unchanged workflow concurrency.
+artifacts at the initial R3 inspection. It subsequently completed successfully on the old head; all six artifacts were
+downloaded and inspected. [Baseline section 4](baseline.md#4-instrumented-run) records actual task/cache and step data,
+the original attribution defect, and the inherited DB-test cache replay limitation, without a speedup claim.
+
+Fresh Astra independently reviewed code commit `5aa06d5934be27c4983a4262ae459ed2a20faa06`, with no confirmed findings.
+The manager lifted the first-run preservation hold after completion and authorized publishing that code plus the
+baseline evidence. The completed old-head CI and reviews do not approve the new correction head; external findings
+remain open until the published fixes are verified. The manager retains monitoring; no merge or deploy is authorized.
