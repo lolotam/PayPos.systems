@@ -357,6 +357,7 @@ export * from './staff/employee-iban.js';
 export * from './commissions/plan-versions.js';
 export * from './commissions/statement-exports.js';
 export * from './commissions/service-overrides.js';
+export * from './commissions/plan-employees.js';
 export * from './staff/employee-name-matches.js';
 
 export * from './staff/schedule-settings.js';

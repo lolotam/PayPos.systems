@@ -4,6 +4,7 @@ import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { Clock } from '../../shared/ports/clock.port.ts';
 import { systemClock } from '../../shared/adapters/system-clock.ts';
 import { CommissionPlanVersionsController } from './http/commission-plan-versions.controller.ts';
+import { CommissionPlanEmployeesController } from './http/commission-plan-employees.controller.ts';
 import { CommissionServiceOverridesController } from './http/commission-service-overrides.controller.ts';
 import {
   createCommissionServiceOverrideListReaders,
@@ -17,12 +18,18 @@ import {
   COMMISSION_SERVICE_OVERRIDE_LIST_READS,
   type CommissionServiceOverrideListReadsFactory,
 } from './queries/commission-service-overrides.query.ts';
+import {
+  COMMISSION_PLAN_EMPLOYEE_LIST,
+  createCommissionPlanEmployeeList,
+  type CommissionPlanEmployeeListReadProviders,
+} from './queries/commission-plan-employees.query.ts';
 import { CreateCommissionPlanVersionUseCase } from './use-cases/create-commission-plan-version/create-commission-plan-version.usecase.ts';
 import { CreateCommissionServiceOverrideUseCase } from './use-cases/create-commission-service-override/create-commission-service-override.usecase.ts';
 
 export const commissionsControllers = [
   CommissionPlanVersionsController,
   CommissionServiceOverridesController,
+  CommissionPlanEmployeesController,
 ];
 
 /**
@@ -38,6 +45,7 @@ export function commissionsProviders(
   ids: IdGenerator,
   readers: CommissionModuleReaders,
   listReads: CommissionServiceOverrideListReadProviders,
+  employeeListReads: CommissionPlanEmployeeListReadProviders,
   clock: Clock = systemClock,
 ): Provider[] {
   // الفحص البنيوي هنا: شكل المهايئ لازم يطابق مصنع القراءة بجوار الاستعلام.
@@ -67,5 +75,12 @@ export function commissionsProviders(
             ),
     },
     { provide: COMMISSION_SERVICE_OVERRIDE_LIST_READS, useValue: listReaders },
+    {
+      provide: COMMISSION_PLAN_EMPLOYEE_LIST,
+      useValue:
+        database === undefined
+          ? null
+          : createCommissionPlanEmployeeList(database, employeeListReads),
+    },
   ];
 }

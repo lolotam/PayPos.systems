@@ -63,6 +63,7 @@ import { ordersControllers, ordersProviders } from './modules/orders/index.ts';
 import {
   employeeExistsInBusiness,
   lockEmployeeForUpdate,
+  readCommissionPlanEmployeeNames,
   staffControllers,
   staffProviders,
 } from './modules/staff/index.ts';
@@ -172,6 +173,11 @@ function commissionBindings(deps: AppDependencies) {
       access: readCommissionPlanListAccess,
       timeZone: businessTimeZone,
       employeeExists: employeeExistsInBusiness,
+    },
+    {
+      access: readCommissionPlanListAccess,
+      timeZone: businessTimeZone,
+      employeeNames: readCommissionPlanEmployeeNames,
     },
     deps.commissionsClock,
   );
