@@ -165,7 +165,8 @@ never in git, a doc or a message.
 - after step 8 of §A: one notification to `pospay-questions` naming the batch;
 - after a merge that adds or changes something users see (§B): one to `pospay-features`, saying in plain words what
   they can now do;
-- whenever work stops on an owner decision: one to `pospay-waleed`.
+- whenever work stops on an owner decision, and whenever a report carries something waiting on Waleed («المطلوب
+  منك»): one to `pospay-waleed`, once per request (PP-112, `docs/agent-delivery-pipeline.md` §12).
 
 A notification names the batch or the row and links to the page. It never quotes an answer or the text of a review.
 
