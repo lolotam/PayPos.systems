@@ -20,14 +20,14 @@ const COMPLETENESS_REASONS = new Set([
 
 export const isPackage = (value) => typeof value === 'string' && PACKAGE_PATTERN.test(value);
 export const isTask = (value) => typeof value === 'string' && TASK_PATTERN.test(value);
-export const isTurboVersion = (value) => typeof value === 'string' && TURBO_VERSION_PATTERN.test(value);
+export const isTurboVersion = (value) =>
+  typeof value === 'string' && TURBO_VERSION_PATTERN.test(value);
 export const isLabel = (value) => typeof value === 'string' && LABEL_PATTERN.test(value);
 
 const isPlainObject = (value) =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const isNonNegative = (value) =>
-  typeof value === 'number' && Number.isFinite(value) && value >= 0;
+const isNonNegative = (value) => typeof value === 'number' && Number.isFinite(value) && value >= 0;
 
 const asTime = (value) => (isNonNegative(value) ? value : null);
 
@@ -86,13 +86,11 @@ const buildTask = (raw) => {
 };
 
 const sortByDuration = (tasks) =>
-  tasks
-    .filter(isPlainObject)
-    .sort((left, right) => {
-      if (left.durationMs === null) return right.durationMs === null ? 0 : 1;
-      if (right.durationMs === null) return -1;
-      return right.durationMs - left.durationMs;
-    });
+  tasks.filter(isPlainObject).sort((left, right) => {
+    if (left.durationMs === null) return right.durationMs === null ? 0 : 1;
+    if (right.durationMs === null) return -1;
+    return right.durationMs - left.durationMs;
+  });
 
 const completenessReason = ({ attempted, exitCode, startTime, endTime, tasks }) => {
   if (tasks.length === 0) return 'empty';
@@ -259,7 +257,9 @@ export function renderMarkdown(report) {
   pushList(lines, 'Replayed from cache (not executed in this job):', replayed);
   lines.push('');
   const incomplete = Array.isArray(source.incomplete)
-    ? source.incomplete.filter((entry) => typeof entry === 'string' && INCOMPLETE_PATTERN.test(entry))
+    ? source.incomplete.filter(
+        (entry) => typeof entry === 'string' && INCOMPLETE_PATTERN.test(entry),
+      )
     : [];
   pushList(lines, 'Incomplete:', incomplete);
   lines.push('');
