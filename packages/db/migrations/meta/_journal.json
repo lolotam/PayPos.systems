@@ -1415,6 +1415,13 @@
       "when": 1793625801451,
       "tag": "0203_2026-11-02_commission-lines-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 204,
+      "version": "7",
+      "when": 1793646637219,
+      "tag": "0204_2026-11-02_rating-requests-scheduled-index",
+      "breakpoints": true
     }
   ]
 }
