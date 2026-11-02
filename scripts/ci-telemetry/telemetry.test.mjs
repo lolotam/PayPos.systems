@@ -139,6 +139,10 @@ test('a replayed task needs no exit code, an executed one does', () => {
   const replay = summariseTurboRun(replayed);
   assert.equal(replay.complete, true);
   assert.equal(replay.tasks[0].exitCode, null);
+  replayed.tasks[0].execution.exitCode = null;
+  assert.equal(summariseTurboRun(replayed).complete, true);
+  replayed.tasks[0].execution.exitCode = 1;
+  assert.equal(summariseTurboRun(replayed).reason, 'count-mismatch');
 
   const executed = forcedRun();
   delete executed.tasks[0].execution.exitCode;

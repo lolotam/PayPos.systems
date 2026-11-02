@@ -38,6 +38,8 @@ test('malformed required fields and absent execution stay visible through the CL
     ['turboVersion', undefined],
     ['execution.cached', -1],
     ['execution.failed', 1, 'count-mismatch'],
+    ['execution', { ...sample().execution, failed: 1, success: 0 }, 'count-mismatch'],
+    ['tasks.0.execution.exitCode', 1, 'count-mismatch'],
     ['tasks.0.cache.status', 'PARTIAL'],
     ['tasks.0.cache.status', undefined],
     ['tasks.0.taskId', '@pospay/ids#other'],

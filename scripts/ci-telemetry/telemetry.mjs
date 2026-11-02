@@ -3,6 +3,7 @@
 // validator of its own field, so the uploaded artifact is a measurement and never a copy of the workspace.
 
 import { copyMeta, TURBO_VERSION_PATTERN } from './meta.mjs';
+import { outcomesMatch } from './outcomes.mjs';
 
 const PACKAGE_PATTERN = /^@pospay\/[a-z0-9-]{1,40}$/;
 const TASK_PATTERN = /^[a-z][a-z0-9:-]{0,30}$/;
@@ -86,7 +87,7 @@ const buildTask = (raw) => {
   };
 };
 
-// A MISS omits its source; a HIT needs a source and saved time, even without an exit code.
+// لا يحمل MISS مصدر كاش؛ يحتاج HIT المصدر والزمن الموفَّر حتى لو غاب رمز الخروج.
 const malformedTask = (raw, task) => {
   if (!task.taskId || task.cacheStatus === 'UNKNOWN') return true;
   if (!isNonNegative(raw.cache?.timeSaved)) return true;
@@ -131,9 +132,7 @@ const buildRun = (fields, tasks, forcedReason) => {
   const failed = asCount(fields.failed);
   const succeeded = asCount(fields.succeeded);
   const builtTasks = sortByDuration(tasks);
-  const countsMatch =
-    cached + failed + succeeded === attempted &&
-    cached === builtTasks.filter((task) => task.cacheStatus === 'HIT').length;
+  const countsMatch = outcomesMatch({ tasks: builtTasks, attempted, cached, failed, succeeded });
   const reason =
     forcedReason ??
     (isTurboVersion(fields.turboVersion) && [cached, failed, succeeded].every((n) => n !== null)
