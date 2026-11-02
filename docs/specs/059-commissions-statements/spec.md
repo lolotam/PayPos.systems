@@ -584,11 +584,13 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 - **FR-010a** The plan screens' own employee list (48-2b; Astra review of 48-3, manager decision 2026-11-02). A holder of
   `manage:commission-plans:business` without `manage:employees:business` (the accountant by default, CS-Q27) must reach
   the plan builder, and the staff employee routes stay closed to them. `GET /v1/businesses/{businessId}/commission-plan-employees`
-  (`cursor?`, `limit` 1…50, default 20) returns `{ time_zone, items: [{ id, name_ar, name_en }], next_cursor }`:
+  (`cursor?`, `limit` 1…50, default 20) returns `{ time_zone, items: [{ id, name_ar, name_en, employee_number }], next_cursor }`:
   - `time_zone` is the business's own `businesses.timezone`, never a branch's; the builder's default effective date uses it.
   - The items are the business's employees with `deleted_at IS NULL`, ordered by `(name_en_key, id)`. They carry the
-    names only: no number, branch, role, salary, phone, document or user link (CS-Q40 = PP-113.1 is PENDING; names
-    only until it is answered).
+    names and the employee number only (CS-Q40 = PP-113.1, Waleed 2026-11-02: name + employee number).
+    `employee_number` is the number the company recorded for the employee (`employees.employee_number`, an integer
+    1…999999, unique across the company; the contract type is the existing `z.number().int().min(1).max(999999)`).
+    No branch, role, salary, phone, document or user link.
   - The cursor is opaque, bounded and validated, and bound to the company, the business and that order. A malformed
     cursor, or one taken from another scope, is `VALIDATION_FAILED`.
   - The guard is the same permission, the `commissions` feature and an individual login (a device → 403). Access and
