@@ -19,9 +19,19 @@ export interface OpenPrivateViewRefused {
   readonly kind: 'refused';
 }
 
-export type OpenPrivateViewResult = OpenPrivateViewOpened | OpenPrivateViewRefused;
+/** جلسة الموظف أو عضويته أو جهازه اتلغوا أثناء الفتح؛ العميل لازم يخرج، مش يعيد الـ PIN. */
+export interface OpenPrivateViewSessionEnded {
+  readonly kind: 'session-ended';
+}
 
-class OpeningRefused extends Error {}
+export type OpenPrivateViewResult =
+  OpenPrivateViewOpened | OpenPrivateViewRefused | OpenPrivateViewSessionEnded;
+
+class OpeningRefused extends Error {
+  constructor(readonly result: OpenPrivateViewRefused | OpenPrivateViewSessionEnded) {
+    super('PRIVATE_VIEW_OPENING_REFUSED');
+  }
+}
 
 /** إثبات الـ PIN ومعه id سجل الاعتماد اللي اتقارن بيه. */
 interface ProvenPin {
@@ -113,21 +123,25 @@ export class OpenPrivateView {
   ): Promise<OpenPrivateViewResult> {
     // إعادة التأهل قبل الفتح: عضوية أو جهاز اتغيّروا بعد الجلسة، فالنافذة ما تفتحش.
     if (!(await this.authority.eligible(session.userId, session.context)))
-      return { kind: 'refused' };
-    if (!(await this.authority.deviceValid(session.context))) return { kind: 'refused' };
+      return { kind: 'session-ended' };
+    if (!(await this.authority.deviceValid(session.context))) return { kind: 'session-ended' };
     const opened: { value: OpenPrivateViewOpened | null } = { value: null };
     // مخزن النافذة وPostgres ما يشاركوش معاملة واحدة، فسطر التدقيق أولاً وفشل الـ commit يقفل النافذة عشان مفيش نافذة تعيش بلا سطر تدقيقها.
     try {
       await this.db.run(session.context.companyId, session.userId, async (read) => {
         // إعادة تعيين الـ PIN أثناء المقارنة بتغيّر id السجل؛ المقارنة على اعتماد ملغى ما تفتحش نافذة.
-        if ((await read.find(session.userId))?.id !== revision) throw new OpeningRefused();
+        if ((await read.find(session.userId))?.id !== revision)
+          throw new OpeningRefused({ kind: 'refused' });
         await read.audit.record({
           entity: 'cashier_pin',
           entityId: session.userId,
           action: 'staff.private_view_opened',
         });
         const opening = await this.privateView.open({ proof, scope, device: session.context });
-        if (opening.kind !== 'opened') throw new OpeningRefused();
+        if (opening.kind !== 'opened')
+          throw new OpeningRefused(
+            opening.reason === 'session' ? { kind: 'session-ended' } : { kind: 'refused' },
+          );
         opened.value = {
           kind: 'opened',
           windowId: opening.windowId,
@@ -139,7 +153,7 @@ export class OpenPrivateView {
       });
       return opened.value ?? { kind: 'refused' };
     } catch (error) {
-      if (error instanceof OpeningRefused) return { kind: 'refused' };
+      if (error instanceof OpeningRefused) return error.result;
       if (opened.value !== null) {
         try {
           await this.privateView.close(scope, opened.value.windowId);

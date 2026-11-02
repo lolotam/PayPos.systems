@@ -126,7 +126,12 @@ export class SessionGuard implements CanActivate {
         policy === 'staff' &&
         this.#reflector.get<true | undefined>(PRIVATE_VIEW_ROUTE, context.getHandler()) === true
       )
-        await privateViewRequest(request, http.getResponse<FastifyReply>(), this.#auth);
+        await privateViewRequest(
+          request,
+          http.getResponse<FastifyReply>(),
+          this.#auth,
+          this.staffOrigin,
+        );
       return true;
     }
     if (/^device(\s|$)/i.test(authorization)) {

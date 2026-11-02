@@ -188,21 +188,21 @@ it('a locked counter after a correct PIN refuses without opening', async () => {
 it('an operator who lost the membership never reaches the opening', async () => {
   const f = fixture();
   f.eligible.mockResolvedValue(false);
-  expect(await f.open.execute({ pin, session })).toEqual({ kind: 'refused' });
+  expect(await f.open.execute({ pin, session })).toEqual({ kind: 'session-ended' });
   expect(f.openWindow).not.toHaveBeenCalled();
 });
 
 it('a device that is no longer valid never reaches the opening', async () => {
   const f = fixture();
   f.deviceValid.mockResolvedValue(false);
-  expect(await f.open.execute({ pin, session })).toEqual({ kind: 'refused' });
+  expect(await f.open.execute({ pin, session })).toEqual({ kind: 'session-ended' });
   expect(f.openWindow).not.toHaveBeenCalled();
 });
 
 it('a refused opening writes no audit row and never closes a window', async () => {
   const f = fixture();
   f.openWindow.mockResolvedValue({ kind: 'refused', reason: 'session' });
-  expect(await f.open.execute({ pin, session })).toEqual({ kind: 'refused' });
+  expect(await f.open.execute({ pin, session })).toEqual({ kind: 'session-ended' });
   expect(f.auditRows).toEqual([]);
   expect(f.record).not.toHaveBeenCalled();
   expect(f.closeWindow).not.toHaveBeenCalled();

@@ -8,6 +8,7 @@ import {
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { ApiError } from './errors.ts';
+import { isStaffOrigin, type StaffOrigins } from './staff-origin.token.ts';
 
 /**
  * علامة المسار اللي بيتحقق من نافذة العرض الخاص بعد جلسة الموظف.
@@ -64,12 +65,16 @@ export function privateViewScope(session: StaffSession): PrivateViewScope {
  * @param request الطلب جوه جلسة الموظف المثبتة
  * @param reply الرد عشان ترويسات الوقت المتبقي
  * @param auth خدمة الاعتماد اللي فيها نافذة العرض الخاص
+ * @param origins مصادر الـ POS المسموحة؛ مصدر غريب يترفض قبل ما النافذة تتلمس
  */
 export async function privateViewRequest(
   request: FastifyRequest,
   reply: FastifyReply,
   auth: AuthService | null,
+  origins: StaffOrigins | null,
 ): Promise<void> {
+  // الفحص بيمدّ خمول النافذة، فطلب من مصدر مرفوض لازم يقف قبله، مش في الـ controller بعده.
+  if (!isStaffOrigin(origins, request.headers.origin)) throw new ApiError('FORBIDDEN');
   if (auth === null) throw new ApiError('NOT_READY');
   const session = request.staffSession;
   if (session === undefined) throw new ApiError('UNAUTHENTICATED');

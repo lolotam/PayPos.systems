@@ -61,6 +61,7 @@ export class PrivateViewController {
       }
       throw error;
     });
+    if (result.kind === 'session-ended') throw new ApiError('UNAUTHENTICATED');
     if (result.kind !== 'opened') throw new ApiError('PIN_INVALID');
     return {
       window_id: result.windowId,

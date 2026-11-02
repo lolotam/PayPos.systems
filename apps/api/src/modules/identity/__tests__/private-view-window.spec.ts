@@ -191,6 +191,29 @@ it('MY-13b a late request with the old window id is refused and the new window s
   expect((await privateRoute(newWindow)).statusCode).toBe(200);
 });
 
+it('a touch from a foreign origin is refused before it can refresh the window', async () => {
+  const opened = await openWindow(ownPin);
+  const windowId = opened.json().window_id as string;
+  advance(50_000);
+  const foreign = await h.app.inject({
+    method: 'POST',
+    url: '/v1/staff/me/private-view/touch',
+    headers: staffHeaders({
+      cookie: staffCookie,
+      origin: 'https://foreign.example.test',
+      [PRIVATE_VIEW_WINDOW_HEADER]: windowId,
+    }),
+  });
+  expect(foreign.statusCode).toBe(403);
+  expect(foreign.json().code).toBe('FORBIDDEN');
+  expect(foreign.headers).not.toHaveProperty('x-private-view-idle-remaining-ms');
+  // لو الطلب المرفوض كان مدّ الخمول، النافذة كانت هتعيش؛ ستين ثانية من الفتح بتقفلها.
+  advance(15_000);
+  const late = await touch(windowId);
+  expect(late.statusCode).toBe(403);
+  expect(late.json().code).toBe('PRIVATE_VIEW_EXPIRED');
+});
+
 it('MY-13b closing the window ends it and closing a wrong id changes nothing', async () => {
   const opened = await openWindow(ownPin);
   const windowId = opened.json().window_id as string;

@@ -24,7 +24,11 @@ the split on 2026-11-01):
 - **The window travels in the `x-private-view-window-id` request header.** The log redaction list hides it, and a test
   proves it.
 - **A wrong step-up PIN is `PIN_INVALID` (401)**, as for PIN sign-in. **57-4 must not treat a `PIN_INVALID` from the
-  step-up as a sign-out:** the operator is still signed in, and the screen stays on the PIN step.
+  step-up as a sign-out:** the operator is still signed in, and the screen stays on the PIN step. A membership, device
+  or staff session that ended while the opening ran answers `UNAUTHENTICATED` (401), so the client signs out as for any
+  dead staff session (MergePilot review on #784).
+- **The POS origin is checked before the window is touched**, in the `SessionGuard` step, so a request from a foreign
+  origin answers `FORBIDDEN` and cannot refresh the idle deadline.
 - **The three routes are declared `PERSONAL`** in `authenticated-writes.ts`, checked in the `SessionGuard` staff path
   (`session.guard.ts##staff`), with staff policy `'staff'` and no personal marker. `DEVICE_ONLY` was the first pick, but
   `route-declarations.spec.ts` requires a `DEVICE_ONLY` route on that guard to need the device alone, and these routes
