@@ -19,6 +19,7 @@ import { systemUuidV7 } from '@pospay/ids';
 import { phoneLockKey } from '@pospay/notifications';
 import { createLogger, type DestinationStream } from '@pospay/observability';
 import { randomBytes } from 'node:crypto';
+import type { Type } from '@nestjs/common';
 
 import { Redis } from 'ioredis';
 import postgres from 'postgres';
@@ -29,6 +30,7 @@ import { createTestDatabase, type TestDatabase } from '../../../packages/db/test
 import { cleanupStack } from './cleanup-stack.ts';
 import { createApp } from '../src/app.ts';
 import { API_LOG_EVENTS } from '../src/shared/log-events.ts';
+import { createPersonalEligibility } from '../src/modules/staff/index.ts';
 import type { FilesRuntime } from '../src/modules/files/index.ts';
 
 export { readSessionServices } from '../src/modules/catalog/index.ts';
@@ -214,6 +216,10 @@ interface HarnessOptions {
     database: TenantWrappers,
     redis: Redis,
   ) => StaffOtpApi;
+  /** كاونترات اختبار بتركب جنب الكاونترات الحقيقية، عشان مسار محمي يتجرب. */
+  controllers?: readonly Type<unknown>[];
+  /** مصدر الجلسة الشخصية؛ من غيره المسار الشخصي مرفوض زي أي طلب بلا جلسة. */
+  personalOrigin?: string;
 }
 
 export async function startHarness(options: HarnessOptions = {}): Promise<Harness> {
@@ -265,11 +271,13 @@ async function prepareHarness(
         database: wrappers,
         ...optionalWiring(options),
         ...staffWiring(options, staffOtp, auth),
+        ...personalWiring(options, auth, database),
         ids,
         ...(options.omitRedis === true ? {} : { redis }),
       },
       {
         logger: harnessLogger(options),
+        ...(options.controllers === undefined ? {} : { controllers: options.controllers }),
       },
     ),
     (value) => value.close(),
@@ -334,6 +342,20 @@ function staffWiring(options: HarnessOptions, api: StaffOtpApi | undefined, auth
           sessions: auth.staff ?? null,
           origin: options.staffOrigin,
           nativeOrigins: options.staffNativeOrigins ?? [],
+        },
+      };
+}
+
+// الجلسة الشخصية لها مصدر وجلسة وأهلية؛ من غير ما تتركب المسار الشخصي مرفوض.
+function personalWiring(options: HarnessOptions, auth: AuthService, database: Database) {
+  return options.personalOrigin === undefined
+    ? {}
+    : {
+        personal: {
+          origin: options.personalOrigin,
+          sessions: auth.personal ?? null,
+          eligibility: createPersonalEligibility(database),
+          otp: null,
         },
       };
 }

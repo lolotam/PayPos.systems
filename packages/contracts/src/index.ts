@@ -226,6 +226,17 @@ export {
   type SignOutResult,
 } from './identity/staff-otp.js';
 export {
+  PRIVATE_VIEW_WINDOW_HEADER,
+  PRIVATE_VIEW_IDLE_REMAINING_HEADER,
+  PRIVATE_VIEW_CAP_REMAINING_HEADER,
+  privateViewOpenInput,
+  privateViewWindow,
+  privateViewTouch,
+  type PrivateViewOpenInput,
+  type PrivateViewWindow,
+  type PrivateViewTouch,
+} from './identity/private-view.js';
+export {
   updateEmployeeInput,
   employeeDetailRecord,
   employeeListItem,

@@ -65,6 +65,11 @@ import {
   staffPinInput,
   staffPinResetInput,
 } from './identity/staff-otp.js';
+import {
+  privateViewOpenInput,
+  privateViewWindow,
+  privateViewTouch,
+} from './identity/private-view.js';
 import { errorEnvelope } from './errors/envelope.js';
 import { cashierPinVerified, verifyCashierPinInput } from './identity/cashier-pin.js';
 import { myMembership, myMembershipsResponse } from './identity/my-memberships.js';
@@ -185,6 +190,9 @@ export const openApiSchemas = [
   staffOtpAcknowledgement,
   staffSessionContext,
   signOutResult,
+  privateViewOpenInput,
+  privateViewWindow,
+  privateViewTouch,
   whatsappWebhookAcknowledgement,
   whatsappEnvelope,
   whatsappHandshake,

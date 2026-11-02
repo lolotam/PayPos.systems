@@ -12,6 +12,11 @@ import { APP_GUARD, NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { AuthService, StaffOtpApi, StaffSessions } from '@pospay/auth';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
+import {
+  PRIVATE_VIEW_CAP_REMAINING_HEADER,
+  PRIVATE_VIEW_IDLE_REMAINING_HEADER,
+  PRIVATE_VIEW_WINDOW_HEADER,
+} from '@pospay/contracts';
 import type { PushApiConfiguration } from '@pospay/notifications';
 import type { Redis } from 'ioredis';
 import { systemUuidV7 } from '@pospay/ids';
@@ -238,9 +243,14 @@ function enableCors(app: NestFastifyApplication, corsOrigins: readonly string[])
       'authorization',
       'x-recovery-key',
       COMPANY_HEADER,
+      PRIVATE_VIEW_WINDOW_HEADER,
     ],
     // The admin app reads the id back to quote it in a support request.
-    exposedHeaders: ['x-request-id'],
+    exposedHeaders: [
+      'x-request-id',
+      PRIVATE_VIEW_IDLE_REMAINING_HEADER,
+      PRIVATE_VIEW_CAP_REMAINING_HEADER,
+    ],
     maxAge: 600,
   });
 }

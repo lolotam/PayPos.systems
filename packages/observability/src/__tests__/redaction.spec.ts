@@ -99,6 +99,18 @@ describe('secrets are removed at any depth (CLAUDE.md §8)', () => {
   });
 });
 
+describe('the private-view window id (spec 060 D-A13)', () => {
+  it('redacts the private-view window id at any depth and casing', () => {
+    const probe = 'synthetic-private-window-id';
+    const line = logLine({
+      headers: { 'x-private-view-window-id': probe },
+      body: { window_id: probe, nested: [{ windowId: probe }] },
+    });
+    expect(line).not.toContain(probe);
+    expect(line).toContain('[REDACTED]');
+  });
+});
+
 describe('errors are logged as type, code and frames — never the message or causes', () => {
   it('a secret in an error message, its cause, or an extra property never reaches the output', () => {
     const cause = new Error('upstream said token=tok_live_abcdef');
