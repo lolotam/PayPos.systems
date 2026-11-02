@@ -94,6 +94,7 @@ interface EntitlementOptions {
   packageTypeId?: string | null;
   paidMethod?: string | null;
   sellerEmployeeId?: string | null;
+  sellerLinkedUserId?: string | null;
   soldBusinessDate?: string | null;
   systemId?: string;
   txid?: string;
@@ -104,7 +105,7 @@ const entitlementInsert = (o: EntitlementOptions) => {
   return sql`
     INSERT INTO package_entitlements
       (company_id,id,business_id,customer_id,package_type_id,provenance,name_en,validity_days,list_price,
-       price_paid,discount,discount_bps,paid_method,seller_employee_id,sold_branch_id,sold_at,
+       price_paid,discount,discount_bps,paid_method,seller_employee_id,seller_linked_user_id,sold_branch_id,sold_at,
        sold_business_date,sold_timezone,recorded_by,recorded_by_membership_id,external_ref,import_batch_id,
        import_row,expires_on,refunded_amount,revision,created_system_id,created_txid)
     VALUES (${A.company},${o.id},${A.business},${ORDER_IDS.customer},
@@ -115,7 +116,7 @@ const entitlementInsert = (o: EntitlementOptions) => {
       ${o.discount === undefined ? (sold ? '0.000' : null) : o.discount},0,
       ${o.paidMethod === undefined ? (sold ? 'CASH' : null) : o.paidMethod},
       ${o.sellerEmployeeId === undefined ? (sold ? ORDER_IDS.employee : null) : o.sellerEmployeeId},
-      ${sold ? A.branch : null},${sold ? sql`now()` : null},
+      ${o.sellerLinkedUserId ?? null},${sold ? A.branch : null},${sold ? sql`now()` : null},
       ${o.soldBusinessDate === undefined ? (sold ? sql`current_date` : null) : o.soldBusinessDate},
       ${sold ? 'Asia/Kuwait' : null},${USER},${ORDER_IDS.membership},
       ${o.externalRef === undefined ? (sold ? null : 'EXT-1') : o.externalRef},
@@ -354,6 +355,11 @@ it('an import names a packages preview of its own business', async () => {
 it('the row shape follows its provenance', async () => {
   await rejected(
     attempt(entitlementInsert({ id: nextId(), provenance: 'IMPORTED', importBatchId: null })),
+    '23514',
+    'package_entitlements_imported_shape_check',
+  );
+  await rejected(
+    attempt(entitlementInsert({ id: nextId(), provenance: 'IMPORTED', sellerLinkedUserId: USER })),
     '23514',
     'package_entitlements_imported_shape_check',
   );

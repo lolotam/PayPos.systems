@@ -59,7 +59,8 @@ CREATE TABLE package_entitlements (
   -- الاستيراد مالوش نوع ولا بائع ولا طريقة دفع ولا تاريخ بيع؛ ومصدره الملف لا غير (FR-060…FR-065).
   CONSTRAINT package_entitlements_imported_shape_check CHECK (
     provenance <> 'IMPORTED' OR (
-      package_type_id IS NULL AND seller_employee_id IS NULL AND paid_method IS NULL AND sold_business_date IS NULL
+      package_type_id IS NULL AND seller_employee_id IS NULL
+      AND seller_linked_user_id IS NULL AND paid_method IS NULL AND sold_business_date IS NULL
       AND external_ref IS NOT NULL AND import_batch_id IS NOT NULL AND import_row IS NOT NULL
       AND import_row BETWEEN 1 AND 500
     )

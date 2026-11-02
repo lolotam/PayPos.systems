@@ -167,7 +167,8 @@ const entitlementChecks = (t: EntitlementSelf) => [
   check(
     'package_entitlements_imported_shape_check',
     sql`${t.provenance} <> 'IMPORTED' OR (${t.packageTypeId} IS NULL AND ${t.sellerEmployeeId} IS NULL
-        AND ${t.paidMethod} IS NULL AND ${t.soldBusinessDate} IS NULL AND ${t.externalRef} IS NOT NULL
+        AND ${t.sellerLinkedUserId} IS NULL AND ${t.paidMethod} IS NULL AND ${t.soldBusinessDate} IS NULL
+        AND ${t.externalRef} IS NOT NULL
         AND ${t.importBatchId} IS NOT NULL AND ${t.importRow} IS NOT NULL AND ${t.importRow} BETWEEN 1 AND 500)`,
   ),
   check('package_entitlements_price_paid_check', sql`${t.pricePaid} BETWEEN 0 AND 99999999999.999`),

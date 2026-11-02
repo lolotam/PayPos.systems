@@ -1,6 +1,6 @@
 {
-  "id": "1131f3ec-cea2-42dc-8a29-562e146aa314",
-  "prevId": "b743b326-8bb6-4c50-9a0f-1d20402594d6",
+  "id": "6d05b5bb-6576-4c39-9c67-209a13e5a1fc",
+  "prevId": "50dfbb05-6c18-4b3c-919d-b3be7ef6505f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -21197,7 +21197,7 @@
         },
         "package_entitlements_imported_shape_check": {
           "name": "package_entitlements_imported_shape_check",
-          "value": "\"package_entitlements\".\"provenance\" <> 'IMPORTED' OR (\"package_entitlements\".\"package_type_id\" IS NULL AND \"package_entitlements\".\"seller_employee_id\" IS NULL\n        AND \"package_entitlements\".\"paid_method\" IS NULL AND \"package_entitlements\".\"sold_business_date\" IS NULL AND \"package_entitlements\".\"external_ref\" IS NOT NULL\n        AND \"package_entitlements\".\"import_batch_id\" IS NOT NULL AND \"package_entitlements\".\"import_row\" IS NOT NULL AND \"package_entitlements\".\"import_row\" BETWEEN 1 AND 500)"
+          "value": "\"package_entitlements\".\"provenance\" <> 'IMPORTED' OR (\"package_entitlements\".\"package_type_id\" IS NULL AND \"package_entitlements\".\"seller_employee_id\" IS NULL\n        AND \"package_entitlements\".\"seller_linked_user_id\" IS NULL AND \"package_entitlements\".\"paid_method\" IS NULL AND \"package_entitlements\".\"sold_business_date\" IS NULL\n        AND \"package_entitlements\".\"external_ref\" IS NOT NULL\n        AND \"package_entitlements\".\"import_batch_id\" IS NOT NULL AND \"package_entitlements\".\"import_row\" IS NOT NULL AND \"package_entitlements\".\"import_row\" BETWEEN 1 AND 500)"
         },
         "package_entitlements_price_paid_check": {
           "name": "package_entitlements_price_paid_check",
