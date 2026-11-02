@@ -111,7 +111,7 @@
 
 ## 7. Handoff: when the work moves from one implementer to another
 
-- The **initial implementer keeps its own failed attempt** until the required checks and the review are complete and ownership is handed back. A tool that resumes the original worker cannot move failed work to another model to get past a failure, and a failing delivery is never marked complete to force a handoff.
+- The **initial implementer keeps its own failed attempt** until the required checks and the review are complete and ownership is handed back. A tool that resumes the original worker cannot move failed work to another model to get past a failure, and a failing delivery is never marked complete to force a handoff. This governs a failure of the work itself. **An availability switch is the one exception (PP-112):** when the implementer's lane fails twice on availability (§0), the next lane of its chain takes the task over, briefed on what is done and what is left, and the report and the PR description name the switch.
 - Only after a **clean initial handoff** does a **new, bounded Kimi `K3.1 Pro` task** take the subsequent review, PR and CI findings (down the correction chain of §0 — Kimi CLI lane, MiniMax, Claude Sonnet — when Kimi is unavailable, PP-112). The same worker is reused for its own correction rounds, dispatched through the built-in delegation of §0.
 - The correction already settled in the `feat/p1-057-3b-self-approval-notice` worktree is Kimi's own work and legitimately stays with Kimi.
 
@@ -171,7 +171,7 @@ The publish API, the topics and the credential handling are in `docs/decisions-s
 
 - **Stuck-session check every 30 minutes.** The manager (or its scheduled watcher) checks every open task session every 30 minutes. A session that is neither working nor waiting on a recorded event (a delegate, a background command, a review, an owner answer) is stuck: the manager nudges it, or moves its work under §0 and §1.1, and the next report names it.
 - **Wait on background work so it wakes the session.** A session that starts a background command or Monitor it depends on (tests, a build) calls `t3_background_wait` with that task's id before ending its turn, so the result wakes it. A running delegate is followed through its `next`, never polled with sleeps, loops or repeated status calls. Waiting without a wake-up is not allowed.
-- **Delivery size.** Every implementer brief states the expected size of the change. A delivery more than **twice** that size is refused: it is not reviewed or merged, it counts as a failed attempt of that lane, and the task is re-briefed or split.
+- **Delivery size.** Every implementer brief states the expected size of the change. A delivery more than **twice** that size is refused.
 
 ## Never
 
