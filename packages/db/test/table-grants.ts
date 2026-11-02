@@ -5,6 +5,7 @@ import { COMMISSION_PLAN_VERSION_TABLE_GRANTS } from './commission-plan-version-
 import { COMMISSION_SERVICE_OVERRIDE_TABLE_GRANTS } from './commission-service-override-grants.ts';
 import { SCHEDULE_TABLE_GRANTS } from './schedule-grants.ts';
 import { RATING_TABLE_GRANTS } from './rating-grants.ts';
+import { PACKAGE_TABLE_GRANTS } from './package-grants.ts';
 
 // منح الجداول المراجَع (plan v4 T5، closes #16): أي صلاحية جدول جديدة من هجرة لازم تُكتب هنا، وإلا فشل الاختبار.
 export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
@@ -101,6 +102,7 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'notification_attempts:SELECT',
     'notification_attempts:UPDATE',
     'outbox:INSERT',
+    ...PACKAGE_TABLE_GRANTS,
     'package_type_components:DELETE',
     'package_type_components:INSERT',
     'package_type_components:SELECT',
