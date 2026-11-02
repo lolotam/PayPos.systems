@@ -186,7 +186,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Check that implemented features match the original specification
    - Validate that tests pass and coverage meets requirements
    - Confirm the implementation follows the technical plan
-   - **Mandatory final gate — local gates, not the full `pnpm check`** (PP-113): from the repo root run the typecheck, lint, `pnpm lint:docs`, boundaries, `pnpm module-map:check` and the slice's own tests, scoped to the packages the slice changed. The full `pnpm check` and the API shards run only on CI and are decided by the `ci-gate` result on the exact head. `CLAUDE.md` §1: a slice is not done until these pass locally and `ci-gate` is green on the head. Never report completion, or call the work done, while a local gate has not run or has failed:
+   - **Mandatory final gate — local gates, not the full `pnpm check`** (PP-113): from the repo root run the typecheck, lint, `pnpm lint:docs`, boundaries, `pnpm module-map:check` and the slice's own tests, scoped to the packages the slice changed. The full `pnpm check` and the API shards run only on CI and are decided by the `ci-gate` result on the exact head. `CLAUDE.md` §1: once the local gates exit 0 the slice is reported as «implementation complete, pending `ci-gate`»; it is never called done until `ci-gate` is green on the exact head (PR step 10). Never report completion, or call the work done, while a local gate has not run or has failed:
      - If it fails, fix the cause within the slice's tasks and run it again. Do not skip, weaken or comment out a check to get a pass
      - If it cannot run (missing dependencies, services down), or it fails for a cause outside this slice's tasks (for example another module's failing tests), report the slice as NOT complete, name the blocker or the failing check, and stop. Do not edit code outside the slice to get a pass
      - Record the command, its exit status and the date for the Completion Report
@@ -234,7 +234,7 @@ Check if `.specify/extensions.yml` exists in the project root.
 
 ## Completion Report
 
-Report final status with summary of completed work, including the result (exit status) of the last local-gate run, which is the one made after the hooks when any hook ran, and the `ci-gate` result of the head once known. If that run did not exit 0, report the slice as not complete.
+Report final status with summary of completed work, including the result (exit status) of the last local-gate run, which is the one made after the hooks when any hook ran. If that run did not exit 0, report the slice as not complete. If it exited 0, report it as «implementation complete, pending `ci-gate`», never as done: the slice is done only when `ci-gate` is green on the exact head of its PR (PR step 10), which this command cannot know.
 
 ## Done When
 
@@ -242,5 +242,5 @@ Report final status with summary of completed work, including the result (exit s
 - [ ] No business-rule checklist item was open when implementation started (the gate was not overridden)
 - [ ] Implementation validated against specification, plan, and test coverage
 - [ ] Extension hooks dispatched or skipped according to the rules in Mandatory Post-Execution Hooks above
-- [ ] The local gates (PP-113: typecheck, lint, `pnpm lint:docs`, boundaries, `pnpm module-map:check`, the slice's own tests) ran from the repo root on the final worktree (again after the hooks if any hook ran) and exited 0; the full `pnpm check` is left to `ci-gate` on CI
+- [ ] The local gates (PP-113: typecheck, lint, `pnpm lint:docs`, boundaries, `pnpm module-map:check`, the slice's own tests) ran from the repo root on the final worktree (again after the hooks if any hook ran) and exited 0; the full `pnpm check` is left to `ci-gate` on CI, so the report says «implementation complete, pending `ci-gate`», never «done»
 - [ ] Completion reported to user with summary of completed work

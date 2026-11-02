@@ -76,7 +76,7 @@ curl -s "$B/health"
 ## A. Publish a new question batch (feature and business questions only)
 
 Technical questions (the implementer model, tools and the pipeline, infrastructure, CI, server and storage settings,
-code design) never go on this site: send them to Waleed as cards and record his answer in the slice's
+code design) never go on this site: send them to the super admin thread (SA-16), which relays them to Waleed on Slack `#sa-decisions`, and record his answer in the slice's
 `owner-questions.ar.md` or in `docs/owner-decisions.ar.md` (`CLAUDE.md` §1 5b, V3.17). When in doubt, ask Waleed
 which kind a question is.
 
@@ -95,7 +95,7 @@ which kind a question is.
 7. Commit as `chore(questions): batch <n> — <topic>` and push to `main`.
 8. Confirm the deploy: `curl -s -u "$PLAN_AUTH" $B/decisions.en.json` must contain the new ids.
 
-Every question also goes to Waleed's super agent as `PP-n` (`CLAUDE.md` §1 5b). When his card answer comes back, record it on the site as his own pick, not as a final decision:
+Every question also goes to the super admin thread as `PP-n` (SA-16, `CLAUDE.md` §1 5b), which relays it to Waleed on Slack `#sa-decisions`. When his answer comes back, record it on the site as his own pick, not as a final decision:
 
 ```bash
 # Waleed's pick from a card: a note under his user id, marked source "card" (choice = 0-based option index).
@@ -188,4 +188,4 @@ A `200` means it was sent. To check what went out, read the same topic you publi
 - Never edit `seed/db.seed.json` to change live answers. It only seeds the first run.
 - Never delete the `plan-data` volume or the Dokploy app.
 - Never put the password in git, in a doc or in a message.
-- Never publish an owner question anywhere except this site (plus the card to Waleed through his super agent).
+- Never publish an owner question anywhere except this site (plus the question to the super admin thread, SA-16).
