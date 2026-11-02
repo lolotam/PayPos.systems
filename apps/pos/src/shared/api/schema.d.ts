@@ -2541,6 +2541,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/staff/me/private-view": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Opens the private-view window for the signed-in operator after a fresh PIN. The PIN proves the operator only; it is never stored, logged or returned. The window is bound to the session, the operator and the device, and the same attempt counter as the PIN sign-in counts it. */
+        post: operations["openPrivateView"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/me/private-view/touch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Keeps the private-view window alive and answers the two remaining times. The window id travels in the header; a missing, malformed or expired window answers 403 PRIVATE_VIEW_EXPIRED and never a 400. */
+        post: operations["touchPrivateView"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/me/private-view/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Closes the private-view window. The answer is 204 whether the window was there or not, so it never tells the caller whether a window id was live. */
+        post: operations["closePrivateView"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/webhooks/whatsapp": {
         parameters: {
             query?: never;
@@ -6645,6 +6696,20 @@ export interface components {
         SignOutResult: {
             /** @enum {string} */
             status: "SIGNED_OUT" | "NO_SESSION";
+        };
+        PrivateViewOpenInput: {
+            pin: string;
+        };
+        PrivateViewWindow: {
+            window_id: string;
+            window_seq: string;
+            session_ref: string;
+            idle_remaining_ms: number;
+            cap_remaining_ms: number;
+        };
+        PrivateViewTouch: {
+            idle_remaining_ms: number;
+            cap_remaining_ms: number;
         };
         WhatsappWebhookAcknowledgement: {
             /** @enum {boolean} */
@@ -17060,6 +17125,189 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SignOutResult"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    openPrivateView: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrivateViewOpenInput"];
+            };
+        };
+        responses: {
+            /** @description The opened window */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivateViewWindow"];
+                };
+            };
+            /** @description The API error envelope */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description PIN_INVALID (wrong PIN, or locked out) or UNAUTHENTICATED (the session ended during the opening) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API error envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description NOT_READY */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    touchPrivateView: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-private-view-window-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The remaining times */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PrivateViewTouch"];
+                };
+            };
+            /** @description The API error envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description PRIVATE_VIEW_EXPIRED or FORBIDDEN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description NOT_READY */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    closePrivateView: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-private-view-window-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The window is closed; nothing else is said about it */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The API error envelope */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description FORBIDDEN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description NOT_READY */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description The API error envelope */
