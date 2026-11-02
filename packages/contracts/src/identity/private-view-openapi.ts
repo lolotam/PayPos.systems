@@ -1,4 +1,8 @@
-import { PRIVATE_VIEW_WINDOW_HEADER } from './private-view.js';
+import {
+  PRIVATE_VIEW_CAP_REMAINING_HEADER,
+  PRIVATE_VIEW_IDLE_REMAINING_HEADER,
+  PRIVATE_VIEW_WINDOW_HEADER,
+} from './private-view.js';
 
 const json = (schema: string) => ({
   'application/json': { schema: { $ref: `#/components/schemas/${schema}` } },
@@ -11,6 +15,17 @@ const windowHeader = {
   name: PRIVATE_VIEW_WINDOW_HEADER,
   required: true,
   schema: { type: 'string', maxLength: 64 },
+};
+
+const remainingMs = (description: string) => ({
+  description,
+  schema: { type: 'string', pattern: '^[0-9]+$' },
+});
+
+// الحارس بيرجّع الوقتين في الـ headers على كل مسار محمي بالنافذة، فبنعلنهم هنا عشان العميل يقراهم من الأنواع المولَّدة.
+const remainingHeaders = {
+  [PRIVATE_VIEW_IDLE_REMAINING_HEADER]: remainingMs('Milliseconds left before the idle timeout'),
+  [PRIVATE_VIEW_CAP_REMAINING_HEADER]: remainingMs('Milliseconds left before the absolute cap'),
 };
 
 // مسارات نافذة العرض الخاص (spec 060 D-A13): الفتح بPIN، واللمس يطوّل الخمول، والقفل بينهي النافذة.
@@ -44,7 +59,11 @@ export const privateViewPaths = {
         'Keeps the private-view window alive and answers the two remaining times. The window id travels in the header; a missing, malformed or expired window answers 403 PRIVATE_VIEW_EXPIRED and never a 400.',
       parameters: [windowHeader],
       responses: {
-        '200': { description: 'The remaining times', content: json('PrivateViewTouch') },
+        '200': {
+          description: 'The remaining times',
+          headers: remainingHeaders,
+          content: json('PrivateViewTouch'),
+        },
         '401': envelope,
         '403': { description: 'PRIVATE_VIEW_EXPIRED or FORBIDDEN', content: json('ErrorEnvelope') },
         '503': { description: 'NOT_READY', content: json('ErrorEnvelope') },

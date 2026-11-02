@@ -16156,6 +16156,22 @@
         "responses": {
           "200": {
             "description": "The remaining times",
+            "headers": {
+              "x-private-view-idle-remaining-ms": {
+                "description": "Milliseconds left before the idle timeout",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                }
+              },
+              "x-private-view-cap-remaining-ms": {
+                "description": "Milliseconds left before the absolute cap",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                }
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {

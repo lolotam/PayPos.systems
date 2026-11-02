@@ -17221,6 +17221,10 @@ export interface operations {
             /** @description The remaining times */
             200: {
                 headers: {
+                    /** @description Milliseconds left before the idle timeout */
+                    "x-private-view-idle-remaining-ms"?: string;
+                    /** @description Milliseconds left before the absolute cap */
+                    "x-private-view-cap-remaining-ms"?: string;
                     [name: string]: unknown;
                 };
                 content: {
