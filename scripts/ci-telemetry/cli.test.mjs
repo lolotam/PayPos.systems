@@ -120,7 +120,10 @@ test('a report without a complete run never looks clean', (t) => {
     assert.equal(result.status, 0);
     const report = JSON.parse(readFileSync(join(out, `${label}.json`), 'utf8'));
     assert.equal(report.runs.length === 0 && report.incomplete.length === 0, false);
-    assert.equal(report.runs.some((run) => run.complete === true), false);
+    assert.equal(
+      report.runs.some((run) => run.complete === true),
+      false,
+    );
     const hasIncompleteEvidence =
       report.runs.some((run) => run.complete === false) || report.incomplete.length > 0;
     assert.equal(hasIncompleteEvidence, true);
