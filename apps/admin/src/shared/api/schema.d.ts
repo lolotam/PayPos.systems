@@ -17169,7 +17169,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description PIN_INVALID */
+            /** @description PIN_INVALID (wrong PIN, or locked out) or UNAUTHENTICATED (the session ended during the opening) */
             401: {
                 headers: {
                     [name: string]: unknown;

@@ -14,7 +14,7 @@ export interface OpenPrivateViewOpened {
   readonly capRemainingMs: number;
 }
 
-/** الفتح مرفوض: PIN غلط، أو القفل، أو جلسة مش سارية. */
+/** الفتح مرفوض: PIN غلط، أو القفل؛ الموظف يعيد إدخال الـ PIN. */
 export interface OpenPrivateViewRefused {
   readonly kind: 'refused';
 }

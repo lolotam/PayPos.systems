@@ -25,7 +25,11 @@ export const privateViewPaths = {
       responses: {
         '200': { description: 'The opened window', content: json('PrivateViewWindow') },
         '400': envelope,
-        '401': { description: 'PIN_INVALID', content: json('ErrorEnvelope') },
+        '401': {
+          description:
+            'PIN_INVALID (wrong PIN, or locked out) or UNAUTHENTICATED (the session ended during the opening)',
+          content: json('ErrorEnvelope'),
+        },
         '403': envelope,
         '503': { description: 'NOT_READY', content: json('ErrorEnvelope') },
         default: envelope,

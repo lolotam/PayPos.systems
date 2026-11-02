@@ -16090,7 +16090,7 @@
             }
           },
           "401": {
-            "description": "PIN_INVALID",
+            "description": "PIN_INVALID (wrong PIN, or locked out) or UNAUTHENTICATED (the session ended during the opening)",
             "content": {
               "application/json": {
                 "schema": {
