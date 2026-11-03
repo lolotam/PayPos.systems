@@ -1,8 +1,8 @@
 import { MONEY_MAX, type Money } from '@pospay/domain';
 import { describe, expect, it } from 'vitest';
 
-import { PackageRuleError } from '../errors.ts';
-import { PackageSalePricingError, computePackageSalePricing } from '../package-sale-pricing.ts';
+import { PackageRuleError, PackageSalePricingError } from '../errors.ts';
+import { computePackageSalePricing } from '../package-sale-pricing.ts';
 
 /** يمسك سبب الرفض بدل ما الاختبار يعدّي على إن الكود رمي. */
 function captureRefusal(run: () => unknown): unknown {
