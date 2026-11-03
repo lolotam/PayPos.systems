@@ -11,7 +11,7 @@ import {
   type SessionFixture,
 } from '../../../../test/service-session.fixture.ts';
 import { takeTestEmployeeNumbers } from '../../../../test/test-employee-number.ts';
-import { planNodes, type PlanNode } from './employee-name-search-plan.check.ts';
+import { planNodes, rowsRead, type PlanNode } from './employee-name-search-plan.check.ts';
 
 // خطة قائمة موظفي الخطط: نفس فهرس الموظفين اللي بتستخدمه قوائم الموظفين. نشاط الهدف فيه 2000
 // موظف، منهم 300 باسم واحد، والفلو في نشاطين تانيين. الحالة دي اللي بتختبر الـ keyset بالقيمة:
@@ -89,14 +89,6 @@ function indexCondition(node: PlanNode): string {
   const own = node['Index Cond'];
   const children = (node.Plans ?? []).map(indexCondition).join(' ');
   return `${typeof own === 'string' ? own : ''} ${children}`;
-}
-
-function rowsRead(node: PlanNode): number {
-  const read =
-    (node['Actual Rows'] ?? 0) +
-    (node['Rows Removed by Filter'] ?? 0) +
-    (node['Rows Removed by Index Recheck'] ?? 0);
-  return read * (node['Actual Loops'] ?? 1);
 }
 
 async function planOf(after: After): Promise<PlanNode[]> {

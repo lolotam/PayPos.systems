@@ -37,6 +37,7 @@ function send(pad: number): Promise<RawResponse> {
       text += chunk.toString('utf8');
       if (/\r\n\r\n[\s\S]*\}/.test(text)) socket.end();
     });
+    socket.on('error', () => undefined); // a reset after a 431 still ends in 'close'
     socket.on('close', () =>
       resolve({ head: Buffer.byteLength(request), status: text.slice(9, 12), text }),
     );

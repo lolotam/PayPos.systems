@@ -311,14 +311,16 @@ function forgedCursor(employeeId: string, key: string | null): string {
 }
 
 it.each([
-  ['the id-only form', null, 400],
-  ['the sort-key form', employeeNameMatchKey('Deleted employee'), 200],
+  ['the id-only form', null, 400, 0],
+  ['the sort-key form', employeeNameMatchKey('Deleted employee'), 200, 2],
 ])(
   'FR-010a a forged cursor in %s does not tell a deleted employee from a missing one',
-  async (_form, key, status) => {
+  async (_form, key, status, items) => {
     const deleted = await list(`?limit=2&cursor=${forgedCursor(fx.deletedEmployee, key)}`);
     const missing = await list(`?limit=2&cursor=${forgedCursor(ids.newId(), key)}`);
     expect(deleted.status).toBe(status);
+    // الصفحة اللي بعد المفتاح فيها موظفات فعلاً، فالتطابق مش جاي من صفحتين فاضيين.
+    expect((deleted.body['items'] as unknown[] | undefined) ?? []).toHaveLength(items);
     expect([deleted.status, deleted.body]).toEqual([missing.status, missing.body]);
   },
 );

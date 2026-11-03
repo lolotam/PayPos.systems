@@ -246,7 +246,10 @@ module-map row first.
   business timezone (`null` → `FORBIDDEN`), then the cursor (invalid → `VALIDATION_FAILED`), then the names. All four run
   sequentially on that one transaction, with no nested or concurrent transaction.
 - **§4.1 is unchanged.** Because the controller takes the runner, it imports no `TenantWrappers`, and the cursor validates
-  with `id` from `@pospay/contracts` instead of `zod`. The new files therefore- **The cursor carries the sort position by value (round 4, 2026-11-03).** It holds `{v, c, b, k, i}` as canonical
+  with `id` from `@pospay/contracts` instead of `zod`. The new files therefore need no entry in the §4.1 list. The query
+  file's type-only imports of `TenantWrappers` and `Tx` from `@pospay/db` are the `queries/` row of the import matrix,
+  not a scoped addition.
+- **The cursor carries the sort position by value (round 4, 2026-11-03).** It holds `{v, c, b, k, i}` as canonical
   base64url: the company, the business, the last row's `name_en_key` exactly as SQL returned it, and that row's id
   (ids lower-cased). The next page reads `(e.name_en_key, e.id) > (k, i)` and never looks the anchor row up.
   - **Why.** The cursor is unsigned. The first release anchored on the id alone and re-read the anchor's key with no
@@ -278,9 +281,6 @@ module-map row first.
     the cursor to close the disclosure above; the URL now carries the normalised name of the last row on the page.
   - **Trade-off kept.** Renaming an employee between two page requests can still skip or repeat that row in one walk;
     this stays tracked in [issue #796](https://github.com/lolotam/PayPos.systems/issues/796).
-
-(https://github.com/lolotam/PayPos.systems/issues/796). A soft-deleted anchor does not end
-  the list, and a missing anchor yields an empty page without revealing whether the id exists.
 
 The addendum adds one Port row to `docs/module-map.md` §3. It adds no import arrow, no `reads:` line, no write port,
 no grant and no migration.
