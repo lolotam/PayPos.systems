@@ -273,7 +273,7 @@ module-map row first.
     adapter's `http.maxHeaderSize`. Past it Fastify writes a raw `431` on the socket before Nest runs, so that response
     is not our error envelope and carries no CORS headers. The staging proxy (Traefik v3.6.7) has no smaller header
     limit; production proxy limits were not verified.
-  - **Decision record.** SA approved, 2026-11-03 21:24 (replacing 21:14), through the manager thread, verbatim: "set the
+  - **Decision record.** SA approved, recorded as 21:24 (replacing 21:14), through the manager thread, verbatim: "set the
     API's maxHeaderSize explicitly to 32 KiB, cap the cursor at 12288 and check it before decoding, and add a real HTTP
     test of the limit. No Traefik change, no secret. The original size cap stays in the record. Round 4/5 may continue."
   - **History (the original cap).** The first release capped the cursor at 512 characters and kept `name_en_key` out of

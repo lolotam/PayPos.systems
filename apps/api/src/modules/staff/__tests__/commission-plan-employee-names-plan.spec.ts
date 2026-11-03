@@ -117,6 +117,7 @@ function expectTenantBounded(nodes: PlanNode[], label: string): void {
     rows: scan['Actual Rows'],
     loops: scan['Actual Loops'],
     removedByFilter: scan['Rows Removed by Filter'] ?? 0,
+    indexCond: indexCondition(scan),
   }));
   const sorts = nodes.map((node) => node['Node Type']).filter((type) => /Sort/.test(type ?? ''));
   console.info('commission_plan_employee_plan', { label, businessRows, read, metrics, sorts });

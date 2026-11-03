@@ -138,7 +138,7 @@ const REQUEST_ID = /^[A-Za-z0-9._-]{8,128}$/;
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 // Node's default 16 KiB covers the request line and every header together. The plan-employee cursor can
 // occupy 12288 URL characters and browser cookies share that budget, so set it explicitly
-// (SA decision 2026-11-03 21:24); past the limit Fastify answers a raw 431 before Nest runs.
+// (SA decision recorded as 21:24); past the limit Fastify answers a raw 431 before Nest runs.
 export const API_MAX_HEADER_BYTES = 32_768;
 
 // A lifecycle provider, so cleanup runs through Nest's own shutdown path — the one SIGTERM triggers —
