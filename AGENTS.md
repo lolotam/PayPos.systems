@@ -16,7 +16,7 @@ The names say "CLAUDE", but the rules apply to every agent equally.
 
 **Owner questions.** An owner question is never guessed (`CLAUDE.md` §1 step 5b, §11). Every question and its answer
 are recorded verbatim in the slice's `owner-questions.ar.md`, which is the audit record. Every owner question goes to
-Waleed as a card. Feature and business questions also go on the decisions page https://plan.pospay.systems as a new
+the super admin thread (SA-16), which posts it to Waleed on Slack `#sa-decisions` and relays his answer word for word; no session or manager contacts Waleed directly. Feature and business questions also go on the decisions page https://plan.pospay.systems as a new
 numbered batch (`docs/decisions-site.md`); when Waleed and Abu Salem differ there, Abu Salem's pick wins. Technical
 questions go to Waleed only and never on the page (`CLAUDE.md` §1 5b, V3.17). Only the Claude Code orchestrator routes a
 question. Codex, Grok and other agents write the question into the slice's `owner-questions.ar.md` (or `docs/owner-decisions.ar.md`

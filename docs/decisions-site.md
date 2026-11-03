@@ -76,7 +76,7 @@ curl -s "$B/health"
 ## A. Publish a new question batch (feature and business questions only)
 
 Technical questions (the implementer model, tools and the pipeline, infrastructure, CI, server and storage settings,
-code design) never go on this site: send them to Waleed as cards and record his answer in the slice's
+code design) never go on this site: send them to the super admin thread (SA-16), which relays them to Waleed on Slack `#sa-decisions`, and record his answer in the slice's
 `owner-questions.ar.md` or in `docs/owner-decisions.ar.md` (`CLAUDE.md` §1 5b, V3.17). When in doubt, ask Waleed
 which kind a question is.
 
@@ -95,7 +95,7 @@ which kind a question is.
 7. Commit as `chore(questions): batch <n> — <topic>` and push to `main`.
 8. Confirm the deploy: `curl -s -u "$PLAN_AUTH" $B/decisions.en.json` must contain the new ids.
 
-Every question also goes to Waleed's super agent as `PP-n` (`CLAUDE.md` §1 5b). When his card answer comes back, record it on the site as his own pick, not as a final decision:
+Every question also goes to the super admin thread as `PP-n` (SA-16, `CLAUDE.md` §1 5b), which relays it to Waleed on Slack `#sa-decisions`. When his answer comes back, record it on the site as his own pick, not as a final decision:
 
 ```bash
 # Waleed's pick from a card: a note under his user id, marked source "card" (choice = 0-based option index).
@@ -149,7 +149,7 @@ Waleed and Abu Salem get phone notifications from https://ntfy.pospay.systems (t
 |---|---|---|
 | `pospay-features` | Waleed and Abu Salem | Something new or changed that users can see, in 2–3 plain Arabic lines (PP-13.2) |
 | `pospay-questions` | Waleed and Abu Salem | Every question waiting for them, money question batches included (PP-13) |
-| `pospay-waleed` | Waleed | Every review or suggestion Abu Salem saves (the site sends it on its own); anything waiting on Waleed |
+| `pospay-waleed` | Waleed | Every review or suggestion Abu Salem saves (the site sends it on its own); nothing from managers or sessions any more (SA-16) |
 | `pospay-team` | Waleed and Abu Salem | Nothing today; kept so existing subscriptions do not break |
 
 Abu Salem is not technical. Never send a bare «تم الـ merge»: a merge is announced only as what it changed for the
@@ -165,11 +165,9 @@ never in git, a doc or a message.
 - after step 8 of §A: one notification to `pospay-questions` naming the batch;
 - after a merge that adds or changes something users see (§B): one to `pospay-features`, saying in plain words what
   they can now do;
-- whenever work stops on an owner decision, and whenever a report carries something waiting on Waleed («المطلوب
-  منك»): one to `pospay-waleed`, once per request (PP-112, `docs/agent-delivery-pipeline.md` §12).
+- nothing to `pospay-waleed` from managers or sessions: whatever waits on Waleed goes to the super admin thread, which relays it on Slack `#sa-decisions` (SA-16, `docs/agent-delivery-pipeline.md` §12).
 
-A question or feature notification names the batch or the row and links to the page. A `pospay-waleed` request
-notice (PP-112) names the request only, with no page link, because a technical request never goes on the page. It never quotes an answer or the text of a review.
+A question or feature notification names the batch or the row and links to the page. It never quotes an answer or the text of a review.
 
 **How.** Publish with JSON, so the Arabic arrives intact. A plain `-d` body from a Windows shell mangles it.
 
@@ -190,4 +188,4 @@ A `200` means it was sent. To check what went out, read the same topic you publi
 - Never edit `seed/db.seed.json` to change live answers. It only seeds the first run.
 - Never delete the `plan-data` volume or the Dokploy app.
 - Never put the password in git, in a doc or in a message.
-- Never publish an owner question anywhere except this site (plus the card to Waleed through his super agent).
+- Never publish an owner question anywhere except this site (plus the question to the super admin thread, SA-16).
