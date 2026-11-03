@@ -51,3 +51,20 @@ export class CommissionPeriodClosedError extends Error {
     this.periods = [...periods];
   }
 }
+
+/** مدخل بقشاش أو راتب غير صالح؛ المبلغ المشوّه يوقف الحدث عند منتجه (FR-017) ولا يصير صفراً. */
+export class CommissionTipSalaryInputInvalidError extends Error {
+  readonly code = 'COMMISSION_TIP_SALARY_INPUT_INVALID';
+  readonly reason: string;
+
+  /**
+   * يحتفظ بسبب الرفض حتى يصلح المنتج الحدث بدل ضياعه.
+   *
+   * @param reason سبب الرفض الثابت
+   */
+  constructor(reason: string) {
+    super(`Invalid commission tip or salary input: ${reason}`);
+    this.name = 'CommissionTipSalaryInputInvalidError';
+    this.reason = reason;
+  }
+}

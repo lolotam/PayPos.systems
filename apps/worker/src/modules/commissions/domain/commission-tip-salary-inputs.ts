@@ -1,5 +1,7 @@
 import { parseMoney, type Money } from '@pospay/domain';
 
+import { CommissionTipSalaryInputInvalidError } from './errors.ts';
+
 /** طريقة دفع البقشيش: الكارت داخل صافي الكشف والكاش للعلم فقط. */
 export type CommissionTipMethod = 'CASH' | 'CARD';
 
@@ -29,6 +31,7 @@ export interface CommissionTipProjectionRow {
 
 /** إسقاط بقشيش جلسة: المراجعة المحفوظة لها وتاريخها وصفوف البقشيش. */
 export interface CommissionTipProjectionSession {
+  readonly businessId: string;
   readonly sessionId: string;
   readonly branchId: string;
   readonly businessDate: string;
@@ -53,6 +56,7 @@ export interface CommissionSalaryInputEvent {
 
 /** صف راتب واحد في إسقاط العمولة. */
 export interface CommissionSalaryProjectionRow {
+  readonly businessId: string;
   readonly employeeId: string;
   readonly effectiveFrom: string;
   readonly amount: Money;
@@ -65,29 +69,12 @@ export interface CommissionSalaryProjectionOutcome {
   readonly row: CommissionSalaryProjectionRow | null;
 }
 
-/** مدخل بقشاش أو راتب غير صالح؛ المبلغ المشوّه يوقف الحدث عند منتجه (FR-017) ولا يصير صفراً. */
-export class CommissionTipSalaryInputInvalidError extends Error {
-  readonly code = 'COMMISSION_TIP_SALARY_INPUT_INVALID';
-  readonly reason: string;
-
-  /**
-   * يحتفظ بسبب الرفض حتى يصلح المنتج الحدث بدل ضياعه.
-   *
-   * @param reason سبب الرفض الثابت
-   */
-  constructor(reason: string) {
-    super(`Invalid commission tip or salary input: ${reason}`);
-    this.name = 'CommissionTipSalaryInputInvalidError';
-    this.reason = reason;
-  }
-}
-
 /**
  * يطبّق حدث بقشيش الجلسة على إسقاط البقشيش (CM-18).
  * المراجعة الأحدث تستبدل كل صفوف البقشيش السابقة للجلسة، والمراجعة المساوية أو الأقدم
  * ما بتعملش حاجة، والمجموعة الفارغة في مراجعة أحدث بتمسح البقشيش وبتسيب الرأس بالمراجعة الجديدة.
  *
- * @param sessions إسقاطات الجلسات المحفوظة الآن
+ * @param sessions إسقاطات الجلسات المحفوظة؛ هوية النشاط جزء من مفتاح كل جلسة
  * @param event حدث البقشيش بمراجعته ومجموعته الكاملة
  * @returns هل طُبِّق الحدث، وإسقاط الجلسة بعده
  */
@@ -95,7 +82,8 @@ export function reduceCommissionTips(
   sessions: readonly CommissionTipProjectionSession[],
   event: CommissionTipInputEvent,
 ): CommissionTipProjectionOutcome {
-  const held = sessions.find((session) => session.sessionId === event.sessionId);
+  const key = rowKey([event.businessId, event.sessionId]);
+  const held = sessions.find((session) => rowKey([session.businessId, session.sessionId]) === key);
   if (event.revision <= (held?.revision ?? 0)) {
     return { applied: false, session: null };
   }
@@ -113,6 +101,7 @@ export function reduceCommissionTips(
     });
   }
   const session: CommissionTipProjectionSession = {
+    businessId: event.businessId,
     sessionId: event.sessionId,
     branchId: event.branchId,
     businessDate: event.businessDate,
@@ -127,7 +116,7 @@ export function reduceCommissionTips(
  * الراتب مستقل لكل موظفة ولكل تاريخ سريان: المراجعة الأحدث تستبدل الصف، والمساوية أو الأقدم
  * ما بتعملش حاجة، ووصول الأحداث بأي ترتيب بيوصل لنفس الصف.
  *
- * @param rows صفوف الرواتب المحفوظة الآن
+ * @param rows صفوف الرواتب المحفوظة؛ النشاط والموظفة وتاريخ السريان يحددون الصف
  * @param event حدث الراتب بمراجعته وتاريخ سريانه
  * @returns هل طُبِّق الحدث، وصف الراتب بعده
  */
@@ -135,12 +124,15 @@ export function reduceCommissionSalaries(
   rows: readonly CommissionSalaryProjectionRow[],
   event: CommissionSalaryInputEvent,
 ): CommissionSalaryProjectionOutcome {
-  const key = rowKey([event.employeeId, event.effectiveFrom]);
-  const held = rows.find((row) => rowKey([row.employeeId, row.effectiveFrom]) === key);
+  const key = rowKey([event.businessId, event.employeeId, event.effectiveFrom]);
+  const held = rows.find(
+    (row) => rowKey([row.businessId, row.employeeId, row.effectiveFrom]) === key,
+  );
   if (event.revision <= (held?.revision ?? 0)) {
     return { applied: false, row: null };
   }
   const row: CommissionSalaryProjectionRow = {
+    businessId: event.businessId,
     employeeId: event.employeeId,
     effectiveFrom: event.effectiveFrom,
     amount: parseInputAmount(event.amount, 'MALFORMED_SALARY_AMOUNT'),
@@ -152,14 +144,18 @@ export function reduceCommissionSalaries(
 /**
  * يحوّل مبلغ نصي بالدينار إلى فلوس، ويرفض المبلغ المشوّه بدل ما يتحوّل لصفر.
  * المبلغ المشوّه خطأ عند المنتج (FR-017)، فالحدث يتوقف حتى يُصلَح بدل ما يضيع.
+ * البقشيش والراتب غير سالبين، ورقم JSON لا يتحول ضمنياً إلى مال نصي.
  *
  * @param amount المبلغ النصي كما وصل من الحدث
  * @param reason سبب الرفض اللي الخطأ يحمله
  * @returns المبلغ بالفلوس
  */
 function parseInputAmount(amount: string, reason: string): Money {
+  if (typeof amount !== 'string') throw new CommissionTipSalaryInputInvalidError(reason);
   try {
-    return parseMoney(amount);
+    const money = parseMoney(amount);
+    if (money < 0n) throw new CommissionTipSalaryInputInvalidError(reason);
+    return money;
   } catch (error) {
     if (!(error instanceof TypeError || error instanceof RangeError)) throw error;
     throw new CommissionTipSalaryInputInvalidError(reason);

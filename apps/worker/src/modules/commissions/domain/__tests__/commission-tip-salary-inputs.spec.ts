@@ -1,7 +1,8 @@
 import { expect, it } from 'vitest';
 
+import { CommissionTipSalaryInputInvalidError } from '../errors.ts';
+
 import {
-  CommissionTipSalaryInputInvalidError,
   reduceCommissionSalaries,
   reduceCommissionTips,
   type CommissionSalaryInputEvent,
@@ -40,6 +41,7 @@ const tipRow = (
 const tipSession = (
   overrides: Partial<CommissionTipProjectionSession> = {},
 ): CommissionTipProjectionSession => ({
+  businessId: 'business-a',
   sessionId: 'session-a',
   branchId: 'branch-a',
   businessDate: '2026-10-01',
@@ -62,6 +64,7 @@ const salaryEvent = (
 const salaryRow = (
   overrides: Partial<CommissionSalaryProjectionRow> = {},
 ): CommissionSalaryProjectionRow => ({
+  businessId: 'business-a',
   employeeId: 'employee-a',
   effectiveFrom: '2026-10-01',
   amount: 250000n,
@@ -145,7 +148,9 @@ it('keeps the exact mills of every tip amount', () => {
 });
 
 it('refuses a malformed tip amount instead of reading it as zero', () => {
-  for (const amount of ['12.5x', '12.1234', '']) {
+  for (const amount of ['12.5x', '12.1234', '', '-1.000', 12.5, null]) {
+    // القيم المخالفة للنوع تحاكي JSON معطوباً من المنتج، لا مسار مال رقمي سليم.
+    // @ts-expect-error Runtime producer inputs can violate the string contract.
     const failure = refusal(() => reduceCommissionTips([], tipEvent({ tips: [tipEntry(amount)] })));
     expect(failure).toBeInstanceOf(CommissionTipSalaryInputInvalidError);
     expect(failure.reason).toBe('MALFORMED_TIP_AMOUNT');
@@ -165,6 +170,7 @@ it('never mutates the caller data', () => {
   const held = tipSession({ revision: 1, rows: [tipRow({ amount: 700n })] });
   reduceCommissionTips([held], event);
   expect(held).toEqual({
+    businessId: 'business-a',
     sessionId: 'session-a',
     branchId: 'branch-a',
     businessDate: '2026-10-01',
@@ -186,6 +192,7 @@ it('replaces the salary row of the same employee and date on a newer revision', 
   const outcome = reduceCommissionSalaries([held], salaryEvent({ revision: 3, amount: '300.500' }));
   expect(outcome.applied).toBe(true);
   expect(outcome.row).toEqual({
+    businessId: 'business-a',
     employeeId: 'employee-a',
     effectiveFrom: '2026-10-01',
     amount: 300500n,
@@ -244,9 +251,12 @@ it('keeps the exact mills of the salary amount', () => {
 });
 
 it('refuses a malformed salary amount instead of reading it as zero', () => {
-  const failure = refusal(() => reduceCommissionSalaries([], salaryEvent({ amount: 'abc' })));
-  expect(failure).toBeInstanceOf(CommissionTipSalaryInputInvalidError);
-  expect(failure.reason).toBe('MALFORMED_SALARY_AMOUNT');
+  for (const amount of ['abc', '-1.000', 12.5, null]) {
+    // @ts-expect-error Runtime producer inputs can violate the string contract.
+    const failure = refusal(() => reduceCommissionSalaries([], salaryEvent({ amount })));
+    expect(failure).toBeInstanceOf(CommissionTipSalaryInputInvalidError);
+    expect(failure.reason).toBe('MALFORMED_SALARY_AMOUNT');
+  }
 });
 
 it('never mutates the caller salary rows', () => {
@@ -254,10 +264,24 @@ it('never mutates the caller salary rows', () => {
   const event = salaryEvent({ revision: 2, amount: '300.500' });
   reduceCommissionSalaries([held], event);
   expect(held).toEqual({
+    businessId: 'business-a',
     employeeId: 'employee-a',
     effectiveFrom: '2026-10-01',
     amount: 250000n,
     revision: 1,
   });
   expect(event.amount).toBe('300.500');
+});
+
+it('never compares or replaces another business projection with the same local identity', () => {
+  const foreignTips = tipSession({ businessId: 'business-b', revision: 99 });
+  const foreignSalary = salaryRow({ businessId: 'business-b', revision: 99 });
+  const tips = reduceCommissionTips([foreignTips], tipEvent());
+  const salary = reduceCommissionSalaries([foreignSalary], salaryEvent());
+  expect(tips.applied).toBe(true);
+  expect(tips.session?.businessId).toBe('business-a');
+  expect(salary.applied).toBe(true);
+  expect(salary.row?.businessId).toBe('business-a');
+  expect(foreignTips).toEqual(tipSession({ businessId: 'business-b', revision: 99 }));
+  expect(foreignSalary).toEqual(salaryRow({ businessId: 'business-b', revision: 99 }));
 });
