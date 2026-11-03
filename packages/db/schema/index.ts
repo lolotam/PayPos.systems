@@ -45,5 +45,6 @@ export * from './commissions-statements.ts';
 export * from './commissions-statement-exports.ts';
 export * from './commissions-plan-versions.ts';
 export * from './commissions-service-overrides.ts';
+export * from './commissions-lines.ts';
 export * from './ratings.ts';
 export * from './ratings-attributions.ts';

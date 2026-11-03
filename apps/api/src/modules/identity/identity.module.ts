@@ -23,7 +23,7 @@ import {
   STAFF_POS_ORIGIN,
 } from './http/staff-otp.controller.ts';
 import { createStaffEligibility } from './persistence/staff-eligibility.ts';
-import type { StaffOtpApi, StaffSessions } from '@pospay/auth';
+import type { AuthService, PrivateViewFacade, StaffOtpApi, StaffSessions } from '@pospay/auth';
 import { redisOtpRates } from './persistence/redis-otp-rates.ts';
 import { createOtpSender } from './persistence/bullmq-otp-sender.ts';
 
@@ -71,6 +71,9 @@ import {
 import { createStaffPinTransactions } from './persistence/staff-pin-transactions.ts';
 import { SignInStaffPin } from './use-cases/sign-in-staff-pin/sign-in-staff-pin.ts';
 import { ResetStaffPin } from './use-cases/reset-staff-pin/reset-staff-pin.ts';
+import { PrivateViewController, PRIVATE_VIEW_WINDOWS } from './http/private-view.controller.ts';
+import { OpenPrivateView } from './use-cases/open-private-view/open-private-view.ts';
+import { AUTH_SERVICE } from '../../shared/session.guard.ts';
 
 /** The controllers identity mounts. */
 export const identityControllers = [
@@ -84,6 +87,7 @@ export const identityControllers = [
   StaffOtpController,
   PersonalOtpController,
   StaffPinController,
+  PrivateViewController,
 ];
 
 /** الربط العام يمر من composition root؛ تفاصيل القراءة والنقل تظل داخل الهوية. */
@@ -153,6 +157,7 @@ export function identityProviders(
           ? null
           : staffPinUseCases(database, ids, redis, staff?.sessions ?? null),
     },
+    ...privateViewProviders(database, ids, redis),
     { provide: WORKSPACE_NAMES, useValue: names },
     { provide: OnboardCompany, useValue: onboard },
     { provide: DEVICE_USE_CASES, useValue: devices?.useCases ?? null },
@@ -205,6 +210,35 @@ function permissionProviders(
               createPermissionOverrideTransactions(database, ids),
               createGrantInvalidator(redis),
             ),
+    },
+  ];
+}
+
+// ربط النافذة الخاصة منفصل عشان دالة تركيب الهوية ما تتضخمش؛ الأجزاء دي كلها بتستنى خدمة الاعتماد وقت التشغيل.
+function privateViewProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  redis: Redis | undefined,
+): Provider[] {
+  return [
+    {
+      provide: PRIVATE_VIEW_WINDOWS,
+      useFactory: (auth: AuthService | null): Pick<PrivateViewFacade, 'close'> | null =>
+        auth?.privateView ?? null,
+      inject: [AUTH_SERVICE],
+    },
+    {
+      provide: OpenPrivateView,
+      useFactory: (auth: AuthService | null): OpenPrivateView | null =>
+        database === undefined || redis === undefined || auth === null
+          ? null
+          : new OpenPrivateView(
+              createStaffPinTransactions(database, ids),
+              createRedisPinAttempts(redis, ids),
+              createStaffEligibility(database),
+              auth.privateView,
+            ),
+      inject: [AUTH_SERVICE],
     },
   ];
 }

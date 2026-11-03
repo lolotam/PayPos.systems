@@ -43,6 +43,7 @@ const UC_HELPER = `${M}/commissions/use-cases/__tests__/probe-fixture.ts`;
 const ADMIN_UC = 'src/modules/commissions/use-cases/probe.ts';
 const IDS_UC = 'src/modules/commissions/use-cases/probe.ts';
 const WORKER_UC = 'src/modules/commissions/use-cases/probe/probe.ts';
+const WORKER_DOMAIN = 'src/modules/commissions/domain/probe.ts';
 
 const API_PATH = '../../../../../../packages/commissions-engine/src/index.ts';
 const ADMIN_PATH = '../../../../packages/commissions-engine/src/validation.ts';
@@ -270,17 +271,37 @@ add(
   'the composition root may not import the engine root',
 );
 
-// apps/worker — the file-less facade override keeps the ban; the exception comes only with 50-1.
+// apps/worker — only the commissions use-cases get the engine exception, which came with 50-1
+// through allowCommissionsEngineBackend; every other worker path, the orders use cases included,
+// keeps the ban.
 for (const [file, expect, what] of [
   [
     `${M}/orders/use-cases/probe/probe.ts`,
     E,
     'another module use case may not import the engine root',
   ],
-  [WORKER_UC, E, 'a commissions use case may not import the engine root yet'],
+  [WORKER_UC, ALLOWED, 'a commissions use case may import the engine root (50-1)'],
 ]) {
   add('worker', file, staticImport(ROOT), expect, what);
 }
+
+// apps/worker — the engine exception never widens the use-cases/ infrastructure ban.
+add(
+  'worker',
+  WORKER_UC,
+  staticImport('@pospay/db'),
+  'CLAUDE.md §4.2',
+  'a worker commissions use case may not import @pospay/db',
+);
+
+// apps/worker — a commissions domain file stands in for the engine, so it may not import it.
+add(
+  'worker',
+  WORKER_DOMAIN,
+  staticImport(ROOT),
+  E,
+  'a worker commissions domain file may not import the engine root',
+);
 
 // apps/admin — the builder area may import the browser-safe /validation entry point and nothing else.
 add(

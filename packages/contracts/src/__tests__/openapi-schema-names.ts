@@ -365,4 +365,7 @@ export const expectedOpenApiSchemaNames = [
   'PackageTypeListQuery',
   'PackageServiceOption',
   'PackageServiceOptionPage',
+  'PrivateViewOpenInput',
+  'PrivateViewTouch',
+  'PrivateViewWindow',
 ].sort();

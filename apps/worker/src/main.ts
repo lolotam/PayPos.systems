@@ -50,7 +50,11 @@ import {
 import { DocumentSourceRegistry } from './documents/source-registry.ts';
 import { createAttendanceStatementSource } from './documents/sources/attendance-statement.source.ts';
 import { createCommissionStatementSource } from './documents/sources/commission-statement.source.ts';
-import { createCommissionStatementExportReader } from './modules/commissions/index.ts';
+import {
+  createCommissionInputsConsumer,
+  createCommissionStatementExportReader,
+} from './modules/commissions/index.ts';
+import { businessTimeZone } from './modules/tenancy/index.ts';
 import { drainDispatchAndDocuments } from './documents/shutdown-drain.ts';
 
 const config = readConfig(process.env);
@@ -146,6 +150,11 @@ const businessDeliver = createDeliverer(
       ids: systemUuidV7(),
       clock: { now: () => new Date() },
       daySessions: daySessionsReader,
+    }),
+    createCommissionInputsConsumer({
+      ids: systemUuidV7(),
+      clock: { now: () => new Date() },
+      businessTimeZone,
     }),
   ],
   logger,

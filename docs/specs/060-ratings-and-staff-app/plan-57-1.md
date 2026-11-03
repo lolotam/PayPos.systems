@@ -11,6 +11,31 @@ the split on 2026-11-01):
 
 57-1b does not need 57-1a: the window is bound to the session, the operator and the device, never to a permission code.
 
+### 57-1c decisions (project manager, 2026-11-02)
+
+- **MY-11 moves to 57-1a.** It tests the per-person DENY of the 57-1a codes themselves.
+- **MY-10 and MY-12 are split.** 57-1c covers their guard and step-up parts: a membership that ended after sign-in is
+  refused even with a live window, a step-up with another employee's PIN opens nothing, and an open body naming an
+  employee, branch or business is a 400. The refusal at the recheck inside the read transaction (ADR-0027) moves to
+  **57-2** («شغلي») and **57b-1** («حضوري»), whose routes own that transaction.
+- **The remaining times travel in two response headers** that the guard sets on every passing check,
+  `x-private-view-idle-remaining-ms` and `x-private-view-cap-remaining-ms`; the opening and the touch also return them
+  in the body. 57-2 and 57b-1 inherit them unchanged.
+- **The window travels in the `x-private-view-window-id` request header.** The log redaction list hides it, and a test
+  proves it.
+- **A wrong step-up PIN is `PIN_INVALID` (401)**, as for PIN sign-in. **57-4 must not treat a `PIN_INVALID` from the
+  step-up as a sign-out:** the operator is still signed in, and the screen stays on the PIN step. A membership, device
+  or staff session that ended while the opening ran answers `UNAUTHENTICATED` (401), so the client signs out as for any
+  dead staff session (MergePilot review on #784).
+- **The POS origin is checked before the window is touched**, in the `SessionGuard` step, so a request from a foreign
+  origin answers `FORBIDDEN` and cannot refresh the idle deadline.
+- **The three routes are declared `PERSONAL`** in `authenticated-writes.ts`, checked in the `SessionGuard` staff path
+  (`session.guard.ts##staff`), with staff policy `'staff'` and no personal marker. `DEVICE_ONLY` was the first pick, but
+  `route-declarations.spec.ts` requires a `DEVICE_ONLY` route on that guard to need the device alone, and these routes
+  need the operator session too. `OwnLeaveController` uses the same `PERSONAL` declaration on that guard, but it carries
+  the personal marker; these routes do not, because a personal session without an Authorization header would then skip
+  the staff path (project manager, review of Q4, 2026-11-02).
+
 ## 57-1b design
 
 Advice from the two design advisors (Codex astra 6 and Claude Fable 5.1, 2026-11-01), reconciled by the orchestrator.

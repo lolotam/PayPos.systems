@@ -26,6 +26,7 @@ import { staffPaths } from './staff/staff-openapi.js';
 import { permissionPaths } from './identity/permissions-openapi.js';
 import { devicePaths, pendingDevicesPaths } from './identity/devices-openapi.js';
 import { staffSignInPaths } from './identity/staff-sign-in-openapi.js';
+import { privateViewPaths } from './identity/private-view-openapi.js';
 import { mePaths } from './identity/me-openapi.js';
 import { customerPaths } from './customers-openapi.js';
 import { ratingSettingsPaths } from './customers/rating-settings-openapi.js';
@@ -75,6 +76,7 @@ const PATHS = {
     },
   },
   ...staffSignInPaths,
+  ...privateViewPaths,
   '/v1/webhooks/whatsapp': {
     get: {
       operationId: 'verifyWhatsappWebhook',

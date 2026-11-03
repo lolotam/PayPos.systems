@@ -194,8 +194,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
 
 ### Story 4 — The projection and the estimate (50, P1)
 
-- **CM-14** A `ServiceSessionRecorded` with two lines, one shared 50/50 by سارة and هبة: one line head (with the event's
-  `customer_id` and `service_id`, D-20) and three performer rows;
+- **CM-14** A `ServiceSessionRecorded` with two lines, one shared 50/50 by سارة and هبة: two line heads, one per line (each
+  with the event's `customer_id` and `service_id`, D-20), and three performer rows;
   `net_share` by `allocateLineShares` sums to the line's net; the consumer's mark is in the same transaction.
 - **CM-15** `ServiceSessionLinesAdded` projects only its new lines; an already-projected line is never projected twice.
 - **CM-16** `ServiceLineChanged` revision 2 (`PRICE_DISCOUNT_EDIT`) replaces the line's rows; delivered **before** the delayed
@@ -216,8 +216,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   equals the projection after the ordered set (property test over a seeded set, SPEC §11).
 - **CM-22** A crash between the projection write and the correction insert leaves neither (the transaction is killed
   between them; SPEC §11).
-- **CM-22a** A crash between the projection write and the `consumed_events` mark leaves neither; the redelivered event
-  projects once (50-1, before corrections exist).
+- **CM-22a** A failure after the projection write and before the `consumed_events` mark commits leaves neither; the
+  redelivered event projects once (50-1, before corrections exist). The test throws from a wrapped step that runs after
+  the rows are replaced, instead of killing the process: the mark and the rows share one transaction, so a throw and a
+  crash roll back the same way.
 - **CM-22b** A bootstrap page and a live delivery of the same line race (barrier): revision 2 commits first and the
   waiting revision-1 writer, rechecking under the identity lock, applies nothing and only marks its event consumed;
   the same test for a tip session, a salary entry and a sale.
@@ -608,6 +610,16 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   takes the same identity locks in the same order before it compares revisions, so a live delivery and a bootstrap page of
   one identity serialize: the lock order is always identity locks, then statement rows, and only the consumer and the
   bootstrap take identity locks, so no writer can deadlock against them.
+  - _What 50-1 ships of this order:_ service lines only, under the consumer `commissions.project-inputs`. Until 55-1/55-2
+    add the correction step, an affected period that is APPROVED or PAID under the lock makes the delivery throw the
+    worker's domain error `CommissionPeriodClosedError` before any projection write; the decision is the pure
+    `classifyCommissionPeriods` in the worker's `domain/`, as the API's writers decide it in their own `domain/`. The
+    event rolls back and is retried, then parked (no correction yet). Candidate-only months are locked and not
+    classified. The current month comes from the injected
+    Clock and the business time zone, read once before the lock. Re-reading it when the month rolls over while the
+    delivery waits on the lock is deferred to 55-1, where a correction target depends on it. A missing business throws
+    `CommissionBusinessMissingError` before any write. REVIEWED affected periods return to DRAFT through
+    `reopenReviewedStatementPeriods` in `packages/db`, the same helper the API's plan-version and override writers use.
 - **FR-016** Projection tables (§6 _Schema_): `commission_line_heads` + `commission_lines` (one row per line × performer,
   D-11), `commission_tip_heads` + `commission_tips`, `commission_salaries`, `commission_sales`.
 - **FR-017** Money from events is parsed with `parseMoney`; a malformed amount parks the event (it is a producer bug), never
@@ -1029,7 +1041,7 @@ same migration (CLAUDE.md §5). Expand-only; migration numbers are taken at merg
 | `commission_plan_versions` (48) | `employee_id`, `version`, `effective_from date`, `whole_period`, `repair_period char(7) NULL`, `plan jsonb`, `created_at`, `created_by` | `UNIQUE (company_id, employee_id, version)`; `CHECK NOT (whole_period AND repair_period IS NOT NULL)`; insert-only (`SELECT, INSERT`) |
 | `commission_service_overrides` (49) | `employee_id`, `service_id`, `rule_kind`, `rule_pct_bps integer NULL`, `rule_fixed_amount numeric(14,3) NULL`, `effective_from date`, `created_at`, `created_by` | `CHECK` allows only FOLLOW_PLAN/ZERO/PCT/FIXED: only PCT has bps (0…10000), only FIXED has a nonnegative KWD amount, FOLLOW_PLAN/ZERO have neither; tenant/business-qualified employee and service FKs; lookup index `(company_id, business_id, employee_id, service_id, created_at DESC, id DESC)`, service FK index `(company_id, business_id, service_id)`, global creator FK index `(created_by)`; insert-only (`SELECT, INSERT`), FORCE RLS; CM-R02 |
 | `commission_line_heads` (50) | `line_id`, `session_id`, `branch_id`, `service_id`, `customer_id`, `revision`, `status`, `business_date`, `period` | `UNIQUE (company_id, line_id)`; `SELECT, INSERT, UPDATE` |
-| `commission_lines` (50) | `line_id`, `branch_id`, `employee_id`, `service_id`, `occurred_at`, `recorded_at`, `business_date`, `period`, `net`, `net_share`, `share_bps`, `rule_kind`, `rule_value`, `counts`, `status` | `UNIQUE (company_id, line_id, employee_id)`; index `(company_id, business_id, period, employee_id)`; `SELECT, INSERT, UPDATE, DELETE` (a projection, D-11) |
+| `commission_lines` (50) | `line_id`, `branch_id`, `employee_id`, `service_id`, `occurred_at`, `recorded_at`, `business_date`, `period`, `net`, `net_share`, `share_bps`, `rule_kind`, `rule_pct_bps integer NULL`, `rule_fixed_amount numeric(14,3) NULL`, `counts`, `status` | `UNIQUE (company_id, line_id, employee_id)`; index `(company_id, business_id, period, employee_id)`; `SELECT, INSERT, UPDATE, DELETE` (a projection, D-11). The rule snapshot uses the 49-1 shape instead of one `rule_value` (50-1, approved by the manager 2026-11-01): only PCT has bps (0…10000), only FIXED has a nonnegative KWD amount, FOLLOW_PLAN/ZERO have neither |
 | `commission_tip_heads` / `commission_tips` (50) | head: `session_id`, `branch_id`, `revision`, `business_date`, `period`; rows: `session_id`, `employee_id`, `method`, `amount` | `UNIQUE (company_id, session_id)` / `UNIQUE (company_id, session_id, employee_id, method)`; projection grants |
 | `commission_salaries` (50) | `employee_id`, `effective_from`, `amount`, `revision` | `UNIQUE (company_id, employee_id, effective_from)`; projection grants; never logged (SPEC §12) |
 | `commission_sales` (50) | `sale_id`, `branch_id`, `seller_employee_id NULL`, `business_date`, `period`, `price_paid`, `refunded_amount`, `status`, `revision` | `UNIQUE (company_id, sale_id)`; projection grants |
