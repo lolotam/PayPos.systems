@@ -1,7 +1,8 @@
 import { expect, it } from 'vitest';
 
+import { CommissionCorrectionTargetInputError } from '../errors.ts';
+
 import {
-  CommissionCorrectionTargetInputError,
   selectCommissionCorrectionTarget,
   type CommissionCorrectionCandidate,
 } from '../commission-correction-target.ts';
@@ -110,8 +111,9 @@ it.each(['2026-13', '2026-1', '26-01', '0000-01', ''])(
   },
 );
 
-it('rejects a candidate row without a statement id', () => {
-  expect(() => pick([row('2026-10', 'DRAFT', '   ')])).toThrowError(
+it.each(['   ', '', null, undefined, 42])('rejects invalid statement id %s', (statementId) => {
+  const snapshot = [{ period: '2026-10', status: 'DRAFT', statementId }];
+  expect(() => pick(snapshot as unknown as CommissionCorrectionCandidate[])).toThrowError(
     expect.objectContaining({ reason: 'MISSING_STATEMENT_ID' }),
   );
 });

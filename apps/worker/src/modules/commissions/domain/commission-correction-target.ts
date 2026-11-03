@@ -1,45 +1,16 @@
 import type { LockedCommissionPeriod } from './commission-line-types.ts';
 
+import {
+  CommissionCorrectionTargetInputError,
+  type CommissionCorrectionTargetRefusal,
+} from './errors.ts';
+
 /**
  * صف شهر مقفول بحالته ومعرف كشفه، كما أعادته قفل الشهور بعد اكتمال انتظار الأقفال.
  * اللقطة هي مصدر الحالة الوحيد للاختيار، فلا يُقرأ أي شهر خارج قفله.
  */
 export interface CommissionCorrectionCandidate extends LockedCommissionPeriod {
   readonly statementId: string;
-}
-
-/** سبب رفض المُدخل؛ كلها أخطاء إدخال صريحة، وليس فيها إعادة محاولة تشغيلية. */
-export type CommissionCorrectionTargetRefusal =
-  | 'INVALID_SOURCE_PERIOD'
-  | 'INVALID_CURRENT_PERIOD'
-  | 'INVALID_CANDIDATE_PERIOD'
-  | 'MISSING_STATEMENT_ID'
-  | 'UNKNOWN_STATUS'
-  | 'AMBIGUOUS_DUPLICATE_PERIOD';
-
-/**
- * رفض مُدخل غير صالح؛ الاختيار يتوقف بدل أن يخمّن، لأن هدف غلط يغيّر شهر الرواتب
- * الذي يحمل التصحيح.
- */
-export class CommissionCorrectionTargetInputError extends Error {
-  readonly code = 'COMMISSION_CORRECTION_TARGET_INPUT_INVALID';
-  readonly reason: CommissionCorrectionTargetRefusal;
-  readonly period: string | null;
-
-  /**
-   * يحتفظ بسبب الرفض والشهر المعني حتى يصل صاحب التسليم إلى اللقطة أو القيمة المعطوبة.
-   *
-   * @param reason سبب الرفض الثابت الذي يصف نوع الخلل
-   * @param period الشهر الذي وقع فيه الخلل، أو null إذا لم يكن الخلل مرتبطاً بشهر
-   */
-  constructor(reason: CommissionCorrectionTargetRefusal, period: string | null = null) {
-    super(
-      `Invalid commission correction target input: ${reason}${period === null ? '' : ` (${period})`}`,
-    );
-    this.name = 'CommissionCorrectionTargetInputError';
-    this.reason = reason;
-    this.period = period;
-  }
 }
 
 const PERIOD = /^[0-9]{4}-(0[1-9]|1[0-2])$/;
@@ -93,7 +64,7 @@ export function selectCommissionCorrectionTarget(
     if (!KNOWN_STATUSES.has(row.status)) {
       throw new CommissionCorrectionTargetInputError('UNKNOWN_STATUS', row.period);
     }
-    if (row.statementId.trim() === '') {
+    if (typeof row.statementId !== 'string' || row.statementId.trim() === '') {
       throw new CommissionCorrectionTargetInputError('MISSING_STATEMENT_ID', row.period);
     }
 
