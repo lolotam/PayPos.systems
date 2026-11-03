@@ -301,6 +301,28 @@ it('FR-010a a cursor from another business is refused', async () => {
   expect([crossed.status, crossed.body['code']]).toEqual([400, 'VALIDATION_FAILED']);
 });
 
+// مؤشر مزوّر بالإيد زي ما المهاجم هيبنيه، بمعرّف موظفة محذوفة أو معرّف مش موجود وبنفس المفتاح.
+// الردّين لازم يبقوا واحد، وإلا المؤشر بيكشف إن المعرّف ده كان موظفة في النشاط. الشكل الأول (معرّف
+// بس) كان بيكشفه لأن الـ SQL كان بيقرأ صف المرساة؛ دلوقتي بيترفض، والشكل بالمفتاح بيرجّع نفس الصفحة.
+function forgedCursor(employeeId: string, key: string | null): string {
+  const scope = { v: 1, c: fx.f.company, b: fx.f.business };
+  const payload = key === null ? { ...scope, i: employeeId } : { ...scope, k: key, i: employeeId };
+  return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
+}
+
+it.each([
+  ['the id-only form', null, 400],
+  ['the sort-key form', employeeNameMatchKey('Deleted employee'), 200],
+])(
+  'FR-010a a forged cursor in %s does not tell a deleted employee from a missing one',
+  async (_form, key, status) => {
+    const deleted = await list(`?limit=2&cursor=${forgedCursor(fx.deletedEmployee, key)}`);
+    const missing = await list(`?limit=2&cursor=${forgedCursor(ids.newId(), key)}`);
+    expect(deleted.status).toBe(status);
+    expect([deleted.status, deleted.body]).toEqual([missing.status, missing.body]);
+  },
+);
+
 it('FR-010a the pages cover every employee once, in the stored order', async () => {
   const seen = await pageAll(2);
   const mine = seen.filter((id) => fx.shared.includes(id));

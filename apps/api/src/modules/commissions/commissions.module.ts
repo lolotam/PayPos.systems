@@ -21,7 +21,7 @@ import {
 import {
   COMMISSION_PLAN_EMPLOYEE_LIST,
   createCommissionPlanEmployeeList,
-  type CommissionPlanEmployeeListReadProviders,
+  type CommissionPlanEmployeeListReads,
 } from './queries/commission-plan-employees.query.ts';
 import { CreateCommissionPlanVersionUseCase } from './use-cases/create-commission-plan-version/create-commission-plan-version.usecase.ts';
 import { CreateCommissionServiceOverrideUseCase } from './use-cases/create-commission-service-override/create-commission-service-override.usecase.ts';
@@ -45,7 +45,7 @@ export function commissionsProviders(
   ids: IdGenerator,
   readers: CommissionModuleReaders,
   listReads: CommissionServiceOverrideListReadProviders,
-  employeeListReads: CommissionPlanEmployeeListReadProviders,
+  employeeListReads: CommissionPlanEmployeeListReads,
   clock: Clock = systemClock,
 ): Provider[] {
   // الفحص البنيوي هنا: شكل المهايئ لازم يطابق مصنع القراءة بجوار الاستعلام.

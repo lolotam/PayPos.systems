@@ -15,49 +15,34 @@ import {
 /** توكن المزود: المصنع اللي بيرجّع قائمة موظفي الخطط على معاملة القارئ نفسها. */
 export const COMMISSION_PLAN_EMPLOYEE_LIST = Symbol('COMMISSION_PLAN_EMPLOYEE_LIST');
 
-/** صف الموظفة في قائمة الخطط: المعرّف والاسمان والرقم الوظيفي بس. */
+/** صف الموظفة في قائمة الخطط، ومعاه مفتاح الترتيب الخام اللي بيخرج للمؤشر بس. */
 export type CommissionPlanEmployeeRow = {
   readonly id: string;
   readonly name_ar: string | null;
   readonly name_en: string;
   readonly employee_number: number;
+  readonly name_en_key: string;
 };
 
-/** قراءات قائمة موظفي الخطط: إعادة فحص الوصول وتوقيت النشاط وأسماء الموظفين. */
+/** قراءات قائمة موظفي الخطط على معاملة واحدة: الوصول والتوقيت وأسماء الموظفين. */
 export interface CommissionPlanEmployeeListReads {
   /** بيعيد فحص الصلاحية والميزة على معاملة القائمة قبل قراءة أي موظف. */
   access(
+    tx: Tx,
     companyId: string,
     userId: string,
     businessId: string,
   ): Promise<'FORBIDDEN' | 'FEATURE_DISABLED' | null>;
   /** بيرجّع توقيت النشاط نفسه، عشان تاريخ بدء الخطة يبان بيوم النشاط. */
-  timeZone(companyId: string, businessId: string): Promise<string | null>;
-  /** بيجيب صفحة أسماء الموظفين: الاسم والرقم الوظيفي بس، مرتبة بالترتيب المخزّن. */
+  timeZone(tx: Tx, companyId: string, businessId: string): Promise<string | null>;
+  /** بيجيب صفحة الأسماء والمفتاح الخام للمؤشر، مرتبة بالترتيب المخزّن. */
   employeeNames(
+    tx: Tx,
     companyId: string,
     businessId: string,
-    afterId: string | null,
+    after: { readonly key: string; readonly id: string } | null,
     limit: number,
   ): Promise<readonly CommissionPlanEmployeeRow[]>;
-}
-
-/** مزودو القراءات: دوال جذر التطبيق بتاخد المعاملة نفسها، عشان القراءة كلها transaction واحدة. */
-export interface CommissionPlanEmployeeListReadProviders {
-  readonly access: (
-    tx: Tx,
-    companyId: string,
-    userId: string,
-    businessId: string,
-  ) => Promise<'FORBIDDEN' | 'FEATURE_DISABLED' | null>;
-  readonly timeZone: (tx: Tx, companyId: string, businessId: string) => Promise<string | null>;
-  readonly employeeNames: (
-    tx: Tx,
-    companyId: string,
-    businessId: string,
-    afterId: string | null,
-    limit: number,
-  ) => Promise<readonly CommissionPlanEmployeeRow[]>;
 }
 
 export type CommissionPlanEmployeeReadCode = 'VALIDATION_FAILED' | 'FORBIDDEN' | 'FEATURE_DISABLED';
@@ -80,18 +65,6 @@ export type CommissionPlanEmployeeListRunner = (
   query: CommissionPlanEmployeeListQuery,
 ) => Promise<CommissionPlanEmployeeList>;
 
-function bindReads(
-  providers: CommissionPlanEmployeeListReadProviders,
-  tx: Tx,
-): CommissionPlanEmployeeListReads {
-  return {
-    access: (companyId, userId, businessId) => providers.access(tx, companyId, userId, businessId),
-    timeZone: (companyId, businessId) => providers.timeZone(tx, companyId, businessId),
-    employeeNames: (companyId, businessId, afterId, limit) =>
-      providers.employeeNames(tx, companyId, businessId, afterId, limit),
-  };
-}
-
 function itemOf(row: CommissionPlanEmployeeRow): CommissionPlanEmployeeListItem {
   return {
     id: row.id,
@@ -102,18 +75,19 @@ function itemOf(row: CommissionPlanEmployeeRow): CommissionPlanEmployeeListItem 
 }
 
 /**
- * يقرأ قائمة موظفي النشاط لشاشة بناء الخطة: إعادة فحص الوصول، ثم توقيت النشاط، ثم أسماء
- * الموظفين على نفس معاملة القراءة. الترتيب بييجي من قاعدة البيانات نفسه (name_en_key, id)،
- * فمفيش ترتيب في JavaScript يقدر يخالفه.
+ * يقرأ قائمة موظفي النشاط لشاشة بناء الخطة على معاملة واحدة: الوصول، ثم التوقيت، ثم فك
+ * المؤشر، ثم الأسماء. الترتيب والموضع بالقيمة من (name_en_key, id)، فمفيش ترتيب في JavaScript
+ * ولا قراءة لصف مرساة يقدروا يخالفوا قاعدة البيانات أو يكشفوا حذفه.
  */
 export async function listCommissionPlanEmployees(
   reads: CommissionPlanEmployeeListReads,
+  tx: Tx,
   scope: { readonly companyId: string; readonly userId: string; readonly businessId: string },
   query: CommissionPlanEmployeeListQuery,
 ): Promise<CommissionPlanEmployeeList> {
-  const refused = await reads.access(scope.companyId, scope.userId, scope.businessId);
+  const refused = await reads.access(tx, scope.companyId, scope.userId, scope.businessId);
   if (refused !== null) throw new CommissionPlanEmployeeReadError(refused);
-  const timeZone = await reads.timeZone(scope.companyId, scope.businessId);
+  const timeZone = await reads.timeZone(tx, scope.companyId, scope.businessId);
   if (timeZone === null) throw new CommissionPlanEmployeeReadError('FORBIDDEN');
   const context: CommissionPlanEmployeeCursorContext = {
     companyId: scope.companyId,
@@ -122,9 +96,10 @@ export async function listCommissionPlanEmployees(
   const decoded = decodeCommissionPlanEmployeeCursor(query.cursor, context);
   if (decoded.kind === 'invalid') throw new CommissionPlanEmployeeReadError('VALIDATION_FAILED');
   const rows = await reads.employeeNames(
+    tx,
     scope.companyId,
     scope.businessId,
-    decoded.kind === 'valid' ? decoded.employeeId : null,
+    decoded.kind === 'valid' ? decoded.after : null,
     query.limit,
   );
   const page = rows.slice(0, query.limit);
@@ -132,28 +107,29 @@ export async function listCommissionPlanEmployees(
   const last = page.at(-1);
   const next_cursor =
     rows.length > query.limit && last !== undefined
-      ? encodeCommissionPlanEmployeeCursor(context, last.id)
+      ? encodeCommissionPlanEmployeeCursor(context, { key: last.name_en_key, id: last.id })
       : null;
   return commissionPlanEmployeeList.parse({ time_zone: timeZone, items, next_cursor });
 }
 
 /**
- * مصنع عدّاد موظفي الخطط: بيفتح معاملة قراءة واحدة للشركة وبيقرا كل حاجة عليها.
+ * مصنع عدّاد موظفي الخطط: بيفتح معاملة قراءة واحدة للشركة وبيسلّمها لكل القراءات من غير محوّل.
  *
- * @param database  واجهات الداتابيز اللي بتفتح معاملة المستأجر
- * @param providers مزودو القراءات المربوطين في جذر التطبيق
+ * @param database واجهات الداتابيز اللي بتفتح معاملة المستأجر
+ * @param reads    قراءات الوصول والتوقيت وأسماء الموظفين المربوطة في جذر التطبيق
  * @returns دالة بتقرأ صفحة موظفي النشاط
  */
 export function createCommissionPlanEmployeeList(
   database: TenantWrappers,
-  providers: CommissionPlanEmployeeListReadProviders,
+  reads: CommissionPlanEmployeeListReads,
 ): CommissionPlanEmployeeListRunner {
   return async (actor, businessId, query) =>
     database.withTenant(
       actor.companyId,
       (tx) =>
         listCommissionPlanEmployees(
-          bindReads(providers, tx),
+          reads,
+          tx,
           { companyId: actor.companyId, userId: actor.userId, businessId },
           query,
         ),

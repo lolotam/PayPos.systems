@@ -233,28 +233,53 @@ module-map row first.
   - `employeeNames` → `readCommissionPlanEmployeeNames` (`staff`, `persistence/commission-plan-employee-names.ts`,
     exported from the staff `index.ts`)
 
-  The staff reader owns the limited SQL. It reads only `id`, `name_ar`, `name_en` and `employee_number` of the
-  business's employees with `deleted_at IS NULL`, in `(name_en_key, id)` order. No employee query is copied into
+  The staff reader owns the limited SQL. It reads only `id`, `name_ar`, `name_en`, `employee_number` and the stored
+  `name_en_key` of the business's employees with `deleted_at IS NULL`, in `(name_en_key, id)` order. `name_en_key` goes
+  into the next cursor only; the response item keeps the four other fields. No employee query is copied into
   commissions.
-- **The root binding.** `app.ts` (`commissionBindings`) passes the three tx-first provider functions as
-  `CommissionPlanEmployeeListReadProviders`. `commissions.module.ts` binds the token `COMMISSION_PLAN_EMPLOYEE_LIST` to
-  `createCommissionPlanEmployeeList(database, providers)`, and the controller injects only that runner.
+- **The root binding.** `app.ts` (`commissionBindings`) passes the three tx-first functions as
+  `CommissionPlanEmployeeListReads`, the port itself (one interface; no second tx-less copy and no adapter between
+  them). `commissions.module.ts` binds the token `COMMISSION_PLAN_EMPLOYEE_LIST` to
+  `createCommissionPlanEmployeeList(database, reads)`, and the controller injects only that runner.
 - **How it differs from 49-1.** In 49-1 the controller opens `withTenant` and passes `Tx` into the query. Here the runner
   in `queries/` opens the single `withTenant(companyId, …, { userId })` itself. It reads in this order: access, then the
   business timezone (`null` → `FORBIDDEN`), then the cursor (invalid → `VALIDATION_FAILED`), then the names. All four run
   sequentially on that one transaction, with no nested or concurrent transaction.
 - **§4.1 is unchanged.** Because the controller takes the runner, it imports no `TenantWrappers`, and the cursor validates
-  with `id` from `@pospay/contracts` instead of `zod`. The new files therefore need no entry in the §4.1 list. The query
-  file's type-only imports of `TenantWrappers` and `Tx` from `@pospay/db` are the `queries/` row of the import matrix,
-  not a scoped addition.
-- **The cursor anchors on the employee id only, on purpose.** It holds `{v, c, b, i}` (company, business and the last
-  employee's id, lower-cased) as canonical base64url, and the next page re-reads that employee's stored `name_en_key`.
-  Two reasons:
-  - `name_en_key` is unbounded, so carrying it would break the 512-character cursor cap.
-  - Carrying it would put a normalised employee name into a cursor that travels in URLs and logs.
+  with `id` from `@pospay/contracts` instead of `zod`. The new files therefore- **The cursor carries the sort position by value (round 4, 2026-11-03).** It holds `{v, c, b, k, i}` as canonical
+  base64url: the company, the business, the last row's `name_en_key` exactly as SQL returned it, and that row's id
+  (ids lower-cased). The next page reads `(e.name_en_key, e.id) > (k, i)` and never looks the anchor row up.
+  - **Why.** The cursor is unsigned. The first release anchored on the id alone and re-read the anchor's key with no
+    `deleted_at` filter, so a forged cursor with a soft-deleted employee's id returned the rows after it while a missing
+    id returned an empty page: the difference revealed that the id had been an employee of the business (review threads
+    r4445819849 and r4445819864 on PR #793). With the position carried by value, a deleted id and a missing id with the
+    same `k` give the same page, and a soft-deleted anchor still does not end the list.
+  - **Integrity without a secret.** Decoding refuses a cursor longer than the cap before it is decoded, a non-canonical
+    encoding, a version other than 1, ids that fail `id` or belong to another company or business, a `k` that is not a
+    string or contains NUL (PostgreSQL text cannot hold it), and any cursor whose re-encoding differs from the input,
+    which covers extra, missing, duplicated and reordered keys and upper-case ids. `c` and `b` stay for parity with 49-1;
+    they are not a security control, because the path, the guard and RLS decide the scope. There is no HMAC, no secret
+    and no migration.
+  - **The cap.** `k` is not truncated, so the cap follows the longest key a 255-unit name can produce. A scan of every
+    Unicode code point found U+FDFA the largest single-point expansion under the key function (18 units, 33 UTF-8 bytes
+    per input unit, the same in JS and in the legacy SQL key). U+FDFA ×255 gives a key of 4590 units / 8415 bytes and a
+    cursor of 11411 characters; ASCII ×255 gives 531, Arabic ×255 871. The cap is
+    `COMMISSION_PLAN_EMPLOYEE_CURSOR_MAX = 12288`, on the query parameter and on `next_cursor`.
+  - **The request budget.** Node's default `maxHeaderSize` (16 KiB) covers the request line and all headers, and the
+    parent-domain session cookies share it. The API therefore sets `API_MAX_HEADER_BYTES = 32768` through the Fastify
+    adapter's `http.maxHeaderSize`. Past it Fastify writes a raw `431` on the socket before Nest runs, so that response
+    is not our error envelope and carries no CORS headers. The staging proxy (Traefik v3.6.7) has no smaller header
+    limit; production proxy limits were not verified.
+  - **Decision record.** SA approved, 2026-11-03 21:24 (replacing 21:14), through the manager thread, verbatim: "set the
+    API's maxHeaderSize explicitly to 32 KiB, cap the cursor at 12288 and check it before decoding, and add a real HTTP
+    test of the limit. No Traefik change, no secret. The original size cap stays in the record. Round 4/5 may continue."
+  - **History (the original cap).** The first release capped the cursor at 512 characters and kept `name_en_key` out of
+    it, both because the key is unbounded and to keep a normalised name out of URLs and logs. Round 4 accepts the key in
+    the cursor to close the disclosure above; the URL now carries the normalised name of the last row on the page.
+  - **Trade-off kept.** Renaming an employee between two page requests can still skip or repeat that row in one walk;
+    this stays tracked in [issue #796](https://github.com/lolotam/PayPos.systems/issues/796).
 
-  The trade-off: renaming the anchor employee between two page requests can skip or repeat rows in that one walk. This
-  is tracked in [issue #796](https://github.com/lolotam/PayPos.systems/issues/796). A soft-deleted anchor does not end
+(https://github.com/lolotam/PayPos.systems/issues/796). A soft-deleted anchor does not end
   the list, and a missing anchor yields an empty page without revealing whether the id exists.
 
 The addendum adds one Port row to `docs/module-map.md` §3. It adds no import arrow, no `reads:` line, no write port,

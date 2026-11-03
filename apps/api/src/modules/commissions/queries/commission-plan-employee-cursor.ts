@@ -1,34 +1,37 @@
-import { id } from '@pospay/contracts';
+import { COMMISSION_PLAN_EMPLOYEE_CURSOR_MAX, id } from '@pospay/contracts';
 
-/** سياق المؤشر: الشركة والنشاط — المؤشر ميتنقلش منهم. */
+/** سياق المؤشر: الشركة والنشاط لتطابق 49-1، والنطاق نفسه بيتحدد بالمسار والحارس وRLS. */
 export interface CommissionPlanEmployeeCursorContext {
   readonly companyId: string;
   readonly businessId: string;
 }
 
-/** نتيجة فك المؤشر: مفيش، أو مؤشر صالح، أو مؤشر مرفوض. */
+/** نتيجة فك المؤشر: مفيش، أو موضع ترتيب صالح، أو مؤشر مرفوض. */
 export type CommissionPlanEmployeeCursorDecode =
   | { readonly kind: 'none' }
-  | { readonly kind: 'valid'; readonly employeeId: string }
+  | {
+      readonly kind: 'valid';
+      readonly after: { readonly key: string; readonly id: string };
+    }
   | { readonly kind: 'invalid' };
 
 const VERSION = 1;
-// مفاتيح الحمولة بالظبط: أي مفتاح زيادة أو نقصان مرفوض، عشان المؤشر ما يحملش حالة غريبة.
-const PAYLOAD_KEYS = ['v', 'c', 'b', 'i'] as const;
 
 /**
- * يبني المؤشر للصفحة الجاية: الشركة والنشاط ومعرّف آخر موظفة في الترتيب.
- * المعرّفات بتتحفظ بحروف صغيرة، عشان تغيير حالة الحروف ما يغيّرش الموظفة المطلوبة.
+ * يبني مؤشر الصفحة الجاية من موضع الترتيب بالقيمة: مفتاح الاسم المخزّن كما رجع من SQL والمعرّف.
+ * الاستعلام بكده ما بيقرأش صف مرساة، فحذف الموظفة أو عدم وجود المعرّف ما بيوقفش القائمة
+ * وما بيكشفش فرق بينهم. c وb للتطابق مع 49-1 بس، مش تحكم أمني؛ المسار والحارس وRLS بيحددوا النطاق.
  */
 export function encodeCommissionPlanEmployeeCursor(
   context: CommissionPlanEmployeeCursorContext,
-  employeeId: string,
+  position: { key: string; id: string },
 ): string {
   const payload = {
     v: VERSION,
     c: context.companyId.toLowerCase(),
     b: context.businessId.toLowerCase(),
-    i: employeeId.toLowerCase(),
+    k: position.key,
+    i: position.id.toLowerCase(),
   };
   return Buffer.from(JSON.stringify(payload), 'utf8').toString('base64url');
 }
@@ -47,17 +50,14 @@ function cursorPayload(cursor: string): Record<string, unknown> | null {
     return null;
   }
   const record = payload as Record<string, unknown>;
-  const keys = Object.keys(record);
-  if (keys.length !== PAYLOAD_KEYS.length) return null;
-  if (!PAYLOAD_KEYS.every((key) => keys.includes(key))) return null;
   if (record['v'] !== VERSION) return null;
   return record;
 }
 
-function employeeIdInContext(
+function positionInContext(
   payload: Record<string, unknown>,
   context: CommissionPlanEmployeeCursorContext,
-): string | null {
+): { key: string; id: string } | null {
   const companyId = id.safeParse(payload['c']);
   if (!companyId.success) return null;
   const businessId = id.safeParse(payload['b']);
@@ -66,21 +66,26 @@ function employeeIdInContext(
   if (!employeeId.success) return null;
   if (companyId.data.toLowerCase() !== context.companyId.toLowerCase()) return null;
   if (businessId.data.toLowerCase() !== context.businessId.toLowerCase()) return null;
-  return employeeId.data.toLowerCase();
+  const key = payload['k'];
+  if (typeof key !== 'string' || key.includes('\u0000')) return null;
+  return { key, id: employeeId.data.toLowerCase() };
 }
 
 /**
- * يفك المؤشر ويتأكد إنه Canonical ومربوط بنفس الشركة والنشاط قبل ما يوصل الـ SQL.
- * المؤشر الغريب أو بتاع نشاط تاني كله رفض معروف (VALIDATION_FAILED)، مش خطأ PostgreSQL.
+ * يفك المؤشر ويتأكد إنه مربوط بنفس الشركة والنشاط قبل ما يوصل الـ SQL، من غير قراءة صف مرساة.
+ * إعادة ترميز الموضع ومقارنته بالنص الأصلي بتثبت الشكل Canonical كامل: أي مفتاح زيادة أو
+ * نقصان أو مكرر أو معاد ترتيبه، وأي معرّف بحروف كبيرة، بيرجّع نص مختلف فبيترفض بدل فحص منفصل لكل حالة.
  */
 export function decodeCommissionPlanEmployeeCursor(
   cursor: string | undefined,
   context: CommissionPlanEmployeeCursorContext,
 ): CommissionPlanEmployeeCursorDecode {
   if (cursor === undefined) return { kind: 'none' };
+  if (cursor.length > COMMISSION_PLAN_EMPLOYEE_CURSOR_MAX) return { kind: 'invalid' };
   const payload = cursorPayload(cursor);
   if (payload === null) return { kind: 'invalid' };
-  const employeeId = employeeIdInContext(payload, context);
-  if (employeeId === null) return { kind: 'invalid' };
-  return { kind: 'valid', employeeId };
+  const after = positionInContext(payload, context);
+  if (after === null) return { kind: 'invalid' };
+  if (encodeCommissionPlanEmployeeCursor(context, after) !== cursor) return { kind: 'invalid' };
+  return { kind: 'valid', after };
 }

@@ -136,6 +136,10 @@ export interface AppOptions {
 const SHUTDOWN = Symbol('SHUTDOWN');
 const REQUEST_ID = /^[A-Za-z0-9._-]{8,128}$/;
 const SHUTDOWN_TIMEOUT_MS = 10_000;
+// Node's default 16 KiB covers the request line and every header together. The plan-employee cursor can
+// occupy 12288 URL characters and browser cookies share that budget, so set it explicitly
+// (SA decision 2026-11-03 21:24); past the limit Fastify answers a raw 431 before Nest runs.
+export const API_MAX_HEADER_BYTES = 32_768;
 
 // A lifecycle provider, so cleanup runs through Nest's own shutdown path — the one SIGTERM triggers —
 // and not through an override of app.close() that a signal would skip.
@@ -285,12 +289,13 @@ function logCompleted(request: FastifyRequest, reply: FastifyReply): void {
 }
 
 // Fastify with the shared sanitising logger, request ids, and the envelope for errors Fastify raises itself.
-function buildAdapter(
+export function buildAdapter(
   logger: Logger,
   ids: IdGenerator,
   trustedProxy: readonly string[],
 ): FastifyAdapter {
   return new FastifyAdapter({
+    http: { maxHeaderSize: API_MAX_HEADER_BYTES },
     loggerInstance: logger,
     // A caller's X-Request-Id is kept when it is a plain token (so a trace spans the admin app and the API);
     // anything else — too long, or with characters that could forge a log line — is replaced with a UUID v7.

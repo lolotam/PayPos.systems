@@ -2,6 +2,7 @@ import { expect, it, vi } from 'vitest';
 
 import { buildOpenApiDocument } from '../../openapi.js';
 import {
+  COMMISSION_PLAN_EMPLOYEE_CURSOR_MAX,
   commissionPlanEmployeeList,
   commissionPlanEmployeeListItem,
   commissionPlanEmployeeListQuery,
@@ -27,9 +28,9 @@ it('the query takes the cursor and the limit, and refuses anything else', () => 
   expect(commissionPlanEmployeeListQuery.safeParse({ limit: 1.5 }).success).toBe(false);
   expect(commissionPlanEmployeeListQuery.safeParse({ cursor: 'abc-123_XYZ' }).success).toBe(true);
   expect(commissionPlanEmployeeListQuery.safeParse({ cursor: 'abc/123' }).success).toBe(false);
-  expect(commissionPlanEmployeeListQuery.safeParse({ cursor: 'a'.repeat(513) }).success).toBe(
-    false,
-  );
+  const atCap = 'a'.repeat(COMMISSION_PLAN_EMPLOYEE_CURSOR_MAX);
+  expect(commissionPlanEmployeeListQuery.safeParse({ cursor: atCap }).success).toBe(true);
+  expect(commissionPlanEmployeeListQuery.safeParse({ cursor: `${atCap}a` }).success).toBe(false);
   expect(commissionPlanEmployeeListQuery.safeParse({ business_id: employeeId }).success).toBe(
     false,
   );
@@ -118,7 +119,7 @@ it('publishes the read under its operation id and its bounded parameters', () =>
   const limit = parameters.find((parameter) => parameter.name === 'limit');
   expect(company).toMatchObject({ in: 'header', required: true });
   expect(business).toMatchObject({ in: 'path', required: true });
-  expect(cursor?.schema).toMatchObject({ type: 'string', minLength: 1, maxLength: 512 });
+  expect(cursor?.schema).toMatchObject({ type: 'string', minLength: 1, maxLength: 12_288 });
   expect(limit?.schema).toMatchObject({
     type: 'integer',
     minimum: 1,

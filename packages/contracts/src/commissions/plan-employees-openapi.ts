@@ -1,3 +1,5 @@
+import { COMMISSION_PLAN_EMPLOYEE_CURSOR_MAX } from './plan-employees.js';
+
 const json = (schema: string) => ({
   'application/json': { schema: { $ref: `#/components/schemas/${schema}` } },
 });
@@ -17,7 +19,12 @@ const listQueryParameters = [
   {
     in: 'query',
     name: 'cursor',
-    schema: { type: 'string', minLength: 1, maxLength: 512, pattern: '^[A-Za-z0-9_-]+$' },
+    schema: {
+      type: 'string',
+      minLength: 1,
+      maxLength: COMMISSION_PLAN_EMPLOYEE_CURSOR_MAX,
+      pattern: '^[A-Za-z0-9_-]+$',
+    },
   },
   {
     in: 'query',

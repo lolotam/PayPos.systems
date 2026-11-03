@@ -13,11 +13,12 @@ import {
 import { takeTestEmployeeNumbers } from '../../../../test/test-employee-number.ts';
 import { planNodes, type PlanNode } from './employee-name-search-plan.check.ts';
 
-// خطة قائمة موظفي الخطط: نفس فهرس الموظفين اللي بتستخدمه قوائم الموظفين، والفلو في نشاطين
-// تانيين بيخلي نشاط الهدف انتقائياً، فالمفروض المخطط يقرأ من الفهرس مربوطاً بمفتاح
-// المستأجر مش مسح تسلسلي للجدول. سبب عدم إطفاء enable_seqscan: المطلوب إثبات اختيار
-// المخطط الافتراضي نفسه.
+// خطة قائمة موظفي الخطط: نفس فهرس الموظفين اللي بتستخدمه قوائم الموظفين. نشاط الهدف فيه 2000
+// موظف، منهم 300 باسم واحد، والفلو في نشاطين تانيين. الحالة دي اللي بتختبر الـ keyset بالقيمة:
+// مرساة في نص مجموعة الاسم الواحد وقرب آخرها. سبب عدم إطفاء enable_seqscan: المطلوب إثبات
+// اختيار المخطط الافتراضي نفسه.
 const FILLER = 2000;
+const GROUP = 300;
 const LIMIT = 20;
 const NAME_AR = 'موظفة اصطناعية';
 const NAME_EN = 'Aaa plan employee';
@@ -25,40 +26,34 @@ const NAME_EN_KEY = 'aaa plan employee';
 
 let f: SessionFixture;
 let businessRows = 0;
-let targetIds: string[] = [];
+let group: string[] = [];
 
-async function seedFiller(
+// distinct بيدّي كل موظف اسم مختلف بييجي بعد مجموعة الاسم الواحد في الترتيب.
+async function seedEmployees(
   companyId: string,
   businessId: string,
   branchId: string,
   count: number,
-): Promise<void> {
+  distinct: boolean,
+): Promise<string[]> {
   const employeeIds = Array.from({ length: count }, () => ids.newId());
   const firstNumber = takeTestEmployeeNumbers(companyId, count);
   await f.h
     .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_ar,name_en,name_en_key,role_code,hire_date,employee_number)
-    SELECT ${companyId},id,${businessId},${branchId},${NAME_AR},${NAME_EN},${NAME_EN_KEY},'staff','2026-01-01',
-      row_number() OVER () + ${firstNumber - 1}
-    FROM unnest(${employeeIds}::uuid[]) AS id`;
-}
-
-// موظفو النشاط الهدف: كلهم باسم واحد، فحافة الصفحة المفتاحية بتقع على الاسم والمعرّف معاً.
-async function seedTargets(): Promise<void> {
-  const employeeIds = Array.from({ length: 6 }, () => ids.newId());
-  const firstNumber = takeTestEmployeeNumbers(f.company, employeeIds.length);
-  await f.h
-    .owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_ar,name_en,name_en_key,role_code,hire_date,employee_number)
-    SELECT ${f.company},id,${f.business},${f.branch},${NAME_AR},${NAME_EN},${NAME_EN_KEY},'staff','2026-01-01',
-      row_number() OVER () + ${firstNumber - 1}
-    FROM unnest(${employeeIds}::uuid[]) AS id`;
-  targetIds = employeeIds;
+    SELECT ${companyId},t.id,${businessId},${branchId},${NAME_AR},
+      ${NAME_EN}::text || CASE WHEN ${distinct}::boolean THEN ' ' || lpad(t.n::text, 4, '0') ELSE '' END,
+      ${NAME_EN_KEY}::text || CASE WHEN ${distinct}::boolean THEN ' ' || lpad(t.n::text, 4, '0') ELSE '' END,
+      'staff','2026-01-01', t.n + ${firstNumber - 1}
+    FROM unnest(${employeeIds}::uuid[]) WITH ORDINALITY AS t(id, n)`;
+  return employeeIds;
 }
 
 beforeAll(async () => {
   f = await sessionFixture();
-  await seedTargets();
-  await seedFiller(f.otherCompany, f.foreignBusiness, f.foreignBranch, FILLER);
-  await seedFiller(f.company, f.secondBusiness, f.secondBranch, FILLER);
+  group = (await seedEmployees(f.company, f.business, f.branch, GROUP, false)).sort();
+  await seedEmployees(f.company, f.business, f.branch, FILLER - GROUP, true);
+  await seedEmployees(f.otherCompany, f.foreignBusiness, f.foreignBranch, FILLER, false);
+  await seedEmployees(f.company, f.secondBusiness, f.secondBranch, FILLER, false);
   await f.h.owner`ANALYZE employees`;
   const counted = await f.h.owner`SELECT count(*)::int AS total FROM employees
     WHERE company_id=${f.company} AND business_id=${f.business}`;
@@ -69,17 +64,13 @@ afterAll(async () => {
   await f?.close();
 });
 
-type EmployeeRow = {
-  readonly id: string;
-  readonly name_ar: string | null;
-  readonly name_en: string;
-  readonly employee_number: number;
-};
+type EmployeeRow = Record<string, unknown> & { readonly id: string; readonly name_en_key: string };
+type After = { readonly key: string; readonly id: string } | null;
 
-async function rows(afterId: string | null, limit: number): Promise<EmployeeRow[]> {
+async function rows(after: After, limit: number): Promise<EmployeeRow[]> {
   const fetched = await f.db.withTenant(f.company, (tx) =>
     tx.execute<EmployeeRow>(
-      commissionPlanEmployeeNamesStatement(f.company, f.business, afterId, limit),
+      commissionPlanEmployeeNamesStatement(f.company, f.business, after, limit),
     ),
   );
   // الجملة بتجيب صف زائد عشان تكشف وجود صفحة جاية؛ هنا بنقصّ زي طبقة الاستعلام.
@@ -108,15 +99,16 @@ function rowsRead(node: PlanNode): number {
   return read * (node['Actual Loops'] ?? 1);
 }
 
-async function planOf(afterId: string | null, limit: number): Promise<PlanNode[]> {
+async function planOf(after: After): Promise<PlanNode[]> {
+  const statement = commissionPlanEmployeeNamesStatement(f.company, f.business, after, LIMIT);
   const plan = await f.db.withTenant(f.company, (tx) =>
-    tx.execute(
-      sql`EXPLAIN (ANALYZE, FORMAT JSON) ${commissionPlanEmployeeNamesStatement(f.company, f.business, afterId, limit)}`,
-    ),
+    tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${statement}`),
   );
   return planNodes(plan);
 }
 
+// مفيش عقدة مرساة: كل قراءة لجدول الموظفين مربوطة بالشركة والنشاط في شرط الفهرس. الأرقام بتتسجّل
+// في سجل الـ CI (الصفوف والدورات والمشالة بالفلتر وعقدة الترتيب) دليلاً على تكلفة مجموعة الاسم الواحد.
 function expectTenantBounded(nodes: PlanNode[], label: string): void {
   const scans = employeesScans(nodes);
   expect(scans.length, `${label}: no employees node in the plan`).toBeGreaterThan(0);
@@ -124,53 +116,54 @@ function expectTenantBounded(nodes: PlanNode[], label: string): void {
     expect(scan['Node Type'], `${label}: employees is read by a sequential scan`).not.toBe(
       'Seq Scan',
     );
-    expect(indexCondition(scan), `${label}: the access is not bound by the company`).toContain(
-      'company_id',
-    );
+    expect(indexCondition(scan), `${label}: not bound by the company`).toContain('company_id');
+    expect(indexCondition(scan), `${label}: not bound by the business`).toContain('business_id');
   }
-  // عقدة الصفحة نفسها مربوطة بالنشاط كمان؛ عقدة المرساة مربوطة بالمعرّف بس.
-  expect(
-    scans.some((scan) => indexCondition(scan).includes('business_id')),
-    `${label}: the access is not bound by the business`,
-  ).toBe(true);
   const read = scans.reduce((total, scan) => total + rowsRead(scan), 0);
+  const metrics = scans.map((scan) => ({
+    node: scan['Node Type'],
+    rows: scan['Actual Rows'],
+    loops: scan['Actual Loops'],
+    removedByFilter: scan['Rows Removed by Filter'] ?? 0,
+  }));
+  const sorts = nodes.map((node) => node['Node Type']).filter((type) => /Sort/.test(type ?? ''));
+  console.info('commission_plan_employee_plan', { label, businessRows, read, metrics, sorts });
   expect(read, `${label}: the plan read more rows than the business holds`).toBeLessThanOrEqual(
     businessRows + LIMIT + 1,
   );
 }
 
-it('the statement returns only the four columns of the plan list', async () => {
+it('the statement returns the four list columns and the raw sort key only', async () => {
   const first = await rows(null, LIMIT);
-  expect(first.length).toBeGreaterThan(0);
+  expect(first.map((row) => row.id)).toEqual(group.slice(0, LIMIT));
   expect(Object.keys(first[0] ?? {}).sort()).toEqual([
     'employee_number',
     'id',
     'name_ar',
     'name_en',
+    'name_en_key',
   ]);
-  expect(first.every((row) => row.employee_number >= 1 && row.employee_number <= 999_999)).toBe(
-    true,
-  );
+  expect(first.every((row) => row.name_en_key === NAME_EN_KEY)).toBe(true);
+  const numbers = first.map((row) => Number(row['employee_number']));
+  expect(numbers.every((number) => number >= 1 && number <= 999_999)).toBe(true);
 });
 
-it('the first page and the next page are both read through the tenant index', async () => {
-  expect(businessRows).toBeGreaterThan(targetIds.length);
-  expect(businessRows).toBeLessThan((FILLER * 2) / 10);
-  expectTenantBounded(await planOf(null, LIMIT), 'first page');
-  const first = await rows(null, 2);
-  const anchor = first[first.length - 1]?.id as string;
-  expectTenantBounded(await planOf(anchor, LIMIT), 'next page');
+it('the first page and pages inside and at the end of a same-name group use the tenant index', async () => {
+  expect(businessRows).toBeGreaterThanOrEqual(FILLER);
+  expectTenantBounded(await planOf(null), 'first page');
+  const middle = { key: NAME_EN_KEY, id: group[GROUP / 2 - 1] as string };
+  expectTenantBounded(await planOf(middle), 'middle of the group');
+  const nearEnd = { key: NAME_EN_KEY, id: group[GROUP - 5] as string };
+  expectTenantBounded(await planOf(nearEnd), 'near the end of the group');
 });
 
-it('the next page continues after the anchor in the stored order', async () => {
-  const ordered = [...targetIds].sort();
-  const first = await rows(null, 2);
-  expect(first.map((row) => row.id)).toEqual(ordered.slice(0, 2));
-  const anchor = first[first.length - 1]?.id as string;
-  const second = await rows(anchor, 2);
-  expect(second.map((row) => row.id)).toEqual(ordered.slice(2, 4));
-  const third = await rows(second[second.length - 1]?.id as string, 2);
-  expect(third.map((row) => row.id)).toEqual(ordered.slice(4, 6));
+it('a page continues by value after the anchor, inside the group and across its end', async () => {
+  const middle = await rows({ key: NAME_EN_KEY, id: group[GROUP / 2 - 1] as string }, LIMIT);
+  expect(middle.map((row) => row.id)).toEqual(group.slice(GROUP / 2, GROUP / 2 + LIMIT));
+  const nearEnd = await rows({ key: NAME_EN_KEY, id: group[GROUP - 5] as string }, LIMIT);
+  expect(nearEnd.map((row) => row.id).slice(0, 4)).toEqual(group.slice(GROUP - 4));
+  expect(nearEnd).toHaveLength(LIMIT);
+  expect(nearEnd.slice(4).every((row) => row.name_en_key > NAME_EN_KEY)).toBe(true);
 });
 
 // سلبي الـ RLS: شروط company_id/business_id في الجملة لوحدها مش دليل؛ هنا الشركة التانية

@@ -1670,7 +1670,7 @@
             "schema": {
               "type": "string",
               "minLength": 1,
-              "maxLength": 512,
+              "maxLength": 12288,
               "pattern": "^[A-Za-z0-9_-]+$"
             }
           },
@@ -18150,7 +18150,7 @@
           "cursor": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 512,
+            "maxLength": 12288,
             "pattern": "^[A-Za-z0-9_-]+$"
           },
           "limit": {
@@ -18207,7 +18207,7 @@
             "nullable": true,
             "type": "string",
             "minLength": 1,
-            "maxLength": 512,
+            "maxLength": 12288,
             "pattern": "^[A-Za-z0-9_-]+$"
           }
         },

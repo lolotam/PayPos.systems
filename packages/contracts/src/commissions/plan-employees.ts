@@ -4,12 +4,16 @@ import { responseObject } from '../response-object.js';
 import { timeZone } from '../reference/time-zone.js';
 import { id } from '../scalars/id.js';
 
-// المؤشر نص base64url معتم (1..512 حرف) زي بقية المؤشرات في الباكدج: نفس الحدود دي بتقفل
+export const COMMISSION_PLAN_EMPLOYEE_CURSOR_MAX = 12_288;
+
+// المؤشر بيحمل مفتاح الترتيب المخزّن نفسه، فطوله تابع لأطول مفتاح يطلع من اسم 255 حرف:
+// أسوأ حالة U+FDFA ×255 بتدي 4590 code units / 8415 UTF-8 bytes، والمؤشر 11411 حرف.
+// 12288 حد بهامش وسطر الطلب بيفضل جوه حد ترويسات الـ API البالغ 32 KiB، ونفس الحد بيقفل
 // `next_cursor` في الرد، عشان العميل مينفعش يبعت مؤشر أطول أو أوسع من اللي السيرفر بيصدره.
 const commissionPlanEmployeeCursor = z
   .string()
   .min(1)
-  .max(512)
+  .max(COMMISSION_PLAN_EMPLOYEE_CURSOR_MAX)
   .regex(/^[A-Za-z0-9_-]+$/);
 
 /**
