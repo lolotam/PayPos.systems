@@ -8,7 +8,7 @@ export type PackageTypeSellingStatus = 'ACTIVE' | 'STOPPED';
 export interface PackageTypeSellingState {
   /** وقت إيقاف البيع؛ `null` عندما يكون البيع نشطاً. */
   readonly selling_stopped_at: string | null;
-  /** نسخة الكتابة التي قرأها العميل. */
+  /** نسخة الصف الحالية كما قُرئت مقفولة؛ تُقارن بالنسخة التي أرسلها العميل. */
   readonly revision: number;
 }
 
