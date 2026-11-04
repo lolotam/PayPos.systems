@@ -281,9 +281,25 @@ module-map row first.
     the cursor to close the disclosure above; the URL now carries the normalised name of the last row on the page.
   - **Trade-off kept.** Renaming an employee between two page requests can still skip or repeat that row in one walk;
     this stays tracked in [issue #796](https://github.com/lolotam/PayPos.systems/issues/796).
+- **Addendum 2026-11-05 (PP-122; spec 059 owner-questions §44, owner-decisions §60): fix both before merge.**
+  - **Stored key longer than the cap.** The cap bounds what a 255-unit name produces today. A legacy stored key can be
+    longer, so the query checks `next_cursor.length` after encoding and before `commissionPlanEmployeeList.parse`. Past
+    12288 it throws `COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE` (503), not a `ZodError` that ends as a generic 500.
+    The controller logs it once, with only `{ code }` and the constant event
+    `commission plan employee cursor unavailable`. It is 503, not 400, because the client sent nothing wrong; the row
+    needs repair. A last page encodes no cursor and is not refused.
+  - **Tie-breaker index.** The old `(company_id, business_id, name_en_key)` index has no `id`, so CI showed an
+    Incremental Sort and filtered rescans of a repeated name. A new partial index
+    `employees_company_business_name_en_key_id_active_idx (company_id, business_id, name_en_key, id) WHERE deleted_at IS NULL`
+    is built `CONCURRENTLY` in its own migration (ADR-0033). The old indexes stay (expand only). The migration runner's
+    recovery keeps a valid identical index, rejects a different definition and rebuilds an invalid one.
+  - **Known build risk.** The key column adds 16 bytes per entry. On PostgreSQL 16 an incompressible active key of
+    2645–2660 bytes fits the old index but not the new one, so the build fails with `54000` and leaves an invalid index
+    and no journal row. After that row is repaired or soft-deleted, a rerun rebuilds the index; the test
+    `employee-name-key-id-index.spec.ts` covers both.
 
-The addendum adds one Port row to `docs/module-map.md` §3. It adds no import arrow, no `reads:` line, no write port,
-no grant and no migration.
+The addendum adds one Port row to `docs/module-map.md` §3. It adds no import arrow, no `reads:` line, no write port
+and no grant. PP-122 adds one index-only migration.
 
 ### 4.1 Scoped layer imports for 48-2/49-1 (PP-108.1)
 

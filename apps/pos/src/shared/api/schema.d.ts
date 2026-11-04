@@ -216,7 +216,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description The plan screens’ own employee list (FR-010a). A holder of manage:commission-plans:business without manage:employees:business (the accountant by default) reaches the plan builder through this read; the staff employee routes stay closed to them. The items are the business’s employees with deleted_at IS NULL, ordered by (name_en_key, id), and carry the names and the employee number only — no branch, role, salary, phone, document or user link. time_zone is the business’s own timezone, never a branch’s. The cursor is opaque, bounded and bound to the company, the business and that order; a malformed cursor, or one from another scope, is VALIDATION_FAILED. Requires manage:commission-plans:business and the commissions feature; a device session is refused. Reads only. */
+        /** @description The plan screens’ own employee list (FR-010a). A holder of manage:commission-plans:business without manage:employees:business (the accountant by default) reaches the plan builder through this read; the staff employee routes stay closed to them. The items are the business’s employees with deleted_at IS NULL, ordered by (name_en_key, id), and carry the names and the employee number only — no branch, role, salary, phone, document or user link. time_zone is the business’s own timezone, never a branch’s. The cursor is opaque, bounded and bound to the company, the business and that order; a malformed cursor, or one from another scope, is VALIDATION_FAILED. When a stored name key is too long for the next page’s cursor, the page is refused with 503 COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE: that is stored data needing repair, not a client error, and a last page with no next cursor is still returned (PP-122). Requires manage:commission-plans:business and the commissions feature; a device session is refused. Reads only. */
         get: operations["listCommissionPlanEmployees"];
         put?: never;
         post?: never;
@@ -8693,6 +8693,15 @@ export interface operations {
             };
             /** @description Uniform 403 refusal */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE: a stored key is too long for the next cursor */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

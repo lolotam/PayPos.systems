@@ -35,6 +35,8 @@ async function insertEmployee(
     businessId: string;
     branchId: string;
     nameEn: string;
+    /** مفتاح خام بدل المحسوب من الاسم: بيانات قديمة محفوظة مش ممكن تيجي من الـ API. */
+    key?: string;
     nameAr?: string | null;
     number: number;
     deleted?: boolean;
@@ -43,7 +45,7 @@ async function insertEmployee(
   await f.h.owner`INSERT INTO employees(
     company_id,id,business_id,primary_branch_id,name_ar,name_en,name_en_key,role_code,hire_date,employee_number,deleted_at)
     VALUES(${input.companyId},${input.id},${input.businessId},${input.branchId},${input.nameAr ?? null},
-      ${input.nameEn},${employeeNameMatchKey(input.nameEn)},'staff','2026-01-01',${input.number},
+      ${input.nameEn},${input.key ?? employeeNameMatchKey(input.nameEn)},'staff','2026-01-01',${input.number},
       ${input.deleted === true ? new Date('2026-10-01T00:00:00.000Z') : null})`;
 }
 
@@ -343,4 +345,27 @@ it('FR-010a a soft-deleted anchor between the pages does not end the list', asyn
   const next = commissionPlanEmployeeList.parse(second.body);
   expect(next.items.map((item) => item.id)).toEqual([...fx.shared].sort().slice(2));
   expect(next.items.map((item) => item.id)).not.toContain(anchor);
+});
+
+// PP-122: الاسم نفسه جوه حد الـ 255، والمفتاح الخام بس هو الطويل؛ الأصفار بتحطه أول القائمة.
+it('PP-122 a stored key too long for the next cursor is a 503 and the last page still lists it', async () => {
+  const longKey = ids.newId();
+  await insertEmployee(fx.f, {
+    id: longKey,
+    companyId: fx.f.company,
+    businessId: fx.f.business,
+    branchId: fx.f.branch,
+    nameEn: 'Stored long key',
+    key: '0'.repeat(10_000),
+    number: takeTestEmployeeNumbers(fx.f.company, 1),
+  });
+  const refused = await list('?limit=1');
+  expect([refused.status, refused.body['code']]).toEqual([
+    503,
+    'COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE',
+  ]);
+  expect(refused.body['items']).toBeUndefined();
+  const whole = commissionPlanEmployeeList.parse((await list('?limit=50')).body);
+  expect(whole.items[0]?.id).toBe(longKey);
+  expect(whole.next_cursor).toBeNull();
 });

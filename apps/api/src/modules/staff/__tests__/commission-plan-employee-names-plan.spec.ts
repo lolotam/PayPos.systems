@@ -13,13 +13,14 @@ import {
 import { takeTestEmployeeNumbers } from '../../../../test/test-employee-number.ts';
 import { planNodes, rowsRead, type PlanNode } from './employee-name-search-plan.check.ts';
 
-// خطة قائمة موظفي الخطط: نفس فهرس الموظفين اللي بتستخدمه قوائم الموظفين. نشاط الهدف فيه 2000
+// خطة قائمة موظفي الخطط على فهرسها الجزئي (name_en_key, id) (PP-122). نشاط الهدف فيه 2000
 // موظف، منهم 300 باسم واحد، والفلو في نشاطين تانيين. الحالة دي اللي بتختبر الـ keyset بالقيمة:
 // مرساة في نص مجموعة الاسم الواحد وقرب آخرها. سبب عدم إطفاء enable_seqscan: المطلوب إثبات
 // اختيار المخطط الافتراضي نفسه.
 const FILLER = 2000;
 const GROUP = 300;
 const LIMIT = 20;
+const LIST_INDEX = 'employees_company_business_name_en_key_id_active_idx';
 const NAME_AR = 'موظفة اصطناعية';
 const NAME_EN = 'Aaa plan employee';
 const NAME_EN_KEY = 'aaa plan employee';
@@ -99,9 +100,10 @@ async function planOf(after: After): Promise<PlanNode[]> {
   return planNodes(plan);
 }
 
-// مفيش عقدة مرساة: كل قراءة لجدول الموظفين مربوطة بالشركة والنشاط في شرط الفهرس. الأرقام بتتسجّل
-// في سجل الـ CI (الصفوف والدورات والمشالة بالفلتر وعقدة الترتيب) دليلاً على تكلفة مجموعة الاسم الواحد.
-function expectTenantBounded(nodes: PlanNode[], label: string): void {
+// مفيش عقدة مرساة: كل قراءة لجدول الموظفين مربوطة بالشركة والنشاط في شرط الفهرس، والموضع بعد
+// المرساة جزء من شرط الفهرس نفسه، فالصفحة بتقرأ LIMIT + 1 صف بس من غير ترتيب، مهما كان مكانها في
+// مجموعة الاسم الواحد. الأرقام بتتسجّل في سجل الـ CI دليلاً على التكلفة.
+function expectTenantBounded(nodes: PlanNode[], label: string, after: After): void {
   const scans = employeesScans(nodes);
   expect(scans.length, `${label}: no employees node in the plan`).toBeGreaterThan(0);
   for (const scan of scans) {
@@ -110,6 +112,10 @@ function expectTenantBounded(nodes: PlanNode[], label: string): void {
     );
     expect(indexCondition(scan), `${label}: not bound by the company`).toContain('company_id');
     expect(indexCondition(scan), `${label}: not bound by the business`).toContain('business_id');
+    expect(scan['Index Name'], `${label}: not read through the list index`).toBe(LIST_INDEX);
+    if (after !== null) {
+      expect(indexCondition(scan), `${label}: the anchor is filtered`).toContain(after.id);
+    }
   }
   const read = scans.reduce((total, scan) => total + rowsRead(scan), 0);
   const metrics = scans.map((scan) => ({
@@ -121,9 +127,8 @@ function expectTenantBounded(nodes: PlanNode[], label: string): void {
   }));
   const sorts = nodes.map((node) => node['Node Type']).filter((type) => /Sort/.test(type ?? ''));
   console.info('commission_plan_employee_plan', { label, businessRows, read, metrics, sorts });
-  expect(read, `${label}: the plan read more rows than the business holds`).toBeLessThanOrEqual(
-    businessRows + LIMIT + 1,
-  );
+  expect(sorts, `${label}: the plan sorts the rows`).toEqual([]);
+  expect(read, `${label}: the page read more rows than it returns`).toBeLessThanOrEqual(LIMIT + 1);
 }
 
 it('the statement returns the four list columns and the raw sort key only', async () => {
@@ -141,13 +146,13 @@ it('the statement returns the four list columns and the raw sort key only', asyn
   expect(numbers.every((number) => number >= 1 && number <= 999_999)).toBe(true);
 });
 
-it('the first page and pages inside and at the end of a same-name group use the tenant index', async () => {
+it('the first page and pages inside and at the end of a same-name group read one page only', async () => {
   expect(businessRows).toBeGreaterThanOrEqual(FILLER);
-  expectTenantBounded(await planOf(null), 'first page');
+  expectTenantBounded(await planOf(null), 'first page', null);
   const middle = { key: NAME_EN_KEY, id: group[GROUP / 2 - 1] as string };
-  expectTenantBounded(await planOf(middle), 'middle of the group');
+  expectTenantBounded(await planOf(middle), 'middle of the group', middle);
   const nearEnd = { key: NAME_EN_KEY, id: group[GROUP - 5] as string };
-  expectTenantBounded(await planOf(nearEnd), 'near the end of the group');
+  expectTenantBounded(await planOf(nearEnd), 'near the end of the group', nearEnd);
 });
 
 it('a page continues by value after the anchor, inside the group and across its end', async () => {
