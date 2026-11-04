@@ -415,9 +415,16 @@ caller passes when at least one listed permission is held at the target with no 
 DENY on one listed permission does not refuse access through another. Every listed permission has the same scope, so the
 target is validated once when the module loads and a list of mixed scopes fails there. `@Require(p)` is the one-element
 case and writes the same `REQUIRE_ACCESS` metadata (`permissions`), so route coverage and the startup checks are
-unchanged. The grants are read once, by one `accessIn` read whatever the number of listed permissions; the guard's reads
-(membership list, target, grants) run one after another, never nested or concurrent (PP-7.2); merging the target and
-grants reads into one `withTenant` transaction is issue #506. First use: `GET` staff columns accepts
+unchanged. In 42-4a (2026-11-04, issue #506), `companiesOf` completes under `withUser` before entering the company.
+The target, all grants and the requested feature share one `withTenant(companyId, ..., { userId })` through `accessAt`;
+`accessAtBranches` likewise reads all requested branches and their grants in one transaction. No transactions overlap
+or nest. `readAccessTransaction` retains its active-company, canonical-owner and grant policies, and membership
+targets retain descendant DENY checks. The evaluator still checks each listed permission separately. The guard stores
+the server-read feature result only for that request, bound to the verified company and exact flag; `FeatureGuard`
+consumes it, falling back to its existing reader when missing or mismatched. Permission refusal remains `FORBIDDEN`
+before an authorized disabled feature returns `FEATURE_DISABLED`. Non-permission routes retain their fallback, and
+no transaction remains open during controller execution. The public `RequestAuthorizer` contract is unchanged.
+First use: `GET` staff columns accepts
 `read:settings:business` or `manage:staff-app-columns:business` (MY-Q10, PP-27.1). PR #468 first built the pair with `manage:settings:business`; issue #496 replaced the second code with the new staff-app-columns permission (MY-Q5, Abu Salem; migration 0168), so a holder of `manage:settings:business` alone is now refused.
 
 **2026-10-20, PP-7.1:** flow A may run as one transaction — membership proof in user context, then the company GUC is set in the same transaction only after the proof; a failed membership proof never sets `app.company_id` (it stays `''`).

@@ -3,7 +3,8 @@ import type {
   AccessReader,
   ActiveMembership,
   SourcedGrant,
-  ResolvedAccessTargets,
+  AccessTargetRequest,
+  AccessFeature,
   BranchRequestAccess,
 } from '../../ports/access-reader.port.ts';
 
@@ -20,9 +21,11 @@ export interface AuthorizeRequestInput {
   readonly businessParam?: unknown;
   readonly branchParam?: unknown;
   readonly membershipParam?: unknown;
+  readonly featureFlag?: string;
 }
 
 export interface Authorized {
+  readonly feature?: AccessFeature;
   readonly companyId: string;
   readonly memberships: readonly ActiveMembership[];
   readonly grants: readonly SourcedGrant[];
@@ -52,9 +55,16 @@ export class AuthorizeRequest implements BranchRequestAccess {
     if (companyId === null) return null;
     // Refused before any tenant is entered: the membership list is read under withUser only.
     if (!(await this.#reader.companiesOf(input.userId)).includes(companyId)) return null;
-    const targets = await this.#target(companyId, input);
-    if (targets === null) return null;
-    const access = await this.#reader.accessIn(companyId, input.userId);
+    const request = this.#target(input);
+    if (request === null) return null;
+    const inspected = await this.#reader.accessAt(
+      companyId,
+      input.userId,
+      request,
+      input.featureFlag,
+    );
+    if (inspected === null) return null;
+    const { targets, access } = inspected;
     // فحص التوابع هنا يسبق Zod؛ الجسم غير الصحيح لا يكشف عضوية ممنوعة بـ DENY في فرع تابع.
     // المنح بتتقري مرة واحدة في معاملة واحدة، مهما كان عدد الصلاحيات المقبولة.
     const permissions: readonly string[] =
@@ -69,7 +79,12 @@ export class AuthorizeRequest implements BranchRequestAccess {
         ) === null,
     );
     if (!granted) return null;
-    return { companyId, memberships: access.memberships, grants: access.grants };
+    return {
+      companyId,
+      memberships: access.memberships,
+      grants: access.grants,
+      ...(inspected.feature === undefined ? {} : { feature: inspected.feature }),
+    };
   }
 
   /** يفوّض فروع الصفحة بنفس تقييم الطلب المفرد بعد تأكيد الشركة مرة واحدة وقراءة المنح مرة واحدة. */
@@ -82,9 +97,9 @@ export class AuthorizeRequest implements BranchRequestAccess {
     const companyId = asUuid(input.requestedCompany);
     if (companyId === null || branchIds.length === 0) return allowed;
     if (!(await this.#reader.companiesOf(input.userId)).includes(companyId)) return allowed;
-    const businesses = await this.#reader.businessesOfBranches(companyId, branchIds);
-    if (businesses.size === 0) return allowed;
-    const access = await this.#reader.accessIn(companyId, input.userId);
+    const inspected = await this.#reader.accessAtBranches(companyId, input.userId, branchIds);
+    if (inspected === null) return allowed;
+    const { businesses, access } = inspected;
     for (const [branchId, businessId] of businesses) {
       allowed.set(
         branchId,
@@ -99,31 +114,19 @@ export class AuthorizeRequest implements BranchRequestAccess {
     return allowed;
   }
 
-  async #target(
-    companyId: string,
-    input: AuthorizeRequestInput,
-  ): Promise<ResolvedAccessTargets | null> {
+  #target(input: AuthorizeRequestInput): AccessTargetRequest | null {
     if (input.membershipParam !== undefined) {
       const membershipId = asUuid(input.membershipParam);
-      return membershipId === null ? null : this.#reader.membershipTarget(companyId, membershipId);
+      return membershipId === null ? null : { kind: 'membership', membershipId };
     }
     if (input.branchParam !== undefined) {
       const branchId = asUuid(input.branchParam);
-      if (branchId === null) return null;
-      // The branch's business comes from the database, inside the verified company — never from the client.
-      const businessId = await this.#reader.businessOfBranch(companyId, branchId);
-      return businessId === null
-        ? null
-        : { target: { companyId, businessId, branchId }, descendantTargets: [] };
+      return branchId === null ? null : { kind: 'branch', branchId };
     }
     if (input.businessParam !== undefined) {
       const businessId = asUuid(input.businessParam);
-      if (businessId === null) return null;
-      // Another company's business, or an unknown one, is refused here — the same 403 as no permission.
-      return (await this.#reader.businessInCompany(companyId, businessId))
-        ? { target: { companyId, businessId }, descendantTargets: [] }
-        : null;
+      return businessId === null ? null : { kind: 'business', businessId };
     }
-    return { target: { companyId }, descendantTargets: [] };
+    return { kind: 'company' };
   }
 }

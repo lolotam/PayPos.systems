@@ -21,62 +21,65 @@ export interface ResolvedAccessTargets {
   readonly descendantTargets: readonly AccessTarget[];
 }
 
+/** عضويات ومنح الشركة الحية؛ نفس الشكل لإعادة الفحص داخل معاملة الكتابة. */
+export interface CompanyAccess {
+  readonly memberships: readonly ActiveMembership[];
+  readonly grants: readonly SourcedGrant[];
+}
+
+/** هدف مطبّع يثبت القارئ وجوده في الشركة قبل إرجاع المنح. */
+export type AccessTargetRequest =
+  | { readonly kind: 'company' }
+  | { readonly kind: 'business'; readonly businessId: string }
+  | { readonly kind: 'branch'; readonly branchId: string }
+  | { readonly kind: 'membership'; readonly membershipId: string };
+
+/** نتيجة ميزة مقروءة من الخادم وليست claim من العميل. */
+export interface AccessFeature {
+  readonly flag: string;
+  readonly enabled: boolean;
+}
+
 /**
  * اللي الـ guard محتاج يقراه عشان يقرر — كل method بتقرا في الطلب نفسه، مفيش cache.
  */
 export interface AccessReader {
   /**
-   * يعيد نطاق العضوية السارية وتوابعه من الشركة المؤكدة لفحص الإذن كاملاً قبل الجسم؛ المجهول لا يكشف الهوية.
+   * يثبت الهدف ويقرأ المنح والميزة المطلوبة في معاملة واحدة؛ المجهول يرجع null.
    *
-   * @param companyId الشركة المؤكدة من عضوية المستخدم
-   * @param membershipId العضوية التي يطلب المدير تعديل حدها
+   * @param companyId الشركة المؤكدة
+   * @param userId المستخدم الموثق
+   * @param request الهدف المطبّع
+   * @param featureFlag الميزة المطلوبة إن وجدت
    */
-  membershipTarget(companyId: string, membershipId: string): Promise<ResolvedAccessTargets | null>;
+  accessAt(
+    companyId: string,
+    userId: string,
+    request: AccessTargetRequest,
+    featureFlag?: string,
+  ): Promise<{
+    targets: ResolvedAccessTargets;
+    access: CompanyAccess;
+    feature?: AccessFeature;
+  } | null>;
+  /**
+   * يثبت فروع الصفحة ويقرأ المنح مرة واحدة؛ غياب كل الفروع يرجع null.
+   *
+   * @param companyId الشركة المؤكدة
+   * @param userId المستخدم الموثق
+   * @param branchIds فروع الصفحة دون تكرار
+   */
+  accessAtBranches(
+    companyId: string,
+    userId: string,
+    branchIds: readonly string[],
+  ): Promise<{ businesses: ReadonlyMap<string, string>; access: CompanyAccess } | null>;
   /**
    * الشركات اللي المستخدم ليه فيها عضوية سارية دلوقتي — بتتقري تحت withUser قبل ما أي tenant يتفتح.
    *
    * @param userId المستخدم اللي الـ session اتأكدت له
    */
   companiesOf(userId: string): Promise<readonly string[]>;
-  /**
-   * العضويات السارية والصلاحيات (role + overrides بالـ DENY) للمستخدم بعد تأكيد الشركة.
-   * DENY الإداري التاريخي لا يقلل سلطة المالك النشط؛ دخول الموظفين يبقى مستقلاً حسب ADR-0019.
-   * مستأجر اتعمله soft-delete بيرجّع صفر عضويات وصفر منح حتى لأعضائه.
-   * الفحص SELECT من غير قفل صف عشان مسار القراءة مايستناش أي قفل.
-   * الكتابة متسلسلة لأن إعادة الفحص بتمسك FOR NO KEY UPDATE في نفس المعاملة،
-   * والقفل ده بيتعارض مع أي UPDATE لصف الشركة بما فيه الحذف الناعم.
-   *
-   * @param companyId الشركة اللي عضويته فيها اتأكدت
-   * @param userId    المستخدم
-   */
-  accessIn(
-    companyId: string,
-    userId: string,
-  ): Promise<{ memberships: readonly ActiveMembership[]; grants: readonly SourcedGrant[] }>;
-  /**
-   * الـ business بتاع الفرع في الشركة دي، أو null لو الفرع مش موجود فيها — عشان تقييم نطاق الـ business.
-   *
-   * @param companyId الشركة المتأكد منها
-   * @param branchId  الفرع اللي الـ route بيلمسه
-   */
-  businessOfBranch(companyId: string, branchId: string): Promise<string | null>;
-  /**
-   * يعيد أنشطة الفروع الموجودة داخل الشركة دفعة واحدة لتقييم صفحة كاملة دون قراءة لكل فرع.
-   *
-   * @param companyId الشركة المؤكدة
-   * @param branchIds معرّفات الفروع المطلوب تقييمها
-   */
-  businessesOfBranches(
-    companyId: string,
-    branchIds: readonly string[],
-  ): Promise<ReadonlyMap<string, string>>;
-  /**
-   * هل الـ business ده موجود في الشركة دي — عشان business شركة تانية يترفض قبل تقييم الصلاحية (TEN-03).
-   *
-   * @param companyId الشركة المتأكد منها
-   * @param businessId الـ business اللي الـ route بيلمسه
-   */
-  businessInCompany(companyId: string, businessId: string): Promise<boolean>;
   /**
    * هل الـ feature مفعّلة للشركة: override ساري لو موجود، وإلا flag الـ plan، وإلا مقفولة.
    * شركة اتعملها soft-delete أو صفها مش ظاهر بتبقى مقفولة حتى لو فيها override.

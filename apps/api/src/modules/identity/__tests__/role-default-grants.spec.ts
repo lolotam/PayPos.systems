@@ -343,7 +343,11 @@ it('ODOC-09: the reference migrations upgrade a seeded existing company without 
     ORDER BY permission_code,role_id`,
     ),
   ).toEqual(expectedDefaults());
-  const access = await createAccessReader(f.db).accessIn(f.company, f.managerId);
+  const inspected = await createAccessReader(f.db).accessAt(f.company, f.managerId, {
+    kind: 'company',
+  });
+  if (inspected === null) throw new Error('Missing synthetic company target');
+  const access = inspected.access;
   expect(access.grants).toContainEqual(
     expect.objectContaining({
       permission: 'manage:employees:business',
