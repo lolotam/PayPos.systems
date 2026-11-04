@@ -15,6 +15,15 @@ const importPreview = ids.newId();
  */
 export async function packageEntitlementDetailFixture() {
   const f = await sessionFixture();
+  return seedEntitlementDetail(f).catch(async (error) => {
+    throw await f.close().then(
+      () => error,
+      (cleanup) => new AggregateError([error, cleanup]),
+    );
+  });
+}
+
+async function seedEntitlementDetail(f: SessionFixture) {
   const employee = must(f.employees[0]);
   await f.db.withTenant(f.company, (tx) =>
     tx.execute(
