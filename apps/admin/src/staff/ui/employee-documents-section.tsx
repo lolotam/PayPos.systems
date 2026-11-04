@@ -20,13 +20,20 @@ export function EmployeeDocumentsSection(props: {
   employeeId: string;
 }) {
   const locale = useLocale();
-  const [typeCode, setTypeCode] = useState<string>();
+  const identity = JSON.stringify([
+    props.companyId,
+    props.businessId,
+    props.userId,
+    props.employeeId,
+  ]);
+  const { typeCode, replace } = useReplacementType(identity);
   const { view, record, open, phase } = useEmployeeDocuments(
     props.companyId,
     props.businessId,
     props.userId,
     props.employeeId,
   );
+  if (view.isError) return <p role="alert">{envelopeMessage(view.error, locale)}</p>;
   // بيانات cache لا تثبت الصلاحية لهذا الفتح؛ ننتظر قراءة ناجحة بعد تركيب القسم.
   if (!view.isFetchedAfterMount || !view.data || view.isError) return null;
   const progress = PHASES[phase];
@@ -40,12 +47,18 @@ export function EmployeeDocumentsSection(props: {
         canManage={view.data.can_manage}
         opening={open.isPending}
         onOpen={(key) => open.mutate(key)}
-        onReplace={setTypeCode}
+        onReplace={replace}
       />
       {open.isError ? <p role="alert">{envelopeMessage(open.error, locale)}</p> : null}
       {view.data.can_manage && view.data.types.length > 0 ? (
         <EmployeeDocumentForm
-          key={typeCode ?? ''}
+          key={JSON.stringify([
+            props.companyId,
+            props.businessId,
+            props.userId,
+            props.employeeId,
+            typeCode,
+          ])}
           types={view.data.types}
           {...(typeCode === undefined ? {} : { typeCode })}
           pending={record.isPending}
@@ -54,7 +67,20 @@ export function EmployeeDocumentsSection(props: {
       ) : null}
       {progress !== undefined ? <p role="status">{t(locale, progress)}</p> : null}
       {record.isError ? <p role="alert">{envelopeMessage(record.error, locale)}</p> : null}
-      {record.isSuccess ? <p role="status">{t(locale, 'employeeDocuments.recorded')}</p> : null}
+      {record.isSuccess && record.data !== undefined ? (
+        <p role="status">{t(locale, 'employeeDocuments.recorded')}</p>
+      ) : null}
     </section>
   );
+}
+
+function useReplacementType(identity: string) {
+  const [replacement, setReplacement] = useState<{ identity: string; typeCode?: string }>({
+    identity,
+  });
+  if (replacement.identity !== identity) setReplacement({ identity });
+  return {
+    typeCode: replacement.identity === identity ? replacement.typeCode : undefined,
+    replace: (typeCode: string) => setReplacement({ identity, typeCode }),
+  };
 }

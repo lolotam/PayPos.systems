@@ -22,3 +22,25 @@ export class PackageRuleError extends Error {
     this.name = 'PackageRuleError';
   }
 }
+
+/** أسباب رفض تسعير بيع الباقة؛ محلية لهذه الوحدة فسجل أخطاء الطلب ما اتغيّرش. */
+export type PackageSalePricingErrorCode = 'PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT' | 'INVALID_LIMIT';
+
+/**
+ * خطأ مسمّى بيفصل رفض بيع الباقة عن رفض بند الزيارة، والنقل هو المسؤول عن الرسالة والحالة.
+ */
+export class PackageSalePricingError extends Error {
+  /**
+   * يثبّت سبب الرفض وحدّ المسجّلة بالوحدات الأساسية عشان شاشة البيع تعرض السبب.
+   *
+   * @param code سبب الرفض
+   * @param details حدّ المسجّلة ونسبة الخصم المحسوبة بالوحدات الأساسية
+   */
+  constructor(
+    readonly code: PackageSalePricingErrorCode,
+    readonly details?: unknown,
+  ) {
+    super(code);
+    this.name = 'PackageSalePricingError';
+  }
+}
