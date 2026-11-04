@@ -21,3 +21,22 @@ export function assertPackageNotExpired(today: string, expiresOn: string): void 
   validateDate(expiresOn);
   if (today > expiresOn) throw new PackageRuleError('PACKAGE_EXPIRED');
 }
+
+/**
+ * الصلاحية أيام تقويمية بعد يوم البيع المحلي، مش مضاعفات ٢٤ ساعة بتوقيت الفرع.
+ *
+ * @param soldBusinessDate يوم البيع المحلي بصيغة YYYY-MM-DD
+ * @param validityDays مدة النوع المقروءة، من يوم إلى ٧٣٠ يوماً
+ * @returns تاريخ الانتهاء؛ يوم الانتهاء نفسه يظل صالحاً للاستخدام
+ */
+export function packageExpiryDate(soldBusinessDate: string, validityDays: number): string {
+  validateDate(soldBusinessDate);
+  if (!Number.isInteger(validityDays) || validityDays < 1 || validityDays > 730) {
+    throw new PackageRuleError('INVALID_DATE');
+  }
+  const expiry = new Date(`${soldBusinessDate}T00:00:00.000Z`);
+  expiry.setUTCDate(expiry.getUTCDate() + validityDays);
+  const expiresOn = expiry.toISOString().slice(0, 10);
+  validateDate(expiresOn);
+  return expiresOn;
+}

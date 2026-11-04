@@ -41,8 +41,7 @@ async function role(code: string) {
 
 async function parity(permission: string, active = true) {
   const reader = createAccessReader(f.db);
-  const accessRead = vi.spyOn(reader, 'accessIn');
-  const targetsRead = vi.spyOn(reader, 'businessesOfBranches');
+  const accessRead = vi.spyOn(reader, 'accessAtBranches');
   const membershipRead = vi.spyOn(reader, 'companiesOf');
   const authorizer = new AuthorizeRequest(reader);
   const branches = [f.branch, f.siblingBranch, otherBranch, f.foreignBranch, f.ids.newId()];
@@ -52,7 +51,6 @@ async function parity(permission: string, active = true) {
     branchParams: [...branches, f.branch.toUpperCase(), 'invalid'],
   });
   expect(accessRead).toHaveBeenCalledTimes(active ? 1 : 0);
-  expect(targetsRead).toHaveBeenCalledTimes(active ? 1 : 0);
   expect(membershipRead).toHaveBeenCalledTimes(1);
   const singles = await Promise.all(
     branches.map(
@@ -131,7 +129,7 @@ it.each(['starts_at', 'ends_at'] as const)(
       await f.h
         .owner`UPDATE memberships SET ends_at=now()-interval '1 hour' WHERE company_id=${f.company} AND id=${f.managerMember}`;
     const reader = createAccessReader(f.db);
-    const accessRead = vi.spyOn(reader, 'accessIn');
+    const accessRead = vi.spyOn(reader, 'accessAtBranches');
     const authorizer = new AuthorizeRequest(reader);
     const batch = await authorizer.executeBranches({
       userId: f.managerId,

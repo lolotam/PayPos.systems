@@ -190,6 +190,7 @@ provider-owned reader and bound at the composition root, the way the root-bound 
 | the `FOR NO KEY UPDATE` lock on the employee row that orders version allocation and service-override writes (`EmployeeRowLockPort`, 48-2 and 49-1, FR-008/FR-012) | `staff` |
 | service existence in the target business, read through readSessionServices on the writer's transaction without using its live rule to price history (`CommissionServiceReaderPort`, 49-1, FR-011) | `catalog` |
 | unlocked permission/feature recheck through readCommissionPlanListAccess, active employee existence through employeeExistsInBusiness, and the business timezone through businessTimeZone (`CommissionServiceOverrideListReads`, 49-1, FR-013) | `identity`, `staff`, `tenancy` |
+| unlocked permission/feature recheck through readCommissionPlanListAccess, the business timezone through businessTimeZone, and the plan screens' employee names and numbers through readCommissionPlanEmployeeNames (`CommissionPlanEmployeeListReads`, 48-2b, FR-010a; addendum 2026-11-02 below) | `identity`, `staff`, `tenancy` |
 | service names | `catalog` |
 | notification recipients | `identity` |
 | the employee's business and dated branch attachments (FR-018b, FR-033) | `staff` |
@@ -218,6 +219,105 @@ import). 59-0 adds those Port rows to `docs/module-map.md` §3 in the same PR.
 
 **The rule from D-16:** if a reader cannot be bound at the root, the sub-PR that needs it stops and adds an ADR and the
 module-map row first.
+
+**Addendum (2026-11-02, 48-2b): the plan screens' employee list (FR-010a).**
+
+- **What it serves.** `GET /v1/businesses/{businessId}/commission-plan-employees` lets a holder of
+  `manage:commission-plans:business` without `manage:employees:business` pick employees in the plan builder. The
+  staff employee routes stay closed to that holder.
+- **The port.** `CommissionPlanEmployeeListReads` is a read-only interface owned by commissions. It lives beside its query
+  in `queries/commission-plan-employees.query.ts`, as the 49-1 list's interface does, and has three methods, each with
+  its adapter:
+  - `access` → `readCommissionPlanListAccess` (`identity`, `persistence/commission-plan-access.ts`)
+  - `timeZone` → `businessTimeZone` (`tenancy`, `queries/business-time-zone.query.ts`)
+  - `employeeNames` → `readCommissionPlanEmployeeNames` (`staff`, `persistence/commission-plan-employee-names.ts`,
+    exported from the staff `index.ts`)
+
+  The staff reader owns the limited SQL. It reads only `id`, `name_ar`, `name_en`, `employee_number` and the stored
+  `name_en_key` of the business's employees with `deleted_at IS NULL`, in `(name_en_key, id)` order. `name_en_key` goes
+  into the next cursor only; the response item keeps the four other fields. No employee query is copied into
+  commissions.
+- **The root binding.** `app.ts` (`commissionBindings`) passes the three tx-first functions as
+  `CommissionPlanEmployeeListReads`, the port itself (one interface; no second tx-less copy and no adapter between
+  them). `commissions.module.ts` binds the token `COMMISSION_PLAN_EMPLOYEE_LIST` to
+  `createCommissionPlanEmployeeList(database, reads)`, and the controller injects only that runner.
+- **How it differs from 49-1.** In 49-1 the controller opens `withTenant` and passes `Tx` into the query. Here the runner
+  in `queries/` opens the single `withTenant(companyId, …, { userId })` itself. It reads in this order: access, then the
+  business timezone (`null` → `FORBIDDEN`), then the cursor (invalid → `VALIDATION_FAILED`), then the names. All four run
+  sequentially on that one transaction, with no nested or concurrent transaction.
+- **§4.1 is unchanged.** Because the controller takes the runner, it imports no `TenantWrappers`, and the cursor validates
+  with `id` from `@pospay/contracts` instead of `zod`. The new files therefore need no entry in the §4.1 list. The query
+  file's type-only imports of `TenantWrappers` and `Tx` from `@pospay/db` are the `queries/` row of the import matrix,
+  not a scoped addition.
+- **The cursor carries the sort position by value (round 4, 2026-11-03).** It holds `{v, c, b, k, i}` as canonical
+  base64url: the company, the business, the last row's `name_en_key` exactly as SQL returned it, and that row's id
+  (ids lower-cased). The next page reads `(e.name_en_key, e.id) > (k, i)` and never looks the anchor row up.
+  - **Why.** The cursor is unsigned. The first release anchored on the id alone and re-read the anchor's key with no
+    `deleted_at` filter, so a forged cursor with a soft-deleted employee's id returned the rows after it while a missing
+    id returned an empty page: the difference revealed that the id had been an employee of the business (review threads
+    r4445819849 and r4445819864 on PR #793). With the position carried by value, a deleted id and a missing id with the
+    same `k` give the same page, and a soft-deleted anchor still does not end the list.
+  - **Integrity without a secret.** Decoding refuses a cursor longer than the cap before it is decoded, a non-canonical
+    encoding, a version other than 1, ids that fail `id` or belong to another company or business, a `k` that is not a
+    string or contains NUL (PostgreSQL text cannot hold it), and any cursor whose re-encoding differs from the input,
+    which covers extra, missing, duplicated and reordered keys and upper-case ids. `c` and `b` stay for parity with 49-1;
+    they are not a security control, because the path, the guard and RLS decide the scope. There is no HMAC, no secret
+    and no migration.
+  - **The cap.** `k` is not truncated, so the cap follows the longest key a 255-unit name can produce. A scan of every
+    Unicode code point found U+FDFA the largest single-point expansion under the key function (18 units, 33 UTF-8 bytes
+    per input unit, the same in JS and in the legacy SQL key). U+FDFA ×255 gives a key of 4590 units / 8415 bytes and a
+    cursor of 11411 characters; ASCII ×255 gives 531, Arabic ×255 871. The cap is
+    `COMMISSION_PLAN_EMPLOYEE_CURSOR_MAX = 12288`, on the query parameter and on `next_cursor`.
+  - **The request budget.** Node's default `maxHeaderSize` (16 KiB) covers the request line and all headers, and the
+    parent-domain session cookies share it. The API therefore sets `API_MAX_HEADER_BYTES = 32768` through the Fastify
+    adapter's `http.maxHeaderSize`. Past it Fastify writes a raw `431` on the socket before Nest runs, so that response
+    is not our error envelope and carries no CORS headers. The staging proxy (Traefik v3.6.7) has no smaller header
+    limit; production proxy limits were not verified.
+  - **Decision record.** SA approved, recorded as 21:24 (replacing 21:14), through the manager thread, verbatim: "set the
+    API's maxHeaderSize explicitly to 32 KiB, cap the cursor at 12288 and check it before decoding, and add a real HTTP
+    test of the limit. No Traefik change, no secret. The original size cap stays in the record. Round 4/5 may continue."
+  - **History (the original cap).** The first release capped the cursor at 512 characters and kept `name_en_key` out of
+    it, both because the key is unbounded and to keep a normalised name out of URLs and logs. Round 4 accepts the key in
+    the cursor to close the disclosure above; the URL now carries the normalised name of the last row on the page.
+  - **Trade-off kept.** Renaming an employee between two page requests can still skip or repeat that row in one walk;
+    this stays tracked in [issue #796](https://github.com/lolotam/PayPos.systems/issues/796).
+- **Addendum 2026-11-05 (PP-122; spec 059 owner-questions §44, owner-decisions §60): fix both before merge.**
+  - **Stored key longer than the cap.** The cap bounds what a 255-unit name produces today. A legacy stored key can be
+    longer, so the query checks `next_cursor.length` after encoding and before `commissionPlanEmployeeList.parse`. Past
+    12288 it throws `COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE` (503), not a `ZodError` that ends as a generic 500.
+    The controller logs it once, with only `{ code }` and the constant event
+    `commission plan employee cursor unavailable`. It is 503, not 400, because the client sent nothing wrong; the row
+    needs repair. A last page encodes no cursor and is not refused.
+  - **Tie-breaker index.** The old `(company_id, business_id, name_en_key)` index has no `id`, so CI showed an
+    Incremental Sort and filtered rescans of a repeated name. A new partial index
+    `employees_company_business_name_en_key_id_active_idx (company_id, business_id, name_en_key, id) WHERE deleted_at IS NULL`
+    is built `CONCURRENTLY` in its own migration (ADR-0033). The old indexes stay (expand only). The migration runner's
+    recovery keeps a valid identical index, rejects a different definition and rebuilds an invalid one.
+  - **Legacy keys are re-derived before the build (manager, round 2, 2026-11-05 02:22 Kuwait).** The new index adds
+    `id`, 16 bytes per entry. On PostgreSQL 16 the old index accepts an incompressible key of up to 2660 bytes and the
+    new one only up to 2644. A stored key in that window would make the build fail with `54000`. So 0204 carries
+    `-- pospay:data-step employee-name-keys`. The runner runs that registered step before the `CONCURRENTLY` prefix of
+    the same migration (`applyOne` in `concurrent-migrations.ts`). The step is `rekeyEmployeeNameKeys`, the one 0101/0102
+    use. It reads only `companies.id` as the migration owner. For each company, under `withTenant`, it rewrites every
+    `name_en_key` that differs from `employeeNameMatchKey(name_en)`. Rerunning it writes no row. A key that was not
+    derived from its name is therefore repaired, and the build succeeds. `employee-name-key-id-index.spec.ts` covers
+    both the repair and the rerun.
+  - **Remaining risk, theoretical.** The step cannot shorten a key that is already derived correctly. Capping
+    `employeeNameMatchKey` would change the name-matching rule, so it was not done. No canonical key is known to reach
+    the window:
+    - The contract caps `name_en` at 255 UTF-16 units.
+    - The `employees_name_en_length` CHECK, present since 0038, caps it at 255 code points.
+    - Under that CHECK, 255 distinct characters with the largest NFKC expansion give a 2093-byte key; under the contract
+      cap they give 2003 bytes.
+    - A longer key needs repeated characters, which the index-tuple compression shrinks. On the lane (`pglz`, the
+      default), 16 adversarial 255-code-point names with keys of 2093 to 8415 raw bytes all entered the new index.
+
+    This is evidence, not a proof. If such a key ever exists, the build fails with `54000`, leaving an invalid index and
+    no journal row. A rerun after the row is repaired rebuilds the index (ADR-0033;
+    `concurrent-index-recovery.spec.ts`).
+
+The addendum adds one Port row to `docs/module-map.md` §3. It adds no import arrow, no `reads:` line, no write port
+and no grant. PP-122 adds one index migration, which first runs the existing `employee-name-keys` data step.
 
 ### 4.1 Scoped layer imports for 48-2/49-1 (PP-108.1)
 
