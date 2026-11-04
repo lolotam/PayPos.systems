@@ -48,9 +48,9 @@ async function seedEntitlementDetail(f: SessionFixture) {
     await tx.execute(sql`INSERT INTO package_components
       (company_id,id,business_id,entitlement_id,service_id,position,name_en,name_ar,list_price_snapshot,sessions_total,component_value)
       VALUES(${f.company},${soldComponentOne},${f.business},${soldEntitlement},${must(f.services[0])},1,'Snapshot service one','لقطة أولى',
-        '25.000',3,'30.000'),
+        '15.000',3,'30.000'),
         (${f.company},${soldComponentTwo},${f.business},${soldEntitlement},${must(f.services[1])},2,'Snapshot service two','لقطة تانية',
-        '7.125',3,'20.000'),
+        '10.000',3,'20.000'),
         (${f.company},${importedComponent},${f.business},${importedEntitlement},${must(f.services[2])},1,'Snapshot imported service','لقطة مستوردة',
         '0.000',4,'40.000')`);
     await tx.execute(sql`INSERT INTO package_session_slots
@@ -58,9 +58,9 @@ async function seedEntitlementDetail(f: SessionFixture) {
       VALUES(${f.company},${ids.newId()},${f.business},${soldEntitlement},${soldComponentOne},1,'10.000','FREE'),
         (${f.company},${ids.newId()},${f.business},${soldEntitlement},${soldComponentOne},2,'10.000','FREE'),
         (${f.company},${ids.newId()},${f.business},${soldEntitlement},${soldComponentOne},3,'10.000','FREE'),
-        (${f.company},${ids.newId()},${f.business},${soldEntitlement},${soldComponentTwo},1,'6.667','FREE'),
-        (${f.company},${ids.newId()},${f.business},${soldEntitlement},${soldComponentTwo},2,'6.667','FREE'),
-        (${f.company},${ids.newId()},${f.business},${soldEntitlement},${soldComponentTwo},3,'6.666','FREE'),
+        (${f.company},${ids.newId()},${f.business},${soldEntitlement},${soldComponentTwo},1,'6.666','FREE'),
+        (${f.company},${ids.newId()},${f.business},${soldEntitlement},${soldComponentTwo},2,'6.666','FREE'),
+        (${f.company},${ids.newId()},${f.business},${soldEntitlement},${soldComponentTwo},3,'6.668','FREE'),
         (${f.company},${ids.newId()},${f.business},${importedEntitlement},${importedComponent},1,'10.000','IMPORTED_USED'),
         (${f.company},${ids.newId()},${f.business},${importedEntitlement},${importedComponent},2,'10.000','IMPORTED_USED'),
         (${f.company},${ids.newId()},${f.business},${importedEntitlement},${importedComponent},3,'10.000','FREE'),

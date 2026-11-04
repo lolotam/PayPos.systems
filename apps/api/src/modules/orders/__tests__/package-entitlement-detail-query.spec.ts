@@ -88,7 +88,7 @@ it('reads the components in position order with their exact stored values', asyn
   const first = must(detail.components[0]);
   expect(first.serviceId).toBe(must(fixture.f.services[0]));
   expect(first.nameEn).toBe('Snapshot service one');
-  expect(first.listPriceSnapshot).toBe('25.000');
+  expect(first.listPriceSnapshot).toBe('15.000');
   expect(first.componentValue).toBe('30.000');
   expect(first.sessionsTotal).toBe(3);
   expect(first.remaining).toBe(3);
@@ -99,7 +99,7 @@ it('reads the components in position order with their exact stored values', asyn
   expect(first.slots.map((slot) => slot.unitValue)).toEqual(['10.000', '10.000', '10.000']);
   const second = must(detail.components[1]);
   expect(second.componentValue).toBe('20.000');
-  expect(second.slots.map((slot) => slot.unitValue)).toEqual(['6.667', '6.667', '6.666']);
+  expect(second.slots.map((slot) => slot.unitValue)).toEqual(['6.666', '6.666', '6.668']);
 });
 
 it('leaves the sale-only fields of an imported package empty and counts its used sessions', async () => {
@@ -147,9 +147,15 @@ it('keeps the tenant isolation in the database and not in the reader', async () 
   );
   expect(own.length).toBeGreaterThan(0);
   expect(foreign).toHaveLength(0);
-  expect(
-    await read(fixture.soldEntitlement, fixture.f.foreignBusiness, fixture.f.otherCompany),
-  ).toBeNull();
+  const mismatched = await fixture.f.db.withTenant(fixture.f.company, (tx) =>
+    readPackageEntitlementDetail(
+      tx,
+      fixture.f.otherCompany,
+      fixture.f.business,
+      fixture.soldEntitlement,
+    ),
+  );
+  expect(mismatched).toBeNull();
 });
 
 it('shows no phone and no field the detail does not own', async () => {
@@ -212,7 +218,7 @@ it('keeps the stored component snapshots when the catalog changes', async () => 
   const detail = must(await read(fixture.soldEntitlement));
   const component = must(detail.components[0]);
   expect(component.nameEn).toBe('Snapshot service one');
-  expect(component.listPriceSnapshot).toBe('25.000');
+  expect(component.listPriceSnapshot).toBe('15.000');
   expect(JSON.stringify(detail)).not.toContain('Renamed after the sale');
   expect(JSON.stringify(detail)).not.toContain('99.000');
 });
