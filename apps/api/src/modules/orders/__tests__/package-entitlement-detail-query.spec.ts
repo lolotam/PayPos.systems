@@ -50,7 +50,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await fixture.f?.close();
+  await fixture?.f.close();
 });
 
 it('reads the stored sale facts of a sold package', async () => {
