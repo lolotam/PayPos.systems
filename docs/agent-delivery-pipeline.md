@@ -142,7 +142,7 @@
 
 ## 10. Merge and staging
 
-- **Ordinary PR ownership (PP-117).** The PR's session may merge without another manager or Super Admin approval after all exact-head checks/reviews, resolved findings, verified backup and coordinated order pass. Migration, `deploy/` and HOLD cases go directly to Waleed. This does not waive any quality gate.
+- **Ordinary PR ownership (PP-117).** The PR's session may merge without another manager or Super Admin approval after all exact-head checks/reviews, resolved findings, verified backup and coordinated order pass. Migration, deploy changes (including release controls outside `deploy/`) and HOLD cases go directly to Waleed. This does not waive any quality gate.
 - **Batch staging (PP-114.6).** DEP-1 is the existing staging release session linked below. It releases a completed batch daily or after 3–5 eligible merges, whichever comes first, with the same release gates. A docs-only PR needs no application rollout. [DEP-1](<t3-thread://v2/438824e0-fe19-4a22-bb31-f81eff7b7322/mcp:launch:beb374ef5917d8d28e8ae280ec01994f30e25ad32cea802bdfa8c8ffbb707bd0>) remains the release lane; no alternative path is authorized.
 
 - The owner has generally authorized **reviewed PR → merge → staging, for the delivery queue only**. A change outside that queue — this file's own save, for example — is not published without a fresh instruction.
