@@ -112,6 +112,14 @@ jobs:
           node --test "scripts/module-map/*.test.mjs" "scripts/roadmap/*.test.mjs" "scripts/test-db/*.test.mjs"
           pnpm module-map:check
 
+      # Generated API types: the admin and POS clients must match the committed OpenAPI document. PP-72.2 moved these
+      # two checks here from the removed full workspace check job; the rest of `pnpm check` runs in check and api-tests.
+      - name: api:check · admin
+        run: pnpm --filter @pospay/admin api:check
+
+      - name: api:check · pos
+        run: pnpm --filter @pospay/pos api:check
+
       # The telemetry code is a required check of its own: a broken report is a broken measurement.
       - name: ci-telemetry self-test
         run: node --test "scripts/ci-telemetry/*.test.mjs"
@@ -136,13 +144,6 @@ jobs:
         run: |
           pnpm turbo run build --filter=@pospay/worker...
           pnpm --filter @pospay/worker exec vitest run
-
-      # Generated API types: the admin and POS clients must match the current OpenAPI document (PP-72.2 moved this
-      # out of the removed full workspace check job; everything else `pnpm check` ran is covered by check and api-tests).
-      - name: api:check (admin · pos)
-        run: |
-          pnpm --filter @pospay/admin api:check
-          pnpm --filter @pospay/pos api:check
 
       # With `continue-on-error`, a telemetry failure shows as step `outcome: failure` while its
       # `conclusion` is `success`, so the gate steps alone decide the job.
