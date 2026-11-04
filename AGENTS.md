@@ -1,5 +1,7 @@
 # AGENTS.md — entry point for Codex and other agents
 
+> **PP-118, 2026-11-04 17:23 Kuwait:** at most five active task sessions, one PR per session, retained until merge; readiness alone never frees a slot. After more than four hours waiting for Waleed's decision (HOLD, PENDING question or migration-lane turn), park the PR and free its slot; at most two parked PRs, and resume the original session after the decision. At two parked PRs report the decision bottleneck directly to Waleed. During transition, open no new slice until open non-parked PRs are at most five. Morning report: open PR count, oldest age and recommended next step. See `docs/owner-decisions.ar.md` §56 and pipeline §13.
+
 > **Owner override — 2026-11-04, PP-117 (owner-decisions.ar.md §55).** This current instruction supersedes the older Super Admin routing/approval clauses below.
 > Super Admin and its automations are frozen until Waleed explicitly resumes them. Project managers and execution sessions continue; questions, approvals and material reports go directly to Waleed in the project conversation. Do not send requests/status to Super Admin or wait for SA-13/SA-16.
 > Each PR's session may merge an ordinary PR without returning for manager approval only after the existing exact-head CI/review gates, resolved findings, verified applicable backup and coordinated merge order pass. A migration, deploy change or HOLD requires Waleed's direct decision; quality gates and unrelated restrictions remain.

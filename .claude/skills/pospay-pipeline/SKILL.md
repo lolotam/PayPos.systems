@@ -50,7 +50,7 @@ The code rules live in `CLAUDE.md` and `CLAUDE.architecture.md`; every brief poi
 - **Review rounds: at most 5 per PR**, counting review → fix cycles across the single internal review (including database/security) and external reviews. The docs-only correction policy below still applies. After round 5, sort what is left by severity:
   - **P0 / P1** (security, money, tenant isolation, data loss, correctness): split the task into smaller PRs, as required by `docs/agent-delivery-pipeline.md` §8 (PP-69.8), instead of adding cycles. No PR merges with a P0/P1 open.
   - **P2 / P3**: open a GitHub issue per finding, linked from its review thread, then merge.
-- **Parallel work: up to 10 concurrent task sessions, started one after another, never all at once** (Waleed, PP-114.1, 2026-11-04, `docs/owner-decisions.ar.md` item 52; constitution Principle I, version 3.4.0). When a task merges and its delivery is verified, settle (archive) its session, delete its worktree under the checks of `docs/agent-delivery-pipeline.md` §1.1, and open a replacement at once. A task that depends on another starts only after that one merges. Pick tasks whose file paths are **disjoint**, and keep **one migration lane** for the final step only: more than one task may build and test a migration in parallel, each on its own local Postgres, and only the final step (renumber, `db:generate` and push) runs one task at a time. MiniMax builds new tasks and Kimi handles correction rounds after clean handoff (Q3, item 49); Codex gives advice and review. Two tasks that touch the
+- **Parallel work: at most five active task sessions, one PR per session through merge** (Waleed, PP-118, 2026-11-04 17:23 Kuwait; `docs/owner-decisions.ar.md` §56; constitution 3.4.1). Readiness alone never frees a slot. When a task merges and its delivery is verified, settle (archive) its session, delete its worktree under the checks of `docs/agent-delivery-pipeline.md` §1.1, and open a replacement only within the cap and transition rule in pipeline §13. A task that depends on another starts only after that one merges. Pick tasks whose file paths are **disjoint**, and keep **one migration lane** for the final step only: more than one task may build and test a migration in parallel, each on its own local Postgres, and only the final step (renumber, `db:generate` and push) runs one task at a time. MiniMax builds new tasks and Kimi handles correction rounds after clean handoff (Q3, item 49); Codex gives advice and review. Two tasks that touch the
   same file wait for each other, except a shared file where each feature only adds its own line (the permission list, migration numbers, `packages/contracts/openapi/openapi.json`): those run in parallel, the manager owns the merge order, and after each merge it tells the sessions sharing that file to rebase on `main` (PP-111.2). A generated shared file is never resolved by hand: after the rebase, regenerate it (`pnpm contracts:openapi`, `pnpm db:generate <kebab-case-name>`) and rerun the checks before review and merge. Each task has its own branch, worktree (`F:\Dev\Worktrees\PosPay\<branch>`) and PR.
   Migration and ADR numbers are assigned **at merge time**: renumber the later PR after the earlier one lands. Each
   slice still merges only when it is green on its own head (constitution Principle I, as amended 2026-10-07).
@@ -622,13 +622,14 @@ The server is shared: never touch another project's containers, databases or fil
 ## 7. Talking to the owner
 
 - Egyptian Arabic, simple words — the owner is not technical. English terms stay in English on their own bullet.
-- After every merge, and from time to time during long work, send a progress report in this fixed shape, with every
+- At batch completion or a blocker needing Waleed's decision, send one consolidated progress report (PP-117). Also send the morning open-PR count, parked count and oldest open PR's age (PP-118). Use this shape for the consolidated report, with every
   count recounted from `roadmap.json`, `git log` and `gh pr list` each time:
   1. the 7 phases and the status of each;
   2. the current phase's groups, each with done / in progress / not started counts;
   3. what runs now (row, PR, review round, MiniMax round count);
   4. what comes next;
   5. what waits on the owner (questions, approvals, server changes).
+  6. the recommended next step, always last.
 - Ask the owner — with options and a recommended one — for every business rule, every server change, and every
   merge that skips a gate. Never guess a business rule.
 
@@ -672,7 +673,7 @@ typing do not.
 - Never let MiniMax run any git command, read or write anything under `.git`, use any MCP tool, merge, push, or
   touch the server.
 - Never merge with a P0/P1 open, or with CI red on the head being merged.
-- Never exceed 5 review rounds without applying §2, including the P0/P1 split rule for docs-only PRs, and never exceed 10 concurrent task sessions (PP-114.1).
+- Never exceed 5 review rounds without applying §2, including the P0/P1 split rule for docs-only PRs, and never exceed five active task sessions and two parked PRs (PP-118; pipeline §13).
 - Never run two tasks in parallel that touch the same file, except the shared add-one-line files of §2 (PP-111.2).
 - Never change the staging database by hand without the owner's explicit approval for that change.
 - Never rewrite a pushed branch's history (`--force`) without the owner's explicit approval.
