@@ -14,11 +14,7 @@ export type TaggedImportMatrix = readonly (readonly TaggedImportCell[])[] & {
   readonly sourceRows?: readonly number[];
 };
 
-type FormatMatrix = readonly (
-  | readonly (string | null | undefined)[]
-  | null
-  | undefined
-)[];
+type FormatMatrix = readonly (readonly (string | null | undefined)[] | null | undefined)[];
 
 function hasPercentFormat(format: string | null | undefined): boolean {
   if (format == null) return false;
@@ -65,10 +61,7 @@ function tagCell(cell: unknown, format: string | null | undefined): TaggedImport
  * @param formats تنسيقات بنفس الإحداثيات؛ الخانات أو الصفوف الغائبة بلا تنسيق
  * @returns مصفوفة جديدة بخلايا موسومة ونسخة مستقلة من أرقام الصفوف الأصلية
  */
-export function tagCells(
-  matrix: ImportMatrix,
-  formats?: FormatMatrix | null,
-): TaggedImportMatrix {
+export function tagCells(matrix: ImportMatrix, formats?: FormatMatrix | null): TaggedImportMatrix {
   const tagged = matrix.map((row, rowIndex) =>
     row.map((cell, columnIndex) => tagCell(cell, formats?.[rowIndex]?.[columnIndex])),
   );
