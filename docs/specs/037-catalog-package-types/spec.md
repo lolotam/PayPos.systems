@@ -179,6 +179,16 @@ A manager opens the list to check prices and validity before a customer asks.
   of their business; nothing of another business or company is ever visible.
 - **FR-011**: A package type is never deleted (master data that sold packages refer to). Stopping sales is row 33b
   (PT-Q5), not this PR.
+- **FR-011a** (row 33b, domain rule `planPackageTypeSelling`): stopping and resuming the selling of a package type
+  is a state change on the type, never a component edit. The request carries the revision the client read and the
+  wanted state (`ACTIVE` or `STOPPED`). Rules, in this order: (1) a stale revision is a conflict, even when the type is
+  already in the wanted state, as in FR-008 (PT-Q4), so a change made behind the client is never silently accepted;
+  (2) a request for the state the type is already in changes nothing, writes nothing and keeps the revision, as a
+  no-change edit in FR-009; (3) otherwise the change is accepted and the revision goes up by exactly one. Stopping
+  stamps the stop time from the injected clock; resuming clears it. The stop time is the source of truth for the
+  state (`null` = active). Acceptance: the 16 unit cases in `catalog/domain/__tests__/package-type-selling.spec.ts`.
+  The column, the write, the route, the audit entry and the sale-screen filter come with the use case of row 33b
+  and with 42-3/42-4.
 - **FR-012**: A package type has no branch list; it applies to every branch of its business (PT-Q10).
 - **FR-013**: The admin app MUST provide list, create and edit screens in this PR (PT-Q11).
 
