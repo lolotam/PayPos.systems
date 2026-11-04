@@ -21,15 +21,18 @@ function hasPercentFormat(format: string | null | undefined): boolean {
   let quoted = false;
   for (let index = 0; index < format.length; index += 1) {
     const character = format[index];
+    if (quoted) {
+      if (character === '"') quoted = false;
+      continue;
+    }
     if (character === '\\') {
       index += 1;
       continue;
     }
     if (character === '"') {
-      quoted = !quoted;
+      quoted = true;
       continue;
     }
-    if (quoted) continue;
     if (character === ';') break;
     if (character === '_' || character === '*') {
       index += 1;
@@ -47,7 +50,8 @@ function tagCell(cell: unknown, format: string | null | undefined): TaggedImport
   if (typeof cell === 'boolean') return { kind: 'boolean', value: cell };
   if (typeof cell !== 'number' || !Number.isFinite(cell)) return { kind: 'error' };
   const text = String(cell);
-  const significantDigits = text.replace(/[-.]/g, '').replace(/^0+/, '').length;
+  const digits = text.replace(/[-.]/g, '').replace(/^0+/, '');
+  const significantDigits = (text.includes('.') ? digits : digits.replace(/0+$/, '')).length;
   if (/[eE]/.test(text) || significantDigits > 15)
     return { kind: 'numeric-unrepresentable', display: text };
   return { kind: 'numeric', text, percentFormat: hasPercentFormat(format) };
