@@ -424,6 +424,11 @@ the server-read feature result only for that request, bound to the verified comp
 consumes it, falling back to its existing reader when missing or mismatched. Permission refusal remains `FORBIDDEN`
 before an authorized disabled feature returns `FEATURE_DISABLED`. Non-permission routes retain their fallback, and
 no transaction remains open during controller execution. The public `RequestAuthorizer` contract is unchanged.
+The use case supplies a pure permission callback over the target/grant data, evaluated inside that transaction
+before any feature SQL; no raw transaction reaches the use case. A denied request therefore stays `FORBIDDEN`
+even when the feature query would fail. For a permitted request, feature database errors propagate normally and
+roll back the transaction; they are never converted to `FEATURE_DISABLED` or caught to continue an aborted transaction
+(PR #835 review correction, 2026-11-05).
 First use: `GET` staff columns accepts
 `read:settings:business` or `manage:staff-app-columns:business` (MY-Q10, PP-27.1). PR #468 first built the pair with `manage:settings:business`; issue #496 replaced the second code with the new staff-app-columns permission (MY-Q5, Abu Salem; migration 0168), so a holder of `manage:settings:business` alone is now refused.
 

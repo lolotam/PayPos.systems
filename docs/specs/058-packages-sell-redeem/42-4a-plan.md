@@ -4,6 +4,9 @@
 > **Spec:** [spec.md](spec.md) TD-13, CP-03, FR-070/FR-071 and the §7 row **42-4a**.
 > **Implementer:** the PP-120 parent session implements this plan itself (Codex `sol`, effort medium). No model or lane
 > change is part of this plan.
+> **PP-121:** Waleed's direct choice «الخطة تتكتب على Codex sol» (source 2026-11-04 23:50 Kuwait) supersedes the
+> Opus-high planning lane for this trial. This same `gpt-6.1-sol` medium session writes and updates the plan;
+> no new Opus/Claude request or Claude fallback without Waleed's approval. The completed Opus receipt remains history.
 > **Scope guard:** no migration, no deploy, no contract or OpenAPI change, no `orders` file. 42-3 owns the sale route,
 > domain and adapters; 43-1b owns the service-line guards; 42-4 owns the real FR-070/FR-071 routes.
 
@@ -65,7 +68,10 @@ accessAt(
   companyId: string,
   userId: string,
   request: AccessTargetRequest,
-  featureFlag?: string,
+  options: {
+    readonly featureFlag?: string;
+    readonly allows: (inspection: AccessInspection) => boolean;
+  },
 ): Promise<{ targets: ResolvedAccessTargets; access: CompanyAccess; feature?: { flag: string; enabled: boolean } } | null>;
 
 accessAtBranches(
@@ -77,7 +83,10 @@ accessAtBranches(
 
 The English comment above is illustrative only: the real doc comments on `AccessTargetRequest` and on both methods are
 in Arabic (CLAUDE.md §3.1). `CompanyAccess` is the existing `{ memberships; grants }` shape of `accessIn`, named once. `null` means the target is
-unknown, foreign or (for branches) none of them is in the company: the use case refuses with the same 403.
+unknown, foreign, declined by the pure `allows` callback, or (for branches) none of them is in the company:
+the use case refuses with the same 403. `AccessInspection` contains only `targets` and `access` data, never `Tx`
+or a database capability. The callback keeps the existing permission evaluator in the use case while the adapter
+owns the transaction lifetime.
 
 Delete the port methods that lose their last production caller (D-4): `accessIn`, `businessOfBranch`,
 `businessesOfBranches`, `businessInCompany`, `membershipTarget`. Keep `companiesOf` and `isFeatureEnabled`.
@@ -88,7 +97,10 @@ Delete the port methods that lose their last production caller (D-4): `accessIn`
 - `accessAt`: one `db.withTenant(companyId, async (tx) => …, { userId })`. Inside it, resolve the target with the SQL the
   four old methods ran (lifted to private `tx`-level helpers; `readScopeTargets(tx, …)` already takes `tx`), return
   `null` **before** reading grants when the target is unknown or foreign, then `readAccessTransaction(tx, companyId,
-  userId)`, and, when requested, `readFeatureEnabled(tx, companyId, featureFlag)` on that same transaction.
+  userId)`. Invoke the use-case-owned pure `allows({ targets, access })` callback before any feature query;
+  false returns `null`. Only after true, when requested, call `readFeatureEnabled(tx, companyId, featureFlag)`
+  on that same transaction. Feature-query errors then propagate and roll back normally for permitted requests;
+  a denied caller never executes the failing feature query. No catch-and-continue on an aborted transaction.
 - `accessAtBranches`: the same, with the `businessesOfBranches` select; an empty map returns `null` without reading
   grants.
 - No row lock is added: the guard's read stays a plain `SELECT` (the `accessIn` JSDoc rule).
@@ -100,8 +112,9 @@ Delete the port methods that lose their last production caller (D-4): `accessIn`
 
 - `execute`: keep the order — parse the company UUID (refuse with no DB access), `companiesOf` (refuse with no tenant
   access), then parse the target parameters with `asUuid` and build one `AccessTargetRequest` (a malformed target
-  parameter refuses without a tenant transaction, as today), then **one** `accessAt` call, then the existing
-  `permissions.some(…)` evaluation, unchanged.
+  parameter refuses without a tenant transaction, as today), then **one** `accessAt` call. Pass the existing
+  `permissions.some(…)` / `permissionPossessionFailure` evaluation as its pure data callback, unchanged.
+  This preserves permission-first semantics even when feature SQL would fail (PR #835 finding 4473549603).
 - `executeBranches`: keep the early return for an empty or all-invalid batch (no membership read), then `companiesOf`,
   then **one** `accessAtBranches`; the per-branch evaluation is unchanged.
 - `Authorized` gains an optional server-read feature result; the branch map and public `shared/request-authorizer.ts` contract stay unchanged. `AccessGuard` passes the handler feature flag to the concrete authorizer and stores a successful result in a request-keyed WeakMap, bound to the verified company and exact flag. `FeatureGuard` consumes a matching result; a missing/mismatched result follows its existing `CheckFeature` fallback. No header/body value or process-wide authorization cache is accepted. Permission failure stays `FORBIDDEN` before an authorized disabled feature becomes `FEATURE_DISABLED`. `AccessGuard`'s device refusal
@@ -152,6 +165,7 @@ each case names (the `memberWith` pattern of `staff-columns-read-access.spec.ts`
 | 7 | feature route, permission held, `orders` off by a company override | 403 `FEATURE_DISABLED` (match `access-guard.spec.ts` "feature flags") |
 | 8 | feature route, no permission, `orders` off | 403 `FORBIDDEN` (`AccessGuard` runs first) |
 | 9 | single-permission route, holder / non-holder | 200 / 403 — `Require` still the one-element case |
+| 10 | malformed stored feature boolean, denied / permitted caller | denied: 403 `FORBIDDEN` without feature SQL; permitted: 500 `INTERNAL_ERROR`, never a false `FEATURE_DISABLED` |
 
 **Transaction instrumentation (the regression lock for #506):**
 

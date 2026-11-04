@@ -102,6 +102,29 @@ it('shares the feature read and keeps permission refusal before feature refusal'
   expect(await get('/feature')).toMatchObject({ status: 200 });
   expect(f.h.calls.tenant).toEqual([f.company]);
 });
+it('#835: permission denial precedes a broken feature query; permitted requests retain infrastructure errors', async () => {
+  const [plan] = await f.h.owner`SELECT p.id,p.feature_flags FROM plans p
+    JOIN companies c ON c.plan_id=p.id WHERE c.id=${f.company}`;
+  if (plan === undefined) throw new Error('Missing synthetic plan');
+  const planId = plan['id'] as string;
+  const originalFlags = JSON.stringify(plan['feature_flags']);
+  try {
+    await f.h
+      .owner`UPDATE plans SET feature_flags=feature_flags || '{"orders":"broken-feature-test"}'::jsonb
+      WHERE id=${planId}`;
+    f.h.calls.statements.length = 0;
+    expect(await get('/feature')).toMatchObject({ status: 403, body: { code: 'FORBIDDEN' } });
+    expect(f.h.calls.statements.some(({ sql }) => sql.includes('company_feature_overrides'))).toBe(
+      false,
+    );
+    expect(f.h.calls.tenant).toEqual([f.company]);
+    await grant('read:service-sessions:branch');
+    expect(await get('/feature')).toMatchObject({ status: 500, body: { code: 'INTERNAL_ERROR' } });
+    expect(f.h.calls.tenant).toEqual([f.company]);
+  } finally {
+    await f.h.owner`UPDATE plans SET feature_flags=${originalFlags}::jsonb WHERE id=${planId}`;
+  }
+});
 it('single permission and unknown/foreign/malformed targets preserve refusal semantics', async () => {
   await grant('record:service-sessions:branch');
   expect(await get('/single')).toMatchObject({ status: 403 });

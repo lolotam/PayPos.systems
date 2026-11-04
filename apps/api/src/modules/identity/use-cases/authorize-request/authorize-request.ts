@@ -57,28 +57,25 @@ export class AuthorizeRequest implements BranchRequestAccess {
     if (!(await this.#reader.companiesOf(input.userId)).includes(companyId)) return null;
     const request = this.#target(input);
     if (request === null) return null;
-    const inspected = await this.#reader.accessAt(
-      companyId,
-      input.userId,
-      request,
-      input.featureFlag,
-    );
-    if (inspected === null) return null;
-    const { targets, access } = inspected;
     // فحص التوابع هنا يسبق Zod؛ الجسم غير الصحيح لا يكشف عضوية ممنوعة بـ DENY في فرع تابع.
     // المنح بتتقري مرة واحدة في معاملة واحدة، مهما كان عدد الصلاحيات المقبولة.
     const permissions: readonly string[] =
       typeof input.permission === 'string' ? [input.permission] : input.permission;
-    const granted = permissions.some(
-      (permission) =>
-        permissionPossessionFailure(
-          access.grants,
-          permission,
-          targets.target,
-          targets.descendantTargets,
-        ) === null,
-    );
-    if (!granted) return null;
+    const inspected = await this.#reader.accessAt(companyId, input.userId, request, {
+      ...(input.featureFlag === undefined ? {} : { featureFlag: input.featureFlag }),
+      allows: ({ targets, access }) =>
+        permissions.some(
+          (permission) =>
+            permissionPossessionFailure(
+              access.grants,
+              permission,
+              targets.target,
+              targets.descendantTargets,
+            ) === null,
+        ),
+    });
+    if (inspected === null) return null;
+    const { access } = inspected;
     return {
       companyId,
       memberships: access.memberships,

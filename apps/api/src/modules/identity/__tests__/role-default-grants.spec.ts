@@ -343,11 +343,7 @@ it('ODOC-09: the reference migrations upgrade a seeded existing company without 
     ORDER BY permission_code,role_id`,
     ),
   ).toEqual(expectedDefaults());
-  const inspected = await createAccessReader(f.db).accessAt(f.company, f.managerId, {
-    kind: 'company',
-  });
-  if (inspected === null) throw new Error('Missing synthetic company target');
-  const access = inspected.access;
+  const access = await readManagerCompanyAccess();
   expect(access.grants).toContainEqual(
     expect.objectContaining({
       permission: 'manage:employees:business',
@@ -393,3 +389,14 @@ it('scoped queries use membership/branch and override indexes with result shapes
   expect(plans.join('')).toContain('permission_overrides_membership_idx');
   expect(plans.join('')).not.toContain('Seq Scan');
 });
+
+async function readManagerCompanyAccess() {
+  const inspected = await createAccessReader(f.db).accessAt(
+    f.company,
+    f.managerId,
+    { kind: 'company' },
+    { allows: () => true },
+  );
+  if (inspected === null) throw new Error('Missing synthetic company target');
+  return inspected.access;
+}

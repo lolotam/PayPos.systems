@@ -40,28 +40,35 @@ export interface AccessFeature {
   readonly enabled: boolean;
 }
 
+/** بيانات التقييم داخل المعاملة؛ لا تخرج منها قدرة قراءة أو كائن Tx. */
+export interface AccessInspection {
+  readonly targets: ResolvedAccessTargets;
+  readonly access: CompanyAccess;
+}
+
 /**
  * اللي الـ guard محتاج يقراه عشان يقرر — كل method بتقرا في الطلب نفسه، مفيش cache.
  */
 export interface AccessReader {
   /**
-   * يثبت الهدف ويقرأ المنح والميزة المطلوبة في معاملة واحدة؛ المجهول يرجع null.
+   * يثبت الهدف والمنح ثم يستدعي قرار الإذن قبل قراءة الميزة في نفس المعاملة؛ المجهول أو المرفوض يرجع null.
    *
    * @param companyId الشركة المؤكدة
    * @param userId المستخدم الموثق
    * @param request الهدف المطبّع
-   * @param featureFlag الميزة المطلوبة إن وجدت
+   * @param options قرار الإذن الصافي والميزة المطلوبة؛ خطأ قراءة الميزة لا يسبق رفض الإذن
+   * @param options.featureFlag اسم الميزة المطلوبة إن وجدت
+   * @param options.allows قرار الإذن الصافي الذي يسبق أي قراءة للميزة
    */
   accessAt(
     companyId: string,
     userId: string,
     request: AccessTargetRequest,
-    featureFlag?: string,
-  ): Promise<{
-    targets: ResolvedAccessTargets;
-    access: CompanyAccess;
-    feature?: AccessFeature;
-  } | null>;
+    options: {
+      readonly featureFlag?: string;
+      readonly allows: (inspection: AccessInspection) => boolean;
+    },
+  ): Promise<(AccessInspection & { readonly feature?: AccessFeature }) | null>;
   /**
    * يثبت فروع الصفحة ويقرأ المنح مرة واحدة؛ غياب كل الفروع يرجع null.
    *

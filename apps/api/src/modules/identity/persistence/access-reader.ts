@@ -42,13 +42,15 @@ export function createAccessReader(db: TenantWrappers): AccessReader {
         return rows.map((row) => row.company_id);
       }),
 
-    accessAt: (companyId, userId, request, featureFlag) =>
+    accessAt: (companyId, userId, request, options) =>
       db.withTenant(
         companyId,
         async (tx) => {
           const targets = await readRequestTargets(tx, companyId, request);
           if (targets === null) return null;
           const access = await readAccessTransaction(tx, companyId, userId);
+          if (!options.allows({ targets, access })) return null;
+          const { featureFlag } = options;
           const feature =
             featureFlag === undefined
               ? undefined
