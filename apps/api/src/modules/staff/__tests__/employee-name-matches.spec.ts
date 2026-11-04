@@ -244,7 +244,9 @@ it('DN-10 hides a forbidden primary or open attachment, while closed attachments
   }
 });
 
-it('uses employees_company_business_name_en_key_idx for the scoped scan', async () => {
+// فهرس 0204 الجزئي بيبدأ بنفس الأعمدة التلاتة، وشرطه deleted_at IS NULL متحقق من الاستعلام نفسه، فالـ planner
+// ممكن يختاره بدل القديم: نفس المساواة على المفتاح ومن غير الصفوف المحذوفة (PP-122).
+it('the scoped English-key match is an index condition on an English-key index', async () => {
   const rows = Array.from({ length: 2000 }, (_, i) => {
     const name = `Plan filler ${i}`;
     return {
@@ -265,7 +267,9 @@ it('uses employees_company_business_name_en_key_idx for the scoped scan', async 
       sql`EXPLAIN (ANALYZE, FORMAT JSON) ${employeeNameMatchesStatement(f.company, f.business, keys({ name_en: 'Heba', name_ar: 'هبة' }), [f.branch, f.sibling])}`,
     );
   });
-  expect(JSON.stringify(plan)).toContain('employees_company_business_name_en_key_idx');
+  expect(JSON.stringify(plan)).toMatch(
+    /"Index Name":"employees_company_business_name_en_key(?:_id_active)?_idx"[^}]*"Index Cond":"[^"]*name_en_key = 'heba'::text/,
+  );
 });
 
 it('DN-11 authenticates, rejects no grant, accepts branch-only ALLOW and hides branch DENY', async () => {

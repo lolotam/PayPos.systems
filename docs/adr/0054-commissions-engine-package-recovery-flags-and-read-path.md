@@ -293,13 +293,31 @@ module-map row first.
     `employees_company_business_name_en_key_id_active_idx (company_id, business_id, name_en_key, id) WHERE deleted_at IS NULL`
     is built `CONCURRENTLY` in its own migration (ADR-0033). The old indexes stay (expand only). The migration runner's
     recovery keeps a valid identical index, rejects a different definition and rebuilds an invalid one.
-  - **Known build risk.** The key column adds 16 bytes per entry. On PostgreSQL 16 an incompressible active key of
-    2645–2660 bytes fits the old index but not the new one, so the build fails with `54000` and leaves an invalid index
-    and no journal row. After that row is repaired or soft-deleted, a rerun rebuilds the index; the test
-    `employee-name-key-id-index.spec.ts` covers both.
+  - **Legacy keys are re-derived before the build (manager, round 2, 2026-11-05 02:22 Kuwait).** The new index adds
+    `id`, 16 bytes per entry. On PostgreSQL 16 the old index accepts an incompressible key of up to 2660 bytes and the
+    new one only up to 2644. A stored key in that window would make the build fail with `54000`. So 0204 carries
+    `-- pospay:data-step employee-name-keys`. The runner runs that registered step before the `CONCURRENTLY` prefix of
+    the same migration (`applyOne` in `concurrent-migrations.ts`). The step is `rekeyEmployeeNameKeys`, the one 0101/0102
+    use. It reads only `companies.id` as the migration owner. For each company, under `withTenant`, it rewrites every
+    `name_en_key` that differs from `employeeNameMatchKey(name_en)`. Rerunning it writes no row. A key that was not
+    derived from its name is therefore repaired, and the build succeeds. `employee-name-key-id-index.spec.ts` covers
+    both the repair and the rerun.
+  - **Remaining risk, theoretical.** The step cannot shorten a key that is already derived correctly. Capping
+    `employeeNameMatchKey` would change the name-matching rule, so it was not done. No canonical key is known to reach
+    the window:
+    - The contract caps `name_en` at 255 UTF-16 units.
+    - The `employees_name_en_length` CHECK, present since 0038, caps it at 255 code points.
+    - Under that CHECK, 255 distinct characters with the largest NFKC expansion give a 2093-byte key; under the contract
+      cap they give 2003 bytes.
+    - A longer key needs repeated characters, which the index-tuple compression shrinks. On the lane (`pglz`, the
+      default), 16 adversarial 255-code-point names with keys of 2093 to 8415 raw bytes all entered the new index.
+
+    This is evidence, not a proof. If such a key ever exists, the build fails with `54000`, leaving an invalid index and
+    no journal row. A rerun after the row is repaired rebuilds the index (ADR-0033;
+    `concurrent-index-recovery.spec.ts`).
 
 The addendum adds one Port row to `docs/module-map.md` §3. It adds no import arrow, no `reads:` line, no write port
-and no grant. PP-122 adds one index-only migration.
+and no grant. PP-122 adds one index migration, which first runs the existing `employee-name-keys` data step.
 
 ### 4.1 Scoped layer imports for 48-2/49-1 (PP-108.1)
 

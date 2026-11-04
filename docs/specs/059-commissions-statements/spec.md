@@ -599,7 +599,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
     stored data needing repair, not a client error: the key is never truncated and no partial page or null cursor is
     returned. A last page needs no cursor and still lists that row. The list reads one page through the partial index
     `employees_company_business_name_en_key_id_active_idx (company_id, business_id, name_en_key, id) WHERE deleted_at IS NULL`,
-    built `CONCURRENTLY` in its own migration; `EXPLAIN` shows no Sort and at most `limit + 1` rows read.
+    built `CONCURRENTLY` in its own migration; `EXPLAIN` shows no Sort and at most `limit + 1` rows read. Before that
+    build the same migration runs the existing `employee-name-keys` data step (ADR-0038). The step re-derives every key
+    from `name_en`, so a legacy key that was not derived from its name cannot abort the build; ADR-0054's PP-122
+    addendum records the remaining theoretical risk.
   - The guard is the same permission, the `commissions` feature and an individual login (a device → 403). Access and
     the feature are rechecked first inside the same `withTenant`, then the timezone and the names are read on that
     transaction, in the refusal order of the 49-1 list (`CommissionServiceOverrideListReads`): uniform 403, then

@@ -6,7 +6,7 @@ import type { Tx } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 import { expect, it, vi } from 'vitest';
 
-import { ApiError } from '../../../shared/errors.ts';
+import { ApiError, codeForStatus } from '../../../shared/errors.ts';
 import { CommissionPlanEmployeesController } from '../http/commission-plan-employees.controller.ts';
 import {
   CommissionPlanEmployeeReadError,
@@ -109,4 +109,9 @@ it('PP-122 a client cursor refusal stays a 400 and is not logged', async () => {
   const { call, warn } = controllerFailingWith('VALIDATION_FAILED');
   await expect(call).rejects.toMatchObject({ status: 400, code: 'VALIDATION_FAILED' });
   expect(warn).not.toHaveBeenCalled();
+});
+
+// كود البيانات المحفوظة بيطلعه الاستعلام بس؛ 503 عام من الإطار (بروكسي أو جاهزية) ميورثهوش مهما اترتبت الأكواد.
+it('PP-122 a generic framework 503 never reports the stored-data code', () => {
+  expect(codeForStatus(503)).not.toBe('COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE');
 });
