@@ -1,5 +1,6 @@
 <!--
 Sync Impact Report
+- 3.4.0 (2026-11-04, MINOR): PP-114.1 raises the cap to ten concurrent task sessions, with staggered starts and existing isolation/dependency rules. PP-117 gives ordinary PR sessions gated merge ownership and routes exceptions directly to Waleed while Super Admin is frozen. Exact-head checks/reviews and migration authorization remain required.
 - 3.3.1 (2026-11-02, PATCH): Principle I's done-criterion names where `pnpm check` runs: a slice is done when the local gates (typecheck, lint, `pnpm lint:docs`, boundaries, `pnpm module-map:check` and the slice's own tests, without the Playwright E2E or any other CI-only heavy gate) pass and `ci-gate` is green on the exact head, which runs the full `pnpm check` and the API shards (Waleed, PP-113, `docs/owner-decisions.ar.md` item 51). Rationale: `pnpm check` stays required and must be green before merge; only where it runs is clarified, so the rule keeps its meaning (PATCH). `CLAUDE.md` V3.20 and `docs/agent-delivery-pipeline.md` §6 carry the same rule.
 - 3.3.0 (2026-11-01, MINOR): Principle I sets the limit to five task sessions (slices and other tasks together), started one after another rather than all at once; a
   slice that depends on another still waits until that one merges; shared files where each slice only adds its own line may change in parallel,
@@ -76,7 +77,7 @@ spec at `docs/specs/NNN-<module>-<use-case>/spec.md` covering requirements, busi
 acceptance criteria, schema changes, API contract, permissions and tests. Implementation MUST
 follow this order: Zod contract → migration + RLS policy → domain functions + unit tests →
 use case → adapters (persistence, http) → integration tests → UI. A slice MUST NOT touch
-modules outside its scope without stating why. Five task sessions (slices and other tasks together) are kept running at all times, started one after another rather than all at once, chosen to be as unrelated as possible,
+modules outside its scope without stating why. Up to ten concurrent task sessions (slices and other tasks together) may run, started one after another rather than all at once (PP-114.1), chosen to be as unrelated as possible,
 and only when their file paths are disjoint (except a shared file where each slice only adds its own line, such as the permission list, migration numbers or the
 OpenAPI contract: those merge in an order the manager sets, each later slice rebasing on `main` and regenerating any generated file, PP-111.2) and no two of them change the same table; a slice that depends on another waits until that one merges.
 More than one may carry a migration, each tested on its own local Postgres; each merges only when it is green on its own head, and migration
@@ -456,7 +457,7 @@ guidance, PATCH for clarifications. Every PR review MUST verify compliance with 
 I–VII; any added complexity MUST be justified against `CLAUDE.architecture.md` §12.
 `CLAUDE.md` remains the runtime guidance file for day-to-day development.
 
-**Version**: 3.3.1 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-11-02
+**Version**: 3.4.0 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-11-04
 
 ## PR 6 amendment — ADR-0019, 2026-10-02
 

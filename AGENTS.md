@@ -1,5 +1,10 @@
 # AGENTS.md — entry point for Codex and other agents
 
+> **Owner override — 2026-11-04, PP-117 (owner-decisions.ar.md §55).** This current instruction supersedes the older Super Admin routing/approval clauses below.
+> Super Admin and its automations are frozen until Waleed explicitly resumes them. Project managers and execution sessions continue; questions, approvals and material reports go directly to Waleed in the project conversation. Do not send requests/status to Super Admin or wait for SA-13/SA-16.
+> Each PR's session may merge an ordinary PR without returning for manager approval only after the existing exact-head CI/review gates, resolved findings, verified applicable backup and coordinated merge order pass. A migration, deploy change or HOLD requires Waleed's direct decision; quality gates and unrelated restrictions remain.
+> Send one consolidated update when a batch completes or a blocker needs Waleed's decision. End every manager report with a recommended next step. Preserve the existing owner-decision audit and partner/business decision-page duties.
+
 This repository's rules are **not** duplicated here, so they cannot drift apart.
 Read these files fully, in this order, before any task or any review:
 
@@ -14,14 +19,12 @@ Before every new task, also read [the owner-confirmed delivery pipeline](docs/ag
 
 The names say "CLAUDE", but the rules apply to every agent equally.
 
-**Owner questions.** An owner question is never guessed (`CLAUDE.md` §1 step 5b, §11). Every question and its answer
-are recorded verbatim in the slice's `owner-questions.ar.md`, which is the audit record. Every owner question goes to
-the super admin thread (SA-16), which posts it to Waleed on Slack `#sa-decisions` and relays his answer word for word; no session or manager contacts Waleed directly. Feature and business questions also go on the decisions page https://plan.pospay.systems as a new
-numbered batch (`docs/decisions-site.md`); when Waleed and Abu Salem differ there, Abu Salem's pick wins. Technical
-questions go to Waleed only and never on the page (`CLAUDE.md` §1 5b, V3.17). Only the Claude Code orchestrator routes a
-question. Codex, Grok and other agents write the question into the slice's `owner-questions.ar.md` (or `docs/owner-decisions.ar.md`
-when it belongs to no slice) with its answer marked `PENDING`,
-mark the rule `TODO(spec)`, and stop. The orchestrator routes it and writes the answer back.
+**Owner questions.** Never guess an owner answer. Record every question, options, recommendation and answer verbatim
+in the slice's `owner-questions.ar.md` (or `docs/owner-decisions.ar.md` for process questions). Ask Waleed directly in
+the project conversation (PP-117); Super Admin is frozen and is not an approval or routing hop. Feature/business
+questions also go to the existing numbered decisions-page batch under `docs/decisions-site.md`; Abu Salem's differing
+business pick still binds. Technical questions go to Waleed only, never onto that page. Keep unanswered rules
+`PENDING` / `TODO(spec)` and stop only dependent work. Preserve the existing page publication and audit roles.
 
 ## Review guidelines
 
