@@ -1,5 +1,10 @@
 # The decisions site — https://plan.pospay.systems
 
+> **Owner override — 2026-11-04, PP-117 (owner-decisions.ar.md §55).** This current instruction supersedes the older Super Admin routing/approval clauses below.
+> Super Admin and its automations are frozen until Waleed explicitly resumes them. Project managers and execution sessions continue; questions, approvals and material reports go directly to Waleed in the project conversation. Do not send requests/status to Super Admin or wait for SA-13/SA-16.
+> Each PR's session may merge an ordinary PR without returning for manager approval only after the existing exact-head CI/review gates, resolved findings, verified applicable backup and coordinated merge order pass. A migration, deploy change or HOLD requires Waleed's direct decision; quality gates and unrelated restrictions remain.
+> Send one consolidated update when a batch completes or a blocker needs Waleed's decision. End every manager report with a recommended next step. Preserve the existing owner-decision audit and partner/business decision-page duties.
+
 This page explains how the orchestrator runs the shared «قرارات PosPay» page (`CLAUDE.md` §1 5b and 5c). Until 2026-10-19 the page was a claude.ai artifact. That artifact is now retired: never publish to it or read answers from it.
 
 ## How the site is built
@@ -76,7 +81,7 @@ curl -s "$B/health"
 ## A. Publish a new question batch (feature and business questions only)
 
 Technical questions (the implementer model, tools and the pipeline, infrastructure, CI, server and storage settings,
-code design) never go on this site: send them to the super admin thread (SA-16), which relays them to Waleed on Slack `#sa-decisions`, and record his answer in the slice's
+code design) never go on this site: ask Waleed directly in the project conversation (PP-117), and record his answer in the slice's
 `owner-questions.ar.md` or in `docs/owner-decisions.ar.md` (`CLAUDE.md` §1 5b, V3.17). When in doubt, ask Waleed
 which kind a question is.
 
@@ -95,7 +100,7 @@ which kind a question is.
 7. Commit as `chore(questions): batch <n> — <topic>` and push to `main`.
 8. Confirm the deploy: `curl -s -u "$PLAN_AUTH" $B/decisions.en.json` must contain the new ids.
 
-Every question also goes to the super admin thread as `PP-n` (SA-16, `CLAUDE.md` §1 5b), which relays it to Waleed on Slack `#sa-decisions`. When his answer comes back, record it on the site as his own pick, not as a final decision:
+Every question is recorded as `PP-n` and asked directly to Waleed in the project conversation (PP-117, `CLAUDE.md` §1 5b). Record a feature/business answer on the site as his own pick, not as a final decision; technical answers remain in the audit record only:
 
 ```bash
 # Waleed's pick from a card: a note under his user id, marked source "card" (choice = 0-based option index).
@@ -165,7 +170,7 @@ never in git, a doc or a message.
 - after step 8 of §A: one notification to `pospay-questions` naming the batch;
 - after a merge that adds or changes something users see (§B): one to `pospay-features`, saying in plain words what
   they can now do;
-- nothing to `pospay-waleed` from managers or sessions: whatever waits on Waleed goes to the super admin thread, which relays it on Slack `#sa-decisions` (SA-16, `docs/agent-delivery-pipeline.md` §12).
+- nothing to `pospay-waleed` from managers or sessions: whatever waits on Waleed is asked directly in the project conversation (PP-117, `docs/agent-delivery-pipeline.md` §12). Super Admin remains frozen.
 
 A question or feature notification names the batch or the row and links to the page. It never quotes an answer or the text of a review.
 
@@ -188,4 +193,4 @@ A `200` means it was sent. To check what went out, read the same topic you publi
 - Never edit `seed/db.seed.json` to change live answers. It only seeds the first run.
 - Never delete the `plan-data` volume or the Dokploy app.
 - Never put the password in git, in a doc or in a message.
-- Never publish an owner question anywhere except this site (plus the question to the super admin thread, SA-16).
+- Feature/business questions use this site and Waleed's existing project conversation; technical questions use the project conversation only (PP-117). Never route either through the frozen Super Admin.
