@@ -85,6 +85,9 @@ export function parseServiceImportCommissionCells(
   if (ruleCell?.kind !== 'error' && !['FOLLOW_PLAN', 'ZERO', 'PCT', 'FIXED'].includes(kind ?? '')) {
     errors.push({ column: 'commission_rule', reason: 'RULE_INVALID' });
   }
+  if (valueCell?.kind === 'boolean' || valueCell?.kind === 'numeric-unrepresentable') {
+    errors.push({ column: 'commission_value', reason: 'VALUE_INVALID' });
+  }
   if (errors.length > 0) return { ok: false, errors };
   if (kind === 'FOLLOW_PLAN' || kind === 'ZERO') {
     if (!blank(valueCell)) return refusal('commission_value', 'VALUE_INVALID');

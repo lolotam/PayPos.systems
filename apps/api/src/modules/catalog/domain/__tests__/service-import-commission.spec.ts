@@ -62,6 +62,24 @@ it.each([text('OTHER'), booleanCell, unrepresentable, numeric('1')])(
   },
 );
 
+it.each([booleanCell, unrepresentable])(
+  'keeps an independently invalid value with each invalid rule: %o',
+  (value) => {
+    for (const kind of [text('OTHER'), booleanCell, unrepresentable, numeric('1'), errorCell]) {
+      expect(parseServiceImportCommissionCells(kind, value)).toEqual({
+        ok: false,
+        errors: [
+          {
+            column: 'commission_rule',
+            reason: kind?.kind === 'error' ? 'CELL_INVALID' : 'RULE_INVALID',
+          },
+          { column: 'commission_value', reason: 'VALUE_INVALID' },
+        ],
+      });
+    }
+  },
+);
+
 it('keeps both spreadsheet errors on their own columns', () => {
   expect(parseServiceImportCommissionCells(errorCell, errorCell)).toEqual({
     ok: false,
