@@ -68,3 +68,37 @@ export class CommissionTipSalaryInputInvalidError extends Error {
     this.reason = reason;
   }
 }
+
+/** سبب رفض المُدخل؛ كلها أخطاء إدخال صريحة، وليس فيها إعادة محاولة تشغيلية. */
+export type CommissionCorrectionTargetRefusal =
+  | 'INVALID_SOURCE_PERIOD'
+  | 'INVALID_CURRENT_PERIOD'
+  | 'INVALID_CANDIDATE_PERIOD'
+  | 'MISSING_STATEMENT_ID'
+  | 'UNKNOWN_STATUS'
+  | 'AMBIGUOUS_DUPLICATE_PERIOD';
+
+/**
+ * رفض مُدخل غير صالح؛ الاختيار يتوقف بدل أن يخمّن، لأن هدف غلط يغيّر شهر الرواتب
+ * الذي يحمل التصحيح.
+ */
+export class CommissionCorrectionTargetInputError extends Error {
+  readonly code = 'COMMISSION_CORRECTION_TARGET_INPUT_INVALID';
+  readonly reason: CommissionCorrectionTargetRefusal;
+  readonly period: string | null;
+
+  /**
+   * يحتفظ بسبب الرفض والشهر المعني حتى يصل صاحب التسليم إلى اللقطة أو القيمة المعطوبة.
+   *
+   * @param reason سبب الرفض الثابت الذي يصف نوع الخلل
+   * @param period الشهر الذي وقع فيه الخلل، أو null إذا لم يكن الخلل مرتبطاً بشهر
+   */
+  constructor(reason: CommissionCorrectionTargetRefusal, period: string | null = null) {
+    super(
+      `Invalid commission correction target input: ${reason}${period === null ? '' : ` (${period})`}`,
+    );
+    this.name = 'CommissionCorrectionTargetInputError';
+    this.reason = reason;
+    this.period = period;
+  }
+}
