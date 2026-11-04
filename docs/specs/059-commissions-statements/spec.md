@@ -587,7 +587,7 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   (`cursor?`, `limit` 1…50, default 20) returns `{ time_zone, items: [{ id, name_ar, name_en, employee_number }], next_cursor }`:
   - `time_zone` is the business's own `businesses.timezone`, never a branch's; the builder's default effective date uses it.
   - The items are the business's employees with `deleted_at IS NULL`, ordered by `(name_en_key, id)`. They carry the
-    names and the employee number only (CS-Q40 = PP-113.1, Waleed 2026-11-02: name + employee number).
+    names and the employee number only (CS-Q40, Waleed 2026-11-02: name + employee number).
     `employee_number` is the number the company recorded for the employee (`employees.employee_number`, an integer
     1…999999, unique across the company; the contract type is the existing `z.number().int().min(1).max(999999)`).
     No branch, role, salary, phone, document or user link.
