@@ -19,6 +19,7 @@ let f: SessionFixture;
 const entitlement = ids.newId();
 const foreignEntitlement = ids.newId();
 const otherBusinessEntitlement = ids.newId();
+const otherService = ids.newId();
 const components = [ids.newId(), ids.newId(), ids.newId()].sort();
 const foreignComponent = ids.newId();
 let scope: PackageRedemptionScope;
@@ -27,7 +28,6 @@ beforeAll(async () => {
   f = await sessionFixture();
   scope = { companyId: f.company, businessId: f.business, customerId: f.customer };
   await seed(scope, entitlement, components, f.services);
-  const otherService = ids.newId();
   await f.h.owner`INSERT INTO services(company_id,id,business_id,name_en,price,commission_rule_kind)
     VALUES(${f.company},${otherService},${f.secondBusiness},'Synthetic other service',1.000,'ZERO')`;
   await seed(
@@ -150,7 +150,7 @@ it('returns uniform null for unknown, foreign business, customer and service, wi
   await f.db.withTenant(f.company, async (tx) => {
     for (const request of [
       [{ entitlementId: ids.newId(), serviceId: must(f.services[0]) }],
-      [{ entitlementId: otherBusinessEntitlement, serviceId: must(f.services[0]) }],
+      [{ entitlementId: otherBusinessEntitlement, serviceId: otherService }],
       [{ entitlementId: entitlement, serviceId: must(f.services[3]) }],
       [must(pairs()[0]), { entitlementId: foreignEntitlement, serviceId: must(f.services[0]) }],
     ])
