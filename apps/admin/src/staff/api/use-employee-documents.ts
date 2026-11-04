@@ -5,7 +5,7 @@ import {
   fileDownload,
   type EmployeeDocumentFormValues,
 } from '@pospay/contracts';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiClient } from '@/shared/api/client';
 import { uploadDocumentFile, type UploadPhase } from './upload-document-file';
@@ -22,11 +22,14 @@ export function useEmployeeDocuments(
   employeeId: string,
 ) {
   const client = useQueryClient();
-  const key = ['employee-documents', companyId, businessId, userId, employeeId];
+  const key = useMemo(
+    () => ['employee-documents', companyId, businessId, userId, employeeId],
+    [companyId, businessId, userId, employeeId],
+  );
   const params = { header: { 'x-company-id': companyId }, path: { businessId, employeeId } };
   const view = useDocumentsView(companyId, businessId, userId, employeeId);
   const scope = useMemo(() => ({}), [companyId, businessId, userId, employeeId]);
-  const { current, begin, active } = useDocumentAccess(scope, view);
+  const { current, begin, active } = useDocumentAccess(scope, key);
   const [phase, setPhase] = useState<UploadPhase>('idle');
   const recordContext = { companyId, businessId, employeeId, begin, active, onPhase: setPhase };
   const record = useMutation({
@@ -77,8 +80,28 @@ type DocumentOperation = {
   writeEpoch: number;
 };
 
-function useDocumentAccess(scope: object, view: ReturnType<typeof useDocumentsView>) {
-  const current = useRef({
+type DocumentAccessState = {
+  scope: object;
+  mounted: boolean;
+  readable: boolean;
+  writable: boolean;
+  readEpoch: number;
+  writeEpoch: number;
+};
+
+function syncDocumentAccess(state: DocumentAccessState, client: QueryClient, key: string[]) {
+  const query = client.getQueryState<ReturnType<typeof employeeDocumentsView.parse>>(key);
+  const readable = query?.status === 'success' && !!query.data;
+  const writable = readable && !!query?.data?.can_manage;
+  if (state.readable && !readable) state.readEpoch += 1;
+  if (state.writable && !writable) state.writeEpoch += 1;
+  state.readable = readable;
+  state.writable = writable;
+}
+
+function useDocumentAccess(scope: object, key: string[]) {
+  const client = useQueryClient();
+  const current = useRef<DocumentAccessState>({
     scope,
     mounted: true,
     readable: false,
@@ -86,32 +109,41 @@ function useDocumentAccess(scope: object, view: ReturnType<typeof useDocumentsVi
     readEpoch: 0,
     writeEpoch: 0,
   });
-  const readable = view.isFetchedAfterMount && !view.isError && !!view.data;
-  const writable = readable && !!view.data?.can_manage;
-  if (current.current.readable && !readable) current.current.readEpoch += 1;
-  if (current.current.writable && !writable) current.current.writeEpoch += 1;
   current.current.scope = scope;
-  current.current.readable = readable;
-  current.current.writable = writable;
+  syncDocumentAccess(current.current, client, key);
   useEffect(() => {
     current.current.mounted = true;
     return () => {
       current.current.mounted = false;
     };
   }, []);
+  useEffect(
+    () =>
+      client.getQueryCache().subscribe(({ query }) => {
+        if (current.current.scope !== scope || query.queryKey.length !== key.length) return;
+        if (query.queryKey.some((value: unknown, index: number) => value !== key[index])) return;
+        syncDocumentAccess(current.current, client, key);
+      }),
+    [client, key, scope],
+  );
   const begin = (kind: 'read' | 'write' = 'read'): DocumentOperation => ({
     scope,
     kind,
     readEpoch: current.current.readEpoch,
     writeEpoch: current.current.writeEpoch,
   });
-  const active = (operation: DocumentOperation) =>
-    current.current.mounted &&
-    current.current.scope === operation.scope &&
-    current.current.readEpoch === operation.readEpoch &&
-    (operation.kind === 'write'
-      ? current.current.writable && current.current.writeEpoch === operation.writeEpoch
-      : current.current.readable);
+  const active = (operation: DocumentOperation) => {
+    if (current.current.scope !== scope) return false;
+    syncDocumentAccess(current.current, client, key);
+    return (
+      current.current.mounted &&
+      current.current.scope === operation.scope &&
+      current.current.readEpoch === operation.readEpoch &&
+      (operation.kind === 'write'
+        ? current.current.writable && current.current.writeEpoch === operation.writeEpoch
+        : current.current.readable)
+    );
+  };
   return { current, begin, active };
 }
 
