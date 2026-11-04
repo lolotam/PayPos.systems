@@ -35,7 +35,7 @@ function renderPage() {
   return { client, ...render(<ServiceSessionDayPage scope={scope} timezone="Asia/Kuwait" />, { wrapper }) };
 }
 function reads(edits: boolean) {
-  return state.get.mock.calls.filter((call) => String(call[0]).includes('/edits') === edits).length;
+  return state.get.mock.calls.filter((call) => String(call[0]).endsWith(edits ? '/edits' : '/service-sessions')).length;
 }
 function prepare() {
   state.online = true; state.locale = 'en'; state.get.mockReset(); state.patch.mockReset();

@@ -108,7 +108,7 @@ function indexNodes(access: PlanNode): PlanNode[] {
 }
 
 // الصفوف اللي العقدة قراها: اللي رجعت، واللي الفلتر شالها، واللي الـ recheck شالها.
-function rowsRead(node: PlanNode): number {
+export function rowsRead(node: PlanNode): number {
   const read =
     (node['Actual Rows'] ?? 0) +
     (node['Rows Removed by Filter'] ?? 0) +
