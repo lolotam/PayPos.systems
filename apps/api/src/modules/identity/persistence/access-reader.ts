@@ -10,7 +10,14 @@ import { sql } from 'drizzle-orm';
 
 import type { ScopeType } from '../domain/access.ts';
 import { protectOwnerAccess } from '../domain/owner-access.ts';
-import type { AccessReader, ActiveMembership, SourcedGrant } from '../ports/access-reader.port.ts';
+import type {
+  AccessReader,
+  ActiveMembership,
+  SourcedGrant,
+  CompanyAccess,
+  AccessTargetRequest,
+  ResolvedAccessTargets,
+} from '../ports/access-reader.port.ts';
 import { companyIsActive } from './company-active-lock.ts';
 import { readFeatureEnabled } from './feature-reader.ts';
 import { readScopeTargets } from './permission-scope-targets.ts';
@@ -28,21 +35,6 @@ const ACTIVE = sql`m.starts_at <= now() AND (m.ends_at IS NULL OR m.ends_at > no
  */
 export function createAccessReader(db: TenantWrappers): AccessReader {
   return {
-    membershipTarget: (companyId, membershipId) =>
-      db.withTenant(companyId, async (tx) => {
-        const [row] = await tx.execute<{
-          scope_type: ScopeType;
-          scope_id: string;
-        }>(sql`
-        SELECT m.scope_type, m.scope_id FROM memberships m
-        JOIN companies c ON c.id=m.company_id AND c.deleted_at IS NULL
-        WHERE m.company_id=${companyId} AND m.id=${membershipId} AND ${ACTIVE}`);
-        if (row === undefined) return null;
-        const scopes = await readScopeTargets(tx, companyId, row);
-        return scopes.target === null
-          ? null
-          : { target: scopes.target, descendantTargets: scopes.descendantTargets };
-      }),
     companiesOf: (userId) =>
       db.withUser(userId, async (tx) => {
         const rows = await tx.execute<{ company_id: string }>(sql`
@@ -50,45 +42,90 @@ export function createAccessReader(db: TenantWrappers): AccessReader {
         return rows.map((row) => row.company_id);
       }),
 
-    accessIn: (companyId, userId) => readAccess(db, companyId, userId),
+    accessAt: (companyId, userId, request, options) =>
+      db.withTenant(
+        companyId,
+        async (tx) => {
+          const targets = await readRequestTargets(tx, companyId, request);
+          if (targets === null) return null;
+          const access = await readAccessTransaction(tx, companyId, userId);
+          if (!options.allows({ targets, access })) return null;
+          const { featureFlag } = options;
+          const feature =
+            featureFlag === undefined
+              ? undefined
+              : {
+                  flag: featureFlag,
+                  enabled: await readFeatureEnabled(tx, companyId, featureFlag),
+                };
+          return { targets, access, ...(feature === undefined ? {} : { feature }) };
+        },
+        { userId },
+      ),
 
-    businessOfBranch: (companyId, branchId) =>
-      db.withTenant(companyId, async (tx) => {
-        const [row] = await tx.execute<{ business_id: string }>(sql`
-          SELECT business_id FROM branches WHERE company_id = ${companyId} AND id = ${branchId}`);
-        return row?.business_id ?? null;
-      }),
-
-    businessesOfBranches: (companyId, branchIds) =>
-      db.withTenant(companyId, async (tx) => {
-        const rows = await tx.execute<{ id: string; business_id: string }>(sql`
-          SELECT id, business_id FROM branches
-          WHERE company_id=${companyId}
-            AND id=ANY(ARRAY[${sql.join(
-              branchIds.map((id) => sql`${id}`),
-              sql`, `,
-            )}]::uuid[])`);
-        return new Map(rows.map((row) => [row.id, row.business_id]));
-      }),
-
-    businessInCompany: (companyId, businessId) =>
-      db.withTenant(companyId, async (tx) => {
-        const rows = await tx.execute(sql`
-          SELECT 1 FROM businesses WHERE company_id = ${companyId} AND id = ${businessId}`);
-        return rows.length === 1;
-      }),
+    accessAtBranches: (companyId, userId, branchIds) =>
+      db.withTenant(
+        companyId,
+        async (tx) => {
+          const businesses = await readBranchBusinesses(tx, companyId, branchIds);
+          if (businesses.size === 0) return null;
+          return { businesses, access: await readAccessTransaction(tx, companyId, userId) };
+        },
+        { userId },
+      ),
 
     isFeatureEnabled: (companyId, flag) =>
       db.withTenant(companyId, (tx) => readFeatureEnabled(tx, companyId, flag)),
   };
 }
 
-function readAccess(
-  db: TenantWrappers,
+async function readBranchBusinesses(
+  tx: Tx,
   companyId: string,
-  userId: string,
-): ReturnType<AccessReader['accessIn']> {
-  return db.withTenant(companyId, (tx) => readAccessTransaction(tx, companyId, userId), { userId });
+  branchIds: readonly string[],
+): Promise<ReadonlyMap<string, string>> {
+  const rows = await tx.execute<{ id: string; business_id: string }>(sql`
+    SELECT id, business_id FROM branches WHERE company_id=${companyId}
+      AND id=ANY(ARRAY[${sql.join(
+        branchIds.map((id) => sql`${id}`),
+        sql`, `,
+      )}]::uuid[])`);
+  return new Map(rows.map((row) => [row.id, row.business_id]));
+}
+
+async function readRequestTargets(
+  tx: Tx,
+  companyId: string,
+  request: AccessTargetRequest,
+): Promise<ResolvedAccessTargets | null> {
+  if (request.kind === 'membership') {
+    const [row] = await tx.execute<{ scope_type: ScopeType; scope_id: string }>(sql`
+      SELECT m.scope_type, m.scope_id FROM memberships m
+      JOIN companies c ON c.id=m.company_id AND c.deleted_at IS NULL
+      WHERE m.company_id=${companyId} AND m.id=${request.membershipId} AND ${ACTIVE}`);
+    if (row === undefined) return null;
+    const scopes = await readScopeTargets(tx, companyId, row);
+    return scopes.target === null
+      ? null
+      : { target: scopes.target, descendantTargets: scopes.descendantTargets };
+  }
+  if (request.kind === 'branch') {
+    const businessId = (await readBranchBusinesses(tx, companyId, [request.branchId])).get(
+      request.branchId,
+    );
+    return businessId === undefined
+      ? null
+      : { target: { companyId, businessId, branchId: request.branchId }, descendantTargets: [] };
+  }
+  if (request.kind === 'business') {
+    const rows = await tx.execute(
+      sql`SELECT 1 FROM businesses WHERE company_id=${companyId} AND id=${request.businessId}`,
+    );
+    return rows.length === 1
+      ? { target: { companyId, businessId: request.businessId }, descendantTargets: [] }
+      : null;
+  }
+  return { target: { companyId }, descendantTargets: [] };
 }
 
 /**
@@ -110,7 +147,7 @@ export async function readAccessTransaction(
   companyId: string,
   userId: string,
   decisionAt?: Date,
-): ReturnType<AccessReader['accessIn']> {
+): Promise<CompanyAccess> {
   if (!(await companyIsActive(tx, companyId))) return { memberships: [], grants: [] };
   const at = decisionAt === undefined ? sql`now()` : sql`${decisionAt.toISOString()}::timestamptz`;
   const active = sql`m.starts_at <= ${at} AND (m.ends_at IS NULL OR m.ends_at > ${at})`;
