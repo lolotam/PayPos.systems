@@ -1,4 +1,5 @@
 import { moneyToString, type Money } from '@pospay/domain';
+import { PackageSaleIdentityInvariantError } from './errors.ts';
 import { allocatePackagePrice } from './package-allocation.js';
 import { validatePackageDefinition } from './package-definition.js';
 import { packageExpiryDate } from './package-expiry.ts';
@@ -26,23 +27,65 @@ export interface PackageSalePlanInput {
   readonly timezone: string;
 }
 
-/** الهويات بيانات ثابتة مولّدة خارج الدومين؛ ربط المكوّن بالخدمة يمنع اعتماداً خفياً على ترتيب المولد. */
+/** الهويات ثابتة من خارج الدومين؛ ربط الجلسة بالخدمة وordinal يمنع اعتماداً خفياً على ترتيب المولد. */
 export interface PackageSaleIdentities {
   readonly saleId: string;
-  readonly components: readonly { readonly serviceId: string; readonly id: string }[];
+  readonly components: readonly {
+    readonly serviceId: string;
+    readonly id: string;
+    readonly slots: readonly { readonly ordinal: number; readonly id: string }[];
+  }[];
 }
 
 function saleComponentIds(type: SalePackageType, identities: PackageSaleIdentities) {
-  const ids = new Map(identities.components.map(({ serviceId, id }) => [serviceId, id]));
+  const ids = new Map(identities.components.map((identity) => [identity.serviceId, identity]));
   if (
+    !identities.saleId ||
     identities.components.length !== type.components.length ||
     ids.size !== type.components.length ||
     new Set(identities.components.map(({ id }) => id)).size !== ids.size ||
-    type.components.some(({ service_id }) => !ids.get(service_id))
+    identities.components.some(({ id }) => !id) ||
+    type.components.some(({ service_id }) => !ids.has(service_id))
   ) {
-    throw new Error('PACKAGE_SALE_IDENTITIES_INVALID');
+    throw new PackageSaleIdentityInvariantError();
+  }
+  const seenSlots = new Set<string>();
+  for (const component of type.components) {
+    const identity = ids.get(component.service_id);
+    if (
+      !identity ||
+      identity.slots.length !== component.sessions ||
+      new Set(identity.slots.map(({ ordinal }) => ordinal)).size !== component.sessions
+    ) {
+      throw new PackageSaleIdentityInvariantError();
+    }
+    for (const slot of identity.slots) {
+      if (
+        !slot.id ||
+        seenSlots.has(slot.id) ||
+        !Number.isInteger(slot.ordinal) ||
+        slot.ordinal < 1 ||
+        slot.ordinal > component.sessions
+      ) {
+        throw new PackageSaleIdentityInvariantError();
+      }
+      seenSlots.add(slot.id);
+    }
   }
   return ids;
+}
+
+function identifiedSlots(
+  value: Money,
+  sessions: number,
+  identity: PackageSaleIdentities['components'][number],
+) {
+  const ids = new Map(identity.slots.map(({ ordinal, id }) => [ordinal, id]));
+  return createPackageSlots(value, sessions).map((slot) => {
+    const id = ids.get(slot.ordinal);
+    if (!id) throw new PackageSaleIdentityInvariantError();
+    return { ...slot, id };
+  });
 }
 
 function saleComponents(input: PackageSalePlanInput, identities: PackageSaleIdentities) {
@@ -56,10 +99,10 @@ function saleComponents(input: PackageSalePlanInput, identities: PackageSaleIden
   const allocated = allocatePackagePrice(input.pricePaid, definitions);
   return input.type.components.map((snapshot) => {
     const valued = allocated.find(({ serviceId }) => serviceId === snapshot.service_id);
-    const id = ids.get(snapshot.service_id);
-    if (!valued || !id) throw new Error('PACKAGE_SALE_IDENTITIES_INVALID');
+    const identity = ids.get(snapshot.service_id);
+    if (!valued || !identity) throw new PackageSaleIdentityInvariantError();
     return {
-      id,
+      id: identity.id,
       service_id: valued.serviceId,
       position: snapshot.position,
       name_en: snapshot.service.name_en,
@@ -67,7 +110,7 @@ function saleComponents(input: PackageSalePlanInput, identities: PackageSaleIden
       list_price_snapshot: valued.listPriceSnapshot,
       sessions_total: valued.sessions,
       component_value: valued.componentValue,
-      slots: createPackageSlots(valued.componentValue, valued.sessions),
+      slots: identifiedSlots(valued.componentValue, valued.sessions, identity),
     };
   });
 }
@@ -77,7 +120,7 @@ function saleComponents(input: PackageSalePlanInput, identities: PackageSaleIden
  * رفض العرض القديم يسبق استدعاء الدالة في الكاتب؛ الدالة لا تمنح أي إذن ولا تكتب شيئاً.
  *
  * @param input حقائق النوع والبائعة والحد والفرع والأوقات المحقونة
- * @param identities هويات البيع والمكوّنات المولّدة مسبقاً كبيانات ثابتة
+ * @param identities هويات البيع والمكوّنات والجلسات المولّدة مسبقاً كبيانات ثابتة
  * @returns لقطة مالية بالفلس ومكوّنات بجلساتها، وحدث بيع قابل للتسلسل بلا بيانات عميلة خاصة
  */
 export function planPackageSale(input: PackageSalePlanInput, identities: PackageSaleIdentities) {

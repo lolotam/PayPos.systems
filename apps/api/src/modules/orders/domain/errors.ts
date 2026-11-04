@@ -72,3 +72,12 @@ export class PackageSaleError extends Error {
     this.name = 'PackageSaleError';
   }
 }
+
+/** خلل داخلي في الهويات المولّدة؛ ليس رفض مدخل مستخدمة ولا كود HTTP عام. */
+export class PackageSaleIdentityInvariantError extends Error {
+  /** يميّز خطأ تركيب الخطة عن رفض قواعد البيع المتوقع، ويظل فشلاً داخلياً. */
+  constructor() {
+    super('PACKAGE_SALE_IDENTITIES_INVALID');
+    this.name = 'PackageSaleIdentityInvariantError';
+  }
+}

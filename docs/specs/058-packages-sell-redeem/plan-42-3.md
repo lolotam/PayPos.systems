@@ -11,7 +11,7 @@
 
 Manager approved 42-3a then 42-3b at 23:52 Kuwait (see [personal review](42-3-manager-plan-review.md)). This session owns one PR for pure domain/errors/fixed-data financial plan and complete pure tests. No use case, adapter, route, timezone reader, identity or generated API changes belong to A. B starts after verified A merge in its own session/PR under PP-118; no new session or extra Sol slot is authorized. The next two new sessions remain MiniMax per PP-120.
 
-The full sale design below remains the B handoff, not a claim that A ships a sale endpoint. A returns the bigint entitlement/component/slot snapshot and a serializable sale event; audit/HTTP response mapping and all writes belong to B. Fixed IDs are supplied by service ID; no generator callback enters domain. Reused discount/allocation/slot tests remain part of A's focused checks. Expected A size is 1,000–1,150 added/deleted lines including this complete plan and review; existing twice-estimate and 2,800 absolute limits remain.
+The full sale design below remains the B handoff, not a claim that A ships a sale endpoint. A returns the bigint entitlement/component/slot snapshot and a serializable sale event; audit/HTTP response mapping and all writes belong to B. Fixed component IDs are supplied by service ID; slot IDs are supplied under each component by ordinal. Exact identity sets and unique slot IDs across components are validated; malformed generated data throws PackageSaleIdentityInvariantError, an internal domain failure with no public 4xx code. No generator callback enters domain. Reused discount/allocation/slot tests remain part of A's focused checks. Expected A size is 1,000–1,150 added/deleted lines including this complete plan and review; existing twice-estimate and 2,800 absolute limits remain.
 
 A's files: domain/errors.ts, domain/package-expiry.ts, new domain/package-sale-rules.ts and domain/package-sale-plan.ts; their pure specs, this plan/review, and the execution rows in spec.md. A does not alter business requirements. B retains the complete SA-01…SA-11 acceptance matrix, including all races, real HTTP/DB rollback/replay tests, branch timezone reader result-shape/isolation/EXPLAIN and five measured <200 ms transactions through COMMIT.
 
@@ -96,7 +96,7 @@ run(context):
       seller = tx.performers.read([seller], time.occurred_at)[0]
       linked = checkPackageSeller(seller, userId)
       limit = tx.discount.read(recorder)
-      preGeneratedIds = generate required fixed identity data via injected IdGenerator
+      preGeneratedIds = generate sale, component and every slot ID via injected IdGenerator; key by service and ordinal
       plan = planPackageSale({...}, preGeneratedIds)
       tx.insertSale(plan); tx.audit(saleAudit(plan)); tx.emit(plan.event)
       return saleResponse(plan)
@@ -144,7 +144,7 @@ per-membership `LineAccess` shape.
 - `identity/persistence/service-session-access.ts`: extract the body into a private
   `readBranchWriteAccess(tx, permission, companyId, userId, businessId, branchId, at)`; `readServiceSessionAccess`
   becomes a one-line wrapper (behaviour-preserving; the existing 050 tests are the regression proof); add
-  `readPackageSaleAccess` as the second wrapper with Arabic JSDoc. (~+15 / −3). D-1(a) ownership confirmed by manager at 23:50 Kuwait; 42-4a was notified not to edit this file.
+  `readPackageSaleAccess` as the second wrapper with Arabic JSDoc. (~+15 / −3). D-1(a) shape chosen at 23:50 Kuwait, then deferred at 23:52 to the future 42-3b session; refresh file ownership before B starts.
 - `identity/index.ts`: one export line.
 - **Not touched:** `identity/use-cases/authorize-request/*`, `identity/http/route-coverage.ts`,
   `shared/access.decorators.ts`, `AccessGuard` (42-4a); `identity/persistence/service-session-edit-access.ts` and the
@@ -236,7 +236,7 @@ Additional required acceptance coverage (included in revised sizes):
 
 ## 6. Decisions and size gate
 
-- D-1(a) settled by manager 2026-11-04 23:50 Kuwait: this session owns the narrow permission-parameter extraction/package-sale wrapper in service-session-access.ts and identity/index.ts export. No shared RequestAuthorizer change or feature-reader change.
+- D-1(a) was selected before the split at 23:50 Kuwait. The 23:52 split supersedes that assignment for this session: identity reader/export edits belong only to the future 42-3b session, which must refresh ownership against merged 42-4a work. This 42-3a session owns no identity edit. No shared RequestAuthorizer or feature-reader change.
 - D-3 assessed by Astra: no visit recovery proof, 33b deferral, inspected lock order and eligibility-before-self accepted. Its overall NEEDS REVISION receipt remains historical; the manager's corrected-design approval is not an Astra READY receipt.
 - D-2: the corrected estimate below exceeds 2,800 total added/deleted lines, so the manager approved the split below at 23:52 Kuwait. A alone is active; B is deferred until A merges. No coverage or documentation is removed to fit the cap.
 
@@ -271,7 +271,7 @@ Both parts retain their applicable independent review, local gates and five exac
 - **42-4a** owns `RequireAny`/`RequiredAccess`, `AccessGuard`, the identity authorizer, route coverage and startup
   validation. 42-3 only **uses** `@Require('sell:packages:branch', { branch: 'branchId' })`; interface contract for
   42-4a's audit: one `REQUIRE_ACCESS` entry `{ permissions: ['sell:packages:branch'], target: { branch: 'branchId' } }`
-  plus `RequiresFeature('orders')`, user principals only (`SessionAdminGuard`). No file of theirs is edited; manager explicitly assigns service-session-access.ts and identity/index.ts narrow additions to 42-3.
+  plus `RequiresFeature('orders')`, user principals only (`SessionAdminGuard`). No file of theirs is edited; the narrow service-session-access.ts and identity/index.ts additions are reserved for future 42-3b after ownership refresh, never this 42-3a session.
 - **43-1b** owns the service-line change/cancel/performer guards and `service-session-edit-access.ts`; untouched.
 - **33b** adds `selling_stopped_at` to `readPackageTypeForSale` and the sale-side `PACKAGE_TYPE_NOT_SELLABLE` check
   (FR-018b order: stopped → revision → services) with ST-02/ST-03b. If 33b merges first, 42-3 rebases onto it and

@@ -1,59 +1,14 @@
 import { MONEY_MAX, sumMoney } from '@pospay/domain';
 import { expect, it } from 'vitest';
-import { PackageRuleError, PackageSalePricingError } from '../errors.ts';
-import { planPackageSale, type PackageSalePlanInput } from '../package-sale-plan.ts';
+import {
+  PackageRuleError,
+  PackageSalePricingError,
+  PackageSaleIdentityInvariantError,
+} from '../errors.ts';
+import { planPackageSale } from '../package-sale-plan.ts';
 import { allocationFixtures } from './fixtures/package-allocation.js';
 
-const input: PackageSalePlanInput = {
-  companyId: 'company',
-  businessId: 'business',
-  branchId: 'branch',
-  customerId: 'customer',
-  recorderUserId: 'recorder',
-  recorderMembershipId: 'membership',
-  paidMethod: 'CASH',
-  pricePaid: 22500n,
-  limitBps: 1000,
-  soldAt: new Date('2026-10-01T08:00:00Z'),
-  recordedAt: new Date('2026-10-01T08:00:00Z'),
-  timezone: 'Asia/Kuwait',
-  seller: {
-    id: 'seller',
-    user_id: 'seller-user',
-    eligible: true,
-    name_en: 'Seller',
-    name_ar: null,
-    clocked_in: false,
-    approved_leave: false,
-  },
-  type: {
-    id: 'type',
-    name_en: 'Blow-dry x10',
-    name_ar: 'سشوار ×١٠',
-    price: 25000n,
-    validity_days: 90,
-    revision: 1,
-    components: [
-      {
-        service_id: 'service',
-        sessions: 10,
-        position: 1,
-        service: {
-          id: 'service',
-          name_en: 'Blow-dry',
-          name_ar: 'سشوار',
-          price: 3000n,
-          rule: { kind: 'FOLLOW_PLAN' },
-          counts: true,
-          revision: 4,
-        },
-      },
-    ],
-  },
-};
-const baseService = input.type.components[0]?.service;
-if (!baseService) throw new Error('fixture requires a service');
-const identities = { saleId: 'sale', components: [{ serviceId: 'service', id: 'component' }] };
+import { input, baseService, identities, componentIdentity } from './fixtures/package-sale.ts';
 
 it('values the mixed bridal package by price times original sessions (SA-02)', () => {
   const components = [
@@ -68,10 +23,9 @@ it('values the mixed bridal package by price times original sessions (SA-02)', (
   }));
   const ids = {
     saleId: 'sale',
-    components: components.map(({ service_id }) => ({
-      serviceId: service_id,
-      id: `id-${service_id}`,
-    })),
+    components: components.map(({ service_id, sessions }) =>
+      componentIdentity(service_id, sessions),
+    ),
   };
   const plan = planPackageSale(
     { ...input, type: { ...input.type, price: 40000n, components }, pricePaid: 40000n },
@@ -93,7 +47,7 @@ it('values the mixed bridal package by price times original sessions (SA-02)', (
         components: ids.components.map((component) => ({ ...component, id: 'duplicate' })),
       },
     ),
-  ).toThrow('PACKAGE_SALE_IDENTITIES_INVALID');
+  ).toThrow(PackageSaleIdentityInvariantError);
 });
 
 const expectedEntitlement = {
@@ -141,6 +95,7 @@ it('keeps the worked sale, commission source and immutable initial values exact 
   });
   expect(plan.components[0]?.slots).toEqual(
     Array.from({ length: 10 }, (_, index) => ({
+      id: 'slot-' + (index + 1),
       ordinal: index + 1,
       unitValue: 2250n,
       state: 'FREE',
@@ -173,7 +128,7 @@ it.each(allocationFixtures)(
     const ids = {
       saleId: 'sale',
       components: components
-        .map(({ service_id }) => ({ serviceId: service_id, id: `id-${service_id}` }))
+        .map(({ service_id, sessions }) => componentIdentity(service_id, sessions))
         .reverse(),
     };
     const plan = planPackageSale(
@@ -269,23 +224,20 @@ it('is deterministic, does not mutate inputs, and returns independent stored sna
   expect(first.components[0]?.list_price_snapshot).toBe(3000n);
   const stored = first.components[0];
   if (!stored) throw new Error('sale requires component');
-  stored.slots[0] = { ordinal: 1, state: 'USED', unitValue: 2250n };
+  stored.slots[0] = { id: 'slot-1', ordinal: 1, state: 'USED', unitValue: 2250n };
   expect(planPackageSale(input, identities).components[0]?.slots[0]?.state).toBe('FREE');
 });
 it.each(
   [
     [],
-    [{ serviceId: 'foreign-service', id: 'id' }],
-    [
-      { serviceId: 'service', id: 'id' },
-      { serviceId: 'service', id: 'duplicate' },
-    ],
+    [componentIdentity('foreign-service', 10)],
+    [componentIdentity('service', 10), componentIdentity('service', 10)],
   ].map((components) => ({ components })),
 )(
   'refuses mismatched pre-generated identity data as an internal invariant: $components',
   ({ components }) => {
     expect(() => planPackageSale(input, { saleId: 'sale', components })).toThrow(
-      'PACKAGE_SALE_IDENTITIES_INVALID',
+      PackageSaleIdentityInvariantError,
     );
   },
 );
