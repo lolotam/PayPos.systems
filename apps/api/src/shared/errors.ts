@@ -362,6 +362,7 @@ const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   'IDEMPOTENCY_KEY_REUSED',
   ...(Object.keys(CATALOG_SERVICE_STATUS) as ErrorCode[]),
   ...(Object.keys(PACKAGE_SALE_STATUS) as ErrorCode[]),
+  'COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE',
 ]);
 
 /**
