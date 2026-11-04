@@ -16,6 +16,11 @@ Which kinds a rule really changes today:
   `SHIFT_BREAK_RETURNED_OTHER_BRANCH` ([44](44-return-from-break-lateness.md)), `ATTENDANCE_CHANGE_REQUESTED` /
   `_DECIDED` ([31](31-attendance-change-requests.md)), `LATE_SERVICE_SESSION`, `SERVICE_LINE_EDITED`,
   `SERVICE_LINE_CANCELLED`, `SERVICE_LINE_PERFORMERS_CHANGED`.
+- **In the catalog since 057-3b but not live yet:** `DISCOUNT_SELF_APPROVED` — the «وافق على خصم على شغل الموافِق»
+  consumer is implemented and fixture-tested **locally, unmerged**, and its producer (the 057-6 approval writer)
+  does not exist yet, so no bell of this kind can fire today. When it lands it follows these rules
+  (master switch + per-kind editable rule, default **owner**, DA-Q11); the discount-approval *request* bell
+  ([57](57-discount-approval.md)) stays always on and is **not** governed here.
 - **Saved but changes nothing yet:** `ATTENDANCE_EXCEPTION` and `DOCUMENT_EXPIRING` (row 62-2d, waits on AL-Q8),
   `SHIFT_ENDS_SOON` (row 28c), `STATEMENT_AWAITING_REVIEW` / `_APPROVAL` (row 62-2c).
 - The discount approval bell ([57](57-discount-approval.md)) is always on and is **not** governed by these rules.
@@ -33,7 +38,7 @@ Which kinds a rule really changes today:
 
 API بس، لسه مفيش شاشة. اللي بيبان لك هو الجرس.
 
-1. **القواعد الافتراضية:** صاحب الشركة يقرا قواعد النشاط ← 14 نوع، كل واحد `source: DEFAULT`، والمفتاح العام شغال.
+1. **القواعد الافتراضية:** صاحب الشركة يقرا قواعد النشاط ← 15 نوع، كل واحد `source: DEFAULT`، والمفتاح العام شغال.
    تنبيه عدم الحضور بعد 20 دقيقة، وعدم الرجوع من البريك بعد 10 دقايق، للأربع مديرين، في التطبيق بس. من غير ما حد يغيّر
    حاجة، الجرس زي ما هو في [36](36-not-clocked-in-alert.md) و[44](44-return-from-break-lateness.md) بالظبط.
 2. **فرع بقاعدة لوحده:** صاحب الشركة يخلي تنبيه عدم الحضور في السالمية بعد **10** دقايق ← شيفت منى 10:00، ولو ما
@@ -70,7 +75,7 @@ API بس، لسه مفيش شاشة. اللي بيبان لك هو الجرس.
 
 API only, no screen yet. What you see is the bell.
 
-1. **Defaults:** the Owner reads the business rules → 14 kinds, each `source: DEFAULT`, the master switch on.
+1. **Defaults:** the Owner reads the business rules → 15 kinds, each `source: DEFAULT`, the master switch on.
    Not-clocked-in at 20 minutes, break-not-returned at 10 minutes, the four managers, in-app only. With nothing changed,
    the bell is exactly as in [36](36-not-clocked-in-alert.md) and [44](44-return-from-break-lateness.md).
 2. **A branch override:** the Owner sets Salmiya's not-clocked-in alert to **10** minutes → Mona's 10:00 shift, with no
@@ -113,7 +118,7 @@ API only, no screen yet. What you see is the bell.
 - **API** (base `http://localhost:3000/v1`, staging `https://api.staging.pospay.systems/v1`; session cookie +
   `x-company-id`; no `Idempotency-Key`). All six routes: `@Require('manage:alert-rules:business', { business: 'businessId' })`.
   - `GET /businesses/<B>/alert-rules` and `GET /businesses/<B>/branches/<BR>/alert-rules` → `AlertRules`
-    `{ business_id, branch_id, alerts_enabled, rules[14] { kind, source DEFAULT|BUSINESS|BRANCH, enabled, recipient_roles,
+    `{ business_id, branch_id, alerts_enabled, rules[15] { kind, source DEFAULT|BUSINESS|BRANCH, enabled, recipient_roles,
     channels, delay_minutes, lead_minutes, fixed_recipients, revision, rule_id } }`.
   - `PUT /businesses/<B>/alert-rules` and `PUT /businesses/<B>/branches/<BR>/alert-rules` → 200 `AlertRules`:
 

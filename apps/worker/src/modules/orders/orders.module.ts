@@ -47,6 +47,14 @@ import {
 } from './persistence/discount-approval-notice.repository.ts';
 import { RequestDiscountApprovalNotice } from './use-cases/request-discount-approval-notice/request-discount-approval-notice.ts';
 import { onDiscountApprovalRequested } from './events/handlers/on-discount-approval-requested.handler.ts';
+import type { DiscountSelfApprovalNoticeNameFallback } from './domain/discount-self-approval-notice.ts';
+import { discountSelfApprovalRecipients } from './persistence/discount-self-approval-recipients.adapter.ts';
+import {
+  discountSelfApprovalRepository,
+  discountSelfApprovalOutbox,
+} from './persistence/discount-self-approval-notice.repository.ts';
+import { RequestDiscountSelfApprovalNotice } from './use-cases/request-discount-self-approval-notice/request-discount-self-approval-notice.ts';
+import { onDiscountApprovedByPerformer } from './events/handlers/on-discount-approved-by-performer.handler.ts';
 
 export function createLateServiceSessionNoticeConsumer(
   ids: IdGenerator,
@@ -156,6 +164,29 @@ export function createDiscountApprovalNoticeConsumer(
     handle: (tx, event) => onDiscountApprovalRequested(bind(tx), event),
   };
 }
+export function createDiscountSelfApprovalNoticeConsumer(
+  ids: IdGenerator,
+  clock: Clock,
+): OutboxConsumer {
+  const bind = (tx: Tx) =>
+    new RequestDiscountSelfApprovalNotice(
+      {
+        recipients: discountSelfApprovalRecipients(tx),
+        place: discountApprovalPlace(tx),
+        repository: discountSelfApprovalRepository(tx),
+        outbox: discountSelfApprovalOutbox(tx),
+        rules: alertRules(tx),
+      },
+      ids,
+      clock,
+      discountSelfApprovalFallback(),
+    );
+  return {
+    id: 'orders.discount-self-approval-notice-v1',
+    eventTypes: ['DiscountApprovedByPerformer'],
+    handle: (tx, event) => onDiscountApprovedByPerformer(bind(tx), event),
+  };
+}
 function priceEditFallback(): PriceEditNameFallback {
   return {
     service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
@@ -182,6 +213,14 @@ function discountApprovalFallback(): DiscountApprovalNoticeNameFallback {
   return {
     service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
     branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },
+    safeName: safeDisplayName,
+  };
+}
+function discountSelfApprovalFallback(): DiscountSelfApprovalNoticeNameFallback {
+  return {
+    service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
+    branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },
+    approver: { ar: t('ar', 'inApp.editor_generic'), en: t('en', 'inApp.editor_generic') },
     safeName: safeDisplayName,
   };
 }

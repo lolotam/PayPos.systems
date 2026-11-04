@@ -31,9 +31,10 @@ const listed = [
   'SERVICE_LINE_PERFORMERS_CHANGED',
   'ATTENDANCE_CHANGE_REQUESTED',
   'ATTENDANCE_CHANGE_DECIDED',
+  'DISCOUNT_SELF_APPROVED',
 ];
 
-it('lists exactly the twelve emitted kinds in business order', () => {
+it('lists exactly the thirteen emitted kinds in business order', () => {
   expect(listedAlertKinds(rules, false).map((rule) => rule.kind)).toEqual(listed);
 });
 
@@ -41,4 +42,15 @@ it('also removes document expiry from the branch view', () => {
   expect(listedAlertKinds(rules, true).map((rule) => rule.kind)).toEqual(
     listed.filter((kind) => kind !== 'DOCUMENT_EXPIRING'),
   );
+});
+
+it('lists the 057-3b self-approval kind while the deferred STATEMENT kinds stay unlisted', () => {
+  const business = listedAlertKinds(rules, false);
+  const selfApproval = business.find((rule) => rule.kind === 'DISCOUNT_SELF_APPROVED');
+  expect(selfApproval).toBeDefined();
+  expect(selfApproval).toMatchObject({ enabled: true, source: 'DEFAULT' });
+  // editable like any listed kind: it survives the branch view too (it is branch-scoped).
+  expect(listedAlertKinds(rules, true).map((rule) => rule.kind)).toContain('DISCOUNT_SELF_APPROVED');
+  for (const kind of ['STATEMENT_AWAITING_REVIEW', 'STATEMENT_AWAITING_APPROVAL'] as const)
+    expect(business.map((rule) => rule.kind)).not.toContain(kind);
 });

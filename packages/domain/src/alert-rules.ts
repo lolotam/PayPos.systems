@@ -16,6 +16,7 @@ export const ALERT_KINDS = [
   'ATTENDANCE_CHANGE_DECIDED',
   'STATEMENT_AWAITING_REVIEW',
   'STATEMENT_AWAITING_APPROVAL',
+  'DISCOUNT_SELF_APPROVED',
 ] as const;
 /** نوع تنبيه من الكتالوج. */
 export type AlertKind = (typeof ALERT_KINDS)[number];
@@ -126,6 +127,11 @@ export const ALERT_KIND_DEFINITIONS: Readonly<Record<AlertKind, AlertKindDefinit
   STATEMENT_AWAITING_APPROVAL: managersInApp({
     defaults: { enabled: true, recipientRoles: ['owner'], channels: IN_APP, delayMinutes: null, leadMinutes: null },
     branchScoped: false,
+  }),
+  // جرس الموافقة الذاتية على الخصم (057-3b، D-19، DA-Q11): افتراضياً المالك بس (والمالكة الموافِقة منهم، DA-Q10)،
+  // والجرس تحت المفتاح العام وقاعدة قابلة للتعديل زي أي تنبيه فريق.
+  DISCOUNT_SELF_APPROVED: managersInApp({
+    defaults: { enabled: true, recipientRoles: ['owner'], channels: IN_APP, delayMinutes: null, leadMinutes: null },
   }),
 };
 

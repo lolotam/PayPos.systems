@@ -34,6 +34,7 @@ import {
   createPerformersChangeNoticeConsumer,
   createPriceEditNoticeConsumer,
   createDiscountApprovalNoticeConsumer,
+  createDiscountSelfApprovalNoticeConsumer,
   daySessionsReader,
 } from './modules/orders/index.ts';
 import { createRatingSchedulingConsumer } from './modules/customers/index.ts';
@@ -136,6 +137,7 @@ const businessDeliver = createDeliverer(
     createLineCancelNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
     createPerformersChangeNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
     createDiscountApprovalNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
+    createDiscountSelfApprovalNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
     createRatingSchedulingConsumer({
       ids: systemUuidV7(),
       clock: { now: () => new Date() },

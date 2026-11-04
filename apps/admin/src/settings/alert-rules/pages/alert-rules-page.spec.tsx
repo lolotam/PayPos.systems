@@ -35,6 +35,7 @@ const listedKinds = [
   'SERVICE_LINE_PERFORMERS_CHANGED',
   'ATTENDANCE_CHANGE_REQUESTED',
   'ATTENDANCE_CHANGE_DECIDED',
+  'DISCOUNT_SELF_APPROVED',
 ] as const;
 
 function businessView() {
@@ -48,7 +49,7 @@ beforeEach(() => {
   api.DELETE.mockReset();
 });
 
-it('shows only the twelve listed kinds with their server values', async () => {
+it('shows only the thirteen listed kinds with their server values', async () => {
   api.GET.mockResolvedValue({ data: businessView() });
   renderPage();
   const first = (await screen.findByRole('switch', {
@@ -56,7 +57,8 @@ it('shows only the twelve listed kinds with their server values', async () => {
   })) as HTMLInputElement;
   expect(first.checked).toBe(true);
   expect(kindSwitch('SERVICE_LINE_CANCELLED').checked).toBe(false);
-  expect(screen.getAllByRole('switch')).toHaveLength(13);
+  expect(kindSwitch('DISCOUNT_SELF_APPROVED').checked).toBe(true);
+  expect(screen.getAllByRole('switch')).toHaveLength(14);
   const names = [
     t('en', 'alertRules.masterLabel'),
     ...listedKinds.map((kind) => t('en', `alertRules.kind_${kind}`)),
@@ -136,6 +138,43 @@ it('saves one changed rule and shows the returned state', async () => {
       enabled: false,
       delay_minutes: 15,
       expected_revision: 7,
+      expected_rule_id: branchA.id,
+    }),
+  );
+});
+
+it('shows the 057-3b self-approval row and saves an edit to it', async () => {
+  const initial = withAlertRule(businessView(), 'DISCOUNT_SELF_APPROVED', {
+    source: 'BUSINESS',
+    revision: 3,
+    rule_id: branchA.id,
+  });
+  const returned = withAlertRule(initial, 'DISCOUNT_SELF_APPROVED', {
+    enabled: false,
+    source: 'BUSINESS',
+    revision: 4,
+  });
+  api.GET.mockResolvedValue({ data: initial });
+  api.PUT.mockResolvedValue({ data: returned });
+  renderPage();
+  await screen.findByRole('switch', { name: t('en', 'alertRules.masterLabel') });
+  const row = kindRow('DISCOUNT_SELF_APPROVED');
+  expect(within(row).getByText('Business rule')).toBeTruthy();
+  fireEvent.click(kindSwitch('DISCOUNT_SELF_APPROVED'));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'alertRules.save') }));
+  expect(await screen.findByText(t('en', 'alertRules.saved'))).toBeTruthy();
+  expect(kindSwitch('DISCOUNT_SELF_APPROVED').checked).toBe(false);
+  expect(within(kindRow('DISCOUNT_SELF_APPROVED')).getByText('Business rule')).toBeTruthy();
+  expect(api.PUT).toHaveBeenCalledTimes(1);
+  const [, options] = api.PUT.mock.calls[0] ?? [];
+  expect(options.body.rules).toHaveLength(1);
+  expect(options.body.rules[0]).toEqual(
+    expect.objectContaining({
+      kind: 'DISCOUNT_SELF_APPROVED',
+      enabled: false,
+      delay_minutes: null,
+      lead_minutes: null,
+      expected_revision: 3,
       expected_rule_id: branchA.id,
     }),
   );

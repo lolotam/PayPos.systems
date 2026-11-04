@@ -11,6 +11,7 @@ export {
   createPerformersChangeNoticeConsumer,
   createPriceEditNoticeConsumer,
   createDiscountApprovalNoticeConsumer,
+  createDiscountSelfApprovalNoticeConsumer,
 } from './orders.module.ts';
 
 export const daySessionsReader = {

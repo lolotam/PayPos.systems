@@ -138,7 +138,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | worker `orders` | `DiscountApprovalNoticeRecipients` | worker `identity`, `tenancy` | `discountApproverRecipients(branch)` and companyOpen on the consumer transaction: active users whose membership covering the branch effectively grants `approve:discounts:branch` (role defaults and ALLOW, minus any covering DENY), not the ADR-0037 manager rule; the requester is dropped (PP-15.2, ADR-0051, 057-3) |
 | worker `orders` | `DiscountApprovalNoticePlace` | worker `tenancy` | branchPlace names only; service names come from the event (ADR-0051, 057-3) |
 | worker `orders` | `DiscountSelfApprovalNoticeRecipients` | worker `identity`, `tenancy` | the scoped-role reader with the roles of the kind's effective alert rule (by default `owner`, DA-Q11): every active membership in those roles covering the branch, the approver not excluded (spec 057 D-19, ADR-0051, 057-3b) |
-| worker `orders` | `DiscountSelfApprovalNoticePlace` | worker `tenancy` | branchPlace names only; service names come from the event (ADR-0051) |
+| worker `orders` | `DiscountSelfApprovalNoticePlace` | worker `tenancy` | branchPlace names only; service names come from the event; **reuses** the 057-3 `DiscountApprovalNoticePlace` adapter (`discount-approval-place.adapter.ts`, whose `reads` registration above serves both ports — no new adapter file, no new arrow) (ADR-0051, 057-3b) |
 | `commissions`                       | `EmployeeDirectoryPort`                                                                 | `staff`     | employee names — statements, live estimate (ADR-0010)                                                                                                                |
 | `commissions` | business-timezone reader (port named by the sub-PR that adds it) | `tenancy` | "the period has ended" and the month boundaries of a statement; bound at the composition root, no import arrow (spec 059 D-16, ADR-0054 §4) |
 | `commissions` | service-names reader (port named by the sub-PR that adds it) | `catalog` | service names for the statement detail and the export, read live while the month is open and frozen at approval (spec 059 D-16, D-20; no import arrow) |
@@ -351,6 +351,8 @@ reads:
   - orders -> identity.discountApproverRecipients @ apps/worker/src/modules/orders/persistence/discount-approval-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/discount-approval-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/discount-approval-place.adapter.ts
+  - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/discount-self-approval-recipients.adapter.ts
+  - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/discount-self-approval-recipients.adapter.ts
   - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/line-cancel-place.adapter.ts

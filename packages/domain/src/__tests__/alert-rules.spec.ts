@@ -159,3 +159,43 @@ describe('alertKindAllowsBranchOverride', () => {
     expect(alertKindAllowsBranchOverride('SHIFT_NOT_CLOCKED_IN')).toBe(true);
   });
 });
+
+describe('DISCOUNT_SELF_APPROVED (057-3b, D-19)', () => {
+  const definition = ALERT_KIND_DEFINITIONS.DISCOUNT_SELF_APPROVED;
+
+  it('defaults to owner only, IN_APP, no timing (DA-Q10, DA-Q11)', () => {
+    expect(definition.defaults).toEqual({
+      enabled: true,
+      recipientRoles: ['owner'],
+      channels: ['IN_APP'],
+      delayMinutes: null,
+      leadMinutes: null,
+    });
+    expect(definition.hasDelay).toBe(false);
+    expect(definition.hasLead).toBe(false);
+    expect(definition.fixedRecipients).toEqual([]);
+    expect(definition.employeeOnly).toBe(false);
+  });
+
+  it('is branch-scoped, so a branch override is allowed and the default rule is valid', () => {
+    expect(alertKindAllowsBranchOverride('DISCOUNT_SELF_APPROVED')).toBe(true);
+    expect(alertRuleViolation('DISCOUNT_SELF_APPROVED', definition.defaults)).toBeNull();
+  });
+
+  it('accepts an edited rule with the supported roles and no timing', () => {
+    expect(
+      alertRuleViolation('DISCOUNT_SELF_APPROVED', rule({ recipientRoles: ['owner', 'branch_manager'] })),
+    ).toBeNull();
+    expect(alertRuleViolation('DISCOUNT_SELF_APPROVED', rule({ delayMinutes: 5 }))).toBe('DELAY_NOT_ALLOWED');
+    expect(alertRuleViolation('DISCOUNT_SELF_APPROVED', rule({ leadMinutes: 5 }))).toBe('LEAD_NOT_ALLOWED');
+  });
+
+  it('follows the master switch like every team alert (DA-Q11)', () => {
+    expect(effectiveAlertRule('DISCOUNT_SELF_APPROVED', null, null, false)).toMatchObject({
+      enabled: false,
+      masterOff: true,
+      recipientRoles: [],
+    });
+    expect(effectiveAlertRule('DISCOUNT_SELF_APPROVED', null, null, null).enabled).toBe(true);
+  });
+});

@@ -44,6 +44,8 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'discount_approval_notices:INSERT',
     'discount_approval_notices:SELECT',
     ...DISCOUNT_PROPOSAL_TABLE_GRANTS,
+    'discount_self_approval_notices:INSERT',
+    'discount_self_approval_notices:SELECT',
     'document_types:INSERT',
     'document_types:SELECT',
     'employee_branches:INSERT',

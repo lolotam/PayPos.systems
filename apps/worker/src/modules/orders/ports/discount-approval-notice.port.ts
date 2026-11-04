@@ -39,15 +39,15 @@ export interface DiscountApprovalNoticeRecipients {
   ): Promise<readonly string[]>;
 }
 
-/** قراءة أسماء الفرع فقط؛ اسم الخدمة من الحدث. */
+/** قراءة أسماء الفرع فقط؛ اسم الخدمة من الحدث. مدخلاتها هوية النطاق الثلاثية فقط، فتصلح لأجراس قراءة المكان الأخرى. */
 export interface DiscountApprovalNoticePlace {
   /** يرجع اسمي الفرع أو null حتى لا يخمن المستهلك مكان الطلب.
    *
-   * @param request هوية الطلب
+   * @param request هوية النطاق داخل المستأجر: الشركة والنشاط والفرع
    * @returns أسماء الفرع إن وُجد
    */
   branchPlace(
-    request: DiscountApprovalNoticeRequest,
+    request: Pick<DiscountApprovalNoticeRequest, 'companyId' | 'businessId' | 'branchId'>,
   ): Promise<{ nameAr: string | null; nameEn: string } | null>;
 }
 
