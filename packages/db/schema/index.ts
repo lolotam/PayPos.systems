@@ -40,6 +40,7 @@ export { employeeDefaultShifts } from './staff-default-shifts.ts';
 export { employeeNumberSequences } from './staff-employee-numbers.ts';
 export * from './orders.ts';
 export * from './orders-packages.ts';
+export * from './orders-package-redemptions.ts';
 export * from './orders-discount-proposals.ts';
 export * from './commissions-statements.ts';
 export * from './commissions-statement-exports.ts';

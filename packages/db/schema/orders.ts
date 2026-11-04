@@ -96,6 +96,8 @@ export const serviceLines = pgTable('service_lines', {
   countsTowardThreshold: boolean('counts_toward_threshold').notNull(), hasPerformerWarning: boolean('has_performer_warning').notNull(),
   // الموافقة التي استُهلكت لهذا البند (spec 057)؛ الربط المؤجل بالاتجاهين وقيوده في الهجرتين 0163–0164، وقيود D-21 (النشاط والخدمة والزيارة وفرع الزيارة) في هجرات 057-5b.
   discountProposalId: uuid('discount_proposal_id'),
+  // علامة ثابتة من الإدخال؛ الربط الدائري المؤجل والحارس في SQL الخاص بـ43-1.
+  redemptionId: uuid('redemption_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   primaryKey({ columns: [t.companyId, t.id] }), unique('service_lines_business_id_key').on(t.companyId, t.businessId, t.id),
@@ -107,6 +109,7 @@ export const serviceLines = pgTable('service_lines', {
   index('service_lines_service_idx').on(t.companyId, t.businessId, t.serviceId),
   index('service_lines_membership_idx').on(t.companyId, t.recordedByMembershipId), index('service_lines_recorder_idx').on(t.companyId, t.recordedBy),
   index('service_lines_recorded_by_fk_idx').on(t.recordedBy),
+  index('service_lines_redemption_fk_idx').on(t.companyId, t.businessId, t.redemptionId).where(sql`${t.redemptionId} IS NOT NULL`),
   index('service_lines_late_session_idx').on(t.companyId, t.sessionId).where(sql`${t.late}`),
   check('service_lines_amounts', sql`${t.listPrice} >= 0 AND ${t.price} >= 0 AND ${t.discount} BETWEEN 0 AND ${t.price} AND ${t.net} = ${t.price} - ${t.discount}`),
   check('service_lines_bps', sql`${t.effectiveDiscountBps} BETWEEN 0 AND 10000`),
