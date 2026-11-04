@@ -12,6 +12,8 @@ export const expectedOpenApiSchemaNames = [
   'SessionMoney',
   'SessionPerformerInput',
   'SessionLineInput',
+  'PackageSessionLineInput',
+  'SessionLineDraft',
   'RecordServiceSessionInput',
   'AppendServiceSessionLinesInput',
   'SessionPerformer',
