@@ -23,11 +23,13 @@ Before every new task, also read [the owner-confirmed delivery pipeline](docs/ag
 The names say "CLAUDE", but the rules apply to every agent equally.
 
 **Owner questions.** Never guess an owner answer. Record every question, options, recommendation and answer verbatim
-in the slice's `owner-questions.ar.md` (or `docs/owner-decisions.ar.md` for process questions). Ask Waleed directly in
-the project conversation (PP-117); Super Admin is frozen and is not an approval or routing hop. Feature/business
-questions also go to the existing numbered decisions-page batch under `docs/decisions-site.md`; Abu Salem's differing
-business pick still binds. Technical questions go to Waleed only, never onto that page. Keep unanswered rules
-`PENDING` / `TODO(spec)` and stop only dependent work. Preserve the existing page publication and audit roles.
+in the slice's `owner-questions.ar.md` (or `docs/owner-decisions.ar.md` for process questions). The project/task manager
+asks Waleed directly in the project conversation (PP-117); Super Admin is frozen and is not an approval or routing
+hop. Implementation/review workers record the question as `PENDING` / `TODO(spec)`, stop only dependent work and
+hand it to their owning manager; they do not independently contact Waleed or publish a decisions-page batch.
+Feature/business questions also go to the existing decisions page as a **new numbered batch** under
+`docs/decisions-site.md`; Abu Salem's differing business pick still binds. Technical questions go to Waleed only,
+never onto that page. Preserve the existing page publication and audit roles.
 
 ## Review guidelines
 

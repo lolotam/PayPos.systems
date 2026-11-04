@@ -72,11 +72,13 @@ Multi-tenant, multi-vertical business-management SaaS (POS, inventory, appointme
       merged).
     - Never create a second page. Publish to that same site. The old claude.ai artifact is retired: never publish to
       it or read answers from it.
-    - **Who writes where:** only the Claude Code orchestrator session can publish to that page. Any other agent (Codex,
-      Grok, a subagent) writes the question into the slice's `owner-questions.ar.md` (or `docs/owner-decisions.ar.md` for a
-      question that belongs to no slice) with the answer marked
-      `PENDING`, marks the rule `TODO(spec)`, and stops. The orchestrator then publishes it on the page (feature questions
-      only), asks Waleed directly (PP-117), and writes the owners' answers back into the file.
+    - **Who writes where:** the existing authorized page-publishing orchestrator publishes feature/business questions
+      to that page as a new numbered batch. A project/task manager asks Waleed directly under PP-117. An agent acting
+      as an implementation/review worker writes the question into the slice's `owner-questions.ar.md` (or
+      `docs/owner-decisions.ar.md` for a question that belongs to no slice), marks the answer `PENDING` and the rule
+      `TODO(spec)`, stops only dependent work and hands the question to its owning manager. The worker does not
+      independently contact Waleed or publish a page batch. The manager/page orchestrator records the owners'
+      answers verbatim in the same audit file. Super Admin is not a routing hop.
 5c. **The project-status tab is always current.** The same decisions page has a tab «المشروع أول بأول» fed by
     `public/roadmap.json` in the `lolotam/plan` repo: every phase, gate, task and sub-task by its code, the product
     tracks, and every partner request, each marked done / in progress / not started. The orchestrator updates it and
