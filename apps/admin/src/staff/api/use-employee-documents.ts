@@ -6,7 +6,7 @@ import {
   type EmployeeDocumentFormValues,
 } from '@pospay/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiClient } from '@/shared/api/client';
 import { uploadDocumentFile, type UploadPhase } from './upload-document-file';
 
@@ -25,55 +25,106 @@ export function useEmployeeDocuments(
   const key = ['employee-documents', companyId, businessId, userId, employeeId];
   const params = { header: { 'x-company-id': companyId }, path: { businessId, employeeId } };
   const view = useDocumentsView(companyId, businessId, userId, employeeId);
+  const scope = useMemo(() => ({}), [companyId, businessId, userId, employeeId]);
+  const { current, active } = useDocumentAccess(scope, view);
   const [phase, setPhase] = useState<UploadPhase>('idle');
+  const recordContext = { companyId, businessId, employeeId, active, onPhase: setPhase };
   const record = useMutation({
     mutationKey: [...key, 'record'],
     retry: false,
-    mutationFn: async ({ file, values }: DocumentSubmission) => {
-      const fileId = await uploadDocumentFile({
-        companyId,
-        businessId,
-        employeeId,
-        file,
-        onPhase: setPhase,
-      });
-      setPhase('recording');
-      const result = await apiClient().POST(
-        '/v1/businesses/{businessId}/employees/{employeeId}/documents',
-        {
-          params: {
-            ...params,
-            header: { ...params.header, 'Idempotency-Key': crypto.randomUUID() },
-          },
-          body: {
-            type_code: values.type_code,
-            file_id: fileId,
-            expires_on: values.expires_on === '' ? null : values.expires_on,
-          },
-        },
-      );
-      if (result.error) throw result.error;
-      return employeeDocument.parse(result.data);
-    },
-    onSettled: () => {
-      setPhase('idle');
-      return client.invalidateQueries({ queryKey: key });
+    onMutate: () => ({ scope, key }),
+    mutationFn: (submission: DocumentSubmission) =>
+      recordEmployeeDocument(submission, recordContext),
+    onSettled: (_data, _error, _variables, context) => {
+      if (context?.scope === current.current.scope && active()) setPhase('idle');
+      return context ? client.invalidateQueries({ queryKey: context.key }) : undefined;
     },
   });
   const open = useMutation({
     mutationKey: [...key, 'open'],
     retry: false,
     mutationFn: async (storageKey: string) => {
+      if (!active()) return undefined;
       const result = await apiClient().POST('/v1/files/download', {
         params: { header: params.header },
         body: { storage_key: storageKey },
       });
       if (result.error) throw result.error;
-      return fileDownload.parse(result.data);
+      return { download: fileDownload.parse(result.data), scope };
     },
-    onSuccess: (download) => window.open(download.download_url, '_blank', 'noopener'),
+    onSuccess: (result) => {
+      if (result && result.scope === current.current.scope && active())
+        window.open(result.download.download_url, '_blank', 'noopener');
+    },
   });
+  const resetRecord = record.reset;
+  const resetOpen = open.reset;
+  useEffect(() => {
+    setPhase('idle');
+    resetRecord();
+    resetOpen();
+  }, [scope, resetRecord, resetOpen]);
   return { view, record, open, phase };
+}
+
+function useDocumentAccess(scope: object, view: ReturnType<typeof useDocumentsView>) {
+  const current = useRef({ scope, mounted: true, readable: false, writable: false });
+  current.current.scope = scope;
+  current.current.readable = view.isFetchedAfterMount && !view.isError && !!view.data;
+  current.current.writable = current.current.readable && !!view.data?.can_manage;
+  useEffect(() => {
+    current.current.mounted = true;
+    return () => {
+      current.current.mounted = false;
+    };
+  }, []);
+  const active = (write = false) =>
+    current.current.mounted &&
+    current.current.scope === scope &&
+    (write ? current.current.writable : current.current.readable);
+  return { current, active };
+}
+
+type DocumentRecordContext = {
+  companyId: string;
+  businessId: string;
+  employeeId: string;
+  active: (write?: boolean) => boolean;
+  onPhase: (phase: UploadPhase) => void;
+};
+
+async function recordEmployeeDocument(
+  { file, values }: DocumentSubmission,
+  { companyId, businessId, employeeId, active, onPhase }: DocumentRecordContext,
+) {
+  if (!active(true)) return undefined;
+  const fileId = await uploadDocumentFile({
+    companyId,
+    businessId,
+    employeeId,
+    file,
+    onPhase: (next) => {
+      if (active(true)) onPhase(next);
+    },
+  });
+  if (!active(true)) return undefined;
+  onPhase('recording');
+  const result = await apiClient().POST(
+    '/v1/businesses/{businessId}/employees/{employeeId}/documents',
+    {
+      params: {
+        path: { businessId, employeeId },
+        header: { 'x-company-id': companyId, 'Idempotency-Key': crypto.randomUUID() },
+      },
+      body: {
+        type_code: values.type_code,
+        file_id: fileId,
+        expires_on: values.expires_on === '' ? null : values.expires_on,
+      },
+    },
+  );
+  if (result.error) throw result.error;
+  return employeeDocument.parse(result.data);
 }
 
 function useDocumentsView(
