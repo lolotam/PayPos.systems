@@ -20,6 +20,8 @@ export function PermissionMembershipBrowser({
   const [cursor, setCursor] = useState<string>();
   const [membershipId, setMembershipId] = useState('');
   const list = usePermissionMemberships(companyId, userId, cursor, businessId);
+  const blocked = list.isPending || list.isFetching || list.isError || list.failureCount > 0;
+  const selected = list.data?.items.some((item) => item.id === membershipId);
   return (
     <>
       <PermissionMembershipList
@@ -33,15 +35,17 @@ export function PermissionMembershipBrowser({
           setMembershipId('');
         }}
       />
-      {membershipId && !list.isPending && !list.isError ? (
-        <MembershipPermissionsPanel
-          key={membershipId}
-          companyId={companyId}
-          userId={userId}
-          membershipId={membershipId}
-          businessId={businessId}
-          branchTimeZones={branchTimeZones}
-        />
+      {membershipId && selected ? (
+        <fieldset hidden={blocked} disabled={blocked} className="min-w-0">
+          <MembershipPermissionsPanel
+            key={membershipId}
+            companyId={companyId}
+            userId={userId}
+            membershipId={membershipId}
+            businessId={businessId}
+            branchTimeZones={branchTimeZones}
+          />
+        </fieldset>
       ) : null}
     </>
   );

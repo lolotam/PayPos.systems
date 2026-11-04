@@ -1,8 +1,9 @@
 import { membershipPermissions, permissionMembershipPage } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { type QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
+import { createQueryClient } from '@/shared/api/query-client';
 
 import { PermissionMembershipBrowser } from './permission-membership-browser';
 
@@ -95,9 +96,7 @@ it.each([
       if (path === detailPath) return { data: detail };
       throw new Error(`Unexpected test request: ${path}`);
     });
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-    });
+    const client = createQueryClient();
     clients.push(client);
     renderBrowser(client, business);
     fireEvent.click(await screen.findByRole('button', { name: t(locale, 'permissions.view') }));
@@ -123,5 +122,76 @@ it.each([
     expect(await screen.findByRole('table')).toBeTruthy();
     expect(await screen.findByRole('button', { name: t(locale, 'permissions.save') })).toBeTruthy();
     expect(screen.queryByRole('alert')).toBeNull();
+  },
+);
+
+async function expectRetainedDraft(locale: 'ar' | 'en') {
+  expect(await screen.findByRole('button', { name: t(locale, 'permissions.save') })).toBeTruthy();
+  expect(
+    screen.getByLabelText<HTMLInputElement>(t(locale, 'permissions.reason'), {
+      selector: '#override-reason',
+    }).value,
+  ).toBe('Draft retained across refresh');
+}
+
+it.each(['ar', 'en'] as const)(
+  'hides deferred refreshes, preserves a draft across transient failure and removes absent selection (%s)',
+  async (locale) => {
+    state.locale = locale;
+    const { page, detail } = permissionResponses(false, undefined);
+    const client = createQueryClient();
+    clients.push(client);
+    expect(client.getDefaultOptions().queries?.retry).toBe(false);
+    const listKey = ['permissions', companyId, userId, null, 'memberships', undefined];
+    let nextPage = page;
+    let paused: Promise<void> | undefined;
+    let release = () => {};
+    let failed = false;
+    state.get.mockImplementation(async (path: string) => {
+      if (path === '/v1/permissions/memberships/{membershipId}') return { data: detail };
+      if (path !== '/v1/permissions/memberships')
+        throw new Error(`Unexpected test request: ${path}`);
+      await paused;
+      if (failed) throw new Error('Synthetic transient network failure');
+      return { data: nextPage };
+    });
+    renderBrowser(client, undefined);
+    fireEvent.click(await screen.findByRole('button', { name: t(locale, 'permissions.view') }));
+    const reason = await screen.findByLabelText(t(locale, 'permissions.reason'), {
+      selector: '#override-reason',
+    });
+    fireEvent.change(reason, { target: { value: 'Draft retained across refresh' } });
+    paused = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let refreshed: Promise<void> | undefined;
+    act(() => {
+      refreshed = client.refetchQueries({ queryKey: listKey, exact: true });
+    });
+    await waitFor(() => expect(screen.queryByRole('table')).toBeNull());
+    expect(screen.queryByRole('button', { name: t(locale, 'permissions.save') })).toBeNull();
+    expect(
+      screen.queryAllByRole('textbox', { name: t(locale, 'permissions.reason') }),
+    ).toHaveLength(0);
+    failed = true;
+    await act(async () => {
+      release();
+      await refreshed;
+    });
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: t(locale, 'permissions.save') })).toBeNull();
+    failed = false;
+    paused = undefined;
+    await act(() => client.refetchQueries({ queryKey: listKey, exact: true }));
+    await expectRetainedDraft(locale);
+    nextPage = { ...page, items: [] };
+    await act(() => client.refetchQueries({ queryKey: listKey, exact: true }));
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: t(locale, 'permissions.save') })).toBeNull();
+      expect(
+        screen.queryAllByRole('textbox', { name: t(locale, 'permissions.reason') }),
+      ).toHaveLength(0);
+    });
+    expect(client.getQueryData(listKey)).toEqual(nextPage);
   },
 );
