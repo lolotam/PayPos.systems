@@ -1,4 +1,5 @@
 import {
+  COMMISSION_PLAN_EMPLOYEE_CURSOR_MAX,
   commissionPlanEmployeeList,
   type CommissionPlanEmployeeList,
   type CommissionPlanEmployeeListItem,
@@ -45,7 +46,11 @@ export interface CommissionPlanEmployeeListReads {
   ): Promise<readonly CommissionPlanEmployeeRow[]>;
 }
 
-export type CommissionPlanEmployeeReadCode = 'VALIDATION_FAILED' | 'FORBIDDEN' | 'FEATURE_DISABLED';
+export type CommissionPlanEmployeeReadCode =
+  | 'VALIDATION_FAILED'
+  | 'FORBIDDEN'
+  | 'FEATURE_DISABLED'
+  | 'COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE';
 
 /** رفضات القراءة: خطأ معروف بيتحول لخطأ API معروف، من غير أي بيانات جوه. */
 export class CommissionPlanEmployeeReadError extends Error {
@@ -78,6 +83,7 @@ function itemOf(row: CommissionPlanEmployeeRow): CommissionPlanEmployeeListItem 
  * يقرأ قائمة موظفي النشاط لشاشة بناء الخطة على معاملة واحدة: الوصول، ثم التوقيت، ثم فك
  * المؤشر، ثم الأسماء. الترتيب والموضع بالقيمة من (name_en_key, id)، فمفيش ترتيب في JavaScript
  * ولا قراءة لصف مرساة يقدروا يخالفوا قاعدة البيانات أو يكشفوا حذفه.
+ * الطول بيتحقق هنا لأن المفتاح المحفوظ قد يتجاوز عقد المؤشر؛ البيانات محتاجة إصلاح مش خطأ عميل، فالرد 503 مش 400.
  */
 export async function listCommissionPlanEmployees(
   reads: CommissionPlanEmployeeListReads,
@@ -109,6 +115,8 @@ export async function listCommissionPlanEmployees(
     rows.length > query.limit && last !== undefined
       ? encodeCommissionPlanEmployeeCursor(context, { key: last.name_en_key, id: last.id })
       : null;
+  if (next_cursor !== null && next_cursor.length > COMMISSION_PLAN_EMPLOYEE_CURSOR_MAX)
+    throw new CommissionPlanEmployeeReadError('COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE');
   return commissionPlanEmployeeList.parse({ time_zone: timeZone, items, next_cursor });
 }
 

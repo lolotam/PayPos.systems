@@ -44,6 +44,12 @@ export class CommissionPlanEmployeesController {
     try {
       return await this.runner(actorOf(request), businessId, query);
     } catch (error) {
+      if (
+        error instanceof CommissionPlanEmployeeReadError &&
+        error.code === 'COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE'
+      ) {
+        request.log.warn({ code: error.code }, 'commission plan employee cursor unavailable');
+      }
       return mapReadError(error);
     }
   }
