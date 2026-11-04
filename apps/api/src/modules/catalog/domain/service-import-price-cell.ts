@@ -25,7 +25,6 @@ export type ServiceImportPriceResult =
   | { readonly ok: true; readonly price: string; readonly mills: bigint }
   | { readonly ok: false; readonly code: ServiceImportPriceErrorCode };
 
-// نص عشري بلا أس: صفر أو رقم صحيح من غير أصفار بادئة، وعشرية من خانة لثلاث.
 // السطر ده يحمل رفض FR-005 كله: السالب والأس والفواصل والأرقام غير اللاتينية والخانة الرابعة،
 // وكل قيمة عند 10^11 دينار أو أعلى (أحد عشر رقماً قبل الفاصلة).
 const PRICE_TEXT = /^(?:0|[1-9]\d{0,10})(?:\.\d{1,3})?$/;
@@ -43,7 +42,7 @@ export function parseServiceImportPriceCell(
   cell: ServiceImportTaggedCell,
 ): ServiceImportPriceResult {
   if (cell === null) return { ok: false, code: 'IMPORT_REQUIRED_CELL' };
-  // أي مدخل مش كائن (رقم أو نص أو `undefined`) خلية مكسورة: ما بنحوّلهوش لنص.
+  // مدخل مش كائن معناه إن خطوة التوسيم اتكسرت؛ تحويله لنص كان هيعدّي رقم جافاسكربت كسعر.
   if (typeof cell !== 'object') return { ok: false, code: 'IMPORT_CELL_INVALID' };
   switch (cell.kind) {
     case 'text':
@@ -61,7 +60,6 @@ export function parseServiceImportPriceCell(
   }
 }
 
-// نص الخلية لازم يكون نص عشري مسموح؛ نص تاني رفض، والفراغ رفض لأن العمود مطلوب.
 function priceFromText(value: unknown): ServiceImportPriceResult {
   if (typeof value !== 'string') return { ok: false, code: 'IMPORT_CELL_INVALID' };
   const text = value.trim();
@@ -70,7 +68,6 @@ function priceFromText(value: unknown): ServiceImportPriceResult {
   const dot = text.indexOf('.');
   const whole = dot === -1 ? text : text.slice(0, dot);
   const fraction = dot === -1 ? '' : text.slice(dot + 1);
-  // الثلاث خانات بتتمعل نصاً: الأصفار الباقية من غير أي رقم عشري.
   const canonical = `${whole}.${fraction.padEnd(3, '0')}`;
   try {
     const mills = parseServicePrice(canonical);
