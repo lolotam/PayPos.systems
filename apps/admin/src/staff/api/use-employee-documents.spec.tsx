@@ -250,7 +250,7 @@ it('latches read and write revocation while preserving recovery for new operatio
   await startUpload();
   expect(await screen.findByText(t('en', 'employeeDocuments.recorded'))).toBeTruthy();
 });
-it('rechecks write validity after the document POST response', async () => {
+it('hides document success when write access was revoked during the POST', async () => {
   const posted = deferred<unknown>();
   let current = view();
   api.GET.mockImplementation(async (path: string) => ({

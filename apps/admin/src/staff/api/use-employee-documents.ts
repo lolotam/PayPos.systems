@@ -28,7 +28,7 @@ export function useEmployeeDocuments(
   );
   const params = { header: { 'x-company-id': companyId }, path: { businessId, employeeId } };
   const view = useDocumentsView(companyId, businessId, userId, employeeId);
-  const scope = useMemo(() => ({}), [companyId, businessId, userId, employeeId]);
+  const scope = useDocumentScope(key);
   const { current, begin, active } = useDocumentAccess(scope, key);
   const [phase, setPhase] = useState<UploadPhase>('idle');
   const recordContext = { companyId, businessId, employeeId, begin, active, onPhase: setPhase };
@@ -71,6 +71,20 @@ export function useEmployeeDocuments(
   const saved = record.data;
   const data = saved && active(saved.operation) ? saved.document : undefined;
   return { view, record: { ...record, data }, open, phase };
+}
+
+function useDocumentScope(key: string[]) {
+  const identity = JSON.stringify(key);
+  const [holder, setHolder] = useState<{ identity: string; scope: object }>({
+    identity,
+    scope: {},
+  });
+  if (holder.identity !== identity) {
+    const next = { identity, scope: {} };
+    setHolder(next);
+    return next.scope;
+  }
+  return holder.scope;
 }
 
 type DocumentOperation = {
