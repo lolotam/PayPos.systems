@@ -32,25 +32,26 @@ describe('planCommissionStatementReturn', () => {
     expect(kinds).toEqual(['NOT_REVIEWED', 'RETURNED', 'NOT_REVIEWED', 'NOT_REVIEWED']);
   });
 
-  it('returns the statement to DRAFT and clears exactly the reviewed columns', () => {
+  it('returns the statement to DRAFT and clears exactly the review facts', () => {
     const result = returned({ ...base });
-    expect(Object.keys(result.state_update).sort()).toEqual([
-      'reviewed_at',
-      'reviewed_by',
-      'reviewed_fingerprint',
-      'reviewed_membership_id',
-      'reviewed_statement_fingerprint',
-      'statement_id',
-      'status',
+    expect(Object.keys(result.transition).sort()).toEqual(['review', 'statementId', 'status']);
+    expect(Object.keys(result.transition.review).sort()).toEqual([
+      'actorMembershipId',
+      'actorUserId',
+      'fingerprint',
+      'recordedAt',
+      'statementFingerprint',
     ]);
-    expect(result.state_update).toEqual({
-      statement_id: 'statement-1',
+    expect(result.transition).toEqual({
+      statementId: 'statement-1',
       status: 'DRAFT',
-      reviewed_fingerprint: null,
-      reviewed_statement_fingerprint: null,
-      reviewed_by: null,
-      reviewed_membership_id: null,
-      reviewed_at: null,
+      review: {
+        fingerprint: null,
+        statementFingerprint: null,
+        actorUserId: null,
+        actorMembershipId: null,
+        recordedAt: null,
+      },
     });
   });
 
@@ -59,8 +60,8 @@ describe('planCommissionStatementReturn', () => {
       const result = planReturn({ ...base, status });
       expect(result.kind).toBe('NOT_REVIEWED');
       expect(Object.keys(result)).toEqual(['kind', 'status']);
-      expect('state_update' in result).toBe(false);
-      expect('return_record' in result).toBe(false);
+      expect('transition' in result).toBe(false);
+      expect('privateReturn' in result).toBe(false);
       expect(JSON.stringify(result)).not.toContain(REASON);
     }
   });
@@ -71,32 +72,33 @@ describe('statement return private record', () => {
     const injectedAt = new Date('2026-11-05T09:00:00.000Z');
     const input = { ...base, recordedAt: injectedAt, actorUserId: 'user-9' };
     const result = returned(input);
-    expect(result.return_record.returned_by).toBe('user-9');
-    expect(result.return_record.returned_membership_id).toBe(input.actorMembershipId);
-    expect(result.return_record.returned_at).toBe(injectedAt);
+    expect(result.privateReturn.actorUserId).toBe('user-9');
+    expect(result.privateReturn.actorMembershipId).toBe(input.actorMembershipId);
+    expect(result.privateReturn.recordedAt).toBe(injectedAt);
   });
 
   it('keeps the reason inside the private insert record only', () => {
     const result = returned({ ...base });
-    expect(result.return_record.reason).toBe(REASON);
-    expect(JSON.stringify(result.state_update)).not.toContain(REASON);
+    expect(result.privateReturn.reason).toBe(REASON);
+    expect(JSON.stringify(result.transition)).not.toContain(REASON);
     expect(JSON.stringify(result).split(REASON).length - 1).toBe(1);
   });
 
   it('exposes exact key sets with no money, event, audit text or fingerprint value', () => {
     const result = returned({ ...base });
-    expect(Object.keys(result).sort()).toEqual(['kind', 'return_record', 'state_update']);
-    expect(Object.keys(result.return_record).sort()).toEqual([
+    expect(Object.keys(result).sort()).toEqual(['kind', 'privateReturn', 'transition']);
+    expect(Object.keys(result.privateReturn).sort()).toEqual([
+      'actorMembershipId',
+      'actorUserId',
       'reason',
-      'returned_at',
-      'returned_by',
-      'returned_membership_id',
-      'statement_id',
+      'recordedAt',
+      'statementId',
     ]);
     const keys = [
       ...Object.keys(result),
-      ...Object.keys(result.state_update),
-      ...Object.keys(result.return_record),
+      ...Object.keys(result.transition),
+      ...Object.keys(result.transition.review),
+      ...Object.keys(result.privateReturn),
     ];
     expect(keys.filter((key) => /amount|total|audit|event/i.test(key))).toEqual([]);
     expect(JSON.stringify(result)).not.toMatch(/[0-9a-f]{64}/);
@@ -109,17 +111,17 @@ describe('statement return input preservation', () => {
     const before = JSON.stringify(frozen);
     const result = returned(frozen);
     expect(JSON.stringify(frozen)).toBe(before);
-    expect(Object.is(result.state_update, result.return_record)).toBe(false);
-    expect(Object.is(result.state_update, frozen)).toBe(false);
-    expect(result.return_record.reason).toBe(REASON);
+    expect(Object.is(result.transition, result.privateReturn)).toBe(false);
+    expect(Object.is(result.transition, frozen)).toBe(false);
+    expect(result.privateReturn.reason).toBe(REASON);
   });
 
   it('imposes no restriction on who returns the statement', () => {
     const input = { ...base, actorUserId: 'user-2', actorMembershipId: 'membership-2' };
     const result = returned(input);
-    expect(result.return_record.returned_by).toBe('user-2');
-    expect(result.return_record.returned_membership_id).toBe('membership-2');
-    expect(result.state_update.reviewed_by).toBeNull();
-    expect(result.state_update.reviewed_membership_id).toBeNull();
+    expect(result.privateReturn.actorUserId).toBe('user-2');
+    expect(result.privateReturn.actorMembershipId).toBe('membership-2');
+    expect(result.transition.review.actorUserId).toBeNull();
+    expect(result.transition.review.actorMembershipId).toBeNull();
   });
 });

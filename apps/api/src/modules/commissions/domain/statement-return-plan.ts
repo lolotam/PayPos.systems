@@ -14,17 +14,19 @@ export interface CommissionStatementReturnInput {
 }
 
 /**
- * تغيير حالة الكشف: يرجعه إلى DRAFT ويمسح كل أعمدة المراجعة.
- * أسماء الحقول هي أسماء أعمدة جدول commission_statements، وكل قيمها null.
+ * انتقال حالة الكشف: يرجعه إلى DRAFT ويمسح حقائق المراجعة الخمس.
+ * حقائق مجال مستقلة عن التخزين؛ المتصل يملك تحويلها إلى أعمدة وقيم كتابة.
  */
-export interface CommissionStatementReturnStateUpdate {
-  readonly statement_id: string;
+export interface CommissionStatementReturnTransition {
+  readonly statementId: string;
   readonly status: 'DRAFT';
-  readonly reviewed_fingerprint: null;
-  readonly reviewed_statement_fingerprint: null;
-  readonly reviewed_by: null;
-  readonly reviewed_membership_id: null;
-  readonly reviewed_at: null;
+  readonly review: {
+    readonly fingerprint: null;
+    readonly statementFingerprint: null;
+    readonly actorUserId: null;
+    readonly actorMembershipId: null;
+    readonly recordedAt: null;
+  };
 }
 
 /**
@@ -32,22 +34,22 @@ export interface CommissionStatementReturnStateUpdate {
  * السبب يعيش في هذا الصف وحده، فلا يصل إلى حدث ولا إلى نص تدقيق ولا إلى سجل.
  */
 export interface CommissionStatementReturnRecord {
-  readonly statement_id: string;
-  readonly returned_by: string;
-  readonly returned_membership_id: string;
+  readonly statementId: string;
+  readonly actorUserId: string;
+  readonly actorMembershipId: string;
   readonly reason: string;
-  readonly returned_at: Date;
+  readonly recordedAt: Date;
 }
 
 /**
  * قرار الإرجاع: إرجاع مقبول بخطوتين منفصلتين، أو رفض بلا خطة كتابة.
- * خطوة الحالة (state_update) لا تحمل سبباً، وخطوة السجل الخاص (return_record) هي وحدها تحمله.
+ * انتقال الحالة (transition) لا يحمل سبباً، والسجل الخاص (privateReturn) هو وحده يحمله.
  */
 export type CommissionStatementReturnPlan =
   | {
       readonly kind: 'RETURNED';
-      readonly state_update: CommissionStatementReturnStateUpdate;
-      readonly return_record: CommissionStatementReturnRecord;
+      readonly transition: CommissionStatementReturnTransition;
+      readonly privateReturn: CommissionStatementReturnRecord;
     }
   | {
       readonly kind: 'NOT_REVIEWED';
@@ -73,21 +75,23 @@ export function planCommissionStatementReturn(
   }
   return {
     kind: 'RETURNED',
-    state_update: {
-      statement_id: input.statementId,
+    transition: {
+      statementId: input.statementId,
       status: 'DRAFT',
-      reviewed_fingerprint: null,
-      reviewed_statement_fingerprint: null,
-      reviewed_by: null,
-      reviewed_membership_id: null,
-      reviewed_at: null,
+      review: {
+        fingerprint: null,
+        statementFingerprint: null,
+        actorUserId: null,
+        actorMembershipId: null,
+        recordedAt: null,
+      },
     },
-    return_record: {
-      statement_id: input.statementId,
-      returned_by: input.actorUserId,
-      returned_membership_id: input.actorMembershipId,
+    privateReturn: {
+      statementId: input.statementId,
+      actorUserId: input.actorUserId,
+      actorMembershipId: input.actorMembershipId,
       reason: input.normalizedReason,
-      returned_at: input.recordedAt,
+      recordedAt: input.recordedAt,
     },
   };
 }
