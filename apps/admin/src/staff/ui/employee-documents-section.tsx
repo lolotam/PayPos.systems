@@ -20,7 +20,13 @@ export function EmployeeDocumentsSection(props: {
   employeeId: string;
 }) {
   const locale = useLocale();
-  const [typeCode, setTypeCode] = useState<string>();
+  const identity = JSON.stringify([
+    props.companyId,
+    props.businessId,
+    props.userId,
+    props.employeeId,
+  ]);
+  const { typeCode, replace } = useReplacementType(identity);
   const { view, record, open, phase } = useEmployeeDocuments(
     props.companyId,
     props.businessId,
@@ -41,7 +47,7 @@ export function EmployeeDocumentsSection(props: {
         canManage={view.data.can_manage}
         opening={open.isPending}
         onOpen={(key) => open.mutate(key)}
-        onReplace={setTypeCode}
+        onReplace={replace}
       />
       {open.isError ? <p role="alert">{envelopeMessage(open.error, locale)}</p> : null}
       {view.data.can_manage && view.data.types.length > 0 ? (
@@ -66,4 +72,15 @@ export function EmployeeDocumentsSection(props: {
       ) : null}
     </section>
   );
+}
+
+function useReplacementType(identity: string) {
+  const [replacement, setReplacement] = useState<{ identity: string; typeCode?: string }>({
+    identity,
+  });
+  if (replacement.identity !== identity) setReplacement({ identity });
+  return {
+    typeCode: replacement.identity === identity ? replacement.typeCode : undefined,
+    replace: (typeCode: string) => setReplacement({ identity, typeCode }),
+  };
 }

@@ -26,9 +26,9 @@ export function useEmployeeDocuments(
   const params = { header: { 'x-company-id': companyId }, path: { businessId, employeeId } };
   const view = useDocumentsView(companyId, businessId, userId, employeeId);
   const scope = useMemo(() => ({}), [companyId, businessId, userId, employeeId]);
-  const { current, active } = useDocumentAccess(scope, view);
+  const { current, begin, active } = useDocumentAccess(scope, view);
   const [phase, setPhase] = useState<UploadPhase>('idle');
-  const recordContext = { companyId, businessId, employeeId, active, onPhase: setPhase };
+  const recordContext = { companyId, businessId, employeeId, begin, active, onPhase: setPhase };
   const record = useMutation({
     mutationKey: [...key, 'record'],
     retry: false,
@@ -36,7 +36,7 @@ export function useEmployeeDocuments(
     mutationFn: (submission: DocumentSubmission) =>
       recordEmployeeDocument(submission, recordContext),
     onSettled: (_data, _error, _variables, context) => {
-      if (context?.scope === current.current.scope && active()) setPhase('idle');
+      if (context?.scope === current.current.scope && current.current.mounted) setPhase('idle');
       return context ? client.invalidateQueries({ queryKey: context.key }) : undefined;
     },
   });
@@ -44,16 +44,17 @@ export function useEmployeeDocuments(
     mutationKey: [...key, 'open'],
     retry: false,
     mutationFn: async (storageKey: string) => {
-      if (!active()) return undefined;
+      const operation = begin();
+      if (!active(operation)) return undefined;
       const result = await apiClient().POST('/v1/files/download', {
         params: { header: params.header },
         body: { storage_key: storageKey },
       });
       if (result.error) throw result.error;
-      return { download: fileDownload.parse(result.data), scope };
+      return { download: fileDownload.parse(result.data), operation };
     },
     onSuccess: (result) => {
-      if (result && result.scope === current.current.scope && active())
+      if (result && active(result.operation))
         window.open(result.download.download_url, '_blank', 'noopener');
     },
   });
@@ -64,50 +65,81 @@ export function useEmployeeDocuments(
     resetRecord();
     resetOpen();
   }, [scope, resetRecord, resetOpen]);
-  return { view, record, open, phase };
+  const saved = record.data;
+  const data = saved && active(saved.operation) ? saved.document : undefined;
+  return { view, record: { ...record, data }, open, phase };
 }
 
+type DocumentOperation = {
+  scope: object;
+  kind: 'read' | 'write';
+  readEpoch: number;
+  writeEpoch: number;
+};
+
 function useDocumentAccess(scope: object, view: ReturnType<typeof useDocumentsView>) {
-  const current = useRef({ scope, mounted: true, readable: false, writable: false });
+  const current = useRef({
+    scope,
+    mounted: true,
+    readable: false,
+    writable: false,
+    readEpoch: 0,
+    writeEpoch: 0,
+  });
+  const readable = view.isFetchedAfterMount && !view.isError && !!view.data;
+  const writable = readable && !!view.data?.can_manage;
+  if (current.current.readable && !readable) current.current.readEpoch += 1;
+  if (current.current.writable && !writable) current.current.writeEpoch += 1;
   current.current.scope = scope;
-  current.current.readable = view.isFetchedAfterMount && !view.isError && !!view.data;
-  current.current.writable = current.current.readable && !!view.data?.can_manage;
+  current.current.readable = readable;
+  current.current.writable = writable;
   useEffect(() => {
     current.current.mounted = true;
     return () => {
       current.current.mounted = false;
     };
   }, []);
-  const active = (write = false) =>
+  const begin = (kind: 'read' | 'write' = 'read'): DocumentOperation => ({
+    scope,
+    kind,
+    readEpoch: current.current.readEpoch,
+    writeEpoch: current.current.writeEpoch,
+  });
+  const active = (operation: DocumentOperation) =>
     current.current.mounted &&
-    current.current.scope === scope &&
-    (write ? current.current.writable : current.current.readable);
-  return { current, active };
+    current.current.scope === operation.scope &&
+    current.current.readEpoch === operation.readEpoch &&
+    (operation.kind === 'write'
+      ? current.current.writable && current.current.writeEpoch === operation.writeEpoch
+      : current.current.readable);
+  return { current, begin, active };
 }
 
 type DocumentRecordContext = {
   companyId: string;
   businessId: string;
   employeeId: string;
-  active: (write?: boolean) => boolean;
+  begin: (kind?: 'read' | 'write') => DocumentOperation;
+  active: (operation: DocumentOperation) => boolean;
   onPhase: (phase: UploadPhase) => void;
 };
 
 async function recordEmployeeDocument(
   { file, values }: DocumentSubmission,
-  { companyId, businessId, employeeId, active, onPhase }: DocumentRecordContext,
+  { companyId, businessId, employeeId, begin, active, onPhase }: DocumentRecordContext,
 ) {
-  if (!active(true)) return undefined;
+  const operation = begin('write');
+  if (!active(operation)) return undefined;
   const fileId = await uploadDocumentFile({
     companyId,
     businessId,
     employeeId,
     file,
     onPhase: (next) => {
-      if (active(true)) onPhase(next);
+      if (active(operation)) onPhase(next);
     },
   });
-  if (!active(true)) return undefined;
+  if (!active(operation)) return undefined;
   onPhase('recording');
   const result = await apiClient().POST(
     '/v1/businesses/{businessId}/employees/{employeeId}/documents',
@@ -124,7 +156,8 @@ async function recordEmployeeDocument(
     },
   );
   if (result.error) throw result.error;
-  return employeeDocument.parse(result.data);
+  if (!active(operation)) return undefined;
+  return { document: employeeDocument.parse(result.data), operation };
 }
 
 function useDocumentsView(
