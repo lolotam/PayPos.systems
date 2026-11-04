@@ -26,7 +26,7 @@ export function PermissionMembershipList({
   return (
     <>
       <PermissionListFeedback pending={list.isPending} failed={list.isError} error={list.error} />
-      {list.data ? (
+      {!list.isPending && !list.isError && list.data ? (
         <>
           {list.data.items.length === 0 ? (
             <EmptyState icon={<UserRound />} title={t(locale, 'permissions.empty')} />

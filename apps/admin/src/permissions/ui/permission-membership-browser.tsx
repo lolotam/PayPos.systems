@@ -33,7 +33,7 @@ export function PermissionMembershipBrowser({
           setMembershipId('');
         }}
       />
-      {membershipId ? (
+      {membershipId && !list.isPending && !list.isError ? (
         <MembershipPermissionsPanel
           key={membershipId}
           companyId={companyId}
