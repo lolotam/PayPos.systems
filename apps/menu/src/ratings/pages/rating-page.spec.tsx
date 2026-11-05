@@ -34,21 +34,50 @@ beforeEach(() => {
   vi.stubEnv('NEXT_PUBLIC_API_URL', 'https://api.example.test');
 });
 
+it('keeps submission disabled while a lost-response reconciliation read is pending', async () => {
+  const { transport } = api();
+  render(<RatingPage />);
+  fireEvent.click(await screen.findByRole('radio', { name: '5' }));
+  const reconciliation = pendingResponse();
+  transport.mockRejectedValueOnce(new TypeError('PRIVATE_NETWORK_DETAIL'));
+  transport.mockImplementationOnce(() => reconciliation.promise);
+  fireEvent.click(screen.getByRole('button', { name: t('ar', 'publicRating.submit') }));
+  await waitFor(() => expect(transport).toHaveBeenCalledTimes(3));
+  expect(screen.getByRole('group', { name: t('ar', 'publicRating.stars') })).toHaveProperty(
+    'disabled',
+    true,
+  );
+  await act(async () =>
+    reconciliation.resolve(Response.json({ business_name: 'Test Salon', state: 'submitted' })),
+  );
+  expect(await screen.findByText(t('ar', 'publicRating.done'))).toBeDefined();
+  expect(screen.queryByRole('radio')).toBeNull();
+  expect(screen.getByRole('button', { name: t('ar', 'publicRating.optOut') })).toHaveProperty(
+    'disabled',
+    false,
+  );
+});
+
 it.each([
   ['submit', true],
   ['submit', false],
   ['opt-out', true],
   ['opt-out', false],
+  ['submit', 'network'],
+  ['opt-out', 'network'],
 ] as const)(
-  'shows failure and permits retry for empty %s errors (content-length zero: %s)',
+  'shows failure and permits retry for %s errors (empty-body/transport variant: %s)',
   async (operation, lengthZero) => {
     const { transport } = api();
     render(<RatingPage />);
     fireEvent.click(await screen.findByRole('radio', { name: '5' }));
-    transport.mockImplementationOnce(
-      async () =>
-        new Response(null, { status: 503, headers: lengthZero ? { 'content-length': '0' } : {} }),
-    );
+    transport.mockImplementationOnce(async () => {
+      if (lengthZero === 'network') throw new TypeError('PRIVATE_NETWORK_DETAIL');
+      return new Response(null, {
+        status: 503,
+        headers: lengthZero ? { 'content-length': '0' } : {},
+      });
+    });
     const action = t('ar', operation === 'submit' ? 'publicRating.submit' : 'publicRating.optOut');
     fireEvent.click(screen.getByRole('button', { name: action }));
     expect(await screen.findByRole('alert')).toHaveProperty(

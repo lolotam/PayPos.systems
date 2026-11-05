@@ -356,3 +356,41 @@ module-map:check, formatting and git diff --check. The six new regression cases
 failed before the changes and passed afterward. clean-code-guard, test-guard
 and docs-guard checked the schema refinement, HTTP-status decision, generic
 error fallback, visible retry behavior, unchanged privacy and documented settings.
+
+## P1 exception after the correction cap — 2026-11-05
+
+The manager authorized one consolidated P1 fix after review `5790098341` on
+`250e1cfbb163de8d429faf0ff5cc7e956d4eacd4`. This is exceptional P1 batch 1 after
+the five historical correction rounds; it does not reset or renumber them under
+the later three-round cap. The manager alone triggers Codex on the final head.
+
+The encoded-path HIGH was confirmed on installed Fastify/CORS using injection.
+The review's encoded slash example returned 404, but `/v1/rat%69ngs/view` and
+`/v1/ratings/%76iew` reached the same rating handler with authenticated CORS.
+Three new real createApp injection cases reproduced credentialed preflight
+responses before the fix. The policy now safely decodes the pathname before
+matching and fails closed if decoding fails. The regressions cover encoded prefix
+and operation characters for view/submit/opt-out, preflight and actual responses,
+page and admin origins; a malformed-encoding case verifies rejection without CORS.
+Existing non-rating authenticated CORS behavior remains covered.
+
+The MEDIUM network/retry claim was checked separately. New UI transport-rejection
+variants prove submit/opt-out show generic errors and permit successful retry
+with the existing production code. A deferred reconciliation read also verifies
+that submission stays visibly disabled until the read returns submitted, then
+completion and opt-out are shown. No confirmed retry defect required a production
+UI change; the generic TypeError need not become RatingRequestError to render
+these existing error/retry states.
+
+No new library, generator, migration, real environment-file read, local E2E,
+server change, deployment, merge or self-triggered Codex review is involved.
+
+P1 batch local gates passed: API HTTP/config 49/49 and menu 28/28 (26 UI plus
+headers/standalone); both typechecks and full lints, menu api:check,
+lint:docs (0 errors / 29 existing warnings), module-map:check, formatting and
+git diff --check. The three encoded-route cases failed before the production fix;
+transport-retry and pending-reconciliation UI cases pass with unchanged UI hooks.
+The disabled-state assertion targets the fieldset that disables its controls,
+not the button's own disabled property. clean-code-guard, test-guard and docs-guard
+checked the decoded-route scope, fail-closed behavior, real HTTP boundary tests,
+visible outcomes and source/documentation consistency.

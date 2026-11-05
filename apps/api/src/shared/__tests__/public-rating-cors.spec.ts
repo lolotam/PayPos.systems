@@ -37,6 +37,47 @@ const routes = [
 ] as const;
 
 it.each(routes)(
+  'isolates encoded %s paths on preflight and actual requests',
+  async (route, method) => {
+    const urls = [
+      '/v1/rat%69ngs/' + route,
+      '/v1/ratings/%' + route.charCodeAt(0).toString(16) + route.slice(1),
+    ];
+    for (const url of urls) {
+      for (const origin of [ADMIN, PAGE]) {
+        const preflight = await app.inject({
+          method: 'OPTIONS',
+          url,
+          headers: { origin, 'access-control-request-method': method },
+        });
+        expect(preflight.headers['access-control-allow-credentials']).toBeUndefined();
+        expect(preflight.headers['access-control-allow-origin']).toBe(
+          origin === PAGE ? PAGE : undefined,
+        );
+        const actual = await app.inject({ method, url, headers: { origin } });
+        expect(actual.statusCode).toBe(503);
+        expect(actual.json().code).toBe('NOT_READY');
+        expect(actual.headers['access-control-allow-credentials']).toBeUndefined();
+        expect(actual.headers['access-control-allow-origin']).toBe(
+          origin === PAGE ? PAGE : undefined,
+        );
+      }
+    }
+  },
+);
+
+it('never grants authenticated CORS to malformed encoded paths', async () => {
+  const response = await app.inject({
+    method: 'GET',
+    url: '/v1/ratings/%ZZ',
+    headers: { origin: ADMIN },
+  });
+  expect(response.statusCode).toBe(400);
+  expect(response.headers['access-control-allow-origin']).toBeUndefined();
+  expect(response.headers['access-control-allow-credentials']).toBeUndefined();
+});
+
+it.each(routes)(
   'allows only the page origin for %s preflight, without credentials',
   async (route, method) => {
     const response = await app.inject({

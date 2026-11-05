@@ -5,7 +5,20 @@ import type { CorsPolicy } from '../../../shared/cors.ts';
 /** الصفحة العامة لا ترث ثقة تسجيل الدخول حتى لو جاء الطلب من عنوان admin. */
 export function ratingCorsPolicy(origin: string) {
   return (request: FastifyRequest): CorsPolicy | undefined => {
-    const path = request.url.split('?')[0];
+    let path: string;
+    try {
+      // Fastify يفك ترميز حروف المسار؛ تصنيف CORS لازم يطابق المسار الذي يختاره الراوتر.
+      path = decodeURIComponent(request.url.split('?')[0] ?? '');
+    } catch {
+      return {
+        origin: false,
+        credentials: false,
+        methods: [],
+        allowedHeaders: [],
+        exposedHeaders: [],
+        cacheControl: 'no-store',
+      };
+    }
     const rating = /^\/v1\/ratings\/(view|submit|opt-out)$/.exec(path ?? '');
     if (!rating) return undefined;
     return {
