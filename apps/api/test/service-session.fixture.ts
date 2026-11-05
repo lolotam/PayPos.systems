@@ -1,4 +1,5 @@
 import { createDatabase, SYSTEM_ROLES, type TenantWrappers, type Tx } from '@pospay/db';
+import type { RecordServiceSessionInput } from '@pospay/contracts';
 import { systemUuidV7 } from '@pospay/ids';
 import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
@@ -61,7 +62,8 @@ export async function sessionFixture(options: Parameters<typeof startHarness>[0]
   const context = (key = ids.newId(), actor = userId) => ({ companyId: company, userId: actor, businessId: business, branchId: branch, key, fingerprint: 'a'.repeat(64) });
   const line = (service = must(services[0]), price = '25.000', discount = '0.000') => ({ service_id: service, price,
     discount: { kind: 'AMOUNT' as const, amount: discount }, performers: [{ employee_id: must(employees[0]) }] });
-  const body = (lines = [line()]) => ({ customer_id: customer, occurred_at: '2026-10-14T08:00:00.000Z', lines });
+  // 43-2: الطلب بقبل مسودتين، المدفوع والباقة، فالمساعد بياخد الاتحاد كله.
+  const body = (lines: RecordServiceSessionInput['lines'] = [line()]) => ({ customer_id: customer, occurred_at: '2026-10-14T08:00:00.000Z', lines });
   const base = `/v1/businesses/${business}/branches/${branch}/service-sessions`;
   return { h, db, company, otherCompany, userId, ownerId, ownerCookie, cookie, membership, business, branch, secondBusiness, secondBranch,
     foreignBusiness, foreignBranch, customer, services, employees, clock, create, append, transactions, context, line, body, base,

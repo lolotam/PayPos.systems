@@ -18,10 +18,10 @@ export async function insertLines(tx: Tx, companyId: string, businessId: string,
     ${line.limit_source},${line.name_en},${line.name_ar},${line.catalog_revision},${line.rule_snapshot.kind},
     ${line.rule_snapshot.kind === 'PCT' ? line.rule_snapshot.value : null},${line.rule_snapshot.kind === 'FIXED' ? line.rule_snapshot.value : null},
     ${line.counts_snapshot},${line.has_performer_warning},${line.recorded_by},${line.recorded_by_membership_id},${line.recorded_at},${line.late},${line.recorded_at},
-    ${lines[index]?.discount_proposal_id ?? null})`);
+    ${lines[index]?.discount_proposal_id ?? null},${lines[index]?.redemption?.id ?? null})`);
   await tx.execute(sql`INSERT INTO service_lines(company_id,id,business_id,session_id,service_id,ordinal,input_index,status,revision,
     list_price,price,discount,net,effective_discount_bps,limit_bps_applied,limit_source,name_en,name_ar,catalog_revision,rule_kind,rule_pct_bps,rule_fixed_amount,
-    counts_toward_threshold,has_performer_warning,recorded_by,recorded_by_membership_id,recorded_at,late,created_at,discount_proposal_id) VALUES ${sql.join(values, sql`,`)}`);
+    counts_toward_threshold,has_performer_warning,recorded_by,recorded_by_membership_id,recorded_at,late,created_at,discount_proposal_id,redemption_id) VALUES ${sql.join(values, sql`,`)}`);
   // الرابط يُقرأ من حقائق الكتابة لا من لقطة الاستجابة، حتى لا يصل معرّف المستخدم إلى الرد ولا إلى الحدث.
   // يُربط بالموظف نفسه لا بالموضع، وغيابه خطأ لا قيمة null: الصف لا يتغير بعد الإدخال فلا يمكن تصحيحه.
   const linkedUser = (lineIndex: number, employeeId: string) => {

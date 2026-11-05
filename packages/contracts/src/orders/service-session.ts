@@ -27,7 +27,7 @@ export const sessionLineInput = z.strictObject({
   // spec 057 FR-019: موافقة الخصم تُستهلك في معاملة السطر نفسه؛ الغياب يعني الرفض فوق الحد كما هو اليوم.
   discount_proposal_id: id.optional(),
 }).meta({ id: 'SessionLineInput' });
-// 43-1: عقد مستقل حتى يجهز كاتب 43-2؛ مسارات التسجيل الحالية تظل مدفوعة فقط.
+// 43-2: مسودتا البند: المدفوع بسعره وخصمه، والباقة باستحقاقها من غير سعر ولا خصم.
 export const packageSessionLineInput = z.strictObject({
   service_id: id,
   package: z.strictObject({ entitlement_id: id }),
@@ -35,7 +35,7 @@ export const packageSessionLineInput = z.strictObject({
 }).meta({ id: 'PackageSessionLineInput' });
 export const sessionLineDraft = z.union([sessionLineInput, packageSessionLineInput])
   .meta({ id: 'SessionLineDraft' });
-const writeFields = { lines: z.array(sessionLineInput).min(1).max(20), recorder_membership_id: id.optional() };
+const writeFields = { lines: z.array(sessionLineDraft).min(1).max(20), recorder_membership_id: id.optional() };
 export const recordServiceSessionInput = z.strictObject({
   customer_id: id, occurred_at: timestamp.optional(), ...writeFields,
 }).meta({ id: 'RecordServiceSessionInput' });

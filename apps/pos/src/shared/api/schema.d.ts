@@ -4970,12 +4970,12 @@ export interface components {
             customer_id: string;
             /** Format: date-time */
             occurred_at?: string;
-            lines: components["schemas"]["SessionLineInput"][];
+            lines: components["schemas"]["SessionLineDraft"][];
             /** Format: uuid */
             recorder_membership_id?: string;
         };
         AppendServiceSessionLinesInput: {
-            lines: components["schemas"]["SessionLineInput"][];
+            lines: components["schemas"]["SessionLineDraft"][];
             /** Format: uuid */
             recorder_membership_id?: string;
         };

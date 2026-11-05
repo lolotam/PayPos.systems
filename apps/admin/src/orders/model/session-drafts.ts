@@ -7,10 +7,12 @@ export type SessionServiceSelection = Omit<SessionServiceOptionPage['items'][num
 };
 export type SessionPerformerSelection = SessionPerformerOptionPage['items'][number];
 export const sessionSharePercentage = discountPercentage.refine((bps) => bps > 0);
-export type SessionDraftLine = Pick<RecordServiceSessionInput['lines'][number], 'service_id' | 'price'> & {
+// 43-2: سطر الطلب صار اتحاد المدفوع والباقة؛ محرر الريسبشن لسه مدفوع فقط، فلازم نوع المدفوع يبقى صريح.
+export type SessionPaidLineInput = Extract<RecordServiceSessionInput['lines'][number], { price: string }>;
+export type SessionDraftLine = Pick<SessionPaidLineInput, 'service_id' | 'price'> & {
   local_id: string;
   service: SessionServiceSelection | null;
-  discount_kind: RecordServiceSessionInput['lines'][number]['discount']['kind'];
+  discount_kind: SessionPaidLineInput['discount']['kind'];
   discount_amount: string;
   discount_percentage: string;
   share_mode: 'EQUAL' | 'CUSTOM';

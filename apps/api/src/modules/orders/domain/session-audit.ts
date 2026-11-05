@@ -20,10 +20,11 @@ export function sessionAuditEntries(record: SessionRecord, added: readonly Sessi
       recorded_at: writer.recorded_at.toISOString(), added_line_ids: added.map((l) => l.id), added_count: added.length, outcome, late: writer.late,
       initial_unequal_shares: added.filter((l) => l.explicit_unequal_shares).map((l) => ({ line_id: l.id,
         performers: l.performers.map((p) => ({ employee_id: p.employee.id, share_bps: p.share_bps })) })) } };
-  const prices = added.filter((l) => l.price !== l.service.price || l.discount > 0n).map((l) => ({
+  // سطر الباقة سعره يساوي سعر قائمته المخزن فلا يتغيّر، والخصم صفر، فليس له أثر سعر.
+  const prices = added.filter((l) => l.price !== l.list_price || l.discount > 0n).map((l) => ({
     entity: 'service_line', entityId: l.id, action: 'session.price_discount_recorded',
     after: { session_id: record.id, line_id: l.id, recorded_by: l.recorded_by, recorded_by_membership_id: l.recorded_by_membership_id,
-      recorded_at: l.recorded_at.toISOString(), list_price: moneyToString(l.service.price), price: moneyToString(l.price), discount: moneyToString(l.discount),
+      recorded_at: l.recorded_at.toISOString(), list_price: moneyToString(l.list_price), price: moneyToString(l.price), discount: moneyToString(l.discount),
       net: moneyToString(l.net), effective_discount_bps: l.effective_discount_bps, limit_bps_applied: l.limit.bps, limit_source: l.limit.source } }));
   return [header, ...prices, ...discountConsumptionAudits(added, record.id)];
 }

@@ -11,7 +11,7 @@ function sample(): { record: SessionRecord; line: SessionLine } {
   const line: SessionLine = {
     id: '01990000-0000-7000-8000-000000000001', session_id: '01990000-0000-7000-8000-000000000002', input_index: 0, ordinal: 1,
     status: 'CANCELLED', revision: 2, service: { id: '01990000-0000-7000-8000-000000000003', name_en: 'Noura Colour', name_ar: null, price: 25000n, rule: { kind: 'FOLLOW_PLAN' }, counts: true, revision: 1 },
-    price: 25000n, discount: 0n, net: 25000n, effective_discount_bps: 0, limit: { source: 'PERSON', bps: 2000 },
+    list_price: 25000n, price: 25000n, discount: 0n, net: 25000n, effective_discount_bps: 0, limit: { source: 'PERSON', bps: 2000 },
     recorded_by: recorder, recorded_by_membership_id: '01990000-0000-7000-8000-000000000008', recorded_at: at, late: false,
     has_performer_warning: false, explicit_unequal_shares: false, performer_ids: ['01990000-0000-7000-8000-00000000000c'],
     performers: [{ employee: { id: '01990000-0000-7000-8000-00000000000b', name_en: 'Noura', name_ar: 'نورة', user_id: null, eligible: true, clocked_in: true, approved_leave: false }, share_bps: 10000, not_clocked_in_warning: false, approved_leave_warning: false }],
