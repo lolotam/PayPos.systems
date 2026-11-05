@@ -124,8 +124,8 @@ jobs:
       - name: ci-telemetry self-test
         run: node --test "scripts/ci-telemetry/*.test.mjs"
 
-      # API domain specs run here via vitest.unit.config.ts with no Postgres, so a domain failure
-      # stops CI before the integration shards. The default config still runs them inside the shards.
+      # API domain specs run here via vitest.unit.config.ts with no Postgres.
+      # The default config also runs them inside the parallel integration shards (PP-131.1).
       - name: unit (domain)
         run: |
           pnpm turbo run test --filter=@pospay/domain
@@ -172,11 +172,10 @@ jobs:
 
   # apps/api integration · RLS negative · EXPLAIN, split into four parallel shards (vitest --shard): each shard brings
   # up its own compose Postgres (ADR-0006) and runs a quarter of the spec files. Public repo → free runners.
-  # needs `check`: CLAUDE.md §10 orders the gates typecheck → lint → lint:docs → boundaries → cycles → module-map →
-  # unit → integration, so the api integration shards start only after those gates are green.
+  # PP-131.1: shards start alongside `check`; build and ci-gate still require both jobs to succeed.
   api-tests:
     name: api tests ${{ matrix.shard }}/4
-    needs: [changes, check]
+    needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
