@@ -46,7 +46,7 @@ it('times out a hanging source load inside the job deadline', async () => {
       });
     });
     await seedQueued(opened, companyId, id);
-    // #869: Redis admission must not race a real 40ms deadline before load starts.
+    // #869: الدخول عبر Redis لازم ما يسابقش مهلة 40ms حقيقية قبل ما يبدأ load، فبنستنى بدايته الأول.
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
     try {
       const started = Date.now();
