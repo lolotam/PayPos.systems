@@ -1,5 +1,6 @@
 <!--
 Sync Impact Report
+- 3.8.0 (2026-11-05, MINOR): PP-130 stacks a second open migration PR on the first's branch instead of `main`, keeps the merge-order number reservation, and adds a CI check for the journal sequence and the snapshot `prevId` chain. Rationale: it adds guidance for parallel migrations without redefining Principle I (MINOR). PP-129's pre-migration staging snapshot is an operational rule in `docs/agent-delivery-pipeline.md`, not a principle change.
 - 3.7.0 (2026-11-05, MINOR): PP-124 gives the manager the merge decision for a migration PR once its exact-head gates, verified backup and restore, and coordinated migration order pass; a migration-lane wait is a manager-resolved parking reason. Deploy, production, production-data, server, secret and HOLD cases stay with Waleed. PP-125 puts new slices on Codex `gpt-6.1-sol` with MiniMax as first fallback.
 - 3.6.0 (2026-11-04, MINOR): PP-72.2 replaces the duplicate full-check job with equivalent distributed CI coverage and admin/POS api:check in check. The existing workflow remains required until the reviewed replacement lands. PP-119.1 consolidates correction rounds after all bot results into one push. PP-119.2 R2 cache is deferred: no brief, implementation or secrets now; measure CI after PP-72.2 and wait for Waleed's next decision.
 - 3.5.0 (2026-11-04, MINOR): PP-118 supersedes PP-111's readiness replacement and PP-114.1's ten-session cap: five active sessions, one PR each through merge, with at most two parked owner-decision waits longer than four hours. No new slice during transition until non-parked open PRs are at most five. Exact-head gates, PP-117 merge ownership and direct owner routing remain required.
@@ -84,7 +85,7 @@ modules outside its scope without stating why. Up to five active task sessions m
 and only when their file paths are disjoint (except a shared file where each slice only adds its own line, such as the permission list, migration numbers or the
 OpenAPI contract: those merge in an order the manager sets, each later slice rebasing on `main` and regenerating any generated file, PP-111.2) and no two of them change the same table; a slice that depends on another waits until that one merges.
 More than one may carry a migration, each tested on its own local Postgres; each merges only when it is green on its own head, and the manager merges a migration PR without asking Waleed once its exact-head gates, verified backup and restore, and the coordinated migration order pass (PP-124), and migration
-and ADR numbers are reserved in the expected merge order and made final at merge (Waleed, 2026-10-07; PP-59, 2026-10-25; PP-69, 2026-10-27; PP-111, 2026-11-01). Every architectural decision MUST be recorded as
+and ADR numbers are reserved in the expected merge order and made final at merge (Waleed, 2026-10-07; PP-59, 2026-10-25; PP-69, 2026-10-27; PP-111, 2026-11-01). When two PRs with a migration are open together, the second is stacked on the first's branch so its journal entry and snapshot chain follow the first's, and CI rejects a broken journal sequence or snapshot `prevId` chain (PP-130, 2026-11-05). Every architectural decision MUST be recorded as
 `docs/adr/NNNN-title.md`. A slice is done only when the checklist in
 `CLAUDE.architecture.md` §15 passes, the local gates pass and the equivalent component coverage of `pnpm check` is green on CI (`ci-gate` on the exact head, PP-113/PP-72.2). Until PP-72.2's separately reviewed workflow lands, the existing workflow remains required. Unknown business rules are
 marked `TODO(spec)` and work stops there; guessing is forbidden.
@@ -460,7 +461,7 @@ guidance, PATCH for clarifications. Every PR review MUST verify compliance with 
 I–VII; any added complexity MUST be justified against `CLAUDE.architecture.md` §12.
 `CLAUDE.md` remains the runtime guidance file for day-to-day development.
 
-**Version**: 3.7.0 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-11-05
+**Version**: 3.8.0 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-11-05
 
 ## PR 6 amendment — ADR-0019, 2026-10-02
 
