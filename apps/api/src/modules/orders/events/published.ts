@@ -13,3 +13,5 @@ export type PackageSaleChanged = SaleChanged;
 export type { DiscountApprovalRequested } from '@pospay/contracts';
 /** يصدر مرة لكل قرار موافقة يكون الموافِق فيه منفّذًا لخدمة في مقترح واحد على الأقل، في نفس معاملة القرار، ليصل جرس للمالك (DA-Q3). */
 export type { DiscountApprovedByPerformer } from '@pospay/contracts';
+/** يُكتب مع صف pending في معاملة طلب المعاينة نفسها؛ يحمل هوية المعاينة فقط، ولا ينشره API إلى BullMQ مباشرة. */
+export type { PackageImportPreviewRequested } from '@pospay/contracts';

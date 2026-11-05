@@ -10,6 +10,7 @@ import { createStaffDocumentDefaults, startStaffWorker } from '../../modules/sta
 import { createDeliverer } from '../deliver.ts';
 import { KNOWN_EVENT_TYPES, knownEventTypes } from '../known-event-types.ts';
 import { emittedEventTypes } from './emitted-event-types.ts';
+import { retryDelayMs } from '../retry-policy.ts';
 
 // نعزل اتصالات الطوابير فقط؛ قوائم الأنواع والمستهلكون تأتي من تركيب الوحدات الحقيقي.
 vi.mock('../../modules/staff/jobs/missed-out.processor.ts', () => ({
@@ -59,7 +60,13 @@ it('recognizes every event emitted by API and worker, including finite template 
       'NotificationFailed',
     ]),
   );
-  expect([...emitted].filter(([eventType]) => !supported.has(eventType))).toEqual([]);
+  // ADR-0010: منتج المعاينة مقفول بـ404 لحد مستهلك 47-1b؛ يفضل مجهولًا عشان العامل القديم يعيد المحاولة.
+  const fencedProducers = new Set(['PackageImportPreviewRequested']);
+  expect(
+    [...emitted].filter(
+      ([eventType]) => !supported.has(eventType) && !fencedProducers.has(eventType),
+    ),
+  ).toEqual([]);
 });
 
 it('keeps notification transport recognition conditional on the active module', () => {
@@ -94,5 +101,24 @@ it.each([
       attempt: 1,
     }),
   ).toEqual({ delivered: true });
+  expect(database.withTenant).not.toHaveBeenCalled();
+});
+
+it('retries a package preview request until the 47-1b consumer exists', async () => {
+  database.withTenant = vi.fn();
+  const deliver = createDeliverer(database, [], createLogger('silent'), {
+    knownEventTypes: knownEventTypes(staff, notifications, inApp),
+  });
+  expect(
+    await deliver({
+      id: ids.newId(),
+      companyId: ids.newId(),
+      aggregateType: 'import_preview',
+      aggregateId: ids.newId(),
+      eventType: 'PackageImportPreviewRequested',
+      payload: { preview_id: ids.newId() },
+      attempt: 1,
+    }),
+  ).toEqual({ delivered: false, error: 'TypeError', retryInMs: retryDelayMs(1) });
   expect(database.withTenant).not.toHaveBeenCalled();
 });

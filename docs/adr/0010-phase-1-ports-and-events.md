@@ -363,3 +363,45 @@ with a fresh incarnation, an old fence cannot touch the new state (the fencing a
 exactly that), and `ensureRegistered` re-registers a company's scheduler from the fixture
 inventory. The production inventory of the companies that need a scheduler, the reconciliation of
 pre-activation `SENDING` rows and the runbook entry remain **59b-2c's release gate**.
+
+
+## Addendum 2026-11-05 - package preview request, 47-1a
+
+The manager approved asynchronous package preview after its full synchronous warm
+median measured 719.6987 ms, above 200 ms (spec 058, 47-1-PERF-1), and approved the
+47-1a/47-1b split in the decision supplied as 15:57 Kuwait. 47-1a is request acceptance
+and creator-scoped polling; 47-1b is the preview worker, parser and producer activation.
+Financial package import commit remains 47-2.
+
+The new orders -> files read arrow serves the orders-owned
+PackageImportRequestScope.fileFacts port. Its adapter calls the files public
+`documentFileFacts` reader on the existing tenant acceptance transaction; it checks
+company visibility, business, creator, READY state, type, size and purge state.
+No bytes, storage provider call or workbook parsing occurs during acceptance. A domain
+event cannot supply the synchronous facts needed to authorize this request; extracting
+files later replaces this narrow adapter. No cross-module mutation is introduced.
+
+The same transaction creates an empty pending `entity='packages'` import_previews row
+and the id-only `PackageImportPreviewRequested { preview_id }` outbox record. The event
+is declared with Arabic JSDoc in orders/events/published.ts. It is not registered as a
+known worker type until 47-1b actually implements its transport and consumer. The API
+returns 202 when mounted in the test composition; the entire HTTP acceptance path has
+a strict warm five-run median assertion below 200 ms.
+
+Production safety fence: `PackageImportPreviewController` is intentionally absent
+from `ordersControllers`. Production POST and GET routes return 404 and cannot create
+pending work before a consumer exists. Tests explicitly mount the controller through
+the harness to validate the future API. 47-1b alone adds production registration when
+its real transport/lifecycle is present. This uses no new feature flag, secret or
+runtime environment switch. Polling is authoritative; SSE is not a source of state.
+
+The migration extends the existing status CHECK with pending (packages only), adds a
+bounded skipped_count column, and grants guarded result-column updates solely for a
+package preview leaving pending. Staff keeps its ready default and commit transitions;
+its result fields remain protected by the new trigger. Final numbering, generation and
+push remain blocked on the manager's explicit lane grant. The unnumbered SQL draft is
+applied only on the private local test cluster; CI requires the final real migration.
+
+Bounds remain 2 MiB, 500 data rows, 68 columns and 4 sheets. Parser and money changes
+from the previous attempt are preserved in stash
+8595ab7fe7dd0e7db5f58e444b534be923b8420e for 47-1b and are excluded from 47-1a.

@@ -196,6 +196,141 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/packages/import/previews": {
+      "post": {
+        "operationId": "requestPackageImportPreview",
+        "description": "47-1a contract: the production route is unregistered until the 47-1b consumer is available and therefore returns 404. Once activated, requires import:packages:business and orders; checks file facts only, atomically stores a pending preview and its id-only outbox event, and returns 202. No object download or workbook parsing occurs at acceptance.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestPackageImportPreviewInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Preview request accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageImportPreviewAccepted"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/packages/import/previews/{previewId}": {
+      "get": {
+        "operationId": "packageImportPreviewStatus",
+        "description": "Creator/company/business-scoped polling, with no full phone or stored candidate rows in the response. Unknown and inaccessible IDs share IMPORT_PREVIEW_NOT_FOUND. The production route is unregistered in 47-1a and activates with 47-1b.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "previewId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pending, ready or failed preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageImportPreviewStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/branches/{branchId}/attendance-statements": {
       "post": {
         "operationId": "requestAttendanceStatement",
@@ -26322,6 +26457,191 @@
         },
         "required": [
           "requests_enabled"
+        ]
+      },
+      "RequestPackageImportPreviewInput": {
+        "type": "object",
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "file_id"
+        ],
+        "additionalProperties": false
+      },
+      "PackageImportPreviewAccepted": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "preview_id"
+        ]
+      },
+      "PackageImportPreviewRequested": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "preview_id"
+        ],
+        "additionalProperties": false
+      },
+      "PackageImportPreviewRowError": {
+        "type": "object",
+        "properties": {
+          "row": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 9007199254740991
+          },
+          "column": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "IMPORT_CELL_INVALID",
+              "IMPORT_PHONE_INVALID",
+              "IMPORT_NAME_INVALID",
+              "INVALID_PRICE",
+              "IMPORT_DATE_INVALID",
+              "IMPORT_EXTERNAL_REF_INVALID",
+              "IMPORT_REQUIRED_CELL",
+              "IMPORT_SERVICE_AMBIGUOUS",
+              "IMPORT_SERVICE_NOT_FOUND",
+              "INVALID_COMPONENTS",
+              "DUPLICATE_SERVICE",
+              "INVALID_SESSIONS",
+              "INVALID_REMAINING_SESSIONS",
+              "IMPORT_CUSTOMER_NOT_FOUND",
+              "IMPORT_EXTERNAL_REF_DUPLICATE"
+            ]
+          }
+        },
+        "required": [
+          "row",
+          "column",
+          "code"
+        ]
+      },
+      "PackageImportPreviewStatus": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "preview_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending"
+                ]
+              }
+            },
+            "required": [
+              "preview_id",
+              "status"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "preview_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ready"
+                ]
+              },
+              "row_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 500
+              },
+              "error_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "skipped_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 500
+              },
+              "errors": {
+                "maxItems": 40000,
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PackageImportPreviewRowError"
+                }
+              }
+            },
+            "required": [
+              "preview_id",
+              "status",
+              "row_count",
+              "error_count",
+              "skipped_count",
+              "errors"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "preview_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "failed"
+                ]
+              },
+              "error_code": {
+                "type": "string",
+                "enum": [
+                  "IMPORT_FILE_NOT_FOUND",
+                  "IMPORT_FILE_NOT_READY",
+                  "IMPORT_FILE_TYPE_INVALID",
+                  "IMPORT_FILE_SIZE_INVALID",
+                  "IMPORT_FILE_CONTENT_INVALID",
+                  "IMPORT_HEADER_INVALID",
+                  "IMPORT_ROW_LIMIT_EXCEEDED",
+                  "STORAGE_UNAVAILABLE"
+                ]
+              }
+            },
+            "required": [
+              "preview_id",
+              "status",
+              "error_code"
+            ]
+          }
         ]
       },
       "SessionMoney": {

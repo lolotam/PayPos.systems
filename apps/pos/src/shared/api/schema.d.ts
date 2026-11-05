@@ -21,6 +21,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/packages/import/previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 47-1a contract: the production route is unregistered until the 47-1b consumer is available and therefore returns 404. Once activated, requires import:packages:business and orders; checks file facts only, atomically stores a pending preview and its id-only outbox event, and returns 202. No object download or workbook parsing occurs at acceptance. */
+        post: operations["requestPackageImportPreview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/packages/import/previews/{previewId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Creator/company/business-scoped polling, with no full phone or stored candidate rows in the response. Unknown and inaccessible IDs share IMPORT_PREVIEW_NOT_FOUND. The production route is unregistered in 47-1a and activates with 47-1b. */
+        get: operations["packageImportPreviewStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/attendance-statements": {
         parameters: {
             query?: never;
@@ -4949,6 +4983,46 @@ export interface components {
         RatingSettingsResponse: {
             requests_enabled: boolean;
         };
+        RequestPackageImportPreviewInput: {
+            /** Format: uuid */
+            file_id: string;
+        };
+        PackageImportPreviewAccepted: {
+            /** Format: uuid */
+            preview_id: string;
+        };
+        PackageImportPreviewRequested: {
+            /** Format: uuid */
+            preview_id: string;
+        };
+        PackageImportPreviewRowError: {
+            row: number;
+            column: string;
+            /** @enum {string} */
+            code: "IMPORT_CELL_INVALID" | "IMPORT_PHONE_INVALID" | "IMPORT_NAME_INVALID" | "INVALID_PRICE" | "IMPORT_DATE_INVALID" | "IMPORT_EXTERNAL_REF_INVALID" | "IMPORT_REQUIRED_CELL" | "IMPORT_SERVICE_AMBIGUOUS" | "IMPORT_SERVICE_NOT_FOUND" | "INVALID_COMPONENTS" | "DUPLICATE_SERVICE" | "INVALID_SESSIONS" | "INVALID_REMAINING_SESSIONS" | "IMPORT_CUSTOMER_NOT_FOUND" | "IMPORT_EXTERNAL_REF_DUPLICATE";
+        };
+        PackageImportPreviewStatus: {
+            /** Format: uuid */
+            preview_id: string;
+            /** @enum {string} */
+            status: "pending";
+        } | {
+            /** Format: uuid */
+            preview_id: string;
+            /** @enum {string} */
+            status: "ready";
+            row_count: number;
+            error_count: number;
+            skipped_count: number;
+            errors: components["schemas"]["PackageImportPreviewRowError"][];
+        } | {
+            /** Format: uuid */
+            preview_id: string;
+            /** @enum {string} */
+            status: "failed";
+            /** @enum {string} */
+            error_code: "IMPORT_FILE_NOT_FOUND" | "IMPORT_FILE_NOT_READY" | "IMPORT_FILE_TYPE_INVALID" | "IMPORT_FILE_SIZE_INVALID" | "IMPORT_FILE_CONTENT_INVALID" | "IMPORT_HEADER_INVALID" | "IMPORT_ROW_LIMIT_EXCEEDED" | "STORAGE_UNAVAILABLE";
+        };
         SessionMoney: string;
         SessionPerformerInput: {
             /** Format: uuid */
@@ -7974,6 +8048,95 @@ export interface operations {
             };
             /** @description MY_PERIOD_OUT_OF_RANGE */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestPackageImportPreview: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestPackageImportPreviewInput"];
+            };
+        };
+        responses: {
+            /** @description Preview request accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageImportPreviewAccepted"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    packageImportPreviewStatus: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                previewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pending, ready or failed preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageImportPreviewStatus"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
                 headers: {
                     [name: string]: unknown;
                 };

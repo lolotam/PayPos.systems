@@ -16,6 +16,7 @@ const expectations: Record<string, readonly string[]> = {
     'read:service-sessions:branch',
     'record:service-sessions:branch',
     'sell:packages:branch',
+    'import:packages:business',
     'read:passkeys:branch',
     'unbind:passkeys:branch',
     'create:customers:company',
@@ -57,6 +58,7 @@ const expectations: Record<string, readonly string[]> = {
     'read:service-sessions:branch',
     'record:service-sessions:branch',
     'sell:packages:branch',
+    'import:packages:business',
     'read:passkeys:branch',
     'unbind:passkeys:branch',
     'create:customers:business',
@@ -314,4 +316,12 @@ it('PK-Q13 sell:packages:branch defaults to the five visit roles, is delegable t
       systemRolePolicy(role.id, 'global')?.permissions.includes(code),
     ).toBe(role.code !== 'device');
   }
+});
+
+it('PK-Q18 import permission defaults to owner, GM and BM and is never available to devices', () => {
+  expect(ROLE_DEFAULTS['import:packages:business']).toEqual(['owner','general_manager','business_manager']);
+  const device = SYSTEM_ROLES.find((role) => role.code === 'device');
+  expect(device).toBeDefined();
+  if (device === undefined) throw new Error('Missing seeded device role');
+  expect(systemRolePolicy(device.id, 'global')?.permissions).not.toContain('import:packages:business');
 });

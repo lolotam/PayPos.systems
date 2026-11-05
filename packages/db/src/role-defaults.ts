@@ -138,6 +138,7 @@ export const ROLE_DEFAULTS = {
   'manage:service-categories:business': managers,
   'read:service-categories:branch': [...managers, 'branch_manager'],
   'manage:service-categories:branch': [...managers, 'branch_manager'],
+  'import:packages:business': managers,
   // قرار المالك PK-Q13 (PP-16.2): نفس أدوار تسجيل الزيارة الخمسة.
   'sell:packages:branch': [...managers, 'branch_manager', 'cashier'],
   // TODO(spec) SV-Q1: SPEC لا يسمّي صلاحية الكتالوج؛ القرار المؤقت مطابق لـ manage:employees:business.

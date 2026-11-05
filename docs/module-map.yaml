@@ -13,7 +13,7 @@ imports:
   kitchen: []
   loyalty: [customers]
   notifications: []
-  orders: [tenancy, catalog, customers, staff, identity, settings]
+  orders: [tenancy, catalog, customers, staff, identity, settings, files]
   payments: [tenancy]
   platform: [tenancy]
   realtime: [identity]
@@ -41,6 +41,8 @@ reads:
   - { from: staff, to: identity, symbol: readOwnAttendanceAccess, file: apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts }
   - { from: staff, to: tenancy, symbol: activeBusinessTimeZone, file: apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts }
+  - { from: orders, to: files, symbol: documentFileFacts, file: apps/api/src/modules/orders/persistence/package-import-request.transactions.ts }
+  - { from: orders, to: identity, symbol: readPackageImportAccess, file: apps/api/src/modules/orders/persistence/package-import-request.transactions.ts }
   - { from: orders, to: staff, symbol: readSessionPerformerOptions, file: apps/api/src/modules/orders/persistence/session-performer-options.adapter.ts }
   - { from: orders, to: catalog, symbol: readSessionServiceOptions, file: apps/api/src/modules/orders/persistence/session-service-options.adapter.ts }
   - { from: orders, to: identity, symbol: readServiceSessionAccess, file: apps/api/src/modules/orders/persistence/recording-context.adapter.ts }
