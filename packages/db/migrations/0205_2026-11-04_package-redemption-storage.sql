@@ -164,7 +164,8 @@ END $$;
 CREATE CONSTRAINT TRIGGER package_redemptions_complete AFTER INSERT OR UPDATE ON public.package_redemptions
   DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.package_redemption_complete();
 CREATE CONSTRAINT TRIGGER service_lines_redemption_complete AFTER INSERT OR UPDATE ON public.service_lines
-  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.package_redemption_complete();
+  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW WHEN (NEW.redemption_id IS NOT NULL)
+  EXECUTE FUNCTION public.package_redemption_complete();
 CREATE CONSTRAINT TRIGGER package_session_slots_redemption_complete AFTER UPDATE OF state, current_redemption_id ON public.package_session_slots
   DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
   WHEN (OLD.state IS DISTINCT FROM NEW.state OR OLD.current_redemption_id IS DISTINCT FROM NEW.current_redemption_id)

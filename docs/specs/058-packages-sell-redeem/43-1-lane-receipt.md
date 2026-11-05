@@ -1,5 +1,9 @@
 # 43-1 migration lane grant
 
+**Superseded by [the PP-123 correction receipt](43-1-pp123-corrections.md).**
+This is the historical initial lane checkpoint. Both 0205 and 0206 now belong to
+#838; #785 moves to 0207. The current snapshot chain is 0204→0206.
+
 Manager instruction relayed at 03:00 Kuwait explicitly grants this lane and
 supersedes the earlier queue hold. Order: #793 (0204), 43-1 (0205), #785 (0206).
 No merge or deployment is authorized. Build above

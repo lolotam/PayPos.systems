@@ -10,7 +10,7 @@ export const PACKAGE_TABLE_GRANTS = [
   'package_session_slots:SELECT',
 ];
 
-// الأرقام اللي هتتحرك في هجرات 45 و46-1، وحالة الجلسة ومعرّف الاسترداد في 43-1؛ التريغر نفسه مقفول لحد ما تفتح.
+// منح الحالة والمؤشر تدعم FREE وUSED المحروسين في 43-1؛ تغيير الانتهاء والمبلغ المسترد والمراجعة يظل مقفولًا حتى 45 و46-1.
 export const PACKAGE_COLUMN_GRANTS = [
   'package_redemptions.reversal_cancellation_id:pospay_app:UPDATE',
   'package_redemptions.reversed_at:pospay_app:UPDATE',
