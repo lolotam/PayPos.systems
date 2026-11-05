@@ -1,4 +1,4 @@
-# 47-1b â€” local validation receipt
+# 47-1b — local validation receipt
 
 Implementation worktree: `F:/Dev/Worktrees/PosPay/feat-p1-058-47-1b-package-preview-worker`.
 Initial base `88f822be`; manager granted migration **0212** and subsequently required
@@ -176,3 +176,55 @@ Round 1 final gates passed: typecheck 32 tasks; lint/boundaries 33 tasks; lint:d
 passed. Selected API request/status/activation: 19 passed, warm median 74.4901 ms.
 Together with 40 scope and 10 startup tests, this round observed 81 passing tests.
 The three guards passed the final correction diff. No review trigger or merge.
+
+## External correction round 2 of 3
+
+The manager confirmed all panel bots and Codex completed on f34c06dd, with ci-gate
+green, then authorized one consolidated push covering r4486639964/r4486679494,
+r4486683702 and r4486683712. No new review trigger or merge is authorized here.
+
+Failure persistence now carries a safe code in PackagePreviewRetryError, exposed by
+the use-case boundary. A classified permanent failure whose write fails switches to
+finalization with durable progress {stage,code}; restart resumes the conditional
+write with that code without reading/parsing again. Progress is validated against
+the existing failed-status error enum; data remains IDs only, with no source/cause.
+Only unclassified exhausted transient processing uses STORAGE_UNAVAILABLE. The
+previous string-only finalization marker remains readable for in-flight jobs.
+
+Worker core no longer awaits preview readiness before listen or loop.start. BullMQ
+connects asynchronously; package-previews stays a required /ready probe. /health and
+database-only outbox consumers remain available while the preview Redis connects.
+
+For stranded/parked events, the manager-approved minimum fallback is implemented in
+the existing creator-scoped polling query: expired pending projects as failed with
+IMPORT_FILE_NOT_FOUND. This is read-only; a stored pending row can remain until a
+worker runs, but the user never polls pending beyond expires_at. No recovery sweep,
+new status/code/column or SQL migration change is needed. Invalid commands with a
+validated aggregate identity first conditionally fail the trusted pending preview
+with existing IMPORT_FILE_CONTENT_INVALID. If that write fails, dispatch retries;
+it does not park/acknowledge before persistence. A mismatched payload's ID is never
+the write target. An invalid aggregate cannot identify a preview; expiry handles it.
+
+The new integration regressions use the existing private Postgres/Redis fixtures:
+permanent XLSX failure + failed write + Redis progress + restart preserves the exact
+error; invalid command + failed write retries, then fails only the trusted aggregate
+before parking; expiry is verified via HTTP while proving the query does not write.
+The startup test proves listen, /health 200 and loop.start while the preview readiness
+promise hangs; /ready still returns 503. No timeout/readiness assertion was weakened.
+
+Initial lint exposed layer/size violations in the new tests. Integration tests were
+moved to the module test layer, retry errors to the use-case boundary, and shared
+fixture/readiness steps extracted without weakening rules or squashing lines. UTF-8
+source comments and two existing slice-note titles were preserved/corrected.
+Migration 0212 remains byte-identical with SHA256
+`a3c31e294b9a1f83b63f445ec62193a7ff0901cfb6d03787b6f7a170fcbda679`.
+
+Round 2 final checks: typecheck 32 tasks, lint/boundaries 33 tasks, docs lint 0 errors /
+29 existing warnings, module-map and migration chain passed. Final worker scope and
+entire startup file: 53 passed / 9 files. Event registry: 12 passed. API polling,
+request and activation: 20 passed / 3 files, including expired-pending projection.
+The first API run overlapped static/registry checks and failed only the unchanged
+200 ms acceptance assertion (median 266.2999 ms). An isolated rerun with no code or
+assertion change passed all 20 tests with median 78.5018 ms. No bound, workload,
+timeout or assertion was reduced. Total final passing scope: 85 tests. The three
+guards passed this correction diff; full suite/API shards remain CI-only.

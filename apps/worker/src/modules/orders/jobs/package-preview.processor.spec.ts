@@ -40,9 +40,12 @@ it('transports only ids after outbox delivery, retries safely and marks exhauste
     expect(await processor.deliver(event)).toEqual({ delivered: true });
     const job = await queue.getJob(event.id);
     expect(job?.data).toEqual({ companyId: event.companyId, previewId });
-    await vi.waitFor(() => expect(fail).toHaveBeenCalledWith(event.companyId, previewId), {
-      timeout: 15000,
-    });
+    await vi.waitFor(
+      () => expect(fail).toHaveBeenCalledWith(event.companyId, previewId, 'STORAGE_UNAVAILABLE'),
+      {
+        timeout: 15000,
+      },
+    );
     expect(execute).toHaveBeenCalledTimes(3);
     const reject = vi
       .spyOn(Queue.prototype, 'add')
@@ -95,12 +98,12 @@ it('keeps failure persistence durable across a database outage and processor res
     await vi.waitFor(
       async () => {
         const job = await queue.getJob(event.id);
-        expect(job?.progress).toBe('finalizing-preview-failure');
-        expect(await job?.getState()).toBe('delayed');
-        expect(job?.data).toEqual({
-          companyId: event.companyId,
-          previewId: (event.payload as { preview_id: string }).preview_id,
+        expect(job?.progress).toEqual({
+          stage: 'finalizing-preview-failure',
+          code: 'STORAGE_UNAVAILABLE',
         });
+        expect(await job?.getState()).toBe('delayed');
+        expect(job?.data).toEqual({ companyId: event.companyId, previewId });
       },
       { timeout: 15000 },
     );

@@ -73,7 +73,9 @@ redis.on('error', (error: unknown) => logger.warn({ err: error }, 'redis connect
 // ADR-0019: استقبال STOP وin-app مستقلان؛ تفعيل OTP لا يفتح إرسال الشركات.
 const production = process.env['NODE_ENV'] === 'production';
 const files = startFilesWorker(app, systemUuidV7(), config.REDIS_URL, process.env);
-const previews = startPackagePreviewWorker(app, files.readImportBytes, config.REDIS_URL, { now: () => new Date() });
+const previews = startPackagePreviewWorker(app, files.readImportBytes, config.REDIS_URL, {
+  now: () => new Date(),
+});
 const staff = startStaffWorker(app, systemUuidV7(), config.REDIS_URL, { now: () => new Date() });
 const email = await startEmailCapability({
   env: process.env,
@@ -172,11 +174,13 @@ const pushTransport = push.transport((claimed) => (queue?.deliver ?? businessDel
 // تصميم 7: المجدول الحيّ ما بيشتغلش من الإقلاع، فالتركيب بيسجّل المسجّل المغلق بس.
 const ratingClaims = closedRatingClaimsLifecycle();
 const deliver: typeof businessDeliver = (event) =>
-  previews.deliver(event, (event) => deliverFilesEvent(event, {
-    register: (claimed) => files.deliver(claimed),
-    staff: (claimed, next) => staff.deliver(claimed, next),
-    core: (claimed) => ratingClaims.deliver(claimed, pushTransport),
-  }));
+  previews.deliver(event, (event) =>
+    deliverFilesEvent(event, {
+      register: (claimed) => files.deliver(claimed),
+      staff: (claimed, next) => staff.deliver(claimed, next),
+      core: (claimed) => ratingClaims.deliver(claimed, pushTransport),
+    }),
+  );
 const loop = createDispatchLoop({ dispatcher, deliver, logger });
 
 const release = async (): Promise<void> => {
@@ -261,7 +265,6 @@ async function startWorkerCore(): Promise<void> {
     },
     logger,
   );
-  await previews.ready();
   worker.enableShutdownHooks();
   await worker.listen({ host: config.WORKER_HOST, port: config.WORKER_PORT });
   loop.start();

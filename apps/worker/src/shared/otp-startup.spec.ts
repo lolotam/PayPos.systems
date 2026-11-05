@@ -188,36 +188,57 @@ afterEach(async () => {
   vi.unstubAllEnvs();
 });
 
-async function ordinaryReadiness() {
+async function readinessResponse() {
   const options = resources.workerOptions.mock.calls.at(-1)?.[0];
   const app = Fastify();
   app.get('/ready', (_request, reply) => new HealthController(options.readiness).ready(reply));
   try {
-    expect((await app.inject('/ready')).statusCode).toBe(200);
+    return await app.inject('/ready');
   } finally {
     await app.close();
   }
 }
 
+async function ordinaryReadiness() {
+  expect((await readinessResponse()).statusCode).toBe(200);
+}
+
 it('package preview readiness remains required alongside optional OTP isolation', async () => {
   await import('../main.ts');
   resources.previews.ready.mockRejectedValueOnce(new Error('SYNTHETIC_PREVIEW_UNAVAILABLE'));
+  const response = await readinessResponse();
+  expect(response.statusCode).toBe(503);
+  expect(response.json()).toMatchObject({
+    code: 'NOT_READY',
+    details: {
+      checks: { 'package-previews': 'down', database: 'up', dispatcher: 'up', redis: 'up' },
+    },
+  });
+});
+
+it('listens and serves health while the package preview Redis is still connecting', async () => {
+  resources.previews.ready.mockImplementation(() => new Promise(() => undefined));
+  await import('../main.ts');
+  expect(resources.listen).toHaveBeenCalledOnce();
+  expect(resources.loop.start).toHaveBeenCalledOnce();
   const options = resources.workerOptions.mock.calls.at(-1)?.[0];
   const app = Fastify();
-  app.get('/ready', (_request, reply) => new HealthController(options.readiness).ready(reply));
+  const controller = new HealthController(options.readiness);
+  app.get('/health', () => controller.health());
+  app.get('/ready', (_request, reply) => controller.ready(reply));
   try {
-    const response = await app.inject('/ready');
-    expect(response.statusCode).toBe(503);
-    expect(response.json()).toMatchObject({
-      code: 'NOT_READY',
-      details: {
-        checks: { 'package-previews': 'down', database: 'up', dispatcher: 'up', redis: 'up' },
-      },
+    const health = await app.inject('/health');
+    expect(health.statusCode).toBe(200);
+    expect(health.json()).toEqual({ status: 'ok' });
+    const ready = await app.inject('/ready');
+    expect(ready.statusCode).toBe(503);
+    expect(ready.json()).toMatchObject({
+      details: { checks: { 'package-previews': 'down' } },
     });
   } finally {
     await app.close();
   }
-});
+}, 5000);
 
 it('hung optional intake readiness and cleanup cannot prevent worker /ready 200', async () => {
   resources.global.ping.mockResolvedValue(undefined);

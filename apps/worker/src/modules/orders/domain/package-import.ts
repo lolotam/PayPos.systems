@@ -43,11 +43,6 @@ export class PackageImportError extends Error {
     this.name = 'PackageImportError';
   }
 }
-/** فشل عابر آمن بلا cause؛ رسالة المزود أو معاملات SQL قد تحتوي هاتفًا أو مفتاح ملف. */
-export class PackagePreviewRetryError extends Error {
-  /** يطلب إعادة المحاولة برمز ثابت لا يحمل أي بيانات مصدر. */
-  constructor() { super('PACKAGE_PREVIEW_RETRY'); this.name = 'PackagePreviewRetryError'; }
-}
 /** صف محفوظ خالٍ من الهاتف الكامل، قابل لاستهلاك 47-2 لاحقاً. */
 export type PackageImportCandidate = Omit<ParsedPackageImportRow, 'phone'> & {
   readonly customer_id: string;

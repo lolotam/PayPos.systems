@@ -1,4 +1,4 @@
-import { PackageImportError, PackagePreviewRetryError } from '../../domain/package-import.ts';
+import { PackageImportError } from '../../domain/package-import.ts';
 import { packagePreviewKey, packagePreviewRefs } from '../../domain/package-preview.ts';
 import {
   parsePackageImportSheet,
@@ -9,6 +9,19 @@ import type {
   PackagePreviewTransactions,
   PackagePreviewWorkbook,
 } from '../../ports/package-preview.port.ts';
+
+/** فشل عابر آمن بلا cause؛ رسالة المزود أو معاملات SQL قد تحتوي هاتفًا أو مفتاح ملف. */
+export class PackagePreviewRetryError extends Error {
+  /**
+   * يطلب إعادة المحاولة برمز ثابت لا يحمل أي بيانات مصدر.
+   *
+   * @param failureCode سبب آمن محفوظ عند تعذر تثبيت رفض دائم
+   */
+  constructor(readonly failureCode?: PackageImportError['code']) {
+    super('PACKAGE_PREVIEW_RETRY');
+    this.name = 'PackagePreviewRetryError';
+  }
+}
 
 /** ينفذ معاينة الباقات؛ الحالة النهائية وحدها تحسم إعادة تسليم الحدث والمهمة. */
 export class ExecutePackagePreview {
@@ -41,7 +54,7 @@ export class ExecutePackagePreview {
       });
     } catch (error) {
       if (error instanceof PackageImportError && error.code !== 'STORAGE_UNAVAILABLE') {
-        await this.transactions.fail(companyId, previewId, error.code);
+        await this.fail(companyId, previewId, error.code);
         return;
       }
       // استثناءات المزود وSQL ممكن تحمل هاتف أو مفتاح ملف؛ لا تخرج إلى سجلات BullMQ.
@@ -49,8 +62,16 @@ export class ExecutePackagePreview {
     }
   }
 
-  /** آخر محاولة تفشل pending فقط؛ لا تستبدل نتيجة عامل سبقها. */
-  fail(companyId: string, previewId: string): Promise<void> {
-    return this.transactions.fail(companyId, previewId, 'STORAGE_UNAVAILABLE');
+  /** آخر محاولة تفشل pending فقط؛ لا تستبدل نتيجة عامل سبقها وتحفظ سبب الرفض الدائم عند تعذر الكتابة. */
+  async fail(
+    companyId: string,
+    previewId: string,
+    code: PackageImportError['code'] = 'STORAGE_UNAVAILABLE',
+  ): Promise<void> {
+    try {
+      await this.transactions.fail(companyId, previewId, code);
+    } catch {
+      throw new PackagePreviewRetryError(code);
+    }
   }
 }

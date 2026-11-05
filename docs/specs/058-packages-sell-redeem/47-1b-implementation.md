@@ -1,4 +1,4 @@
-# 47-1b â€” execute package preview and activate its routes
+# 47-1b — execute package preview and activate its routes
 
 Base: `88f822be` (merged 47-1a). The manager assigned this slice after Waleed's
 worker-split confirmation recorded by #860. One worker use case; no financial commit.
@@ -21,7 +21,22 @@ Known types come from the real module transport, never an unconditional ack regi
 The 47-1a production controller is registered with this completed worker lifecycle.
 An older 47-1a worker keeps retrying the unknown type during a rolling deployment.
 
-## #863 â€” ready-result consistency
+Preview Redis connects in the background; worker listen, /health and the database
+outbox loop do not wait for it. The package-previews /ready probe remains required.
+Permanent parse failures retain their safe code in durable job progress alongside
+the finalization stage if persistence fails; resuming finalization does not reparse.
+Unclassified exhausted transient failures use STORAGE_UNAVAILABLE.
+
+A rejected event with a valid aggregate identity conditionally fails that pending
+preview with IMPORT_FILE_CONTENT_INVALID before the event is terminally parked.
+If the write is unavailable, delivery retries without acknowledging or parking yet.
+For an event stranded or parked before the consumer runs, creator-scoped polling
+projects an expired pending preview as failed with IMPORT_FILE_NOT_FOUND. This
+minimum expiry fallback is read-only: the stored row may remain pending until a
+worker runs, but polling never reports pending past expires_at. No recovery sweep,
+new migration, error code or trigger change is introduced by this fallback.
+
+## #863 — ready-result consistency
 
 This worker is the writer of ready, so this PR takes #863. Add a NEW custom migration;
 0211 is merged and must not change. Before ready, rows/errors must be arrays,
