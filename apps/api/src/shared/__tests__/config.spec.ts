@@ -10,6 +10,20 @@ const valid = {
   BETTER_AUTH_URL: 'http://127.0.0.1:3000',
 };
 
+it.each([
+  'https://rating.example.test',
+  'https://admin.example.test, https://rating.example.test ',
+])('rejects a public rating origin in authentication trust: %s', (origins) => {
+  const attempt = () =>
+    readConfig({
+      ...valid,
+      RATING_PAGE_ORIGIN: 'https://rating.example.test',
+      AUTH_TRUSTED_ORIGINS: origins,
+    });
+  expect(attempt).toThrow(/RATING_PAGE_ORIGIN/);
+  expect(attempt).not.toThrow('https://rating.example.test');
+});
+
 it.each(['production', 'staging', undefined])('requires HTTPS outside dev/test: %s', (NODE_ENV) => {
   expect(() =>
     readConfig({ ...valid, NODE_ENV, RATING_PAGE_ORIGIN: 'http://localhost:3001' }),

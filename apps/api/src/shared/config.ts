@@ -104,6 +104,12 @@ export function readConfig(env: NodeJS.ProcessEnv): ApiConfig {
         env.NODE_ENV === 'test',
       { path: ['RATING_PAGE_ORIGIN'] },
     )
+    .refine(
+      (config) =>
+        config.RATING_PAGE_ORIGIN === '' ||
+        !config.AUTH_TRUSTED_ORIGINS.includes(config.RATING_PAGE_ORIGIN),
+      { path: ['RATING_PAGE_ORIGIN'] },
+    )
     .safeParse(env);
   if (!result.success) {
     const keys = [...new Set(result.error.issues.map((issue) => issue.path.join('.')))];

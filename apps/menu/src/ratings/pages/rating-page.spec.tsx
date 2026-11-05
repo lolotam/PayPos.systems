@@ -34,6 +34,42 @@ beforeEach(() => {
   vi.stubEnv('NEXT_PUBLIC_API_URL', 'https://api.example.test');
 });
 
+it.each([
+  ['submit', true],
+  ['submit', false],
+  ['opt-out', true],
+  ['opt-out', false],
+] as const)(
+  'shows failure and permits retry for empty %s errors (content-length zero: %s)',
+  async (operation, lengthZero) => {
+    const { transport } = api();
+    render(<RatingPage />);
+    fireEvent.click(await screen.findByRole('radio', { name: '5' }));
+    transport.mockImplementationOnce(
+      async () =>
+        new Response(null, { status: 503, headers: lengthZero ? { 'content-length': '0' } : {} }),
+    );
+    const action = t('ar', operation === 'submit' ? 'publicRating.submit' : 'publicRating.optOut');
+    fireEvent.click(screen.getByRole('button', { name: action }));
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent',
+      t('ar', 'publicRating.error'),
+    );
+    expect(screen.queryByText(t('ar', 'publicRating.done'))).toBeNull();
+    expect(screen.queryByText(t('ar', 'publicRating.optedOut'))).toBeNull();
+    expect(screen.getAllByRole('radio')).toHaveLength(5);
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: action })).toHaveProperty('disabled', false),
+    );
+    fireEvent.click(screen.getByRole('button', { name: action }));
+    expect(
+      await screen.findByText(
+        t('ar', operation === 'submit' ? 'publicRating.done' : 'publicRating.optedOut'),
+      ),
+    ).toBeDefined();
+  },
+);
+
 it.each(['http', 'network'])(
   'keeps an expired link closed after a later %s failure',
   async (failure) => {

@@ -25,7 +25,7 @@ export function useRating(token: string) {
         params,
         body: requestBody,
       });
-      if (response.error) throw new RatingRequestError(response.error.code);
+      if (!response.response.ok) throw new RatingRequestError(response.error?.code ?? 'NOT_READY');
     },
     onSuccess: async () => {
       await queryClient.cancelQueries({ queryKey: ['rating-view'] });
@@ -43,7 +43,7 @@ export function useRating(token: string) {
     gcTime: 0,
     mutationFn: async () => {
       const response = await ratingClient().POST('/v1/ratings/opt-out', { params });
-      if (response.error) throw new RatingRequestError(response.error.code);
+      if (!response.response.ok) throw new RatingRequestError(response.error?.code ?? 'NOT_READY');
     },
   });
   return { view, submit, optOut, linkUnavailable };

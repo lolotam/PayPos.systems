@@ -103,7 +103,7 @@ API public-route CORS changes are now authorized. AUTH_TRUSTED_ORIGINS, Traefik,
 server, DNS and Dokploy settings remain unchanged. No migration, local E2E,
 deployment or merge is part of this slice. Only the explicitly authorized
 `.env.example` template was read/edited; no real environment file was opened.
-External correction rounds used: 4/5.
+External correction rounds used: 5/5 (final authorized round).
 
 ## Connection verification — 2026-11-05
 
@@ -316,3 +316,43 @@ submission reconciliation, privacy assertions, network-boundary mocks and source
 claims. No API/contract/generated-schema changes or new library were introduced.
 No real environment-file read, local E2E, server change, deployment or merge.
 Exact-head review receipts and complete panel coverage remain required after push.
+
+## Correction round 5 — 2026-11-05
+
+The manager authorized the final single correction push after panel receipt
+`5786045396` on `fb5ec0ca1b55b09229760acadec7e4d5f0b936f4`. Its Waleed_Bot receipt
+still skipped the real files in batch 6. Waleed has since changed the panel models
+and fallback; the next actual receipt, with its batch/file coverage, determines
+whether that independent gate is complete. No coverage is inferred from this push.
+
+Both new findings were confirmed before fixing:
+
+- The config accepted a nonempty RATING_PAGE_ORIGIN in AUTH_TRUSTED_ORIGINS.
+  A cross-field schema refinement now rejects that configuration at startup with
+  the existing key-only error, preserving separate settings and authentication
+  behavior. Tests cover a direct overlap and a whitespace-padded list entry.
+- Installed openapi-fetch returns an undefined error for an empty non-2xx response
+  with content-length 0; without that header the parsed error can be an empty
+  string. Both were false successes in submit and opt-out. These mutations now
+  use the HTTP response.ok flag and throw a generic typed request error if no
+  structured code exists. Real 204 success handling and lost-response
+  reconciliation are preserved.
+
+The two config regressions and four parameterized UI cases failed before the fix.
+The UI cases exercise submit/opt-out with and without content-length 0 and assert
+the visible generic error, absence of completion/opt-out success, retained form,
+and successful retry. API/contract shapes, generated clients and login trust
+configuration are not expanded. The README and ADR document startup rejection.
+
+No migration, new library, real environment-file read, local E2E, server/DNS change,
+deployment or merge. This is round 5/5; a new P0/P1 after it keeps the PR on hold.
+Exactly one Codex review request is required after this push, followed by the
+new panel receipt and current-head CI. The session does not merge.
+
+Round 5 local gates passed: API HTTP/config 45/45; menu 25/25 (23 UI plus
+security headers and standalone packaging); both applications' typecheck and
+full lint; menu api:check; lint:docs 0 errors / 29 existing warnings;
+module-map:check, formatting and git diff --check. The six new regression cases
+failed before the changes and passed afterward. clean-code-guard, test-guard
+and docs-guard checked the schema refinement, HTTP-status decision, generic
+error fallback, visible retry behavior, unchanged privacy and documented settings.
