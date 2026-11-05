@@ -1419,8 +1419,29 @@
     {
       "idx": 204,
       "version": "7",
-      "when": 1793646637219,
-      "tag": "0204_2026-11-02_rating-requests-scheduled-index",
+      "when": 1793831525729,
+      "tag": "0204_2026-11-04_employee-name-key-id-index",
+      "breakpoints": true
+    },
+    {
+      "idx": 205,
+      "version": "7",
+      "when": 1793836185502,
+      "tag": "0205_2026-11-04_package-redemption-storage",
+      "breakpoints": true
+    },
+    {
+      "idx": 206,
+      "version": "7",
+      "when": 1793838450107,
+      "tag": "0206_2026-11-05_package-redemption-indexes-validate",
+      "breakpoints": true
+    },
+    {
+      "idx": 207,
+      "version": "7",
+      "when": 1793841946036,
+      "tag": "0207_2026-11-05_rating-requests-scheduled-index",
       "breakpoints": true
     }
   ]

@@ -1,6 +1,7 @@
 import { ATTENDANCE_TENANT_TABLES } from './attendance-grants.ts';
 
 export const TENANT_TABLES = [
+  'package_redemptions',
   'commission_statements',
   'commission_statement_lines',
   'commission_statement_attachments',

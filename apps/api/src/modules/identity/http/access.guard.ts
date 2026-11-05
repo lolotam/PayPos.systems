@@ -6,7 +6,10 @@ import type { FastifyRequest } from 'fastify';
 import { ApiError } from '../../../shared/errors.ts';
 import { PUBLIC_ROUTE } from '../../../shared/public.decorator.ts';
 import { AuthorizePlatform } from '../use-cases/authorize-platform/authorize-platform.ts';
-import { AuthorizeRequest } from '../use-cases/authorize-request/authorize-request.ts';
+import {
+  AuthorizeRequest,
+  type Authorized,
+} from '../use-cases/authorize-request/authorize-request.ts';
 import { CheckFeature } from '../use-cases/check-feature/check-feature.ts';
 import {
   AUTHENTICATED_ONLY,
@@ -19,11 +22,18 @@ import {
 /** The header a client uses to ask for a company; the session's own hint is the fallback. */
 export const COMPANY_HEADER = 'x-company-id';
 
+// الطلب نفسه هو المفتاح: لا يستطيع header أو body تزوير نتيجة الميزة، ولا تعبر إلى طلب آخر.
+const accessFeatures = new WeakMap<
+  FastifyRequest,
+  { companyId: string; flag: string; enabled: boolean }
+>();
+
 /**
  * The second global guard (ADR-0003 §4, path A). A route marked @Require is authorized by the AuthorizeRequest use
  * case — membership in the requested company first, before any tenant query, then the permission at the route's
  * target with DENY winning. Every refusal is the same 403, so it is no oracle for what exists. A non-public route
  * without @Require or @Authenticated is refused too (and createApp will not start with one, or with a conflict).
+ * The requested feature shares the access transaction; its server result is retained only for this request.
  */
 @Injectable()
 export class AccessGuard implements CanActivate {
@@ -40,6 +50,8 @@ export class AccessGuard implements CanActivate {
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    const request = context.switchToHttp().getRequest<FastifyRequest>();
+    accessFeatures.delete(request);
     const handler = context.getHandler();
     const platform = this.#reflector.get<string | undefined>(REQUIRE_PLATFORM, handler);
     if (platform !== undefined) {
@@ -61,7 +73,6 @@ export class AccessGuard implements CanActivate {
       if (open) return true;
       throw new ApiError('FORBIDDEN');
     }
-    const request = context.switchToHttp().getRequest<FastifyRequest>();
     const principal = request.principal;
     const userId = principal?.userId ?? null;
     if (principal === undefined || userId === null || this.#authorize === null) {
@@ -73,6 +84,9 @@ export class AccessGuard implements CanActivate {
       userId,
       requestedCompany: header === undefined ? request.companyHint : header,
       permission: required.permissions,
+      ...(this.#reflector.get<string | undefined>(REQUIRES_FEATURE, handler) === undefined
+        ? {}
+        : { featureFlag: this.#reflector.get<string>(REQUIRES_FEATURE, handler) }),
       ...(required.target.membership === undefined
         ? {}
         : { membershipParam: params[required.target.membership] ?? null }),
@@ -84,6 +98,22 @@ export class AccessGuard implements CanActivate {
         : { branchParam: params[required.target.branch] ?? null }),
     });
     if (authorized === null) throw new ApiError('FORBIDDEN');
+    this.#applyAccess(request, { authorized, required, params, principal });
+    return true;
+  }
+  #applyAccess(
+    request: FastifyRequest,
+    context: {
+      authorized: Authorized;
+      required: RequiredAccess;
+      params: Record<string, unknown>;
+      principal: NonNullable<FastifyRequest['principal']>;
+    },
+  ): void {
+    const { authorized, required, params, principal } = context;
+    if (authorized.feature !== undefined) {
+      accessFeatures.set(request, { companyId: authorized.companyId, ...authorized.feature });
+    }
     const branch =
       required.target.branch === undefined ? undefined : params[required.target.branch];
     updateRequestContext({
@@ -100,7 +130,6 @@ export class AccessGuard implements CanActivate {
         ...authorized.grants.map((g) => ({ ...g })),
       ],
     };
-    return true;
   }
 }
 
@@ -108,6 +137,7 @@ export class AccessGuard implements CanActivate {
  * The third global guard: a route marked @RequiresFeature runs only when the feature is enabled for the company
  * the access guard verified (09 §12). A disabled feature is FEATURE_DISABLED, so a client can tell it from a
  * missing permission.
+ * A matching request-local result avoids a second tenant read; other routes keep the existing reader.
  */
 @Injectable()
 export class FeatureGuard implements CanActivate {
@@ -125,11 +155,18 @@ export class FeatureGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const flag = this.#reflector.get<string | undefined>(REQUIRES_FEATURE, context.getHandler());
     if (flag === undefined) return true;
-    const companyId = context.switchToHttp().getRequest<FastifyRequest>().principal?.companyId;
+    const request = context.switchToHttp().getRequest<FastifyRequest>();
+    const companyId = request.principal?.companyId;
     if (companyId === null || companyId === undefined || this.#checkFeature === null) {
       throw new ApiError('FORBIDDEN');
     }
-    if (!(await this.#checkFeature.execute(companyId, flag))) {
+    const shared = accessFeatures.get(request);
+    accessFeatures.delete(request);
+    const enabled =
+      shared?.companyId === companyId && shared.flag === flag
+        ? shared.enabled
+        : await this.#checkFeature.execute(companyId, flag);
+    if (!enabled) {
       throw new ApiError('FEATURE_DISABLED');
     }
     return true;

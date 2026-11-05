@@ -1,5 +1,5 @@
 {
-  "id": "f58ebd4d-11a8-4f23-bb9e-f857f8e03000",
+  "id": "100afe80-25d4-42dc-992d-a9a3de66a9d6",
   "prevId": "c2ea7820-b080-4ec2-bc88-bf59858b7d54",
   "version": "7",
   "dialect": "postgresql",
@@ -2783,6 +2783,40 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "employees_company_business_name_en_key_id_active_idx": {
+          "name": "employees_company_business_name_en_key_id_active_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "name_en_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"employees\".\"deleted_at\" IS NULL",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -25554,28 +25588,6 @@
             },
             {
               "expression": "due_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"rating_requests\".\"status\" = 'SCHEDULED'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "rating_requests_scheduled_id_idx": {
-          "name": "rating_requests_scheduled_id_idx",
-          "columns": [
-            {
-              "expression": "company_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

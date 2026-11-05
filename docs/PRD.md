@@ -171,7 +171,7 @@ Modular monolith · Screaming Architecture root folders named after business cap
 
 ### 5.3 Workflow (from `CLAUDE.md`, decided)
 
-One vertical slice at a time · spec before code in `docs/specs/NNN-<module>-<use-case>/spec.md` · order inside a slice: contract (Zod) → migration + RLS → domain functions + tests → use case → adapters → integration tests → UI · `pnpm check` green before done · Arabic JSDoc mandatory on `domain/**`, `ports/**`, `events/published.ts` (`pnpm lint:docs`) · no `FIXME`/`HACK`/closing comments/commented-out code · max 300 warn / 400 error lines per file, 60 per function · conventional commits, one slice per PR, never commit to `main` · CI gate order: `typecheck → lint → lint:docs → boundaries → cycles → module-map → unit → integration → RLS negative → EXPLAIN → build → docker images`.
+One vertical slice at a time · spec before code in `docs/specs/NNN-<module>-<use-case>/spec.md` · order inside a slice: contract (Zod) → migration + RLS → domain functions + tests → use case → adapters → integration tests → UI · local gates, then `ci-gate` green on the head (`pnpm check` runs on CI, PP-113), before done · Arabic JSDoc mandatory on `domain/**`, `ports/**`, `events/published.ts` (`pnpm lint:docs`) · no `FIXME`/`HACK`/closing comments/commented-out code · max 300 warn / 400 error lines per file, 60 per function · conventional commits, one slice per PR, never commit to `main` · CI gate order: `typecheck → lint → lint:docs → boundaries → cycles → module-map → unit → integration → RLS negative → EXPLAIN → build → docker images`.
 
 ### 5.4 Data, money and time rules (decided)
 
