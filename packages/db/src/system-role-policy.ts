@@ -10,6 +10,10 @@ import {
 
 // spec 009 يجعل الأدوار المحذوفة من الصف ❌؛ الجهاز لا يرث سلطة موظف من ALLOW قديم.
 const deviceForbidden = [
+  'read:service-sessions:own',
+  'read:commissions:own',
+  'read:attendance:own',
+  'read:ratings:own',
   'record:service-sessions:branch',
   'read:service-sessions:branch',
   'edit:service-line-prices:branch',

@@ -32,7 +32,8 @@ own-scope guards, and in the locked enrollment recheck. Staff reads effective ti
 through tenancy's existing `describeWorkspaces` surface in the same tenant transaction.
 
 Personal purpose allows only enrollment/status/session/logout and explicitly enabled
-own-scope capabilities (schedule/leave; later attendance challenge/assertion). It has
+own-scope capabilities (schedule/leave, attendance challenge/assertion, and the four
+staff-app reads in the 2026-11-05 addendum below). It has
 no POS/device, role/business/admin/platform grants. Generic Better Auth routes refuse it,
 including a copied token under the normal cookie. Device credentials cannot upgrade it.
 Kiosk sessions cannot enroll; no session substitutes for a fresh attendance UV assertion.
@@ -106,7 +107,41 @@ leave routes do (spec 060 FR-A06b). A personal request never receives `PRIVATE_V
 responses and persist no private data in the PWA, and the cache clearing above applies to both. The one stored item
 is the reception device's window metadata (ADR-0019 addendum, item 7): the `window_id`, its `session_ref` and `window_seq`, and two expiry instants, with
 no personal data, removed when the window closes. The personal path stores nothing. Adding the four own reads to
-this ADR's list of personal-purpose capabilities is a separate addendum in sub-PR 57-1 (spec 060 D-A5).
+this ADR's list of personal-purpose capabilities is recorded in the 2026-11-05 addendum below (spec 060 D-A5).
+
+## Addendum 2026-11-05 — staff-app own reads (spec 060 D-A4/D-A5, 57-1a)
+
+The personal purpose explicitly permits four own reads: `read:service-sessions:own`
+(orders), `read:commissions:own` (commissions), `read:attendance:own` (staff) and
+`read:ratings:own` (customers). This closes the 57-1 capability-list deferral above;
+it does not enable an endpoint before its own API slice lands.
+
+All 13 human system roles receive these defaults, as for own leave. Device roles
+cannot hold them, including historical role grants and personal ALLOW overrides,
+which the existing eligibility projection suppresses without deleting history.
+An own code grants neither staff login nor access to another employee. The existing
+ownership evaluator requires verified actor and subject user identities to match
+before evaluating scoped grants. Covering DENY wins for non-owners; the canonical
+company owner's immunity follows ADR-0026 and never bypasses ownership, employee
+eligibility, workspace or feature checks. A custom role named owner has no immunity.
+
+Each consuming read resolves its employee from the session's user and immutable
+company/business context inside its existing tenant transaction. It rechecks the
+active employee, current user link, employment dates, dated branch attachment,
+covering live membership, own permission and feature using one sampled Clock.
+Client employee ids never select the subject. A selected branch must belong to the
+session business and the employee's active attachment; it cannot be replaced by
+another allowed branch to bypass a refusal. The branch proving current authority
+does not itself restrict the employee's historical records in the same business.
+No nested transaction or grants on the personal principal are introduced.
+
+FR-A01…FR-A04 use `@Authenticated()`, `STAFF_ROUTE = 'staff'`,
+`PERSONAL_ROUTE = 'staff'` and `@PrivateViewRoute()`: Authorization selects the
+staff/operator path and otherwise the personal path, with no admin fallback.
+The delivered 57-1b/57-1c window policy is unchanged: personal reads need no window,
+dead staff sessions answer 401 before the window check, and a missing or expired
+window answers 403 `PRIVATE_VIEW_EXPIRED`. Own leave stays outside the window policy.
+Responses are `no-store`; no private data is persisted or synced by the client.
 
 ## Addendum 2026-10-22 — own web-push subscription (spec 063, ADR-0052, sub-PR 28b-1)
 

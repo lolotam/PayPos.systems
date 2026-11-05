@@ -1,6 +1,10 @@
 import { t, type Locale, type MessageKey } from './catalog.js';
 
 const keys: Readonly<Record<string, MessageKey>> = {
+  'read:service-sessions:own': 'permissionCodes.readServiceSessionsOwn',
+  'read:commissions:own': 'permissionCodes.readCommissionsOwn',
+  'read:attendance:own': 'permissionCodes.readAttendanceOwn',
+  'read:ratings:own': 'permissionCodes.readRatingsOwn',
   'record:service-sessions:branch': 'permissionCodes.recordServiceSessionsBranch',
   'read:service-sessions:branch': 'permissionCodes.readServiceSessionsBranch',
   'edit:service-line-prices:branch': 'permissionCodes.editServiceLinePricesBranch',

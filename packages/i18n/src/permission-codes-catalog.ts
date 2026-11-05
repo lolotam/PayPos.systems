@@ -1,4 +1,8 @@
 export const permissionCodesEn = {
+  readServiceSessionsOwn: 'Read my service sessions',
+  readCommissionsOwn: 'Read my commissions',
+  readAttendanceOwn: 'Read my attendance',
+  readRatingsOwn: 'Read my rating average',
   recordServiceSessionsBranch: 'Record branch service sessions',
   readServiceSessionsBranch: 'Read branch service sessions',
   editServiceLinePricesBranch: 'Edit session price/discount',
@@ -54,6 +58,10 @@ export const permissionCodesEn = {
   manageServiceCategoriesBranch: 'Manage branch service categories',
 };
 export const permissionCodesAr: Record<keyof typeof permissionCodesEn, string> = {
+  readServiceSessionsOwn: 'قراءة جلسات خدماتي',
+  readCommissionsOwn: 'قراءة عمولاتي',
+  readAttendanceOwn: 'قراءة حضوري',
+  readRatingsOwn: 'قراءة متوسط تقييمي',
   recordServiceSessionsBranch: 'تسجيل جلسات خدمات الفرع',
   readServiceSessionsBranch: 'قراءة جلسات خدمات الفرع',
   editServiceLinePricesBranch: 'تعديل سعر/خصم جلسة',
