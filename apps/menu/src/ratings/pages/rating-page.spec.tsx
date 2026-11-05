@@ -18,10 +18,14 @@ function pendingResponse() {
   let resolve: (response: Response) => void = () => {
     throw new Error('Response not pending');
   };
-  const promise = new Promise<Response>((complete) => {
+  let reject: (reason: Error) => void = () => {
+    throw new Error('Response not pending');
+  };
+  const promise = new Promise<Response>((complete, fail) => {
     resolve = complete;
+    reject = fail;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 beforeEach(() => {
@@ -29,6 +33,42 @@ beforeEach(() => {
   window.history.replaceState(null, '', '/#test-link');
   vi.stubEnv('NEXT_PUBLIC_API_URL', 'https://api.example.test');
 });
+
+it.each(['http', 'network'])(
+  'keeps an expired link closed after a later %s failure',
+  async (failure) => {
+    const { transport } = api();
+    render(<RatingPage />);
+    await screen.findByRole('heading');
+    transport.mockImplementationOnce(async () =>
+      Response.json({ code: 'RATING_LINK_UNAVAILABLE' }, { status: 404 }),
+    );
+    await act(async () => focusManager.setFocused(true));
+    expect(await screen.findByText(t('ar', 'publicRating.unavailable'))).toBeDefined();
+    act(() => focusManager.setFocused(false));
+    const lateFailure = pendingResponse();
+    transport.mockImplementationOnce(() => lateFailure.promise);
+    act(() => focusManager.setFocused(true));
+    await waitFor(() => expect(transport).toHaveBeenCalledTimes(3));
+    await act(async () => {
+      if (failure === 'http')
+        lateFailure.resolve(Response.json({ code: 'NOT_READY' }, { status: 503 }));
+      else lateFailure.reject(new TypeError('PRIVATE_NETWORK_DETAIL'));
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'English' }));
+    expect(screen.getByRole('alert').textContent).toBe(t('en', 'publicRating.unavailable'));
+    expect(screen.queryByRole('heading')).toBeNull();
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(screen.queryByRole('button', { name: t('en', 'publicRating.optOut') })).toBeNull();
+    window.history.replaceState(null, '', '/#fresh-link');
+    fireEvent(window, new HashChangeEvent('hashchange'));
+    expect(await screen.findByRole('heading')).toHaveProperty(
+      'textContent',
+      t('en', 'publicRating.title') + ' Test Salon',
+    );
+    expect(screen.getAllByRole('radio')).toHaveLength(5);
+  },
+);
 
 it.each(['', ' \t\n '])(
   'submits stars with a blank optional comment omitted: %j',

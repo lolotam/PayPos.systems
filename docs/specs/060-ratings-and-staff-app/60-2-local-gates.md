@@ -103,7 +103,7 @@ API public-route CORS changes are now authorized. AUTH_TRUSTED_ORIGINS, Traefik,
 server, DNS and Dokploy settings remain unchanged. No migration, local E2E,
 deployment or merge is part of this slice. Only the explicitly authorized
 `.env.example` template was read/edited; no real environment file was opened.
-External correction rounds used: 3/5.
+External correction rounds used: 4/5.
 
 ## Connection verification — 2026-11-05
 
@@ -277,3 +277,42 @@ lint:docs passed with 0 errors / 29 existing warnings; module-map:check and
 git diff --check passed. The index row, date, source-answer link, reciprocal
 references and MD022 blank line were checked against the files. docs-guard
 passed; clean-code-guard/test-guard found no new production/test-code changes.
+
+## Correction round 4 — 2026-11-05
+
+The manager authorized one consolidated correction at 17:05 Kuwait after partial
+panel receipt `5785663004` on `cb02b81509c729ef7d37886b09514e5a2b1c6b2b`.
+The review-timeout decision is pending with Waleed as PP-128; the missing real-file
+batch is not waived or repaired by this push.
+
+Codex CLI fallback receipt [6659026830](https://github.com/lolotam/PayPos.systems/pull/847#issuecomment-6659026830)
+found a real P2: after a successful view, a 404 unavailable read could be replaced
+by a later 503/network error while old cached content survived. Before the fix,
+both new UI regressions failed because the page displayed that cached content.
+The view hook now latches a confirmed RATING_LINK_UNAVAILABLE for the lifetime of
+the keyed link session. Later reads, errors and language changes cannot reopen
+that session. Navigating to another link creates a new session and resets the latch.
+Only view confirmation latches: a conflicting submit still reconciles to submitted
+and permits opt-out, as the existing multi-tab regression verifies.
+
+The parameterized UI regression exercises actual mocked GET sequences
+200 → 404 → 503 and 200 → 404 → rejected network request. It checks the unavailable
+message after the last response and a language change, absent business heading,
+star form and opt-out, then a working fresh-link form after navigation.
+
+Hamza's generated-schema placement finding is tracked in
+[issue #849](https://github.com/lolotam/PayPos.systems/issues/849), as the manager
+directed. No generator or file relocation was made. Menu, admin and POS committed
+schemas share blob `fb7e2c99972ace46311e78a5b3676708da01188c`; all are generated
+OpenAPI declarations without runtime business logic and have freshness checks.
+The follow-up covers a consistent three-app placement decision or an explicit
+generated-declaration exception in architecture §6.4, through the owner route.
+
+Local gates: menu typecheck/api:check, lint and 21/21 tests (19 UI plus security
+headers and standalone packaging) passed; lint:docs 0 errors / 29 existing warnings.
+module-map:check, formatting and git diff --check passed.
+clean-code-guard, test-guard and docs-guard checked the latch lifetime, preserved
+submission reconciliation, privacy assertions, network-boundary mocks and source
+claims. No API/contract/generated-schema changes or new library were introduced.
+No real environment-file read, local E2E, server change, deployment or merge.
+Exact-head review receipts and complete panel coverage remain required after push.
