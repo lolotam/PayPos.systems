@@ -10,6 +10,8 @@ export function packagePreviewWorkbook(
     read: async (key) => {
       const bytes = await readBytes(key, PACKAGE_IMPORT_BOUNDS.maxBytes + 1);
       if (bytes === null) throw new PackageImportError('IMPORT_FILE_NOT_FOUND');
+      if (bytes.byteLength > PACKAGE_IMPORT_BOUNDS.maxBytes)
+        throw new PackageImportError('IMPORT_FILE_SIZE_INVALID');
       let matrix;
       try {
         matrix = await readWorkbookMatrix(bytes, PACKAGE_IMPORT_BOUNDS);

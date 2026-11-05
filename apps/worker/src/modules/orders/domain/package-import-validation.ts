@@ -1,6 +1,7 @@
 import { cellText, type ImportCell } from './package-import-cells.ts';
 import {
   parsePackageImportRow,
+  indexPackageImportServices,
   type PackageImportService,
   type ParsedPackageImportRow,
   type PackageImportRowError,
@@ -35,6 +36,7 @@ export function parsePackageImportSheet(
   const errors: PackageImportRowError[] = [];
   const skipped: PackageImportValidation['skipped'][number][] = [];
   const existing = new Set(existingRefs);
+  const serviceIndex = indexPackageImportServices(services);
   for (const source of sheet) {
     const ref = cellText(source.cells[5] ?? null);
     if (ref !== null && (counts.get(ref) ?? 0) > 1) {
@@ -49,7 +51,7 @@ export function parsePackageImportSheet(
       skipped.push({ row: source.row, external_ref: ref });
       continue;
     }
-    const parsed = parsePackageImportRow(source.row, source.cells, services);
+    const parsed = parsePackageImportRow(source.row, source.cells, serviceIndex);
     errors.push(...parsed.errors);
     if (parsed.value !== null) rows.push(parsed.value);
   }

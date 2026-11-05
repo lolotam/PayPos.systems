@@ -34,7 +34,7 @@ async function pending(
     userId: row.created_by,
     fileId: row.file_id,
     expiresAt: new Date(row.expires_at).toISOString(),
-    file: await documentFileFacts(tx, companyId, row.file_id),
+    file: await documentFileFacts(tx, companyId, row.file_id, lock ? 'share' : undefined),
   };
 }
 
@@ -54,7 +54,10 @@ function scope(
       const rows = await tx.execute<{
         external_ref: string;
       }>(sql`SELECT external_ref FROM package_entitlements
-        WHERE company_id=${companyId} AND external_ref=ANY(ARRAY[${sql.join(refs.map((ref) => sql`${ref}`), sql`, `)}]::text[])`);
+        WHERE company_id=${companyId} AND external_ref=ANY(ARRAY[${sql.join(
+          refs.map((ref) => sql`${ref}`),
+          sql`, `,
+        )}]::text[])`);
       return rows.map((row) => row.external_ref);
     },
     findByPhones: (phones) => readPackageImportCustomers(tx, companyId, phones),

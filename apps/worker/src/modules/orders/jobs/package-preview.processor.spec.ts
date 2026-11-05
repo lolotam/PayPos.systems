@@ -79,13 +79,14 @@ it('keeps failure persistence durable across a database outage and processor res
   const useCase = { execute, fail } as unknown as ExecutePackagePreview;
   let processor = startPackagePreviewProcessor(useCase, redisUrl, prefix);
   const queue = new Queue(PACKAGE_PREVIEW_QUEUE, { connection: { url: redisUrl }, prefix });
+  const previewId = ids.newId();
   const event: ClaimedEvent = {
     id: ids.newId(),
     companyId: ids.newId(),
     aggregateType: 'import_preview',
-    aggregateId: ids.newId(),
+    aggregateId: previewId,
     eventType: 'PackageImportPreviewRequested',
-    payload: { preview_id: ids.newId() },
+    payload: { preview_id: previewId },
     attempt: 1,
   };
   try {
@@ -118,3 +119,45 @@ it('keeps failure persistence durable across a database outage and processor res
     await queue.close();
   }
 }, 30000);
+
+it.each(['malformed-payload', 'mismatched-preview'])(
+  'parks %s without scheduling a preview job',
+  async (scenario) => {
+    const ids = systemUuidV7();
+    const redisUrl =
+      process.env['REDIS_URL'] ||
+      `redis://:${process.env['REDIS_PASSWORD'] || 'pospay_dev_redis'}@127.0.0.1:6379`;
+    const prefix = `package-invalid-event-test-${ids.newId()}`;
+    const processor = startPackagePreviewProcessor(
+      {
+        execute: async () => undefined,
+        fail: async () => undefined,
+      } as unknown as ExecutePackagePreview,
+      redisUrl,
+      prefix,
+    );
+    const queue = new Queue(PACKAGE_PREVIEW_QUEUE, { connection: { url: redisUrl }, prefix });
+    const event: ClaimedEvent = {
+      id: ids.newId(),
+      companyId: ids.newId(),
+      aggregateType: 'import_preview',
+      aggregateId: ids.newId(),
+      eventType: 'PackageImportPreviewRequested',
+      payload: scenario === 'malformed-payload' ? null : { preview_id: ids.newId() },
+      attempt: 1,
+    };
+    try {
+      await processor.ready();
+      expect(await processor.deliver(event)).toEqual({
+        delivered: false,
+        error: 'PACKAGE_PREVIEW_EVENT_INVALID',
+        retryInMs: null,
+      });
+      expect(await queue.getJob(event.id)).toBeUndefined();
+    } finally {
+      await processor.close();
+      await queue.obliterate({ force: true });
+      await queue.close();
+    }
+  },
+);

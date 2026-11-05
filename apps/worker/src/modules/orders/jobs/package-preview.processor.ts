@@ -1,6 +1,6 @@
 import { Queue, Worker, DelayedError, type Job } from 'bullmq';
 import { Redis } from 'ioredis';
-import { packageImportPreviewJob } from '@pospay/contracts';
+import { packageImportPreviewJob, packageImportPreviewRequested } from '@pospay/contracts';
 import type { ClaimedEvent, DeliveryOutcome } from '@pospay/db';
 import type { ExecutePackagePreview } from '../use-cases/execute-package-preview/execute-package-preview.ts';
 
@@ -61,12 +61,19 @@ export function startPackagePreviewProcessor(
   worker.on('error', () => undefined);
   return {
     deliver: async (event: ClaimedEvent): Promise<DeliveryOutcome> => {
+      const data = packageImportPreviewJob.safeParse({
+        companyId: event.companyId,
+        previewId: event.aggregateId,
+      });
+      const payload = packageImportPreviewRequested.safeParse(event.payload);
+      if (
+        !data.success ||
+        !payload.success ||
+        payload.data.preview_id.toLowerCase() !== data.data.previewId.toLowerCase()
+      )
+        return { delivered: false, error: 'PACKAGE_PREVIEW_EVENT_INVALID', retryInMs: null };
       try {
-        const data = packageImportPreviewJob.parse({
-          companyId: event.companyId,
-          previewId: (event.payload as { preview_id?: string }).preview_id,
-        });
-        await queue.add('preview', data, {
+        await queue.add('preview', data.data, {
           jobId: event.id,
           attempts: 3,
           backoff: { type: 'exponential', delay: 2000 },

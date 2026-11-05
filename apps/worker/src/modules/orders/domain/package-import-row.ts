@@ -25,6 +25,31 @@ export interface PackageImportService {
   readonly price: string;
 }
 
+/** فهرس أسماء الخدمات بعد التطبيع؛ تكرار نفس الهوية لا يصنع غموضاً. */
+export type PackageImportServiceIndex = ReadonlyMap<string, readonly PackageImportService[]>;
+
+/**
+ * يبني فهرساً واحداً للمعاينة مع حفظ آخر سجل مطابق لكل هوية كما في المطابقة الأصلية.
+ *
+ * @param services خدمات النشاط المتاحة
+ * @returns فهرس الأسماء المطبعة مع إزالة تكرار الهوية لكل اسم
+ */
+export function indexPackageImportServices(
+  services: readonly PackageImportService[],
+): PackageImportServiceIndex {
+  const names = new Map<string, Map<string, PackageImportService>>();
+  for (const service of services) {
+    for (const label of [service.name_en, service.name_ar]) {
+      if (label === null) continue;
+      const name = label.trim().toLowerCase();
+      const matches = names.get(name) ?? new Map<string, PackageImportService>();
+      matches.set(service.id, service);
+      names.set(name, matches);
+    }
+  }
+  return new Map([...names].map(([name, matches]) => [name, [...matches.values()]]));
+}
+
 /** خطأ آمن بلا قيمة الخلية أو رقم الهاتف الكامل. */
 export interface PackageImportRowError {
   readonly row: number;
@@ -68,7 +93,7 @@ export type PackageImportRowResult =
 export function parsePackageImportRow(
   row: number,
   cells: readonly ImportCell[],
-  services: readonly PackageImportService[],
+  services: PackageImportServiceIndex,
 ): PackageImportRowResult {
   const errors: PackageImportRowError[] = [];
   const issue = (column: string, code: string) => errors.push({ row, column, code });
@@ -81,13 +106,7 @@ export function parsePackageImportRow(
   const nameAr = text(2);
   if (nameEn === null || !validName(nameEn)) issue('name_en', 'IMPORT_NAME_INVALID');
   if (nameAr !== null && !validName(nameAr)) issue('name_ar', 'IMPORT_NAME_INVALID');
-  let price = 0n;
-  try {
-    price = parseMoney(text(3) ?? '');
-    if (price < 0n) issue('price_paid', 'INVALID_PRICE');
-  } catch {
-    issue('price_paid', 'INVALID_PRICE');
-  }
+  const price = readPrice(cells[3] ?? null, issue);
   const expiresOn = cellDate(cells[4] ?? null);
   if (expiresOn === null) issue('expires_on', 'IMPORT_DATE_INVALID');
   const externalRef = text(5);
@@ -126,9 +145,20 @@ export function parsePackageImportRow(
   };
 }
 
+function readPrice(cell: ImportCell, issue: (column: string, code: string) => void): bigint {
+  try {
+    const price = parseMoney(cellText(cell) ?? '');
+    if (price >= 0n) return price;
+  } catch {
+    // رفض الصيغة والسعر السالب لهما خطأ واحد على عمود السعر؛ مكونات الصف تُفحص بشكل مستقل.
+  }
+  issue('price_paid', 'INVALID_PRICE');
+  return 0n;
+}
+
 function readComponents(
   cells: readonly ImportCell[],
-  services: readonly PackageImportService[],
+  services: PackageImportServiceIndex,
   issue: (column: string, code: string) => void,
 ) {
   const components: {
@@ -151,10 +181,7 @@ function readComponents(
       continue;
     }
     const name = values[0]?.toLowerCase();
-    const matches = services.filter((service) =>
-      [service.name_en, service.name_ar].some((label) => label?.trim().toLowerCase() === name),
-    );
-    const unique = [...new Map(matches.map((service) => [service.id, service])).values()];
+    const unique = services.get(name ?? '') ?? [];
     const service = unique[0];
     if (unique.length > 1) {
       issue(column, 'IMPORT_SERVICE_AMBIGUOUS');
@@ -199,8 +226,11 @@ function checkCells(cells: readonly ImportCell[], issue: (column: string, code: 
 }
 
 function validName(name: string): boolean {
-  return name.length <= 255 && ![...name].some((character) => {
-    const code = character.charCodeAt(0);
-    return code <= 31 || (code >= 127 && code <= 159);
-  });
+  return (
+    name.length <= 255 &&
+    ![...name].some((character) => {
+      const code = character.charCodeAt(0);
+      return code <= 31 || (code >= 127 && code <= 159);
+    })
+  );
 }

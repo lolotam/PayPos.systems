@@ -16,6 +16,7 @@ import '../modules/staff/index.ts';
 // موديل العملاء بره الاختبارات: هو أتقل رسم بياني في الإقلاع، وتحميله البارد كان بيقع
 // جوّه الاختبار فياكل مهلة العزل، والاختبار اللي بعده بيلاقي بدء تشغيل شغّال معاه.
 import '../modules/customers/index.ts';
+import '../modules/orders/index.ts';
 
 const resources = vi.hoisted(() => ({
   database: { close: vi.fn(async () => undefined), ping: vi.fn(), withTenant: vi.fn() },
@@ -31,6 +32,7 @@ const resources = vi.hoisted(() => ({
   otpOptions: vi.fn(),
   bullmq: { constructed: [] as { kind: string; name: string }[] },
   redis: { set: vi.fn(), del: vi.fn(), get: vi.fn(), evalsha: vi.fn() },
+  previews: { ready: vi.fn(async () => undefined), close: vi.fn(async () => undefined) },
   ratingClaims: undefined as Customers.RatingClaimsLifecycle | undefined,
   deliverer: vi.fn(),
   maintenance: vi.fn((options: { databaseUrl: string }) => {
@@ -50,7 +52,10 @@ vi.mock('@pospay/auth', () => ({
 }));
 vi.mock('@pospay/observability', () => ({ createLogger: () => resources.logger }));
 vi.mock('ioredis', () => ({
-  Redis: class {
+  Redis: class Redis {
+    duplicate() {
+      return new Redis();
+    }
     on() {}
     quit = vi.fn();
     disconnect = vi.fn();
@@ -71,6 +76,13 @@ vi.mock('bullmq', async (original) => {
     (kind: string) =>
     (target: unknown, args: unknown[]): object => {
       resources.bullmq.constructed.push({ kind, name: String(args[0]) });
+      // حدود Redis/BullMQ فقط معزولة هنا؛ جاهزية المعاينة تظل ضمن فحوص العامل الفعلية.
+      if (args[0] === 'package-import-preview')
+        return {
+          on: vi.fn(),
+          waitUntilReady: resources.previews.ready,
+          close: resources.previews.close,
+        };
       return Reflect.construct(target as new (...rest: unknown[]) => object, args);
     };
   return {
@@ -168,6 +180,7 @@ beforeEach(() => {
   resources.execution.readiness.mockResolvedValue(undefined);
   resources.execution.close.mockResolvedValue(undefined);
   resources.otp.close.mockResolvedValue(undefined);
+  resources.previews.ready.mockResolvedValue(undefined);
 });
 afterEach(async () => {
   await resources.workerOptions.mock.calls.at(-1)?.[0]?.release?.();
@@ -185,6 +198,26 @@ async function ordinaryReadiness() {
     await app.close();
   }
 }
+
+it('package preview readiness remains required alongside optional OTP isolation', async () => {
+  await import('../main.ts');
+  resources.previews.ready.mockRejectedValueOnce(new Error('SYNTHETIC_PREVIEW_UNAVAILABLE'));
+  const options = resources.workerOptions.mock.calls.at(-1)?.[0];
+  const app = Fastify();
+  app.get('/ready', (_request, reply) => new HealthController(options.readiness).ready(reply));
+  try {
+    const response = await app.inject('/ready');
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toMatchObject({
+      code: 'NOT_READY',
+      details: {
+        checks: { 'package-previews': 'down', database: 'up', dispatcher: 'up', redis: 'up' },
+      },
+    });
+  } finally {
+    await app.close();
+  }
+});
 
 it('hung optional intake readiness and cleanup cannot prevent worker /ready 200', async () => {
   resources.global.ping.mockResolvedValue(undefined);
@@ -234,6 +267,7 @@ it('invalid email identity settings disable email alone without affecting ordina
   const options = resources.workerOptions.mock.calls.at(-1)?.[0];
   expect(options.readiness.map((check: { name: string }) => check.name)).toEqual([
     'database',
+    'package-previews',
     'dispatcher',
     'redis',
   ]);

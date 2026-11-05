@@ -32,7 +32,11 @@ export async function documentFileFacts(
   tx: Tx,
   companyId: string,
   fileId: string,
+  lock?: 'share',
 ): Promise<DocumentFileFacts | null> {
-  const [row] = await tx.execute<DocumentFileFacts>(documentFileStatement(companyId, fileId));
+  // قفل SHARE يمنع حجز الحذف (FOR UPDATE SKIP LOCKED) وتغيير purge_started_at لحد تثبيت النتيجة.
+  const [row] = await tx.execute<DocumentFileFacts>(
+    sql`${documentFileStatement(companyId, fileId)} ${lock === 'share' ? sql`FOR SHARE` : sql``}`,
+  );
   return row ?? null;
 }

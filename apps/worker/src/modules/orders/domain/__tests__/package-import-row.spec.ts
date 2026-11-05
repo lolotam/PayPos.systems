@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { parsePackageImportRow } from '../package-import-row.ts';
+import { parsePackageImportRow, indexPackageImportServices } from '../package-import-row.ts';
 import { allocatePackagePrice } from '@pospay/domain';
 import { createPackageSlots } from '@pospay/domain';
 
@@ -23,7 +23,7 @@ const cells = [
 ] as const;
 
 it('accepts expired packages and preserves the last-session remainder across components', () => {
-  const result = parsePackageImportRow(7, cells, services);
+  const result = parsePackageImportRow(7, cells, indexPackageImportServices(services));
   expect(result.errors).toEqual([]);
   expect(result.value?.expires_on).toBe('2020-01-01');
   expect(
@@ -53,16 +53,20 @@ it.each([
 ])('rejects invalid column %s without exposing its value', (column, value, code) => {
   const input = [...cells] as (string | number | null)[];
   input[Number(column)] = value;
-  const result = parsePackageImportRow(2, input, services);
+  const result = parsePackageImportRow(2, input, indexPackageImportServices(services));
   expect(result.value).toBeNull();
   expect(result.errors).toContainEqual(expect.objectContaining({ row: 2, code }));
   expect(JSON.stringify(result.errors)).not.toContain(cells[0]);
 });
 it('rejects ambiguous bilingual service names', () => {
-  const result = parsePackageImportRow(2, cells, [
-    ...services,
-    { id: 'c', name_en: 'Other', name_ar: 'HAIR', price: '0.000' },
-  ]);
+  const result = parsePackageImportRow(
+    2,
+    cells,
+    indexPackageImportServices([
+      ...services,
+      { id: 'c', name_en: 'Other', name_ar: 'HAIR', price: '0.000' },
+    ]),
+  );
   expect(result.errors).toContainEqual({
     row: 2,
     column: 'service_1',
@@ -86,4 +90,13 @@ it('conserves every fils with zero and small amounts and uneven component counts
     expect(slots.slice(0, -1).every((slot) => slot.unitValue === price / 10n)).toBe(true);
     expect(slots.at(-1)?.unitValue).toBe(price / 10n + (price % 10n));
   }
+});
+
+it('reports a negative price once on its source column without a duplicate component error', () => {
+  const input = [...cells] as (string | number | null)[];
+  input[3] = '-1.000';
+  expect(parsePackageImportRow(2, input, indexPackageImportServices(services))).toEqual({
+    value: null,
+    errors: [{ row: 2, column: 'price_paid', code: 'INVALID_PRICE' }],
+  });
 });

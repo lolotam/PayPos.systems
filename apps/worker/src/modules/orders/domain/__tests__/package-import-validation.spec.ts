@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { parsePackageImportSheet, resolvePackageImportRows } from '../package-import-validation.ts';
-import { parsePackageImportRow } from '../package-import-row.ts';
+import { parsePackageImportRow, indexPackageImportServices } from '../package-import-row.ts';
 import { packageImportStorageKey, packagePreviewExpiresAt } from '../package-import.ts';
 
 const row = [
@@ -52,7 +52,7 @@ it('stores compact allocation for the maximum component and session counts', () 
     price: '1.000',
   }));
   const cells = [...row.slice(0, 6), ...services.flatMap((service) => [service.name_en, 365, 365])];
-  const result = parsePackageImportRow(2, cells, services);
+  const result = parsePackageImportRow(2, cells, indexPackageImportServices(services));
   expect(result.errors).toEqual([]);
   expect(result.value?.components).toHaveLength(20);
   expect(JSON.stringify(result.value).length).toBeLessThan(6000);
@@ -77,4 +77,37 @@ it('validates file ownership, purge state, readiness, type and size before stora
   expect(packagePreviewExpiresAt(new Date('2026-11-05T10:00:00Z'))).toBe(
     '2026-11-06T10:00:00.000Z',
   );
+});
+
+it('preserves normalized bilingual matching, duplicate identity precedence, ambiguity and missing names', () => {
+  const services = [
+    { id: 'a', name_en: ' Hair ', name_ar: 'HAIR', price: '99.000' },
+    { id: 'a', name_en: 'hair', name_ar: 'شعر', price: '3.000' },
+    { id: 'b', name_en: 'Nails', name_ar: null, price: '1.000' },
+    { id: 'c', name_en: 'Shared', name_ar: null, price: '1.000' },
+    { id: 'd', name_en: 'Other', name_ar: ' SHARED ', price: '1.000' },
+  ];
+  const labels = [' hAiR ', 'شعر', 'NAILS', 'shared', 'missing'];
+  const parsed = parsePackageImportSheet(
+    labels.map((label, index) => ({
+      row: index + 2,
+      cells: [...row.slice(0, 5), `matching-${index}`, label, 1, 0],
+    })),
+    services,
+  );
+  expect(
+    parsed.rows.map((source) => [
+      source.row,
+      source.components[0]?.service_id,
+      source.components[0]?.list_price_snapshot,
+    ]),
+  ).toEqual([
+    [2, 'a', '3.000'],
+    [3, 'a', '3.000'],
+    [4, 'b', '1.000'],
+  ]);
+  expect(parsed.errors.filter((error) => error.column === 'service_1')).toEqual([
+    { row: 5, column: 'service_1', code: 'IMPORT_SERVICE_AMBIGUOUS' },
+    { row: 6, column: 'service_1', code: 'IMPORT_SERVICE_NOT_FOUND' },
+  ]);
 });

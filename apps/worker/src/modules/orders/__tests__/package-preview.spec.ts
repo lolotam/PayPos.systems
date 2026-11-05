@@ -254,3 +254,35 @@ it('rejects inconsistent ready metadata but permits multiple issues on one bad i
     (await f.owner`SELECT status,error_count FROM import_previews WHERE id=${id}`)[0],
   ).toMatchObject({ status: 'ready', error_count: 2 });
 });
+
+it('holds the source file against concurrent purge until the ready result commits', async () => {
+  const { id, file } = await f.requested(await packageWorkbook(1, 2, 'file-lock'));
+  const transactions = packagePreviewTransactions(f.database);
+  const worker = new ExecutePackagePreview(
+    {
+      ...transactions,
+      finish: (company, preview, work) =>
+        transactions.finish(company, preview, async (scope) => {
+          await expect(
+            f.owner.begin(async (tx) => {
+              await tx`SET LOCAL lock_timeout='100ms'`;
+              await tx`UPDATE file_objects SET purge_started_at=now() WHERE id=${file}`;
+            }),
+          ).rejects.toMatchObject({ code: '55P03' });
+          return work(scope);
+        }),
+    },
+    packagePreviewWorkbook(f.readBytes),
+    f.clock,
+  );
+  await worker.execute(f.company, id);
+  expect((await f.owner`SELECT status FROM import_previews WHERE id=${id}`)[0]?.['status']).toBe(
+    'ready',
+  );
+  await f.owner`UPDATE file_objects SET purge_started_at=now() WHERE id=${file}`;
+  expect(
+    (await f.owner`SELECT purge_started_at FROM file_objects WHERE id=${file}`)[0]?.[
+      'purge_started_at'
+    ],
+  ).not.toBeNull();
+});

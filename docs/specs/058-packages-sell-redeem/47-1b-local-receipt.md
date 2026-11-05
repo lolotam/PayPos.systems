@@ -109,3 +109,70 @@ tests or read any environment file.
 
 Post-generation staff reader/import/RLS and default package-money regression rerun:
 **113 passed / 7 files**, using the actual 0212 migration.
+
+## External correction round 1 of 3 — prepared locally
+
+Manager assigned Waleed_Bot threads r4486405004, r4486405021 and r4486405031.
+No push is authorized until the remaining panel receipts complete on cb94b9de
+and the manager explicitly releases the consolidated batch.
+
+Payload validation now precedes the Redis catch. Invalid payloads/identities return
+`{ delivered: false, error: 'PACKAGE_PREVIEW_EVENT_INVALID', retryInMs: null }`.
+This is the existing dispatcher's terminal parked outcome (dispatcher.ts records
+parked_at for a null retry delay), not an acknowledgement or transient Redis retry.
+The transport validates companyId and aggregateId, takes previewId from aggregateId,
+and rejects a different payload preview_id. UUID case differences are equivalent.
+No preview rows are modified by the malformed-event path.
+
+The workbook adapter rejects storage bytes above maxBytes with
+IMPORT_FILE_SIZE_INVALID before invoking the shared XLSX parser. One added test
+covers each finding: null payload, mismatched preview identity, and oversized
+invalid XLSX bytes. The existing restart fixture now uses matching aggregate and
+payload IDs, preserving its original durability assertions.
+
+Private-cluster selected worker integration/transport/workbook tests: **15 passed
+across 3 files**. Worker typecheck and lint/boundaries passed. An initial test-only
+TypeScript assertion needed the same unknown bridge as the existing transport
+fixtures; corrected before the successful checks. Migration 0212 and its SHA256
+are unchanged. The three guards were applied to this correction diff.
+### Consolidated round 1 additions and release
+
+The manager confirmed all panel bots completed on cb94b9de and authorized the
+single consolidated correction push. Duplicate findings are covered together:
+file locking r4486469744/r4486474728/r4486507071; service indexing
+r4486469752/r4486474718/r4486507079; negative price r4486469760.
+
+Finalization now requests FOR SHARE on the scoped file-facts query in the same
+withTenant transaction that locks the pending preview and writes ready. The initial
+load remains unlocked. Files retention claims use FOR UPDATE SKIP LOCKED, which
+conflicts with SHARE, and purge_started_at updates cannot pass the held file lock.
+A deterministic real-Postgres test attempts a concurrent purge with a local 100ms
+lock timeout after the final file check: it gets 55P03, ready commits, and the purge
+then succeeds after lock release. Existing changed-file-before-check coverage remains.
+
+Service matching now builds a normalized bilingual name Map once per sheet. Each
+name retains distinct service IDs with the same last-matching-record precedence
+as before. Rows/components use direct lookups. The matching regression covers
+trim/case, Arabic, two labels for one identity, duplicate identity precedence,
+missing names and ambiguity across distinct identities. Negative prices emit one
+price_paid INVALID_PRICE; component validation uses a neutral price and remains
+independent. The new exact-error regression prevents duplicated price errors.
+
+The OTP startup Redis fake supports duplicate(); only package-preview BullMQ network
+objects are isolated, while other real-constructor probes remain intact. The shared
+readiness assertions retain database/dispatcher/redis and now explicitly include
+package-previews. A new /ready 503 assertion proves preview failure remains blocking.
+The entire otp-startup.spec.ts passed **10 tests** without weakened timeouts/assertions.
+
+After the final price-helper extraction, selected worker integration, transport,
+workbook, pure domain and file reader tests passed **40 tests / 7 files**, including
+500 rows by 20 groups by 365 sessions and the new purge race regression. The earlier
+lint max-function-lines failure was fixed by extracting price validation; no lines
+were squashed and no lint rule or test expectation was weakened. Migration 0212 is
+untouched; SHA256 remains
+`a3c31e294b9a1f83b63f445ec62193a7ff0901cfb6d03787b6f7a170fcbda679`.
+Round 1 final gates passed: typecheck 32 tasks; lint/boundaries 33 tasks; lint:docs
+0 errors / 29 existing warnings; module-map and migration chain. Registry tests: 12
+passed. Selected API request/status/activation: 19 passed, warm median 74.4901 ms.
+Together with 40 scope and 10 startup tests, this round observed 81 passing tests.
+The three guards passed the final correction diff. No review trigger or merge.
