@@ -34,32 +34,52 @@ export function validatePackagePrice(price: Money): Money {
  *
  * @param price سعر الباقة الأصلي أو المدفوع بالفلوس
  * @param components مكونات الباقة بأعداد الجلسات الأصلية
- * @returns لا شيء؛ التعريف غير الصالح بيترفض بخطأ مسمّى
+ * @param onIssue المعاينة تجمع كل الأخطاء عند تمريره؛ بدونه يظل الرفض عند أول خطأ
+ * @returns لا شيء؛ بدون callback يرفض أول خطأ مسمّى، ومعه يبلّغ كل الأخطاء بترتيب القواعد
  */
 export function validatePackageDefinition(
   price: Money,
   components: readonly PackageComponentDefinition[],
+  onIssue?: (
+    error: PackageRuleError,
+    componentIndex: number | null,
+    field: 'price' | 'components' | 'serviceId' | 'sessions' | 'remainingSessions',
+  ) => void,
 ): void {
-  validatePackagePrice(price);
-  if (components.length === 0) throw new PackageRuleError('INVALID_COMPONENTS');
+  const reject = (
+    code: PackageRuleError['code'],
+    index: number | null,
+    field: Parameters<NonNullable<typeof onIssue>>[2],
+  ) => {
+    const error = new PackageRuleError(code);
+    if (onIssue === undefined) throw error;
+    onIssue(error, index, field);
+  };
+  try {
+    validatePackagePrice(price);
+  } catch (error) {
+    if (onIssue === undefined || !(error instanceof PackageRuleError)) throw error;
+    onIssue(error, null, 'price');
+  }
+  if (components.length === 0) reject('INVALID_COMPONENTS', null, 'components');
   const seen = new Set<string>();
-  for (const component of components) {
-    if (component.serviceId.length === 0) throw new PackageRuleError('INVALID_COMPONENTS');
-    if (seen.has(component.serviceId)) throw new PackageRuleError('DUPLICATE_SERVICE');
+  for (const [index, component] of components.entries()) {
+    if (component.serviceId.length === 0) reject('INVALID_COMPONENTS', index, 'serviceId');
+    if (seen.has(component.serviceId)) reject('DUPLICATE_SERVICE', index, 'serviceId');
     seen.add(component.serviceId);
     if (
       !Number.isSafeInteger(component.sessions) ||
       component.sessions < 1 ||
       component.sessions > MAX_PACKAGE_SESSIONS
     ) {
-      throw new PackageRuleError('INVALID_SESSIONS');
+      reject('INVALID_SESSIONS', index, 'sessions');
     }
     const remaining = component.remainingSessions;
     if (
       remaining !== undefined &&
       (!Number.isSafeInteger(remaining) || remaining < 0 || remaining > component.sessions)
     ) {
-      throw new PackageRuleError('INVALID_REMAINING_SESSIONS');
+      reject('INVALID_REMAINING_SESSIONS', index, 'remainingSessions');
     }
   }
 }

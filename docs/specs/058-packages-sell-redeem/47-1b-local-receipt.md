@@ -228,3 +228,33 @@ The first API run overlapped static/registry checks and failed only the unchange
 assertion change passed all 20 tests with median 78.5018 ms. No bound, workload,
 timeout or assertion was reduced. Total final passing scope: 85 tests. The three
 guards passed this correction diff; full suite/API shards remain CI-only.
+
+## External correction round 3 of 3 — final round
+
+The manager confirmed all panel bots and Codex completed on 5309f42b, and authorized
+one consolidated push. r4486867671 is rejected by source evidence, not implemented:
+`customers` has no deleted_at in schema or the 0212 snapshot; spec 010 BR-004 defers
+customer deletion/archive/restoration to its future slice; the company/phone unique
+constraint is unconditional. The requested filter would break the current reader.
+The temporary question was removed completely; there is no new owner question or
+PENDING/TODO(spec) from this finding. The future delete slice owns that behavior.
+Manager decision, verbatim: «موافق على توصيتك. r4486867671 مرفوضة بالدليل: جدول customers مفيهوش عمود deleted_at خالص، وspec 010 BR-004 أجّل الأرشفة والحذف، والـ unique على (company_id, phone) من غير شرط. يعني الملاحظة مالهاش أساس، ومفيش سؤال للمالك هنا. شيل الـ PENDING / TODO(spec) اللي سجلته، علشان مايبقاش فيه سؤال مفتوح ماحدش هيسأله. ولما الحذف الناعم للعملاء يتعمل في شريحته، هي اللي تتعامل مع الحالة دي.»
+
+The only code fix is r4486867665: the existing pure definition validator accepts
+an issue callback for preview collection, retaining the same checks, bounds, order
+and default first-exception behavior for every existing caller. The preview maps
+each issue to its source service/sessions/remaining cell. Component source-group
+metadata is transient and is not serialized into stored candidates. A regression
+combines invalid original/remaining counts and duplicate services across groups,
+including an empty group gap; it requires all six cell errors and separately proves
+default validation still throws the first error. No shared money rule is duplicated.
+The customer reader, migrations, schema and generated APIs remain untouched.
+
+Round 3 final local checks passed: typecheck 32 tasks; lint/boundaries 33 tasks;
+docs lint 0 errors / 29 existing warnings; module-map and migration chain. Worker
+scope/startup/registry: 66 passed across 10 files. Selected API request/status/routes
+and shared package definition/allocation/slots/default regressions: 111 passed across
+7 files. Total: 177 passing tests. Full HTTP warm median: 81.5839 ms against the
+unchanged 200 ms assertion. The three guards passed the complete correction diff.
+No customer lookup or migration change; no new owner question remains. Migration
+0212 SHA256: a3c31e294b9a1f83b63f445ec62193a7ff0901cfb6d03787b6f7a170fcbda679.

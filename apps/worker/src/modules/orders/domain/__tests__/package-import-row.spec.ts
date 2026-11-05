@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { parsePackageImportRow, indexPackageImportServices } from '../package-import-row.ts';
-import { allocatePackagePrice } from '@pospay/domain';
+import { allocatePackagePrice, validatePackageDefinition } from '@pospay/domain';
 import { createPackageSlots } from '@pospay/domain';
 
 const services = [
@@ -98,5 +98,40 @@ it('reports a negative price once on its source column without a duplicate compo
   expect(parsePackageImportRow(2, input, indexPackageImportServices(services))).toEqual({
     value: null,
     errors: [{ row: 2, column: 'price_paid', code: 'INVALID_PRICE' }],
+  });
+});
+
+it('collects every invalid component cell across groups without changing validation rules', () => {
+  expect(() =>
+    validatePackageDefinition(0n, [
+      { serviceId: 'a', sessions: 0, remainingSessions: -1 },
+      { serviceId: 'b', sessions: 366, remainingSessions: 367 },
+    ]),
+  ).toThrow('INVALID_SESSIONS');
+  const input = [
+    ...cells.slice(0, 6),
+    'Hair',
+    0,
+    -1,
+    null,
+    null,
+    null,
+    'Nails',
+    366,
+    367,
+    'Hair',
+    1,
+    2,
+  ];
+  expect(parsePackageImportRow(8, input, indexPackageImportServices(services))).toEqual({
+    value: null,
+    errors: [
+      { row: 8, column: 'sessions_1', code: 'INVALID_SESSIONS' },
+      { row: 8, column: 'remaining_1', code: 'INVALID_REMAINING_SESSIONS' },
+      { row: 8, column: 'sessions_3', code: 'INVALID_SESSIONS' },
+      { row: 8, column: 'remaining_3', code: 'INVALID_REMAINING_SESSIONS' },
+      { row: 8, column: 'service_4', code: 'DUPLICATE_SERVICE' },
+      { row: 8, column: 'remaining_4', code: 'INVALID_REMAINING_SESSIONS' },
+    ],
   });
 });

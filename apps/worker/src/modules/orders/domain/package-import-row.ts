@@ -113,14 +113,16 @@ export function parsePackageImportRow(
   if (externalRef === null || externalRef.length > 100)
     issue('external_ref', 'IMPORT_EXTERNAL_REF_INVALID');
   const components = readComponents(cells, services, issue);
-  try {
-    validatePackageDefinition(price, components);
-  } catch (error) {
-    issue(
-      'components',
-      error instanceof Error && 'code' in error ? String(error.code) : 'INVALID_COMPONENTS',
-    );
-  }
+  validatePackageDefinition(price, components, (error, index, field) => {
+    const group = index === null ? undefined : components[index]?.sourceGroup;
+    const column =
+      field === 'price'
+        ? 'price_paid'
+        : index === null
+          ? 'components'
+          : `${field === 'serviceId' ? 'service' : field === 'sessions' ? 'sessions' : 'remaining'}_${group}`;
+    issue(column, error.code);
+  });
   if (
     errors.length > 0 ||
     phone === null ||
@@ -162,6 +164,7 @@ function readComponents(
   issue: (column: string, code: string) => void,
 ) {
   const components: {
+    sourceGroup: number;
     serviceId: string;
     sessions: number;
     remainingSessions: number;
@@ -194,6 +197,7 @@ function readComponents(
     const integer = (value: string | null | undefined) =>
       value !== null && value !== undefined && /^\d+$/.test(value) ? Number(value) : NaN;
     components.push({
+      sourceGroup: group + 1,
       serviceId: service.id,
       sessions: integer(values[1]),
       remainingSessions: integer(values[2]),
