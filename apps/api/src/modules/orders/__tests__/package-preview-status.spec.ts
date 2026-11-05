@@ -170,3 +170,41 @@ it('preserves cross-tenant write isolation and grants the new trigger function o
       WHERE p.oid='package_import_preview_update_guard()'::regprocedure AND a.grantee=0 AND a.privilege_type='EXECUTE') AS public_grants`;
   expect(privileges).toEqual({ app: true, auth: false, dispatcher: false, public_grants: 0 });
 });
+
+it('freezes failed results and closes deferred financial status transitions', async () => {
+  const { preview_id } = await f.useCase.execute(f.command(await f.upload()));
+  await f.database.withTenant(f.companyId, (tx) =>
+    tx.execute(sql`UPDATE import_previews
+    SET status='failed',error_code='IMPORT_FILE_CONTENT_INVALID' WHERE id=${preview_id}`),
+  );
+  await expect(
+    f.database.withTenant(f.companyId, (tx) =>
+      tx.execute(sql`UPDATE import_previews
+    SET error_code='IMPORT_FILE_UNAVAILABLE' WHERE id=${preview_id}`),
+    ),
+  ).rejects.toMatchObject({ cause: { code: '23514', message: 'IMPORT_PREVIEW_FAILED_IMMUTABLE' } });
+  expect(await packageImportPreviewStatusQuery(f.database, actor(preview_id))).toMatchObject({
+    status: 'failed',
+    error_code: 'IMPORT_FILE_CONTENT_INVALID',
+  });
+  for (const status of ['commit_requested', 'committed']) {
+    const id = f.ids.newId();
+    const fileId = await f.upload();
+    await f.h.owner`INSERT INTO import_previews(company_id,id,business_id,entity,file_id,created_by,
+      created_at,expires_at,status,requested_at,committed_at,row_count,error_count,rows,errors)
+      VALUES (${f.companyId},${id},${f.businessId},'packages',${fileId},${f.userId},now(),
+        now()+interval '1 day',${status},now(),CASE WHEN ${status}='committed' THEN now() ELSE NULL END,0,0,'[]','[]')`;
+    for (const target of ['ready', 'failed']) {
+      await expect(
+        f.database.withTenant(f.companyId, (tx) =>
+          tx.execute(sql`UPDATE import_previews
+        SET status=${target},committed_at=NULL,
+        error_code=CASE WHEN ${target}='failed' THEN 'IMPORT_FILE_UNAVAILABLE' ELSE NULL END
+        WHERE id=${id}`),
+        ),
+      ).rejects.toMatchObject({
+        cause: { code: '23514', message: 'IMPORT_PREVIEW_TRANSITION_INVALID' },
+      });
+    }
+  }
+});

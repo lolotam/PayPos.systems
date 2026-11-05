@@ -9,6 +9,11 @@ export async function readPackageImportAccess(
   tx: Tx,
   actor: { companyId: string; userId: string; businessId: string },
 ): Promise<'FORBIDDEN' | 'FEATURE_DISABLED' | null> {
+  const [company] = await tx.execute(sql`SELECT id FROM companies
+    WHERE id=${actor.companyId} AND deleted_at IS NULL FOR NO KEY UPDATE`);
+  if (company === undefined) return 'FORBIDDEN';
+  await tx.execute(sql`SELECT id FROM memberships
+    WHERE company_id=${actor.companyId} AND user_id=${actor.userId} ORDER BY id FOR UPDATE`);
   const [business] =
     await tx.execute(sql`SELECT b.id FROM businesses b JOIN companies c ON c.id=b.company_id
     WHERE b.company_id=${actor.companyId} AND b.id=${actor.businessId} AND c.deleted_at IS NULL`);

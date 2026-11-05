@@ -24,6 +24,12 @@ BEGIN
     END IF;
   END IF;
   IF OLD.entity='packages' THEN
+    IF OLD.status='failed' AND to_jsonb(NEW) IS DISTINCT FROM to_jsonb(OLD) THEN
+      RAISE EXCEPTION 'IMPORT_PREVIEW_FAILED_IMMUTABLE' USING ERRCODE='23514';
+    END IF;
+    IF OLD.status IN ('commit_requested','committed') AND NEW.status IS DISTINCT FROM OLD.status THEN
+      RAISE EXCEPTION 'IMPORT_PREVIEW_TRANSITION_INVALID' USING ERRCODE='23514';
+    END IF;
     IF (NEW.status='pending' AND OLD.status<>'pending')
       OR (OLD.status='ready' AND NEW.status NOT IN ('ready','commit_requested'))
       OR (OLD.status='failed' AND NEW.status<>'failed') THEN

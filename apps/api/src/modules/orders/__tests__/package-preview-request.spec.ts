@@ -137,3 +137,21 @@ it('keeps warm full acceptance below 200 ms at the maximum file-facts bound', as
   );
   expect(median).toBeLessThan(200);
 });
+
+it('holds company and caller membership write locks through authorization', async () => {
+  await createPackageImportRequestTransactions(f.database, f.ids).run(f, async (scope) => {
+    await scope.authorize();
+    await expect(
+      f.h.owner.begin(async (other) => {
+        await other`SET LOCAL lock_timeout='100ms'`;
+        await other`UPDATE companies SET id=id WHERE id=${f.companyId}`;
+      }),
+    ).rejects.toMatchObject({ code: '55P03' });
+    await expect(
+      f.h.owner.begin(async (other) => {
+        await other`SET LOCAL lock_timeout='100ms'`;
+        await other`UPDATE memberships SET id=id WHERE company_id=${f.companyId} AND user_id=${f.userId}`;
+      }),
+    ).rejects.toMatchObject({ code: '55P03' });
+  });
+});

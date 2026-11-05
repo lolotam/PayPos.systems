@@ -11,6 +11,7 @@ export interface PackagePreviewLookup {
 }
 
 export function packagePreviewStatusStatement(actor: PackagePreviewLookup) {
+  // شاشة استيراد الباقات بتتابع حالة المعاينة من غير عرض الصفوف أو بيانات الملف.
   return sql`SELECT jsonb_build_object('preview_id',id,'status',status) ||
     CASE status WHEN 'ready' THEN jsonb_build_object('row_count',row_count,'error_count',error_count,
       'skipped_count',skipped_count,'errors',errors)
