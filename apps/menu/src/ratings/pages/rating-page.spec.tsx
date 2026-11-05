@@ -228,7 +228,7 @@ it.each(['open', 'submitted'])(
 );
 
 it('ignores completion of an old link after navigation to a new link', async () => {
-  // اختبار رجوع: عملية تغيير قديمة لا يجوز أن تضع رابطًا مختلفًا في حالة الإرسال المكتمل.
+  // اختبار انحدار: عملية تغيير قديمة لا يجوز أن تضع رابطًا مختلفًا في حالة الإرسال المكتمل.
   let finishOld: (response: Response) => void = () => {
     throw new Error('No pending submission');
   };
