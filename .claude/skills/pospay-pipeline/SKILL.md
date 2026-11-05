@@ -532,7 +532,7 @@ pins the PosPay rules on top of it.
 
 ## 5. Database work
 
-- **MiniMax writes** migrations, schema, RLS policies, grants and seed with the rest of the slice. The database reviewer
+- **The slice's implementer writes** migrations, schema, RLS policies, grants and seed with the rest of the slice (Codex `gpt-6.1-sol` under PP-125, MiniMax as first fallback). The database reviewer
   (Astra, effort `high`, read-only through built-in delegation) covers every PR that touches `packages/db/**` in the single internal review, against this list:
   - every tenant table has `company_id`, primary key `(company_id, id)`, `ENABLE` + `FORCE ROW LEVEL SECURITY`, a
     policy, and a negative isolation test in the same PR (`CLAUDE.md` §5, ADR-0007);
@@ -572,7 +572,7 @@ records to the server (2026-10-23).
    variants included). The server pulled GHCR images without a registry login on 2026-10-07; if a pull ever fails with
    an auth error, stop and ask the owner for a read-only package token (`docker login ghcr.io`) — never copy images by
    hand.
-2. Cite one verified pre-batch backup and exact-snapshot restore for a non-migration batch (PP-114.4); a migration PR retains its own backup and Waleed's direct decision. Use the established `deploy/backup/` tooling. Do not repeat a valid completed backup or reuse an unrelated receipt.
+2. Cite one verified pre-batch backup and exact-snapshot restore for a non-migration batch (PP-114.4); a migration PR retains its own backup-and-restore receipt, and its merge decision is the manager's under PP-124 (a deploy change, production, production data, server, secret or HOLD case still needs Waleed's direct decision). Use the established `deploy/backup/` tooling. Do not repeat a valid completed backup or reuse an unrelated receipt.
 3. Note the SHA that is live now: it is the rollback target. The compose file is uploaded on every release, pinned, in
    step 4; it is never uploaded raw (with its `${IMAGE_TAG:?}` placeholders).
 4. **Pin the tag in the compose file, not the environment.** Dokploy encrypts the service environment at rest once it is
