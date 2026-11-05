@@ -1,4 +1,5 @@
 import { RecordServiceSessionUseCase } from '../use-cases/record-service-session/record-service-session.usecase.ts';
+import { AppendServiceSessionLinesUseCase } from '../use-cases/append-service-session-lines/append-service-session-lines.usecase.ts';
 import { createSessionRecovery } from '../persistence/session-recovery.adapter.ts';
 import { ordersTransactions } from '../orders.module.ts';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -209,6 +210,40 @@ it('RD-09 does not leak the package state to a recorder whose membership lapsed 
     await expect(create.execute({ ...f.context(ids.newId()), input: {
       customer_id: f.customer, lines: [packageLine(f, seeded.entitlement)],
     } })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(await f.h.owner`SELECT 1 FROM package_redemptions WHERE entitlement_id=${seeded.entitlement}`).toHaveLength(0);
+  } finally {
+    f.setAt(AT);
+    await f.h.owner`UPDATE memberships SET ends_at=NULL WHERE company_id=${f.company} AND id=${f.membership}`;
+  }
+});
+
+it('RD-10 does not leak the package validity to an appender whose membership lapsed during the lock wait', async () => {
+  // الباقة منتهية على يوم الزيارة الأصلية، والعضوية تنتهي أثناء انتظار قفل المكوّن في مسار الإضافة.
+  const before = new Date('2026-10-14T20:59:30.000Z');
+  const after = new Date('2026-10-14T21:00:30.000Z');
+  const seeded = await seedPackage(f, { sessions: 1, expiresOn: '2026-10-13' });
+  const first = await f.create.execute({ ...f.context(ids.newId()), input: f.body([f.line()]) });
+  f.setAt(before);
+  await f.h.owner`UPDATE memberships SET ends_at='2026-10-14T21:00:00Z' WHERE company_id=${f.company} AND id=${f.membership}`;
+  const transactions: typeof f.transactions = {
+    run: (context, work) => f.transactions.run(context, (tx) => work({
+      ...tx,
+      packages: {
+        ...tx.packages,
+        lock: async (customerId, pairs) => {
+          const snapshots = await tx.packages.lock(customerId, pairs);
+          await Promise.resolve();
+          f.setAt(after);
+          return snapshots;
+        },
+      },
+    })),
+  };
+  const append = new AppendServiceSessionLinesUseCase(transactions, createSessionRecovery(f.db, ids, f.clock), ids, f.clock);
+  try {
+    // الصلاحية سقطت، فالخطأ FORBIDDEN؛ ولا تتسرّب انتهاء الباقة لصاحب صلاحية انتهت.
+    await expect(append.execute({ ...f.context(ids.newId()), sessionId: first.session.id,
+      input: { lines: [packageLine(f, seeded.entitlement)] } })).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(await f.h.owner`SELECT 1 FROM package_redemptions WHERE entitlement_id=${seeded.entitlement}`).toHaveLength(0);
   } finally {
     f.setAt(AT);

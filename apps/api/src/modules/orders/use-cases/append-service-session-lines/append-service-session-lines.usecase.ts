@@ -62,6 +62,7 @@ export class AppendServiceSessionLinesUseCase {
     // قفل الاستحقاقات هو آخر قفل مال؛ صلاحية الباقة تقاس بيوم فرع الزيارة لا بيوم النشاط.
     // توقيت الفرع يُقرأ وحده عند وجود مسودة باقة، فالإضافة المدفوعة ما تدفعش الاستعلام ده.
     let facts = new Map<number, PackageRedemptionFact>();
+    let branchTimezone = '';
     if (drafts.packages.length > 0) {
       // قفل المكوّن ينتظر، فقد تسقط صلاحية المسجلة أو الفرع في الأثناء؛
       // فخطأ الباقة لا يتسرّب قبل إعادة فحص السلطة على ساعة جديدة.
@@ -74,9 +75,9 @@ export class AppendServiceSessionLinesUseCase {
       }
       // توقيت الفرع يُقرأ بعد كل الأقفال، فانتظار القفل ما يخلّيش القراءة قديمة؛
       // والإضافة المدفوعة ما تدفعش الاستعلام ده أصلاً.
-      const branchTimezone = await tx.place.branchTimezone();
-      if (branchTimezone === null) throw new SessionError('FORBIDDEN');
-      assertPackageFactsAllowed(facts, sessionBusinessDate(original.occurred_at, branchTimezone), original.occurred_at);
+      const timezone = await tx.place.branchTimezone();
+      if (timezone === null) throw new SessionError('FORBIDDEN');
+      branchTimezone = timezone;
     }
     // بعد كل أقفال المال تقرأ الساعة والحد وتتأكد من السلطة، فلا يبقى انتظار قديم حياً.
     const at = this.clock.now();
@@ -84,6 +85,10 @@ export class AppendServiceSessionLinesUseCase {
     const limit = await tx.discount.read(membershipId);
     validateAppendWindow(original.business_date, at, original.business_timezone);
     const time = sessionTime(original.occurred_at, at, original.business_timezone);
+    // صلاحية الباقة تُقاس بعد إعادة فحص السلطة، فلا تتسرّب حالة الباقة لمن فقد صلاحيته أثناء الانتظار.
+    if (facts.size > 0) {
+      assertPackageFactsAllowed(facts, sessionBusinessDate(original.occurred_at, branchTimezone), original.occurred_at);
+    }
     const prepared = prepareVisitLines(drafts.paid, packagePreparedDrafts(drafts.packages, facts),
       sessionPreparationFacts(services, employees, context.userId));
     const decisions = approvalDecisions(tx, { prepared, limit, terms: this.terms(context, original, membershipId), actor: consumptionActor(context, membershipId) }, locked, at);

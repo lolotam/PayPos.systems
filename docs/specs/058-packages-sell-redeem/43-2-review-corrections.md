@@ -184,3 +184,26 @@ number of drafts that ask for it".
 **Also in this round.** The corrupted em-dash in the Round 2 heading above is repaired
 (`## Round 2 — prepared against head`), bundled here as the manager allowed.
 
+## Round 6 — Codex's P2 on `7c3c86f4`
+
+Codex reviewed the round-5 head and raised one P2: in the append route the package
+validity was still checked before the post-lock authority check, so a caller whose
+membership lapsed during the component-lock wait could still learn the package state
+(`PACKAGE_EXPIRED` or `PACKAGE_NOT_YET_VALID`) instead of `FORBIDDEN`. The catch around
+`resolvePackageRedemptions` did not cover that validation.
+
+**Fix.** The append route now mirrors the record route: the branch timezone is read
+after the redemption locks, the fresh authority check runs next, and the package
+validity is measured after it. The package state therefore only leaves the route when
+the authority still stands.
+
+**Test.** `package-redemption-edge.spec.ts` — "RD-10 does not leak the package validity
+to an appender whose membership lapsed during the lock wait": the clock advances past
+the membership end inside the component lock, the package is expired on the original
+visit's date, and the append must fail with `FORBIDDEN` and write no redemption.
+Restoring the old order makes that test fail with `PACKAGE_EXPIRED`.
+
+This round exceeds the five-round budget agreed with the manager. It was published
+because the merge gate requires a clean Codex on the exact head, and the P2 is a real
+disclosure of package state to an unauthorized caller. It is the last push on this PR.
+
