@@ -401,3 +401,5 @@ export * from './staff/attendance-capabilities.js';
 export * from './orders/index.js';
 export * from './documents-render.js';
 export * from './customers/index.js';
+
+export * from './staff/own-attendance.js';
