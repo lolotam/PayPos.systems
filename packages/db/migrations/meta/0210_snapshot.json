@@ -1,6 +1,6 @@
 {
-  "id": "7fd12696-940a-488b-b39d-c73809d6d165",
-  "prevId": "603f232b-3738-415f-8187-6798032eff46",
+  "id": "ea1609ec-0ef2-4c94-bf6c-5ef3fe7c713e",
+  "prevId": "804c6f43-2842-472e-8baa-b7bf2f6224a0",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -26821,6 +26821,522 @@
         "rating_attributions_stars": {
           "name": "rating_attributions_stars",
           "value": "\"rating_attributions\".\"stars\" BETWEEN 1 AND 5"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.commission_salaries": {
+      "name": "commission_salaries",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "effective_from": {
+          "name": "effective_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "commission_salaries_employee_idx": {
+          "name": "commission_salaries_employee_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "effective_from",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": true
+        }
+      },
+      "foreignKeys": {
+        "commission_salaries_company_id_business_id_businesses_company_id_id_fk": {
+          "name": "commission_salaries_company_id_business_id_businesses_company_id_id_fk",
+          "tableFrom": "commission_salaries",
+          "columnsFrom": [
+            "company_id",
+            "business_id"
+          ],
+          "tableTo": "businesses",
+          "columnsTo": [
+            "company_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "commission_salaries_company_id_business_id_employee_id_employees_company_id_business_id_id_fk": {
+          "name": "commission_salaries_company_id_business_id_employee_id_employees_company_id_business_id_id_fk",
+          "tableFrom": "commission_salaries",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "employee_id"
+          ],
+          "tableTo": "employees",
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "commission_salaries_company_id_id_pk": {
+          "name": "commission_salaries_company_id_id_pk",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "commission_salaries_effective_unique": {
+          "name": "commission_salaries_effective_unique",
+          "columns": [
+            "company_id",
+            "employee_id",
+            "effective_from"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "commission_salaries_revision_positive": {
+          "name": "commission_salaries_revision_positive",
+          "value": "\"commission_salaries\".\"revision\" > 0"
+        },
+        "commission_salaries_amount": {
+          "name": "commission_salaries_amount",
+          "value": "\"commission_salaries\".\"amount\" BETWEEN 0 AND 99999999999.999"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.commission_tip_heads": {
+      "name": "commission_tip_heads",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_date": {
+          "name": "business_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "period": {
+          "name": "period",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "commission_tip_heads_branch_idx": {
+          "name": "commission_tip_heads_branch_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": true
+        },
+        "commission_tip_heads_period_idx": {
+          "name": "commission_tip_heads_period_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "period",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": true
+        }
+      },
+      "foreignKeys": {
+        "commission_tip_heads_company_id_business_id_businesses_company_id_id_fk": {
+          "name": "commission_tip_heads_company_id_business_id_businesses_company_id_id_fk",
+          "tableFrom": "commission_tip_heads",
+          "columnsFrom": [
+            "company_id",
+            "business_id"
+          ],
+          "tableTo": "businesses",
+          "columnsTo": [
+            "company_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "commission_tip_heads_company_id_business_id_branch_id_branches_company_id_business_id_id_fk": {
+          "name": "commission_tip_heads_company_id_business_id_branch_id_branches_company_id_business_id_id_fk",
+          "tableFrom": "commission_tip_heads",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "branch_id"
+          ],
+          "tableTo": "branches",
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "commission_tip_heads_company_id_id_pk": {
+          "name": "commission_tip_heads_company_id_id_pk",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "commission_tip_heads_session_unique": {
+          "name": "commission_tip_heads_session_unique",
+          "columns": [
+            "company_id",
+            "session_id"
+          ],
+          "nullsNotDistinct": false
+        },
+        "commission_tip_heads_business_session_unique": {
+          "name": "commission_tip_heads_business_session_unique",
+          "columns": [
+            "company_id",
+            "business_id",
+            "session_id"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "commission_tip_heads_revision_positive": {
+          "name": "commission_tip_heads_revision_positive",
+          "value": "\"commission_tip_heads\".\"revision\" > 0"
+        },
+        "commission_tip_heads_period_format": {
+          "name": "commission_tip_heads_period_format",
+          "value": "\"commission_tip_heads\".\"period\" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'"
+        },
+        "commission_tip_heads_period_date": {
+          "name": "commission_tip_heads_period_date",
+          "value": "\"commission_tip_heads\".\"period\" = to_char(\"commission_tip_heads\".\"business_date\", 'YYYY-MM')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.commission_tips": {
+      "name": "commission_tips",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "method": {
+          "name": "method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "commission_tips_head_idx": {
+          "name": "commission_tips_head_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "session_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": true
+        },
+        "commission_tips_employee_idx": {
+          "name": "commission_tips_employee_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": true
+        }
+      },
+      "foreignKeys": {
+        "commission_tips_company_id_business_id_session_id_commission_tip_heads_company_id_business_id_session_id_fk": {
+          "name": "commission_tips_company_id_business_id_session_id_commission_tip_heads_company_id_business_id_session_id_fk",
+          "tableFrom": "commission_tips",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "session_id"
+          ],
+          "tableTo": "commission_tip_heads",
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "session_id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "commission_tips_company_id_business_id_employee_id_employees_company_id_business_id_id_fk": {
+          "name": "commission_tips_company_id_business_id_employee_id_employees_company_id_business_id_id_fk",
+          "tableFrom": "commission_tips",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "employee_id"
+          ],
+          "tableTo": "employees",
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "commission_tips_company_id_id_pk": {
+          "name": "commission_tips_company_id_id_pk",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "commission_tips_entry_unique": {
+          "name": "commission_tips_entry_unique",
+          "columns": [
+            "company_id",
+            "session_id",
+            "employee_id",
+            "method"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "commission_tips_method": {
+          "name": "commission_tips_method",
+          "value": "\"commission_tips\".\"method\" IN ('CASH', 'CARD')"
+        },
+        "commission_tips_amount": {
+          "name": "commission_tips_amount",
+          "value": "\"commission_tips\".\"amount\" BETWEEN 0 AND 99999999999.999"
         }
       },
       "isRLSEnabled": false

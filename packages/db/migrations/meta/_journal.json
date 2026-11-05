@@ -1457,6 +1457,13 @@
       "when": 1793877769349,
       "tag": "0209_2026-11-05_commission-tip-salary-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 210,
+      "version": "7",
+      "when": 1793885854712,
+      "tag": "0210_2026-11-05_staff-own-read-defaults",
+      "breakpoints": true
     }
   ]
 }

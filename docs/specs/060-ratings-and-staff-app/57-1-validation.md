@@ -1,5 +1,36 @@
 # 57-1a — local validation
 
+## Post-#844 rebase receipts (2026-11-05)
+
+Rebased with `git rebase origin/main` onto `6a94e8d1`, without a merge commit.
+The journal conflict was resolved by restoring the main journal, then removing only
+this PR's unmerged SQL/snapshot and running `pnpm db:generate staff-own-read-defaults --custom`.
+The highest merged migration is 0209, so the newly generated number remains **0210**.
+Restored the unchanged custom data SQL into the generated empty SQL file. No merged
+migration was renumbered or modified. The regenerated snapshot includes #844's schema.
+
+Fresh local runs on private lane `own-access-571`, sequential DB then API:
+
+- `pnpm typecheck`: passed, 29/29 tasks.
+- DB migration/defaults/seed selection listed below: **1082/1082 passed**.
+- API own-access/private-view selection listed below: **41/41 passed**.
+- i18n permission names: **4/4 passed**.
+- `pnpm lint`: passed, 30/30 tasks.
+- `pnpm lint:docs`: passed, 0 errors and 29 existing warnings.
+- `pnpm module-map:check`: passed, `module map: ok`.
+- `git diff --check`: passed.
+
+Fresh read-only Astra high review passed with no confirmed defects across all 18 files.
+It independently compared snapshot 0210 with 0209 and in-memory `generateDrizzleJson`
+schema: all 113 tables match, ignoring only id/prevId/key order, including #844's
+commission tables. `0210.prevId = 0209.id`; only 0210 is added to the main journal;
+custom SQL is byte-identical to its pre-rebase version. Shared semantic SHA-256:
+`429f27f95cdd844722d688bd87041b7be2ce60330b4ff591ba46d4b3be7d591b`.
+Clean-code-guard, test-guard and docs-guard were reapplied to the rebase delta:
+no handwritten production/test change; generated artifacts and audit updates only.
+New external reviews and exact-final-SHA DEP-1 backup/restore remain pending.
+Earlier-head receipts below are historical and do not establish readiness of this head.
+
 Date: 2026-11-05. Branch: `feat/p1-060-57-1-own-access-codes`.
 Migration: **0210**, provisional under the manager's 14:03 reservation. No merge or deploy.
 
