@@ -61,7 +61,7 @@ it('times out a hanging source load inside the job deadline', async () => {
           deadlineMs: 40,
         }),
       ).rejects.toThrow('DOCUMENT_RENDER_TIMEOUT');
-      await sourceStarted;
+      await Promise.race([sourceStarted, timedOut]);
       expect(signal).toBeInstanceOf(AbortSignal);
       expect(signal?.aborted).toBe(false);
       await vi.advanceTimersByTimeAsync(40);
