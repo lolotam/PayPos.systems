@@ -17,7 +17,7 @@ afterAll(async () => {
   await f?.close();
 });
 
-// A complete 0205-valid redemption is inserted locally; all production guards stay enabled.
+// الاسترداد المحلي كامل ومتسق مع التخزين؛ كل حراس الإنتاج تظل مفعّلة.
 async function forcedRedemption() {
   const source = await recorded(f, '25.000', '0.000');
   const type = ids.newId(),
@@ -94,10 +94,44 @@ async function state(visit: Visit) {
 }
 
 const cases = [
-  ['edit', 'SESSION_LINE_NOT_EDITABLE'],
+  ['edit', 'SESSION_LINE_PRICE_NOT_EDITABLE'],
   ['cancel', 'SESSION_LINE_NOT_CANCELLABLE'],
   ['performers', 'SESSION_LINE_PERFORMERS_NOT_CHANGEABLE'],
 ] as const;
+it.each(['redeemed-active', 'cancelled'] as const)(
+  'edit HTTP refusal uses the correct bilingual message for %s',
+  async (kind) => {
+    const visit =
+      kind === 'redeemed-active' ? await forcedRedemption() : await recorded(f, '25.000', '0.000');
+    if (kind === 'cancelled') await runCancel(f, visit.sessionId, visit.lineId);
+    const reply = await f.h.send('PATCH', `${f.base}/${visit.sessionId}/lines/${visit.lineId}`, {
+      cookie: f.editorCookie,
+      company: f.company,
+      key: ids.newId(),
+      body: editBody({ expected_revision: kind === 'cancelled' ? 2 : 1 }),
+    });
+    expect(reply.status).toBe(422);
+    expect(reply.body).toMatchObject(
+      kind === 'redeemed-active'
+        ? {
+            code: 'SESSION_LINE_PRICE_NOT_EDITABLE',
+            message_ar: 'سعر جلسة الباقة ثابت.',
+            message_en: "A package session's price cannot be edited.",
+          }
+        : {
+            code: 'SESSION_LINE_NOT_EDITABLE',
+            message_ar: 'السطر ده ملغي ومينفعش يتعدّل.',
+            message_en: 'This line is cancelled and cannot be edited.',
+          },
+    );
+    const [line] = await f.h
+      .owner`SELECT status,revision FROM service_lines WHERE company_id=${f.company} AND id=${visit.lineId}`;
+    expect(line).toMatchObject({
+      status: kind === 'cancelled' ? 'CANCELLED' : 'ACTIVE',
+      revision: kind === 'cancelled' ? 2 : 1,
+    });
+  },
+);
 it.each(cases)(
   '%s writer refuses a valid redeemed line with %s and leaves all state unchanged',
   async (kind, code) => {
@@ -139,7 +173,7 @@ it('redeemed price and performer no-op requests still return their package refus
       visit.lineId,
       editBody({ discount: { kind: 'AMOUNT', amount: '0.000' } }),
     ),
-  ).rejects.toMatchObject({ code: 'SESSION_LINE_NOT_EDITABLE' });
+  ).rejects.toMatchObject({ code: 'SESSION_LINE_PRICE_NOT_EDITABLE' });
   await expect(
     runChange(
       f,

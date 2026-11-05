@@ -1,5 +1,9 @@
 # 43-1b local implementation checkpoint
 
+Historical pre-publication checkpoint. The later manager instruction authorized
+stacked #839 before storage merge; current correction/results are recorded in
+`43-1b-review-corrections.md`. The hold below is retained as checkpoint history.
+
 The PP-121.4 sequencing exception permits this build after storage push. It stays
 on the local dependent branch, based on storage head `0b27b236`; no dependent PR
 or push is authorized before storage merges. No migration, sale or generic

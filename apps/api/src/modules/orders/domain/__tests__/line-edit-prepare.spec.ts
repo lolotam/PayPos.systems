@@ -246,4 +246,15 @@ it('refuses a cancelled line once the revision matches', () => {
 
 it('accepts an active line at the expected revision', () => {
   expect(() => assertLineEditable({ status: 'ACTIVE', revision: 2 }, 2)).not.toThrow();
+  expect(() => assertLineEditable({ status: 'ACTIVE', revision: 2 }, 2, null)).not.toThrow();
+});
+
+it.each([
+  ['ACTIVE',2,'SESSION_LINE_PRICE_NOT_EDITABLE'],
+  ['ACTIVE',1,'SESSION_LINE_REVISION_STALE'],
+  ['CANCELLED',2,'SESSION_LINE_NOT_EDITABLE'],
+] as const)('redeemed %s line at expected revision %s refuses with %s', (status,expected,code) => {
+  const error=thrown(() => assertLineEditable({ status,revision:2 },expected,'01920000-0000-7000-8000-000000004001'));
+  expect(error.code).toBe(code);
+  expect(error.details).toEqual(code === 'SESSION_LINE_REVISION_STALE' ? { current_revision:2 } : undefined);
 });

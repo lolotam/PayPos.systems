@@ -1,16 +1,17 @@
 # 43-1b writer refusals
 
 PP-121.4 explicitly authorizes building this dependent slice in the same session
-after storage push, before storage merges. Keep changes on the local dependent
-branch; open its PR only after 43-1 merges. No migration or deployment belongs to
-this slice. Storage PR #838 remains the only active PR.
+after storage push, before storage merges. The manager's later explicit no-waiting
+instruction also authorizes stacked PR #839 before storage merges, with #838's
+branch as base. The manager will retarget it to main before deleting that branch.
+No migration or deployment belongs to this slice; manager owns both merges.
 
 ## Implementation
 
 1. Extend the existing shared locked-line reader and port with nullable
    `redemption_id`, read under the same existing line lock and tenant transaction.
 2. Feed the marker into domain refusal facts: price edits use
-   `SESSION_LINE_NOT_EDITABLE`; cancellation sets existing `not_cancellable` and
+   `SESSION_LINE_PRICE_NOT_EDITABLE`; cancellation sets existing `not_cancellable` and
    performer changes set existing `not_changeable`, producing
    `SESSION_LINE_NOT_CANCELLABLE` and `SESSION_LINE_PERFORMERS_NOT_CHANGEABLE`.
    Preserve authority checks, identity policy and revision/status ordering.

@@ -50,7 +50,7 @@ export function assertLineEditable(line: EditableServiceLine, expectedRevision: 
     throw new SessionError('SESSION_LINE_REVISION_STALE', { current_revision: line.revision });
   }
   if (line.status === 'CANCELLED') throw new SessionError('SESSION_LINE_NOT_EDITABLE');
-  if (redemptionId !== null) throw new SessionError('SESSION_LINE_NOT_EDITABLE');
+  if (redemptionId !== null) throw new SessionError('SESSION_LINE_PRICE_NOT_EDITABLE');
 }
 
 /**
