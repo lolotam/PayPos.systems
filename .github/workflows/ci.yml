@@ -266,6 +266,9 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      - name: Chromium headless shell (spec 056)
+        run: pnpm --filter @pospay/documents exec node scripts/install-headless-shell.mjs --with-deps
+
       - name: Local infra (Postgres 16 + Redis 7)
         run: |
           {
