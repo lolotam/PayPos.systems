@@ -1429,6 +1429,13 @@
       "when": 1793836185502,
       "tag": "0205_2026-11-04_package-redemption-storage",
       "breakpoints": true
+    },
+    {
+      "idx": 206,
+      "version": "7",
+      "when": 1793838450107,
+      "tag": "0206_2026-11-05_package-redemption-indexes-validate",
+      "breakpoints": true
     }
   ]
 }

@@ -109,7 +109,7 @@ export const serviceLines = pgTable('service_lines', {
   index('service_lines_service_idx').on(t.companyId, t.businessId, t.serviceId),
   index('service_lines_membership_idx').on(t.companyId, t.recordedByMembershipId), index('service_lines_recorder_idx').on(t.companyId, t.recordedBy),
   index('service_lines_recorded_by_fk_idx').on(t.recordedBy),
-  index('service_lines_redemption_fk_idx').on(t.companyId, t.businessId, t.redemptionId).where(sql`${t.redemptionId} IS NOT NULL`),
+  index('service_lines_redemption_fk_idx').on(t.companyId, t.businessId, t.redemptionId).where(sql`${t.redemptionId} IS NOT NULL`).concurrently(),
   index('service_lines_late_session_idx').on(t.companyId, t.sessionId).where(sql`${t.late}`),
   check('service_lines_amounts', sql`${t.listPrice} >= 0 AND ${t.price} >= 0 AND ${t.discount} BETWEEN 0 AND ${t.price} AND ${t.net} = ${t.price} - ${t.discount}`),
   check('service_lines_bps', sql`${t.effectiveDiscountBps} BETWEEN 0 AND 10000`),
