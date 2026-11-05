@@ -4,6 +4,7 @@ import { commissionStatementAr, commissionStatementEn } from './commission-state
 import { en } from './en.js';
 import { nativeShellAr, nativeShellEn } from './native-shell-catalog.js';
 import { ratingRequestAr, ratingRequestEn } from './rating-catalog.js';
+import { publicRatingAr, publicRatingEn } from './public-rating-catalog.js';
 import { sessionTipsAr, sessionTipsEn } from './session-tips-catalog.js';
 import { serviceLineCancelAr, serviceLineCancelEn } from './service-line-cancel-catalog.js';
 import { serviceLineEditAr, serviceLineEditEn } from './service-line-edit-catalog.js';
@@ -22,6 +23,7 @@ export type Locale = 'ar' | 'en';
 export type Catalog = { readonly [S in keyof typeof en]: Record<keyof (typeof en)[S], string> };
 
 type RegisteredCatalog = Catalog & {
+  readonly publicRating: Record<keyof typeof publicRatingEn, string>;
   readonly alertRules: Record<keyof typeof alertRulesEn, string>;
   readonly commissionStatement: Record<keyof typeof commissionStatementEn, string>;
   readonly serviceSessions: Record<keyof typeof serviceSessionsEn, string>;
@@ -45,6 +47,7 @@ export type ErrorMessageCode = keyof typeof en.errors;
 
 const CATALOGS: Record<Locale, RegisteredCatalog> = {
   ar: {
+    publicRating: publicRatingAr,
     ...ar,
     alertRules: alertRulesAr,
     commissionStatement: commissionStatementAr,
@@ -59,6 +62,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     ratingRequest: ratingRequestAr,
   },
   en: {
+    publicRating: publicRatingEn,
     ...en,
     alertRules: alertRulesEn,
     commissionStatement: commissionStatementEn,

@@ -58,6 +58,19 @@ const schema = z.object({
         .map((origin) => origin.trim())
         .filter((origin) => origin !== ''),
     ),
+  RATING_PAGE_ORIGIN: z
+    .string()
+    .trim()
+    .default('')
+    .refine((origin) => {
+      if (origin === '') return true;
+      try {
+        const url = new URL(origin);
+        return /^https?:$/.test(url.protocol) && url.origin === origin;
+      } catch {
+        return false;
+      }
+    }),
   // The parent domain the session cookie is shared on (.pospay.systems, .staging.pospay.systems — ADR-0001 §3, §6).
   // Unset in local development: the cookie stays host-only.
   COOKIE_DOMAIN: z.preprocess(
@@ -83,7 +96,21 @@ export type ApiConfig = z.output<typeof schema>;
  * @returns the validated configuration
  */
 export function readConfig(env: NodeJS.ProcessEnv): ApiConfig {
-  const result = schema.safeParse(env);
+  const result = schema
+    .refine(
+      (config) =>
+        !config.RATING_PAGE_ORIGIN.startsWith('http:') ||
+        env.NODE_ENV === 'development' ||
+        env.NODE_ENV === 'test',
+      { path: ['RATING_PAGE_ORIGIN'] },
+    )
+    .refine(
+      (config) =>
+        config.RATING_PAGE_ORIGIN === '' ||
+        !config.AUTH_TRUSTED_ORIGINS.includes(config.RATING_PAGE_ORIGIN),
+      { path: ['RATING_PAGE_ORIGIN'] },
+    )
+    .safeParse(env);
   if (!result.success) {
     const keys = [...new Set(result.error.issues.map((issue) => issue.path.join('.')))];
     throw new Error(`Invalid API configuration: ${keys.join(', ')} — see .env.example`);
