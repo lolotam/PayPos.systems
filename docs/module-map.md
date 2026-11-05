@@ -395,6 +395,9 @@ reads:
   - staff -> settings.alertRule @ apps/worker/src/modules/staff/persistence/alert-rule.adapter.ts
   - orders -> identity.lockServiceSessionAccess @ apps/api/src/modules/orders/persistence/session-record-access.adapter.ts
   - orders -> identity.readServiceSessionAccess @ apps/api/src/modules/orders/persistence/session-record-access.adapter.ts
+  - orders -> identity.lockServiceSessionAccess @ apps/api/src/modules/orders/persistence/package-sale-access.adapter.ts
+  - orders -> identity.readPackageSaleAccess @ apps/api/src/modules/orders/persistence/package-sale-access.adapter.ts
+  - orders -> tenancy.packageSalePlace @ apps/api/src/modules/orders/persistence/package-sale-place.adapter.ts
   - orders -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/orders/persistence/session-place.adapter.ts
   - orders -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/orders/persistence/session-recovery.adapter.ts
   - orders -> tenancy.describeWorkspaces @ apps/api/src/modules/orders/persistence/session-place.adapter.ts

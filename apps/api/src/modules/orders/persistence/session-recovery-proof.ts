@@ -14,7 +14,8 @@ export function recoveryKeyHash(key: string): string {
   return createHash('sha256').update(key).digest('hex');
 }
 
-const RETRYABLE_SQLSTATE = new Set(['40P01', '40001', '55P03']);
+/** أخطاء قفل قابلة لإعادة المحاولة؛ معناها واحد في كل معاملة المال فالقاعدة بتتقاسمها. */
+export const RETRYABLE_SQLSTATE = new Set(['40P01', '40001', '55P03']);
 
 // 55P03 و40001 في إصدار الإثبات يبقى 503: الصف لم يُلتزم، والعميل يعيد نفس المفتاح.
 // في معاملة المال يصبح TRANSACTION_RETRY_REQUIRED لأن الإثبات التزم قبلها.

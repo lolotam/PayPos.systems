@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { serviceSessionFormPaths } from './orders/service-session-form-openapi.js';
 import { serviceSessionPaths } from './orders/service-session-openapi.js';
 import { discountApprovalPaths } from './orders/discount-approval-openapi.js';
+import { packageSalePaths } from './orders/package-sale-openapi.js';
 import { serviceSessionRecoveryPaths } from './orders/service-session-recovery-openapi.js';
 import { attendanceMonthlyReportPaths } from './staff/attendance-monthly-report-openapi.js';
 import { employeeIbanPaths } from './staff/employee-iban-openapi.js';
@@ -64,6 +65,7 @@ const PATHS = {
   ...serviceSessionFormPaths,
   ...serviceSessionRecoveryPaths,
   ...discountApprovalPaths,
+  ...packageSalePaths,
   '/v1/devices/me/attendance-qr': {
     post: {
       ...operation(

@@ -98,6 +98,16 @@ export const packageTypeErrorsEn = {
   PACKAGE_SALE_TOO_OLD: 'The sale predates the first day of the previous month.',
   PACKAGE_SALE_IN_FUTURE: 'The sale time is in the future.',
   PACKAGE_CUSTOMER_NOT_FOUND: 'Customer not found.',
+  // رموز المدقق المشترك (spec 007)؛ بيع الباقة بيبلّغ عنها بالاسم (SA-08)
+  INVALID_PRICE: 'The price is not a valid amount.',
+  INVALID_COMPONENTS: 'The package definition has no valid services.',
+  DUPLICATE_SERVICE: 'A service appears more than once in the package.',
+  INVALID_SESSIONS: 'Sessions must be a whole number from 1 to 365.',
+  INVALID_REMAINING_SESSIONS: 'The remaining sessions are outside the session count.',
+  INVALID_SLOTS: 'The package sessions are not numbered correctly.',
+  INVALID_DATE: 'The date is not a valid calendar date.',
+  PACKAGE_EXPIRED: 'The package has expired.',
+  INSUFFICIENT_SLOTS: 'Fewer free sessions than requested; nothing was refunded.',
 };
 export const packageTypeErrorsAr = {
   PACKAGE_TYPE_NOT_FOUND: 'نوع الباقة غير موجود في هذا النشاط.',
@@ -120,4 +130,14 @@ export const packageTypeErrorsAr = {
   PACKAGE_SALE_TOO_OLD: 'البيع أقدم من أول الشهر السابق.',
   PACKAGE_SALE_IN_FUTURE: 'وقت البيع في المستقبل.',
   PACKAGE_CUSTOMER_NOT_FOUND: 'العميلة مش موجودة.',
+  // رموز المدقق المشترك (spec 007)؛ بيع الباقة بيبلّغ عنها بالاسم (SA-08)
+  INVALID_PRICE: 'المبلغ المدفوع مش مبلغ صحيح.',
+  INVALID_COMPONENTS: 'تعريف الباقة مفيهاش خدمات صالحة.',
+  DUPLICATE_SERVICE: 'الخدمة دي مكررة أكتر من مرة في الباقة.',
+  INVALID_SESSIONS: 'عدد الجلسات لازم يكون عدداً صحيحاً من ١ إلى ٣٦٥.',
+  INVALID_REMAINING_SESSIONS: 'عدد الجلسات المتبقية بره عدد جلسات المكوّن.',
+  INVALID_SLOTS: 'ترقيم جلسات الباقة مش صحيح.',
+  INVALID_DATE: 'التاريخ مش تاريخ تقويمي صحيح.',
+  PACKAGE_EXPIRED: 'الباقة خلصت صلاحيتها.',
+  INSUFFICIENT_SLOTS: 'الجلسات الفاضية أقل من المطلوب، ومحدش اترجّع.',
 };

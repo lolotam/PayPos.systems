@@ -37,6 +37,11 @@ import { bindLineCancelReaders, createLineCancelTransactions } from './persisten
 import { bindLinePerformersReaders, createLinePerformersTransactions } from './persistence/line-performers-transactions.ts';
 import { createSessionTipsTransactions } from './persistence/session-tip-transactions.ts';
 import { createSessionRecovery, recoveryKeyHash } from './persistence/session-recovery.adapter.ts';
+import { createPackageSaleTransactions } from './persistence/package-sale-transactions.ts';
+import { packageSaleAccess } from './persistence/package-sale-access.adapter.ts';
+import { packageSalePlaceAdapter } from './persistence/package-sale-place.adapter.ts';
+import { PackageSalesController } from './http/package-sales.controller.ts';
+import { SellPackageUseCase } from './use-cases/sell-package/sell-package.usecase.ts';
 import { createDiscountRequestTransactions } from './persistence/discount-request-transactions.ts';
 import { termsHash } from './persistence/terms-hash.adapter.ts';
 import { PendingDiscountProposalsQuery } from './queries/pending-discount-proposals.query.ts';
@@ -55,7 +60,7 @@ import { ConfirmSessionRecoveryUseCase } from './use-cases/confirm-session-recov
 import { SessionRecoveryController } from './http/session-recovery.controller.ts';
 import type { Clock } from './ports/service-session-transactions.port.ts';
 
-export const ordersControllers = [SessionRecoveryController, ServiceSessionsController, ServiceSessionFormController, SessionTipsController, DiscountProposalsController];
+export const ordersControllers = [SessionRecoveryController, ServiceSessionsController, ServiceSessionFormController, SessionTipsController, DiscountProposalsController, PackageSalesController];
 export function ordersPerformerOptionsQuery(database: TenantWrappers, clock: Clock = systemClock) {
   return new SessionPerformerOptionsQueryHandler(database, {
     time: (occurredAt, at, timezone) => sessionTime(new Date(occurredAt), at, timezone).occurred_at.toISOString(),
@@ -146,6 +151,14 @@ export function ordersTransactions(database: TenantWrappers, ids: IdGenerator, c
     discountMessages: serviceSessionErrors.SESSION_DISCOUNT_ABOVE_LIMIT,
   }), clock);
 }
+export function ordersPackageSaleTransactions(database: TenantWrappers, ids: IdGenerator) {
+  return createPackageSaleTransactions(database, ids, (tx, context) => ({
+    catalog: catalogReader(tx, context.companyId, context.businessId), customer: customerLookup(tx, context.companyId),
+    performers: performerCheck(tx, context.companyId, context.businessId, context.branchId), discount: discountLimit(tx, context.companyId, context.businessId),
+    place: packageSalePlaceAdapter(tx, context.companyId, context.businessId, context.branchId),
+    access: packageSaleAccess(tx, context.companyId, context.userId, context.businessId, context.branchId),
+  }));
+}
 export function ordersDiscountRequests(database: TenantWrappers, ids: IdGenerator) {
   return createDiscountRequestTransactions(database, ids, (tx, context) => ({
     place: sessionPlace(tx, context.companyId, context.businessId, context.branchId),
@@ -192,6 +205,7 @@ export function ordersProviders(database: TenantWrappers | undefined, ids: IdGen
     { provide: RecordSessionTipsUseCase, useValue: database === undefined ? null : new RecordSessionTipsUseCase(ordersSessionTips(database), ids, clock) },
     { provide: SessionTipsCurrentQuery, useValue: database === undefined ? null : ordersSessionTipsCurrent(database, clock) },
     { provide: RequestDiscountApprovalUseCase, useValue: database === undefined ? null : new RequestDiscountApprovalUseCase(ordersDiscountRequests(database, ids), ids, clock, termsHash()) },
+    { provide: SellPackageUseCase, useValue: database === undefined ? null : new SellPackageUseCase(ordersPackageSaleTransactions(database, ids), ids, clock) },
     { provide: RequesterDiscountProposalsQuery, useValue: database === undefined ? null : ordersRequesterProposals(database, clock) },
     { provide: PendingDiscountProposalsQuery, useValue: database === undefined ? null : ordersPendingProposals(database, clock) }];
 }
