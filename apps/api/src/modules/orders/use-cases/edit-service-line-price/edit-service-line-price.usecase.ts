@@ -98,7 +98,7 @@ export class EditServiceLinePriceUseCase {
     const limit = await tx.discount.read(membershipId);
     if ((await tx.place.read()) === null) throw new SessionError('FORBIDDEN');
     await this.refusePerformer(tx, context, locked);
-    assertLineEditable(locked.line, context.input.expected_revision);
+    assertLineEditable(locked.line, context.input.expected_revision, locked.line.redemption_id);
     validateAppendWindow(locked.line.business_date, at, locked.line.business_timezone);
     const reason = normalizeEditReason(context.input.reason);
     const prepared = prepareLineEdit({

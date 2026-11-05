@@ -7,7 +7,7 @@ import { SessionError } from '../use-cases/record-service-session/record-service
 
 // عضوية التعديل 422 لأن الجسم سليم والاختيار قاعدة نطاق؛ عضوية التسجيل تبقى 400.
 const EDIT_UNPROCESSABLE = new Set<string>([
-  'SESSION_EDIT_NO_CHANGE', 'SESSION_LINE_NOT_EDITABLE', 'SESSION_EDIT_REASON_INVALID',
+  'SESSION_EDIT_NO_CHANGE', 'SESSION_LINE_NOT_EDITABLE', 'SESSION_LINE_PRICE_NOT_EDITABLE', 'SESSION_EDIT_REASON_INVALID',
   'SESSION_EDITOR_MEMBERSHIP_REQUIRED', 'SESSION_EDIT_IDENTITY_UNKNOWN',
 ]);
 const TIP_UNPROCESSABLE = new Set<string>([
