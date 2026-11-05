@@ -21,7 +21,12 @@ export function RatingForm({
         <legend>{t(locale, 'publicRating.stars')}</legend>
         <RatingStars control={form.control} />
         <Label htmlFor="rating-comment">{t(locale, 'publicRating.comment')}</Label>
-        <textarea id="rating-comment" {...form.register('comment')} />
+        <textarea
+          id="rating-comment"
+          {...form.register('comment', {
+            setValueAs: (comment: string) => (comment.trim() === '' ? undefined : comment),
+          })}
+        />
         {Object.keys(form.formState.errors).length > 0 && (
           <p role="alert">{t(locale, 'publicRating.invalid')}</p>
         )}

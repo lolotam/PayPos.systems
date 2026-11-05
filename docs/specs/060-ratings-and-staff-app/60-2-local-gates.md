@@ -103,7 +103,7 @@ API public-route CORS changes are now authorized. AUTH_TRUSTED_ORIGINS, Traefik,
 server, DNS and Dokploy settings remain unchanged. No migration, local E2E,
 deployment or merge is part of this slice. Only the explicitly authorized
 `.env.example` template was read/edited; no real environment file was opened.
-External correction rounds used: 1/5 (this consolidated correction).
+External correction rounds used: 2/5.
 
 ## Connection verification — 2026-11-05
 
@@ -203,3 +203,42 @@ in `lolotam/PayPos.systems`.
 
 [Round 1 Astra review](<t3-thread://v2/438824e0-fe19-4a22-bb31-f81eff7b7322/thread:delegated-task:command%3Amcp%3Aba46510b-d393-42b5-ba6b-b58cb66a08fa%3Adelegate-task%3A4fe6a5f5-ffa1-4ed1-a458-23c9a097dcb0>).
 Exact-head CI, Codex review and a complete MergePilot panel are required after push.
+
+## Correction round 2 — 2026-11-05
+
+MergePilot receipt `5784957852` on `f45bd5c31e0b1aef2dd7b0bf55320b972c9285d8`
+was partial again: Waleed_Bot reviewed 1/6 batches, skipping generated schema batches
+and the final configuration/test/catalog batch. All bots had finished. The manager
+explicitly authorized round 2 as one consolidated push; a third schema-related
+partial receipt must be reported without another push. CodeRabbit is not a gate;
+the required exact-head gates remain ci-gate, Codex and the four-bot complete panel.
+
+The alleged HIGH blank-comment validation failure was checked against the source
+contract and API. `ratingComment` has no minimum length, runtime parsing accepts
+both empty and whitespace-only strings, and SubmitRatingUseCase maps an empty
+comment to null. The claimed submission blockage was not reproduced. As requested
+by the manager, the form now maps blank textarea values to undefined before schema
+validation, so requests omit the optional comment entirely. Nonblank text is preserved.
+Two UI cases prove visible completion and the stars-only request body.
+
+The stale submit-error finding was reproduced: a rejected submission followed by
+a successful submitted-state read remained unavailable. The submitted view now
+takes precedence over that stale submission error. View/opt-out unavailable errors
+still close the page. A UI regression checks completion, no reopened star form,
+and successful opt-out after another tab consumed the rating.
+
+The manager assigned **PP-127** to the verbatim CORS answer; owner-questions.ar.md
+and ADR-0058 now carry it. The manager owns the central owner-decisions.ar.md row
+in a separate documentation PR. PP-126 remains reserved for the snapshot rule.
+
+- Before fixes: all three new cases failed (two request-shape assertions and the
+  multi-tab completion assertion); star-only completion itself already succeeded.
+- After fixes: menu 19/19 passed, including 17 UI cases; typecheck/api:check and
+  lint passed. API implementation and contract were unchanged in this round.
+- lint:docs: 0 errors / 29 existing warnings; module-map:check passed.
+- clean-code-guard, test-guard and docs-guard applied: narrow UI changes, existing
+  generated client and schema, network-boundary mocks, visible outcome assertions,
+  expiry protection and verbatim owner-answer preservation checked.
+
+No real environment-file read, local E2E, server change, deployment or merge.
+New-head ci-gate, Codex review and a complete panel remain required after push.

@@ -5,7 +5,9 @@ import { RatingForm } from '../ui/rating-form';
 
 export function RatingScreen({ token, locale }: { token: string; locale: Locale }) {
   const { view, submit, optOut } = useRating(token);
-  const unavailable = [view.error, submit.error, optOut.error].some(
+  // الرد المقروء بعد تعارض الإرسال يسمح بإظهار الإكمال للرابط المستهلك حتى انتهاء صلاحيته.
+  const submitError = view.data?.state === 'submitted' ? null : submit.error;
+  const unavailable = [view.error, submitError, optOut.error].some(
     (error) => error instanceof RatingRequestError && error.code === 'RATING_LINK_UNAVAILABLE',
   );
   if (!token || unavailable) return <p role="alert">{t(locale, 'publicRating.unavailable')}</p>;

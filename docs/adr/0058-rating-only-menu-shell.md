@@ -4,6 +4,7 @@
 - Date: 2026-11-05
 - Slice: [60-2](../specs/060-ratings-and-staff-app/spec.md)
 - Connection decision: option 1 — independent public-route CORS
+- Owner decision audit: PP-127, recorded in the slice's owner-questions.ar.md
 
 ## Context
 
@@ -31,6 +32,8 @@ Only existing workspace and repository libraries are used. No database changes.
 ## Decision
 
 Waleed selected option 1 in the PosPay manager conversation on 2026-11-05.
+The manager assigned audit identifier **PP-127** and owns its central entry in
+`docs/owner-decisions.ar.md` through a separate documentation PR.
 Verbatim: «رقم اختيارك في سؤال CORS بتاع صفحة التقييم-1».
 The manager relayed the answer and scope at 15:30; the slice's owner-question
 record retains the answer, date, channel and interpretation.

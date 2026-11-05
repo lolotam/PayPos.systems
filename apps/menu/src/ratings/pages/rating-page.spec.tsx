@@ -30,6 +30,41 @@ beforeEach(() => {
   vi.stubEnv('NEXT_PUBLIC_API_URL', 'https://api.example.test');
 });
 
+it.each(['', ' \t\n '])(
+  'submits stars with a blank optional comment omitted: %j',
+  async (comment) => {
+    const { requests } = api();
+    render(<RatingPage />);
+    fireEvent.click(await screen.findByRole('radio', { name: '5' }));
+    if (comment !== '')
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: comment } });
+    fireEvent.click(screen.getByRole('button', { name: t('ar', 'publicRating.submit') }));
+    expect(await screen.findByText(t('ar', 'publicRating.done'))).toBeDefined();
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(await requests.find((request) => request.url.endsWith('/submit'))?.json()).toEqual({
+      stars: 5,
+    });
+  },
+);
+
+it('reconciles a rating consumed in another tab to completion with working opt-out', async () => {
+  const { transport } = api();
+  render(<RatingPage />);
+  fireEvent.click(await screen.findByRole('radio', { name: '4' }));
+  transport.mockImplementationOnce(async () =>
+    Response.json({ code: 'RATING_LINK_UNAVAILABLE' }, { status: 404 }),
+  );
+  transport.mockImplementationOnce(async () =>
+    Response.json({ business_name: 'Test Salon', state: 'submitted' }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: t('ar', 'publicRating.submit') }));
+  expect(await screen.findByText(t('ar', 'publicRating.done'))).toBeDefined();
+  expect(screen.queryByText(t('ar', 'publicRating.unavailable'))).toBeNull();
+  expect(screen.queryByRole('radio')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: t('ar', 'publicRating.optOut') }));
+  expect(await screen.findByText(t('ar', 'publicRating.optedOut'))).toBeDefined();
+});
+
 it('keeps completion when a pre-submit focus read resolves late', async () => {
   const { transport } = api();
   render(<RatingPage />);
