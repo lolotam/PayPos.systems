@@ -85,6 +85,32 @@ The filter spec lives in `__tests__/`, which is the **integration** project; the
 covers only `domain/__tests__/`. Running the slice's own specs missed finding 2, so the whole
 orders and tenancy integration suites run before every push.
 
+## Round 3 — Astra's second read-only review (on the code as it stood)
+
+Astra read the tree again and reported four P2 items. **All four were already fixed** in the
+commits on the branch — the review had read a snapshot taken before those fixes — and each one
+is checked against the code, not against the report:
+
+| Astra's P2 | Where it is fixed | The code now |
+| --- | --- | --- |
+| The expiry uses a different instant than the persisted one | `record-service-session.usecase.ts` | `sessionTime(occurredAt, at, place.timezone)` runs **after** the locks, and the same `time.occurred_at` drives the package expiry, the performer eligibility and the saved visit. |
+| The RLS tests chase an aborted transaction (`25P02`) | `package-redemption-rls.spec.ts` | Each forbidden statement runs in its own transaction through the `refuses` helper, so the real refusal code comes back. |
+| The three package refusals answer 400, not 422 | `session-errors.filter.ts` | `PACKAGE_UNPROCESSABLE` maps them to 422 explicitly. |
+| The generated clients still accept the paid line only | `apps/admin/src/shared/api/schema.d.ts`, `apps/pos/src/shared/api/schema.d.ts` | Both carry `lines: components["schemas"]["SessionLineDraft"][]`, regenerated from the OpenAPI file. |
+
+Astra's remaining asks, and what happened to each:
+
+| Astra's ask | Answer |
+| --- | --- |
+| The branch timezone across both routes | Covered: the record route measures the expiry in the branch's timezone, and the append route keeps the original visit's date and business timezone and uses the branch's timezone for the expiry only. |
+| A membership or approval expiring during the component wait | The re-read after the last money lock is in the code, and the round-2 regression advances the injected clock across Kuwait midnight after the real slot lock and checks the persisted instant, the business date and the performer instant. |
+| A mixed request with a partial discount refusal | Covered: the mixed-batch test keeps the request order and the ordinals and leaves the refused paid line with its input index. |
+| A refusal without consumption | Covered: the request with one package line too many rolls the whole visit back, and the slot stays `FREE`. |
+| **A failure after the redemption write, proving the line, the session, the outbox event and the idempotency key all roll back** | **Added in round 3**: `interceptDatabase` fails the slot `UPDATE` on purpose; the test then proves that no redemption, no line, no session, no outbox row and no idempotency row survives, that the slot is still `FREE`, and that the same key succeeds afterwards because the claim rolled back with the transaction. |
+| The new tenancy reader needs a shape test and `EXPLAIN` | Done in round 1: `package-sale-place.query.spec.ts`. |
+| Keep the slot lock and say why it repeats the component lock | The comment is on `lockSlots` in `persistence/package-redemption-writes.ts`: the component lock is the real serialisation point, the slot lock is the defensive check that makes "the lowest `FREE` session under a row lock" literal. |
+| Record the manager's resolved decisions in §12 | Done: the plan's §12 carries the manager's verbatim answer beside Astra's. |
+
 ## Round 2 ? prepared against head `12c7b6d9`
 
 The final clock reading after component and slot locks now supplies omitted

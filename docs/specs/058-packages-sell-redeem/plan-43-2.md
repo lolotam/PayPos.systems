@@ -368,6 +368,22 @@ Astra agrees with the plan on each one:**
    for the `package` member on the **event** line (FR-027), not on the HTTP
    response; the reception screen and the history belong to row 43-3.
 
+**The manager resolved the same three points on the same day** (05:40 Kuwait,
+project conversation, verbatim):
+
+> «ردّيت على أسئلة الجلسة التلاتة:
+> - قفل الحصة وقت الخصم يفضل، حتى لو فيه قفل تاني بيغطيه.
+> - ترتيب الحفظ اللي اختارته يفضل.
+> - بيانات الباقة تتبعت في الحدث بس زي ما المواصفات قالت، ورد الـ API مايتغيّرش في 43-2.
+>   لو شاشة الاستقبال في 43-3 احتاجتها، 43-3 يضيفها.»
+
+The manager and Astra therefore agree on all three: the slot lock stays as a
+defensive check, the write order stays line → redemption → slot, and the
+response keeps its shape in 43-2. The manager also set the publication rule:
+the PR opens as soon as the gates pass, and Astra's notes are fixed together
+with the bots' notes in one push — unless Astra finds a serious problem before
+the PR opens, which is fixed first.
+
 ## 13. Astra's design review (2026-11-05)
 
 Astra read the plan against `HEAD abaffb3` and returned **blocking defects**. Both

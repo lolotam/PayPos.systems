@@ -1,7 +1,8 @@
 import { RecordServiceSessionUseCase } from '../use-cases/record-service-session/record-service-session.usecase.ts';
 import { createSessionRecovery } from '../persistence/session-recovery.adapter.ts';
+import { ordersTransactions } from '../orders.module.ts';
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { AT, ids, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
+import { AT, ids, interceptDatabase, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
 import { packageLine, seedPackage } from './package-redemption.fixture.ts';
 
 let f: SessionFixture;
@@ -154,4 +155,29 @@ it('uses the final clock and performer instant after awaiting the slot lock when
     const rows = await f.h.owner`SELECT occurred_at FROM service_sessions WHERE id=${result.session.id}`;
     expect(new Date(rows[0]?.['occurred_at'] as string)).toEqual(after);
   } finally { f.setAt(AT); }
+});
+
+it('RD-08b rolls the visit, the slot, the event and the idempotency key back when the slot update fails', async () => {
+  const seeded = await seedPackage(f, { sessions: 1, expiresOn: '2026-12-30' });
+  const snapshot = () => f.h.owner`SELECT (SELECT count(*) FROM service_sessions) AS sessions,(SELECT count(*) FROM service_lines) AS lines,
+    (SELECT count(*) FROM package_redemptions) AS redemptions,(SELECT count(*) FROM outbox) AS events,(SELECT count(*) FROM idempotency_keys) AS keys`;
+  const before = await snapshot();
+  // فشل متعمّد بعد كتابة صف الاسترداد وقبل نقل الجلسة: كل المعاملة تتراجع سوا.
+  const failing = interceptDatabase(f.db, async (statement) => {
+    if (statement.includes('UPDATE package_session_slots')) throw new Error('deliberate failure after the redemption write');
+  });
+  const failingCreate = new RecordServiceSessionUseCase(ordersTransactions(failing, ids, f.clock),
+    createSessionRecovery(f.db, ids, f.clock), ids, f.clock);
+  const key = ids.newId();
+  await expect(failingCreate.execute({ ...f.context(key), input: f.body([packageLine(f, seeded.entitlement)]) }))
+    .rejects.toThrow('SESSION_PERSISTENCE_FAILED');
+  // لا سطر ولا زيارة ولا استرداد ولا حدث ولا claim تبقّى.
+  expect(await snapshot()).toEqual(before);
+  expect(await f.h.owner`SELECT 1 FROM package_redemptions WHERE entitlement_id=${seeded.entitlement}`).toHaveLength(0);
+  const slots = await f.h.owner`SELECT state FROM package_session_slots WHERE entitlement_id=${seeded.entitlement}`;
+  expect(slots.map((slot) => slot['state'])).toEqual(['FREE']);
+  // نفس المفتاح تاني يعدّي، لأن claim الـ idempotency اتراجع مع المعاملة زي كل الأثر.
+  const result = await f.create.execute({ ...f.context(key), input: f.body([packageLine(f, seeded.entitlement)]) });
+  expect(result.outcome).toBe('COMPLETE');
+  expect(await f.h.owner`SELECT 1 FROM package_redemptions WHERE entitlement_id=${seeded.entitlement}`).toHaveLength(1);
 });
