@@ -77,6 +77,17 @@ it('never grants authenticated CORS to malformed encoded paths', async () => {
   expect(response.headers['access-control-allow-credentials']).toBeUndefined();
 });
 
+it('keeps an encoded separator that does not route to ratings on the authenticated policy', async () => {
+  const response = await app.inject({
+    method: 'GET',
+    url: '/v1/ratings%2Fview',
+    headers: { origin: ADMIN },
+  });
+  expect(response.statusCode).toBe(404);
+  expect(response.headers['access-control-allow-origin']).toBe(ADMIN);
+  expect(response.headers['access-control-allow-credentials']).toBe('true');
+});
+
 it.each(routes)(
   'allows only the page origin for %s preflight, without credentials',
   async (route, method) => {

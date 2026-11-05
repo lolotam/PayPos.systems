@@ -42,8 +42,10 @@ record retains the answer, date, channel and interpretation.
 The existing Fastify CORS plugin chooses the policy per request. Only the exact
 paths `/v1/ratings/view`, `/v1/ratings/submit` and `/v1/ratings/opt-out` use the
 public policy. Classification safely decodes the request pathname, so encoded
-route characters cannot fall back to authenticated CORS; malformed encoding fails
-closed. The allowed origin is exactly the configured `RATING_PAGE_ORIGIN`,
+route characters cannot fall back to authenticated CORS. Unclassifiable or malformed
+paths retain the authenticated policy; Fastify rejects malformed paths before routing.
+Decoding preserves encoded separators, which do not identify the registered rating routes.
+The allowed origin is exactly the configured `RATING_PAGE_ORIGIN`,
 never a wildcard or reflected arbitrary origin. It is empty/disabled by default.
 Startup validation rejects a non-origin value (credentials, path, query, fragment
 or multiple origins). The template contains only a synthetic placeholder.

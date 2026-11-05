@@ -369,7 +369,9 @@ The review's encoded slash example returned 404, but `/v1/rat%69ngs/view` and
 `/v1/ratings/%76iew` reached the same rating handler with authenticated CORS.
 Three new real createApp injection cases reproduced credentialed preflight
 responses before the fix. The policy now safely decodes the pathname before
-matching and fails closed if decoding fails. The regressions cover encoded prefix
+matching. Per the manager's latest direction, unclassifiable or malformed paths
+fall back to the authenticated policy rather than being classified as rating.
+Fastify rejects malformed encoding before reaching the route. The regressions cover encoded prefix
 and operation characters for view/submit/opt-out, preflight and actual responses,
 page and admin origins; a malformed-encoding case verifies rejection without CORS.
 Existing non-rating authenticated CORS behavior remains covered.
@@ -385,12 +387,30 @@ these existing error/retry states.
 No new library, generator, migration, real environment-file read, local E2E,
 server change, deployment, merge or self-triggered Codex review is involved.
 
-P1 batch local gates passed: API HTTP/config 49/49 and menu 28/28 (26 UI plus
+P1 batch local gates passed: API HTTP/config 50/50 and menu 28/28 (26 UI plus
 headers/standalone); both typechecks and full lints, menu api:check,
 lint:docs (0 errors / 29 existing warnings), module-map:check, formatting and
 git diff --check. The three encoded-route cases failed before the production fix;
 transport-retry and pending-reconciliation UI cases pass with unchanged UI hooks.
 The disabled-state assertion targets the fieldset that disables its controls,
 not the button's own disabled property. clean-code-guard, test-guard and docs-guard
-checked the decoded-route scope, fail-closed behavior, real HTTP boundary tests,
+checked the decoded-route scope, malformed-path handling, real HTTP boundary tests,
 visible outcomes and source/documentation consistency.
+
+After the first P1 push `6c6e96a4`, the manager clarified that malformed or
+unclassifiable paths must retain authenticated fallback. The final alignment
+uses safe URI decoding that preserves encoded separators and returns no rating
+policy on decode failure. An injection case verifies `/v1/ratings%2Fview` stays
+a 404 on authenticated CORS, while the encoded-letter cases still reach rating
+routes without admin CORS. No blacklist of encoding variants is used. The MEDIUM
+thread was rebutted with the UI/network and pending-fieldset evidence and resolved
+at the manager's request; production UI hooks remain unchanged.
+
+The alignment push initially encountered a concurrent remote main merge at
+`b94bba83`. The local adjustment was rebased onto that remote update without
+force or replacing its work. Main now contains #861's newer canonical OpenAPI:
+menu's schema was regenerated with the existing api:generate command (99 added
+generated lines), producing the same blob as admin/POS:
+`34072e8d6af134d00a2b27146aa5e3f6d83f18f1`. No manual schema edit or new generator
+was used. Stale local contracts and i18n build outputs were rebuilt before repeating API
+typecheck; no source change was made to the staff slice.

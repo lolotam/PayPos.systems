@@ -8,16 +8,9 @@ export function ratingCorsPolicy(origin: string) {
     let path: string;
     try {
       // Fastify يفك ترميز حروف المسار؛ تصنيف CORS لازم يطابق المسار الذي يختاره الراوتر.
-      path = decodeURIComponent(request.url.split('?')[0] ?? '');
+      path = decodeURI(request.url.split('?')[0] ?? '');
     } catch {
-      return {
-        origin: false,
-        credentials: false,
-        methods: [],
-        allowedHeaders: [],
-        exposedHeaders: [],
-        cacheControl: 'no-store',
-      };
+      return undefined;
     }
     const rating = /^\/v1\/ratings\/(view|submit|opt-out)$/.exec(path ?? '');
     if (!rating) return undefined;
