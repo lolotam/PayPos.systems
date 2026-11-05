@@ -8,7 +8,7 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "check": "turbo run typecheck lint test --concurrency=1 && pnpm lint:docs && node --test \"scripts/module-map/*.test.mjs\" \"scripts/roadmap/*.test.mjs\" \"scripts/test-db/*.test.mjs\" && pnpm module-map:check && pnpm --filter @pospay/admin api:check && pnpm --filter @pospay/pos api:check",
+    "check": "turbo run typecheck lint test --concurrency=1 && pnpm lint:docs && node --test \"scripts/module-map/*.test.mjs\" \"scripts/roadmap/*.test.mjs\" \"scripts/test-db/*.test.mjs\" \"scripts/migration-chain/*.test.mjs\" && pnpm module-map:check && pnpm migration-chain:check && pnpm --filter @pospay/admin api:check && pnpm --filter @pospay/pos api:check",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
     "lint:docs": "node packages/config/scripts/lint-docs.mjs",
@@ -28,7 +28,8 @@
     "platform:create-user": "pnpm --filter @pospay/auth platform:create-user",
     "push:generate-vapid": "node scripts/push-generate-vapid.mjs",
     "module-map:generate": "node scripts/module-map/cli.mjs generate",
-    "module-map:check": "node scripts/module-map/cli.mjs check"
+    "module-map:check": "node scripts/module-map/cli.mjs check",
+    "migration-chain:check": "node scripts/migration-chain/check.mjs"
   },
   "devDependencies": {
     "@pospay/config": "workspace:*",

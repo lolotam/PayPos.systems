@@ -1,0 +1,89 @@
+/*
+ * ??? ??????? ?? PP-69.9 ???? ????? ????? ???????? ???? ?? ???? ????? ??? journal
+ * ?? prevId ???? ?????? ?????? ??? ??? ??? #844 ?#845? ???? ???? ??????? ??? ?????.
+ */
+import { readdirSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const historicalGaps = new Set([129, 135, 190, 205]);
+const number = (idx) => String(idx).padStart(4, '0');
+const snapshotFile = (idx) => `meta/${number(idx)}_snapshot.json`;
+
+export function checkMigrationChain(journal, sqlFiles, snapshots) {
+  const errors = [];
+  const sql = new Set(sqlFiles);
+  const tags = new Set(journal.entries.map((entry) => entry.tag));
+  for (const [position, entry] of journal.entries.entries()) {
+    if (entry.idx !== position) {
+      errors.push(
+        `meta/_journal.json entries[${position}].idx: expected ${position}, actual ${entry.idx}`,
+      );
+    }
+    const prefix = number(entry.idx);
+    if (!entry.tag.startsWith(`${prefix}_`)) {
+      errors.push(
+        `meta/_journal.json tag ${entry.tag}: expected prefix ${prefix}_, actual ${entry.tag.split('_')[0]}_`,
+      );
+    }
+    if (!sql.has(`${entry.tag}.sql`)) {
+      errors.push(`${entry.tag}.sql: expected SQL file for journal tag, actual missing`);
+    }
+    const latest = position === journal.entries.length - 1;
+    if ((!historicalGaps.has(entry.idx) || latest) && !snapshots.has(entry.idx)) {
+      errors.push(
+        `${snapshotFile(entry.idx)}: expected snapshot for journal entry, actual missing`,
+      );
+    }
+  }
+  for (const file of sqlFiles.filter((name) => /^\d{4}_.+\.sql$/.test(name))) {
+    if (!tags.has(file.slice(0, -4))) {
+      errors.push(`${file}: expected journal entry, actual missing`);
+    }
+  }
+  return [...errors, ...checkSnapshots(snapshots)];
+}
+
+function checkSnapshots(snapshots) {
+  const errors = [];
+  const ids = new Map();
+  for (const [idx, snapshot] of snapshots) {
+    const file = snapshotFile(idx);
+    if (ids.has(snapshot.id)) {
+      errors.push(
+        `${file} id: expected unique id, actual ${snapshot.id} also in ${ids.get(snapshot.id)}`,
+      );
+    }
+    ids.set(snapshot.id, file);
+    const previous = snapshots.get(idx - 1);
+    if (previous && snapshot.prevId !== previous.id) {
+      errors.push(
+        `${file} prevId: expected ${previous.id} (${snapshotFile(idx - 1)} id), actual ${snapshot.prevId}`,
+      );
+    }
+  }
+  return errors;
+}
+
+export function readMigrationChain(directory) {
+  const json = (path) => JSON.parse(readFileSync(resolve(directory, path), 'utf8'));
+  const snapshots = new Map(
+    readdirSync(resolve(directory, 'meta'))
+      .filter((name) => /^\d{4}_snapshot\.json$/.test(name))
+      .map((name) => [Number(name.slice(0, 4)), json(`meta/${name}`)]),
+  );
+  return [json('meta/_journal.json'), readdirSync(directory), snapshots];
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try {
+    const directory = fileURLToPath(new URL('../../packages/db/migrations/', import.meta.url));
+    const errors = checkMigrationChain(...readMigrationChain(directory));
+    for (const error of errors) console.error(error);
+    if (errors.length) process.exitCode = 1;
+    else console.log('Migration journal and snapshot chain are valid.');
+  } catch (error) {
+    console.error(`Migration chain: expected readable migration files, actual ${error.message}`);
+    process.exitCode = 1;
+  }
+}

@@ -112,6 +112,11 @@ jobs:
           node --test "scripts/module-map/*.test.mjs" "scripts/roadmap/*.test.mjs" "scripts/test-db/*.test.mjs"
           pnpm module-map:check
 
+      - name: migration chain
+        run: |
+          node --test "scripts/migration-chain/*.test.mjs"
+          pnpm migration-chain:check
+
       # Generated API types: the admin and POS clients must match the committed OpenAPI document. PP-72.2 moved these
       # two checks here from the removed full workspace check job; the rest of `pnpm check` runs in check and api-tests.
       - name: api:check · admin
