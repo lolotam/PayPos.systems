@@ -131,19 +131,12 @@ jobs:
           pnpm turbo run test --filter=@pospay/domain
           pnpm --filter @pospay/api test:unit
 
-      # apps/api, the slow suite, runs in the four `api-tests` shards below; every other package stays here.
-      # turbo.json chains worker#test → api#test, so selecting the worker through turbo would run the whole api
-      # suite again unsharded: the worker is excluded here and run directly by vitest in the next step.
+      # apps/api, the slow suite, runs in the four `api-tests` shards below; the worker runs in its own job.
       - name: Chromium headless shell (spec 056)
         run: pnpm --filter @pospay/documents exec node scripts/install-headless-shell.mjs --with-deps
 
       - name: integration · RLS negative · EXPLAIN (packages)
         run: pnpm turbo run test --filter=!@pospay/domain --filter=!@pospay/api --filter=!@pospay/worker
-
-      - name: integration · worker
-        run: |
-          pnpm turbo run build --filter=@pospay/worker...
-          pnpm --filter @pospay/worker exec vitest run
 
       # With `continue-on-error`, a telemetry failure shows as step `outcome: failure` while its
       # `conclusion` is `success`, so the gate steps alone decide the job.
@@ -251,11 +244,85 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
+  worker-tests:
+    name: integration · worker
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # Per-task duration and cache status for the telemetry report; it does not change any task hash.
+    env:
+      TURBO_RUN_SUMMARY: 'true'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Local infra (Postgres 16 + Redis 7)
+        run: |
+          {
+            echo "POSTGRES_OWNER_PASSWORD=$(openssl rand -hex 24)"
+            echo "POSTGRES_APP_PASSWORD=$(openssl rand -hex 24)"
+            echo "POSTGRES_AUTH_PASSWORD=$(openssl rand -hex 24)"
+            echo "POSTGRES_DISPATCHER_PASSWORD=$(openssl rand -hex 24)"
+            echo "REDIS_PASSWORD=$(openssl rand -hex 24)"
+          } > .env
+          pnpm infra:up
+
+      - name: Turbo cache
+        uses: actions/cache@v6
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-worker-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-worker-
+            turbo-${{ runner.os }}-
+
+      # turbo.json chains worker#test → api#test, so selecting the worker through turbo would run the whole api
+      # suite again unsharded: the worker is excluded from turbo test and run directly by vitest here.
+      - name: integration · worker
+        run: |
+          pnpm turbo run build --filter=@pospay/worker...
+          pnpm --filter @pospay/worker exec vitest run
+
+      # With `continue-on-error`, a telemetry failure shows as step `outcome: failure` while its
+      # `conclusion` is `success`, so the gate steps alone decide the job.
+      - name: telemetry · report
+        if: always()
+        continue-on-error: true
+        env:
+          CI_TELEMETRY_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_TELEMETRY_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          CI_TELEMETRY_PNPM_VERSION="$(pnpm --version 2>/dev/null || true)"
+          CI_TELEMETRY_CHECKOUT_SHA="$(git rev-parse HEAD)"
+          export CI_TELEMETRY_PNPM_VERSION CI_TELEMETRY_CHECKOUT_SHA
+          node scripts/ci-telemetry/cli.mjs --label worker-tests --turbo-runs .turbo/runs --out "$RUNNER_TEMP/ci-telemetry"
+
+      # Best-effort: a hard cancel can skip it, so an artifact is not guaranteed.
+      - name: telemetry · upload
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-telemetry-worker-tests-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-telemetry/
+          retention-days: 14
+          if-no-files-found: warn
+
   # CLAUDE.md §10 order ends with "… → integration → RLS negative tests → EXPLAIN checks → build all apps → docker
-  # images": the full build runs after every integration job (packages, worker and the four api shards) is green.
+  # images": the full build runs after every integration job (packages in check, worker-tests and the four api shards) is green.
   build:
     name: build all apps
-    needs: [changes, check, api-tests]
+    needs: [changes, check, api-tests, worker-tests]
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -357,7 +424,7 @@ jobs:
   # docs-only changes need every heavy job skipped. Unknown classification and all other results fail.
   gate:
     name: ci-gate
-    needs: [changes, check, api-tests, build, images]
+    needs: [changes, check, api-tests, worker-tests, build, images]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -366,16 +433,17 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           CHECK: ${{ needs.check.result }}
           API_TESTS: ${{ needs.api-tests.result }}
+          WORKER_TESTS: ${{ needs.worker-tests.result }}
           BUILD: ${{ needs.build.result }}
           IMAGES: ${{ needs.images.result }}
           CODE: ${{ needs.changes.outputs.code }}
         run: |
-          echo "changes=$CHANGES check=$CHECK api_tests=$API_TESTS build=$BUILD images=$IMAGES code=$CODE"
+          echo "changes=$CHANGES check=$CHECK api_tests=$API_TESTS worker_tests=$WORKER_TESTS build=$BUILD images=$IMAGES code=$CODE"
           [ "$CHANGES" = "success" ] || exit 1
           if [ "$CODE" = "true" ]; then
-            [ "$CHECK" = "success" ] && [ "$API_TESTS" = "success" ] && [ "$BUILD" = "success" ] && [ "$IMAGES" = "success" ]
+            [ "$CHECK" = "success" ] && [ "$API_TESTS" = "success" ] && [ "$WORKER_TESTS" = "success" ] && [ "$BUILD" = "success" ] && [ "$IMAGES" = "success" ]
           elif [ "$CODE" = "false" ]; then
-            [ "$CHECK" = "skipped" ] && [ "$API_TESTS" = "skipped" ] && [ "$BUILD" = "skipped" ] && [ "$IMAGES" = "skipped" ]
+            [ "$CHECK" = "skipped" ] && [ "$API_TESTS" = "skipped" ] && [ "$WORKER_TESTS" = "skipped" ] && [ "$BUILD" = "skipped" ] && [ "$IMAGES" = "skipped" ]
           else
             echo "::error::Unknown code classification: $CODE"
             exit 1
