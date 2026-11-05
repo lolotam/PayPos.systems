@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/v1/staff/me/attendance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Own attendance only, live employee, membership, own permission and staff feature. STAFF_POS requires a live private-view window. No correction metadata. Cache-Control: no-store. */
+        get: operations["ownAttendance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/attendance-statements": {
         parameters: {
             query?: never;
@@ -7884,6 +7901,80 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    ownAttendance: {
+        parameters: {
+            query?: {
+                month?: string;
+            };
+            header?: {
+                "x-private-view-window-id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Own current attendance times and exception kinds only */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        month: string;
+                        sessions: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: date */
+                            working_date: string;
+                            branch_name_ar: string | null;
+                            branch_name_en: string;
+                            /** Format: date-time */
+                            clock_in: string;
+                            /** Format: date-time */
+                            clock_out: string | null;
+                            late_minutes: number;
+                            /** @enum {string} */
+                            source: "QR" | "BARCODE" | "MANUAL";
+                            /** @enum {string} */
+                            status: "OPEN" | "CLOSED" | "MISSED_OUT";
+                            open_exceptions: ("NONE" | "OUT_OF_RANGE" | "SUSPECTED_MISSED_OUT")[];
+                            corrected: boolean;
+                        }[];
+                    };
+                };
+            };
+            /** @description VALIDATION_FAILED */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description UNAUTHENTICATED */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description FORBIDDEN or PRIVATE_VIEW_EXPIRED */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description MY_PERIOD_OUT_OF_RANGE */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     requestAttendanceStatement: {
         parameters: {
             query?: never;
