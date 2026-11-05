@@ -39,6 +39,7 @@ import {
   createPriceEditNoticeConsumer,
   createDiscountApprovalNoticeConsumer,
   daySessionsReader,
+  startPackagePreviewWorker,
 } from './modules/orders/index.ts';
 import {
   closedRatingClaimsLifecycle,
@@ -72,6 +73,7 @@ redis.on('error', (error: unknown) => logger.warn({ err: error }, 'redis connect
 // ADR-0019: استقبال STOP وin-app مستقلان؛ تفعيل OTP لا يفتح إرسال الشركات.
 const production = process.env['NODE_ENV'] === 'production';
 const files = startFilesWorker(app, systemUuidV7(), config.REDIS_URL, process.env);
+const previews = startPackagePreviewWorker(app, files.readImportBytes, config.REDIS_URL, { now: () => new Date() });
 const staff = startStaffWorker(app, systemUuidV7(), config.REDIS_URL, { now: () => new Date() });
 const email = await startEmailCapability({
   env: process.env,
@@ -161,7 +163,7 @@ const businessDeliver = createDeliverer(
     }),
   ],
   logger,
-  { knownEventTypes: knownEventTypes(staff, notifications, inApp) },
+  { knownEventTypes: knownEventTypes(staff, notifications, inApp, previews) },
 );
 let queue: OptionalCapabilities['queue'];
 let documents: DocumentRendering | undefined;
@@ -170,17 +172,18 @@ const pushTransport = push.transport((claimed) => (queue?.deliver ?? businessDel
 // تصميم 7: المجدول الحيّ ما بيشتغلش من الإقلاع، فالتركيب بيسجّل المسجّل المغلق بس.
 const ratingClaims = closedRatingClaimsLifecycle();
 const deliver: typeof businessDeliver = (event) =>
-  deliverFilesEvent(event, {
+  previews.deliver(event, (event) => deliverFilesEvent(event, {
     register: (claimed) => files.deliver(claimed),
     staff: (claimed, next) => staff.deliver(claimed, next),
     core: (claimed) => ratingClaims.deliver(claimed, pushTransport),
-  });
+  }));
 const loop = createDispatchLoop({ dispatcher, deliver, logger });
 
 const release = async (): Promise<void> => {
   stopping = true;
   clearInterval(capabilityTimer);
   // ننتظر فحص الملفات الجاري قبل إغلاق اتصال قاعدة البيانات.
+  await previews.close();
   await files.close();
   await staff.close();
   // المسجّل المغلق ما عندوش موارد، بس الإغلاق بيبقى في مسار الإيقاف زي أي بقية.
@@ -230,6 +233,7 @@ async function startWorkerCore(): Promise<void> {
     {
       readiness: [
         { name: 'database', check: () => app.ping() },
+        { name: 'package-previews', check: () => previews.ready() },
         // A wrong dispatcher URL or password leaves the worker with nothing to do — it is not ready.
         { name: 'dispatcher', check: () => dispatcher.ping() },
         {
@@ -257,6 +261,7 @@ async function startWorkerCore(): Promise<void> {
     },
     logger,
   );
+  await previews.ready();
   worker.enableShutdownHooks();
   await worker.listen({ host: config.WORKER_HOST, port: config.WORKER_PORT });
   loop.start();

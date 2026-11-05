@@ -339,6 +339,14 @@ controller is **not registered in the production controller list**; both routes 
 404 and no pending work can accumulate. Tests mount it explicitly. Only 47-1b may
 register it together with its available consumer/transport. No new env switch is used.
 
+47-1b implements that activation with a real BullMQ transport, outside outbox/tenant
+transactions, plus readiness/close lifecycle hooks. The generic worker registry does
+not acknowledge the command without its transport. The worker writer also owns issue
+#863: a new migration validates array shapes, issue-count cardinality and the complete
+valid/skipped/distinct-invalid-row partition before ready, allowing multiple field
+issues per row. The implementation and local migration-lane status are recorded in
+[47-1b implementation](47-1b-implementation.md).
+
 Customer resolution is batched through
 `CustomerLookupPort.findByPhones(e164s)`, with one query on the existing tenant transaction.
 Results follow input order and contain only `{ id, phone_last3 }` or `null`.

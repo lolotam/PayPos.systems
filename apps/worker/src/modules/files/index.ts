@@ -5,3 +5,5 @@ export type {
   StatementLogoRequest,
 } from './domain/statement-logo.ts';
 export { StatementLogoUnavailable } from './domain/statement-logo.ts';
+
+export { documentFileFacts } from './queries/document-file.query.ts';

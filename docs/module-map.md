@@ -51,6 +51,7 @@ Anything not in this table is a CI failure. Every arrow points **down** this lis
 | `reporting`     | —                     | **Imports nothing.** Read-only SQL across contexts (§5).                       |
 
 **Every module may import:** `packages/domain`, `packages/contracts`, `packages/db` (from `persistence/` and `queries/` only), `packages/observability`.
+**Technical workbook surface (47-1b):** `packages/import-workbooks` owns bounded XLSX/ZIP/XML parsing. Only outer adapters and API shared compatibility facades import it; `domain/` and `use-cases/` cannot import it. Staff bounds and error mapping are unchanged.
 **Only the owning module may import:** `packages/auth` (→ `identity`), `packages/payments` (→ `payments`), `packages/storage` (→ `files`), `packages/notifications` (→ `notifications`), `packages/documents` (→ `reporting`; the worker composition root `apps/worker/src/main.ts` wires it, and only `apps/worker/src/documents/` uses it), `packages/commissions-engine` (→ `commissions`, in `apps/api` and `apps/worker`; its root entry only. `apps/admin/src/commissions` may import the `/validation` entry point and nothing else, which the module-map check cannot see, so it is enforced by the ESLint scopes in `packages/config/eslint/boundaries.js` and `packages/config/eslint/index.js`, by `apps/admin/eslint.config.js` and by the package `exports`; the row is declared by 59-0, ADR-0054 §1).
 
 Application composition roots (`apps/api/src/{app,main}.ts`, `apps/worker/src/{main,worker}.ts`) may wire
@@ -367,6 +368,9 @@ composition_roots:
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
+  - orders -> files.documentFileFacts @ apps/worker/src/modules/orders/persistence/package-preview.transactions.ts
+  - orders -> catalog.readPackageImportServices @ apps/worker/src/modules/orders/persistence/package-preview.transactions.ts
+  - orders -> customers.readPackageImportCustomers @ apps/worker/src/modules/orders/persistence/package-preview.transactions.ts
   - staff -> identity.readOwnAttendanceAccess @ apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts
   - staff -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts

@@ -68,3 +68,5 @@ export const packageImportPreviewSchemas = [
   packageImportPreviewRowError,
   packageImportPreviewStatus,
 ];
+
+export const packageImportPreviewJob = z.strictObject({ companyId: id, previewId: id });

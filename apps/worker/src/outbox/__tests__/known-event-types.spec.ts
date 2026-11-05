@@ -1,3 +1,5 @@
+vi.mock('../../modules/orders/jobs/package-preview.processor.ts', () => ({ startPackagePreviewProcessor: () => ({ ready: async () => undefined, close: async () => undefined, deliver: async () => ({ delivered: true }) }) }));
+import { startPackagePreviewWorker } from '../../modules/orders/index.ts';
 import type { Database } from '@pospay/db';
 import { createLogger } from '@pospay/observability';
 import { expect, it, vi } from 'vitest';
@@ -37,12 +39,13 @@ const notifications = createNotificationModule({
   configuration: { mode: 'fake', hashKey: 'synthetic-test-key'.repeat(3), hashKeyId: 'test-v1' },
 });
 const inApp = createInAppNotificationModule(options);
+const previews = startPackagePreviewWorker(database, async () => null, 'synthetic', clock);
 
 it('recognizes every event emitted by API and worker, including finite template expansions', () => {
   const emitted = emittedEventTypes();
   const consumers = [notifications.consumer, createStaffDocumentDefaults(ids)];
   const supported = new Set([
-    ...knownEventTypes(staff, notifications, null),
+    ...knownEventTypes(staff, notifications, null, previews),
     ...consumers.flatMap((consumer) => consumer.eventTypes),
   ]);
   expect([...emitted.keys()]).toEqual(
@@ -60,13 +63,7 @@ it('recognizes every event emitted by API and worker, including finite template 
       'NotificationFailed',
     ]),
   );
-  // ADR-0010: منتج المعاينة مقفول بـ404 لحد مستهلك 47-1b؛ يفضل مجهولًا عشان العامل القديم يعيد المحاولة.
-  const fencedProducers = new Set(['PackageImportPreviewRequested']);
-  expect(
-    [...emitted].filter(
-      ([eventType]) => !supported.has(eventType) && !fencedProducers.has(eventType),
-    ),
-  ).toEqual([]);
+  expect([...emitted].filter(([eventType]) => !supported.has(eventType))).toEqual([]);
 });
 
 it('keeps notification transport recognition conditional on the active module', () => {
@@ -104,7 +101,7 @@ it.each([
   expect(database.withTenant).not.toHaveBeenCalled();
 });
 
-it('retries a package preview request until the 47-1b consumer exists', async () => {
+it('retries a package preview request when its transport is absent during rolling deployment', async () => {
   database.withTenant = vi.fn();
   const deliver = createDeliverer(database, [], createLogger('silent'), {
     knownEventTypes: knownEventTypes(staff, notifications, inApp),

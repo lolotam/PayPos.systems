@@ -1,3 +1,4 @@
+import { PackageImportPreviewController } from './http/package-import-preview.controller.ts';
 import { RequestPackageImportPreviewUseCase } from './use-cases/request-package-import-preview/request-package-import-preview.usecase.ts';
 import { createPackageImportRequestTransactions } from './persistence/package-import-request.transactions.ts';
 import type { Provider } from '@nestjs/common';
@@ -57,7 +58,7 @@ import { ConfirmSessionRecoveryUseCase } from './use-cases/confirm-session-recov
 import { SessionRecoveryController } from './http/session-recovery.controller.ts';
 import type { Clock } from './ports/service-session-transactions.port.ts';
 
-export const ordersControllers = [SessionRecoveryController, ServiceSessionsController, ServiceSessionFormController, SessionTipsController, DiscountProposalsController];
+export const ordersControllers = [PackageImportPreviewController, SessionRecoveryController, ServiceSessionsController, ServiceSessionFormController, SessionTipsController, DiscountProposalsController];
 export function ordersPerformerOptionsQuery(database: TenantWrappers, clock: Clock = systemClock) {
   return new SessionPerformerOptionsQueryHandler(database, {
     time: (occurredAt, at, timezone) => sessionTime(new Date(occurredAt), at, timezone).occurred_at.toISOString(),
