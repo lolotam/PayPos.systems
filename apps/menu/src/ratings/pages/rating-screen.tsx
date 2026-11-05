@@ -9,7 +9,7 @@ export function RatingScreen({ token, locale }: { token: string; locale: Locale 
     (error) => error instanceof RatingRequestError && error.code === 'RATING_LINK_UNAVAILABLE',
   );
   if (!token || unavailable) return <p role="alert">{t(locale, 'publicRating.unavailable')}</p>;
-  if (view.isError)
+  if (view.isError && !view.data)
     return (
       <section>
         <p role="alert">{t(locale, 'publicRating.error')}</p>

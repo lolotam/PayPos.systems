@@ -1,4 +1,5 @@
 import { t } from '@pospay/i18n';
+import { focusManager } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { RatingPage } from './rating-page';
@@ -13,10 +14,78 @@ function api(view: Record<string, unknown> = { business_name: 'Test Salon', stat
   return { requests, transport };
 }
 
+function pendingResponse() {
+  let resolve: (response: Response) => void = () => {
+    throw new Error('Response not pending');
+  };
+  const promise = new Promise<Response>((complete) => {
+    resolve = complete;
+  });
+  return { promise, resolve };
+}
+
 beforeEach(() => {
+  focusManager.setFocused(false);
   window.history.replaceState(null, '', '/#test-link');
   vi.stubEnv('NEXT_PUBLIC_API_URL', 'https://api.example.test');
 });
+
+it('keeps completion when a pre-submit focus read resolves late', async () => {
+  const { transport } = api();
+  render(<RatingPage />);
+  fireEvent.click(await screen.findByRole('radio', { name: '5' }));
+  const submission = pendingResponse();
+  const refetch = pendingResponse();
+  transport.mockImplementationOnce(() => submission.promise);
+  fireEvent.click(screen.getByRole('button', { name: t('ar', 'publicRating.submit') }));
+  await waitFor(() => expect(transport).toHaveBeenCalledTimes(2));
+  transport.mockImplementationOnce(() => refetch.promise);
+  act(() => focusManager.setFocused(true));
+  await waitFor(() => expect(transport).toHaveBeenCalledTimes(3));
+  await act(async () => submission.resolve(new Response(null, { status: 204 })));
+  expect(await screen.findByText(t('ar', 'publicRating.done'))).toBeDefined();
+  await act(async () =>
+    refetch.resolve(Response.json({ business_name: 'Test Salon', state: 'open' })),
+  );
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: t('ar', 'publicRating.optOut') })).toHaveProperty(
+      'disabled',
+      false,
+    ),
+  );
+  expect(screen.getByText(t('ar', 'publicRating.done'))).toBeDefined();
+  expect(screen.queryByRole('radio')).toBeNull();
+});
+
+it.each(['open', 'submitted'])(
+  'keeps cached %s content after a transient refetch failure, then closes an expired link',
+  async (state) => {
+    const { transport } = api({ business_name: 'Test Salon', state });
+    render(<RatingPage />);
+    await screen.findByRole('heading');
+    transport.mockRejectedValueOnce(new TypeError('PRIVATE_NETWORK_DETAIL'));
+    act(() => focusManager.setFocused(true));
+    await waitFor(() => expect(transport).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: t('ar', 'publicRating.optOut') })).toHaveProperty(
+        'disabled',
+        false,
+      ),
+    );
+    expect(screen.getByRole('heading').textContent).toContain('Test Salon');
+    if (state === 'open') expect(screen.getAllByRole('radio')).toHaveLength(5);
+    else expect(screen.getByText(t('ar', 'publicRating.done'))).toBeDefined();
+    act(() => focusManager.setFocused(false));
+    transport.mockImplementationOnce(async () =>
+      Response.json({ code: 'RATING_LINK_UNAVAILABLE' }, { status: 404 }),
+    );
+    act(() => focusManager.setFocused(true));
+    expect(await screen.findByText(t('ar', 'publicRating.unavailable'))).toBeDefined();
+    expect(screen.queryByRole('heading')).toBeNull();
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(screen.queryByRole('button', { name: t('ar', 'publicRating.optOut') })).toBeNull();
+  },
+);
 
 it('ignores completion of an old link after navigation to a new link', async () => {
   // Regression: an old mutation must never mark a different link as submitted.

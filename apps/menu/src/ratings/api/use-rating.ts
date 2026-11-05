@@ -37,10 +37,12 @@ export function useRating(token: string) {
       });
       if (response.error) throw new RatingRequestError(response.error.code);
     },
-    onSuccess: () =>
+    onSuccess: async () => {
+      await queryClient.cancelQueries({ queryKey: ['rating-view'] });
       queryClient.setQueryData(['rating-view'], (previous: typeof view.data) =>
         previous ? { business_name: previous.business_name, state: 'submitted' } : previous,
-      ),
+      );
+    },
     // الرد المفقود ممكن يكون اتسجّل؛ قراءة الحالة تمنع إعادة عرض نموذج لرابط مستهلك.
     onError: () => {
       void queryClient.invalidateQueries({ queryKey: ['rating-view'] });

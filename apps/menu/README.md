@@ -12,6 +12,10 @@ The API separately requires `RATING_PAGE_ORIGIN` equal to this page's exact orig
 Do not add it to `AUTH_TRUSTED_ORIGINS`. An unset origin disables public rating CORS.
 Neither this README nor this slice changes server, DNS, Traefik or Dokploy settings.
 
+Build workspace dependencies before direct checks or development on a fresh checkout:
+
+`pnpm exec turbo run build --filter=@pospay/menu^...`
+
 Local checks:
 
 - `pnpm --filter @pospay/menu typecheck` (includes generated-client freshness)
@@ -20,5 +24,9 @@ Local checks:
 
 Regenerate the API schema with `pnpm --filter @pospay/menu api:generate`.
 Use `pnpm --filter @pospay/menu dev` for local development, and the existing
-`build` / `start` scripts for a Next.js runtime. Staging deployment and live
+`build` / `start` scripts for a Next.js standalone runtime. The build copies browser
+assets into `.next/standalone/apps/menu/.next/static`; start launches the generated
+`.next/standalone/apps/menu/server.js`. Keep the complete `.next/standalone` tree
+when packaging the runtime. `RATING_PAGE_ORIGIN` requires HTTPS outside explicit
+`NODE_ENV=development` or `NODE_ENV=test`. Staging deployment and live
 verification belong to the manager's separate release work.

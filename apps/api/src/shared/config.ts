@@ -96,7 +96,15 @@ export type ApiConfig = z.output<typeof schema>;
  * @returns the validated configuration
  */
 export function readConfig(env: NodeJS.ProcessEnv): ApiConfig {
-  const result = schema.safeParse(env);
+  const result = schema
+    .refine(
+      (config) =>
+        !config.RATING_PAGE_ORIGIN.startsWith('http:') ||
+        env.NODE_ENV === 'development' ||
+        env.NODE_ENV === 'test',
+      { path: ['RATING_PAGE_ORIGIN'] },
+    )
+    .safeParse(env);
   if (!result.success) {
     const keys = [...new Set(result.error.issues.map((issue) => issue.path.join('.')))];
     throw new Error(`Invalid API configuration: ${keys.join(', ')} — see .env.example`);

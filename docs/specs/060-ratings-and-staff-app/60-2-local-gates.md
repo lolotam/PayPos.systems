@@ -103,7 +103,7 @@ API public-route CORS changes are now authorized. AUTH_TRUSTED_ORIGINS, Traefik,
 server, DNS and Dokploy settings remain unchanged. No migration, local E2E,
 deployment or merge is part of this slice. Only the explicitly authorized
 `.env.example` template was read/edited; no real environment file was opened.
-External correction rounds used: 0/5.
+External correction rounds used: 1/5 (this consolidated correction).
 
 ## Connection verification — 2026-11-05
 
@@ -151,3 +151,55 @@ merge approval or live-integration proof.
 
 [Final API/privacy review](<t3-thread://v2/438824e0-fe19-4a22-bb31-f81eff7b7322/thread:delegated-task:command%3Amcp%3Aba46510b-d393-42b5-ba6b-b58cb66a08fa%3Adelegate-task%3Ae616d37d-5471-47ad-bd7b-6de97d4541ad>).
 Exact-head CI and external PR reviews remain outstanding until the PR runs them.
+
+## Correction round 1 — 2026-11-05
+
+The manager authorized one consolidated correction after all bots finished on
+`7e6a1a2697ce68eb8522e06fa6a6e2b7c683c06f`. MergePilot receipt `5784562409`
+was partial (Waleed_Bot completed 1 of 6 batches); a full receipt is required on
+the next head. The original head's required CI check subsequently passed.
+
+- Moved the rating-specific CORS route/header policy to customers/http and exported
+  it through the module entry point. app.ts composes it with generic shared CORS.
+- Rejected HTTP rating origins outside explicit development/test, including an
+  unset NODE_ENV. Added production/staging/unset and development/test cases.
+- Corrected the standalone start command and packaged browser assets beside the
+  traced server; a real temporary-filesystem test checks the resulting artifact.
+- Cancelled outstanding view reads before storing successful submission state.
+  A delayed focus-read regression checks that completion remains visible and the
+  form does not reopen. Cached open/submitted content survives transient refetch
+  failure, while a subsequent unavailable response still hides name and controls.
+- Documented the prerequisite workspace dependency build before direct menu commands.
+
+The alleged callback-only CORS CRITICAL was independently checked against installed
+`@fastify/cors/index.js`: handleCorsOptionsDelegator explicitly consumes returned
+Promises for one-argument delegates. No callback conversion was warranted. Real
+createApp HTTP injection tests exercise preflight and ordinary requests on all
+three public routes; they complete with the expected headers and generic errors.
+
+Regression evidence before fixes: the three new UI cases failed, and HTTP origins
+were accepted in production/staging/unset-environment cases. After fixes:
+
+- API HTTP/config: 43/43 passed; API typecheck and full lint passed.
+- Menu: 16/16 passed (14 UI, security headers, standalone packaging); typecheck,
+  generated-client freshness and full lint passed.
+- lint:docs passed with 0 errors and 29 existing warnings; module-map:check passed.
+- clean-code-guard, test-guard and docs-guard applied to the correction diff:
+  network-only UI mocks, visible-outcome assertions, real HTTP/filesystem checks,
+  module boundaries, installed dependency contract and documentation checked.
+
+No local E2E, full application build, real environment-file read, server change,
+deployment or merge was performed.
+
+Independent Codex Astra medium re-review found no concrete defect in the correction
+diff and confirmed privacy, module placement, HTTPS enforcement, query cancellation,
+cached-state handling and standalone paths. It independently inspected the installed
+Fastify CORS Promise implementation and rejected the callback-only allegation.
+This was a source-only review: it did not rerun the gates, and it disclosed truncated
+long-document output rather than claiming full document coverage. The final local
+gate receipts above are from the implementation session, including 16 menu tests.
+The review receipt's trailing repository URL was a typo; this slice remains PR #847
+in `lolotam/PayPos.systems`.
+
+[Round 1 Astra review](<t3-thread://v2/438824e0-fe19-4a22-bb31-f81eff7b7322/thread:delegated-task:command%3Amcp%3Aba46510b-d393-42b5-ba6b-b58cb66a08fa%3Adelegate-task%3A4fe6a5f5-ffa1-4ed1-a458-23c9a097dcb0>).
+Exact-head CI, Codex review and a complete MergePilot panel are required after push.

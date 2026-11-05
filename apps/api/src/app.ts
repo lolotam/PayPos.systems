@@ -48,6 +48,7 @@ import {
   customersProviders,
   RATING_ROUTE,
   ratingAdmissionHook,
+  ratingCorsPolicy,
 } from './modules/customers/index.ts';
 import {
   catalogControllers,
@@ -396,7 +397,7 @@ export async function createApp(
   );
   enableApiCors(app, {
     trustedOrigins: deps.corsOrigins ?? [],
-    ratingPageOrigin: deps.ratingPageOrigin ?? '',
+    requestPolicy: ratingCorsPolicy(deps.ratingPageOrigin ?? ''),
     companyHeader: COMPANY_HEADER,
   });
   app.setGlobalPrefix('v1', { exclude: ['health', 'ready'] });

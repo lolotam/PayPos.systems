@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "next dev --webpack",
-    "build": "next build --webpack",
-    "start": "next start",
+    "build": "next build --webpack && node scripts/prepare-standalone.mjs",
+    "start": "node .next/standalone/apps/menu/server.js",
     "typecheck": "tsc --noEmit && pnpm api:check",
     "lint": "eslint .",
     "test": "vitest run",

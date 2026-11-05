@@ -41,6 +41,8 @@ public policy. The allowed origin is exactly the configured `RATING_PAGE_ORIGIN`
 never a wildcard or reflected arbitrary origin. It is empty/disabled by default.
 Startup validation rejects a non-origin value (credentials, path, query, fragment
 or multiple origins). The template contains only a synthetic placeholder.
+HTTP origins are allowed only with explicit `NODE_ENV=development` or `NODE_ENV=test`;
+all other environments, including an unset `NODE_ENV`, require HTTPS.
 
 The public policy omits credentials and cookies, permits GET for view and POST for
 submit/opt-out (plus OPTIONS), and allows only `content-type` and `x-rating-token`.
