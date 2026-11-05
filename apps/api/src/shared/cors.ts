@@ -28,7 +28,7 @@ export function enableApiCors(
       options.companyHeader,
       PRIVATE_VIEW_WINDOW_HEADER,
     ],
-    // The admin app reads the id back to quote it in a support request.
+    // تطبيق admin يقرأ المعرّف من الرد ليذكره المستخدم في طلب الدعم.
     exposedHeaders: [
       'x-request-id',
       PRIVATE_VIEW_IDLE_REMAINING_HEADER,

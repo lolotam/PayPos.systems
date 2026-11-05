@@ -1,6 +1,7 @@
 import { isIP } from 'node:net';
 import { LOG_LEVELS } from '@pospay/observability';
 import { z } from 'zod';
+import { matchesTrustedOrigin } from './trusted-origin-pattern.ts';
 
 // Read once at startup; a missing or malformed value stops the process instead of failing later.
 const trustedProxies = z
@@ -107,8 +108,17 @@ export function readConfig(env: NodeJS.ProcessEnv): ApiConfig {
     .refine(
       (config) =>
         config.RATING_PAGE_ORIGIN === '' ||
-        !config.AUTH_TRUSTED_ORIGINS.includes(config.RATING_PAGE_ORIGIN),
-      { path: ['RATING_PAGE_ORIGIN'] },
+        (config.RATING_PAGE_ORIGIN !== new URL(config.BETTER_AUTH_URL).origin &&
+          !config.AUTH_TRUSTED_ORIGINS.some((pattern) =>
+            matchesTrustedOrigin(config.RATING_PAGE_ORIGIN, pattern),
+          )),
+      {
+        path: ['RATING_PAGE_ORIGIN'],
+        // نفحص العلاقة بعد صلاحية القيم حتى لا يكشف استثناء URL إعدادًا غير صالح.
+        when: (payload) =>
+          schema.pick({ BETTER_AUTH_URL: true, RATING_PAGE_ORIGIN: true }).safeParse(payload.value)
+            .success,
+      },
     )
     .safeParse(env);
   if (!result.success) {

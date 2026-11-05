@@ -10,6 +10,61 @@ const valid = {
   BETTER_AUTH_URL: 'http://127.0.0.1:3000',
 };
 
+it('rejects a rating origin equal to the API origin even with an auth base path (#867)', () => {
+  const attempt = () =>
+    readConfig({
+      ...valid,
+      BETTER_AUTH_URL: 'https://rating.example.test:443/v1/auth',
+      RATING_PAGE_ORIGIN: 'https://rating.example.test',
+    });
+  expect(attempt).toThrow(/RATING_PAGE_ORIGIN/);
+  expect(attempt).not.toThrow('https://rating.example.test');
+});
+
+it.each(['https://*.example.test', '*.example.test', 'https://rat?ng.example.test', '**'])(
+  'rejects a rating origin matched by authentication pattern %s (#867)',
+  (pattern) => {
+    const attempt = () =>
+      readConfig({
+        ...valid,
+        RATING_PAGE_ORIGIN: 'https://rating.example.test',
+        AUTH_TRUSTED_ORIGINS: pattern,
+      });
+    expect(attempt).toThrow(/RATING_PAGE_ORIGIN/);
+    expect(attempt).not.toThrow('https://rating.example.test');
+  },
+);
+
+it.each([
+  'http://*.example.test',
+  'https://*.other.test',
+  'https://*.example.test:8443',
+  'https://RATING.example.test',
+])('keeps a rating origin separate from nonmatching authentication pattern %s', (pattern) => {
+  expect(
+    readConfig({
+      ...valid,
+      RATING_PAGE_ORIGIN: 'https://rating.example.test',
+      AUTH_TRUSTED_ORIGINS: pattern,
+    }).RATING_PAGE_ORIGIN,
+  ).toBe('https://rating.example.test');
+});
+
+it.each(['BETTER_AUTH_URL', 'RATING_PAGE_ORIGIN'])(
+  'rejects invalid %s without leaking it during the origin comparison',
+  (key) => {
+    const attempt = () =>
+      readConfig({
+        ...valid,
+        RATING_PAGE_ORIGIN: 'https://rating.example.test',
+        AUTH_TRUSTED_ORIGINS: '*.example.test',
+        [key]: 'synthetic-invalid-origin',
+      });
+    expect(attempt).toThrow(key);
+    expect(attempt).not.toThrow('synthetic-invalid-origin');
+  },
+);
+
 it.each([
   'https://rating.example.test',
   'https://admin.example.test, https://rating.example.test ',
