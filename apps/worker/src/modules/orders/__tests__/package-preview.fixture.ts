@@ -1,7 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import postgres from 'postgres';
 import ExcelJS from 'exceljs';
-import { readFileSync } from 'node:fs';
 import { createDatabase, type TenantWrappers } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createTestDatabase } from '../../../../../../packages/db/test/test-database.ts';
@@ -56,18 +55,8 @@ async function prepare(owner: postgres.Sql, ids: ReturnType<typeof systemUuidV7>
     VALUES(${TENANT.A.company},${ids.newId()},${TENANT.A.business},${`Service ${index}`},'9.000','FOLLOW_PLAN')`;
   const [guard] =
     await owner`SELECT pg_get_functiondef('package_import_preview_update_guard()'::regprocedure) AS definition`;
-  if (!(guard?.['definition'] as string).includes('IMPORT_PREVIEW_READY_RESULTS_INVALID')) {
-    if (process.env['CI']) throw new Error('PACKAGE_PREVIEW_FINAL_MIGRATION_REQUIRED');
-    await owner.unsafe(
-      readFileSync(
-        new URL(
-          '../../../../../../docs/specs/058-packages-sell-redeem/47-1b-migration.draft.sql',
-          import.meta.url,
-        ),
-        'utf8',
-      ),
-    );
-  }
+  if (!(guard?.['definition'] as string).includes('IMPORT_PREVIEW_READY_RESULTS_INVALID'))
+    throw new Error('PACKAGE_PREVIEW_FINAL_MIGRATION_REQUIRED');
 }
 
 export async function packagePreviewFixture() {

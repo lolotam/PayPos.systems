@@ -1,4 +1,4 @@
-# 47-1b — execute package preview and activate its routes
+# 47-1b â€” execute package preview and activate its routes
 
 Base: `88f822be` (merged 47-1a). The manager assigned this slice after Waleed's
 worker-split confirmation recorded by #860. One worker use case; no financial commit.
@@ -21,7 +21,7 @@ Known types come from the real module transport, never an unconditional ack regi
 The 47-1a production controller is registered with this completed worker lifecycle.
 An older 47-1a worker keeps retrying the unknown type during a rolling deployment.
 
-## #863 — ready-result consistency
+## #863 â€” ready-result consistency
 
 This worker is the writer of ready, so this PR takes #863. Add a NEW custom migration;
 0211 is merged and must not change. Before ready, rows/errors must be arrays,
@@ -31,8 +31,9 @@ No simple error_count+skipped_count<=row_count condition is permitted. Existing 
 results and transitions remain unchanged. Test all metadata negatives, multiple
 issues per row, tenant isolation and immutable ready/failed terminal states.
 
-The SQL draft is tested on a private cluster; final numbering, db:generate and push
-wait for the manager's shared migration lane. #864's general staged-check rollout
+The manager granted migration 0212 after rebase onto 08931d26. The generated custom
+migration replaces the trigger function only: no new CHECK, scan or validation of
+existing rows. Its snapshot chains from 0211. #864's general staged-check rollout
 follow-up remains separate; no merged migration is rewritten.
 
 ## Verification and publication

@@ -1,4 +1,4 @@
--- #863; unnumbered draft. Final generation waits for the manager migration lane.
+-- 47-1b / #863: enforce consistent package preview results before activation.
 CREATE OR REPLACE FUNCTION package_import_preview_update_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path=pg_catalog,public AS $$
 BEGIN
