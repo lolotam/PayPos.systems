@@ -7,7 +7,7 @@
 > Send one consolidated update when a batch completes or a blocker needs Waleed's decision. End every manager report with a recommended next step. Preserve the existing owner-decision audit and partner/business decision-page duties.
 
 > Read this file fully before any task.
-> **PP-118, 2026-11-04 17:23 Kuwait:** five active task sessions maximum, one PR each through merge; readiness does not free a slot. At most two parked PRs after owner-decision waits longer than four hours, returning to the original session after the decision. #785 is parked immediately. No new slice during transition until non-parked open PRs are at most five. Apply pipeline §13 and owner-decisions §56; morning reports include open count, oldest PR age and a recommended next step. This supersedes PP-111's readiness replacement and PP-114.1's ten-session limit.
+> **PP-118, 2026-11-04 17:23 Kuwait:** five active task sessions maximum, one PR each through merge; readiness does not free a slot. After more than four hours waiting for Waleed's decision on a HOLD or PENDING question, or for a migration-lane turn or its backup (which the manager resolves under PP-124), a PR may be parked; at most two parked PRs, each returning to its original session after Waleed's decision or, for a migration-lane or backup wait, when the manager confirms the lane and backup are ready. #785 is parked immediately. No new slice during transition until non-parked open PRs are at most five. Apply pipeline §13 and owner-decisions §56; morning reports include open count, oldest PR age and a recommended next step. This supersedes PP-111's readiness replacement and PP-114.1's ten-session limit.
 >
 > **The three documents that govern this project:**
 >
