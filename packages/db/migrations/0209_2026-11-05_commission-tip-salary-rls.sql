@@ -1,3 +1,9 @@
+CREATE INDEX CONCURRENTLY "commission_salaries_employee_idx" ON "commission_salaries" USING btree ("company_id","business_id","employee_id","effective_from");--> statement-breakpoint
+CREATE INDEX CONCURRENTLY "commission_tip_heads_branch_idx" ON "commission_tip_heads" USING btree ("company_id","business_id","branch_id");--> statement-breakpoint
+CREATE INDEX CONCURRENTLY "commission_tip_heads_period_idx" ON "commission_tip_heads" USING btree ("company_id","business_id","period","session_id");--> statement-breakpoint
+CREATE INDEX CONCURRENTLY "commission_tips_head_idx" ON "commission_tips" USING btree ("company_id","business_id","session_id");--> statement-breakpoint
+CREATE INDEX CONCURRENTLY "commission_tips_employee_idx" ON "commission_tips" USING btree ("company_id","business_id","employee_id");
+--> statement-breakpoint
 ALTER TABLE commission_tip_heads ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
 ALTER TABLE commission_tip_heads FORCE ROW LEVEL SECURITY;

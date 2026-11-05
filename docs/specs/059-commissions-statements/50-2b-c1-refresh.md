@@ -47,3 +47,12 @@ Refresh: 2026-11-05. Baseline: `cc085aac` (`origin/main` fetched before inspecti
 - Status: implementation and local gates complete; final independent DB review pending. No push, PR, merge or deploy yet. CI remains required on the published head.
 - PP-124/125 are supplied by the task and pending #842; baseline owner-decision file currently ends at §61.
 - Migration merge belongs to the manager. This session must not merge or deploy.
+
+## Published review and correction round 1
+
+- PR #844 published initial head `1c0fcc26406234a11097274abd88710392162de2`. Astra high independent review: PASS, no findings; Codex completed without findings. Initial CI run `42015046830` succeeded (2026-11-05 10:58:05Z to 11:24:02Z, 25m57s).
+- MergePilot receipt `5784033097` is PARTIAL: all four panel bots reported `0209_snapshot.json: patch truncated`; the context bot also skipped verification after its time limit. This is not a complete receipt or an inherited exception.
+- Manager direction at 15:25 authorized one correction push for round 1/5: apply the stricter concurrent-index rule, then use the new full panel run to complete the receipt. No review configuration change; another identical partial receipt must return to the manager without another push.
+- Added `.concurrently()` to all five schema indexes. Regenerated table-only 0208, then regenerated 0209 for its concurrent-index prefix and restored the unchanged reviewed RLS/grants suffix. Both snapshots and the journal were generated; no merged migration changed.
+- Fresh private lane applied the regenerated migrations and passed all 45 projection/privilege tests in 55.54s. The lane container, volume and override were removed successfully afterward.
+- Round 1 local DB typecheck/lint, lint:docs (0 errors, 29 existing warnings), module-map, formatting and diff checks passed; the three guard passes were repeated without new findings. New-head CI and all five bot receipts remain required after the single correction push.

@@ -52,8 +52,12 @@ export const commissionTipHeads = pgTable(
       'commission_tip_heads_period_date',
       sql`${t.period} = to_char(${t.businessDate}, 'YYYY-MM')`,
     ),
-    index('commission_tip_heads_branch_idx').on(t.companyId, t.businessId, t.branchId),
-    index('commission_tip_heads_period_idx').on(t.companyId, t.businessId, t.period, t.sessionId),
+    index('commission_tip_heads_branch_idx')
+      .on(t.companyId, t.businessId, t.branchId)
+      .concurrently(),
+    index('commission_tip_heads_period_idx')
+      .on(t.companyId, t.businessId, t.period, t.sessionId)
+      .concurrently(),
   ],
 );
 
@@ -86,8 +90,10 @@ export const commissionTips = pgTable(
     }),
     check('commission_tips_method', sql`${t.method} IN ('CASH', 'CARD')`),
     check('commission_tips_amount', sql`${t.amount} BETWEEN 0 AND 99999999999.999`),
-    index('commission_tips_head_idx').on(t.companyId, t.businessId, t.sessionId),
-    index('commission_tips_employee_idx').on(t.companyId, t.businessId, t.employeeId),
+    index('commission_tips_head_idx').on(t.companyId, t.businessId, t.sessionId).concurrently(),
+    index('commission_tips_employee_idx')
+      .on(t.companyId, t.businessId, t.employeeId)
+      .concurrently(),
   ],
 );
 
@@ -116,11 +122,8 @@ export const commissionSalaries = pgTable(
     }),
     check('commission_salaries_revision_positive', sql`${t.revision} > 0`),
     check('commission_salaries_amount', sql`${t.amount} BETWEEN 0 AND 99999999999.999`),
-    index('commission_salaries_employee_idx').on(
-      t.companyId,
-      t.businessId,
-      t.employeeId,
-      t.effectiveFrom,
-    ),
+    index('commission_salaries_employee_idx')
+      .on(t.companyId, t.businessId, t.employeeId, t.effectiveFrom)
+      .concurrently(),
   ],
 );

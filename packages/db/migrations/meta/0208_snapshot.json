@@ -1,5 +1,5 @@
 {
-  "id": "bcb4d4bc-0a3c-45b6-b920-c9b2af58d477",
+  "id": "4373f516-3b34-4615-940d-052e8fa44df9",
   "prevId": "603f232b-3738-415f-8187-6798032eff46",
   "version": "7",
   "dialect": "postgresql",
@@ -26872,41 +26872,7 @@
           "notNull": true
         }
       },
-      "indexes": {
-        "commission_salaries_employee_idx": {
-          "name": "commission_salaries_employee_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "employee_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "effective_from",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "commission_salaries_company_id_business_id_businesses_company_id_id_fk": {
           "name": "commission_salaries_company_id_business_id_businesses_company_id_id_fk",
@@ -27027,68 +26993,7 @@
           "notNull": true
         }
       },
-      "indexes": {
-        "commission_tip_heads_branch_idx": {
-          "name": "commission_tip_heads_branch_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "branch_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "commission_tip_heads_period_idx": {
-          "name": "commission_tip_heads_period_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "period",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "session_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "commission_tip_heads_company_id_business_id_businesses_company_id_id_fk": {
           "name": "commission_tip_heads_company_id_business_id_businesses_company_id_id_fk",
@@ -27215,62 +27120,7 @@
           "notNull": true
         }
       },
-      "indexes": {
-        "commission_tips_head_idx": {
-          "name": "commission_tips_head_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "session_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "commission_tips_employee_idx": {
-          "name": "commission_tips_employee_idx",
-          "columns": [
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "business_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "employee_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "commission_tips_company_id_business_id_session_id_commission_tip_heads_company_id_business_id_session_id_fk": {
           "name": "commission_tips_company_id_business_id_session_id_commission_tip_heads_company_id_business_id_session_id_fk",
