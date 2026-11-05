@@ -41,7 +41,7 @@ export function checkMigrationChain(journal, sqlFiles, snapshots) {
       );
     }
   }
-  for (const file of sqlFiles.filter((name) => /^\d{4}_.+\.sql$/.test(name))) {
+  for (const file of sqlFiles.filter((name) => name.endsWith('.sql'))) {
     if (!tags.has(file.slice(0, -4))) {
       errors.push(`${file}: expected journal entry, actual missing`);
     }
@@ -52,20 +52,34 @@ export function checkMigrationChain(journal, sqlFiles, snapshots) {
 function checkSnapshots(snapshots) {
   const errors = [];
   const ids = new Map();
-  for (const [idx, snapshot] of snapshots) {
+  let previous;
+  for (const [idx, snapshot] of [...snapshots].sort(([a], [b]) => a - b)) {
     const file = snapshotFile(idx);
-    if (ids.has(snapshot.id)) {
+    const valid = (value) => typeof value === 'string' && value.trim().length > 0;
+    for (const field of ['id', 'prevId']) {
+      if (!valid(snapshot?.[field])) {
+        errors.push(
+          `${file} ${field}: expected non-empty string, actual ${JSON.stringify(snapshot?.[field])}`,
+        );
+      }
+    }
+    if (valid(snapshot?.id) && ids.has(snapshot.id)) {
       errors.push(
         `${file} id: expected unique id, actual ${snapshot.id} also in ${ids.get(snapshot.id)}`,
       );
     }
-    ids.set(snapshot.id, file);
-    const previous = snapshots.get(idx - 1);
-    if (previous && snapshot.prevId !== previous.id) {
+    if (valid(snapshot?.id)) ids.set(snapshot.id, file);
+    if (
+      previous &&
+      valid(snapshot?.prevId) &&
+      valid(previous.id) &&
+      snapshot.prevId !== previous.id
+    ) {
       errors.push(
-        `${file} prevId: expected ${previous.id} (${snapshotFile(idx - 1)} id), actual ${snapshot.prevId}`,
+        `${file} prevId: expected ${previous.id} (${previous.file} id), actual ${snapshot.prevId}`,
       );
     }
+    previous = { id: snapshot?.id, file };
   }
   return errors;
 }

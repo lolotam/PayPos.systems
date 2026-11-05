@@ -82,7 +82,7 @@ test('migration chain cases', () => {
           const tag = `${String(idx).padStart(4, '0')}_migration`;
           journal.entries.push({ idx, tag });
           sql.push(`${tag}.sql`);
-          snapshots.set(idx, { id: String(idx), prevId: String(idx - 1) });
+          snapshots.set(idx, { id: String(idx), prevId: String(idx === 120 ? 117 : idx - 1) });
         }
       },
       [],
@@ -103,6 +103,38 @@ test('migration chain cases', () => {
       ['0001_snapshot.json: expected snapshot for journal entry, actual missing'],
     ],
   ];
+  for (const name of ['210_new.sql', '0210.sql']) {
+    cases.push([
+      `malformed SQL name ${name}`,
+      ([, sql]) => sql.push(name),
+      [`${name}: expected journal entry, actual missing`],
+    ]);
+  }
+  for (const field of ['id', 'prevId']) {
+    for (const value of [undefined, null, '', ' ', 42, false, {}]) {
+      cases.push([
+        `invalid snapshot ${field}: ${JSON.stringify(value)}`,
+        ([, , snapshots]) => {
+          if (value === undefined) delete snapshots.get(1)[field];
+          else snapshots.get(1)[field] = value;
+        },
+        [`0001_snapshot.json ${field}: expected non-empty string`],
+      ]);
+    }
+  }
+  cases.push([
+    'broken prevId after snapshot gap in unsorted input',
+    ([journal, sql, snapshots]) => {
+      journal.entries = [{ idx: 0, tag: '0000_first' }];
+      sql.pop();
+      snapshots.delete(1);
+      snapshots.set(2, { id: 'third', prevId: 'nonexistent' });
+      const first = snapshots.get(0);
+      snapshots.delete(0);
+      snapshots.set(0, first);
+    },
+    ['0002_snapshot.json prevId: expected first (meta/0000_snapshot.json id), actual nonexistent'],
+  ]);
   for (const [name, change, expected] of cases) {
     const data = fixture();
     change(data);
