@@ -1,12 +1,14 @@
 /*
- * ??? ??????? ?? PP-69.9 ???? ????? ????? ???????? ???? ?? ???? ????? ??? journal
- * ?? prevId ???? ?????? ?????? ??? ??? ??? #844 ?#845? ???? ???? ??????? ??? ?????.
+ * حجز الأرقام في PP-69.9 يمنع تكرار أسماء الملفات، لكنه لا يمنع تعارض سطر journal
+ * أو prevId يرجع خطوتين للخلف، كما حدث بين #844 و#845؛ لذلك نفحص السلسلة قبل الدمج.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const historicalGaps = new Set([129, 135, 190, 205]);
+// لم تُدمج 0118 و0119 مطلقًا؛ الاستثناء ثابت حتى لا نعيد كتابة migrations المدمجة.
+const historicalIdxGaps = Object.freeze({ 117: 120 });
 const number = (idx) => String(idx).padStart(4, '0');
 const snapshotFile = (idx) => `meta/${number(idx)}_snapshot.json`;
 
@@ -15,9 +17,12 @@ export function checkMigrationChain(journal, sqlFiles, snapshots) {
   const sql = new Set(sqlFiles);
   const tags = new Set(journal.entries.map((entry) => entry.tag));
   for (const [position, entry] of journal.entries.entries()) {
-    if (entry.idx !== position) {
+    const previousIdx = journal.entries[position - 1]?.idx;
+    const expectedIdx = position === 0 ? 0 : previousIdx + 1;
+    const historicalGap = historicalIdxGaps[previousIdx] === entry.idx;
+    if (entry.idx !== expectedIdx && !historicalGap) {
       errors.push(
-        `meta/_journal.json entries[${position}].idx: expected ${position}, actual ${entry.idx}`,
+        `meta/_journal.json entries[${position}].idx: expected ${expectedIdx}, actual ${entry.idx}`,
       );
     }
     const prefix = number(entry.idx);

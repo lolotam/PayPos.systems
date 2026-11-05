@@ -23,7 +23,7 @@ test('migration chain cases', () => {
   const cases = [
     ['clean chain', () => {}, []],
     [
-      'idx gap',
+      'new idx gap',
       ([journal]) => {
         journal.entries[1].idx = 2;
       },
@@ -69,7 +69,23 @@ test('migration chain cases', () => {
       ([journal]) => {
         journal.entries.reverse();
       },
-      ['entries[0].idx: expected 0, actual 1', 'entries[1].idx: expected 1, actual 0'],
+      ['entries[0].idx: expected 0, actual 1', 'entries[1].idx: expected 2, actual 0'],
+    ],
+    [
+      'allowlisted historical gap',
+      ([journal, sql, snapshots]) => {
+        journal.entries = [];
+        sql.length = 0;
+        snapshots.clear();
+        for (let idx = 0; idx <= 121; idx++) {
+          if (idx === 118 || idx === 119) continue;
+          const tag = `${String(idx).padStart(4, '0')}_migration`;
+          journal.entries.push({ idx, tag });
+          sql.push(`${tag}.sql`);
+          snapshots.set(idx, { id: String(idx), prevId: String(idx - 1) });
+        }
+      },
+      [],
     ],
     [
       'wrong prefix',
