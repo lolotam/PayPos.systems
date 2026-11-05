@@ -45,8 +45,41 @@ export interface SessionTipsReadPort {
   currentEmployeeIds(sessionId: string): Promise<readonly string[]>;
 }
 
+/** هوية الاسترداد الذي يعيده إلغاء السطر إلى الباقة. */
+export interface CancellationRedemptionRequest {
+  sessionId: string;
+  lineId: string;
+  redemptionId: string;
+}
+
+/** مرجع الاسترداد بعد قفل مكوّنه في معاملة الإلغاء الحالية. */
+export interface LockedCancellationRedemption extends CancellationRedemptionRequest {
+  componentId: string;
+  slotId: string;
+}
+
+/** أثر العكس مرتبط بنفس هوية ووقت تاريخ الإلغاء. */
+export interface CancellationRedemptionReversal extends LockedCancellationRedemption {
+  cancellationId: string;
+  at: Date;
+}
+
 /** تخزين الإلغاء؛ قفل الزيارة والسطر والزيارة المحفوظة من تخزين التعديل، واختلاف النطاق يرفض برفض موحّد. */
 export interface LineCancelRepository extends Pick<LineEditRepository, 'lockVisit' | 'loadLineForUpdate' | 'loadSession'> {
+  /**
+   * ينتظر قفل مكوّن الاسترداد قبل إعادة فحص السلطة والنافذة على ساعة جديدة.
+   *
+   * @param request هوية الزيارة والسطر والاسترداد ضمن النطاق الحالي
+   * @returns مرجع الاسترداد وجلسته بعد امتلاك القفل حتى نهاية المعاملة
+   */
+  lockRedemptionComponent(request: CancellationRedemptionRequest): Promise<LockedCancellationRedemption>;
+  /**
+   * يعكس الاسترداد المقفول ويحرر جلسته مرة واحدة، بنفس هوية تاريخ الإلغاء داخل المعاملة.
+   *
+   * @param request المرجع المقفول وهوية الإلغاء ووقته بعد إعادة فحص السلطة
+   * @returns يكتمل العكس أو يرفض إذا لم يتغير صف واحد لكل أثر
+   */
+  reverseRedemption(request: CancellationRedemptionReversal): Promise<void>;
   /**
    * يعيد الأسطر النشطة ومنفّذاتها الحالية لبناء حارس البقشيش.
    *

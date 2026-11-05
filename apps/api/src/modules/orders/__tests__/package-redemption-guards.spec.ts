@@ -95,8 +95,6 @@ async function state(visit: Visit) {
 
 const cases = [
   ['edit', 'SESSION_LINE_PRICE_NOT_EDITABLE'],
-  ['cancel', 'SESSION_LINE_NOT_CANCELLABLE'],
-  ['performers', 'SESSION_LINE_PERFORMERS_NOT_CHANGEABLE'],
 ] as const;
 it.each(['redeemed-active', 'cancelled'] as const)(
   'edit HTTP refusal uses the correct bilingual message for %s',
@@ -145,7 +143,7 @@ it.each(cases)(
     expect(await state(visit)).toEqual(before);
   },
 );
-it.each(cases)('%s writer preserves stale-revision precedence on redeemed lines', async (kind) => {
+it.each(['edit', 'cancel', 'performers'] as const)('%s writer preserves stale-revision precedence on redeemed lines', async (kind) => {
   const visit = await forcedRedemption(),
     before = await state(visit);
   await expect(write(kind, visit, 2)).rejects.toMatchObject({
@@ -154,7 +152,7 @@ it.each(cases)('%s writer preserves stale-revision precedence on redeemed lines'
   });
   expect(await state(visit)).toEqual(before);
 });
-it.each(cases)(
+it.each(['edit', 'cancel', 'performers'] as const)(
   '%s writer checks authority before revealing the redeemed-line refusal',
   async (kind) => {
     const visit = await forcedRedemption(),
@@ -163,7 +161,7 @@ it.each(cases)(
     expect(await state(visit)).toEqual(before);
   },
 );
-it('redeemed price and performer no-op requests still return their package refusal', async () => {
+it('redeemed price remains refused and performer no-op keeps the ordinary 055 refusal', async () => {
   const visit = await forcedRedemption(),
     before = await state(visit);
   await expect(
@@ -181,6 +179,6 @@ it('redeemed price and performer no-op requests still return their package refus
       visit.lineId,
       performersInput({ performers: [{ employee_id: must(f.employees[0]), share_bps: 10000 }] }),
     ),
-  ).rejects.toMatchObject({ code: 'SESSION_LINE_PERFORMERS_NOT_CHANGEABLE' });
+  ).rejects.toMatchObject({ code: 'SESSION_PERFORMERS_NO_CHANGE' });
   expect(await state(visit)).toEqual(before);
 });

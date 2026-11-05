@@ -18,7 +18,7 @@ export interface LinePerformersEventInput {
 
 /**
  * يبني حدث تغيير منفّذات سطر واحد بلا سبب وبلا أسماء، والنسخة هي السابقة زائد واحد.
- * السطر يبقى ACTIVE لأن تغيير المنفّذين لا يلغي البند، والمال يخرج بنص من ثلاث خانات.
+ * السطر يبقى ACTIVE لأن تغيير المنفّذين لا يلغي البند، وبيانات الباقة ثابتة، والمال يخرج بنص من ثلاث خانات.
  * ترتيب المنفّذات هو الترتيب المحفوظ: من يقرأ صفوف التاريخ يقارن بالمواضع لا بالمعرّفات.
  *
  * @param input الزيارة والسطر المحفوظ والقيم السابقة وصاحبة التغيير
@@ -40,7 +40,7 @@ export function linePerformersEvent(input: LinePerformersEventInput) {
     late: line.late,
     recorded_by: line.recorded_by,
     recorded_by_membership_id: line.recorded_by_membership_id,
-    list_price: moneyToString(line.service.price),
+    list_price: moneyToString(line.list_price),
     price: moneyToString(line.price),
     discount: moneyToString(line.discount),
     net: moneyToString(line.net),
@@ -50,7 +50,7 @@ export function linePerformersEvent(input: LinePerformersEventInput) {
     })),
     rule_snapshot: sessionRuleSnapshot(line.service.rule),
     counts_snapshot: line.service.counts,
-    package: null,
+    package: line.redemption === undefined ? null : { entitlement_id: line.redemption.entitlement_id, component_id: line.redemption.component_id, ordinal: line.redemption.ordinal },
     revision: previous.revision + 1,
     change: {
       kind: 'PERFORMERS_CHANGE' as const,

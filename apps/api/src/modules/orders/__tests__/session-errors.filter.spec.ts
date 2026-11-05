@@ -9,6 +9,16 @@ const EDIT_422 = [
   'SESSION_EDITOR_MEMBERSHIP_REQUIRED', 'SESSION_EDIT_IDENTITY_UNKNOWN',
 ] as const satisfies readonly SessionErrorCode[];
 
+it('RC-03b reversed redemption is always a bilingual 409', () => {
+  for (const defaultStatus of [400, 422]) {
+    const sent = capture(new SessionError('PACKAGE_REDEMPTION_ALREADY_REVERSED'), defaultStatus);
+    expect(sent.status).toBe(409);
+    expect(sent.body).toEqual({ code: 'PACKAGE_REDEMPTION_ALREADY_REVERSED',
+      message_ar: 'الجلسة رجعت للباقة قبل كده.',
+      message_en: 'This session was already returned to the package.' });
+  }
+});
+
 it.each(EDIT_422)('edit refusal %s is 422 with both messages', (code) => {
   const sent = capture(new SessionError(code, code === 'SESSION_EDITOR_MEMBERSHIP_REQUIRED' ? { editor_membership_ids: ['m1'] } : undefined));
   expect(sent.status).toBe(422);
