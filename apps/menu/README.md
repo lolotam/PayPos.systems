@@ -10,7 +10,8 @@ The browser omits credentials and sends the capability in `x-rating-token`.
 
 The API separately requires `RATING_PAGE_ORIGIN` equal to this page's exact origin.
 Do not add it to `AUTH_TRUSTED_ORIGINS`. An unset origin disables public rating CORS.
-API startup rejects an origin configured in both settings.
+API startup rejects a rating origin equal to the origin of `BETTER_AUTH_URL` or
+matched by an `AUTH_TRUSTED_ORIGINS` entry, including Better Auth wildcard patterns.
 Neither this README nor this slice changes server, DNS, Traefik or Dokploy settings.
 
 Build workspace dependencies before direct checks or development on a fresh checkout:

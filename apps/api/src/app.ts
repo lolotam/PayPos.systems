@@ -115,9 +115,9 @@ export interface AppDependencies {
   readonly ids?: IdGenerator;
   /** Redis — pairing codes and rate limits. Without it those routes answer NOT_READY. */
   readonly redis?: Redis;
-  /** Browser origins allowed to call authenticated API routes with credentials (admin, POS). */
+  /** أصول المتصفح المسموح لها باستدعاء مسارات API المصادق عليها مع بيانات الاعتماد (admin وPOS). */
   readonly corsOrigins?: readonly string[];
-  /** Exact public rating-page origin; independent of login trust. Empty disables public rating CORS. */
+  /** أصل صفحة التقييم العامة بالمطابقة التامة؛ مستقل عن ثقة تسجيل الدخول، والقيمة الفارغة تعطّل CORS للتقييم العام. */
   readonly ratingPageOrigin?: string;
   readonly whatsapp?: WhatsappIntake;
   /** The push public key and subject, when push is configured; without them the push routes answer NOT_READY. */

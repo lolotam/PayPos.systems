@@ -228,7 +228,7 @@ it.each(['open', 'submitted'])(
 );
 
 it('ignores completion of an old link after navigation to a new link', async () => {
-  // Regression: an old mutation must never mark a different link as submitted.
+  // اختبار رجوع: عملية تغيير قديمة لا يجوز أن تضع رابطًا مختلفًا في حالة الإرسال المكتمل.
   let finishOld: (response: Response) => void = () => {
     throw new Error('No pending submission');
   };
