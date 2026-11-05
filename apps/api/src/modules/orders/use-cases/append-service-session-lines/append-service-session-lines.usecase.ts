@@ -70,6 +70,7 @@ export class AppendServiceSessionLinesUseCase {
         facts = await resolvePackageRedemptions(tx, { customerId: original.customer.id, drafts: drafts.packages,
           newId: () => this.ids.newId() });
       } catch (error) {
+        if (!(error instanceof SessionError)) throw error;
         await assertRecorderAuthorizedAfterLock(tx, this.clock, membershipId, original.recorded_by, context.userId);
         throw error;
       }

@@ -11,6 +11,7 @@ import { performerCheck } from './performer-check.adapter.ts';
 import { sessionCancelAccess } from './session-edit-access.adapter.ts';
 import { sessionPlace } from './session-place.adapter.ts';
 import { sessionTipEmployees } from './session-tip-employees.adapter.ts';
+import { lockRedemptionComponent, reversePackageRedemption } from './package-redemption-reversal.ts';
 
 const CANCEL_OPERATION = 'cancel-service-line';
 
@@ -56,6 +57,8 @@ function assembleLineCancel(
   return {
     ...bind(tx, context),
     lines: {
+      lockRedemptionComponent: (request) => lockRedemptionComponent(tx, scope, request),
+      reverseRedemption: (request) => reversePackageRedemption(tx, scope, request),
       lockVisit: (sessionId) => lockLineEditVisit(tx, sessionId),
       loadLineForUpdate: (sessionId, lineId) => loadLineForUpdate(tx, scope, sessionId, lineId),
       activePerformers: (sessionId) => activeLinePerformers(tx, scope, sessionId),

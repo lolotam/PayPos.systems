@@ -1,7 +1,7 @@
 import type { Tx } from '@pospay/db';
 import { parseMoney } from '@pospay/domain';
 import { sql } from 'drizzle-orm';
-import type { SessionLine, SessionRecord, SessionRule } from '../domain/session-types.ts';
+import type { SessionLine, SessionLineRedemption, SessionRecord, SessionRule } from '../domain/session-types.ts';
 
 type Header = Omit<SessionRecord, 'customer' | 'lines' | 'occurred_at' | 'recorded_at'> & {
   customer_id: string; customer_name: string; customer_phone_masked: string; occurred_at: Date; recorded_at: Date };
@@ -52,9 +52,17 @@ export async function loadSession(tx: Tx, companyId: string, businessId: string,
   const performers = await tx.execute<PerformerRow>(sql`SELECT p.id,p.line_id,p.employee_id,p.name_en,p.name_ar,p.share_bps,p.not_clocked_in_warning,p.approved_leave_warning
     FROM line_performers p JOIN service_lines l ON l.company_id=p.company_id AND l.id=p.line_id
     WHERE p.company_id=${companyId} AND l.session_id=${sessionId} ORDER BY l.ordinal,p.performer_ordinal`);
+  const redemptions = await tx.execute<{ [K in keyof SessionLineRedemption]: SessionLineRedemption[K] } & { line_id: string }>(sql`
+    SELECT r.id,r.line_id,r.entitlement_id,r.component_id,r.slot_id,s.ordinal
+    FROM package_redemptions r JOIN package_session_slots s ON s.company_id=r.company_id AND s.id=r.slot_id
+    JOIN service_lines l ON l.company_id=r.company_id AND l.id=r.line_id AND l.redemption_id=r.id
+    WHERE r.company_id=${companyId} AND r.business_id=${businessId} AND l.session_id=${sessionId}`);
   return { id: header.id, business_id: header.business_id, branch_id: header.branch_id,
     customer: { id: header.customer_id, name: header.customer_name, phone_masked: header.customer_phone_masked },
     recorded_by: header.recorded_by, recorded_by_membership_id: header.recorded_by_membership_id,
     occurred_at: new Date(header.occurred_at), recorded_at: new Date(header.recorded_at), business_date: header.business_date,
-    business_timezone: header.business_timezone, late: header.late, lines: lines.map((l) => storedLine(l, performers)) };
+    business_timezone: header.business_timezone, late: header.late, lines: lines.map((l) => {
+      const redemption = redemptions.find((r) => r.line_id === l.id);
+      return { ...storedLine(l, performers), ...(redemption === undefined ? {} : { redemption }) };
+    }) };
 }
