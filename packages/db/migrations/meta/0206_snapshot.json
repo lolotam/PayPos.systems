@@ -1,5 +1,5 @@
 {
-  "id": "b8610c16-b286-4efc-9a2a-99524c822f29",
+  "id": "0c9cf51d-54c6-4f58-b58a-8a07723d72cd",
   "prevId": "100afe80-25d4-42dc-992d-a9a3de66a9d6",
   "version": "7",
   "dialect": "postgresql",
@@ -19047,7 +19047,7 @@
           ],
           "isUnique": false,
           "where": "\"service_lines\".\"redemption_id\" IS NOT NULL",
-          "concurrently": false,
+          "concurrently": true,
           "method": "btree",
           "with": {}
         },
@@ -21382,7 +21382,7 @@
           ],
           "isUnique": false,
           "where": "\"package_session_slots\".\"current_redemption_id\" IS NOT NULL",
-          "concurrently": false,
+          "concurrently": true,
           "method": "btree",
           "with": {}
         },
@@ -21624,7 +21624,7 @@
           ],
           "isUnique": true,
           "where": "\"package_redemptions\".\"reversed_at\" IS NULL",
-          "concurrently": false,
+          "concurrently": true,
           "method": "btree",
           "with": {}
         },
@@ -21657,7 +21657,7 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "concurrently": true,
           "method": "btree",
           "with": {}
         },
@@ -21684,7 +21684,7 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "concurrently": true,
           "method": "btree",
           "with": {}
         },
@@ -21711,7 +21711,7 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "concurrently": true,
           "method": "btree",
           "with": {}
         },
@@ -21726,7 +21726,7 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "concurrently": true,
           "method": "btree",
           "with": {}
         },
@@ -21753,7 +21753,7 @@
             }
           ],
           "isUnique": false,
-          "concurrently": false,
+          "concurrently": true,
           "method": "btree",
           "with": {}
         },
@@ -21775,7 +21775,7 @@
           ],
           "isUnique": false,
           "where": "\"package_redemptions\".\"reversal_cancellation_id\" IS NOT NULL",
-          "concurrently": false,
+          "concurrently": true,
           "method": "btree",
           "with": {}
         }

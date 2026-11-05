@@ -1,5 +1,4 @@
--- Unnumbered 43-1 candidate. Private task-owned PG16 clones only before lane grant.
--- This exact DDL/guard body is intended for the eventual single migration.
+-- PP-123: expand storage with short metadata locks; index builds and FK validation follow in 0206.
 SET LOCAL lock_timeout = '5s';
 ALTER TABLE public.service_lines ADD COLUMN redemption_id uuid;
 CREATE TABLE public.package_redemptions (
@@ -23,19 +22,10 @@ CREATE TABLE public.package_redemptions (
   CONSTRAINT package_redemptions_cancellation_fk FOREIGN KEY(company_id,reversal_cancellation_id)
     REFERENCES public.service_line_cancellations(company_id,id) DEFERRABLE INITIALLY DEFERRED
 );
-CREATE UNIQUE INDEX package_redemptions_live_slot_key ON public.package_redemptions(company_id,slot_id) WHERE reversed_at IS NULL;
-CREATE INDEX package_redemptions_component_fk_idx ON public.package_redemptions(company_id,business_id,entitlement_id,component_id);
-CREATE INDEX package_redemptions_slot_fk_idx ON public.package_redemptions(company_id,business_id,slot_id);
-CREATE INDEX package_redemptions_line_fk_idx ON public.package_redemptions(company_id,business_id,line_id);
-CREATE INDEX package_redemptions_actor_fk_idx ON public.package_redemptions(recorded_by);
-CREATE INDEX package_redemptions_membership_fk_idx ON public.package_redemptions(company_id,recorded_by,recorded_by_membership_id);
-CREATE INDEX package_redemptions_cancellation_fk_idx ON public.package_redemptions(company_id,reversal_cancellation_id) WHERE reversal_cancellation_id IS NOT NULL;
 ALTER TABLE public.service_lines ADD CONSTRAINT service_lines_redemption_fk
-  FOREIGN KEY(company_id,business_id,redemption_id) REFERENCES public.package_redemptions(company_id,business_id,id) DEFERRABLE INITIALLY DEFERRED;
-CREATE INDEX service_lines_redemption_fk_idx ON public.service_lines(company_id,business_id,redemption_id) WHERE redemption_id IS NOT NULL;
+  FOREIGN KEY(company_id,business_id,redemption_id) REFERENCES public.package_redemptions(company_id,business_id,id) DEFERRABLE INITIALLY DEFERRED NOT VALID;
 ALTER TABLE public.package_session_slots ADD CONSTRAINT package_session_slots_redemption_fk
-  FOREIGN KEY(company_id,business_id,current_redemption_id) REFERENCES public.package_redemptions(company_id,business_id,id) DEFERRABLE INITIALLY DEFERRED;
-CREATE INDEX package_session_slots_redemption_fk_idx ON public.package_session_slots(company_id,business_id,current_redemption_id) WHERE current_redemption_id IS NOT NULL;
+  FOREIGN KEY(company_id,business_id,current_redemption_id) REFERENCES public.package_redemptions(company_id,business_id,id) DEFERRABLE INITIALLY DEFERRED NOT VALID;
 ALTER TABLE public.package_redemptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.package_redemptions FORCE ROW LEVEL SECURITY;
 CREATE POLICY package_redemptions_select ON public.package_redemptions FOR SELECT TO pospay_app USING(company_id = public.app_company_id());
@@ -175,8 +165,10 @@ CREATE CONSTRAINT TRIGGER package_redemptions_complete AFTER INSERT OR UPDATE ON
   DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.package_redemption_complete();
 CREATE CONSTRAINT TRIGGER service_lines_redemption_complete AFTER INSERT OR UPDATE ON public.service_lines
   DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.package_redemption_complete();
-CREATE CONSTRAINT TRIGGER package_session_slots_redemption_complete AFTER INSERT OR UPDATE ON public.package_session_slots
-  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION public.package_redemption_complete();
+CREATE CONSTRAINT TRIGGER package_session_slots_redemption_complete AFTER UPDATE OF state, current_redemption_id ON public.package_session_slots
+  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+  WHEN (OLD.state IS DISTINCT FROM NEW.state OR OLD.current_redemption_id IS DISTINCT FROM NEW.current_redemption_id)
+  EXECUTE FUNCTION public.package_redemption_complete();
 REVOKE ALL ON FUNCTION public.package_redemptions_write_guard(), public.service_lines_redemption_guard(),
   public.package_redemption_validate_slot(uuid,uuid,uuid), public.package_redemption_validate(uuid,uuid),
   public.package_redemption_complete() FROM PUBLIC, pospay_auth, pospay_dispatcher;

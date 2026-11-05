@@ -187,6 +187,26 @@ it('circular redemption FKs have exact parents, columns and deferred timing', as
   ]);
 });
 
+it('the online migration finishes with validated redemption FKs', async () => {
+  const rows=await owner`SELECT conname,convalidated FROM pg_constraint
+    WHERE conname IN ('service_lines_redemption_fk','package_session_slots_redemption_fk') ORDER BY conname`;
+  expect(rows).toEqual([
+    { conname:'package_session_slots_redemption_fk',convalidated:true },
+    { conname:'service_lines_redemption_fk',convalidated:true },
+  ]);
+});
+
+it('slot validation queues only changed state or redemption updates, never bulk slot inserts', async () => {
+  const [trigger]=await owner`SELECT tgtype::int AS events,tgdeferrable,tginitdeferred,
+    ARRAY(SELECT a.attname FROM unnest(t.tgattr::smallint[]) WITH ORDINALITY k(n,o)
+      JOIN pg_attribute a ON a.attrelid=t.tgrelid AND a.attnum=k.n ORDER BY k.o) AS columns,
+    pg_get_triggerdef(t.oid) AS definition FROM pg_trigger t
+    WHERE tgrelid='package_session_slots'::regclass AND tgname='package_session_slots_redemption_complete'`;
+  expect(trigger).toMatchObject({ events:17,tgdeferrable:true,tginitdeferred:true,columns:['state','current_redemption_id'] });
+  expect(trigger?.definition).toContain('old.state IS DISTINCT FROM new.state');
+  expect(trigger?.definition).toContain('old.current_redemption_id IS DISTINCT FROM new.current_redemption_id');
+});
+
 it('a partial index counts only when its predicate is the nullable foreign key column', async () => {
   const table = 'package_entitlements';
   const nullable = await nullableColumns(table);
