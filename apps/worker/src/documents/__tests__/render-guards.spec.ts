@@ -3,7 +3,7 @@ import { UnrecoverableError, type Job } from 'bullmq';
 import { documentBytesKey, documentStatusKey, DOCUMENT_XLSX_MIME_TYPE } from '@pospay/contracts';
 import type { Redis } from 'ioredis';
 import { createLogger } from '@pospay/observability';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 
 import { CommissionStatementUnavailableError } from '../commission-statement-unavailable-error.ts';
 import { processDocumentJob, recordExternalJobFailure } from '../process-job.ts';
@@ -36,29 +36,47 @@ it('times out a hanging source load inside the job deadline', async () => {
     const companyId = renderId();
     const id = renderId();
     let signal: AbortSignal | undefined;
-    opened.registry.register('fixture', {
-      load: (_companyId, _renderId, passed) => {
-        signal = passed;
-        return new Promise(() => undefined);
-      },
+    const sourceStarted = new Promise<void>((resolve) => {
+      opened.registry.register('fixture', {
+        load: (_companyId, _renderId, passed) => {
+          signal = passed;
+          resolve();
+          return new Promise(() => undefined);
+        },
+      });
     });
     await seedQueued(opened, companyId, id);
-    const started = Date.now();
-    await expect(
-      processDocumentJob(asJob(job(companyId, id, 'fixture'), { attemptsMade: 1 }), {
-        redis: opened.redis,
-        registry: opened.registry,
-        renderer,
-        clock: { now: () => started },
-        logger: opened.logger,
-        deadlineMs: 40,
-      }),
-    ).rejects.toThrow('DOCUMENT_RENDER_TIMEOUT');
-    expect(Date.now() - started).toBeLessThan(1_000);
-    expect(signal).toBeInstanceOf(AbortSignal);
-    expect(signal?.aborted).toBe(true);
-    expect(renderer.seen).toEqual([]);
-    expect((await statusOf(opened, companyId, id))['error_code']).toBe('DOCUMENT_RENDER_TIMEOUT');
+    // #869: Redis admission must not race a real 40ms deadline before load starts.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    try {
+      const started = Date.now();
+      const wallStarted = performance.now();
+      const timedOut = expect(
+        processDocumentJob(asJob(job(companyId, id, 'fixture'), { attemptsMade: 1 }), {
+          redis: opened.redis,
+          registry: opened.registry,
+          renderer,
+          clock: { now: () => started },
+          logger: opened.logger,
+          deadlineMs: 40,
+        }),
+      ).rejects.toThrow('DOCUMENT_RENDER_TIMEOUT');
+      await sourceStarted;
+      expect(signal).toBeInstanceOf(AbortSignal);
+      expect(signal?.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(40);
+      await timedOut;
+      expect(Date.now() - started).toBeLessThan(1_000);
+      expect(performance.now() - wallStarted).toBeLessThan(1_000);
+      expect(signal).toBeInstanceOf(AbortSignal);
+      expect(signal?.aborted).toBe(true);
+      expect(renderer.seen).toEqual([]);
+      const status = await statusOf(opened, companyId, id);
+      expect(status['state']).toBe('FAILED');
+      expect(status['error_code']).toBe('DOCUMENT_RENDER_TIMEOUT');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
