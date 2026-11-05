@@ -1,5 +1,28 @@
 # 47-1a — local readiness receipt
 
+## PP-130 stacked lane update
+
+The manager granted the lane at 17:10 Kuwait on 2026-11-05: stack on
+`feat/p1-060-57-1-own-access-codes` (#845), base `12b7f19a`, migration **0211**.
+This supersedes the waiting-for-lane statements below, retained as historical evidence.
+The branch was rebased without conflicts. Schema SQL was generated against #845's
+journal; the preserved permission seed precedes the generated schema changes and the
+reviewed trigger/grants follow them. There were no branch-owned numbered artifacts to
+remove. `idx=211`, previous `idx=210`, and snapshot `prevId` equals snapshot 0210 `id`.
+The API fixture no longer applies draft SQL: tests require the actual migration.
+A fresh read-only Astra medium review of this final migration delta reported no
+confirmed P0–P3 defects (static review only). Production routes remain unregistered.
+The PR base must remain the #845 branch until the manager retargets after its merge;
+no merge is authorized. Further #845 pushes require a rebase and fresh head gates.
+
+Final numbered-migration verification on private `packages-47-1a` Postgres:
+request/status/production fence **17 passed**, migration-data-steps/migration-client/
+RLS-context **14 passed**. Full HTTP warm samples were
+`84.5530, 82.0928, 73.0055, 93.0176, 82.1025 ms`, median **82.1025 ms**.
+The earlier runs below remain historical. Final lint: 30 successful tasks;
+lint:docs: 0 errors/29 warnings; module-map check passed. The three guards were
+reapplied to the final migration/fixture/documentation delta without new findings.
+
 Status: **local implementation and independent review complete; awaiting migration
 lane**. No final migration number, `db:generate`, push, PR, merge or deployment has
 occurred. CI and exact-head bot receipts are still required after publication.

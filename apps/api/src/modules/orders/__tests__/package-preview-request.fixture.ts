@@ -1,6 +1,5 @@
 import { createDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
-import { readFileSync } from 'node:fs';
 import { startHarness } from '../../../../test/harness.ts';
 import { PackageImportPreviewController } from '../http/package-import-preview.controller.ts';
 import { createPackageImportRequestTransactions } from '../persistence/package-import-request.transactions.ts';
@@ -33,19 +32,6 @@ async function seedWorkspace(h: Awaited<ReturnType<typeof startHarness>>) {
 
 export async function packagePreviewRequestFixture(mount = true) {
   const h = await startHarness(mount ? { controllers: [PackageImportPreviewController] } : {});
-  const draft = readFileSync(
-    new URL(
-      '../../../../../../docs/specs/058-packages-sell-redeem/47-1a-migration.draft.sql',
-      import.meta.url,
-    ),
-    'utf8',
-  );
-  const [column] = await h.owner`SELECT EXISTS(SELECT 1 FROM information_schema.columns
-    WHERE table_schema='public' AND table_name='import_previews' AND column_name='skipped_count') AS present`;
-  if (column?.['present'] !== true) {
-    if (process.env['CI']) throw new Error('PACKAGE_PREVIEW_FINAL_MIGRATION_REQUIRED');
-    await h.owner.unsafe(draft);
-  }
   const [guard] =
     await h.owner`SELECT to_regprocedure('package_import_preview_update_guard()') IS NOT NULL AS present`;
   if (guard?.['present'] !== true) throw new Error('PACKAGE_PREVIEW_MIGRATION_GUARD_REQUIRED');
