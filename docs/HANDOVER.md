@@ -56,8 +56,8 @@ The full delivery pipeline — lanes, review rounds, guard pass, merge, staging 
    pick binds.
    Ask the questions of a whole feature before its first sub-PR, with a mockup when the answer is a screen, in one batch.
 3. Lanes, transport and fallback follow `docs/agent-delivery-pipeline.md` §§0, 5 and 7: every model through T3's
-   built-in delegation, never a shell-run `opencode` or `codex`. MiniMax (`M3.1-Flash · thinking`, MiniMax Code) builds
-   new tasks, GLM takes small pinned ones, and Kimi `K3.1 Pro` handles correction rounds after a clean handoff (Q3, item
+   built-in delegation, never a shell-run `opencode` or `codex`. Codex `gpt-6.1-sol` (effort `medium`, standard speed) builds
+   new tasks with MiniMax (`M3.1-Flash · thinking`, MiniMax Code) as its first fallback (PP-125, item 63), GLM takes small pinned ones, and Kimi `K3.1 Pro` handles correction rounds after a clean handoff (Q3, item
    49). Each role has a fallback chain, with an automatic switch after two failed availability attempts (PP-112, item
    50). Briefs ban every git command, any read or write under `.git` or `.env*`, edits outside the task, and
    line-squashing. Claude Code orchestrates, judges the diff (including a line-by-line diff of every rewritten SQL
