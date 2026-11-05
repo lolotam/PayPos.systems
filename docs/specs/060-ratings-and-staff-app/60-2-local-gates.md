@@ -103,7 +103,7 @@ API public-route CORS changes are now authorized. AUTH_TRUSTED_ORIGINS, Traefik,
 server, DNS and Dokploy settings remain unchanged. No migration, local E2E,
 deployment or merge is part of this slice. Only the explicitly authorized
 `.env.example` template was read/edited; no real environment file was opened.
-External correction rounds used: 2/5.
+External correction rounds used: 3/5.
 
 ## Connection verification — 2026-11-05
 
@@ -242,3 +242,38 @@ in a separate documentation PR. PP-126 remains reserved for the snapshot rule.
 
 No real environment-file read, local E2E, server change, deployment or merge.
 New-head ci-gate, Codex review and a complete panel remain required after push.
+
+## Correction round 3 — 2026-11-05
+
+The third panel receipt `5785306748` on `9a90af53850ff70839f31a232d4a2bad0303b084`
+remained partial: Waleed_Bot reviewed 1/6 batches and skipped verification and
+the final real-file batch as well as generated schema batches. The manager was
+informed without an extra push, then explicitly authorized this consolidated
+correction at 16:24 Kuwait. No incomplete-review exception was granted.
+
+The panel's cross-file and owner-rules findings concern the same missing PP-127
+central index entry. The manager reversed the earlier separate-PR instruction:
+PP-127 is now indexed in owner-decisions.ar.md within this PR, with the original
+2026-11-05 answer date and a link to the full slice audit. The slice audit and
+ADR-0058 reference that entry instead of deferring it. A blank line before the
+PP-127 heading also fixes the verified MD022 formatting issue.
+
+Waleed_Bot's sole finding repeats the callback-only CORS allegation. The installed
+11.3.0 runtime still explicitly consumes one-argument delegate Promises; the
+43-test HTTP/config receipt and source evidence linked in the PR remain valid.
+No callback conversion or runtime change is justified by this repeated finding.
+
+PR #842 is the overlapping index writer for PP-124/PP-125. It was open at this
+refresh. PP-127 follows the existing latest-number block without copying those
+unmerged rows. If #842 merges first, the branch must be rebased rather than
+manually copying its file changes. No migration or new library is involved.
+
+This round changes documentation only. New-head ci-gate, Codex and a complete
+panel remain required. Any repeated partial receipt that skips the real files
+must go to the manager without another push. No merge is authorized.
+
+Round 3 local gates: menu typecheck/api:check, lint and 19/19 tests passed;
+lint:docs passed with 0 errors / 29 existing warnings; module-map:check and
+git diff --check passed. The index row, date, source-answer link, reciprocal
+references and MD022 blank line were checked against the files. docs-guard
+passed; clean-code-guard/test-guard found no new production/test-code changes.

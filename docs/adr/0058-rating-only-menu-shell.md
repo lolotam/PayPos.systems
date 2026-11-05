@@ -32,8 +32,9 @@ Only existing workspace and repository libraries are used. No database changes.
 ## Decision
 
 Waleed selected option 1 in the PosPay manager conversation on 2026-11-05.
-The manager assigned audit identifier **PP-127** and owns its central entry in
-`docs/owner-decisions.ar.md` through a separate documentation PR.
+The manager assigned audit identifier **PP-127**. Its central entry is included in
+the [owner-decision index](../owner-decisions.ar.md#فهرس-دفعات-وليد-pp) in this PR,
+following the manager's corrected instruction on 2026-11-05 at 16:24 Kuwait.
 Verbatim: «رقم اختيارك في سؤال CORS بتاع صفحة التقييم-1».
 The manager relayed the answer and scope at 15:30; the slice's owner-question
 record retains the answer, date, channel and interpretation.
