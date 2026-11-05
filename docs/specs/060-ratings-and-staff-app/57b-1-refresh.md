@@ -1,3 +1,22 @@
+# 57b-1 dependency refresh — current receipt
+
+2026-11-05: the historical dependency block below is resolved. The authorized F: worktree
+is on `feat/p1-060-57b-1-my-attendance-api-v2`, baseline and fetched `origin/main`
+`5d15dc32a02a04621c8b3ac74da804d65ba1f86f` (57-1a #845 merged).
+57-1b #775, private view #784 and 57c-1 #468 are present. No stack and no migration.
+
+`gh pr list --state open --limit 100 --json number,title,files` returned #847,
+#850, #851, #852 and #853. #851 overlaps only the contract aggregators,
+OpenAPI/generated clients and module map among this implementation's files.
+#847 edits the shared spec's owner-question file; this slice leaves that file alone.
+#850 edits process documents; #852/#853 edit CI, outside this slice.
+
+See [57b-1-validation.md](57b-1-validation.md) for the current implementation and
+validation status. The historical record is preserved below; its BLOCKED status
+is historical, not the current dependency assessment.
+
+---
+
 # 57b-1 — dependency refresh
 
 Date: 2026-11-05. Status: **BLOCKED — missing 57-1 own-access dependency**.
