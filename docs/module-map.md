@@ -82,6 +82,14 @@ Worker `files` reads whether a file is still the business logo through `lockBusi
 `@pospay/db`, the same function the settings adapter calls. `files` does not import `settings` (ADR-0046, 27h-3).
 Settings binds a logo by reading `documentFileFacts` from `files` through its own adapter (27h-4, ADR-0046).
 
+Spec 060 57b-1's `OwnAttendanceReads` is a read-side interface beside the attendance
+query. Its adapter reads the business/branch names and effective timezones through
+`describeWorkspaces`, the business timezone through `activeBusinessTimeZone`, and
+live own authority through identity's `readOwnAttendanceAccess`, all on the caller's
+transaction. The branch proving current authority does not restrict historical
+attendance branches. Branch names cross the tenancy boundary through this reader;
+the attendance SQL joins only staff-owned tables and the supplied name projection.
+
 ADR-0020 attendance QR reads the paired branch name and effective timezone through the existing tenancy
 `describeWorkspaces` surface; staff owns the read port. It adds no attendance write or clocking endpoint.
 
@@ -348,6 +356,9 @@ composition_roots:
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
+  - staff -> identity.readOwnAttendanceAccess @ apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts
+  - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts
+  - staff -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts
   - orders -> staff.readSessionPerformerOptions @ apps/api/src/modules/orders/persistence/session-performer-options.adapter.ts
   - orders -> catalog.readSessionServiceOptions @ apps/api/src/modules/orders/persistence/session-service-options.adapter.ts
   - orders -> identity.readServiceSessionAccess @ apps/api/src/modules/orders/persistence/recording-context.adapter.ts

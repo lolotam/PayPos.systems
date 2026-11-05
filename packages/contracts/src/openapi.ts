@@ -1,3 +1,4 @@
+import { ownAttendancePaths } from './staff/own-attendance-openapi.js';
 import { z } from 'zod';
 import { serviceSessionFormPaths } from './orders/service-session-form-openapi.js';
 import { serviceSessionPaths } from './orders/service-session-openapi.js';
@@ -36,6 +37,7 @@ import { openApiSchemas } from './openapi-schemas.js';
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  ...ownAttendancePaths,
   ...attendanceMonthlyReportPaths,
   ...employeeIbanPaths,
   ...commissionPaths,
