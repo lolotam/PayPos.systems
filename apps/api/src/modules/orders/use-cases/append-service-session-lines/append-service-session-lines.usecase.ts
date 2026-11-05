@@ -12,7 +12,7 @@ import type { SessionRecoveryPort } from '../../ports/session-recovery.port.ts';
 import type { Clock, IdGenerator, ServiceSessionTransactions, SessionWriteContext, SessionTransaction } from '../../ports/service-session-transactions.port.ts';
 import { sessionDrafts } from '../../domain/session-drafts.ts';
 import { approvalDecisions, commitDiscountApprovals, consumptionActor, lockApprovalProposals } from '../consume-discount-approval/consume-discount-approvals.ts';
-import { packagePreparedDrafts, packageRedemptionWrites, resolvePackageRedemptions } from '../redeem-package-session/package-redemption-write.ts';
+import { assertPackageFactsAllowed, packagePreparedDrafts, packageRedemptionWrites, resolvePackageRedemptions, type PackageRedemptionFact } from '../redeem-package-session/package-redemption-write.ts';
 
 type AppendContext = SessionWriteContext & { sessionId: string; input: AppendServiceSessionLinesInput };
 /** يضيف المصحح أو الخدمة الجديدة لنفس الزيارة دون تغيير أي بند محفوظ. */
@@ -60,8 +60,15 @@ export class AppendServiceSessionLinesUseCase {
     const employees = await tx.performers.read(employeeIds, original.occurred_at);
     const drafts = sessionDrafts(context.input.lines);
     // قفل الاستحقاقات هو آخر قفل مال؛ صلاحية الباقة تقاس بيوم فرع الزيارة لا بيوم النشاط.
-    const facts = await resolvePackageRedemptions(tx, { customerId: original.customer.id, drafts: drafts.packages,
-      visitLocalDate: sessionBusinessDate(original.occurred_at, place.branch_timezone), occurredAt: original.occurred_at, newId: () => this.ids.newId() });
+    // توقيت الفرع يُقرأ وحده عند وجود مسودة باقة، فالإضافة المدفوعة ما تدفعش الاستعلام ده.
+    let facts = new Map<number, PackageRedemptionFact>();
+    if (drafts.packages.length > 0) {
+      const branchTimezone = await tx.place.branchTimezone();
+      if (branchTimezone === null) throw new SessionError('FORBIDDEN');
+      facts = await resolvePackageRedemptions(tx, { customerId: original.customer.id, drafts: drafts.packages,
+        newId: () => this.ids.newId() });
+      assertPackageFactsAllowed(facts, sessionBusinessDate(original.occurred_at, branchTimezone), original.occurred_at);
+    }
     // بعد كل أقفال المال تقرأ الساعة والحد وتتأكد من السلطة، فلا يبقى انتظار قديم حياً.
     const at = this.clock.now();
     resolveSessionRecorder(await tx.access.read(at), membershipId, original.recorded_by, context.userId);

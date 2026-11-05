@@ -16,11 +16,9 @@ export function sessionPlace(
 ): SessionPlacePort {
   return {
     read: async () => {
-      const [timezone, branchTimezone] = await Promise.all([
-        activeBusinessTimeZone(tx, companyId, businessId, branchId),
-        packageSalePlace(tx, companyId, businessId, branchId),
-      ]);
-      return timezone === null || branchTimezone === null ? null : { timezone, branch_timezone: branchTimezone };
+      const timezone = await activeBusinessTimeZone(tx, companyId, businessId, branchId);
+      return timezone === null ? null : { timezone };
     },
+    branchTimezone: async () => packageSalePlace(tx, companyId, businessId, branchId),
   };
 }

@@ -279,7 +279,7 @@ it('a place read that returns null after the visit lock is not found and writes 
         base.run(context, (tx) =>
           work({
             ...tx,
-            place: { read: () => (hidePlace ? Promise.resolve(null) : tx.place.read()) },
+            place: { read: () => (hidePlace ? Promise.resolve(null) : tx.place.read()), branchTimezone: () => tx.place.branchTimezone() },
           }),
         ),
     },

@@ -11,7 +11,6 @@ import type {
 } from '../ports/package-redemption.port.ts';
 import {
   lockPackageRedemptionComponents,
-  readPackageRedemptionFreeSlots,
   type PackageRedemptionSnapshot as LockedSnapshot,
 } from './package-redemption-read.ts';
 
@@ -107,12 +106,29 @@ export function createPackageRedemptionPort(tx: Tx, scope: Scope): PackageRedemp
         sold_at: row.soldAt,
       }));
     },
-    freeSlots: async (component_id: string, count: number) => {
-      const snapshot = locked.get(component_id);
-      if (snapshot === undefined) return [];
-      const slots = await readPackageRedemptionFreeSlots(tx, snapshot, count);
-      if (slots === null) return [];
-      return slots.map((slot): PackageRedemptionSlot => ({ id: slot.id, ordinal: slot.ordinal, unit_value: slot.unitValue }));
+    freeSlots: async (requests) => {
+      const result = new Map<string, PackageRedemptionSlot[]>();
+      if (requests.length === 0) return result;
+      const values = sql.join(requests.map(({ component_id, count }) => {
+        const snapshot = locked.get(component_id);
+        if (snapshot === undefined) throw new SessionError('PACKAGE_NOT_USABLE_HERE');
+        return sql`(${snapshot.entitlementId}::uuid, ${component_id}::uuid, ${count}::integer)`;
+      }), sql`, `);
+      const rows = await tx.execute<{ component_id: string; id: string; ordinal: number; unitValue: string }>(sql`
+        SELECT v.component_id, s.id, s.ordinal, s.unit_value::text AS "unitValue"
+        FROM (VALUES ${values}) AS v(entitlement_id, component_id, wanted)
+        CROSS JOIN LATERAL (
+          SELECT id, ordinal, unit_value FROM package_session_slots
+          WHERE company_id = ${scope.companyId}::uuid AND business_id = ${scope.businessId}::uuid
+            AND entitlement_id = v.entitlement_id AND component_id = v.component_id AND state = 'FREE'
+          ORDER BY ordinal LIMIT v.wanted
+        ) s ORDER BY v.component_id, s.ordinal`);
+      for (const row of rows) {
+        const slots = result.get(row.component_id) ?? [];
+        slots.push({ id: row.id, ordinal: row.ordinal, unit_value: parseMoney(row.unitValue) });
+        result.set(row.component_id, slots);
+      }
+      return result;
     },
     lockSlots: (slot_ids) => lockSlots(tx, scope, slot_ids),
     writeRedemptions: (rows) => writeRedemptions(tx, scope, rows),

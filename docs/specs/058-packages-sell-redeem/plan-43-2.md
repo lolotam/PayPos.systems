@@ -449,6 +449,15 @@ under the line lock, not the domain marker, and the marker is only needed on the
 lines the writer builds. The panel's own verifier rejected the finding, and
 reading the guards confirms it.
 
+**Found by the local integration suite, not by a bot.** The `20-line/80-performer`
+budget test in `service-session-readers.spec.ts` counts the statements of a
+request. `SessionPlacePort.read` had started returning both timezones, so every
+visit paid one more query — a paid visit was paying for a branch timezone only a
+package draft needs. The port now keeps `read()` (the business timezone) and
+grows `branchTimezone()`, which the two use cases call **only when the request
+carries a package draft**. The statement count of a paid visit is back to what it
+was, and a package visit pays the extra query it actually needs.
+
 The lesson from this round: the filter spec lives in `__tests__/`, which is the
 **integration** project, not the unit project. Running only the slice's own specs
 missed it, so the whole orders and tenancy integration suites run before the push.

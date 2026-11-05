@@ -1,5 +1,7 @@
+import { RecordServiceSessionUseCase } from '../use-cases/record-service-session/record-service-session.usecase.ts';
+import { createSessionRecovery } from '../persistence/session-recovery.adapter.ts';
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { ids, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
+import { AT, ids, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
 import { packageLine, seedPackage } from './package-redemption.fixture.ts';
 
 let f: SessionFixture;
@@ -115,4 +117,41 @@ it('FR-025 keeps a zero-value package under a zero discount limit', async () => 
   expect(result.session.lines[0]).toMatchObject({ list_price: '0.000', price: '0.000', discount: '0.000', net: '0.000', effective_discount_bps: 0 });
   expect(await f.h.owner`SELECT 1 FROM package_redemptions WHERE entitlement_id=${seeded.entitlement}`).toHaveLength(1);
   await f.h.owner`UPDATE memberships SET limit_bps=1000 WHERE company_id=${f.company} AND id=${f.membership}`;
+});
+
+it('uses the final clock and performer instant after awaiting the slot lock when occurred_at is omitted', async () => {
+  const before = new Date('2026-10-14T20:59:30.000Z');
+  const after = new Date('2026-10-14T21:00:30.000Z');
+  f.setAt(before);
+  const seeded = await seedPackage(f, { sessions: 2, expiresOn: '2026-10-15' });
+  let performerAt: Date | undefined;
+  const transactions: typeof f.transactions = {
+    run: (context, work) => f.transactions.run(context, (tx) => work({
+      ...tx,
+      packages: {
+        ...tx.packages,
+        lockSlots: async (ids) => {
+          const slots = await tx.packages.lockSlots(ids);
+          await Promise.resolve();
+          f.setAt(after);
+          return slots;
+        },
+      },
+      performers: {
+        ...tx.performers,
+        read: (ids, at) => { performerAt = at; return tx.performers.read(ids, at); },
+      },
+    })),
+  };
+  const create = new RecordServiceSessionUseCase(transactions, createSessionRecovery(f.db, ids, f.clock), ids, f.clock);
+  try {
+    const result = await create.execute({ ...f.context(ids.newId()), input: {
+      customer_id: f.customer, lines: [packageLine(f, seeded.entitlement)],
+    } });
+    expect(result.session.occurred_at).toBe(after.toISOString());
+    expect(result.session.business_date).toBe('2026-10-15');
+    expect(performerAt).toEqual(after);
+    const rows = await f.h.owner`SELECT occurred_at FROM service_sessions WHERE id=${result.session.id}`;
+    expect(new Date(rows[0]?.['occurred_at'] as string)).toEqual(after);
+  } finally { f.setAt(AT); }
 });

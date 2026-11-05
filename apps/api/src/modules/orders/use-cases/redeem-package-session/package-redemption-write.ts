@@ -32,7 +32,7 @@ type ScopedPackageDraft = PackageSessionDraft & { component_id: string; expires_
  */
 export async function resolvePackageRedemptions(
   tx: SessionTransaction,
-  input: { customerId: string; drafts: readonly PackageSessionDraft[]; visitLocalDate: string; occurredAt: Date; newId: () => string },
+  input: { customerId: string; drafts: readonly PackageSessionDraft[]; newId: () => string },
 ): Promise<Map<number, PackageRedemptionFact>> {
   if (input.drafts.length === 0) return new Map();
   const snapshots = await tx.packages.lock(input.customerId, input.drafts.map((draft) => ({ entitlement_id: draft.entitlement_id, service_id: draft.service_id })));
@@ -40,13 +40,11 @@ export async function resolvePackageRedemptions(
   const scoped = input.drafts.map((draft, index) => {
     const snapshot = snapshots[index];
     if (snapshot === undefined) throw new SessionError('PACKAGE_NOT_USABLE_HERE');
-    assertPackageRedemptionAllowed({ expiresOn: snapshot.expires_on, soldAt: snapshot.sold_at }, input.visitLocalDate, input.occurredAt);
     return { ...draft, component_id: snapshot.component_id, expires_on: snapshot.expires_on, sold_at: snapshot.sold_at };
   });
   const wanted = new Map<string, number>();
   for (const draft of scoped) wanted.set(draft.component_id, (wanted.get(draft.component_id) ?? 0) + 1);
-  const slots = new Map<string, readonly PackageSlotCandidate[]>();
-  for (const [component_id, count] of wanted) slots.set(component_id, await tx.packages.freeSlots(component_id, count));
+  const slots = await tx.packages.freeSlots([...wanted].map(([component_id, count]) => ({ component_id, count })));
   const assigned = assignPackageSlots(scoped, slots);
   const chosen: { draft: ScopedPackageDraft; candidate: PackageSlotCandidate }[] = [];
   for (const draft of scoped) {

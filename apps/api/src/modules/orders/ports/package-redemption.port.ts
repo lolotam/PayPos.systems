@@ -48,11 +48,10 @@ export interface PackageRedemptionPort {
   /**
    * يقرأ أقل الجلسات الحرة في المكوّن بعد قفله، بالترتيب التصاعدي.
    *
-   * @param component_id المكوّن المقفول
-   * @param count عدد الجلسات المطلوبة
+   * @param requests ????????? ???????? ???? ??????? ???????? ??? ????
    * @returns الجلسات الحرة بالأرقام التصاعدية
    */
-  freeSlots(component_id: string, count: number): Promise<readonly PackageRedemptionSlot[]>;
+  freeSlots(requests: readonly { component_id: string; count: number }[]): Promise<ReadonlyMap<string, readonly PackageRedemptionSlot[]>>;
   /**
    * يقفل صفوف الجلسات المختارة كلها بجملة واحدة مرتبة بالمعرّف، ويعيدها إن كانت ما زالت حرة.
    *

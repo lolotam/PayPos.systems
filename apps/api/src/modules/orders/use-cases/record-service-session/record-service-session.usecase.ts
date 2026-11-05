@@ -5,14 +5,14 @@ import { SessionError } from '../../domain/session-error.ts';
 import { sessionPreparationFacts } from '../../domain/prepare-session-lines.ts';
 import { prepareVisitLines } from '../../domain/package-redemption.ts';
 import { validatePerformerCardinality } from '../../domain/session-performers.ts';
-import { sessionBusinessDate, sessionTime, visitInstant } from '../../domain/session-time.ts';
+import { sessionBusinessDate, sessionTime } from '../../domain/session-time.ts';
 import { planSessionWrite, recordedSessionLine } from '../../domain/session-write.ts';
 import { sessionSnapshot } from '../../domain/session-snapshot.ts';
 import type { SessionRecord } from '../../domain/session-types.ts';
 import type { SessionRecoveryPort } from '../../ports/session-recovery.port.ts';
 import type { Clock, IdGenerator, ServiceSessionTransactions, SessionWriteContext, SessionTransaction } from '../../ports/service-session-transactions.port.ts';
 import { approvalDecisions, commitDiscountApprovals, consumptionActor, lockApprovalProposals } from '../consume-discount-approval/consume-discount-approvals.ts';
-import { assertPackageFactsAllowed, packagePreparedDrafts, packageRedemptionWrites, resolvePackageRedemptions } from '../redeem-package-session/package-redemption-write.ts';
+import { assertPackageFactsAllowed, packagePreparedDrafts, packageRedemptionWrites, resolvePackageRedemptions, type PackageRedemptionFact } from '../redeem-package-session/package-redemption-write.ts';
 export { SessionError } from '../../domain/session-error.ts';
 
 type RecordContext = SessionWriteContext & { input: RecordServiceSessionInput };
@@ -49,22 +49,29 @@ export class RecordServiceSessionUseCase {
     const customer = await tx.customer.read(context.input.customer_id);
     if (customer === null) throw new SessionError('SESSION_CUSTOMER_NOT_FOUND');
     const services = await tx.catalog.read(serviceIds);
-    const firstAt = this.clock.now();
-    const occurredAt = context.input.occurred_at === undefined ? firstAt : new Date(context.input.occurred_at);
-    // لحظة الزيارة تُطبّع قبل أي حساب: نفس اللحظة التي ستُحفظ بها الزيارة.
-    const provisional = visitInstant(occurredAt, firstAt);
-    const employees = await tx.performers.read(employeeIds, provisional);
+    const occurredAt = context.input.occurred_at === undefined ? undefined : new Date(context.input.occurred_at);
     const drafts = sessionDrafts(context.input.lines);
     // قفل الاستحقاقات هو آخر قفل مال، فينتظر على المكوّن؛ صلاحية الباقة تقاس بيوم الفرع لا بيوم النشاط.
-    const facts = await resolvePackageRedemptions(tx, { customerId: customer.id, drafts: drafts.packages,
-      visitLocalDate: sessionBusinessDate(provisional, place.branch_timezone), occurredAt: provisional, newId: () => this.ids.newId() });
+    // توقيت الفرع يُقرأ وحده عند وجود مسودة باقة، فالزيارة المدفوعة ما تدفعش الاستعلام ده.
+    let facts = new Map<number, PackageRedemptionFact>();
+    let branchTimezone = '';
+    if (drafts.packages.length > 0) {
+      const timezone = await tx.place.branchTimezone();
+      if (timezone === null) throw new SessionError('FORBIDDEN');
+      branchTimezone = timezone;
+      facts = await resolvePackageRedemptions(tx, { customerId: customer.id, drafts: drafts.packages,
+        newId: () => this.ids.newId() });
+    }
     // بعد كل أقفال المال تقرأ الساعة والحد وتتأكد من السلطة، فلا يبقى انتظار قديم حياً.
     const at = this.clock.now();
     resolveSessionRecorder(await tx.access.read(at), membershipId, undefined, context.userId);
     const limit = await tx.discount.read(membershipId);
     const time = sessionTime(occurredAt, at, place.timezone);
     // الساعة تغيّرت بعد القفل، فيُعاد فحص انتهاء الباقة على اللحظة التي ستُحفظ بها الزيارة.
-    assertPackageFactsAllowed(facts, sessionBusinessDate(time.occurred_at, place.branch_timezone), time.occurred_at);
+    if (facts.size > 0) {
+      assertPackageFactsAllowed(facts, sessionBusinessDate(time.occurred_at, branchTimezone), time.occurred_at);
+    }
+    const employees = await tx.performers.read(employeeIds, time.occurred_at);
     const prepared = prepareVisitLines(drafts.paid, packagePreparedDrafts(drafts.packages, facts),
       sessionPreparationFacts(services, employees, context.userId));
     const decisions = approvalDecisions(tx, { prepared, limit, terms: this.terms(context, membershipId, time.business_date), actor: consumptionActor(context, membershipId) }, locked, at);

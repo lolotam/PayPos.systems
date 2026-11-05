@@ -68,8 +68,59 @@ the code confirms it: the only consumers of that identity — the edit, cancel a
 guards of 43-1b — read `service_lines.redemption_id` from the row under the line lock, not the
 domain marker. The marker is needed only on the lines the writer builds, and there it is set.
 
+### Found by the local integration suite, not by a bot
+
+The `20-line/80-performer` budget test in `service-session-readers.spec.ts` counts the statements
+of a request. `SessionPlacePort.read` had started returning both timezones, so every visit paid
+one more query — a paid visit was paying for a branch timezone that only a package draft needs.
+
+**Fix:** the port keeps `read()` (the business timezone) and grows `branchTimezone()`, which the
+record and append use cases call **only when the request carries a package draft**. A paid visit
+pays the statement count it paid before the slice; a package visit pays the extra query it
+actually needs.
+
 ### The lesson
 
 The filter spec lives in `__tests__/`, which is the **integration** project; the unit project
 covers only `domain/__tests__/`. Running the slice's own specs missed finding 2, so the whole
 orders and tenancy integration suites run before every push.
+
+## Round 2 ? prepared against head `12c7b6d9`
+
+The final clock reading after component and slot locks now supplies omitted
+`occurred_at`. Package validity and performer eligibility both use
+`time.occurred_at`, the exact instant persisted in the visit. No provisional
+validity check can reject an instant before the final normalization.
+
+Free slots for every locked component are read in one scoped VALUES/LATERAL
+statement, bounded by the requested count per component and ordered by ordinal.
+Component locks and the deliberate slot row locks remain in the transaction.
+
+The regression in `package-redemption-edge.spec.ts` advances the injected clock
+across Kuwait midnight after the actual slot lock and checks the saved occurrence,
+business date and performer lookup instant. Local verification results and review
+receipts must be recorded before publication. Codex was requested on the current
+head; the MergePilot receipt is partial, so this round is not ready to push.
+
+Local receipt for the prepared round: API `typecheck` passed; API `lint`
+(including boundaries) passed after fixing the batch parameter's JSDoc;
+`lint:docs` passed with 0 errors and 29 existing warnings;
+`module-map:check` passed. The three package redemption integration/RLS files
+passed, 23 tests, 233.27 s. The initial lint failure was solely the stale
+`component_id/count` JSDoc parameter names after introducing `requests`.
+
+Replied to and resolved the three still-open round-1 threads for 422 mapping,
+query shape/EXPLAIN coverage, and ADR coverage, each citing `12c7b6d9`.
+The clock and batching threads stay open until the consolidated correction is
+published and validated. The manager was notified of the missing panel
+verification receipt; no correction push or merge is claimed.
+
+Manager decision, 2026-11-05, project conversation (verbatim):
+
+??? ??????: ?? ????? ????? MergePilot ??? 12c7b6d9. ???? ?????? 2 ?????? ?? push ?????.
+
+?????: ????? 12c7b6d9 ?????? ????? ?? PP-119.1. ??????? ??????? ?? ?????? ? completed? ??? ???? Waleed_Bot ???? ???? ??? fallback? ??????? ?? ???? ??? verification ??? ????? ??? ???????? ???? ?????? ???? ???????. Codex ??? ??? ??? ??? head ??????? ????? (06:5x)? ?CodeRabbit ?????. ?? ????? ??????? ??? head ??? ???? ???????? ?????? ????? 20 ????? ??? ??????? ??? ?? ????? ???????? ????? ???????.?
+
+This decision supersedes the pending-panel statement above. Publish round 2 of 5
+once, request Codex on the new head, and resolve clock/batch threads with commit
+and regression evidence. No merge is authorized.

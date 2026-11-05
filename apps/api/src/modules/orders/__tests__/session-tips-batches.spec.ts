@@ -20,7 +20,7 @@ function batchPort(calls: PerformerCall[], retained: readonly string[] = []): Se
     business_timezone: 'Asia/Kuwait',
   };
   return {
-    place: { read: async () => ({ timezone: 'Asia/Kuwait', branch_timezone: 'Asia/Kuwait' }) },
+    place: { read: async () => ({ timezone: 'Asia/Kuwait' }), branchTimezone: async () => 'Asia/Kuwait' },
     access: { lock: async () => undefined, read: async () => access },
     performers: {
       lock: async (batch) => {

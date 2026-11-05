@@ -67,11 +67,18 @@ export interface DiscountLimitPort {
 /** التحقق من المكان يمنع تطابق فرع مع نشاط آخر حتى داخل الشركة. */
 export interface SessionPlacePort {
   /**
-   * يعيد منطقة النشاط وتوقيت الفرع الفعلي إذا كان الفرع النشط تابعاً له داخل الشركة.
+   * يعيد منطقة النشاط إذا كان الفرع النشط تابعاً له داخل الشركة.
    *
-   * @returns منطقة النشاط وتوقيت الفرع، أو null إن لم يكن الفرع نشطاً تحت هذا النشاط
+   * @returns منطقة النشاط، أو null إن لم يكن الفرع نشطاً تحت هذا النشاط
    */
-  read(): Promise<{ timezone: string; branch_timezone: string } | null>;
+  read(): Promise<{ timezone: string } | null>;
+  /**
+   * يعيد توقيت الفرع الفعلي: توقيت الفرع لو له منطقة خاصة، وإلا توقيت النشاط.
+   * القاعدة: يُقرأ وحده عند وجود مسودة باقة، فالزيارة المدفوعة ما تدفعش استعلاماً ما تحتاجهوش.
+   *
+   * @returns توقيت الفرع الفعلي، أو null إن لم يكن الفرع نشطاً تحت هذا النشاط
+   */
+  branchTimezone(): Promise<string | null>;
 }
 /** RBAC يعاد قبل replay وبعد الانتظار ولا يثق بانتقاء العميل. */
 export interface SessionRecordAccessPort {
