@@ -1,4 +1,8 @@
 export const serviceSessionErrors = {
+  PACKAGE_REDEMPTION_ALREADY_REVERSED: {
+    message_ar: 'الجلسة رجعت للباقة قبل كده.',
+    message_en: 'This session was already returned to the package.',
+  },
   SESSION_ATTEMPT_NOT_PERSISTED: { message_ar: 'مش ممكن الحفظ بأمان في المتصفح ده لأن التخزين مش متاح. فضّي مساحة أو اخرجي من وضع التصفح الخاص.', message_en: "Can't save safely in this browser — storage is unavailable; free space or leave private mode." },
   SESSION_CUSTOMER_NOT_FOUND: { message_ar: 'العميلة غير موجودة.', message_en: 'Customer not found.' },
   SESSION_SERVICE_NOT_FOUND: { message_ar: 'الخدمة غير موجودة في النشاط.', message_en: 'Service not found in this business.' },
