@@ -43,6 +43,18 @@ it('RD-04b keeps the original visit date on the append route', async () => {
   expect(appended.session.business_date).toBe('2026-10-15');
 });
 
+it('RD-04b validates the expiry on the normalized visit instant, not the raw client clock', async () => {
+  // ساعة السيرفر قبل منتصف ليل الكويت بنصف دقيقة، والعميل أرسل وقتاً بعده بدقيقة.
+  f.setAt(new Date('2026-10-14T20:59:30.000Z'));
+  const seeded = await seedPackage(f, { sessions: 1, expiresOn: '2026-10-14' });
+  const result = await f.create.execute({ ...f.context(ids.newId()),
+    input: { ...f.body([packageLine(f, seeded.entitlement)]), occurred_at: '2026-10-14T21:00:30.000Z' } });
+  expect(result.outcome).toBe('COMPLETE');
+  expect(result.session.business_date).toBe('2026-10-14');
+  expect(result.session.occurred_at).toBe('2026-10-14T20:59:30.000Z');
+  f.setAt(new Date('2026-10-15T08:00:00.000Z'));
+});
+
 it('RD-03 does not deadlock when two batches ask for the same components in reverse order', async () => {
   const first = await seedPackage(f, { sessions: 2, expiresOn: '2026-12-30' });
   const second = await seedPackage(f, { sessions: 2, expiresOn: '2026-12-30' });

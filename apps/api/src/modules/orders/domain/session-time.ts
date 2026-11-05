@@ -38,6 +38,19 @@ export function validateAppendWindow(businessDate: string, recordedAt: Date, tim
   if (businessDate < oldest) throw new SessionError('SESSION_TIME_TOO_OLD');
 }
 /**
+ * يطبّع لحظة الزيارة على وقت السيرفر: لو كانت في المستقبل قُصّت على وقت السيرفر.
+ * القاعدة: التسامح مع فرق ساعة الجهاز بيتشيك في sessionTime وحده، فهنا القصّ بس.
+ *
+ * @param occurredAt وقت التنفيذ المدخل أو الغائب
+ * @param recordedAt ساعة السيرفر
+ * @returns اللحظة المطبّعة التي تُحفظ بها الزيارة
+ */
+export function visitInstant(occurredAt: Date | undefined, recordedAt: Date): Date {
+  const candidate = occurredAt ?? recordedAt;
+  if (!Number.isFinite(candidate.getTime()) || !Number.isFinite(recordedAt.getTime())) throw new SessionError('SESSION_TIME_INVALID');
+  return candidate > recordedAt ? recordedAt : candidate;
+}
+/**
  * يسمح بفرق ساعة الجهاز حتى ١٢٠ ثانية ويطبّعه لوقت السيرفر فلا نخزن مستقبلاً.
  *
  * @param occurredAt وقت التنفيذ المدخل أو الغائب
@@ -49,7 +62,7 @@ export function sessionTime(occurredAt: Date | undefined, recordedAt: Date, time
   const candidate = occurredAt ?? recordedAt;
   if (!Number.isFinite(candidate.getTime()) || !Number.isFinite(recordedAt.getTime())) throw new SessionError('SESSION_TIME_INVALID');
   if (candidate.getTime() > recordedAt.getTime() + 120000) throw new SessionError('SESSION_TIME_IN_FUTURE');
-  const occurred_at = candidate > recordedAt ? recordedAt : candidate;
+  const occurred_at = visitInstant(candidate, recordedAt);
   const business_date = sessionBusinessDate(occurred_at, timezone);
   validateAppendWindow(business_date, recordedAt, timezone);
   return { occurred_at, business_date, late: isLateEntry(business_date, sessionBusinessDate(recordedAt, timezone)) };

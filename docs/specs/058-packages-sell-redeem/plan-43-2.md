@@ -196,6 +196,9 @@ in `authenticated-writes.ts` as a `RECORD_SCOPED` route. 43-2 adds the negative 
 | `apps/api/src/modules/orders/__tests__/package-redemption-edge.spec.ts` | The edge tests Astra asked for: the branch-timezone midnight case and its `NULL` fallback, the reversed-order concurrency, the mixed batch, the rollback, the zero-value package. |
 | `apps/api/src/modules/orders/__tests__/package-redemption.fixture.ts` | The shared seed of an entitlement, a component and its slots. |
 | `apps/api/src/modules/tenancy/queries/package-sale-place.query.ts` | The serving branch's effective timezone (`COALESCE(b.timezone, bu.timezone)`). |
+| `apps/api/src/modules/tenancy/queries/__tests__/package-sale-place.query.spec.ts` | The shape and the `EXPLAIN ANALYZE` assertion for that read (CLAUDE.md §9). |
+| `docs/adr/0041-orders-service-sessions-reads-and-events.md` | The addendum that authorizes the named symbol read and the map row. |
+| `docs/specs/058-packages-sell-redeem/43-2-review-corrections.md` | The round-by-round receipts and the corrections. |
 
 ### Changed
 
@@ -425,3 +428,27 @@ This is the compatibility the contract activation needs; it is not row 43-3's sc
 | A package below the catalog price, and a `0.000` package under a zero limit | `package-redemption-edge.spec.ts` — the zero-value package under a zero discount limit |
 | An interleaved batch (package, rejected paid, package, paid with approval) | `package-redemption-edge.spec.ts` — the mixed batch, with the rejected line in the middle; the approval variant is covered by the existing discount-approval tests |
 | Two concurrent same-key requests, and a replay after the package is exhausted | The RD-08 test covers the replay; the concurrent same-key pair is **not covered** — the idempotency wrapper is the existing one and is not changed by 43-2 |
+
+## 14. Review round 1 (PR #841)
+
+The bots ran on the exact head `6e6ed627`: Codex, CodeRabbit, the MergePilot panel
+and CI. Five findings, one consolidated correction push.
+
+| Finding | From | Fix |
+| --- | --- | --- |
+| The package expiry was checked against the **raw** client timestamp, while `sessionTime` clamps the visit to the server time (120 s tolerance). Near midnight a valid visit was refused with `PACKAGE_EXPIRED`. | Codex P2, MergePilot high, CodeRabbit minor (the same defect) | The visit instant is normalised **before** the expiry decision: `visitInstant` (a new domain function) gives the provisional instant before the package lock, and `assertPackageFactsAllowed` re-checks the expiry on the final instant after the clock is read again. The provisional step does not reject a future timestamp — only the final `sessionTime` does — so the 120 s device tolerance keeps its meaning. |
+| The three package refusals fell through to the filter's `invalidStatus`, so they answered 400 where the form controller opens the filter with 400. | CodeRabbit major, MergePilot medium | The codes are mapped explicitly to 422 in `PACKAGE_UNPROCESSABLE`, beside the four sets the filter already carries, so the status does not depend on the filter's default. |
+| The redemption queried the database once per package line: one `SELECT … FOR UPDATE` per slot, one `INSERT` per redemption, one `UPDATE` per slot. | MergePilot medium | `lockSlots` locks every chosen slot in one ordered statement, `writeRedemptions` inserts all the redemptions in one statement, and `markSlotsUsed` moves all the slots in one `UPDATE … FROM (VALUES …)`. The slot update returns the rows it moved, and a count that does not match refuses the whole visit instead of leaving half a redemption. |
+| The new tenancy query had no result-shape test and no `EXPLAIN ANALYZE` assertion, and the new module arrow had no ADR. | MergePilot medium (twice) | `apps/api/src/modules/tenancy/queries/__tests__/package-sale-place.query.spec.ts` asserts the shape (the branch's own timezone, the business fallback, `null` for another company, an inactive branch and an unknown branch) and the plan (the branch primary key, no sequential scan). ADR-0041 gains the addendum that authorizes the named symbol read and the map row. |
+| `apps/pos/src/shared/api/schema.d.ts` was stale after the request lines became a union, so the CI's `api:check · pos` failed. | CI | The POS schema is regenerated from the OpenAPI file, like the admin one. |
+
+**Checked and not applicable.** The panel raised that a reloaded package line loses
+its redemption identity. The only consumers of that identity — the edit, cancel
+and performer guards of 43-1b — read `service_lines.redemption_id` from the row
+under the line lock, not the domain marker, and the marker is only needed on the
+lines the writer builds. The panel's own verifier rejected the finding, and
+reading the guards confirms it.
+
+The lesson from this round: the filter spec lives in `__tests__/`, which is the
+**integration** project, not the unit project. Running only the slice's own specs
+missed it, so the whole orders and tenancy integration suites run before the push.

@@ -382,7 +382,47 @@ rings the branch's managers through a worker `orders` consumer and a new `Servic
 (ED-Q6, issue #189). The decision, the rejected alternatives and the reason the new `orders → notifications` event
 arrow is allowed are in [ADR-0044](0044-service-line-price-edit-event-and-bell.md); the plan is `plan-35d.md`.
 
-## Addendum 2026-11-01 — SS-Q1b
+## Addendum 2026-11-05 — 43-2 the serving branch's effective timezone
+
+Row 43-2 redeems a package session inside a recorded visit (spec 058, plan `plan-43-2.md`).
+
+ADR-0041 §1 said "Tenancy confirms the route business/branch relationship and supplies only the
+business timezone for orders' accounting dates/window" and "Orders never needs the branch
+timezone". **That sentence no longer holds for package redemptions.** The package's expiry is
+compared against the visit's local date **in the serving branch's timezone** (owner answer
+PK-Q7), not the business timezone: a branch may sit in its own region, and the visit's day is
+the day where the service was performed. The business timezone still owns the accounting date
+(`business_date`), the recording window and the event's `business_timezone` snapshot, so the two
+are deliberately different readings and are both kept.
+
+**Decision.** Tenancy grows one narrow read, `packageSalePlace(tx, companyId, businessId,
+branchId)`, returning `COALESCE(b.timezone, bu.timezone)` — the branch's effective timezone, or
+the business one when the branch has no region of its own. It reuses the shape of the existing
+`activeBusinessTimeZone` read: it proves the company is not deleted, the business belongs to it,
+the branch belongs to that business and the branch is active, and it returns `null` otherwise.
+`SessionPlacePort.read` now returns both `{ timezone, branch_timezone }`.
+
+**Map amendment.** §6 gains one `reads:` row:
+
+```
+- orders -> tenancy.packageSalePlace @ apps/api/src/modules/orders/persistence/session-place.adapter.ts
+```
+
+The import edge `orders → tenancy` was already declared; this ADR authorizes the **named
+symbol read** and the adapter that binds it, following the same pattern as the
+`SessionPlacePort` row in §1. `pnpm module-map:generate` writes the matching YAML.
+
+**Rejected alternatives.** (1) Reuse the business timezone for the expiry: it refuses a valid
+visit for a branch in another region near midnight, which is the defect Astra's review of the
+43-2 plan found. (2) Let orders read the `branches` table itself: that breaks the module map and
+gives orders a second source of branch facts. (3) Let the client send the local date: the client
+is not trusted to decide validity. The branch's effective timezone is the only reading the
+server can derive and defend.
+
+**Consequences.** The query is small, indexed on the branch primary key, and carries a
+result-shape test plus an `EXPLAIN ANALYZE` assertion (CLAUDE.md §9). `activeBusinessTimeZone`
+keeps its shared meaning and its other callers; no other port changes.
+
 
 Batch 1 (staff salary) and batch 13 (row 35, service session) both used the id SS-Q1. On 2026-11-01 Waleed
 approved renaming the batch-13 question to SS-Q1b; the decisions site was changed the same day. No pick by

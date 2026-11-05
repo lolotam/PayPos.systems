@@ -13,7 +13,14 @@ export interface PackageRedemptionFact {
   unit_value: bigint;
   /** هوية صف الاسترداد الذي سيُكتب مع سطر الزيارة. */
   redemption_id: string;
+  /** آخر يوم تُقبل فيه الزيارة؛ يُعاد فحصه على اللحظة النهائية. */
+  expires_on: string;
+  /** لحظة بيع الباقة؛ الباقة المستوردة بلا وقت بيع. */
+  sold_at: Date | null;
 }
+
+/** مسودة الباقة بعد قفل المكوّن: تحمل مكوّنها وحقائق صلاحيتها. */
+type ScopedPackageDraft = PackageSessionDraft & { component_id: string; expires_on: string; sold_at: Date | null };
 
 /**
  * يقفل استحقاقات الباقة ويختار لكل مسودة أقل جلسة حرة، ويمنع الباقة المنتهية أو التي لم تُبَع بعد.
@@ -34,23 +41,52 @@ export async function resolvePackageRedemptions(
     const snapshot = snapshots[index];
     if (snapshot === undefined) throw new SessionError('PACKAGE_NOT_USABLE_HERE');
     assertPackageRedemptionAllowed({ expiresOn: snapshot.expires_on, soldAt: snapshot.sold_at }, input.visitLocalDate, input.occurredAt);
-    return { ...draft, component_id: snapshot.component_id };
+    return { ...draft, component_id: snapshot.component_id, expires_on: snapshot.expires_on, sold_at: snapshot.sold_at };
   });
   const wanted = new Map<string, number>();
   for (const draft of scoped) wanted.set(draft.component_id, (wanted.get(draft.component_id) ?? 0) + 1);
   const slots = new Map<string, readonly PackageSlotCandidate[]>();
   for (const [component_id, count] of wanted) slots.set(component_id, await tx.packages.freeSlots(component_id, count));
   const assigned = assignPackageSlots(scoped, slots);
-  const facts = new Map<number, PackageRedemptionFact>();
+  const chosen: { draft: ScopedPackageDraft; candidate: PackageSlotCandidate }[] = [];
   for (const draft of scoped) {
     const candidate = assigned.get(draft.input_index);
     if (candidate === undefined) throw new SessionError('PACKAGE_NO_FREE_SESSION', { input_index: draft.input_index });
-    const locked = await tx.packages.lockSlot(candidate.id);
-    if (locked === null) throw new SessionError('PACKAGE_NO_FREE_SESSION', { input_index: draft.input_index });
+    chosen.push({ draft, candidate });
+  }
+  // الجلسات المختارة تُقفل كلها بجملة واحدة مرتبة بالمعرّف، فلا انتظار متبادل ولا استعلام لكل سطر.
+  chosen.sort((left, right) => (left.candidate.id < right.candidate.id ? -1 : 1));
+  const locked = await tx.packages.lockSlots(chosen.map((entry) => entry.candidate.id));
+  const lockedById = new Map(locked.map((slot) => [slot.id, slot]));
+  const facts = new Map<number, PackageRedemptionFact>();
+  for (const { draft, candidate } of chosen) {
+    const slot = lockedById.get(candidate.id);
+    if (slot === undefined) throw new SessionError('PACKAGE_NO_FREE_SESSION', { input_index: draft.input_index });
     facts.set(draft.input_index, { entitlement_id: draft.entitlement_id, component_id: draft.component_id,
-      slot_id: locked.id, ordinal: locked.ordinal, unit_value: locked.unit_value, redemption_id: input.newId() });
+      slot_id: slot.id, ordinal: slot.ordinal, unit_value: slot.unit_value, redemption_id: input.newId(),
+      expires_on: draft.expires_on, sold_at: draft.sold_at });
   }
   return facts;
+}
+
+/**
+ * يعيد فحص صلاحية الباقة على لحظة الزيارة النهائية.
+ * القاعدة: الساعة تُقرأ بعد القفل، فقد تتأخر اللحظة عن قفل المكوّن وتغيّر يوم الزيارة،
+ * فيُعاد فحص الانتهاء على اللحظة نفسها التي ستُحفظ بها الزيارة.
+ *
+ * @param facts حقيقة الجلسة المختارة لكل مسودة
+ * @param visitLocalDate تاريخ الزيارة بيومها بتوقيت فرع الخدمة
+ * @param occurredAt لحظة الزيارة الفعلية بعد التطبيع
+ * @returns لا شيء؛ ترمي رمز الرفض المناسب إذا انتهت الباقة أو سبقت البيع
+ */
+export function assertPackageFactsAllowed(
+  facts: ReadonlyMap<number, PackageRedemptionFact>,
+  visitLocalDate: string,
+  occurredAt: Date,
+): void {
+  for (const fact of facts.values()) {
+    assertPackageRedemptionAllowed({ expiresOn: fact.expires_on, soldAt: fact.sold_at }, visitLocalDate, occurredAt);
+  }
 }
 
 /**

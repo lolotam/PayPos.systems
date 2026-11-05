@@ -54,21 +54,21 @@ export interface PackageRedemptionPort {
    */
   freeSlots(component_id: string, count: number): Promise<readonly PackageRedemptionSlot[]>;
   /**
-   * يقفل صف الجلسة المختارة ويعيدها إن كانت ما زالت حرة.
+   * يقفل صفوف الجلسات المختارة كلها بجملة واحدة مرتبة بالمعرّف، ويعيدها إن كانت ما زالت حرة.
    *
-   * @param slot_id صف الجلسة المختارة
-   * @returns الجلسة المقفولة، أو null إن لم تعد حرة
+   * @param slot_ids صفوف الجلسات المختارة
+   * @returns الجلسات المقفولة، والفاردة منها لم تعد حرة
    */
-  lockSlot(slot_id: string): Promise<PackageRedemptionSlot | null>;
+  lockSlots(slot_ids: readonly string[]): Promise<readonly PackageRedemptionSlot[]>;
   /**
-   * يكتب صفوف الاسترداد في نفس معاملة الزيارة.
+   * يكتب صفوف الاسترداد في نفس معاملة الزيارة، بجملة واحدة.
    *
    * @param rows صفوف الاسترداد لكل سطر مسترد
    * @returns لا شيء
    */
   writeRedemptions(rows: readonly PackageRedemptionWrite[]): Promise<void>;
   /**
-   * ينقل الجلسات من FREE إلى USED ويشير إلى صف الاسترداد الخاص بكل جلسة.
+   * ينقل الجلسات من FREE إلى USED ويشير إلى صف الاسترداد الخاص بكل جلسة، بجملة واحدة.
    *
    * @param rows الجلسة وصف الاسترداد الخاص بها
    * @returns لا شيء
