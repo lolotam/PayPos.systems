@@ -5,13 +5,14 @@ import { SessionError, type SessionErrorCode } from '../domain/session-error.ts'
 import { SessionErrorsFilter } from '../http/session-errors.filter.ts';
 
 const EDIT_422 = [
-  'SESSION_EDIT_NO_CHANGE', 'SESSION_LINE_NOT_EDITABLE', 'SESSION_EDIT_REASON_INVALID',
+  'SESSION_EDIT_NO_CHANGE', 'SESSION_LINE_NOT_EDITABLE', 'SESSION_LINE_PRICE_NOT_EDITABLE', 'SESSION_EDIT_REASON_INVALID',
   'SESSION_EDITOR_MEMBERSHIP_REQUIRED', 'SESSION_EDIT_IDENTITY_UNKNOWN',
 ] as const satisfies readonly SessionErrorCode[];
 
 it.each(EDIT_422)('edit refusal %s is 422 with both messages', (code) => {
   const sent = capture(new SessionError(code, code === 'SESSION_EDITOR_MEMBERSHIP_REQUIRED' ? { editor_membership_ids: ['m1'] } : undefined));
   expect(sent.status).toBe(422);
+  expect(capture(new SessionError(code), 400).status).toBe(422);
   expect(sent.body).toMatchObject({ code, ...serviceSessionErrors[code] });
 });
 
@@ -97,6 +98,22 @@ it('SESSION_PERFORMER_SELF_FORBIDDEN stays 403 and discount refusals keep the ca
   expect(capture(new SessionError('SESSION_LINE_REVISION_STALE', { current_revision: 1 }), 400).status).toBe(409);
   expect(capture(new SessionError('FORBIDDEN')).status).toBe(403);
   expect(capture(new SessionError('FEATURE_DISABLED')).status).toBe(403);
+});
+
+const PACKAGE_422 = [
+  'PACKAGE_EXPIRED', 'PACKAGE_NOT_YET_VALID', 'PACKAGE_NOT_USABLE_HERE',
+] as const satisfies readonly SessionErrorCode[];
+
+it.each(PACKAGE_422)('package refusal %s is 422 with both messages even when the filter default is 400', (code) => {
+  const sent = capture(new SessionError(code), 400);
+  expect(sent.status).toBe(422);
+  expect(sent.body).toMatchObject({ code, ...serviceSessionErrors[code] });
+});
+
+it('PACKAGE_NO_FREE_SESSION is 409 because another visit took the last session', () => {
+  const sent = capture(new SessionError('PACKAGE_NO_FREE_SESSION'), 400);
+  expect(sent.status).toBe(409);
+  expect(sent.body).toMatchObject({ code: 'PACKAGE_NO_FREE_SESSION', ...serviceSessionErrors.PACKAGE_NO_FREE_SESSION });
 });
 
 function capture(error: SessionError, invalidStatus?: number) {

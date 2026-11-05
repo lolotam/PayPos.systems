@@ -118,7 +118,7 @@ export function discountTermsOfLine(facts: DiscountTermsFacts, line: PreparedSes
     requested_by: facts.requested_by,
     requested_by_membership_id: facts.requested_by_membership_id,
     occurred_business_date: facts.occurred_business_date,
-    list_price: line.service.price,
+    list_price: line.list_price,
     price: line.price,
     discount: line.discount,
     performer_ids: line.performers.map((performer) => performer.employee.id),

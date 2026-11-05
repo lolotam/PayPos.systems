@@ -1641,6 +1641,114 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/commission-plan-employees": {
+      "get": {
+        "operationId": "listCommissionPlanEmployees",
+        "description": "The plan screens’ own employee list (FR-010a). A holder of manage:commission-plans:business without manage:employees:business (the accountant by default) reaches the plan builder through this read; the staff employee routes stay closed to them. The items are the business’s employees with deleted_at IS NULL, ordered by (name_en_key, id), and carry the names and the employee number only — no branch, role, salary, phone, document or user link. time_zone is the business’s own timezone, never a branch’s. The cursor is opaque, bounded and bound to the company, the business and that order; a malformed cursor, or one from another scope, is VALIDATION_FAILED. When a stored name key is too long for the next page’s cursor, the page is refused with 503 COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE: that is stored data needing repair, not a client error, and a last page with no next cursor is still returned (PP-122). Requires manage:commission-plans:business and the commissions feature; a device session is refused. Reads only.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12288,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The business employees the plan builder offers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommissionPlanEmployeeList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid cursor or query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No individual session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Uniform 403 refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE: a stored key is too long for the next cursor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/document-types": {
       "get": {
         "operationId": "listDocumentTypes",
@@ -15810,6 +15918,134 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/branches/{branchId}/package-sales": {
+      "post": {
+        "operationId": "sellPackage",
+        "description": "Sells one package type to one customer at the selling branch. Requires sell:packages:branch on the route branch, the orders feature and an individual admin login. The request quotes the type revision and every service revision; a changed quote is refused with 409 PACKAGE_SALE_QUOTE_STALE. The seller must be active at the branch on the sale date and may not be the recorder. Money is canonical three-decimal text and the discount is capped by the recorder limit. One transaction writes the entitlement, its components and their sessions, the audit row and the PackageSaleChanged event; the stored 201 is replayed for the same Idempotency-Key and body.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[!-~]+$"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SellPackageInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The saved entitlement with its components. Money is canonical three-decimal text; refunded_amount is 0.000 and revision is 1.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SellPackageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal; every refusal rolls the whole transaction back and writes nothing. Shape or type errors return 400 VALIDATION_FAILED.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bilingual refusal; every refusal rolls the whole transaction back and writes nothing. Shape or type errors return 400 VALIDATION_FAILED.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "PACKAGE_TYPE_NOT_FOUND. A type of another business or an unknown type is the same body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "PACKAGE_SALE_QUOTE_STALE (details carry the current service revisions) or PACKAGE_TYPE_REVISION_CONFLICT (details carry current_revision). Also a transaction retry or an idempotent request still in progress.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Bilingual refusal; every refusal rolls the whole transaction back and writes nothing. Shape or type errors return 400 VALIDATION_FAILED.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual authentication or readiness refusal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/devices/me/attendance-qr": {
       "post": {
         "operationId": "issueAttendanceQr",
@@ -18042,6 +18278,79 @@
           }
         },
         "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "CommissionPlanEmployeeListQuery": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12288,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          }
+        },
+        "additionalProperties": false
+      },
+      "CommissionPlanEmployeeListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name_ar": {
+            "nullable": true,
+            "type": "string"
+          },
+          "name_en": {
+            "type": "string"
+          },
+          "employee_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999999
+          }
+        },
+        "required": [
+          "id",
+          "name_ar",
+          "name_en",
+          "employee_number"
+        ]
+      },
+      "CommissionPlanEmployeeList": {
+        "type": "object",
+        "properties": {
+          "time_zone": {
+            "$ref": "#/components/schemas/TimeZone"
+          },
+          "items": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionPlanEmployeeListItem"
+            }
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12288,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        },
+        "required": [
+          "time_zone",
           "items",
           "next_cursor"
         ]
@@ -26048,6 +26357,52 @@
         ],
         "additionalProperties": false
       },
+      "PackageSessionLineInput": {
+        "type": "object",
+        "properties": {
+          "service_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "package": {
+            "type": "object",
+            "properties": {
+              "entitlement_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              }
+            },
+            "required": [
+              "entitlement_id"
+            ],
+            "additionalProperties": false
+          },
+          "performers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionPerformerInput"
+            }
+          }
+        },
+        "required": [
+          "service_id",
+          "package",
+          "performers"
+        ],
+        "additionalProperties": false
+      },
+      "SessionLineDraft": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/SessionLineInput"
+          },
+          {
+            "$ref": "#/components/schemas/PackageSessionLineInput"
+          }
+        ]
+      },
       "RecordServiceSessionInput": {
         "type": "object",
         "properties": {
@@ -26066,7 +26421,7 @@
             "maxItems": 20,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/SessionLineInput"
+              "$ref": "#/components/schemas/SessionLineDraft"
             }
           },
           "recorder_membership_id": {
@@ -26089,7 +26444,7 @@
             "maxItems": 20,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/SessionLineInput"
+              "$ref": "#/components/schemas/SessionLineDraft"
             }
           },
           "recorder_membership_id": {
@@ -27749,11 +28104,31 @@
             "type": "boolean"
           },
           "package": {
-            "type": "string",
             "nullable": true,
-            "enum": [
-              null
-            ]
+            "type": "object",
+            "properties": {
+              "entitlement_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "component_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "ordinal": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 365
+              }
+            },
+            "required": [
+              "entitlement_id",
+              "component_id",
+              "ordinal"
+            ],
+            "additionalProperties": false
           },
           "revision": {
             "type": "integer",
@@ -28099,11 +28474,31 @@
             "type": "boolean"
           },
           "package": {
-            "type": "string",
             "nullable": true,
-            "enum": [
-              null
-            ]
+            "type": "object",
+            "properties": {
+              "entitlement_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "component_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "ordinal": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 365
+              }
+            },
+            "required": [
+              "entitlement_id",
+              "component_id",
+              "ordinal"
+            ],
+            "additionalProperties": false
           },
           "revision": {
             "type": "number",

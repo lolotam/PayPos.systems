@@ -931,3 +931,61 @@ amendment (§8).
 **الإجابة (المدير، في شات الجلسة، 2 نوفمبر 2026، 11:4x):** «اخترت (أ).» نفس شكل `OwnLeaveController.request/cancelRequest` على main. الـ spec يرجع زي main، والمسارات التلاتة `PERSONAL` والفحص على `session.guard.ts##staff`. وطلب كمان إن سجل الـ audit يتكتب في نفس عملية فتح الشباك (`CLAUDE.md` §8).
 
 **الأثر:** القرار ده بيحل محل Q4 (أ) `DEVICE_ONLY` اللي فوق. القديم متساب كتاريخ.
+
+### لفّة 59b-2b على كل صفوف طلبات التقييم: PP-109.1 (1 نوفمبر 2026)
+
+**السياق:** مراجعة Sonnet المستقلة على 59b-2b لقت P1. الجولة بتمشي على كل صفوف `rating_requests` بالمعرّف، من غير فلتر على الحالة (`rating-claim.repository.ts`، `ratingPageIdsStatement`). صفوف SENT وCANCELLED بتتراكم، والجولة الكاملة بتاخد حوالي N÷75 دقيقة. الطلب الجديد بيستنى لحد ما الجولة الحالية تخلص، وآخر ميعاد لإرساله هو `due_at` + 30 دقيقة. يعني صالون فيه حوالي 2,250 صف قديم (40 زيارة في اليوم لمدة شهرين) طلباته الجديدة هتبدأ تقع PAST_DEADLINE. وعند 10,000 صف الجولة بتاخد حوالي 133 دقيقة. الكود مكانش متفعّل في `main.ts`، فالمشكلة مش بتمنع الدمج، لكنها لازم تتقفل قبل تفعيل 59b-3. السؤال تقني لوليد بس، ومش على صفحة القرارات.
+
+**الاختيارات:**
+
+- ⭐ **(أ) المقترح:** دمج الـ slice زي ما هو وهو مش متفعّل، مع issue يمنع تفعيل 59b-3. الحل نفسه (فلتر `status = 'SCHEDULED'` مع partial index `(company_id, id) WHERE status='SCHEDULED'`) يبقى slice صغير لوحده في الـ migration lane. وحد السعة يتكتب دلوقتي في ADR-0010 والـ spec.
+- **(ب)** نصلّحه جوه 59b-2b: migration وindex وتعديل الـ query. ده بيكبّر الـ slice، وبيدخله الـ migration lane، وبياكل جولة الإصلاح الخامسة كلها.
+- **(ج)** من غير migration: حد سعة متكتب، وتنبيه على مدة الجولة، والقرار النهائي وقت 59b-3.
+
+**PP-109.1: الإجابة حرفيًا (وليد، كارت في شات مدير الويب، 1 نوفمبر 2026، نقل المدير):** «(ب) نصلّحه جوه 59b-2b»
+
+**الأثر:**
+- جولة الإصلاح الخامسة في 59b-2b بتضيف migration برقم مؤقت، فيها partial index `(company_id, id) WHERE status = 'SCHEDULED'`.
+- جملة الصفحة وجملة الحد الأعلى بقوا يفلتروا على `status = 'SCHEDULED'`.
+- ADR-0010 والـ spec اتحدّثوا.
+- integration test بيثبت إن صفوف SENT وCANCELLED مش بتتلف عليها، ومعاه فحص `EXPLAIN`.
+- الـ PR بيلمس `packages/db`، فمراجعة قاعدة البيانات من Codex إلزامية.
+- 59b-2b دخلت طابور الـ migration lane بعد 34-pre-1 و42-2. الترقيم النهائي و`pnpm db:generate` والـ push بيستنوا «lane granted».
+
+### مخالفة MiniMax التالتة لقاعدة «من غير shell» في 59b-2b: PP-110.1 (1 نوفمبر 2026)
+
+**السياق:** في جولة الإصلاح الخامسة (الأخيرة) من 59b-2b، MiniMax بلّغ بنفسه إنه شغّل أمر shell واحد، وهو `Get-ChildItem packages/db/migrations`. الأمر بيعرض أسماء ملفات بس، ومكتبش ولا غيّر أي حاجة. دي المخالفة التالتة في المرحلة 3b، بعد ما غيّر اسم ملف مرة وشال BOM مرة. قرار وليد الساعة 18:08 كان «لو عملها مرة تالتة، نقرر ساعتها». الجولة اتسجّلت زي ما اتسلّمت في commit محلي `9cf035ed`، والـ 25 ملف اللي اتغيّروا كلهم جوه نطاق الـ slice، ومفيش `.env` ولا حالة git اتلمسوا. السؤال تقني لوليد بس.
+
+**الاختيارات:**
+
+- ⭐ **(أ) المقترح:** نقبل الجولة. الـ orchestrator يكمّل المراجعة والـ gates ومراجعة Codex لقاعدة البيانات، وأي إصلاح كود يطلع بعد كده يروح لـ Kimi مش MiniMax.
+- **(ب)** نقبل الجولة ونكمّل عادي، وأي إصلاح بعد كده يرجع لـ MiniMax.
+- **(ج)** نرفض الجولة ونرجّع الـ commit، وKimi يعيدها من `6ad7749f` بنفس الـ brief.
+
+**PP-110.1: الإجابة حرفيًا (وليد، شات مدير الويب، 1 نوفمبر 2026، 21:3x، نقلها المدير):** «ب: نقبل الجولة ونسيب MiniMax.»
+
+**الأثر:** جولة 5 (`9cf035ed`) اتقبلت. أي إصلاح كود يطلع بعد كده يروح لـ MiniMax، وأول الـ brief بيفضل فيه نفس التشديد. ودي كانت آخر جولة من الخمسة، فلو طلع P0 أو P1 الشغل يقف ويدخل المستشارين الاتنين حسب §2، ولو طلع P2 أو P3 يتفتح issues.
+
+### استثناء SA محدود بعد R5/5 لشريحة 59b-2b / #785 (3 نوفمبر 2026)
+
+**المصدر:** قرار وليد، منقول حرفيًا برسالة المدير في شات جلسة المهمة بتاريخ 3 نوفمبر 2026. سُجّل قبل التنفيذ؛ سؤال تقني، لا يُنشر على صفحة قرارات الشريك.
+
+**القرار حرفيًا:**
+
+> approve ONE explicitly recorded limited exception after R5/5 for the four documentation/comment corrections matching current behavior: scheduled-only pageIds contract, factory JSDoc placement, Arabic Lua prose without protocol changes, and the obsolete delivered-test entry. Preserve the R5/5 record; no reset or general sixth behavioral-fix round.
+> Separate oldestEligibleAt decision: approve focused pure unit coverage for empty map, single entry and a minimum not first in iteration order as part of this same bounded exception. Do not alter production behavior to make a test pass; if it reveals a real bug, stop that change and escalate with the failing evidence. Keep existing assertions. Verify scoped tests/docs, then CI and the required review receipts on the resulting exact head. The current MergePilot receipt is PARTIAL, not completed; do not waive it or reuse old-head review receipts. Reply/resolve with evidence. No merge or production SQL/migration approval is granted by this message; existing activation blockers #803/#804/#805 stay in force.
+> Lane decision: keep acpRegistry_minimax_code paused for no-shell briefs until tool access is technically constrained and verified. A prompt-only no-shell promise is insufficient. Do not switch providers/models without existing explicit authorization. Already authorized work on Kimi may continue.
+> #785's partial MergePilot review is a separate gate from MergePilot product PR #196; the latter's disposition decision does not complete #785's receipt.
+
+**حدود التنفيذ والتسليم:** يبقى السجل `R5/5` كما هو، والاستثناء المحدود بند مستقل لا `R6` ولا إعادة ضبط. التغييرات الأربعة تعليقات وتوثيق للسلوك الحالي فقط؛ تغطية `oldestEligibleAt` ثلاث حالات نقية مع إبقاء كل التأكيدات القديمة. لا تغيير سلوك إنتاجي، ولا SQL أو migration أو config، ولا merge أو deploy. تظل #803 و#804 و#805 موانع تفعيل. يلزم guards واختبارات وتوثيق بنطاق التغيير، ثم مراجعة مستقلة جديدة وCI وCodex والأربع panel bots على الرأس الناتج نفسه. لا يُعاد استخدام إيصال `606859df` الجزئي أو أي إيصال لرأس قديم.
+
+**سجل تحقق الاستثناء المحلي (3 نوفمبر 2026):**
+
+- نفّذت الجلسة التصحيحات الصغيرة للتعليقات والتوثيق والاختبار فقط؛ لم يُشغّل MiniMax أو يُبدّل مسار منفّذ إلى مزوّد آخر. يظل `acpRegistry_minimax_code` موقوفًا حتى التقييد التقني والتحقق منه.
+- `test-guard` و`docs-guard` و`clean-code-guard`: مراجعة النطاق أظهرت اختبارات نقية بلا mock، مع إبقاء التأكيدات القديمة، وتصحيح التوثيق بمقارنته بالمصدر. لا تعليمات إنتاجية جديدة.
+- المحاولة الأولى بـ `pnpm --filter @pospay/worker exec vitest run src/modules/customers/domain/__tests__/rating-claim-scheduling.spec.ts` لم تشغّل الاختبارات: تهيئة Postgres العامة فشلت بـ `password authentication failed for user "pospay_owner"` على `127.0.0.1:5432`. لم تُغيّر بيانات اعتماد أو قاعدة بيانات. أُعيد التشغيل بالمسار النقي الموجود: `pnpm --filter @pospay/worker exec vitest run --config ../api/vitest.unit.config.ts src/modules/customers/domain/__tests__/rating-claim-scheduling.spec.ts`؛ نجح الملف و35 اختبارًا، منها الحالات الثلاث الجديدة، دون تهيئة قاعدة بيانات أو تعديل config.
+- المحاولة الأولى لـ ESLint رفضت العربية داخل نصوص Lua بقاعدة `no-restricted-syntax` الخاصة بـ i18n. نُقل الشرح العربي إلى تعليقات TypeScript المحيطة بالسكريبت؛ لا تعطيل قاعدة ولا تعديل إعداد. إعادة ESLint على ملفات TypeScript الستة نجحت، مع تحذير deprecation موجود لقاعدة boundaries.
+- مقارنة ناتج TypeScript بعد إزالة التعليقات، واستبعاد تعليقات Lua فقط من النصين، أثبتت تطابق المحتوى التنفيذي للملفات الإنتاجية الخمسة مع `606859df`؛ الاختلاف في Lua شرح فقط، لا بروتوكول أو أوامر.
+- `pnpm lint:docs`: صفر أخطاء و29 تحذيرًا موجودًا خارج نطاق الاستثناء. Prettier على الملفات الثمانية و`git diff --check` نجحا.
+- `pnpm --filter @pospay/worker typecheck` نجح (`tsc --noEmit`). المراجعة المستقلة الجديدة من `gpt-6-astra` بجهد `high`، بسياق جديد ودون كتابة، انتهت بلا عيوب في التغييرات الثمانية؛ شغّل المراجع اختبار الوحدة نفسه ونجحت الاختبارات 35/35. هذه مراجعة للتغيير المحلي فوق `606859df`، لا إيصال GitHub ولا اعتماد دمج.
+- CI والمراجعة المستقلة الجديدة وإيصالات Codex والأربع panel bots على الرأس الناتج تظل مطلوبة؛ نجاح الاختبارات المحلية ليس اعتماد دمج. أي finding سلوكي جديد خارج هذا الاستثناء يوقف التغيير ويُرفع للمدير.

@@ -29,6 +29,7 @@ function storedLine(row: LineRow, performers: readonly PerformerRow[]): SessionL
   return { id: row.id, session_id: row.session_id, input_index: row.input_index, ordinal: row.ordinal, status: row.status, revision: row.revision,
     service: { id: row.service_id, name_en: row.name_en, name_ar: row.name_ar, price: parseMoney(row.list_price),
       rule: storedRule(row), counts: row.counts_toward_threshold, revision: row.catalog_revision },
+    list_price: parseMoney(row.list_price),
     price: parseMoney(row.price), discount: parseMoney(row.discount), net: parseMoney(row.net), effective_discount_bps: row.effective_discount_bps,
     limit: row.limit_source === 'OWNER' ? { source: 'OWNER', bps: null } : { source: row.limit_source, bps: row.limit_bps_applied as number },
     recorded_by: row.recorded_by, recorded_by_membership_id: row.recorded_by_membership_id, recorded_at: new Date(row.recorded_at), late: row.late,

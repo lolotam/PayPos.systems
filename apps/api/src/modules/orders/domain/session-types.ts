@@ -6,22 +6,45 @@ export type SessionLimit = { source: 'OWNER'; bps: null } | { source: 'PERSON' |
 export interface SessionService { id: string; name_en: string; name_ar: string | null; price: bigint; rule: SessionRule; counts: boolean; revision: number }
 /** حقائق الموظفة الآمنة؛ الموظفين وحدهم يحددون يوم الحضور وأهلية الفرع. */
 export interface SessionEmployee { id: string; name_en: string; name_ar: string | null; user_id: string | null; eligible: boolean; clocked_in: boolean; approved_leave: boolean }
-/** مدخل قواعد البند بعد تحويل المال دون فقد. */
+/** مدخل قواعد البند المدفوع بعد تحويل المال دون فقد؛ ترتيبه في الطلب ثابت. */
 export interface SessionDraft {
+  input_index: number;
   service_id: string; price: bigint; discount: { kind: 'AMOUNT'; amount: bigint } | { kind: 'PERCENT'; bps: number };
   performers: readonly { employee_id: string; share_bps?: number | undefined }[];
   /** معرّف الموافقة التي أرسلها العميل مع السطر، كما أرسلها. */
   approval_proposal_id?: string | undefined;
 }
+/** مسودة سطر من الباقة: الاستحقاق باسمه مع خدمته، بلا سعر ولا خصم (FR-020، FR-021). */
+export interface PackageSessionDraft {
+  input_index: number;
+  service_id: string; entitlement_id: string;
+  performers: readonly { employee_id: string; share_bps?: number | undefined }[];
+}
+/** استرداد ثابت لسطر باقة: صف الاسترداد ومكونه وجلسته وترتيبها (FR-025، FR-027). */
+export interface SessionLineRedemption {
+  /** هوية صف package_redemptions الذي يربط السطر بالجلسة. */
+  id: string;
+  entitlement_id: string;
+  component_id: string;
+  /** هوية صف الجلسة في package_session_slots. */
+  slot_id: string;
+  /** ترتيب الجلسة داخل المكوّن؛ هي أقل جلسة FREE وقت التسجيل. */
+  ordinal: number;
+}
 /** حقائق البند المتحقق منه قبل تقسيم المرفوض من المقبول. */
 export interface PreparedSessionLine {
-  input_index: number; service: SessionService; price: bigint; discount: bigint; net: bigint; effective_discount_bps: number;
+  input_index: number; service: SessionService;
+  /** سعر قائمة السطر نفسه؛ سطر الباقة قيمته قيمة جلسته لا سعر الكتالوج (FR-025). */
+  list_price: bigint;
+  price: bigint; discount: bigint; net: bigint; effective_discount_bps: number;
   performers: { employee: SessionEmployee; share_bps: number; not_clocked_in_warning: boolean; approved_leave_warning: boolean }[];
   has_performer_warning: boolean; explicit_unequal_shares: boolean;
   /** معرّف الموافقة التي طلبها العميل لهذا السطر، إن طلبها. */
   approval_proposal_id?: string | undefined;
   /** معرّف الموافقة التي استهلكها السطر فعلاً، فتُكتب عند القبول فوق الحد فقط. */
   consumed_proposal_id?: string | undefined;
+  /** الاسترداد الثابت لسطر الباقة؛ غيابه يعني سطراً مدفوعاً. */
+  redemption?: SessionLineRedemption | undefined;
 }
 /** هوية البند ووقت كاتبته ثابتان، والإضافة لا تعيد كتابة بند محفوظ. */
 export interface SessionLine extends PreparedSessionLine {

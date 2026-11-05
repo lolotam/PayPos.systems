@@ -209,6 +209,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/commission-plan-employees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The plan screens’ own employee list (FR-010a). A holder of manage:commission-plans:business without manage:employees:business (the accountant by default) reaches the plan builder through this read; the staff employee routes stay closed to them. The items are the business’s employees with deleted_at IS NULL, ordered by (name_en_key, id), and carry the names and the employee number only — no branch, role, salary, phone, document or user link. time_zone is the business’s own timezone, never a branch’s. The cursor is opaque, bounded and bound to the company, the business and that order; a malformed cursor, or one from another scope, is VALIDATION_FAILED. When a stored name key is too long for the next page’s cursor, the page is refused with 503 COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE: that is stored data needing repair, not a client error, and a last page with no next cursor is still returned (PP-122). Requires manage:commission-plans:business and the commissions feature; a device session is refused. Reads only. */
+        get: operations["listCommissionPlanEmployees"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/document-types": {
         parameters: {
             query?: never;
@@ -2429,6 +2446,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/package-sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Sells one package type to one customer at the selling branch. Requires sell:packages:branch on the route branch, the orders feature and an individual admin login. The request quotes the type revision and every service revision; a changed quote is refused with 409 PACKAGE_SALE_QUOTE_STALE. The seller must be active at the branch on the sale date and may not be the recorder. Money is canonical three-decimal text and the discount is capped by the recorder limit. One transaction writes the entitlement, its components and their sessions, the audit row and the PackageSaleChanged event; the stored 201 is replayed for the same Idempotency-Key and body. */
+        post: operations["sellPackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/devices/me/attendance-qr": {
         parameters: {
             query?: never;
@@ -3083,6 +3117,23 @@ export interface components {
         };
         CommissionServiceOverrideList: {
             items: components["schemas"]["CommissionServiceOverrideListItem"][];
+            next_cursor: string | null;
+        };
+        CommissionPlanEmployeeListQuery: {
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        CommissionPlanEmployeeListItem: {
+            /** Format: uuid */
+            id: string;
+            name_ar: string | null;
+            name_en: string;
+            employee_number: number;
+        };
+        CommissionPlanEmployeeList: {
+            time_zone: components["schemas"]["TimeZone"];
+            items: components["schemas"]["CommissionPlanEmployeeListItem"][];
             next_cursor: string | null;
         };
         /** @enum {string} */
@@ -4921,17 +4972,27 @@ export interface components {
             /** Format: uuid */
             discount_proposal_id?: string;
         };
+        PackageSessionLineInput: {
+            /** Format: uuid */
+            service_id: string;
+            package: {
+                /** Format: uuid */
+                entitlement_id: string;
+            };
+            performers: components["schemas"]["SessionPerformerInput"][];
+        };
+        SessionLineDraft: components["schemas"]["SessionLineInput"] | components["schemas"]["PackageSessionLineInput"];
         RecordServiceSessionInput: {
             /** Format: uuid */
             customer_id: string;
             /** Format: date-time */
             occurred_at?: string;
-            lines: components["schemas"]["SessionLineInput"][];
+            lines: components["schemas"]["SessionLineDraft"][];
             /** Format: uuid */
             recorder_membership_id?: string;
         };
         AppendServiceSessionLinesInput: {
-            lines: components["schemas"]["SessionLineInput"][];
+            lines: components["schemas"]["SessionLineDraft"][];
             /** Format: uuid */
             recorder_membership_id?: string;
         };
@@ -5338,8 +5399,13 @@ export interface components {
             }[];
             rule_snapshot: components["schemas"]["ServiceCommissionRule"];
             counts_snapshot: boolean;
-            /** @enum {string|null} */
-            package: null;
+            package: {
+                /** Format: uuid */
+                entitlement_id: string;
+                /** Format: uuid */
+                component_id: string;
+                ordinal: number;
+            } | null;
             revision: number;
             change?: {
                 /** @enum {string} */
@@ -5426,8 +5492,13 @@ export interface components {
             }[];
             rule_snapshot: components["schemas"]["ServiceCommissionRule"];
             counts_snapshot: boolean;
-            /** @enum {string|null} */
-            package: null;
+            package: {
+                /** Format: uuid */
+                entitlement_id: string;
+                /** Format: uuid */
+                component_id: string;
+                ordinal: number;
+            } | null;
             /** @enum {number} */
             revision: 1;
         };
@@ -8601,6 +8672,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommissionEffectiveFromPastError"] | components["schemas"]["CommissionPlanIdempotencyKeyReusedError"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listCommissionPlanEmployees: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The business employees the plan builder offers */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionPlanEmployeeList"];
+                };
+            };
+            /** @description Invalid cursor or query */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No individual session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform 403 refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE: a stored key is too long for the next cursor */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bilingual refusal */
@@ -16901,6 +17044,90 @@ export interface operations {
             };
             /** @description TOO_MANY_REQUESTS while comparisons are in flight. */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    sellPackage: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SellPackageInput"];
+            };
+        };
+        responses: {
+            /** @description The saved entitlement with its components. Money is canonical three-decimal text; refunded_amount is 0.000 and revision is 1. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SellPackageResponse"];
+                };
+            };
+            /** @description Bilingual refusal; every refusal rolls the whole transaction back and writes nothing. Shape or type errors return 400 VALIDATION_FAILED. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; every refusal rolls the whole transaction back and writes nothing. Shape or type errors return 400 VALIDATION_FAILED. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description PACKAGE_TYPE_NOT_FOUND. A type of another business or an unknown type is the same body. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description PACKAGE_SALE_QUOTE_STALE (details carry the current service revisions) or PACKAGE_TYPE_REVISION_CONFLICT (details carry current_revision). Also a transaction retry or an idempotent request still in progress. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal; every refusal rolls the whole transaction back and writes nothing. Shape or type errors return 400 VALIDATION_FAILED. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

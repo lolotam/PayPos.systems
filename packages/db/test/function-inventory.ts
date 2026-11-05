@@ -1,4 +1,9 @@
 export const FUNCTION_INVENTORY = [
+  { proname: 'package_redemptions_write_guard', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
+  { proname: 'service_lines_redemption_guard', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
+  { proname: 'package_redemption_validate_slot', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
+  { proname: 'package_redemption_validate', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
+  { proname: 'package_redemption_complete', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
   { proname: 'staff_columns_distinct', prosecdef: false, proconfig: ['search_path=pg_catalog'] },
   {
     proname: 'orders_check_performers',

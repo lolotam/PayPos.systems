@@ -7,7 +7,7 @@ import { SessionError } from '../use-cases/record-service-session/record-service
 
 // عضوية التعديل 422 لأن الجسم سليم والاختيار قاعدة نطاق؛ عضوية التسجيل تبقى 400.
 const EDIT_UNPROCESSABLE = new Set<string>([
-  'SESSION_EDIT_NO_CHANGE', 'SESSION_LINE_NOT_EDITABLE', 'SESSION_EDIT_REASON_INVALID',
+  'SESSION_EDIT_NO_CHANGE', 'SESSION_LINE_NOT_EDITABLE', 'SESSION_LINE_PRICE_NOT_EDITABLE', 'SESSION_EDIT_REASON_INVALID',
   'SESSION_EDITOR_MEMBERSHIP_REQUIRED', 'SESSION_EDIT_IDENTITY_UNKNOWN',
 ]);
 const TIP_UNPROCESSABLE = new Set<string>([
@@ -24,6 +24,10 @@ const PERFORMERS_UNPROCESSABLE = new Set<string>([
   'SESSION_PERFORMERS_NO_CHANGE', 'SESSION_PERFORMERS_REASON_INVALID',
   'SESSION_CHANGER_MEMBERSHIP_REQUIRED', 'SESSION_LINE_PERFORMERS_NOT_CHANGEABLE',
 ]);
+// رفض الباقة ليس شكلياً: الباقة منتهية أو لم تُبَع بعد أو ليست لهذا العميل، فترد 422 حتى مع فلتر 400.
+const PACKAGE_UNPROCESSABLE = new Set<string>([
+  'PACKAGE_EXPIRED', 'PACKAGE_NOT_YET_VALID', 'PACKAGE_NOT_USABLE_HERE',
+]);
 
 function sessionErrorHttpStatus(code: string, invalidStatus: number): number {
   if (code === 'SESSION_PERFORMER_SELF_FORBIDDEN') return 403;
@@ -31,7 +35,9 @@ function sessionErrorHttpStatus(code: string, invalidStatus: number): number {
   // جلسة مجهولة أو خارج الفرع 404 بلا تمييز، وتعارض مراجعة البقشيش 409 مثل تعارض سطر.
   if (code === 'SESSION_RECOVERY_NOT_FOUND' || code === 'SESSION_NOT_FOUND') return 404;
   if (code === 'SESSION_RECOVERY_NOT_YET' || code === 'SESSION_RECOVERY_CLOSED' || code === 'SESSION_LINE_REVISION_STALE' || code === 'TIP_REVISION_CONFLICT') return 409;
-  if (EDIT_UNPROCESSABLE.has(code) || TIP_UNPROCESSABLE.has(code) || CANCEL_UNPROCESSABLE.has(code) || PERFORMERS_UNPROCESSABLE.has(code)) return 422;
+  // الجلسة الحرة اتسحبت من زيارة أخرى، فالتعارض 409؛ سواها 422.
+  if (code === 'PACKAGE_NO_FREE_SESSION') return 409;
+  if (EDIT_UNPROCESSABLE.has(code) || TIP_UNPROCESSABLE.has(code) || CANCEL_UNPROCESSABLE.has(code) || PERFORMERS_UNPROCESSABLE.has(code) || PACKAGE_UNPROCESSABLE.has(code)) return 422;
   return invalidStatus;
 }
 

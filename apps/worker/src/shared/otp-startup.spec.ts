@@ -1,15 +1,24 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import Fastify from 'fastify';
 import { HealthController } from './health.controller.ts';
+import type { ClaimedEvent, DeliveryOutcome } from '@pospay/db';
 import type * as Notifications from '@pospay/notifications';
 import type * as StaffModule from '../modules/staff/index.ts';
 import type * as NotificationModule from '../modules/notifications/index.ts';
+import type * as Customers from '../modules/customers/index.ts';
+import type * as BullMq from 'bullmq';
+import { RATING_CLAIMS_QUEUE } from '../modules/customers/jobs/rating-claims.processor.ts';
 // تحميل تركيب القنوات ووظائف staff خارج مهلة بدء التشغيل حتى لا يستهلك التحويل البارد مهلة العزل.
+// تحميل bullmq كمان بره الاختبارات: التحميل البارد كان بيقع جوّه أول اختبار وبياكل مهلة العزل.
+import 'bullmq';
 import '../modules/notifications/index.ts';
 import '../modules/staff/index.ts';
+// موديل العملاء بره الاختبارات: هو أتقل رسم بياني في الإقلاع، وتحميله البارد كان بيقع
+// جوّه الاختبار فياكل مهلة العزل، والاختبار اللي بعده بيلاقي بدء تشغيل شغّال معاه.
+import '../modules/customers/index.ts';
 
 const resources = vi.hoisted(() => ({
-  database: { close: vi.fn(async () => undefined), ping: vi.fn() },
+  database: { close: vi.fn(async () => undefined), ping: vi.fn(), withTenant: vi.fn() },
   loop: { stop: vi.fn(), start: vi.fn() },
   listen: vi.fn(),
   workerOptions: vi.fn(),
@@ -20,6 +29,10 @@ const resources = vi.hoisted(() => ({
   execution: { readiness: vi.fn(), close: vi.fn() },
   otp: { ready: vi.fn(), stop: vi.fn(), close: vi.fn() },
   otpOptions: vi.fn(),
+  bullmq: { constructed: [] as { kind: string; name: string }[] },
+  redis: { set: vi.fn(), del: vi.fn(), get: vi.fn(), evalsha: vi.fn() },
+  ratingClaims: undefined as Customers.RatingClaimsLifecycle | undefined,
+  deliverer: vi.fn(),
   maintenance: vi.fn((options: { databaseUrl: string }) => {
     new URL(options.databaseUrl);
     return { readiness: vi.fn(), stop: vi.fn(), close: vi.fn() };
@@ -42,10 +55,46 @@ vi.mock('ioredis', () => ({
     quit = vi.fn();
     disconnect = vi.fn();
     ping = vi.fn();
-    set = vi.fn();
-    del = vi.fn();
+    set = resources.redis.set;
+    del = resources.redis.del;
+    get = resources.redis.get;
+    evalsha = resources.redis.evalsha;
   },
 }));
+// الطابور والعامل الحقيقيين بيسجّلوا اللي اتعمل، عشان نعرف إن مجدول المطالبات ما اتفتحش.
+// الوحدة الحقيقية بتتحمّل مرة واحدة بس: بعد إعادة ضبط الموديولات مفيش تحميل بارد تاني.
+const bullmqActual = vi.hoisted(() => ({ module: undefined as typeof BullMq | undefined }));
+vi.mock('bullmq', async (original) => {
+  const actual = bullmqActual.module ?? (await original<typeof BullMq>());
+  bullmqActual.module = actual;
+  const record =
+    (kind: string) =>
+    (target: unknown, args: unknown[]): object => {
+      resources.bullmq.constructed.push({ kind, name: String(args[0]) });
+      return Reflect.construct(target as new (...rest: unknown[]) => object, args);
+    };
+  return {
+    ...actual,
+    Queue: new Proxy(actual.Queue, { construct: record('queue') }),
+    Worker: new Proxy(actual.Worker, { construct: record('worker') }),
+  };
+});
+// موديل العملاء بيتحمل مرة واحدة بس: بعد إعادة ضبط الموديولات مفيش تحميل بارد تاني،
+// لأن الرسم البياني بتاعه أتقل واحد في الإقلاع وبياكل مهلة عزل الاختبار.
+const customersActual = vi.hoisted(() => ({ module: undefined as typeof Customers | undefined }));
+vi.mock('../modules/customers/index.ts', async (original) => {
+  const actual = customersActual.module ?? (await original<typeof Customers>());
+  customersActual.module = actual;
+  return {
+    ...actual,
+    // المجدول المُسجّل في الإقلاع بيتشقط هنا، عشان الاختبار يمرّر بيه حدث.
+    closedRatingClaimsLifecycle: () => {
+      const lifecycle = actual.closedRatingClaimsLifecycle();
+      resources.ratingClaims = lifecycle;
+      return lifecycle;
+    },
+  };
+});
 vi.mock('../worker.ts', () => ({
   createWorker: async (options: unknown) => {
     resources.workerOptions(options);
@@ -55,7 +104,12 @@ vi.mock('../worker.ts', () => ({
     };
   },
 }));
-vi.mock('../outbox/deliver.ts', () => ({ createDeliverer: vi.fn() }));
+vi.mock('../outbox/deliver.ts', () => ({
+  createDeliverer: vi.fn((...args: unknown[]) => {
+    resources.deliverer(...args);
+    return undefined;
+  }),
+}));
 vi.mock('../outbox/dispatch-loop.ts', () => ({ createDispatchLoop: () => resources.loop }));
 vi.mock('../modules/notifications/index.ts', async (original) => ({
   ...(await original<typeof NotificationModule>()),
@@ -103,6 +157,7 @@ vi.mock('./config.ts', () => ({
 beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
+  resources.bullmq.constructed.length = 0;
   vi.stubEnv('NODE_ENV', 'production');
   vi.stubEnv('AUTH_DATABASE_URL', '');
   resources.global.ping.mockRejectedValue(new Error('SYNTHETIC_INTAKE_FAILURE'));
@@ -277,4 +332,47 @@ it('a failing optional intake is diagnosed and isolated from ordinary worker rea
     },
     'staff OTP capability',
   );
+});
+
+// التصميم 7: المجدول الحيّ ما بيشتغلش من الإقلاع. مع إعدادات رموز صالحة، العامل
+// بيقلع عادي، ومفيش طابور ولا عامل ولا حالة Redis لمجدول طلبات التقييم.
+it('runtime_stays_dormant_with_valid_token_settings', async () => {
+  vi.stubEnv('RATING_TOKEN_DERIVATION_KEY', 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=');
+  vi.stubEnv('RATING_TOKEN_DERIVATION_KEY_VERSION', '1');
+  await import('../main.ts');
+  expect(resources.logger.info).toHaveBeenCalledWith(
+    expect.objectContaining({
+      capability: expect.objectContaining({ name: 'RATING_TOKENS', state: 'READY' }),
+    }),
+    'rating token capability',
+  );
+  const lifecycle = resources.ratingClaims;
+  expect(lifecycle).toBeDefined();
+  // الحدث يعدّي من المجدول المسجّل في الإقلاع، فبيعدّي زي ما هو من غير ما يفتح
+  // طابور: المجدول بيبني الطابور بس لو الحدث هو اللي طلبه.
+  const event: ClaimedEvent = {
+    companyId: '01920000-0000-7000-8000-0000000000a1',
+    id: '01920000-0000-7000-8000-0000000000a2',
+    aggregateType: 'service_session',
+    aggregateId: '01920000-0000-7000-8000-0000000000a3',
+    eventType: 'ServiceSessionRecorded',
+    payload: {},
+    attempt: 1,
+  };
+  const next = vi.fn(async (): Promise<DeliveryOutcome> => ({ delivered: true }));
+  const outcome = await lifecycle?.deliver(event, next);
+  expect(outcome?.delivered).toBe(true);
+  expect(next).toHaveBeenCalledOnce();
+  expect(next).toHaveBeenCalledWith(event);
+  // مفيش طابور ولا عامل اتفتحوا: لا وقت الإقلاع ولا وقت الحدث.
+  expect(
+    resources.bullmq.constructed.filter((entry) => entry.name === RATING_CLAIMS_QUEUE),
+  ).toEqual([]);
+  // منفذ حالة الجدولة بيكتب بـ eval، فمفيش eval ولا evalsha حصل.
+  expect(resources.redis.evalsha).not.toHaveBeenCalled();
+  const written = resources.redis.set.mock.calls
+    .map((call) => call.map(String).join(' '))
+    .join(' ');
+  expect(written).not.toMatch(/rating-claims/);
+  expect(resources.database.withTenant).not.toHaveBeenCalled();
 });

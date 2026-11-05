@@ -21,7 +21,7 @@ export function sessionRuleSnapshot(rule: SessionRule) {
 export function sessionLineSnapshot(line: SessionLine) {
   return {
     id: line.id, session_id: line.session_id, service_id: line.service.id, input_index: line.input_index, ordinal: line.ordinal,
-    name_en: line.service.name_en, name_ar: line.service.name_ar, list_price: moneyToString(line.service.price), price: moneyToString(line.price),
+    name_en: line.service.name_en, name_ar: line.service.name_ar, list_price: moneyToString(line.list_price), price: moneyToString(line.price),
     discount: moneyToString(line.discount), net: moneyToString(line.net), effective_discount_bps: line.effective_discount_bps,
     limit_bps_applied: line.limit.bps, limit_source: line.limit.source, status: line.status, revision: line.revision,
     rule_snapshot: sessionRuleSnapshot(line.service.rule), counts_snapshot: line.service.counts, catalog_revision: line.service.revision,

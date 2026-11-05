@@ -57,9 +57,9 @@ export function planSessionWrite(lines: readonly PreparedSessionLine[], limit: S
  */
 function rejectedLine(line: PreparedSessionLine, limit: SessionLimit, messages: RejectionMessages, decision: ApprovalDecision | undefined): RejectedLine {
   if (limit.source === 'OWNER') throw new SessionError('FORBIDDEN');
-  const amounts = authorizedDiscountAmounts(line.service.price, line.price, limit.bps);
+  const amounts = authorizedDiscountAmounts(line.list_price, line.price, limit.bps);
   const base: RejectedLine = { input_index: line.input_index, service_id: line.service.id, name_en: line.service.name_en, name_ar: line.service.name_ar,
-    code: 'SESSION_DISCOUNT_ABOVE_LIMIT', ...messages, list_price: moneyToString(line.service.price), price: moneyToString(line.price),
+    code: 'SESSION_DISCOUNT_ABOVE_LIMIT', ...messages, list_price: moneyToString(line.list_price), price: moneyToString(line.price),
     discount: moneyToString(line.discount), net: moneyToString(line.net), effective_discount_bps: line.effective_discount_bps,
     limit_bps: limit.bps, limit_source: limit.source, minimum_net: moneyToString(amounts.minimum_net), max_discount_amount: moneyToString(amounts.max_discount_amount) };
   if (decision === undefined || decision.refusal === null) return base;
@@ -99,8 +99,12 @@ export function sessionBatchEvent(record: SessionRecord, lines: readonly Session
       branch_id: record.branch_id, business_id: record.business_id, customer_id: record.customer.id, status: line.status,
       occurred_at: record.occurred_at.toISOString(), recorded_at: line.recorded_at.toISOString(), business_date: record.business_date,
       late: line.late, recorded_by: line.recorded_by, recorded_by_membership_id: line.recorded_by_membership_id,
-      list_price: moneyToString(line.service.price), price: moneyToString(line.price), discount: moneyToString(line.discount), net: moneyToString(line.net),
+      list_price: moneyToString(line.list_price), price: moneyToString(line.price), discount: moneyToString(line.discount), net: moneyToString(line.net),
       performers: line.performers.map((p) => ({ employee_id: p.employee.id, share_bps: p.share_bps })),
       rule_snapshot: line.service.rule.kind === 'FIXED' ? { kind: 'FIXED' as const, value: moneyToString(line.service.rule.value) } : { ...line.service.rule },
-      counts_snapshot: line.service.counts, package: null, revision: line.revision })) };
+      counts_snapshot: line.service.counts,
+      // سطر الباقة يحمل استحقاقه ومكونه وترتيب جلسته، والسطر المدفوع يحمل null (FR-027).
+      package: line.redemption === undefined ? null
+        : { entitlement_id: line.redemption.entitlement_id, component_id: line.redemption.component_id, ordinal: line.redemption.ordinal },
+      revision: line.revision })) };
 }

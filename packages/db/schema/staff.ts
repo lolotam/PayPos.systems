@@ -101,6 +101,9 @@ export const employees = pgTable(
     }),
     index('employees_company_business_id_idx').on(t.companyId, t.businessId, t.id),
     index('employees_company_business_name_en_key_idx').on(t.companyId, t.businessId, t.nameEnKey),
+    index('employees_company_business_name_en_key_id_active_idx')
+      .on(t.companyId, t.businessId, t.nameEnKey, t.id)
+      .where(sql`${t.deletedAt} IS NULL`),
     index('employees_company_business_name_ar_key_idx').on(t.companyId, t.businessId, t.nameArKey),
     index('employees_company_primary_branch_idx').on(t.companyId, t.primaryBranchId, t.id),
     // غير جزئي عمداً: صفوف المحذوفين تحجز أرقامها (EN-Q4). الفهرس يبنى CONCURRENTLY في migration مستقلة.

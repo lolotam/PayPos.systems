@@ -42,13 +42,15 @@ export interface EditableServiceLine {
  *
  * @param line حالة السطر ونسخته المحفوظة
  * @param expectedRevision النسخة التي تتوقعها الطالبة
+ * @param redemptionId علامة الاسترداد؛ السطر المرتبط لا يقبل تعديل المال
  * @returns لا شيء؛ الاختلاف أو الإلغاء يرفض
  */
-export function assertLineEditable(line: EditableServiceLine, expectedRevision: number): void {
+export function assertLineEditable(line: EditableServiceLine, expectedRevision: number, redemptionId: string | null = null): void {
   if (line.revision !== expectedRevision) {
     throw new SessionError('SESSION_LINE_REVISION_STALE', { current_revision: line.revision });
   }
   if (line.status === 'CANCELLED') throw new SessionError('SESSION_LINE_NOT_EDITABLE');
+  if (redemptionId !== null) throw new SessionError('SESSION_LINE_PRICE_NOT_EDITABLE');
 }
 
 /**

@@ -27,7 +27,15 @@ export const sessionLineInput = z.strictObject({
   // spec 057 FR-019: موافقة الخصم تُستهلك في معاملة السطر نفسه؛ الغياب يعني الرفض فوق الحد كما هو اليوم.
   discount_proposal_id: id.optional(),
 }).meta({ id: 'SessionLineInput' });
-const writeFields = { lines: z.array(sessionLineInput).min(1).max(20), recorder_membership_id: id.optional() };
+// 43-2: مسودتا البند: المدفوع بسعره وخصمه، والباقة باستحقاقها من غير سعر ولا خصم.
+export const packageSessionLineInput = z.strictObject({
+  service_id: id,
+  package: z.strictObject({ entitlement_id: id }),
+  performers: z.array(sessionPerformerInput),
+}).meta({ id: 'PackageSessionLineInput' });
+export const sessionLineDraft = z.union([sessionLineInput, packageSessionLineInput])
+  .meta({ id: 'SessionLineDraft' });
+const writeFields = { lines: z.array(sessionLineDraft).min(1).max(20), recorder_membership_id: id.optional() };
 export const recordServiceSessionInput = z.strictObject({
   customer_id: id, occurred_at: timestamp.optional(), ...writeFields,
 }).meta({ id: 'RecordServiceSessionInput' });
@@ -165,7 +173,9 @@ const serviceLineChangedObject = z.strictObject({
   business_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), late: z.boolean(), recorded_by: id, recorded_by_membership_id: id,
   list_price: sessionMoney, price: sessionMoney, discount: sessionMoney, net: sessionMoney,
   performers: z.array(z.strictObject({ employee_id: id, share_bps: bps.min(1) })).min(1).max(4),
-  rule_snapshot: serviceCommissionRule, counts_snapshot: z.boolean(), package: z.null(), revision: z.number().int().positive(),
+  rule_snapshot: serviceCommissionRule, counts_snapshot: z.boolean(),
+  package: z.strictObject({ entitlement_id: id, component_id: id, ordinal: z.number().int().min(1).max(365) }).nullable(),
+  revision: z.number().int().positive(),
   change: z.discriminatedUnion('kind', [serviceLinePriceEdit, serviceLineCancel, serviceLinePerformersChange]).optional(),
 });
 /**
@@ -176,6 +186,7 @@ const serviceLineChangedObject = z.strictObject({
 export const serviceLineChanged = serviceLineChangedObject
   .refine((line) => {
     if (line.change === undefined) return true;
+    if (line.package !== null && line.change.kind === 'PRICE_DISCOUNT_EDIT') return false;
     if (line.revision !== line.change.previous.revision + 1) return false;
     return line.change.kind === 'LINE_CANCELLED' ? line.status === 'CANCELLED' : line.status === 'ACTIVE';
   })
@@ -195,7 +206,7 @@ const eventFields = {
 };
 export const serviceSessionRecorded = z.strictObject(eventFields).meta({ id: 'ServiceSessionRecorded' });
 export const serviceSessionLinesAdded = z.strictObject(eventFields).meta({ id: 'ServiceSessionLinesAdded' });
-export const serviceSessionSchemas = [sessionMoney, sessionPerformerInput, sessionLineInput, recordServiceSessionInput,
+export const serviceSessionSchemas = [sessionMoney, sessionPerformerInput, sessionLineInput, packageSessionLineInput, sessionLineDraft, recordServiceSessionInput,
   appendServiceSessionLinesInput, sessionPerformer, savedServiceLine, serviceSession, rejectedServiceLine,
   recordServiceSessionResponse, appendServiceSessionLinesResponse, editServiceLineInput, editServiceLineResponseFull,
   editServiceLineResponseNarrow, editServiceLineResponse, cancelServiceLineInput, cancelServiceLineResponseFull,

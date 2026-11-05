@@ -296,15 +296,17 @@ export const packageSessionSlots = pgTable(
     ordinal: smallint('ordinal').notNull(),
     /** قيمة الجلسة الواحدة بالدينار. */
     unitValue: money('unit_value').notNull(),
-    /** FREE أو USED أو REFUNDED أو IMPORTED_USED؛ التحركات مقفولة لحد 43-1 و46-1. */
+    /** FREE وUSED بينهما انتقال محروس بالاسترداد؛ الاسترجاع المالي يظل مقفولًا حتى 46-1 وIMPORTED_USED نهائية. */
     state: text('state').notNull(),
-    /** معرّف الاسترداد: بيتكتب في هجرة 43-1، ولحد ما كده الجلسة مش بتاخد استرداد. */
+    /** الاسترداد الحي الذي يحجز الجلسة USED؛ التحرير يمسح المؤشر مع عكس الاسترداد في المعاملة نفسها. */
     currentRedemptionId: uuid('current_redemption_id'),
+    // الربط الدائري المؤجل إلى package_redemptions معرّف في SQL الخاص بـ43-1.
   },
   (t) => [
     primaryKey({ name: 'package_session_slots_pkey', columns: [t.companyId, t.id] }),
     unique('package_session_slots_business_id_key').on(t.companyId, t.businessId, t.id),
     unique('package_session_slots_component_ordinal_key').on(t.companyId, t.componentId, t.ordinal),
+    index('package_session_slots_redemption_fk_idx').on(t.companyId, t.businessId, t.currentRedemptionId).where(sql`${t.currentRedemptionId} IS NOT NULL`).concurrently(),
     foreignKey({
       name: 'package_session_slots_component_fk',
       columns: [t.companyId, t.businessId, t.entitlementId, t.componentId],

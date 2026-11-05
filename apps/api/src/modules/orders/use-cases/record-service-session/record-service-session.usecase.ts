@@ -2,15 +2,17 @@ import type { RecordServiceSessionInput, RecordServiceSessionResponse } from '@p
 import { sessionDrafts } from '../../domain/session-drafts.ts';
 import { resolveSessionRecorder } from '../../domain/session-authority.ts';
 import { SessionError } from '../../domain/session-error.ts';
-import { prepareSessionLines } from '../../domain/prepare-session-lines.ts';
+import { sessionPreparationFacts } from '../../domain/prepare-session-lines.ts';
+import { prepareVisitLines } from '../../domain/package-redemption.ts';
 import { validatePerformerCardinality } from '../../domain/session-performers.ts';
-import { sessionTime } from '../../domain/session-time.ts';
+import { sessionBusinessDate, sessionTime } from '../../domain/session-time.ts';
 import { planSessionWrite, recordedSessionLine } from '../../domain/session-write.ts';
 import { sessionSnapshot } from '../../domain/session-snapshot.ts';
 import type { SessionRecord } from '../../domain/session-types.ts';
 import type { SessionRecoveryPort } from '../../ports/session-recovery.port.ts';
 import type { Clock, IdGenerator, ServiceSessionTransactions, SessionWriteContext, SessionTransaction } from '../../ports/service-session-transactions.port.ts';
 import { approvalDecisions, commitDiscountApprovals, consumptionActor, lockApprovalProposals } from '../consume-discount-approval/consume-discount-approvals.ts';
+import { assertPackageFactsAllowed, assertRecorderAuthorizedAfterLock, packagePreparedDrafts, packageRedemptionWrites, resolvePackageRedemptions, type PackageRedemptionFact } from '../redeem-package-session/package-redemption-write.ts';
 export { SessionError } from '../../domain/session-error.ts';
 
 type RecordContext = SessionWriteContext & { input: RecordServiceSessionInput };
@@ -42,18 +44,45 @@ export class RecordServiceSessionUseCase {
     await tx.catalog.lock(serviceIds);
     await tx.performers.lock(employeeIds);
     const locked = await lockApprovalProposals(tx, context.input.lines);
-    const limit = await tx.discount.read(membershipId);
-    const at = this.clock.now();
-    resolveSessionRecorder(await tx.access.read(at), membershipId, undefined, context.userId);
     const place = await tx.place.read();
     if (place === null) throw new SessionError('FORBIDDEN');
-    const time = sessionTime(context.input.occurred_at === undefined ? undefined : new Date(context.input.occurred_at), at, place.timezone);
     const customer = await tx.customer.read(context.input.customer_id);
     if (customer === null) throw new SessionError('SESSION_CUSTOMER_NOT_FOUND');
     const services = await tx.catalog.read(serviceIds);
-    const employees = await tx.performers.read(employeeIds, time.occurred_at);
+    const occurredAt = context.input.occurred_at === undefined ? undefined : new Date(context.input.occurred_at);
     const drafts = sessionDrafts(context.input.lines);
-    const prepared = prepareSessionLines(drafts, services, employees, context.userId);
+    // قفل الاستحقاقات هو آخر قفل مال، فينتظر على المكوّن؛ صلاحية الباقة تقاس بيوم الفرع لا بيوم النشاط.
+    // توقيت الفرع يُقرأ وحده عند وجود مسودة باقة، فالزيارة المدفوعة ما تدفعش الاستعلام ده.
+    let facts = new Map<number, PackageRedemptionFact>();
+    let branchTimezone = '';
+    if (drafts.packages.length > 0) {
+      // قفل المكوّن ينتظر، فقد تسقط صلاحية المسجلة أو الفرع في الأثناء؛
+      // فخطأ الباقة لا يتسرّب قبل إعادة فحص السلطة على ساعة جديدة.
+      try {
+        facts = await resolvePackageRedemptions(tx, { customerId: customer.id, drafts: drafts.packages,
+          newId: () => this.ids.newId() });
+      } catch (error) {
+        await assertRecorderAuthorizedAfterLock(tx, this.clock, membershipId, undefined, context.userId);
+        throw error;
+      }
+      // توقيت الفرع يُقرأ بعد كل الأقفال، فانتظار القفل ما يخلّيش القراءة قديمة؛
+      // والزيارة المدفوعة ما تدفعش الاستعلام ده أصلاً.
+      const timezone = await tx.place.branchTimezone();
+      if (timezone === null) throw new SessionError('FORBIDDEN');
+      branchTimezone = timezone;
+    }
+    // بعد كل أقفال المال تقرأ الساعة والحد وتتأكد من السلطة، فلا يبقى انتظار قديم حياً.
+    const at = this.clock.now();
+    resolveSessionRecorder(await tx.access.read(at), membershipId, undefined, context.userId);
+    const limit = await tx.discount.read(membershipId);
+    const time = sessionTime(occurredAt, at, place.timezone);
+    // الساعة تغيّرت بعد القفل، فيُعاد فحص انتهاء الباقة على اللحظة التي ستُحفظ بها الزيارة.
+    if (facts.size > 0) {
+      assertPackageFactsAllowed(facts, sessionBusinessDate(time.occurred_at, branchTimezone), time.occurred_at);
+    }
+    const employees = await tx.performers.read(employeeIds, time.occurred_at);
+    const prepared = prepareVisitLines(drafts.paid, packagePreparedDrafts(drafts.packages, facts),
+      sessionPreparationFacts(services, employees, context.userId));
     const decisions = approvalDecisions(tx, { prepared, limit, terms: this.terms(context, membershipId, time.business_date), actor: consumptionActor(context, membershipId) }, locked, at);
     const plan = planSessionWrite(prepared, limit, [], tx.discountMessages, decisions);
     const sessionId = this.ids.newId();
@@ -64,6 +93,11 @@ export class RecordServiceSessionUseCase {
       recorded_by: context.userId, recorded_by_membership_id: membershipId, recorded_at: at, business_timezone: place.timezone, ...time, lines };
     await tx.repository.insertSession(record);
     await tx.repository.insertLines(lines);
+    const redemptions = packageRedemptionWrites(lines, at, context.userId, membershipId);
+    if (redemptions.redemptions.length > 0) {
+      await tx.packages.writeRedemptions(redemptions.redemptions);
+      await tx.packages.markSlotsUsed(redemptions.slots);
+    }
     await commitDiscountApprovals(tx, lines, decisions, at);
     await tx.audit(record, lines, plan.outcome, false);
     await tx.emit(record, lines, false);

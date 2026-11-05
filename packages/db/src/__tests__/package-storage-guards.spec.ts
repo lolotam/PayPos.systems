@@ -243,13 +243,13 @@ it('the session refuses a state or a redemption that has no row behind it', asyn
   await rejected(
     asApp(sql`UPDATE package_session_slots SET state='USED' WHERE entitlement_id=${SALE}`),
     '23514',
-    'package_session_slots_state_closed',
+    'package_session_slots_state_redemption_check',
   );
   await rejected(
     asApp(sql`UPDATE package_session_slots SET current_redemption_id=${nextId()}
       WHERE entitlement_id=${SALE}`),
     '23514',
-    'package_session_slots_redemption_closed',
+    'package_session_slots_state_redemption_check',
   );
   await rejected(
     owner`UPDATE package_session_slots SET unit_value=1.000 WHERE entitlement_id=${SALE}`,
