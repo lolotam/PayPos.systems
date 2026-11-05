@@ -36,6 +36,7 @@ const STATUS = {
   DISCOUNT_APPROVER_IS_REQUESTER: 403,
   DISCOUNT_APPROVER_MEMBERSHIP_REQUIRED: 422,
   DISCOUNT_REJECT_REASON_INVALID: 422,
+  MY_PERIOD_OUT_OF_RANGE: 422,
   STAFF_COLUMNS_INVALID: 422,
   STAFF_MONTHS_BACK_INVALID: 422,
   ATTENDANCE_STATEMENT_PERIOD_INVALID: 422,
@@ -194,6 +195,7 @@ export type ErrorCode = keyof typeof STATUS;
 // Codes that describe one specific failure the API itself detected. A bare framework status (a 409 or
 // 422 from somewhere else) must never be reported as one of them.
 const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
+  'MY_PERIOD_OUT_OF_RANGE',
   'ATTENDANCE_DEVICE_LOCKED',
   'ATTENDANCE_DEVICE_NOT_ENROLLED',
   'PASSKEY_DEVICE_TAKEN',
