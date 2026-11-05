@@ -1,8 +1,9 @@
 import { SessionError } from '../../domain/session-error.ts';
-import { assignPackageSlots, assertPackageRedemptionAllowed, type PackagePreparedDraft, type PackageSlotCandidate } from '../../domain/package-redemption.ts';
+import { resolveSessionRecorder } from '../../domain/session-authority.ts';
+import { assignPackageSlots, assertPackageRedemptionAllowed, countPackageSlots, type PackagePreparedDraft, type PackageSlotCandidate } from '../../domain/package-redemption.ts';
 import type { PackageSessionDraft, SessionLine } from '../../domain/session-types.ts';
 import type { PackageRedemptionWrite } from '../../ports/package-redemption.port.ts';
-import type { SessionTransaction } from '../../ports/service-session-transactions.port.ts';
+import type { Clock, SessionTransaction } from '../../ports/service-session-transactions.port.ts';
 
 /** جلسة باقة مقفولة ومختارة، جاهزة للتحضير والكتابة. */
 export interface PackageRedemptionFact {
@@ -23,11 +24,12 @@ export interface PackageRedemptionFact {
 type ScopedPackageDraft = PackageSessionDraft & { component_id: string; expires_on: string; sold_at: Date | null };
 
 /**
- * يقفل استحقاقات الباقة ويختار لكل مسودة أقل جلسة حرة، ويمنع الباقة المنتهية أو التي لم تُبَع بعد.
+ * يقفل استحقاقات الباقة ويختار لكل مسودة أقل جلسة حرة.
  * القاعدة: الاستحقاق لعميلة أخرى أو لغير هذه الخدمة يُرفض بلا كشف لسببه، والجلسة المختارة تُقفل بصفها.
+ * وده لا يفحص صلاحية الباقة: الصلاحية تُقاس على لحظة الزيارة النهائية، وتفحصها assertPackageFactsAllowed.
  *
  * @param tx معاملة الزيارة المفتوحة
- * @param input عميلة الزيارة ومسوداتها وتاريخها ولحظتها ومولّد الهوية
+ * @param input عميلة الزيارة ومسوداتها ومولّد الهوية
  * @returns حقيقة الجلسة المختارة لكل مسودة بترتيب الطلب
  */
 export async function resolvePackageRedemptions(
@@ -42,8 +44,7 @@ export async function resolvePackageRedemptions(
     if (snapshot === undefined) throw new SessionError('PACKAGE_NOT_USABLE_HERE');
     return { ...draft, component_id: snapshot.component_id, expires_on: snapshot.expires_on, sold_at: snapshot.sold_at };
   });
-  const wanted = new Map<string, number>();
-  for (const draft of scoped) wanted.set(draft.component_id, (wanted.get(draft.component_id) ?? 0) + 1);
+  const wanted = countPackageSlots(scoped);
   const slots = await tx.packages.freeSlots([...wanted].map(([component_id, count]) => ({ component_id, count })));
   const assigned = assignPackageSlots(scoped, slots);
   const chosen: { draft: ScopedPackageDraft; candidate: PackageSlotCandidate }[] = [];
@@ -105,6 +106,29 @@ export function packagePreparedDrafts(
       redemption: { id: fact.redemption_id, entitlement_id: fact.entitlement_id, component_id: fact.component_id,
         slot_id: fact.slot_id, ordinal: fact.ordinal } };
   });
+}
+
+/**
+ * يعيد فحص السلطة بعد فشل قفل الباقة، فلا تتسرّب حالة الباقة لمن فقد صلاحيته أثناء الانتظار.
+ * القاعدة: قفل المكوّن قد ينتظر، فيفقد المسجلة عضويتها أو يُعطّل الفرع في تلك الأثناء؛
+ * فخطأ الباقة لا يخرج قبل إعادة فحص الفرع والعضوية على ساعة جديدة بعد الأقفال.
+ *
+ * @param tx معاملة الزيارة المفتوحة
+ * @param clock ساعة السيرفر لقراءة حقائق الصلاحيات بعد الأقفال
+ * @param membershipId عضوية المسجلة المختارة وقت القفل
+ * @param recordedBy هوية مسجلة الزيارة الأصلية، في الإضافة فقط
+ * @param userId المستخدم الحالي
+ * @returns لا شيء؛ ترمي رمز الرفض حين تسقط الصلاحية، وإلا يعود السطر
+ */
+export async function assertRecorderAuthorizedAfterLock(
+  tx: SessionTransaction,
+  clock: Clock,
+  membershipId: string,
+  recordedBy: string | undefined,
+  userId: string,
+): Promise<void> {
+  if (await tx.place.branchTimezone() === null) throw new SessionError('FORBIDDEN');
+  resolveSessionRecorder(await tx.access.read(clock.now()), membershipId, recordedBy, userId);
 }
 
 /**

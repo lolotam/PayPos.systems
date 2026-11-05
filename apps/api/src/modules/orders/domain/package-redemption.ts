@@ -91,6 +91,19 @@ export function assignPackageSlots(
 }
 
 /**
+ * يحسب عدد الجلسات المطلوبة لكل مكوّن من مسودات الباقة.
+ * القاعدة: مسودتان لنفس المكوّن تعني جلستين، والعدد هو ما يُطلب قفله من الجلسات الحرة.
+ *
+ * @param drafts مسودات الباقة ومع كل مسودة مكوّنها
+ * @returns عدد الجلسات المطلوبة لكل معرّف مكوّن
+ */
+export function countPackageSlots(drafts: readonly { component_id: string }[]): Map<string, number> {
+  const wanted = new Map<string, number>();
+  for (const draft of drafts) wanted.set(draft.component_id, (wanted.get(draft.component_id) ?? 0) + 1);
+  return wanted;
+}
+
+/**
  * يحضّر سطر الباقة بنفس قواعد السطر المدفوع، وماله من قيمة الجلسة المخزنة.
  * القاعدة: سعر السطر وصافيه قيمة الجلسة، والخصم صفر ونسبة الخصم الفعلي صفر (FR-025).
  * وقواعد الموظفات هي نفسها: عدد المنفّذين، الأهلية، التحذيرات، وقاعدة تنفيذ الخدمة بمصوّرة المسجّلة.

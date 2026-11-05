@@ -12,7 +12,7 @@ import type { SessionRecord } from '../../domain/session-types.ts';
 import type { SessionRecoveryPort } from '../../ports/session-recovery.port.ts';
 import type { Clock, IdGenerator, ServiceSessionTransactions, SessionWriteContext, SessionTransaction } from '../../ports/service-session-transactions.port.ts';
 import { approvalDecisions, commitDiscountApprovals, consumptionActor, lockApprovalProposals } from '../consume-discount-approval/consume-discount-approvals.ts';
-import { assertPackageFactsAllowed, packagePreparedDrafts, packageRedemptionWrites, resolvePackageRedemptions, type PackageRedemptionFact } from '../redeem-package-session/package-redemption-write.ts';
+import { assertPackageFactsAllowed, assertRecorderAuthorizedAfterLock, packagePreparedDrafts, packageRedemptionWrites, resolvePackageRedemptions, type PackageRedemptionFact } from '../redeem-package-session/package-redemption-write.ts';
 export { SessionError } from '../../domain/session-error.ts';
 
 type RecordContext = SessionWriteContext & { input: RecordServiceSessionInput };
@@ -56,8 +56,15 @@ export class RecordServiceSessionUseCase {
     let facts = new Map<number, PackageRedemptionFact>();
     let branchTimezone = '';
     if (drafts.packages.length > 0) {
-      facts = await resolvePackageRedemptions(tx, { customerId: customer.id, drafts: drafts.packages,
-        newId: () => this.ids.newId() });
+      // قفل المكوّن ينتظر، فقد تسقط صلاحية المسجلة أو الفرع في الأثناء؛
+      // فخطأ الباقة لا يتسرّب قبل إعادة فحص السلطة على ساعة جديدة.
+      try {
+        facts = await resolvePackageRedemptions(tx, { customerId: customer.id, drafts: drafts.packages,
+          newId: () => this.ids.newId() });
+      } catch (error) {
+        await assertRecorderAuthorizedAfterLock(tx, this.clock, membershipId, undefined, context.userId);
+        throw error;
+      }
       // توقيت الفرع يُقرأ بعد كل الأقفال، فانتظار القفل ما يخلّيش القراءة قديمة؛
       // والزيارة المدفوعة ما تدفعش الاستعلام ده أصلاً.
       const timezone = await tx.place.branchTimezone();

@@ -12,7 +12,7 @@ import type { SessionRecoveryPort } from '../../ports/session-recovery.port.ts';
 import type { Clock, IdGenerator, ServiceSessionTransactions, SessionWriteContext, SessionTransaction } from '../../ports/service-session-transactions.port.ts';
 import { sessionDrafts } from '../../domain/session-drafts.ts';
 import { approvalDecisions, commitDiscountApprovals, consumptionActor, lockApprovalProposals } from '../consume-discount-approval/consume-discount-approvals.ts';
-import { assertPackageFactsAllowed, packagePreparedDrafts, packageRedemptionWrites, resolvePackageRedemptions, type PackageRedemptionFact } from '../redeem-package-session/package-redemption-write.ts';
+import { assertPackageFactsAllowed, assertRecorderAuthorizedAfterLock, packagePreparedDrafts, packageRedemptionWrites, resolvePackageRedemptions, type PackageRedemptionFact } from '../redeem-package-session/package-redemption-write.ts';
 
 type AppendContext = SessionWriteContext & { sessionId: string; input: AppendServiceSessionLinesInput };
 /** يضيف المصحح أو الخدمة الجديدة لنفس الزيارة دون تغيير أي بند محفوظ. */
@@ -63,8 +63,15 @@ export class AppendServiceSessionLinesUseCase {
     // توقيت الفرع يُقرأ وحده عند وجود مسودة باقة، فالإضافة المدفوعة ما تدفعش الاستعلام ده.
     let facts = new Map<number, PackageRedemptionFact>();
     if (drafts.packages.length > 0) {
-      facts = await resolvePackageRedemptions(tx, { customerId: original.customer.id, drafts: drafts.packages,
-        newId: () => this.ids.newId() });
+      // قفل المكوّن ينتظر، فقد تسقط صلاحية المسجلة أو الفرع في الأثناء؛
+      // فخطأ الباقة لا يتسرّب قبل إعادة فحص السلطة على ساعة جديدة.
+      try {
+        facts = await resolvePackageRedemptions(tx, { customerId: original.customer.id, drafts: drafts.packages,
+          newId: () => this.ids.newId() });
+      } catch (error) {
+        await assertRecorderAuthorizedAfterLock(tx, this.clock, membershipId, original.recorded_by, context.userId);
+        throw error;
+      }
       // توقيت الفرع يُقرأ بعد كل الأقفال، فانتظار القفل ما يخلّيش القراءة قديمة؛
       // والإضافة المدفوعة ما تدفعش الاستعلام ده أصلاً.
       const branchTimezone = await tx.place.branchTimezone();

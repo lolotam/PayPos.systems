@@ -181,3 +181,37 @@ it('RD-08b rolls the visit, the slot, the event and the idempotency key back whe
   expect(result.outcome).toBe('COMPLETE');
   expect(await f.h.owner`SELECT 1 FROM package_redemptions WHERE entitlement_id=${seeded.entitlement}`).toHaveLength(1);
 });
+
+it('RD-09 does not leak the package state to a recorder whose membership lapsed during the lock wait', async () => {
+  // العضوية سارية قبل الانتظار، وتتنتهي أثناءه؛ والباقة بلا جلسة حرة، فالخطأ يخرج من باب الباقة.
+  const before = new Date('2026-10-14T20:59:30.000Z');
+  const after = new Date('2026-10-14T21:00:30.000Z');
+  f.setAt(before);
+  await f.h.owner`UPDATE memberships SET ends_at='2026-10-14T21:00:00Z' WHERE company_id=${f.company} AND id=${f.membership}`;
+  const seeded = await seedPackage(f, { sessions: 1, used: 1, expiresOn: '2026-12-30' });
+  const transactions: typeof f.transactions = {
+    run: (context, work) => f.transactions.run(context, (tx) => work({
+      ...tx,
+      packages: {
+        ...tx.packages,
+        lock: async (customerId, pairs) => {
+          const snapshots = await tx.packages.lock(customerId, pairs);
+          await Promise.resolve();
+          f.setAt(after);
+          return snapshots;
+        },
+      },
+    })),
+  };
+  const create = new RecordServiceSessionUseCase(transactions, createSessionRecovery(f.db, ids, f.clock), ids, f.clock);
+  try {
+    // الصلاحية سقطت، فالخطأ FORBIDDEN؛ ولا تتسرّب حالة الباقة لصاحب صلاحية انتهت.
+    await expect(create.execute({ ...f.context(ids.newId()), input: {
+      customer_id: f.customer, lines: [packageLine(f, seeded.entitlement)],
+    } })).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(await f.h.owner`SELECT 1 FROM package_redemptions WHERE entitlement_id=${seeded.entitlement}`).toHaveLength(0);
+  } finally {
+    f.setAt(AT);
+    await f.h.owner`UPDATE memberships SET ends_at=NULL WHERE company_id=${f.company} AND id=${f.membership}`;
+  }
+});

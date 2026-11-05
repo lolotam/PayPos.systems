@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { assertPackageNotExpired, assertPackageNotYetValid, assertPackageRedemptionAllowed, assignPackageSlots,
-  preparePackageSessionLine, prepareVisitLines, type PackagePreparedDraft } from '../package-redemption.ts';
+  countPackageSlots, preparePackageSessionLine, prepareVisitLines, type PackagePreparedDraft } from '../package-redemption.ts';
 import { sessionPreparationFacts } from '../prepare-session-lines.ts';
 import type { SessionDraft, SessionEmployee, SessionService } from '../session-types.ts';
 
@@ -53,6 +53,17 @@ it('a component without a free slot refuses the whole request', () => {
   expect(() => assignPackageSlots([
     { input_index: 0, service_id: 'service', entitlement_id: 'entitlement', performers: [], component_id: 'component' },
   ], new Map())).toThrow('PACKAGE_NO_FREE_SESSION');
+});
+
+it('the slot count per component is the number of drafts that ask for it', () => {
+  const wanted = countPackageSlots([
+    { component_id: 'component-a' },
+    { component_id: 'component-b' },
+    { component_id: 'component-a' },
+  ]);
+  expect(wanted.get('component-a')).toBe(2);
+  expect(wanted.get('component-b')).toBe(1);
+  expect(countPackageSlots([]).size).toBe(0);
 });
 
 it('the redeemed line carries the slot value with no discount and no effective bps', () => {

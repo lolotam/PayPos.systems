@@ -122,7 +122,7 @@ The manager reviewed the head and found four things. All four are fixed.
 | **LOW** — the ADR-0041 wording about `read()` was still the old one. | The addendum now says that `read()` keeps the business timezone and `branchTimezone()` is a second, separate read, taken only for a package draft and only after the locks; the §1 port table names the new symbol read. The `## Addendum 2026-11-01 — SS-Q1b` heading, which the addendum had swallowed, is restored. |
 | **NEW** — two Arabic lines in this file had become `???` (they were written through a PowerShell pipe with the wrong encoding). | The manager's verbatim decision is restored as UTF-8, and the whole diff is swept for `\?{4,}` before every push. |
 
-## Round 2 ? prepared against head `12c7b6d9`
+## Round 2 — prepared against head `12c7b6d9`
 
 The final clock reading after component and slot locks now supplies omitted
 `occurred_at`. Package validity and performer eligibility both use
@@ -161,3 +161,26 @@ Manager decision, 2026-11-05, project conversation (verbatim):
 This decision supersedes the pending-panel statement above. Publish round 2 of 5
 once, request Codex on the new head, and resolve clock/batch threads with commit
 and regression evidence. No merge is authorized.
+
+## Round 5 — MergePilot's review on `eb48cfc3`
+
+MergePilot reviewed the round-4 head (`eb48cfc3`) and left three MEDIUM findings.
+Codex reviewed the same head with no findings, and `ci-gate` passed on it.
+
+| Finding | Fix |
+| --- | --- |
+| **MEDIUM** — the package outcome could escape before the fresh authority check: `resolvePackageRedemptions` waits on the component lock and can then throw `PACKAGE_NO_FREE_SESSION`, so a caller whose membership lapsed during the wait learned package state instead of `FORBIDDEN`. | Both use cases now catch the package failure and re-check the branch and the recorder on a fresh clock reading before the error leaves. The new `assertRecorderAuthorizedAfterLock` does that check, and the original package error is re-thrown only when the authority still stands. |
+| **MEDIUM** — the resolver's documentation claimed it rejects an expired or not-yet-sold package and described a date and an instant input, while the function only locks and selects slots; validity is checked later by `assertPackageFactsAllowed` (CLAUDE.md §3.1). | The JSDoc now states that the function only resolves locked slots and that validity is measured on the final visit instant by `assertPackageFactsAllowed`; the `@param input` no longer mentions a date or an instant. |
+| **MEDIUM** — the use-case layer counted the slots required per component, against the rule that a use case holds no arithmetic (CLAUDE.md §4.2). | The counting moved to `countPackageSlots` in `domain/package-redemption.ts`, as a pure function with its own unit test. |
+
+**Tests.** `package-redemption-edge.spec.ts` — "RD-09 does not leak the package state to
+a recorder whose membership lapsed during the lock wait": the clock advances past the
+membership's end inside the component lock, the package has no free session, and the
+request must fail with `FORBIDDEN` and write no redemption. Removing the re-check makes
+that test fail with `PACKAGE_NO_FREE_SESSION`, so it pins the defect.
+`domain/__tests__/package-redemption.spec.ts` — "the slot count per component is the
+number of drafts that ask for it".
+
+**Also in this round.** The corrupted em-dash in the Round 2 heading above is repaired
+(`## Round 2 — prepared against head`), bundled here as the manager allowed.
+
