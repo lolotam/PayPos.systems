@@ -54,6 +54,7 @@ const keys: Readonly<Record<string, MessageKey>> = {
   'read:services:business': 'permissionCodes.readServicesBusiness',
   'read:package-types:business': 'permissionCodes.readPackageTypesBusiness',
   'manage:package-types:business': 'permissionCodes.managePackageTypesBusiness',
+  'import:packages:business': 'permissionCodes.importPackagesBusiness',
   'sell:packages:branch': 'permissionCodes.sellPackagesBranch',
   'manage:services:business': 'permissionCodes.manageServicesBusiness',
   'read:service-categories:business': 'permissionCodes.readServiceCategoriesBusiness',

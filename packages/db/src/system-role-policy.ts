@@ -62,6 +62,7 @@ const deviceForbidden = [
   'manage:service-categories:branch',
   // الجهاز مبيبيعش باقة؛ البيع بدخول فردي، FR-011
   'sell:packages:branch',
+  'import:packages:business',
   'manage:services:business',
   'create:customers:company',
   'create:customers:business',

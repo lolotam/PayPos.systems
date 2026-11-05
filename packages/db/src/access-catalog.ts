@@ -53,6 +53,7 @@ export const PERMISSIONS = [
   'manage:package-types:business',
   // بيع باقة للعميلة: صلاحيته الخاصة، الكاشير والفرع بيبيعوا من غير قراءة أنواع الباقات (PK-Q13، FR-019b).
   'sell:packages:branch',
+  'import:packages:business',
   'manage:services:business',
   'read:memberships:company',
   'read:memberships:business',

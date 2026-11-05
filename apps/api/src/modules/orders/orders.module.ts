@@ -1,3 +1,5 @@
+import { RequestPackageImportPreviewUseCase } from './use-cases/request-package-import-preview/request-package-import-preview.usecase.ts';
+import { createPackageImportRequestTransactions } from './persistence/package-import-request.transactions.ts';
 import type { Provider } from '@nestjs/common';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import { serviceSessionErrors } from '@pospay/i18n';
@@ -173,7 +175,7 @@ export function ordersProviders(database: TenantWrappers | undefined, ids: IdGen
   const writes = database === undefined ? null : {
     transactions: ordersTransactions(database, ids, clock), recovery: createSessionRecovery(database, ids, clock),
   };
-  return [SelectedCompanyGuard, SessionAdminGuard, SessionAppendGuard, { provide: SessionErrorsFilter, useValue: new SessionErrorsFilter() },
+  return [{ provide: RequestPackageImportPreviewUseCase, useValue: database === undefined ? null : new RequestPackageImportPreviewUseCase(createPackageImportRequestTransactions(database, ids), ids, clock) }, SelectedCompanyGuard, SessionAdminGuard, SessionAppendGuard, { provide: SessionErrorsFilter, useValue: new SessionErrorsFilter() },
     { provide: SessionPerformerOptionsQueryHandler, useValue: database === undefined ? null : ordersPerformerOptionsQuery(database, clock) },
     { provide: SessionServiceOptionsQueryHandler, useValue: database === undefined ? null : ordersServiceOptionsQuery(database, clock) },
     { provide: RecordingContextQueryHandler, useValue: database === undefined ? null : ordersRecordingContextQuery(database, clock) },

@@ -40,7 +40,7 @@ Anything not in this table is a CI failure. Every arrow points **down** this lis
 | `staff`         | `tenancy`, `identity`, `files`, `settings` | An employee may be linked to a user; a document binds a verified file (ADR-0031). `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader, and the staff `AlertRulesPort.roleHolders` adapter reads identity's scoped role holders (ADR-0010 addendum 2026-10-21; ADR-0040 addendum, 62-2b). |
 | `realtime`      | `identity`            | Channel scope is resolved from the session.                                    |
 | `notifications` | —                     | Deliberately root-level: it is a service, it knows nothing about the business. |
-| `orders`        | `tenancy`, `catalog`, `customers`, `staff`, `identity`, `settings` | Consumer-owned ports call provider public readers on the same transaction (ADR-0041). |
+| `orders`        | `tenancy`, `catalog`, `customers`, `staff`, `identity`, `settings`, `files` | Consumer-owned ports call provider public readers on the same transaction (ADR-0041). |
 | `payments`      | `tenancy`             | Order totals arrive by **port**.                                               |
 | `cash`          | `identity`            | Payment tenders arrive by **port**.                                            |
 | `appointments`  | `tenancy`             | Catalog / staff / customers arrive by **port**.                                |
@@ -125,6 +125,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `staff` | `ScheduleScope`, `ScheduleReadAccess` | `identity` | schedule permissions and staff feature; writes retain company and ordered membership locks (ADR-0024) |
 | `staff` | `ScheduleScope`, `ScheduleReadAccess` | `tenancy` | branch ownership and effective timezone through describeWorkspaces, using PR 19 fallback (ADR-0024) |
 | `staff` | `EmployeeAppLinkNames` (read-side interface beside the query) | `tenancy` | the business name and id for the employee-app link screen through describeWorkspaces; access is the route's `manage:employees:business` guard (spec 069, EL-Q3) |
+| `orders` | `PackageImportRequestScope.fileFacts` | `files` | READY workbook facts on the request transaction; no bytes/parser in acceptance (ADR-0034, 47-1a) |
 | `orders` | `CustomerLookupPort` | `customers` | company-scoped customer existence, name and already-masked phone; reception first finds/creates the customer through customers' own endpoint (ADR-0041) |
 | `orders` | `PerformerCheckPort` | `staff` | dated employee/branch eligibility, persisted user link and attendance/approved-leave warnings at occurredAt; staff owns the working-day calculation (ADR-0041) |
 | `orders` | `DiscountLimitPort` | `settings` | selected recorder's fresh effective limit, including explicit zero/unlimited/not-configured (ADR-0041); spec 057 reuses it for the selected approver membership's limit, read after the proposal locks (ADR-0051, 057-6) |
@@ -285,6 +286,16 @@ PR #128 recovery migration re-queues only unpublished `SalaryChanged`, `LeaveReq
 
 ---
 
+### Package preview request (47-1a)
+
+`PackageImportPreviewRequested` is an orders-published, id-only event carrying
+`{ preview_id }`; company identity comes from the outbox envelope. The intended
+consumer is worker orders in 47-1b. **No runtime consumer/known-type registration exists
+in 47-1a**, and its request controller is unregistered in production. Registration and
+production producer activation land together in 47-1b. This is preview work only;
+`PackageImportCommitRequested` and financial commit remain 47-2. See ADR-0034's
+2026-11-05 request addendum and spec 058.
+
 ## 5. The `reporting` exception
 
 `modules/reporting/queries/sql/*.sql` is the **only** place allowed to join across bounded contexts (orders × staff × inventory in one statement).
@@ -316,7 +327,7 @@ imports:
   customers: [tenancy, settings, staff]
   expenses: [tenancy]
   inventory: [tenancy]
-  orders: [tenancy, catalog, customers, staff, identity, settings]
+  orders: [tenancy, catalog, customers, staff, identity, settings, files]
   payments: [tenancy]
   appointments: [tenancy]
   channels: [tenancy]
@@ -359,6 +370,8 @@ reads:
   - staff -> identity.readOwnAttendanceAccess @ apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts
   - staff -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts
+  - orders -> files.documentFileFacts @ apps/api/src/modules/orders/persistence/package-import-request.transactions.ts
+  - orders -> identity.readPackageImportAccess @ apps/api/src/modules/orders/persistence/package-import-request.transactions.ts
   - orders -> staff.readSessionPerformerOptions @ apps/api/src/modules/orders/persistence/session-performer-options.adapter.ts
   - orders -> catalog.readSessionServiceOptions @ apps/api/src/modules/orders/persistence/session-service-options.adapter.ts
   - orders -> identity.readServiceSessionAccess @ apps/api/src/modules/orders/persistence/recording-context.adapter.ts

@@ -34,6 +34,7 @@ const LABELLED_CODES = [
   'read:package-types:business',
   'manage:package-types:business',
   'sell:packages:branch',
+  'import:packages:business',
   'read:service-categories:business',
   'manage:service-categories:business',
   'read:service-categories:branch',
