@@ -60,10 +60,18 @@ it('missing or RLS-hidden references cannot pass the invoker validators', async 
 });
 
 it('changing tenant context before deferred line validation fails closed', async () => {
+  const control=await f.asApp((tx) => f.sale(tx));
+  await f.asApp((tx) => redeem(tx,control));
+  expect(await f.owner`SELECT id FROM package_redemptions WHERE company_id=${TENANT.A.company} AND id=${control.redemption}`)
+    .toEqual([{ id:control.redemption }]);
+  const fresh=await f.asApp((tx) => f.sale(tx));
   await expect(f.asApp(async (tx) => {
-    await insertRedemptionLine(tx,{ ...a,line:randomUUID(),session:randomUUID() });
+    await redeem(tx,fresh);
     await tx`SELECT set_config('app.company_id',${TENANT.B.company},true)`;
   })).rejects.toMatchObject({ code:'23514',constraint_name:'package_redemption_complete' });
+  expect(await f.owner`SELECT id FROM package_redemptions WHERE id=${fresh.redemption}`).toHaveLength(0);
+  expect(await f.owner`SELECT state,current_redemption_id FROM package_session_slots WHERE id=${fresh.slot}`)
+    .toEqual([{ state:'FREE',current_redemption_id:null }]);
 });
 
 it('app has no delete, truncate, identity or money UPDATE permission', async () => {

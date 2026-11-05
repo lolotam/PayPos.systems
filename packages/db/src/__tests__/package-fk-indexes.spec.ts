@@ -207,6 +207,13 @@ it('slot validation queues only changed state or redemption updates, never bulk 
   expect(trigger?.definition).toContain('old.current_redemption_id IS DISTINCT FROM new.current_redemption_id');
 });
 
+it('paid line writes do not queue deferred redemption validation', async () => {
+  const [trigger]=await owner`SELECT pg_get_triggerdef(oid) AS definition,tgdeferrable,tginitdeferred
+    FROM pg_trigger WHERE tgrelid='service_lines'::regclass AND tgname='service_lines_redemption_complete'`;
+  expect(trigger).toMatchObject({ tgdeferrable:true,tginitdeferred:true });
+  expect(trigger?.definition).toContain('new.redemption_id IS NOT NULL');
+});
+
 it('a partial index counts only when its predicate is the nullable foreign key column', async () => {
   const table = 'package_entitlements';
   const nullable = await nullableColumns(table);
