@@ -156,7 +156,7 @@ function cancelFacts(
     actor_user_id: context.userId,
     performers,
     preparation: {
-      line: { status: line.status, revision: line.revision, price: line.price, discount: line.discount, net: line.net, not_cancellable: false },
+      line: { status: line.status, revision: line.revision, price: line.price, discount: line.discount, net: line.net, not_cancellable: line.redemption_id !== null },
       expected_revision: context.input.expected_revision,
       business_date: line.business_date,
       now: at,

@@ -19,6 +19,7 @@ export const serviceSessionErrors = {
   SESSION_LINE_REVISION_STALE: { message_ar: 'اتغيّر السطر من حد تاني. حدّثي الصفحة وحاولي تاني.', message_en: 'The line was changed by someone else. Refresh and try again.' },
   SESSION_EDIT_NO_CHANGE: { message_ar: 'السعر والخصم زي ما هما، مفيش تعديل يتحفظ.', message_en: 'Price and discount are unchanged; nothing to save.' },
   SESSION_LINE_NOT_EDITABLE: { message_ar: 'السطر ده ملغي ومينفعش يتعدّل.', message_en: 'This line is cancelled and cannot be edited.' },
+  SESSION_LINE_PRICE_NOT_EDITABLE: { message_ar: 'سعر جلسة الباقة ثابت.', message_en: "A package session's price cannot be edited." },
   SESSION_EDIT_REASON_INVALID: { message_ar: 'اكتب سبب التعديل (لحد 500 حرف).', message_en: 'Enter the reason for the edit (up to 500 characters).' },
   SESSION_EDITOR_MEMBERSHIP_REQUIRED: { message_ar: 'اختاري العضوية اللي بتعدّلي بيها.', message_en: 'Select the membership you are editing under.' },
   SESSION_EDIT_IDENTITY_UNKNOWN: { message_ar: 'مينفعش نتأكد مين نفّذ الخدمة دي (سطر قديم)، فمينفعش تتعدّل.', message_en: 'This older line has no performer identity record and cannot be edited.' },

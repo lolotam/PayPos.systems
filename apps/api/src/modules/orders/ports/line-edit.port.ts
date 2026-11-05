@@ -34,6 +34,8 @@ export interface LockedLinePerformer {
 
 /** السطر ورأس الزيارة تحت قفل السطر؛ المبالغ بالفلس. */
 export interface LockedServiceLine {
+  /** علامة الاسترداد الثابتة تحت قفل السطر؛ null للسطر المدفوع. */
+  redemption_id: string | null;
   status: 'ACTIVE' | 'CANCELLED';
   revision: number;
   list_price: bigint;

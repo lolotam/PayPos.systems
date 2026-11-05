@@ -5,13 +5,14 @@ import { SessionError, type SessionErrorCode } from '../domain/session-error.ts'
 import { SessionErrorsFilter } from '../http/session-errors.filter.ts';
 
 const EDIT_422 = [
-  'SESSION_EDIT_NO_CHANGE', 'SESSION_LINE_NOT_EDITABLE', 'SESSION_EDIT_REASON_INVALID',
+  'SESSION_EDIT_NO_CHANGE', 'SESSION_LINE_NOT_EDITABLE', 'SESSION_LINE_PRICE_NOT_EDITABLE', 'SESSION_EDIT_REASON_INVALID',
   'SESSION_EDITOR_MEMBERSHIP_REQUIRED', 'SESSION_EDIT_IDENTITY_UNKNOWN',
 ] as const satisfies readonly SessionErrorCode[];
 
 it.each(EDIT_422)('edit refusal %s is 422 with both messages', (code) => {
   const sent = capture(new SessionError(code, code === 'SESSION_EDITOR_MEMBERSHIP_REQUIRED' ? { editor_membership_ids: ['m1'] } : undefined));
   expect(sent.status).toBe(422);
+  expect(capture(new SessionError(code), 400).status).toBe(422);
   expect(sent.body).toMatchObject({ code, ...serviceSessionErrors[code] });
 });
 

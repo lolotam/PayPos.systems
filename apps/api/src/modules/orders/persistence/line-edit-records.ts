@@ -11,6 +11,7 @@ interface LineScope {
 }
 
 type LineRow = {
+  redemption_id: string | null;
   status: string;
   revision: number;
   list_price: string;
@@ -41,7 +42,7 @@ export async function loadLineForUpdate(
   sessionId: string,
   lineId: string,
 ): Promise<LockedServiceLine | null> {
-  const [row] = await tx.execute<LineRow>(sql`SELECT l.status,l.revision,l.list_price::text,l.price::text,l.discount::text,l.net::text,
+  const [row] = await tx.execute<LineRow>(sql`SELECT l.redemption_id,l.status,l.revision,l.list_price::text,l.price::text,l.discount::text,l.net::text,
     l.effective_discount_bps,l.limit_bps_applied,l.limit_source,to_char(s.business_date,'YYYY-MM-DD') AS business_date,
     s.business_timezone,s.occurred_at
     FROM service_lines l JOIN service_sessions s ON s.company_id=l.company_id AND s.id=l.session_id
@@ -70,6 +71,7 @@ export function loadEditableSession(tx: Tx, scope: LineScope, sessionId: string)
 
 function lockedLine(row: LineRow, performers: readonly PerformerRow[]): LockedServiceLine {
   return {
+    redemption_id: row.redemption_id,
     status: lineStatus(row.status),
     revision: row.revision,
     list_price: parseMoney(row.list_price),
