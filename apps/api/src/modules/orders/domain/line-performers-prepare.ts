@@ -10,7 +10,7 @@ import { validateShares } from './session-performers.ts';
 import { validateAppendWindow } from './session-time.ts';
 import type { SessionEmployee } from './session-types.ts';
 
-/** حالة السطر المحمّلة؛ العلامة محجوزة لصفوف 42/43 ولم تُستنتج من حقل آخر. */
+/** حالة السطر المحمّلة؛ not_changeable مشتقة من redemption_id المقروء تحت قفل السطر. */
 export interface PerformersLineState {
   status: 'ACTIVE' | 'CANCELLED';
   revision: number;
@@ -44,7 +44,7 @@ export interface PreparedLinePerformersChange {
 
 /**
  * يجهّز تغيير منفّذات السطر من غير أن يغيّر سعره أو خصمه أو صافيه.
- * ترتيب الرفض هنا هو ذيل FR-011: النسخة، ثم الإلغاء السابق، ثم العلامة المحجوزة، ثم النافذة، ثم السبب،
+ * ترتيب الرفض هنا هو ذيل FR-011: النسخة، ثم الإلغاء السابق، ثم علامة منع تغيير منفّذات السطر المسترد، ثم النافذة، ثم السبب،
  * ثم شكل المجموعة، ثم أهلية المضافات، ثم «لا تغيير».
  * المنفّذة الباقية لا يُعاد فحصها (D-11): مدير يصلّح نسبة زميلة لا يُجبر على تشيل من سابت.
  * علامة not_changeable تأتي من redemption_id المقروء تحت قفل السطر؛ الكاتب القديم يرفض السطر المسترد حتى تفعيله في 44.

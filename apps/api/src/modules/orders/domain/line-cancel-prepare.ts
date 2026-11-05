@@ -3,7 +3,7 @@ import { normalizeCancelReason } from './line-cancel-reason.ts';
 import { SessionError } from './session-error.ts';
 import { validateAppendWindow } from './session-time.ts';
 
-/** حالة السطر المحمّلة؛ العلامة محجوزة لصفوف 42/43 ولم تُستنتج من حقل آخر. */
+/** حالة السطر المحمّلة؛ not_cancellable مشتقة من redemption_id المقروء تحت قفل السطر. */
 export interface CancelLineState {
   status: 'ACTIVE' | 'CANCELLED';
   revision: number;
@@ -37,7 +37,7 @@ export interface PrepareLineCancelInput {
 /**
  * يجهّز إلغاء السطر من غير أن يغيّر سعره أو خصمه أو صافيه.
  * السبب يُفحص ثم يُهمل لأن الناتج لا يحمله؛ من يحفظ النص يستدعي normalizeCancelReason مرة ثانية.
- * ترتيب الرفض هنا هو ذيل FR-011: النسخة، ثم الإلغاء السابق، ثم العلامة المحجوزة، ثم النافذة، ثم السبب، ثم البقشيش.
+ * ترتيب الرفض هنا هو ذيل FR-011: النسخة، ثم الإلغاء السابق، ثم علامة منع إلغاء السطر المسترد، ثم النافذة، ثم السبب، ثم البقشيش.
  * علامة not_cancellable تأتي من redemption_id المقروء تحت قفل السطر؛ الكاتب القديم يرفض السطر المسترد حتى تفعيله في 44.
  *
  * @param input السطر المحمّل والنسخة المتوقعة والنافذة والسبب وحقائق البقشيش
