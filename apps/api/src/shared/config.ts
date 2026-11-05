@@ -58,6 +58,19 @@ const schema = z.object({
         .map((origin) => origin.trim())
         .filter((origin) => origin !== ''),
     ),
+  RATING_PAGE_ORIGIN: z
+    .string()
+    .trim()
+    .default('')
+    .refine((origin) => {
+      if (origin === '') return true;
+      try {
+        const url = new URL(origin);
+        return /^https?:$/.test(url.protocol) && url.origin === origin;
+      } catch {
+        return false;
+      }
+    }),
   // The parent domain the session cookie is shared on (.pospay.systems, .staging.pospay.systems — ADR-0001 §3, §6).
   // Unset in local development: the cookie stays host-only.
   COOKIE_DOMAIN: z.preprocess(
