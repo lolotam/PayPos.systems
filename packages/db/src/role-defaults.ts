@@ -60,6 +60,11 @@ export const SCHEDULE_PERMISSIONS = [
 
 /** الحزم المرجعية النهائية لكل كود؛ إضافة كود بدون قرار صريح تمنع typecheck بدلاً من منحه تلقائياً. */
 export const ROLE_DEFAULTS = {
+  // spec 060 D-A4: كل البشر يقرؤون بياناتهم فقط بعد إثبات الربط الحي؛ لا يمنح الإذن دخول الموظفين.
+  'read:service-sessions:own': humans,
+  'read:commissions:own': humans,
+  'read:attendance:own': humans,
+  'read:ratings:own': humans,
   'record:service-sessions:branch': [...managers, 'branch_manager', 'cashier'],
   'read:service-sessions:branch': [...managers, 'branch_manager'],
   'edit:service-line-prices:branch': [...managers, 'branch_manager'],
