@@ -23,7 +23,7 @@ const hashOf = (line: PreparedSessionLine) => discountTermsHash(termsOf(line), s
 
 function line(over: Partial<PreparedSessionLine> = {}): PreparedSessionLine {
   return {
-    input_index: 0, service, price: 25000n, discount: 5000n, net: 20000n, effective_discount_bps: 2000,
+    input_index: 0, service, list_price: 25000n, price: 25000n, discount: 5000n, net: 20000n, effective_discount_bps: 2000,
     performers: [{ employee, share_bps: 10000, not_clocked_in_warning: false, approved_leave_warning: false }],
     has_performer_warning: false, explicit_unequal_shares: false, ...over,
   };

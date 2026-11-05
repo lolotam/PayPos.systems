@@ -148,7 +148,7 @@ export class RequestDiscountApprovalUseCase {
   ): Promise<PreparedSessionLine[]> {
     const services = await tx.catalog.read(lines.serviceIds);
     const employees = await tx.performers.read(lines.employeeIds, occurredAt);
-    return prepareSessionLines(sessionDrafts(context.input.lines), services, employees, context.userId);
+    return prepareSessionLines(sessionDrafts(context.input.lines).paid, services, employees, context.userId);
   }
 
   /** بناء الاقتراحات بمعرّفات جديدة وبشروط مبنية من البنود المحضّرة. */

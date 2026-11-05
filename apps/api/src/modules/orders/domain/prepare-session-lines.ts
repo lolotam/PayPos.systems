@@ -3,9 +3,56 @@ import { discountFromPercent, effectiveDiscountBps, lineNet } from './session-pr
 import { equalShares, performerWarnings, validateRecorderPerformers, validateShares } from './session-performers.ts';
 import type { PreparedSessionLine, SessionDraft, SessionEmployee, SessionService } from './session-types.ts';
 
+/** حقائق التجهيز المشتركة: لقطات الكتالوج والموظفات وهوية المسجلة. */
+export interface SessionPreparationFacts {
+  serviceById: ReadonlyMap<string, SessionService>;
+  employeeById: ReadonlyMap<string, SessionEmployee>;
+  userId: string;
+}
+
+/**
+ * يبني حقائق التجهيز من اللقطات، مرة واحدة لكل طلب.
+ *
+ * @param services لقطات الكتالوج في النشاط
+ * @param employees حقائق الموظفات عند وقت التنفيذ الأصلي
+ * @param userId هوية المسجلة الحالية
+ * @returns خرائط الخدمات والموظفات وهوية المسجلة
+ */
+export function sessionPreparationFacts(services: readonly SessionService[], employees: readonly SessionEmployee[], userId: string): SessionPreparationFacts {
+  return { serviceById: new Map(services.map((s) => [s.id, s])), employeeById: new Map(employees.map((e) => [e.id, e])), userId };
+}
+
+/**
+ * يحضّر بنداً مدفوعاً واحداً بعد كل فحوصه.
+ * ومعرّف الموافقة المرسل مع السطر ينتقل كما هو، فيعرف الاستهلاك أي طلب يطابق.
+ *
+ * @param draft مدخل المال الصحيح الشكل
+ * @param facts حقائق التجهيز المشتركة
+ * @returns البند المتحقق منه قبل فحص سلطة الخصم
+ */
+export function prepareSessionLine(draft: SessionDraft, facts: SessionPreparationFacts): PreparedSessionLine {
+  const input_index = draft.input_index;
+  const service = facts.serviceById.get(draft.service_id);
+  if (service === undefined) throw new SessionError('SESSION_SERVICE_NOT_FOUND', { input_index, service_id: draft.service_id });
+  const shares = validateShares(draft.performers, input_index);
+  const performers = draft.performers.map((p, index) => {
+    const employee = facts.employeeById.get(p.employee_id);
+    if (employee === undefined || !employee.eligible) throw new SessionError('SESSION_PERFORMER_NOT_ELIGIBLE', { input_index, employee_id: p.employee_id });
+    return { employee, share_bps: shares[index] as number, ...performerWarnings(employee) };
+  });
+  validateRecorderPerformers(facts.userId, performers.map((p) => p.employee));
+  const discount = draft.discount.kind === 'AMOUNT' ? draft.discount.amount : discountFromPercent(draft.price, draft.discount.bps);
+  const net = lineNet(draft.price, discount);
+  const defaults = equalShares(performers.length);
+  return { input_index, service, list_price: service.price, price: draft.price, discount, net, effective_discount_bps: effectiveDiscountBps(service.price, net), performers,
+    has_performer_warning: performers.some((p) => p.not_clocked_in_warning || p.approved_leave_warning),
+    explicit_unequal_shares: draft.performers.every((p) => p.share_bps !== undefined) && shares.some((s, i) => s !== defaults[i]),
+    ...(draft.approval_proposal_id === undefined ? {} : { approval_proposal_id: draft.approval_proposal_id }) };
+}
+
 /**
  * يتحقق من كل بند قبل رفض الخصم فقط جزئياً، فلا تحفظ مقدمة طلب به مرجع أو نسبة خاطئة.
- * ومعرّف الموافقة المرسل مع السطر ينتقل كما هو، فيعرف الاستهلاك أي طلب يطابق.
+ * وترتيب البند في الطلب محفوظ في المسودة، فسطر الباقة لا يزيح أرقام بقية البنود.
  *
  * @param drafts مدخلات المال الصحيحة الشكل
  * @param services لقطات الكتالوج في النشاط
@@ -14,24 +61,6 @@ import type { PreparedSessionLine, SessionDraft, SessionEmployee, SessionService
  * @returns كل البنود الصحيحة بالترتيب قبل فحص سلطة الخصم
  */
 export function prepareSessionLines(drafts: readonly SessionDraft[], services: readonly SessionService[], employees: readonly SessionEmployee[], userId: string): PreparedSessionLine[] {
-  const serviceById = new Map(services.map((s) => [s.id, s]));
-  const employeeById = new Map(employees.map((e) => [e.id, e]));
-  return drafts.map((draft, input_index) => {
-    const service = serviceById.get(draft.service_id);
-    if (service === undefined) throw new SessionError('SESSION_SERVICE_NOT_FOUND', { input_index, service_id: draft.service_id });
-    const shares = validateShares(draft.performers, input_index);
-    const performers = draft.performers.map((p, index) => {
-      const employee = employeeById.get(p.employee_id);
-      if (employee === undefined || !employee.eligible) throw new SessionError('SESSION_PERFORMER_NOT_ELIGIBLE', { input_index, employee_id: p.employee_id });
-      return { employee, share_bps: shares[index] as number, ...performerWarnings(employee) };
-    });
-    validateRecorderPerformers(userId, performers.map((p) => p.employee));
-    const discount = draft.discount.kind === 'AMOUNT' ? draft.discount.amount : discountFromPercent(draft.price, draft.discount.bps);
-    const net = lineNet(draft.price, discount);
-    const defaults = equalShares(performers.length);
-    return { input_index, service, price: draft.price, discount, net, effective_discount_bps: effectiveDiscountBps(service.price, net), performers,
-      has_performer_warning: performers.some((p) => p.not_clocked_in_warning || p.approved_leave_warning),
-      explicit_unequal_shares: draft.performers.every((p) => p.share_bps !== undefined) && shares.some((s, i) => s !== defaults[i]),
-      ...(draft.approval_proposal_id === undefined ? {} : { approval_proposal_id: draft.approval_proposal_id }) };
-  });
+  const facts = sessionPreparationFacts(services, employees, userId);
+  return drafts.map((draft) => prepareSessionLine(draft, facts));
 }

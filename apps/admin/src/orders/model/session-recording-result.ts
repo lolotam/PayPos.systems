@@ -72,6 +72,10 @@ function warnedFeedback(state: SessionRecordingResult): SessionFeedback {
   if (kind === 'SAVING' || kind === 'UNRESOLVED') return { kind: state.rejected.length ? 'PARTIAL' : 'COMPLETE' };
   return state.feedback;
 }
+// سطر الباقة ما لهوش سعر ولا خصم، وشاشة الباقة في 43-3؛ ما ينفع يتحوّل لسطر مدفوع هنا لأن ده هيحمّل العميل.
+function isPaidAttemptLine(line: SessionAttempt['body']['lines'][number]): line is Extract<SessionAttempt['body']['lines'][number], { price: string }> {
+  return 'price' in line;
+}
 function recoverAttempt(state: SessionRecordingResult, attempt: SessionAttempt, wantedIds = attempt.rowIds, replaceVisit = false): SessionRecordingResult {
   const sessionId = attempt.kind === 'append' ? attempt.sessionId : replaceVisit ? null : state.sessionId;
   const sameAttempt = state.attempt?.key === attempt.key;
@@ -79,6 +83,7 @@ function recoverAttempt(state: SessionRecordingResult, attempt: SessionAttempt, 
   const missing = attempt.body.lines.flatMap((line, index): SessionDraftLine[] => {
     const localId = attempt.rowIds[index];
     if (!localId || !wantedIds.includes(localId) || state.drafts.lines.some((row) => row.local_id === localId)) return [];
+    if (!isPaidAttemptLine(line)) return [];
     const draft = createSessionDraft(localId);
     return [{ ...draft, service_id: line.service_id, price: line.price, discount_kind: line.discount.kind,
       service: { id: line.service_id, name_ar: null, name_en: line.service_id, price: line.price, price_source: 'INPUT' },

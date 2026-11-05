@@ -66,8 +66,12 @@ export interface DiscountLimitPort {
 }
 /** التحقق من المكان يمنع تطابق فرع مع نشاط آخر حتى داخل الشركة. */
 export interface SessionPlacePort {
-  /** يعيد منطقة النشاط إذا كان الفرع النشط تابعاً له داخل الشركة. */
-  read(): Promise<{ timezone: string } | null>;
+  /**
+   * يعيد منطقة النشاط وتوقيت الفرع الفعلي إذا كان الفرع النشط تابعاً له داخل الشركة.
+   *
+   * @returns منطقة النشاط وتوقيت الفرع، أو null إن لم يكن الفرع نشطاً تحت هذا النشاط
+   */
+  read(): Promise<{ timezone: string; branch_timezone: string } | null>;
 }
 /** RBAC يعاد قبل replay وبعد الانتظار ولا يثق بانتقاء العميل. */
 export interface SessionRecordAccessPort {

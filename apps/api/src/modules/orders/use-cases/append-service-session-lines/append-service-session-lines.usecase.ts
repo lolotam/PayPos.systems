@@ -1,9 +1,10 @@
 import type { AppendServiceSessionLinesInput, AppendServiceSessionLinesResponse } from '@pospay/contracts';
 import { resolveSessionRecorder } from '../../domain/session-authority.ts';
 import { SessionError } from '../../domain/session-error.ts';
-import { prepareSessionLines } from '../../domain/prepare-session-lines.ts';
+import { sessionPreparationFacts } from '../../domain/prepare-session-lines.ts';
+import { prepareVisitLines } from '../../domain/package-redemption.ts';
 import { validatePerformerCardinality } from '../../domain/session-performers.ts';
-import { sessionTime, validateAppendWindow } from '../../domain/session-time.ts';
+import { sessionBusinessDate, sessionTime, validateAppendWindow } from '../../domain/session-time.ts';
 import { planSessionWrite, recordedSessionLine } from '../../domain/session-write.ts';
 import { sessionLineSnapshot, sessionSnapshot } from '../../domain/session-snapshot.ts';
 import type { SessionRecord } from '../../domain/session-types.ts';
@@ -11,6 +12,7 @@ import type { SessionRecoveryPort } from '../../ports/session-recovery.port.ts';
 import type { Clock, IdGenerator, ServiceSessionTransactions, SessionWriteContext, SessionTransaction } from '../../ports/service-session-transactions.port.ts';
 import { sessionDrafts } from '../../domain/session-drafts.ts';
 import { approvalDecisions, commitDiscountApprovals, consumptionActor, lockApprovalProposals } from '../consume-discount-approval/consume-discount-approvals.ts';
+import { packagePreparedDrafts, packageRedemptionWrites, resolvePackageRedemptions } from '../redeem-package-session/package-redemption-write.ts';
 
 type AppendContext = SessionWriteContext & { sessionId: string; input: AppendServiceSessionLinesInput };
 /** يضيف المصحح أو الخدمة الجديدة لنفس الزيارة دون تغيير أي بند محفوظ. */
@@ -52,15 +54,22 @@ export class AppendServiceSessionLinesUseCase {
     await tx.catalog.lock(serviceIds);
     await tx.performers.lock(employeeIds);
     const locked = await lockApprovalProposals(tx, context.input.lines);
-    const limit = await tx.discount.read(membershipId);
-    const at = this.clock.now();
-    resolveSessionRecorder(await tx.access.read(at), membershipId, original.recorded_by, context.userId);
-    if (await tx.place.read() === null) throw new SessionError('FORBIDDEN');
-    validateAppendWindow(original.business_date, at, original.business_timezone);
-    const time = sessionTime(original.occurred_at, at, original.business_timezone);
+    const place = await tx.place.read();
+    if (place === null) throw new SessionError('FORBIDDEN');
     const services = await tx.catalog.read(serviceIds);
     const employees = await tx.performers.read(employeeIds, original.occurred_at);
-    const prepared = prepareSessionLines(sessionDrafts(context.input.lines), services, employees, context.userId);
+    const drafts = sessionDrafts(context.input.lines);
+    // قفل الاستحقاقات هو آخر قفل مال؛ صلاحية الباقة تقاس بيوم فرع الزيارة لا بيوم النشاط.
+    const facts = await resolvePackageRedemptions(tx, { customerId: original.customer.id, drafts: drafts.packages,
+      visitLocalDate: sessionBusinessDate(original.occurred_at, place.branch_timezone), occurredAt: original.occurred_at, newId: () => this.ids.newId() });
+    // بعد كل أقفال المال تقرأ الساعة والحد وتتأكد من السلطة، فلا يبقى انتظار قديم حياً.
+    const at = this.clock.now();
+    resolveSessionRecorder(await tx.access.read(at), membershipId, original.recorded_by, context.userId);
+    const limit = await tx.discount.read(membershipId);
+    validateAppendWindow(original.business_date, at, original.business_timezone);
+    const time = sessionTime(original.occurred_at, at, original.business_timezone);
+    const prepared = prepareVisitLines(drafts.paid, packagePreparedDrafts(drafts.packages, facts),
+      sessionPreparationFacts(services, employees, context.userId));
     const decisions = approvalDecisions(tx, { prepared, limit, terms: this.terms(context, original, membershipId), actor: consumptionActor(context, membershipId) }, locked, at);
     const plan = planSessionWrite(prepared, limit, original.lines, tx.discountMessages, decisions);
     const lines = plan.accepted.map((line, i) => recordedSessionLine(line,
@@ -68,6 +77,11 @@ export class AppendServiceSessionLinesUseCase {
       { userId: context.userId, membershipId, at, late: time.late }, limit));
     const record = { ...original, lines: [...original.lines, ...lines] };
     await tx.repository.insertLines(lines);
+    const redemptions = packageRedemptionWrites(lines, at, context.userId, membershipId);
+    if (redemptions.redemptions.length > 0) {
+      await tx.packages.writeRedemptions(redemptions.redemptions);
+      await tx.packages.markSlotsUsed(redemptions.slots);
+    }
     await commitDiscountApprovals(tx, lines, decisions, at);
     await tx.audit(record, lines, plan.outcome, true);
     await tx.emit(record, lines, true);

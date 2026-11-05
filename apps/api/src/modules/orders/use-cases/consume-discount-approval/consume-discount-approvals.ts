@@ -5,8 +5,8 @@ import type { PreparedSessionLine, SessionLimit, SessionLine } from '../../domai
 import type { LockedDiscountProposal } from '../../ports/discount-consumption.port.ts';
 import type { SessionTransaction } from '../../ports/service-session-transactions.port.ts';
 
-/** سطر مدخل كما جاء من العميل: معرّف الموافقة اختياري. */
-type InputLine = { discount_proposal_id?: string | undefined };
+/** سطر مدخل كما جاء من العميل: معرّف الموافقة اختياري، وسطر الباقة بلا موافقة أصلاً. */
+type InputLine = { discount_proposal_id?: string | undefined; readonly service_id?: string };
 
 /** حقائق الاستهلاك التي يحتاجها قرار كل سطر. */
 export interface ApprovalDecisionFacts {

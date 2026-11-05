@@ -1,5 +1,5 @@
 import type { Tx } from '@pospay/db';
-import { activeBusinessTimeZone, describeWorkspaces } from '../../tenancy/index.ts';
+import { activeBusinessTimeZone, describeWorkspaces, packageSalePlace } from '../../tenancy/index.ts';
 import type { SessionPlacePort } from '../ports/session-readers.port.ts';
 
 export async function sessionBranchBelongs(tx: Tx, companyId: string, businessId: string, branchId: string): Promise<boolean> {
@@ -16,8 +16,11 @@ export function sessionPlace(
 ): SessionPlacePort {
   return {
     read: async () => {
-      const timezone = await activeBusinessTimeZone(tx, companyId, businessId, branchId);
-      return timezone === null ? null : { timezone };
+      const [timezone, branchTimezone] = await Promise.all([
+        activeBusinessTimeZone(tx, companyId, businessId, branchId),
+        packageSalePlace(tx, companyId, businessId, branchId),
+      ]);
+      return timezone === null || branchTimezone === null ? null : { timezone, branch_timezone: branchTimezone };
     },
   };
 }

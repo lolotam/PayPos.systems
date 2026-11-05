@@ -26293,7 +26293,7 @@
             "maxItems": 20,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/SessionLineInput"
+              "$ref": "#/components/schemas/SessionLineDraft"
             }
           },
           "recorder_membership_id": {
@@ -26316,7 +26316,7 @@
             "maxItems": 20,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/SessionLineInput"
+              "$ref": "#/components/schemas/SessionLineDraft"
             }
           },
           "recorder_membership_id": {

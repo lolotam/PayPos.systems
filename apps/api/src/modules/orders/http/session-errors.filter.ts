@@ -31,6 +31,8 @@ function sessionErrorHttpStatus(code: string, invalidStatus: number): number {
   // جلسة مجهولة أو خارج الفرع 404 بلا تمييز، وتعارض مراجعة البقشيش 409 مثل تعارض سطر.
   if (code === 'SESSION_RECOVERY_NOT_FOUND' || code === 'SESSION_NOT_FOUND') return 404;
   if (code === 'SESSION_RECOVERY_NOT_YET' || code === 'SESSION_RECOVERY_CLOSED' || code === 'SESSION_LINE_REVISION_STALE' || code === 'TIP_REVISION_CONFLICT') return 409;
+  // الجلسة الحرة اتسحبت من زيارة أخرى، فالتعارض 409؛ سواها 422.
+  if (code === 'PACKAGE_NO_FREE_SESSION') return 409;
   if (EDIT_UNPROCESSABLE.has(code) || TIP_UNPROCESSABLE.has(code) || CANCEL_UNPROCESSABLE.has(code) || PERFORMERS_UNPROCESSABLE.has(code)) return 422;
   return invalidStatus;
 }
