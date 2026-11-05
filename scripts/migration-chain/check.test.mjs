@@ -27,14 +27,23 @@ test('migration chain cases', () => {
       ([journal]) => {
         journal.entries[1].idx = 2;
       },
-      ['entries[1].idx: expected 1, actual 2', 'expected prefix 0002_', '0002_snapshot.json'],
+      [
+        'entries[1].idx: expected 1, actual 2',
+        'expected prefix 0002_',
+        '0002_snapshot.json',
+        '0001_snapshot.json: expected journal entry for snapshot index 1, actual missing',
+      ],
     ],
     [
       'duplicate idx',
       ([journal]) => {
         journal.entries[1].idx = 0;
       },
-      ['entries[1].idx: expected 1, actual 0', 'expected prefix 0000_'],
+      [
+        'entries[1].idx: expected 1, actual 0',
+        'expected prefix 0000_',
+        '0001_snapshot.json: expected journal entry for snapshot index 1, actual missing',
+      ],
     ],
     [
       'journal tag without SQL',
@@ -93,7 +102,7 @@ test('migration chain cases', () => {
         journal.entries[1].tag = '0002_second';
         sql[1] = '0002_second.sql';
       },
-      ['expected prefix 0001_, actual 0002_'],
+      ['expected prefix 0001_, actual tag 0002_second'],
     ],
     [
       'missing latest snapshot',
@@ -123,17 +132,42 @@ test('migration chain cases', () => {
     }
   }
   cases.push([
+    'orphan latest snapshot after journal and SQL removal',
+    ([journal, sql]) => {
+      journal.entries.pop();
+      sql.pop();
+    },
+    ['0001_snapshot.json: expected journal entry for snapshot index 1, actual missing'],
+  ]);
+  cases.push([
+    'malformed tag diagnostic preserves actual value',
+    ([journal, sql]) => {
+      journal.entries[1].tag = '0001second';
+      sql[1] = '0001second.sql';
+    },
+    ['expected prefix 0001_, actual tag 0001second'],
+  ]);
+  cases.push([
     'broken prevId after snapshot gap in unsorted input',
     ([journal, sql, snapshots]) => {
-      journal.entries = [{ idx: 0, tag: '0000_first' }];
-      sql.pop();
-      snapshots.delete(1);
-      snapshots.set(2, { id: 'third', prevId: 'nonexistent' });
+      journal.entries = [];
+      sql.length = 0;
+      snapshots.clear();
+      for (let idx = 0; idx <= 130; idx++) {
+        if (idx === 118 || idx === 119) continue;
+        const tag = `${String(idx).padStart(4, '0')}_migration`;
+        journal.entries.push({ idx, tag });
+        sql.push(`${tag}.sql`);
+        if (idx !== 129) {
+          snapshots.set(idx, { id: String(idx), prevId: String(idx === 120 ? 117 : idx - 1) });
+        }
+      }
+      snapshots.get(130).prevId = 'nonexistent';
       const first = snapshots.get(0);
       snapshots.delete(0);
       snapshots.set(0, first);
     },
-    ['0002_snapshot.json prevId: expected first (meta/0000_snapshot.json id), actual nonexistent'],
+    ['0130_snapshot.json prevId: expected 128 (meta/0128_snapshot.json id), actual nonexistent'],
   ]);
   for (const [name, change, expected] of cases) {
     const data = fixture();

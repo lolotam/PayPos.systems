@@ -28,7 +28,7 @@ export function checkMigrationChain(journal, sqlFiles, snapshots) {
     const prefix = number(entry.idx);
     if (!entry.tag.startsWith(`${prefix}_`)) {
       errors.push(
-        `meta/_journal.json tag ${entry.tag}: expected prefix ${prefix}_, actual ${entry.tag.split('_')[0]}_`,
+        `meta/_journal.json tag ${entry.tag}: expected prefix ${prefix}_, actual tag ${entry.tag}`,
       );
     }
     if (!sql.has(`${entry.tag}.sql`)) {
@@ -44,6 +44,14 @@ export function checkMigrationChain(journal, sqlFiles, snapshots) {
   for (const file of sqlFiles.filter((name) => name.endsWith('.sql'))) {
     if (!tags.has(file.slice(0, -4))) {
       errors.push(`${file}: expected journal entry, actual missing`);
+    }
+  }
+  const indexes = new Set(journal.entries.map((entry) => entry.idx));
+  for (const idx of snapshots.keys()) {
+    if (!indexes.has(idx)) {
+      errors.push(
+        `${snapshotFile(idx)}: expected journal entry for snapshot index ${idx}, actual missing`,
+      );
     }
   }
   return [...errors, ...checkSnapshots(snapshots)];
