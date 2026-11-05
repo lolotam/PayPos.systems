@@ -21,14 +21,14 @@ tests failed because the fixture reused a unique package type name. A unique
 synthetic name fixed setup. New integration rerun: **9 passed, 58.95 seconds**,
 started 2026-11-05 03:13:58 Asia/Kuwait. Domain edit preparation: **16 passed,
 1.30 seconds**. A final run adds a no-op request scenario and idempotency rollback
-assertions; its result is pending at this checkpoint.
+assertions: **10 passed, 94.10 seconds**, started 2026-11-05 03:15:37 Asia/Kuwait.
 
 API typecheck and focused ESLint passed after building workspace dependencies.
 The initial typecheck could not resolve unbuilt workspace packages; it is not
 recorded as a passing check. Docs lint: 0 errors, 29 existing warnings. Module-map
 check and diff whitespace check pass. No full local API or E2E suite ran.
 
-Independent code review and the final integration result remain open gates.
+Independent code review remains an open gate; the final integration run passed.
 Session correction counter remains 1/5; no counter reset and no GitHub correction
 push. All storage review findings still wait for the complete five-receipt batch
 under PP-119.1. The manager owns storage and dependent merges; no deploy.
