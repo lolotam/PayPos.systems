@@ -97,7 +97,9 @@ function ports(overrides: Partial<ClaimRatingRequestPorts> = {}): ClaimRatingReq
     businessName: ratingBusinessName,
   };
   const claims: RatingClaimRepository = {
-    due: async () => [],
+    upperId: async () => null,
+    pageIds: async () => [],
+    findRequest: async () => null,
     lockCustomer: async () => customer,
     lockRequest: async () => stored,
     reschedule: async () => undefined,

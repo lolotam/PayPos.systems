@@ -365,7 +365,7 @@ members, deferred to a later row 62b after an ADR on reading team contacts (AL-Q
 | D-B1 | Customers owns `rating_requests`, `rating_performers` (the claim snapshot), `ratings` and `rating_attributions`. All are tenant tables: PK `(company_id, id)`, FORCE RLS, tenant-qualified FKs, negative isolation tests in the PR that creates them | one table with arrays (no FK to employees, no index per performer) |
 | D-B2 | A **new worker `customers` module** consumes `ServiceSessionRecorded`, `ServiceSessionLinesAdded` and `ServiceLineChanged` (module-map §4 already names customers as a consumer) and upserts the day's request: SCHEDULED, `due_at` moved by each new active session, `NO_ACTIVE_LINE` reopened (S-2, S-3). **The event is only a trigger, never the state:** from it the consumer takes `(company, business, customer)` and the session's `branch_id` and `occurred_at` (all three events carry them), **derives the request day first** (`requestDayOf` over `occurred_at` and that branch's effective timezone and hours, read through `BranchScheduleHoursPort`, D-B3; never the event's `business_date`), and only then locks that day's request row `(company, business, customer, day)` (insert-or-lock), then **reads the authoritative day state through `DaySessionsPort` on every delivery** (the sessions of that day under D-B3's rule, FR-B06) and recomputes branch, `due_at` and deadline from the latest active session it returns (or `NO_ACTIVE_LINE` when none). So reordered or replayed `ServiceLineChanged` deliveries, and a cancel that makes an earlier session the latest again, converge without any per-line revision table; `consumed_events` only dedupes event ids | a per-line scheduling projection with applied revisions (a second copy of orders' line state to keep in step; the claim reads `DaySessionsPort` anyway); computing schedules in the API request path (the recording transaction must not grow) |
 | D-B3 | The rating **day** is derived from the session's `occurred_at` **in the effective timezone of the session's branch** (D-10, read with the hours below), not orders' `business_date`, which can differ near midnight when the branch zone is not the business zone; `rating_requests.business_date` stores that request day (SPEC §4's column name). The closing time is read from the branch's `opening_hours` (ISO weekday intervals, `packages/contracts/src/tenancy/opening-hours.ts`) for that request day's weekday, in the same zone. **Each session belongs to exactly one request day**, computed by one pure function `requestDayOf(occurredAt, zone, openingHours)` in `customers/domain`: by default the session's own branch-local calendar date. **A visit after midnight inside an opening interval that started the day before (an overnight interval such as 18:00–02:00) belongs to the day the interval started (RT-Q4, PP-18.12):** a 00:30 visit in 18:00–02:00 joins the previous day's request and uses that weekday's interval and its 02:00 close; That one rule selects the event's key (D-B2), the request row, the sessions the consumer and the claim read (FR-B06) and the attribution, so no session is ever counted in two requests: visits at two branches of one business share a request only when their request days are equal. Near midnight, a 23:30 visit at a Kuwait (UTC+3) branch on day D and a 00:10 visit at a Dubai (UTC+4) branch on D+1, which is 20 minutes earlier as an instant, are two requests, each scheduled from and attributed to its own session (RT-01b). **The hours reach worker `customers` through `BranchScheduleHoursPort`**, defined in worker `customers/ports/` (`hours(tx, companyId, branchId)` → `{ opening_hours \| null, time_zone }`, on the caller's transaction) and implemented by an adapter in worker `customers/persistence/`, bound at the worker root, that calls a new public reader of the worker `tenancy` module, `branchScheduleHours(tx, companyId, branchId)`, over the existing `customers → tenancy` arrow with its own `reads` line (not an injected callback; ADR-0010 addendum §3), the same shape as its existing `branchPlace` and `businessTimeZone` readers (CLAUDE.md §4.1: a cross-module read goes through the consumer's port). The port is new, so it is listed in the **A-0 ADR-0010 addendum** and 59-1 waits on A-0. The 59-1 consumer and the claim's reschedule (D-B5) both call it. The pilot is all `Asia/Kuwait`; the function takes both zones as inputs and tests a branch whose zone differs from its business's. The pure function `ratingSchedule(lastSession, openingHours, tz)` → `{ due_at, send_deadline \| null }` lives in `customers/domain` with exhaustive unit tests, including a visit at 23:30 branch time whose business-zone date is the next day; among several intervals the last close of the day counts (RT-Q4, PP-18.12) | orders' `business_date` (business zone: the wrong weekday and day key for a branch in another zone), or the customer's locale |
-| D-B4 | **Not built in 59b-2a** — the claim core merges dormant, and the discovery scheduler lands with the later sub-PRs 59b-2b/59b-2c. **Discovery** of due work follows ADR-0037: a per-company BullMQ scheduler `rating-claims-<companyId>` registered on the first scheduling event of the company and repaired on every later one; job data is `{ companyId, after? }`, where the optional bounded keyset `(due_at, id)` advances through `job.updateData` on success and isolated failure so retries and the next iteration never restart a stale page; a trigger never rewrites an existing cursor; the job pages due rows with `FOR UPDATE SKIP LOCKED` inside `withTenant` | a cross-tenant query (`pospay_app` has no such access, ADR-0003) |
+| D-B4 | **Not built in 59b-2a** — the claim core merges dormant, and the discovery scheduler lands with the later sub-PRs 59b-2b/59b-2c. **Replaced in 59b-2b by PP-98 option A:** the scheduler that landed traverses a Redis-fenced ascending id sweep over the `SCHEDULED` rows only, read through the partial index `rating_requests_scheduled_id_idx` (PP-109.1), with a captured upper bound `H` and a bounded retry map (ADR-0010's 59b-2b addendum), not the database keyset of this row; the per-company scheduler name, the on-demand registration and the trigger-as-event-only rule stay. **Discovery** of due work follows ADR-0037: a per-company BullMQ scheduler `rating-claims-<companyId>` registered on the first scheduling event of the company and repaired on every later one. **The 59b-2a design that was replaced** — job data `{ companyId, after? }` with the optional bounded keyset `(due_at, id)` advancing through `job.updateData` on success and isolated failure so retries and the next iteration never restart a stale page, and the job paging due rows with `FOR UPDATE SKIP LOCKED` inside `withTenant` — is not what runs: the job data is `{ companyId }` only, the page read takes no lock (the traversal is a keyset walk over ids, and `SKIP LOCKED` is used only when the individual request is locked for the claim), and the cursor lives in the Redis state, so a trigger never rewrites it | a cross-tenant query (`pospay_app` has no such access, ADR-0003) |
 | D-B5 | **Claim** (one transaction per request, 59b): lock the customer row (the lock order ADR-0011 §3 shares with page opt-out), then the request; recheck `opted_out_at` (→ `OPTED_OUT`), the deadline (→ `PAST_DEADLINE`), read `DaySessionsPort` (orders, injected callback at the worker root, module-map §3) for the request's day under D-B3's rule (FR-B06): a newer session moved `due_at` → reschedule; no active line → `NO_ACTIVE_LINE`; else snapshot the performers, read their first names through `PerformerNamePort`, store `token_hash`, the `token_key_version` of the key it derived the token with (the version in force at the claim) and `expires_at = claim instant + 7 days`, set SENDING and append `RatingRequestReady` | reading the projection (it may be stale by design, ADR-0010) |
 | D-B6 | `RatingRequestReady` carries what ADR-0018 §1 requires: stable event id, the customer's canonical E.164 phone and `locale`, channel WHATSAPP, template `rating_request` and revision, safe parameters (`customer_first_name` — the first word of `customers.name`, passed through the ADR-0037 §4 display-name rules and omitted if RT-Q2 picks the no-name option —, business name, the performers' first names per RT-Q12 (all of them; more than 3 → «فريق <business>»), `rating_request_id`), `token_key_version` (the key version stored at the claim, D-B5, D-B7), and `send_deadline`. **Never the token** (ADR-0018 §1, ADR-0011 §1) | putting the link in the event |
 | D-B7 | **Token transport** = RT-Q1 (answered by Abu Salem, batch 40, 2026-10-22, binding; the recommended option, replacing Waleed's postponement; Waleed in chat 2026-10-22: «نرجّعها دلوقتي (أبو سالم)»). ADR-0011's proposal: the token's random part is a keyed, domain-separated 256-bit HMAC of `(company_id, rating_request_id)`, derived only in the sender's memory by a restricted codec injected at the worker root only, since the API verifies a presented token by its hash and never needs the key (PP-86.2, Waleed 2026-10-30; the codec lives in `packages/auth`, PP-86.1, ADR-0057); the key lives only in Dokploy secrets and carries a version number (a key id) so it can change later without breaking links already sent; customers stores only the full-token hash and the version of the key that produced it (`token_key_version`, set at the claim with `token_hash`); the sender derives the link with that stored version, never with the newest one, so a key rotated between the claim and the send cannot make a sent link fail its hash check. A new ADR records it (59b-1). No `rating_request` template is enabled and no rating message is sent before 60-1, 60-2 and 61-1 are deployed and verified (59b-3, SC-004) | storing the plaintext or an encrypted token (ADR-0011 forbids it silently) |
@@ -437,6 +437,120 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
   event carries it; the key is rotated to version 2 before the sender runs; the sender derives the link with version 1 and its
   hash equals the stored `token_hash` (the page accepts the link); a request claimed after the rotation stores version 2; an
   unknown version in the event → the send fails closed with no link built.
+
+### Story B2b — The 59b-2b acceptance suite (row 59b, P1)
+
+The 59b-2b acceptance suite (§6 of the slice brief) names the tests that hold the claim scheduler to its
+contract. The claim-path tests run against a real ADR-0006 database clone and their own Redis prefix;
+the processor's registration tests run against Redis and BullMQ alone, and the dormancy test boots
+`main.ts` with stubbed environment variables. None of them settles for "the mocked sender was not
+called".
+
+**Scheduler, fairness and fencing (delivered):**
+
+- `retained_1200_reaches_tail_without_epoch_reset` — 1,200 due rows with the token unavailable under F75/R25: the
+  original tail is reached inside the bound, no ten-turn reset happens, admitted retries are retained, and restoring
+  the tokens yields exactly one ready event per eligible request.
+- `sustained_arrivals_do_not_extend_captured_sweep` — rows inserted above `H` on every turn keep `H` fixed, the original
+  tail is still reached, both lane budgets are honoured, and the next sweep admits the arrivals.
+- `late_commit_and_insert_behind_cursor_join_next_sweep` — an insert held uncommitted across the capture and the page,
+  committed after its id was passed, and a smaller id inserted at the same time: both are reconsidered within the
+  bound instead of being claimed as snapshot members.
+- `moved_earlier_and_future_due_are_reconsidered` — a row whose `due_at` moves earlier after a forward visit, and a row
+  that only becomes due later: both get a bounded next-sweep or capped-retry visit, and the id progress does not change.
+- `locked_page_candidate_is_enrolled` — another transaction holds the request lock: discovery still includes the id, the
+  individual claim skips it instead of waiting, the retry is retained, and releasing the lock yields one claim and one event.
+- `two_workers_expired_owner_cannot_regress_state` — worker A is held past the lease expiry while B advances: A's page
+  writes, settlements, renewals and releases are all rejected, the recovery is bounded, and each successful claim yields one event.
+- `recreated_state_rejects_all_old_fences` — only the test company's state is deleted while A holds work, and B recreates it
+  with a fresh incarnation and the same numeric version: A can neither mutate nor delete B's state, including a retry ack.
+- `crash_before_page_enrollment` — a crash after the SELECT and before the CAS: the cursor is unchanged and no journal
+  exists.
+- `crash_after_page_enrollment` — a crash after the CAS and before the claim: the journal is fully recoverable and the
+  next turn completes the page.
+- `a_lost_enrollment_reply_is_reconciled_by_the_next_turn` — a lost CAS reply: the page-id reconciliation prevents a loss
+  and the next turn claims every row of the page.
+- `a_rolled_back_claim_leaves_no_trace_and_the_next_turn_claims_it_once` — the claim's UPDATE and outbox insert are rolled
+  back inside the transaction: the row stays `SCHEDULED` with no event, and the next turn yields exactly one committed claim
+  and one `RatingRequestReady` event for it.
+- `an_uncertain_commit_keeps_the_row_sending_without_a_second_claim` — the commit lands and its reply is lost: the row stays
+  `SENDING` with exactly one event, and the uncertainty is retained instead of being claimed twice.
+- `a_lost_settlement_reply_keeps_the_request_in_the_retry_map` — the settlement runs and its reply is lost: the request stays
+  in the retry map, nothing is removed prematurely, and the next turn completes it.
+- `the_turn_stops_at_its_ceiling_instead_of_losing_its_fence` — the lease is shorter than the turn ceiling, so a renewal before the
+  ceiling extends `leaseUntil` and a later renewal near the ceiling answers `LIMIT`: the turn ends `LIMIT_REACHED` with no fence-loss
+  diagnostic, no claim starts after the ceiling, and the journal is completed by the next turn.
+- `renew_extends_only_the_retry_leases_of_the_same_owner` — the owner's renewal extends the retry entries it holds, so the
+  settlement still succeeds after the entry's original lease would have expired; an entry held by another owner is not extended.
+- `a_removal_only_settlement_is_stored_against_the_full_byte_cap` — with a small reserved cap a `TERMINAL` settlement succeeds
+  although the state is above `maxBytes − reserveBytes`, while an insertion at the same size reports the overflow.
+- `the_sweep_visits_only_scheduled_rows_through_the_partial_index` — `SCHEDULED`, `SENDING`, `SENT` and `CANCELLED` rows are
+  interleaved by id: the upper bound is the largest `SCHEDULED` id, the pages return exactly the `SCHEDULED` ids in order with no
+  skipped id, and both sweep statements plan on `rating_requests_scheduled_id_idx` with no sequential scan and no sort (PP-109.1).
+- `a_recovered_page_is_worked_within_the_turn_budget` — a page journaled under a wider budget is resumed with
+  `{ forward: 2, retry: 25 }`: the turn serves exactly its budget, the rest stays in the journal, the sweep is not closed, and the
+  next turn completes the page.
+- `a_retry_entry_whose_row_became_terminal_is_settled_terminal` — a request whose claim failed is in the retry map, and its row is
+  cancelled from outside: the forward lane never visits it, and the retry lane's point read settles it `TERMINAL` and drops it from
+  the map.
+- `a_missing_state_ends_the_turn_and_records_the_fence_loss` — the state key disappears mid-turn: the reply is `MISSING`, the turn
+  ends `FENCE_LOST`, and the fence loss is recorded with the reason `MISSING`.
+- `a_retry_entry_without_its_eligibility_is_refused_and_never_written_over` — state JSON that parses but whose retry entry has no
+  eligibility: every command answers `CORRUPT` and the key stays byte-for-byte unchanged.
+- `a_journal_entry_without_its_work_token_is_refused_and_never_written_over` — the same for a journal entry without its work token.
+- `a_state_without_its_fence_fields_is_refused_and_never_written_over` — the same for a state without its incarnation.
+- `an_invalid_job_fails_once_without_retries` — a job whose data fails the contract is an unrecoverable error: it fails once with
+  `RATING_CLAIMS_JOB_INVALID` and is not retried.
+- `closes_the_queue_and_the_clients_even_when_the_worker_fails` — when the worker's close fails, the queue and the Redis clients are
+  still closed and the first error is rethrown.
+- `retry_failures_rotate_and_preserve_forward_budget` — `SKIPPED`, `TOKEN_UNAVAILABLE` and errors including a permanently
+  failing oldest row: the tickets rotate, the retry bound is finite, the forward visits continue, and the deduplication
+  covers leased retries.
+- `retry_saturation_uses_reported_reconciliation` — with a lower capacity the forward lane continues, the overflow
+  evidence and the reconciliation flag are set, no admitted retry is evicted, and the overflowed rows are revisited by the sweep.
+- `tenant_isolation_covers_state_and_claims` — the same request id in two companies: distinct Redis keys, A's fence is
+  rejected for B, `withTenant(A)` can neither read, claim nor write B, no B event appears, and the roles stay restricted.
+
+**Deadlines, recovery and notification compatibility (delivered):**
+
+- `null_and_expired_deadlines_keep_2a_semantics` — a null stored or recomputed deadline never expires, an expired due row
+  is cancelled as `PAST_DEADLINE`, equality obeys the existing `< now` rule, and a deadline crossed while the claim waits on
+  the customer lock is decided by the post-lock Clock, with no extension and no resend.
+- `lost_scheduler_recovers_without_new_visit` — only the test company's scheduler and state are removed, the complete
+  authorized fixture inventory is given to `ensureRegistered`, and no new visit arrives: both companies are registered, the
+  state is fresh, and the eligible claims recover. The production inventory and the runbook entry stay 59b-2c's release gate.
+- `default_registry_acknowledges_failed_rating_without_delivery` — the real full notification module with its default
+  registry (staffOtp only) and a valid 2a payload: the attempt is `FAILED` with `CONFIG_INVALID`, a consumption receipt
+  exists and the dispatcher acknowledges the event, with no `PENDING` or `SENDING` attempt, no authorized-send event and
+  no outbound call.
+- `inapp_only_retries_rating_without_delivery` — the real in-app-only module with the same payload: the handler fails with
+  `NOTIFICATIONS_LIVE_REQUIRES_PR6`, the receipt and the attempt are rolled back, and the dispatcher retries and then parks
+  the source event. No outbound call.
+- `installing_sender_does_not_replay_consumed_claim` — after the full-module failure the same event is redelivered with a
+  test rating registry that has a sender: the consumption and attempt dedupe prevent any authorization, the request stays
+  `SENDING`, and nothing is reset or resent.
+
+**Delivered earlier in the slice:** `trigger_preserves_running_progress`, `registration_backoff_follows_pp97` and
+`new_visit_registers_without_discovery` (the processor's registration behaviour); and
+`runtime_stays_dormant_with_valid_token_settings` (the shipped composition stays dormant with valid
+token settings and requests enabled).
+
+**Dormancy of the shipped composition (§7).** `main.ts` installs the closed rating-claims lifecycle:
+`deliver` delegates directly to `next`, `ready` and `close` are no-ops and `eventTypes` is empty, so no rating Queue,
+Worker, state adapter or token codec is constructed at startup. The existing `createRatingSchedulingConsumer` stays
+registered: it stores `SCHEDULED` requests and never claims them. No environment flag opens the scheduler, and the active
+factory is wired only by 59b-3's reviewed activation change, after 60-1, 60-2, 61-1 and 2c's recovery prerequisites.
+Deploying a closed build does not stop a candidate worker that is already running.
+
+**Notification compatibility (§7).** The generic notification consumer already subscribes to `RatingRequestReady`. With the
+full module's default registry a valid rating payload records a terminal `FAILED`/`CONFIG_INVALID` attempt plus a
+consumption receipt, and the event can be acknowledged and published; the request is already `SENDING` and the event is not
+a pending replay buffer. With the in-app-only wiring the authorization throws `NOTIFICATIONS_LIVE_REQUIRES_PR6`, the
+transaction rolls back, and the dispatcher retries and parks the source. Neither configuration guarantees an automatic send
+once 59b-3 is installed, and nothing here resets a `SENDING` request, reopens a terminal attempt, alters dispatcher
+metadata or enables a template or a channel. If the inventory of the live images turns up historical pre-activation
+`SENDING`, `FAILED` or parked cases, they are handed to the owner as a business question: whether those opportunities may
+remain unsent, or whether a separately specified recovery policy is needed inside the existing at-most-once, no-resend rule.
 
 ### Story B3 — The page, submit and opt-out (rows 58 and 60, P1)
 
@@ -537,7 +651,7 @@ People as in §1. Tests R1–R10 are SPEC §11's; the ADR-0011 §6 list is copie
   pages the same customer/day, in both commit orders, gives one row with the latest `due_at`.
 - **FR-B03** `ratingSchedule` pure function (D-B3) and its unit tests: 1 h after, capped by closing, deadline +30 min,
   no hours → no deadline, timezone boundaries, RT-Q4's last close and overnight start day.
-- **FR-B04** Per-company claim scheduler (D-B4) every minute, keyset pages of at most 100 due requests — **not built in 59b-2a**; the scheduler and its continuation cursor land with 59b-2b/59b-2c, and the claim core of 59b-2a merges dormant.
+- **FR-B04** Per-company claim scheduler (D-B4) every minute, keyset pages over the scheduled rows — **not built in 59b-2a**; the scheduler and its continuation cursor land with 59b-2b/59b-2c, and the claim core of 59b-2a merges dormant. **Landed in 59b-2b:** the per-minute scheduler walks a Redis-fenced continuation cursor — an ascending id sweep over the `SCHEDULED` rows only, read through the partial index `rating_requests_scheduled_id_idx` (PP-109.1), with a captured upper bound `H`, plus a bounded retry lane of at most `RETRY_VISITS = 25` — with F75 + R25 ≤ 100 visited rows per turn (ADR-0010's 59b-2b addendum).
 - **FR-B05** Claim transaction (D-B5) with the lock order customer → request, Clock sampled after the locks.
 - **FR-B06** `DaySessionsPort.activeLines(tx, companyId, businessId, customerId, fromInstant, toInstant)` → active lines of
   the customer's sessions in that business whose `occurred_at` is in the window, with performers, branch, the session's
