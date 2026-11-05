@@ -1,5 +1,63 @@
 # Worker operations
 
+## Staging worker readiness in every deploy receipt (PP-133)
+
+Decision PP-133 (2026-11-06, issue #868) keeps the worker container healthcheck on
+`/health` for process liveness. A healthy container alone does not prove database
+and Redis readiness. Every staging deploy receipt must also record a read-only
+`/ready` probe for each current worker replica, alongside the release SHA, replica
+identifier and probe time. Do not change compose, container environment or healthcheck,
+publish a port, or restart a container to obtain this evidence.
+
+Use the existing authorized staging operator context. Select the current worker
+container from the release inventory into the operator's `WORKER_CONTAINER` variable;
+it is a placeholder, not a container name to copy. DEP-1's method passes Node code
+through stdin with `docker exec -i`, so it needs neither an installed curl binary nor
+a host-published worker port. The port comes from the running container's existing
+`WORKER_PORT` (the worker's default is 3001 when unset or empty); no environment value
+is changed or dumped. Run this POSIX-shell command once for each worker replica:
+
+```sh
+: "${WORKER_CONTAINER:?Select the current staging worker container from the release inventory}"
+docker exec -i "$WORKER_CONTAINER" node --input-type=module <<'JS'
+const port = process.env.WORKER_PORT || '3001';
+let httpStatus = null;
+try {
+  const response = await fetch(`http://127.0.0.1:${port}/ready`, {
+    signal: AbortSignal.timeout(5_000),
+  });
+  httpStatus = response.status;
+  const body = await response.json();
+  const checks = body.checks ?? body.details?.checks ?? null;
+  console.log(JSON.stringify({ http_status: httpStatus, checks }));
+  const required = ['database', 'dispatcher', 'redis'];
+  if (httpStatus !== 200 || !checks ||
+      !required.every((name) => checks[name] === 'up') ||
+      !Object.values(checks).every((state) => state === 'up')) {
+    process.exitCode = 1;
+  }
+} catch {
+  console.log(JSON.stringify({
+    http_status: httpStatus,
+    checks: null,
+    probe_error: 'TIMEOUT_TRANSPORT_OR_INVALID_RESPONSE',
+  }));
+  process.exitCode = 1;
+}
+JS
+```
+
+Preserve the JSON output and command exit code in the receipt. `/ready` returns
+HTTP 200 with `checks` when ready, or HTTP 503 with `details.checks` when a dependency
+is down; the command records either shape without printing credentials or connection
+strings. Current dependencies are `database`, `dispatcher` and `redis`, each `up` or
+`down` (`apps/worker/src/shared/health.controller.ts`, wired in `apps/worker/src/main.ts`).
+The five-second fetch timeout also bounds response-body reading. An absent HTTP
+status, malformed response, nonzero command exit, HTTP other than 200, or a dependency
+not `up` means readiness is **not verified**: retain the evidence and report the blocker
+through DEP-1's existing release procedure; never replace it with the `/health` result.
+This command performs no deployment or configuration change and grants no new server access.
+
 ## Restoring a logical dump
 
 Restore a logical dump only into a **freshly `initdb`'d cluster**, with triggers disabled:
