@@ -20,7 +20,9 @@
 >
 > **Revised on 2026-11-02 (PP-112, `docs/owner-decisions.ar.md` item 50):** a fallback chain for every delivery role, an automatic switch after two failed attempts, one `pospay-waleed` notice per request waiting on Waleed (replaced by the super admin route of SA-16, §12), a stuck-session check every 30 minutes, waiting on background work with `t3_background_wait`, and the refusal of a delivery more than twice the size the brief set (§§0, 7, 8, 10, 12 and 14). It replaces the PP-84.2 wait.
 >
-> **Revised on 2026-11-05 (PP-124, PP-125, `docs/owner-decisions.ar.md` items 62–63):** the manager merges migration PRs once every gate passes (§10). New slices start on Codex `gpt-6.1-sol`, effort `medium`, in standard speed mode, replacing PP-120's return of the next two sessions to MiniMax; the fallback and correction chains are unchanged (§0).
+> **Revised on 2026-11-05 (PP-124, PP-125, PP-126, PP-128, `docs/owner-decisions.ar.md` items 62–65):** the manager merges migration PRs once every gate passes (§10). New slices start on Codex `gpt-6.1-sol`, effort `medium`, in standard speed mode, replacing PP-120's return of the next two sessions to MiniMax; the fallback and correction chains are unchanged (§0). A MergePilot `partial` receipt counts as complete only under the snapshot-truncation (PP-126) or Waleed_Bot time-limit (PP-128) conditions restated in §9.
+>
+> **Revised on 2026-11-05 (PP-129, PP-130, PP-131, `docs/owner-decisions.ar.md` items 66–68):** DEP-1 takes a fresh staging snapshot right before it applies a migration; a second open migration PR is stacked on the first (§13); the API test shards start alongside `check`; a code PR gets at most three correction rounds and a docs-only PR one, and `@codex review` runs once on the final head (§§8–9).
 >
 > **Revised on 2026-11-02 (PP-113, `docs/owner-decisions.ar.md` item 51):** heavy suites run in CI only; local checks are typecheck, lint, documentation and boundary checks, and the slice's own tests (§6). A clear Kimi quota error skips the Kimi CLI lane: the correction chain advances to MiniMax, while the initial-build chain advances to Claude Sonnet (§§0 and 7).
 >
