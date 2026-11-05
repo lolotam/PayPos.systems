@@ -48,7 +48,7 @@ export interface PackageRedemptionPort {
   /**
    * يقرأ أقل الجلسات الحرة في المكوّن بعد قفله، بالترتيب التصاعدي.
    *
-   * @param requests ????????? ???????? ???? ??????? ???????? ??? ????
+   * @param requests المكوّنات والمطلوب من كل واحد، بالترتيب
    * @returns الجلسات الحرة بالأرقام التصاعدية
    */
   freeSlots(requests: readonly { component_id: string; count: number }[]): Promise<ReadonlyMap<string, readonly PackageRedemptionSlot[]>>;

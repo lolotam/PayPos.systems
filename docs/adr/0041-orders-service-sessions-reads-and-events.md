@@ -43,7 +43,7 @@ Do not introduce a different NestJS module style for this slice. Readers added t
 | `PerformerCheckPort` | new staff `readSessionPerformers` | `performer-check.adapter.ts` | Port declared; extend facts for SS-Q2/8; add import orders → staff and the symbol read |
 | `DiscountLimitPort` | existing settings `readEffectiveDiscountLimit` | `discount-limit.adapter.ts` | New read port orders → settings; add import orders → settings and the symbol read |
 | `SessionRecordAccessPort` | new identity `lockServiceSessionAccess`, `readServiceSessionAccess` | `session-record-access.adapter.ts` | New authorization read port orders → identity; add import orders → identity and both symbol reads |
-| `SessionPlacePort` | existing tenancy `businessTimeZone`, `describeWorkspaces` | `session-place.adapter.ts` | Import orders → tenancy already declared; add the port row and both symbol reads |
+| `SessionPlacePort` | existing tenancy `businessTimeZone`, `describeWorkspaces`; `packageSalePlace` added by the 2026-11-05 addendum below | `session-place.adapter.ts` | Import orders → tenancy already declared; add the port row and both symbol reads |
 
 Catalog returns bounded batches of services in the confirmed business: list price, names, revision,
 `FOLLOW_PLAN | ZERO | PCT | FIXED` rule and threshold flag. It reads `services`, not Phase 2 items/prices;
@@ -400,7 +400,12 @@ branchId)`, returning `COALESCE(b.timezone, bu.timezone)` — the branch's effec
 the business one when the branch has no region of its own. It reuses the shape of the existing
 `activeBusinessTimeZone` read: it proves the company is not deleted, the business belongs to it,
 the branch belongs to that business and the branch is active, and it returns `null` otherwise.
-`SessionPlacePort.read` now returns both `{ timezone, branch_timezone }`.
+`SessionPlacePort` keeps `read()` (the business timezone, as before) and grows a second,
+separate read, `branchTimezone()`, for the branch's effective timezone. They are not merged on
+purpose: the business timezone is read on every visit, while the branch's is read **only when
+the request carries a package draft and only after the redemption locks**, so a paid visit pays
+no query for a fact it does not need, and a package visit never decides the expiry on a reading
+taken before a lock wait.
 
 **Map amendment.** §6 gains one `reads:` row:
 
@@ -423,6 +428,7 @@ server can derive and defend.
 result-shape test plus an `EXPLAIN ANALYZE` assertion (CLAUDE.md §9). `activeBusinessTimeZone`
 keeps its shared meaning and its other callers; no other port changes.
 
+## Addendum 2026-11-01 — SS-Q1b
 
 Batch 1 (staff salary) and batch 13 (row 35, service session) both used the id SS-Q1. On 2026-11-01 Waleed
 approved renaming the batch-13 question to SS-Q1b; the decisions site was changed the same day. No pick by

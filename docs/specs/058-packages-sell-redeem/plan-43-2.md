@@ -400,7 +400,7 @@ visit at `2026-10-01T21:30:00Z` is 1 October in London and 2 October in Kuwait.
 **Fixed** by `apps/api/src/modules/tenancy/queries/package-sale-place.query.ts`,
 which reads `COALESCE(b.timezone, bu.timezone)` — the branch's effective timezone,
 falling back to the business one when the branch has none — and by
-`SessionPlacePort.read`, which now returns both timezones. The record route uses
+`SessionPlacePort.branchTimezone()`, a second read beside `read()`. The record route uses
 the branch timezone for the expiry date; the append route keeps the original
 visit's time and business timezone for the recording window and the accounting,
 and uses the serving branch's timezone for the expiry only. `activeBusinessTimeZone`
@@ -473,6 +473,13 @@ package draft needs. The port now keeps `read()` (the business timezone) and
 grows `branchTimezone()`, which the two use cases call **only when the request
 carries a package draft**. The statement count of a paid visit is back to what it
 was, and a package visit pays the extra query it actually needs.
+
+**The branch timezone is read after the locks, not before** (the manager, round 3).
+The read sits between the redemption locks and the expiry decision: a lock wait
+can outlive a reading taken before it, so the expiry is never decided on a stale
+timezone. The record route reads it after `resolvePackageRedemptions` and before
+the clock is read again; the append route reads it after the same call and before
+it checks the expiry against the original visit's date.
 
 The lesson from this round: the filter spec lives in `__tests__/`, which is the
 **integration** project, not the unit project. Running only the slice's own specs

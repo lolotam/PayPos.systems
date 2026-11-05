@@ -63,10 +63,12 @@ export class AppendServiceSessionLinesUseCase {
     // توقيت الفرع يُقرأ وحده عند وجود مسودة باقة، فالإضافة المدفوعة ما تدفعش الاستعلام ده.
     let facts = new Map<number, PackageRedemptionFact>();
     if (drafts.packages.length > 0) {
-      const branchTimezone = await tx.place.branchTimezone();
-      if (branchTimezone === null) throw new SessionError('FORBIDDEN');
       facts = await resolvePackageRedemptions(tx, { customerId: original.customer.id, drafts: drafts.packages,
         newId: () => this.ids.newId() });
+      // توقيت الفرع يُقرأ بعد كل الأقفال، فانتظار القفل ما يخلّيش القراءة قديمة؛
+      // والإضافة المدفوعة ما تدفعش الاستعلام ده أصلاً.
+      const branchTimezone = await tx.place.branchTimezone();
+      if (branchTimezone === null) throw new SessionError('FORBIDDEN');
       assertPackageFactsAllowed(facts, sessionBusinessDate(original.occurred_at, branchTimezone), original.occurred_at);
     }
     // بعد كل أقفال المال تقرأ الساعة والحد وتتأكد من السلطة، فلا يبقى انتظار قديم حياً.

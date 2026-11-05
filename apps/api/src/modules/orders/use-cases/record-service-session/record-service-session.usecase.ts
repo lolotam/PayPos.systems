@@ -56,11 +56,13 @@ export class RecordServiceSessionUseCase {
     let facts = new Map<number, PackageRedemptionFact>();
     let branchTimezone = '';
     if (drafts.packages.length > 0) {
+      facts = await resolvePackageRedemptions(tx, { customerId: customer.id, drafts: drafts.packages,
+        newId: () => this.ids.newId() });
+      // توقيت الفرع يُقرأ بعد كل الأقفال، فانتظار القفل ما يخلّيش القراءة قديمة؛
+      // والزيارة المدفوعة ما تدفعش الاستعلام ده أصلاً.
       const timezone = await tx.place.branchTimezone();
       if (timezone === null) throw new SessionError('FORBIDDEN');
       branchTimezone = timezone;
-      facts = await resolvePackageRedemptions(tx, { customerId: customer.id, drafts: drafts.packages,
-        newId: () => this.ids.newId() });
     }
     // بعد كل أقفال المال تقرأ الساعة والحد وتتأكد من السلطة، فلا يبقى انتظار قديم حياً.
     const at = this.clock.now();

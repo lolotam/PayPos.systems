@@ -111,6 +111,17 @@ Astra's remaining asks, and what happened to each:
 | Keep the slot lock and say why it repeats the component lock | The comment is on `lockSlots` in `persistence/package-redemption-writes.ts`: the component lock is the real serialisation point, the slot lock is the defensive check that makes "the lowest `FREE` session under a row lock" literal. |
 | Record the manager's resolved decisions in §12 | Done: the plan's §12 carries the manager's verbatim answer beside Astra's. |
 
+## Round 4 — the manager's findings on `16163c58`
+
+The manager reviewed the head and found four things. All four are fixed.
+
+| Finding | Fix |
+| --- | --- |
+| **MEDIUM** — the branch timezone was still read **before** `resolvePackageRedemptions` and its lock wait, in both use cases. A lock wait can outlive a reading taken before it, so the expiry was decided on a stale timezone. | The read moved **after** the redemption locks: the record route reads it after `resolvePackageRedemptions` and before the clock is read again; the append route reads it after the same call and before it checks the expiry against the original visit's date. The branch timezone is therefore always the one that was current when the decision was taken. |
+| **LOW** — an encoding corruption in `ports/package-redemption.port.ts`: the `@param requests` line had become `???`. | Rewritten in Arabic: `@param requests المكوّنات والمطلوب من كل واحد، بالترتيب`. |
+| **LOW** — the ADR-0041 wording about `read()` was still the old one. | The addendum now says that `read()` keeps the business timezone and `branchTimezone()` is a second, separate read, taken only for a package draft and only after the locks; the §1 port table names the new symbol read. The `## Addendum 2026-11-01 — SS-Q1b` heading, which the addendum had swallowed, is restored. |
+| **NEW** — two Arabic lines in this file had become `???` (they were written through a PowerShell pipe with the wrong encoding). | The manager's verbatim decision is restored as UTF-8, and the whole diff is swept for `\?{4,}` before every push. |
+
 ## Round 2 ? prepared against head `12c7b6d9`
 
 The final clock reading after component and slot locks now supplies omitted
@@ -143,9 +154,9 @@ verification receipt; no correction push or merge is claimed.
 
 Manager decision, 2026-11-05, project conversation (verbatim):
 
-??? ??????: ?? ????? ????? MergePilot ??? 12c7b6d9. ???? ?????? 2 ?????? ?? push ?????.
+«من المدير: مش هنعيد تشغيل MergePilot على 12c7b6d9. ادفع الجولة 2 دلوقتي في push واحدة.
 
-?????: ????? 12c7b6d9 ?????? ????? ?? PP-119.1. ??????? ??????? ?? ?????? ? completed? ??? ???? Waleed_Bot ???? ???? ??? fallback? ??????? ?? ???? ??? verification ??? ????? ??? ???????? ???? ?????? ???? ???????. Codex ??? ??? ??? ??? head ??????? ????? (06:5x)? ?CodeRabbit ?????. ?? ????? ??????? ??? head ??? ???? ???????? ?????? ????? 20 ????? ??? ??????? ??? ?? ????? ???????? ????? ???????.?
+السبب: إيصال 12c7b6d9 أعتبره مكتمل لـ PP-119.1. البوتات الأربعة في الجدول ✅ completed، بما فيهم Waleed_Bot اللي كمّل على fallback، والناقص هو خطوة الـ verification بس، ولقيت نفس النقطتين اللي لقيتهم باقي البوتات. Codex خلص على نفس الـ head ومالقاش مشاكل (06:5x)، وCodeRabbit موجود. لو أعدنا التشغيل على head إنت ناوي تستبدله، هنستنى حوالي 20 دقيقة على الفاضي، وده ضد قاعدة «ماتأجلش الشغل الجاهز».»
 
 This decision supersedes the pending-panel statement above. Publish round 2 of 5
 once, request Codex on the new head, and resolve clock/batch threads with commit
