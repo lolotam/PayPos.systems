@@ -1,5 +1,40 @@
 # 57b-1 local implementation and validation receipt
 
+## Correction round 1 — prepared, not pushed
+
+MergePilot `discussion_r4484196278` on `625c2a59` identified a confirmed P2:
+the new attendance 422 code became the generic framework-status mapping. Added it
+to `RAISED_BY_THE_API_ONLY` and added regression coverage for both
+`codeForStatus(422)` and a bare framework 422 response. Local checks are in progress.
+Under PP-119.1 and the manager's explicit instruction, no correction push is allowed
+until all panel bots finish on that head and the manager's Codex CLI review arrives.
+The manager's final-head Codex CLI review then identified the second confirmed P2:
+400/401/403/422 OpenAPI responses omitted ErrorEnvelope content. Added the same
+application/json component reference used by sibling attendance contracts and
+regenerated OpenAPI plus both clients; error.code is now typed on those responses.
+The shared error-envelope suite passed 16/16 with the direct codeForStatus assertion
+and HTTP regression. The first test run had an incorrect expected HTTP status 422;
+the established unknown-framework-4xx fallback is BAD_REQUEST/400, which the final
+assertion preserves. Full typecheck/lint reruns and generated-client checks follow.
+Final round-1 local checks: contracts:openapi, both client api:generate and api:check,
+full typecheck and lint all exited 0. Shared errors tests passed 16/16; docs lint
+passed. No correction push yet: panel completion is still pending on the old head.
+CI shard 4 on the old head failed the existing idempotency regression: a framework
+422 returned MY_PERIOD_OUT_OF_RANGE instead of BAD_REQUEST. This is the same P2,
+also duplicated by mohamed_Bot in discussion_r4484275295. The manager requested
+a local idempotency-spec run before push and replies with the fix commit on both
+MergePilot threads, resolving only discussion_r4484196278 and discussion_r4484275295.
+The requested `src/shared/__tests__/idempotency.spec.ts` run passed (exit 0),
+including the existing bare-framework-409/422 regression, on the private cluster
+and private Redis at port 56504 (`57b1-r1-idempotency.log`).
+The manager authorized the correction push after the other three panel bots finish,
+despite Hamza's provider-quota failure; this does not waive final-head merge receipts.
+That condition is met on 625c2a59: MergePilot review 5789729519 and mohamed review
+5789828655 reported the same 422 issue; Waleed review 5789842114 completed with no
+findings. Codex CLI's ErrorEnvelope P2 and both duplicate 422 reports are covered
+in one consolidated correction commit. Round budget: **1/3**. Hamza remains failed;
+all final-head panel receipts and the manager's final-head review remain required.
+
 ## Independent review lane (PP-112)
 
 Astra failed 2× (read truncation, then ended after CLAUDE.md), Fable fallback per PP-112.

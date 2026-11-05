@@ -1,5 +1,8 @@
 import { z } from 'zod';
 import { ownAttendance } from './own-attendance.js';
+const errorContent = {
+  'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+};
 export const ownAttendancePaths = {
   '/v1/staff/me/attendance': {
     get: {
@@ -33,10 +36,10 @@ export const ownAttendancePaths = {
             },
           },
         },
-        '400': { description: 'VALIDATION_FAILED' },
-        '401': { description: 'UNAUTHENTICATED' },
-        '403': { description: 'FORBIDDEN or PRIVATE_VIEW_EXPIRED' },
-        '422': { description: 'MY_PERIOD_OUT_OF_RANGE' },
+        '400': { description: 'VALIDATION_FAILED', content: errorContent },
+        '401': { description: 'UNAUTHENTICATED', content: errorContent },
+        '403': { description: 'FORBIDDEN or PRIVATE_VIEW_EXPIRED', content: errorContent },
+        '422': { description: 'MY_PERIOD_OUT_OF_RANGE', content: errorContent },
       },
     },
   },

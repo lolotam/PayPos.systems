@@ -195,6 +195,7 @@ export type ErrorCode = keyof typeof STATUS;
 // Codes that describe one specific failure the API itself detected. A bare framework status (a 409 or
 // 422 from somewhere else) must never be reported as one of them.
 const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
+  'MY_PERIOD_OUT_OF_RANGE',
   'ATTENDANCE_DEVICE_LOCKED',
   'ATTENDANCE_DEVICE_NOT_ENROLLED',
   'PASSKEY_DEVICE_TAKEN',
