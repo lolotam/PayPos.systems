@@ -72,6 +72,7 @@ it.each([
   'SalaryChanged',
   'SessionTipsChanged',
   'PackageSaleChanged',
+  'PackageImportPreviewRequested',
   'LeaveRequested',
   'LeaveCancelled',
   'LeaveApproved',

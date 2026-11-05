@@ -31,7 +31,7 @@ export class PackageImportPreviewController {
   @Require('import:packages:business', { business: 'businessId' })
   @RequiresFeature('orders')
   async request(
-    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
+    @Param('businessId', new ZodValidationPipe(id.toLowerCase())) businessId: string,
     @Body(new ZodValidationPipe(requestPackageImportPreviewInput))
     input: RequestPackageImportPreviewInput,
     @Req() request: FastifyRequest,
@@ -53,8 +53,8 @@ export class PackageImportPreviewController {
   @Require('import:packages:business', { business: 'businessId' })
   @RequiresFeature('orders')
   status(
-    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
-    @Param('previewId', new ZodValidationPipe(id)) previewId: string,
+    @Param('businessId', new ZodValidationPipe(id.toLowerCase())) businessId: string,
+    @Param('previewId', new ZodValidationPipe(id.toLowerCase())) previewId: string,
     @Req() request: FastifyRequest,
   ) {
     if (this.database === null) throw new ApiError('NOT_READY');

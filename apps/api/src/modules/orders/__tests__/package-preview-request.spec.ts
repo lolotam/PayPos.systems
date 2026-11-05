@@ -20,12 +20,19 @@ it('accepts 202 without object storage and atomically stores an empty pending pr
   const fileId = await f.upload();
   const response = await f.h.app.inject({
     method: 'POST',
-    url: f.url,
+    url: f.url.replace(f.businessId, f.businessId.toUpperCase()),
     headers: f.headers,
     payload: { file_id: fileId },
   });
   expect(response.statusCode).toBe(202);
   const { preview_id } = packageImportPreviewAccepted.parse(response.json());
+  const status = await f.h.app.inject({
+    method: 'GET',
+    url: `${f.url.replace(f.businessId, f.businessId.toUpperCase())}/${preview_id.toUpperCase()}`,
+    headers: f.headers,
+  });
+  expect(status.statusCode).toBe(200);
+  expect(status.json()).toEqual({ preview_id, status: 'pending' });
   const [preview] = await f.h
     .owner`SELECT status,row_count,error_count,skipped_count,rows,errors,requested_at,created_by,file_id
     FROM import_previews WHERE company_id=${f.companyId} AND id=${preview_id}`;
