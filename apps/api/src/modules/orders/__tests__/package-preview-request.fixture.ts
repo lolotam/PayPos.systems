@@ -1,7 +1,6 @@
 import { createDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { startHarness } from '../../../../test/harness.ts';
-import { PackageImportPreviewController } from '../http/package-import-preview.controller.ts';
 import { createPackageImportRequestTransactions } from '../persistence/package-import-request.transactions.ts';
 import { RequestPackageImportPreviewUseCase } from '../use-cases/request-package-import-preview/request-package-import-preview.usecase.ts';
 
@@ -30,8 +29,8 @@ async function seedWorkspace(h: Awaited<ReturnType<typeof startHarness>>) {
   return { companyId, userId, businessId, otherBusinessId, cookie, membershipId };
 }
 
-export async function packagePreviewRequestFixture(mount = true) {
-  const h = await startHarness(mount ? { controllers: [PackageImportPreviewController] } : {});
+export async function packagePreviewRequestFixture() {
+  const h = await startHarness();
   const [guard] =
     await h.owner`SELECT to_regprocedure('package_import_preview_update_guard()') IS NOT NULL AS present`;
   if (guard?.['present'] !== true) throw new Error('PACKAGE_PREVIEW_MIGRATION_GUARD_REQUIRED');

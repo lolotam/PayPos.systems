@@ -12,11 +12,13 @@ export interface PackagePreviewLookup {
 
 export function packagePreviewStatusStatement(actor: PackagePreviewLookup) {
   // شاشة استيراد الباقات بتتابع حالة المعاينة من غير عرض الصفوف أو بيانات الملف.
-  return sql`SELECT jsonb_build_object('preview_id',id,'status',status) ||
+  return sql`SELECT CASE WHEN status='pending' AND expires_at<=CURRENT_TIMESTAMP THEN
+    jsonb_build_object('preview_id',id,'status','failed','error_code','IMPORT_FILE_NOT_FOUND')
+    ELSE jsonb_build_object('preview_id',id,'status',status) ||
     CASE status WHEN 'ready' THEN jsonb_build_object('row_count',row_count,'error_count',error_count,
       'skipped_count',skipped_count,'errors',errors)
     WHEN 'failed' THEN jsonb_build_object('error_code',error_code)
-    ELSE '{}'::jsonb END AS body
+    ELSE '{}'::jsonb END END AS body
     FROM import_previews WHERE company_id=${actor.companyId} AND business_id=${actor.businessId}
       AND created_by=${actor.userId} AND id=${actor.previewId} AND entity='packages'
       AND status IN ('pending','ready','failed')`;

@@ -405,3 +405,28 @@ applied only on the private local test cluster; CI requires the final real migra
 Bounds remain 2 MiB, 500 data rows, 68 columns and 4 sheets. Parser and money changes
 from the previous attempt are preserved in stash
 8595ab7fe7dd0e7db5f58e444b534be923b8420e for 47-1b and are excluded from 47-1a.
+
+
+### Addendum 2026-11-06 ? 47-1b package preview activation
+
+The approved split now has its real orders BullMQ transport. The API mounts the
+request/polling controller; orders declares the known event type only on the active
+worker module and intercepts delivery before the generic database-only deliverer.
+Redis publication is outside the outbox transaction; acceptance by Redis is the
+transport acknowledgement. Older workers still reject/retry the unknown type.
+The test-only fenced-producer exclusion from 47-1a is removed, and coverage obtains
+the supported type from the real orders composition. Startup readiness and close
+include the processor; it closes before its files provider.
+
+Worker orders reads files.documentFileFacts, catalog.readPackageImportServices and
+customers.readPackageImportCustomers through public adapters on its current tenant
+transaction. Services, existing refs and customer phones are each batched. Only
+customer id and phone_last3 leave the customer lookup; SQL/provider causes never
+leave the preview use case. Storage bytes are bounded and read outside transactions.
+
+The hardened technical reader lives in @pospay/import-workbooks; API shared import
+paths are compatibility facades, and staff retains its existing bounds/error identity.
+Pure package definition/allocation/slot/PackageRuleError primitives move to the
+zero-dependency @pospay/domain with API compatibility exports. Sale allocation keeps
+its default behavior; imports explicitly select session-count allocation. There is
+no cross-application source import or duplicate implementation of money rules.

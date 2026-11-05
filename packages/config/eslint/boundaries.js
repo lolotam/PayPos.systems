@@ -41,7 +41,7 @@ export const COMMISSIONS_ENGINE_PATTERNS = [
 
 /** The use-cases/ infrastructure ban, composed back in wherever the rule is replaced. */
 export const USE_CASES_INFRASTRUCTURE_PATTERN = {
-  regex: '^(drizzle-orm|@nestjs/platform-.*|bullmq|ioredis|axios|node:.*|@pospay/db)(/.*)?$',
+  regex: '^(drizzle-orm|@nestjs/platform-.*|bullmq|ioredis|axios|node:.*|@pospay/db|@pospay/import-workbooks)(/.*)?$',
   message: 'use-cases/ reach infrastructure only through ports/ (CLAUDE.md §4.2).',
 };
 

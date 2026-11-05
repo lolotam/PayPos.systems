@@ -339,6 +339,14 @@ controller is **not registered in the production controller list**; both routes 
 404 and no pending work can accumulate. Tests mount it explicitly. Only 47-1b may
 register it together with its available consumer/transport. No new env switch is used.
 
+47-1b implements that activation with a real BullMQ transport, outside outbox/tenant
+transactions, plus readiness/close lifecycle hooks. The generic worker registry does
+not acknowledge the command without its transport. The worker writer also owns issue
+#863: a new migration validates array shapes, issue-count cardinality and the complete
+valid/skipped/distinct-invalid-row partition before ready, allowing multiple field
+issues per row. The implementation and local migration-lane status are recorded in
+[47-1b implementation](47-1b-implementation.md).
+
 Customer resolution is batched through
 `CustomerLookupPort.findByPhones(e164s)`, with one query on the existing tenant transaction.
 Results follow input order and contain only `{ id, phone_last3 }` or `null`.
@@ -872,7 +880,7 @@ Every row waits on this spec's merge and on the owner answers named in its "Bloc
 | **46-3** | Refund bell + dialog | 1. Events, ADR-0044 addendum, module-map rows, template ar/en. 2. Consumer + ledger. 3. Admin refund dialog and the detail's refund history (FR-071) | 46-2, **42-4**, after **45** on the detail query file (PK-Q5 answered) |
 | **47-1** | Import preview framework for packages (asynchronous, manager decision supplied as 16:03 Kuwait, 2026-11-05) | 1. Shared bounded workbook reader; staff behavior unchanged; IM-09. 2. Template plus API request acceptance: file facts only, pending `import_previews` row and id-only `PackageImportPreviewRequested` atomically, 202 and warm acceptance <200 ms. 3. Orders worker preview: bounded storage outside transactions, package row validation, batched customer lookup, privacy-safe ready/failed persistence and repeated-event idempotence. 4. Creator-scoped polling through `queries/`, Zod/OpenAPI, permission `import:packages:business`, feature/route gates, schema/grants and negatives. The 47-1a/47-1b split is approved (manager decision supplied as 15:57 Kuwait) | **design advisors**; 43-1; split assessment in `47-1-async-split-plan.md` |
 | **47-1a** | Request package preview and poll status | One API command: permission/feature/file-facts validation, empty pending preview + id-only outbox event atomically, 202; strict warm full HTTP acceptance <200 ms; creator/business/company/entity-scoped polling query; pending/skipped-count schema, guarded result grants, permission seed, RLS/ACL/query negatives; request and polling controller absent in production until 47-1b | 43-1; manager migration lane for final generation/push; Astra before PR |
-| **47-1b** | Execute package preview in worker and activate producer | Hardened shared reader and pure validators/money without cross-app imports or duplicate rules; storage outside transactions; batched lookups and terminal ready/failed update under withTenant; duplicate/retry isolation; BullMQ transport/startup lifecycle; production API controller registration only with the available consumer; unchanged 500 rows/68 cols/2 MiB/4 sheets | 47-1a merged; same owning session, one PR at a time |
+| **47-1b** | Execute package preview in worker and activate producer | Hardened shared reader and pure validators/money without cross-app imports or duplicate rules; storage outside transactions; batched lookups and terminal ready/failed update under withTenant; duplicate/retry isolation; BullMQ transport with durable failure-code finalization and nonblocking startup; production API controller registration only with the available consumer; invalid events fail a known pending aggregate before parking, and creator polling projects expired pending as failed (read-only fallback, no sweep); unchanged 500 rows/68 cols/2 MiB/4 sheets | 47-1a merged; same owning session, one PR at a time |
 | **47-2** | Financial import commit (after complete asynchronous preview) | 1. Commit request route (202, `Idempotency-Key`, sets `commit_requested` and appends `PackageImportCommitRequested` in one transaction), the event's contract, worker known type, ADR-0034 addendum and module-map §4 row. 2. Orders worker: financial commit use case, `package-import-commit` processor and its recovery sweep, wired like staff's. The preview worker belongs to 47-1 by the manager's decision. 3. IM-01…IM-08, plus worker tests: the job is enqueued only after the claim commits, and a commit request left pending ten minutes is marked `failed` | Complete 47-1 asynchronous preview |
 | **47-3** | Import screen | 1. Upload/preview/commit screen. 2. Row errors. 3. Component tests | 47-2 |
 

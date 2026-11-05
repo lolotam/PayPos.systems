@@ -95,3 +95,8 @@ export {
   type FixedAlertRecipient,
   type ResolvedAlertRule,
 } from './alert-rules.js';
+
+export * from './packages/errors.js';
+export * from './packages/package-definition.js';
+export * from './packages/package-allocation.js';
+export * from './packages/package-slots.js';

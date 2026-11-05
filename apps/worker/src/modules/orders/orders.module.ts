@@ -1,4 +1,10 @@
-import type { Tx } from '@pospay/db';
+import { startPackagePreviewProcessor } from './jobs/package-preview.processor.ts';
+import { packagePreviewWorkbook } from './persistence/package-preview-workbook.ts';
+import { packagePreviewTransactions } from './persistence/package-preview.transactions.ts';
+import { ExecutePackagePreview } from './use-cases/execute-package-preview/execute-package-preview.ts';
+import type { PackagePreviewClock } from './ports/package-preview.port.ts';
+
+import type { Tx, ClaimedEvent, DeliveryOutcome, TenantWrappers } from '@pospay/db';
 import { editorLabel, safeDisplayName, t } from '@pospay/i18n';
 import type { OutboxConsumer } from '../../outbox/consumer.ts';
 import type { Clock, IdGenerator } from './ports/late-service-session-notice.port.ts';
@@ -183,5 +189,31 @@ function discountApprovalFallback(): DiscountApprovalNoticeNameFallback {
     service: { ar: t('ar', 'serviceSessions.service'), en: t('en', 'serviceSessions.service') },
     branch: { ar: t('ar', 'inApp.generic_branch'), en: t('en', 'inApp.generic_branch') },
     safeName: safeDisplayName,
+  };
+}
+
+/** يسجل النقل الحقيقي فقط؛ الحدث لا يُقرّ إلا بعد قبول Redis للمهمة. */
+export function startPackagePreviewWorker(
+  database: Pick<TenantWrappers, 'withTenant'>,
+  readBytes: (key: string, maxBytes: number) => Promise<Uint8Array | null>,
+  redisUrl: string,
+  clock: PackagePreviewClock,
+  prefix?: string,
+) {
+  const processor = startPackagePreviewProcessor(
+    new ExecutePackagePreview(
+      packagePreviewTransactions(database),
+      packagePreviewWorkbook(readBytes),
+      clock,
+    ),
+    redisUrl,
+    prefix,
+  );
+  return {
+    eventTypes: ['PackageImportPreviewRequested'],
+    deliver: (event: ClaimedEvent, next: (event: ClaimedEvent) => Promise<DeliveryOutcome>) =>
+      event.eventType === 'PackageImportPreviewRequested' ? processor.deliver(event) : next(event),
+    ready: processor.ready,
+    close: processor.close,
   };
 }

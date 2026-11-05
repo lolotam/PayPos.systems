@@ -23,6 +23,29 @@ const actor = (previewId: string) => ({
   previewId,
 });
 
+it('reports an expired pending preview as failed even if its outbox event never reaches a worker', async () => {
+  const { preview_id } = await f.useCase.execute(f.command(await f.upload()));
+  const expired = f.ids.newId();
+  await f.h
+    .owner`INSERT INTO import_previews(company_id,id,business_id,entity,file_id,created_by,created_at,expires_at,status,row_count,error_count,rows,errors)
+    SELECT company_id,${expired},business_id,entity,file_id,created_by,now()-interval '2 days',now()-interval '1 day','pending',0,0,'[]','[]'
+    FROM import_previews WHERE id=${preview_id}`;
+  const response = await f.h.app.inject({
+    method: 'GET',
+    url: `${f.url}/${expired}`,
+    headers: f.headers,
+  });
+  expect(response.statusCode).toBe(200);
+  expect(response.json()).toEqual({
+    preview_id: expired,
+    status: 'failed',
+    error_code: 'IMPORT_FILE_NOT_FOUND',
+  });
+  expect(
+    (await f.h.owner`SELECT status FROM import_previews WHERE id=${expired}`)[0]?.['status'],
+  ).toBe('pending');
+});
+
 it('polls pending, ready and failed without exposing stored rows, phones or file keys', async () => {
   const { preview_id } = await f.useCase.execute(f.command(await f.upload()));
   const pending = await f.h.app.inject({
@@ -34,7 +57,7 @@ it('polls pending, ready and failed without exposing stored rows, phones or file
   expect(pending.json()).toEqual({ preview_id, status: 'pending' });
   await f.database.withTenant(f.companyId, async (tx) => {
     await tx.execute(
-      sql`UPDATE import_previews SET status='ready',row_count=2,skipped_count=1,rows='[{"customer_id":"safe","phone_last3":"678"}]'::jsonb WHERE id=${preview_id}`,
+      sql`UPDATE import_previews SET status='ready',row_count=2,skipped_count=1,rows='[{"row":2,"customer_id":"safe","phone_last3":"678"}]'::jsonb WHERE id=${preview_id}`,
     );
   });
   expect(await packageImportPreviewStatusQuery(f.database, actor(preview_id))).toEqual({

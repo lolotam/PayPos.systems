@@ -17,7 +17,7 @@ import {
   PackageImportRequestError,
 } from '../use-cases/request-package-import-preview/request-package-import-preview.usecase.ts';
 
-// 47-1a: هذا المتحكم غير مسجل في ordersControllers؛ تفعيله مع المستهلك في 47-1b فقط.
+// 47-1b: المتحكم متاح مع نقل العامل الحقيقي؛ العامل الأقدم يعيد محاولة الحدث المجهول وقت الترقية.
 @Controller('businesses/:businessId/packages/import/previews')
 export class PackageImportPreviewController {
   constructor(

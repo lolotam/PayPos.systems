@@ -367,3 +367,26 @@ applied only on the private local test cluster; CI requires the final real migra
 Bounds remain 2 MiB, 500 data rows, 68 columns and 4 sheets. Parser and money changes
 from the previous attempt are preserved in stash
 8595ab7fe7dd0e7db5f58e444b534be923b8420e for 47-1b and are excluded from 47-1a.
+
+
+### Addendum 2026-11-06 ? package preview worker (47-1b)
+
+The worker completes the asynchronous path approved after the 719.70 ms synchronous
+measurement. The shared technical reader package uses the existing pinned ExcelJS
+and SAX versions and retains the ZIP/XML guards. Staff's existing reader entry point
+maps the shared error back to EmployeeImportError with unchanged constants. Package
+limits remain 2 MiB / 500 rows / 68 columns / 4 sheets. The full worker fixture is
+500 rows with 20 service groups at 365 sessions; HTTP acceptance retains its strict
+warm median below 200 ms.
+
+Pending facts are loaded under RLS, bytes are read and parsed outside the tenant
+transaction, and completion locks/rechecks pending/file identity before lookup and
+ready persistence. Duplicate jobs cannot rewrite ready/failed; permanent content
+errors fail pending and transient failures retry with sanitized codes only.
+Financial import commit and recovery are not added.
+
+Issue #863 is included because this worker writes ready: a new custom migration
+requires array-shaped results and matching issue counts, unique/disjoint valid and
+invalid row identities, and a complete valid/skipped/distinct-invalid partition.
+Multiple errors on one row remain legal. Migration 0211 is immutable; #864 stays a
+separate staged-validation follow-up. Final generation waits for the manager lane.
