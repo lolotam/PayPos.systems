@@ -10,6 +10,63 @@ const valid = {
   BETTER_AUTH_URL: 'http://127.0.0.1:3000',
 };
 
+it.each([
+  'https://rating.example.test',
+  'https://admin.example.test, https://rating.example.test ',
+])('rejects a public rating origin in authentication trust: %s', (origins) => {
+  const attempt = () =>
+    readConfig({
+      ...valid,
+      RATING_PAGE_ORIGIN: 'https://rating.example.test',
+      AUTH_TRUSTED_ORIGINS: origins,
+    });
+  expect(attempt).toThrow(/RATING_PAGE_ORIGIN/);
+  expect(attempt).not.toThrow('https://rating.example.test');
+});
+
+it.each(['production', 'staging', undefined])('requires HTTPS outside dev/test: %s', (NODE_ENV) => {
+  expect(() =>
+    readConfig({ ...valid, NODE_ENV, RATING_PAGE_ORIGIN: 'http://localhost:3001' }),
+  ).toThrow(/RATING_PAGE_ORIGIN/);
+  expect(
+    readConfig({ ...valid, NODE_ENV, RATING_PAGE_ORIGIN: 'https://rating.example.test' })
+      .RATING_PAGE_ORIGIN,
+  ).toBe('https://rating.example.test');
+});
+
+it.each(['development', 'test'])('allows HTTP for explicit %s', (NODE_ENV) => {
+  expect(
+    readConfig({ ...valid, NODE_ENV, RATING_PAGE_ORIGIN: 'http://localhost:3001' })
+      .RATING_PAGE_ORIGIN,
+  ).toBe('http://localhost:3001');
+});
+
+it('keeps public rating origin independent of authentication trust and disabled by default', () => {
+  expect(readConfig(valid).RATING_PAGE_ORIGIN).toBe('');
+  const config = readConfig({
+    ...valid,
+    RATING_PAGE_ORIGIN: 'https://rating.example.test',
+    AUTH_TRUSTED_ORIGINS: 'https://admin.example.test',
+  });
+  expect(config.RATING_PAGE_ORIGIN).toBe('https://rating.example.test');
+  expect(config.AUTH_TRUSTED_ORIGINS).toEqual(['https://admin.example.test']);
+});
+
+it.each([
+  '*',
+  'null',
+  'https://rating.example.test/path',
+  'https://rating.example.test/',
+  'https://rating.example.test?x=1',
+  'https://rating.example.test#x',
+  'https://user:pass@rating.example.test',
+  'https://one.test,https://two.test',
+])('rejects a non-origin public CORS value: %s', (origin) => {
+  const attempt = () => readConfig({ ...valid, RATING_PAGE_ORIGIN: origin });
+  expect(attempt).toThrow(/RATING_PAGE_ORIGIN/);
+  expect(attempt).not.toThrow(origin);
+});
+
 describe('readConfig', () => {
   it('applies defaults', () => {
     expect(readConfig(valid)).toMatchObject({
