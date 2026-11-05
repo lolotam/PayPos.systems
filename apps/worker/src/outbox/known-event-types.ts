@@ -6,8 +6,6 @@ export const KNOWN_EVENT_TYPES = [
   'SessionTipsChanged',
   // spec 058 TD-7: يُسجَّل قبل المنتج (42-3) والمستهلك (50-4) حتى لا يُعاد محاولة حدث نُشر قبل صف 50.
   'PackageSaleChanged',
-  // spec 058 47-1a: النوع معروف قبل مستهلك 47-1b؛ مسارات الإنتاج تفضل 404 لحد تفعيله.
-  'PackageImportPreviewRequested',
   // spec 057: يُسجَّل قبل مستهلك الجرس (057-3) ومنتج الطلب (057-4b) حتى لا يُعاد محاولة حدث نُشر قبل المستهلك.
   'DiscountApprovalRequested',
   'DiscountApprovedByPerformer',
