@@ -60,6 +60,7 @@ export function checkMigrationChain(journal, sqlFiles, snapshots) {
 function checkSnapshots(snapshots) {
   const errors = [];
   const ids = new Map();
+  const rootId = '00000000-0000-0000-0000-000000000000';
   let previous;
   for (const [idx, snapshot] of [...snapshots].sort(([a], [b]) => a - b)) {
     const file = snapshotFile(idx);
@@ -77,6 +78,9 @@ function checkSnapshots(snapshots) {
       );
     }
     if (valid(snapshot?.id)) ids.set(snapshot.id, file);
+    if (!previous && snapshot?.prevId !== rootId) {
+      errors.push(`${file} prevId: expected ${rootId} (root), actual ${snapshot?.prevId}`);
+    }
     if (
       previous &&
       valid(snapshot?.prevId) &&

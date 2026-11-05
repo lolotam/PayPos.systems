@@ -3,6 +3,8 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { checkMigrationChain, readMigrationChain } from './check.mjs';
 
+const rootId = '00000000-0000-0000-0000-000000000000';
+
 function fixture() {
   return [
     {
@@ -13,7 +15,7 @@ function fixture() {
     },
     ['0000_first.sql', '0001_second.sql'],
     new Map([
-      [0, { id: 'first', prevId: 'root' }],
+      [0, { id: 'first', prevId: rootId }],
       [1, { id: 'second', prevId: 'first' }],
     ]),
   ];
@@ -91,7 +93,10 @@ test('migration chain cases', () => {
           const tag = `${String(idx).padStart(4, '0')}_migration`;
           journal.entries.push({ idx, tag });
           sql.push(`${tag}.sql`);
-          snapshots.set(idx, { id: String(idx), prevId: String(idx === 120 ? 117 : idx - 1) });
+          snapshots.set(idx, {
+            id: String(idx),
+            prevId: idx === 0 ? rootId : String(idx === 120 ? 117 : idx - 1),
+          });
         }
       },
       [],
@@ -159,7 +164,10 @@ test('migration chain cases', () => {
         journal.entries.push({ idx, tag });
         sql.push(`${tag}.sql`);
         if (idx !== 129) {
-          snapshots.set(idx, { id: String(idx), prevId: String(idx === 120 ? 117 : idx - 1) });
+          snapshots.set(idx, {
+            id: String(idx),
+            prevId: idx === 0 ? rootId : String(idx === 120 ? 117 : idx - 1),
+          });
         }
       }
       snapshots.get(130).prevId = 'nonexistent';
@@ -178,6 +186,14 @@ test('migration chain cases', () => {
       assert.ok(errors[idx].includes(message), name + ': ' + errors[idx]),
     );
   }
+});
+
+test('root snapshot rejects a non-root prevId', () => {
+  const data = fixture();
+  data[2].get(0).prevId = 'second';
+  assert.deepEqual(checkMigrationChain(...data), [
+    `meta/0000_snapshot.json prevId: expected ${rootId} (root), actual second`,
+  ]);
 });
 
 test('repository migration chain is valid', () => {
