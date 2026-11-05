@@ -7,11 +7,26 @@ const at = new Date('2026-10-15T08:00:00.000Z');
 const recorder = '01990000-0000-7000-8000-000000000007';
 const canceller = '01990000-0000-7000-8000-000000000009';
 
+it('RC-01 cancellation retains the package identity and the slot list price', () => {
+  const { record, line } = sample();
+  line.list_price = 1000n;
+  line.price = 1000n;
+  line.net = 1000n;
+  line.redemption = { id: line.id, entitlement_id: record.id, component_id: line.service.id,
+    slot_id: line.id, ordinal: 2 };
+  const payload = lineCancelEvent({ record, line,
+    previous: { revision: 1, price: 1000n, discount: 0n, net: 1000n },
+    canceller: { userId: canceller, membershipId: canceller, at } });
+  expect(serviceLineChanged.parse(payload)).toEqual(payload);
+  expect(payload.list_price).toBe('1.000');
+  expect(payload.package).toEqual({ entitlement_id: record.id, component_id: line.service.id, ordinal: 2 });
+});
+
 function sample(): { record: SessionRecord; line: SessionLine } {
   const line: SessionLine = {
     id: '01990000-0000-7000-8000-000000000001', session_id: '01990000-0000-7000-8000-000000000002', input_index: 0, ordinal: 1,
     status: 'CANCELLED', revision: 2, service: { id: '01990000-0000-7000-8000-000000000003', name_en: 'Noura Colour', name_ar: null, price: 25000n, rule: { kind: 'FOLLOW_PLAN' }, counts: true, revision: 1 },
-    price: 25000n, discount: 0n, net: 25000n, effective_discount_bps: 0, limit: { source: 'PERSON', bps: 2000 },
+    list_price: 25000n, price: 25000n, discount: 0n, net: 25000n, effective_discount_bps: 0, limit: { source: 'PERSON', bps: 2000 },
     recorded_by: recorder, recorded_by_membership_id: '01990000-0000-7000-8000-000000000008', recorded_at: at, late: false,
     has_performer_warning: false, explicit_unequal_shares: false, performer_ids: ['01990000-0000-7000-8000-00000000000c'],
     performers: [{ employee: { id: '01990000-0000-7000-8000-00000000000b', name_en: 'Noura', name_ar: 'نورة', user_id: null, eligible: true, clocked_in: true, approved_leave: false }, share_bps: 10000, not_clocked_in_warning: false, approved_leave_warning: false }],

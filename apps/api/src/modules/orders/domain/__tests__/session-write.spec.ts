@@ -8,7 +8,7 @@ import { sessionDrafts } from '../session-drafts.ts';
 import type { SessionDraft, SessionEmployee, SessionRecord, SessionService } from '../session-types.ts';
 const employee: SessionEmployee = { id: 'employee', name_en: 'Synthetic', name_ar: null, user_id: null, eligible: true, clocked_in: false, approved_leave: true };
 const service: SessionService = { id: 'service', name_en: 'Synthetic', name_ar: null, price: 7125n, rule: { kind: 'FIXED', value: 2500n }, counts: true, revision: 2 };
-const draft: SessionDraft = { service_id: 'service', price: 7125n, discount: { kind: 'PERCENT', bps: 1000 }, performers: [{ employee_id: 'employee' }] };
+const draft: SessionDraft = { input_index: 0, service_id: 'service', price: 7125n, discount: { kind: 'PERCENT', bps: 1000 }, performers: [{ employee_id: 'employee' }] };
 const messages = { message_ar: 'synthetic-ar', message_en: 'synthetic-en' };
 const at = new Date('2026-10-15T08:00:00Z');
 const prepared = () => prepareSessionLines([draft], [service], [employee], 'recorder')[0];
@@ -25,9 +25,9 @@ it('decimal drafts preserve exact mills, discount kind and performer input order
   expect(sessionDrafts([
     { service_id: 'service', price: '99999999999.999', discount: { kind: 'AMOUNT', amount: '0.001' }, performers },
     { service_id: 'service', price: '7.125', discount: { kind: 'PERCENT', bps: 1000 }, performers },
-  ])).toEqual([
-    { service_id: 'service', price: 99999999999999n, discount: { kind: 'AMOUNT', amount: 1n }, performers },
-    { service_id: 'service', price: 7125n, discount: { kind: 'PERCENT', bps: 1000 }, performers },
+  ]).paid).toEqual([
+    { input_index: 0, service_id: 'service', price: 99999999999999n, discount: { kind: 'AMOUNT', amount: 1n }, performers },
+    { input_index: 1, service_id: 'service', price: 7125n, discount: { kind: 'PERCENT', bps: 1000 }, performers },
   ]);
 });
 it('CANCELLED lines remain in history and consume ordinal capacity but contribute no net or overflow', () => {

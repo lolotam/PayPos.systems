@@ -30,6 +30,7 @@ const line = (
 ): PreparedSessionLine => ({
   input_index: inputIndex,
   service: service(serviceId),
+  list_price: price,
   price,
   discount,
   net: price - discount,

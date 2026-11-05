@@ -5,18 +5,24 @@ import { appendServiceSessionLinesInput, packageSessionLineInput, recordServiceS
 const id='01920000-0000-7000-8000-000000004001';
 const draft={ service_id:id,package:{ entitlement_id:id },performers:[{ employee_id:id }] };
 const paid={ service_id:id,price:'1.000',discount:{ kind:'AMOUNT',amount:'0.000' },performers:draft.performers,discount_proposal_id:id };
-it('accepts strict standalone package and paid drafts, while routes remain paid-only', () => {
+it('accepts strict standalone package and paid drafts, and both routes take the union', () => {
   expect(sessionLineDraft.parse(draft)).toEqual(draft);
   expect(sessionLineDraft.parse(paid)).toEqual(paid);
   for (const schema of [recordServiceSessionInput,appendServiceSessionLinesInput]) {
     const body=schema === recordServiceSessionInput ? { customer_id:id,lines:[draft] } : { lines:[draft] };
-    expect(schema.safeParse(body).success).toBe(false);
+    expect(schema.safeParse(body).success).toBe(true);
+    const mixed=schema === recordServiceSessionInput ? { customer_id:id,lines:[paid,draft] } : { lines:[paid,draft] };
+    expect(schema.safeParse(mixed).success).toBe(true);
   }
 });
 it.each([{ price:'1.000' },{ discount:{ kind:'AMOUNT',amount:'0.000' } },{ discount_proposal_id:id },
   { package:{ entitlement_id:id,component_id:id } },{ package:{ entitlement_id:id,ordinal:1 } },{ extra:true }])('refuses mixed or extra package draft %j', (extra) => {
   expect(packageSessionLineInput.safeParse({ ...draft,...extra }).success).toBe(false);
   expect(sessionLineDraft.safeParse({ ...draft,...extra }).success).toBe(false);
+  for (const schema of [recordServiceSessionInput,appendServiceSessionLinesInput]) {
+    const body=schema === recordServiceSessionInput ? { customer_id:id,lines:[{ ...draft,...extra }] } : { lines:[{ ...draft,...extra }] };
+    expect(schema.safeParse(body).success).toBe(false);
+  }
 });
 const line={ line_id:id,session_id:id,service_id:id,branch_id:id,business_id:id,customer_id:id,status:'ACTIVE',
   occurred_at:'2026-11-05T00:00:00.000Z',recorded_at:'2026-11-05T00:00:00.000Z',business_date:'2026-11-05',late:false,

@@ -96,6 +96,7 @@ function visitLine(net: bigint, status: 'ACTIVE' | 'CANCELLED'): SessionLine {
       counts: true,
       revision: 1,
     },
+    list_price: 25000n,
     price: 25000n,
     discount: 25000n - net,
     net,

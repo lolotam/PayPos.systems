@@ -77,10 +77,17 @@ export class CancelServiceLineUseCase {
 
   private async cancel(tx: LineCancelTransaction, context: CancelContext) {
     const locked = await this.loadLocked(tx, context);
-    const decision = await this.decide(tx, context, locked);
+    let decision = await this.decide(tx, context, locked);
+    const cancellationId = this.ids.newId();
+    if (locked.line.redemption_id !== null) {
+      const redemption = await tx.lines.lockRedemptionComponent({ sessionId: context.sessionId,
+        lineId: context.lineId, redemptionId: locked.line.redemption_id });
+      decision = await this.decide(tx, context, locked);
+      await tx.lines.reverseRedemption({ ...redemption, cancellationId, at: decision.at });
+    }
     const updated = await tx.lines.cancelLine(context.sessionId, context.lineId, context.input.expected_revision);
     if (!updated.changed) return this.refuseStale(tx, context);
-    return this.persist(tx, context, locked.line, decision, updated.revision);
+    return this.persist(tx, context, locked.line, decision, updated.revision, cancellationId);
   }
 
   private async loadLocked(tx: LineCancelTransaction, context: CancelContext): Promise<LockedCancel> {
@@ -125,8 +132,8 @@ export class CancelServiceLineUseCase {
     line: LockedServiceLine,
     decision: CancelDecision,
     revision: number,
+    cancellationId: string,
   ) {
-    const cancellationId = this.ids.newId();
     const names = await tx.editors.read(context.userId);
     await tx.lines.insertCancellation(context.sessionId, context.lineId, cancellationInsert(cancellationId, line, decision, revision, names, context.userId));
     const record = await tx.lines.loadSession(context.sessionId);
@@ -156,7 +163,7 @@ function cancelFacts(
     actor_user_id: context.userId,
     performers,
     preparation: {
-      line: { status: line.status, revision: line.revision, price: line.price, discount: line.discount, net: line.net, not_cancellable: line.redemption_id !== null },
+      line: { status: line.status, revision: line.revision, price: line.price, discount: line.discount, net: line.net, not_cancellable: false },
       expected_revision: context.input.expected_revision,
       business_date: line.business_date,
       now: at,

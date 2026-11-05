@@ -24,6 +24,10 @@ const PERFORMERS_UNPROCESSABLE = new Set<string>([
   'SESSION_PERFORMERS_NO_CHANGE', 'SESSION_PERFORMERS_REASON_INVALID',
   'SESSION_CHANGER_MEMBERSHIP_REQUIRED', 'SESSION_LINE_PERFORMERS_NOT_CHANGEABLE',
 ]);
+// رفض الباقة ليس شكلياً: الباقة منتهية أو لم تُبَع بعد أو ليست لهذا العميل، فترد 422 حتى مع فلتر 400.
+const PACKAGE_UNPROCESSABLE = new Set<string>([
+  'PACKAGE_EXPIRED', 'PACKAGE_NOT_YET_VALID', 'PACKAGE_NOT_USABLE_HERE',
+]);
 
 function sessionErrorHttpStatus(code: string, invalidStatus: number): number {
   if (code === 'SESSION_PERFORMER_SELF_FORBIDDEN') return 403;
@@ -31,7 +35,9 @@ function sessionErrorHttpStatus(code: string, invalidStatus: number): number {
   // جلسة مجهولة أو خارج الفرع 404 بلا تمييز، وتعارض مراجعة البقشيش 409 مثل تعارض سطر.
   if (code === 'SESSION_RECOVERY_NOT_FOUND' || code === 'SESSION_NOT_FOUND') return 404;
   if (code === 'SESSION_RECOVERY_NOT_YET' || code === 'SESSION_RECOVERY_CLOSED' || code === 'SESSION_LINE_REVISION_STALE' || code === 'TIP_REVISION_CONFLICT') return 409;
-  if (EDIT_UNPROCESSABLE.has(code) || TIP_UNPROCESSABLE.has(code) || CANCEL_UNPROCESSABLE.has(code) || PERFORMERS_UNPROCESSABLE.has(code)) return 422;
+  // الجلسة الحرة اتسحبت من زيارة أخرى، فالتعارض 409؛ سواها 422.
+  if (code === 'PACKAGE_NO_FREE_SESSION' || code === 'PACKAGE_REDEMPTION_ALREADY_REVERSED') return 409;
+  if (EDIT_UNPROCESSABLE.has(code) || TIP_UNPROCESSABLE.has(code) || CANCEL_UNPROCESSABLE.has(code) || PERFORMERS_UNPROCESSABLE.has(code) || PACKAGE_UNPROCESSABLE.has(code)) return 422;
   return invalidStatus;
 }
 

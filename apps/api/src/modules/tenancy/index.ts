@@ -10,4 +10,5 @@ export { businessDiscountScope } from './queries/business-discount-scope.query.t
 export { businessCalendar, businessTimeZone } from './queries/business-time-zone.query.ts';
 export { businessNames, businessNamesByIds } from './queries/business-names.query.ts';
 export { activeBusinessTimeZone } from './queries/active-business-time-zone.query.ts';
+export { packageSalePlace } from './queries/package-sale-place.query.ts';
 export { attendanceBranch } from './queries/attendance-branch.query.ts';

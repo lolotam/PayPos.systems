@@ -43,7 +43,7 @@ Do not introduce a different NestJS module style for this slice. Readers added t
 | `PerformerCheckPort` | new staff `readSessionPerformers` | `performer-check.adapter.ts` | Port declared; extend facts for SS-Q2/8; add import orders → staff and the symbol read |
 | `DiscountLimitPort` | existing settings `readEffectiveDiscountLimit` | `discount-limit.adapter.ts` | New read port orders → settings; add import orders → settings and the symbol read |
 | `SessionRecordAccessPort` | new identity `lockServiceSessionAccess`, `readServiceSessionAccess` | `session-record-access.adapter.ts` | New authorization read port orders → identity; add import orders → identity and both symbol reads |
-| `SessionPlacePort` | existing tenancy `businessTimeZone`, `describeWorkspaces` | `session-place.adapter.ts` | Import orders → tenancy already declared; add the port row and both symbol reads |
+| `SessionPlacePort` | existing tenancy `businessTimeZone`, `describeWorkspaces`; `packageSalePlace` added by the 2026-11-05 addendum below | `session-place.adapter.ts` | Import orders → tenancy already declared; add the port row and both symbol reads |
 
 Catalog returns bounded batches of services in the confirmed business: list price, names, revision,
 `FOLLOW_PLAN | ZERO | PCT | FIXED` rule and threshold flag. It reads `services`, not Phase 2 items/prices;
@@ -381,6 +381,52 @@ The edit of a saved line's price/discount reuses `ServiceLineChanged` with an ad
 rings the branch's managers through a worker `orders` consumer and a new `ServiceLineEditNoticeRequested` event
 (ED-Q6, issue #189). The decision, the rejected alternatives and the reason the new `orders → notifications` event
 arrow is allowed are in [ADR-0044](0044-service-line-price-edit-event-and-bell.md); the plan is `plan-35d.md`.
+
+## Addendum 2026-11-05 — 43-2 the serving branch's effective timezone
+
+Row 43-2 redeems a package session inside a recorded visit (spec 058, plan `plan-43-2.md`).
+
+ADR-0041 §1 said "Tenancy confirms the route business/branch relationship and supplies only the
+business timezone for orders' accounting dates/window" and "Orders never needs the branch
+timezone". **That sentence no longer holds for package redemptions.** The package's expiry is
+compared against the visit's local date **in the serving branch's timezone** (owner answer
+PK-Q7), not the business timezone: a branch may sit in its own region, and the visit's day is
+the day where the service was performed. The business timezone still owns the accounting date
+(`business_date`), the recording window and the event's `business_timezone` snapshot, so the two
+are deliberately different readings and are both kept.
+
+**Decision.** Tenancy grows one narrow read, `packageSalePlace(tx, companyId, businessId,
+branchId)`, returning `COALESCE(b.timezone, bu.timezone)` — the branch's effective timezone, or
+the business one when the branch has no region of its own. It reuses the shape of the existing
+`activeBusinessTimeZone` read: it proves the company is not deleted, the business belongs to it,
+the branch belongs to that business and the branch is active, and it returns `null` otherwise.
+`SessionPlacePort` keeps `read()` (the business timezone, as before) and grows a second,
+separate read, `branchTimezone()`, for the branch's effective timezone. They are not merged on
+purpose: the business timezone is read on every visit, while the branch's is read **only when
+the request carries a package draft and only after the redemption locks**, so a paid visit pays
+no query for a fact it does not need, and a package visit never decides the expiry on a reading
+taken before a lock wait.
+
+**Map amendment.** §6 gains one `reads:` row:
+
+```
+- orders -> tenancy.packageSalePlace @ apps/api/src/modules/orders/persistence/session-place.adapter.ts
+```
+
+The import edge `orders → tenancy` was already declared; this ADR authorizes the **named
+symbol read** and the adapter that binds it, following the same pattern as the
+`SessionPlacePort` row in §1. `pnpm module-map:generate` writes the matching YAML.
+
+**Rejected alternatives.** (1) Reuse the business timezone for the expiry: it refuses a valid
+visit for a branch in another region near midnight, which is the defect Astra's review of the
+43-2 plan found. (2) Let orders read the `branches` table itself: that breaks the module map and
+gives orders a second source of branch facts. (3) Let the client send the local date: the client
+is not trusted to decide validity. The branch's effective timezone is the only reading the
+server can derive and defend.
+
+**Consequences.** The query is small, indexed on the branch primary key, and carries a
+result-shape test plus an `EXPLAIN ANALYZE` assertion (CLAUDE.md §9). `activeBusinessTimeZone`
+keeps its shared meaning and its other callers; no other port changes.
 
 ## Addendum 2026-11-01 — SS-Q1b
 

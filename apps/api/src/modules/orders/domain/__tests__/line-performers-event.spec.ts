@@ -7,11 +7,28 @@ const at = new Date('2026-10-15T08:00:00.000Z');
 const recorder = '01990000-0000-7000-8000-000000000007';
 const changer = '01990000-0000-7000-8000-000000000009';
 
+it('RC-07 performer changes retain the package identity and the slot list price', () => {
+  const { record, line } = sample();
+  line.list_price = 1000n;
+  line.price = 1000n;
+  line.net = 1000n;
+  line.redemption = { id: line.id, entitlement_id: record.id, component_id: line.service.id,
+    slot_id: line.id, ordinal: 3 };
+  const payload = linePerformersEvent({ record, line,
+    previous: { revision: 1, performers: line.performers.map((performer) => ({
+      employee_id: performer.employee.id, share_bps: performer.share_bps,
+    })) },
+    changer: { userId: changer, membershipId: changer, at } });
+  expect(serviceLineChanged.parse(payload)).toEqual(payload);
+  expect(payload.list_price).toBe('1.000');
+  expect(payload.package).toEqual({ entitlement_id: record.id, component_id: line.service.id, ordinal: 3 });
+});
+
 function sample(): { record: SessionRecord; line: SessionLine } {
   const line: SessionLine = {
     id: '01990000-0000-7000-8000-000000000001', session_id: '01990000-0000-7000-8000-000000000002', input_index: 0, ordinal: 1,
     status: 'ACTIVE', revision: 2, service: { id: '01990000-0000-7000-8000-000000000003', name_en: 'Noura Colour', name_ar: null, price: 25000n, rule: { kind: 'FOLLOW_PLAN' }, counts: true, revision: 1 },
-    price: 25000n, discount: 0n, net: 25000n, effective_discount_bps: 0, limit: { source: 'PERSON', bps: 2000 },
+    list_price: 25000n, price: 25000n, discount: 0n, net: 25000n, effective_discount_bps: 0, limit: { source: 'PERSON', bps: 2000 },
     recorded_by: recorder, recorded_by_membership_id: '01990000-0000-7000-8000-000000000008', recorded_at: at, late: false,
     has_performer_warning: false, explicit_unequal_shares: false, performer_ids: ['01990000-0000-7000-8000-00000000000e', '01990000-0000-7000-8000-00000000000b'],
     performers: [
