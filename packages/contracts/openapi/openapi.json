@@ -26229,6 +26229,52 @@
         ],
         "additionalProperties": false
       },
+      "PackageSessionLineInput": {
+        "type": "object",
+        "properties": {
+          "service_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "package": {
+            "type": "object",
+            "properties": {
+              "entitlement_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              }
+            },
+            "required": [
+              "entitlement_id"
+            ],
+            "additionalProperties": false
+          },
+          "performers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionPerformerInput"
+            }
+          }
+        },
+        "required": [
+          "service_id",
+          "package",
+          "performers"
+        ],
+        "additionalProperties": false
+      },
+      "SessionLineDraft": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/SessionLineInput"
+          },
+          {
+            "$ref": "#/components/schemas/PackageSessionLineInput"
+          }
+        ]
+      },
       "RecordServiceSessionInput": {
         "type": "object",
         "properties": {
@@ -27930,11 +27976,31 @@
             "type": "boolean"
           },
           "package": {
-            "type": "string",
             "nullable": true,
-            "enum": [
-              null
-            ]
+            "type": "object",
+            "properties": {
+              "entitlement_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "component_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "ordinal": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 365
+              }
+            },
+            "required": [
+              "entitlement_id",
+              "component_id",
+              "ordinal"
+            ],
+            "additionalProperties": false
           },
           "revision": {
             "type": "integer",
@@ -28280,11 +28346,31 @@
             "type": "boolean"
           },
           "package": {
-            "type": "string",
             "nullable": true,
-            "enum": [
-              null
-            ]
+            "type": "object",
+            "properties": {
+              "entitlement_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "component_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "ordinal": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 365
+              }
+            },
+            "required": [
+              "entitlement_id",
+              "component_id",
+              "ordinal"
+            ],
+            "additionalProperties": false
           },
           "revision": {
             "type": "number",

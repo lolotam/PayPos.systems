@@ -4955,6 +4955,16 @@ export interface components {
             /** Format: uuid */
             discount_proposal_id?: string;
         };
+        PackageSessionLineInput: {
+            /** Format: uuid */
+            service_id: string;
+            package: {
+                /** Format: uuid */
+                entitlement_id: string;
+            };
+            performers: components["schemas"]["SessionPerformerInput"][];
+        };
+        SessionLineDraft: components["schemas"]["SessionLineInput"] | components["schemas"]["PackageSessionLineInput"];
         RecordServiceSessionInput: {
             /** Format: uuid */
             customer_id: string;
@@ -5372,8 +5382,13 @@ export interface components {
             }[];
             rule_snapshot: components["schemas"]["ServiceCommissionRule"];
             counts_snapshot: boolean;
-            /** @enum {string|null} */
-            package: null;
+            package: {
+                /** Format: uuid */
+                entitlement_id: string;
+                /** Format: uuid */
+                component_id: string;
+                ordinal: number;
+            } | null;
             revision: number;
             change?: {
                 /** @enum {string} */
@@ -5460,8 +5475,13 @@ export interface components {
             }[];
             rule_snapshot: components["schemas"]["ServiceCommissionRule"];
             counts_snapshot: boolean;
-            /** @enum {string|null} */
-            package: null;
+            package: {
+                /** Format: uuid */
+                entitlement_id: string;
+                /** Format: uuid */
+                component_id: string;
+                ordinal: number;
+            } | null;
             /** @enum {number} */
             revision: 1;
         };
