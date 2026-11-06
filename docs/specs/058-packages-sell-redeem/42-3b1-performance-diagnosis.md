@@ -68,3 +68,120 @@ Further diagnosis/correction remains authorized within b1. Consult the required 
 on safe next investigation before any broader storage/contract proposal. Remaining races,
 permission regression, rollback/replay coverage, local gates and independent Astra review
 are not complete. No readiness, waiver or correction-budget reset is claimed.
+
+## Follow-up evidence after the advisor consultation
+
+The PP-136 advisor suggested checking complete phases, current-writer instrumentation and
+nested FK plans before any storage proposal. It disclosed incomplete governing-document
+reads; this advice is not the independent Astra review. Its expectation that the component
+FK already used a single-key lookup was contradicted by the subsequent actual nested plans.
+
+The unchanged full benchmark was repeated with JSONB: `926.6503, 1889.5157, 2479.8693,
+2818.0740, 2656.7041 ms`; all five failed. The three persistence tests passed again.
+Large variation means separate-run differences do not establish a causal speedup.
+The complete first measured transaction is saved, with placeholder-only statement labels,
+at `F:/Dev/Temp/pospay-42b1-phases-93448-1.json`. Its total was 926.6503 ms:
+
+| Phase | ms |
+| --- | ---: |
+| Transaction entry | 3.7795 |
+| Initial place read | 2.5616 |
+| Initial membership / permissions / feature awaits (overlap) | 5.7505 / 10.0925 / 13.1346 |
+| Idempotency lock-timeout read / claim / restore | 2.6597 / 3.2532 / 2.3733 |
+| Company / membership locks | 2.4621 / 2.4841 |
+| Package type / components reads | 2.6825 / 2.1875 |
+| Service locks / snapshots | 2.4092 / 2.4208 |
+| Seller lock | 2.3196 |
+| Fresh membership / permissions / feature awaits (overlap) | 5.1035 / 9.4280 / 11.4240 |
+| Fresh place / customer | 2.3179 / 2.1852 |
+| Performer company / scope / employee reads | 1.1390 / 4.3770 / 3.8145 |
+| Discount company / membership / business-setting locks | 2.2922 / 2.1277 / 2.3632 |
+| Discount business scopes / database clock / effective limit | 2.6129 / 1.1658 / 3.0163 |
+| Entitlement / component / slot INSERTs | 3.9160 / 36.4853 / 683.1392 |
+| Audit / outbox lock / outbox INSERT / saved response | 4.1470 / 1.9115 / 2.0434 / 2.9554 |
+| COMMIT and return | 47.6653 |
+
+Await intervals are not additive CPU time. Unaccounted total time also contains application
+work, driver work and scheduling; it is not attributed to a particular function without measurement.
+
+Current-writer EXPLAIN was repeated with every constraint enabled. In the later run,
+TIMING ON reported 1069.745 ms server execution, 1130.5906 ms client await; TIMING OFF
+reported 923.690 ms and 966.3641 ms. Earlier values were 1916.027 / 2033.4551 ms ON and
+1575.009 / 1683.6688 ms OFF. These ordered samples establish that removing per-node timing
+alone does not make this statement pass; they do not isolate instrumentation cost precisely.
+Safe artifacts: `F:/Dev/Temp/pospay-42b1-slot-profile-54964-true.json` and `-false.json`.
+
+Nested auto_explain ran on a new **pospay_app** connection in the disposable test clone.
+Only the owner setup connection set database-local preload/logging defaults; they were reset
+in finally, the restricted connection passed ping(), and the clone/cluster were removed.
+No FK, RLS, trigger or constraint was disabled. The diagnostic committed 7,300 rows.
+The three diagnostic cases passed. These instrumented timings are not accepted SA-10 results.
+
+The safe extracted summary `F:/Dev/Temp/pospay-42b1-nested-summary.json` shows:
+
+- Company RI uses `companies_pkey`, one returned row and one loop (7,325 checks across
+  all sale tables, including the 7,300 slot checks).
+- All 7,300 component RI checks use `package_components_entitlement_fk_idx`, not the
+  existing unique component identity index. The index condition fixes company/business/
+  entitlement; `id` is a filter. Rows removed are 0 through 19, each repeated 365 times:
+  69,350 rejected rows in total. Every lookup returns one row in one loop.
+- Thus a real alternative plan remains to investigate. The next bounded diagnostic compares
+  transaction-local generic/custom plan modes with constraints intact, before proposing any
+  schema change. No production planner setting has been changed or accepted as a fix.
+
+## Bounded plan-cache experiment and proposed dependency
+
+The next diagnostic compared transaction-local plan-cache modes on the actual JSONB slot
+INSERT, with TIMING OFF, all constraints enabled, and the same 7,300 committed rows.
+`force_generic_plan` reported 1850.616 ms server execution / 2015.9435 ms client await;
+`force_custom_plan` reported 4787.484 / 4903.7232 ms. All three diagnostic cases passed
+their data checks. These are separate diagnostic sales, not passing performance tests.
+The default nested-plan case was also repeated; no planner GUC is proposed for production.
+Artifacts: `F:/Dev/Temp/pospay-42b1-slot-profile-85856-force_generic_plan.json` and
+`-force_custom_plan.json`. Host/run variation precludes ranking these against other runs.
+
+There is now a concrete storage dependency candidate, not a request to waive 200 ms:
+
+1. Investigate the redundant parent index `package_components_entitlement_fk_idx`
+   `(company_id,business_id,entitlement_id)`. The existing unique index backing
+   `package_components_entitlement_id_key` begins with those same three columns and adds
+   `id`; it can support the reverse entitlement lookup while testing all four RI predicates.
+2. In an explicitly authorized disposable-clone experiment, measure removing only that
+   redundant non-constraint index. Capture actual nested RI plans, including filters and
+   rows visited. If the planner chooses another partial-predicate index, investigate its
+   cost before choosing a storage correction. Never remove or weaken any FK/RLS/seal.
+3. Only if that experiment is useful, let the manager assign a storage-owner migration
+   dependency: index correction, schema/snapshot alignment where applicable, reverse-FK
+   EXPLAIN coverage, and company/business/entitlement negative-FK tests. Preliminary size
+   allowance: 80–140 handwritten lines plus generated artifacts, to be measured before
+   approval; no migration number or migration file has been allocated here.
+4. After the dependency lands, merge main normally and run the unchanged complete SA-10
+   benchmark. Only then resume the remaining b1 race/replay/rollback/access tests and gates.
+
+This is a targeted plan issue, not proof that fixing it alone can meet 200 ms. Company RI,
+application work and commit work remain measured costs. No hardware-independent lower bound,
+impossibility claim, contract change, data reduction, asynchronous sale or relaxed assertion
+is proposed. Any further storage/contract proposal needs its own evidence and decision.
+
+The manager's no-migration boundary means this storage experiment/correction is handed back
+before implementation. b1 remains unready; no PR, b2 route, storage DDL or migration was added
+to the product. Disposable-clone logging settings were reset and owned temporary clusters
+were removed; original env files were restored without reading their contents.
+
+## Local validation checkpoint
+
+- The nine existing isolated sell-package use-case tests passed using an explicit narrow
+  unit config without database setup. The three existing persistence tests passed in the
+  latest normal benchmark run; SA-10 itself remains failed, with no assertion changed.
+- Targeted lint passed for the diagnostic helpers/config and the sale place adapter/port.
+  An initial max-lines-per-function finding in the diagnostic was fixed by extracting its
+  EXPLAIN/artifact responsibility into a named helper, without line compression.
+- API typecheck initially found that main expanded SessionPlacePort with branchTimezone.
+  The sale adapter and transaction now use a documented Pick of read, the sole capability
+  sale consumes; no new read or runtime behavior was introduced. Other initial errors
+  referenced stale contracts/i18n build outputs after merging main; both packages were rebuilt.
+  The repeated `pnpm --filter @pospay/api typecheck` then passed.
+- `pnpm lint:docs` passed with 0 errors and 29 existing TODO warnings.
+- `pnpm module-map:check` passed. `git diff --check` passed.
+- Full slice lint, remaining real-DB acceptance tests, guard passes and independent Astra
+  review remain incomplete. These checkpoint checks are not a readiness declaration.

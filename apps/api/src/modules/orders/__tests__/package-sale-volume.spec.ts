@@ -1,4 +1,7 @@
 import { performance } from 'node:perf_hooks';
+import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { sellPackageInput, packageSaleChanged } from '@pospay/contracts';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
@@ -44,7 +47,14 @@ it('SA-10 commits 7,300 slots in three financial inserts, each of five warm full
     const started = performance.now();
     const response = await useCase.execute(context, input);
     const elapsed = performance.now() - started;
-    console.info('SA-10 SQL/commit profile:', JSON.stringify({ attempt, elapsed, phases: profile.phases }));
+    console.info(
+      'SA-10 SQL/commit profile:',
+      JSON.stringify({ attempt, elapsed, phases: profile.phases }),
+    );
+    writeFileSync(
+      join(tmpdir(), `pospay-42b1-phases-${process.pid}-${attempt}.json`),
+      JSON.stringify({ attempt, elapsed, phases: profile.phases }, null, 2),
+    );
     if (attempt > 0) durations.push(elapsed);
     for (const table of ['package_entitlements', 'package_components', 'package_session_slots']) {
       expect(

@@ -11,6 +11,9 @@ import type {
 /** خطة البيع المحسوبة في الدومين؛ التخزين والتدقيق والحدث بياخدوا منها كل اللي هيتكتب. */
 export type PackageSalePlan = ReturnType<typeof planPackageSale>;
 
+/** بيع الباقة محتاج قراءة مكان البيع بس، مش عمليات مكان جلسة الخدمة. */
+export type PackageSalePlacePort = Pick<SessionPlacePort, 'read'>;
+
 /** سياق مؤكد من النقل؛ الـ actor ما بييجيش من جسم الطلب. */
 export interface PackageSaleContext {
   companyId: string;
@@ -23,7 +26,7 @@ export interface PackageSaleContext {
 
 /** كل ما يحتاجه بائع الباقة معرّف هنا؛ الـ persistence وحدها تعرف Tx. */
 export interface PackageSaleTransaction {
-  place: SessionPlacePort;
+  place: PackageSalePlacePort;
   access: SessionRecordAccessPort;
   catalog: CatalogReaderPort;
   customer: CustomerLookupPort;

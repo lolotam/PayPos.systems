@@ -1,6 +1,6 @@
 import type { Tx } from '@pospay/db';
 import { packageSalePlace } from '../../tenancy/index.ts';
-import type { SessionPlacePort } from '../ports/session-readers.port.ts';
+import type { PackageSalePlacePort } from '../ports/package-sale-transactions.port.ts';
 
 /**
  * مكان بيع الباقة مقروء من معاملة البيع نفسها؛ التوقيت بيتقرأ من الفرع مع الرجوع للنشاط.
@@ -16,7 +16,7 @@ export function packageSalePlaceAdapter(
   companyId: string,
   businessId: string,
   branchId: string,
-): SessionPlacePort {
+): PackageSalePlacePort {
   return {
     read: async () => {
       const timezone = await packageSalePlace(tx, companyId, businessId, branchId);
