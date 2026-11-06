@@ -510,6 +510,12 @@ called".
   valid because Redis cjson represents empty arrays and objects identically. The historical optional
   `sweepOverflowCount` keeps the existing missing-means-zero behavior of `settle`/`finish`, but is checked when
   present. Released owners may leave retry reservations intact; expired leases and drained pages remain valid.
+  Page progress requires `page.throughId == cursorId`; a cursor requires a page and cannot exceed `upperId`.
+  Remaining journal request IDs are strictly ascending in `(page.fromId, cursorId]`, and work tokens are unique.
+  Settling a tail entry preserves the cursor, so the final remaining entry need not equal it. Enrollment refuses
+  duplicate work tokens with `LIMIT` before writing. A positive `sweepOverflowCount` requires reconciliation;
+  historical cumulative overflow alone does not. Capacity and encoded-byte overflow return `LIMIT` without
+  storing when either overflow counter is already `MAX_SAFE`; numeric cjson encoding remains tracked in #887.
   These cases require real Redis Lua contract tests, including all ten commands and successful lifecycle controls.
 - `an_invalid_job_fails_once_without_retries` — a job whose data fails the contract is an unrecoverable error: it fails once with
   `RATING_CLAIMS_JOB_INVALID` and is not retried.

@@ -115,11 +115,14 @@ if action == 'enrollPage' then
   if fromId ~= nil and fromId ~= cursor then return reply('STALE', version) end
   if upper == nil and #entries > 0 then return reply('LIMIT', version) end
   local previous = nil
+  local tokens = {}
   for _, entry in ipairs(entries) do
     local requestId = entry['requestId']
     local workToken = entry['workToken']
     if type(requestId) ~= 'string' or requestId == '' then return reply('LIMIT', version) end
     if type(workToken) ~= 'string' or workToken == '' then return reply('LIMIT', version) end
+    if tokens[workToken] then return reply('LIMIT', version) end
+    tokens[workToken] = true
     if previous ~= nil and requestId <= previous then return reply('LIMIT', version) end
     if cursor ~= nil and requestId <= cursor then return reply('LIMIT', version) end
     if upper ~= nil and requestId > upper then return reply('LIMIT', version) end

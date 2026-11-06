@@ -7,10 +7,12 @@ export interface StateDamage {
 
 export const REQUEST_A = '019b0000-0000-7000-8000-000000000001';
 export const REQUEST_B = '019b0000-0000-7000-8000-000000000002';
-const REQUEST_C = '019b0000-0000-7000-8000-000000000003';
+export const REQUEST_C = '019b0000-0000-7000-8000-000000000003';
+const BEFORE_A = '019b0000-0000-7000-8000-000000000000';
 const SWEEP = '019b0000-0000-7000-8000-000000000004';
 const PAGE = '019b0000-0000-7000-8000-000000000005';
 const WORK = '019b0000-0000-7000-8000-000000000006';
+const OTHER_WORK = '019b0000-0000-7000-8000-000000000007';
 
 /** لقطة جولة كاملة فيها صفحة وحجز إعادة، حتى نختبر الحقول الاختيارية وهي موجودة. */
 export function sweepingState(acquired: Record<string, unknown>): Record<string, unknown> {
@@ -24,10 +26,13 @@ export function sweepingState(acquired: Record<string, unknown>): Record<string,
     page: {
       pageId: PAGE,
       sweepId: SWEEP,
-      fromId: REQUEST_A,
+      fromId: BEFORE_A,
       throughId: REQUEST_B,
       exhausted: false,
-      entries: [{ requestId: REQUEST_B, workToken: WORK }],
+      entries: [
+        { requestId: REQUEST_A, workToken: WORK },
+        { requestId: REQUEST_B, workToken: OTHER_WORK },
+      ],
     },
     retries: {
       [REQUEST_A]: {
@@ -125,6 +130,43 @@ export const STATE_DAMAGE: readonly StateDamage[] = [
   },
   { name: 'page belongs to another sweep', path: ['page', 'sweepId'], value: PAGE },
   { name: 'cursor without captured bound', path: ['upperId'], value: undefined },
+];
+
+/** R1: لكل تلف مجموعة تقدم متماسكة في بقية الحقول، حتى يثبت الاختبار الفجوة المحددة. */
+export const PAGE_DAMAGE: readonly StateDamage[] = [
+  { name: 'cursor missing with a page', path: ['cursorId'], value: undefined },
+  { name: 'cursor without a page', path: ['page'], value: undefined },
+  { name: 'throughId missing with a cursor', path: ['page', 'throughId'], value: undefined },
+  { name: 'throughId differs from cursor', path: ['page', 'throughId'], value: REQUEST_C },
+  { name: 'fromId beyond cursor', path: ['page', 'fromId'], value: REQUEST_C },
+  { name: 'cursor beyond captured upper bound', path: ['upperId'], value: REQUEST_A },
+  { name: 'entry not after fromId', path: ['page', 'entries', '0', 'requestId'], value: BEFORE_A },
+  { name: 'entry beyond cursor', path: ['page', 'entries', '1', 'requestId'], value: REQUEST_C },
+  {
+    name: 'entries descending',
+    path: ['page', 'entries'],
+    value: [
+      { requestId: REQUEST_B, workToken: WORK },
+      { requestId: REQUEST_A, workToken: OTHER_WORK },
+    ],
+  },
+  {
+    name: 'duplicate request IDs',
+    path: ['page', 'entries'],
+    value: [
+      { requestId: REQUEST_A, workToken: WORK },
+      { requestId: REQUEST_A, workToken: OTHER_WORK },
+    ],
+  },
+  {
+    name: 'duplicate work tokens',
+    path: ['page', 'entries'],
+    value: [
+      { requestId: REQUEST_A, workToken: WORK },
+      { requestId: REQUEST_B, workToken: WORK },
+    ],
+  },
+  { name: 'overflow without reconciliation', path: ['reconcileRequired'], value: false },
 ];
 
 /** حذف الحقل يختبر الغياب الحقيقي؛ null تبقى قيمة JSON مستقلة، وخصوصًا داخل المصفوفات. */

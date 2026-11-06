@@ -11,10 +11,11 @@ or deployment is included. The manager owns the merge. The completed #785 correc
 budget remains exhausted; this separately assigned issue follows the current delivery
 pipeline and does not reopen #785.
 
-The implementation changes only the shared stored-state validator. Every Redis command
-already embeds it and invokes it before fence checks or writes. Existing corruption tests
-and their assertions remain; the shared test helper now checks all ten commands and the
-stored bytes after each command.
+The initial implementation changes the shared stored-state validator. Every Redis command
+already embeds it and invokes it before fence checks or writes. Correction round 1 also
+guards the existing overflow writer and rejects duplicate journal tokens at enrollment.
+Existing corruption tests and their assertions remain; the shared test helper checks all
+ten commands and the stored bytes after each command.
 
 ## Contract and design evidence
 
@@ -97,3 +98,52 @@ exceptions, never assumed complete.
 Issue #840 must land before any scheduler activation issue closes. The seven issues
 #803/#804/#805/#808/#809/#810/#811 remain open and this PR does not activate
 `createRatingClaimsRuntime`. No merge or deployment is performed by this session.
+
+## Correction round 1 of 3
+
+The manager authorized one consolidated correction push after the four panel bots completed
+on `9228e3381f8d8558a9cd7e222409d93f2a001f71`. The full receipt is
+[5799755861](https://github.com/lolotam/PayPos.systems/pull/888#pullrequestreview-5799755861).
+The automatic Codex review also completed without findings on that head; it was not requested
+again. That receipt does not substitute for the resulting head's review requirements.
+
+All four findings are accepted, with the page-progress suggestion adjusted to the actual
+writer contract:
+
+| Finding | Correction and compatibility evidence |
+| --- | --- |
+| [4492160826](https://github.com/lolotam/PayPos.systems/pull/888#discussion_r4492160826) | Validate cursor/page presence, matching through-ID, order and bounds. `settlePage` removes arbitrary entries without moving the cursor; a settled tail or drained page must stay valid. Do not require the final remaining entry to equal the cursor. |
+| [4492160834](https://github.com/lolotam/PayPos.systems/pull/888#discussion_r4492160834) | Reject duplicate stored work tokens as CORRUPT, and reject their enrollment with LIMIT before any write so the writer cannot create a state the validator refuses. |
+| [4492160844](https://github.com/lolotam/PayPos.systems/pull/888#discussion_r4492160844) | Positive sweep overflow requires reconciliation. `begin` resets the sweep counter, while `finish` may clear the flag after a clean sweep despite historical cumulative overflow; the cumulative total is not coupled to the flag. Missing historical sweep counts still mean zero. |
+| [4492160858](https://github.com/lolotam/PayPos.systems/pull/888#discussion_r4492160858) | Both capacity overflow and encoded-byte fallback refuse an increment at either counter's MAX_SAFE boundary, returning LIMIT with the original version and leaving the stored bytes unchanged. |
+
+Writer inspection covered acquire, lease, reserve, sweep and settle. Only enrollment creates
+the journal/cursor pair; settlement removes journal entries but preserves that progress.
+Release and takeover retain the existing reservation semantics. No new protocol, codec,
+migration or activation behavior is introduced. The PP-136 Fable advisor agreed with these
+invariants and added the enrollment guard and representable numeric-control requirement:
+<t3-thread://v2/438824e0-fe19-4a22-bb31-f81eff7b7322/thread:delegated-task:command%3Amcp%3Aa7b82cbc-8a41-4641-86b6-948b98a1474c%3Adelegate-task%3A0163a4bf-62cd-45e0-8075-3f7da95ec0b3>.
+These small review corrections were implemented directly under the runtime orchestration
+instruction to fix small findings without delegating their implementation.
+
+The new real-Redis regression suite first failed **17 of 22 tests** against the original
+head; five positive controls passed. After the correction, **308 tests in four files passed**,
+including the unchanged existing assertions. Twelve stored-state mutations exercise all ten
+commands and byte preservation, one enrollment regression verifies LIMIT without a write,
+four counter-cap regressions cover both counters and both overflow paths, and five controls
+cover tail settlement, draining, an empty first page, historical overflow and representable
+large increments. The dedicated worktree-labelled Redis container is `pospay-840-r1-redis`,
+bound only to `127.0.0.1:56382`; no staging access was used.
+
+Issue #887 remains separate and open. MAX_SAFE cases use an exact raw input, a small original
+version, and LIMIT/byte assertions; they do not call a subsequent writing operation or claim
+that cjson can round-trip the large counter. Positive increment controls use
+`99999999999998` to `99999999999999` (14 significant digits), rather than MAX_SAFE minus one.
+No precision setting or wire/codec workaround is included.
+
+Round-1 local gates passed: worker typecheck; scoped ESLint and boundary rules;
+`pnpm module-map:check`; `pnpm lint:docs` (zero errors, the same 29 existing warnings);
+scoped Prettier and `git diff --check`. Clean-code, test and documentation guards were
+applied to the delta. The shared Redis test harness has two spec consumers and preserves
+the previous ten-command assertions. Heavy suites remain CI-only. Independent review and
+fresh external exact-head receipts remain required after these checks.

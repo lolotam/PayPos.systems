@@ -1,12 +1,10 @@
 // حالة متضررة: JSON بيتقرأ بس ناقص حقول. الأوامر لازم ترفضها CORRUPT من غير أي
 // كتابة، والمفتاح لازم يفضل زي ما هو بالبايت.
 import { systemUuidV7 } from '@pospay/ids';
-import { Redis } from 'ioredis';
-import { afterAll, afterEach, beforeAll, expect, it } from 'vitest';
+import { expect, it } from 'vitest';
 
-import type { ClaimStateFence, RatingClaimState } from '../../ports/rating-claim-state.port.ts';
-import { redisRatingClaimState } from '../redis-rating-claim-state.ts';
 import { RATING_CLAIM_STATE_SWEEP } from '../rating-claim-state-sweep.lua.ts';
+import { validationHarness } from './rating-claim-state-harness.fixture.ts';
 import {
   damageState,
   REQUEST_A,
@@ -16,99 +14,7 @@ import {
 } from './rating-claim-state-validation.fixture.ts';
 
 const ids = systemUuidV7();
-const redisUrl =
-  process.env['REDIS_URL'] ||
-  `redis://:${process.env['REDIS_PASSWORD'] || 'pospay_dev_redis'}@127.0.0.1:6379`;
-
-let redis: Redis;
-const owned: string[] = [];
-
-beforeAll(async () => {
-  redis = new Redis(redisUrl);
-  await redis.ping();
-});
-
-afterEach(async () => {
-  if (owned.length > 0) await redis.del(...owned.splice(0, owned.length));
-});
-
-afterAll(async () => {
-  await redis.quit();
-});
-
-interface Harness {
-  readonly state: RatingClaimState;
-  readonly companyId: string;
-  readonly key: string;
-  readonly fence: ClaimStateFence;
-}
-
-/** منفذ حالة ببادئة ومفتاح خاصين بالاختبار، والمعرف اللي استعملناه. */
-async function harness(): Promise<Harness> {
-  const prefix = `pospay-test-rating-claims-corrupt-${ids.newId()}`;
-  const companyId = ids.newId();
-  const key = `${prefix}:rating-claims:v1:{${companyId}}:state`;
-  owned.push(key);
-  const state = redisRatingClaimState({ prefix, redis, backoffMs: 0 });
-  const ownerToken = ids.newId();
-  const acquired = await state.acquire(companyId, ids.newId(), ownerToken);
-  expect(acquired.code).toBe('OK');
-  const snapshot = acquired.value;
-  if (snapshot === undefined) throw new Error('RATING_CLAIM_STATE_MISSING_SNAPSHOT');
-  return {
-    state,
-    companyId,
-    key,
-    fence: {
-      companyId,
-      incarnation: snapshot.incarnation,
-      expectedVersion: snapshot.version,
-      ownerToken,
-    },
-  };
-}
-
-/** الحالة السليمة بعد الاستلام، عشان ن damage منها نسخة. */
-async function rawStateOf(world: Harness): Promise<Record<string, unknown>> {
-  const raw = await redis.get(world.key);
-  if (raw === null) throw new Error('RATING_CLAIM_STATE_MISSING');
-  return JSON.parse(raw) as Record<string, unknown>;
-}
-
-/**
- * كل أمر بيشوف الحالة المتضررة، وكلهم لازم يرجعوا CORRUPT.
- *
- * @param world منفذ الحالة والمفتاح
- * @returns لا شيء
- */
-async function refuseAll(world: Harness): Promise<void> {
-  const before = await redis.get(world.key);
-  const commands = [
-    () => world.state.acquire(world.companyId, ids.newId(), ids.newId()),
-    () => world.state.renew(world.fence),
-    () => world.state.release(world.fence),
-    () => world.state.reserveRetries(world.fence, 1, [ids.newId()]),
-    () => world.state.begin(world.fence, ids.newId(), null),
-    () =>
-      world.state.enrollPage(
-        world.fence,
-        ids.newId(),
-        null,
-        ids.newId(),
-        [{ requestId: ids.newId(), workToken: ids.newId() }],
-        false,
-        10,
-      ),
-    () => world.state.settlePage(world.fence, ids.newId(), ids.newId(), 'TERMINAL'),
-    () => world.state.settleRetry(world.fence, REQUEST_A, ids.newId(), 'TERMINAL'),
-    () => world.state.finish(world.fence, ids.newId()),
-    () => world.state.read(world.companyId),
-  ];
-  for (const command of commands) {
-    await expect(command()).resolves.toMatchObject({ code: 'CORRUPT' });
-    expect(await redis.get(world.key)).toBe(before);
-  }
-}
+const { redis, harness, rawStateOf, refuseAll } = validationHarness();
 
 it('a retry entry without its eligibility is refused and never written over', async () => {
   const world = await harness();
