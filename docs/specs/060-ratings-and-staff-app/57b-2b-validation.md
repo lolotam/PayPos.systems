@@ -967,3 +967,102 @@ Codex. No merge/deploy or implicit eleventh round is authorized.
 #890 remains deferred (creation-card cancellation). #891 remains explicitly
 deferred (matching polling may abort recovery and require a second Retry);
 freshness/null/abort/query/epoch fences are unchanged, not relaxed.
+## Approved limited batch after tenth — local implementation receipt
+
+Published baseline: cc8d31fa5e51e7656109e126dac127969e2dbed2, branch
+feat/p1-060-57b-2b-my-leave, verified clean at entry in
+F:/Dev/Worktrees/PosPay/57b-2b-my-leave. git rev-parse --show-toplevel was
+verified before git writes. No new owner timestamp was inferred.
+
+Audit-first proof: c6636243850d3ef2e7729aad7846ea20cfbc144e contains ONLY
+owner-questions.ar.md. Before editing tests, git show --format=fuller --stat
+HEAD and git show --format= -- docs/specs/060-ratings-and-staff-app/owner-questions.ar.md
+showed the exact question, ordered options and owner answer. The preexisting
+last line was preserved; adding the audit supplied its missing final newline.
+3/3 and exceptions four through ten, their expansions and this new explicit
+limited exception remain preserved without reset. #890 and #891 remain
+explicitly DEFERRED.
+
+Uncommitted source manifest, exactly two files:
+
+- apps/pos/src/app/leave-recovery-fence.spec.tsx: ONLY the second closed/logged-out/offline loop resets finish/probeStarted for each attempt, waits for the current probe's started Promise and releases that Promise's current resolver. Existing assertions, all test timeouts and the late-response loop remain preserved.
+- apps/pos/src/app/reception-leave-binding.spec.tsx: ONLY the two English comments translated into Arabic, preserving channel-registry and selected-login-method meaning.
+
+No production, freshness, API, migration, workflow or other source change.
+The only additional uncommitted file is this append-only validation record.
+
+P3 diagnosis history, supplied by the manager and preserved here: external
+F:/Dev/Temp/882-r10-second-loop-diagnosis.config.cjs pre-aborts the controller
+before Recover after the first iteration of the second loop. Old tests passed
+2/2 despite the skipped probe; resetting finish externally failed 2/2. These
+are prior diagnosis receipts, not reruns claimed by this implementer.
+
+Same mutation rerun against the fixed tests:
+
+- pnpm --filter @pospay/pos exec vitest run --config F:/Dev/Temp/882-r10-second-loop-diagnosis.config.cjs -t 'closed, logged-out and offline' --pool=threads --maxWorkers=2
+- Exit 1, 2/2 selected tests failed at the original 5000ms timeout, 10 unrelated tests unselected by the CLI name filter. No source skip or timeout change. Diagnostic output identifies personal/logout and reception/logout pre-aborts. The transformed source confirms each attempt resets the resolver then awaits started before reaching any release or invalidation assertion; the pre-aborted attempt never starts a probe and cannot pass that barrier.
+- Evidence: F:/Dev/Temp/882-post10-mutation.log and F:/Dev/Temp/882-r10-second-loop-transformed.txt. Config and transformed artifacts stay outside the repository.
+
+Successful focused rerun:
+
+- pnpm --filter @pospay/pos exec vitest run --config F:/Dev/Temp/882-post10-validation.config.cjs src/app/leave-recovery-fence.spec.tsx src/app/reception-leave-binding.spec.tsx --pool=threads --maxWorkers=2
+- Exit 0, 2 files, 24/24 tests, 35.49s. Evidence: F:/Dev/Temp/882-post10-focused.log.
+
+The external validation config uses the supplied diagnostic base's root,
+alias, JSX, jsdom, setup and synthetic API URL, removes all transform plugins
+and removes its one-file include restriction for full POS coverage. envDir
+points outside the repository. It changes no repository config or test timeout.
+The esbuild/oxc precedence warning is retained in the logs.
+
+Global pnpm typecheck: exit 0, 32/32 tasks, 29 cached, 1m23.669s;
+F:/Dev/Temp/882-post10-typecheck.log. pnpm lint started only after that
+command completed successfully. Historical tenth-round POS 659/659 and P3
+diagnosis above remain historical evidence, not substituted for this run.
+
+Test-guard self-check: network boundary remains mocked; existing visible
+session/private-cache assertions remain intact, with an independent start
+barrier for every attempted recovery. Docs-guard self-check compares these
+claims to source, git show and command logs. No production change requiring
+clean-code-guard. These are implementer guards, not independent review.
+Fresh independent review is PENDING; no review was requested by this worker.
+Remote CI and four panel reviews on the eventual new head, then one final
+Codex review coordinated by the manager, remain PENDING. No delegation,
+push, merge or deploy. Implementation stays uncommitted for the new review.
+
+Additional completed gates on this implementation:
+
+- pnpm lint: exit 0, 33/33 tasks, 31 cached, 2m17.221s; F:/Dev/Temp/882-post10-lint.log. Existing boundaries deprecation warnings remain.
+- pnpm lint:docs: exit 0, 0 errors, 29 existing warnings; F:/Dev/Temp/882-post10-lint-docs.log.
+- pnpm module-map:check: exit 0, module map: ok; F:/Dev/Temp/882-post10-module-map.log.
+- pnpm exec prettier --check apps/pos/src/app/leave-recovery-fence.spec.tsx apps/pos/src/app/reception-leave-binding.spec.tsx docs/specs/060-ratings-and-staff-app/owner-questions.ar.md docs/specs/060-ratings-and-staff-app/57b-2b-validation.md: exit 0, all matched files use Prettier code style.
+- git diff --check: exit 0. The existing validation file produces a CRLF-to-LF notice only.
+- Inverse source comparison: reverting exactly the current-loop barrier/resolver changes and the two translated comments in memory matches cc8d31fa exactly in both source files. No assertions or timeout changes, no other source delta.
+- git diff --cached --name-only: empty. Local HEAD c6636243850d3ef2e7729aad7846ea20cfbc144e; audit-only commit, three uncommitted files (the two tests and this receipt).
+
+Final full POS rerun on this fixed implementation:
+
+- pnpm --filter @pospay/pos exec vitest run --config F:/Dev/Temp/882-post10-validation.config.cjs --pool=threads --maxWorkers=2
+- Exit 0, 104/104 files, 659/659 tests, 445.29s. Evidence: F:/Dev/Temp/882-post10-pos.log. This is the new run; the historical 659/659 receipt remains untouched above.
+
+All requested local checks passed; mutation failed as required. No outstanding
+owned command remains. Recommended next step: manager arranges NEW independent
+review of the three-file uncommitted manifest and audit commit before publication;
+then CI and four panel reviews on the new head, followed by Codex once. This
+worker did not publish or request reviews. #890/#891 stay explicitly DEFERRED.
+
+## Final independent review of the approved post-tenth limited batch
+
+Fresh Codex Astra high review task 35e13bb5-26bc-45d0-9b2d-b03ea551d11c
+returned PASS with no confirmed P0-P3 in the complete final difference from
+cc8d31fa5e51e7656109e126dac127969e2dbed2: the second-loop barrier, two Arabic
+comment translations, this receipt and audit commit c6636243. The reviewer
+checked source inversions, mutation artifacts and execution logs, without
+running suites. Test counts above are execution receipts, not independent
+suite runs by the reviewer. The original assertions and timeouts are preserved.
+
+Publication preparation verified origin/main remains da775eb5 and the remote
+PR head remains cc8d31fa. One consolidated push follows this review. Exact-head
+CI/Mobile and four panel receipts remain pending, then manager-coordinated
+Codex after findings are settled. No external Codex request, merge or deploy.
+The additional exception after tenth does not reset any history or authorize
+another correction. #890/#891 remain explicitly deferred, not fixed.

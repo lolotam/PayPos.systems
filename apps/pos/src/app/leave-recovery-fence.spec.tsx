@@ -271,8 +271,14 @@ it.each(['personal', 'reception'] as const)(
     for (const event of ['close', 'logout', 'offline']) {
       await mount(currentMode);
       held = true;
+      finish = undefined;
+      probeStarted = undefined;
+      const started = new Promise<() => void>((resolve) => {
+        probeStarted = resolve;
+      });
       fireEvent.click(screen.getByText('Recover'));
-      await waitFor(() => expect(finish).toBeTypeOf('function'));
+      const releaseProbe = await started;
+      expect(finish).toBeTypeOf('function');
       await act(async () => {
         if (event === 'close') controller.abort();
         else if (event === 'logout') {
@@ -283,7 +289,7 @@ it.each(['personal', 'reception'] as const)(
           Object.defineProperty(navigator, 'onLine', { configurable: true, value: false });
           window.dispatchEvent(new Event('offline'));
         }
-        finish?.();
+        releaseProbe();
         await recovery;
       });
       await screen.findByText('rejected');

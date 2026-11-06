@@ -170,7 +170,7 @@ it.each([
 ] as const)(
   '%s login and operator switch refresh %s binding immediately (BC %s)',
   async (method, change, broadcast) => {
-    // Each test owns its channel registry; posting excludes only the sending channel.
+    // كل اختبار له سجل قنوات مستقل؛ الإرسال يستثني القناة المرسلة فقط.
     if (broadcast) {
       const channels = new Set<Channel>();
       class Channel {
@@ -198,7 +198,7 @@ it.each([
     await signIn(method);
     fireEvent.click(screen.getByRole('button', { name: t('en', 'staffLogin.switchOperator') }));
     user = id(10);
-    // The panel retains its selected login method while switching.
+    // اللوحة تحتفظ بطريقة تسجيل الدخول المختارة أثناء تبديل الموظف.
     if (method === 'pin')
       fireEvent.click(screen.getByRole('button', { name: t('en', 'staffLogin.useWhatsApp') }));
     await signIn(method);
