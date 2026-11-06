@@ -248,7 +248,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `EmployeeImported` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
 | `EmployeeImportCommitRequested` | `staff` | `staff` worker registers per-company employee-import-recovery sweep (PR 24 / ADR-0022 discovery), then transports employee-import-commit after outbox claim commits (ADR-0034, ADR-0018) |
 | `ServiceImportCommitRequested` | `catalog` | `catalog` worker registers the per-company service-import-recovery sweep (PR 24 / ADR-0022 discovery), then transports service-import-commit after the outbox claim commits; id-only `{ preview_id }`, company in the envelope (ADR-0034 services-import addendum, ADR-0018) |
-| `ImportCommitted` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
+| `ImportCommitted` | `staff`, `orders` (package commit summary; transport activation deferred to 47-2c/d) | None in Phase 1; known to the dispatcher (ADR-0034) |
 | `BusinessLogoChanged` | `settings` (`set-business-logo`, 27h-4) | worker `files` retire consumer (27h-3, ADR-0046) |
 | `CompanyCreated` | `identity` | `staff` (worker seeds the recommended document types, ADR-0031, and registers the not-clocked-in schedule, ADR-0037) |
 | `ServiceLineChanged`                                                        | `orders`        | worker `commissions` consumer `commissions.project-inputs` (50-1), `customers`; worker `orders` (35d price/discount-edit bell — only when the optional `change.kind` is `PRICE_DISCOUNT_EDIT`; ADR-0044); worker `orders` also consumes `change.kind` `LINE_CANCELLED` (row 37 cancel bell; ADR-0044 addendum); worker `orders` also consumes `change.kind` `PERFORMERS_CHANGE` (row 37b bell; ADR-0044 addendum) |
@@ -373,6 +373,7 @@ reads:
   - staff -> identity.personalMemberships @ apps/api/src/modules/staff/persistence/personal-branches.adapter.ts
   - orders -> files.documentFileFacts @ apps/worker/src/modules/orders/persistence/package-preview.transactions.ts
   - orders -> catalog.readPackageImportServices @ apps/worker/src/modules/orders/persistence/package-preview.transactions.ts
+  - orders -> catalog.readPackageCommitServices @ apps/worker/src/modules/orders/persistence/package-import-commit.transactions.ts
   - orders -> customers.readPackageImportCustomers @ apps/worker/src/modules/orders/persistence/package-preview.transactions.ts
   - staff -> identity.readOwnAttendanceAccess @ apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts

@@ -153,12 +153,21 @@ export class RatingClaimStateConfigError extends Error {
   }
 }
 
+function durationMs(value: number): number {
+  if (!Number.isSafeInteger(value)) {
+    throw new RatingClaimStateConfigError('RATING_CLAIM_STATE_DURATION_INVALID');
+  }
+  return value;
+}
+
 /**
  * يبني سياق التنفيذ: الحدود، وطرق استدعاء السكربتات، وطابور الأوامر.
  *
  * الحجز لازم يكون أقصر من سقف الدور: التجديد بيمدّد الحجز، فلو الحجز أطول
  * من السقف ما كانش فيه تجديد يقدر يرجع LIMIT، والدور كان هيفقد سوره بسبب
  * انتهاء الحجز مش بسبب السقف.
+ * مدد المللي ثانية لازم تكون أعدادًا صحيحة آمنة قبل أي نداء Redis، لأن الكاتب
+ * لو خزّن وقتًا كسريًا، فحص الحالة التالي هيرفض الحالة اللي الكاتب نفسه أنشأها.
  *
  * @param options البادئة والعميل والحدود التقنية
  * @returns سياق جاهز تبني عليه أوامر المنفذ
@@ -166,10 +175,11 @@ export class RatingClaimStateConfigError extends Error {
 export function buildContext(options: RatingClaimStateOptions): StateContext {
   const { redis, prefix } = options;
   const limits: StateLimits = {
-    leaseMs: options.leaseMs ?? LEASE_MS,
-    maxTurnMs: options.maxTurnMs ?? MAX_TURN_MS,
+    leaseMs: durationMs(options.leaseMs ?? LEASE_MS),
+    maxTurnMs: durationMs(options.maxTurnMs ?? MAX_TURN_MS),
     maxBytes: options.maxBytes ?? STATE_MAX_BYTES,
   };
+  const backoffMs = durationMs(options.backoffMs ?? RETRY_BACKOFF_MS);
   if (limits.leaseMs > limits.maxTurnMs) {
     throw new RatingClaimStateConfigError('RATING_CLAIM_STATE_LEASE_EXCEEDS_TURN');
   }
@@ -195,7 +205,7 @@ export function buildContext(options: RatingClaimStateOptions): StateContext {
   return {
     limits,
     capacity: options.capacity ?? RETRY_CAPACITY,
-    backoffMs: options.backoffMs ?? RETRY_BACKOFF_MS,
+    backoffMs,
     reserveBytes: options.reserveBytes ?? PAGE_RESERVE_BYTES,
     serial: commandQueue(),
     fenceOf,
