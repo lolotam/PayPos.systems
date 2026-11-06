@@ -467,3 +467,49 @@ remain separate work. The manager granted the migration lane on 2026-11-06 after
 47-2a (#877) merged as `ef9209ba`. Migration 0214 carries the data-step marker and
 a concurrent drop/create of the new replay index, so an interrupted build can
 restart without accepting an invalid index. Its snapshot follows 0213.
+
+## Addendum proposed 2026-11-07 — A-1 API low-rating recipients and names
+
+This docs-only prerequisite approves the API read interfaces for spec 060, 61-1. It adds no implementation,
+migration, permission grant, producer or lifecycle activation. The earlier worker customers-to-staff read
+remains separate. The postponed RatingAlertRecipientsPort of the 2026-10-21 addendum is now specified here.
+
+API customers owns RatingAlertRecipientsPort<Transaction>. managers(tx, companyId, businessId, branchId,
+roles, at) returns sorted unique {userId, owner} rows through API identity's existing readBranchRoleHolders.
+commentReaders(tx, companyId, businessId, branchId, userIds, at) returns a sorted unique subset through the
+proposed API identity public readRatingCommentReaders. Both run on the caller's tenant transaction; at is
+the injected clock sampled after the rating-request lock. Empty input returns an empty result without I/O.
+
+The comment reader separates current manager-role eligibility covering the visit branch from effective
+permission aggregation across all active memberships. It retains covering DENY grants, including those
+from a sibling non-manager membership, applies unexpired overrides and P-1's role eligibility, and uses
+API evaluateAccess/protectOwnerAccess semantics. Owner protection removes administrative DENY; it does not
+invent ALLOW. The reader uses set-based queries, without one transaction or query per recipient.
+
+API customers' PerformerNamePort<Transaction>.firstNames(tx, companyId, employeeIds) uses the proposed
+API staff public readEmployeeDisplayNames(tx, companyId, employeeIds). Staff returns stored bilingual names
+for the snapshotted ids in that company, including soft-deleted employees; the customers adapter applies
+its own pure first-word/display policy and preserves one result entry per requested performer. No API code
+imports the worker implementation, and staff does not import customers' domain.
+
+API customers' LowRatingNoticePlacePort<Transaction>.forBranch(tx, companyId, businessId, branchId) calls
+API tenancy's existing describeWorkspaces(tx, [{scope: 'BRANCH', scopeId: branchId}]). It verifies the exact
+company, enclosing business and branch against the consumed request and returns branch names or null.
+The tenancy reader excludes soft-deleted companies. Missing required context is an explicit transactional
+availability failure in the later emitter, not a silent successful rating without its required notice.
+The direct identity role readers do not gain an extra tenancy-table join or a new company-state promise.
+
+All adapters are in API customers/persistence and call only the other module's public index.ts on the
+existing transaction. AlertRulesPort.rule uses API settings.readAlertRule; identity role resolution remains
+on RatingAlertRecipientsPort. API customers may import identity for these reads; identity imports only
+tenancy, so this declared edge is acyclic. Active module-map reads entries land with the later adapters;
+A-1 records their exact planned paths as comments and documents the ports.
+
+The runtime contracts parser is composed at customers.module.ts and injected as an own plain port into
+the submit transaction factory. Every group is validated before bulk outbox append, and the parsed groups
+are the values persisted. Domain remains pure; no new contracts runtime dependency is added to domain,
+ports, use cases or persistence. No commissions-only import exception is borrowed.
+
+P-1's catalog/default/seed and grant/current-role policy precede the later reader tests and emitter.
+A-1 itself is docs only and does not depend on that FK being populated. Deployment, transport choice,
+rolling-version compatibility, exact-head gates, migration approval and activation remain separate gates.
