@@ -1,12 +1,9 @@
-import createClient from 'openapi-fetch';
 import type { PushConfig, PushRevokeInput, PushSubscriptionInput } from '@pospay/contracts';
 
-import { apiOrigin } from '@/shared/api/origin';
-import type { paths } from '@/shared/api/schema';
+import { personalApiClient } from '@/shared/api/client';
 
 // نفس إعدادات عميل المسارات الشخصية: كوكيز من غير مفتاح جهاز، ومن غير تخزين مؤقت (ADR-0027).
-const client = () =>
-  createClient<paths>({ baseUrl: apiOrigin(), credentials: 'include', cache: 'no-store' });
+const client = personalApiClient;
 
 /** خطأ من مسارات الإشعارات، والكود بتاعه هو اللي الـ API رجعه. */
 export class PushApiError extends Error {

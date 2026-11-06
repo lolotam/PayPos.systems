@@ -14,8 +14,8 @@ vi.mock('@/staff-login/api/staff-calls', () => ({
   signOutStaff: vi.fn(),
 }));
 vi.mock('@/attendance/api/clock-by-card', () => ({ clockByCard: calls.clock }));
-vi.mock('@/staff-login/ui/staff-login-screen', () => ({
-  StaffLoginScreen: () => <h2>login</h2>,
+vi.mock('@/staff-login/ui/staff-login-panel', () => ({
+  StaffLoginPanel: () => <h2>login</h2>,
 }));
 vi.mock('@/attendance/ui/attendance-home', () => ({
   AttendanceHome: () => <h2>attendance</h2>,
@@ -39,12 +39,14 @@ function show(locale: 'ar' | 'en') {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-04T10:00:00Z'));
   onlineManager.setOnline(true);
   vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
   vi.stubGlobal('BroadcastChannel', undefined);
   calls.probe.mockResolvedValue({
     user_id: 'synthetic-operator',
-    expires_at: 'synthetic-deadline',
+    expires_at: '2026-10-04T12:00:00Z',
   });
   calls.probe.mockClear();
   calls.clock.mockResolvedValue({ kind: 'invalid' });
@@ -52,6 +54,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   onlineManager.setOnline(true);
   vi.restoreAllMocks();
   vi.unstubAllGlobals();

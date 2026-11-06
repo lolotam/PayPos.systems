@@ -9,22 +9,29 @@ import { usePersonalSession } from '../api/use-personal-session';
 import { PersonalSignIn } from './personal-sign-in';
 import { EnrolPasskeyScreen } from './enrol-passkey-screen';
 
-/** الرجوع اختياري عشان صفحة الويب المشتركة تفضل من غير أي تحكم جديد. */
-export function PersonalScreen({
-  workspace,
-  connect,
-  sessionGate,
-  startOver,
-  locked = false,
-}: {
+interface PersonalScreenProps {
   workspace?: Pick<PersonalOtpRequestInput, 'company_id' | 'business_id'>;
   connect?: ReactNode;
+  ownLeave?: (
+    session: NonNullable<ReturnType<typeof usePersonalSession>['session']>,
+    epoch: number,
+  ) => ReactNode;
   startOver?: ReactNode;
   locked?: boolean;
   sessionGate?: (
     session: NonNullable<ReturnType<typeof usePersonalSession>['session']>,
   ) => ReactNode | null;
-}) {
+}
+
+/** الرجوع اختياري عشان صفحة الويب المشتركة تفضل من غير أي تحكم جديد. */
+export function PersonalScreen({
+  workspace,
+  connect,
+  sessionGate,
+  ownLeave,
+  startOver,
+  locked = false,
+}: PersonalScreenProps) {
   const locale = useLocale();
   const state = usePersonalSession();
   const params = new URLSearchParams(window.location.search);
@@ -46,12 +53,15 @@ export function PersonalScreen({
           <p role="status">{t(locale, 'personalStaff.loading')}</p>
         ) : state.session ? (
           (sessionGate?.(state.session) ?? (
-            <EnrolPasskeyScreen
-              key={`${state.epoch}:${state.session.employee_id}`}
-              employeeId={state.session.employee_id}
-              companyId={state.session.company_id}
-              onSignOut={state.signOut}
-            />
+            <>
+              <EnrolPasskeyScreen
+                key={`${state.epoch}:${state.session.employee_id}`}
+                employeeId={state.session.employee_id}
+                companyId={state.session.company_id}
+                onSignOut={state.signOut}
+              />
+              {state.privateReady ? ownLeave?.(state.session, state.epoch) : null}
+            </>
           ))
         ) : hint ? (
           <PersonalSignIn

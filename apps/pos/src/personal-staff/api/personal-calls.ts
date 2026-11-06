@@ -1,21 +1,18 @@
-import createClient from 'openapi-fetch';
 import { registerStaffPasskey } from '@pospay/auth/client';
 import {
   signOutResult,
   type PersonalOtpRequestInput,
   type PersonalOtpVerifyInput,
 } from '@pospay/contracts';
-import { apiOrigin } from '@/shared/api/origin';
-import type { paths } from '@/shared/api/schema';
+import { personalApiClient } from '@/shared/api/client';
 import { attendanceInstallationId } from '../model/installation-id';
 
 // لا middleware الجهاز هنا، حتى لو كان المتصفح قد استعمل كشكاً في وقت سابق.
-const client = () =>
-  createClient<paths>({ baseUrl: apiOrigin(), credentials: 'include', cache: 'no-store' });
+const client = personalApiClient;
 export const personalCalls = {
   session: async () => {
     const result = await client().GET('/v1/staff/personal-session');
-    if (result.response.status === 401) return null;
+    if ([401, 403, 404].includes(result.response.status)) return null;
     if (result.data === undefined) throw new Error('PERSONAL_SESSION_UNAVAILABLE');
     return result.data;
   },
