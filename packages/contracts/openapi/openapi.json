@@ -196,6 +196,95 @@
         }
       }
     },
+    "/v1/staff/me/branches": {
+      "get": {
+        "operationId": "personalBranches",
+        "description": "Personal session only. Current active employee attachments and covering live membership are rechecked in the read transaction. No leave permission or private-view window. No client subject selectors. Cache-Control: no-store.",
+        "security": [
+          {
+            "PersonalStaffSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current attached active branches with effective timezone",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "name_ar": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "name_en": {
+                            "type": "string"
+                          },
+                          "timezone": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name_ar",
+                          "name_en",
+                          "timezone"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/packages/import/previews": {
       "post": {
         "operationId": "requestPackageImportPreview",

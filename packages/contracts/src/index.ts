@@ -1,9 +1,4 @@
 export { nameAr, nameEn } from './bilingual/names.js';
-export * from './staff/attendance-monthly-report.js';
-export * from './staff/attendance-report-inputs.js';
-export * from './staff/attendance-statement.js';
-export * from './staff/attendance-statement-shifts.js';
-export * from './staff/employee-app-link.js';
 export {
   employee,
   createdEmployee,
@@ -274,7 +269,6 @@ export {
 } from './files.js';
 export { businessLogoChanged, type BusinessLogoChanged } from './settings/business-logo-changed.js';
 export * from './settings/alert-rules.js';
-export * from './staff/schedules.js';
 export {
   salaryAmount,
   setSalaryInput,
@@ -290,23 +284,7 @@ export type {
   SalaryHistoryPage,
   SalaryChanged,
 } from './staff/salary.js';
-export * from './staff/leave.js';
-export * from './staff/leave-decision.js';
-export * from './staff/attendance-exception.js';
-export * from './staff/attendance-correction.js';
-export * from './staff/attendance-change-request.js';
 
-export * from './staff/passkeys.js';
-export * from './staff/attendance-device-refusals.js';
-export * from './staff/attendance-board.js';
-export * from './staff/clock-attendance.js';
-export * from './staff/clock-by-card.js';
-export * from './staff/employee-cards.js';
-export * from './staff/unbind-passkey.js';
-export * from './staff/missed-out.js';
-export * from './staff/document-expiry.js';
-export * from './staff/not-clocked-in.js';
-export * from './staff/employee-documents.js';
 export {
   employeeImportColumn,
   employeeImportErrorCode,
@@ -353,11 +331,7 @@ export {
   type PackageServiceOption,
   type PackageServiceOptionPage,
 } from './catalog/package-service-option.js';
-export * from './staff/employee-iban.js';
 export * from './commissions/index.js';
-export * from './staff/employee-name-matches.js';
-
-export * from './staff/schedule-settings.js';
 
 export {
   setEmployeeDefaultShiftsInput,
@@ -388,7 +362,6 @@ export {
   type SetEmployeeNumberStartInput,
   type EmployeeNumbering,
 } from './staff/employee-number.js';
-export * from './staff/attendance-actions-read.js';
 export {
   attendanceEmployeeCursor,
   attendanceEmployee,
@@ -397,10 +370,10 @@ export {
   type AttendanceEmployeesQuery,
   type AttendanceEmployeePage,
 } from './staff/attendance-employees.js';
-export * from './staff/attendance-capabilities.js';
 export * from './orders/index.js';
 export * from './documents-render.js';
 export * from './customers/index.js';
 
-export * from './staff/own-attendance.js';
 export { requestPackageImportPreviewInput, packageImportPreviewAccepted, packageImportPreviewRequested, packageImportPreviewRowError, packageImportPreviewStatus, type RequestPackageImportPreviewInput, type PackageImportPreviewRequested, type PackageImportPreviewStatus } from './orders/package-import-preview.js';
+
+export * from './staff/index.js';

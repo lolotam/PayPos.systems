@@ -368,6 +368,8 @@ composition_roots:
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
+  - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/personal-branches.adapter.ts
+  - staff -> identity.personalMemberships @ apps/api/src/modules/staff/persistence/personal-branches.adapter.ts
   - orders -> files.documentFileFacts @ apps/worker/src/modules/orders/persistence/package-preview.transactions.ts
   - orders -> catalog.readPackageImportServices @ apps/worker/src/modules/orders/persistence/package-preview.transactions.ts
   - orders -> customers.readPackageImportCustomers @ apps/worker/src/modules/orders/persistence/package-preview.transactions.ts
