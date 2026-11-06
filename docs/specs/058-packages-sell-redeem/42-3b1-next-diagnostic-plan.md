@@ -1,5 +1,7 @@
 # 42-3b1 — next diagnostic plan, pending manager review
 
+Latest authorized-run receipt: [automatic-ANALYZE stop](42-3b1-authorized-statistics-receipt.md).
+
 **Later execution checkpoint:** the manager approved this bounded plan. Its first run
 stopped on invalid Docker load telemetry before a valid A/B comparison. See the
 [stop receipt](42-3b1-statistics-stop-receipt.md). No retry is authorized by that receipt.

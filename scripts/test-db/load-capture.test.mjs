@@ -5,12 +5,63 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { parseDockerStats } from './load-parser.mjs';
 import { createLoadJournal } from './load-journal.mjs';
+import { finishLoadArm } from './load-arm.mjs';
 
 const raw = readFileSync(new URL('./fixtures/42-3b1-docker-stats.raw', import.meta.url));
 const container = 'pospay-load-capture-2521344c';
 const options = { container, minSamples: 2 };
 const plain = () =>
   raw.toString().replace(new RegExp(String.fromCharCode(27) + '\\[[0-9;]*[HJKm]', 'g'), '');
+
+test('sale/data error keeps its identity and both errors are recorded before rethrow', async () => {
+  const original = new Error('data assertion failed');
+  const collection = new Error('missing load coverage');
+  let recorded;
+  await assert.rejects(
+    finishLoadArm(
+      async () => {
+        throw original;
+      },
+      async () => {
+        assert.equal(recorded.originalError, original);
+        assert.equal(recorded.collectionFailed, false);
+        throw collection;
+      },
+      (errors) => {
+        recorded = errors;
+      },
+    ),
+    (error) => error === original,
+  );
+  assert.equal(recorded.originalError, original);
+  assert.equal(recorded.collectionError, collection);
+  assert.equal(recorded.workFailed, true);
+  assert.equal(recorded.collectionFailed, true);
+  await assert.rejects(
+    finishLoadArm(
+      async () => {
+        throw original;
+      },
+      async () => {
+        throw collection;
+      },
+      () => {
+        throw new Error('receipt write failed');
+      },
+    ),
+    (error) => error === original,
+  );
+  await assert.rejects(
+    finishLoadArm(
+      async () => 42,
+      async () => {
+        throw collection;
+      },
+      () => {},
+    ),
+    (error) => error === collection,
+  );
+});
 
 function cleanup(directory) {
   const absolute = realpathSync(directory);
