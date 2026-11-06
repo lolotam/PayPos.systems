@@ -14,6 +14,7 @@ const ids = systemUuidV7();
 /** حالة اختبار لها مفتاح مملوك وسور حقيقي، حتى يظل فحص البايتات معزولًا لكل حالة. */
 export interface ValidationWorld {
   readonly state: RatingClaimState;
+  readonly prefix: string;
   readonly companyId: string;
   readonly key: string;
   readonly fence: ClaimStateFence;
@@ -21,7 +22,10 @@ export interface ValidationWorld {
 
 /** حدود الاختبار التقنية فقط؛ العميل والمفتاح يظلان ملك الـharness. */
 export type ValidationOptions = Partial<
-  Pick<RatingClaimStateOptions, 'capacity' | 'maxBytes' | 'reserveBytes' | 'backoffMs'>
+  Pick<
+    RatingClaimStateOptions,
+    'capacity' | 'maxBytes' | 'reserveBytes' | 'backoffMs' | 'leaseMs' | 'maxTurnMs'
+  >
 >;
 
 /** منفذ حالة ببادئة ومفتاح خاصين بالاختبار، والمعرف اللي استعملناه. */
@@ -42,6 +46,7 @@ async function acquire(
   if (snapshot === undefined) throw new Error('RATING_CLAIM_STATE_MISSING_SNAPSHOT');
   return {
     state,
+    prefix,
     companyId,
     key,
     fence: {

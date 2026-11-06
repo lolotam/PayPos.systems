@@ -205,3 +205,55 @@ Round-2 worker typecheck, scoped ESLint/boundaries (including the corrected leas
 module-map, docs (zero errors / 29 existing warnings), Prettier and diff check passed.
 Clean-code, test and documentation guards were applied. Fresh independent internal review
 and new exact-head CI/five-review receipts remain required; the manager owns the merge.
+
+## Correction round 3 of 3 — manager disposition and bounded writer guards
+
+The manager's decision is recorded verbatim before implementation:
+
+> قرار المدير على r4492536289: بعد قراءة issue840 ونص spec الحالي وADR0010 §§7–8 وإيصال PP136، أقبل الحكم: المشاهدة صحيحة كسلوك decoder، لكنها ليست مخالفة مثبتة لعقد فحص snapshot في #840. انشر ردًا بالأدلة ومراجع العقد والـ raw probe، ثم resolve للـthread مع read-back وتسجيل هذا القرار حرفيًا في audit. التصرف رفض finding لعدم انطباق العقد، وليس accepted deferral أو waiver؛ لا تدّعِ انعدام الأثر الأمني المطلق أو أن حلًا واحدًا حصريًا مطلوب. لا تعديل docs لتضييق الضمان، ولا issue جديد أو decoder/codec/wire تعديل ضمن هذه المهمة. #887 يبقى منفصلًا OPEN. نفّذ الآن خطة R3/3 المحدودة لحارسي integer durations وnonempty sweepId/pageId مع إثبات الرفض قبل Redis/قبل mutation والـpositive controls؛ حافظ على ConfigError والسياسات الحالية بلا rounding. بعد الفحوص والمراجعة المطلوبة دفعة واحدة فقط، ردود/إغلاق CodeRabbit بالأدلة، وأرسل SHA. CI أخضر على44c03 لكنه لا يحتسب للرأس القادم؛ لا merge أو activation. أي عيب إضافي بعد R3 ارفعه قبل تجاوز السقف.
+
+This records the disposition without changing the existing snapshot contract or decoder.
+The private raw-literal probe used identical input bytes on baseline `dd7c42ba` and
+`44c03dc7`: duplicate request-ID members and duplicate `ticket` fields both decode to the
+last value. `read` returns OK without a write; `renew` returns OK and re-encodes, as it also
+does for the valid single-member control. The approved disposition rests on the written
+snapshot contract, not baseline parity alone. The five approved writers encode Lua tables;
+their inability to emit duplicate member names is supporting evidence, not a blanket
+exception. No absolute security-impact or exclusive-solution claim is made.
+
+CodeRabbit's two bounded findings are separately reproduced with the real adapter:
+fractional lease/backoff/turn durations can write timestamps the next validator rejects,
+and empty/missing sweep/page IDs can be written OK before a subsequent CORRUPT. The new
+input regressions require configuration rejection before Redis, ID rejection with LIMIT
+before any persisted mutation, unchanged bytes, and valid integer/nonempty-ID controls.
+No numeric precision workaround or retry-map representation change is included.
+
+The new input suite was RED **17/19** before the guards; both positive controls passed.
+After the bounded guards, **331/331 tests in five files passed**. The three fractional
+options raise the existing `RatingClaimStateConfigError` class before Redis execution;
+passthrough spies on the real client's eval/evalsha boundary observe zero calls, and
+existing bytes remain unchanged. The fourteen raw sweep envelopes cover missing, null,
+empty and non-string IDs in both actions, returning LIMIT/original version and preserving
+bytes plus readable valid state. Positive controls execute integer-duration acquisition,
+retry allocation/reservation, zero backoff and nonempty sweep/page writes.
+
+No duration is rounded, and the existing lease-versus-turn and zero-backoff policies
+are retained. The guards add no decoder, codec, configuration-file or activation change.
+The raw-duplicate disposition reply is
+[4492687894](https://github.com/lolotam/PayPos.systems/pull/888#discussion_r4492687894),
+resolved only after the manager's decision and reply read-back.
+
+The manager also confirmed the retry representation verbatim:
+
+> retries map بمفاتيح requestId يظل العقد، لا تحويل بروتوكول.
+
+ADR-0010's request-ID-keyed retry lane and `ClaimStateSnapshot.retries` remain the source
+contract. CodeRabbit's linked-issue warning does not authorize changing that representation.
+The source/decision response is
+[6685486886](https://github.com/lolotam/PayPos.systems/pull/888#issuecomment-6685486886).
+
+Round-3 worker typecheck, scoped ESLint/boundaries, module-map, documentation (zero errors /
+29 existing warnings), formatting and diff checks passed. Clean-code, test and documentation
+guards were applied. Fresh internal review remains required. Heavy suites remain CI-only.
+The single R3 push exhausts the three-round correction budget; additional findings must
+be reported before any further implementation, with no implicit fourth round.

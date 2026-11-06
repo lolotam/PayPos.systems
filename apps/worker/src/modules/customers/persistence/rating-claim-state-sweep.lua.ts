@@ -8,6 +8,8 @@
  * وبيسيب خريطة الإعادة زي ما هي، وبيشيل علامة الـ reconcile بس لما الجولة اللي
  * اتقفلت ما يكونش فيها فيضان؛ وإقفال جولة زارت صفحة من غير ما تخلص زي ما هو
  * مرفوض، عشان ما تتحسبش جولة كاملة وهي ما شافتش حاجة.
+ * معرّفا الجولة والصفحة لازم يكونا نصين مش فاضيين قبل الكتابة، حتى الكاتب ما
+ * ينشئش حالة يرفضها فحص السلامة في الأمر اللي بعده.
  *
  * السكربت مستقل بذاته وقت التشغيل لأن Redis مفيش فيه استيراد لسكربت تاني؛ وفحص
  * سلامة الحالة مشترك بين السكربتات وبتترجم جوه النص وقت البناء.
@@ -85,6 +87,7 @@ local action = env['action']
 
 if action == 'begin' then
   if state['phase'] ~= 'IDLE' then return reply('BUSY', version) end
+  if not nonempty_string(env['sweepId']) then return reply('LIMIT', version) end
   if journal_size(state) > 0 then return reply('BUSY', version) end
   state['phase'] = 'SWEEP'
   state['sweepId'] = env['sweepId']
@@ -102,6 +105,7 @@ if action == 'enrollPage' then
     return reply('STALE', version)
   end
   if journal_size(state) > 0 then return reply('BUSY', version) end
+  if not nonempty_string(env['pageId']) then return reply('LIMIT', version) end
   local entries = env['entries']
   if type(entries) ~= 'table' then return reply('LIMIT', version) end
   if #entries > env['maxEntries'] then return reply('LIMIT', version) end
