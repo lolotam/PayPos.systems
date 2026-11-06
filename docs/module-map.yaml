@@ -42,6 +42,7 @@ reads:
   - { from: staff, to: identity, symbol: personalMemberships, file: apps/api/src/modules/staff/persistence/personal-branches.adapter.ts }
   - { from: orders, to: files, symbol: documentFileFacts, file: apps/worker/src/modules/orders/persistence/package-preview.transactions.ts }
   - { from: orders, to: catalog, symbol: readPackageImportServices, file: apps/worker/src/modules/orders/persistence/package-preview.transactions.ts }
+  - { from: orders, to: catalog, symbol: readPackageCommitServices, file: apps/worker/src/modules/orders/persistence/package-import-commit.transactions.ts }
   - { from: orders, to: customers, symbol: readPackageImportCustomers, file: apps/worker/src/modules/orders/persistence/package-preview.transactions.ts }
   - { from: staff, to: identity, symbol: readOwnAttendanceAccess, file: apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts }
