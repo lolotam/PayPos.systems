@@ -320,11 +320,11 @@ ADR/map/YAML; its actual all-category size is measured from the final Git diff a
 - Staged `git diff --check` passed. Scoped Prettier exited 0, subject to the exclusions below.
 - Repository `.prettierignore` excludes `docs` and `*.md`; a successful normal Prettier invocation cannot be claimed
   as Markdown-format coverage. Keep that exclusion unchanged; check the changed text/whitespace explicitly.
-- Fresh independent review of the actual five-file A1 diff on the live base: pending. The previous planning review
-  was `REQUIRESCORRECTION`; its corrected findings are not reused as a PASS of this delivery.
-- The immutable delivery head, measured size and fresh review receipt will be reported in the A1 PR and handoff;
-  a pending marker here is the truthful pre-review checkpoint, not permission to open a PR without review.
-- A1 correction budget: initial delivery, no correction push yet; cap three. Prior #888 budgets/exception history
+- Initial A1 head `a46773cdd28aad02ecd0b5736fa966623adb6001` received fresh independent Astra PASS, then PR #895.
+  Historical planning `REQUIRESCORRECTION` receipts were not reused. The R1 delta below requires its own review;
+  the initial PASS does not cover a new head. Final receipts and measured size are reported in the PR/handoff.
+- A1 correction budget: consolidated R1/3 prepared after all four initial panel receipts; not pushed at this checkpoint.
+  Prior #888 budgets/exception history
   remain preserved and are not reset by this separate documentation assignment.
 
 ## E11. P1 writer/guard planning follow-up (no execution)
@@ -339,3 +339,26 @@ Historical migration write-line searches classify privileged catalog/default wri
 The latest planner read 0201 fully, not every historical migration or every override reader; reader inventory remains
 a G prerequisite. Its incomplete governing-file reading is not final approval. Fresh A1 review is separate (§E10).
 No live custom-role count, runtime container inventory, SQL execution, seed, source edit or deployment was performed.
+
+## E12. A1 consolidated correction R1/3 (documentation only)
+
+All four panel receipts were read on `a46773cd`: Waleed 5808335249, Cross-file 5808352513, Hamza 5808353583,
+security 5808395088. Security reports its product-configured model fallback; the owning session changed no config.
+Initial CI 42310737251/Mobile 42310737284 succeeded, and Codex summary 6698219122 completed clean on that head.
+Those receipts do not pass a new head. Backup ref `backup/61-1-before-r1-a46773cd` preserves the delivered source.
+
+- r4498667769: accepted P2 planning omission. T's scope now includes spec 060 FR-B13 FIRST, before its contracts;
+  no spec file or T implementation is changed in A1.
+- r4498668546: accepted P2 documentation defect after PP-136 advice and lead source verification, not a waiver or
+  a confirmed production P1. PP-129 concerns staging pre-migrate snapshot timing, not restore authorization.
+  The old wording implied a recovery path without post-snapshot-write handling. T/G are now hard code floors;
+  A1 defines no below-floor recovery recipe and grants no SQL/live-restore authority. Future recovery requires
+  a separate reviewed data-loss/retained-write plan and applicable decision, not an invented freeze/replay policy.
+- Verified `deploy/backup/README.md:45-46` and `restore-check.sh`: restore-check targets its own scratch database,
+  never live. `docs/runbook.md:63-68` specifies a fresh-cluster logical restore; it is not a live rollback recipe.
+  Pipeline §10 explicitly limits its accepted post-snapshot loss window to staging, excluding production.
+- The earlier manager snapshot wording is E0 §8, not E0.1. PP-136 did not inspect every historical ADR/runtime path;
+  its advice is bounded, not final approval. No universal claim that no other restore procedure exists is made.
+
+No production/test/migration/seed/config/deployment changes or issue closure. U2/P1/privacy and all activation
+blockers stay open. Fresh internal review, documentation checks, new-head CI and external receipts remain required.

@@ -144,7 +144,7 @@ They carry no recipient phone, token or token hash. Legacy scalar branches remai
   accepts what `ratingComment` accepts, for parity.
 - Two template keys, both revision 1, both new: `low_rating` and `low_rating_with_comment`, as in the byte model.
   They give each strict recipient a fixed details shape. This is an explicit technical addition to spec FR-B13's
-  single named template, to be recorded in the eventual spec update. Two keys do not prevent duplicates: the unique
+  single named template; T must update spec 060 FR-B13 first, before changing its contracts (§7.1). Two keys do not prevent duplicates: the unique
   index includes `template_key`, so only a DISJOINT recipient partition prevents two bells. Do not rely on insertion
   order or `ON CONFLICT` to choose a recipient's ACL variant.
 - Locale: every row is stored with `ar`; the admin renderer uses the viewer's UI locale (`viewerLocale ?? item.locale`),
@@ -506,7 +506,7 @@ integration cases above belong to E and remain unrun; no benchmark or applicatio
 |---|---|---|---|
 | P1 | ratings-read permission catalog, role defaults, seed, grant refusal (only the four roles), current-role policy — moved from 61-2 | E | future decision before generation; no migration number allocated or reserved |
 | A1 | AUTHORIZED docs only: §6 interface approval, ADR/module-map declarations/generated YAML and proposed reader/adapter contracts; no readers or tests implemented | E | no |
-| T | contracts variants, notifications validator/definitions/copy, worker input/handler branch, API response union, admin renderer + i18n | E | no |
+| T | spec 060 FR-B13 update BEFORE contracts variants, then notifications validator/definitions/copy, worker input/handler branch, API response union, admin renderer + i18n | E | no |
 | K | `LOW_RATING` kind in rules storage/contracts; NOT added to the listed kinds until E | E | TBD (evidence F7–F16 carried forward) |
 | E | ports, adapters, composer, root closure, use-case wiring (replaces the TODO at `submit-rating.usecase.ts:65`), listing the kind | — | no |
 
@@ -521,7 +521,7 @@ Source scope per step (anything outside its row is a hidden expansion and stops 
 |---|---|
 | P1 | identity access catalog and role defaults, seed, the grant use case's refusal rule, `packages/db` migration + snapshot + journal (TBD), spec/ADR notes for the moved rows |
 | A1 | `docs/adr/0010-phase-1-ports-and-events.md`, `docs/module-map.md`, its generated `docs/module-map.yaml`, and the dependency/spec documentation approved for this prerequisite; NO production readers or test implementations |
-| T | `packages/contracts` (in-app + notification unions, details schemas, OpenAPI output), `packages/notifications/src/templates/*` (two definitions, validator), worker `notifications/{domain,events/handlers}`, API `notifications` response typing only, `apps/admin/src/notifications/*`, `packages/i18n` catalogs |
+| T | FIRST: `docs/specs/060-ratings-and-staff-app/spec.md` (FR-B13 names both revision-1 template keys), in the same PR and before any contract change; then `packages/contracts` (in-app + notification unions, details schemas, OpenAPI output), `packages/notifications/src/templates/*` (two definitions, validator), worker `notifications/{domain,events/handlers}`, API `notifications` response typing only, `apps/admin/src/notifications/*`, `packages/i18n` catalogs |
 | K | `packages/domain` alert kinds, `packages/contracts` alert-rules, settings persistence/tests for the kind (listing excluded) |
 | E | API `customers/{domain,ports,persistence,use-cases/submit-rating}`, `customers.module.ts`; approved API identity reader/domain decision + index export and API staff reader + index export; corresponding tests; listed-kinds file; error-path documentation |
 
@@ -534,7 +534,7 @@ Source scope per step (anything outside its row is a hidden expansion and stops 
 | pre-T worker + E event | **no** | `NOTIFICATION_REQUEST_INVALID` → retry → park |
 | E over T | yes | producer after consumer |
 | E → T (code rollback) | yes | rows and queued events remain readable — **code floor = T** |
-| below T after rows exist | **no** | needs an approved, verified DB snapshot restore (PP-129) with coordination — not an automatic SQL delete or reverse; no staging execution now |
+| below T after rows exist | **no** | **T is a hard code floor**; forward to T or later only. A1 authorizes no below-floor recovery, SQL delete/reverse or DB restore recipe. Any future recovery needs a separately reviewed post-snapshot-write/data-loss plan and applicable decision; production/data decisions belong to Waleed (PP-117/PP-124). PP-129 governs staging pre-migrate snapshot timing, not restore authority |
 | K old admin vs new kind | settings only | an old settings view ignores the future kind; the inbox is keyed by template, not kind |
 | A1 versus either adjacent code version | yes, docs-only | no runtime change; future reads must be recorded without falsely claiming existing adapter files |
 | P1 rollback after defaults | BLOCKED pending G/S plan acceptance and evidence | proposed code floor G; never below its guard/read policy while defaults remain, and never an automatic SQL reverse |
@@ -565,8 +565,10 @@ Source scope per step (anything outside its row is a hidden expansion and stops 
   migrate-before-new-api start is not proof of draining. No live inspection/deploy/config is authorized now; evidence
   is UNKNOWN. No acceptance of an unverified rolling window is proposed. P1 remains independently BLOCKED.
 - **Rollback floor after S = G**, retaining its read policy. Below-G code is unsafe while defaults remain. No SQL
-  reverse; catalog deletion also breaks cleanup's catalog check. DB restore uses only the existing verified lane and
-  its required decision. G without S is inert; A1 depends on neither G nor S.
+  reverse; catalog deletion also breaks cleanup's catalog check. A1 authorizes no below-floor recovery. The verified
+  `deploy/backup/restore-check.sh` restores only into its own scratch database, never over the live one; that check
+  grants no live-restore authority. Any future recovery needs its own reviewed post-snapshot-write/data-loss plan
+  and applicable decision, without extending PP-129 to production. G without S is inert; A1 depends on neither G nor S.
 - **Future tests, heavy suites CI-only:** current-role/time SAVE and REVOKE for four eligible roles, other system and
   custom roles; old-version custom-role counterexample; historic ALLOW inert after role change and DENY revocation;
   permitted ALLOW cleanup; tenant negatives; refused writes leave override/audit rows and invalidation unchanged.
@@ -603,6 +605,7 @@ as a clean approval of the changed hashes; the corrected A1 proposal is submitte
   rollback floor. No migration generation, seed, deployment/config change or reserved 0217. This is independent of A1.
 - **U2 / T / K / E:** implementation remains blocked; a load/architecture plan must be reviewed first. No success
   semantics, timeout, performer cap, name policy or privacy expansion is silently adopted.
+  T's FR-B13 spec update is a prerequisite of T, not A1 work; T/G are hard floors with no below-floor procedure authorized here.
 - **Privacy:** §3.6 remains a condition to resolve separately in the final T/E plan. A1 neither changes the policy nor
   reopens RT-Q8/RT-Q9. No Waleed card now. Eventual migration approval remains required before generation.
 - This is the manager's technical decision under existing authority, not a new verbatim Waleed decision. Existing
