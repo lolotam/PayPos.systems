@@ -36,7 +36,7 @@ export function useStaffLogin() {
     refetchOnReconnect: 'always',
   });
   useEffect(() => {
-    if (!session.isError && !(session.isSuccess && session.data === null)) return;
+    if (!(session.isSuccess && session.data === null)) return;
     const privateQueries = {
       predicate: (query: { queryKey: readonly unknown[] }) => query.queryKey[0] !== 'staff-session',
     };
@@ -51,7 +51,7 @@ export function useStaffLogin() {
     epoch,
     loading: online && session.isPending,
     session: online && session.isSuccess && !session.isFetching ? session.data : null,
-    authenticatedSession: online && session.isSuccess ? session.data : null,
+    authenticatedSession: online ? (session.data ?? null) : null,
     changed,
     signOut: async () => {
       await signOutStaff();

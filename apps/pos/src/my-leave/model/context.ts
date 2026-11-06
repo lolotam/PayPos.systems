@@ -10,5 +10,7 @@ export type LeaveContext = {
 };
 
 export function leaveIdentity(context: LeaveContext): string {
-  return JSON.stringify(context);
+  const identity = { ...context };
+  delete identity.timezone;
+  return JSON.stringify(identity);
 }

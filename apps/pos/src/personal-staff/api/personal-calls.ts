@@ -12,7 +12,7 @@ const client = personalApiClient;
 export const personalCalls = {
   session: async () => {
     const result = await client().GET('/v1/staff/personal-session');
-    if (result.response.status === 401) return null;
+    if ([401, 403, 404].includes(result.response.status)) return null;
     if (result.data === undefined) throw new Error('PERSONAL_SESSION_UNAVAILABLE');
     return result.data;
   },

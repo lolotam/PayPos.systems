@@ -41,7 +41,7 @@ export function usePersonalSession() {
   return {
     epoch,
     online,
-    ...(online && query.isSuccess ? { privateReady: true as const } : {}),
+    ...(online && query.data != null ? { privateReady: true as const } : {}),
     loading: online && query.isPending,
     // فشل القراءة أو إعادة الجلب مش إثبات إن مفيش جلسة؛ التأكيد بيكون بجواب ناجح مكتمل بس.
     confirmedNoSession: online && query.isSuccess && !query.isFetching && query.data === null,

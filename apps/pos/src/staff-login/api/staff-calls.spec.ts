@@ -1,7 +1,16 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-import { signOutStaff } from './staff-calls';
+import { probeStaffSession, signOutStaff } from './staff-calls';
 
 const fetcher = vi.fn();
+it.each([401, 403, 404, 503])(
+  'classifies probe HTTP %i without confusing an outage with revocation',
+  async (status) => {
+    fetcher.mockResolvedValue(Response.json({ code: 'SYNTHETIC_REFUSAL' }, { status }));
+    if (status === 503)
+      await expect(probeStaffSession()).rejects.toThrow('STAFF_SESSION_UNAVAILABLE');
+    else await expect(probeStaffSession()).resolves.toBeNull();
+  },
+);
 beforeEach(() => {
   vi.resetAllMocks();
   vi.stubGlobal('fetch', fetcher);

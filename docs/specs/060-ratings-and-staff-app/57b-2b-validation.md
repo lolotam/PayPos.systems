@@ -266,3 +266,55 @@ session-probe draft-loss finding r4490669774 is confirmed by the session hooks,
 but falls outside this limited fourth-round approval. It remains unresolved in
 [#886](https://github.com/lolotam/PayPos.systems/issues/886); creating that issue
 does not waive the known-defect merge gate. No session-hook changes are included.
+
+## Authorized correction round 5
+
+Waleed approved exactly one fifth round, after the original 3/3 and the limited
+fourth-round exception. The original manager card, both options and his verbatim
+answer are recorded in the slice owner audit. The Arabic audit was restored using
+UTF-8 directly rather than passing Arabic through the Windows Python stdin pipe.
+The fourth-round English approval and follow-up remain intact; no decision is invented.
+
+Rebased the five existing commits onto main
+`572a10627d006b50909cd254af51e167de2c7e69`. Only owner-questions.ar.md conflicted:
+kept main's pending rating-claims record and this slice's approval record.
+Range-diff shows the first four patches identical and only the fifth document
+context changed. A direct comparison of committed POS source before/after rebase
+was empty. Backup branch `backup/57b2b-before-round5-3e885e7e` is retained.
+
+The approved fixes are limited to:
+
+- #886: retain the confirmed personal/reception session through a transient
+  503/network probe error. Both probe adapters classify explicit 401/403/404
+  as no session, while outages throw. Null/revocation, offline and identity-change
+  paths still clear private state. Visible integration tests cover both modes,
+  503/network failure, successful recovery and subsequent 401 clearing.
+- 401 recovery: keep a session-scoped Retry visible with no private content.
+  Explicit retry verifies the same user/company/business and then a fresh allowed
+  branch/history read before restoring the screen. Repeated refusal and a different
+  session identity do not restore old data; requests are cancelled/ignored on unmount.
+- Timezone is display metadata, excluded from the identity key; every other context
+  field stays in the key. A visible reception test confirms late timezone cannot
+  remount the screen, restart reads or clear a refusal latch without Retry.
+- Form changes clear only the root validation message, preserving field errors.
+  A visible invalid-period/correction test checks the stale error disappears before
+  any POST is sent.
+- Restored the approval audit and retained the previous round history without reset.
+
+Final affected regression run: 12 POS files, 69 tests passed. Includes the prior
+polling/error-priority/refusal cases, session hook offline/replacement/revocation,
+native personal transport, attendance and push call regressions. One initial
+fixture failed because the staff singleton captured a previous fetch closure;
+using a stable network-boundary mock fixed isolation without weakening assertions.
+A pre-existing hook test now models revoked authentication as the adapter's null
+outcome rather than a generic exception; a real HTTP-boundary test independently
+checks 401/403/404 versus 503. No real-device smoke is claimed.
+
+Global typecheck, lint, lint:docs and module-map:check all passed. Prettier
+checks passed for all changed TS/TSX files; git diff --check passed. The UTF-8
+owner audit was verified against git-show bytes before publication. Parent clean-code-guard/test-guard/
+docs-guard passes checked shared-session refusal semantics, bounded components,
+visible outcomes, and audit/source correspondence. No API/server/native config,
+migration or workflow change is included. This round repairs the merge conflict
+that prevented pull_request workflows from being created; exact-head CI/mobile
+and external reviews remain required after publication. No automatic merge.

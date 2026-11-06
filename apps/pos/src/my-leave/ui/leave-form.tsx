@@ -16,6 +16,7 @@ export function LeaveForm({
   const { form, kind, onSubmit } = useLeaveForm(submit);
   return (
     <form
+      onChange={() => form.clearErrors('root')}
       onSubmit={(event) => {
         void onSubmit(event);
       }}

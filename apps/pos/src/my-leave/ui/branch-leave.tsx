@@ -7,13 +7,23 @@ import { leaveErrorText } from '../model/error-text';
 import type { LeaveContext } from '../model/context';
 import { LeavePanel } from './leave-panel';
 import { leaveReadRefused } from '../model/read-error';
+import { LeaveSessionRecovery } from './leave-session-recovery';
+import { LeaveBranchSelector } from './leave-branch-selector';
 
 export function BranchLeave({ context }: { context: LeaveContext }) {
   const locale = useLocale();
   const [sessionRefusal, setSessionRefusal] = useState<unknown>(null);
   const branches = useLeaveBranches(context, !sessionRefusal, setSessionRefusal);
   const [selected, setSelected] = useState('');
-  if (sessionRefusal) return <p role="alert">{leaveErrorText(sessionRefusal, locale)}</p>;
+  if (sessionRefusal)
+    return (
+      <LeaveSessionRecovery
+        context={context}
+        branch={context.mode === 'reception' ? (context.branch_id ?? '') : selected}
+        error={sessionRefusal}
+        recovered={() => setSessionRefusal(null)}
+      />
+    );
   if (context.mode === 'reception')
     return (
       <LeavePanel
@@ -44,17 +54,7 @@ export function BranchLeave({ context }: { context: LeaveContext }) {
   return (
     <>
       {branches.isError ? <p role="alert">{leaveErrorText(branches.error, locale)}</p> : null}
-      <label>
-        {t(locale, 'leave.branch')}
-        <select value={branch} onChange={(event) => setSelected(event.target.value)}>
-          <option value="">{t(locale, 'myLeave.chooseBranch')}</option>
-          {items.map((item) => (
-            <option key={item.id} value={item.id}>
-              {locale === 'ar' ? (item.name_ar ?? item.name_en) : item.name_en}
-            </option>
-          ))}
-        </select>
-      </label>
+      <LeaveBranchSelector items={items} selected={branch} select={setSelected} />
       {branch ? (
         <LeavePanel
           key={branch}

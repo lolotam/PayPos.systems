@@ -85,7 +85,8 @@ it('revocation on the next probe removes private queries and exposes no previous
   const h = display();
   await waitFor(() => expect(h.result.current.session).not.toBeNull());
   h.cache.setQueryData(['private-sales'], 'synthetic-private');
-  calls.probe.mockRejectedValue(new Error('STAFF_REFUSED'));
+  // قارئ الجلسة يحوّل رفض المصادقة إلى null؛ الاستثناء وحده فشل عابر لا يثبت الإلغاء.
+  calls.probe.mockResolvedValue(null);
   await act(async () => {
     await h.cache.invalidateQueries({ queryKey: ['staff-session'] });
   });
