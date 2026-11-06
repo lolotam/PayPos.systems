@@ -63,6 +63,8 @@ it('TD-1 D-a: an attended other branch in the same business does not count at th
 it('TD-1 D-b: a pending leave does not excuse the statement absence', async () => {
   const tenant = await f.tenant();
   const employee = await f.employee(tenant);
+  // يوم عقد عشان leave=[] يثبت استبعاد PENDING، مش مسار contract: null بتاع D-c2.
+  await f.defaultShifts(tenant, employee, [5]);
   await shift(tenant, employee);
   await f.leave(tenant, employee, { from: DATE, to: DATE, status: 'PENDING' });
   expect(await readDay(tenant, employee)).toMatchObject({
