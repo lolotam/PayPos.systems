@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import postgres from 'postgres';
 import { systemUuidV7 } from '@pospay/ids';
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
@@ -56,14 +55,6 @@ beforeAll(async () => {
   owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
   app = createDatabase({ url: testDb.appUrl, ids });
   dispatcher = createOutboxDispatcherDatabase({ url: testDb.dispatcherUrl });
-  const draft = await readFile(
-    new URL(
-      '../../../../docs/specs/060-ratings-and-staff-app/59b-2c-migration.sql',
-      import.meta.url,
-    ),
-    'utf8',
-  );
-  await owner.unsafe(draft);
   await app.withTenant(A.company, async (tx) => {
     await insertRequest(tx, { tenant: A, date: '2026-06-01' });
     const requestId = await insertRequest(tx, { tenant: A, date: '2026-06-02' });

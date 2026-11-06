@@ -77,3 +77,9 @@ Build and test the data step on a private `lane.mjs up` cluster now; renumbering
 `db:generate` and push wait for the explicit words **lane granted**, after 47-2a (#877).
 Historical `SENDING` and terminal attempts are counted, logged and left unchanged;
 the owner question stays `PENDING` until DEP-1 inventory establishes whether any exist.
+
+**Lane granted, 2026-11-06:** the manager authorized rebase onto `ef9209ba` after
+#877 merged, migration **0214** (snapshot `prevId` from 0213), generation, chain
+validation and push. The branch rebased without conflicts. The unnumbered SQL
+draft was replaced by `packages/db/migrations/0214_2026-11-06_rating-claims-discovery.sql`;
+no merged migration was edited. The lane remains assigned until this PR merges.

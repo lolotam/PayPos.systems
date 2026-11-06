@@ -463,5 +463,7 @@ Historical `SENDING`/`SENT` requests and `rating_request` attempts in `SENDING` 
 terminal states are counted and left unchanged. Their disposition remains PENDING
 in the slice owner questions; DEP-1 counts determine whether the manager needs an
 owner decision. Activation blockers #803, #804, #805, #808, #809, #810 and #811
-remain separate work. Migration numbering/generation/push wait for the explicit
-manager lane grant after 47-2a (#877).
+remain separate work. The manager granted the migration lane on 2026-11-06 after
+47-2a (#877) merged as `ef9209ba`. Migration 0214 carries the data-step marker and
+a concurrent drop/create of the new replay index, so an interrupted build can
+restart without accepting an invalid index. Its snapshot follows 0213.
