@@ -50,6 +50,7 @@ local function load(raw, companyId)
 end
 
 local function store(key, state, maxBytes)
+  if not validate_state(state) then return false end
   local encoded = cjson.encode(state)
   if #encoded > maxBytes then return false end
   redis.call('SET', key, encoded)

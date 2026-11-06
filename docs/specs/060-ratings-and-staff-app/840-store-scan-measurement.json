@@ -1,0 +1,125 @@
+{
+  "baselineHead": "1620b8bb10a0d8a5093cdbcae725dd1cfdb9a047",
+  "node": "v24.21.0",
+  "transport": "127.0.0.1 private Redis / EVALSHA",
+  "warmupPairs": 10,
+  "measuredPairs": 100,
+  "pureCostBatches": 20,
+  "iterationsPerBatch": 25,
+  "scriptSha1": {
+    "baseline": "c8a8f09ec587a30846f19555d6178b692c97c6d4",
+    "postcondition": "853f7b972e9663168459eb79e95e95336ae6b23b"
+  },
+  "cases": [
+    {
+      "name": "idle-empty",
+      "retries": 0,
+      "page": 0,
+      "reserved": 0,
+      "jsonBytes": 347,
+      "roundTripMs": {
+        "baseline": {
+          "median": 1.4470000000000027,
+          "p95": 3.882099999999923,
+          "samples": 100
+        },
+        "postcondition": {
+          "median": 1.4746999999999844,
+          "p95": 3.9511999999999716,
+          "samples": 100
+        },
+        "pairedDelta": {
+          "median": 0.008100000000013097,
+          "p95": 2.4929000000001906,
+          "samples": 100
+        }
+      },
+      "luaMicrosPerOperation": {
+        "scan": {
+          "median": 6.16,
+          "p95": 7.88,
+          "samples": 20
+        },
+        "encode": {
+          "median": 4.72,
+          "p95": 5.68,
+          "samples": 20
+        }
+      }
+    },
+    {
+      "name": "typical-64",
+      "retries": 64,
+      "page": 25,
+      "reserved": 25,
+      "jsonBytes": 11644,
+      "roundTripMs": {
+        "baseline": {
+          "median": 2.49330000000009,
+          "p95": 5.74330000000009,
+          "samples": 100
+        },
+        "postcondition": {
+          "median": 2.761200000000372,
+          "p95": 6.391700000000128,
+          "samples": 100
+        },
+        "pairedDelta": {
+          "median": 0.22000000000025466,
+          "p95": 2.701599999999871,
+          "samples": 100
+        }
+      },
+      "luaMicrosPerOperation": {
+        "scan": {
+          "median": 193,
+          "p95": 266.44,
+          "samples": 20
+        },
+        "encode": {
+          "median": 128.24,
+          "p95": 165.92,
+          "samples": 20
+        }
+      }
+    },
+    {
+      "name": "capacity-2048",
+      "retries": 2048,
+      "page": 75,
+      "reserved": 25,
+      "jsonBytes": 178564,
+      "roundTripMs": {
+        "baseline": {
+          "median": 15.625599999999395,
+          "p95": 24.999700000000303,
+          "samples": 100
+        },
+        "postcondition": {
+          "median": 18.391499999999724,
+          "p95": 31.29400000000078,
+          "samples": 100
+        },
+        "pairedDelta": {
+          "median": 2.3534000000008746,
+          "p95": 11.182099999999991,
+          "samples": 100
+        }
+      },
+      "luaMicrosPerOperation": {
+        "scan": {
+          "median": 1776.16,
+          "p95": 2287.36,
+          "samples": 20
+        },
+        "encode": {
+          "median": 1618.6,
+          "p95": 1786.24,
+          "samples": 20
+        }
+      }
+    }
+  ],
+  "redisVersion": "7.4.11",
+  "note": "Same valid bytes reset outside timed EVALSHA; alternating paired order. Client round trip includes transport and reply, excludes reset/parse. Pure loop costs use Redis INFO commandstats EVALSHA microseconds, subtract same decode/prevalidation/noop script and divide by 25. Each before/after pair asserts exactly one EVALSHA. Redis TIME was observed constant inside one script, so its zero-duration attempt was discarded. Local private-container measurements, not a production latency guarantee."
+}

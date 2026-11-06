@@ -277,3 +277,81 @@ be reported before any further implementation, with no implicit fourth round.
 
 **السجل والحدود:** 3/3 مستنفدة + استثناء رابع محدود منفصل، دون reset. التنفيذ داخل PR #888: pre-encoding validate_state في store الخمسة، الاختبارات وقياس الكلفة ثم CI والمراجعات على الرأس الناتج. لا تغيير لسياسة صفر/سالب المدد أو decoder/codec/wire أو #887، ولا issues تأجيل للمجموعتين. لا merge أو activation. المدير ينسق Codex واحدًا على الرأس الناتج، وأي finding خارج النطاق يُرفع قبل تجاوزه.
 
+### Bounded exception implementation and evidence
+
+The five Lua `store()` functions now apply the existing `validate_state` predicate to
+the selected in-memory state before `cjson.encode` or `SET`. Every existing call site
+already maps a refused store to `LIMIT` using its saved original version; fresh acquisition
+uses version 0. The incremented local version and other local changes are discarded without
+a Redis write. This also refuses an empty stored upper bound through the same predicate.
+No second upper-bound guard, duration sign rule, operational ceiling, rounding, decoder,
+codec or wire change was added. Issue #887 remains separate and OPEN: pre-encoding
+validation does not establish numeric round-trip safety through cjson.
+
+The five comments represent two groups: derived timestamps
+`4492801111` / `4492802077` / `4492809400`, and empty upper bounds
+`4492803307` / `4492809413`. The new real-Redis write-contract suite was RED with **7
+failures and 14 passing controls** on the updated base before adding the store check.
+After the five-line production patch, **352/352 tests in six files passed** in 9.19s,
+including all original 331 assertions. Refused fresh acquisition leaves no key; takeover,
+renewal, reservation and both retry-settlement paths preserve exact bytes, original
+versions and usable old fences/tokens. Stale incarnation/version and foreign owner checks,
+plus an already active sweep, retain their existing precedence.
+
+Controls preserve zero backoff, zero/negative lease/turn and negative-backoff semantics,
+MAX turn with an ordinary lease, MAX backoff with a representable future due date, and
+null/omitted/UUID upper bounds. Byte-overflow rollback discards an unadmitted unsafe retry
+before a valid OVERFLOW write, rolls back nextTicket and remains readable. Capacity
+overflow likewise does not reject an unused backoff. The diagnostic tradeoff is explicit:
+a would-write-invalid timestamp now produces the existing LIMIT_REACHED path, rather than
+writing a key that the next load treats as corrupt/fence-lost; no extra diagnostics were
+added in this exception.
+
+Main was fetched and verified as `572a10627d006b50909cd254af51e167de2c7e69`, then merged
+without rebase or force. The original four implementation/correction commits remain
+unchanged in the saved range-diff. The retained pre-exception ref is
+`backup/840-before-exception-1620b8bb-20261106`; the verified incremental Git bundle,
+binary patch, range-diff and test logs are under
+`F:/Dev/Temp/pospay-840-validation/`. This is source-history backup evidence, not a database
+backup or verified restore receipt. All deployment/merge backup gates remain outstanding.
+
+### Measured scan cost
+
+The reproducible [benchmark](840-store-scan-benchmark.mjs) uses only synthetic state on a
+private local Redis. With dependencies installed and Node 24, run it from the repository:
+
+```powershell
+node docs/specs/060-ratings-and-staff-app/840-store-scan-benchmark.mjs redis://127.0.0.1:56382 <report-output.json>
+```
+
+The port must belong to the caller's private Redis test container. It creates random
+benchmark keys and deletes only those keys. Each timed EVALSHA starts with identical
+bytes reset outside timing. The script asserts that the current lease script minus the
+new store guard equals the reviewed `1620b8bb` baseline. It alternates order across 10
+warmup pairs and 100 measured pairs per shape. A separate 20-batch, 25-iteration scan
+measurement uses Redis commandstats EVALSHA microseconds, subtracting the same script's
+decode/prevalidation/no-op cost; each interval asserts exactly one EVALSHA. An initial
+Redis TIME-in-script experiment returned zero elapsed time and was discarded.
+
+The [retained measurement](840-store-scan-measurement.json) used Node v24.21.0 and private
+Redis 7.4.11 on Docker/WSL2 (client round-trip includes transport/reply):
+
+| State shape | JSON bytes | Baseline median / p95 ms | Checked median / p95 ms | Paired delta median / p95 ms | Added scan median / p95 µs |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Empty IDLE | 347 | 1.447 / 3.882 | 1.475 / 3.951 | 0.008 / 2.493 | 6.16 / 7.88 |
+| 64 retries, 25 journal entries, 25 reserved | 11644 | 2.493 / 5.743 | 2.761 / 6.392 | 0.220 / 2.702 | 193.00 / 266.44 |
+| 2048 retries, 75 journal entries, 25 reserved | 178564 | 15.626 / 25.000 | 18.391 / 31.294 | 2.353 / 11.182 | 1776.16 / 2287.36 |
+
+The added scan is measurable at the default retry capacity. Host/transport variance is
+visible in round-trip tails; these local samples do not establish production p95/p99,
+throughput, or a latency guarantee. No concurrency, budgets or per-company metrics change
+is inferred from this measurement. Exact-head CI, fresh independent review and manager
+coordinated external receipts remain required after the single consolidated push.
+
+The exception's local gates passed: worker typecheck, scoped ESLint/boundaries (existing
+boundary-rule deprecation warnings only), module-map, documentation (0 errors / 29
+existing warnings), formatting and diff checks. Clean-code, test and documentation guard
+passes retained the minimal five-line production change, real persistence assertions and
+source-backed claims. The owner card's UTF-8 question, all three options and answer were
+compared exactly in both this audit and `owner-questions.ar.md`. Heavy suites remain
+CI-only. The manager owns merge and the one final-head Codex request.

@@ -521,6 +521,11 @@ called".
   Writer inputs preserve this state contract: fractional or unsafe-integer lease/backoff/turn durations are
   rejected as configuration errors before Redis, without rounding. Invalid empty/missing/non-string sweep/page
   IDs return `LIMIT` before mutation and preserve bytes. Valid integer-duration settings, zero backoff and nonempty IDs remain valid.
+  The bounded fourth exception on #888 rechecks the selected state in every Lua `store` before encoding or `SET`.
+  An out-of-range derived timestamp or empty stored upper bound returns `LIMIT` with the original version and
+  unchanged bytes; refused fresh creation returns `LIMIT`/0 and creates no key. Existing fence/phase precedence,
+  zero/negative-duration semantics and representable clamped timestamps are preserved. This pre-encoding check
+  does not repair the separate cjson numeric precision issue #887.
   These cases require real Redis Lua contract tests, including all ten commands and successful lifecycle controls.
 - `an_invalid_job_fails_once_without_retries` — a job whose data fails the contract is an unrecoverable error: it fails once with
   `RATING_CLAIMS_JOB_INVALID` and is not retried.
