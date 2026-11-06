@@ -39,7 +39,7 @@ export async function migrateDatabase(ownerUrl: string, passwords: RolePasswords
     await applyMigrations(
       connection.sql,
       MIGRATIONS_FOLDER,
-      migrationDataSteps(ownerUrl, passwords.app),
+      migrationDataSteps(ownerUrl, passwords.app, passwords.dispatcher),
     );
   } finally {
     await connection.close();

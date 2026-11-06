@@ -1,0 +1,119 @@
+# 59b-2c — local validation receipt
+
+Date: 2026-11-06. Implementer: Codex `gpt-6.1-sol`, effort `medium` (PP-125).
+Base after the manager's lane grant: `ef9209bafb8ad541d437d7bc472cf544e4cda84a`.
+Scope: dormant inventory, discovery, registration recovery and retained-source replay.
+No activation, sender implementation or fixes to #803/#804/#805/#808/#809/#810/#811.
+
+## Migration
+
+- Generated with `pnpm --filter @pospay/db db:generate rating-claims-discovery`
+  after rebase, not by editing a merged migration.
+- File: `packages/db/migrations/0214_2026-11-06_rating-claims-discovery.sql`.
+- SHA-256: `3139f39654d3a6e2574a6153ed81a6c5dadf22d2d41d1b8fa574097258cc83af`.
+- Snapshot `prevId`: `fc481331-9587-49d5-bf02-f5f98442eeed`, equal to 0213's `id`.
+  A structural comparison, ignoring only the new snapshot identity/link and the
+  added `outbox_rating_claims_replay_idx`, found no other snapshot change.
+- `pnpm migration-chain:check`: passed.
+- ADR-0038 marker invokes the registered data step before SQL. Concurrent
+  drop/create repairs an incomplete prior index build; discovery is idempotent
+  across a committed company transaction whose response is lost. The company transaction's aggregate lock serializes existence checking and appending even if the migration owner loses its session lock.
+
+## Private infrastructure
+
+`node scripts/test-db/lane.mjs up rating-discovery-2c` created this worktree's
+Postgres on `127.0.0.1:55405`; a separate test Redis used `127.0.0.1:56405`.
+Only synthetic local test configuration was created. No real environment file was
+read or copied, and no staging SQL, deploy, server or DNS change was made.
+Vitest global setup migrated the real chain through 0214 before cloning test DBs.
+
+## Final local gates
+
+| Command / set | Result |
+| --- | --- |
+| `pnpm turbo run typecheck lint --filter=@pospay/worker --filter=@pospay/db --filter=@pospay/contracts --concurrency=2` | 28 tasks successful; 18 cached; includes boundary checks |
+| `pnpm lint:docs` | 0 errors; 29 existing TODO warnings |
+| `pnpm module-map:check` | passed |
+| `pnpm migration-chain:check` | passed |
+| DB: `rating-claims-discovery`, `migration-data-steps`, `concurrent-migrations`, `dispatcher-role`, `dispatcher` | 82 tests passed in 5 files |
+| Worker: `rating-discovery-claim`, `rating-discovery-replay`, `rating-claims.processor`, `otp-startup` | 24 tests passed in 4 files |
+| Contracts: `rating-claims` | 5 tests passed |
+| `git diff --check` | passed |
+
+The worker DB/Redis tests ran with `REDIS_URL` set to this private Redis. No E2E,
+full `pnpm check` or full API shards ran locally (PP-113); those belong to CI.
+The dependency build and worker build also passed during local preparation.
+
+## Guard pass and evidence
+
+`clean-code-guard`, `test-guard` and `docs-guard` were applied to the changed code,
+tests and docs. Issues found during implementation were fixed before delivery:
+
+- The first data-step test correctly rejected an application-role outbox SELECT.
+  The existence check now uses the restricted dispatcher facade inside the app
+  transaction, after its aggregate advisory lock. Counts and appends use `withTenant`; no grant was widened.
+- Cleanup preserves the primary sanitized failure while attempting both pool
+  closes. Function-size checks were fixed by extracting named responsibilities,
+  not by suppressing lint or squashing lines. Shared discovery validation lives
+  under customers jobs, respecting the jobs dependency policy.
+- A test attempted a forbidden historical status reversal during cleanup. It was
+  replaced by an isolated empty-company scenario; historical rows are not reset.
+  The complete DB set then passed, with no reliance on a prior test's effects.
+
+The tests prove tenant-scoped discovery and replay, read-only parked/published
+outbox metadata, unchanged historical `SENDING`/`SENT` requests and terminal
+attempts, registration failure/retry, racing registration, lost scheduler repair,
+and old-worker-acknowledged late-visit recovery through one `SENDING` claim with
+one ready event. The main startup test still proves dormancy with valid token
+settings. A real dispatcher-query capture plus EXPLAIN uses the new partial index
+with 20,000 unrelated retained events; this proves that plan on this fixture,
+not production latency or capacity.
+
+The historical-send owner question remains PENDING. DEP-1 must read migrate's
+counts before any dependent activation; this receipt is not a deployment or merge
+approval. The manager retains the migration lane through this PR's merge.
+
+## Internal review correction
+
+Astra `gpt-6-astra`, effort `high`, reviewed `35400d98` against `ef9209ba`
+read-only, including all 27 changed files and full structural snapshot comparison.
+It found one P2: loss of the owner connection could release the migration session
+lock while the independent app/dispatcher connections continued, allowing two
+existence checks before either append committed.
+
+The fix takes the same transaction advisory lock as `appendOutboxEvent` before
+the dispatcher existence check and holds it through the append commit. The extra
+read connection is necessary because `pospay_app` cannot SELECT outbox; no grant
+was added. A deterministic competing-run regression pauses the first false read,
+starts the second run, then releases the first. It proves exactly one discovery
+per company without relying on an owner session lock. The focused DB file passed
+all **8 tests** after this correction; the earlier 82-test set above predates it.
+The migration SQL and its SHA-256 did not change.
+
+## Correction round 1 of 3
+
+After all four panel bots completed on `d990c9b0`, the manager authorized one
+consolidated push. The four secret detections refer to the unchanged literal
+`{ token: 'synthetic' }` in a contract rejection test, not a credential.
+
+Replay bounds now fail with typed `REPLAY_SCOPE_INVALID`; the CLI rejects them
+before client creation. Supplied cursor IDs must belong to the company and replay
+type set, checked inside the same dispatcher transaction without a new connection.
+The dispatcher role cannot use the application's `withTenant` connection because
+the application has no outbox SELECT grant; the existing restricted read facade
+is preserved. Uppercase company UUIDs are canonicalized before querying/comparison.
+
+Installed `bullmq@6.2.0` RedisConnection.waitUntilReady waits for ready/end;
+`ioredis@6.0.0` RedisOptions.retryStrategy always returns another delay. A 5-second
+initial readiness deadline now stops reconnects and closes the Queue on failure.
+The real CLI process tests prove clear nonzero errors for inverted bounds and an
+unavailable Redis, including process termination rather than an open retry handle.
+The test invokes Node's TypeScript transform mode because strip-only mode cannot
+load the repository's parameter properties. No production launch command changed.
+
+Focused DB tests: 10 passed. Typecheck/lint: all 28 turbo tasks passed. The worker
+tests cover uppercase replay, lost registration and claim/dedupe regression; the
+shared Redis fixture URL replaces the password-free fallback. Spec 060 identifies
+historical disposition as business: the PENDING question now routes through the
+manager's decisions-page batch if DEP-1 finds rows, with Abu Salem's binding pick.
+SQL migration 0214, its snapshot and SHA-256 remain unchanged.

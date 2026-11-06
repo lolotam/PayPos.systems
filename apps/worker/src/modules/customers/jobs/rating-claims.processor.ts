@@ -1,4 +1,4 @@
-import { ratingClaimsJob } from '@pospay/contracts';
+import { ratingClaimsJob, RATING_CLAIMS_DISCOVERY } from '@pospay/contracts';
 import type { ClaimedEvent, DeliveryOutcome } from '@pospay/db';
 import type { Logger } from '@pospay/observability';
 import { Queue, UnrecoverableError, Worker } from 'bullmq';
@@ -6,12 +6,9 @@ import { Redis } from 'ioredis';
 
 import { retryDelayMs } from '../../../outbox/retry-policy.ts';
 import type { RatingClaimsTurnSummary } from '../use-cases/claim-rating-requests/claim-rating-requests.ts';
-
-/** اسم طابور المطالبة، وهو نفسه بادئة معرّف الجدولة لكل شركة. */
-export const RATING_CLAIMS_QUEUE = 'rating-claims';
-
-/** الفترة بين جولتين متتاليتين لنفس الشركة: دقيقة واحدة. */
-export const RATING_CLAIMS_EVERY_MS = 60_000;
+import { RATING_CLAIMS_QUEUE, ensureRatingClaimsRegistered } from './rating-claims.registration.ts';
+import { validRatingClaimsDiscovery } from './rating-claims-discovery.ts';
+export { RATING_CLAIMS_QUEUE, RATING_CLAIMS_EVERY_MS } from './rating-claims.registration.ts';
 
 /** أحداث الزيارة اللي بتعمل جدولة شركة، من غير أي حدث اكتشاف. */
 export const RATING_CLAIMS_TRIGGERS: readonly string[] = [
@@ -47,7 +44,7 @@ export interface RatingClaimsProcessorOptions {
 export interface RatingClaimsProcessor {
   /**
    * يسجّل جدولة الشركة لو الجدولة ناقصة، وبيسجّلها بس لأحداث الزيارة المعرّفة
-   * في RATING_CLAIMS_TRIGGERS؛ وأي حدث تاني بيمرّ على طول. ولو التسجيل فشل
+   * في RATING_CLAIMS_TRIGGERS ولحدث الاكتشاف المستقل؛ وأي حدث تاني بيمرّ على طول. ولو التسجيل فشل
    * بيرجّع RATING_CLAIMS_SCHEDULE_RETRY عشان المرسّل يعيد المحاولة.
    *
    * @param event الحدث المسلّم من المرسِل
@@ -101,33 +98,6 @@ export async function closeRedisClient(client: Redis): Promise<void> {
 }
 
 /**
- * يسجّل جدولة الشركة لو مش موجودة، من غير ما يعيد كتابة جدولة شغّالة.
- *
- * إعادة كتابة الجدولة بتعيد ضبط توقيت الدور، فالزيارة الجديدة كانت بتأجّل الدور
- * كل مرة وبتخليه ما يوصلش لنهاية جولته.
- */
-async function registerCompany(queue: Queue, companyId: string): Promise<void> {
-  const schedulerId = `${RATING_CLAIMS_QUEUE}-${companyId}`;
-  const existing = await queue.getJobScheduler(schedulerId);
-  const parsed = ratingClaimsJob.safeParse(existing?.template?.data);
-  if (parsed.success && parsed.data.companyId === companyId) return;
-  await queue.upsertJobScheduler(
-    schedulerId,
-    { every: RATING_CLAIMS_EVERY_MS },
-    {
-      name: 'claim',
-      data: { companyId },
-      opts: {
-        attempts: 3,
-        backoff: { type: 'exponential', delay: 5_000 },
-        removeOnComplete: { age: 86_400 },
-        removeOnFail: { age: 604_800 },
-      },
-    },
-  );
-}
-
-/**
  * يقفل مورد وبيجمّع الخطأ بدل ما يوقف الباقي.
  *
  * @param failure الخطأ الأول اللي حصل
@@ -175,9 +145,12 @@ export function startRatingClaimsProcessor(
 
   return {
     deliver: async (event, next) => {
-      if (!RATING_CLAIMS_TRIGGERS.includes(event.eventType)) return next(event);
+      const discovery = event.eventType === RATING_CLAIMS_DISCOVERY;
+      if (!discovery && !RATING_CLAIMS_TRIGGERS.includes(event.eventType)) return next(event);
+      if (discovery && !validRatingClaimsDiscovery(event))
+        return { delivered: false, error: 'RATING_CLAIMS_DISCOVERY_INVALID', retryInMs: null };
       try {
-        await registerCompany(queue, event.companyId);
+        await ensureRatingClaimsRegistered(queue, event.companyId);
       } catch (error) {
         options.logger?.warn({ err: error }, 'rating claims schedule failed');
         return {
@@ -186,7 +159,7 @@ export function startRatingClaimsProcessor(
           retryInMs: retryDelayMs(event.attempt),
         };
       }
-      return next(event);
+      return discovery ? { delivered: true } : next(event);
     },
     ready: async () => {
       await worker.waitUntilReady();
@@ -203,7 +176,7 @@ export function startRatingClaimsProcessor(
       if (failure !== undefined) throw failure;
     },
     ensureRegistered: async (companyId) => {
-      await registerCompany(queue, companyId);
+      await ensureRatingClaimsRegistered(queue, companyId);
     },
   };
 }

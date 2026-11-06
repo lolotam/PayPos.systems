@@ -430,3 +430,40 @@ Pure package definition/allocation/slot/PackageRuleError primitives move to the
 zero-dependency @pospay/domain with API compatibility exports. Sale allocation keeps
 its default behavior; imports explicitly select session-count allocation. There is
 no cross-application source import or duplicate implementation of money rules.
+
+## Addendum 2026-11-06 — 59b-2c dormant inventory and recovery
+
+The migration data step `rating-claims-discovery` follows ADR-0038. Its migration
+owner only enumerates company IDs after the bypass-role check. Counts of requests
+and historical attempts, and appending discovery, run through `pospay_app` with
+`withTenant`. The existing `pospay_dispatcher` credentials supply a restricted,
+read-only existence check: the application has INSERT-only outbox access, so it
+cannot check publication history itself. No grant or tenant bypass is added.
+The company transaction takes the aggregate advisory lock before the dispatcher existence check, so loss of the owner session lock cannot permit duplicate discovery. On a crash after a company
+commits, the next run finds its discovery even if published or parked and skips
+the append. Counts are logged without identifiers, phone numbers, links or payloads.
+
+`RatingClaimsDiscoveryRequested` carries `{}` and uses aggregate type
+`rating_claims_discovery` with the company ID as aggregate ID (PP-96), separate
+from ordinary company events. The active claim transport registers the existing
+per-company BullMQ scheduler and acknowledges discovery without delegating it to
+the scheduling consumer. Registration failures retain PP-97 backoff and parking.
+The production root still installs `closedRatingClaimsLifecycle()`: this change
+does not register discovery as a known production event or enable claims/sending.
+
+The explicit operator recovery command reads retained discovery and the three
+visit event types through the dispatcher facade, including published and parked
+rows, with a company scope, ascending ID cursor and captured upper bound. It
+registers BullMQ without creating a claim Worker or token capability; only visits
+reach the existing scheduling deliverer with their original IDs and dedupe receipts.
+No outbox publication, retry, parked or consumption metadata is reset. The partial
+replay index covers those four event types, including retained published rows.
+
+Historical `SENDING`/`SENT` requests and `rating_request` attempts in `SENDING` or
+terminal states are counted and left unchanged. Their disposition remains PENDING
+in the slice owner questions; DEP-1 counts determine whether the manager needs an
+owner decision. Activation blockers #803, #804, #805, #808, #809, #810 and #811
+remain separate work. The manager granted the migration lane on 2026-11-06 after
+47-2a (#877) merged as `ef9209ba`. Migration 0214 carries the data-step marker and
+a concurrent drop/create of the new replay index, so an interrupted build can
+restart without accepting an invalid index. Its snapshot follows 0213.

@@ -108,3 +108,4 @@ export type {
   OtpAttemptRecord,
   OtpExecutionResult,
 } from './staff-otp-types.ts';
+export { assertReplayBounds, ReplayCursorError } from './replay-cursor.ts';

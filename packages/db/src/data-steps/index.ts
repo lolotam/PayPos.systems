@@ -2,12 +2,17 @@ import { systemUuidV7 } from '@pospay/ids';
 import type postgres from 'postgres';
 
 import { createDatabase } from '../client.ts';
+import { createOutboxDispatcherDatabase } from '../dispatcher.ts';
 import {
   assignEmployeeNumbers,
   EmployeeNumbersExhaustedError,
   EmployeeNumbersRoleRefusedError,
 } from './employee-numbers.ts';
 import { MigrationRoleRefusedError, rekeyEmployeeNameKeys } from './employee-name-keys.ts';
+import {
+  discoverRatingClaims,
+  RatingDiscoveryRoleRefusedError,
+} from './rating-claims-discovery.ts';
 
 /**
  * يبني رابط pospay_app من رابط المالك؛ الباسورد بيتعمل له encode كامل لأن setter الـ URL
@@ -28,6 +33,7 @@ export function appDatabaseUrl(ownerUrl: string, appPassword: string): string {
 export function sanitizedStepError(step: string, error: unknown): Error {
   if (
     error instanceof MigrationRoleRefusedError ||
+    error instanceof RatingDiscoveryRoleRefusedError ||
     error instanceof EmployeeNumbersRoleRefusedError ||
     error instanceof EmployeeNumbersExhaustedError
   )
@@ -42,8 +48,13 @@ export function sanitizedStepError(step: string, error: unknown): Error {
 }
 
 /** يربط علامات الترحيل بخطوات بيانات معزولة، ويغلق اتصال التطبيق حتى عند فشل الخطوة. */
-export function migrationDataSteps(ownerUrl: string, appPassword: string) {
+export function migrationDataSteps(
+  ownerUrl: string,
+  appPassword: string,
+  dispatcherPassword?: string,
+) {
   return {
+    'rating-claims-discovery': ratingDiscoveryStep(ownerUrl, appPassword, dispatcherPassword),
     'employee-numbers': async (owner: postgres.Sql): Promise<void> => {
       const app = createDatabase({
         url: appDatabaseUrl(ownerUrl, appPassword),
@@ -76,5 +87,33 @@ export function migrationDataSteps(ownerUrl: string, appPassword: string) {
         await app.close();
       }
     },
+  };
+}
+
+function ratingDiscoveryStep(ownerUrl: string, appPassword: string, dispatcherPassword?: string) {
+  return async (owner: postgres.Sql): Promise<void> => {
+    if (!dispatcherPassword) throw new Error('RATING_CLAIMS_DISCOVERY_DISPATCHER_CONFIGURATION');
+    const readerUrl = new URL(appDatabaseUrl(ownerUrl, dispatcherPassword));
+    readerUrl.username = 'pospay_dispatcher';
+    const reader = createOutboxDispatcherDatabase({
+      url: readerUrl.toString(),
+      maxConnections: 1,
+    });
+    const app = createDatabase({
+      url: appDatabaseUrl(ownerUrl, appPassword),
+      ids: systemUuidV7(),
+      maxConnections: 1,
+    });
+    let failure: Error | undefined;
+    try {
+      const counts = await discoverRatingClaims(owner, app, reader);
+      console.log(`rating_claims_discovery ${JSON.stringify(counts)}`);
+    } catch (error) {
+      failure = sanitizedStepError('rating-claims-discovery', error);
+    }
+    const closed = await Promise.allSettled([app.close(), reader.close()]);
+    if (failure) throw failure;
+    if (closed.some((result) => result.status === 'rejected'))
+      throw new Error('RATING_CLAIMS_DISCOVERY_CLOSE_FAILED');
   };
 }
