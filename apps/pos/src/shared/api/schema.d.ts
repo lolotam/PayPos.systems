@@ -12874,7 +12874,7 @@ export interface operations {
         parameters: {
             query?: {
                 open?: "true";
-                /** @description Open-list boundary instant, no later than now and at most 24 hours old. */
+                /** @description Open-list boundary instant in UTC ending in Z, no later than now and at most 24 hours old. */
                 as_of?: string;
                 cursor?: string;
                 limit?: number;

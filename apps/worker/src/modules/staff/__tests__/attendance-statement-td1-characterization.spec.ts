@@ -160,6 +160,10 @@ it('TD-1 control: an overnight shift remains on its stored working date', async 
     still_in: false,
     scheduled: [{ starts_at: '2026-10-01T19:00:00+00:00', ends_at: '2026-10-01T23:00:00+00:00' }],
   });
+  expect(await readDay(tenant, employee, REQUESTED_AT, '2026-10-02')).toMatchObject({
+    scheduled: [],
+    no_attendance: false,
+  });
 });
 
 it('TD-1 control: one attended shift excuses a split day', async () => {

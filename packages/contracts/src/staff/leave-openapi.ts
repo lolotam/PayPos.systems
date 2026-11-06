@@ -1,3 +1,13 @@
+import { z } from 'zod';
+import { employeeLeaveListQuery } from './leave.js';
+
+// الـ schema بتتولد من العقد نفسه، عشان الوصف ما يقبلش offset الـ runtime بيرفضه.
+const employeeQuerySchema = (name: 'open' | 'as_of') =>
+  z.toJSONSchema(employeeLeaveListQuery.shape[name].unwrap(), {
+    target: 'openapi-3.0',
+    io: 'input',
+    metadata: z.registry(),
+  });
 const json = (name: string) => ({
   'application/json': { schema: { $ref: `#/components/schemas/${name}` } },
 });
@@ -63,12 +73,13 @@ export const leavePaths = {
   '/v1/businesses/{businessId}/employees/{employeeId}/leave-requests': {
     get: operation('employeeLeaveHistory', [
       ...employee,
-      { in: 'query', name: 'open', schema: { type: 'string', enum: ['true'] } },
+      { in: 'query', name: 'open', schema: employeeQuerySchema('open') },
       {
         in: 'query',
         name: 'as_of',
-        schema: { type: 'string', format: 'date-time' },
-        description: 'Open-list boundary instant, no later than now and at most 24 hours old.',
+        schema: employeeQuerySchema('as_of'),
+        description:
+          'Open-list boundary instant in UTC ending in Z, no later than now and at most 24 hours old.',
       },
     ]),
     post: operation('requestEmployeeLeave', employee, 'RequestEmployeeLeaveInput', '201'),
