@@ -1,5 +1,6 @@
 // العامل يملأ نتائج الباقات عند الخروج من pending فقط؛ trigger يمنع تغيير نتائج الموظفين أو معاينة جاهزة (ADR-0034، 47-1a).
 export const IMPORT_COLUMN_GRANTS = [
+  'import_previews.commit_membership_id:pospay_app:UPDATE',
   'import_previews.committed_at:pospay_app:UPDATE',
   'import_previews.created_count:pospay_app:UPDATE',
   'import_previews.error_code:pospay_app:UPDATE',

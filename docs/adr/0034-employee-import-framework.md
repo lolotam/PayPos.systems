@@ -390,3 +390,36 @@ requires array-shaped results and matching issue counts, unique/disjoint valid a
 invalid row identities, and a complete valid/skipped/distinct-invalid partition.
 Multiple errors on one row remain legal. Migration 0211 is immutable; #864 stays a
 separate staged-validation follow-up. Final generation waits for the manager lane.
+
+
+## Addendum — package financial worker (058 / 47-2b)
+
+The orders commit worker consumes the immutable accepted `commit_membership_id` and
+creator from a locked package preview. Authorization remains the future request
+adapter's responsibility; revocation after acceptance does not select a replacement
+membership. A composite FK binds company, creator and accepted membership.
+
+The worker validates persisted JSON and ordinal proof, compares request-time expiry,
+and checks frozen session-count allocation with bigint mills. It never rereads the
+workbook or resolves phone numbers. Dense `import_row` is the 1-based position in
+sorted physical `source_rows`, including skipped rows; source 502 can map to 500.
+Service IDs are read in sorted batches with `FOR SHARE`; only names are consumed.
+Prices, including display list prices, stay frozen in the validated preview.
+
+Entitlements are inserted in deterministic external-reference order with only
+`package_entitlements_external_ref_key` targeted for conflict skipping. Children are
+written only for returned parents, all components before any slot. Each component's
+at-most-365 slots gets injected UUIDv7 IDs and one bounded INSERT, in the same tenant
+transaction. Audit, `ImportCommitted` summary and final status share that transaction.
+No `PackageSaleChanged`, request route, producer, transport or recovery is activated.
+
+The contract draft requires proof for new ready results and refuses legacy commit
+acceptance as `IMPORT_PREVIEW_EXPIRED` (PP-134). No backfill is performed. The supported
+rollback floor is the proof-writing 47-2a worker; pre-expand 47-1b cannot write ready
+after contract. Existing migrations and generation metadata remain unchanged.
+
+The transaction adapter requires an explicit budget; 15 seconds is not inherited
+from staff. The full-bound benchmark records completed COMMIT, including deferred
+checks, elapsed time and sampled process RSS/heap. No measured production budget is
+claimed until the parent runs it in the private lane. Limits and atomicity remain
+unchanged if the benchmark fails; report the failure before any design adjustment.
