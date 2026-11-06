@@ -6,6 +6,7 @@ export type LeaveContext = {
   expires_at: string;
   sessionEpoch: number;
   branch_id?: string;
+  timezone?: string;
 };
 
 export function leaveIdentity(context: LeaveContext): string {

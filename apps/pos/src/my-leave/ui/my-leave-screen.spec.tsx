@@ -15,6 +15,7 @@ const context: LeaveContext = {
   user_id: 'user',
   expires_at: '2026-11-06T20:00:00Z',
   sessionEpoch: 0,
+  timezone: 'Asia/Kuwait',
 };
 const branch = '00000000-0000-4000-8000-000000000001';
 const records = ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'].map((status, index) => ({
@@ -33,17 +34,23 @@ const records = ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'].map((status, in
 let items = [...records];
 let requests: Request[];
 let failure = false;
+let canCreate = true;
+let readFailure = false;
 beforeEach(() => {
   onlineManager.setOnline(true);
   items = [...records];
   requests = [];
   failure = false;
+  canCreate = true;
+  readFailure = false;
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
   vi.stubGlobal(
     'fetch',
     vi.fn(async (request: Request) => {
       requests.push(request);
       const url = new URL(request.url);
+      if (request.method === 'GET' && readFailure)
+        return Response.json({ code: 'NOT_READY' }, { status: 503 });
       if (url.pathname.endsWith('/branches'))
         return Response.json({
           items: [{ id: branch, name_ar: 'Branch', name_en: 'Branch', timezone: 'Asia/Kuwait' }],
@@ -66,7 +73,7 @@ beforeEach(() => {
           ? [{ ...(records[1] as (typeof records)[number]), id: 'older', note: 'Older page' }]
           : items,
         next_cursor: url.searchParams.has('cursor') ? null : branch,
-        request_branch_ids: [branch],
+        request_branch_ids: canCreate ? [branch] : [],
       });
     }),
   );
@@ -144,6 +151,42 @@ it('cancels using revision and refreshes status', async () => {
   const request = requests.find((item) => item.method === 'POST') as Request;
   expect(await request.clone().json()).toEqual({ expected_revision: 1 });
 });
+it('keeps history and allowed cancellation without offering unauthorized creation', async () => {
+  canCreate = false;
+  mount();
+  await chooseBranch();
+  expect(screen.queryByRole('button', { name: 'Submit request' })).toBeNull();
+  expect(screen.queryByLabelText('From date')).toBeNull();
+  expect(screen.getByText('Annual — Approved')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Cancel request' })).toBeTruthy();
+});
+it('retains the draft through transient history and branch background failures', async () => {
+  const view = mount();
+  await chooseBranch();
+  dates();
+  readFailure = true;
+  await act(async () => {
+    await view.cache.refetchQueries({ queryKey: ['my-leave'] });
+  });
+  await screen.findAllByRole('alert');
+  expect((screen.getByLabelText('From date') as HTMLInputElement).value).toBe('2026-12-01');
+  expect(screen.getByText('Annual — Pending')).toBeTruthy();
+  readFailure = false;
+  await act(async () => {
+    await view.cache.refetchQueries({ queryKey: ['my-leave'] });
+  });
+  expect((screen.getByLabelText('From date') as HTMLInputElement).value).toBe('2026-12-01');
+  await waitFor(() => expect(screen.queryAllByRole('alert')).toHaveLength(0));
+});
+it('retries an initial branch read failure without reopening the screen', async () => {
+  readFailure = true;
+  mount();
+  await screen.findByRole('alert');
+  readFailure = false;
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'myLeave.retry') }));
+  await chooseBranch();
+  expect(screen.getByRole('button', { name: 'Submit request' })).toBeTruthy();
+});
 it('polls external decisions and shows the selected timezone even with empty history', async () => {
   vi.useFakeTimers({
     toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'],
@@ -207,6 +250,7 @@ it('opens reception leave directly using the paired branch without another PIN',
   await screen.findByText('Annual \u2014 Pending');
   expect(screen.queryByLabelText('Branch')).toBeNull();
   expect(screen.queryByLabelText(/PIN/i)).toBeNull();
+  expect(screen.getByText(`${t('en', 'leave.timezone')}: Asia/Kuwait`)).toBeTruthy();
   expect(
     requests.some((request) => request.headers.get('Authorization') === 'Device paired-device'),
   ).toBe(true);

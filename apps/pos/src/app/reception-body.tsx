@@ -3,6 +3,7 @@ import { StaffLoginScreen } from '@/staff-login/ui/staff-login-screen';
 import { useStaffLogin } from '@/staff-login/api/use-staff-login';
 import { AttendanceHome } from '@/attendance/ui/attendance-home';
 import { CardClockAvailability } from '@/attendance/ui/card-clock-availability';
+import { useState } from 'react';
 
 export function ReceptionBody({
   branchId,
@@ -12,16 +13,23 @@ export function ReceptionBody({
   retry: () => Promise<void>;
 }) {
   const operator = useStaffLogin();
+  const [branchZone, setBranchZone] = useState<{ id: string; timezone: string } | null>(null);
   return (
     <div className="mx-auto grid w-full max-w-6xl items-start gap-12 lg:grid-cols-2">
       <StaffLoginScreen
         ownLeave={(session, epoch) => (
           <OwnLeaveEntry
-            context={{ mode: 'reception', ...session, branch_id: branchId, sessionEpoch: epoch }}
+            context={{
+              mode: 'reception',
+              ...session,
+              branch_id: branchId,
+              sessionEpoch: epoch,
+              ...(branchZone?.id === branchId ? { timezone: branchZone.timezone } : {}),
+            }}
           />
         )}
       />
-      <AttendanceHome branchId={branchId} onRejected={retry} />
+      <AttendanceHome branchId={branchId} onRejected={retry} onBranchTimezone={setBranchZone} />
       <CardClockAvailability
         online={operator.online}
         signedIn={operator.authenticatedSession !== null}

@@ -5,16 +5,20 @@ import { useLocale } from '@/shared/locale/locale-context';
 import { useAttendanceQr } from '../api/use-attendance-qr';
 import { AttendanceQr } from './attendance-qr';
 import { AttendanceClock } from './attendance-clock';
+import { useEffect } from 'react';
 
 export function AttendanceHome({
   branchId,
   onRejected,
+  onBranchTimezone,
 }: {
   branchId: string;
   onRejected: () => Promise<void>;
+  onBranchTimezone?: (branch: { id: string; timezone: string }) => void;
 }) {
   const locale = useLocale();
   const qr = useAttendanceQr(branchId, onRejected);
+  useBranchTimezone(qr.branch, branchId, onBranchTimezone);
   const name = locale === 'ar' ? (qr.branch?.name_ar ?? qr.branch?.name_en) : qr.branch?.name_en;
   return (
     <Card className="flex min-w-0 flex-col items-center gap-6 p-6 text-center sm:p-8">
@@ -62,4 +66,14 @@ export function AttendanceHome({
       <p className="text-base text-muted-foreground">{t(locale, 'pos.attendanceRefreshLead')}</p>
     </Card>
   );
+}
+
+function useBranchTimezone(
+  branch: { id: string; effective_timezone: string } | undefined,
+  branchId: string,
+  changed: ((branch: { id: string; timezone: string }) => void) | undefined,
+) {
+  useEffect(() => {
+    if (branch?.id === branchId) changed?.({ id: branchId, timezone: branch.effective_timezone });
+  }, [branchId, branch, changed]);
 }

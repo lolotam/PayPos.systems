@@ -118,3 +118,33 @@ Final verification after the RTL assertion: all 8 selected POS test files passed
 44 tests total; POS typecheck and lint passed again. This includes the real reception
 session-probe composition regression and polling/timezone test. The UI PR is stacked
 on the 57b-2a reader branch; generated clients and API changes belong to that base PR.
+
+## PR correction round 1
+
+The UI branch was rebased locally onto reader head
+`3fce8d37f0f5930ec784c29aea758bb73ad94a76`. All four panel bots and Codex
+completed on `a7c3aea07540dbfd974ead272423bebab1a4abcb` before one consolidated
+correction push (PP-119.1); CI on that original UI head passed.
+
+Accepted findings from Codex, MergePilot and Waleed on that remote head:
+
+- Creation now follows the current branch's presence in the returned
+  `request_branch_ids`; read history and permitted cancellation remain available.
+- Reception's timezone comes from the existing attendance QR's verified branch
+  metadata, passed through app composition. No second discovery API call or
+  device/session contract change is introduced. The form waits for the timezone;
+  the read-only history remains available while it is being obtained.
+- Failed background history or branch reads retain cached UI and the entered draft,
+  with an error shown alongside it. Initial failures without data still show the
+  refusal/retry state. Session rejection/offline/identity cleanup remains unchanged.
+
+The parent added visible creation-authority and draft-preservation regression tests
+and reception timezone assertions. `BranchLeave` now occupies its own component file,
+and an initial branch-query failure offers an explicit retry, covered by a visible
+recovery test. Four affected UI test files passed 24 tests after all changes. An initial
+recovery assertion ran before TanStack's UI notification; it now waits for the alerts
+to disappear, retaining the same assertion. Attendance composition's effect was
+extracted into a local hook to keep the existing 60-line component gate. No test was
+skipped or weakened. POS lint and typecheck, documentation and module-map checks
+all passed after these corrections. All seven inline findings are addressed; duplicates
+refer to the same background-error and reception-timezone fixes.

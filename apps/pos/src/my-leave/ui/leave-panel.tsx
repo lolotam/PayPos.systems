@@ -21,6 +21,7 @@ export function LeavePanel({
   const error = state.error ?? state.query.error;
   const message = leaveErrorText(error, locale);
   const items = state.query.data?.pages.flatMap((page) => page.items) ?? [];
+  const canCreate = state.query.data?.pages[0]?.request_branch_ids.includes(branch) ?? false;
   return (
     <div className="grid gap-4">
       {state.busy ? <p role="status">{t(locale, 'pos.loading')}</p> : null}
@@ -28,7 +29,7 @@ export function LeavePanel({
       {state.success ? <p role="status">{t(locale, `leave.${state.success}`)}</p> : null}
       {state.query.isPending ? (
         <p role="status">{t(locale, 'pos.loading')}</p>
-      ) : state.query.isError ? (
+      ) : state.query.isError && state.query.data === undefined ? (
         <Button
           onClick={() => {
             void state.query.refetch();
@@ -42,7 +43,9 @@ export function LeavePanel({
             {t(locale, 'leave.timezone')}
             {timezone ? `: ${timezone}` : ''}
           </p>
-          <LeaveForm busy={state.busy} submit={state.create} />
+          {canCreate && (context.mode === 'personal' || timezone !== undefined) ? (
+            <LeaveForm busy={state.busy} submit={state.create} />
+          ) : null}
           {items.length === 0 ? (
             <p>{t(locale, 'leave.empty')}</p>
           ) : (

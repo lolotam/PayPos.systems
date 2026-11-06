@@ -31,7 +31,13 @@ it('keeps the reception form during a background probe and clears it on refused 
         <StaffLoginScreen
           ownLeave={(current, epoch) => (
             <OwnLeaveEntry
-              context={{ mode: 'reception', ...current, branch_id: 'branch', sessionEpoch: epoch }}
+              context={{
+                mode: 'reception',
+                ...current,
+                branch_id: 'branch',
+                timezone: 'Asia/Kuwait',
+                sessionEpoch: epoch,
+              }}
             />
           )}
         />
