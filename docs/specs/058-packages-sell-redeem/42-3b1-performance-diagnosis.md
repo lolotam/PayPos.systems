@@ -1,5 +1,9 @@
 # 42-3b1 — performance diagnosis in progress, 2026-11-06
 
+The manager-authorized [disposable-clone index experiment](42-3b1-index-experiment.md)
+is complete. Dropping the candidate index alone did not correct the filtered RI plan or
+pass SA-10; no production dependency for that isolated change is recommended.
+
 ## Resume authorization
 
 The earlier [SA-10 failure](42-3b1-sa10-receipt.md) remains valid historical evidence.
