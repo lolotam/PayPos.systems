@@ -19,7 +19,7 @@ permissions:
 jobs:
   changes:
     name: detect code changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       code: ${{ steps.diff.outputs.code }}
@@ -58,7 +58,7 @@ jobs:
     name: typecheck · lint · test · lint:docs
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     # Per-task duration and cache status for the telemetry report; it does not change any task hash.
     env:
@@ -175,7 +175,7 @@ jobs:
     name: api tests ${{ matrix.shard }}/4
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     # Per-task duration and cache status for the telemetry report; it does not change any task hash.
     env:
@@ -253,7 +253,7 @@ jobs:
     name: integration · worker
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     # Per-task duration and cache status for the telemetry report; it does not change any task hash.
     env:
@@ -332,7 +332,7 @@ jobs:
     name: build all apps
     needs: [changes, check, api-tests, worker-tests]
     if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
@@ -365,7 +365,7 @@ jobs:
     name: docker images
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
@@ -434,7 +434,7 @@ jobs:
     name: ci-gate
     needs: [changes, check, api-tests, worker-tests, build, images]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
       - env:
