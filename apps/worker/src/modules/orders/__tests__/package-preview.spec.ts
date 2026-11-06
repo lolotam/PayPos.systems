@@ -239,16 +239,18 @@ it('rolls back a failed persistence attempt and refuses a changed file after rea
 it('rejects inconsistent ready metadata but permits multiple issues on one bad input row', async () => {
   const { id } = await f.requested(await packageWorkbook(1, 2, 'metadata'));
   for (const change of [
-    sql`rows='{}'::jsonb,row_count=1`,
-    sql`rows='[{},{}]'::jsonb,row_count=1`,
-    sql`errors='[{"row":2}]'::jsonb,error_count=0,row_count=1`,
-    sql`rows='[{"row":2}]'::jsonb,errors='[{"row":"02"}]'::jsonb,row_count=2,error_count=1`,
-    sql`rows='[{"row":2},{"row":2}]'::jsonb,row_count=2`,
-    sql`rows='[{"row":2}]'::jsonb,errors='[{"row":2}]'::jsonb,row_count=2,error_count=1`,
+    sql`rows='{}'::jsonb,row_count=1,source_rows='[2]'::jsonb`,
+    sql`rows='[{},{}]'::jsonb,row_count=1,source_rows='[2]'::jsonb`,
+    sql`errors='[{"row":2}]'::jsonb,error_count=0,row_count=1,source_rows='[2]'::jsonb`,
+    sql`rows='[{"row":2}]'::jsonb,errors='[{"row":"02"}]'::jsonb,row_count=2,error_count=1,source_rows='[2,3]'::jsonb`,
+    sql`rows='[{"row":2},{"row":2}]'::jsonb,row_count=2,source_rows='[2,3]'::jsonb`,
+    sql`rows='[{"row":2}]'::jsonb,errors='[{"row":2}]'::jsonb,row_count=2,error_count=1,source_rows='[2,3]'::jsonb`,
   ]) {
     await expect(
       f.db.withTenant(f.company, (tx) =>
-        tx.execute(sql`UPDATE import_previews SET status='ready',${change} WHERE id=${id}`),
+        tx.execute(
+          sql`UPDATE import_previews SET status='ready',skipped_rows='[]'::jsonb,${change} WHERE id=${id}`,
+        ),
       ),
     ).rejects.toMatchObject({
       cause: { code: '23514', message: 'IMPORT_PREVIEW_READY_RESULTS_INVALID' },

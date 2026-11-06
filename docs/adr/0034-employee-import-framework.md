@@ -390,3 +390,50 @@ requires array-shaped results and matching issue counts, unique/disjoint valid a
 invalid row identities, and a complete valid/skipped/distinct-invalid partition.
 Multiple errors on one row remain legal. Migration 0211 is immutable; #864 stays a
 separate staged-validation follow-up. Final generation waits for the manager lane.
+
+
+## Addendum — package financial worker (058 / 47-2b)
+
+The orders commit worker consumes the immutable accepted `commit_membership_id` and
+creator from a locked package preview. Authorization remains the future request
+adapter's responsibility; revocation after acceptance does not select a replacement
+membership. A composite FK binds company, creator and accepted membership.
+
+The worker validates persisted JSON and ordinal proof, compares request-time expiry,
+and checks frozen session-count allocation with bigint mills. It never rereads the
+workbook or resolves phone numbers. Dense `import_row` is the 1-based position in
+sorted physical `source_rows`, including skipped rows; source 502 can map to 500.
+Service IDs are read in sorted batches with `FOR SHARE`; only names are consumed.
+Prices, including display list prices, stay frozen in the validated preview.
+
+Entitlements are inserted in deterministic external-reference order with only
+`package_entitlements_external_ref_key` targeted for conflict skipping. Children are
+written only for returned parents, all components before any slot. Each component
+has at most 365 slots, all with injected UUIDv7 IDs. The worker prepares all winning parents
+and components first, then inserts each parent's at-most-7,300 slots with one typed
+JSONB statement. Money is serialized as decimal strings, without a cross-parent
+slot array. Audit, `ImportCommitted` summary and final status share that transaction.
+No `PackageSaleChanged`, request route, producer, transport or recovery is activated.
+
+The measured correction reorders the service FK/index to company,service,business,
+retaining the exact same column equalities. Its old company,business prefix could
+win an unanalysed-table plan and scan the activity's components for each slot.
+The slot statement guard checks distinct parent/state keys and each component's
+ordinal min/max, preserving every refusal while removing repeated equivalent probes.
+
+The contract draft requires proof for new ready results and refuses legacy commit
+acceptance as `IMPORT_PREVIEW_EXPIRED` (PP-134). No backfill is performed. The supported
+rollback floor is the proof-writing 47-2a worker; pre-expand 47-1b cannot write ready
+after contract. Merged artifacts through 0214 remain unchanged; 0215/0216 and their
+snapshot chain are generated together in the granted lane. Concurrent index work
+precedes the transactional suffix, and the service FK is replaced atomically and
+validated without changing its valid-row set.
+
+The transaction adapter requires an explicit budget; 15 seconds is not inherited
+from staff. The full-bound benchmark records completed COMMIT, including deferred
+checks, elapsed time and sampled process RSS/heap. The private full-limit run passed
+within the unchanged test ceiling; its command, input and measurements are in the
+[full-bound receipt](../specs/058-packages-sell-redeem/47-2b-full-bound-receipt.md).
+That ceiling is not a production transaction budget. Limits and atomicity remain
+unchanged; the direct owner instruction authorizes completing the scoped performance
+correction and actual full-limit rerun without another owner decision.

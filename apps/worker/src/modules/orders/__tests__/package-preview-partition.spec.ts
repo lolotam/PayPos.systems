@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { USER } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
 import { sql } from 'drizzle-orm';
 import { ExecutePackagePreview } from '../use-cases/execute-package-preview/execute-package-preview.ts';
 import { packagePreviewTransactions } from '../persistence/package-preview.transactions.ts';
@@ -12,8 +13,13 @@ import {
 
 let f: PackagePreviewFixture;
 let bytes: Uint8Array;
+let membership: string;
 beforeAll(async () => {
   f = await packagePreviewFixture();
+  membership = f.ids.newId();
+  const [role] = await f.owner`SELECT id FROM roles WHERE company_id IS NULL AND code='owner'`;
+  await f.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
+    VALUES(${f.company},${membership},${USER},${role?.['id']},'global','COMPANY',${f.company})`;
   bytes = await packageWorkbook(1, 2, 'partition');
 });
 afterAll(async () => {
@@ -125,7 +131,7 @@ it('accepts exact non-contiguous coverage with several errors on one row and fre
         tx.execute(sql`UPDATE import_previews SET ${change} WHERE id=${id}`),
       ),
     ).rejects.toMatchObject({
-      cause: { code: '23514', message: 'IMPORT_PREVIEW_RESULTS_IMMUTABLE' },
+      cause: { code: '23514', message: 'IMPORT_PREVIEW_TRANSITION_INVALID' },
     });
   }
   expect(
@@ -134,12 +140,16 @@ it('accepts exact non-contiguous coverage with several errors on one row and fre
     FROM import_previews WHERE id=${id}`
     )[0],
   ).toEqual(original);
-  await f.db.withTenant(f.company, (tx) =>
-    tx.execute(sql`UPDATE import_previews
-    SET status='commit_requested',requested_at=now() WHERE id=${id}`),
-  );
+  await expect(
+    f.db.withTenant(f.company, (tx) =>
+      tx.execute(sql`UPDATE import_previews
+    SET status='commit_requested',requested_at=now(),commit_membership_id=${membership} WHERE id=${id}`),
+    ),
+  ).rejects.toMatchObject({
+    cause: { code: '23514', message: 'IMPORT_PREVIEW_TRANSITION_INVALID' },
+  });
   expect((await f.owner`SELECT status FROM import_previews WHERE id=${id}`)[0]?.['status']).toBe(
-    'commit_requested',
+    'ready',
   );
 });
 
@@ -185,23 +195,22 @@ it('refuses proof writes before ready, during failure, and at insert', async () 
   });
 });
 
-it('accepts the old worker pending-to-ready write with NULL proof during rollout and rollback', async () => {
+it('refuses the old NULL-proof writer after contract; rollback floor is 47-2a', async () => {
   const { id } = await f.requested(bytes);
-  // The 47-1b writer does not mention either new column in its result UPDATE.
-  await f.db.withTenant(f.company, (tx) =>
-    tx.execute(sql`UPDATE import_previews SET status='ready',row_count=3,error_count=2,skipped_count=1,
+  await expect(
+    f.db.withTenant(f.company, (tx) =>
+      tx.execute(sql`UPDATE import_previews SET status='ready',row_count=3,error_count=2,skipped_count=1,
       rows='[{"row":2}]'::jsonb,errors='[{"row":4},{"row":4}]'::jsonb WHERE id=${id}`),
-  );
+    ),
+  ).rejects.toMatchObject({
+    cause: { code: '23514', message: 'IMPORT_PREVIEW_READY_RESULTS_INVALID' },
+  });
   expect(
     (await f.owner`SELECT status,source_rows,skipped_rows FROM import_previews WHERE id=${id}`)[0],
-  ).toEqual({ status: 'ready', source_rows: null, skipped_rows: null });
-  await f.worker.execute(f.company, id);
-  expect(
-    (await f.owner`SELECT status,source_rows,skipped_rows FROM import_previews WHERE id=${id}`)[0],
-  ).toEqual({ status: 'ready', source_rows: null, skipped_rows: null });
+  ).toEqual({ status: 'pending', source_rows: null, skipped_rows: null });
 });
 
-it('leaves legacy ready rows readable and defers their commit contract to 47-2b', async () => {
+it('leaves legacy ready rows readable but refuses commit under PP-134', async () => {
   const { id } = await f.requested(bytes);
   const legacy = f.ids.newId();
   await f.owner`INSERT INTO import_previews
@@ -213,13 +222,15 @@ it('leaves legacy ready rows readable and defers their commit contract to 47-2b'
     FROM import_previews WHERE id=${legacy}`),
   );
   expect(Array.from(before)).toEqual([{ status: 'ready', source_rows: null, skipped_rows: null }]);
-  await f.db.withTenant(f.company, (tx) =>
-    tx.execute(sql`UPDATE import_previews
-    SET status='commit_requested',requested_at=now() WHERE id=${legacy}`),
-  );
+  await expect(
+    f.db.withTenant(f.company, (tx) =>
+      tx.execute(sql`UPDATE import_previews
+    SET status='commit_requested',requested_at=now(),commit_membership_id=${membership} WHERE id=${legacy}`),
+    ),
+  ).rejects.toMatchObject({ cause: { code: '23514', message: 'IMPORT_PREVIEW_EXPIRED' } });
   expect(
     await f.owner`SELECT status,source_rows,skipped_rows FROM import_previews WHERE id=${legacy}`,
-  ).toEqual([{ status: 'commit_requested', source_rows: null, skipped_rows: null }]);
+  ).toEqual([{ status: 'ready', source_rows: null, skipped_rows: null }]);
 });
 
 it('isolates proof reads and writes by tenant and grants no extra runtime role access', async () => {

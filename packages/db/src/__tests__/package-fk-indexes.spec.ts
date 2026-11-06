@@ -47,7 +47,8 @@ const EXPECTED_FOREIGN_KEYS: Record<string, ExpectedForeignKey[]> = {
     },
     {
       name: 'package_components_service_fk',
-      columns: ['company_id', 'business_id', 'service_id'],
+      // نفس مساواة FK؛ الخدمة قبل النشاط تمنع منافسة فهرس هوية المكوّن بلا إحصاءات.
+      columns: ['company_id', 'service_id', 'business_id'],
     },
   ],
   package_session_slots: [

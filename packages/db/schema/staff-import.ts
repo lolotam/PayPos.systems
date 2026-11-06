@@ -10,10 +10,44 @@ import {
   text,
   timestamp,
   uuid,
+  type AnyPgColumn,
 } from 'drizzle-orm/pg-core';
 import { fileObjects } from './files.ts';
+import { memberships } from './identity-access.ts';
 import { user } from './identity-auth.ts';
 import { businesses, companies } from './tenancy.ts';
+
+// قيد العضوية وفهرسه يستخدمان نفس الأعمدة حتى تبقى هوية التفويض المقبول مرتبطة بمنشئ المعاينة.
+function importPreviewReferences(t: {
+  companyId: AnyPgColumn;
+  businessId: AnyPgColumn;
+  fileId: AnyPgColumn;
+  createdBy: AnyPgColumn;
+  commitMembershipId: AnyPgColumn;
+}) {
+  return [
+    foreignKey({
+      name: 'import_previews_business_fk',
+      columns: [t.companyId, t.businessId],
+      foreignColumns: [businesses.companyId, businesses.id],
+    }),
+    foreignKey({
+      name: 'import_previews_file_fk',
+      columns: [t.companyId, t.fileId],
+      foreignColumns: [fileObjects.companyId, fileObjects.id],
+    }),
+    foreignKey({
+      name: 'import_previews_commit_membership_fk',
+      columns: [t.companyId, t.createdBy, t.commitMembershipId],
+      foreignColumns: [memberships.companyId, memberships.userId, memberships.id],
+    }),
+    index('import_previews_commit_membership_idx').on(
+      t.companyId,
+      t.createdBy,
+      t.commitMembershipId,
+    ),
+  ];
+}
 
 // معاينة استيراد محفوظة: صفوف مُطبَّعة وأخطاء مسمّاة فقط، وتنتهي بعد 24 ساعة وتُستهلك مرة واحدة.
 // إعادة استخدامها لاحقاً لاستيراد الخدمات والعملاء والباقات بنفس المحرك (ADR-0034).
@@ -35,6 +69,8 @@ export const importPreviews = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     committedAt: timestamp('committed_at', { withTimezone: true }),
     status: text('status').notNull().default('ready'),
+    // عضوية التفويض المختارة عند قبول تثبيت الباقات؛ لا يختار العامل عضوية بديلة لاحقًا.
+    commitMembershipId: uuid('commit_membership_id'),
     requestedAt: timestamp('requested_at', { withTimezone: true }),
     createdCount: integer('created_count').notNull().default(0),
     errorCode: text('error_code'),
@@ -49,22 +85,13 @@ export const importPreviews = pgTable(
   },
   (t) => [
     primaryKey({ name: 'import_previews_pkey', columns: [t.companyId, t.id] }),
-    foreignKey({
-      name: 'import_previews_business_fk',
-      columns: [t.companyId, t.businessId],
-      foreignColumns: [businesses.companyId, businesses.id],
-    }),
-    foreignKey({
-      name: 'import_previews_file_fk',
-      columns: [t.companyId, t.fileId],
-      foreignColumns: [fileObjects.companyId, fileObjects.id],
-    }),
     index('import_previews_company_business_created_idx').on(
       t.companyId,
       t.businessId,
       t.createdAt,
     ),
     index('import_previews_company_file_idx').on(t.companyId, t.fileId),
+    ...importPreviewReferences(t),
     index('import_previews_company_creator_idx').on(t.companyId, t.createdBy),
     index('import_previews_company_status_requested_idx').on(
       t.companyId,
@@ -80,11 +107,17 @@ export const importPreviews = pgTable(
       'import_previews_status',
       sql`${t.status} IN ('pending','ready','commit_requested','committed','failed')`,
     ),
-    check('import_previews_pending', sql`${t.status} <> 'pending' OR (${t.entity}='packages'
+    check(
+      'import_previews_pending',
+      sql`${t.status} <> 'pending' OR (${t.entity}='packages'
       AND ${t.rowCount}=0 AND ${t.errorCount}=0 AND ${t.skippedCount}=0
       AND ${t.rows}='[]'::jsonb AND ${t.errors}='[]'::jsonb
-      AND ${t.requestedAt} IS NULL AND ${t.errorCode} IS NULL)`),
-    check('import_previews_skipped', sql`${t.skippedCount} BETWEEN 0 AND ${t.rowCount} AND (${t.entity}='packages' OR ${t.skippedCount}=0)`),
+      AND ${t.requestedAt} IS NULL AND ${t.errorCode} IS NULL)`,
+    ),
+    check(
+      'import_previews_skipped',
+      sql`${t.skippedCount} BETWEEN 0 AND ${t.rowCount} AND (${t.entity}='packages' OR ${t.skippedCount}=0)`,
+    ),
     check('import_previews_created_count', sql`${t.createdCount} BETWEEN 0 AND 500`),
     check(
       'import_previews_committed_consistent',

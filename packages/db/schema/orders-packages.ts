@@ -265,11 +265,12 @@ export const packageComponents = pgTable(
     }),
     foreignKey({
       name: 'package_components_service_fk',
-      columns: [t.companyId, t.businessId, t.serviceId],
-      foreignColumns: [services.companyId, services.businessId, services.id],
+      columns: [t.companyId, t.serviceId, t.businessId],
+      foreignColumns: [services.companyId, services.id, services.businessId],
     }),
     index('package_components_entitlement_fk_idx').on(t.companyId, t.businessId, t.entitlementId),
-    index('package_components_service_fk_idx').on(t.companyId, t.businessId, t.serviceId),
+    // الخدمة قبل النشاط تمنع اختيار الفهرس لمسح مكونات النشاط عند البحث بهوية مكوّن بلا إحصاءات.
+    index('package_components_service_business_fk_idx').on(t.companyId, t.serviceId, t.businessId),
     check('package_components_position_check', sql`${t.position} BETWEEN 1 AND 20`),
     check('package_components_sessions_total_check', sql`${t.sessionsTotal} BETWEEN 1 AND 365`),
     check(
