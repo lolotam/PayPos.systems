@@ -1,5 +1,10 @@
 # 42-3b1 — next diagnostic plan, pending manager review
 
+**Later execution checkpoint:** the manager approved this bounded plan. Its first run
+stopped on invalid Docker load telemetry before a valid A/B comparison. See the
+[stop receipt](42-3b1-statistics-stop-receipt.md). No retry is authorized by that receipt.
+The planning status below is preserved as historical context.
+
 ## Status and authority
 
 Planning only, per the latest PP-112 manager instruction. No part of this plan has run.
