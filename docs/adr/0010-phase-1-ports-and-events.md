@@ -439,7 +439,7 @@ and historical attempts, and appending discovery, run through `pospay_app` with
 `withTenant`. The existing `pospay_dispatcher` credentials supply a restricted,
 read-only existence check: the application has INSERT-only outbox access, so it
 cannot check publication history itself. No grant or tenant bypass is added.
-The migration runner's session lock serializes the step. On a crash after a company
+The company transaction takes the aggregate advisory lock before the dispatcher existence check, so loss of the owner session lock cannot permit duplicate discovery. On a crash after a company
 commits, the next run finds its discovery even if published or parked and skips
 the append. Counts are logged without identifiers, phone numbers, links or payloads.
 

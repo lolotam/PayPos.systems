@@ -272,3 +272,50 @@ async function historicalRows() {
       await owner`SELECT row_to_json(a)::text AS snapshot FROM notification_attempts a ORDER BY company_id,id`,
   };
 }
+
+it('serializes competing discoveries even when the migration owner lock is no longer held', async () => {
+  let entered = 0;
+  let reads = 0;
+  let release!: () => void;
+  let observed!: () => void;
+  const paused = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const firstRead = new Promise<void>((resolve) => {
+    observed = resolve;
+  });
+  const competingApp: Pick<Database, 'withTenant'> = {
+    withTenant: (companyId, callback, options) =>
+      app.withTenant(
+        companyId,
+        async (tx) => {
+          entered++;
+          if (entered === 2) release();
+          return callback(tx);
+        },
+        options,
+      ),
+  };
+  const competingReader = {
+    ratingClaimsDiscoveryExists: async (companyId: string) => {
+      const exists = await dispatcher.ratingClaimsDiscoveryExists(companyId);
+      reads++;
+      if (reads === 1) {
+        observed();
+        await paused;
+      } else release();
+      return exists;
+    },
+  };
+  const first = discoverRatingClaims(owner, competingApp, competingReader);
+  await firstRead;
+  const second = discoverRatingClaims(owner, competingApp, competingReader);
+  const counts = await Promise.all([first, second]);
+  expect(counts.reduce((sum, count) => sum + count.discoveryEvents, 0)).toBe(2);
+  expect(
+    await owner`SELECT company_id,count(*)::int AS count FROM outbox GROUP BY company_id ORDER BY company_id`,
+  ).toEqual([
+    { company_id: A.company, count: 1 },
+    { company_id: B.company, count: 1 },
+  ]);
+});

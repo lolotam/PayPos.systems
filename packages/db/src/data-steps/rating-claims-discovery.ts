@@ -54,9 +54,11 @@ export async function discoverRatingClaims(
   };
   const ids = systemUuidV7();
   for (const { id: companyId } of companies) {
-    // قفل migration يسرسل الخطوة كلها. القراءة بدور المرسل قبل معاملة التطبيق، لا بامتياز المالك.
-    const discovered = await reader.ratingClaimsDiscoveryExists(companyId);
     const company = await app.withTenant(companyId, async (tx) => {
+      // يحمي حتى بعد فقد قفل owner؛ قارئ dispatcher لا يستطيع مشاركة اتصال التطبيق INSERT-only.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(
+        app_company_id()::text || ':rating_claims_discovery:' || ${companyId}::uuid::text, 0))`);
+      const discovered = await reader.ratingClaimsDiscoveryExists(companyId);
       const inventory = await ratingInventory(tx, companyId);
       if (inventory.scheduled === 0 || discovered) return { ...inventory, discoveryEvents: 0 };
       await appendOutboxEvent(tx, ids.newId(), {

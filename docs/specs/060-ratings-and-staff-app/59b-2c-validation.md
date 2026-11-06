@@ -17,8 +17,7 @@ No activation, sender implementation or fixes to #803/#804/#805/#808/#809/#810/#
 - `pnpm migration-chain:check`: passed.
 - ADR-0038 marker invokes the registered data step before SQL. Concurrent
   drop/create repairs an incomplete prior index build; discovery is idempotent
-  across a committed company transaction whose response is lost. The migration
-  runner's existing session lock serializes the step.
+  across a committed company transaction whose response is lost. The company transaction's aggregate lock serializes existence checking and appending even if the migration owner loses its session lock.
 
 ## Private infrastructure
 
@@ -51,8 +50,8 @@ The dependency build and worker build also passed during local preparation.
 tests and docs. Issues found during implementation were fixed before delivery:
 
 - The first data-step test correctly rejected an application-role outbox SELECT.
-  The existence check now uses the restricted dispatcher facade outside the app
-  transaction. Counts and appends use `withTenant`; no grant was widened.
+  The existence check now uses the restricted dispatcher facade inside the app
+  transaction, after its aggregate advisory lock. Counts and appends use `withTenant`; no grant was widened.
 - Cleanup preserves the primary sanitized failure while attempting both pool
   closes. Function-size checks were fixed by extracting named responsibilities,
   not by suppressing lint or squashing lines. Shared discovery validation lives
@@ -73,3 +72,20 @@ not production latency or capacity.
 The historical-send owner question remains PENDING. DEP-1 must read migrate's
 counts before any dependent activation; this receipt is not a deployment or merge
 approval. The manager retains the migration lane through this PR's merge.
+
+## Internal review correction
+
+Astra `gpt-6-astra`, effort `high`, reviewed `35400d98` against `ef9209ba`
+read-only, including all 27 changed files and full structural snapshot comparison.
+It found one P2: loss of the owner connection could release the migration session
+lock while the independent app/dispatcher connections continued, allowing two
+existence checks before either append committed.
+
+The fix takes the same transaction advisory lock as `appendOutboxEvent` before
+the dispatcher existence check and holds it through the append commit. The extra
+read connection is necessary because `pospay_app` cannot SELECT outbox; no grant
+was added. A deterministic competing-run regression pauses the first false read,
+starts the second run, then releases the first. It proves exactly one discovery
+per company without relying on an owner session lock. The focused DB file passed
+all **8 tests** after this correction; the earlier 82-test set above predates it.
+The migration SQL and its SHA-256 did not change.
