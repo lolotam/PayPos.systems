@@ -1,3 +1,9 @@
+import { personalBranchReads } from './persistence/personal-branches.adapter.ts';
+import { PERSONAL_BRANCH_READS } from './queries/personal-branches.query.ts';
+import {
+  PersonalBranchesController,
+  PERSONAL_BRANCH_CLOCK,
+} from './http/personal-branches.controller.ts';
 import { ownAttendancePeriodAllowed } from './domain/own-attendance-period.ts';
 import { OWN_ATTENDANCE_READS } from './queries/own-attendance.query.ts';
 import { ownAttendanceContext } from './persistence/own-attendance-context.adapter.ts';
@@ -117,6 +123,7 @@ import { AttendanceCapabilitiesController } from './http/attendance-capabilities
 import { AttendanceCorrectionHistoryController } from './http/attendance-correction-history.controller.ts';
 export const staffControllers = [
   OwnAttendanceController,
+  PersonalBranchesController,
   AttendanceCapabilitiesController,
   EmployeeAppLinkController,
   AttendanceMonthlyReportController,
@@ -251,6 +258,8 @@ export function staffProviders(
   const ids = systemUuidV7();
   return [
     ...ownAttendanceProviders(),
+    { provide: PERSONAL_BRANCH_CLOCK, useValue: systemClock },
+    { provide: PERSONAL_BRANCH_READS, useValue: personalBranchReads },
     ...attendanceProviders(database, redis, passkeys, ids, logger),
     { provide: ATTENDANCE_BOARD_CONTEXT, useValue: attendanceBoardContext },
     { provide: EMPLOYEE_APP_LINK_NAMES, useValue: employeeAppLinkNames },
