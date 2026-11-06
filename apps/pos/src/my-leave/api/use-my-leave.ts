@@ -12,16 +12,17 @@ export function useMyLeave(
   sessionRefused?: ((error: unknown) => void) | undefined,
 ) {
   const cache = useQueryClient();
-  const [writeRefused, setWriteRefused] = useState(false);
+  const [refusal, setRefusal] = useState<unknown>(null);
   const identity = leaveIdentity(context);
   const queryKey = ['my-leave', identity, branch];
   const controller = useLeaveLifetime(identity, branch);
   const query = useInfiniteQuery({
     queryKey,
     initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam, signal }) => leaveCalls.list(context.mode, branch, pageParam, signal),
+    queryFn: ({ pageParam, signal }) =>
+      readLeavePage({ mode: context.mode, branch, cursor: pageParam, signal }, setRefusal),
     getNextPageParam: (page) => page.next_cursor ?? undefined,
-    enabled: branch !== '' && !writeRefused,
+    enabled: branch !== '' && !refusal,
     gcTime: 0,
     retry: false,
     staleTime: 0,
@@ -33,19 +34,20 @@ export function useMyLeave(
     () => cache.invalidateQueries({ queryKey }),
     query.dataUpdatedAt,
     (failure) => {
-      if (leaveReadRefused(failure)) setWriteRefused(true);
+      if (leaveReadRefused(failure)) setRefusal(failure);
       forgetRefusedLeaveData(cache, failure, { identity, branch, sessionRefused });
     },
   );
   return {
     query,
+    refusal,
     busy,
     error,
     success,
     lastRequest,
     retry: async () => {
       if ((await query.refetch()).isSuccess) {
-        setWriteRefused(false);
+        setRefusal(null);
         clearError();
       }
     },
@@ -142,4 +144,21 @@ function useLeaveLifetime(identity: string, branch: string) {
     };
   }, [cache, identity, branch]);
   return controller;
+}
+
+async function readLeavePage(
+  request: {
+    mode: LeaveContext['mode'];
+    branch: string;
+    cursor: string | undefined;
+    signal: AbortSignal;
+  },
+  refuse: (error: unknown) => void,
+) {
+  try {
+    return await leaveCalls.list(request.mode, request.branch, request.cursor, request.signal);
+  } catch (failure) {
+    if (leaveReadRefused(failure) && !request.signal.aborted) refuse(failure);
+    throw failure;
+  }
 }

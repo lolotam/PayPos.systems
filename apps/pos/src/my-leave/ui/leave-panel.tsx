@@ -19,7 +19,11 @@ interface LeavePanelProps {
 export function LeavePanel({ context, branch, timezone, sessionRefused }: LeavePanelProps) {
   const locale = useLocale();
   const state = useMyLeave(context, branch, sessionRefused);
-  const error = state.error ?? state.query.error;
+  const refused =
+    state.refusal ??
+    (leaveReadRefused(state.query.error) ? state.query.error : null) ??
+    (leaveReadRefused(state.error) ? state.error : null);
+  const error = refused ?? state.error ?? state.query.error;
   const items = state.query.data?.pages.flatMap((page) => page.items) ?? [];
   const canCreate = state.query.data?.pages[0]?.request_branch_ids.includes(branch) ?? false;
   return (
@@ -27,9 +31,9 @@ export function LeavePanel({ context, branch, timezone, sessionRefused }: LeaveP
       {state.busy ? <p role="status">{t(locale, 'pos.loading')}</p> : null}
       {error ? <p role="alert">{leaveErrorText(error, locale)}</p> : null}
       {state.success ? <p role="status">{t(locale, `leave.${state.success}`)}</p> : null}
-      {state.query.isPending && !leaveReadRefused(error) ? (
+      {state.query.isPending && !refused ? (
         <p role="status">{t(locale, 'pos.loading')}</p>
-      ) : leaveReadRefused(error) || (state.query.isError && state.query.data === undefined) ? (
+      ) : refused || (state.query.isError && state.query.data === undefined) ? (
         <Button
           onClick={() => {
             void state.retry();

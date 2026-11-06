@@ -234,3 +234,35 @@ clean-code-guard (shared refusal policy, bounded functions, no API/native behavi
 change), test-guard (network-boundary mocks, real query cache, visible positive and
 negative assertions) and docs-guard (claims checked against source and receipts).
 Exact-head CI and external reviews remain pending after this round-3 push.
+
+
+## Authorized limited correction round 4
+
+The manager relayed Waleed's verbatim approval `approve both`; the complete
+scope and the follow-up statement are recorded in this slice's owner audit.
+This exception covers only r4490631177 and r4490631191. No additional round
+or merge-gate waiver is inferred.
+
+Read and write authorization refusals now share a persistent refusal latch.
+Automatic history reads stop after either refusal. Only a successful explicit
+retry releases that latch. The panel independently checks read and write
+refusals and gives the refusal priority over an older non-refusal write error.
+Two visible regressions cover 30 seconds without automatic recovery followed
+by successful explicit retry, and write409 followed by read403 hiding the form
+and history with the permission error displayed. The first affected run passed
+32 tests in three files. The final recheck after the small read-function extraction
+also passed all 32 tests. Global typecheck, lint, lint:docs and module-map:check
+passed; git diff --check passed. Parent clean-code-guard, test-guard and docs-guard
+passes verified the bounded refusal policy, visible regressions and approval audit.
+No push before all four panel receipts on 0f6d2235.
+
+
+Panel receipt 5797845732 on 0f6d223544d458bf0bb8c949212ff88e2dd315d1
+confirms all four bots completed. Earlier checks mistakenly inspected only the
+first API page: its empty review bodies were human replies, not panel receipts.
+Reading reviews with per_page=100 corrected that error. The panel's error-priority
+finding r4490669773 duplicates the authorized correction. Its separate transient
+session-probe draft-loss finding r4490669774 is confirmed by the session hooks,
+but falls outside this limited fourth-round approval. It remains unresolved in
+[#886](https://github.com/lolotam/PayPos.systems/issues/886); creating that issue
+does not waive the known-defect merge gate. No session-hook changes are included.
