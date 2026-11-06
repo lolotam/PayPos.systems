@@ -51,6 +51,7 @@ async function waitUntil(w: RatingClaimsWorld, target: number): Promise<void> {
  *
  * المالك التاني مش موجود عندنا في الاختبار، والهدف إننا نتأكد إن التجديد
  * بيمدّد حجوزات المالك نفسه وبس.
+ * التذكرة بتتخصص من nextTicket مع تقديمه، عشان اللقطة المزروعة تفضل متماسكة.
  *
  * @param w عالم القبول
  * @param requestId معرّف المدخل المزروع
@@ -69,15 +70,17 @@ async function addForeignRetryEntry(
     throw new Error('RATING_CLAIM_STATE_CRAFT_INVALID');
   const state = parsed as Record<string, unknown>;
   const retries = state['retries'];
-  if (typeof retries !== 'object' || retries === null)
+  const ticket = state['nextTicket'];
+  if (typeof retries !== 'object' || retries === null || typeof ticket !== 'number')
     throw new Error('RATING_CLAIM_STATE_CRAFT_INVALID');
   (retries as Record<string, unknown>)[requestId] = {
     eligibleAt: 0,
-    ticket: 999,
+    ticket,
     workToken: 'foreign-work-token',
     ownerToken: 'foreign-owner-token',
     leaseUntil,
   };
+  state['nextTicket'] = ticket + 1;
   await w.redis.set(key, JSON.stringify(state));
 }
 

@@ -147,3 +147,61 @@ scoped Prettier and `git diff --check`. Clean-code, test and documentation guard
 applied to the delta. The shared Redis test harness has two spec consumers and preserves
 the previous ten-command assertions. Heavy suites remain CI-only. Independent review and
 fresh external exact-head receipts remain required after these checks.
+
+## Correction round 2 of 3
+
+The manager authorized checking [4492379715](https://github.com/lolotam/PayPos.systems/pull/888#discussion_r4492379715)
+on `a3a7d85e6f8868f1c531469cd65e1fa7a8d3fd30`, with no push until all four panel
+bots completed. All four have now published their exact-head receipts; the only new
+published finding concerns retry ticket ordering. Codex also completed clean on that head:
+[6684778549](https://github.com/lolotam/PayPos.systems/pull/888#issuecomment-6684778549).
+No duplicate request is authorized or needed for that head.
+
+Before changing production code, three real-Redis regressions failed: a ticket equal to
+`nextTicket`, a ticket above it, and duplicate tickets below it. Each expects CORRUPT and
+unchanged bytes through the existing ten-command helper. This records a failing
+reproduction, not a passing byte-preservation claim for the old implementation.
+
+Source inspection found only two ticket allocators, both in `settle`: a new page retry
+or a retry requeue takes the current `nextTicket` and advances it. Byte-overflow rollback
+removes the unadmitted entry before restoring the counter. Fresh acquisition starts an
+empty map at ticket one; release, takeover, reservation, begin and finish do not renumber
+retained retries. The original phase-1 writer at `005a3b37a` and the merged #785 writer at
+`13deaa947` use the same allocation rule. The reservation tie-breaker handles equal values
+deterministically but no inspected writer intentionally creates equal tickets. Sparse
+ticket values and arbitrary map iteration order remain valid; a positive compatibility
+test covers both, including the historical optional sweep counter.
+
+The completed PP-136 Fable advisor approved both invariants and retaining gaps, iteration
+independence and the historical sweep-counter fallback. The advisor confirmed both
+historical writers and the rollback semantics; no owner/protocol decision is needed.
+Receipt:
+<t3-thread://v2/438824e0-fe19-4a22-bb31-f81eff7b7322/thread:delegated-task:command%3Amcp%3Aa7b82cbc-8a41-4641-86b6-948b98a1474c%3Adelegate-task%3A2154d9b9-f506-4984-91f9-609d488c9daf>.
+
+The shared validator now checks each ticket is strictly below the already-validated
+`nextTicket` and uses a seen-ticket set to refuse duplicates. The Arabic header and spec
+record this contract. The existing reservation comparator is unchanged. No wire/codec
+changes, migration, activation or #887 repair are included.
+
+After the patch, **312 tests in four files passed**. The three new rejection cases now
+exercise all ten commands and preserve the raw bytes after every command. The sparse
+ticket positive control passed before the patch and in the final suite. Existing
+allocation/requeue, release/takeover and drained-page assertions are retained. The
+existing encoded-byte overflow control in `rating-claim-state-invariants.spec.ts` already
+performs a successful `read()` after rollback, so no duplicate regression was added.
+
+Source inspection also found the lease acceptance test's foreign-owner seeder assigned a
+hard-coded ticket 999 without advancing the queue counter. It now allocates from
+`nextTicket` and advances it, matching the real writer. The foreign owner/lease data and
+all assertions are retained. That database-backed acceptance suite stays CI-only; it is
+not included in the 312 local Redis-only test count.
+
+CI on the pre-correction head `a3a7d85e` completed successfully:
+[42217057253](https://github.com/lolotam/PayPos.systems/actions/runs/42217057253),
+11m49s from creation to final update. That result and the old review receipts do not
+substitute for exact-head gates after the consolidated round-2 push.
+
+Round-2 worker typecheck, scoped ESLint/boundaries (including the corrected lease seeder),
+module-map, docs (zero errors / 29 existing warnings), Prettier and diff check passed.
+Clean-code, test and documentation guards were applied. Fresh independent internal review
+and new exact-head CI/five-review receipts remain required; the manager owns the merge.

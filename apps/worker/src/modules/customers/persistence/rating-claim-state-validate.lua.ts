@@ -12,6 +12,8 @@
  * الموجود في التسوية والإقفال، وبقية العدّادات المطلوبة ممنوع تغيب أو تتقرب.
  * مؤشر الصفحة بيحتفظ بآخر طلب اتسجل حتى بعد تسوية الطرف؛ لذلك بنفحص ترتيب
  * البنود المتبقية وحدودها، من غير ما نشترط إن آخر بند متبقّي يساوي المؤشر.
+ * تذاكر الإعادة فريدة وأقل من nextTicket لأن التخصيص والتقديم بيتخزنوا معًا؛
+ * حذف بنود قديمة ممكن يسيب فجوات، وترتيب مفاتيح الخريطة مش ترتيب الطابور.
  */
 export const RATING_CLAIM_STATE_VALIDATE = `
 local function nonempty_string(value)
@@ -83,12 +85,15 @@ local function valid_page(state)
   return true
 end
 
-local function valid_retries(retries)
+local function valid_retries(retries, nextTicket)
   if type(retries) ~= 'table' then return false end
+  local tickets = {}
   for requestId, entry in pairs(retries) do
     if not nonempty_string(requestId) then return false end
     if type(entry) ~= 'table' then return false end
-    if not safe_integer(entry['ticket'], 1) then return false end
+    local ticket = entry['ticket']
+    if not safe_integer(ticket, 1) or ticket >= nextTicket or tickets[ticket] then return false end
+    tickets[ticket] = true
     if not safe_integer(entry['eligibleAt'], -MAX_SAFE) then return false end
     if not ownership(entry, 'workToken') then return false end
   end
@@ -117,6 +122,6 @@ local function validate_state(state)
   else
     return false
   end
-  return valid_page(state) and valid_retries(state['retries'])
+  return valid_page(state) and valid_retries(state['retries'], state['nextTicket'])
 end
 `;

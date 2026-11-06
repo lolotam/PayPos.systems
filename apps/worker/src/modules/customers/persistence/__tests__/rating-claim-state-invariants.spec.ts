@@ -189,3 +189,26 @@ it('R1: historical cumulative overflow may have a cleared reconciliation flag', 
   expect(renewed.value?.reconcileRequired).toBe(false);
   expect(renewed.value?.overflowCount).toBe(8);
 });
+
+it('R2: sparse historical tickets reserve oldest first regardless of map iteration order', async () => {
+  const world = await harness();
+  const raw = await rawStateOf(world);
+  raw['nextTicket'] = 40;
+  raw['retries'] = {
+    [REQUEST_B]: { ticket: 20, eligibleAt: 0 },
+    [REQUEST_A]: { ticket: 3, eligibleAt: 0 },
+  };
+  delete raw['sweepOverflowCount'];
+  await redis.set(world.key, JSON.stringify(raw));
+  expect((await world.state.read(world.companyId)).code).toBe('OK');
+  const reserved = await world.state.reserveRetries(world.fence, 2, [ids.newId(), ids.newId()]);
+  expect(reserved.code).toBe('OK');
+  expect(reserved.value?.reservations.map((entry) => entry.requestId)).toEqual([
+    REQUEST_A,
+    REQUEST_B,
+  ]);
+  const read = await world.state.read(world.companyId);
+  expect(read.value?.nextTicket).toBe(40);
+  expect(read.value?.retries[REQUEST_A]?.ticket).toBe(3);
+  expect(read.value?.retries[REQUEST_B]?.ticket).toBe(20);
+});

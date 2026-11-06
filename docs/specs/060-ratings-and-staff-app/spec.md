@@ -516,6 +516,8 @@ called".
   duplicate work tokens with `LIMIT` before writing. A positive `sweepOverflowCount` requires reconciliation;
   historical cumulative overflow alone does not. Capacity and encoded-byte overflow return `LIMIT` without
   storing when either overflow counter is already `MAX_SAFE`; numeric cjson encoding remains tracked in #887.
+  Retained retry tickets are unique and strictly below `nextTicket`, matching atomic allocation/requeue and
+  byte-overflow rollback. Gaps between tickets and arbitrary map insertion order remain valid.
   These cases require real Redis Lua contract tests, including all ten commands and successful lifecycle controls.
 - `an_invalid_job_fails_once_without_retries` — a job whose data fails the contract is an unrecoverable error: it fails once with
   `RATING_CLAIMS_JOB_INVALID` and is not retried.

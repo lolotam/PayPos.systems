@@ -130,6 +130,16 @@ export const STATE_DAMAGE: readonly StateDamage[] = [
   },
   { name: 'page belongs to another sweep', path: ['page', 'sweepId'], value: PAGE },
   { name: 'cursor without captured bound', path: ['upperId'], value: undefined },
+  { name: 'retry ticket equals next ticket', path: ['nextTicket'], value: 1 },
+  { name: 'retry ticket exceeds next ticket', path: ['retries', REQUEST_A, 'ticket'], value: 100 },
+  {
+    name: 'duplicate retry tickets below next ticket',
+    path: ['retries'],
+    value: {
+      [REQUEST_A]: { ticket: 1, eligibleAt: 0 },
+      [REQUEST_B]: { ticket: 1, eligibleAt: 0 },
+    },
+  },
 ];
 
 /** R1: لكل تلف مجموعة تقدم متماسكة في بقية الحقول، حتى يثبت الاختبار الفجوة المحددة. */
