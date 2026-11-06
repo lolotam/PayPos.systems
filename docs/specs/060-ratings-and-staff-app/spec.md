@@ -499,6 +499,18 @@ called".
   eligibility: every command answers `CORRUPT` and the key stays byte-for-byte unchanged.
 - `a_journal_entry_without_its_work_token_is_refused_and_never_written_over` — the same for a journal entry without its work token.
 - `a_state_without_its_fence_fields_is_refused_and_never_written_over` — the same for a state without its incarnation.
+- **Issue #840 — Lua corruption contract (no activation or migration).** Every command validates the stored
+  snapshot before inspecting a fence or mutating it: required counters are safe integers in their valid range,
+  required flags are booleans, optional fields have their documented types, ownership/reservation fields are
+  complete groups, and sweep/page fields agree with the phase. Malformed state returns `CORRUPT`, without a Lua
+  exception, and preserves the exact stored bytes after each command.
+  `page.entries` must have contiguous positive numeric keys; named, sparse, mixed and null-bearing entries are
+  refused. `retries` remains the request-id-keyed map specified by ADR-0010, with nonempty string keys and valid
+  retry records, not a new array wire format (original finding `#785/discussion_r4475811730`). Empty tables remain
+  valid because Redis cjson represents empty arrays and objects identically. The historical optional
+  `sweepOverflowCount` keeps the existing missing-means-zero behavior of `settle`/`finish`, but is checked when
+  present. Released owners may leave retry reservations intact; expired leases and drained pages remain valid.
+  These cases require real Redis Lua contract tests, including all ten commands and successful lifecycle controls.
 - `an_invalid_job_fails_once_without_retries` — a job whose data fails the contract is an unrecoverable error: it fails once with
   `RATING_CLAIMS_JOB_INVALID` and is not retried.
 - `closes_the_queue_and_the_clients_even_when_the_worker_fails` — when the worker's close fails, the queue and the Redis clients are
