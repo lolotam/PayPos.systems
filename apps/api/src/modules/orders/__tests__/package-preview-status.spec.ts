@@ -196,7 +196,7 @@ it('preserves cross-tenant write isolation and grants the new trigger function o
   expect(privileges).toEqual({ app: true, auth: false, dispatcher: false, public_grants: 0 });
 });
 
-it('freezes failed results and closes deferred financial status transitions', async () => {
+it('freezes failed preview results', async () => {
   const { preview_id } = await f.useCase.execute(f.command(await f.upload()));
   await f.database.withTenant(f.companyId, (tx) =>
     tx.execute(sql`UPDATE import_previews
@@ -212,24 +212,100 @@ it('freezes failed results and closes deferred financial status transitions', as
     status: 'failed',
     error_code: 'IMPORT_FILE_CONTENT_INVALID',
   });
-  for (const status of ['commit_requested', 'committed']) {
-    const id = f.ids.newId();
-    const fileId = await f.upload();
-    await f.h.owner`INSERT INTO import_previews(company_id,id,business_id,entity,file_id,created_by,
-      created_at,expires_at,status,requested_at,committed_at,row_count,error_count,rows,errors)
-      VALUES (${f.companyId},${id},${f.businessId},'packages',${fileId},${f.userId},now(),
-        now()+interval '1 day',${status},now(),CASE WHEN ${status}='committed' THEN now() ELSE NULL END,0,0,'[]','[]')`;
-    for (const target of ['ready', 'failed']) {
+});
+
+it('rejects illegal accepted-commit mutations and cross-tenant failure writes', async () => {
+  const id = await acceptedFinancialPreview();
+  const before = await financialState(id);
+  for (const change of [
+    sql`status='ready'`,
+    sql`status='failed',error_code='IMPORT_COMMIT_FAILED',requested_at=requested_at+interval '1 second'`,
+    sql`status='committed',created_count=1,committed_at=now()`,
+  ]) {
+    await expect(
+      f.database.withTenant(f.companyId, (tx) =>
+        tx.execute(sql`UPDATE import_previews SET ${change} WHERE id=${id} RETURNING id`),
+      ),
+    ).rejects.toMatchObject({
+      cause: { code: '23514', message: 'IMPORT_PREVIEW_TRANSITION_INVALID' },
+    });
+    expect(await financialState(id)).toEqual(before);
+  }
+  const otherTenant = await f.database.withTenant(f.ids.newId(), (tx) =>
+    tx.execute(
+      sql`UPDATE import_previews SET status='failed',error_code='IMPORT_COMMIT_FAILED' WHERE id=${id} RETURNING id`,
+    ),
+  );
+  expect(otherTenant).toHaveLength(0);
+  expect(await financialState(id)).toEqual(before);
+});
+
+it.each(['failed', 'committed'] as const)(
+  'allows accepted package commit to %s and freezes the terminal row',
+  async (status) => {
+    const id = await acceptedFinancialPreview();
+    const change =
+      status === 'failed'
+        ? sql`status='failed',error_code='IMPORT_COMMIT_FAILED'`
+        : sql`status='committed',committed_at=now(),created_count=0`;
+    const updated = await f.database.withTenant(f.companyId, (tx) =>
+      tx.execute(
+        sql`UPDATE import_previews SET ${change} WHERE id=${id} RETURNING id,status,created_count,error_code,committed_at`,
+      ),
+    );
+    expect(updated).toHaveLength(1);
+    expect(updated[0]).toMatchObject({
+      id,
+      status,
+      created_count: 0,
+      error_code: status === 'failed' ? 'IMPORT_COMMIT_FAILED' : null,
+    });
+    if (status === 'committed') expect(updated[0]?.['committed_at']).not.toBeNull();
+    else expect(updated[0]?.['committed_at']).toBeNull();
+    const before = await financialState(id);
+    for (const target of [
+      'ready',
+      'commit_requested',
+      status === 'failed' ? 'committed' : 'failed',
+    ]) {
       await expect(
         f.database.withTenant(f.companyId, (tx) =>
-          tx.execute(sql`UPDATE import_previews
-        SET status=${target},committed_at=NULL,
-        error_code=CASE WHEN ${target}='failed' THEN 'IMPORT_FILE_UNAVAILABLE' ELSE NULL END
-        WHERE id=${id}`),
+          tx.execute(
+            sql`UPDATE import_previews SET status=${target},committed_at=NULL,error_code='IMPORT_FILE_UNAVAILABLE'
+        WHERE id=${id} RETURNING id`,
+          ),
         ),
       ).rejects.toMatchObject({
-        cause: { code: '23514', message: 'IMPORT_PREVIEW_TRANSITION_INVALID' },
+        cause: {
+          code: '23514',
+          message:
+            status === 'failed'
+              ? 'IMPORT_PREVIEW_FAILED_IMMUTABLE'
+              : 'IMPORT_PREVIEW_TRANSITION_INVALID',
+        },
       });
+      expect(await financialState(id)).toEqual(before);
     }
-  }
-});
+  },
+);
+
+async function acceptedFinancialPreview() {
+  const { preview_id: id } = await f.useCase.execute(f.command(await f.upload()));
+  await f.database.withTenant(f.companyId, async (tx) => {
+    expect(
+      await tx.execute(sql`UPDATE import_previews SET status='ready',row_count=1,skipped_count=1,source_rows='[2]'::jsonb,skipped_rows='[2]'::jsonb
+      WHERE id=${id} RETURNING id,status`),
+    ).toEqual([{ id, status: 'ready' }]);
+    expect(
+      await tx.execute(sql`UPDATE import_previews SET status='commit_requested',requested_at=now(),commit_membership_id=${f.membershipId}
+      WHERE id=${id} RETURNING id,status`),
+    ).toEqual([{ id, status: 'commit_requested' }]);
+  });
+  return id;
+}
+
+async function financialState(id: string) {
+  return (await f.h.owner`SELECT to_jsonb(p) AS value FROM import_previews p WHERE id=${id}`)[0]?.[
+    'value'
+  ];
+}

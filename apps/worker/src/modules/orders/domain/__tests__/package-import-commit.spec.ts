@@ -3,6 +3,7 @@ import { createPackageSlots, parseMoney } from '@pospay/domain';
 import {
   packageCommitRows,
   packageCommitCounts,
+  countCreatedPackageImports,
   type PackageCommitPreview,
 } from '../package-import-commit.ts';
 const component = {
@@ -136,3 +137,19 @@ it('all skipped succeeds with final counts without changing proof', () => {
   expect(packageCommitRows(p)).toEqual([]);
   expect(packageCommitCounts(2, 0)).toEqual({ created_count: 0, skipped_count: 2 });
 });
+
+it.each([
+  { rows: 5, outcomes: [true, false, true], created: 2, skipped: 3 },
+  { rows: 2, outcomes: [], created: 0, skipped: 2 },
+  { rows: 2, outcomes: [false, false], created: 0, skipped: 2 },
+  { rows: 500, outcomes: Array<boolean>(500).fill(true), created: 500, skipped: 0 },
+])(
+  'counts successful inserts including prior skips and conflicts: $created/$skipped',
+  ({ rows, outcomes, created, skipped }) => {
+    const count = countCreatedPackageImports(Object.freeze(outcomes));
+    expect(packageCommitCounts(rows, count)).toEqual({
+      created_count: created,
+      skipped_count: skipped,
+    });
+  },
+);

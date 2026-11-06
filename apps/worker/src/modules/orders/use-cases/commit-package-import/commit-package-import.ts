@@ -1,4 +1,8 @@
-import { PackageCommitError, packageCommitRows } from '../../domain/package-import-commit.ts';
+import {
+  PackageCommitError,
+  packageCommitRows,
+  countCreatedPackageImports,
+} from '../../domain/package-import-commit.ts';
 import type {
   PackageCommitClock,
   PackageCommitTransactions,
@@ -17,6 +21,7 @@ export class PackageCommitRetryError extends Error {
   }
 }
 
+/** يثبت استيراد الباقات المقبول ذريًا وينهي الرفض الدائم بعد التراجع. */
 export class CommitPackageImport {
   constructor(
     private readonly transactions: PackageCommitTransactions,
@@ -30,10 +35,10 @@ export class CommitPackageImport {
         const rows = packageCommitRows(scope.preview);
         await scope.lockServices(rows);
         const at = this.clock.now().toISOString();
-        let created = 0;
-        for (const row of rows) if (await scope.insert(row, at)) created++;
+        const outcomes: boolean[] = [];
+        for (const row of rows) outcomes.push(await scope.insert(row, at));
         await scope.writeSlots();
-        await scope.complete(created, at);
+        await scope.complete(countCreatedPackageImports(outcomes), at);
       });
     } catch (error) {
       if (!(error instanceof PackageCommitError)) throw new PackageCommitRetryError();

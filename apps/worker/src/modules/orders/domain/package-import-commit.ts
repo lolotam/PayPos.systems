@@ -84,6 +84,15 @@ export function packageCommitCounts(rowCount: number, createdCount: number) {
   return { created_count: createdCount, skipped_count: rowCount - createdCount };
 }
 
+/** يحسب الباقات المنشأة من نتائج الإدراج دون احتساب تعارضات المراجع.
+ *
+ * @param outcomes نتائج الإدراج الفعلية للصفوف المؤهلة، بحد أقصى 500 نتيجة
+ * @returns عدد الباقات التي فازت بالإدراج
+ */
+export function countCreatedPackageImports(outcomes: readonly boolean[]): number {
+  return outcomes.filter((created) => created).length;
+}
+
 /** يتحقق من تطابق توزيع السعر مع القيم المجمدة لكل مكون وجلسة.
  *
  * @param row القيمة المجمدة المطلوب التحقق منها

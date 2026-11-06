@@ -47,10 +47,13 @@ it('commits exact money, accepted actor, one audit/outbox, and duplicate jobs do
     FROM package_session_slots s JOIN package_entitlements e ON e.company_id=s.company_id AND e.id=s.entitlement_id
     WHERE e.import_batch_id=${id}`;
   expect(sum).toMatchObject({ total: '10.001', slots: 730 });
-  expect(await f.owner`SELECT * FROM audit_log WHERE entity_id=${id}`).toHaveLength(1);
-  expect(
-    await f.owner`SELECT * FROM outbox WHERE aggregate_id=${id} AND event_type='ImportCommitted'`,
-  ).toHaveLength(1);
+  const audit = await f.owner`SELECT * FROM audit_log WHERE entity_id=${id}`;
+  expect(audit).toHaveLength(1);
+  expect(audit[0]?.['after']).toMatchObject({ created_count: 1, skipped_count: 0 });
+  const events =
+    await f.owner`SELECT * FROM outbox WHERE aggregate_id=${id} AND event_type='ImportCommitted'`;
+  expect(events).toHaveLength(1);
+  expect(events[0]?.['payload']).toMatchObject({ created_count: 1, skipped_count: 0 });
   expect(
     (
       await f.owner`SELECT recorded_by_membership_id,provenance,sold_at FROM package_entitlements WHERE import_batch_id=${id}`
@@ -179,6 +182,9 @@ it('commits an all-skipped preview and leaves the stored proof unchanged', async
     (
       await f.owner`SELECT payload FROM outbox WHERE aggregate_id=${id} AND event_type='ImportCommitted'`
     )[0]?.['payload'],
+  ).toMatchObject({ created_count: 0, skipped_count: 1 });
+  expect(
+    (await f.owner`SELECT "after" FROM audit_log WHERE entity_id=${id}`)[0]?.['after'],
   ).toMatchObject({ created_count: 0, skipped_count: 1 });
 });
 it('fails a missing referenced service safely without partial financial writes', async () => {
