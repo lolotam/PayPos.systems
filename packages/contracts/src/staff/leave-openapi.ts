@@ -61,7 +61,16 @@ const operation = (operationId: string, parameters: unknown[], body?: string, st
 const employee = [company, path('businessId'), path('employeeId')];
 export const leavePaths = {
   '/v1/businesses/{businessId}/employees/{employeeId}/leave-requests': {
-    get: operation('employeeLeaveHistory', employee),
+    get: operation('employeeLeaveHistory', [
+      ...employee,
+      { in: 'query', name: 'open', schema: { type: 'string', enum: ['true'] } },
+      {
+        in: 'query',
+        name: 'as_of',
+        schema: { type: 'string', format: 'date-time' },
+        description: 'Open-list boundary instant, no later than now and at most 24 hours old.',
+      },
+    ]),
     post: operation('requestEmployeeLeave', employee, 'RequestEmployeeLeaveInput', '201'),
   },
   '/v1/businesses/{businessId}/employees/{employeeId}/leave-requests/{leaveId}/cancel': {
