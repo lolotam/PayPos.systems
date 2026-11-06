@@ -163,3 +163,17 @@ it('prints no scheduled times on a day with a counted session', () => {
   expect(row).not.toContain('09:00');
   expect(row).not.toContain('17:00');
 });
+
+it('TD-1 D-c: renders approved annual leave and no attendance in the same day row', () => {
+  const document = employeeDocument([
+    day({ date: '2/10/2026', leave: ['ANNUAL'], no_attendance: true, still_in: false }),
+  ]);
+  document.labels = {
+    ...document.labels,
+    leaveAnnual: 'سنوية',
+    noAttendance: 'لا يوجد حضور مسجّل',
+  };
+  const row = dayRow(attendanceStatementHtml(document), '2/10/2026');
+  expect(row).toContain('سنوية');
+  expect(row).toContain('لا يوجد حضور مسجّل');
+});

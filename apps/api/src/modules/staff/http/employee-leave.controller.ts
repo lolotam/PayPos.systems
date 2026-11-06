@@ -13,10 +13,10 @@ import {
 import {
   cancelLeaveInput,
   id,
-  leaveListQuery,
+  employeeLeaveListQuery,
   requestEmployeeLeaveInput,
   type CancelLeaveInput,
-  type LeaveListQuery,
+  type EmployeeLeaveListQuery,
   type RequestEmployeeLeaveInput,
 } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
@@ -91,7 +91,7 @@ export class EmployeeLeaveController {
   async list(
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
     @Param('employeeId', new ZodValidationPipe(id)) employeeId: string,
-    @Query(new ZodValidationPipe(leaveListQuery)) query: LeaveListQuery,
+    @Query(new ZodValidationPipe(employeeLeaveListQuery)) query: EmployeeLeaveListQuery,
     @Req() req: FastifyRequest,
   ) {
     if (!this.database) throw new ApiError('NOT_READY');
@@ -102,6 +102,8 @@ export class EmployeeLeaveController {
       { userId: context.userId },
     );
     if (result === null) throw new ApiError('NOT_FOUND');
+    if (result === 'VALIDATION_FAILED')
+      throw new ApiError(result, [{ path: ['as_of'], code: 'custom' }]);
     if (typeof result === 'string') throw new ApiError(result);
     return result;
   }
