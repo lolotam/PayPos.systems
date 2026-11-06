@@ -105,6 +105,7 @@ async function seedBusyMonth() {
 
 it('measures query, materialisation and aggregation time/memory on 600 monthly tip rows', async () => {
   const anchorLineId = await seedBusyMonth();
+  await f.h.owner.unsafe('ANALYZE service_sessions, service_lines, line_performers');
   const metrics = await f.db.withTenant(f.company, async (tx) => {
     const memoryBefore = process.memoryUsage();
     const started = performance.now();
@@ -131,6 +132,7 @@ it('measures query, materialisation and aggregation time/memory on 600 monthly t
   expect(metrics.totals).toEqual({ total_cash: '2.100', total_card: '2.250' });
   expect(metrics.total_ms).toBeLessThan(200);
   console.info('57-2 tips measurement', JSON.stringify(metrics));
+  await measureFirstPage();
   await explainBusyMonth(anchorLineId);
 }, 900_000);
 
@@ -139,30 +141,14 @@ async function explainBusyMonth(anchorLineId: string) {
     tx.execute(sql`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
     ${ownTipsStatement(context(), must(f.employees[0]), '2026-10')}`),
   );
-  expect(JSON.stringify(plan)).toMatch(/session_tips_(employee_idx|session_revision_idx)/);
   expect(JSON.stringify(plan)).toContain('session_tip_revisions_session_revision_uq');
   const linesPlan = await f.db.withTenant(f.company, (tx) =>
     tx.execute(sql`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
-    ${ownServiceLinesStatement(
-      context(),
-      must(f.employees[0]),
-      '2026-10',
-      [{ id: f.branch, name_ar: null, name_en: 'Synthetic branch' }],
-      new Set(),
-      20,
-    )}`),
+    ${pageStatement()}`),
   );
   const cursorPlan = await f.db.withTenant(f.company, (tx) =>
     tx.execute(sql`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
-    ${ownServiceLinesStatement(
-      context(),
-      must(f.employees[0]),
-      '2026-10',
-      [{ id: f.branch, name_ar: null, name_en: 'Synthetic branch' }],
-      new Set(),
-      20,
-      must(anchorLineId),
-    )}`),
+    ${pageStatement(anchorLineId)}`),
   );
   console.info(
     '57-2 cursor indexes',
@@ -174,4 +160,34 @@ async function explainBusyMonth(anchorLineId: string) {
     '57-2 query plans',
     JSON.stringify({ tips: plan, service_lines: linesPlan, cursor: cursorPlan }),
   );
+}
+
+function pageStatement(cursor?: string) {
+  return ownServiceLinesStatement(
+    context(),
+    must(f.employees[0]),
+    '2026-10',
+    [{ id: f.branch, name_ar: null, name_en: 'Synthetic branch' }],
+    new Set(),
+    20,
+    cursor,
+  );
+}
+
+async function measureFirstPage() {
+  const metrics = await f.db.withTenant(f.company, async (tx) => {
+    const before = process.memoryUsage();
+    const started = performance.now();
+    const rows = await tx.execute<{ cursor_valid: boolean; items: unknown[] }>(pageStatement());
+    return {
+      rows: rows[0]?.items.length,
+      cursor_valid: rows[0]?.cursor_valid,
+      query_materialisation_ms: performance.now() - started,
+      heap_delta_bytes: process.memoryUsage().heapUsed - before.heapUsed,
+      rss_delta_bytes: process.memoryUsage().rss - before.rss,
+    };
+  });
+  expect(metrics).toMatchObject({ rows: 21, cursor_valid: true });
+  expect(metrics.query_materialisation_ms).toBeLessThan(200);
+  console.info('57-2 first-page measurement', JSON.stringify(metrics));
 }

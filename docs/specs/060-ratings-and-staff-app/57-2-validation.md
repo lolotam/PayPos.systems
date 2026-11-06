@@ -178,3 +178,59 @@ rechecks passed 31/31. The unchanged tips test's 3/3 confirmation above remains
 applicable. The original 23 API/contract source and test blobs are unchanged from
 the independently reviewed checkpoint. API lint and documentation lint receipts
 above apply to the same source, with only the documented plan/receipt additions.
+
+## CI failure investigation and correction round 3 of 3
+
+On `5b770810`, [CI run 42308596357](https://github.com/lolotam/PayPos.systems/actions/runs/42308596357)
+failed only API shard 4: 1,740 tests passed and the first-page `EXPLAIN ANALYZE`
+in `own-tips.spec.ts` reached PostgreSQL `57014` at the existing 30-second statement
+limit. Tips query/materialisation/aggregation passed at 33.73422 ms for 602 entries.
+The other API shards, check, worker integration and images passed; app build was
+skipped after the API failure and ci-gate failed accordingly. Mobile passed.
+The CI run lasted 12 minutes 15 seconds. No rerun or workflow change was requested.
+
+A disposable diagnostic clone retained the initial 1–2-row statistics while
+seeding the same 600 real-use-case visits. The original query then reproduced the
+30-second timeout. Its estimated cost was 34.53, with nested loops combining
+performers and sessions before filtering lines. Activity samples through 29.6
+seconds showed no blockers or wait event. Normal-statistics cost was 139.88.
+Actual CI statistics/plan were not captured, so this explains a local reproduction,
+not a proven reconstruction of the CI planner state.
+
+Two local LATERAL/OFFSET experiments were rejected: one still timed out; the other
+took 632.866 ms and failed the cursor-index assertion, retaining repeated broad
+scans. Neither was committed or pushed. Their diff/plans remain in the ignored
+diagnostic directory. The production query was restored byte-for-byte to `5b770810`.
+
+[PP-136 advisor receipt](<t3-thread://v2/438824e0-fe19-4a22-bb31-f81eff7b7322/thread:delegated-task:command%3Amcp%3Aa6b10cf3-6079-453b-8c1e-21af485e49f5%3Adelegate-task%3A0bcf7cad-07d0-4505-8a1b-ada5f680bdf2>)
+changed the approach to the repository's post-seed ANALYZE convention, also used
+by `discount-proposals-explain.spec.ts` and `attendance-board-performance.spec.ts`.
+The advisor disclosed one shell read contrary to its brief; this advice is not a
+code-review or gate receipt.
+
+The correction refreshes statistics after the complete seed, without changing
+production SQL, data volume, timeouts or planner settings. A refreshed tips plan
+may scan the tiny tip table where almost every entry qualifies; the current-revision
+index assertion and exact totals remain. The entry-table-index-only assertion was
+removed after observing this legitimate 10.4696 ms plan. Page/cursor EXPLAIN checks
+remain, and an actual first-page query/driver-materialisation measurement now checks
+21 limit-plus-one rows, cursor validity and time below 200 ms, recording heap/RSS deltas.
+The controlled stale-statistics diagnostic passed 3/3 after the refresh, using the
+unchanged production query. EXPLAIN execution: tips 7.287 ms, first page 6.082 ms,
+cursor 5.818 ms; planning 2.238/10.819/7.985 ms respectively. Shared hit blocks:
+3,634/72/81. Both cursor index assertions passed, and the actual first-page query
+and materialisation satisfied the 200 ms bound with 21 rows. The temporary source
+file was archived outside source and removed; its disposable database was closed.
+The original test file then passed 3/3 without the diagnostic fixture; API typecheck,
+targeted lint and diff whitespace checks passed. The 46-test applicable local
+coverage remains across the relevant runs; no extra unique tests are inferred from
+diagnostic copies. Temporary diagnostic DDL/files are not part of the PR.
+
+Fresh Astra high independently accepted this correction with no actionable findings:
+[Correction review](<t3-thread://v2/438824e0-fe19-4a22-bb31-f81eff7b7322/thread:delegated-task:command%3Amcp%3Aa6b10cf3-6079-453b-8c1e-21af485e49f5%3Adelegate-task%3A23fb3cbc-35c9-4e72-bdc3-f7a5fa1827b9>).
+It read the complete 526,931-byte snapshot and verified SHA256
+`186214d639868d069f0543cf0e0e347f8307567c0d07fef331da4c8adfaa2382`,
+including the unchanged production-query blob. It ran no tests/checks and did not
+approve CI or merge. The actual CI failure cause remains unproven. Round 3 of 3 is
+the final consolidated correction; new-head CI/panel receipts remain required and
+Codex is reserved for the final head. No budget reset or merge waiver applies.
