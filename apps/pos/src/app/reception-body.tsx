@@ -1,3 +1,4 @@
+import { OwnLeaveEntry } from './own-leave-entry';
 import { StaffLoginScreen } from '@/staff-login/ui/staff-login-screen';
 import { useStaffLogin } from '@/staff-login/api/use-staff-login';
 import { AttendanceHome } from '@/attendance/ui/attendance-home';
@@ -13,7 +14,13 @@ export function ReceptionBody({
   const operator = useStaffLogin();
   return (
     <div className="mx-auto grid w-full max-w-6xl items-start gap-12 lg:grid-cols-2">
-      <StaffLoginScreen />
+      <StaffLoginScreen
+        ownLeave={(session, epoch) => (
+          <OwnLeaveEntry
+            context={{ mode: 'reception', ...session, branch_id: branchId, sessionEpoch: epoch }}
+          />
+        )}
+      />
       <AttendanceHome branchId={branchId} onRejected={retry} />
       <CardClockAvailability
         online={operator.online}

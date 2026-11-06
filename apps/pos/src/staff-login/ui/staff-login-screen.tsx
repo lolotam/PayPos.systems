@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+import type { StaffSessionContext } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { StaffHome } from './staff-home';
 import { Button, BrandedPanel, EmptyState, WifiOff, LoaderCircle } from '@pospay/ui';
@@ -7,12 +9,15 @@ import { OtpForm } from './otp-form';
 import { PinForm } from './pin-form';
 import { useState } from 'react';
 
-export function StaffLoginScreen() {
+export function StaffLoginScreen({
+  ownLeave,
+}: { ownLeave?: (session: StaffSessionContext, epoch: number) => ReactNode } = {}) {
   const locale = useLocale();
   const login = useStaffLogin();
+  const session = login.authenticatedSession ?? login.session;
   const [pin, setPin] = useState(false);
   const [switching, setSwitching] = useState(false);
-  const formVisible = login.session === null || switching;
+  const formVisible = session === null || switching;
   const signedIn = () => {
     setSwitching(false);
     login.changed();
@@ -45,14 +50,17 @@ export function StaffLoginScreen() {
             </Button>
           ) : null}
         </div>
-      ) : login.session === null ? null : (
-        <StaffHome
-          session={login.session}
-          onSwitch={() => setSwitching(true)}
-          onSignOut={() => {
-            void login.signOut();
-          }}
-        />
+      ) : session === null ? null : (
+        <>
+          <StaffHome
+            session={session}
+            onSwitch={() => setSwitching(true)}
+            onSignOut={() => {
+              void login.signOut();
+            }}
+          />
+          {ownLeave?.(session, login.epoch)}
+        </>
       )}
     </BrandedPanel>
   );
