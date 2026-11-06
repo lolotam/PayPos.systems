@@ -1,7 +1,8 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { type QueryClient, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { announceOperatorChange, observeOperatorChange } from '../model/operator-change';
 import { probeStaffSession, signOutStaff } from './staff-calls';
+import { useSessionDeadline } from '@/shared/api/use-session-deadline';
 
 export function useStaffLogin() {
   const cache = useQueryClient();
@@ -35,27 +36,45 @@ export function useStaffLogin() {
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
   });
-  useEffect(() => {
-    if (!session.isError && !(session.isSuccess && session.data === null)) return;
-    const privateQueries = {
-      predicate: (query: { queryKey: readonly unknown[] }) => query.queryKey[0] !== 'staff-session',
-    };
-    void cache.cancelQueries(privateQueries).then(() => cache.removeQueries(privateQueries));
-  }, [cache, session.isError, session.isSuccess, session.data]);
+  usePrivateCacheCleanup(cache, session.isSuccess, session.data, epoch);
   const changed = () => {
     announceOperatorChange();
     clear();
   };
+  const live = useSessionDeadline(session.data?.expires_at, clear);
   return {
     online,
     epoch,
     loading: online && session.isPending,
-    session: online && session.isSuccess && !session.isFetching ? session.data : null,
-    authenticatedSession: online && session.isSuccess ? session.data : null,
+    session: online && live && session.isSuccess && !session.isFetching ? session.data : null,
+    authenticatedSession: online && live ? (session.data ?? null) : null,
     changed,
     signOut: async () => {
       await signOutStaff();
       changed();
     },
   };
+}
+
+function usePrivateCacheCleanup(
+  cache: QueryClient,
+  isSuccess: boolean,
+  data: unknown,
+  epoch: number,
+) {
+  useEffect(() => {
+    if (!(isSuccess && data === null)) return;
+    const privateQueries = {
+      predicate: (query: { queryKey: readonly unknown[] }) => query.queryKey[0] !== 'staff-session',
+    };
+    const owner = cache.getQueryCache().find({ queryKey: ['staff-session', epoch], exact: true });
+    void cache.cancelQueries(privateQueries).then(() => {
+      if (
+        owner &&
+        cache.getQueryCache().find({ queryKey: ['staff-session', epoch], exact: true }) === owner &&
+        owner.state.data === null
+      )
+        cache.removeQueries(privateQueries);
+    });
+  }, [cache, isSuccess, data, epoch]);
 }

@@ -33,6 +33,16 @@ export function createApiClient(
 
 export type ApiClient = ReturnType<typeof createApiClient>;
 
+// الدخول الشخصي وقراءاته يستخدمان مخزن كوكي واحدًا، دون توكن جهاز محفوظ من جلسة قديمة.
+export function personalApiClient(): ApiClient {
+  return createClient<paths>({
+    baseUrl: apiOrigin(),
+    credentials: 'include',
+    cache: 'no-store',
+    ...(usesNativeStaffTransport() ? { fetch: nativeStaffFetch } : {}),
+  });
+}
+
 let singleton: ApiClient | undefined;
 let staffSingleton: ApiClient | undefined;
 

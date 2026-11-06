@@ -13,8 +13,8 @@ const operator = vi.hoisted(() =>
   vi.fn(() => ({ online: true, authenticatedSession: null as null | { user_id: string } })),
 );
 vi.mock('@/staff-login/api/use-staff-login', () => ({ useStaffLogin: operator }));
-vi.mock('@/staff-login/ui/staff-login-screen', () => ({
-  StaffLoginScreen: () => <h2>{t('ar', 'staffLogin.title')}</h2>,
+vi.mock('@/staff-login/ui/staff-login-panel', () => ({
+  StaffLoginPanel: () => <h2>{t('ar', 'staffLogin.title')}</h2>,
 }));
 
 vi.mock('@/attendance/api/use-attendance-qr', () => ({

@@ -115,8 +115,8 @@ Therefore:
 ### 3.4 Service-lines query (FR-A01)
 
 Orders-owned tables only: `line_performers` (her row: `share_bps`) → `service_lines` (status, service name snapshot,
-`list_price`, `discount`, `net`) → `service_sessions` (`business_date`, `occurred_at`, `branch_id`, `customer_name`,
-`late`) → `service_line_cancellations.cancelled_at` for a cancelled line. Order newest first:
+`list_price`, `discount`, `net`, `late`) → `service_sessions` (`business_date`, `occurred_at`, `branch_id`, `customer_name`)
+→ `service_line_cancellations.cancelled_at` for a cancelled line. Order newest first:
 `(ss.business_date DESC, ss.occurred_at DESC, sl.id DESC)`. Paging reuses the house `pageQuery` (`limit` default 20,
 max 100) and the `page()` envelope: response `{ month, items, next_cursor }`.
 
@@ -127,7 +127,7 @@ max 100) and the `page()` envelope: response `{ month, items, next_cursor }`.
 | `line_id`, `branch_name_ar`, `branch_name_en`, `cancelled` | context (D-A7) | always |
 | `cancelled_at` | context (D-A7) | on a cancelled line |
 | `date` | `business_date` (`date`) | `date` allowed |
-| `late` | `service_sessions.late` (`date`, see below) | `date` allowed |
+| `late` | `service_lines.late` (`date`, see below) | `date` allowed |
 | `time` | `occurred_at` UTC instant (`time`) | `time` allowed |
 | `service_name_ar`, `service_name_en` | snapshot (`service`) | `service` allowed |
 | `customer_name` | session snapshot (`customer_name`) | allowed |
@@ -293,7 +293,7 @@ provider readers that D1 = (a) adds; 57b-1's production ran ≈ 1.15× the top o
 ## 7. Remaining technical questions (grilling format; nothing for Waleed)
 
 ❓ **Q1 — `late` under which column**: D-A7 allows no extra context field; the «متأخرة» mark is required by the §A.2
-edge case and FR-013 makes it a statement about the date. ➡️ **Recommended:** `late` (from `service_sessions.late`) is
+edge case and FR-013 makes it a statement about the date. ➡️ **Recommended:** `late` (from `service_lines.late`) is
 present exactly when `date` is allowed. Alternative: under `time` (weaker fit), or a spec amendment adding `late` to
 D-A7's context list (owner-level change; not proposed).
 

@@ -25,7 +25,9 @@ export async function signInStaffPin(input: StaffPinInput) {
 
 export async function probeStaffSession() {
   const response = await staffApiClient().GET('/v1/devices/me/staff-session');
-  return response.data ?? null;
+  if ([401, 403, 404].includes(response.response.status)) return null;
+  if (response.data === undefined) throw new Error('STAFF_SESSION_UNAVAILABLE');
+  return response.data;
 }
 
 export async function signOutStaff() {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { announcePersonalChange, observePersonalChange } from '../model/session-change';
 import { disablePushOnSignOut } from '../push/push-disable';
 import { personalCalls } from './personal-calls';
+import { useSessionDeadline } from '@/shared/api/use-session-deadline';
 
 export function usePersonalSession() {
   const cache = useQueryClient();
@@ -37,15 +38,17 @@ export function usePersonalSession() {
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
   });
-  usePrivateCacheCleanup(cache, query.isSuccess, query.data);
+  usePrivateCacheCleanup(cache, query.isSuccess, query.data, epoch);
+  const live = useSessionDeadline(query.data?.expires_at, clear);
   return {
     epoch,
     online,
+    ...(online && live && query.data != null ? { privateReady: true as const } : {}),
     loading: online && query.isPending,
     // فشل القراءة أو إعادة الجلب مش إثبات إن مفيش جلسة؛ التأكيد بيكون بجواب ناجح مكتمل بس.
     confirmedNoSession: online && query.isSuccess && !query.isFetching && query.data === null,
     // الجلب الدوري يحتفظ بالجلسة المؤكدة؛ فشل الشبكة وحده لا يلغي إثباتاً صالحاً.
-    session: online ? (query.data ?? null) : null,
+    session: online && live ? (query.data ?? null) : null,
     changed: () => {
       announcePersonalChange();
       clear();
@@ -63,13 +66,29 @@ export function usePersonalSession() {
   };
 }
 
-function usePrivateCacheCleanup(cache: QueryClient, isSuccess: boolean, data: unknown): void {
+function usePrivateCacheCleanup(
+  cache: QueryClient,
+  isSuccess: boolean,
+  data: unknown,
+  epoch: number,
+): void {
   useEffect(() => {
     if (!(isSuccess && data === null)) return;
     const privateQueries = {
       predicate: (item: { queryKey: readonly unknown[] }) =>
         item.queryKey[0] !== 'personal-session',
     };
-    void cache.cancelQueries(privateQueries).then(() => cache.removeQueries(privateQueries));
-  }, [cache, isSuccess, data]);
+    const owner = cache
+      .getQueryCache()
+      .find({ queryKey: ['personal-session', epoch], exact: true });
+    void cache.cancelQueries(privateQueries).then(() => {
+      if (
+        owner &&
+        cache.getQueryCache().find({ queryKey: ['personal-session', epoch], exact: true }) ===
+          owner &&
+        owner.state.data === null
+      )
+        cache.removeQueries(privateQueries);
+    });
+  }, [cache, isSuccess, data, epoch]);
 }

@@ -75,7 +75,8 @@ async function beginCeremony() {
 }
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+  vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
+  vi.setSystemTime(new Date('2026-10-04T10:00:00Z'));
   vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
   vi.mocked(personalCalls.session).mockResolvedValue(session);
   vi.mocked(personalCalls.binding).mockResolvedValue({

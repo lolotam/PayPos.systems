@@ -117,3 +117,49 @@ scope. The reviewer read the complete snapshot and verified its hash, but ran no
 tests or gates. The reviewed snapshot contained 2,806 changed lines, including all
 production, tests, documentation and generated additions/deletions. This receipt
 adds documentation only after that snapshot. One of three correction rounds used.
+
+## Main update after opening PR #894
+
+PR head `9ca23f180154d23804fc662e43c190578135ebb6` conflicted with main
+`da16aae2c7cb315ee81f911ce637aab3b88cf267` (merged #882). The only conflict was
+`owner-questions.ar.md`: both branches appended audit records. Local checkpoint
+`checkpoint/57-2-before-main-9ca23f18` retains the original reviewed commit. The
+resolution preserves the complete main audit followed by the complete 57-2 audit;
+an append-only check verified both texts. No source conflict required resolution.
+All original slice files except the combined audit retain their exact Git blob
+hashes after regeneration. OpenAPI and all three clients were regenerated; menu
+adds the same 192 generated lines previously added to admin/POS. Before this
+receipt, the full main-relative diff was 3,010 changed lines, including menu.
+
+API/contracts typecheck, all three client checks, API lint and module-map check
+passed after the main update. Documentation lint passed with zero errors and
+29 existing TODO warnings. Contracts tests passed 12/12. API slice retest passed
+33/34: the representative tips test measured 602 rows in 34.4639 ms (query 34.0001,
+materialisation 0.0224, aggregation 0.4414; heap delta 648,280 bytes, RSS delta zero),
+then its first-page `EXPLAIN ANALYZE` failed with PostgreSQL `57014` statement
+timeout. The lane role retains its existing 30-second statement limit. Investigation
+used the unchanged query with a temporary diagnostic copy of the test that emitted
+the estimated first-page plan before execution: 3/3 passed. The original test was
+then run unchanged, without the diagnostic addition: 3/3 passed again. The temporary
+copy was removed. The timeout was not reproduced and its cause remains unproven;
+no timeout, dataset, assertion or production change was made to obtain either pass.
+Post-update applicable local coverage is 46 passing tests across those runs, not a
+single all-green full-suite or CI receipt.
+
+Codex started automatically on PR opening, as recorded in
+[its PR summary](https://github.com/lolotam/PayPos.systems/pull/894#issuecomment-6697676563).
+No manual review trigger was sent. CodeRabbit reported a rate limit and performed
+no review; no billing/configuration change or duplicate trigger was requested.
+The conflicting head did not establish an Actions CI run. The main update and any
+findings remain one consolidated push after the current reviews finish.
+
+All four panel reviews completed on `9ca23f18`: Waleed_Bot (context outside the
+diff), mohamed_Bot (security), MergePilot_Bot (cross-file consumers) and Hamza_Bot
+(owner rules). The only published inline finding, nullable customer snapshots,
+was rebutted with `packages/db/schema/orders.ts:19`: the actual source snapshot
+`service_sessions.customer_name` is NOT NULL. The reply and resolution are
+[recorded on the finding](https://github.com/lolotam/PayPos.systems/pull/894#discussion_r4498431848).
+Codex's automatic review also completed on that head with no findings. Its receipt
+does not satisfy the next head. The copied plan's stale session-level `late` source
+examples are aligned to the accepted `service_lines.late` correction; Q1 is unchanged.
+The consolidated main/client/documentation update is correction round 2 of 3.

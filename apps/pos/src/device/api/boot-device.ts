@@ -17,7 +17,12 @@ export async function bootDevice(queryClient: QueryClient): Promise<DeviceScreen
 
 async function identityScreen(queryClient: QueryClient, token: string): Promise<DeviceScreenState> {
   const me = await probeDevice(queryClient);
-  if (me.kind === 'ready') return { kind: 'ready', branchId: me.branchId };
+  if (me.kind === 'ready')
+    return {
+      kind: 'ready',
+      branchId: me.branchId,
+      ...(me.deviceId ? { deviceId: me.deviceId } : {}),
+    };
   if (me.kind !== 'rejected') return { kind: 'offline' };
   if (await clearIfToken(token)) return { kind: 'pairing', notice: 'removed' };
   return bootDevice(queryClient);

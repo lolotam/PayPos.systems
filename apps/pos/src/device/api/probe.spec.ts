@@ -36,6 +36,7 @@ describe('probeDevice', () => {
     expect(result).toEqual({
       kind: 'ready',
       branchId: '01923f66-3d2b-7c00-8000-000000000001',
+      deviceId: 'd1',
     });
   });
 

@@ -1,3 +1,4 @@
+import { personalLeave } from './personal-leave';
 import { PersonalScreen } from '@/personal-staff/ui/personal-screen';
 import { isNativeShell } from '@/shared/platform/native-shell';
 
@@ -12,7 +13,13 @@ export function App() {
   return (
     <Providers>
       <StagingStrip />
-      {native ? <NativeEntry /> : personal ? <PersonalScreen /> : <DeviceScreen />}
+      {native ? (
+        <NativeEntry />
+      ) : personal ? (
+        <PersonalScreen ownLeave={personalLeave} />
+      ) : (
+        <DeviceScreen />
+      )}
     </Providers>
   );
 }

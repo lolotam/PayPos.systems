@@ -21,7 +21,8 @@ interface Registered {
 
 export async function readDeviceMe(): Promise<MeResult> {
   const result = await call(() => apiClient().GET('/v1/devices/me'));
-  if (result.ok) return { kind: 'ready', branchId: result.data.branch_id };
+  if (result.ok)
+    return { kind: 'ready', branchId: result.data.branch_id, deviceId: result.data.device_id };
   if (isRejected(result.failure)) return { kind: 'rejected' };
   throw new Error('devices-me-unreachable');
 }
