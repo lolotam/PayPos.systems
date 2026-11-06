@@ -1478,6 +1478,13 @@
       "when": 1793914195605,
       "tag": "0212_2026-11-05_package-preview-ready-consistency",
       "breakpoints": true
+    },
+    {
+      "idx": 213,
+      "version": "7",
+      "when": 1793947033327,
+      "tag": "0213_2026-11-06_package-preview-partition-proof",
+      "breakpoints": true
     }
   ]
 }

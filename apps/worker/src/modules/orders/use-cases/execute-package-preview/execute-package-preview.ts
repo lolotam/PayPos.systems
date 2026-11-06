@@ -50,7 +50,10 @@ export class ExecutePackagePreview {
           await scope.existingRefs(refs),
         );
         const customers = await scope.findByPhones(parsed.rows.map((row) => row.phone));
-        await scope.ready(sheet.rows.length, resolvePackageImportRows(parsed, customers));
+        await scope.ready(
+          sheet.rows.map(({ row }) => row),
+          resolvePackageImportRows(parsed, customers),
+        );
       });
     } catch (error) {
       if (error instanceof PackageImportError && error.code !== 'STORAGE_UNAVAILABLE') {

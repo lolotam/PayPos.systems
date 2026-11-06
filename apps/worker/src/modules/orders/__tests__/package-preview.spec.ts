@@ -25,8 +25,14 @@ it('stores validation errors as ready and permits multiple issues on one source 
   const { id } = await f.requested(content);
   await f.worker.execute(f.company, id);
   const [result] =
-    await f.owner`SELECT status,row_count,error_count,rows,errors FROM import_previews WHERE id=${id}`;
-  expect(result).toMatchObject({ status: 'ready', row_count: 1, rows: [] });
+    await f.owner`SELECT status,row_count,error_count,rows,errors,source_rows,skipped_rows FROM import_previews WHERE id=${id}`;
+  expect(result).toMatchObject({
+    status: 'ready',
+    row_count: 1,
+    rows: [],
+    source_rows: [2],
+    skipped_rows: [],
+  });
   expect(Number(result?.['error_count'])).toBeGreaterThan(1);
   expect(JSON.stringify(result)).not.toContain('not-money');
 });
@@ -99,13 +105,15 @@ it('previews all 500 rows and 20 groups at 365 sessions without storing phones o
   const { id } = await f.requested(await packageWorkbook(500, 20, 'maximum'));
   await f.worker.execute(f.company, id);
   const [result] =
-    await f.owner`SELECT status,row_count,error_count,skipped_count,rows,errors FROM import_previews WHERE id=${id}`;
+    await f.owner`SELECT status,row_count,error_count,skipped_count,rows,errors,source_rows,skipped_rows FROM import_previews WHERE id=${id}`;
   expect(result).toMatchObject({
     status: 'ready',
     row_count: 500,
     error_count: 0,
     skipped_count: 0,
     errors: [],
+    source_rows: Array.from({ length: 500 }, (_, index) => index + 2),
+    skipped_rows: [],
   });
   const rows = result?.['rows'] as {
     price_paid: string;
@@ -248,6 +256,7 @@ it('rejects inconsistent ready metadata but permits multiple issues on one bad i
   }
   await f.db.withTenant(f.company, (tx) =>
     tx.execute(sql`UPDATE import_previews SET status='ready',row_count=1,error_count=2,
+    source_rows='[2]'::jsonb,skipped_rows='[]'::jsonb,
     errors='[{"row":2,"column":"name_en","code":"IMPORT_NAME_INVALID"},{"row":2,"column":"price_paid","code":"IMPORT_PRICE_INVALID"}]'::jsonb WHERE id=${id}`),
   );
   expect(

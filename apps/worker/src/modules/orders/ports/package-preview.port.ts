@@ -50,11 +50,11 @@ export interface PackagePreviewScope extends CustomerLookupPort {
   /**
    * يثبت النتيجة مرة واحدة داخل القفل.
    *
-   * @param rowCount عدد صفوف المصدر
+   * @param sourceRows أرقام صفوف المصدر الفعلية لإثبات التقسيم
    * @param result صفوف آمنة وأخطاء وتخطيات
    * @returns اكتمال الحفظ
    */
-  ready(rowCount: number, result: PackageImportValidation): Promise<void>;
+  ready(sourceRows: readonly number[], result: PackageImportValidation): Promise<void>;
 }
 /** بحث العملاء الدفعي للاستيراد؛ لا يرجع الهاتف الكامل خارج المحول. */
 export interface CustomerLookupPort {
