@@ -163,3 +163,18 @@ Codex's automatic review also completed on that head with no findings. Its recei
 does not satisfy the next head. The copied plan's stale session-level `late` source
 examples are aligned to the accepted `service_lines.late` correction; Q1 is unchanged.
 The consolidated main/client/documentation update is correction round 2 of 3.
+
+Before pushing that round, main advanced to `319e8c637` (merged #893, 68-1a).
+It was merged locally without conflicts and OpenAPI/admin/POS/menu regenerated
+again. The main-relative full diff excludes 68 leave production, contracts and
+history changes: those remain exactly main's content. The original implementation
+commit remains unchanged in `git range-diff`; merge-resolution/generated/documentation
+changes are checked separately in the full main-relative diff. These updates belong
+to the same consolidated push; there was no empty commit or CI rerun request.
+
+On the 68-1a base, API/contracts typecheck, all three client checks and module-map
+check passed again. Contracts tests passed 12/12; service-line/isolation/HTTP/domain
+rechecks passed 31/31. The unchanged tips test's 3/3 confirmation above remains
+applicable. The original 23 API/contract source and test blobs are unchanged from
+the independently reviewed checkpoint. API lint and documentation lint receipts
+above apply to the same source, with only the documented plan/receipt additions.

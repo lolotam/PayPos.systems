@@ -106,6 +106,7 @@ export const expectedOpenApiSchemaNames = [
   'LeaveInboxQuery',
   'LeaveListItem',
   'LeaveListQuery',
+  'EmployeeLeaveListQuery',
   'LeavePage',
   'LeaveRequest',
   'RequestEmployeeLeaveInput',
