@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { RequestLeaveInput } from '@pospay/contracts';
+import type { LeaveRequest, RequestLeaveInput } from '@pospay/contracts';
 import { leaveIdentity, type LeaveContext } from '../model/context';
 import { leaveCalls } from './leave-calls';
+import { useForgetRefusedRead } from './use-forget-refused-read';
 
 export function useMyLeave(context: LeaveContext, branch: string) {
   const cache = useQueryClient();
@@ -29,14 +30,18 @@ export function useMyLeave(context: LeaveContext, branch: string) {
     staleTime: 0,
     refetchInterval: 15_000,
   });
-  const { write, busy, error, success } = useLeaveWrite(controller, () =>
-    cache.invalidateQueries({ queryKey }),
+  useForgetRefusedRead(query.error, identity, branch);
+  const { write, busy, error, success, lastRequest } = useLeaveWrite(
+    controller,
+    () => cache.invalidateQueries({ queryKey }),
+    query.dataUpdatedAt,
   );
   return {
     query,
     busy,
     error,
     success,
+    lastRequest,
     create: (input: RequestLeaveInput) =>
       write(
         JSON.stringify(input),
@@ -53,7 +58,7 @@ export function useMyLeave(context: LeaveContext, branch: string) {
 }
 
 export function useLeaveBranches(context: LeaveContext) {
-  return useQuery({
+  const query = useQuery({
     queryKey: ['my-leave', leaveIdentity(context), 'branches'],
     queryFn: ({ signal }) => leaveCalls.branches(signal),
     enabled: context.mode === 'personal',
@@ -61,17 +66,27 @@ export function useLeaveBranches(context: LeaveContext) {
     gcTime: 0,
     staleTime: 0,
   });
+  useForgetRefusedRead(query.error, leaveIdentity(context), 'branches');
+  return query;
 }
 
-function useLeaveWrite(controller: React.RefObject<AbortController>, refresh: () => Promise<void>) {
+function useLeaveWrite(
+  controller: React.RefObject<AbortController>,
+  refresh: () => Promise<void>,
+  updatedAt: number,
+) {
   const locked = useRef(false);
   const attempts = useRef(new Map<string, string>());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [success, setSuccess] = useState<'saved' | 'cancelled' | null>(null);
+  const [lastRequest, setLastRequest] = useState<LeaveRequest | null>(null);
+  useEffect(() => {
+    setLastRequest(null);
+  }, [updatedAt]);
   const write = async (
     fingerprint: string,
-    operation: (key: string, signal: AbortSignal) => Promise<unknown>,
+    operation: (key: string, signal: AbortSignal) => Promise<LeaveRequest>,
     message: 'saved' | 'cancelled',
   ) => {
     const signal = controller.current.signal;
@@ -83,11 +98,12 @@ function useLeaveWrite(controller: React.RefObject<AbortController>, refresh: ()
     setError(null);
     setSuccess(null);
     try {
-      await operation(key, signal);
+      const result = await operation(key, signal);
       if (signal.aborted) return;
       attempts.current.delete(fingerprint);
       setSuccess(message);
-      await refresh();
+      if (message === 'saved') setLastRequest(result);
+      else await refresh();
     } catch (failure) {
       if (!signal.aborted) setError(failure);
     } finally {
@@ -95,5 +111,5 @@ function useLeaveWrite(controller: React.RefObject<AbortController>, refresh: ()
       if (!signal.aborted) setBusy(false);
     }
   };
-  return { write, busy, error, success };
+  return { write, busy, error, success, lastRequest };
 }

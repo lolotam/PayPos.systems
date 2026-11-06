@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, cleanup } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, cleanup, within } from '@testing-library/react';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { t } from '@pospay/i18n';
@@ -36,6 +36,8 @@ let requests: Request[];
 let failure = false;
 let canCreate = true;
 let readFailure = false;
+let readStatus = 503;
+let readFailurePath = '';
 beforeEach(() => {
   onlineManager.setOnline(true);
   items = [...records];
@@ -43,14 +45,19 @@ beforeEach(() => {
   failure = false;
   canCreate = true;
   readFailure = false;
+  readStatus = 503;
+  readFailurePath = '';
   Object.defineProperty(navigator, 'onLine', { configurable: true, value: true });
   vi.stubGlobal(
     'fetch',
     vi.fn(async (request: Request) => {
       requests.push(request);
       const url = new URL(request.url);
-      if (request.method === 'GET' && readFailure)
-        return Response.json({ code: 'NOT_READY' }, { status: 503 });
+      if (request.method === 'GET' && readFailure && url.pathname.endsWith(readFailurePath))
+        return Response.json(
+          { code: readStatus === 503 ? 'NOT_READY' : 'FORBIDDEN' },
+          { status: readStatus },
+        );
       if (url.pathname.endsWith('/branches'))
         return Response.json({
           items: [{ id: branch, name_ar: 'Branch', name_en: 'Branch', timezone: 'Asia/Kuwait' }],
@@ -151,6 +158,30 @@ it('cancels using revision and refreshes status', async () => {
   const request = requests.find((item) => item.method === 'POST') as Request;
   expect(await request.clone().json()).toEqual({ expected_revision: 1 });
 });
+it('pins the returned request status above an older first page until the next history refresh', async () => {
+  const approved = records[1] as (typeof records)[number];
+  items = Array.from({ length: 20 }, (_, index) => ({ ...approved, id: `older-${index}` }));
+  const original = globalThis.fetch;
+  vi.stubGlobal('fetch', async (request: Request) =>
+    request.method === 'POST'
+      ? Response.json({ ...records[0], id: 'new-request', note: 'Just submitted' })
+      : original(request),
+  );
+  const view = mount();
+  await screen.findByRole('option', { name: 'Branch' });
+  fireEvent.change(screen.getByLabelText('Branch'), { target: { value: branch } });
+  await screen.findAllByText('Annual — Approved');
+  dates();
+  fireEvent.click(screen.getByRole('button', { name: 'Submit request' }));
+  const card = await screen.findByRole('region', { name: 'Latest request' });
+  expect(within(card).getByText('Annual — Pending')).toBeTruthy();
+  expect(within(card).getByText('Just submitted')).toBeTruthy();
+  expect(screen.getAllByText('Annual — Approved')).toHaveLength(20);
+  await act(async () => {
+    await view.cache.refetchQueries({ queryKey: ['my-leave'] });
+  });
+  await waitFor(() => expect(screen.queryByRole('region', { name: 'Latest request' })).toBeNull());
+});
 it('keeps history and allowed cancellation without offering unauthorized creation', async () => {
   canCreate = false;
   mount();
@@ -178,6 +209,36 @@ it('retains the draft through transient history and branch background failures',
   expect((screen.getByLabelText('From date') as HTMLInputElement).value).toBe('2026-12-01');
   await waitFor(() => expect(screen.queryAllByRole('alert')).toHaveLength(0));
 });
+it.each([
+  ['leave-requests', 401, 'personal'],
+  ['leave-requests', 403, 'personal'],
+  ['leave-requests', 404, 'personal'],
+  ['branches', 403, 'personal'],
+  ['leave-requests', 403, 'reception'],
+] as const)(
+  'clears private history, draft and cache after %s refuses with %i in %s',
+  async (path, status, mode) => {
+    const view = mount({ ...context, mode, branch_id: branch });
+    if (mode === 'personal') await chooseBranch();
+    else await screen.findByText('Annual — Pending');
+    dates();
+    expect(JSON.stringify(view.cache.getQueriesData({ queryKey: ['my-leave'] }))).toContain(
+      'Request declined',
+    );
+    readFailure = true;
+    readStatus = status;
+    readFailurePath = path;
+    await act(async () => {
+      await view.cache.refetchQueries({ queryKey: ['my-leave'] });
+    });
+    await screen.findByRole('alert');
+    expect(screen.queryByText('Annual — Pending')).toBeNull();
+    expect(screen.queryByLabelText('From date')).toBeNull();
+    expect(JSON.stringify(view.cache.getQueriesData({ queryKey: ['my-leave'] }))).not.toContain(
+      'Request declined',
+    );
+  },
+);
 it('retries an initial branch read failure without reopening the screen', async () => {
   readFailure = true;
   mount();

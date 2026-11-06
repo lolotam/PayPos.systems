@@ -6,6 +6,8 @@ import type { LeaveContext } from '../model/context';
 import { useMyLeave } from '../api/use-my-leave';
 import { LeaveForm } from './leave-form';
 import { LeaveHistory } from './leave-history';
+import { leaveReadRefused } from '../model/read-error';
+import { LatestLeaveRequest } from './latest-leave-request';
 
 export function LeavePanel({
   context,
@@ -19,17 +21,17 @@ export function LeavePanel({
   const locale = useLocale();
   const state = useMyLeave(context, branch);
   const error = state.error ?? state.query.error;
-  const message = leaveErrorText(error, locale);
   const items = state.query.data?.pages.flatMap((page) => page.items) ?? [];
   const canCreate = state.query.data?.pages[0]?.request_branch_ids.includes(branch) ?? false;
   return (
     <div className="grid gap-4">
       {state.busy ? <p role="status">{t(locale, 'pos.loading')}</p> : null}
-      {error ? <p role="alert">{message}</p> : null}
+      {error ? <p role="alert">{leaveErrorText(error, locale)}</p> : null}
       {state.success ? <p role="status">{t(locale, `leave.${state.success}`)}</p> : null}
       {state.query.isPending ? (
         <p role="status">{t(locale, 'pos.loading')}</p>
-      ) : state.query.isError && state.query.data === undefined ? (
+      ) : state.query.isError &&
+        (state.query.data === undefined || leaveReadRefused(state.query.error)) ? (
         <Button
           onClick={() => {
             void state.query.refetch();
@@ -39,6 +41,7 @@ export function LeavePanel({
         </Button>
       ) : (
         <>
+          {state.lastRequest ? <LatestLeaveRequest request={state.lastRequest} /> : null}
           <p>
             {t(locale, 'leave.timezone')}
             {timezone ? `: ${timezone}` : ''}

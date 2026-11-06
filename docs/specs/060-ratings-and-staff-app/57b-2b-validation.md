@@ -16,7 +16,8 @@ UI scope only; the parallel reader author owns API/contracts/OpenAPI/generated c
 - History shows all four statuses, saved local dates/timezone, partial times, notes and returned decision/revocation
   reasons. Pagination appends pages. Only `can_cancel` exposes cancellation; it sends `expected_revision`.
 - Writes have no automatic retry. Explicit retry of the same attempted command retains its Idempotency-Key.
-  Success invalidates the history; concurrent submit clicks are locked. Closing, branch/session changes and offline
+  Cancellation invalidates history; creation pins the returned request until the next read update.
+  Concurrent submit clicks are locked. Closing, branch/session changes and offline
   transitions unmount private state, abort writes and cancel/remove queries. Reads consume TanStack cancellation signals.
 - Query identities contain the company, business, user, absolute session deadline, session epoch and branch.
   Queries use `gcTime: 0` and `retry: false`; no private persistence or offline outbox is introduced.
@@ -148,3 +149,47 @@ extracted into a local hook to keep the existing 60-line component gate. No test
 skipped or weakened. POS lint and typecheck, documentation and module-map checks
 all passed after these corrections. All seven inline findings are addressed; duplicates
 refer to the same background-error and reception-timezone fixes.
+
+## PR correction round 2
+
+The manager approved the base-only rebase onto `main`; its published head is
+`9fa051ff178aca291ed1b10c6611662337e2ac57`. Range-diff preserved both UI patches,
+so that maintenance push did not consume a correction round.
+
+Further review identified two real issues, including repeats from the pre-rebase head:
+
+- Authentication/authorization refusals are distinguished from transient errors by
+  HTTP status. A 401/403/404 immediately hides cached branch/history controls and
+  the form; an effect removes the affected query. Five visible regressions verify
+  history/draft disappearance and removal of cached private reasons. A transient
+  503 still preserves the entered draft and recovers without reopening the screen.
+- Personal sign-in, session probe, passkey operations and sign-out now share a
+  credential-only `personalApiClient` with leave reads/writes. It selects the existing
+  native iOS transport without Device middleware. Personal attendance and push call
+  wrappers also reuse it, avoiding a remaining cookie-transport mismatch after login.
+  An SDK-boundary regression proves login/probe/leave/sign-out use the same native
+  path and that reads refuse after sign-out. This is not an on-device cookie-jar test.
+
+The parent ran five affected test files, 51 tests, plus four regression files for
+attendance/push/session/reception, 15 tests; all passed. POS typecheck/lint and
+documentation/module-map checks passed before the final mechanical wrapper changes.
+No API contract, migration, server, secret, environment or native configuration changed.
+The manager chose option (a) for r4490324543 after advisor consultation (PP-136):
+keep D-A11/MY-16 and the API's oldest-first order. The create response is pinned in
+an «آخر طلب» card above history until the next successful history update. Creation
+does not immediately invalidate the current page, so this confirmation remains visible
+until that update. The card has no inferred cancellation authority; its status is the
+server's create response. A visible test with 20 older rows asserts the status inside
+the pinned region and its disappearance at the next update. The separately scoped
+newest-first follow-up is [#885](https://github.com/lolotam/PayPos.systems/issues/885),
+opened before merge. No API ordering change was made.
+
+All four panel bots completed on `9fa051ff178aca291ed1b10c6611662337e2ac57`
+before the consolidated round-2 push. Codex also completed on that head with no
+findings. The final parent run after the card, transport and refusal corrections
+passed nine POS test files / 68 tests, plus the i18n test. POS typecheck/lint passed
+again, and documentation/module-map checks passed. The earlier 51+15 counts above
+describe intermediate verification, not the final total. The first final lint attempt
+found a 61-line component; removing a redundant local display variable restored the
+60-line gate without changing behavior. No production API or database tests were
+needed because their code/contracts remained unchanged.

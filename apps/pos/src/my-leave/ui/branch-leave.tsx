@@ -6,6 +6,7 @@ import { useLeaveBranches } from '../api/use-my-leave';
 import { leaveErrorText } from '../model/error-text';
 import type { LeaveContext } from '../model/context';
 import { LeavePanel } from './leave-panel';
+import { leaveReadRefused } from '../model/read-error';
 
 export function BranchLeave({ context }: { context: LeaveContext }) {
   const locale = useLocale();
@@ -16,7 +17,7 @@ export function BranchLeave({ context }: { context: LeaveContext }) {
       <LeavePanel context={context} branch={context.branch_id ?? ''} timezone={context.timezone} />
     );
   if (branches.isPending) return <p role="status">{t(locale, 'pos.loading')}</p>;
-  if (branches.isError && branches.data === undefined)
+  if (branches.isError && (branches.data === undefined || leaveReadRefused(branches.error)))
     return (
       <div>
         <p role="alert">{leaveErrorText(branches.error, locale)}</p>

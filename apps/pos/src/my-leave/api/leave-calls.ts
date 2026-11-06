@@ -1,25 +1,15 @@
-import createClient from 'openapi-fetch';
 import type { RequestLeaveInput } from '@pospay/contracts';
-import { staffApiClient } from '@/shared/api/client';
-import { nativeStaffFetch } from '@/shared/api/native-staff-fetch';
-import { apiOrigin } from '@/shared/api/origin';
-import type { paths } from '@/shared/api/schema';
-import { usesNativeStaffTransport } from '@/shared/platform/native-shell';
+import { staffApiClient, personalApiClient } from '@/shared/api/client';
 import type { LeaveContext } from '../model/context';
+import { LeaveHttpError } from '../model/read-error';
 
 // الجلسة الشخصية لا تستعير توكن جهاز قديم موجود في المتصفح.
 function client(mode: LeaveContext['mode']) {
-  return mode === 'reception'
-    ? staffApiClient()
-    : createClient<paths>({
-        baseUrl: apiOrigin(),
-        credentials: 'include',
-        cache: 'no-store',
-        ...(usesNativeStaffTransport() ? { fetch: nativeStaffFetch } : {}),
-      });
+  return mode === 'reception' ? staffApiClient() : personalApiClient();
 }
-function value<T>(result: { data?: T; error?: { code: string } }): T {
-  if (result.data === undefined) throw new Error(result.error?.code ?? 'NOT_READY');
+function value<T>(result: { data?: T; error?: { code: string }; response: Response }): T {
+  if (result.data === undefined)
+    throw new LeaveHttpError(result.error?.code ?? 'NOT_READY', result.response.status);
   return result.data;
 }
 export const leaveCalls = {
