@@ -1,11 +1,17 @@
 import { parseArgs } from 'node:util';
-import { createDatabase, createOutboxDispatcherDatabase } from '@pospay/db';
+import {
+  createDatabase,
+  createOutboxDispatcherDatabase,
+  assertReplayBounds,
+  ReplayCursorError,
+} from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import {
   createRatingSchedulingConsumer,
   recoverRatingClaims,
   startRatingClaimsRegistrar,
+  RatingClaimsReadinessError,
 } from './modules/customers/index.ts';
 import { daySessionsReader } from './modules/orders/index.ts';
 import { createDeliverer } from './outbox/deliver.ts';
@@ -19,6 +25,7 @@ try {
       through: { type: 'string' },
     },
   });
+  assertReplayBounds(values.after ?? null, values.through ?? null);
   const appUrl = process.env['DATABASE_URL'];
   const dispatcherUrl = process.env['DISPATCHER_DATABASE_URL'];
   const redisUrl = process.env['REDIS_URL'];
@@ -62,8 +69,12 @@ try {
   if (failure !== undefined) throw failure;
   if (closed.some((entry) => entry.status === 'rejected'))
     throw new Error('RATING_CLAIMS_RECOVERY_CLOSE_FAILED');
-} catch {
+} catch (error) {
   // الأخطاء الخام قد تحمل SQL أو رابط اتصال؛ الحالة الثابتة تمنع كشفها في تشغيل يدوي.
-  console.error('RATING_CLAIMS_RECOVERY_FAILED');
+  console.error(
+    error instanceof ReplayCursorError || error instanceof RatingClaimsReadinessError
+      ? error.code
+      : 'RATING_CLAIMS_RECOVERY_FAILED',
+  );
   process.exitCode = 1;
 }

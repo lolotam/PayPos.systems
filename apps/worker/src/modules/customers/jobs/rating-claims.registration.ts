@@ -7,6 +7,33 @@ export const RATING_CLAIMS_QUEUE = 'rating-claims';
 /** الفترة بين جولتين متتاليتين لنفس الشركة: دقيقة واحدة. */
 export const RATING_CLAIMS_EVERY_MS = 60_000;
 
+/** انتهاء مهلة الإقلاع الأولى؛ ثابت النص ولا يكشف عنوان Redis. */
+export class RatingClaimsReadinessError extends Error {
+  readonly code = 'RATING_CLAIMS_REDIS_READY_TIMEOUT';
+  constructor() {
+    super('RATING_CLAIMS_REDIS_READY_TIMEOUT');
+  }
+}
+
+async function registrationReady(queue: Queue, redis: Redis): Promise<void> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      queue.waitUntilReady(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new RatingClaimsReadinessError()), 5_000);
+      }),
+    ]);
+  } catch (error) {
+    // نوقف reconnect قبل الإغلاق حتى لا يحتفظ الإقلاع المتعثر باتصال يحاول للأبد.
+    redis.disconnect();
+    await Promise.allSettled([queue.close()]);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** تسجيل فقط: لا يبني Worker للمطالبة، فلا يفعل إرسالًا أثناء الاستعادة. */
 export interface RatingClaimsRegistrar {
   /** يسجل الشركة أو يصلح جدولتها المفقودة دون تغيير بيانات مطالبة موجودة. */
@@ -64,7 +91,7 @@ export function startRatingClaimsRegistrar(options: {
   queue.on('error', () => undefined);
   return {
     ensureRegistered: (companyId) => ensureRatingClaimsRegistered(queue, companyId),
-    ready: () => queue.waitUntilReady().then(() => undefined),
+    ready: () => registrationReady(queue, redis),
     close: async () => {
       let failure: unknown;
       try {

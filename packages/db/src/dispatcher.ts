@@ -1,6 +1,7 @@
 import { sql, type SQL } from 'drizzle-orm';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import { assertReplayBounds, ReplayCursorError } from './replay-cursor.ts';
 
 /**
  * event متاخد من الـ outbox عشان يتوصل — الـ id هو مفتاح الـ dedupe عند كل consumer.
@@ -234,6 +235,7 @@ async function readReplayPage(
   tx: Pick<PostgresJsDatabase, 'execute'>, companyId: string, afterId: string | null,
   throughId: string | null, limit: number, types: SQL,
 ) {
+  assertReplayBounds(afterId, throughId);
   const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
   if (!uuid.test(companyId) || (afterId !== null && !uuid.test(afterId)) ||
     (throughId !== null && !uuid.test(throughId))) throw new TypeError('REPLAY_SCOPE_INVALID');
@@ -263,7 +265,26 @@ function ratingReplayReaders(
     }),
     ratingClaimsReplayPage: (companyId, afterId, throughId, limit) => db.transaction(async (tx) => {
       await assertRole(tx);
+      await assertRatingReplayScope(tx, companyId, afterId, throughId);
       return readReplayPage(tx, companyId, afterId, throughId, limit, RATING_CLAIMS_REPLAY_TYPES);
     }),
   };
+}
+
+async function assertRatingReplayScope(
+  tx: Pick<PostgresJsDatabase, 'execute'>,
+  companyId: string,
+  afterId: string | null,
+  throughId: string | null,
+) {
+  assertReplayBounds(afterId, throughId);
+  if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(companyId))
+    throw new ReplayCursorError();
+  const supplied = [afterId, throughId].filter((id): id is string => id !== null);
+  if (supplied.length === 0) return;
+  const rows = await tx.execute<{ id: string }>(sql`SELECT id FROM outbox
+    WHERE company_id=${companyId} AND ${RATING_CLAIMS_REPLAY_TYPES}
+      AND (id=${afterId}::uuid OR id=${throughId}::uuid)`);
+  const found = new Set(rows.map((row) => row.id));
+  if (supplied.some((id) => !found.has(id.toLowerCase()))) throw new ReplayCursorError();
 }

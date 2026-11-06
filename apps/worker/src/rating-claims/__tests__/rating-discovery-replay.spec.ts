@@ -27,7 +27,7 @@ let reader: OutboxDispatcherDatabase;
 let registrar: RatingClaimsRegistrar;
 let connection: Redis;
 let queue: Queue;
-const redisUrl = process.env['REDIS_URL'] || 'redis://127.0.0.1:6379';
+import { redisUrl } from './rating-claims-world.fixture.ts';
 
 afterEach(async () => {
   await registrar?.close();
@@ -91,7 +91,7 @@ it('recovers an old-worker-acknowledged late visit after a lost commit reply, th
     }
     return result;
   };
-  const cursor = { companyId: world.company, afterId: null, throughId: null };
+  const cursor = { companyId: world.company.toUpperCase(), afterId: null, throughId: null };
   const first = await recoverRatingClaims({ ...deps, deliverSchedules }, cursor);
   expect(first).toMatchObject({ complete: false, afterId: null, replayed: 0 });
   expect((await world.request(customerId))?.status).toBe('SCHEDULED');
@@ -113,7 +113,7 @@ it('replays parked discovery after Redis loss and concurrent registration withou
   await world.owner`INSERT INTO outbox(company_id,id,aggregate_type,aggregate_id,event_type,payload,parked_at,attempts)
     VALUES (${world.company},${id},'rating_claims_discovery',${world.company},${RATING_CLAIMS_DISCOVERY},'{}',now(),10)`;
   const before = await outboxMetadata();
-  const cursor = { companyId: world.company, afterId: null, throughId: null };
+  const cursor = { companyId: world.company.toUpperCase(), afterId: null, throughId: null };
   await Promise.all([recoverRatingClaims(deps, cursor), recoverRatingClaims(deps, cursor)]);
   expect(await queue.getJobSchedulers()).toHaveLength(1);
   await queue.removeJobScheduler(`${RATING_CLAIMS_QUEUE}-${world.company}`);
@@ -127,7 +127,7 @@ it('replays parked discovery after Redis loss and concurrent registration withou
 it('does not acknowledge a source when registration fails and retries it without another visit', async () => {
   const deps = await setup();
   const { customerId } = await oldVisit();
-  const cursor = { companyId: world.company, afterId: null, throughId: null };
+  const cursor = { companyId: world.company.toUpperCase(), afterId: null, throughId: null };
   const unavailable = {
     ensureRegistered: async () => {
       throw new Error('SYNTHETIC_REDIS_FAILURE');

@@ -450,3 +450,11 @@ or sender as part of discovery. The seven activation blockers listed in the
    published or unpark them manually. Repair the dependency, rerun the same range
    and verify one scheduler per company. Repeated registration leaves an existing
    valid scheduler and claim continuation state unchanged.
+
+   Explicit checkpoint IDs must exist in this company's retained replay event
+   set; a foreign, purged or unrelated cursor and inverted bounds fail with typed
+   `REPLAY_SCOPE_INVALID`. Equal bounds are a valid completed range. The CLI checks
+   bounds before creating clients; the dispatcher checks scope on its existing
+   read transaction without another connection. Company UUID casing is normalized.
+   Initial Redis readiness has a 5-second deadline; timeout disconnects the
+   reconnecting client, closes the queue and prints `RATING_CLAIMS_REDIS_READY_TIMEOUT`.

@@ -89,3 +89,31 @@ starts the second run, then releases the first. It proves exactly one discovery
 per company without relying on an owner session lock. The focused DB file passed
 all **8 tests** after this correction; the earlier 82-test set above predates it.
 The migration SQL and its SHA-256 did not change.
+
+## Correction round 1 of 3
+
+After all four panel bots completed on `d990c9b0`, the manager authorized one
+consolidated push. The four secret detections refer to the unchanged literal
+`{ token: 'synthetic' }` in a contract rejection test, not a credential.
+
+Replay bounds now fail with typed `REPLAY_SCOPE_INVALID`; the CLI rejects them
+before client creation. Supplied cursor IDs must belong to the company and replay
+type set, checked inside the same dispatcher transaction without a new connection.
+The dispatcher role cannot use the application's `withTenant` connection because
+the application has no outbox SELECT grant; the existing restricted read facade
+is preserved. Uppercase company UUIDs are canonicalized before querying/comparison.
+
+Installed `bullmq@6.2.0` RedisConnection.waitUntilReady waits for ready/end;
+`ioredis@6.0.0` RedisOptions.retryStrategy always returns another delay. A 5-second
+initial readiness deadline now stops reconnects and closes the Queue on failure.
+The real CLI process tests prove clear nonzero errors for inverted bounds and an
+unavailable Redis, including process termination rather than an open retry handle.
+The test invokes Node's TypeScript transform mode because strip-only mode cannot
+load the repository's parameter properties. No production launch command changed.
+
+Focused DB tests: 10 passed. Typecheck/lint: all 28 turbo tasks passed. The worker
+tests cover uppercase replay, lost registration and claim/dedupe regression; the
+shared Redis fixture URL replaces the password-free fallback. Spec 060 identifies
+historical disposition as business: the PENDING question now routes through the
+manager's decisions-page batch if DEP-1 finds rows, with Abu Salem's binding pick.
+SQL migration 0214, its snapshot and SHA-256 remain unchanged.

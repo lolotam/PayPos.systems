@@ -1,3 +1,4 @@
+import { ReplayCursorError } from '../replay-cursor.ts';
 import postgres from 'postgres';
 import { systemUuidV7 } from '@pospay/ids';
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
@@ -318,4 +319,29 @@ it('serializes competing discoveries even when the migration owner lock is no lo
     { company_id: A.company, count: 1 },
     { company_id: B.company, count: 1 },
   ]);
+});
+
+it('refuses inverted replay bounds with a typed error and accepts an equal completed boundary', async () => {
+  const low = '01920000-0000-7000-8000-0000000000aa';
+  const high = '01920000-0000-7000-8000-0000000000bb';
+  await expect(dispatcher.ratingClaimsReplayPage(A.company, high, low, 100)).rejects.toBeInstanceOf(
+    ReplayCursorError,
+  );
+  await discoverRatingClaims(owner, app, dispatcher);
+  const page = await dispatcher.ratingClaimsReplayPage(A.company, null, null, 100);
+  expect((await dispatcher.ratingClaimsReplayPage(A.company, page.throughId?.toUpperCase() ?? null, page.throughId, 100)).events).toEqual([]);
+});
+
+it('refuses a cursor from another company or an unrelated event type', async () => {
+  await discoverRatingClaims(owner, app, dispatcher);
+  const foreign = (await dispatcher.ratingClaimsReplayPage(B.company, null, null, 100)).throughId;
+  await expect(
+    dispatcher.ratingClaimsReplayPage(A.company, null, foreign, 100),
+  ).rejects.toBeInstanceOf(ReplayCursorError);
+  const unrelated = ids.newId();
+  await owner`INSERT INTO outbox(company_id,id,aggregate_type,aggregate_id,event_type,payload)
+    VALUES (${A.company},${unrelated},'company',${A.company},'CompanyCreated','{}')`;
+  await expect(
+    dispatcher.ratingClaimsReplayPage(A.company, unrelated, null, 100),
+  ).rejects.toBeInstanceOf(ReplayCursorError);
 });

@@ -1,5 +1,6 @@
 import { RATING_CLAIMS_DISCOVERY, ratingClaimsJob } from '@pospay/contracts';
 import type { ClaimedEvent, DeliveryOutcome, OutboxDispatcherDatabase } from '@pospay/db';
+import { assertReplayBounds } from '@pospay/db';
 import { RATING_CLAIMS_TRIGGERS } from './rating-claims.processor.ts';
 import type { RatingClaimsRegistrar } from './rating-claims.registration.ts';
 import { validRatingClaimsDiscovery } from './rating-claims-discovery.ts';
@@ -29,21 +30,18 @@ export async function recoverRatingClaims(
   cursor: RatingClaimsReplayCursor,
 ) {
   ratingClaimsJob.parse({ companyId: cursor.companyId });
+  assertReplayBounds(cursor.afterId, cursor.throughId);
+  const companyId = cursor.companyId.toLowerCase();
   let afterId = cursor.afterId;
   let throughId = cursor.throughId;
   let replayed = 0;
   // دفعة المشغّل محدودة؛ الموضع الصريح يسمح بالاستكمال دون إعادة صفحات ناجحة.
   for (let page = 0; page < 100; page++) {
-    const batch = await deps.reader.ratingClaimsReplayPage(
-      cursor.companyId,
-      afterId,
-      throughId,
-      100,
-    );
+    const batch = await deps.reader.ratingClaimsReplayPage(companyId, afterId, throughId, 100);
     throughId = batch.throughId;
     if (batch.events.length === 0) return { complete: true, afterId, throughId, replayed };
     for (const event of batch.events) {
-      if (event.companyId !== cursor.companyId || !isReplayable(event))
+      if (event.companyId !== companyId || !isReplayable(event))
         throw new Error('RATING_CLAIMS_REPLAY_EVENT_INVALID');
       await deps.registrar.ensureRegistered(event.companyId);
       if (event.eventType !== RATING_CLAIMS_DISCOVERY) {
