@@ -91,6 +91,13 @@ transaction. The branch proving current authority does not restrict historical
 attendance branches. Branch names cross the tenancy boundary through this reader;
 the attendance SQL joins only staff-owned tables and the supplied name projection.
 
+Spec 060 57-2's `OwnWorkReads` is a read-side interface beside the «شغلي» queries.
+Its adapter reads staff's `readOwnEmployee`, identity's `readOwnServiceSessionsAccess`
+and tenancy's `describeWorkspaces` / `activeBusinessTimeZone` on the caller's transaction
+and clock. The branch proving current authority does not restrict historical service
+branches, including inactive branches. Orders SQL joins only orders-owned tables and
+the supplied branch-name projection. Domain period/tip-total callbacks bind in orders.module.ts.
+
 ADR-0020 attendance QR reads the paired branch name and effective timezone through the existing tenancy
 `describeWorkspaces` surface; staff owns the read port. It adds no attendance write or clocking endpoint.
 
@@ -369,6 +376,10 @@ composition_roots:
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
+  - orders -> staff.readOwnEmployee @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
+  - orders -> identity.readOwnServiceSessionsAccess @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
+  - orders -> tenancy.describeWorkspaces @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
+  - orders -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/personal-branches.adapter.ts
   - staff -> identity.personalMemberships @ apps/api/src/modules/staff/persistence/personal-branches.adapter.ts
   - orders -> files.documentFileFacts @ apps/worker/src/modules/orders/persistence/package-preview.transactions.ts
