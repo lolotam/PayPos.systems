@@ -16,6 +16,7 @@ const context: LeaveContext = {
   employee_id: '10000000-0000-4000-8000-000000000004',
   expires_at: '2026-11-06T20:00:00Z',
   sessionEpoch: 0,
+  device_id: '10000000-0000-4000-8000-000000000005',
   timezone: 'Asia/Kuwait',
 };
 const branch = '00000000-0000-4000-8000-000000000001';
@@ -108,6 +109,10 @@ afterEach(() => {
 });
 function mount(value = context, locale: 'ar' | 'en' = 'en') {
   const cache = new QueryClient();
+  cache.setQueryData(
+    [value.mode === 'personal' ? 'personal-session' : 'staff-session', value.sessionEpoch],
+    value,
+  );
   const tree = (next: LeaveContext) => (
     <QueryClientProvider client={cache}>
       <LocaleProvider locale={locale} setLocale={() => undefined}>

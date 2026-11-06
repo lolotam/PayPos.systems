@@ -6,9 +6,9 @@ export type DeviceScreenState =
   | { kind: 'waiting' }
   | { kind: 'offline' }
   | { kind: 'unsupported' }
-  | { kind: 'ready'; branchId: string };
+  | { kind: 'ready'; branchId: string; deviceId?: string };
 
 export type MeResult =
-  | { kind: 'ready'; branchId: string }
+  | { kind: 'ready'; branchId: string; deviceId?: string }
   | { kind: 'rejected' }
   | { kind: 'offline' };

@@ -554,3 +554,207 @@ lint, lint:docs, module-map:check and changed-doc Prettier passed after the
 disposition. The628/628 checkpoint suite is identified as applicable identical-
 source proof, not a newly run suite or a remote-head gate. The audit's full final
 question/options/answer and historical expansion were verified with git-show.
+
+
+## Ninth correction round - authorized 2026-11-06
+
+This section supersedes the eighth-round correctness claims only for the two
+newly confirmed defects. Original 3/3 and exceptions four through nine remain
+recorded; there is no reset. The full ninth approval was already committed in
+`0692d687860c88b22d435e5233ec000221f445be` before implementation. The verified
+worktree is `F:/Dev/Worktrees/PosPay/57b-2b-my-leave`, branch
+`feat/p1-060-57b-2b-my-leave`. Published/source baseline:
+`101d23a304f06944e82621ab99e30a4db8319b8f`. Implementation remains uncommitted.
+
+### Findings and implementation
+
+- P1 r4495305830/r4495315404: authoritative null, foreign identity, malformed or
+  elapsed recovery now writes null to the exact outer session query, allowing
+  the actual session hooks to hide the old identity and clear other private
+  caches. Network/503 throws before that mutation. The existing keys
+  `['personal-session', epoch]` and `['staff-session', epoch]` were correct.
+- Recovery captures the actual query object and `state.dataUpdateCount` before
+  probing. Abort, query replacement/removal, or a later data revision fences
+  mutations and subsequent reads. Checks bracket the probe, cancellation and
+  leave reads; cancellation uses `revert: false`. Installed query-core 5.104.0
+  source was inspected: manual setData increments dataUpdateCount and updates
+  revertState; cancellation with revert restores that state. Both hook-owned
+  private-cache cleanup continuations recheck their owning query revision after
+  cancellation before removing data.
+- P2 r4495305840/r4495315412: device boot now carries the authenticated device id
+  into the displayed ready context. Reception compares both branch and device
+  before composing leave, preserves the actual staff branch instead of
+  overwriting it, and uses the existing retry/boot/probe flow on mismatch.
+  The composition remounts for the new branch/device and obtains its timezone
+  afresh. A retained retry fence prevents repeated automatic boots for the same
+  rejected displayed binding. Missing device identity fails closed for leave.
+  Recovery also compares branch/device before any leave probe.
+- This is a client pairing/context defect. StaffSessionContext is strict and
+  contains device_id; the server enforces device binding. No server bypass or
+  old-cookie/new-device acceptance is claimed. No backend API/contract, native, server deadline,
+  migration, workflow, deployment or credential changes were made.
+- CodeRabbit r4495343852: reception tests now inspect the exact outer staff key
+  after a shorter deadline recovery, hold an earlier outer probe across recovery,
+  fail subsequent probes, and return via visibility/focus at the new deadline.
+
+### Assertion correction and test scope
+
+The two expectations in `app/leave-recovery-context.spec.tsx` that asserted
+`toEqual(session)` after malformed/elapsed or foreign rejection were incorrect.
+They now assert outer null and visible hidden identity. Their previous
+Retry-enabled wait now waits for the hidden identity because the rejected
+session unmounts the recovery button. Existing form-hidden and leave-cache
+assertions remain. Existing standalone leave tests seed the real outer query
+in their harness and supply the reception device id; their previous assertions
+remain. Device boot/probe expectations add deviceId alongside the existing
+branch assertion.
+
+New visible hook tests cover both session types, other-private cache clearing,
+late authoritative failure, network failure and success with/without abort,
+abort while cancellation is pending, closing, local logout invalidation and
+offline epoch removal. Transport is stubbed at fetch; the QueryClient, schemas,
+recovery helper and React session hooks are real. The cancellation-race test
+holds cancelQueries after invoking its real implementation. Closing is modeled
+by the recovery AbortController; logout exercises the hook's changed callback,
+not the remote sign-out endpoint. BroadcastChannel is disabled in that harness
+so logout cannot invalidate unrelated Vitest worker sessions.
+
+The reception pairing test runs DeviceBody, useDeviceSession, boot/probe,
+ReceptionBody, StaffLoginScreen and the leave screen. Only credential storage
+and HTTP boundaries are stubbed. Branch-only/device-only changes are introduced
+through explicit recovery, with boot held: no new leave read/write occurs while
+binding is stale, then the new paired branch and its New York clock are visible.
+A matching positive control opens leave without another boot. Existing
+`app/leave-session-probes.spec.tsx` 503/network draft controls remain unchanged.
+These are UI/composition proofs, not a live two-tab browser or real API/DB test.
+The external diagnosis scripts were not used as replacements for these tests.
+
+### Verification history and limitations
+
+Initial focused existing app files passed 13/13. New fence tests passed 8/8;
+reception recovery/pairing tests passed 10/10 before the additional logout cases.
+The initial full suite found four failures: standalone recovery harnesses lacked
+an outer query/device context, and probe expected only branchId. Those harnesses
+and the device expectation were corrected without removing their assertions.
+The next full suite passed 644/644 in 104 files (112.36s); after logout/offline
+coverage it passed 646/646 in 104 files (107.26s), before final harness isolation.
+
+Initial parallel global typecheck/lint builds collided on the same POS dist
+outputs: EBUSY copying icon.svg and workbox manifest injection failure. Sequential
+runs passed afterward. Lint also caught two functions exceeding 60 lines; the
+recovery fence and staff cleanup effect were extracted locally. Typecheck caught
+unsupported Testing Library ByRoleOptions.exact in the new test; it was removed.
+A combined focused run exposed cross-worker BroadcastChannel logout interference,
+which was isolated at that boundary; a wait for the initial leave read to settle
+also makes refusal setup explicit. No failure is represented as a pass.
+
+Final command receipts follow below. All remote CI/reviews, independent Astra
+review, publication and merge remain the parent's responsibility. No remote
+check/review result is claimed. Issue #890 remains deferred: no creation-card
+cancel button and no inferred can_cancel were implemented.
+
+### Final local receipts
+
+- `pnpm --filter @pospay/pos exec vitest run --pool=threads --maxWorkers=2`: PASS, 646/646 tests in 104 files, 108.88s, after the final harness isolation. Baseline was 628/628 in 101 files; 18 tests were added in 3 files.
+
+- Focused visible suite: `pnpm --filter @pospay/pos exec vitest run src/app/leave-recovery-context.spec.tsx src/app/leave-session-probes.spec.tsx src/app/leave-recovery-fence.spec.tsx src/app/reception-leave-binding.spec.tsx src/app/reception-leave-recovery.spec.tsx --pool=threads --maxWorkers=2`: PASS, 31/31 in 5 files, 10.17s.
+- `pnpm typecheck`: PASS, 32/32 Turbo tasks.
+- `pnpm lint`: PASS, 33/33 Turbo tasks, including boundaries; existing warnings remain.
+- `pnpm lint:docs`: PASS, 0 errors, 29 existing warnings.
+- `pnpm module-map:check`: PASS, module map: ok.
+- Changed-file `pnpm exec prettier --check` and `git diff --check`: PASS; formatting includes new untracked tests.
+- `clean-code-guard`, `test-guard`, `docs-guard`: implementation self-review completed against the changed production code, tests and this receipt. No additional in-scope finding remains from that self-review. This is not the independent Astra review.
+- The existing validation history is an unchanged text prefix; the owner audit is unchanged from HEAD. UTF-8 was explicit in file reads/writes. No commit, push, PR comment, review trigger, merge, deploy or delegated work was performed.
+
+### Changed-file manifest
+
+- `apps/pos/src/app/device-body.tsx`
+- `apps/pos/src/app/leave-recovery-context.spec.tsx`
+- `apps/pos/src/app/reception-body.tsx`
+- `apps/pos/src/app/recover-leave-session.ts`
+- `apps/pos/src/device/api/boot-device.spec.ts`
+- `apps/pos/src/device/api/boot-device.ts`
+- `apps/pos/src/device/api/device-calls.ts`
+- `apps/pos/src/device/api/probe.spec.ts`
+- `apps/pos/src/device/api/screen-state.ts`
+- `apps/pos/src/my-leave/model/context.ts`
+- `apps/pos/src/my-leave/ui/leave-recovery.spec.tsx`
+- `apps/pos/src/my-leave/ui/leave-round6.spec.tsx`
+- `apps/pos/src/personal-staff/api/use-personal-session.ts`
+- `apps/pos/src/staff-login/api/use-staff-login.ts`
+- `docs/specs/060-ratings-and-staff-app/57b-2b-validation.md`
+- `apps/pos/src/app/leave-recovery-fence.spec.tsx`
+- `apps/pos/src/app/reception-leave-binding.spec.tsx`
+- `apps/pos/src/app/reception-leave-recovery.spec.tsx`
+
+
+### Ninth-round internal review corrections (before publication)
+
+The first independent Astra high review found two in-scope defects: a stale
+displayed context could capture a newer cache revision before recovery began,
+and binding retry fences were not rearmed after a trusted matching session.
+The recovery fence now checks the initial cached user/company/business/expiry
+and mode-specific employee or branch/device against the requesting context
+before probing. Existing query identity/revision/abort checks remain. Both
+reception retry fences reset only after an actual non-null matching session;
+loading/null does not rearm an unresolved mismatch. New visible regressions
+cover personal/reception cache-B versus context-A at retry start and two
+mismatch/boot/match cycles without a repeated boot during either mismatch.
+Focused two-file run passed14/14 and POS lint passed. The implementer's646/646
+receipt precedes these changes; fresh full-suite/gate/review results remain
+required and are not inferred from that earlier receipt.
+
+
+### Parent verification after internal fixes
+
+The parent full run initially failed2/649 tests in the standalone leave-recovery
+harness: after foreign recovery rejection the outer query was correctly null,
+but the isolated screen attempted recovery again without an outer-session
+verification. The harness now asserts null first, then explicitly seeds the
+verified outer context before its existing successful-retry assertions. No
+production guard was weakened and no previous assertion was removed. The file
+passed4/4 afterward. A fresh complete POS run passed649/649 in104 files
+(135.43s), with file isolation enabled. This supersedes the earlier failed
+parent run and the implementer's pre-internal-fix646 result for this source.
+The three added parent regressions cover stale displayed context at retry start
+for both modes, and repeat mismatch/boot/match rearming without an unresolved
+mismatch loop. Independent re-review remains pending; no remote gate or merge
+authority is inferred.
+
+
+### Repeated-null cleanup correction
+
+The second independent review found an in-scope P2: a second null publication
+during private-query cancellation advanced dataUpdateCount, causing cleanup to
+skip without another effect notification. Cleanup now requires the same query
+object/epoch and CURRENT null data, rather than an unchanged null revision.
+A newer live session still blocks removal; another authoritative null allows
+completion. New visible tests for both hooks hold real cancellation, publish
+null again or a live B session, then verify cleanup or preservation respectively.
+The focused fence file passed12/12. The649 suite precedes this correction; final
+full suite/gates and a fresh independent recheck remain required.
+
+
+Parent final verification after repeated-null correction: complete POS suite
+passed651/651 in104files (156.49s), isolation enabled, using the same
+vitest threads/maxWorkers2 command. Global typecheck/lint/lint:docs and
+module-map:check passed after that correction. These results supersede the
+pre-correction649 receipt for the current source. Independent re-review is
+still pending; no publication, remote-gate pass or merge authority is inferred.
+
+
+### Final independent ninth-round review
+
+Fresh Codex Astra high re-review completed after all internal corrections,
+including repeated-null cleanup. It reviewed all18 changed paths and the
+approval audit against101d23a3, reporting no confirmed openP0/P1/P2/P3 in
+the final delta. It checked source and relevant integration tests, without
+running suites itself. Parent651/651 in104files and local gates are separate
+command receipts, not reviewer-run tests. The initial P1/P2 and subsequent P2
+review results remain historical findings fixed before publication, not passed
+gates. Changed-file Prettier and diff-check passed. Current main was freshly
+verified as da775eb5 and the published head as101d23a3 before preparing the
+one explicit branch push. No backend API, server expiry, native configuration,
+migration or workflow changed. #890 remains explicitly deferred. Remote
+CI/mobile and four panel receipts on the resulting head remain required before
+manager-coordinated Codex; no merge/deploy authority is inferred.

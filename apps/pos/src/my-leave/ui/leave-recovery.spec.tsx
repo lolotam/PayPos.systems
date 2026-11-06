@@ -17,6 +17,7 @@ const context: LeaveContext = {
   employee_id: '10000000-0000-4000-8000-000000000004',
   expires_at: '2026-11-06T20:00:00Z',
   sessionEpoch: 0,
+  device_id: '10000000-0000-4000-8000-000000000005',
   timezone: 'Asia/Kuwait',
 };
 const branch = '00000000-0000-4000-8000-000000000001';
@@ -105,6 +106,10 @@ afterEach(() => {
 });
 function mount(value = context, locale: 'ar' | 'en' = 'en') {
   const cache = new QueryClient();
+  cache.setQueryData(
+    [value.mode === 'personal' ? 'personal-session' : 'staff-session', value.sessionEpoch],
+    value,
+  );
   const tree = (next: LeaveContext) => (
     <QueryClientProvider client={cache}>
       <LocaleProvider locale={locale} setLocale={() => undefined}>
@@ -157,6 +162,15 @@ it.each(['personal', 'reception'] as const)(
     );
     expect(screen.queryByLabelText('From date')).toBeNull();
     sessionUser = context.user_id;
+    const outerKey = [
+      mode === 'personal' ? 'personal-session' : 'staff-session',
+      context.sessionEpoch,
+    ];
+    expect(view.cache.getQueryData(outerKey)).toBeNull();
+    // الشاشة هنا منفردة؛ نحاكي تحقق الجلسة الخارجية قبل إعادة محاولة سياقها المرفوض.
+    act(() => {
+      view.cache.setQueryData(outerKey, { ...context, mode, branch_id: branch });
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
     await screen.findByLabelText('From date');
     expect(screen.getByText('Annual \u2014 Pending')).toBeTruthy();

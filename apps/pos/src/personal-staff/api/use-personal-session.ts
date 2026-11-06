@@ -38,7 +38,7 @@ export function usePersonalSession() {
     refetchOnWindowFocus: 'always',
     refetchOnReconnect: 'always',
   });
-  usePrivateCacheCleanup(cache, query.isSuccess, query.data);
+  usePrivateCacheCleanup(cache, query.isSuccess, query.data, epoch);
   const live = useSessionDeadline(query.data?.expires_at, clear);
   return {
     epoch,
@@ -66,13 +66,29 @@ export function usePersonalSession() {
   };
 }
 
-function usePrivateCacheCleanup(cache: QueryClient, isSuccess: boolean, data: unknown): void {
+function usePrivateCacheCleanup(
+  cache: QueryClient,
+  isSuccess: boolean,
+  data: unknown,
+  epoch: number,
+): void {
   useEffect(() => {
     if (!(isSuccess && data === null)) return;
     const privateQueries = {
       predicate: (item: { queryKey: readonly unknown[] }) =>
         item.queryKey[0] !== 'personal-session',
     };
-    void cache.cancelQueries(privateQueries).then(() => cache.removeQueries(privateQueries));
-  }, [cache, isSuccess, data]);
+    const owner = cache
+      .getQueryCache()
+      .find({ queryKey: ['personal-session', epoch], exact: true });
+    void cache.cancelQueries(privateQueries).then(() => {
+      if (
+        owner &&
+        cache.getQueryCache().find({ queryKey: ['personal-session', epoch], exact: true }) ===
+          owner &&
+        owner.state.data === null
+      )
+        cache.removeQueries(privateQueries);
+    });
+  }, [cache, isSuccess, data, epoch]);
 }

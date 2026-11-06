@@ -70,6 +70,7 @@ async function mountRefused() {
   fireEvent.click(await screen.findByRole('button', { name: 'My leave' }));
   await chooseBranch();
   fireEvent.change(screen.getByLabelText('From date'), { target: { value: '2026-12-01' } });
+  await waitFor(() => expect(cache.isFetching({ queryKey: ['my-leave'] })).toBe(0));
   refused = true;
   await act(async () => {
     await cache.refetchQueries({ queryKey: ['my-leave'] });
@@ -162,14 +163,12 @@ it.each(['2099-10-04', '2099-10-04T10:00:00', '2099-02-31T10:00:00Z', '2026-10-0
     const cache = await mountRefused();
     fresh.expires_at = expiresAt;
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Retry' }).hasAttribute('disabled')).toBe(false),
-    );
+    await waitFor(() => expect(screen.getByText('Private session hidden')).toBeTruthy());
     expect(screen.queryByLabelText('From date')).toBeNull();
     expect(
       cache.getQueriesData({ queryKey: ['my-leave'] }).every(([, data]) => data === undefined),
     ).toBe(true);
-    expect(cache.getQueryData(['personal-session', 0])).toEqual(session);
+    expect(cache.getQueryData(['personal-session', 0])).toBeNull();
   },
 );
 
@@ -177,9 +176,7 @@ it('does not accept a different account during explicit recovery', async () => {
   const cache = await mountRefused();
   fresh.user_id = '10000000-0000-4000-8000-000000000007';
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-  await waitFor(() =>
-    expect(screen.getByRole('button', { name: 'Retry' }).hasAttribute('disabled')).toBe(false),
-  );
+  await waitFor(() => expect(screen.getByText('Private session hidden')).toBeTruthy());
   expect(screen.queryByLabelText('From date')).toBeNull();
-  expect(cache.getQueryData(['personal-session', 0])).toEqual(session);
+  expect(cache.getQueryData(['personal-session', 0])).toBeNull();
 });

@@ -7,6 +7,7 @@ export type LeaveContext = {
   expires_at: string;
   sessionEpoch: number;
   branch_id?: string;
+  device_id?: string;
   timezone?: string;
 };
 
