@@ -350,19 +350,27 @@ issues per row. The implementation and local migration-lane status are recorded 
 47-2a strengthens that proof for #875 and #876 without adding a financial commit
 use case. Nullable JSONB ordinal arrays `source_rows` and `skipped_rows` preserve the
 physical workbook row numbers in the existing pending-to-ready transaction. Every
-new ready result requires unique integer source ordinals (count = `row_count`),
+new worker writes unique integer source ordinals (count = `row_count`),
 unique valid and skipped ordinals (skipped count = `skipped_count`), and distinct
 invalid ordinals for partition purposes; several field errors on one invalid row
 remain valid. All three sets must be subsets of the source, pairwise disjoint, and
 cover it exactly. Proof can only be written on pending-to-ready and is immutable
-afterward. The new migration preserves every 0212 refusal and adds only nullable
+afterward. Migration 0213 is expand only: pending-to-ready with both proof columns
+NULL remains accepted for the 47-1b worker during rollout and one-click rollback.
+If either proof column is supplied, both must be arrays and the full partition is
+validated. The new migration preserves every 0212 refusal and adds only nullable
 columns, narrow column UPDATE grants and a partition trigger; legacy data is not
-mutated or backfilled. Under PP-134, a legacy package preview with NULL proof stays
-readable but ready-to-commit_requested fails with the known `IMPORT_PREVIEW_EXPIRED`
-code and requires a new preview, without rereading its file. Other entities retain
+mutated or backfilled. The 47-2b migration is the contract step: only after the
+47-2a worker is deployed on staging, it will require proof on pending-to-ready and
+enforce PP-134 in the commit guard. A legacy package preview with NULL proof will
+then fail ready-to-commit_requested with the known `IMPORT_PREVIEW_EXPIRED` code
+and require a new preview, without rereading its file. Until that step, 0213 does
+not change the legacy ready-to-commit_requested transition. Other entities retain
 their existing behavior. In each populated service group, every missing
 `service_N`, `sessions_N` or `remaining_N` cell gets its own `IMPORT_REQUIRED_CELL`
-on that original column; an entirely empty group remains ignored.
+on that original column; an entirely empty group remains ignored. Malformed
+component cells (`INVALID_CELL`) receive only `IMPORT_CELL_INVALID` from
+`checkCells`; they do not also receive `IMPORT_REQUIRED_CELL`.
 See [the binding brief](47-2a-brief.md) and
 [the owner audit](owner-questions.ar.md#pp-134--المعاينات-القديمة-بدون-إثبات-تقسيم-الصفوف).
 

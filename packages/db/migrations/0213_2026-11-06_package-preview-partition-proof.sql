@@ -81,12 +81,12 @@ BEGIN
     AND (OLD.entity<>'packages' OR OLD.status<>'pending' OR NEW.status<>'ready') THEN
     RAISE EXCEPTION 'IMPORT_PREVIEW_RESULTS_IMMUTABLE' USING ERRCODE='23514';
   END IF;
-  IF OLD.entity='packages' AND OLD.status='ready' AND NEW.status='commit_requested'
-    AND (OLD.source_rows IS NULL OR OLD.skipped_rows IS NULL) THEN
-    -- PP-134: legacy previews require a new preview; never fabricate or backfill proof.
-    RAISE EXCEPTION 'IMPORT_PREVIEW_EXPIRED' USING ERRCODE='23514';
-  END IF;
   IF OLD.entity='packages' AND OLD.status='pending' AND NEW.status='ready' THEN
+    -- Expand only: 47-1b workers and a one-click rollback still write NULL proof.
+    -- 47-2b contracts presence and enforces PP-134 after this writer is deployed.
+    IF NEW.source_rows IS NULL AND NEW.skipped_rows IS NULL THEN
+      RETURN NEW;
+    END IF;
     IF jsonb_typeof(NEW.source_rows) IS DISTINCT FROM 'array'
       OR jsonb_typeof(NEW.skipped_rows) IS DISTINCT FROM 'array' THEN
       RAISE EXCEPTION 'IMPORT_PREVIEW_READY_RESULTS_INVALID' USING ERRCODE='23514';

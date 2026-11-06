@@ -51,7 +51,7 @@ function ready(id: string, changes: Partial<Result> = {}) {
 }
 
 it.each<[string, Partial<Result>]>([
-  ['omitted proof', { source: null, skipped: null }],
+  ['omitted source proof', { source: null }],
   ['omitted skipped proof', { skipped: null }],
   ['omitted source row', { source: '[2,4]' }],
   ['foreign source row', { source: '[2,4,7]' }],
@@ -185,7 +185,23 @@ it('refuses proof writes before ready, during failure, and at insert', async () 
   });
 });
 
-it('keeps legacy ready rows readable but refuses their commit with the known expiry code (PP-134)', async () => {
+it('accepts the old worker pending-to-ready write with NULL proof during rollout and rollback', async () => {
+  const { id } = await f.requested(bytes);
+  // The 47-1b writer does not mention either new column in its result UPDATE.
+  await f.db.withTenant(f.company, (tx) =>
+    tx.execute(sql`UPDATE import_previews SET status='ready',row_count=3,error_count=2,skipped_count=1,
+      rows='[{"row":2}]'::jsonb,errors='[{"row":4},{"row":4}]'::jsonb WHERE id=${id}`),
+  );
+  expect(
+    (await f.owner`SELECT status,source_rows,skipped_rows FROM import_previews WHERE id=${id}`)[0],
+  ).toEqual({ status: 'ready', source_rows: null, skipped_rows: null });
+  await f.worker.execute(f.company, id);
+  expect(
+    (await f.owner`SELECT status,source_rows,skipped_rows FROM import_previews WHERE id=${id}`)[0],
+  ).toEqual({ status: 'ready', source_rows: null, skipped_rows: null });
+});
+
+it('leaves legacy ready rows readable and defers their commit contract to 47-2b', async () => {
   const { id } = await f.requested(bytes);
   const legacy = f.ids.newId();
   await f.owner`INSERT INTO import_previews
@@ -197,17 +213,13 @@ it('keeps legacy ready rows readable but refuses their commit with the known exp
     FROM import_previews WHERE id=${legacy}`),
   );
   expect(Array.from(before)).toEqual([{ status: 'ready', source_rows: null, skipped_rows: null }]);
-  await expect(
-    f.db.withTenant(f.company, (tx) =>
-      tx.execute(sql`UPDATE import_previews
+  await f.db.withTenant(f.company, (tx) =>
+    tx.execute(sql`UPDATE import_previews
     SET status='commit_requested',requested_at=now() WHERE id=${legacy}`),
-    ),
-  ).rejects.toMatchObject({
-    cause: { code: '23514', message: 'IMPORT_PREVIEW_EXPIRED' },
-  });
+  );
   expect(
     await f.owner`SELECT status,source_rows,skipped_rows FROM import_previews WHERE id=${legacy}`,
-  ).toEqual([{ status: 'ready', source_rows: null, skipped_rows: null }]);
+  ).toEqual([{ status: 'commit_requested', source_rows: null, skipped_rows: null }]);
 });
 
 it('isolates proof reads and writes by tenant and grants no extra runtime role access', async () => {

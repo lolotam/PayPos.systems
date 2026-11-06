@@ -2,6 +2,7 @@ import { expect, it } from 'vitest';
 import { parsePackageImportRow, indexPackageImportServices } from '../package-import-row.ts';
 import { allocatePackagePrice, validatePackageDefinition } from '@pospay/domain';
 import { createPackageSlots } from '@pospay/domain';
+import { INVALID_CELL } from '../package-import-cells.ts';
 
 const services = [
   { id: 'a', name_en: 'Hair', name_ar: 'شعر', price: '99.000' },
@@ -161,6 +162,34 @@ it('ignores an entirely empty service group', () => {
     parsePackageImportRow(17, [...cells, null, null, null], indexPackageImportServices(services))
       .errors,
   ).toEqual([]);
+});
+
+it.each([
+  [6, 'service_1'],
+  [7, 'sessions_1'],
+  [8, 'remaining_1'],
+] as const)(
+  'reports only the invalid-cell error for a broken %s component cell',
+  (index, column) => {
+    const input = [...cells] as (string | number | null)[];
+    input[index] = INVALID_CELL;
+    expect(parsePackageImportRow(17, input, indexPackageImportServices(services))).toEqual({
+      value: null,
+      errors: [{ row: 17, column, code: 'IMPORT_CELL_INVALID' }],
+    });
+  },
+);
+
+it('attributes genuinely empty siblings when a broken cell populates their group', () => {
+  const input = [...cells, INVALID_CELL, null, null];
+  expect(parsePackageImportRow(17, input, indexPackageImportServices(services))).toEqual({
+    value: null,
+    errors: [
+      { row: 17, column: 'service_3', code: 'IMPORT_CELL_INVALID' },
+      { row: 17, column: 'sessions_3', code: 'IMPORT_REQUIRED_CELL' },
+      { row: 17, column: 'remaining_3', code: 'IMPORT_REQUIRED_CELL' },
+    ],
+  });
 });
 
 it.each(['1.0', '1e0', '+1', '-1'])(
