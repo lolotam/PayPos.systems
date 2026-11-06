@@ -39,13 +39,17 @@ hardware-independent floor. No claim of impossibility or inevitable success is j
    validity/readiness of every component index, column ordering, relpages/reltuples,
    pg_stats entries and last-analyze metadata. Verify all existing indexes are present:
    this experiment does not repeat the rejected index deletion.
-3. Make one seeded snapshot with the unchanged 20-component/365-slot fixture. Copy three
+3. Prepare the unchanged 20-component/365-slot fixture and execute one complete warmup
+   sale before freezing its snapshot: package_components otherwise has no sale rows to
+   analyze. Record the 20 newly committed parent components and 7,300 slots. Copy three
    identical private databases. Arm A keeps statistics untouched. Arm B runs ANALYZE on
    package_components only, using its owner setup connection, before opening a fresh
    restricted application connection. Arm A2 is a fresh untouched baseline control.
    ANALYZE changes statistics, not schema; it is proposed here, not already authorized.
    Do not manufacture rows, alter cardinality, rewrite constraints or introduce an index.
-4. Use one warmup and five measured complete execute calls in every arm. Alternate the
+4. The snapshot contains the common warmup. Warm each fresh connection identically with
+   ping/read-only setup outside timing, then measure five complete execute calls per arm.
+   Do not add a second sale warmup or change any original assertion. Alternate the
    A/B order in a second independent block, with fresh copies, then baseline control.
    Keep application pools, fixture values, seed snapshot, writer, ids implementation,
    clock, transaction options and all queries identical. No other local gates run during
