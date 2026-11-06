@@ -41,6 +41,9 @@ export const importPreviews = pgTable(
     rowCount: integer('row_count').notNull(),
     errorCount: integer('error_count').notNull(),
     skippedCount: integer('skipped_count').notNull().default(0),
+    // NULL للمعاينات القديمة؛ العامل يثبت أرقام الصفوف الفعلية عند الانتقال من pending إلى ready فقط.
+    sourceRows: jsonb('source_rows').$type<readonly number[]>(),
+    skippedRows: jsonb('skipped_rows').$type<readonly number[]>(),
     rows: jsonb('rows').notNull(),
     errors: jsonb('errors').notNull(),
   },

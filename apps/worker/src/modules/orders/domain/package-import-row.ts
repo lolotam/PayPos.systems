@@ -177,10 +177,15 @@ function readComponents(
       cellText(cells[offset + 1] ?? null),
       cellText(cells[offset + 2] ?? null),
     ];
-    if (values.every((value) => value === null)) continue;
+    if (values.every((value, index) => value === null && cells[offset + index] !== INVALID_CELL))
+      continue;
     const column = `service_${group + 1}`;
     if (values.some((value) => value === null)) {
-      issue(column, 'IMPORT_REQUIRED_CELL');
+      const names = ['service', 'sessions', 'remaining'];
+      values.forEach((value, index) => {
+        if (value === null && cells[offset + index] !== INVALID_CELL)
+          issue(`${names[index]}_${group + 1}`, 'IMPORT_REQUIRED_CELL');
+      });
       continue;
     }
     const name = values[0]?.toLowerCase();

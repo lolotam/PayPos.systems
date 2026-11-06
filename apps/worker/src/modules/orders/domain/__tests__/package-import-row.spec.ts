@@ -2,6 +2,7 @@ import { expect, it } from 'vitest';
 import { parsePackageImportRow, indexPackageImportServices } from '../package-import-row.ts';
 import { allocatePackagePrice, validatePackageDefinition } from '@pospay/domain';
 import { createPackageSlots } from '@pospay/domain';
+import { INVALID_CELL } from '../package-import-cells.ts';
 
 const services = [
   { id: 'a', name_en: 'Hair', name_ar: 'شعر', price: '99.000' },
@@ -135,3 +136,73 @@ it('collects every invalid component cell across groups without changing validat
     ],
   });
 });
+
+it.each([
+  [null, 2, 1, ['service_4']],
+  ['Hair', null, 1, ['sessions_4']],
+  ['Hair', 2, null, ['remaining_4']],
+  [null, null, 1, ['service_4', 'sessions_4']],
+  [null, 2, null, ['service_4', 'remaining_4']],
+  ['Hair', null, null, ['sessions_4', 'remaining_4']],
+] as const)(
+  'attributes each missing cell in a populated source group: %j',
+  (service, sessions, remaining, columns) => {
+    const input = [...cells, null, null, null, service, sessions, remaining];
+    const result = parsePackageImportRow(17, input, indexPackageImportServices(services));
+    expect(result.value).toBeNull();
+    expect(result.errors.filter(({ code }) => code === 'IMPORT_REQUIRED_CELL')).toEqual(
+      columns.map((column) => ({ row: 17, column, code: 'IMPORT_REQUIRED_CELL' })),
+    );
+    expect(JSON.stringify(result.errors)).not.toContain(cells[0]);
+  },
+);
+
+it('ignores an entirely empty service group', () => {
+  expect(
+    parsePackageImportRow(17, [...cells, null, null, null], indexPackageImportServices(services))
+      .errors,
+  ).toEqual([]);
+});
+
+it.each([
+  [6, 'service_1'],
+  [7, 'sessions_1'],
+  [8, 'remaining_1'],
+] as const)(
+  'reports only the invalid-cell error for a broken %s component cell',
+  (index, column) => {
+    const input = [...cells] as (string | number | null)[];
+    input[index] = INVALID_CELL;
+    expect(parsePackageImportRow(17, input, indexPackageImportServices(services))).toEqual({
+      value: null,
+      errors: [{ row: 17, column, code: 'IMPORT_CELL_INVALID' }],
+    });
+  },
+);
+
+it('attributes genuinely empty siblings when a broken cell populates their group', () => {
+  const input = [...cells, INVALID_CELL, null, null];
+  expect(parsePackageImportRow(17, input, indexPackageImportServices(services))).toEqual({
+    value: null,
+    errors: [
+      { row: 17, column: 'service_3', code: 'IMPORT_CELL_INVALID' },
+      { row: 17, column: 'sessions_3', code: 'IMPORT_REQUIRED_CELL' },
+      { row: 17, column: 'remaining_3', code: 'IMPORT_REQUIRED_CELL' },
+    ],
+  });
+});
+
+it.each(['1.0', '1e0', '+1', '-1'])(
+  'keeps rejecting non-integer session syntax %s on its source column',
+  (value) => {
+    const input = [...cells] as (string | number | null)[];
+    input[7] = value;
+    expect(
+      parsePackageImportRow(17, input, indexPackageImportServices(services)).errors,
+    ).toContainEqual({
+      row: 17,
+      column: 'sessions_1',
+      code: 'INVALID_SESSIONS',
+    });
+  },
+);
