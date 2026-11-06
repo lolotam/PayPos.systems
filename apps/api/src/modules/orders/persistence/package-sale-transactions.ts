@@ -20,12 +20,35 @@ import type {
 } from '../ports/package-sale-transactions.port.ts';
 import { insertPackageSale } from './package-sale-writes.ts';
 import { RETRYABLE_SQLSTATE } from './session-recovery-proof.ts';
+import { catalogReader } from './catalog-reader.adapter.ts';
+import { customerLookup } from './customer-lookup.adapter.ts';
+import { performerCheck } from './performer-check.adapter.ts';
+import { discountLimit } from './discount-limit.adapter.ts';
+import { packageSaleAccess } from './package-sale-access.adapter.ts';
+import { packageSalePlaceAdapter } from './package-sale-place.adapter.ts';
 
 /** القراءات اللي البائع محتاجها؛ الـ persistence وحدها تعرف Tx. */
 export type PackageSaleReaders = Pick<
   PackageSaleTransaction,
   'place' | 'access' | 'catalog' | 'customer' | 'performers' | 'discount'
 >;
+
+export function bindPackageSaleReaders(tx: Tx, context: PackageSaleContext): PackageSaleReaders {
+  return {
+    catalog: catalogReader(tx, context.companyId, context.businessId),
+    customer: customerLookup(tx, context.companyId),
+    performers: performerCheck(tx, context.companyId, context.businessId, context.branchId),
+    discount: discountLimit(tx, context.companyId, context.businessId),
+    access: packageSaleAccess(
+      tx,
+      context.companyId,
+      context.userId,
+      context.businessId,
+      context.branchId,
+    ),
+    place: packageSalePlaceAdapter(tx, context.companyId, context.businessId, context.branchId),
+  };
+}
 
 /**
  * يترجم خطأ التخزين لرفض مسمّى، مع الحفاظ على رفضات البيع زي ما هي.

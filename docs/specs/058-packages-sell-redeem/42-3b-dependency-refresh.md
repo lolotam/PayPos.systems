@@ -4,6 +4,11 @@ This is the Step 1 record required by the 42-3b brief: the plan's identity and t
 changes are re-checked against the merged 42-4a work before any code is written. Nothing in
 this document claims implementation, CI or merge.
 
+**Current disposition (2026-11-06):** the manager approved the b1/b2 split in
+[42-3b1-scope.md](42-3b1-scope.md). The original records below are preserved as history.
+b1 subsequently reached a different blocker: the measured [SA-10 failure](42-3b1-sa10-receipt.md),
+which requires spec review before sale delivery continues.
+
 ## Resume refresh — 2026-11-05 (PP-125)
 
 The sections below this resume record preserve the original MiniMax refresh as history.
