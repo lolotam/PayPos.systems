@@ -39,12 +39,14 @@ function show(locale: 'ar' | 'en') {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-04T10:00:00Z'));
   onlineManager.setOnline(true);
   vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
   vi.stubGlobal('BroadcastChannel', undefined);
   calls.probe.mockResolvedValue({
     user_id: 'synthetic-operator',
-    expires_at: 'synthetic-deadline',
+    expires_at: '2026-10-04T12:00:00Z',
   });
   calls.probe.mockClear();
   calls.clock.mockResolvedValue({ kind: 'invalid' });
@@ -52,6 +54,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   onlineManager.setOnline(true);
   vi.restoreAllMocks();
   vi.unstubAllGlobals();

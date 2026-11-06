@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
+import { timestamp } from '@pospay/contracts';
 
 export function useSessionDeadline(expiresAt: string | undefined, expired: () => void) {
   const notified = useRef<string | undefined>(undefined);
-  const deadline = expiresAt === undefined ? NaN : Date.parse(expiresAt);
+  const parsed = timestamp.safeParse(expiresAt);
+  const deadline = parsed.success ? Date.parse(parsed.data) : NaN;
   useEffect(() => {
     if (expiresAt === undefined) return;
     let timer: ReturnType<typeof setTimeout> | undefined;

@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PersonalScreen } from '@/personal-staff/ui/personal-screen';
 import { StaffLoginScreen } from '@/staff-login/ui/staff-login-screen';
 import { LocaleProvider } from '@/shared/locale/locale-context';
@@ -8,6 +8,10 @@ import { OwnLeaveEntry } from './own-leave-entry';
 import { personalLeave } from './personal-leave';
 
 vi.mock('@/shared/api/device-auth', () => ({ currentDeviceToken: async () => 'synthetic-device' }));
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-04T10:00:00Z'));
+});
 const transport = vi.fn<(request: Request) => Promise<Response>>();
 const branch = '00000000-0000-4000-8000-000000000001';
 const session = {
@@ -18,6 +22,7 @@ const session = {
   expires_at: '2026-12-01T20:00:00Z',
 };
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   vi.unstubAllGlobals();
   onlineManager.setOnline(true);

@@ -361,3 +361,66 @@ server-confirmed cancellation, visible outcomes and verbatim decision source.
 Final local gates, git-show UTF-8 verification and publication identity follow below.
 
 Global typecheck, lint, lint:docs and module-map:check passed (exit0). Prettier and git diff --check passed. The historical two-character card and superseding unified card were checked against git-show UTF-8 bytes before and after commit. No exact-head CI/review pass is claimed before publication; those gates must run on the resulting SHA.
+
+## Authorized unified correction round 7
+
+Before implementation, the owner audit recorded both cards verbatim as UTF-8:
+the historical two-test card and the superseding unified seventh-round card.
+All original3/3 and fourth/fifth/sixth/seventh exceptions remain without reset.
+The approval-only commit stayed local until the one consolidated publication.
+
+Rebased onto main da775eb5e5b62adcb48b26d1e55fdba1a2ce671f. Owner audit
+conflicts during replay of rounds4/5 were resolved by retaining main's #888
+record and this slice's records. Range-diff covers all eight pre-implementation
+commits: six patches identical; two differ only in owner-audit context. A direct
+comparison of committed POS source before/after rebase was empty. Both backup
+branches remain; no worktree or branch cleanup occurred.
+
+The runtime trace confirmed that openapi-fetch0.17.0 returns decoded JSON and
+personalCalls.session/probeStaffSession forward it without session-schema parsing.
+Generated paths supply static types only. Current server writers use toISOString,
+but this does not validate a malformed response before the client hook. The helper
+now calls the existing exported contracts timestamp.safeParse before Date.parse.
+That schema validates actual ISO calendar dates and requires a timezone, accepting
+the contract's UTC/explicit-offset formats without a new schema or API change.
+
+Fixtures are corrected in exactly the five approved existing test files:
+own-leave-entry, leave-session-probes, sign-out-push, personal-screen and
+reception-body. Date is frozen at2026-10-04T10:00Z and restored after each test.
+The personal-screen test retains its existing interval fakes and adds Date only;
+other new clock fakes target Date alone. The reception placeholder is replaced
+with a real future ISO deadline. All existing assertions remain unchanged; the
+original deliberate expiry tests keep their clock transitions.
+
+A new visible helper regression file tests date-only, offset-less, impossible
+February31/non-leap February29, invalid month and empty values; valid UTC,
+fractional seconds, positive/negative offsets and a real leap
+day; and the exact/past deadline boundary. Invalid inputs hide private content
+and clear session state; valid future contract timestamps preserve it.
+
+The preceding failed CI job127946224402 had14 failures in three files, reproduced
+locally without changes. They failed at the initial fixture preconditions before
+push/logout/camera behavior. The previous79-test selection omitted those files;
+this round runs the entire POS test suite, not just the selected slice files.
+
+No server expiry, API, migrations, native configuration or workflow change.
+Parent clean-code-guard/test-guard/docs-guard review verified the public contract
+validator, visible assertions, clock restoration, and verbatim audit/source.
+Final suite/gate results and git-show UTF-8 verification are recorded below before
+publication. No exact-head CI/review pass or merge waiver is inferred locally.
+
+The first new positive-control run assumed minute-only precision was accepted.
+Direct inspection of the installed Zod4.6.5 timestamp validator disproved that:
+2099-10-04T12:00Z is rejected by the actual contract although Date.parse accepts
+it. The case is now correctly categorized among contract refusals, without
+broadening the production schema or weakening any existing assertion.
+
+Final proof: the complete POS suite passed616/616 tests in99 files with
+`pnpm --filter @pospay/pos exec vitest run --pool=threads --maxWorkers=2`.
+File isolation remained enabled. The corrected helper file also passed14/14
+independently. The original602 tests, including all14 previous CI failures,
+passed; all existing assertions in the five fixture files were preserved.
+Global typecheck/lint/lint:docs/module-map:check passed; Prettier/diff checks passed.
+Parent guard review found no further issue in the authorized patch. UTF-8 cards
+were verified against git-show bytes before/after commit; exact-head remote gates
+are still required after this single consolidated publication.
