@@ -1,4 +1,4 @@
--- 47-2b contract A (0215): accepted identity and guarded state transitions.
+-- 0215: package import commit contract and equivalent bounded slot guard.
 -- PP-134: «سوال المعاينة القديمة نرفضها ونقبل معاينة جديده».
 -- No backfill, reread, or existing-row mutation. 0211/0212/0213 remain immutable.
 ALTER TABLE import_previews ADD COLUMN commit_membership_id uuid;
@@ -158,3 +158,60 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+--> statement-breakpoint
+-- نفس حواجز الجلسات على مفاتيح مميزة وحدود كل مكوّن؛ تكرار آلاف الجلسات لا يضيف فحصًا جديدًا للأب.
+CREATE OR REPLACE FUNCTION package_session_slots_insert_guard() RETURNS trigger
+LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog, public AS $$
+DECLARE sid bigint; v_xid xid8;
+BEGIN
+  sid := public.pospay_system_id();
+  IF sid IS NULL OR sid = 0 THEN
+    RAISE EXCEPTION 'the cluster system identifier is unavailable';
+  END IF;
+  v_xid := pg_current_xact_id();
+  IF EXISTS (
+    SELECT 1 FROM (
+      SELECT DISTINCT company_id,business_id,entitlement_id FROM new_slots
+    ) s
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.package_entitlements e
+      WHERE e.company_id = s.company_id
+        AND e.business_id = s.business_id
+        AND e.id = s.entitlement_id
+        AND e.created_system_id = sid
+        AND e.created_txid = v_xid
+    )
+  ) THEN
+    RAISE EXCEPTION 'a session belongs to an entitlement of another transaction'
+      USING ERRCODE = '23514', CONSTRAINT = 'package_session_slots_creation_seal';
+  END IF;
+  -- البيع بيبني جلسات حرة، والاستيراد بيبني حرة ومستعملة بالترتيب (FR-063).
+  IF EXISTS (
+    SELECT 1 FROM (
+      SELECT DISTINCT company_id,business_id,entitlement_id,state FROM new_slots
+    ) s
+    JOIN public.package_entitlements e
+      ON e.company_id = s.company_id AND e.business_id = s.business_id AND e.id = s.entitlement_id
+    WHERE (e.provenance = 'SOLD' AND s.state <> 'FREE')
+       OR (e.provenance = 'IMPORTED' AND s.state NOT IN ('FREE','IMPORTED_USED'))
+  ) THEN
+    RAISE EXCEPTION 'the initial state of a session does not fit the source of the entitlement'
+      USING ERRCODE = '23514', CONSTRAINT = 'package_session_slots_initial_state';
+  END IF;
+  -- الرقم لازم يكون جوه عدد جلسات المكوّن؛ بعد ما التركيب يتقفل مفيش رقم تاني (TD-15 b).
+  IF EXISTS (
+    SELECT 1 FROM (
+      SELECT company_id,business_id,entitlement_id,component_id,min(ordinal) AS first_ordinal,max(ordinal) AS last_ordinal
+      FROM new_slots GROUP BY company_id,business_id,entitlement_id,component_id
+    ) s
+    JOIN public.package_components c
+      ON c.company_id = s.company_id AND c.business_id = s.business_id
+      AND c.entitlement_id = s.entitlement_id AND c.id = s.component_id
+    WHERE s.first_ordinal < 1 OR s.last_ordinal > c.sessions_total
+  ) THEN
+    RAISE EXCEPTION 'the ordinal of a session is outside the sessions of its component'
+      USING ERRCODE = '23514', CONSTRAINT = 'package_session_slots_ordinal_range';
+  END IF;
+  RETURN NULL;
+END $$;

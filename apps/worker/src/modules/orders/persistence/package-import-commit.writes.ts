@@ -6,7 +6,7 @@ import type { PackageCommitRow } from '../ports/package-import-commit.port.ts';
 
 type ServiceName = { id: string; name_en: string; name_ar: string | null };
 
-export async function insertPackageImport(
+export async function preparePackageImport(
   context: {
     tx: Tx;
     ids: IdGenerator;
@@ -26,7 +26,7 @@ export async function insertPackageImport(
       ${row.price_paid},${preview.created_by},${preview.commit_membership_id},${row.external_ref},${preview.id},
       ${row.import_row},${row.expires_on},${at})
     ON CONFLICT ON CONSTRAINT package_entitlements_external_ref_key DO NOTHING RETURNING id`);
-  if (inserted.length === 0) return false;
+  if (inserted.length === 0) return null;
   const components = row.components.map((component, index) => ({
     ...component,
     id: ids.newId(),
@@ -44,21 +44,35 @@ export async function insertPackageImport(
       }),
       sql`, `,
     )}`);
-  for (const c of components) {
-    // المكوّن لا يتجاوز 365 جلسة، فكل دفعة تظل تحت حد معاملات PostgreSQL دون تجميع ملايين الجلسات.
-    const slots = createPackageSlots(parseMoney(c.component_value), c.sessions, c.remaining, {
+  return { entitlementId: id, components };
+}
+
+/** يحفظ بيانات المكونات فقط بين مرحلتي الكتابة، دون تجميع جلسات كل الملف. */
+export type PreparedPackageImport = NonNullable<Awaited<ReturnType<typeof preparePackageImport>>>;
+
+export async function insertPreparedPackageSlots(
+  context: { tx: Tx; ids: IdGenerator; company: string; businessId: string },
+  prepared: PreparedPackageImport,
+) {
+  const { tx, ids, company, businessId } = context;
+  const { entitlementId, components } = prepared;
+  // المكوّن لا يتجاوز 365 جلسة، فكل دفعة تظل تحت حد معاملات PostgreSQL دون تجميع ملايين الجلسات.
+  // One entitlement contributes at most 7300 records; all its components already exist.
+  const records = components.flatMap((c) =>
+    createPackageSlots(parseMoney(c.component_value), c.sessions, c.remaining, {
       base: parseMoney(c.base_unit_value),
       last: parseMoney(c.last_unit_value),
-    });
-    await tx.execute(sql`INSERT INTO package_session_slots
-      (company_id,id,business_id,entitlement_id,component_id,ordinal,unit_value,state)
-      VALUES ${sql.join(
-        slots.map(
-          (slot) => sql`(${company},${ids.newId()},${preview.business_id},${id},${c.id},
-        ${slot.ordinal},${moneyToString(slot.unitValue)},${slot.state})`,
-        ),
-        sql`, `,
-      )}`);
-  }
-  return true;
+    }).map((slot) => ({
+      id: ids.newId(),
+      component_id: c.id,
+      ordinal: slot.ordinal,
+      unit_value: moneyToString(slot.unitValue),
+      state: slot.state,
+    })),
+  );
+  await tx.execute(sql`INSERT INTO package_session_slots
+    (company_id,id,business_id,entitlement_id,component_id,ordinal,unit_value,state)
+    SELECT ${company},t.id,${businessId},${entitlementId},t.component_id,t.ordinal,t.unit_value,t.state
+    FROM jsonb_to_recordset(${JSON.stringify(records)}::jsonb)
+      AS t(id uuid,component_id uuid,ordinal smallint,unit_value numeric(14,3),state text)`);
 }

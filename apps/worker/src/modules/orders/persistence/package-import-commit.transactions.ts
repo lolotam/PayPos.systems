@@ -13,7 +13,11 @@ import type {
   PackageCommitTransactions,
 } from '../ports/package-import-commit.port.ts';
 import { parsePackageCommitPreview } from './package-import-commit.schema.ts';
-import { insertPackageImport } from './package-import-commit.writes.ts';
+import {
+  preparePackageImport,
+  insertPreparedPackageSlots,
+  type PreparedPackageImport,
+} from './package-import-commit.writes.ts';
 
 // Deployment must supply a measured full-bound transaction budget. No staff 15-second default.
 export function packageImportCommitTransactions(
@@ -31,31 +35,7 @@ export function packageImportCommitTransactions(
           async (tx) => {
             const preview = await loadPreview(tx, companyId, previewId);
             if (preview === null) return;
-            const names = new Map<
-              string,
-              { id: string; name_en: string; name_ar: string | null }
-            >();
-            await work({
-              preview,
-              lockServices: async (rows) => {
-                const refs = [
-                  ...new Set(rows.flatMap((row) => row.components.map((c) => c.service_id))),
-                ];
-                for (const service of await readPackageCommitServices(
-                  tx,
-                  companyId,
-                  preview.business_id,
-                  refs,
-                ))
-                  names.set(service.id, service);
-                if (names.size !== refs.length)
-                  throw new PackageCommitError('IMPORT_SERVICE_NOT_FOUND');
-              },
-              insert: (row, at) =>
-                insertPackageImport({ tx, ids, company: companyId, preview, names }, row, at),
-              complete: (created, at) =>
-                completePreview({ tx, ids, companyId, preview }, created, at),
-            });
+            await work(commitScope(tx, ids, companyId, preview));
           },
           options,
         )
@@ -66,6 +46,48 @@ export function packageImportCommitTransactions(
           WHERE company_id=${companyId} AND id=${previewId} AND entity='packages' AND status='commit_requested'`);
       });
     },
+  };
+}
+
+function commitScope(
+  tx: Tx,
+  ids: IdGenerator,
+  companyId: string,
+  preview: NonNullable<PackageCommitScope['preview']>,
+): PackageCommitScope {
+  const names = new Map<string, { id: string; name_en: string; name_ar: string | null }>();
+  const prepared: PreparedPackageImport[] = [];
+  return {
+    preview,
+    lockServices: async (rows) => {
+      const refs = [...new Set(rows.flatMap((row) => row.components.map((c) => c.service_id)))];
+      for (const service of await readPackageCommitServices(
+        tx,
+        companyId,
+        preview.business_id,
+        refs,
+      ))
+        names.set(service.id, service);
+      if (names.size !== refs.length) throw new PackageCommitError('IMPORT_SERVICE_NOT_FOUND');
+    },
+    insert: async (row, at) => {
+      const created = await preparePackageImport(
+        { tx, ids, company: companyId, preview, names },
+        row,
+        at,
+      );
+      if (created === null) return false;
+      prepared.push(created);
+      return true;
+    },
+    writeSlots: async () => {
+      for (const row of prepared)
+        await insertPreparedPackageSlots(
+          { tx, ids, company: companyId, businessId: preview.business_id },
+          row,
+        );
+    },
+    complete: (created, at) => completePreview({ tx, ids, companyId, preview }, created, at),
   };
 }
 

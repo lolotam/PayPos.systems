@@ -32,6 +32,7 @@ export class CommitPackageImport {
         const at = this.clock.now().toISOString();
         let created = 0;
         for (const row of rows) if (await scope.insert(row, at)) created++;
+        await scope.writeSlots();
         await scope.complete(created, at);
       });
     } catch (error) {

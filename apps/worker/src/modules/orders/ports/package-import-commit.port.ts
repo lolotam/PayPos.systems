@@ -15,6 +15,8 @@ export interface PackageCommitScope {
    * @param at لحظة التثبيت المحقونة
    */
   insert(row: PackageCommitRow, at: string): Promise<boolean>;
+  /** يكتب دفعات الجلسات بعد اكتمال إدخال جميع الآباء والمكونات، داخل نفس المعاملة. */
+  writeSlots(): Promise<void>;
   /** يثبت النتيجة والتدقيق والحدث دون تعديل الإثبات.
    *
    * @param createdCount عدد الباقات المنشأة

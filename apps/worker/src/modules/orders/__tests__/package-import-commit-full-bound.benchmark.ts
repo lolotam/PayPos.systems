@@ -1,5 +1,8 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { appendFileSync } from 'node:fs';
 import { sql } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import type { Tx, TenantWrappers } from '@pospay/db';
 import { USER } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
 import { CommitPackageImport } from '../use-cases/commit-package-import/commit-package-import.ts';
 import { packageImportCommitTransactions } from '../persistence/package-import-commit.transactions.ts';
@@ -23,7 +26,7 @@ afterAll(async () => {
 });
 function worker() {
   return new CommitPackageImport(
-    packageImportCommitTransactions(f.database, f.ids, { timeoutMs }),
+    packageImportCommitTransactions(measuredDatabase(), f.ids, { timeoutMs }),
     f.clock,
   );
 }
@@ -52,25 +55,104 @@ it(
     try {
       await worker().execute(f.company, id);
       const elapsedMs = performance.now() - started;
-      const [count] = await f.owner`SELECT count(*)::int AS slots FROM package_session_slots s
+      const [count] =
+        await f.owner`SELECT count(*)::int AS slots, count(DISTINCT s.entitlement_id)::int AS entitlements,
+        count(DISTINCT s.component_id)::int AS components, sum(s.unit_value)::text AS money,
+        count(*) FILTER (WHERE s.state='IMPORTED_USED')::int AS used FROM package_session_slots s
       JOIN package_entitlements e ON e.company_id=s.company_id AND e.id=s.entitlement_id WHERE e.import_batch_id=${id}`;
       expect(count?.['slots']).toBe(3650000);
+      expect(count).toMatchObject({
+        entitlements: 500,
+        components: 10000,
+        money: '5000.500',
+        used: 10000,
+      });
+      expect(elapsedMs).toBeLessThanOrEqual(timeoutMs);
       expect(
         (await f.owner`SELECT status,created_count FROM import_previews WHERE id=${id}`)[0],
       ).toMatchObject({ status: 'committed', created_count: 500 });
-      console.info(
-        JSON.stringify({
-          elapsedMs,
-          peakRss,
-          peakHeap,
-          timeoutMs,
-          completedCommit: true,
-          slots: 3650000,
-        }),
-      );
+      record({
+        elapsedMs,
+        peakRss,
+        peakHeap,
+        timeoutMs,
+        completedCommit: true,
+        slots: 3650000,
+      });
     } finally {
       clearInterval(sampler);
     }
   },
   timeoutMs + 120000,
 );
+
+function measuredDatabase(): Pick<TenantWrappers, 'withTenant'> {
+  return {
+    withTenant: (company, work, options) =>
+      f.database.withTenant(
+        company,
+        (tx) => {
+          const dialect = new PgDialect();
+          const batches = new Map<string, number>();
+          const started = performance.now();
+          return work(
+            new Proxy(tx, {
+              get(target, key) {
+                if (key === 'execute')
+                  return async (query: Parameters<Tx['execute']>[0]) => {
+                    const text =
+                      typeof query === 'string' ? query : dialect.sqlToQuery(query.getSQL()).sql;
+                    const table =
+                      /^INSERT INTO (package_session_slots|package_components|package_entitlements)/.exec(
+                        text.trimStart(),
+                      )?.[1];
+                    const before = performance.now();
+                    const next = table ? (batches.get(table) ?? 0) + 1 : 0;
+                    const explainComponent =
+                      table === 'package_components' &&
+                      [1, 250, 500].includes(next) &&
+                      typeof query !== 'string';
+                    const result = explainComponent
+                      ? await target.execute(sql`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query}`)
+                      : await target.execute(query);
+                    if (explainComponent) recordComponentPlan(result, next);
+                    if (table) {
+                      const batch = (batches.get(table) ?? 0) + 1;
+                      batches.set(table, batch);
+                      if (batch === 1 || batch % 50 === 0)
+                        record({
+                          stage: table,
+                          batch,
+                          statementMs: performance.now() - before,
+                          elapsedMs: performance.now() - started,
+                        });
+                    }
+                    return explainComponent ? [] : result;
+                  };
+                const value = Reflect.get(target, key, target);
+                return typeof value === 'function' ? value.bind(target) : value;
+              },
+            }),
+          );
+        },
+        options,
+      ),
+  };
+}
+
+function record(value: unknown) {
+  const line = JSON.stringify(value);
+  const destination = process.env['PACKAGE_BENCHMARK_OUTPUT'];
+  if (destination) appendFileSync(destination, line + '\n');
+  console.info(line);
+}
+
+function recordComponentPlan(result: ReadonlyArray<Record<string, unknown>>, batch: number) {
+  const plan = (result[0]?.['QUERY PLAN'] as Record<string, unknown>[])[0];
+  record({
+    stage: 'componentTriggers',
+    batch,
+    executionMs: plan?.['Execution Time'],
+    triggers: plan?.['Triggers'],
+  });
+}

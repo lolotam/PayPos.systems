@@ -1,5 +1,20 @@
 # 47-2b implementation handoff
 
+Current result: the actual 500-row / 3,650,000-slot run completed COMMIT in
+470313.2967 ms within the unchanged 1800000-ms ceiling. See
+[full-bound receipt](47-2b-full-bound-receipt.md) and
+[performance correction](47-2b-performance-correction.md). The manager granted the
+lane; final artifacts are 0215/0216 on main dd7c42ba. The writer prepares winning
+parents/components, then bounded JSONB slot batches, within the same transaction.
+The measured correction also reorders the service FK/index and groups equivalent
+slot-guard checks. Transport, recovery and API acceptance remain 47-2c/d.
+
+The sections below preserve the initial implementer handoff and continuation
+history. Their provisional numbers, missing-dependency status and verification gaps
+are superseded by the parent receipts; they are not current blockers.
+
+## Initial implementer handoff
+
 Scope: `CommitPackageImport` only. Base supplied by parent: `f5ed030d0`.
 No Git writes, dependency installs, env access, cluster/server changes, migration
 number assignment or generation were performed. SQL is now split into unnumbered

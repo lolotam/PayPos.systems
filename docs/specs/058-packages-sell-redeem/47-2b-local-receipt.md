@@ -1,8 +1,14 @@
 # 47-2b local verification — 2026-11-06
 
-Current base: main `dd7c42baaa04b5cb0df5fde03cb739ffde7e9e78`, after #883/0214.
+Current performance result: PASS through completed COMMIT at 3,650,000 slots,
+470313.2967 ms, with the original 1800000-ms ceiling. See the final
+[full-bound receipt](47-2b-full-bound-receipt.md) for the command, input, money,
+memory and final migration hashes. Earlier hashes and blockers below are historical.
+
+Base: main `dd7c42baaa04b5cb0df5fde03cb739ffde7e9e78`, after #883/0214.
 The manager granted the lane after that merge on 2026-11-06. Final local numbering
-is 0215/0216; no push or PR, because full-bound performance remains blocked.
+is 0215/0216. At the initial checkpoint there was no push or PR because full-bound
+performance was blocked; the measured correction resolved that blocker.
 
 ## Migration order
 
@@ -69,7 +75,7 @@ proven P0/P1 or additional money defect. Both P2 findings were fixed:
 The ordinary index found by the parent was split into draft B's concurrent prefix.
 Self-review applies clean-code-guard, test-guard and docs-guard to these changes.
 
-## Infrastructure and performance status
+## Infrastructure and initial performance attempts
 
 Private Postgres lane: lane.mjs up packages-47-2b, bound to localhost:55418,
 Postgres 16 with the dev-compose resource/timeout settings and a 1 GiB memory limit.
@@ -93,10 +99,48 @@ At 12:49 Kuwait, the private cluster had no active test transaction or remaining
 test/template database after teardown. Evidence retained in task TEMP:
 pospay-47-2b-full-bound-v2.log and pospay-47-2b-full-bound-v2-status.json.
 
-This is a performance readiness blocker, despite the 253 passing focused tests
+At that checkpoint this was a performance readiness blocker, despite the 253 passing focused tests
 and static gates. Do not increase timeout, reduce file/session bounds, split the
 financial transaction or claim readiness. Next diagnostic proposal: stage timings
 for writes/finalization/COMMIT, safe error classification without SQL parameters,
 and smaller controlled scaling runs before another full-bound attempt. No such
 diagnostic rerun or design adjustment is claimed in this receipt.
 No bound or atomicity has been reduced. Full suite and API shards remain CI-only.
+The subsequent accepted run and correction are recorded in the final receipt
+linked at the top; the failed attempts above remain unchanged as historical evidence.
+
+## Final performance correction and local gates
+
+The actual full-limit run passed through completed COMMIT: 500 entitlements,
+10,000 components, 3,650,000 slots, exact 5000.500 KWD sum and committed/500 state,
+470313.2967 ms within the unchanged 1800000-ms ceiling. The final receipt records
+the 101,036-byte input, command and sampled process memory.
+
+The corrected worker selection passed 17 files / 152 tests; final DB selection
+passed 9 files / 109 tests. These include transient slot-phase rollback/retry,
+deferred-COMMIT rollback, mixed slot guard negatives, actual 0216 prefix/suffix
+failure and restart, all prior isolation/privilege/FK/money checks, and staff
+regressions. After extracting composition setup into a shared fixture to satisfy
+the file-size gate, its 17 tests passed again. Test supporting-index logic was not
+weakened: only the service FK's expected ordered column list was updated to match
+the equivalent reordered constraint.
+
+Final root typecheck, lint, lint:docs, module-map:check, migration-chain:check and
+boundaries passed (3 boundaries tests). Documentation lint has zero errors and
+29 existing warnings. The first lint pass rejected test file/function sizes;
+fixture/timing-helper extraction fixed those without exemptions or reduced tests.
+No full suite or API shard was run locally. Exact-head CI remains required.
+
+Independent Astra high reviewed the financial implementation, two-phase writes,
+new tests and final SQL/schema chain. Its last P2 was concurrent DROP replay after
+suffix rollback: IF EXISTS and the real-migration replay test close it. The same
+FK column pairs, guard refusals, RLS and deferred conservation remain intact.
+Self-review applied clean-code-guard, test-guard and docs-guard. Raw diagnosis
+helpers were retained in task TEMP, outside the PR; maintained opt-in benchmark
+and diagnostic configs remain reproducible in the repository.
+
+Only 0215/0216 were regenerated from main dd7c42ba. Their final LF hashes and
+214-to-215-to-216 snapshot chain are recorded in the final receipt. Existing
+nullable membership rows and the service FK's valid-row set are unchanged;
+no new CHECK, backfill, file reread or deployment was introduced. DEP-1 backup
+and restore plus the manager's merge/release coordination remain external gates.
