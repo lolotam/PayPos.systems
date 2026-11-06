@@ -498,3 +498,59 @@ the edited existing test files and the extracted card file preserved all93
 previous assertion chains (123 current, no missing chain). Historical audit
 content is an unchanged prefix, with the eighth approval appended. No push has
 been made pending the manager's disposition of r4494761636.
+
+## Eighth-round final disposition — creation-card cancellation deferred
+
+The final owner answer is recorded verbatim in the audit:
+«أؤجل الزر لمتابعة موثقة (الموصى به)». It supersedes only the earlier
+creation-card expansion approval, which remains historical. The original3/3
+and exceptions four through eight remain; this is not a ninth round or a reset.
+
+Follow-up [#890](https://github.com/lolotam/PayPos.systems/issues/890) records the
+missing server authority source and explicit deferral of the creation-card
+cancellation button. POST returns `LeaveRequest`, without `can_cancel`;
+`LeaveListItem` in GET history alone adds that field. The contract, OpenAPI,
+controller, use case and transaction return path were checked. Inferring a grant
+from `PENDING` or successful creation, casting a flag into existence, or unbounded
+pagination is not an implementation of the approved permission policy.
+
+The attempted UI addition exposed TypeScript TS2339 for `request.can_cancel`.
+Its synthetic POST fixture therefore did not prove the real API behavior. That
+uncommitted draft was preserved outside the repository and removed with targeted
+patches; no reset was used. There is no creation-card cancellation source change.
+The POS tree is byte-for-byte the same git tree as checkpoint
+`609cd7b00ff410ea643235ff1930c921528837ff`, whose earlier receipt and review remain
+preserved. No review of a newly implemented button is claimed.
+
+Issue890 acceptance criteria require a documented server authority source with
+live permission/eligibility checks, a bounded read or compatible response, and
+visible oldest-first/new-row-missing, can_cancel=false, id/revision, pending
+button, confirmed-cancel/refresh503 and401/403/404 refusal tests. Current history
+order and API remain unchanged. The button is deferred, not fixed in PR882.
+
+Waleed thread `r4494761636` received decision/evidence reply `4495174126`, linked
+to issue890, then was resolved. Both reply and `isResolved=true` were read back.
+All other eighth-round fixes remain in scope. Their five review threads will
+receive the published fix commit before resolution/read-back. No exact-head
+remote CI/review pass, Codex request or merge waiver is inferred.
+
+The final document-only disposition does not alter the tested POS source:
+628/628 tests in101 files at checkpoint remain the applicable full POS proof.
+Typecheck/lint/docs/module-map/Prettier and an independent read-only review of
+the final audit/disposition are rechecked before publication; their results are
+recorded below. The published head and current main are checked again before
+the one explicit branch push. CI/mobile and all panel receipts on the new head
+remain required; only the manager coordinates Codex after panel findings settle.
+
+Final independent review after the disposition: Codex Astra high completed a
+fresh read-only review of all19 paths in the final round-eight delta, the actual
+contracts/session hooks and governing spec/ADRs. No confirmed open P0/P1/P2/P3
+was found in that reviewed delta. It independently verified identical POS tree
+hash742bdae601852b97cb6ff35e6d324f5e9d0124b5 at HEAD and609cd7b0, no source
+changes outside docs and no untracked POS files. It ran diff-check; it did not
+rerun suites or independently check remote issue/thread state. The parent read
+back issue890 OPEN and the deferral reply/resolution. Fresh global typecheck,
+lint, lint:docs, module-map:check and changed-doc Prettier passed after the
+disposition. The628/628 checkpoint suite is identified as applicable identical-
+source proof, not a newly run suite or a remote-head gate. The audit's full final
+question/options/answer and historical expansion were verified with git-show.
