@@ -499,6 +499,34 @@ called".
   eligibility: every command answers `CORRUPT` and the key stays byte-for-byte unchanged.
 - `a_journal_entry_without_its_work_token_is_refused_and_never_written_over` — the same for a journal entry without its work token.
 - `a_state_without_its_fence_fields_is_refused_and_never_written_over` — the same for a state without its incarnation.
+- **Issue #840 — Lua corruption contract (no activation or migration).** Every command validates the stored
+  snapshot before inspecting a fence or mutating it: required counters are safe integers in their valid range,
+  required flags are booleans, optional fields have their documented types, ownership/reservation fields are
+  complete groups, and sweep/page fields agree with the phase. Malformed state returns `CORRUPT`, without a Lua
+  exception, and preserves the exact stored bytes after each command.
+  `page.entries` must have contiguous positive numeric keys; named, sparse, mixed and null-bearing entries are
+  refused. `retries` remains the request-id-keyed map specified by ADR-0010, with nonempty string keys and valid
+  retry records, not a new array wire format (original finding `#785/discussion_r4475811730`). Empty tables remain
+  valid because Redis cjson represents empty arrays and objects identically. The historical optional
+  `sweepOverflowCount` keeps the existing missing-means-zero behavior of `settle`/`finish`, but is checked when
+  present. Released owners may leave retry reservations intact; expired leases and drained pages remain valid.
+  Page progress requires `page.throughId == cursorId`; a cursor requires a page and cannot exceed `upperId`.
+  Remaining journal request IDs are strictly ascending in `(page.fromId, cursorId]`, and work tokens are unique.
+  Settling a tail entry preserves the cursor, so the final remaining entry need not equal it. Enrollment refuses
+  duplicate work tokens with `LIMIT` before writing. A positive `sweepOverflowCount` requires reconciliation;
+  historical cumulative overflow alone does not. Capacity and encoded-byte overflow return `LIMIT` without
+  storing when either overflow counter is already `MAX_SAFE`; numeric cjson encoding remains tracked in #887.
+  Retained retry tickets are unique and strictly below `nextTicket`, matching atomic allocation/requeue and
+  byte-overflow rollback. Gaps between tickets and arbitrary map insertion order remain valid.
+  Writer inputs preserve this state contract: fractional or unsafe-integer lease/backoff/turn durations are
+  rejected as configuration errors before Redis, without rounding. Invalid empty/missing/non-string sweep/page
+  IDs return `LIMIT` before mutation and preserve bytes. Valid integer-duration settings, zero backoff and nonempty IDs remain valid.
+  The bounded fourth exception on #888 rechecks the selected state in every Lua `store` before encoding or `SET`.
+  An out-of-range derived timestamp or empty stored upper bound returns `LIMIT` with the original version and
+  unchanged bytes; refused fresh creation returns `LIMIT`/0 and creates no key. Existing fence/phase precedence,
+  zero/negative-duration semantics and representable clamped timestamps are preserved. This pre-encoding check
+  does not repair the separate cjson numeric precision issue #887.
+  These cases require real Redis Lua contract tests, including all ten commands and successful lifecycle controls.
 - `an_invalid_job_fails_once_without_retries` — a job whose data fails the contract is an unrecoverable error: it fails once with
   `RATING_CLAIMS_JOB_INVALID` and is not retried.
 - `closes_the_queue_and_the_clients_even_when_the_worker_fails` — when the worker's close fails, the queue and the Redis clients are

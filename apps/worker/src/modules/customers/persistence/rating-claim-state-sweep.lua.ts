@@ -8,6 +8,8 @@
  * وبيسيب خريطة الإعادة زي ما هي، وبيشيل علامة الـ reconcile بس لما الجولة اللي
  * اتقفلت ما يكونش فيها فيضان؛ وإقفال جولة زارت صفحة من غير ما تخلص زي ما هو
  * مرفوض، عشان ما تتحسبش جولة كاملة وهي ما شافتش حاجة.
+ * معرّفا الجولة والصفحة لازم يكونا نصين مش فاضيين قبل الكتابة، حتى الكاتب ما
+ * ينشئش حالة يرفضها فحص السلامة في الأمر اللي بعده.
  *
  * السكربت مستقل بذاته وقت التشغيل لأن Redis مفيش فيه استيراد لسكربت تاني؛ وفحص
  * سلامة الحالة مشترك بين السكربتات وبتترجم جوه النص وقت البناء.
@@ -43,6 +45,7 @@ local function load(raw, companyId)
 end
 
 local function store(key, state, maxBytes)
+  if not validate_state(state) then return false end
   local encoded = cjson.encode(state)
   if #encoded > maxBytes then return false end
   redis.call('SET', key, encoded)
@@ -85,6 +88,7 @@ local action = env['action']
 
 if action == 'begin' then
   if state['phase'] ~= 'IDLE' then return reply('BUSY', version) end
+  if not nonempty_string(env['sweepId']) then return reply('LIMIT', version) end
   if journal_size(state) > 0 then return reply('BUSY', version) end
   state['phase'] = 'SWEEP'
   state['sweepId'] = env['sweepId']
@@ -102,6 +106,7 @@ if action == 'enrollPage' then
     return reply('STALE', version)
   end
   if journal_size(state) > 0 then return reply('BUSY', version) end
+  if not nonempty_string(env['pageId']) then return reply('LIMIT', version) end
   local entries = env['entries']
   if type(entries) ~= 'table' then return reply('LIMIT', version) end
   if #entries > env['maxEntries'] then return reply('LIMIT', version) end
@@ -115,11 +120,14 @@ if action == 'enrollPage' then
   if fromId ~= nil and fromId ~= cursor then return reply('STALE', version) end
   if upper == nil and #entries > 0 then return reply('LIMIT', version) end
   local previous = nil
+  local tokens = {}
   for _, entry in ipairs(entries) do
     local requestId = entry['requestId']
     local workToken = entry['workToken']
     if type(requestId) ~= 'string' or requestId == '' then return reply('LIMIT', version) end
     if type(workToken) ~= 'string' or workToken == '' then return reply('LIMIT', version) end
+    if tokens[workToken] then return reply('LIMIT', version) end
+    tokens[workToken] = true
     if previous ~= nil and requestId <= previous then return reply('LIMIT', version) end
     if cursor ~= nil and requestId <= cursor then return reply('LIMIT', version) end
     if upper ~= nil and requestId > upper then return reply('LIMIT', version) end

@@ -13,6 +13,8 @@
  * أو بعده بيخلّي الاستحقاق عند السقف.
  * record_overflow بيزيد العدّاد ويحفظ أول لحظة، ويعلّم الجولة للمصالحة
  * لحد ما جولة من غير فيضان تكتمل.
+ * لو أي عدّاد وصل سقف العدد الآمن، التسوية بترجع LIMIT من غير تخزين، عشان
+ * زيادة غير قابلة للتمثيل ما تحوّلش حالة سليمة لحالة CORRUPT في القراءة الجاية.
  *
  * في settlePage الإعادة اللي مش بتسع في الحالة المرمّزة ما بتتقبلش: البند
  * بيرجع للجولة الكاملة والفيضان بيتسجل، فالمجلة بتفضى بدل ما تفضل مفتوحة
@@ -55,6 +57,7 @@ local function load(raw, companyId)
 end
 
 local function store(key, state, maxBytes)
+  if not validate_state(state) then return false end
   local encoded = cjson.encode(state)
   if #encoded > maxBytes then return false end
   redis.call('SET', key, encoded)
@@ -83,10 +86,14 @@ local function count_entries(retries)
 end
 
 local function record_overflow(state, now)
+  if state['overflowCount'] >= MAX_SAFE or (state['sweepOverflowCount'] or 0) >= MAX_SAFE then
+    return false
+  end
   state['overflowCount'] = state['overflowCount'] + 1
   if state['overflowSince'] == nil then state['overflowSince'] = now end
   state['reconcileRequired'] = true
   state['sweepOverflowCount'] = (state['sweepOverflowCount'] or 0) + 1
+  return true
 end
 
 local ok, env = pcall(cjson.decode, ARGV[1])
@@ -155,13 +162,13 @@ if env['action'] == 'settlePage' then
       state['nextTicket'] = ticket + 1
     end
   end
-  if overflowed then record_overflow(state, now) end
+  if overflowed and not record_overflow(state, now) then return reply('LIMIT', version) end
   if bump(state) == nil then return reply('LIMIT', version) end
   if inserted ~= nil and #cjson.encode(state) > limit then
     retries[requestId] = nil
     state['nextTicket'] = inserted['ticket']
     overflowed = true
-    record_overflow(state, now)
+    if not record_overflow(state, now) then return reply('LIMIT', version) end
   end
   if overflowed then
     if not store(KEYS[1], state, env['maxBytes']) then return reply('LIMIT', version) end
