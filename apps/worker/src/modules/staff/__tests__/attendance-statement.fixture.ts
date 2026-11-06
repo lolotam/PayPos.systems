@@ -31,6 +31,7 @@ interface EmployeeOptions {
   readonly nameEn?: string;
   readonly nameAr?: string | null;
   readonly hireDate?: string;
+  readonly contractEnd?: string;
 }
 
 interface ShiftOptions {
@@ -49,12 +50,18 @@ interface SessionOptions {
   readonly status?: 'OPEN' | 'CLOSED' | 'MISSED_OUT';
   readonly scheduledEnd?: Date | null;
   readonly lateMinutes?: number;
+  readonly clockOutCorrected?: boolean;
 }
 
 interface LeaveOptions {
   readonly from: string;
   readonly to: string;
   readonly type?: 'ANNUAL' | 'SICK' | 'UNPAID' | 'OTHER';
+  readonly status?: 'APPROVED' | 'PENDING';
+  readonly kind?: 'FULL_DAY' | 'PARTIAL';
+  readonly start?: string;
+  readonly end?: string;
+  readonly branchId?: string;
 }
 
 interface RequestOptions {
@@ -108,12 +115,20 @@ export async function attendanceStatementFixture() {
     tenant: (options: TenantOptions = {}) => addTenant(owner, ids, requesterId, options),
     employee: (tenant: Tenant, options: EmployeeOptions = {}) =>
       addEmployee(owner, ids, tenant, options),
+    secondBranch: async (tenant: Tenant, employeeId: string): Promise<Tenant> => {
+      const branch = ids.newId();
+      await owner`INSERT INTO branches(company_id,id,business_id,name_en,timezone)
+        VALUES(${tenant.company},${branch},${tenant.business},'Hawalli',${TIMEZONE})`;
+      await owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
+        VALUES(${tenant.company},${ids.newId()},${tenant.business},${employeeId},${branch},'2026-01-01')`;
+      return { ...tenant, branch };
+    },
     defaultShifts: (tenant: Tenant, employeeId: string, days: readonly number[]) =>
       addDefaultShifts(owner, tenant, employeeId, days, requesterId),
     shift: (tenant: Tenant, employeeId: string, options: ShiftOptions) =>
       addShift(owner, ids, tenant, employeeId, options),
     session: (tenant: Tenant, employeeId: string, options: SessionOptions) =>
-      addSession(owner, ids, tenant, employeeId, options),
+      addSession(owner, ids, tenant, employeeId, options, requesterId),
     closeSession: (tenant: Tenant, sessionId: string, clockOut: Date) =>
       owner`UPDATE attendance_sessions SET status='CLOSED', closed_by='EMPLOYEE', clock_out=${clockOut}
         WHERE company_id=${tenant.company} AND id=${sessionId}`,
@@ -171,9 +186,9 @@ async function addEmployee(
   const nameEn = options.nameEn ?? 'Sara';
   const nameAr = options.nameAr ?? null;
   const hireDate = options.hireDate ?? '2026-01-01';
-  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_ar,name_en,name_ar_key,name_en_key,role_code,hire_date,employee_number)
+  await owner`INSERT INTO employees(company_id,id,business_id,primary_branch_id,name_ar,name_en,name_ar_key,name_en_key,role_code,hire_date,contract_end,employee_number)
     VALUES(${tenant.company},${id},${tenant.business},${tenant.branch},${nameAr},${nameEn},
-      ${nameAr === null ? null : employeeNameMatchKey(nameAr)},${employeeNameMatchKey(nameEn)},'staff',${hireDate},
+      ${nameAr === null ? null : employeeNameMatchKey(nameAr)},${employeeNameMatchKey(nameEn)},'staff',${hireDate},${options.contractEnd ?? null},
       ${takeTestEmployeeNumber(tenant.company)})`;
   await owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
     VALUES(${tenant.company},${ids.newId()},${tenant.business},${id},${tenant.branch},${hireDate})`;
@@ -200,12 +215,14 @@ async function addShift(
   employeeId: string,
   options: ShiftOptions,
 ): Promise<string> {
-  const schedule = ids.newId();
-  await owner`INSERT INTO staff_schedules(company_id,id,business_id,branch_id,employee_id,week_start,timezone,revision)
-    VALUES(${tenant.company},${schedule},${tenant.business},${tenant.branch},${employeeId},${weekStartOf(options.workingDate)},${TIMEZONE},1)`;
+  const [schedule] =
+    await owner`INSERT INTO staff_schedules(company_id,id,business_id,branch_id,employee_id,week_start,timezone,revision)
+    VALUES(${tenant.company},${ids.newId()},${tenant.business},${tenant.branch},${employeeId},${weekStartOf(options.workingDate)},${TIMEZONE},1)
+    ON CONFLICT (company_id,employee_id,branch_id,week_start) DO UPDATE SET revision=staff_schedules.revision
+    RETURNING id`;
   const id = ids.newId();
   await owner`INSERT INTO staff_schedule_shifts(company_id,id,schedule_id,employee_id,working_date,day,start,"end",starts_at,ends_at)
-    VALUES(${tenant.company},${id},${schedule},${employeeId},${options.workingDate},${options.day},${options.start},${options.end},
+    VALUES(${tenant.company},${id},${schedule?.['id'] as string},${employeeId},${options.workingDate},${options.day},${options.start},${options.end},
       ${options.startsAt},${options.endsAt})`;
   return id;
 }
@@ -216,6 +233,7 @@ async function addSession(
   tenant: Tenant,
   employeeId: string,
   options: SessionOptions,
+  userId: string,
 ): Promise<string> {
   const id = ids.newId();
   const status = options.status ?? (options.clockOut == null ? 'OPEN' : 'CLOSED');
@@ -225,6 +243,13 @@ async function addSession(
     VALUES(${tenant.company},${id},${tenant.business},${tenant.branch},${employeeId},${options.workingDate},${TIMEZONE},
       ${options.clockIn},${options.clockOut ?? null},${status},${closedBy},'QR','OK',${options.lateMinutes ?? 0},
       ${options.scheduledEnd ?? null})`;
+  if (options.clockOutCorrected === true && options.clockOut != null) {
+    await owner`INSERT INTO attendance_corrections(company_id,id,business_id,branch_id,employee_id,
+      session_id,request_id,field,before_at,after_at,reason,corrected_by,corrected_at)
+      VALUES(${tenant.company},${ids.newId()},${tenant.business},${tenant.branch},${employeeId},
+        ${id},${ids.newId()},'CLOCK_OUT',${new Date(options.clockOut.getTime() - 60_000)},
+        ${options.clockOut},'Synthetic clock-out correction',${userId},${REQUESTED_AT})`;
+  }
   return id;
 }
 
@@ -253,12 +278,18 @@ async function addLeave(
   options: LeaveOptions,
   userId: string,
 ): Promise<void> {
-  const start = new Date(Date.parse(`${options.from}T00:00:00Z`) - 3 * 3_600_000).toISOString();
-  const end = new Date(Date.parse(`${options.to}T00:00:00Z`) + 21 * 3_600_000).toISOString();
+  const partial = options.kind === 'PARTIAL';
+  const start = partial
+    ? `${options.from}T${options.start}:00+03:00`
+    : new Date(Date.parse(`${options.from}T00:00:00Z`) - 3 * 3_600_000).toISOString();
+  const end = partial
+    ? `${options.to}T${options.end}:00+03:00`
+    : new Date(Date.parse(`${options.to}T00:00:00Z`) + 21 * 3_600_000).toISOString();
+  const pending = options.status === 'PENDING';
   await owner`INSERT INTO leave_requests(company_id,id,business_id,branch_id,employee_id,kind,"from","to",start,"end",
       timezone,starts_at,ends_at,type,status,requested_by,requested_at,decided_by,decided_at)
-    VALUES(${tenant.company},${ids.newId()},${tenant.business},${tenant.branch},${employeeId},'FULL_DAY',${options.from},${options.to},
-      null,null,${TIMEZONE},${start},${end},${options.type ?? 'ANNUAL'},'APPROVED',${userId},now(),${userId},now())`;
+    VALUES(${tenant.company},${ids.newId()},${tenant.business},${options.branchId ?? tenant.branch},${employeeId},${options.kind ?? 'FULL_DAY'},${options.from},${options.to},
+      ${partial ? (options.start ?? null) : null},${partial ? (options.end ?? null) : null},${TIMEZONE},${start},${end},${options.type ?? 'ANNUAL'},${options.status ?? 'APPROVED'},${userId},${REQUESTED_AT},${pending ? null : userId},${pending ? null : REQUESTED_AT})`;
 }
 
 async function addIdentity(

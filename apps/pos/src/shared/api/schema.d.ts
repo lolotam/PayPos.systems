@@ -3431,6 +3431,16 @@ export interface components {
             /** @default 20 */
             limit: number;
         };
+        EmployeeLeaveListQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+            /** @enum {string} */
+            open?: "true";
+            /** Format: date-time */
+            as_of?: string;
+        };
         LeaveListItem: {
             /** Format: uuid */
             id: string;
@@ -12863,6 +12873,9 @@ export interface operations {
     employeeLeaveHistory: {
         parameters: {
             query?: {
+                open?: "true";
+                /** @description Open-list boundary instant in UTC ending in Z, no later than now and at most 24 hours old. */
+                as_of?: string;
                 cursor?: string;
                 limit?: number;
             };
