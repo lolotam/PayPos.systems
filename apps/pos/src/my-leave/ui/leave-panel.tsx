@@ -9,17 +9,16 @@ import { LeaveHistory } from './leave-history';
 import { leaveReadRefused } from '../model/read-error';
 import { LatestLeaveRequest } from './latest-leave-request';
 
-export function LeavePanel({
-  context,
-  branch,
-  timezone,
-}: {
+interface LeavePanelProps {
   context: LeaveContext;
   branch: string;
   timezone?: string | undefined;
-}) {
+  sessionRefused?: ((error: unknown) => void) | undefined;
+}
+
+export function LeavePanel({ context, branch, timezone, sessionRefused }: LeavePanelProps) {
   const locale = useLocale();
-  const state = useMyLeave(context, branch);
+  const state = useMyLeave(context, branch, sessionRefused);
   const error = state.error ?? state.query.error;
   const items = state.query.data?.pages.flatMap((page) => page.items) ?? [];
   const canCreate = state.query.data?.pages[0]?.request_branch_ids.includes(branch) ?? false;
@@ -28,13 +27,12 @@ export function LeavePanel({
       {state.busy ? <p role="status">{t(locale, 'pos.loading')}</p> : null}
       {error ? <p role="alert">{leaveErrorText(error, locale)}</p> : null}
       {state.success ? <p role="status">{t(locale, `leave.${state.success}`)}</p> : null}
-      {state.query.isPending ? (
+      {state.query.isPending && !leaveReadRefused(error) ? (
         <p role="status">{t(locale, 'pos.loading')}</p>
-      ) : state.query.isError &&
-        (state.query.data === undefined || leaveReadRefused(state.query.error)) ? (
+      ) : leaveReadRefused(error) || (state.query.isError && state.query.data === undefined) ? (
         <Button
           onClick={() => {
-            void state.query.refetch();
+            void state.retry();
           }}
         >
           {t(locale, 'myLeave.retry')}

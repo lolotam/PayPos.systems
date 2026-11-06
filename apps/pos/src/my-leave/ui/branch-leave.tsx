@@ -10,11 +10,18 @@ import { leaveReadRefused } from '../model/read-error';
 
 export function BranchLeave({ context }: { context: LeaveContext }) {
   const locale = useLocale();
-  const branches = useLeaveBranches(context);
+  const [sessionRefusal, setSessionRefusal] = useState<unknown>(null);
+  const branches = useLeaveBranches(context, !sessionRefusal, setSessionRefusal);
   const [selected, setSelected] = useState('');
+  if (sessionRefusal) return <p role="alert">{leaveErrorText(sessionRefusal, locale)}</p>;
   if (context.mode === 'reception')
     return (
-      <LeavePanel context={context} branch={context.branch_id ?? ''} timezone={context.timezone} />
+      <LeavePanel
+        context={context}
+        branch={context.branch_id ?? ''}
+        timezone={context.timezone}
+        sessionRefused={setSessionRefusal}
+      />
     );
   if (branches.isPending) return <p role="status">{t(locale, 'pos.loading')}</p>;
   if (branches.isError && (branches.data === undefined || leaveReadRefused(branches.error)))
@@ -54,6 +61,7 @@ export function BranchLeave({ context }: { context: LeaveContext }) {
           context={context}
           branch={branch}
           timezone={items.find((item) => item.id === branch)?.timezone}
+          sessionRefused={setSessionRefusal}
         />
       ) : null}
     </>

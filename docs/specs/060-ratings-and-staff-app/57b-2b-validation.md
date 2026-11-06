@@ -193,3 +193,44 @@ describe intermediate verification, not the final total. The first final lint at
 found a 61-line component; removing a redundant local display variable restored the
 60-line gate without changing behavior. No production API or database tests were
 needed because their code/contracts remained unchanged.
+
+
+## PR correction round 3
+
+All four panel bots completed on `d5df7f0cfe1065b429f0908d46aa8c70b6964533`
+before this consolidated correction. The remaining confirmed findings concern
+write refusals and session-wide branch metadata:
+
+- Create/cancel 401/403/404 now use the same refusal cleanup as reads. The panel
+  hides private form/history immediately, removes the refused query and suspends
+  automatic history reads after write refusal. Explicit retry restores controls
+  only after a successful fresh read.
+- A 401 removes the whole identity's leave-query namespace, hides the branch
+  selector and stops branch reads until that screen/session scope is replaced.
+  Branch-specific 403/404 keep narrower cleanup. Seven parameterized visible
+  write-refusal regressions cover personal/reception create and cancellation;
+  existing read-refusal tests additionally assert hidden selector and cleared
+  branch cache after 401. Transient 503 draft-preservation tests remain unchanged.
+- Finding r4490449050 is not reproduced and contradicts the installed Capacitor
+  8.5.3 native source. iOS `HttpRequestHandler.swift` lines 160?167 parses
+  `application/json` before the `.text` branch; Android `HttpRequestHandler.java`
+  lines 240?265 also parses JSON content type before response-type conversion.
+  The existing JSON serialization and JSON-string-fragment regression are retained;
+  only an Arabic rationale comment was added. No device smoke is claimed.
+
+Final affected regression run: nine POS files, 61 tests passed, including the
+native transport, authentication/session, attendance and push call regressions.
+The write cases were split into a separate test file to retain the 400-line
+file limit. An initial run exposed cache refilling after write refusal; disabling
+automatic reads while refused fixed it without weakening the cache assertions.
+The lifetime cleanup hook was extracted to retain the 60-line function limit.
+
+
+The final seven-case write-refusal recheck also proves visible recovery after an
+explicit retry succeeds for branch-scoped refusals. Global `pnpm typecheck`,
+`pnpm lint`, `pnpm lint:docs` and `pnpm module-map:check` passed. Existing lint
+warnings remain non-blocking. `git diff --check` passed. Parent guard passes:
+clean-code-guard (shared refusal policy, bounded functions, no API/native behavior
+change), test-guard (network-boundary mocks, real query cache, visible positive and
+negative assertions) and docs-guard (claims checked against source and receipts).
+Exact-head CI and external reviews remain pending after this round-3 push.

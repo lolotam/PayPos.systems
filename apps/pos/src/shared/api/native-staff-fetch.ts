@@ -23,6 +23,7 @@ function safeResponseHeaders(nativeHeaders: Record<string, string>): Headers {
 }
 
 function responseBodyText(data: unknown, contentType: string): string | undefined {
+  // Capacitor 8.5.3 بيفك application/json قبل اختيار text، حتى لو الناتج قيمة string.
   if (contentType.toLowerCase().includes('application/json')) return JSON.stringify(data);
   return typeof data === 'string' ? data : JSON.stringify(data);
 }

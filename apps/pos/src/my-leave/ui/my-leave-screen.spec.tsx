@@ -237,6 +237,16 @@ it.each([
     expect(JSON.stringify(view.cache.getQueriesData({ queryKey: ['my-leave'] }))).not.toContain(
       'Request declined',
     );
+    if (status === 401) {
+      expect(screen.queryByLabelText('Branch')).toBeNull();
+      expect(
+        view.cache.getQueryData([
+          'my-leave',
+          JSON.stringify({ ...context, mode, branch_id: branch }),
+          'branches',
+        ]),
+      ).toBeUndefined();
+    }
   },
 );
 it('retries an initial branch read failure without reopening the screen', async () => {
