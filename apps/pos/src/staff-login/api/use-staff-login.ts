@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { announceOperatorChange, observeOperatorChange } from '../model/operator-change';
 import { probeStaffSession, signOutStaff } from './staff-calls';
+import { useSessionDeadline } from '@/shared/api/use-session-deadline';
 
 export function useStaffLogin() {
   const cache = useQueryClient();
@@ -46,12 +47,13 @@ export function useStaffLogin() {
     announceOperatorChange();
     clear();
   };
+  const live = useSessionDeadline(session.data?.expires_at, clear);
   return {
     online,
     epoch,
     loading: online && session.isPending,
-    session: online && session.isSuccess && !session.isFetching ? session.data : null,
-    authenticatedSession: online ? (session.data ?? null) : null,
+    session: online && live && session.isSuccess && !session.isFetching ? session.data : null,
+    authenticatedSession: online && live ? (session.data ?? null) : null,
     changed,
     signOut: async () => {
       await signOutStaff();

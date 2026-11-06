@@ -23,8 +23,8 @@ UI scope only; the parallel reader author owns API/contracts/OpenAPI/generated c
   Queries use `gcTime: 0` and `retry: false`; no private persistence or offline outbox is introduced.
 - Personal transport uses credentials include, no-store and nativeStaffFetch on the existing iOS condition,
   without device middleware even when an old paired token exists. Reception retains staffApiClient.
-- The personal slot is hidden after a failed session probe through `privateReady`, so retained enrollment-session
-  state cannot keep a leave screen visible after failed revalidation.
+- The personal/reception slot retains confirmed session data during transient probe failure only until
+  the known expires_at; expiry, explicit authentication refusal, offline and identity replacement clear private state.
 
 ## Exact authored files
 
@@ -212,9 +212,9 @@ write refusals and session-wide branch metadata:
   existing read-refusal tests additionally assert hidden selector and cleared
   branch cache after 401. Transient 503 draft-preservation tests remain unchanged.
 - Finding r4490449050 is not reproduced and contradicts the installed Capacitor
-  8.5.3 native source. iOS `HttpRequestHandler.swift` lines 160?167 parses
+  8.5.3 native source. iOS `HttpRequestHandler.swift` lines 160-167 parses
   `application/json` before the `.text` branch; Android `HttpRequestHandler.java`
-  lines 240?265 also parses JSON content type before response-type conversion.
+  lines 240-265 also parses JSON content type before response-type conversion.
   The existing JSON serialization and JSON-string-fragment regression are retained;
   only an Arabic rationale comment was added. No device smoke is claimed.
 
@@ -318,3 +318,46 @@ visible outcomes, and audit/source correspondence. No API/server/native config,
 migration or workflow change is included. This round repairs the merge conflict
 that prevented pull_request workflows from being created; exact-head CI/mobile
 and external reviews remain required after publication. No automatic merge.
+## Authorized unified correction round 6
+
+The original 3/3, fourth and fifth exceptions remain in the record. The owner first
+approved the historical two-character documentation card, then approved the unified
+sixth-round card that supersedes it. Both original questions/options/answers are
+preserved as UTF-8 in owner-questions.ar.md (manager activity29259/29281 and
+answers29292/29293). No separate documentation push or counter reset occurred.
+
+This round contains only the four approved P2 corrections and the two line ranges:
+
+- Branch discovery now retains its own 403/404 refusal latch. Automatic reads remain
+  disabled after refusal, even across focus/rerender. Only successful explicit Retry
+  clears it. The refusal UI takes precedence over the removed query's pending state.
+- Cancellation applies the confirmed returned record to matching cached pages before
+  refreshing. A transient503 cannot restore the old PENDING row or cancellation action.
+  This is server-confirmed data, not an optimistic cancellation or API-order change.
+- Both personal and reception session hooks share a local deadline check for the
+  server-provided expires_at. It hides sessions and clears query state at that known
+  deadline despite failed probes. Focus/visibilitychange recheck wall time on resume;
+  the server's expiry rule is unchanged. Missing/malformed deadlines expose no session.
+  Old hook fixtures now use a future ISO deadline instead of an expired/invalid string.
+- After same-identity recovery, a removed selected branch is dropped; the freshly
+  authorized branch selector can offer an alternative without restoring removed-branch
+  history. Existing refusal behavior remains for a still-selected but refused branch.
+- Native-source line references now read160-167 and240-265, without changing rationale.
+
+Final visible regression run:14 POS files /79 tests passed. New cases cover branch
+403/404 with real visibility/focus events plus rerender, cancellation success with
+refresh503, six personal/reception expiry cases (timer/visibility/focus with503/network
+failures), and recovery to a permitted alternative for the same identity. Existing
+history latching,401/different-identity recovery, offline/replacement/revocation,
+transport, attendance and push regressions also pass. An initial run caught loading
+precedence hiding Retry after cache eviction; the same assertions pass after fixing it.
+The alternative-branch fixture now supplies matching request_branch_ids; no assertion
+was removed to accommodate a mismatch in synthetic creation authority.
+
+No API, server expiry, migrations, native configuration or workflow changes. The
+single UI retry component extraction preserves the60-line function limit. Parent
+clean-code-guard/test-guard/docs-guard passes checked the deadline/cache semantics,
+server-confirmed cancellation, visible outcomes and verbatim decision source.
+Final local gates, git-show UTF-8 verification and publication identity follow below.
+
+Global typecheck, lint, lint:docs and module-map:check passed (exit0). Prettier and git diff --check passed. The historical two-character card and superseding unified card were checked against git-show UTF-8 bytes before and after commit. No exact-head CI/review pass is claimed before publication; those gates must run on the resulting SHA.

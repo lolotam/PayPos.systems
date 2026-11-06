@@ -20,11 +20,11 @@ export async function recoverLeaveSession(
     )
   )
     throw new LeaveHttpError('UNAUTHENTICATED', 401);
-  if (signal.aborted) return;
+  if (signal.aborted) return branch;
   if (context.mode === 'personal') {
     const branches = await leaveCalls.branches(signal);
-    if (branch && !branches.items.some((item) => item.id === branch))
-      throw new LeaveHttpError('FORBIDDEN', 403);
+    if (branch && !branches.items.some((item) => item.id === branch)) return '';
   }
   if (branch) await leaveCalls.list(context.mode, branch, undefined, signal);
+  return branch;
 }

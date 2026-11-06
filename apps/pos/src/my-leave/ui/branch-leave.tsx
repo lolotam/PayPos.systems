@@ -1,14 +1,13 @@
 import { useState } from 'react';
 import { t } from '@pospay/i18n';
-import { Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useLeaveBranches } from '../api/use-my-leave';
 import { leaveErrorText } from '../model/error-text';
 import type { LeaveContext } from '../model/context';
 import { LeavePanel } from './leave-panel';
-import { leaveReadRefused } from '../model/read-error';
 import { LeaveSessionRecovery } from './leave-session-recovery';
 import { LeaveBranchSelector } from './leave-branch-selector';
+import { LeaveReadRetry } from './leave-read-retry';
 
 export function BranchLeave({ context }: { context: LeaveContext }) {
   const locale = useLocale();
@@ -21,7 +20,11 @@ export function BranchLeave({ context }: { context: LeaveContext }) {
         context={context}
         branch={context.mode === 'reception' ? (context.branch_id ?? '') : selected}
         error={sessionRefusal}
-        recovered={() => setSessionRefusal(null)}
+        recovered={(eligible) => {
+          setSelected(eligible);
+          branches.clearRefusalAfterRecovery();
+          setSessionRefusal(null);
+        }}
       />
     );
   if (context.mode === 'reception')
@@ -33,22 +36,11 @@ export function BranchLeave({ context }: { context: LeaveContext }) {
         sessionRefused={setSessionRefusal}
       />
     );
-  if (branches.isPending) return <p role="status">{t(locale, 'pos.loading')}</p>;
-  if (branches.isError && (branches.data === undefined || leaveReadRefused(branches.error)))
-    return (
-      <div>
-        <p role="alert">{leaveErrorText(branches.error, locale)}</p>
-        <Button
-          onClick={() => {
-            void branches.refetch();
-          }}
-        >
-          {t(locale, 'myLeave.retry')}
-        </Button>
-      </div>
-    );
-  if (branches.data === undefined) return null;
-  const items = branches.data.items;
+  if (branches.isPending && !branches.refusal)
+    return <p role="status">{t(locale, 'pos.loading')}</p>;
+  if (branches.refusal || (branches.isError && branches.data === undefined))
+    return <LeaveReadRetry error={branches.refusal ?? branches.error} retry={branches.retry} />;
+  const items = branches.data?.items ?? [];
   if (items.length === 0) return <p>{t(locale, 'myLeave.noBranches')}</p>;
   const branch = items.some((item) => item.id === selected) ? selected : '';
   return (

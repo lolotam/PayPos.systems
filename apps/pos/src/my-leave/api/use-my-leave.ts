@@ -5,6 +5,7 @@ import { leaveIdentity, type LeaveContext } from '../model/context';
 import { leaveReadRefused } from '../model/read-error';
 import { leaveCalls } from './leave-calls';
 import { useForgetRefusedRead, forgetRefusedLeaveData } from './use-forget-refused-read';
+import { refreshCancelledLeave } from './refresh-cancelled-leave';
 
 export function useMyLeave(
   context: LeaveContext,
@@ -31,7 +32,7 @@ export function useMyLeave(
   useForgetRefusedRead(query.error, identity, branch, sessionRefused);
   const { write, busy, error, success, lastRequest, clearError } = useLeaveWrite(
     controller,
-    () => cache.invalidateQueries({ queryKey }),
+    (confirmed) => refreshCancelledLeave(cache, queryKey, confirmed),
     query.dataUpdatedAt,
     (failure) => {
       if (leaveReadRefused(failure)) setRefusal(failure);
@@ -71,21 +72,29 @@ export function useLeaveBranches(
   active = true,
   sessionRefused?: ((error: unknown) => void) | undefined,
 ) {
+  const [refusal, setRefusal] = useState<unknown>(null);
   const query = useQuery({
     queryKey: ['my-leave', leaveIdentity(context), 'branches'],
-    queryFn: ({ signal }) => leaveCalls.branches(signal),
-    enabled: context.mode === 'personal' && active,
+    queryFn: ({ signal }) => readLeaveBranches(signal, setRefusal),
+    enabled: context.mode === 'personal' && active && !refusal,
     retry: false,
     gcTime: 0,
     staleTime: 0,
   });
-  useForgetRefusedRead(query.error, leaveIdentity(context), 'branches', sessionRefused);
-  return query;
+  useForgetRefusedRead(refusal ?? query.error, leaveIdentity(context), 'branches', sessionRefused);
+  return {
+    ...query,
+    refusal,
+    clearRefusalAfterRecovery: () => setRefusal(null),
+    retry: async () => {
+      if ((await query.refetch()).isSuccess) setRefusal(null);
+    },
+  };
 }
 
 function useLeaveWrite(
   controller: React.RefObject<AbortController>,
-  refresh: () => Promise<void>,
+  refresh: (confirmed: LeaveRequest) => Promise<void>,
   updatedAt: number,
   refused: (error: unknown) => void,
 ) {
@@ -117,7 +126,7 @@ function useLeaveWrite(
       attempts.current.delete(fingerprint);
       setSuccess(message);
       if (message === 'saved') setLastRequest(result);
-      else await refresh();
+      else await refresh(result);
     } catch (failure) {
       if (!signal.aborted) {
         setError(failure);
@@ -159,6 +168,15 @@ async function readLeavePage(
     return await leaveCalls.list(request.mode, request.branch, request.cursor, request.signal);
   } catch (failure) {
     if (leaveReadRefused(failure) && !request.signal.aborted) refuse(failure);
+    throw failure;
+  }
+}
+
+async function readLeaveBranches(signal: AbortSignal, refuse: (error: unknown) => void) {
+  try {
+    return await leaveCalls.branches(signal);
+  } catch (failure) {
+    if (leaveReadRefused(failure) && !signal.aborted) refuse(failure);
     throw failure;
   }
 }

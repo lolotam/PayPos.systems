@@ -24,7 +24,7 @@ beforeEach(() => {
   vi.stubGlobal('BroadcastChannel', undefined);
   calls.probe.mockResolvedValue({
     user_id: 'synthetic-operator',
-    expires_at: 'synthetic-deadline',
+    expires_at: '2099-10-04T12:00:00Z',
   });
   calls.signOut.mockResolvedValue(undefined);
 });

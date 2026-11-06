@@ -15,7 +15,7 @@ export function LeaveSessionRecovery({
   context: LeaveContext;
   branch: string;
   error: unknown;
-  recovered: () => void;
+  recovered: (branch: string) => void;
 }) {
   const locale = useLocale();
   const [failure, setFailure] = useState(error);
@@ -28,8 +28,8 @@ export function LeaveSessionRecovery({
     attempt.current = controller;
     setBusy(true);
     try {
-      await recoverLeaveSession(context, branch, controller.signal);
-      if (!controller.signal.aborted) recovered();
+      const eligibleBranch = await recoverLeaveSession(context, branch, controller.signal);
+      if (!controller.signal.aborted) recovered(eligibleBranch);
     } catch (refusal) {
       if (!controller.signal.aborted) setFailure(refusal);
     } finally {
