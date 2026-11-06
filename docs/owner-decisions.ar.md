@@ -31,6 +31,7 @@
 | PP-131 | 2026-11-05 | PP-131.1 shards الـ API تبدأ مع `check` في نفس الوقت؛ PP-131.2 حد 3 جولات تصليح لـ PR الكود وجولة واحدة لـ PR الوثايق، وبعده P0/P1 بس تمنع والباقي issues، و`@codex review` مرة واحدة على الـ head النهائي؛ PP-131.3 اختبار الـ worker في job مستقل مع قياس أول 10 runs والتراجع لو الطابور ألغى المكسب | هنا، البند 68؛ كروت لوليد في جلسة تحليل السرعة |
 | PP-132 | 2026-11-05 | تأكيد وليد لنموذج تنفيذ معاينة 47-1: نقلها إلى worker وتقسيمها إلى 47-1a (طلب وقراءة الحالة) و47-1b (worker)، وفق قاعدة 200ms في `CLAUDE.md` §6 دون استثناء. **إجابة وليد حرفيًا:** «موافق (المقترح)»، 22:38 الكويت، محادثة مدير PosPay، كارت مباشر وفق PP-117. سجل قرار المدير الأسبق محفوظ كتاريخ؛ توثيق جواب المالك يغلق #860. | [سجل شريحة 058، سؤال 47-1-PERF-1](specs/058-packages-sell-redeem/owner-questions.ar.md#47-1-perf-1--مسار-معاينة-الباقات-بعد-قياس-الحد-الأقصى)؛ [ملحق ADR-0034 بتاريخ 2026-11-05](adr/0034-employee-import-framework.md#addendum-2026-11-05---package-preview-request-47-1a) يوثّق التقسيم والقياس |
 | PP-133 | 2026-11-06 | قرار وليد التقني بشأن #868، كارت مباشر في محادثة مدير PosPay وفق PP-117. **الإجابة حرفيًا:** «قراءة /ready في الإيصال (المقترح)». يبقى healthcheck على /health بلا تغيير compose؛ كل إيصال نشر staging يقرأ /ready الخاص بالـworker قراءة فقط من داخل الكونتينر، ويسجل HTTP وحالة كل dependency بمهلة محدودة، دون فتح ports أو تغيير env. | هنا، البند 69؛ [خطوة الإيصال](runbook.md#staging-worker-readiness-in-every-deploy-receipt-pp-133) |
+| PP-135 | 2026-11-06 | قرار وليد التقني، مباشر في محادثة المشروع وفق PP-117. **الإجابة حرفيًا:** «نشيل --with-deps من الـ CI (مُوصى به)». إزالة الوسيط من خطوتَي Chromium في `check` و`worker-tests` فقط، وإبقاؤه في صورة worker. | هنا، البند 71؛ PP-134 محجوز في PR #877 |
 | PP-1 | 2026-10-18 | PP-1.1 تسجيل دخول Grok؛ PP-1.2 اختيار وليد في دفعة 32؛ PP-1.3 فرز الـ issues المؤجلة | هنا (البنود 3 و2 و4) |
 | PP-2 | 2026-10-18 | PP-2.1 تصحيح سعر سطر موظفته سابت (#325)؛ PP-2.2 صلاحية هوية النشاط (#331) | PP-2.1: `docs/specs/050-orders-record-service-session/owner-questions.ar.md` بند 35 (ED-Q15)، وسؤال فلوس فاتنشر كمان على صفحة القرارات في الدفعة 33 لأبو سالم؛ PP-2.2: `docs/specs/052-settings-business-identity/owner-questions.ar.md` بند 5 (BI-Q5) |
 | PP-3 | 2026-10-18 | PP-3.1 المنع على كل فروع الموظفة | `docs/specs/051-staff-employee-number/owner-questions.ar.md` بند 22 |
@@ -1722,3 +1723,22 @@
 **المقترح والإجابة حرفيًا:** «قراءة /ready في الإيصال (المقترح)».
 
 **الأثر المعتمد:** يبقى healthcheck الخاص بالـworker على `/health`؛ لا تغيير في compose أو env ولا فتح ports. كل إيصال نشر staging يقرأ `/ready` قراءة فقط من داخل كونتينر الـworker القائم، بكود Node يُمرر عبر stdin إلى `docker exec -i` وبمهلة محدودة، ويسجل كود HTTP وحالة كل dependency. [إجراء القراءة وتفسير النتيجة](runbook.md#staging-worker-readiness-in-every-deploy-receipt-pp-133) يوثّق طريقة DEP-1؛ التسجيل هنا ليس إثبات تنفيذ نشر أو تعديل للسيرفر.
+
+### 71. إزالة تثبيت اعتماديات النظام من Chromium في CI (PP-135، 6 نوفمبر 2026)
+
+**النوع والمصدر:** قرار تقني لوليد؛ مباشر في محادثة المشروع وفق PP-117، بتاريخ 2026-11-06. لا يُنشر على صفحة قرارات الشريك. PP-134 محجوز في PR #877؛ لا إعادة ترقيم لأي قرار.
+
+**السؤال:** هل نشيل `--with-deps` من خطوتَي تثبيت Chromium في CI لتفادي بطء تنزيل خطوط النظام، مع إبقائه في صورة worker؟ نص السؤال والبدائل الأخرى حرفيًا غير مرفق بتكليف التنفيذ؛ الصياغة هنا تلخص السؤال والبدائل التقنية ولا تدّعي نقل الكارت حرفيًا.
+
+**الاختيارات بالترتيب:**
+
+1. «نشيل --with-deps من الـ CI (مُوصى به)»
+2. الإبقاء على `--with-deps` في CI وتحمل تنزيل اعتماديات النظام.
+
+**المقترح والإجابة حرفيًا:** «نشيل --with-deps من الـ CI (مُوصى به)».
+
+**الدليل:** تشغيل [42088446928، job 127461088112](https://github.com/lolotam/PayPos.systems/actions/runs/42088446928/job/127461088112) المرتبط بانتهاء مهلة PR #851: تنزيل Chromium من `cdn.playwright.dev` استغرق نحو ثانية؛ مكتبات النظام موجودة على GitHub runner وظهرت برسالة `already the newest version`. التنزيل الفعلي كان خطوط CJK/Thai، ومنها `fonts-ipafont-gothic` و`fonts-freefont-ttf` و`fonts-unifont` و`fonts-wqy-zenhei` و`xfonts-*`، من `azure.archive.ubuntu.com` بسرعة `22.4 kB/s`: «Fetched 15.0 MB in 11min 12s». ملفات PDF تستخدم IBM Plex Sans Arabic المضمّن في `packages/documents/src/fonts`؛ الخطوط الإضافية غير مطلوبة لها. تخزين Chromium مؤقتًا لا يعالج بطء apt نفسه.
+
+**الأثر المعتمد:** إزالة وسيط ` --with-deps` فقط من أمر `pnpm --filter @pospay/documents exec node scripts/install-headless-shell.mjs --with-deps` في jobَي `check` و`worker-tests` داخل `.github/workflows/ci.yml`؛ لا تغيير آخر في workflow. يظل `deploy/Dockerfile.worker` كما هو، بما فيه `--with-deps`، لأن صورة السيرفر تحتاج الاعتماديات الكاملة.
+
+**الرجوع عند الفشل:** لو ظهرت مكتبة ناقصة، اختبار Chromium يفشل بشكل ظاهر؛ نرجّع `--with-deps` في الخطوة المتأثرة وحدها.
