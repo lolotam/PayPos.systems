@@ -7,24 +7,17 @@ import {
   createPackageSaleTransactions,
 } from '../persistence/package-sale-transactions.ts';
 import { SellPackageUseCase } from '../use-cases/sell-package/sell-package.usecase.ts';
-import { ids, interceptDatabase } from './session.fixture.ts';
-import { packageSaleFixture, type PackageSaleFixture } from './package-sale.fixture.ts';
+import { ids } from './session.fixture.ts';
+import { profileSaleDatabase } from './package-sale-profile.fixture.ts';
+import { packageSaleVolumeFixture, type PackageSaleFixture } from './package-sale.fixture.ts';
 
 let f: PackageSaleFixture;
-const services = Array.from({ length: 20 }, () => ids.newId());
+let services: string[];
 
 beforeAll(async () => {
-  f = await packageSaleFixture();
-  await f.h
-    .owner`DELETE FROM package_type_components WHERE company_id=${f.company} AND package_type_id=${f.packageType}`;
-  for (const [index, service] of services.entries()) {
-    await f.h
-      .owner`INSERT INTO services(company_id,id,business_id,name_en,price,commission_rule_kind)
-      VALUES(${f.company},${service},${f.business},${`Synthetic volume service ${index}`},'1.000','ZERO')`;
-    await f.h
-      .owner`INSERT INTO package_type_components(company_id,id,package_type_id,business_id,service_id,sessions,position)
-      VALUES(${f.company},${ids.newId()},${f.packageType},${f.business},${service},365,${index + 1})`;
-  }
+  const fixture = await packageSaleVolumeFixture();
+  f = fixture;
+  services = fixture.volumeServices;
 });
 
 afterAll(async () => {
@@ -33,11 +26,9 @@ afterAll(async () => {
 
 it('SA-10 commits 7,300 slots in three financial inserts, each of five warm full sales below 200 ms', async () => {
   const statements: string[] = [];
-  const database = interceptDatabase(f.db, async (statement) => {
-    statements.push(statement);
-  });
+  const profile = profileSaleDatabase(f.db, statements);
   const useCase = new SellPackageUseCase(
-    createPackageSaleTransactions(database, ids, bindPackageSaleReaders),
+    createPackageSaleTransactions(profile.database, ids, bindPackageSaleReaders),
     ids,
     f.clock,
   );
@@ -48,10 +39,12 @@ it('SA-10 commits 7,300 slots in three financial inserts, each of five warm full
   const durations: number[] = [];
   for (let attempt = 0; attempt < 6; attempt += 1) {
     statements.length = 0;
+    profile.phases.length = 0;
     const context = f.context();
     const started = performance.now();
     const response = await useCase.execute(context, input);
     const elapsed = performance.now() - started;
+    console.info('SA-10 SQL/commit profile:', JSON.stringify({ attempt, elapsed, phases: profile.phases }));
     if (attempt > 0) durations.push(elapsed);
     for (const table of ['package_entitlements', 'package_components', 'package_session_slots']) {
       expect(

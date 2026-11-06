@@ -52,3 +52,16 @@ export async function packageSaleFixture(): Promise<PackageSaleFixture> {
   });
   return { ...f, packageType, firstService, secondService, saleInput };
 }
+
+export async function packageSaleVolumeFixture() {
+  const f = await packageSaleFixture();
+  const volumeServices = Array.from({ length: 20 }, () => ids.newId());
+  await f.h.owner`DELETE FROM package_type_components WHERE company_id=${f.company} AND package_type_id=${f.packageType}`;
+  for (const [index, service] of volumeServices.entries()) {
+    await f.h.owner`INSERT INTO services(company_id,id,business_id,name_en,price,commission_rule_kind)
+      VALUES(${f.company},${service},${f.business},${`Synthetic volume service ${index}`},'1.000','ZERO')`;
+    await f.h.owner`INSERT INTO package_type_components(company_id,id,package_type_id,business_id,service_id,sessions,position)
+      VALUES(${f.company},${ids.newId()},${f.packageType},${f.business},${service},365,${index + 1})`;
+  }
+  return { ...f, volumeServices };
+}

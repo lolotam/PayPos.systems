@@ -1,5 +1,9 @@
 # 42-3b1 — SA-10 local stop receipt, 2026-11-06
 
+**Later manager instruction:** diagnosis and bounded correction resumed without changing
+SA-10. See [the performance diagnosis](42-3b1-performance-diagnosis.md). The stop status
+below describes this earlier checkpoint, not the current authorization to investigate.
+
 Status: **FAILED / sale delivery stopped for spec review**. No PR or push. This is not
 a waiver, an implementation-complete receipt, or evidence about CI performance.
 

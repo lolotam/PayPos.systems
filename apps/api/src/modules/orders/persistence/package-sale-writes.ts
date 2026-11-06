@@ -32,19 +32,15 @@ export async function insertPackageSale(tx: Tx, plan: PackageSalePlan): Promise<
   const slots = plan.components.flatMap((component) =>
     component.slots.map((slot) => ({
       id: slot.id,
-      business_id: entitlement.business_id,
-      entitlement_id: entitlement.id,
       component_id: component.id,
       ordinal: slot.ordinal,
       unit_value: moneyToString(slot.unitValue),
     })),
   );
-  // الجلسات بتمر كـ array لكل عمود: ٧٣٠٠ صف × ٦ أعمدة يطلع فوق حد الـ parameters في PostgreSQL.
-  // القيم النصية بتتحول لـ numeric في جوه الـ SELECT عشان postgres.js يسلّمها نص[] مش numeric[].
+  // مفاتيح نطاق البيع ثابتة لكل الجلسات؛ JSONB محدود بباقة واحدة يقلل تكرار UUIDs وعدد معاملات النقل.
+  // المبالغ تظل نصوصًا من bigint، والتحويل المعرّف في SQL لا يمر عبر number.
   await tx.execute(sql`INSERT INTO package_session_slots(company_id,id,business_id,entitlement_id,component_id,ordinal,unit_value,state)
-    SELECT ${entitlement.company_id},s.id,s.business_id,s.entitlement_id,s.component_id,s.ordinal,s.unit_value::numeric,'FREE'
-    FROM unnest(${sql.param(slots.map((slot) => slot.id))}::uuid[],${sql.param(slots.map((slot) => slot.business_id))}::uuid[],
-      ${sql.param(slots.map((slot) => slot.entitlement_id))}::uuid[],${sql.param(slots.map((slot) => slot.component_id))}::uuid[],
-      ${sql.param(slots.map((slot) => slot.ordinal))}::int[],${sql.param(slots.map((slot) => slot.unit_value))}::text[])
-      AS s(id,business_id,entitlement_id,component_id,ordinal,unit_value)`);
+    SELECT ${entitlement.company_id},s.id,${entitlement.business_id},${entitlement.id},s.component_id,s.ordinal,s.unit_value,'FREE'
+    FROM jsonb_to_recordset(${JSON.stringify(slots)}::jsonb)
+      AS s(id uuid,component_id uuid,ordinal smallint,unit_value numeric(14,3))`);
 }

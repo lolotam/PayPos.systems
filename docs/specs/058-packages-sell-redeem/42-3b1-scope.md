@@ -70,6 +70,10 @@ No test is waived, skipped to pass or removed from the acceptance matrix.
 
 ## Current validation state
 
+The manager has since authorized [performance diagnosis and bounded correction](42-3b1-performance-diagnosis.md)
+without changing the 200-ms gate. The paragraph below preserves the earlier stop checkpoint;
+no new owner decision is required merely for a failed timing measurement.
+
 SA-10 was executed first and failed all five complete-transaction timings; delivery is
 stopped for spec review. See the [measured stop receipt](42-3b1-sa10-receipt.md).
 Earlier api:check results describe the pre-split head only. Remaining acceptance coverage,
