@@ -394,3 +394,59 @@ It is an operator run, once per company — not a BullMQ job — and it never se
    so the newly visible sessions are processed; do not continue from the last cursor.
 6. **Until 59-2 ships**, the rating-request switch is off for every business, so the bootstrap schedules nothing
    yet; it only proves the frozen range and the coverage.
+
+## 59b-2c: dormant rating discovery and Redis-loss recovery
+
+This procedure is preparation for a separately authorized activation. Production
+still installs `closedRatingClaimsLifecycle()`. Do not enable its factory, template
+or sender as part of discovery. The seven activation blockers listed in the
+[refresh](specs/060-ratings-and-staff-app/59b-2-refresh.md) remain separate work.
+
+1. **Inventory during migrate.** The ADR-0038 step `rating-claims-discovery` uses
+   the migration owner's company-ID list, then `withTenant` for inventory and
+   appending an empty `RatingClaimsDiscoveryRequested`. The existing dispatcher
+   role only checks whether that company's discovery already exists. A previously
+   committed, published or parked discovery is not appended again. No new secret
+   is required: migrate already receives `POSTGRES_DISPATCHER_PASSWORD`.
+2. **Read the counters.** The log prefix `rating_claims_discovery` has `companies`,
+   `scheduled`, `sending`, `sent`, `historicalAttempts` and `discoveryEvents`.
+   Historical attempts are `rating_request` in `SENDING`, `SENT`, `FAILED`,
+   `EXPIRED` or `SUPPRESSED`. If `sending`, `sent` or `historicalAttempts` is
+   nonzero during DEP-1, stop any dependent activation and send the counts to the
+   manager for the PENDING owner question. Do not reset, replay or resend these
+   historical requests or attempts. No staging inventory SQL is authorized by
+   this development PR.
+3. **Recover registration or a late visit.** After an authorized deploy, wait for
+   every replica to carry the current scheduling consumer; stop any older worker
+   before freezing a replay range. Build the worker and run from the repository
+   root with existing secret delivery for
+   `DATABASE_URL` (`pospay_app`), `DISPATCHER_DATABASE_URL` (`pospay_dispatcher`)
+   and `REDIS_URL`:
+
+   ```sh
+   node apps/worker/dist/recover-rating-claims.js --company <uuid>
+   ```
+
+   Run explicitly for each company from the authorized inventory, including a
+   company with no new visit since Redis loss. The command builds only the Queue
+   registration client, no claim Worker or token capability. It reads retained
+   discovery and original visit events, including parked discovery and visits an
+   older worker already acknowledged. Visits reach the scheduling consumer with
+   their original ID, so a lost commit reply is deduplicated. Discovery only
+   repairs registration. Source outbox metadata and existing receipts are never
+   reset. A future activation must still supply the real Worker before queued
+   claims can execute.
+4. **Bound and resume.** A run reads at most 100 pages of 100 events. Its JSON
+   result contains `complete`, `afterId`, `throughId`, `replayed`; exit code 1
+   means incomplete or failed. Resume a printed incomplete result using
+   `--after <afterId> --through <throughId>`, omitting a null flag. An event's ID
+   advances the cursor only after registration and scheduling succeed. A thrown
+   failure prints `RATING_CLAIMS_RECOVERY_FAILED` with no raw cause; if no cursor
+   was returned, restart the prior range from its last reported cursor, or from
+   the beginning. Repeating succeeded pages is safe. Once complete, start a fresh
+   range to include events committed beyond its captured upper bound.
+5. **Stop conditions.** A malformed scope, foreign event, invalid discovery
+   envelope, unavailable Redis or database must fail; do not mark source events
+   published or unpark them manually. Repair the dependency, rerun the same range
+   and verify one scheduler per company. Repeated registration leaves an existing
+   valid scheduler and claim continuation state unchanged.

@@ -1,6 +1,7 @@
 import type { ClaimedEvent, DeliveryOutcome, TenantWrappers, Tx } from '@pospay/db';
 import { ratingBusinessName, ratingNamesLabel, ratingTeamLabel } from '@pospay/i18n';
 import type { Logger } from '@pospay/observability';
+import { RATING_CLAIMS_DISCOVERY } from '@pospay/contracts';
 import { Redis } from 'ioredis';
 import type { OutboxConsumer } from '../../outbox/consumer.ts';
 import { onServiceSessionEvent } from './events/handlers/on-service-session-event.handler.ts';
@@ -233,7 +234,7 @@ export function createRatingClaimsRuntime(deps: RatingClaimsRuntimeDeps): Rating
       await processor.close();
       await closeRedisClient(redis);
     },
-    eventTypes: RATING_CLAIMS_TRIGGERS,
+    eventTypes: [...RATING_CLAIMS_TRIGGERS, RATING_CLAIMS_DISCOVERY],
   };
 }
 

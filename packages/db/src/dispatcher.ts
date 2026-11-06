@@ -28,6 +28,8 @@ export type DeliveryOutcome =
  * الـ idempotency القديمة، يتأكد إن الاتصال شغال، ويقفل الـ pool — ومفيش أي طريقة تانية يوصل بيها لأي جدول.
  */
 export interface OutboxDispatcherDatabase {
+  /** يفحص وجود اكتشاف شركة أثناء الترحيل دون منح التطبيق قراءة outbox أو تعديل إيصالاته. */
+  ratingClaimsDiscoveryExists(companyId: string): Promise<boolean>;
   dispatchBatch(
     limit: number,
     deliver: (event: ClaimedEvent) => Promise<DeliveryOutcome>,
@@ -40,6 +42,10 @@ export interface OutboxDispatcherDatabase {
   }>;
   /** يقرأ صفحة أحداث مدخلات العمولة (السطور والرواتب) لشركة محددة؛ القراءة فقط، والتوصيل بيعمله المستهلك (50-3) بـ pospay_app داخل withTenant. */
   commissionInputReplayPage(companyId: string, afterId: string | null, throughId: string | null, limit: number): Promise<{
+    throughId: string | null; events: readonly ClaimedEvent[];
+  }>;
+  /** يقرأ أحداث اكتشاف التقييم والزيارات الأصلية لشركة واحدة دون تغيير النشر أو الاستهلاك. */
+  ratingClaimsReplayPage(companyId: string, afterId: string | null, throughId: string | null, limit: number): Promise<{
     throughId: string | null; events: readonly ClaimedEvent[];
   }>;
   ping(): Promise<void>;
@@ -79,6 +85,8 @@ const SERVICE_SESSION_REPLAY_TYPES = sql`event_type IN ('ServiceSessionRecorded'
 // إعادة تشغيل مدخلات العمولة: السطور والرواتب المحفوظة في الأوتبوكس، بنفس النمط: شركة ومؤشر UUID
 // وحدّ أعلى ممسوك من أول نداء، والصفحات المنشورة وغير المنشورة على السواء.
 const COMMISSION_INPUT_REPLAY_TYPES = sql`event_type IN ('ServiceSessionRecorded','ServiceSessionLinesAdded','ServiceLineChanged','SalaryChanged')`;
+// تشمل القراءة المنشور والمتوقف: عامل قديم ربما أقر الزيارة قبل وجود تسجيل المجدول.
+const RATING_CLAIMS_REPLAY_TYPES = sql`event_type IN ('ServiceSessionRecorded','ServiceSessionLinesAdded','ServiceLineChanged','RatingClaimsDiscoveryRequested')`;
 
 // event محاولاته خلصت وحجزه انتهى من غير نتيجة: الـ worker وقع في كل مرة قبل ما يسجّل، فمحدش هيعمل له park.
 // بيقف هنا في نفس transaction الـ claim، وبيفضل ماسك الـ aggregate زي أي event parked.
@@ -206,6 +214,7 @@ export function createOutboxDispatcherDatabase(options: {
       await assertRole(tx);
       return readReplayPage(tx, companyId, afterId, throughId, limit, COMMISSION_INPUT_REPLAY_TYPES);
     }),
+    ...ratingReplayReaders(db, assertRole),
     sweepExpiredIdempotencyKeys: async (batchSize) => {
       const [row] = await db.transaction(async (tx) => {
         await assertRole(tx);
@@ -236,4 +245,25 @@ async function readReplayPage(
     FROM outbox WHERE company_id=${companyId} AND ${types} AND id<=${end}::uuid
       ${afterId === null ? sql`` : sql`AND id>${afterId}::uuid`} ORDER BY id LIMIT ${limit}`);
   return { throughId: end, events: rows.map((row) => ({ ...toEvent(row), attempt: Math.max(1, row.attempts) })) };
+}
+
+function ratingReplayReaders(
+  db: PostgresJsDatabase,
+  assertRole: (runner: Pick<PostgresJsDatabase, 'execute'>) => Promise<void>,
+): Pick<OutboxDispatcherDatabase, 'ratingClaimsDiscoveryExists' | 'ratingClaimsReplayPage'> {
+  return {
+    ratingClaimsDiscoveryExists: (companyId) => db.transaction(async (tx) => {
+      await assertRole(tx);
+      if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(companyId))
+        throw new TypeError('REPLAY_SCOPE_INVALID');
+      const rows = await tx.execute(sql`SELECT id FROM outbox WHERE company_id=${companyId}
+        AND event_type='RatingClaimsDiscoveryRequested' AND aggregate_type='rating_claims_discovery'
+        AND aggregate_id=${companyId} LIMIT 1`);
+      return rows.length > 0;
+    }),
+    ratingClaimsReplayPage: (companyId, afterId, throughId, limit) => db.transaction(async (tx) => {
+      await assertRole(tx);
+      return readReplayPage(tx, companyId, afterId, throughId, limit, RATING_CLAIMS_REPLAY_TYPES);
+    }),
+  };
 }

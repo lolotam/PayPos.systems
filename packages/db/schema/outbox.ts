@@ -64,6 +64,11 @@ export const outbox = pgTable(
       .on(t.companyId, t.id)
       .concurrently()
       .where(sql`${t.eventType} IN ('ServiceSessionRecorded','ServiceSessionLinesAdded','ServiceLineChanged','SalaryChanged')`),
+    // استعادة اكتشاف التقييم تشمل أحداث الزيارة التي أقرها عامل سابق دون مسح بقية أنواع الشركة.
+    index('outbox_rating_claims_replay_idx')
+      .on(t.companyId, t.id)
+      .concurrently()
+      .where(sql`${t.eventType} IN ('ServiceSessionRecorded','ServiceSessionLinesAdded','ServiceLineChanged','RatingClaimsDiscoveryRequested')`),
     check('outbox_event_type_format', sql`${t.eventType} ~ '^[A-Z][A-Za-z0-9]{1,99}$'`),
     check('outbox_aggregate_type_format', sql`${t.aggregateType} ~ '^[a-z][a-z0-9_]{1,62}$'`),
     check('outbox_attempts_non_negative', sql`${t.attempts} >= 0`),
