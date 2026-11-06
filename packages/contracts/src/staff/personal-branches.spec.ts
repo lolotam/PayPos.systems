@@ -15,4 +15,10 @@ it('keeps the discovery projection strict and advertises personal authentication
   expect(personalBranchesPaths['/v1/staff/me/branches'].get.security).toEqual([
     { PersonalStaffSession: [] },
   ]);
+  expect(personalBranchesPaths['/v1/staff/me/branches'].get.responses['503']).toEqual({
+    description: 'NOT_READY',
+    content: {
+      'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+    },
+  });
 });

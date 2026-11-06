@@ -22,6 +22,7 @@ export const personalBranchesPaths = {
         },
         '401': { description: 'UNAUTHENTICATED', content: errorContent },
         '403': { description: 'FORBIDDEN', content: errorContent },
+        '503': { description: 'NOT_READY', content: errorContent },
       },
     },
   },

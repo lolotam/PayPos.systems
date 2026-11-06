@@ -131,3 +131,14 @@ tests), including EXPLAIN; the contract test also passed. Earlier counts above d
 the earlier test layout. API typecheck and scoped test lint passed after the correction.
 The parent run used this task's private PostgreSQL lane on 55406 and its additional
 local Redis container on 56407; no infrastructure cleanup was performed.
+
+## PR correction round 1
+
+All four panel bots completed on `2748ebffcd0f4f918382e52c47ef2d380fdbdd0e`.
+The manager rejected the kiosk-access finding: this reader is personal-only by the
+approved split; reception already has the device branch and bypasses discovery in #882.
+The accepted LOW finding adds the existing `503 NOT_READY` failure to OpenAPI with
+`ErrorEnvelope`, plus a contract assertion and regenerated admin/POS/menu clients.
+Contracts test, typecheck and lint passed; `git diff --check` passed. No production
+authorization or query changed. Per the manager's clarification, correction pushes
+wait for panel completion, while CI runs again on the resulting head.
