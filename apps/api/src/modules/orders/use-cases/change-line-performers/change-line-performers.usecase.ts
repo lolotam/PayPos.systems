@@ -124,7 +124,7 @@ export class ChangeLinePerformersUseCase {
         retained: linePerformerIdentities(locked.retained, found),
       },
       preparation: {
-        line: { status: locked.line.status, revision: locked.line.revision, not_changeable: locked.line.redemption_id !== null },
+        line: { status: locked.line.status, revision: locked.line.revision, not_changeable: false },
         expected_revision: context.input.expected_revision,
         business_date: locked.line.business_date,
         now: at,

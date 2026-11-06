@@ -1,3 +1,14 @@
+import { personalBranchReads } from './persistence/personal-branches.adapter.ts';
+import { PERSONAL_BRANCH_READS } from './queries/personal-branches.query.ts';
+import {
+  PersonalBranchesController,
+  PERSONAL_BRANCH_CLOCK,
+} from './http/personal-branches.controller.ts';
+import { ownAttendancePeriodAllowed } from './domain/own-attendance-period.ts';
+import { OWN_ATTENDANCE_READS } from './queries/own-attendance.query.ts';
+import { ownAttendanceContext } from './persistence/own-attendance-context.adapter.ts';
+import { staffColumns } from './persistence/staff-columns.adapter.ts';
+import { OwnAttendanceController, OWN_ATTENDANCE_CLOCK } from './http/own-attendance.controller.ts';
 import {
   attendanceProviders,
   cardProviders,
@@ -19,7 +30,10 @@ import { EmployeeDefaultShiftsController } from './http/employee-default-shifts.
 import { EmployeeNumberCapabilityController } from './http/employee-number-capability.controller.ts';
 import { EmployeeNumberEditCapabilityController } from './http/employee-number-edit-capability.controller.ts';
 import { EmployeeNumberController } from './http/employee-number.controller.ts';
-import { EmployeeNumbersController, EMPLOYEE_NUMBERS_SEARCH } from './http/employee-numbers.controller.ts';
+import {
+  EmployeeNumbersController,
+  EMPLOYEE_NUMBERS_SEARCH,
+} from './http/employee-numbers.controller.ts';
 import { EmployeeNumberingController } from './http/employee-numbering.controller.ts';
 import { employeeListSearch } from './persistence/employee-list-search.ts';
 import { EmployeeIbanController } from './http/employee-iban.controller.ts';
@@ -108,6 +122,8 @@ import { employeeAppLinkNames } from './persistence/employee-app-link-names.adap
 import { AttendanceCapabilitiesController } from './http/attendance-capabilities.controller.ts';
 import { AttendanceCorrectionHistoryController } from './http/attendance-correction-history.controller.ts';
 export const staffControllers = [
+  OwnAttendanceController,
+  PersonalBranchesController,
   AttendanceCapabilitiesController,
   EmployeeAppLinkController,
   AttendanceMonthlyReportController,
@@ -217,6 +233,20 @@ function unbindProviders(database: TenantWrappers | undefined, ids: IdGenerator)
   ];
 }
 
+function ownAttendanceProviders(): Provider[] {
+  return [
+    { provide: OWN_ATTENDANCE_CLOCK, useValue: systemClock },
+    {
+      provide: OWN_ATTENDANCE_READS,
+      useValue: {
+        context: ownAttendanceContext,
+        monthsBack: staffColumns.monthsBack,
+        periodAllowed: ownAttendancePeriodAllowed,
+      },
+    },
+  ];
+}
+
 export function staffProviders(
   database?: TenantWrappers,
   redis?: Redis,
@@ -227,6 +257,9 @@ export function staffProviders(
 ): Provider[] {
   const ids = systemUuidV7();
   return [
+    ...ownAttendanceProviders(),
+    { provide: PERSONAL_BRANCH_CLOCK, useValue: systemClock },
+    { provide: PERSONAL_BRANCH_READS, useValue: personalBranchReads },
     ...attendanceProviders(database, redis, passkeys, ids, logger),
     { provide: ATTENDANCE_BOARD_CONTEXT, useValue: attendanceBoardContext },
     { provide: EMPLOYEE_APP_LINK_NAMES, useValue: employeeAppLinkNames },

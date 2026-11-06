@@ -10,6 +10,10 @@ import {
 
 // spec 009 يجعل الأدوار المحذوفة من الصف ❌؛ الجهاز لا يرث سلطة موظف من ALLOW قديم.
 const deviceForbidden = [
+  'read:service-sessions:own',
+  'read:commissions:own',
+  'read:attendance:own',
+  'read:ratings:own',
   'record:service-sessions:branch',
   'read:service-sessions:branch',
   'edit:service-line-prices:branch',
@@ -58,6 +62,7 @@ const deviceForbidden = [
   'manage:service-categories:branch',
   // الجهاز مبيبيعش باقة؛ البيع بدخول فردي، FR-011
   'sell:packages:branch',
+  'import:packages:business',
   'manage:services:business',
   'create:customers:company',
   'create:customers:business',

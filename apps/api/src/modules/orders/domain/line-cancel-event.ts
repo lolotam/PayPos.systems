@@ -20,7 +20,7 @@ export interface LineCancelEventInput {
 
 /**
  * يبني حدث إلغاء سطر واحد بلا سبب وبلا أسماء، والنسخة هي السابقة زائد واحد.
- * المسجّلة الأصلية تبقى على السطر، والحالة CANCELLED لأن الإلغاء نهائي، والمال يخرج بنص من ثلاث خانات.
+ * المسجّلة الأصلية وبيانات الباقة تبقيان على السطر، والحالة CANCELLED لأن الإلغاء نهائي، والمال يخرج بنص من ثلاث خانات.
  *
  * @param input الزيارة والسطر المحفوظ والقيم السابقة والملغية
  * @returns حمولة ServiceLineChanged لسطر ملغى واحد
@@ -41,14 +41,14 @@ export function lineCancelEvent(input: LineCancelEventInput) {
     late: line.late,
     recorded_by: line.recorded_by,
     recorded_by_membership_id: line.recorded_by_membership_id,
-    list_price: moneyToString(line.service.price),
+    list_price: moneyToString(line.list_price),
     price: moneyToString(line.price),
     discount: moneyToString(line.discount),
     net: moneyToString(line.net),
     performers: line.performers.map((performer) => ({ employee_id: performer.employee.id, share_bps: performer.share_bps })),
     rule_snapshot: sessionRuleSnapshot(line.service.rule),
     counts_snapshot: line.service.counts,
-    package: null,
+    package: line.redemption === undefined ? null : { entitlement_id: line.redemption.entitlement_id, component_id: line.redemption.component_id, ordinal: line.redemption.ordinal },
     revision: previous.revision + 1,
     change: {
       kind: 'LINE_CANCELLED' as const,

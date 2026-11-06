@@ -40,7 +40,7 @@ Anything not in this table is a CI failure. Every arrow points **down** this lis
 | `staff`         | `tenancy`, `identity`, `files`, `settings` | An employee may be linked to a user; a document binds a verified file (ADR-0031). `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader, and the staff `AlertRulesPort.roleHolders` adapter reads identity's scoped role holders (ADR-0010 addendum 2026-10-21; ADR-0040 addendum, 62-2b). |
 | `realtime`      | `identity`            | Channel scope is resolved from the session.                                    |
 | `notifications` | —                     | Deliberately root-level: it is a service, it knows nothing about the business. |
-| `orders`        | `tenancy`, `catalog`, `customers`, `staff`, `identity`, `settings` | Consumer-owned ports call provider public readers on the same transaction (ADR-0041). |
+| `orders`        | `tenancy`, `catalog`, `customers`, `staff`, `identity`, `settings`, `files` | Consumer-owned ports call provider public readers on the same transaction (ADR-0041). |
 | `payments`      | `tenancy`             | Order totals arrive by **port**.                                               |
 | `cash`          | `identity`            | Payment tenders arrive by **port**.                                            |
 | `appointments`  | `tenancy`             | Catalog / staff / customers arrive by **port**.                                |
@@ -51,6 +51,7 @@ Anything not in this table is a CI failure. Every arrow points **down** this lis
 | `reporting`     | —                     | **Imports nothing.** Read-only SQL across contexts (§5).                       |
 
 **Every module may import:** `packages/domain`, `packages/contracts`, `packages/db` (from `persistence/` and `queries/` only), `packages/observability`.
+**Technical workbook surface (47-1b):** `packages/import-workbooks` owns bounded XLSX/ZIP/XML parsing. Only outer adapters and API shared compatibility facades import it; `domain/` and `use-cases/` cannot import it. Staff bounds and error mapping are unchanged.
 **Only the owning module may import:** `packages/auth` (→ `identity`), `packages/payments` (→ `payments`), `packages/storage` (→ `files`), `packages/notifications` (→ `notifications`), `packages/documents` (→ `reporting`; the worker composition root `apps/worker/src/main.ts` wires it, and only `apps/worker/src/documents/` uses it), `packages/commissions-engine` (→ `commissions`, in `apps/api` and `apps/worker`; its root entry only. `apps/admin/src/commissions` may import the `/validation` entry point and nothing else, which the module-map check cannot see, so it is enforced by the ESLint scopes in `packages/config/eslint/boundaries.js` and `packages/config/eslint/index.js`, by `apps/admin/eslint.config.js` and by the package `exports`; the row is declared by 59-0, ADR-0054 §1).
 
 Application composition roots (`apps/api/src/{app,main}.ts`, `apps/worker/src/{main,worker}.ts`) may wire
@@ -81,6 +82,14 @@ customers must not import orders and introduce a compile-time cycle (ADR-0041).
 Worker `files` reads whether a file is still the business logo through `lockBusinessLogoReference` in
 `@pospay/db`, the same function the settings adapter calls. `files` does not import `settings` (ADR-0046, 27h-3).
 Settings binds a logo by reading `documentFileFacts` from `files` through its own adapter (27h-4, ADR-0046).
+
+Spec 060 57b-1's `OwnAttendanceReads` is a read-side interface beside the attendance
+query. Its adapter reads the business/branch names and effective timezones through
+`describeWorkspaces`, the business timezone through `activeBusinessTimeZone`, and
+live own authority through identity's `readOwnAttendanceAccess`, all on the caller's
+transaction. The branch proving current authority does not restrict historical
+attendance branches. Branch names cross the tenancy boundary through this reader;
+the attendance SQL joins only staff-owned tables and the supplied name projection.
 
 ADR-0020 attendance QR reads the paired branch name and effective timezone through the existing tenancy
 `describeWorkspaces` surface; staff owns the read port. It adds no attendance write or clocking endpoint.
@@ -117,6 +126,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `staff` | `ScheduleScope`, `ScheduleReadAccess` | `identity` | schedule permissions and staff feature; writes retain company and ordered membership locks (ADR-0024) |
 | `staff` | `ScheduleScope`, `ScheduleReadAccess` | `tenancy` | branch ownership and effective timezone through describeWorkspaces, using PR 19 fallback (ADR-0024) |
 | `staff` | `EmployeeAppLinkNames` (read-side interface beside the query) | `tenancy` | the business name and id for the employee-app link screen through describeWorkspaces; access is the route's `manage:employees:business` guard (spec 069, EL-Q3) |
+| `orders` | `PackageImportRequestScope.fileFacts` | `files` | READY workbook facts on the request transaction; no bytes/parser in acceptance (ADR-0034, 47-1a) |
 | `orders` | `CustomerLookupPort` | `customers` | company-scoped customer existence, name and already-masked phone; reception first finds/creates the customer through customers' own endpoint (ADR-0041) |
 | `orders` | `PerformerCheckPort` | `staff` | dated employee/branch eligibility, persisted user link and attendance/approved-leave warnings at occurredAt; staff owns the working-day calculation (ADR-0041) |
 | `orders` | `DiscountLimitPort` | `settings` | selected recorder's fresh effective limit, including explicit zero/unlimited/not-configured (ADR-0041); spec 057 reuses it for the selected approver membership's limit, read after the proposal locks (ADR-0051, 057-6) |
@@ -255,6 +265,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `PackageSaleChanged`                                                        | `orders`        | `commissions`                                                                                     |
 | `SessionTipsChanged`                                                        | `orders`        | `commissions`                                                                                     |
 | `RatingRequestReady`                                                        | `customers`     | `notifications`                                                                                   |
+| `RatingClaimsDiscoveryRequested` | customers migration data step | worker `customers` claim-registration transport only when active (59b-2c, PP-96); independent `rating_claims_discovery` aggregate, empty payload; production remains dormant |
 | `LowRatingReceived`                                                         | `customers`     | `notifications`                                                                                   |
 | `AttendanceExceptionRaised`                                                 | `staff` (worker missed-out job, ADR-0032) | `notifications` (in-app managers by the `ATTENDANCE_EXCEPTION` rule; no row when it resolves to nobody, 62-2d) |
 | `ShiftNotClockedIn` | `staff` (worker not-clocked-in job, ADR-0037) | `notifications` (in-app managers by the interim rule; PR 62 replaces the rule) |
@@ -276,6 +287,16 @@ PR #128 recovery migration re-queues only unpublished `SalaryChanged`, `LeaveReq
 **Consumers are idempotent**, deduped by `event_id`. Redelivery is harmless, and replay is a supported recovery tool.
 
 ---
+
+### Package preview request (47-1a)
+
+`PackageImportPreviewRequested` is an orders-published, id-only event carrying
+`{ preview_id }`; company identity comes from the outbox envelope. The intended
+consumer is worker orders in 47-1b. **No runtime consumer/known-type registration exists
+in 47-1a**, and its request controller is unregistered in production. Registration and
+production producer activation land together in 47-1b. This is preview work only;
+`PackageImportCommitRequested` and financial commit remain 47-2. See ADR-0034's
+2026-11-05 request addendum and spec 058.
 
 ## 5. The `reporting` exception
 
@@ -308,7 +329,7 @@ imports:
   customers: [tenancy, settings, staff]
   expenses: [tenancy]
   inventory: [tenancy]
-  orders: [tenancy, catalog, customers, staff, identity, settings]
+  orders: [tenancy, catalog, customers, staff, identity, settings, files]
   payments: [tenancy]
   appointments: [tenancy]
   channels: [tenancy]
@@ -348,6 +369,16 @@ composition_roots:
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
 reads:
+  - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/personal-branches.adapter.ts
+  - staff -> identity.personalMemberships @ apps/api/src/modules/staff/persistence/personal-branches.adapter.ts
+  - orders -> files.documentFileFacts @ apps/worker/src/modules/orders/persistence/package-preview.transactions.ts
+  - orders -> catalog.readPackageImportServices @ apps/worker/src/modules/orders/persistence/package-preview.transactions.ts
+  - orders -> customers.readPackageImportCustomers @ apps/worker/src/modules/orders/persistence/package-preview.transactions.ts
+  - staff -> identity.readOwnAttendanceAccess @ apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts
+  - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts
+  - staff -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts
+  - orders -> files.documentFileFacts @ apps/api/src/modules/orders/persistence/package-import-request.transactions.ts
+  - orders -> identity.readPackageImportAccess @ apps/api/src/modules/orders/persistence/package-import-request.transactions.ts
   - orders -> staff.readSessionPerformerOptions @ apps/api/src/modules/orders/persistence/session-performer-options.adapter.ts
   - orders -> catalog.readSessionServiceOptions @ apps/api/src/modules/orders/persistence/session-service-options.adapter.ts
   - orders -> identity.readServiceSessionAccess @ apps/api/src/modules/orders/persistence/recording-context.adapter.ts

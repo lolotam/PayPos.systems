@@ -1443,6 +1443,55 @@
       "when": 1793841946036,
       "tag": "0207_2026-11-05_rating-requests-scheduled-index",
       "breakpoints": true
+    },
+    {
+      "idx": 208,
+      "version": "7",
+      "when": 1793877753021,
+      "tag": "0208_2026-11-05_commission-tip-salary",
+      "breakpoints": true
+    },
+    {
+      "idx": 209,
+      "version": "7",
+      "when": 1793877769349,
+      "tag": "0209_2026-11-05_commission-tip-salary-rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 210,
+      "version": "7",
+      "when": 1793885854712,
+      "tag": "0210_2026-11-05_staff-own-read-defaults",
+      "breakpoints": true
+    },
+    {
+      "idx": 211,
+      "version": "7",
+      "when": 1793887729278,
+      "tag": "0211_2026-11-05_package-import-preview-request",
+      "breakpoints": true
+    },
+    {
+      "idx": 212,
+      "version": "7",
+      "when": 1793914195605,
+      "tag": "0212_2026-11-05_package-preview-ready-consistency",
+      "breakpoints": true
+    },
+    {
+      "idx": 213,
+      "version": "7",
+      "when": 1793947033327,
+      "tag": "0213_2026-11-06_package-preview-partition-proof",
+      "breakpoints": true
+    },
+    {
+      "idx": 214,
+      "version": "7",
+      "when": 1793950356345,
+      "tag": "0214_2026-11-06_rating-claims-discovery",
+      "breakpoints": true
     }
   ]
 }

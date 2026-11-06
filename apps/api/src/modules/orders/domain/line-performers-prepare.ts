@@ -10,7 +10,7 @@ import { validateShares } from './session-performers.ts';
 import { validateAppendWindow } from './session-time.ts';
 import type { SessionEmployee } from './session-types.ts';
 
-/** حالة السطر المحمّلة؛ not_changeable مشتقة من redemption_id المقروء تحت قفل السطر. */
+/** حالة السطر المحمّلة؛ not_changeable محجوزة لمنع لاحق، والاسترداد لا يمنع تغيير المنفّذات. */
 export interface PerformersLineState {
   status: 'ACTIVE' | 'CANCELLED';
   revision: number;
@@ -47,7 +47,7 @@ export interface PreparedLinePerformersChange {
  * ترتيب الرفض هنا هو ذيل FR-011: النسخة، ثم الإلغاء السابق، ثم علامة منع تغيير منفّذات السطر المسترد، ثم النافذة، ثم السبب،
  * ثم شكل المجموعة، ثم أهلية المضافات، ثم «لا تغيير».
  * المنفّذة الباقية لا يُعاد فحصها (D-11): مدير يصلّح نسبة زميلة لا يُجبر على تشيل من سابت.
- * علامة not_changeable تأتي من redemption_id المقروء تحت قفل السطر؛ الكاتب القديم يرفض السطر المسترد حتى تفعيله في 44.
+ * علامة not_changeable محجوزة لمنع لاحق؛ تغيير منفّذات السطر المسترد لا يحرّك جلسته أو قيمته.
  *
  * @param input السطر المحمّل والنسخة المتوقعة والنافذة والسبب ومنفّذات السطر والمطلوب وحقائق المضافات
  * @returns النسخة التالية والسبب والسابق والصفوف الجديدة ومن بقي ومن راح ومن أُضيف

@@ -1,0 +1,29 @@
+{
+  "name": "@pospay/import-workbooks",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "exceljs": "4.4.0",
+    "saxes": "5.0.1"
+  },
+  "devDependencies": {
+    "@pospay/config": "workspace:*",
+    "@types/node": "24.13.6",
+    "eslint": "10.11.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.1"
+  }
+}

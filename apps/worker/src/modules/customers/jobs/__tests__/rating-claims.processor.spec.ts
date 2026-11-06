@@ -1,4 +1,5 @@
 import { systemUuidV7 } from '@pospay/ids';
+import { RATING_CLAIMS_DISCOVERY } from '@pospay/contracts';
 import type { ClaimedEvent, DeliveryOutcome } from '@pospay/db';
 import { Queue, QueueEvents, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
@@ -83,6 +84,56 @@ function triggerEvent(companyId: string, attempt = 1, eventType = 'ServiceSessio
 }
 
 const next = async (): Promise<DeliveryOutcome> => ({ delivered: true });
+
+it('discovery registers without reaching the scheduling consumer and retries with PP-97', async () => {
+  const world = await harness();
+  const companyId = ids.newId();
+  const event = {
+    ...triggerEvent(companyId, 1, RATING_CLAIMS_DISCOVERY),
+    aggregateType: 'rating_claims_discovery',
+    aggregateId: companyId,
+  };
+  const delegate = vi.fn(next);
+  const failure = vi
+    .spyOn(Queue.prototype, 'upsertJobScheduler')
+    .mockRejectedValue(new Error('SYNTHETIC_REDIS_FAILURE'));
+  try {
+    expect(await world.processor.deliver(event, delegate)).toEqual({
+      delivered: false,
+      error: 'RATING_CLAIMS_SCHEDULE_RETRY',
+      retryInMs: 5000,
+    });
+    expect(await world.queue.getJobSchedulers()).toEqual([]);
+  } finally {
+    failure.mockRestore();
+  }
+  expect(await world.processor.deliver(event, delegate)).toEqual({ delivered: true });
+  expect(delegate).not.toHaveBeenCalled();
+  expect(
+    (await world.queue.getJobSchedulers()).map((scheduler) => scheduler.template?.data),
+  ).toEqual([{ companyId }]);
+});
+
+it('refuses foreign discovery aggregates and non-empty discovery payloads without registration', async () => {
+  const world = await harness();
+  const companyId = ids.newId();
+  const event = {
+    ...triggerEvent(companyId, 1, RATING_CLAIMS_DISCOVERY),
+    aggregateType: 'rating_claims_discovery',
+    aggregateId: companyId,
+  };
+  for (const invalid of [
+    { ...event, aggregateId: ids.newId() },
+    { ...event, payload: { extra: true } },
+  ]) {
+    expect(await world.processor.deliver(invalid, next)).toEqual({
+      delivered: false,
+      error: 'RATING_CLAIMS_DISCOVERY_INVALID',
+      retryInMs: null,
+    });
+  }
+  expect(await world.queue.getJobSchedulers()).toEqual([]);
+});
 
 /**
  * ينتظر لحد ما الشرط يتحقق، بحدّ زمني وفواصل قصيرة، من غير نوم ثابت.

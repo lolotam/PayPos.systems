@@ -2,6 +2,10 @@ import { expect, it } from 'vitest';
 import { permissionName } from '../permission-name.js';
 
 const LABELLED_CODES = [
+  'read:service-sessions:own',
+  'read:commissions:own',
+  'read:attendance:own',
+  'read:ratings:own',
   'read:salaries:business',
   'manage:salaries:business',
   'read:schedules:branch',
@@ -30,6 +34,7 @@ const LABELLED_CODES = [
   'read:package-types:business',
   'manage:package-types:business',
   'sell:packages:branch',
+  'import:packages:business',
   'read:service-categories:business',
   'manage:service-categories:business',
   'read:service-categories:branch',

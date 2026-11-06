@@ -12,11 +12,6 @@ import { APP_GUARD, NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { AuthService, StaffOtpApi, StaffSessions } from '@pospay/auth';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
-import {
-  PRIVATE_VIEW_CAP_REMAINING_HEADER,
-  PRIVATE_VIEW_IDLE_REMAINING_HEADER,
-  PRIVATE_VIEW_WINDOW_HEADER,
-} from '@pospay/contracts';
 import type { PushApiConfiguration } from '@pospay/notifications';
 import type { Redis } from 'ioredis';
 import { systemUuidV7 } from '@pospay/ids';
@@ -53,6 +48,7 @@ import {
   customersProviders,
   RATING_ROUTE,
   ratingAdmissionHook,
+  ratingCorsPolicy,
 } from './modules/customers/index.ts';
 import {
   catalogControllers,
@@ -60,6 +56,7 @@ import {
   readSessionServices,
 } from './modules/catalog/index.ts';
 import { ordersControllers, ordersProviders } from './modules/orders/index.ts';
+import { enableApiCors } from './shared/cors.ts';
 import {
   employeeExistsInBusiness,
   lockEmployeeForUpdate,
@@ -118,8 +115,10 @@ export interface AppDependencies {
   readonly ids?: IdGenerator;
   /** Redis — pairing codes and rate limits. Without it those routes answer NOT_READY. */
   readonly redis?: Redis;
-  /** Browser origins allowed to call the API with credentials (admin, POS). Empty: no CORS headers at all. */
+  /** أصول المتصفح المسموح لها باستدعاء مسارات API المصادق عليها مع بيانات الاعتماد (admin وPOS). */
   readonly corsOrigins?: readonly string[];
+  /** أصل صفحة التقييم العامة بالمطابقة التامة؛ مستقل عن ثقة تسجيل الدخول، والقيمة الفارغة تعطّل CORS للتقييم العام. */
+  readonly ratingPageOrigin?: string;
   readonly whatsapp?: WhatsappIntake;
   /** The push public key and subject, when push is configured; without them the push routes answer NOT_READY. */
   readonly push?: PushApiConfiguration | null;
@@ -237,32 +236,6 @@ class AppModule {
       ],
     };
   }
-}
-
-// An exact allow-list with credentials — never a reflected or wildcard origin. Empty: no CORS headers at all.
-function enableCors(app: NestFastifyApplication, corsOrigins: readonly string[]): void {
-  if (corsOrigins.length === 0) return;
-  app.enableCors({
-    origin: [...corsOrigins],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    allowedHeaders: [
-      'content-type',
-      'idempotency-key',
-      'x-request-id',
-      'authorization',
-      'x-recovery-key',
-      COMPANY_HEADER,
-      PRIVATE_VIEW_WINDOW_HEADER,
-    ],
-    // The admin app reads the id back to quote it in a support request.
-    exposedHeaders: [
-      'x-request-id',
-      PRIVATE_VIEW_IDLE_REMAINING_HEADER,
-      PRIVATE_VIEW_CAP_REMAINING_HEADER,
-    ],
-    maxAge: 600,
-  });
 }
 
 // Each request's own log context, looked up by the request so a callback running elsewhere can restore it.
@@ -422,7 +395,11 @@ export async function createApp(
     // and exits) instead of Nest exiting the process itself.
     { logger: new PinoNestLogger(logger), abortOnError: false },
   );
-  enableCors(app, deps.corsOrigins ?? []);
+  enableApiCors(app, {
+    trustedOrigins: deps.corsOrigins ?? [],
+    requestPolicy: ratingCorsPolicy(deps.ratingPageOrigin ?? ''),
+    companyHeader: COMPANY_HEADER,
+  });
   app.setGlobalPrefix('v1', { exclude: ['health', 'ready'] });
   app.useGlobalFilters(new EnvelopeExceptionFilter());
   await app.init();

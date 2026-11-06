@@ -5,6 +5,10 @@
  * كل صلاحية معروفة للنظام بالشكل 'action:resource:scope'. الـ scope بيحدد الـ target اللي الـ guard بيقيّم عنده.
  */
 export const PERMISSIONS = [
+  'read:service-sessions:own',
+  'read:commissions:own',
+  'read:attendance:own',
+  'read:ratings:own',
   'record:service-sessions:branch',
   'read:service-sessions:branch',
   'edit:service-line-prices:branch',
@@ -49,6 +53,7 @@ export const PERMISSIONS = [
   'manage:package-types:business',
   // بيع باقة للعميلة: صلاحيته الخاصة، الكاشير والفرع بيبيعوا من غير قراءة أنواع الباقات (PK-Q13، FR-019b).
   'sell:packages:branch',
+  'import:packages:business',
   'manage:services:business',
   'read:memberships:company',
   'read:memberships:business',

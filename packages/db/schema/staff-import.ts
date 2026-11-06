@@ -40,6 +40,10 @@ export const importPreviews = pgTable(
     errorCode: text('error_code'),
     rowCount: integer('row_count').notNull(),
     errorCount: integer('error_count').notNull(),
+    skippedCount: integer('skipped_count').notNull().default(0),
+    // NULL للمعاينات القديمة؛ العامل يثبت أرقام الصفوف الفعلية عند الانتقال من pending إلى ready فقط.
+    sourceRows: jsonb('source_rows').$type<readonly number[]>(),
+    skippedRows: jsonb('skipped_rows').$type<readonly number[]>(),
     rows: jsonb('rows').notNull(),
     errors: jsonb('errors').notNull(),
   },
@@ -74,8 +78,13 @@ export const importPreviews = pgTable(
     check('import_previews_expiry', sql`${t.expiresAt} > ${t.createdAt}`),
     check(
       'import_previews_status',
-      sql`${t.status} IN ('ready','commit_requested','committed','failed')`,
+      sql`${t.status} IN ('pending','ready','commit_requested','committed','failed')`,
     ),
+    check('import_previews_pending', sql`${t.status} <> 'pending' OR (${t.entity}='packages'
+      AND ${t.rowCount}=0 AND ${t.errorCount}=0 AND ${t.skippedCount}=0
+      AND ${t.rows}='[]'::jsonb AND ${t.errors}='[]'::jsonb
+      AND ${t.requestedAt} IS NULL AND ${t.errorCode} IS NULL)`),
+    check('import_previews_skipped', sql`${t.skippedCount} BETWEEN 0 AND ${t.rowCount} AND (${t.entity}='packages' OR ${t.skippedCount}=0)`),
     check('import_previews_created_count', sql`${t.createdCount} BETWEEN 0 AND 500`),
     check(
       'import_previews_committed_consistent',

@@ -363,3 +363,107 @@ with a fresh incarnation, an old fence cannot touch the new state (the fencing a
 exactly that), and `ensureRegistered` re-registers a company's scheduler from the fixture
 inventory. The production inventory of the companies that need a scheduler, the reconciliation of
 pre-activation `SENDING` rows and the runbook entry remain **59b-2c's release gate**.
+
+
+## Addendum 2026-11-05 - package preview request, 47-1a
+
+The manager approved asynchronous package preview after its full synchronous warm
+median measured 719.6987 ms, above 200 ms (spec 058, 47-1-PERF-1), and approved the
+47-1a/47-1b split in the decision supplied as 15:57 Kuwait. 47-1a is request acceptance
+and creator-scoped polling; 47-1b is the preview worker, parser and producer activation.
+Financial package import commit remains 47-2.
+
+The new orders -> files read arrow serves the orders-owned
+PackageImportRequestScope.fileFacts port. Its adapter calls the files public
+`documentFileFacts` reader on the existing tenant acceptance transaction; it checks
+company visibility, business, creator, READY state, type, size and purge state.
+No bytes, storage provider call or workbook parsing occurs during acceptance. A domain
+event cannot supply the synchronous facts needed to authorize this request; extracting
+files later replaces this narrow adapter. No cross-module mutation is introduced.
+
+The same transaction creates an empty pending `entity='packages'` import_previews row
+and the id-only `PackageImportPreviewRequested { preview_id }` outbox record. The event
+is declared with Arabic JSDoc in orders/events/published.ts. It is not registered as a
+known worker type until 47-1b actually implements its transport and consumer. The API
+returns 202 when mounted in the test composition; the entire HTTP acceptance path has
+a strict warm five-run median assertion below 200 ms.
+
+Production safety fence: `PackageImportPreviewController` is intentionally absent
+from `ordersControllers`. Production POST and GET routes return 404 and cannot create
+pending work before a consumer exists. Tests explicitly mount the controller through
+the harness to validate the future API. 47-1b alone adds production registration when
+its real transport/lifecycle is present. This uses no new feature flag, secret or
+runtime environment switch. Polling is authoritative; SSE is not a source of state.
+
+The migration extends the existing status CHECK with pending (packages only), adds a
+bounded skipped_count column, and grants guarded result-column updates solely for a
+package preview leaving pending. Staff keeps its ready default and commit transitions;
+its result fields remain protected by the new trigger. Final numbering, generation and
+push remain blocked on the manager's explicit lane grant. The unnumbered SQL draft is
+applied only on the private local test cluster; CI requires the final real migration.
+
+Bounds remain 2 MiB, 500 data rows, 68 columns and 4 sheets. Parser and money changes
+from the previous attempt are preserved in stash
+8595ab7fe7dd0e7db5f58e444b534be923b8420e for 47-1b and are excluded from 47-1a.
+
+
+### Addendum 2026-11-06 ? 47-1b package preview activation
+
+The approved split now has its real orders BullMQ transport. The API mounts the
+request/polling controller; orders declares the known event type only on the active
+worker module and intercepts delivery before the generic database-only deliverer.
+Redis publication is outside the outbox transaction; acceptance by Redis is the
+transport acknowledgement. Older workers still reject/retry the unknown type.
+The test-only fenced-producer exclusion from 47-1a is removed, and coverage obtains
+the supported type from the real orders composition. Startup readiness and close
+include the processor; it closes before its files provider.
+
+Worker orders reads files.documentFileFacts, catalog.readPackageImportServices and
+customers.readPackageImportCustomers through public adapters on its current tenant
+transaction. Services, existing refs and customer phones are each batched. Only
+customer id and phone_last3 leave the customer lookup; SQL/provider causes never
+leave the preview use case. Storage bytes are bounded and read outside transactions.
+
+The hardened technical reader lives in @pospay/import-workbooks; API shared import
+paths are compatibility facades, and staff retains its existing bounds/error identity.
+Pure package definition/allocation/slot/PackageRuleError primitives move to the
+zero-dependency @pospay/domain with API compatibility exports. Sale allocation keeps
+its default behavior; imports explicitly select session-count allocation. There is
+no cross-application source import or duplicate implementation of money rules.
+
+## Addendum 2026-11-06 — 59b-2c dormant inventory and recovery
+
+The migration data step `rating-claims-discovery` follows ADR-0038. Its migration
+owner only enumerates company IDs after the bypass-role check. Counts of requests
+and historical attempts, and appending discovery, run through `pospay_app` with
+`withTenant`. The existing `pospay_dispatcher` credentials supply a restricted,
+read-only existence check: the application has INSERT-only outbox access, so it
+cannot check publication history itself. No grant or tenant bypass is added.
+The company transaction takes the aggregate advisory lock before the dispatcher existence check, so loss of the owner session lock cannot permit duplicate discovery. On a crash after a company
+commits, the next run finds its discovery even if published or parked and skips
+the append. Counts are logged without identifiers, phone numbers, links or payloads.
+
+`RatingClaimsDiscoveryRequested` carries `{}` and uses aggregate type
+`rating_claims_discovery` with the company ID as aggregate ID (PP-96), separate
+from ordinary company events. The active claim transport registers the existing
+per-company BullMQ scheduler and acknowledges discovery without delegating it to
+the scheduling consumer. Registration failures retain PP-97 backoff and parking.
+The production root still installs `closedRatingClaimsLifecycle()`: this change
+does not register discovery as a known production event or enable claims/sending.
+
+The explicit operator recovery command reads retained discovery and the three
+visit event types through the dispatcher facade, including published and parked
+rows, with a company scope, ascending ID cursor and captured upper bound. It
+registers BullMQ without creating a claim Worker or token capability; only visits
+reach the existing scheduling deliverer with their original IDs and dedupe receipts.
+No outbox publication, retry, parked or consumption metadata is reset. The partial
+replay index covers those four event types, including retained published rows.
+
+Historical `SENDING`/`SENT` requests and `rating_request` attempts in `SENDING` or
+terminal states are counted and left unchanged. Their disposition remains PENDING
+in the slice owner questions; DEP-1 counts determine whether the manager needs an
+owner decision. Activation blockers #803, #804, #805, #808, #809, #810 and #811
+remain separate work. The manager granted the migration lane on 2026-11-06 after
+47-2a (#877) merged as `ef9209ba`. Migration 0214 carries the data-step marker and
+a concurrent drop/create of the new replay index, so an interrupted build can
+restart without accepting an invalid index. Its snapshot follows 0213.

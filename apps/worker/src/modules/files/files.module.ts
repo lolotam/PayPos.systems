@@ -1,3 +1,4 @@
+import { StorageObjectMissingError, StorageError } from '@pospay/storage';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import { optionalStorage } from '@pospay/storage';
 import { CleanupArtifacts } from './use-cases/cleanup-artifacts/cleanup-artifacts.ts';
@@ -49,6 +50,11 @@ export function startFilesWorker(
       new RetireBusinessLogo(logoRetirementStore(), logoReference(), clock),
     ),
     deliver: retention.deliver,
+    readImportBytes: async (key: string, maxBytes: number): Promise<Uint8Array | null> => {
+      if (capability === null) throw new StorageError();
+      try { return await capability.storage.read(key, maxBytes, AbortSignal.timeout(15_000)); }
+      catch (error) { if (error instanceof StorageObjectMissingError) return null; throw new StorageError(); }
+    },
     readStatementLogo: (companyId: string, request: StatementLogoRequest, signal?: AbortSignal) =>
       statementLogo.execute(companyId, request, signal),
     close: async () => {

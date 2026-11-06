@@ -1,6 +1,14 @@
 import { Writable } from 'node:stream';
 
-import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { createBusinessInput, errorEnvelope } from '@pospay/contracts';
 import type { FastifyRequest } from 'fastify';
@@ -12,12 +20,17 @@ import { createApp } from '../../app.ts';
 import { Public } from '../public.decorator.ts';
 import { ZodValidationPipe } from '../zod-validation.pipe.ts';
 import { API_LOG_EVENTS } from '../log-events.ts';
+import { codeForStatus } from '../errors.ts';
 
 // Test-only routes: a contract-validated body, a deliberate crash, and a route that logs secrets.
 // Public: this probe tests the envelope and idempotency mechanics, not authentication.
 @Public()
 @Controller('probe')
 class ProbeController {
+  @Get('unprocessable')
+  unprocessable(): never {
+    throw new UnprocessableEntityException();
+  }
   @Post('business')
   create(@Body(new ZodValidationPipe(createBusinessInput)) body: unknown): unknown {
     return body;
@@ -82,6 +95,13 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await app.close();
+});
+
+it('does not label a framework 422 as an own-attendance period error', async () => {
+  expect(codeForStatus(422)).not.toBe('MY_PERIOD_OUT_OF_RANGE');
+  const res = await request('GET', '/v1/probe/unprocessable');
+  expect(res.status).toBe(400);
+  expect(errorEnvelope.parse(res.body).code).toBe('BAD_REQUEST');
 });
 
 describe('transaction conflict envelopes', () => {

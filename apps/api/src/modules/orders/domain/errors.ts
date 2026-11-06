@@ -1,27 +1,5 @@
-/** أسباب رفض قواعد الباقة مستقلة عن HTTP، عشان نفس الحساب يشتغل من غير سيرفر. */
-export type PackageErrorCode =
-  | 'INVALID_PRICE'
-  | 'INVALID_COMPONENTS'
-  | 'DUPLICATE_SERVICE'
-  | 'INVALID_SESSIONS'
-  | 'INVALID_REMAINING_SESSIONS'
-  | 'INVALID_SLOTS'
-  | 'INVALID_DATE'
-  | 'PACKAGE_EXPIRED'
-  | 'INSUFFICIENT_SLOTS';
-
-/** خطأ مسمّى؛ طبقة النقل اللاحقة مسؤولة عن الرسالة العربية والإنجليزية. */
-export class PackageRuleError extends Error {
-  /**
-   * بيثبت سبب الرفض عشان المستهلك يفرّق بين المدخل غير الصالح ونفاد الجلسات.
-   *
-   * @param code سبب الرفض
-   */
-  constructor(public readonly code: PackageErrorCode) {
-    super(code);
-    this.name = 'PackageRuleError';
-  }
-}
+/** نفس هوية خطأ الباقة في API والعامل؛ التنفيذ المشترك في الحزمة الداخلية. */
+export { PackageRuleError, type PackageErrorCode } from '@pospay/domain';
 
 /** أسباب رفض تسعير بيع الباقة؛ محلية لهذه الوحدة فسجل أخطاء الطلب ما اتغيّرش. */
 export type PackageSalePricingErrorCode = 'PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT' | 'INVALID_LIMIT';

@@ -1,5 +1,63 @@
 # Worker operations
 
+## Staging worker readiness in every deploy receipt (PP-133)
+
+Decision PP-133 (2026-11-06, issue #868) keeps the worker container healthcheck on
+`/health` for process liveness. A healthy container alone does not prove database
+and Redis readiness. Every staging deploy receipt must also record a read-only
+`/ready` probe for each current worker replica, alongside the release SHA, replica
+identifier and probe time. Do not change compose, container environment or healthcheck,
+publish a port, or restart a container to obtain this evidence.
+
+Use the existing authorized staging operator context. Select the current worker
+container from the release inventory into the operator's `WORKER_CONTAINER` variable;
+it is a placeholder, not a container name to copy. DEP-1's method passes Node code
+through stdin with `docker exec -i`, so it needs neither an installed curl binary nor
+a host-published worker port. The port comes from the running container's existing
+`WORKER_PORT` (the worker's default is 3001 when unset or empty); no environment value
+is changed or dumped. Run this POSIX-shell command once for each worker replica:
+
+```sh
+: "${WORKER_CONTAINER:?Select the current staging worker container from the release inventory}"
+docker exec -i "$WORKER_CONTAINER" node --input-type=module <<'JS'
+const port = process.env.WORKER_PORT || '3001';
+let httpStatus = null;
+try {
+  const response = await fetch(`http://127.0.0.1:${port}/ready`, {
+    signal: AbortSignal.timeout(5_000),
+  });
+  httpStatus = response.status;
+  const body = await response.json();
+  const checks = body.checks ?? body.details?.checks ?? null;
+  console.log(JSON.stringify({ http_status: httpStatus, checks }));
+  const required = ['database', 'dispatcher', 'redis'];
+  if (httpStatus !== 200 || !checks ||
+      !required.every((name) => checks[name] === 'up') ||
+      !Object.values(checks).every((state) => state === 'up')) {
+    process.exitCode = 1;
+  }
+} catch {
+  console.log(JSON.stringify({
+    http_status: httpStatus,
+    checks: null,
+    probe_error: 'TIMEOUT_TRANSPORT_OR_INVALID_RESPONSE',
+  }));
+  process.exitCode = 1;
+}
+JS
+```
+
+Preserve the JSON output and command exit code in the receipt. `/ready` returns
+HTTP 200 with `checks` when ready, or HTTP 503 with `details.checks` when a dependency
+is down; the command records either shape without printing credentials or connection
+strings. Current dependencies are `database`, `dispatcher` and `redis`, each `up` or
+`down` (`apps/worker/src/shared/health.controller.ts`, wired in `apps/worker/src/main.ts`).
+The five-second fetch timeout also bounds response-body reading. An absent HTTP
+status, malformed response, nonzero command exit, HTTP other than 200, or a dependency
+not `up` means readiness is **not verified**: retain the evidence and report the blocker
+through DEP-1's existing release procedure; never replace it with the `/health` result.
+This command performs no deployment or configuration change and grants no new server access.
+
 ## Restoring a logical dump
 
 Restore a logical dump only into a **freshly `initdb`'d cluster**, with triggers disabled:
@@ -336,3 +394,67 @@ It is an operator run, once per company — not a BullMQ job — and it never se
    so the newly visible sessions are processed; do not continue from the last cursor.
 6. **Until 59-2 ships**, the rating-request switch is off for every business, so the bootstrap schedules nothing
    yet; it only proves the frozen range and the coverage.
+
+## 59b-2c: dormant rating discovery and Redis-loss recovery
+
+This procedure is preparation for a separately authorized activation. Production
+still installs `closedRatingClaimsLifecycle()`. Do not enable its factory, template
+or sender as part of discovery. The seven activation blockers listed in the
+[refresh](specs/060-ratings-and-staff-app/59b-2-refresh.md) remain separate work.
+
+1. **Inventory during migrate.** The ADR-0038 step `rating-claims-discovery` uses
+   the migration owner's company-ID list, then `withTenant` for inventory and
+   appending an empty `RatingClaimsDiscoveryRequested`. The existing dispatcher
+   role only checks whether that company's discovery already exists. A previously
+   committed, published or parked discovery is not appended again. No new secret
+   is required: migrate already receives `POSTGRES_DISPATCHER_PASSWORD`.
+2. **Read the counters.** The log prefix `rating_claims_discovery` has `companies`,
+   `scheduled`, `sending`, `sent`, `historicalAttempts` and `discoveryEvents`.
+   Historical attempts are `rating_request` in `SENDING`, `SENT`, `FAILED`,
+   `EXPIRED` or `SUPPRESSED`. If `sending`, `sent` or `historicalAttempts` is
+   nonzero during DEP-1, stop any dependent activation and send the counts to the
+   manager for the PENDING owner question. Do not reset, replay or resend these
+   historical requests or attempts. No staging inventory SQL is authorized by
+   this development PR.
+3. **Recover registration or a late visit.** After an authorized deploy, wait for
+   every replica to carry the current scheduling consumer; stop any older worker
+   before freezing a replay range. Build the worker and run from the repository
+   root with existing secret delivery for
+   `DATABASE_URL` (`pospay_app`), `DISPATCHER_DATABASE_URL` (`pospay_dispatcher`)
+   and `REDIS_URL`:
+
+   ```sh
+   node apps/worker/dist/recover-rating-claims.js --company <uuid>
+   ```
+
+   Run explicitly for each company from the authorized inventory, including a
+   company with no new visit since Redis loss. The command builds only the Queue
+   registration client, no claim Worker or token capability. It reads retained
+   discovery and original visit events, including parked discovery and visits an
+   older worker already acknowledged. Visits reach the scheduling consumer with
+   their original ID, so a lost commit reply is deduplicated. Discovery only
+   repairs registration. Source outbox metadata and existing receipts are never
+   reset. A future activation must still supply the real Worker before queued
+   claims can execute.
+4. **Bound and resume.** A run reads at most 100 pages of 100 events. Its JSON
+   result contains `complete`, `afterId`, `throughId`, `replayed`; exit code 1
+   means incomplete or failed. Resume a printed incomplete result using
+   `--after <afterId> --through <throughId>`, omitting a null flag. An event's ID
+   advances the cursor only after registration and scheduling succeed. A thrown
+   failure prints `RATING_CLAIMS_RECOVERY_FAILED` with no raw cause; if no cursor
+   was returned, restart the prior range from its last reported cursor, or from
+   the beginning. Repeating succeeded pages is safe. Once complete, start a fresh
+   range to include events committed beyond its captured upper bound.
+5. **Stop conditions.** A malformed scope, foreign event, invalid discovery
+   envelope, unavailable Redis or database must fail; do not mark source events
+   published or unpark them manually. Repair the dependency, rerun the same range
+   and verify one scheduler per company. Repeated registration leaves an existing
+   valid scheduler and claim continuation state unchanged.
+
+   Explicit checkpoint IDs must exist in this company's retained replay event
+   set; a foreign, purged or unrelated cursor and inverted bounds fail with typed
+   `REPLAY_SCOPE_INVALID`. Equal bounds are a valid completed range. The CLI checks
+   bounds before creating clients; the dispatcher checks scope on its existing
+   read transaction without another connection. Company UUID casing is normalized.
+   Initial Redis readiness has a 5-second deadline; timeout disconnects the
+   reconnecting client, closes the queue and prints `RATING_CLAIMS_REDIS_READY_TIMEOUT`.

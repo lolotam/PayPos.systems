@@ -325,3 +325,68 @@ validation and save — not the parse alone. Staff's preview benchmark only logs
 evidence for staff and not for services.
 
 Spec 072 holds the detail; this addendum records the decision.
+
+
+## Addendum 2026-11-05 - package preview request, 47-1a
+
+The manager approved asynchronous package preview after its full synchronous warm
+median measured 719.6987 ms, above 200 ms (spec 058, 47-1-PERF-1), and approved the
+47-1a/47-1b split in the decision supplied as 15:57 Kuwait. 47-1a is request acceptance
+and creator-scoped polling; 47-1b is the preview worker, parser and producer activation.
+Financial package import commit remains 47-2.
+
+The new orders -> files read arrow serves the orders-owned
+PackageImportRequestScope.fileFacts port. Its adapter calls the files public
+`documentFileFacts` reader on the existing tenant acceptance transaction; it checks
+company visibility, business, creator, READY state, type, size and purge state.
+No bytes, storage provider call or workbook parsing occurs during acceptance. A domain
+event cannot supply the synchronous facts needed to authorize this request; extracting
+files later replaces this narrow adapter. No cross-module mutation is introduced.
+
+The same transaction creates an empty pending `entity='packages'` import_previews row
+and the id-only `PackageImportPreviewRequested { preview_id }` outbox record. The event
+is declared with Arabic JSDoc in orders/events/published.ts. It is not registered as a
+known worker type until 47-1b actually implements its transport and consumer. The API
+returns 202 when mounted in the test composition; the entire HTTP acceptance path has
+a strict warm five-run median assertion below 200 ms.
+
+Production safety fence: `PackageImportPreviewController` is intentionally absent
+from `ordersControllers`. Production POST and GET routes return 404 and cannot create
+pending work before a consumer exists. Tests explicitly mount the controller through
+the harness to validate the future API. 47-1b alone adds production registration when
+its real transport/lifecycle is present. This uses no new feature flag, secret or
+runtime environment switch. Polling is authoritative; SSE is not a source of state.
+
+The migration extends the existing status CHECK with pending (packages only), adds a
+bounded skipped_count column, and grants guarded result-column updates solely for a
+package preview leaving pending. Staff keeps its ready default and commit transitions;
+its result fields remain protected by the new trigger. Final numbering, generation and
+push remain blocked on the manager's explicit lane grant. The unnumbered SQL draft is
+applied only on the private local test cluster; CI requires the final real migration.
+
+Bounds remain 2 MiB, 500 data rows, 68 columns and 4 sheets. Parser and money changes
+from the previous attempt are preserved in stash
+8595ab7fe7dd0e7db5f58e444b534be923b8420e for 47-1b and are excluded from 47-1a.
+
+
+### Addendum 2026-11-06 ? package preview worker (47-1b)
+
+The worker completes the asynchronous path approved after the 719.70 ms synchronous
+measurement. The shared technical reader package uses the existing pinned ExcelJS
+and SAX versions and retains the ZIP/XML guards. Staff's existing reader entry point
+maps the shared error back to EmployeeImportError with unchanged constants. Package
+limits remain 2 MiB / 500 rows / 68 columns / 4 sheets. The full worker fixture is
+500 rows with 20 service groups at 365 sessions; HTTP acceptance retains its strict
+warm median below 200 ms.
+
+Pending facts are loaded under RLS, bytes are read and parsed outside the tenant
+transaction, and completion locks/rechecks pending/file identity before lookup and
+ready persistence. Duplicate jobs cannot rewrite ready/failed; permanent content
+errors fail pending and transient failures retry with sanitized codes only.
+Financial import commit and recovery are not added.
+
+Issue #863 is included because this worker writes ready: a new custom migration
+requires array-shaped results and matching issue counts, unique/disjoint valid and
+invalid row identities, and a complete valid/skipped/distinct-invalid partition.
+Multiple errors on one row remain legal. Migration 0211 is immutable; #864 stays a
+separate staged-validation follow-up. Final generation waits for the manager lane.

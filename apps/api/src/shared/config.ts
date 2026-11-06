@@ -1,6 +1,7 @@
 import { isIP } from 'node:net';
 import { LOG_LEVELS } from '@pospay/observability';
 import { z } from 'zod';
+import { matchesTrustedOrigin } from './trusted-origin-pattern.ts';
 
 // Read once at startup; a missing or malformed value stops the process instead of failing later.
 const trustedProxies = z
@@ -58,6 +59,19 @@ const schema = z.object({
         .map((origin) => origin.trim())
         .filter((origin) => origin !== ''),
     ),
+  RATING_PAGE_ORIGIN: z
+    .string()
+    .trim()
+    .default('')
+    .refine((origin) => {
+      if (origin === '') return true;
+      try {
+        const url = new URL(origin);
+        return /^https?:$/.test(url.protocol) && url.origin === origin;
+      } catch {
+        return false;
+      }
+    }),
   // The parent domain the session cookie is shared on (.pospay.systems, .staging.pospay.systems — ADR-0001 §3, §6).
   // Unset in local development: the cookie stays host-only.
   COOKIE_DOMAIN: z.preprocess(
@@ -83,7 +97,30 @@ export type ApiConfig = z.output<typeof schema>;
  * @returns the validated configuration
  */
 export function readConfig(env: NodeJS.ProcessEnv): ApiConfig {
-  const result = schema.safeParse(env);
+  const result = schema
+    .refine(
+      (config) =>
+        !config.RATING_PAGE_ORIGIN.startsWith('http:') ||
+        env.NODE_ENV === 'development' ||
+        env.NODE_ENV === 'test',
+      { path: ['RATING_PAGE_ORIGIN'] },
+    )
+    .refine(
+      (config) =>
+        config.RATING_PAGE_ORIGIN === '' ||
+        (config.RATING_PAGE_ORIGIN !== new URL(config.BETTER_AUTH_URL).origin &&
+          !config.AUTH_TRUSTED_ORIGINS.some((pattern) =>
+            matchesTrustedOrigin(config.RATING_PAGE_ORIGIN, pattern),
+          )),
+      {
+        path: ['RATING_PAGE_ORIGIN'],
+        // نفحص العلاقة بعد صلاحية القيم حتى لا يكشف استثناء URL إعدادًا غير صالح.
+        when: (payload) =>
+          schema.pick({ BETTER_AUTH_URL: true, RATING_PAGE_ORIGIN: true }).safeParse(payload.value)
+            .success,
+      },
+    )
+    .safeParse(env);
   if (!result.success) {
     const keys = [...new Set(result.error.issues.map((issue) => issue.path.join('.')))];
     throw new Error(`Invalid API configuration: ${keys.join(', ')} — see .env.example`);

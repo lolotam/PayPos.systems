@@ -1,3 +1,5 @@
+vi.mock('../../modules/orders/jobs/package-preview.processor.ts', () => ({ startPackagePreviewProcessor: () => ({ ready: async () => undefined, close: async () => undefined, deliver: async () => ({ delivered: true }) }) }));
+import { startPackagePreviewWorker } from '../../modules/orders/index.ts';
 import type { Database } from '@pospay/db';
 import { createLogger } from '@pospay/observability';
 import { expect, it, vi } from 'vitest';
@@ -10,6 +12,7 @@ import { createStaffDocumentDefaults, startStaffWorker } from '../../modules/sta
 import { createDeliverer } from '../deliver.ts';
 import { KNOWN_EVENT_TYPES, knownEventTypes } from '../known-event-types.ts';
 import { emittedEventTypes } from './emitted-event-types.ts';
+import { retryDelayMs } from '../retry-policy.ts';
 
 // نعزل اتصالات الطوابير فقط؛ قوائم الأنواع والمستهلكون تأتي من تركيب الوحدات الحقيقي.
 vi.mock('../../modules/staff/jobs/missed-out.processor.ts', () => ({
@@ -36,12 +39,13 @@ const notifications = createNotificationModule({
   configuration: { mode: 'fake', hashKey: 'synthetic-test-key'.repeat(3), hashKeyId: 'test-v1' },
 });
 const inApp = createInAppNotificationModule(options);
+const previews = startPackagePreviewWorker(database, async () => null, 'synthetic', clock);
 
 it('recognizes every event emitted by API and worker, including finite template expansions', () => {
   const emitted = emittedEventTypes();
   const consumers = [notifications.consumer, createStaffDocumentDefaults(ids)];
   const supported = new Set([
-    ...knownEventTypes(staff, notifications, null),
+    ...knownEventTypes(staff, notifications, null, previews),
     ...consumers.flatMap((consumer) => consumer.eventTypes),
   ]);
   expect([...emitted.keys()]).toEqual(
@@ -94,5 +98,24 @@ it.each([
       attempt: 1,
     }),
   ).toEqual({ delivered: true });
+  expect(database.withTenant).not.toHaveBeenCalled();
+});
+
+it('retries a package preview request when its transport is absent during rolling deployment', async () => {
+  database.withTenant = vi.fn();
+  const deliver = createDeliverer(database, [], createLogger('silent'), {
+    knownEventTypes: knownEventTypes(staff, notifications, inApp),
+  });
+  expect(
+    await deliver({
+      id: ids.newId(),
+      companyId: ids.newId(),
+      aggregateType: 'import_preview',
+      aggregateId: ids.newId(),
+      eventType: 'PackageImportPreviewRequested',
+      payload: { preview_id: ids.newId() },
+      attempt: 1,
+    }),
+  ).toEqual({ delivered: false, error: 'TypeError', retryInMs: retryDelayMs(1) });
   expect(database.withTenant).not.toHaveBeenCalled();
 });

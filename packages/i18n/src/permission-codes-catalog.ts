@@ -1,4 +1,8 @@
 export const permissionCodesEn = {
+  readServiceSessionsOwn: 'Read my service sessions',
+  readCommissionsOwn: 'Read my commissions',
+  readAttendanceOwn: 'Read my attendance',
+  readRatingsOwn: 'Read my rating average',
   recordServiceSessionsBranch: 'Record branch service sessions',
   readServiceSessionsBranch: 'Read branch service sessions',
   editServiceLinePricesBranch: 'Edit session price/discount',
@@ -9,6 +13,7 @@ export const permissionCodesEn = {
   readPackageTypesBusiness: 'Read business package types',
   managePackageTypesBusiness: 'Manage business package types',
   sellPackagesBranch: 'Sell packages',
+  importPackagesBusiness: 'Import packages',
   readSchedulesBranch: 'Read branch schedules',
   manageSchedulesBranch: 'Manage branch schedules',
   readSchedulesBusiness: 'Read business shift templates',
@@ -54,6 +59,10 @@ export const permissionCodesEn = {
   manageServiceCategoriesBranch: 'Manage branch service categories',
 };
 export const permissionCodesAr: Record<keyof typeof permissionCodesEn, string> = {
+  readServiceSessionsOwn: 'قراءة جلسات خدماتي',
+  readCommissionsOwn: 'قراءة عمولاتي',
+  readAttendanceOwn: 'قراءة حضوري',
+  readRatingsOwn: 'قراءة متوسط تقييمي',
   recordServiceSessionsBranch: 'تسجيل جلسات خدمات الفرع',
   readServiceSessionsBranch: 'قراءة جلسات خدمات الفرع',
   editServiceLinePricesBranch: 'تعديل سعر/خصم جلسة',
@@ -64,6 +73,7 @@ export const permissionCodesAr: Record<keyof typeof permissionCodesEn, string> =
   readPackageTypesBusiness: 'قراءة أنواع باقات النشاط',
   managePackageTypesBusiness: 'إدارة أنواع باقات النشاط',
   sellPackagesBranch: 'بيع الباقات',
+  importPackagesBusiness: 'استيراد الباقات',
   readSchedulesBranch: 'قراءة جداول الفرع',
   manageSchedulesBranch: 'إدارة جداول الفرع',
   readSchedulesBusiness: 'قراءة قوالب دوام النشاط',

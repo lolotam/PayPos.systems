@@ -4,6 +4,74 @@
  */
 
 export interface paths {
+    "/v1/staff/me/attendance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Own attendance only, live employee, membership, own permission and staff feature. STAFF_POS requires a live private-view window. No correction metadata. Cache-Control: no-store. */
+        get: operations["ownAttendance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/staff/me/branches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Personal session only. Current active employee attachments and covering live membership are rechecked in the read transaction. No leave permission or private-view window. No client subject selectors. Cache-Control: no-store. */
+        get: operations["personalBranches"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/packages/import/previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Requires import:packages:business and orders. Accepts an owned READY workbook for asynchronous preview. Poll the returned preview ID for ready or failed results. */
+        post: operations["requestPackageImportPreview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/packages/import/previews/{previewId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Creator/company/business-scoped polling, with no full phone or stored candidate rows in the response. Unknown and inaccessible IDs share IMPORT_PREVIEW_NOT_FOUND. */
+        get: operations["packageImportPreviewStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/attendance-statements": {
         parameters: {
             query?: never;
@@ -2440,23 +2508,6 @@ export interface paths {
         put?: never;
         /** @description Rejects 1–20 proposals of the device branch on a paired device by the approver phone and PIN. The PIN identifies the approver for this one action, opens no session, and is never stored, logged or returned. A device-wide cap and the per-holder lockout apply. A rejection checks the approve permission only (DA-Q9), never the limit or the self rules. The reason is optional (FR-017, D-12); when present it is trimmed and must be 1–500 characters, otherwise 422 DISCOUNT_REJECT_REASON_INVALID. No Idempotency-Key: a retry of a decided proposal answers 409. */
         post: operations["rejectDeviceDiscountProposals"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/businesses/{businessId}/branches/{branchId}/package-sales": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** @description Sells one package type to one customer at the selling branch. Requires sell:packages:branch on the route branch, the orders feature and an individual admin login. The request quotes the type revision and every service revision; a changed quote is refused with 409 PACKAGE_SALE_QUOTE_STALE. The seller must be active at the branch on the sale date and may not be the recorder. Money is canonical three-decimal text and the discount is capped by the recorder limit. One transaction writes the entitlement, its components and their sessions, the audit row and the PackageSaleChanged event; the stored 201 is replayed for the same Idempotency-Key and body. */
-        post: operations["sellPackage"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4948,6 +4999,46 @@ export interface components {
         };
         RatingSettingsResponse: {
             requests_enabled: boolean;
+        };
+        RequestPackageImportPreviewInput: {
+            /** Format: uuid */
+            file_id: string;
+        };
+        PackageImportPreviewAccepted: {
+            /** Format: uuid */
+            preview_id: string;
+        };
+        PackageImportPreviewRequested: {
+            /** Format: uuid */
+            preview_id: string;
+        };
+        PackageImportPreviewRowError: {
+            row: number;
+            column: string;
+            /** @enum {string} */
+            code: "IMPORT_CELL_INVALID" | "IMPORT_PHONE_INVALID" | "IMPORT_NAME_INVALID" | "INVALID_PRICE" | "IMPORT_DATE_INVALID" | "IMPORT_EXTERNAL_REF_INVALID" | "IMPORT_REQUIRED_CELL" | "IMPORT_SERVICE_AMBIGUOUS" | "IMPORT_SERVICE_NOT_FOUND" | "INVALID_COMPONENTS" | "DUPLICATE_SERVICE" | "INVALID_SESSIONS" | "INVALID_REMAINING_SESSIONS" | "IMPORT_CUSTOMER_NOT_FOUND" | "IMPORT_EXTERNAL_REF_DUPLICATE";
+        };
+        PackageImportPreviewStatus: {
+            /** Format: uuid */
+            preview_id: string;
+            /** @enum {string} */
+            status: "pending";
+        } | {
+            /** Format: uuid */
+            preview_id: string;
+            /** @enum {string} */
+            status: "ready";
+            row_count: number;
+            error_count: number;
+            skipped_count: number;
+            errors: components["schemas"]["PackageImportPreviewRowError"][];
+        } | {
+            /** Format: uuid */
+            preview_id: string;
+            /** @enum {string} */
+            status: "failed";
+            /** @enum {string} */
+            error_code: "IMPORT_FILE_NOT_FOUND" | "IMPORT_FILE_NOT_READY" | "IMPORT_FILE_TYPE_INVALID" | "IMPORT_FILE_SIZE_INVALID" | "IMPORT_FILE_CONTENT_INVALID" | "IMPORT_HEADER_INVALID" | "IMPORT_ROW_LIMIT_EXCEEDED" | "STORAGE_UNAVAILABLE";
         };
         SessionMoney: string;
         SessionPerformerInput: {
@@ -7901,6 +7992,233 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    ownAttendance: {
+        parameters: {
+            query?: {
+                month?: string;
+            };
+            header?: {
+                "x-private-view-window-id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Own current attendance times and exception kinds only */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        month: string;
+                        sessions: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: date */
+                            working_date: string;
+                            branch_name_ar: string | null;
+                            branch_name_en: string;
+                            /** Format: date-time */
+                            clock_in: string;
+                            /** Format: date-time */
+                            clock_out: string | null;
+                            late_minutes: number;
+                            /** @enum {string} */
+                            source: "QR" | "BARCODE" | "MANUAL";
+                            /** @enum {string} */
+                            status: "OPEN" | "CLOSED" | "MISSED_OUT";
+                            open_exceptions: ("NONE" | "OUT_OF_RANGE" | "SUSPECTED_MISSED_OUT")[];
+                            corrected: boolean;
+                        }[];
+                    };
+                };
+            };
+            /** @description VALIDATION_FAILED */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description UNAUTHENTICATED */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description FORBIDDEN or PRIVATE_VIEW_EXPIRED */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description MY_PERIOD_OUT_OF_RANGE */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    personalBranches: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current attached active branches with effective timezone */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            name_ar: string | null;
+                            name_en: string;
+                            timezone: string;
+                        }[];
+                    };
+                };
+            };
+            /** @description UNAUTHENTICATED */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description FORBIDDEN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description NOT_READY */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestPackageImportPreview: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RequestPackageImportPreviewInput"];
+            };
+        };
+        responses: {
+            /** @description Preview request accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageImportPreviewAccepted"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    packageImportPreviewStatus: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                previewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pending, ready or failed preview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageImportPreviewStatus"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     requestAttendanceStatement: {
         parameters: {
             query?: never;
@@ -17044,90 +17362,6 @@ export interface operations {
             };
             /** @description TOO_MANY_REQUESTS while comparisons are in flight. */
             429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bilingual authentication or readiness refusal. */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-        };
-    };
-    sellPackage: {
-        parameters: {
-            query?: never;
-            header: {
-                "x-company-id": string;
-                "Idempotency-Key": string;
-            };
-            path: {
-                businessId: string;
-                branchId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SellPackageInput"];
-            };
-        };
-        responses: {
-            /** @description The saved entitlement with its components. Money is canonical three-decimal text; refunded_amount is 0.000 and revision is 1. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SellPackageResponse"];
-                };
-            };
-            /** @description Bilingual refusal; every refusal rolls the whole transaction back and writes nothing. Shape or type errors return 400 VALIDATION_FAILED. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bilingual refusal; every refusal rolls the whole transaction back and writes nothing. Shape or type errors return 400 VALIDATION_FAILED. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description PACKAGE_TYPE_NOT_FOUND. A type of another business or an unknown type is the same body. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description PACKAGE_SALE_QUOTE_STALE (details carry the current service revisions) or PACKAGE_TYPE_REVISION_CONFLICT (details carry current_revision). Also a transaction retry or an idempotent request still in progress. */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorEnvelope"];
-                };
-            };
-            /** @description Bilingual refusal; every refusal rolls the whole transaction back and writes nothing. Shape or type errors return 400 VALIDATION_FAILED. */
-            422: {
                 headers: {
                     [name: string]: unknown;
                 };

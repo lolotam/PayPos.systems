@@ -342,6 +342,7 @@ try {
       files,
       redis,
       corsOrigins: config.AUTH_TRUSTED_ORIGINS,
+      ratingPageOrigin: config.RATING_PAGE_ORIGIN,
       push: readPushApiConfiguration(process.env),
       ratingLinksAvailable,
       ...(whatsapp === undefined ? {} : { whatsapp }),

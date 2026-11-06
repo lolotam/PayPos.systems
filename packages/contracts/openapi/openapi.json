@@ -5,6 +5,431 @@
     "version": "0.0.0"
   },
   "paths": {
+    "/v1/staff/me/attendance": {
+      "get": {
+        "operationId": "ownAttendance",
+        "description": "Own attendance only, live employee, membership, own permission and staff feature. STAFF_POS requires a live private-view window. No correction metadata. Cache-Control: no-store.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{3}-(0[1-9]|1[0-2])$"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-private-view-window-id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "PersonalStaffSession": []
+          },
+          {
+            "KioskStaffSession": [],
+            "DeviceToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Own current attendance times and exception kinds only",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "month": {
+                      "type": "string"
+                    },
+                    "sessions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "working_date": {
+                            "type": "string",
+                            "format": "date",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                          },
+                          "branch_name_ar": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "branch_name_en": {
+                            "type": "string"
+                          },
+                          "clock_in": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                          },
+                          "clock_out": {
+                            "nullable": true,
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                          },
+                          "late_minutes": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "source": {
+                            "type": "string",
+                            "enum": [
+                              "QR",
+                              "BARCODE",
+                              "MANUAL"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "OPEN",
+                              "CLOSED",
+                              "MISSED_OUT"
+                            ]
+                          },
+                          "open_exceptions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "enum": [
+                                "NONE",
+                                "OUT_OF_RANGE",
+                                "SUSPECTED_MISSED_OUT"
+                              ]
+                            }
+                          },
+                          "corrected": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "working_date",
+                          "branch_name_ar",
+                          "branch_name_en",
+                          "clock_in",
+                          "clock_out",
+                          "late_minutes",
+                          "source",
+                          "status",
+                          "open_exceptions",
+                          "corrected"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "month",
+                    "sessions"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN or PRIVATE_VIEW_EXPIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "MY_PERIOD_OUT_OF_RANGE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/staff/me/branches": {
+      "get": {
+        "operationId": "personalBranches",
+        "description": "Personal session only. Current active employee attachments and covering live membership are rechecked in the read transaction. No leave permission or private-view window. No client subject selectors. Cache-Control: no-store.",
+        "security": [
+          {
+            "PersonalStaffSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current attached active branches with effective timezone",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "name_ar": {
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "name_en": {
+                            "type": "string"
+                          },
+                          "timezone": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "name_ar",
+                          "name_en",
+                          "timezone"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "NOT_READY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/packages/import/previews": {
+      "post": {
+        "operationId": "requestPackageImportPreview",
+        "description": "Requires import:packages:business and orders. Accepts an owned READY workbook for asynchronous preview. Poll the returned preview ID for ready or failed results.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestPackageImportPreviewInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Preview request accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageImportPreviewAccepted"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/packages/import/previews/{previewId}": {
+      "get": {
+        "operationId": "packageImportPreviewStatus",
+        "description": "Creator/company/business-scoped polling, with no full phone or stored candidate rows in the response. Unknown and inaccessible IDs share IMPORT_PREVIEW_NOT_FOUND.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "previewId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pending, ready or failed preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageImportPreviewStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/branches/{branchId}/attendance-statements": {
       "post": {
         "operationId": "requestAttendanceStatement",
@@ -15918,134 +16343,6 @@
         }
       }
     },
-    "/v1/businesses/{businessId}/branches/{branchId}/package-sales": {
-      "post": {
-        "operationId": "sellPackage",
-        "description": "Sells one package type to one customer at the selling branch. Requires sell:packages:branch on the route branch, the orders feature and an individual admin login. The request quotes the type revision and every service revision; a changed quote is refused with 409 PACKAGE_SALE_QUOTE_STALE. The seller must be active at the branch on the sale date and may not be the recorder. Money is canonical three-decimal text and the discount is capped by the recorder limit. One transaction writes the entitlement, its components and their sessions, the audit row and the PackageSaleChanged event; the stored 201 is replayed for the same Idempotency-Key and body.",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "x-company-id",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "in": "header",
-            "name": "Idempotency-Key",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 255,
-              "pattern": "^[!-~]+$"
-            }
-          },
-          {
-            "in": "path",
-            "name": "businessId",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "in": "path",
-            "name": "branchId",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SellPackageInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "The saved entitlement with its components. Money is canonical three-decimal text; refunded_amount is 0.000 and revision is 1.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SellPackageResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bilingual refusal; every refusal rolls the whole transaction back and writes nothing. Shape or type errors return 400 VALIDATION_FAILED.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Bilingual refusal; every refusal rolls the whole transaction back and writes nothing. Shape or type errors return 400 VALIDATION_FAILED.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "PACKAGE_TYPE_NOT_FOUND. A type of another business or an unknown type is the same body.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "PACKAGE_SALE_QUOTE_STALE (details carry the current service revisions) or PACKAGE_TYPE_REVISION_CONFLICT (details carry current_revision). Also a transaction retry or an idempotent request still in progress.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Bilingual refusal; every refusal rolls the whole transaction back and writes nothing. Shape or type errors return 400 VALIDATION_FAILED.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Bilingual authentication or readiness refusal.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/devices/me/attendance-qr": {
       "post": {
         "operationId": "issueAttendanceQr",
@@ -26259,6 +26556,191 @@
         },
         "required": [
           "requests_enabled"
+        ]
+      },
+      "RequestPackageImportPreviewInput": {
+        "type": "object",
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "file_id"
+        ],
+        "additionalProperties": false
+      },
+      "PackageImportPreviewAccepted": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "preview_id"
+        ]
+      },
+      "PackageImportPreviewRequested": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "preview_id"
+        ],
+        "additionalProperties": false
+      },
+      "PackageImportPreviewRowError": {
+        "type": "object",
+        "properties": {
+          "row": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 9007199254740991
+          },
+          "column": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "IMPORT_CELL_INVALID",
+              "IMPORT_PHONE_INVALID",
+              "IMPORT_NAME_INVALID",
+              "INVALID_PRICE",
+              "IMPORT_DATE_INVALID",
+              "IMPORT_EXTERNAL_REF_INVALID",
+              "IMPORT_REQUIRED_CELL",
+              "IMPORT_SERVICE_AMBIGUOUS",
+              "IMPORT_SERVICE_NOT_FOUND",
+              "INVALID_COMPONENTS",
+              "DUPLICATE_SERVICE",
+              "INVALID_SESSIONS",
+              "INVALID_REMAINING_SESSIONS",
+              "IMPORT_CUSTOMER_NOT_FOUND",
+              "IMPORT_EXTERNAL_REF_DUPLICATE"
+            ]
+          }
+        },
+        "required": [
+          "row",
+          "column",
+          "code"
+        ]
+      },
+      "PackageImportPreviewStatus": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "preview_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending"
+                ]
+              }
+            },
+            "required": [
+              "preview_id",
+              "status"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "preview_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ready"
+                ]
+              },
+              "row_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 500
+              },
+              "error_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "skipped_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 500
+              },
+              "errors": {
+                "maxItems": 40000,
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PackageImportPreviewRowError"
+                }
+              }
+            },
+            "required": [
+              "preview_id",
+              "status",
+              "row_count",
+              "error_count",
+              "skipped_count",
+              "errors"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "preview_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "failed"
+                ]
+              },
+              "error_code": {
+                "type": "string",
+                "enum": [
+                  "IMPORT_FILE_NOT_FOUND",
+                  "IMPORT_FILE_NOT_READY",
+                  "IMPORT_FILE_TYPE_INVALID",
+                  "IMPORT_FILE_SIZE_INVALID",
+                  "IMPORT_FILE_CONTENT_INVALID",
+                  "IMPORT_HEADER_INVALID",
+                  "IMPORT_ROW_LIMIT_EXCEEDED",
+                  "STORAGE_UNAVAILABLE"
+                ]
+              }
+            },
+            "required": [
+              "preview_id",
+              "status",
+              "error_code"
+            ]
+          }
         ]
       },
       "SessionMoney": {

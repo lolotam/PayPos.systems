@@ -1,0 +1,42 @@
+import type { Tx } from '@pospay/db';
+import { sql } from 'drizzle-orm';
+
+/**
+ * حقائق الملف التي تستهلكها معاينة الباقات داخل معاملة الشركة.
+ * purge_started يُشتق من purge_started_at حتى يُرفض الربط بعد بدء الحذف وقبل اكتمال purged_at.
+ */
+export type DocumentFileFacts = {
+  business_id: string;
+  branch_id: string | null;
+  owner_module: string;
+  owner_entity_id: string;
+  required_permission: string;
+  created_by: string;
+  content_type: string;
+  size_bytes: number;
+  status: 'PENDING' | 'VERIFYING' | 'READY' | 'REJECTED';
+  storage_key: string | null;
+  purged: boolean;
+  purge_started: boolean;
+};
+
+// عامل استيراد الباقات يثبت ملف المعاينة وحالة الحذف تحت RLS؛ المفتاح يظهر بعد READY فقط.
+export function documentFileStatement(companyId: string, fileId: string) {
+  return sql`SELECT business_id, branch_id, owner_module, owner_entity_id, required_permission, created_by,
+    content_type, size_bytes::int AS size_bytes, status, CASE WHEN status='READY' THEN storage_key END AS storage_key, purged_at IS NOT NULL AS purged,
+    purge_started_at IS NOT NULL AS purge_started
+    FROM file_objects WHERE company_id=${companyId} AND id=${fileId}`;
+}
+
+export async function documentFileFacts(
+  tx: Tx,
+  companyId: string,
+  fileId: string,
+  lock?: 'share',
+): Promise<DocumentFileFacts | null> {
+  // قفل SHARE يمنع حجز الحذف (FOR UPDATE SKIP LOCKED) وتغيير purge_started_at لحد تثبيت النتيجة.
+  const [row] = await tx.execute<DocumentFileFacts>(
+    sql`${documentFileStatement(companyId, fileId)} ${lock === 'share' ? sql`FOR SHARE` : sql``}`,
+  );
+  return row ?? null;
+}
