@@ -424,3 +424,77 @@ Global typecheck/lint/lint:docs/module-map:check passed; Prettier/diff checks pa
 Parent guard review found no further issue in the authorized patch. UTF-8 cards
 were verified against git-show bytes before/after commit; exact-head remote gates
 are still required after this single consolidated publication.
+## Limited eighth correction round — local receipt
+
+Owner approval was recorded verbatim before implementation in local commit
+`58953ee8`; the original 3/3 and exceptions four through eight remain intact.
+The question, both choices and answer were read back from `git show` as UTF-8.
+No API, server expiry, native configuration, migration, workflow or cancel404
+policy changed.
+
+- Creation cards now use issued/completed network-read generations and a React
+  notification. Local cancellation cache writes cannot clear the card, and a GET
+  started before creation cannot clear it when it finishes later. A successful
+  later GET can clear it even when structural sharing preserves identical data.
+- Session probing/validation/composition moved from `my-leave/api/` to
+  `app/recover-leave-session.ts`, injected through `RecoverLeaveSession`.
+  The actual personal/reception contract is parsed at runtime; invalid or elapsed
+  deadlines and foreign account scope are refused. An earlier outer probe is
+  cancelled before publishing a verified session to its exact query key.
+  Changed expiry/employee causes the outer flow to remount from the fresh
+  context instead of unlocking the old one. Its existing deadline hook enforces
+  the newly known deadline during later probe failures and background return.
+- Branch Retry is disabled with visible loading feedback while its read runs.
+  The cancellation cache assertion now checks `leave-0` specifically for
+  `CANCELLED` and `can_cancel: false`, preserving the preceding assertions.
+- The existing creation-card test moved unchanged into
+  `leave-creation-card.spec.tsx`; all previous assertions remain. Direct screen
+  tests inject the same app recovery composition. The two recovery fixtures now
+  return actual contract-shaped session objects for runtime validation.
+
+Independent internal review: Codex Astra high, read-only, completed. It found
+an in-scope P2 during review: a ref-only completion counter did not notify the UI
+for an identical successful GET. The React notification and history-only test
+filter fix that case; the reviewer re-read the final version and reported no
+confirmed open P0/P1/P2/P3 in this round's delta. The review ran diff-check and a
+TanStack InfiniteQueryObserver experiment; it did not run the POS suite. A
+separate deferred recovery then close/offline integration test was not added;
+abort checks before/after cancellation were reviewed, not claimed as that test.
+Parent clean-code-guard/test-guard/docs-guard passes checked the final delta,
+visible assertions, production boundaries and the exact approval record.
+
+Remote review prerequisite: using the published MergePilot run-detail Retry
+button after verifying PR head `6d7e7b65` and no active run, the failed Waleed run
+`07d4e75a-64ee-4067-851b-c989b2f62a4c` was retried once. The official mechanism
+created a panel; the other three skipped because there were no new changes,
+retaining their original complete receipts. Waleed retry
+`e5885359-3f92-4dc5-87f4-bc946a141e03` completed as review `5803282769` on that
+head, using `openai:gpt-5.6-sol`. No model/configuration/DB/queue change was made.
+Security review `5802625713` completed via its configured OpenAI fallback after
+MiniMax timeout300s; no provider setting was changed here.
+
+New Waleed P2 `r4494761636` (cancellation absent on the creation card) is outside
+the eighth card and was raised to the manager before any implementation. It
+remains open; no fix, waiver, extra round or merge authority is inferred.
+CodeRabbit `r4494238075` was rejected and resolved with the manager's approval:
+`NOT_FOUND` also masks lost authority/eligibility at the transaction boundary,
+not only a missing cancellation target. Reply `4494356681` and resolved status
+were read back; the contract does not distinguish those causes.
+
+The first expanded POS run passed627/627 in100 files. After final test extraction
+and the additional outer-probe race test, a fresh complete run is required below.
+Focused final recovery/card runs passed12/12, including the history-only refetch.
+Global typecheck/lint/lint:docs/module-map:check, changed-file Prettier and
+`git diff --check` passed. No exact-head CI or review completion is inferred from
+these local results; a single publication remains subject to the manager's
+handling of the newly raised out-of-scope finding.
+
+Final eighth-round proof: POS suite passed628/628 in101 files with the same
+threads/maxWorkers2 command (244.62s); isolation remained enabled. The101-file
+run includes all prior tests plus the extracted card tests and new recovery
+composition/race cases. Global typecheck/lint/docs/module-map and changed-source
+Prettier passed; both changed docs also passed Prettier. AST comparison across
+the edited existing test files and the extracted card file preserved all93
+previous assertion chains (123 current, no missing chain). Historical audit
+content is an unchanged prefix, with the eighth approval appended. No push has
+been made pending the manager's disposition of r4494761636.

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@pospay/ui';
 import { t } from '@pospay/i18n';
 import { useLocale } from '@/shared/locale/locale-context';
-import { recoverLeaveSession } from '../api/recover-leave-session';
+import type { RecoverLeaveSession } from '../model/session-recovery';
 import type { LeaveContext } from '../model/context';
 import { leaveErrorText } from '../model/error-text';
 
@@ -11,11 +11,13 @@ export function LeaveSessionRecovery({
   branch,
   error,
   recovered,
+  recoverSession,
 }: {
   context: LeaveContext;
   branch: string;
   error: unknown;
   recovered: (branch: string) => void;
+  recoverSession: RecoverLeaveSession;
 }) {
   const locale = useLocale();
   const [failure, setFailure] = useState(error);
@@ -28,7 +30,7 @@ export function LeaveSessionRecovery({
     attempt.current = controller;
     setBusy(true);
     try {
-      const eligibleBranch = await recoverLeaveSession(context, branch, controller.signal);
+      const eligibleBranch = await recoverSession(context, branch, controller.signal);
       if (!controller.signal.aborted) recovered(eligibleBranch);
     } catch (refusal) {
       if (!controller.signal.aborted) setFailure(refusal);

@@ -7,6 +7,8 @@ import { leaveCalls } from './leave-calls';
 import { useForgetRefusedRead, forgetRefusedLeaveData } from './use-forget-refused-read';
 import { refreshCancelledLeave } from './refresh-cancelled-leave';
 
+type LeaveReads = { started: number; completed: number; notify: (read: number) => void };
+
 export function useMyLeave(
   context: LeaveContext,
   branch: string,
@@ -17,11 +19,16 @@ export function useMyLeave(
   const identity = leaveIdentity(context);
   const queryKey = ['my-leave', identity, branch];
   const controller = useLeaveLifetime(identity, branch);
+  const reads = useLeaveReadProgress();
   const query = useInfiniteQuery({
     queryKey,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam, signal }) =>
-      readLeavePage({ mode: context.mode, branch, cursor: pageParam, signal }, setRefusal),
+      trackedLeavePage(
+        { mode: context.mode, branch, cursor: pageParam, signal },
+        setRefusal,
+        reads,
+      ),
     getNextPageParam: (page) => page.next_cursor ?? undefined,
     enabled: branch !== '' && !refusal,
     gcTime: 0,
@@ -33,7 +40,7 @@ export function useMyLeave(
   const { write, busy, error, success, lastRequest, clearError } = useLeaveWrite(
     controller,
     (confirmed) => refreshCancelledLeave(cache, queryKey, confirmed),
-    query.dataUpdatedAt,
+    reads,
     (failure) => {
       if (leaveReadRefused(failure)) setRefusal(failure);
       forgetRefusedLeaveData(cache, failure, { identity, branch, sessionRefused });
@@ -46,12 +53,7 @@ export function useMyLeave(
     error,
     success,
     lastRequest,
-    retry: async () => {
-      if ((await query.refetch()).isSuccess) {
-        setRefusal(null);
-        clearError();
-      }
-    },
+    retry: () => retryLeaveRead(query.refetch, setRefusal, clearError),
     create: (input: RequestLeaveInput) =>
       write(
         JSON.stringify(input),
@@ -95,7 +97,7 @@ export function useLeaveBranches(
 function useLeaveWrite(
   controller: React.RefObject<AbortController>,
   refresh: (confirmed: LeaveRequest) => Promise<void>,
-  updatedAt: number,
+  reads: React.RefObject<LeaveReads>,
   refused: (error: unknown) => void,
 ) {
   const locked = useRef(false);
@@ -104,9 +106,12 @@ function useLeaveWrite(
   const [error, setError] = useState<unknown>(null);
   const [success, setSuccess] = useState<'saved' | 'cancelled' | null>(null);
   const [lastRequest, setLastRequest] = useState<LeaveRequest | null>(null);
+  // تغيير الكاش المحلي مش قراءة جديدة؛ الكارت ينتظر قراءة بدأت بعد تأكيد الإنشاء ونجحت.
+  const creationRead = useRef(0);
+  const completedRead = reads.current.completed;
   useEffect(() => {
-    setLastRequest(null);
-  }, [updatedAt]);
+    if (completedRead > creationRead.current) setLastRequest(null);
+  }, [completedRead]);
   const write = async (
     fingerprint: string,
     operation: (key: string, signal: AbortSignal) => Promise<LeaveRequest>,
@@ -125,8 +130,10 @@ function useLeaveWrite(
       if (signal.aborted) return;
       attempts.current.delete(fingerprint);
       setSuccess(message);
-      if (message === 'saved') setLastRequest(result);
-      else await refresh(result);
+      if (message === 'saved') {
+        creationRead.current = reads.current.started;
+        setLastRequest(result);
+      } else await refresh(result);
     } catch (failure) {
       if (!signal.aborted) {
         setError(failure);
@@ -179,4 +186,33 @@ async function readLeaveBranches(signal: AbortSignal, refuse: (error: unknown) =
     if (leaveReadRefused(failure) && !signal.aborted) refuse(failure);
     throw failure;
   }
+}
+
+async function trackedLeavePage(
+  request: Parameters<typeof readLeavePage>[0],
+  refuse: (error: unknown) => void,
+  reads: React.RefObject<LeaveReads>,
+) {
+  const read = ++reads.current.started;
+  const page = await readLeavePage(request, refuse);
+  if (!request.signal.aborted) {
+    reads.current.completed = read;
+    reads.current.notify(read);
+  }
+  return page;
+}
+
+async function retryLeaveRead(
+  read: () => Promise<{ isSuccess: boolean }>,
+  setRefusal: (error: unknown) => void,
+  clearError: () => void,
+) {
+  if (!(await read()).isSuccess) return;
+  setRefusal(null);
+  clearError();
+}
+
+function useLeaveReadProgress() {
+  const [, notify] = useState(0);
+  return useRef<LeaveReads>({ started: 0, completed: 0, notify });
 }

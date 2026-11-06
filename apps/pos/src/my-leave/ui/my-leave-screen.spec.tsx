@@ -1,9 +1,10 @@
-import { act, fireEvent, render, screen, waitFor, cleanup, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, cleanup } from '@testing-library/react';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { t } from '@pospay/i18n';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 import { MyLeaveScreen } from './my-leave-screen';
+import { recoverLeaveSession } from '@/app/recover-leave-session';
 import type { LeaveContext } from '../model/context';
 
 vi.mock('@/shared/api/device-auth', () => ({ currentDeviceToken: async () => 'paired-device' }));
@@ -94,7 +95,12 @@ function mount(value = context, locale: 'ar' | 'en' = 'en') {
   const tree = (next: LeaveContext) => (
     <QueryClientProvider client={cache}>
       <LocaleProvider locale={locale} setLocale={() => undefined}>
-        <MyLeaveScreen context={next} />
+        <MyLeaveScreen
+          context={next}
+          recoverSession={(current, branch, signal) =>
+            recoverLeaveSession(current, branch, signal, cache)
+          }
+        />
       </LocaleProvider>
     </QueryClientProvider>
   );
@@ -157,30 +163,6 @@ it('cancels using revision and refreshes status', async () => {
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Cancel request' })).toBeNull());
   const request = requests.find((item) => item.method === 'POST') as Request;
   expect(await request.clone().json()).toEqual({ expected_revision: 1 });
-});
-it('pins the returned request status above an older first page until the next history refresh', async () => {
-  const approved = records[1] as (typeof records)[number];
-  items = Array.from({ length: 20 }, (_, index) => ({ ...approved, id: `older-${index}` }));
-  const original = globalThis.fetch;
-  vi.stubGlobal('fetch', async (request: Request) =>
-    request.method === 'POST'
-      ? Response.json({ ...records[0], id: 'new-request', note: 'Just submitted' })
-      : original(request),
-  );
-  const view = mount();
-  await screen.findByRole('option', { name: 'Branch' });
-  fireEvent.change(screen.getByLabelText('Branch'), { target: { value: branch } });
-  await screen.findAllByText('Annual — Approved');
-  dates();
-  fireEvent.click(screen.getByRole('button', { name: 'Submit request' }));
-  const card = await screen.findByRole('region', { name: 'Latest request' });
-  expect(within(card).getByText('Annual — Pending')).toBeTruthy();
-  expect(within(card).getByText('Just submitted')).toBeTruthy();
-  expect(screen.getAllByText('Annual — Approved')).toHaveLength(20);
-  await act(async () => {
-    await view.cache.refetchQueries({ queryKey: ['my-leave'] });
-  });
-  await waitFor(() => expect(screen.queryByRole('region', { name: 'Latest request' })).toBeNull());
 });
 it('keeps history and allowed cancellation without offering unauthorized creation', async () => {
   canCreate = false;

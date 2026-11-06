@@ -6,15 +6,19 @@ import { leaveErrorText } from '../model/error-text';
 export function LeaveReadRetry({
   error,
   retry,
+  busy,
 }: {
   error: unknown;
   retry: () => Promise<unknown>;
+  busy: boolean;
 }) {
   const locale = useLocale();
   return (
     <div>
       <p role="alert">{leaveErrorText(error, locale)}</p>
+      {busy ? <p role="status">{t(locale, 'pos.loading')}</p> : null}
       <Button
+        disabled={busy}
         onClick={() => {
           void retry();
         }}

@@ -4,8 +4,15 @@ import { useLocale } from '@/shared/locale/locale-context';
 
 import { leaveIdentity, type LeaveContext } from '../model/context';
 import { BranchLeave } from './branch-leave';
+import type { RecoverLeaveSession } from '../model/session-recovery';
 
-export function MyLeaveScreen({ context }: { context: LeaveContext }) {
+export function MyLeaveScreen({
+  context,
+  recoverSession,
+}: {
+  context: LeaveContext;
+  recoverSession: RecoverLeaveSession;
+}) {
   const [online, setOnline] = useState(navigator.onLine);
   const locale = useLocale();
   useEffect(() => {
@@ -25,7 +32,11 @@ export function MyLeaveScreen({ context }: { context: LeaveContext }) {
     >
       <h2>{t(locale, 'myLeave.title')}</h2>
       {online ? (
-        <BranchLeave key={leaveIdentity(context)} context={context} />
+        <BranchLeave
+          key={leaveIdentity(context)}
+          context={context}
+          recoverSession={recoverSession}
+        />
       ) : (
         <p role="status">{t(locale, 'myLeave.offline')}</p>
       )}

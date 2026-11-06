@@ -3,6 +3,7 @@ import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 import { MyLeaveScreen } from './my-leave-screen';
+import { recoverLeaveSession } from '@/app/recover-leave-session';
 import type { LeaveContext } from '../model/context';
 
 vi.mock('@/shared/api/device-auth', () => ({ currentDeviceToken: async () => 'paired-device' }));
@@ -99,7 +100,12 @@ function mount(value = context, locale: 'ar' | 'en' = 'en') {
   const tree = (next: LeaveContext) => (
     <QueryClientProvider client={cache}>
       <LocaleProvider locale={locale} setLocale={() => undefined}>
-        <MyLeaveScreen context={next} />
+        <MyLeaveScreen
+          context={next}
+          recoverSession={(current, branch, signal) =>
+            recoverLeaveSession(current, branch, signal, cache)
+          }
+        />
       </LocaleProvider>
     </QueryClientProvider>
   );

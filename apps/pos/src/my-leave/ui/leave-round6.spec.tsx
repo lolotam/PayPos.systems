@@ -3,15 +3,17 @@ import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 import { MyLeaveScreen } from './my-leave-screen';
+import { recoverLeaveSession } from '@/app/recover-leave-session';
 import type { LeaveContext } from '../model/context';
 
 vi.mock('@/shared/api/device-auth', () => ({ currentDeviceToken: async () => 'paired-device' }));
 
 const context: LeaveContext = {
   mode: 'personal',
-  company_id: 'company',
-  business_id: 'business',
-  user_id: 'user',
+  company_id: '10000000-0000-4000-8000-000000000001',
+  business_id: '10000000-0000-4000-8000-000000000002',
+  user_id: '10000000-0000-4000-8000-000000000003',
+  employee_id: '10000000-0000-4000-8000-000000000004',
   expires_at: '2026-11-06T20:00:00Z',
   sessionEpoch: 0,
   timezone: 'Asia/Kuwait',
@@ -63,7 +65,15 @@ beforeEach(() => {
           { status: readStatus },
         );
       if (url.pathname.endsWith('/personal-session') || url.pathname.endsWith('/staff-session'))
-        return Response.json({ ...context, user_id: sessionUser });
+        return Response.json({
+          company_id: context.company_id,
+          business_id: context.business_id,
+          user_id: sessionUser,
+          expires_at: context.expires_at,
+          ...(url.pathname.endsWith('/personal-session')
+            ? { employee_id: context.employee_id }
+            : { branch_id: branch, device_id: '10000000-0000-4000-8000-000000000005' }),
+        });
       if (url.pathname.endsWith('/branches'))
         return Response.json({
           items: [{ id: eligible, name_ar: 'Branch', name_en: 'Branch', timezone: 'Asia/Kuwait' }],
@@ -101,7 +111,12 @@ function mount(value = context, locale: 'ar' | 'en' = 'en') {
   const tree = (next: LeaveContext) => (
     <QueryClientProvider client={cache}>
       <LocaleProvider locale={locale} setLocale={() => undefined}>
-        <MyLeaveScreen context={next} />
+        <MyLeaveScreen
+          context={next}
+          recoverSession={(current, branch, signal) =>
+            recoverLeaveSession(current, branch, signal, cache)
+          }
+        />
       </LocaleProvider>
     </QueryClientProvider>
   );
@@ -157,6 +172,46 @@ it('shows confirmed cancellation without stale action after its refresh503', asy
   expect(JSON.stringify(view.cache.getQueriesData({ queryKey: ['my-leave'] }))).toContain(
     'CANCELLED',
   );
+  const cached = view.cache.getQueriesData<{ pages?: { items: typeof records }[] }>({
+    queryKey: ['my-leave'],
+  });
+  expect(
+    cached
+      .flatMap(([, data]) => data?.pages?.flatMap((page) => page.items) ?? [])
+      .find((item) => item.id === 'leave-0'),
+  ).toMatchObject({ status: 'CANCELLED', can_cancel: false });
+});
+it('shows a disabled branch Retry and loading feedback until the explicit read finishes', async () => {
+  const view = mount();
+  await chooseBranch();
+  readFailure = true;
+  readStatus = 403;
+  readFailurePath = 'branches';
+  await act(async () => {
+    await view.cache.refetchQueries({ queryKey: ['my-leave'] });
+  });
+  await screen.findByRole('button', { name: 'Retry' });
+  readFailure = false;
+  const original = globalThis.fetch;
+  let finish: (() => void) | undefined;
+  vi.stubGlobal('fetch', async (request: Request) => {
+    if (new URL(request.url).pathname.endsWith('/branches'))
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+    return original(request);
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Retry' }).hasAttribute('disabled')).toBe(true),
+  );
+  expect(screen.getByRole('status').textContent).toBeTruthy();
+  expect(screen.queryByLabelText('From date')).toBeNull();
+  await act(async () => {
+    finish?.();
+  });
+  await screen.findByLabelText('From date');
+  expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
 });
 it('recovers the same identity to an allowed alternative when the old branch was removed', async () => {
   const view = mount();

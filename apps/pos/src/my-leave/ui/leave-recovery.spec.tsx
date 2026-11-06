@@ -4,15 +4,17 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { t } from '@pospay/i18n';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 import { MyLeaveScreen } from './my-leave-screen';
+import { recoverLeaveSession } from '@/app/recover-leave-session';
 import type { LeaveContext } from '../model/context';
 
 vi.mock('@/shared/api/device-auth', () => ({ currentDeviceToken: async () => 'paired-device' }));
 
 const context: LeaveContext = {
   mode: 'personal',
-  company_id: 'company',
-  business_id: 'business',
-  user_id: 'user',
+  company_id: '10000000-0000-4000-8000-000000000001',
+  business_id: '10000000-0000-4000-8000-000000000002',
+  user_id: '10000000-0000-4000-8000-000000000003',
+  employee_id: '10000000-0000-4000-8000-000000000004',
   expires_at: '2026-11-06T20:00:00Z',
   sessionEpoch: 0,
   timezone: 'Asia/Kuwait',
@@ -61,7 +63,15 @@ beforeEach(() => {
           { status: readStatus },
         );
       if (url.pathname.endsWith('/personal-session') || url.pathname.endsWith('/staff-session'))
-        return Response.json({ ...context, user_id: sessionUser });
+        return Response.json({
+          company_id: context.company_id,
+          business_id: context.business_id,
+          user_id: sessionUser,
+          expires_at: context.expires_at,
+          ...(url.pathname.endsWith('/personal-session')
+            ? { employee_id: context.employee_id }
+            : { branch_id: branch, device_id: '10000000-0000-4000-8000-000000000005' }),
+        });
       if (url.pathname.endsWith('/branches'))
         return Response.json({
           items: [{ id: branch, name_ar: 'Branch', name_en: 'Branch', timezone: 'Asia/Kuwait' }],
@@ -98,7 +108,12 @@ function mount(value = context, locale: 'ar' | 'en' = 'en') {
   const tree = (next: LeaveContext) => (
     <QueryClientProvider client={cache}>
       <LocaleProvider locale={locale} setLocale={() => undefined}>
-        <MyLeaveScreen context={next} />
+        <MyLeaveScreen
+          context={next}
+          recoverSession={(current, branch, signal) =>
+            recoverLeaveSession(current, branch, signal, cache)
+          }
+        />
       </LocaleProvider>
     </QueryClientProvider>
   );

@@ -8,8 +8,14 @@ import { LeavePanel } from './leave-panel';
 import { LeaveSessionRecovery } from './leave-session-recovery';
 import { LeaveBranchSelector } from './leave-branch-selector';
 import { LeaveReadRetry } from './leave-read-retry';
+import type { RecoverLeaveSession } from '../model/session-recovery';
 
-export function BranchLeave({ context }: { context: LeaveContext }) {
+interface BranchLeaveProps {
+  context: LeaveContext;
+  recoverSession: RecoverLeaveSession;
+}
+
+export function BranchLeave({ context, recoverSession }: BranchLeaveProps) {
   const locale = useLocale();
   const [sessionRefusal, setSessionRefusal] = useState<unknown>(null);
   const branches = useLeaveBranches(context, !sessionRefusal, setSessionRefusal);
@@ -18,6 +24,7 @@ export function BranchLeave({ context }: { context: LeaveContext }) {
     return (
       <LeaveSessionRecovery
         context={context}
+        recoverSession={recoverSession}
         branch={context.mode === 'reception' ? (context.branch_id ?? '') : selected}
         error={sessionRefusal}
         recovered={(eligible) => {
@@ -39,7 +46,13 @@ export function BranchLeave({ context }: { context: LeaveContext }) {
   if (branches.isPending && !branches.refusal)
     return <p role="status">{t(locale, 'pos.loading')}</p>;
   if (branches.refusal || (branches.isError && branches.data === undefined))
-    return <LeaveReadRetry error={branches.refusal ?? branches.error} retry={branches.retry} />;
+    return (
+      <LeaveReadRetry
+        error={branches.refusal ?? branches.error}
+        retry={branches.retry}
+        busy={branches.isFetching}
+      />
+    );
   const items = branches.data?.items ?? [];
   if (items.length === 0) return <p>{t(locale, 'myLeave.noBranches')}</p>;
   const branch = items.some((item) => item.id === selected) ? selected : '';
