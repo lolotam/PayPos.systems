@@ -347,6 +347,25 @@ valid/skipped/distinct-invalid-row partition before ready, allowing multiple fie
 issues per row. The implementation and local migration-lane status are recorded in
 [47-1b implementation](47-1b-implementation.md).
 
+47-2a strengthens that proof for #875 and #876 without adding a financial commit
+use case. Nullable JSONB ordinal arrays `source_rows` and `skipped_rows` preserve the
+physical workbook row numbers in the existing pending-to-ready transaction. Every
+new ready result requires unique integer source ordinals (count = `row_count`),
+unique valid and skipped ordinals (skipped count = `skipped_count`), and distinct
+invalid ordinals for partition purposes; several field errors on one invalid row
+remain valid. All three sets must be subsets of the source, pairwise disjoint, and
+cover it exactly. Proof can only be written on pending-to-ready and is immutable
+afterward. The new migration preserves every 0212 refusal and adds only nullable
+columns, narrow column UPDATE grants and a partition trigger; legacy data is not
+mutated or backfilled. Under PP-134, a legacy package preview with NULL proof stays
+readable but ready-to-commit_requested fails with the known `IMPORT_PREVIEW_EXPIRED`
+code and requires a new preview, without rereading its file. Other entities retain
+their existing behavior. In each populated service group, every missing
+`service_N`, `sessions_N` or `remaining_N` cell gets its own `IMPORT_REQUIRED_CELL`
+on that original column; an entirely empty group remains ignored.
+See [the binding brief](47-2a-brief.md) and
+[the owner audit](owner-questions.ar.md#pp-134--المعاينات-القديمة-بدون-إثبات-تقسيم-الصفوف).
+
 Customer resolution is batched through
 `CustomerLookupPort.findByPhones(e164s)`, with one query on the existing tenant transaction.
 Results follow input order and contain only `{ id, phone_last3 }` or `null`.

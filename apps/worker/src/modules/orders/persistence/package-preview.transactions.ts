@@ -61,10 +61,12 @@ function scope(
       return rows.map((row) => row.external_ref);
     },
     findByPhones: (phones) => readPackageImportCustomers(tx, companyId, phones),
-    ready: async (rowCount, result) => {
+    ready: async (sourceRows, result) => {
       if (preview === null) return;
-      await tx.execute(sql`UPDATE import_previews SET status='ready',row_count=${rowCount},
+      await tx.execute(sql`UPDATE import_previews SET status='ready',row_count=${sourceRows.length},
         error_count=${result.errors.length},skipped_count=${result.skipped.length},
+        source_rows=${JSON.stringify(sourceRows)}::jsonb,
+        skipped_rows=${JSON.stringify(result.skipped.map(({ row }) => row))}::jsonb,
         rows=${JSON.stringify(result.rows)}::jsonb,errors=${JSON.stringify(result.errors)}::jsonb
         WHERE company_id=${companyId} AND id=${preview.id} AND entity='packages' AND status='pending'`);
     },

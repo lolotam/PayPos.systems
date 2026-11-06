@@ -135,3 +135,45 @@ it('collects every invalid component cell across groups without changing validat
     ],
   });
 });
+
+it.each([
+  [null, 2, 1, ['service_4']],
+  ['Hair', null, 1, ['sessions_4']],
+  ['Hair', 2, null, ['remaining_4']],
+  [null, null, 1, ['service_4', 'sessions_4']],
+  [null, 2, null, ['service_4', 'remaining_4']],
+  ['Hair', null, null, ['sessions_4', 'remaining_4']],
+] as const)(
+  'attributes each missing cell in a populated source group: %j',
+  (service, sessions, remaining, columns) => {
+    const input = [...cells, null, null, null, service, sessions, remaining];
+    const result = parsePackageImportRow(17, input, indexPackageImportServices(services));
+    expect(result.value).toBeNull();
+    expect(result.errors.filter(({ code }) => code === 'IMPORT_REQUIRED_CELL')).toEqual(
+      columns.map((column) => ({ row: 17, column, code: 'IMPORT_REQUIRED_CELL' })),
+    );
+    expect(JSON.stringify(result.errors)).not.toContain(cells[0]);
+  },
+);
+
+it('ignores an entirely empty service group', () => {
+  expect(
+    parsePackageImportRow(17, [...cells, null, null, null], indexPackageImportServices(services))
+      .errors,
+  ).toEqual([]);
+});
+
+it.each(['1.0', '1e0', '+1', '-1'])(
+  'keeps rejecting non-integer session syntax %s on its source column',
+  (value) => {
+    const input = [...cells] as (string | number | null)[];
+    input[7] = value;
+    expect(
+      parsePackageImportRow(17, input, indexPackageImportServices(services)).errors,
+    ).toContainEqual({
+      row: 17,
+      column: 'sessions_1',
+      code: 'INVALID_SESSIONS',
+    });
+  },
+);

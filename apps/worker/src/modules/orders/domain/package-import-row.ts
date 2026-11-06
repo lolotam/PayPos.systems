@@ -180,7 +180,10 @@ function readComponents(
     if (values.every((value) => value === null)) continue;
     const column = `service_${group + 1}`;
     if (values.some((value) => value === null)) {
-      issue(column, 'IMPORT_REQUIRED_CELL');
+      const names = ['service', 'sessions', 'remaining'];
+      values.forEach((value, index) => {
+        if (value === null) issue(`${names[index]}_${group + 1}`, 'IMPORT_REQUIRED_CELL');
+      });
       continue;
     }
     const name = values[0]?.toLowerCase();

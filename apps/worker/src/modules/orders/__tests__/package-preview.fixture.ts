@@ -57,6 +57,10 @@ async function prepare(owner: postgres.Sql, ids: ReturnType<typeof systemUuidV7>
     await owner`SELECT pg_get_functiondef('package_import_preview_update_guard()'::regprocedure) AS definition`;
   if (!(guard?.['definition'] as string).includes('IMPORT_PREVIEW_READY_RESULTS_INVALID'))
     throw new Error('PACKAGE_PREVIEW_FINAL_MIGRATION_REQUIRED');
+  const [partition] =
+    await owner`SELECT to_regprocedure('package_import_preview_partition_guard()') AS guard`;
+  if (partition?.['guard'] === null)
+    throw new Error('PACKAGE_PREVIEW_PARTITION_MIGRATION_REQUIRED');
 }
 
 export async function packagePreviewFixture() {

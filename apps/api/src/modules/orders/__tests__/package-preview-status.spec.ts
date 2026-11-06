@@ -57,7 +57,9 @@ it('polls pending, ready and failed without exposing stored rows, phones or file
   expect(pending.json()).toEqual({ preview_id, status: 'pending' });
   await f.database.withTenant(f.companyId, async (tx) => {
     await tx.execute(
-      sql`UPDATE import_previews SET status='ready',row_count=2,skipped_count=1,rows='[{"row":2,"customer_id":"safe","phone_last3":"678"}]'::jsonb WHERE id=${preview_id}`,
+      sql`UPDATE import_previews SET status='ready',row_count=2,skipped_count=1,
+      source_rows='[2,3]'::jsonb,skipped_rows='[3]'::jsonb,
+      rows='[{"row":2,"customer_id":"safe","phone_last3":"678"}]'::jsonb WHERE id=${preview_id}`,
     );
   });
   expect(await packageImportPreviewStatusQuery(f.database, actor(preview_id))).toEqual({

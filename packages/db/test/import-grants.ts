@@ -8,6 +8,8 @@ export const IMPORT_COLUMN_GRANTS = [
   'import_previews.row_count:pospay_app:UPDATE',
   'import_previews.rows:pospay_app:UPDATE',
   'import_previews.skipped_count:pospay_app:UPDATE',
+  'import_previews.skipped_rows:pospay_app:UPDATE',
+  'import_previews.source_rows:pospay_app:UPDATE',
   'import_previews.requested_at:pospay_app:UPDATE',
   'import_previews.status:pospay_app:UPDATE',
 ];
