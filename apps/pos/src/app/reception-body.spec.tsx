@@ -14,8 +14,8 @@ vi.mock('@/staff-login/api/staff-calls', () => ({
   signOutStaff: vi.fn(),
 }));
 vi.mock('@/attendance/api/clock-by-card', () => ({ clockByCard: calls.clock }));
-vi.mock('@/staff-login/ui/staff-login-screen', () => ({
-  StaffLoginScreen: () => <h2>login</h2>,
+vi.mock('@/staff-login/ui/staff-login-panel', () => ({
+  StaffLoginPanel: () => <h2>login</h2>,
 }));
 vi.mock('@/attendance/ui/attendance-home', () => ({
   AttendanceHome: () => <h2>attendance</h2>,

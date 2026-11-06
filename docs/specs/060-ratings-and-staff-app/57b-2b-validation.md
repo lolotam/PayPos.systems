@@ -758,3 +758,212 @@ one explicit branch push. No backend API, server expiry, native configuration,
 migration or workflow changed. #890 remains explicitly deferred. Remote
 CI/mobile and four panel receipts on the resulting head remain required before
 manager-coordinated Codex; no merge/deploy authority is inferred.
+
+
+## Tenth correction - uncommitted implementation receipt
+
+Worktree verified first: F:/Dev/Worktrees/PosPay/57b-2b-my-leave,
+branch feat/p1-060-57b-2b-my-leave, local HEAD
+8fffda483b019d7acf8c840780db8b44ae9c7bae (audit only), published baseline
+67ca782d6124c9df3f2a8f842ed0b9396c4f2195. The latest tenth card was read
+verbatim before implementation. This is the same tenth batch; 3/3 and
+exceptions 4-10 remain historical and binding, without reset or an eleventh.
+No commits, pushes, GitHub comments, review triggers, merge or deploy performed.
+
+Scope: r4496737996 now has one useStaffLogin owner in ReceptionBody. The new
+StaffLoginPanel receives that exact state; StaffLoginScreen retains its
+self-owned wrapper for standalone consumers. No epoch synchronization heuristic,
+conditional hook, business-area cross import, or recovery-fence change was added.
+The demonstrated original issue hid leave; it did not demonstrate data exposure.
+r4496750305 now resets finish per nested iteration, establishes a started promise
+before clicking, and receives/releases that attempt's resolver from the promise.
+All existing correct assertions remain.
+
+Changed manifest (relative to this audit HEAD):
+- apps/pos/src/staff-login/ui/staff-login-panel.tsx (new panel)
+- apps/pos/src/staff-login/ui/staff-login-screen.tsx (standalone wrapper)
+- apps/pos/src/app/reception-body.tsx (shared ownership)
+- apps/pos/src/app/reception-leave-binding.spec.tsx (actual PIN/OTP and switching)
+- apps/pos/src/app/leave-recovery-fence.spec.tsx (per-attempt synchronization)
+- apps/pos/src/app/reception-body.spec.tsx
+- apps/pos/src/app/device-body.spec.tsx
+- apps/pos/src/app/device-screen.spec.tsx (the last three update the existing
+  component mock target to the extracted panel; assertions are preserved)
+- docs/specs/060-ratings-and-staff-app/57b-2b-validation.md (this append)
+
+The eight new UI variants use actual form paths, real hooks and network/storage
+boundaries: PIN/OTP, operator replacement, branch-only/device-only mismatch,
+BroadcastChannel available/unavailable, immediate held boot (1000ms wait ceiling,
+no 15-second timer advance), hidden leave and unchanged read/write counts until
+pairing matches, then the new branch timezone. Existing repeat-boot/match,
+503/network, draft and idempotency regressions remain in the full suite.
+The BC double has a test-local registry, excludes only the sending channel and
+queues messages for other same-name channels including those in the same window.
+It does not use Node's cross-worker BroadcastChannel. Limits: jsdom only, no real
+multi-tab/browser transport timing, no server/API, DB, native or Playwright run.
+
+Command history (logs under F:/Dev/Temp/882-r10-*):
+- Focused binding + fence run initially failed eight new cases because the test
+  used staffLogin.switch instead of staffLogin.switchOperator. Corrected test key.
+- Focused five-file run: pnpm --filter @pospay/pos exec vitest run
+  src/app/reception-leave-binding.spec.tsx src/app/leave-recovery-fence.spec.tsx
+  src/app/reception-leave-recovery.spec.tsx src/app/reception-body.spec.tsx
+  src/staff-login/ui/staff-login-screen.spec.tsx --pool=threads --maxWorkers=2:
+  35/35 passed (13.48s).
+- External-only Vite transform 882-r10-mutant.config.cjs aborts the controller
+  before the probe on later nested iterations. Running the fence file with
+  -t 'late failure and success' failed BOTH selected tests at the started promise
+  (5000ms timeout), as intended. The ten unselected tests were excluded solely
+  by the CLI name filter; no source skip/deletion was added. This is mutation
+  rejection, NOT a product pass. Earlier read-only diagnostic evidence showed
+  the former test passing at probeStarts 1/6; no diagnostic code was copied into
+  production tests.
+- First complete POS command: pnpm --filter @pospay/pos exec vitest run
+  --pool=threads --maxWorkers=2: 652 passed, 7 failed, 104 files, 198.55s.
+  Four failures were stale component mock targets; fixed without changing asserts.
+- Targeted recheck of device-body/device-screen/leave-recovery/leave-round6:
+  20 passed, 3 failed. Both device files passed. Remaining reproducible failures:
+  leave-recovery: personal/reception 'recovers ... after401 only on successful
+  explicit verification' cannot find From date; leave-round6: 'recovers the same
+  identity to an allowed alternative when the old branch was removed' cannot
+  find Branch. These source files and recover-leave-session.ts are unchanged.
+  Reported before any expansion; no assertion or freshness gate was weakened.
+- First pnpm typecheck failed TS2349 for TypeScript narrowing of the callback
+  assigned inside fetch. The started promise now returns its own release callback;
+  pnpm typecheck rerun passed.
+- First pnpm lint failed max-lines-per-function in the enlarged fixture beforeEach.
+  Extracted bindingTransport; pnpm lint rerun passed (existing warnings remain).
+- pnpm lint:docs and pnpm module-map:check passed. Runs are sequential with
+  typecheck/lint; no simultaneous POS build output writers were started.
+
+Explicit deferrals: r4496735683 polling remains NOT FIXED, tracked by
+https://github.com/lolotam/PayPos.systems/issues/891. A matching poll can advance
+dataUpdateCount and require a second Retry while remaining fail-closed. All
+freshness/revision/query/epoch/abort/null/identity/expiry fences are unchanged;
+#891 requires a separately approved ABA-safe design. #890 creation-card
+cancellation remains deferred: POST LeaveRequest has no can_cancel. No API,
+PENDING-based authority inference, cast or unbounded pagination was introduced.
+
+Guard pass: clean-code-guard checked the production extraction, hook rules and
+composition boundary; test-guard checked transport mocks, visible outcomes,
+per-attempt resolver ownership and preserved assertions; docs-guard checked this
+receipt against commands/source. These are implementer self-checks, not the
+parent's required fresh independent review. The three reproducible existing-test
+failures prevent any claim of a green full suite or completed quality gates.
+Parent must assess those failures and independently review before publication.
+
+Final complete POS rerun: 656/659 passed in 104 files (137.29s); the same
+three recovery tests failed. This supersedes the first 652/659 run after the
+component mock targets were corrected. Full-suite gate remains FAILED.
+
+Final focused fence + binding after fixture extraction and resolver typing:
+24/24 passed (8.89s). Final external mutant again rejected both selected tests
+with the intended 5000ms started-probe timeout (14.46s). Final global
+pnpm typecheck and pnpm lint passed sequentially after the full-suite rerun.
+No independent review is claimed; parent review and remote gates remain pending.
+
+Final pnpm lint:docs (0 errors, 29 existing warnings), pnpm module-map:check,
+changed-file pnpm exec prettier --check and git diff --check passed.
+HEAD remains 8fffda483b019d7acf8c840780db8b44ae9c7bae; all implementation stays uncommitted.
+
+## Tenth-round Date-only expansion (same unpublished batch)
+
+The owner approved expanding only `leave-recovery.spec.tsx` and
+`leave-round6.spec.tsx` to fix and restore Date. Audit-only commit:
+`8e9f2a4da68516ca098799410e91178fce187f97`, parent local audit HEAD:
+`8fffda483b019d7acf8c840780db8b44ae9c7bae`; published baseline remains
+`67ca782d6124c9df3f2a8f842ed0b9396c4f2195`.
+
+Before test edits, `git rev-parse --show-toplevel` verified
+`F:/Dev/Worktrees/PosPay/57b-2b-my-leave`; the branch was
+`feat/p1-060-57b-2b-my-leave`. Only owner-questions.ar.md was staged and
+committed. `git show HEAD:docs/specs/060-ratings-and-staff-app/owner-questions.ar.md`
+then displayed the exact question/options/answer before the test edit.
+A subsequent byte comparison of git-show output confirmed that the entire
+previous audit is an unchanged prefix, and that the working audit equals the
+committed audit. The 3/3 history, exceptions 4–10 and prior tenth approval remain.
+No new correction round or merge waiver is implied.
+
+Historical evidence retained: the previous full POS run FAILED at 656/659
+(104 files), with three recovery cases using expired fixtures. The task handoff
+reported a Date-only in-memory diagnostic passing 9/9; that diagnostic was not
+rerun or represented as a source-suite pass in this execution.
+
+The only new source edits are beforeEach/afterEach in the two approved test files:
+`vi.useFakeTimers({ toFake: ['Date'] })`, fixed
+`2026-11-06T18:00:00Z` (before their `2026-11-06T20:00:00Z` expiry), and
+`vi.useRealTimers()` in a finally block around cleanup. Other timers remain real.
+An inverse-diff comparison verified every other byte of normalized source against
+HEAD: assertions, test bodies and timeouts are unchanged. Existing expiry tests,
+production and freshness fences are unchanged. Prior tenth implementation is preserved.
+
+Commands in this execution, in order:
+
+- `pnpm --filter @pospay/pos exec vitest run src/my-leave/ui/leave-recovery.spec.tsx src/my-leave/ui/leave-round6.spec.tsx --pool=threads --maxWorkers=2`: exit 0, 2 files, 9/9 tests, 9.20s.
+- `pnpm --filter @pospay/pos exec vitest run --pool=threads --maxWorkers=2`: exit 0, 104 files, 659/659 tests, 318.43s.
+
+#890 creation-card cancellation and #891 polling remain explicitly DEFERRED.
+Fresh independent review and remote exact-head gates remain pending. This worker
+performed no delegation, external Codex request, push, merge or deploy. The audit
+commit is the only new commit; implementation remains uncommitted for review.
+The first global `pnpm typecheck` passed (32/32 tasks, 59.155s), then
+`pnpm lint` FAILED: leave-round6.spec.tsx beforeEach had 61 lines against the
+60-line limit after the two Date setup statements. No rule was disabled and no
+assertion moved or changed. Clock setup was separated into its own beforeEach
+in both approved files; this is still only clock setup/teardown scope.
+
+Final-source reruns, sequential:
+
+- `pnpm --filter @pospay/pos exec vitest run src/my-leave/ui/leave-recovery.spec.tsx src/my-leave/ui/leave-round6.spec.tsx --pool=threads --maxWorkers=2`: exit 0, 2 files, 9/9 tests, 4.32s.
+- `pnpm --filter @pospay/pos exec vitest run --pool=threads --maxWorkers=2`: exit 0, 104 files, 659/659 tests, 166.07s.
+- `pnpm typecheck`: exit 0, 32/32 tasks, 18.666s (29 cached). Existing build warnings include chunk size and deprecated inlineDynamicImports.
+- `pnpm lint`: exit 0, 33/33 tasks, 12.675s (31 cached); existing repository warnings remain.
+
+Final manifest (all implementation remains unstaged/uncommitted):
+
+- Prior tenth work preserved: `apps/pos/src/app/device-body.spec.tsx`, `apps/pos/src/app/device-screen.spec.tsx`, `apps/pos/src/app/leave-recovery-fence.spec.tsx`, `apps/pos/src/app/reception-body.spec.tsx`, `apps/pos/src/app/reception-body.tsx`, `apps/pos/src/app/reception-leave-binding.spec.tsx`, `apps/pos/src/staff-login/ui/staff-login-screen.tsx`, and untracked `apps/pos/src/staff-login/ui/staff-login-panel.tsx`.
+- This expansion: `apps/pos/src/my-leave/ui/leave-recovery.spec.tsx`, `apps/pos/src/my-leave/ui/leave-round6.spec.tsx` (clock setup/teardown only).
+- Updated existing receipt: `docs/specs/060-ratings-and-staff-app/57b-2b-validation.md` (append-only history).
+- Committed audit only: `docs/specs/060-ratings-and-staff-app/owner-questions.ar.md`.
+
+Guard self-checks: clean-code-guard found no new production change in this
+expansion; the preserved panel extraction still uses one injected login owner.
+Test-guard: Date is a clock boundary; all visible assertions and expiry tests
+are preserved; finally restores real Date even if cleanup throws. Final inverse
+clock-only comparison again matched HEAD exactly in both test files.
+Docs-guard checked the appended claims against source, git-show proof and actual
+command results. These are implementer self-checks, NOT fresh independent review.
+Final remaining checks (sequential, after final typecheck then lint):
+
+- `pnpm lint:docs`: exit 0, 0 errors, 29 existing warnings.
+- `pnpm module-map:check`: exit 0, `module map: ok`.
+- `pnpm exec prettier --check` with the explicit changed tracked files, untracked staff-login-panel.tsx and committed owner audit: exit 0, all matched files use Prettier code style.
+- `git diff --check`: exit 0. Git notes the existing validation receipt CRLF-to-LF normalization; no diff whitespace error.
+
+Local HEAD remains `8e9f2a4da68516ca098799410e91178fce187f97`; index is
+empty. The 11-file uncommitted manifest above is the review artifact. Local
+checks are green after the recorded lint correction; independent review and
+remote CI/panel/Codex gates are still PENDING, with no external review requested.
+Recommended next step: manager commissions a fresh independent review of the
+complete preserved tenth batch plus this approved clock-only addition, before
+any single publication batch. PR: https://github.com/lolotam/PayPos.systems/pull/882.
+## Final independent tenth-round review and publication preparation
+
+A fresh Codex Astra high read-only review of the complete final tenth batch,
+including the approved Date-only expansion, returned PASS with no confirmed
+new P0/P1/P2/P3. Review task: 20675319-3fc0-4b2e-8553-e8af51d02383.
+It covered the 11-file implementation manifest and both audit commits; it
+verified source comparisons and git diff --check, but did not run suites.
+The 659/659 POS and global local-gate results above are execution receipts,
+not independently rerun tests claimed by the reviewer.
+
+Before publication, origin/main is still da775eb5e5b62adcb48b26d1e55fdba1a2ce671f
+and the published PR head is still 67ca782d6124c9df3f2a8f842ed0b9396c4f2195.
+PR base is main. No external Codex review was requested by this session.
+One consolidated publication follows this review; exact-head CI/Mobile and
+all four panel receipts remain required afterward, then manager-coordinated
+Codex. No merge/deploy or implicit eleventh round is authorized.
+
+#890 remains deferred (creation-card cancellation). #891 remains explicitly
+deferred (matching polling may abort recovery and require a second Retry);
+freshness/null/abort/query/epoch fences are unchanged, not relaxed.

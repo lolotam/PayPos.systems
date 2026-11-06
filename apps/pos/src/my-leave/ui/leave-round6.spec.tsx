@@ -44,6 +44,10 @@ let readStatus = 503;
 let sessionUser = context.user_id;
 let readFailurePath = '';
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-11-06T18:00:00Z'));
+});
+beforeEach(() => {
   onlineManager.setOnline(true);
   items = [...records];
   eligible = branch;
@@ -103,7 +107,11 @@ beforeEach(() => {
   );
 });
 afterEach(() => {
-  cleanup();
+  try {
+    cleanup();
+  } finally {
+    vi.useRealTimers();
+  }
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });

@@ -22,6 +22,7 @@ let mode: Mode;
 let response: unknown;
 let finish: (() => void) | undefined;
 let held: boolean;
+let probeStarted: ((release: () => void) => void) | undefined;
 let controller: AbortController;
 let recovery: Promise<unknown>;
 let failure: boolean;
@@ -36,11 +37,13 @@ beforeEach(() => {
   held = false;
   failure = false;
   finish = undefined;
+  probeStarted = undefined;
   vi.stubGlobal('fetch', async (request: Request) => {
     if (new URL(request.url).pathname.endsWith('-session')) {
       if (held)
         await new Promise<void>((resolve) => {
           finish = resolve;
+          probeStarted?.(resolve);
         });
       if (failure) throw new TypeError('Synthetic offline');
       return response === null ? Response.json({}, { status: 401 }) : Response.json(response);
@@ -207,14 +210,20 @@ it.each(['personal', 'reception'] as const)(
         held = true;
         response = outcome === 'null' ? null : mode === 'personal' ? personal : staff;
         failure = outcome === 'network';
+        finish = undefined;
+        probeStarted = undefined;
+        const started = new Promise<() => void>((resolve) => {
+          probeStarted = resolve;
+        });
         fireEvent.click(screen.getByText('Recover'));
-        await waitFor(() => expect(finish).toBeTypeOf('function'));
+        const releaseProbe = await started;
+        expect(finish).toBeTypeOf('function');
         const newer = { ...(mode === 'personal' ? personal : staff), user_id: id(8) };
         await act(async () => {
           cache.setQueryData(sessionKey(), newer);
           cache.setQueryData(['other-private'], 'new private');
           if (abort) controller.abort();
-          finish?.();
+          releaseProbe();
           await recovery;
         });
         await screen.findByText(newer.user_id);

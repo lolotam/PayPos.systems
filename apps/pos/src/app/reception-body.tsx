@@ -1,5 +1,5 @@
 import { OwnLeaveEntry } from './own-leave-entry';
-import { StaffLoginScreen } from '@/staff-login/ui/staff-login-screen';
+import { StaffLoginPanel } from '@/staff-login/ui/staff-login-panel';
 import { useStaffLogin } from '@/staff-login/api/use-staff-login';
 import { AttendanceHome } from '@/attendance/ui/attendance-home';
 import { CardClockAvailability } from '@/attendance/ui/card-clock-availability';
@@ -37,7 +37,8 @@ export function ReceptionBody({
   }, [mismatch, retryBinding, session, bindingConfirmed]);
   return (
     <div className="mx-auto grid w-full max-w-6xl items-start gap-12 lg:grid-cols-2">
-      <StaffLoginScreen
+      <StaffLoginPanel
+        login={operator}
         ownLeave={(session, epoch) =>
           !deviceId || session.branch_id !== branchId || session.device_id !== deviceId ? null : (
             <OwnLeaveEntry
