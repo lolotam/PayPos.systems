@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/v1/staff/me/tips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Own current-revision tips by method. Live authority and month window are checked before HIDDEN. HIDDEN contains only month/status and issues no tip query. STAFF_POS requires a live private-view window. Cache-Control: no-store. */
+        get: operations["ownTips"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/staff/me/attendance": {
         parameters: {
             query?: never;
@@ -8002,6 +8019,77 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    ownTips: {
+        parameters: {
+            query?: {
+                month?: string;
+            };
+            header?: {
+                "x-private-view-window-id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description HIDDEN or own CASH/CARD totals as canonical KWD strings */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        month: string;
+                        /** @enum {string} */
+                        status: "HIDDEN";
+                    } | {
+                        month: string;
+                        /** @enum {string} */
+                        status: "VISIBLE";
+                        total_cash: string;
+                        total_card: string;
+                    };
+                };
+            };
+            /** @description VALIDATION_FAILED */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description UNAUTHENTICATED */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description FORBIDDEN or PRIVATE_VIEW_EXPIRED */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description MY_PERIOD_OUT_OF_RANGE */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     ownAttendance: {
         parameters: {
             query?: {

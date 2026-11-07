@@ -91,6 +91,12 @@ transaction. The branch proving current authority does not restrict historical
 attendance branches. Branch names cross the tenancy boundary through this reader;
 the attendance SQL joins only staff-owned tables and the supplied name projection.
 
+Spec 060 57-2a OwnWorkReads consumes provider-owned employee, identity and tenancy
+readers on one transaction and sampled clock. Current authority does not narrow
+historical business tips. Only tip totals and month-window callbacks are composed.
+ADR-0041's 2026-11-07 addendum records the exact four public read dependencies,
+their rationale and consequences; the macro import arrows are unchanged.
+
 ADR-0020 attendance QR reads the paired branch name and effective timezone through the existing tenancy
 `describeWorkspaces` surface; staff owns the read port. It adds no attendance write or clocking endpoint.
 
@@ -378,6 +384,10 @@ sync_writes:
 # Planned E: customers -> staff.readEmployeeDisplayNames @ apps/api/src/modules/customers/persistence/performer-name.adapter.ts
 # Planned E: customers -> tenancy.describeWorkspaces @ apps/api/src/modules/customers/persistence/low-rating-names.adapter.ts
 reads:
+  - orders -> staff.readOwnEmployee @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
+  - orders -> identity.readOwnServiceSessionsAccess @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
+  - orders -> tenancy.describeWorkspaces @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
+  - orders -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/personal-branches.adapter.ts
   - staff -> identity.personalMemberships @ apps/api/src/modules/staff/persistence/personal-branches.adapter.ts
   - orders -> files.documentFileFacts @ apps/worker/src/modules/orders/persistence/package-preview.transactions.ts

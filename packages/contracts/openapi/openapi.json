@@ -5,6 +5,153 @@
     "version": "0.0.0"
   },
   "paths": {
+    "/v1/staff/me/tips": {
+      "get": {
+        "operationId": "ownTips",
+        "description": "Own current-revision tips by method. Live authority and month window are checked before HIDDEN. HIDDEN contains only month/status and issues no tip query. STAFF_POS requires a live private-view window. Cache-Control: no-store.",
+        "security": [
+          {
+            "PersonalStaffSession": []
+          },
+          {
+            "KioskStaffSession": [],
+            "DeviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{3}-(0[1-9]|1[0-2])$"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-private-view-window-id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HIDDEN or own CASH/CARD totals as canonical KWD strings",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "month": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{3}-(0[1-9]|1[0-2])$"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "HIDDEN"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "month",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "month": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{3}-(0[1-9]|1[0-2])$"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "VISIBLE"
+                          ]
+                        },
+                        "total_cash": {
+                          "type": "string",
+                          "pattern": "^(0|[1-9]\\d*)\\.\\d{3}$"
+                        },
+                        "total_card": {
+                          "type": "string",
+                          "pattern": "^(0|[1-9]\\d*)\\.\\d{3}$"
+                        }
+                      },
+                      "required": [
+                        "month",
+                        "status",
+                        "total_cash",
+                        "total_card"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN or PRIVATE_VIEW_EXPIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "MY_PERIOD_OUT_OF_RANGE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/staff/me/attendance": {
       "get": {
         "operationId": "ownAttendance",
