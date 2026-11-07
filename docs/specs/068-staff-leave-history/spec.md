@@ -365,6 +365,30 @@ None. The reads rely on existing indexes; the EXPLAIN tests decide:
 If an EXPLAIN shows a sequential scan on a seeded volume, that sub-PR adds the index in its own migration,
 `CONCURRENTLY` (ADR-0033), after checking with the orchestrator which lane holds the next migration number.
 
+68-1b adds no migration. Its EXPLAIN assertion covers the leave, shift and session tables named in its brief
+(`leave_requests`, `staff_schedule_shifts`, `attendance_sessions`) and also `staff_schedules` and `employees`
+(a delegated manager decision, 2026-11-07, before Ready on PR #897; not a new owner decision); a sequential scan
+on any of them stops delivery and is reported to the manager, since an index needs separately authorized migration
+coordination (PP-124/PP-130).
+
+### 68-1b implementation
+
+The employee history route is wired through `EmployeeLeaveHistoryController` and reuses `LEAVE_READ_ACCESS`.
+`LeaveHistoryQuery`, `LeaveHistoryItem` and `LeaveHistoryPage` are registered contracts; every row includes
+`employee_number`, while `LeaveListItem` is unchanged. The HTTP filters accept single and repeated values.
+The query uses one statement for the page and all-history `last_taken`, including plain `MAX(working_date)`
+for absence. Day grouping retains every shift before testing whether any shift ended. Coverage checks are
+qualified by company and business; each visible covering fact uses its matching read scope (BR-008).
+Period index bounds use explicit UTC midnights. The permission clock remains `scope.now`; cursor `as_of`
+controls row time predicates only. The report route and UI remain separate slices.
+
+The history tests live in `apps/api/src/modules/staff/__tests__/leave-history-*.spec.ts`; the performance
+fixture seeds 50 employees, 2,650 weekly schedules and 18,250 shifts over 365 days, plus matching sessions
+and 1,000 leave requests inside the measured year (20 per employee). EXPLAIN checks cover no absence, an old latest absence and missing leave types.
+For each scenario the harness records rows, loops, buffers, sort storage and execution time, then measures
+50 sequential full HTTP inject reads after five warmups. Sample arrays, actual row counts and machine
+conditions are emitted with the result; a single EXPLAIN is not treated as p95 evidence.
+
 ### API contract
 
 - `GET /v1/businesses/{businessId}/employees/{employeeId}/leave-history` — the tab. Query `leaveHistoryQuery`:
