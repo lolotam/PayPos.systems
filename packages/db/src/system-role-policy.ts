@@ -1,5 +1,10 @@
 import { sql, type SQL } from 'drizzle-orm';
-import { OWNER_ROLE_ID, PERMISSIONS, SYSTEM_ROLES, type Permission } from './access-catalog.ts';
+import { OWNER_ROLE_ID, SYSTEM_ROLES, type Permission } from './access-catalog.ts';
+import {
+  IMPORTED_REFUNDS_PERMISSION,
+  POLICY_PERMISSIONS,
+  type PolicyPermission,
+} from './permission-policy.ts';
 import {
   ROLE_DEFAULTS,
   OWNER_DERIVED_PERMISSIONS,
@@ -10,6 +15,7 @@ import {
 
 // spec 009 يجعل الأدوار المحذوفة من الصف ❌؛ الجهاز لا يرث سلطة موظف من ALLOW قديم.
 const deviceForbidden = [
+  IMPORTED_REFUNDS_PERMISSION,
   'read:service-sessions:own',
   'read:commissions:own',
   'read:attendance:own',
@@ -76,7 +82,7 @@ const deviceForbidden = [
   'correct:attendance:branch',
   'request:attendance-change:branch',
   'decide:attendance-change:company',
-] as const satisfies readonly Permission[];
+] as const satisfies readonly PolicyPermission[];
 
 // قرار المالك SI-Q26 (2026-10-29): صلاحيات الكتالوج الست قابلة للتفويض لأي موظف بشري من شاشة الصلاحيات؛ الجهاز ممنوع منها أبداً (deviceForbidden).
 const DELEGATABLE_CATALOG_PERMISSIONS = [
@@ -103,16 +109,17 @@ const optional: Readonly<Record<string, readonly string[]>> = {
   viewer: ['create:customers:company'],
 };
 
-/** المرجع يميز الدور العالمي الثابت ويمنع تفويض خانات الجهاز المحظورة؛ اسم الدور المخصص لا يرث حمايته، وصلاحيات الوثائق وصلاحيات الكتالوج قابلة للتفويض لكل البشر. */
+/** المرجع يميز الدور العالمي الثابت ويمنع تفويض خانات الجهاز المحظورة؛ اسم الدور المخصص لا يرث حمايته، وصلاحيات الوثائق وصلاحيات الكتالوج قابلة للتفويض لكل البشر. يشمل كود المرتجعات المستوردة المستقبلي لأهلية البشر فقط دون تفعيل الكتالوج أو منح افتراضي؛ الجهاز يظل ممنوعاً. */
 export function systemRolePolicy(roleId: string, ownerKey: string) {
   const role = SYSTEM_ROLES.find((r) => r.id === roleId);
   if (ownerKey !== 'global' || role === undefined) return null;
   return {
     code: role.code,
-    permissions: PERMISSIONS.filter((code) =>
+    permissions: POLICY_PERMISSIONS.filter((code) =>
       role.code === 'device'
         ? !(deviceForbidden as readonly string[]).includes(code)
-        : (ROLE_DEFAULTS[code] as readonly string[]).includes(role.code) ||
+        : code === IMPORTED_REFUNDS_PERMISSION ||
+          (ROLE_DEFAULTS[code] as readonly string[]).includes(role.code) ||
           (OWNER_DERIVED_PERMISSIONS as readonly string[]).includes(code) ||
           (SCHEDULE_PERMISSIONS as readonly string[]).includes(code) ||
           (OWNER_GRANTED_PERMISSIONS as readonly string[]).includes(code) ||
@@ -151,13 +158,19 @@ export function systemRoleGrantAllowedSql(memberAlias: string, grantAlias: strin
 }
 
 /** يستبعد ALLOW المحظور للدور العالمي بما فيه الجهاز؛ يحفظ DENY والتاريخ ويقيد تفويض مدير النشاط بنطاقه. تحديد permissionCode يقلص المنح المقروءة إلى كود واحد ويحصر SQL فيه أيضاً دون تغيير سياسة الأدوار. */
-export function systemRoleOverrideAllowedSql(memberAlias: string, overrideAlias: string, permissionCode?: Permission): SQL {
+export function systemRoleOverrideAllowedSql(
+  memberAlias: string,
+  overrideAlias: string,
+  permissionCode?: PolicyPermission,
+): SQL {
   const m = sql.identifier(memberAlias),
     o = sql.identifier(overrideAlias);
   const human = SYSTEM_ROLES.filter((r) => r.code !== 'device');
   const device = SYSTEM_ROLES.find((r) => r.code === 'device');
   const cells = human.map((role) => {
-    const codes = (systemRolePolicy(role.id, 'global')?.permissions ?? []).filter((code) => permissionCode === undefined || code === permissionCode);
+    const codes = (systemRolePolicy(role.id, 'global')?.permissions ?? []).filter(
+      (code) => permissionCode === undefined || code === permissionCode,
+    );
     return sql`(${m}.role_id = ${role.id}::uuid AND ${
       codes.length === 0
         ? sql`false`
