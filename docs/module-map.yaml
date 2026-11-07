@@ -5,7 +5,7 @@ imports:
   catalog: [tenancy]
   channels: [tenancy]
   commissions: [staff, settings]
-  customers: [tenancy, settings, staff]
+  customers: [tenancy, settings, staff, identity]
   expenses: [tenancy]
   files: [tenancy]
   identity: [tenancy]
