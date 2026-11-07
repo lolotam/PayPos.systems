@@ -64,6 +64,9 @@ export function createLeaveReadAccess(clock: LeaveClock) {
         // ملكية الموظف تقيد سجل الذات، بينما إذن القراءة مثبت في الفرع الحالي للجلسة.
         branches:
           c.own && access.read.length > 0 ? business.branches.map((b) => b.id) : [...access.read],
+        attendanceBranches: c.own
+          ? []
+          : access.read.filter((id) => access.attendanceRead.includes(id)),
         cancelBranches:
           c.own && access.cancel.length > 0
             ? business.branches.map((b) => b.id)

@@ -1,0 +1,9 @@
+import { sql } from 'drizzle-orm';
+import type { LeaveReadContext } from './leave-requests.query.ts';
+import type { HistoryScope } from './leave-history-days.sql.ts';
+import { leaveListRecord } from './leave-list-record.sql.ts';
+
+export function historyLeaveRecord(c: LeaveReadContext, s: HistoryScope) {
+  // شاشة السجل تضيف هوية الموظف من غير تغيير عقد قائمة الطلبات.
+  return sql`${leaveListRecord(c, s)} || jsonb_build_object('row_type','LEAVE','employee_number',subject.employee_number)`;
+}

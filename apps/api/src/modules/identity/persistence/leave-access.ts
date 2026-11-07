@@ -30,7 +30,7 @@ export async function lockLeaveAccess(tx: Tx, companyId: string): Promise<boolea
  * @param branchIds الفروع الحقيقية في النشاط
  * @param now لحظة الساعة المحقونة المشتركة مع أهلية الموظف والفترة وانتهاء تجاوز الميزة
  * @param subjectUserId رابط الموظف للذات، أو undefined للمدير
- * @returns فروع كل فعل مع حالة الميزة؛ DENY يغلب لغير المالك والذات تحتاج تطابق المستخدمين
+ * @returns فروع كل فعل وفروع قراءة الحضور للمدير مع حالة الميزة؛ DENY يغلب لغير المالك والذات تحتاج تطابق المستخدمين
  */
 export async function readLeaveAccess(
   tx: Tx,
@@ -55,6 +55,12 @@ export async function readLeaveAccess(
       evaluateAccess(access.grants, `${action}:leave:${suffix}`, target(id)),
     );
   return {
+    attendanceRead:
+      subjectUserId === undefined
+        ? branchIds.filter((id) =>
+            evaluateAccess(access.grants, 'read:attendance:branch', target(id)),
+          )
+        : [],
     read: branches('read'),
     create: branches('create'),
     cancel: branches('cancel'),
