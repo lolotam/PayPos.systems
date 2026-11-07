@@ -276,7 +276,10 @@ only in this worktree's ignored `.env`. Use the same local values for the test r
 for config resolution only. This does not authorize starting Redis or trying that value
 against shared Redis. See [the manager's execution provenance](specs/0892-runbook-env-provenance.md).
 Before preparation, stop if `.env` or `.env.test.local` already exists; retain and
-review the existing task setup instead of overwriting it. Create `.env` only when
+verify that its values were generated in this worktree before using it. Copied or
+unknown provenance blocks testing: retain the file without using it, report it to the
+manager, and arrange safe replacement with freshly generated local secrets and matching
+local URLs; never overwrite or delete existing values blindly. Create `.env` only when
 absent, using an exclusive-create write (`flag: 'wx'`). Generate
 `POSTGRES_OWNER_PASSWORD`, `POSTGRES_APP_PASSWORD`, `POSTGRES_AUTH_PASSWORD` and
 `POSTGRES_DISPATCHER_PASSWORD` locally; never paste values into chat or logs.
@@ -338,6 +341,8 @@ node scripts/test-db/lane.mjs status               # lane containers, and which 
 - Not redirected: Redis, `pnpm db:migrate`, and the apps' `DATABASE_URL`-style variables.
   Only the Postgres test harness moves. Do not borrow shared Redis: a Redis-dependent suite
   needs its own explicitly authorized isolated setup; otherwise report it blocked.
+  That authorization must include the reviewed Redis topology/ADR and its lifecycle;
+  this paragraph is a checklist for that separate setup, not a new topology decision.
   Only after that authorization, the setup must use a worktree-private Redis container
   labelled with its lane and worktree, bound to `127.0.0.1` on a verified free port
   (for example `56380`, only if free; record the actual port in the task receipt).
@@ -347,6 +352,11 @@ node scripts/test-db/lane.mjs status               # lane containers, and which 
   setup; merely writing `.env` does not prove a suite loads it. If the URL is missing,
   stop: some suites otherwise default to shared `127.0.0.1:6379`.
   The config-only random password above is not a credential for shared Redis.
+  The separate setup must also supply ownership-checked teardown for its exact Redis
+  container and private data: verify its lane/worktree labels and task receipt before
+  removal, stop its clients, and remove only its owned container and disposable data.
+  Never remove shared or unknown resources. `lane.mjs down` removes Postgres only;
+  it does not perform Redis cleanup. Without that reviewed teardown, the suite stays blocked.
   These are setup requirements, not authorization to start a Redis instance in #892.
 - Run one lane per worktree: the override file is per worktree. Bring the lane down when the slice is done;
   `docker ps` should show only `pospay-dev-*` again.
