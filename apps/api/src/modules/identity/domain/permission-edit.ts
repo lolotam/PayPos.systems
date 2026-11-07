@@ -3,6 +3,7 @@ import { personalAllowFailure } from './permission-eligibility.ts';
 
 /** قرارات المالك تحصر منح هذه الصلاحيات فيه؛ القائمة الصافية تمنع اعتماد الدومين على قاعدة البيانات. */
 export const OWNER_GRANTED_PERMISSIONS: readonly string[] = [
+  'manage:imported-refunds:business',
   'read:attendance:branch',
   'read:files:business',
   'manage:files:business',
@@ -16,8 +17,9 @@ export const OWNER_GRANTED_PERMISSIONS: readonly string[] = [
   'manage:commission-plans:business',
 ];
 
-/** المالك وحده يمنح أو يمنع أو يسحب صلاحيات طلبات تعديل الحضور (ACR-Q1، ACR-Q4) وخطط العمولة (CS-Q27)، لأن سحبها يغيّر مين يقدر يطلب أو يوافق أو يعدّل الخطة. */
+/** المالك وحده يمنح أو يمنع أو يسحب صلاحيات طلبات تعديل الحضور (ACR-Q1، ACR-Q4) وخطط العمولة (CS-Q27) ومرتجع الباقات المستوردة (PK-Q26)، لأن السحب يغيّر صاحب السلطة. */
 export const OWNER_ONLY_EDIT_PERMISSIONS: readonly string[] = [
+  'manage:imported-refunds:business',
   'request:attendance-change:branch',
   'decide:attendance-change:company',
   'manage:commission-plans:business',
@@ -135,7 +137,7 @@ export function permissionPossessionFailure(
 
 /**
  * بيتحقق من السلطة والنطاق والمدة؛ تفويض كودي إدارة النشاط لمديره لا يتجاوز نشاط عضويته.
- * منح ALLOW للصلاحيات المحمية محصور في المالك؛ قرارات الحضور وخطط العمولة تحتاجه أيضاً عند المنع والسحب.
+ * منح ALLOW للصلاحيات المحمية محصور في المالك؛ قرارات الحضور وخطط العمولة ومرتجع الباقات المستوردة تحتاجه أيضاً عند المنع والسحب.
  *
  * @param terms بيانات الاستثناء المطلوبة
  * @param context العضوية والصلاحيات والهدف الموثوق والوقت المحقون

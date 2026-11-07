@@ -249,3 +249,21 @@ and generated lines. A is R2/3; original #894 remains 3/3.
 | `packages/domain/src/monthly-tip-totals.ts` | 25 | 0 |
 
 Total: 38 files, +2114/-4, 2118 ALL changed lines (A limit 3400; combined A+B limit 5600).
+
+## Main refresh after #898 and #899 — 2026-11-07
+
+Checkpoint `checkpoint/57-2a-pre-main-8fef940` preserves the reviewed prior head.
+Verified origin/main `3e360a7bf0990d6df7420c4da1804968623d30e5` contains #898/#899.
+Ordinary merge applied without conflicts; no A production/test/generated changes.
+Regenerated OpenAPI and admin/POS/menu clients: no additional diff; api:check x3 passed.
+DB build, API/contracts/domain typechecks, scoped ESLint/boundaries, module-map,
+docs lint (0 errors, 29 warnings) and diff checks passed. Two lint invocation errors
+occurred before file analysis; corrected direct ESLint invocation passed.
+A API/domain: 28/28, five files, 270.46 s; contracts 20/20 and monthly domain 6/6.
+Exactly 602 tips: CASH 2.100 / CARD 2.250; query/driver 12.0864 ms, array 0.0239 ms,
+aggregation 0.5164 ms, total 12.6267 ms; heap 626224 bytes, RSS 69632 bytes.
+Raw log: `.cache/57-2a-main-3e360-api.log`. No diagnostic experiment was repeated.
+Prior CI attempt1 remains UNKNOWN; the manager accepted authorized attempt2 as
+current evidence for its old pair only, without a root-cause-fixed or flake claim.
+Fresh-head CI/panel/Codex and applicable backup/restore matching remain required.
+A remains R2/3, original #894 3/3; B planning only. No merge/deploy authorization.

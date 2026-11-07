@@ -1,4 +1,5 @@
 import type { Permission } from './access-catalog.ts';
+import { IMPORTED_REFUNDS_PERMISSION, type PolicyPermission } from './permission-policy.ts';
 
 const managers = ['owner', 'general_manager', 'business_manager'] as const;
 const settings = managers;
@@ -35,8 +36,9 @@ export const OWNER_DERIVED_PERMISSIONS = [
   'manage:salaries:business',
 ] as const satisfies readonly Permission[];
 
-/** صلاحيات الوثائق والدوام ولوحة الحضور وطلبات تعديله وهوية النشاط والرقم الوظيفي وخطط العمولة متاحة لكل دور بشري بتفويض شخصي يمنحه المالك فقط؛ الجهاز لا يكتسبها. */
+/** صلاحيات الوثائق والدوام ولوحة الحضور وطلبات تعديله وهوية النشاط والرقم الوظيفي وخطط العمولة ومرتجع الباقات المستوردة متاحة لكل دور بشري بتفويض شخصي يمنحه المالك فقط؛ الجهاز لا يكتسبها. الكود المستقبلي لا يفعّل seed. */
 export const OWNER_GRANTED_PERMISSIONS = [
+  IMPORTED_REFUNDS_PERMISSION,
   'read:attendance:branch',
   'read:files:business',
   'manage:files:business',
@@ -48,7 +50,7 @@ export const OWNER_GRANTED_PERMISSIONS = [
   'manage:business-identity:business',
   'manage:employee-number:company',
   'manage:commission-plans:business',
-] as const satisfies readonly Permission[];
+] as const satisfies readonly PolicyPermission[];
 
 /** التفويض الشخصي للجدول والقوالب يخص الأدوار البشرية؛ دور الجهاز محظور في كل خانة. */
 export const SCHEDULE_PERMISSIONS = [
