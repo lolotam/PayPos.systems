@@ -436,3 +436,37 @@ Abu Salem is recorded for SS-Q1b: his only SS-Q1 note is dated 2026-10-08 and re
 the earlier statement that he agreed with every pick on 2026-10-12 does not cover SS-Q1b. SS-Q1b is pending his
 pick. Per CLAUDE.md §1 5b, work keeps following Waleed's answer; if Abu Salem later differs, his pick binds and
 becomes a follow-up. SS-Q2–SS-Q11 are unchanged.
+
+## Addendum 2026-11-07 — 57-2a own tips read context
+
+**Decision and scope.** Spec 060's manager-approved 57-2a slice exposes only the
+complete own tips read. Its consumer-owned `OwnWorkReads` context is implemented
+by `orders/persistence/own-work-context.adapter.ts` through public module indexes.
+The existing macro import arrows orders → staff, identity and tenancy remain;
+the exact symbol/path dependencies below are explicitly recorded for this slice.
+
+| Provider | Public read | Facts supplied to the orders-owned adapter |
+|---|---|---|
+| staff | `readOwnEmployee` | caller-linked eligible employee and active branch attachments |
+| identity | `readOwnServiceSessionsAccess` | live membership, feature and own permission for eligible authority branches |
+| tenancy | `describeWorkspaces` | tenant/business ownership and active branches for live authority |
+| tenancy | `activeBusinessTimeZone` | effective timezone for the live business/authority branch |
+
+All four module-map reads point to
+`apps/api/src/modules/orders/persistence/own-work-context.adapter.ts`. Providers
+own their SQL and receive the caller's transaction; employee and identity checks
+use the same sampled clock. No nested transaction, deep import, cross-context SQL
+join or worker-to-API edge is introduced. Composition injects pure domain callbacks
+for the month window and monthly bigint totals; queries do not import domain code.
+
+**Rationale and consequences.** Reusing recording/attendance permission readers
+would conflate distinct permissions, so the two own readers expose only facts
+needed by the tips path. Orders does not duplicate staff/identity SQL or expose a
+generic repository. Current device branch proves authority but does not narrow
+historical tips in the authorized business. HIDDEN still performs authority and
+window checks before returning only month/status without tip SQL or aggregation.
+The added public exports and exact module-map entries require boundary/map checks,
+real eligible tenant/business isolation and historical-transfer tests, plus the
+query/materialisation/aggregation benchmark. Existing tests supply those proofs;
+this record does not claim CI success or waive fresh-head review. No write/table,
+migration, service-lines endpoint or B query design is authorized by this addendum.

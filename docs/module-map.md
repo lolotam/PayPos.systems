@@ -34,7 +34,7 @@ Anything not in this table is a CI failure. Every arrow points **down** this lis
 | `files`         | `tenancy`             | Storage keys are `{companyId}/{businessId}/…`.                                 |
 | `platform`      | `tenancy`             | Super-admin over tenants.                                                      |
 | `catalog`       | `tenancy`             |                                                                                |
-| `customers`     | `tenancy`, `settings`, `staff` | `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader only (ADR-0010 addendum 2026-10-21). The rating message reads the performer's first name from staff's public reader (ADR-0010 addendum 2026-10-31; ADR-0037 §4, spec 060 FR-B07). |
+| `customers`     | `tenancy`, `settings`, `staff`, `identity` | `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader only (ADR-0010 addendum 2026-10-21). The rating message reads the performer's first name from staff's public reader (ADR-0010 addendum 2026-10-31; ADR-0037 §4, spec 060 FR-B07).  API low-rating recipients read identity public interfaces (A-1, spec 060); no worker-to-API edge. |
 | `expenses`      | `tenancy`             |                                                                                |
 | `inventory`     | `tenancy`             |                                                                                |
 | `staff`         | `tenancy`, `identity`, `files`, `settings` | An employee may be linked to a user; a document binds a verified file (ADR-0031). `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader, and the staff `AlertRulesPort.roleHolders` adapter reads identity's scoped role holders (ADR-0010 addendum 2026-10-21; ADR-0040 addendum, 62-2b). |
@@ -90,6 +90,12 @@ live own authority through identity's `readOwnAttendanceAccess`, all on the call
 transaction. The branch proving current authority does not restrict historical
 attendance branches. Branch names cross the tenancy boundary through this reader;
 the attendance SQL joins only staff-owned tables and the supplied name projection.
+
+Spec 060 57-2a OwnWorkReads consumes provider-owned employee, identity and tenancy
+readers on one transaction and sampled clock. Current authority does not narrow
+historical business tips. Only tip totals and month-window callbacks are composed.
+ADR-0041's 2026-11-07 addendum records the exact four public read dependencies,
+their rationale and consequences; the macro import arrows are unchanged.
 
 ADR-0020 attendance QR reads the paired branch name and effective timezone through the existing tenancy
 `describeWorkspaces` surface; staff owns the read port. It adds no attendance write or clocking endpoint.
@@ -164,6 +170,9 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `commissions` | customer-names reader (port named by the sub-PR that adds it) | `customers` | the customer's full name for the statement detail and the export, never a phone (spec 059 D-16, D-20; no import arrow) |
 | `commissions` | tips and package-sales bootstrap readers (ports named by 50-3 and 50-4; lines and salaries are replayed from the outbox through a `packages/db` facade, not a port, spec 059 D-15) | `orders` | the latest revision of each input with its event ids, in paged form, for the bootstrap before approval opens; bound at the composition root, never read from commissions code (spec 059 D-15, ADR-0041 §6; no import arrow) |
 | `customers`                         | `PerformerNamePort`                                                                     | `staff`     | performer's first name, in the rating message (ADR-0010)                                                                                                             |
+| API `customers` | `RatingAlertRecipientsPort` | API `identity` | scoped managers and effective comment readers, same tenant transaction (A-1) |
+| API `customers` | `PerformerNamePort` | API `staff` | snapshotted employee first names through the API public reader (A-1) |
+| API `customers` | `LowRatingNoticePlacePort` | API `tenancy` | exact request branch names and mandatory tenant/place context through describeWorkspaces (A-1) |
 | `customers`                         | `DaySessionsPort`                                                                       | `orders`    | the customer's active lines and performers for a business day — read at claim time, the authoritative boundary for rating attribution (ADR-0010)                     |
 | `customers`                         | `BusinessNamesPort`                                                                     | `tenancy`   | the business's Arabic and English name, shown on the public rating page (spec 060 D-B9, 60-1)                                                                    |
 | `staff` | `EmployeeDocumentScope.file` | `files` | a READY file uploaded by the recorder for this employee and business, read in the same tenant transaction; staff keeps the verified key only (ADR-0031) |
@@ -326,7 +335,7 @@ imports:
   files: [tenancy]
   platform: [tenancy]
   catalog: [tenancy]
-  customers: [tenancy, settings, staff]
+  customers: [tenancy, settings, staff, identity]
   expenses: [tenancy]
   inventory: [tenancy]
   orders: [tenancy, catalog, customers, staff, identity, settings, files]
@@ -368,7 +377,17 @@ composition_roots:
 # (ADR-0010 addendum 2026-10-31).
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
+# A-1 planned API reads; activate each entry WITH its adapter in the later emitter.
+# Planned E: customers -> settings.readAlertRule @ apps/api/src/modules/customers/persistence/alert-rules.adapter.ts
+# Planned E: customers -> identity.readBranchRoleHolders @ apps/api/src/modules/customers/persistence/rating-alert-recipients.adapter.ts
+# Planned E: customers -> identity.readRatingCommentReaders @ apps/api/src/modules/customers/persistence/rating-alert-recipients.adapter.ts
+# Planned E: customers -> staff.readEmployeeDisplayNames @ apps/api/src/modules/customers/persistence/performer-name.adapter.ts
+# Planned E: customers -> tenancy.describeWorkspaces @ apps/api/src/modules/customers/persistence/low-rating-names.adapter.ts
 reads:
+  - orders -> staff.readOwnEmployee @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
+  - orders -> identity.readOwnServiceSessionsAccess @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
+  - orders -> tenancy.describeWorkspaces @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
+  - orders -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/personal-branches.adapter.ts
   - staff -> identity.personalMemberships @ apps/api/src/modules/staff/persistence/personal-branches.adapter.ts
   - orders -> files.documentFileFacts @ apps/worker/src/modules/orders/persistence/package-preview.transactions.ts

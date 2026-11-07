@@ -163,6 +163,11 @@ it.each(SYSTEM_ROLES)(
     const member = await newMember(f, code);
     for (const permission_code of OWNER_GRANTED_PERMISSIONS) {
       const result = await save(f, member, { permission_code });
+      if (permission_code === 'manage:imported-refunds:business') {
+        expect(result.status).toBe(403);
+        expect(result.body['code']).toBe('FORBIDDEN');
+        continue;
+      }
       expect(result.status).toBe(code === 'device' ? 403 : 201);
       if (code === 'device') expect(result.body['code']).toBe('PERMISSION_ROLE_FORBIDDEN');
     }

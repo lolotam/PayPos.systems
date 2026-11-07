@@ -1,7 +1,7 @@
 import { PackageImportPreviewController } from './http/package-import-preview.controller.ts';
 import { RequestPackageImportPreviewUseCase } from './use-cases/request-package-import-preview/request-package-import-preview.usecase.ts';
 import { createPackageImportRequestTransactions } from './persistence/package-import-request.transactions.ts';
-import type { Provider } from '@nestjs/common';
+import type { Provider, Type } from '@nestjs/common';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import { serviceSessionErrors } from '@pospay/i18n';
 import { systemClock } from '../../shared/adapters/system-clock.ts';
@@ -58,7 +58,7 @@ import { ConfirmSessionRecoveryUseCase } from './use-cases/confirm-session-recov
 import { SessionRecoveryController } from './http/session-recovery.controller.ts';
 import type { Clock } from './ports/service-session-transactions.port.ts';
 
-export const ordersControllers = [PackageImportPreviewController, SessionRecoveryController, ServiceSessionsController, ServiceSessionFormController, SessionTipsController, DiscountProposalsController];
+export const ordersControllers: Type[] = [PackageImportPreviewController, SessionRecoveryController, ServiceSessionsController, ServiceSessionFormController, SessionTipsController, DiscountProposalsController];
 export function ordersPerformerOptionsQuery(database: TenantWrappers, clock: Clock = systemClock) {
   return new SessionPerformerOptionsQueryHandler(database, {
     time: (occurredAt, at, timezone) => sessionTime(new Date(occurredAt), at, timezone).occurred_at.toISOString(),
@@ -196,5 +196,30 @@ export function ordersProviders(database: TenantWrappers | undefined, ids: IdGen
     { provide: SessionTipsCurrentQuery, useValue: database === undefined ? null : ordersSessionTipsCurrent(database, clock) },
     { provide: RequestDiscountApprovalUseCase, useValue: database === undefined ? null : new RequestDiscountApprovalUseCase(ordersDiscountRequests(database, ids), ids, clock, termsHash()) },
     { provide: RequesterDiscountProposalsQuery, useValue: database === undefined ? null : ordersRequesterProposals(database, clock) },
-    { provide: PendingDiscountProposalsQuery, useValue: database === undefined ? null : ordersPendingProposals(database, clock) }];
+    { provide: PendingDiscountProposalsQuery, useValue: database === undefined ? null : ordersPendingProposals(database, clock) },
+    ...ownWorkProviders(clock)];
+}
+
+import { parseMoney, sumMonthlyTipTotalsByMethod } from '@pospay/domain';
+import { OwnWorkController, OWN_WORK_CLOCK } from './http/own-work.controller.ts';
+import { OWN_WORK_READS, type OwnWorkReads } from './queries/own-work-context.ts';
+import { ownWorkContext } from './persistence/own-work-context.adapter.ts';
+import { ownWorkPeriodAllowed } from './domain/own-work-period.ts';
+import { staffColumns } from './persistence/staff-columns.adapter.ts';
+
+ordersControllers.push(OwnWorkController);
+export const ownWorkReads: OwnWorkReads = {
+  context: ownWorkContext,
+  periodAllowed: ownWorkPeriodAllowed,
+  monthsBack: staffColumns.monthsBack,
+  allowed: staffColumns.allowed,
+  tipTotals: (entries) => sumMonthlyTipTotalsByMethod(entries.map((entry) => ({
+    method: entry.method, amount: parseMoney(entry.amount),
+  }))),
+};
+function ownWorkProviders(clock: Clock): Provider[] {
+  return [
+    { provide: OWN_WORK_READS, useValue: ownWorkReads },
+    { provide: OWN_WORK_CLOCK, useValue: clock },
+  ];
 }

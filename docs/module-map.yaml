@@ -5,7 +5,7 @@ imports:
   catalog: [tenancy]
   channels: [tenancy]
   commissions: [staff, settings]
-  customers: [tenancy, settings, staff]
+  customers: [tenancy, settings, staff, identity]
   expenses: [tenancy]
   files: [tenancy]
   identity: [tenancy]
@@ -38,6 +38,10 @@ composition_roots:
 sync_writes:
   - { from: identity, to: tenancy, symbol: registerCompany, file: apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts }
 reads:
+  - { from: orders, to: staff, symbol: readOwnEmployee, file: apps/api/src/modules/orders/persistence/own-work-context.adapter.ts }
+  - { from: orders, to: identity, symbol: readOwnServiceSessionsAccess, file: apps/api/src/modules/orders/persistence/own-work-context.adapter.ts }
+  - { from: orders, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/orders/persistence/own-work-context.adapter.ts }
+  - { from: orders, to: tenancy, symbol: activeBusinessTimeZone, file: apps/api/src/modules/orders/persistence/own-work-context.adapter.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/personal-branches.adapter.ts }
   - { from: staff, to: identity, symbol: personalMemberships, file: apps/api/src/modules/staff/persistence/personal-branches.adapter.ts }
   - { from: orders, to: files, symbol: documentFileFacts, file: apps/worker/src/modules/orders/persistence/package-preview.transactions.ts }
