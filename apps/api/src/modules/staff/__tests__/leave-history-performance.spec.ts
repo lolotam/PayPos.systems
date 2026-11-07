@@ -18,6 +18,11 @@ let f: LeaveFixture;
 beforeAll(async () => {
   f = await leaveFixture({ hireDate: '2025-01-01' });
   await seedHistoryVolume(f);
+  const [year] = await f.h.owner`SELECT count(*)::int AS leaves,
+    count(*) FILTER (WHERE employee_id=${f.employee.id})::int AS measured,
+    min("from")::text AS first, max("to")::text AS last
+    FROM leave_requests WHERE company_id=${f.company}`;
+  expect(year).toEqual({ leaves: 1_000, measured: 20, first: '2025-11-07', last: '2026-11-01' });
 });
 afterAll(async () => {
   await f?.db.close();

@@ -66,9 +66,10 @@ async function seedLeaves(f: LeaveFixture, employees: string[]) {
     .owner`INSERT INTO leave_requests(company_id,id,business_id,branch_id,employee_id,kind,"from","to",timezone,
     starts_at,ends_at,type,status,requested_by,requested_at,decided_by,decided_at)
     SELECT ${f.company},s.id,${f.business},${f.branch},(${f.h.owner.array(employees)}::uuid[])[((s.n-1)%50+1)::int],
-      'FULL_DAY',date '2025-01-01'+s.n::int,date '2025-01-01'+s.n::int,'UTC',
-      timestamptz '2025-01-01T00:00:00Z'+s.n*interval '1 day',
-      timestamptz '2025-01-02T00:00:00Z'+s.n*interval '1 day',
+      'FULL_DAY',date '2025-11-07'+s.day,date '2025-11-07'+s.day,'UTC',
+      timestamptz '2025-11-07T00:00:00Z'+s.day*interval '1 day',
+      timestamptz '2025-11-08T00:00:00Z'+s.day*interval '1 day',
       (ARRAY['ANNUAL','SICK','UNPAID'])[((s.n-1)%3+1)::int],'APPROVED',${f.userId},now(),${f.userId},now()
-    FROM unnest(${f.h.owner.array(leaves)}::uuid[]) WITH ORDINALITY s(id,n)`;
+    FROM (SELECT u.id,u.n,(((u.n-1)/50)*18+((u.n-1)%50)%18)::int AS day
+      FROM unnest(${f.h.owner.array(leaves)}::uuid[]) WITH ORDINALITY u(id,n)) s`;
 }
