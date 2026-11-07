@@ -27,3 +27,4 @@ export * from './attendance-actions-read.js';
 export * from './attendance-capabilities.js';
 export * from './own-attendance.js';
 export * from './personal-branches.js';
+export * from './leave-history.js';

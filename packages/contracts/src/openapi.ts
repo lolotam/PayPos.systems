@@ -1,3 +1,4 @@
+import { leaveHistoryPaths } from './staff/leave-history-openapi.js';
 import { personalBranchesPaths } from './staff/personal-branches-openapi.js';
 import { ownAttendancePaths } from './staff/own-attendance-openapi.js';
 import { z } from 'zod';
@@ -57,6 +58,7 @@ const PATHS = {
   ...filePaths,
   ...staffPaths,
   ...leavePaths,
+  ...leaveHistoryPaths,
   ...attendanceExceptionPaths,
   ...attendanceCorrectionPaths,
   ...attendanceChangePaths,

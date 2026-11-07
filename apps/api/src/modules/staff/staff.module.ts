@@ -1,3 +1,4 @@
+import { EmployeeLeaveHistoryController } from './http/employee-leave-history.controller.ts';
 import { personalBranchReads } from './persistence/personal-branches.adapter.ts';
 import { PERSONAL_BRANCH_READS } from './queries/personal-branches.query.ts';
 import {
@@ -142,6 +143,7 @@ export const staffControllers = [
   EmployeeCardsController,
   EmployeePasskeysController,
   EmployeeLeaveController,
+  EmployeeLeaveHistoryController,
   OwnLeaveController,
   LeaveInboxController,
   LeaveDecisionsController,
