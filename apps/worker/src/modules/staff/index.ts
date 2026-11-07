@@ -4,6 +4,7 @@ export {
   startStaffWorker,
 } from './staff.module.ts';
 export { readEmployeeDisplayNames } from './persistence/performer-names.reader.ts';
+export { readEmployeeBusiness } from './persistence/employee-business.reader.ts';
 export type { StoredEmployeeName } from './persistence/performer-names.reader.ts';
 export type {
   AttendanceExceptionRaised,
