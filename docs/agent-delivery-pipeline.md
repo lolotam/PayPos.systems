@@ -67,6 +67,9 @@
   Generate test credentials locally from the worktree's tracked `.env.example`, keep them ignored and
   unprinted, and use that worktree's own Postgres lane. Do not borrow shared Redis or treat a generated
   `REDIS_PASSWORD` for compose config resolution as authorization to start or connect to Redis.
+  ADR-0006's opt-in lane and shared fallback describe existing loader mechanics and CI;
+  the later manager directions recorded below require isolation for task worktrees.
+  A missing task lane blocks testing; this policy does not change the loader or CI.
   Follow [the runbook](runbook.md#per-lane-test-postgres-parallel-db-integration-tests) and
   [the manager's execution provenance](specs/0892-runbook-env-provenance.md).
 - Never treat a task as ready because it looks ready: verify it against the live page and the repository.
