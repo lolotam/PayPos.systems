@@ -11,6 +11,19 @@ and combined A+B 5600 limits; recount after code, generated artifacts and receip
 
 ## Authority and lineage
 
+Operational update, 2026-11-07: the manager withdrew the automatic wait for
+68-1b/#897 after the limited PP-136 consultation found no technical dependency or
+independent owner constraint. The earlier administrative order below and in the
+verbatim authorization is historical, not a current requirement to wait for #897.
+PP-138's canonical reference is the manager checkout's
+`docs/owner-decisions.ar.md` section 74; it is locally approved, not claimed merged.
+Test-resource order remains separate: G, this unit, then card 3, with direct
+handoff; yield immediately if a blocker prevents using the resource.
+Notify the owning manager directly on phase completion, readiness or a blocker,
+with task/PR, exact head, actual results, remaining work and next action/decision.
+No separate push is made for this operational record. Exact-head freshness,
+reviews, applicable backup/restore and coordinated merge gates remain required.
+
 The manager explicitly approved the A/B functional split and staged delivery under
 Waleed's night delegation. The verbatim decision is preserved alongside this brief
 in `manager-split-authorization.ar.md`; it is a manager decision, not a new owner

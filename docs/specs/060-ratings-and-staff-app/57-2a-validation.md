@@ -128,25 +128,54 @@ domain aggregation `0.7630 ms`, combined `17.3947 ms` (<200 ms). Heap delta
 `639088 bytes`, RSS delta `73728 bytes`. Raw receipt:
 `.cache/57-2a-r1-benchmark.log`; the EXPLAIN and total-time assertions both passed.
 
+## Base refresh — 2026-11-07
+
+The limited PP-136 consultation used Claude Fable 5.1 through explicitly authorized
+Cursor after claudeAgent rejected dispatch with provider_unavailable (not
+authenticated). This is a one-task transport exception, not a permanent fallback.
+The advisor found no technical dependency or independent owner rule requiring
+#897 before A. The manager's PP-138 directive withdrew that administrative wait.
+The main delta has documentation paths, including module-map files that count as
+code for CI; their synchronization must still pass module-map:check.
+
+Checkpoint `checkpoint/57-2a-pre-main-f95bb740` preserves
+`f95bb740f3063634a1f6c42cbc0253f0a797cc98`. Fetch verified main
+`37451b222c44e9978950b19546a9e16841671542`; an ordinary no-ff merge applied cleanly
+with both independent module-map additions retained, stopped before commit.
+No reset/rebase/force, secrets, B implementation or cleanup occurred.
+G released the resource and this unit accepted it. Regenerated OpenAPI and all
+three admin/POS/menu clients; all three api:check commands passed. Generation
+produced no additional apps/packages diff against f95bb740: production source,
+contracts and generated artifacts are unchanged from the independently accepted
+implementation. Their combined state is now tested with the updated base.
+
+The owner reran 59 tests: package-domain 11/11, contracts 20/20, A API/domain
+28/28 (five files, 100.92 s). The API run includes the real DB/HTTP overflow case,
+qualified business/tenant isolation, historical transfer and no-query HIDDEN.
+The benchmark still uses exactly 600 visits and 602 entries, CASH 2.100 / CARD
+2.250: query plus driver 12.2971 ms, array materialisation 0.0253 ms, aggregation
+0.5822 ms, total 12.9046 ms; heap delta 638872 bytes, RSS delta 4096 bytes.
+Raw receipt: `.cache/57-2a-refresh-api.log`. No row limit, timeout, planner or
+storage change was introduced. Previous green CI tested base 319e8c and is not
+fresh merge evidence; fresh pushed-head CI and external review receipts remain
+required, followed by applicable backup/restore and coordinated merge gates.
+
+Domain/contracts/API typechecks, changed TypeScript lint/boundaries, module-map
+and diff checks passed; docs lint passed with 0 errors and 29 existing warnings.
+After DB/tests and heavy local checks finished, the resource was handed directly
+to card 3 and the manager notified. No more DB or heavy runs are scheduled during
+that turn. This base update changes no A production/test/generated code and does
+not consume a new correction round: A remains R1/3; #894's 3/3 is unchanged.
+
 ## Final local file inventory
 
-All changes below remain uncommitted. R1/3 includes production, tests, docs and generated files.
+Inventory is relative to refreshed main 37451b222, including all production,
+tests, documentation and generated lines. R1/3 is unchanged by the base refresh.
 
 | File | + | - |
 |---|---:|---:|
 | `apps/admin/src/shared/api/schema.d.ts` | 88 | 0 |
 | `apps/api/src/modules/identity/index.ts` | 2 | 0 |
-| `apps/api/src/modules/orders/orders.module.ts` | 28 | 3 |
-| `apps/api/src/modules/staff/index.ts` | 2 | 0 |
-| `apps/menu/src/shared/api/schema.d.ts` | 88 | 0 |
-| `apps/pos/src/shared/api/schema.d.ts` | 88 | 0 |
-| `docs/module-map.md` | 8 | 0 |
-| `docs/module-map.yaml` | 4 | 0 |
-| `docs/specs/060-ratings-and-staff-app/spec.md` | 10 | 1 |
-| `packages/contracts/openapi/openapi.json` | 147 | 0 |
-| `packages/contracts/src/index.ts` | 3 | 0 |
-| `packages/contracts/src/openapi.ts` | 2 | 0 |
-| `packages/domain/src/index.ts` | 1 | 0 |
 | `apps/api/src/modules/identity/persistence/own-service-sessions-access.ts` | 42 | 0 |
 | `apps/api/src/modules/orders/__tests__/own-tips-isolation.spec.ts` | 171 | 0 |
 | `apps/api/src/modules/orders/__tests__/own-tips-large-month.spec.ts` | 85 | 0 |
@@ -155,20 +184,31 @@ All changes below remain uncommitted. R1/3 includes production, tests, docs and 
 | `apps/api/src/modules/orders/domain/__tests__/own-work-period.spec.ts` | 17 | 0 |
 | `apps/api/src/modules/orders/domain/own-work-period.ts` | 17 | 0 |
 | `apps/api/src/modules/orders/http/own-work.controller.ts` | 68 | 0 |
+| `apps/api/src/modules/orders/orders.module.ts` | 28 | 3 |
 | `apps/api/src/modules/orders/persistence/own-work-context.adapter.ts` | 48 | 0 |
 | `apps/api/src/modules/orders/queries/own-tips.query.ts` | 42 | 0 |
 | `apps/api/src/modules/orders/queries/own-work-context.ts` | 64 | 0 |
+| `apps/api/src/modules/staff/index.ts` | 2 | 0 |
 | `apps/api/src/modules/staff/persistence/own-employee.ts` | 46 | 0 |
+| `apps/menu/src/shared/api/schema.d.ts` | 88 | 0 |
+| `apps/pos/src/shared/api/schema.d.ts` | 88 | 0 |
+| `docs/module-map.md` | 8 | 0 |
+| `docs/module-map.yaml` | 4 | 0 |
 | `docs/specs/060-ratings-and-staff-app/57-2a-aggregate-authorization.ar.md` | 7 | 0 |
-| `docs/specs/060-ratings-and-staff-app/57-2a-brief.md` | 106 | 0 |
+| `docs/specs/060-ratings-and-staff-app/57-2a-brief.md` | 119 | 0 |
 | `docs/specs/060-ratings-and-staff-app/57-2a-manager-authorization.ar.md` | 11 | 0 |
-| `docs/specs/060-ratings-and-staff-app/57-2a-validation.md` | 174 | 0 |
+| `docs/specs/060-ratings-and-staff-app/57-2a-validation.md` | 214 | 0 |
+| `docs/specs/060-ratings-and-staff-app/spec.md` | 10 | 1 |
+| `packages/contracts/openapi/openapi.json` | 147 | 0 |
+| `packages/contracts/src/index.ts` | 3 | 0 |
+| `packages/contracts/src/openapi.ts` | 2 | 0 |
 | `packages/contracts/src/orders/monthly-tip-total.ts` | 4 | 0 |
 | `packages/contracts/src/orders/own-tips-openapi.ts` | 49 | 0 |
 | `packages/contracts/src/orders/own-tips.spec.ts` | 47 | 0 |
 | `packages/contracts/src/orders/own-tips.ts` | 15 | 0 |
 | `packages/contracts/src/orders/own-work-month.ts` | 3 | 0 |
 | `packages/domain/src/__tests__/monthly-tip-totals.spec.ts` | 35 | 0 |
+| `packages/domain/src/index.ts` | 1 | 0 |
 | `packages/domain/src/monthly-tip-totals.ts` | 25 | 0 |
 
-Total: 36 files, +1954/-4, 1958 ALL changed lines (A limit 3400; combined A+B limit 5600).
+Total: 36 files, +2007/-4, 2011 ALL changed lines (A limit 3400; combined A+B limit 5600).
