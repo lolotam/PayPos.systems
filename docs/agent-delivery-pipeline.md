@@ -63,6 +63,12 @@
 - Refresh first: the repository working tree and recent history, the roadmap on https://plan.pospay.systems, the live decisions and the reviews of **both** Waleed and Abu Salem, and every open partner request.
 - One use case per PR (`CLAUDE.md` §1). A task needing two use cases is two PRs.
 - Each task runs on its own branch and in its own worktree, so unrelated local work in the main checkout is preserved untouched and never swept into a diff.
+- **Task-environment isolation:** never copy environment files, values or secrets between tasks or checkouts.
+  Generate test credentials locally from the worktree's tracked `.env.example`, keep them ignored and
+  unprinted, and use that worktree's own Postgres lane. Do not borrow shared Redis or treat a generated
+  `REDIS_PASSWORD` for compose config resolution as authorization to start or connect to Redis.
+  Follow [the runbook](runbook.md#per-lane-test-postgres-parallel-db-integration-tests) and
+  [the manager's execution provenance](specs/0892-runbook-env-provenance.md).
 - Never treat a task as ready because it looks ready: verify it against the live page and the repository.
 
 ### 1.1 Management session, task sessions and worktree lifecycle

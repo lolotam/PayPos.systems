@@ -40,7 +40,9 @@ export const containerName = (lane) => `pospay-test-${lane}`;
 // تعريف الـ service من الـ dev compose والـ environment محلول من .env. قراءة بس: config مبيلمسش أي كونتينر.
 export function devPostgresService() {
   if (!existsSync(ROOT_ENV))
-    fail(`${ROOT_ENV} is missing — copy the main checkout's .env into this worktree`);
+    fail(
+      `${ROOT_ENV} is missing — create this worktree's local .env from .env.example with locally generated values; never copy environment files or secrets from another checkout (docs/runbook.md: Per-lane test Postgres)`,
+    );
   const json = dockerOk(
     ['compose', '--env-file', ROOT_ENV, '-f', COMPOSE_FILE, 'config', '--format', 'json'],
     'reading deploy/docker-compose.dev.yml',

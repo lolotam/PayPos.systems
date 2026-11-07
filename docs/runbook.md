@@ -267,7 +267,18 @@ migration bootstrap and the role/privilege suites, so runs from several worktree
 fail with `55P03` when a wait outlives `lock_timeout`. A separate database on the same cluster does not help;
 a separate cluster does. `scripts/test-db/lane.mjs` starts one per lane.
 
-From the lane's worktree root, after copying `.env` from the main checkout:
+From the lane's worktree root, prepare a local `.env` using this worktree's tracked
+`.env.example` as the template. Never copy `.env`, environment values or secrets from
+another checkout or task. Generate the required `POSTGRES_*` passwords locally with
+`crypto.randomBytes`, without printing or committing them; keep the generated values
+only in this worktree's ignored `.env`. Use the same local values for the test roles.
+`docker compose config` also requires `REDIS_PASSWORD`: generate a local random value
+for config resolution only. This does not authorize starting Redis or trying that value
+against shared Redis. See [the manager's execution provenance](specs/0892-runbook-env-provenance.md).
+The helper still reads this worktree's root `.env`; `.env.test.local` is only its generated
+host/port override, not a replacement credentials file.
+
+After this preparation, the normal lane lifecycle is:
 
 ```sh
 node scripts/test-db/lane.mjs up <lane>            # e.g. lane-7 → 127.0.0.1:55407; prints port=<n>
@@ -315,13 +326,14 @@ node scripts/test-db/lane.mjs status               # lane containers, and which 
   the same lane name from another worktree is refused, so two worktrees never share or remove each other's
   cluster; pick a different lane name per worktree. `status` shows each container's worktree.
 - ADR-0006, addendum 2026-10-21, records that a lane cluster is the T2 compose service run a second time.
-- Not redirected: Redis (tests still use the shared `127.0.0.1:6379`), `pnpm db:migrate`, and the apps'
-  `DATABASE_URL`-style variables. Only the test harness moves.
+- Not redirected: Redis, `pnpm db:migrate`, and the apps' `DATABASE_URL`-style variables.
+  Only the Postgres test harness moves. Do not borrow shared Redis: a Redis-dependent suite
+  needs its own explicitly authorized isolated setup; otherwise report it blocked.
 - Run one lane per worktree: the override file is per worktree. Bring the lane down when the slice is done;
   `docker ps` should show only `pospay-dev-*` again.
 - The container does not survive a Docker Desktop restart. If the tests then report that Postgres is not
   reachable on a 554xx port (the hint to run `pnpm infra:up` is for the shared cluster), rerun
-  `node scripts/test-db/lane.mjs up <lane>`, or `down <lane>` to fall back to the shared cluster.
+  `node scripts/test-db/lane.mjs up <lane>`, or stop the suite and report the unavailable lane; do not use the shared cluster as a fallback.
 
 ## Staff web push (VAPID keys, row 28b)
 
