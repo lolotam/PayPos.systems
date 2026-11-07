@@ -434,7 +434,7 @@ The staff public reader returns raw stored names; it never imports customers dom
 
 ### 6.4 Existing tenant/place precondition, not a third public API
 
-After the enabled-and-IN_APP guard and a nonempty candidate result, composing a notice requires §6.3's tenancy
+After the enabled-and-IN_APP guard and before identity reads, composing a notice requires §6.3's tenancy
 metadata read. Its current result is null for a
 soft-deleted company or an absent tenant, and the caller must also find the request's business/branch in its tree.
 No `companyAcceptsAlerts` symbol is proposed and identity gains no new read of tenancy tables.

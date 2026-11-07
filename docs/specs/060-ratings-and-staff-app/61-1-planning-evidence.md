@@ -395,6 +395,9 @@ Read/Glob/Grep-only brief and incomplete readings; those limits are preserved ra
 Future test controls cover routing and revoke/DENY/ALLOW/expiry/current role/clock skew; approved later design defines
 their outcomes. No tests or benchmark were executed to establish those semantics in A1. R2 is the second of three
 correction rounds; neither R1's budget nor #888's prior budgets are reset.
+The first internal R2 review on `4b47e7e2` required one P3 correction: metadata must follow the channel guard and
+precede identity, without requiring nonempty candidates first. That order is restored before the single R2 push;
+its `REQUIRES_CORRECTION` receipt is not a PASS for the corrected head, which requires a fresh review.
 
 Only authorized documentation is changed. Runtime/source/tests/migration/seed/config/deploy remain out of scope;
 U2/P1/privacy and all activation blockers remain open. Fresh docs/map/UTF-8/diff/count checks and independent Astra
