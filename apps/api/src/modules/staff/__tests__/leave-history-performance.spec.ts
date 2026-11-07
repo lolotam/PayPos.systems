@@ -107,9 +107,13 @@ for (const scenario of scenarios) {
     expect(
       plan.filter(
         (n) =>
-          ['leave_requests', 'staff_schedule_shifts', 'attendance_sessions'].includes(
-            n['Relation Name'] ?? '',
-          ) && n['Node Type'] === 'Seq Scan',
+          [
+            'leave_requests',
+            'staff_schedule_shifts',
+            'attendance_sessions',
+            'staff_schedules',
+            'employees',
+          ].includes(n['Relation Name'] ?? '') && n['Node Type'] === 'Seq Scan',
       ),
     ).toEqual([]);
     expect(Math.max(...plan.map((n) => n['Actual Rows'] * n['Actual Loops']))).toBeLessThan(

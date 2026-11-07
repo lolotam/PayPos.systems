@@ -366,8 +366,10 @@ If an EXPLAIN shows a sequential scan on a seeded volume, that sub-PR adds the i
 `CONCURRENTLY` (ADR-0033), after checking with the orchestrator which lane holds the next migration number.
 
 68-1b adds no migration. Its EXPLAIN assertion covers the leave, shift and session tables named in its brief
-(`leave_requests`, `staff_schedule_shifts`, `attendance_sessions`); a sequential scan there stops delivery and is
-reported to the manager, since an index needs separately authorized migration coordination (PP-124/PP-130).
+(`leave_requests`, `staff_schedule_shifts`, `attendance_sessions`) and also `staff_schedules` and `employees`
+(a delegated manager decision, 2026-11-07, before Ready on PR #897; not a new owner decision); a sequential scan
+on any of them stops delivery and is reported to the manager, since an index needs separately authorized migration
+coordination (PP-124/PP-130).
 
 ### 68-1b implementation
 
