@@ -6,14 +6,14 @@ import { createLeaveReadAccess } from '../persistence/leave-read-access.adapter.
 import { RequestLeaveUseCase } from '../use-cases/request-leave/request-leave.usecase.ts';
 import { CancelLeaveUseCase } from '../use-cases/cancel-leave/cancel-leave.usecase.ts';
 export const leaveIds = systemUuidV7();
-export async function leaveFixture() {
+export async function leaveFixture(options: { hireDate?: string } = {}) {
   const f = await employeesFixture({ staffOrigin: 'http://pos.synthetic.invalid' });
   await grantEmployeeCreation(f);
   const employee = await f.useCase.execute({
     companyId: f.company,
     userId: f.userId,
     businessId: f.business,
-    input: termsFor(f),
+    input: { ...termsFor(f), hire_date: options.hireDate ?? '2026-01-01' },
   });
   await f.h
     .owner`UPDATE employees SET user_id=${f.userId} WHERE company_id=${f.company} AND id=${employee.id}`;
@@ -27,7 +27,7 @@ export async function leaveFixture() {
   await f.h
     .owner`INSERT INTO branches(company_id,id,business_id,name_en) VALUES(${f.company},${secondBranch},${f.business},'Synthetic leave branch')`;
   await f.h
-    .owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from") VALUES(${f.company},${leaveIds.newId()},${f.business},${employee.id},${secondBranch},'2026-01-01')`;
+    .owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from") VALUES(${f.company},${leaveIds.newId()},${f.business},${employee.id},${secondBranch},${options.hireDate ?? '2026-01-01'})`;
   const clock = { now: () => new Date('2026-10-04T10:00:00Z') };
   const tx = createLeaveTransactions(f.db, leaveIds);
   return {

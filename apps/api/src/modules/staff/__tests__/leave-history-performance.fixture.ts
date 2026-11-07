@@ -20,8 +20,6 @@ export async function seedHistoryVolume(f: LeaveFixture) {
     });
     employees.push(employee.id);
   }
-  await f.h.owner`UPDATE employees SET hire_date='2025-01-01' WHERE company_id=${f.company}`;
-  await f.h.owner`UPDATE employee_branches SET "from"='2025-01-01' WHERE company_id=${f.company}`;
   await seedSchedules(f, employees);
   const shifts = Array.from({ length: performanceVolume.shifts }, () => leaveIds.newId());
   const sessions = shifts.map(() => leaveIds.newId());

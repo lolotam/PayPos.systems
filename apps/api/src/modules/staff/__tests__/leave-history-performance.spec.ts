@@ -16,7 +16,7 @@ import {
 import { performanceVolume, seedHistoryVolume } from './leave-history-performance.fixture.ts';
 let f: LeaveFixture;
 beforeAll(async () => {
-  f = await leaveFixture();
+  f = await leaveFixture({ hireDate: '2025-01-01' });
   await seedHistoryVolume(f);
 });
 afterAll(async () => {
