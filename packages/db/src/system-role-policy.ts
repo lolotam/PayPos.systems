@@ -109,7 +109,7 @@ const optional: Readonly<Record<string, readonly string[]>> = {
   viewer: ['create:customers:company'],
 };
 
-/** المرجع يميز الدور العالمي الثابت ويمنع تفويض خانات الجهاز المحظورة؛ اسم الدور المخصص لا يرث حمايته، وصلاحيات الوثائق وصلاحيات الكتالوج قابلة للتفويض لكل البشر. */
+/** المرجع يميز الدور العالمي الثابت ويمنع تفويض خانات الجهاز المحظورة؛ اسم الدور المخصص لا يرث حمايته، وصلاحيات الوثائق وصلاحيات الكتالوج قابلة للتفويض لكل البشر. يشمل كود المرتجعات المستوردة المستقبلي لأهلية البشر فقط دون تفعيل الكتالوج أو منح افتراضي؛ الجهاز يظل ممنوعاً. */
 export function systemRolePolicy(roleId: string, ownerKey: string) {
   const role = SYSTEM_ROLES.find((r) => r.id === roleId);
   if (ownerKey !== 'global' || role === undefined) return null;

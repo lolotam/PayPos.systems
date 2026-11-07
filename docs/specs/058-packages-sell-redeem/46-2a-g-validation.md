@@ -224,3 +224,30 @@ Synthetic post-S rows prove policy behavior, not old-image rollout or U evidence
 S/activation remains blocked by its independent migration/deployment/U gates.
 Published inventory after this receipt: 652 ALL (642 additions + 10 deletions),
 10 files; generated 0. Planning documents remain in their recorded durable custody.
+
+
+## Panel review round 1 triage
+
+All four panel reviews completed on f4887e4c0e550c2ef580369e5c16f7ca697e8c9b.
+Codex also completed automatically on PR-open with no findings; no manual trigger
+was sent for that head. Hamza's stale-JSDoc finding is accepted and corrected.
+The seed import finding is disputed: architecture section 3.1 and the enforced
+module entry-point rule concern another backend module's internals. This test
+uses the same privileged test-setup seed source as apps/api/test/harness.ts:28,
+identity/access-guard.spec.ts:24 and identity/onboard-company.spec.ts:12.
+seedReferenceData is intentionally not exported by packages/db/src/index.ts:71;
+adding a production export solely for privileged test setup broadens the public
+surface. No production import, package export or activation behavior is changed.
+Fresh Astra high recheck: PASS on both items, no new P0/P1. The first recheck
+attempt disclosed truncated governing reads and was not counted as complete;
+a fresh replacement read all 3783 governing lines, recovered the truncated
+module-map section, and independently confirmed the scoped import rebuttal.
+
+Initial CI run 42357274997 passed in 12m40s (08:52:00Z?09:04:40Z).
+Its checkout log proves merge 1266cfb07c77f3ce46c29e4d578bf8f237626deb, with
+base parent 37451b222c44e9978950b19546a9e16841671542 matching live main.
+One consolidated comment/documentation correction follows the completed panel;
+new-head CI/panel/final Codex and backup/restore/order remain required.
+The comment initially failed formatting; Prettier corrected it and the check then passed.
+Docs lint exited 0. No behavior changed and no DB test rerun was needed for this correction.
+Round-1 published inventory: 681 ALL (670 additions + 11 deletions), 10 files, generated 0; cumulative published churn 681 (initial 652 + correction 29), within cap 1550.
