@@ -1,0 +1,174 @@
+# 57-2a local implementation record
+
+Authority: `57-2a-brief.md` and the verbatim manager decision in
+`57-2a-manager-authorization.ar.md`, recorded before production source edits.
+Durable source: `F:/Dev/Worktrees/PosPay/briefs/57-2/archive-894-2f8858d4`.
+The full split proposal, closure receipt and parent switch authorization/receipt
+remain there; this record does not duplicate the historical plan or journal.
+
+Base: `319e8c637f063dddb6df5e487d3585f223eb500a` (HEAD and origin/main).
+Child: `C:/Users/waleed_Mohamed/.t3/worktrees/main/t3-bd74b64a`.
+Initial branch `t3/bd74b64a`, current `T3-CODE/57-2a-staff-me-tips`.
+Reflog proves branch rename at the same SHA; the implementer did not rename or
+repair the checkout. Identity status was clean, including untracked files.
+Identity receipt sent to the parent before any source work; branch update receipt
+also sent before source-start. No dispatch is counted as implementation.
+
+Selective reuse source: Git tree `2f8858d4269500ab4ef260b64b6d498743f33f56`.
+Original #894 is CLOSED, UNMERGED, superseded; 3/3 rounds and 3,143 historical
+changed lines remain preserved. P1 `discussion_r4498824739` is unresolved for B.
+A is a distinct new unit, now at correction R1/3; B remains planning only pending separate approved
+query design and A merge. 57-2 and 57-4 require both units. Administrative order:
+68-1b, A, B; no technical dependency on 68.
+
+Environment inventory: only tracked `.env.example`, owned by
+`DESKTOP-U5N57Q2\waleed_Mohamed`, not ignored. No values read. No `.env` or
+`node_modules` existed at inventory. No parent credentials or old lanes reused.
+
+Receipts sent to parent thread
+`mcp:launch:e8e56f8a6d644091590ae0fc6bacd0244475c7235744724bcf458c4ae505e3f2`:
+
+- Identity message `a0d2a7cc-8cb0-4fe5-9971-a8a14fa0571c`.
+- Branch rename evidence message `42ba3abc-2c66-479c-a88e-863c345a3c62`.
+- Actual source-start message `26019287-d24a-4aca-a50d-44bdb4679797`.
+  The first contract file creation time is `2026-11-07T00:52:09Z`.
+
+Fresh LOCAL random test credentials were created using exclusive `wx` in the
+previously absent `.env`; `.env` and the lane-created `.env.test.local` are ignored.
+Owned lane `57-2a-bd74b64a`: Postgres `55723`, Redis `56723`, loopback only.
+No shared/reserved/parent lane is used. Containers and local environment are kept
+for parent verification; no unrelated cleanup occurred.
+
+Executed successfully: frozen-lockfile install, API dependency builds, OpenAPI
+generation, admin/POS/menu client generation and all three `api:check` commands;
+API/contracts typechecks; changed production/tests/contracts ESLint (including
+boundaries); `pnpm lint:docs` (0 errors, 29 existing warnings),
+`pnpm module-map:check`, `git diff --check`; 9 contract tests.
+
+The first database run had 24 passes and one incorrect new assertion: an eligible
+caller in another business of the same tenant was incorrectly expected to fail
+when using that authorized business context. Corrected it to prove foreign-branch
+refusal in the home business, retaining the separate cross-tenant transaction
+refusal and both positive real-data reads. The next run passed all 26 tests.
+The final benchmark fixture additionally asserts exactly 600 visits and 602 own
+current-revision entries. Final measurement: CASH `2.100`, CARD `2.250`;
+query plus driver materialisation `65.8794 ms`, array materialisation `0.0471 ms`,
+domain aggregation `0.8731 ms`, total `66.7996 ms` (required `<200 ms`).
+Heap delta `648528 bytes`, RSS delta `73728 bytes`. No raised timeout/limit,
+planner/config change, new index or dropped row. Post-seed ANALYZE prepares only
+the tips benchmark. EXPLAIN execution `32.651 ms`, with
+`session_tips_session_revision_idx` and
+`session_tip_revisions_session_revision_uq`; no forced entry-table index claim.
+The raw local test/plan log is ignored at `.cache/57-2a-checks.log`.
+Final API/domain run: 4 files, 27/27 tests passed, 153.72 s. HTTP route-absence
+coverage passed. Added a no-store assertion to every kiosk read, including idle,
+cap and replacement refusals; targeted HTTP recheck: 11/11 passed, 49.48 s.
+
+Generated proof: OpenAPI and all three clients contain `/v1/staff/me/tips` and
+contain neither `/v1/staff/me/service-lines` nor `ownServiceLines`. Production
+controller has only the tips route, with no service-lines import/decorator/stub.
+Tips tests contain no service-lines statement, page, cursor or EXPLAIN helpers.
+
+Self guard pass uses clean-code-guard, test-guard and docs-guard. Removed the unused
+branch-name projection and future generic controller callback; SQL remains in
+provider persistence / orders queries, aggregation uses the injected existing
+domain function, and month-window arithmetic stays in the pure domain function.
+The initial independent Astra high review found one P2, addressed in R1/3 below.
+No commit/push/PR/merge/deploy.
+
+## R1/3: exact monthly aggregate representation
+
+The initial independent review read the complete 527033-byte snapshot, SHA256
+`283426f6bf2c4a6714b897ae84c42f41d27ebbed1b4e40cf3a49013769a4e645`.
+Its sole P2 identified the visit-sized aggregate cap: two independently valid
+`50000000000.000` visits could overflow the monthly domain sum and response scalar.
+The manager's verbatim technical extension was recorded before correction in
+`57-2a-aggregate-authorization.ar.md`; the brief inventory was updated first.
+
+The dedicated domain helper validates each entry with the existing assertMoney,
+rejects negative tip entries, accumulates CASH/CARD bigint mills and formats each
+nonnegative monthly result with exactly three decimals. There is no monthly cap,
+Number conversion or floating-point arithmetic. Composition injects the helper;
+the query still imports no domain implementation. The monthly response scalar
+alone accepts larger canonical totals. Money/sessionMoney, the existing
+sumTipTotalsByMethod, visit writes, tables and field names remain unchanged.
+
+Root-executed checks: domain regression plus existing visit-aggregation tests
+11/11; own tips contracts 20/20; existing A API/domain specs 27/27; new real
+database/HTTP regression 1/1. The latter records two actual visits per method,
+checks direct DB reads and HTTP responses equal `100000000000.000` for each
+method, then removes the tip column and proves exact HIDDEN/no amount/no-store.
+The original HIDDEN test also proves no tips query and no aggregation callback.
+Domain cases cover fractions, carry, zero and invalid per-entry bounds; contract
+cases reject negative/exponent/leading-zero/incorrect-decimal representations.
+
+Two new HTTP-fixture attempts returned 401 while direct DB totals passed. The
+phone-change trigger clears approval, including approval supplied in the same
+UPDATE. Separate phone-change and approval writes, matching the existing HTTP
+fixture, fixed authentication; the fixture now asserts personal session resolution
+before exercising HTTP. No production authentication code changed.
+
+OpenAPI and admin/POS/menu clients regenerated and all three api:check commands
+passed. Domain/contracts/API typechecks, changed TypeScript lint/boundaries,
+format check, docs lint (0 errors, 29 existing warnings), module-map and diff checks
+passed. Generated OpenAPI and all three clients contain tips and contain neither
+the service-lines endpoint nor ownServiceLines. Only the monthly totals' schema
+pattern changed; the generated TypeScript money representation remains string.
+Fresh independent Astra high correction review accepted R1/3 with no new findings.
+It read all 608147 bytes and verified snapshot SHA256
+`98129440c6a80577082f40360ab2964aa17efbc6af144745dd6aaf6e49389f15`.
+The reviewer independently recounted 36 files, +1949/-4 = 1953 ALL at review time.
+Review was source-only; it did not execute gates or approve CI, merge or B.
+This receipt and refreshed inventory are the only post-review documentation edits.
+The original P1 remains unresolved for B; B has no code or experiment in this unit.
+
+R1 benchmark rerun: exactly 600 visits / 602 current-revision entries, CASH `2.100`
+and CARD `2.250`; query plus driver `16.6068 ms`, array materialisation `0.0249 ms`,
+domain aggregation `0.7630 ms`, combined `17.3947 ms` (<200 ms). Heap delta
+`639088 bytes`, RSS delta `73728 bytes`. Raw receipt:
+`.cache/57-2a-r1-benchmark.log`; the EXPLAIN and total-time assertions both passed.
+
+## Final local file inventory
+
+All changes below remain uncommitted. R1/3 includes production, tests, docs and generated files.
+
+| File | + | - |
+|---|---:|---:|
+| `apps/admin/src/shared/api/schema.d.ts` | 88 | 0 |
+| `apps/api/src/modules/identity/index.ts` | 2 | 0 |
+| `apps/api/src/modules/orders/orders.module.ts` | 28 | 3 |
+| `apps/api/src/modules/staff/index.ts` | 2 | 0 |
+| `apps/menu/src/shared/api/schema.d.ts` | 88 | 0 |
+| `apps/pos/src/shared/api/schema.d.ts` | 88 | 0 |
+| `docs/module-map.md` | 8 | 0 |
+| `docs/module-map.yaml` | 4 | 0 |
+| `docs/specs/060-ratings-and-staff-app/spec.md` | 10 | 1 |
+| `packages/contracts/openapi/openapi.json` | 147 | 0 |
+| `packages/contracts/src/index.ts` | 3 | 0 |
+| `packages/contracts/src/openapi.ts` | 2 | 0 |
+| `packages/domain/src/index.ts` | 1 | 0 |
+| `apps/api/src/modules/identity/persistence/own-service-sessions-access.ts` | 42 | 0 |
+| `apps/api/src/modules/orders/__tests__/own-tips-isolation.spec.ts` | 171 | 0 |
+| `apps/api/src/modules/orders/__tests__/own-tips-large-month.spec.ts` | 85 | 0 |
+| `apps/api/src/modules/orders/__tests__/own-tips.spec.ts` | 151 | 0 |
+| `apps/api/src/modules/orders/__tests__/own-work-http.spec.ts` | 256 | 0 |
+| `apps/api/src/modules/orders/domain/__tests__/own-work-period.spec.ts` | 17 | 0 |
+| `apps/api/src/modules/orders/domain/own-work-period.ts` | 17 | 0 |
+| `apps/api/src/modules/orders/http/own-work.controller.ts` | 68 | 0 |
+| `apps/api/src/modules/orders/persistence/own-work-context.adapter.ts` | 48 | 0 |
+| `apps/api/src/modules/orders/queries/own-tips.query.ts` | 42 | 0 |
+| `apps/api/src/modules/orders/queries/own-work-context.ts` | 64 | 0 |
+| `apps/api/src/modules/staff/persistence/own-employee.ts` | 46 | 0 |
+| `docs/specs/060-ratings-and-staff-app/57-2a-aggregate-authorization.ar.md` | 7 | 0 |
+| `docs/specs/060-ratings-and-staff-app/57-2a-brief.md` | 106 | 0 |
+| `docs/specs/060-ratings-and-staff-app/57-2a-manager-authorization.ar.md` | 11 | 0 |
+| `docs/specs/060-ratings-and-staff-app/57-2a-validation.md` | 174 | 0 |
+| `packages/contracts/src/orders/monthly-tip-total.ts` | 4 | 0 |
+| `packages/contracts/src/orders/own-tips-openapi.ts` | 49 | 0 |
+| `packages/contracts/src/orders/own-tips.spec.ts` | 47 | 0 |
+| `packages/contracts/src/orders/own-tips.ts` | 15 | 0 |
+| `packages/contracts/src/orders/own-work-month.ts` | 3 | 0 |
+| `packages/domain/src/__tests__/monthly-tip-totals.spec.ts` | 35 | 0 |
+| `packages/domain/src/monthly-tip-totals.ts` | 25 | 0 |
+
+Total: 36 files, +1954/-4, 1958 ALL changed lines (A limit 3400; combined A+B limit 5600).

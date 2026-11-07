@@ -97,3 +97,5 @@ export {
 } from './persistence/commission-plan-access.ts';
 
 export { readOwnAttendanceAccess } from './persistence/own-attendance-access.ts';
+
+export { readOwnServiceSessionsAccess } from './persistence/own-service-sessions-access.ts';
