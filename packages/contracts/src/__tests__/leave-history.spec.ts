@@ -1,6 +1,10 @@
 import { expect, it } from 'vitest';
 import { z } from 'zod';
-import { leaveHistoryItem, leaveHistoryQuery } from '../staff/leave-history.js';
+import {
+  leaveHistoryCursorData,
+  leaveHistoryItem,
+  leaveHistoryQuery,
+} from '../staff/leave-history.js';
 import { buildOpenApiDocument } from '../openapi.js';
 const base = { from: '2026-01-01', to: '2026-12-31' };
 it('validates required dates, inclusive 366 days, strict keys and AND filter values', () => {
@@ -57,4 +61,21 @@ it('derives every OpenAPI query property from the runtime contract', () => {
       parameters?.filter((p) => p.in === 'query').map((p) => [p.name, p.schema]) ?? [],
     ),
   ).toEqual(schema.properties);
+});
+it('a year-zero period is refused before SQL, while year 0001 stays valid', () => {
+  expect(leaveHistoryQuery.safeParse({ from: '0000-01-01', to: '0000-01-02' }).success).toBe(false);
+  expect(leaveHistoryQuery.safeParse({ from: '0001-01-01', to: '0001-01-02' }).success).toBe(true);
+});
+it('a cursor with a year-zero date or as_of is refused, a legal one parses', () => {
+  const cursor = {
+    date: '2026-10-05',
+    rank: 1,
+    id: '019a0000-0000-7000-8000-000000000001',
+    as_of: '2026-11-07T10:00:00.000Z',
+  };
+  expect(leaveHistoryCursorData.safeParse(cursor).success).toBe(true);
+  expect(leaveHistoryCursorData.safeParse({ ...cursor, date: '0000-10-05' }).success).toBe(false);
+  expect(
+    leaveHistoryCursorData.safeParse({ ...cursor, as_of: '0000-11-07T10:00:00.000Z' }).success,
+  ).toBe(false);
 });

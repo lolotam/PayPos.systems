@@ -1,20 +1,18 @@
-import { z } from 'zod';
 import { sql } from 'drizzle-orm';
-import type { Tx } from '@pospay/db';
-import type { LeaveHistoryPage, LeaveHistoryQuery } from '@pospay/contracts';
+import type { TenantWrappers, Tx } from '@pospay/db';
+import {
+  leaveHistoryCursorData,
+  type LeaveHistoryCursorData,
+  type LeaveHistoryPage,
+  type LeaveHistoryQuery,
+} from '@pospay/contracts';
 import { decodeCursor, encodeCursor } from '../../../shared/persistence/name-options-cursor.ts';
 import type { LeaveReadAccess, LeaveReadContext } from './leave-requests.query.ts';
 import type { HistoryScope } from './leave-history-days.sql.ts';
 import { historyRows } from './leave-history-rows.sql.ts';
 import { historyLastTaken } from './leave-history-last.sql.ts';
 
-const cursorSchema = z.strictObject({
-  date: z.iso.date(),
-  rank: z.number().int().min(1).max(3),
-  id: z.uuid(),
-  as_of: z.iso.datetime(),
-});
-type Cursor = z.infer<typeof cursorSchema>;
+type Cursor = LeaveHistoryCursorData;
 export function leaveHistorySql(
   c: LeaveReadContext,
   q: LeaveHistoryQuery,
@@ -23,7 +21,12 @@ export function leaveHistorySql(
 ) {
   const { asOf, cursor } = options;
   // صفحة السجل وآخر إجازة في snapshot واحدة حتى لا تختلف النتائج بسبب كتابة متزامنة.
-  return sql`${historyRows(c, q, s, options)}, page AS (
+  // علامة الموظف من نفس snapshot تمنع تسريب آخر إجازة لو اتحذف بعد فحص الصلاحية.
+  return sql`${historyRows(c, q, s, options)}, subject AS (
+    SELECT EXISTS(SELECT 1 FROM employees
+      WHERE company_id=${c.companyId} AND business_id=${c.businessId}
+        AND id=${c.employeeId}::uuid AND deleted_at IS NULL) AS exists
+  ), page AS (
     SELECT * FROM rows ${
       cursor === undefined
         ? sql``
@@ -34,7 +37,9 @@ export function leaveHistorySql(
     ORDER BY date DESC,rank,id DESC LIMIT ${q.limit + 1}
   ) SELECT COALESCE((SELECT jsonb_agg(jsonb_build_object('date',date,'rank',rank,'id',id,'record',record)
     ORDER BY date DESC,rank,id DESC) FROM page),'[]'::jsonb) AS rows,
-    ${historyLastTaken(c, s, asOf)} AS last_taken`;
+    subject.exists AS subject_exists,
+    CASE WHEN subject.exists THEN ${historyLastTaken(c, s, asOf)} END AS last_taken
+    FROM subject`;
 }
 export async function getEmployeeLeaveHistory(
   tx: Tx,
@@ -48,7 +53,9 @@ export async function getEmployeeLeaveHistory(
   let cursor: Cursor | undefined;
   try {
     cursor =
-      q.cursor === undefined ? undefined : decodeCursor(q.cursor, (v) => cursorSchema.parse(v));
+      q.cursor === undefined
+        ? undefined
+        : decodeCursor(q.cursor, (v) => leaveHistoryCursorData.parse(v));
   } catch {
     return 'VALIDATION_FAILED' as const;
   }
@@ -59,9 +66,11 @@ export async function getEmployeeLeaveHistory(
   if (q.branch_id !== undefined && !scope.branches.includes(q.branch_id)) return null;
   const [result] = await tx.execute<{
     rows: (Cursor & { record: LeaveHistoryPage['items'][number] })[];
+    subject_exists: boolean;
     last_taken: LeaveHistoryPage['last_taken'];
   }>(leaveHistorySql(c, q, scope, { asOf, excludeOpen: true, ...(cursor ? { cursor } : {}) }));
   if (!result) throw new Error('LEAVE_HISTORY_SNAPSHOT_MISSING');
+  if (!result.subject_exists) return null;
   const rows = result.rows;
   const selected = rows.slice(0, q.limit);
   const last = selected.at(-1);
@@ -76,4 +85,20 @@ export async function getEmployeeLeaveHistory(
     request_branch_ids: scope.createBranches,
     absence_branch_ids: scope.attendanceBranches,
   } satisfies LeaveHistoryPage;
+}
+
+export const LEAVE_HISTORY_READER = Symbol('LEAVE_HISTORY_READER');
+export class LeaveHistoryReader {
+  constructor(
+    private readonly db: TenantWrappers | null,
+    private readonly access: LeaveReadAccess,
+  ) {}
+  async execute(context: LeaveReadContext, query: LeaveHistoryQuery) {
+    if (this.db === null) return 'NOT_READY' as const;
+    return this.db.withTenant(
+      context.companyId,
+      (tx) => getEmployeeLeaveHistory(tx, context, query, this.access),
+      { userId: context.userId },
+    );
+  }
 }

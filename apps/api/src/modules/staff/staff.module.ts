@@ -1,3 +1,5 @@
+import { DATABASE } from '../../shared/database.token.ts';
+import { LEAVE_HISTORY_READER, LeaveHistoryReader } from './queries/leave-history.query.ts';
 import { EmployeeLeaveHistoryController } from './http/employee-leave-history.controller.ts';
 import { personalBranchReads } from './persistence/personal-branches.adapter.ts';
 import { PERSONAL_BRANCH_READS } from './queries/personal-branches.query.ts';
@@ -71,7 +73,7 @@ import { DecideLeaveUseCase } from './use-cases/decide-leave/decide-leave.usecas
 import { RevokeLeaveUseCase } from './use-cases/revoke-leave/revoke-leave.usecase.ts';
 import { createLeaveTransactions } from './persistence/drizzle-leave-transactions.ts';
 import { createLeaveReadAccess } from './persistence/leave-read-access.adapter.ts';
-import { LEAVE_READ_ACCESS } from './queries/leave-requests.query.ts';
+import { LEAVE_READ_ACCESS, type LeaveReadAccess } from './queries/leave-requests.query.ts';
 import { RequestLeaveUseCase } from './use-cases/request-leave/request-leave.usecase.ts';
 import { CancelLeaveUseCase } from './use-cases/cancel-leave/cancel-leave.usecase.ts';
 import { StaffLeaveGuard } from './http/staff-leave.guard.ts';
@@ -207,6 +209,12 @@ function leaveProviders(database: TenantWrappers | undefined, ids: IdGenerator):
     },
     StaffLeaveGuard,
     { provide: LEAVE_READ_ACCESS, useValue: createLeaveReadAccess(systemClock) },
+    {
+      provide: LEAVE_HISTORY_READER,
+      useFactory: (db: TenantWrappers | null, access: LeaveReadAccess) =>
+        new LeaveHistoryReader(db, access),
+      inject: [DATABASE, LEAVE_READ_ACCESS],
+    },
     {
       provide: RequestLeaveUseCase,
       useValue: tx === null ? null : new RequestLeaveUseCase(tx, ids, systemClock),

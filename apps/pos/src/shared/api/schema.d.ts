@@ -3515,8 +3515,10 @@ export interface components {
             request_branch_ids: string[];
         };
         LeaveHistoryQuery: {
-            from: components["schemas"]["EmployeeDate"];
-            to: components["schemas"]["EmployeeDate"];
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
             "types[]"?: ("ANNUAL" | "SICK" | "UNPAID" | "OTHER" | "UNEXCUSED_ABSENCE")[] | ("ANNUAL" | "SICK" | "UNPAID" | "OTHER" | "UNEXCUSED_ABSENCE");
             "statuses[]"?: ("PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "ABSENT")[] | ("PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "ABSENT");
             /** Format: uuid */

@@ -4,12 +4,26 @@ import { id } from '../scalars/id.js';
 import { employeeDate, employeeInputId } from './employee.js';
 import { leaveListItem } from './leave.js';
 
+// PostgreSQL لا يقبل سنة صفر، فلازم نرفضها قبل تحويل المدخلات داخل SQL.
+// نمط واحد مشتق من نمط التاريخ نفسه عشان OpenAPI يفضل format: date ويوصف الرفض بدقة.
+const historyDate = z.stringFormat(
+  'date',
+  new RegExp(`^(?!0000-)${z.regexes.date.source.slice(1)}`),
+);
+export const leaveHistoryCursorData = z.strictObject({
+  date: historyDate,
+  rank: z.number().int().min(1).max(3),
+  id: z.uuid(),
+  as_of: z.iso.datetime().regex(/^(?!0000-)/),
+});
+export type LeaveHistoryCursorData = z.infer<typeof leaveHistoryCursorData>;
+
 const historyType = z.enum(['ANNUAL', 'SICK', 'UNPAID', 'OTHER', 'UNEXCUSED_ABSENCE']);
 const historyStatus = z.enum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'ABSENT']);
 export const leaveHistoryQuery = z
   .strictObject({
-    from: employeeDate,
-    to: employeeDate,
+    from: historyDate,
+    to: historyDate,
     'types[]': z
       .union([z.array(historyType), historyType])
       .transform((v) => (typeof v === 'string' ? [v] : v))
