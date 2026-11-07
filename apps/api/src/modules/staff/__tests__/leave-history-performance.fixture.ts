@@ -95,27 +95,37 @@ async function seedForeignTenants(f: LeaveFixture) {
   const copies = [];
   for (let n = 1; n <= foreignTenants; n++)
     copies.push(await f.h.onboard(f.ownerCookie, `Synthetic foreign employer ${n}`));
-  for (const table of copiedTables) {
-    const columns = await f.h
-      .owner`SELECT a.attname AS name, format_type(a.atttypid, a.atttypmod) AS type,
-      EXISTS (SELECT 1 FROM pg_constraint c JOIN pg_class r ON r.oid=c.confrelid
-        WHERE c.conrelid=a.attrelid AND c.contype='f' AND a.attnum=ANY(c.conkey) AND r.relname='user') AS user_ref
-      FROM pg_attribute a WHERE a.attrelid=${table}::regclass AND a.attnum>0 AND NOT a.attisdropped
-      AND a.attgenerated='' ORDER BY a.attnum`;
-    const names = columns.map((c) => `"${c['name'] as string}"`).join(',');
-    const values = columns
-      .map((c) => {
-        const name = `"${c['name'] as string}"`;
-        if (name === '"company_id"') return 'co.id';
-        if (c['type'] !== 'uuid' || c['user_ref']) return `t.${name}`;
-        return `md5(co.id::text||t.${name}::text)::uuid`;
-      })
-      .join(',');
-    const tenants = copies.map((id) => `'${id}'`).join(',');
-    await f.h.owner.unsafe(
-      `INSERT INTO ${table}(${names}) SELECT ${values} FROM ${table} t
-      CROSS JOIN unnest(ARRAY[${tenants}]::uuid[]) co(id) WHERE t.company_id='${f.company}'`,
-    );
-  }
+  const statements = [];
+  for (const table of copiedTables) statements.push({ table, ...(await copyColumns(f, table)) });
+  // statement لكل tenant ولكل جدول بترتيب الـFK، عشان مفيش INSERT واحد يقرب من statement_timeout.
+  for (const tenant of copies)
+    for (const { table, names, values } of statements)
+      try {
+        await f.h.owner.unsafe(
+          `INSERT INTO ${table}(${names}) SELECT ${values} FROM ${table} t
+          CROSS JOIN (SELECT '${tenant}'::uuid AS id) co WHERE t.company_id='${f.company}'`,
+        );
+      } catch (error) {
+        throw new Error(`Foreign tenant seed failed: ${table} for ${tenant}`, { cause: error });
+      }
   return copies;
+}
+
+async function copyColumns(f: LeaveFixture, table: string) {
+  const columns = await f.h
+    .owner`SELECT a.attname AS name, format_type(a.atttypid, a.atttypmod) AS type,
+    EXISTS (SELECT 1 FROM pg_constraint c JOIN pg_class r ON r.oid=c.confrelid
+      WHERE c.conrelid=a.attrelid AND c.contype='f' AND a.attnum=ANY(c.conkey) AND r.relname='user') AS user_ref
+    FROM pg_attribute a WHERE a.attrelid=${table}::regclass AND a.attnum>0 AND NOT a.attisdropped
+    AND a.attgenerated='' ORDER BY a.attnum`;
+  const names = columns.map((c) => `"${c['name'] as string}"`).join(',');
+  const values = columns
+    .map((c) => {
+      const name = `"${c['name'] as string}"`;
+      if (name === '"company_id"') return 'co.id';
+      if (c['type'] !== 'uuid' || c['user_ref']) return `t.${name}`;
+      return `md5(co.id::text||t.${name}::text)::uuid`;
+    })
+    .join(',');
+  return { names, values };
 }
