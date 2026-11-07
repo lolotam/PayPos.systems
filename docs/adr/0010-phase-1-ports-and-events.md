@@ -477,8 +477,13 @@ remains separate. The postponed RatingAlertRecipientsPort of the 2026-10-21 adde
 API customers owns RatingAlertRecipientsPort<Transaction>. managers(tx, companyId, businessId, branchId,
 roles, at) returns sorted unique {userId, owner} rows through API identity's existing readBranchRoleHolders.
 commentReaders(tx, companyId, businessId, branchId, userIds, at) returns a sorted unique subset through the
-proposed API identity public readRatingCommentReaders. Both run on the caller's tenant transaction; at is
-the injected clock sampled after the rating-request lock. Empty input returns an empty result without I/O.
+proposed API identity public readRatingCommentReaders. Both run on the caller's tenant transaction. The supplied
+at must belong to the reviewed emission-time authorization decision required by BR-B4. Sampling the submit clock
+after the rating-request lock alone does not establish that guarantee under concurrent permission changes or
+application/database clock skew. A1 approves no earlier-time or non-serialized reinterpretation of BR-B4.
+The decision instant, clock source and coordination with all relevant permission writers are U4, an OPEN
+DESIGN/READINESS BLOCKER before E's readers land. No company-lock exception, isolation change, new port or
+token-expiry change is approved here. Empty input returns an empty result without I/O.
 
 The comment reader separates current manager-role eligibility covering the visit branch from effective
 permission aggregation across all active memberships. It retains covering DENY grants, including those

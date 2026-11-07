@@ -5,7 +5,7 @@
 > Initial investigation baseline was `da775eb5e5b62adcb48b26d1e55fdba1a2ce671f`; relevant A1 source context is unchanged.
 > Owning branch `plan/61-1-low-rating-alert`. Only ADR0010, module-map markdown/generated YAML and these two planning
 > documents are authorized for A1. No runtime reader/port, executable test, migration, seed or T/K/E is authorized.
-> U2 is a DESIGN/READINESS BLOCKER and P1 rolling compatibility is unresolved. Earlier `REQUIRESCORRECTION` receipts
+> U2/U4 are OPEN DESIGN/READINESS BLOCKERS and P1 rolling compatibility is unresolved. Earlier `REQUIRESCORRECTION` receipts
 > are historical, not a PASS for the final diff; a fresh independent review is required before the one A1 PR.
 > A1 brief: 1000 total added/deleted lines including generated output; refusal threshold 2000; three correction rounds.
 > Evidence and the manager's technical decision (not a new owner quote): `61-1-planning-evidence.md`.
@@ -18,6 +18,7 @@ The planner received an English rendering; the owning lead has the Arabic origin
 it (evidence §E0). The planner's reading gaps remain disclosed in §E1. The table below is the EARLIER planning
 decision. The latest technical manager decision in §E0.1 now authorizes A1 documentation and one PR after its gates;
 it selects B as design only, rejects treating U2 as a mere verification limit, and leaves all runtime work blocked.
+The R2/3 approval in evidence §E13 additionally removes the unproved early-time promise and keeps U4 open before E.
 
 | # | Decision (as received) | What it does NOT authorize |
 |---|---|---|
@@ -43,13 +44,14 @@ Out of scope and untouched: #887 and the activation blockers #803/#804/#805/#808
 WhatsApp/email/push channels (AL-Q6 defers team external delivery; RT-23 fixes generic copy if those channels ship later); 61-2
 averages; any staging or production action; RT-Q8/RT-Q9 (not reopened).
 
-## 2. Status of U1 / U2 / U3
+## 2. Status of U1 / U2 / U3 / U4
 
 | Item | Result | Where |
 |---|---|---|
 | U1 — lossless IN_APP transport | **CLOSED as design**: two alternatives, **B selected by manager for IN_APP design only**; no T implementation | §3 |
 | U2 — liveness inside the 1000 ms rating transaction | **OPEN DESIGN/READINESS BLOCKER**; safe failure is established but does not satisfy liveness or authorize E | §5 |
 | U3 — runtime validation boundary | **CLOSED as design**: root-built parse closure injected through an own port; legality shown from config, NOT lint-tested | §4 |
+| U4 — emission-time authorization | **OPEN DESIGN/READINESS BLOCKER** before E's readers; BR-B4 is preserved, and decision instant/clock/writer coordination are unselected | §6.1–§6.2 |
 | Tenant/place precondition | Existing API tenancy `describeWorkspaces` supplies the metadata and active-company result; no third public symbol or worker import | §6.3–§6.4 |
 
 ## 3. U1 — transport (two lossless alternatives only)
@@ -228,13 +230,17 @@ consistent with manager point 4. No additional interpretation question about RT-
 
 ### 3.8 Recipients and partition
 
+- Alert eligibility is `rule.enabled && rule.channels.includes('IN_APP')`. Otherwise, including `channels: []`,
+  emit no notice and perform no alert-only identity/place/performer-name/customer reads; consume/rating work is unchanged.
 - Candidates: `RatingAlertRecipientsPort.managers` → identity `readBranchRoleHolders` with the `LOW_RATING` rule's roles
   (default RT-Q8: the four managers of the visit branch scope); deduplicated, sorted by `userId`.
-- Comment readers: `commentReaders(candidates)` → identity `readRatingCommentReaders` (§6.2); an INTERSECTION of the
+- If the stored comment is `null` (omitted/empty submission), all candidates get `low_rating`; do not call
+  `commentReaders`. The with-comment schema stays non-nullable; no valid non-null comment is dropped.
+- For a non-null comment, `commentReaders(candidates)` → identity `readRatingCommentReaders` (§6.2); an INTERSECTION of the
   candidates, so `comment group ⊆ candidates` and `no-comment group = candidates − readers`; disjoint by construction.
-- No candidates ⇒ no event (and no outbox row). Rule off ⇒ no read of identity at all.
-- Groups: build the disjoint per-user variants first, concatenate readers then the remaining managers, then batch
-  that SINGLE recipient list into groups of ≤100. Thus a normal notice carries both ACL variants in ONE event;
+- No candidates ⇒ no event (and no outbox row), with no further alert-only reads.
+- Groups: build the appropriate per-user variants first, concatenate the disjoint groups, then batch that SINGLE
+  recipient list into groups of ≤100. ONE event may carry both ACL variants when a non-null comment exists;
   only R>100 adds events. Append every group in one `appendOutboxEvents` call.
 
 ## 4. U3 — runtime validation boundary
@@ -280,18 +286,24 @@ reported, no file is moved to bypass the matrix.
 
 ### 5.2 Work count (lower bound, statements on one tx)
 
-Design count when the rule is on and candidates exist: tenant context setup (1) + lock (1) + consume UPDATE (1) +
+Baseline design count when IN_APP is selected, the rule is on, candidates exist and the comment is non-null:
+tenant context setup (1) + lock (1) + consume UPDATE (1) +
 rating INSERT (1) + performers SELECT (1) + **P** attribution INSERTs (60-1 loop, unchanged) + rule (1) + candidates
 (2) + comment readers (1 planned set-based read) + performer names (1) + `describeWorkspaces` (2: current tenant then
 tree) + customer row (1) + bulk outbox (2) = **P + 15 SQL statements**, excluding driver BEGIN/COMMIT. This is a proposed
-query plan, not a measured count; no-people/off/empty fast paths use fewer. An extra safety read must be counted explicitly.
+query plan, not a measured count. A null comment skips the one ACL statement: **P + 14** under the same baseline.
+Rule off or no IN_APP (including empty channels) stops alert work after the rule: **P + 6**, using the listed
+tenant/lock/consume/rating/performers/attributions/rule operations only. No-candidate and empty-input paths may use fewer
+than the full alert baseline. U4's eventual mechanism is NOT counted or selected here; its additional statements,
+locks or coordination work must be accounted for before E. These estimates do not establish latency or resolve U2.
 `appendOutboxEvents` is O(1) statements, NOT O(1) payload: its INSERT parameter is
 `JSON.stringify` of every entry whose `payload` is already a JSON string, so every `"` and `\` of every payload is
 escaped once more on the wire (`outbox.ts:85–89`).
 
 ### 5.3 Byte arithmetic (payload only; lead-computed with plain JS JSON, re-checked by hand here)
 
-H = 134 B (event header with empty recipients and two 36-byte UUIDs). Rc = comment readers, R0 = R − Rc, K = ⌈R/100⌉;
+H = 134 B (event header with empty recipients and two 36-byte UUIDs). Rc = recipients assigned the with-comment variant
+(0 for a null comment), R0 = R − Rc, K = ⌈R/100⌉; no IN_APP means no notice payload. The examples assume a non-null comment;
 n, c = encoded bytes of one recipient without/with the comment (all names replicated per recipient).
 **Total outbox = R0·n + Rc·c + K·H + (R − K)** (the last term is the commas inside each group).
 
@@ -381,9 +393,11 @@ export interface LowRatingNoticePlacePort<Transaction> {
 }
 ```
 
-`commentReaders` returns `readonly string[]` (sorted, unique) everywhere; the composer builds its own Set. Both methods
-take `at` = the injected clock value read after `lockRequest` (`submit-rating.usecase.ts`). Empty `userIds`/`employeeIds`
-return `[]` with no query. `AlertRulesPort.rule` stays on API `settings.readAlertRule` (same tx); no role holders in it.
+`commentReaders` returns `readonly string[]` (sorted, unique) everywhere; the composer builds its own Set. The signatures
+are unchanged. For E, the supplied `at` must be part of a reviewed BR-B4 emission-time authorization decision (U4),
+not assumed to be established by the request-lock clock sample. The existing `consumeAndRate` clock/token-expiry
+contract stays unchanged. Empty `userIds`/`employeeIds` return `[]` with no query. `AlertRulesPort.rule` stays on API
+`settings.readAlertRule` (same tx); no role holders in it.
 `firstNames` returns display-safe first names after the API customers adapter applies its own pure domain function.
 The staff public reader returns raw stored names; it never imports customers domain or a worker helper.
 
@@ -399,7 +413,12 @@ The staff public reader returns raw stored names; it never imports customers dom
   discarded merely because that membership cannot qualify the user as a manager. A pure identity-domain decision applies
   the API `evaluateAccess`/`protectOwnerAccess` semantics (ALLOW at a covering scope, no covering DENY, canonical owner
   ignores DENY but does not fabricate an ALLOW) per user. One planned statement regardless of R, binding the candidate
-  ids as a collection rather than executing once per user. Precedent only: worker `businessPermissionHolders` (worker file,
+  ids as a collection rather than executing once per user. This is the baseline query design, not a selected U4 mechanism.
+  **U4 is OPEN DESIGN/READINESS BLOCKER before this reader lands:** the decision instant, clock source and coordination
+  with permission writers must be reviewed without weakening BR-B4. Same transaction alone proves no serialization,
+  resampling a clock alone proves no writer ordering, and no complete historical as-of snapshot is claimed. No clock,
+  lock, isolation, cross-module company-read exception or new port is chosen in A1.
+  Precedent only: worker `businessPermissionHolders` (worker file,
   not imported). Unlike `readAccessTransaction` (per user: company check + memberships + grants), there is no per-user loop.
 
 ### 6.3 Staff and tenancy public API (API)
@@ -415,15 +434,17 @@ The staff public reader returns raw stored names; it never imports customers dom
 
 ### 6.4 Existing tenant/place precondition, not a third public API
 
-Before composing an enabled notice, use §6.3's mandatory tenancy metadata read. Its current result is null for a
+After the enabled-and-IN_APP guard and a nonempty candidate result, composing a notice requires §6.3's tenancy
+metadata read. Its current result is null for a
 soft-deleted company or an absent tenant, and the caller must also find the request's business/branch in its tree.
 No `companyAcceptsAlerts` symbol is proposed and identity gains no new read of tenancy tables.
 
-The existing public submit path is NOT claimed to reject a deleted company already. In the proposed enabled-alert
+The existing public submit path is NOT claimed to reject a deleted company already. In the proposed selected-IN_APP
 path, missing mandatory context is an availability failure: raise the existing bounded-submit availability error
 (`RatingSubmissionBusyError`, mapped to `NOT_READY`) inside the transaction. Do not silently omit the required alert
 and commit a successful low rating. This check fails before append/COMMIT, so the consume/rating/attributions roll back.
-The separate COMMIT-outcome uncertainty is §5.1. With the rule off, no alert context is required. This error-path extension must be documented and tested in E;
+The separate COMMIT-outcome uncertainty is §5.1. With the rule off or IN_APP absent, no alert context is required.
+This error-path extension must be documented and tested in E;
 it neither revokes tokens nor changes a feature flag. Same-tx reads are not a claim of serializable isolation or a
 company-row lock. A1 defines this caller precondition; direct role readers do not promise a separate company check.
 
@@ -487,6 +508,13 @@ Later CI integration tests on the pipeline-authorized isolated database are spec
   cease applying; covering DENY excludes a manager except existing canonical-owner protection. A custom/non-manager
   role with a historic ALLOW does not qualify; role changes use the current role at the decision time. A covering
   DENY on a sibling non-manager membership still counts. Owner inclusion still requires effective ALLOW.
+- **U4 ordering controls (future):** revoke, DENY, ALLOW, expiry and current-role changes on both sides of the
+  authorization decision, plus application/database clock skew. Expected outcomes and decision ordering must come
+  from the later approved U4 design before E's readers land; no concurrency guarantee or test execution is claimed here.
+- **Routing controls (future):** omitted/empty submissions become a null stored comment and send `low_rating` to
+  every eligible candidate without an ACL read; non-null comments keep the disjoint permission partition. An enabled
+  rule with empty channels or no IN_APP emits no notice and does no alert-only reads while consume/rating stays intact;
+  selected IN_APP is the positive control. Preserve unique recipients and the non-null with-comment schema.
 - **Staff names:** other-company ids return no rows; requested snapshot ids from BOTH branches of the same business
   and request day are valid and all stay named (D-B3). Soft-deleted staff remain included. No role/membership or
   visit-branch filter is invented for this company-and-ids reader. Equal names of different employees remain distinct.
@@ -603,7 +631,8 @@ as a clean approval of the changed hashes; the corrected A1 proposal is submitte
   gates and coordinated order. Previous review receipts are not reused as final approval.
 - **P1:** planning only: inventory every actual writer, prove guard-before-seed deployment on all writers and its
   rollback floor. No migration generation, seed, deployment/config change or reserved 0217. This is independent of A1.
-- **U2 / T / K / E:** implementation remains blocked; a load/architecture plan must be reviewed first. No success
+- **U2 / U4 / T / K / E:** implementation remains blocked; load and emission-time authorization designs must be reviewed
+  before E's readers land. No clock/locks/isolation or same-transaction guarantee is selected. No success
   semantics, timeout, performer cap, name policy or privacy expansion is silently adopted.
   T's FR-B13 spec update is a prerequisite of T, not A1 work; T/G are hard floors with no below-floor procedure authorized here.
 - **Privacy:** §3.6 remains a condition to resolve separately in the final T/E plan. A1 neither changes the policy nor

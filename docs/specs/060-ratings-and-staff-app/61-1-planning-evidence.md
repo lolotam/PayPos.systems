@@ -311,7 +311,7 @@ The latest manager approved a 1000-line A1 brief including every +/− category 
 2000 and three correction rounds. No future production step is approved. Current A1 includes both documents plus
 ADR/map/YAML; its actual all-category size is measured from the final Git diff after the documentation updates.
 
-## E10. A1 delivery checks (live base)
+## E10. A1 delivery checks (initial/R1 checkpoints)
 
 - Base/context/checkpoint and successful `module-map:generate`: §E0.1.
 - `module-map:check`: exit 0, `module map: ok` (background completion received).
@@ -362,3 +362,40 @@ Those receipts do not pass a new head. Backup ref `backup/61-1-before-r1-a46773c
 
 No production/test/migration/seed/config/deployment changes or issue closure. U2/P1/privacy and all activation
 blockers stay open. Fresh internal review, documentation checks, new-head CI and external receipts remain required.
+
+
+## E13. Manager approval and fourth-receipt gate — R2/3
+
+This is a technical manager decision under the stated delegation, not a new owner quote. Verbatim approval:
+
+```text
+قرأت r2-candidate-manager-decision.md كاملًا. أعتمد المسار A المحدود كتصحيح وثائق A1، بتفويض وليد الليلي، وليس اعتمادًا لآلية emission أو خفضًا بحق BR-B4. يسمح بالتطبيق بعد اكتمال إيصال Waleed الرابع على ed9fee67 وحسم أي finding إضافي ضمن النطاق؛ الدفعة R2/3 لا R1. استبدل وعد early-at في ADR والمواضع المقابلة بالنص المرشح الذي يحفظ BR-B4 ويجعل U4 OPEN DESIGN/READINESS BLOCKER قبل دخول readers الخاصة بـE. احتفظ بالتواقيع وعقد consumeAndRate، بلا اختيار clock/locks/isolation أو تفسير same transaction كضمان. أضف ضوابط revoke/DENY/ALLOW/expiry/current role/clock skew كاختبارات مستقبلية بنتائج يحددها التصميم المعتمد لاحقًا، لا ادعاء إثباتها الآن. اعتمد كذلك null comment→low_rating لكل المستلمين المؤهلين دون commentReaders، وغياب IN_APP بما فيه channels=[]→لا notice ولا قراءات alert-only مع بقاء consume/rating كما هو؛ صحح statement estimates بوضوح. U2/P1/privacy وباقي blockers تظل مفتوحة. سجل الاعتماد والنطاق والتصنيف: نحن نعالج وعدًا توثيقيًا غير مثبت، ولا ندعي أن runtime concurrency اتصلحت أو أن الاستشارة بوابة كاملة. بعد التصحيح راجع اتساق ADR/plan/evidence وعدم بقاء نص مبكر مخالف، ثم docs/map/UTF8/diff والحجم ALL دون2000، ومراجعة Astra high جديدة للنسخة النهائية قبل push واحد. الردود/resolve تكون بدليل إزالة الوعد وربط U4 صراحة، لا بعنوان إصلاح صلاحيات runtime. إذا الرابع فشل أو غاب لا يُحسب مكتملًا ولا تبدأ دفعة التصحيح خلاف PP119. لا Codex مكرر أو merge/deploy/activation بهذا القرار.
+```
+
+The prerequisite is now met: Waleed_Bot review5809771487, read in full, is submitted on
+`ed9fee673af2781d5153965bb795cdf1099948d2`, with zero inline/outside findings and no partial marker. It confirms R1's
+spec-first/rollback corrections and adds no finding. Alongside the same-head Cross-file5808533679, Hamza5808535089
+and Security5808536660 receipts, all four have completed; skipped retry rows are not substituted as reviews.
+The manager's official targeted Retry returned HTTP202, followed by Running runaf7c38f1; that acceptance alone did
+not open this gate. The completed GitHub receipt did. No second Retry, full review, config or Codex trigger was sent.
+Checkpoint `F:/Dev/Temp/pospay-61-1-planning/before-r2-ed9fee67/` holds hash-verified copies of all five files;
+ref `backup/61-1-before-r2-ed9fee67` preserves the source. Existing #888/source/DB backup artifacts remain retained.
+
+R2/3 corrects an unproved documentation promise and two routing omissions. It does not claim runtime concurrency
+is fixed, weaken BR-B4 or treat PP-136 advice as a complete gate. U4 remains OPEN DESIGN/READINESS BLOCKER before
+E's readers, with decision instant/clock/writer coordination unselected; signatures and consumeAndRate stay unchanged.
+The advisor's same-transaction interpretation was not adopted. It disclosed a read-only git diff outside its
+Read/Glob/Grep-only brief and incomplete readings; those limits are preserved rather than marked tooling-compliant.
+
+- r4498843775: accepted documentation-promise correction; remove the early-at guarantee and link U4 before E,
+  retaining BR-B4 and public signatures. Existing submit-clock facts in F-R2 concern consumeAndRate, not authorization.
+- r4498843791: null stored comment selects low_rating for all eligible candidates and skips commentReaders.
+- r4498843800: enabled-but-no-IN_APP, including empty channels, produces no notice or alert-only reads; consume/rating
+  stays unchanged. Baseline counts distinguish P+15/P+14/P+6 and exclude U4's unselected mechanism.
+Future test controls cover routing and revoke/DENY/ALLOW/expiry/current role/clock skew; approved later design defines
+their outcomes. No tests or benchmark were executed to establish those semantics in A1. R2 is the second of three
+correction rounds; neither R1's budget nor #888's prior budgets are reset.
+
+Only authorized documentation is changed. Runtime/source/tests/migration/seed/config/deploy remain out of scope;
+U2/P1/privacy and all activation blockers remain open. Fresh docs/map/UTF-8/diff/count checks and independent Astra
+high review are required before one R2 push. Old-head CI/Codex/panel receipts do not pass the resulting head.
