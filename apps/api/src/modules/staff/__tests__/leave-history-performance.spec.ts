@@ -28,6 +28,14 @@ beforeAll(async () => {
   setupStep('leaveFixture:start');
   f = await leaveFixture({ hireDate: '2025-01-01' });
   setupStep('leaveFixture:end');
+  setupStep('jsonbProbe:start');
+  await f.h.owner.begin(async (tx) => {
+    const [probe] = await tx.unsafe('SELECT jsonb_typeof($1::text::jsonb) AS kind', [
+      '[{"probe":true}]',
+    ]);
+    expect(probe).toEqual({ kind: 'array' });
+  });
+  setupStep('jsonbProbe:end');
   await seedHistoryVolume(f);
   setupStep('seed:end');
   const [year] = await f.h.owner`SELECT count(*)::int AS leaves,
@@ -274,7 +282,7 @@ async function reinsertSession(tx: postgres.TransactionSql) {
   const names = await columnsOf(tx, 'attendance_sessions');
   await tx.unsafe(
     `INSERT INTO attendance_sessions(${names}) SELECT ${names}
-    FROM jsonb_populate_recordset(NULL::attendance_sessions, $1::jsonb)`,
+    FROM jsonb_populate_recordset(NULL::attendance_sessions, $1::text::jsonb)`,
     [baseline.sessions],
   );
 }
@@ -282,7 +290,7 @@ async function reinsertAllLeaves(tx: postgres.TransactionSql) {
   const names = await columnsOf(tx, 'leave_requests');
   await tx.unsafe(
     `INSERT INTO leave_requests(${names}) SELECT ${names}
-    FROM jsonb_populate_recordset(NULL::leave_requests, $1::jsonb)`,
+    FROM jsonb_populate_recordset(NULL::leave_requests, $1::text::jsonb)`,
     [baseline.leaves],
   );
 }
@@ -290,7 +298,7 @@ async function reinsertNotCoveringLeaves(tx: postgres.TransactionSql) {
   const names = await columnsOf(tx, 'leave_requests');
   await tx.unsafe(
     `INSERT INTO leave_requests(${names}) SELECT ${names}
-    FROM jsonb_populate_recordset(NULL::leave_requests, $1::jsonb)
+    FROM jsonb_populate_recordset(NULL::leave_requests, $1::text::jsonb)
     WHERE NOT ("from"<='2025-11-07' AND "to">='2025-11-07')`,
     [baseline.leaves],
   );
