@@ -127,9 +127,6 @@ async function measureSamples(scenario: string) {
         cpu: cpus()[0]?.model,
         cores: cpus().length,
       },
-      lane: 'l68-1b-f3194da9',
-      postgres: '127.0.0.1:55682',
-      redis: '127.0.0.1:56682',
       conditions:
         'sequential Fastify HTTP inject reads; warm DB; one business; no concurrent test files; includes guards, authorization, transaction and serialization; excludes network transport',
       historyNow,

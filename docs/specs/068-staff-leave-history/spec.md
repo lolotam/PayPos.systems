@@ -362,7 +362,8 @@ None. The reads rely on existing indexes; the EXPLAIN tests decide:
 | Sessions anti-join | `attendance_sessions_employee_date_idx` `(company_id, employee_id, working_date, clock_in)` |
 | Approved-leave anti-join, last-taken line | `leave_requests_company_employee_period_idx` |
 
-For 68-1b, a sequential scan on the representative volume stops delivery and is reported to the manager.
+For 68-1b, a sequential scan of `leave_requests`, `staff_schedule_shifts` or `attendance_sessions` on the
+representative volume stops delivery and is reported to the manager.
 An index requires separately authorized migration coordination (PP-124/PP-130); this slice adds no migration.
 
 ### 68-1b implementation
