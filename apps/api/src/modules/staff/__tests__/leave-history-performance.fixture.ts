@@ -9,6 +9,19 @@ export const performanceVolume = {
   sessions: 18_250,
   leaves: 1_000,
 };
+// شركات أجنبية بنفس حجم الشركة المقاسة، عشان خطة EXPLAIN تتحسب والجداول فيها tenants تانيين (ADR-0048 §2).
+// العدد ثابت قبل التشغيل ومش بيكبر لحد ما الـplanner يختار index.
+export const foreignTenants = 9;
+const copiedTables = [
+  'businesses',
+  'branches',
+  'employees',
+  'employee_branches',
+  'staff_schedules',
+  'staff_schedule_shifts',
+  'attendance_sessions',
+  'leave_requests',
+];
 export async function seedHistoryVolume(f: LeaveFixture) {
   const employees = [f.employee.id];
   for (let n = 1; n < performanceVolume.employees; n++) {
@@ -41,7 +54,11 @@ export async function seedHistoryVolume(f: LeaveFixture) {
     FROM unnest(${f.h.owner.array(sessions)}::uuid[],${f.h.owner.array(shifts)}::uuid[]) s(id,shift)
     JOIN staff_schedule_shifts sh ON sh.company_id=${f.company} AND sh.id=s.shift`;
   await seedLeaves(f, employees);
+  await seedForeignTenants(f);
   for (const table of [
+    'businesses',
+    'branches',
+    'employee_branches',
     'employees',
     'staff_schedules',
     'staff_schedule_shifts',
@@ -72,4 +89,33 @@ async function seedLeaves(f: LeaveFixture, employees: string[]) {
       (ARRAY['ANNUAL','SICK','UNPAID'])[((s.n-1)%3+1)::int],'APPROVED',${f.userId},now(),${f.userId},now()
     FROM (SELECT u.id,u.n,(((u.n-1)/50)*18+((u.n-1)%50)%18)::int AS day
       FROM unnest(${f.h.owner.array(leaves)}::uuid[]) WITH ORDINALITY u(id,n)) s`;
+}
+
+async function seedForeignTenants(f: LeaveFixture) {
+  const copies = [];
+  for (let n = 1; n <= foreignTenants; n++)
+    copies.push(await f.h.onboard(f.ownerCookie, `Synthetic foreign employer ${n}`));
+  for (const table of copiedTables) {
+    const columns = await f.h
+      .owner`SELECT a.attname AS name, format_type(a.atttypid, a.atttypmod) AS type,
+      EXISTS (SELECT 1 FROM pg_constraint c JOIN pg_class r ON r.oid=c.confrelid
+        WHERE c.conrelid=a.attrelid AND c.contype='f' AND a.attnum=ANY(c.conkey) AND r.relname='user') AS user_ref
+      FROM pg_attribute a WHERE a.attrelid=${table}::regclass AND a.attnum>0 AND NOT a.attisdropped
+      AND a.attgenerated='' ORDER BY a.attnum`;
+    const names = columns.map((c) => `"${c['name'] as string}"`).join(',');
+    const values = columns
+      .map((c) => {
+        const name = `"${c['name'] as string}"`;
+        if (name === '"company_id"') return 'co.id';
+        if (c['type'] !== 'uuid' || c['user_ref']) return `t.${name}`;
+        return `md5(co.id::text||t.${name}::text)::uuid`;
+      })
+      .join(',');
+    const tenants = copies.map((id) => `'${id}'`).join(',');
+    await f.h.owner.unsafe(
+      `INSERT INTO ${table}(${names}) SELECT ${values} FROM ${table} t
+      CROSS JOIN unnest(ARRAY[${tenants}]::uuid[]) co(id) WHERE t.company_id='${f.company}'`,
+    );
+  }
+  return copies;
 }
