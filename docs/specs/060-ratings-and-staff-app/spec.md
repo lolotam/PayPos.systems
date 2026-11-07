@@ -321,8 +321,10 @@ Manager-approved split: 57-2 stays incomplete until **57-2a and 57-2b**;
 57-4 waits for both, with no UI scope change. D1–D3 and Q1–Q5 remain unchanged.
 Original #894 is superseded unmerged at 3/3, with P1 unresolved for B. A starts
 as a distinct unit at 0/3. Combined delivered A+B cap: 5600 ALL. See
-`57-2a-manager-authorization.ar.md`. Administrative order: 68-1b, A, B;
-68 is not a technical dependency. B stays planning only until A merges and its
+`57-2a-manager-authorization.ar.md` preserves the original split authorization.
+The manager withdrew the administrative wait for 68-1b/#897 in
+`57-2a-ordering-authorization.ar.md`; no technical dependency on 68 exists, and
+test-resource order is separate from merge eligibility. B stays planning only until A merges and its
 separate query-hardening design is approved.
 
 | PR | Result | Subtasks | Blocked on | Size |

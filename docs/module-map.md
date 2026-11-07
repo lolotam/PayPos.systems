@@ -94,6 +94,8 @@ the attendance SQL joins only staff-owned tables and the supplied name projectio
 Spec 060 57-2a OwnWorkReads consumes provider-owned employee, identity and tenancy
 readers on one transaction and sampled clock. Current authority does not narrow
 historical business tips. Only tip totals and month-window callbacks are composed.
+ADR-0041's 2026-11-07 addendum records the exact four public read dependencies,
+their rationale and consequences; the macro import arrows are unchanged.
 
 ADR-0020 attendance QR reads the paired branch name and effective timezone through the existing tenancy
 `describeWorkspaces` surface; staff owns the read port. It adds no attendance write or clocking endpoint.

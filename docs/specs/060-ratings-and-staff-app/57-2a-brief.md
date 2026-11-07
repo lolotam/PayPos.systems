@@ -9,12 +9,19 @@ write paths and tables remain unchanged. The monthly scalar alone may represent
 the exact larger nonnegative sum. All additions/deletions remain inside A's 3400
 and combined A+B 5600 limits; recount after code, generated artifacts and receipts.
 
+R2/3 documentation correction inventory: record the manager's task-specific
+ordering withdrawal in `57-2a-ordering-authorization.ar.md`, synchronize the
+current order statements, and add the exact OwnWorkReads dependency rationale and
+consequences to ADR-0041 with a module-map reference. No reader/API change follows.
+
 ## Authority and lineage
 
 Operational update, 2026-11-07: the manager withdrew the automatic wait for
 68-1b/#897 after the limited PP-136 consultation found no technical dependency or
 independent owner constraint. The earlier administrative order below and in the
 verbatim authorization is historical, not a current requirement to wait for #897.
+The committed task-specific authority and exact manager excerpts are in
+`57-2a-ordering-authorization.ar.md`; no dependency on publishing PP-138 is added.
 PP-138's canonical reference is the manager checkout's
 `docs/owner-decisions.ar.md` section 74; it is locally approved, not claimed merged.
 Test-resource order remains separate: G, this unit, then card 3, with direct
@@ -26,7 +33,7 @@ reviews, applicable backup/restore and coordinated merge gates remain required.
 
 The manager explicitly approved the A/B functional split and staged delivery under
 Waleed's night delegation. The verbatim decision is preserved alongside this brief
-in `manager-split-authorization.ar.md`; it is a manager decision, not a new owner
+in `57-2a-manager-authorization.ar.md`; it is a manager decision, not a new owner
 quotation. `split-proposal-r2.ar.md` supplies the approved inventory.
 
 Original PR #894 is superseded without merge. Its final head, 3/3 exhausted rounds,
@@ -109,8 +116,9 @@ historical and excluded from the delivered A+B sum. Stop before proceeding if a 
 is exceeded; do not silently increase a brief.
 
 Record the split in spec 060 A.5: 57-2 is complete only after A+B; 57-4 waits for both.
-No UI scope change or claim of overall completion after A. Administrative order:
-68-1b, then A, then B (no technical dependency on 68). B may begin implementation
+No UI scope change or claim of overall completion after A. Current coordination:
+A need not wait for 68-1b/#897 (see `57-2a-ordering-authorization.ar.md`); test
+resource order is separate from merge eligibility. B may begin implementation
 only after A merges and its separate design authorization is received.
 
 One PR for A after the pre-push report, independent review and local gates. Wait all

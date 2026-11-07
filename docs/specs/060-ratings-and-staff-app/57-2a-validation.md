@@ -17,9 +17,10 @@ also sent before source-start. No dispatch is counted as implementation.
 Selective reuse source: Git tree `2f8858d4269500ab4ef260b64b6d498743f33f56`.
 Original #894 is CLOSED, UNMERGED, superseded; 3/3 rounds and 3,143 historical
 changed lines remain preserved. P1 `discussion_r4498824739` is unresolved for B.
-A is a distinct new unit, now at correction R1/3; B remains planning only pending separate approved
-query design and A merge. 57-2 and 57-4 require both units. Administrative order:
-68-1b, A, B; no technical dependency on 68.
+A is a distinct new unit, now at correction R2/3; B remains planning only pending separate approved
+query design and A merge. 57-2 and 57-4 require both units. The original
+administrative 68-1b-before-A wait was withdrawn by the manager; current authority
+is `57-2a-ordering-authorization.ar.md`. No technical dependency on 68 exists.
 
 Environment inventory: only tracked `.env.example`, owned by
 `DESKTOP-U5N57Q2\waleed_Mohamed`, not ignored. No values read. No `.env` or
@@ -167,10 +168,44 @@ to card 3 and the manager notified. No more DB or heavy runs are scheduled durin
 that turn. This base update changes no A production/test/generated code and does
 not consume a new correction round: A remains R1/3; #894's 3/3 is unchanged.
 
+## R2/3: consistent coordination audit and dependency rationale
+
+The four panel reviews completed on 36b59c6d. Cross-file and owner-rules reviews
+raised the same medium finding: current coordination statements contradicted
+retained ordering text and cited only an external local record. The context review
+also requested an ADR for the exact new symbol dependencies. These are addressed
+together in this documentation-only correction; no A source/test/generated file
+changes and no additional DB/heavy run is needed during card 3's resource turn.
+
+The manager's task-specific withdrawal is recorded verbatim as excerpts in
+`57-2a-ordering-authorization.ar.md`; PP-138 itself is not copied or claimed merged.
+Spec/brief/current validation now agree. The original authorization's quoted text
+is preserved byte-for-byte and marked historical only as to the withdrawn wait.
+ADR-0041's dated addendum records all four public symbol/path reads, rationale,
+transaction/clock boundaries and consequences; module-map references it. This
+documents the existing approved implementation, not a new dependency or API design.
+A is R2/3; the prior base-refresh statement that it did not consume a round remains
+historically true. Original #894 remains exhausted at 3/3 with B's P1 unresolved.
+Fresh independent review and local documentation checks are required before push.
+Root verification passed: original blockquote content unchanged; zero apps/packages
+diff; docs lint 0 errors / 29 existing warnings; module-map:check and diff check.
+No DB/typecheck/benchmark run was repeated for this documentation-only correction.
+
+Fresh independent Astra high accepted R2 with no confirmed new defects, reading
+the complete immutable 746768-byte snapshot, SHA256
+`058a276e332c55cfc72ce87d6131dc17e7d6fbcdddbb0ca5a6be04d9fd2c8a79`.
+It independently counted 38 files / 2107 ALL before this receipt. The later
+CodeRabbit minor finding corrected the brief's wrong authorization filename to the
+existing `57-2a-manager-authorization.ar.md`; root verified the target exists and
+the stale reference is absent. This single reference fix was outside that snapshot.
+The accepted snapshot is retained unchanged; review did not execute tests or
+authorize CI/merge/deploy. All current-head panel and CodeRabbit findings are
+included in this one R2 correction push. Fresh-head gates remain required.
+
 ## Final local file inventory
 
-Inventory is relative to refreshed main 37451b222, including all production,
-tests, documentation and generated lines. R1/3 is unchanged by the base refresh.
+Inventory relative to main 37451b222 includes all production, tests, documentation
+and generated lines. A is R2/3; original #894 remains 3/3.
 
 | File | + | - |
 |---|---:|---:|
@@ -192,13 +227,15 @@ tests, documentation and generated lines. R1/3 is unchanged by the base refresh.
 | `apps/api/src/modules/staff/persistence/own-employee.ts` | 46 | 0 |
 | `apps/menu/src/shared/api/schema.d.ts` | 88 | 0 |
 | `apps/pos/src/shared/api/schema.d.ts` | 88 | 0 |
-| `docs/module-map.md` | 8 | 0 |
+| `docs/adr/0041-orders-service-sessions-reads-and-events.md` | 34 | 0 |
+| `docs/module-map.md` | 10 | 0 |
 | `docs/module-map.yaml` | 4 | 0 |
 | `docs/specs/060-ratings-and-staff-app/57-2a-aggregate-authorization.ar.md` | 7 | 0 |
-| `docs/specs/060-ratings-and-staff-app/57-2a-brief.md` | 119 | 0 |
-| `docs/specs/060-ratings-and-staff-app/57-2a-manager-authorization.ar.md` | 11 | 0 |
-| `docs/specs/060-ratings-and-staff-app/57-2a-validation.md` | 214 | 0 |
-| `docs/specs/060-ratings-and-staff-app/spec.md` | 10 | 1 |
+| `docs/specs/060-ratings-and-staff-app/57-2a-brief.md` | 127 | 0 |
+| `docs/specs/060-ratings-and-staff-app/57-2a-manager-authorization.ar.md` | 15 | 0 |
+| `docs/specs/060-ratings-and-staff-app/57-2a-ordering-authorization.ar.md` | 20 | 0 |
+| `docs/specs/060-ratings-and-staff-app/57-2a-validation.md` | 251 | 0 |
+| `docs/specs/060-ratings-and-staff-app/spec.md` | 12 | 1 |
 | `packages/contracts/openapi/openapi.json` | 147 | 0 |
 | `packages/contracts/src/index.ts` | 3 | 0 |
 | `packages/contracts/src/openapi.ts` | 2 | 0 |
@@ -211,4 +248,4 @@ tests, documentation and generated lines. R1/3 is unchanged by the base refresh.
 | `packages/domain/src/index.ts` | 1 | 0 |
 | `packages/domain/src/monthly-tip-totals.ts` | 25 | 0 |
 
-Total: 36 files, +2007/-4, 2011 ALL changed lines (A limit 3400; combined A+B limit 5600).
+Total: 38 files, +2114/-4, 2118 ALL changed lines (A limit 3400; combined A+B limit 5600).
