@@ -161,10 +161,7 @@ local function exact_sequence(value)
   return true
 end
 
-local escape_class = '[%z'
-  .. string.char(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
-  .. string.char(17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 34, 47, 92, 127)
-  .. ']'
+local escape_class = '[%z' .. string.char(1) .. '-' .. string.char(31, 34, 47, 92, 127) .. ']'
 
 local function exact_string(value)
   if string.find(value, escape_class) then return cjson.encode(value) end
