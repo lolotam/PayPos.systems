@@ -1,4 +1,4 @@
-import type { Tx } from '@pospay/db';
+import type { BranchDay, Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import type { LeaveEmployee } from '../domain/leave-types.ts';
 import { validateLeaveEmployee } from '../domain/leave-policy.ts';
@@ -11,6 +11,8 @@ export interface LeaveReadContext {
   own: boolean;
   branchId?: string;
   employeeId?: string;
+  // غرض داخلي للسجل وحده؛ السجل هو الطالب الوحيد به.
+  purpose?: 'history';
 }
 import { leaveAuthority, leaveBusinessContext } from './leave-context.adapter.ts';
 async function readEmployee(tx: Tx, c: LeaveReadContext): Promise<LeaveEmployee | null> {
@@ -21,6 +23,54 @@ async function readEmployee(tx: Tx, c: LeaveReadContext): Promise<LeaveEmployee 
     FROM employees e WHERE company_id=${c.companyId} AND business_id=${c.businessId} AND deleted_at IS NULL AND ${c.own ? sql`user_id=${c.userId}` : sql`id=${c.employeeId ?? null}::uuid`}
     ${c.own && c.employeeId !== undefined ? sql`AND id=${c.employeeId}::uuid` : sql``}`);
   return row?.record ?? null;
+}
+// يوم الفرع من الساعة المحقوعة ومنطقة الفرع؛ فرع بلا منطقة معروفة يُسقط ولا يُختلق له يوم.
+function branchDays(
+  branches: readonly { id: string; effective_timezone: string }[],
+  readable: readonly string[],
+  now: Date,
+): BranchDay[] {
+  const days: BranchDay[] = [];
+  for (const branch of branches) {
+    if (!readable.includes(branch.id)) continue;
+    try {
+      days.push({ branchId: branch.id, today: scheduleToday(now, branch.effective_timezone) });
+    } catch {
+      continue;
+    }
+  }
+  return days;
+}
+// ارتباط نهايته اليوم أو قبله منتهٍ؛ القاعدة نفسها التي يطبّقها currentAttachment في packages/db.
+function attachmentCurrent(
+  attachment: LeaveEmployee['attachments'][number],
+  today: string,
+): boolean {
+  return attachment.to === null || attachment.to > today;
+}
+// السجل لا يُفتح إلا بربط ساري في فرع يقرأه المدير؛ فرع بلا يوم معروف لا يمنح أهلية.
+function historyEligible(employee: LeaveEmployee | null, days: readonly BranchDay[]): boolean {
+  return (
+    employee?.attachments.some((attachment) => {
+      const day = days.find((d) => d.branchId === attachment.branch_id);
+      return day !== undefined && attachmentCurrent(attachment, day.today);
+    }) === true
+  );
+}
+// جلسة الذات تحتاج موظفاً مرتبطاً بالفرع الحالي في يومه المحلي؛ نفس يوم الفرع يحكم الطلب.
+function ownEmployeeValid(
+  employee: LeaveEmployee,
+  branch: { id: string; effective_timezone: string } | undefined,
+  now: Date,
+): boolean {
+  if (!branch) return false;
+  const today = scheduleToday(now, branch.effective_timezone);
+  try {
+    validateLeaveEmployee(employee, branch.id, { from: today, to: today });
+  } catch {
+    return false;
+  }
+  return true;
 }
 export function createLeaveReadAccess(clock: LeaveClock) {
   return {
@@ -49,16 +99,9 @@ export function createLeaveReadAccess(clock: LeaveClock) {
           (c.own && employee.user_id !== c.userId))
       )
         return null;
-      if (c.own && employee) {
-        const branch = branches[0];
-        if (!branch) return null;
-        const today = scheduleToday(now, branch.effective_timezone);
-        try {
-          validateLeaveEmployee(employee, branch.id, { from: today, to: today });
-        } catch {
-          return null;
-        }
-      }
+      const eligibilityDays = branchDays(business.branches, access.read, now);
+      if (c.purpose === 'history' && !historyEligible(employee, eligibilityDays)) return null;
+      if (c.own && employee && !ownEmployeeValid(employee, branches[0], now)) return null;
       return {
         ...(employee ? { employeeId: employee.id } : {}),
         // ملكية الموظف تقيد سجل الذات، بينما إذن القراءة مثبت في الفرع الحالي للجلسة.
@@ -79,6 +122,7 @@ export function createLeaveReadAccess(clock: LeaveClock) {
         decideBranches: c.own ? [] : [...access.decide],
         revokeBranches: c.own ? [] : [...access.revoke],
         now,
+        eligibilityDays,
         featureEnabled: access.featureEnabled,
       };
     },
