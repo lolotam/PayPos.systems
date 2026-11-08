@@ -70,6 +70,19 @@ it('an attachment that starts in the future stays eligible under the end-only ru
   expect(page(await read())).not.toBeNull();
 });
 
+it('a disabled feature takes precedence over ended history attachments', async () => {
+  await freshAttachments('2026-11-07');
+  await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by)
+    VALUES(${f.company},'staff',false,'Synthetic feature',${f.userId})`;
+  try {
+    expect(await read()).toBe('FEATURE_DISABLED');
+  } finally {
+    await f.h.owner`DELETE FROM company_feature_overrides
+      WHERE company_id=${f.company} AND flag='staff'`;
+  }
+  expect(await read()).toBeNull();
+});
+
 it('an ended readable attachment beside a valid unreadable one is refused', async () => {
   await f.h.owner`UPDATE employee_branches SET "to"='2026-11-07'
     WHERE company_id=${f.company} AND employee_id=${f.employee.id} AND branch_id=${f.branch}`;

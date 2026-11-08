@@ -85,7 +85,12 @@ export function createLeaveReadAccess(clock: LeaveClock) {
       )
         return null;
       const eligibilityDays = branchDays(business.branches, access.read, now);
-      if (c.purpose === 'history' && !historyEligible(employee, eligibilityDays)) return null;
+      if (
+        c.purpose === 'history' &&
+        access.featureEnabled &&
+        !historyEligible(employee, eligibilityDays)
+      )
+        return null;
       if (c.own && employee && !ownEmployeeValid(employee, branches[0], now)) return null;
       return {
         ...(employee ? { employeeId: employee.id } : {}),
