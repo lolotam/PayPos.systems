@@ -1,4 +1,5 @@
 import { sql, type SQL } from 'drizzle-orm';
+import type { BranchDay } from '@pospay/db';
 import type { LeaveReadContext } from './leave-requests.query.ts';
 
 import { uuidArray as historyIds } from './leave-list-record.sql.ts';
@@ -11,6 +12,8 @@ export type HistoryScope = {
   revokeBranches: string[];
   createBranches: string[];
   now: Date;
+  // يوم كل فرع في مجال القراءة؛ تتحقق منه الجملة الأخيرة قبل كشف صفحة السجل.
+  eligibilityDays?: BranchDay[];
 };
 export function historyCoverage(c: LeaveReadContext, s: HistoryScope) {
   // سجل الإجازات يحتاج الحكم على كل حقيقة بمجالها، من غير كشف الحقيقة المخفية.

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import type { TenantWrappers, Tx } from '@pospay/db';
+import { currentAttachment, type TenantWrappers, type Tx } from '@pospay/db';
 import {
   leaveHistoryCursorData,
   type LeaveHistoryCursorData,
@@ -8,7 +8,7 @@ import {
 } from '@pospay/contracts';
 import { decodeCursor, encodeCursor } from '../../../shared/persistence/name-options-cursor.ts';
 import type { LeaveReadAccess, LeaveReadContext } from './leave-requests.query.ts';
-import type { HistoryScope } from './leave-history-days.sql.ts';
+import { historyIds, type HistoryScope } from './leave-history-days.sql.ts';
 import { historyRows } from './leave-history-rows.sql.ts';
 import { historyLastTaken } from './leave-history-last.sql.ts';
 
@@ -20,12 +20,20 @@ export function leaveHistorySql(
   options: { asOf: string; excludeOpen: boolean; cursor?: Cursor },
 ) {
   const { asOf, cursor } = options;
+  const eligibilityDays = s.eligibilityDays ?? [];
+  const eligibilityBranches = eligibilityDays.map((day) => day.branchId);
   // صفحة السجل وآخر إجازة في snapshot واحدة حتى لا تختلف النتائج بسبب كتابة متزامنة.
   // علامة الموظف من نفس snapshot تمنع تسريب آخر إجازة لو اتحذف بعد فحص الصلاحية.
+  // وبنفس العلامة يتحقق ربط ساري: لو انتهى الارتباط بين الفحص والجملة الأخيرة فالصفحة لا تُفتح.
   return sql`${historyRows(c, q, s, options)}, subject AS (
-    SELECT EXISTS(SELECT 1 FROM employees
+    SELECT (EXISTS(SELECT 1 FROM employees
       WHERE company_id=${c.companyId} AND business_id=${c.businessId}
-        AND id=${c.employeeId}::uuid AND deleted_at IS NULL) AS exists
+        AND id=${c.employeeId}::uuid AND deleted_at IS NULL)
+      AND EXISTS(SELECT 1 FROM employee_branches eb
+        WHERE eb.company_id=${c.companyId} AND eb.business_id=${c.businessId}
+          AND eb.employee_id=${c.employeeId}::uuid
+          AND eb.branch_id=ANY(${historyIds(eligibilityBranches)})
+          AND ${currentAttachment(eligibilityDays)})) AS exists
   ), page AS (
     SELECT * FROM rows ${
       cursor === undefined
@@ -47,9 +55,11 @@ export async function getEmployeeLeaveHistory(
   q: LeaveHistoryQuery,
   access: LeaveReadAccess,
 ) {
-  const scope = await access.check(tx, c);
+  const scope = await access.check(tx, { ...c, purpose: 'history' });
   if (!scope || scope.branches.length === 0) return null;
   if (!scope.featureEnabled) return 'FEATURE_DISABLED' as const;
+  // بيانات الأهلية داخلية؛ غيابها يمنع السجل بدل نطاق فارغ يمنح وصولاً.
+  if (!scope.eligibilityDays?.length) return null;
   let cursor: Cursor | undefined;
   try {
     cursor =
