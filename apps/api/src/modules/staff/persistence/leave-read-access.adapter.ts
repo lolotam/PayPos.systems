@@ -2,6 +2,7 @@ import type { BranchDay, Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import type { LeaveEmployee } from '../domain/leave-types.ts';
 import { validateLeaveEmployee } from '../domain/leave-policy.ts';
+import { historyEligible } from '../domain/leave-history-eligibility.ts';
 import { scheduleToday } from '../domain/schedule-calendar.ts';
 import type { LeaveClock } from '../ports/leave-transactions.port.ts';
 export interface LeaveReadContext {
@@ -40,22 +41,6 @@ function branchDays(
     }
   }
   return days;
-}
-// ارتباط نهايته اليوم أو قبله منتهٍ؛ القاعدة نفسها التي يطبّقها currentAttachment في packages/db.
-function attachmentCurrent(
-  attachment: LeaveEmployee['attachments'][number],
-  today: string,
-): boolean {
-  return attachment.to === null || attachment.to > today;
-}
-// السجل لا يُفتح إلا بربط ساري في فرع يقرأه المدير؛ فرع بلا يوم معروف لا يمنح أهلية.
-function historyEligible(employee: LeaveEmployee | null, days: readonly BranchDay[]): boolean {
-  return (
-    employee?.attachments.some((attachment) => {
-      const day = days.find((d) => d.branchId === attachment.branch_id);
-      return day !== undefined && attachmentCurrent(attachment, day.today);
-    }) === true
-  );
 }
 // جلسة الذات تحتاج موظفاً مرتبطاً بالفرع الحالي في يومه المحلي؛ نفس يوم الفرع يحكم الطلب.
 function ownEmployeeValid(

@@ -1,6 +1,6 @@
 # #901 — ended-attachment eligibility design
 
-Status: implementation written; scoped local validation completed; independent review and CI pending. SOURCE UNBLOCKED under the manager's bounded execution handoff, 2026-11-08.
+Status: implementation written; scoped local validation completed; external review correction in progress. SOURCE UNBLOCKED under the manager's bounded execution handoff, 2026-11-08.
 
 Inspected head: `ec26930497f25213b62e2b60bc603af6b9ba3527`.
 Issue: https://github.com/lolotam/PayPos.systems/issues/901
@@ -37,6 +37,12 @@ Paths below are relative to `apps/api/src/modules/staff/` except the documentati
 8. `docs/plans/901-ended-attachment-eligibility.md` — this design and future validation receipt.
 
 `packages/db/src/employee-branch-links.ts` is read-only reference. No migrations, generated artifacts, controller/contracts changes, history SQL redesign, or open-list behavior changes. Any required additional path goes back to the manager before editing it.
+
+Manager amendment (2026-11-08) adds only `apps/api/src/modules/staff/domain/leave-history-eligibility.ts`, its `domain/__tests__/leave-history-eligibility.spec.ts`, and `docs/specs/068-staff-leave-history/spec.md`. Ceiling remains 580 ALL, correction round 1/3. Extract the pure predicates with unchanged semantics; keep timezone/clock/authorization orchestration in the adapter and the final SQL recheck in queries. Active #833/#828/#830/#887 checkouts have no edits on these paths; an old 68-1a checkout has unrelated spec edits outside the new eligibility subsection.
+
+External reviews on `1547f976d0211286e7d372ec7e1502fb23c7e979`: four MergePilot panel receipts plus Codex completed. Three findings identify the same persistence/domain placement defect; one requires the canonical spec update. Cross-file review found no actionable defect. Accepted findings are corrected together, directly, without another delegate. These receipts and the previous 95 passing integration tests belong to the old head and do not satisfy corrected-head review/CI gates. No SQL, integration fixture, authorization orchestration or legacy reader behavior changes in this extraction; no local integration rerun is warranted.
+
+Correction validation: domain Vitest via `vitest.unit.config.ts` passed 1 file/8 tests without DB; scoped ESLint (domain, unit test, adapter), API typecheck, lint:docs (0 errors/29 existing warnings), module-map and diff check passed, all exit 0. No install/build/DB/Redis started. All commands ended; the short resource turn was released directly to #887 with manager notification. Round 1/3 history is unchanged; corrected-head CI/performance and all five reviews remain pending.
 
 Approved ALL means additions plus deletions relative to the inspected baseline, including new files: source 70–125, tests 210–365, documentation 45–90, total estimate 325–580. The authorized ceiling is 580, not 1,160; there is no minimum. A necessary extra path or larger total requires a scope amendment before editing.
 

@@ -218,6 +218,22 @@ In the tab the filters apply to the history (part (b)) only; «طلبات جاي
   is a second read of an existing permission in the same transaction, no new permission.
 - **FR-011** No write: the history is a read; the existing actions keep their routes, guards and `Idempotency-Key`.
 
+### Employee history eligibility (#901)
+
+For the detailed employee history only, FR-010 additionally requires an unended attachment in a readable branch:
+`to IS NULL OR to > today`. The end date is exclusive; there is no `from` filter, so future-starting attachments
+remain eligible. Derive each readable branch's `today` from the current injected clock and `effective_timezone`
+(including the existing business timezone fallback), never the database clock or cursor `as_of`. Missing eligibility
+data or no attachment with a known readable branch day fails closed with 404. Open-list, inbox and own readers retain
+their existing behavior. This gate does not narrow historical fact branches or action metadata.
+
+Acceptance: an end before/on today denies access; an end after today or NULL allows it. An unreadable unended
+attachment cannot rescue an ended readable one; one eligible readable attachment suffices. Branch-local midnight,
+timezone fallback, missing/empty days and an older cursor preserve these rules. Ending/deleting the last eligible
+attachment after the early check must deny both page and `last_taken`: recheck eligibility in their single final SQL
+statement, without a new transaction or lock. Existing permissions, tenant isolation and legacy reader regressions
+remain required. The pure end-date/branch-day policy also has database-free domain unit coverage.
+
 ### Business rules (unexcused absence)
 
 - **BR-001** A date `D` is unexcused absence for employee `E` at branch `B` when `E` has a schedule shift at `B` whose
