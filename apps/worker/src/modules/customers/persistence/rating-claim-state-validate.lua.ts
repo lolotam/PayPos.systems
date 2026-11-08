@@ -21,6 +21,8 @@
  * الصحيحة الآمنة بالشكل العشري الكامل، وبيسيب باقي القيم لـcjson زي ما هي،
  * وبيزور الجداول بمكدس صريح من غير تكرار. الكتلة لازم تيجي قبل reply في كل
  * سكربت، لأن reply بيستخدم الترميز.
+ *
+ * النص بلا بايت هروب cjson يُقتبس مباشرة؛ 0–31 والتنصيص والمائلة والعكسية وDEL تبقى على cjson.
  */
 export const RATING_CLAIM_STATE_VALIDATE = `
 local function nonempty_string(value)
@@ -159,6 +161,16 @@ local function exact_sequence(value)
   return true
 end
 
+local escape_class = '[%z'
+  .. string.char(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
+  .. string.char(17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 34, 47, 92, 127)
+  .. ']'
+
+local function exact_string(value)
+  if string.find(value, escape_class) then return cjson.encode(value) end
+  return '"' .. value .. '"'
+end
+
 -- The exact encoder: one cjson pass keeps its type, depth and non-finite
 -- rejection, then the JSON tree is walked with an explicit stack so safe
 -- integers keep every digit. The value is never mutated and no depth limit
@@ -169,6 +181,8 @@ local function exact_value(item, stack, depth, emit)
     emit('null')
   elseif kind == 'number' then
     emit(exact_number(item) or cjson.encode(item))
+  elseif kind == 'string' then
+    emit(exact_string(item))
   elseif kind ~= 'table' then
     emit(cjson.encode(item))
   elseif next(item) == nil then
@@ -222,7 +236,7 @@ local function exact_json(value)
         if frame.comma then emit(',') else frame.comma = true end
         local name = key
         if type(key) ~= 'string' then name = tostring(key) end
-        emit(cjson.encode(name))
+        emit(exact_string(name))
         emit(':')
         depth = depth + 1
         stack[depth] = { kind = 'value', value = frame.table[key] }

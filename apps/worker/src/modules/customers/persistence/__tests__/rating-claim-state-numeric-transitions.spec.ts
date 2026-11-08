@@ -49,7 +49,7 @@ async function roundTrip(patch: Record<string, unknown>, expected = patch, reser
   expect(await world.state.read(world.companyId)).toMatchObject(snapshot);
   const next = { ...world.fence, expectedVersion: 2 };
   expect(await world.state.release(next)).toMatchObject({ code: 'OK', version: 3 });
-  return { reply, stored };
+  return { reply, stored, key: world.key };
 }
 
 it.each(COUNTERS)('counter inventory %d survives a real write and next fence', async (value) => {
@@ -113,11 +113,12 @@ it.each(MOMENTS)('signed owner times %d retain refusal/takeover or release', asy
   expect(await world.state.read(world.companyId)).toMatchObject({ code: 'OK', version: 2 });
 });
 
-it('both compatibility samples retain unknown keys, values and shapes through a write', async () => {
+const ESCAPED = String.fromCharCode(...[...Array(32).keys()], 34, 47, 92, 127);
+it.each([...ESCAPED])('isolated escape %j and compatibility samples', async (escape) => {
   const patch = {
     overflowSince: -MAX,
-    note: 'مرحبا "بكم" \\Slash',
-    text: 'مرحبا "بكم" \\Slash',
+    note: `مرحبا "بكم" \\Slash${escape}`,
+    text: `مرحبا "بكم" \\Slash${escape}`,
     'quoted"key': 'a\\b',
     'escaped"key': 'a\\b',
     numericString: '1',
@@ -130,14 +131,17 @@ it('both compatibility samples retain unknown keys, values and shapes through a 
     mixed: [1, 'two', null, { deep: true }],
     deep: { a: { b: { c: [1, 'two', null, { d: true }] } } },
     nested: { a: { b: { c: [1, 2, { d: 'e' }] } } },
+    [escape]: escape,
   };
-  const expected = { ...patch, empty: {}, emptyArray: {} };
-  const observed = await roundTrip(patch, expected);
+  const observed = await roundTrip(patch, { ...patch, empty: {}, emptyArray: {} });
   expect(observed.reply).toContain('-9007199254740991');
   expect(observed.reply).toContain('"quoted\\"key"');
   expect(observed.reply).toContain('"escaped\\"key"');
   expect(observed.reply).toContain('"numericKey":"1"');
   expect(observed.reply).toContain('مرحبا');
+  const oracle = String(await redis.eval('return cjson.encode(ARGV[1])', 0, escape));
+  expect(observed.reply).toContain(`${oracle}:${oracle}`);
+  expect(String(await redis.get(observed.key))).toContain(`${oracle}:${oracle}`);
 });
 
 /** أعلى حد فعلي؛ لا نفترض أن حد decode يساوي حد encode. */
