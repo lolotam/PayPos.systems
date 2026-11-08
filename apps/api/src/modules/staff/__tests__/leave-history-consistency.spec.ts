@@ -122,6 +122,35 @@ it('LH-20: concurrent approval returns consistent page/last_taken from exactly o
   expect(page.last_taken?.annual).toEqual(absent ? null : { from: '2026-10-01', to: '2026-10-01' });
 });
 
+it('LH-27: the eligibility re-check rides the same statement that returns the page and last_taken', async () => {
+  const id = await historyLeave(f, '2026-10-01');
+  const scope = await f.db.withTenant(f.company, (tx) => access().check(tx, leaveContext(f)));
+  expect(scope?.eligibilityDays.map((day) => day.branchId).sort()).toEqual(
+    [f.branch, f.secondBranch].sort(),
+  );
+  let statements = 0;
+  const result = await f.db.withTenant(f.company, (tx) =>
+    getEmployeeLeaveHistory(
+      new Proxy(tx, {
+        get(target, key, receiver) {
+          if (key !== 'execute') return Reflect.get(target, key, receiver);
+          return (...args: Parameters<typeof tx.execute>) => {
+            statements++;
+            return target.execute(...args);
+          };
+        },
+      }),
+      leaveContext(f),
+      historyQuery(),
+      { check: async () => scope },
+    ),
+  );
+  const page = result === null || typeof result === 'string' ? null : result;
+  expect(statements).toBe(1);
+  expect(page?.items.map((r) => r.id)).toEqual([id]);
+  expect(page?.last_taken?.annual).toEqual({ from: '2026-10-01', to: '2026-10-01' });
+});
+
 async function seedUnionRequests() {
   const seeded: { id: string; type: string; status: string; date: string }[] = [];
   for (const type of ['ANNUAL', 'SICK', 'UNPAID', 'OTHER'])

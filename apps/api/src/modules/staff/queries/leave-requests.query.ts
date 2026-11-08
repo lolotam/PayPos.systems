@@ -1,5 +1,5 @@
 import { leaveListRecord, uuidArray } from './leave-list-record.sql.ts';
-import type { Tx } from '@pospay/db';
+import type { BranchDay, Tx } from '@pospay/db';
 import type { EmployeeLeaveListQuery, LeaveInboxQuery, LeavePage } from '@pospay/contracts';
 import { sql } from 'drizzle-orm';
 export const LEAVE_READ_ACCESS = Symbol('LEAVE_READ_ACCESS');
@@ -10,6 +10,8 @@ export interface LeaveReadContext {
   own: boolean;
   branchId?: string;
   employeeId?: string;
+  // غرض داخلي للسجل وحده؛ لا يظهر كمعامل في العقد ولا يغيّر سلوك القوائم والصندوق.
+  purpose?: 'history';
 }
 export interface LeaveReadAccess {
   check(
@@ -25,6 +27,8 @@ export interface LeaveReadAccess {
     revokeBranches: string[];
     now: Date;
     featureEnabled: boolean;
+    // يوم كل فرع في مجال القراءة؛ تقرأه الجملة الأخيرة للتحقق من أهلية ارتباط الموظف.
+    eligibilityDays?: BranchDay[];
   } | null>;
 }
 export function leavePageSql(
