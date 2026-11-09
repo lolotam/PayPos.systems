@@ -65,6 +65,9 @@ jobs:
       TURBO_RUN_SUMMARY: 'true'
     steps:
       - uses: actions/checkout@v7
+        with:
+          # #859: مقارنة المرشح بأساس الـmerged محتاجة تاريخ كامل في job الـcheck نفسه.
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v6
 
@@ -112,10 +115,16 @@ jobs:
           node --test "scripts/module-map/*.test.mjs" "scripts/roadmap/*.test.mjs" "scripts/test-db/*.test.mjs"
           pnpm module-map:check
 
+      # #859: the base is the pull request's base SHA or the push's previous main tip, so a
+      # multi-commit push is compared against what it replaced, never against HEAD^.
       - name: migration chain
+        env:
+          MIGRATION_CHAIN_BASE_SHA: >-
+            ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha ||
+            github.event_name == 'push' && github.event.before || '' }}
         run: |
           node --test "scripts/migration-chain/*.test.mjs"
-          pnpm migration-chain:check
+          pnpm migration-chain:check --base "$MIGRATION_CHAIN_BASE_SHA"
 
       # Generated API types: the admin and POS clients must match the committed OpenAPI document. PP-72.2 moved these
       # two checks here from the removed full workspace check job; the rest of `pnpm check` runs in check and api-tests.
