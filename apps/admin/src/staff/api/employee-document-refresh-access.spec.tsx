@@ -1,13 +1,18 @@
 import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { EmployeeDocumentsSection } from '../ui/employee-documents-section';
+import { useEmployeeDocuments } from './use-employee-documents';
 
 const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 const id = '01920000-0000-7000-8000-0000000000a2';
 const fileId = '01920000-0000-7000-8000-0000000000f9';
 const prefix = ['employee-documents', id, id, id, id];
@@ -90,4 +95,114 @@ it('suppresses a completed upload success after write access is revoked during i
   act(() => client.setQueryData(prefix, view(true)));
   expect(await screen.findByLabelText(t('en', 'employeeDocuments.file'))).toBeTruthy();
   expect(screen.queryByText(t('en', 'employeeDocuments.recorded'))).toBeNull();
+});
+
+type OpenCallback = (storageKey: string) => void;
+function HookButton({ retain }: { retain: (callback: OpenCallback) => void }) {
+  const documents = useEmployeeDocuments(id, id, id, id);
+  retain(documents.open.mutate);
+  return (
+    <button
+      disabled={!documents.view.isFetchedAfterMount}
+      onClick={() => documents.open.mutate('synthetic/verified')}
+    >
+      {t('en', 'employeeDocuments.open')}
+    </button>
+  );
+}
+function popup() {
+  return {
+    opener: window as unknown,
+    closed: false,
+    location: { assign: vi.fn() },
+    close: vi.fn(),
+  } as unknown as Window;
+}
+function renderHookButton(client: QueryClient, strict: boolean) {
+  const callbacks: OpenCallback[] = [];
+  const button = <HookButton retain={(callback) => callbacks.push(callback)} />;
+  render(
+    <QueryClientProvider client={client}>
+      {strict ? <StrictMode>{button}</StrictMode> : button}
+    </QueryClientProvider>,
+  );
+  return callbacks;
+}
+
+it('rejects cached authority before this mount completes a successful read', async () => {
+  const client = new QueryClient();
+  client.setQueryData(prefix, view(true));
+  let finish!: (value: { data: ReturnType<typeof view> }) => void;
+  api.GET.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+  api.POST.mockResolvedValue({
+    data: { download_url: 'https://storage.test/private', expires_in: 60 },
+  });
+  const opened = vi.spyOn(window, 'open').mockImplementation(popup);
+  const callbacks = renderHookButton(client, false);
+  act(() => callbacks[0]?.('synthetic/verified'));
+  expect(opened).not.toHaveBeenCalled();
+  expect(api.POST).not.toHaveBeenCalled();
+  await act(async () => finish({ data: view(true) }));
+  const button = await screen.findByRole('button', { name: t('en', 'employeeDocuments.open') });
+  await waitFor(() => expect(button.hasAttribute('disabled')).toBe(false));
+  fireEvent.click(button);
+  await waitFor(() => expect(api.POST).toHaveBeenCalledOnce());
+  expect(opened).toHaveBeenCalledOnce();
+});
+
+it('does not let a retained StrictMode callback borrow the fresh lifetime', async () => {
+  api.GET.mockResolvedValue({ data: view(true) });
+  api.POST.mockResolvedValue({
+    data: { download_url: 'https://storage.test/private', expires_in: 60 },
+  });
+  const opened = vi.spyOn(window, 'open').mockImplementation(popup);
+  const callbacks = renderHookButton(new QueryClient(), true);
+  const button = await screen.findByRole('button', { name: t('en', 'employeeDocuments.open') });
+  await waitFor(() => expect(button.hasAttribute('disabled')).toBe(false));
+  expect(callbacks.length).toBeGreaterThan(1);
+  act(() => callbacks[0]?.('synthetic/verified'));
+  expect(opened).not.toHaveBeenCalled();
+  expect(api.POST).not.toHaveBeenCalled();
+  fireEvent.click(button);
+  await waitFor(() => expect(api.POST).toHaveBeenCalledOnce());
+  expect(opened).toHaveBeenCalledOnce();
+});
+
+it('coalesces two public callbacks in one turn and drops a revoked token before POST', async () => {
+  api.GET.mockResolvedValue({ data: view(true) });
+  api.POST.mockResolvedValue({
+    data: { download_url: 'https://storage.test/private', expires_in: 60 },
+  });
+  const client = new QueryClient();
+  const opened = vi.spyOn(window, 'open').mockImplementation(popup);
+  const callbacks = renderHookButton(client, false);
+  const button = await screen.findByRole('button', { name: t('en', 'employeeDocuments.open') });
+  await waitFor(() => expect(button.hasAttribute('disabled')).toBe(false));
+  const current = callbacks.at(-1);
+  act(() => {
+    current?.('synthetic/verified');
+    current?.('synthetic/verified');
+  });
+  expect(opened).toHaveBeenCalledOnce();
+  await waitFor(() => expect(api.POST).toHaveBeenCalledOnce());
+  await waitFor(() =>
+    expect(client.getMutationCache().getAll().at(-1)?.state.status).toBe('success'),
+  );
+  opened.mockClear();
+  api.POST.mockClear();
+  act(() => {
+    current?.('synthetic/verified');
+    const handle = opened.mock.results.at(-1)?.value as { closed: boolean } | undefined;
+    if (handle) handle.closed = true;
+    window.dispatchEvent(new Event('focus'));
+  });
+  await waitFor(() => expect(client.isMutating()).toBe(0));
+  expect(api.POST).not.toHaveBeenCalled();
+  const handle = opened.mock.results.at(-1)?.value as
+    { closed: boolean; location: { assign: ReturnType<typeof vi.fn> } } | undefined;
+  expect(handle?.closed).toBe(true);
+  expect(handle?.location.assign).not.toHaveBeenCalled();
+  const mutation = client.getMutationCache().getAll().at(-1);
+  expect(mutation?.state.data).toBeUndefined();
+  expect(JSON.stringify(mutation?.state.error ?? {})).not.toContain('storage.test');
 });

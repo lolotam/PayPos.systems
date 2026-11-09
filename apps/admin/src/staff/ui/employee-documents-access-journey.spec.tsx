@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { EmployeeDocumentsSection } from './employee-documents-section';
+import { useEmployeeDocuments } from '../api/use-employee-documents';
 
 const language = vi.hoisted(() => ({ value: 'en' as 'ar' | 'en', fetch: vi.fn() }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => language.value }));
@@ -50,6 +51,19 @@ function deferred() {
   });
   return { promise, resolve };
 }
+function mockPopup() {
+  const handle = {
+    opener: window as unknown,
+    closed: false,
+    location: { assign: vi.fn() },
+    close: vi.fn(),
+  };
+  handle.close.mockImplementation(() => {
+    handle.closed = true;
+  });
+  vi.spyOn(window, 'open').mockReturnValue(handle as unknown as Window);
+  return handle;
+}
 function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const tree = (employeeId: string) => (
@@ -83,7 +97,7 @@ it.each(['ar', 'en'] as const)(
       }
       return json(view(request.url.includes(other) ? [] : [document]));
     });
-    const opened = vi.spyOn(window, 'open').mockImplementation(() => null);
+    const opened = mockPopup();
     const page = setup();
     const title = locale === 'ar' ? document.type_name_ar : document.type_name_en;
     expect(await screen.findByText(title)).toBeTruthy();
@@ -96,7 +110,8 @@ it.each(['ar', 'en'] as const)(
     });
     expect(screen.queryByText(title)).toBeNull();
     expect(screen.getByText(t(locale, 'employeeDocuments.empty'))).toBeTruthy();
-    expect(opened).not.toHaveBeenCalled();
+    expect(opened.close).toHaveBeenCalledOnce();
+    expect(opened.location.assign).not.toHaveBeenCalled();
   },
 );
 
@@ -186,7 +201,7 @@ function pendingDocumentTransport() {
 async function pendingJourney(locale: 'ar' | 'en', includeDownload = true) {
   language.value = locale;
   const { download, ready, recorded, requestState } = pendingDocumentTransport();
-  const opened = vi.spyOn(window, 'open').mockImplementation(() => null);
+  const opened = mockPopup();
   const page = setup();
   const input = await screen.findByLabelText(t(locale, 'employeeDocuments.file'));
   if (includeDownload) {
@@ -220,8 +235,18 @@ async function pendingJourney(locale: 'ar' | 'en', includeDownload = true) {
       });
       await waitFor(() => {
         const mutations = page.client.getMutationCache().getAll();
+        const record = mutations.find(
+          (mutation) => mutation.options.mutationKey?.at(-1) === 'record',
+        );
+        const opened = mutations.find(
+          (mutation) => mutation.options.mutationKey?.at(-1) === 'open',
+        );
         expect(mutations).toHaveLength(includeDownload ? 2 : 1);
-        expect(mutations.every((mutation) => mutation.state.status === 'success')).toBe(true);
+        expect(record?.state.status).toBe('success');
+        expect(record?.state.data).toBeUndefined();
+        if (!includeDownload) return;
+        expect(opened?.state.status).toBe('error');
+        expect(JSON.stringify(opened?.state.error)).not.toContain('storage.test');
       });
     },
   };
@@ -260,7 +285,8 @@ it.each([
       screen.queryByText(locale === 'ar' ? document.type_name_ar : document.type_name_en),
     ).toBeNull();
     expect(screen.queryByText(t(locale, 'employeeDocuments.recorded'))).toBeNull();
-    expect(page.opened).not.toHaveBeenCalled();
+    expect(page.opened.close).toHaveBeenCalledOnce();
+    expect(page.opened.location.assign).not.toHaveBeenCalled();
     expect(page.recorded).toEqual([]);
   },
 );
@@ -286,3 +312,86 @@ it.each(['ar', 'en'] as const)(
     expect(page.recorded).toEqual([]);
   },
 );
+
+it.each(['ar', 'en'] as const)(
+  'shows a bilingual retry after popup refusal (%s)',
+  async (locale) => {
+    language.value = locale;
+    language.fetch.mockResolvedValue(json(view()));
+    vi.spyOn(window, 'open').mockReturnValue(null);
+    setup();
+    const open = await screen.findByRole('button', { name: t(locale, 'employeeDocuments.open') });
+    fireEvent.click(open);
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      t(locale, 'employeeDocuments.openRetry'),
+    );
+    expect(open.hasAttribute('disabled')).toBe(false);
+    expect(
+      language.fetch.mock.calls.some(([request]) => request.url.endsWith('/files/download')),
+    ).toBe(false);
+  },
+);
+
+it('never navigates a placeholder that its user manually closed', async () => {
+  language.value = 'en';
+  const download = deferred();
+  language.fetch.mockImplementation(async (request: Request) =>
+    request.url.endsWith('/files/download') ? download.promise : json(view()),
+  );
+  const opened = mockPopup();
+  setup();
+  fireEvent.click(await screen.findByRole('button', { name: t('en', 'employeeDocuments.open') }));
+  opened.closed = true;
+  await act(async () => {
+    download.resolve(json({ download_url: 'https://storage.test/private', expires_in: 60 }));
+  });
+  expect(opened.location.assign).not.toHaveBeenCalled();
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    t('en', 'employeeDocuments.openRetry'),
+  );
+  const open = screen.getByRole('button', { name: t('en', 'employeeDocuments.open') });
+  expect(open.hasAttribute('disabled')).toBe(false);
+});
+
+it('does not let a usable scope A callback borrow the restored scope', async () => {
+  language.fetch.mockImplementation(async (request: Request) => {
+    if (request.url.endsWith('/files/download')) {
+      return json({ download_url: 'https://storage.test/private', expires_in: 60 });
+    }
+    return json(view());
+  });
+  const opened = vi.spyOn(window, 'open').mockImplementation(() => {
+    return {
+      opener: null,
+      closed: false,
+      location: { assign: vi.fn() },
+      close: vi.fn(),
+    } as unknown as Window;
+  });
+  const retained: Array<(storageKey: string) => void> = [];
+  function Probe({ employeeId }: { employeeId: string }) {
+    const documents = useEmployeeDocuments(id, id, id, employeeId);
+    retained.push(documents.open.mutate);
+    const item = documents.view.data?.items[0];
+    return <p>{item?.type_name_en ?? t('en', 'employeeDocuments.empty')}</p>;
+  }
+  const client = new QueryClient();
+  const page = (employeeId: string) => (
+    <QueryClientProvider client={client}>
+      <Probe employeeId={employeeId} />
+    </QueryClientProvider>
+  );
+  const { rerender } = render(page(id));
+  expect(await screen.findByText('Original paper')).toBeTruthy();
+  const fresh = retained.at(-1);
+  act(() => fresh?.('synthetic/verified'));
+  await waitFor(() => expect(opened).toHaveBeenCalledOnce());
+  rerender(page(other));
+  expect(await screen.findByText('Original paper')).toBeTruthy();
+  rerender(page(id));
+  expect(await screen.findByText('Original paper')).toBeTruthy();
+  act(() => fresh?.('synthetic/verified'));
+  expect(opened).toHaveBeenCalledOnce();
+  act(() => retained.at(-1)?.('synthetic/verified'));
+  await waitFor(() => expect(opened).toHaveBeenCalledTimes(2));
+});
