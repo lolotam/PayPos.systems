@@ -1,4 +1,6 @@
 import {
+  editServiceLineInput,
+  editServiceLineResponseFull,
   recordServiceSessionResponse,
   serviceLineChanged,
   serviceSessionRecorded,
@@ -125,12 +127,7 @@ it('HTTP revisions replace shares through cancellation; original request and con
 
 it('unauthorized, stale and foreign-scope HTTP refusals leave producer history and projection unchanged; RLS hides raw foreign rows', async () => {
   f = await journeyFixture();
-  const journey = await recordJourney(f);
-  await appendJourney(f, journey);
-  await consume(f, await savedEvents(f, journey.session.id));
-  const producer = await producerState(f, journey.session.id);
-  const projected = await projection(f);
-  const root = `${f.base}/${journey.session.id}/lines/${journey.sharedLine.id}`;
+  const { journey, root, producer, projected, currentRevision } = await prepareStaleBaseline(f);
   const operations = [
     {
       method: 'PATCH' as const,
@@ -159,6 +156,13 @@ it('unauthorized, stale and foreign-scope HTTP refusals leave producer history a
       });
       expect(response.status, response.text).toBe(variant.status);
       expect(response.body['code']).toBe(variant.code);
+      // النسخة الأقدم تُرفض بسبب سطر اتغيّر فعلاً: واحدة أقدم من المرصودة، مش رقم غريب.
+      if (variant.code === 'SESSION_LINE_REVISION_STALE') {
+        expect(variant.revision).toBe(1);
+        expect(variant.revision).toBeLessThan(currentRevision);
+        expect(currentRevision).toBe(2);
+        expect(response.body['details']).toMatchObject({ current_revision: currentRevision });
+      }
       expect(await producerState(f, journey.session.id)).toEqual(producer);
       expect(await projection(f)).toEqual(projected);
     }
@@ -178,6 +182,54 @@ it('unauthorized, stale and foreign-scope HTTP refusals leave producer history a
     ).toHaveLength(0);
   });
 }, 120_000);
+
+async function prepareStaleBaseline(fixture: JourneyFixture) {
+  const journey = await recordJourney(fixture);
+  await appendJourney(fixture, journey);
+  const selected = journey.sharedLine;
+  expect(selected.revision).toBe(1);
+  expect(selected.status).toBe('ACTIVE');
+  const root = `${fixture.base}/${journey.session.id}/lines/${selected.id}`;
+  const response = await fixture.h.send('PATCH', root, {
+    cookie: fixture.ownerCookie,
+    company: fixture.company,
+    key: ids.newId(),
+    body: editServiceLineInput.parse({
+      price: '27.001',
+      discount: { kind: 'AMOUNT', amount: '0.000' },
+      expected_revision: 1,
+      reason: 'Synthetic baseline edit',
+    }),
+  });
+  expect(response.status, response.text).toBe(200);
+  const edited = editServiceLineResponseFull.parse(response.body);
+  expect(edited.line.id).toBe(selected.id);
+  expect(edited.line.session_id).toBe(journey.session.id);
+  expect(edited.line.revision).toBe(2);
+  expect(edited.line.status).toBe('ACTIVE');
+  const currentRevision = edited.line.revision;
+  const events = await savedEvents(fixture, journey.session.id);
+  const changed = events.filter((event) => event.eventType === 'ServiceLineChanged');
+  expect(changed).toHaveLength(1);
+  const payload = serviceLineChanged.parse(must(changed[0]).payload);
+  expect(payload.line_id).toBe(selected.id);
+  expect(payload.session_id).toBe(journey.session.id);
+  expect(payload.revision).toBe(currentRevision);
+  expect(payload.status).toBe('ACTIVE');
+  expect(payload.change?.previous.revision).toBe(1);
+  await consume(fixture, events);
+  const producer = await producerState(fixture, journey.session.id);
+  const projected = await projection(fixture);
+  expect(producer.lines.find((row) => row['id'] === selected.id)).toMatchObject({
+    revision: currentRevision,
+    status: 'ACTIVE',
+  });
+  expect(projected.heads.find((head) => head['line_id'] === selected.id)).toMatchObject({
+    revision: currentRevision,
+    status: 'ACTIVE',
+  });
+  return { journey, root, producer, projected, currentRevision };
+}
 
 function assertInitialLine(
   fixture: JourneyFixture,
@@ -259,7 +311,7 @@ function refusalVariants(fixture: JourneyFixture, root: string) {
       url: root,
       cookie: fixture.ownerCookie,
       company: fixture.company,
-      revision: 9,
+      revision: 1,
       status: 409,
       code: 'SESSION_LINE_REVISION_STALE',
     },
