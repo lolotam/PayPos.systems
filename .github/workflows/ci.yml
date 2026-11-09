@@ -335,12 +335,20 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-  # CLAUDE.md §10 order ends with "… → integration → RLS negative tests → EXPLAIN checks → build all apps → docker
-  # images": the full build runs after every integration job (packages in check, worker-tests and the four api shards) is green.
+  # The build still waits for all existing dependencies. PP-157 permits only PR #909 to diagnose with
+  # worker-tests failed; check/API shards must pass, cancellation/skips stay closed, and ci-gate still requires worker success.
   build:
     name: build all apps
     needs: [changes, check, api-tests, worker-tests]
-    if: needs.changes.outputs.code == 'true'
+    if: >-
+      ${{ !cancelled() &&
+        needs.changes.result == 'success' &&
+        needs.changes.outputs.code == 'true' &&
+        needs.check.result == 'success' &&
+        needs.api-tests.result == 'success' &&
+        (needs.worker-tests.result == 'success' ||
+          (github.event_name == 'pull_request' && github.event.pull_request.number == 909 &&
+            needs.worker-tests.result == 'failure')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -437,11 +445,95 @@ jobs:
           echo "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           for image in api migrate worker backup admin pos admin-staging pos-staging; do docker push "$REGISTRY_LC/pospay-$image:$SHA"; done
 
+  admin-document-popup:
+    name: admin document popup · production browser
+    needs: [changes, build]
+    # The explicit status function permits PR #909's successful diagnostic build without treating its failed
+    # worker ancestor as green; no failed, skipped, or cancelled build can start the native browser job.
+    if: >-
+      ${{ !cancelled() &&
+        needs.changes.result == 'success' &&
+        needs.changes.outputs.code == 'true' &&
+        needs.build.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:18130
+      NEXT_PUBLIC_POS_URL: http://127.0.0.1:18133
+      ADMIN_E2E_URL: http://127.0.0.1:18132
+      ADMIN_POPUP_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build synthetic admin and its dependency closure
+        run: |
+          pnpm --filter @pospay/domain build
+          pnpm --filter @pospay/ids build
+          pnpm --filter @pospay/observability build
+          pnpm --filter @pospay/contracts build
+          pnpm --filter @pospay/i18n build
+          pnpm --filter @pospay/db build
+          pnpm --filter @pospay/auth build
+          pnpm --filter @pospay/admin build
+
+      - name: Install Chromium
+        run: pnpm --filter @pospay/admin exec playwright install --with-deps chromium
+
+      - name: Exercise the real staff route and native popup lifecycle
+        run: |
+          set -euo pipefail
+          fixture_pid=''
+          admin_pid=''
+          cleanup() {
+            if [ -n "$admin_pid" ]; then kill "$admin_pid" 2>/dev/null || true; fi
+            if [ -n "$fixture_pid" ]; then kill "$fixture_pid" 2>/dev/null || true; fi
+            if [ -n "$admin_pid" ]; then wait "$admin_pid" 2>/dev/null || true; fi
+            if [ -n "$fixture_pid" ]; then wait "$fixture_pid" 2>/dev/null || true; fi
+          }
+          trap cleanup EXIT
+          node --experimental-strip-types apps/admin/e2e/employee-document-popup-fixture.ts \
+            > "$RUNNER_TEMP/employee-document-popup-fixture.log" 2>&1 &
+          fixture_pid=$!
+          (
+            cd apps/admin
+            exec node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 18132
+          ) > "$RUNNER_TEMP/employee-document-popup-admin.log" 2>&1 &
+          admin_pid=$!
+          ready=false
+          for _ in $(seq 1 60); do
+            if ! kill -0 "$fixture_pid" 2>/dev/null || ! kill -0 "$admin_pid" 2>/dev/null; then
+              break
+            fi
+            identity="$(curl -fsS http://127.0.0.1:18131/health 2>/dev/null || true)"
+            if [ "$identity" = "{\"runId\":\"$ADMIN_POPUP_RUN_ID\"}" ] \
+              && curl -fsS "$ADMIN_E2E_URL/staff" -o /dev/null 2>/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != true ]; then
+            cat "$RUNNER_TEMP/employee-document-popup-fixture.log"
+            cat "$RUNNER_TEMP/employee-document-popup-admin.log"
+            exit 1
+          fi
+          pnpm --filter @pospay/admin exec playwright test employee-document-popup.pw.ts
+
   # The one check branch protection requires. Code changes need every job;
   # docs-only changes need every heavy job skipped. Unknown classification and all other results fail.
   gate:
     name: ci-gate
-    needs: [changes, check, api-tests, worker-tests, build, images]
+    needs: [changes, check, api-tests, worker-tests, build, images, admin-document-popup]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 2
@@ -453,14 +545,15 @@ jobs:
           WORKER_TESTS: ${{ needs.worker-tests.result }}
           BUILD: ${{ needs.build.result }}
           IMAGES: ${{ needs.images.result }}
+          ADMIN_DOCUMENT_POPUP: ${{ needs.admin-document-popup.result }}
           CODE: ${{ needs.changes.outputs.code }}
         run: |
-          echo "changes=$CHANGES check=$CHECK api_tests=$API_TESTS worker_tests=$WORKER_TESTS build=$BUILD images=$IMAGES code=$CODE"
+          echo "changes=$CHANGES check=$CHECK api_tests=$API_TESTS worker_tests=$WORKER_TESTS build=$BUILD images=$IMAGES admin_document_popup=$ADMIN_DOCUMENT_POPUP code=$CODE"
           [ "$CHANGES" = "success" ] || exit 1
           if [ "$CODE" = "true" ]; then
-            [ "$CHECK" = "success" ] && [ "$API_TESTS" = "success" ] && [ "$WORKER_TESTS" = "success" ] && [ "$BUILD" = "success" ] && [ "$IMAGES" = "success" ]
+            [ "$CHECK" = "success" ] && [ "$API_TESTS" = "success" ] && [ "$WORKER_TESTS" = "success" ] && [ "$BUILD" = "success" ] && [ "$IMAGES" = "success" ] && [ "$ADMIN_DOCUMENT_POPUP" = "success" ]
           elif [ "$CODE" = "false" ]; then
-            [ "$CHECK" = "skipped" ] && [ "$API_TESTS" = "skipped" ] && [ "$WORKER_TESTS" = "skipped" ] && [ "$BUILD" = "skipped" ] && [ "$IMAGES" = "skipped" ]
+            [ "$CHECK" = "skipped" ] && [ "$API_TESTS" = "skipped" ] && [ "$WORKER_TESTS" = "skipped" ] && [ "$BUILD" = "skipped" ] && [ "$IMAGES" = "skipped" ] && [ "$ADMIN_DOCUMENT_POPUP" = "skipped" ]
           else
             echo "::error::Unknown code classification: $CODE"
             exit 1
