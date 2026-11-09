@@ -21,7 +21,10 @@ async function chooseStaff(root: Root, locale: Locale = 'en') {
     .first()
     .click();
   await expect(
-    root.getByRole('heading', { name: t(locale, 'employeeDocuments.title') }),
+    root.getByRole('heading', {
+      level: 3,
+      name: t(locale, 'employeeDocuments.title'),
+    }),
   ).toBeVisible();
 }
 async function openStaff(page: Page, locale: Locale = 'en') {
@@ -84,7 +87,31 @@ async function sandboxStaff(page: Page, permitted: boolean, locale: Locale) {
     `<iframe id="app" sandbox="allow-scripts allow-same-origin${permitted ? ' allow-popups' : ''}" src="${ADMIN_ORIGIN}/staff"></iframe>`,
   );
   const frame = page.frameLocator('#app');
-  await chooseStaff(frame, locale);
+  try {
+    await chooseStaff(frame, locale);
+  } catch (error) {
+    const frames = page.frames();
+    const states = await Promise.allSettled(
+      frames.map((child) =>
+        child.evaluate(() => ({
+          readyState: document.readyState,
+          width: innerWidth,
+          height: innerHeight,
+          workspaceCount: document.querySelectorAll('#workspace-company').length,
+        })),
+      ),
+    );
+    console.error(
+      'sandbox setup failed',
+      JSON.stringify({
+        permitted,
+        locale,
+        frames: frames.map((child) => child.url().split(/[?#]/, 1)[0]),
+        states,
+      }),
+    );
+    throw error;
+  }
   return frame;
 }
 async function nativeFocusCycle(page: Page) {
