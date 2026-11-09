@@ -1,10 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { t } from '@pospay/i18n';
 import type * as Routes from './employee-document-popup-routes-fixture';
 
-const require = createRequire(import.meta.url);
 const {
   CIVIL,
   FIRST,
@@ -18,7 +16,7 @@ const {
   sessionPayload,
   tenantFor,
   workspaces,
-}: typeof Routes = require('./employee-document-popup-routes-fixture.ts');
+}: typeof Routes = await import('./employee-document-popup-routes-fixture.ts');
 
 export const API_ORIGIN = 'http://127.0.0.1:18130';
 export const CONTROL_ORIGIN = 'http://127.0.0.1:18131';
