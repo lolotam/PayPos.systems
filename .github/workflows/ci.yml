@@ -335,12 +335,20 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-  # CLAUDE.md §10 order ends with "… → integration → RLS negative tests → EXPLAIN checks → build all apps → docker
-  # images": the full build runs after every integration job (packages in check, worker-tests and the four api shards) is green.
+  # The build still waits for all existing dependencies. PP-157 permits only PR #909 to diagnose with
+  # worker-tests failed; check/API shards must pass, cancellation/skips stay closed, and ci-gate still requires worker success.
   build:
     name: build all apps
     needs: [changes, check, api-tests, worker-tests]
-    if: needs.changes.outputs.code == 'true'
+    if: >-
+      ${{ !cancelled() &&
+        needs.changes.result == 'success' &&
+        needs.changes.outputs.code == 'true' &&
+        needs.check.result == 'success' &&
+        needs.api-tests.result == 'success' &&
+        (needs.worker-tests.result == 'success' ||
+          (github.event_name == 'pull_request' && github.event.pull_request.number == 909 &&
+            needs.worker-tests.result == 'failure')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -440,7 +448,13 @@ jobs:
   admin-document-popup:
     name: admin document popup · production browser
     needs: [changes, build]
-    if: needs.changes.outputs.code == 'true'
+    # The explicit status function permits PR #909's successful diagnostic build without treating its failed
+    # worker ancestor as green; no failed, skipped, or cancelled build can start the native browser job.
+    if: >-
+      ${{ !cancelled() &&
+        needs.changes.result == 'success' &&
+        needs.changes.outputs.code == 'true' &&
+        needs.build.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
