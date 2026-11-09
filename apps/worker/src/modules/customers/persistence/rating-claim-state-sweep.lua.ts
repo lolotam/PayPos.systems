@@ -20,6 +20,7 @@ export const RATING_CLAIM_STATE_SWEEP = `
 local SCHEMA = 1
 local MAX_SAFE = 9007199254740991
 
+${RATING_CLAIM_STATE_VALIDATE}
 local function now_ms()
   local t = redis.call('TIME')
   return tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
@@ -28,10 +29,9 @@ end
 local function reply(code, version, value)
   local out = { code = code, version = version }
   if value ~= nil then out.value = value end
-  return cjson.encode(out)
+  return exact_json(out)
 end
 
-${RATING_CLAIM_STATE_VALIDATE}
 local function load(raw, companyId)
   if not raw then return nil, 'MISSING' end
   local ok, state = pcall(cjson.decode, raw)
@@ -46,7 +46,7 @@ end
 
 local function store(key, state, maxBytes)
   if not validate_state(state) then return false end
-  local encoded = cjson.encode(state)
+  local encoded = exact_json(state)
   if #encoded > maxBytes then return false end
   redis.call('SET', key, encoded)
   return true
