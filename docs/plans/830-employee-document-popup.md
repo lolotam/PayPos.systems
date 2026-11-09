@@ -1,6 +1,6 @@
 # #830 — employee-document popup lifecycle
 
-Status: PP-154 PATCH APPLIED; 41/41 FOCUSED TESTS AND SCOPED STATIC CHECKS PASS. FRESH ASTRA REVIEW, CI-NATIVE BROWSER/BUILD AND PR REMAIN PENDING; NOT ACCEPTED. The prior 21:42 snapshot remains 35 passed / 5 failed of 40, and the rejected 1990-ALL draft was not executed.
+Status: ASTRA/HIGH SOURCE REVIEW APPROVED THE P1-CORRECTED CANDIDATE; CURRENT MAIN INTEGRATED. CI-NATIVE BROWSER/BUILD AND PR REMAIN PENDING; NOT ACCEPTED. Focused tests passed 41/41 before integration; fresh integrated checks are pending. The prior 21:42 snapshot remains 35 passed / 5 failed of 40, and the rejected 1990-ALL draft was not executed.
 This continues the retained issue #830 after the Kimi quota stop. It is not a clean initial handoff, independent review, PR, release, or browser result. The prior premature-edit reading-gate FAIL stays. PP-146 is a responsibility split, not a review round, a size-rule waiver, or acceptance.
 
 ## Authority and preserved history
@@ -84,7 +84,7 @@ This split is not a formatted-fit claim, a browser result, or an independent rev
 - Parent must read the complete corrected delivery and measure actual per-path and total A+D against the supplied baseline.
 - Parent scoped evidence on the applied PP-154 candidate: six focused files, 41/41 tests passed; admin and E2E TypeScript passed; admin ESLint passed with 0 errors/14 existing incompatible-library warnings; i18n scoped ESLint passed; lint:docs passed with 0 errors/29 existing warnings; module-map passed. Scoped formatting and parser-only 400/60 checks passed. Full CI remains pending.
 - Real admin build, native browser evidence, unknown-request ledger and owned cleanup receipts are not yet available.
-- Fresh independent Astra review, final-head Codex and exact-head/base CI remain required. PP-153 explicitly waives MergePilot HOLD200 for this named batch; missing panel receipts are not represented as completed reviews.
+- Independent Astra/high approved the corrected source snapshot; final integrated-head review binding, Codex and exact-head/base CI remain required. PP-153 explicitly waives MergePilot HOLD200 for this named batch; missing panel receipts are not represented as completed reviews.
 - Applicable separately verified backup/restore, coordinated merge order and release ownership remain with the parent/manager. No deployment, activation, migration or HOLD change follows from this candidate.
 
 ## Parent verification receipt — PP-154 / PP-155, 2026-11-09
@@ -95,4 +95,10 @@ The external formatted preview measured 2141 ALL across fourteen approved paths;
 
 The focused presentation regression was also run with only the original generation placement restored temporarily. It failed at the visible enabled-button assertion (expected false, received true for disabled). Restoring the delivered generation fix made the same test pass. The delivered helper was restored exactly afterwards; this is red/green proof of the busy-stuck regression, not a native-browser result.
 
-The six-file focused command and admin typecheck ran on the actual applied source. No local Next build, Playwright, heavy suite or browser ran. Publication/landing must retain PP-153's order: PR #908 remains blocked by GitHub's required ci-gate despite the explicit owner performance waiver and a head-guarded admin merge attempt. No branch protection or check status was changed.
+The six-file focused command and admin typecheck ran on the actual applied source. No local Next build, Playwright, heavy suite or browser ran. PP-153's first four PRs have now merged in order. PR #908 merged as `a2b09bf15e98477d6260e29cab3319840f7d7dc5` under PP-156's one-head temporary admin exemption, with the full branch protection restored exactly and ci-gate still required. Its five performance failures remain owner-waived, not PASS; that exemption cannot be reused for #830.
+
+## Parent P1 correction and current-main integration — 2026-11-09
+
+First fresh Astra CODE review found a P1 in the browser proof: unrelated leave refusal alerts collided with page-wide assertions and shared refusal text. The same retained Kimi K3.1 Pro/high author corrected only three existing E2E paths. Unrelated routes remain denied with distinct synthetic text; document-read refusal assertions require exact document text, and the old-A/B-held proof specifically forbids document retry feedback. No scenario, timeout, skip, production interface or working journey was removed or consolidated. History and correction limits are unchanged.
+
+The corrected formatted candidate measured 2146 ALL, within every approved path cap and400/60. Fresh six-file focused tests passed41/41, admin/E2E TypeScript passed and scoped E2E lint passed. Fresh independent Astra/high source review approved all14 exact hashes, manifest `f5274d583a8bd021c87460147398b14134487dd114b5c7aabf709e32316ff98b`; no native-browser result was inferred. Reviewed bytes were saved in local commit `693bde7bfb5b316dc0a7f88667b3acab311dc8f1`, then current main was merged without conflicts. Only the already-reviewed #859 migration-base additions changed the task workflow during integration; its full-history checkout and explicit base comparison remain intact. Final integrated checks and exact-head CI are still required.
