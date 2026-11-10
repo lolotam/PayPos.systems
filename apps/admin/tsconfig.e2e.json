@@ -1,9 +1,5 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "incremental": false,
-    "types": ["node"],
-    "allowImportingTsExtensions": true
-  },
+  "compilerOptions": { "incremental": false, "types": ["node"] },
   "include": ["e2e/**/*.ts", "playwright.config.ts"]
 }
