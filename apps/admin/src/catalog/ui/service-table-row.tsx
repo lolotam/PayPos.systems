@@ -22,7 +22,7 @@ export function ServiceTableRow({
       <td dir="ltr">{item.price}</td>
       <td>
         {item.duration_minutes === null ? (
-          '—'
+          t(locale, 'catalogServices.missingValue')
         ) : (
           <>
             <span dir="ltr">{item.duration_minutes}</span>{' '}
@@ -30,7 +30,11 @@ export function ServiceTableRow({
           </>
         )}
       </td>
-      <td>{item.category ? serviceCategoryLabel(item.category, locale) : '—'}</td>
+      <td>
+        {item.category
+          ? serviceCategoryLabel(item.category, locale)
+          : t(locale, 'catalogServices.missingValue')}
+      </td>
       <td>{t(locale, SERVICE_RULE_LABEL[item.commission_rule.kind])}</td>
       <td>
         <Button
