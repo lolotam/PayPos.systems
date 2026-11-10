@@ -1506,6 +1506,13 @@
       "when": 1793967173967,
       "tag": "0216_2026-11-06_package-import-commit-index-validate",
       "breakpoints": true
+    },
+    {
+      "idx": 217,
+      "version": "7",
+      "when": 1794291357016,
+      "tag": "0217_2026-11-10_discount-proposal-binding-index",
+      "breakpoints": true
     }
   ]
 }
