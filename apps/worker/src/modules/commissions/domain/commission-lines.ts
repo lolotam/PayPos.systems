@@ -48,18 +48,34 @@ function validatePerformers(line: CommissionLineSnapshot): void {
 
 /**
  * يختار اللقطات الأحدث فقط من الحالة المقروءة بعد أقفال الهوية؛ المراجعة المساوية
- * أو الأقدم no-op، وغياب الرأس يعني أن لقطة التسجيل الأولى جديدة.
+ * أو الأقدم no-op حتى لو اختلفت الهوية، وغياب الرأس يعني أن لقطة التسجيل الأولى جديدة.
+ * المراجعة الأحدث لرأس موجود لا تغيّر النشاط أو الجلسة أو الفرع أو الخدمة أو العميل؛
+ * رفضها هنا يمنع وصول أي جزء من الدفعة إلى قراءة التقويم وأقفال الشهور والكتابة.
  *
  * @param lines اللقطات الواردة في الحدث
  * @param heads رؤوس البنود المحفوظة بعد أخذ أقفالها
- * @returns اللقطات التي يجب استبدال صفوفها، بترتيب الحدث نفسه
+ * @returns اللقطات التي يجب استبدال صفوفها بترتيب الحدث، أو يرمي CommissionLineEventInvalidError عند تغيّر الهوية
  */
 export function selectNewerCommissionLines(
   lines: readonly CommissionLineSnapshot[],
   heads: readonly HeldCommissionLineHead[],
 ): CommissionLineSnapshot[] {
-  const revisions = new Map(heads.map((head) => [head.lineId, head.revision]));
-  return lines.filter((line) => line.revision > (revisions.get(line.lineId) ?? 0));
+  const heldHeads = new Map(heads.map((head) => [head.lineId, head]));
+  return lines.filter((line) => {
+    const held = heldHeads.get(line.lineId);
+    if (line.revision <= (held?.revision ?? 0)) return false;
+    if (held === undefined) return true;
+    if (
+      line.businessId !== held.businessId ||
+      line.sessionId !== held.sessionId ||
+      line.branchId !== held.branchId ||
+      line.serviceId !== held.serviceId ||
+      line.customerId !== held.customerId
+    ) {
+      throw new CommissionLineEventInvalidError('IDENTITY_CHANGED', line.lineId);
+    }
+    return true;
+  });
 }
 
 /**

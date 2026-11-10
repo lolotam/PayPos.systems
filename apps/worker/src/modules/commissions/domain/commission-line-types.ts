@@ -41,8 +41,14 @@ export interface LockedCommissionPeriod {
   readonly status: 'DRAFT' | 'REVIEWED' | 'APPROVED' | 'PAID';
 }
 
+/** رأس محفوظ بعد قفل البند؛ هويته الخماسية ثابتة حتى لو حمل الحدث الأحدث مراجع مختلفة. */
 export interface HeldCommissionLineHead {
   readonly lineId: string;
+  readonly businessId: string;
+  readonly sessionId: string;
+  readonly branchId: string;
+  readonly serviceId: string;
+  readonly customerId: string;
   readonly revision: number;
   readonly period: string;
 }
