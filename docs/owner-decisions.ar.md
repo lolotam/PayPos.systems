@@ -1810,3 +1810,31 @@ so much beteer to creat this advisore for the project level so you and the manag
 **الأثر المعتمد:** `runs-on: ubuntu-24.04` بدل `ubuntu-latest` في الـ 7 jobs بتوع `.github/workflows/ci.yml`. النطاق اختاره المدير بعد استشارة المستشار (PP-136): كل jobs الملف بدل الاتنين اللي بيشغّلوا Chromium بس، عشان مايفضلش جزء على صورة متغيرة. `ubuntu-latest` النهارده هو نفسه `ubuntu-24.04`، فالتغيير مش بيغيّر سلوك دلوقتي؛ فايدته إن ترقية الصورة تبقى قرار مقصود. `mobile.yml` خارج النطاق (فيه حماية macOS بتفحص `runs-on`) ومتابعة منفصلة.
 
 **الرجوع:** نرجّع `ubuntu-latest` في الـ jobs المتأثرة لو الصورة المثبتة اتسحبت أو ظهر فرق.
+
+### 74. رجوع #908 لاستعادة main الأخضر وحد الأداء بـ p99 أو نسبة (PP-163، 11 نوفمبر 2026)
+
+**النوع والمصدر:** قرار تقني لوليد؛ كارتين في شات جلسة Claude Code مباشرة لوليد وفق PP-117، بعد استشارة المستشار (PP-136) اللي نصح بالخيار (أ) ثم #914 worker فقط. لا يُنشر على صفحة قرارات الشريك.
+
+**الخلفية:** #908 (`a2b09bf15`، #887) اتدمج 2026-11-09 13:55 الكويت و`integration · worker` و`ci-gate` فاشلين على رأسه `a6d181156`. من وقتها main أحمر في `rating-claim-state-performance.spec.ts` اللي #908 نفسه أضافه، وده بيوقف #910 و#911 و#912 و#913.
+
+#### PP-163.1 — إزاي main يرجع أخضر
+
+**السؤال حرفيًا — 2026-11-11 الكويت:** «#908 was merged while its own worker test and ci-gate were failing, and main has been red since. How should we get main green so #910–#913 can merge?»
+
+**الاختيارات:** «Revert #908 first (Recommended)»، «Split #914, no revert»، «Keep #914 as it is».
+
+**رد وليد حرفيًا:** «Revert #908 first (Recommended)».
+
+**الأثر المعتمد:** PR مستقل يرجّع `a2b09bf15` بالكامل (الكود والاختبار)، فكود `customers/persistence` في الـ worker يرجع مطابق لآخر main أخضر `ad534b69a`. بعد CI أخضر على الرأس بالظبط والبوتات، يتدمج، وبعده #910 و#912 و#913 بترتيب الجاهزية، و#911 بعد تفسير فشل `@pospay/admin#test`. #887 يرجع بعدين جوه #914 للـ worker بس، وشغل الـ popup في PR لوحده. خطأ الدقة في #887 يرجع مؤقتًا؛ بيخص عدادات ≥1e14 بس ومش مفعّل.
+
+#### PP-163.2 — حد أكبر عينة ≤100ms في اختبار الأداء
+
+**السؤال حرفيًا — 2026-11-11 الكويت:** «The performance test requires every single sample to be ≤100ms. On #914's previous head, the old unchanged code also broke that limit (148ms and 235ms), so it looks like GitHub runner noise. Change the limit?»
+
+**الاختيارات:** «Use p99 or a ratio (Recommended)»، «Keep ≤100ms»، «Verify first».
+
+**رد وليد حرفيًا:** «Use p99 or a ratio (Recommended)».
+
+**الأثر المعتمد:** لما #887 يرجع في #914، تتشال شروط أكبر عينة (`patch.max` و`base.max` ≤100ms) وتتبدل بـ p99 أو نسبة الكود الجديد للقديم. شروط p95 ≤50ms و≤2× للقديم تفضل زي ما هي. ده تعديل معتمد للبند اللي في خطة #887 بيمنع تغيير الحدود.
+
+**الرجوع:** لو ظهر بطء حقيقي على staging، نرجّع حد أكبر عينة بقرار جديد من وليد.
