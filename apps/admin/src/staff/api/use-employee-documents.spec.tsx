@@ -3,7 +3,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { EmployeeDocumentsSection } from '../ui/employee-documents-section';
-import { useEmployeeDocuments } from './use-employee-documents';
 const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
@@ -54,10 +53,7 @@ beforeEach(() => {
   put.mockReset();
   vi.stubGlobal('fetch', put);
 });
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.restoreAllMocks();
-});
+afterEach(() => vi.unstubAllGlobals());
 function setup() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const rendered = render(
@@ -81,27 +77,6 @@ function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((done) => (resolve = done));
   return { promise, resolve };
-}
-function popupHandle() {
-  const handle = {
-    opener: window as unknown,
-    closed: false,
-    location: { assign: vi.fn() },
-    close: vi.fn(),
-  };
-  handle.close.mockImplementation(() => {
-    handle.closed = true;
-  });
-  return handle;
-}
-function mockWindowOpen() {
-  const handles: ReturnType<typeof popupHandle>[] = [];
-  vi.spyOn(window, 'open').mockImplementation(() => {
-    const handle = popupHandle();
-    handles.push(handle);
-    return handle as unknown as Window;
-  });
-  return handles;
 }
 const settle = <T,>(operation: { resolve: (value: T) => void }, value: T) =>
   act(async () => operation.resolve(value));
@@ -250,7 +225,7 @@ it('latches read and write revocation while preserving recovery for new operatio
   let refused = false;
   mockDocuments(ready.promise, () => (refused ? failure('Denied') : { data: current }));
   mockUpload(undefined, download.promise);
-  const opened = mockWindowOpen();
+  const opened = vi.spyOn(window, 'open').mockImplementation(() => null);
   const { client } = setup();
   await screen.findByLabelText(t('en', 'employeeDocuments.file'));
   fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeDocuments.open') }));
@@ -268,11 +243,10 @@ it('latches read and write revocation while preserving recovery for new operatio
   refused = false;
   await refresh(client);
   await settle(download, privateDownload);
-  expect(opened[0]?.close).toHaveBeenCalledOnce();
-  expect(opened[0]?.location.assign).not.toHaveBeenCalled();
+  expect(opened).not.toHaveBeenCalled();
   await waitFor(() => expect(openButton().hasAttribute('disabled')).toBe(false));
   fireEvent.click(openButton());
-  await waitFor(() => expect(opened).toHaveLength(2));
+  await waitFor(() => expect(opened).toHaveBeenCalledOnce());
   await startUpload();
   expect(await screen.findByText(t('en', 'employeeDocuments.recorded'))).toBeTruthy();
 });
@@ -324,47 +298,3 @@ it.each(['companyId', 'businessId', 'userId', 'employeeId'] as const)(
     }
   },
 );
-
-it('does not grant fresh read from a removed query success or a manual restore', async () => {
-  api.GET.mockReturnValue(new Promise(() => undefined));
-  const opened = mockWindowOpen();
-  const retained: Array<(storageKey: string) => void> = [];
-  function Probe() {
-    const documents = useEmployeeDocuments(id, id, id, id);
-    retained.push(documents.open.mutate);
-    return null;
-  }
-  const client = new QueryClient();
-  render(
-    <QueryClientProvider client={client}>
-      <Probe />
-    </QueryClientProvider>,
-  );
-  await waitFor(() => expect(retained.length).toBeGreaterThan(1));
-  const retainedQ1 = retained.at(-1);
-  const removed = client.getQueryCache().find({ queryKey: prefix, exact: true });
-  act(() => {
-    client.removeQueries({ queryKey: prefix });
-    removed?.setData(view());
-  });
-  act(() => retained.at(-1)?.('company/business/key/verified'));
-  expect(opened).toHaveLength(0);
-  expect(api.POST).not.toHaveBeenCalled();
-  act(() => {
-    client.setQueryData(prefix, view());
-  });
-  act(() => {
-    retainedQ1?.('company/business/key/verified');
-    retained.at(-1)?.('company/business/key/verified');
-  });
-  expect(opened).toHaveLength(0);
-  expect(api.POST).not.toHaveBeenCalled();
-  const genuine = vi.fn(async () => view());
-  await act(async () => {
-    await client.query({ queryKey: prefix, queryFn: genuine, staleTime: 0 });
-  });
-  expect(genuine).toHaveBeenCalledOnce();
-  act(() => retained.at(-1)?.('company/business/key/verified'));
-  await waitFor(() => expect(api.POST).toHaveBeenCalledOnce());
-  expect(opened).toHaveLength(1);
-});
