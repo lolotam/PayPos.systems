@@ -18,9 +18,13 @@
  * الكتلة دي فيها كمان الترميز الدقيق للحالة: cjson لوحده بيقرّب الأعداد
  * لأربع عشرة خانة معنوية، فنسخة زي 9007199254740991 كانت بتتخزّن
  * 9.007199254741e+15 وبتطلع رقم تاني خالص. الترميز الجديد بيكتب الأعداد
- * الصحيحة الآمنة بالشكل العشري الكامل، وبيسيب باقي القيم لـcjson زي ما هي،
- * وبيزور الجداول بمكدس صريح من غير تكرار. الكتلة لازم تيجي قبل reply في كل
+ * الصحيحة الآمنة بالشكل العشري الكامل، وبيسيب باقي القيم لـcjson زي ما هي.
+ * بعد فحص قبول cjson، مسح كل القيم والمفاتيح بمكدس جداول بيسمح بإعادة نصه
+ * للأشكال المتوافقة وأعداد صحيحة بقيمة مطلقة أقل من 10^14؛ غير كده الترميز الدقيق
+ * بيفضل كما هو. الصفر السالب بيرجع للمسار الدقيق عشان تمثيله ما يتغيرش.
+ * بنحتفظ بفحص cjson لغلاف الرد كمان، حتى ما نوسّعش قبول العمق. الكتلة قبل reply في كل
  * سكربت، لأن reply بيستخدم الترميز.
+ * الفحص يشمل الحقول المجهولة؛ المكدس للجداول بس لتجنب تخصيص وترميز كل قيمة ونص.
  *
  * النص بلا بايت هروب cjson يُقتبس مباشرة؛ 0–31 والتنصيص والمائلة والعكسية وDEL تبقى على cjson.
  */
@@ -169,7 +173,7 @@ local function exact_string(value)
 end
 
 -- The exact encoder: one cjson pass keeps its type, depth and non-finite
--- rejection, then the JSON tree is walked with an explicit stack so safe
+-- rejection, then incompatible JSON trees are walked with an explicit stack so safe
 -- integers keep every digit. The value is never mutated and no depth limit
 -- below the cjson one is introduced.
 local function exact_value(item, stack, depth, emit)
@@ -196,10 +200,54 @@ local function exact_value(item, stack, depth, emit)
   return depth
 end
 
+local function native_scalar(value)
+  local kind = type(value)
+  if kind ~= 'number' then
+    return kind == 'string' or kind == 'boolean' or value == JSON_NULL
+  end
+  return value > -100000000000000 and value < 100000000000000
+    and value == math.floor(value) and (value ~= 0 or 1 / value ~= -math.huge)
+end
+
+-- Unknown fields must be checked too; ordinary counters do not prove the tree is safe.
+-- Only tables are stacked to avoid allocating frames and rendering every scalar again.
+local function native_tree(value)
+  if type(value) ~= 'table' then return native_scalar(value) end
+  local pending = { value }
+  local count = 1
+  while count > 0 do
+    local current = pending[count]
+    pending[count] = nil
+    count = count - 1
+    local size = #current
+    local numericKeys = 0
+    local stringKeys = false
+    for key, item in pairs(current) do
+      if type(key) == 'string' then
+        stringKeys = true
+      elseif type(key) == 'number' and key >= 1 and key <= size
+        and key == math.floor(key) then
+        numericKeys = numericKeys + 1
+      else
+        return false
+      end
+      if type(item) == 'table' then
+        count = count + 1
+        pending[count] = item
+      elseif not native_scalar(item) then
+        return false
+      end
+    end
+    if numericKeys > 0 and (stringKeys or numericKeys ~= size) then return false end
+  end
+  return true
+end
+
 local function exact_json(value)
-  local admissible, failure = pcall(cjson.encode, value)
-  if not admissible then error(failure, 0) end
-  failure = nil
+  local admissible, encoded = pcall(cjson.encode, value)
+  if not admissible then error(encoded, 0) end
+  if native_tree(value) then return encoded end
+  encoded = nil
   local parts = {}
   local count = 0
   local function emit(text)
