@@ -1,4 +1,4 @@
-import { expect, test, type FrameLocator, type Page } from '@playwright/test';
+import { expect, test, type CDPSession, type FrameLocator, type Page } from '@playwright/test';
 import { t, type Locale } from '@pospay/i18n';
 import { installPopupDiagnostics } from './employee-document-popup-diagnostics';
 import {
@@ -108,6 +108,9 @@ async function nativeFocusCycle(page: Page) {
   });
   const other = await page.context().newPage();
   await other.goto(`${DESTINATION_ORIGIN}/blank`);
+  await disableFocusEmulation(page, other);
+  await page.bringToFront();
+  await resetFocusEvidence(page, other);
   await other.bringToFront();
   await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('hidden');
   await page.bringToFront();
@@ -115,6 +118,30 @@ async function nativeFocusCycle(page: Page) {
   expect(Number(await page.locator('html').getAttribute('data-focus830'))).toBeGreaterThan(0);
   expect(Number(await page.locator('html').getAttribute('data-visibility830'))).toBeGreaterThan(0);
   await other.close();
+}
+let focusEmulationSessions: CDPSession[] = [];
+async function disableFocusEmulation(...targets: Page[]) {
+  for (const target of targets) {
+    const session = await target.context().newCDPSession(target);
+    focusEmulationSessions.push(session);
+    await session.send('Emulation.setFocusEmulationEnabled', { enabled: false });
+  }
+}
+async function detachFocusEmulationSessions() {
+  const sessions = focusEmulationSessions;
+  focusEmulationSessions = [];
+  // التنظيف best-effort؛ فشل فصل الجلسة لا يحجب فشل الاختبار الأصلي.
+  await Promise.allSettled(sessions.map((session) => session.detach()));
+}
+async function resetFocusEvidence(...pages: Page[]) {
+  const keys = ['focus830', 'visibility830', 'popupDiagFocus', 'popupDiagVisibility'];
+  await Promise.all(
+    pages.map((page) =>
+      page.evaluate((keys) => {
+        for (const key of keys) document.documentElement.dataset[key] = '0';
+      }, keys),
+    ),
+  );
 }
 async function chooseCompany(page: Page, name: string) {
   await page.locator('#workspace-company').click();
@@ -124,12 +151,14 @@ async function chooseCompany(page: Page, name: string) {
 let finishDiagnostics: ((failed: boolean) => Promise<void>) | undefined;
 test.beforeEach(async ({ context }) => {
   finishDiagnostics = undefined;
+  focusEmulationSessions = [];
   await control('/reset');
   finishDiagnostics = await installPopupDiagnostics(context);
 });
 test.afterEach(async () => {
   const info = test.info();
   await finishDiagnostics?.(info.status !== info.expectedStatus).catch(() => undefined);
+  await detachFocusEmulationSessions();
   expect((await ledger()).unknown).toEqual([]);
 });
 
@@ -342,6 +371,9 @@ test('a closed blank is replaced before the held response settles', async ({ pag
   await openStaff(page);
   const first = await clickOpen(page);
   await expect.poll(async () => (await ledger()).held).toEqual(['synthetic/civil']);
+  await disableFocusEmulation(page, first);
+  await page.bringToFront();
+  await resetFocusEvidence(page, first);
   await first.bringToFront();
   await first.close();
   await page.bringToFront();

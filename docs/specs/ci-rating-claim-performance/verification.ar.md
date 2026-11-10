@@ -1,6 +1,6 @@
 # سجل المدير — إصلاح أداء rating claim state
 
-التاريخ: 2026-11-10. الحالة الحالية: نجح worker في draft #914 على الرأس `89dd5cb7def2825a49fe44712f1790fdfecc57c4`، بما فيه الأداء غير المعدل، لكن aggregate CI فشل في admin browser. وافق المالك في CI-Q3 على توسيع #914 المحدود؛ تشخيص وخطة admin قيد العمل قبل أي كود. لا جاهزية دمج أو نشر. الأقسام التالية تحتفظ بتسلسل الإيصالات السابقة.
+التاريخ: 2026-11-10. الحالة الحالية: آخر رأس منشور في draft #914 هو `e3cb06cd63903317bc36c23dd643992edbf50d7d`؛ CI `42863036938` نجحت فيه worker2276/2276 والأداء6/6، لكن browser بقي8فشل/3نجاح. تجربةCI-Q7 المصححة تحققت محليًا **44/44** وكلاtypecheck والفحوص الأخرى، وأجابت مراجعةAstra الجديدة بلا عيوب فعلية. فرقها34 والإجمالي693/700؛ تقبل للنشر التشخيصي الثالث بعدworker فقط، لا قبولbrowser أو جاهزيةدمج/نشر ولا تصريح بتصحيح رابع تلقائي. الأقسام التالية تحتفظ بتسلسل الإيصالات السابقة.
 
 ## الصلاحية والعزل
 
@@ -279,3 +279,31 @@ browser job `129789384597`: **8 فشل / 3 نجاح**. الرصد الجديد �
 عدّ المدير الفعلي مقابل base: **659 = 265 worker + 394 admin**، أي زيادة2 فقط مقابل657، داخل حد12/669 والسقف700/hard800. تدقيق المهام الخمس: صفر overlap، الأربعة الأصلية نظيفة على الرؤوس المنشورة نفسها. لا فرق آخر في production أو worker أو diagnostic helper أو transport fixture أو Playwright config أو workflow أو lockfile منذ15b4dc13.
 
 مراجعة Astra مستقلة جديدة `ses_e39909cebffeIPFyhteE6dtoUY` أكدت **لا عيب فعلي ولا تعديل كود لازم** في التصحيح. API `Page.bringToFront()` مدعومة؛ hidden→visible وعدادات focus/visibility وتأكيدات successor/late settlement بقيت. المراجعة static/read-only لا أوامر أو runtime. يقبل المدير handoff التجربة للنشر المراجع فقط، لا قبول browser أو merge. تبقى نتيجة فرضية foreground في CI وحدها؛ أي CDP/launch/fixture/sandbox تغيير يحتاج مراجعة منفصلة، ولا يُخفف assertion إن بقي فاشلًا.
+
+## نتيجة تجربة foreground علىe3cb06cd — لا قبول browser
+
+نُشر الرأس `e3cb06cd63903317bc36c23dd643992edbf50d7d`. run `42863036938` انتهى failure؛ تحقق المدير من checkout ومن API: merge `48278f0a0ddf77abd3cf498bdb74525a60b56dea` والداه main الحاليff551062ce56a9a57cd6aa7a9abd6f67e1a2bbb2 والرأسe3cb06cd. worker job129994016730 نجح **2276/2276 في271ملفًا** بما فيها **6/6** الأداء غير المعدل؛ check وكلAPI shards/build/images نجحت. browser130001883658 بقي **8 فشل/3نجاح** وci-gate فشل. draft ومراجعات/طلباتGitHub فارغة؛ لا rerun أو source edit جديد.
+
+مقارنة الرصد: رغم تنفيذbringToFront الصريحة، أربع حالات ما زالت عندnativeFocusCycle112 visible بدلhidden معfocus0/changes0، ولا ثانيGET للوثائق. closed blank عند348: closed=[false,true] بلا أحداثparent والزرdisabled. إذن foreground-only غير كافية في البيئة الحالية؛ لا يثبت ذلك أن CDP ستحلها قبل التجربة. sandbox بعدPOST200/finish تبقىabout:blank، وnetwork عند193/262 تبقىstart بلاresponse/finish/failed، كما في الرأس السابق. ثلاث حالاتtrusted/cancellation/COOPattachment نجحت. لا سبب لتغيير إنتاجreadiness أو worker بناءً على توقفات preconditions هذه.
+
+قرأ المدير الأنواع المثبتة: `newCDPSession(page: Page|Frame): Promise<CDPSession>` وprotocol7121–7128 التي تصفenabled لمحاكاةfocused/active. CI-Q7 يسأل عن السماح بتعطيل هذاoverride داخل الاختبارات المشاركة فقط، مع انتظار تهيئة كلtarget والعودة إلى foreground ابتدائية ثم reset counters وبعدها native transitions وحدها، وتنظيفsessions. لا setWebLifecycleState/frozen أو dispatchedDOMevents أو override لخصائصnative أو تغييرsandbox/transport/production. target20–40/توقف41 فوق659 ضمن700/hard800، pending owner وميزانية الجولات القائمة. لا كتابة أو تفويض كود CDP حتى القرار.
+
+وصلت إجابةCI-Q7 الحرفية `Approve scoped CDP (Recommended)`؛ اعتمد المدير العقد نفسه قبل إحالة التنفيذ إلىGLMالقائم. السقف41 إضافة+حذف، E2E واحدوثلاثوثائقworker فقط؛ سجلاالمالك/verification عندالمدير. لا rebase أو CIrerun أو نقلتغييرات أخرى، ولا ضبط CDP عام لكلالتطبيقات؛ targets المشاركة فيfocus/closedblank فقط، وsetupawait ثمparentforeground/resetcounters قبل القياس. await/finally أو cleanupمربوطةبعمرtest تضمنdetach حتىالفشل، بلاcatchيمحوتهيئةفاشلة أو assertion. كلdiffيقرأقبلالتشغيل؛ نتيجةCDPومراجعتهاNOTRUNبعد، ويفشلworkerبالحدقبلتجاوز700. الجولاتلاتُصفر؛ نُشرinitialworker89dd5cb7 ثمadmin15b4dc13 ثمforegrounde3cb06cd، وأيpushتالٍيبقىضمنسجلالتصحيحذاته لا إذنًا برابعةتلقائيًا.
+
+## فحص تسليم CDP الأول — مرفوض قبل النشر
+
+قرأ المدير جميع أسطر المصدر397 والفرق والوثائق الثلاث، ثم شغّل `pnpm --filter @pospay/admin run typecheck`. نجح main tsc، وفشل E2E tsc: عند132 و153 الخطأ `TS2588: Cannot assign to 'focusEmulationSessions' because it is a constant.`؛ وعند133 الخطأ `TS2339: Property 'close' does not exist on type 'CDPSession'.` الأمر المجمع exit1، وscript سجل exit2؛ لا نجاح typecheck شامل. الاستيراد المسمى CDPSession حُلّ، لكنه لا يجعل الفحص ناجحًا.
+
+الجذر مثبت: registry معرف const رغم إعادة إسناده في cleanup وbeforeEach؛ وCDPSession توفر `detach(): Promise<void>` لاclose، كما قرأ المدير في types.d.ts18414–18418 المثبتة. استدعاءclose غير الموجود يرمي أثناء map، قبل حصولallSettled على الوعود، فلا يحقق عقد عدم حجب الفشل الأصلي. كُلف العامل GLM نفسه بتصحيح let/detach فقط وتحديث ادعاءات الوثائق والحساب، دون توسيع العقد أو الملفات أو تغيير التأكيدات. لا push أو مرور بجولة CI أخرى.
+
+حساب Git الفعلي للتسليم الأول **+32/−1 =33**، لا32: helper family23 سطرًا لا22؛ فرق التطبيق المجمع المتوقع692 لا691، وسيعاد العد بعد التصحيح وformat. هذا داخل41/700 ولا يبيح تجاوزهما. أُعيد التأكيد أن آلية focus emulation فرضية مدعومة بالمصدر والرصد لا إثبات runtime قبل التجربة؛ نتائج browser/CDP NOT RUN. تدقيق مستقل للأربعة الأصلية أعاد الرؤوس نفسها نظيفة بلا تعديل. المراجعة الجديدة Astra والفحوص الكاملة تنتظر المصدر المصحح.
+
+## قبول مصدر CI-Q7 المصحح للنشر التشخيصي فقط
+
+قرأ المدير فرق المصدر المصحح وكل إضافات الوثائق قبل الأوامر. التعديل الحدي let بدلconst وdetach بدلclose، مع تعليقWHY عربي واحد للتنظيفbest-effort. تحقق أيضًا من التنفيذ المثبتcoreBundle57563–57564: `detach` دالةasync، لذا رفض هدف مغلق ينتقل إلىallSettled بدل رميclose غير الموجودة قبلها. مصدرE2E النهائي blob `3743fd558f23370bc82a50f7eb93fc1a30366ea7`،398 سطرًا؛ كل11سيناريو والتأكيدات والمهل/retries والأعلام وheld-release وترتيبsucccessor بقيت. إعدادالجلساتawaited علىtargets المهيأة، والتسجيل قبلsend، ثمforeground للأصل وتصفيرcounters قبل الانتقال المقاس، والتنظيفبعدdiagnostics وقبلunknown-ledger التي لم تتغير. لاcatch يخفي فشلتهيئة، ولاeventdispatch أوnativepropertyoverride أواستدعاءإنتاج/refetchمصطنع.
+
+الفحوص الجديدة الفعلية: `pnpm --filter @pospay/admin run typecheck` نجح بكلاmain/E2E؛ lint نجح بصفرأخطاء/14تحذيرًا قائمة؛ scopedPrettier وdiffcheck ناجحان؛ `pnpm lint:docs` صفرأخطاء/29تحذيرًا؛ `pnpm module-map:check` ناجح. runnerالمراجع `broader` نجح **44/44 في6ملفات، صفرskipped،24.30s،exit0**، غيرinstrumented وبلاخدمات. لا تشغيلbrowser أوأداءثقيل محلي أوCI=true؛ jsdom لايثبت فعاليةCDP.
+
+حسابGit النهائي بعدformat: **+33/−1 =34** فوقe3cb06cd، الإجمالي **693 =428admin+265worker**؛ ضمنهدف20–40 وحد41/700/hard800. auditالمهامالخمس صفرoverlap؛ الأربعةالأصلية نظيفةعلىرؤوسهاالمثبتة؛ worker/production/fixture/diagnosticshelper/config/workflow/lockfile بلافرقجديد. remote main لايزالff551062ce56a9a57cd6aa7a9abd6f67e1a2bbb2 وremote914 لايزالe3cb06cd قبلالنشر.
+
+مراجعةAstra المستقلةالجديدة `ses_e392e8191ffeUww8wq00Za6RC2` قرأتالمصدرالحقيقي وCI-Q7 والوثائقالمصححة وdiagnostics/config والconsumers: **لاعيبفعلي ولاتصحيحلازم قبلpushالتشخيصي**. أكدتawait/ownership/reset/cleanup وبقاءhidden→visible/positivecounters، وOpen-enabled قبلheldrelease وحمايةsuccessor/late-response. مراجعةread-only بلاأوامر أوruntime؛ المديريمتلكإثباتGitوالفحوص. يقبلhandoffلرأسdraftتشخيصيواحد ضمنCI-Q7، وهوالثالثبعدinitialworker89dd5cb7 ثم15b4dc13 ثمe3cb06cd؛ لارابعةتلقائية، ولاإعفاءمنفشلnetwork/sandbox أو externalreviews/backup/merge/release. ننتظرall11browserوالأداءوكلCIعلىالرأسالجديد.

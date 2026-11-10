@@ -117,3 +117,22 @@
 التطبيق لهذه المهمة: استخدام GLM-5.3-Flash عبر Z.AI Coding Plan داخل تفويض OpenCode المدمج، بدل مسار Kimi المرفوض بالمصادقة. تحقق المدير من catalog الكاملة: **`zai-coding-plan/glm-5.3-flash`** active، وvariant **high** متاحة. عبارة Coding Plan اختيرت بدل نموذج `opencode/glm-5.3-flash-free` أو Highspeed أو provider مدفوعة بديلة؛ التوجيه هنا لا يغير default عام أو config أو credential ولا يفتح external CLI.
 
 يشمل الإذن استثناء مسار تصحيح #914 الحالي فقط، بتجربة foreground ذات السطرين المراجعة سابقًا وسقف12 إضافية فوق657، مع Astra والفحوص والـ11 سيناريو وحدودها كما هي. لا reset للجولات أو slot سادس أو CDP/fixture/production permission إضافية. جلسة Kimi السابقة انتهت بفشل بلا كتابة؛ يبدأ عامل GLM جديد داخل المهمة نفسها. نجاح الوصول إلى النموذج أو التنفيذ لا يُفترض قبل نتيجة الأداة.
+
+## CI-Q7 — تجربة CDP ضيقة لتعطيل override التركيز الاختباري فقط
+
+الدليل بعد نشر تجربة foreground ذات السطرين: run42863036938 علىe3cb06cd بقي browser8فشل/3نجاح؛ أربع حالات ظلتvisible بدلhidden بلا focus/visibility events، وclosed blank أُغلقت فعليًا لكن parent بلا أحداث والزرdisabled. worker2276/2276 والأداء6/6 نجحا وكل check/API/build/images ناجحة. لا إعادة تشغيل بلا تغيير. مشورة Astra السابقة أوصت بتجربة foreground أولًا ثم تعطيل emulation فقط إذا بقي الفشل؛ الشرط تحقق الآن. تحقق المدير من API المثبتة `BrowserContext.newCDPSession` و`Emulation.setFocusEmulationEnabled({ enabled: boolean })`، التي تصف محاكاة صفحةfocused/active. هذا اقتراح تجربة counterfactual، لا سبب runtime مثبت قبلها.
+
+السؤال الحرفي:
+
+> Explicit foreground selection did not restore native focus/visibility events: #914 still has 8 browser failures. Authorize a test-scoped CDP experiment that disables only Playwright's focus-emulation override for participating pages/popups, while retaining all 11 scenarios, native hidden/visible/event assertions, timeouts and retries? Keep production, sandbox flags and transport fixtures unchanged, with the combined diff capped at 700 lines.
+
+الخيارات الحرفية:
+
+1. `Approve scoped CDP (Recommended)` — GLM Coding Plan implements the bounded test-only change; parent checks and Astra reviews before one relevant CI push. Await setup, reset observation counters afterward, and clean up sessions. No synthetic focus/visibility events.
+2. `Keep blocked` — Leave e3cb06cd unchanged; no CDP modification or new CI push.
+
+التوصية: الأول لإزالة override الاختبار التي تدعمها أدلة المصدر والرصد، مع إبقاء البرهان native نفسه. target20–40 إضافة+حذف، توقف41 فوق659، إجمالي<=700/hard800؛ أي تجاوز أو launch/fixture/sandbox تغيير يحتاج مراجعة أخرى قبل الكود. النطاق E2E فقط مع وثائق المهمة، بلا runtime/worker/API/auth/readiness تعديل. إجابة المالك الحرفية عبر أداة السؤال:
+
+> Approve scoped CDP (Recommended)
+
+التطبيق: worker GLM Coding Plan القائم يعدل E2E وملفات توثيقه المسموح بها فقط؛ يهيئtargets بawait بعدinitialization، ويعطلfocus emulation وحدها، ويثبتparent foreground ثم يصفرعداداتالرصد بعدالتهيئة؛ تُحسب بعد ذلك native transitions الحقيقية فقط، وتُنظفsessions دون حجب assertion الأصلية. لا eventdispatch أو visibility/propertyoverride أو تغييرassertion/timeouts/retries، ولا توسيعLogobserver/transport/sandbox/launch permissions. لا reset للجولات؛ هذا إن نُشر سيكون التصحيح التالي بعد رأسي15b4dc13 وe3cb06cd، وليس task جديدة أو تصريحًا غير محدود بتكرارCI. يبقى قبولnetwork/sandbox غير مثبت.
