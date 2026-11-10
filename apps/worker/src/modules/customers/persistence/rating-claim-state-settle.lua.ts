@@ -32,7 +32,6 @@ export const RATING_CLAIM_STATE_SETTLE = `
 local SCHEMA = 1
 local MAX_SAFE = 9007199254740991
 
-${RATING_CLAIM_STATE_VALIDATE}
 local function now_ms()
   local t = redis.call('TIME')
   return tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
@@ -41,9 +40,10 @@ end
 local function reply(code, version, value)
   local out = { code = code, version = version }
   if value ~= nil then out.value = value end
-  return exact_json(out)
+  return cjson.encode(out)
 end
 
+${RATING_CLAIM_STATE_VALIDATE}
 local function load(raw, companyId)
   if not raw then return nil, 'MISSING' end
   local ok, state = pcall(cjson.decode, raw)
@@ -58,7 +58,7 @@ end
 
 local function store(key, state, maxBytes)
   if not validate_state(state) then return false end
-  local encoded = exact_json(state)
+  local encoded = cjson.encode(state)
   if #encoded > maxBytes then return false end
   redis.call('SET', key, encoded)
   return true
@@ -164,7 +164,7 @@ if env['action'] == 'settlePage' then
   end
   if overflowed and not record_overflow(state, now) then return reply('LIMIT', version) end
   if bump(state) == nil then return reply('LIMIT', version) end
-  if inserted ~= nil and #exact_json(state) > limit then
+  if inserted ~= nil and #cjson.encode(state) > limit then
     retries[requestId] = nil
     state['nextTicket'] = inserted['ticket']
     overflowed = true
