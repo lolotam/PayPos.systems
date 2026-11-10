@@ -15,6 +15,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiClient } from '@/shared/api/client';
 import {
   beginOpen,
+  readReadyData,
   releaseUnconsumed,
   settle,
   watchOpen,
@@ -57,7 +58,7 @@ export function useEmployeeDocuments(
       return context ? client.invalidateQueries({ queryKey: context.key }) : undefined;
     },
   });
-  const open = useDocumentOpen(client, key, params.header, scope, { begin, active });
+  const open = useDocumentOpen(client, key, params.header, scope, { begin, active }, view);
   const resetRecord = record.reset;
   const resetOpen = open.reset;
   useEffect(() => {
@@ -67,7 +68,15 @@ export function useEmployeeDocuments(
   }, [scope, resetRecord, resetOpen]);
   const saved = record.data;
   const data = saved && active(saved.operation) ? saved.document : undefined;
-  return { view, record: { ...record, data }, open, phase };
+  return {
+    view,
+    get documents() {
+      return open.documents();
+    },
+    record: { ...record, data },
+    open,
+    phase,
+  };
 }
 
 function useDocumentScope(key: string[]) {
@@ -164,12 +173,14 @@ function openContext(
   header: { 'x-company-id': string },
   access: OpenAccess,
   show: OpenContext['show'],
+  scope: object,
 ): OpenContext {
   return {
+    scope,
     client,
     key,
     header,
-    life: { alive: false, access, query: undefined },
+    life: { alive: false, access, query: undefined, scope, client, key },
     registry: new Map(),
     pending: null,
     opening: null,
@@ -184,10 +195,13 @@ function useDocumentOpen(
   header: { 'x-company-id': string },
   scope: object,
   access: OpenAccess,
+  observer: ReturnType<typeof useDocumentsView>,
 ) {
   const accessNow = useRef(access);
   accessNow.current = access;
+  const binding = useMemo(() => ({ scope, client, key }), [scope, client, key]);
   const [life, setLife] = useState<OpenLife | null>(null);
+  const [, refresh] = useState(0);
   const [ui, setUi] = useState<{ error?: Parameters<OpenContext['show']>[0]; opening: boolean }>({
     opening: false,
   });
@@ -195,24 +209,25 @@ function useDocumentOpen(
     setUi(error === undefined ? { opening } : { error, opening });
   const board = useRef<OpenContext | null>(null);
   if (!board.current) {
-    board.current = openContext(client, key, header, access, show);
+    board.current = openContext(client, key, header, access, show, scope);
   }
   const ctx = board.current;
   ctx.show = show;
   ctx.header = header;
   ctx.key = key;
   ctx.client = client;
+  ctx.scope = scope;
   useEffect(() => {
-    const next: OpenLife = { alive: true, access: accessNow.current, query: undefined };
+    const next = { ...binding, alive: true, access: accessNow.current, query: undefined };
     ctx.life = next;
-    const stop = watchOpen(ctx);
+    const stop = watchOpen(ctx, () => refresh((revision) => revision + 1));
     setLife(next);
     setUi({ opening: false });
     return () => {
       next.alive = false;
       stop();
     };
-  }, [ctx, client, key, scope]);
+  }, [ctx, binding]);
   const mutation = useMutation({
     mutationKey: [...key, 'open'],
     retry: false,
@@ -226,6 +241,7 @@ function useDocumentOpen(
   };
   return {
     ...mutation,
+    documents: () => readReadyData(ctx, life, observer),
     mutate,
     error: ui.error,
     isPending: ui.opening,

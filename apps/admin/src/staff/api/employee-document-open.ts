@@ -14,6 +14,9 @@ export type OpenAccess = {
   active: (operation: OpenOperation) => boolean;
 };
 export type OpenLife = {
+  scope: object;
+  client: QueryClient;
+  key: readonly string[];
   alive: boolean;
   access: OpenAccess;
   query: object | undefined;
@@ -33,6 +36,7 @@ type Attempt = {
   life: OpenLife;
 };
 export type OpenContext = {
+  scope: object;
   client: QueryClient;
   key: readonly string[];
   header: { 'x-company-id': string };
@@ -78,6 +82,22 @@ function witnessed(life: OpenLife, client: QueryClient, key: readonly string[]) 
   const current = installed(client, key);
   return life.alive && life.query !== undefined && life.query === current;
 }
+// تاريخ القراءة للعمر والـquery، لكن بيانات العرض والصلاحية لازم تفضل الحالية.
+export function readReadyData<T>(
+  ctx: OpenContext,
+  life: OpenLife | null,
+  observer: { data: T | undefined; isSuccess: boolean; isError: boolean },
+): T | undefined {
+  if (!life || life !== ctx.life || life.scope !== ctx.scope) return undefined;
+  if (life.client !== ctx.client || !sameKey(life.key, ctx.key)) return undefined;
+  if (!witnessed(life, ctx.client, ctx.key)) return undefined;
+  const query = installed(ctx.client, ctx.key);
+  if (query?.state.status !== 'success' || query.state.data === undefined) return undefined;
+  if (!observer.isSuccess || observer.isError || observer.data !== query.state.data)
+    return undefined;
+  if (!life.access.active(life.access.begin())) return undefined;
+  return query.state.data as T;
+}
 function authorized(attempt: Attempt, ctx: OpenContext) {
   return (
     witnessed(attempt.life, ctx.client, ctx.key) &&
@@ -122,15 +142,34 @@ function noteRead(event: QueryCacheNotifyEvent, ctx: OpenContext) {
   if (event.query.state.status !== 'success') return;
   ctx.life.query = event.query;
 }
-export function watchOpen(ctx: OpenContext) {
+export function watchOpen(ctx: OpenContext, refresh: () => void) {
+  const { life, client, key, scope } = ctx;
+  const current = () =>
+    life.alive &&
+    ctx.life === life &&
+    ctx.client === client &&
+    ctx.scope === scope &&
+    ctx.key === key;
   const reconcile = () => {
+    if (!current()) return;
     const attempt = ctx.pending;
     if (attempt?.owned && attempt.handle.closed) revoke(ctx, attempt, true, true);
   };
-  const unsubscribe = ctx.client.getQueryCache().subscribe((event) => {
+  const unsubscribe = client.getQueryCache().subscribe((event) => {
+    if (!current() || !sameKey(event.query.queryKey, key)) return;
     noteRead(event, ctx);
     const attempt = ctx.pending;
     if (attempt && !authorized(attempt, ctx)) revoke(ctx, attempt, true, false);
+    const changed =
+      event.type === 'updated' && ['success', 'error', 'setState'].includes(event.action.type);
+    if (event.type === 'removed' || changed) {
+      ctx.schedule(() => {
+        if (!current()) return;
+        // لا نعيد إنشاء query خطأ أُزيلت، حتى لو جُدول الإشعار قبل إزالتها.
+        if (event.query.state.status === 'error' && !installed(client, key)) return;
+        refresh();
+      });
+    }
   });
   window.addEventListener('focus', reconcile);
   document.addEventListener('visibilitychange', reconcile);

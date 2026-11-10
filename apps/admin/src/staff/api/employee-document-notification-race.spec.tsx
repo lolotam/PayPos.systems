@@ -47,13 +47,13 @@ const view = {
   ],
 };
 
-it('regression: refuses a late download before the denial observer render runs', async () => {
+it.each([403, 404])('regression: denial before observer render (%i)', async (status) => {
   let resolveDownload!: (value: unknown) => void;
   const download = new Promise((resolve) => {
     resolveDownload = resolve;
   });
   api.GET.mockResolvedValue({ data: view });
-  api.POST.mockReturnValue(download);
+  api.POST.mockReset().mockReturnValue(download);
   const opened = popup();
   vi.spyOn(window, 'open').mockReturnValue(opened as unknown as Window);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -64,11 +64,12 @@ it('regression: refuses a late download before the denial observer render runs',
   );
   fireEvent.click(await screen.findByRole('button', { name: t('en', 'employeeDocuments.open') }));
   await waitFor(() => expect(api.POST).toHaveBeenCalledOnce());
+  const reads = api.GET.mock.calls.length;
   const notifications: (() => void)[] = [];
   notifyManager.setScheduler((callback) => notifications.push(callback));
   api.GET.mockResolvedValue({
     error: { code: 'FORBIDDEN', message_en: 'Denied', message_ar: t('ar', 'errors.FORBIDDEN') },
-    response: { status: 403 },
+    response: { status },
   });
   await act(async () => {
     await client.refetchQueries({ queryKey: key });
@@ -83,11 +84,12 @@ it('regression: refuses a late download before the denial observer render runs',
   await waitFor(() => expect(client.isMutating()).toBe(0));
   expect(opened.close).toHaveBeenCalledOnce();
   expect(opened.location.assign).not.toHaveBeenCalled();
-  await act(async () => {
-    for (const notify of notifications.splice(0)) notify();
-  });
+  await drainNotifications(notifications);
   expect((await screen.findByRole('alert')).textContent).toBe('Denied');
   expect(screen.queryByText('Synthetic paper')).toBeNull();
+  expect(api.GET).toHaveBeenCalledTimes(reads + 1);
+  expect(client.getQueryCache().findAll({ queryKey: key })).toEqual([]);
+  expect(opened.location.assign).not.toHaveBeenCalled();
 });
 
 function deferred() {
@@ -101,6 +103,33 @@ function renderDocuments(client: QueryClient) {
       <EmployeeDocumentsSection companyId={id} businessId={id} userId={id} employeeId={id} />
     </QueryClientProvider>,
   );
+}
+async function drainNotifications(queue: (() => void)[]) {
+  for (let turn = 0; queue.length > 0 && turn < 10; turn += 1) {
+    const batch = queue.splice(0);
+    await act(async () => {
+      for (const notify of batch) notify();
+    });
+  }
+  expect(queue).toHaveLength(0);
+}
+async function completeRead(client: QueryClient, queue: (() => void)[], afterRebind: boolean) {
+  const read = deferred();
+  const genuine = vi.fn(() => read.promise);
+  let reading!: Promise<unknown>;
+  await act(async () => {
+    reading = client.query({ queryKey: key, queryFn: genuine, staleTime: 0 });
+  });
+  if (afterRebind) await drainNotifications(queue);
+  let rebound = false;
+  await act(async () => {
+    read.resolve(view);
+    await reading;
+    const current = client.getQueryCache().find({ queryKey: key, exact: true });
+    rebound = (current?.getObserversCount() ?? 0) > 0;
+  });
+  expect(rebound).toBe(afterRebind);
+  expect(genuine).toHaveBeenCalledOnce();
 }
 
 it('permanently invalidates key disappearance before restoration and isolates its successor', async () => {
@@ -146,37 +175,61 @@ it('permanently invalidates key disappearance before restoration and isolates it
   expect(pending.location.assign).not.toHaveBeenCalled();
 });
 
-it('does not revive an attempt when its query is removed and recreated', async () => {
+it.each(['before', 'after'] as const)('%s-rebind read keeps old open invalid', async (order) => {
   const download = deferred();
   api.GET.mockResolvedValue({ data: view });
+  api.POST.mockReset();
   api.POST.mockReturnValueOnce(download.promise).mockResolvedValueOnce({
     data: { download_url: 'https://storage.test/recreated', expires_in: 60 },
   });
   const pending = popup();
+  const successor = popup();
   vi.spyOn(window, 'open')
     .mockReturnValueOnce(pending as unknown as Window)
-    .mockReturnValueOnce(popup() as unknown as Window);
+    .mockReturnValueOnce(successor as unknown as Window);
   const client = new QueryClient();
   renderDocuments(client);
   fireEvent.click(await screen.findByRole('button', { name: t('en', 'employeeDocuments.open') }));
   await waitFor(() => expect(api.POST).toHaveBeenCalledOnce());
+  const old = client.getQueryCache().find({ queryKey: key, exact: true });
+  const notifications: (() => void)[] = [];
+  notifyManager.setScheduler((callback) => notifications.push(callback));
+  const observerRead = deferred();
+  const readsBefore = api.GET.mock.calls.length;
+  api.GET.mockReturnValue(observerRead.promise);
   act(() => {
     client.removeQueries({ queryKey: key });
     client.setQueryData(key, view);
   });
+  const installed = client.getQueryCache().find({ queryKey: key, exact: true });
+  expect(old).toBeDefined();
+  expect(installed).toBeDefined();
+  expect(installed).not.toBe(old);
   expect(pending.close).toHaveBeenCalledOnce();
   await act(async () =>
     download.resolve({ data: { download_url: 'https://storage.test/stale', expires_in: 60 } }),
   );
   expect(pending.location.assign).not.toHaveBeenCalled();
-  const genuine = vi.fn(async () => view);
-  await act(async () => {
-    await client.query({ queryKey: key, queryFn: genuine, staleTime: 0 });
-  });
-  expect(genuine).toHaveBeenCalledOnce();
-  expect(await screen.findByText('Synthetic paper')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeDocuments.open') }));
-  await waitFor(() => expect(api.POST).toHaveBeenCalledTimes(2));
+  try {
+    await completeRead(client, notifications, order === 'after');
+    expect(client.getQueryCache().find({ queryKey: key, exact: true })).toBe(installed);
+    expect(api.GET.mock.calls.length - readsBefore).toBe(0);
+    await drainNotifications(notifications);
+    const button = await screen.findByRole('button', {
+      name: t('en', 'employeeDocuments.open'),
+      hidden: false,
+    });
+    expect(getComputedStyle(button).visibility).toBe('visible');
+    expect(button.hasAttribute('disabled')).toBe(false);
+    fireEvent.click(button);
+    await waitFor(() => expect(api.POST).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(successor.location.assign).toHaveBeenCalledWith('https://storage.test/recreated'),
+    );
+    expect(pending.location.assign).not.toHaveBeenCalled();
+  } finally {
+    await act(async () => observerRead.resolve({ data: view }));
+  }
 });
 
 it('does not grant fresh read from a removed query or a manual restore', async () => {
@@ -214,4 +267,73 @@ it('does not grant fresh read from a removed query or a manual restore', async (
   });
   expect(api.POST).toHaveBeenCalledOnce();
   expect(opened).toHaveBeenCalledOnce();
+});
+
+type Documents = ReturnType<typeof useEmployeeDocuments>;
+function ReadinessProbe({
+  employee = id,
+  retain,
+}: {
+  employee?: string;
+  retain: (value: Documents) => void;
+}) {
+  const result = useEmployeeDocuments(id, id, id, employee);
+  retain(result);
+  return <p>{result.documents?.items[0]?.type_name_en ?? 'Blocked'}</p>;
+}
+it('keeps query identity, current observer data and queued lifetime notifications separate', async () => {
+  api.GET.mockReset().mockResolvedValue({ data: view });
+  const client = new QueryClient();
+  let current!: Documents;
+  const retain = (value: Documents) => {
+    current = value;
+  };
+  const tree = (employee = id) => (
+    <QueryClientProvider client={client}>
+      <ReadinessProbe employee={employee} retain={retain} />
+    </QueryClientProvider>
+  );
+  const mounted = render(tree());
+  await screen.findByText('Synthetic paper');
+  const first = current;
+  const data = client.getQueryData(key);
+  const original = client.getQueryCache().find({ queryKey: key, exact: true });
+  expect(first.documents).toBe(data);
+  const read = deferred();
+  api.GET.mockReturnValue(read.promise);
+  act(() => {
+    client.removeQueries({ queryKey: key });
+    client.setQueryData(key, data);
+  });
+  expect(client.getQueryData(key)).toBe(data);
+  expect(client.getQueryCache().find({ queryKey: key, exact: true })).not.toBe(original);
+  expect(first.documents).toBeUndefined();
+  await screen.findByText('Blocked');
+  await act(async () => read.resolve({ data: view }));
+  await screen.findByText('Synthetic paper');
+  const second = current;
+  const queue: (() => void)[] = [];
+  notifyManager.setScheduler((callback) => queue.push(callback));
+  act(() =>
+    client.setQueryData(key, {
+      ...view,
+      items: view.items.map((item) => ({ ...item, type_name_en: 'Changed' })),
+    }),
+  );
+  expect(second.documents).toBeUndefined();
+  await drainNotifications(queue);
+  expect(screen.getByText('Changed')).toBeTruthy();
+  expect(current.documents).toBe(client.getQueryData(key));
+  const employee = '01920000-0000-7000-8000-0000000000b2';
+  api.GET.mockReturnValue(deferred().promise);
+  act(() => {
+    client.setQueryData([...key.slice(0, -1), employee], client.getQueryData(key));
+    client.setQueryData(key, view);
+  });
+  expect(queue.length).toBeGreaterThan(0);
+  mounted.rerender(tree(employee));
+  await drainNotifications(queue);
+  expect(current.documents).toBeUndefined();
+  expect(second.documents).toBeUndefined();
+  expect(screen.getByText('Blocked')).toBeTruthy();
 });

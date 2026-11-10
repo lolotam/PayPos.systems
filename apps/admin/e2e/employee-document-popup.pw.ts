@@ -1,5 +1,6 @@
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 import { t, type Locale } from '@pospay/i18n';
+import { installPopupDiagnostics } from './employee-document-popup-diagnostics';
 import {
   ADMIN_ORIGIN,
   DESTINATION_ORIGIN,
@@ -84,34 +85,10 @@ async function holdPastActivation(page: Page, expiry: number) {
 async function sandboxStaff(page: Page, permitted: boolean, locale: Locale) {
   await page.goto(`${DESTINATION_ORIGIN}/blank`);
   await page.setContent(
-    `<iframe id="app" sandbox="allow-scripts allow-same-origin${permitted ? ' allow-popups' : ''}" src="${ADMIN_ORIGIN}/staff"></iframe>`,
+    `<iframe id="app" width="1280" height="720" sandbox="allow-scripts allow-same-origin${permitted ? ' allow-popups' : ''}" src="${ADMIN_ORIGIN}/staff"></iframe>`,
   );
   const frame = page.frameLocator('#app');
-  try {
-    await chooseStaff(frame, locale);
-  } catch (error) {
-    const frames = page.frames();
-    const states = await Promise.allSettled(
-      frames.map((child) =>
-        child.evaluate(() => ({
-          readyState: document.readyState,
-          width: innerWidth,
-          height: innerHeight,
-          workspaceCount: document.querySelectorAll('#workspace-company').length,
-        })),
-      ),
-    );
-    console.error(
-      'sandbox setup failed',
-      JSON.stringify({
-        permitted,
-        locale,
-        frames: frames.map((child) => child.url().split(/[?#]/, 1)[0]),
-        states,
-      }),
-    );
-    throw error;
-  }
+  await chooseStaff(frame, locale);
   return frame;
 }
 async function nativeFocusCycle(page: Page) {
@@ -143,8 +120,17 @@ async function chooseCompany(page: Page, name: string) {
   await page.getByRole('option', { name, exact: true }).click();
 }
 
-test.beforeEach(async () => control('/reset'));
-test.afterEach(async () => expect((await ledger()).unknown).toEqual([]));
+let finishDiagnostics: ((failed: boolean) => Promise<void>) | undefined;
+test.beforeEach(async ({ context }) => {
+  finishDiagnostics = undefined;
+  await control('/reset');
+  finishDiagnostics = await installPopupDiagnostics(context);
+});
+test.afterEach(async () => {
+  const info = test.info();
+  await finishDiagnostics?.(info.status !== info.expectedStatus).catch(() => undefined);
+  expect((await ledger()).unknown).toEqual([]);
+});
 
 test('trusted click isolates a usable blank before delayed handoff after measured activation expiry', async ({
   page,

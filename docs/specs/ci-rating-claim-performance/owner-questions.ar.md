@@ -39,3 +39,24 @@
 > Approve private Redis
 
 التطبيق: container محلي مؤقت واحد ببادئة وlabels للمهمة، منفذ loopback فقط وبيانات اختبار مولدة بصورة مستقلة، بلا volume دائم. اختبارات الصحة المحدودة فقط محلياً؛ مجموعة الأداء تبقى CI-only ولا تُجبر بواسطة CI=true. لا اتصال Redis مشترك أو تغيير خادم أو بيانات إنتاجية أو بيئة أي مهمة أخرى.
+
+## CI-Q3 — فك انتظار worker وadmin مع بقاء الحواجز
+
+الدليل: #914 نجح في worker **2276/2276** ومنها حواجز الأداء **6/6** بلا تغيير، لكن aggregate CI فشل في بوابة admin browser: **8 فشل / 3 نجاح**. لا root cause مثبت بعد، ولا نخلطها تلقائيًا مع unit race السابق. خمس PRs تشغل الخانات الخمس؛ admin مأذون سابقًا بعد خلو الخامسة فقط، و#914 لا يدمج قبل نجاح admin gate.
+
+السؤال الحرفي:
+
+> Worker CI now passes, but #914 is blocked by 8 admin-browser failures; the earlier admin unit-race also remains unresolved. All five slots are occupied, and admin work was approved only after the worker PR merges. Authorize expanding #914 into one CI-unblock PR covering these observed admin blockers as well—an explicit exception to separate-repair/one-use-case PR rules—while keeping five slots, #910–#913 untouched, and every quality gate unchanged?
+
+الخيارات الحرفية:
+
+1. `Expand #914 (Recommended)` — Diagnose admin failures first and review a bounded plan before edits. Keep every gate, the approved Sol/Astra lanes and five slots; no deployment.
+2. `Keep separate and blocked` — Keep #914 worker-only; start no admin repair and make no extra push while awaiting another approved sequencing decision.
+
+التوصية: الأول، كاستثناء صريح محدود للمهمة الحالية بدل فتح خانة سادسة أو تخفيف بوابة أو تعديل المهمات الأربع الأصلية. لا تعديل admin قبل التشخيص ومراجعة الخطة. الأداء والعتبات والتأكيدات لا تُخفّف. السؤال تقني للمالك فقط ولا يُنشر على صفحة الشريك.
+
+إجابة المالك الحرفية عبر أداة السؤال في 2026-11-10:
+
+> Expand #914 (Recommended)
+
+التطبيق: استثناء صريح يسمح بجمع إصلاح worker وإصلاح عوائق admin المرصودة في PR #914 نفسه، مع بقاء الخانات خمسًا والمهمات الأربع #910–#913 بلا تعديل. تبدأ مرحلة admin بالتشخيص وكتابة خطة محدودة ومراجعتها شخصيًا قبل الكود، بمساري Sol/Astra المعتمدين. لا تخفيف بوابة أو threshold أو assertion، ولا E2E ثقيل محلي أو rerun بلا سبب أو merge أو deploy أو تعديل خادم/إنتاج/أسرار. تحديث التدقيق المحلي ليس correction push؛ يحفظ رأس دليل worker حتى تجميع إصلاح ذي صلة ومراجعته وفحصه.
