@@ -1,0 +1,1 @@
+CREATE INDEX CONCURRENTLY "service_lines_discount_proposal_binding_idx" ON "service_lines" USING btree ("company_id","discount_proposal_id","id","business_id","service_id");
