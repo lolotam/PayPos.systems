@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { LeaveReadContext } from './leave-requests.query.ts';
-import { historyDays, historyIds, type HistoryScope } from './leave-history-days.sql.ts';
+import { historyIds, type HistoryScope } from './leave-history-days.sql.ts';
+import { historyLatestAbsence } from './leave-history-last-absence.sql.ts';
 
 export function historyLastTaken(c: LeaveReadContext, s: HistoryScope, asOf: string) {
   // سطر آخر الإجازات في ملف الموظف مستقل عن فترة الصفحات.
@@ -16,7 +17,6 @@ export function historyLastTaken(c: LeaveReadContext, s: HistoryScope, asOf: str
       s.attendanceBranches.length === 0
         ? sql``
         : sql`|| jsonb_build_object('unexcused_absence',
-      (SELECT MAX(working_date) FROM (${historyDays(c, s, asOf, sql``)}) history
-       WHERE NOT leave_any AND NOT session_any))`
+       ${historyLatestAbsence(c, s, asOf)})`
     }`;
 }
