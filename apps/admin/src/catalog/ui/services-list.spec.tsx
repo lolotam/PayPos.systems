@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { ServiceCategoryListItem, ServiceListItem } from '@pospay/contracts';
-import { t } from '@pospay/i18n';
+import { t, type Locale } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
@@ -8,8 +8,9 @@ import { ServicesPage } from '../pages/services-page';
 import { ServiceCategoryFilter } from './service-category-filter';
 
 const get = vi.hoisted(() => vi.fn());
+const localeState = vi.hoisted(() => ({ selected: 'en' as Locale }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: get }) }));
-vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
+vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => localeState.selected }));
 
 const companyId = '01920000-0000-7000-8000-000000000001';
 const businessId = '01920000-0000-7000-8000-000000000002';
@@ -67,7 +68,9 @@ function createQueryClient() {
 
 function wrapper(client: QueryClient) {
   return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    <QueryClientProvider client={client}>
+      <div dir={localeState.selected === 'ar' ? 'rtl' : 'ltr'}>{children}</div>
+    </QueryClientProvider>
   );
 }
 
@@ -82,37 +85,50 @@ function renderPage(client: QueryClient = createQueryClient()) {
   );
 }
 
-beforeEach(() => get.mockReset());
+beforeEach(() => {
+  get.mockReset();
+  localeState.selected = 'en';
+});
 
-it('renders duration and category cells with a closed mark and dashes for missing values', async () => {
-  get.mockImplementation((path: string) => {
-    if (path === '/v1/businesses/{businessId}/service-categories') {
+it.each(['en', 'ar'] as const)(
+  'renders #774 missing cells and populated controls in %s',
+  async (locale) => {
+    localeState.selected = locale;
+    get.mockImplementation((path: string) => {
+      if (path === '/v1/businesses/{businessId}/service-categories') {
+        return Promise.resolve({
+          data: { items: [openCategory], next_cursor: null },
+          response: { status: 200 },
+        });
+      }
       return Promise.resolve({
-        data: { items: [openCategory], next_cursor: null },
+        data: { items: [firstService, secondService], next_cursor: null },
         response: { status: 200 },
       });
-    }
-    return Promise.resolve({
-      data: { items: [firstService, secondService], next_cursor: null },
-      response: { status: 200 },
     });
-  });
-  renderPage();
-  const firstRow = await screen.findByRole('row', { name: /First service/ });
-  expect(within(firstRow).getByText('90')).toBeTruthy();
-  expect(within(firstRow).getByText(t('en', 'catalogServices.minutesShort'))).toBeTruthy();
-  expect(within(firstRow).getByText(/Legacy/).textContent).toContain(
-    t('en', 'catalogServices.categoryClosed'),
-  );
-  const secondRow = screen.getByRole('row', { name: /Second service/ });
-  expect(within(secondRow).getAllByText('—')).toHaveLength(2);
-  expect(
-    screen.getByRole('columnheader', { name: t('en', 'catalogServices.durationColumn') }),
-  ).toBeTruthy();
-  expect(
-    screen.getByRole('columnheader', { name: t('en', 'catalogServices.categoryColumn') }),
-  ).toBeTruthy();
-});
+    renderPage();
+    const firstRow = await screen.findByRole('row', { name: /First service/ });
+    expect(firstRow.closest('[dir]')?.getAttribute('dir')).toBe(locale === 'ar' ? 'rtl' : 'ltr');
+    expect(within(firstRow).getByText('90').getAttribute('dir')).toBe('ltr');
+    expect(within(firstRow).getByText(t(locale, 'catalogServices.minutesShort'))).toBeTruthy();
+    const categoryName = locale === 'ar' ? 'Legacy AR' : 'Legacy';
+    expect(
+      within(firstRow).getByText(
+        `${categoryName} (${t(locale, 'catalogServices.categoryClosed')})`,
+      ),
+    ).toBeTruthy();
+    const secondRow = screen.getByRole('row', { name: /Second service/ });
+    const missingCells = within(secondRow).getAllByRole('cell');
+    expect(missingCells[2]?.textContent).toBe(t(locale, 'catalogServices.missingValue'));
+    expect(missingCells[3]?.textContent).toBe(t(locale, 'catalogServices.missingValue'));
+    expect(
+      screen.getByRole('columnheader', { name: t(locale, 'catalogServices.durationColumn') }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole('columnheader', { name: t(locale, 'catalogServices.categoryColumn') }),
+    ).toBeTruthy();
+  },
+);
 
 it('hides the category filter after a 403 and still renders services', async () => {
   get.mockImplementation((path: string) => {
