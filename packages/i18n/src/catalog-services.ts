@@ -6,6 +6,7 @@ export const catalogServicesEn = {
   listLead:
     'The business menu: price, commission rule and whether the service counts toward tiers.',
   empty: 'No services on this page.',
+  missingValue: '—',
   create: 'Add service',
   title: 'Add service',
   editTitle: 'Edit service',
@@ -50,6 +51,7 @@ export const catalogServicesAr = {
   listTitle: 'الخدمات',
   listLead: 'قائمة خدمات النشاط: السعر وقاعدة العمولة وهل تُحتسب في مجمّع الشرائح.',
   empty: 'لا توجد خدمات في هذه الصفحة.',
+  missingValue: '—',
   create: 'إضافة خدمة',
   title: 'إضافة خدمة',
   editTitle: 'تعديل الخدمة',
