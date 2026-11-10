@@ -108,6 +108,7 @@ async function nativeFocusCycle(page: Page) {
   });
   const other = await page.context().newPage();
   await other.goto(`${DESTINATION_ORIGIN}/blank`);
+  await other.bringToFront();
   await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('hidden');
   await page.bringToFront();
   await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('visible');
@@ -341,6 +342,7 @@ test('a closed blank is replaced before the held response settles', async ({ pag
   await openStaff(page);
   const first = await clickOpen(page);
   await expect.poll(async () => (await ledger()).held).toEqual(['synthetic/civil']);
+  await first.bringToFront();
   await first.close();
   await page.bringToFront();
   await expect(openButton(page)).toBeEnabled();

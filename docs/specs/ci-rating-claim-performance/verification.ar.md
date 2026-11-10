@@ -226,3 +226,56 @@ job `129711631294`، `apps/admin/e2e/employee-document-popup.pw.ts`: **8 فشل 
 أعادت جلسة Sol الأصلية `ses_e3ba5ef4fffetTm46CbT9S3MCz` handoff مصدرًا مجمدًا بلا تعديل أو أمر إضافي. أعاد المدير تدقيق المهمات الخمس: رؤوس #910–#913 الأصلية نظيفة بلا تغيير، وصفر changed-path overlap. ملف رحلة UI وNode fixture وsettle وperformance/harness وworkflows/lockfile بلا تعديل، وworker بلا فرق منذ89dd5cb7. نطاق admin النهائي ستة ملفات كود/اختبار (يشمل helper التشخيص)، ووثائق المهمة الخمس؛ لا ملفات غير متعلقة.
 
 يقبل المدير handoff المصدر والفحوص المحلية لنشر **تصحيح draft واحد مجمع** بموجب CI-Q3، لا قبول أداء/متصفح للرأس الجديد ولا merge readiness. كل failure history محفوظ: lint worker الأولية، unit RED وmock isolation، hook lint وformat ثم P2 في الرحلة الأوسع. لا مراجعات GitHub مطلوبة أو triggers خارجية؛ يبقى draft وتُقرأ نتيجة CI الجديدة بدل rerun للرأس الفاشل. native focus/network/closed blank ما زالت تستلزم الدليل التشخيصي في CI. لا merge أو deploy أو تشغيل خدمة مشتركة.
+
+## نتيجة الرأس المجمع15b4dc13 — worker ناجح، browser ما زال مرفوضًا
+
+نُشر commit `15b4dc1322d50b6a20801e3a2449c745653a7654` بتصحيح draft واحد. انتهى run `42802761272` **failure**. تحقق المدير من checkout worker ومن GitHub API: merge `c22bfff4034e7e55778a5f2a81376373561b7d1b`، والداه main الحالي `ff551062ce56a9a57cd6aa7a9abd6f67e1a2bbb2` والرأس المجمع. نجح check العام وAPI shards الأربعة وbuild وDocker؛ فشل browser وci-gate فقط. بقي draft ومراجعات/طلبات GitHub فارغة؛ لا rerun أو correction آخر أو merge/deploy.
+
+worker job `129784268590`: **2276/2276** في **271 ملفًا**، والأداء غير المعدل **6/6**. Redis7.4.12، image السابقة نفسها؛ كل20 warmup و100 sample محفوظة. patch p95 للحالات الخمس: **9.780707 / 10.149432 / 7.895066 / 17.616774 / 18.265097ms**؛ maxima: **16.879222 / 12.569679 / 10.463025 / 71.232066 / 91.144759ms**. صفحات75 تسوية: baseline **400.172222ms**، patch **505.265938ms**؛ النجاح لا يعني أسرع من baseline التاريخية. بيانات الحالات والصفحات محفوظة في JSON خارجي؛ لا تخفيف لأي حد.
+
+browser job `129789384597`: **8 فشل / 3 نجاح**. الرصد الجديد عمل في CI وأعطى دليلًا أدق من التشغيل السابق:
+
+- sandbox تجاوز إعداد workspace هذه المرة وأكمل denied العربي بلا POST ثم permitted control. ظهر POST download واحد وresponse200 وfinish واحد، لكن popup بقيت `about:blank` بدل destination عند E2E183. إصلاح حجم iframe أزال حاجز الإعداد المرصود؛ handoff نفسه لم ينجح ولا سبب فشله مثبت بعد.
+- حالتا network عند192 و261: بعد release المراجعة، يوجد start download واحد ولا response أو finish أو requestfailed حتى المهلة؛ placeholder لم تُغلق. هذا دليل طلب pending، لا إثبات وصول رفض fetch للمنتج. لا ننسبه إلى browser retry أو load بلا دليل إضافي.
+- أربع حالات عند nativeFocusCycle111 ظلت visible بدل hidden. الرصد يظهر صفحات الأصل والـblank visible وfocused مع focus0/visibility changes0، ولم يصدر GET denial بعد GET200 الأول. لذلك assertions الخاصة بسحب الإذن لم تُبلَغ بعد؛ لا يُستنتج فشل authorizer من هذا التوقف.
+- closed blank عند346: الرصد closed=[false,true] يؤكد أن popup أُغلقت، لكن الأصل بقي visible/focused بلا focus أو visibility event، والزر ظل disabled. آلية Playwright focus emulation المثبتة سابقًا متسقة مع الرصد، لكنها ليست تجربة counterfactual مثبتة بعد.
+
+نجحت trusted-click delayed handoff، وemployee/panel/workspace cancellation، وCOOP/attachment observations. لا ادعاء أن window.close أو navigation يفشلان في كل السياقات. قائمة artifacts ستة telemetry فقط بلا browser trace/screenshot/error-context. سجل stdout التشخيصي آمن بفئات/counts، لا يُعوّض assertions الأصلية.
+
+المدير أعاد قراءة ملفَي E2E/Node fixture وسجلات الفشل قبل أي اقتراح. أُعيدت الأدلة إلى جلسة Astra الاستشارية القائمة لتشخيص read-only وخطة تجارب native/transport/sandbox منفصلة. **لا كتابة كود أو تعديل sandbox flags أو focus emulation/CDP/headed/config أو transport fixture مأذون بهذه الإحالة**. source657/sقف700/hard800 كما هي؛ أي نطاق لاحق يحتاج مراجعة قبل التنفيذ. initial handoff السابق مقبول؛ تصحيحات الكود اللاحقة تتبع مسار correction المعتمد، ولا تعيد المحاولة إلى عامل initial لتجاوز هذه القاعدة. هذا تحديث تدقيق محلي فقط بلا push جديد.
+
+## المشورة اللاحقة وعائق مسار التصحيح
+
+اكتملت مشورة Astra: لا دليل جديد يبرر تعديل worker أو readiness الإنتاجية. أقوى آلية هي focus emulation المثبتة في Playwright مع foreground غير مُثبتة؛ أصغر تجربة تالية اختيار foreground صراحة للمنافسة/popup مع إبقاء emulation وكل التأكيدات والمهل كما هي، نحو6–12 إضافة+حذف ضمن43 المتبقية من700. تعطيل emulation عبر CDP، أو observation security عبرLog، أو stimulus نقل HTTP ناقصة تحتاج اعتمادًا منفصلًا قبل الكود؛ لا تعديل sandbox permissions أو retention opener أو تنقل Playwright مصطنع. response.destroy مع control200 لا يثبت fetch rejection؛ يلزم أولًا عدّ server download/held أو close evidence آمن. مراجعة scope الأشمل65–110 ترفع الإجمالي722–767 فتتجاوز700، لا تُنفذ ضمن الحد الحالي.
+
+تحقق المدير من نتائج check على الرأس نفسه: admin **1679/1679**، ومنها رحلة الوصول14 واختبار notification-race7. هذا يثبت نجاح وحدة CI الحالية ولا يُحوّل browser إلى نجاح. الأصل أربعة PRs بقيت على الرؤوس المنشورة نفسها.
+
+عائق التفويض: catalog الحالية لا تعرض Kimi القياسي `kimi-code-plan-global/k3.1-pro`؛ تعرضHighspeed وalias غير مثبت الهوية فقط. لا يُستبدل النموذج/السرعة أو يُعامل غياب model كفشل quota. سجل المدير CI-Q4 بخيارات تمكين القياسي، أو استثناء Sol medium جديدة لهذه المهمة فقط، أو إبقاء العائق. لا عامل تصحيح أو تعديل كود/CI push جديد حتى قرار المسار والتحقق منه. هذه مراجعة دورة المهمة نفسها، لا reset لميزانية الجولات ولا فتح task سادس.
+
+تصحيح لاحق للعائق المعلن: أجاب المالك CI-Q4 بـ`Enable standard Kimi (Recommended)`، ثم أعاد المدير البحث مع `all: true` فوجد `kimi-code-plan-global/k3.1-pro` نفسهactive. المرشح newest-only السابق أخفاه؛ سؤال المالك كان غير لازم بسبب بحث المدير المحدود، لا غياب حقيقي أو quota. لا إعداد أو provider أو credential تغيرت. مسار التصحيح القياسيhigh متاح ومتحقق منه الآن، بلاHighspeed أو alias أو استثناءSol.
+
+المدير يعتمد أصغر تجربة فقط بعد قراءة المصدر والمشورة: داخل nativeFocusCycle يُضاف foreground صريح للمنافس قبل hidden assertion؛ وفي closed-blank يُجعل popup الأصلية foreground قبل إغلاقها، مع بقاء parent.bringToFront وكل assertion/مهلة وسيناريو كما هي. هدف2–12 إضافة+حذف، سقف12 فوق657، أي<=669 وداخل700/hard800. لا CDP/launch/transport/sandbox permissions أو إنتاج. عامل تصحيحKimi جديد مستقل يملك هذه المتابعة وحدها، لا إعادة استعمالSolinitial ولا reset للجولات. المدير يقرأ كل سطر قبل checks والمراجعة وpush التشخيصي المراجع التالي؛ فشل unchanged native assertions يبقى دليلًا لا يُخفف.
+
+## availability لمسار Kimi — المحاولة الأولى فشلت بالمصادقة
+
+الجلسة الجديدة `ses_e39f84b8effewnn9UiKL7Ozd5r` على `kimi-code-plan-global/k3.1-pro#high` انتهت بخطأ الأداة الحرفي: `The API Key appears to be invalid or may have expired. Please verify your credentials and try again.` تحقق المدير من Git بعد النهاية: لا تعديل في E2E أو وثائق spec/plan/diagnosis المأذونة للعامل؛ بقيت فقط تحديثات التدقيق الخاصة بالمدير. لا ادعاء تشغيل أو إنجاز ولا إصلاح credential/config/login.
+
+بدأ المدير محاولة availability ثانية واحدة على النموذج والجلسة نفسيهما وفق PP-112 بعد التأكد من انتهاء الأولى. لا fallback قبل نتيجتها، ولا إعادة تفسير خطأ API key كنفاد quota. كل حدود الكود والقراءة والأمان والجولات كما هي؛ النتيجة **PENDING**، ولا push أو runtime check جديد.
+
+المحاولة الثانية انتهت بخطأ المصادقة الحرفي نفسه. أعاد المدير فحص Git: لا كتابة كود أو وثائق عامل بعد المحاولتين. لا transport Kimi CLI مثبتة في الأدوات الحالية؛ catalog coding-plan لـMiniMax Flash لا تعرض thinking المطلوبة، ولم يُفوض provider آخر أو variant مخمنة. سجل CI-Q5 ينتظر إعادة تسجيل دخول Kimi من المالك أو استثناءSol medium جديدة لهذه المهمة فقط. هذه قيود تعذر عرض المسار، لا نتائج فشل مخترعة للمسارات غير المجربة. لا credential في المحادثة ولا محاولة ثالثة حتى تأكيد إعادة المصادقة/قرار المالك؛ كود15b4dc13 ونتيجة CI كما هما.
+
+أجاب المالك CI-Q5 بـ`Restore Kimi login (Recommended)`. ننتظر تأكيده بعد إعادة المصادقة؛ الاختيار وحده ليس إثبات login ناجحة. لا استثناءSol أو fallback جديد، ولا محاولة ثالثة/كود/push حتى التأكيد. يبقى الرأس15b4dc13 وCI browser مرفوضة وتجربة foreground غير منفذة.
+
+أكد المالك لاحقًا حرفيًا `I ALREADY REAUTH FOR KIMI CLI`. نفّذ المدير probe مصادقة فقط عبر provider التفويض القياسي نفسه، بلا تفويض قراءة/كتابة أو brief التنفيذ. عاد خطأ API key الحرفي نفسه. هذا فشل `kimi-code-plan-global` في الأداة، وليس دليلًا على أن تسجيل CLI الذي أكده المالك فشل. لا transport CLI أصلية ظاهرة في الأدوات الحالية، ولا نساوي login CLI باتصال API provider أو نطلب إعادة login نفسه. لا إعادة محاولة أو external CLI أو تغيير credential/provider تلقائي؛ التصحيح متوقف حتى إتاحة transport التفويض المناسبة أو اعتماد بديل صريح. كود15b4dc13 بلا تعديل.
+
+وجه المالك مباشرة إلى `opencode GLM 5.3 flash coding plane`؛ سجل CI-Q6 يحتفظ بقوله الحرفي. تحقق المدير من النموذج الفعلي `zai-coding-plan/glm-5.3-flash#high` في catalog؛ Coding Plan لا Free/Highspeed. يبدأ عامل تصحيحGLM جديد بالتفويض المدمج وبنفس النطاق ذي السطرين وحدوده ومراجعةAstra؛ لا تعديلconfig عام أو credential أو externalCLI. محاولاتKimi انتهت بلا كتابة، ولا تصفير لميزانية الجولات. كل نتائجGLM **PENDING** حتى التسليم والتحقق الشخصي.
+
+## تحقق تصحيح GLM ذي السطرين قبل النشر
+
+سلّمت جلسة `ses_e3998ff5cffehMw5vyZy2lSqcf` على `zai-coding-plan/glm-5.3-flash#high` المصدر فقط بلا أوامر. قرأ المدير الفرق كاملًا: **+2/−0** في E2E فقط؛ foreground للمنافس قبل hidden، وforeground للـblank الأصلية قبل إغلاقها، مع بقاء parent foreground وكل الـ11 سيناريو والتأكيدات والمهل وعدادات830 كما هي. أُلحق توثيق worker بالوثائق الثلاث فقط؛ سجلا المالك والتحقق بقيا عند المدير.
+
+الفحوص الفعلية بعد قراءة الفرق: main/e2e typecheck ناجحان؛ lint صفر أخطاء/14 تحذيرًا قائمة؛ scoped Prettier وdiff check ناجحان؛ docs lint صفر أخطاء/29 تحذيرًا قائمة؛ module-map ناجح. مجموعة jsdom المراجعة غير instrumented نجحت **44/44 في ستة ملفات، صفر skipped، exit0، 29.43s**. لا E2E أو أداء ثقيل محلي، ولا ادعاء أن jsdom تثبت foreground/native events.
+
+عدّ المدير الفعلي مقابل base: **659 = 265 worker + 394 admin**، أي زيادة2 فقط مقابل657، داخل حد12/669 والسقف700/hard800. تدقيق المهام الخمس: صفر overlap، الأربعة الأصلية نظيفة على الرؤوس المنشورة نفسها. لا فرق آخر في production أو worker أو diagnostic helper أو transport fixture أو Playwright config أو workflow أو lockfile منذ15b4dc13.
+
+مراجعة Astra مستقلة جديدة `ses_e39909cebffeIPFyhteE6dtoUY` أكدت **لا عيب فعلي ولا تعديل كود لازم** في التصحيح. API `Page.bringToFront()` مدعومة؛ hidden→visible وعدادات focus/visibility وتأكيدات successor/late settlement بقيت. المراجعة static/read-only لا أوامر أو runtime. يقبل المدير handoff التجربة للنشر المراجع فقط، لا قبول browser أو merge. تبقى نتيجة فرضية foreground في CI وحدها؛ أي CDP/launch/fixture/sandbox تغيير يحتاج مراجعة منفصلة، ولا يُخفف assertion إن بقي فاشلًا.
