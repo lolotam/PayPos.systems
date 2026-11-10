@@ -2,26 +2,12 @@
 import {
   employeeDocument,
   employeeDocumentsView,
+  fileDownload,
   type EmployeeDocumentFormValues,
 } from '@pospay/contracts';
-import {
-  notifyManager,
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type QueryClient,
-} from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiClient } from '@/shared/api/client';
-import {
-  beginOpen,
-  releaseUnconsumed,
-  settle,
-  watchOpen,
-  type OpenAccess,
-  type OpenContext,
-  type OpenLife,
-} from './employee-document-open';
 import { uploadDocumentFile, type UploadPhase } from './upload-document-file';
 
 export interface DocumentSubmission {
@@ -57,7 +43,24 @@ export function useEmployeeDocuments(
       return context ? client.invalidateQueries({ queryKey: context.key }) : undefined;
     },
   });
-  const open = useDocumentOpen(client, key, params.header, scope, { begin, active });
+  const open = useMutation({
+    mutationKey: [...key, 'open'],
+    retry: false,
+    mutationFn: async (storageKey: string) => {
+      const operation = begin();
+      if (!active(operation)) return undefined;
+      const result = await apiClient().POST('/v1/files/download', {
+        params: { header: params.header },
+        body: { storage_key: storageKey },
+      });
+      if (result.error) throw result.error;
+      return { download: fileDownload.parse(result.data), operation };
+    },
+    onSuccess: (result) => {
+      if (result && active(result.operation))
+        window.open(result.download.download_url, '_blank', 'noopener');
+    },
+  });
   const resetRecord = record.reset;
   const resetOpen = open.reset;
   useEffect(() => {
@@ -156,81 +159,6 @@ function useDocumentAccess(scope: object, key: string[]) {
     );
   };
   return { current, begin, active };
-}
-
-function openContext(
-  client: QueryClient,
-  key: string[],
-  header: { 'x-company-id': string },
-  access: OpenAccess,
-  show: OpenContext['show'],
-): OpenContext {
-  return {
-    client,
-    key,
-    header,
-    life: { alive: false, access, query: undefined },
-    registry: new Map(),
-    pending: null,
-    opening: null,
-    generation: 0,
-    show,
-    schedule: notifyManager.schedule,
-  };
-}
-function useDocumentOpen(
-  client: QueryClient,
-  key: string[],
-  header: { 'x-company-id': string },
-  scope: object,
-  access: OpenAccess,
-) {
-  const accessNow = useRef(access);
-  accessNow.current = access;
-  const [life, setLife] = useState<OpenLife | null>(null);
-  const [ui, setUi] = useState<{ error?: Parameters<OpenContext['show']>[0]; opening: boolean }>({
-    opening: false,
-  });
-  const show = (error?: Parameters<OpenContext['show']>[0], opening = false) =>
-    setUi(error === undefined ? { opening } : { error, opening });
-  const board = useRef<OpenContext | null>(null);
-  if (!board.current) {
-    board.current = openContext(client, key, header, access, show);
-  }
-  const ctx = board.current;
-  ctx.show = show;
-  ctx.header = header;
-  ctx.key = key;
-  ctx.client = client;
-  useEffect(() => {
-    const next: OpenLife = { alive: true, access: accessNow.current, query: undefined };
-    ctx.life = next;
-    const stop = watchOpen(ctx);
-    setLife(next);
-    setUi({ opening: false });
-    return () => {
-      next.alive = false;
-      stop();
-    };
-  }, [ctx, client, key, scope]);
-  const mutation = useMutation({
-    mutationKey: [...key, 'open'],
-    retry: false,
-    mutationFn: (token: object) => settle(token, ctx),
-  });
-  const mutate = (storageKey: string) => {
-    if (!life?.alive) return;
-    beginOpen(storageKey, ctx, life, (token) => {
-      mutation.mutate(token, { onSettled: () => releaseUnconsumed(token, ctx) });
-    });
-  };
-  return {
-    ...mutation,
-    mutate,
-    error: ui.error,
-    isPending: ui.opening,
-    isError: ui.error !== undefined,
-  };
 }
 
 type DocumentRecordContext = {
