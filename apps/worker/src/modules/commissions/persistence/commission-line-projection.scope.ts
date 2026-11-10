@@ -1,10 +1,7 @@
-import {
-  lockStatementPeriods,
-  reopenReviewedStatementPeriods,
-  type Tx,
-} from '@pospay/db';
+import { lockStatementPeriods, reopenReviewedStatementPeriods, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
+import type { HeldCommissionLineHead } from '../domain/commission-line-types.ts';
 import type {
   CommissionLineHeadWrite,
   CommissionLinePerformerWrite,
@@ -19,7 +16,9 @@ export type BusinessTimeZoneReader = (
   businessId: string,
 ) => Promise<string | null>;
 
-type HeadRow = { lineId: string; revision: number; period: string };
+type HeadRow = {
+  [Key in keyof HeldCommissionLineHead]: HeldCommissionLineHead[Key];
+};
 
 export function createCommissionLineProjectionScope(
   tx: Tx,
@@ -35,9 +34,14 @@ export function createCommissionLineProjectionScope(
     },
     readHeads: async (lineIds) => {
       if (lineIds.length === 0) return [];
-      const rows = await tx.execute<HeadRow>(sql`SELECT line_id AS "lineId",revision,period
+      const rows = await tx.execute<HeadRow>(sql`SELECT
+        line_id AS "lineId",business_id AS "businessId",session_id AS "sessionId",
+        branch_id AS "branchId",service_id AS "serviceId",customer_id AS "customerId",revision,period
         FROM commission_line_heads
-        WHERE company_id=app_company_id() AND line_id=ANY(ARRAY[${sql.join(lineIds.map((lineId) => sql`${lineId}`), sql`,`)}]::uuid[])`);
+        WHERE company_id=app_company_id() AND line_id=ANY(ARRAY[${sql.join(
+          lineIds.map((lineId) => sql`${lineId}`),
+          sql`,`,
+        )}]::uuid[])`);
       return rows;
     },
     businessTimeZone: (companyId, businessId) => businessTimeZone(tx, companyId, businessId),
@@ -61,25 +65,33 @@ async function replaceLines(
   replacements: readonly CommissionLineReplacement[],
 ): Promise<void> {
   if (replacements.length === 0) return;
-  await upsertHeads(tx, replacements.map((replacement) => replacement.head));
+  await upsertHeads(
+    tx,
+    replacements.map((replacement) => replacement.head),
+  );
   const lineIds = replacements.map((replacement) => replacement.head.lineId);
   await tx.execute(sql`DELETE FROM commission_lines
-    WHERE company_id=app_company_id() AND line_id=ANY(ARRAY[${sql.join(lineIds.map((lineId) => sql`${lineId}`), sql`,`)}]::uuid[])`);
-  await insertPerformerRows(tx, replacements.flatMap((replacement) => replacement.rows));
+    WHERE company_id=app_company_id() AND line_id=ANY(ARRAY[${sql.join(
+      lineIds.map((lineId) => sql`${lineId}`),
+      sql`,`,
+    )}]::uuid[])`);
+  await insertPerformerRows(
+    tx,
+    replacements.flatMap((replacement) => replacement.rows),
+  );
 }
 
-async function upsertHeads(
-  tx: Tx,
-  heads: readonly CommissionLineHeadWrite[],
-): Promise<void> {
+async function upsertHeads(tx: Tx, heads: readonly CommissionLineHeadWrite[]): Promise<void> {
   await tx.execute(sql`INSERT INTO commission_line_heads(
     company_id,business_id,line_id,session_id,branch_id,service_id,customer_id,revision,status,
     business_date,period)
     VALUES ${sql.join(
-      heads.map((head) => sql`(
+      heads.map(
+        (head) => sql`(
         app_company_id(),${head.businessId},${head.lineId},${head.sessionId},${head.branchId},
         ${head.serviceId},${head.customerId},${head.revision},${head.status},${head.businessDate},${head.period}
-      )`),
+      )`,
+      ),
       sql`, `,
     )}
     ON CONFLICT (company_id,line_id) DO UPDATE SET
@@ -97,11 +109,13 @@ async function insertPerformerRows(
     company_id,business_id,line_id,branch_id,employee_id,service_id,occurred_at,recorded_at,
     business_date,period,net,net_share,share_bps,rule_kind,rule_pct_bps,rule_fixed_amount,counts,status)
     VALUES ${sql.join(
-      rows.map((row) => sql`(
+      rows.map(
+        (row) => sql`(
         app_company_id(),${row.businessId},${row.lineId},${row.branchId},${row.employeeId},${row.serviceId},
         ${row.occurredAt},${row.recordedAt},${row.businessDate},${row.period},${row.net},${row.netShare},
         ${row.shareBps},${row.ruleKind},${row.rulePctBps},${row.ruleFixedAmount},${row.counts},${row.status}
-      )`),
+      )`,
+      ),
       sql`, `,
     )}`);
 }
