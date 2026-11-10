@@ -136,3 +136,19 @@
 > Approve scoped CDP (Recommended)
 
 التطبيق: worker GLM Coding Plan القائم يعدل E2E وملفات توثيقه المسموح بها فقط؛ يهيئtargets بawait بعدinitialization، ويعطلfocus emulation وحدها، ويثبتparent foreground ثم يصفرعداداتالرصد بعدالتهيئة؛ تُحسب بعد ذلك native transitions الحقيقية فقط، وتُنظفsessions دون حجب assertion الأصلية. لا eventdispatch أو visibility/propertyoverride أو تغييرassertion/timeouts/retries، ولا توسيعLogobserver/transport/sandbox/launch permissions. لا reset للجولات؛ هذا إن نُشر سيكون التصحيح التالي بعد رأسي15b4dc13 وe3cb06cd، وليس task جديدة أو تصريحًا غير محدود بتكرارCI. يبقى قبولnetwork/sandbox غير مثبت.
+
+## CI-Q8 — إذن مباشر باستمرار #914 مع profiling وسقف800
+
+توجيه المالك الحرفي في محادثة المشروع،2026-11-10:
+
+> Authorize the recommended next step for #914 only:
+> 1. Raise the combined soft source ceiling from 700 up to the existing 800-line hard limit for #914 only (keep #910–#913 untouched and retain the 5-slot cap).
+> 2. Authorize a bounded, manager/Astra-reviewed CI-profiling scope (and subsequent reviewed repair rounds if needed for worker max-latency and remaining admin browser sandbox/transport blockers) using zai-coding-plan/glm-5.3-flash#high for implementation and openai/gpt-6-astra#high for advisory and actual-diff review.
+> 3. Grant explicit execution and CI push budget for the reviewed rounds while preserving all thresholds, warmups, sample counts, timeouts, retries, all 11 browser scenarios/assertions, and all quality/merge gates unchanged.
+> Proceed immediately with planning, Astra review, and the next consolidated CI step.
+
+التطبيق: هذا إذن متابعة صريح للمهمة نفسها يتجاوز منعpush رابع التلقائي السابق، لا محو لتاريخ الجولات. بقيت ثلاثةpushes تصحيحية بعدinitialworker منشورة حتى89bf8c6b؛ أولpush متابعة جديد سيكون الرابع تاريخيًا. يحجز المدير الآن حدًا تنفيذيًا متحفظًا أقصاه **ثلاثةpushes متابعة مجمعة ومراجعة** تشملprofiling أولًا ثم إصلاحات مثبتة عند الحاجة؛ يسجل الاستهلاك ولا يتجاوزها دون قرار جديد. لاpush لكلfinding، ولاrerun بلا هدف دليل وتغيير مراجع. تبقى النماذج المحددة نفسها، Astra للمشورة ومراجعةdiff حقيقية مستقلة، وGLM للتنفيذ عبر التفويض المدمج فقط.
+
+السقف الجديد **800 إضافة+حذف لكل المصدر غير التوثيقي** في#914 مقابلbase؛ يشمل fixtures والاختبارات وworkflow وأيscript تشخيصي، بلا إخفاءإعادةتنسيق أو استبعادملفconfiguration. الحالة الحالية693، فالمتبقي107. لا تعديلالأربعةالأصلية أو قواعدها ولاslot سادسة أوexternalreview trigger أوmerge/deploy/server/production/secret. تبقى كلthresholds و20warmups/100samples و75settlements وحدود100/50ms والـtimeouts/retries وكل11سيناريو وتأكيداها كما هي.
+
+أول نطاق مقترح فيplan §24: الإبقاء علىworker suite الطبيعي بوابةً غيرinstrumented؛ خطوةprofiling إضافية منفصلة فيCI#914 فقط، موسومةتشخيصية لا قبولًا، تجمعtimings خارجالفترة المقاسة ورصدGC ومددRedisSLOWLOG المنقاة دون تغييرRedisconfig أوكشفarguments. السماح بـbuild/browser التشخيصيين لـ#914 عندفشلworker فقط معبقاءci-gate يشترطنجاحworker؛ لا reuse لإذن#909، بل نطاقجديد تحتCI-Q8 يراجعAstra قبلالكود. لا إصلاحworker أوsandbox/transport ضمنهذاpushالأول؛ النتائج تحكم خطةالجولةالتالية.

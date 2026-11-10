@@ -261,6 +261,8 @@ jobs:
   worker-tests:
     name: integration · worker
     needs: changes
+    outputs:
+      canonical: ${{ steps.worker-tests-canonical.outcome }}
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -305,10 +307,16 @@ jobs:
 
       # turbo.json chains worker#test → api#test, so selecting the worker through turbo would run the whole api
       # suite again unsharded: the worker is excluded from turbo test and run directly by vitest here.
-      - name: integration · worker
-        run: |
-          pnpm turbo run build --filter=@pospay/worker...
-          pnpm --filter @pospay/worker exec vitest run
+      - name: integration · worker build
+        run: pnpm turbo run build --filter=@pospay/worker...
+      - name: integration · worker tests
+        id: worker-tests-canonical
+        run: pnpm --filter @pospay/worker exec vitest run
+
+      - name: integration · worker profile (#914 CI-Q8 diagnostics)
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.number == 914 && !cancelled() && (steps.worker-tests-canonical.outcome == 'success' || steps.worker-tests-canonical.outcome == 'failure') }}
+        continue-on-error: true
+        run: POSPAY_RATING_CI_PROFILE=1 pnpm --filter @pospay/worker exec vitest run rating-claim-state-performance
 
       # With `continue-on-error`, a telemetry failure shows as step `outcome: failure` while its
       # `conclusion` is `success`, so the gate steps alone decide the job.
@@ -335,8 +343,8 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-  # The build still waits for all existing dependencies. PP-157 permits only PR #909 to diagnose with
-  # worker-tests failed; check/API shards must pass, cancellation/skips stay closed, and ci-gate still requires worker success.
+  # The build still waits for all existing dependencies. PP-157 permits PR #909, and CI-Q8 permits PR #914, to diagnose with
+  # worker-tests failed (PP-157 for #909; CI-Q8 for #914 requires the canonical test step itself to have failed);
   build:
     name: build all apps
     needs: [changes, check, api-tests, worker-tests]
@@ -348,7 +356,10 @@ jobs:
         needs.api-tests.result == 'success' &&
         (needs.worker-tests.result == 'success' ||
           (github.event_name == 'pull_request' && github.event.pull_request.number == 909 &&
-            needs.worker-tests.result == 'failure')) }}
+            needs.worker-tests.result == 'failure') ||
+          (github.event_name == 'pull_request' && github.event.pull_request.number == 914 &&
+            needs.worker-tests.result == 'failure' &&
+            needs.worker-tests.outputs.canonical == 'failure')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

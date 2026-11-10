@@ -8,6 +8,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 import { RATING_CLAIM_STATE_SETTLE } from '../rating-claim-state-settle.lua.ts';
 import { validationHarness, type ValidationWorld } from './rating-claim-state-harness.fixture.ts';
+import { createRatingCiProfiler } from './rating-claim-state-profile.fixture.ts';
 
 const SHA = 'ec26930497f25213b62e2b60bc603af6b9ba3527';
 const NAMES = ['validate', 'acquire', 'lease', 'reserve', 'settle', 'sweep'];
@@ -26,6 +27,7 @@ const CASES = [
 ];
 type Scenario = (typeof CASES)[number];
 type Lane = ReturnType<typeof validationHarness>;
+let scripts: readonly string[];
 
 function command(binary: string, args: readonly string[]) {
   return execFileSync(binary, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -161,7 +163,6 @@ async function wholePage(lane: Lane, scripts: readonly string[]) {
 describe.skipIf(!CI)('CI-only exact counter whole-command performance', () => {
   const lane = validationHarness();
   const { redis, harness, rawStateOf } = lane;
-  let scripts: readonly string[];
   beforeAll(async () => {
     scripts = [baseline(), RATING_CLAIM_STATE_SETTLE];
     const port = String(redis.options.port);
@@ -178,6 +179,7 @@ describe.skipIf(!CI)('CI-only exact counter whole-command performance', () => {
   it.each(CASES)('whole settlePage $settlement/$retries nearCap=$nearCap', async (scenario) => {
     const world = await harness();
     const data = await fixture(world, scenario, await rawStateOf(world));
+    const profiler = await createRatingCiProfiler(redis);
     const samples: number[][] = [[], []];
     const warmups = [0, 0];
     const expectedRetries =
@@ -192,6 +194,7 @@ describe.skipIf(!CI)('CI-only exact counter whole-command performance', () => {
           const started = process.hrtime.bigint();
           const raw = await redis.eval(script, 1, world.key, payload);
           const elapsed = Number(process.hrtime.bigint() - started) / 1_000_000;
+          profiler?.sample(index, block, call, elapsed);
           expect(JSON.parse(String(raw))).toMatchObject({ code: scenario.code, version: 2 });
           const stored = await rawStateOf(world);
           expect(Object.keys(stored['retries'] as object)).toHaveLength(expectedRetries);
@@ -201,6 +204,7 @@ describe.skipIf(!CI)('CI-only exact counter whole-command performance', () => {
           if (block < 2) warmups[index] = (warmups[index] ?? 0) + 1;
           else samples[index]?.push(elapsed);
         }
+        await profiler?.flush();
       }
     }
     expect(warmups).toEqual([20, 20]);

@@ -1,6 +1,6 @@
 # سجل المدير — إصلاح أداء rating claim state
 
-التاريخ: 2026-11-10. الحالة الحالية: آخر رأس منشور في draft #914 هو `e3cb06cd63903317bc36c23dd643992edbf50d7d`؛ CI `42863036938` نجحت فيه worker2276/2276 والأداء6/6، لكن browser بقي8فشل/3نجاح. تجربةCI-Q7 المصححة تحققت محليًا **44/44** وكلاtypecheck والفحوص الأخرى، وأجابت مراجعةAstra الجديدة بلا عيوب فعلية. فرقها34 والإجمالي693/700؛ تقبل للنشر التشخيصي الثالث بعدworker فقط، لا قبولbrowser أو جاهزيةدمج/نشر ولا تصريح بتصحيح رابع تلقائي. الأقسام التالية تحتفظ بتسلسل الإيصالات السابقة.
+التاريخ: 2026-11-10. الحالة الحالية: اكتمل فحص مصدر C4 المحلي ومراجعة Astra المستقلة بلا عيب حاجب؛ المجموع الفعلي800 إضافة+حذف بالضبط، بمافيهworkflow والملفان الجديدان. أذنCI-Q8 بنشرخطوةprofiling مستقلة مع بقاءcanonicalworker وci-gate حاجزين؛ النشر ونتيجةCI الجديدةلميثبتابعد. آخررأسمنشور89bf8c6b وrun42881068407 فاشلة **2274 نجاحًا / فشلان**، وbuild/browser لمتُشغلا. لاقبوللأداءأوCDP منالفحوصالمحلية، ولادمجأونشرخادم. ثلاثpushesمتابعةمحجوزةبحدأقصى، لمتُستهلكقبلنشرهذهالخطوة؛ تاريخالجولاتمحفوظ. الأقسامالتاليةسجلتاريخي؛ إيصالC4 النهائيأدناه يحلمحلالـpending السابقفقط.
 
 ## الصلاحية والعزل
 
@@ -307,3 +307,64 @@ browser job `129789384597`: **8 فشل / 3 نجاح**. الرصد الجديد �
 حسابGit النهائي بعدformat: **+33/−1 =34** فوقe3cb06cd، الإجمالي **693 =428admin+265worker**؛ ضمنهدف20–40 وحد41/700/hard800. auditالمهامالخمس صفرoverlap؛ الأربعةالأصلية نظيفةعلىرؤوسهاالمثبتة؛ worker/production/fixture/diagnosticshelper/config/workflow/lockfile بلافرقجديد. remote main لايزالff551062ce56a9a57cd6aa7a9abd6f67e1a2bbb2 وremote914 لايزالe3cb06cd قبلالنشر.
 
 مراجعةAstra المستقلةالجديدة `ses_e392e8191ffeUww8wq00Za6RC2` قرأتالمصدرالحقيقي وCI-Q7 والوثائقالمصححة وdiagnostics/config والconsumers: **لاعيبفعلي ولاتصحيحلازم قبلpushالتشخيصي**. أكدتawait/ownership/reset/cleanup وبقاءhidden→visible/positivecounters، وOpen-enabled قبلheldrelease وحمايةsuccessor/late-response. مراجعةread-only بلاأوامر أوruntime؛ المديريمتلكإثباتGitوالفحوص. يقبلhandoffلرأسdraftتشخيصيواحد ضمنCI-Q7، وهوالثالثبعدinitialworker89dd5cb7 ثم15b4dc13 ثمe3cb06cd؛ لارابعةتلقائية، ولاإعفاءمنفشلnetwork/sandbox أو externalreviews/backup/merge/release. ننتظرall11browserوالأداءوكلCIعلىالرأسالجديد.
+
+## نتيجة CI-Q7 المنشورة — فشل worker وعدم تشغيل browser
+
+نُشر المصدر المراجع مع وثائق المهمة في commit `89bf8c6be6307556f1c492ef80e5be1385c7c1b3`، بعنوان `test(admin): disable focus emulation for native popup scenarios`، وبقي #914 draft بلا مراجعات أو طلبات خارجية. انتهى monitor الخاص بـrun `42881068407` بخروج1. تحقق المدير من checkout الفعلي وtelemetry وGitHub API: merge `e66a640f8679185ad259625f688d31ec8fe8e03e` ووالداه main الحالي `ff551062ce56a9a57cd6aa7a9abd6f67e1a2bbb2` والرأس المنشور89bf8c6b.
+
+نجحت check وAPI shards الأربعة وimages. فشل worker job `130057234474`: **2274 نجاحًا / فشلان**،270 ملفًا ناجحًا وملف فاشل من271، ومدة587.84s. داخل الأداء **4 نجاحات / فشلان**؛ فشل الاثنان عند `rating-claim-state-performance.spec.ts:215` في شرط `patch.max <= 100ms`. build `130063697884` وbrowser `130063700110` حالتهما **skipped**، وci-gate فشل. لا يجوز وصف ذلك بأنه فشلCDP أو نجاحها: السيناريوهات لم تُنفذ. شرطworkflow في338–351 يتيح build عند فشلworker لـ#909 وحده بموجبPP-157؛ لا ينطبق على#914 ولا يُوسّع ضمنيًا.
+
+كل الأرقام التالية ms، من بيانات السيناريوهات الفعلية:
+
+| السيناريو near-cap | baseline p95 | baseline max المبلغ عنه | patch p95 | patch max الفاشل |
+| --- | --- | --- | --- | --- |
+| TERMINAL/2048 | 21.171132 | 148.407999 | 28.404473 | 163.226140 |
+| RETRY/2047 OVERFLOW | 23.765471 | 235.734363 | 32.497009 | 214.445481 |
+
+حافظ الاثنان على1048448bytes و128bytes headroom و20warmups/100samples لكلvariant. مرت شروطp95 المطلقة والنسبية في السيناريوهات الخمسة؛ لا يُعفي هذا شرطmax. baseline max تجاوز100 أيضًا في البيانات، لكن assertion السطر216 **لم يُبلغ** لأن215 رمى أولًا؛ ليس فشلassertion منفذًا علىbaseline. نجحت حالة75settlements: baseline542.630502 مقابلpatch842.467487؛ النجاح ليس إثبات تسارع.
+
+تطابق worker بين89bf8c6b وe3cb06cd مثبت بالـblobs: validate `aa8c2ea00848d36651ac083ee16003fb80351f65`، performance spec `b3da8e9b123bd554691cc3aefac86b4a31320338`، harness `25892a2e4b64706dfc9cbf00e343b0ddfc3c5a10`. لا تعديلworker أوbenchmark/fixture في التصحيح الأخير. Redis7.4.12 والصورةbb895302 القائمة و4CPUs وload المبلغ عنه لا تثبت سببًا بنيويًا أو عطلrunner، ولا تبيح rerun. سجلاتالاختبارات وtelemetry محفوظة في مجلدالدفعة الخارجي؛ artifact `13794033037` يسجل13build prerequisite cached خلال357ms، لا traces لكلsample أوRedis execution أوNode GC.
+
+## التشخيص المقيد بالقراءة بعد الفشل — لا تعديل أو إعادة تشغيل
+
+استُشير Astra في جلسة `ses_e391c648dffeGEwqhrohvozeBa` بموجب استثناء المشورة الصريح فيCI-Q1/CI-Q3، لا كجولة كود جديدة. النتيجة: **لا عيب شديد جديد مثبت بالمصدر، وسببmax غير محسوم؛ تبقى المهمة محجوبة**. قرأ المدير أيضًا المصدر: timer فيperformance.spec.ts190–196 يحيط بـ`await redis.eval`؛ SET وبناءpayload وJSON.parse وGET والتحقق خارج الفترة. القياس قد يشمل جدولةالعميل والنقل وانتظارRedis وتنفيذه وتسليمreply؛ ليس قياسLua معزولًا.
+
+المصدر يبيّن عملًا قابلًا للقياس مستقبلًا: decode/validate للحالة الكاملة ثمstore/reply encoding؛ terminal يرمز الحالة مرتين، وbyte-overflow retry ثلاثًا، وكلexact_json يبدأcjson ثمnative_tree. لا يثبت عدد هذه العمليات مقدار مساهمتها في قفزاتmax. لا تغيير لها مأذون ضمنCI-Q7، ولا تغييرbaseline أوالfixtures أوالحدود أوالعينات أوالـtimeouts.
+
+استنفد المدير الدليل المتاح المقترح من المشورة: قارن stdout الكامل للسيناريوهات مع run42863036938 الناجح. فيterminal near-cap كان baseline/patch max **24.254810/30.585601** ثم صار **148.407999/163.226140**؛ وفيretry near-cap كان **30.146199/36.600724** ثم **235.734363/214.445481**. p95 بقي في المجال نفسه. فحص نصي موجه للسجلين لم يعثر على إشارات ECONNRESET/ECONNREFUSED/ETIMEDOUT أوreconnect أوOOM المسماة؛ هذا غياب لتلك الإشارات فيstdout، لا برهان غياب stalls. لا sample index/timestamp أوslowlog أوGC trace محفوظة تتيح توزيع الزمن، وmaxima للvariantين ليست قياسات متزامنة. السبب **غير ملتقط**، لاflakiness/load مثبتة.
+
+القرار التنفيذي الحالي: لا كود جديد أوCI جديد أوworkflow exception أوتشغيلثقيل محلي أوتخفيفحاجز؛ لاmerge/deploy أوتبديلprovider. يبقىscope693/700 والرؤوسالأربعةالأصلية بلا تعديل. التوصية التالية للمالك: نطاقCI profiling منفصل ومراجع يحدد هدفالدليل، أثرالرصد وحدودالملفات والحجم وميزانيةالتصحيح وإذنالتنفيذ كلًا علىحدة؛ **لا يُنفذ أو يُنشر** قبل اعتمادصريح جديد. لا يُطلب تكرارالتشغيل بلا تغيير ذيصلة، ولا يُفترض تصريحpush رابع من موافقةCI-Q7 السابقة.
+
+## CI-Q8 — متابعة مأذونة وخطةprofiling راجعهاAstra
+
+أذن المالك مباشرة فيCI-Q8 برفع سقف#914 إلى800hard، وبنطاقprofiling وإصلاحات لاحقة مراجعَة، وحددGLM Coding Plan high للتنفيذ وAstra high للمشورة ومراجعةdiff مع إذنexecution/push وبقاءكلالحواجز. حفظ قوله حرفيًا فيسجل الأسئلة. لا يُعاد تفسير توقفCI-Q7 كمنع بعد هذاالإذن الجديد، ولا يُمحى السجل: أولpush متابعة سيكونالرابع تاريخيًا بعدworker. يحجز المدير ثلاثpushes متابعة كحد متحفظ لهذه النافذة، مجمعةومراجعة واحدًاواحدًا؛ لا ميزانيةغيرمحدودة. تُعد كلsource/tests/fixtures/workflow مقابل800، الحالي693 والمتاح107، والهدفالأول95 إضافية أوأقل. الأربعةالأصلية وخمسالخانات باقية.
+
+كتب المديرplan §24 قبلالكود. راجعAstra فيجلسة `ses_e390712eaffeEZMQNWWUjnh9k6` التصميمread-only، وقبله بتعديل لازم: فصلbuild prerequisite عنcanonicalworker Vitest معبقاءالأمرينحرفيًا، وإظهارoutcome الاختبار الفعلي كـjob output. profiling#914 يُسمحبعدsuccess/failure للاختبارنفسه لاsetupفاشل أوskip/cancellation؛ diagnosticbuild#914 بعدworkerfailure يحتاج canonical-test failure أيضًا، معبقاء#909 وci-gate الأصلية كماهي. قَبِل المديرالتعديل وأدخلهالخطة قبلتفويضالمصدر.
+
+بقيةالقيودالمجمعة: القياسالعاديبوابةflag-off؛ profiling منفصلopt-inفيCIفقط، لايحلنجاحه محلcanonicalfailure. Timingsخارجالفترةالمقاسة، GCمحدودمعfinally/disconnect، SLOWLOGGET128 وCONFIGGETللقيمالرقمية فقط عبرالاتصالالقائم، لاconfigmutation/reset/MONITOR. طرحnumeric fieldsفقط ورفضmalformed/غيرfinite، لاrawarguments أوerrors أوIPs/keys/payloads. رصدSLOWLOG block-associatedقديشملSET/GET لاEVALمحدد، والـtimestampsثوانٍلاتثبتتطابقكلcommand. لاRPCفيcleanup لأنharnessيمتلكquit، ولاhookداخلحلقة75settlements التيتدخلضمنمؤقتهالخارجي. scopeأوليفيworkflow/perfspec/profilerfixture/pureprojectiontests فقط، لاproductionLua أوadminbrowser تعديلفيهذهالدفعة. الفحوص ومراجعةdiffالحقيقية وCIالتالي لمتُنفذبعد؛ المصدريراجَعقبلالأوامر.
+
+### توقف الجدوى وتقليص الخطوة الأولى داخل800
+
+أوقف GLM التنفيذ قبلالكود: تقديرالخطةالكاملة130–148 إضافة+حذف مقابل107 متاحة. تحقق المديربـGit: لاsource/config/test diff ولاuntracked source؛ تعديلاتالعاملفيالثلاثوثائق فقط. توقفٌ صحيح لا فشلتشغيل، ولا استهلاك لأيpush منالثلاث المحجوزة. لايرفع المديرحد800 ولايحذف اختباراتprivacy لاستيعابscope.
+
+اقترح المديرC4 فيplan§26: client timing وقراءةSLOWLOG المنقاة معاختباراتprojection النقية، وتأجيلGC وCONFIG. يبقىفصلbuild/canonical-test وoutcomeالحقيقي وشروط#914/ci-gate كمااعتمدهاAstra. Profiler لكلscenario يبدأقبلالقياس، بلاobserver أوafterAll/RPCcleanup؛ لايغيرحلقة75 أوالحدودأوالعينات. غيابmetadata للthreshold/capacity يُعلن كغيرملتقط؛ failureأولقراءةأوreset للمعرفات لايسمحبنسبةسجلاتقديمةللكتلةالجديدة. اختباراتprojection ورفضmalformed/nonfinite لا تُحذف. المشورةعلىالتقليصpendingقبلإعادةتفويضالكود. إزالة/استبدالinstrumentation الخاصةبالمهمة فيجولةمراجعةلاحقة ممكنةداخلالإذنوالحجموتاريخpushes، وليسترفعًا للحدأوreset؛ أيخروجفعليعن800 أوالميزانيةيتوقف.
+
+### تسليم C4 الأول — عيوب حقيقية قبل أي push
+
+قبلAstra التقليص مع تعديلكلreadfailure لاinitial فقط؛ أدخل المديرالتعديلقبلإعادةتفويضGLM. سلّم العاملأربعةمساراتمصدر. قرأ المديرالـdiff وكل60سطرfixture و15سطرtest وإضافاتالوثائق قبلالأوامر. العدالخام104إضافية، الإجمالي797، بمافيهworkflow وملفانغيرمتعقبين؛ formatter لم يُطبّق بعد. مازالالرأس89bf8c6b ولميُستهلكpushمتابعة.
+
+العيوب المثبتة بالمصدر والفحوص: شرطprofiling الجديديحوي!cancelled وoutcome فقط ولايحويevent/PR914؛ رغمclaimالعامل فإنهسيفتحprofiling لـ#909 وغيرهِ ولـpush main. أثبتتmatrix الخارجيةفشلحالةPR909/pull_request/canonical-success: actualtrue/expectedfalse. جدولit.each يفكطبقةصفوفالاختبار؛ callbackيتلقى[1,NaN,3] مثلًا فيختبررفضrowغيرarray بدلحقلNaN داخلrow. نجحrunnerالنقي **6/6،289ms** لكنه لايثبتالفروعالمقصودة؛ كُلفالعاملبتصحيحالتغليفلاالاكتفاءبالنجاح. وحالةslowlogفارغةبعدbaselineسليم تعطيhighest=-1 ولايدخلشرطhighest>=0، فينتجmissingسالبًا؛ يلزمعَدّهاreset/invalidation معrebaselineالتالي.
+
+`pnpm --filter @pospay/worker run typecheck` نجح. lint فشل: `Arrow function has too many lines (61). Maximum allowed is 60` فيperformance.spec.ts162:76، معتنبيهاتboundaries القائمة. scopedPrettier فشلللـfixture فقط؛ previewبلاكتابة يبيّن60→62سطرًا بسببلفconsole.log. كُلفGLM بتجميعإصلاحPRguard/tables/reset/format ووضعbinding `scripts` فقط فينطاقالملفدونI/O، بحيثتبقىharness/hooks/loadbaseline داخلمجموعةCI، وإزالةabstractionبوابةمصدرةغيرلازمة معinlineguardقياسيةلإبقاء800. لاminify أوتعطيلlint أوتغييرloop/timer/assertion. كلclaimسقفنهائييتوقفحتىعدّGitبعدformat، والفحوصومراجعةAstra تعادعلىالمصدرالمصحح.
+
+راجع المديرمصدرGitHubRunner الرسمي `JobExtension.cs`، موضعEvaluateJobOutput وSetjoboutputs: لايوجدشرطعامبأنjobنجحت قبلإعدادoutputs؛ المخرجاتالفارغةأوالمطابقةللأسرارتُستبعد. هذايدعمآليةoutcomeالمقترحةوليسإثباتنسخةrunner/runtimeلرأسنا؛ يظلشرط914مغلقًاإذاoutcomeلمتصل، ولايُعفىworker. لاprofile/benchmark/browserمحلي أوRedis/DBاتصال، ولاpushأوmerge/deploy.
+
+### إيصال المدير النهائي لمصدر C4 المصحح قبل النشر
+
+قرأ المديرالمساراتالأربعةالمصححة وكلإضافاتالعاملقبلالتنفيذ؛ لاGraphifygraph، فاستُخدمnamed-filefallback. العدالفعلـي مقابلff551062ce56a9a57cd6aa7a9abd6f67e1a2bbb2 هو **800 إضافة+حذف** لكلغيرالتوثيق: زيادة107 فوق693، تتكونمنworkflow18+/7−=25، وperformance5+/1−=6، وfixture61، وtest15. يشملالملفينغيرالمتعقبين؛ Prettierنجحبلاتعديل، فليسعدًاتقديريًا. لاpacking أوتعطيلrule أوحذفassertion. factoryتعيدundefinedقبلRPC دونCIحقيقي+flag1؛ ماتُصدرهSLOWLOGأولثلاثةأرقامفقط، لاarguments أوkeys أوpayloads أوclients أوrawerrors. أيreadfailure/invalidيبطلcoverage، والنجاحالتالييعيدbaselineويستبعدالمتراكم؛ empty/decreasingidsلاتنتجmissingسالبًا. حدودالعشرrecordsبنيويةفيcaller؛ overflowcounterغيرمطبق. GC وCONFIGmetadataمؤجلانصراحة، وrootnon-arraybranchغيرمغطىكاختبارمعلن، لاإثباتإضافيمزعوم.
+
+نتائجالأوامرالجديدةعلىالمصدرالمصحح: worker typecheck وlint ناجحان (تنبيهاتboundariesالقائمة)؛ admin typecheck الرئيسي وE2E ناجحان؛ adminlint صفرأخطاء/**14تحذيرًا قائمة**؛ scopedPrettier للمصدرالأربعةووثائقالمهمةناجح؛ lint:docs صفرأخطاء/**29تحذيرًا قائمة**؛ module-mapناجح؛ runnerprojectionالنقي **6/6،281ms** بلاCI/profiler/Redis/DB؛ runneradminbroader **44/44 في6ملفات،24.74s** بلاخدماتأوE2E؛ matrixYAML/predicatesالخارجية **856assertions ناجحة** معحفظالأمرينcanonical وgate وbrowser. `git diff --check` ناجح. matrixليستGitHub runtimeproof؛ fullcheck/APIshards/workerperformance/profiler/browser لمتُنفذمحليًاوتبقىCI-only.
+
+مراجعةAstraالحقيقيةالمستقلةمنسياقجديد **ses_e38ca3a10ffeD3gCJPL5F6T1Sw**، بالنموذجالمطلوب `openai/gpt-6-astra#high`: **NO BLOCKING FINDINGS**. أكدتcanonicalfailureحاجزًا، وprofilingمحصورًا#914معمنعcancel/skipped/buildprerequisitefailure، وحفظمنطقةالقياسوالحدودوالعيناتوحلقة75، وعدمإظهارحقولSLOWLOGالخاصة، وإبطالcoverageوإعادةbaseline، وحدالعشرrecordsلـcallersالفعلية. هيread-onlyبلاGitأوتشغيل؛ الهويةوالعدوالفحوصمنالمدير. لمتتغيرالمساراتالأربعةبعدالمراجعة. تقبلhandoffمصدريًالـpushتشخيصيواحد، لاتقبلالأداءأوالمتصفحوقبلنتيجتهما؛ failed-joboutputpropagationوفعاليةprofilerوكل11browserسيناريوتبقىدليلالـCIالقادم.
+
+auditجديدللأربعةالأصلية: #910ec6405b9،#911392c4b8d،#91223a8051c،#913ae49eece؛ كلهانظيفةdraft/openعلىرؤوسهاالمنشورةدونتعديل، **صفرpairwisepathoverlap** بينهاوبين#914بمافيهالجديدغيرالمتعقب. remote mainمازالff551062، و#914مازال89bf8c6b/draft/openبلامراجعاتأوطلبات. لاslotسادسةأواتصالبقواعدها. أولpushC4إننجحسيكونالرابعتاريخيًابعدworker، والأولمنثلاثمتابعاتCI-Q8؛ ليسresetأوترخيصrerunأوexternalreview/merge/deploy.
