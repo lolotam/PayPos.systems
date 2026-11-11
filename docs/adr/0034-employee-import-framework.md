@@ -437,3 +437,86 @@ within the unchanged test ceiling; its command, input and measurements are in th
 That ceiling is not a production transaction budget. Limits and atomicity remain
 unchanged; the direct owner instruction authorizes completing the scoped performance
 correction and actual full-limit rerun without another owner decision.
+
+
+## Addendum 2026-11-11 — package sale worker (058 / 42-3b, PP-170)
+
+**Why.** The synchronous package sale (spec 058 FR-018, 42-3b) failed CLAUDE.md §6's 200 ms
+budget for a 20 × 365 = 7,300-slot type in every measured run (918–1,130 ms first, about 820 ms
+at best; `42-3b1-sa10-receipt.md`). PP-165 does not apply: it governs before/after ratio tests,
+and PP-165.1 keeps §6 budgets that have no baseline. Waleed decided on 2026-11-11 (PP-170,
+direct card under PP-117): «Sale as background job (Recommended)». The API answers at once and
+the till polls, like the 47-1 preview (PP-132). Moving a money-creating write behind a worker
+job changes the API/worker boundary, so this addendum records it (CLAUDE.md §1 rule 5). The
+manager's split stands: 42-3b1 is the worker job and the pending-sale state; 42-3b2 is the
+HTTP 202 route and the status route, after 42-3b1 merges.
+
+**API/worker boundary.** The API owns *acceptance*; the orders worker owns the *sale*. The
+acceptance transaction (API, `withTenant`, inside §6's 200 ms) claims the `Idempotency-Key`
+(`sell-package`, COMPANY scope, actor-bound fingerprint as 050 §8), takes the access lock,
+checks `sell:packages:branch` and the `orders` feature (FR-011), reads the recorder's discount
+limit (FR-013), inserts one `package_sale_requests` row `pending` and appends the id-only
+outbox event `PackageSaleRequested { sale_request_id }`, then stores the 202
+`{ sale_request_id }`. It writes no entitlement, component, slot, audit entry or
+`PackageSaleChanged`. The row freezes everything the worker may not recompute from the
+caller: the validated body, branch, recorder user and verified membership (composite FKs),
+the discount limit as `discount_limit_bps` (`NULL` = unlimited) and `recorded_at` from the
+injected clock. As in the 47-2b addendum, the worker consumes that accepted identity and never
+re-authorizes; a revocation after acceptance does not cancel or re-route an accepted sale. It
+sets `app.user_id` to the recorder so the audit entry names who sold. The worker cannot import
+`apps/api`, so the pure sale plan moves into `packages/domain` (api keeps re-export shims, as
+allocation, definition and slots already do) and the worker gets its own narrow readers.
+
+**Transaction ownership.** The whole sale remains **one atomic transaction**, now owned by the
+worker job: lock the request `FOR UPDATE` while `pending` → type `FOR SHARE` → component
+services `FOR SHARE` ascending → seller lock → reads (type, prices, customer, seller, branch
+timezone) → `planPackageSale` → entitlement, components, slots (one multi-row insert per
+table) → audit → `PackageSaleChanged` → request `completed` with `entitlement_id`. Every
+revision, price, discount-limit, customer and seller check runs under those locks, not at
+acceptance, so no check and its write are ever split across transactions. "Now" for the sale
+window and an omitted `sold_at` is `recorded_at`, never the execution instant. The transaction
+adapter takes an explicit budget measured by SA-10's execution run (warmup + five measured
+complete runs, receipt in the slice); like 47-2b it inherits no staff default.
+
+**Idempotency from the 202 into the job.** The `Idempotency-Key` is an API replay guard and does
+not travel into the job: the same key, body and actor replay the stored 202 with the same
+`sale_request_id` (SA-09), so one key maps to exactly one request row and at most one event.
+Inside the worker the request row is the idempotency identity: the BullMQ `jobId` is the outbox
+event id (a duplicate enqueue is dropped), and the sale runs only while the locked row is still
+`pending`. A repeated delivery (outbox redelivery, job retry, stalled-job redelivery) finds it
+`completed` or `failed` and writes nothing. A `BEFORE UPDATE` trigger allows only
+`pending → completed` (with `entitlement_id`, no error) and `pending → failed` (with
+`error_code`, no entitlement), so a finished request is immutable and a second entitlement for
+one request is impossible.
+
+**Retries and partial-failure states.** There is no partial sale: any failure inside the sale
+transaction rolls back all of it. Outcomes:
+
+| Situation | What happens | Request state |
+|---|---|---|
+| Sale commits | one entitlement and its rows, audit, `PackageSaleChanged`, status in the same commit | `completed` + `entitlement_id` |
+| Named refusal (SA-04, SA-05, SA-07, SA-08, SA-08b, SA-08c: revision conflict, stale quote, discount above the frozen limit, unknown customer/type, seller unavailable…) | sale transaction rolls back; a second short transaction marks the still-`pending` row failed; no retry | `failed` + that code and `details` |
+| Unknown/transient error (connection loss, lock timeout, worker crash mid-transaction) | rollback; BullMQ retries with exponential backoff (attempts as the 47-1/47-2 jobs) | stays `pending` |
+| Last attempt fails for an unknown reason | a short transaction marks the row failed | `failed` + `PACKAGE_SALE_FAILED` |
+| The failure-marking transaction itself fails | the job attempt fails and retries; the next attempt re-locks the still-`pending` row and decides again | stays `pending` until decided |
+
+The status route (42-3b2, creator-scoped like the 47-1 preview status) returns
+`200 { status: 'pending' }`, `200 { status: 'completed', entitlement }` (the entitlement the
+former 201 returned), or `200 { status: 'failed', error: { code, details? } }`; any id that is
+unknown, in another company, business or branch, or made by another user is
+`404 PACKAGE_SALE_REQUEST_NOT_FOUND`. Polling is authoritative; SSE is never a source of state.
+After `failed`, reception sells again with a new key; while `pending` the till keeps polling and
+must not resell.
+
+**Deploy ordering.** The worker must be live before any producer exists.
+1. 42-3b1 ships the migration (`package_sale_requests`, trigger, RLS `ENABLE`+`FORCE`, grants,
+   indexes; run as its own step before containers start), the worker transport, processor and
+   use case, with `PackageSaleRequested` registered as a known type on the active orders worker
+   module (ADR-0018 transport), and **no** route, acceptance use case or OpenAPI path. Nothing
+   can create a request in production, so the consumer is inert until 42-3b2.
+2. 42-3b2 (acceptance, 202 route, status route) merges only after 42-3b1 is merged and deployed
+   to staging with the worker's `/ready` including the `package-sale` processor.
+3. Rollback floor: the worker may not be rolled back below 42-3b1 while a 42-3b2 API is live.
+   An older worker rejects and retries the unknown type (47-1b addendum), so no sale is lost,
+   but accepted requests would stay `pending`; roll back the API first, then the worker.
+Final migration numbering, generation and push wait on the manager's migration lane.
