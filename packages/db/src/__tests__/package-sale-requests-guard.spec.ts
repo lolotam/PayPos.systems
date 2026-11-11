@@ -3,6 +3,7 @@ import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { ORDER_IDS, seedOrders } from '../../test/orders-fixture.ts';
+import { insertSaleRequest, type SaleRequestTenant } from '../../test/package-sale-request-fixture.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
 import { seedTwoTenants, TENANT, USER } from '../../test/tenancy-fixtures.ts';
 
@@ -59,11 +60,9 @@ afterAll(async () => {
   await testDb?.drop();
 });
 
-type Tenant = { company: string; business: string; branch: string };
-
 async function asApp<T>(
   work: (tx: postgres.TransactionSql) => Promise<T>,
-  tenant: Tenant = TENANT.A,
+  tenant: SaleRequestTenant = TENANT.A,
 ) {
   return app.begin(async (tx) => {
     await tx`SELECT set_config('app.company_id', ${tenant.company}, true), set_config('app.user_id', ${USER}, true)`;
@@ -71,53 +70,20 @@ async function asApp<T>(
   });
 }
 
-function insertPendingRequest(tx: postgres.TransactionSql, id = randomUUID()) {
-  return tx`
-    INSERT INTO package_sale_requests (
-      company_id, id, business_id, branch_id, recorded_by, recorded_by_membership_id,
-      discount_limit_bps, customer_id, package_type_id, expected_type_revision,
-      expected_service_revisions, price_paid, paid_method, seller_employee_id,
-      sold_at, recorded_at, status
-    ) VALUES (
-      ${TENANT.A.company}, ${id}, ${TENANT.A.business}, ${TENANT.A.branch}, ${USER}, ${ORDER_IDS.membership},
-      1000, ${ORDER_IDS.customer}, ${PACKAGE_TYPE_ID}, 1,
-      ${tx.json([{ service_id: ORDER_IDS.service, revision: 1, list_price: '1.000' }])},
-      25.000, 'CASH', ${ORDER_IDS.employee},
-      now(), now(), 'pending'
-    )
-  `.then(() => id);
+function insertPendingRequest(tx: postgres.TransactionSql, overrides: Record<string, unknown> = {}) {
+  return insertSaleRequest(tx, { package_type_id: PACKAGE_TYPE_ID, ...overrides });
 }
 
-it('an insert as completed or failed is refused by guard trigger', async () => {
-  await expect(
-    asApp((tx) =>
-      tx`INSERT INTO package_sale_requests (
-        company_id, id, business_id, branch_id, recorded_by, recorded_by_membership_id,
-        customer_id, package_type_id, expected_type_revision, expected_service_revisions,
-        price_paid, paid_method, seller_employee_id, recorded_at, status, entitlement_id, finished_at
-      ) VALUES (
-        ${TENANT.A.company}, ${randomUUID()}, ${TENANT.A.business}, ${TENANT.A.branch}, ${USER}, ${ORDER_IDS.membership},
-        ${ORDER_IDS.customer}, ${PACKAGE_TYPE_ID}, 1,
-        ${tx.json([{ service_id: ORDER_IDS.service, revision: 1, list_price: '1.000' }])},
-        25.000, 'CASH', ${ORDER_IDS.employee}, now(), 'completed', ${ENTITLEMENT_ID}, now()
-      )`,
-    ),
-  ).rejects.toMatchObject({ code: '23514', message: 'PACKAGE_SALE_REQUEST_INITIAL_STATUS_INVALID' });
+const FINISHED = new Date('2026-11-11T12:00:00Z');
 
-  await expect(
-    asApp((tx) =>
-      tx`INSERT INTO package_sale_requests (
-        company_id, id, business_id, branch_id, recorded_by, recorded_by_membership_id,
-        customer_id, package_type_id, expected_type_revision, expected_service_revisions,
-        price_paid, paid_method, seller_employee_id, recorded_at, status, error_code, finished_at
-      ) VALUES (
-        ${TENANT.A.company}, ${randomUUID()}, ${TENANT.A.business}, ${TENANT.A.branch}, ${USER}, ${ORDER_IDS.membership},
-        ${ORDER_IDS.customer}, ${PACKAGE_TYPE_ID}, 1,
-        ${tx.json([{ service_id: ORDER_IDS.service, revision: 1, list_price: '1.000' }])},
-        25.000, 'CASH', ${ORDER_IDS.employee}, now(), 'failed', 'PACKAGE_SALE_FAILED', now()
-      )`,
-    ),
-  ).rejects.toMatchObject({ code: '23514', message: 'PACKAGE_SALE_REQUEST_INITIAL_STATUS_INVALID' });
+it.each([
+  ['completed', { status: 'completed', entitlement_id: ENTITLEMENT_ID, finished_at: FINISHED }],
+  ['failed', { status: 'failed', error_code: 'PACKAGE_SALE_FAILED', finished_at: FINISHED }],
+])('an insert as %s is refused by the guard trigger', async (_status, overrides) => {
+  await expect(asApp((tx) => insertPendingRequest(tx, overrides))).rejects.toMatchObject({
+    code: '23514',
+    message: 'PACKAGE_SALE_REQUEST_INITIAL_STATUS_INVALID',
+  });
 });
 
 it('each legal transition (pending -> completed, pending -> failed) succeeds', async () => {
@@ -164,7 +130,7 @@ it('every refused transition gives 23514', async () => {
        WHERE id = ${compId}`,
   );
 
-  // completed -> failed
+  // من completed لـ failed: الحالة النهائية ما بتتغيرش.
   await expect(
     asApp((tx) =>
       tx`UPDATE package_sale_requests
@@ -173,7 +139,7 @@ it('every refused transition gives 23514', async () => {
     ),
   ).rejects.toMatchObject({ code: '23514', message: 'PACKAGE_SALE_REQUEST_TRANSITION_INVALID' });
 
-  // any change on completed row
+  // أي تعديل على صف completed مرفوض.
   await expect(
     asApp((tx) =>
       tx`UPDATE package_sale_requests
@@ -189,7 +155,7 @@ it('every refused transition gives 23514', async () => {
        WHERE id = ${failId}`,
   );
 
-  // failed -> pending
+  // من failed لـ pending: الطلب الفاشل ما يرجعش للطابور.
   await expect(
     asApp((tx) =>
       tx`UPDATE package_sale_requests
@@ -198,7 +164,7 @@ it('every refused transition gives 23514', async () => {
     ),
   ).rejects.toMatchObject({ code: '23514', message: 'PACKAGE_SALE_REQUEST_TRANSITION_INVALID' });
 
-  // any change on failed row
+  // أي تعديل على صف failed مرفوض.
   await expect(
     asApp((tx) =>
       tx`UPDATE package_sale_requests
@@ -207,7 +173,7 @@ it('every refused transition gives 23514', async () => {
     ),
   ).rejects.toMatchObject({ code: '23514', message: 'PACKAGE_SALE_REQUEST_TRANSITION_INVALID' });
 
-  // pending -> pending with changes
+  // من pending لـ pending بتعديل: التحديث لازم يكون انتقال لحالة نهائية.
   const pendId = await asApp((tx) => insertPendingRequest(tx));
   await expect(
     asApp((tx) =>
@@ -219,7 +185,6 @@ it('every refused transition gives 23514', async () => {
 });
 
 const STATE_SHAPE_REFUSED = { code: '23514', constraint_name: 'package_sale_requests_state_shape_check' };
-const FINISHED = new Date('2026-11-11T12:00:00Z');
 
 it.each([
   ['completed without entitlement_id', { status: 'completed', finished_at: FINISHED }],
@@ -240,20 +205,7 @@ it.each([
 });
 
 it('a pending insert that already carries a result is refused by the state shape check', async () => {
-  await expect(
-    asApp((tx) =>
-      tx`INSERT INTO package_sale_requests (
-        company_id, id, business_id, branch_id, recorded_by, recorded_by_membership_id,
-        customer_id, package_type_id, expected_type_revision, expected_service_revisions,
-        price_paid, paid_method, seller_employee_id, recorded_at, status, error_code
-      ) VALUES (
-        ${TENANT.A.company}, ${randomUUID()}, ${TENANT.A.business}, ${TENANT.A.branch}, ${USER}, ${ORDER_IDS.membership},
-        ${ORDER_IDS.customer}, ${PACKAGE_TYPE_ID}, 1,
-        ${tx.json([{ service_id: ORDER_IDS.service, revision: 1, list_price: '1.000' }])},
-        25.000, 'CASH', ${ORDER_IDS.employee}, now(), 'pending', 'ERR'
-      )`,
-    ),
-  ).rejects.toMatchObject(STATE_SHAPE_REFUSED);
+  await expect(asApp((tx) => insertPendingRequest(tx, { error_code: 'ERR' }))).rejects.toMatchObject(STATE_SHAPE_REFUSED);
 });
 
 // المالك بيعدّي صلاحيات الأعمدة، فده بيثبت إن الـ trigger نفسه هو اللي قافل جسم الطلب مش الـ grants بس.

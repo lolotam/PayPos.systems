@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
-import { ORDER_IDS, seedOrders } from '../../test/orders-fixture.ts';
+import { seedOrders } from '../../test/orders-fixture.ts';
+import { insertSaleRequest, type SaleRequestTenant } from '../../test/package-sale-request-fixture.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
 import { seedTwoTenants, TENANT, USER } from '../../test/tenancy-fixtures.ts';
 
@@ -55,7 +56,7 @@ beforeAll(async () => {
   await seedOrders(owner);
   app = postgres(testDb.appUrl, { max: 2, onnotice: () => undefined });
 
-  // Add a second business and branch to Tenant A to verify same-company cross-business branch refusal
+  // business وفرع تانيين لنفس الشركة A، عشان نثبت إن فرع business تاني مرفوض حتى جوه نفس الشركة.
   await owner`INSERT INTO businesses(id, company_id, vertical_type, name_en)
     VALUES (${SECOND_BUSINESS}, ${TENANT.A.company}, 'salon', 'Second Business A')`;
   await owner`INSERT INTO branches(id, company_id, business_id, name_en)
@@ -68,11 +69,9 @@ afterAll(async () => {
   await testDb?.drop();
 });
 
-type Tenant = { company: string; business: string; branch: string };
-
 async function asApp<T>(
   work: (tx: postgres.TransactionSql) => Promise<T>,
-  tenant: Tenant = TENANT.A,
+  tenant: SaleRequestTenant = TENANT.A,
 ) {
   return app.begin(async (tx) => {
     await tx`SELECT set_config('app.company_id', ${tenant.company}, true), set_config('app.user_id', ${USER}, true)`;
@@ -123,94 +122,32 @@ const supports = (index: IndexRow, columns: string[], nullable: Set<string>): bo
   return columns.includes(column) && nullable.has(column);
 };
 
-it('a branch of another business and a recorder of another company are refused', async () => {
-  // Branch of another business (within Tenant A)
-  await expect(
-    asApp((tx) =>
-      tx`INSERT INTO package_sale_requests (
-        company_id, id, business_id, branch_id, recorded_by, recorded_by_membership_id,
-        customer_id, package_type_id, expected_type_revision, expected_service_revisions,
-        price_paid, paid_method, seller_employee_id, recorded_at, status
-      ) VALUES (
-        ${TENANT.A.company}, ${randomUUID()}, ${TENANT.A.business}, ${SECOND_BRANCH}, ${USER}, ${ORDER_IDS.membership},
-        ${ORDER_IDS.customer}, ${randomUUID()}, 1,
-        ${tx.json([{ service_id: ORDER_IDS.service, revision: 1, list_price: '1.000' }])},
-        25.000, 'CASH', ${ORDER_IDS.employee}, now(), 'pending'
-      )`,
-    ),
-  ).rejects.toMatchObject({ code: '23503', constraint_name: 'package_sale_requests_branch_fk' });
-
-  // Branch of another company (Tenant B branch)
-  await expect(
-    asApp((tx) =>
-      tx`INSERT INTO package_sale_requests (
-        company_id, id, business_id, branch_id, recorded_by, recorded_by_membership_id,
-        customer_id, package_type_id, expected_type_revision, expected_service_revisions,
-        price_paid, paid_method, seller_employee_id, recorded_at, status
-      ) VALUES (
-        ${TENANT.A.company}, ${randomUUID()}, ${TENANT.A.business}, ${TENANT.B.branch}, ${USER}, ${ORDER_IDS.membership},
-        ${ORDER_IDS.customer}, ${randomUUID()}, 1,
-        ${tx.json([{ service_id: ORDER_IDS.service, revision: 1, list_price: '1.000' }])},
-        25.000, 'CASH', ${ORDER_IDS.employee}, now(), 'pending'
-      )`,
-    ),
-  ).rejects.toMatchObject({ code: '23503', constraint_name: 'package_sale_requests_branch_fk' });
-
-  // Recorder membership not belonging to company A
-  await expect(
-    asApp((tx) =>
-      tx`INSERT INTO package_sale_requests (
-        company_id, id, business_id, branch_id, recorded_by, recorded_by_membership_id,
-        customer_id, package_type_id, expected_type_revision, expected_service_revisions,
-        price_paid, paid_method, seller_employee_id, recorded_at, status
-      ) VALUES (
-        ${TENANT.A.company}, ${randomUUID()}, ${TENANT.A.business}, ${TENANT.A.branch}, ${USER}, ${randomUUID()},
-        ${ORDER_IDS.customer}, ${randomUUID()}, 1,
-        ${tx.json([{ service_id: ORDER_IDS.service, revision: 1, list_price: '1.000' }])},
-        25.000, 'CASH', ${ORDER_IDS.employee}, now(), 'pending'
-      )`,
-    ),
-  ).rejects.toMatchObject({ code: '23503', constraint_name: 'package_sale_requests_recorder_membership_fk' });
-
-  // Recorder user not existing in identity
-  await expect(
-    asApp((tx) =>
-      tx`INSERT INTO package_sale_requests (
-        company_id, id, business_id, branch_id, recorded_by, recorded_by_membership_id,
-        customer_id, package_type_id, expected_type_revision, expected_service_revisions,
-        price_paid, paid_method, seller_employee_id, recorded_at, status
-      ) VALUES (
-        ${TENANT.A.company}, ${randomUUID()}, ${TENANT.A.business}, ${TENANT.A.branch}, ${randomUUID()}, ${ORDER_IDS.membership},
-        ${ORDER_IDS.customer}, ${randomUUID()}, 1,
-        ${tx.json([{ service_id: ORDER_IDS.service, revision: 1, list_price: '1.000' }])},
-        25.000, 'CASH', ${ORDER_IDS.employee}, now(), 'pending'
-      )`,
-    ),
-  ).rejects.toMatchObject({ code: '23503' });
+it.each([
+  ['a branch of another business in the same company', { branch_id: SECOND_BRANCH }, 'package_sale_requests_branch_fk'],
+  ['a branch of another company', { branch_id: TENANT.B.branch }, 'package_sale_requests_branch_fk'],
+  ['a recorder membership outside the company', { recorded_by_membership_id: randomUUID() }, 'package_sale_requests_recorder_membership_fk'],
+  ['an unknown recorder user', { recorded_by: randomUUID() }, 'package_sale_requests_recorder_fk'],
+])('%s is refused by its foreign key', async (_case, overrides, constraint) => {
+  await expect(asApp((tx) => insertSaleRequest(tx, overrides))).rejects.toMatchObject({
+    code: '23503',
+    constraint_name: constraint,
+  });
 });
 
+// العميلة والنوع والبائعة من غير FK عن قصد: العامل هو اللي يرفض المجهول بكود معروف (SA-05، SA-08).
 it('an unknown customer, type or seller id is accepted', async () => {
-  const unknownCustomerId = randomUUID();
-  const unknownPackageTypeId = randomUUID();
-  const unknownSellerEmployeeId = randomUUID();
-  const requestId = randomUUID();
-
-  const inserted = await asApp((tx) =>
-    tx`INSERT INTO package_sale_requests (
-      company_id, id, business_id, branch_id, recorded_by, recorded_by_membership_id,
-      discount_limit_bps, customer_id, package_type_id, expected_type_revision,
-      expected_service_revisions, price_paid, paid_method, seller_employee_id,
-      sold_at, recorded_at, status
-    ) VALUES (
-      ${TENANT.A.company}, ${requestId}, ${TENANT.A.business}, ${TENANT.A.branch}, ${USER}, ${ORDER_IDS.membership},
-      null, ${unknownCustomerId}, ${unknownPackageTypeId}, 1,
-      ${tx.json([{ service_id: ORDER_IDS.service, revision: 1, list_price: '1.000' }])},
-      30.000, 'CARD', ${unknownSellerEmployeeId},
-      null, now(), 'pending'
-    ) RETURNING id`,
+  const requestId = await asApp((tx) =>
+    insertSaleRequest(tx, {
+      customer_id: randomUUID(),
+      package_type_id: randomUUID(),
+      seller_employee_id: randomUUID(),
+      discount_limit_bps: null,
+      sold_at: null,
+    }),
   );
 
-  expect(inserted).toEqual([{ id: requestId }]);
+  const stored = await asApp((tx) => tx`SELECT id FROM package_sale_requests WHERE id = ${requestId}`);
+  expect(stored).toEqual([{ id: requestId }]);
 });
 
 it('package_sale_requests carries expected foreign keys', async () => {

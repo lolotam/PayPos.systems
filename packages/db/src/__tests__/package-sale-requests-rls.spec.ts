@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
-import { ORDER_IDS, seedOrders } from '../../test/orders-fixture.ts';
+import { seedOrders } from '../../test/orders-fixture.ts';
+import { insertSaleRequest, type SaleRequestTenant } from '../../test/package-sale-request-fixture.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
 import { seedTwoTenants, TENANT, USER } from '../../test/tenancy-fixtures.ts';
 
@@ -35,11 +36,9 @@ afterAll(async () => {
   await testDb?.drop();
 });
 
-type Tenant = { company: string; business: string; branch: string };
-
 async function asApp<T>(
   work: (tx: postgres.TransactionSql) => Promise<T>,
-  tenant: Tenant = TENANT.A,
+  tenant: SaleRequestTenant = TENANT.A,
 ) {
   return app.begin(async (tx) => {
     await tx`SELECT set_config('app.company_id', ${tenant.company}, true), set_config('app.user_id', ${USER}, true)`;
@@ -47,25 +46,8 @@ async function asApp<T>(
   });
 }
 
-function insertRequest(
-  tx: postgres.TransactionSql,
-  opts: { tenant: Tenant; id: string },
-) {
-  const t = opts.tenant;
-  return tx`
-    INSERT INTO package_sale_requests (
-      company_id, id, business_id, branch_id, recorded_by, recorded_by_membership_id,
-      discount_limit_bps, customer_id, package_type_id, expected_type_revision,
-      expected_service_revisions, price_paid, paid_method, seller_employee_id,
-      sold_at, recorded_at, status
-    ) VALUES (
-      ${t.company}, ${opts.id}, ${t.business}, ${t.branch}, ${USER}, ${ORDER_IDS.membership},
-      1000, ${ORDER_IDS.customer}, ${randomUUID()}, 1,
-      ${tx.json([{ service_id: ORDER_IDS.service, revision: 1, list_price: '1.000' }])},
-      25.000, 'CASH', ${ORDER_IDS.employee},
-      now(), now(), 'pending'
-    )
-  `;
+function insertRequest(tx: postgres.TransactionSql, opts: { tenant: SaleRequestTenant; id: string }) {
+  return insertSaleRequest(tx, { id: opts.id }, opts.tenant);
 }
 
 it('cross-tenant read returns 0 rows', async () => {

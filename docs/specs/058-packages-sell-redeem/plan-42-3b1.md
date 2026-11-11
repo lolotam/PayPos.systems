@@ -125,8 +125,8 @@ Fixture seeds a company with السالمية, منى (recorder), هبة (seller
 - SA-01, SA-02, SA-03 completed outcomes with exact rows, audit, `PackageSaleChanged` payload and `completed` status.
 - SA-04 limit frozen on the request (10% limit → failed `PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT`; NULL limit sells at 0.000).
 - SA-05 seller ineligible / self → failed codes; SA-05b two real connections (detach first / sale first).
-- SA-07 time window from `recorded_at`; SA-08 unknown customer/type, validator failure; SA-08b type edit race and
-  stop race; SA-08c service price race — each with nothing written.
+- SA-07 time window from `recorded_at`; SA-08 unknown customer/type, validator failure; SA-08b type edit race (the
+  stop race moves to 33b with `selling_stopped_at`, see §2.2); SA-08c service price race — each with nothing written.
 - SA-09 repeated delivery of a completed and of a failed request writes nothing; duplicate job id dropped; two real
   connections execute the same pending request at once → one entitlement, one audit entry, one event; a commit whose
   acknowledgement is lost (the job throws after COMMIT) is retried, finds `completed` and is never failed (debate #8).
