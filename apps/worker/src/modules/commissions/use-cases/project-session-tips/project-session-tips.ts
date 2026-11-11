@@ -40,6 +40,7 @@ export class ProjectSessionTips {
   async execute(input: ProjectSessionTipsInput): Promise<void> {
     await this.scope.lockSession(input.sessionId);
     const held = await this.scope.readTipSession(input.sessionId);
+    if (held !== null && input.revision <= held.revision) return;
     const outcome = reduceCommissionTips(held === null ? [] : [held], input);
     if (!outcome.applied) return;
     const session = outcome.session;
@@ -66,7 +67,10 @@ export function normalizeSessionTipsEvent(
   event: CommissionInputEventEnvelope,
   payload: SessionTipsChanged,
 ): ProjectSessionTipsInput {
-  if (event.aggregateType !== 'service_session' || event.aggregateId !== payload.session_id) {
+  if (
+    event.aggregateType !== 'service_session' ||
+    event.aggregateId.toLowerCase() !== payload.session_id.toLowerCase()
+  ) {
     throw new CommissionTipSalaryInputInvalidError('AGGREGATE_MISMATCH');
   }
   return {

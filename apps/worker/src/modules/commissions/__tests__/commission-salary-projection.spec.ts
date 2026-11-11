@@ -219,3 +219,18 @@ it('closed guard: affected month APPROVED refuses delivery before row or mark', 
   expect(await salaries()).toEqual([]);
   expect(await marks()).toEqual([]);
 });
+
+it('regression PR #928: uppercase employee_id with lowercase aggregate id is projected, not rejected', async () => {
+  const event = salaryEvent({
+    aggregateId: A.employee.toLowerCase(),
+    payloadOverrides: { employee_id: A.employee.toUpperCase() },
+  });
+  expect(await deliver(event)).toEqual({ delivered: true });
+  const rows = await salaries();
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    employeeId: A.employee,
+    amount: '500.000',
+  });
+  expect(await marks()).toHaveLength(1);
+});

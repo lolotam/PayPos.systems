@@ -45,6 +45,7 @@ export class ProjectSalary {
     const businessId = await this.resolveBusiness(input);
     const event: CommissionSalaryInputEvent = { ...input, businessId };
     const held = await this.scope.readSalary(input.employeeId, input.effectiveFrom);
+    if (held !== null && input.revision <= held.revision) return;
     const outcome = reduceCommissionSalaries(held === null ? [] : [held], event);
     if (!outcome.applied) return;
     const row = outcome.row;
@@ -80,7 +81,10 @@ export function normalizeSalaryEvent(
   event: CommissionInputEventEnvelope,
   payload: SalaryChanged,
 ): ProjectSalaryInput {
-  if (event.aggregateType !== 'employee' || event.aggregateId !== payload.employee_id) {
+  if (
+    event.aggregateType !== 'employee' ||
+    event.aggregateId.toLowerCase() !== payload.employee_id.toLowerCase()
+  ) {
     throw new CommissionTipSalaryInputInvalidError('AGGREGATE_MISMATCH');
   }
   return {
