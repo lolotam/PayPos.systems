@@ -16,6 +16,7 @@ export const ALERT_KINDS = [
   'ATTENDANCE_CHANGE_DECIDED',
   'STATEMENT_AWAITING_REVIEW',
   'STATEMENT_AWAITING_APPROVAL',
+  'DISCOUNT_SELF_APPROVED',
 ] as const;
 /** نوع تنبيه من الكتالوج. */
 export type AlertKind = (typeof ALERT_KINDS)[number];
@@ -126,6 +127,11 @@ export const ALERT_KIND_DEFINITIONS: Readonly<Record<AlertKind, AlertKindDefinit
   STATEMENT_AWAITING_APPROVAL: managersInApp({
     defaults: { enabled: true, recipientRoles: ['owner'], channels: IN_APP, delayMinutes: null, leadMinutes: null },
     branchScoped: false,
+  }),
+  // جرس الموافقة على خصم على شغل الموافِق (057-3b، D-19، DA-Q11) يروح افتراضياً للمالكين بس، ومنهم المالك اللي وافق (DA-Q10).
+  // بيتبع المفتاح العام وقاعدته الخاصة القابلة للتعديل زي أي تنبيه فريق.
+  DISCOUNT_SELF_APPROVED: managersInApp({
+    defaults: { enabled: true, recipientRoles: ['owner'], channels: IN_APP, delayMinutes: null, leadMinutes: null },
   }),
 };
 

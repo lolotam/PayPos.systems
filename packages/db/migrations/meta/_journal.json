@@ -1520,6 +1520,13 @@
       "when": 1794417494103,
       "tag": "0218_2026-11-11_package-sale-requests",
       "breakpoints": true
+    },
+    {
+      "idx": 219,
+      "version": "7",
+      "when": 1794423443769,
+      "tag": "0219_2026-11-11_discount-self-approval-notices",
+      "breakpoints": true
     }
   ]
 }

@@ -20,6 +20,7 @@ export const alertKind = z
     'ATTENDANCE_CHANGE_DECIDED',
     'STATEMENT_AWAITING_REVIEW',
     'STATEMENT_AWAITING_APPROVAL',
+    'DISCOUNT_SELF_APPROVED',
   ])
   .meta({ id: 'AlertKind' });
 export type AlertKindCode = z.infer<typeof alertKind>;
@@ -100,7 +101,7 @@ export const alertRuleInput = z
 
 // بيكتب الأنواع اللي في الطلب بس؛ الباقي بيفضل زي ما هو.
 export const setAlertRulesInput = z
-  .object({ rules: z.array(alertRuleInput).min(1).max(14) })
+  .object({ rules: z.array(alertRuleInput).min(1).max(15) })
   .strict()
   .refine((input) => new Set(input.rules.map((r) => r.kind)).size === input.rules.length, {
     message: 'Each kind at most once',
