@@ -21,5 +21,5 @@ Reviewer: Codex `gpt-6-astra`, effort medium, read-only sandbox, on `plan-057-3b
 | 1 | accept | The deliverer acknowledges a known event with no consumer, so activation is when 057-6 emits, not when 3b merges. Plan: 057-6 unholds only after the consumer is deployed to the staging worker and verified there; no rollback of the worker below 3b-3 while 057-6 is live. |
 | 2 | accept | 057-6 stays held until 3b-4 (and 3b-5) are merged, so no bell rings while its rule is hidden; the slices stay as split because nothing emits the event before then. |
 | 3 | accept | Same unhold point: every DP-19c acceptance and concurrency proof (3b-4, 3b-5) is merged before 057-6 emits. |
-| 4 | accept | Confirmed: `DiscountApprovalNoticePlace.forBranch` takes the full request. 3b-2 narrows it to `Pick<DiscountApprovalNoticeRequest, 'companyId' \| 'businessId' \| 'branchId'>` with its Arabic JSDoc updated; no cast. |
+| 4 | accept | Confirmed: `DiscountApprovalNoticePlace.branchPlace` takes the full request. 3b-2 narrows it to `Pick<DiscountApprovalNoticeRequest, 'companyId' \| 'businessId' \| 'branchId'>` with its Arabic JSDoc updated; no cast. |
 | 5 | accept | Plan sizes redone per file from `0785d2cef` and the 057-3 sibling (fixture 59 + data 310 reusable for proposal seeding); 3b-3 tests and 3b-5 tests are slightly above 420 and are flagged, not hidden. |

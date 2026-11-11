@@ -43,11 +43,11 @@ export interface DiscountApprovalNoticeRecipients {
 export interface DiscountApprovalNoticePlace {
   /** يرجع اسمي الفرع أو null حتى لا يخمن المستهلك مكان الطلب.
    *
-   * @param request هوية الطلب
+   * @param request هوية الشركة والنشاط والفرع
    * @returns أسماء الفرع إن وُجد
    */
   branchPlace(
-    request: DiscountApprovalNoticeRequest,
+    request: Pick<DiscountApprovalNoticeRequest, 'companyId' | 'businessId' | 'branchId'>,
   ): Promise<{ nameAr: string | null; nameEn: string } | null>;
 }
 
