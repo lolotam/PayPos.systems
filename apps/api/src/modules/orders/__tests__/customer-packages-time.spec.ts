@@ -125,3 +125,36 @@ it('handles rank changes between pagination requests (D5 policy) cleanly to term
   const d2Item = must(d2Page.items.find((i) => i.id === fixture.packagesD.d2));
   expect(d2Item.used_up).toBe(true);
 });
+
+it('binds the cursor to the branch, rejecting a replay on another branch of the business', async () => {
+  at = new Date('2026-10-15T08:00:00.000Z');
+  const kuwaitScope: CustomerPackageScope = {
+    companyId: f.company,
+    userId: f.userId,
+    businessId: f.business,
+    branchId: f.branch,
+    customerId: f.customer,
+  };
+  const pacificScope: CustomerPackageScope = { ...kuwaitScope, branchId: fixture.pacificBranch };
+
+  // الرتبة والانتهاء بيتحسبوا بتوقيت الفرع، فمؤشر فرع الكويت ممكن يتخطى باقات في فرع كيريباتي
+  const page1 = await handler.execute(kuwaitScope, { limit: 1 });
+  const cursor = must(page1.next_cursor);
+  await expect(handler.execute(pacificScope, { limit: 1, cursor })).rejects.toThrow(
+    new RangeError('CUSTOMER_PACKAGES_CURSOR_INVALID'),
+  );
+  const samePage2 = await handler.execute(kuwaitScope, { limit: 1, cursor });
+  expect(samePage2.items).toHaveLength(1);
+  expect(samePage2.items[0]?.id).not.toBe(page1.items[0]?.id);
+
+  // عبر HTTP: نفس الفرع من غير مؤشر 200، وبمؤشر فرع تاني 400 VALIDATION_FAILED
+  const pacificPath = `/v1/businesses/${f.business}/branches/${fixture.pacificBranch}/customers/${f.customer}/packages`;
+  const plain = await f.h.send('GET', pacificPath, { cookie: f.ownerCookie, company: f.company });
+  expect(plain.status).toBe(200);
+  const replay = await f.h.send('GET', `${pacificPath}?cursor=${cursor}`, {
+    cookie: f.ownerCookie,
+    company: f.company,
+  });
+  expect(replay.status).toBe(400);
+  expect(replay.body['code']).toBe('VALIDATION_FAILED');
+});

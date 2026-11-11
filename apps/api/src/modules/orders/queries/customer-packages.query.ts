@@ -34,8 +34,9 @@ function decodeCursor(scope: CustomerPackageScope, raw: string | undefined): Cus
     const bytes = Buffer.from(raw, 'base64url');
     if (bytes.toString('base64url') !== raw) throw new Error();
     const cursor = customerPackagesCursorData.parse(JSON.parse(bytes.toString('utf8')));
+    // الانتهاء والترتيب بيتبعوا توقيت الفرع، فالفرع جزء من نطاق المؤشر.
     if (cursor.company_id !== scope.companyId || cursor.business_id !== scope.businessId ||
-      cursor.customer_id !== scope.customerId) throw new Error();
+      cursor.branch_id !== scope.branchId || cursor.customer_id !== scope.customerId) throw new Error();
     return cursor;
   } catch {
     throw new RangeError('CUSTOMER_PACKAGES_CURSOR_INVALID');
@@ -46,6 +47,7 @@ function encodeCursor(scope: CustomerPackageScope, row: CustomerPackageRow): str
   return Buffer.from(JSON.stringify({
     company_id: scope.companyId,
     business_id: scope.businessId,
+    branch_id: scope.branchId,
     customer_id: scope.customerId,
     rank: row.rank,
     expires_on: row.item.expires_on,

@@ -22,7 +22,12 @@ export const customerPackagePaths = {
       description: `${guard} Lists the customer's packages, usable first, without customer phone data.`,
       parameters: [
         ...parameters,
-        { in: 'query', name: 'cursor', required: false, schema: { type: 'string' } },
+        {
+          in: 'query',
+          name: 'cursor',
+          required: false,
+          schema: { type: 'string', minLength: 1, maxLength: 4096, pattern: '^[A-Za-z0-9_-]+$' },
+        },
         { in: 'query', name: 'limit', required: false, schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
       ],
       responses: {

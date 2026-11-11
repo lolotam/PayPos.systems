@@ -102,6 +102,7 @@ export const customerPackageDetail = responseObject({
 export const customerPackagesCursorData = z.strictObject({
   company_id: id,
   business_id: id,
+  branch_id: id,
   customer_id: id,
   rank: z.union([z.literal(0), z.literal(1)]),
   expires_on: businessDate.refine((value) => !value.startsWith('0000-')),
