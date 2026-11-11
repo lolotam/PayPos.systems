@@ -11,7 +11,7 @@ import type { LeaveReadAccess, LeaveReadContext } from './leave-requests.query.t
 import { historyEmployeeVisible, historyIds, type HistoryScope } from './leave-history-days.sql.ts';
 import { historyRows } from './leave-history-rows.sql.ts';
 import { historyLastTaken } from './leave-history-last.sql.ts';
-import { historyWorkloadSql } from './leave-history-workload.sql.ts';
+import { historyLeaveWorkloadSql, historyWorkloadSql } from './leave-history-workload.sql.ts';
 
 type Cursor = LeaveHistoryCursorData;
 type HistoryReport = { attachment: 'current' | 'any' };
@@ -72,12 +72,40 @@ export function leaveHistorySql(
     FROM subject`;
 }
 
+type HistoryWorkload = { shifts?: number; leaves: number };
+
+async function historyWorkloadExceeded(
+  tx: Tx,
+  c: LeaveReadContext,
+  q: LeaveHistoryQuery,
+  scope: HistoryScope,
+  options: { asOf: string; workload: HistoryWorkload; report?: HistoryReport | undefined },
+) {
+  const { asOf, workload, report } = options;
+  if (workload.shifts !== undefined) {
+    const [shiftRows] = await tx.execute<{ shifts: number }>(
+      historyWorkloadSql(c, scope, q, workload.shifts),
+    );
+    if (shiftRows !== undefined && shiftRows.shifts > workload.shifts) return true;
+  }
+  const [leaveRows] = await tx.execute<{ leaves: number }>(
+    historyLeaveWorkloadSql(
+      c,
+      q,
+      scope,
+      { asOf, ...(report ? { visibility: report.attachment } : {}) },
+      workload.leaves,
+    ),
+  );
+  return leaveRows !== undefined && leaveRows.leaves > workload.leaves;
+}
+
 export async function readLeaveHistoryPage(
   tx: Tx,
   c: LeaveReadContext,
   q: LeaveHistoryQuery,
   scope: HistoryScope,
-  options: { excludeOpen: boolean; report?: HistoryReport; workloadLimit?: number },
+  options: { excludeOpen: boolean; report?: HistoryReport; workload?: HistoryWorkload },
 ) {
   let cursor: Cursor | undefined;
   try {
@@ -93,13 +121,15 @@ export async function readLeaveHistoryPage(
   if (instant > scope.now.getTime() || instant < scope.now.getTime() - 86_400_000)
     return 'VALIDATION_FAILED' as const;
   if (q.branch_id !== undefined && !scope.branches.includes(q.branch_id)) return null;
-  if (options.workloadLimit !== undefined) {
-    const [workload] = await tx.execute<{ shifts: number }>(
-      historyWorkloadSql(c, scope, q, options.workloadLimit),
-    );
-    if (workload !== undefined && workload.shifts > options.workloadLimit)
-      return 'LEAVE_HISTORY_REPORT_REQUIRED' as const;
-  }
+  if (
+    options.workload !== undefined &&
+    (await historyWorkloadExceeded(tx, c, q, scope, {
+      asOf,
+      workload: options.workload,
+      report: options.report,
+    }))
+  )
+    return 'LEAVE_HISTORY_REPORT_REQUIRED' as const;
   const [result] = await tx.execute<{
     rows: (Cursor & { record: LeaveHistoryPage['items'][number] })[];
     subject_exists: boolean;

@@ -25,6 +25,28 @@ function visibilityPredicate(
     ? sql``
     : sql`AND ${historyEmployeeVisible(c, s, alias, visibility)}`;
 }
+// عد إجازات التقرير وصفوف الصفحة بيشتركوا في المصدر ده عشان الرفض يعد بالظبط اللي الصفحة بتقراه.
+export function historyLeaveSource(
+  c: LeaveReadContext,
+  q: LeaveHistoryQuery,
+  s: HistoryScope,
+  options: { asOf: string; excludeOpen: boolean; visibility?: 'current' | 'any' | undefined },
+) {
+  const { asOf, excludeOpen, visibility } = options;
+  const types = q['types[]'];
+  const statuses = q['statuses[]'];
+  return sql`FROM leave_requests l JOIN employees subject ON subject.company_id=l.company_id
+      AND subject.business_id=l.business_id AND subject.id=l.employee_id
+    WHERE l.company_id=${c.companyId} AND l.business_id=${c.businessId}
+      ${c.employeeId === undefined ? sql`` : sql`AND l.employee_id=${c.employeeId}::uuid`}
+      AND subject.deleted_at IS NULL ${visibilityPredicate(c, s, 'subject', visibility)}
+      AND l.branch_id=ANY(${historyIds(s.branches)})
+      AND l."from"<=${q.to}::date AND l."to">=${q.from}::date
+      ${excludeOpen ? sql`AND NOT (l.status='PENDING' OR l."to">=(${asOf}::timestamptz AT TIME ZONE l.timezone)::date)` : sql``}
+      ${types.length === 0 ? sql`` : sql`AND l.type=ANY(${texts(types)})`}
+      ${statuses.length === 0 ? sql`` : sql`AND l.status=ANY(${texts(statuses)})`}
+      ${q.branch_id === undefined ? sql`` : sql`AND l.branch_id=${q.branch_id}::uuid`}`;
+}
 export function historyRows(
   c: LeaveReadContext,
   q: LeaveHistoryQuery,
@@ -45,18 +67,7 @@ export function historyRows(
     AND sh.working_date BETWEEN ${q.from}::date AND ${q.to}::date ${visibilityPredicate(c, s, 'e', visibility)}`,
   )}),
   rows AS (
-    SELECT l."from" AS date,1 AS rank,l.id,${historyLeaveRecord(c, s)} AS record
-    FROM leave_requests l JOIN employees subject ON subject.company_id=l.company_id
-      AND subject.business_id=l.business_id AND subject.id=l.employee_id
-    WHERE l.company_id=${c.companyId} AND l.business_id=${c.businessId}
-      ${c.employeeId === undefined ? sql`` : sql`AND l.employee_id=${c.employeeId}::uuid`}
-      AND subject.deleted_at IS NULL ${visibilityPredicate(c, s, 'subject', visibility)}
-      AND l.branch_id=ANY(${historyIds(s.branches)})
-      AND l."from"<=${q.to}::date AND l."to">=${q.from}::date
-      ${excludeOpen ? sql`AND NOT (l.status='PENDING' OR l."to">=(${asOf}::timestamptz AT TIME ZONE l.timezone)::date)` : sql``}
-      ${types.length === 0 ? sql`` : sql`AND l.type=ANY(${texts(types)})`}
-      ${statuses.length === 0 ? sql`` : sql`AND l.status=ANY(${texts(statuses)})`}
-      ${q.branch_id === undefined ? sql`` : sql`AND l.branch_id=${q.branch_id}::uuid`}
+    SELECT l."from" AS date,1 AS rank,l.id,${historyLeaveRecord(c, s)} AS record ${historyLeaveSource(c, q, s, { asOf, excludeOpen, visibility })}
     UNION ALL
     SELECT d.working_date,2,d.id,${dayRecord()} || jsonb_build_object(
       'row_type','UNEXCUSED_ABSENCE','id',d.id,'shifts',d.shifts,'status','ABSENT')

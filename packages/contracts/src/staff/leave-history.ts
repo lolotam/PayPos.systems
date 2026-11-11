@@ -93,7 +93,7 @@ export type LeaveHistoryQuery = z.infer<typeof leaveHistoryQuery>;
 export type LeaveHistoryReportQuery = z.infer<typeof leaveHistoryReportQuery>;
 export type LeaveHistoryItem = z.infer<typeof leaveHistoryItem>;
 export type LeaveHistoryPage = z.infer<typeof leaveHistoryPage>;
-// العميل والسيرفر بيشاركوا القاعدة دي عشان اختيار التقرير الخلفي مايختلفش بينهم.
+// القاعدة دي بتقول هل days هيشتغل بس؛ عدد الإجازات المطابقة مابيبانش منها، فقرار الرفض (422) للسيرفر لوحده.
 export function leaveHistoryReportSkipsDays(
   q: Pick<LeaveHistoryReportQuery, 'types[]' | 'statuses[]'>,
 ): boolean {
