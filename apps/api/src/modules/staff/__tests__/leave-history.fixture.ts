@@ -4,6 +4,7 @@ import { expect } from 'vitest';
 import { getEmployeeLeaveHistory } from '../queries/leave-history.query.ts';
 import {
   getBusinessLeaveHistory,
+  LEAVE_HISTORY_SYNC_LEAVES,
   LEAVE_HISTORY_SYNC_SHIFTS,
 } from '../queries/leave-history-report.query.ts';
 import { createLeaveReadAccess } from '../persistence/leave-read-access.adapter.ts';
@@ -13,6 +14,10 @@ import { leaveContext, leaveFixture, leaveIds, type LeaveFixture } from './leave
 export { leaveFixture, leaveContext, leaveIds };
 export type { LeaveFixture };
 export const historyNow = '2026-11-07T10:00:00.000Z';
+export const historySyncLimits = {
+  shifts: LEAVE_HISTORY_SYNC_SHIFTS,
+  leaves: LEAVE_HISTORY_SYNC_LEAVES,
+};
 export const historyQuery = (q: object = {}) =>
   leaveHistoryQuery.parse({ from: '2026-01-01', to: '2026-11-07', ...q });
 export async function historyRead(
@@ -45,7 +50,7 @@ export async function historyReport(f: LeaveFixture, q: object = {}, now = histo
       },
       leaveHistoryReportQuery.parse({ from: '2026-01-01', to: '2026-11-07', ...q }),
       createLeaveReadAccess({ now: () => new Date(now) }),
-      LEAVE_HISTORY_SYNC_SHIFTS,
+      historySyncLimits,
     ),
   );
 }

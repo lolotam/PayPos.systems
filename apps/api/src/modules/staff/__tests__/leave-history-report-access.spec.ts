@@ -1,9 +1,6 @@
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 import { leaveHistoryReportQuery } from '@pospay/contracts';
-import {
-  getBusinessLeaveHistory,
-  LEAVE_HISTORY_SYNC_SHIFTS,
-} from '../queries/leave-history-report.query.ts';
+import { getBusinessLeaveHistory } from '../queries/leave-history-report.query.ts';
 import { createLeaveReadAccess } from '../persistence/leave-read-access.adapter.ts';
 import type { LeaveReadAccess } from '../queries/leave-requests.query.ts';
 import {
@@ -15,6 +12,7 @@ import {
   historyReport,
   historySession,
   historyShift,
+  historySyncLimits,
   leaveFixture,
   leaveIds,
   type LeaveFixture,
@@ -64,7 +62,7 @@ const reportRead = (access: LeaveReadAccess, q: object = {}) =>
       { companyId: f.company, userId: f.userId, businessId: f.business, own: false },
       leaveHistoryReportQuery.parse({ from: '2026-10-01', to: '2026-10-31', ...q }),
       access,
-      LEAVE_HISTORY_SYNC_SHIFTS,
+      historySyncLimits,
     ),
   );
 

@@ -11,9 +11,16 @@ import {
 import { decodeCursor } from '../../../shared/persistence/name-options-cursor.ts';
 import { createLeaveReadAccess } from '../persistence/leave-read-access.adapter.ts';
 import { leaveHistorySql } from '../queries/leave-history.query.ts';
-import { historyWorkloadSql } from '../queries/leave-history-workload.sql.ts';
-import { LEAVE_HISTORY_SYNC_SHIFTS } from '../queries/leave-history-report.query.ts';
-import { leaveFixture, type LeaveFixture } from './leave-history.fixture.ts';
+import {
+  historyLeaveWorkloadSql,
+  historyWorkloadSql,
+} from '../queries/leave-history-workload.sql.ts';
+import {
+  getBusinessLeaveHistory,
+  LEAVE_HISTORY_SYNC_LEAVES,
+  LEAVE_HISTORY_SYNC_SHIFTS,
+} from '../queries/leave-history-report.query.ts';
+import { historySyncLimits, leaveFixture, type LeaveFixture } from './leave-history.fixture.ts';
 import { seedHistoryVolume } from './leave-history-performance.fixture.ts';
 
 let f: LeaveFixture;
@@ -32,11 +39,19 @@ afterAll(async () => {
   await f?.h.close();
 });
 
+// plan D6: the indexed tables the report and its counts read.
+const indexedTables = [
+  'leave_requests',
+  'attendance_sessions',
+  'employees',
+  'staff_schedules',
+  'staff_schedule_shifts',
+];
+
 function assertNoSeqScan(plan: unknown): void {
   const node = plan as { 'Node Type'?: string; 'Relation Name'?: string; Plans?: unknown[] };
   if (node['Node Type'] === 'Seq Scan') {
-    expect(node['Relation Name']).not.toBe('staff_schedules');
-    expect(node['Relation Name']).not.toBe('staff_schedule_shifts');
+    expect(indexedTables).not.toContain(node['Relation Name']);
   }
   for (const child of node.Plans ?? []) {
     assertNoSeqScan(child);
@@ -90,6 +105,7 @@ async function explainStatement(q: LeaveHistoryReportQuery, cursor?: LeaveHistor
   const root = raw[0];
   if (!root) throw new Error('Missing EXPLAIN JSON');
   expect(root['Execution Time']).toBeLessThanOrEqual(200);
+  assertNoSeqScan(root.Plan);
 }
 
 async function measureHttpP95(urlQuery: string) {
@@ -286,4 +302,67 @@ it('performance case at-limit with split shifts (fast): 4 shifts a day 2026-06-0
   const query = leaveHistoryReportQuery.parse({ from: '2026-06-01', to: '2026-06-10' });
   await explainStatement(query);
   await measureHttpP95('from=2026-06-01&to=2026-06-10');
+});
+
+const reportContext = () => ({
+  companyId: f.company,
+  userId: f.userId,
+  businessId: f.business,
+  own: false,
+});
+
+async function leaveWorkload(q: LeaveHistoryReportQuery, explain: boolean) {
+  return f.db.withTenant(f.company, async (tx) => {
+    const scope = await access.check(tx, reportContext());
+    if (!scope) throw new Error('Performance scope missing');
+    const statement = historyLeaveWorkloadSql(
+      reportContext(),
+      q,
+      scope,
+      { asOf: scope.now.toISOString(), visibility: 'current' },
+      LEAVE_HISTORY_SYNC_LEAVES,
+    );
+    return explain
+      ? tx.execute(sql`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${statement}`)
+      : tx.execute(statement);
+  });
+}
+
+it('performance case leave workload explain: statuses[]=APPROVED full year', async () => {
+  const query = leaveHistoryReportQuery.parse({
+    from: '2025-11-07',
+    to: '2026-11-06',
+    'statuses[]': ['APPROVED'],
+  });
+  const result = await leaveWorkload(query, true);
+  const raw = result[0]?.['QUERY PLAN'] as [{ Plan: unknown; 'Execution Time': number }];
+  const root = raw[0];
+  if (!root) throw new Error('Missing EXPLAIN JSON');
+  expect(root['Execution Time']).toBeLessThanOrEqual(200);
+  assertNoSeqScan(root.Plan);
+});
+
+it('performance case leave cap: refused one row under the leave count, fast at it', async () => {
+  const query = leaveHistoryReportQuery.parse({
+    from: '2025-11-07',
+    to: '2026-11-06',
+    'statuses[]': ['APPROVED'],
+  });
+  const [row] = await leaveWorkload(query, false);
+  const leaves = Number(row?.['leaves']);
+  expect(leaves).toBeGreaterThan(0);
+  expect(leaves).toBeLessThanOrEqual(LEAVE_HISTORY_SYNC_LEAVES);
+
+  const read = (cap: number) =>
+    f.db.withTenant(f.company, (tx) =>
+      getBusinessLeaveHistory(tx, reportContext(), query, access, {
+        ...historySyncLimits,
+        leaves: cap,
+      }),
+    );
+  expect(await read(leaves - 1)).toBe('LEAVE_HISTORY_REPORT_REQUIRED');
+  const page = await read(leaves);
+  expect(page).not.toBeNull();
+  expect(typeof page).toBe('object');
+  await explainStatement(query);
 });

@@ -5,13 +5,11 @@ import { PgDialect } from 'drizzle-orm/pg-core';
 import { leaveHistoryReportQuery } from '@pospay/contracts';
 import { createLeaveReadAccess } from '../persistence/leave-read-access.adapter.ts';
 import { historyWorkloadSql } from '../queries/leave-history-workload.sql.ts';
-import {
-  getBusinessLeaveHistory,
-  LEAVE_HISTORY_SYNC_SHIFTS,
-} from '../queries/leave-history-report.query.ts';
+import { getBusinessLeaveHistory } from '../queries/leave-history-report.query.ts';
 import {
   historyClear,
   historyEmployee,
+  historySyncLimits,
   leaveFixture,
   leaveIds,
   type LeaveFixture,
@@ -198,10 +196,12 @@ it('returns result shape with exactly one row whose only key is shifts as an int
   });
 });
 
-async function getReport(tx: Tx, q: object = {}, businessId = f.business) {
+const shiftsRefused = { ...historySyncLimits, shifts: 0 };
+
+async function getReport(tx: Tx, q: object = {}, businessId = f.business, limits = shiftsRefused) {
   const access = createLeaveReadAccess({ now: () => new Date('2026-10-04T10:00:00Z') });
   const query = leaveHistoryReportQuery.parse({ from: '2026-10-01', to: '2026-10-31', ...q });
-  return getBusinessLeaveHistory(tx, { ...baseContext(f), businessId }, query, access, 0);
+  return getBusinessLeaveHistory(tx, { ...baseContext(f), businessId }, query, access, limits);
 }
 
 it('refuses queries in order: no access -> feature off -> malformed cursor -> branch out of scope -> workload limit', async () => {
@@ -258,18 +258,12 @@ it('a refused query never runs the history SQL, while passing query does', async
     const context = baseContext(f);
     const query = leaveHistoryReportQuery.parse({ from: '2026-10-01', to: '2026-10-31' });
 
-    const refused = await getBusinessLeaveHistory(proxy, context, query, access, 0);
+    const refused = await getBusinessLeaveHistory(proxy, context, query, access, shiftsRefused);
     expect(refused).toBe('LEAVE_HISTORY_REPORT_REQUIRED');
     expect(executed.some((statement) => statement.includes('days AS ('))).toBe(false);
 
     executed.length = 0;
-    const passed = await getBusinessLeaveHistory(
-      proxy,
-      context,
-      query,
-      access,
-      LEAVE_HISTORY_SYNC_SHIFTS,
-    );
+    const passed = await getBusinessLeaveHistory(proxy, context, query, access, historySyncLimits);
     expect(passed).not.toBeNull();
     expect(typeof passed).toBe('object');
     expect(executed.some((statement) => statement.includes('days AS ('))).toBe(true);
