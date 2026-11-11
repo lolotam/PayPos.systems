@@ -278,7 +278,9 @@ whose filter would answer 404. `last_taken` is computed only when `employee_id` 
   belongs to the payroll and statement slice (issue #607), not this read. **Accepted limitation:** the same holds for the schedule. A past schedule can be replaced with a reason
   (spec 020, `SCHEDULE_PAST_REASON_REQUIRED`; ADR-0024 removes the replaced shift rows and keeps only the immutable
   audit), so a correction to a past schedule changes the derived history, exactly as it changes the official statement
-  (spec 061 reads the same rows, TD-1 parity). An immutable source for past shifts is issue #609.
+  (spec 061 reads the same rows, TD-1 parity). An immutable source for past shifts is issue #609. A background report
+  (PP-176, 68-2c) is the one stored exception: its pages return the worker's snapshot taken at `computed_at` (plan
+  D14), so a leave approved or a schedule corrected after that shows only in a new report.
 - **BR-008** A day covered outside the caller's view (LH-Q11, batch 68, PP-53.1, both owners' option 1, final): a fact
   she may see shows as itself, and the neutral row stands only for a fact hidden from her. Each covering fact is judged
   by the scope that would show it: a covering leave (BR-002) by her leave-read branches, `leave_read_branch_ids` (the
@@ -437,8 +439,8 @@ conditions are emitted with the result; a single EXPLAIN is not treated as p95 e
 - `GET /v1/businesses/{businessId}/leave-history` — the report. The same query plus `employee_id?`. `last_taken` is filled
   only when `employee_id` is given. **PP-176** ([owner-questions.ar.md](owner-questions.ar.md) §14; design in
   [plan-68-2.md](plan-68-2.md), D7–D15): this route serves only a fast query (`employee_id` given, or filters that
-  exclude every absence-derived row, or at most `LEAVE_HISTORY_SYNC_SCHEDULES` schedule weeks in the caller's attendance
-  branches overlap the period, calibrated in 68-2a); a heavy query answers `422 LEAVE_HISTORY_REPORT_REQUIRED`, after
+  exclude every absence-derived row, or at most `LEAVE_HISTORY_SYNC_SHIFTS` shift rows of schedules in the caller's attendance
+  branches fall in the period, calibrated in 68-2a); a heavy query answers `422 LEAVE_HISTORY_REPORT_REQUIRED`, after
   every authorization, cursor and branch check. A heavy query goes to `POST …/leave-history/reports` (operation `requestLeaveHistoryReport`, body
   `LeaveHistoryReportRequest`, `202 LeaveHistoryReportAccepted { report_id }`, deduplicated per creator, query and
   scope while pending, at most 3 pending per creator, else `409 LEAVE_HISTORY_REPORT_BUSY`), computed once by the
