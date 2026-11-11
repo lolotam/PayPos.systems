@@ -1,4 +1,3 @@
-import { DiscountDecisionError } from './discount-decision-error.ts';
 import type {
   DiscountDecisionPlan,
   LockedDiscountProposal,
@@ -69,7 +68,9 @@ export function discountApprovedByPerformerEvent(
   context: DiscountDecisionEventContext,
 ) {
   if (plan.decision !== 'APPROVE' || !plan.has_performer_flag) return null;
-  const flagged = plan.proposals.filter((proposal) => proposal.approver_is_performer === true);
+  const flaggedIds = new Set(
+    plan.proposals.filter((proposal) => proposal.approver_is_performer === true).map((proposal) => proposal.id),
+  );
   return {
     schema_version: 1 as const,
     business_id: context.business_id,
@@ -78,19 +79,13 @@ export function discountApprovedByPerformerEvent(
     decider_label_en: context.decider_label_en,
     decider_label_ar: context.decider_label_ar,
     decided_via: context.decided_via,
-    proposals: flagged.map((decision) => {
-      const proposal = locked.find((candidate) => candidate.id === decision.id);
-      if (proposal === undefined) {
-        throw new DiscountDecisionError('DISCOUNT_PROPOSAL_CHANGED', { proposal_id: decision.id });
-      }
-      return {
-        id: proposal.id,
-        service_id: proposal.service_id,
-        name_en: proposal.service_name_en,
-        name_ar: proposal.service_name_ar,
-        effective_bps: proposal.effective_bps,
-      };
-    }),
+    proposals: locked.filter((proposal) => flaggedIds.has(proposal.id)).map((proposal) => ({
+      id: proposal.id,
+      service_id: proposal.service_id,
+      name_en: proposal.service_name_en,
+      name_ar: proposal.service_name_ar,
+      effective_bps: proposal.effective_bps,
+    })),
   };
 }
 

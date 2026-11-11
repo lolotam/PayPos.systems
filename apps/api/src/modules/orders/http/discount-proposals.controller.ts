@@ -33,6 +33,14 @@ function fingerprint(request: FastifyRequest, body: unknown, businessId: string,
 
 const pathId = id.toLowerCase();
 type DecisionInput = ApproveDiscountProposalsInput | RejectDiscountProposalsInput;
+interface DecisionCall {
+  decision: 'APPROVE' | 'REJECT';
+  businessId: string;
+  branchId: string;
+  input: DecisionInput;
+  idem: IdempotencyInput;
+  request: FastifyRequest;
+}
 
 @Controller('businesses/:businessId/branches/:branchId/discount-proposals')
 @UseFilters(SessionErrorsFilter)
@@ -116,7 +124,7 @@ export class DiscountProposalsController {
     @Idempotency() idem: IdempotencyInput,
     @Req() request: FastifyRequest,
   ) {
-    return this.decide('APPROVE', businessId, branchId, input, idem, request);
+    return this.decide({ decision: 'APPROVE', businessId, branchId, input, idem, request });
   }
 
   @Post('reject')
@@ -131,17 +139,11 @@ export class DiscountProposalsController {
     @Idempotency() idem: IdempotencyInput,
     @Req() request: FastifyRequest,
   ) {
-    return this.decide('REJECT', businessId, branchId, input, idem, request);
+    return this.decide({ decision: 'REJECT', businessId, branchId, input, idem, request });
   }
 
-  private async decide(
-    decision: 'APPROVE' | 'REJECT',
-    businessId: string,
-    branchId: string,
-    input: DecisionInput,
-    idem: IdempotencyInput,
-    request: FastifyRequest,
-  ) {
+  private async decide(call: DecisionCall) {
+    const { decision, businessId, branchId, input, idem, request } = call;
     if (this.decideProposals === null) throw new ApiError('NOT_READY');
     try {
       return await this.decideProposals.execute({ ...actorOf(request), businessId, branchId, decision, input,
