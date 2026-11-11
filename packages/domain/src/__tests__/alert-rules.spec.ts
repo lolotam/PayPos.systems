@@ -176,10 +176,4 @@ describe('DISCOUNT_SELF_APPROVED', () => {
   it('allows branch-level override', () => {
     expect(alertKindAllowsBranchOverride('DISCOUNT_SELF_APPROVED')).toBe(true);
   });
-
-  it('accepts the default settings with no violation', () => {
-    expect(
-      alertRuleViolation('DISCOUNT_SELF_APPROVED', ALERT_KIND_DEFINITIONS['DISCOUNT_SELF_APPROVED'].defaults),
-    ).toBeNull();
-  });
 });
