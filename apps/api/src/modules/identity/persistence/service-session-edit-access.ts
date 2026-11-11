@@ -148,6 +148,40 @@ export async function readServiceSessionPerformersAccess(
   return readLineAccess(tx, PERFORMERS_PERMISSION, companyId, userId, businessId, branchId, at);
 }
 
+/**
+ * يحفظ سلطة الموافقة على الخصم بنفس أقفال التسجيل، قبل قفل الاقتراحات وقرارها.
+ *
+ * @param tx معاملة الشركة المستهلكة
+ * @param companyId الشركة المؤكدة
+ * @returns اكتمال قفل الشركة ثم العضويات بترتيب ثابت
+ */
+export async function lockDiscountApprovalAccess(tx: Tx, companyId: string): Promise<void> {
+  await lockLineAccess(tx, companyId);
+}
+
+/**
+ * يعيد عضويات الموافقة المؤهلة بذاتها على فرع الاقتراح، ومنع الموافقة، وقراءة الزيارات، وميزة الطلبات عند اللحظة المحقونة.
+ * المنع يُحسب على كل عضوية سارية مع حماية المالك، والأهلية للعضوية التي تغطي الفرع وتمنح `approve:discounts:branch` بذاتها.
+ *
+ * @param tx معاملة المستهلك نفسها
+ * @param companyId الشركة المؤكدة
+ * @param userId مستخدمة المُوافِق
+ * @param businessId النشاط الذي أثبته النطاق
+ * @param branchId فرع الاقتراح
+ * @param at وقت جديد بعد الأقفال لفحص سريان العضوية
+ * @returns المنع والميزة وحق القراءة والعضويات المؤهلة ولقطات أدوارها
+ */
+export async function readDiscountApprovalAccess(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  businessId: string,
+  branchId: string,
+  at: Date,
+): Promise<LineAccess> {
+  return readLineAccess(tx, 'approve:discounts:branch', companyId, userId, businessId, branchId, at);
+}
+
 async function readLineAccess(
   tx: Tx,
   permission: string,

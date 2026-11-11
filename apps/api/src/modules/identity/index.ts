@@ -99,3 +99,4 @@ export {
 export { readOwnAttendanceAccess } from './persistence/own-attendance-access.ts';
 
 export { readOwnServiceSessionsAccess } from './persistence/own-service-sessions-access.ts';
+export { lockDiscountApprovalAccess, readDiscountApprovalAccess } from './persistence/service-session-edit-access.ts';
