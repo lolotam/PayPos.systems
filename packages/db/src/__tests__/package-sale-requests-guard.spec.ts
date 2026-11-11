@@ -13,6 +13,8 @@ let app: postgres.Sql;
 
 const PACKAGE_TYPE_ID = randomUUID();
 const ENTITLEMENT_ID = randomUUID();
+const SECOND_BUSINESS = randomUUID();
+const SECOND_BRANCH = randomUUID();
 
 beforeAll(async () => {
   testDb = await createTestDatabase();
@@ -20,6 +22,12 @@ beforeAll(async () => {
   owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
   await seedOrders(owner);
   app = postgres(testDb.appUrl, { max: 2, onnotice: () => undefined });
+
+  // business وفرع تانيين لنفس الشركة A للتحقق من رفض ربط استحقاق نشاط آخر
+  await owner`INSERT INTO businesses(id, company_id, vertical_type, name_en)
+    VALUES (${SECOND_BUSINESS}, ${TENANT.A.company}, 'salon', 'Second Business A')`;
+  await owner`INSERT INTO branches(id, company_id, business_id, name_en)
+    VALUES (${SECOND_BRANCH}, ${TENANT.A.company}, ${SECOND_BUSINESS}, 'Second Branch A')`;
 
   const COMPONENT_ID = randomUUID();
   await owner`INSERT INTO package_types(company_id, id, business_id, name_en, price, validity_days)
@@ -122,6 +130,22 @@ it('each legal transition (pending -> completed, pending -> failed) succeeds', a
   expect(rows3).toEqual([{ status: 'failed', error_code: 'PACKAGE_SALE_FAILED', error_details: null }]);
 });
 
+it("completing a request with another business's entitlement is refused", async () => {
+  const req = await asApp((tx) =>
+    insertPendingRequest(tx, { business_id: SECOND_BUSINESS, branch_id: SECOND_BRANCH }),
+  );
+  await expect(
+    asApp((tx) =>
+      tx`UPDATE package_sale_requests
+         SET status = 'completed', entitlement_id = ${ENTITLEMENT_ID}, finished_at = now()
+         WHERE id = ${req}`,
+    ),
+  ).rejects.toMatchObject({
+    code: '23503',
+    constraint_name: 'package_sale_requests_entitlement_fk',
+  });
+});
+
 it('every refused transition gives 23514', async () => {
   const compId = await asApp((tx) => insertPendingRequest(tx));
   await asApp((tx) =>
@@ -206,6 +230,33 @@ it.each([
 
 it('a pending insert that already carries a result is refused by the state shape check', async () => {
   await expect(asApp((tx) => insertPendingRequest(tx, { error_code: 'ERR' }))).rejects.toMatchObject(STATE_SHAPE_REFUSED);
+});
+
+const VALID_SERVICE_REVISION = {
+  service_id: ORDER_IDS.service,
+  revision: 1,
+  list_price: '1.000',
+};
+
+it.each([
+  ['[null]', [null]],
+  ['[42] (element not an object)', [42]],
+  ['[{}] (all keys missing)', [{}]],
+  ['missing service_id', [{ revision: 1, list_price: '1.000' }]],
+  ['missing revision', [{ service_id: ORDER_IDS.service, list_price: '1.000' }]],
+  ['missing list_price', [{ service_id: ORDER_IDS.service, revision: 1 }]],
+  ['service_id as number', [{ ...VALID_SERVICE_REVISION, service_id: 42 }]],
+  ['revision as 1.5', [{ ...VALID_SERVICE_REVISION, revision: 1.5 }]],
+  ['revision as string', [{ ...VALID_SERVICE_REVISION, revision: '1' }]],
+  ['list_price as number', [{ ...VALID_SERVICE_REVISION, list_price: 1 }]],
+  ['top level an object instead of an array', VALID_SERVICE_REVISION],
+])('expected_service_revisions check refuses %s', async (_label, payload) => {
+  await expect(
+    asApp((tx) => insertPendingRequest(tx, { expected_service_revisions: tx.json(payload as postgres.JSONValue) })),
+  ).rejects.toMatchObject({
+    code: '23514',
+    constraint_name: 'package_sale_requests_expected_service_revisions_check',
+  });
 });
 
 // المالك بيعدّي صلاحيات الأعمدة، فده بيثبت إن الـ trigger نفسه هو اللي قافل جسم الطلب مش الـ grants بس.

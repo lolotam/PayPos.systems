@@ -92,8 +92,12 @@ const saleRequestRelations = (t: SaleRequestsSelf) => [
   }),
   foreignKey({
     name: 'package_sale_requests_entitlement_fk',
-    columns: [t.companyId, t.entitlementId],
-    foreignColumns: [packageEntitlements.companyId, packageEntitlements.id],
+    columns: [t.companyId, t.businessId, t.entitlementId],
+    foreignColumns: [
+      packageEntitlements.companyId,
+      packageEntitlements.businessId,
+      packageEntitlements.id,
+    ],
   }).onDelete('restrict'),
 ];
 
@@ -107,7 +111,7 @@ const saleRequestIndexes = (t: SaleRequestsSelf) => [
     t.recordedByMembershipId,
   ),
   index('package_sale_requests_entitlement_fk_idx')
-    .on(t.companyId, t.entitlementId)
+    .on(t.companyId, t.businessId, t.entitlementId)
     .where(sql`${t.entitlementId} IS NOT NULL`),
   // قراءة منشئ الطلب لمعرفة حالة البيع المعلق (SA-09b).
   index('package_sale_requests_creator_status_idx').on(t.companyId, t.recordedBy, t.id),
@@ -124,7 +128,7 @@ const saleRequestChecks = (t: SaleRequestsSelf) => [
   ),
   check(
     'package_sale_requests_expected_service_revisions_check',
-    sql`CASE WHEN jsonb_typeof(${t.expectedServiceRevisions}) = 'array' THEN jsonb_array_length(${t.expectedServiceRevisions}) BETWEEN 1 AND 20 ELSE false END`,
+    sql`CASE WHEN jsonb_typeof(${t.expectedServiceRevisions}) = 'array' THEN jsonb_array_length(${t.expectedServiceRevisions}) BETWEEN 1 AND 20 AND NOT jsonb_path_exists(${t.expectedServiceRevisions}, '$[*] ? (@.type() != "object" || !exists(@.service_id) || @.service_id.type() != "string" || !exists(@.revision) || @.revision.type() != "number" || @.revision.floor() != @.revision || !exists(@.list_price) || @.list_price.type() != "string")') ELSE false END`,
   ),
   check(
     'package_sale_requests_error_details_size_check',

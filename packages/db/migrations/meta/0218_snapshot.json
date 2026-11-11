@@ -22253,6 +22253,12 @@
               "nulls": "last"
             },
             {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
               "expression": "entitlement_id",
               "isExpression": false,
               "asc": true,
@@ -22402,10 +22408,12 @@
           "tableTo": "package_entitlements",
           "columnsFrom": [
             "company_id",
+            "business_id",
             "entitlement_id"
           ],
           "columnsTo": [
             "company_id",
+            "business_id",
             "id"
           ],
           "onDelete": "restrict",
@@ -22438,7 +22446,7 @@
         },
         "package_sale_requests_expected_service_revisions_check": {
           "name": "package_sale_requests_expected_service_revisions_check",
-          "value": "CASE WHEN jsonb_typeof(\"package_sale_requests\".\"expected_service_revisions\") = 'array' THEN jsonb_array_length(\"package_sale_requests\".\"expected_service_revisions\") BETWEEN 1 AND 20 ELSE false END"
+          "value": "CASE WHEN jsonb_typeof(\"package_sale_requests\".\"expected_service_revisions\") = 'array' THEN jsonb_array_length(\"package_sale_requests\".\"expected_service_revisions\") BETWEEN 1 AND 20 AND NOT jsonb_path_exists(\"package_sale_requests\".\"expected_service_revisions\", '$[*] ? (@.type() != \"object\" || !exists(@.service_id) || @.service_id.type() != \"string\" || !exists(@.revision) || @.revision.type() != \"number\" || @.revision.floor() != @.revision || !exists(@.list_price) || @.list_price.type() != \"string\")') ELSE false END"
         },
         "package_sale_requests_error_details_size_check": {
           "name": "package_sale_requests_error_details_size_check",

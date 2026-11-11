@@ -38,7 +38,7 @@ const EXPECTED_FOREIGN_KEYS = [
   },
   {
     name: 'package_sale_requests_entitlement_fk',
-    columns: ['company_id', 'entitlement_id'],
+    columns: ['company_id', 'business_id', 'entitlement_id'],
   },
 ];
 
