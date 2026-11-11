@@ -2331,8 +2331,6 @@ so much beteer to creat this advisore for the project level so you and the manag
 
 **المكان:** نصوص FR-010 وFR-011 وSA-08 وSA-09b وSA-11 المعدّلة (PP-170) موجودة على فرع 42-3b، وبتدخل main مع PR 42-3b1a. وPP-173 بيتسجل في `docs/specs/058-packages-sell-redeem/owner-questions.ar.md` في نفس الـ PR (issue #922).
 
-**الأثر:** الشغل ماشي على اختيار وليد: اختيار موظفة مخفية بيرد 404، وصفوفها بتستخبى من القائمة كلها. لو أبو سالم اختار حاجة تانية، اختياره هو اللي يمشي. الرقم الجاي بعد PP-171.
-
 ## 95. PP-138 — تقليل الرسائل والبوابات الإدارية (ANSWERED، 2026-11-07)
 
 > **مصدر النقل:** البند 74 في سجل مدير T3 المحلي (`.t3/worktrees/main/feat-p1-058-2a-rate-limiter/docs/owner-decisions.ar.md`)، منقول حرفيًا يوم 2026-11-11 بعد موافقة وليد على النقل («أيوه، افتح الـ PR (المقترح)»، كارت في جلسة Claude Code مباشر لوليد وفق PP-117). المراجع اللي كانت بتقول «§74» أو «manager canonical record section 74» (`docs/specs/058-packages-sell-redeem/46-2a-g-validation.md` و`docs/specs/060-ratings-and-staff-app/57-2a-brief.md` و`docs/plans/pp138-one-day-evaluation.md`) اتعدّلت في نفس الـ PR عشان تشاور على البند 95 هنا. البند 74 في الـ repo قرار تاني (PP-163، رجوع #908)، و«البند 74» بيفضل بس كاسم المصدر المحلي. سجل القياس `docs/plans/pp138-one-day-evaluation.md` اتنقل معاه زي ما هو؛ آخر تحديث فيه 2026-11-07 09:05Z، والمقاييس كلها لسه PENDING، ومفيش في السجل المحلي نتيجة نهائية لتقييم اليوم الواحد. النص تحت هو نص البند المحلي، من غير عنوانه.
