@@ -53,10 +53,10 @@
 | PP-167 | 2026-11-11 | PP-167.1 PP-141 خلص، والمستشار يرجع Fable («Back to Fable (Recommended)»)؛ PP-167.2 قرار 11-09 المحلي ياخد رقم PP-166 («Renumber to PP-166 (Recommended)») | هنا (البند 88) |
 | PP-168 | 2026-11-11 | دفعة خمس مهام (50، 48، 42-3b، 68-2، 39–41): debate جولة واحدة بـ Codex `gpt-6-astra`/medium، الكود بـ Kimi `k3.1-pro` على Kimi CLI، والاختبارات والـ migrations بـ Agy `gemini-3.8-flash-high`، كـ CLIs من الـ shell بقيود (PP-168.1)؛ الموديلين بالأسامي الموجودة فعلًا (PP-168.2). **الإجابات حرفيًا:** «Shell CLIs + fences (Recommended)»، «Yes, use them (Recommended)» | هنا (البند 89) |
 | PP-169 | 2026-11-11 | PP-169.1: 48-3 (شاشة بناء خطة العمولة) تفضل مؤجلة. **الإجابة حرفيًا:** «Keep deferred, free the slot». PP-169.2: المكان يروح لـ 43-3 (شاشة استهلاك الباكدج). **الإجابة حرفيًا:** «43-3 package redeem screen (Recommended)» | `docs/specs/059-commissions-statements/owner-questions.ar.md` §§45–46، وهنا (البند 90) |
-| PP-170 | 2026-11-11 | 42-3b-PERF-1: بيع الباكدج يبقى شغلانة في الخلفية (worker) زي معاينة 47-1. **الإجابة حرفيًا:** «Sale as background job (Recommended)» | `docs/specs/058-packages-sell-redeem/owner-questions.ar.md` (42-3b-PERF-1)، وهنا (البند 91) |
-| PP-171 | 2026-11-11 | LH-Q12: تقرير الإجازات على مستوى المحل بيطبّق قاعدة #901 زي التاب. **اختيار وليد حرفيًا:** «Same as the tab (Recommended)»؛ سؤال ميزة، منشور على صفحة القرارات دفعة 92 لأبو سالم | `docs/specs/068-staff-leave-history/owner-questions.ar.md` (LH-Q12)، وهنا (البند 92) |
+| PP-170 | 2026-11-11 | 42-3b-PERF-1: بيع الباكدج يبقى شغلانة في الخلفية (worker) زي معاينة 47-1. **الإجابة حرفيًا:** «Sale as background job (Recommended)» | `docs/specs/058-packages-sell-redeem/owner-questions.ar.md` (42-3b-PERF-1) على فرع 42-3b، وبيدخل main مع PR 42-3b1a (issue #922)؛ وهنا (البند 91) |
+| PP-171 | 2026-11-11 | LH-Q12: تقرير الإجازات على مستوى المحل بيطبّق قاعدة #901 زي التاب. **اختيار وليد حرفيًا:** «Same as the tab (Recommended)»؛ سؤال ميزة، منشور على صفحة القرارات دفعة 92 لأبو سالم | `docs/specs/068-staff-leave-history/owner-questions.ar.md` (LH-Q12) على فرع 68-2، وبيدخل main مع PR 68-2 (issue #922)؛ وهنا (البند 92) |
 | PP-172 | 2026-11-11 | PP-172.1: 43-3 وشريحة القراءة 42-4r بيشتغلوا بمسارات PP-168 وقيودها. **الإجابة حرفيًا:** «نفس المسارات (المقترح)». PP-172.2: القيود الحالية كفاية ومفيش عزل على مستوى نظام التشغيل. **الإجابة حرفيًا:** «كفاية كده» | هنا (البند 93) |
-| PP-173 | 2026-11-11 | 42-3b: إن الكاشير يعرف برفض بيع الباكدج من سؤال الشاشة عن النتيجة (بعد ثانية أو اتنين) بدل رد فوري، ده تفصيل تقني من PP-170، مش سؤال ميزة للصفحة. **الإجابة حرفيًا:** «تفصيل تقني (المقترح)» | هنا (البند 94) |
+| PP-173 | 2026-11-11 | 42-3b: إن الكاشير يعرف برفض بيع الباكدج اللي بيقرره الـ worker من سؤال الشاشة عن النتيجة (بعد ثانية أو اتنين) بدل رد فوري، ده تفصيل تقني من PP-170، مش سؤال ميزة للصفحة؛ الصلاحية نفسها بتترفض فورًا بـ 403 وقت القبول. **الإجابة حرفيًا:** «تفصيل تقني (المقترح)» | `docs/specs/058-packages-sell-redeem/owner-questions.ar.md` مع PR 42-3b1a (issue #922)؛ وهنا (البند 94) |
 | PP-1 | 2026-10-18 | PP-1.1 تسجيل دخول Grok؛ PP-1.2 اختيار وليد في دفعة 32؛ PP-1.3 فرز الـ issues المؤجلة | هنا (البنود 3 و2 و4) |
 | PP-2 | 2026-10-18 | PP-2.1 تصحيح سعر سطر موظفته سابت (#325)؛ PP-2.2 صلاحية هوية النشاط (#331) | PP-2.1: `docs/specs/050-orders-record-service-session/owner-questions.ar.md` بند 35 (ED-Q15)، وسؤال فلوس فاتنشر كمان على صفحة القرارات في الدفعة 33 لأبو سالم؛ PP-2.2: `docs/specs/052-settings-business-identity/owner-questions.ar.md` بند 5 (BI-Q5) |
 | PP-3 | 2026-10-18 | PP-3.1 المنع على كل فروع الموظفة | `docs/specs/051-staff-employee-number/owner-questions.ar.md` بند 22 |
@@ -2231,7 +2231,7 @@ so much beteer to creat this advisore for the project level so you and the manag
 - «test and databse migration» معناها: كل ملفات الاختبار، والـ migration SQL، والـ schema، وRLS، والـ grants، والـ seed.
 - **§§5 و7 من `docs/agent-delivery-pipeline.md`:** تقسيم وليد للكود والاختبارات على مسارين بيستثني الدفعة من قاعدة «منفّذ واحد بيكتب الكود والاختبارات والعقود والـ migrations وRLS» (§5) ومن «المنفّذ الأول بيحتفظ بمحاولته لحد التسليم» (§7). الملكية: Kimi بيملك ملفات الإنتاج (domain، use case، ports، persistence، http، contracts، UI)، وAgy بيملك ملفات الاختبار والـ migration، والجلسة بتملك التجميع وتشغيل الاختبارات والـ gates. التسليم بيحصل بالترتيب: Kimi الأول، وبعده Agy على نفس الـ worktree بعد فحص القيود ومراجعة الـ diff. ملاحظة على الإنتاج بترجع لـ Kimi، وملاحظة على اختبار أو migration بترجع لـ Agy (#921).
 - **القيود الإلزامية حوالين كل تشغيل لـ Kimi أو Agy:** ملفات `.env` تتنقل برا الـ worktree قبل التشغيل وترجع بعده؛ الـ brief بيمنع git والشبكة و`.env*` و`.git` وأي حاجة برا الـ worktree؛ لقطة `git status --porcelain --ignored --untracked-files=all` و`HEAD` و`git stash list` قبل وبعد؛ أي ملف أو تعديل مش مذكور في الـ brief يترجع ويتبلّغ والجلسة تقف؛ والـ diff يتراجع سطر بسطر.
-- Agy في الوضع headless بيكتب ملفات بس، وأي أمر بيترفض تلقائيًا؛ فالـ brief بتاعه بيقول «اكتب الملفات بس ومتشغّلش حاجة»، والجلسة هي اللي بتشغّل الاختبارات. ممنوع `--dangerously-skip-permissions` (قرار المدير 2026-11-11). agy 1.5.5 في الوضع headless بقى بيرفض الكتابة كمان، فالمدير ضاف (2026-11-11 حوالي 19:40 الكويت، بعد استشارة `pospay-advisor`) قاعدة سماح لكتابة الملفات بس، محصورة في فولدرات worktrees الدفعة دي، في `userSettings.globalPermissionGrants.allow` جوه `~/.gemini/config/config.json`، من غير أي قاعدة لأمر. القاعدة دي بتتشال لما الدفعة تخلص، ونسخة الملف القديمة محفوظة عشان الرجوع يبقى بالظبط. الملف ده فيه من قبل كده سماحات أوامر عاملها المستخدم، منها `git add` و`git commit` و`git checkout`، فلقطات HEAD وstash وstatus هي اللي بتكشف أي حركة git.
+- Agy في الوضع headless بيكتب ملفات بس: أي أمر مالوش قاعدة سماح بيترفض تلقائيًا (القواعد اللي موجودة من قبل مذكورة تحت، وأي حركة ممنوعة بتتكشف بعد التشغيل مش بتتمنع)؛ فالـ brief بتاعه بيقول «اكتب الملفات بس ومتشغّلش حاجة»، والجلسة هي اللي بتشغّل الاختبارات. ممنوع `--dangerously-skip-permissions` (قرار المدير 2026-11-11). agy 1.5.5 في الوضع headless بقى بيرفض الكتابة كمان، فالمدير ضاف (2026-11-11 حوالي 19:40 الكويت، بعد استشارة `pospay-advisor`) قاعدة سماح لكتابة الملفات بس، محصورة في فولدرات worktrees الدفعة دي، في `userSettings.globalPermissionGrants.allow` جوه `~/.gemini/config/config.json`، من غير أي قاعدة لأمر. القاعدة دي بتتشال لما الدفعة تخلص، ونسخة الملف القديمة محفوظة عشان الرجوع يبقى بالظبط. الملف ده فيه من قبل كده سماحات أوامر عاملها المستخدم، منها `git add` و`git commit` و`git checkout`، فلقطات HEAD وstash وstatus هي اللي بتكشف أي حركة git.
 - **الـ fallback وجولات التصحيح:** جولات التصحيح بتكمّل في نفس جلسة Kimi أو Agy. لو مسار فشل مرتين في الإتاحة، أو ظهر خطأ كوتة Kimi، الجلسة بتبلّغ المدير ومش بتغيّر المزوّد لوحدها؛ سلسلة PP-112 التلقائية متوقفة للدفعة دي لحد قرار جديد.
 - الجلسات بتعمل commit بس؛ الـ push والـ PR والـ merge عند المدير عشان يرتب ترتيب الـ migrations والملفات المشتركة. ده اختيار تشغيل من المدير في حدود PP-117 (اللي بيسمح للجلسة تدمج، مش بيلزمها) وPP-118.
 - باقي قواعد CLAUDE.md وPP-113 وPP-118 وPP-131.2 زي ما هي.
@@ -2250,7 +2250,7 @@ so much beteer to creat this advisore for the project level so you and the manag
 
 ## 90. PP-169 — 48-3 تفضل مؤجلة، والمكان لـ 43-3 (ANSWERED، 2026-11-11)
 
-**النوع والمصدر:** قرار تقني لوليد؛ كارتين مباشرين في شات جلسة Claude Code وفق PP-117، حوالي 18:20 الكويت. السجل الكامل في `docs/specs/059-commissions-statements/owner-questions.ar.md` §46، ومعاه §45 (قرار التأجيل الأصلي يوم 11-06)؛ الاتنين اتنقلوا لـ `main` من فرع `feat/p1-059-48-plan-builder-screen` المؤجل (#922).
+**النوع والمصدر:** قرار تقني لوليد؛ كارتين مباشرين في شات جلسة Claude Code وفق PP-117، حوالي 18:20 الكويت. السجل الكامل في `docs/specs/059-commissions-statements/owner-questions.ar.md` §46، ومعاه §45 (قرار التأجيل الأصلي يوم 11-06)؛ الاتنين بيتنقلوا لـ `main` في الـ PR ده (#927) من فرع `feat/p1-059-48-plan-builder-screen` المؤجل (متابعتها في issue #922).
 
 **PP-169.1 — السؤال حرفيًا:** «48-3 (commission plan builder screen) is still deferred under your 11-06 decision. You'd approved a 3-part split with size caps (≤1140 lines total), on condition the caps were proven feasible first. They weren't: the measured design came to ~1149 lines, and part C was 240 against 190. Two P1 findings are still open from the earlier review. How do we resume it? This blocks 48-3 and the service-overrides screen 49-2.»
 
@@ -2264,7 +2264,7 @@ so much beteer to creat this advisore for the project level so you and the manag
 
 ## 91. PP-170 — بيع الباكدج كشغلانة في الخلفية (ANSWERED، 2026-11-11)
 
-**النوع والمصدر:** قرار تقني لوليد؛ كارت مباشر في شات جلسة Claude Code وفق PP-117، حوالي 18:50 الكويت، بعد استشارة `pospay-advisor` في جلسة 42-3b (PP-136). السؤال 42-3b-PERF-1 متسجل في `docs/specs/058-packages-sell-redeem/owner-questions.ar.md`.
+**النوع والمصدر:** قرار تقني لوليد؛ كارت مباشر في شات جلسة Claude Code وفق PP-117، حوالي 18:50 الكويت، بعد استشارة `pospay-advisor` في جلسة 42-3b (PP-136). السؤال 42-3b-PERF-1 متسجل في `docs/specs/058-packages-sell-redeem/owner-questions.ar.md` على فرع 42-3b، ولسه مش على main: بيدخل مع PR 42-3b1a (issue #922).
 
 **السؤال حرفيًا:** «42-3b (package sale) is stuck on a speed rule. The architecture says any request over 200 ms must become a background job. Selling the largest package type allowed (20 services × 365 sessions = 7,300 session rows) took ~820 ms at best in one transaction. The machine's CPU was at 90–99% during those runs. Your PP-165 ratio rule doesn't cover this, since it has no old version to compare against. How should the sale work?»
 
@@ -2276,7 +2276,7 @@ so much beteer to creat this advisore for the project level so you and the manag
 
 ## 92. PP-171 — تقرير الإجازات بيطبّق قاعدة #901 (ANSWERED لوليد، أبو سالم PENDING، 2026-11-11)
 
-**النوع والمصدر:** سؤال ميزة (مين يشوف إيه)؛ كارت مباشر لوليد في شات جلسة Claude Code وفق PP-117، حوالي 18:50 الكويت. اتنشر على صفحة القرارات دفعة 92 يوم 2026-11-11 (repo الصفحة، commit `9dbad27`)، واختيار وليد متسجل على الصفحة كـ card note، وإشعار `pospay-questions` اتبعت؛ اختيار أبو سالم لسه PENDING (CLAUDE.md §1 5b). السؤال LH-Q12 متسجل في `docs/specs/068-staff-leave-history/owner-questions.ar.md`.
+**النوع والمصدر:** سؤال ميزة (مين يشوف إيه)؛ كارت مباشر لوليد في شات جلسة Claude Code وفق PP-117، حوالي 18:50 الكويت. اتنشر على صفحة القرارات دفعة 92 يوم 2026-11-11 (repo الصفحة، commit `9dbad27`)، واختيار وليد متسجل على الصفحة كـ card note، وإشعار `pospay-questions` اتبعت؛ اختيار أبو سالم لسه PENDING (CLAUDE.md §1 5b). السؤال LH-Q12 متسجل في `docs/specs/068-staff-leave-history/owner-questions.ar.md` على فرع 68-2، ولسه مش على main: بيدخل مع PR 68-2 (issue #922).
 
 **السؤال حرفيًا:** «68-2 (leave-history report for the whole business): the employee leave tab already hides an employee who has no current link to any branch the viewer can see (rule #901). Should the new report follow the same rule? This is a 'who sees what' question, so it will also go on the decisions page for Abu Salem.»
 
@@ -2298,7 +2298,7 @@ so much beteer to creat this advisore for the project level so you and the manag
 
 **رد وليد حرفيًا:** «نفس المسارات (المقترح)».
 
-**الأثر:** PP-168 بيتمد لـ 43-3 وللشريحة الجديدة 42-4r بنفس القيود. 42-4r اتقسمت من 42-4 بقرار المدير (قراءات FR-070/071)، و43-3 بتبدأ فوقها بعد ما تخلص. مفيش منفّذ اشتغل على المهمتين قبل الإجابة.
+**الأثر:** PP-168 بيتمد لـ 43-3 وللشريحة الجديدة 42-4r بنفس القيود. 42-4r اتقسمت من 42-4 بقرار المدير (قراءات FR-070/071)؛ تعديل جدول المهام في `docs/specs/058-packages-sell-redeem/spec.md` (صف 42-4r، و42-4 و43-3 بيستنوها) موجود في commit `ddad0b245` على فرع 42-4r، وبيدخل main مع PR 42-4r، ولحد كده جدول main لسه بيقول 42-4. و43-3 بتبدأ فوقها بعد ما تخلص. مفيش منفّذ اشتغل على المهمتين قبل الإجابة.
 
 ### PP-172.2 — العزل حوالين Kimi وAgy
 
@@ -2308,7 +2308,7 @@ so much beteer to creat this advisore for the project level so you and the manag
 
 **رد وليد حرفيًا:** «كفاية كده».
 
-**الأثر:** القيود الحالية (البند 89) بتفضل زي ما هي، ومفيش container ولا يوزر محدود لـ Kimi أو Agy. البند 89 مابيقولش إن فيه sandbox، وده متوافق مع `docs/agent-delivery-pipeline.md` السطر 59. وليد عارف إن ده عكس الاختيار المقترح.
+**الأثر:** القيود الحالية (البند 89) بتفضل زي ما هي، ومفيش container ولا يوزر محدود لـ Kimi أو Agy. القبول ده محصور في دفعة PP-168 (50 و42-3b و68-2 و39–41) و43-3 و42-4r، ومش قبول دائم لأي دفعة جاية. البند 89 مابيقولش إن فيه sandbox، وده متوافق مع جملة `docs/agent-delivery-pipeline.md` §0: «The delegation transport is **not** a technical sandbox.». وليد اختار الاختيار اللي مش مقترح.
 
 ## 94. PP-173 — رفض بيع الباكدج بيظهر من سؤال النتيجة: تفصيل تقني (ANSWERED، 2026-11-11)
 
@@ -2320,4 +2320,8 @@ so much beteer to creat this advisore for the project level so you and the manag
 
 **رد وليد حرفيًا:** «تفصيل تقني (المقترح)».
 
-**الأثر:** مش هيتنشر على صفحة القرارات. الرفض بيوصل للكاشير في رد سؤال النتيجة، بنفس رسالة الخطأ العادية (عربي وإنجليزي)، زي ما الـ spec بتاعة 42-3b بتقول (FR-018b/c).
+**الأثر:** مش هيتنشر على صفحة القرارات. القرار بيغطي الرفض اللي بيقرره الـ worker بس، تحت أقفاله: SA-04 وSA-05 وSA-05b وSA-07 وSA-08 وSA-08b وSA-08c، وسباقات المراجعة في FR-018b/c. الرفض ده بيوصل للكاشير في رد سؤال النتيجة (`failed` ومعاه الكود، بنفس رسالة الخطأ العادية عربي وإنجليزي)، حسب عقد الحالة في FR-010 وSA-09b.
+
+**تصحيح لمثال في الكارت:** الصلاحية مش من الحالات دي. `sell:packages:branch` وميزة `orders` بيتشيّكوا وقت القبول نفسه (FR-011)، فالكاشير اللي ماعندوش صلاحية بياخد 403 فورًا، ومفيش طلب بيتكتب ولا job بتتعمل (SA-11). مثال «الكاشير ماعندوش صلاحية» في الكارت كان غلط. قراءة المدير: القرار نفسه ماتغيرش، لأن المثال التاني (الخصم فوق الحد، SA-04) لسه نتيجة من الـ worker، وشيل مثال الصلاحية بيقوّي إنه تفصيل تقني؛ ووليد اتبلّغ بالتصحيح ده كمعلومة.
+
+**المكان:** نصوص FR-010 وFR-011 وSA-08 وSA-09b وSA-11 المعدّلة (PP-170) موجودة على فرع 42-3b، وبتدخل main مع PR 42-3b1a. وPP-173 بيتسجل في `docs/specs/058-packages-sell-redeem/owner-questions.ar.md` في نفس الـ PR (issue #922).
