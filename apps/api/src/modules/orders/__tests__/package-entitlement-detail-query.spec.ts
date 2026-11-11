@@ -56,24 +56,24 @@ afterAll(async () => {
 it('reads the stored sale facts of a sold package', async () => {
   const detail = must(await read(fixture.soldEntitlement));
   expect(detail.id).toBe(fixture.soldEntitlement);
-  expect(detail.customerId).toBe(fixture.f.customer);
-  expect(detail.packageTypeId).toBe(fixture.packageType);
+  expect(detail.customer_id).toBe(fixture.f.customer);
+  expect(detail.package_type_id).toBe(fixture.packageType);
   expect(detail.provenance).toBe('SOLD');
-  expect(detail.nameEn).toBe('Sold package snapshot');
-  expect(detail.nameAr).toBe('باقة مباعة');
-  expect(detail.validityDays).toBe(90);
-  expect(detail.listPrice).toBe('50.000');
-  expect(detail.pricePaid).toBe('50.000');
+  expect(detail.name_en).toBe('Sold package snapshot');
+  expect(detail.name_ar).toBe('باقة مباعة');
+  expect(detail.validity_days).toBe(90);
+  expect(detail.list_price).toBe('50.000');
+  expect(detail.price_paid).toBe('50.000');
   expect(detail.discount).toBe('0.000');
-  expect(detail.discountBps).toBe(0);
-  expect(detail.paidMethod).toBe('CASH');
-  expect(detail.sellerEmployeeId).toBe(fixture.employee);
-  expect(detail.sellerLinkedUserId).toBe(fixture.f.userId);
-  expect(detail.soldBranchId).toBe(fixture.f.branch);
-  expect(detail.soldAt).toBe('2026-10-20T09:30:00.123Z');
-  expect(detail.soldBusinessDate).toBe('2026-10-20');
-  expect(detail.expiresOn).toBe('2027-01-18');
-  expect(detail.refundedAmount).toBe('0.000');
+  expect(detail.discount_bps).toBe(0);
+  expect(detail.paid_method).toBe('CASH');
+  expect(detail.seller_employee_id).toBe(fixture.employee);
+  expect(detail.seller_linked_user_id).toBe(fixture.f.userId);
+  expect(detail.sold_branch_id).toBe(fixture.f.branch);
+  expect(detail.sold_at).toBe('2026-10-20T09:30:00.123Z');
+  expect(detail.sold_business_date).toBe('2026-10-20');
+  expect(detail.expires_on).toBe('2027-01-18');
+  expect(detail.refunded_amount).toBe('0.000');
   expect(detail.revision).toBe(1);
 });
 
@@ -86,39 +86,39 @@ it('reads the components in position order with their exact stored values', asyn
     fixture.soldComponentTwo,
   ]);
   const first = must(detail.components[0]);
-  expect(first.serviceId).toBe(must(fixture.f.services[0]));
-  expect(first.nameEn).toBe('Snapshot service one');
-  expect(first.listPriceSnapshot).toBe('15.000');
-  expect(first.componentValue).toBe('30.000');
-  expect(first.sessionsTotal).toBe(3);
+  expect(first.service_id).toBe(must(fixture.f.services[0]));
+  expect(first.name_en).toBe('Snapshot service one');
+  expect(first.list_price_snapshot).toBe('15.000');
+  expect(first.component_value).toBe('30.000');
+  expect(first.sessions_total).toBe(3);
   expect(first.remaining).toBe(3);
   expect(first.used).toBe(0);
   expect(first.refunded).toBe(0);
   expect(first.slots.map((slot) => slot.ordinal)).toEqual([1, 2, 3]);
   expect(first.slots.map((slot) => slot.state)).toEqual(['FREE', 'FREE', 'FREE']);
-  expect(first.slots.map((slot) => slot.unitValue)).toEqual(['10.000', '10.000', '10.000']);
+  expect(first.slots.map((slot) => slot.unit_value)).toEqual(['10.000', '10.000', '10.000']);
   const second = must(detail.components[1]);
-  expect(second.componentValue).toBe('20.000');
-  expect(second.slots.map((slot) => slot.unitValue)).toEqual(['6.666', '6.666', '6.668']);
+  expect(second.component_value).toBe('20.000');
+  expect(second.slots.map((slot) => slot.unit_value)).toEqual(['6.666', '6.666', '6.668']);
 });
 
 it('leaves the sale-only fields of an imported package empty and counts its used sessions', async () => {
   const detail = must(await read(fixture.importedEntitlement));
   expect(detail.provenance).toBe('IMPORTED');
-  expect(detail.pricePaid).toBe('40.000');
-  expect(detail.packageTypeId).toBeNull();
-  expect(detail.validityDays).toBeNull();
-  expect(detail.listPrice).toBeNull();
+  expect(detail.price_paid).toBe('40.000');
+  expect(detail.package_type_id).toBeNull();
+  expect(detail.validity_days).toBeNull();
+  expect(detail.list_price).toBeNull();
   expect(detail.discount).toBeNull();
-  expect(detail.discountBps).toBeNull();
-  expect(detail.paidMethod).toBeNull();
-  expect(detail.sellerEmployeeId).toBeNull();
-  expect(detail.sellerLinkedUserId).toBeNull();
-  expect(detail.soldBranchId).toBeNull();
-  expect(detail.soldAt).toBeNull();
-  expect(detail.soldBusinessDate).toBeNull();
+  expect(detail.discount_bps).toBeNull();
+  expect(detail.paid_method).toBeNull();
+  expect(detail.seller_employee_id).toBeNull();
+  expect(detail.seller_linked_user_id).toBeNull();
+  expect(detail.sold_branch_id).toBeNull();
+  expect(detail.sold_at).toBeNull();
+  expect(detail.sold_business_date).toBeNull();
   const component = must(detail.components[0]);
-  expect(component.sessionsTotal).toBe(4);
+  expect(component.sessions_total).toBe(4);
   expect(component.remaining).toBe(2);
   expect(component.used).toBe(2);
   expect(component.refunded).toBe(0);
@@ -163,24 +163,24 @@ it('shows no phone and no field the detail does not own', async () => {
   expect(Object.keys(detail).sort()).toEqual(
     [
       'id',
-      'customerId',
-      'packageTypeId',
+      'customer_id',
+      'package_type_id',
       'provenance',
-      'nameEn',
-      'nameAr',
-      'validityDays',
-      'listPrice',
-      'pricePaid',
+      'name_en',
+      'name_ar',
+      'validity_days',
+      'list_price',
+      'price_paid',
       'discount',
-      'discountBps',
-      'paidMethod',
-      'sellerEmployeeId',
-      'sellerLinkedUserId',
-      'soldBranchId',
-      'soldAt',
-      'soldBusinessDate',
-      'expiresOn',
-      'refundedAmount',
+      'discount_bps',
+      'paid_method',
+      'seller_employee_id',
+      'seller_linked_user_id',
+      'sold_branch_id',
+      'sold_at',
+      'sold_business_date',
+      'expires_on',
+      'refunded_amount',
       'revision',
       'components',
     ].sort(),
@@ -189,20 +189,20 @@ it('shows no phone and no field the detail does not own', async () => {
   expect(Object.keys(component).sort()).toEqual(
     [
       'id',
-      'serviceId',
+      'service_id',
       'position',
-      'nameEn',
-      'nameAr',
-      'listPriceSnapshot',
-      'componentValue',
-      'sessionsTotal',
+      'name_en',
+      'name_ar',
+      'list_price_snapshot',
+      'component_value',
+      'sessions_total',
       'remaining',
       'used',
       'refunded',
       'slots',
     ].sort(),
   );
-  expect(Object.keys(must(component.slots[0])).sort()).toEqual(['ordinal', 'state', 'unitValue']);
+  expect(Object.keys(must(component.slots[0])).sort()).toEqual(['ordinal', 'state', 'unit_value']);
   expect(JSON.stringify(detail)).not.toContain('+999999998123');
   expect(JSON.stringify(detail)).not.toContain('created_system_id');
   expect(JSON.stringify(detail)).not.toContain('created_txid');
@@ -217,8 +217,8 @@ it('keeps the stored component snapshots when the catalog changes', async () => 
   );
   const detail = must(await read(fixture.soldEntitlement));
   const component = must(detail.components[0]);
-  expect(component.nameEn).toBe('Snapshot service one');
-  expect(component.listPriceSnapshot).toBe('15.000');
+  expect(component.name_en).toBe('Snapshot service one');
+  expect(component.list_price_snapshot).toBe('15.000');
   expect(JSON.stringify(detail)).not.toContain('Renamed after the sale');
   expect(JSON.stringify(detail)).not.toContain('99.000');
 });
