@@ -1,0 +1,49 @@
+# Debate 68-2 PP-176 delta — Codex `gpt-6-astra`, effort medium, one round (PP-168)
+
+Command: `codex exec -m gpt-6-astra -c model_reasoning_effort=medium --sandbox read-only -C <worktree> --output-last-message <file> "<prompt>" </dev/null`,
+2026-11-11, on the "PP-176 delta" section of `plan-68-2.md` at `842b85329` (uncommitted delta). Prompt:
+`briefs/row-68-2/debate-2-prompt.txt` (outside the repo). The reviewer's final message follows verbatim, then the
+orchestrator's verdict per finding.
+
+## Reviewer output (verbatim)
+
+1. **P1 — D7: the count does not bound `days`.** SQL groups by **employee × branch × date**, not distinct employee × date. Eligibility comes from current readable-branch attachments; D7 counts attachments in attendance branches at `from`. An employee currently eligible through branch B can have historical shifts in attendance branch A without a qualifying A attachment. Multiple branches also multiply groups. `branch_id` filters after the twice-referenced `days` CTE. **Done:** use a conservative bound matching those inputs; test historical transfers, multiple branches, future ranges, and concurrent population changes. Prove rejected cases never execute history SQL.
+
+2. **P1 — D9/D10/D13: dedupe can return an unusable report repeatedly.** Fingerprinting only the query reuses a pending report with an obsolete frozen scope. After permission narrowing, GET returns `LEAVE_HISTORY_REPORT_STALE`; repeating POST returns the same pending ID for up to 10 minutes. **Done:** reuse only reports whose frozen scope remains compatible, or include canonical scope identity in dedupe. Sort/deduplicate filter sets, normalize UUIDs/defaults, and test concurrent retries after scope changes.
+
+3. **P2 — D10/D12/D13: inconsistent pending deadline.** At 10 minutes, polling reports failure and acceptance stops counting the job. The worker still accepts it until retention expiry, potentially an hour later. Thus “failed” work can become ready, and abandoned jobs accumulate outside the cap. Exactly 10 minutes is also unspecified between “younger” and “older.” **Done:** define one deadline and boundary operator across reuse, cap, polling, worker claim, and completion; test delayed delivery and deadline-crossing execution.
+
+4. **P1 — D11: transition checks do not establish immutable, atomic results.** The stated trigger does not prohibit changing report identity/query/scope during completion or updating stored records afterward. Checking that a parent is pending without locking it also permits an insert racing completion, leaving rows inconsistent with `row_count`. **Done:** specify exact column grants, immutable fields, terminal-state checks, and parent-locking rules for row insertion. Enforce result/count consistency and reject post-completion mutation. Test concurrent insertion/completion, cross-company FK writes, and cascade deletion as runtime roles.
+
+5. **P2 — D12/D14: acceptance time is not the database snapshot time.** `as_of` controls time predicates; committed SQL reads current leave statuses and attendance. A leave approved between acceptance and worker execution appears approved in a report claiming statuses “of `as_of`.” **Done:** distinguish acceptance/cutoff time from computation snapshot time in the contract and documentation. Test an intervening approval and attendance correction; do not promise historical status reconstruction.
+
+6. **P2 — D13/D14: scope compatibility lacks executable semantics.** “A frozen branch set” does not explicitly require checking every relevant set, particularly `attendanceBranches`. Conversely, comparing full `eligibilityDays` objects would make ordinary midnight rollover stale because `today` changes. **Done:** enumerate subset comparisons, compare eligibility branch identities separately from dates, and use fresh branch-local dates for live visibility. Test attendance-only revocation, complete read revocation, feature disablement, midnight rollover, deletion, and PP-171 detachment.
+
+7. **P2 — D13: indexed pagination does not guarantee bounded page work.** `WHERE seq > cursor AND visible … LIMIT` can inspect every remaining stored row when employees become invisible. The PK bounds ordering, not visibility checks. The test allocation promises EXPLAIN but no explicit page/status HTTP p95 verification. **Done:** measure first/late pages with 25,000 rows, mostly/all invisible employees, and maximum page size; assert SC-004 including access checks. Test malformed cursors and replay against another report.
+
+8. **P2 — D12: failure persistence is underspecified.** “The last attempt marks failed” omits what happens when that write fails. The copied package processor explicitly persists failure-finalization progress and retries finalization without rerunning computation. Unknown commit outcomes also require reconciliation before declaring failure. **Done:** specify that protocol, conditional pending-only failure updates, transaction draining, and tests for lost commit replies, failed failure writes, concurrent redelivery, and timeout rollback.
+
+9. **P2 — D8 and 68-2a tests: rejection precedence remains ambiguous.** Access succeeds before `readLeaveHistoryPage` validates the cursor and requested branch. Inserting the heavy-query refusal immediately after access/count would change an out-of-scope branch’s 404 or malformed cursor’s 400 into 422. **Done:** explicitly order feature, cursor, branch-scope, and workload checks. Add unauthorized/foreign/feature-off/out-of-scope heavy-query tests proving no count-dependent response leaks before authorization completes.
+
+10. **P2 — D12 and split estimates: extraction scope is understated.** The listed SQL files already contain about **340 builder lines**, including the builder portion of `leave-history.query.ts`; additions plus deletions exceed 680 before wiring. The move allocation is only 250–300. Its proposed context type also omits `userId` and `own`, required by `leaveListRecord`, whose inbox/open-list callers remain. **Done:** inventory moved symbols and all callers, retain the necessary structural context, isolate API cursor/DTO parsing, and recalculate estimates using the declared counting convention. Preserve byte-identical tab SQL and existing list regressions.
+
+11. **P2 — D11/D15; spec “API contract” and “Permissions”: release prerequisites remain incomplete.** Retention is explicitly PENDING, yet 68-2b includes a one-hour executable placeholder. The spec still says the routes write nothing and need no write declaration; new request/status schemas and operation IDs are not enumerated. **Done:** make the retention answer an explicit gate for dependent work; replace contradictory permission text; name new contracts/operation IDs and error mappings. Add production-wiring tests proving 68-2b has no producer and registers both computation and cleanup readiness.
+
+**Verdict: changes required before implementation dispatch; D7’s workload bound and D11’s persistence invariants are blocking.**
+## Verdicts
+
+| # | Sev | Verdict | Reason and plan change |
+|---|---|---|---|
+| 1 | P1 | Accept | Verified in `leave-history-days.sql.ts`: `days` groups shifts by employee × branch × date over `staff_schedules` in the attendance branches, whatever the employee's attachments, and `branch_id` filters later. D7 now counts `staff_schedules` rows in the attendance branches whose week overlaps the period (index `staff_schedules_branch_week_idx`), an upper bound on the day groups; tests for historical transfers, two branches, a future range, and that a refused query never runs the history SQL. |
+| 2 | P1 | Accept | D10: the fingerprint covers the normalized query and the frozen scope's branch sets, so a narrowed scope gets a new report instead of a pending one that would read `STALE`. |
+| 3 | P2 | Accept | One `deadline_at` (acceptance + 10 min) with `now < deadline_at` everywhere: reuse, cap, polling, worker claim and completion; the worker fails a report found past it (D10, D12, D13). |
+| 4 | P1 | Accept | D11: exact column grants, insert only `pending` with `row_count` 0, `pending → ready|failed` only, terminal states immutable, `row_count` equals the stored rows on `ready`, row insert requires a `pending` parent under the worker's `FOR UPDATE`; runtime-role tests for cross-company FK, cascade and concurrent insert/completion. |
+| 5 | P2 | Accept | D14: `as_of` is the cutoff for time predicates; statuses are the worker's snapshot, exposed as `computed_at`; no historical status is promised. |
+| 6 | P2 | Accept | D13: three subset checks on branch ids (leave-read, attendance, eligibility), never dates; live visibility with fresh branch-local dates; `request_branch_ids` from the current scope; the listed tests. |
+| 7 | P2 | Accept | D13: a page scans at most a 1,000-`seq` window, so it may be short or empty; HTTP p95 on first and late pages of 25,000 rows with invisible employees, plus malformed and foreign cursors. |
+| 8 | P2 | Accept | D12 adopts `package-preview.processor.ts`'s failure protocol: progress-saved failure code, `moveToDelayed` finalization without recomputing, `pending`-only conditional writes, re-read on a lost commit reply. |
+| 9 | P2 | Accept | D8 lists the precedence (400, 404, `FEATURE_DISABLED`, cursor 400, `branch_id` 404, then the count and 422) and the precedence tests in 68-2a. |
+| 10 | P2 | Accept | D12 inventories the moved symbols (about 340 lines), keeps `userId` and `own` in the structural context for `leaveListRecord`'s inbox and open-list callers, and the sizes are recounted (68-2b production 1,000–1,250). |
+| 11 | P2 | Accept | D15 makes the retention answer a merge gate for 68-2b; the spec's Permissions text names the POST's PP-7.1 declaration; contracts, operation ids and error codes are named in D9, D13 and the spec; a production-wiring test proves no producer and `/ready` covering both processors. |
+
+Accepted 11, rejected 0.
