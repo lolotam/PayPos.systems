@@ -85,8 +85,9 @@ async function holdPastActivation(page: Page, expiry: number) {
 async function sandboxStaff(page: Page, permitted: boolean, locale: Locale) {
   await page.goto(`${DESTINATION_ORIGIN}/blank`);
   // الضابط يسمح لنافذة مستقلة بعد عزل opener؛ الحالتان تختلفان في إذن الفتح فقط.
+  // الحجم الافتراضي 300×150 يضع محدد الشركة داخل درج الهاتف المغلق؛ الضابطان يحتاجان عرض سطح المكتب.
   await page.setContent(
-    `<iframe id="app" sandbox="allow-scripts allow-same-origin allow-popups-to-escape-sandbox${permitted ? ' allow-popups' : ''}" src="${ADMIN_ORIGIN}/staff"></iframe>`,
+    `<iframe id="app" width="1280" height="720" sandbox="allow-scripts allow-same-origin allow-popups-to-escape-sandbox${permitted ? ' allow-popups' : ''}" src="${ADMIN_ORIGIN}/staff"></iframe>`,
   );
   const frame = page.frameLocator('#app');
   try {
