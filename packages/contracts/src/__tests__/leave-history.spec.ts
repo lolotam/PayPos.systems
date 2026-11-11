@@ -4,6 +4,7 @@ import {
   leaveHistoryCursorData,
   leaveHistoryItem,
   leaveHistoryQuery,
+  leaveHistoryReportQuery,
 } from '../staff/leave-history.js';
 import { buildOpenApiDocument } from '../openapi.js';
 const base = { from: '2026-01-01', to: '2026-12-31' };
@@ -78,4 +79,46 @@ it('a cursor with a year-zero date or as_of is refused, a legal one parses', () 
   expect(
     leaveHistoryCursorData.safeParse({ ...cursor, as_of: '0000-11-07T10:00:00.000Z' }).success,
   ).toBe(false);
+});
+it('leaveHistoryReportQuery accepts employee_id and tab fields, rejects invalid values and overflow', () => {
+  const employeeId = '019a0000-0000-7000-8000-000000000001';
+  const report = leaveHistoryReportQuery.parse({ ...base, employee_id: employeeId });
+  expect(report.employee_id).toBe(employeeId);
+  expect(report.limit).toBe(50);
+  expect(leaveHistoryReportQuery.safeParse({ ...base, employee_id: 'bad' }).success).toBe(false);
+  expect(leaveHistoryReportQuery.safeParse({ ...base, unexpected_key: true }).success).toBe(false);
+  const overflow = leaveHistoryReportQuery.safeParse({ ...base, to: '2027-01-02' });
+  expect(overflow.success).toBe(false);
+  if (!overflow.success) {
+    expect(overflow.error.issues).toContainEqual(
+      expect.objectContaining({ path: ['to'], message: 'LEAVE_HISTORY_RANGE_INVALID' }),
+    );
+  }
+  expect(leaveHistoryQuery.safeParse({ ...base, employee_id: employeeId }).success).toBe(false);
+});
+it('OpenAPI specifies getLeaveHistoryReport with path businessId only and optional employee_id query', () => {
+  const paths = buildOpenApiDocument()['paths'] as Record<
+    string,
+    {
+      get: {
+        operationId: string;
+        parameters: { in: string; name: string; required: boolean }[];
+      };
+    }
+  >;
+  const reportOp = paths['/v1/businesses/{businessId}/leave-history']?.get;
+  expect(reportOp?.operationId).toBe('getLeaveHistoryReport');
+  const pathParams = reportOp?.parameters.filter((p) => p.in === 'path').map((p) => p.name);
+  expect(pathParams).toEqual(['businessId']);
+  const employeeQuery = reportOp?.parameters.find(
+    (p) => p.in === 'query' && p.name === 'employee_id',
+  );
+  expect(employeeQuery).toBeDefined();
+  expect(employeeQuery?.required).toBe(false);
+
+  const employeeOp = paths['/v1/businesses/{businessId}/employees/{employeeId}/leave-history']?.get;
+  expect(employeeOp?.operationId).toBe('getEmployeeLeaveHistory');
+  expect(employeeOp?.parameters.some((p) => p.in === 'query' && p.name === 'employee_id')).toBe(
+    false,
+  );
 });
