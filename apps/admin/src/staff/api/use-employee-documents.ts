@@ -2,12 +2,27 @@
 import {
   employeeDocument,
   employeeDocumentsView,
-  fileDownload,
   type EmployeeDocumentFormValues,
 } from '@pospay/contracts';
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import {
+  notifyManager,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiClient } from '@/shared/api/client';
+import {
+  beginOpen,
+  readReadyData,
+  releaseUnconsumed,
+  settle,
+  watchOpen,
+  type OpenAccess,
+  type OpenContext,
+  type OpenLife,
+} from './employee-document-open';
 import { uploadDocumentFile, type UploadPhase } from './upload-document-file';
 
 export interface DocumentSubmission {
@@ -43,24 +58,7 @@ export function useEmployeeDocuments(
       return context ? client.invalidateQueries({ queryKey: context.key }) : undefined;
     },
   });
-  const open = useMutation({
-    mutationKey: [...key, 'open'],
-    retry: false,
-    mutationFn: async (storageKey: string) => {
-      const operation = begin();
-      if (!active(operation)) return undefined;
-      const result = await apiClient().POST('/v1/files/download', {
-        params: { header: params.header },
-        body: { storage_key: storageKey },
-      });
-      if (result.error) throw result.error;
-      return { download: fileDownload.parse(result.data), operation };
-    },
-    onSuccess: (result) => {
-      if (result && active(result.operation))
-        window.open(result.download.download_url, '_blank', 'noopener');
-    },
-  });
+  const open = useDocumentOpen(client, key, params.header, scope, { begin, active }, view);
   const resetRecord = record.reset;
   const resetOpen = open.reset;
   useEffect(() => {
@@ -70,7 +68,15 @@ export function useEmployeeDocuments(
   }, [scope, resetRecord, resetOpen]);
   const saved = record.data;
   const data = saved && active(saved.operation) ? saved.document : undefined;
-  return { view, record: { ...record, data }, open, phase };
+  return {
+    view,
+    get documents() {
+      return open.documents();
+    },
+    record: { ...record, data },
+    open,
+    phase,
+  };
 }
 
 function useDocumentScope(key: string[]) {
@@ -161,6 +167,88 @@ function useDocumentAccess(scope: object, key: string[]) {
   return { current, begin, active };
 }
 
+function openContext(
+  client: QueryClient,
+  key: string[],
+  header: { 'x-company-id': string },
+  access: OpenAccess,
+  show: OpenContext['show'],
+  scope: object,
+): OpenContext {
+  return {
+    scope,
+    client,
+    key,
+    header,
+    life: { alive: false, access, query: undefined, scope, client, key },
+    registry: new Map(),
+    pending: null,
+    opening: null,
+    generation: 0,
+    show,
+    schedule: notifyManager.schedule,
+  };
+}
+function useDocumentOpen(
+  client: QueryClient,
+  key: string[],
+  header: { 'x-company-id': string },
+  scope: object,
+  access: OpenAccess,
+  observer: ReturnType<typeof useDocumentsView>,
+) {
+  const accessNow = useRef(access);
+  accessNow.current = access;
+  const binding = useMemo(() => ({ scope, client, key }), [scope, client, key]);
+  const [life, setLife] = useState<OpenLife | null>(null);
+  const [, refresh] = useState(0);
+  const [ui, setUi] = useState<{ error?: Parameters<OpenContext['show']>[0]; opening: boolean }>({
+    opening: false,
+  });
+  const show = (error?: Parameters<OpenContext['show']>[0], opening = false) =>
+    setUi(error === undefined ? { opening } : { error, opening });
+  const board = useRef<OpenContext | null>(null);
+  if (!board.current) {
+    board.current = openContext(client, key, header, access, show, scope);
+  }
+  const ctx = board.current;
+  ctx.show = show;
+  ctx.header = header;
+  ctx.key = key;
+  ctx.client = client;
+  ctx.scope = scope;
+  useEffect(() => {
+    const next = { ...binding, alive: true, access: accessNow.current, query: undefined };
+    ctx.life = next;
+    const stop = watchOpen(ctx, () => refresh((revision) => revision + 1));
+    setLife(next);
+    setUi({ opening: false });
+    return () => {
+      next.alive = false;
+      stop();
+    };
+  }, [ctx, binding]);
+  const mutation = useMutation({
+    mutationKey: [...key, 'open'],
+    retry: false,
+    mutationFn: (token: object) => settle(token, ctx),
+  });
+  const mutate = (storageKey: string) => {
+    if (!life?.alive) return;
+    beginOpen(storageKey, ctx, life, (token) => {
+      mutation.mutate(token, { onSettled: () => releaseUnconsumed(token, ctx) });
+    });
+  };
+  return {
+    ...mutation,
+    documents: () => readReadyData(ctx, life, observer),
+    mutate,
+    error: ui.error,
+    isPending: ui.opening,
+    isError: ui.error !== undefined,
+  };
+}
+
 type DocumentRecordContext = {
   companyId: string;
   businessId: string;
@@ -237,10 +325,20 @@ function useDocumentsView(
   }, [client, companyId, businessId, userId, employeeId]);
   useEffect(() => {
     const status = (view.error as { status?: number } | null)?.status;
-    if (view.isError && (status === 403 || status === 404))
-      client.removeQueries({
-        queryKey: ['employee-documents', companyId, businessId, userId, employeeId],
-      });
-  }, [client, companyId, businessId, userId, employeeId, view.isError, view.error]);
+    if (!view.isError || (status !== 403 && status !== 404)) return;
+    client.removeQueries({
+      queryKey: ['employee-documents', companyId, businessId, userId, employeeId],
+    });
+    // بعد الإزالة لا تصل أحداث query cache للمراقب؛ التعافي يبدأ قراءة خادم جديدة بلا استعادة الكاش.
+    const recover = () => {
+      if (document.visibilityState === 'visible') void view.refetch();
+    };
+    window.addEventListener('online', recover);
+    document.addEventListener('visibilitychange', recover);
+    return () => {
+      window.removeEventListener('online', recover);
+      document.removeEventListener('visibilitychange', recover);
+    };
+  }, [client, companyId, businessId, userId, employeeId, view.isError, view.error, view.refetch]);
   return view;
 }
