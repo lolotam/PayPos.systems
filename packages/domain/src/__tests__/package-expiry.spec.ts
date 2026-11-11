@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { PackageRuleError } from '../errors.js';
-import { assertPackageNotExpired, packageExpiryDate } from '../package-expiry.js';
+import { PackageRuleError } from '../packages/errors.js';
+import { assertPackageNotExpired, packageExpiryDate } from '../packages/package-expiry.js';
 
 describe('branch-local package expiry (PKG-09/M7)', () => {
   it.each([

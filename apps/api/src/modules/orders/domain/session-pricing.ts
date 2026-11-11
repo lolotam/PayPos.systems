@@ -1,4 +1,4 @@
-import { lineNet as moneyLineNet, discountFromPercent as moneyDiscountFromPercent, sumMoney } from '@pospay/domain';
+import { lineNet as moneyLineNet, discountFromPercent as moneyDiscountFromPercent, effectiveDiscountBps as moneyEffectiveDiscountBps, sumMoney } from '@pospay/domain';
 import { SessionError } from './session-error.ts';
 import type { PreparedSessionLine, SessionLimit } from './session-types.ts';
 
@@ -27,16 +27,16 @@ export function discountFromPercent(price: bigint, bps: number): bigint {
   catch { throw new SessionError('SESSION_DISCOUNT_INVALID'); }
 }
 /**
- * يحتسب تخفيض السعر أيضاً؛ كسر أعلى من السلطة يرفض بالتقريب لأعلى حسب D-56.
+ * يحتسب نسبة الخصم الفعلي التي تُقارن بسقف السلطة، مقربةً لأعلى حسب D-56.
+ * يستخدم حساب المال المشترك ويحافظ على رمز رفض الخصم الخاص بالجلسة.
  *
  * @param listPrice سعر القائمة بالفلس
  * @param net الصافي بالفلس
  * @returns الخصم الفعلي بوحدات أساس صحيحة
  */
 export function effectiveDiscountBps(listPrice: bigint, net: bigint): number {
-  lineNet(listPrice, 0n); lineNet(net, 0n);
-  if (listPrice === 0n || net >= listPrice) return 0;
-  return Number(((listPrice - net) * 10000n + listPrice - 1n) / listPrice);
+  try { return moneyEffectiveDiscountBps(listPrice, net); }
+  catch { throw new SessionError('SESSION_DISCOUNT_INVALID'); }
 }
 /**
  * يحدد أدنى صافي وأكبر خصم إضافي دون تقريب سلطة الشخص لأسفل.

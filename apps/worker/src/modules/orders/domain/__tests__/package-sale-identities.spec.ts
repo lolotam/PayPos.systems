@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { PackageSaleIdentityInvariantError } from '../errors.ts';
+import { PackageSaleIdentityInvariantError } from '../package-sale-errors.ts';
 import { planPackageSale } from '../package-sale-plan.ts';
 import { componentIdentity, identities, input } from './fixtures/package-sale.ts';
 

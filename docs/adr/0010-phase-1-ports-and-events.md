@@ -518,3 +518,12 @@ ports, use cases or persistence. No commissions-only import exception is borrowe
 P-1's catalog/default/seed and grant/current-role policy precede the later reader tests and emitter.
 A-1 itself is docs only and does not depend on that FK being populated. Deployment, transport choice,
 rolling-version compatibility, exact-head gates, migration approval and activation remain separate gates.
+
+
+### Addendum 2026-11-11 — `PackageSaleRequested` (058 / 42-3b, PP-170)
+
+`PackageSaleRequested { sale_request_id }` (orders ⇒ orders worker) is id-only, appended by the
+package sale acceptance in the same transaction as its `pending` `package_sale_requests` row,
+and consumed by the orders worker's `package-sale` job, which performs the whole sale in one
+transaction and emits `PackageSaleChanged` from it. Boundary, idempotency, retries, status
+states and deploy ordering are recorded in ADR-0034's 2026-11-11 addendum.

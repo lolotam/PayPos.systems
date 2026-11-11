@@ -1,30 +1,42 @@
+import {
+  SessionTimeError,
+  isLateEntry as kernelIsLateEntry,
+  sessionBusinessDate as kernelSessionBusinessDate,
+  sessionTime as kernelSessionTime,
+  validateAppendWindow as kernelValidateAppendWindow,
+  visitInstant as kernelVisitInstant,
+} from '@pospay/domain';
 import { SessionError } from './session-error.ts';
 
+function preserveSessionError(error: unknown): never {
+  if (error instanceof SessionTimeError) throw new SessionError(error.code);
+  throw error;
+}
+
 /**
- * يحدد يوم المحاسبة بتوقيت النشاط بدلاً من منتصف ليل UTC.
+ * غلاف API ليوم المحاسبة يحافظ على نوع SessionError لكل المستهلكين الحاليين.
  *
  * @param at اللحظة المطلوب تفسيرها
  * @param timezone منطقة النشاط المحفوظة
  * @returns التاريخ المدني بصيغة YYYY-MM-DD
  */
 export function sessionBusinessDate(at: Date, timezone: string): string {
-  try {
-    if (!Number.isFinite(at.getTime())) throw new RangeError();
-    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(at);
-    const part = (type: string) => parts.find((p) => p.type === type)?.value;
-    return `${part('year')}-${part('month')}-${part('day')}`;
-  } catch { throw new SessionError('SESSION_TIME_INVALID'); }
+  try { return kernelSessionBusinessDate(at, timezone); }
+  catch (error) { preserveSessionError(error); }
 }
 /**
- * التأخر يوم سابق، وليس مرور ساعتين في نفس اليوم حسب SS-Q9.
+ * غلاف API لمقارنة يوم التنفيذ والتسجيل يحافظ على نوع SessionError.
  *
  * @param occurredDate يوم تنفيذ الخدمة
  * @param recordedDate يوم حفظها
  * @returns هل التنفيذ في يوم أسبق
  */
-export function isLateEntry(occurredDate: string, recordedDate: string): boolean { return occurredDate < recordedDate; }
+export function isLateEntry(occurredDate: string, recordedDate: string): boolean {
+  try { return kernelIsLateEntry(occurredDate, recordedDate); }
+  catch (error) { preserveSessionError(error); }
+}
 /**
- * يحمي نافذة أول الشهر السابق عند وقت جديد بعد انتظار الأقفال.
+ * غلاف API لنافذة الإضافة يحافظ على نوع SessionError عند الرفض.
  *
  * @param businessDate اليوم المحفوظ للزيارة
  * @param recordedAt الوقت الحالي المحقون
@@ -32,26 +44,22 @@ export function isLateEntry(occurredDate: string, recordedDate: string): boolean
  * @returns لا شيء؛ التاريخ خارج النافذة يرفض
  */
 export function validateAppendWindow(businessDate: string, recordedAt: Date, timezone: string): void {
-  const today = sessionBusinessDate(recordedAt, timezone);
-  const year = Number(today.slice(0, 4)), month = Number(today.slice(5, 7));
-  const oldest = `${month === 1 ? year - 1 : year}-${String(month === 1 ? 12 : month - 1).padStart(2, '0')}-01`;
-  if (businessDate < oldest) throw new SessionError('SESSION_TIME_TOO_OLD');
+  try { kernelValidateAppendWindow(businessDate, recordedAt, timezone); }
+  catch (error) { preserveSessionError(error); }
 }
 /**
- * يطبّع لحظة الزيارة على وقت السيرفر: لو كانت في المستقبل قُصّت على وقت السيرفر.
- * القاعدة: التسامح مع فرق ساعة الجهاز بيتشيك في sessionTime وحده، فهنا القصّ بس.
+ * غلاف API لتطبيع لحظة الزيارة يحافظ على نوع SessionError عند الرفض.
  *
  * @param occurredAt وقت التنفيذ المدخل أو الغائب
  * @param recordedAt ساعة السيرفر
  * @returns اللحظة المطبّعة التي تُحفظ بها الزيارة
  */
 export function visitInstant(occurredAt: Date | undefined, recordedAt: Date): Date {
-  const candidate = occurredAt ?? recordedAt;
-  if (!Number.isFinite(candidate.getTime()) || !Number.isFinite(recordedAt.getTime())) throw new SessionError('SESSION_TIME_INVALID');
-  return candidate > recordedAt ? recordedAt : candidate;
+  try { return kernelVisitInstant(occurredAt, recordedAt); }
+  catch (error) { preserveSessionError(error); }
 }
 /**
- * يسمح بفرق ساعة الجهاز حتى ١٢٠ ثانية ويطبّعه لوقت السيرفر فلا نخزن مستقبلاً.
+ * غلاف API لوقت الجلسة يحافظ على نوع SessionError وأكواده الحالية.
  *
  * @param occurredAt وقت التنفيذ المدخل أو الغائب
  * @param recordedAt ساعة السيرفر بعد الأقفال
@@ -59,11 +67,6 @@ export function visitInstant(occurredAt: Date | undefined, recordedAt: Date): Da
  * @returns الوقت المطبع ويوم المحاسبة وراية التأخر
  */
 export function sessionTime(occurredAt: Date | undefined, recordedAt: Date, timezone: string) {
-  const candidate = occurredAt ?? recordedAt;
-  if (!Number.isFinite(candidate.getTime()) || !Number.isFinite(recordedAt.getTime())) throw new SessionError('SESSION_TIME_INVALID');
-  if (candidate.getTime() > recordedAt.getTime() + 120000) throw new SessionError('SESSION_TIME_IN_FUTURE');
-  const occurred_at = visitInstant(candidate, recordedAt);
-  const business_date = sessionBusinessDate(occurred_at, timezone);
-  validateAppendWindow(business_date, recordedAt, timezone);
-  return { occurred_at, business_date, late: isLateEntry(business_date, sessionBusinessDate(recordedAt, timezone)) };
+  try { return kernelSessionTime(occurredAt, recordedAt, timezone); }
+  catch (error) { preserveSessionError(error); }
 }

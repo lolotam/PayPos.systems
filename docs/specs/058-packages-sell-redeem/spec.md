@@ -187,18 +187,20 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
   (`provenance SOLD`, `list_price 25.000`, `price_paid 22.500`, `discount 2.500`, `discount_bps 1000`, `sold_at`,
   `sold_business_date 2026-10-01`, `expires_on 2026-12-30`, `revision 1`, `refunded_amount 0.000`), one component
   (`list_price_snapshot 3.000`, `sessions_total 10`, `component_value 22.500`), ten slots `FREE` of 2.250, one audit entry
-  `package.sold`, one `PackageSaleChanged` (`revision 1`, `status 'SOLD'`, `branch_id` السالمية, `business_date 2026-10-01`), the idempotent 201 stored.
+  `package.sold`, one `PackageSaleChanged` (`revision 1`, `status 'SOLD'`, `branch_id` السالمية, `business_date 2026-10-01`), the request `completed` with the entitlement's id.
+  (PP-170) That transaction is the worker's (FR-018); the acceptance before it stored one `pending` request, one
+  `PackageSaleRequested` event and the idempotent 202 `{ sale_request_id }`.
 - **SA-02** Mixed type «العروس»: 1 تسريحة (20.000) + 1 مكياج (15.000) + 2 مناكير (2.500) for 40.000: weights 20, 15, 5
   → component values 20.000, 15.000, 5.000; slots 20.000; 15.000; 2.500, 2.500. A fixture with a remainder mill follows
   spec 007 PKG-01/PKG-02 exactly (unit, shared fixture table).
 - **SA-03** The component list prices are the services' prices **at sale time**; editing the type or a service afterwards
   changes no sold component, slot or expiry (PT-Q4; re-read after an edit).
 - **SA-04** (PK-Q2) Price 25.000 → discount 0; price 27.000 → accepted, discount 0, `discount_bps 0`; price
-  21.000 (16%) with a 10% limit → 422 `PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT` with the limit and nothing written; the owner
+  21.000 (16%) with a 10% limit → `PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT` with the limit and nothing written; the owner
   (unlimited) may sell at 0.000 → every slot 0.000. A percent discount rounds to the mill half-up (SS-Q5). [M13]
 - **SA-05** (PK-Q3) Seller هبة must be active and attached to the branch on the sale date (the
-  `PerformerCheckPort` facts of 050 FR-011, without the attendance warnings) → else 422 `PACKAGE_SELLER_NOT_ELIGIBLE`; a
-  recorder linked to the named seller → 403 `PACKAGE_SELLER_SELF_FORBIDDEN`, even for the owner.
+  `PerformerCheckPort` facts of 050 FR-011, without the attendance warnings) → else `PACKAGE_SELLER_NOT_ELIGIBLE`; a
+  recorder linked to the named seller → `PACKAGE_SELLER_SELF_FORBIDDEN`, even for the owner.
 - **SA-05b** A manager detaches هبة from the branch while منى's sale naming her is in flight (two real connections, both
   orders): detach first → the sale, reading after `PerformerCheckPort.lock`, gets `PACKAGE_SELLER_NOT_ELIGIBLE`; sale
   first → the detach waits for the lock and the sale commits with هبة eligible. The same holds for a relink of هبة's user
@@ -206,31 +208,47 @@ the cashier, ليلى the branch manager, هبة and سارة employees, نور�
 - **SA-06** (PK-Q4, Abu Salem) `paid_method` is `CASH` or `CARD`; missing or other (`BANK_TRANSFER` included) → 400 by the
   contract. A refund's `method` takes the same two values, with the same 400 (FR-054).
 - **SA-07** (PK-Q11) `sold_at` omitted → now; back-dated inside the window → accepted, `late = true`,
-  expiry from the sale date; before the first of the previous month → 422 `PACKAGE_SALE_TOO_OLD`; in the future beyond
-  the 120 s allowance → 422 `PACKAGE_SALE_IN_FUTURE` (050 FR-014 values). (PK-Q23) A sale back-dated to
+  expiry from the sale date; before the first of the previous month → `PACKAGE_SALE_TOO_OLD`; in the future beyond
+  the 120 s allowance → `PACKAGE_SALE_IN_FUTURE` (050 FR-014 values). (PK-Q23) A sale back-dated to
   a day when سشوار cost 2.500 but recorded after its price became 3.000 is valued at the recording-time definition and
   prices (3.000), the ones the screen showed.
-- **SA-08** Customer of another company or unknown → 422 `PACKAGE_CUSTOMER_NOT_FOUND`; type of another business or
-  unknown → 404 `PACKAGE_TYPE_NOT_FOUND`; a type whose current definition fails the shared validator (a service removed
-  from the business is impossible today, spec 037) → 422 with the validator's named code. [M11]
+  (PP-170) SA-04, SA-05, SA-05b and SA-07 refusals, and FR-018b/FR-018c's, are worker outcomes: the request ends
+  `failed` with the code (SA-08); the codes carry no HTTP status of their own any more.
+- **SA-08** Customer of another company or unknown → `PACKAGE_CUSTOMER_NOT_FOUND`; type of another business or
+  unknown → `PACKAGE_TYPE_NOT_FOUND`; a type whose current definition fails the shared validator (a service removed
+  from the business is impossible today, spec 037) → the validator's named code. [M11] (PP-170) Every refusal of SA-04,
+  SA-05, SA-07, SA-08, SA-08b and SA-08c is decided by the worker under its locks: the sale transaction rolls back, the
+  request ends `failed` with that code and its `details` (shown through the status read; the code keeps its catalogue
+  meaning), and no entitlement, component, slot, audit entry or `PackageSaleChanged` exists.
 - **SA-08b** The manager edits «سشوار ×10» (price 25.000 → 27.500, revision 1 → 2) while منى's sale screen still shows
   revision 1, and she sells with `expected_type_revision 1`. The two race on the type row lock (FR-018b); two real
   connections test both orders:
-  - **edit first:** the edit commits revision 2; the sale, rechecking under its `FOR SHARE` lock, gets 409
-    `PACKAGE_TYPE_REVISION_CONFLICT` with `current_revision 2`, nothing written; after reloading she sells revision 2.
+  - **edit first:** the edit commits revision 2; the sale, rechecking under its `FOR SHARE` lock, ends `failed` with
+    `PACKAGE_TYPE_REVISION_CONFLICT` and `current_revision 2`, nothing written; after reloading she sells revision 2.
   - **sale first:** the sale commits with the revision-1 snapshot (price 25.000, its components and validity); the
     edit waits for the lock, then commits revision 2, and the sold package keeps its revision-1 values (PT-Q4).
 - **SA-08c** منى's screen shows «العروس» with سشوار at 3.000 (service revision 4); a manager edits سشوار to 3.500
   (revision 5). Two real connections, both orders: **edit first** → the sale, comparing under its service `FOR SHARE`
-  locks, gets 409 `PACKAGE_SALE_QUOTE_STALE` with the current revisions and nothing is written; after reloading she
+  locks, ends `failed` with `PACKAGE_SALE_QUOTE_STALE` and the current revisions, nothing written; after reloading she
   sees 3.500 and sells on it. **Sale first** → the edit waits, and the sold components and slots keep the 3.000
   weights she confirmed. Never a sale valued on prices other than the ones the screen showed.
-- **SA-09** Same key, same body, same actor → the original 201 replays, no second entitlement or slot [M10]; changed
-  body or actor → 422 `IDEMPOTENCY_KEY_REUSED`.
-- **SA-10** A type of 20 components × 365 sessions (7,300 slots) sells inside the 200 ms budget with one multi-row insert
-  per table (measured in 42-3; above budget the sale stops and the PR comes back here).
+- **SA-09** (PP-170) Same key, same body, same actor → the original 202 with the same `sale_request_id` replays: no
+  second request, event, entitlement or slot [M10]; changed body or actor → 422 `IDEMPOTENCY_KEY_REUSED`. A repeated
+  `PackageSaleRequested` delivery (outbox or job retry) finds the request no longer `pending` and writes nothing.
+- **SA-09b** (PP-170) The status read returns `pending`, then exactly one of `completed` (with the entitlement of
+  FR-010) or `failed` (code and details); a `completed` or `failed` request never changes again. A job whose last
+  attempt fails for an unknown reason ends `failed` with `PACKAGE_SALE_FAILED`, never `completed` and never a named
+  refusal; reception sells again with a new key. A request still `pending` after ten minutes (lost job, failed
+  failure-marking) is closed `failed` with `PACKAGE_SALE_FAILED` by the recovery sweep (FR-018), and a later delivery
+  of its job writes nothing.
+- **SA-10** (PP-170; replaces the synchronous 200 ms sale budget that failed in 42-3b1, see
+  `42-3b1-sa10-receipt.md`) **Acceptance** stays inside CLAUDE.md §6: one warmup, then five measured complete
+  acceptances including COMMIT, each below 200 ms. **Execution** runs in the worker: a type of 20 components × 365
+  sessions (7,300 slots) completes in one worker transaction with exactly one multi-row insert per financial table; one
+  warmup and five measured complete executions are reported (durations and environment) and bounded only by the job's
+  transaction timeout, not by the 200 ms API budget.
 - **SA-11** Without `sell:packages:branch` (PK-Q13), a device, or the `orders` feature off → 403 /
-  `FEATURE_DISABLED`, nothing written.
+  `FEATURE_DISABLED` at acceptance; no request, event or sale is written.
 - **SA-12** A default cashier (and a branch manager) holds `sell:packages:branch` but not
   `read:package-types:business`: the sale picker (FR-072) still loads, listing only the business's types whose selling is
   not stopped, each with its `revision`, price, validity and components; a stopped type and another business's type are
@@ -457,15 +475,24 @@ business's full service catalog. Arabic column labels are header comments.
   `{ customer_id, package_type_id, expected_type_revision, expected_service_revisions, price_paid, paid_method,
   seller_employee_id, sold_at?, recorder_membership_id? }`: `expected_type_revision` and `expected_service_revisions`
   (`[{ service_id, revision }]`, one per component service) are the quote the picker showed (FR-072), so the sale is
-  valued on exactly the prices reception confirmed (FR-018c);
-  201 `{ entitlement }`. The entitlement is the sale (TD-1).
-- **FR-011** Guard `sell:packages:branch` (PK-Q13) and the `orders` feature, individual admin login, rechecked
-  inside the transaction after waits (the 050 pattern).
+  valued on exactly the prices reception confirmed (FR-018c).
+  (PP-170, Waleed 2026-11-11, «Sale as background job (Recommended)») **202 `{ sale_request_id }`**: the API accepts
+  the sale and a worker job performs it (FR-018). `GET /v1/businesses/{businessId}/branches/{branchId}/package-sales/{saleRequestId}`
+  returns `{ status: 'pending' }`, `{ status: 'completed', entitlement }` (the entitlement the former 201 returned) or
+  `{ status: 'failed', error: { code, message_ar, message_en, details? } }` (the §6 error envelope, the
+  text taken from the error catalogue for the stored code); it is readable only by the user who made the request, in the same
+  company, business and branch (creator-scoped like the 47-1 preview status); any other id → 404
+  `PACKAGE_SALE_REQUEST_NOT_FOUND`. The entitlement is the sale (TD-1).
+- **FR-011** Guard `sell:packages:branch` (PK-Q13) and the `orders` feature, individual admin login, checked at
+  **acceptance** inside the acceptance transaction after the access lock (the 050 pattern). (PP-170) The verified
+  recorder membership is frozen on the request; the worker consumes that identity and never re-authorizes an accepted
+  request, as the 47-2b package import commit (ADR-0034 addendum) does.
 - **FR-012** (PK-Q2) `price_paid ≥ 0`, any amount within `numeric(14,3)`, even above the type price;
   `discount = max(type price − price_paid, 0)`; `discount_bps = ceil(discount × 10000 / type price)`, 0 at a type price
   of 0 (050 FR-008).
 - **FR-013** (PK-Q2) The recorder's limit is read through the existing `DiscountLimitPort` for the verified
-  recorder membership (050 FR-007); above it → refused (`PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT`). Rows 38–41 later add the
+  recorder membership (050 FR-007) at acceptance and frozen on the request (`discount_limit_bps`, `NULL` = unlimited,
+  PP-170); the worker compares the computed discount with it; above it → refused (`PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT`). Rows 38–41 later add the
   approval path to the sale exactly as to a line.
 - **FR-014** (PK-Q3) The seller is required, eligible at the sale date (`PerformerCheckPort`), and not linked to
   the recorder's user (snapshot of the link stored on the entitlement, as performers are, ADR-0045). The sale calls
@@ -480,15 +507,35 @@ business's full service catalog. Arabic column labels are header comments.
   before saving; the catalog keeps no price history, so nothing older is recovered. The definition passes the shared
   validator (`validatePackageDefinition`); `allocatePackagePrice` and `createPackageSlots` produce the components and
   slots; `expires_on = sold_business_date + validity_days` (spec 037 BR-004). No arithmetic in the use case.
-- **FR-018** One transaction: idempotency claim (`sell-package`, COMPANY scope, actor-bound fingerprint as 050 §8) →
-  access lock → **type row `FOR SHARE`** (FR-018b) → **component services `FOR SHARE`** in ascending id (FR-018c) →
-  **seller lock** (`PerformerCheckPort.lock`, FR-014) → read type, service prices, customer, seller, limit → domain → insert entitlement, components, slots → audit → emit
-  `PackageSaleChanged` (TD-7's payload, `branch_id` and `business_date` included) → store the 201.
+  (PP-170) The worker reads them in the sale transaction, after acceptance; FR-018b/FR-018c's revision checks refuse
+  the sale if the type or any component service changed since reception's quote, so the prices used are always the
+  ones current when the sale was recorded and shown on the screen.
+- **FR-018** (PP-170) Two steps, each one transaction.
+  **Acceptance** (API, inside CLAUDE.md §6's 200 ms): idempotency claim (`sell-package`, COMPANY scope, actor-bound
+  fingerprint as 050 §8) → access lock and the FR-011 checks → discount limit read (FR-013) → insert one
+  `package_sale_requests` row `pending` carrying the validated body, the branch, the recorder user and membership, the
+  frozen limit and `recorded_at` (the injected clock's instant) → append the id-only outbox event
+  `PackageSaleRequested { sale_request_id }` → store the 202.
+  **Execution** (the orders worker, `withTenant(company_id)`, `app.user_id` = the recorder): lock the request row
+  `FOR UPDATE` while `pending` (any other state → nothing written, so a repeated delivery is a no-op) → **type row
+  `FOR SHARE`** (FR-018b) → **component services `FOR SHARE`** in ascending id (FR-018c) → **seller lock**
+  (`PerformerCheckPort.lock`, FR-014) → read type, service prices, customer, seller and the branch timezone → domain →
+  insert entitlement, components, slots → audit → emit `PackageSaleChanged` (TD-7's payload, `branch_id` and
+  `business_date` included) → mark the request `completed` with its `entitlement_id`. "Now" for FR-016's window and an
+  omitted `sold_at` is `recorded_at`, never the execution instant. A named refusal rolls the sale back and a second
+  transaction marks the still-`pending` request `failed` with the code and details; an unknown failure is retried by
+  the job and, after its last attempt, ends `failed` with `PACKAGE_SALE_FAILED` (SA-09b).
+  **Recovery**, like 47-2's package-import-recovery sweep: before acknowledging a `PackageSaleRequested` delivery the
+  orders worker registers the company's per-minute package-sale-recovery sweep (ADR-0022 tenant discovery; at most 50
+  requests aged ten minutes or more per read); a request still `pending` is conditionally marked `failed` with
+  `PACKAGE_SALE_FAILED`, with no re-enqueue. The conditional update waits on the row lock of an in-flight sale and then
+  finds it finished, so the sweep never races a sale into two outcomes; a job that arrives after the sweep finds the
+  request `failed` and writes nothing.
 - **FR-018b** The sale locks the package type row `FOR SHARE` through a catalog-owned public lock function behind
   `CatalogReaderPort` (TD-10), and reads `selling_stopped_at`, the price and the components **after** the lock, so
   stop/resume (FR-002, `FOR UPDATE`) and type edits serialize with the sale. `package_types` already has column
   `UPDATE` grants (spec 037), which PostgreSQL requires for a row lock. Under the lock, in this order: a stopped type →
-  422 `PACKAGE_TYPE_NOT_SELLABLE`; then `revision ≠ expected_type_revision` → 409 `PACKAGE_TYPE_REVISION_CONFLICT`
+  `PACKAGE_TYPE_NOT_SELLABLE`; then `revision ≠ expected_type_revision` → `PACKAGE_TYPE_REVISION_CONFLICT`
   (spec 037's code, with `details.current_revision`), so the customer is never sold a definition other than the one
   reception showed her.
 - **FR-018c** After the type lock, the sale locks the type's component `services` rows `FOR SHARE` in ascending id,
@@ -498,7 +545,7 @@ business's full service catalog. Arabic column labels are header comments.
   the revision check below refuses the sale) or waits for the sale's commit; the weights of `allocatePackagePrice` never
   come from a price that lost the race. Under those locks the sale then compares each service's `revision` with
   `expected_service_revisions` (a service edit, price included, raises its revision; spec 031): any difference, or a
-  service set that is not exactly the type's components → 409 `PACKAGE_SALE_QUOTE_STALE` with
+  service set that is not exactly the type's components → `PACKAGE_SALE_QUOTE_STALE` with
   `details.current_service_revisions`, nothing written, so reception reloads, sees the new prices and confirms again.
 - **FR-019** `ServiceSessionRecorded` is not involved: a sale is not a visit and adds no line.
 - **FR-019b** The sale picker has its own read, so selling never needs `read:package-types:business` (a managers-only
@@ -761,6 +808,24 @@ happen.
 
 Expand-only; migration numbers are taken at merge. The privileges allowlist and `privileges.spec.ts` gain every grant.
 
+**Sale requests (PP-170, 42-3b1).** `package_sale_requests` holds one accepted sale until the worker performs it:
+the tenant and scope keys (`company_id`, `id`, `business_id`, `branch_id`), the recorder (`recorded_by` user and
+`recorded_by_membership_id`, composite FKs like the entitlement's), the frozen `discount_limit_bps` (`NULL` =
+unlimited), the validated body (`customer_id`, `package_type_id`, `expected_type_revision`,
+`expected_service_revisions` as a bounded JSON array, `price_paid numeric(14,3)`, `paid_method`, `seller_employee_id`,
+`sold_at` nullable; `customer_id`, `package_type_id` and `seller_employee_id` carry no FK, because an unknown or
+foreign id is a worker refusal of SA-05/SA-08, not an insert error; the entitlement keeps its scoped FKs),
+`recorded_at`, `status` (`pending`, `completed`, `failed`), `entitlement_id` (set only with
+`completed`, composite FK to the entitlement), `error_code` and bounded `error_details` (set only with `failed`) and
+`finished_at`. RLS `ENABLE` + `FORCE` on `company_id = app_company_id()`; `pospay_app` gets `SELECT`, `INSERT` and
+column `UPDATE` on `status`, `entitlement_id`, `error_code`, `error_details` and `finished_at` only. A state-shape
+CHECK ties the result columns to `status` (pending: all null; completed: `entitlement_id` and `finished_at`, no error;
+failed: `error_code` and `finished_at`, no entitlement). A `BEFORE INSERT OR UPDATE` trigger requires an insert to be
+`pending` and allows only `pending → completed` and `pending → failed`, refusing every other change, so a finished
+request is immutable. Indexes cover
+every FK, the RLS predicate and the creator's status read. Nothing is ever deleted (a request is part of the sale's
+audit trail).
+
 ### Events and module map
 
 - **Published:** `PackageSaleChanged` (exists in ADR-0010 and module-map §4; its contract schema, ADR-0010's field list widened by `branch_id` and
@@ -770,7 +835,10 @@ Expand-only; migration numbers are taken at merge. The privileges allowlist and 
   `PackageImportCommitRequested` (orders ⇒ orders worker, 47-2), id-only `{ preview_id }`, appended by the commit request
   in the same transaction that sets the package preview `commit_requested`. It is its own type, not
   `EmployeeImportCommitRequested`: the staff worker consumes that one and runs the employee commit, so a package preview
-  sent through it would reach the wrong plug-in.
+  sent through it would reach the wrong plug-in. (PP-170) `PackageSaleRequested` (orders ⇒ orders worker), id-only
+  `{ sale_request_id }`, appended by the sale acceptance (42-3b2) in the same transaction as the `pending` request; the
+  orders worker's `package-sale` job (42-3b1) performs the sale (FR-018), registered through the module's `eventTypes`
+  like the package preview's transport (ADR-0018).
 - **Ports:** `CatalogReaderPort` package-type read (TD-10, 42-1); `CustomerLookupPort.findByPhones` (TD-11, 47-1). Both
   widen existing arrows; module-map §3 rows and the generated YAML are updated in those PRs.
 - **Consumed:** the refund bell's own consumer, and `PackageImportCommitRequested` in the orders worker module (47-2),
@@ -802,6 +870,8 @@ migration, as 0084 did; never held by a device; grantable to any human role (`ma
 ### Error codes (`message_ar` / `message_en`, in `src/shared/errors.ts`)
 
 - `PACKAGE_TYPE_NOT_SELLABLE` 422 — «الباقة دي متوقف بيعها.» / "This package is not on sale."
+- `PACKAGE_SALE_REQUEST_NOT_FOUND` 404 — «طلب البيع ده مش موجود.» / "This sale request was not found." (PP-170)
+- `PACKAGE_SALE_FAILED` — status-read code only (SA-09b) — «البيع ماتمّش؛ جرّبي تاني.» / "The sale did not complete; try again." (PP-170)
 - `PACKAGE_SALE_QUOTE_STALE` 409 — «أسعار خدمات الباقة اتغيّرت، حدّثي الشاشة وأكّدي تاني.» / "The package's service prices changed; reload and confirm again." (details: current service revisions)
 - `PACKAGE_TYPE_SELLING_UNCHANGED` 409 — «الباقة أصلاً على نفس الحالة.» / "The package is already in that state."
 - `PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT` 422 — «الخصم أكبر من حدك.» / "The discount is above your limit." (details: limit bps)
@@ -826,7 +896,8 @@ migration, as 0084 did; never held by a device; grantable to any human role (`ma
 
 ### The 200 ms rule
 
-Sale: at most 1 + 20 + 7,300 rows in three multi-row inserts (SA-10 measures it). Redemption, cancel, extension, refund:
+Sale (PP-170): acceptance writes one request, one outbox event and the idempotent response; the sale itself (at most
+1 + 20 + 7,300 rows in three multi-row inserts) is a worker job (SA-10). Redemption, cancel, extension, refund:
 a handful of rows under row locks. Import: a worker job (spec 030 Stage B). Reads: indexed, cursor-paginated.
 
 ### Test plan
@@ -891,9 +962,11 @@ Every row waits on this spec's merge and on the owner answers named in its "Bloc
 | **42-1** | Contracts and map | 1. Sale contracts, `PackageSaleChanged` schema with the sale's `branch_id` and `business_date` (TD-7; ADR-0010's field list widened), worker known types, OpenAPI. 2. `CatalogReaderPort` package-type read (TD-10), module-map §3 row. 3. Error codes ar/en, permission codes + i18n labels | this spec merged (PK-Q2, PK-Q4, PK-Q11 and PK-Q23 answered) |
 | **42-2** | Storage | 1. Entitlements, components, slots: `CHECK`s, RLS, grants; every FK with the child-side index its table row lists (on `package_entitlements` the seven: customer, package type, seller employee, seller user, sold branch, recorder, recorder membership), each index in its FK's column order; a catalog test (`pg_constraint` against `pg_index`) that fails when an FK of any slice table has no index whose leading columns equal the FK's columns in order (a partial index counts only when its predicate is that FK column's `IS NOT NULL`, so the redemptions' partial uniques never count). It covers the tables 42-2 creates, and 43 (`package_redemptions`, `service_lines.redemption_id`, the slots' redemption FK), 45 (`package_extensions`), 46 (`package_refunds`, `package_refund_slots`) and 46-3 (`package_refund_notices`) each add their tables to its list in the same PR. 2. The entitlement and slot triggers (TD-5b, BR-03/04), the value-conservation and composition-seal ones included, with every forward transition closed (TD-15). 3. Negative RLS and trigger tests, allowlist, permission seed migration | **design advisors**; 42-1 |
 | **42-3a** | Pure sale domain (manager split, 2026-11-04 23:52 Kuwait) | 1. Reuse discount/allocation/slots; add seller, quote, sale-time and expiry rules, typed errors, fixed-data sale plan. 2. Complete pure unit tests and full planning/review audit. No use case, adapter, route, timezone reader, identity or generated API changes. | 42-2 (PK-Q3 answered) |
-| **42-3b** | Complete transactional sale integration | 1. `SellPackageUseCase`, persistence/error mapping, identity recheck and sale-specific branch timezone reader/export/adapter, shape/isolation/EXPLAIN tests. 2. Route, wiring and generated API artifacts. 3. Full SA-01…SA-11 including SA-05b/SA-08b/SA-08c, real DB/HTTP rollback/replay/authorization races and five complete transactions including COMMIT each below 200 ms. Separate future session/PR; not launched by 42-3a. | **42-3a merged**; refresh ownership against 42-4a |
+| **42-3b** | Complete transactional sale integration | 1. `SellPackageUseCase`, persistence/error mapping, identity recheck and sale-specific branch timezone reader/export/adapter, shape/isolation/EXPLAIN tests. 2. Route, wiring and generated API artifacts. 3. Full SA-01…SA-11 including SA-05b/SA-08b/SA-08c, real DB/HTTP rollback/replay/authorization races and five complete transactions including COMMIT each below 200 ms. Separate future session/PR; not launched by 42-3a. **Superseded by PP-170 (2026-11-11): the synchronous sale failed SA-10; the sale becomes a worker job, delivered as 42-3b1 then 42-3b2.** | **42-3a merged**; refresh ownership against 42-4a |
+| **42-3b1** | Worker sale and pending-sale storage (PP-170; manager split 2026-11-06, restated 2026-11-11) | 1. Migration: `package_sale_requests` (`pending → completed / failed` only, immutable after), RLS, grants, indexes, negative tests; the 42-3a sale-planning domain moved into the worker's `orders/domain/` and its shared pure leaves (expiry date, `effectiveDiscountBps`, sale-time window) into `packages/domain` (ADR-0034 addendum 2026-11-11). 2. Worker: `PackageSaleRequested` transport, `package-sale` job, execution use case, readers behind worker `catalog`/`staff`/`customers`/`tenancy` (module-map §3 rows), writes and the package-sale-recovery sweep (FR-018 execution). 3. SA-01…SA-05b, SA-07…SA-09b worker outcomes and races on seeded requests; SA-10 execution measurement. No route, acceptance use case or OpenAPI path. Plan: `plan-42-3b1.md`; delivered as 42-3b1a (docs, migration, domain move), then 42-3b1b stacked on it (worker), with 42-3b1c (recovery sweep) only if 42-3b1b exceeds 2,800 lines (manager, 2026-11-11) | 42-3a merged; PP-170 |
+| **42-3b2** | Sale acceptance and status over HTTP (PP-170) | 1. Acceptance use case (FR-018 acceptance), route 202, status query and route (FR-010). 2. Contracts, OpenAPI, generated clients, error codes. 3. SA-06, SA-09 replay, SA-11, status scoping and SA-10 acceptance budget over real HTTP | **42-3b1 merged** |
 | **42-4a** | Any-of access guard | 1. `RequireAny` and the `RequiredAccess` permissions list; `AccessGuard` and the identity authorizer read every listed grant in one `withTenant` transaction (TD-13). 2. ADR-0003 §4 addendum; `route-coverage.ts` and startup-check tests for the new shape. 3. Guard tests: either permission alone passes, neither → 403, a device → 403, the feature off → 403, a list of mixed scopes refused at module load | this spec merged |
-| **42-4** | Reception sale screen + customer packages read | 1. Customer packages list (FR-070) and the detail's sale and component part (FR-071), with `EXPLAIN`. 2. The sale picker query under `sell:packages:branch` (FR-072, SA-12) and the sale form on it. 3. ar/en keys, component tests | 42-3b, 42-4a |
+| **42-4** | Reception sale screen + customer packages read | 1. Customer packages list (FR-070) and the detail's sale and component part (FR-071), with `EXPLAIN`. 2. The sale picker query under `sell:packages:branch` (FR-072, SA-12) and the sale form on it, which shows the request as pending and polls the status read until `completed` or `failed` (PP-170). 3. ar/en keys, component tests | 42-3b2, 42-4a |
 | **43-1** | Redemption storage and contracts | 1. Opens the slots' `FREE ↔ USED` guard (TD-15). `package_redemptions`, `service_lines.redemption_id`, deferred FKs (the slots' `current_redemption_id` FK and its partial index included), triggers (the redemption-line, redemption-slot and redeemed-line cancellation ones included), RLS. 2. Widen the line `package` member in the three event schemas and the draft union. 3. Negative tests, among them a redemption paired in the database with a line from another customer's visit in the same business, refused at commit | **design advisors**; 42-2 |
 | **43-1a** | Read and lock existing package components | Read complete batches of 1–20 entitlement/service pairs, scoped to company, business and customer; unknown or out-of-scope pairs refuse the whole batch. Lock components in ascending ID order, refresh their snapshots in the caller's transaction, then read ordered free slots. This bounded read-only refinement adds no storage, slot transition, redemption writer, route or event; remaining storage work stays in 43-1. | 42-2 |
 | **43-1b** | Guards before any redemption exists | 1. The 35d writer refuses a line with `redemption_id` (FR-034, RC-06). 2. The 054 cancel and 055 performer writers refuse it for now (`SESSION_LINE_NOT_CANCELLABLE`, `SESSION_LINE_PERFORMERS_NOT_CHANGEABLE`; 054 D-6, 055 D-8) until 44 lifts them. 3. Negative tests on a redeemed line forced in the database | 43-1 |

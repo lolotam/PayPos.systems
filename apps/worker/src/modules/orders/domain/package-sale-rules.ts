@@ -1,8 +1,12 @@
-import { PackageSaleError } from './errors.ts';
-import type { SalePackageType } from './package-sale-types.ts';
-import { SessionError } from './session-error.ts';
-import { sessionTime } from './session-time.ts';
-import type { SessionEmployee } from './session-types.ts';
+import { SessionTimeError, sessionTime, type SalePackageType } from '@pospay/domain';
+import { PackageSaleError } from './package-sale-errors.ts';
+
+/** حقائق البائعة التي تقرأها قواعد البيع بعد قفلها، دون بيانات الحضور أو أسماء API. */
+export interface PackageSellerFacts {
+  readonly id: string;
+  readonly user_id: string | null;
+  readonly eligible: boolean;
+}
 
 /**
  * البيع يتبع نافذة الزيارة، لكن رفض العمر والمستقبل له كود خاص بالباقة.
@@ -16,10 +20,10 @@ export function packageSaleTime(soldAt: Date | undefined, recordedAt: Date, time
   try {
     return sessionTime(soldAt, recordedAt, timezone);
   } catch (error) {
-    if (error instanceof SessionError && error.code === 'SESSION_TIME_TOO_OLD') {
+    if (error instanceof SessionTimeError && error.code === 'SESSION_TIME_TOO_OLD') {
       throw new PackageSaleError('PACKAGE_SALE_TOO_OLD');
     }
-    if (error instanceof SessionError && error.code === 'SESSION_TIME_IN_FUTURE') {
+    if (error instanceof SessionTimeError && error.code === 'SESSION_TIME_IN_FUTURE') {
       throw new PackageSaleError('PACKAGE_SALE_IN_FUTURE');
     }
     throw error;
@@ -68,7 +72,7 @@ export function assertPackageSaleQuote(
  * @returns لقطة رابط حساب البائعة لحفظها مع البيع
  */
 export function checkPackageSeller(
-  seller: SessionEmployee | undefined,
+  seller: PackageSellerFacts | undefined,
   recorderUserId: string,
 ): string | null {
   if (!seller?.eligible) throw new PackageSaleError('PACKAGE_SELLER_NOT_ELIGIBLE');

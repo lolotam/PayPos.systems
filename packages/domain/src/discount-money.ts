@@ -37,3 +37,16 @@ export function discountFromPercent(price: Money, bps: number): Money {
   }
   return roundKwd(price * BigInt(bps), 10000n);
 }
+
+/**
+ * يحتسب تخفيض السعر أيضاً؛ كسر أعلى من السلطة يرفض بالتقريب لأعلى حسب D-56.
+ *
+ * @param listPrice سعر القائمة بالفلس
+ * @param net الصافي بالفلس
+ * @returns الخصم الفعلي بوحدات أساس صحيحة
+ */
+export function effectiveDiscountBps(listPrice: bigint, net: bigint): number {
+  lineNet(listPrice, 0n); lineNet(net, 0n);
+  if (listPrice === 0n || net >= listPrice) return 0;
+  return Number(((listPrice - net) * 10000n + listPrice - 1n) / listPrice);
+}

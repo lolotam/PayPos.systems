@@ -1,22 +1,17 @@
+import { SessionTimeError, type SalePackageType } from '@pospay/domain';
 import { describe, expect, it } from 'vitest';
-import { PackageSaleError } from '../errors.ts';
+import { PackageSaleError } from '../package-sale-errors.ts';
 import {
   assertPackageSaleQuote,
   checkPackageSeller,
   packageSaleTime,
+  type PackageSellerFacts,
 } from '../package-sale-rules.ts';
-import { SessionError } from '../session-error.ts';
-import type { SalePackageType } from '../package-sale-types.ts';
-import type { SessionEmployee } from '../session-types.ts';
 
-const seller: SessionEmployee = {
+const seller: PackageSellerFacts = {
   id: 'seller',
   user_id: 'other-user',
   eligible: true,
-  name_en: 'Seller',
-  name_ar: null,
-  clocked_in: false,
-  approved_leave: true,
 };
 const type: SalePackageType = {
   id: 'type',
@@ -34,8 +29,6 @@ const type: SalePackageType = {
       name_en: id,
       name_ar: null,
       price: 3000n,
-      rule: { kind: 'FOLLOW_PLAN' },
-      counts: true,
       revision: 4,
     },
   })),
@@ -155,7 +148,7 @@ describe('package sale calendar/window (FR-016, TD-4)', () => {
     'preserves unexpected time rejection without disguising it as sale age',
     (soldAt, at, zone) => {
       expect(() => packageSaleTime(soldAt, at, zone)).toThrow(
-        new SessionError('SESSION_TIME_INVALID'),
+        new SessionTimeError('SESSION_TIME_INVALID'),
       );
     },
   );

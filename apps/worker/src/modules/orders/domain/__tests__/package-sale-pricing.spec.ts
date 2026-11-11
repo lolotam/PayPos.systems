@@ -1,7 +1,7 @@
-import { MONEY_MAX, type Money } from '@pospay/domain';
+import { MONEY_MAX, PackageRuleError, type Money } from '@pospay/domain';
 import { describe, expect, it } from 'vitest';
 
-import { PackageRuleError, PackageSalePricingError } from '../errors.ts';
+import { PackageSalePricingError } from '../package-sale-errors.ts';
 import { computePackageSalePricing } from '../package-sale-pricing.ts';
 
 /** يمسك سبب الرفض بدل ما الاختبار يعدّي على إن الكود رمي. */

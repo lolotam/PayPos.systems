@@ -1,12 +1,11 @@
-import { MONEY_MAX, sumMoney } from '@pospay/domain';
+import { MONEY_MAX, PackageRuleError, sumMoney } from '@pospay/domain';
 import { expect, it } from 'vitest';
 import {
-  PackageRuleError,
   PackageSalePricingError,
   PackageSaleIdentityInvariantError,
-} from '../errors.ts';
+} from '../package-sale-errors.ts';
 import { planPackageSale } from '../package-sale-plan.ts';
-import { allocationFixtures } from './fixtures/package-allocation.js';
+import { allocationFixtures } from '../../../../../../../packages/domain/src/__tests__/package-allocation.vectors.ts';
 
 import { input, baseService, identities, componentIdentity } from './fixtures/package-sale.ts';
 
@@ -220,7 +219,7 @@ it('is deterministic, does not mutate inputs, and returns independent stored sna
   expect(ids).toEqual(identities);
   const source = original.type.components[0];
   if (!source) throw new Error('fixture requires component');
-  source.service.price = 3500n;
+  (source.service as { price: bigint }).price = 3500n;
   expect(first.components[0]?.list_price_snapshot).toBe(3000n);
   const stored = first.components[0];
   if (!stored) throw new Error('sale requires component');
