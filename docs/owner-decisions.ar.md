@@ -52,6 +52,9 @@
 | PP-166 | 2026-11-09 | إيقاف العمل المتبقي بعد اكتشاف merge #909 مع فشل CI وP1 مفتوحة؛ ANSWERED: `Hold remaining work (Recommended)`. رقمه المحلي في T3 كان PP-163، واتغير لـ PP-166 بقرار PP-167.2 | هنا (البند 87) |
 | PP-167 | 2026-11-11 | PP-167.1 PP-141 خلص، والمستشار يرجع Fable («Back to Fable (Recommended)»)؛ PP-167.2 قرار 11-09 المحلي ياخد رقم PP-166 («Renumber to PP-166 (Recommended)») | هنا (البند 88) |
 | PP-168 | 2026-11-11 | دفعة خمس مهام (50، 48، 42-3b، 68-2، 39–41): debate جولة واحدة بـ Codex `gpt-6-astra`/medium، الكود بـ Kimi `k3.1-pro` على Kimi CLI، والاختبارات والـ migrations بـ Agy `gemini-3.8-flash-high`، كـ CLIs من الـ shell بقيود (PP-168.1)؛ الموديلين بالأسامي الموجودة فعلًا (PP-168.2). **الإجابات حرفيًا:** «Shell CLIs + fences (Recommended)»، «Yes, use them (Recommended)» | هنا (البند 89) |
+| PP-169 | 2026-11-11 | 48-3 (شاشة بناء خطة العمولة) تفضل مؤجلة والمكان يروح لـ 43-3 (شاشة استهلاك الباكدج). **الإجابات حرفيًا:** «Keep deferred, free the slot»، «43-3 package redeem screen (Recommended)» | `docs/specs/059-commissions-statements/owner-questions.ar.md` §46، وهنا (البند 90) |
+| PP-170 | 2026-11-11 | 42-3b-PERF-1: بيع الباكدج يبقى شغلانة في الخلفية (worker) زي معاينة 47-1. **الإجابة حرفيًا:** «Sale as background job (Recommended)» | `docs/specs/058-packages-sell-redeem/owner-questions.ar.md` (42-3b-PERF-1)، وهنا (البند 91) |
+| PP-171 | 2026-11-11 | LH-Q12: تقرير الإجازات على مستوى المحل بيطبّق قاعدة #901 زي التاب. **اختيار وليد حرفيًا:** «Same as the tab (Recommended)»؛ سؤال ميزة، بيتنشر على صفحة القرارات لأبو سالم | `docs/specs/068-staff-leave-history/owner-questions.ar.md` (LH-Q12)، وهنا (البند 92) |
 | PP-1 | 2026-10-18 | PP-1.1 تسجيل دخول Grok؛ PP-1.2 اختيار وليد في دفعة 32؛ PP-1.3 فرز الـ issues المؤجلة | هنا (البنود 3 و2 و4) |
 | PP-2 | 2026-10-18 | PP-2.1 تصحيح سعر سطر موظفته سابت (#325)؛ PP-2.2 صلاحية هوية النشاط (#331) | PP-2.1: `docs/specs/050-orders-record-service-session/owner-questions.ar.md` بند 35 (ED-Q15)، وسؤال فلوس فاتنشر كمان على صفحة القرارات في الدفعة 33 لأبو سالم؛ PP-2.2: `docs/specs/052-settings-business-identity/owner-questions.ar.md` بند 5 (BI-Q5) |
 | PP-3 | 2026-10-18 | PP-3.1 المنع على كل فروع الموظفة | `docs/specs/051-staff-employee-number/owner-questions.ar.md` بند 22 |
@@ -2213,13 +2216,22 @@ so much beteer to creat this advisore for the project level so you and the manag
 
 **السؤال حرفيًا — 2026-11-11 17:50 الكويت تقريبًا:** «Project rule conflict: docs/agent-delivery-pipeline.md §0 allows Kimi and Codex only as T3 delegation lanes with no shell, no git and no .env access. It explicitly bans a shell-run `kimi`/`codex exec`/relay. T3 isn't available in this session. Your plan runs Kimi K3.1 Pro (code), Agy Gemini 3.8 Flash High (tests and migrations) and the Codex Astra debate (`codex exec`, read-only sandbox) as shell-run CLIs. Kimi and Agy headless can run shell commands. Smoke tests passed for all three. How should I proceed?»
 
-**بالعربي:** قواعد المشروع بتسمح بـ Kimi وCodex كمسارات T3 بس، من غير shell ولا git ولا `.env`، وبتمنع تشغيل `kimi` أو `codex exec` أو relay من الـ shell. T3 مش متاح في الجلسة دي. الخطة بتشغّل الثلاثة من الـ shell، وKimi وAgy بيقدروا يشغّلوا أوامر. نعمل إيه؟
+**بالعربي:** قواعد المشروع بتسمح بـ Kimi وCodex كمسارات T3 بس، من غير shell ولا git ولا `.env`، وبتمنع تشغيل `kimi` أو `codex exec` أو relay من الـ shell. T3 مش متاح في الجلسة دي. الخطة بتشغّل الثلاثة من الـ shell (والـ debate بـ `codex exec` في sandbox قراءة بس)، وKimi وAgy بيقدروا يشغّلوا أوامر. اختبار التشغيل السريع نجح للتلاتة. نعمل إيه؟
 
 **الاختيارات:** «Shell CLIs + fences (Recommended)» (نشغّلهم من الـ shell بقيود، وده المقترح)، «Shell CLIs, no extra fences» (من غير قيود زيادة)، «Wait for T3 lanes» (نستنى مسارات T3).
 
 **رد وليد حرفيًا:** «Shell CLIs + fences (Recommended)».
 
-**الأثر (للدفعة دي بس):** بيستثني الدفعة من PP-125 ومن `docs/agent-delivery-pipeline.md` §0 (أسطر Astra/high، ومنع الـ relay والـ CLI الخارجي). الـ debate جولة واحدة بـ `codex exec -m gpt-6-astra` effort `medium` في sandbox قراءة بس. الكود الإنتاجي بـ Kimi `kimi-code/k3.1-pro` عن طريق مهارة `kimi-delegate`. الاختبارات والـ migrations (schema وSQL وRLS وgrants وseed وكل ملفات الاختبار) بـ Agy `gemini-3.8-flash-high` عن طريق مهارة `agy-delegate`. **القيود الإلزامية حوالين كل تشغيل لـ Kimi أو Agy:** ملفات `.env` تتنقل برا الـ worktree قبل التشغيل وترجع بعده؛ الـ brief بيمنع git والشبكة و`.env*` و`.git` وأي حاجة برا الـ worktree؛ لقطة `git status --porcelain --ignored --untracked-files=all` و`HEAD` و`git stash list` قبل وبعد؛ أي ملف أو تعديل مش مذكور في الـ brief يترجع ويتبلّغ والجلسة تقف؛ والـ diff يتراجع سطر بسطر. باقي قواعد CLAUDE.md وPP-113 وPP-118 وPP-131.2 زي ما هي. الجلسة نفسها (Claude) ما بتعملش push ولا PR ولا merge؛ المدير بيرتب ده.
+**اللي وليد اختاره (للدفعة دي بس):** الثلاث مسارات تشتغل كـ CLIs من الـ shell بقيود. ده بيستثني الدفعة من PP-125، ومن `docs/agent-delivery-pipeline.md` §0 في: سطر «Design advice» (Astra/high) للـ debate بس، وقيد «no shell» لمسارات التنفيذ، ومنع الـ relay والـ CLI الخارجي، وجدول المزوّدين اللي مافيهوش Agy. مراجعة الكود الداخلية (step 7) تفضل Astra/high زي ما هي. الـ debate جولة واحدة بـ `codex exec -m gpt-6-astra` effort `medium` في sandbox قراءة بس. الكود الإنتاجي بـ Kimi `kimi-code/k3.1-pro` عن طريق مهارة `kimi-delegate`. «test and databse migration» بـ Agy `gemini-3.8-flash-high` عن طريق مهارة `agy-delegate`.
+
+**إزاي المدير بيطبّقه (تفسير المدير، مش كلام وليد):**
+
+- «test and databse migration» معناها: كل ملفات الاختبار، والـ migration SQL، والـ schema، وRLS، والـ grants، والـ seed.
+- **القيود الإلزامية حوالين كل تشغيل لـ Kimi أو Agy:** ملفات `.env` تتنقل برا الـ worktree قبل التشغيل وترجع بعده؛ الـ brief بيمنع git والشبكة و`.env*` و`.git` وأي حاجة برا الـ worktree؛ لقطة `git status --porcelain --ignored --untracked-files=all` و`HEAD` و`git stash list` قبل وبعد؛ أي ملف أو تعديل مش مذكور في الـ brief يترجع ويتبلّغ والجلسة تقف؛ والـ diff يتراجع سطر بسطر.
+- Agy في الوضع headless بيكتب ملفات بس، وأي أمر بيترفض تلقائيًا؛ فالـ brief بتاعه بيقول «اكتب الملفات بس ومتشغّلش حاجة»، والجلسة هي اللي بتشغّل الاختبارات. ممنوع `--dangerously-skip-permissions` (قرار المدير 2026-11-11).
+- **الـ fallback وجولات التصحيح:** جولات التصحيح بتكمّل في نفس جلسة Kimi أو Agy. لو مسار فشل مرتين في الإتاحة، أو ظهر خطأ كوتة Kimi، الجلسة بتبلّغ المدير ومش بتغيّر المزوّد لوحدها؛ سلسلة PP-112 التلقائية متوقفة للدفعة دي لحد قرار جديد.
+- الجلسات بتعمل commit بس؛ الـ push والـ PR والـ merge عند المدير عشان يرتب ترتيب الـ migrations والملفات المشتركة. ده اختيار تشغيل من المدير في حدود PP-117 (اللي بيسمح للجلسة تدمج، مش بيلزمها) وPP-118.
+- باقي قواعد CLAUDE.md وPP-113 وPP-118 وPP-131.2 زي ما هي.
 
 ### PP-168.2 — أسامي الموديلات
 
@@ -2231,4 +2243,42 @@ so much beteer to creat this advisore for the project level so you and the manag
 
 **رد وليد حرفيًا:** «Yes, use them (Recommended)».
 
-**الأثر:** «astra 6.1» = `gpt-6-astra`، و«Agy 3.8 high» = `gemini-3.8-flash-high`. اختبار تشغيل سريع للتلاتة نجح يوم 2026-11-11 قبل بداية الدفعة. الرقم الجاي بعد PP-168.
+**الأثر:** «astra 6.1» = `gpt-6-astra`، و«Agy 3.8 high» = `gemini-3.8-flash-high`. اختبار تشغيل سريع للتلاتة نجح يوم 2026-11-11 قبل بداية الدفعة.
+
+## 90. PP-169 — 48-3 تفضل مؤجلة، والمكان لـ 43-3 (ANSWERED، 2026-11-11)
+
+**النوع والمصدر:** قرار تقني لوليد؛ كارتين مباشرين في شات جلسة Claude Code وفق PP-117، حوالي 18:20 الكويت. السجل الكامل في `docs/specs/059-commissions-statements/owner-questions.ar.md` §46 (فرع `feat/p1-059-48-plan-builder-screen`، مش مرفوع، لأن 48-3 مؤجلة).
+
+**السؤال الأول حرفيًا:** «48-3 (commission plan builder screen) is still deferred under your 11-06 decision. You'd approved a 3-part split with size caps (≤1140 lines total), on condition the caps were proven feasible first. They weren't: the measured design came to ~1149 lines, and part C was 240 against 190. Two P1 findings are still open from the earlier review. How do we resume it? This blocks 48-3 and the service-overrides screen 49-2.»
+
+**الاختيارات:** «Re-plan on current main (Recommended)»، «Raise caps to measured design»، «Keep deferred, free the slot»، «Keep caps, start part A only».
+
+**رد وليد حرفيًا:** «Keep deferred, free the slot».
+
+**السؤال التاني حرفيًا:** «While 48-3 waits (or if you defer it), which unblocked task should take the free 5th session slot?» **الاختيارات:** «43-3 package redeem screen (Recommended)»، «61 low-rating alert + averages»، «34b customers import»، «Leave the slot empty». **رد وليد حرفيًا:** «43-3 package redeem screen (Recommended)».
+
+**الأثر:** 48-3 و49-2 فاضلين متوقفين لحد تكليف جديد صريح. ميزانيات التصحيح والـ P1 المفتوحتين زي ما هم. جلسة 43-3 اتفتحت في نفس اليوم.
+
+## 91. PP-170 — بيع الباكدج كشغلانة في الخلفية (ANSWERED، 2026-11-11)
+
+**النوع والمصدر:** قرار تقني لوليد؛ كارت مباشر في شات جلسة Claude Code وفق PP-117، حوالي 18:50 الكويت، بعد استشارة `pospay-advisor` في جلسة 42-3b (PP-136). السؤال 42-3b-PERF-1 متسجل في `docs/specs/058-packages-sell-redeem/owner-questions.ar.md`.
+
+**السؤال حرفيًا:** «42-3b (package sale) is stuck on a speed rule. The architecture says any request over 200 ms must become a background job. Selling the largest package type allowed (20 services × 365 sessions = 7,300 session rows) took ~820 ms at best in one transaction. The machine's CPU was at 90–99% during those runs. Your PP-165 ratio rule doesn't cover this, since it has no old version to compare against. How should the sale work?»
+
+**الاختيارات:** «Sale as background job (Recommended)»، «Instant if small, job if large»، «Lower the 20×365 maximum»، «Measure on a quiet machine first».
+
+**رد وليد حرفيًا:** «Sale as background job (Recommended)».
+
+**الأثر:** الـ API بيرد «accepted» فورًا والكاشير بيسأل عن النتيجة، زي معاينة 47-1 (PP-132)، والبيع يفضل عملية واحدة ذرّية. الـ spec بيتعدل (FR-018، عقد 201، SA-08، SA-09، SA-10). تقسيم 11-06 (b1 من جوه، وبعده b2 الـ HTTP) فاضل زي ما هو بقرار المدير.
+
+## 92. PP-171 — تقرير الإجازات بيطبّق قاعدة #901 (ANSWERED لوليد، أبو سالم PENDING، 2026-11-11)
+
+**النوع والمصدر:** سؤال ميزة (مين يشوف إيه)؛ كارت مباشر لوليد في شات جلسة Claude Code وفق PP-117، حوالي 18:50 الكويت، وبيتنشر على صفحة القرارات لأبو سالم (CLAUDE.md §1 5b). السؤال LH-Q12 متسجل في `docs/specs/068-staff-leave-history/owner-questions.ar.md`.
+
+**السؤال حرفيًا:** «68-2 (leave-history report for the whole business): the employee leave tab already hides an employee who has no current link to any branch the viewer can see (rule #901). Should the new report follow the same rule? This is a 'who sees what' question, so it will also go on the decisions page for Abu Salem.»
+
+**الاختيارات:** «Same as the tab (Recommended)»، «Former staff stay visible»، «Mixed».
+
+**اختيار وليد حرفيًا:** «Same as the tab (Recommended)».
+
+**الأثر:** الشغل ماشي على اختيار وليد: اختيار موظفة مخفية بيرد 404، وصفوفها بتستخبى من القائمة كلها. لو أبو سالم اختار حاجة تانية، اختياره هو اللي يمشي. الرقم الجاي بعد PP-171.
