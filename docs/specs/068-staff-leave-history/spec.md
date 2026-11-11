@@ -215,12 +215,13 @@ In the tab the filters apply to the history (part (b)) only; «طلبات جاي
   that employee to be attached to one of those branches, as today's employee route does, or answer 404. An absence row,
   which is attendance-derived, is listed only when the caller also holds `read:attendance:branch` on its shift's branch
   (LH-Q6); a caller with the leave scope alone sees leave rows only, and the absence type is not offered to her. This
-  is a second read of an existing permission in the same transaction, no new permission.
+  is a second read of an existing permission in the same transaction, no new permission. Both routes also apply the
+  unended-attachment rule of the #901 section below (the report since LH-Q12 = PP-171).
 - **FR-011** No write: the history is a read; the existing actions keep their routes, guards and `Idempotency-Key`.
 
 ### Employee history eligibility (#901)
 
-For the detailed employee history only, FR-010 additionally requires an unended attachment in a readable branch:
+For the detailed employee history and the business report (LH-Q12 = PP-171), FR-010 additionally requires an unended attachment in a readable branch:
 `to IS NULL OR to > today`. The end date is exclusive; there is no `from` filter, so future-starting attachments
 remain eligible. Derive each readable branch's `today` from the current injected clock and `effective_timezone`
 (including the existing business timezone fallback), never the database clock or cursor `as_of`. Missing eligibility
@@ -234,10 +235,13 @@ attachment after the early check must deny both page and `last_taken`: recheck e
 statement, without a new transaction or lock. Existing permissions, tenant isolation and legacy reader regressions
 remain required. The pure end-date/branch-day policy also has database-free domain unit coverage.
 
-**`TODO(spec)` — the report route (68-2), LH-Q12 PENDING.** This section was written before the report existed. Whether
-the report applies the same unended-attachment rule (with `employee_id`: 404; without it: the employee's rows hidden) or
-keeps the inbox's any-attachment rule is open in [owner-questions.ar.md](owner-questions.ar.md) §13. Until it is
-answered, the report's employee-visibility predicate is not implemented.
+**The report route (68-2), LH-Q12 = PP-171** (Waleed, 2026-11-11, option 1; Abu Salem's pick is pending on decisions
+batch 92 and replaces this rule if it differs, [owner-questions.ar.md](owner-questions.ar.md) §13). The report applies
+the same unended-attachment rule. With `employee_id`, an employee with no unended attachment in a readable branch answers
+404: the adapter's early `purpose: 'history'` check, then a recheck in the single final statement. Without
+`employee_id`, one per-employee predicate (the same attachment test over the readable branches' days) applies to all
+three row sources (leave, `UNEXCUSED_ABSENCE`, `COVERED_ELSEWHERE`), so the unfiltered list never shows an employee
+whose filter would answer 404. `last_taken` is computed only when `employee_id` is given.
 
 ### Business rules (unexcused absence)
 
