@@ -1,10 +1,9 @@
-import { Controller, Get, Inject, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Query, Req } from '@nestjs/common';
 import { customerPackagesQuery, id, type CustomerPackagesQuery } from '@pospay/contracts';
 import type { FastifyRequest } from 'fastify';
 import { RequireAny, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { ApiError } from '../../../shared/errors.ts';
-import { SelectedCompanyGuard } from '../../../shared/selected-company.guard.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import {
   CustomerPackageReadError,
@@ -22,7 +21,6 @@ export class CustomerPackagesController {
   @Get('')
   @RequireAny(['record:service-sessions:branch', 'read:service-sessions:branch'], { branch: 'branchId' })
   @RequiresFeature('orders')
-  @UseGuards(SelectedCompanyGuard)
   async list(
     @Param('businessId', new ZodValidationPipe(id.toLowerCase())) businessId: string,
     @Param('branchId', new ZodValidationPipe(id.toLowerCase())) branchId: string,
@@ -45,7 +43,6 @@ export class CustomerPackagesController {
   @Get(':entitlementId')
   @RequireAny(['record:service-sessions:branch', 'read:service-sessions:branch'], { branch: 'branchId' })
   @RequiresFeature('orders')
-  @UseGuards(SelectedCompanyGuard)
   async read(
     @Param('businessId', new ZodValidationPipe(id.toLowerCase())) businessId: string,
     @Param('branchId', new ZodValidationPipe(id.toLowerCase())) branchId: string,
