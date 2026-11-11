@@ -150,6 +150,46 @@ it('closes a failed request placeholder and sanitizes the mutation cache', async
   expect(JSON.stringify(mutation?.state.error)).not.toContain('storage.test');
 });
 
+it.each([
+  'javascript:alert(1)',
+  'data:text/html,synthetic',
+  'blob:https://storage.test/synthetic',
+  'file:///synthetic',
+  'http://storage.test/private',
+  'http://localhost.example/private',
+  'http://127.0.0.1.example/private',
+  'not a URL',
+])('rejects unsafe document URL %s and leaves a visible retry', async (downloadUrl) => {
+  api.GET.mockResolvedValue({ data: view() });
+  api.POST.mockResolvedValue({ data: { download_url: downloadUrl, expires_in: 60 } });
+  const opened = mockWindowOpen();
+  setup();
+  fireEvent.click(await screen.findByRole('button', { name: t('en', 'employeeDocuments.open') }));
+  expect((await screen.findByRole('alert')).textContent).toBe(
+    t('en', 'employeeDocuments.openRetry'),
+  );
+  expect(opened[0]?.closed).toBe(true);
+  expect(opened[0]?.location.assign).not.toHaveBeenCalled();
+  expect(openButton().hasAttribute('disabled')).toBe(false);
+});
+
+it.each([
+  'https://storage.test/private',
+  'http://127.0.0.1:18133/document/civil',
+  'http://localhost:18133/document/civil',
+  'http://[::1]:18133/document/civil',
+])('opens allowed document URL %s and restores the visible Open action', async (downloadUrl) => {
+  api.GET.mockResolvedValue({ data: view() });
+  api.POST.mockResolvedValue({ data: { download_url: downloadUrl, expires_in: 60 } });
+  const opened = mockWindowOpen();
+  setup();
+  fireEvent.click(await screen.findByRole('button', { name: t('en', 'employeeDocuments.open') }));
+  await waitFor(() => expect(opened[0]?.location.assign).toHaveBeenCalledWith(downloadUrl));
+  await waitFor(() => expect(openButton().hasAttribute('disabled')).toBe(false));
+  expect(opened[0]?.closed).toBe(false);
+  expect(screen.queryByRole('alert')).toBeNull();
+});
+
 it('cleans an assignment failure without closing an earlier document or caching raw details', async () => {
   api.GET.mockResolvedValue({ data: view() });
   api.POST.mockResolvedValue(privateDownload);

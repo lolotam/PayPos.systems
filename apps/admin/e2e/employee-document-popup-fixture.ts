@@ -23,11 +23,14 @@ export const CONTROL_ORIGIN = 'http://127.0.0.1:18131';
 export const ADMIN_ORIGIN = 'http://127.0.0.1:18132';
 export const DESTINATION_ORIGIN = 'http://127.0.0.1:18133';
 const RUN_ID = process.env['ADMIN_POPUP_RUN_ID'];
-type Held = { response: ServerResponse; key: string; resolve: () => void };
+type HeldRequest = { id: number; key: string };
+type Held = HeldRequest & { response: ServerResponse; resolve: () => void };
 const state = {
   readStatus: 200,
   omit: '',
   held: [] as Held[],
+  heldSequence: 0,
+  aborted: [] as HeldRequest[],
   requests: [] as string[],
   destinations: [] as string[],
   unknown: [] as string[],
@@ -85,7 +88,18 @@ async function download(req: IncomingMessage, res: ServerResponse) {
   if (Object.keys(input).length !== 1 || typeof key !== 'string' || !KEYS.includes(key))
     throw new Error('body');
   await new Promise<void>((resolve) => {
-    state.held.push({ response: res, key, resolve });
+    const held = { id: ++state.heldSequence, response: res, key, resolve };
+    state.held.push(held);
+    // close بعد تحرير fixture طبيعي؛ وجود الطلب في held يعني أن العميل قطع الاتصال قبله.
+    const aborted = () => {
+      const index = state.held.indexOf(held);
+      if (index === -1) return;
+      state.held.splice(index, 1);
+      state.aborted.push({ id: held.id, key });
+      resolve();
+    };
+    res.once('close', aborted);
+    if (res.destroyed) aborted();
   });
 }
 function releaseHeld(key: string, outcome: string) {
@@ -94,7 +108,7 @@ function releaseHeld(key: string, outcome: string) {
   if (!held) throw new Error('held download missing');
   state.held.splice(index, 1);
   if (outcome === 'network') {
-    // قطع اتصال معاد الاستخدام قبل الرد يدفع Chromium لإعادة POST وتعليق محاولة أخرى.
+    // نرسل الرؤوس وجسمًا جزئيًا ثم نقطعه؛ ERR_CONTENT_LENGTH_MISMATCH فشل نهائي لا يعيد Chromium محاولته.
     held.response.writeHead(200, {
       ...CORS,
       'content-type': 'application/json',
@@ -166,6 +180,10 @@ async function controlRequest(req: IncomingMessage, res: ServerResponse) {
         destinations: state.destinations,
         unknown: state.unknown,
         held: state.held.map((held) => held.key),
+        liveHeld: state.held
+          .filter((held) => !held.response.destroyed && !held.response.writableEnded)
+          .map(({ id, key }) => ({ id, key })),
+        aborted: state.aborted,
       });
     if (req.method !== 'POST') throw new Error('control method');
     const input = await readBody(req);
@@ -192,6 +210,7 @@ async function controlRequest(req: IncomingMessage, res: ServerResponse) {
       state.requests = [];
       state.destinations = [];
       state.unknown = [];
+      state.aborted = [];
       state.readStatus = 200;
       state.omit = '';
     } else throw new Error('control path');
@@ -245,6 +264,8 @@ export async function ledger() {
     destinations: string[];
     unknown: string[];
     held: string[];
+    liveHeld: HeldRequest[];
+    aborted: HeldRequest[];
   };
 }
 async function main() {

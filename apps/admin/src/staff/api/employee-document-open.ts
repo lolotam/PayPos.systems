@@ -230,6 +230,18 @@ export function releaseUnconsumed(token: object, ctx: OpenContext) {
   const attempt = ctx.registry.get(token);
   if (attempt) revoke(ctx, attempt, true, true);
 }
+// ترث النافذة الفارغة أصل لوحة الإدارة؛ عنوان javascript: قد ينفذ كودًا بصلاحياتها.
+function safeDocumentUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === 'https:' ||
+      (url.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname))
+    );
+  } catch {
+    return false;
+  }
+}
 export async function settle(token: object, ctx: OpenContext) {
   const attempt = ctx.registry.get(token);
   ctx.registry.delete(token);
@@ -242,7 +254,7 @@ export async function settle(token: object, ctx: OpenContext) {
     });
     if (result.error || !authorized(attempt, ctx)) throw OPEN_ERROR;
     const download = fileDownload.parse(result.data);
-    if (!authorized(attempt, ctx)) throw OPEN_ERROR;
+    if (!safeDocumentUrl(download.download_url) || !authorized(attempt, ctx)) throw OPEN_ERROR;
     attempt.handle.location.assign(download.download_url);
     attempt.owned = false;
     if (ctx.pending === attempt) ctx.pending = null;

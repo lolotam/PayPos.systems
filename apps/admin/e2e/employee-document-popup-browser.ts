@@ -6,7 +6,11 @@ import { ledger } from './employee-document-popup-fixture';
  * طلب الفتح يظل معلقًا حتى نثبت أثر القراءة الجديدة على الواجهة والنافذة.
  */
 export async function reconnectDocuments(page: Page, status = 200) {
-  const held = (await ledger()).held;
+  await expect.poll(async () => (await ledger()).liveHeld.length).toBeGreaterThan(0);
+  const before = await ledger();
+  const held = before.liveHeld;
+  expect(held.length).toBeGreaterThan(0);
+  expect(held.map((request) => request.key)).toEqual(before.held);
   await page.evaluate(() => {
     document.documentElement.dataset['connection830'] = '';
     window.addEventListener(
@@ -32,5 +36,10 @@ export async function reconnectDocuments(page: Page, status = 200) {
   const response = await read;
   expect(response.status()).toBe(status);
   await response.finished();
-  expect((await ledger()).held).toEqual(held);
+  const after = await ledger();
+  expect(
+    after.aborted.filter((request) => held.some((pending) => pending.id === request.id)),
+  ).toEqual([]);
+  expect(after.liveHeld).toEqual(held);
+  expect(after.held).toEqual(before.held);
 }

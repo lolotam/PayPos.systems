@@ -60,7 +60,7 @@ Fixture health carries the current CI run/attempt identity. Admin readiness is a
 - Trusted Open click creates a usable isolated blank before a held response; delayed handoff occurs only after observed inactivity and elapsed time measured by a separate no-opening trusted-click control.
 - Matched sandbox denial and permission use the real route and native `window.open`. The result is labeled sandbox-enforced refusal, not ordinary popup-policy compatibility. It checks both locales, zero denied POST/orphan and a fresh permitted success.
 - Network failure, invalid payload and manual pending close preserve explicit retry and prevent late destination navigation.
-- Actual native visibility/focus events accompany page transitions; `bringToFront` alone is not treated as proof. Real documents GET 403/404 and its visible refusal/placeholder cleanup occur before held POST release.
+- An offline/online reconnect triggers the documents refresh. Real documents GET 403/404 and its visible refusal/placeholder cleanup occur before the held POST is released. Headless Chromium does not change the opener's visibility or focus when a popup opens, so tab-return refresh is covered by unit tests only.
 - Key disappearance then restoration, and denial then genuine query recovery, leave the original held attempt invalid. A fresh successor navigates independently.
 - Employee change, panel unmount and workspace change clean their own pending placeholders. Old settlement cannot navigate a successor, and a prior handed-off document survives a later failure.
 - Cross-origin COOP and attachment observations record only observed behavior. A download event is registered before response release and proves start only, not byte completion or tab closure.
