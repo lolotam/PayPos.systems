@@ -23,6 +23,7 @@
 >
 > **Changelog**
 >
+> - **V3.23 (2026-11-11)** — §9: a performance test on shared CI runners is judged only by its ratio to the unchanged baseline measured in the same run, never by a fixed millisecond limit (PP-165, Waleed, `docs/owner-decisions.ar.md` item 76).
 > - **V3.22 (2026-11-05)** — §10: the worker integration job starts alongside `check` and the API test shards; `build` and `ci-gate` require all of them (PP-131.3, `docs/owner-decisions.ar.md` item 68).
 > - **V3.21 (2026-11-05)** — §10: the CI order is the order in which every gate must pass before a merge; the API test shards now start alongside `check`, and `build` and `ci-gate` still need both (PP-131.1, `docs/owner-decisions.ar.md` item 68).
 > - **V3.20 (2026-11-02)** — §1 step 3: a slice's local gate is the typecheck, lint, `pnpm lint:docs`, boundaries, `pnpm module-map:check` and the slice's own tests (without the Playwright E2E or any other CI-only heavy gate, SA-15 rule 5); the full `pnpm check` and the API shards are decided by the `ci-gate` result on the exact head, and until it is green a slice is reported «implementation complete, pending `ci-gate`», never «done» (PP-113, Waleed, 2026-11-02, `docs/owner-decisions.ar.md` item 51). §1 5b: each new question goes to the super admin thread, which posts it to Waleed on Slack `#sa-decisions` and relays his answer word for word; no session or manager contacts Waleed directly, by ntfy, Slack or chat (SA-16). The feature-versus-technical routing and the decisions-page rules are unchanged.
@@ -335,6 +336,7 @@ A PR that changes a documented function **and leaves its doc comment describing 
 - **RLS negative tests for every tenant table** (cross-tenant read = 0 rows, write = error).
 - **Every `queries/` file has a result-shape test and an `EXPLAIN ANALYZE` assertion.**
 - E2E (Playwright) for the POS critical path: open shift → order → split payment → print → close shift, including the offline toggle.
+- **A performance test compares with the old code, never with a fixed number (PP-165).** On shared CI runners it measures the unchanged baseline in the same run, on the same runner, and asserts a ratio: at most about 2× the baseline, plus a small additive floor (for example +5 ms on p95). It never asserts an absolute millisecond limit such as `p95 <= 50ms`, because the baseline itself breaks such limits on a noisy runner.
 - **A UI test asserts what the user sees.** A test that renders a screen or component in a frontend app (`apps/admin`, `apps/pos`, `apps/menu`) asserts a visible outcome — the screen state, a disabled button, a message — never only that a mock was called. A mock-call assertion may sit next to the visible one, never replace it (PP-7.2).
 
 ## 10. Git & delivery
