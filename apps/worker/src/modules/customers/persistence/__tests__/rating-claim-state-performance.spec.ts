@@ -134,7 +134,8 @@ function fixture(world: ValidationWorld, scenario: Scenario, raw: Record<string,
 
 function stats(samples: readonly number[]) {
   const sorted = [...samples].sort((a, b) => a - b);
-  return { median: sorted[49], p95: sorted[94], p99: sorted[98], max: Math.max(...samples) };
+  const at = (q: number) => sorted[Math.max(0, Math.ceil(q * sorted.length) - 1)];
+  return { median: at(0.5), p95: at(0.95), p99: at(0.99), max: Math.max(...samples) };
 }
 
 async function wholePage(lane: Lane, scripts: readonly string[]) {
@@ -157,6 +158,7 @@ async function wholePage(lane: Lane, scripts: readonly string[]) {
   }
   // PP-163.2: الصفحة كلها بتتقارن بالنسخة القديمة على نفس الجهاز، مش بحد ثابت لأمر واحد
   // لأن أبطأ أمر لوحده على runner مشترك بيقيس زحمة الجهاز مش الكود.
+  expect(totals).toHaveLength(2);
   const [baseTotal = 0, patchTotal = 0] = totals;
   expect(patchTotal).toBeLessThanOrEqual(Math.max(2 * baseTotal, baseTotal + 50));
 }
