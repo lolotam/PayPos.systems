@@ -9,7 +9,7 @@ a waiver, an implementation-complete receipt, or evidence about CI performance.
 
 ## Scope and measurement
 
-After merge `60332778`, the manager-approved [b1 scope](42-3b1-scope.md) is active.
+After merge `60332778`, the manager-approved b1 scope (`42-3b1-scope.md`, now on `backup/42-3b-pre-split-20261111`) is active.
 `package-sale-volume.spec.ts` calls `SellPackageUseCase.execute` through
 `createPackageSaleTransactions` and `bindPackageSaleReaders` on real Postgres. Timing
 starts immediately before execute and ends after its promise resolves, including the

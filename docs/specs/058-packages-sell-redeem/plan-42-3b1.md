@@ -19,15 +19,16 @@ worker, as exactly one of:
 No route, acceptance use case, contract or OpenAPI path ships in 42-3b1; nothing in production can create a request
 until 42-3b2. The obsolete synchronous API code on this branch (`sell-package` use case, its port, transactions,
 writes, access and place adapters, the `service-session-access` and `identity/index.ts` additions, their tests and
-module-map rows) is not part of this PR. It stays reachable from the local commits `e7e95913`, `c369e00a7` and this
-branch's history; 42-3b2 takes the acceptance pieces from there. The diagnostic tooling (`scripts/test-db/load-*.mjs`,
+module-map rows, and `package-sale-audit.ts`/`package-sale-response.ts`, which were never on main) is not part of this
+PR. It stays on the pushed backup branch `backup/42-3b-pre-split-20261111` (`795cfb2e6`), which also reaches
+`e7e95913` and `c369e00a7`; 42-3b1b and 42-3b2 take their pieces from there. The diagnostic tooling (`scripts/test-db/load-*.mjs`,
 `scripts/test-db/fixtures/42-3b1-docker-stats.raw`, `package-sale.diagnostic.ts`, `package-sale-profile.fixture.ts`,
-the two `vitest.package-sale-*.config.ts`) is dropped from the tree for the same reason. A pushed backup branch for
-those commits is the manager's call (see §8).
+the two `vitest.package-sale-*.config.ts`) is dropped from the tree for the same reason; it is on the same backup
+branch.
 
 Receipts: the four the spec and the owner question cite stay (`42-3b1-sa10-receipt.md`,
 `42-3b1-performance-diagnosis.md`, `42-3b1-index-experiment.md`, `42-3b1-authorized-statistics-receipt.md`); their
-links to dropped receipts become plain mentions of the commit that holds them. `42-3b1-scope.md`,
+links to dropped receipts become plain mentions of the backup branch. `42-3b1-scope.md`,
 `42-3b1-next-diagnostic-plan.md`, `42-3b1-load-capture-repair.md`, `42-3b1-statistics-stop-receipt.md` and
 `42-3b-dependency-refresh.md` describe the superseded synchronous plan and are dropped. (Their "42-3b1" prefix is the
 old diagnostic slice name, not this plan.)
@@ -60,7 +61,7 @@ No contract change (the event is id-only and internal; the HTTP contract is 42-3
 
 ### 2.2 Domain — Kimi (moves) + Agy (tests)
 
-- `git mv` `apps/api/src/modules/orders/domain/package-sale-{plan,pricing,rules,audit}.ts` →
+- `git mv` `apps/api/src/modules/orders/domain/package-sale-{plan,pricing,rules}.ts` →
   `apps/worker/src/modules/orders/domain/`, and their specs, `package-sale-identities.spec.ts` and
   `fixtures/package-sale.ts` → `apps/worker/src/modules/orders/domain/__tests__/`. `PackageSaleError`,
   `PackageSalePricingError`, `PackageSaleIdentityInvariantError` and their code types move from the API `errors.ts`
@@ -71,13 +72,15 @@ No contract change (the event is id-only and internal; the HTTP contract is 42-3
   worker-local paths; rule bodies do not change (diffed line by line in review). API and worker typecheck must pass
   on 42-3b1a alone.
 - The stopped-type refusal (`PACKAGE_TYPE_NOT_SELLABLE` under the type lock, before the revision check) is not in
-  42-3b1: `selling_stopped_at` does not exist until 33b (PP-100.1), exactly as for the merged 42-3a domain (debate #3). `package-sale-response.ts` exists only on this branch and
-  is dropped; 42-3b2's status query projects the entitlement.
+  42-3b1: `selling_stopped_at` does not exist until 33b (PP-100.1), exactly as for the merged 42-3a domain (debate #3). `package-sale-audit.ts` (never on main) returns from the backup
+  branch as a worker file in 42-3b1b; `package-sale-response.ts` is dropped and 42-3b2's status query projects the
+  entitlement.
 - `packages/domain/src/packages/package-expiry.ts` (moved from the API by `git mv`; the API file becomes a re-export
   shim used by `package-refund-plan.ts`), `packages/domain/src/money/…effectiveDiscountBps` beside the discount money
-  helpers (the API `session-pricing.ts` re-exports it), and `packages/domain/src/packages/package-sale-time.ts`: the
-  pure sale-time window with a kernel-owned `PackageRuleError` code; the API `sessionTime` keeps its signature and maps
-  the kernel error to `SessionError`. Arabic JSDoc on every export (§3.1).
+  helpers (the API `session-pricing.ts` re-exports it), and `session-time.ts` moved to `packages/domain/src/` with a
+  kernel-owned `SessionTimeError` (only the three `SESSION_TIME_*` codes); the API `session-time.ts` becomes a shim
+  with the same five exports and signatures that rethrows `SessionError` with the same code, so no API caller or
+  test changes. Arabic JSDoc on every export (§3.1).
 - Unit tests: moved specs pass unchanged except imports; new kernel specs for the time window (boundaries of the
   previous-month floor, the 120 s future allowance, timezone day change).
 
@@ -153,7 +156,8 @@ Fixture seeds a company with السالمية, منى (recorder), هبة (seller
 | Debate record | — | — | ~45 | ~45 |
 | **Total** | ~1,410 | ~1,930 | ~1,015 | **~4,355** |
 
-That is above 2,800, so 42-3b1 cannot be one PR. Proposed split (manager's decision before any dispatch):
+That is above 2,800, so 42-3b1 cannot be one PR. Split approved by the manager on 2026-11-11 (19:28 Kuwait); each part is
+one PR and 42-3b1b stacks on 42-3b1a, which carries the migration (PP-130):
 
 - **42-3b1a** — spec/ADR/plan/receipts, migration + schema + negative/trigger/grant tests, domain moves and kernel
   leaves with their unit tests, debate record. ≈ 1,815. Merges first; it also closes the docs part of the #920 review comment.
@@ -193,10 +197,9 @@ clean-code-guard, test-guard, docs-guard. Done only when `ci-gate` is green on t
 - Refusals now arrive by polling, not as an immediate HTTP error at the till. Whether that is a feature question
   (§1 5b) is for the manager to put to Waleed; it does not block 42-3b1, which has no route.
 
-## 8. For the manager
+## 8. Manager decisions (2026-11-11, 19:28 Kuwait)
 
-1. Approve the 42-3b1a / 42-3b1b (/ 42-3b1c) split, or another.
-2. A pushed backup branch for the local-only commits (`e7e95913`, `c369e00a7` and the diagnostic tooling) before this
-   branch is rewritten for 42-3b1a.
-3. PP-170 in the `docs/owner-decisions.ar.md` index (owned by #920's lane, so not edited here).
-4. Classification of "refusal by polling" (feature vs technical) with Waleed.
+1. Split approved as in §3.
+2. Backup pushed: `backup/42-3b-pre-split-20261111` = `795cfb2e6`; 42-3b1a is cut from it.
+3. PP-170 is indexed in `docs/owner-decisions.ar.md` by #920 (item 91).
+4. The manager handles the feature-or-technical classification of "refusal by polling"; it does not block 42-3b1.

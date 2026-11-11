@@ -1,4 +1,4 @@
-import { canonicalOwnerSql, systemRoleGrantAllowedSql, systemRoleOverrideAllowedSql, type Permission, type Tx } from '@pospay/db';
+import { canonicalOwnerSql, systemRoleGrantAllowedSql, systemRoleOverrideAllowedSql, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { evaluateAccess } from '../domain/access.ts';
 import { protectOwnerAccess } from '../domain/owner-access.ts';
@@ -27,28 +27,19 @@ export async function lockServiceSessionAccess(tx: Tx, companyId: string): Promi
   await tx.execute(sql`SELECT id FROM memberships WHERE company_id=${companyId} ORDER BY id FOR SHARE`);
 }
 /**
- * يجمع حقائق الكتابة على فرع لصلاحية واحدة؛ القارئون يتشاركون نفس التقييم فتبقى دلالتهم واحدة.
- *DENY يظل مستقلاً عن بديل العضوية الأصلية، وأدوار العضويات تُقرأ مع العضويات نفسها لأن لقطة
- * دور الطالبة تُحفظ مع الطلب (D-18).
+ * يعيد حقائق التسجيل وعضويات المسجلة فقط؛ DENY يظل مستقلاً عن بديل المسجلة الأصلية للإضافة.
+ * أدوار العضويات تُقرأ مع العضويات نفسها لأن لقطة دور الطالبة تُحفظ مع طلب الموافقة (D-18).
  *
  * @param tx معاملة المستهلك نفسها
- * @param permission الصلاحية المطلوبة على الفرع
  * @param companyId الشركة المؤكدة
  * @param userId مستخدمة حساب admin
  * @param businessId النشاط الذي أثبته tenancy
- * @param branchId الفرع المطلوب
+ * @param branchId فرع الزيارة
  * @param at وقت جديد بعد الأقفال لفحص انتهاء الإذن
- * @returns الإذن والمنع والميزة وهويات العضويات المتصلة بالفرع ودور كل عضوية
+ * @returns الإذن والمنع والميزة وهويات عضويات المتصلة بالفرع ودور كل عضوية
  */
-async function readBranchWriteAccess(
-  tx: Tx,
-  permission: Permission,
-  companyId: string,
-  userId: string,
-  businessId: string,
-  branchId: string,
-  at: Date,
-) {
+export async function readServiceSessionAccess(tx: Tx, companyId: string, userId: string, businessId: string, branchId: string, at: Date) {
+  const permission = 'record:service-sessions:branch';
   const target = { companyId, businessId, branchId };
   const covers = (scope: string, id: string) => (scope === 'COMPANY' && id === companyId) || (scope === 'BUSINESS' && id === businessId) || (scope === 'BRANCH' && id === branchId);
   const candidatesQuery = sql`SELECT m.id,(${canonicalOwnerSql('m',companyId)}) AS owner,
@@ -80,36 +71,4 @@ async function readBranchWriteAccess(
     membership_ids: candidates.map((m) => m.id),
     memberships: candidates.map((m) => ({ membership_id: m.id,
       role: { code: m.role_code, is_system: m.role_is_system, name_ar: m.role_name_ar, name_en: m.role_name_en } })) };
-}
-
-/**
- * يعيد حقائق التسجيل وعضويات المسجلة فقط؛ DENY يظل مستقلاً عن بديل المسجلة الأصلية للإضافة.
- * أدوار العضويات تُقرأ مع العضويات نفسها لأن لقطة دور الطالبة تُحفظ مع طلب الموافقة (D-18).
- *
- * @param tx معاملة المستهلك نفسها
- * @param companyId الشركة المؤكدة
- * @param userId مستخدمة حساب admin
- * @param businessId النشاط الذي أثبته tenancy
- * @param branchId فرع الزيارة
- * @param at وقت جديد بعد الأقفال لفحص انتهاء الإذن
- * @returns الإذن والمنع والميزة وهويات عضويات المتصلة بالفرع ودور كل عضوية
- */
-export async function readServiceSessionAccess(tx: Tx, companyId: string, userId: string, businessId: string, branchId: string, at: Date) {
-  return readBranchWriteAccess(tx, 'record:service-sessions:branch', companyId, userId, businessId, branchId, at);
-}
-
-/**
- * حقائق صلاحية بيع الباقة على فرع؛ نفس تقييم قراءة التسجيل بصلاحية البيع نفسها.
- * البيع ماله صلاحية خاصة، فالعضوية الأصلية تحت التسجيل لا تمنح بيعاً ولا تعوّضه.
- *
- * @param tx معاملة المستهلك نفسها
- * @param companyId الشركة المؤكدة
- * @param userId مستخدمة حساب admin
- * @param businessId النشاط الذي أثبته tenancy
- * @param branchId فرع البيع
- * @param at وقت جديد بعد الأقفال لفحص انتهاء الإذن
- * @returns الإذن والمنع والميزة وهويات العضويات المتصلة بالفرع ودور كل عضوية
- */
-export async function readPackageSaleAccess(tx: Tx, companyId: string, userId: string, businessId: string, branchId: string, at: Date) {
-  return readBranchWriteAccess(tx, 'sell:packages:branch', companyId, userId, businessId, branchId, at);
 }

@@ -78,7 +78,6 @@ export {
 export { readEmployeeNumberCompanyAccess } from './persistence/employee-number-access.ts';
 export {
   lockServiceSessionAccess,
-  readPackageSaleAccess,
   readServiceSessionAccess,
 } from './persistence/service-session-access.ts';
 export { readServiceSessionReadAccess } from './persistence/service-session-read-access.ts';
