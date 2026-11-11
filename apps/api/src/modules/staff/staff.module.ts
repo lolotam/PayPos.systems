@@ -2,6 +2,8 @@ import { DATABASE } from '../../shared/database.token.ts';
 import { LEAVE_HISTORY_READER, LeaveHistoryReader } from './queries/leave-history.query.ts';
 import {
   LEAVE_HISTORY_REPORT_READER,
+  LEAVE_HISTORY_SYNC_LIMIT,
+  LEAVE_HISTORY_SYNC_SCHEDULES,
   LeaveHistoryReportReader,
 } from './queries/leave-history-report.query.ts';
 import { EmployeeLeaveHistoryController } from './http/employee-leave-history.controller.ts';
@@ -221,11 +223,12 @@ function leaveProviders(database: TenantWrappers | undefined, ids: IdGenerator):
         new LeaveHistoryReader(db, access),
       inject: [DATABASE, LEAVE_READ_ACCESS],
     },
+    { provide: LEAVE_HISTORY_SYNC_LIMIT, useValue: LEAVE_HISTORY_SYNC_SCHEDULES },
     {
       provide: LEAVE_HISTORY_REPORT_READER,
-      useFactory: (db: TenantWrappers | null, access: LeaveReadAccess) =>
-        new LeaveHistoryReportReader(db, access),
-      inject: [DATABASE, LEAVE_READ_ACCESS],
+      useFactory: (db: TenantWrappers | null, access: LeaveReadAccess, limit: number) =>
+        new LeaveHistoryReportReader(db, access, limit),
+      inject: [DATABASE, LEAVE_READ_ACCESS, LEAVE_HISTORY_SYNC_LIMIT],
     },
     {
       provide: RequestLeaveUseCase,

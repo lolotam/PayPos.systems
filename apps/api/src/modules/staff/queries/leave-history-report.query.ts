@@ -1,5 +1,5 @@
 import type { TenantWrappers, Tx } from '@pospay/db';
-import type { LeaveHistoryReportQuery } from '@pospay/contracts';
+import { leaveHistoryReportSkipsDays, type LeaveHistoryReportQuery } from '@pospay/contracts';
 import type { LeaveReadAccess, LeaveReadContext } from './leave-requests.query.ts';
 import { readLeaveHistoryPage } from './leave-history.query.ts';
 
@@ -10,11 +10,16 @@ const reportAttachment = {
   withoutEmployee: 'current',
 } as const;
 
+// الحد اتظبط على seeded fixture: 300 جدول أسبوعي ≈ 83ms و400 ≈ 135ms و500 فوق 200ms (plan D7).
+export const LEAVE_HISTORY_SYNC_SCHEDULES = 350;
+export const LEAVE_HISTORY_SYNC_LIMIT = Symbol('LEAVE_HISTORY_SYNC_LIMIT');
+
 export async function getBusinessLeaveHistory(
   tx: Tx,
   c: LeaveReadContext,
   q: LeaveHistoryReportQuery,
   access: LeaveReadAccess,
+  workloadLimit: number,
 ) {
   const context = {
     ...c,
@@ -34,6 +39,7 @@ export async function getBusinessLeaveHistory(
   return readLeaveHistoryPage(tx, context, q, scope, {
     excludeOpen: false,
     report: { attachment },
+    ...(q.employee_id === undefined && !leaveHistoryReportSkipsDays(q) ? { workloadLimit } : {}),
   });
 }
 
@@ -42,12 +48,13 @@ export class LeaveHistoryReportReader {
   constructor(
     private readonly db: TenantWrappers | null,
     private readonly access: LeaveReadAccess,
+    private readonly workloadLimit: number,
   ) {}
   async execute(context: LeaveReadContext, query: LeaveHistoryReportQuery) {
     if (this.db === null) return 'NOT_READY' as const;
     return this.db.withTenant(
       context.companyId,
-      (tx) => getBusinessLeaveHistory(tx, context, query, this.access),
+      (tx) => getBusinessLeaveHistory(tx, context, query, this.access, this.workloadLimit),
       { userId: context.userId },
     );
   }

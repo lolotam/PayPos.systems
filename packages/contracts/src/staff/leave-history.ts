@@ -93,4 +93,13 @@ export type LeaveHistoryQuery = z.infer<typeof leaveHistoryQuery>;
 export type LeaveHistoryReportQuery = z.infer<typeof leaveHistoryReportQuery>;
 export type LeaveHistoryItem = z.infer<typeof leaveHistoryItem>;
 export type LeaveHistoryPage = z.infer<typeof leaveHistoryPage>;
+// العميل والسيرفر بيشاركوا القاعدة دي عشان اختيار التقرير الخلفي مايختلفش بينهم.
+export function leaveHistoryReportSkipsDays(
+  q: Pick<LeaveHistoryReportQuery, 'types[]' | 'statuses[]'>,
+): boolean {
+  return (
+    (q['types[]'].length > 0 && !q['types[]'].includes('UNEXCUSED_ABSENCE')) ||
+    (q['statuses[]'].length > 0 && !q['statuses[]'].includes('ABSENT'))
+  );
+}
 export const leaveHistorySchemas = [leaveHistoryQuery, leaveHistoryItem, leaveHistoryPage];
