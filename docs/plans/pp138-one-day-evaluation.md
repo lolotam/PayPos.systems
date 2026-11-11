@@ -1,6 +1,6 @@
 # PP-138 — first-day observation ledger
 
-Canonical rule: `docs/owner-decisions.ar.md` §74. Start: 2026-11-07T08:16:38Z; end: 2026-11-08T08:16:38Z. Kuwait: UTC+3. This is a 24-hour observation window, not a continuous-monitoring claim.
+Canonical rule: `docs/owner-decisions.ar.md` item 95 (imported 2026-11-11 from the T3 manager's local item 74). Start: 2026-11-07T08:16:38Z; end: 2026-11-08T08:16:38Z. Kuwait: UTC+3. This is a 24-hour observation window, not a continuous-monitoring claim.
 
 Count only events within the window. Measure additional permission requests for already authorized steps separately from genuinely new scope/owner approvals. Manager response latency is the interval from receipt delivery to the first actionable decision, not a courtesy acknowledgment. Retain environment/review/owner waits separately. Missing timestamps remain UNKNOWN.
 
