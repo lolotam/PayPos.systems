@@ -230,6 +230,33 @@ it('bounded exception: capacity overflow does not reject an unused MAX backoff',
   expect((await world.state.read(world.companyId)).code).toBe('OK');
 });
 
+it('bounded exception: a LIMIT at a high version reports it exactly and keeps the fence', async () => {
+  const world = await pendingPage({ capacity: 0 });
+  const raw = await rawStateOf(world);
+  const version = 100_000_000_000_001;
+  raw['version'] = version;
+  raw['overflowCount'] = MAX;
+  const stored = JSON.stringify(raw);
+  await redis.set(world.key, stored);
+  const result = await world.state.settlePage(
+    { ...world.fence, expectedVersion: version },
+    world.pageId,
+    world.workToken,
+    'RETRY',
+  );
+  expect(result).toEqual({ code: 'LIMIT', version });
+  expect(await redis.get(world.key)).toBe(stored);
+  // السور بنفس النسخة لسه صالح بعد الرفض، فالنسخة مرفوضة بس من غير تغيير.
+  const next = await world.state.settlePage(
+    { ...world.fence, expectedVersion: version },
+    world.pageId,
+    world.workToken,
+    'TERMINAL',
+  );
+  expect(next.code).toBe('OK');
+  expect(next.version).toBe(version + 1);
+});
+
 it.each([null, undefined, REQUEST_A])(
   'bounded exception: optional upper bound %s remains valid',
   async (upperId) => {

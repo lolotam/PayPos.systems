@@ -14,6 +14,19 @@
  * البنود المتبقية وحدودها، من غير ما نشترط إن آخر بند متبقّي يساوي المؤشر.
  * تذاكر الإعادة فريدة وأقل من nextTicket لأن التخصيص والتقديم بيتخزنوا معًا؛
  * حذف بنود قديمة ممكن يسيب فجوات، وترتيب مفاتيح الخريطة مش ترتيب الطابور.
+ *
+ * الكتلة دي فيها كمان الترميز الدقيق للحالة: cjson لوحده بيقرّب الأعداد
+ * لأربع عشرة خانة معنوية، فنسخة زي 9007199254740991 كانت بتتخزّن
+ * 9.007199254741e+15 وبتطلع رقم تاني خالص. الترميز الجديد بيكتب الأعداد
+ * الصحيحة الآمنة بالشكل العشري الكامل، وبيسيب باقي القيم لـcjson زي ما هي.
+ * بعد فحص قبول cjson، مسح كل القيم والمفاتيح بمكدس جداول بيسمح بإعادة نصه
+ * للأشكال المتوافقة وأعداد صحيحة بقيمة مطلقة أقل من 10^14؛ غير كده الترميز الدقيق
+ * بيفضل كما هو. الصفر السالب بيرجع للمسار الدقيق عشان تمثيله ما يتغيرش.
+ * بنحتفظ بفحص cjson لغلاف الرد كمان، حتى ما نوسّعش قبول العمق. الكتلة قبل reply في كل
+ * سكربت، لأن reply بيستخدم الترميز.
+ * الفحص يشمل الحقول المجهولة؛ المكدس للجداول بس لتجنب تخصيص وترميز كل قيمة ونص.
+ *
+ * النص بلا بايت هروب cjson يُقتبس مباشرة؛ 0–31 والتنصيص والمائلة والعكسية وDEL تبقى على cjson.
  */
 export const RATING_CLAIM_STATE_VALIDATE = `
 local function nonempty_string(value)
@@ -123,5 +136,158 @@ local function validate_state(state)
     return false
   end
   return valid_page(state) and valid_retries(state['retries'], state['nextTicket'])
+end
+
+local JSON_NULL = cjson.null
+
+-- Safe integers are written as full decimal tokens; cjson alone rounds to
+-- fourteen significant digits and loses the last digits of the version.
+-- Unsafe or fractional numbers fall back to cjson so their behaviour is unchanged.
+local function exact_number(value)
+  if value ~= value then return nil end
+  if value == math.huge or value == -math.huge then return nil end
+  if value ~= math.floor(value) then return nil end
+  if value < -MAX_SAFE or value > MAX_SAFE then return nil end
+  return string.format('%.0f', value)
+end
+
+-- A table keyed 1..n is an array, anything else is an object; an empty table
+-- stays {} like cjson writes it, so the codec can still turn it into an array.
+local function exact_sequence(value)
+  local size = 0
+  for key in pairs(value) do
+    if type(key) ~= 'number' or key < 1 or key ~= math.floor(key) then return false end
+    size = size + 1
+  end
+  for index = 1, size do
+    if value[index] == nil then return false end
+  end
+  return true
+end
+
+local escape_class = '[%z' .. string.char(1) .. '-' .. string.char(31, 34, 47, 92, 127) .. ']'
+
+local function exact_string(value)
+  if string.find(value, escape_class) then return cjson.encode(value) end
+  return '"' .. value .. '"'
+end
+
+-- The exact encoder: one cjson pass keeps its type, depth and non-finite
+-- rejection, then incompatible JSON trees are walked with an explicit stack so safe
+-- integers keep every digit. The value is never mutated and no depth limit
+-- below the cjson one is introduced.
+local function exact_value(item, stack, depth, emit)
+  local kind = type(item)
+  if item == JSON_NULL then
+    emit('null')
+  elseif kind == 'number' then
+    emit(exact_number(item) or cjson.encode(item))
+  elseif kind == 'string' then
+    emit(exact_string(item))
+  elseif kind ~= 'table' then
+    emit(cjson.encode(item))
+  elseif next(item) == nil then
+    emit('{}')
+  elseif exact_sequence(item) then
+    emit('[')
+    depth = depth + 1
+    stack[depth] = { kind = 'array', table = item, index = 1, size = #item, comma = false }
+  else
+    emit('{')
+    depth = depth + 1
+    stack[depth] = { kind = 'object', table = item, key = nil, comma = false }
+  end
+  return depth
+end
+
+local function native_scalar(value)
+  local kind = type(value)
+  if kind ~= 'number' then
+    return kind == 'string' or kind == 'boolean' or value == JSON_NULL
+  end
+  return value > -100000000000000 and value < 100000000000000
+    and value == math.floor(value) and (value ~= 0 or 1 / value ~= -math.huge)
+end
+
+-- Unknown fields must be checked too; ordinary counters do not prove the tree is safe.
+-- Only tables are stacked to avoid allocating frames and rendering every scalar again.
+local function native_tree(value)
+  if type(value) ~= 'table' then return native_scalar(value) end
+  local pending = { value }
+  local count = 1
+  while count > 0 do
+    local current = pending[count]
+    pending[count] = nil
+    count = count - 1
+    local size = #current
+    local numericKeys = 0
+    local stringKeys = false
+    for key, item in pairs(current) do
+      if type(key) == 'string' then
+        stringKeys = true
+      elseif type(key) == 'number' and key >= 1 and key <= size
+        and key == math.floor(key) then
+        numericKeys = numericKeys + 1
+      else
+        return false
+      end
+      if type(item) == 'table' then
+        count = count + 1
+        pending[count] = item
+      elseif not native_scalar(item) then
+        return false
+      end
+    end
+    if numericKeys > 0 and (stringKeys or numericKeys ~= size) then return false end
+  end
+  return true
+end
+
+local function exact_json(value)
+  local admissible, encoded = pcall(cjson.encode, value)
+  if not admissible then error(encoded, 0) end
+  if native_tree(value) then return encoded end
+  encoded = nil
+  local parts = {}
+  local count = 0
+  local function emit(text)
+    count = count + 1
+    parts[count] = text
+  end
+  local stack = { { kind = 'value', value = value } }
+  local depth = 1
+  while depth > 0 do
+    local frame = stack[depth]
+    if frame.kind == 'value' then
+      depth = exact_value(frame.value, stack, depth - 1, emit)
+    elseif frame.kind == 'array' then
+      local index = frame.index
+      if index > frame.size then
+        depth = depth - 1
+        emit(']')
+      else
+        frame.index = index + 1
+        if frame.comma then emit(',') else frame.comma = true end
+        depth = depth + 1
+        stack[depth] = { kind = 'value', value = frame.table[index] }
+      end
+    else
+      local key = next(frame.table, frame.key)
+      if key == nil then
+        depth = depth - 1
+        emit('}')
+      else
+        frame.key = key
+        if frame.comma then emit(',') else frame.comma = true end
+        local name = key
+        if type(key) ~= 'string' then name = tostring(key) end
+        emit(exact_string(name))
+        emit(':')
+        depth = depth + 1
+        stack[depth] = { kind = 'value', value = frame.table[key] }
+      end
+    end
+  end
+  return table.concat(parts, '', 1, count)
 end
 `;
