@@ -218,44 +218,56 @@ it('every refused transition gives 23514', async () => {
   ).rejects.toMatchObject({ code: '23514', message: 'PACKAGE_SALE_REQUEST_TRANSITION_INVALID' });
 });
 
-it('every invalid state shape gives 23514', async () => {
-  const id1 = await asApp((tx) => insertPendingRequest(tx));
-  // completed without entitlement_id
-  await expect(
-    asApp((tx) =>
-      tx`UPDATE package_sale_requests
-         SET status = 'completed', finished_at = now()
-         WHERE id = ${id1}`,
-    ),
-  ).rejects.toMatchObject({ code: '23514', constraint_name: 'package_sale_requests_state_shape_check' });
+const STATE_SHAPE_REFUSED = { code: '23514', constraint_name: 'package_sale_requests_state_shape_check' };
+const FINISHED = new Date('2026-11-11T12:00:00Z');
 
-  // completed with error_code
+it.each([
+  ['completed without entitlement_id', { status: 'completed', finished_at: FINISHED }],
+  ['completed without finished_at', { status: 'completed', entitlement_id: ENTITLEMENT_ID }],
+  ['completed with error_code', { status: 'completed', entitlement_id: ENTITLEMENT_ID, error_code: 'ERR', finished_at: FINISHED }],
+  ['completed with error_details', { status: 'completed', entitlement_id: ENTITLEMENT_ID, error_details: { reason: 'x' }, finished_at: FINISHED }],
+  ['failed without error_code', { status: 'failed', finished_at: FINISHED }],
+  ['failed without finished_at', { status: 'failed', error_code: 'ERR' }],
+  ['failed with entitlement_id', { status: 'failed', error_code: 'ERR', entitlement_id: ENTITLEMENT_ID, finished_at: FINISHED }],
+])('a pending request moved to %s is refused by the state shape check', async (_shape, changes) => {
+  const id = await asApp((tx) => insertPendingRequest(tx));
   await expect(
-    asApp((tx) =>
-      tx`UPDATE package_sale_requests
-         SET status = 'completed', entitlement_id = ${ENTITLEMENT_ID}, error_code = 'ERR', finished_at = now()
-         WHERE id = ${id1}`,
-    ),
-  ).rejects.toMatchObject({ code: '23514', constraint_name: 'package_sale_requests_state_shape_check' });
+    asApp((tx) => {
+      const row = 'error_details' in changes ? { ...changes, error_details: tx.json(changes.error_details) } : changes;
+      return tx`UPDATE package_sale_requests SET ${tx(row)} WHERE id = ${id}`;
+    }),
+  ).rejects.toMatchObject(STATE_SHAPE_REFUSED);
+});
 
-  const id2 = await asApp((tx) => insertPendingRequest(tx));
-  // failed without error_code
+it('a pending insert that already carries a result is refused by the state shape check', async () => {
   await expect(
     asApp((tx) =>
-      tx`UPDATE package_sale_requests
-         SET status = 'failed', finished_at = now()
-         WHERE id = ${id2}`,
+      tx`INSERT INTO package_sale_requests (
+        company_id, id, business_id, branch_id, recorded_by, recorded_by_membership_id,
+        customer_id, package_type_id, expected_type_revision, expected_service_revisions,
+        price_paid, paid_method, seller_employee_id, recorded_at, status, error_code
+      ) VALUES (
+        ${TENANT.A.company}, ${randomUUID()}, ${TENANT.A.business}, ${TENANT.A.branch}, ${USER}, ${ORDER_IDS.membership},
+        ${ORDER_IDS.customer}, ${PACKAGE_TYPE_ID}, 1,
+        ${tx.json([{ service_id: ORDER_IDS.service, revision: 1, list_price: '1.000' }])},
+        25.000, 'CASH', ${ORDER_IDS.employee}, now(), 'pending', 'ERR'
+      )`,
     ),
-  ).rejects.toMatchObject({ code: '23514', constraint_name: 'package_sale_requests_state_shape_check' });
+  ).rejects.toMatchObject(STATE_SHAPE_REFUSED);
+});
 
-  // failed with entitlement_id
+// المالك بيعدّي صلاحيات الأعمدة، فده بيثبت إن الـ trigger نفسه هو اللي قافل جسم الطلب مش الـ grants بس.
+it.each([
+  ['price_paid', 50.0],
+  ['customer_id', '01920000-0000-7000-8000-00000000a001'],
+  ['expected_type_revision', 2],
+])('a legal transition that also changes %s is refused as a body change', async (column, value) => {
+  const id = await asApp((tx) => insertPendingRequest(tx));
   await expect(
-    asApp((tx) =>
-      tx`UPDATE package_sale_requests
-         SET status = 'failed', error_code = 'ERR', entitlement_id = ${ENTITLEMENT_ID}, finished_at = now()
-         WHERE id = ${id2}`,
-    ),
-  ).rejects.toMatchObject({ code: '23514', constraint_name: 'package_sale_requests_state_shape_check' });
+    owner`UPDATE package_sale_requests
+          SET status = 'completed', entitlement_id = ${ENTITLEMENT_ID}, finished_at = now(), ${owner({ [column]: value })}
+          WHERE company_id = ${TENANT.A.company} AND id = ${id}`,
+  ).rejects.toMatchObject({ code: '23514', message: 'PACKAGE_SALE_REQUEST_BODY_IMMUTABLE' });
 });
 
 it('pospay_app has no DELETE grant and no UPDATE grant on body columns', async () => {
