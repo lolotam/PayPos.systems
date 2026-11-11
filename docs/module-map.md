@@ -422,6 +422,8 @@ reads:
   - orders -> identity.discountApproverRecipients @ apps/worker/src/modules/orders/persistence/discount-approval-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/discount-approval-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/discount-approval-place.adapter.ts
+  - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/discount-self-approval-recipients.adapter.ts
+  - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/discount-self-approval-recipients.adapter.ts
   - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/line-cancel-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/line-cancel-place.adapter.ts
