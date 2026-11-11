@@ -132,6 +132,18 @@ function fixture(world: ValidationWorld, scenario: Scenario, raw: Record<string,
   return { text, bytes, envelope, entries };
 }
 
+interface TimedSample {
+  readonly elapsed: number;
+  readonly block: number;
+}
+
+function slowestSampleBlocks(samples: readonly TimedSample[]): number[] {
+  return [...samples]
+    .sort((a, b) => b.elapsed - a.elapsed)
+    .slice(0, 5)
+    .map((sample) => sample.block);
+}
+
 function stats(samples: readonly number[]) {
   const sorted = [...samples].sort((a, b) => a - b);
   const at = (q: number) => sorted[Math.max(0, Math.ceil(q * sorted.length) - 1)];
@@ -181,46 +193,53 @@ describe.skipIf(!CI)('CI-only exact counter whole-command performance', () => {
     report({ image, server: await redis.info('server'), cpus: cpus().length, load: loadavg() });
   });
 
-  it.each(CASES)('whole settlePage $settlement/$retries nearCap=$nearCap', async (scenario) => {
-    const world = await harness();
-    const data = await fixture(world, scenario, await rawStateOf(world));
-    const samples: number[][] = [[], []];
-    const warmups = [0, 0];
-    const expectedRetries =
-      scenario.retries + (scenario.code === 'OK' && scenario.settlement === 'RETRY' ? 1 : 0);
-    for (let block = 0; block < 12; block += 1) {
-      for (const index of block % 2 === 0 ? [0, 1] : [1, 0]) {
-        const script = scripts[index];
-        if (script === undefined) throw new Error('PERF_VARIANT_MISSING');
-        for (let call = 0; call < 10; call += 1) {
-          await redis.set(world.key, data.text);
-          const payload = JSON.stringify(data.envelope);
-          const started = process.hrtime.bigint();
-          const raw = await redis.eval(script, 1, world.key, payload);
-          const elapsed = Number(process.hrtime.bigint() - started) / 1_000_000;
-          expect(JSON.parse(String(raw))).toMatchObject({ code: scenario.code, version: 2 });
-          const stored = await rawStateOf(world);
-          expect(Object.keys(stored['retries'] as object)).toHaveLength(expectedRetries);
-          expect(stored['nextTicket']).toBe(expectedRetries + 1);
-          expect((stored['page'] as { entries: unknown[] }).entries).toHaveLength(74);
-          expect(stored['overflowCount']).toBe(scenario.code === 'OVERFLOW' ? 1 : 0);
-          if (block < 2) warmups[index] = (warmups[index] ?? 0) + 1;
-          else samples[index]?.push(elapsed);
+  it.each(CASES)(
+    'whole settlePage $settlement/$retries nearCap=$nearCap',
+    async (scenario) => {
+      const world = await harness();
+      const data = await fixture(world, scenario, await rawStateOf(world));
+      const samples: TimedSample[][] = [[], []];
+      const warmups = [0, 0];
+      const expectedRetries =
+        scenario.retries + (scenario.code === 'OK' && scenario.settlement === 'RETRY' ? 1 : 0);
+      // p99 من 100 عينة كانت بتساوي تاني أكبر عينة، فتوقّف واحد للـrunner كان بيوقّع main؛
+      // 500 عينة لكل نسخة بتخلّي p99 تعكس الذيل الحقيقي من غير ما نغيّر حدود PP-165.
+      for (let block = 0; block < 52; block += 1) {
+        for (const index of block % 2 === 0 ? [0, 1] : [1, 0]) {
+          const script = scripts[index];
+          if (script === undefined) throw new Error('PERF_VARIANT_MISSING');
+          for (let call = 0; call < 10; call += 1) {
+            await redis.set(world.key, data.text);
+            const payload = JSON.stringify(data.envelope);
+            const started = process.hrtime.bigint();
+            const raw = await redis.eval(script, 1, world.key, payload);
+            const elapsed = Number(process.hrtime.bigint() - started) / 1_000_000;
+            expect(JSON.parse(String(raw))).toMatchObject({ code: scenario.code, version: 2 });
+            const stored = await rawStateOf(world);
+            expect(Object.keys(stored['retries'] as object)).toHaveLength(expectedRetries);
+            expect(stored['nextTicket']).toBe(expectedRetries + 1);
+            expect((stored['page'] as { entries: unknown[] }).entries).toHaveLength(74);
+            expect(stored['overflowCount']).toBe(scenario.code === 'OVERFLOW' ? 1 : 0);
+            if (block < 2) warmups[index] = (warmups[index] ?? 0) + 1;
+            else samples[index]?.push({ elapsed, block });
+          }
         }
       }
-    }
-    expect(warmups).toEqual([20, 20]);
-    expect(samples.map((bucket) => bucket.length)).toEqual([100, 100]);
-    const base = stats(samples[0] ?? []);
-    const patch = stats(samples[1] ?? []);
-    const counts = samples.map((bucket) => bucket.length);
-    const size = { bytes: data.bytes, headroom: CAP - data.bytes };
-    report({ scenario, size, warmups, counts, load: loadavg(), base, patch });
-    // PP-165: النسختين بيتقاسوا على نفس الجهاز في نفس الوقت، فالنسبة بتلغي ضوضاء الـrunner؛ مفيش حد ثابت بالـms.
-    expect(patch.p95).toBeLessThanOrEqual(Math.max(2 * (base.p95 ?? 0), (base.p95 ?? 0) + 5));
-    // PP-163.2: p99 بدل أكبر عينة؛ النسخة القديمة نفسها كانت بتعدّي 100ms على نفس الـrunner.
-    expect(patch.p99).toBeLessThanOrEqual(Math.max(2 * (base.p99 ?? 0), (base.p99 ?? 0) + 10));
-  });
+      expect(warmups).toEqual([20, 20]);
+      expect(samples.map((bucket) => bucket.length)).toEqual([500, 500]);
+      const base = stats((samples[0] ?? []).map((sample) => sample.elapsed));
+      const patch = stats((samples[1] ?? []).map((sample) => sample.elapsed));
+      const size = { bytes: data.bytes, headroom: CAP - data.bytes };
+      // أكبر 5 عينات في block واحد = توقّف للـrunner؛ متفرّقين على blocks = ذيل حقيقي في السكربت.
+      const slowestBlocks = samples.map(slowestSampleBlocks);
+      report({ scenario, size, warmups, load: loadavg(), base, patch, slowestBlocks });
+      // PP-165: النسختين بيتقاسوا على نفس الجهاز في نفس الوقت، فالنسبة بتلغي ضوضاء الـrunner؛ مفيش حد ثابت بالـms.
+      expect(patch.p95).toBeLessThanOrEqual(Math.max(2 * (base.p95 ?? 0), (base.p95 ?? 0) + 5));
+      // PP-163.2: p99 بدل أكبر عينة؛ النسخة القديمة نفسها كانت بتعدّي 100ms على نفس الـrunner.
+      expect(patch.p99).toBeLessThanOrEqual(Math.max(2 * (base.p99 ?? 0), (base.p99 ?? 0) + 10));
+    },
+    120_000,
+  );
 
   it('records a whole 75-settlement page for each variant', () => wholePage(lane, scripts));
 });

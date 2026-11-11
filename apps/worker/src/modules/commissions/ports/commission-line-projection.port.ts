@@ -15,6 +15,13 @@ export interface IdGenerator {
   newId(): string;
 }
 
+/** حقول غلاف outbox التي يتحقق منها كل مُطبِّق لمدخلات العمولة قبل الوثوق بالحمولة. */
+export interface CommissionInputEventEnvelope {
+  readonly aggregateType: string;
+  readonly aggregateId: string;
+  readonly companyId: string;
+}
+
 export interface CommissionLineHeadWrite {
   readonly businessId: string;
   readonly lineId: string;

@@ -152,7 +152,7 @@ No DB/Vitest tests ran. ALL now 432 (423 added + 9 deleted), 10 files, generated
 
 ## Isolated slice tests and resource release ? 2026-11-07
 
-Read PP-138 from the manager canonical record section 74; no copy in this PR.
+Read PP-138 from `docs/owner-decisions.ar.md` item 95 (imported 2026-11-11 from the manager's local section 74); no copy in this PR.
 After card 3 released resources, official lane `g46-b8c9d7ff` ran on
 127.0.0.1:55407, with worktree ownership and start label
 `555042f8-eccc-494e-8d76-9ecf96c4160f`. Separate owned Redis used 127.0.0.1:56346,

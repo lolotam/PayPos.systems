@@ -14,8 +14,8 @@ import {
   createTestDatabase,
   type TestDatabase,
 } from '../../../../../../packages/db/test/test-database.ts';
+import { createTestCommissionInputsConsumer } from '../../../__tests__/commission-inputs-consumer.ts';
 import { createDeliverer } from '../../../outbox/deliver.ts';
-import { createCommissionInputsConsumer } from '../index.ts';
 import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
 
 let testDb: TestDatabase;
@@ -41,7 +41,7 @@ beforeAll(async () => {
   // اتصال منفصل للقفل: لازم يفضل حر من غير ما ياخد connection التنضيف اللي بيستعمله الـ polling.
   locker = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
   db = createDatabase({ url: testDb.appUrl, ids });
-  const consumer = createCommissionInputsConsumer({ ids, clock, businessTimeZone });
+  const consumer = createTestCommissionInputsConsumer({ ids, clock, businessTimeZone });
   deliver = createDeliverer(db, [consumer], createLogger('silent'), {
     knownEventTypes: consumer.eventTypes,
   });
