@@ -25,3 +25,9 @@ Model `gpt-6-astra`, effort `medium`, `codex exec --sandbox read-only`, 2026-11-
 | 5 | P2 | **Accepted** | The HTTP matrix gains three cases on both routes: a DENY on one permission with the other ALLOWed → 200; both denied → 403; both granted only on another branch → 403. |
 
 Accepted 5, rejected 0. ONE round, as PP-168 sets.
+
+### Item 4 — deviation recorded after implementation (manager decision, 2026-11-11)
+
+The EXPLAIN test does not assert `package_entitlements_customer_read_idx` by name. With `enable_seqscan` off and a seed of 41 customers, the planner still serves the entitlement filter from `package_entitlements_customer_fk_idx (company_id, customer_id)`, not from the read index `(company_id, business_id, customer_id, expires_on)`. The test therefore accepts any index whose name starts with `package_entitlements_customer_`, `package_components_entitlement_`, `package_session_slots_component_` or `package_session_slots_free_idx`, and still asserts no sequential scan on the three package tables and the 200 ms wall-clock budget.
+
+Why the manager accepted it: CLAUDE.md §9 asks for an index plan with no sequential scan, and the test still proves that. The cost is that the test would also pass if `customer_read_idx` were dropped, so it no longer shows that this index serves the query. No migration was added. A follow-up issue evaluates whether `customer_read_idx` is redundant now that the planner prefers `customer_fk_idx`.
