@@ -133,7 +133,18 @@ export function assertDiscountApprovalEventValues(values: {
   )
     throw new Error('DISCOUNT_APPROVAL_EVENT_INVALID');
 }
-function bilingual(
+/**
+ * يختار اسماً عربياً وإنجليزياً آمنين؛ الإنجليزي لا يرجع للعربي، ويشاركه جرس الموافقة الذاتية حتى تبقى القاعدة في مكان واحد.
+ *
+ * @param nameAr الاسم العربي إن وُجد
+ * @param nameEn الاسم الإنجليزي
+ * @param fallback التسمية البديلة بالعربية والإنجليزية
+ * @param fallback.ar البديل العربي
+ * @param fallback.en البديل الإنجليزي
+ * @param safeName دالة قبول الاسم الآمن المحقونة
+ * @returns الاسمان العربي والإنجليزي بعد الاختيار
+ */
+export function bilingual(
   nameAr: string | null,
   nameEn: string,
   fallback: { readonly ar: string; readonly en: string },
