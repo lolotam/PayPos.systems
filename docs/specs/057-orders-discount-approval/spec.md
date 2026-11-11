@@ -219,7 +219,9 @@ second branch manager who also performs services.
 - **DP-17** (DA-Q2) ليلى (2000) on a 3000 bps proposal → 403 `DISCOUNT_APPROVER_LIMIT_TOO_LOW` with `limit_bps` and
   the proposal's bps; a membership with `NOT_CONFIGURED` approves nothing; the owner approves any.
 - **DP-18** (D-5) The requester tries to approve her own request (she holds the permission) → 403
-  `DISCOUNT_APPROVER_IS_REQUESTER`, even as owner.
+  `DISCOUNT_APPROVER_IS_REQUESTER`, even as owner. FR-011 checks the limit (FR-013) before this rule, and under D-6
+  every requested line is above the requester's own limit, so this code is reached only as owner or after her limit is
+  raised to cover the line; otherwise she gets `DISCOUNT_APPROVER_LIMIT_TOO_LOW` first.
 - **DP-19** (DA-Q3, D-19) هبة is a performer in the terms and approves → `APPROVED` with `approver_is_performer =
   true` (request-time snapshot ∪ current link, D-16) and the flag in the `.approved` audit entry; the transaction
   appends one `DiscountApprovedByPerformer`; with the default alert rule (roles `owner`, master switch on, D-19) every active owner gets one bell naming the branch, the service, the
