@@ -2180,7 +2180,9 @@ so much beteer to creat this advisore for the project level so you and the manag
 
 **السؤال حرفيًا — 2026-11-11 15:39 الكويت تقريبًا:** «PP-141, recorded 11-08 on T3 and never added to the repo, says: «chang the DVISORE FROM FABEL AND CDEX ASTRA TO CODEX ASTRA FOR JUST AWHILE AS FABLE QUOTA FINISHED». It moves every advisor role, including pospay-advisor, to Codex Astra/high and says there is no automatic switch back to Fable. Nothing since has lifted it, but pospay-advisor (all PP-136 consults) has been running on Fable again. Which advisor applies now?»
 
-**الاختيارات:** «Back to Fable (Recommended)»، «Keep Astra (PP-141)».
+**بالعربي:** PP-141 (اتسجل 11-08 في T3 ومااترفعش) بينقل كل أدوار الاستشارة، ومنها `pospay-advisor`، لـ Codex Astra/high، وبيقول مفيش رجوع تلقائي لـ Fable. محدش لغاه بعد كده، بس `pospay-advisor` (كل استشارات PP-136) رجع يشتغل على Fable. أنهي مستشار يتطبق دلوقتي؟
+
+**الاختيارات:** «Back to Fable (Recommended)» (يرجع Fable، وده المقترح)، «Keep Astra (PP-141)» (PP-141 يفضل شغال).
 
 **رد وليد حرفيًا:** «Back to Fable (Recommended)».
 
@@ -2190,8 +2192,12 @@ so much beteer to creat this advisore for the project level so you and the manag
 
 **السؤال حرفيًا — 2026-11-11 15:39 الكويت تقريبًا:** «Two different decisions are both numbered PP-163. The 11-09 one on T3, «Hold remaining work» after #909 merged red, was never published. The 11-11 one in main (revert #908, PP-163.1/.2) is in the #915–#917 commit messages and in code comments, so it can't change. Which number does the 11-09 decision get? Only the label changes; its status stays as recorded.»
 
-**الاختيارات:** «Renumber to PP-166 (Recommended)»، «Keep "PP-163 (T3)"».
+**بالعربي:** فيه قرارين مختلفين برقم PP-163. بتاع 11-09 في T3 («Hold remaining work» بعد ما #909 اتدمج وهو أحمر) ماتنشرش. بتاع 11-11 في main (رجوع #908، PP-163.1/.2) موجود في رسائل commits #915–#917 وفي تعليقات الكود، فمش هيتغير. قرار 11-09 ياخد أنهي رقم؟ الاسم بس اللي بيتغير، والحالة زي ما اتسجلت.
+
+**الاختيارات:** «Renumber to PP-166 (Recommended)» (رقم PP-166، وده المقترح)، «Keep "PP-163 (T3)"» (يفضل باسم PP-163 (T3)).
 
 **رد وليد حرفيًا:** «Renumber to PP-166 (Recommended)».
 
 **الأثر:** قرار 2026-11-09 بقى PP-166 (البند 87)، ورقمه المحلي PP-163 متسجل جنبه. PP-163 في الـ repo يفضل قرار رجوع #908 (البند 74). نص البند 87 ما اتغيرش، والرقم الجاي بعد PP-167.
+
+**حالة الإيقاف في PP-166:** PP-166 وقّف كل الشغل التابع لـ #909، ومنه نشر الـ audit على Git، «حتى توجيه مالك صريح». وليد وجّه بعدها صراحة: يوم 11-11 اختار «Revert #908 first (Recommended)» (PP-163.1)، وكتب «4-3-1 and 2» (07:09 الكويت، موافقة على خطة تكملة الشغل اللي فيها رجوع #830 في PR جديد، واتعمل في #917)، وكتب «Then ok do reconciling the missing decision numbers first. Until that's done» (15:20 الكويت)، وده طلب نشر السجل ده بالذات. التوجيهات دي هي اللي فكت الإيقاف عن الشغل ده؛ النص المحلي للبند 87 مااتعدلش.
