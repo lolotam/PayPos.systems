@@ -134,13 +134,37 @@ it('strips an extra key from page and detail responses and rejects one in the cu
     expect(detailParsed.data).not.toHaveProperty('note');
   }
 
-  expect(
-    customerPackagesCursorData.safeParse({
-      customer_id: id,
-      rank: 0,
-      expires_on: '2026-12-31',
-      id,
-      note: 'extra',
-    }).success,
-  ).toBe(false);
+  const validCursor = {
+    company_id: id,
+    business_id: id,
+    customer_id: id,
+    rank: 0 as const,
+    expires_on: '2026-12-31',
+    id,
+  };
+
+  expect(customerPackagesCursorData.safeParse({ ...validCursor, note: 'extra' }).success).toBe(false);
+
+  // المؤشر يتطلب الشركة والنشاط لربطه بسياق الطلب ومنع التمرير بين المستأجرين
+  const withoutCompany = {
+    business_id: id,
+    customer_id: id,
+    rank: 0 as const,
+    expires_on: '2026-12-31',
+    id,
+  };
+  expect(customerPackagesCursorData.safeParse(withoutCompany).success).toBe(false);
+
+  const withoutBusiness = {
+    company_id: id,
+    customer_id: id,
+    rank: 0 as const,
+    expires_on: '2026-12-31',
+    id,
+  };
+  expect(customerPackagesCursorData.safeParse(withoutBusiness).success).toBe(false);
+
+  // رفض سنة الصفر 0000 وقبول سنة 0001
+  expect(customerPackagesCursorData.safeParse({ ...validCursor, expires_on: '0000-01-01' }).success).toBe(false);
+  expect(customerPackagesCursorData.safeParse({ ...validCursor, expires_on: '0001-01-01' }).success).toBe(true);
 });

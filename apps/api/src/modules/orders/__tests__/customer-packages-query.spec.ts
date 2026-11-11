@@ -161,6 +161,8 @@ it('walks pages with limit=2 with no duplicates and no gaps, ending with null ne
 it('rejects a cursor from another customer or a garbage cursor with CUSTOMER_PACKAGES_CURSOR_INVALID', async () => {
   const foreignCursor = Buffer.from(
     JSON.stringify({
+      company_id: scope.companyId,
+      business_id: scope.businessId,
       customer_id: fixture.otherCustomer,
       rank: 0,
       expires_on: '2026-10-25',

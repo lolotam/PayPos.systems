@@ -27,12 +27,11 @@ export function useCustomerPackages(scope: SessionServiceScope, customerId: stri
     },
     getNextPageParam: (last) => last.next_cursor ?? undefined,
     select: (data) => {
-      const seen = new Set<string>();
-      const items = data.pages.flatMap((page) => page.items).filter((item) => {
-        if (seen.has(item.id)) return false;
-        seen.add(item.id);
-        return true;
-      });
+      const occurrences = data.pages.flatMap((page) => page.items).map((item, position) => ({ item, position }));
+      // الصفحة اللاحقة بتحمل أحدث حالة للباقة، فالنسخة الأحدث وموقعها هما اللي بيفضلوا في القايمة.
+      const latest = new Map<string, (typeof occurrences)[number]>();
+      for (const occurrence of occurrences) latest.set(occurrence.item.id, occurrence);
+      const items = [...latest.values()].sort((a, b) => a.position - b.position).map(({ item }) => item);
       return { ...data, items };
     },
   });
