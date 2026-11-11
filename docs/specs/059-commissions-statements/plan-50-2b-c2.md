@@ -20,13 +20,12 @@ CS-Q41…CS-Q44, PENDING), 50-4 package sales, 55-1 corrections, any producer ch
   `CommissionEmployeeBusinessMissingError`, rollback (no projection, no mark). Present → used as is; the composite
   FK `(company, business, employee)` refuses a mismatch.
 - FR-042: a salary entry affects every month whose last day is in `[effective_from, next_from)`, capped at the
-  business-current month (injected Clock + tenancy timezone, read once). Empty range → no statement lock, row still
-  written.
+  business-current month (injected Clock + tenancy timezone, read once) and floored at the business start month
+  (manager decision D2). Empty range → no statement lock, row still written.
 - Interim closed-period guard (new sub-bullet under FR-015, this card): an affected APPROVED/PAID month throws
   `CommissionPeriodClosedError` before any write, exactly as 50-1 does for lines; 55-1 replaces it with the
   correction step. Approval (53-2) is not reachable before 55-2 and 50-3, so no real closed month exists yet.
-  PENDING: `plan-50-2b-c2-planning.md` requires the manager to settle this extension explicitly; the batch's
-  general approval does not cover it (see "Open before dispatch", D1).
+  Manager decision D1 (2026-11-11, option 1) settles this extension (see "Manager decisions").
 
 ## Design
 
@@ -43,7 +42,9 @@ with new UUID v7 ids; an empty set keeps the head (CM-18).
 
 Salary: resolve business; read held row by `(company, employee, effective_from)` and `next_from` = smallest later
 `effective_from` of the employee; reducer `reduceCommissionSalaries`. Held business ≠ resolved →
-`'SALARY_IDENTITY_CHANGED'`. Write: `INSERT … ON CONFLICT (company_id, employee_id, effective_from) DO UPDATE SET
+`'SALARY_IDENTITY_CHANGED'`. The business calendar (time zone + `created_at`, one read) gives the current month and
+the start month `currentBusinessPeriod(created_at, timeZone)`; a missing business throws
+`CommissionBusinessMissingError`. Write: `INSERT … ON CONFLICT (company_id, employee_id, effective_from) DO UPDATE SET
 amount, revision`.
 
 Envelope checks: `SessionTipsChanged` needs `aggregate_type='service_session'` and `aggregate_id=session_id`;
@@ -57,11 +58,12 @@ Envelope checks: `SessionTipsChanged` needs `aggregate_type='service_session'` a
 | domain | `domain/errors.ts`: `CommissionEmployeeBusinessMissingError` | Kimi |
 | ports | `ports/commission-tip-salary-projection.port.ts` (new): tip and salary scopes | Kimi |
 | use case | `use-cases/project-session-tips/project-session-tips.ts`, `use-cases/project-salary/project-salary.ts` (new) | Kimi |
-| persistence | `persistence/commission-tip-salary-projection.scope.ts` (new), `EmployeeBusinessReader` type | Kimi |
+| persistence | `persistence/commission-tip-salary-projection.scope.ts` (new), `EmployeeBusinessReader` and `BusinessCalendarReader` types | Kimi |
+| tenancy | worker `tenancy/persistence/business-calendar.ts` (new, mirrors the API `businessCalendar`), add-only export in `tenancy/index.ts` | Kimi |
 | events | `events/handlers/on-commission-input-event.handler.ts`: route five types | Kimi |
-| wiring | `commissions.module.ts` (required `employeeBusiness`), `apps/worker/src/main.ts` (bind `readEmployeeBusiness`) | Kimi |
-| tests | domain unit spec; integration specs through `createDeliverer`; 8 existing call sites get `employeeBusiness` | Agy |
-| docs | this plan, debate file, spec FR-015 sub-bullet, module-map Port row + two event rows, owner questions | Claude |
+| wiring | `commissions.module.ts` (required `employeeBusiness`, `businessCalendar`), `apps/worker/src/main.ts` (bind both, add-only) | Kimi |
+| tests | domain unit spec; integration specs through `createDeliverer`; 7 existing call sites get the two dependencies | Agy |
+| docs | this plan, debate file, spec FR-015/FR-042, module-map Port rows + two event rows, owner questions | Claude |
 
 ## Tests (Agy; real Postgres, durable rows and marks, not mock calls)
 
@@ -82,7 +84,12 @@ Refuse an implementer delivery above 2× its brief's estimate (§14). Group enve
 production remaining 853, tests 907, docs 83 — docs will exceed the envelope (batch-mandated plan, debate and
 owner-question records); reported to the manager, not hidden.
 
-## Open before dispatch (manager decisions; implementer briefs are not sent until both are answered)
+## Manager decisions (2026-11-11)
+
+The manager answered both items below with option 1 on 2026-11-11: D1 adopts the fail-before-write guard for tips
+and salary until 55-1 adds corrections; D2 floors salary statements at the business start month (as PP-85 does for
+plan periods), the salary row is still written, through a small worker tenancy reader of the business creation date.
+The docs overrun is accepted. CS-Q41…CS-Q44 stay PENDING (they block only 50-3). The options as asked:
 
 - **D1 — interim closed-period guard for tips and salary.** Options: (1, recommended) adopt the fail-before-write
   guard above, temporary until 55-1/55-2 corrections, on the evidence that at `73dbfc2fd` no approve route is

@@ -657,9 +657,11 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   - _What 50-2b card 2 adds:_ `SessionTipsChanged` (identity lock per session) and `SalaryChanged` on the same
     consumer. A salary event first takes an **employee** lock, then its `employee_id+effective_from` identity lock,
     because a new date changes the neighbouring entry's `next_from` (FR-042); the bootstrap takes the same two locks in
-    the same order. `TODO(spec)` pending manager decision D1 (`plan-50-2b-c2.md`): whether the 50-1 interim guard
-    (an affected APPROVED or PAID month throws `CommissionPeriodClosedError` before any write, until 55-1 adds the
-    correction step) extends to both events. A legacy salary event whose
+    the same order. By manager decision D1 (2026-11-11, `plan-50-2b-c2.md`) the 50-1 interim guard applies to both:
+    an affected APPROVED or PAID month throws `CommissionPeriodClosedError` before any write, until 55-1 adds the
+    correction step. By manager decision D2 (same date) a salary entry's months start no earlier than the business
+    start month (its `created_at` in its time zone, as PP-85 floors plan periods); the salary row is still written.
+    A legacy salary event whose
     employee the staff reader cannot find throws `CommissionEmployeeBusinessMissingError` before any write (FR-018b).
 - **FR-016** Projection tables (§6 _Schema_): `commission_line_heads` + `commission_lines` (one row per line × performer,
   D-11), `commission_tip_heads` + `commission_tips`, `commission_salaries`, `commission_sales`.
@@ -872,8 +874,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   paid or recovered with payroll like a card tip, and a card-tip side that goes negative pays 0 and carries into next month's card tips (CS-Q29, FR-045, §9).
 - **FR-042** Salaries: a salary entry `(employee, effective_from)` is the selected salary (SPEC §5.5) of **every month whose last
   day falls in `[effective_from, next_from)`**, where `next_from` is the employee's next later entry in the projection (open
-  ended when there is none, up to the current month). A new entry or a new revision of one therefore affects that whole
-  range, not one month. Under the identity lock of FR-015 the consumer computes the range from the locked projection, calls
+  ended when there is none, up to the current month; never before the business start month, manager decision D2 of
+  2026-11-11). A new entry or a new revision of one therefore affects that whole range, not one month. Under the identity lock of FR-015 the consumer computes the range from the locked projection, calls
   `lockStatementPeriods` for every month in it plus every candidate target month through the current month (D-13,
   ascending, one call), then for each month:
   an open month (DRAFT/REVIEWED) is refreshed (its estimate recomputes on read; REVIEWED returns to DRAFT, D-5) and a closed
