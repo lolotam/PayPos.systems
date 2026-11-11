@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { cpus, loadavg, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { RATING_CLAIM_STATE_SETTLE } from '../rating-claim-state-settle.lua.ts';
 import { validationHarness, type ValidationWorld } from './rating-claim-state-harness.fixture.ts';
@@ -60,16 +60,23 @@ async function quietRedis(redis: Lane['redis'], saved: Map<string, string>) {
 
 async function restoreRedis(redis: Lane['redis'], saved: Map<string, string>) {
   for (const [name, value] of saved) await redis.call('CONFIG', 'SET', name, value);
+  saved.clear();
 }
 
-/** هوية حاوية Redis ونسختها في السجل، وفحص إن الحاوية واحدة بالمنفذ والوسم المتوقعين. */
-async function reportRedis(redis: Lane['redis']) {
+/** حاوية Redis الوحيدة بالمنفذ والوسم المتوقعين؛ بنفشل قبل أي تعديل إعدادات على URL مش متحقق منه. */
+function verifiedContainer(redis: Lane['redis']) {
   const port = String(redis.options.port);
   const filters = [`publish=${port}`, 'label=com.docker.compose.service=redis'];
   const flags = filters.flatMap((filter) => ['--filter', filter]);
   const container = command('docker', ['ps', '-q', ...flags]).trim();
   expect(container.split('\n')).toHaveLength(1);
   expect(container).not.toBe('');
+  return container;
+}
+
+/** هوية حاوية Redis ونسختها في السجل. */
+async function reportRedis(redis: Lane['redis']) {
+  const container = verifiedContainer(redis);
   const format = '{{.Image}} {{.Config.Image}}';
   const image = command('docker', ['inspect', '--format', format, container]).trim();
   report({ image, server: await redis.info('server'), cpus: cpus().length, load: loadavg() });
@@ -249,11 +256,16 @@ describe.skipIf(!CI)('CI-only exact counter whole-command performance', () => {
   const persistence = new Map<string, string>();
   beforeAll(async () => {
     scripts = [baseline(), RATING_CLAIM_STATE_SETTLE];
-    await quietRedis(redis, persistence);
     await reportRedis(redis);
   });
 
-  afterAll(() => restoreRedis(redis, persistence));
+  // الاستعادة في afterEach مش afterAll: hook الـharness بيقفل اتصال Redis في afterAll وترتيبه مقابل
+  // hook تاني مش مضمون، وafterEach بيشتغل بعد كل اختبار حتى لو فشل أي assertion فيه.
+  beforeEach(async () => {
+    verifiedContainer(redis);
+    await quietRedis(redis, persistence);
+  });
+  afterEach(() => restoreRedis(redis, persistence));
 
   it.each(CASES)(
     'whole settlePage $settlement/$retries nearCap=$nearCap',
@@ -269,6 +281,8 @@ describe.skipIf(!CI)('CI-only exact counter whole-command performance', () => {
       // 500 عينة لكل نسخة بتخلّي p99 تعكس الذيل الحقيقي من غير ما نغيّر حدود PP-165.
       // النسختين بيتبدّلوا في كل نداء (مش كل 10 نداءات): توقّف الجهاز بيمتد على نداءات متتالية، ولو
       // كانت كلها لنسخة واحدة كانت بتقفز لـp99 وحدها؛ بالتبديل بيتقسم التوقّف على النسختين.
+      // الترتيب ABBA متعمّد: عكس ترتيب كل زوج بيعادل أثر الترتيب، وأطول تتابع لنسخة واحدة نداءين بس،
+      // فمفيش توقّف قصير يقدر يجيب 5+ عينات تحرّك p99 من 500.
       for (let block = 0; block < 52; block += 1) {
         for (let call = 0; call < 10; call += 1) {
           for (const index of (block + call) % 2 === 0 ? [0, 1] : [1, 0]) {
