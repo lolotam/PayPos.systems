@@ -813,12 +813,16 @@ the tenant and scope keys (`company_id`, `id`, `business_id`, `branch_id`), the 
 `recorded_by_membership_id`, composite FKs like the entitlement's), the frozen `discount_limit_bps` (`NULL` =
 unlimited), the validated body (`customer_id`, `package_type_id`, `expected_type_revision`,
 `expected_service_revisions` as a bounded JSON array, `price_paid numeric(14,3)`, `paid_method`, `seller_employee_id`,
-`sold_at` nullable), `recorded_at`, `status` (`pending`, `completed`, `failed`), `entitlement_id` (set only with
+`sold_at` nullable; `customer_id`, `package_type_id` and `seller_employee_id` carry no FK, because an unknown or
+foreign id is a worker refusal of SA-05/SA-08, not an insert error; the entitlement keeps its scoped FKs),
+`recorded_at`, `status` (`pending`, `completed`, `failed`), `entitlement_id` (set only with
 `completed`, composite FK to the entitlement), `error_code` and bounded `error_details` (set only with `failed`) and
 `finished_at`. RLS `ENABLE` + `FORCE` on `company_id = app_company_id()`; `pospay_app` gets `SELECT`, `INSERT` and
-column `UPDATE` on `status`, `entitlement_id`, `error_code`, `error_details` and `finished_at` only. A `BEFORE UPDATE`
-trigger allows only `pending → completed` (with `entitlement_id`, no error) and `pending → failed` (with
-`error_code`, no entitlement), and refuses every other change, so a finished request is immutable. Indexes cover
+column `UPDATE` on `status`, `entitlement_id`, `error_code`, `error_details` and `finished_at` only. A state-shape
+CHECK ties the result columns to `status` (pending: all null; completed: `entitlement_id` and `finished_at`, no error;
+failed: `error_code` and `finished_at`, no entitlement). A `BEFORE INSERT OR UPDATE` trigger requires an insert to be
+`pending` and allows only `pending → completed` and `pending → failed`, refusing every other change, so a finished
+request is immutable. Indexes cover
 every FK, the RLS predicate and the creator's status read. Nothing is ever deleted (a request is part of the sale's
 audit trail).
 

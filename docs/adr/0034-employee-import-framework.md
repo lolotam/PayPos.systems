@@ -490,7 +490,8 @@ not travel into the job: the same key, body and actor replay the stored 202 with
 Inside the worker the request row is the idempotency identity: the BullMQ `jobId` is the outbox
 event id (a duplicate enqueue is dropped), and the sale runs only while the locked row is still
 `pending`. A repeated delivery (outbox redelivery, job retry, stalled-job redelivery) finds it
-`completed` or `failed` and writes nothing. A `BEFORE UPDATE` trigger allows only
+`completed` or `failed` and writes nothing. A `BEFORE INSERT OR UPDATE` trigger requires a new row
+to be `pending` and allows only
 `pending → completed` (with `entitlement_id`, no error) and `pending → failed` (with
 `error_code`, no entitlement), so a finished request is immutable and a second entitlement for
 one request is impossible.
