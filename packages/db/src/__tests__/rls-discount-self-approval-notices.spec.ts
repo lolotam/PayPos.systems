@@ -39,6 +39,14 @@ const insert = (
   count = 0,
 ) => sql`INSERT INTO discount_self_approval_notices(company_id,id,business_id,source_event_id,decided_at,recipient_count)
   VALUES(${company},${fresh},${business},${sourceEvent},clock_timestamp(),${count})`;
+const claim = (
+  sourceEvent: string,
+  count: number,
+  fresh = ids.newId(),
+) => sql`INSERT INTO discount_self_approval_notices(company_id,id,business_id,source_event_id,decided_at,recipient_count)
+  VALUES(${A.company},${fresh},${A.business},${sourceEvent},clock_timestamp(),${count})
+  ON CONFLICT (company_id, source_event_id) DO NOTHING
+  RETURNING id`;
 
 it('FORCE RLS, split policies, restricted role and grants', async () => {
   const [row] =
@@ -107,6 +115,19 @@ it('a second row for the same source event in one company is refused, but accept
   await db.withTenant(B.company, (tx) =>
     tx.execute(insert(B.company, B.business, ids.newId(), sourceEventId)),
   );
+});
+
+it('a replayed claim of the same source event inserts nothing and keeps the first decision', async () => {
+  const sourceEvent = ids.newId();
+  const claimed = await asA(claim(sourceEvent, 0));
+  expect(claimed).toHaveLength(1);
+  const redundant = await asA(claim(sourceEvent, 3));
+  expect(redundant).toHaveLength(0);
+  const rows = await asA(
+    sql`SELECT recipient_count FROM discount_self_approval_notices WHERE company_id=${A.company} AND source_event_id=${sourceEvent}`,
+  );
+  expect(rows).toHaveLength(1);
+  expect(rows[0]?.['recipient_count']).toBe(0);
 });
 
 it('a negative recipient count is refused', async () => {
