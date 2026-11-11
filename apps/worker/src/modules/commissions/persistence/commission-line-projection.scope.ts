@@ -1,4 +1,4 @@
-import { lockStatementPeriods, reopenReviewedStatementPeriods, type Tx } from '@pospay/db';
+import { reopenReviewedStatementPeriods, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 import type { HeldCommissionLineHead } from '../domain/commission-line-types.ts';
@@ -7,8 +7,8 @@ import type {
   CommissionLinePerformerWrite,
   CommissionLineProjectionScope,
   CommissionLineReplacement,
-  CommissionPeriodLockInput,
 } from '../ports/commission-line-projection.port.ts';
+import { lockCommissionPeriods } from './commission-period-locks.ts';
 
 export type BusinessTimeZoneReader = (
   tx: Tx,
@@ -45,19 +45,10 @@ export function createCommissionLineProjectionScope(
       return rows;
     },
     businessTimeZone: (companyId, businessId) => businessTimeZone(tx, companyId, businessId),
-    lockPeriods: async (input) => lockPeriods(tx, input),
+    lockPeriods: async (input) => lockCommissionPeriods(tx, input),
     replaceLines: async (replacements) => replaceLines(tx, replacements),
     reopenReviewed: (input) => reopenReviewedStatementPeriods(tx, input),
   };
-}
-
-async function lockPeriods(tx: Tx, input: CommissionPeriodLockInput) {
-  const locked = await lockStatementPeriods(tx, {
-    businessId: input.businessId,
-    periods: input.periods,
-    ids: input.ids,
-  });
-  return locked.map((row) => ({ period: row.period, status: row.status }));
 }
 
 async function replaceLines(

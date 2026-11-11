@@ -14,10 +14,10 @@ import {
   createTestDatabase,
   type TestDatabase,
 } from '../../../../../../packages/db/test/test-database.ts';
+import { createTestCommissionInputsConsumer } from '../../../__tests__/commission-inputs-consumer.ts';
 import { createDeliverer } from '../../../outbox/deliver.ts';
 import { CommissionBusinessMissingError } from '../domain/errors.ts';
 import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
-import { createCommissionInputsConsumer } from '../index.ts';
 
 let testDb: TestDatabase;
 let owner: postgres.Sql;
@@ -46,7 +46,7 @@ beforeEach(async () => {
 });
 
 function deliverAt(now: string, event: ClaimedEvent) {
-  const consumer = createCommissionInputsConsumer({
+  const consumer = createTestCommissionInputsConsumer({
     ids,
     clock: { now: () => new Date(now) },
     businessTimeZone,
@@ -112,7 +112,7 @@ it('candidate months through the fixed current business month receive DRAFT rows
 
 it('a missing business fails with the named error before any write', async () => {
   const missing = event({ businessId: '01920000-0000-7000-8000-00000000dead' });
-  const consumer = createCommissionInputsConsumer({
+  const consumer = createTestCommissionInputsConsumer({
     ids,
     clock: { now: () => new Date('2027-10-05T09:00:00Z') },
     businessTimeZone,
