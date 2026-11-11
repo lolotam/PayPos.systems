@@ -11,6 +11,8 @@ import {
 import { decodeCursor } from '../../../shared/persistence/name-options-cursor.ts';
 import { createLeaveReadAccess } from '../persistence/leave-read-access.adapter.ts';
 import { leaveHistorySql } from '../queries/leave-history.query.ts';
+import { historyWorkloadSql } from '../queries/leave-history-workload.sql.ts';
+import { LEAVE_HISTORY_SYNC_SHIFTS } from '../queries/leave-history-report.query.ts';
 import { leaveFixture, type LeaveFixture } from './leave-history.fixture.ts';
 import { seedHistoryVolume } from './leave-history-performance.fixture.ts';
 
@@ -29,6 +31,37 @@ afterAll(async () => {
   await f?.db.close();
   await f?.h.close();
 });
+
+function assertNoSeqScan(plan: unknown): void {
+  const node = plan as { 'Node Type'?: string; 'Relation Name'?: string; Plans?: unknown[] };
+  if (node['Node Type'] === 'Seq Scan') {
+    expect(node['Relation Name']).not.toBe('staff_schedules');
+    expect(node['Relation Name']).not.toBe('staff_schedule_shifts');
+  }
+  for (const child of node.Plans ?? []) {
+    assertNoSeqScan(child);
+  }
+}
+
+async function explainWorkload(q: { from: string; to: string }) {
+  const result = await f.db.withTenant(f.company, async (tx) => {
+    const context = {
+      companyId: f.company,
+      userId: f.userId,
+      businessId: f.business,
+      own: false,
+    };
+    const scope = await access.check(tx, context);
+    if (!scope) throw new Error('Performance scope missing');
+    const statement = historyWorkloadSql(context, scope, q, LEAVE_HISTORY_SYNC_SHIFTS);
+    return tx.execute(sql`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${statement}`);
+  });
+  const raw = result[0]?.['QUERY PLAN'] as [{ Plan: unknown; 'Execution Time': number }];
+  const root = raw[0];
+  if (!root) throw new Error('Missing EXPLAIN JSON');
+  expect(root['Execution Time']).toBeLessThanOrEqual(200);
+  assertNoSeqScan(root.Plan);
+}
 
 async function explainStatement(q: LeaveHistoryReportQuery, cursor?: LeaveHistoryCursorData) {
   const result = await f.db.withTenant(f.company, async (tx) => {
@@ -123,6 +156,10 @@ it('performance case 1 (refused): unfiltered full year', async () => {
   await measureRefusalP95('from=2025-11-07&to=2026-11-06');
 });
 
+it('performance case workload explain (refused): full year 2025-11-07..2026-11-06', async () => {
+  await explainWorkload({ from: '2025-11-07', to: '2026-11-06' });
+});
+
 it('performance case 7 (fast): a one-month range', async () => {
   const query = leaveHistoryReportQuery.parse({
     from: '2026-10-01',
@@ -178,17 +215,18 @@ it('performance case 6 (refused): branch_id', async () => {
   await measureRefusalP95(`from=2025-11-07&to=2026-11-06&branch_id=${f.branch}`);
 });
 
-it('performance case over-limit (refused): 2026-09-17..2026-10-31', async () => {
-  await measureRefusalP95('from=2026-09-17&to=2026-10-31');
+it('performance case over-limit (refused): 2026-09-21..2026-10-31', async () => {
+  await measureRefusalP95('from=2026-09-21&to=2026-10-31');
 });
 
-it('performance case at-limit (fast): 2026-09-24..2026-10-31', async () => {
+it('performance case at-limit (fast): 2026-09-22..2026-10-31', async () => {
   const query = leaveHistoryReportQuery.parse({
-    from: '2026-09-24',
+    from: '2026-09-22',
     to: '2026-10-31',
   });
+  await explainWorkload(query);
   await explainStatement(query);
-  await measureHttpP95('from=2026-09-24&to=2026-10-31');
+  await measureHttpP95('from=2026-09-22&to=2026-10-31');
 });
 
 it('performance case (fast): statuses[]=PENDING full year', async () => {
@@ -199,4 +237,53 @@ it('performance case (fast): statuses[]=PENDING full year', async () => {
   });
   await explainStatement(query);
   await measureHttpP95('from=2025-11-07&to=2026-11-06&statuses[]=PENDING');
+});
+
+it('performance case at-limit with split shifts (fast): 4 shifts a day 2026-06-01..2026-06-10', async () => {
+  await f.h.owner`
+    INSERT INTO staff_schedule_shifts(company_id,id,schedule_id,employee_id,working_date,day,start,"end",starts_at,ends_at)
+    SELECT
+      sc.company_id,
+      gen_random_uuid(),
+      sc.id,
+      sc.employee_id,
+      d.day,
+      (extract(dow FROM d.day)::int + 1) % 7,
+      times.s,
+      times.e,
+      (d.day + times.s::time) AT TIME ZONE 'UTC',
+      (d.day + times.e::time) AT TIME ZONE 'UTC'
+    FROM generate_series(date '2026-06-01', date '2026-06-10', interval '1 day') AS g(ts)
+    CROSS JOIN LATERAL (SELECT g.ts::date AS day) d
+    CROSS JOIN (
+      VALUES ('00:00', '02:00'), ('02:30', '04:30'), ('05:00', '07:00')
+    ) AS times(s, e)
+    JOIN staff_schedules sc ON sc.company_id=${f.company}
+      AND sc.branch_id=${f.branch}
+      AND sc.week_start = d.day - ((extract(dow FROM d.day)::int + 1) % 7)
+  `;
+
+  const count = await f.db.withTenant(f.company, async (tx) => {
+    const scope = await access.check(tx, {
+      companyId: f.company,
+      userId: f.userId,
+      businessId: f.business,
+      own: false,
+    });
+    if (!scope) throw new Error('Scope missing');
+    const [row] = await tx.execute<{ shifts: number }>(
+      historyWorkloadSql(
+        { companyId: f.company, userId: f.userId, businessId: f.business, own: false },
+        scope,
+        { from: '2026-06-01', to: '2026-06-10' },
+        LEAVE_HISTORY_SYNC_SHIFTS,
+      ),
+    );
+    return row?.shifts;
+  });
+  expect(count).toBe(2000);
+
+  const query = leaveHistoryReportQuery.parse({ from: '2026-06-01', to: '2026-06-10' });
+  await explainStatement(query);
+  await measureHttpP95('from=2026-06-01&to=2026-06-10');
 });
