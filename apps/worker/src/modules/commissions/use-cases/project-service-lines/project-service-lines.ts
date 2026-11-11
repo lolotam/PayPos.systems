@@ -29,6 +29,7 @@ import {
 } from '../../domain/errors.ts';
 import type {
   Clock,
+  CommissionInputEventEnvelope,
   CommissionLinePerformerWrite,
   CommissionLineProjectionScope,
   CommissionLineReplacement,
@@ -39,12 +40,6 @@ type CommissionInputEventPayload =
   | ServiceSessionRecorded
   | ServiceSessionLinesAdded
   | ServiceLineChanged;
-
-interface CommissionInputEventEnvelope {
-  readonly aggregateType: string;
-  readonly aggregateId: string;
-  readonly companyId: string;
-}
 
 export { CommissionLineEventInvalidError } from '../../domain/errors.ts';
 

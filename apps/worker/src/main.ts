@@ -30,6 +30,7 @@ import { reportRatingTokenCapability } from './rating-token-capability.ts';
 import {
   createAttendanceStatementReader,
   createStaffDocumentDefaults,
+  readEmployeeBusiness,
   startStaffWorker,
 } from './modules/staff/index.ts';
 import {
@@ -58,7 +59,7 @@ import {
   createCommissionInputsConsumer,
   createCommissionStatementExportReader,
 } from './modules/commissions/index.ts';
-import { businessTimeZone } from './modules/tenancy/index.ts';
+import { businessCalendar, businessTimeZone } from './modules/tenancy/index.ts';
 import { drainDispatchAndDocuments } from './documents/shutdown-drain.ts';
 
 const config = readConfig(process.env);
@@ -162,6 +163,8 @@ const businessDeliver = createDeliverer(
       ids: systemUuidV7(),
       clock: { now: () => new Date() },
       businessTimeZone,
+      employeeBusiness: readEmployeeBusiness,
+      businessCalendar,
     }),
   ],
   logger,

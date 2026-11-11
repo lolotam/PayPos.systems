@@ -15,11 +15,11 @@ import {
   type TestDatabase,
 } from '../../../../../../packages/db/test/test-database.ts';
 import { USER } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
+import { createTestCommissionInputsConsumer } from '../../../__tests__/commission-inputs-consumer.ts';
 import { createDeliverer } from '../../../outbox/deliver.ts';
 import type { OutboxConsumer } from '../../../outbox/consumer.ts';
 import { CommissionLineEventInvalidError } from '../domain/errors.ts';
 import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
-import { createCommissionInputsConsumer } from '../index.ts';
 
 let testDb: TestDatabase;
 let owner: postgres.Sql;
@@ -35,7 +35,7 @@ beforeAll(async () => {
   await seedCommissionLineTenants(testDb.ownerUrl);
   owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
   db = createDatabase({ url: testDb.appUrl, ids });
-  consumer = createCommissionInputsConsumer({
+  consumer = createTestCommissionInputsConsumer({
     ids,
     clock: { now: () => new Date('2026-12-05T09:00:00Z') },
     businessTimeZone,

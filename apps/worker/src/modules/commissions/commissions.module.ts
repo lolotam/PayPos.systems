@@ -7,11 +7,19 @@ import {
   type BusinessTimeZoneReader,
 } from './persistence/commission-line-projection.scope.ts';
 import { commissionStatementExportTransactions } from './persistence/commission-statement-export.transactions.ts';
+import {
+  createCommissionSalaryProjectionScope,
+  createCommissionTipProjectionScope,
+  type BusinessCalendarReader,
+  type EmployeeBusinessReader,
+} from './persistence/commission-tip-salary-projection.scope.ts';
 import type {
   Clock,
   IdGenerator,
 } from './ports/commission-line-projection.port.ts';
+import { ProjectSalary } from './use-cases/project-salary/project-salary.ts';
 import { ProjectServiceLines } from './use-cases/project-service-lines/project-service-lines.ts';
+import { ProjectSessionTips } from './use-cases/project-session-tips/project-session-tips.ts';
 import type { CommissionStatementExportData } from './ports/commission-statement-export.port.ts';
 import {
   commissionStatementExportRequestStatement,
@@ -40,21 +48,44 @@ export interface CommissionInputsConsumerDependencies {
   readonly ids: IdGenerator;
   readonly clock: Clock;
   readonly businessTimeZone: BusinessTimeZoneReader;
+  readonly employeeBusiness: EmployeeBusinessReader;
+  readonly businessCalendar: BusinessCalendarReader;
 }
 
 /** يربط مستهلك مدخلات العمولة بقارئ المنطقة الزمنية وبالساعة والمولّد المحقونين من الجذر. */
 export function createCommissionInputsConsumer(
   dependencies: CommissionInputsConsumerDependencies,
 ): OutboxConsumer {
-  const bind = (tx: Tx) =>
-    new ProjectServiceLines(
+  const bind = (tx: Tx) => ({
+    lines: new ProjectServiceLines(
       createCommissionLineProjectionScope(tx, dependencies.businessTimeZone),
       dependencies.clock,
       dependencies.ids,
-    );
+    ),
+    tips: new ProjectSessionTips(
+      createCommissionTipProjectionScope(tx, dependencies.businessTimeZone, dependencies.ids),
+      dependencies.clock,
+      dependencies.ids,
+    ),
+    salary: new ProjectSalary(
+      createCommissionSalaryProjectionScope(
+        tx,
+        dependencies.businessCalendar,
+        dependencies.employeeBusiness,
+      ),
+      dependencies.clock,
+      dependencies.ids,
+    ),
+  });
   return {
     id: 'commissions.project-inputs',
-    eventTypes: ['ServiceSessionRecorded', 'ServiceSessionLinesAdded', 'ServiceLineChanged'],
+    eventTypes: [
+      'ServiceSessionRecorded',
+      'ServiceSessionLinesAdded',
+      'ServiceLineChanged',
+      'SessionTipsChanged',
+      'SalaryChanged',
+    ],
     handle: (tx, event) => onCommissionInputEvent(bind(tx), event),
   };
 }

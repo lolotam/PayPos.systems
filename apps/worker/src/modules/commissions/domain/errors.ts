@@ -35,6 +35,23 @@ export class CommissionBusinessMissingError extends Error {
   }
 }
 
+/** الموظفة غير موجودة لحدث راتب قديم بلا نشاط؛ إيقاف الإسقاط يمنع نسب الراتب لنشاط مجهول. */
+export class CommissionEmployeeBusinessMissingError extends Error {
+  readonly code = 'COMMISSION_EMPLOYEE_BUSINESS_MISSING';
+  readonly employeeId: string;
+
+  /**
+   * يحتفظ بهوية الموظفة التي تعذّرت قراءة نشاطها حتى يظهر سبب إيقاف الإسقاط بوضوح.
+   *
+   * @param employeeId هوية الموظفة التي لم يرجع لها قارئ staff نشاطاً
+   */
+  constructor(employeeId: string) {
+    super(`Commission employee business is missing: ${employeeId}`);
+    this.name = 'CommissionEmployeeBusinessMissingError';
+    this.employeeId = employeeId;
+  }
+}
+
 /** شهر عمولة مغلق؛ الإسقاط عليه يُرفض حتى لا يتبدل كشف مالي مجمد. */
 export class CommissionPeriodClosedError extends Error {
   readonly code = 'COMMISSION_PERIOD_CLOSED';
