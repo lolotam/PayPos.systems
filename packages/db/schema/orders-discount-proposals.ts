@@ -171,3 +171,22 @@ export const discountApprovalNotices = pgTable('discount_approval_notices', {
   index('discount_approval_notices_business_fk_idx').on(t.companyId, t.businessId),
   check('discount_approval_notices_recipient_count', sql`${t.recipientCount} >= 0`),
 ]);
+
+// دفتر جرس الموافقة الذاتية (057-3b): صف واحد لكل حدث مصدر كدفتر جرس الطلب، ليتقرر الجرس مرة واحدة والصفر قرار نهائي لا خطأ.
+export const discountSelfApprovalNotices = pgTable('discount_self_approval_notices', {
+  companyId: uuid('company_id').notNull(),
+  id: uuid('id').notNull(),
+  businessId: uuid('business_id').notNull(),
+  // المصدر محفوظ دون FK للأوتبوكس حتى لا ينكسر الدفتر عند تنظيف الأحداث القديمة.
+  sourceEventId: uuid('source_event_id').notNull(),
+  decidedAt: timestamp('decided_at', { withTimezone: true }).notNull(),
+  // الصفر قرار نهائي مسجل.
+  recipientCount: integer('recipient_count').notNull(),
+}, (t) => [
+  primaryKey({ name: 'discount_self_approval_notices_pkey', columns: [t.companyId, t.id] }),
+  unique('discount_self_approval_notices_source_event_key').on(t.companyId, t.sourceEventId),
+  foreignKey({ name: 'discount_self_approval_notices_company_fk', columns: [t.companyId], foreignColumns: [companies.id] }),
+  foreignKey({ name: 'discount_self_approval_notices_business_fk', columns: [t.companyId, t.businessId], foreignColumns: [businesses.companyId, businesses.id] }),
+  index('discount_self_approval_notices_business_fk_idx').on(t.companyId, t.businessId),
+  check('discount_self_approval_notices_recipient_count', sql`${t.recipientCount} >= 0`),
+]);

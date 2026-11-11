@@ -42,6 +42,7 @@ export const alertRulesEn = {
   kind_SERVICE_LINE_PERFORMERS_CHANGED: 'Service performers changed',
   kind_ATTENDANCE_CHANGE_REQUESTED: 'Attendance change requested',
   kind_ATTENDANCE_CHANGE_DECIDED: 'Attendance change request decided',
+  kind_DISCOUNT_SELF_APPROVED: "Discount approved on the approver's own work",
 };
 
 /** نفس مفاتيح شاشة التنبيهات بالعربي. */
@@ -88,4 +89,5 @@ export const alertRulesAr: Record<keyof typeof alertRulesEn, string> = {
   kind_SERVICE_LINE_PERFORMERS_CHANGED: 'تغيير اللي عملوا الخدمة',
   kind_ATTENDANCE_CHANGE_REQUESTED: 'طلب تعديل حضور',
   kind_ATTENDANCE_CHANGE_DECIDED: 'الرد على طلب تعديل الحضور',
+  kind_DISCOUNT_SELF_APPROVED: 'موافقة على خصم على شغل الموافِق',
 };
