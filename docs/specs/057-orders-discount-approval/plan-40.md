@@ -19,6 +19,13 @@ until 057-3b is merged** (merge order is the manager's; reported). The writer im
 consumer (plan-057-3b item 8); the consumer proves the payload against the stored proposal (`matchesProposals`), so the
 payload this writer emits must equal the stored decision exactly.
 
+**Unhold condition (manager, 2026-11-11).** 057-3b is delivered as five sub-slices (3b-1 DB + kind, 3b-2 pure rules,
+3b-3 consumer, 3b-4 rule behaviour + admin listing, 3b-5 scale and proofs; `plan-057-3b.md` on
+`feat/p1-057-3b-self-approval-bell`). This PR's merge stays held until **all five are merged and the consumer is
+verified running on the staging worker**: activation is this writer emitting the event, not the consumer merging
+(`debate-057-3b-astra.md` #1–#3). While this writer is live, the worker is **never rolled back below 3b-3**, or an
+older worker acknowledges the event with no consumer and the owner bell is lost.
+
 **Prior partial work reused.** Branch `T3-CODE/orders-discount-decision-planner` (fd4c6df54, 2026-11-04, "preserve
 bounded discount decision plan delivery") holds a pure `planDiscountDecision` + 269-line spec. It matches FR-011's
 order and DA-Q9; it is the reference for the domain step (Kimi adapts it to `main`; tests are rewritten by Agy).
