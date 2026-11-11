@@ -463,9 +463,15 @@ caller: the validated body, branch, recorder user and verified membership (compo
 the discount limit as `discount_limit_bps` (`NULL` = unlimited) and `recorded_at` from the
 injected clock. As in the 47-2b addendum, the worker consumes that accepted identity and never
 re-authorizes; a revocation after acceptance does not cancel or re-route an accepted sale. It
-sets `app.user_id` to the recorder so the audit entry names who sold. The worker cannot import
-`apps/api`, so the pure sale plan moves into `packages/domain` (api keeps re-export shims, as
-allocation, definition and slots already do) and the worker gets its own narrow readers.
+sets `app.user_id` to the recorder so the audit entry names who sold (as the statement-logo
+worker does). The worker cannot import `apps/api`, and only the worker plans a sale now, so the
+sale-planning files merged in 42-3a (`package-sale-plan`, `-pricing`, `-rules`, `-types`,
+`-audit`) move with their tests into the worker's `orders/domain/`. Only shared pure leaves go
+to `packages/domain`: the package expiry date, `effectiveDiscountBps` and the sale-time window
+with a kernel-owned error; the API keeps thin shims, and its `sessionTime` still throws its own
+`SessionError` (its codes are API codes the POS kernel must not carry). The worker reads through
+new narrow readers behind the worker `catalog`, `staff`, `customers` and `tenancy` `index.ts`
+files, each a worker `orders` → module read declared in `docs/module-map.md` §3.
 
 **Transaction ownership.** The whole sale remains **one atomic transaction**, now owned by the
 worker job: lock the request `FOR UPDATE` while `pending` → type `FOR SHARE` → component
@@ -499,10 +505,17 @@ transaction rolls back all of it. Outcomes:
 | Unknown/transient error (connection loss, lock timeout, worker crash mid-transaction) | rollback; BullMQ retries with exponential backoff (attempts as the 47-1/47-2 jobs) | stays `pending` |
 | Last attempt fails for an unknown reason | a short transaction marks the row failed | `failed` + `PACKAGE_SALE_FAILED` |
 | The failure-marking transaction itself fails | the job attempt fails and retries; the next attempt re-locks the still-`pending` row and decides again | stays `pending` until decided |
+| Still `pending` ten minutes after acceptance (lost job, exhausted retries that could not mark it) | the per-company package-sale-recovery sweep, registered before a delivery is acknowledged like 47-2's package-import-recovery (ADR-0022 tenant discovery, at most 50 requests per read), conditionally marks it; no re-enqueue | `failed` + `PACKAGE_SALE_FAILED` |
+
+The sweep's conditional `UPDATE … WHERE status = 'pending'` waits on the row lock of an
+in-flight sale and then matches nothing, so a sale and the sweep never produce two outcomes;
+a job delivered after the sweep finds the request `failed` and writes nothing. A queue backlog
+longer than ten minutes therefore fails the request safely, and reception sells again.
 
 The status route (42-3b2, creator-scoped like the 47-1 preview status) returns
 `200 { status: 'pending' }`, `200 { status: 'completed', entitlement }` (the entitlement the
-former 201 returned), or `200 { status: 'failed', error: { code, details? } }`; any id that is
+former 201 returned), or `200 { status: 'failed', error: { code, message_ar, message_en, details? } }` (CLAUDE.md §6's
+envelope, the text taken from the error catalogue for the stored code); any id that is
 unknown, in another company, business or branch, or made by another user is
 `404 PACKAGE_SALE_REQUEST_NOT_FOUND`. Polling is authoritative; SSE is never a source of state.
 After `failed`, reception sells again with a new key; while `pending` the till keeps polling and
@@ -512,7 +525,7 @@ must not resell.
 1. 42-3b1 ships the migration (`package_sale_requests`, trigger, RLS `ENABLE`+`FORCE`, grants,
    indexes; run as its own step before containers start), the worker transport, processor and
    use case, with `PackageSaleRequested` registered as a known type on the active orders worker
-   module (ADR-0018 transport), and **no** route, acceptance use case or OpenAPI path. Nothing
+   module (ADR-0018 transport), the recovery sweep, and **no** route, acceptance use case or OpenAPI path. Nothing
    can create a request in production, so the consumer is inert until 42-3b2.
 2. 42-3b2 (acceptance, 202 route, status route) merges only after 42-3b1 is merged and deployed
    to staging with the worker's `/ready` including the `package-sale` processor.
