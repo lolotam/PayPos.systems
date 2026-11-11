@@ -132,11 +132,11 @@ const leaveDecisionErrorsAr: Record<keyof typeof leaveDecisionErrorsEn, string> 
 };
 const leaveHistoryErrorsEn = {
   LEAVE_HISTORY_REPORT_REQUIRED:
-    'This report is too large to show at once. Request it as a background report.',
+    'This report is too large to show at once. Narrow the date range, pick an employee or filter by leave type.',
 };
 const leaveHistoryErrorsAr: Record<keyof typeof leaveHistoryErrorsEn, string> = {
   LEAVE_HISTORY_REPORT_REQUIRED:
-    'هذا التقرير أكبر من أن يُعرض دفعة واحدة. اطلبه تقريرًا في الخلفية.',
+    'هذا التقرير أكبر من أن يُعرض دفعة واحدة. ضيّق الفترة أو اختر موظفًا أو صفِّ حسب نوع الإجازة.',
 };
 export const leaveErrorsEn = { ...leaveDecisionErrorsEn, ...leaveHistoryErrorsEn };
 export const leaveErrorsAr: Record<keyof typeof leaveErrorsEn, string> = {

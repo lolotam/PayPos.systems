@@ -10,8 +10,8 @@ const reportAttachment = {
   withoutEmployee: 'current',
 } as const;
 
-// الحد اتظبط على seeded fixture: 300 جدول أسبوعي ≈ 83ms و400 ≈ 135ms و500 فوق 200ms (plan D7).
-export const LEAVE_HISTORY_SYNC_SCHEDULES = 350;
+// الحد اتظبط على seeded fixture (50 موظف، وردية واحدة يوميًا): 1,550 صف ≈ 83ms و2,300 ≈ 135ms و3,050 فوق 200ms (plan D7).
+export const LEAVE_HISTORY_SYNC_SHIFTS = 2_000;
 export const LEAVE_HISTORY_SYNC_LIMIT = Symbol('LEAVE_HISTORY_SYNC_LIMIT');
 
 export async function getBusinessLeaveHistory(

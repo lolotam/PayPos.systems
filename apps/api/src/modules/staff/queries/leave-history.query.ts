@@ -94,10 +94,10 @@ export async function readLeaveHistoryPage(
     return 'VALIDATION_FAILED' as const;
   if (q.branch_id !== undefined && !scope.branches.includes(q.branch_id)) return null;
   if (options.workloadLimit !== undefined) {
-    const [workload] = await tx.execute<{ schedules: number }>(
+    const [workload] = await tx.execute<{ shifts: number }>(
       historyWorkloadSql(c, scope, q, options.workloadLimit),
     );
-    if (workload !== undefined && workload.schedules > options.workloadLimit)
+    if (workload !== undefined && workload.shifts > options.workloadLimit)
       return 'LEAVE_HISTORY_REPORT_REQUIRED' as const;
   }
   const [result] = await tx.execute<{
