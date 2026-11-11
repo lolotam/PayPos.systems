@@ -34,7 +34,7 @@ export function historyCoverage(c: LeaveReadContext, s: HistoryScope) {
       AND a.branch_id=ANY(${historyIds(s.attendanceBranches)})) AS session_visible`;
 }
 /**
- * تقرير النشاط يوحّد رؤية الموظف في كل مصادر الصفوف حتى لا يظهر سجل من لا يحق فتحه.
+ * تقرير سجل الإجازات يوحّد رؤية الموظف في كل مصادر الصفوف حتى لا يظهر سجل من لا يحق فتحه.
  * 'current' يطابق أهلية الملف بيوم كل فرع؛ 'any' يتبع قاعدة صندوق الطلبات بلا شرط انتهاء.
  */
 export function historyEmployeeVisible(
