@@ -1,69 +1,51 @@
-import { membershipPermissions, permissionMembershipPage } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { type QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { QueryClient } from '@tanstack/react-query';
+import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createQueryClient } from '@/shared/api/query-client';
 
-import { PermissionMembershipBrowser } from './permission-membership-browser';
+import {
+  businessId,
+  companyId,
+  hold,
+  permissionResponses,
+  releaseHeldReads,
+  renderBrowser,
+  userId,
+} from './permission-membership-refresh.fixture';
 
 const state = vi.hoisted(() => ({ locale: 'en' as 'ar' | 'en', get: vi.fn() }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: state.get }) }));
 
-const companyId = '01920000-0000-7000-8000-0000000000a0';
-const businessId = '01920000-0000-7000-8000-0000000000b0';
-const membershipId = '01920000-0000-7000-8000-0000000000c0';
-const holderId = '01920000-0000-7000-8000-0000000000d0';
-const userId = '01920000-0000-7000-8000-0000000000e0';
 const clients: QueryClient[] = [];
 
 afterEach(() => {
   cleanup();
+  releaseHeldReads();
   for (const client of clients) client.clear();
   clients.length = 0;
   state.get.mockReset();
 });
 
-function permissionResponses(businessScoped: boolean, business: string | undefined) {
-  const membership = {
-    id: membershipId,
-    user_id: holderId,
-    employee_id: null,
-    role_code: 'viewer',
-    role_name_ar: null,
-    role_name_en: 'Viewer',
-    scope_type: businessScoped ? 'BUSINESS' : 'COMPANY',
-    scope_id: business ?? companyId,
-    starts_at: '2026-01-01T00:00:00Z',
-    ends_at: null,
-  };
-  const page = permissionMembershipPage.parse({ items: [membership], next_cursor: null });
-  const detail = membershipPermissions.parse({
-    membership,
-    role_defaults: ['read:memberships:company'],
-    permission_catalog: ['read:memberships:company'],
-    overrides: { items: [], next_cursor: null },
-    ended_overrides: { items: [], next_cursor: null },
-    editing_enabled: true,
-    discount_limit: { limit_bps: null },
+it('settles owned read holds and drains outstanding reads safely', async () => {
+  const pending = hold();
+  let settled = false;
+  void pending.promise.then(() => {
+    settled = true;
   });
-  return { page, detail };
-}
-
-function renderBrowser(client: QueryClient, business: string | undefined) {
-  render(
-    <QueryClientProvider client={client}>
-      <PermissionMembershipBrowser
-        companyId={companyId}
-        userId={userId}
-        businessId={business}
-        branchTimeZones={{}}
-        scopeNames={{}}
-      />
-    </QueryClientProvider>,
-  );
-}
+  await Promise.resolve();
+  expect(settled).toBe(false);
+  pending.release();
+  await pending.promise;
+  expect(settled).toBe(true);
+  const first = hold();
+  const second = hold();
+  expect(releaseHeldReads()).toBe(2);
+  await Promise.all([first.promise, second.promise]);
+  expect(releaseHeldReads()).toBe(0);
+  expect(releaseHeldReads()).toBe(0);
+});
 
 it.each([
   ['ar', false],
@@ -161,9 +143,9 @@ it.each(['ar', 'en'] as const)(
       selector: '#override-reason',
     });
     fireEvent.change(reason, { target: { value: 'Draft retained across refresh' } });
-    paused = new Promise<void>((resolve) => {
-      release = resolve;
-    });
+    const held = hold();
+    paused = held.promise;
+    release = held.release;
     let refreshed: Promise<void> | undefined;
     act(() => {
       refreshed = client.refetchQueries({ queryKey: listKey, exact: true });

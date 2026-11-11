@@ -1,3 +1,4 @@
+import { personalLeave } from './personal-leave';
 import { useCallback, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
@@ -79,9 +80,14 @@ export function EmployeeFlow({
         <SwitchBusinessPanel busy={busy} onConfirm={() => onConfirm(pending)} onCancel={onCancel} />
       ) : null}
       {business ? (
-        <PersonalScreen key={business.business_id} workspace={business} {...screenProps} />
+        <PersonalScreen
+          ownLeave={personalLeave}
+          key={business.business_id}
+          workspace={business}
+          {...screenProps}
+        />
       ) : (
-        <PersonalScreen {...screenProps} />
+        <PersonalScreen ownLeave={personalLeave} {...screenProps} />
       )}
     </>
   );

@@ -29,3 +29,5 @@ export const { readSessionPerformers, readSessionPerformerOptions } = createSess
   page: sessionPerformerOptionsPage,
   warningColumns: sessionPerformerWarningColumns,
 });
+
+export { readOwnEmployee } from './persistence/own-employee.ts';

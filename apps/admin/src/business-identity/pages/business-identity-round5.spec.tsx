@@ -141,9 +141,11 @@ it('keeps the removal dialog closed after a successful removal and a new upload'
   chooseLogo();
   fireEvent.click(screen.getByRole('button', { name: upload }));
   await screen.findByText(t('en', 'businessIdentity.ready'));
-  expect(screen.getByRole('img', { name: 'Shop' }).getAttribute('src')).toBe(
-    `https://files.test/${mine}`,
-  );
+  await waitFor(() => {
+    expect(screen.getByRole('img', { name: 'Shop' }).getAttribute('src')).toBe(
+      `https://files.test/${mine}`,
+    );
+  });
   expect(screen.queryByRole('dialog')).toBeNull();
 });
 

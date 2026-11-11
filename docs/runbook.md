@@ -267,7 +267,27 @@ migration bootstrap and the role/privilege suites, so runs from several worktree
 fail with `55P03` when a wait outlives `lock_timeout`. A separate database on the same cluster does not help;
 a separate cluster does. `scripts/test-db/lane.mjs` starts one per lane.
 
-From the lane's worktree root, after copying `.env` from the main checkout:
+From the lane's worktree root, prepare a local `.env` using this worktree's tracked
+`.env.example` as the template. Never copy `.env`, environment values or secrets from
+another checkout or task. Generate the required `POSTGRES_*` passwords locally with
+`crypto.randomBytes`, without printing or committing them; keep the generated values
+only in this worktree's ignored `.env`. Use the same local values for the test roles.
+`docker compose config` also requires `REDIS_PASSWORD`: generate a local random value
+for config resolution only. This does not authorize starting Redis or trying that value
+against shared Redis. See [the manager's execution provenance](specs/0892-runbook-env-provenance.md).
+Before preparation, stop if `.env` or `.env.test.local` already exists; retain and
+verify that its values were generated in this worktree before using it. Copied or
+unknown provenance blocks testing: retain the file without using it, report it to the
+manager, and arrange safe replacement with freshly generated local secrets and matching
+local URLs; never overwrite or delete existing values blindly. Create `.env` only when
+absent, using an exclusive-create write (`flag: 'wx'`). Generate
+`POSTGRES_OWNER_PASSWORD`, `POSTGRES_APP_PASSWORD`, `POSTGRES_AUTH_PASSWORD` and
+`POSTGRES_DISPATCHER_PASSWORD` locally; never paste values into chat or logs.
+Leave `.env.test.local` generation to the lane helper after confirming it is absent.
+The helper still reads this worktree's root `.env`; `.env.test.local` is only its generated
+host/port override, not a replacement credentials file.
+
+After this preparation, the normal lane lifecycle is:
 
 ```sh
 node scripts/test-db/lane.mjs up <lane>            # e.g. lane-7 → 127.0.0.1:55407; prints port=<n>
@@ -306,7 +326,10 @@ node scripts/test-db/lane.mjs status               # lane containers, and which 
   when its marker names that lane.
 - `readPgTestEnv` (`packages/db/test/pg-env.ts`) takes `POSPAY_TEST_PG_HOST` / `POSPAY_TEST_PG_PORT` from the
   process environment first, then `.env.test.local`, and falls back to `POSTGRES_HOST` / `POSTGRES_PORT`, then
-  `127.0.0.1:5432`. Unset, nothing changes: the shared cluster stays the default, and CI is unaffected.
+  `127.0.0.1:5432`. This is the existing loader behavior, not permission for a task worktree
+  to use shared Postgres. Before a task suite, verify its process overrides or generated lane
+  file point to its own running lane; if absent or unavailable, stop and report the blocker.
+  CI retains its existing compose setup. The loader is unchanged.
   The vitest global setup of `packages/db`, `packages/auth`, `apps/api` and `apps/worker` all read it.
 - The lane name must match `^[a-z0-9-]{1,32}$`. The script only ever removes the container that has both
   the exact name `pospay-test-<lane>` and the lane label; it never touches `pospay-dev-*` or any other
@@ -315,13 +338,31 @@ node scripts/test-db/lane.mjs status               # lane containers, and which 
   the same lane name from another worktree is refused, so two worktrees never share or remove each other's
   cluster; pick a different lane name per worktree. `status` shows each container's worktree.
 - ADR-0006, addendum 2026-10-21, records that a lane cluster is the T2 compose service run a second time.
-- Not redirected: Redis (tests still use the shared `127.0.0.1:6379`), `pnpm db:migrate`, and the apps'
-  `DATABASE_URL`-style variables. Only the test harness moves.
+- Not redirected: Redis, `pnpm db:migrate`, and the apps' `DATABASE_URL`-style variables.
+  Only the Postgres test harness moves. Do not borrow shared Redis: a Redis-dependent suite
+  needs its own explicitly authorized isolated setup; otherwise report it blocked.
+  That authorization must include the reviewed Redis topology/ADR and its lifecycle;
+  this paragraph is a checklist for that separate setup, not a new topology decision.
+  Only after that authorization, the setup must use a worktree-private Redis container
+  labelled with its lane and worktree, bound to `127.0.0.1` on a verified free port
+  (for example `56380`, only if free; record the actual port in the task receipt).
+  Its independently generated password and actual port belong in that worktree's ignored
+  `.env` as `REDIS_PASSWORD` and `REDIS_PORT`; set `REDIS_URL` to the same private instance.
+  Ensure the test process receives `REDIS_URL` through its authorized local environment
+  setup; merely writing `.env` does not prove a suite loads it. If the URL is missing,
+  stop: some suites otherwise default to shared `127.0.0.1:6379`.
+  The config-only random password above is not a credential for shared Redis.
+  The separate setup must also supply ownership-checked teardown for its exact Redis
+  container and private data: verify its lane/worktree labels and task receipt before
+  removal, stop its clients, and remove only its owned container and disposable data.
+  Never remove shared or unknown resources. `lane.mjs down` removes Postgres only;
+  it does not perform Redis cleanup. Without that reviewed teardown, the suite stays blocked.
+  These are setup requirements, not authorization to start a Redis instance in #892.
 - Run one lane per worktree: the override file is per worktree. Bring the lane down when the slice is done;
   `docker ps` should show only `pospay-dev-*` again.
 - The container does not survive a Docker Desktop restart. If the tests then report that Postgres is not
   reachable on a 554xx port (the hint to run `pnpm infra:up` is for the shared cluster), rerun
-  `node scripts/test-db/lane.mjs up <lane>`, or `down <lane>` to fall back to the shared cluster.
+  `node scripts/test-db/lane.mjs up <lane>`, or stop the suite and report the unavailable lane; do not use the shared cluster as a fallback.
 
 ## Staff web push (VAPID keys, row 28b)
 

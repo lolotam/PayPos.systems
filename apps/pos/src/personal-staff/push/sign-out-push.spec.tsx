@@ -114,6 +114,8 @@ function fixture() {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-04T10:00:00Z'));
   vi.clearAllMocks();
   fakes.state.removed = 0;
   fakes.state.unsubscribed = 0;
@@ -126,6 +128,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   onlineSpy?.mockRestore();
   onlineSpy = null;
 });

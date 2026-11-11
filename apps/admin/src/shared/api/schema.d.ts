@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/v1/staff/me/tips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Own current-revision tips by method. Live authority and month window are checked before HIDDEN. HIDDEN contains only month/status and issues no tip query. STAFF_POS requires a live private-view window. Cache-Control: no-store. */
+        get: operations["ownTips"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/staff/me/attendance": {
         parameters: {
             query?: never;
@@ -1454,6 +1471,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["cancelOwnLeave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/leave-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getEmployeeLeaveHistory"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3431,6 +3464,16 @@ export interface components {
             /** @default 20 */
             limit: number;
         };
+        EmployeeLeaveListQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+            /** @enum {string} */
+            open?: "true";
+            /** Format: date-time */
+            as_of?: string;
+        };
         LeaveListItem: {
             /** Format: uuid */
             id: string;
@@ -3487,6 +3530,132 @@ export interface components {
             /** Format: uuid */
             next_cursor: string | null;
             request_branch_ids: string[];
+        };
+        LeaveHistoryQuery: {
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            "types[]"?: ("ANNUAL" | "SICK" | "UNPAID" | "OTHER" | "UNEXCUSED_ABSENCE")[] | ("ANNUAL" | "SICK" | "UNPAID" | "OTHER" | "UNEXCUSED_ABSENCE");
+            "statuses[]"?: ("PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "ABSENT")[] | ("PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "ABSENT");
+            /** Format: uuid */
+            branch_id?: string;
+            cursor?: string;
+            /** @default 50 */
+            limit: number;
+        };
+        LeaveHistoryItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            employee_id: string;
+            /** @enum {string} */
+            kind: "FULL_DAY" | "PARTIAL";
+            from: components["schemas"]["EmployeeDate"];
+            to: components["schemas"]["EmployeeDate"];
+            start: string | null;
+            end: string | null;
+            timezone: components["schemas"]["TimeZone"];
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string;
+            /** @enum {string} */
+            type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+            note: string | null;
+            /** @enum {string} */
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+            /** Format: uuid */
+            requested_by: string;
+            /** Format: date-time */
+            requested_at: string;
+            /** Format: uuid */
+            cancelled_by: string | null;
+            /** Format: date-time */
+            cancelled_at: string | null;
+            /** Format: uuid */
+            decided_by: string | null;
+            /** Format: date-time */
+            decided_at: string | null;
+            rejection_reason: string | null;
+            decision_reason: string | null;
+            /** Format: uuid */
+            revoked_by: string | null;
+            /** Format: date-time */
+            revoked_at: string | null;
+            revocation_reason: string | null;
+            revision: number;
+            employee_name_en: string;
+            employee_name_ar: string | null;
+            can_cancel: boolean;
+            can_decide: boolean;
+            can_revoke: boolean;
+            employee_number: number;
+            /** @enum {string} */
+            row_type: "LEAVE";
+        } | {
+            /** Format: uuid */
+            employee_id: string;
+            employee_name_en: string;
+            employee_name_ar: string | null;
+            employee_number: number;
+            /** @enum {string} */
+            row_type: "UNEXCUSED_ABSENCE";
+            /** Format: uuid */
+            id: string;
+            working_date: components["schemas"]["EmployeeDate"];
+            /** Format: uuid */
+            branch_id: string;
+            shifts: {
+                start: string;
+                end: string;
+            }[];
+            /** @enum {string} */
+            status: "ABSENT";
+        } | {
+            /** Format: uuid */
+            employee_id: string;
+            employee_name_en: string;
+            employee_name_ar: string | null;
+            employee_number: number;
+            /** @enum {string} */
+            row_type: "COVERED_ELSEWHERE";
+            /** Format: uuid */
+            id: string;
+            working_date: components["schemas"]["EmployeeDate"];
+            /** Format: uuid */
+            branch_id: string;
+            shift: {
+                start: string;
+                end: string;
+            };
+        };
+        LeaveHistoryPage: {
+            items: components["schemas"]["LeaveHistoryItem"][];
+            next_cursor: string | null;
+            /** Format: date-time */
+            as_of: string;
+            last_taken: {
+                annual: {
+                    from: components["schemas"]["EmployeeDate"];
+                    to: components["schemas"]["EmployeeDate"];
+                } | null;
+                sick: {
+                    from: components["schemas"]["EmployeeDate"];
+                    to: components["schemas"]["EmployeeDate"];
+                } | null;
+                unpaid: {
+                    from: components["schemas"]["EmployeeDate"];
+                    to: components["schemas"]["EmployeeDate"];
+                } | null;
+                unexcused_absence?: components["schemas"]["EmployeeDate"] | null;
+            } | null;
+            request_branch_ids: string[];
+            absence_branch_ids: string[];
         };
         DecideLeaveInput: {
             expected_revision: number;
@@ -7992,6 +8161,77 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    ownTips: {
+        parameters: {
+            query?: {
+                month?: string;
+            };
+            header?: {
+                "x-private-view-window-id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description HIDDEN or own CASH/CARD totals as canonical KWD strings */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        month: string;
+                        /** @enum {string} */
+                        status: "HIDDEN";
+                    } | {
+                        month: string;
+                        /** @enum {string} */
+                        status: "VISIBLE";
+                        total_cash: string;
+                        total_card: string;
+                    };
+                };
+            };
+            /** @description VALIDATION_FAILED */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description UNAUTHENTICATED */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description FORBIDDEN or PRIVATE_VIEW_EXPIRED */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description MY_PERIOD_OUT_OF_RANGE */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     ownAttendance: {
         parameters: {
             query?: {
@@ -12863,6 +13103,9 @@ export interface operations {
     employeeLeaveHistory: {
         parameters: {
             query?: {
+                open?: "true";
+                /** @description Open-list boundary instant in UTC ending in Z, no later than now and at most 24 hours old. */
+                as_of?: string;
                 cursor?: string;
                 limit?: number;
             };
@@ -13207,6 +13450,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LeaveRequest"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getEmployeeLeaveHistory: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                "types[]"?: ("ANNUAL" | "SICK" | "UNPAID" | "OTHER" | "UNEXCUSED_ABSENCE")[] | ("ANNUAL" | "SICK" | "UNPAID" | "OTHER" | "UNEXCUSED_ABSENCE");
+                "statuses[]"?: ("PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "ABSENT")[] | ("PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "ABSENT");
+                branch_id?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Leave history */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaveHistoryPage"];
                 };
             };
             /** @description Bilingual refusal */

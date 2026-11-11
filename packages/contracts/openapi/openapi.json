@@ -5,6 +5,153 @@
     "version": "0.0.0"
   },
   "paths": {
+    "/v1/staff/me/tips": {
+      "get": {
+        "operationId": "ownTips",
+        "description": "Own current-revision tips by method. Live authority and month window are checked before HIDDEN. HIDDEN contains only month/status and issues no tip query. STAFF_POS requires a live private-view window. Cache-Control: no-store.",
+        "security": [
+          {
+            "PersonalStaffSession": []
+          },
+          {
+            "KioskStaffSession": [],
+            "DeviceToken": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "month",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9][0-9]{3}-(0[1-9]|1[0-2])$"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-private-view-window-id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HIDDEN or own CASH/CARD totals as canonical KWD strings",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "month": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{3}-(0[1-9]|1[0-2])$"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "HIDDEN"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "month",
+                        "status"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "month": {
+                          "type": "string",
+                          "pattern": "^[1-9][0-9]{3}-(0[1-9]|1[0-2])$"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "VISIBLE"
+                          ]
+                        },
+                        "total_cash": {
+                          "type": "string",
+                          "pattern": "^(0|[1-9]\\d*)\\.\\d{3}$"
+                        },
+                        "total_card": {
+                          "type": "string",
+                          "pattern": "^(0|[1-9]\\d*)\\.\\d{3}$"
+                        }
+                      },
+                      "required": [
+                        "month",
+                        "status",
+                        "total_cash",
+                        "total_card"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN or PRIVATE_VIEW_EXPIRED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "MY_PERIOD_OUT_OF_RANGE",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/staff/me/attendance": {
       "get": {
         "operationId": "ownAttendance",
@@ -8781,6 +8928,26 @@
           },
           {
             "in": "query",
+            "name": "open",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "as_of",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+            },
+            "description": "Open-list boundary instant in UTC ending in Z, no later than now and at most 24 hours old."
+          },
+          {
+            "in": "query",
             "name": "cursor",
             "schema": {
               "type": "string",
@@ -9495,6 +9662,181 @@
             "DeviceToken": []
           }
         ]
+      }
+    },
+    "/v1/businesses/{businessId}/employees/{employeeId}/leave-history": {
+      "get": {
+        "operationId": "getEmployeeLeaveHistory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^(?!0000-)(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "pattern": "^(?!0000-)(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "types[]",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "ANNUAL",
+                      "SICK",
+                      "UNPAID",
+                      "OTHER",
+                      "UNEXCUSED_ABSENCE"
+                    ]
+                  }
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "ANNUAL",
+                    "SICK",
+                    "UNPAID",
+                    "OTHER",
+                    "UNEXCUSED_ABSENCE"
+                  ]
+                }
+              ]
+            },
+            "required": false,
+            "style": "form",
+            "explode": true
+          },
+          {
+            "in": "query",
+            "name": "statuses[]",
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "PENDING",
+                      "APPROVED",
+                      "REJECTED",
+                      "CANCELLED",
+                      "ABSENT"
+                    ]
+                  }
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "PENDING",
+                    "APPROVED",
+                    "REJECTED",
+                    "CANCELLED",
+                    "ABSENT"
+                  ]
+                }
+              ]
+            },
+            "required": false,
+            "style": "form",
+            "explode": true
+          },
+          {
+            "in": "query",
+            "name": "branch_id",
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            },
+            "required": false
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Leave history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaveHistoryPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/businesses/{businessId}/attendance-exceptions/{exceptionId}/resolve": {
@@ -19767,6 +20109,34 @@
         },
         "additionalProperties": false
       },
+      "EmployeeLeaveListQuery": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "open": {
+            "type": "string",
+            "enum": [
+              "true"
+            ]
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "additionalProperties": false
+      },
       "LeaveListItem": {
         "type": "object",
         "properties": {
@@ -19992,6 +20362,569 @@
           "items",
           "next_cursor",
           "request_branch_ids"
+        ]
+      },
+      "LeaveHistoryQuery": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?!0000-)(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "to": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?!0000-)(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+          },
+          "types[]": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "ANNUAL",
+                    "SICK",
+                    "UNPAID",
+                    "OTHER",
+                    "UNEXCUSED_ABSENCE"
+                  ]
+                }
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "ANNUAL",
+                  "SICK",
+                  "UNPAID",
+                  "OTHER",
+                  "UNEXCUSED_ABSENCE"
+                ]
+              }
+            ]
+          },
+          "statuses[]": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "PENDING",
+                    "APPROVED",
+                    "REJECTED",
+                    "CANCELLED",
+                    "ABSENT"
+                  ]
+                }
+              },
+              {
+                "type": "string",
+                "enum": [
+                  "PENDING",
+                  "APPROVED",
+                  "REJECTED",
+                  "CANCELLED",
+                  "ABSENT"
+                ]
+              }
+            ]
+          },
+          "branch_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "cursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "limit": {
+            "default": 50,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "additionalProperties": false
+      },
+      "LeaveHistoryItem": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "business_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "branch_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "employee_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "FULL_DAY",
+                  "PARTIAL"
+                ]
+              },
+              "from": {
+                "$ref": "#/components/schemas/EmployeeDate"
+              },
+              "to": {
+                "$ref": "#/components/schemas/EmployeeDate"
+              },
+              "start": {
+                "nullable": true,
+                "type": "string",
+                "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+              },
+              "end": {
+                "nullable": true,
+                "type": "string",
+                "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+              },
+              "timezone": {
+                "$ref": "#/components/schemas/TimeZone"
+              },
+              "starts_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "ends_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "ANNUAL",
+                  "SICK",
+                  "UNPAID",
+                  "OTHER"
+                ]
+              },
+              "note": {
+                "nullable": true,
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "PENDING",
+                  "APPROVED",
+                  "REJECTED",
+                  "CANCELLED"
+                ]
+              },
+              "requested_by": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "requested_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "cancelled_by": {
+                "nullable": true,
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "cancelled_at": {
+                "nullable": true,
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "decided_by": {
+                "nullable": true,
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "decided_at": {
+                "nullable": true,
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "rejection_reason": {
+                "nullable": true,
+                "type": "string"
+              },
+              "decision_reason": {
+                "nullable": true,
+                "type": "string"
+              },
+              "revoked_by": {
+                "nullable": true,
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "revoked_at": {
+                "nullable": true,
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              "revocation_reason": {
+                "nullable": true,
+                "type": "string"
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0,
+                "exclusiveMinimum": true,
+                "maximum": 9007199254740991
+              },
+              "employee_name_en": {
+                "type": "string"
+              },
+              "employee_name_ar": {
+                "nullable": true,
+                "type": "string"
+              },
+              "can_cancel": {
+                "type": "boolean"
+              },
+              "can_decide": {
+                "type": "boolean"
+              },
+              "can_revoke": {
+                "type": "boolean"
+              },
+              "employee_number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 999999
+              },
+              "row_type": {
+                "type": "string",
+                "enum": [
+                  "LEAVE"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "business_id",
+              "branch_id",
+              "employee_id",
+              "kind",
+              "from",
+              "to",
+              "start",
+              "end",
+              "timezone",
+              "starts_at",
+              "ends_at",
+              "type",
+              "note",
+              "status",
+              "requested_by",
+              "requested_at",
+              "cancelled_by",
+              "cancelled_at",
+              "decided_by",
+              "decided_at",
+              "rejection_reason",
+              "decision_reason",
+              "revoked_by",
+              "revoked_at",
+              "revocation_reason",
+              "revision",
+              "employee_name_en",
+              "employee_name_ar",
+              "can_cancel",
+              "can_decide",
+              "can_revoke",
+              "employee_number",
+              "row_type"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "employee_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "employee_name_en": {
+                "type": "string"
+              },
+              "employee_name_ar": {
+                "nullable": true,
+                "type": "string"
+              },
+              "employee_number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 999999
+              },
+              "row_type": {
+                "type": "string",
+                "enum": [
+                  "UNEXCUSED_ABSENCE"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "working_date": {
+                "$ref": "#/components/schemas/EmployeeDate"
+              },
+              "branch_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "shifts": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "start": {
+                      "type": "string",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                    },
+                    "end": {
+                      "type": "string",
+                      "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                    }
+                  },
+                  "required": [
+                    "start",
+                    "end"
+                  ]
+                }
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ABSENT"
+                ]
+              }
+            },
+            "required": [
+              "employee_id",
+              "employee_name_en",
+              "employee_name_ar",
+              "employee_number",
+              "row_type",
+              "id",
+              "working_date",
+              "branch_id",
+              "shifts",
+              "status"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "employee_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "employee_name_en": {
+                "type": "string"
+              },
+              "employee_name_ar": {
+                "nullable": true,
+                "type": "string"
+              },
+              "employee_number": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 999999
+              },
+              "row_type": {
+                "type": "string",
+                "enum": [
+                  "COVERED_ELSEWHERE"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "working_date": {
+                "$ref": "#/components/schemas/EmployeeDate"
+              },
+              "branch_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "shift": {
+                "type": "object",
+                "properties": {
+                  "start": {
+                    "type": "string",
+                    "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                  },
+                  "end": {
+                    "type": "string",
+                    "pattern": "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+                  }
+                },
+                "required": [
+                  "start",
+                  "end"
+                ]
+              }
+            },
+            "required": [
+              "employee_id",
+              "employee_name_en",
+              "employee_name_ar",
+              "employee_number",
+              "row_type",
+              "id",
+              "working_date",
+              "branch_id",
+              "shift"
+            ]
+          }
+        ]
+      },
+      "LeaveHistoryPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LeaveHistoryItem"
+            }
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "last_taken": {
+            "nullable": true,
+            "type": "object",
+            "properties": {
+              "annual": {
+                "nullable": true,
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "$ref": "#/components/schemas/EmployeeDate"
+                  },
+                  "to": {
+                    "$ref": "#/components/schemas/EmployeeDate"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to"
+                ]
+              },
+              "sick": {
+                "nullable": true,
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "$ref": "#/components/schemas/EmployeeDate"
+                  },
+                  "to": {
+                    "$ref": "#/components/schemas/EmployeeDate"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to"
+                ]
+              },
+              "unpaid": {
+                "nullable": true,
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "$ref": "#/components/schemas/EmployeeDate"
+                  },
+                  "to": {
+                    "$ref": "#/components/schemas/EmployeeDate"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to"
+                ]
+              },
+              "unexcused_absence": {
+                "nullable": true,
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/EmployeeDate"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "annual",
+              "sick",
+              "unpaid"
+            ]
+          },
+          "request_branch_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          "absence_branch_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "as_of",
+          "last_taken",
+          "request_branch_ids",
+          "absence_branch_ids"
         ]
       },
       "DecideLeaveInput": {

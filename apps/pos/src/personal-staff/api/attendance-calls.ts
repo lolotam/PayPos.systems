@@ -1,12 +1,9 @@
-import createClient from 'openapi-fetch';
 import { assertStaffAttendance } from '@pospay/auth/client';
 import type { ClockChallengeInput } from '@pospay/contracts';
-import { apiOrigin } from '@/shared/api/origin';
-import type { paths } from '@/shared/api/schema';
+import { personalApiClient } from '@/shared/api/client';
 import { attendanceInstallationId } from '../model/installation-id';
 
-const client = () =>
-  createClient<paths>({ baseUrl: apiOrigin(), credentials: 'include', cache: 'no-store' });
+const client = personalApiClient;
 export const attendanceCalls = {
   clock: async (scan: ClockChallengeInput, signal?: AbortSignal) => {
     const bodyScan = {

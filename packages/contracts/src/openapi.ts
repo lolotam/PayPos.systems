@@ -1,3 +1,5 @@
+import { leaveHistoryPaths } from './staff/leave-history-openapi.js';
+import { ownTipsPaths } from './orders/own-tips-openapi.js';
 import { personalBranchesPaths } from './staff/personal-branches-openapi.js';
 import { ownAttendancePaths } from './staff/own-attendance-openapi.js';
 import { z } from 'zod';
@@ -39,6 +41,7 @@ import { openApiSchemas } from './openapi-schemas.js';
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
+  ...ownTipsPaths,
   ...ownAttendancePaths,
   ...personalBranchesPaths,
   ...packageImportPreviewPaths,
@@ -57,6 +60,7 @@ const PATHS = {
   ...filePaths,
   ...staffPaths,
   ...leavePaths,
+  ...leaveHistoryPaths,
   ...attendanceExceptionPaths,
   ...attendanceCorrectionPaths,
   ...attendanceChangePaths,

@@ -21,7 +21,8 @@ function fixture() {
   ];
 }
 
-test('migration chain cases', () => {
+// جدول الحالات خارج الـcallback: صفوفه وتعديلاته وتوقعاته بتفضل زي ما هي.
+{
   const cases = [
     ['clean chain', () => {}, []],
     [
@@ -177,15 +178,23 @@ test('migration chain cases', () => {
     },
     ['0130_snapshot.json prevId: expected 128 (meta/0128_snapshot.json id), actual nonexistent'],
   ]);
-  for (const [name, change, expected] of cases) {
-    const data = fixture();
-    change(data);
-    const errors = checkMigrationChain(...data);
-    assert.equal(errors.length, expected.length, name);
-    expected.forEach((message, idx) =>
-      assert.ok(errors[idx].includes(message), name + ': ' + errors[idx]),
-    );
-  }
+  test('migration chain cases', () => {
+    for (const [name, change, expected] of cases) {
+      const data = fixture();
+      change(data);
+      const errors = checkMigrationChain(...data);
+      assert.equal(errors.length, expected.length, name);
+      expected.forEach((message, idx) =>
+        assert.ok(errors[idx].includes(message), name + ': ' + errors[idx]),
+      );
+    }
+  });
+}
+
+test('an empty journal is rejected', () => {
+  assert.deepEqual(checkMigrationChain({ entries: [] }, [], new Map()), [
+    'meta/_journal.json entries: expected at least one journal entry, actual 0',
+  ]);
 });
 
 test('root snapshot rejects a non-root prevId', () => {

@@ -1,5 +1,6 @@
-import type { Tx } from '@pospay/db';
-import type { LeaveListQuery, LeaveInboxQuery, LeavePage } from '@pospay/contracts';
+import { leaveListRecord, uuidArray } from './leave-list-record.sql.ts';
+import type { BranchDay, Tx } from '@pospay/db';
+import type { EmployeeLeaveListQuery, LeaveInboxQuery, LeavePage } from '@pospay/contracts';
 import { sql } from 'drizzle-orm';
 export const LEAVE_READ_ACCESS = Symbol('LEAVE_READ_ACCESS');
 export interface LeaveReadContext {
@@ -9,6 +10,8 @@ export interface LeaveReadContext {
   own: boolean;
   branchId?: string;
   employeeId?: string;
+  // غرض داخلي للسجل وحده؛ لا يظهر كمعامل في العقد ولا يغيّر سلوك القوائم والصندوق.
+  purpose?: 'history';
 }
 export interface LeaveReadAccess {
   check(
@@ -17,22 +20,20 @@ export interface LeaveReadAccess {
   ): Promise<{
     employeeId?: string;
     branches: string[];
+    attendanceBranches: string[];
     cancelBranches: string[];
     createBranches: string[];
     decideBranches: string[];
     revokeBranches: string[];
     now: Date;
     featureEnabled: boolean;
+    // يوم كل فرع في مجال القراءة؛ تقرأه الجملة الأخيرة للتحقق من أهلية ارتباط الموظف.
+    eligibilityDays?: BranchDay[];
   } | null>;
 }
-const uuidArray = (ids: string[]) =>
-  sql`ARRAY[${sql.join(
-    ids.map((id) => sql`${id}::uuid`),
-    sql`, `,
-  )}]::uuid[]`;
 export function leavePageSql(
   context: LeaveReadContext,
-  query: LeaveInboxQuery,
+  query: LeaveInboxQuery & Pick<EmployeeLeaveListQuery, 'open' | 'as_of'>,
   scope: {
     employeeId?: string;
     branches: string[];
@@ -40,25 +41,13 @@ export function leavePageSql(
     decideBranches?: string[];
     revokeBranches?: string[];
     now?: Date;
+    asOf?: string;
   },
   pending: boolean,
 ) {
   const employee = scope.employeeId ?? context.employeeId;
   // سجل الموظف وصندوق المدير يقرآن نفس الشكل، مع تصفية المجال قبل cursor والحد.
-  return sql`SELECT jsonb_build_object('id',l.id,'business_id',l.business_id,'branch_id',l.branch_id,'employee_id',l.employee_id,
-    'employee_name_en',subject.name_en,'employee_name_ar',subject.name_ar,
-    'kind',l.kind,'from',l."from",'to',l."to",'start',l.start,'end',l."end",'timezone',l.timezone,
-    'starts_at',to_char(l.starts_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-    'ends_at',to_char(l.ends_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-    'type',l.type,'note',l.note,'status',l.status,'requested_by',l.requested_by,
-    'requested_at',to_char(l.requested_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-    'cancelled_by',l.cancelled_by,'cancelled_at',to_char(l.cancelled_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-    'decided_by',l.decided_by,'decided_at',to_char(l.decided_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
-    'rejection_reason',l.rejection_reason,'decision_reason',l.decision_reason,'revoked_by',l.revoked_by,
-    'revoked_at',to_char(l.revoked_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),'revocation_reason',l.revocation_reason,'revision',l.revision,
-    'can_cancel',l.status='PENDING' AND l.branch_id=ANY(${uuidArray(scope.cancelBranches)}) AND (${!context.own} OR l.requested_by=${context.userId}),
-    'can_decide',${!context.own} AND l.status='PENDING' AND l.branch_id=ANY(${uuidArray(scope.decideBranches ?? [])}) AND subject.user_id IS DISTINCT FROM ${context.userId}::uuid,
-    'can_revoke',${!context.own} AND l.status='APPROVED' AND l.starts_at>${(scope.now ?? new Date(0)).toISOString()}::timestamptz AND l.branch_id=ANY(${uuidArray(scope.revokeBranches ?? [])}) AND subject.user_id IS DISTINCT FROM ${context.userId}::uuid) AS record
+  return sql`SELECT ${leaveListRecord(context, scope)} AS record
     FROM leave_requests l JOIN employees subject ON subject.company_id=l.company_id AND subject.business_id=l.business_id AND subject.id=l.employee_id
     WHERE l.company_id=${context.companyId} AND l.business_id=${context.businessId}
     AND l.branch_id=ANY(${uuidArray(scope.branches)}) ${employee === undefined ? sql`` : sql`AND l.employee_id=${employee}`}
@@ -70,21 +59,32 @@ export function leavePageSql(
     ${query.branch_id === undefined ? sql`` : sql`AND l.branch_id=${query.branch_id}::uuid`}
     ${query.from === undefined ? sql`` : sql`AND l."to">=${query.from}::date`}
     ${query.to === undefined ? sql`` : sql`AND l."from"<=${query.to}::date`}
-    ${query.cursor === undefined ? sql`` : sql`AND l.id>${query.cursor}::uuid`}
+    ${query.cursor === undefined ? sql`` : sql`AND l.id>${query.cursor}::uuid`}${
+      query.open === 'true'
+        ? sql` AND (l."to">=(${scope.asOf}::timestamptz AT TIME ZONE l.timezone)::date OR l.status='PENDING')`
+        : sql``
+    }
     ORDER BY l.id LIMIT ${query.limit + 1}`;
 }
 async function page(
   tx: Tx,
   context: LeaveReadContext,
-  query: LeaveInboxQuery,
+  query: LeaveInboxQuery & Pick<EmployeeLeaveListQuery, 'open' | 'as_of'>,
   access: LeaveReadAccess,
   pending: boolean,
-): Promise<LeavePage | 'FEATURE_DISABLED' | null> {
+): Promise<LeavePage | 'FEATURE_DISABLED' | 'VALIDATION_FAILED' | null> {
   const scope = await access.check(tx, context);
   if (!scope || scope.branches.length === 0) return null;
   if (!scope.featureEnabled) return 'FEATURE_DISABLED';
+  const asOf = query.as_of === undefined ? scope.now : new Date(query.as_of);
+  if (
+    !Number.isFinite(asOf.getTime()) ||
+    asOf.getTime() > scope.now.getTime() ||
+    asOf.getTime() < scope.now.getTime() - 86_400_000
+  )
+    return 'VALIDATION_FAILED';
   const rows = await tx.execute<{ record: LeavePage['items'][number] }>(
-    leavePageSql(context, query, scope, pending),
+    leavePageSql(context, query, { ...scope, asOf: asOf.toISOString() }, pending),
   );
   const items = rows.slice(0, query.limit).map((r) => r.record);
   return {
@@ -96,14 +96,19 @@ async function page(
 export const employeeLeaveHistory = (
   tx: Tx,
   context: LeaveReadContext,
-  query: LeaveListQuery,
+  query: EmployeeLeaveListQuery,
   access: LeaveReadAccess,
 ) =>
   // السجل مربوط بالموظف في كل فروع النشاط؛ branch_id في الجلسة الشخصية يختار الجلسة ولا يصفي القائمة.
   page(
     tx,
     context,
-    { limit: query.limit, ...(query.cursor === undefined ? {} : { cursor: query.cursor }) },
+    {
+      limit: query.limit,
+      ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
+      ...(query.open === undefined ? {} : { open: query.open }),
+      ...(query.as_of === undefined ? {} : { as_of: query.as_of }),
+    },
     access,
     false,
   );

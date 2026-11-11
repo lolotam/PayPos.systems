@@ -5,6 +5,7 @@
 > Super Admin and its automations are frozen until Waleed explicitly resumes them. Project managers and execution sessions continue; questions, approvals and material reports go directly to Waleed in the project conversation. Do not send requests/status to Super Admin or wait for SA-13/SA-16.
 > Each PR's session may merge an ordinary PR without returning for manager approval only after the existing exact-head CI/review gates, resolved findings, verified applicable backup and its verified restore, and coordinated merge order pass. Under PP-124 the manager merges a migration PR after these gates and the coordinated migration order pass, without asking Waleed; a deploy change, a production or production-data change, a server change, a secret change or a HOLD requires Waleed's direct decision; quality gates and unrelated restrictions remain.
 > Send one consolidated update when a batch completes or a blocker needs Waleed's decision. End every manager report with a recommended next step. Preserve the existing owner-decision audit and partner/business decision-page duties.
+> **PP-144 (2026-11-08, owner-decisions item 82):** Every session that needs SSH-Musalam-2 reaches it only through Waleed MCP Hub and that Hub's SSH-Musalam-2 connector tools; never a standalone connector, direct SSH/CLI or another server.
 > **PP-136 (2026-11-06):** Before any non-trivial decision, owner card, merge ordering or plan change, the manager and task sessions consult `pospay-advisor` (read-only, fable). Advice is non-binding; PP-n and owner decisions remain binding. Report when its advice changes the plan.
 
 > Read this file fully before any task.
@@ -23,6 +24,7 @@
 >
 > **Changelog**
 >
+> - **V3.23 (2026-11-11)** — §9: a before/after performance test on shared CI runners is judged only by its ratio to the unchanged baseline measured in the same run, never by a fixed millisecond limit; §6 200 ms budgets stay (PP-165, Waleed, `docs/owner-decisions.ar.md` item 76).
 > - **V3.22 (2026-11-05)** — §10: the worker integration job starts alongside `check` and the API test shards; `build` and `ci-gate` require all of them (PP-131.3, `docs/owner-decisions.ar.md` item 68).
 > - **V3.21 (2026-11-05)** — §10: the CI order is the order in which every gate must pass before a merge; the API test shards now start alongside `check`, and `build` and `ci-gate` still need both (PP-131.1, `docs/owner-decisions.ar.md` item 68).
 > - **V3.20 (2026-11-02)** — §1 step 3: a slice's local gate is the typecheck, lint, `pnpm lint:docs`, boundaries, `pnpm module-map:check` and the slice's own tests (without the Playwright E2E or any other CI-only heavy gate, SA-15 rule 5); the full `pnpm check` and the API shards are decided by the `ci-gate` result on the exact head, and until it is green a slice is reported «implementation complete, pending `ci-gate`», never «done» (PP-113, Waleed, 2026-11-02, `docs/owner-decisions.ar.md` item 51). §1 5b: each new question goes to the super admin thread, which posts it to Waleed on Slack `#sa-decisions` and relays his answer word for word; no session or manager contacts Waleed directly, by ntfy, Slack or chat (SA-16). The feature-versus-technical routing and the decisions-page rules are unchanged.
@@ -335,6 +337,7 @@ A PR that changes a documented function **and leaves its doc comment describing 
 - **RLS negative tests for every tenant table** (cross-tenant read = 0 rows, write = error).
 - **Every `queries/` file has a result-shape test and an `EXPLAIN ANALYZE` assertion.**
 - E2E (Playwright) for the POS critical path: open shift → order → split payment → print → close shift, including the offline toggle.
+- **A before/after performance test compares with the old code, never with a fixed number (PP-165).** When a test measures new code against the unchanged baseline on shared CI runners, it measures both in the same run on the same runner and asserts only a ratio: at most about 2× the baseline, plus a small additive floor (for example +5 ms on p95). It never adds an absolute millisecond limit such as `p95 <= 50ms`, because the baseline itself breaks such limits on a noisy runner. Budgets that come from the §6 200 ms rule (EXPLAIN or wall-clock checks with no baseline) are outside PP-165 and stay (PP-165.1).
 - **A UI test asserts what the user sees.** A test that renders a screen or component in a frontend app (`apps/admin`, `apps/pos`, `apps/menu`) asserts a visible outcome — the screen state, a disabled button, a message — never only that a mock was called. A mock-call assertion may sit next to the visible one, never replace it (PP-7.2).
 
 ## 10. Git & delivery

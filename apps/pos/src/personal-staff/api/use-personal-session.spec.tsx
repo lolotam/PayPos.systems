@@ -16,7 +16,7 @@ const session = {
   employee_id: 'employee',
   company_id: 'company',
   business_id: 'business',
-  expires_at: '2026-10-04T12:00:00Z',
+  expires_at: '2099-10-04T12:00:00Z',
 };
 function fixture() {
   const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } });

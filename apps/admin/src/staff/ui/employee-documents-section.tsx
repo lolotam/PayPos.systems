@@ -27,30 +27,30 @@ export function EmployeeDocumentsSection(props: {
     props.employeeId,
   ]);
   const { typeCode, replace } = useReplacementType(identity);
-  const { view, record, open, phase } = useEmployeeDocuments(
+  const { view, documents, record, open, phase } = useEmployeeDocuments(
     props.companyId,
     props.businessId,
     props.userId,
     props.employeeId,
   );
   if (view.isError) return <p role="alert">{envelopeMessage(view.error, locale)}</p>;
-  // بيانات cache لا تثبت الصلاحية لهذا الفتح؛ ننتظر قراءة ناجحة بعد تركيب القسم.
-  if (!view.isFetchedAfterMount || !view.data || view.isError) return null;
+  // العرض والفتح يشتركان في دليل قراءة حقيقية للعمر والـquery الحالية، مش بيانات cache وحدها.
+  if (!documents) return null;
   const progress = PHASES[phase];
   return (
     <section aria-label={t(locale, 'employeeDocuments.title')} className="flex flex-col gap-4">
       <h3 className="font-bold">{t(locale, 'employeeDocuments.title')}</h3>
       <p>{t(locale, 'employeeDocuments.lead')}</p>
-      {view.data.items.length === 0 ? <p>{t(locale, 'employeeDocuments.empty')}</p> : null}
+      {documents.items.length === 0 ? <p>{t(locale, 'employeeDocuments.empty')}</p> : null}
       <EmployeeDocumentsTable
-        items={view.data.items}
-        canManage={view.data.can_manage}
+        items={documents.items}
+        canManage={documents.can_manage}
         opening={open.isPending}
         onOpen={(key) => open.mutate(key)}
         onReplace={replace}
       />
       {open.isError ? <p role="alert">{envelopeMessage(open.error, locale)}</p> : null}
-      {view.data.can_manage && view.data.types.length > 0 ? (
+      {documents.can_manage && documents.types.length > 0 ? (
         <EmployeeDocumentForm
           key={JSON.stringify([
             props.companyId,
@@ -59,7 +59,7 @@ export function EmployeeDocumentsSection(props: {
             props.employeeId,
             typeCode,
           ])}
-          types={view.data.types}
+          types={documents.types}
           {...(typeCode === undefined ? {} : { typeCode })}
           pending={record.isPending}
           onSubmit={(submission) => record.mutate(submission)}
