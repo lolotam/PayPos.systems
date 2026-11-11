@@ -1513,6 +1513,13 @@
       "when": 1794291357016,
       "tag": "0217_2026-11-10_discount-proposal-binding-index",
       "breakpoints": true
+    },
+    {
+      "idx": 218,
+      "version": "7",
+      "when": 1794417494103,
+      "tag": "0218_2026-11-11_package-sale-requests",
+      "breakpoints": true
     }
   ]
 }
