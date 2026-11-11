@@ -98,6 +98,7 @@ export const packageTypeErrorsEn = {
   PACKAGE_SALE_TOO_OLD: 'The sale predates the first day of the previous month.',
   PACKAGE_SALE_IN_FUTURE: 'The sale time is in the future.',
   PACKAGE_CUSTOMER_NOT_FOUND: 'Customer not found.',
+  PACKAGE_NOT_FOUND: 'Package not found.',
 };
 export const packageTypeErrorsAr = {
   PACKAGE_TYPE_NOT_FOUND: 'نوع الباقة غير موجود في هذا النشاط.',
@@ -120,4 +121,5 @@ export const packageTypeErrorsAr = {
   PACKAGE_SALE_TOO_OLD: 'البيع أقدم من أول الشهر السابق.',
   PACKAGE_SALE_IN_FUTURE: 'وقت البيع في المستقبل.',
   PACKAGE_CUSTOMER_NOT_FOUND: 'العميلة مش موجودة.',
+  PACKAGE_NOT_FOUND: 'الباقة مش موجودة.',
 };

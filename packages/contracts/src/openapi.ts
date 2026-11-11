@@ -4,6 +4,7 @@ import { personalBranchesPaths } from './staff/personal-branches-openapi.js';
 import { ownAttendancePaths } from './staff/own-attendance-openapi.js';
 import { z } from 'zod';
 import { packageImportPreviewPaths } from './orders/package-import-preview-openapi.js';
+import { customerPackagePaths } from './orders/customer-packages-openapi.js';
 import { serviceSessionFormPaths } from './orders/service-session-form-openapi.js';
 import { serviceSessionPaths } from './orders/service-session-openapi.js';
 import { discountApprovalPaths } from './orders/discount-approval-openapi.js';
@@ -45,6 +46,7 @@ const PATHS = {
   ...ownAttendancePaths,
   ...personalBranchesPaths,
   ...packageImportPreviewPaths,
+  ...customerPackagePaths,
   ...attendanceMonthlyReportPaths,
   ...employeeIbanPaths,
   ...commissionPaths,

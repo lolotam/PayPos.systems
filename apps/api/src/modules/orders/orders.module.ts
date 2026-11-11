@@ -57,6 +57,9 @@ import { RecordSessionTipsUseCase } from './use-cases/record-session-tips/record
 import { ConfirmSessionRecoveryUseCase } from './use-cases/confirm-session-recovery/confirm-session-recovery.usecase.ts';
 import { SessionRecoveryController } from './http/session-recovery.controller.ts';
 import type { Clock } from './ports/service-session-transactions.port.ts';
+import { CustomerPackagesController } from './http/customer-packages.controller.ts';
+import { CustomerPackagesQueryHandler } from './queries/customer-packages.query.ts';
+import { CustomerPackageDetailQueryHandler } from './queries/package-entitlement-detail.query.ts';
 
 export const ordersControllers: Type[] = [PackageImportPreviewController, SessionRecoveryController, ServiceSessionsController, ServiceSessionFormController, SessionTipsController, DiscountProposalsController];
 export function ordersPerformerOptionsQuery(database: TenantWrappers, clock: Clock = systemClock) {
@@ -197,6 +200,7 @@ export function ordersProviders(database: TenantWrappers | undefined, ids: IdGen
     { provide: RequestDiscountApprovalUseCase, useValue: database === undefined ? null : new RequestDiscountApprovalUseCase(ordersDiscountRequests(database, ids), ids, clock, termsHash()) },
     { provide: RequesterDiscountProposalsQuery, useValue: database === undefined ? null : ordersRequesterProposals(database, clock) },
     { provide: PendingDiscountProposalsQuery, useValue: database === undefined ? null : ordersPendingProposals(database, clock) },
+    ...customerPackageProviders(database, clock),
     ...ownWorkProviders(clock)];
 }
 
@@ -221,5 +225,23 @@ function ownWorkProviders(clock: Clock): Provider[] {
   return [
     { provide: OWN_WORK_READS, useValue: ownWorkReads },
     { provide: OWN_WORK_CLOCK, useValue: clock },
+  ];
+}
+
+ordersControllers.push(CustomerPackagesController);
+function customerPackageProviders(database: TenantWrappers | undefined, clock: Clock): Provider[] {
+  return [
+    {
+      provide: CustomerPackagesQueryHandler,
+      useValue: database === undefined ? null : new CustomerPackagesQueryHandler(database, {
+        place: (tx, scope) => sessionPlace(tx, scope.companyId, scope.businessId, scope.branchId).branchTimezone(),
+      }, clock),
+    },
+    {
+      provide: CustomerPackageDetailQueryHandler,
+      useValue: database === undefined ? null : new CustomerPackageDetailQueryHandler(database, {
+        place: (tx, scope) => sessionPlace(tx, scope.companyId, scope.businessId, scope.branchId).branchTimezone(),
+      }),
+    },
   ];
 }
