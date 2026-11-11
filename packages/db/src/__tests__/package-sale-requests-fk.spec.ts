@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
+import { OWNER_ROLE_ID } from '../access-catalog.ts';
 import { seedOrders } from '../../test/orders-fixture.ts';
 import { insertSaleRequest, type SaleRequestTenant } from '../../test/package-sale-request-fixture.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
@@ -48,6 +49,7 @@ let app: postgres.Sql;
 
 const SECOND_BUSINESS = randomUUID();
 const SECOND_BRANCH = randomUUID();
+const B_ONLY_MEMBERSHIP = randomUUID();
 
 beforeAll(async () => {
   testDb = await createTestDatabase();
@@ -61,6 +63,9 @@ beforeAll(async () => {
     VALUES (${SECOND_BUSINESS}, ${TENANT.A.company}, 'salon', 'Second Business A')`;
   await owner`INSERT INTO branches(id, company_id, business_id, name_en)
     VALUES (${SECOND_BRANCH}, ${TENANT.A.company}, ${SECOND_BUSINESS}, 'Second Branch A')`;
+  // عضوية موجودة فعلًا لنفس المستخدم بس في الشركة B، عشان الرفض يثبت عزل الشركات مش إن الـ id مجهول.
+  await owner`INSERT INTO memberships(company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id)
+    VALUES (${TENANT.B.company}, ${B_ONLY_MEMBERSHIP}, ${USER}, ${OWNER_ROLE_ID}, 'global', 'COMPANY', ${TENANT.B.company})`;
 });
 
 afterAll(async () => {
@@ -125,7 +130,7 @@ const supports = (index: IndexRow, columns: string[], nullable: Set<string>): bo
 it.each([
   ['a branch of another business in the same company', { branch_id: SECOND_BRANCH }, 'package_sale_requests_branch_fk'],
   ['a branch of another company', { branch_id: TENANT.B.branch }, 'package_sale_requests_branch_fk'],
-  ['a recorder membership outside the company', { recorded_by_membership_id: randomUUID() }, 'package_sale_requests_recorder_membership_fk'],
+  ['a recorder membership of another company', { recorded_by_membership_id: B_ONLY_MEMBERSHIP }, 'package_sale_requests_recorder_membership_fk'],
   ['an unknown recorder user', { recorded_by: randomUUID() }, 'package_sale_requests_recorder_fk'],
 ])('%s is refused by its foreign key', async (_case, overrides, constraint) => {
   await expect(asApp((tx) => insertSaleRequest(tx, overrides))).rejects.toMatchObject({

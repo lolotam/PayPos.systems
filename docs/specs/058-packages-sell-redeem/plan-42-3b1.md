@@ -72,7 +72,11 @@ No contract change (the event is id-only and internal; the HTTP contract is 42-3
   worker-local paths; rule bodies do not change (diffed line by line in review). API and worker typecheck must pass
   on 42-3b1a alone.
 - The stopped-type refusal (`PACKAGE_TYPE_NOT_SELLABLE` under the type lock, before the revision check) is not in
-  42-3b1: `selling_stopped_at` does not exist until 33b (PP-100.1), exactly as for the merged 42-3a domain (debate #3). `package-sale-audit.ts` (never on main) returns from the backup
+  42-3b1: `selling_stopped_at` does not exist until 33b (PP-100.1), exactly as for the merged 42-3a domain (debate #3).
+  Whichever lands second adds it to the worker sale: if 33b merges before 42-3b1b, 42-3b1b calls the check; if
+  42-3b1b merges first, 33b adds the call to the worker sale (not the API use case, which no longer sells). Either way,
+  42-3b2 does not accept requests while 33b is live and the deployed worker lacks the check.
+  `package-sale-audit.ts` (never on main) returns from the backup
   branch as a worker file in 42-3b1b; `package-sale-response.ts` is dropped and 42-3b2's status query projects the
   entitlement.
 - `packages/domain/src/packages/package-expiry.ts` (moved from the API by `git mv`; the API file becomes a re-export
