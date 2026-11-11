@@ -447,7 +447,7 @@ conditions are emitted with the result; a single EXPLAIN is not treated as p95 e
   scope while pending, at most 3 pending per creator, else `409 LEAVE_HISTORY_REPORT_BUSY`), computed once by the
   worker, then `GET …/leave-history/reports/{reportId}?cursor&limit` (operation `getLeaveHistoryReportResult`,
   `LeaveHistoryReportStatus`, creator-scoped: `pending`, `failed` with the error envelope (including a report past its
-  10-minute deadline, `LEAVE_HISTORY_REPORT_FAILED` or `LEAVE_HISTORY_REPORT_TOO_LARGE`), or `ready` with `computed_at`
+  10-minute deadline that no build still holds, `LEAVE_HISTORY_REPORT_FAILED` or `LEAVE_HISTORY_REPORT_TOO_LARGE`), or `ready` with `computed_at`
   and a `LeaveHistoryPage` read from the stored result, `last_taken` `null`; `404 LEAVE_HISTORY_REPORT_NOT_FOUND`,
   `409 LEAVE_HISTORY_REPORT_STALE` when the caller's branches narrowed).
 - Errors: `404 NOT_FOUND` (no scope, unknown or foreign business or employee, a soft-deleted employee), `400
