@@ -33,6 +33,7 @@ function command(binary: string, args: readonly string[]) {
 const git = (args: readonly string[]) => command('git', args);
 const report = (...data: unknown[]) => console.log(JSON.stringify(data));
 
+const LOCAL_HOSTS = ['127.0.0.1', 'localhost', '::1'];
 const QUIET = { appendonly: 'no', save: '', 'latency-monitor-threshold': '20' };
 
 /** عدّ العينات اللي زمنها أكتر من 3 أضعاف وسيطها: بيفرّق توقفات الجهاز المتماثلة عن ذيل خاص بنسخة. */
@@ -47,24 +48,28 @@ async function configValue(redis: Lane['redis'], name: string) {
 }
 
 /**
+ * (الاستعادة بتمسح كل إعداد بعد نجاح ضبطه بس، فلو فشلت تفضل الأصول محفوظة وquietRedis ما بيكتبش فوقها.)
  * Redis الـCI شغّال بـAOF وكل عينة near-cap بتكتب ~2MB فيه (SET العميل + SET السكربت)، فتوقفات
  * القرص (150–200ms) بتضرب النسختين بنفس الاحتمال لكن p99 من 500 عينة هي السادسة من الأكبر
  * فبتقع على نسخة بالصدفة. بنوقف الحفظ أثناء القياس ونرجّعه بعده (الحفظ مش موضوع الاختبار).
  */
 async function quietRedis(redis: Lane['redis'], saved: Map<string, string>) {
   for (const [name, value] of Object.entries(QUIET)) {
-    saved.set(name, await configValue(redis, name));
+    if (!saved.has(name)) saved.set(name, await configValue(redis, name));
     await redis.call('CONFIG', 'SET', name, value);
   }
 }
 
 async function restoreRedis(redis: Lane['redis'], saved: Map<string, string>) {
-  for (const [name, value] of saved) await redis.call('CONFIG', 'SET', name, value);
-  saved.clear();
+  for (const [name, value] of [...saved]) {
+    await redis.call('CONFIG', 'SET', name, value);
+    saved.delete(name);
+  }
 }
 
-/** حاوية Redis الوحيدة بالمنفذ والوسم المتوقعين؛ بنفشل قبل أي تعديل إعدادات على URL مش متحقق منه. */
+/** حاوية Redis الوحيدة بالمنفذ والوسم المتوقعين؛ والمضيف لازم يكون محلي؛ بنفشل قبل أي تعديل إعدادات على URL مش متحقق منه. */
 function verifiedContainer(redis: Lane['redis']) {
+  expect(LOCAL_HOSTS).toContain(redis.options.host);
   const port = String(redis.options.port);
   const filters = [`publish=${port}`, 'label=com.docker.compose.service=redis'];
   const flags = filters.flatMap((filter) => ['--filter', filter]);
