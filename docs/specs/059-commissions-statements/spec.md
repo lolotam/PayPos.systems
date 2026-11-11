@@ -654,6 +654,13 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
     delivery waits on the lock is deferred to 55-1, where a correction target depends on it. A missing business throws
     `CommissionBusinessMissingError` before any write. REVIEWED affected periods return to DRAFT through
     `reopenReviewedStatementPeriods` in `packages/db`, the same helper the API's plan-version and override writers use.
+  - _What 50-2b card 2 adds:_ `SessionTipsChanged` (identity lock per session) and `SalaryChanged` on the same
+    consumer. A salary event first takes an **employee** lock, then its `employee_id+effective_from` identity lock,
+    because a new date changes the neighbouring entry's `next_from` (FR-042); the bootstrap takes the same two locks in
+    the same order. `TODO(spec)` pending manager decision D1 (`plan-50-2b-c2.md`): whether the 50-1 interim guard
+    (an affected APPROVED or PAID month throws `CommissionPeriodClosedError` before any write, until 55-1 adds the
+    correction step) extends to both events. A legacy salary event whose
+    employee the staff reader cannot find throws `CommissionEmployeeBusinessMissingError` before any write (FR-018b).
 - **FR-016** Projection tables (§6 _Schema_): `commission_line_heads` + `commission_lines` (one row per line × performer,
   D-11), `commission_tip_heads` + `commission_tips`, `commission_salaries`, `commission_sales`.
 - **FR-017** Money from events is parsed with `parseMoney`; a malformed amount parks the event (it is a producer bug), never
