@@ -377,7 +377,7 @@ None of these changes the 27g code. 68-1b mirrors the same fixtures on the histo
 ### Schema changes
 
 **PP-176 (68-2b):** two tenant tables for background reports, `leave_history_reports` and `leave_history_report_rows`,
-with RLS, a transition trigger, indexes and their negative isolation tests ([plan-68-2.md](plan-68-2.md) D11); the
+with RLS, exact column grants, transition and immutability triggers (terminal states never change, `row_count` matches the stored rows), indexes and their negative isolation tests ([plan-68-2.md](plan-68-2.md) D11); the
 retention is a pending technical question ([owner-questions.ar.md](owner-questions.ar.md) §15, `TODO(spec)`). The
 leave-history SQL builder moves to `packages/db/src/leave-history/` so the worker runs the same SQL (TD-3, D12).
 
