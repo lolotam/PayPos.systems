@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { cpus, loadavg, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { RATING_CLAIM_STATE_SETTLE } from '../rating-claim-state-settle.lua.ts';
 import { validationHarness, type ValidationWorld } from './rating-claim-state-harness.fixture.ts';
@@ -32,6 +32,72 @@ function command(binary: string, args: readonly string[]) {
 }
 const git = (args: readonly string[]) => command('git', args);
 const report = (...data: unknown[]) => console.log(JSON.stringify(data));
+
+const QUIET = { appendonly: 'no', save: '', 'latency-monitor-threshold': '20' };
+
+/** عدّ العينات اللي زمنها أكتر من 3 أضعاف وسيطها: بيفرّق توقفات الجهاز المتماثلة عن ذيل خاص بنسخة. */
+function spikeCount(bucket: readonly TimedSample[], median: number | undefined) {
+  return bucket.filter((sample) => sample.elapsed > 3 * (median ?? 0)).length;
+}
+
+/** قراءة قيمة إعداد Redis كنص، عشان نرجّعها زي ما كانت بعد الاختبار. */
+async function configValue(redis: Lane['redis'], name: string) {
+  const reply = (await redis.call('CONFIG', 'GET', name)) as string[];
+  return reply[1] ?? '';
+}
+
+/**
+ * Redis الـCI شغّال بـAOF وكل عينة near-cap بتكتب ~2MB فيه (SET العميل + SET السكربت)، فتوقفات
+ * القرص (150–200ms) بتضرب النسختين بنفس الاحتمال لكن p99 من 500 عينة هي السادسة من الأكبر
+ * فبتقع على نسخة بالصدفة. بنوقف الحفظ أثناء القياس ونرجّعه بعده (الحفظ مش موضوع الاختبار).
+ */
+async function quietRedis(redis: Lane['redis'], saved: Map<string, string>) {
+  for (const [name, value] of Object.entries(QUIET)) {
+    saved.set(name, await configValue(redis, name));
+    await redis.call('CONFIG', 'SET', name, value);
+  }
+}
+
+async function restoreRedis(redis: Lane['redis'], saved: Map<string, string>) {
+  for (const [name, value] of saved) await redis.call('CONFIG', 'SET', name, value);
+}
+
+/** هوية حاوية Redis ونسختها في السجل، وفحص إن الحاوية واحدة بالمنفذ والوسم المتوقعين. */
+async function reportRedis(redis: Lane['redis']) {
+  const port = String(redis.options.port);
+  const filters = [`publish=${port}`, 'label=com.docker.compose.service=redis'];
+  const flags = filters.flatMap((filter) => ['--filter', filter]);
+  const container = command('docker', ['ps', '-q', ...flags]).trim();
+  expect(container.split('\n')).toHaveLength(1);
+  expect(container).not.toBe('');
+  const format = '{{.Image}} {{.Config.Image}}';
+  const image = command('docker', ['inspect', '--format', format, container]).trim();
+  report({ image, server: await redis.info('server'), cpus: cpus().length, load: loadavg() });
+}
+
+interface ScenarioReport {
+  readonly scenario: Scenario;
+  readonly size: { bytes: number; headroom: number };
+  readonly warmups: number[];
+  readonly samples: TimedSample[][];
+  readonly base: ReturnType<typeof stats>;
+  readonly patch: ReturnType<typeof stats>;
+}
+
+/**
+ * التوقفات المتماثلة بتتوزع على blocks في النسختين (حتى النسخة القديمة)، فتوزيع blocks لوحده مش
+ * دليل على ذيل في السكربت؛ الدليل عدّ العينات الشاذة لكل نسخة وأحداث Redis نفسها.
+ */
+async function reportScenario(redis: Lane['redis'], data: ScenarioReport) {
+  const { samples, base, patch, ...rest } = data;
+  const spikes = [
+    spikeCount(samples[0] ?? [], base.median),
+    spikeCount(samples[1] ?? [], patch.median),
+  ];
+  const latency = await redis.call('LATENCY', 'LATEST');
+  const slowestBlocks = samples.map(slowestSampleBlocks);
+  report({ ...rest, load: loadavg(), base, patch, slowestBlocks, spikes, latency });
+}
 
 /** أساس ثابت؛ فحص المصدر الحرفي يسبق تحميل Node المعزول عن تحويل Vitest. */
 function baseline() {
@@ -180,18 +246,14 @@ describe.skipIf(!CI)('CI-only exact counter whole-command performance', () => {
   const lane = validationHarness();
   const { redis, harness, rawStateOf } = lane;
   let scripts: readonly string[];
+  const persistence = new Map<string, string>();
   beforeAll(async () => {
     scripts = [baseline(), RATING_CLAIM_STATE_SETTLE];
-    const port = String(redis.options.port);
-    const filters = [`publish=${port}`, 'label=com.docker.compose.service=redis'];
-    const flags = filters.flatMap((filter) => ['--filter', filter]);
-    const container = command('docker', ['ps', '-q', ...flags]).trim();
-    expect(container.split('\n')).toHaveLength(1);
-    expect(container).not.toBe('');
-    const format = '{{.Image}} {{.Config.Image}}';
-    const image = command('docker', ['inspect', '--format', format, container]).trim();
-    report({ image, server: await redis.info('server'), cpus: cpus().length, load: loadavg() });
+    await quietRedis(redis, persistence);
+    await reportRedis(redis);
   });
+
+  afterAll(() => restoreRedis(redis, persistence));
 
   it.each(CASES)(
     'whole settlePage $settlement/$retries nearCap=$nearCap',
@@ -200,15 +262,18 @@ describe.skipIf(!CI)('CI-only exact counter whole-command performance', () => {
       const data = await fixture(world, scenario, await rawStateOf(world));
       const samples: TimedSample[][] = [[], []];
       const warmups = [0, 0];
+      await redis.call('LATENCY', 'RESET');
       const expectedRetries =
         scenario.retries + (scenario.code === 'OK' && scenario.settlement === 'RETRY' ? 1 : 0);
       // p99 من 100 عينة كانت بتساوي تاني أكبر عينة، فتوقّف واحد للـrunner كان بيوقّع main؛
       // 500 عينة لكل نسخة بتخلّي p99 تعكس الذيل الحقيقي من غير ما نغيّر حدود PP-165.
+      // النسختين بيتبدّلوا في كل نداء (مش كل 10 نداءات): توقّف الجهاز بيمتد على نداءات متتالية، ولو
+      // كانت كلها لنسخة واحدة كانت بتقفز لـp99 وحدها؛ بالتبديل بيتقسم التوقّف على النسختين.
       for (let block = 0; block < 52; block += 1) {
-        for (const index of block % 2 === 0 ? [0, 1] : [1, 0]) {
-          const script = scripts[index];
-          if (script === undefined) throw new Error('PERF_VARIANT_MISSING');
-          for (let call = 0; call < 10; call += 1) {
+        for (let call = 0; call < 10; call += 1) {
+          for (const index of (block + call) % 2 === 0 ? [0, 1] : [1, 0]) {
+            const script = scripts[index];
+            if (script === undefined) throw new Error('PERF_VARIANT_MISSING');
             await redis.set(world.key, data.text);
             const payload = JSON.stringify(data.envelope);
             const started = process.hrtime.bigint();
@@ -230,9 +295,7 @@ describe.skipIf(!CI)('CI-only exact counter whole-command performance', () => {
       const base = stats((samples[0] ?? []).map((sample) => sample.elapsed));
       const patch = stats((samples[1] ?? []).map((sample) => sample.elapsed));
       const size = { bytes: data.bytes, headroom: CAP - data.bytes };
-      // أكبر 5 عينات في block واحد = توقّف للـrunner؛ متفرّقين على blocks = ذيل حقيقي في السكربت.
-      const slowestBlocks = samples.map(slowestSampleBlocks);
-      report({ scenario, size, warmups, load: loadavg(), base, patch, slowestBlocks });
+      await reportScenario(redis, { scenario, size, warmups, samples, base, patch });
       // PP-165: النسختين بيتقاسوا على نفس الجهاز في نفس الوقت، فالنسبة بتلغي ضوضاء الـrunner؛ مفيش حد ثابت بالـms.
       expect(patch.p95).toBeLessThanOrEqual(Math.max(2 * (base.p95 ?? 0), (base.p95 ?? 0) + 5));
       // PP-163.2: p99 بدل أكبر عينة؛ النسخة القديمة نفسها كانت بتعدّي 100ms على نفس الـrunner.
