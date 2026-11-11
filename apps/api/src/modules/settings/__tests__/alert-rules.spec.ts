@@ -106,7 +106,7 @@ it('reads the AL-Q5 defaults for every kind before anything is saved', async () 
   expect(response.status).toBe(200);
   const view = alertRules.parse(response.body);
   expect(view.alerts_enabled).toBe(true);
-  expect(view.rules).toHaveLength(14);
+  expect(view.rules).toHaveLength(15);
   expect(view.rules.find((r) => r.kind === 'SHIFT_NOT_CLOCKED_IN')).toMatchObject({
     source: 'DEFAULT',
     enabled: true,
