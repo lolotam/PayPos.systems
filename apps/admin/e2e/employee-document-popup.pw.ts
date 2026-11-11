@@ -1,5 +1,6 @@
 import { expect, test, type FrameLocator, type Page } from '@playwright/test';
 import { t, type Locale } from '@pospay/i18n';
+import { reconnectDocuments } from './employee-document-popup-browser';
 import {
   ADMIN_ORIGIN,
   DESTINATION_ORIGIN,
@@ -83,8 +84,9 @@ async function holdPastActivation(page: Page, expiry: number) {
 }
 async function sandboxStaff(page: Page, permitted: boolean, locale: Locale) {
   await page.goto(`${DESTINATION_ORIGIN}/blank`);
+  // الضابط يسمح لنافذة مستقلة بعد عزل opener؛ الحالتان تختلفان في إذن الفتح فقط.
   await page.setContent(
-    `<iframe id="app" sandbox="allow-scripts allow-same-origin${permitted ? ' allow-popups' : ''}" src="${ADMIN_ORIGIN}/staff"></iframe>`,
+    `<iframe id="app" sandbox="allow-scripts allow-same-origin allow-popups-to-escape-sandbox${permitted ? ' allow-popups' : ''}" src="${ADMIN_ORIGIN}/staff"></iframe>`,
   );
   const frame = page.frameLocator('#app');
   try {
@@ -113,30 +115,6 @@ async function sandboxStaff(page: Page, permitted: boolean, locale: Locale) {
     throw error;
   }
   return frame;
-}
-async function nativeFocusCycle(page: Page) {
-  await page.evaluate(() => {
-    document.documentElement.dataset['focus830'] = '0';
-    document.documentElement.dataset['visibility830'] = '0';
-    window.addEventListener('focus', () => {
-      document.documentElement.dataset['focus830'] = String(
-        Number(document.documentElement.dataset['focus830']) + 1,
-      );
-    });
-    document.addEventListener('visibilitychange', () => {
-      document.documentElement.dataset['visibility830'] = String(
-        Number(document.documentElement.dataset['visibility830']) + 1,
-      );
-    });
-  });
-  const other = await page.context().newPage();
-  await other.goto(`${DESTINATION_ORIGIN}/blank`);
-  await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('hidden');
-  await page.bringToFront();
-  await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('visible');
-  expect(Number(await page.locator('html').getAttribute('data-focus830'))).toBeGreaterThan(0);
-  expect(Number(await page.locator('html').getAttribute('data-visibility830'))).toBeGreaterThan(0);
-  await other.close();
 }
 async function chooseCompany(page: Page, name: string) {
   await page.locator('#workspace-company').click();
@@ -227,7 +205,7 @@ for (const status of [403, 404] as const) {
     await openStaff(page);
     const popup = await clickOpen(page);
     await control('/read', { status });
-    await nativeFocusCycle(page);
+    await reconnectDocuments(page, status);
     await expect(page.getByText('Documents are unavailable', { exact: true })).toBeVisible();
     await expect.poll(() => popup.isClosed()).toBe(true);
     const evidence = await ledger();
@@ -296,12 +274,12 @@ test('key disappearance, restoration and a fresh read never revive the held atte
   await openStaff(page);
   const original = await clickOpen(page);
   await control('/read', { status: 200, omit: 'synthetic/civil' });
-  await nativeFocusCycle(page);
+  await reconnectDocuments(page);
   await expect(page.getByRole('row').filter({ hasText: 'Civil ID' })).toHaveCount(0);
   await expect(page.locator('body')).not.toContainText('download_url');
   await expect.poll(() => original.isClosed()).toBe(true);
   await control('/read', { status: 200, omit: '' });
-  await nativeFocusCycle(page);
+  await reconnectDocuments(page);
   await expect(openButton(page)).toBeVisible();
   expect(consoleMessages.join('\n')).not.toContain('download_url');
   await release();
@@ -317,11 +295,11 @@ test('denial then genuine query recovery leaves the original attempt invalid and
   await openStaff(page);
   const original = await clickOpen(page);
   await control('/read', { status: 403 });
-  await nativeFocusCycle(page);
+  await reconnectDocuments(page, 403);
   await expect(page.getByText('Documents are unavailable', { exact: true })).toBeVisible();
   await expect.poll(() => original.isClosed()).toBe(true);
   await control('/read', { status: 200 });
-  await nativeFocusCycle(page);
+  await reconnectDocuments(page);
   await expect(openButton(page)).toBeVisible();
   await release();
   expect((await ledger()).destinations).toEqual([]);
@@ -356,7 +334,6 @@ test('a closed blank is replaced before the held response settles', async ({ pag
   const first = await clickOpen(page);
   await expect.poll(async () => (await ledger()).held).toEqual(['synthetic/civil']);
   await first.close();
-  await page.bringToFront();
   await expect(openButton(page)).toBeEnabled();
   const successor = await clickOpen(page);
   await expect.poll(async () => (await ledger()).held).toHaveLength(2);

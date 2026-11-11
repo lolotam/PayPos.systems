@@ -93,8 +93,15 @@ function releaseHeld(key: string, outcome: string) {
   const held = state.held[index];
   if (!held) throw new Error('held download missing');
   state.held.splice(index, 1);
-  if (outcome === 'network') held.response.destroy();
-  else if (outcome === 'invalid')
+  if (outcome === 'network') {
+    // قطع اتصال معاد الاستخدام قبل الرد يدفع Chromium لإعادة POST وتعليق محاولة أخرى.
+    held.response.writeHead(200, {
+      ...CORS,
+      'content-type': 'application/json',
+      'content-length': '2',
+    });
+    held.response.write('{', () => held.response.destroy());
+  } else if (outcome === 'invalid')
     send(held.response, 200, { download_url: 'invalid', expires_in: 60 });
   else if (outcome === 'denied') send(held.response, 403, failure(403));
   else {

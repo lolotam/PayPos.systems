@@ -185,7 +185,7 @@ it('cleans an assignment failure without closing an earlier document or caching 
   expect(successful.close).not.toHaveBeenCalled();
 });
 
-it('replaces a closed blank before the held response settles', async () => {
+it('replaces a closed blank without focus events before the held response settles', async () => {
   const download = deferred<unknown>();
   const next = deferred<unknown>();
   api.GET.mockResolvedValue({ data: view() });
@@ -198,9 +198,8 @@ it('replaces a closed blank before the held response settles', async () => {
   const first = opened[0];
   act(() => {
     if (first) first.closed = true;
-    window.dispatchEvent(new Event('focus'));
   });
-  expect(openButton().hasAttribute('disabled')).toBe(false);
+  await waitFor(() => expect(openButton().hasAttribute('disabled')).toBe(false));
   fireEvent.click(openButton());
   await waitFor(() => expect(api.POST).toHaveBeenCalledTimes(2));
   expect(opened).toHaveLength(2);
