@@ -22,8 +22,8 @@ independent owner constraint. The earlier administrative order below and in the
 verbatim authorization is historical, not a current requirement to wait for #897.
 The committed task-specific authority and exact manager excerpts are in
 `57-2a-ordering-authorization.ar.md`; no dependency on publishing PP-138 is added.
-PP-138's canonical reference is the manager checkout's
-`docs/owner-decisions.ar.md` section 74; it is locally approved, not claimed merged.
+PP-138's canonical reference is `docs/owner-decisions.ar.md` item 95, imported
+2026-11-11 from the manager checkout's local section 74.
 Test-resource order remains separate: G, this unit, then card 3, with direct
 handoff; yield immediately if a blocker prevents using the resource.
 Notify the owning manager directly on phase completion, readiness or a blocker,
