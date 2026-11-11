@@ -15,6 +15,11 @@ const scope = {
 };
 const customerId = '01920000-0000-7000-8000-000000000005';
 
+function must<T>(value: T | undefined | null): T {
+  if (value === undefined || value === null) throw new Error('missing');
+  return value;
+}
+
 const item1 = {
   id: '01920000-0000-7000-8000-000000000010',
   provenance: 'SOLD' as const,
@@ -156,6 +161,52 @@ it('select de-duplicates an id repeated across pages and reflects on visible ite
     item2.id,
     item3.id,
   ]);
+});
+
+it('keeps latest state of an updated package at its page-2 position when repeated across pages', async () => {
+  const comp1 = must(item1.components[0]);
+  const packageX_v1 = {
+    ...item1,
+    id: '01920000-0000-7000-8000-000000000099',
+    name_en: 'Package X',
+    used_up: false,
+    components: [{ ...comp1, remaining: 1, used: 1 }],
+  };
+  const packageX_v2 = {
+    ...packageX_v1,
+    used_up: true,
+    components: [{ ...comp1, remaining: 0, used: 2 }],
+  };
+
+  state.get.mockReset();
+  state.get
+    .mockResolvedValueOnce({
+      data: { items: [item1, packageX_v1], next_cursor: 'opaque_cursor_x1' },
+      response: { status: 200 },
+    })
+    .mockResolvedValueOnce({
+      data: { items: [item2, packageX_v2], next_cursor: null },
+      response: { status: 200 },
+    });
+
+  const hook = setup();
+  await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+  expect(hook.result.current.data?.items).toEqual([item1, packageX_v1]);
+
+  await act(async () => {
+    await hook.result.current.fetchNextPage();
+  });
+
+  await waitFor(() => expect(hook.result.current.data?.pages).toHaveLength(2));
+  const items = hook.result.current.data?.items ?? [];
+
+  // الباقة X تظهر مرة واحدة فقط في القائمة المسطحة
+  expect(items.filter((i) => i.id === packageX_v1.id)).toHaveLength(1);
+  // الباقة X في موضعها بالصفحة الثانية (بعد item2) بأحدث حالة (used_up: true, remaining: 0)
+  expect(items.map((i) => i.id)).toEqual([item1.id, item2.id, packageX_v1.id]);
+  const finalX = items.find((i) => i.id === packageX_v1.id);
+  expect(finalX?.used_up).toBe(true);
+  expect(finalX?.components[0]?.remaining).toBe(0);
 });
 
 it('surfaces an error envelope as the query error with its status and reflects isError', async () => {

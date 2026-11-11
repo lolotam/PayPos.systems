@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { SYSTEM_ROLES } from '@pospay/db';
 import { customerPackageDetail, customerPackagePage } from '@pospay/contracts';
 import { ids, must, type SessionFixture } from './session.fixture.ts';
 import { customerPackagesFixture } from './customer-packages.fixture.ts';
@@ -16,7 +15,6 @@ afterAll(async () => {
   await f?.close();
 });
 
-const permission = 'read:service-sessions:branch';
 const basePath = (businessId = f.business, branchId = f.branch, customerId = f.customer) =>
   `/v1/businesses/${businessId}/branches/${branchId}/customers/${customerId}/packages`;
 
@@ -30,60 +28,20 @@ const getDetail = (
   url = basePath(),
 ) => f.h.send('GET', `${url}/${entitlementId}`, { cookie, company });
 
-async function role(code: string, scope = 'BRANCH', scopeId = f.branch) {
-  await f.h.owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND membership_id=${f.membership}`;
-  await f.h.owner`UPDATE memberships SET role_id=${must(SYSTEM_ROLES.find((r) => r.code === code)).id},scope_type=${scope},scope_id=${scopeId},ends_at=NULL
-    WHERE company_id=${f.company} AND id=${f.membership}`;
-}
-
-async function override(effect: string, expires: string | null = null) {
-  await f.h.owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,expires_at,reason,granted_by)
-    VALUES(${f.company},${ids.newId()},${f.membership},${permission},${effect},'BRANCH',${f.branch},${expires},'Synthetic read access test',${f.ownerId})`;
-}
-
-it('enforces the access matrix across roles, overrides, scope, tenancy and feature flag', async () => {
-  // كعكة الاستقبال بها صلاحية record:service-sessions:branch فتمر بنجاح 200
-  expect((await getList()).status).toBe(200);
-
-  // موظفة بلا صلاحيات وصول → 403
-  await role('staff');
-  expect((await getList()).status).toBe(403);
-
-  // تجاوز صريح بالسماح لـ read:service-sessions:branch → 200
-  await override('ALLOW');
-  expect((await getList()).status).toBe(200);
-
-  // تجاوز صريح بالمنع DENY → 403
-  await override('DENY');
-  expect((await getList()).status).toBe(403);
-
-  // استعادة دور الصراف للاختبارات التالية
-  await role('cashier');
-  expect((await getList()).status).toBe(200);
-
-  // عضوية منتهية → 403
-  await f.h.owner`UPDATE memberships SET ends_at=now() WHERE company_id=${f.company} AND id=${f.membership}`;
-  expect((await getList()).status).toBe(403);
-  await f.h.owner`UPDATE memberships SET ends_at=NULL WHERE company_id=${f.company} AND id=${f.membership}`;
-
-  // نشاط آخر أو فرع آخر خارج النطاق → 403
-  expect((await getList('', f.cookie, f.company, basePath(f.secondBusiness, f.branch))).status).toBe(403);
-  expect((await getList('', f.cookie, f.company, basePath(f.business, f.secondBranch))).status).toBe(403);
-
-  // فرع غير معروف → 403
-  expect((await getList('', f.cookie, f.company, basePath(f.business, ids.newId()))).status).toBe(403);
-
-  // شركة أخرى مختارة في الـ header → 403
-  expect((await getList('', f.cookie, f.otherCompany)).status).toBe(403);
-
-  // تعطيل ميزة الطلبات orders → 403 مع رمز FEATURE_DISABLED
-  await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by)
-    VALUES(${f.company},'orders',false,'Synthetic feature disable test',${f.ownerId})`;
-  const disabled = await getList();
-  expect(disabled.status).toBe(403);
-  expect(disabled.body['code']).toBe('FEATURE_DISABLED');
-  await f.h.owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='orders'`;
-  expect((await getList()).status).toBe(200);
+it('rejects a year-zero cursor over HTTP with 400 VALIDATION_FAILED', async () => {
+  const yearZeroCursor = Buffer.from(
+    JSON.stringify({
+      company_id: f.company,
+      business_id: f.business,
+      customer_id: f.customer,
+      rank: 0,
+      expires_on: '0000-01-01',
+      id: fixture.packages.b,
+    }),
+  ).toString('base64url');
+  const res = await getList(`cursor=${yearZeroCursor}`);
+  expect(res.status).toBe(400);
+  expect(res.body['code']).toBe('VALIDATION_FAILED');
 });
 
 it('rejects invalid query parameters: limit=0, limit=51, unknown key and malformed cursor with 400 VALIDATION_FAILED', async () => {

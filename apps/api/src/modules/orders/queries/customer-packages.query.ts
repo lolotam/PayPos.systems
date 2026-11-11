@@ -28,13 +28,14 @@ export class CustomerPackageReadError extends Error {
   }
 }
 
-function decodeCursor(customerId: string, raw: string | undefined): CustomerPackagesCursorData | null {
+function decodeCursor(scope: CustomerPackageScope, raw: string | undefined): CustomerPackagesCursorData | null {
   if (raw === undefined) return null;
   try {
     const bytes = Buffer.from(raw, 'base64url');
     if (bytes.toString('base64url') !== raw) throw new Error();
     const cursor = customerPackagesCursorData.parse(JSON.parse(bytes.toString('utf8')));
-    if (cursor.customer_id !== customerId) throw new Error();
+    if (cursor.company_id !== scope.companyId || cursor.business_id !== scope.businessId ||
+      cursor.customer_id !== scope.customerId) throw new Error();
     return cursor;
   } catch {
     throw new RangeError('CUSTOMER_PACKAGES_CURSOR_INVALID');
@@ -43,6 +44,8 @@ function decodeCursor(customerId: string, raw: string | undefined): CustomerPack
 
 function encodeCursor(scope: CustomerPackageScope, row: CustomerPackageRow): string {
   return Buffer.from(JSON.stringify({
+    company_id: scope.companyId,
+    business_id: scope.businessId,
     customer_id: scope.customerId,
     rank: row.rank,
     expires_on: row.item.expires_on,
@@ -158,7 +161,7 @@ export class CustomerPackagesQueryHandler {
 
   async execute(scope: CustomerPackageScope, input: CustomerPackagesQuery): Promise<CustomerPackagePage> {
     const query = customerPackagesQuery.parse(input);
-    const after = decodeCursor(scope.customerId, query.cursor);
+    const after = decodeCursor(scope, query.cursor);
     return this.db.withTenant(scope.companyId, async (tx) => {
       const timezone = await this.reads.place(tx, scope);
       if (timezone === null) throw new CustomerPackageReadError('FORBIDDEN');
