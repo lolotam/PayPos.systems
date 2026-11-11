@@ -128,7 +128,7 @@ const saleRequestChecks = (t: SaleRequestsSelf) => [
   ),
   check(
     'package_sale_requests_expected_service_revisions_check',
-    sql`CASE WHEN jsonb_typeof(${t.expectedServiceRevisions}) = 'array' THEN jsonb_array_length(${t.expectedServiceRevisions}) BETWEEN 1 AND 20 AND NOT jsonb_path_exists(${t.expectedServiceRevisions}, '$[*] ? (@.type() != "object" || !exists(@.service_id) || @.service_id.type() != "string" || !exists(@.revision) || @.revision.type() != "number" || @.revision.floor() != @.revision || !exists(@.list_price) || @.list_price.type() != "string")') ELSE false END`,
+    sql`CASE WHEN jsonb_typeof(${t.expectedServiceRevisions}) = 'array' THEN jsonb_array_length(${t.expectedServiceRevisions}) BETWEEN 1 AND 20 AND NOT jsonb_path_exists(${t.expectedServiceRevisions}, '$[*] ? (@.type() != "object" || !exists(@.service_id) || @.service_id.type() != "string" || !exists(@.revision) || @.revision.type() != "number" || @.revision.floor() != @.revision)') ELSE false END`,
   ),
   check(
     'package_sale_requests_error_details_size_check',

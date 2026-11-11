@@ -235,20 +235,17 @@ it('a pending insert that already carries a result is refused by the state shape
 const VALID_SERVICE_REVISION = {
   service_id: ORDER_IDS.service,
   revision: 1,
-  list_price: '1.000',
 };
 
 it.each([
   ['[null]', [null]],
   ['[42] (element not an object)', [42]],
   ['[{}] (all keys missing)', [{}]],
-  ['missing service_id', [{ revision: 1, list_price: '1.000' }]],
-  ['missing revision', [{ service_id: ORDER_IDS.service, list_price: '1.000' }]],
-  ['missing list_price', [{ service_id: ORDER_IDS.service, revision: 1 }]],
+  ['missing service_id', [{ revision: 1 }]],
+  ['missing revision', [{ service_id: ORDER_IDS.service }]],
   ['service_id as number', [{ ...VALID_SERVICE_REVISION, service_id: 42 }]],
   ['revision as 1.5', [{ ...VALID_SERVICE_REVISION, revision: 1.5 }]],
   ['revision as string', [{ ...VALID_SERVICE_REVISION, revision: '1' }]],
-  ['list_price as number', [{ ...VALID_SERVICE_REVISION, list_price: 1 }]],
   ['top level an object instead of an array', VALID_SERVICE_REVISION],
 ])('expected_service_revisions check refuses %s', async (_label, payload) => {
   await expect(
@@ -257,6 +254,17 @@ it.each([
     code: '23514',
     constraint_name: 'package_sale_requests_expected_service_revisions_check',
   });
+});
+
+it('a payload in the contract shape inserts and is visible to the tenant', async () => {
+  const payload = [{ service_id: ORDER_IDS.service, revision: 2 }];
+  const id = await asApp((tx) =>
+    insertPendingRequest(tx, { expected_service_revisions: tx.json(payload) }),
+  );
+  const rows = await asApp(
+    (tx) => tx`SELECT id, status, expected_service_revisions FROM package_sale_requests WHERE id = ${id}`,
+  );
+  expect(rows).toEqual([{ id, status: 'pending', expected_service_revisions: payload }]);
 });
 
 // المالك بيعدّي صلاحيات الأعمدة، فده بيثبت إن الـ trigger نفسه هو اللي قافل جسم الطلب مش الـ grants بس.

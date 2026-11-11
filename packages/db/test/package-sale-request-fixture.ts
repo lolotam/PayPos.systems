@@ -26,7 +26,7 @@ export async function insertSaleRequest(
     customer_id: ORDER_IDS.customer,
     package_type_id: randomUUID(),
     expected_type_revision: 1,
-    expected_service_revisions: tx.json([{ service_id: ORDER_IDS.service, revision: 1, list_price: '1.000' }]),
+    expected_service_revisions: tx.json([{ service_id: ORDER_IDS.service, revision: 1 }]),
     price_paid: '25.000',
     paid_method: 'CASH',
     seller_employee_id: ORDER_IDS.employee,
