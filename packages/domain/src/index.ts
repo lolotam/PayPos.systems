@@ -19,7 +19,16 @@ export {
   type TipWeightLine,
 } from './tip-split.js';
 export { roundKwd } from './rounding.js';
-export { lineNet, discountFromPercent } from './discount-money.js';
+export { lineNet, discountFromPercent, effectiveDiscountBps } from './discount-money.js';
+export {
+  SessionTimeError,
+  sessionBusinessDate,
+  isLateEntry,
+  validateAppendWindow,
+  visitInstant,
+  sessionTime,
+  type SessionTimeErrorCode,
+} from './session-time.js';
 export {
   PERCENTAGE_SCALE,
   applyPercentage,
@@ -101,3 +110,9 @@ export * from './packages/errors.js';
 export * from './packages/package-definition.js';
 export * from './packages/package-allocation.js';
 export * from './packages/package-slots.js';
+export { assertPackageNotExpired, packageExpiryDate } from './packages/package-expiry.js';
+export type {
+  SalePackageComponent,
+  SalePackageService,
+  SalePackageType,
+} from './packages/package-sale-types.js';

@@ -1,13 +1,19 @@
-import { moneyToString, type Money } from '@pospay/domain';
-import { PackageSaleIdentityInvariantError } from './errors.ts';
-import { allocatePackagePrice } from './package-allocation.js';
-import { validatePackageDefinition } from './package-definition.js';
-import { packageExpiryDate } from './package-expiry.ts';
+import {
+  allocatePackagePrice,
+  createPackageSlots,
+  moneyToString,
+  packageExpiryDate,
+  validatePackageDefinition,
+  type Money,
+  type SalePackageType,
+} from '@pospay/domain';
+import { PackageSaleIdentityInvariantError } from './package-sale-errors.ts';
 import { computePackageSalePricing } from './package-sale-pricing.ts';
-import { checkPackageSeller, packageSaleTime } from './package-sale-rules.ts';
-import type { SalePackageType } from './package-sale-types.ts';
-import { createPackageSlots } from './package-slots.js';
-import type { SessionEmployee } from './session-types.ts';
+import {
+  checkPackageSeller,
+  packageSaleTime,
+  type PackageSellerFacts,
+} from './package-sale-rules.ts';
 
 /** حقائق البيع المقفولة؛ اختيار التوقيت والأهلية والعضوية من مسؤولية القراء في المعاملة. */
 export interface PackageSalePlanInput {
@@ -20,7 +26,7 @@ export interface PackageSalePlanInput {
   readonly customerId: string;
   readonly recorderUserId: string;
   readonly recorderMembershipId: string;
-  readonly seller: SessionEmployee;
+  readonly seller: PackageSellerFacts;
   readonly paidMethod: 'CASH' | 'CARD';
   readonly soldAt: Date | undefined;
   readonly recordedAt: Date;

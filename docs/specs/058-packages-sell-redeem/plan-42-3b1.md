@@ -194,8 +194,10 @@ clean-code-guard, test-guard, docs-guard. Done only when `ci-gate` is green on t
 - The worker readers copy API SQL; a later API change could drift. Mitigation: each reader cites its API twin in a
   one-line comment and the integration tests assert the same refusals.
 - A queue backlog over ten minutes fails valid sales safely (sweep); reception sells again.
-- Refusals now arrive by polling, not as an immediate HTTP error at the till. Whether that is a feature question
-  (§1 5b) is for the manager to put to Waleed; it does not block 42-3b1, which has no route.
+- Refusals now arrive by polling, not as an immediate HTTP error at the till. Waleed classified this as a technical
+  detail of PP-170 (PP-173, `docs/owner-decisions.ar.md` item 94): worker refusals (SA-04, SA-05, SA-05b, SA-07,
+  SA-08, SA-08b, SA-08c, FR-018b/c) reach the till through the status read (FR-010, SA-09b); FR-011/SA-11 stay a
+  synchronous 403 at acceptance.
 
 ## 8. Manager decisions (2026-11-11, 19:28 Kuwait)
 
@@ -203,3 +205,5 @@ clean-code-guard, test-guard, docs-guard. Done only when `ci-gate` is green on t
 2. Backup pushed: `backup/42-3b-pre-split-20261111` = `795cfb2e6`; 42-3b1a is cut from it.
 3. PP-170 is indexed in `docs/owner-decisions.ar.md` by #920 (item 91).
 4. The manager handles the feature-or-technical classification of "refusal by polling"; it does not block 42-3b1.
+   Answered 2026-11-11 as PP-173 «تفصيل تقني (المقترح)» (recorded in `owner-questions.ar.md`, entry 42-3b-PP-173):
+   FR-018b/c stay as written.

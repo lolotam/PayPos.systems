@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { allocatePackagePrice } from '../package-allocation.js';
 import { MAX_PACKAGE_SESSIONS } from '../package-definition.js';
 import { createPackageSlots } from '../package-slots.js';
-import { allocationFixtures } from './fixtures/package-allocation.js';
+import { allocationFixtures } from '../../../../../../../packages/domain/src/__tests__/package-allocation.vectors.ts';
 
 describe('package allocation hand-calculated fixtures (PKG-01…04)', () => {
   it.each(allocationFixtures)('$name', (fixture) => {
