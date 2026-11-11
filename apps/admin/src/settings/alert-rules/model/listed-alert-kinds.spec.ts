@@ -29,11 +29,12 @@ const listed = [
   'SERVICE_LINE_EDITED',
   'SERVICE_LINE_CANCELLED',
   'SERVICE_LINE_PERFORMERS_CHANGED',
+  'DISCOUNT_SELF_APPROVED',
   'ATTENDANCE_CHANGE_REQUESTED',
   'ATTENDANCE_CHANGE_DECIDED',
 ];
 
-it('lists exactly the twelve emitted kinds in business order', () => {
+it('lists exactly the thirteen emitted kinds in business order', () => {
   expect(listedAlertKinds(rules, false).map((rule) => rule.kind)).toEqual(listed);
 });
 
