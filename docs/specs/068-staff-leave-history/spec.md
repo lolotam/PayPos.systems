@@ -234,6 +234,11 @@ attachment after the early check must deny both page and `last_taken`: recheck e
 statement, without a new transaction or lock. Existing permissions, tenant isolation and legacy reader regressions
 remain required. The pure end-date/branch-day policy also has database-free domain unit coverage.
 
+**`TODO(spec)` — the report route (68-2), LH-Q12 PENDING.** This section was written before the report existed. Whether
+the report applies the same unended-attachment rule (with `employee_id`: 404; without it: the employee's rows hidden) or
+keeps the inbox's any-attachment rule is open in [owner-questions.ar.md](owner-questions.ar.md) §13. Until it is
+answered, the report's employee-visibility predicate is not implemented.
+
 ### Business rules (unexcused absence)
 
 - **BR-001** A date `D` is unexcused absence for employee `E` at branch `B` when `E` has a schedule shift at `B` whose
