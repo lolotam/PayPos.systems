@@ -5,6 +5,7 @@ import {
   leaveHistoryItem,
   leaveHistoryQuery,
   leaveHistoryReportQuery,
+  leaveHistoryReportSkipsDays,
 } from '../staff/leave-history.js';
 import { buildOpenApiDocument } from '../openapi.js';
 const base = { from: '2026-01-01', to: '2026-12-31' };
@@ -122,3 +123,33 @@ it('OpenAPI specifies getLeaveHistoryReport with path businessId only and option
     false,
   );
 });
+
+it.each([
+  { types: ['ANNUAL'], statuses: [], expected: true },
+  { types: ['ANNUAL', 'SICK'], statuses: [], expected: true },
+  { types: [], statuses: ['PENDING'], expected: true },
+  { types: [], statuses: ['APPROVED', 'REJECTED'], expected: true },
+  { types: [], statuses: [], expected: false },
+  { types: ['UNEXCUSED_ABSENCE'], statuses: [], expected: false },
+  { types: ['ANNUAL', 'UNEXCUSED_ABSENCE'], statuses: [], expected: false },
+  { types: [], statuses: ['ABSENT'], expected: false },
+  { types: [], statuses: ['PENDING', 'ABSENT'], expected: false },
+  { types: ['UNEXCUSED_ABSENCE'], statuses: ['PENDING'], expected: true },
+] as const)(
+  'leaveHistoryReportSkipsDays returns $expected for types=$types statuses=$statuses',
+  ({ types, statuses, expected }) => {
+    const parsed = leaveHistoryReportQuery.parse({
+      from: '2026-01-01',
+      to: '2026-01-02',
+      ...(types.length ? { 'types[]': [...types] } : {}),
+      ...(statuses.length ? { 'statuses[]': [...statuses] } : {}),
+    });
+    expect(leaveHistoryReportSkipsDays(parsed)).toBe(expected);
+    expect(
+      leaveHistoryReportSkipsDays({
+        'types[]': [...types],
+        'statuses[]': [...statuses],
+      }),
+    ).toBe(expected);
+  },
+);

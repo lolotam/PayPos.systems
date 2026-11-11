@@ -2,7 +2,10 @@ import { leaveHistoryPage, leaveHistoryQuery, leaveHistoryReportQuery } from '@p
 import { sql } from 'drizzle-orm';
 import { expect } from 'vitest';
 import { getEmployeeLeaveHistory } from '../queries/leave-history.query.ts';
-import { getBusinessLeaveHistory } from '../queries/leave-history-report.query.ts';
+import {
+  getBusinessLeaveHistory,
+  LEAVE_HISTORY_SYNC_SCHEDULES,
+} from '../queries/leave-history-report.query.ts';
 import { createLeaveReadAccess } from '../persistence/leave-read-access.adapter.ts';
 import { termsFor } from './employees.fixture.ts';
 import { leaveContext, leaveFixture, leaveIds, type LeaveFixture } from './leave.fixture.ts';
@@ -42,6 +45,7 @@ export async function historyReport(f: LeaveFixture, q: object = {}, now = histo
       },
       leaveHistoryReportQuery.parse({ from: '2026-01-01', to: '2026-11-07', ...q }),
       createLeaveReadAccess({ now: () => new Date(now) }),
+      LEAVE_HISTORY_SYNC_SCHEDULES,
     ),
   );
 }

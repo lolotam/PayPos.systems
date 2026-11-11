@@ -15,8 +15,8 @@ import { leaveFixture, type LeaveFixture } from './leave-history.fixture.ts';
 import { seedHistoryVolume } from './leave-history-performance.fixture.ts';
 
 let f: LeaveFixture;
-let pageOneCursor: string;
-let pageOneDecodedCursor: LeaveHistoryCursorData;
+let case7Cursor: string;
+let case7DecodedCursor: LeaveHistoryCursorData;
 
 const access = createLeaveReadAccess({ now: () => new Date('2026-11-07T10:00:00.000Z') });
 
@@ -87,27 +87,70 @@ async function measureHttpP95(urlQuery: string) {
   return page;
 }
 
-it('performance case 1: unfiltered full year first page', async () => {
-  const query = leaveHistoryReportQuery.parse({ from: '2025-11-07', to: '2026-11-06' });
-  await explainStatement(query);
-  const page = await measureHttpP95('from=2025-11-07&to=2026-11-06');
-  expect(page.next_cursor).not.toBeNull();
-  pageOneCursor = page.next_cursor as string;
-  pageOneDecodedCursor = decodeCursor(pageOneCursor, (v) => leaveHistoryCursorData.parse(v));
+async function measureRefusalP95(urlQuery: string) {
+  const read = async () => {
+    const result = await f.h.app.inject({
+      method: 'GET',
+      url: `/v1/businesses/${f.business}/leave-history?${urlQuery}`,
+      headers: { cookie: f.cookie, 'x-company-id': f.company },
+    });
+    expect(result.statusCode).toBe(422);
+    const body = result.json();
+    expect(body.code).toBe('LEAVE_HISTORY_REPORT_REQUIRED');
+    expect(typeof body.message_ar).toBe('string');
+    expect(body.message_ar.length).toBeGreaterThan(0);
+    expect(typeof body.message_en).toBe('string');
+    expect(body.message_en.length).toBeGreaterThan(0);
+    return body;
+  };
+
+  await read();
+
+  for (let n = 0; n < 5; n++) await read();
+
+  const samples: number[] = [];
+  for (let n = 0; n < 50; n++) {
+    const start = performance.now();
+    await read();
+    samples.push(performance.now() - start);
+  }
+  const sorted = [...samples].sort((a, b) => a - b);
+  const p95 = sorted[Math.ceil(samples.length * 0.95) - 1] ?? 0;
+  expect(p95).toBeLessThanOrEqual(200);
+}
+
+it('performance case 1 (refused): unfiltered full year', async () => {
+  await measureRefusalP95('from=2025-11-07&to=2026-11-06');
 });
 
-it('performance case 2: unfiltered second page (cursor from the first)', async () => {
-  expect(pageOneCursor).toBeDefined();
+it('performance case 7 (fast): a one-month range', async () => {
   const query = leaveHistoryReportQuery.parse({
-    from: '2025-11-07',
-    to: '2026-11-06',
-    cursor: pageOneCursor,
+    from: '2026-10-01',
+    to: '2026-10-31',
+    limit: 20,
   });
-  await explainStatement(query, pageOneDecodedCursor);
-  await measureHttpP95(`from=2025-11-07&to=2026-11-06&cursor=${encodeURIComponent(pageOneCursor)}`);
+  await explainStatement(query);
+  const page = await measureHttpP95('from=2026-10-01&to=2026-10-31&limit=20');
+  expect(page.next_cursor).not.toBeNull();
+  case7Cursor = page.next_cursor as string;
+  case7DecodedCursor = decodeCursor(case7Cursor, (v) => leaveHistoryCursorData.parse(v));
 });
 
-it('performance case 3: employee_id full year', async () => {
+it('performance case 2 (fast): second page of case 7', async () => {
+  expect(case7Cursor).toBeDefined();
+  const query = leaveHistoryReportQuery.parse({
+    from: '2026-10-01',
+    to: '2026-10-31',
+    cursor: case7Cursor,
+    limit: 20,
+  });
+  await explainStatement(query, case7DecodedCursor);
+  await measureHttpP95(
+    `from=2026-10-01&to=2026-10-31&cursor=${encodeURIComponent(case7Cursor)}&limit=20`,
+  );
+});
+
+it('performance case 3 (fast): employee_id full year', async () => {
   const query = leaveHistoryReportQuery.parse({
     from: '2025-11-07',
     to: '2026-11-06',
@@ -117,17 +160,11 @@ it('performance case 3: employee_id full year', async () => {
   await measureHttpP95(`from=2025-11-07&to=2026-11-06&employee_id=${f.employee.id}`);
 });
 
-it('performance case 4: types[]=UNEXCUSED_ABSENCE', async () => {
-  const query = leaveHistoryReportQuery.parse({
-    from: '2025-11-07',
-    to: '2026-11-06',
-    'types[]': ['UNEXCUSED_ABSENCE'],
-  });
-  await explainStatement(query);
-  await measureHttpP95('from=2025-11-07&to=2026-11-06&types[]=UNEXCUSED_ABSENCE');
+it('performance case 4 (refused): types[]=UNEXCUSED_ABSENCE', async () => {
+  await measureRefusalP95('from=2025-11-07&to=2026-11-06&types[]=UNEXCUSED_ABSENCE');
 });
 
-it('performance case 5: types[]=ANNUAL', async () => {
+it('performance case 5 (fast): types[]=ANNUAL', async () => {
   const query = leaveHistoryReportQuery.parse({
     from: '2025-11-07',
     to: '2026-11-06',
@@ -137,21 +174,29 @@ it('performance case 5: types[]=ANNUAL', async () => {
   await measureHttpP95('from=2025-11-07&to=2026-11-06&types[]=ANNUAL');
 });
 
-it('performance case 6: branch_id', async () => {
-  const query = leaveHistoryReportQuery.parse({
-    from: '2025-11-07',
-    to: '2026-11-06',
-    branch_id: f.branch,
-  });
-  await explainStatement(query);
-  await measureHttpP95(`from=2025-11-07&to=2026-11-06&branch_id=${f.branch}`);
+it('performance case 6 (refused): branch_id', async () => {
+  await measureRefusalP95(`from=2025-11-07&to=2026-11-06&branch_id=${f.branch}`);
 });
 
-it('performance case 7: a one-month range', async () => {
+it('performance case over-limit (refused): 2026-09-17..2026-10-31', async () => {
+  await measureRefusalP95('from=2026-09-17&to=2026-10-31');
+});
+
+it('performance case at-limit (fast): 2026-09-24..2026-10-31', async () => {
   const query = leaveHistoryReportQuery.parse({
-    from: '2026-10-01',
+    from: '2026-09-24',
     to: '2026-10-31',
   });
   await explainStatement(query);
-  await measureHttpP95('from=2026-10-01&to=2026-10-31');
+  await measureHttpP95('from=2026-09-24&to=2026-10-31');
+});
+
+it('performance case (fast): statuses[]=PENDING full year', async () => {
+  const query = leaveHistoryReportQuery.parse({
+    from: '2025-11-07',
+    to: '2026-11-06',
+    'statuses[]': ['PENDING'],
+  });
+  await explainStatement(query);
+  await measureHttpP95('from=2025-11-07&to=2026-11-06&statuses[]=PENDING');
 });
