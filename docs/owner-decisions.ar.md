@@ -47,9 +47,10 @@
 | PP-150 | 2026-11-09 | #830 فقط: تعديل طريقة إثبات coalescing إلى اختبار callback مزدوج مع إثبات native trusted-click/disabled admission، لا تغيير للسلوك أو1960 أو الحدود؛ ANSWERED: `Combined evidence (Recommended)`، تقني لوليد فقط | هنا (البند 85) |
 | PP-159 | 2026-11-09 | نفس #830/PR909: إذن جلسة Kimi K3.1 Pro/high جديدة بعد جوابين فارغين مع حفظ التاريخ والعدادات والقيود؛ ANSWERED: `Fresh Kimi session (Recommended)`، لا نموذج/مهمة بديلة أو waiver، تقني لوليد فقط | هنا (البند 86) |
 | PP-163 | 2026-11-11 | PP-163.1 رجوع #908 لاستعادة main الأخضر؛ PP-163.2 حد أكبر عينة في اختبار الأداء يتبدل بـ p99 أو نسبة. **الإجابات حرفيًا:** «Revert #908 first (Recommended)»، «Use p99 or a ratio (Recommended)» | هنا، البند 74؛ كروت مباشرة لوليد وفق PP-117 |
-| PP-163 (T3) | 2026-11-09 | إيقاف العمل المتبقي بعد اكتشاف merge #909 مع فشل CI وP1 مفتوحة؛ ANSWERED: `Hold remaining work (Recommended)`. الرقم بيتكرر مع PP-163 اللي فوق، والرقم النهائي مستني وليد | هنا (البند 87) |
 | PP-164 | 2026-11-11 | رفع حدود حجم #830 لمرة واحدة في PR الإرجاع #917 بأرقام محددة لكل مسار وإجمالي 2650. **الإجابة حرفيًا:** «Raise caps for #917 (Recommended)» | هنا، البند 75؛ كارت مباشر لوليد وفق PP-117 |
 | PP-165 | 2026-11-11 | قاعدة دائمة: اختبار الأداء قبل/بعد على CI مشترك يتقاس بالنسبة للكود القديم في نفس الـ run بس (≤2× وحد إضافي صغير)، ومفيش حد ثابت بالـms؛ شيل `p95 <= 50ms` من اختبار claim-state. **كلام وليد حرفيًا:** «Rely only on the ratio to the old code (≤2×) and drop the fixed 50 ms limit…» PP-165.1: النطاق قبل/بعد بس، وميزانيات §6 الـ 200ms فاضلة («Before/after only (Recommended)») | هنا، البند 76؛ تعليمات مباشرة في المحادثة وفق PP-117، ومتسجلة في CLAUDE.md §9 |
+| PP-166 | 2026-11-09 | إيقاف العمل المتبقي بعد اكتشاف merge #909 مع فشل CI وP1 مفتوحة؛ ANSWERED: `Hold remaining work (Recommended)`. رقمه المحلي في T3 كان PP-163، واتغير لـ PP-166 بقرار PP-167.2 | هنا (البند 87) |
+| PP-167 | 2026-11-11 | PP-167.1 PP-141 خلص، والمستشار يرجع Fable («Back to Fable (Recommended)»)؛ PP-167.2 قرار 11-09 المحلي ياخد رقم PP-166 («Renumber to PP-166 (Recommended)») | هنا (البند 88) |
 | PP-1 | 2026-10-18 | PP-1.1 تسجيل دخول Grok؛ PP-1.2 اختيار وليد في دفعة 32؛ PP-1.3 فرز الـ issues المؤجلة | هنا (البنود 3 و2 و4) |
 | PP-2 | 2026-10-18 | PP-2.1 تصحيح سعر سطر موظفته سابت (#325)؛ PP-2.2 صلاحية هوية النشاط (#331) | PP-2.1: `docs/specs/050-orders-record-service-session/owner-questions.ar.md` بند 35 (ED-Q15)، وسؤال فلوس فاتنشر كمان على صفحة القرارات في الدفعة 33 لأبو سالم؛ PP-2.2: `docs/specs/052-settings-business-identity/owner-questions.ar.md` بند 5 (BI-Q5) |
 | PP-3 | 2026-10-18 | PP-3.1 المنع على كل فروع الموظفة | `docs/specs/051-staff-employee-number/owner-questions.ar.md` بند 22 |
@@ -1894,7 +1895,7 @@ so much beteer to creat this advisore for the project level so you and the manag
 
 **ملحوظة المدير:** آخر فشل على #917 كان شرط النسبة نفسه، مش الـ 50ms (51.71 مقابل 49.99 = 2× p95 القديم ≈ 25ms). القرار ده بيشيل مصدر فشل عشوائي واحد، لكن النسبة لسه ممكن تفشل لو الجهاز اتأخر في نص الـ run. لو ده اتكرر، يتعرض على وليد.
 
-> **مصالحة 2026-11-11 — قرارات كانت متسجلة محليًا بس.** البنود 77–87 منقولة حرفيًا من `docs/owner-decisions.ar.md` غير المحفوظ في git، في worktree مدير T3 `.t3/worktrees/main/feat-p1-058-2a-rate-limiter` (الفرع `docs/pp114-direct-owner-delivery`، فوق commit `8c46615f0`). جلسات T3 كتبتها هناك من 8 لـ 9 نوفمبر ومااترفعتش، فـ PP-139–PP-145 وPP-147 وPP-150 وPP-159 ماكانتش موجودة في الـ repo. التغييرات الوحيدة: رقم البند في كل عنوان، وتمييز عنوان PP-163 المحلي، وحذف اسم المستخدم من مسار محلي واحد في البند 82. باقي النص زي ما هو، بأخطائه وبالحالة اللي في العناوين.
+> **مصالحة 2026-11-11 — قرارات كانت متسجلة محليًا بس.** البنود 77–87 منقولة حرفيًا من `docs/owner-decisions.ar.md` غير المحفوظ في git، في worktree مدير T3 `.t3/worktrees/main/feat-p1-058-2a-rate-limiter` (الفرع `docs/pp114-direct-owner-delivery`، فوق commit `8c46615f0`). جلسات T3 كتبتها هناك من 8 لـ 9 نوفمبر ومااترفعتش، فـ PP-139–PP-145 وPP-147 وPP-150 وPP-159 ماكانتش موجودة في الـ repo. التغييرات الوحيدة: رقم البند في كل عنوان، وتغيير رقم PP-163 المحلي في عنوان البند 87 لـ PP-166 (PP-167.2)، وحذف اسم المستخدم من مسار محلي واحد في البند 82. باقي النص زي ما هو، بأخطائه وبالحالة اللي في العناوين.
 >
 > رسائل T3 اللي فيها «canonical §76» لحد «§80» قصدها الأرقام المحلية في العمود الأول، مش البنود 76–80 هنا (البند 76 هنا هو PP-165). الحالة في العمود الأخير ماخودة من سطر الجواب الحرفي في كل بند، مش من العنوان.
 >
@@ -1910,9 +1911,9 @@ so much beteer to creat this advisore for the project level so you and the manag
 > | §83 | §84 | PP-147 | ANSWERED: `Allow 501 (Recommended)` |
 > | §86 | §85 | PP-150 | ANSWERED: `Combined evidence (Recommended)` |
 > | §95 | §86 | PP-159 | ANSWERED: `Fresh Kimi session (Recommended)` (عنوان البند المحلي لسه مكتوب فيه PENDING) |
-> | §99 | §87 | PP-163 (T3، 2026-11-09) | ANSWERED: `Hold remaining work (Recommended)` |
+> | §99 | §87 | PP-166 (رقمه المحلي PP-163) | ANSWERED: `Hold remaining work (Recommended)` |
 >
-> **تعارض في الرقم PP-163، مستني وليد:** الملف المحلي استخدم PP-163 يوم 9 نوفمبر لقرار «Hold remaining work» (البند 87 هنا). الرقم ده اتاخد تاني يوم 11 نوفمبر لرجوع #908 (البند 74)، وده موجود في رسائل commits #915 و#916 و#917 وفي تعليقات الكود، فمش هيتغير. القرار المحلي متسجل هنا باسم «PP-163 (T3، 2026-11-09)» لحد ما وليد يحدد رقمه النهائي.
+> **تعارض في الرقم PP-163، اتحل بـ PP-167.2:** الملف المحلي استخدم PP-163 يوم 9 نوفمبر لقرار «Hold remaining work» (البند 87 هنا). الرقم ده اتاخد تاني يوم 11 نوفمبر لرجوع #908 (البند 74)، وده موجود في رسائل commits #915 و#916 و#917 وفي تعليقات الكود، فمش هيتغير. وليد اختار يوم 11 نوفمبر إن القرار المحلي ياخد رقم PP-166 (البند 88)، فبقى عنوان البند 87 PP-166 والحالة زي ما هي.
 >
 > PP-138 وPP-146 وPP-148 وPP-149 وPP-151–PP-158 وPP-160–PP-162 ليهم برضه بنود كاملة في نفس الملف المحلي (البنود 74 و82 و84 و85 و87–94 و96–98)، بس متسجلة في الـ repo في ملفات الـ slice المذكورة في الفهرس، فمانقلتهاش هنا.
 
@@ -2151,7 +2152,7 @@ so much beteer to creat this advisore for the project level so you and the manag
 
 **إيصال الحالة النهائي:** تحقق المنسق مجددًا من hashes كل14 ملفًا دون تغير وغياب tracked diff في task؛ `docs/checkpoints/` غير المتعقب باقٍ. GitHub أعاد PR909 OPEN على e9e97266 وقاعدةa2b09bf. نُشر فقط تحديث ref للمهمة#830 في roadmapcommit `28b11f832fe0d95b72a01afebda6bc433c071c88`، وطابق JSON الحي النسخة المحلية كاملة بعد المصادقة؛ `.env.example` بقي خارج staging. الإيصال `909-pp159-status-publication.json` و`roadmap-28b11f8-live-verification.json`. نُشر حجب المؤلف في تعليق6740948278. لا author/reviewer/watcher نشط الآن ولا محاولة merge؛ هذا السجل وتعديلات إرشادات اللغة في المشروع ما زالا محليين وغير منشورين.
 
-## 87. PP-163 (T3، 2026-11-09 — مش PP-163 بتاع البند 74) — مصالحة العمل بعد merge خارج هذه الجلسة مع بقاء فشل الجودة (ANSWERED،2026-11-09)
+## 87. PP-166 (رقمه المحلي في T3 كان PP-163، PP-167.2) — مصالحة العمل بعد merge خارج هذه الجلسة مع بقاء فشل الجودة (ANSWERED،2026-11-09)
 
 **النوع:** قرار تقني/إجرائي لوليد مباشرة؛ لا صفحة شريك أو issue أو مهمة بديلة. `TODO(spec)`: صلاحية متابعة العمل بعد هذا merge غير محسومة في هذه الجلسة، ولا يُخمن waiver.
 
@@ -2170,3 +2171,27 @@ so much beteer to creat this advisore for the project level so you and the manag
 **جواب وليد حرفيًا:** `PENDING`. التوصية: الخيار1 حتى تتصالح صلاحية العمل؛ تبقى المتطلبات والفشل والعدادات والتدقيق كما هي.
 
 **الجواب اللاحق حرفيًا:** `Hold remaining work (Recommended)` — اختيار وليد بأداة الأسئلة في محادثة OpenCode. يعتمد الخيار1: يتوقف العمل التابع كله، بما فيه تطبيق إصلاح بعد merge ونشر قواعد الإنجليزية أو audit إلى Git، حتى توجيه مالك صريح. لا PR/issue جديد أو replacement task أو rollback/reset أو deployment/protection change، ولا قبول جودة أو waiver ضمني. تبقى merge provenance وCI الفاشلة وP1 والمرشح الجزئي غير المطبق وكل history/counters محفوظة. تسجيل هذا الجواب محليًا في audit/chronology فقط ليس استئنافًا للنشر أو التنفيذ؛ لا author/reviewer/watcher نشط، ولا عمل إضافي بعد التسجيل. الخطوة الموصى بها: مصالحة المالك الصريحة قبل أي متابعة.
+
+## 88. PP-167 — نهاية PP-141 ورقم قرار 11-09 المحلي (ANSWERED، 2026-11-11)
+
+**النوع والمصدر:** قرار تقني لوليد؛ كارتين في شات جلسة Claude Code مباشرة لوليد وفق PP-117، بعد استشارة `pospay-advisor` (PP-136) اللي نصح بكارتين وبالتوصيتين. لا يُنشر على صفحة قرارات الشريك. اتسألوا أثناء مصالحة PR #919.
+
+### PP-167.1 — المستشار بعد PP-141
+
+**السؤال حرفيًا — 2026-11-11 15:39 الكويت تقريبًا:** «PP-141, recorded 11-08 on T3 and never added to the repo, says: «chang the DVISORE FROM FABEL AND CDEX ASTRA TO CODEX ASTRA FOR JUST AWHILE AS FABLE QUOTA FINISHED». It moves every advisor role, including pospay-advisor, to Codex Astra/high and says there is no automatic switch back to Fable. Nothing since has lifted it, but pospay-advisor (all PP-136 consults) has been running on Fable again. Which advisor applies now?»
+
+**الاختيارات:** «Back to Fable (Recommended)»، «Keep Astra (PP-141)».
+
+**رد وليد حرفيًا:** «Back to Fable (Recommended)».
+
+**الأثر:** PP-141 (البند 79) خلص من 2026-11-11. `pospay-advisor` يفضل على Fable زي PP-136 وCLAUDE.md، والاستشارات اللي اتعملت على Fable قبل كده سليمة.
+
+### PP-167.2 — رقم قرار «Hold remaining work» المحلي
+
+**السؤال حرفيًا — 2026-11-11 15:39 الكويت تقريبًا:** «Two different decisions are both numbered PP-163. The 11-09 one on T3, «Hold remaining work» after #909 merged red, was never published. The 11-11 one in main (revert #908, PP-163.1/.2) is in the #915–#917 commit messages and in code comments, so it can't change. Which number does the 11-09 decision get? Only the label changes; its status stays as recorded.»
+
+**الاختيارات:** «Renumber to PP-166 (Recommended)»، «Keep "PP-163 (T3)"».
+
+**رد وليد حرفيًا:** «Renumber to PP-166 (Recommended)».
+
+**الأثر:** قرار 2026-11-09 بقى PP-166 (البند 87)، ورقمه المحلي PP-163 متسجل جنبه. PP-163 في الـ repo يفضل قرار رجوع #908 (البند 74). نص البند 87 ما اتغيرش، والرقم الجاي بعد PP-167.
