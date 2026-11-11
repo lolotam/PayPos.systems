@@ -1,7 +1,12 @@
-import { sql, type SQL } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import type { LeaveHistoryQuery } from '@pospay/contracts';
 import type { LeaveReadContext } from './leave-requests.query.ts';
-import { historyDays, historyIds, type HistoryScope } from './leave-history-days.sql.ts';
+import {
+  historyDays,
+  historyEmployeeVisible,
+  historyIds,
+  type HistoryScope,
+} from './leave-history-days.sql.ts';
 import { historyLeaveRecord } from './leave-history-leaves.sql.ts';
 
 const texts = (values: string[]) =>
@@ -9,18 +14,24 @@ const texts = (values: string[]) =>
     values.map((v) => sql`${v}`),
     sql`, `,
   )}]::text[]`;
+function visibilityPredicate(
+  c: LeaveReadContext,
+  s: HistoryScope,
+  alias: 'e' | 'subject',
+  visibility?: 'current' | 'any',
+) {
+  // قاعدة رؤية الموظف مشتركة بين الأيام والإجازات حتى تتبعها أنواع الصفوف الثلاثة معاً.
+  return visibility === undefined
+    ? sql``
+    : sql`AND ${historyEmployeeVisible(c, s, alias, visibility)}`;
+}
 export function historyRows(
   c: LeaveReadContext,
   q: LeaveHistoryQuery,
   s: HistoryScope,
-  options: {
-    asOf: string;
-    excludeOpen: boolean;
-    employeeVisible?: SQL;
-    dayEmployeeVisible?: SQL;
-  },
+  options: { asOf: string; excludeOpen: boolean; visibility?: 'current' | 'any' },
 ) {
-  const { asOf, excludeOpen, employeeVisible, dayEmployeeVisible } = options;
+  const { asOf, excludeOpen, visibility } = options;
   const types = q['types[]'];
   const statuses = q['statuses[]'];
   // السجل في ملف الموظف يستبعد الطلبات المفتوحة بنفس حد اليوم المحلي لقائمة الطلبات.
@@ -31,8 +42,7 @@ export function historyRows(
     sql`
     AND sh.starts_at>=(( ${q.from}::date - 1)::timestamp AT TIME ZONE 'UTC')
     AND sh.starts_at<(( ${q.to}::date + 2)::timestamp AT TIME ZONE 'UTC')
-    AND sh.working_date BETWEEN ${q.from}::date AND ${q.to}::date`,
-    dayEmployeeVisible,
+    AND sh.working_date BETWEEN ${q.from}::date AND ${q.to}::date ${visibilityPredicate(c, s, 'e', visibility)}`,
   )}),
   rows AS (
     SELECT l."from" AS date,1 AS rank,l.id,${historyLeaveRecord(c, s)} AS record
@@ -40,7 +50,7 @@ export function historyRows(
       AND subject.business_id=l.business_id AND subject.id=l.employee_id
     WHERE l.company_id=${c.companyId} AND l.business_id=${c.businessId}
       ${c.employeeId === undefined ? sql`` : sql`AND l.employee_id=${c.employeeId}::uuid`}
-      AND subject.deleted_at IS NULL ${employeeVisible === undefined ? sql`` : sql`AND ${employeeVisible}`}
+      AND subject.deleted_at IS NULL ${visibilityPredicate(c, s, 'subject', visibility)}
       AND l.branch_id=ANY(${historyIds(s.branches)})
       AND l."from"<=${q.to}::date AND l."to">=${q.from}::date
       ${excludeOpen ? sql`AND NOT (l.status='PENDING' OR l."to">=(${asOf}::timestamptz AT TIME ZONE l.timezone)::date)` : sql``}

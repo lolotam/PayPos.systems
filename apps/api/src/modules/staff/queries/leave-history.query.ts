@@ -46,15 +46,9 @@ export function leaveHistorySql(
   options: { asOf: string; excludeOpen: boolean; cursor?: Cursor; report?: HistoryReport },
 ) {
   const { asOf, cursor, report } = options;
-  const attachment = report?.attachment;
   const rows = historyRows(c, q, s, {
     ...options,
-    ...(attachment === undefined
-      ? {}
-      : {
-          employeeVisible: historyEmployeeVisible(c, s, 'subject', attachment),
-          dayEmployeeVisible: historyEmployeeVisible(c, s, 'e', attachment),
-        }),
+    ...(report === undefined ? {} : { visibility: report.attachment }),
   });
   const lastTaken =
     c.employeeId === undefined

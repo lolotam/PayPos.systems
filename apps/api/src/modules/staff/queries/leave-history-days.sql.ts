@@ -44,7 +44,8 @@ export function historyEmployeeVisible(
   attachment: 'current' | 'any',
 ) {
   const eligibilityDays = s.eligibilityDays ?? [];
-  const branches = attachment === 'current' ? eligibilityDays.map((day) => day.branchId) : s.branches;
+  const branches =
+    attachment === 'current' ? eligibilityDays.map((day) => day.branchId) : s.branches;
   const employeeId = alias === 'e' ? sql`e.id` : sql`subject.id`;
   return sql`EXISTS (SELECT 1 FROM employee_branches eb
     WHERE eb.company_id=${c.companyId} AND eb.business_id=${c.businessId}
@@ -52,13 +53,7 @@ export function historyEmployeeVisible(
       AND eb.branch_id=ANY(${historyIds(branches)})
       ${attachment === 'current' ? sql`AND ${currentAttachment(eligibilityDays)}` : sql``})`;
 }
-export function historyDays(
-  c: LeaveReadContext,
-  s: HistoryScope,
-  asOf: string,
-  bound: SQL,
-  employeeVisible?: SQL,
-) {
+export function historyDays(c: LeaveReadContext, s: HistoryScope, asOf: string, bound: SQL) {
   // التجميع يسبق أهلية اليوم حتى تفضل كل ورديات اليوم ومعرّفه ثابتين بين الورديات.
   return sql`SELECT d.*, coverage.* FROM (
     SELECT sh.employee_id, sc.branch_id, sh.working_date,
@@ -70,7 +65,7 @@ export function historyDays(
     JOIN employees e ON e.company_id=sh.company_id AND e.business_id=sc.business_id AND e.id=sh.employee_id
     WHERE sh.company_id=${c.companyId} AND sc.business_id=${c.businessId}
       ${c.employeeId === undefined ? sql`` : sql`AND sh.employee_id=${c.employeeId}::uuid`}
-      AND e.deleted_at IS NULL ${employeeVisible === undefined ? sql`` : sql`AND ${employeeVisible}`}
+      AND e.deleted_at IS NULL
       AND sc.branch_id=ANY(${historyIds(s.attendanceBranches)})
       AND sh.working_date>=e.hire_date AND (e.contract_end IS NULL OR sh.working_date<=e.contract_end)
       ${bound}
