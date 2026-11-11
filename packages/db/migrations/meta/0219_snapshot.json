@@ -1,5 +1,5 @@
 {
-  "id": "70942d5b-a042-4205-9b34-6aee923d1b63",
+  "id": "4892c70b-83b0-46db-a855-8d00e7ebbced",
   "prevId": "25dfeacd-9538-44bd-b075-4e14091e59cd",
   "version": "7",
   "dialect": "postgresql",
@@ -22446,7 +22446,7 @@
         },
         "package_sale_requests_expected_service_revisions_check": {
           "name": "package_sale_requests_expected_service_revisions_check",
-          "value": "CASE WHEN jsonb_typeof(\"package_sale_requests\".\"expected_service_revisions\") = 'array' THEN jsonb_array_length(\"package_sale_requests\".\"expected_service_revisions\") BETWEEN 1 AND 20 AND NOT jsonb_path_exists(\"package_sale_requests\".\"expected_service_revisions\", '$[*] ? (@.type() != \"object\" || !exists(@.service_id) || @.service_id.type() != \"string\" || !exists(@.revision) || @.revision.type() != \"number\" || @.revision.floor() != @.revision || !exists(@.list_price) || @.list_price.type() != \"string\")') ELSE false END"
+          "value": "CASE WHEN jsonb_typeof(\"package_sale_requests\".\"expected_service_revisions\") = 'array' THEN jsonb_array_length(\"package_sale_requests\".\"expected_service_revisions\") BETWEEN 1 AND 20 AND NOT jsonb_path_exists(\"package_sale_requests\".\"expected_service_revisions\", '$[*] ? (@.type() != \"object\" || !exists(@.service_id) || @.service_id.type() != \"string\" || !exists(@.revision) || @.revision.type() != \"number\" || @.revision.floor() != @.revision)') ELSE false END"
         },
         "package_sale_requests_error_details_size_check": {
           "name": "package_sale_requests_error_details_size_check",
