@@ -14,9 +14,9 @@ import {
   createTestDatabase,
   type TestDatabase,
 } from '../../../../../../packages/db/test/test-database.ts';
+import { createTestCommissionInputsConsumer } from '../../../__tests__/commission-inputs-consumer.ts';
 import { createDeliverer } from '../../../outbox/deliver.ts';
 import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
-import { createCommissionInputsConsumer } from '../index.ts';
 
 let testDb: TestDatabase;
 let owner: postgres.Sql;
@@ -45,7 +45,7 @@ beforeEach(async () => {
 });
 
 function deliverAt(now: string, event: ClaimedEvent) {
-  const consumer = createCommissionInputsConsumer({
+  const consumer = createTestCommissionInputsConsumer({
     ids,
     clock: { now: () => new Date(now) },
     businessTimeZone,

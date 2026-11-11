@@ -14,12 +14,15 @@ import {
   createTestDatabase,
   type TestDatabase,
 } from '../../../../../../packages/db/test/test-database.ts';
+import { createTestCommissionInputsConsumer } from '../../../__tests__/commission-inputs-consumer.ts';
 import { createDeliverer } from '../../../outbox/deliver.ts';
 import type { OutboxConsumer } from '../../../outbox/consumer.ts';
-import { onCommissionInputEvent } from '../events/handlers/on-commission-input-event.handler.ts';
+import {
+  onCommissionInputEvent,
+  type CommissionInputUseCases,
+} from '../events/handlers/on-commission-input-event.handler.ts';
 import { createCommissionLineProjectionScope } from '../persistence/commission-line-projection.scope.ts';
 import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
-import { createCommissionInputsConsumer } from '../index.ts';
 import { ProjectServiceLines } from '../use-cases/project-service-lines/project-service-lines.ts';
 
 let testDb: TestDatabase;
@@ -37,7 +40,11 @@ beforeAll(async () => {
   await seedCommissionLineTenants(testDb.ownerUrl);
   owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
   db = createDatabase({ url: testDb.appUrl, ids });
-  const consumer = createCommissionInputsConsumer({ ids, clock, businessTimeZone });
+  const consumer = createTestCommissionInputsConsumer({
+    ids,
+    clock,
+    businessTimeZone,
+  });
   deliver = createDeliverer(db, [consumer], createLogger('silent'), {
     knownEventTypes: consumer.eventTypes,
   });
@@ -119,7 +126,19 @@ it('CM-22a a failure after replacement rolls back rows and mark, then redelivery
           throw new Error('injected post-projection failure');
         },
       };
-      await onCommissionInputEvent(new ProjectServiceLines(failingScope, clock, ids), claimed);
+      const unusedUseCase = {
+        execute: async () => {
+          throw new Error('unused in lines test');
+        },
+      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'];
+      await onCommissionInputEvent(
+        {
+          lines: new ProjectServiceLines(failingScope, clock, ids),
+          tips: unusedUseCase,
+          salary: unusedUseCase,
+        },
+        claimed,
+      );
     },
   };
   const failingDelivery = createDeliverer(db, [failing], createLogger('silent'), {

@@ -19,11 +19,14 @@ import {
   createTestDatabase,
   type TestDatabase,
 } from '../../../../../../packages/db/test/test-database.ts';
+import { createTestCommissionInputsConsumer } from '../../../__tests__/commission-inputs-consumer.ts';
 import { createDeliverer } from '../../../outbox/deliver.ts';
 import type { CommissionLineEventInput } from '../domain/commission-line-types.ts';
 import { CommissionLineEventInvalidError } from '../domain/errors.ts';
-import { onCommissionInputEvent } from '../events/handlers/on-commission-input-event.handler.ts';
-import { createCommissionInputsConsumer } from '../index.ts';
+import {
+  onCommissionInputEvent,
+  type CommissionInputUseCases,
+} from '../events/handlers/on-commission-input-event.handler.ts';
 import { createCommissionLineProjectionScope } from '../persistence/commission-line-projection.scope.ts';
 import {
   normalizeCommissionLineEvent,
@@ -48,7 +51,11 @@ const businessTimeZone = async () => {
   timezoneRequests += 1;
   return 'Asia/Kuwait';
 };
-const consumer = createCommissionInputsConsumer({ ids, clock, businessTimeZone });
+const consumer = createTestCommissionInputsConsumer({
+  ids,
+  clock,
+  businessTimeZone,
+});
 
 beforeAll(async () => {
   testDb = await createTestDatabase();
@@ -116,8 +123,17 @@ async function instrumentedAttempt(incoming: ClaimedEvent | CommissionLineEventI
       },
     };
     const useCase = new ProjectServiceLines(observed, clock, ids);
-    if ('eventType' in incoming) await onCommissionInputEvent(useCase, incoming);
-    else await useCase.execute(incoming);
+    if ('eventType' in incoming) {
+      const unusedUseCase = {
+        execute: async () => {
+          throw new Error('unused in lines test');
+        },
+      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'];
+      await onCommissionInputEvent(
+        { lines: useCase, tips: unusedUseCase, salary: unusedUseCase },
+        incoming,
+      );
+    } else await useCase.execute(incoming);
   });
 }
 
