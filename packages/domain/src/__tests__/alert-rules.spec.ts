@@ -159,3 +159,27 @@ describe('alertKindAllowsBranchOverride', () => {
     expect(alertKindAllowsBranchOverride('SHIFT_NOT_CLOCKED_IN')).toBe(true);
   });
 });
+
+describe('DISCOUNT_SELF_APPROVED', () => {
+  it('effective default rule has owner in-app bell enabled', () => {
+    expect(effectiveAlertRule('DISCOUNT_SELF_APPROVED', null, null, null)).toMatchObject({
+      source: 'DEFAULT',
+      enabled: true,
+      recipientRoles: ['owner'],
+      channels: ['IN_APP'],
+      delayMinutes: null,
+      leadMinutes: null,
+      fixedRecipients: [],
+    });
+  });
+
+  it('allows branch-level override', () => {
+    expect(alertKindAllowsBranchOverride('DISCOUNT_SELF_APPROVED')).toBe(true);
+  });
+
+  it('accepts the default settings with no violation', () => {
+    expect(
+      alertRuleViolation('DISCOUNT_SELF_APPROVED', ALERT_KIND_DEFINITIONS['DISCOUNT_SELF_APPROVED'].defaults),
+    ).toBeNull();
+  });
+});
