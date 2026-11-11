@@ -9,7 +9,8 @@ export const employeeDocumentsEn = {
   upload: 'Upload and record',
   replace: 'Replace',
   open: 'Open',
-  openRetry: 'The document could not be opened. Allow popups, then choose Open again.',
+  openRetry:
+    'The document could not be opened. Choose Open again. If nothing opens, allow popups for this site.',
   uploading: 'Uploading…',
   verifying: 'Checking the file…',
   recorded: 'Document recorded.',
@@ -58,7 +59,7 @@ export const employeeDocumentsAr: Record<keyof typeof employeeDocumentsEn, strin
   upload: 'رفع وتسجيل',
   replace: 'استبدال',
   open: 'فتح',
-  openRetry: 'تعذر فتح الوثيقة. اسمح بالنوافذ المنبثقة ثم اختر فتح مرة أخرى.',
+  openRetry: 'تعذر فتح الوثيقة. اختر فتح مرة أخرى، ولو مفتحتش اسمح بالنوافذ المنبثقة للموقع.',
   uploading: 'جارٍ الرفع…',
   verifying: 'جارٍ فحص الملف…',
   recorded: 'تم تسجيل الوثيقة.',

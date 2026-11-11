@@ -1,6 +1,6 @@
 import { t } from '@pospay/i18n';
 import { notifyManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { EmployeeDocumentsSection } from '../ui/employee-documents-section';
 import { useEmployeeDocuments } from './use-employee-documents';
@@ -238,17 +238,17 @@ it('does not grant fresh read from a removed query or a manual restore', async (
   api.GET.mockReturnValue(new Promise((resolve) => (finish = resolve)));
   const opened = vi.spyOn(window, 'open').mockReturnValue(popup() as unknown as Window);
   const retained: Array<(storageKey: string) => void> = [];
-  function Probe() {
+  function useProbe() {
     const documents = useEmployeeDocuments(id, id, id, id);
     retained.push(documents.open.mutate);
-    return null;
+    return documents;
   }
   const client = new QueryClient();
-  render(
-    <QueryClientProvider client={client}>
-      <Probe />
-    </QueryClientProvider>,
-  );
+  const { result } = renderHook(useProbe, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
   await waitFor(() => expect(retained.length).toBeGreaterThan(1));
   const current = () => retained.at(-1);
   act(() => {
@@ -257,6 +257,8 @@ it('does not grant fresh read from a removed query or a manual restore', async (
   });
   expect(opened).not.toHaveBeenCalled();
   expect(api.POST).not.toHaveBeenCalled();
+  expect(result.current.documents).toBeUndefined();
+  expect(result.current.open.isPending).toBe(false);
   await act(async () => finish({ data: view }));
   act(() => current()?.('synthetic/verified'));
   await waitFor(() => expect(api.POST).toHaveBeenCalledOnce());

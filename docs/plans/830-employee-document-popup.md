@@ -1,6 +1,6 @@
 # #830 — employee-document popup lifecycle
 
-Status: PR #909 OPEN; CI42649585594 FIXED COLLECTION BUT ALL 11 BROWSER TESTS FAILED SETUP; WORKER/CI-GATE FAILED. PP-162 HEADING/FAILURE-DIAGNOSTIC STAGE HAS INDEPENDENT SOURCE APPROVAL AND FRESH TYPECHECK, LINT AND 41/41 FOCUSED TESTS PASSING. NEW EXACT-HEAD CI/NATIVE EVIDENCE REMAINS PENDING; NOT ACCEPTED. The prior 21:42 snapshot remains 35 passed / 5 failed of 40; rejected 1990-ALL draft was not executed.
+Status: Re-land PR #917 after the #915 revert; `ci-gate` green on `c49b88bd9`; PP-164 size caps apply.
 This continues the retained issue #830 after the Kimi quota stop. It is not a clean initial handoff, independent review, PR, release, or browser result. The prior premature-edit reading-gate FAIL stays. PP-146 is a responsibility split, not a review round, a size-rule waiver, or acceptance.
 
 ## Authority and preserved history
@@ -18,6 +18,7 @@ This continues the retained issue #830 after the Kimi quota stop. It is not a cl
 - Owner answer PP-146, recorded by the parent in the canonical audit: approve splitting responsibility into `apps/admin/e2e/employee-document-popup-routes-fixture.ts` and `apps/admin/src/staff/api/employee-document-open.spec.tsx`, each capped at 220 additions+deletions. Allowlist 10 to 12 only. Total 1960 stays. Old path caps, the 400 effective file limit, and the 60-line function limit stay. No 400/60 exception was granted.
 - Owner answer PP-148, 2026-11-09: approve `apps/admin/src/staff/api/employee-document-open.ts` at 180 additions and deletions, allowlist 12 to 13 only. The 263-line draft missed that cap and was not accepted.
 - Owner answer PP-149, 2026-11-09: raise that same helper to 240 additions and deletions. The React owner stays in `use-employee-documents.ts`. Total 1960, hook 240, browser 350, and the 400/60 limits stay. The premature-edit FAIL, the 406-effective flight candidate, and the 9 historical focused failures stay unaccepted. No test, browser, or CI result is claimed here.
+- Owner answer PP-164, 2026-11-11: one-time raise for re-land PR #917 only (after #909 merged on a red `ci-gate` and was reverted in #915). Exact A+D caps vs main: `employee-document-open.ts` 280, `employee-document-open.spec.tsx` 255, `employee-document-notification-race.spec.tsx` 330, `apps/admin/e2e/employee-document-popup-browser.ts` 50 as approved path 16, `.github/workflows/ci.yml` 120, total 2650. Every other cap stays. Audit: `docs/owner-decisions.ar.md` §75.
 - Measured failures that this split is answering, not claiming to have cleared: hook formatted A+D 282/240 and `useDocumentOpen` 62 effective lines; fixture formatted 418/300 and 417 effective lines; unit spec 417 effective lines. Parent measures again. This author ran no formatter, test, or lint.
 
 ## Production ownership design

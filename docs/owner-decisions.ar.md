@@ -1840,3 +1840,17 @@ so much beteer to creat this advisore for the project level so you and the manag
 **الرجوع:** لو ظهر بطء حقيقي على staging، نرجّع حد أكبر عينة بقرار جديد من وليد.
 
 **ملحوظة المدير — 2026-11-11 01:05 الكويت (مش قرار من وليد):** بعد ما الـ worker رجع أخضر على #915، `ci-gate` فشل في `admin document popup · production browser`. اتضح إن #909 (`ff551062c`، #830) اتدمج 2026-11-09 22:32 الكويت والـ job ده و`ci-gate` فاشلين على رأسه. المدير قرر، بعد استشارة المستشار (PP-136) ووفق PP-124، يضيف رجوع #909 لنفس الـ PR، فـ `apps` و`packages` و`.github` يرجعوا مطابقين لـ `ad534b69a` بالظبط. #830 يرجع بعدين في PR لوحده بالـ browser job بتاعه.
+
+### 75. رفع حدود حجم #830 لمرة واحدة في PR الإرجاع #917 (PP-164، 11 نوفمبر 2026)
+
+**الخلفية:** #917 بيرجّع #909 (#830) بعد ما اترجع في #915 (PP-163.1)، ومعاه إصلاح اختبارات المتصفح في Chromium من غير واجهة، وحارس يمنع روابط `javascript:` في النافذة، وإصلاحات المراجعة. `ci-gate` نجح على الرأس `c49b88bd9`، والـ 11 سيناريو في المتصفح نجحوا. لكن الحجم عدّى حدود #830 اللي وليد حطها (PP-146 وPP-149 وPP-154 وPP-158 وPP-161). حد ملف اختبار المتصفح 378 حسب PP-162، و#917 فيه 356، يعني جوه الحد.
+
+**السؤال حرفيًا — 2026-11-11 10:30 الكويت:** «PR #917 (re-land of the #830 document popup, after #909 was reverted for merging with failing CI) is green on CI, including all 11 browser tests. But it's over the per-file size caps you set for #830. […] What should I do?»
+
+**الاختيارات:** «Raise caps for #917 (Recommended)»، «Shrink to old caps»، «Split into two PRs».
+
+**رد وليد حرفيًا:** «Raise caps for #917 (Recommended)».
+
+**الأثر المعتمد:** رفع لمرة واحدة لـ #917 بس، بالأرقام دي بالظبط (إضافات + حذف مقابل main): `employee-document-open.ts` 280، `employee-document-open.spec.tsx` 255، `employee-document-notification-race.spec.tsx` 330، `apps/admin/e2e/employee-document-popup-browser.ts` 50 كمسار معتمد رقم 16، `.github/workflows/ci.yml` 120، والإجمالي 2650. باقي الحدود زي ما هي. الدمج بعد CI أخضر ومراجعة Codex على الرأس النهائي بالظبط.
+
+**ملحوظة إفصاح:** #909 نفسه اتدمج و`ci-gate` فاشل على رأسه، وده سبب رجوعه في #915.
