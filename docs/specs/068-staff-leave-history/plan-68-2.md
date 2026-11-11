@@ -107,7 +107,9 @@ Full `pnpm check` and the API shards: `ci-gate` on the exact head.
 | Docs (plan, debate record, spec, owner question) | 180–260 |
 | **Total** | **1,000–1,520** |
 
-The spec's 200–300 for 68-2 counts production code only; production stays inside it within the 2× rule. A Kimi delivery
+This total exceeds the spec row's 200–300 for 68-2 (whose basis is not stated; row 68-1a's 775–1140 counts tests, docs
+and generated files), so the estimate needs the manager's acceptance before dispatch. Production alone stays near the
+spec row. A Kimi delivery
 above 520 production lines or an Agy delivery above 1,300 test lines is refused.
 
 ## Debate
