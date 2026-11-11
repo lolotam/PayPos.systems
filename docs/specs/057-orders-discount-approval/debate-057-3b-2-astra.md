@@ -16,4 +16,4 @@ No other substantiated defects found. Ports provide the capabilities needed by 3
 |---|---|---|
 | 1 | accept | The brief's "assignable to the contract" claim was wrong for readonly arrays. The payload properties stay readonly with mutable array types, and the spec adds a compile-time whole-payload assignment plus a runtime `discountSelfApprovalNoticeRequested.parse`. The contract import lives in the test only. |
 
-Note found while briefing (not an Astra finding): `plan-057-3b.md` and its debate verdict #4 call the place method `forBranch`; the real method on `DiscountApprovalNoticePlace` is `branchPlace`. 3b-2 narrows `branchPlace`.
+Note found while briefing (not an Astra finding): `plan-057-3b.md` and its debate verdict #4 call the place method `forBranch`; the real method on `DiscountApprovalNoticePlace` is `branchPlace`. 3b-2 narrows `branchPlace`; the plan and verdict #4 now use `branchPlace` (fixed in this PR).
