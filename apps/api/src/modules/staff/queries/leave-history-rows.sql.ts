@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import type { LeaveHistoryQuery } from '@pospay/contracts';
 import type { LeaveReadContext } from './leave-requests.query.ts';
 import { historyDays, historyIds, type HistoryScope } from './leave-history-days.sql.ts';
@@ -13,9 +13,14 @@ export function historyRows(
   c: LeaveReadContext,
   q: LeaveHistoryQuery,
   s: HistoryScope,
-  options: { asOf: string; excludeOpen: boolean },
+  options: {
+    asOf: string;
+    excludeOpen: boolean;
+    employeeVisible?: SQL;
+    dayEmployeeVisible?: SQL;
+  },
 ) {
-  const { asOf, excludeOpen } = options;
+  const { asOf, excludeOpen, employeeVisible, dayEmployeeVisible } = options;
   const types = q['types[]'];
   const statuses = q['statuses[]'];
   // السجل في ملف الموظف يستبعد الطلبات المفتوحة بنفس حد اليوم المحلي لقائمة الطلبات.
@@ -27,13 +32,15 @@ export function historyRows(
     AND sh.starts_at>=(( ${q.from}::date - 1)::timestamp AT TIME ZONE 'UTC')
     AND sh.starts_at<(( ${q.to}::date + 2)::timestamp AT TIME ZONE 'UTC')
     AND sh.working_date BETWEEN ${q.from}::date AND ${q.to}::date`,
+    dayEmployeeVisible,
   )}),
   rows AS (
     SELECT l."from" AS date,1 AS rank,l.id,${historyLeaveRecord(c, s)} AS record
     FROM leave_requests l JOIN employees subject ON subject.company_id=l.company_id
       AND subject.business_id=l.business_id AND subject.id=l.employee_id
     WHERE l.company_id=${c.companyId} AND l.business_id=${c.businessId}
-      AND l.employee_id=${c.employeeId}::uuid AND subject.deleted_at IS NULL
+      ${c.employeeId === undefined ? sql`` : sql`AND l.employee_id=${c.employeeId}::uuid`}
+      AND subject.deleted_at IS NULL ${employeeVisible === undefined ? sql`` : sql`AND ${employeeVisible}`}
       AND l.branch_id=ANY(${historyIds(s.branches)})
       AND l."from"<=${q.to}::date AND l."to">=${q.from}::date
       ${excludeOpen ? sql`AND NOT (l.status='PENDING' OR l."to">=(${asOf}::timestamptz AT TIME ZONE l.timezone)::date)` : sql``}

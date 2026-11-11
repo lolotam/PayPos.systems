@@ -8,32 +8,63 @@ import {
 } from '@pospay/contracts';
 import { decodeCursor, encodeCursor } from '../../../shared/persistence/name-options-cursor.ts';
 import type { LeaveReadAccess, LeaveReadContext } from './leave-requests.query.ts';
-import { historyIds, type HistoryScope } from './leave-history-days.sql.ts';
+import {
+  historyEmployeeVisible,
+  historyIds,
+  type HistoryScope,
+} from './leave-history-days.sql.ts';
 import { historyRows } from './leave-history-rows.sql.ts';
 import { historyLastTaken } from './leave-history-last.sql.ts';
 
 type Cursor = LeaveHistoryCursorData;
-export function leaveHistorySql(
-  c: LeaveReadContext,
-  q: LeaveHistoryQuery,
-  s: HistoryScope,
-  options: { asOf: string; excludeOpen: boolean; cursor?: Cursor },
-) {
-  const { asOf, cursor } = options;
+type HistoryReport = { attachment: 'current' | 'any' };
+
+function historySubject(c: LeaveReadContext, s: HistoryScope, report?: HistoryReport) {
+  if (report !== undefined) {
+    if (c.employeeId === undefined) return sql`SELECT TRUE AS exists`;
+    return sql`SELECT (EXISTS(SELECT 1 FROM employees subject
+      WHERE company_id=${c.companyId} AND business_id=${c.businessId}
+        AND id=${c.employeeId}::uuid AND deleted_at IS NULL
+        AND ${historyEmployeeVisible(c, s, 'subject', report.attachment)})) AS exists`;
+  }
   const eligibilityDays = s.eligibilityDays ?? [];
   const eligibilityBranches = eligibilityDays.map((day) => day.branchId);
-  // صفحة السجل وآخر إجازة في snapshot واحدة حتى لا تختلف النتائج بسبب كتابة متزامنة.
-  // علامة الموظف من نفس snapshot تمنع تسريب آخر إجازة لو اتحذف بعد فحص الصلاحية.
-  // وبنفس العلامة يتحقق ربط ساري: لو انتهى الارتباط بين الفحص والجملة الأخيرة فالصفحة لا تُفتح.
-  return sql`${historyRows(c, q, s, options)}, subject AS (
-    SELECT (EXISTS(SELECT 1 FROM employees
+  return sql`SELECT (EXISTS(SELECT 1 FROM employees
       WHERE company_id=${c.companyId} AND business_id=${c.businessId}
         AND id=${c.employeeId}::uuid AND deleted_at IS NULL)
       AND EXISTS(SELECT 1 FROM employee_branches eb
         WHERE eb.company_id=${c.companyId} AND eb.business_id=${c.businessId}
           AND eb.employee_id=${c.employeeId}::uuid
           AND eb.branch_id=ANY(${historyIds(eligibilityBranches)})
-          AND ${currentAttachment(eligibilityDays)})) AS exists
+          AND ${currentAttachment(eligibilityDays)})) AS exists`;
+}
+
+export function leaveHistorySql(
+  c: LeaveReadContext,
+  q: LeaveHistoryQuery,
+  s: HistoryScope,
+  options: { asOf: string; excludeOpen: boolean; cursor?: Cursor; report?: HistoryReport },
+) {
+  const { asOf, cursor, report } = options;
+  const attachment = report?.attachment;
+  const rows = historyRows(c, q, s, {
+    ...options,
+    ...(attachment === undefined
+      ? {}
+      : {
+          employeeVisible: historyEmployeeVisible(c, s, 'subject', attachment),
+          dayEmployeeVisible: historyEmployeeVisible(c, s, 'e', attachment),
+        }),
+  });
+  const lastTaken =
+    c.employeeId === undefined
+      ? sql`NULL`
+      : sql`CASE WHEN subject.exists THEN ${historyLastTaken(c, s, asOf)} END`;
+  // صفحة السجل وآخر إجازة في snapshot واحدة حتى لا تختلف النتائج بسبب كتابة متزامنة.
+  // علامة الموظف من نفس snapshot تمنع تسريب آخر إجازة لو اتحذف بعد فحص الصلاحية.
+  // تبويب الملف يعيد فحص الربط الساري؛ التقرير يعيد فحص الوجود ورؤية الموظف المختارة.
+  return sql`${rows}, subject AS (
+    ${historySubject(c, s, report)}
   ), page AS (
     SELECT * FROM rows ${
       cursor === undefined
@@ -46,20 +77,17 @@ export function leaveHistorySql(
   ) SELECT COALESCE((SELECT jsonb_agg(jsonb_build_object('date',date,'rank',rank,'id',id,'record',record)
     ORDER BY date DESC,rank,id DESC) FROM page),'[]'::jsonb) AS rows,
     subject.exists AS subject_exists,
-    CASE WHEN subject.exists THEN ${historyLastTaken(c, s, asOf)} END AS last_taken
+    ${lastTaken} AS last_taken
     FROM subject`;
 }
-export async function getEmployeeLeaveHistory(
+
+export async function readLeaveHistoryPage(
   tx: Tx,
   c: LeaveReadContext,
   q: LeaveHistoryQuery,
-  access: LeaveReadAccess,
+  scope: HistoryScope,
+  options: { excludeOpen: boolean; report?: HistoryReport },
 ) {
-  const scope = await access.check(tx, { ...c, purpose: 'history' });
-  if (!scope || scope.branches.length === 0) return null;
-  if (!scope.featureEnabled) return 'FEATURE_DISABLED' as const;
-  // بيانات الأهلية داخلية؛ غيابها يمنع السجل بدل نطاق فارغ يمنح وصولاً.
-  if (!scope.eligibilityDays?.length) return null;
   let cursor: Cursor | undefined;
   try {
     cursor =
@@ -78,7 +106,14 @@ export async function getEmployeeLeaveHistory(
     rows: (Cursor & { record: LeaveHistoryPage['items'][number] })[];
     subject_exists: boolean;
     last_taken: LeaveHistoryPage['last_taken'];
-  }>(leaveHistorySql(c, q, scope, { asOf, excludeOpen: true, ...(cursor ? { cursor } : {}) }));
+  }>(
+    leaveHistorySql(c, q, scope, {
+      asOf,
+      excludeOpen: options.excludeOpen,
+      ...(cursor ? { cursor } : {}),
+      ...(options.report ? { report: options.report } : {}),
+    }),
+  );
   if (!result) throw new Error('LEAVE_HISTORY_SNAPSHOT_MISSING');
   if (!result.subject_exists) return null;
   const rows = result.rows;
@@ -95,6 +130,20 @@ export async function getEmployeeLeaveHistory(
     request_branch_ids: scope.createBranches,
     absence_branch_ids: scope.attendanceBranches,
   } satisfies LeaveHistoryPage;
+}
+
+export async function getEmployeeLeaveHistory(
+  tx: Tx,
+  c: LeaveReadContext,
+  q: LeaveHistoryQuery,
+  access: LeaveReadAccess,
+) {
+  const scope = await access.check(tx, { ...c, purpose: 'history' });
+  if (!scope || scope.branches.length === 0) return null;
+  if (!scope.featureEnabled) return 'FEATURE_DISABLED' as const;
+  // بيانات الأهلية داخلية؛ غيابها يمنع السجل بدل نطاق فارغ يمنح وصولاً.
+  if (!scope.eligibilityDays?.length) return null;
+  return readLeaveHistoryPage(tx, c, q, scope, { excludeOpen: true });
 }
 
 export const LEAVE_HISTORY_READER = Symbol('LEAVE_HISTORY_READER');

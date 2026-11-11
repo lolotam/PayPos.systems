@@ -1493,6 +1493,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/leave-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getLeaveHistoryReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/attendance-exceptions/{exceptionId}/resolve": {
         parameters: {
             query?: never;
@@ -13480,6 +13496,48 @@ export interface operations {
             path: {
                 businessId: string;
                 employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Leave history */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaveHistoryPage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getLeaveHistoryReport: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                "types[]"?: ("ANNUAL" | "SICK" | "UNPAID" | "OTHER" | "UNEXCUSED_ABSENCE")[] | ("ANNUAL" | "SICK" | "UNPAID" | "OTHER" | "UNEXCUSED_ABSENCE");
+                "statuses[]"?: ("PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "ABSENT")[] | ("PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "ABSENT");
+                branch_id?: string;
+                cursor?: string;
+                limit?: number;
+                employee_id?: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
             };
             cookie?: never;
         };

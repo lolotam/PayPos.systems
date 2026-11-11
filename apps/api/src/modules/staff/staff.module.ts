@@ -1,6 +1,11 @@
 import { DATABASE } from '../../shared/database.token.ts';
 import { LEAVE_HISTORY_READER, LeaveHistoryReader } from './queries/leave-history.query.ts';
+import {
+  LEAVE_HISTORY_REPORT_READER,
+  LeaveHistoryReportReader,
+} from './queries/leave-history-report.query.ts';
 import { EmployeeLeaveHistoryController } from './http/employee-leave-history.controller.ts';
+import { LeaveHistoryReportController } from './http/leave-history-report.controller.ts';
 import { personalBranchReads } from './persistence/personal-branches.adapter.ts';
 import { PERSONAL_BRANCH_READS } from './queries/personal-branches.query.ts';
 import {
@@ -146,6 +151,7 @@ export const staffControllers = [
   EmployeePasskeysController,
   EmployeeLeaveController,
   EmployeeLeaveHistoryController,
+  LeaveHistoryReportController,
   OwnLeaveController,
   LeaveInboxController,
   LeaveDecisionsController,
@@ -213,6 +219,12 @@ function leaveProviders(database: TenantWrappers | undefined, ids: IdGenerator):
       provide: LEAVE_HISTORY_READER,
       useFactory: (db: TenantWrappers | null, access: LeaveReadAccess) =>
         new LeaveHistoryReader(db, access),
+      inject: [DATABASE, LEAVE_READ_ACCESS],
+    },
+    {
+      provide: LEAVE_HISTORY_REPORT_READER,
+      useFactory: (db: TenantWrappers | null, access: LeaveReadAccess) =>
+        new LeaveHistoryReportReader(db, access),
       inject: [DATABASE, LEAVE_READ_ACCESS],
     },
     {
