@@ -35,8 +35,10 @@
 | PP-135 | 2026-11-06 | قرار وليد التقني، كارت/رسالة في شات جلسة تحليل السرعة، مباشر لوليد وفق PP-117. **الإجابة حرفيًا (09:52:19 الكويت):** «نشيل --with-deps من الـ CI (مُوصى به)». إزالة الوسيط من خطوتَي Chromium في `check` و`worker-tests` فقط، وإبقاؤه في صورة worker. | هنا، البند 71؛ الكارتان وردودهما حرفيًا؛ PP-134 في البند 70 |
 | PP-136 | 2026-11-06 | قرار وليد التقني للـ pipeline: مستشار المشروع `pospay-advisor` على Claude Fable 5، قراءة ونصيحة فقط؛ يُستشار قبل القرارات غير البسيطة وكروت المالك وترتيب الدمج وتغيير الخطة. نصيحته غير ملزمة؛ قرارات PP-n والمالك ملزمة. | هنا، البند 72؛ كارت/رسالة في شات جلسة تحليل السرعة، مباشر لوليد وفق PP-117، 09:55:42 الكويت |
 | PP-137 | 2026-11-06 | قرار وليد التقني: تثبيت جهاز GitHub Actions على `ubuntu-24.04` بدل `ubuntu-latest` في كل jobs ملف `ci.yml` (7 jobs)، عشان GitHub متغيّرش صورة الجهاز لوحدها وتكسر الـ CI فجأة. `mobile.yml` خارج النطاق. | هنا، البند 73؛ رسالة نصية في شات جلسة تحليل السرعة، مباشر لوليد وفق PP-117 |
+| PP-138–PP-162 | 2026-11-06 → 2026-11-11 | دفعات متسجلة في ملفات الـ slice بدل الفهرس ده: PP-138 في `docs/plans/901-ended-attachment-eligibility.md` و`docs/specs/058-packages-sell-redeem/46-2a-g-validation.md`؛ PP-146 وPP-148 وPP-149 وPP-151–PP-158 وPP-160–PP-162 في `docs/plans/830-employee-document-popup.md`. PP-139–PP-145 وPP-147 وPP-150 وPP-159 مش موجودين في الـ repo؛ لازم المدير يطابقهم. | ملفات الـ slice المذكورة |
 | PP-163 | 2026-11-11 | PP-163.1 رجوع #908 لاستعادة main الأخضر؛ PP-163.2 حد أكبر عينة في اختبار الأداء يتبدل بـ p99 أو نسبة. **الإجابات حرفيًا:** «Revert #908 first (Recommended)»، «Use p99 or a ratio (Recommended)» | هنا، البند 74؛ كروت مباشرة لوليد وفق PP-117 |
 | PP-164 | 2026-11-11 | رفع حدود حجم #830 لمرة واحدة في PR الإرجاع #917 بأرقام محددة لكل مسار وإجمالي 2650. **الإجابة حرفيًا:** «Raise caps for #917 (Recommended)» | هنا، البند 75؛ كارت مباشر لوليد وفق PP-117 |
+| PP-165 | 2026-11-11 | قاعدة دائمة: اختبار الأداء قبل/بعد على CI مشترك يتقاس بالنسبة للكود القديم في نفس الـ run بس (≤2× وحد إضافي صغير)، ومفيش حد ثابت بالـms؛ شيل `p95 <= 50ms` من اختبار claim-state. **كلام وليد حرفيًا:** «Rely only on the ratio to the old code (≤2×) and drop the fixed 50 ms limit…» PP-165.1: النطاق قبل/بعد بس، وميزانيات §6 الـ 200ms فاضلة («Before/after only (Recommended)») | هنا، البند 76؛ تعليمات مباشرة في المحادثة وفق PP-117، ومتسجلة في CLAUDE.md §9 |
 | PP-1 | 2026-10-18 | PP-1.1 تسجيل دخول Grok؛ PP-1.2 اختيار وليد في دفعة 32؛ PP-1.3 فرز الـ issues المؤجلة | هنا (البنود 3 و2 و4) |
 | PP-2 | 2026-10-18 | PP-2.1 تصحيح سعر سطر موظفته سابت (#325)؛ PP-2.2 صلاحية هوية النشاط (#331) | PP-2.1: `docs/specs/050-orders-record-service-session/owner-questions.ar.md` بند 35 (ED-Q15)، وسؤال فلوس فاتنشر كمان على صفحة القرارات في الدفعة 33 لأبو سالم؛ PP-2.2: `docs/specs/052-settings-business-identity/owner-questions.ar.md` بند 5 (BI-Q5) |
 | PP-3 | 2026-10-18 | PP-3.1 المنع على كل فروع الموظفة | `docs/specs/051-staff-employee-number/owner-questions.ar.md` بند 22 |
@@ -1856,3 +1858,27 @@ so much beteer to creat this advisore for the project level so you and the manag
 **الأثر المعتمد:** رفع لمرة واحدة لـ #917 بس، بالأرقام دي بالظبط (إضافات + حذف مقابل main): `employee-document-open.ts` 280، `employee-document-open.spec.tsx` 255، `employee-document-notification-race.spec.tsx` 330، `apps/admin/e2e/employee-document-popup-browser.ts` 50 كمسار معتمد رقم 16، `.github/workflows/ci.yml` 120، والإجمالي 2650. باقي الحدود زي ما هي. الدمج بعد CI أخضر ومراجعة Codex على الرأس النهائي بالظبط.
 
 **ملحوظة إفصاح:** #909 نفسه اتدمج و`ci-gate` فاشل على رأسه، وده سبب رجوعه في #915.
+
+### 76. الأداء يتقاس بالنسبة للكود القديم بس، من غير حد ثابت بالـms (PP-165، 11 نوفمبر 2026)
+
+**الخلفية:** `rating-claim-state-performance.spec.ts` كان فيه شرط ثابت `patch.p95 <= 50ms` جنب شرط النسبة للقديم. على أجهزة GitHub المشتركة الأرقام بتتغير من run للتاني، والنسخة القديمة نفسها بتعدّي الحدود الثابتة.
+
+**كلام وليد حرفيًا — 2026-11-11 10:46 الكويت:** «2. Rely only on the ratio to the old code (≤2×) and drop the fixed 50 ms limit. Both versions run on the same machine at the same time, so the ratio cancels out most of the runner noise.» ثم «chnag to this rtole permentally also for the furture not to face this isssue again» ثم «and fix it as arole in the memory files».
+
+**القناة والسؤال:** مفيش كارت. المدير كتب في المحادثة إن اختبار أداء الـ worker ممكن يفشل عشوائي (51.71 مقابل 49.99 على #917)، وإنه هيعرض على وليد كارت لو اتكرر: «loosen that test's limit». وليد رد مباشرة في نفس المحادثة بالتعليمات الحرفية اللي فوق. **الاختيارات المعروضة:** رقم «2.» جه في رسالة وليد، والقايمة اللي بيشير لها مش متسجلة في الجلسة دي؛ متسجل الكلام الحرفي بس. **توصية المدير:** مفيش توصية اتقدمت قبل الرد.
+
+**الأثر المعتمد:** شرط `p95 <= 50ms` اتشال. الحكم بقى بالنسبة للنسخة القديمة اللي بتتقاس في نفس الـ run وعلى نفس الجهاز بس: p95 ≤ max(2× القديم، القديم + 5ms)، وp99 ≤ max(2× القديم، القديم + 10ms)، والصفحة كاملة ≤ max(2× القديم، القديم + 50ms). **قاعدة دائمة (نطاقها في PP-165.1):** أي اختبار أداء قبل/بعد في PosPay على CI مشترك يقارن الكود الجديد بالقديم بنسبة، ومفيش حد ثابت بالـms.
+
+**بيلغي:** جملة PP-163.2 «شروط p95 ≤50ms و≤2× للقديم تفضل زي ما هي» في الجزء الخاص بالـ 50ms بس؛ شرط النسبة ≤2× فاضل.
+
+#### PP-165.1 — نطاق القاعدة
+
+**السؤال حرفيًا — 2026-11-11 13:19 الكويت:** «Scope of your PP-165 rule (performance tests judged only by ratio to the old code, no fixed ms limit). Some existing PosPay tests have no old version to compare against. Five API test files check that a database query runs under 200 ms, which comes from the architecture rule that any work over 200 ms must become a background job. Should PP-165 also cover these? […]»
+
+**الاختيارات:** «Before/after only (Recommended)»، «Every perf test».
+
+**رد وليد حرفيًا:** «Before/after only (Recommended)».
+
+**الأثر المعتمد:** القاعدة بتخص اختبارات المقارنة قبل/بعد بس، يعني الكود الجديد مقابل القديم في نفس الـ run. ميزانيات الـ 200ms اللي جاية من CLAUDE.md §6، زي فحوص EXPLAIN أو الوقت الفعلي من غير نسخة قديمة، فاضلة زي ما هي، ومفيش اختبارات تانية بتتغير.
+
+**ملحوظة المدير:** آخر فشل على #917 كان شرط النسبة نفسه، مش الـ 50ms (51.71 مقابل 49.99 = 2× p95 القديم ≈ 25ms). القرار ده بيشيل مصدر فشل عشوائي واحد، لكن النسبة لسه ممكن تفشل لو الجهاز اتأخر في نص الـ run. لو ده اتكرر، يتعرض على وليد.
