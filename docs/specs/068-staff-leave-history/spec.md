@@ -438,9 +438,10 @@ conditions are emitted with the result; a single EXPLAIN is not treated as p95 e
 - The history response carries `as_of` (FR-001 (b)'s boundary instant), which the tab passes to part (a) (TD-2).
 - `GET /v1/businesses/{businessId}/leave-history` — the report. The same query plus `employee_id?`. `last_taken` is filled
   only when `employee_id` is given. **PP-176** ([owner-questions.ar.md](owner-questions.ar.md) §14; design in
-  [plan-68-2.md](plan-68-2.md), D7–D15): this route serves only a fast query (`employee_id` given, or filters that
-  exclude every absence-derived row, or at most `LEAVE_HISTORY_SYNC_SHIFTS` shift rows of schedules in the caller's attendance
-  branches fall in the period, calibrated in 68-2a); a heavy query answers `422 LEAVE_HISTORY_REPORT_REQUIRED`, after
+  [plan-68-2.md](plan-68-2.md), D7–D15): this route serves only a fast query (`employee_id` given; otherwise at most
+  `LEAVE_HISTORY_SYNC_LEAVES` leave rows match the query, and, unless the filters exclude every absence-derived row, at
+  most `LEAVE_HISTORY_SYNC_SHIFTS` shift rows of schedules in the caller's attendance branches fall in the period; both
+  calibrated in 68-2a); a heavy query answers `422 LEAVE_HISTORY_REPORT_REQUIRED`, after
   every authorization, cursor and branch check. A heavy query goes to `POST …/leave-history/reports` (operation `requestLeaveHistoryReport`, body
   `LeaveHistoryReportRequest`, `202 LeaveHistoryReportAccepted { report_id }`, deduplicated per creator, query and
   scope while pending, at most 3 pending per creator, else `409 LEAVE_HISTORY_REPORT_BUSY`), computed once by the
