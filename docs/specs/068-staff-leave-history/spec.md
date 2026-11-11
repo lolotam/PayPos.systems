@@ -442,7 +442,7 @@ conditions are emitted with the result; a single EXPLAIN is not treated as p95 e
   every authorization, cursor and branch check. A heavy query goes to `POST …/leave-history/reports` (operation `requestLeaveHistoryReport`, body
   `LeaveHistoryReportRequest`, `202 LeaveHistoryReportAccepted { report_id }`, deduplicated per creator, query and
   scope while pending, at most 3 pending per creator, else `409 LEAVE_HISTORY_REPORT_BUSY`), computed once by the
-  worker, then `GET …/leave-history/reports/{reportId}?cursor&limit` (operation `getLeaveHistoryReport`,
+  worker, then `GET …/leave-history/reports/{reportId}?cursor&limit` (operation `getLeaveHistoryReportResult`,
   `LeaveHistoryReportStatus`, creator-scoped: `pending`, `failed` with the error envelope (including a report past its
   10-minute deadline, `LEAVE_HISTORY_REPORT_FAILED` or `LEAVE_HISTORY_REPORT_TOO_LARGE`), or `ready` with `computed_at`
   and a `LeaveHistoryPage` read from the stored result, `last_taken` `null`; `404 LEAVE_HISTORY_REPORT_NOT_FOUND`,
