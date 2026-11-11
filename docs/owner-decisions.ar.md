@@ -1840,3 +1840,13 @@ so much beteer to creat this advisore for the project level so you and the manag
 **الرجوع:** لو ظهر بطء حقيقي على staging، نرجّع حد أكبر عينة بقرار جديد من وليد.
 
 **ملحوظة المدير — 2026-11-11 01:05 الكويت (مش قرار من وليد):** بعد ما الـ worker رجع أخضر على #915، `ci-gate` فشل في `admin document popup · production browser`. اتضح إن #909 (`ff551062c`، #830) اتدمج 2026-11-09 22:32 الكويت والـ job ده و`ci-gate` فاشلين على رأسه. المدير قرر، بعد استشارة المستشار (PP-136) ووفق PP-124، يضيف رجوع #909 لنفس الـ PR، فـ `apps` و`packages` و`.github` يرجعوا مطابقين لـ `ad534b69a` بالظبط. #830 يرجع بعدين في PR لوحده بالـ browser job بتاعه.
+
+### 76. الأداء يتقاس بالنسبة للكود القديم بس، من غير حد ثابت بالـms (PP-165، 11 نوفمبر 2026)
+
+**الخلفية:** `rating-claim-state-performance.spec.ts` كان فيه شرط ثابت `patch.p95 <= 50ms` جنب شرط النسبة للقديم. على أجهزة GitHub المشتركة الأرقام بتتغير من run للتاني، والنسخة القديمة نفسها بتعدّي الحدود الثابتة.
+
+**كلام وليد حرفيًا — 2026-11-11 10:46 الكويت:** «2. Rely only on the ratio to the old code (≤2×) and drop the fixed 50 ms limit. Both versions run on the same machine at the same time, so the ratio cancels out most of the runner noise.» ثم «chnag to this rtole permentally also for the furture not to face this isssue again» ثم «and fix it as arole in the memory files».
+
+**الأثر المعتمد:** شرط `p95 <= 50ms` اتشال. الحكم بقى بالنسبة للنسخة القديمة اللي بتتقاس في نفس الـ run وعلى نفس الجهاز بس: p95 ≤ max(2× القديم، القديم + 5ms)، وp99 ≤ max(2× القديم، القديم + 10ms)، والصفحة كاملة ≤ max(2× القديم، القديم + 50ms). **قاعدة دائمة:** أي اختبار أداء في PosPay على CI مشترك يقارن بالقديم بنسبة، ومفيش حد ثابت بالـms.
+
+**ملحوظة المدير:** آخر فشل على #917 كان شرط النسبة نفسه، مش الـ 50ms (51.71 مقابل 49.99 = 2× p95 القديم ≈ 25ms). القرار ده بيشيل مصدر فشل عشوائي واحد، لكن النسبة لسه ممكن تفشل لو الجهاز اتأخر في نص الـ run. لو ده اتكرر، يتعرض على وليد.
