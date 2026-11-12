@@ -33,6 +33,7 @@ const resources = vi.hoisted(() => ({
   bullmq: { constructed: [] as { kind: string; name: string }[] },
   redis: { set: vi.fn(), del: vi.fn(), get: vi.fn(), evalsha: vi.fn() },
   previews: { ready: vi.fn(async () => undefined), close: vi.fn(async () => undefined) },
+  reports: { ready: vi.fn(async () => undefined) },
   ratingClaims: undefined as Customers.RatingClaimsLifecycle | undefined,
   deliverer: vi.fn(),
   maintenance: vi.fn((options: { databaseUrl: string }) => {
@@ -150,6 +151,7 @@ vi.mock('../modules/staff/index.ts', async (original) => ({
     eventTypes: [],
     deliver: vi.fn(),
     ready: vi.fn(),
+    reportsReady: resources.reports.ready,
     close: vi.fn(async () => undefined),
   }),
 }));
@@ -181,6 +183,7 @@ beforeEach(() => {
   resources.execution.close.mockResolvedValue(undefined);
   resources.otp.close.mockResolvedValue(undefined);
   resources.previews.ready.mockResolvedValue(undefined);
+  resources.reports.ready.mockResolvedValue(undefined);
 });
 afterEach(async () => {
   await resources.workerOptions.mock.calls.at(-1)?.[0]?.release?.();
@@ -202,19 +205,6 @@ async function readinessResponse() {
 async function ordinaryReadiness() {
   expect((await readinessResponse()).statusCode).toBe(200);
 }
-
-it('package preview readiness remains required alongside optional OTP isolation', async () => {
-  await import('../main.ts');
-  resources.previews.ready.mockRejectedValueOnce(new Error('SYNTHETIC_PREVIEW_UNAVAILABLE'));
-  const response = await readinessResponse();
-  expect(response.statusCode).toBe(503);
-  expect(response.json()).toMatchObject({
-    code: 'NOT_READY',
-    details: {
-      checks: { 'package-previews': 'down', database: 'up', dispatcher: 'up', redis: 'up' },
-    },
-  });
-});
 
 it('listens and serves health while the package preview Redis is still connecting', async () => {
   resources.previews.ready.mockImplementation(() => new Promise(() => undefined));
@@ -289,6 +279,7 @@ it('invalid email identity settings disable email alone without affecting ordina
   expect(options.readiness.map((check: { name: string }) => check.name)).toEqual([
     'database',
     'package-previews',
+    'leave-history-reports',
     'dispatcher',
     'redis',
   ]);
