@@ -99,3 +99,12 @@ Shared files are edited add-only where possible.
 
 Typecheck, lint, `pnpm lint:docs`, boundaries, `pnpm module-map:check`; contracts and admin tests; the detail query
 spec on a private DB lane; `api:check` for admin/pos/menu. Full `pnpm check` and shards are decided by `ci-gate`.
+
+## Review round 1 (PP-131.2)
+
+Four accepted findings, fixed in one commit.
+
+1. **Remaining-sessions arithmetic (P1).** The subtraction "component remaining minus the sessions held by the other unsaved lines, floored at 0" is now `remainingAfterDraftPicks` in `packages/domain/src/packages/package-draft-remaining.ts` (Arabic JSDoc, exhaustive unit tests, exported from the domain index). Admin `model/session-package-options.ts` keeps the mapping, filtering and the per-entitlement pick count (counting picks is selection bookkeeping, not a rule) and calls the domain function.
+2. **Summary on package lines (HIGH).** `SessionDraftSummary` handles `from_package` before any money parsing: the row shows the «من الباقة» label, it is excluded from the total, and it never shows a price error. A package-only visit shows `0.000` (the existing sum-of-nothing convention; no new money rule).
+3. **Reselecting the same customer (MEDIUM).** D2 is refined: typing in the customer fields emits `onChange(null)` on every keystroke, so a `null` selection never clears picks. Picks are cleared only when a resolved non-null customer id differs from the last known non-null id (a ref seeded from and synced with `result.customerId`, so a cold-recovered draft keeps its picks when the same customer is resolved again).
+4. **Page cap (MEDIUM).** `complete` is true only with no next page. `PackageList.truncated` (next cursor left after 10 pages) disables the earliest-expiry suggestion and shows the `packageListTruncated` note; manual choice from the shown packages stays possible.

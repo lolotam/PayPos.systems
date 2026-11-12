@@ -77,9 +77,12 @@ export function SessionPackageToggle({ scope, customerId, index, occurredAt, pac
         {packages.loading ? <p role="status">{t(locale, 'serviceSessions.packageLoading')}</p> : packages.error ? <>
           <p role="alert">{t(locale, 'serviceSessions.packageLoadFailed')}</p>
           <Button type="button" variant="outline" onClick={packages.retry}>{t(locale, 'serviceSessions.packageRetry')}</Button>
-        </> : packages.complete && options.length === 0 ? <p role="status">{t(locale, 'serviceSessions.packageNoneUsable')}</p> :
-          <SessionPackagePicker scope={scope} customerId={customerId ?? ''} options={options} value={field.value}
-            onChange={field.onChange} suggestedId={suggestPackage(options)} row={index} />}
+        </> : packages.truncated && options.length === 0 ? <p role="status">{t(locale, 'serviceSessions.packageListTruncated')}</p> :
+          packages.complete && options.length === 0 ? <p role="status">{t(locale, 'serviceSessions.packageNoneUsable')}</p> : <>
+            {packages.truncated ? <p role="status">{t(locale, 'serviceSessions.packageListTruncated')}</p> : null}
+            <SessionPackagePicker scope={scope} customerId={customerId ?? ''} options={options} value={field.value}
+              onChange={field.onChange} suggestedId={packages.complete ? suggestPackage(options) : null} row={index} />
+          </>}
         {fieldState.error ? <p role="alert">{fieldState.error.message}</p> : null}
       </>} /> : null}
   </div>;

@@ -41,7 +41,7 @@ function packageItem(id: string, expiresOn: string, patch: Partial<CustomerPacka
 }
 
 function packageList(items: CustomerPackageListItem[], patch: Partial<PackageList> = {}): PackageList {
-  return { items, complete: true, error: false, loading: false, retry: vi.fn(), ...patch };
+  return { items, complete: true, truncated: false, error: false, loading: false, retry: vi.fn(), ...patch };
 }
 
 type HarnessProps = {
@@ -184,4 +184,34 @@ it('turning off clears the pick and hides the picker', async () => {
   expect(toggleButton().getAttribute('aria-pressed')).toBe('false');
   expect(screen.queryByRole('radio')).toBeNull();
   expect(formRef?.getValues('lines.0.package_entitlement_id')).toBeNull();
+});
+
+it('shows a truncation note without suggesting a package and allows a manual pick', () => {
+  renderToggle({ packages: packageList([
+    packageItem('first', '2026-12-01'), packageItem('later', '2027-01-01'),
+  ], { complete: false, truncated: true }) });
+  fireEvent.click(toggleButton());
+
+  expect(radio('Package first').checked).toBe(false);
+  expect(radio('Package later').checked).toBe(false);
+  expect(screen.queryByText(t('en', 'serviceSessions.packageSuggested'))).toBeNull();
+  expect(screen.getByText(t('en', 'serviceSessions.packageListTruncated'))).toBeTruthy();
+  fireEvent.click(radio('Package first'));
+  expect(radio('Package first').checked).toBe(true);
+});
+
+it('shows only the truncation note when a partial list has no usable options', () => {
+  renderToggle({ packages: packageList([], { complete: false, truncated: true }) });
+  fireEvent.click(toggleButton());
+
+  expect(screen.getByText(t('en', 'serviceSessions.packageListTruncated'))).toBeTruthy();
+  expect(screen.queryByText(t('en', 'serviceSessions.packageNoneUsable'))).toBeNull();
+});
+
+it('keeps the no-usable-package message for a complete empty list', () => {
+  renderToggle({ packages: packageList([], { complete: true, truncated: false }) });
+  fireEvent.click(toggleButton());
+
+  expect(screen.getByText(t('en', 'serviceSessions.packageNoneUsable'))).toBeTruthy();
+  expect(screen.queryByText(t('en', 'serviceSessions.packageListTruncated'))).toBeNull();
 });

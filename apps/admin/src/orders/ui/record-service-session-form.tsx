@@ -3,7 +3,7 @@ import type { RecordingContext } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useEffect, useRef, useState } from 'react';
-import { FormProvider, useForm, useWatch, type UseFormReset } from 'react-hook-form';
+import { FormProvider, useForm, useWatch, type UseFormReset, type UseFormReturn } from 'react-hook-form';
 import { useRevokeOwnRecording } from '../api/use-own-recordings';
 import type { SessionServiceScope } from '../api/use-session-services';
 import type { ExpiredRecoveryProof, SessionAttemptJournal } from '../model/session-attempt-journal';
@@ -13,7 +13,7 @@ import { confirmExpiredRecording, leaveUnknownVisit, sessionLeaveFeedback, sessi
 import { reportSessionSubmitError } from '../model/session-submit-error';
 import type { SessionRecordingController } from '../model/use-session-recording';
 import { useLocale } from '@/shared/locale/locale-context';
-import { SessionCustomerField } from './session-customer-field';
+import { SessionCustomerField, type SessionCustomerSelection } from './session-customer-field';
 import { SessionDraftLines } from './session-draft-lines';
 import { SessionRecordingHeader } from './session-recording-header';
 import { SessionRejectedLines } from './session-rejected-lines';
@@ -65,6 +65,15 @@ function leaveUnknownTimeVisit(result: SessionRecordingResult, journal: Pick<Ses
   catch (error) { report(sessionLeaveFeedback(error)); }
 }
 
+// الكتابة في حقول الزبونة بتبعت null؛ ده مش تغيير للزبونة، والمسح يحصل فقط بعد تحديد زبونة مختلفة.
+function changeSessionCustomer(customer: SessionCustomerSelection | null, result: SessionRecordingResult,
+  recording: SessionRecordingController, form: UseFormReturn<SessionDraftForm>, lastKnownCustomerId: { current: string | null }) {
+  const customerChanged = customer !== null && customer.id !== lastKnownCustomerId.current;
+  if (customer !== null) lastKnownCustomerId.current = customer.id;
+  recording.selectCustomer(customer);
+  if (result.sessionId === null && customerChanged) form.setValue('lines', clearPackagePicks(form.getValues('lines')));
+}
+
 export function RecordServiceSessionForm({ scope, context, online, recording, onRefreshScope }: {
   scope: SessionServiceScope; context: RecordingContext; online: boolean; recording: SessionRecordingController;
   onRefreshScope: () => void;
@@ -72,6 +81,10 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   const locale = useLocale();
   const revoke = useRevokeOwnRecording();
   const { result, journal } = recording;
+  const lastKnownCustomerId = useRef<string | null>(result.customerId);
+  useEffect(() => {
+    if (result.customerId !== null) lastKnownCustomerId.current = result.customerId;
+  }, [result.customerId]);
   const frozen = sessionResultFrozen(result);
   // أول حفظ بيثبّت رأس الزيارة (الزبونة والوقت والعضوية)؛ سطور التصحيح بس اللي تفضل مفتوحة.
   const locked = frozen || result.sessionId !== null;
@@ -99,10 +112,8 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
       try { await recording.submit(drafts); } catch (error) { reportSessionSubmitError(form.setError, error, locale); }
     })}>
       <SessionCustomerField companyId={scope.companyId} branchId={scope.branchId} userId={scope.userId}
-        value={result.customer} onChange={(customer) => {
-          recording.selectCustomer(customer);
-          if (result.sessionId === null) form.setValue('lines', clearPackagePicks(form.getValues('lines')));
-        }} disabled={!online || locked} />
+        value={result.customer} onChange={(customer) => changeSessionCustomer(customer, result, recording, form, lastKnownCustomerId)}
+        disabled={!online || locked} />
       {timeUnknown ? <div className="grid gap-2">
         <p role="alert">{t(locale, 'serviceSessions.unknownVisitTime')}</p>
         <Button type="button" variant="outline" disabled={!journal || editBusy} onClick={() => { if (editBusy) return; leaveUnknownTimeVisit(result, journal, recording.replaceResult, (feedback) => setLeaveFailure({ source: result, feedback })); }}>{t(locale, 'serviceSessions.newVisitSameCustomer')}</Button>

@@ -48,20 +48,22 @@ function Harness() {
     onRefreshScope={() => undefined} />;
 }
 
-function installReads(remaining = 2) {
+function installReads(remaining = 2, neverEnding = false) {
   const component = packageItem.components[0];
   if (!component) throw new Error('Missing package component');
   const item = { ...packageItem, components: [{ ...component, remaining }] };
   state.get.mockImplementation((path: string) => Promise.resolve({
     data: String(path).endsWith('/recording-context') ? context
-      : String(path).endsWith('/packages') ? { items: [item], next_cursor: null }
+      : String(path).endsWith('/packages') ? { items: [item], next_cursor: neverEnding ? 'more' : null }
         : { items: String(path).endsWith('/performer-options') ? [performer] : [service], next_cursor: null },
   }));
 }
 
-async function mount(remaining = 2) {
-  installReads(remaining);
-  state.post.mockResolvedValue({ data: complete, response: { status: 201 } });
+async function mount(remaining = 2, neverEnding = false) {
+  installReads(remaining, neverEnding);
+  state.post.mockImplementation((path: string) => Promise.resolve(String(path).includes('/customers/')
+    ? { data: { id: id(42), name: 'Another synthetic customer', locale: 'ar', opted_out: false, phone: '***002' } }
+    : { data: complete, response: { status: 201 } }));
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   render(<QueryClientProvider client={client}><Harness /></QueryClientProvider>);
   await screen.findByText(customer.name);
@@ -149,7 +151,7 @@ it('disables the second pick of the last session while keeping the first pick va
   expect(screen.queryByText(t('en', 'serviceSessions.packageExhausted'))).toBeNull();
 });
 
-it('changing the customer before the first save clears package mode on every line', async () => {
+it('resolving a different customer before the first save clears package mode on every line', async () => {
   await mount();
   await chooseLine(0);
   await selectPackage(0);
@@ -157,11 +159,14 @@ it('changing the customer before the first save clears package mode on every lin
   await chooseLine(1);
   await selectPackage(1);
   fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.name')), { target: { value: 'Another customer' } });
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.callingCode')), { target: { value: '999' } });
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.phone')), { target: { value: '00000001' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.findOrCreate') }));
   await waitFor(() => {
     const toggles = screen.getAllByRole('button', { name: t('en', 'serviceSessions.fromPackage') });
     expect(toggles.every((toggle) => toggle.getAttribute('aria-pressed') === 'false')).toBe(true);
   });
-  expect(screen.getAllByText(t('en', 'serviceSessions.packageNoCustomer')).length).toBeGreaterThan(0);
+  expect(screen.queryByRole('radiogroup', { name: t('en', 'serviceSessions.packagePicker') })).toBeNull();
 });
 
 it('keeps a paid neighbour editable and sends its paid body beside the package body', async () => {
@@ -179,4 +184,21 @@ it('keeps a paid neighbour editable and sends its paid body beside the package b
     { service_id: service.id, price: '7.125', discount: { kind: 'AMOUNT', amount: '0.000' },
       performers: [{ employee_id: performer.id }] },
   ]);
+});
+
+it('shows the truncation note at the page cap and permits a manual package pick', async () => {
+  await mount(2, true);
+  await chooseLine(0);
+  fireEvent.click(packageToggle(0));
+  await waitFor(() => {
+    const reads = state.get.mock.calls.filter(([path]) => String(path).endsWith('/packages'));
+    expect(reads).toHaveLength(10);
+  });
+
+  expect(await screen.findByText(t('en', 'serviceSessions.packageListTruncated'))).toBeTruthy();
+  const option = within(lineGroup(0)).getByRole('radio') as HTMLInputElement;
+  expect(option.checked).toBe(false);
+  expect(screen.queryByText(t('en', 'serviceSessions.packageSuggested'))).toBeNull();
+  fireEvent.click(option);
+  expect(option.checked).toBe(true);
 });

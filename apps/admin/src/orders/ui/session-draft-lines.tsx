@@ -30,7 +30,8 @@ export function SessionDraftLines({ scope, customerId, occurredAt, disabled = fa
   }, [fetchNextPage, hasNextPage, isFetchingNextPage, pages, query.isError]);
   const packages: PackageList = {
     items: query.data?.items ?? [],
-    complete: (!hasNextPage || pages >= 10) && !query.isPending,
+    complete: !hasNextPage && !query.isPending,
+    truncated: hasNextPage && pages >= 10 && !query.isError,
     error: query.isError,
     loading: query.isPending || (!query.isError && hasNextPage && pages < 10),
     retry: () => { void query.refetch(); },

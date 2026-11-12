@@ -1,3 +1,4 @@
+import { remainingAfterDraftPicks } from '@pospay/domain';
 import type { CustomerPackageListItem } from '@pospay/contracts';
 import type { SessionDraftLine } from './session-drafts';
 
@@ -11,10 +12,11 @@ export type PackageOption = {
   remaining: number;
 };
 
-/** حالة القائمة المشتركة بين السطور حتى لا يبدأ كل سطر قراءة أو ترقّيًا مستقلًا. */
+/** حالة القائمة المشتركة بين السطور حتى لا يبدأ كل سطر قراءة أو ترقّيًا مستقلًا؛ truncated تعني قائمة جزئية عند حد الصفحات. */
 export type PackageList = {
   items: CustomerPackageListItem[];
   complete: boolean;
+  truncated: boolean;
   error: boolean;
   loading: boolean;
   retry: () => void;
@@ -47,7 +49,7 @@ export function packageOptionsForService(
       name_ar: item.name_ar,
       expires_on: item.expires_on,
       expired: item.expired,
-      remaining: Math.max(0, component.remaining - picked),
+      remaining: remainingAfterDraftPicks(component.remaining, picked),
     }];
   });
 }

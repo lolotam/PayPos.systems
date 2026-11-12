@@ -85,6 +85,18 @@ it('keeps service matches in list order and reduces only by other picks of the s
     .toEqual(['a', 'd', 'f']);
 });
 
+it('keeps an option listed at zero when other picks exceed its remaining sessions', () => {
+  const item = packageItem('a', serviceId, 1);
+  const otherPicks = [
+    { entitlement_id: 'a', service_id: serviceId },
+    { entitlement_id: 'a', service_id: serviceId },
+  ];
+
+  expect(packageOptionsForService([item], serviceId, otherPicks, false)).toEqual([
+    expect.objectContaining({ id: 'a', remaining: 0 }),
+  ]);
+});
+
 it('suggests the smallest expiry and breaks an expiry tie by id', () => {
   const options = [
     option('b', { expires_on: '2027-01-01' }),
