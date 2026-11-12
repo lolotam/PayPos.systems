@@ -1,6 +1,6 @@
 import { sql, type SQL } from 'drizzle-orm';
-import { currentAttachment, type BranchDay } from '@pospay/db';
-import type { LeaveReadContext } from './leave-requests.query.ts';
+import { currentAttachment, type BranchDay } from '../employee-branch-links.ts';
+import type { LeaveHistoryContext } from './types.ts';
 
 import { uuidArray as historyIds } from './leave-list-record.sql.ts';
 export { uuidArray as historyIds } from './leave-list-record.sql.ts';
@@ -15,7 +15,7 @@ export type HistoryScope = {
   // يوم كل فرع في مجال القراءة؛ تتحقق منه الجملة الأخيرة قبل كشف صفحة السجل.
   eligibilityDays?: BranchDay[];
 };
-export function historyCoverage(c: LeaveReadContext, s: HistoryScope) {
+export function historyCoverage(c: LeaveHistoryContext, s: HistoryScope) {
   // سجل الإجازات يحتاج الحكم على كل حقيقة بمجالها، من غير كشف الحقيقة المخفية.
   return sql`SELECT
     EXISTS (SELECT 1 FROM leave_requests l WHERE l.company_id=${c.companyId}
@@ -38,7 +38,7 @@ export function historyCoverage(c: LeaveReadContext, s: HistoryScope) {
  * 'current' يطابق أهلية الملف بيوم كل فرع؛ 'any' يتبع قاعدة صندوق الطلبات بلا شرط انتهاء.
  */
 export function historyEmployeeVisible(
-  c: LeaveReadContext,
+  c: LeaveHistoryContext,
   s: HistoryScope,
   alias: 'e' | 'subject',
   attachment: 'current' | 'any',
@@ -53,7 +53,7 @@ export function historyEmployeeVisible(
       AND eb.branch_id=ANY(${historyIds(branches)})
       ${attachment === 'current' ? sql`AND ${currentAttachment(eligibilityDays)}` : sql``})`;
 }
-export function historyDays(c: LeaveReadContext, s: HistoryScope, asOf: string, bound: SQL) {
+export function historyDays(c: LeaveHistoryContext, s: HistoryScope, asOf: string, bound: SQL) {
   // التجميع يسبق أهلية اليوم حتى تفضل كل ورديات اليوم ومعرّفه ثابتين بين الورديات.
   return sql`SELECT d.*, coverage.* FROM (
     SELECT sh.employee_id, sc.branch_id, sh.working_date,

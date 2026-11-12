@@ -1,9 +1,9 @@
 import { sql } from 'drizzle-orm';
-import type { LeaveReadContext } from './leave-requests.query.ts';
+import type { LeaveHistoryContext } from './types.ts';
 import { historyIds, type HistoryScope } from './leave-history-days.sql.ts';
 import { historyLatestAbsence } from './leave-history-last-absence.sql.ts';
 
-export function historyLastTaken(c: LeaveReadContext, s: HistoryScope, asOf: string) {
+export function historyLastTaken(c: LeaveHistoryContext, s: HistoryScope, asOf: string) {
   // سطر آخر الإجازات في ملف الموظف مستقل عن فترة الصفحات.
   const leave = (type: string) => sql`(SELECT jsonb_build_object('from',l."from",'to',l."to")
     FROM leave_requests l WHERE l.company_id=${c.companyId} AND l.business_id=${c.businessId}

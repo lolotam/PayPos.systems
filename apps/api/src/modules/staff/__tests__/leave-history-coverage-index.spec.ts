@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { leaveHistoryReportQuery, type LeaveHistoryReportQuery } from '@pospay/contracts';
 import { createLeaveReadAccess } from '../persistence/leave-read-access.adapter.ts';
-import { leaveHistorySql } from '../queries/leave-history.query.ts';
+import { leaveHistorySql } from '@pospay/db';
 import { leaveFixture, leaveIds, type LeaveFixture } from './leave-history.fixture.ts';
 import { seedHistoryVolume } from './leave-history-performance.fixture.ts';
 
