@@ -94,6 +94,21 @@ it('legal transition pending -> failed is refused when rows exist', async () => 
   });
 });
 
+it('pending -> failed with computed_at set is refused', async () => {
+  const rId = await asApp((tx) => insertLeaveReport(tx));
+  await expect(
+    asApp(
+      (tx) =>
+        tx`UPDATE leave_history_reports
+           SET status = 'failed', error_code = 'LEAVE_HISTORY_REPORT_FAILED', row_count = 0, computed_at = now()
+           WHERE id = ${rId}`,
+    ),
+  ).rejects.toMatchObject({
+    code: '23514',
+    message: expect.stringContaining('LEAVE_HISTORY_REPORT_FAILED_HAS_ROWS'),
+  });
+});
+
 it('legal transition pending -> failed succeeds when zero rows exist', async () => {
   const rId = await asApp((tx) => insertLeaveReport(tx));
   const updated = await asApp((tx) =>
@@ -179,6 +194,11 @@ it('row insert is refused unless parent report is found and pending', async () =
 it.each([
   // CHECKs بتتفحص بالترتيب الأبجدي؛ حالة غير معروفة بترفضها shape_check قبل status_check، والاتنين بيرفضوها.
   ['invalid status', { status: 'in_progress' }, 'leave_history_reports_shape_check'],
+  [
+    'failed with computed_at',
+    { status: 'failed', error_code: 'LEAVE_HISTORY_REPORT_FAILED', computed_at: new Date('2026-11-12T10:01:00Z') },
+    'leave_history_reports_shape_check',
+  ],
   ['negative row_count', { row_count: -1 }, 'leave_history_reports_row_count_check'],
   ['row_count > 25000', { row_count: 25001 }, 'leave_history_reports_row_count_check'],
   ['invalid fingerprint', { fingerprint: 'not-hex' }, 'leave_history_reports_fingerprint_check'],
@@ -222,13 +242,31 @@ it('CHECK constraint on rows: seq >= 1', async () => {
   });
 });
 
+// ننتظر حتى يتعطل المعامل على قفل غيره، بحد أقصى عشر ثوانٍ؛ وإن انتهى قبل ذلك فالاختبار فاشل.
+async function waitUntilBlocked(pending: Promise<unknown>): Promise<void> {
+  let settled = false;
+  pending.then(
+    () => (settled = true),
+    () => (settled = true),
+  );
+  for (let attempt = 0; attempt < 500; attempt += 1) {
+    if (settled) throw new Error('transaction settled before it blocked on the row insert');
+    const waiting = await owner<{ waiting: boolean }[]>`
+      SELECT true AS waiting FROM pg_locks WHERE NOT granted`;
+    if (waiting.length > 0) return;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  throw new Error('transaction never blocked within ten seconds');
+}
+
 it('concurrent row insert vs completion: end state is never a ready report with mismatched row count', async () => {
   const rId = await asApp((tx) => insertLeaveReport(tx));
   const conn1 = postgres(testDb.appUrl, { max: 1 });
   const conn2 = postgres(testDb.appUrl, { max: 1 });
+  let releaseLock: () => void = () => undefined;
+  let tx1: Promise<unknown> | undefined;
 
   try {
-    let releaseLock: () => void = () => undefined;
     const holdTx = new Promise<void>((resolve) => {
       releaseLock = resolve;
     });
@@ -237,7 +275,7 @@ it('concurrent row insert vs completion: end state is never a ready report with 
     const inserted = new Promise<void>((resolve) => {
       markInserted = resolve;
     });
-    const tx1 = conn1.begin(async (tx) => {
+    tx1 = conn1.begin(async (tx) => {
       await tx`SELECT set_config('app.company_id', ${TENANT.A.company}, true), set_config('app.user_id', ${USER}, true)`;
       await insertLeaveReportRow(tx, rId, 1);
       markInserted();
@@ -253,13 +291,7 @@ it('concurrent row insert vs completion: end state is never a ready report with 
                WHERE id = ${rId}`;
     });
 
-    // Wait until tx2 is waiting for tx1's lock
-    while (true) {
-      const blocked = await owner<{ waiting: boolean }[]>`
-        SELECT true AS waiting FROM pg_locks WHERE NOT granted`;
-      if (blocked.length > 0) break;
-      await new Promise((r) => setTimeout(r, 20));
-    }
+    await waitUntilBlocked(tx2);
 
     // Release tx1 to commit its row insert
     releaseLock();
@@ -282,6 +314,8 @@ it('concurrent row insert vs completion: end state is never a ready report with 
     );
     expect(rowCount?.count).toBe('1');
   } finally {
+    releaseLock();
+    await tx1?.catch(() => undefined);
     await conn1.end();
     await conn2.end();
   }

@@ -84,7 +84,7 @@ const reportChecks = (t: ReportsSelf) => [
     'leave_history_reports_shape_check',
     sql`(${t.status} = 'pending' AND ${t.errorCode} IS NULL AND ${t.computedAt} IS NULL AND ${t.rowCount} = 0)
       OR (${t.status} = 'ready' AND ${t.errorCode} IS NULL AND ${t.computedAt} IS NOT NULL)
-      OR (${t.status} = 'failed' AND ${t.errorCode} IS NOT NULL AND ${t.rowCount} = 0)`,
+      OR (${t.status} = 'failed' AND ${t.errorCode} IS NOT NULL AND ${t.computedAt} IS NULL AND ${t.rowCount} = 0)`,
   ),
   check(
     'leave_history_reports_error_code_check',

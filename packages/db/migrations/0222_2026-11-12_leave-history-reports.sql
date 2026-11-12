@@ -29,7 +29,7 @@ CREATE TABLE "leave_history_reports" (
 	CONSTRAINT "leave_history_reports_row_count_check" CHECK ("leave_history_reports"."row_count" BETWEEN 0 AND 25000),
 	CONSTRAINT "leave_history_reports_shape_check" CHECK (("leave_history_reports"."status" = 'pending' AND "leave_history_reports"."error_code" IS NULL AND "leave_history_reports"."computed_at" IS NULL AND "leave_history_reports"."row_count" = 0)
       OR ("leave_history_reports"."status" = 'ready' AND "leave_history_reports"."error_code" IS NULL AND "leave_history_reports"."computed_at" IS NOT NULL)
-      OR ("leave_history_reports"."status" = 'failed' AND "leave_history_reports"."error_code" IS NOT NULL AND "leave_history_reports"."row_count" = 0)),
+      OR ("leave_history_reports"."status" = 'failed' AND "leave_history_reports"."error_code" IS NOT NULL AND "leave_history_reports"."computed_at" IS NULL AND "leave_history_reports"."row_count" = 0)),
 	CONSTRAINT "leave_history_reports_error_code_check" CHECK ("leave_history_reports"."error_code" IS NULL OR "leave_history_reports"."error_code" IN ('LEAVE_HISTORY_REPORT_FAILED', 'LEAVE_HISTORY_REPORT_TOO_LARGE')),
 	CONSTRAINT "leave_history_reports_fingerprint_check" CHECK ("leave_history_reports"."fingerprint" ~ '^[0-9a-f]{64}$'),
 	CONSTRAINT "leave_history_reports_json_size_check" CHECK (octet_length("leave_history_reports"."query"::text) <= 8192 AND octet_length("leave_history_reports"."scope"::text) <= 65536),
@@ -94,7 +94,7 @@ BEGIN
         RAISE EXCEPTION 'LEAVE_HISTORY_REPORT_ROW_COUNT_MISMATCH' USING ERRCODE = '23514';
       END IF;
     ELSIF NEW.status = 'failed' THEN
-      IF NEW.error_code IS NULL OR NEW.row_count <> 0 OR EXISTS (
+      IF NEW.error_code IS NULL OR NEW.computed_at IS NOT NULL OR NEW.row_count <> 0 OR EXISTS (
         SELECT 1 FROM leave_history_report_rows
         WHERE company_id = NEW.company_id AND report_id = NEW.id
       ) THEN

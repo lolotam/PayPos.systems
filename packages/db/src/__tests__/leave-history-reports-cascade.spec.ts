@@ -122,6 +122,10 @@ it('expiry cleanup index exists and is used without Seq Scan', async () => {
   expect(indexRow?.indexdef).toBeDefined();
   expect(indexRow?.indexdef).toContain('(company_id, expires_at)');
 
+  // أساس زمني ثابت: as_of وكل expires_at يُشتقان منه، فأقرب انتهاء يأتي دائماً بعد as_of ولا يتأثر بساعة التشغيل.
+  const base = new Date('2026-11-12T10:00:00Z');
+  const cutoff = new Date(base.getTime() + 150 * 60_000);
+
   // Seed 300 reports across various expiration intervals
   const reportsToInsert = Array.from({ length: 300 }, (_, i) => ({
     company_id: TENANT.A.company,
@@ -131,13 +135,13 @@ it('expiry cleanup index exists and is used without Seq Scan', async () => {
     query: owner.json({ i }),
     fingerprint: '4'.repeat(64),
     scope: owner.json({ i }),
-    as_of: new Date('2026-11-12T10:00:00Z'),
-    deadline_at: new Date('2026-11-12T10:05:00Z'),
+    as_of: base,
+    deadline_at: new Date(base.getTime() + 5 * 60_000),
     status: 'pending',
     error_code: null,
     row_count: 0,
     computed_at: null,
-    expires_at: new Date(Date.now() + (i - 150) * 60_000),
+    expires_at: new Date(base.getTime() + (i + 1) * 60_000),
   }));
 
   await owner`INSERT INTO leave_history_reports ${owner(reportsToInsert)}`;
@@ -146,7 +150,7 @@ it('expiry cleanup index exists and is used without Seq Scan', async () => {
     await tx`SET enable_seqscan = off`;
     return tx<{ 'QUERY PLAN': string }[]>`
       EXPLAIN SELECT id FROM leave_history_reports
-      WHERE company_id = ${TENANT.A.company} AND expires_at <= now()`;
+      WHERE company_id = ${TENANT.A.company} AND expires_at <= ${cutoff}`;
   }, TENANT.A);
 
   const planText = plan.map((p) => p['QUERY PLAN']).join('\n');

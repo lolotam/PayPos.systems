@@ -380,7 +380,7 @@ None of these changes the 27g code. 68-1b mirrors the same fixtures on the histo
 
 **PP-176 (68-2b):** two tenant tables for background reports, `leave_history_reports` and `leave_history_report_rows`,
 with RLS, exact column grants, transition and immutability triggers (terminal states never change, `row_count` matches the stored rows), indexes and their negative isolation tests ([plan-68-2.md](plan-68-2.md) D11); the
-retention is one hour (PP-178, [owner-questions.ar.md](owner-questions.ar.md) §15); a stored report over 25,000 rows is refused before the build by a bounded count (PP-179, §17). 68-2b-2 ships the tables, worker job and cleanup inert ([plan-68-2b-2.md](plan-68-2b-2.md)). The
+retention is one hour (PP-178, [owner-questions.ar.md](owner-questions.ar.md) §15); a stored report over 25,000 rows is refused before the build by a bounded count (PP-179, §17). 68-2b-2a ships the tables only; 68-2b-2b ships the worker job and cleanup inert, and 68-2c waits for 68-2b-2b worker readiness ([plan-68-2b-2.md](plan-68-2b-2.md)). The
 leave-history SQL builder moves to `packages/db/src/leave-history/` so the worker runs the same SQL (TD-3, D12).
 
 Otherwise none. The reads rely on existing indexes; the EXPLAIN tests decide:

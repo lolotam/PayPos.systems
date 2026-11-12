@@ -558,6 +558,6 @@ A timeout, a server-side cancel (`57014`, `25P03`), a crossed deadline or an inv
 progress and `moveToDelayed`. A lost commit reply is resolved by re-reading the row (a `ready` row wins). No connection
 drain exists on timeout (the worker's database is not the bounded wrapper), so the failure write has its own timeout.
 
-**Deploy ordering.** 68-2c merges only after 68-2b-2a and 68-2b-2b are deployed to staging with the worker's `/ready` including the
-`leave-history-reports` check (build and cleanup workers). Rollback floor: the API first, then the worker. A lost cleanup
+**Deploy ordering.** 68-2b-2a ships tables only, so it adds nothing to wait for; 68-2c waits for 68-2b-2b worker readiness and merges
+only after 68-2b-2b is deployed to staging with the worker's `/ready` including the `leave-history-reports` check (build and cleanup workers). Rollback floor: the API first, then the worker. A lost cleanup
 scheduler (Redis flush) leaves expired reports until that company's next event: accepted.

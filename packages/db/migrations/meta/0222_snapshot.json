@@ -16967,7 +16967,7 @@
         },
         "leave_history_reports_shape_check": {
           "name": "leave_history_reports_shape_check",
-          "value": "(\"leave_history_reports\".\"status\" = 'pending' AND \"leave_history_reports\".\"error_code\" IS NULL AND \"leave_history_reports\".\"computed_at\" IS NULL AND \"leave_history_reports\".\"row_count\" = 0)\n      OR (\"leave_history_reports\".\"status\" = 'ready' AND \"leave_history_reports\".\"error_code\" IS NULL AND \"leave_history_reports\".\"computed_at\" IS NOT NULL)\n      OR (\"leave_history_reports\".\"status\" = 'failed' AND \"leave_history_reports\".\"error_code\" IS NOT NULL AND \"leave_history_reports\".\"row_count\" = 0)"
+          "value": "(\"leave_history_reports\".\"status\" = 'pending' AND \"leave_history_reports\".\"error_code\" IS NULL AND \"leave_history_reports\".\"computed_at\" IS NULL AND \"leave_history_reports\".\"row_count\" = 0)\n      OR (\"leave_history_reports\".\"status\" = 'ready' AND \"leave_history_reports\".\"error_code\" IS NULL AND \"leave_history_reports\".\"computed_at\" IS NOT NULL)\n      OR (\"leave_history_reports\".\"status\" = 'failed' AND \"leave_history_reports\".\"error_code\" IS NOT NULL AND \"leave_history_reports\".\"computed_at\" IS NULL AND \"leave_history_reports\".\"row_count\" = 0)"
         },
         "leave_history_reports_error_code_check": {
           "name": "leave_history_reports_error_code_check",
