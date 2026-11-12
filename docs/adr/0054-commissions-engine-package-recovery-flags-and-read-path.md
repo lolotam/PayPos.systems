@@ -224,7 +224,8 @@ no import arrow); sub-PR 50-3c adds them with their `docs/module-map.md` Port ro
 
 A root-bound read adds a **Port row** to `docs/module-map.md` §3 and **no import arrow** and **no `reads:` line** (a
 `reads` line is for an import arrow and must name its adapter file, so it is added only by a sub-PR that really needs an
-import). 59-0 adds those Port rows to `docs/module-map.md` §3 in the same PR.
+import). 59-0 added the Port rows for its own root-bound readers to `docs/module-map.md` §3 in the same PR; the two
+coverage readers of the 2026-11-12 addendum get theirs in sub-PR 50-3c, the PR that adds the readers.
 
 **The rule from D-16:** if a reader cannot be bound at the root, the sub-PR that needs it stops and adds an ADR and the
 module-map row first.
