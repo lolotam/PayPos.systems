@@ -84,3 +84,12 @@ Then `clean-code-guard`, `test-guard`, `docs-guard`.
 | 2 | A failed history refetch keeps the last data, so a stale `as_of` reaches the open list | `as_of` is sent only while `history.isSuccess`; otherwise `open: 'true'` alone (the server clock), as D2 says; test: history refetch fails, open list keeps rendering without `as_of` |
 | 3 | Default-period zone should be the business's effective time zone | **Stopped, no code change.** No business zone is readable from the admin without a contract change: `WorkspaceBusiness` has no zone; `BusinessSettings` (`GET /settings`, needs `read:settings:business`, so not a branch manager) has no zone field; the history route requires `from`/`to`, so the server defaults nothing. D1 (primary branch zone, then the first branch) stays until the manager picks an option (see the report) |
 | 4 | The branch filter lists every workspace branch | The workspace branch list is already limited to the branches the caller's membership scopes reach (`describe-workspaces.query.ts`: COMPANY, BUSINESS and BRANCH scopes each expand only to their own branches), so a branch-scoped caller already sees only her branch; no other per-permission source exists and `request_branch_ids` is create scope, so it is not used. Residual gap: a custom role or personal grant that reads fewer branches than the membership reaches still gets a 404 shown as the part (b) alert, which the filter form lets her correct; a read-scope field on the response is the proper fix (API PR, to be linked as an issue by the manager). Test added: the selector offers exactly the workspace branches |
+
+## Review round 2 (PR #958)
+
+| # | Finding | Decision |
+|---|---|---|
+| 1 | The default period froze the first-branch zone while the employee record loaded | The panel mounts the leave section only after the record has settled (loading status meanwhile); on a record error the first branch is used, as D1 says; test: loading, then the primary zone wins |
+| 2 | Hand-written enum and shift types | `HistoryType`, `HistoryStatus` derive from `LeaveHistoryQuery`, `Shift` from the absence variant of `LeaveHistoryItem` (types only) |
+| 3 | A failed open-list page 2 hid «Previous page» | The open list keeps the pagination when `open.isError` (next null, not fetching), like the history panel; test: page 2 fails, Previous reloads page 1 |
+| 4 | §16 wording (PENDING) | Unchanged on purpose: the PR keeps the existing labels; the question is a later unification |

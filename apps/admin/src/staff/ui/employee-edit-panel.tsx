@@ -100,7 +100,10 @@ export function EmployeeEditPanel({
         locale,
         hidden: tab !== 'data',
       })}
-      {tab === 'leave' ? (
+      {tab === 'leave' && record.isPending ? (
+        <p role="status">{t(locale, 'admin.loading')}</p>
+      ) : null}
+      {tab === 'leave' && !record.isPending ? (
         <EmployeeLeaveSection
           {...{ companyId, businessId: business.id, userId, employeeId }}
           branches={business.branches}

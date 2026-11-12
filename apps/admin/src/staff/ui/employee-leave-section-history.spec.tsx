@@ -347,3 +347,28 @@ it('offers exactly the workspace branches in the branch filter', async () => {
     'Second synthetic branch',
   ]);
 });
+
+it('page 2 of the open list fails, Previous page is visible and reloads page 1', async () => {
+  routeGets({
+    history: () => ({ data: historyPage() }),
+    open: (query) =>
+      query.cursor === '01920000-0000-7000-8000-000000000a09'
+        ? failure(400)
+        : {
+            data: openPage({
+              items: [{ ...leaveDecisionRecord, decision_reason: 'Synthetic open page one' }],
+              next_cursor: '01920000-0000-7000-8000-000000000a09',
+            }),
+          },
+  });
+  renderSection();
+  await screen.findByText('Synthetic open page one');
+  fireEvent.click(within(openRegion()).getByRole('button', { name: t('en', 'leave.next') }));
+  expect(await within(openRegion()).findByRole('alert')).toBeTruthy();
+  const previous = within(openRegion()).getByRole('button', { name: t('en', 'leave.previous') });
+  expect(previous).toHaveProperty('disabled', false);
+  fireEvent.click(previous);
+  await screen.findByText('Synthetic open page one');
+  expect(within(openRegion()).queryByRole('alert')).toBeNull();
+  expect(queries('/leave-requests').at(-1)).not.toHaveProperty('cursor');
+});

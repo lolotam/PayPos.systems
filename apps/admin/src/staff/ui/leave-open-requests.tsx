@@ -48,13 +48,15 @@ export function LeaveOpenRequests({
             onCancel={onCancel}
           />
           {open.data.items.length === 0 ? <p>{t(locale, 'leaveHistory.openEmpty')}</p> : null}
-          <LeavePagination
-            cursor={cursor}
-            next={open.data.next_cursor}
-            fetching={open.isFetching}
-            onPage={onPage}
-          />
         </>
+      ) : null}
+      {showRows || open.isError ? (
+        <LeavePagination
+          cursor={cursor}
+          next={open.isError ? null : (open.data?.next_cursor ?? null)}
+          fetching={open.isError ? false : open.isFetching}
+          onPage={onPage}
+        />
       ) : null}
       {allowed.length > 0 ? (
         <LeaveRequestForm

@@ -5,7 +5,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 
 type Row = LeaveHistoryItem;
 type LeaveRow = Extract<Row, { row_type: 'LEAVE' }>;
-type Shift = { start: string; end: string };
+type Shift = Extract<Row, { row_type: 'UNEXCUSED_ABSENCE' }>['shifts'][number];
 export type LeaveHistoryActions = {
   onCancel: (row: LeaveRow) => void;
   onDecide: (row: LeaveRow, decision: 'APPROVED' | 'REJECTED') => void;

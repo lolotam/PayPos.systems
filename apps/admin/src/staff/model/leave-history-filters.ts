@@ -1,8 +1,8 @@
 import { leaveHistoryQuery, type LeaveHistoryQuery } from '@pospay/contracts';
 import { localDate } from '@pospay/i18n';
 
-type HistoryType = 'ANNUAL' | 'SICK' | 'UNPAID' | 'OTHER' | 'UNEXCUSED_ABSENCE';
-type HistoryStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | 'ABSENT';
+type HistoryType = LeaveHistoryQuery['types[]'][number];
+type HistoryStatus = LeaveHistoryQuery['statuses[]'][number];
 export type LeaveHistoryFilters = {
   from: string;
   to: string;

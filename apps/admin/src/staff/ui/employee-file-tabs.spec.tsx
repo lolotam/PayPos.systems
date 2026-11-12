@@ -4,28 +4,31 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { EmployeeEditPanel } from './employee-edit-panel';
 
 const id = '01920000-0000-7000-8000-0000000000a2';
+const editState = vi.hoisted(() => ({ isPending: false }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 vi.mock('../api/use-employees', () => ({
   useEmployeeEdit: () => ({
     record: {
-      isPending: false,
+      isPending: editState.isPending,
       isError: false,
       isFetching: false,
-      data: {
-        id,
-        business_id: id,
-        primary_branch_id: id,
-        name_en: 'Synthetic employee',
-        name_ar: null,
-        role_code: 'staff',
-        hire_date: '2026-01-01',
-        contract_end: null,
-        user_id: null,
-        created_at: '2026-10-03T00:00:00Z',
-        branch_ids: [id],
-        revision: 3,
-        employee_number: 15,
-      },
+      data: editState.isPending
+        ? undefined
+        : {
+            id,
+            business_id: id,
+            primary_branch_id: id,
+            name_en: 'Synthetic employee',
+            name_ar: null,
+            role_code: 'staff',
+            hire_date: '2026-01-01',
+            contract_end: null,
+            user_id: null,
+            created_at: '2026-10-03T00:00:00Z',
+            branch_ids: [id],
+            revision: 3,
+            employee_number: 15,
+          },
       refetch: vi.fn(),
     },
     save: { isPending: false, isError: false, isSuccess: false, mutate: vi.fn(), reset: vi.fn() },
@@ -59,11 +62,11 @@ const business = {
   ],
 };
 
-function renderPanel() {
-  render(
+function renderPanel(nextBusiness = business) {
+  return render(
     <EmployeeEditPanel
       companyId={id}
-      business={business}
+      business={nextBusiness}
       userId={id}
       employeeId={id}
       onClose={vi.fn()}
@@ -76,6 +79,7 @@ function tab(name: 'leaveHistory.tabData' | 'leaveHistory.tabLeave') {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  editState.isPending = false;
 });
 
 it('shows the details tab first and no leave section', () => {
@@ -112,4 +116,44 @@ it('the reload and close actions stay on both tabs', () => {
   fireEvent.click(tab('leaveHistory.tabLeave'));
   expect(screen.getByRole('button', { name: t('en', 'staff.reload') })).toBeTruthy();
   expect(screen.getByRole('button', { name: t('en', 'staff.cancel') })).toBeTruthy();
+});
+
+it('waits for the employee record before mounting the leave section and uses its primary zone', () => {
+  const branchesBusiness = {
+    ...business,
+    branches: [
+      {
+        id: '01920000-0000-7000-8000-000000000a03',
+        name_ar: null,
+        name_en: 'Synthetic Tokyo branch',
+        effective_timezone: 'Asia/Tokyo',
+        is_active: true,
+      },
+      ...business.branches,
+    ],
+  };
+  editState.isPending = true;
+  const view = renderPanel(branchesBusiness);
+  fireEvent.click(tab('leaveHistory.tabLeave'));
+  expect(screen.queryByText(/leave section/)).toBeNull();
+  expect(
+    screen
+      .getAllByRole('status')
+      .some(
+        (element) =>
+          element.textContent === t('en', 'admin.loading') && !element.closest('[hidden]'),
+      ),
+  ).toBe(true);
+  editState.isPending = false;
+  view.rerender(
+    <EmployeeEditPanel
+      companyId={id}
+      business={branchesBusiness}
+      userId={id}
+      employeeId={id}
+      onClose={vi.fn()}
+    />,
+  );
+  expect(screen.getByText('leave section Asia/Kuwait')).toBeTruthy();
+  expect(screen.queryByText(/leave section Asia\/Tokyo/)).toBeNull();
 });
