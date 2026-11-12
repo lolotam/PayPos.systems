@@ -129,3 +129,15 @@ an event committed behind the cursor lands through live delivery; tenant isolati
 
 50-3a replay runner and runbook replay section; 50-3b tips bootstrap and the shared tips SQL builder; 50-3c coverage readers, report, pure
 comparison, ADR-0054 §4 addendum and Port rows.
+
+## Post-rollback replay of all six counted types (manager request 2026-11-12, PR #980 findings)
+
+Placement: **50-3b**, not 50-3a. A current-state reader discharges only the current revision's event id, so `SessionTipsChanged` and
+`PackageSaleChanged` rows published during a rollback would keep approval closed (ADR-0012 §1). The post-rollback run therefore replays the
+retained events of all six counted types with one fixed upper bound. The facade needs its own partial index (the existing 50-0 index covers four
+types), so 50-3b carries a migration (index only, no column, function or grant) on the migration lane. 50-3a stays at four types. The current-state
+readers (36-5 and the latest package-sale revision) serve the first bootstrap only. Every re-run path has an upper-bound contract (runbook), and each
+bootstrap reader proves that every retained event id is returned (50-3c report lists retained counted event ids without a mark).
+
+Sizes after this change: 50-3a about 240 production lines (delivered); 50-3b about 385 (tips bootstrap 110, shared SQL builder move 140 as a move,
+glue 30, six-type facade 40, runner six-type mode 35, index in schema 5), inside 300–420 only if the builder move counts as a move; 50-3c about 375.
