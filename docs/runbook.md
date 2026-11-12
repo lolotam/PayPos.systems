@@ -204,6 +204,41 @@ If an expected retained input is absent, or saved late visits have no recoverabl
 coverage and IDs. Do not claim recovery complete, fabricate events, query outbox through orders, broaden grants,
 reset dedupe or regenerate requests. This procedure does not replay commissions/ratings or grant day-list access.
 
+## 50-3a: replay retained commission inputs (spec 059, D-15)
+
+Replays the retained `ServiceSessionRecorded`, `ServiceSessionLinesAdded`, `ServiceLineChanged` and `SalaryChanged` events of one
+company to the `commissions.project-inputs` consumer alone. Tips are bootstrapped by 50-3b, and coverage is checked by 50-3c; until those
+land, approval stays closed. Never reset `published_at`, `attempts`, `parked_at` or `consumed_events`; the replay does not write them.
+
+1. **Every worker replica first.** Roll the release that registers the consumer to every worker replica, or drain the old dispatchers,
+   before choosing the upper bound. An old replica could otherwise mark a new event published without applying it.
+2. **Run once per company**, from `apps/worker` with the ordinary `DATABASE_URL` (`pospay_app`) and `DISPATCHER_DATABASE_URL`
+   (`pospay_dispatcher`):
+
+   ```sh
+   node apps/worker/dist/replay-commission-inputs.js --company <uuid> [--after <uuid>] [--through <uuid>]
+   ```
+
+   The entry prints one JSON line: `status`, `afterId`, `throughId`, per-type `counts`, and `undelivered` (event id, type and error code only,
+   never a payload; at most 200, `truncated` tells when more exist). Keep the line, the release SHA and the counts in the operations record.
+   The exit code is 0 only for `COMPLETE`.
+3. **Statuses.**
+   - `COMPLETE`: the range up to `throughId` is applied; compare the counts with the release inventory.
+   - `PAGE_LIMIT` or `ABORTED`: resume with `--after <afterId> --through <throughId>` from the printed line. `ABORTED` means a failure that is
+     not a known business outcome (a database or timeout failure); fix the cause first.
+   - `UNDELIVERED`: the range finished but some events were not applied for a known business reason. Fix the cause, then re-run **from the
+     beginning** with the same `--through`; `--after` would skip the failed events. Marks make the re-run idempotent.
+4. **Legacy `SalaryChanged` without `business_id`** (CS-Q44) is routed through the staff reader on the same transaction. If the employee is not
+   found the event stays unmarked and appears as `COMMISSION_EMPLOYEE_BUSINESS_MISSING`: approval stays closed and the manager investigates.
+   Do not invent an event, a mark or a grant.
+5. **The upper bound is an id bound, not a commit-order proof.** An event whose row commits after the cursor passed it, with a lower id, is
+   not replayed; the live consumer delivers it. Do not record "everything up to the bound was replayed" as coverage: coverage is checked by 50-3c.
+6. **After any worker rollback then upgrade**, re-run the replay with a new upper bound (CS-Q43). The ADR-0012 pending count, shipped in
+   row 53-1, keeps approval closed for any event without the consumer's mark. An unmarked event aimed at an already APPROVED month stays
+   undelivered (`COMMISSION_PERIOD_CLOSED`) by design; the manager owns that case.
+7. **Logs.** A failed replay of a row that already has ten or more attempts logs «outbox event parked» at error level although nothing is
+   written; read the printed result, not that line.
+
 ## Admin service-session browser tests
 
 The Playwright config has no `webServer`. Postgres, Redis, the API and the admin must already be running.
