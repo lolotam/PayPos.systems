@@ -57,6 +57,7 @@ const sampleDetail = {
       ],
     },
   ],
+  redemptions: [],
 };
 
 function setup(targetId: string | null) {
@@ -128,4 +129,31 @@ it('surfaces a 404 envelope as the query error with status 404', async () => {
     ...notFoundEnvelope,
     status: 404,
   });
+});
+
+it('exposes redemptions in the order returned by the server', async () => {
+  state.get.mockReset();
+  const redemptions = [
+    {
+      id: '01920000-0000-7000-8000-000000000041',
+      component_id: '01920000-0000-7000-8000-000000000020',
+      ordinal: 3,
+      redeemed_at: '2026-10-20T10:00:00.000Z',
+      visit_business_date: '2026-10-19',
+      reversed_at: null,
+    },
+    {
+      id: '01920000-0000-7000-8000-000000000040',
+      component_id: '01920000-0000-7000-8000-000000000020',
+      ordinal: 2,
+      redeemed_at: '2026-10-20T09:00:00.000Z',
+      visit_business_date: '2026-10-18',
+      reversed_at: '2026-10-21T09:00:00.000Z',
+    },
+  ];
+  state.get.mockResolvedValueOnce({ data: { ...sampleDetail, redemptions }, response: { status: 200 } });
+  const hook = setup(entitlementId);
+  await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+  expect(hook.result.current.data?.redemptions).toEqual(redemptions);
+  expect(hook.result.current.data?.redemptions.map((row) => row.id)).toEqual([redemptions[0]?.id, redemptions[1]?.id]);
 });

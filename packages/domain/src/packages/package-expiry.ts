@@ -23,6 +23,20 @@ export function assertPackageNotExpired(today: string, expiresOn: string): void 
 }
 
 /**
+ * بيحدد إن الباقة صالحة في تاريخ الزيارة، ويوم الانتهاء نفسه مسموح للاستخدام.
+ * المستهلك بيبعت تاريخ الزيارة المحلي للفرع؛ الدالة ما بتقراش الساعة ولا تختار timezone.
+ *
+ * @param visitDate تاريخ الزيارة المحلي للفرع بصيغة YYYY-MM-DD
+ * @param expiresOn تاريخ الانتهاء الحالي، بما فيه أي تمديد معتمد
+ * @returns true عندما يكون تاريخ الزيارة في يوم الانتهاء أو قبله
+ */
+export function packageUsableOn(visitDate: string, expiresOn: string): boolean {
+  validateDate(visitDate);
+  validateDate(expiresOn);
+  return visitDate <= expiresOn;
+}
+
+/**
  * الصلاحية أيام تقويمية بعد يوم البيع المحلي، مش مضاعفات ٢٤ ساعة بتوقيت الفرع.
  *
  * @param soldBusinessDate يوم البيع المحلي بصيغة YYYY-MM-DD

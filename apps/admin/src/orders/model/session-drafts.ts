@@ -7,11 +7,13 @@ export type SessionServiceSelection = Omit<SessionServiceOptionPage['items'][num
 };
 export type SessionPerformerSelection = SessionPerformerOptionPage['items'][number];
 export const sessionSharePercentage = discountPercentage.refine((bps) => bps > 0);
-// 43-2: سطر الطلب صار اتحاد المدفوع والباقة؛ محرر الريسبشن لسه مدفوع فقط، فلازم نوع المدفوع يبقى صريح.
+// 43-3: النوع المدفوع مستخرج من اتحاد الطلب حتى لا تتسرّب حقول السعر والخصم إلى سطر الباقة.
 export type SessionPaidLineInput = Extract<RecordServiceSessionInput['lines'][number], { price: string }>;
 export type SessionDraftLine = Pick<SessionPaidLineInput, 'service_id' | 'price'> & {
   local_id: string;
   service: SessionServiceSelection | null;
+  from_package: boolean;
+  package_entitlement_id: string | null;
   discount_kind: SessionPaidLineInput['discount']['kind'];
   discount_amount: string;
   discount_percentage: string;
@@ -22,7 +24,7 @@ export type SessionDraftForm = Pick<RecordServiceSessionInput, 'occurred_at'> & 
 export const SESSION_DRAFT_MIN = 1, SESSION_DRAFT_MAX = 20;
 
 export function createSessionDraft(localId: string = crypto.randomUUID()): SessionDraftLine {
-  return { local_id: localId, service_id: '', price: '', service: null,
+  return { local_id: localId, service_id: '', price: '', service: null, from_package: false, package_entitlement_id: null,
     discount_kind: 'AMOUNT', discount_amount: '0.000', discount_percentage: '0', share_mode: 'EQUAL',
     performers: [{ employee_id: '', share_percentage: '', selection: null }] };
 }

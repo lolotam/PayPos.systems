@@ -75,6 +75,15 @@ export const customerPackageDetailComponent = responseObject({
   slots: z.array(customerPackageDetailSlot),
 }).meta({ id: 'CustomerPackageDetailComponent' });
 
+export const customerPackageRedemption = responseObject({
+  id,
+  component_id: id,
+  ordinal: z.number().int().min(1).max(365),
+  redeemed_at: timestamp,
+  visit_business_date: businessDate,
+  reversed_at: timestamp.nullable(),
+}).meta({ id: 'CustomerPackageRedemption' });
+
 export const customerPackageDetail = responseObject({
   id,
   customer_id: id,
@@ -97,6 +106,7 @@ export const customerPackageDetail = responseObject({
   refunded_amount: sessionMoney,
   revision: z.number().int().positive(),
   components: z.array(customerPackageDetailComponent),
+  redemptions: z.array(customerPackageRedemption),
 }).meta({ id: 'CustomerPackageDetail' });
 
 export const customerPackagesCursorData = z.strictObject({
@@ -116,6 +126,7 @@ export type CustomerPackageListItem = z.infer<typeof customerPackageListItem>;
 export type CustomerPackagePage = z.infer<typeof customerPackagePage>;
 export type CustomerPackageDetailSlot = z.infer<typeof customerPackageDetailSlot>;
 export type CustomerPackageDetailComponent = z.infer<typeof customerPackageDetailComponent>;
+export type CustomerPackageRedemption = z.infer<typeof customerPackageRedemption>;
 export type CustomerPackageDetail = z.infer<typeof customerPackageDetail>;
 export type CustomerPackagesCursorData = z.infer<typeof customerPackagesCursorData>;
 
@@ -127,5 +138,6 @@ export const customerPackageSchemas = [
   customerPackagePage,
   customerPackageDetailSlot,
   customerPackageDetailComponent,
+  customerPackageRedemption,
   customerPackageDetail,
 ];

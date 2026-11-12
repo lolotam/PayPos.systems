@@ -1,11 +1,12 @@
 'use client';
 import { recordServiceSessionResponse } from '@pospay/contracts';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 import { SessionSavedDisplayFailure, type SessionAttempt } from '../model/session-attempt';
 import type { SessionAttemptJournal } from '../model/session-attempt-journal';
 
 export function useRecordServiceSession(journal: SessionAttemptJournal) {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationKey: ['record-service-session', journal.scope], retry: false, gcTime: 0, networkMode: 'always',
     mutationFn: (attempt: Extract<SessionAttempt, { kind: 'record' }>) => journal.run(attempt, async () => {
@@ -21,5 +22,10 @@ export function useRecordServiceSession(journal: SessionAttemptJournal) {
       }
       return { status: result.response.status, data: parsed.data };
     }),
+    // الاسترداد حتى في المحاولة الفاشلة أو غير المحسومة قد يغيّر الرصيد، فالقائمتان تُحدَّثان دائمًا وفق 42-4r D5.
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['customer-packages'] });
+      void queryClient.invalidateQueries({ queryKey: ['customer-package-detail'] });
+    },
   });
 }
