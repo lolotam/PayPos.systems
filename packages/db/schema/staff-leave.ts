@@ -101,6 +101,13 @@ export const leaveRequests = pgTable(
       t.startsAt,
       t.endsAt,
     ),
+    // فحص تغطية اليوم بالإجازة بيبدأ من "to" فما يقراش تاريخ الإجازات القديم للموظف.
+    index('leave_requests_company_employee_to_from_idx').on(
+      t.companyId,
+      t.employeeId,
+      t.to,
+      t.from,
+    ),
     index('leave_requests_company_employee_id_idx').on(t.companyId, t.employeeId, t.id),
     index('leave_requests_company_business_branch_status_id_idx').on(
       t.companyId,
