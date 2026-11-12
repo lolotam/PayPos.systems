@@ -7,6 +7,7 @@ import { COMMISSION_LINE_TABLE_GRANTS } from './commission-line-grants.ts';
 import { SCHEDULE_TABLE_GRANTS } from './schedule-grants.ts';
 import { RATING_TABLE_GRANTS } from './rating-grants.ts';
 import { PACKAGE_TABLE_GRANTS } from './package-grants.ts';
+import { LEAVE_HISTORY_REPORT_TABLE_GRANTS } from './leave-history-report-grants.ts';
 
 // منح الجداول المراجَع (plan v4 T5، closes #16): أي صلاحية جدول جديدة من هجرة لازم تُكتب هنا، وإلا فشل الاختبار.
 export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
@@ -99,6 +100,7 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'in_app_notifications:UPDATE',
     'late_service_session_notices:INSERT',
     'late_service_session_notices:SELECT',
+    ...LEAVE_HISTORY_REPORT_TABLE_GRANTS,
     'leave_requests:INSERT',
     'leave_requests:SELECT',
     // لقطة هوية المنفذ لا تتغير بعد الإدخال، فلا UPDATE. الحذف ممنوح، وحذف بلا رأس تغيير في نفس المعاملة لا يُثبَّت.
