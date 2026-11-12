@@ -6316,6 +6316,19 @@ export interface components {
             refunded: number;
             slots: components["schemas"]["CustomerPackageDetailSlot"][];
         };
+        CustomerPackageRedemption: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            component_id: string;
+            ordinal: number;
+            /** Format: date-time */
+            redeemed_at: string;
+            /** Format: date */
+            visit_business_date: string;
+            /** Format: date-time */
+            reversed_at: string | null;
+        };
         CustomerPackageDetail: {
             /** Format: uuid */
             id: string;
@@ -6348,6 +6361,7 @@ export interface components {
             refunded_amount: components["schemas"]["SessionMoney"];
             revision: number;
             components: components["schemas"]["CustomerPackageDetailComponent"][];
+            redemptions: components["schemas"]["CustomerPackageRedemption"][];
         };
         ServiceSessionDayQuery: {
             cursor?: string;

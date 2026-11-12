@@ -22,7 +22,7 @@ const actualRows = (plan: PlanNode[], relation: string): number =>
   plan
     .filter((node) => node['Relation Name'] === relation)
     .reduce((sum, node) => sum + (node['Actual Rows'] ?? 0) * (node['Actual Loops'] ?? 1), 0);
-// الفهارس الموجودة فعلاً في هجرة 0200 لكل جدول: الفهرس اللي بيخدم القراءة لازم يكون منها.
+// أسماء الفهارس من الهجرات الفعلية، ومنها فهارس الاسترداد في 0205/0206 ومفاتيح الزيارة والسطور.
 const SUPPORTING_INDEXES: Record<string, readonly string[]> = {
   package_entitlements: ['package_entitlements_pkey', 'package_entitlements_business_id_key'],
   package_components: [
@@ -35,7 +35,19 @@ const SUPPORTING_INDEXES: Record<string, readonly string[]> = {
     'package_session_slots_component_fk_idx',
     'package_session_slots_component_ordinal_key',
   ],
+  package_redemptions: [
+    'package_redemptions_component_fk_idx',
+    'package_redemptions_slot_fk_idx',
+    'package_redemptions_line_fk_idx',
+    'package_redemptions_business_id_key',
+    'package_redemptions_pkey',
+  ],
+  service_lines: ['service_lines_business_id_key', 'service_lines_pkey'],
+  service_sessions: ['service_sessions_business_id_key', 'service_sessions_pkey'],
 };
+
+// الجداول المنضمّة للسجل: أي فهرس يحمل اسم الجدول يكفي، لأن المخطط يختار الأنسب لحجم الجدول.
+const JOINED_TABLES = new Set(['package_redemptions', 'service_lines', 'service_sessions']);
 
 const read = (entitlementId: string, businessId?: string, companyId?: string) => {
   const tenant = companyId ?? fixture.f.company;
@@ -183,6 +195,7 @@ it('shows no phone and no field the detail does not own', async () => {
       'refunded_amount',
       'revision',
       'components',
+      'redemptions',
     ].sort(),
   );
   const component = must(detail.components[0]);
@@ -227,16 +240,17 @@ it('plans the detail read on the package indexes', async () => {
   await fixture.f.db.withTenant(
     fixture.f.company,
     async (tx) => {
+      await tx.execute(sql`SET LOCAL enable_seqscan=off`);
       const rows = await tx.execute<{ 'QUERY PLAN': { Plan: PlanNode }[] }>(
         sql`EXPLAIN (ANALYZE, FORMAT JSON) ${packageEntitlementDetailStatement(fixture.f.company, fixture.f.business, fixture.soldEntitlement)}`,
       );
       const plan = nodes(must(must(rows[0])['QUERY PLAN'][0]).Plan);
-      for (const table of ['package_entitlements', 'package_components', 'package_session_slots']) {
+      for (const table of Object.keys(SUPPORTING_INDEXES)) {
         const scans = plan.filter((node) => node['Relation Name'] === table);
         expect(scans.length).toBeGreaterThan(0);
         expect(scans.every((node) => node['Node Type'] !== 'Seq Scan')).toBe(true);
         expect(
-          plan.some((node) => (SUPPORTING_INDEXES[table] ?? []).includes(node['Index Name'] ?? '')),
+          plan.some((node) => (SUPPORTING_INDEXES[table] ?? []).includes(node['Index Name'] ?? '') || (JOINED_TABLES.has(table) && (node['Index Name'] ?? '').startsWith(table + '_'))),
         ).toBe(true);
       }
       expect(actualRows(plan, 'package_entitlements')).toBe(1);

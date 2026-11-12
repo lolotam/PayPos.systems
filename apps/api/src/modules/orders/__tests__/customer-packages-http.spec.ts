@@ -90,6 +90,7 @@ it('returns package detail with 200 and snake_case keys', async () => {
       'refunded_amount',
       'revision',
       'components',
+      'redemptions',
     ].sort(),
   );
 
