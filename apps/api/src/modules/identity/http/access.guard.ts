@@ -84,6 +84,7 @@ export class AccessGuard implements CanActivate {
       userId,
       requestedCompany: header === undefined ? request.companyHint : header,
       permission: required.permissions,
+      mode: required.mode,
       ...(this.#reflector.get<string | undefined>(REQUIRES_FEATURE, handler) === undefined
         ? {}
         : { featureFlag: this.#reflector.get<string>(REQUIRES_FEATURE, handler) }),

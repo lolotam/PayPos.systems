@@ -15,8 +15,10 @@ export interface AuthorizeRequestInput {
   readonly userId: string;
   /** The x-company-id header, or the session hint when the header is absent. */
   readonly requestedCompany: unknown;
-  /** One permission, or the list of permissions that may open the route — one of them is enough (TD-13). */
+  /** One permission, or the route's permission list; mode decides whether one or all are required (default 'any'). */
   readonly permission: string | readonly string[];
+  /** Whether any one permission is enough or every listed permission is required. */
+  readonly mode?: 'any' | 'all';
   /** The raw route parameter values naming the target, when the permission's scope needs one. */
   readonly businessParam?: unknown;
   readonly branchParam?: unknown;
@@ -37,8 +39,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const asUuid = (value: unknown): string | null =>
   typeof value === 'string' && UUID.test(value) ? value.toLowerCase() : null;
 
-// Authorizes one request for a user (ADR-0003 §4, path A): company membership first, then one of the route's
-// permissions at the target.
+// Authorizes one request for a user (ADR-0003 §4, path A): company membership first, then any or all of the
+// route's permissions at the target, as its access mode declares.
 export class AuthorizeRequest implements BranchRequestAccess {
   readonly #reader: AccessReader;
 
@@ -47,7 +49,7 @@ export class AuthorizeRequest implements BranchRequestAccess {
   }
 
   /**
-   * @param input the user, the requested company and the route's permission(s) and target parameters
+   * @param input the user, the requested company and the route's permission(s), mode and target parameters
    * @returns the verified company with its memberships and grants, or null when the request is refused
    */
   async execute(input: AuthorizeRequestInput): Promise<Authorized | null> {
@@ -63,16 +65,16 @@ export class AuthorizeRequest implements BranchRequestAccess {
       typeof input.permission === 'string' ? [input.permission] : input.permission;
     const inspected = await this.#reader.accessAt(companyId, input.userId, request, {
       ...(input.featureFlag === undefined ? {} : { featureFlag: input.featureFlag }),
-      allows: ({ targets, access }) =>
-        permissions.some(
-          (permission) =>
-            permissionPossessionFailure(
-              access.grants,
-              permission,
-              targets.target,
-              targets.descendantTargets,
-            ) === null,
-        ),
+      allows: ({ targets, access }) => {
+        const holds = (permission: string) =>
+          permissionPossessionFailure(
+            access.grants,
+            permission,
+            targets.target,
+            targets.descendantTargets,
+          ) === null;
+        return input.mode === 'all' ? permissions.every(holds) : permissions.some(holds);
+      },
     });
     if (inspected === null) return null;
     const { access } = inspected;
