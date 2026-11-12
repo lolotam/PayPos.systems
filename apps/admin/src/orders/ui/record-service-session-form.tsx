@@ -8,6 +8,7 @@ import { useRevokeOwnRecording } from '../api/use-own-recordings';
 import type { SessionServiceScope } from '../api/use-session-services';
 import type { ExpiredRecoveryProof, SessionAttemptJournal } from '../model/session-attempt-journal';
 import { createSessionDraft, type SessionDraftForm } from '../model/session-drafts';
+import { clearPackagePicks } from '../model/session-package-options';
 import { confirmExpiredRecording, leaveUnknownVisit, sessionLeaveFeedback, sessionResultFrozen, type RecoveryConfirmOutcome, type SessionFeedback, type SessionRecordingResult } from '../model/session-recording-result';
 import { reportSessionSubmitError } from '../model/session-submit-error';
 import type { SessionRecordingController } from '../model/use-session-recording';
@@ -98,14 +99,17 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
       try { await recording.submit(drafts); } catch (error) { reportSessionSubmitError(form.setError, error, locale); }
     })}>
       <SessionCustomerField companyId={scope.companyId} branchId={scope.branchId} userId={scope.userId}
-        value={result.customer} onChange={recording.selectCustomer} disabled={!online || locked} />
+        value={result.customer} onChange={(customer) => {
+          recording.selectCustomer(customer);
+          if (result.sessionId === null) form.setValue('lines', clearPackagePicks(form.getValues('lines')));
+        }} disabled={!online || locked} />
       {timeUnknown ? <div className="grid gap-2">
         <p role="alert">{t(locale, 'serviceSessions.unknownVisitTime')}</p>
         <Button type="button" variant="outline" disabled={!journal || editBusy} onClick={() => { if (editBusy) return; leaveUnknownTimeVisit(result, journal, recording.replaceResult, (feedback) => setLeaveFailure({ source: result, feedback })); }}>{t(locale, 'serviceSessions.newVisitSameCustomer')}</Button>
         {unknownLeave ? <SessionWriteFeedback result={{ ...result, feedback: unknownLeave, attempt: null }} /> : null}
       </div> : <SessionTimeField context={context} disabled={locked} />}
       <SessionRecordingHeader scope={scope} disabled={!online || frozen} readOnly={membershipFixed} />
-      <SessionDraftLines scope={scope} {...(occurredAt !== undefined ? { occurredAt } : {})} disabled={!online || frozen || timeUnknown} />
+      <SessionDraftLines scope={scope} customerId={result.customerId} {...(occurredAt !== undefined ? { occurredAt } : {})} disabled={!online || frozen || timeUnknown} />
       <SessionRejectedLines result={result} onEdit={focusDraftPrice} />
       {rootError ? <p role="alert">{rootError}</p> : null}
       <SessionWriteFeedback result={result} onRefreshScope={onRefreshScope} {...(online && !editBusy ? { onReplay: () => { void recording.retry(); } } : {})}

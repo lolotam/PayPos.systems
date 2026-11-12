@@ -72,7 +72,7 @@ function warnedFeedback(state: SessionRecordingResult): SessionFeedback {
   if (kind === 'SAVING' || kind === 'UNRESOLVED') return { kind: state.rejected.length ? 'PARTIAL' : 'COMPLETE' };
   return state.feedback;
 }
-// سطر الباقة ما لهوش سعر ولا خصم، وشاشة الباقة في 43-3؛ ما ينفع يتحوّل لسطر مدفوع هنا لأن ده هيحمّل العميل.
+// فصل نوع المحاولة قبل الاسترجاع يمنع سطر الباقة من الرجوع كسطر مدفوع بسعر مصطنع.
 function isPaidAttemptLine(line: SessionAttempt['body']['lines'][number]): line is Extract<SessionAttempt['body']['lines'][number], { price: string }> {
   return 'price' in line;
 }
@@ -83,9 +83,16 @@ function recoverAttempt(state: SessionRecordingResult, attempt: SessionAttempt, 
   const missing = attempt.body.lines.flatMap((line, index): SessionDraftLine[] => {
     const localId = attempt.rowIds[index];
     if (!localId || !wantedIds.includes(localId) || state.drafts.lines.some((row) => row.local_id === localId)) return [];
-    if (!isPaidAttemptLine(line)) return [];
     const draft = createSessionDraft(localId);
-    return [{ ...draft, service_id: line.service_id, price: line.price, discount_kind: line.discount.kind,
+    if ('package' in line) return [{ ...draft, from_package: true,
+      package_entitlement_id: line.package.entitlement_id, service_id: line.service_id, price: '',
+      service: { id: line.service_id, name_ar: null, name_en: line.service_id, price: '', price_source: 'INPUT' },
+      share_mode: line.performers.some((row) => row.share_bps !== undefined) ? 'CUSTOM' : 'EQUAL',
+      performers: line.performers.map((row) => ({ employee_id: row.employee_id, selection: null,
+        share_percentage: row.share_bps === undefined ? '' : sessionBpsText(row.share_bps) })) }];
+    if (!isPaidAttemptLine(line)) return [];
+    return [{ ...draft, from_package: false, package_entitlement_id: null,
+      service_id: line.service_id, price: line.price, discount_kind: line.discount.kind,
       service: { id: line.service_id, name_ar: null, name_en: line.service_id, price: line.price, price_source: 'INPUT' },
       discount_amount: line.discount.kind === 'AMOUNT' ? line.discount.amount : draft.discount_amount,
       discount_percentage: line.discount.kind === 'PERCENT' ? sessionBpsText(line.discount.bps) : draft.discount_percentage,

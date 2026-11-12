@@ -40,14 +40,21 @@ const pendingJournal: SessionAttemptJournal = {
 };
 
 function sessionCommandLines(lines: SessionDraftLine[]): SessionAttemptCommand['body']['lines'] {
-  return lines.map((line) => ({
-    service_id: line.service_id,
-    price: sessionMoney.parse(normalizeKwdInput(line.price)),
-    discount: line.discount_kind === 'PERCENT'
-      ? { kind: 'PERCENT' as const, bps: discountPercentage.parse(normalizeSessionPercent(line.discount_percentage)) }
-      : { kind: 'AMOUNT' as const, amount: sessionMoney.parse(normalizeKwdInput(line.discount_amount)) },
-    performers: sessionPerformerInputs(line),
-  }));
+  return lines.map((line) => {
+    if (line.from_package) {
+      if (line.package_entitlement_id === null) throw new Error('SESSION_PACKAGE_NOT_CHOSEN');
+      return { service_id: line.service_id,
+        package: { entitlement_id: line.package_entitlement_id }, performers: sessionPerformerInputs(line) };
+    }
+    return {
+      service_id: line.service_id,
+      price: sessionMoney.parse(normalizeKwdInput(line.price)),
+      discount: line.discount_kind === 'PERCENT'
+        ? { kind: 'PERCENT' as const, bps: discountPercentage.parse(normalizeSessionPercent(line.discount_percentage)) }
+        : { kind: 'AMOUNT' as const, amount: sessionMoney.parse(normalizeKwdInput(line.discount_amount)) },
+      performers: sessionPerformerInputs(line),
+    };
+  });
 }
 
 // المرآة بتطبّق الانتقال فورًا: setState بيتأجل، وقراءة الدفتر بين النداءين كانت بتشوف SAVING وتمسح الرأس.

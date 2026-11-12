@@ -42,11 +42,34 @@ function componentProjection(): SQL {
   ), '[]'::jsonb)`;
 }
 
+function redemptionProjection(): SQL {
+  return sql`COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', r.id,
+      'component_id', r.component_id,
+      'ordinal', s.ordinal,
+      'redeemed_at', to_char(r.redeemed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+      'visit_business_date', to_char(ss.business_date, 'YYYY-MM-DD'),
+      'reversed_at', CASE WHEN r.reversed_at IS NULL THEN NULL
+        ELSE to_char(r.reversed_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') END
+    ) ORDER BY ss.occurred_at DESC, s.ordinal DESC, r.id)
+    FROM package_redemptions r
+    JOIN package_session_slots s ON s.company_id=r.company_id AND s.business_id=r.business_id
+      AND s.id=r.slot_id
+    JOIN service_lines l ON l.company_id=r.company_id AND l.business_id=r.business_id
+      AND l.id=r.line_id
+    JOIN service_sessions ss ON ss.company_id=l.company_id AND ss.business_id=l.business_id
+      AND ss.id=l.session_id
+    WHERE r.company_id=e.company_id AND r.business_id=e.business_id
+      AND r.entitlement_id=e.id
+  ), '[]'::jsonb)`;
+}
+
 /**
- * استعلام تفاصيل الباقة: الاستحقاق ومكوّناته وجلساته في statement واحد.
- * الشاشة اللي بتستهلكه: «تفاصيل باقة عميلة» في الاستقبال (FR-071، شريحة 42-4).
+ * استعلام تفاصيل الباقة: الاستحقاق ومكوّناته وجلساته وسجل استرداداته في statement واحد.
+ * الشاشة اللي بتستهلكه: «تفاصيل باقة عميلة» وسجل الاستخدام في الاستقبال (FR-071، شريحتا 42-4 و43-3).
  * المفاتيح snake_case زي API contract عشان النتيجة تتقرأ من غير mapper.
- * الاستعلام واحد عشان الاستحقاق والمكوّنات والجلسات يتثبّتوا في لقطة واحدة؛
+ * الاستعلام واحد عشان الاستحقاق والمكوّنات والجلسات والسجل يتثبّتوا في لقطة واحدة؛
  * لقطة لكل جدول كانت هتسمح لصفقة جلسة تغيّر نص العرض.
  */
 export function packageEntitlementDetailStatement(
@@ -75,7 +98,8 @@ export function packageEntitlementDetailStatement(
     'expires_on', to_char(e.expires_on, 'YYYY-MM-DD'),
     'refunded_amount', e.refunded_amount::text,
     'revision', e.revision,
-    'components', ${componentProjection()}
+    'components', ${componentProjection()},
+    'redemptions', ${redemptionProjection()}
   ) AS detail
   FROM package_entitlements e
   WHERE e.company_id=${companyId} AND e.company_id=app_company_id()
@@ -83,7 +107,7 @@ export function packageEntitlementDetailStatement(
 }
 
 /**
- * يقرأ تفاصيل باقة عميلة واحدة بشكل API contract: حقائق البيع والمكوّنات والجلسات.
+ * يقرأ تفاصيل باقة عميلة واحدة بشكل API contract: حقائق البيع والمكوّنات والجلسات وسجل الاستردادات بتاريخ كل زيارة.
  * القارئ ما بيفتحش معاملة ولا connection ولا بيكتب ولا بيقفل: المستدعي بيبعت
  * معاملة مستأجره جاهزة ونشاط متأكّد منه، والـ RLS هو خط الدفاع الأخير.
  *
