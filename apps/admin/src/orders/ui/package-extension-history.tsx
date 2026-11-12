@@ -22,7 +22,7 @@ export function PackageExtensionHistory({
   timeZone,
 }: {
   extensions: readonly CustomerPackageExtension[];
-  timeZone: string;
+  timeZone: string | undefined;
 }) {
   const locale = useLocale();
   return (
@@ -35,10 +35,10 @@ export function PackageExtensionHistory({
           {extensions.map((extension) => (
             <li key={extension.id} className="grid gap-1">
               <span>{historyRow(t(locale, 'packageExtension.historyRow'), extension)}</span>
-              <span>
+              {timeZone ? <span>
                 {t(locale, 'packageExtension.historyRowTime').replace('{at}', '')}
                 <bdi dir="ltr">{formatInstant(new Date(extension.extended_at), locale, timeZone)}</bdi>
-              </span>
+              </span> : null}
             </li>
           ))}
         </ol>

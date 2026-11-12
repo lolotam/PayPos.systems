@@ -110,6 +110,7 @@ export const customerPackageDetail = responseObject({
   sold_at: timestamp.nullable(),
   sold_business_date: businessDate.nullable(),
   expires_on: businessDate,
+  business_timezone: z.string().min(1).optional(),
   refunded_amount: sessionMoney,
   revision: z.number().int().positive(),
   components: z.array(customerPackageDetailComponent),

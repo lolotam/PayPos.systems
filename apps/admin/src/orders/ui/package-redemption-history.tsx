@@ -4,7 +4,6 @@ import { Badge, Button } from '@pospay/ui';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useCustomerPackageDetail } from '../api/use-customer-package-detail';
-import { useRecordingContext } from '../api/use-recording-context';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { ExtendPackageDialog } from './extend-package-dialog';
 import { PackageExtensionHistory } from './package-extension-history';
@@ -19,7 +18,6 @@ export function PackageRedemptionHistory({ scope, customerId, entitlementId, can
   const [open, setOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const detail = useCustomerPackageDetail(scope, customerId, open ? entitlementId : null);
-  const context = useRecordingContext(scope, null, open);
   return <>
     <details className="grid gap-2 text-start" onToggle={(event) => {
       setOpen(event.currentTarget.open);
@@ -42,7 +40,7 @@ export function PackageRedemptionHistory({ scope, customerId, entitlementId, can
       </ol> : null}
       {open && detail.data ? <PackageExtensionHistory
         extensions={detail.data.extensions}
-        timeZone={context.data?.business_timezone ?? 'UTC'}
+        timeZone={detail.data.business_timezone}
       /> : null}
       {canExtend && open && detail.data ? <Button type="button" onClick={() => setDialogOpen(true)}>
         {t(locale, 'packageExtension.extend')}

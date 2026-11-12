@@ -122,9 +122,9 @@ export function packageEntitlementDetailStatement(
 }
 
 /**
- * يقرأ تفاصيل باقة عميلة واحدة بشكل API contract: حقائق البيع والمكوّنات والجلسات وسجل الاستردادات بتاريخ كل زيارة.
+ * يقرأ تفاصيل باقة عميلة واحدة بشكل API contract: حقائق البيع والمكوّنات والجلسات وسجل الاستردادات والتمديدات.
  * القارئ ما بيفتحش معاملة ولا connection ولا بيكتب ولا بيقفل: المستدعي بيبعت
- * معاملة مستأجره جاهزة ونشاط متأكّد منه، والـ RLS هو خط الدفاع الأخير.
+ * معاملة مستأجره جاهزة ونشاط متأكّد منه، والـ RLS هو خط الدفاع الأخير؛ المنطقة الزمنية بتتضاف في الـ handler.
  *
  * @param tx معاملة المستأجر التي فتحها المستدعي
  * @param companyId شركة الباقة
@@ -144,6 +144,7 @@ export async function readPackageEntitlementDetail(
   return row?.detail ?? null;
 }
 
+// بيضيف المنطقة الزمنية الفعلية للفرع من قراءة الصلاحية نفسها لتفاصيل الباقة.
 export class CustomerPackageDetailQueryHandler {
   constructor(
     private readonly db: TenantWrappers,
@@ -152,12 +153,13 @@ export class CustomerPackageDetailQueryHandler {
 
   async execute(scope: CustomerPackageScope, entitlementId: string): Promise<CustomerPackageDetail> {
     return this.db.withTenant(scope.companyId, async (tx) => {
-      if (await this.reads.place(tx, scope) === null) throw new CustomerPackageReadError('FORBIDDEN');
+      const timezone = await this.reads.place(tx, scope);
+      if (timezone === null) throw new CustomerPackageReadError('FORBIDDEN');
       const detail = await readPackageEntitlementDetail(tx, scope.companyId, scope.businessId, entitlementId);
       if (detail === null || detail.customer_id !== scope.customerId) {
         throw new CustomerPackageReadError('PACKAGE_NOT_FOUND');
       }
-      return customerPackageDetail.parse(detail);
+      return customerPackageDetail.parse({ ...detail, business_timezone: timezone });
     }, { userId: scope.userId });
   }
 }

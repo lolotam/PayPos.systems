@@ -17,6 +17,7 @@ const componentId = '01920000-0000-7000-8000-000000000020';
 function detail(
   redemptions: CustomerPackageRedemption[],
   extensions: CustomerPackageExtension[] = [],
+  business_timezone?: string,
 ): CustomerPackageDetail {
   return {
     id: entitlementId,
@@ -53,6 +54,7 @@ function detail(
       refunded: 0,
       slots: [{ ordinal: 1, state: 'USED', unit_value: '10.000' }],
     }],
+    business_timezone,
     redemptions,
     extensions,
   };
@@ -69,20 +71,8 @@ function redemption(id: string, ordinal: number, reversedAt: string | null): Cus
   };
 }
 
-const recordingContext = {
-  generated_at: '2026-10-17T08:00:00.000Z',
-  business_timezone: 'Asia/Kuwait',
-  recorder_membership_ids: ['01920000-0000-7000-8000-000000000008'],
-  recorder_membership_id: '01920000-0000-7000-8000-000000000008',
-  discount_limit: { source: 'PERSON', bps: 1000 },
-};
-
 function mockDetail(data: CustomerPackageDetail) {
-  get.mockImplementation((path: string) => Promise.resolve(
-    path.endsWith('/recording-context')
-      ? { data: recordingContext, response: { status: 200 } }
-      : { data, response: { status: 200 } },
-  ));
+  get.mockResolvedValue({ data, response: { status: 200 } });
 }
 
 function renderHistory(canExtend = false) {
@@ -127,7 +117,7 @@ it('fetches only after opening and shows session, service, visit date and revers
   expect(screen.getByText('2026-10-19')).toBeTruthy();
   expect(screen.getByText('2026-10-18')).toBeTruthy();
   expect(screen.getByText(t('en', 'serviceSessions.packageHistoryReversed'))).toBeTruthy();
-  expect(get).toHaveBeenCalledTimes(2);
+  expect(get).toHaveBeenCalledTimes(1);
 });
 
 it('shows the empty history message inside the opened section', async () => {
@@ -158,8 +148,8 @@ const extension: CustomerPackageExtension = {
   extended_at: '2026-10-17T21:30:00.000Z',
 };
 
-it('shows extensions with empty redemptions and hides the extend button by default', async () => {
-  mockDetail(detail([], [extension]));
+it('shows the detail timezone to a viewer without recording-context access and hides extend by default', async () => {
+  mockDetail(detail([], [extension], 'Asia/Kuwait'));
   renderHistory();
   openHistory();
   expect(await screen.findByText(t('en', 'packageExtension.historyTitle'))).toBeTruthy();
@@ -171,6 +161,17 @@ it('shows extensions with empty redemptions and hides the extend button by defau
   expect(screen.queryByText(extension.extended_at)).toBeNull();
   expect(screen.getByText(t('en', 'serviceSessions.packageHistoryEmpty'))).toBeTruthy();
   expect(screen.queryByRole('button', { name: t('en', 'packageExtension.extend') })).toBeNull();
+  expect(get).toHaveBeenCalledTimes(1);
+  expect(get.mock.calls.every((call) => !String(call[0]).endsWith('/recording-context'))).toBe(true);
+});
+
+it('omits extension timestamps when an older detail has no business timezone', async () => {
+  mockDetail(detail([], [extension]));
+  renderHistory();
+  openHistory();
+  expect(await screen.findByText(t('en', 'packageExtension.historyTitle'))).toBeTruthy();
+  expect(screen.queryByText(/Extended at/)).toBeNull();
+  expect(screen.queryByText(extension.extended_at)).toBeNull();
 });
 
 it('opens the extend dialog when canExtend is true', async () => {

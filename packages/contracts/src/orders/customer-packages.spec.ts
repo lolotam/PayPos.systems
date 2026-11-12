@@ -191,6 +191,12 @@ it('defaults a missing extensions field from an older API to an empty history', 
   expect(customerPackageDetail.parse(withoutExtensions).extensions).toEqual([]);
 });
 
+it('accepts detail with and without the branch business timezone', () => {
+  expect(customerPackageDetail.parse({ ...validDetail, business_timezone: 'Asia/Kuwait' }).business_timezone)
+    .toBe('Asia/Kuwait');
+  expect(customerPackageDetail.parse(validDetail).business_timezone).toBeUndefined();
+});
+
 it.each([0, 366])('rejects redemption ordinal %s outside the slot bounds', (ordinal) => {
   const detail = { ...validDetail, redemptions: [{ ...validRedemption, ordinal }] };
   expect(customerPackageDetail.safeParse(detail).success).toBe(false);

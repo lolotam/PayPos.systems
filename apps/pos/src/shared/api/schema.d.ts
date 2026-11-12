@@ -6385,6 +6385,7 @@ export interface components {
             sold_business_date: string | null;
             /** Format: date */
             expires_on: string;
+            business_timezone?: string;
             refunded_amount: components["schemas"]["SessionMoney"];
             revision: number;
             components: components["schemas"]["CustomerPackageDetailComponent"][];

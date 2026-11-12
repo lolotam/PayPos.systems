@@ -49,3 +49,10 @@ it('shows the empty extension history state', () => {
     .toBe(t('en', 'packageExtension.historyEmpty'));
   expect(screen.queryByRole('listitem')).toBeNull();
 });
+
+it('omits extension timestamps and raw ISO strings when the timezone is absent', () => {
+  render(<PackageExtensionHistory extensions={rows} timeZone={undefined} />);
+  expect(screen.getAllByRole('listitem')).toHaveLength(2);
+  expect(screen.queryByText(/Extended at/)).toBeNull();
+  for (const row of rows) expect(screen.queryByText(row.extended_at)).toBeNull();
+});
