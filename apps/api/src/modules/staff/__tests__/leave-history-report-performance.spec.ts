@@ -10,7 +10,7 @@ import {
 } from '@pospay/contracts';
 import { decodeCursor } from '../../../shared/persistence/name-options-cursor.ts';
 import { createLeaveReadAccess } from '../persistence/leave-read-access.adapter.ts';
-import { leaveHistorySql } from '../queries/leave-history.query.ts';
+import { leaveHistorySql } from '@pospay/db';
 import {
   historyLeaveWorkloadSql,
   historyWorkloadSql,

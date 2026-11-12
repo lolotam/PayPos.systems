@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import { vi } from 'vitest';
 import { createLeaveReadAccess } from '../persistence/leave-read-access.adapter.ts';
-import { historyLastTaken } from '../queries/leave-history-last.sql.ts';
+import { historyLastTaken } from '@pospay/db';
 import { leaveContext, leaveIds, type LeaveFixture } from './leave-history.fixture.ts';
 
 // Redis مش موضوع الاختبار؛ منع إنشاء client حقيقي يحمي أي خدمة مشتركة في إعداد البيئة.

@@ -1,8 +1,8 @@
 import { sql, type SQL } from 'drizzle-orm';
-import type { LeaveReadContext } from './leave-requests.query.ts';
+import type { LeaveHistoryContext } from './types.ts';
 import { historyCoverage, historyIds, type HistoryScope } from './leave-history-days.sql.ts';
 
-function eligibleAbsence(c: LeaveReadContext, s: HistoryScope, asOf: string, bound: SQL) {
+function eligibleAbsence(c: LeaveHistoryContext, s: HistoryScope, asOf: string, bound: SQL) {
   // آخر غياب في ملف الموظف يحتاج وجود وردية منتهية، مش تجميع تفاصيل كل ورديات اليوم.
   return sql`FROM staff_schedule_shifts d
     WHERE d.company_id=${c.companyId} AND d.employee_id=${c.employeeId}::uuid
@@ -19,7 +19,7 @@ function eligibleAbsence(c: LeaveReadContext, s: HistoryScope, asOf: string, bou
       ${bound}`;
 }
 
-export function historyLatestAbsence(c: LeaveReadContext, s: HistoryScope, asOf: string) {
+export function historyLatestAbsence(c: LeaveHistoryContext, s: HistoryScope, asOf: string) {
   // شاشة السجل: seed على index الموظف يبدأ من أحدث starts_at ويتوقف عند أول غياب مؤهل.
   // materialized يمنع إعادة البحث؛ لو مفيش غياب ممكن البحث يستنفد التاريخ كله.
   // working_date ناتج materializeSchedule/scheduleInstant من بداية الوردية المحلية، مش يوم نهايتها.
