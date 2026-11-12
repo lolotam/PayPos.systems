@@ -89,6 +89,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/customers/{customerId}/packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires record:service-sessions:branch or read:service-sessions:branch, and the orders feature. Lists the customer's packages, usable first, without customer phone data. */
+        get: operations["listCustomerPackages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/customers/{customerId}/packages/{entitlementId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Requires record:service-sessions:branch or read:service-sessions:branch, and the orders feature. Returns stored sale facts, components and slots; unknown or inaccessible packages share PACKAGE_NOT_FOUND. */
+        get: operations["customerPackageDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/attendance-statements": {
         parameters: {
             query?: never;
@@ -6215,6 +6249,106 @@ export interface components {
             /** @enum {number} */
             schema_version: 1;
         };
+        CustomerPackagesQuery: {
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        CustomerPackageSlotValue: {
+            unit_value: components["schemas"]["SessionMoney"];
+            free: number;
+            used: number;
+            refunded: number;
+        };
+        CustomerPackageComponent: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            service_id: string;
+            position: number;
+            name_en: string;
+            name_ar: string | null;
+            sessions_total: number;
+            remaining: number;
+            used: number;
+            refunded: number;
+            next_unit_value: components["schemas"]["SessionMoney"] | null;
+            slot_values: components["schemas"]["CustomerPackageSlotValue"][];
+        };
+        CustomerPackageListItem: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            provenance: "SOLD" | "IMPORTED";
+            name_en: string;
+            name_ar: string | null;
+            /** Format: date */
+            expires_on: string;
+            expired: boolean;
+            used_up: boolean;
+            price_paid: components["schemas"]["SessionMoney"];
+            refunded_amount: components["schemas"]["SessionMoney"];
+            components: components["schemas"]["CustomerPackageComponent"][];
+        };
+        CustomerPackagePage: {
+            items: components["schemas"]["CustomerPackageListItem"][];
+            next_cursor: string | null;
+        };
+        CustomerPackageDetailSlot: {
+            ordinal: number;
+            /** @enum {string} */
+            state: "FREE" | "USED" | "REFUNDED" | "IMPORTED_USED";
+            unit_value: components["schemas"]["SessionMoney"];
+        };
+        CustomerPackageDetailComponent: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            service_id: string;
+            position: number;
+            name_en: string;
+            name_ar: string | null;
+            list_price_snapshot: components["schemas"]["SessionMoney"];
+            component_value: components["schemas"]["SessionMoney"];
+            sessions_total: number;
+            remaining: number;
+            used: number;
+            refunded: number;
+            slots: components["schemas"]["CustomerPackageDetailSlot"][];
+        };
+        CustomerPackageDetail: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            customer_id: string;
+            /** Format: uuid */
+            package_type_id: string | null;
+            /** @enum {string} */
+            provenance: "SOLD" | "IMPORTED";
+            name_en: string;
+            name_ar: string | null;
+            validity_days: number | null;
+            list_price: components["schemas"]["SessionMoney"] | null;
+            price_paid: components["schemas"]["SessionMoney"];
+            discount: components["schemas"]["SessionMoney"] | null;
+            discount_bps: number | null;
+            paid_method: components["schemas"]["PackagePaidMethod"] | null;
+            /** Format: uuid */
+            seller_employee_id: string | null;
+            /** Format: uuid */
+            seller_linked_user_id: string | null;
+            /** Format: uuid */
+            sold_branch_id: string | null;
+            /** Format: date-time */
+            sold_at: string | null;
+            /** Format: date */
+            sold_business_date: string | null;
+            /** Format: date */
+            expires_on: string;
+            refunded_amount: components["schemas"]["SessionMoney"];
+            revision: number;
+            components: components["schemas"]["CustomerPackageDetailComponent"][];
+        };
         ServiceSessionDayQuery: {
             cursor?: string;
             /** @default 20 */
@@ -8456,6 +8590,125 @@ export interface operations {
                 };
             };
             /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listCustomerPackages: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                customerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Customer package page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerPackagePage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    customerPackageDetail: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                customerId: string;
+                entitlementId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Customer package detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerPackageDetail"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description PACKAGE_NOT_FOUND */
             404: {
                 headers: {
                     [name: string]: unknown;
