@@ -92,6 +92,9 @@ export class DecideDiscountProposalsUseCase {
     // قراءات الإعدادات والعضوية قد تنتظر خلف كاتب، لذلك فحص الانتهاء وشرط UPDATE يحتاجان اللحظة التالية لآخر قفل.
     const decidedAt = this.clock.now();
     planDiscountStatus(locked, context.input.terms_hashes, decidedAt);
+    if (context.decision === 'APPROVE') {
+      await this.recheckApprover(tx, context, membership, decidedAt);
+    }
     const plan = this.plan(context, { locked, membership, now: decidedAt }, approval);
     if (await tx.proposals.decide(plan, decider) !== locked.length) {
       throw new DiscountDecisionError('DISCOUNT_PROPOSAL_NOT_PENDING', {
@@ -110,6 +113,27 @@ export class DecideDiscountProposalsUseCase {
     });
     if (event !== null) await tx.emit(event);
     return discountDecisionResponse(plan);
+  }
+
+  private async recheckApprover(
+    tx: DiscountDecisionTransaction,
+    context: DecisionContext,
+    membership: DiscountApproverMembership,
+    decidedAt: Date,
+  ): Promise<void> {
+    try {
+      // قراءة الحد قد تنتظر خلف كاتب، لذلك انتهاء العضوية أو السماح أثناء الانتظار لا يجوز أن يمرّر الموافقة.
+      const recheck = resolveDiscountApprover(
+        await tx.access.read(decidedAt),
+        context.input.approver_membership_id,
+      );
+      if (recheck.membership_id !== membership.membership_id) throw new SessionError('FORBIDDEN');
+    } catch (error) {
+      if (error instanceof DiscountDecisionError && error.code === 'DISCOUNT_APPROVER_MEMBERSHIP_REQUIRED') {
+        throw new SessionError('FORBIDDEN');
+      }
+      throw error;
+    }
   }
 
   private async peekProposals(

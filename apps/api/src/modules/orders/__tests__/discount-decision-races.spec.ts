@@ -1,10 +1,12 @@
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import postgres from 'postgres';
+import { SYSTEM_ROLES } from '@pospay/db';
 import { AT, discountRequestFixture, ids, must, type DiscountRequestFixture } from './session.fixture.ts';
 import { approvedProposal, draftLine, OCCURRED_AT } from './discount-consumption.helpers.ts';
 import {
   createDecideUseCase,
   decideContext,
+  endMembership,
   fetchAudits,
   fetchOutboxEvents,
   fetchProposal,
@@ -289,5 +291,90 @@ it('debate #2 decide waits on business_settings lock while injected clock passes
       await f.h.owner`UPDATE business_settings SET limit_bps=${previousLimit}
         WHERE company_id=${f.company} AND business_id=${f.business}`;
     }
+  }
+});
+
+/** عضوية بدور بلا صلاحية الموافقة، تمنحها لها صلاحية ALLOW مؤقتة لا تنتهي إلا بالساعة المحقونة. */
+async function seedExpiringOverrideApprover(expiresAt: Date) {
+  const cashierRole = must(SYSTEM_ROLES.find((r) => r.code === 'cashier'));
+  const membershipId = ids.newId();
+  const overrideId = ids.newId();
+  await f.h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,limit_bps,starts_at)
+    VALUES(${f.company},${membershipId},${f.editorId},${cashierRole.id},'global','BRANCH',${f.branch},NULL,'2026-01-01T00:00:00Z')`;
+  await f.h.owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,expires_at,reason,granted_by)
+    VALUES(${f.company},${overrideId},${membershipId},'approve:discounts:branch','ALLOW','BRANCH',${f.branch},${expiresAt.toISOString()},'test',${f.ownerId})`;
+  return { membershipId, overrideId };
+}
+
+async function restoreSettingsLimit(previousLimit: number | null | undefined) {
+  if (previousLimit === undefined) {
+    await f.h.owner`DELETE FROM business_settings WHERE company_id=${f.company} AND business_id=${f.business}`;
+    return;
+  }
+  await f.h.owner`UPDATE business_settings SET limit_bps=${previousLimit}
+    WHERE company_id=${f.company} AND business_id=${f.business}`;
+}
+
+// لازم سلطة الموافق تتفحص بعد انتظار قفل الإعدادات، وإلا مرّت موافقة بتجاوز صلاحية انتهى أثناء الانتظار.
+it('debate #3 decide waits on business_settings lock while the approver override expires: 403, nothing written', async () => {
+  const proposal = await requestSingleProposal(f);
+  const overrideExpiresAt = new Date(AT.getTime() + 60 * 60 * 1000);
+  const decidedAt = new Date(AT.getTime() + 2 * 60 * 60 * 1000);
+  expect(decidedAt.getTime()).toBeLessThan(new Date(proposal.expires_at).getTime());
+  const previousSettings = await f.h.owner`SELECT limit_bps FROM business_settings
+    WHERE company_id=${f.company} AND business_id=${f.business}`;
+  const previousLimit = previousSettings[0]?.['limit_bps'] as number | null | undefined;
+  const { membershipId, overrideId } = await seedExpiringOverrideApprover(overrideExpiresAt);
+  await f.h.owner`INSERT INTO business_settings (company_id,business_id,limit_bps)
+    VALUES(${f.company},${f.business},2000)
+    ON CONFLICT (company_id,business_id) DO UPDATE SET limit_bps=2000`;
+
+  const observer = postgres(f.h.ownerUrl, { max: 1, onnotice: () => undefined });
+  const locked = barrier();
+  const release = barrier();
+  const blocker = f.h.owner.begin(async (write) => {
+    await write`SELECT business_id FROM business_settings
+      WHERE company_id=${f.company} AND business_id=${f.business} FOR UPDATE`;
+    locked.release();
+    await release.promise;
+  });
+
+  let deciding: Promise<unknown> | undefined;
+  try {
+    await locked.promise;
+    const pending = decide.execute({
+      ...decideContext(f, f.editorId),
+      decision: 'APPROVE',
+      input: {
+        proposal_ids: [proposal.id],
+        terms_hashes: [proposal.terms_hash],
+        approver_membership_id: membershipId,
+      },
+    });
+    pending.catch(() => undefined);
+    deciding = pending;
+
+    await vi.waitFor(async () => {
+      const waiting = await observer`SELECT 1 FROM pg_stat_activity WHERE datname=current_database()
+        AND wait_event_type='Lock' AND query LIKE '%business_settings%'`;
+      expect(waiting.length).toBeGreaterThan(0);
+    }, { timeout: 5000, interval: 20 });
+
+    f.setAt(decidedAt);
+    release.release();
+    await blocker;
+
+    await expect(pending).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    const row = must(await fetchProposal(f, proposal.id));
+    expect(row['status']).toBe('PENDING');
+  } finally {
+    release.release();
+    await blocker;
+    await deciding?.catch(() => undefined);
+    await observer.end();
+    f.setAt(AT);
+    await f.h.owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id=${overrideId}`;
+    await endMembership(f, membershipId);
+    await restoreSettingsLimit(previousLimit);
   }
 });
