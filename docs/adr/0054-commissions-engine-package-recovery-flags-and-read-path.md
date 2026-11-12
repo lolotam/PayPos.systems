@@ -211,7 +211,16 @@ of 49-1 ([plan](../specs/059-commissions-statements/plan-49-1.md), 2026-11-01).
 **Lines and salaries are not a binding.** Spec 059 D-15 (decided 2026-10-25) replays the retained `ServiceSessionRecorded`,
 `ServiceSessionLinesAdded`, `ServiceLineChanged` and `SalaryChanged` events from the outbox through a typed replay facade
 in `packages/db` (read as `pospay_dispatcher`, effect and mark through `pospay_app` `withTenant`), so commissions needs
-no orders reader for them; how a legacy `SalaryChanged` without `business_id` is routed to a business during the replay is open: spec 059 50-3 item (e), `TODO(spec)`. See the ADR-0012 addendum of 2026-10-25.
+no orders reader to **build** them; how a legacy `SalaryChanged` without `business_id` is routed is decided below (PP-185). See the ADR-0012 addendum of 2026-10-25.
+
+**Addendum 2026-11-12 (PP-185, spec 059 owner-questions §§47–50).** The replay still builds lines and salaries. Two root-bound
+readers are added **for the coverage proof only**, never to build a projection: an orders-owned reader returning each
+retained service line's identity and latest revision, and a staff-owned reader returning (employee, effective date,
+revision) from the salary history. Approval stays closed until the projection revision is ≥ the source revision for every
+line and salary row. A legacy `SalaryChanged` without `business_id` is delivered by the replay to the same consumer, which
+resolves the business through the root-bound staff reader `readEmployeeBusiness` on its own transaction; a null result
+leaves the event unmarked and approval closed. Both coverage readers are root-bound reads under the rule above (Port rows,
+no import arrow); sub-PR 50-3c adds them with their `docs/module-map.md` Port rows.
 
 A root-bound read adds a **Port row** to `docs/module-map.md` §3 and **no import arrow** and **no `reads:` line** (a
 `reads` line is for an import arrow and must name its adapter file, so it is added only by a sub-PR that really needs an
