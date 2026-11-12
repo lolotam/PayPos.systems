@@ -110,7 +110,7 @@ it.each(CONTINUABLE_FAILURE_CODES)(
       afterId: eventId(3),
       throughId: eventId(3),
       counts: { ServiceSessionRecorded: 1, SalaryChanged: 1 },
-      undelivered: [{ eventId: eventId(2), eventType: 'ServiceLineChanged', code }],
+      undelivered: [{ eventId: eventId(2), type: 'ServiceLineChanged', code }],
       truncated: false,
     });
     const serialized = JSON.stringify(result);
@@ -171,8 +171,8 @@ it('sets truncated to true and caps list length at 200 when undelivered exceeds 
   expect(result.status).toBe('UNDELIVERED');
   expect(result.truncated).toBe(true);
   expect(result.undelivered).toHaveLength(200);
-  expect(result.undelivered[0]).toEqual({ eventId: eventId(1), eventType: 'ServiceSessionRecorded', code: 'COMMISSION_PERIOD_CLOSED' });
-  expect(result.undelivered[199]).toEqual({ eventId: eventId(200), eventType: 'ServiceSessionRecorded', code: 'COMMISSION_PERIOD_CLOSED' });
+  expect(result.undelivered[0]).toEqual({ eventId: eventId(1), type: 'ServiceSessionRecorded', code: 'COMMISSION_PERIOD_CLOSED' });
+  expect(result.undelivered[199]).toEqual({ eventId: eventId(200), type: 'ServiceSessionRecorded', code: 'COMMISSION_PERIOD_CLOSED' });
 });
 
 it('throws CommissionReplayEventInvalidError for another company or non-replayable event type', async () => {

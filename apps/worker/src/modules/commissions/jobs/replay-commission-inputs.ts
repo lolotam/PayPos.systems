@@ -44,7 +44,7 @@ export interface CommissionReplayResult {
   readonly afterId: string | null;
   readonly throughId: string | null;
   readonly counts: Record<string, number>;
-  readonly undelivered: { eventId: string; eventType: string; code: string }[];
+  readonly undelivered: { eventId: string; type: string; code: string }[];
   readonly truncated: boolean;
 }
 
@@ -139,7 +139,7 @@ function recordUndelivered(
   truncated: boolean,
 ): boolean {
   if (undelivered.length >= UNDELIVERED_LIMIT) return true;
-  undelivered.push({ eventId: event.id, eventType: event.eventType, code });
+  undelivered.push({ eventId: event.id, type: event.eventType, code });
   return truncated;
 }
 

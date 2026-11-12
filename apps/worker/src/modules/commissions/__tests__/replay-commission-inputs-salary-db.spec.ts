@@ -102,7 +102,7 @@ it('CM-25 applies legacy SalaryChanged without business_id once, idempotently, a
     afterId: eventId(200),
     throughId: eventId(200),
     counts: { SalaryChanged: 1 },
-    undelivered: [{ eventId: legacyMissing.id, eventType: 'SalaryChanged', code: 'COMMISSION_EMPLOYEE_BUSINESS_MISSING' }],
+    undelivered: [{ eventId: legacyMissing.id, type: 'SalaryChanged', code: 'COMMISSION_EMPLOYEE_BUSINESS_MISSING' }],
     truncated: false,
   });
 

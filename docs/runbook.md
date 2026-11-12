@@ -207,8 +207,8 @@ reset dedupe or regenerate requests. This procedure does not replay commissions/
 ## 50-3a: replay retained commission inputs (spec 059, D-15)
 
 Replays the retained `ServiceSessionRecorded`, `ServiceSessionLinesAdded`, `ServiceLineChanged` and `SalaryChanged` events of one
-company to the `commissions.project-inputs` consumer alone. Tips are bootstrapped by 50-3b, and coverage is checked by 50-3c; until those
-land, approval stays closed. Never reset `published_at`, `attempts`, `parked_at` or `consumed_events`; the replay does not write them.
+company to the `commissions.project-inputs` consumer alone. Tips are bootstrapped by 50-3b, coverage is checked by 50-3c and the six-type post-rollback replay is 50-3d; until those
+land, approval stays closed. Never reset or delete `published_at`, `attempts`, `parked_at` or `consumed_events`; the commissions consumer adds missing consumed marks with the projection.
 
 1. **Every worker replica first.** Roll the release that registers the consumer to every worker replica, or drain the old dispatchers,
    before choosing the upper bound. An old replica could otherwise mark a new event published without applying it.
@@ -216,7 +216,7 @@ land, approval stays closed. Never reset `published_at`, `attempts`, `parked_at`
    (`pospay_dispatcher`):
 
    ```sh
-   node apps/worker/dist/replay-commission-inputs.js --company <uuid> [--after <uuid>] [--through <uuid>]
+   node dist/replay-commission-inputs.js --company <uuid> [--after <uuid>] [--through <uuid>]
    ```
 
    The entry prints one JSON line: `status`, `afterId`, `throughId`, per-type `counts`, and `undelivered` (event id, type and error code only,

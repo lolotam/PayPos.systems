@@ -1,6 +1,6 @@
 # Plan — row 50-3, commissions bootstrap replay (spec 059)
 
-Status: split APPROVED by the manager 2026-11-12 (Q1 = option 1, Q2 = option 1, Q3 as written). 50-3a is built first, then 50-3b, then 50-3c, one PR each.
+Status: split APPROVED by the manager 2026-11-12 (Q1 = option 1, Q2 = option 1, Q3 as written). 50-3a is built first, then 50-3b, then 50-3c, one PR each; the six-type post-rollback replay with its index is a fourth sub-PR, 50-3d (approved 2026-11-12, migration lane), and 53-2 needs all four.
 Q1 (move the `listCurrentSessionTips` SQL builder to `packages/db`, byte-identical, api keeps a thin wrapper) belongs to 50-3b; Q2 (pure comparison in `packages/commissions-engine`) belongs to 50-3c; Q3 (operator-supplied `BUSINESS_IDS`/`FROM`/`TO`, documented in the runbook) belongs to 50-3b.
 
 Inputs: spec D-8, D-9, D-15, D-27, CM-20b, CM-24, CM-25, FR-018b, FR-020, the 50-3 row (CS-Q41..CS-Q44, PP-185),
