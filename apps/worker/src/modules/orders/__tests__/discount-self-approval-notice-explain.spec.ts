@@ -27,33 +27,49 @@ it('the claim plan uses the source-event conflict arbiter and does nothing on co
     decidedAt: f.at,
     recipientCount: 1,
   });
-  const plan = JSON.stringify(await explain(scope.company, statement));
+  const plan = JSON.stringify(await explain(scope.company, statement, true));
   expect(plan).toContain('"Conflict Resolution":"NOTHING"');
   expect(plan).toContain('discount_self_approval_notices_source_event_key');
   expect(await f.notices(prepared.event.id)).toHaveLength(1);
 }, 120_000);
 
-it('the proposal proof reads discount_proposals through a tenant-scoped index with no sequential scan', async () => {
-  const { scope, statement } = await proofStatement();
-  const plan = JSON.stringify(await explain(scope.company, statement));
-  expect(plan).toContain('"Index Name"');
-  expect(plan).toMatch(/"Index Cond":"[^"]*\bcompany_id\b/);
-  expect(plan).not.toContain('Seq Scan');
-}, 120_000);
+const INDEXES = /dp_pk|dp_business_id_key|dp_consumed_line_key|dp_consumed_edit_key/;
 
-async function proofStatement() {
+it('the default planner reads discount_proposals through a company-scoped index', async () => {
+  const { scope, statement } = await proofStatement();
+  const plan = JSON.stringify(await explain(scope.company, statement, false));
+  expect(plan).toMatch(INDEXES);
+  expect(plan).toMatch(/Index Cond[^}]*company_id = [^}]*\(id = /);
+  expect(plan).not.toContain('Seq Scan');
+}, 240_000);
+
+it('the proposal proof stays index-eligible when sequential scans are disabled', async () => {
+  const { scope, statement } = await proofStatement();
+  const plan = JSON.stringify(await explain(scope.company, statement, true));
+  expect(plan).toMatch(INDEXES);
+  expect(plan).not.toContain('Seq Scan');
+}, 240_000);
+
+// الخطة الافتراضية تقلب من مسح تسلسلي إلى بحث بالفهرس بين 1200 و1400 صف للشركة، فنزرع 2000 (100 دفعة) ليكون الحجم واقعياً.
+let proof: ReturnType<typeof seedProof> | undefined;
+function proofStatement() {
+  proof ??= seedProof();
+  return proof;
+}
+
+async function seedProof() {
   const scope = await f.otherScope();
   const prepared = await f.selfApproval({ scope, proposals: Array(20).fill({}) });
-  for (let batch = 1; batch < 5; batch += 1) {
+  for (let batch = 1; batch < 100; batch += 1) {
     await f.selfApproval({ scope, proposals: Array(20).fill({}) });
   }
   await f.owner`ANALYZE discount_proposals`;
   return { scope, statement: discountSelfApprovalMatchesStatement(f.noticeEvent(prepared)) };
 }
 
-function explain(companyId: string, statement: SQL) {
+function explain(companyId: string, statement: SQL, noSeqScan: boolean) {
   return f.db.withTenant(companyId, async (tx) => {
-    await tx.execute(sql`SET LOCAL enable_seqscan=off`);
+    if (noSeqScan) await tx.execute(sql`SET LOCAL enable_seqscan=off`);
     return tx.execute(sql`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${statement}`);
   });
 }

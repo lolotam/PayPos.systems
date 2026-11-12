@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { discountSelfApprovalRecipients } from '../persistence/discount-self-approval-recipients.adapter.ts';
 import type { ApprovalRequester, ApprovalScope } from './discount-approval-notice-data.ts';
 import {
   discountSelfApprovalFixture,
@@ -42,6 +43,12 @@ it('company and branch owner memberships for one user produce one recipient', as
   );
   await f.member(userId, 'owner', 'BRANCH', scope.branch, undefined, null, scope.company);
   const prepared = await f.selfApproval({ scope, decidedBy: { userId, membershipId } });
+  const event = f.noticeEvent(prepared);
+  // القراءة نفسها قبل التجميع: الـ UNION بين نطاقي الشركة والفرع هو اللي يمنع تكرار المستخدم، مش دالة المجموعات.
+  const read = await f.db.withTenant(event.companyId, (tx) =>
+    discountSelfApprovalRecipients(tx).roleRecipients(event, f.at, ['owner']),
+  );
+  expect(read).toEqual([userId]);
   expect(await f.deliver(prepared.event)).toEqual({ delivered: true });
   const groups = (await f.bells(prepared.event.id)).map(recipientIds);
   expect(groups).toEqual([[userId]]);

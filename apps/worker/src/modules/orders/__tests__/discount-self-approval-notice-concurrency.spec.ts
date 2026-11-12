@@ -73,7 +73,8 @@ async function raceClaims(prepared: PreparedSelfApproval, rollbackFirst: boolean
     if (rollbackFirst) throw new Error(ROLLBACK);
     return won;
   });
-  await claimed.opened;
+  // لو رفض الأول قبل الإعلان فالانتظار على البوابة وحدها يعلق للمهلة؛ السباق يكشف الفشل فوراً.
+  await Promise.race([claimed.opened, first]);
   const second = f.db.withTenant(event.companyId, (tx) =>
     discountSelfApprovalRepository(tx).claim(event, decision(event, secondId)),
   );
