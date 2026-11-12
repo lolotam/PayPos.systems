@@ -44,6 +44,30 @@ function leaveDecisionChecks(t: LeaveDecisionColumns) {
   ];
 }
 
+type LeaveEmployeeIndexColumns = Record<
+  'companyId' | 'employeeId' | 'startsAt' | 'endsAt' | 'to' | 'from' | 'id',
+  AnyPgColumn
+>;
+// فهارس القراءة بالموظف في دالة مستقلة عشان دالة الجدول تفضل تحت حد الطول؛ الأسماء والأعمدة زي ما هي.
+function leaveEmployeeIndexes(t: LeaveEmployeeIndexColumns) {
+  return [
+    index('leave_requests_company_employee_period_idx').on(
+      t.companyId,
+      t.employeeId,
+      t.startsAt,
+      t.endsAt,
+    ),
+    // فحص تغطية اليوم بالإجازة بيبدأ من "to" فما يقراش تاريخ الإجازات القديم للموظف.
+    index('leave_requests_company_employee_to_from_idx').on(
+      t.companyId,
+      t.employeeId,
+      t.to,
+      t.from,
+    ),
+    index('leave_requests_company_employee_id_idx').on(t.companyId, t.employeeId, t.id),
+  ];
+}
+
 export const leaveRequests = pgTable(
   'leave_requests',
   {
@@ -95,20 +119,7 @@ export const leaveRequests = pgTable(
       columns: [t.companyId, t.businessId, t.branchId],
       foreignColumns: [branches.companyId, branches.businessId, branches.id],
     }),
-    index('leave_requests_company_employee_period_idx').on(
-      t.companyId,
-      t.employeeId,
-      t.startsAt,
-      t.endsAt,
-    ),
-    // فحص تغطية اليوم بالإجازة بيبدأ من "to" فما يقراش تاريخ الإجازات القديم للموظف.
-    index('leave_requests_company_employee_to_from_idx').on(
-      t.companyId,
-      t.employeeId,
-      t.to,
-      t.from,
-    ),
-    index('leave_requests_company_employee_id_idx').on(t.companyId, t.employeeId, t.id),
+    ...leaveEmployeeIndexes(t),
     index('leave_requests_company_business_branch_status_id_idx').on(
       t.companyId,
       t.businessId,
