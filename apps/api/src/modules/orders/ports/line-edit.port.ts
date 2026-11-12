@@ -14,6 +14,10 @@ export interface SessionEditorRole {
 /** عضوية مؤهلة بذاتها لتعديل سعر البند على هذا الفرع. */
 export interface SessionEditorMembership {
   membership_id: string;
+  /** نطاق العضوية: شركة أو نشاط أو فرع. */
+  scope_type: 'COMPANY' | 'BUSINESS' | 'BRANCH';
+  /** معرّف ذلك النطاق. */
+  scope_id: string;
   role: SessionEditorRole;
 }
 
