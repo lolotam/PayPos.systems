@@ -1,4 +1,5 @@
 import { t } from '@pospay/i18n';
+import { LEAVE_HISTORY_REPORT_ROW_CAP } from '@pospay/contracts';
 import { createLogger } from '@pospay/observability';
 import { notClockedInDiagnostics } from './persistence/not-clocked-in-diagnostics.ts';
 import { branchPlaceAdapter } from './persistence/branch-place.adapter.ts';
@@ -91,6 +92,8 @@ export function createAttendanceStatementReader(database: Pick<TenantWrappers, '
 
 // مهلة البناء تحد كلفة الاستعلام الثقيل وتترك للتقرير نتيجة فشل قابلة للقراءة بدل تعليقه.
 const LEAVE_HISTORY_REPORT_BUILD_TIMEOUT_MS = 60_000;
+// كتابة حالة الفشل تجري بعد انتهاء مهلة البناء، فمهلتها قصيرة حتى لا تضاعف زمن الإمساك بالاتصال.
+const LEAVE_HISTORY_REPORT_FAILURE_TIMEOUT_MS = 5_000;
 // كل دفعة تنظيف قصيرة حتى لا يحمل حذف الصفوف الكثيرة اتصال العامل.
 const LEAVE_HISTORY_REPORT_CLEANUP_TIMEOUT_MS = 30_000;
 
@@ -102,7 +105,12 @@ function startLeaveHistoryReportWorkers(
   const logger = createLogger('error');
   const reports = startLeaveHistoryReportProcessor(
     new BuildLeaveHistoryReport(
-      leaveHistoryReportTransactions(database, LEAVE_HISTORY_REPORT_BUILD_TIMEOUT_MS),
+      leaveHistoryReportTransactions(
+        database,
+        LEAVE_HISTORY_REPORT_BUILD_TIMEOUT_MS,
+        LEAVE_HISTORY_REPORT_ROW_CAP,
+        LEAVE_HISTORY_REPORT_FAILURE_TIMEOUT_MS,
+      ),
       {
         failed: ({ companyId, reportId, createdBy, code }) =>
           logger.error(

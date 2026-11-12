@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   }[],
   workers: [] as {
     name: string;
+    processor: (job: unknown, token?: string) => Promise<unknown>;
     waitUntilReady: ReturnType<typeof vi.fn>;
     close: ReturnType<typeof vi.fn>;
   }[],
@@ -31,7 +32,10 @@ vi.mock('bullmq', () => ({
     waitUntilReady = vi.fn(async () => undefined);
     close = vi.fn(async () => undefined);
     on = vi.fn();
-    constructor(readonly name: string) {
+    constructor(
+      readonly name: string,
+      readonly processor: (job: unknown, token?: string) => Promise<unknown>,
+    ) {
       state.workers.push(this);
     }
   },
@@ -50,12 +54,14 @@ vi.mock('ioredis', () => ({
 
 const ids = systemUuidV7();
 let staff: ReturnType<typeof startStaffWorker>;
+const withTenant = vi.fn(async () => undefined);
 
 beforeEach(() => {
   state.queues.length = 0;
   state.workers.length = 0;
+  withTenant.mockClear();
   staff = startStaffWorker(
-    { withTenant: vi.fn() } as unknown as Pick<Database, 'withTenant'>,
+    { withTenant } as unknown as Pick<Database, 'withTenant'>,
     ids,
     'synthetic',
     { now: () => new Date('2026-11-07T10:00:00.000Z') },
@@ -137,4 +143,18 @@ it('keeps the existing employee-import delivery branch', async () => {
     expect.objectContaining({ jobId: event.id }),
   );
   expect(next).not.toHaveBeenCalled();
+});
+
+it('writes a report failure with the short failure timeout, not the build timeout', async () => {
+  const companyId = ids.newId();
+  const reportId = ids.newId();
+  const worker = state.workers.find((item) => item.name === 'leave-history-report');
+  await worker?.processor({
+    data: { companyId, reportId },
+    progress: { stage: 'finalizing-leave-history-failure', code: 'LEAVE_HISTORY_REPORT_FAILED' },
+    attemptsMade: 0,
+    opts: { attempts: 1 },
+  });
+  expect(withTenant).toHaveBeenCalledOnce();
+  expect(withTenant).toHaveBeenCalledWith(companyId, expect.any(Function), { timeoutMs: 5_000 });
 });
