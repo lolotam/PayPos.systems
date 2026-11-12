@@ -248,6 +248,9 @@ consumer re-runs the replay with a new upper bound before approval reopens, or t
 comparison through root-bound orders and staff readers (ADR-0054 §4 addendum); an unprojected item whose retained event
 exists is re-replayed, and a missing retained event keeps approval closed for manual investigation. (d): this ADR's count,
 with its §1 predicate unchanged (counted types, created before `approval_started_at`, no `commissions.project-inputs`
-mark), closes approval after a rollback; the runbook re-runs the replay with a new upper bound after any rollback then
-upgrade, and rollback is not blocked at deploy level. (e): the legacy event is delivered to the same consumer, which
+mark), closes approval after a rollback; after any rollback then upgrade the runbook re-runs **every** bootstrap path with
+a new upper bound (the 50-0 replay for the four types above, the tips bootstrap for `SessionTipsChanged` in 50-3b and the
+package-sale bootstrap for `PackageSaleChanged` in 50-4), so all six counted types are covered; each path delivers through
+the commissions consumer and discharges its event ids, so an already approved period takes the correction path; rollback
+is not blocked at deploy level. (e): the legacy event is delivered to the same consumer, which
 resolves the business through the root-bound staff reader; a null result leaves it unmarked and approval closed.
