@@ -219,15 +219,20 @@ land, approval stays closed. Never reset or delete `published_at`, `attempts`, `
    node dist/replay-commission-inputs.js --company <uuid> [--after <uuid>] [--through <uuid>]
    ```
 
-   The entry prints one JSON line: `status`, `afterId`, `throughId`, per-type `counts`, and `undelivered` (event id, type and error code only,
+   `--after` is only valid together with `--through`; `--after` without `--through` is refused with `COMMISSION_REPLAY_THROUGH_REQUIRED` and nothing is read. A first run has no `--after`; every resume passes both.
+
+   The entry prints one JSON line: `status`, `afterId`, `throughId`, `handledThroughId` (the last event whose handling finished, informational), per-type `counts`, and `undelivered` (event id, type and error code only,
    never a payload; at most 200, `truncated` tells when more exist; `counts` also counts events already marked by an earlier run). Keep the line, the release SHA and the counts in the operations record.
    The exit code is 0 only for `COMPLETE`.
 3. **Statuses.**
    - `COMPLETE`: the range up to `throughId` is applied; compare the counts with the release inventory.
-   - `PAGE_LIMIT` or `ABORTED`: resume with `--after <afterId> --through <throughId>` from the printed line. `ABORTED` means a failure that is
-     not a known business outcome (a database or timeout failure); fix the cause first.
-   - `UNDELIVERED`: the range finished but some events were not applied for a known business reason. Fix the cause, then re-run **from the
-     beginning** with the same `--through`; `--after` would skip the failed events. Marks make the re-run idempotent.
+   - `PAGE_LIMIT` or `ABORTED`: resume with `--after <afterId> --through <throughId>` from the printed line; `afterId` is the safe resume
+     cursor and never moves past the first undelivered event. `ABORTED` means a failure that is not a known business outcome (a database or
+     timeout failure), including a failed page read, which still prints the cursors; fix the cause first. If `undelivered` in the line is not
+     empty, fix its cause before resuming, otherwise the resume reads the same pages again.
+   - `UNDELIVERED`: the range finished but some events were not applied for a known business reason. Fix the cause, then resume with
+     `--after <afterId> --through <throughId>` from the printed line; `afterId` never skips a failed event. A full re-run **from the beginning**
+     with the same `--through` is also valid. Marks make the re-run idempotent.
 4. **Legacy `SalaryChanged` without `business_id`** (CS-Q44) is routed through the staff reader on the same transaction. If the employee is not
    found the event stays unmarked and appears as `COMMISSION_EMPLOYEE_BUSINESS_MISSING`: approval stays closed and the manager investigates.
    Do not invent an event, a mark or a grant.
