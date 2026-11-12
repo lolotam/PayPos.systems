@@ -44,6 +44,12 @@ const PUBLIC_EXPORTS = [
   'deleteStaffPrivateViewRows',
   'employeeDefaultShiftsStatement',
   'grantPlatformPermission',
+  'historyIds',
+  'historyLastTaken',
+  'historyLeaveSource',
+  'historyRows',
+  'leaveHistorySql',
+  'leaveListRecord',
   'lockBusinessLogoReference',
   'lockEmployeeNumberCounter',
   'lockStatementPeriods',
@@ -58,6 +64,7 @@ const PUBLIC_EXPORTS = [
   'systemRoleGrantAllowedSql',
   'systemRoleOverrideAllowedSql',
   'systemRolePolicy',
+  'uuidArray',
   'verticalTemplate',
 ];
 

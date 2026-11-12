@@ -21,7 +21,7 @@ export {
 } from './attendance-monthly-inputs.ts';
 export { leaveHistorySql } from './leave-history/leave-history-builder.sql.ts';
 export { historyIds, type HistoryScope } from './leave-history/leave-history-days.sql.ts';
-export { historyLeaveSource } from './leave-history/leave-history-rows.sql.ts';
+export { historyLeaveSource, historyRows } from './leave-history/leave-history-rows.sql.ts';
 export { historyLastTaken } from './leave-history/leave-history-last.sql.ts';
 export { leaveListRecord, uuidArray } from './leave-history/leave-list-record.sql.ts';
 export type {
