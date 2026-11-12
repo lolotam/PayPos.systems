@@ -234,11 +234,11 @@ land, approval stays closed. Never reset `published_at`, `attempts`, `parked_at`
 5. **The upper bound is an id bound, not a commit-order proof.** An event whose row commits after the cursor passed it, with a lower id, is
    not replayed; the live consumer delivers it. Do not record "everything up to the bound was replayed" as coverage: coverage is checked by 50-3c.
 6. **After any worker rollback then upgrade**, re-run the replay with a new upper bound (CS-Q43). The ADR-0012 pending count, shipped in
-   row 53-1, keeps approval closed for any counted event without the consumer's mark. This run replays the four types above; 50-3b adds the
+   row 53-1, keeps approval closed for any counted event without the consumer's mark. This run replays the four types above; sub-PR 50-3d adds the
    six-type retained-event replay (`SessionTipsChanged` and `PackageSaleChanged` as well), which is the run to use after a rollback, because
-   the current-state readers of the first bootstrap discharge only the current revision's event id. Every re-run states its upper bound:
-   captured after every replica runs the consumer, passed as `--through`, reused on a resume, new after any rollback. An unmarked event aimed at
-   an already APPROVED month stays undelivered (`COMMISSION_PERIOD_CLOSED`) by design; the manager owns that case.
+   the current-state readers of the first bootstrap cover only the business and date range the operator supplied. Every re-run states its upper bound:
+   captured after every replica runs the consumer, passed as `--through`, reused on a resume, new after any rollback. An event aimed at
+   an already APPROVED month stays undelivered (`COMMISSION_PERIOD_CLOSED`) until the 55-1 correction path exists, and takes that path afterwards; the manager owns that case.
 7. **Logs.** A failed replay of a row that already has ten or more attempts logs «outbox event parked» at error level although nothing is
    written; read the printed result, not that line.
 

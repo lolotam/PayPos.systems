@@ -132,12 +132,15 @@ comparison, ADR-0054 §4 addendum and Port rows.
 
 ## Post-rollback replay of all six counted types (manager request 2026-11-12, PR #980 findings)
 
-Placement: **50-3b**, not 50-3a. A current-state reader discharges only the current revision's event id, so `SessionTipsChanged` and
-`PackageSaleChanged` rows published during a rollback would keep approval closed (ADR-0012 §1). The post-rollback run therefore replays the
-retained events of all six counted types with one fixed upper bound. The facade needs its own partial index (the existing 50-0 index covers four
-types), so 50-3b carries a migration (index only, no column, function or grant) on the migration lane. 50-3a stays at four types. The current-state
-readers (36-5 and the latest package-sale revision) serve the first bootstrap only. Every re-run path has an upper-bound contract (runbook), and each
-bootstrap reader proves that every retained event id is returned (50-3c report lists retained counted event ids without a mark).
+Placement after the second advisor round: its own sub-PR **50-3d**, not 50-3a (delivered) and not 50-3b (a migration would put the whole
+tips PR on the migration lane, and the facade does not depend on tips). A current-state reader is bound to the business and date range the
+operator supplies and to the revisions that exist when it runs, while the ADR-0012 count is company-wide, so rows published later or outside that
+scope would keep approval closed. The post-rollback run therefore replays the retained events of all six counted types with one fixed upper
+bound through a six-type facade with its own partial index (the existing 50-0 index covers four types), a migration of index only. Until 50-4
+registers the `PackageSaleChanged` handler the runner reports those rows as not handled and never prints `COMPLETE` (the deliverer would
+otherwise count a type with no registered consumer as delivered). Every re-run path has an upper-bound contract (runbook), and each bootstrap
+reader proves that every retained event id is returned (the 50-3c report lists retained counted event ids without a mark).
 
-Sizes after this change: 50-3a about 240 production lines (delivered); 50-3b about 385 (tips bootstrap 110, shared SQL builder move 140 as a move,
-glue 30, six-type facade 40, runner six-type mode 35, index in schema 5), inside 300–420 only if the builder move counts as a move; 50-3c about 375.
+Sizes: 50-3a about 240 production lines (delivered); 50-3b about 315 (tips bootstrap 110, shared SQL builder move 140, glue 30, runbook);
+50-3c about 375; 50-3d about 100 production lines (facade 40, schema 5, runner mode and entry flag 50) plus the migration and tests, band 200-300.
+Dependencies: 53-2 needs 50-3a, 50-3b, 50-3c and 50-3d; 50-3d needs 50-3a and 50-0; 50-4 owns the `PackageSaleChanged` handler and its delivery test.
