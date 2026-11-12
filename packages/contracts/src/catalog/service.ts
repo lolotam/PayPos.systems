@@ -80,6 +80,13 @@ export const updateServiceInput = z
   })
   .meta({ id: 'UpdateServiceInput' });
 
+export const closeServiceInput = z
+  .strictObject({ expected_revision: revision })
+  .meta({ id: 'CloseServiceInput' });
+export const reopenServiceInput = z
+  .strictObject({ expected_revision: revision })
+  .meta({ id: 'ReopenServiceInput' });
+
 export const service = responseObject({
     id,
     business_id: id,
@@ -91,6 +98,7 @@ export const service = responseObject({
     duration_minutes: serviceDurationMinutes.nullable(),
     category_id: id.nullable(),
     category: serviceCategoryLabel.nullable(),
+    closed_at: timestamp.nullable(),
     revision,
     created_at: timestamp,
     updated_at: timestamp,
@@ -108,6 +116,7 @@ export const serviceListItem = service
     duration_minutes: true,
     category_id: true,
     category: true,
+    closed_at: true,
     revision: true,
   })
   .meta({ id: 'ServiceListItem' });
@@ -130,6 +139,8 @@ export const serviceSchemas = [
   serviceCommissionRule,
   createServiceInput,
   updateServiceInput,
+  closeServiceInput,
+  reopenServiceInput,
   service,
   serviceListItem,
   servicePage,
@@ -137,6 +148,8 @@ export const serviceSchemas = [
 ];
 export type CreateServiceInput = z.infer<typeof createServiceInput>;
 export type UpdateServiceInput = z.infer<typeof updateServiceInput>;
+export type CloseServiceInput = z.infer<typeof closeServiceInput>;
+export type ReopenServiceInput = z.infer<typeof reopenServiceInput>;
 export type Service = z.infer<typeof service>;
 export type ServiceListItem = z.infer<typeof serviceListItem>;
 export type ServicePage = z.infer<typeof servicePage>;

@@ -6,6 +6,7 @@ export const serviceSessionErrors = {
   SESSION_ATTEMPT_NOT_PERSISTED: { message_ar: 'مش ممكن الحفظ بأمان في المتصفح ده لأن التخزين مش متاح. فضّي مساحة أو اخرجي من وضع التصفح الخاص.', message_en: "Can't save safely in this browser — storage is unavailable; free space or leave private mode." },
   SESSION_CUSTOMER_NOT_FOUND: { message_ar: 'العميلة غير موجودة.', message_en: 'Customer not found.' },
   SESSION_SERVICE_NOT_FOUND: { message_ar: 'الخدمة غير موجودة في النشاط.', message_en: 'Service not found in this business.' },
+  SERVICE_CLOSED: { message_ar: 'الخدمة مغلقة ولا يمكن إضافتها لجلسة جديدة.', message_en: 'The service is closed and cannot be added to a new session.' },
   SESSION_PERFORMER_NOT_ELIGIBLE: { message_ar: 'الموظفة غير مؤهلة لهذا الفرع في يوم الجلسة.', message_en: 'Performer is not eligible at this branch on the session date.' },
   SESSION_PERFORMER_SELF_FORBIDDEN: { message_ar: 'لا يمكنك تنفيذ هذا الإجراء على خدمة قمت بها بنفسك.', message_en: 'You cannot perform this action on a service you performed yourself.' },
   SESSION_PERFORMER_SHARES_INVALID: { message_ar: 'نسب الموظفات غير صحيحة.', message_en: 'Performer shares are invalid.' },

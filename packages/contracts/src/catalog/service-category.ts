@@ -108,6 +108,32 @@ export const serviceCategoryBranchListQuery = z
   })
   .meta({ id: 'ServiceCategoryBranchListQuery' });
 
+export const closeServiceCategoryInput = z
+  .strictObject({
+    expected_revision: revision,
+    expected_service_count: z.number().int().min(0).max(100_000),
+  })
+  .meta({ id: 'CloseServiceCategoryInput' });
+export const reopenServiceCategoryInput = z
+  .strictObject({
+    expected_revision: revision,
+    expected_service_count: z.number().int().min(0).max(100_000),
+  })
+  .meta({ id: 'ReopenServiceCategoryInput' });
+export const closeServiceCategoryResult = responseObject({
+  ...categoryFields,
+  services_closed: z.number().int().min(0),
+}).meta({ id: 'CloseServiceCategoryResult' });
+export const reopenServiceCategoryResult = responseObject({
+  ...categoryFields,
+  services_reopened: z.number().int().min(0),
+}).meta({ id: 'ReopenServiceCategoryResult' });
+export const serviceCategoryDetail = responseObject({
+  ...categoryFields,
+  open_service_count: z.number().int().min(0),
+  marked_service_count: z.number().int().min(0),
+}).meta({ id: 'ServiceCategoryDetail' });
+
 export const serviceCategorySchemas = [
   serviceCategoryVisibility,
   createServiceCategoryInput,
@@ -126,6 +152,11 @@ export const serviceCategorySchemas = [
   serviceCategoryBranchStateResult,
   serviceCategoryBranchPage,
   serviceCategoryBranchListQuery,
+  closeServiceCategoryInput,
+  reopenServiceCategoryInput,
+  closeServiceCategoryResult,
+  reopenServiceCategoryResult,
+  serviceCategoryDetail,
 ];
 
 export type ServiceCategoryVisibility = z.infer<typeof serviceCategoryVisibility>;
@@ -152,3 +183,8 @@ export type ServiceCategoryBranchPage = z.infer<typeof serviceCategoryBranchPage
 export type ServiceCategoryBranchListQuery = z.infer<
   typeof serviceCategoryBranchListQuery
 >;
+export type CloseServiceCategoryInput = z.infer<typeof closeServiceCategoryInput>;
+export type ReopenServiceCategoryInput = z.infer<typeof reopenServiceCategoryInput>;
+export type CloseServiceCategoryResult = z.infer<typeof closeServiceCategoryResult>;
+export type ReopenServiceCategoryResult = z.infer<typeof reopenServiceCategoryResult>;
+export type ServiceCategoryDetail = z.infer<typeof serviceCategoryDetail>;
