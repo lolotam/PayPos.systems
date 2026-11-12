@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import {
   customerPackageDetail,
   customerPackagePage,
@@ -83,6 +83,7 @@ const validDetail = {
   refunded_amount: '0.000',
   revision: 1,
   components: [validDetailComponent],
+  redemptions: [],
 };
 
 it('defaults query limit to 20 when omitted', () => {
@@ -159,4 +160,45 @@ it('strips an extra key from page and detail responses and rejects one in the cu
   // رفض سنة الصفر 0000 وقبول سنة 0001
   expect(customerPackagesCursorData.safeParse({ ...validCursor, expires_on: '0000-01-01' }).success).toBe(false);
   expect(customerPackagesCursorData.safeParse({ ...validCursor, expires_on: '0001-01-01' }).success).toBe(true);
+});
+
+const validRedemption = {
+  id,
+  component_id: id,
+  ordinal: 1,
+  redeemed_at: '2026-10-20T10:00:00.000Z',
+  visit_business_date: '2026-10-19',
+  reversed_at: null,
+};
+
+it('parses empty redemption history and live or reversed redemption rows', () => {
+  expect(customerPackageDetail.parse(validDetail).redemptions).toEqual([]);
+  for (const reversed_at of [null, '2026-10-21T10:00:00.000Z']) {
+    const detail = customerPackageDetail.parse({ ...validDetail, redemptions: [{ ...validRedemption, reversed_at }] });
+    expect(detail.redemptions).toEqual([{ ...validRedemption, reversed_at }]);
+  }
+});
+
+it('requires redemptions on the detail response', () => {
+  const withoutRedemptions = Object.fromEntries(Object.entries(validDetail).filter(([key]) => key !== 'redemptions'));
+  expect(customerPackageDetail.safeParse(withoutRedemptions).success).toBe(false);
+});
+
+it.each([0, 366])('rejects redemption ordinal %s outside the slot bounds', (ordinal) => {
+  const detail = { ...validDetail, redemptions: [{ ...validRedemption, ordinal }] };
+  expect(customerPackageDetail.safeParse(detail).success).toBe(false);
+});
+
+// وضع الردود الصارم في API يرفض الحقل غير المعروف داخل صف السجل مثل بقية عقود الرد.
+it('rejects an unknown redemption key when responses are strict', async () => {
+  vi.stubEnv('POSPAY_STRICT_RESPONSES', '1');
+  vi.resetModules();
+  try {
+    const strict = await import('./customer-packages.js');
+    const detail = { ...validDetail, redemptions: [{ ...validRedemption, note: 'extra' }] };
+    expect(strict.customerPackageDetail.safeParse(detail).success).toBe(false);
+  } finally {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  }
 });

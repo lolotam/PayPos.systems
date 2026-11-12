@@ -201,3 +201,17 @@ it('keeps the last submitted correction when a later append is rejected', async 
   expect(view.result.current.result.drafts.lines).toHaveLength(1);
   expect(view.result.current.result.drafts.lines[0]?.discount_percentage).toBe('11');
 });
+
+it('reports SESSION_PACKAGE_NOT_CHOSEN and sends no request for a package draft without an entitlement', async () => {
+  const view = mount();
+  await ready(view);
+  chooseCustomer(view);
+  const drafts = draft();
+  const line = drafts.lines[0];
+  if (!line) throw new Error('Missing draft line');
+  await expect(act(async () => {
+    await view.result.current.submit({ ...drafts, lines: [{ ...line, from_package: true, package_entitlement_id: null }] });
+  })).rejects.toThrow('SESSION_PACKAGE_NOT_CHOSEN');
+  expect(view.result.current.result.attempt).toBeNull();
+  expect(post).not.toHaveBeenCalled();
+});

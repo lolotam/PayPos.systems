@@ -15,6 +15,10 @@ import { RecordServiceSessionForm } from './record-service-session-form';
 const state = vi.hoisted(() => ({ locale: 'en' as 'ar' | 'en', get: vi.fn(), post: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: state.get, POST: state.post }) }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
+vi.mock('../api/use-customer-packages', () => ({ useCustomerPackages: () => ({
+  data: { items: [], pages: [] }, hasNextPage: false, isFetchingNextPage: false,
+  isPending: false, isError: false, fetchNextPage: vi.fn(), refetch: vi.fn(),
+}) }));
 
 const service = { id: id(5), name_ar: null, name_en: 'Synthetic service', price: '7.125', revision: 1 };
 const performer = { id: id(6), name_ar: null, name_en: 'Synthetic performer', employee_number: 7, not_clocked_in_warning: false, approved_leave_warning: false };
@@ -173,6 +177,21 @@ it('disables find-or-create, fresh reads and submit while offline and keeps the 
   expect(state.get.mock.calls.length).toBe(reads);
   expect((screen.getByRole('button', { name: t('en', 'serviceSessions.save') }) as HTMLButtonElement).disabled).toBe(true);
   expect(screen.getByRole('button', { name: t('en', 'serviceSessions.findOrCreate') }).closest('fieldset')?.disabled).toBe(true);
+});
+
+it('keeps the form visible for an invalid visit time and recovers with use now', async () => {
+  renderForm(true, emptySessionRecordingResult(customer), openJournal());
+  const timeField = screen.getByLabelText(t('en', 'serviceSessions.occurredAt'));
+  fireEvent.change(timeField, { target: { value: '2026-10-12T17:00' } });
+  fireEvent.change(timeField, { target: { value: '2026-10-' } });
+  const invalidTime = t('en', 'serviceSessions.invalidTime');
+  expect((await screen.findByRole('alert')).textContent).toBe(invalidTime);
+  expect(screen.getByRole('button', { name: t('en', 'serviceSessions.save') })).toBeTruthy();
+  expect(screen.getByLabelText(t('en', 'serviceSessions.name'))).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.useNow') }));
+  await waitFor(() => expect(screen.queryByText(invalidTime)).toBeNull());
+  expect(screen.getByRole('button', { name: t('en', 'serviceSessions.save') })).toBeTruthy();
+  expect(screen.getByLabelText(t('en', 'serviceSessions.name'))).toBeTruthy();
 });
 
 it('does not replay an unresolved attempt when the connection returns', async () => {

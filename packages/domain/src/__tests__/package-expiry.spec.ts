@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { PackageRuleError } from '../packages/errors.js';
-import { assertPackageNotExpired, packageExpiryDate } from '../packages/package-expiry.js';
+import { assertPackageNotExpired, packageExpiryDate, packageUsableOn } from '../packages/package-expiry.js';
 
 describe('branch-local package expiry (PKG-09/M7)', () => {
   it.each([
@@ -45,6 +45,33 @@ describe('branch-local package expiry (PKG-09/M7)', () => {
     expect(() => assertPackageNotExpired('2026-10-02', value)).toThrow(
       new PackageRuleError('INVALID_DATE'),
     );
+  });
+});
+
+describe('packageUsableOn', () => {
+  it.each([
+    ['2026-10-01', '2026-10-02', true],
+    ['2026-10-02', '2026-10-02', true],
+    ['2026-10-03', '2026-10-02', false],
+    ['2026-11-30', '2026-12-01', true],
+    ['2026-12-31', '2027-01-01', true],
+    ['2027-01-01', '2026-12-31', false],
+    ['2028-02-29', '2028-02-29', true],
+    ['2028-03-01', '2028-02-29', false],
+  ] as const)('visit %s on expiry %s is %s', (visitDate, expiresOn, expected) => {
+    expect(packageUsableOn(visitDate, expiresOn)).toBe(expected);
+  });
+
+  it.each([
+    ['bad visit format', '2026-2-01', '2026-10-02'],
+    ['bad expiry format', '2026-10-02', '2026-2-01'],
+    ['impossible visit date', '2026-02-30', '2026-10-02'],
+    ['impossible expiry date', '2026-10-02', '2026-02-30'],
+  ])('throws INVALID_DATE for %s', (_reason, visitDate, expiresOn) => {
+    const usable = () => packageUsableOn(visitDate, expiresOn);
+
+    expect(usable).toThrow(PackageRuleError);
+    expect(usable).toThrow(new PackageRuleError('INVALID_DATE'));
   });
 });
 

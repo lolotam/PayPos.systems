@@ -45,6 +45,8 @@ export function performersSeed(line: DayLine): SessionDraftLine {
     service_id: line.service_id,
     price: line.price,
     service: null,
+    from_package: false,
+    package_entitlement_id: null,
     discount_kind: 'AMOUNT',
     discount_amount: line.discount,
     discount_percentage: '0',
