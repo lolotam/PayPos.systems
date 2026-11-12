@@ -655,6 +655,6 @@ cluster خاصة بهذه الجلسة، ثم تنفيذ 43-1b بعد دخول s
 - **الخيارات:**
   1. **المقترح:** حقل قدرات يرجعه الخادم مع شاشة 42-4 (قراءة قدرات ثابتة).
   2. نقطة قدرات مخصصة الآن، تغيير في الخادم خارج 45-ui.
-  3. الحقل `can_extend_packages` على نقطة `/service-sessions/capabilities` الموجودة (الـhook `apps/admin/src/orders/api/use-service-session-capabilities.ts`). النقطة دي تتطلب `read:service-sessions:branch`، فصاحب صلاحية التسجيل (record) بس بياخد 403 والـhook بيعتبره false.
-- **ما يتوقف عليه:** ظهور الزر بشرط الصلاحية.
+  3. الحقل `can_extend_packages` على نقطة `/service-sessions/capabilities` الموجودة (الـhook `apps/admin/src/orders/api/use-service-session-capabilities.ts`). تنبيه: النقطة دي تتطلب `read:service-sessions:branch`، فصاحب `extend:packages:branch` اللي معاه صلاحية التسجيل (record) بس هياخد 403 والزر هيفضل مخفي، والـhook الحالي بيرمي (throw) على 403 بدل ما يرجّع false، فالخيار ده يحتاج تعديل الـhook. الخيار 1 يفضل المقترح.
+- **ما يتوقف عليه:** ظهور الزر بشرط الصلاحية فقط؛ لا يوقف تسليم الصف 45.
 - **الإجابة:** `PENDING`.
