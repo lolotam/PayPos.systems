@@ -1,0 +1,2 @@
+-- CONCURRENTLY عشان الكتابة على leave_requests ما تقفش أثناء البناء؛ "to" أولًا يخلي فحص التغطية وصفوف السجل يبدأوا من الفترة مش من أول تاريخ الموظف (#947).
+CREATE INDEX CONCURRENTLY "leave_requests_company_employee_to_from_idx" ON "leave_requests" USING btree ("company_id","employee_id","to","from");

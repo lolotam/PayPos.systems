@@ -215,12 +215,13 @@ In the tab the filters apply to the history (part (b)) only; «طلبات جاي
   that employee to be attached to one of those branches, as today's employee route does, or answer 404. An absence row,
   which is attendance-derived, is listed only when the caller also holds `read:attendance:branch` on its shift's branch
   (LH-Q6); a caller with the leave scope alone sees leave rows only, and the absence type is not offered to her. This
-  is a second read of an existing permission in the same transaction, no new permission.
+  is a second read of an existing permission in the same transaction, no new permission. Both routes also apply the
+  unended-attachment rule of the #901 section below (the report since LH-Q12 = PP-171).
 - **FR-011** No write: the history is a read; the existing actions keep their routes, guards and `Idempotency-Key`.
 
 ### Employee history eligibility (#901)
 
-For the detailed employee history only, FR-010 additionally requires an unended attachment in a readable branch:
+For the detailed employee history and the business report (LH-Q12 = PP-171), FR-010 additionally requires an unended attachment in a readable branch:
 `to IS NULL OR to > today`. The end date is exclusive; there is no `from` filter, so future-starting attachments
 remain eligible. Derive each readable branch's `today` from the current injected clock and `effective_timezone`
 (including the existing business timezone fallback), never the database clock or cursor `as_of`. Missing eligibility
@@ -233,6 +234,14 @@ timezone fallback, missing/empty days and an older cursor preserve these rules. 
 attachment after the early check must deny both page and `last_taken`: recheck eligibility in their single final SQL
 statement, without a new transaction or lock. Existing permissions, tenant isolation and legacy reader regressions
 remain required. The pure end-date/branch-day policy also has database-free domain unit coverage.
+
+**The report route (68-2), LH-Q12 = PP-171** (Waleed, 2026-11-11, option 1; Abu Salem's pick is pending on decisions
+batch 92 and replaces this rule if it differs, [owner-questions.ar.md](owner-questions.ar.md) §13). The report applies
+the same unended-attachment rule. With `employee_id`, an employee with no unended attachment in a readable branch answers
+404: the adapter's early `purpose: 'history'` check, then a recheck in the single final statement. Without
+`employee_id`, one per-employee predicate (the same attachment test over the readable branches' days) applies to all
+three row sources (leave, `UNEXCUSED_ABSENCE`, `COVERED_ELSEWHERE`), so the unfiltered list never shows an employee
+whose filter would answer 404. `last_taken` is computed only when `employee_id` is given.
 
 ### Business rules (unexcused absence)
 
@@ -269,7 +278,9 @@ remain required. The pure end-date/branch-day policy also has database-free doma
   belongs to the payroll and statement slice (issue #607), not this read. **Accepted limitation:** the same holds for the schedule. A past schedule can be replaced with a reason
   (spec 020, `SCHEDULE_PAST_REASON_REQUIRED`; ADR-0024 removes the replaced shift rows and keeps only the immutable
   audit), so a correction to a past schedule changes the derived history, exactly as it changes the official statement
-  (spec 061 reads the same rows, TD-1 parity). An immutable source for past shifts is issue #609.
+  (spec 061 reads the same rows, TD-1 parity). An immutable source for past shifts is issue #609. A background report
+  (PP-176, 68-2c) is the one stored exception: its pages return the worker's snapshot taken at `computed_at` (plan
+  D14), so a leave approved or a schedule corrected after that shows only in a new report.
 - **BR-008** A day covered outside the caller's view (LH-Q11, batch 68, PP-53.1, both owners' option 1, final): a fact
   she may see shows as itself, and the neutral row stands only for a fact hidden from her. Each covering fact is judged
   by the scope that would show it: a covering leave (BR-002) by her leave-read branches, `leave_read_branch_ids` (the
@@ -321,7 +332,7 @@ no event, no audit entry (a read of leave data is not on the `CLAUDE.md` §8 aud
 |---|---|---|
 | TD-1 | **Absence is computed in SQL in `queries/`** (a `NOT EXISTS` anti-join of shifts against sessions, `APPROVED` leave and `PENDING` requests covering the date, BR-002), because `queries/` may not import `domain/` (`CLAUDE.md` §6). A **parity test** keeps it equal to the 27g day-breakdown function of spec 061 FR-013 on the matching controls below. The differences are listed below; each has its own characterization fixture, which runs the real 27g reader and assembly (68-1a) | a read use case that runs the domain function (would need a recorded exception like ADR-0054 §5 for commissions); a stored absence table (a second truth that drifts on every correction) |
 | TD-2 | **New routes for the history; one optional filter on today's employee list.** The history is a new shape on new routes; part (a) of the tab reuses today's employee list with an optional, default-off `open` filter, so today's clients and its id cursor are unchanged and part (a) inherits its scope, pagination and actions. Parts (a) and (b) are two reads that share one boundary: the history response returns `as_of` (the instant from the injected `LeaveClock`), and the screen sends it as `as_of` to the part (a) list, so both split on the same branch-local «today» even across midnight. The server bounds every client `as_of` (not later than the clock's now, not older than 24 hours, else `400 VALIDATION_FAILED`; FR-009). A request whose **status** changes between the two reads (a concurrent decision) can still show in neither or both until the next read; this window is accepted, and the screen refetches both parts after every action of its own and when the tab regains focus | a separate endpoint for part (a) (duplicates today's scope, flags, actions and pagination); one statement for both parts (part (a) needs its own cursor pagination) |
-| TD-3 | **One builder, two scopes, one exclusion switch.** `queries/leave-history.query.ts` builds the rows for one employee (tab) or a business (report); the routes differ in the scope, the `employee_id` filter and an explicit `excludeOpen` argument: `true` on the tab route only (FR-001 (b)), `false` on the report route, which excludes nothing (LH-14b) | two copies of the SQL; deriving the exclusion from the scope (an implicit mode) |
+| TD-3 | **One builder, two scopes, one exclusion switch.** `queries/leave-history.query.ts` builds the rows for one employee (tab) or a business (report); the routes differ in the scope, the `employee_id` filter and an explicit `excludeOpen` argument: `true` on the tab route only (FR-001 (b)), `false` on the report route, which excludes nothing (LH-14b). From 68-2b the builder lives in `packages/db/src/leave-history/`, and the worker runs the same SQL for a background report (PP-176) | two copies of the SQL; deriving the exclusion from the scope (an implicit mode) |
 | TD-4 | **The last-taken line is three `LIMIT 1` lookups** (one per type, `APPROVED` and started, latest `from`) plus one latest-absence lookup over the same anti-join as the rows, on `leave_requests_company_employee_period_idx`, computed **in the same single SQL statement as the page** (CTEs), because `withTenant` offers no isolation option (`packages/db/src/with-tenant.ts` `TenantOptions`: `userId`, `timeoutMs`, `drainOnTimeout`) and under READ COMMITTED two statements could see different data; one statement reads one snapshot; the three leave lookups are filtered to the caller's leave-read branches, the absence lookup to `absence_branch_ids` only (the branches where she also holds `read:attendance:branch`, LH-Q6) (FR-008), in the same `withTenant` transaction as the page (`CLAUDE.md` §6 connection budget) | computing it from the page (wrong once the period is narrowed); separate statements in one transaction (READ COMMITTED gives each its own snapshot) |
 | TD-5 | **The covered-elsewhere row's shape is a technical decision derived from LH-Q11 and LH-Q8, not a new owner question.** `row_type` `COVERED_ELSEWHERE`; one row per own-branch shift with that shift's id as its canonical id, so a split day has two rows, both stable across pages; rank 3 in the `(date, row_type, id)` keyset, after the leave and absence rows of its date (FR-003, FR-009); shown only when both filters are «الكل», because under LH-Q8 every type and status value names a leave or an absence and this row is neither; never in the «آخر …» line (FR-005a, BR-008). Its accepted consequence is the known limit under BR-008: when a custom role or a personal grant leaves a caller's leave-read branches wider than her attendance-read branches, the row lets the caller infer an attendance session outside her attendance scope, never its branch, time or length | one row per date (a second canonical-id rule beside the absence's); passing the absence filters (would list a day that is not an absence under «غياب») |
 
@@ -367,7 +378,12 @@ None of these changes the 27g code. 68-1b mirrors the same fixtures on the histo
 
 ### Schema changes
 
-None. The reads rely on existing indexes; the EXPLAIN tests decide:
+**PP-176 (68-2b):** two tenant tables for background reports, `leave_history_reports` and `leave_history_report_rows`,
+with RLS, exact column grants, transition and immutability triggers (terminal states never change, `row_count` matches the stored rows), indexes and their negative isolation tests ([plan-68-2.md](plan-68-2.md) D11); the
+retention is a pending technical question ([owner-questions.ar.md](owner-questions.ar.md) §15, `TODO(spec)`). The
+leave-history SQL builder moves to `packages/db/src/leave-history/` so the worker runs the same SQL (TD-3, D12).
+
+Otherwise none. The reads rely on existing indexes; the EXPLAIN tests decide:
 
 | Read | Index |
 |---|---|
@@ -421,7 +437,19 @@ conditions are emitted with the result; a single EXPLAIN is not treated as p95 e
   a value with a non-`Z` offset is refused with 400.
 - The history response carries `as_of` (FR-001 (b)'s boundary instant), which the tab passes to part (a) (TD-2).
 - `GET /v1/businesses/{businessId}/leave-history` — the report. The same query plus `employee_id?`. `last_taken` is filled
-  only when `employee_id` is given.
+  only when `employee_id` is given. **PP-176** ([owner-questions.ar.md](owner-questions.ar.md) §14; design in
+  [plan-68-2.md](plan-68-2.md), D7–D15): this route serves only a fast query (`employee_id` given; otherwise at most
+  `LEAVE_HISTORY_SYNC_LEAVES` leave rows match the query, and, unless the filters exclude every absence-derived row, at
+  most `LEAVE_HISTORY_SYNC_SHIFTS` shift rows of schedules in the caller's attendance branches fall in the period; both
+  calibrated in 68-2a); a heavy query answers `422 LEAVE_HISTORY_REPORT_REQUIRED`, after
+  every authorization, cursor and branch check. A heavy query goes to `POST …/leave-history/reports` (operation `requestLeaveHistoryReport`, body
+  `LeaveHistoryReportRequest`, `202 LeaveHistoryReportAccepted { report_id }`, deduplicated per creator, query and
+  scope while pending, at most 3 pending per creator, else `409 LEAVE_HISTORY_REPORT_BUSY`), computed once by the
+  worker, then `GET …/leave-history/reports/{reportId}?cursor&limit` (operation `getLeaveHistoryReportResult`,
+  `LeaveHistoryReportStatus`, creator-scoped: `pending`, `failed` with the error envelope (including a report past its
+  10-minute deadline that no build still holds, `LEAVE_HISTORY_REPORT_FAILED` or `LEAVE_HISTORY_REPORT_TOO_LARGE`), or `ready` with `computed_at`
+  and a `LeaveHistoryPage` read from the stored result, `last_taken` `null`; `404 LEAVE_HISTORY_REPORT_NOT_FOUND`,
+  `409 LEAVE_HISTORY_REPORT_STALE` when the caller's branches narrowed).
 - Errors: `404 NOT_FOUND` (no scope, unknown or foreign business or employee, a soft-deleted employee), `400
   VALIDATION_FAILED` (`from > to`, a range over 366 days, an unknown type or status, a bad cursor), `FEATURE_DISABLED`
   as today. No `Idempotency-Key` (a read).
@@ -434,7 +462,9 @@ conditions are emitted with the result; a single EXPLAIN is not treated as p95 e
 None new (LH-Q2). Both routes are `@Authenticated()` + `SelectedCompanyGuard`, and the read scope is
 `LeaveReadAccess.check` inside the route's one `withTenant(companyId, …, { userId })` transaction, exactly as
 `employee-leave.controller.ts` `list` does today: a record-scoped read (`CLAUDE.md` §6). They write nothing, so they need
-no write declaration for the PP-7.1 test.
+no write declaration for the PP-7.1 test. **PP-176 (68-2c):** the report's status and page route is the same kind of
+read; `POST …/leave-history/reports` writes (a report row and its outbox event), so it is the one route here that
+carries the PP-7.1 declaration of where its permission check lives ([plan-68-2.md](plan-68-2.md) D9).
 
 ### i18n
 
@@ -448,7 +478,7 @@ last-taken labels and the empty state. Dates and times through the existing form
 |---|---|---|---|---|
 | **68-1a** | The employee open list and the TD-1 characterization | 1. `employeeLeaveListQuery` with `open` and `as_of` on today's employee leave list (FR-001 (a)), with the OpenAPI and client regeneration. 2. Its bounds and the per-row local date in `queries/leave-requests.query.ts`. 3. The list part of LH-21 and LH-24, the personal-route regression, result shape and `EXPLAIN ANALYZE`. 4. The 27g characterization of TD-1 (differences and controls) and its rendering test | 27g done; this spec merged | 775–1140 with tests, docs and generated |
 | **68-1b** | The history read | 1. `packages/contracts/src/staff/leave-history.ts` (FR-003…FR-009 shapes). 2. `queries/leave-history.query.ts` (leave rows without the open requests, absence rows BR-001…BR-007, keyset cursor, last-taken lookups in one statement) and `GET …/employees/{employeeId}/leave-history`. 3. Result-shape tests, `EXPLAIN ANALYZE` assertions, the history side of the TD-1 parity, and integration tests LH-01…LH-26 except the report-only LH-14 and LH-14b (68-2) and the parts 68-1a ships; LH-21's disjointness of the open list and the history rows; LH-23 and LH-24 test the cursor's `as_of` and its bounds, and LH-25 and LH-26 the `COVERED_ELSEWHERE` row (BR-008) | 68-1a | its own brief |
-| **68-2** | The business report read | 1. `GET …/leave-history` with `employee_id` and the business scope over the 68-1b builder. 2. Scope tests (branch manager sees her branch only, a request at another branch hidden, absence by shift branch) and `EXPLAIN ANALYZE` on a seeded volume (50 employees × one year of shifts). 3. The report `last_taken` rule (only with `employee_id`). 4. Integration tests LH-14 (the report's `employee_id` outside the caller's branches answers 404) and LH-14b (the report keeps old pending requests and requests ending today, `excludeOpen = false`, TD-3) | 68-1b | 200–300 |
+| **68-2** | The business report read | 1. `GET …/leave-history` with `employee_id` and the business scope over the 68-1b builder. 2. Scope tests (branch manager sees her branch only, a request at another branch hidden, absence by shift branch) and `EXPLAIN ANALYZE` on a seeded volume (50 employees × one year of shifts). 3. The report `last_taken` rule (only with `employee_id`). 4. Integration tests LH-14 (the report's `employee_id` outside the caller's branches answers 404) and LH-14b (the report keeps old pending requests and requests ending today, `excludeOpen = false`, TD-3). **PP-176 splits it** ([plan-68-2.md](plan-68-2.md)): **68-2a** this sync route for fast queries and the `422` for heavy ones; **68-2b** the two tables, the builder moved to `packages/db`, the worker job and cleanup (inert); **68-2c** the `POST` acceptance and the status and page route, after 68-2b is on staging | 68-1b | 68-2a 1,700–2,000; 68-2b 1,900–2,400; 68-2c 1,850–2,350 (with tests, docs and generated) |
 | **68-3** | Admin «الإجازات» tab | 1. The tab bar in the employee file (FR-001); in «الإجازات» the part «طلبات جاية ومستنية» on top (today's employee list with `open=true` and its own pagination) with the request button and the cancel, decide and revoke actions, and the history of the period below it without those requests; today's separate request list is removed. 2. The filters with the current-year default, the last-taken line, and the i18n keys. 3. UI tests that assert what the user sees (the default dates, a filtered list, «مفيش», the absence row, the «متغطي خارج الفرع» row, an upcoming and a pending request in the top part and not in the history, each request once, the actions still present) | 68-1b | 300–400 |
 | **68-4** | Admin report screen «سجل الإجازات» | 1. The page and its navigation entry, shown to holders of the leave read scope. 2. The employee and branch filters and the last-taken line for one employee. 3. UI tests (visible outcomes) | 68-2, 68-3 | 250–350 |
 
@@ -487,7 +517,9 @@ last-taken labels and the empty state. Dates and times through the existing form
   (FR-001); the only exception is the accepted status-change window between the two reads (TD-2), closed by the next
   refetch.
 - **SC-003** A branch manager never sees a row of another branch.
-- **SC-004** Each route answers within 200 ms at p95 for one year of one business's data on the seeded volume.
+- **SC-004** Each route answers within 200 ms at p95 for one year of one business's data on the seeded volume. For the
+  report this holds for every synchronous read (a fast query, PP-176) and for the acceptance, status and page reads of a
+  background report; the background computation itself runs in the worker (`CLAUDE.md` §6).
 
 ## Assumptions
 

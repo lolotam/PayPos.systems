@@ -114,7 +114,7 @@ export const leaveAr: Record<keyof typeof leaveEn, string> = {
   decision: 'القرار',
   revokedStatus: 'سُحبت الموافقة',
 };
-export const leaveDecisionErrorsEn = {
+const leaveDecisionErrorsEn = {
   LEAVE_SELF_DECISION_FORBIDDEN:
     'You cannot decide or revoke your own leave, including through another membership.',
   LEAVE_REASON_REQUIRED:
@@ -123,10 +123,23 @@ export const leaveDecisionErrorsEn = {
   LEAVE_NOT_APPROVED: 'Only approved leave can be revoked.',
   LEAVE_ALREADY_STARTED: 'Leave approval cannot be revoked at or after its start.',
 };
-export const leaveDecisionErrorsAr: Record<keyof typeof leaveDecisionErrorsEn, string> = {
+const leaveDecisionErrorsAr: Record<keyof typeof leaveDecisionErrorsEn, string> = {
   LEAVE_SELF_DECISION_FORBIDDEN: 'لا يمكنك البت في إجازتك أو سحب موافقتها، حتى عبر عضوية أخرى.',
   LEAVE_REASON_REQUIRED: 'أدخل سبباً من ١ إلى ٥٠٠ حرف؛ الرفض وسحب الموافقة يحتاجان سبباً.',
   LEAVE_APPROVED_OVERLAP: 'الموافقة تتداخل مع طلب إجازة معتمد آخر.',
   LEAVE_NOT_APPROVED: 'يمكن سحب موافقة الإجازة المعتمدة فقط.',
   LEAVE_ALREADY_STARTED: 'لا يمكن سحب موافقة الإجازة عند بدايتها أو بعدها.',
+};
+const leaveHistoryErrorsEn = {
+  LEAVE_HISTORY_REPORT_REQUIRED:
+    'This report is too large to show at once. Narrow the date range or pick an employee.',
+};
+const leaveHistoryErrorsAr: Record<keyof typeof leaveHistoryErrorsEn, string> = {
+  LEAVE_HISTORY_REPORT_REQUIRED:
+    'هذا التقرير أكبر من أن يُعرض دفعة واحدة. ضيّق الفترة أو اختر موظفًا.',
+};
+export const leaveErrorsEn = { ...leaveDecisionErrorsEn, ...leaveHistoryErrorsEn };
+export const leaveErrorsAr: Record<keyof typeof leaveErrorsEn, string> = {
+  ...leaveDecisionErrorsAr,
+  ...leaveHistoryErrorsAr,
 };

@@ -9,7 +9,7 @@ import { staffErrorsEn } from './staff-errors.js';
 import { attendanceEn } from './attendance-en.js';
 import { clockCardAdminEn, clockCardPosEn } from './clock-card-catalog.js';
 import { employeeImportErrorsEn } from './employee-import.js';
-import { leaveEn, leaveDecisionErrorsEn } from './leave-catalog.js';
+import { leaveEn, leaveErrorsEn } from './leave-catalog.js';
 import { attendanceExceptionErrorsEn } from './attendance-exception-catalog.js';
 import { attendanceCorrectionErrorsEn } from './attendance-correction-catalog.js';
 import { employeeDocumentsEn } from './employee-documents-catalog.js';
@@ -179,7 +179,7 @@ export const en = {
     LEAVE_PAST_OWN_FORBIDDEN:
       'Own leave requests cannot start before today in the branch timezone.',
     LEAVE_NOT_PENDING: 'Only pending leave can be decided or cancelled.',
-    ...leaveDecisionErrorsEn,
+    ...leaveErrorsEn,
     ...attendanceExceptionErrorsEn,
     ...attendanceCorrectionErrorsEn,
     LEAVE_REVISION_CONFLICT: 'The leave request changed. Reload and try again.',

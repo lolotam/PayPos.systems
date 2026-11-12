@@ -1,0 +1,200 @@
+# Plan 68-2 — the business leave-history report read
+
+Spec: [spec.md](spec.md) (FR-001…FR-011, BR-001…BR-008, TD-1…TD-5, sub-PR row 68-2, LH-14, LH-14b).
+Branch `feat/p1-068-2-leave-history-report`, base `origin/main` `73dbfc2fd`. Batch PP-168 (2026-11-11): plan debate
+Codex `gpt-6-astra` medium one round; production code Kimi `kimi-code/k3.1-pro`; tests and any migration Agy
+`gemini-3.8-flash-high`; Claude writes briefs, reviews, runs gates and commits; no push, PR or merge.
+
+## Scope
+
+In: `GET /v1/businesses/{businessId}/leave-history` over the 68-1b builder, with the same query as the tab plus an
+optional `employee_id`; `excludeOpen=false` (TD-3, LH-14b); `last_taken` only with `employee_id`, else `null`; the
+contract, OpenAPI and regenerated clients; result-shape, `EXPLAIN ANALYZE`, scope and integration tests.
+Out: 68-3 (the tab UI), 68-4 (the report screen, i18n, navigation), any change to the tab route's behaviour, 68-1a's
+open list, the inbox and 27g.
+
+Reused unchanged: `LeaveReadAccess.check` (`persistence/leave-read-access.adapter.ts`), `leaveListRecord`, the cursor
+codec (`shared/persistence/name-options-cursor.ts`), `leaveHistoryCursorData`, `leaveHistoryItem`, `leaveHistoryPage`.
+
+## Decisions
+
+| ID | Decision | Why |
+|---|---|---|
+| D1 | **ANSWERED: LH-Q12 = PP-171, option 1 (Waleed, 2026-11-11; Abu Salem pending, batch 92).** Whether the report applies the #901 unended-attachment rule. Recommended: yes, uniformly (with `employee_id` → 404 when no unended attachment in a readable branch, early check plus final-statement recheck; without it, one per-employee visibility predicate on all three row sources so the list never shows an employee whose filter answers 404). Alternatives: the inbox's any-attachment rule; or 404 with `employee_id` but old rows in the unfiltered list. | The spec's #901 section predates the report and names only the tab; the report with `employee_id` returns the same rows and `last_taken`, so without the rule it reopens what #901 closed. A "who sees what" rule is an owner decision (`CLAUDE.md` §1 5b, §11). Both advisors (pospay-advisor and the reviewer) concur. |
+| D2 | **One builder, explicit modes (TD-3).** `historyDays`, `historyRows` and `leaveHistorySql` take the employee as optional and a new explicit `subject` option: `'eligible'` (the tab, today's `currentAttachment(days)` recheck, unchanged), and for the report with `employee_id` a subject that **always** rechecks the employee's existence (non-deleted, this business) in the final statement plus the attachment predicate D1 decides, or `'business'` (no employee: `TRUE`; deleted employees still drop out of all three row sources). The tab's rendered SQL text stays byte-identical (guarded by the existing 68-1b suites and one snapshot-of-SQL assertion). `last_taken` is computed only when an employee is named; otherwise the statement returns SQL `NULL`. `excludeOpen` stays an explicit argument: `true` tab, `false` report. | TD-3 rejects two SQL copies and implicit modes. `c.employeeId` is interpolated today in `leave-history-days.sql.ts:47`, `leave-history-rows.sql.ts:36`, `leave-history-last.sql.ts:10`, `leave-history.query.ts:31-34`. |
+| D3 | **New reader file and controller.** `queries/leave-history-report.query.ts` holds `getBusinessLeaveHistory` and `LeaveHistoryReportReader` (owns `withTenant`, as `LeaveHistoryReader` does, the #897 R1 item 4 design), and `http/leave-history-report.controller.ts` (`@Authenticated()` + `SelectedCompanyGuard`, one controller per resource). Access call: without `employee_id`, `access.check` gets no `employeeId` and no `purpose` (the adapter denies `purpose:'history'` with no employee, `leave-read-access.adapter.ts:88-93`); with it, `employeeId` is set and `purpose` follows LH-Q12. Real order: query validation (400, pipe) → adapter `null` (unknown, foreign, soft-deleted or out-of-scope employee, or no read scope) → 404, which precedes `FEATURE_DISABLED` exactly as on the tab → `FEATURE_DISABLED` → bad cursor or `as_of` out of bounds → 400 on `cursor` → `branch_id` outside scope → 404 → final-statement subject false → 404. Tests: invalid employee + feature off (404), invalid employee + bad cursor (404), successful unfiltered read (200). | Keeps `leave-history.query.ts` under 300 lines and functions under 60 (`CLAUDE.md` §3). |
+| D4 | **Contract.** `leave-history.ts` gets one shared shape object and two refined schemas: `leaveHistoryQuery` (unchanged behaviour; still strict, so `employee_id` on the tab answers 400) and `leaveHistoryReportQuery` (+ `employee_id: employeeInputId.optional()`). No new OpenAPI component id: parameters are built inline as in `leave-history-openapi.ts`; the response is `LeaveHistoryPage`. New path with `operationId` `getLeaveHistoryReport`. | Zod 4 refuses `.extend()` on a refined object. Spec lists only three ids. |
+| D5 | **Clocks (FR-009, TD-2).** `scope.now` drives permissions, `can_revoke` and any eligibility; the cursor's `as_of` drives row-time predicates only, bounded to `[now − 24 h, now]`, both edges included (tested at each edge and 1 ms beyond). | Same as 68-1b (`leave-history.query.ts:74`). |
+| D6 | **No migration expected.** Report shifts: `staff_schedule_shifts_company_starts_idx (company_id, starts_at)` with the existing `starts_at` bound, or the spec's `staff_schedules_branch_week_idx` then `staff_schedule_shifts_schedule_idx`; leave rows: `leave_requests_company_business_branch_dates_idx` (filter only; it cannot supply a global `from DESC, id DESC` order across branches); sessions: `attendance_sessions_employee_date_idx`. The EXPLAIN decides. A sequential scan on `leave_requests`, `staff_schedule_shifts`, `attendance_sessions`, `staff_schedules` or `employees` stops delivery; I report it to the manager and ask for the next migration number before Agy writes a `CONCURRENTLY` index migration (ADR-0033, PP-124/PP-130). | Spec "Schema changes", manager brief for this row. |
+
+## Performance checkpoint and fallback
+
+Risk: business-wide, `days` groups about 18k (employee, date) groups for a year and probes four `EXISTS` each before
+`LIMIT` (the tab: about 365). SC-004 requires 200 ms p95 per route (`CLAUDE.md` §6; PP-165.1 keeps this budget).
+
+Checkpoint, right after Kimi's delivery and before Agy's brief: I run `EXPLAIN (ANALYZE, BUFFERS)` and a 50-read timing
+on the 68-1b performance fixture (`leave-history-performance.fixture.ts`: 50 employees, 2,650 schedules, 18,250
+shifts, 1,000 leaves, foreign tenants), default year, for: page 1 with no `employee_id`; an absence-only filter; no
+qualifying leaves (a type filter matching none); dense absences (sessions removed for a share of days); a late cursor;
+a restricted branch scope; and `employee_id` with all-history `last_taken`. The budget holds in every case, not only on
+the optimized page 1. The plan of all five tables, sorts and buffers is captured per case.
+
+Fallback if a case misses the budget (correction round 1, Kimi): **leave-floor pushdown.** The candidates are the leave
+rows after **every** predicate (visibility, employee, branch, period, type and status, `excludeOpen`, the full tuple
+cursor). If at least `limit+1` exist, `floor` is the date of the `(limit+1)`-th in `(date DESC, rank, id DESC)` order and
+`days` is bounded to `working_date >= floor`, ties on that date kept; with fewer, or with an absence-only filter, no
+floor is applied (never a comparison with `NULL`). Correct because every row dated strictly before `floor` sorts after
+at least `limit+1` qualifying rows. With a cursor, `days` is also bounded by `working_date <= cursor.date`, and the full
+tuple cursor is applied afterward. Still one statement, one snapshot. Tests compare it with the unoptimized query for
+zero, few and filtered leaves, later pages, and cursors at ranks 1–3. The cases with no floor stay unoptimized, so if
+they miss the budget the next step goes to the manager (an index or a narrower default period), not a third design.
+
+## Files (CLAUDE.md §1 order)
+
+1. Contract (Kimi): `packages/contracts/src/staff/leave-history.ts`, `packages/contracts/src/staff/leave-history-openapi.ts`.
+2. Migration/RLS: none (unless D6 fires; then Agy, after the manager names the number).
+3. Domain: none.
+4. Queries (Kimi): `apps/api/src/modules/staff/queries/leave-history-days.sql.ts`, `leave-history-rows.sql.ts`,
+   `leave-history.query.ts`, new `leave-history-report.query.ts`; comments on shared fragments updated (`CLAUDE.md` §3.1).
+5. HTTP (Kimi): new `apps/api/src/modules/staff/http/leave-history-report.controller.ts`; `staff.module.ts` (add the
+   controller and the reader provider, add-only lines).
+6. Generated (Claude, after the Kimi fence closes): `pnpm contracts:openapi` →
+   `packages/contracts/openapi/openapi.json`; `pnpm --filter @pospay/admin api:generate` and the same for `pos`, `menu`
+   (their `src/shared/api/schema.d.ts`).
+7. Tests (Agy): new `apps/api/src/modules/staff/__tests__/leave-history-report.spec.ts` (integration),
+   `leave-history-report-performance.spec.ts` (result shape + `EXPLAIN ANALYZE` + 50-read p95 on the seeded volume),
+   additions to `leave-history-http.spec.ts` (route 400s, tab refuses `employee_id`), and
+   `packages/contracts/src/__tests__/leave-history.spec.ts` (report query parse).
+8. Docs (Claude): this plan, `debate-68-2-astra.md`, `spec.md` (68-2 implementation note, D1 answer when it lands).
+
+## Tests (Agy brief)
+
+- LH-14: `employee_id` of an employee outside the caller's branches → 404; unknown or foreign-tenant employee → 404;
+  soft-deleted → 404.
+- LH-14b: the report lists an old `PENDING` request and a request ending today (`excludeOpen=false`).
+- Scope: منى (السالمية) sees السالمية leave rows only; a حولي request of the same employee hidden; absence by shift
+  branch; `COVERED_ELSEWHERE` rows per BR-008 for her; a leave-only caller gets no absence rows and empty
+  `absence_branch_ids` (LH-15/LH-18 on the report route); `branch_id` outside scope → 404.
+- `last_taken`: `null` without `employee_id`; with it, the same values as the tab for the same employee (parity).
+- Many employees: rows of several employees on one date ordered by `(date, rank, id)`; keyset paging across employees
+  with no row repeated or lost; `as_of` reused and bounded (LH-23/LH-24 on the report route).
+- Feature off → `FEATURE_DISABLED`; cross-tenant → 404; cashier without `read:leave:branch` → 404; invalid employee +
+  feature off → 404; invalid employee + bad cursor → 404; `as_of` at exactly now and now − 24 h accepted, 1 ms beyond
+  either refused.
+- Races on the report reader (`employee_id`): soft deletion between `access.check` and the final statement → 404 with no
+  page or `last_taken`; an approval during the read never yields an absence row and a `last_taken` that disagree;
+  unfiltered reads drop a deleted employee from leave, absence and covered rows.
+- D1 visibility test (PP-171): an ended-attachment, non-deleted employee in all three row
+  sources, with and without `employee_id`.
+- Regression: every `leave-history-*.spec.ts`, `leave-open-list.spec.ts`, `leave-queries.spec.ts`; the tab's SQL text
+  unchanged.
+- No RLS negative test: no table is added.
+
+## Gates (local, PP-113)
+
+`pnpm --filter @pospay/contracts typecheck` and build, `pnpm --filter @pospay/api typecheck`, scoped ESLint on touched
+files, `pnpm lint:docs`, `pnpm module-map:check`, the contracts unit test, and the staff leave-history DB specs above on
+a private lane (`node scripts/test-db/lane.mjs up <lane>` after building `@pospay/db^...`, env from `.env.example`).
+Full `pnpm check` and the API shards: `ci-gate` on the exact head.
+
+## Size estimate (changed lines, additions + deletions, PP-112 / §14)
+
+| Category | Estimate |
+|---|---|
+| Production (contracts, queries, controller, module) | 170–260 |
+| Tests | 450–650 |
+| Generated (`openapi.json`, three `schema.d.ts`) | 200–350 |
+| Docs (plan, debate record, spec, owner question) | 180–260 |
+| **Total** | **1,000–1,520** |
+
+This total exceeds the spec row's 200–300 for 68-2 (whose basis is not stated; row 68-1a's 775–1140 counts tests, docs
+and generated files), so the estimate needs the manager's acceptance before dispatch. Production alone stays near the
+spec row. A Kimi delivery
+above 520 production lines or an Agy delivery above 1,300 test lines is refused.
+
+## Debate
+
+One round with Astra, recorded in [debate-68-2-astra.md](debate-68-2-astra.md): 6 findings (1 P1, 4 P2, 1 P3), all accepted and applied above.
+
+## Blockers
+
+- None. LH-Q12 (D1) was answered by PP-171 (option 1); if Abu Salem later picks differently, only the two settings of
+  the report's visibility constant and its tests change.
+
+## PP-176 delta — heavy reports become a worker job (2026-11-11)
+
+**Why.** Performance cases 1, 2, 4 and 6 of `leave-history-report-performance.spec.ts` missed SC-004 on the seeded
+fixture (EXPLAIN about 1.3–1.4 s; plan in `briefs/row-68-2/plan-case1.txt`, outside the repo): the `days` CTE groups
+18,250 employee-days and probes four correlated `EXISTS` per day before the `LIMIT`, and no index removes that work.
+Waleed answered PP-176 (technical, direct card under PP-117, about 20:25 Kuwait,
+[owner-questions.ar.md](owner-questions.ar.md) §14): «شغلانة في الخلفية (المقترح)», the 47-1 / PP-170 pattern. Fast
+requests stay synchronous; what a user can ask for does not change. This section supersedes D6's "no migration" and the
+leave-floor fallback above (never implemented).
+
+**Measurements behind the fast rule** (EXPLAIN `Execution Time`, ms, seeded fixture, four runs, other lanes running):
+
+| Query (no `employee_id`) | ms |
+|---|---|
+| full year, `statuses[]=PENDING` | 1 (the `days` CTE never executes) |
+| full year, `types[]=ANNUAL,SICK` | 35–41 |
+| full year, `statuses[]=ABSENT` | 1,286–1,487 |
+| unfiltered, 31 days | 81–85 |
+| unfiltered, 46 days | 127–150 |
+| unfiltered, 61 days | 209–248 |
+| unfiltered, 92 days | 447–777 |
+| unfiltered, full year | 1,507–2,679 |
+
+At the seeded volume a full-year unfiltered result is 1,000 rows (all leaves, about 1 MB of `jsonb`); a dense-absence
+business reaches about 19,000 rows (18,250 day groups plus leaves).
+
+### Decisions (PP-176)
+
+| ID | Decision | Why |
+|---|---|---|
+| D7 | **One fast rule, decided by the server on the rows it would read.** Always fast: `employee_id` given. Filters that exclude every absence-derived row (`types[]` non-empty without `UNEXCUSED_ABSENCE`, or `statuses[]` non-empty without `ABSENT`; `COVERED_ELSEWHERE` needs both empty, so it is covered) skip the `days` CTE; that test is a pure helper `leaveHistoryReportSkipsDays(q)` in `packages/contracts/src/staff/leave-history.ts`. **Leave rows (PR #942 round 2):** without `employee_id`, on both paths, the read is fast only when the qualifying leave rows are at most `LEAVE_HISTORY_SYNC_LEAVES = 2,000`. `historyLeaveWorkloadSql` counts the rows of `historyLeaveSource`, the one `FROM … WHERE` that the leave branch of `historyRows` also reads, so `branch_id`, `types[]`, `statuses[]` and employee visibility filter the count exactly as they filter the page; it is capped by `LIMIT limit + 1`, which bounds the rows counted, not the index entries scanned (the `from <= to AND to >= from` overlap is not one index range); the performance spec runs it over the full year with an `EXPLAIN` under 200 ms and no sequential scan. Measured on the leave-only path with one leave per employee per day (50 employees): 2,250 leave rows ≈ 128 ms, 3,000 ≈ 164 ms, 3,750 ≈ 200 ms. **Shift rows:** when `days` is not skipped, the read is also fast only when the count of shift rows `days` can read is at most `LEAVE_HISTORY_SYNC_SHIFTS`: `staff_schedule_shifts` rows with `working_date BETWEEN from AND to` whose schedule is in the caller's `attendanceBranches` with `week_start BETWEEN from − 6 AND to` (`historyWorkloadSql`, capped by `LIMIT limit + 1`; the schedules are read through `staff_schedules_branch_week_idx` and their shifts through `staff_schedule_shifts_schedule_idx`, both from 0056, so no migration; the performance spec asserts no sequential scan on either table, and, on the history statement and the leave count, none on the five D6 tables). Counting shift rows, not schedules, weighs a split-shift day (up to 4 shifts, `max_shifts_per_day`) by every shift and an empty schedule by nothing (PR #942 review). That predicate matches the `days` bound `working_date BETWEEN from AND to` (`leave-history-rows.sql.ts`): a schedule is unique per employee, branch and week (`staff_schedules_week_key`), each shift is tied to its schedule's employee by the composite FK, and `domain/schedules.ts` sets a shift's `working_date` to `week_start` + its day (0–6, `staff_schedule_shifts_day`). The date link is enforced on the domain write path, not in the database; a 68-2a test pins it, and a row that broke it would only under-count work, never leak data. So the shifts counted are the exact input of `days` (which groups by employee × branch × date over those schedules' shifts, whatever the employee's attachments today); `branch_id` is ignored because it filters after `days`. So every shift `days` can read is counted, including historical transfers and several branches per employee. 68-2a calibrated the limit on the seeded fixture (50 employees, one shift a day): about 1,550 shift rows read in ≈ 83 ms, 2,300 in ≈ 135 ms, 3,050 over 200 ms, so `LEAVE_HISTORY_SYNC_SHIFTS = 2,000`; at the same count, more shifts per day means fewer day groups, and the performance spec keeps a 2,000-row read with 4 shifts a day under 200 ms. The value is bound at module wiring (`LEAVE_HISTORY_SYNC_LIMIT` in `staff.module.ts`), and reaches the read only through the reader's constructor (`LeaveHistoryReportReader`), so a test passes its own value there or to `getBusinessLeaveHistory` and no request field reaches it; the performance spec keeps an at-limit read fast and a just-over read refused. One schedule write committed between the count and the history statement can add at most 20 schedule weeks (the template batch cap, `validateTemplateBatch`) of at most 28 shifts each; that window is accepted as a bounded risk and is not tested (it cannot change the result, only its cost). **Coverage probe (round 3, #947):** the `days` coverage `EXISTS` used to read every approved or pending leave the employee had ever had for each `days` row, because no index keyed `(company_id, employee_id)` with the leave dates (the old plan used `leave_requests_company_employee_id_idx` or a bitmap over it). At the 2,000-shift limit (2026-09-22..10-31), historical one-day leaves outside the period took the unfiltered read from ≈ 115 ms to ≈ 140 ms at 30 per employee, ≈ 265 ms at 60 and ≈ 390 ms at 120. Migration 0220 adds `leave_requests_company_employee_to_from_idx (company_id, employee_id, "to", "from")`, built `CONCURRENTLY`, with no query change: the probe becomes an index range scan that starts at `"to" >= working_date` with `"from" <= working_date` checked inside the index, so leaves that ended before the shift day are never read; the per-employee leave-row lookup of `historyLeaveSource` uses the same range from `"to" >= from`. Re-measured with 0220: ≈ 73 ms at 0, 30, 60 and 120 historical leaves per employee; at 480 per employee, 1,600 ms without the index and ≈ 75 ms with it. `"to"` leads because leave history accumulates before the periods people read: the scan still walks the leaves that end after the shift day, so leaves after the period cost about +50 ms at 480 per employee (≈ 125 ms with 0220), while a `"from"`-first index cost ≈ 142 ms for 480 past leaves in the same prototype run. A period-overlap predicate would not tighten this (`"to" >= from` is looser than `"to" >= working_date`, and `"from" <= to` cannot stop a scan ordered by `"to"`); a GiST `daterange` index would, but the residual stays under 200 ms at these volumes, so it is not added. A plain (not partial) index serves the leave rows too, whose statuses include rejected and cancelled. `leave-history-coverage-index.spec.ts` seeds 120 past leaves per employee and asserts the probe reads this index with both date bounds in `Index Cond` (it fails on a Bitmap Heap Scan without 0220). | Measurements above: 31 days × 50 ≈ 83 ms; 46 × 50 ≈ 135 ms; 61 × 50 over budget. A fixed period rule is volume-blind (about 120 employees break 200 ms at 31 days); counting attachments misses historical shifts (Astra #1). |
+| D8 | **The sync route refuses a heavy query, after authorization.** Order on `GET …/leave-history`: query validation 400 → adapter `null` 404 → `FEATURE_DISABLED` → bad cursor or `as_of` out of bounds 400 → `branch_id` outside scope 404 → (only without `employee_id`) the D7 counts, the shift count only when `leaveHistoryReportSkipsDays` is false and then the leave count → `422 LEAVE_HISTORY_REPORT_REQUIRED` (new code, ar/en catalogue) → the history SQL. So no count-dependent answer reaches an unauthorized, foreign, feature-off or out-of-scope caller. The pure helper tells a client whether `days` runs, not how many leave rows match, so a client switches to the POST on 422; the server decides either way. The tab route is unchanged. | Without the refusal a client bypasses the budget. A GET that inserts a row and an outbox event would break "queries never write" (`CLAUDE.md` §6). |
+| D9 | **Acceptance is a POST use case (47-1a shape).** `POST /v1/businesses/{businessId}/leave-history/reports`, body `leaveHistoryReportRequest` (OpenAPI `LeaveHistoryReportRequest`) = the report query without `cursor`, `limit` and `employee_id` (strict), operation `requestLeaveHistoryReport`, response `202 LeaveHistoryReportAccepted { report_id }`. `use-cases/request-leave-history-report/` in one `withTenant` transaction: `access.check` with no employee and no `purpose` → `null` 404, `FEATURE_DISABLED`, `branch_id` outside scope 404 → dedupe → cap → insert `pending` with the normalized query, frozen scope, fingerprint, `as_of` = `Clock.now()` and `deadline_at` = `as_of` + 10 min → id-only outbox event `LeaveHistoryReportRequested { report_id }`. No `Idempotency-Key` (no money or stock effect, `CLAUDE.md` §6). A fast query is accepted too. `@Authenticated()` + `SelectedCompanyGuard` like the sync report; it writes, so it carries the PP-7.1 declaration (`identity/http/route-coverage.ts`, spec "Permissions"); a warm acceptance test asserts p95 under 200 ms as 47-1a did. | 47-1a (`request-package-import-preview`) and PP-170 acceptance. |
+| D10 | **Dedupe and cap, serialized, scope-aware.** The fingerprint is canonical JSON of the normalized query (filter arrays sorted and deduplicated, UUIDs lower-cased, defaults filled) **and** of the frozen scope's branch sets (sorted). A `pending` report of the same creator and fingerprint with `now < deadline_at` (`now` here and in the cap is the use case's `Clock`; these comparisons only choose a reuse or a `409`, never a report's status, so they cannot turn a `failed` into `ready`; status follows the database clock, D12/D13) → `202` with that `report_id`, no new row or event; a changed scope gives a new fingerprint, so a report that would read `STALE` is never handed back. A `ready` report is never reused. A creator with 3 `pending` reports with `now < deadline_at` in the business → `409 LEAVE_HISTORY_REPORT_BUSY`. Reads and insert run under `pg_advisory_xact_lock` keyed on (company, business, creator). | A heavy page 1 costs a 1.3 s job and up to 25,000 stored rows; double clicks and filter flapping must not multiply it (Astra #2). |
+| D11 | **Two tenant tables, immutable results (one migration, 68-2b).** `leave_history_reports` (`company_id, id` PK; `business_id`, `created_by`, `query jsonb`, `fingerprint text`, `scope jsonb` (every `HistoryScope` branch set and the eligibility branch ids), `as_of timestamptz`, `deadline_at`, `status` `pending`/`ready`/`failed`, `error_code`, `row_count`, `computed_at`, `created_at`, `expires_at`). `leave_history_report_rows` (`company_id, report_id, seq` PK, `employee_id uuid NOT NULL` (a plain column, no FK, so no extra index), `record jsonb`; composite FK to the report `ON DELETE CASCADE`). RLS `ENABLE`+`FORCE` and the company policy on both. Grants to `pospay_app`: reports `SELECT, INSERT, DELETE` and `UPDATE(status, error_code, row_count, computed_at)` only; rows `SELECT, INSERT` only (no `UPDATE`, no direct `DELETE`; they leave by the cascade). Triggers: a report is inserted only `pending` with `row_count` 0; the only transitions are `pending → ready` (sets `row_count` and `computed_at`, `error_code` null, and `row_count` equals the count of its rows, checked in the trigger) and `pending → failed` (sets `error_code`, no rows); `ready` and `failed` are immutable; every column outside the grant is unchanged. A row insert takes `FOR SHARE` on its parent and requires it `pending`, and the worker holds the parent `FOR UPDATE` for the whole build, so no insert races a completion. Indexes: `(company_id, business_id, created_by, fingerprint, deadline_at)` for dedupe and cap; `(company_id, expires_at)` for cleanup; the rows PK serves paging. `expires_at` = acceptance + retention ([owner-questions.ar.md](owner-questions.ar.md) §15). Tests run as the runtime roles: cross-company FK writes, cascade deletion, post-completion mutation refused, concurrent insert and completion. | A row per item pages by an index range; one `jsonb` array would detoast whole on every page. `CLAUDE.md` §5: new table ⇒ policy + negative isolation test in the same PR (Astra #4). |
+| D12 | **The worker owns the computation.** The builder moves from `apps/api/src/modules/staff/queries/` to `packages/db/src/leave-history/`, as `packages/db/src/attendance-monthly-inputs.ts` did for the attendance statement worker. Inventory (about 340 lines today): `leave-history-days.sql.ts`, `-rows.sql.ts`, `-leaves.sql.ts`, `-last.sql.ts`, `-last-absence.sql.ts`, `leave-list-record.sql.ts`, and the builder half of `leave-history.query.ts` (`historySubject`, `leaveHistorySql`); cursor parsing, DTO assembly and the readers stay in the API. `leaveListRecord` keeps its other callers (the inbox and the open list in `leave-requests.query.ts`), which then import it from `@pospay/db`. `packages/db` does not depend on `@pospay/contracts`, so the builder takes local structural types that keep every field it reads (`companyId`, `businessId`, `userId`, `own`, `employeeId?`, `branchId?` and the query fields). A pure-move commit comes first: the tab's rendered SQL stays byte-identical (the 68-1b SQL snapshot and suites) and the list regressions pass. The worker `staff` module gets `jobs/leave-history-report.processor.ts` (queue `leave-history-report`, `jobId` = outbox event id, ADR-0018 transport as `package-preview.processor.ts`) and `use-cases/build-leave-history-report/`: one `withTenant(companyId, …, { userId: created_by, timeoutMs })` transaction locks the report `FOR UPDATE` while `pending` and `clock_timestamp() < deadline_at`, runs `INSERT INTO leave_history_report_rows SELECT …, row_number() OVER (ORDER BY date DESC, rank, id DESC), (record->>'employee_id')::uuid, record FROM (historyRows(frozen scope, frozen as_of, excludeOpen false, visibility 'current'))`, then marks it `ready` with `row_count` and `computed_at` by a conditional `UPDATE … WHERE status='pending' AND clock_timestamp() < deadline_at`. `historyRows` projects only `date`, `rank`, `id` and `record`, and every row type's `record` carries `employee_id` (`LEAVE` through `leaveListRecord`, `UNEXCUSED_ABSENCE` and `COVERED_ELSEWHERE` through `dayRecord`), so the builder derives the column from `record`: the tab's SQL does not change, and the `NOT NULL` column refuses a record that lacks it. Every deadline comparison, in the worker and in the status read (D13), uses one clock, the database's `clock_timestamp()`; the worker's injected clock never decides the deadline; a build that crosses the deadline raises a named refusal, rolls back and is marked `failed` `LEAVE_HISTORY_REPORT_FAILED` by the same short transaction as the size refusal, so a report polling already answered `failed` never turns `ready`. A report found past `deadline_at` is marked `failed` `LEAVE_HISTORY_REPORT_FAILED` by a conditional `UPDATE … WHERE status='pending'` and not computed. A redelivery finds it not `pending` and writes nothing. Above 25,000 rows a named refusal rolls back and a short transaction marks it `failed` `LEAVE_HISTORY_REPORT_TOO_LARGE` (no retry). Failure finalization follows `package-preview.processor.ts`: the failure code is saved in job progress, finalization is retried with `moveToDelayed` without recomputing, every failure write is conditional on `pending`, and a lost commit reply is resolved by re-reading the row (a `ready` row wins) before any failure is written. `timeoutMs` is explicit (60 s placeholder, set to the fixture's measured run × 10 in 68-2b's receipt; as 47-2b, no inherited staff default), with the connection drained on timeout. | The worker cannot import `apps/api`; TD-3 forbids a second SQL copy (Astra #3, #8, #10). |
+| D13 | **Status and pages are a `queries/` read.** `GET /v1/businesses/{businessId}/leave-history/reports/{reportId}?cursor&limit` (operation `getLeaveHistoryReportResult`, distinct from the sync route's existing `getLeaveHistoryReport`; response `LeaveHistoryReportStatus`), `queries/leave-history-report-result.query.ts`, a reader owning `withTenant` as in the #897 R1 item 4 design. Creator-scoped (`created_by` = caller, business, company); an unknown, expired, foreign or another creator's id → `404 LEAVE_HISTORY_REPORT_NOT_FOUND`. It re-runs `access.check` (no employee, no `purpose`), then compares, as sets of branch ids: frozen leave-read branches ⊆ current, frozen `attendanceBranches` ⊆ current, frozen eligibility branch ids ⊆ current eligibility branch ids (dates are never compared, so midnight does not make a report stale). A failed subset answers `409 LEAVE_HISTORY_REPORT_STALE`; `null` access answers 404; the feature off answers `FEATURE_DISABLED`. Bodies: `200 { status: 'pending' }` while `clock_timestamp() < deadline_at`; `200 { status: 'failed', error: { code, message_ar, message_en } }` (the `CLAUDE.md` §6 envelope) for a stored `failed`. A `pending` row at or past `deadline_at` is serialized with the build by the same row lock: the read re-reads it with `SELECT … FOR SHARE SKIP LOCKED` (no read transaction is read-only, and the D11 column `UPDATE` grant gives `pospay_app` the privilege a row lock needs). No row back means a build still holds `FOR UPDATE` and may yet commit `ready` (its update checked the deadline before it), so the read answers `pending`; skipping instead of `NOWAIT` raises no `55P03`, so the read's transaction is not aborted. A row back, still `pending`, means no build holds it, and any later claim fails its own `clock_timestamp() < deadline_at` check, so the read answers `failed` `LEAVE_HISTORY_REPORT_FAILED`. The read writes nothing (`CLAUDE.md` §6); a redelivery persists that same `failed` by its conditional `UPDATE … WHERE status='pending'`. So a `failed` answer never later turns `ready`, and a read never waits on a build; `200 { status: 'ready', computed_at, …LeaveHistoryPage }` with `as_of` = the frozen cutoff, `last_taken: null`, `absence_branch_ids` from the frozen scope, `request_branch_ids` from the current one, and `next_cursor` an opaque cursor `{ report_id, seq }` (a cursor for another report, or malformed, answers 400). Each page re-applies visibility live, with fresh branch-local dates: a row whose `employee_id` is now soft-deleted, or fails `historyEmployeeVisible(…, 'current')` under the current scope, is skipped. The scan is bounded: at most `limit + 1` visible rows within the next 1,000 `seq` values; when the window ends first, the page may be short (even empty) and `next_cursor` points after the window. Tests: result shape, `EXPLAIN ANALYZE`, and HTTP p95 under 200 ms (access included) on first and late pages of a 25,000-row report, with all or most employees invisible and `limit` 100. | 47-1's status route and PP-170's creator-scoped status. Live #901 visibility keeps a stored result from outliving PP-171 (Astra #6, #7). |
+| D14 | **What a stored result promises.** `as_of` is the cutoff for every time-dependent predicate (today, ended shifts, `excludeOpen`), frozen at acceptance. Statuses, approvals and attendance are those of the worker's snapshot at `computed_at`, which can be later than `as_of`; the contract and the screen say "computed at", and no historical status is reconstructed. The `can_*` flags are those of the frozen scope; every action route re-checks permissions on its own write (`CLAUDE.md` §8). Visibility is live (D13). The cleanup is a per-company repeatable job registered by the scheduler before a `LeaveHistoryReportRequested` delivery is acknowledged (as `employee-import-recovery.processor.ts:28-47`: no global company reader, so no new cross-tenant path, `CLAUDE.md` §5), every hour, deleting that company's reports past `expires_at` inside `withTenant` (rows cascade). | Re-hydrating flags per page would re-run the builder's permission joins on every read; the server already refuses a stale action (Astra #5). |
+| D15 | **Deploy order: worker first (PP-170, ADR-0034 addendum), retention gates the merge.** 68-2b ships the tables, the worker consumer, the cleanup and `LeaveHistoryReportRequested` as a known type, with no route or use case that can create a report; a production-wiring test proves there is no producer and that the worker's `/ready` waits on both the computation and the cleanup processors. 68-2c merges only after 68-2b is deployed to staging with `/ready` including them. Rollback floor: the API is rolled back before the worker. The retention (§15 of the owner questions) is a gate: 68-2b may be built and tested with the one-hour constant, but it does not merge until the answer is recorded and the constant matches it. | A live producer before a live consumer leaves reports `pending` (Astra #11). |
+
+### Split and sizes (changed lines, additions + deletions; the drizzle snapshot JSON excluded as generated)
+
+| Sub-PR | Contents | Production | Tests | Generated | Docs | Total |
+|---|---|---|---|---|---|---|
+| **68-2a** — sync report and fast rule (one index migration, 0220, added in review round 3 for #947) | the committed `809cef09b`/`842b85329` work; D7 and D8 (`leaveHistoryReportSkipsDays`, the shift and leave counts and their calibrated limits, the 422 and its precedence, the error catalogue); the performance spec rewritten: heavy cases 1, 4 and 6 become "422 before the history SQL" assertions, fast cases 3, 5 and 7 keep EXPLAIN + p95 (case 7 a one-month range, case 2 its second page), plus a case at the limit, a `statuses[]=PENDING` case and one just over it; precedence tests (unauthorized, foreign, feature off, bad cursor, out-of-scope `branch_id` on a heavy query); a historical-transfer and a two-branch case for the count | 250–330 (about 200 committed) | 700–880 | 350–370 (committed) | 380–460 | **1,700–2,000** |
+| **68-2b** — worker and tables, inert | D11 migration (two tables, triggers, RLS, column grants, indexes) and drizzle schema; D12 builder move (a pure-move commit of about 340 lines, counted twice) then the worker wiring; processor with the failure protocol, use case, transactions adapter; D14 cleanup; known event type and `events/published.ts`; ADR-0034 addendum and the ADR-0010 event line | 1,000–1,250 (680–720 of it the move) | 750–950 (two RLS negatives, grants and triggers as runtime roles, the worker use case on the fixture, a delayed delivery past the deadline, a build crossing the deadline, a leave approved and an attendance correction between acceptance and the build (the result shows the snapshot, `as_of` unchanged), redelivery, lost reply, failed failure write, too large, cleanup, production wiring) | journal ≈ 10 | 150–200 | **1,900–2,400** |
+| **68-2c** — routes | D9/D10 acceptance (contract, port, use case, persistence), D13 status and page reader and controller, error codes, OpenAPI and the three regenerated clients | 500–650 | 700–900 (acceptance, fingerprint and scope-aware dedupe, cap race, deadline boundary, status bodies, bounded paging at 25,000 rows, creator scope, each stale-scope case, midnight, PP-171 detachment, cross-tenant, EXPLAIN and p95, HTTP and OpenAPI) | 550–700 | 80–120 | **1,850–2,350** |
+
+One PR would be about 5,500–6,800 lines, so the work splits along the deploy order. 68-2a can merge alone (no
+migration, no worker). PP-112 refusal limits per brief: twice the production or test column above. The 68-2b move is
+mechanical; its pure-move commit is checked by `git diff -M` and the byte-identical SQL test, not by line count.
+The project has no numeric PR cap (§14 sets only the twice-the-brief refusal); the reference points are this spec
+row's original 200–300 and 68-1a's 775–1,140. If the manager wants smaller PRs, the natural seam is 68-2b itself:
+**68-2b-1**, the pure builder move to `packages/db` (about 700–750 changed lines, no new tests, gated by the existing
+suites and the byte-identical SQL test, no migration), then **68-2b-2**, the migration, worker and cleanup (about
+1,200–1,700).
+
+Lanes (PP-168, coordinator 2026-11-11): Kimi `kimi-code/k3.1-pro` writes production code; Agy `gemini-3.8-flash-high`
+writes tests and the migration (a 429 moves that dispatch to Kimi under PP-175.2); the final migration-lane step
+(number, `db:generate`, push) is the manager's. Commits `809cef09b` and `842b85329` stay; nothing is pushed or
+dispatched before the manager approves this section.
+
+PP-136: `pospay-advisor` reviewed this delta before the debate (verdict "agree with changes"); its five changes are
+applied above: dedupe on `pending` only (D10), live #901 visibility per page (D13), an explicit worker budget and a
+25,000-row cap (D12), the per-company cleanup scheduler with stale `pending` reports outside the cap (D10, D14), and
+the PP-7.1 declaration, warm acceptance test and same-creator serialization for the POST (D9, D10). Its volume risk on
+a fixed 31-day rule changed D7 to a workload rule.
+
+Debate: one round with Astra on this delta, recorded in [debate-68-2-pp176-astra.md](debate-68-2-pp176-astra.md):
+11 findings (3 P1, 8 P2), all accepted and applied above; finding 1 in part (the count-to-statement race stays an untested, bounded risk, D7).
+
+### Superseded or changed above
+
+- D6: 68-2a adds migration 0220 (the coverage-probe index, D7, #947) and 68-2b adds a migration (D11); the EXPLAIN rule still applies to every sync read and to the page read.
+- "Performance checkpoint and fallback": the leave-floor pushdown is dropped; a heavy query never runs synchronously.
+- Tests: "No RLS negative test: no table is added" no longer holds for 68-2b (two tables, two negative tests).
+- `last_taken` on a stored result is always `null` (D13).

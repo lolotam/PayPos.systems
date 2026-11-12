@@ -105,6 +105,13 @@ it.each([0, 6])('materializes overnight breaks on the next date, keeping start d
     break_ends_at: `${addScheduleDays(week, day)}T22:00:00.000Z`,
   });
 });
+it.each([0, 1, 2, 3, 4, 5, 6])(
+  'materializes shift on day %d with working_date = Saturday + d days',
+  (d) => {
+    const [shift] = materializeSchedule(week, pattern(d), 'Asia/Kuwait', 3);
+    expect(shift?.working_date).toBe(addScheduleDays(week, d));
+  },
+);
 it('normalises old patterns and keeps the full eight-hour shift with a break', () => {
   const [plain] = shifts();
   const [withBreak] = materializeSchedule(
