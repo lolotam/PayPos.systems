@@ -26,7 +26,7 @@ function Harness({ disabled = false, lineCount = 1, markService = false }: { dis
   return <FormProvider {...form}><form>
     <SessionTimeField context={{ generated_at: '2026-10-13T08:00:00.000Z', business_timezone: 'Asia/Kuwait',
       recorder_membership_ids: [service.id], recorder_membership_id: service.id, discount_limit: { source: 'OWNER', bps: null } }} disabled={disabled} />
-    <SessionDraftLines scope={{ companyId: 'company', businessId: 'business', branchId: 'branch', userId: 'actor' }} disabled={disabled} />
+    <SessionDraftLines scope={{ companyId: 'company', businessId: 'business', branchId: 'branch', userId: 'actor' }} customerId={null} disabled={disabled} />
   </form></FormProvider>;
 }
 function mount(disabled = false, lineCount = 1, markService = false) {

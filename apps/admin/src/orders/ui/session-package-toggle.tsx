@@ -65,7 +65,7 @@ export function SessionPackageToggle({ scope, customerId, index, occurredAt, pac
   return <div className="grid gap-2 text-start">
     <Button type="button" variant="outline" aria-pressed={fromPackage}
       disabled={disabled || (!fromPackage && gate !== null)} onClick={toggle}>{t(locale, 'serviceSessions.fromPackage')}</Button>
-    {gate !== null ? <p role="alert">{t(locale, `serviceSessions.${gate}`)}</p> : null}
+    {gate !== null ? <p>{t(locale, `serviceSessions.${gate}`)}</p> : null}
     {fromPackage && gate === null ? <Controller control={control} name={path}
       rules={{ validate: (value) => {
         if (!fromPackage) return true;

@@ -15,6 +15,10 @@ import { RecordServiceSessionForm } from './record-service-session-form';
 const state = vi.hoisted(() => ({ locale: 'en' as 'ar' | 'en', get: vi.fn(), post: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: state.get, POST: state.post }) }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
+vi.mock('../api/use-customer-packages', () => ({ useCustomerPackages: () => ({
+  data: { items: [], pages: [] }, hasNextPage: false, isFetchingNextPage: false,
+  isPending: false, isError: false, fetchNextPage: vi.fn(), refetch: vi.fn(),
+}) }));
 
 const service = { id: id(5), name_ar: null, name_en: 'Synthetic service', price: '7.125', revision: 1 };
 const performer = { id: id(6), name_ar: null, name_en: 'Synthetic performer', employee_number: 7, not_clocked_in_warning: false, approved_leave_warning: false };
