@@ -53,7 +53,7 @@ Estimate: about 690 production lines plus the 140-line SQL move, far over the ro
 | 50-3b | Tips bootstrap (reader binding, revision guard, discharge of event ids), CM-24 race test for tips, runbook tips section | ~315 |
 | 50-3c | Coverage: orders line reader, staff salary reader, tips coverage, projection readers, report, ADR-0054 §4 addendum, module-map Port rows, CM-24 coverage tests for lines and salaries | ~375 |
 
-50-3c needs 50-3a and 50-3b only for its end-to-end tests; 53-2 needs all three.
+50-3c needs 50-3a and 50-3b only for its end-to-end tests; 53-2 needs all four (50-3a, 50-3b, 50-3c and 50-3d).
 
 ## Open design questions for the manager
 
@@ -126,7 +126,7 @@ previously failed event; one employee's salaries applied in reverse date order; 
 and one mark with `published_at` set only by the live path; no change to `published_at`, `attempts`, `parked_at`, `next_attempt_at`, `last_error`;
 an event committed behind the cursor lands through live delivery; tenant isolation).
 
-## Sub-PR record (53-2 depends on 50-3a, 50-3b and 50-3c)
+## Sub-PR record (53-2 depends on 50-3a, 50-3b, 50-3c and 50-3d)
 
 50-3a replay runner and runbook replay section; 50-3b tips bootstrap and the shared tips SQL builder; 50-3c coverage readers, report, pure
 comparison, ADR-0054 §4 addendum and Port rows.
