@@ -220,7 +220,7 @@ land, approval stays closed. Never reset `published_at`, `attempts`, `parked_at`
    ```
 
    The entry prints one JSON line: `status`, `afterId`, `throughId`, per-type `counts`, and `undelivered` (event id, type and error code only,
-   never a payload; at most 200, `truncated` tells when more exist). Keep the line, the release SHA and the counts in the operations record.
+   never a payload; at most 200, `truncated` tells when more exist; `counts` also counts events already marked by an earlier run). Keep the line, the release SHA and the counts in the operations record.
    The exit code is 0 only for `COMPLETE`.
 3. **Statuses.**
    - `COMPLETE`: the range up to `throughId` is applied; compare the counts with the release inventory.

@@ -88,7 +88,7 @@ async function insertOutbox(
     published_at, attempts, next_attempt_at, parked_at, last_error
   ) VALUES (
     ${event.companyId}, ${event.id}, ${event.aggregateType}, ${event.aggregateId}, ${event.eventType},
-    ${JSON.stringify(event.payload)}::jsonb, ${publishedAt}, ${opts.attempts ?? (opts.parked ? 10 : 0)},
+    ${owner.json(event.payload as never)}, ${publishedAt}, ${opts.attempts ?? (opts.parked ? 10 : 0)},
     clock_timestamp(), ${parkedAt}, ${opts.lastError ?? (opts.parked ? 'ParkedError' : null)}
   )`;
 }
@@ -152,9 +152,10 @@ it('CM-24 replays published, unpublished and parked line events and ignores lowe
   });
   expect(await deliver(staleRev2)).toEqual({ delivered: true });
 
-  const staleRev1 = commissionLineEvent(A, ids, 'ServiceLineChanged', {
-    sessionId: COMMISSION_LINE_IDS.sessionA, lineId: COMMISSION_LINE_IDS.lineA, revision: 1,
-    changeKind: 'PRICE_DISCOUNT_EDIT', net: '88.000', performers: [{ employee_id: A.employee, share_bps: 10000 }],
+  // مراجعة 1 الأقدم تصل كتسجيل جلسة جديد بهوية حدث مختلفة؛ ServiceLineChanged بمراجعة 1 أصلاً غير صالح
+  const staleRev1 = commissionLineEvent(A, ids, 'ServiceSessionRecorded', {
+    sessionId: COMMISSION_LINE_IDS.sessionA,
+    lines: [{ lineId: COMMISSION_LINE_IDS.lineA, revision: 1, net: '88.000', performers: [{ employee_id: A.employee, share_bps: 10000 }] }],
   });
   expect(await deliver(staleRev1)).toEqual({ delivered: true });
 
@@ -218,7 +219,11 @@ it('skips event committed behind the cursor during replay and delivers it via li
   const { deliver, failures } = createReplayHarness();
   const e1 = commissionLineEvent(A, ids, 'ServiceSessionRecorded', { id: eventId(610), sessionId: COMMISSION_LINE_IDS.sessionA });
   const e3 = commissionLineEvent(A, ids, 'ServiceSessionLinesAdded', { id: eventId(630), sessionId: COMMISSION_LINE_IDS.sessionA });
-  const lateEvent = commissionLineEvent(A, ids, 'ServiceLineChanged', { id: eventId(605), sessionId: COMMISSION_LINE_IDS.sessionA, revision: 2 });
+  const lateEvent = commissionLineEvent(A, ids, 'ServiceLineChanged', {
+    id: eventId(605), sessionId: COMMISSION_LINE_IDS.sessionA, lineId: COMMISSION_LINE_IDS.lineA, revision: 2,
+    changeKind: 'PRICE_DISCOUNT_EDIT', net: '15.000', previousNet: '10.000',
+    performers: [{ employee_id: A.employee, share_bps: 10000 }],
+  });
 
   await insertOutbox(e1, { published: false, attempts: 0 });
   await insertOutbox(e3, { published: false, attempts: 0 });
@@ -247,8 +252,10 @@ it('skips event committed behind the cursor during replay and delivers it via li
   const lateMarkAfterReplay = await owner`SELECT count(*)::int AS count FROM consumed_events WHERE consumer_id='commissions.project-inputs' AND event_id=${lateEvent.id}`;
   expect(lateMarkAfterReplay[0]?.count).toBe(0);
 
-  const dispatched = await dispatcher.dispatchBatch(10, deliver);
-  expect(dispatched).toBeGreaterThanOrEqual(1);
+  // الـ dispatcher بيمرّر حدث واحد لكل aggregate في الدفعة، فالحدث المتأخر يحتاج دفعة بعد دفعة أقدم أحداثه
+  let dispatched = 0;
+  for (let round = 0; round < 4; round++) dispatched += await dispatcher.dispatchBatch(10, deliver);
+  expect(dispatched).toBeGreaterThanOrEqual(3);
 
   const lateMarkAfterLive = await owner`SELECT count(*)::int AS count FROM consumed_events WHERE consumer_id='commissions.project-inputs' AND event_id=${lateEvent.id}`;
   expect(lateMarkAfterLive[0]?.count).toBe(1);

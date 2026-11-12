@@ -74,7 +74,7 @@ function createReplayHarness() {
 
 async function insertOutbox(event: ClaimedEvent): Promise<void> {
   await owner`INSERT INTO outbox (company_id, id, aggregate_type, aggregate_id, event_type, payload, published_at, attempts, next_attempt_at, parked_at, last_error)
-    VALUES (${event.companyId}, ${event.id}, ${event.aggregateType}, ${event.aggregateId}, ${event.eventType}, ${JSON.stringify(event.payload)}::jsonb, NULL, 0, clock_timestamp(), NULL, NULL)`;
+    VALUES (${event.companyId}, ${event.id}, ${event.aggregateType}, ${event.aggregateId}, ${event.eventType}, ${owner.json(event.payload as never)}, NULL, 0, clock_timestamp(), NULL, NULL)`;
 }
 
 async function salaries(employeeId: string) {
@@ -160,7 +160,8 @@ it('delivers previously failed salary event after its cause is fixed on a full r
     status: 'COMPLETE',
     afterId: eventId(302),
     throughId: firstRun.throughId,
-    counts: { SalaryChanged: 1 },
+    // الحدث المعلَّم سابقاً يُحسب مسلَّماً أيضاً: العدّاد بيعدّ المُعالَج في التشغيلة مش الأثر الجديد
+    counts: { SalaryChanged: 2 },
     undelivered: [],
     truncated: false,
   });

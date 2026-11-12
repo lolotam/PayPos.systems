@@ -39,7 +39,7 @@ function fakeReader(events: readonly ClaimedEvent[]) {
       async (companyId: string, afterId: string | null, throughId: string | null, limit: number) => {
         const companyEvents = events.filter((e) => e.companyId === companyId);
         const resolvedThroughId =
-          throughId ?? (companyEvents.length > 0 ? companyEvents[companyEvents.length - 1]!.id : null);
+          throughId ?? companyEvents.at(-1)?.id ?? null;
         if (resolvedThroughId === null) return { throughId: null, events: [] };
         const filtered = companyEvents.filter(
           (e) => (afterId === null || e.id > afterId) && e.id <= resolvedThroughId,
@@ -178,9 +178,16 @@ it('sets truncated to true and caps list length at 200 when undelivered exceeds 
 it('throws CommissionReplayEventInvalidError for another company or non-replayable event type', async () => {
   // الرفض الفوري يحمي من تسليم أحداث خارج نطاق الشركة أو أحداث غير معتمدة للاستعادة
   const otherCompanyEvent = fakeEvent(1, 'ServiceSessionRecorded', OTHER_COMPANY);
+  // قارئ يتسرّب منه حدث شركة أخرى، لأن الـ dispatcher بلا RLS وسياج الشركة في المشغّل هو الحاجز الوحيد
+  const leakyReader = {
+    commissionInputReplayPage: vi.fn(async () => ({
+      throughId: otherCompanyEvent.id,
+      events: [otherCompanyEvent],
+    })),
+  };
   await expect(
     runCommissionInputReplay(
-      { reader: fakeReader([otherCompanyEvent]), deliver: vi.fn(), failures: new Map() },
+      { reader: leakyReader, deliver: vi.fn(), failures: new Map() },
       { companyId: COMPANY, afterId: null, throughId: null },
     ),
   ).rejects.toThrow(CommissionReplayEventInvalidError);
@@ -205,7 +212,7 @@ it('stops at PAGE_LIMIT with resumable afterId when 100 full pages are read', as
   };
 
   const result = await runCommissionInputReplay(
-    { reader: pagedReader, deliver: vi.fn(async () => ({ delivered: true })), failures: new Map() },
+    { reader: pagedReader, deliver: vi.fn(async (): Promise<DeliveryOutcome> => ({ delivered: true })), failures: new Map() },
     { companyId: COMPANY, afterId: null, throughId: null },
   );
 
