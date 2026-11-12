@@ -127,6 +127,7 @@ it('CM-24 replays published, unpublished and parked line events and ignores lowe
   expect(result).toEqual({
     status: 'COMPLETE',
     afterId: eventId(300),
+    handledThroughId: eventId(300),
     throughId: eventId(300),
     counts: { ServiceSessionRecorded: 1, ServiceSessionLinesAdded: 1, ServiceLineChanged: 1 },
     undelivered: [],

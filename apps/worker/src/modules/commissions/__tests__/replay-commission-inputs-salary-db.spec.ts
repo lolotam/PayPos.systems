@@ -99,7 +99,8 @@ it('CM-25 applies legacy SalaryChanged without business_id once, idempotently, a
 
   expect(result).toEqual({
     status: 'UNDELIVERED',
-    afterId: eventId(200),
+    afterId: eventId(100),
+    handledThroughId: eventId(200),
     throughId: eventId(200),
     counts: { SalaryChanged: 1 },
     undelivered: [{ eventId: legacyMissing.id, type: 'SalaryChanged', code: 'COMMISSION_EMPLOYEE_BUSINESS_MISSING' }],
@@ -127,8 +128,8 @@ it('CM-25 applies legacy SalaryChanged without business_id once, idempotently, a
   ]);
 });
 
-it('delivers previously failed salary event after its cause is fixed on a full re-run without duplicating others', async () => {
-  // يثبت أن معالجة سبب الفشل ثم إعادة التشغيل من البداية بنفس الحد الأعلى تُسلّم الحدث المتعثر دون تكرار
+it('delivers previously failed salary event after its cause is fixed by resuming from safe afterId without duplicating others', async () => {
+  // يثبت استئناف الاستعادة من المؤشر الآمن بعد معالجة سبب الفشل لتسليم الحدث دون تكرار ما سبقه
   const { deliver, failures } = createReplayHarness();
   const legacyA = commissionSalaryEvent(A, ids, { id: eventId(301), businessId: null, amount: '500.000', revision: 1 });
   const missingEmpId = '01920000-0000-7000-8000-00000000e998';
@@ -142,6 +143,8 @@ it('delivers previously failed salary event after its cause is fixed on a full r
     { companyId: A.company, afterId: null, throughId: null },
   );
   expect(firstRun.status).toBe('UNDELIVERED');
+  expect(firstRun.afterId).toBe(eventId(301));
+  expect(firstRun.handledThroughId).toBe(eventId(302));
 
   // تصحيح السبب: إدراج الموظف في جدول employees وربطه بنشاط الشركة
   await owner`INSERT INTO employees (
@@ -150,18 +153,18 @@ it('delivers previously failed salary event after its cause is fixed on a full r
     ${A.company}, ${missingEmpId}, ${A.business}, ${A.branch}, 'Remediated Staff', 'remediatedstaff', 'staff', '2026-01-01', 98
   )`;
 
-  // إعادة التشغيل الكاملة من البداية بنفس throughId
+  // استئناف التشغيل من المؤشر الآمن بعد آخر حدث ناجح لتسليم الحدث المتعثر دون إعادة معالجة ما سبقه
   const fixedRun = await runCommissionInputReplay(
     { reader: dispatcher, deliver, failures },
-    { companyId: A.company, afterId: null, throughId: firstRun.throughId },
+    { companyId: A.company, afterId: firstRun.afterId, throughId: firstRun.throughId },
   );
 
   expect(fixedRun).toEqual({
     status: 'COMPLETE',
     afterId: eventId(302),
+    handledThroughId: eventId(302),
     throughId: firstRun.throughId,
-    // الحدث المعلَّم سابقاً يُحسب مسلَّماً أيضاً: العدّاد بيعدّ المُعالَج في التشغيلة مش الأثر الجديد
-    counts: { SalaryChanged: 2 },
+    counts: { SalaryChanged: 1 },
     undelivered: [],
     truncated: false,
   });
