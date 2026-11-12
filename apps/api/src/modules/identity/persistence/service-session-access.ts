@@ -5,9 +5,11 @@ import { protectOwnerAccess } from '../domain/owner-access.ts';
 import type { SourcedGrant } from '../ports/access-reader.port.ts';
 import { readFeatureEnabled } from './feature-reader.ts';
 
-/** العضوية المرشحة ودورها كما هو في الجدول؛ الدور يُلتقط وقت الطلب (D-18). */
+/** العضوية المرشحة ودورها ونطاقها كما هي في الجدول؛ الدور يُلتقط وقت الطلب (D-18). */
 type CandidateRow = {
   id: string;
+  scope_type: 'COMPANY' | 'BUSINESS' | 'BRANCH';
+  scope_id: string;
   owner: boolean;
   role_code: string;
   role_is_system: boolean;
@@ -43,6 +45,7 @@ export async function readServiceSessionAccess(tx: Tx, companyId: string, userId
   const target = { companyId, businessId, branchId };
   const covers = (scope: string, id: string) => (scope === 'COMPANY' && id === companyId) || (scope === 'BUSINESS' && id === businessId) || (scope === 'BRANCH' && id === branchId);
   const candidatesQuery = sql`SELECT m.id,(${canonicalOwnerSql('m',companyId)}) AS owner,
+    m.scope_type AS scope_type, m.scope_id AS scope_id,
     r.code AS role_code,(m.role_owner_key='global')::boolean AS role_is_system,r.name_ar AS role_name_ar,r.name_en AS role_name_en
     FROM memberships m JOIN companies c ON c.id=m.company_id AND c.deleted_at IS NULL
     JOIN roles r ON r.id=m.role_id AND r.owner_key=m.role_owner_key
@@ -69,6 +72,6 @@ export async function readServiceSessionAccess(tx: Tx, companyId: string, userId
     denied: grants.some((g) => g.effect === 'DENY' && covers(g.scopeType, g.scopeId)),
     feature: candidates.length > 0 && feature,
     membership_ids: candidates.map((m) => m.id),
-    memberships: candidates.map((m) => ({ membership_id: m.id,
+    memberships: candidates.map((m) => ({ membership_id: m.id, scope_type: m.scope_type, scope_id: m.scope_id,
       role: { code: m.role_code, is_system: m.role_is_system, name_ar: m.role_name_ar, name_en: m.role_name_en } })) };
 }

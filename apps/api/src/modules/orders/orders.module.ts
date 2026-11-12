@@ -45,6 +45,11 @@ import { termsHash } from './persistence/terms-hash.adapter.ts';
 import { PendingDiscountProposalsQuery } from './queries/pending-discount-proposals.query.ts';
 import { RequesterDiscountProposalsQuery } from './queries/requester-discount-proposals.query.ts';
 import { RequestDiscountApprovalUseCase } from './use-cases/request-discount-approval/request-discount-approval.usecase.ts';
+import { DecideDiscountProposalsUseCase } from './use-cases/decide-discount-proposals/decide-discount-proposals.usecase.ts';
+import { createDiscountDecisionTransactions } from './persistence/discount-decision-transactions.ts';
+import { discountApprovalAccess } from './persistence/discount-approval-access.adapter.ts';
+import type { DiscountDeciderSnapshot } from './domain/discount-decision-plan.ts';
+import { editorLabel } from '@pospay/i18n';
 import { sessionRecoveryPlace, sessionRecoveryRecord } from './persistence/session-recovery-read.adapter.ts';
 import { createSessionRecoveryConfirm } from './persistence/session-recovery-confirm.adapter.ts';
 import { SessionRecoveryQuery } from './queries/session-recovery.query.ts';
@@ -163,6 +168,25 @@ export function ordersDiscountRequests(database: TenantWrappers, ids: IdGenerato
     requesterName: editorName(tx, context.companyId, context.businessId),
   }));
 }
+export function ordersDiscountDecisions(database: TenantWrappers, ids: IdGenerator) {
+  return createDiscountDecisionTransactions(database, ids, (tx, context) => ({
+    access: discountApprovalAccess(tx, context.companyId, context.userId, context.businessId, context.branchId),
+    discount: discountLimit(tx, context.companyId, context.businessId),
+    approverName: editorName(tx, context.companyId, context.businessId),
+    performers: performerCheck(tx, context.companyId, context.businessId, context.branchId),
+  }));
+}
+function decisionLabels(snapshot: DiscountDeciderSnapshot) {
+  const editor = {
+    nameAr: snapshot.decider_name_ar,
+    nameEn: snapshot.decider_name_en,
+    role: snapshot.decider_role,
+    roleIsSystem: snapshot.decider_role_is_system,
+    roleNameAr: snapshot.decider_role_name_ar,
+    roleNameEn: snapshot.decider_role_name_en,
+  };
+  return { ar: editorLabel('ar', editor), en: editorLabel('en', editor) };
+}
 export function ordersRequesterProposals(database: TenantWrappers, clock: Clock = systemClock) {
   return new RequesterDiscountProposalsQuery(database, {
     place: (tx, scope) => sessionBranchBelongs(tx, scope.companyId, scope.businessId, scope.branchId),
@@ -198,6 +222,7 @@ export function ordersProviders(database: TenantWrappers | undefined, ids: IdGen
     { provide: RecordSessionTipsUseCase, useValue: database === undefined ? null : new RecordSessionTipsUseCase(ordersSessionTips(database), ids, clock) },
     { provide: SessionTipsCurrentQuery, useValue: database === undefined ? null : ordersSessionTipsCurrent(database, clock) },
     { provide: RequestDiscountApprovalUseCase, useValue: database === undefined ? null : new RequestDiscountApprovalUseCase(ordersDiscountRequests(database, ids), ids, clock, termsHash()) },
+    { provide: DecideDiscountProposalsUseCase, useValue: database === undefined ? null : new DecideDiscountProposalsUseCase(ordersDiscountDecisions(database, ids), clock, decisionLabels) },
     { provide: RequesterDiscountProposalsQuery, useValue: database === undefined ? null : ordersRequesterProposals(database, clock) },
     { provide: PendingDiscountProposalsQuery, useValue: database === undefined ? null : ordersPendingProposals(database, clock) },
     ...customerPackageProviders(database, clock),
