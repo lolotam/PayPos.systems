@@ -18,7 +18,11 @@ import type { EditorNamePort } from '../ports/line-edit.port.ts';
 import type { SessionWriteContext } from '../ports/service-session-transactions.port.ts';
 import type { DiscountApprovalAccessPort } from '../ports/discount-decision.port.ts';
 import type { DiscountLimitPort, PerformerCheckPort } from '../ports/session-readers.port.ts';
-import { decideDiscountProposals, lockDiscountDecisions } from './discount-decision-writes.ts';
+import {
+  decideDiscountProposals,
+  lockDiscountDecisions,
+  peekDiscountDecisions,
+} from './discount-decision-writes.ts';
 import { cleanSessionWrite } from './session-recovery-proof.ts';
 
 const DECISION_OPERATION = 'decide-discount-proposals';
@@ -66,6 +70,7 @@ function assemble(
   return {
     ...bind(tx, context),
     proposals: {
+      peek: (proposalIds) => peekDiscountDecisions(tx, scope, proposalIds),
       lock: (proposalIds) => lockDiscountDecisions(tx, scope, proposalIds),
       decide: (plan, decider) => decideDiscountProposals(tx, scope, plan, decider),
     },

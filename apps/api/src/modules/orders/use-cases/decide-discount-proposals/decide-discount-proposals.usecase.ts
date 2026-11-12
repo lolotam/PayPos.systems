@@ -20,7 +20,11 @@ import {
 } from '../../domain/discount-decision-plan.ts';
 import { SessionError } from '../../domain/session-error.ts';
 import type { SessionEmployee } from '../../domain/session-types.ts';
-import type { DiscountDecisionTransaction, DiscountDecisionTransactions } from '../../ports/discount-decision.port.ts';
+import type {
+  DiscountDecisionTransaction,
+  DiscountDecisionTransactions,
+  DiscountProposalPerformerIds,
+} from '../../ports/discount-decision.port.ts';
 import type { Clock, SessionWriteContext } from '../../ports/service-session-transactions.port.ts';
 
 export { DiscountDecisionError } from '../../domain/discount-decision-error.ts';
@@ -62,9 +66,14 @@ export class DecideDiscountProposalsUseCase {
     context: DecisionContext,
   ): Promise<DecideDiscountProposalsResponse> {
     await tx.access.lock();
+    const peeked = context.decision === 'APPROVE'
+      ? await this.peekProposals(tx, context.input.proposal_ids)
+      : [];
+    if (context.decision === 'APPROVE') await tx.performers.lock(peekedEmployeeIds(peeked));
     const locked = await this.lockProposals(tx, context.input.proposal_ids);
-    const employeeIds = proposalEmployeeIds(locked);
-    if (context.decision === 'APPROVE') await tx.performers.lock(employeeIds);
+    if (context.decision === 'APPROVE' && !sameProposalPerformers(peeked, locked)) {
+      throw new SessionError('FORBIDDEN');
+    }
     const now = this.clock.now();
     planDiscountStatus(locked, context.input.terms_hashes, now);
     const membership = resolveDiscountApprover(
@@ -90,6 +99,15 @@ export class DecideDiscountProposalsUseCase {
     });
     if (event !== null) await tx.emit(event);
     return discountDecisionResponse(plan);
+  }
+
+  private async peekProposals(
+    tx: DiscountDecisionTransaction,
+    ids: readonly string[],
+  ): Promise<readonly DiscountProposalPerformerIds[]> {
+    const rows = await tx.proposals.peek(ids);
+    if (rows.length < ids.length) throw new SessionError('FORBIDDEN');
+    return rows;
   }
 
   private async lockProposals(
@@ -154,6 +172,32 @@ export class DecideDiscountProposalsUseCase {
 
 function proposalEmployeeIds(locked: readonly LockedDiscountProposal[]): string[] {
   return [...new Set(locked.flatMap((proposal) => proposal.performers.map((performer) => performer.employee_id)))].sort();
+}
+
+function peekedEmployeeIds(peeked: readonly DiscountProposalPerformerIds[]): string[] {
+  return sortedUniqueIds(peeked.flatMap((proposal) => proposal.employee_ids));
+}
+
+function sameProposalPerformers(
+  peeked: readonly DiscountProposalPerformerIds[],
+  locked: readonly LockedDiscountProposal[],
+): boolean {
+  if (peeked.length !== locked.length) return false;
+  const byId = new Map(peeked.map((proposal) => [
+    proposal.id.toLowerCase(),
+    sortedUniqueIds(proposal.employee_ids),
+  ]));
+  return locked.every((proposal) => {
+    const employeeIds = byId.get(proposal.id.toLowerCase());
+    if (employeeIds === undefined) return false;
+    const lockedEmployeeIds = sortedUniqueIds(proposal.performers.map((performer) => performer.employee_id));
+    return employeeIds.length === lockedEmployeeIds.length
+      && employeeIds.every((id, index) => id === lockedEmployeeIds[index]);
+  });
+}
+
+function sortedUniqueIds(ids: readonly string[]): string[] {
+  return [...new Set(ids.map((id) => id.toLowerCase()))].sort();
 }
 
 function decisionProposals(

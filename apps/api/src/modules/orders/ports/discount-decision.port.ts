@@ -25,8 +25,21 @@ export interface DiscountApprovalAccessPort {
   read(at: Date): Promise<SessionEditFacts>;
 }
 
+/** معرّف اقتراح ومعرّفات منفّذيه الثابتة اللازمة لترتيب الأقفال. */
+export interface DiscountProposalPerformerIds {
+  id: string;
+  employee_ids: readonly string[];
+}
+
 /** تخزين قرار الاقتراحات؛ النطاق والقفل وCAS مسؤوليته وحده. */
 export interface DiscountDecisionRepository {
+  /**
+   * يقرأ معرّفات الاقتراحات ومعرّفات منفّذيها بلا أي قفل ليُعرف ما يُقفل قبلها.
+   *
+   * @param ids معرّفات الاقتراحات المطلوبة
+   * @returns صفوف النطاق مرتبة بالمعرّف، ومعرّفات المنفّذين في كل صف فريدة وصغيرة ومرتبة
+   */
+  peek(ids: readonly string[]): Promise<readonly DiscountProposalPerformerIds[]>;
   /**
    * يقفل اقتراحات هذا النشاط والفرع تصاعدياً ويعيدها مع لقطات منفّذيها.
    *

@@ -6,6 +6,7 @@ import type {
   DiscountProposalDecision,
   LockedDiscountProposal,
 } from '../domain/discount-decision-plan.ts';
+import type { DiscountProposalPerformerIds } from '../ports/discount-decision.port.ts';
 
 export interface DiscountDecisionScope {
   companyId: string;
@@ -36,6 +37,31 @@ interface DecisionWrite {
   plan: DiscountDecisionPlan;
   decider: DiscountDeciderSnapshot;
   proposal: DiscountProposalDecision;
+}
+
+export async function peekDiscountDecisions(
+  tx: Tx,
+  scope: DiscountDecisionScope,
+  proposalIds: readonly string[],
+): Promise<readonly DiscountProposalPerformerIds[]> {
+  const ids = [...new Set(proposalIds.map((id) => id.toLowerCase()))].sort();
+  if (ids.length === 0) return [];
+  const selected = sql`id=ANY(ARRAY[${sql.join(ids.map((id) => sql`${id}`), sql`,`)}]::uuid[])`;
+  const rows = await tx.execute<Pick<LockedRow, 'id'>>(sql`SELECT id FROM discount_proposals
+    WHERE company_id=${scope.companyId} AND business_id=${scope.businessId} AND branch_id=${scope.branchId} AND ${selected}
+    ORDER BY id`);
+  const performers = await tx.execute<Pick<PerformerRow, 'proposal_id' | 'employee_id'>>(
+    sql`SELECT proposal_id,employee_id FROM discount_proposal_performers
+      WHERE company_id=${scope.companyId} AND business_id=${scope.businessId}
+        AND proposal_id=ANY(ARRAY[${sql.join(ids.map((id) => sql`${id}`), sql`,`)}]::uuid[])
+      ORDER BY proposal_id,employee_id`,
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    employee_ids: [...new Set(performers
+      .filter((performer) => performer.proposal_id === row.id)
+      .map((performer) => performer.employee_id.toLowerCase()))].sort(),
+  }));
 }
 
 export async function lockDiscountDecisions(
