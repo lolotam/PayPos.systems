@@ -87,17 +87,43 @@ missing, stale and ahead rows for lines, salaries and tips; tenant isolation. DB
 `apps/worker/src/modules/staff/index.ts`, `apps/api/src/modules/orders/index.ts` only under Q1 option 1 (wrapper over the
 moved builder). `orders.module.ts` and `identity/index.ts` are not touched.
 
-## 50-3a scope (built first)
+## 50-3a scope (built first; revised after the Fable debate, `debate-50-3a-fable.md`)
 
-Replay runner `runCommissionInputReplay` in `apps/worker/src/modules/commissions` (exported from its `index.ts`): per company, pages through
-`commissionInputReplayPage` with an explicit `afterId`/`throughId` checkpoint, delivers each event through a deliverer built by the caller from
-the commissions consumer alone (`createCommissionInputsConsumer`), counts per event type, stops on the first undelivered event with a typed error
-carrying the checkpoint, and returns `{ throughId, afterId, counts, unresolved }`. A legacy `SalaryChanged` whose business cannot be resolved
-(CS-Q44) is not delivered, stays unmarked, and is counted in `unresolved` with its event id. The runner never writes `published_at`, never clears
-`consumed_events`, and reads only through the 50-0 facade. Runbook section `50-3a` documents the operator script (company id, `AFTER_ID`,
-`THROUGH_ID`), capturing the upper bound only after every worker replica runs the consumer (item a), and re-running with a new upper bound after
-any rollback then upgrade (item d, CS-Q43). Tests: CM-25 backfill through the facade, CM-24 line replay of published and unpublished events and a
-live event of equal or lower revision ignored, idempotent re-run, checkpoint resume, no `published_at`/`consumed_events` change, tenant isolation.
+Files (production, about 200 lines):
+- `apps/worker/src/modules/commissions/jobs/replay-commission-inputs.ts`: `runCommissionInputReplay(deps, cursor)` and
+  `recordCommissionFailureCodes(consumer, sink)`. Exported from the module `index.ts` (add-only).
+- `apps/worker/src/replay-commission-inputs.ts`: explicit operator entry (not imported by `main.ts`), modelled on
+  `recover-rating-claims.ts`; it builds the consumer with the same three readers as `main.ts` (`businessTimeZone`,
+  `readEmployeeBusiness`, `businessCalendar`), a commissions-only `createDeliverer`, and prints one JSON result.
+
+Behaviour of the runner:
+- Reads only through `commissionInputReplayPage` (`pospay_dispatcher`, read-only). Asserts `event.companyId` equals the requested company and the
+  event type is one of the four; otherwise throws a typed error. Never writes `published_at`, `attempts`, `parked_at`, `next_attempt_at`,
+  `last_error` or `consumed_events` itself; the only writes are the consumer's, in `pospay_app` `withTenant`, through `createDeliverer`.
+- The deliverer swallows the thrown error, so the caller wraps `consumer.handle` with `recordCommissionFailureCodes`, which records the error's
+  `code` per event id and rethrows. The runner reads that sink.
+- A not-delivered event whose code is in the closed allowlist (`COMMISSION_EMPLOYEE_BUSINESS_MISSING` (CS-Q44), `COMMISSION_LINE_EVENT_INVALID`,
+  `COMMISSION_TIP_SALARY_INPUT_INVALID`, `COMMISSION_BUSINESS_MISSING`, `COMMISSION_PERIOD_CLOSED`) is listed in `undelivered`
+  (event id, type, code only, never the payload; capped at 200 with a `truncated` flag) and the runner continues. Any other failure stops the run
+  with `ABORTED` and the checkpoint.
+- Result `{ status, afterId, throughId, counts, undelivered, truncated }`; `status` is `COMPLETE`, `UNDELIVERED` (finished, list not empty),
+  `PAGE_LIMIT` (100 pages of 100 per invocation, resume from `afterId`) or `ABORTED`. The entry exits non-zero unless `COMPLETE`.
+- `AFTER_ID` resume is for `PAGE_LIMIT` and `ABORTED` only. After `UNDELIVERED`, fix the cause and re-run from the beginning with the same
+  `THROUGH_ID`; marks make the re-run idempotent.
+
+Runbook section `50-3a` (add-only, `docs/runbook.md`): the entry command and its env (`DATABASE_URL`, `DISPATCHER_DATABASE_URL`), capturing the
+upper bound only after every worker replica runs the consumer (item a), that `THROUGH_ID` is an id bound and not a commit-order proof so live
+delivery covers rows that commit behind the cursor, the statuses above, the legacy salary outcome (CS-Q44: unmarked, approval closed, manager
+investigates), the «after any rollback then upgrade, re-run the replay with a new upper bound» step (item d, CS-Q43), the noisy "parked" log line
+for rows with many attempts (nothing is written), and that an unmarked event aimed at an APPROVED month stays undelivered by design.
+
+Tests (Agy): a fast unit spec with fakes (deterministic failure continues, unknown failure aborts, counts, fence, page limit, empty company,
+`afterId == throughId`, no payload in the result); a DB spec through the real 50-0 facade and the real consumer (CM-25 backfill of a legacy salary
+applied once to the employee's business and a repeat adds nothing; a legacy salary of an unknown employee is undelivered and unmarked; CM-24
+published, unpublished and parked line events replayed, a live event of equal or lower revision ignored; full re-run after a continue delivers the
+previously failed event; one employee's salaries applied in reverse date order; replay and live `dispatchBatch` of the same event give one effect
+and one mark with `published_at` set only by the live path; no change to `published_at`, `attempts`, `parked_at`, `next_attempt_at`, `last_error`;
+an event committed behind the cursor lands through live delivery; tenant isolation).
 
 ## Sub-PR record (53-2 depends on 50-3a, 50-3b and 50-3c)
 
