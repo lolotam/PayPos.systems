@@ -1,4 +1,7 @@
-import type { SalaryChanged as SalaryChangedContract } from '@pospay/contracts';
+import type {
+  LeaveHistoryReportRequested as LeaveHistoryReportRequestedContract,
+  SalaryChanged as SalaryChangedContract,
+} from '@pospay/contracts';
 /** يصدر عند إنشاء أو استبدال راتب تاريخ واحد داخل معاملة الراتب، ويحمل نشاط صف الراتب، وتستخدم العمولة النسخة لتجاهل الأحداث الأقدم. */
 export type SalaryChanged = SalaryChangedContract;
 /** يصدر بعد إنشاء طلب PENDING، داخل معاملة الطلب فقط دون تفعيل رصيد أو اعتماد. */
@@ -129,3 +132,6 @@ export interface AttendanceChangeDecided {
   readonly decided_at: string;
   readonly revision: number;
 }
+
+/** سيصدر داخل معاملة قبول تقرير سجل الإجازات في 68-2c عند إنشاء التقرير المعلق؛ لا يوجد منتج له بعد. */
+export type LeaveHistoryReportRequested = LeaveHistoryReportRequestedContract;
