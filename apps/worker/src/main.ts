@@ -243,6 +243,7 @@ async function startWorkerCore(): Promise<void> {
       readiness: [
         { name: 'database', check: () => app.ping() },
         { name: 'package-previews', check: () => previews.ready() },
+        { name: 'leave-history-reports', check: () => staff.reportsReady() },
         // A wrong dispatcher URL or password leaves the worker with nothing to do — it is not ready.
         { name: 'dispatcher', check: () => dispatcher.ping() },
         {

@@ -1,4 +1,5 @@
 import { t } from '@pospay/i18n';
+import { LEAVE_HISTORY_REPORT_ROW_CAP } from '@pospay/contracts';
 import { createLogger } from '@pospay/observability';
 import { notClockedInDiagnostics } from './persistence/not-clocked-in-diagnostics.ts';
 import { branchPlaceAdapter } from './persistence/branch-place.adapter.ts';
@@ -31,12 +32,24 @@ import { statementIdentityReader } from './persistence/attendance-statement-iden
 import { attendanceStatementOpenSessions } from './queries/attendance-statement-open-sessions.query.ts';
 import { ReadAttendanceStatement } from './use-cases/read-attendance-statement/read-attendance-statement.ts';
 import type { AttendanceStatementRead } from './domain/attendance-statement-data.ts';
+import { leaveHistoryReportTransactions } from './persistence/leave-history-report.transactions.ts';
+import { leaveHistoryReportCleanupTransactions } from './persistence/leave-history-report-cleanup.transactions.ts';
+import { startLeaveHistoryReportProcessor } from './jobs/leave-history-report.processor.ts';
+import { startLeaveHistoryReportCleanupProcessor } from './jobs/leave-history-report-cleanup.processor.ts';
+import { BuildLeaveHistoryReport } from './use-cases/build-leave-history-report/build-leave-history-report.ts';
+import { CleanLeaveHistoryReports } from './use-cases/clean-leave-history-reports/clean-leave-history-reports.ts';
 
 // أحداث الحضور التي يعرفها هذا الإصدار؛ AttendanceClockedIn وحده يسجل جدول الشركة ولا مستهلك أعمال لأي منها.
 const ATTENDANCE_EVENT_TYPES = [
   'AttendanceClockedIn',
   'AttendanceClockedOut',
   'AttendanceMissedOut',
+] as const;
+const STAFF_EVENT_TYPES = [
+  ...ATTENDANCE_EVENT_TYPES,
+  'EmployeeImportCommitRequested',
+  'EmployeeDocumentRecorded',
+  'LeaveHistoryReportRequested',
 ] as const;
 
 const NOT_CLOCKED_IN_NAME_FALLBACK = {
@@ -77,6 +90,58 @@ export function createAttendanceStatementReader(database: Pick<TenantWrappers, '
   ): Promise<AttendanceStatementRead> => useCase.execute(companyId, renderId, signal);
 }
 
+// مهلة البناء تحد كلفة الاستعلام الثقيل وتترك للتقرير نتيجة فشل قابلة للقراءة بدل تعليقه.
+const LEAVE_HISTORY_REPORT_BUILD_TIMEOUT_MS = 60_000;
+// كتابة حالة الفشل تجري بعد انتهاء مهلة البناء، فمهلتها قصيرة حتى لا تضاعف زمن الإمساك بالاتصال.
+const LEAVE_HISTORY_REPORT_FAILURE_TIMEOUT_MS = 5_000;
+// كل دفعة تنظيف قصيرة حتى لا يحمل حذف الصفوف الكثيرة اتصال العامل.
+const LEAVE_HISTORY_REPORT_CLEANUP_TIMEOUT_MS = 30_000;
+
+function startLeaveHistoryReportWorkers(
+  database: Pick<TenantWrappers, 'withTenant'>,
+  redisUrl: string,
+  prefix?: string,
+) {
+  const logger = createLogger('error');
+  const reports = startLeaveHistoryReportProcessor(
+    new BuildLeaveHistoryReport(
+      leaveHistoryReportTransactions(
+        database,
+        LEAVE_HISTORY_REPORT_BUILD_TIMEOUT_MS,
+        LEAVE_HISTORY_REPORT_ROW_CAP,
+        LEAVE_HISTORY_REPORT_FAILURE_TIMEOUT_MS,
+      ),
+      {
+        failed: ({ companyId, reportId, createdBy, code }) =>
+          logger.error(
+            { company_id: companyId, report_id: reportId, user_id: createdBy, code },
+            'leave history report failed',
+          ),
+      },
+    ),
+    redisUrl,
+    prefix,
+  );
+  const cleanup = startLeaveHistoryReportCleanupProcessor(
+    new CleanLeaveHistoryReports(
+      leaveHistoryReportCleanupTransactions(database, LEAVE_HISTORY_REPORT_CLEANUP_TIMEOUT_MS),
+    ),
+    redisUrl,
+    prefix,
+  );
+  return {
+    reports,
+    cleanup,
+    ready: async () => {
+      await Promise.all([reports.ready(), cleanup.ready()]);
+    },
+    close: async () => {
+      await reports.close();
+      await cleanup.close();
+    },
+  };
+}
+
 export function startStaffWorker(
   database: Pick<TenantWrappers, 'withTenant'>,
   ids: IdGenerator,
@@ -100,21 +165,20 @@ export function startStaffWorker(
     redisUrl,
     prefix,
   );
+  const reportWorkers = startLeaveHistoryReportWorkers(database, redisUrl, prefix);
   return {
-    eventTypes: [
-      ...ATTENDANCE_EVENT_TYPES,
-      'EmployeeImportCommitRequested',
-      'EmployeeDocumentRecorded',
-    ],
+    eventTypes: [...STAFF_EVENT_TYPES],
     deliver: (
       event: Parameters<typeof processor.deliver>[0],
       next: Parameters<typeof processor.deliver>[1],
     ) =>
-      event.eventType === 'EmployeeImportCommitRequested'
-        ? recovery.deliver(event, () => imports.deliver(event))
-        : expiry.deliver(event, () =>
-            notClockedIn.deliver(event, () => processor.deliver(event, next)),
-          ),
+      event.eventType === 'LeaveHistoryReportRequested'
+        ? reportWorkers.cleanup.deliver(event, () => reportWorkers.reports.deliver(event))
+        : event.eventType === 'EmployeeImportCommitRequested'
+          ? recovery.deliver(event, () => imports.deliver(event))
+          : expiry.deliver(event, () =>
+              notClockedIn.deliver(event, () => processor.deliver(event, next)),
+            ),
     ready: async () => {
       await processor.ready();
       await imports.ready();
@@ -122,12 +186,14 @@ export function startStaffWorker(
       await expiry.ready();
       await notClockedIn.ready();
     },
+    reportsReady: reportWorkers.ready,
     close: async () => {
       await expiry.close();
       await notClockedIn.close();
       await imports.close();
       await recovery.close();
       await processor.close();
+      await reportWorkers.close();
     },
   };
 }
