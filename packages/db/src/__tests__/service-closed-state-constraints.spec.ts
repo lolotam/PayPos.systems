@@ -55,7 +55,10 @@ async function rejectsWith(work: Promise<unknown>, expected: RegExp): Promise<vo
 
 describe('services — the closed-category marker is consistent', () => {
   it('refuses a marker without a closed timestamp', async () => {
-    await rejectsWith(insertService(CATEGORY, null, CATEGORY), /services_closed_marker_requires_closed/);
+    await rejectsWith(
+      insertService(CATEGORY, null, CATEGORY),
+      /services_closed_marker_requires_closed/,
+    );
   });
 
   it('refuses a marker of another category and a marker with no category', async () => {
@@ -63,7 +66,10 @@ describe('services — the closed-category marker is consistent', () => {
       insertService(CATEGORY, CLOSED_AT, OTHER_CATEGORY),
       /services_closed_marker_is_category/,
     );
-    await rejectsWith(insertService(null, CLOSED_AT, CATEGORY), /services_closed_marker_is_category/);
+    await rejectsWith(
+      insertService(null, CLOSED_AT, CATEGORY),
+      /services_closed_marker_is_category/,
+    );
   });
 
   it('accepts open, independently closed and category-closed services', async () => {
