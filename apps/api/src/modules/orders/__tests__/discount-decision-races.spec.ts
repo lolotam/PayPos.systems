@@ -100,18 +100,15 @@ it('idempotent replay of same key and body returns stored 200; replay after perm
   const context = { ...decideContext(f, f.editorId), key };
   const input = { proposal_ids: [proposal.id], terms_hashes: [proposal.terms_hash] };
 
-  // First decide
   const first = await decide.execute({ ...context, decision: 'APPROVE', input });
   expect(first.proposals[0]?.status).toBe('APPROVED');
 
-  // Same key and body -> replay returns identical 200 with no second audit
   const auditsBefore = await fetchAudits(f, proposal.id);
   const replay = await decide.execute({ ...context, decision: 'APPROVE', input });
   expect(replay).toEqual(first);
   const auditsAfter = await fetchAudits(f, proposal.id);
   expect(auditsAfter).toHaveLength(auditsBefore.length);
 
-  // Same key with different body -> 422 IDEMPOTENCY_KEY_REUSED
   const otherProposal = await requestSingleProposal(f);
   await expect(decide.execute({
     ...context,
@@ -120,7 +117,6 @@ it('idempotent replay of same key and body returns stored 200; replay after perm
     input: { proposal_ids: [otherProposal.id], terms_hashes: [otherProposal.terms_hash] },
   })).rejects.toMatchObject({ code: 'IDEMPOTENCY_KEY_REUSED' });
 
-  // Replay after approver's membership expired/revoked -> 403 FORBIDDEN
   await f.h.owner`UPDATE memberships SET ends_at='2026-01-02T00:00:00Z' WHERE company_id=${f.company} AND id=${f.editorMembership}`;
   try {
     await expect(decide.execute({ ...context, decision: 'APPROVE', input })).rejects.toMatchObject({
@@ -139,7 +135,6 @@ it('debate #1 decide waits on employee row lock while injected clock passes expi
   const locked = barrier();
   const release = barrier();
 
-  // Second transaction holds FOR UPDATE on performer employee
   const blocker = f.h.owner.begin(async (write) => {
     await write`SELECT id FROM employees WHERE company_id=${f.company} AND id=${f.performerEmployeeId} FOR UPDATE`;
     locked.release();
@@ -157,21 +152,20 @@ it('debate #1 decide waits on employee row lock while injected clock passes expi
     pending.catch(() => undefined);
     deciding = pending;
 
-    // Wait until tx.performers.lock is blocked waiting for employee lock
+    // ننتظر حتى ينحجز قفل المنفّذين فعلاً قبل تحريك الساعة
     await vi.waitFor(async () => {
       const waiting = await observer`SELECT 1 FROM pg_stat_activity WHERE datname=current_database()
         AND wait_event_type='Lock' AND query LIKE '%employees%'`;
       expect(waiting.length).toBeGreaterThan(0);
     }, { timeout: 5000, interval: 20 });
 
-    // Advance clock past expires_at while lock is held
+    // نتجاوز وقت الانتهاء بينما القفل ما زال محجوزاً
     f.setAt(new Date(expiry.getTime() + 1000));
 
-    // Release blocker transaction
     release.release();
     await blocker;
 
-    // Decide acquires lock, then reads now after lock, detecting expiry -> 409
+    // القرار يقرأ اللحظة بعد اكتساب القفل فيكتشف الانتهاء ويرفض بـ409
     await expect(pending).rejects.toMatchObject({
       code: 'DISCOUNT_PROPOSAL_NOT_PENDING',
       details: { proposal_id: proposal.id },
@@ -231,4 +225,69 @@ it('race with 057-5 consumption: approved proposal consumed by line while second
   expect(afterRow['decided_by_membership_id']).toBe(beforeRow['decided_by_membership_id']);
   expect(afterRow['decided_via']).toBe(beforeRow['decided_via']);
   expect(afterRow['decided_device_id']).toBe(beforeRow['decided_device_id']);
+});
+
+// لازم لحظة الانتهاء تتقرأ بعد قفل إعدادات النشاط، وإلا انقبل اقتراح انتهى أثناء الانتظار.
+it('debate #2 decide waits on business_settings lock while injected clock passes expires_at: 409, nothing written', async () => {
+  const proposal = await requestSingleProposal(f);
+  const expiry = new Date(proposal.expires_at);
+  const previousSettings = await f.h.owner`SELECT limit_bps FROM business_settings
+    WHERE company_id=${f.company} AND business_id=${f.business}`;
+  const previousLimit = previousSettings[0]?.['limit_bps'] as number | null | undefined;
+  await f.h.owner`UPDATE memberships SET limit_bps=NULL WHERE company_id=${f.company} AND id=${f.editorMembership}`;
+  await f.h.owner`INSERT INTO business_settings (company_id,business_id,limit_bps)
+    VALUES(${f.company},${f.business},2000)
+    ON CONFLICT (company_id,business_id) DO UPDATE SET limit_bps=2000`;
+
+  const observer = postgres(f.h.ownerUrl, { max: 1, onnotice: () => undefined });
+  const locked = barrier();
+  const release = barrier();
+  const blocker = f.h.owner.begin(async (write) => {
+    await write`SELECT business_id FROM business_settings
+      WHERE company_id=${f.company} AND business_id=${f.business} FOR UPDATE`;
+    locked.release();
+    await release.promise;
+  });
+
+  let deciding: Promise<unknown> | undefined;
+  try {
+    await locked.promise;
+    const pending = decide.execute({
+      ...decideContext(f, f.editorId),
+      decision: 'APPROVE',
+      input: { proposal_ids: [proposal.id], terms_hashes: [proposal.terms_hash] },
+    });
+    pending.catch(() => undefined);
+    deciding = pending;
+
+    await vi.waitFor(async () => {
+      const waiting = await observer`SELECT 1 FROM pg_stat_activity WHERE datname=current_database()
+        AND wait_event_type='Lock' AND query LIKE '%business_settings%'`;
+      expect(waiting.length).toBeGreaterThan(0);
+    }, { timeout: 5000, interval: 20 });
+
+    f.setAt(new Date(expiry.getTime() + 1000));
+    release.release();
+    await blocker;
+
+    await expect(pending).rejects.toMatchObject({
+      code: 'DISCOUNT_PROPOSAL_NOT_PENDING',
+      details: { proposal_id: proposal.id },
+    });
+    const row = must(await fetchProposal(f, proposal.id));
+    expect(row['status']).toBe('PENDING');
+  } finally {
+    release.release();
+    await blocker;
+    await deciding?.catch(() => undefined);
+    await observer.end();
+    f.setAt(AT);
+    await f.h.owner`UPDATE memberships SET limit_bps=2000 WHERE company_id=${f.company} AND id=${f.editorMembership}`;
+    if (previousLimit === undefined) {
+      await f.h.owner`DELETE FROM business_settings WHERE company_id=${f.company} AND business_id=${f.business}`;
+    } else {
+      await f.h.owner`UPDATE business_settings SET limit_bps=${previousLimit}
+        WHERE company_id=${f.company} AND business_id=${f.business}`;
+    }
+  }
 });

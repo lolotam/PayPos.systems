@@ -24,7 +24,6 @@ it('both approve and reject routes declare guard and require Idempotency-Key', a
   const proposal = await requestSingleProposal(f);
   const body = { proposal_ids: [proposal.id], terms_hashes: [proposal.terms_hash] };
 
-  // Missing Idempotency-Key on approve
   const noKeyApprove = await f.h.send('POST', `${f.proposalBase}/approve`, {
     cookie: f.editorCookie,
     company: f.company,
@@ -33,7 +32,6 @@ it('both approve and reject routes declare guard and require Idempotency-Key', a
   expect(noKeyApprove.status).toBe(400);
   expect(noKeyApprove.body['code']).toBe('IDEMPOTENCY_KEY_REQUIRED');
 
-  // Missing Idempotency-Key on reject
   const noKeyReject = await f.h.send('POST', `${f.proposalBase}/reject`, {
     cookie: f.editorCookie,
     company: f.company,
@@ -42,7 +40,6 @@ it('both approve and reject routes declare guard and require Idempotency-Key', a
   expect(noKeyReject.status).toBe(400);
   expect(noKeyReject.body['code']).toBe('IDEMPOTENCY_KEY_REQUIRED');
 
-  // Caller without approve:discounts:branch permission (cashier) is refused 403
   const cashierApprove = await postApprove(body, f.cookie);
   expect(cashierApprove.status).toBe(403);
   expect(cashierApprove.body['code']).toBe('FORBIDDEN');
@@ -55,7 +52,6 @@ it('both approve and reject routes declare guard and require Idempotency-Key', a
 it('Zod-invalid body answers 400 VALIDATION_FAILED for mismatched counts or invalid format', async () => {
   const proposal = await requestSingleProposal(f);
 
-  // Mismatched lengths
   const mismatched = await postApprove({
     proposal_ids: [proposal.id],
     terms_hashes: [proposal.terms_hash, 'a'.repeat(64)],
@@ -63,7 +59,6 @@ it('Zod-invalid body answers 400 VALIDATION_FAILED for mismatched counts or inva
   expect(mismatched.status).toBe(400);
   expect(mismatched.body['code']).toBe('VALIDATION_FAILED');
 
-  // Empty proposals array
   const emptyArray = await postApprove({
     proposal_ids: [],
     terms_hashes: [],
@@ -71,7 +66,6 @@ it('Zod-invalid body answers 400 VALIDATION_FAILED for mismatched counts or inva
   expect(emptyArray.status).toBe(400);
   expect(emptyArray.body['code']).toBe('VALIDATION_FAILED');
 
-  // Invalid hash regex
   const badHash = await postReject({
     proposal_ids: [proposal.id],
     terms_hashes: ['not-a-valid-sha256-hash'],

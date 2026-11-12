@@ -274,4 +274,21 @@ describe('planDiscountDecision - reject', () => {
       code: 'DISCOUNT_REJECT_REASON_INVALID',
     }));
   });
+
+  it.each([
+    ['NBSP', '\u00A0'],
+    ['VT/FF', '\u000B\u000C'],
+    ['ideographic space', '\u3000'],
+  ])('throws DISCOUNT_REJECT_REASON_INVALID for a %s-only reason', (_label, reason) => {
+    expect(() => {
+      planDiscountDecision(rejectInput({ reason }));
+    }).toThrowError(expect.objectContaining({
+      code: 'DISCOUNT_REJECT_REASON_INVALID',
+    }));
+  });
+
+  it('keeps inner Unicode whitespace while trimming the reason edges', () => {
+    const plan = planDiscountDecision(rejectInput({ reason: '\u00A0سبب\u3000مرفوض\u00A0' }));
+    expect(plan.proposals[0]?.reject_reason).toBe('سبب\u3000مرفوض');
+  });
 });

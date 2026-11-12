@@ -365,7 +365,8 @@ second branch manager who also performs services.
   (FR-013) → requester rule (D-5) → performer flag (FR-014) → CAS `UPDATE … WHERE status = 'PENDING'` → audit →
   (an approve with any flagged proposal) one `DiscountApprovedByPerformer` (D-19). (DA-Q9 = PP-20.3: a rejection runs
   FR-012 only, since it moves no money; no limit check, no requester or own-service check, no flag.) All-or-nothing (D-3). The
-  approver's limit is read **after** the row locks; the line writers also read the recorder's limit **after** locking
+  approver's limit is read **after** the row locks, and the expiry instant used for the CAS is taken after that read
+  (the settings lock may wait behind a writer; #957 round 2); the line writers also read the recorder's limit **after** locking
   proposals (the lock may wait, and a limit change that commits during the wait must be seen, `DiscountLimitPort`); neither
   path takes an `orders` lock after a proposal lock, so no cycle.
 - **FR-012** (DA-Q1) Authority = `approve:discounts:branch` at the proposal's branch, DENY wins, `orders` feature on,

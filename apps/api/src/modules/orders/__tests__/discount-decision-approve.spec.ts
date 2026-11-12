@@ -70,7 +70,7 @@ it('DP-13 owner approves 3000 bps remotely: 200, row APPROVED, decided_via REMOT
 
 it('DP-17 limit too low fails with DISCOUNT_APPROVER_LIMIT_TOO_LOW; NOT_CONFIGURED fails; owner passes', async () => {
   const proposal = await requestSingleProposal(f, '7.500'); // 3000 bps
-  // Layla has 2000 bps limit
+  // حد ليلى 2000 نقطة أساس، فخصم 3000 يتجاوزه
   await expect(decide.execute({
     ...decideContext(f, f.editorId),
     decision: 'APPROVE',

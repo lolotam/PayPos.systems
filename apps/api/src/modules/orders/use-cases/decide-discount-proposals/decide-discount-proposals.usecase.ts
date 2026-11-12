@@ -19,7 +19,7 @@ import {
   type LockedDiscountProposal,
 } from '../../domain/discount-decision-plan.ts';
 import { SessionError } from '../../domain/session-error.ts';
-import type { SessionEmployee } from '../../domain/session-types.ts';
+import type { SessionEmployee, SessionLimit } from '../../domain/session-types.ts';
 import type {
   DiscountDecisionTransaction,
   DiscountDecisionTransactions,
@@ -39,6 +39,11 @@ interface DecisionFacts {
   locked: readonly LockedDiscountProposal[];
   membership: DiscountApproverMembership;
   now: Date;
+}
+
+interface ApprovalFacts {
+  limit: SessionLimit;
+  current: readonly SessionEmployee[];
 }
 
 /** يقرّر اقتراحات الخصم عن بعد بقفل الدفعة وسلطة العضوية وحدّها، ثم يكتب آثارها معاً. */
@@ -80,8 +85,14 @@ export class DecideDiscountProposalsUseCase {
       await tx.access.read(now),
       context.input.approver_membership_id,
     );
-    const plan = await this.plan(tx, context, { locked, membership, now });
+    const approval = context.decision === 'APPROVE'
+      ? await this.approvalFacts(tx, locked, membership, now)
+      : null;
     const decider = await this.deciderSnapshot(tx, context.userId, membership);
+    // قراءات الإعدادات والعضوية قد تنتظر خلف كاتب، لذلك فحص الانتهاء وشرط UPDATE يحتاجان اللحظة التالية لآخر قفل.
+    const decidedAt = this.clock.now();
+    planDiscountStatus(locked, context.input.terms_hashes, decidedAt);
+    const plan = this.plan(context, { locked, membership, now: decidedAt }, approval);
     if (await tx.proposals.decide(plan, decider) !== locked.length) {
       throw new DiscountDecisionError('DISCOUNT_PROPOSAL_NOT_PENDING', {
         proposal_id: locked[0]?.id,
@@ -124,18 +135,29 @@ export class DecideDiscountProposalsUseCase {
     });
   }
 
-  private async plan(
+  private async approvalFacts(
     tx: DiscountDecisionTransaction,
+    locked: readonly LockedDiscountProposal[],
+    membership: DiscountApproverMembership,
+    now: Date,
+  ): Promise<ApprovalFacts> {
+    const limit = await tx.discount.read(membership.membership_id);
+    const current = await tx.performers.read(proposalEmployeeIds(locked), now);
+    return { limit, current };
+  }
+
+  private plan(
     context: DecisionContext,
     facts: DecisionFacts,
-  ): Promise<DiscountDecisionPlan> {
+    approval: ApprovalFacts | null,
+  ): DiscountDecisionPlan {
     const { locked, membership, now } = facts;
     const base = {
       user_id: context.userId,
       membership_id: membership.membership_id,
       now,
     };
-    if (context.decision === 'REJECT') {
+    if (approval === null) {
       return planDiscountDecision({
         ...base,
         decision: 'REJECT',
@@ -143,13 +165,11 @@ export class DecideDiscountProposalsUseCase {
         proposals: decisionProposals(locked, []),
       });
     }
-    const limit = await tx.discount.read(membership.membership_id);
-    const current = await tx.performers.read(proposalEmployeeIds(locked), now);
     return planDiscountDecision({
       ...base,
       decision: 'APPROVE',
-      limit,
-      proposals: decisionProposals(locked, current),
+      limit: approval.limit,
+      proposals: decisionProposals(locked, approval.current),
     });
   }
 

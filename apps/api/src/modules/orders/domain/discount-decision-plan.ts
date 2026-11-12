@@ -9,7 +9,6 @@ import { DiscountDecisionError } from './discount-decision-error.ts';
 import type { SessionLimit } from './session-types.ts';
 
 const REJECT_REASON_MAX_LENGTH = 500;
-const EDGE_WHITESPACE = ' \t\r\n';
 
 /** منفّذ كما حُفظت صلته بالمستخدم وقت طلب الموافقة. */
 export interface LockedDiscountPerformer {
@@ -89,7 +88,7 @@ export type DiscountDecisionInput = DecisionBase &
  *
  * @param locked الاقتراحات المقفلة بترتيب معرّفات الطلب الأصلي
  * @param termsHashes البصمات المرسلة بنفس ترتيب الاقتراحات
- * @param now اللحظة الوحيدة المقروءة بعد كل الأقفال
+ * @param now لحظة فحص الحالة والبصمة المحقونة من منفّذ القرار
  * @returns لا شيء عند سلامة الدفعة؛ أول فشل يرمي رفضاً بمعرّف اقتراحه
  */
 export function planDiscountStatus(
@@ -111,7 +110,7 @@ export function planDiscountStatus(
 /**
  * يبني قرار الدفعة بعد نجاح فحص الحالة والبصمة واختيار العضوية.
  * القاعدة: الموافقة تفحص الحد ثم منع موافقة الطالبة وتحسب علم المنفّذ؛ الرفض يتجاوز الثلاثة ويترك العلم `null`.
- * سبب الرفض اختياري، لكنه إن وُجد يُقصّ ويجب أن يبقى بين حرف و500 حرف كما تقيسها القاعدة.
+ * سبب الرفض اختياري، لكنه إن وُجد تُقصّ مسافات Unicode الطرفية ويجب أن يبقى بين حرف و500 حرف كما تقيسها القاعدة.
  *
  * @param input الاقتراحات ولحظة القرار ونوع القرار وحدّ الموافقة عند الموافقة أو السبب عند الرفض
  * @returns خطة واحدة لكل الدفعة بترتيب الاقتراحات المدخلة
@@ -162,11 +161,7 @@ function decideProposal(
 
 function normalizeRejectReason(reason: string | undefined): string | null {
   if (reason === undefined) return null;
-  let start = 0;
-  let end = reason.length;
-  while (start < end && EDGE_WHITESPACE.includes(reason.charAt(start))) start += 1;
-  while (end > start && EDGE_WHITESPACE.includes(reason.charAt(end - 1))) end -= 1;
-  const trimmed = reason.slice(start, end);
+  const trimmed = reason.trim();
   const length = Array.from(trimmed).length;
   if (length < 1 || length > REJECT_REASON_MAX_LENGTH) {
     throw new DiscountDecisionError('DISCOUNT_REJECT_REASON_INVALID');

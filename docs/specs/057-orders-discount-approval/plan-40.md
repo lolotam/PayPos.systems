@@ -59,7 +59,7 @@ decided_by_membership_id)` exists, and the `/pending` index exists. The CAS is b
 
 **Lock order (FR-011, no cycle; fixed by #455, 2026-11-12):** identity access SHARE locks → (approve) unlocked pre-read of the
 proposal ids and their performers' employee ids (`proposals.peek`) → performers `FOR SHARE` ascending → proposal rows
-`FOR UPDATE` ascending → (approve) the locked set must equal the pre-read set, else uniform `FORBIDDEN` → `now` → settings limit read. The 057-5 consumer takes visit lock → proposals → limit; neither takes an `orders` lock
+`FOR UPDATE` ascending → (approve) the locked set must equal the pre-read set, else uniform `FORBIDDEN` → first `now` for the 409 status checks and `access.read` → (approve) the limit read (`business_settings`, `companies`, `memberships` `FOR SHARE`, after the proposal locks) and the current-link read → decider name → **second instant `decidedAt` after the last lock-taking read**, used for the expiry recheck and the CAS predicate (the settings read may wait behind `UpdateBusinessSettings`, #957 round 2). The 057-5 consumer takes visit lock → proposals → limit; neither takes an `orders` lock
 after a proposal lock. **Connection budget (PP-7.2):** one `withTenant`, the guard's own read is separate as today.
 
 ## 3. Tests (Agy) — DP-13…DP-19b
