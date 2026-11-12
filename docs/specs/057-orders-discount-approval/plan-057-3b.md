@@ -72,7 +72,11 @@ by ≤ 50; the alternative is a sixth slice for the mismatch matrix and the `EXP
 - 3b-1 and 3b-2 run in parallel; 3b-3 needs both; 3b-4 and 3b-5 need 3b-3.
 - **Activation is 057-6 emitting the event, not 3b merging** (debate #1–#3): the deliverer acknowledges a known event
   with no consumer, so 057-6 stays held until 3b-1…3b-5 are merged **and** the consumer is deployed to the staging
-  worker and verified; no worker rollback below 3b-3 while 057-6 is live. Before then nothing emits the event, so the
+  worker and verified; no worker rollback below 3b-3 while 057-6 is live.
+  **Unheld 2026-11-12:** 3b-1…3b-5 are on main, staging has run main `3a7fa437e` since 14:32 Kuwait, the worker bundle
+  registers `orders.discount-self-approval-notice-v1` for `DiscountApprovedByPerformer` and worker `/ready` returns 200
+  with the dispatcher up. Standing constraint: once 057-6 is live, never roll the staging worker back below 3b-3
+  (#946, `61ab48c91`). Before then nothing emits the event, so the
   kind being unlisted in admin until 3b-4 harms no one.
 - Fewer PRs is possible (3b-2 into 3b-3 ≈ 530 prod / 620 tests) at the cost of the size target.
 

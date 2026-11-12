@@ -357,8 +357,11 @@ second branch manager who also performs services.
   (Waleed's earlier «fresh 24 hours after the approval» was replaced by Abu Salem's pick); a reject keeps the value the
   request wrote. `expires_at` is never `NULL`; the transition trigger refuses any change to it (§6). Merged code that
   resets it on approval (migration 0162's trigger and `UPDATE` grant, the 057-1 contracts text, ADR-0051): issue #494.
-- **FR-011** Approve and reject act on 1…20 proposals of **one** branch in one transaction: lock the rows `FOR UPDATE`
-  in ascending id order → recheck status and expiry at the fresh instant → approver authority (FR-012) → **approve only:** limit
+- **FR-011** Approve and reject act on 1…20 proposals of **one** branch in one transaction. Lock order, the same global
+  order as record, append and request (issue #455): access locks → **approve only:** pre-read the proposal ids and their
+  performers' employee ids without a lock (fixed at request time, D-16) → lock those employees `FOR SHARE` in ascending
+  id order → lock the proposal rows `FOR UPDATE` in ascending id order → **approve only:** the locked set (ids and each
+  proposal's performers) must equal the pre-read set, otherwise the uniform `FORBIDDEN` → recheck status and expiry at the fresh instant → approver authority (FR-012) → **approve only:** limit
   (FR-013) → requester rule (D-5) → performer flag (FR-014) → CAS `UPDATE … WHERE status = 'PENDING'` → audit →
   (an approve with any flagged proposal) one `DiscountApprovedByPerformer` (D-19). (DA-Q9 = PP-20.3: a rejection runs
   FR-012 only, since it moves no money; no limit check, no requester or own-service check, no flag.) All-or-nothing (D-3). The
@@ -374,7 +377,8 @@ second branch manager who also performs services.
   `approved_limit_bps`.
 - **FR-014** (DA-Q3, D-19) On approval, `approver_is_performer` = the approver's user is linked to a performer in
   `terms.performer_ids`, by the request-time snapshot in `discount_proposal_performers` (D-16) or by the performer's
-  current link, read `FOR SHARE` through the existing performer port under the proposal locks. It never refuses: it is
+  current link, read through the existing performer port; the performers are locked `FOR SHARE` **before** the proposal
+  rows, in the FR-011 order (#455). It never refuses: it is
   stored, audited and, when true, rings the owner bell (D-19). D-5 still refuses the requester's user.
 - **FR-015** (DA-Q6 = PP-15.1, row 39) Device routes, `@Authenticated()` device-only (PP-7.1: the write declares where
   its permission check lives), served to any active paired device of the branch, the paired reception computer
