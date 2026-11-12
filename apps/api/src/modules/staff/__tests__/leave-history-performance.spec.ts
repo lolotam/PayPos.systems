@@ -5,7 +5,7 @@ import { performance } from 'node:perf_hooks';
 import type postgres from 'postgres';
 import { leaveHistoryPage } from '@pospay/contracts';
 import { createLeaveReadAccess } from '../persistence/leave-read-access.adapter.ts';
-import { leaveHistorySql } from '../queries/leave-history.query.ts';
+import { leaveHistorySql } from '@pospay/db';
 import {
   historyNow,
   historyQuery,

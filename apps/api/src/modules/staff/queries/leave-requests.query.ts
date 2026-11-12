@@ -1,5 +1,4 @@
-import { leaveListRecord, uuidArray } from './leave-list-record.sql.ts';
-import type { BranchDay, Tx } from '@pospay/db';
+import { leaveListRecord, uuidArray, type BranchDay, type Tx } from '@pospay/db';
 import type { EmployeeLeaveListQuery, LeaveInboxQuery, LeavePage } from '@pospay/contracts';
 import { sql } from 'drizzle-orm';
 export const LEAVE_READ_ACCESS = Symbol('LEAVE_READ_ACCESS');
