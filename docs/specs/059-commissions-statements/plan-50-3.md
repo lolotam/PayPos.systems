@@ -106,10 +106,11 @@ Behaviour of the runner:
   `COMMISSION_TIP_SALARY_INPUT_INVALID`, `COMMISSION_BUSINESS_MISSING`, `COMMISSION_PERIOD_CLOSED`) is listed in `undelivered`
   (event id, type, code only, never the payload; capped at 200 with a `truncated` flag) and the runner continues. Any other failure stops the run
   with `ABORTED` and the checkpoint.
-- Result `{ status, afterId, throughId, counts, undelivered, truncated }`; `status` is `COMPLETE`, `UNDELIVERED` (finished, list not empty),
-  `PAGE_LIMIT` (100 pages of 100 per invocation, resume from `afterId`) or `ABORTED`. The entry exits non-zero unless `COMPLETE`.
-- `AFTER_ID` resume is for `PAGE_LIMIT` and `ABORTED` only. After `UNDELIVERED`, fix the cause and re-run from the beginning with the same
-  `THROUGH_ID`; marks make the re-run idempotent.
+- Result `{ status, afterId, handledThroughId, throughId, counts, undelivered, truncated }`; `status` is `COMPLETE`, `UNDELIVERED` (finished,
+  list not empty), `PAGE_LIMIT` (100 pages of 100 per invocation, resume from `afterId`) or `ABORTED`. `afterId` is the safe resume cursor and
+  stops before the first undelivered event; `handledThroughId` is the last handled event. The entry exits non-zero unless `COMPLETE`.
+- Resume with `AFTER_ID` and `THROUGH_ID` applies to `UNDELIVERED` too: after fixing the cause, resume from the safe `afterId`; a re-run from the
+  beginning with the same `THROUGH_ID` is also valid. Marks make the re-run idempotent. `AFTER_ID` without `THROUGH_ID` is refused.
 
 Runbook section `50-3a` (add-only, `docs/runbook.md`): the entry command and its env (`DATABASE_URL`, `DISPATCHER_DATABASE_URL`), capturing the
 upper bound only after every worker replica runs the consumer (item a), that `THROUGH_ID` is an id bound and not a commit-order proof so live
@@ -139,7 +140,8 @@ scope would keep approval closed. The post-rollback run therefore replays the re
 bound through a six-type facade with its own partial index (the existing 50-0 index covers four types), a migration of index only. Until 50-4
 registers the `PackageSaleChanged` handler the runner reports those rows as not handled and never prints `COMPLETE` (the deliverer would
 otherwise count a type with no registered consumer as delivered). Every re-run path has an upper-bound contract (runbook), and each bootstrap
-reader proves that every retained event id is returned (the 50-3c report lists retained counted event ids without a mark).
+reader proves that every retained event id is returned (the 50-3c report lists retained counted event ids without a mark). The six-type run keeps
+the same result line and resume contract as 50-3a.
 
 Sizes: 50-3a about 240 production lines (delivered); 50-3b about 315 (tips bootstrap 110, shared SQL builder move 140, glue 30, runbook);
 50-3c about 375; 50-3d about 100 production lines (facade 40, schema 5, runner mode and entry flag 50) plus the migration and tests, band 200-300.
