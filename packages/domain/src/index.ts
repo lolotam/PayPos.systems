@@ -111,6 +111,10 @@ export * from './packages/package-definition.js';
 export * from './packages/package-allocation.js';
 export * from './packages/package-slots.js';
 export { assertPackageNotExpired, packageExpiryDate, packageUsableOn } from './packages/package-expiry.js';
+export {
+  assertPackageExtensionAllowed,
+  packageExtensionLimit,
+} from './packages/package-extension.js';
 export { remainingAfterDraftPicks } from './packages/package-draft-remaining.js';
 export type {
   SalePackageComponent,
