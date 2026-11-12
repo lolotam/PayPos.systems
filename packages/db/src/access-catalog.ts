@@ -55,6 +55,7 @@ export const PERMISSIONS = [
   'sell:packages:branch',
   'import:packages:business',
   'manage:services:business',
+  'close:services:business',
   'read:memberships:company',
   'read:memberships:business',
   'create:customers:company',
