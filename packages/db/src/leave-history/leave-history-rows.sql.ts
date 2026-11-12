@@ -1,6 +1,5 @@
 import { sql } from 'drizzle-orm';
-import type { LeaveHistoryQuery } from '@pospay/contracts';
-import type { LeaveReadContext } from './leave-requests.query.ts';
+import type { LeaveHistoryBuilderQuery, LeaveHistoryContext } from './types.ts';
 import {
   historyDays,
   historyEmployeeVisible,
@@ -15,7 +14,7 @@ const texts = (values: string[]) =>
     sql`, `,
   )}]::text[]`;
 function visibilityPredicate(
-  c: LeaveReadContext,
+  c: LeaveHistoryContext,
   s: HistoryScope,
   alias: 'e' | 'subject',
   visibility?: 'current' | 'any',
@@ -27,8 +26,8 @@ function visibilityPredicate(
 }
 // عد إجازات التقرير وصفوف الصفحة بيشتركوا في المصدر ده عشان الرفض يعد بالظبط اللي الصفحة بتقراه.
 export function historyLeaveSource(
-  c: LeaveReadContext,
-  q: LeaveHistoryQuery,
+  c: LeaveHistoryContext,
+  q: LeaveHistoryBuilderQuery,
   s: HistoryScope,
   options: { asOf: string; excludeOpen: boolean; visibility?: 'current' | 'any' | undefined },
 ) {
@@ -48,8 +47,8 @@ export function historyLeaveSource(
       ${q.branch_id === undefined ? sql`` : sql`AND l.branch_id=${q.branch_id}::uuid`}`;
 }
 export function historyRows(
-  c: LeaveReadContext,
-  q: LeaveHistoryQuery,
+  c: LeaveHistoryContext,
+  q: LeaveHistoryBuilderQuery,
   s: HistoryScope,
   options: { asOf: string; excludeOpen: boolean; visibility?: 'current' | 'any' },
 ) {

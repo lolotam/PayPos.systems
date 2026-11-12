@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm';
 import { leaveHistoryPage } from '@pospay/contracts';
 import { getEmployeeLeaveHistory } from '../queries/leave-history.query.ts';
 import { createLeaveReadAccess } from '../persistence/leave-read-access.adapter.ts';
-import { historyLastTaken } from '../queries/leave-history-last.sql.ts';
+import { historyLastTaken } from '@pospay/db';
 import {
   historyClear,
   historyLeave,
