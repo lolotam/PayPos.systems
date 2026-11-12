@@ -1,13 +1,19 @@
 // الأداء الأقصى CI فقط؛ skip محلي ليس PASS، والحدود حواجز تسليم وليست SLO.
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { cpus, loadavg, tmpdir } from 'node:os';
+import { loadavg, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { RATING_CLAIM_STATE_SETTLE } from '../rating-claim-state-settle.lua.ts';
 import { validationHarness, type ValidationWorld } from './rating-claim-state-harness.fixture.ts';
+import {
+  quietRedis,
+  redisIdentity,
+  restoreRedis,
+  verifiedContainer,
+} from './rating-claim-state-perf-redis.fixture.ts';
 
 const SHA = 'ec26930497f25213b62e2b60bc603af6b9ba3527';
 const NAMES = ['validate', 'acquire', 'lease', 'reserve', 'settle', 'sweep'];
@@ -33,58 +39,9 @@ function command(binary: string, args: readonly string[]) {
 const git = (args: readonly string[]) => command('git', args);
 const report = (...data: unknown[]) => console.log(JSON.stringify(data));
 
-const LOCAL_HOSTS = ['127.0.0.1', 'localhost', '::1'];
-const QUIET = { appendonly: 'no', save: '', 'latency-monitor-threshold': '20' };
-
 /** عدّ العينات اللي زمنها أكتر من 3 أضعاف وسيطها: بيفرّق توقفات الجهاز المتماثلة عن ذيل خاص بنسخة. */
 function spikeCount(bucket: readonly TimedSample[], median: number | undefined) {
   return bucket.filter((sample) => sample.elapsed > 3 * (median ?? 0)).length;
-}
-
-/** قراءة قيمة إعداد Redis كنص، عشان نرجّعها زي ما كانت بعد الاختبار. */
-async function configValue(redis: Lane['redis'], name: string) {
-  const reply = (await redis.call('CONFIG', 'GET', name)) as string[];
-  return reply[1] ?? '';
-}
-
-/**
- * (الاستعادة بتمسح كل إعداد بعد نجاح ضبطه بس، فلو فشلت تفضل الأصول محفوظة وquietRedis ما بيكتبش فوقها.)
- * Redis الـCI شغّال بـAOF وكل عينة near-cap بتكتب ~2MB فيه (SET العميل + SET السكربت)، فتوقفات
- * القرص (150–200ms) بتضرب النسختين بنفس الاحتمال لكن p99 من 500 عينة هي السادسة من الأكبر
- * فبتقع على نسخة بالصدفة. بنوقف الحفظ أثناء القياس ونرجّعه بعده (الحفظ مش موضوع الاختبار).
- */
-async function quietRedis(redis: Lane['redis'], saved: Map<string, string>) {
-  for (const [name, value] of Object.entries(QUIET)) {
-    if (!saved.has(name)) saved.set(name, await configValue(redis, name));
-    await redis.call('CONFIG', 'SET', name, value);
-  }
-}
-
-async function restoreRedis(redis: Lane['redis'], saved: Map<string, string>) {
-  for (const [name, value] of [...saved]) {
-    await redis.call('CONFIG', 'SET', name, value);
-    saved.delete(name);
-  }
-}
-
-/** حاوية Redis الوحيدة بالمنفذ والوسم المتوقعين؛ والمضيف لازم يكون محلي؛ بنفشل قبل أي تعديل إعدادات على URL مش متحقق منه. */
-function verifiedContainer(redis: Lane['redis']) {
-  expect(LOCAL_HOSTS).toContain(redis.options.host);
-  const port = String(redis.options.port);
-  const filters = [`publish=${port}`, 'label=com.docker.compose.service=redis'];
-  const flags = filters.flatMap((filter) => ['--filter', filter]);
-  const container = command('docker', ['ps', '-q', ...flags]).trim();
-  expect(container.split('\n')).toHaveLength(1);
-  expect(container).not.toBe('');
-  return container;
-}
-
-/** هوية حاوية Redis ونسختها في السجل. */
-async function reportRedis(redis: Lane['redis']) {
-  const container = verifiedContainer(redis);
-  const format = '{{.Image}} {{.Config.Image}}';
-  const image = command('docker', ['inspect', '--format', format, container]).trim();
-  report({ image, server: await redis.info('server'), cpus: cpus().length, load: loadavg() });
 }
 
 interface ScenarioReport {
@@ -261,7 +218,7 @@ describe.skipIf(!CI)('CI-only exact counter whole-command performance', () => {
   const persistence = new Map<string, string>();
   beforeAll(async () => {
     scripts = [baseline(), RATING_CLAIM_STATE_SETTLE];
-    await reportRedis(redis);
+    report(await redisIdentity(redis));
   });
 
   // الاستعادة في afterEach مش afterAll: hook الـharness بيقفل اتصال Redis في afterAll وترتيبه مقابل
