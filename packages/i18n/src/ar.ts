@@ -10,7 +10,7 @@ import { clockCardAdminAr, clockCardPosAr } from './clock-card-catalog.js';
 import { employeeImportErrorsAr } from './employee-import.js';
 import type { Catalog } from './catalog.js';
 import { arPasskeyAdmin } from './passkey-admin.js';
-import { leaveAr, leaveDecisionErrorsAr } from './leave-catalog.js';
+import { leaveAr, leaveErrorsAr } from './leave-catalog.js';
 import { attendanceExceptionErrorsAr } from './attendance-exception-catalog.js';
 import { attendanceCorrectionErrorsAr } from './attendance-correction-catalog.js';
 import { employeeDocumentsAr } from './employee-documents-catalog.js';
@@ -179,7 +179,7 @@ export const ar: Catalog = {
     LEAVE_OVERLAP: 'يتداخل الطلب مع إجازة معلقة أو معتمدة.',
     LEAVE_PAST_OWN_FORBIDDEN: 'طلب الإجازة الذاتي لا يبدأ قبل اليوم بتوقيت الفرع.',
     LEAVE_NOT_PENDING: 'يمكن البت في الإجازات المعلقة أو إلغاؤها فقط.',
-    ...leaveDecisionErrorsAr,
+    ...leaveErrorsAr,
     ...attendanceExceptionErrorsAr,
     ...attendanceCorrectionErrorsAr,
     LEAVE_REVISION_CONFLICT: 'تغير طلب الإجازة. أعد التحميل وحاول مرة أخرى.',

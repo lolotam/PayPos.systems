@@ -20,29 +20,31 @@ export type LeaveHistoryCursorData = z.infer<typeof leaveHistoryCursorData>;
 
 const historyType = z.enum(['ANNUAL', 'SICK', 'UNPAID', 'OTHER', 'UNEXCUSED_ABSENCE']);
 const historyStatus = z.enum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'ABSENT']);
+const leaveHistoryQueryShape = {
+  from: historyDate,
+  to: historyDate,
+  'types[]': z
+    .union([z.array(historyType), historyType])
+    .transform((v) => (typeof v === 'string' ? [v] : v))
+    .default([]),
+  'statuses[]': z
+    .union([z.array(historyStatus), historyStatus])
+    .transform((v) => (typeof v === 'string' ? [v] : v))
+    .default([]),
+  branch_id: employeeInputId.optional(),
+  cursor: z.string().min(1).max(2048).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+};
+const leaveHistoryRange = (q: { from: string; to: string }) =>
+  q.from <= q.to &&
+  Date.parse(`${q.to}T00:00:00Z`) - Date.parse(`${q.from}T00:00:00Z`) < 366 * 86_400_000;
 export const leaveHistoryQuery = z
-  .strictObject({
-    from: historyDate,
-    to: historyDate,
-    'types[]': z
-      .union([z.array(historyType), historyType])
-      .transform((v) => (typeof v === 'string' ? [v] : v))
-      .default([]),
-    'statuses[]': z
-      .union([z.array(historyStatus), historyStatus])
-      .transform((v) => (typeof v === 'string' ? [v] : v))
-      .default([]),
-    branch_id: employeeInputId.optional(),
-    cursor: z.string().min(1).max(2048).optional(),
-    limit: z.coerce.number().int().min(1).max(100).default(50),
-  })
-  .refine(
-    (q) =>
-      q.from <= q.to &&
-      Date.parse(`${q.to}T00:00:00Z`) - Date.parse(`${q.from}T00:00:00Z`) < 366 * 86_400_000,
-    { path: ['to'], message: 'LEAVE_HISTORY_RANGE_INVALID' },
-  )
+  .strictObject(leaveHistoryQueryShape)
+  .refine(leaveHistoryRange, { path: ['to'], message: 'LEAVE_HISTORY_RANGE_INVALID' })
   .meta({ id: 'LeaveHistoryQuery' });
+export const leaveHistoryReportQuery = z
+  .strictObject({ ...leaveHistoryQueryShape, employee_id: employeeInputId.optional() })
+  .refine(leaveHistoryRange, { path: ['to'], message: 'LEAVE_HISTORY_RANGE_INVALID' });
 const employee = {
   employee_id: id,
   employee_name_en: z.string(),
@@ -88,6 +90,16 @@ export const leaveHistoryPage = responseObject({
   absence_branch_ids: z.array(id),
 }).meta({ id: 'LeaveHistoryPage' });
 export type LeaveHistoryQuery = z.infer<typeof leaveHistoryQuery>;
+export type LeaveHistoryReportQuery = z.infer<typeof leaveHistoryReportQuery>;
 export type LeaveHistoryItem = z.infer<typeof leaveHistoryItem>;
 export type LeaveHistoryPage = z.infer<typeof leaveHistoryPage>;
+// القاعدة دي بتقول هل days هيشتغل بس؛ عدد الإجازات المطابقة مابيبانش منها، فقرار الرفض (422) للسيرفر لوحده.
+export function leaveHistoryReportSkipsDays(
+  q: Pick<LeaveHistoryReportQuery, 'types[]' | 'statuses[]'>,
+): boolean {
+  return (
+    (q['types[]'].length > 0 && !q['types[]'].includes('UNEXCUSED_ABSENCE')) ||
+    (q['statuses[]'].length > 0 && !q['statuses[]'].includes('ABSENT'))
+  );
+}
 export const leaveHistorySchemas = [leaveHistoryQuery, leaveHistoryItem, leaveHistoryPage];

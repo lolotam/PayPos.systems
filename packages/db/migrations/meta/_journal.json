@@ -1527,6 +1527,13 @@
       "when": 1794423443769,
       "tag": "0219_2026-11-11_discount-self-approval-notices",
       "breakpoints": true
+    },
+    {
+      "idx": 220,
+      "version": "7",
+      "when": 1794457885172,
+      "tag": "0220_2026-11-12_leave-coverage-index",
+      "breakpoints": true
     }
   ]
 }

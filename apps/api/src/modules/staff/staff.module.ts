@@ -1,6 +1,15 @@
 import { DATABASE } from '../../shared/database.token.ts';
 import { LEAVE_HISTORY_READER, LeaveHistoryReader } from './queries/leave-history.query.ts';
+import {
+  LEAVE_HISTORY_REPORT_READER,
+  LEAVE_HISTORY_SYNC_LEAVES,
+  LEAVE_HISTORY_SYNC_LIMIT,
+  LEAVE_HISTORY_SYNC_SHIFTS,
+  LeaveHistoryReportReader,
+  type LeaveHistorySyncLimits,
+} from './queries/leave-history-report.query.ts';
 import { EmployeeLeaveHistoryController } from './http/employee-leave-history.controller.ts';
+import { LeaveHistoryReportController } from './http/leave-history-report.controller.ts';
 import { personalBranchReads } from './persistence/personal-branches.adapter.ts';
 import { PERSONAL_BRANCH_READS } from './queries/personal-branches.query.ts';
 import {
@@ -146,6 +155,7 @@ export const staffControllers = [
   EmployeePasskeysController,
   EmployeeLeaveController,
   EmployeeLeaveHistoryController,
+  LeaveHistoryReportController,
   OwnLeaveController,
   LeaveInboxController,
   LeaveDecisionsController,
@@ -214,6 +224,19 @@ function leaveProviders(database: TenantWrappers | undefined, ids: IdGenerator):
       useFactory: (db: TenantWrappers | null, access: LeaveReadAccess) =>
         new LeaveHistoryReader(db, access),
       inject: [DATABASE, LEAVE_READ_ACCESS],
+    },
+    {
+      provide: LEAVE_HISTORY_SYNC_LIMIT,
+      useValue: { shifts: LEAVE_HISTORY_SYNC_SHIFTS, leaves: LEAVE_HISTORY_SYNC_LEAVES },
+    },
+    {
+      provide: LEAVE_HISTORY_REPORT_READER,
+      useFactory: (
+        db: TenantWrappers | null,
+        access: LeaveReadAccess,
+        limits: LeaveHistorySyncLimits,
+      ) => new LeaveHistoryReportReader(db, access, limits),
+      inject: [DATABASE, LEAVE_READ_ACCESS, LEAVE_HISTORY_SYNC_LIMIT],
     },
     {
       provide: RequestLeaveUseCase,
