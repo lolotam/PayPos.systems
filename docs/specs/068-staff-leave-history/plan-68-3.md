@@ -75,3 +75,12 @@ the tab switch keeps unsaved edits in «البيانات» and mounts «الإج
 `pnpm --filter @pospay/admin typecheck`, `pnpm --filter @pospay/admin lint`, `pnpm --filter @pospay/i18n typecheck`,
 `pnpm --filter @pospay/i18n lint`, `pnpm lint:docs`, `pnpm module-map:check`, the touched admin specs and the i18n specs.
 Then `clean-code-guard`, `test-guard`, `docs-guard`.
+
+## Review round 1 (PR #958)
+
+| # | Finding | Decision |
+|---|---|---|
+| 1 | The open list stops refreshing once `as_of` exists (history page 2 keeps the first page's `as_of`) | The open read has its own 30 s `refetchInterval` always (the simpler option); test: on history page 2, 30 s later a newly added request shows in the open part |
+| 2 | A failed history refetch keeps the last data, so a stale `as_of` reaches the open list | `as_of` is sent only while `history.isSuccess`; otherwise `open: 'true'` alone (the server clock), as D2 says; test: history refetch fails, open list keeps rendering without `as_of` |
+| 3 | Default-period zone should be the business's effective time zone | **Stopped, no code change.** No business zone is readable from the admin without a contract change: `WorkspaceBusiness` has no zone; `BusinessSettings` (`GET /settings`, needs `read:settings:business`, so not a branch manager) has no zone field; the history route requires `from`/`to`, so the server defaults nothing. D1 (primary branch zone, then the first branch) stays until the manager picks an option (see the report) |
+| 4 | The branch filter lists every workspace branch | The workspace branch list is already limited to the branches the caller's membership scopes reach (`describe-workspaces.query.ts`: COMPANY, BUSINESS and BRANCH scopes each expand only to their own branches), so a branch-scoped caller already sees only her branch; no other per-permission source exists and `request_branch_ids` is create scope, so it is not used. Residual gap: a custom role or personal grant that reads fewer branches than the membership reaches still gets a 404 shown as the part (b) alert, which the filter form lets her correct; a read-scope field on the response is the proper fix (API PR, to be linked as an issue by the manager). Test added: the selector offers exactly the workspace branches |

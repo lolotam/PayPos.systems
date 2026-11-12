@@ -353,3 +353,40 @@ it('renders Arabic headings', async () => {
   ).toBeTruthy();
   expect(screen.getByRole('heading', { name: t('ar', 'leaveHistory.historyTitle') })).toBeTruthy();
 });
+
+it('falls back to the server clock when the history refetch fails and keeps the open list', async () => {
+  let denyHistory = false;
+  routeGets({
+    history: () => {
+      if (denyHistory) {
+        return {
+          error: {
+            code: 'NOT_FOUND',
+            message_en: 'Synthetic failure',
+            message_ar: 'Synthetic failure',
+          },
+          response: { status: 404 },
+        };
+      }
+      return { data: historyPage({ items: [past()] }) };
+    },
+    open: () => ({ data: openPage({ items: [upcoming()] }) }),
+  });
+  vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+  vi.setSystemTime(new Date('2026-10-24T09:00:00Z'));
+  renderSection();
+  await screen.findByText('Synthetic upcoming annual');
+  expect(queries('/leave-requests').at(-1)).toHaveProperty('as_of');
+  denyHistory = true;
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(30_000);
+  });
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-24T09:00:00Z'));
+  expect(await within(historyRegion()).findByRole('alert')).toBeTruthy();
+  await waitFor(() => {
+    expect(queries('/leave-requests').at(-1)).toMatchObject({ open: 'true' });
+    expect(queries('/leave-requests').at(-1)).not.toHaveProperty('as_of');
+  });
+  expect(within(openRegion()).getByText('Synthetic upcoming annual')).toBeTruthy();
+});

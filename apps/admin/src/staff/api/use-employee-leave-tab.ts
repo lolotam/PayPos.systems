@@ -64,7 +64,7 @@ export function useEmployeeLeaveTab({
     userId,
     employeeId,
     state.openCursor,
-    history.data?.as_of,
+    history.isSuccess ? history.data.as_of : undefined,
     history.isSuccess || history.isError,
   );
   useLeaveScopeEviction(companyId, businessId, userId, employeeId, denied(open.error));

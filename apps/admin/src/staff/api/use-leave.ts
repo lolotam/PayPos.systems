@@ -21,7 +21,7 @@ function useOpenLeave(
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: 'always',
-    refetchInterval: asOf ? false : 30_000,
+    refetchInterval: 30_000,
     retry: false,
     queryFn: async ({ signal }) => {
       const result = await apiClient().GET(

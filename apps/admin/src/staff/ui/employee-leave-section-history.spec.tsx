@@ -1,6 +1,6 @@
 import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { leaveDecisionRecord, leaveId } from '../api/leave-decision.fixture';
 import { historyLeaveRow, historyPage, openPage } from '../api/leave-history.fixture';
@@ -278,4 +278,72 @@ it('keeps the open list rows visible while a new history page loads', async () =
   await waitFor(() =>
     expect(queries('/leave-history').at(-1)).toMatchObject({ cursor: 'cursor-2' }),
   );
+});
+
+it('refreshes the open list every 30 seconds while the history is on page 2', async () => {
+  let refreshed = false;
+  routeGets({
+    history: (query) => ({
+      data: historyPage({
+        items: [
+          historyLeaveRow({ note: query.cursor ? 'Synthetic page two' : 'Synthetic page one' }),
+        ],
+        next_cursor: query.cursor ? null : 'cursor-2',
+      }),
+    }),
+    open: () => ({
+      data: openPage({
+        items: [
+          {
+            ...leaveDecisionRecord,
+            decision_reason: refreshed ? 'Synthetic refreshed open' : 'Synthetic initial open',
+          },
+        ],
+      }),
+    }),
+  });
+  vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+  vi.setSystemTime(new Date('2026-10-24T09:00:00Z'));
+  renderSection();
+  await screen.findByText('Synthetic initial open');
+  fireEvent.click(within(historyRegion()).getByRole('button', { name: t('en', 'leave.next') }));
+  await screen.findByText('Synthetic page two');
+  refreshed = true;
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(30_000);
+  });
+  expect(within(openRegion()).getByText('Synthetic refreshed open')).toBeTruthy();
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-24T09:00:00Z'));
+});
+
+it('offers exactly the workspace branches in the branch filter', async () => {
+  const otherId = '01920000-0000-7000-8000-000000000a02';
+  routeGets({ history: () => ({ data: historyPage() }) });
+  render(
+    <QueryClientProvider client={client}>
+      <EmployeeLeaveSection
+        {...props}
+        branches={[
+          ...props.branches,
+          {
+            id: otherId,
+            name_en: 'Second synthetic branch',
+            name_ar: null,
+            is_active: true,
+            effective_timezone: 'Asia/Kuwait',
+          },
+        ]}
+      />
+    </QueryClientProvider>,
+  );
+  const select = await screen.findByRole('combobox', { name: t('en', 'leave.branch') });
+  const labels = within(select)
+    .getAllByRole('option')
+    .map((option) => option.textContent);
+  expect(labels).toEqual([
+    t('en', 'leave.allBranches'),
+    'Synthetic branch',
+    'Second synthetic branch',
+  ]);
 });
