@@ -199,11 +199,11 @@ async function withSale(
   });
 }
 
-it('the entitlement refuses every transition until its own row exists', async () => {
+it('the entitlement refuses every transition until its own row exists (the expiry needs its extension row, 45)', async () => {
   await rejected(
     asApp(sql`UPDATE package_entitlements SET expires_on=current_date + 40 WHERE id=${SALE}`),
     '23514',
-    'package_entitlements_expires_on_closed',
+    'package_entitlements_extension_missing',
   );
   await rejected(
     asApp(sql`UPDATE package_entitlements SET refunded_amount=5.000 WHERE id=${SALE}`),

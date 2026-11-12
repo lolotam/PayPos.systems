@@ -1,4 +1,3 @@
--- Unnumbered custom migration draft (45 extend-package); final generation/numbering waits for lane granted.
 INSERT INTO permissions(code) VALUES ('extend:packages:branch') ON CONFLICT DO NOTHING;
 --> statement-breakpoint
 INSERT INTO role_permissions(role_id,role_owner_key,company_id,permission_code)
@@ -6,48 +5,38 @@ SELECT r.id,'global',NULL,'extend:packages:branch' FROM roles r
 WHERE r.company_id IS NULL AND r.code IN ('owner','general_manager','business_manager','branch_manager')
 ON CONFLICT DO NOTHING;
 --> statement-breakpoint
-ALTER TABLE package_entitlements ADD COLUMN expires_on_changed_system_id bigint, ADD COLUMN expires_on_changed_txid xid8, ADD COLUMN expires_on_before date;
 --> statement-breakpoint
--- التمديد سجل تدقيق ثابت: كل تغيير لتاريخ الانتهاء لازم يفضل له دليل مستقل لا يُعدّل ولا يُحذف.
-CREATE TABLE package_extensions (
-  company_id uuid NOT NULL,
-  id uuid NOT NULL,
-  business_id uuid NOT NULL,
-  entitlement_id uuid NOT NULL,
-  branch_id uuid NOT NULL,
-  previous_expires_on date NOT NULL,
-  new_expires_on date NOT NULL,
-  reason text NOT NULL,
-  extended_by uuid NOT NULL,
-  extended_by_membership_id uuid NOT NULL,
-  extended_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT package_extensions_pkey PRIMARY KEY (company_id, id),
-  CONSTRAINT package_extensions_business_id_key UNIQUE (company_id, business_id, id),
-  CONSTRAINT package_extensions_entitlement_previous_key UNIQUE (company_id, entitlement_id, previous_expires_on),
-  CONSTRAINT package_extensions_forward_check CHECK (new_expires_on > previous_expires_on),
-  CONSTRAINT package_extensions_reason_check CHECK (char_length("package_extensions"."reason") <= 500 AND btrim("package_extensions"."reason", chr(9) || chr(10) || chr(13) || chr(32)) <> '')
+CREATE TABLE "package_extensions" (
+	"company_id" uuid NOT NULL,
+	"id" uuid NOT NULL,
+	"business_id" uuid NOT NULL,
+	"entitlement_id" uuid NOT NULL,
+	"branch_id" uuid NOT NULL,
+	"previous_expires_on" date NOT NULL,
+	"new_expires_on" date NOT NULL,
+	"reason" text NOT NULL,
+	"extended_by" uuid NOT NULL,
+	"extended_by_membership_id" uuid NOT NULL,
+	"extended_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "package_extensions_pkey" PRIMARY KEY("company_id","id"),
+	CONSTRAINT "package_extensions_business_id_key" UNIQUE("company_id","business_id","id"),
+	CONSTRAINT "package_extensions_entitlement_previous_key" UNIQUE("company_id","entitlement_id","previous_expires_on"),
+	CONSTRAINT "package_extensions_forward_check" CHECK ("package_extensions"."new_expires_on" > "package_extensions"."previous_expires_on"),
+	CONSTRAINT "package_extensions_reason_check" CHECK (char_length("package_extensions"."reason") <= 500 AND btrim("package_extensions"."reason", chr(9) || chr(10) || chr(13) || chr(32)) <> '')
 );
 --> statement-breakpoint
-ALTER TABLE package_extensions ADD CONSTRAINT package_extensions_company_id_companies_id_fk FOREIGN KEY (company_id) REFERENCES companies (id);
---> statement-breakpoint
-ALTER TABLE package_extensions ADD CONSTRAINT package_extensions_entitlement_fk
-  FOREIGN KEY (company_id, business_id, entitlement_id) REFERENCES package_entitlements (company_id, business_id, id);
---> statement-breakpoint
-ALTER TABLE package_extensions ADD CONSTRAINT package_extensions_branch_fk
-  FOREIGN KEY (company_id, business_id, branch_id) REFERENCES branches (company_id, business_id, id);
---> statement-breakpoint
-ALTER TABLE package_extensions ADD CONSTRAINT package_extensions_extended_by_user_id_fk FOREIGN KEY (extended_by) REFERENCES "user" (id);
---> statement-breakpoint
-ALTER TABLE package_extensions ADD CONSTRAINT package_extensions_membership_fk
-  FOREIGN KEY (company_id, extended_by, extended_by_membership_id) REFERENCES memberships (company_id, user_id, id);
---> statement-breakpoint
-CREATE INDEX package_extensions_branch_fk_idx ON package_extensions (company_id, business_id, branch_id);
---> statement-breakpoint
-CREATE INDEX package_extensions_extended_by_idx ON package_extensions (extended_by);
---> statement-breakpoint
-CREATE INDEX package_extensions_membership_fk_idx ON package_extensions (company_id, extended_by, extended_by_membership_id);
---> statement-breakpoint
-CREATE INDEX package_extensions_history_idx ON package_extensions (company_id, business_id, entitlement_id, extended_at);
+ALTER TABLE "package_entitlements" ADD COLUMN "expires_on_changed_system_id" bigint;--> statement-breakpoint
+ALTER TABLE "package_entitlements" ADD COLUMN "expires_on_changed_txid" "xid8";--> statement-breakpoint
+ALTER TABLE "package_entitlements" ADD COLUMN "expires_on_before" date;--> statement-breakpoint
+ALTER TABLE "package_extensions" ADD CONSTRAINT "package_extensions_company_id_companies_id_fk" FOREIGN KEY ("company_id") REFERENCES "public"."companies"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "package_extensions" ADD CONSTRAINT "package_extensions_entitlement_fk" FOREIGN KEY ("company_id","business_id","entitlement_id") REFERENCES "public"."package_entitlements"("company_id","business_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "package_extensions" ADD CONSTRAINT "package_extensions_branch_fk" FOREIGN KEY ("company_id","business_id","branch_id") REFERENCES "public"."branches"("company_id","business_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "package_extensions" ADD CONSTRAINT "package_extensions_extended_by_user_id_fk" FOREIGN KEY ("extended_by") REFERENCES "public"."user"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "package_extensions" ADD CONSTRAINT "package_extensions_membership_fk" FOREIGN KEY ("company_id","extended_by","extended_by_membership_id") REFERENCES "public"."memberships"("company_id","user_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "package_extensions_branch_fk_idx" ON "package_extensions" USING btree ("company_id","business_id","branch_id");--> statement-breakpoint
+CREATE INDEX "package_extensions_extended_by_idx" ON "package_extensions" USING btree ("extended_by");--> statement-breakpoint
+CREATE INDEX "package_extensions_membership_fk_idx" ON "package_extensions" USING btree ("company_id","extended_by","extended_by_membership_id");--> statement-breakpoint
+CREATE INDEX "package_extensions_history_idx" ON "package_extensions" USING btree ("company_id","business_id","entitlement_id","extended_at");
 --> statement-breakpoint
 ALTER TABLE package_extensions ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint

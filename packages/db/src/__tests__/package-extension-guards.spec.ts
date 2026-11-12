@@ -2,7 +2,6 @@ import { sql, type SQL } from 'drizzle-orm';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
-import { ensurePackageExtensionDraft } from '../../test/package-extension-draft.ts';
 import { ORDER_IDS, seedOrders } from '../../test/orders-fixture.ts';
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
 import { seedTwoTenants, TENANT, USER } from '../../test/tenancy-fixtures.ts';
@@ -22,7 +21,6 @@ beforeAll(async () => {
   testDb = await createTestDatabase();
   await seedTwoTenants(testDb.ownerUrl);
   owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
-  await ensurePackageExtensionDraft(owner);
   await seedOrders(owner);
   await owner`INSERT INTO package_types(company_id,id,business_id,name_en,price,validity_days)
     VALUES (${A.company},${PACKAGE_TYPE},${A.business},'Synthetic package',1.000,30)`;

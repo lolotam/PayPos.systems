@@ -1,4 +1,3 @@
-import { ensurePackageExtensionDraft } from '../../../../../../packages/db/test/package-extension-draft.ts';
 import { AT, ids, sessionFixture, type SessionFixture } from './session.fixture.ts';
 import { seedPackage, type PackageSeed } from './package-redemption.fixture.ts';
 
@@ -26,7 +25,6 @@ export async function packageExtensionFixture(): Promise<PackageExtensionFixture
   const clock = { now: () => at };
   const f = await sessionFixture({ ordersClock: clock });
   try {
-    await ensurePackageExtensionDraft(f.h.owner);
     await f.h.owner`INSERT INTO permission_overrides
       (company_id,id,membership_id,permission_code,effect,scope_type,scope_id,expires_at,reason,granted_by)
       VALUES(${f.company},${ids.newId()},${f.membership},'extend:packages:branch','ALLOW','BRANCH',${f.branch},
