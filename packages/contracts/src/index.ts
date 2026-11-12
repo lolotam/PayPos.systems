@@ -22,6 +22,8 @@ export {
 export {
   createServiceInput,
   updateServiceInput,
+  closeServiceInput,
+  reopenServiceInput,
   service,
   serviceListItem,
   servicePage,
@@ -29,6 +31,8 @@ export {
   serviceCommissionRule,
   type CreateServiceInput,
   type UpdateServiceInput,
+  type CloseServiceInput,
+  type ReopenServiceInput,
   type Service,
   type ServiceListItem,
   type ServicePage,

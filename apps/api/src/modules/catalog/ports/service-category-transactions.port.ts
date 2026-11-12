@@ -1,5 +1,15 @@
 import type { ServiceCategoryBranchSettingRecord } from '../domain/service-category-branch.ts';
+import type {
+  ServiceCategoryClosingPlan,
+  ServiceRecordChange,
+} from '../domain/service-category-closing.ts';
 import type { ServiceCategoryRecord } from '../domain/service-category.ts';
+import type { ServiceRecord } from '../domain/service.ts';
+
+/** مدخلات تدقيق إغلاق أو فتح التصنيف وكل أثره على الخدمات في دفعة واحدة. */
+export interface ServiceCategoryClosingAudit extends ServiceCategoryClosingPlan {
+  readonly action: 'closed' | 'reopened';
+}
 
 /** معاملة تصنيف الخدمة تضم الكتابة والتدقيق في معاملة واحدة. */
 export interface ServiceCategoryScope {
@@ -62,6 +72,40 @@ export interface ServiceCategoryScope {
    * @returns اكتمال التدقيق
    */
   audit(before: ServiceCategoryRecord | null, after: ServiceCategoryRecord): Promise<void>;
+  /**
+   * يقفل خدمات التصنيف المفتوحة تصاعدياً بقفل لا يمنع مفاتيح FK، لتخطيط العدد والكتابة المتسقة.
+   *
+   * @param businessId النشاط المالك
+   * @param categoryId التصنيف الذي سيُغلق
+   * @returns سجلات الخدمات المفتوحة كاملة للتخطيط والتدقيق
+   */
+  lockOpenServices(businessId: string, categoryId: string): Promise<ServiceRecord[]>;
+  /**
+   * يقفل الخدمات المعلّمة بهذا التصنيف تصاعدياً، لاسترجاع ما أغلقه التصنيف وحده عند فتحه.
+   *
+   * @param businessId النشاط المالك
+   * @param categoryId التصنيف الذي سيُفتح
+   * @returns سجلات الخدمات المعلّمة كاملة للتخطيط والتدقيق
+   */
+  lockMarkedServices(businessId: string, categoryId: string): Promise<ServiceRecord[]>;
+  /**
+   * يحفظ حالة التصنيف على نسخته المقفولة ويكتب أثر الخدمات في تحديث واحد، ويرفض تعارض النسخة.
+   *
+   * @param category التصنيف قبل العملية وبعدها
+   * @param services الخدمات المتغيرة قبل العملية وبعدها
+   * @returns اكتمال الحفظ الذري للتصنيف وخدماته
+   */
+  saveClosing(
+    category: ServiceRecordChange<ServiceCategoryRecord>,
+    services: readonly ServiceRecordChange<ServiceRecord>[],
+  ): Promise<void>;
+  /**
+   * يدخل تدقيق التصنيف وكل خدمة متغيرة في أمر واحد حتى يبقى الأثر كاملاً أو يتراجع كله.
+   *
+   * @param entries فعل العملية والتصنيف والخدمات قبلها وبعدها
+   * @returns اكتمال إدخال دفعة التدقيق
+   */
+  auditClosing(entries: ServiceCategoryClosingAudit): Promise<void>;
   /**
    * يدرج أول إعداد لتصنيف في فرع؛ تعارض المفتاح الفريد يتحول إلى نفس رفض النسخة القديمة.
    *

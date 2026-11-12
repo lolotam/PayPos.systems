@@ -17,6 +17,8 @@ export interface ServiceRowInput {
   readonly counts_toward_threshold: boolean;
   readonly duration_minutes: number | null;
   readonly category_id: string | null;
+  readonly closed_at: Date | string | null;
+  readonly closed_by_category_id: string | null;
   readonly revision: number;
   readonly created_at: Date | string;
   readonly updated_at: Date | string;
@@ -40,6 +42,8 @@ export function serviceRecordFromRow(row: ServiceRowInput): ServiceRecord {
     counts_toward_threshold: row.counts_toward_threshold,
     duration_minutes: row.duration_minutes,
     category_id: row.category_id,
+    closed_at: row.closed_at === null ? null : new Date(row.closed_at).toISOString(),
+    closed_by_category_id: row.closed_by_category_id,
     revision: row.revision,
     created_at: new Date(row.created_at).toISOString(),
     updated_at: new Date(row.updated_at).toISOString(),

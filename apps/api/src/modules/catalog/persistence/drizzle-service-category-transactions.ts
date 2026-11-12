@@ -1,4 +1,10 @@
-import { appendAuditLog, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
+import {
+  appendAuditLog,
+  appendAuditLogs,
+  type IdGenerator,
+  type TenantWrappers,
+  type Tx,
+} from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 import { ServiceCategoryError } from '../domain/errors.ts';
@@ -6,8 +12,14 @@ import {
   serviceCategoryBranchSettingSnapshot,
   type ServiceCategoryBranchSettingRecord,
 } from '../domain/service-category-branch.ts';
+import type { ServiceRecordChange } from '../domain/service-category-closing.ts';
 import { serviceCategorySnapshot, type ServiceCategoryRecord } from '../domain/service-category.ts';
-import type { ServiceCategoryTransactions } from '../ports/service-category-transactions.port.ts';
+import { serviceRecordFromRow, type ServiceRowInput } from '../domain/service-row.ts';
+import { serviceSnapshot, type ServiceRecord } from '../domain/service.ts';
+import type {
+  ServiceCategoryClosingAudit,
+  ServiceCategoryTransactions,
+} from '../ports/service-category-transactions.port.ts';
 
 type Row = {
   id: string;
@@ -89,6 +101,76 @@ async function save(
     WHERE company_id=${companyId} AND business_id=${before.business_id} AND id=${before.id}
       AND revision=${before.revision} RETURNING id`);
   if (rows.length === 0) throw new ServiceCategoryError('SERVICE_CATEGORY_REVISION_CONFLICT');
+}
+
+const SERVICE_COLUMNS = sql`id,business_id,name_en,name_ar,price,commission_rule_kind,
+  commission_pct_bps,commission_fixed_amount,counts_toward_threshold,duration_minutes,category_id,
+  closed_at,closed_by_category_id,revision,created_at,updated_at`;
+
+async function lockServices(
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+  categoryId: string,
+  mode: 'open' | 'marked',
+): Promise<ServiceRecord[]> {
+  const state =
+    mode === 'open' ? sql`AND closed_at IS NULL` : sql`AND closed_by_category_id=${categoryId}`;
+  const rows = await tx.execute<ServiceRowInput & Record<string, unknown>>(sql`SELECT ${SERVICE_COLUMNS} FROM services
+    WHERE company_id=${companyId} AND business_id=${businessId} AND category_id=${categoryId}
+    ${state} ORDER BY id FOR NO KEY UPDATE`);
+  return rows.map(serviceRecordFromRow);
+}
+
+async function saveClosing(
+  tx: Tx,
+  companyId: string,
+  category: ServiceRecordChange<ServiceCategoryRecord>,
+  services: readonly ServiceRecordChange<ServiceRecord>[],
+): Promise<void> {
+  const rows = await tx.execute(sql`UPDATE service_categories
+    SET closed_at=${category.after.closed_at},updated_at=${category.after.updated_at},
+      revision=${category.after.revision}
+    WHERE company_id=${companyId} AND business_id=${category.before.business_id}
+      AND id=${category.before.id} AND revision=${category.before.revision} RETURNING id`);
+  if (rows.length === 0) throw new ServiceCategoryError('SERVICE_CATEGORY_REVISION_CONFLICT');
+  const first = services[0];
+  if (first === undefined) return;
+  const serviceIds = services.map(({ before }) => before.id);
+  await tx.execute(sql`UPDATE services SET closed_at=${first.after.closed_at},
+    closed_by_category_id=${first.after.closed_by_category_id},revision=revision+1,
+    updated_at=${first.after.updated_at}
+    WHERE company_id=${companyId} AND business_id=${category.before.business_id}
+      AND id=ANY(ARRAY[${sql.join(serviceIds.map((id) => sql`${id}`), sql`,`)}]::uuid[])`);
+}
+
+async function auditClosing(
+  tx: Tx,
+  ids: IdGenerator,
+  closing: ServiceCategoryClosingAudit,
+): Promise<void> {
+  await appendAuditLogs(tx, [
+    {
+      id: ids.newId(),
+      entry: {
+        entity: 'service_category',
+        entityId: closing.category.after.id,
+        action: closing.action,
+        before: serviceCategorySnapshot(closing.category.before),
+        after: serviceCategorySnapshot(closing.category.after),
+      },
+    },
+    ...closing.services.map(({ before, after }) => ({
+      id: ids.newId(),
+      entry: {
+        entity: 'service',
+        entityId: after.id,
+        action: closing.action,
+        before: serviceSnapshot(before),
+        after: serviceSnapshot(after),
+      },
+    })),
+  ]);
 }
 
 async function loadBranchSetting(
@@ -196,6 +278,13 @@ export function createServiceCategoryTransactions(
                   ...(before === null ? {} : { before: serviceCategorySnapshot(before) }),
                   after: serviceCategorySnapshot(after),
                 }),
+              lockOpenServices: (businessId, categoryId) =>
+                lockServices(tx, companyId, businessId, categoryId, 'open'),
+              lockMarkedServices: (businessId, categoryId) =>
+                lockServices(tx, companyId, businessId, categoryId, 'marked'),
+              saveClosing: (category, services) =>
+                saveClosing(tx, companyId, category, services),
+              auditClosing: (entries) => auditClosing(tx, ids, entries),
               insertBranchSetting: (record) => insertBranchSetting(tx, companyId, record),
               saveBranchSetting: (before, after) =>
                 saveBranchSetting(tx, companyId, before, after),
