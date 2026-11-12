@@ -173,7 +173,7 @@ second branch manager who also performs services.
   session and are attributed to her with her own limit; the device credential on that computer authorises none of
   them, and her admin session authorises no device route (both refused, uniform 403).
 - **DP-09** ليلى selects the request, enters phone + PIN. PIN verified (identity facility, outside the transaction);
-  then one transaction: lock the proposals `FOR UPDATE` ascending → still `PENDING`, not expired (fresh instant) →
+  then one transaction in the FR-011 order (access locks → unlocked pre-read of the proposals and their performers → performers `FOR SHARE` sorted → proposals `FOR UPDATE` ascending → locked set equals the pre-read set, #455) → still `PENDING`, not expired (fresh instant) →
   ليلى's memberships covering the device's branch grant `approve:discounts:branch`, no DENY, `orders` on → her limit
   (2000) ≥ 2000 bps → she is not the requester → `APPROVED`, `decided_by` = ليلى's user and membership,
   `decided_via = PIN`, `decided_device_id`, `approved_limit_source/bps`, `approver_is_performer = false` (she is not

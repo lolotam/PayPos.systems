@@ -1,7 +1,7 @@
 # Plan 057-6 — Row 40: remote approve / reject (spec 057 FR-011…FR-014, FR-017, FR-018, FR-022, D-11, D-17, D-19)
 
 > Task session «rows 39–41», batch 2026-11-11 (PP-168). Branch `feat/p1-057-discount-approval-39-41`, base
-> `origin/main` 73dbfc2fd. Status: plan, revised after the Astra debate (`debate-40-astra.md`: findings 1, 4, 5, 6 applied here).
+> `origin/main` 3a7fa437e (rebased 2026-11-12). Status: implemented (PR #957), plan revised after the Astra debate (`debate-40-astra.md`: findings 1, 4, 5, 6 applied here).
 
 ## 0. Where the rows stand (verified 2026-11-11)
 
@@ -11,17 +11,18 @@
 | 40 | 057-6 remote approve/reject | **this plan** |
 | 39 | 057-7 PIN on the paired device | `plan-39.md`; implemented only after 057-6 merges (PP-118) |
 
-**Dependency 057-3b (not merged).** Spec §7 blocks 057-6 on 057-3b (consumer before writer). `DiscountApprovedByPerformer`
-is in `apps/worker/src/outbox/known-event-types.ts` with no consumer, and `apps/worker/src/outbox/deliver.ts` marks such
-an event delivered: an owner bell emitted before 057-3b merges is lost for good (SC-003). 057-3b exists only as the
-unaccepted snapshot `preserve/057-3b-20261104` (0785d2cef). This PR is therefore built now and **its merge is held
-until 057-3b is merged** (merge order is the manager's; reported). The writer imposes no aggregate convention on the
+**Dependency 057-3b (merged and deployed; unheld 2026-11-12).** Spec §7 blocks 057-6 on 057-3b (consumer before writer).
+`DiscountApprovedByPerformer` is in `apps/worker/src/outbox/known-event-types.ts`, and `apps/worker/src/outbox/deliver.ts`
+marks an event with no consumer delivered, so an owner bell emitted before the consumer runs is lost for good (SC-003).
+3b-1…3b-5 are on main and the consumer runs on the staging worker (main `3a7fa437e`, since 14:32 Kuwait on 2026-11-12), so
+this PR is no longer held. The worker-first rule stays: deploy the worker with the consumer before the API that emits
+the event, and never roll the staging worker back below 3b-3 (#946, `61ab48c91`) while this writer is live. The writer imposes no aggregate convention on the
 consumer (plan-057-3b item 8); the consumer proves the payload against the stored proposal (`matchesProposals`), so the
 payload this writer emits must equal the stored decision exactly.
 
-**Unhold condition (manager, 2026-11-11).** 057-3b is delivered as five sub-slices (3b-1 DB + kind, 3b-2 pure rules,
+**Unhold condition (manager, 2026-11-11; met 2026-11-12).** 057-3b is delivered as five sub-slices (3b-1 DB + kind, 3b-2 pure rules,
 3b-3 consumer, 3b-4 rule behaviour + admin listing, 3b-5 scale and proofs; `plan-057-3b.md` on
-`feat/p1-057-3b-self-approval-bell`). This PR's merge stays held until **all five are merged and the consumer is
+`feat/p1-057-3b-self-approval-bell`). This PR's merge was held until **all five were merged and the consumer was
 verified running on the staging worker**: activation is this writer emitting the event, not the consumer merging
 (`debate-057-3b-astra.md` #1–#3). While this writer is live, the worker is **never rolled back below 3b-3**, or an
 older worker acknowledges the event with no consumer and the owner bell is lost.

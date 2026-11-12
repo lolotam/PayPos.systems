@@ -15,10 +15,10 @@ Which kinds a rule really changes today:
 - **Live:** `SHIFT_NOT_CLOCKED_IN` ([36](36-not-clocked-in-alert.md)), `SHIFT_BREAK_NOT_RETURNED` and
   `SHIFT_BREAK_RETURNED_OTHER_BRANCH` ([44](44-return-from-break-lateness.md)), `ATTENDANCE_CHANGE_REQUESTED` /
   `_DECIDED` ([31](31-attendance-change-requests.md)), `LATE_SERVICE_SESSION`, `SERVICE_LINE_EDITED`,
-  `SERVICE_LINE_CANCELLED`, `SERVICE_LINE_PERFORMERS_CHANGED`.
+  `SERVICE_LINE_CANCELLED`, `SERVICE_LINE_PERFORMERS_CHANGED`, `DISCOUNT_SELF_APPROVED` (row 057-6 emits
+  `DiscountApprovedByPerformer` and the deployed consumer applies this rule: saving it changes the owner bell).
 - **Saved but changes nothing yet:** `ATTENDANCE_EXCEPTION` and `DOCUMENT_EXPIRING` (row 62-2d, waits on AL-Q8),
-  `SHIFT_ENDS_SOON` (row 28c), `STATEMENT_AWAITING_REVIEW` / `_APPROVAL` (row 62-2c), `DISCOUNT_SELF_APPROVED`
-  (consumer deployed; nothing emits it until row 057-6 lands).
+  `SHIFT_ENDS_SOON` (row 28c), `STATEMENT_AWAITING_REVIEW` / `_APPROVAL` (row 62-2c).
 - The discount approval bell ([57](57-discount-approval.md)) is always on and is **not** governed by these rules.
 
 **Before you start / قبل ما تبدأ:**

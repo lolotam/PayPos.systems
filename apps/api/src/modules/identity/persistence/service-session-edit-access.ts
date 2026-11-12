@@ -13,6 +13,8 @@ const READ_PERMISSION = 'read:service-sessions:branch';
 
 type CandidateRow = {
   id: string;
+  scope_type: 'COMPANY' | 'BUSINESS' | 'BRANCH';
+  scope_id: string;
   owner: boolean;
   role_code: string;
   role_is_system: boolean;
@@ -39,7 +41,7 @@ interface LineAccess {
   denied: boolean;
   feature: boolean;
   can_read: boolean;
-  eligible: readonly { membership_id: string; role: ActorRole }[];
+  eligible: readonly { membership_id: string; scope_type: 'COMPANY' | 'BUSINESS' | 'BRANCH'; scope_id: string; role: ActorRole }[];
 }
 
 /**
@@ -210,6 +212,7 @@ async function candidateMemberships(
 ): Promise<CandidateRow[]> {
   const instant = at.toISOString();
   return tx.execute<CandidateRow>(sql`SELECT m.id,(${canonicalOwnerSql('m', companyId)})::boolean AS owner,
+    m.scope_type AS scope_type, m.scope_id AS scope_id,
     r.code AS role_code,(m.role_owner_key = 'global')::boolean AS role_is_system,r.name_ar AS role_name_ar,r.name_en AS role_name_en
     FROM memberships m JOIN companies c ON c.id=m.company_id AND c.deleted_at IS NULL
     JOIN roles r ON r.id=m.role_id AND r.owner_key=m.role_owner_key
@@ -287,6 +290,8 @@ function decideLineAccess(
     can_read: evaluateAccess(visible, READ_PERMISSION, target),
     eligible: candidates.filter((candidate) => evaluateAccess(visible.filter((grant) => grant.membership_id === candidate.id), writePermission, target)).map((candidate) => ({
       membership_id: candidate.id,
+      scope_type: candidate.scope_type,
+      scope_id: candidate.scope_id,
       role: { code: candidate.role_code, is_system: candidate.role_is_system, name_ar: candidate.role_name_ar, name_en: candidate.role_name_en },
     })),
   };

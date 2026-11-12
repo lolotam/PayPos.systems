@@ -1,7 +1,7 @@
 # Plan 057-3b — The owner bell for a self-performed discount approval (DA-Q3, D-19, DP-19c)
 
-> **Status:** plan, refreshed 2026-11-11 against current main (stacked on #929 head `9afcb73`). Nothing is
-> implemented on this branch yet. The preserved snapshot `preserve/057-3b-20261104` (`0785d2cef`, built on
+> **Status:** implemented and merged (3b-1…3b-5 on main), deployed on the staging worker (main `3a7fa437e`, 2026-11-12).
+> The text below is the original plan, refreshed 2026-11-11 against main (stacked on #929 head `9afcb73`). The preserved snapshot `preserve/057-3b-20261104` (`0785d2cef`, built on
 > `5e3c42b`, 2026-10-26) is **reference only, not accepted code**: its migration `0188` is dropped and regenerated.
 > **Spec:** [spec.md](spec.md) §6 row 057-3b, DP-19c, D-19, FR-014 · **Owner answers used:** DA-Q3, DA-Q10, DA-Q11
 > ([owner-questions.ar.md](owner-questions.ar.md)) — no new owner question.

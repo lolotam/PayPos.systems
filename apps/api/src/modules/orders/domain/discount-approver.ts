@@ -12,6 +12,10 @@ export interface DiscountApproverRole {
 /** عضوية تغطي الفرع وتمنح الموافقة بذاتها، لا مجرد عضوية بحد أعلى. */
 export interface DiscountApproverMembership {
   membership_id: string;
+  /** نطاق العضوية: شركة أو نشاط أو فرع. */
+  scope_type: 'COMPANY' | 'BUSINESS' | 'BRANCH';
+  /** معرّف ذلك النطاق. */
+  scope_id: string;
   role: DiscountApproverRole;
 }
 
@@ -46,6 +50,8 @@ export function resolveDiscountApprover(
       approver_membership_ids: access.eligible.map((membership) => membership.membership_id),
       approver_memberships: access.eligible.map((membership) => ({
         membership_id: membership.membership_id,
+        scope_type: membership.scope_type,
+        scope_id: membership.scope_id,
         role: membership.role,
       })),
     });

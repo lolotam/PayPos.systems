@@ -31,6 +31,16 @@ function barrier() {
   return { promise, release };
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | 'TIMEOUT'> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<'TIMEOUT'>((resolve) => {
+    timer = setTimeout(() => resolve('TIMEOUT'), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer);
+  });
+}
+
 /** اعتماد الخصم يقفل الموظفين أولاً ثم الاقتراحات لمنع تعارض 40P01 مع عمليات تحديث الموظفين. */
 it('approve vs a performer-link updater: no 40P01', async () => {
   const proposal = await requestSingleProposal(f);
@@ -108,6 +118,9 @@ it('reject vs the same updater: no 40P01 and no performer wait', async () => {
     const pending = decide.execute({ ...decideContext(f, f.editorId), decision: 'REJECT', input });
     pending.catch(() => undefined);
     deciding = pending;
+
+    const outcome = await withTimeout(pending, 5000);
+    expect(outcome).not.toBe('TIMEOUT');
 
     const [decideResult] = await Promise.allSettled([pending]);
     if (decideResult.status === 'rejected') {
