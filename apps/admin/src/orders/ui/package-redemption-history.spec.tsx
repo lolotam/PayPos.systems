@@ -1,5 +1,5 @@
-import type { CustomerPackageDetail, CustomerPackageRedemption } from '@pospay/contracts';
-import { t } from '@pospay/i18n';
+import type { CustomerPackageDetail, CustomerPackageExtension, CustomerPackageRedemption } from '@pospay/contracts';
+import { formatInstant, t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
@@ -14,7 +14,11 @@ const customerId = '01920000-0000-7000-8000-000000000005';
 const entitlementId = '01920000-0000-7000-8000-000000000006';
 const componentId = '01920000-0000-7000-8000-000000000020';
 
-function detail(redemptions: CustomerPackageRedemption[]): CustomerPackageDetail {
+function detail(
+  redemptions: CustomerPackageRedemption[],
+  extensions: CustomerPackageExtension[] = [],
+  business_timezone?: string,
+): CustomerPackageDetail {
   return {
     id: entitlementId,
     customer_id: customerId,
@@ -50,7 +54,9 @@ function detail(redemptions: CustomerPackageRedemption[]): CustomerPackageDetail
       refunded: 0,
       slots: [{ ordinal: 1, state: 'USED', unit_value: '10.000' }],
     }],
+    business_timezone,
     redemptions,
+    extensions,
   };
 }
 
@@ -65,10 +71,19 @@ function redemption(id: string, ordinal: number, reversedAt: string | null): Cus
   };
 }
 
-function renderHistory() {
+function mockDetail(data: CustomerPackageDetail) {
+  get.mockResolvedValue({ data, response: { status: 200 } });
+}
+
+function renderHistory(canExtend = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}>
-    <PackageRedemptionHistory scope={scope} customerId={customerId} entitlementId={entitlementId} />
+    <PackageRedemptionHistory
+      scope={scope}
+      customerId={customerId}
+      entitlementId={entitlementId}
+      canExtend={canExtend}
+    />
   </QueryClientProvider>);
 }
 
@@ -76,7 +91,15 @@ function openHistory() {
   fireEvent.click(screen.getByText(t('en', 'serviceSessions.packageHistory')));
 }
 
-beforeEach(() => { get.mockReset(); });
+beforeEach(() => {
+  get.mockReset();
+  HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) {
+    this.setAttribute('open', '');
+  });
+  HTMLDialogElement.prototype.close = vi.fn(function (this: HTMLDialogElement) {
+    this.removeAttribute('open');
+  });
+});
 
 it('fetches only after opening and shows session, service, visit date and reversed badge', async () => {
   get.mockResolvedValueOnce({
@@ -116,4 +139,49 @@ it('keeps the history error inside its collapsible section', async () => {
   const section = screen.getByText(t('en', 'serviceSessions.packageHistory')).closest('details');
   if (!section) throw new Error('Missing history section');
   expect(within(section).getByRole('alert')).toBe(alert);
+});
+
+const extension: CustomerPackageExtension = {
+  id: '01920000-0000-7000-8000-000000000050',
+  previous_expires_on: '2026-12-31',
+  new_expires_on: '2027-01-31',
+  extended_at: '2026-10-17T21:30:00.000Z',
+};
+
+it('shows the detail timezone to a viewer without recording-context access and hides extend by default', async () => {
+  mockDetail(detail([], [extension], 'Asia/Kuwait'));
+  renderHistory();
+  openHistory();
+  expect(await screen.findByText(t('en', 'packageExtension.historyTitle'))).toBeTruthy();
+  expect(screen.getByText('2027-01-31')).toBeTruthy();
+  const local = formatInstant(new Date(extension.extended_at), 'en', 'Asia/Kuwait');
+  expect(local).toContain('Oct 18, 2026');
+  expect(local).toContain('12:30:00 AM');
+  expect(await screen.findByText(local)).toBeTruthy();
+  expect(screen.queryByText(extension.extended_at)).toBeNull();
+  expect(screen.getByText(t('en', 'serviceSessions.packageHistoryEmpty'))).toBeTruthy();
+  expect(screen.queryByRole('button', { name: t('en', 'packageExtension.extend') })).toBeNull();
+  expect(get).toHaveBeenCalledTimes(1);
+  expect(get.mock.calls.every((call) => !String(call[0]).endsWith('/recording-context'))).toBe(true);
+});
+
+it('omits extension timestamps when an older detail has no business timezone', async () => {
+  mockDetail(detail([], [extension]));
+  renderHistory();
+  openHistory();
+  expect(await screen.findByText(t('en', 'packageExtension.historyTitle'))).toBeTruthy();
+  expect(screen.queryByText(/Extended at/)).toBeNull();
+  expect(screen.queryByText(extension.extended_at)).toBeNull();
+});
+
+it('opens the extend dialog when canExtend is true', async () => {
+  mockDetail(detail([], [extension]));
+  renderHistory(true);
+  openHistory();
+  const button = await screen.findByRole('button', { name: t('en', 'packageExtension.extend') });
+  fireEvent.click(button);
+  const dialog = await screen.findByRole('dialog');
+  expect(within(dialog).getByRole('heading', { name: t('en', 'packageExtension.dialogTitle') }))
+    .toBeTruthy();
+  expect(within(dialog).getByLabelText(t('en', 'packageExtension.newDate'))).toBeTruthy();
 });

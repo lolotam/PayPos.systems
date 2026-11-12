@@ -148,6 +148,8 @@ export const FUNCTION_INVENTORY = [
     prosecdef: false,
     proconfig: ['search_path=pg_catalog, public'],
   },
+  { proname: 'leave_history_report_guard', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
+  { proname: 'leave_history_report_row_guard', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
   {
     proname: 'line_performers_cancel_guard',
     prosecdef: false,

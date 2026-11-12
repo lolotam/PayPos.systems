@@ -11,6 +11,7 @@ import { OTP_COLUMN_GRANTS } from '../../test/otp-grants.ts';
 import { FILE_COLUMN_GRANTS } from '../../test/files-grants.ts';
 import { SCHEDULE_COLUMN_GRANTS } from '../../test/schedule-grants.ts';
 import { LEAVE_COLUMN_GRANTS } from '../../test/leave-grants.ts';
+import { LEAVE_HISTORY_REPORT_COLUMN_GRANTS } from '../../test/leave-history-report-grants.ts';
 import { DOCUMENT_COLUMN_GRANTS } from '../../test/document-grants.ts';
 import { IMPORT_COLUMN_GRANTS } from '../../test/import-grants.ts';
 import { CARD_COLUMN_GRANTS } from '../../test/card-grants.ts';
@@ -61,6 +62,7 @@ const REVIEWED_COLUMN_GRANTS = [
   ...ATTENDANCE_CHANGE_COLUMN_GRANTS,
   ...BREAK_LEDGER_COLUMN_GRANTS,
   ...LEAVE_COLUMN_GRANTS,
+  ...LEAVE_HISTORY_REPORT_COLUMN_GRANTS,
   ...FILE_COLUMN_GRANTS,
   ...OUTBOX_COLUMN_GRANTS,
   ...RECOVERY_COLUMN_GRANTS,
