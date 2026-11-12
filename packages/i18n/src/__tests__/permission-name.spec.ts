@@ -34,6 +34,7 @@ const LABELLED_CODES = [
   'read:package-types:business',
   'manage:package-types:business',
   'sell:packages:branch',
+  'extend:packages:branch',
   'import:packages:business',
   'read:service-categories:business',
   'manage:service-categories:business',
@@ -94,4 +95,9 @@ it('MY-Q5 manage:staff-app-columns:business has an Arabic and an English name', 
 it('PK-Q13 sell:packages:branch has an Arabic and an English name', () => {
   expect(permissionName('ar', 'sell:packages:branch')).toBe('بيع الباقات');
   expect(permissionName('en', 'sell:packages:branch')).toBe('Sell packages');
+});
+
+it('PK-Q16 extend:packages:branch has an Arabic and an English name', () => {
+  expect(permissionName('ar', 'extend:packages:branch')).toBe('تمديد صلاحية الباقة');
+  expect(permissionName('en', 'extend:packages:branch')).toBe('Extend package expiry');
 });

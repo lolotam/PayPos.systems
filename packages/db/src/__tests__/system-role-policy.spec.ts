@@ -45,6 +45,7 @@ for (const entry of SYSTEM_ROLES) {
   it.each([
     'read:service-sessions:branch',
     'edit:service-line-prices:branch',
+    'extend:packages:branch',
     'change:service-line-performers:branch',
     'cancel:service-lines:branch',
     'approve:discounts:branch',
