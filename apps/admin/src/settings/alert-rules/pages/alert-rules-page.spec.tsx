@@ -35,6 +35,7 @@ const listedKinds = [
   'SERVICE_LINE_EDITED',
   'SERVICE_LINE_CANCELLED',
   'SERVICE_LINE_PERFORMERS_CHANGED',
+  'DISCOUNT_SELF_APPROVED',
   'ATTENDANCE_CHANGE_REQUESTED',
   'ATTENDANCE_CHANGE_DECIDED',
 ] as const;
@@ -55,7 +56,7 @@ beforeEach(() => {
   api.DELETE.mockReset();
 });
 
-it('shows only the twelve listed kinds with their server values', async () => {
+it('shows only the thirteen listed kinds with their server values', async () => {
   mockGet(() => ({ data: businessView() }));
   renderPage();
   const first = (await screen.findByRole('switch', {
@@ -63,7 +64,7 @@ it('shows only the twelve listed kinds with their server values', async () => {
   })) as HTMLInputElement;
   expect(first.checked).toBe(true);
   expect(kindSwitch('SERVICE_LINE_CANCELLED').checked).toBe(false);
-  expect(screen.getAllByRole('switch')).toHaveLength(13);
+  expect(screen.getAllByRole('switch')).toHaveLength(14);
   const names = [
     t('en', 'alertRules.masterLabel'),
     ...listedKinds.map((kind) => t('en', `alertRules.kind_${kind}`)),
