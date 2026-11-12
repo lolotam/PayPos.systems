@@ -1,7 +1,7 @@
 # Plan 057-3b — The owner bell for a self-performed discount approval (DA-Q3, D-19, DP-19c)
 
-> **Status:** plan, refreshed 2026-11-11 against current main (stacked on #929 head `9afcb73`). Nothing is
-> implemented on this branch yet. The preserved snapshot `preserve/057-3b-20261104` (`0785d2cef`, built on
+> **Status:** implemented and merged (3b-1…3b-5 on main), deployed on the staging worker (main `3a7fa437e`, 2026-11-12).
+> The text below is the original plan, refreshed 2026-11-11 against main (stacked on #929 head `9afcb73`). The preserved snapshot `preserve/057-3b-20261104` (`0785d2cef`, built on
 > `5e3c42b`, 2026-10-26) is **reference only, not accepted code**: its migration `0188` is dropped and regenerated.
 > **Spec:** [spec.md](spec.md) §6 row 057-3b, DP-19c, D-19, FR-014 · **Owner answers used:** DA-Q3, DA-Q10, DA-Q11
 > ([owner-questions.ar.md](owner-questions.ar.md)) — no new owner question.
@@ -72,7 +72,11 @@ by ≤ 50; the alternative is a sixth slice for the mismatch matrix and the `EXP
 - 3b-1 and 3b-2 run in parallel; 3b-3 needs both; 3b-4 and 3b-5 need 3b-3.
 - **Activation is 057-6 emitting the event, not 3b merging** (debate #1–#3): the deliverer acknowledges a known event
   with no consumer, so 057-6 stays held until 3b-1…3b-5 are merged **and** the consumer is deployed to the staging
-  worker and verified; no worker rollback below 3b-3 while 057-6 is live. Before then nothing emits the event, so the
+  worker and verified; no worker rollback below 3b-3 while 057-6 is live.
+  **Unheld 2026-11-12:** 3b-1…3b-5 are on main, staging has run main `3a7fa437e` since 14:32 Kuwait, the worker bundle
+  registers `orders.discount-self-approval-notice-v1` for `DiscountApprovedByPerformer` and worker `/ready` returns 200
+  with the dispatcher up. Standing constraint: once 057-6 is live, never roll the staging worker back below 3b-3
+  (#946, `61ab48c91`). Before then nothing emits the event, so the
   kind being unlisted in admin until 3b-4 harms no one.
 - Fewer PRs is possible (3b-2 into 3b-3 ≈ 530 prod / 620 tests) at the cost of the size target.
 

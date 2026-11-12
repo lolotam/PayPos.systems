@@ -173,7 +173,7 @@ second branch manager who also performs services.
   session and are attributed to her with her own limit; the device credential on that computer authorises none of
   them, and her admin session authorises no device route (both refused, uniform 403).
 - **DP-09** ليلى selects the request, enters phone + PIN. PIN verified (identity facility, outside the transaction);
-  then one transaction: lock the proposals `FOR UPDATE` ascending → still `PENDING`, not expired (fresh instant) →
+  then one transaction in the FR-011 order (access locks → unlocked pre-read of the proposals and their performers → performers `FOR SHARE` sorted → proposals `FOR UPDATE` ascending → locked set equals the pre-read set, #455) → still `PENDING`, not expired (fresh instant) →
   ليلى's memberships covering the device's branch grant `approve:discounts:branch`, no DENY, `orders` on → her limit
   (2000) ≥ 2000 bps → she is not the requester → `APPROVED`, `decided_by` = ليلى's user and membership,
   `decided_via = PIN`, `decided_device_id`, `approved_limit_source/bps`, `approver_is_performer = false` (she is not
@@ -219,7 +219,9 @@ second branch manager who also performs services.
 - **DP-17** (DA-Q2) ليلى (2000) on a 3000 bps proposal → 403 `DISCOUNT_APPROVER_LIMIT_TOO_LOW` with `limit_bps` and
   the proposal's bps; a membership with `NOT_CONFIGURED` approves nothing; the owner approves any.
 - **DP-18** (D-5) The requester tries to approve her own request (she holds the permission) → 403
-  `DISCOUNT_APPROVER_IS_REQUESTER`, even as owner.
+  `DISCOUNT_APPROVER_IS_REQUESTER`, even as owner. FR-011 checks the limit (FR-013) before this rule, and under D-6
+  every requested line is above the requester's own limit, so this code is reached only as owner or after her limit is
+  raised to cover the line; otherwise she gets `DISCOUNT_APPROVER_LIMIT_TOO_LOW` first.
 - **DP-19** (DA-Q3, D-19) هبة is a performer in the terms and approves → `APPROVED` with `approver_is_performer =
   true` (request-time snapshot ∪ current link, D-16) and the flag in the `.approved` audit entry; the transaction
   appends one `DiscountApprovedByPerformer`; with the default alert rule (roles `owner`, master switch on, D-19) every active owner gets one bell naming the branch, the service, the
@@ -355,12 +357,16 @@ second branch manager who also performs services.
   (Waleed's earlier «fresh 24 hours after the approval» was replaced by Abu Salem's pick); a reject keeps the value the
   request wrote. `expires_at` is never `NULL`; the transition trigger refuses any change to it (§6). Merged code that
   resets it on approval (migration 0162's trigger and `UPDATE` grant, the 057-1 contracts text, ADR-0051): issue #494.
-- **FR-011** Approve and reject act on 1…20 proposals of **one** branch in one transaction: lock the rows `FOR UPDATE`
-  in ascending id order → recheck status and expiry at the fresh instant → approver authority (FR-012) → **approve only:** limit
+- **FR-011** Approve and reject act on 1…20 proposals of **one** branch in one transaction. Lock order, the same global
+  order as record, append and request (issue #455): access locks → **approve only:** pre-read the proposal ids and their
+  performers' employee ids without a lock (fixed at request time, D-16) → lock those employees `FOR SHARE` in ascending
+  id order → lock the proposal rows `FOR UPDATE` in ascending id order → **approve only:** the locked set (ids and each
+  proposal's performers) must equal the pre-read set, otherwise the uniform `FORBIDDEN` → recheck status and expiry at the fresh instant → approver authority (FR-012) → **approve only:** limit
   (FR-013) → requester rule (D-5) → performer flag (FR-014) → CAS `UPDATE … WHERE status = 'PENDING'` → audit →
   (an approve with any flagged proposal) one `DiscountApprovedByPerformer` (D-19). (DA-Q9 = PP-20.3: a rejection runs
   FR-012 only, since it moves no money; no limit check, no requester or own-service check, no flag.) All-or-nothing (D-3). The
-  approver's limit is read **after** the row locks; the line writers also read the recorder's limit **after** locking
+  approver's limit is read **after** the row locks, and the expiry instant used for the CAS is taken after that read
+  (the settings lock may wait behind a writer; #957 round 2); the line writers also read the recorder's limit **after** locking
   proposals (the lock may wait, and a limit change that commits during the wait must be seen, `DiscountLimitPort`); neither
   path takes an `orders` lock after a proposal lock, so no cycle.
 - **FR-012** (DA-Q1) Authority = `approve:discounts:branch` at the proposal's branch, DENY wins, `orders` feature on,
@@ -372,7 +378,8 @@ second branch manager who also performs services.
   `approved_limit_bps`.
 - **FR-014** (DA-Q3, D-19) On approval, `approver_is_performer` = the approver's user is linked to a performer in
   `terms.performer_ids`, by the request-time snapshot in `discount_proposal_performers` (D-16) or by the performer's
-  current link, read `FOR SHARE` through the existing performer port under the proposal locks. It never refuses: it is
+  current link, read through the existing performer port; the performers are locked `FOR SHARE` **before** the proposal
+  rows, in the FR-011 order (#455). It never refuses: it is
   stored, audited and, when true, rings the owner bell (D-19). D-5 still refuses the requester's user.
 - **FR-015** (DA-Q6 = PP-15.1, row 39) Device routes, `@Authenticated()` device-only (PP-7.1: the write declares where
   its permission check lives), served to any active paired device of the branch, the paired reception computer
