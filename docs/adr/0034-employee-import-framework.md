@@ -542,11 +542,12 @@ decided on 2026-11-11 (PP-176) that heavy reports are computed once by a worker 
 the 47-1 / PP-170 pattern. Retention is one hour (PP-178). A result over 25,000 rows is refused by a bounded count before the
 build (PP-179, «عدّ الصفوف الأول»).
 
-**Boundary.** The API (68-2c) owns acceptance; the staff worker owns the computation. 68-2b-2 ships the tables
-(`leave_history_reports`, `leave_history_report_rows`: RLS `ENABLE`+`FORCE`, exact column grants, guard triggers, cascade
-delete of rows), the queue `leave-history-report` (`jobId` = outbox event id), the per-company hourly cleanup queue
-`leave-history-report-cleanup` (scheduler registered before the event is acknowledged, as the import recovery), and the
-known type `LeaveHistoryReportRequested`, with **no** producer, route or OpenAPI path.
+**Boundary.** The API (68-2c) owns acceptance; the staff worker owns the computation. 68-2b-2a ships only the
+tables (`leave_history_reports`, `leave_history_report_rows`: RLS `ENABLE`+`FORCE`, exact column grants, guard triggers,
+cascade delete of rows), expand-only with nothing reading or writing them. 68-2b-2b ships the queue
+`leave-history-report` (`jobId` = outbox event id), the per-company hourly cleanup queue `leave-history-report-cleanup`
+(scheduler registered before the event is acknowledged, as the import recovery), the known type
+`LeaveHistoryReportRequested` and the readiness check, with **no** producer, route or OpenAPI path.
 
 **Transaction.** One `withTenant` with an explicit `timeoutMs`: lock the report `FOR UPDATE` while `pending`, check the
 `clock_timestamp()` deadline in a second statement, run a bounded count over the frozen scope and `as_of`
@@ -557,6 +558,6 @@ A timeout, a server-side cancel (`57014`, `25P03`), a crossed deadline or an inv
 progress and `moveToDelayed`. A lost commit reply is resolved by re-reading the row (a `ready` row wins). No connection
 drain exists on timeout (the worker's database is not the bounded wrapper), so the failure write has its own timeout.
 
-**Deploy ordering.** 68-2c merges only after this is deployed to staging with the worker's `/ready` including the
+**Deploy ordering.** 68-2c merges only after 68-2b-2a and 68-2b-2b are deployed to staging with the worker's `/ready` including the
 `leave-history-reports` check (build and cleanup workers). Rollback floor: the API first, then the worker. A lost cleanup
 scheduler (Redis flush) leaves expired reports until that company's next event: accepted.

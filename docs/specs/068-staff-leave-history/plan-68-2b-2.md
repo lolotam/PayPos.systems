@@ -6,6 +6,12 @@ Spec: [spec.md](spec.md), sub-PR row 68-2. Parent plan: [plan-68-2.md](plan-68-2
 production code, Agy `gemini-3.8-flash-high` writes the tables and the tests, Claude briefs, reviews, runs gates, commits.
 No push, PR or merge.
 
+**Delivery split (PP-69.8).** The plan is delivered as two stacked PRs. **68-2b-2a** (branch
+`feat/p1-068-2b-2a-leave-report-tables`) ships only the two tables and migration 0222 with their DB specs and these
+docs: expand-only, nothing reads or writes the tables. **68-2b-2b** (branch `feat/p1-068-2b-2-leave-report-worker`)
+ships everything else described below: contracts, the API declaration, the build and cleanup workers, the known
+event type, wiring and readiness.
+
 ## Scope
 
 In: the two tables with RLS, grants, guard triggers and indexes (one migration); the worker's `leave-history-report`
@@ -97,7 +103,7 @@ should accept 1,500–2,000 or split the cleanup job into its own PR.
 
 ## Deploy order and rollback (D15)
 
-This PR ships the tables, the consumer, the cleanup and the known type with no producer. 68-2c merges only after this is
+68-2b-2a ships the tables only; 68-2b-2b ships the consumer, the cleanup and the known type with no producer. 68-2c merges only after both are
 on staging with `/ready` including `leave-history-reports`. Rollback floor: the API first, then the worker. Migration
 numbering, `db:generate` and push wait for the manager's «lane granted».
 
