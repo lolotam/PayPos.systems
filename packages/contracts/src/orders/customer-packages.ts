@@ -84,6 +84,13 @@ export const customerPackageRedemption = responseObject({
   reversed_at: timestamp.nullable(),
 }).meta({ id: 'CustomerPackageRedemption' });
 
+export const customerPackageExtension = responseObject({
+  id,
+  previous_expires_on: businessDate,
+  new_expires_on: businessDate,
+  extended_at: timestamp,
+}).meta({ id: 'CustomerPackageExtension' });
+
 export const customerPackageDetail = responseObject({
   id,
   customer_id: id,
@@ -107,6 +114,7 @@ export const customerPackageDetail = responseObject({
   revision: z.number().int().positive(),
   components: z.array(customerPackageDetailComponent),
   redemptions: z.array(customerPackageRedemption),
+  extensions: z.array(customerPackageExtension),
 }).meta({ id: 'CustomerPackageDetail' });
 
 export const customerPackagesCursorData = z.strictObject({
@@ -127,6 +135,7 @@ export type CustomerPackagePage = z.infer<typeof customerPackagePage>;
 export type CustomerPackageDetailSlot = z.infer<typeof customerPackageDetailSlot>;
 export type CustomerPackageDetailComponent = z.infer<typeof customerPackageDetailComponent>;
 export type CustomerPackageRedemption = z.infer<typeof customerPackageRedemption>;
+export type CustomerPackageExtension = z.infer<typeof customerPackageExtension>;
 export type CustomerPackageDetail = z.infer<typeof customerPackageDetail>;
 export type CustomerPackagesCursorData = z.infer<typeof customerPackagesCursorData>;
 
@@ -139,5 +148,6 @@ export const customerPackageSchemas = [
   customerPackageDetailSlot,
   customerPackageDetailComponent,
   customerPackageRedemption,
+  customerPackageExtension,
   customerPackageDetail,
 ];

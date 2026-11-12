@@ -91,6 +91,7 @@ it('returns package detail with 200 and snake_case keys', async () => {
       'revision',
       'components',
       'redemptions',
+      'extensions',
     ].sort(),
   );
 

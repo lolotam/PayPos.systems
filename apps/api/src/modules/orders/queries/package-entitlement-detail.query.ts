@@ -65,9 +65,23 @@ function redemptionProjection(): SQL {
   ), '[]'::jsonb)`;
 }
 
+function extensionProjection(): SQL {
+  return sql`COALESCE((
+    SELECT jsonb_agg(jsonb_build_object(
+      'id', x.id,
+      'previous_expires_on', to_char(x.previous_expires_on, 'YYYY-MM-DD'),
+      'new_expires_on', to_char(x.new_expires_on, 'YYYY-MM-DD'),
+      'extended_at', to_char(x.extended_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+    ) ORDER BY x.extended_at DESC, x.id)
+    FROM package_extensions x
+    WHERE x.company_id=e.company_id AND x.business_id=e.business_id
+      AND x.entitlement_id=e.id
+  ), '[]'::jsonb)`;
+}
+
 /**
- * استعلام تفاصيل الباقة: الاستحقاق ومكوّناته وجلساته وسجل استرداداته في statement واحد.
- * الشاشة اللي بتستهلكه: «تفاصيل باقة عميلة» وسجل الاستخدام في الاستقبال (FR-071، شريحتا 42-4 و43-3).
+ * استعلام تفاصيل الباقة: الاستحقاق ومكوّناته وجلساته وسجل استرداداته وتمديداته في statement واحد.
+ * الشاشة اللي بتستهلكه: «تفاصيل باقة عميلة» وسجل الاستخدام في الاستقبال (FR-071، شرائح 42-4 و43-3 و45).
  * المفاتيح snake_case زي API contract عشان النتيجة تتقرأ من غير mapper.
  * الاستعلام واحد عشان الاستحقاق والمكوّنات والجلسات والسجل يتثبّتوا في لقطة واحدة؛
  * لقطة لكل جدول كانت هتسمح لصفقة جلسة تغيّر نص العرض.
@@ -99,7 +113,8 @@ export function packageEntitlementDetailStatement(
     'refunded_amount', e.refunded_amount::text,
     'revision', e.revision,
     'components', ${componentProjection()},
-    'redemptions', ${redemptionProjection()}
+    'redemptions', ${redemptionProjection()},
+    'extensions', ${extensionProjection()}
   ) AS detail
   FROM package_entitlements e
   WHERE e.company_id=${companyId} AND e.company_id=app_company_id()
