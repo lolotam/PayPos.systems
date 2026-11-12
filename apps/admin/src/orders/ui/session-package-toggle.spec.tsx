@@ -48,7 +48,7 @@ type HarnessProps = {
   packages: PackageList;
   customerId?: string | null;
   serviceId?: string;
-  occurredAt?: string;
+  visitDate?: string;
   lines?: SessionDraftLine[];
   index?: number;
   onSubmit?: (data: SessionDraftForm) => void;
@@ -56,7 +56,7 @@ type HarnessProps = {
 
 function Harness({
   packages, customerId: selectedCustomer = customerId, serviceId: selectedService = serviceId,
-  occurredAt, lines, index = 0, onSubmit,
+  visitDate = '2026-06-15', lines, index = 0, onSubmit,
 }: HarnessProps) {
   const form = useForm<SessionDraftForm>({
     defaultValues: { lines: lines ?? [{ ...createSessionDraft('line'), service_id: selectedService }] },
@@ -64,7 +64,7 @@ function Harness({
   useEffect(() => { formRef = form; }, [form]);
   return <FormProvider {...form}><form noValidate onSubmit={form.handleSubmit((data) => onSubmit?.(data))}>
     <SessionPackageToggle scope={scope} customerId={selectedCustomer} index={index}
-      occurredAt={occurredAt} packages={packages} />
+      visitDate={visitDate} packages={packages} />
     <button type="submit">Submit fixture</button>
   </form></FormProvider>;
 }
@@ -143,15 +143,31 @@ it('disables an exhausted option and shows the exhausted validation for its chos
   expect(submit).not.toHaveBeenCalled();
 });
 
-it('shows an expired package only for an explicit visit time', async () => {
+it('shows and suggests an expired-today package for a back-dated visit', async () => {
   const expired = packageItem('old', '2026-10-01', { expired: true });
-  const view = renderToggle({ packages: packageList([expired]) });
+  renderToggle({ packages: packageList([expired]), visitDate: '2026-09-30' });
   fireEvent.click(toggleButton());
-  expect(await screen.findByText(t('en', 'serviceSessions.packageNoneUsable'))).toBeTruthy();
-  expect(screen.queryByText(t('en', 'serviceSessions.packageExpired'))).toBeNull();
-  view.rerender(view.ui({ packages: packageList([expired]), occurredAt: '2026-09-30T08:00:00.000Z' }));
-  expect(await screen.findByRole('radio', { name: /Package old/ })).toBeTruthy();
+
+  await waitFor(() => expect(radio('Package old').checked).toBe(true));
+  expect(within(labelOf(radio('Package old'))).getByText(t('en', 'serviceSessions.packageSuggested'))).toBeTruthy();
   expect(screen.getByText(t('en', 'serviceSessions.packageExpired'))).toBeTruthy();
+});
+
+it('hides the only package and shows the none-usable message after its expiry', async () => {
+  const expired = packageItem('old', '2026-10-01', { expired: true });
+  renderToggle({ packages: packageList([expired]), visitDate: '2026-10-02' });
+  fireEvent.click(toggleButton());
+
+  expect(await screen.findByText(t('en', 'serviceSessions.packageNoneUsable'))).toBeTruthy();
+  expect(screen.queryByRole('radio', { name: /Package old/ })).toBeNull();
+});
+
+it('shows a package when the visit is on its expiry day', async () => {
+  const expired = packageItem('old', '2026-10-01', { expired: true });
+  renderToggle({ packages: packageList([expired]), visitDate: '2026-10-01' });
+  fireEvent.click(toggleButton());
+
+  expect(await screen.findByRole('radio', { name: /Package old/ })).toBeTruthy();
 });
 
 it('renders loading, retryable failure and no-usable-package states', async () => {

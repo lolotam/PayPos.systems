@@ -1,4 +1,4 @@
-import { remainingAfterDraftPicks } from '@pospay/domain';
+import { packageUsableOn, remainingAfterDraftPicks } from '@pospay/domain';
 import type { CustomerPackageListItem } from '@pospay/contracts';
 import type { SessionDraftLine } from './session-drafts';
 
@@ -23,23 +23,23 @@ export type PackageList = {
 };
 
 /**
- * يرشّح الباقات التي تغطي الخدمة ويخصم اختيارات المسودات الأخرى من رصيدها.
+ * يرشّح الباقات الصالحة في تاريخ الزيارة التي تغطي الخدمة ويخصم اختيارات المسودات الأخرى من رصيدها.
  * الخيار المستنزف داخل المسودة يبقى ظاهرًا ليتم تعطيله بدل اختفاء اختيار المستخدم.
  *
  * @param items الباقات المحمّلة للزبونة
  * @param serviceId الخدمة المطلوبة في السطر الحالي
  * @param otherPicks اختيارات الباقات في السطور الأخرى
- * @param includeExpired يسمح بالمنتهي عندما يكون تاريخ الزيارة صريحًا والخادم هو الحكم
+ * @param visitDate تاريخ الزيارة المحلي للفرع بصيغة YYYY-MM-DD
  * @returns خيارات الخدمة بترتيب القائمة الأصلي
  */
 export function packageOptionsForService(
   items: CustomerPackageListItem[],
   serviceId: string,
   otherPicks: { entitlement_id: string; service_id: string }[],
-  includeExpired: boolean,
+  visitDate: string,
 ): PackageOption[] {
   return items.flatMap((item) => {
-    if (item.used_up || (!includeExpired && item.expired)) return [];
+    if (item.used_up || !packageUsableOn(visitDate, item.expires_on)) return [];
     const component = item.components.find((row) => row.service_id === serviceId && row.remaining > 0);
     if (!component) return [];
     const picked = otherPicks.filter((row) => row.entitlement_id === item.id && row.service_id === serviceId).length;
@@ -55,15 +55,16 @@ export function packageOptionsForService(
 }
 
 /**
- * يقترح أقرب باقة صالحة للانتهاء، ويكسر التعادل بمعرّفها حتى يبقى الاقتراح ثابتًا.
+ * يقترح أقرب باقة صالحة في تاريخ الزيارة، ويكسر التعادل بمعرّفها حتى يبقى الاقتراح ثابتًا.
  *
  * @param options خيارات الخدمة بعد خصم اختيارات المسودات الأخرى
+ * @param visitDate تاريخ الزيارة المحلي للفرع بصيغة YYYY-MM-DD
  * @returns معرّف الباقة المقترحة، أو null عندما لا يوجد خيار صالح برصيد
  */
-export function suggestPackage(options: PackageOption[]): string | null {
+export function suggestPackage(options: PackageOption[], visitDate: string): string | null {
   let suggested: PackageOption | null = null;
   for (const option of options) {
-    if (option.expired || option.remaining <= 0) continue;
+    if (!packageUsableOn(visitDate, option.expires_on) || option.remaining <= 0) continue;
     if (suggested === null || option.expires_on < suggested.expires_on
       || (option.expires_on === suggested.expires_on && option.id < suggested.id)) suggested = option;
   }

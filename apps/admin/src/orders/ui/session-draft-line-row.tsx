@@ -12,12 +12,13 @@ import { SessionPackageToggle } from './session-package-toggle';
 import { SessionPerformersField } from './session-performers-field';
 import { SessionServiceField } from './session-service-field';
 
-export function SessionDraftLineRow({ scope, customerId, index, localId, occurredAt, packages, disabled, canRemove, onRemove }: {
+export function SessionDraftLineRow({ scope, customerId, index, localId, occurredAt, visitDate, packages, disabled, canRemove, onRemove }: {
   scope: SessionServiceScope;
   customerId: string | null;
   index: number;
   localId: string;
   occurredAt: string | undefined;
+  visitDate: string;
   packages: PackageList;
   disabled: boolean;
   canRemove: boolean;
@@ -41,7 +42,7 @@ export function SessionDraftLineRow({ scope, customerId, index, localId, occurre
             setValue(`lines.${index}.price`, next.price, { shouldDirty: true, shouldValidate: true });
           }} /> } />
       <input type="hidden" {...register(`lines.${index}.service_id`)} />
-      <SessionPackageToggle scope={scope} customerId={customerId} index={index} occurredAt={occurredAt} packages={packages} disabled={disabled} />
+      <SessionPackageToggle scope={scope} customerId={customerId} index={index} visitDate={visitDate} packages={packages} disabled={disabled} />
       {errors.lines?.[index]?.service_id?.message ? <p role="alert">{errors.lines[index]?.service_id?.message}</p> : null}
       {!fromPackage ? <>
         <Label htmlFor={`${localId}-price`}>{t(locale, 'serviceSessions.price')}</Label>

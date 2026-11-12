@@ -8,6 +8,7 @@ import { useRevokeOwnRecording } from '../api/use-own-recordings';
 import type { SessionServiceScope } from '../api/use-session-services';
 import type { ExpiredRecoveryProof, SessionAttemptJournal } from '../model/session-attempt-journal';
 import { createSessionDraft, type SessionDraftForm } from '../model/session-drafts';
+import { sessionLocalTime } from '../model/session-local-time';
 import { clearPackagePicks } from '../model/session-package-options';
 import { confirmExpiredRecording, leaveUnknownVisit, sessionLeaveFeedback, sessionResultFrozen, type RecoveryConfirmOutcome, type SessionFeedback, type SessionRecordingResult } from '../model/session-recording-result';
 import { reportSessionSubmitError } from '../model/session-submit-error';
@@ -103,6 +104,7 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   const form = useForm<SessionDraftForm>({ defaultValues: seed });
   const draftedAt = useWatch({ control: form.control, name: 'occurred_at' });
   const occurredAt = savedAt ?? draftedAt;
+  const visitDate = sessionLocalTime(occurredAt ?? context.generated_at, context.business_timezone).slice(0, 10);
   useDraftReset(form.reset, result.drafts, savedAt);
   const rootError = form.formState.errors.root?.message;
   const unknownLeave = leaveFailure?.source === result ? leaveFailure.feedback : null;
@@ -120,7 +122,7 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
         {unknownLeave ? <SessionWriteFeedback result={{ ...result, feedback: unknownLeave, attempt: null }} /> : null}
       </div> : <SessionTimeField context={context} disabled={locked} />}
       <SessionRecordingHeader scope={scope} disabled={!online || frozen} readOnly={membershipFixed} />
-      <SessionDraftLines scope={scope} customerId={result.customerId} {...(occurredAt !== undefined ? { occurredAt } : {})} disabled={!online || frozen || timeUnknown} />
+      <SessionDraftLines scope={scope} customerId={result.customerId} {...(occurredAt !== undefined ? { occurredAt } : {})} visitDate={visitDate} disabled={!online || frozen || timeUnknown} />
       <SessionRejectedLines result={result} onEdit={focusDraftPrice} />
       {rootError ? <p role="alert">{rootError}</p> : null}
       <SessionWriteFeedback result={result} onRefreshScope={onRefreshScope} {...(online && !editBusy ? { onReplay: () => { void recording.retry(); } } : {})}

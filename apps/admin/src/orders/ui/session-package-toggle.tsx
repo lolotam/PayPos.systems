@@ -18,6 +18,7 @@ function usePackageSuggestion(
   fromPackage: boolean,
   complete: boolean,
   options: PackageOption[],
+  visitDate: string,
   index: number,
   getValues: UseFormGetValues<SessionDraftForm>,
   setValue: UseFormSetValue<SessionDraftForm>,
@@ -27,17 +28,17 @@ function usePackageSuggestion(
     const path = `lines.${index}.package_entitlement_id` as const;
     const current = getValues(path);
     if (current !== null && options.some((option) => option.id === current)) return;
-    const suggested = suggestPackage(options);
+    const suggested = suggestPackage(options, visitDate);
     if (current === suggested) return;
     setValue(path, suggested, { shouldDirty: true, shouldValidate: true });
-  }, [complete, fromPackage, getValues, index, options, setValue]);
+  }, [complete, fromPackage, getValues, index, options, setValue, visitDate]);
 }
 
-export function SessionPackageToggle({ scope, customerId, index, occurredAt, packages, disabled = false }: {
+export function SessionPackageToggle({ scope, customerId, index, visitDate, packages, disabled = false }: {
   scope: SessionServiceScope;
   customerId: string | null;
   index: number;
-  occurredAt: string | undefined;
+  visitDate: string;
   packages: PackageList;
   disabled?: boolean;
 }) {
@@ -47,9 +48,9 @@ export function SessionPackageToggle({ scope, customerId, index, occurredAt, pac
   const line = lines[index];
   const fromPackage = line?.from_package ?? false;
   const serviceId = line?.service_id ?? '';
-  const options = packageOptionsForService(packages.items, serviceId, otherPackagePicks(lines, index), occurredAt !== undefined);
+  const options = packageOptionsForService(packages.items, serviceId, otherPackagePicks(lines, index), visitDate);
   const path = `lines.${index}.package_entitlement_id` as const;
-  usePackageSuggestion(fromPackage, packages.complete, options, index, getValues, setValue);
+  usePackageSuggestion(fromPackage, packages.complete, options, visitDate, index, getValues, setValue);
   const gate = customerId === null ? 'packageNoCustomer' : !serviceId ? 'packageNoService' : null;
   const toggle = () => {
     if (fromPackage) {
@@ -60,7 +61,7 @@ export function SessionPackageToggle({ scope, customerId, index, occurredAt, pac
     }
     if (gate !== null) return;
     setValue(`lines.${index}.from_package`, true, { shouldDirty: true });
-    if (getValues(path) === null && packages.complete) setValue(path, suggestPackage(options), { shouldDirty: true, shouldValidate: true });
+    if (getValues(path) === null && packages.complete) setValue(path, suggestPackage(options, visitDate), { shouldDirty: true, shouldValidate: true });
   };
   return <div className="grid gap-2 text-start">
     <Button type="button" variant="outline" aria-pressed={fromPackage}
@@ -81,7 +82,7 @@ export function SessionPackageToggle({ scope, customerId, index, occurredAt, pac
           packages.complete && options.length === 0 ? <p role="status">{t(locale, 'serviceSessions.packageNoneUsable')}</p> : <>
             {packages.truncated ? <p role="status">{t(locale, 'serviceSessions.packageListTruncated')}</p> : null}
             <SessionPackagePicker scope={scope} customerId={customerId ?? ''} options={options} value={field.value}
-              onChange={field.onChange} suggestedId={packages.complete ? suggestPackage(options) : null} row={index} />
+              onChange={field.onChange} suggestedId={packages.complete ? suggestPackage(options, visitDate) : null} row={index} />
           </>}
         {fieldState.error ? <p role="alert">{fieldState.error.message}</p> : null}
       </>} /> : null}
