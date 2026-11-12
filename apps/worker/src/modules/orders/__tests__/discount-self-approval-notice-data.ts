@@ -1,6 +1,8 @@
+import { discountApprovedByPerformer } from '@pospay/contracts';
 import { appendOutboxEvent, type ClaimedEvent } from '@pospay/db';
 import { TENANT, USER } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
 import { ORDER_IDS } from '../../../../../../packages/db/test/orders-fixture.ts';
+import type { DiscountSelfApprovalNoticeEvent } from '../ports/discount-self-approval-notice.port.ts';
 import type {
   ApprovalRequester,
   ApprovalScope,
@@ -46,7 +48,29 @@ export interface PreparedSelfApproval {
 }
 
 export function selfApprovalData(context: DiscountApprovalContext) {
-  return { selfApproval: (spec: SelfApprovalSpec = {}) => prepare(context, spec) };
+  return {
+    selfApproval: (spec: SelfApprovalSpec = {}) => prepare(context, spec),
+    noticeEvent: (prepared: PreparedSelfApproval): DiscountSelfApprovalNoticeEvent => {
+      const payload = discountApprovedByPerformer.parse(prepared.event.payload);
+      return {
+        companyId: prepared.companyId,
+        sourceEventId: prepared.event.id,
+        businessId: payload.business_id,
+        branchId: payload.branch_id,
+        decidedBy: payload.decided_by,
+        deciderLabelAr: payload.decider_label_ar,
+        deciderLabelEn: payload.decider_label_en,
+        decidedVia: payload.decided_via,
+        proposals: payload.proposals.map((proposal) => ({
+          id: proposal.id,
+          serviceId: proposal.service_id,
+          nameAr: proposal.name_ar,
+          nameEn: proposal.name_en,
+          effectiveBps: proposal.effective_bps,
+        })),
+      };
+    },
+  };
 }
 
 async function prepare(
