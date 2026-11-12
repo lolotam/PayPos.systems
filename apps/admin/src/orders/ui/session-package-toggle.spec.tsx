@@ -231,3 +231,13 @@ it('keeps the no-usable-package message for a complete empty list', () => {
   expect(screen.getByText(t('en', 'serviceSessions.packageNoneUsable'))).toBeTruthy();
   expect(screen.queryByText(t('en', 'serviceSessions.packageListTruncated'))).toBeNull();
 });
+
+it('keeps a recovered pick while the package list is loading', async () => {
+  const lines = [{ ...createSessionDraft('line'), service_id: serviceId, from_package: true, package_entitlement_id: 'saved' }];
+  const view = renderToggle({ packages: packageList([], { complete: false, loading: true }), lines });
+  expect(screen.getByRole('status').textContent).toBe(t('en', 'serviceSessions.packageLoading'));
+
+  view.rerender(view.ui({ packages: packageList([packageItem('saved', '2026-12-01')]), lines }));
+  const option = await screen.findByRole('radio', { name: /Package saved/ });
+  expect((option as HTMLInputElement).checked).toBe(true);
+});

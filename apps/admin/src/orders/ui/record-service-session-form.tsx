@@ -13,6 +13,7 @@ import { clearPackagePicks } from '../model/session-package-options';
 import { confirmExpiredRecording, leaveUnknownVisit, sessionLeaveFeedback, sessionResultFrozen, type RecoveryConfirmOutcome, type SessionFeedback, type SessionRecordingResult } from '../model/session-recording-result';
 import { reportSessionSubmitError } from '../model/session-submit-error';
 import type { SessionRecordingController } from '../model/use-session-recording';
+import { useServerAnchoredValue } from '../model/use-server-anchored-now';
 import { useLocale } from '@/shared/locale/locale-context';
 import { SessionCustomerField, type SessionCustomerSelection } from './session-customer-field';
 import { SessionDraftLines } from './session-draft-lines';
@@ -104,7 +105,8 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   const form = useForm<SessionDraftForm>({ defaultValues: seed });
   const draftedAt = useWatch({ control: form.control, name: 'occurred_at' });
   const occurredAt = savedAt ?? draftedAt;
-  const visitDate = sessionLocalTime(occurredAt ? occurredAt : context.generated_at, context.business_timezone).slice(0, 10);
+  const impliedDate = useServerAnchoredValue(context.generated_at, (instant) => sessionLocalTime(instant, context.business_timezone).slice(0, 10));
+  const visitDate = occurredAt ? sessionLocalTime(occurredAt, context.business_timezone).slice(0, 10) : impliedDate;
   useDraftReset(form.reset, result.drafts, savedAt);
   const rootError = form.formState.errors.root?.message;
   const unknownLeave = leaveFailure?.source === result ? leaveFailure.feedback : null;

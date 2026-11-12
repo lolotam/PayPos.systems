@@ -13,6 +13,7 @@ vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: state.get, POST
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 
 const service = { id: id(5), name_ar: null, name_en: 'Synthetic service', price: '7.125', revision: 1 };
+const uncoveredService = { id: id(9), name_ar: null, name_en: 'Uncovered synthetic service', price: '8.000', revision: 1 };
 const performer = { id: id(6), name_ar: null, name_en: 'Synthetic performer', employee_number: 7,
   not_clocked_in_warning: false, approved_leave_warning: false };
 const customer = { id: id(7), name: 'Synthetic customer', phone: '***001' };
@@ -55,7 +56,7 @@ function installReads(remaining = 2, neverEnding = false) {
   state.get.mockImplementation((path: string) => Promise.resolve({
     data: String(path).endsWith('/recording-context') ? context
       : String(path).endsWith('/packages') ? { items: [item], next_cursor: neverEnding ? 'more' : null }
-        : { items: String(path).endsWith('/performer-options') ? [performer] : [service], next_cursor: null },
+        : { items: String(path).endsWith('/performer-options') ? [performer] : [service, uncoveredService], next_cursor: null },
   }));
 }
 
@@ -201,4 +202,43 @@ it('shows the truncation note at the page cap and permits a manual package pick'
   expect(screen.queryByText(t('en', 'serviceSessions.packageSuggested'))).toBeNull();
   fireEvent.click(option);
   expect(option.checked).toBe(true);
+});
+
+async function pickManuallyFromTruncatedList() {
+  fireEvent.click(packageToggle(0));
+  await waitFor(() => {
+    const reads = state.get.mock.calls.filter(([path]) => String(path).endsWith('/packages'));
+    expect(reads).toHaveLength(10);
+  });
+  const option = within(lineGroup(0)).getByRole('radio') as HTMLInputElement;
+  fireEvent.click(option);
+  expect(option.checked).toBe(true);
+}
+
+it('clears a truncated-list pick and blocks saving when the service changes', async () => {
+  await mount(2, true);
+  await chooseLine(0);
+  await pickManuallyFromTruncatedList();
+
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.service')), { target: { value: uncoveredService.id } });
+
+  expect(await screen.findByText(t('en', 'serviceSessions.packageRequired'))).toBeTruthy();
+  expect(within(lineGroup(0)).queryByRole('radio')).toBeNull();
+  fireEvent.click(saveButton());
+  await waitFor(() => expect(screen.getByText(t('en', 'serviceSessions.packageRequired'))).toBeTruthy());
+  expect(state.post).not.toHaveBeenCalled();
+});
+
+it('clears a truncated-list pick and blocks saving when the visit moves past expiry', async () => {
+  await mount(2, true);
+  await chooseLine(0);
+  await pickManuallyFromTruncatedList();
+
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.occurredAt')), { target: { value: '2027-01-01T12:00' } });
+
+  expect(await screen.findByText(t('en', 'serviceSessions.packageRequired'))).toBeTruthy();
+  expect(within(lineGroup(0)).queryByRole('radio')).toBeNull();
+  fireEvent.click(saveButton());
+  await waitFor(() => expect(screen.getByText(t('en', 'serviceSessions.packageRequired'))).toBeTruthy());
+  expect(state.post).not.toHaveBeenCalled();
 });

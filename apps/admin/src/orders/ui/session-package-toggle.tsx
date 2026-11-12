@@ -16,6 +16,7 @@ function otherPackagePicks(lines: SessionDraftLine[], index: number) {
 
 function usePackageSuggestion(
   fromPackage: boolean,
+  settled: boolean,
   complete: boolean,
   options: PackageOption[],
   visitDate: string,
@@ -24,14 +25,14 @@ function usePackageSuggestion(
   setValue: UseFormSetValue<SessionDraftForm>,
 ) {
   useEffect(() => {
-    if (!fromPackage || !complete) return;
+    if (!fromPackage || !settled) return;
     const path = `lines.${index}.package_entitlement_id` as const;
     const current = getValues(path);
     if (current !== null && options.some((option) => option.id === current)) return;
-    const suggested = suggestPackage(options, visitDate);
+    const suggested = complete ? suggestPackage(options, visitDate) : null;
     if (current === suggested) return;
     setValue(path, suggested, { shouldDirty: true, shouldValidate: true });
-  }, [complete, fromPackage, getValues, index, options, setValue, visitDate]);
+  }, [complete, fromPackage, getValues, index, options, setValue, settled, visitDate]);
 }
 
 export function SessionPackageToggle({ scope, customerId, index, visitDate, packages, disabled = false }: {
@@ -50,7 +51,7 @@ export function SessionPackageToggle({ scope, customerId, index, visitDate, pack
   const serviceId = line?.service_id ?? '';
   const options = packageOptionsForService(packages.items, serviceId, otherPackagePicks(lines, index), visitDate);
   const path = `lines.${index}.package_entitlement_id` as const;
-  usePackageSuggestion(fromPackage, packages.complete, options, visitDate, index, getValues, setValue);
+  usePackageSuggestion(fromPackage, packages.complete || packages.truncated, packages.complete, options, visitDate, index, getValues, setValue);
   const gate = customerId === null ? 'packageNoCustomer' : !serviceId ? 'packageNoService' : null;
   const toggle = () => {
     if (fromPackage) {
@@ -72,7 +73,8 @@ export function SessionPackageToggle({ scope, customerId, index, visitDate, pack
         if (!fromPackage) return true;
         if (value === null) return t(locale, 'serviceSessions.packageRequired');
         const chosen = options.find((option) => option.id === value);
-        return chosen?.remaining === 0 ? t(locale, 'serviceSessions.packageExhausted') : true;
+        if (!chosen) return t(locale, 'serviceSessions.packageRequired');
+        return chosen.remaining === 0 ? t(locale, 'serviceSessions.packageExhausted') : true;
       } }}
       render={({ field, fieldState }) => <>
         {packages.loading ? <p role="status">{t(locale, 'serviceSessions.packageLoading')}</p> : packages.error ? <>

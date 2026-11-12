@@ -36,7 +36,10 @@ function lineBlock(index: number) {
 it('totals only the paid line and shows a package line without a price error', () => {
   render(<Harness lines={[paidLine(), packageLine()]} />);
 
-  expect(screen.getByRole('status').textContent).toContain('10.000');
+  const status = screen.getByRole('status');
+  expect(status.textContent).toContain(t('en', 'serviceSessions.draftTotal'));
+  expect(status.textContent).toContain('paid');
+  expect(status.textContent).toContain('10.000');
   expect(screen.getByText(t('en', 'serviceSessions.fromPackage'))).toBeTruthy();
   expect(screen.queryByText(t('en', 'serviceSessions.invalidPrice'))).toBeNull();
 });

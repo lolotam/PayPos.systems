@@ -2,25 +2,20 @@
 import type { RecordingContext } from '@pospay/contracts';
 import { formatInstant, t } from '@pospay/i18n';
 import { Button, Input, Label } from '@pospay/ui';
-import { useEffect, useId, useState } from 'react';
+import { useId, useState } from 'react';
 import { Controller, useFormContext } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { SessionDraftForm } from '../model/session-drafts';
 import { sessionLocalTime, sessionOldestLocal, sessionUtc } from '../model/session-local-time';
+import { useServerAnchoredValue } from '../model/use-server-anchored-now';
 
 export function SessionTimeField({ context, disabled = false }: { context: RecordingContext; disabled?: boolean }) {
   const locale = useLocale(), id = useId(), timezone = context.business_timezone;
   const [invalidLocal, setInvalidLocal] = useState('');
-  const [clock, setClock] = useState({ source: context.generated_at, elapsed: 0 });
-  const now = new Date(Date.parse(context.generated_at) + (clock.source === context.generated_at ? clock.elapsed : 0)).toISOString();
+  const now = useServerAnchoredValue(context.generated_at, (instant) => instant);
   const oldest = sessionOldestLocal(now, timezone), oldestInstant = sessionUtc(oldest, timezone).instant;
   const oldestText = oldestInstant ? formatInstant(new Date(oldestInstant), locale, timezone) : t(locale, 'serviceSessions.invalidTime');
   const result = sessionUtc(invalidLocal, timezone), { control } = useFormContext<SessionDraftForm>();
-  useEffect(() => {
-    const started = performance.now();
-    const timer = setInterval(() => setClock({ source: context.generated_at, elapsed: performance.now() - started }), 1000);
-    return () => clearInterval(timer);
-  }, [context.generated_at]);
   return <Controller control={control} name="occurred_at" rules={{
     validate: (value) => value !== '' || t(locale, `serviceSessions.${result.error ?? 'invalidTime'}`),
   }} render={({ field, fieldState }) => {

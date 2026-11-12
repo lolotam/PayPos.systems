@@ -112,3 +112,11 @@ Four accepted findings, fixed in one commit.
 ## Review round 2
 
 D3 is refined: a package is usable on a visit iff the visit's branch-local date is on or before `expires_on` (FR-024, PK-Q7; the expiry day itself is usable), not iff it is unexpired today. `packageUsableOn(visitDate, expiresOn)` (boolean companion of `assertPackageNotExpired`, `packages/domain/src/packages/package-expiry.ts`) drives both `packageOptionsForService` and `suggestPackage`; the `includeExpired` flag is removed. The form computes `visitDate = sessionLocalTime(occurredAt ?? context.generated_at, context.business_timezone).slice(0, 10)` and passes it down as a prop (no new reads). A back-dated visit lists and suggests a package that was valid on that date; a visit dated after expiry no longer offers it. The `expired` flag stays on the option only for the picker's notice. The server remains the final authority.
+
+## Review round 3 (final)
+
+1. **Stale pick on a truncated list.** Validation now rejects a non-null package id that is not among the current options (`packageRequired`), and a pick absent from a settled list (complete or truncated) is cleared without seeding a suggestion; a list that is still loading or failed never clears a recovered pick. A truncated list never seeds.
+2. **Implicit visit date advances.** `useServerAnchoredValue` (`model/use-server-anchored-now.ts`) is the one server-anchored clock shared by `SessionTimeField` and the form, which derives the implicit visit date from it. Explicit and saved timestamps stay fixed. A package that expired the previous local day stops being offered across local midnight.
+3. **Draft total label.** `draftTotal` now says "for paid services only" in both languages. No money rule is added: the saved total including package value is unchanged.
+
+Out of this round: the branch-effective timezone (MergePilot, PRRT_kwDOUlyqPc62o671) needs a recording-context contract field and is filed as an issue.
