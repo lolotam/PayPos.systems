@@ -1,13 +1,10 @@
 import { parseArgs } from 'node:util';
-import {
-  createDatabase,
-  createOutboxDispatcherDatabase,
-  assertReplayBounds,
-  ReplayCursorError,
-} from '@pospay/db';
+import { createDatabase, createOutboxDispatcherDatabase, ReplayCursorError } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import {
+  assertCommissionReplayCursor,
+  CommissionReplayCursorError,
   CommissionReplayEventInvalidError,
   createCommissionInputsConsumer,
   recordCommissionFailureCodes,
@@ -26,7 +23,7 @@ try {
       through: { type: 'string' },
     },
   });
-  assertReplayBounds(values.after ?? null, values.through ?? null);
+  assertCommissionReplayCursor(values.after ?? null, values.through ?? null);
   const appUrl = process.env['DATABASE_URL'];
   const dispatcherUrl = process.env['DISPATCHER_DATABASE_URL'];
   if (!values.company || !appUrl || !dispatcherUrl)
@@ -70,7 +67,9 @@ try {
 } catch (error) {
   // الخطأ الخام قد يحمل SQL أو رابط اتصال؛ المشغّل يتلقى رمزًا ثابتًا فقط.
   console.error(
-    error instanceof ReplayCursorError || error instanceof CommissionReplayEventInvalidError
+    error instanceof ReplayCursorError ||
+    error instanceof CommissionReplayCursorError ||
+    error instanceof CommissionReplayEventInvalidError
       ? (error as { readonly code: string }).code
       : 'COMMISSION_REPLAY_FAILED',
   );

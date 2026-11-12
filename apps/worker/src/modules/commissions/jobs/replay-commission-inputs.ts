@@ -1,5 +1,5 @@
 import type { ClaimedEvent, DeliveryOutcome, OutboxDispatcherDatabase } from '@pospay/db';
-import { assertReplayBounds } from '@pospay/db';
+import { assertReplayBounds, ReplayCursorError } from '@pospay/db';
 import type { OutboxConsumer } from '../../../outbox/consumer.ts';
 
 const PAGE_SIZE = 100;
@@ -29,6 +29,28 @@ export class CommissionReplayEventInvalidError extends Error {
   }
 }
 
+/** استئناف بلا حد أعلى قد يضم أحداثًا جديدة إلى نطاق استعادة قديم، لذلك له رمز رفض ثابت. */
+export class CommissionReplayCursorError extends Error {
+  readonly code = 'COMMISSION_REPLAY_THROUGH_REQUIRED';
+
+  constructor() {
+    super('COMMISSION_REPLAY_THROUGH_REQUIRED');
+    this.name = 'CommissionReplayCursorError';
+  }
+}
+
+/**
+ * يثبت صحة الحدود ويمنع الاستئناف دون حد أعلى حتى يبقى نطاق الاستعادة ثابتًا.
+ *
+ * @param afterId الحد الأدنى المستأنف، أو null في أول تشغيل
+ * @param throughId الحد الأعلى الثابت، إلزامي عند وجود afterId
+ * @returns لا قيمة؛ يكمل فقط عند صحة المؤشرين
+ */
+export function assertCommissionReplayCursor(afterId: string | null, throughId: string | null): void {
+  assertReplayBounds(afterId, throughId);
+  if (afterId !== null && throughId === null) throw new CommissionReplayCursorError();
+}
+
 /** نطاق الاستعادة: شركة واحدة وحد أدنى مستأنف وحد أعلى ثابت طوال التشغيل. */
 export interface CommissionReplayCursor {
   readonly companyId: string;
@@ -38,10 +60,15 @@ export interface CommissionReplayCursor {
 
 export type CommissionReplayStatus = 'COMPLETE' | 'UNDELIVERED' | 'PAGE_LIMIT' | 'ABORTED';
 
-/** نتيجة خالية من الحمولات؛ الهويات والأنواع والرموز وحدها تصلح لتقرير المشغّل. */
+/**
+ * نتيجة خالية من الحمولات؛ الهويات والأنواع والرموز وحدها تصلح لتقرير المشغّل.
+ * afterId هو مؤشر الاستئناف الآمن الذي لا يتجاوز أول حدث غير مسلّم.
+ * handledThroughId هو آخر حدث اكتملت معالجته، وبه تستكمل القراءة بعد PAGE_LIMIT أو ABORTED.
+ */
 export interface CommissionReplayResult {
   readonly status: CommissionReplayStatus;
   readonly afterId: string | null;
+  readonly handledThroughId: string | null;
   readonly throughId: string | null;
   readonly counts: Record<string, number>;
   readonly undelivered: { eventId: string; type: string; code: string }[];
@@ -76,12 +103,12 @@ export function recordCommissionFailureCodes(
 }
 
 /**
- * يعيد مدخلات العمولات عبر المستهلك وحده دون تعديل نشر outbox، ويتجاوز فقط أخطاء العمل المحددة
- * حتى لا يخفي عطلًا تشغيليًا بين مئات الأحداث غير المسلّمة.
+ * يعيد مدخلات العمولات عبر المستهلك وحده دون تعديل نشر outbox، ويتجاوز فقط أخطاء العمل المحددة.
+ * فشل قراءة صفحة يوقف التشغيل بـ ABORTED مع الاحتفاظ بالمؤشرات، بينما يبقى خطأ النطاق فشلًا صريحًا.
  *
  * @param deps قارئ صفحات الـ dispatcher وموصّل الأحداث وخريطة أسباب الفشل
  * @param cursor الشركة وحدود النطاق المطلوب استعادته
- * @returns موضع الاستكمال وحالة التشغيل وأعداد التسليم والأخطاء المقصودة فقط
+ * @returns مؤشرا الاستئناف الآمن وآخر معالجة وحالة التشغيل وأعداد التسليم والأخطاء المقصودة فقط
  */
 export async function runCommissionInputReplay(
   deps: {
@@ -91,23 +118,35 @@ export async function runCommissionInputReplay(
   },
   cursor: CommissionReplayCursor,
 ): Promise<CommissionReplayResult> {
-  assertReplayBounds(cursor.afterId, cursor.throughId);
+  assertCommissionReplayCursor(cursor.afterId, cursor.throughId);
   const companyId = cursor.companyId.toLowerCase();
   const counts: Record<string, number> = {};
   const undelivered: CommissionReplayResult['undelivered'] = [];
   let truncated = false;
   let afterId = cursor.afterId;
+  let handledThroughId = cursor.afterId;
   let throughId = cursor.throughId;
   const result = (status: CommissionReplayStatus): CommissionReplayResult => ({
     status,
     afterId,
+    handledThroughId,
     throughId,
     counts,
     undelivered,
     truncated,
   });
   for (let page = 0; page < PAGE_LIMIT; page++) {
-    const batch = await deps.reader.commissionInputReplayPage(companyId, afterId, throughId, PAGE_SIZE);
+    let batch: Awaited<ReturnType<OutboxDispatcherDatabase['commissionInputReplayPage']>>;
+    try {
+      batch = await deps.reader.commissionInputReplayPage(companyId, handledThroughId, throughId, PAGE_SIZE);
+    } catch (error) {
+      if (
+        error instanceof ReplayCursorError ||
+        (error instanceof TypeError && error.message === 'REPLAY_SCOPE_INVALID')
+      )
+        throw error;
+      return result('ABORTED');
+    }
     if (page === 0) throughId = batch.throughId;
     if (batch.events.length === 0) return result(undelivered.length === 0 ? 'COMPLETE' : 'UNDELIVERED');
     for (const event of batch.events) {
@@ -120,7 +159,8 @@ export async function runCommissionInputReplay(
         if (code === undefined || !CONTINUABLE_FAILURE_CODES.has(code)) return result('ABORTED');
         truncated = recordUndelivered(undelivered, event, code, truncated);
       }
-      afterId = event.id;
+      handledThroughId = event.id;
+      if (undelivered.length === 0) afterId = event.id;
     }
     if (batch.events.length < PAGE_SIZE)
       return result(undelivered.length === 0 ? 'COMPLETE' : 'UNDELIVERED');

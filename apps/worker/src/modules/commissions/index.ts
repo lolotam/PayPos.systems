@@ -21,6 +21,8 @@ export type {
   CommissionStatementPaidCash,
 } from './ports/commission-statement-export.port.ts';
 export {
+  assertCommissionReplayCursor,
+  CommissionReplayCursorError,
   CommissionReplayEventInvalidError,
   recordCommissionFailureCodes,
   runCommissionInputReplay,
