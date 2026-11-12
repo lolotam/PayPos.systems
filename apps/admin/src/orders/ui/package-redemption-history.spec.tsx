@@ -1,5 +1,5 @@
 import type { CustomerPackageDetail, CustomerPackageExtension, CustomerPackageRedemption } from '@pospay/contracts';
-import { t } from '@pospay/i18n';
+import { formatInstant, t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
@@ -69,6 +69,22 @@ function redemption(id: string, ordinal: number, reversedAt: string | null): Cus
   };
 }
 
+const recordingContext = {
+  generated_at: '2026-10-17T08:00:00.000Z',
+  business_timezone: 'Asia/Kuwait',
+  recorder_membership_ids: ['01920000-0000-7000-8000-000000000008'],
+  recorder_membership_id: '01920000-0000-7000-8000-000000000008',
+  discount_limit: { source: 'PERSON', bps: 1000 },
+};
+
+function mockDetail(data: CustomerPackageDetail) {
+  get.mockImplementation((path: string) => Promise.resolve(
+    path.endsWith('/recording-context')
+      ? { data: recordingContext, response: { status: 200 } }
+      : { data, response: { status: 200 } },
+  ));
+}
+
 function renderHistory(canExtend = false) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}>
@@ -111,7 +127,7 @@ it('fetches only after opening and shows session, service, visit date and revers
   expect(screen.getByText('2026-10-19')).toBeTruthy();
   expect(screen.getByText('2026-10-18')).toBeTruthy();
   expect(screen.getByText(t('en', 'serviceSessions.packageHistoryReversed'))).toBeTruthy();
-  expect(get).toHaveBeenCalledTimes(1);
+  expect(get).toHaveBeenCalledTimes(2);
 });
 
 it('shows the empty history message inside the opened section', async () => {
@@ -139,21 +155,26 @@ const extension: CustomerPackageExtension = {
   id: '01920000-0000-7000-8000-000000000050',
   previous_expires_on: '2026-12-31',
   new_expires_on: '2027-01-31',
-  extended_at: '2027-01-01T08:00:00.000Z',
+  extended_at: '2026-10-17T21:30:00.000Z',
 };
 
 it('shows extensions with empty redemptions and hides the extend button by default', async () => {
-  get.mockResolvedValue({ data: detail([], [extension]), response: { status: 200 } });
+  mockDetail(detail([], [extension]));
   renderHistory();
   openHistory();
   expect(await screen.findByText(t('en', 'packageExtension.historyTitle'))).toBeTruthy();
   expect(screen.getByText('2027-01-31')).toBeTruthy();
+  const local = formatInstant(new Date(extension.extended_at), 'en', 'Asia/Kuwait');
+  expect(local).toContain('Oct 18, 2026');
+  expect(local).toContain('12:30:00 AM');
+  expect(await screen.findByText(local)).toBeTruthy();
+  expect(screen.queryByText(extension.extended_at)).toBeNull();
   expect(screen.getByText(t('en', 'serviceSessions.packageHistoryEmpty'))).toBeTruthy();
   expect(screen.queryByRole('button', { name: t('en', 'packageExtension.extend') })).toBeNull();
 });
 
 it('opens the extend dialog when canExtend is true', async () => {
-  get.mockResolvedValue({ data: detail([], [extension]), response: { status: 200 } });
+  mockDetail(detail([], [extension]));
   renderHistory(true);
   openHistory();
   const button = await screen.findByRole('button', { name: t('en', 'packageExtension.extend') });

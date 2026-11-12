@@ -186,6 +186,11 @@ it('requires redemptions on the detail response', () => {
   expect(customerPackageDetail.safeParse(withoutRedemptions).success).toBe(false);
 });
 
+it('defaults a missing extensions field from an older API to an empty history', () => {
+  const withoutExtensions = Object.fromEntries(Object.entries(validDetail).filter(([key]) => key !== 'extensions'));
+  expect(customerPackageDetail.parse(withoutExtensions).extensions).toEqual([]);
+});
+
 it.each([0, 366])('rejects redemption ordinal %s outside the slot bounds', (ordinal) => {
   const detail = { ...validDetail, redemptions: [{ ...validRedemption, ordinal }] };
   expect(customerPackageDetail.safeParse(detail).success).toBe(false);

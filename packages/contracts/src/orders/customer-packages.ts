@@ -114,7 +114,7 @@ export const customerPackageDetail = responseObject({
   revision: z.number().int().positive(),
   components: z.array(customerPackageDetailComponent),
   redemptions: z.array(customerPackageRedemption),
-  extensions: z.array(customerPackageExtension),
+  extensions: z.array(customerPackageExtension).default([]),
 }).meta({ id: 'CustomerPackageDetail' });
 
 export const customerPackagesCursorData = z.strictObject({

@@ -6389,6 +6389,7 @@ export interface components {
             revision: number;
             components: components["schemas"]["CustomerPackageDetailComponent"][];
             redemptions: components["schemas"]["CustomerPackageRedemption"][];
+            /** @default [] */
             extensions: components["schemas"]["CustomerPackageExtension"][];
         };
         ServiceSessionDayQuery: {

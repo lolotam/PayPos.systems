@@ -32769,6 +32769,7 @@
             }
           },
           "extensions": {
+            "default": [],
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CustomerPackageExtension"
@@ -32797,8 +32798,7 @@
           "refunded_amount",
           "revision",
           "components",
-          "redemptions",
-          "extensions"
+          "redemptions"
         ]
       },
       "ServiceSessionDayQuery": {

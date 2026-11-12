@@ -1,6 +1,6 @@
 'use client';
 import type { CustomerPackageExtension } from '@pospay/contracts';
-import { t } from '@pospay/i18n';
+import { formatInstant, t } from '@pospay/i18n';
 import { useLocale } from '@/shared/locale/locale-context';
 
 function historyRow(template: string, extension: CustomerPackageExtension) {
@@ -19,8 +19,10 @@ function historyRow(template: string, extension: CustomerPackageExtension) {
 
 export function PackageExtensionHistory({
   extensions,
+  timeZone,
 }: {
   extensions: readonly CustomerPackageExtension[];
+  timeZone: string;
 }) {
   const locale = useLocale();
   return (
@@ -35,7 +37,7 @@ export function PackageExtensionHistory({
               <span>{historyRow(t(locale, 'packageExtension.historyRow'), extension)}</span>
               <span>
                 {t(locale, 'packageExtension.historyRowTime').replace('{at}', '')}
-                <bdi dir="ltr">{extension.extended_at}</bdi>
+                <bdi dir="ltr">{formatInstant(new Date(extension.extended_at), locale, timeZone)}</bdi>
               </span>
             </li>
           ))}
