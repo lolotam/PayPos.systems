@@ -179,6 +179,21 @@ it('disables find-or-create, fresh reads and submit while offline and keeps the 
   expect(screen.getByRole('button', { name: t('en', 'serviceSessions.findOrCreate') }).closest('fieldset')?.disabled).toBe(true);
 });
 
+it('keeps the form visible for an invalid visit time and recovers with use now', async () => {
+  renderForm(true, emptySessionRecordingResult(customer), openJournal());
+  const timeField = screen.getByLabelText(t('en', 'serviceSessions.occurredAt'));
+  fireEvent.change(timeField, { target: { value: '2026-10-12T17:00' } });
+  fireEvent.change(timeField, { target: { value: '2026-10-' } });
+  const invalidTime = t('en', 'serviceSessions.invalidTime');
+  expect((await screen.findByRole('alert')).textContent).toBe(invalidTime);
+  expect(screen.getByRole('button', { name: t('en', 'serviceSessions.save') })).toBeTruthy();
+  expect(screen.getByLabelText(t('en', 'serviceSessions.name'))).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.useNow') }));
+  await waitFor(() => expect(screen.queryByText(invalidTime)).toBeNull());
+  expect(screen.getByRole('button', { name: t('en', 'serviceSessions.save') })).toBeTruthy();
+  expect(screen.getByLabelText(t('en', 'serviceSessions.name'))).toBeTruthy();
+});
+
 it('does not replay an unresolved attempt when the connection returns', async () => {
   const retry = vi.fn(async () => undefined);
   const unresolved: SessionRecordingResult = { ...emptySessionRecordingResult(), feedback: { kind: 'UNRESOLVED' }, attempt: savedAttempt };

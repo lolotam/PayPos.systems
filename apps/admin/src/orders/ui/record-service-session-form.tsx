@@ -104,7 +104,7 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   const form = useForm<SessionDraftForm>({ defaultValues: seed });
   const draftedAt = useWatch({ control: form.control, name: 'occurred_at' });
   const occurredAt = savedAt ?? draftedAt;
-  const visitDate = sessionLocalTime(occurredAt ?? context.generated_at, context.business_timezone).slice(0, 10);
+  const visitDate = sessionLocalTime(occurredAt ? occurredAt : context.generated_at, context.business_timezone).slice(0, 10);
   useDraftReset(form.reset, result.drafts, savedAt);
   const rootError = form.formState.errors.root?.message;
   const unknownLeave = leaveFailure?.source === result ? leaveFailure.feedback : null;
