@@ -1,4 +1,4 @@
-import { service, servicePage } from '@pospay/contracts';
+import { service, servicePage, type Service } from '@pospay/contracts';
 import { systemUuidV7 } from '@pospay/ids';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
@@ -16,13 +16,14 @@ let f: ServiceFixture;
 let createdId: string;
 
 /**
- * سجل التدقيق بيحمل snapshot النطاق: معرّفات وقيم، من غير تسمية التصنيف. الرد بيحمل التسمية،
- * فالمقارنة بتجاهل المفتاح ده بس.
+ * سجل التدقيق بيحمل snapshot النطاق: معرّفات وقيم، من غير تسمية التصنيف، وبه علامة الإغلاق بالتصنيف.
+ * الرد بيحمل التسمية ومش بيحمل العلامة، فالمقارنة بتسيب التسمية بره وتضيف العلامة.
  */
-const auditRow = <T extends object>(value: T): T & { category: undefined } => ({
-  ...value,
-  category: undefined,
-});
+const auditRow = (value: Service): Omit<Service, 'category'> & { closed_by_category_id: null } => {
+  const { category: _category, ...rest } = value;
+  void _category;
+  return { ...rest, closed_by_category_id: null };
+};
 
 beforeAll(async () => {
   f = await servicesFixture();
