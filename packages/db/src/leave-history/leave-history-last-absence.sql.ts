@@ -29,6 +29,7 @@ export function historyLatestAbsence(c: LeaveHistoryContext, s: HistoryScope, as
   // التحويل الصريح لـUTC وطرح ساعات ثابتة يمنع timezone جلسة DB وDST من تغيير الحد.
   // range seek ثم تطابق ID خارج LIMIT يحفظ point lookup حتى مع اختيار planner سيئ لجدول صغير.
   // OFFSET 0 يحافظ على فحص schedule لكل مرشح، بدل قلب البحث لمسح كل جداول الأسبوع.
+  // على PostgreSQL 16.16 أخرج المخطط حدّ الـ 24 ساعة من Index Cond حين كُتب كتعبير من seed، فحُسب floor_at داخل seed كعمود عادي ليبقى شرط فهرس.
   return sql`(
     WITH employee AS MATERIALIZED (
       SELECT hit.hire_date,hit.contract_end FROM (
@@ -38,7 +39,8 @@ export function historyLatestAbsence(c: LeaveHistoryContext, s: HistoryScope, as
       ) hit WHERE hit.id=${c.employeeId}::uuid AND hit.business_id=${c.businessId}
         AND hit.deleted_at IS NULL
     ), seed AS MATERIALIZED (
-      SELECT d.working_date,d.starts_at
+      SELECT d.working_date,d.starts_at,
+        ((d.working_date+1)::timestamp AT TIME ZONE 'UTC')-interval '24 hours' AS floor_at
       ${eligibleAbsence(c, s, asOf, sql``)}
       ORDER BY d.starts_at DESC LIMIT 1
     )
@@ -49,7 +51,7 @@ export function historyLatestAbsence(c: LeaveHistoryContext, s: HistoryScope, as
         c,
         s,
         asOf,
-        sql`AND d.starts_at>=((seed.working_date+1)::timestamp AT TIME ZONE 'UTC')-interval '24 hours'
+        sql`AND d.starts_at>=seed.floor_at
           AND d.starts_at<=seed.starts_at AND d.working_date>seed.working_date`,
       )}
     ) refined
