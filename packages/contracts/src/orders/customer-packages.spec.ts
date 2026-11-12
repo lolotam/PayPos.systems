@@ -1,6 +1,7 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import {
   customerPackageDetail,
+  customerPackageExtension,
   customerPackagePage,
   customerPackagesCursorData,
   customerPackagesQuery,
@@ -83,6 +84,8 @@ const validDetail = {
   refunded_amount: '0.000',
   revision: 1,
   components: [validDetailComponent],
+  redemptions: [],
+  extensions: [],
 };
 
 it('defaults query limit to 20 when omitted', () => {
@@ -159,4 +162,82 @@ it('strips an extra key from page and detail responses and rejects one in the cu
   // رفض سنة الصفر 0000 وقبول سنة 0001
   expect(customerPackagesCursorData.safeParse({ ...validCursor, expires_on: '0000-01-01' }).success).toBe(false);
   expect(customerPackagesCursorData.safeParse({ ...validCursor, expires_on: '0001-01-01' }).success).toBe(true);
+});
+
+const validRedemption = {
+  id,
+  component_id: id,
+  ordinal: 1,
+  redeemed_at: '2026-10-20T10:00:00.000Z',
+  visit_business_date: '2026-10-19',
+  reversed_at: null,
+};
+
+it('parses empty redemption history and live or reversed redemption rows', () => {
+  expect(customerPackageDetail.parse(validDetail).redemptions).toEqual([]);
+  for (const reversed_at of [null, '2026-10-21T10:00:00.000Z']) {
+    const detail = customerPackageDetail.parse({ ...validDetail, redemptions: [{ ...validRedemption, reversed_at }] });
+    expect(detail.redemptions).toEqual([{ ...validRedemption, reversed_at }]);
+  }
+});
+
+it('requires redemptions on the detail response', () => {
+  const withoutRedemptions = Object.fromEntries(Object.entries(validDetail).filter(([key]) => key !== 'redemptions'));
+  expect(customerPackageDetail.safeParse(withoutRedemptions).success).toBe(false);
+});
+
+it('defaults a missing extensions field from an older API to an empty history', () => {
+  const withoutExtensions = Object.fromEntries(Object.entries(validDetail).filter(([key]) => key !== 'extensions'));
+  expect(customerPackageDetail.parse(withoutExtensions).extensions).toEqual([]);
+});
+
+it('accepts detail with and without the branch business timezone', () => {
+  expect(customerPackageDetail.parse({ ...validDetail, business_timezone: 'Asia/Kuwait' }).business_timezone)
+    .toBe('Asia/Kuwait');
+  expect(customerPackageDetail.parse(validDetail).business_timezone).toBeUndefined();
+});
+
+it.each([0, 366])('rejects redemption ordinal %s outside the slot bounds', (ordinal) => {
+  const detail = { ...validDetail, redemptions: [{ ...validRedemption, ordinal }] };
+  expect(customerPackageDetail.safeParse(detail).success).toBe(false);
+});
+
+// وضع الردود الصارم في API يرفض الحقل غير المعروف داخل صف السجل مثل بقية عقود الرد.
+it('rejects an unknown redemption key when responses are strict', async () => {
+  vi.stubEnv('POSPAY_STRICT_RESPONSES', '1');
+  vi.resetModules();
+  try {
+    const strict = await import('./customer-packages.js');
+    const detail = { ...validDetail, redemptions: [{ ...validRedemption, note: 'extra' }] };
+    expect(strict.customerPackageDetail.safeParse(detail).success).toBe(false);
+  } finally {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  }
+});
+
+const validExtension = {
+  id,
+  previous_expires_on: '2026-12-31',
+  new_expires_on: '2027-01-31',
+  extended_at: '2027-01-01T08:00:00.000Z',
+};
+
+it('parses extension history and rejects a leaked reason in strict responses', async () => {
+  expect(customerPackageExtension.parse(validExtension)).toEqual(validExtension);
+  expect(customerPackageDetail.parse({ ...validDetail, extensions: [validExtension] }).extensions)
+    .toEqual([validExtension]);
+  vi.stubEnv('POSPAY_STRICT_RESPONSES', '1');
+  vi.resetModules();
+  try {
+    const strict = await import('./customer-packages.js');
+    const detail = {
+      ...validDetail,
+      extensions: [{ ...validExtension, reason: 'Synthetic private reason' }],
+    };
+    expect(strict.customerPackageDetail.safeParse(detail).success).toBe(false);
+  } finally {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  }
 });

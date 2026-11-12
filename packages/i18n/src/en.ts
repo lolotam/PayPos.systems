@@ -4,6 +4,7 @@ import { attendanceChangeEn } from './attendance-change.js';
 import { inAppEn } from './in-app-catalog.js';
 import { permissionCodesEn } from './permission-codes-catalog.js';
 import { catalogPackageTypesEn, packageTypeErrorsEn } from './catalog-package-types.js';
+import { catalogPackageExtensionEn } from './catalog-package-extension.js';
 import { discountApprovalErrorsEn } from './discount-approval-errors.js';
 import { staffErrorsEn } from './staff-errors.js';
 import { attendanceEn } from './attendance-en.js';
@@ -26,16 +27,13 @@ import { businessIdentityEn } from './business-identity-catalog.js';
 import { roleNamesEn } from './role-names-catalog.js';
 import { commissionPlanErrorsEn } from './commission-plan-errors.js';
 import { idempotencyErrorsEn } from './idempotency-errors.js';
+import { phoneLockEn } from './phone-lock-en.js';
 // The English catalog — the reference: every key here must exist in ar.ts (the type makes a missing one a build error).
 export const en = {
   attendanceActions: attendanceActionsEn,
   attendanceBoard: attendanceBoardEn,
   attendanceReport: attendanceReportEn,
-  phoneLock: {
-    locked: 'Phone locked',
-    since: 'Since',
-    release: 'Unbinding the passkey also frees the phone.',
-  },
+  phoneLock: phoneLockEn,
   employeeIban: employeeIbanEn, employeeDefaultHours: employeeDefaultHoursEn,
   employeeDocuments: employeeDocumentsEn,
   passkeyAdmin: enPasskeyAdmin,
@@ -306,6 +304,7 @@ export const en = {
   },
   catalogServices: catalogServicesEn,
   catalogPackageTypes: catalogPackageTypesEn,
+  packageExtension: catalogPackageExtensionEn,
   admin: {
     appName: 'PosPay',
     signInTitle: 'Sign in',

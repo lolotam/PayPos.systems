@@ -19,6 +19,8 @@ export { lockEmployeeCreationAccess } from './persistence/employee-creation-acce
 export { lockEmployeeManagementAccess } from './persistence/employee-creation-access.ts';
 export { readEmployeeManagementAccess } from './persistence/employee-creation-access.ts';
 export { readPackageImportAccess } from './persistence/package-import-access.ts';
+export { lockPackageExtensionAccess } from './persistence/package-extension-access.ts';
+export { readPackageExtensionAccess } from './persistence/package-extension-access.ts';
 export {
   employeeUserLinkAvailable,
   readEmployeeDetailAccess,

@@ -242,4 +242,12 @@ approval staying closed when a retained event is missing; (c) salary coverage is
 history rows, with approval closed on any mismatch; (d) after 50-3 has run, a worker rollback to a release without the
 consumer re-runs the replay with a new upper bound before approval reopens, or the rollback is blocked; (e) a legacy
 `SalaryChanged` without `business_id` (published before 21-a) is routed to a business without crossing the module boundary
-(spec 059 FR-018b), and approval stays closed until 50-3 defines how. (b) to (e) are `TODO(spec)`.
+(spec 059 FR-018b), and approval stays closed until 50-3 defines how. (b) to (e) were `TODO(spec)` until 2026-11-12.
+
+**Decided 2026-11-12 (PP-185, spec 059 owner-questions §§47–50).** (b) and (c): per-line and per-salary-row revision
+comparison through root-bound orders and staff readers (ADR-0054 §4 addendum); an unprojected item whose retained event
+exists is re-replayed, and a missing retained event keeps approval closed for manual investigation. (d): this ADR's count,
+with its §1 predicate unchanged (counted types, created before `approval_started_at`, no `commissions.project-inputs`
+mark), closes approval after a rollback; the runbook re-runs the replay with a new upper bound after any rollback then
+upgrade, and rollback is not blocked at deploy level. (e): the legacy event is delivered to the same consumer, which
+resolves the business through the root-bound staff reader; a null result leaves it unmarked and approval closed.

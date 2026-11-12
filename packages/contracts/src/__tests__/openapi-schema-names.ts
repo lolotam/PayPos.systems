@@ -1,6 +1,7 @@
 // قايمة مستقلة مقصودة: اشتقاقها من سجل السكيما هيخفي نسيان التسجيل بدل ما يكتشفه الاختبار.
 export const expectedOpenApiSchemaNames = [
   'RequestPackageImportPreviewInput', 'PackageImportPreviewAccepted', 'PackageImportPreviewRequested', 'PackageImportPreviewRowError', 'PackageImportPreviewStatus',
+  'ExtendPackageInput', 'PackageExtensionResponse',
   'SessionPerformerOptionsQuery',
   'SessionPerformerOption',
   'SessionPerformerOptionPage',
@@ -187,8 +188,10 @@ export const expectedOpenApiSchemaNames = [
   'CustomerPackageDetail',
   'CustomerPackageDetailComponent',
   'CustomerPackageDetailSlot',
+  'CustomerPackageExtension',
   'CustomerPackageListItem',
   'CustomerPackagePage',
+  'CustomerPackageRedemption',
   'CustomerPackageSlotValue',
   'CustomerPackagesQuery',
   'CustomerProfile',

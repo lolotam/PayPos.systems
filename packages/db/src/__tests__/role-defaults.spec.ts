@@ -16,6 +16,7 @@ const expectations: Record<string, readonly string[]> = {
     'read:service-sessions:branch',
     'record:service-sessions:branch',
     'sell:packages:branch',
+    'extend:packages:branch',
     'import:packages:business',
     'read:passkeys:branch',
     'unbind:passkeys:branch',
@@ -59,6 +60,7 @@ const expectations: Record<string, readonly string[]> = {
     'read:service-sessions:branch',
     'record:service-sessions:branch',
     'sell:packages:branch',
+    'extend:packages:branch',
     'import:packages:business',
     'read:passkeys:branch',
     'unbind:passkeys:branch',
@@ -106,6 +108,7 @@ const expectations: Record<string, readonly string[]> = {
     'read:service-sessions:branch',
     'record:service-sessions:branch',
     'sell:packages:branch',
+    'extend:packages:branch',
     'read:passkeys:branch',
     'unbind:passkeys:branch',
     'create:customers:branch',
@@ -250,6 +253,19 @@ it('edit:service-line-prices:branch defaults to the four managers and stays off 
     ).toBe(role.code !== 'device');
   }
 });
+
+it('PK-Q16 extend:packages:branch defaults to the four managers and stays off for everyone else', () => {
+  const defaults = ['owner', 'general_manager', 'business_manager', 'branch_manager'];
+  const holders: readonly string[] = ROLE_DEFAULTS['extend:packages:branch'];
+  expect(holders).toEqual(defaults);
+  for (const role of SYSTEM_ROLES) {
+    expect(holders.includes(role.code)).toBe(defaults.includes(role.code));
+    expect(
+      systemRolePolicy(role.id, 'global')?.permissions.includes('extend:packages:branch'),
+    ).toBe(role.code !== 'device');
+  }
+});
+
 it.each(SYSTEM_ROLES)('AB-Q2 attendance read eligibility for $code excludes devices', (role) => {
   expect(systemRolePolicy(role.id, 'global')?.permissions.includes('read:attendance:branch')).toBe(
     role.code !== 'device',

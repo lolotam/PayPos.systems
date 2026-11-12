@@ -337,3 +337,15 @@ it('refuses to leave a visit whose time is already known', () => {
   expect(() => leaveUnknownVisit(recorded(), { leaveVisit })).toThrow('SESSION_VISIT_TIME_KNOWN');
   expect(leaveVisit).not.toHaveBeenCalled();
 });
+it('recovers a replayed package line as a package draft and leaves its paid neighbour unchanged', () => {
+  const packageLine = { service_id: id(40), package: { entitlement_id: id(41) }, performers: [{ employee_id: id(6) }] };
+  const frozen = { ...recordAttempt, rowIds: [id(30), id(31)], body: { customer_id: id(7), lines: [packageLine, inputLine] } };
+  const pending = transition(emptySessionRecordingResult(), { type: 'JOURNAL', entry: { version: 1, state: 'PENDING', attempt: frozen } });
+  const recoveredPackage = pending.drafts.lines[0], recoveredPaid = pending.drafts.lines[1];
+  expect(recoveredPackage).toMatchObject({ local_id: id(30), service_id: id(40), from_package: true,
+    package_entitlement_id: id(41), price: '', service: { id: id(40), price: '' } });
+  expect(recoveredPackage && sessionPerformerInputs(recoveredPackage)).toEqual(packageLine.performers);
+  expect(recoveredPaid).toMatchObject({ local_id: id(31), from_package: false, package_entitlement_id: null,
+    price: inputLine.price, discount_kind: inputLine.discount.kind, discount_percentage: '10.00' });
+  expect(recoveredPaid && sessionPerformerInputs(recoveredPaid)).toEqual(inputLine.performers);
+});

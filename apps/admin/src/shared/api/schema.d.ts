@@ -89,6 +89,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/packages/{entitlementId}/extensions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Extends a sold or imported package forward by at most two calendar years from the acting branch-local today. Requires extend:packages:branch, the orders feature and an individual admin login. The reason is stored only in extension history. */
+        post: operations["extendPackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/customers/{customerId}/packages": {
         parameters: {
             query?: never;
@@ -6316,6 +6333,29 @@ export interface components {
             refunded: number;
             slots: components["schemas"]["CustomerPackageDetailSlot"][];
         };
+        CustomerPackageRedemption: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            component_id: string;
+            ordinal: number;
+            /** Format: date-time */
+            redeemed_at: string;
+            /** Format: date */
+            visit_business_date: string;
+            /** Format: date-time */
+            reversed_at: string | null;
+        };
+        CustomerPackageExtension: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            previous_expires_on: string;
+            /** Format: date */
+            new_expires_on: string;
+            /** Format: date-time */
+            extended_at: string;
+        };
         CustomerPackageDetail: {
             /** Format: uuid */
             id: string;
@@ -6345,9 +6385,13 @@ export interface components {
             sold_business_date: string | null;
             /** Format: date */
             expires_on: string;
+            business_timezone?: string;
             refunded_amount: components["schemas"]["SessionMoney"];
             revision: number;
             components: components["schemas"]["CustomerPackageDetailComponent"][];
+            redemptions: components["schemas"]["CustomerPackageRedemption"][];
+            /** @default [] */
+            extensions: components["schemas"]["CustomerPackageExtension"][];
         };
         ServiceSessionDayQuery: {
             cursor?: string;
@@ -8302,6 +8346,25 @@ export interface components {
             /** @enum {string} */
             mode: "INCLUSIVE" | "EXCLUSIVE";
         };
+        ExtendPackageInput: {
+            /** Format: date */
+            new_expires_on: string;
+            /** Format: date */
+            expected_expires_on: string;
+            reason: string;
+        };
+        PackageExtensionResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            entitlement_id: string;
+            /** Format: date */
+            previous_expires_on: string;
+            /** Format: date */
+            new_expires_on: string;
+            /** Format: date-time */
+            extended_at: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -8599,6 +8662,91 @@ export interface operations {
                 };
             };
             /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    extendPackage: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                entitlementId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExtendPackageInput"];
+            };
+        };
+        responses: {
+            /** @description Package extended; no reason, money, slot or outbox payload is returned. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageExtensionResponse"];
+                };
+            };
+            /** @description Invalid body, calendar date, reason or Idempotency-Key. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Permission, DENY, device principal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description PACKAGE_NOT_FOUND; unknown and foreign entitlements share the refusal. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description PACKAGE_EXPIRY_STALE or IDEMPOTENCY_KEY_IN_PROGRESS. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description PACKAGE_EXTENSION_NOT_LATER, PACKAGE_EXTENSION_TOO_LONG or IDEMPOTENCY_KEY_REUSED. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
             default: {
                 headers: {
                     [name: string]: unknown;

@@ -1,13 +1,15 @@
 'use client';
 import type { WorkspaceBusiness } from '@pospay/contracts';
-import { t } from '@pospay/i18n';
+import { t, type Locale } from '@pospay/i18n';
 import { Card, EmptyState, CircleAlert, LoaderCircle } from '@pospay/ui';
+import { useState } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useEmployeeEdit } from '../api/use-employees';
 import { EditEmployeeForm } from './edit-employee-form';
 import { EmployeeRecordSections } from './employee-record-sections';
 import { EmployeeEditActions } from './employee-edit-actions';
+import { EmployeeFileTabs, type EmployeeFileTab } from './employee-file-tabs';
 import { EmployeeLeaveSection } from './employee-leave-section';
 import { EmployeeProfileHeading } from './employee-profile-heading';
 
@@ -18,24 +20,28 @@ type EmployeeEditPanelProps = {
   employeeId: string;
   onClose: () => void;
 };
+type EditState = ReturnType<typeof useEmployeeEdit>;
+type DataTabProps = {
+  companyId: string;
+  business: WorkspaceBusiness;
+  userId: string;
+  record: EditState['record'];
+  save: EditState['save'];
+  locale: Locale;
+  hidden: boolean;
+};
 
-export function EmployeeEditPanel({
+function dataTabContent({
   companyId,
   business,
   userId,
-  employeeId,
-  onClose,
-}: EmployeeEditPanelProps) {
-  const locale = useLocale();
-  const { record, save } = useEmployeeEdit(companyId, business.id, userId, employeeId);
+  record,
+  save,
+  locale,
+  hidden,
+}: DataTabProps) {
   return (
-    <Card className="flex max-w-xl flex-col gap-4 p-6">
-      <EmployeeProfileHeading
-        companyId={companyId}
-        businessId={business.id}
-        userId={userId}
-        employee={record.data && !record.isError ? record.data : undefined}
-      />
+    <div hidden={hidden}>
       {record.isPending ? (
         <EmptyState icon={<LoaderCircle />} role="status" title={t(locale, 'admin.loading')} />
       ) : null}
@@ -62,6 +68,51 @@ export function EmployeeEditPanel({
       {record.data && !record.isError ? (
         <EmployeeRecordSections {...recordSectionProps(companyId, business, userId, record.data)} />
       ) : null}
+    </div>
+  );
+}
+
+export function EmployeeEditPanel({
+  companyId,
+  business,
+  userId,
+  employeeId,
+  onClose,
+}: EmployeeEditPanelProps) {
+  const locale = useLocale();
+  const [tab, setTab] = useState<EmployeeFileTab>('data');
+  const { record, save } = useEmployeeEdit(companyId, business.id, userId, employeeId);
+  return (
+    <Card className="flex max-w-xl flex-col gap-4 p-6">
+      <EmployeeProfileHeading
+        companyId={companyId}
+        businessId={business.id}
+        userId={userId}
+        employee={record.data && !record.isError ? record.data : undefined}
+      />
+      <EmployeeFileTabs value={tab} onChange={setTab} />
+      {dataTabContent({
+        companyId,
+        business,
+        userId,
+        record,
+        save,
+        locale,
+        hidden: tab !== 'data',
+      })}
+      {tab === 'leave' && record.isPending ? (
+        <p role="status">{t(locale, 'admin.loading')}</p>
+      ) : null}
+      {tab === 'leave' && !record.isPending ? (
+        <EmployeeLeaveSection
+          {...{ companyId, businessId: business.id, userId, employeeId }}
+          branches={business.branches}
+          timeZone={
+            business.branches.find((branch) => branch.id === record.data?.primary_branch_id)
+              ?.effective_timezone
+          }
+        />
+      ) : null}
       <EmployeeEditActions
         pending={save.isPending}
         fetching={record.isFetching}
@@ -70,10 +121,6 @@ export function EmployeeEditPanel({
           void record.refetch();
         }}
         onClose={onClose}
-      />
-      <EmployeeLeaveSection
-        {...{ companyId, businessId: business.id, userId, employeeId }}
-        branches={business.branches}
       />
     </Card>
   );

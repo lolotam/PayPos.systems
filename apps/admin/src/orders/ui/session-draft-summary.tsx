@@ -24,15 +24,17 @@ function draftMoney(row: SessionDraftLine) {
 }
 export function SessionDraftSummary({ limit }: { limit?: RecordingDiscountLimit | null }) {
   const locale = useLocale(), { control } = useFormContext<SessionDraftForm>();
-  const lines = useWatch({ control, name: 'lines' }), amounts = lines.map(draftMoney);
+  const lines = useWatch({ control, name: 'lines' });
+  const amounts = lines.map((row) => row.from_package ? null : draftMoney(row));
+  const paidAmounts = amounts.filter((_, index) => lines[index]?.from_package !== true);
   const authority = limit ? recorderLimitText(locale, limit) : null;
   let total: string | null = null;
-  try { if (amounts.every((value) => value !== null)) total = moneyToString(sumMoney(amounts.map((value) => value.net))); }
+  try { if (paidAmounts.every((value) => value !== null)) total = moneyToString(sumMoney(paidAmounts.map((value) => value.net))); }
   catch { /* إجمالي المسودة قد يتجاوز مجال المال حتى لو كان كل بند صالحاً. */ }
   return <Card className="grid gap-2 p-3 text-start">
     {lines.map((row, index) => <div key={row.local_id}>
       <p>{t(locale, 'serviceSessions.lineNumber').replace('{n}', String(index + 1))}</p>
-      {amounts[index] ? <dl>
+      {row.from_package ? <p>{t(locale, 'serviceSessions.fromPackage')}</p> : amounts[index] ? <dl>
         <dt>{t(locale, 'serviceSessions.price')}</dt><dd><bdi>{moneyToString(amounts[index].price)}</bdi></dd>
         <dt>{t(locale, 'serviceSessions.discountAmount')}</dt><dd><bdi>{moneyToString(amounts[index].discount)}</bdi></dd>
         <dt>{t(locale, 'serviceSessions.draftNet')}</dt><dd><bdi>{moneyToString(amounts[index].net)}</bdi></dd>

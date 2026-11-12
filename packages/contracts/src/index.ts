@@ -379,6 +379,12 @@ export * from './documents-render.js';
 export * from './customers/index.js';
 
 export { requestPackageImportPreviewInput, packageImportPreviewAccepted, packageImportPreviewRequested, packageImportPreviewRowError, packageImportPreviewStatus, type RequestPackageImportPreviewInput, type PackageImportPreviewRequested, type PackageImportPreviewStatus } from './orders/package-import-preview.js';
+export {
+  extendPackageInput,
+  packageExtensionResponse,
+  type ExtendPackageInput,
+  type PackageExtensionResponse,
+} from './orders/package-extension.js';
 
 export * from './staff/index.js';
 

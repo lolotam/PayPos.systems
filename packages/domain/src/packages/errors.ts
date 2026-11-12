@@ -8,6 +8,8 @@ export type PackageErrorCode =
   | 'INVALID_SLOTS'
   | 'INVALID_DATE'
   | 'PACKAGE_EXPIRED'
+  | 'PACKAGE_EXTENSION_NOT_LATER'
+  | 'PACKAGE_EXTENSION_TOO_LONG'
   | 'INSUFFICIENT_SLOTS';
 
 /** خطأ مسمّى؛ طبقة النقل اللاحقة مسؤولة عن الرسالة العربية والإنجليزية. */

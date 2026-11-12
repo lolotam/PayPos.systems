@@ -3,6 +3,7 @@ import { staffDuplicateNameAr } from './staff-duplicate-name-catalog.js';
 import { attendanceChangeAr } from './attendance-change.js';
 import { inAppAr } from './in-app-catalog.js';
 import { catalogPackageTypesAr, packageTypeErrorsAr } from './catalog-package-types.js';
+import { catalogPackageExtensionAr } from './catalog-package-extension.js';
 import { discountApprovalErrorsAr } from './discount-approval-errors.js';
 import { staffErrorsAr } from './staff-errors.js';
 import { attendanceAr } from './attendance-ar.js';
@@ -301,6 +302,7 @@ export const ar: Catalog = {
   },
   catalogServices: catalogServicesAr,
   catalogPackageTypes: catalogPackageTypesAr,
+  packageExtension: catalogPackageExtensionAr,
   admin: {
     appName: 'PosPay',
     signInTitle: 'تسجيل الدخول',

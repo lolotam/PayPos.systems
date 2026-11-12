@@ -75,6 +75,22 @@ export const customerPackageDetailComponent = responseObject({
   slots: z.array(customerPackageDetailSlot),
 }).meta({ id: 'CustomerPackageDetailComponent' });
 
+export const customerPackageRedemption = responseObject({
+  id,
+  component_id: id,
+  ordinal: z.number().int().min(1).max(365),
+  redeemed_at: timestamp,
+  visit_business_date: businessDate,
+  reversed_at: timestamp.nullable(),
+}).meta({ id: 'CustomerPackageRedemption' });
+
+export const customerPackageExtension = responseObject({
+  id,
+  previous_expires_on: businessDate,
+  new_expires_on: businessDate,
+  extended_at: timestamp,
+}).meta({ id: 'CustomerPackageExtension' });
+
 export const customerPackageDetail = responseObject({
   id,
   customer_id: id,
@@ -94,9 +110,12 @@ export const customerPackageDetail = responseObject({
   sold_at: timestamp.nullable(),
   sold_business_date: businessDate.nullable(),
   expires_on: businessDate,
+  business_timezone: z.string().min(1).optional(),
   refunded_amount: sessionMoney,
   revision: z.number().int().positive(),
   components: z.array(customerPackageDetailComponent),
+  redemptions: z.array(customerPackageRedemption),
+  extensions: z.array(customerPackageExtension).default([]),
 }).meta({ id: 'CustomerPackageDetail' });
 
 export const customerPackagesCursorData = z.strictObject({
@@ -116,6 +135,8 @@ export type CustomerPackageListItem = z.infer<typeof customerPackageListItem>;
 export type CustomerPackagePage = z.infer<typeof customerPackagePage>;
 export type CustomerPackageDetailSlot = z.infer<typeof customerPackageDetailSlot>;
 export type CustomerPackageDetailComponent = z.infer<typeof customerPackageDetailComponent>;
+export type CustomerPackageRedemption = z.infer<typeof customerPackageRedemption>;
+export type CustomerPackageExtension = z.infer<typeof customerPackageExtension>;
 export type CustomerPackageDetail = z.infer<typeof customerPackageDetail>;
 export type CustomerPackagesCursorData = z.infer<typeof customerPackagesCursorData>;
 
@@ -127,5 +148,7 @@ export const customerPackageSchemas = [
   customerPackagePage,
   customerPackageDetailSlot,
   customerPackageDetailComponent,
+  customerPackageRedemption,
+  customerPackageExtension,
   customerPackageDetail,
 ];

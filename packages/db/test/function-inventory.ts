@@ -6,6 +6,8 @@ export const FUNCTION_INVENTORY = [
   { proname: 'package_redemption_validate_slot', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
   { proname: 'package_redemption_validate', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
   { proname: 'package_redemption_complete', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
+  { proname: 'package_entitlements_extension_complete', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
+  { proname: 'package_extensions_history_complete', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
   { proname: 'staff_columns_distinct', prosecdef: false, proconfig: ['search_path=pg_catalog'] },
   {
     proname: 'orders_check_performers',
@@ -146,6 +148,8 @@ export const FUNCTION_INVENTORY = [
     prosecdef: false,
     proconfig: ['search_path=pg_catalog, public'],
   },
+  { proname: 'leave_history_report_guard', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
+  { proname: 'leave_history_report_row_guard', prosecdef: false, proconfig: ['search_path=pg_catalog, public'] },
   {
     proname: 'line_performers_cancel_guard',
     prosecdef: false,
