@@ -1,4 +1,5 @@
 import { myLeaveAr, myLeaveEn } from './my-leave-catalog.js';
+import { leaveHistoryAr, leaveHistoryEn } from './leave-history-catalog.js';
 import { alertRulesAr, alertRulesEn } from './alert-rules-catalog.js';
 import { ar } from './ar.js';
 import { commissionStatementAr, commissionStatementEn } from './commission-statement-catalog.js';
@@ -25,6 +26,7 @@ export type Catalog = { readonly [S in keyof typeof en]: Record<keyof (typeof en
 
 type RegisteredCatalog = Catalog & {
   readonly myLeave: Record<keyof typeof myLeaveEn, string>;
+  readonly leaveHistory: Record<keyof typeof leaveHistoryEn, string>;
   readonly publicRating: Record<keyof typeof publicRatingEn, string>;
   readonly alertRules: Record<keyof typeof alertRulesEn, string>;
   readonly commissionStatement: Record<keyof typeof commissionStatementEn, string>;
@@ -50,6 +52,7 @@ export type ErrorMessageCode = keyof typeof en.errors;
 const CATALOGS: Record<Locale, RegisteredCatalog> = {
   ar: {
     myLeave: myLeaveAr,
+    leaveHistory: leaveHistoryAr,
     publicRating: publicRatingAr,
     ...ar,
     alertRules: alertRulesAr,
@@ -66,6 +69,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
   },
   en: {
     myLeave: myLeaveEn,
+    leaveHistory: leaveHistoryEn,
     publicRating: publicRatingEn,
     ...en,
     alertRules: alertRulesEn,
