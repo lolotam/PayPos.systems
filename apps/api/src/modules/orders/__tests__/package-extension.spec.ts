@@ -1,9 +1,14 @@
 import { packageExtensionResponse } from '@pospay/contracts';
 import type { ExecutionContext } from '@nestjs/common';
+import type { FastifyRequest } from 'fastify';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { ApiError } from '../../../shared/errors.ts';
 import { PackageExtensionController } from '../http/package-extension.controller.ts';
 import { SessionAdminGuard } from '../http/session-access.guard.ts';
+import {
+  type ExtendPackageUseCase,
+  SessionError,
+} from '../use-cases/extend-package/extend-package.usecase.ts';
 import { ids, type SessionFixture } from './session.fixture.ts';
 import { packageLine, seedPackage } from './package-redemption.fixture.ts';
 import {
@@ -297,4 +302,31 @@ it('EX-05 refuses a device principal through the route guard', () => {
   expect(new SessionAdminGuard().canActivate(context('user'))).toBe(true);
   const guards: unknown[] = Reflect.getMetadata('__guards__', PackageExtensionController.prototype.extend) ?? [];
   expect(guards).toContain(SessionAdminGuard);
+});
+
+// تعارض المعاملة المؤقت يجب أن يبقى 409 قابلاً لإعادة المحاولة بدلاً من التحول إلى 500.
+it('maps TRANSACTION_RETRY_REQUIRED to the registered retryable 409', async () => {
+  const controller = new PackageExtensionController({
+    execute: async () => {
+      throw new SessionError('TRANSACTION_RETRY_REQUIRED');
+    },
+  } as unknown as ExtendPackageUseCase);
+  const request = {
+    principal: { kind: 'user', companyId: ids.newId(), userId: ids.newId() },
+    method: 'POST',
+    routeOptions: {
+      url: '/v1/businesses/:businessId/branches/:branchId/packages/:entitlementId/extensions',
+    },
+    query: {},
+  } as unknown as FastifyRequest;
+  const error = await controller.extend(
+    ids.newId(),
+    ids.newId(),
+    ids.newId(),
+    extensionBody(),
+    { key: ids.newId(), fingerprint: 'controller-test' },
+    request,
+  ).catch((caught: unknown) => caught);
+  expect(error).toBeInstanceOf(ApiError);
+  expect(error).toMatchObject({ code: 'TRANSACTION_RETRY_REQUIRED', status: 409 });
 });

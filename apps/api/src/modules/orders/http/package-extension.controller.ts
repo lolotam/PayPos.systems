@@ -97,11 +97,17 @@ function mapPackageExtensionError(error: unknown): never {
 
 function isMappedSessionCode(
   code: string,
-): code is 'FORBIDDEN' | 'FEATURE_DISABLED' | 'IDEMPOTENCY_KEY_REUSED' | 'VALIDATION_FAILED' {
+): code is
+  | 'FORBIDDEN'
+  | 'FEATURE_DISABLED'
+  | 'IDEMPOTENCY_KEY_REUSED'
+  | 'TRANSACTION_RETRY_REQUIRED'
+  | 'VALIDATION_FAILED' {
   return (
     code === 'FORBIDDEN' ||
     code === 'FEATURE_DISABLED' ||
     code === 'IDEMPOTENCY_KEY_REUSED' ||
+    code === 'TRANSACTION_RETRY_REQUIRED' ||
     code === 'VALIDATION_FAILED'
   );
 }
