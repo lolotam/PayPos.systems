@@ -166,3 +166,8 @@ the single source of rule semantics; each bounded context owns its type (ADR-003
   importer resolves duplicates by name and should define the rule then.
 - **SV-Q3** — is a service ever retired? Recommendation: a later slice adds `is_active`/`archived_at` when the
   sessions screen needs it; soft delete is not one of the CLAUDE.md §5 tables and is out of scope here.
+
+## Addendum, 2026-11-12 (spec 072 `32b-cat-2`)
+
+- **SV-09 is superseded for closing.** A service is still never deleted, but it can now be closed: `services.closed_at` (set when closed) and `closed_by_category_id` (set only when the service was closed by closing its category). A closed service stays in the dashboard lists with a closed mark, is not offered for a new order line, and the order-recording catalog reader refuses it with `SERVICE_CLOSED`; lines recorded before the close are untouched. Closing and reopening one service need the new permission `close:services:business` (owner, general manager, business manager; SI-Q17) together with `read:services:business`.
+- **SV-Q3 is answered:** a service is retired by closing it, reversibly, with no `is_active` or `archived_at` column. The rules are in spec 072, «Service categories» and «What closed means for selling».

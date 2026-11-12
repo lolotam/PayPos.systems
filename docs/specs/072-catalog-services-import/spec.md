@@ -526,6 +526,15 @@ both owners' picks on SI-Q14 to SI-Q16 (2026-10-29).
   `open_service_count` (services a close would close) and `marked_service_count` (services a reopen would reopen), two
   counts on `services_business_category_idx` with an `EXPLAIN ANALYZE` assertion. The close and reopen confirmations of
   `32b-cat-3` show these counts; the close and reopen responses return the counts actually changed.
+- **Decisions fixed while building `32b-cat-2` (2026-11-12, plan `plan-32b-cat-2.md`, debate `debate-32b-cat-2-advisor.md`):**
+  - The close and reopen responses of a category are flat: the category view plus `services_closed` or `services_reopened`.
+  - A closed service can still be edited (update-service is unchanged for it); moving it to another category clears its marker.
+  - The category cascade locks its service rows `FOR NO KEY UPDATE`, not `FOR UPDATE`: the two conflict identically with the order recorder's `FOR SHARE`, but `FOR UPDATE` would also block the `FOR KEY SHARE` that every foreign-key insert into `service_lines`, `discount_proposals`, `commission_service_overrides` and the package tables takes, and could deadlock a writer that inserts for two services out of order. No key column changes, so the weaker lock is sufficient.
+  - A single-service close or reopen that finds its category changed between the peek and the locks rolls back with `TRANSACTION_RETRY_REQUIRED` and the use case starts over in a new transaction (at most three attempts); it never restarts inside the same transaction, which would invert the category-then-service lock order.
+  - The cascade audit rows are written by the existing one-statement `appendAuditLogs` (an `INSERT … SELECT` from `jsonb_to_recordset`), not by an `INSERT … SELECT` computed inside SQL from the updated rows, because the snapshot must equal `serviceSnapshot` and SQL cannot reproduce that mapping without a second copy of it. A warm close and a warm reopen of 1,000 services are asserted under 200 ms; if they do not fit, the work stops and goes to Waleed (technical question), as «The 200 ms rule» says.
+  - `SERVICE_CLOSED` is an orders `SessionError` code with HTTP status 409 and the detail `{ service_id }`.
+  - `closed_by_category_id` is an audit-only field: it is in the audit snapshots and never in an HTTP response.
+  - **Open, PENDING (SI-Q27, SI-Q28):** the refusal at record time covers every line the reader returns, so redeeming a prepaid package session for a closed service is refused too; selling a package that contains a closed service, the package-type component picker and the worker package import are unchanged. Both questions are in `owner-questions.ar.md`.
 - **The services list filter** (`32b-pre-1`, SI-Q10): the services list read takes an optional `category_id`, uses
   `services_business_category_idx`, and gets its own `EXPLAIN ANALYZE` assertion; the list items carry `category_id`,
   the category names and whether the category is closed. The service's own `closed_at` joins the detail and list
