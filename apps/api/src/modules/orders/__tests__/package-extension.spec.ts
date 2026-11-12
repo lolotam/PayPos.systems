@@ -1,4 +1,4 @@
-import { packageExtensionResponse } from '@pospay/contracts';
+import { packageExtensionResponse, type ExtendPackageInput } from '@pospay/contracts';
 import type { ExecutionContext } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -6,9 +6,11 @@ import { ApiError } from '../../../shared/errors.ts';
 import { PackageExtensionController } from '../http/package-extension.controller.ts';
 import { SessionAdminGuard } from '../http/session-access.guard.ts';
 import {
-  type ExtendPackageUseCase,
+  ExtendPackageUseCase,
+  PackageExtensionError,
   SessionError,
 } from '../use-cases/extend-package/extend-package.usecase.ts';
+import { createPackageExtensionTransactions } from '../persistence/package-extension.transactions.ts';
 import { ids, type SessionFixture } from './session.fixture.ts';
 import { packageLine, seedPackage } from './package-redemption.fixture.ts';
 import {
@@ -329,4 +331,67 @@ it('maps TRANSACTION_RETRY_REQUIRED to the registered retryable 409', async () =
   ).catch((caught: unknown) => caught);
   expect(error).toBeInstanceOf(ApiError);
   expect(error).toMatchObject({ code: 'TRANSACTION_RETRY_REQUIRED', status: 409 });
+});
+
+async function directExtension(entitlementId: string, key: string, input: ExtendPackageInput) {
+  const useCase = new ExtendPackageUseCase(createPackageExtensionTransactions(f.db), ids, f.clock);
+  return useCase.execute({ ...f.context(key), entitlementId, input });
+}
+
+async function successfulDirectExtension() {
+  const seeded = await freshSold();
+  const key = ids.newId();
+  const input = extensionBody() as ExtendPackageInput;
+  const first = await directExtension(seeded.entitlement, key, input);
+  const [stored] = await f.h.owner`SELECT response_body::text AS body FROM idempotency_keys WHERE key=${key}`;
+  return { seeded, key, input, first, stored };
+}
+
+// إعادة الإرسال بعد DENY يجب أن تُرفض من حالة الاستخدام نفسها دون تغيير الرد أو مضاعفة الآثار.
+it('rechecks a direct replay after an extension DENY and preserves the stored response and rows', async () => {
+  const { seeded, key, input, stored } = await successfulDirectExtension();
+  const deny = ids.newId();
+  await f.h.owner`INSERT INTO permission_overrides
+    (company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+    VALUES(${f.company},${deny},${f.membership},'extend:packages:branch','DENY','BRANCH',${f.branch},
+      'Synthetic direct replay deny',${f.ownerId})`;
+  try {
+    const error = await directExtension(seeded.entitlement, key, input).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(PackageExtensionError);
+    expect(error).toMatchObject({ code: 'FORBIDDEN' });
+    const [again] = await f.h.owner`SELECT response_body::text AS body FROM idempotency_keys WHERE key=${key}`;
+    expect(again?.['body']).toBe(stored?.['body']);
+    expect(await readExtensions(f, seeded.entitlement)).toHaveLength(1);
+    expect(await readExtensionAudits(f, seeded.entitlement)).toHaveLength(1);
+  } finally {
+    await f.h.owner`DELETE FROM permission_overrides WHERE id=${deny}`;
+  }
+});
+
+// تعطيل orders بعد أول كتابة يجب أن يمنع الرد المخزن أيضاً وأن يبقي كل الآثار كما هي.
+it('rechecks a direct replay with orders disabled and preserves the stored response and rows', async () => {
+  const { seeded, key, input, stored } = await successfulDirectExtension();
+  await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by)
+    VALUES(${f.company},'orders',false,'Synthetic direct replay feature',${f.ownerId})`;
+  try {
+    const error = await directExtension(seeded.entitlement, key, input).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(PackageExtensionError);
+    expect(error).toMatchObject({ code: 'FEATURE_DISABLED' });
+    const [again] = await f.h.owner`SELECT response_body::text AS body FROM idempotency_keys WHERE key=${key}`;
+    expect(again?.['body']).toBe(stored?.['body']);
+    expect(await readExtensions(f, seeded.entitlement)).toHaveLength(1);
+    expect(await readExtensionAudits(f, seeded.entitlement)).toHaveLength(1);
+  } finally {
+    await f.h.owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='orders'`;
+  }
+});
+
+// بقاء السلطة يجب أن يعيد الجسم نفسه من حالة الاستخدام دون أي صف تمديد أو تدقيق إضافي.
+it('returns the identical direct replay with access intact and writes nothing more', async () => {
+  const { seeded, key, input, first, stored } = await successfulDirectExtension();
+  expect(await directExtension(seeded.entitlement, key, input)).toEqual(first);
+  expect(await readExtensions(f, seeded.entitlement)).toHaveLength(1);
+  expect(await readExtensionAudits(f, seeded.entitlement)).toHaveLength(1);
+  const [again] = await f.h.owner`SELECT response_body::text AS body FROM idempotency_keys WHERE key=${key}`;
+  expect(again?.['body']).toBe(stored?.['body']);
 });

@@ -29,6 +29,10 @@ export class ExtendPackageUseCase {
   async execute(context: ExtendPackageContext): Promise<PackageExtensionResponse> {
     return this.transactions.run(context, async (tx) => {
       const result = await tx.idempotent(() => this.extend(tx, context));
+      if (result.replayed) {
+        await tx.access.lock();
+        await this.authorize(tx, this.clock.now());
+      }
       return result.body;
     });
   }
@@ -40,10 +44,7 @@ export class ExtendPackageUseCase {
     await tx.access.lock();
     const locked = await tx.packages.lock(context.entitlementId);
     const at = this.clock.now();
-    const access = await tx.access.read(at);
-    const membershipId = access.eligible[0];
-    if (access.denied || membershipId === undefined) throw new PackageExtensionError('FORBIDDEN');
-    if (!access.feature) throw new PackageExtensionError('FEATURE_DISABLED');
+    const membershipId = await this.authorize(tx, at);
     const timezone = await tx.place.timezone();
     if (timezone === null) throw new PackageExtensionError('FORBIDDEN');
     if (locked === null) throw new PackageExtensionError('PACKAGE_NOT_FOUND');
@@ -84,6 +85,14 @@ export class ExtendPackageUseCase {
       new_expires_on: context.input.new_expires_on,
       extended_at: at.toISOString(),
     };
+  }
+
+  private async authorize(tx: PackageExtensionTransaction, at: Date): Promise<string> {
+    const access = await tx.access.read(at);
+    const membershipId = access.eligible[0];
+    if (access.denied || membershipId === undefined) throw new PackageExtensionError('FORBIDDEN');
+    if (!access.feature) throw new PackageExtensionError('FEATURE_DISABLED');
+    return membershipId;
   }
 }
 
