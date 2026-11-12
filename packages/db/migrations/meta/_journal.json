@@ -1541,6 +1541,13 @@
       "when": 1794502409786,
       "tag": "0221_2026-11-12_package-extensions",
       "breakpoints": true
+    },
+    {
+      "idx": 222,
+      "version": "7",
+      "when": 1794507350966,
+      "tag": "0222_2026-11-12_leave-history-reports",
+      "breakpoints": true
     }
   ]
 }

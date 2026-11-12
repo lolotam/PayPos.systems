@@ -534,3 +534,30 @@ must not resell.
    An older worker rejects and retries the unknown type (47-1b addendum), so no sale is lost,
    but accepted requests would stay `pending`; roll back the API first, then the worker.
 Final migration numbering, generation and push wait on the manager's migration lane.
+
+## Addendum 2026-11-12 — leave-history report worker (068 / 68-2b-2, PP-176, PP-178, PP-179)
+
+**Why.** The business leave-history report (spec 068, 68-2) misses SC-004 synchronously for large queries; Waleed
+decided on 2026-11-11 (PP-176) that heavy reports are computed once by a worker and paged from the stored result,
+the 47-1 / PP-170 pattern. Retention is one hour (PP-178). A result over 25,000 rows is refused by a bounded count before the
+build (PP-179, «عدّ الصفوف الأول»).
+
+**Boundary.** The API (68-2c) owns acceptance; the staff worker owns the computation. 68-2b-2a ships only the
+tables (`leave_history_reports`, `leave_history_report_rows`: RLS `ENABLE`+`FORCE`, exact column grants, guard triggers,
+cascade delete of rows), expand-only with nothing reading or writing them. 68-2b-2b ships the queue
+`leave-history-report` (`jobId` = outbox event id), the per-company hourly cleanup queue `leave-history-report-cleanup`
+(scheduler registered before the event is acknowledged, as the import recovery), the known type
+`LeaveHistoryReportRequested` and the readiness check, with **no** producer, route or OpenAPI path.
+
+**Transaction.** One `withTenant` with an explicit `timeoutMs`: lock the report `FOR UPDATE` while `pending`, check the
+`clock_timestamp()` deadline in a second statement, run a bounded count over the frozen scope and `as_of`
+(`LIMIT 25001`), refuse with `LEAVE_HISTORY_REPORT_TOO_LARGE` above 25,000 (short conditional transaction, no build),
+otherwise insert the rows with `seq` and mark `ready` by `UPDATE ... WHERE status='pending' AND clock_timestamp() < deadline_at`.
+A timeout, a server-side cancel (`57014`, `25P03`), a crossed deadline or an invalid stored input is the permanent
+`LEAVE_HISTORY_REPORT_FAILED`; other errors retry (3 attempts, exponential) and the last attempt finalizes through
+progress and `moveToDelayed`. A lost commit reply is resolved by re-reading the row (a `ready` row wins). No connection
+drain exists on timeout (the worker's database is not the bounded wrapper), so the failure write has its own timeout.
+
+**Deploy ordering.** 68-2b-2a ships tables only, so it adds nothing to wait for; 68-2c waits for 68-2b-2b worker readiness and merges
+only after 68-2b-2b is deployed to staging with the worker's `/ready` including the `leave-history-reports` check (build and cleanup workers). Rollback floor: the API first, then the worker. A lost cleanup
+scheduler (Redis flush) leaves expired reports until that company's next event: accepted.

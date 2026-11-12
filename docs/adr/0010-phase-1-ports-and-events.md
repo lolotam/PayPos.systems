@@ -527,3 +527,10 @@ package sale acceptance in the same transaction as its `pending` `package_sale_r
 and consumed by the orders worker's `package-sale` job, which performs the whole sale in one
 transaction and emits `PackageSaleChanged` from it. Boundary, idempotency, retries, status
 states and deploy ordering are recorded in ADR-0034's 2026-11-11 addendum.
+
+### Addendum 2026-11-12 — `LeaveHistoryReportRequested` (068 / 68-2b-2, PP-176)
+
+`LeaveHistoryReportRequested { report_id }` (staff ⇒ staff worker) is id-only and will be appended by the
+report acceptance (68-2c) in the same transaction as its `pending` `leave_history_reports` row. 68-2b-2a ships
+only the tables; 68-2b-2b registers it as a known type of the staff worker module and ships the consumer
+(`leave-history-report` build job and the hourly per-company cleanup) with no producer; 68-2c waits for 68-2b-2b worker readiness. Boundary, states and deploy order: ADR-0034's 2026-11-12 addendum.

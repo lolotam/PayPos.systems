@@ -1,6 +1,8 @@
 import { ATTENDANCE_TENANT_TABLES } from './attendance-grants.ts';
 
 export const TENANT_TABLES = [
+  'leave_history_reports',
+  'leave_history_report_rows',
   'commission_tip_heads',
   'commission_tips',
   'commission_salaries',

@@ -35,6 +35,7 @@ export * from './staff-ibans.ts';
 
 export * from './staff-schedule-settings.ts';
 export * from './staff-attendance-change-requests.ts';
+export * from './staff-leave-history-reports.ts';
 
 export { employeeDefaultShifts } from './staff-default-shifts.ts';
 export { employeeNumberSequences } from './staff-employee-numbers.ts';
