@@ -39,6 +39,10 @@ import { ratingSettingsPaths } from './customers/rating-settings-openapi.js';
 import { catalogPaths } from './catalog/catalog-openapi.js';
 import { json, operation } from './openapi-operation.js';
 import { openApiSchemas } from './openapi-schemas.js';
+import { packageExtensionPaths } from './orders/package-extension-openapi.js';
+import { packageExtensionSchemas } from './orders/package-extension.js';
+
+const allSchemas: readonly z.ZodType[] = [...openApiSchemas, ...packageExtensionSchemas];
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
@@ -46,6 +50,7 @@ const PATHS = {
   ...ownAttendancePaths,
   ...personalBranchesPaths,
   ...packageImportPreviewPaths,
+  ...packageExtensionPaths,
   ...customerPackagePaths,
   ...attendanceMonthlyReportPaths,
   ...employeeIbanPaths,
@@ -155,7 +160,7 @@ const PATHS = {
  */
 export function buildOpenApiDocument(): Record<string, unknown> {
   const registry = z.registry<{ id: string }>();
-  for (const schema of openApiSchemas) {
+  for (const schema of allSchemas) {
     const meta = schema.meta();
     if (typeof meta?.['id'] !== 'string') throw new Error('Every published schema needs a meta id');
     registry.add(schema, { id: meta['id'] });

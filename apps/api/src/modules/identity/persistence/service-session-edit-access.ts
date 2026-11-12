@@ -37,7 +37,7 @@ interface ActorRole {
   name_en: string;
 }
 
-interface LineAccess {
+export interface LineAccess {
   denied: boolean;
   feature: boolean;
   can_read: boolean;
@@ -184,7 +184,7 @@ export async function readDiscountApprovalAccess(
   return readLineAccess(tx, 'approve:discounts:branch', companyId, userId, businessId, branchId, at);
 }
 
-async function readLineAccess(
+export async function readLineAccess(
   tx: Tx,
   permission: string,
   companyId: string,

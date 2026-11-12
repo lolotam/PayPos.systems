@@ -99,6 +99,9 @@ export const packageTypeErrorsEn = {
   PACKAGE_SALE_IN_FUTURE: 'The sale time is in the future.',
   PACKAGE_CUSTOMER_NOT_FOUND: 'Customer not found.',
   PACKAGE_NOT_FOUND: 'Package not found.',
+  PACKAGE_EXPIRY_STALE: 'The package expiry changed. Reload and try again.',
+  PACKAGE_EXTENSION_NOT_LATER: 'The new expiry must be later than the current expiry.',
+  PACKAGE_EXTENSION_TOO_LONG: 'The new expiry cannot be more than two calendar years from today.',
 };
 export const packageTypeErrorsAr = {
   PACKAGE_TYPE_NOT_FOUND: 'نوع الباقة غير موجود في هذا النشاط.',
@@ -122,4 +125,7 @@ export const packageTypeErrorsAr = {
   PACKAGE_SALE_IN_FUTURE: 'وقت البيع في المستقبل.',
   PACKAGE_CUSTOMER_NOT_FOUND: 'العميلة مش موجودة.',
   PACKAGE_NOT_FOUND: 'الباقة مش موجودة.',
+  PACKAGE_EXPIRY_STALE: 'تاريخ انتهاء الباقة اتغيّر. حدّثي الشاشة وحاولي تاني.',
+  PACKAGE_EXTENSION_NOT_LATER: 'تاريخ الانتهاء الجديد لازم يكون بعد التاريخ الحالي.',
+  PACKAGE_EXTENSION_TOO_LONG: 'تاريخ الانتهاء الجديد مش ممكن يتجاوز سنتين تقويميتين من النهاردة.',
 };

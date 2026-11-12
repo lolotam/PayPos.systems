@@ -74,6 +74,10 @@ const packageEntitlementsColumns = {
   /** ختم الإنشاء: التريغر بيكتبه وبيستبدل أي قيمة جاية من المستدعي (ADR-0050). */
   createdSystemId: bigint('created_system_id', { mode: 'bigint' }).notNull(),
   createdTxid: xid8('created_txid').notNull(),
+  /** ختم آخر تمديد: التريغر يثبت المعاملة والقيمة السابقة حتى لا يُقبل سجل تمديد مستقل عنها. */
+  expiresOnChangedSystemId: bigint('expires_on_changed_system_id', { mode: 'bigint' }),
+  expiresOnChangedTxid: xid8('expires_on_changed_txid'),
+  expiresOnBefore: date('expires_on_before', { mode: 'string' }),
 };
 
 type EntitlementSelf = BuildExtraConfigColumns<string, typeof packageEntitlementsColumns, 'pg'>;
@@ -339,6 +343,81 @@ export const packageSessionSlots = pgTable(
     check(
       'package_session_slots_unit_value_check',
       sql`${t.unitValue} BETWEEN 0 AND 99999999999.999`,
+    ),
+  ],
+);
+
+// سجل تمديد الاستحقاق ثابت؛ كل صف يثبت انتقال التاريخ للأمام داخل معاملة واحدة.
+export const packageExtensions = pgTable(
+  'package_extensions',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id),
+    id: uuid('id').notNull(),
+    businessId: uuid('business_id').notNull(),
+    entitlementId: uuid('entitlement_id').notNull(),
+    branchId: uuid('branch_id').notNull(),
+    previousExpiresOn: date('previous_expires_on', { mode: 'string' }).notNull(),
+    newExpiresOn: date('new_expires_on', { mode: 'string' }).notNull(),
+    reason: text('reason').notNull(),
+    extendedBy: uuid('extended_by').notNull(),
+    /** عضوية المدير الفعلية وقت التمديد، مربوطة بالمستخدم نفسه داخل الشركة. */
+    extendedByMembershipId: uuid('extended_by_membership_id').notNull(),
+    extendedAt: timestamp('extended_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ name: 'package_extensions_pkey', columns: [t.companyId, t.id] }),
+    unique('package_extensions_business_id_key').on(t.companyId, t.businessId, t.id),
+    unique('package_extensions_entitlement_previous_key').on(
+      t.companyId,
+      t.entitlementId,
+      t.previousExpiresOn,
+    ),
+    foreignKey({
+      name: 'package_extensions_entitlement_fk',
+      columns: [t.companyId, t.businessId, t.entitlementId],
+      foreignColumns: [
+        packageEntitlements.companyId,
+        packageEntitlements.businessId,
+        packageEntitlements.id,
+      ],
+    }),
+    foreignKey({
+      name: 'package_extensions_branch_fk',
+      columns: [t.companyId, t.businessId, t.branchId],
+      foreignColumns: [branches.companyId, branches.businessId, branches.id],
+    }),
+    foreignKey({
+      name: 'package_extensions_extended_by_user_id_fk',
+      columns: [t.extendedBy],
+      foreignColumns: [user.id],
+    }),
+    foreignKey({
+      name: 'package_extensions_membership_fk',
+      columns: [t.companyId, t.extendedBy, t.extendedByMembershipId],
+      foreignColumns: [memberships.companyId, memberships.userId, memberships.id],
+    }),
+    index('package_extensions_branch_fk_idx').on(t.companyId, t.businessId, t.branchId),
+    index('package_extensions_extended_by_idx').on(t.extendedBy),
+    index('package_extensions_membership_fk_idx').on(
+      t.companyId,
+      t.extendedBy,
+      t.extendedByMembershipId,
+    ),
+    index('package_extensions_history_idx').on(
+      t.companyId,
+      t.businessId,
+      t.entitlementId,
+      t.extendedAt,
+    ),
+    check(
+      'package_extensions_forward_check',
+      sql`${t.newExpiresOn} > ${t.previousExpiresOn}`,
+    ),
+    check(
+      'package_extensions_reason_check',
+      sql`char_length(${t.reason}) <= 500 AND btrim(${t.reason}, chr(9) || chr(10) || chr(13) || chr(32)) <> ''`,
     ),
   ],
 );

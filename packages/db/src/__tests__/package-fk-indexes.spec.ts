@@ -9,6 +9,7 @@ export const PACKAGE_STORAGE_TABLES = [
   'package_components',
   'package_session_slots',
   'package_redemptions',
+  'package_extensions',
 ] as const;
 
 interface ExpectedForeignKey {
@@ -67,6 +68,22 @@ const EXPECTED_FOREIGN_KEYS: Record<string, ExpectedForeignKey[]> = {
     { name: 'package_redemptions_line_fk', columns: ['company_id','business_id','line_id'] },
     { name: 'package_redemptions_membership_fk', columns: ['company_id','recorded_by','recorded_by_membership_id'] },
     { name: 'package_redemptions_cancellation_fk', columns: ['company_id','reversal_cancellation_id'] },
+  ],
+  package_extensions: [
+    { name: 'package_extensions_company_id_companies_id_fk', columns: ['company_id'] },
+    {
+      name: 'package_extensions_entitlement_fk',
+      columns: ['company_id', 'business_id', 'entitlement_id'],
+    },
+    {
+      name: 'package_extensions_branch_fk',
+      columns: ['company_id', 'business_id', 'branch_id'],
+    },
+    { name: 'package_extensions_extended_by_user_id_fk', columns: ['extended_by'] },
+    {
+      name: 'package_extensions_membership_fk',
+      columns: ['company_id', 'extended_by', 'extended_by_membership_id'],
+    },
   ],
 };
 

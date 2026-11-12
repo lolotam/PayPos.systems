@@ -4,6 +4,8 @@ export const PACKAGE_TABLE_GRANTS = [
   'package_components:SELECT',
   'package_entitlements:INSERT',
   'package_entitlements:SELECT',
+  'package_extensions:INSERT',
+  'package_extensions:SELECT',
   'package_redemptions:INSERT',
   'package_redemptions:SELECT',
   'package_sale_requests:INSERT',

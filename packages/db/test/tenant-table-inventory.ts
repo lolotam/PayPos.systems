@@ -47,6 +47,7 @@ export const TENANT_TABLES = [
   'package_type_components',
   'package_entitlements',
   'package_components',
+  'package_extensions',
   'package_session_slots',
   'employees',
   'employee_branches',

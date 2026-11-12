@@ -70,6 +70,7 @@ export const ROLE_DEFAULTS = {
   'record:service-sessions:branch': [...managers, 'branch_manager', 'cashier'],
   'read:service-sessions:branch': [...managers, 'branch_manager'],
   'edit:service-line-prices:branch': [...managers, 'branch_manager'],
+  'extend:packages:branch': [...managers, 'branch_manager'],
   // spec 055: المديرون الأربعة افتراضياً؛ التفويض لباقي البشر والجهاز يُحسمان في system-role-policy.
   'change:service-line-performers:branch': [...managers, 'branch_manager'],
   // spec 054: نفس المديرين الأربعة افتراضياً؛ القراءة صلاحية مستقلة، والجهاز ممنوع في system-role-policy.
