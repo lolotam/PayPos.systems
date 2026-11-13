@@ -26,7 +26,25 @@ export class PackageSaleRetryError extends Error {
   }
 }
 
-/** ينفذ بيع باقة مقبول ذريًا ويثبت الرفض المسمى بعد التراجع دون إعادة تفويض. */
+/**
+ * رفض نهائي لبيع الباقة لأن الفرع غير نشط؛ الرفض يثبت على صف الطلب ولا يعاد البيع.
+ *
+ * `code` هو الكود المقروء من شاشة الحالة، والرسالة تشرح السبب الداخلي.
+ */
+export class PackageSaleUnavailableError extends Error {
+  readonly code = 'PACKAGE_SALE_FAILED';
+
+  constructor() {
+    super('PACKAGE_SALE_PLACE_UNAVAILABLE');
+    this.name = 'PackageSaleUnavailableError';
+  }
+}
+
+/**
+ * ينفذ بيع باقة مقبول ذريًا ويثبت الرفض المسمى بعد التراجع دون إعادة تفويض.
+ *
+ * رفض الفرع غير النشط نهائي؛ يثبت على صف الطلب ولا يعاد بيعه.
+ */
 export class ExecutePackageSale {
   constructor(
     private readonly transactions: PackageSaleTransactions,
@@ -34,6 +52,7 @@ export class ExecutePackageSale {
     private readonly clock: PackageSaleClock,
   ) {}
 
+  /** ينفذ البيع في معاملة واحدة، ثم يثبت الرفض المسمى في معاملة ثانية بعد التراجع. */
   async execute(companyId: string, requestId: string): Promise<void> {
     try {
       await this.transactions.run(companyId, requestId, async (scope) => {
@@ -76,8 +95,8 @@ export class ExecutePackageSale {
       request.expected_service_revisions,
     );
     const place = await scope.readPlace();
-    // TODO(spec): فرع غير نشط بعد القبول؛ يبقى فشلاً مجهولاً يعاد حتى القرار النهائي.
-    if (place === null) throw new Error('PACKAGE_SALE_PLACE_UNAVAILABLE');
+    // TODO(spec): فرع غير نشط بعد القبول
+    if (place === null) throw new PackageSaleUnavailableError();
     const soldAt = request.sold_at === null ? undefined : new Date(request.sold_at);
     const recordedAt = new Date(request.recorded_at);
     const time = packageSaleTime(soldAt, recordedAt, place.timezone);
@@ -114,11 +133,16 @@ export class ExecutePackageSale {
 
 function isNamedRefusal(
   error: unknown,
-): error is PackageSaleError | PackageSalePricingError | PackageRuleError {
+): error is
+  | PackageSaleError
+  | PackageSalePricingError
+  | PackageRuleError
+  | PackageSaleUnavailableError {
   return (
     error instanceof PackageSaleError ||
     error instanceof PackageSalePricingError ||
-    error instanceof PackageRuleError
+    error instanceof PackageRuleError ||
+    error instanceof PackageSaleUnavailableError
   );
 }
 

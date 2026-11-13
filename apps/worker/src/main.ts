@@ -42,6 +42,7 @@ import {
   createDiscountSelfApprovalNoticeConsumer,
   daySessionsReader,
   startPackagePreviewWorker,
+  startPackageSaleWorker,
 } from './modules/orders/index.ts';
 import {
   closedRatingClaimsLifecycle,
@@ -78,6 +79,13 @@ const files = startFilesWorker(app, systemUuidV7(), config.REDIS_URL, process.en
 const previews = startPackagePreviewWorker(app, files.readImportBytes, config.REDIS_URL, {
   now: () => new Date(),
 });
+const sales = startPackageSaleWorker(
+  app,
+  systemUuidV7(),
+  config.REDIS_URL,
+  { now: () => new Date() },
+  { transactionTimeoutMs: config.PACKAGE_SALE_TRANSACTION_TIMEOUT_MS },
+);
 const staff = startStaffWorker(app, systemUuidV7(), config.REDIS_URL, { now: () => new Date() });
 const email = await startEmailCapability({
   env: process.env,
@@ -170,7 +178,7 @@ const businessDeliver = createDeliverer(
     }),
   ],
   logger,
-  { knownEventTypes: knownEventTypes(staff, notifications, inApp, previews) },
+  { knownEventTypes: knownEventTypes(staff, notifications, inApp, previews, sales) },
 );
 let queue: OptionalCapabilities['queue'];
 let documents: DocumentRendering | undefined;
@@ -180,11 +188,13 @@ const pushTransport = push.transport((claimed) => (queue?.deliver ?? businessDel
 const ratingClaims = closedRatingClaimsLifecycle();
 const deliver: typeof businessDeliver = (event) =>
   previews.deliver(event, (event) =>
-    deliverFilesEvent(event, {
-      register: (claimed) => files.deliver(claimed),
-      staff: (claimed, next) => staff.deliver(claimed, next),
-      core: (claimed) => ratingClaims.deliver(claimed, pushTransport),
-    }),
+    sales.deliver(event, (event) =>
+      deliverFilesEvent(event, {
+        register: (claimed) => files.deliver(claimed),
+        staff: (claimed, next) => staff.deliver(claimed, next),
+        core: (claimed) => ratingClaims.deliver(claimed, pushTransport),
+      }),
+    ),
   );
 const loop = createDispatchLoop({ dispatcher, deliver, logger });
 
@@ -193,6 +203,7 @@ const release = async (): Promise<void> => {
   clearInterval(capabilityTimer);
   // ننتظر فحص الملفات الجاري قبل إغلاق اتصال قاعدة البيانات.
   await previews.close();
+  await sales.close();
   await files.close();
   await staff.close();
   // المسجّل المغلق ما عندوش موارد، بس الإغلاق بيبقى في مسار الإيقاف زي أي بقية.
@@ -243,6 +254,7 @@ async function startWorkerCore(): Promise<void> {
       readiness: [
         { name: 'database', check: () => app.ping() },
         { name: 'package-previews', check: () => previews.ready() },
+        { name: 'package-sale', check: () => sales.ready() },
         { name: 'leave-history-reports', check: () => staff.reportsReady() },
         // A wrong dispatcher URL or password leaves the worker with nothing to do — it is not ready.
         { name: 'dispatcher', check: () => dispatcher.ping() },

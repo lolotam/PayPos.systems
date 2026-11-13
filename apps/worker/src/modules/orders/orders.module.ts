@@ -3,6 +3,13 @@ import { packagePreviewWorkbook } from './persistence/package-preview-workbook.t
 import { packagePreviewTransactions } from './persistence/package-preview.transactions.ts';
 import { ExecutePackagePreview } from './use-cases/execute-package-preview/execute-package-preview.ts';
 import type { PackagePreviewClock } from './ports/package-preview.port.ts';
+import { startPackageSaleProcessor } from './jobs/package-sale.processor.ts';
+import { startPackageSaleRecoveryProcessor } from './jobs/package-sale-recovery.processor.ts';
+import { packageSaleTransactions } from './persistence/package-sale.transactions.ts';
+import { packageSaleRecoveryTransactions } from './persistence/package-sale-recovery.transactions.ts';
+import { ExecutePackageSale } from './use-cases/execute-package-sale/execute-package-sale.ts';
+import { RecoverPackageSales } from './use-cases/recover-package-sales/recover-package-sales.ts';
+import type { PackageSaleClock } from './ports/package-sale.port.ts';
 
 import type { Tx, ClaimedEvent, DeliveryOutcome, TenantWrappers } from '@pospay/db';
 import { editorLabel, safeDisplayName, t } from '@pospay/i18n';
@@ -254,5 +261,37 @@ export function startPackagePreviewWorker(
       event.eventType === 'PackageImportPreviewRequested' ? processor.deliver(event) : next(event),
     ready: processor.ready,
     close: processor.close,
+  };
+}
+
+export function startPackageSaleWorker(
+  database: Pick<TenantWrappers, 'withTenant'>,
+  ids: IdGenerator,
+  redisUrl: string,
+  clock: PackageSaleClock,
+  options: { transactionTimeoutMs: number },
+  prefix?: string,
+) {
+  const sale = new ExecutePackageSale(
+    packageSaleTransactions(database, ids, { timeoutMs: options.transactionTimeoutMs }),
+    ids,
+    clock,
+  );
+  const processor = startPackageSaleProcessor(sale, redisUrl, prefix);
+  const recoveryUseCase = new RecoverPackageSales(packageSaleRecoveryTransactions(database), clock);
+  const recovery = startPackageSaleRecoveryProcessor(recoveryUseCase, redisUrl, prefix);
+  return {
+    eventTypes: ['PackageSaleRequested'],
+    deliver: async (event: ClaimedEvent, next: (event: ClaimedEvent) => Promise<DeliveryOutcome>) => {
+      if (event.eventType !== 'PackageSaleRequested') return next(event);
+      try {
+        await recovery.register(event.companyId);
+      } catch {
+        return { delivered: false, error: 'PACKAGE_SALE_RECOVERY_SCHEDULE_RETRY', retryInMs: 2000 };
+      }
+      return processor.deliver(event);
+    },
+    ready: () => Promise.all([processor.ready(), recovery.ready()]).then(() => undefined),
+    close: () => Promise.all([processor.close(), recovery.close()]).then(() => undefined),
   };
 }
