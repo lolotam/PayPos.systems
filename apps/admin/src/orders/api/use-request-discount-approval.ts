@@ -16,7 +16,7 @@ export function useRequestDiscountApproval(scope: SessionServiceScope) {
   return useMutation({
     mutationKey: ['request-discount-approval', scope], retry: false, gcTime: 0, networkMode: 'always',
     mutationFn: async (body: RequestDiscountApprovalInput) => {
-      const fingerprint = JSON.stringify(body);
+      const fingerprint = JSON.stringify({ scope, body });
       const attempt = held.current?.fingerprint === fingerprint ? held.current : { key: crypto.randomUUID(), fingerprint };
       held.current = attempt;
       const result = await apiClient().POST(requestPath, {

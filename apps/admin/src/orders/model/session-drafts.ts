@@ -14,7 +14,7 @@ export type SessionDraftLine = Pick<SessionPaidLineInput, 'service_id' | 'price'
   service: SessionServiceSelection | null;
   from_package: boolean;
   package_entitlement_id: string | null;
-  discount_proposal?: { id: string; fingerprint: string } | null;
+  discount_proposal?: { id: string } | null;
   discount_kind: SessionPaidLineInput['discount']['kind'];
   discount_amount: string;
   discount_percentage: string;

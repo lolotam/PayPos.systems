@@ -27,6 +27,7 @@ export function SessionRejectedLines({ result, onEdit, scope, online = false }: 
       {error.approval_refusal ? <p>{discountApprovalRefusals[error.approval_refusal][locale === 'ar' ? 'message_ar' : 'message_en']}</p> : null}
       <Button type="button" variant="outline" disabled={sessionResultFrozen(result)} onClick={() => onEdit(localId)}>{t(locale, 'serviceSessions.editRejected')}</Button>
     </Card>)}
-    {scope ? <SessionDiscountApproval result={result} scope={scope} online={online} /> : null}
+    {scope ? <SessionDiscountApproval key={`${scope.companyId}:${scope.businessId}:${scope.branchId}:${scope.userId}`}
+      result={result} scope={scope} online={online} /> : null}
   </section>;
 }

@@ -26,14 +26,13 @@ Behaviour pinned:
   `customer_id` + `occurred_at` when the draft has one. `requester_membership_id` = `drafts.recorder_membership_id`.
   `Idempotency-Key` held while the body is unchanged (same pattern as `use-edit-service-line.ts`).
 - **Fresh visit:** the response's normalized `occurred_at` is written into the form's `occurred_at` (edge case 23:55/00:05).
-- **Draft field:** `SessionDraftLine.discount_proposal` = `{ id, fingerprint } | null`, mapped by `input_index` →
-  local row id. `fingerprint` = service id, price, discount and performer ids (shares are outside the terms, D-2).
-  `sessionCommandLines` emits `discount_proposal_id` only while the line's fingerprint still matches; any edit to
-  price, discount, service or performers silently drops it (the line is then refused as before and can be re-requested).
-  `recoverAttempt` copies `discount_proposal_id` back from a journaled attempt.
-- **Polling:** `GET …/discount-proposals?request_id=` every 5 s while any item is `PENDING`; stops otherwise. Each row
-  shows its status; `APPROVED` → decider label + via, «اتوافق — احفظي تاني» and the id is attached to the draft;
-  `REJECTED` → decider + reason; `EXPIRED` → re-request allowed.
+- **Draft field:** `SessionDraftLine.discount_proposal` = `{ id } | null`, mapped by `input_index` → local row id.
+  The id is always sent while present; the server decides (`FR-019`/`FR-021`: `TERMS_MISMATCH`, `EXPIRED`, …). There is
+  no client fingerprint. `recoverAttempt` copies `discount_proposal_id` back from a journaled attempt.
+- **Polling:** one `GET …/discount-proposals?request_id=` status query per tracked request; every 5 s while there is no
+  data or a `PENDING` item, and every 30 s while an `APPROVED` item exists. Policy lives in
+  `model/discount-approval-state.ts`. Each row shows its status; `APPROVED` → decider label + via and the id is attached
+  to the draft; `REJECTED` → decider + reason; `EXPIRED` → re-request allowed.
 - **Resend** is the existing save/append submit, pressed by the user. No second write path.
 - **Refused again** with `approval_refusal` → the card shows the existing `discountApprovalRefusals` label and the
   request button again.

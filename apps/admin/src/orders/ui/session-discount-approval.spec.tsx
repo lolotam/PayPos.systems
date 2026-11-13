@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { FormProvider, useForm } from 'react-hook-form';
 import { afterEach, expect, it, vi } from 'vitest';
-import { discountApprovalContext } from '../model/discount-approval-request';
 import { createSessionDraft, type SessionDraftForm } from '../model/session-drafts';
 import { emptySessionRecordingResult, type SessionRecordingResult } from '../model/session-recording-result';
 import { id, instant, rejection, scope } from '../model/session-recording-result.fixture';
@@ -44,7 +43,7 @@ function Harness({ result: value, onCommands }: {
     <SessionRejectedLines result={value} onEdit={vi.fn()} scope={scope} online />
     {rootError ? <p role="alert">{rootError}</p> : null}
     <button type="button" onClick={() => onCommands(form.getValues(),
-      sessionCommandLines(form.getValues('lines'), discountApprovalContext(value, form.getValues())))}>{t(api.locale, 'serviceSessions.save')}</button>
+      sessionCommandLines(form.getValues('lines')))}>{t(api.locale, 'serviceSessions.save')}</button>
   </FormProvider>;
 }
 
