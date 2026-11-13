@@ -272,7 +272,9 @@ touches `published_at`, `attempts`, `parked_at` or `consumed_events` rows of oth
 
    At most 200 business ids. A missing or malformed argument (including a malformed company id, business id or date) prints
    `SESSION_TIPS_BOOTSTRAP_CONFIGURATION` and reads nothing; a date range with `--from` after `--to`, or a date that does not exist
-   on the calendar, prints `SESSION_TIPS_BOOTSTRAP_RANGE_INVALID`; any other failure prints `SESSION_TIPS_BOOTSTRAP_FAILED`.
+   on the calendar, prints `SESSION_TIPS_BOOTSTRAP_RANGE_INVALID`; a failure while reading a page or applying a visit prints the
+   JSON result with `status: "ABORTED"` and exits 1 without an error code, and `SESSION_TIPS_BOOTSTRAP_FAILED` is printed only for
+   a failure outside a page or visit (the database connection or ping failing, or the connection closing badly).
 3. **What one run does.** Per business, pages of 100 visits; each page is READ in its own tenant transaction, and each visit is
    applied in its OWN tenant transaction: every event id the reader lists for that visit, including older revisions, is marked
    consumed first, in the same order as live delivery, then the latest revision is applied through the same use case the live

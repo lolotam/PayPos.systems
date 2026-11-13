@@ -1,4 +1,4 @@
-import { markEventConsumed, type TenantWrappers, type Tx } from '@pospay/db';
+import type { TenantWrappers, Tx } from '@pospay/db';
 
 import type { OutboxConsumer } from '../../outbox/consumer.ts';
 import { onCommissionInputEvent } from './events/handlers/on-commission-input-event.handler.ts';
@@ -11,6 +11,7 @@ import {
   createCommissionLineProjectionScope,
   type BusinessTimeZoneReader,
 } from './persistence/commission-line-projection.scope.ts';
+import { markCommissionEventConsumed } from './persistence/commission-event-consumption.ts';
 import { commissionStatementExportTransactions } from './persistence/commission-statement-export.transactions.ts';
 import {
   createCommissionSalaryProjectionScope,
@@ -112,7 +113,7 @@ export function createCommissionTipsBootstrap(
         withTenant: dependencies.database.withTenant,
         reader: dependencies.tipsReader,
         consumerId: COMMISSION_INPUTS_CONSUMER_ID,
-        markConsumed: markEventConsumed,
+        markConsumed: markCommissionEventConsumed,
         tipsFor: (tx) =>
           new ProjectSessionTips(
             createCommissionTipProjectionScope(tx, dependencies.businessTimeZone, dependencies.ids),
