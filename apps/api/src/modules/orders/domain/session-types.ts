@@ -4,6 +4,8 @@ export type SessionRule = { kind: 'FOLLOW_PLAN' } | { kind: 'ZERO' } | { kind: '
 export type SessionLimit = { source: 'OWNER'; bps: null } | { source: 'PERSON' | 'BUSINESS' | 'NOT_CONFIGURED'; bps: number };
 /** حقائق الكتالوج المثبتة تحت قفل الخدمة. */
 export interface SessionService { id: string; name_en: string; name_ar: string | null; price: bigint; rule: SessionRule; counts: boolean; revision: number }
+/** خدمة من الكتالوج مع علامة إغلاقها، لأن سطر الباقة يسجّلها والسطر المدفوع يرفضها. */
+export interface ClosedSessionService extends SessionService { closed: boolean }
 /** حقائق الموظفة الآمنة؛ الموظفين وحدهم يحددون يوم الحضور وأهلية الفرع. */
 export interface SessionEmployee { id: string; name_en: string; name_ar: string | null; user_id: string | null; eligible: boolean; clocked_in: boolean; approved_leave: boolean }
 /** مدخل قواعد البند المدفوع بعد تحويل المال دون فقد؛ ترتيبه في الطلب ثابت. */

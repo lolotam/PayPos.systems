@@ -1,9 +1,11 @@
 import { expect, it } from 'vitest';
 
 import {
+  closeServiceCategoryInput,
   createBranchServiceCategoryInput,
   createServiceCategoryInput,
   renameServiceCategoryInput,
+  reopenServiceCategoryInput,
   serviceCategoryBranchListQuery,
   serviceCategoryBranchPage,
   serviceCategoryBranchStateResult,
@@ -120,4 +122,30 @@ it('validates the branch view and the nullable setting revision on state writes 
   expect(
     serviceCategoryBranchStateResult.parse({ ...item, setting_state: null, setting_revision: null }),
   ).toMatchObject({ setting_state: null, setting_revision: null });
+});
+
+const closeAndReopenInputs = [closeServiceCategoryInput, reopenServiceCategoryInput];
+
+// الحد الأعلى على عدد الخدمات حد تقني بحت (أقصى عدد صحيح آمن) وليس حد عمل،
+// لأن المواصفة 072 لا تضع حداً أقصى لعدد خدمات التصنيف، فأي حد عمل هنا يرفض عدّاً صحيحاً.
+it('accepts a service count above the old 100 000 cap on close and reopen', () => {
+  for (const input of closeAndReopenInputs) {
+    expect(input.safeParse({ expected_revision: 1, expected_service_count: 100_001 }).success).toBe(
+      true,
+    );
+    expect(
+      input.safeParse({ expected_revision: 1, expected_service_count: Number.MAX_SAFE_INTEGER })
+        .success,
+    ).toBe(true);
+  }
+});
+
+it('refuses a negative, fractional or unsafe service count on close and reopen', () => {
+  for (const input of closeAndReopenInputs) {
+    for (const serviceCount of [-1, 1.5, Number.MAX_SAFE_INTEGER + 2]) {
+      expect(
+        input.safeParse({ expected_revision: 1, expected_service_count: serviceCount }).success,
+      ).toBe(false);
+    }
+  }
 });

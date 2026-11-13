@@ -49,13 +49,18 @@ export interface ServiceScope {
    */
   save(before: ServiceRecord, after: ServiceRecord): Promise<void>;
   /**
-   * يسجل snapshot مسموح الحقول قبل وبعد، وأي فشل يرد العملية كلها.
+   * يسجل snapshot مسموح الحقول قبل وبعد بفعل إنشاء أو تعديل أو إغلاق، وأي فشل يرد العملية كلها.
    *
    * @param before السجل السابق أو غيابه عند الإنشاء
    * @param after السجل بعد العملية
+   * @param action إغلاق أو فتح الخدمة؛ غيابه يحافظ على تدقيق الإنشاء والتعديل
    * @returns اكتمال كتابة التدقيق
    */
-  audit(before: ServiceRecord | null, after: ServiceRecord): Promise<void>;
+  audit(
+    before: ServiceRecord | null,
+    after: ServiceRecord,
+    action?: 'closed' | 'reopened',
+  ): Promise<void>;
 }
 
 /** هوية الفاعل المتحقق منها داخل معاملة الخدمة؛ تتطلب شركة ومستخدم. */

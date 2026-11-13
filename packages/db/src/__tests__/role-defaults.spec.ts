@@ -42,6 +42,7 @@ const expectations: Record<string, readonly string[]> = {
     'read:service-categories:branch',
     'manage:service-categories:branch',
     'manage:services:business',
+    'close:services:business',
     'clock:attendance:branch',
     'resolve:attendance:branch',
     'read:attendance:branch',
@@ -84,6 +85,7 @@ const expectations: Record<string, readonly string[]> = {
     'read:service-categories:branch',
     'manage:service-categories:branch',
     'manage:services:business',
+    'close:services:business',
     'clock:attendance:branch',
     'resolve:attendance:branch',
     'read:attendance:branch',
@@ -355,4 +357,8 @@ it('PK-Q18 import permission defaults to owner, GM and BM and is never available
   expect(device).toBeDefined();
   if (device === undefined) throw new Error('Missing seeded device role');
   expect(systemRolePolicy(device.id, 'global')?.permissions).not.toContain('import:packages:business');
+});
+
+it('SI-Q17 close:services:business defaults to the three managers only', () => {
+  expect(ROLE_DEFAULTS['close:services:business']).toEqual(['owner', 'general_manager', 'business_manager']);
 });

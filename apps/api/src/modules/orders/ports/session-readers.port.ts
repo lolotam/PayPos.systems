@@ -1,6 +1,6 @@
 import type { SessionAccess } from '../domain/session-authority.ts';
 import type { SalePackageType } from '../domain/package-sale-types.ts';
-import type { SessionEmployee, SessionLimit, SessionRecord, SessionService } from '../domain/session-types.ts';
+import type { ClosedSessionService, SessionEmployee, SessionLimit, SessionRecord, SessionService } from '../domain/session-types.ts';
 
 /** قراءات محدودة على نفس معاملة المسجلة، بدون تسريب نوع المعاملة إلى الداخل. */
 export interface CatalogReaderPort {
@@ -18,6 +18,13 @@ export interface CatalogReaderPort {
    * @returns أسعار القائمة والأسماء وقواعد العمولة والمشاركة في العتبات والنسخ بعد انتظار الأقفال
    */
   read(serviceIds: readonly string[]): Promise<SessionService[]>;
+  /**
+   * يعيد خدمات الكتالوج مع علامة إغلاق كل واحدة، لأن سطر الباقة يسجّل خدمة مغلقة والسطر المدفوع يرفضها.
+   *
+   * @param serviceIds هويات الخدمات المطلوبة في النشاط الحالي لتحديد المقفولة منها
+   * @returns لقطة كل خدمة مع علامة إغلاقها، ليحكم مسجّل الزيارة على المقفولة في بنودها
+   */
+  readIncludingClosed(serviceIds: readonly string[]): Promise<ClosedSessionService[]>;
   /**
    * يقفل نوع الباقة FOR SHARE ثم خدمات مكوناتها FOR SHARE بترتيب الهوية، ويقرأ الكل بعد الأقفال حتى لا يتباع تعريف أو سعر غير اللي اتعرض.
    *

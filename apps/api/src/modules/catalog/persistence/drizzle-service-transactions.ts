@@ -19,6 +19,8 @@ type ServiceRow = {
   counts_toward_threshold: boolean;
   duration_minutes: number | null;
   category_id: string | null;
+  closed_at: Date | null;
+  closed_by_category_id: string | null;
   revision: number;
   created_at: Date;
   updated_at: Date;
@@ -34,18 +36,18 @@ type CategoryRow = {
 
 const SELECT_ROW = sql`id,business_id,name_en,name_ar,price,commission_rule_kind,
   commission_pct_bps,commission_fixed_amount,counts_toward_threshold,duration_minutes,category_id,
-  revision,created_at,updated_at`;
+  closed_at,closed_by_category_id,revision,created_at,updated_at`;
 
 async function insertService(tx: Tx, companyId: string, record: ServiceRecord): Promise<void> {
   const values = serviceColumnValues(record);
   await tx.execute(sql`INSERT INTO services
     (company_id,id,business_id,name_en,name_ar,price,commission_rule_kind,commission_pct_bps,
-     commission_fixed_amount,counts_toward_threshold,duration_minutes,category_id,revision,
-     created_at,updated_at)
+     commission_fixed_amount,counts_toward_threshold,duration_minutes,category_id,closed_at,
+     closed_by_category_id,revision,created_at,updated_at)
     VALUES (${companyId},${record.id},${record.business_id},${record.name_en},${record.name_ar},
       ${values.price},${values.commission_rule_kind},${values.commission_pct_bps},
       ${values.commission_fixed_amount},${record.counts_toward_threshold},${values.duration_minutes},
-      ${values.category_id},${record.revision},${record.created_at},${record.updated_at})`);
+      ${values.category_id},NULL,NULL,${record.revision},${record.created_at},${record.updated_at})`);
 }
 
 async function loadService(
@@ -109,7 +111,8 @@ async function saveService(
     commission_rule_kind=${values.commission_rule_kind},commission_pct_bps=${values.commission_pct_bps},
     commission_fixed_amount=${values.commission_fixed_amount},
     counts_toward_threshold=${after.counts_toward_threshold},duration_minutes=${values.duration_minutes},
-    category_id=${values.category_id},revision=${after.revision},
+    category_id=${values.category_id},closed_at=${after.closed_at},
+    closed_by_category_id=${after.closed_by_category_id},revision=${after.revision},
     updated_at=${after.updated_at}
     WHERE company_id=${companyId} AND business_id=${before.business_id} AND id=${before.id}
       AND revision=${before.revision} RETURNING id`);
@@ -141,6 +144,8 @@ function cleanServiceError(error: unknown): never {
     if (code === '40P01' || code === '40001') throw new ServiceError('TRANSACTION_RETRY_REQUIRED');
     // قيمة خارج قيود numeric أو CHECK تعني مدخلات مش متحققة — نردها كرفض مسمّى مش 500.
     // تصنيف الـ glibc لحروف التحكم أوسع من \P{Cc} في العقد، فاسم ممكن يعدّي Zod ويقع هنا؛ نرجّع خطأ الاسم مش السعر.
+    const constraint = 'constraint_name' in cause ? String(cause.constraint_name) : '';
+    if (code === '23514' && constraint.startsWith('services_closed_marker_')) throw error;
     if (code === '23514') throw new ServiceError(checkViolation(cause));
     if (code === '22003') throw new ServiceError('SERVICE_PRICE_INVALID');
     if (code === '23503') {
@@ -174,11 +179,11 @@ export function createServiceTransactions(
               lockCategories: (businessId, categoryIds) =>
                 lockCategories(tx, companyId, businessId, categoryIds),
               save: (before, after) => saveService(tx, companyId, before, after),
-              audit: (before, after) =>
+              audit: (before, after, action) =>
                 appendAuditLog(tx, ids.newId(), {
                   entity: 'service',
                   entityId: after.id,
-                  action: before === null ? 'created' : 'updated',
+                  action: before === null ? 'created' : (action ?? 'updated'),
                   ...(before === null ? {} : { before: serviceSnapshot(before) }),
                   after: serviceSnapshot(after),
                 }),
