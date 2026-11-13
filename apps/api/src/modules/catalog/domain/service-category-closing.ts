@@ -21,6 +21,42 @@ export interface ServiceCategoryClosingPlan {
 }
 
 /**
+ * يتحقق أن طلب إغلاق التصنيف يطابق نسخته وأنه ما زال مفتوحاً، قبل لمس صفوف الخدمات.
+ * النسخة تُفحص أولاً حتى يرد الطلب القديم بتعارضها حتى لو كانت الحالة تغيرت بعد إرساله.
+ *
+ * @param current التصنيف المقفول الحالي
+ * @param request النسخة وعدد الخدمات المفتوحة المتوقعان
+ * @returns لا شيء؛ نجاح الفحص يسمح بالانتقال إلى خدمات التصنيف
+ * @throws ServiceCategoryError عند تعارض النسخة أو إغلاق التصنيف من قبل
+ */
+export function assertServiceCategoryCloseable(
+  current: ServiceCategoryRecord,
+  request: ServiceCategoryClosingRequest,
+): void {
+  if (request.expected_revision !== current.revision)
+    throw new ServiceCategoryError('SERVICE_CATEGORY_REVISION_CONFLICT');
+  if (current.closed_at !== null) throw new ServiceCategoryError('SERVICE_CATEGORY_ALREADY_CLOSED');
+}
+
+/**
+ * يتحقق أن طلب فتح التصنيف يطابق نسخته وأنه مغلق بالفعل، قبل لمس صفوف الخدمات.
+ * النسخة تُفحص أولاً حتى يرد الطلب القديم بتعارضها حتى لو كانت الحالة تغيرت بعد إرساله.
+ *
+ * @param current التصنيف المقفول الحالي
+ * @param request النسخة وعدد الخدمات المعلّمة المتوقعان
+ * @returns لا شيء؛ نجاح الفحص يسمح بالانتقال إلى خدمات التصنيف
+ * @throws ServiceCategoryError عند تعارض النسخة أو كون التصنيف مفتوحاً
+ */
+export function assertServiceCategoryReopenable(
+  current: ServiceCategoryRecord,
+  request: ServiceCategoryClosingRequest,
+): void {
+  if (request.expected_revision !== current.revision)
+    throw new ServiceCategoryError('SERVICE_CATEGORY_REVISION_CONFLICT');
+  if (current.closed_at === null) throw new ServiceCategoryError('SERVICE_CATEGORY_NOT_CLOSED');
+}
+
+/**
  * يخطط إغلاق تصنيف وخدماته المفتوحة: النسخة تُفحص قبل الحالة، والعدد المتوقع يمنع إغلاق مجموعة
  * غير المجموعة التي أكدها المدير. الخدمة المغلقة مسبقاً تحتفظ بوقتها ولا تكتسب علامة التصنيف.
  *
@@ -37,9 +73,7 @@ export function planServiceCategoryClose(
   services: readonly ServiceRecord[],
   at: Date,
 ): ServiceCategoryClosingPlan {
-  if (request.expected_revision !== current.revision)
-    throw new ServiceCategoryError('SERVICE_CATEGORY_REVISION_CONFLICT');
-  if (current.closed_at !== null) throw new ServiceCategoryError('SERVICE_CATEGORY_ALREADY_CLOSED');
+  assertServiceCategoryCloseable(current, request);
   const open = services.filter((service) => service.closed_at === null);
   assertExpectedCount(request.expected_service_count, open.length);
   const iso = at.toISOString();
@@ -83,9 +117,7 @@ export function planServiceCategoryReopen(
   marked: readonly ServiceRecord[],
   at: Date,
 ): ServiceCategoryClosingPlan {
-  if (request.expected_revision !== current.revision)
-    throw new ServiceCategoryError('SERVICE_CATEGORY_REVISION_CONFLICT');
-  if (current.closed_at === null) throw new ServiceCategoryError('SERVICE_CATEGORY_NOT_CLOSED');
+  assertServiceCategoryReopenable(current, request);
   const owned = marked.filter((service) => service.closed_by_category_id === current.id);
   assertExpectedCount(request.expected_service_count, owned.length);
   const iso = at.toISOString();

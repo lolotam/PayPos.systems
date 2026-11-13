@@ -3,7 +3,10 @@ import type { ReopenServiceCategoryInput, ReopenServiceCategoryResult } from '@p
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import { ServiceCategoryError } from '../../domain/errors.ts';
 import { serviceCategoryView } from '../../domain/service-category.ts';
-import { planServiceCategoryReopen } from '../../domain/service-category-closing.ts';
+import {
+  assertServiceCategoryReopenable,
+  planServiceCategoryReopen,
+} from '../../domain/service-category-closing.ts';
 import type {
   ServiceCategoryActor,
   ServiceCategoryTransactions,
@@ -28,6 +31,7 @@ export class ReopenServiceCategoryUseCase {
     return this.transactions.run(command, async (scope) => {
       const current = await scope.load(command.businessId, command.categoryId);
       if (current === null) throw new ServiceCategoryError('SERVICE_CATEGORY_NOT_FOUND');
+      assertServiceCategoryReopenable(current, command.input);
       const marked = await scope.lockMarkedServices(command.businessId, command.categoryId);
       const plan = planServiceCategoryReopen(current, command.input, marked, this.clock.now());
       await scope.saveClosing(plan.category, plan.services);

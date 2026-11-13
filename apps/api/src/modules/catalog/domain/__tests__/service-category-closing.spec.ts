@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  assertServiceCategoryCloseable,
+  assertServiceCategoryReopenable,
   planServiceCategoryClose,
   planServiceCategoryReopen,
   type ServiceCategoryClosingRequest,
@@ -275,5 +277,73 @@ describe('reopening a category: the records it keeps', () => {
     planServiceCategoryReopen(current, request(4, 1), [marked], at);
     expect(current).toEqual(categorySnapshot);
     expect(marked).toEqual(serviceSnapshot);
+  });
+});
+
+describe('assertServiceCategoryCloseable', () => {
+  it.each([
+    {
+      scenario: 'refuses a stale revision',
+      closedAt: null,
+      revision: 3,
+      error: 'SERVICE_CATEGORY_REVISION_CONFLICT',
+    },
+    {
+      scenario: 'gives revision conflict precedence over an already-closed state',
+      closedAt: closedIso,
+      revision: 3,
+      error: 'SERVICE_CATEGORY_REVISION_CONFLICT',
+    },
+    {
+      scenario: 'refuses an already-closed category with the current revision',
+      closedAt: closedIso,
+      revision: 4,
+      error: 'SERVICE_CATEGORY_ALREADY_CLOSED',
+    },
+    {
+      scenario: 'accepts an open category with the current revision',
+      closedAt: null,
+      revision: 4,
+      error: null,
+    },
+  ])('$scenario', ({ closedAt, revision, error }) => {
+    const check = () =>
+      assertServiceCategoryCloseable(category({ closed_at: closedAt }), request(revision, 0));
+    if (error === null) expect(check).not.toThrow();
+    else expect(check).toThrow(error);
+  });
+});
+
+describe('assertServiceCategoryReopenable', () => {
+  it.each([
+    {
+      scenario: 'refuses a stale revision',
+      closedAt: closedIso,
+      revision: 3,
+      error: 'SERVICE_CATEGORY_REVISION_CONFLICT',
+    },
+    {
+      scenario: 'gives revision conflict precedence over a not-closed state',
+      closedAt: null,
+      revision: 3,
+      error: 'SERVICE_CATEGORY_REVISION_CONFLICT',
+    },
+    {
+      scenario: 'refuses a not-closed category with the current revision',
+      closedAt: null,
+      revision: 4,
+      error: 'SERVICE_CATEGORY_NOT_CLOSED',
+    },
+    {
+      scenario: 'accepts a closed category with the current revision',
+      closedAt: closedIso,
+      revision: 4,
+      error: null,
+    },
+  ])('$scenario', ({ closedAt, revision, error }) => {
+    const check = () =>
+      assertServiceCategoryReopenable(category({ closed_at: closedAt }), request(revision, 0));
+    if (error === null) expect(check).not.toThrow();
+    else expect(check).toThrow(error);
   });
 });

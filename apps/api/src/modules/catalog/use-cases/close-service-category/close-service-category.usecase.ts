@@ -3,7 +3,10 @@ import type { CloseServiceCategoryInput, CloseServiceCategoryResult } from '@pos
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import { ServiceCategoryError } from '../../domain/errors.ts';
 import { serviceCategoryView } from '../../domain/service-category.ts';
-import { planServiceCategoryClose } from '../../domain/service-category-closing.ts';
+import {
+  assertServiceCategoryCloseable,
+  planServiceCategoryClose,
+} from '../../domain/service-category-closing.ts';
 import type {
   ServiceCategoryActor,
   ServiceCategoryTransactions,
@@ -28,6 +31,7 @@ export class CloseServiceCategoryUseCase {
     return this.transactions.run(command, async (scope) => {
       const current = await scope.load(command.businessId, command.categoryId);
       if (current === null) throw new ServiceCategoryError('SERVICE_CATEGORY_NOT_FOUND');
+      assertServiceCategoryCloseable(current, command.input);
       const services = await scope.lockOpenServices(command.businessId, command.categoryId);
       const plan = planServiceCategoryClose(current, command.input, services, this.clock.now());
       await scope.saveClosing(plan.category, plan.services);
