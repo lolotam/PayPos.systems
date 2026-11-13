@@ -27,7 +27,7 @@ beforeAll(async () => {
   await owner`INSERT INTO "user"(id,name,email,email_verified,created_at,updated_at)
     VALUES (${USER},'Closings RLS user','closings-rls@example.test',true,now(),now())
     ON CONFLICT DO NOTHING`;
-  // نشاط تاني لنفس الشركة A: التصنيف بتاعه لازم ما يتقفلش بطلب_activity_activity من نشاط تاني.
+  // نشاط تاني لنفس الشركة A: طلب القفل لازم يتربط بالتصنيف بتاع نشاطه، مش بنشاط تاني.
   await owner`INSERT INTO businesses (id,company_id,vertical_type,name_en)
     VALUES (${SECOND_BUSINESS_A},${A.company},'salon','Second business A')`;
   await owner`INSERT INTO service_categories (company_id,id,business_id,name_en,name_ar,visibility)
