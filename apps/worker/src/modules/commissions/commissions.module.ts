@@ -1,7 +1,12 @@
-import type { TenantWrappers, Tx } from '@pospay/db';
+import { markEventConsumed, type TenantWrappers, type Tx } from '@pospay/db';
 
 import type { OutboxConsumer } from '../../outbox/consumer.ts';
 import { onCommissionInputEvent } from './events/handlers/on-commission-input-event.handler.ts';
+import {
+  runSessionTipsBootstrap,
+  type SessionTipsBootstrapResult,
+  type SessionTipsBootstrapScope,
+} from './use-cases/bootstrap-session-tips/bootstrap-session-tips.ts';
 import {
   createCommissionLineProjectionScope,
   type BusinessTimeZoneReader,
@@ -17,6 +22,7 @@ import type {
   Clock,
   IdGenerator,
 } from './ports/commission-line-projection.port.ts';
+import type { CurrentTipSessionsReader } from './ports/commission-tip-bootstrap.port.ts';
 import { ProjectSalary } from './use-cases/project-salary/project-salary.ts';
 import { ProjectServiceLines } from './use-cases/project-service-lines/project-service-lines.ts';
 import { ProjectSessionTips } from './use-cases/project-session-tips/project-session-tips.ts';
@@ -43,6 +49,9 @@ export function createCommissionStatementExportReader(
     signal?: AbortSignal,
   ): Promise<CommissionStatementExportData> => useCase.execute(companyId, renderId, signal);
 }
+
+/** هوية المستهلك الثابتة؛ التهيئة تستعمل نفس الهوية فتُحسم أحداث البقشيش مرة واحدة. */
+export const COMMISSION_INPUTS_CONSUMER_ID = 'commissions.project-inputs';
 
 export interface CommissionInputsConsumerDependencies {
   readonly ids: IdGenerator;
@@ -78,7 +87,7 @@ export function createCommissionInputsConsumer(
     ),
   });
   return {
-    id: 'commissions.project-inputs',
+    id: COMMISSION_INPUTS_CONSUMER_ID,
     eventTypes: [
       'ServiceSessionRecorded',
       'ServiceSessionLinesAdded',
@@ -88,4 +97,29 @@ export function createCommissionInputsConsumer(
     ],
     handle: (tx, event) => onCommissionInputEvent(bind(tx), event),
   };
+}
+
+/** يربط مشغّل تهيئة البقشيش بالقارئ وبإسقاط البقشيش وبمعرّف المستهلك نفسه. */
+export function createCommissionTipsBootstrap(
+  dependencies: CommissionInputsConsumerDependencies & {
+    readonly database: Pick<TenantWrappers, 'withTenant'>;
+    readonly tipsReader: CurrentTipSessionsReader;
+  },
+): (scope: SessionTipsBootstrapScope) => Promise<SessionTipsBootstrapResult> {
+  return (scope) =>
+    runSessionTipsBootstrap(
+      {
+        withTenant: dependencies.database.withTenant,
+        reader: dependencies.tipsReader,
+        consumerId: COMMISSION_INPUTS_CONSUMER_ID,
+        markConsumed: markEventConsumed,
+        tipsFor: (tx) =>
+          new ProjectSessionTips(
+            createCommissionTipProjectionScope(tx, dependencies.businessTimeZone, dependencies.ids),
+            dependencies.clock,
+            dependencies.ids,
+          ),
+      },
+      scope,
+    );
 }
