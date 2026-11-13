@@ -15,6 +15,7 @@ import {
   serviceLinePerformersEn,
 } from './service-line-performers-catalog.js';
 import { serviceSessionsAr, serviceSessionsEn } from './service-session-catalog.js';
+import { discountApprovalAr, discountApprovalEn } from './discount-approval-catalog.js';
 import { staffAppColumnsAr, staffAppColumnsEn } from './staff-app-columns-catalog.js';
 import { staffPushAr, staffPushEn } from './staff-push-catalog.js';
 
@@ -31,6 +32,7 @@ type RegisteredCatalog = Catalog & {
   readonly alertRules: Record<keyof typeof alertRulesEn, string>;
   readonly commissionStatement: Record<keyof typeof commissionStatementEn, string>;
   readonly serviceSessions: Record<keyof typeof serviceSessionsEn, string>;
+  readonly discountApproval: Record<keyof typeof discountApprovalEn, string>;
   readonly serviceLineEdit: Record<keyof typeof serviceLineEditEn, string>;
   readonly serviceLineCancel: Record<keyof typeof serviceLineCancelEn, string>;
   readonly serviceLinePerformers: Record<keyof typeof serviceLinePerformersEn, string>;
@@ -58,6 +60,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     alertRules: alertRulesAr,
     commissionStatement: commissionStatementAr,
     serviceSessions: serviceSessionsAr,
+    discountApproval: discountApprovalAr,
     serviceLineEdit: serviceLineEditAr,
     serviceLineCancel: serviceLineCancelAr,
     serviceLinePerformers: serviceLinePerformersAr,
@@ -75,6 +78,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     alertRules: alertRulesEn,
     commissionStatement: commissionStatementEn,
     serviceSessions: serviceSessionsEn,
+    discountApproval: discountApprovalEn,
     serviceLineEdit: serviceLineEditEn,
     serviceLineCancel: serviceLineCancelEn,
     serviceLinePerformers: serviceLinePerformersEn,
