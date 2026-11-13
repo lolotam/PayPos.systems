@@ -1,4 +1,4 @@
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { SESSION_ATTEMPT_RETENTION_MS, SESSION_ATTEMPT_SAFETY_MARGIN_MS } from './session-attempt';
 import { createSessionAttemptJournal, type SessionAttemptJournal } from './session-attempt-journal';
 import { id, inputLine, instant, response, scope } from './session-recording-result.fixture';
@@ -36,7 +36,7 @@ async function refuse(journal: SessionAttemptJournal, sessionId: string) {
 it('keeps the completed visit time when a later append is refused', async () => {
   const journal = open();
   await save(journal, id(12), instant);
-  expect(await refuse(journal, id(12))).toEqual({ version: 1, state: 'PARTIAL', scope, sessionId: id(12), occurredAt: instant });
+  expect(await refuse(journal, id(12))).toEqual({ version: 1, state: 'PARTIAL', scope, sessionId: id(12), occurredAt: instant, customerId: id(7) });
 });
 
 it('keeps only the latest visit time, so a refused append for the previous visit has no time', async () => {
@@ -52,6 +52,39 @@ it('drops the visit time once the visit is left, so the next refused append has 
   expect(await refuse(journal, id(12))).toMatchObject({ occurredAt: instant });
   journal.leaveVisit();
   expect(await refuse(journal, id(12))).toEqual({ version: 1, state: 'PARTIAL', scope, sessionId: id(12) });
+});
+
+it('returns customerId in the PARTIAL envelope after reload', async () => {
+  const journal = open();
+  const attempt = journal.begin({ kind: 'record', body: { customer_id: id(7), lines: [inputLine, inputLine] } }, [id(9), id(10)]);
+  await journal.run(attempt, async () => ({ status: 201, data: { ...savedSession(id(12), instant), outcome: 'PARTIAL' } }));
+  vi.resetModules();
+  const { createSessionAttemptJournal: create } = await import('./session-attempt-journal');
+  const reloaded = create(scope, { now: () => Date.parse(instant), newId: () => id(90) });
+  journals.push(reloaded);
+  expect(reloaded.read()).toEqual({ version: 1, state: 'PARTIAL', scope, sessionId: id(12), occurredAt: instant, customerId: id(7) });
+});
+
+it('keeps the visit customer and time when an append pending across a reload is refused', async () => {
+  const journal = open();
+  await save(journal, id(12), instant);
+  journal.begin({ kind: 'append', sessionId: id(12), body: { lines: [inputLine] } }, [id(10)]);
+  vi.resetModules();
+  const { createSessionAttemptJournal: create } = await import('./session-attempt-journal');
+  const reloaded = create(scope, { now: () => Date.parse(instant), newId: () => id(90) });
+  journals.push(reloaded);
+  const entry = reloaded.read();
+  if (entry?.state !== 'PENDING') throw new Error('Expected PENDING entry');
+  await expect(reloaded.run(entry.attempt, () => Promise.reject(refusal))).rejects.toBe(refusal);
+  expect(reloaded.read()).toEqual({ version: 1, state: 'PARTIAL', scope, sessionId: id(12), occurredAt: instant, customerId: id(7) });
+});
+
+it('drops customerId after leaveVisit so a refused append for another visit carries no customerId', async () => {
+  const journal = open();
+  await save(journal, id(12), instant);
+  expect(await refuse(journal, id(12))).toMatchObject({ customerId: id(7) });
+  journal.leaveVisit();
+  expect(await refuse(journal, id(15))).toEqual({ version: 1, state: 'PARTIAL', scope, sessionId: id(15) });
 });
 
 const retention = SESSION_ATTEMPT_RETENTION_MS + SESSION_ATTEMPT_SAFETY_MARGIN_MS;

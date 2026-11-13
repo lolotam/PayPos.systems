@@ -44,9 +44,9 @@ Files:
 | File | Change | Lines |
 |---|---|---|
 | `model/session-drafts.ts` | `discount_proposal` field + default | +4 |
-| `model/use-session-recording.ts` | export `sessionCommandLines`, emit `discount_proposal_id` on fingerprint match | +6 |
+| `model/use-session-recording.ts` | export `sessionCommandLines`, always emit `discount_proposal_id` when the draft carries a proposal; the server decides `TERMS_MISMATCH` / `EXPIRED` / `CONSUMED` (D-2, D-4) | +6 |
 | `model/session-recording-result.ts` | `recoverAttempt` restores the id | +2 |
-| `model/discount-approval-request.ts` (new) | build body, fingerprint, map proposals → rows, attach/drop | ~60 |
+| `model/discount-approval-request.ts` (new) | build body and map proposals → rows; the client always sends a carried proposal id and the server decides `TERMS_MISMATCH` / `EXPIRED` / `CONSUMED` (D-2, D-4) | ~60 |
 | `api/use-request-discount-approval.ts` (new) | POST mutation, held key, parse `requestDiscountApprovalResponse` | ~40 |
 | `api/use-discount-approval-status.ts` (new) | GET by `request_id`, 5 s interval while `PENDING`, parse | ~30 |
 | `ui/session-discount-approval.tsx` (new) | request button + per-line status | ~80 |
@@ -90,7 +90,7 @@ About 34 keys (reception 14, admin 20), ar + en: ~80 lines. Error codes and refu
 
 | Spec | Covers | Lines |
 |---|---|---|
-| `model/discount-approval-request.spec.ts` | body for saved/fresh visit, refused lines only, mapping, fingerprint drop | ~60 |
+| `model/discount-approval-request.spec.ts` | body for saved/fresh visit, refused lines only, mapping, always carried proposal id with server-side `TERMS_MISMATCH` / `EXPIRED` / `CONSUMED` decisions (D-2, D-4) | ~60 |
 | `ui/session-discount-approval.spec.tsx` | request → «في انتظار الموافقة» → approved label → resend body carries the id; rejected reason; expired re-request; refusal label | ~110 |
 | `pages/discount-approvals-page.spec.tsx` | card fields (no phone), approve, reject with reason, 409 message + refetch, membership pick, more | ~130 |
 | `_frame/discount-approvals-nav-item.spec.tsx` | shown on success, hidden on 403 / no branch | ~30 |

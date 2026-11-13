@@ -89,7 +89,7 @@ it.each(['record', 'append'] as const)('reloads and explicitly replays %s with e
   });
   const options = hook.client.getMutationCache().getAll()[0]?.options;
   expect(options).toMatchObject({ retry: false, gcTime: 0, networkMode: 'always' });
-  expect(store.read()).toEqual({ version: 1, state: 'PARTIAL', scope, sessionId: id(12), occurredAt: response.session.occurred_at });
+  expect(store.read()).toEqual({ version: 1, state: 'PARTIAL', scope, sessionId: id(12), occurredAt: response.session.occurred_at, customerId: id(7) });
 });
 
 it.each([new TypeError('Network loss'), new DOMException('Timed out', 'TimeoutError'),
@@ -361,7 +361,7 @@ it.each(['PARTIAL', 'SAVED_DISPLAY_FAILED'].flatMap((state) => ['quota', 'silent
   expect(JSON.parse(storedRaw() ?? 'null').state).toBe(failure === 'readBack' ? state : 'PENDING');
   const remounted = createSessionAttemptJournal(scope, runtime, backing); journals.push(remounted);
   for (const current of [store, remounted]) {
-    expect(current.read()).toEqual({ version: 1, state, scope, sessionId: id(12), ...(state === 'PARTIAL' ? { occurredAt: response.session.occurred_at } : {}) });
+    expect(current.read()).toEqual({ version: 1, state, scope, sessionId: id(12), ...(state === 'PARTIAL' ? { occurredAt: response.session.occurred_at, customerId: id(7) } : {}) });
     expect(current.persistenceWarning).toBe('NOT_PERSISTED');
     const send = vi.fn(); await expect(current.run(attempt, send)).rejects.toThrow('UNAVAILABLE'); expect(send).not.toHaveBeenCalled();
   }
@@ -411,6 +411,6 @@ it('keeps the saved visit time when an append after a COMPLETE save is refused, 
   post.mockResolvedValueOnce({ error: { code: 'SESSION_DISCOUNT_ABOVE_LIMIT', message_ar: 'Synthetic AR', message_en: 'Synthetic EN' }, response: { status: 422 } });
   await act(async () => { await expect(hook.send(correction)).rejects.toMatchObject({ status: 422 }); });
   const recovered = await reload();
-  expect(recovered.read()).toEqual({ version: 1, state: 'PARTIAL', scope, sessionId: id(12), occurredAt: response.session.occurred_at });
+  expect(recovered.read()).toEqual({ version: 1, state: 'PARTIAL', scope, sessionId: id(12), occurredAt: response.session.occurred_at, customerId: id(7) });
   expect(() => parseSessionJournalEnvelope({ version: 1, state: 'PARTIAL', scope, sessionId: id(12), occurredAt: 'not a time' })).toThrow('SESSION_JOURNAL_TIME_INVALID');
 });
