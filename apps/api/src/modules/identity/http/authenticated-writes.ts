@@ -161,6 +161,10 @@ export const AUTHENTICATED_WRITES: Readonly<Record<string, AuthenticatedWriteDec
       'RECORD_SCOPED',
       'apps/api/src/modules/identity/persistence/leave-access.ts#readLeaveAccess',
     ),
+    'LeaveHistoryReportJobsController.request': declared(
+      'RECORD_SCOPED',
+      'apps/api/src/modules/staff/persistence/leave-history-report-request.transactions.ts#authorizeLeaveHistoryReportRequest',
+    ),
     'OwnLeaveController.cancelRequest': declared(
       'PERSONAL',
       'apps/api/src/modules/staff/http/leave-http.ts#ownLeaveActor',
