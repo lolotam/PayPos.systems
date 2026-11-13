@@ -47,6 +47,14 @@ it('PENDING covers the row without attaching it', () => {
   expect(view.attach).toEqual([]);
 });
 
+it('PENDING refused by this proposal becomes requestable without attach', () => {
+  const pending = item(id(60), 0, 'PENDING');
+  const view = discountApprovalView([row(A, 'TERMS_MISMATCH', id(60))], [tracked(first, { 0: A })], { [first]: [pending] });
+  expect(view.lines[A]?.covered).toBe(false);
+  expect(view.requestable).toEqual([A]);
+  expect(view.attach).toEqual([]);
+});
+
 it('APPROVED covers and attaches the row', () => {
   const approved = item(id(60), 0, 'APPROVED');
   const view = discountApprovalView([row(A)], [tracked(first, { 0: A })], { [first]: [approved] });

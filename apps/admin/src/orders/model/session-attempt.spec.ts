@@ -39,3 +39,9 @@ it.each([
   if (error) expect(() => parseSessionJournalEnvelope(envelope)).toThrow(error);
   else expect(parseSessionJournalEnvelope(envelope)).toEqual(envelope);
 });
+
+it('strips unknown top-level envelope keys while unknown scope keys still throw', () => {
+  const envelope = { version: 1 as const, state: 'PARTIAL' as const, scope, sessionId: id(12) };
+  expect(parseSessionJournalEnvelope({ ...envelope, futureField: 'x' })).toEqual(envelope);
+  expect(() => parseSessionJournalEnvelope({ ...envelope, scope: { ...scope, extra: 'y' } })).toThrow('SESSION_JOURNAL_INVALID');
+});

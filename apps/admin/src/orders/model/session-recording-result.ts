@@ -114,10 +114,10 @@ function releaseForbiddenRecorder(state: SessionRecordingResult, error: unknown,
   if (status !== 403 || code !== 'FORBIDDEN' || state.sessionId === null || state.drafts.recorder_membership_id == null) return state;
   return { ...state, drafts: { ...state.drafts, recorder_membership_id: null } };
 }
-// مظروف PARTIAL قديم من غير occurredAt ما يتفسّرش «دلوقتي»؛ التصحيح يتقفل لحد ما الزيارة تتنساب.
+// مظروف الزيارة القديم من غير occurredAt ما يتفسّرش «دلوقتي»؛ التصحيح يتقفل لحد ما الزيارة تتنساب.
 // الوقت المعروف ييجي من الزيارة المحمّلة أو من المظروف بس؛ drafts.occurred_at ممكن يكون وقت كتبته المسجّلة، مش وقت الزيارة.
-// مظروف الزيارة صاحب العميل بعد reload، حتى لا ينتقل اختيار زيارة سابقة مع sessionId الجديد.
-function applyPartialEntry(state: SessionRecordingResult, entry: Extract<SessionJournalEnvelope, { state: 'PARTIAL' }>): SessionRecordingResult {
+// مظروف PARTIAL أو EXPIRED لإلحاق صاحب العميل بعد reload، حتى لا ينتقل اختيار زيارة سابقة مع sessionId الجديد.
+function applyVisitEntry(state: SessionRecordingResult, entry: { sessionId: string; occurredAt?: string | undefined; customerId?: string | undefined }): SessionRecordingResult {
   const seeded = entry.occurredAt && !state.session ? entry.occurredAt : undefined;
   const drafts = seeded !== undefined && seeded !== state.drafts.occurred_at ? { ...state.drafts, occurred_at: seeded } : state.drafts;
   const customerId = entry.customerId ?? state.customerId;
@@ -164,7 +164,8 @@ function applySessionResultEvent(state: SessionRecordingResult, event: SessionRe
     const clearUnknownVisit = !entry && !event.persistenceWarning && state.visitTimeUnknown && !state.session;
     if (!preserveVisit && (clearedPendingVisit || clearUnknownVisit || (entry?.state === 'PARTIAL' && entry.sessionId !== state.sessionId))) state = emptySessionRecordingResult(state.customer);
     state = { ...state, persistenceWarning: event.persistenceWarning ?? null };
-    if (entry?.state === 'PARTIAL' && !preserveVisit) state = applyPartialEntry(state, entry);
+    if (entry?.state === 'PARTIAL' && !preserveVisit) state = applyVisitEntry(state, entry);
+    if (entry?.state === 'EXPIRED' && entry.sessionId && !preserveVisit) state = applyVisitEntry(state, { ...entry, sessionId: entry.sessionId });
     if (entry?.state === 'PENDING') return { ...recoverAttempt(state, entry.attempt, entry.attempt.rowIds, true), attempt: entry.attempt,
       persistenceWarning: event.persistenceWarning ?? null, feedback: { kind: event.inFlight ? 'SAVING' : 'UNRESOLVED' } };
     if (entry?.state === 'EXPIRED' || entry?.state === 'SAVED_DISPLAY_FAILED') return { ...state, attempt: null,

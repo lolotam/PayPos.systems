@@ -367,3 +367,17 @@ it('recovering a PARTIAL journal entry takes the entry customer and drops a diff
   const kept = transition(emptySessionRecordingResult({ id: id(7), name: 'Same', phone: '***007' }), { type: 'JOURNAL', entry });
   expect(kept.customer?.id).toBe(id(7));
 });
+
+it('restores customer, visit time, and draft occurred_at from an EXPIRED append entry', () => {
+  const entry = { version: 1 as const, state: 'EXPIRED' as const, scope, key: attempt.key, createdAt: attempt.createdAt, sessionId: id(12), occurredAt: instant, customerId: id(7) };
+  const restored = transition(emptySessionRecordingResult(null), { type: 'JOURNAL', entry });
+  expect(restored.customerId).toBe(id(7));
+  expect(restored.visitTimeUnknown).toBe(false);
+  expect(restored.drafts.occurred_at).toBe(instant);
+  expect(restored.feedback.kind).toBe('EXPIRED');
+  const withoutTime = transition(emptySessionRecordingResult(null), {
+    type: 'JOURNAL',
+    entry: { version: 1 as const, state: 'EXPIRED' as const, scope, key: attempt.key, createdAt: attempt.createdAt, sessionId: id(12), customerId: id(7) },
+  });
+  expect(withoutTime.visitTimeUnknown).toBe(true);
+});

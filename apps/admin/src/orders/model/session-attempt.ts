@@ -72,9 +72,16 @@ function strictFields(value: unknown, required: string[], optional: string[] = [
     Object.keys(value).some((key) => !required.includes(key) && !optional.includes(key))) throw new Error('SESSION_JOURNAL_INVALID');
 }
 
-/** التخزين ليس مصدراً موثوقاً: المخطط بإصدار صريح ويرفض الحقول الزائدة قبل استعادة أي طلب أو معرف زيارة. */
+const journalEnvelopeFields = ['version', 'state', 'attempt', 'scope', 'key', 'createdAt', 'lastSentAt', 'sessionId', 'occurredAt', 'customerId'];
+
+/**
+ * التخزين ليس مصدراً موثوقاً: المخطط بإصدار صريح ويتحقق من الحقول المعروفة قبل استعادة أي طلب أو معرف زيارة.
+ * حقول المظروف غير المعروفة تُحذف ولا تُرفض، حتى يظل rollback لإصدار أقدم صالحاً عند إضافة حقل جديد.
+ */
 export function parseSessionJournalEnvelope(value: unknown): SessionJournalEnvelope {
-  strictFields(value, ['version', 'state'], ['attempt', 'scope', 'key', 'createdAt', 'lastSentAt', 'sessionId', 'occurredAt', 'customerId']);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('SESSION_JOURNAL_INVALID');
+  value = Object.fromEntries(Object.entries(value).filter(([key]) => journalEnvelopeFields.includes(key)));
+  strictFields(value, ['version', 'state'], journalEnvelopeFields.filter((key) => key !== 'version' && key !== 'state'));
   if (value.version !== 1) throw new Error('SESSION_JOURNAL_VERSION_INVALID');
   if (value.state === 'PENDING') {
     strictFields(value, ['version', 'state', 'attempt'], ['lastSentAt', 'occurredAt', 'customerId']);

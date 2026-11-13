@@ -31,10 +31,10 @@ export function discountApprovalView(
     const items = latest ? itemsByRequest[latest.requestId] : undefined;
     const proposal = latest && items
       ? items.find((item) => latest.localIds[item.input_index] === row.localId) ?? null : null;
+    const refusedThis = proposal !== null && row.error.approval_refusal !== undefined && row.error.discount_proposal_id === proposal.id;
     let covered = latest !== null && items === undefined;
-    if (proposal?.status === 'PENDING') covered = true;
+    if (proposal?.status === 'PENDING') covered = !refusedThis;
     if (proposal?.status === 'APPROVED') {
-      const refusedThis = row.error.approval_refusal !== undefined && row.error.discount_proposal_id === proposal.id;
       covered = !refusedThis;
       if (!refusedThis) attach.push({ localId: row.localId, proposalId: proposal.id });
     }
