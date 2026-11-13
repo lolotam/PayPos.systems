@@ -13,10 +13,7 @@ const FOUR_TYPE_REPLAYABLE_EVENT_TYPES = new Set([
 ]);
 // الأنواع المحسوبة كلها: الأربعة الأولى زائد بقشيش الجلسة وبيع الباقة (50-3d).
 const SIX_TYPE_REPLAYABLE_EVENT_TYPES = new Set([
-  'ServiceSessionRecorded',
-  'ServiceSessionLinesAdded',
-  'ServiceLineChanged',
-  'SalaryChanged',
+  ...FOUR_TYPE_REPLAYABLE_EVENT_TYPES,
   'SessionTipsChanged',
   'PackageSaleChanged',
 ]);

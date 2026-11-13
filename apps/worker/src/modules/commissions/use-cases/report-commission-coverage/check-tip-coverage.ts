@@ -10,9 +10,9 @@ import type {
   CoverageTenantRunner,
 } from '../../ports/commission-coverage.port.ts';
 import type { CurrentTipSessionsReader } from '../../ports/commission-tip-bootstrap.port.ts';
+import { REPORT_LIST_LIMIT } from './check-retained-events.ts';
 
 const TIP_PAGE_SIZE = 100;
-const REPORT_LIST_LIMIT = 200;
 
 /** نطاق تغطية البقشيش بالمراجعة: أنشطة المشغّل ونطاق يومي العمل. */
 export interface TipCoverageScope {
