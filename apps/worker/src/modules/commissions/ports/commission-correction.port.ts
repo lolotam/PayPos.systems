@@ -1,3 +1,5 @@
+import type { CommissionPeriodProjection } from '@pospay/commissions-engine';
+
 import type { CommissionAttachmentInterval } from '../domain/commission-correction-attribution.ts';
 import type {
   CommissionCorrectionDraft,
@@ -24,6 +26,13 @@ export interface CommissionAttachmentSnapshotInput {
   readonly businessId: string;
   readonly statementId: string;
   readonly employeeId: string;
+}
+
+/** مُدخلات قراءة إسقاط موظفة في شهر واحد بأشكال محرك العمولة. */
+export interface CommissionMonthProjectionInput {
+  readonly businessId: string;
+  readonly employeeId: string;
+  readonly period: string;
 }
 
 /** مُدخلات رفع جيل تصحيحات موظفة في شهر واحد. */
@@ -71,6 +80,12 @@ export interface CommissionCorrectionScope {
   readAttachmentSnapshot(
     input: CommissionAttachmentSnapshotInput,
   ): Promise<readonly CommissionAttachmentInterval[]>;
+  /**
+   * يرجع إسقاط الشهر بالمدخلات الحالية لأن إعادة الحساب تحتاج أشكال محرك العمولة نفسها.
+   *
+   * @param input النشاط والموظفة والشهر المطلوب إسقاطه
+   */
+  readMonthProjection(input: CommissionMonthProjectionInput): Promise<CommissionPeriodProjection>;
   /**
    * يرفع جيل تصحيحات الموظفة في الشهر: جيل واحد لو الصف غايب، وجيل زائد لو
    * موجود، ويرجع الرقم الجديد.
