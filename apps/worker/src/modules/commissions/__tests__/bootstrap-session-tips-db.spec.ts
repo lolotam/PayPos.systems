@@ -57,11 +57,14 @@ it('CM-24 bootstrap applies the current tip state and marks every revision event
 it('the bootstrapped projection equals the live delivery of the same revision', async () => {
   // يثبت أن إسقاط التهيئة هو نفسه إسقاط المستهلك الحي لنفس المراجعة
   const { ctx, sessionId: bootSession } = await seedSession(A, '2026-12-02', CUSTOMER_A);
-  const { sessionId: liveSession } = await seedSession(A, '2026-12-02', CUSTOMER_A);
   await writeTipRevision(ctx, bootSession, 1, eventId(21), [tip(A.employee, 'CARD', '20.000')]);
-  await writeTipRevision(ctx, liveSession, 1, eventId(22), [tip(A.employee, 'CARD', '20.000')]);
   await bootstrap()(SCOPE);
+  // الزيارة الحية بتُكتب بعد التهيئة، فالتهيئة ما شافتش حدثها وما علّمتهوش؛التسليم الحي هو اللي طبّقها
+  const { sessionId: liveSession } = await seedSession(A, '2026-12-02', CUSTOMER_A);
+  await writeTipRevision(ctx, liveSession, 1, eventId(22), [tip(A.employee, 'CARD', '20.000')]);
   await deliver(tipEvent(eventId(22), liveSession, 1, [eventTip(A.employee, 'CARD', '20.000')]));
+  expect(await headOf(liveSession)).toBeDefined();
+  expect(await markedIds()).toEqual([eventId(21), eventId(22)]);
   expect(await headOf(bootSession)).toEqual(await headOf(liveSession));
   expect(await rowsOf(bootSession)).toEqual(await rowsOf(liveSession));
 });

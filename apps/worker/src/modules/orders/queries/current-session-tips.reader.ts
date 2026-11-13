@@ -1,5 +1,5 @@
 import { listCurrentSessionTips, type Tx } from '@pospay/db';
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 
 /** زيارة بحالة بقشيشها: المراجعة ومجموعتها الكاملة ومعرّفات أحداث المراجعات. */
 export interface CurrentSessionTipsSession {
@@ -85,6 +85,21 @@ export async function readCurrentSessionTips(
   };
 }
 
+/** استعلام فروع الزيارات — يستعمله بحث فرع الزيارات في تهيئة البقشيش، ومصدَّر عشان اختبار EXPLAIN يفحص مخططه. */
+export function sessionBranchesStatement(
+  companyId: string,
+  businessId: string,
+  sessionIds: readonly string[],
+): SQL {
+  return sql`
+    SELECT id, branch_id FROM service_sessions
+     WHERE company_id = ${companyId} AND business_id = ${businessId}
+       AND id = ANY(ARRAY[${sql.join(
+         sessionIds.map((sessionId) => sql`${sessionId}`),
+         sql`, `,
+       )}]::uuid[])`;
+}
+
 /** فروع الزيارات في نفس المعاملة، لأن قراءة فرع ناقصة تسقط الجلسة كلها ولا تُترك صامتة. */
 async function readBranchIds(
   tx: Tx,
@@ -94,13 +109,9 @@ async function readBranchIds(
 ): Promise<Map<string, string>> {
   const branches = new Map<string, string>();
   if (sessionIds.length === 0) return branches;
-  const rows = await tx.execute<{ id: string; branch_id: string }>(sql`
-    SELECT id, branch_id FROM service_sessions
-     WHERE company_id = ${companyId} AND business_id = ${businessId}
-       AND id = ANY(ARRAY[${sql.join(
-         sessionIds.map((sessionId) => sql`${sessionId}`),
-         sql`, `,
-       )}]::uuid[])`);
+  const rows = await tx.execute<{ id: string; branch_id: string }>(
+    sessionBranchesStatement(companyId, businessId, sessionIds),
+  );
   for (const row of rows) branches.set(row.id, row.branch_id);
   return branches;
 }
