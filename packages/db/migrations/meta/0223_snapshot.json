@@ -1,5 +1,5 @@
 {
-  "id": "039e030b-edc2-4169-b4bf-8075c037b0fb",
+  "id": "e0ac50b9-4f54-46c4-8553-77680251cb47",
   "prevId": "4349b966-6680-4cfd-abbc-a747f04d266f",
   "version": "7",
   "dialect": "postgresql",
@@ -2052,18 +2052,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "closed_at": {
-          "name": "closed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "closed_by_category_id": {
-          "name": "closed_by_category_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "revision": {
           "name": "revision",
           "type": "integer",
@@ -2206,14 +2194,6 @@
         "services_duration_bounds": {
           "name": "services_duration_bounds",
           "value": "\"services\".\"duration_minutes\" IS NULL OR \"services\".\"duration_minutes\" BETWEEN 1 AND 600"
-        },
-        "services_closed_marker_requires_closed": {
-          "name": "services_closed_marker_requires_closed",
-          "value": "\"services\".\"closed_by_category_id\" IS NULL OR \"services\".\"closed_at\" IS NOT NULL"
-        },
-        "services_closed_marker_is_category": {
-          "name": "services_closed_marker_is_category",
-          "value": "\"services\".\"closed_by_category_id\" IS NULL OR (\"services\".\"category_id\" IS NOT NULL AND \"services\".\"closed_by_category_id\" = \"services\".\"category_id\")"
         },
         "services_rule_kind": {
           "name": "services_rule_kind",
@@ -6308,6 +6288,12 @@
         "staff_months_back": {
           "name": "staff_months_back",
           "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "imported_refunds_enabled": {
+          "name": "imported_refunds_enabled",
+          "type": "boolean",
           "primaryKey": false,
           "notNull": false
         },
@@ -22172,6 +22158,635 @@
         "package_extensions_reason_check": {
           "name": "package_extensions_reason_check",
           "value": "char_length(\"package_extensions\".\"reason\") <= 500 AND btrim(\"package_extensions\".\"reason\", chr(9) || chr(10) || chr(13) || chr(32)) <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.package_refund_slots": {
+      "name": "package_refund_slots",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "refund_id": {
+          "name": "refund_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entitlement_id": {
+          "name": "entitlement_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "component_id": {
+          "name": "component_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slot_id": {
+          "name": "slot_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ordinal": {
+          "name": "ordinal",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_value": {
+          "name": "unit_value",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "package_refund_slots_refund_fk_idx": {
+          "name": "package_refund_slots_refund_fk_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "refund_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "package_refund_slots_component_fk_idx": {
+          "name": "package_refund_slots_component_fk_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entitlement_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "component_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "package_refund_slots_slot_fk_idx": {
+          "name": "package_refund_slots_slot_fk_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "slot_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "package_refund_slots_company_id_companies_id_fk": {
+          "name": "package_refund_slots_company_id_companies_id_fk",
+          "tableFrom": "package_refund_slots",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "package_refund_slots_refund_fk": {
+          "name": "package_refund_slots_refund_fk",
+          "tableFrom": "package_refund_slots",
+          "tableTo": "package_refunds",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "refund_id"
+          ],
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "package_refund_slots_component_fk": {
+          "name": "package_refund_slots_component_fk",
+          "tableFrom": "package_refund_slots",
+          "tableTo": "package_components",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "entitlement_id",
+            "component_id"
+          ],
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "entitlement_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "package_refund_slots_slot_fk": {
+          "name": "package_refund_slots_slot_fk",
+          "tableFrom": "package_refund_slots",
+          "tableTo": "package_session_slots",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "slot_id"
+          ],
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "package_refund_slots_pkey": {
+          "name": "package_refund_slots_pkey",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "package_refund_slots_business_id_key": {
+          "name": "package_refund_slots_business_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "company_id",
+            "business_id",
+            "id"
+          ]
+        },
+        "package_refund_slots_slot_key": {
+          "name": "package_refund_slots_slot_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "company_id",
+            "slot_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "package_refund_slots_ordinal_check": {
+          "name": "package_refund_slots_ordinal_check",
+          "value": "\"package_refund_slots\".\"ordinal\" >= 1"
+        },
+        "package_refund_slots_unit_value_check": {
+          "name": "package_refund_slots_unit_value_check",
+          "value": "\"package_refund_slots\".\"unit_value\" BETWEEN 0 AND 99999999999.999"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.package_refunds": {
+      "name": "package_refunds",
+      "schema": "",
+      "columns": {
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_id": {
+          "name": "business_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entitlement_id": {
+          "name": "entitlement_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "component_id": {
+          "name": "component_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "branch_id": {
+          "name": "branch_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sessions": {
+          "name": "sessions",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(14, 3)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "method": {
+          "name": "method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "refunded_by": {
+          "name": "refunded_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "refunded_by_membership_id": {
+          "name": "refunded_by_membership_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "refunded_at": {
+          "name": "refunded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entitlement_revision": {
+          "name": "entitlement_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "package_refunds_entitlement_fk_idx": {
+          "name": "package_refunds_entitlement_fk_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entitlement_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "package_refunds_component_fk_idx": {
+          "name": "package_refunds_component_fk_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entitlement_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "component_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "package_refunds_branch_fk_idx": {
+          "name": "package_refunds_branch_fk_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "business_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "branch_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "package_refunds_refunded_by_idx": {
+          "name": "package_refunds_refunded_by_idx",
+          "columns": [
+            {
+              "expression": "refunded_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "package_refunds_membership_fk_idx": {
+          "name": "package_refunds_membership_fk_idx",
+          "columns": [
+            {
+              "expression": "company_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "refunded_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "refunded_by_membership_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "package_refunds_company_id_companies_id_fk": {
+          "name": "package_refunds_company_id_companies_id_fk",
+          "tableFrom": "package_refunds",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "company_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "package_refunds_refunded_by_user_id_fk": {
+          "name": "package_refunds_refunded_by_user_id_fk",
+          "tableFrom": "package_refunds",
+          "tableTo": "user",
+          "columnsFrom": [
+            "refunded_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "package_refunds_entitlement_fk": {
+          "name": "package_refunds_entitlement_fk",
+          "tableFrom": "package_refunds",
+          "tableTo": "package_entitlements",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "entitlement_id"
+          ],
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "package_refunds_component_fk": {
+          "name": "package_refunds_component_fk",
+          "tableFrom": "package_refunds",
+          "tableTo": "package_components",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "entitlement_id",
+            "component_id"
+          ],
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "entitlement_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "package_refunds_branch_fk": {
+          "name": "package_refunds_branch_fk",
+          "tableFrom": "package_refunds",
+          "tableTo": "branches",
+          "columnsFrom": [
+            "company_id",
+            "business_id",
+            "branch_id"
+          ],
+          "columnsTo": [
+            "company_id",
+            "business_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "package_refunds_membership_fk": {
+          "name": "package_refunds_membership_fk",
+          "tableFrom": "package_refunds",
+          "tableTo": "memberships",
+          "columnsFrom": [
+            "company_id",
+            "refunded_by",
+            "refunded_by_membership_id"
+          ],
+          "columnsTo": [
+            "company_id",
+            "user_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "package_refunds_pkey": {
+          "name": "package_refunds_pkey",
+          "columns": [
+            "company_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "package_refunds_business_id_key": {
+          "name": "package_refunds_business_id_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "company_id",
+            "business_id",
+            "id"
+          ]
+        },
+        "package_refunds_entitlement_revision_key": {
+          "name": "package_refunds_entitlement_revision_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "company_id",
+            "entitlement_id",
+            "entitlement_revision"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "package_refunds_sessions_check": {
+          "name": "package_refunds_sessions_check",
+          "value": "\"package_refunds\".\"sessions\" BETWEEN 1 AND 365"
+        },
+        "package_refunds_amount_check": {
+          "name": "package_refunds_amount_check",
+          "value": "\"package_refunds\".\"amount\" BETWEEN 0 AND 99999999999.999"
+        },
+        "package_refunds_method_check": {
+          "name": "package_refunds_method_check",
+          "value": "\"package_refunds\".\"method\" IN ('CASH','CARD')"
+        },
+        "package_refunds_reason_check": {
+          "name": "package_refunds_reason_check",
+          "value": "char_length(\"package_refunds\".\"reason\") <= 500 AND btrim(\"package_refunds\".\"reason\", chr(9) || chr(10) || chr(13) || chr(32)) <> ''"
+        },
+        "package_refunds_entitlement_revision_check": {
+          "name": "package_refunds_entitlement_revision_check",
+          "value": "\"package_refunds\".\"entitlement_revision\" >= 2"
         }
       },
       "isRLSEnabled": false

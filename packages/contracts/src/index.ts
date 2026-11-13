@@ -385,6 +385,12 @@ export {
   type ExtendPackageInput,
   type PackageExtensionResponse,
 } from './orders/package-extension.js';
+export {
+  refundPackageInput,
+  packageRefundResponse,
+  type RefundPackageInput,
+  type PackageRefundResponse,
+} from './orders/package-refund.js';
 
 export * from './staff/index.js';
 

@@ -1,3 +1,5 @@
+import { serviceSessionErrors } from './service-session-errors.js';
+
 export const catalogPackageTypesEn = {
   listTitle: 'Package types',
   listLead: 'Packages available across all branches of this business.',
@@ -102,6 +104,12 @@ export const packageTypeErrorsEn = {
   PACKAGE_EXPIRY_STALE: 'The package expiry changed. Reload and try again.',
   PACKAGE_EXTENSION_NOT_LATER: 'The new expiry must be later than the current expiry.',
   PACKAGE_EXTENSION_TOO_LONG: 'The new expiry cannot be more than two calendar years from today.',
+  // رموز استرداد الباقات، spec 058 §6
+  PACKAGE_COMPONENT_NOT_FOUND: 'This component is not part of the package.',
+  IMPORTED_REFUND_DISABLED: 'Refunds of imported packages are switched off for this business.',
+  INSUFFICIENT_SLOTS: 'Fewer free sessions than requested; nothing was refunded.',
+  PACKAGE_EXPIRED: serviceSessionErrors.PACKAGE_EXPIRED.message_en,
+  PACKAGE_REFUND_REASON_INVALID: 'Enter the reason for the refund (up to 500 characters).',
 };
 export const packageTypeErrorsAr = {
   PACKAGE_TYPE_NOT_FOUND: 'نوع الباقة غير موجود في هذا النشاط.',
@@ -128,4 +136,10 @@ export const packageTypeErrorsAr = {
   PACKAGE_EXPIRY_STALE: 'تاريخ انتهاء الباقة اتغيّر. حدّثي الشاشة وحاولي تاني.',
   PACKAGE_EXTENSION_NOT_LATER: 'تاريخ الانتهاء الجديد لازم يكون بعد التاريخ الحالي.',
   PACKAGE_EXTENSION_TOO_LONG: 'تاريخ الانتهاء الجديد مش ممكن يتجاوز سنتين تقويميتين من النهاردة.',
+  // رموز استرداد الباقات، spec 058 §6
+  PACKAGE_COMPONENT_NOT_FOUND: 'المكوّن ده مش من الباقة دي.',
+  IMPORTED_REFUND_DISABLED: 'استرداد الباقات المستوردة مقفول في النشاط ده.',
+  INSUFFICIENT_SLOTS: 'الجلسات الفاضية أقل من المطلوب، ومحدش اترجّع.',
+  PACKAGE_EXPIRED: serviceSessionErrors.PACKAGE_EXPIRED.message_ar,
+  PACKAGE_REFUND_REASON_INVALID: 'اكتب سبب الاسترداد (لحد 500 حرف).',
 };

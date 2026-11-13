@@ -106,6 +106,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/packages/{entitlementId}/refunds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Refunds unused sessions of one package component back to the highest free ordinals, exactly or not at all. Requires refund:packages:branch, the orders feature and an individual admin login. The reason is stored only in the refund history. */
+        post: operations["refundPackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/customers/{customerId}/packages": {
         parameters: {
             query?: never;
@@ -8581,6 +8598,28 @@ export interface components {
             /** Format: date-time */
             extended_at: string;
         };
+        RefundPackageInput: {
+            /** Format: uuid */
+            component_id: string;
+            sessions: number;
+            method: components["schemas"]["PackagePaidMethod"];
+            reason: string;
+        };
+        PackageRefundResponse: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            entitlement_id: string;
+            /** Format: uuid */
+            component_id: string;
+            sessions: number;
+            amount: components["schemas"]["SessionMoney"];
+            method: components["schemas"]["PackagePaidMethod"];
+            refunded_amount: components["schemas"]["SessionMoney"];
+            revision: number;
+            /** Format: date-time */
+            refunded_at: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -8954,6 +8993,82 @@ export interface operations {
                 };
             };
             /** @description PACKAGE_EXTENSION_NOT_LATER, PACKAGE_EXTENSION_TOO_LONG or IDEMPOTENCY_KEY_REUSED. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    refundPackage: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                entitlementId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundPackageInput"];
+            };
+        };
+        responses: {
+            /** @description Sessions refunded; no reason is returned. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageRefundResponse"];
+                };
+            };
+            /** @description Invalid body, sessions, method, reason or Idempotency-Key. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Permission, DENY, device principal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description PACKAGE_NOT_FOUND; unknown and foreign entitlements share the refusal. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description PACKAGE_COMPONENT_NOT_FOUND, INSUFFICIENT_SLOTS, PACKAGE_EXPIRED, PACKAGE_REFUND_REASON_INVALID, IMPORTED_REFUND_DISABLED or IDEMPOTENCY_KEY_REUSED. */
             422: {
                 headers: {
                     [name: string]: unknown;

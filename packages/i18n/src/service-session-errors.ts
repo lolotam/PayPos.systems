@@ -52,7 +52,7 @@ export const serviceSessionErrors = {
   TIP_REASON_REQUIRED: { message_ar: 'اكتبي سبب تغيير البقشيش.', message_en: 'Enter the reason for changing the tips.' },
   TIP_NO_CHANGE: { message_ar: 'البقشيش زي ما هو، مفيش تغيير يتحفظ.', message_en: 'The tips are unchanged; nothing to save.' },
   PACKAGE_NO_FREE_SESSION: { message_ar: 'مفيش جلسات فاضية في الباقة دي.', message_en: 'This package has no free sessions left.' },
-  PACKAGE_EXPIRED: { message_ar: 'الباقة دي كانت خلصت قبل تاريخ الزيارة.', message_en: 'This package expired before the visit date.' },
+  PACKAGE_EXPIRED: { message_ar: 'الباقة خلصت صلاحيتها.', message_en: 'The package has expired.' },
   PACKAGE_NOT_YET_VALID: { message_ar: 'الباقة دي ماكانتش متاحة وقت الزيارة.', message_en: 'This package was not available at the visit time.' },
   PACKAGE_NOT_USABLE_HERE: { message_ar: 'الباقة دي مينفعش تستخدميها في الزيارة دي.', message_en: 'This package cannot be used for this visit.' },
 } as const;

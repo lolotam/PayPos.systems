@@ -12,6 +12,8 @@ export const packageSchemaNames = [
   'CustomerPackageSlotValue',
   'CustomerPackagesQuery',
   'ExtendPackageInput',
+  'RefundPackageInput',
+  'PackageRefundResponse',
   'PackageExtensionResponse',
   'PackageImportPreviewAccepted',
   'PackageImportPreviewRequested',
