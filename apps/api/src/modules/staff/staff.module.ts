@@ -8,8 +8,15 @@ import {
   LeaveHistoryReportReader,
   type LeaveHistorySyncLimits,
 } from './queries/leave-history-report.query.ts';
+import {
+  LEAVE_HISTORY_REPORT_RESULT_READER,
+  LeaveHistoryReportResultReader,
+} from './queries/leave-history-report-result.query.ts';
 import { EmployeeLeaveHistoryController } from './http/employee-leave-history.controller.ts';
 import { LeaveHistoryReportController } from './http/leave-history-report.controller.ts';
+import { LeaveHistoryReportJobsController } from './http/leave-history-report-jobs.controller.ts';
+import { RequestLeaveHistoryReportUseCase } from './use-cases/request-leave-history-report/request-leave-history-report.usecase.ts';
+import { createLeaveHistoryReportRequestTransactions } from './persistence/leave-history-report-request.transactions.ts';
 import { personalBranchReads } from './persistence/personal-branches.adapter.ts';
 import { PERSONAL_BRANCH_READS } from './queries/personal-branches.query.ts';
 import {
@@ -156,6 +163,7 @@ export const staffControllers = [
   EmployeeLeaveController,
   EmployeeLeaveHistoryController,
   LeaveHistoryReportController,
+  LeaveHistoryReportJobsController,
   OwnLeaveController,
   LeaveInboxController,
   LeaveDecisionsController,
@@ -208,6 +216,14 @@ function attendanceExceptionProviders(
 }
 function leaveProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
   const tx = database === undefined ? null : createLeaveTransactions(database, ids);
+  const readAccess = createLeaveReadAccess(systemClock);
+  const requestLeaveHistoryReport = database === undefined
+    ? null
+    : new RequestLeaveHistoryReportUseCase(
+        createLeaveHistoryReportRequestTransactions(database, ids, readAccess),
+        ids,
+        systemClock,
+      );
   return [
     {
       provide: DecideLeaveUseCase,
@@ -218,7 +234,8 @@ function leaveProviders(database: TenantWrappers | undefined, ids: IdGenerator):
       useValue: tx === null ? null : new RevokeLeaveUseCase(tx, systemClock),
     },
     StaffLeaveGuard,
-    { provide: LEAVE_READ_ACCESS, useValue: createLeaveReadAccess(systemClock) },
+    { provide: LEAVE_READ_ACCESS, useValue: readAccess },
+    { provide: RequestLeaveHistoryReportUseCase, useValue: requestLeaveHistoryReport },
     {
       provide: LEAVE_HISTORY_READER,
       useFactory: (db: TenantWrappers | null, access: LeaveReadAccess) =>
@@ -237,6 +254,12 @@ function leaveProviders(database: TenantWrappers | undefined, ids: IdGenerator):
         limits: LeaveHistorySyncLimits,
       ) => new LeaveHistoryReportReader(db, access, limits),
       inject: [DATABASE, LEAVE_READ_ACCESS, LEAVE_HISTORY_SYNC_LIMIT],
+    },
+    {
+      provide: LEAVE_HISTORY_REPORT_RESULT_READER,
+      useFactory: (db: TenantWrappers | null, access: LeaveReadAccess) =>
+        new LeaveHistoryReportResultReader(db, access),
+      inject: [DATABASE, LEAVE_READ_ACCESS],
     },
     {
       provide: RequestLeaveUseCase,
