@@ -40,6 +40,7 @@ const record: Service = {
     name_ar: 'Legacy AR',
     closed_at: '2026-10-05T10:00:00Z',
   },
+  closed_at: null,
   revision: 2,
   created_at: '2026-10-05T10:00:00Z',
   updated_at: '2026-10-05T10:00:00Z',

@@ -1,6 +1,8 @@
-// تعديل الخدمة يغيّر الاسم والسعر وقاعدة العمولة والراية والمدة والتصنيف والنسخة فقط؛ الهوية والنشاط غير قابلين للتحديث.
+// منح التحديث محصور في أعمدة التحرير وحالة الإغلاق؛ الهوية والنشاط ثابتان.
 export const SERVICE_COLUMN_GRANTS = [
   'services.category_id:pospay_app:UPDATE',
+  'services.closed_at:pospay_app:UPDATE',
+  'services.closed_by_category_id:pospay_app:UPDATE',
   'services.commission_fixed_amount:pospay_app:UPDATE',
   'services.commission_pct_bps:pospay_app:UPDATE',
   'services.commission_rule_kind:pospay_app:UPDATE',

@@ -72,6 +72,7 @@ const deviceForbidden = [
   'sell:packages:branch',
   'import:packages:business',
   'manage:services:business',
+  'close:services:business',
   'create:customers:company',
   'create:customers:business',
   'create:customers:branch',

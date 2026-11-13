@@ -1,5 +1,6 @@
 import type { RecordServiceSessionInput, RecordServiceSessionResponse } from '@pospay/contracts';
 import { sessionDrafts } from '../../domain/session-drafts.ts';
+import { resolveClosedServiceRedemption } from '../../domain/closed-service-redemption.ts';
 import { resolveSessionRecorder } from '../../domain/session-authority.ts';
 import { SessionError } from '../../domain/session-error.ts';
 import { sessionPreparationFacts } from '../../domain/prepare-session-lines.ts';
@@ -49,9 +50,12 @@ export class RecordServiceSessionUseCase {
     if (place === null) throw new SessionError('FORBIDDEN');
     const customer = await tx.customer.read(context.input.customer_id);
     if (customer === null) throw new SessionError('SESSION_CUSTOMER_NOT_FOUND');
-    const services = await tx.catalog.read(serviceIds);
+    const catalogServices = await tx.catalog.readIncludingClosed(serviceIds);
     const occurredAt = context.input.occurred_at === undefined ? undefined : new Date(context.input.occurred_at);
     const drafts = sessionDrafts(context.input.lines);
+    // القراءة بتجيب الخدمات المغلقة مع غيرها، لأن سطر الباقة بيسجّل خدمة مقفولة؛
+    // والحكم على السطر المدفوع في الـ domain قبل أي قفل استحقاق أو كتابة.
+    const services = resolveClosedServiceRedemption(catalogServices, { paid: drafts.paid });
     // قفل الاستحقاقات هو آخر قفل مال، فينتظر على المكوّن؛ صلاحية الباقة تقاس بيوم الفرع لا بيوم النشاط.
     // توقيت الفرع يُقرأ وحده عند وجود مسودة باقة، فالزيارة المدفوعة ما تدفعش الاستعلام ده.
     let facts = new Map<number, PackageRedemptionFact>();

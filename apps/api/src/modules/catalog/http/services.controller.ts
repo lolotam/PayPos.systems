@@ -11,11 +11,15 @@ import {
   Req,
 } from '@nestjs/common';
 import {
+  closeServiceInput,
   createServiceInput,
   id,
+  reopenServiceInput,
   serviceListQuery,
   updateServiceInput,
+  type CloseServiceInput,
   type CreateServiceInput,
+  type ReopenServiceInput,
   type Service,
   type ServiceListQuery,
   type ServicePage,
@@ -24,17 +28,19 @@ import {
 import type { TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 
-import { Require, RequiresFeature } from '../../../shared/access.decorators.ts';
+import { Require, RequireAll, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { listServices } from '../queries/list-services.query.ts';
 import { serviceDetail } from '../queries/service-detail.query.ts';
+import { CloseServiceUseCase } from '../use-cases/close-service/close-service.usecase.ts';
 import {
   CreateServiceUseCase,
   ServiceError,
 } from '../use-cases/create-service/create-service.usecase.ts';
+import { ReopenServiceUseCase } from '../use-cases/reopen-service/reopen-service.usecase.ts';
 import { UpdateServiceUseCase } from '../use-cases/update-service/update-service.usecase.ts';
 
 @Controller('businesses/:businessId/services')
@@ -42,6 +48,8 @@ export class ServicesController {
   constructor(
     @Inject(CreateServiceUseCase) private readonly createService: CreateServiceUseCase | null,
     @Inject(UpdateServiceUseCase) private readonly updateService: UpdateServiceUseCase | null,
+    @Inject(CloseServiceUseCase) private readonly closeService: CloseServiceUseCase | null,
+    @Inject(ReopenServiceUseCase) private readonly reopenService: ReopenServiceUseCase | null,
     @Inject(DATABASE) private readonly database: TenantWrappers | null,
   ) {}
 
@@ -116,6 +124,44 @@ export class ServicesController {
         serviceId,
         input,
       });
+    } catch (error) {
+      if (error instanceof ServiceError) throw new ApiError(error.code);
+      throw error;
+    }
+  }
+
+  @Post(':serviceId/close')
+  @HttpCode(200)
+  @RequireAll(['close:services:business', 'read:services:business'], { business: 'businessId' })
+  @RequiresFeature('catalog')
+  async close(
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
+    @Param('serviceId', new ZodValidationPipe(id)) serviceId: string,
+    @Body(new ZodValidationPipe(closeServiceInput)) input: CloseServiceInput,
+    @Req() request: FastifyRequest,
+  ): Promise<Service> {
+    if (this.closeService === null) throw new ApiError('NOT_READY');
+    try {
+      return await this.closeService.execute({ ...actorOf(request), businessId, serviceId, input });
+    } catch (error) {
+      if (error instanceof ServiceError) throw new ApiError(error.code);
+      throw error;
+    }
+  }
+
+  @Post(':serviceId/reopen')
+  @HttpCode(200)
+  @RequireAll(['close:services:business', 'read:services:business'], { business: 'businessId' })
+  @RequiresFeature('catalog')
+  async reopen(
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
+    @Param('serviceId', new ZodValidationPipe(id)) serviceId: string,
+    @Body(new ZodValidationPipe(reopenServiceInput)) input: ReopenServiceInput,
+    @Req() request: FastifyRequest,
+  ): Promise<Service> {
+    if (this.reopenService === null) throw new ApiError('NOT_READY');
+    try {
+      return await this.reopenService.execute({ ...actorOf(request), businessId, serviceId, input });
     } catch (error) {
       if (error instanceof ServiceError) throw new ApiError(error.code);
       throw error;

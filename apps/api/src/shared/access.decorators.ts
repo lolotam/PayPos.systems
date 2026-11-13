@@ -22,10 +22,12 @@ export interface AccessTargetParams {
 export interface RequiredAccess {
   readonly permissions: readonly TenantPermission[];
   readonly target: AccessTargetParams;
+  readonly mode: 'any' | 'all';
 }
 
 /**
- * Whether the target names exactly the scope the permission needs — the rules @Require applies today.
+ * Whether the target names exactly the scope the permission needs — the rules @Require, @RequireAny and
+ * @RequireAll share.
  *
  * @param permission the catalogued 'action:resource:scope' permission
  * @param target     the route parameters naming the business or branch
@@ -44,6 +46,26 @@ function targetMatchesScope(permission: TenantPermission, target: AccessTargetPa
     (scope === 'business' && business && !branch && !membership) ||
     (scope === 'branch' && branch && !business && !membership)
   );
+}
+
+function validateAccess(
+  permissions: readonly TenantPermission[],
+  target: AccessTargetParams,
+  label: string,
+): void {
+  const [first] = permissions;
+  if (first === undefined) {
+    throw new TypeError(`${label} needs at least one permission`);
+  }
+  const scopes = new Set(permissions.map((permission) => permission.split(':')[2]));
+  if (scopes.size > 1) {
+    throw new TypeError(`${label} needs one scope for every permission`);
+  }
+  for (const permission of permissions) {
+    if (!targetMatchesScope(permission, target)) {
+      throw new TypeError(`${label} needs exactly the target its scope names`);
+    }
+  }
 }
 
 /**
@@ -80,20 +102,26 @@ export function RequireAny(
   target: AccessTargetParams = {},
 ): MethodDecorator {
   const [first] = permissions;
-  if (first === undefined) {
-    throw new TypeError('@RequireAny() needs at least one permission');
-  }
   const label = permissions.length === 1 ? `@Require('${first}')` : '@RequireAny()';
-  const scopes = new Set(permissions.map((permission) => permission.split(':')[2]));
-  if (scopes.size > 1) {
-    throw new TypeError(`${label} needs one scope for every permission`);
-  }
-  for (const permission of permissions) {
-    if (!targetMatchesScope(permission, target)) {
-      throw new TypeError(`${label} needs exactly the target its scope names`);
-    }
-  }
-  return SetMetadata(REQUIRE_ACCESS, { permissions, target } satisfies RequiredAccess);
+  validateAccess(permissions, target, label);
+  return SetMetadata(REQUIRE_ACCESS, { permissions, target, mode: 'any' } satisfies RequiredAccess);
+}
+
+/**
+ * Guards a route with every listed permission: the caller needs an active membership in the requested company,
+ * and a grant covering the target with no DENY covering it for each permission. Every listed permission has the
+ * same scope, so target validation and startup failure follow exactly the @RequireAny rules.
+ *
+ * @param permissions the catalogued 'action:resource:scope' permissions, all of which are required
+ * @param target      the route parameters naming the business or branch, when the scope needs one
+ * @returns the metadata decorator
+ */
+export function RequireAll(
+  permissions: readonly TenantPermission[],
+  target: AccessTargetParams = {},
+): MethodDecorator {
+  validateAccess(permissions, target, '@RequireAll()');
+  return SetMetadata(REQUIRE_ACCESS, { permissions, target, mode: 'all' } satisfies RequiredAccess);
 }
 
 /**

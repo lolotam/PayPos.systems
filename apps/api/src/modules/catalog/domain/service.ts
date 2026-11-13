@@ -39,16 +39,21 @@ export interface ServiceTermsInput {
 export interface ServiceRecord extends ServiceTerms {
   readonly id: string;
   readonly business_id: string;
+  readonly closed_at: string | null;
+  readonly closed_by_category_id: string | null;
   readonly revision: number;
   readonly created_at: string;
   readonly updated_at: string;
 }
 
-/** نسخة الخدمة للنقل في JSON: السعر نص والقاعدة بقيمتها على السلك. */
-export interface ServiceView extends Omit<ServiceRecord, 'price' | 'commission_rule'> {
+/** نسخة التدقيق الكاملة: السعر نص، والقاعدة على السلك، وعلامة إغلاق التصنيف محفوظة للاسترجاع. */
+export interface ServiceSnapshot extends Omit<ServiceRecord, 'price' | 'commission_rule'> {
   readonly price: string;
   readonly commission_rule: ServiceRuleWire;
 }
+
+/** نسخة الخدمة على السلك: علامة الاسترجاع الداخلية لا تظهر، ووقت الإغلاق يظهر. */
+export type ServiceView = Omit<ServiceSnapshot, 'closed_by_category_id'>;
 
 /** تسمية التصنيف كما ترد مع الخدمة: الاسمان ووقت الإغلاق. */
 export interface ServiceCategoryLabel {
@@ -135,6 +140,8 @@ export function newService(
     ...terms,
     id,
     business_id: businessId,
+    closed_at: null,
+    closed_by_category_id: null,
     revision: 1,
     created_at: iso,
     updated_at: iso,
@@ -143,7 +150,8 @@ export function newService(
 
 /**
  * يخطط تعديل الخدمة: يرفض النسخة القديمة ويبني النسخة التالية فقط لو اتغير حاجة فعلية.
- * مقارنة القيم جوه النطاق عشان الـ use case يفضل خطوات محضة.
+ * نقل الخدمة لتصنيف آخر يمسح علامة إغلاق التصنيف السابق حتى يظل قيد العلامة مطابقاً للتصنيف،
+ * بينما وقت الإغلاق نفسه لا يتغير بالتعديل.
  *
  * @param current السجل الحالي المقفول
  * @param terms البنود الصافية الجديدة
@@ -159,11 +167,16 @@ export function planServiceUpdate(
 ): { readonly after: ServiceRecord; readonly changed: boolean } {
   if (expectedRevision !== current.revision) throw new ServiceError('SERVICE_REVISION_CONFLICT');
   validateServiceDraft(terms);
-  if (sameTerms(current, terms)) return { after: current, changed: false };
+  const closedByCategoryId =
+    terms.category_id === current.category_id ? current.closed_by_category_id : null;
+  const changed =
+    !sameTerms(current, terms) || closedByCategoryId !== current.closed_by_category_id;
+  if (!changed) return { after: current, changed: false };
   return {
     after: {
       ...current,
       ...terms,
+      closed_by_category_id: closedByCategoryId,
       revision: current.revision + 1,
       updated_at: at.toISOString(),
     },
@@ -172,12 +185,13 @@ export function planServiceUpdate(
 }
 
 /**
- * يحوّل السجل للشكل المنقول في JSON: السعر نص ثلاثي الخانات والقاعدة بقيمتها على السلك.
+ * يحوّل السجل لنسخة التدقيق المنقولة في JSON: السعر نص والقاعدة على السلك، وعلامة إغلاق
+ * التصنيف تبقى محفوظة لأن التدقيق لازم يشرح مصدر الإغلاق وما سيُسترجع عند الفتح.
  *
  * @param record سجل النطاق
- * @returns نسخة الخدمة للعقد
+ * @returns نسخة الخدمة الكاملة للتدقيق
  */
-export function serviceSnapshot(record: ServiceRecord): ServiceView {
+export function serviceSnapshot(record: ServiceRecord): ServiceSnapshot {
   return {
     ...record,
     price: moneyToString(record.price),
@@ -188,7 +202,7 @@ export function serviceSnapshot(record: ServiceRecord): ServiceView {
 /**
  * يبني رد الخدمة: نسخة الخدمة مع تسمية التصنيف اللي تحتها.
  * التسمية بتتبني من الأسماء والإغلاق بس، فالحقول التانية في الصف المقفول (المعرّف والنشاط) ما بتوصلش للرد.
- * التدقيق بيستخدم serviceSnapshot بدل ده، فسجل التدقيق مبياخدش أسماء التصنيفات.
+ * علامة الاسترجاع داخلية للتدقيق وقاعدة البيانات، فتُفصل صراحةً عن الرد حتى لا تتسرب للعميل.
  *
  * @param record سجل النطاق بعد الحفظ
  * @param category صف التصنيف المقفول، أو `null` لو الخدمة من غير تصنيف
@@ -206,8 +220,10 @@ export function serviceResponse(
           name_ar: category.name_ar,
           closed_at: category.closed_at,
         };
+  const { closed_by_category_id: _closedByCategoryId, ...view } = serviceSnapshot(record);
+  void _closedByCategoryId;
   return {
-    ...serviceSnapshot(record),
+    ...view,
     category: label,
   };
 }
