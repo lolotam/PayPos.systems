@@ -27,6 +27,15 @@ type GetResult =
 type Handler = (query: Record<string, unknown>) => GetResult;
 
 const scope = { companyId: leaveId, businessId: leaveId, userId: leaveId };
+const expiredCursor = {
+  error: {
+    code: 'VALIDATION_FAILED',
+    message_ar: 'Synthetic expired cursor',
+    message_en: 'Synthetic expired cursor',
+    details: [{ path: ['cursor'], code: 'custom' }],
+  },
+  response: { status: 400 },
+};
 let client: QueryClient;
 
 function routeGets(handlers: { history?: Handler; employees?: Handler } = {}) {
@@ -232,6 +241,16 @@ it('shows that the employee list is unavailable and still lists the report rows'
   expect(screen.getByText('Synthetic employee #1')).toBeTruthy();
 });
 
+it('shows that the employee list is empty and still lists the report rows', async () => {
+  routeGets({
+    history: () => ({ data: historyPage({ items: [historyLeaveRow()] }) }),
+    employees: () => ({ data: employeesPage([]) }),
+  });
+  renderPage();
+  expect(await screen.findByText(t('en', 'leaveHistory.reportEmployeesUnavailable'))).toBeTruthy();
+  expect(screen.getByText('Synthetic employee #1')).toBeTruthy();
+});
+
 it('reads the next page when the page carries a cursor', async () => {
   routeGets({
     history: (query) => ({
@@ -250,6 +269,29 @@ it('reads the next page when the page carries a cursor', async () => {
   fireEvent.click(next);
   await screen.findByText('Synthetic page two');
   expect(queries('/leave-history').at(-1)).toMatchObject({ cursor: 'cursor-2' });
+});
+
+it('goes back to the first page when the cursor expired', async () => {
+  routeGets({
+    history: (query) =>
+      query.cursor === undefined
+        ? {
+            data: historyPage({
+              items: [historyLeaveRow({ note: 'Synthetic page one' })],
+              next_cursor: 'cursor-2',
+            }),
+          }
+        : expiredCursor,
+  });
+  renderPage();
+  await screen.findByText('Synthetic page one');
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'leave.next') }));
+  await waitFor(() => expect(queries('/leave-history')).toHaveLength(3));
+  const reads = queries('/leave-history');
+  expect(reads[1]).toMatchObject({ cursor: 'cursor-2' });
+  expect(reads[2]?.cursor).toBeUndefined();
+  expect(await screen.findByText('Synthetic page one')).toBeTruthy();
+  expect(screen.queryByRole('alert')).toBeNull();
 });
 
 it('shows the report in Arabic', async () => {

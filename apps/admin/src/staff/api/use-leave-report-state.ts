@@ -23,6 +23,17 @@ const EMPTY_QUERY: LeaveHistoryQuery = {
   limit: 20,
 };
 
+let lastRun = 0;
+
+/**
+ * رقم تشغيل فريد طول ما الصفحة مفتوحة: الترقيم لازم ما يتكررش أبدًا، وإلا مفتاح الطلب
+ * المنشور القديم (نفس النطاق ونفس رقم التشغيل ونفس جسم الطلب) هيبتلع الطلب الجديد من غير POST.
+ */
+function nextLeaveReportRun(): number {
+  lastRun += 1;
+  return lastRun;
+}
+
 /** أول قراءة بتفتح من أول يناير لحد النهارده في توقيت أول فرع. */
 function firstQuery(branches: WorkspaceBranch[], timeZone: string | undefined): LeaveHistoryQuery {
   const zone = timeZone ?? branches[0]?.effective_timezone ?? 'UTC';
@@ -41,7 +52,7 @@ export function useLeaveReportState(
   const restart = useCallback(() => {
     setCursor(undefined);
     setHeavy(false);
-    setRun((value) => value + 1);
+    setRun(nextLeaveReportRun());
   }, []);
   const apply = useCallback(
     (next: LeaveHistoryQuery) => {

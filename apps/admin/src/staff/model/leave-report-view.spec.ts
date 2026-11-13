@@ -4,6 +4,7 @@ import { leaveId } from '../api/leave-decision.fixture';
 import { historyLeaveRow, historyPage } from '../api/leave-history.fixture';
 import { readyReport } from '../api/leave-report.fixture';
 import {
+  isExpiredCursor,
   isReportRequired,
   reportLastTaken,
   reportPage,
@@ -43,6 +44,30 @@ it('recognises the heavy refusal by its envelope code only', () => {
   expect(isReportRequired(refusal)).toBe(true);
   expect(isReportRequired({ code: 'OTHER_CODE', status: 422 })).toBe(false);
   expect(isReportRequired(null)).toBe(false);
+});
+
+it('recognises an expired cursor by the validation code and the cursor path', () => {
+  expect(
+    isExpiredCursor({ code: 'VALIDATION_FAILED', details: [{ path: ['cursor'], code: 'custom' }] }),
+  ).toBe(true);
+});
+
+it('does not treat another validation failure as an expired cursor', () => {
+  expect(
+    isExpiredCursor({ code: 'VALIDATION_FAILED', details: [{ path: ['from'], code: 'custom' }] }),
+  ).toBe(false);
+  expect(
+    isExpiredCursor({
+      code: 'LEAVE_HISTORY_REPORT_REQUIRED',
+      details: [{ path: ['cursor'], code: 'custom' }],
+    }),
+  ).toBe(false);
+});
+
+it('does not treat an error without details as an expired cursor', () => {
+  expect(isExpiredCursor({ code: 'VALIDATION_FAILED' })).toBe(false);
+  expect(isExpiredCursor(null)).toBe(false);
+  expect(isExpiredCursor(undefined)).toBe(false);
 });
 
 it('builds the report body with the period, the filters and the branch', () => {

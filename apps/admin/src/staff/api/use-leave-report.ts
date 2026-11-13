@@ -3,6 +3,7 @@ import type { WorkspaceBranch } from '@pospay/contracts';
 import { useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import {
+  isExpiredCursor,
   isReportRequired,
   reportLastTaken,
   reportPage,
@@ -72,6 +73,38 @@ function useLeaveReportEviction(client: QueryClient, scope: LeaveReportScope) {
   );
 }
 
+/**
+ * المؤشر المنتهي: السيرفر بيرفض المؤشر الأقدم من يوم، فبنرجع لأول صفحة من نفس التشغيل.
+ * القراءة السريعة بتخزّن أول صفحة في الكاش من غير ما تعيدها، فبنطلبها تاني عشان الشاشة
+ * تطلع على بيانات السيرفر مش على القراءة القديمة.
+ */
+function useExpiredCursorReset(
+  state: LeaveReportState,
+  sync: ReportSync,
+  client: QueryClient,
+  scope: LeaveReportScope,
+) {
+  useEffect(() => {
+    if (!sync.isError || state.cursor === undefined) return;
+    if (!isExpiredCursor(sync.error)) return;
+    state.setCursor(undefined);
+    // القراءة اللي مالهاش cursor هي أول الصفحة، وهي القراءة الوحيدة اللي لازم تتعاد.
+    void client.refetchQueries({
+      queryKey: ['leave-report', scope.companyId, scope.businessId, scope.userId, 'sync'],
+      predicate: (query) => query.queryKey.at(-1) === undefined,
+    });
+  }, [
+    client,
+    scope.businessId,
+    scope.companyId,
+    scope.userId,
+    state.cursor,
+    state.setCursor,
+    sync.error,
+    sync.isError,
+  ]);
+}
+
 function buildView(
   state: LeaveReportState,
   sync: ReportSync,
@@ -138,5 +171,6 @@ export function useLeaveReport({
   const job = useLeaveReportJob(scope, posted.data?.report_id, state.cursor, state.query.limit);
   useLeaveReportRequest(state, sync, client, scope, postedKey, body);
   useLeaveReportEviction(client, scope);
+  useExpiredCursorReset(state, sync, client, scope);
   return buildView(state, sync, job, posted);
 }

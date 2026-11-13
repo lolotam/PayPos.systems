@@ -41,6 +41,8 @@ export function LeaveReportEmployeePicker({
     () => (chosen && !items.some((item) => item.id === chosen.id) ? [chosen, ...items] : items),
     [chosen, items],
   );
+  // الموظفون مش موجودين من غير سبب: يا الخطأ، يا القائمة فاضية لصاحب صلاحية قراءة بس.
+  const unavailable = list.isError || (list.isSuccess && items.length === 0 && term === '');
   return (
     <div className="grid gap-2">
       <Label htmlFor="leave-report-employee-search">
@@ -71,7 +73,7 @@ export function LeaveReportEmployeePicker({
           </option>
         ))}
       </NativeSelect>
-      {list.isError ? (
+      {unavailable ? (
         <p role="status">{t(locale, 'leaveHistory.reportEmployeesUnavailable')}</p>
       ) : null}
     </div>

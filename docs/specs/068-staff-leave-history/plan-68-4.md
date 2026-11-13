@@ -50,7 +50,7 @@ PP-112/§14 cap applies to the brief's estimate, 2x per category).
 | prod | `apps/admin/src/staff/api/use-leave-report-sync.ts` | create (the sync read) | 50 |
 | prod | `apps/admin/src/staff/api/use-leave-report-job.ts` | create (the POST and the polling) | 55 |
 | prod | `apps/admin/src/staff/api/use-leave-report.ts` | create (orchestration: run counter, cursor, one-POST guard, one normalised view) | 126 |
-| prod | `apps/admin/src/staff/api/use-leave-report-state.ts` | create (state, run counter, outcome) | 90 |
+| prod | `apps/admin/src/staff/api/use-leave-report-state.ts` | create (state, run token, cursor, heavy flag) | 90 |
 | prod | `apps/admin/src/staff/model/leave-report-view.ts` | create (pure helpers: `isReportRequired(error)`, `toReportBody(query)`, view-state classification) | 60 |
 | prod | `apps/admin/src/staff/pages/leave-report-page.tsx` | create | 80 |
 | prod | `apps/admin/src/staff/ui/leave-report-employee-picker.tsx` | create | 70 |
@@ -116,3 +116,13 @@ owner-questions §16 (the shared wording of the status and type labels) stays PE
 - The sidebar probe and the page's first read are two separate GETs on the same endpoint: the probe
   (`use-leave-report-access.ts`) is cached for 60 s, while the page's sync read is keyed by the run and never refetches on
   focus.
+- The run token of every Apply or employee change comes from a module-level monotonic counter (the initial run is `0`),
+  so a `posted` entry left in the cache by an earlier mount can never swallow the POST of a new run; a plain remount
+  still resumes the pending report because the initial run and body are the same.
+- A sync cursor older than 24 hours is refused with `400 VALIDATION_FAILED` and a detail on `cursor`
+  (`isExpiredCursor`); the screen then returns to page 1 of the same run.
+- The employee picker lists through `GET …/employees`, which needs `manage:employees:business` and answers an empty page
+  without it, so a caller with only `read:leave:branch` sees the «employee list is not available» note and can still read
+  the all-employees report.
+- The e2e mock server of the document popup registers the sidebar probe as a denied route (the admin frame holds no
+  permission strings, only the role code and scope), as it already does for `employee-app-link`.

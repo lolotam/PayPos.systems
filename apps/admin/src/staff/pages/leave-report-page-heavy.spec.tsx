@@ -149,6 +149,45 @@ it('keeps one report request when the screen is closed and opened again', async 
   expect(api.POST).toHaveBeenCalledTimes(1);
 });
 
+it('asks for a new report when the filters are applied again after reopening', async () => {
+  const first = renderPage();
+  await flush();
+  expect(api.POST).toHaveBeenCalledTimes(1);
+  expect(screen.getByText(t('en', 'leaveHistory.reportPreparing'))).toBeTruthy();
+  first.unmount();
+  renderPage();
+  await flush();
+  expect(api.POST).toHaveBeenCalledTimes(1);
+  expect(screen.getByText(t('en', 'leaveHistory.reportPreparing'))).toBeTruthy();
+  reportResult = readyWith('Synthetic second report');
+  applyFilters();
+  await flush();
+  expect(api.POST).toHaveBeenCalledTimes(2);
+  expect(screen.getByText('Synthetic second report')).toBeTruthy();
+});
+
+it('never reuses the request of an older run when the screen is reopened', async () => {
+  const first = renderPage();
+  await flush();
+  expect(api.POST).toHaveBeenCalledTimes(1);
+  fireEvent.change(screen.getByLabelText(t('en', 'leave.from')), {
+    target: { value: '2026-02-01' },
+  });
+  applyFilters();
+  await flush();
+  expect(api.POST).toHaveBeenCalledTimes(2);
+  first.unmount();
+  renderPage();
+  await flush();
+  expect(api.POST).toHaveBeenCalledTimes(2);
+  fireEvent.change(screen.getByLabelText(t('en', 'leave.from')), {
+    target: { value: '2026-02-01' },
+  });
+  applyFilters();
+  await flush();
+  expect(api.POST).toHaveBeenCalledTimes(3);
+});
+
 it('shows the preparing text while the report runs and the rows when it is ready', async () => {
   renderPage();
   await flush();

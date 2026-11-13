@@ -45,6 +45,21 @@ export type ReportViewInput = {
 export type ReportViewState = { status: LeaveReportStatus; error?: unknown };
 
 const REPORT_REQUIRED_CODE = 'LEAVE_HISTORY_REPORT_REQUIRED';
+const VALIDATION_FAILED_CODE = 'VALIDATION_FAILED';
+
+/**
+ * كائن بسيط بخصائص معروفة: عشان نفحص غلاف الخطأ من غير cast.
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+/**
+ * قائمة عناصر من غير نوع معروف: عشان نفحص تفاصيل الخطأ من غير cast.
+ */
+function isUnknownList(value: unknown): value is unknown[] {
+  return Array.isArray(value);
+}
 
 /**
  * الرفض الثقيل بيتعرف بالكود اللي جاي في الظرف مش برقم الحالة؛ رقم 422 نفسه مش دليل.
@@ -52,6 +67,22 @@ const REPORT_REQUIRED_CODE = 'LEAVE_HISTORY_REPORT_REQUIRED';
 export function isReportRequired(error: unknown): boolean {
   const code = (error as { code?: unknown } | null | undefined)?.code;
   return code === REPORT_REQUIRED_CODE;
+}
+
+/**
+ * المؤشر المنتهي: السيرفر بيرفض مؤشر القراءة السريعة الأقدم من يوم بـ VALIDATION_FAILED
+ * وتفاصيل على مسار cursor، وده معناه إن الصفحة المفروضة ترجع لأول صفحة.
+ */
+export function isExpiredCursor(error: unknown): boolean {
+  if (!isRecord(error)) return false;
+  if (error['code'] !== VALIDATION_FAILED_CODE) return false;
+  const details = error['details'];
+  if (!isUnknownList(details)) return false;
+  return details.some((detail) => {
+    if (!isRecord(detail)) return false;
+    const path = detail['path'];
+    return isUnknownList(path) && path[0] === 'cursor';
+  });
 }
 
 /**
