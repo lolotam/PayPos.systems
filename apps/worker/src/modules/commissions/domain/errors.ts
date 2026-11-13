@@ -122,7 +122,11 @@ export class CommissionCorrectionTargetInputError extends Error {
 
 /** سبب رفض مُدخل خطوة التصحيح؛ كلها أخطاء إدخال صريحة، وليس فيها إعادة محاولة تشغيلية. */
 export type CommissionCorrectionStepRefusal =
-  'DUPLICATE_SOURCE' | 'SOURCE_KIND_CONFLICT' | 'MISSING_ATTRIBUTION' | 'AMOUNT_OUT_OF_RANGE';
+  | 'DUPLICATE_SOURCE'
+  | 'SOURCE_KIND_CONFLICT'
+  | 'MISSING_ATTRIBUTION'
+  | 'AMOUNT_OUT_OF_RANGE'
+  | 'FROZEN_SOURCE_ATTRIBUTION_MISSING';
 
 /**
  * رفض مُدخل خطوة التصحيح؛ الحساب يتوقف بدل أن يبني صف تصحيح بمبلغ أو نسبة غلط،
