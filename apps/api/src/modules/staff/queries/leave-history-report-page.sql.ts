@@ -59,6 +59,11 @@ export function nextPageCursorSeq(
   return null;
 }
 
+// سائق postgres-js بيرجّع عمود record من نوع jsonb كنص خام، فنحلّ النص قبل بنائه للرد.
+function leaveHistoryItemValue(record: LeaveHistoryItem | string): LeaveHistoryItem {
+  return typeof record === 'string' ? (JSON.parse(record) as LeaveHistoryItem) : record;
+}
+
 export async function readLeaveHistoryReportPage(
   tx: Tx,
   context: LeaveHistoryContext,
@@ -67,7 +72,7 @@ export async function readLeaveHistoryReportPage(
 ): Promise<LeaveHistoryReportStatus> {
   const { frozen, report, reportId, query, after } = input;
   if (report.computed_at === null) throw new Error('LEAVE_HISTORY_REPORT_COMPLETION_MISSING');
-  const rows = await tx.execute<{ seq: number; record: LeaveHistoryItem }>(
+  const rows = await tx.execute<{ seq: number; record: LeaveHistoryItem | string }>(
     leaveHistoryReportPageStatement(context, scope, {
       reportId,
       after,
@@ -82,7 +87,7 @@ export async function readLeaveHistoryReportPage(
   );
   return {
     status: 'ready',
-    items: rows.slice(0, query.limit).map((row) => row.record),
+    items: rows.slice(0, query.limit).map((row) => leaveHistoryItemValue(row.record)),
     next_cursor: nextSeq === null ? null : encodeCursor({ report_id: reportId, seq: nextSeq }),
     as_of: new Date(report.as_of).toISOString(),
     computed_at: new Date(report.computed_at).toISOString(),

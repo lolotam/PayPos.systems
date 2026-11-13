@@ -29,6 +29,11 @@ type ResultRead = {
   readonly query: LeaveHistoryReportResultQuery;
 };
 
+// سائق postgres-js بيرجّع عمود scope من نوع jsonb كنص خام، فنحلّ النص قبل تحقق zod.
+function storedScopeValue(value: unknown): unknown {
+  return typeof value === 'string' ? (JSON.parse(value) as unknown) : value;
+}
+
 function leaveHistoryReportLookupStatement(context: LeaveReadContext, reportId: string) {
   // شاشة تقرير سجل الإجازات (68-4) تجد تقرير صاحب الطلب غير المنتهي قبل أي فحص صلاحية آخر.
   return sql`SELECT status,scope,as_of,error_code,row_count,computed_at,
@@ -84,7 +89,7 @@ async function readLeaveHistoryReportResult(tx: Tx, input: ResultRead, access: L
   const scope = await access.check(tx, { ...context, own: false });
   if (scope === null || scope.branches.length === 0) return null;
   if (!scope.featureEnabled) return 'FEATURE_DISABLED' as const;
-  const frozen = leaveHistoryReportStoredScope.parse(report.scope);
+  const frozen = leaveHistoryReportStoredScope.parse(storedScopeValue(report.scope));
   const currentScope = {
     branches: scope.branches,
     attendanceBranches: scope.attendanceBranches,
