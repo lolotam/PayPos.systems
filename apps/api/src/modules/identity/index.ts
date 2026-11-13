@@ -21,6 +21,8 @@ export { readEmployeeManagementAccess } from './persistence/employee-creation-ac
 export { readPackageImportAccess } from './persistence/package-import-access.ts';
 export { lockPackageExtensionAccess } from './persistence/package-extension-access.ts';
 export { readPackageExtensionAccess } from './persistence/package-extension-access.ts';
+export { lockPackageRefundAccess } from './persistence/package-refund-access.ts';
+export { readPackageRefundAccess } from './persistence/package-refund-access.ts';
 export {
   employeeUserLinkAvailable,
   readEmployeeDetailAccess,

@@ -147,6 +147,8 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `orders` | `EditorNamePort` | `staff` | the editor's active linked employee names (name_ar, name_en) by company, business and user id, read in the edit transaction and stored as a snapshot in the edit-history row; no linked employee ⇒ null names (ADR-0044 §5, 35d-4) |
 | `orders` | `SessionEditAccessPort` | `identity` | locked recheck of the editor membership, the edit permission, DENY state and the orders feature inside the edit transaction and before an idempotency replay (ADR-0044 §6, 35d-4) |
 | `orders` | `PackageExtensionAccessPort` | `identity` | locked `extend:packages:branch` authority, DENY, orders feature and eligible acting memberships inside the extension transaction (spec 058, 45) |
+| `orders` | `PackageRefundAccessPort` | `identity` | locked `refund:packages:branch` authority, DENY, orders feature and eligible acting memberships inside the refund transaction, rechecked before an idempotent replay (spec 058, 46-2, ADR-0010 addendum 2026-11-13) |
+| `orders` | `ImportedRefundsPort` | `settings` | the business's `imported_refunds_enabled` switch, read on the refund's own transaction and only for an imported entitlement; a missing row or a null value means off (spec 058 FR-053, 46-2, ADR-0010 addendum 2026-11-13) |
 | worker `orders` | `PriceEditNoticePlace` | worker `tenancy` | branchPlace names only; the date comes from the event and the timezone from the saved session snapshot read by the orders repository (ADR-0044, 35d-2) |
 | worker `orders` | `PerformersChangeNoticeRecipients` | worker `identity`, `tenancy` | branchManagerRecipients and companyOpen on the consumer transaction; active scoped system managers by the effective alert rule (`AlertRulesPort`, spec 060 D-B14, 62-3); the changer is not excluded (ADR-0044 addendum, spec 055, 37b-3) |
 | worker `orders` | `PerformersChangeNoticePlace` | worker `tenancy` | branchPlace names only; the date comes from the event and the timezone from the saved session snapshot read by the orders repository (ADR-0044 addendum, spec 055, 37b-3) |
@@ -391,6 +393,10 @@ reads:
   - orders -> identity.readOwnServiceSessionsAccess @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
   - orders -> identity.lockPackageExtensionAccess @ apps/api/src/modules/orders/persistence/package-extension.transactions.ts
   - orders -> identity.readPackageExtensionAccess @ apps/api/src/modules/orders/persistence/package-extension.transactions.ts
+  - orders -> identity.lockPackageRefundAccess @ apps/api/src/modules/orders/persistence/package-refund.transactions.ts
+  - orders -> identity.readPackageRefundAccess @ apps/api/src/modules/orders/persistence/package-refund.transactions.ts
+  - orders -> settings.readImportedRefundsEnabled @ apps/api/src/modules/orders/persistence/package-refund.transactions.ts
+  - orders -> tenancy.packageSalePlace @ apps/api/src/modules/orders/persistence/package-refund.transactions.ts
   - orders -> tenancy.packageSalePlace @ apps/api/src/modules/orders/persistence/package-extension.transactions.ts
   - orders -> tenancy.describeWorkspaces @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
   - orders -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts

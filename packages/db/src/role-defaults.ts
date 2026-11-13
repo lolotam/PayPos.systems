@@ -71,6 +71,8 @@ export const ROLE_DEFAULTS = {
   'read:service-sessions:branch': [...managers, 'branch_manager'],
   'edit:service-line-prices:branch': [...managers, 'branch_manager'],
   'extend:packages:branch': [...managers, 'branch_manager'],
+  // استرداد جلسات الباقة: نفس مديري التمديد الأربعة، والتفويض الشخصي للباقي بقرار المالك (FR-050).
+  'refund:packages:branch': [...managers, 'branch_manager'],
   // spec 055: المديرون الأربعة افتراضياً؛ التفويض لباقي البشر والجهاز يُحسمان في system-role-policy.
   'change:service-line-performers:branch': [...managers, 'branch_manager'],
   // spec 054: نفس المديرين الأربعة افتراضياً؛ القراءة صلاحية مستقلة، والجهاز ممنوع في system-role-policy.

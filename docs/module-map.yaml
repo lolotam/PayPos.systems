@@ -42,6 +42,10 @@ reads:
   - { from: orders, to: identity, symbol: readOwnServiceSessionsAccess, file: apps/api/src/modules/orders/persistence/own-work-context.adapter.ts }
   - { from: orders, to: identity, symbol: lockPackageExtensionAccess, file: apps/api/src/modules/orders/persistence/package-extension.transactions.ts }
   - { from: orders, to: identity, symbol: readPackageExtensionAccess, file: apps/api/src/modules/orders/persistence/package-extension.transactions.ts }
+  - { from: orders, to: identity, symbol: lockPackageRefundAccess, file: apps/api/src/modules/orders/persistence/package-refund.transactions.ts }
+  - { from: orders, to: identity, symbol: readPackageRefundAccess, file: apps/api/src/modules/orders/persistence/package-refund.transactions.ts }
+  - { from: orders, to: settings, symbol: readImportedRefundsEnabled, file: apps/api/src/modules/orders/persistence/package-refund.transactions.ts }
+  - { from: orders, to: tenancy, symbol: packageSalePlace, file: apps/api/src/modules/orders/persistence/package-refund.transactions.ts }
   - { from: orders, to: tenancy, symbol: packageSalePlace, file: apps/api/src/modules/orders/persistence/package-extension.transactions.ts }
   - { from: orders, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/orders/persistence/own-work-context.adapter.ts }
   - { from: orders, to: tenancy, symbol: activeBusinessTimeZone, file: apps/api/src/modules/orders/persistence/own-work-context.adapter.ts }

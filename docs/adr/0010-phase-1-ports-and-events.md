@@ -534,3 +534,35 @@ states and deploy ordering are recorded in ADR-0034's 2026-11-11 addendum.
 report acceptance (68-2c) in the same transaction as its `pending` `leave_history_reports` row. 68-2b-2a ships
 only the tables; 68-2b-2b registers it as a known type of the staff worker module and ships the consumer
 (`leave-history-report` build job and the hourly per-company cleanup) with no producer; 68-2c waits for 68-2b-2b worker readiness. Boundary, states and deploy order: ADR-0034's 2026-11-12 addendum.
+
+### Addendum 2026-11-13 — 46-2 package refund reads the imported-refund switch (spec 058)
+
+`POST /v1/businesses/{businessId}/branches/{branchId}/packages/{entitlementId}/refunds` needs two
+answers it cannot own. The first is the caller's authority over the branch: `orders` reads it through
+`PackageRefundAccessPort` exactly as it does for the extension — identity keeps the
+`refund:packages:branch` permission, the DENY state, the orders feature and the eligible acting
+memberships, and orders' adapter calls identity's public reader on the refund's own transaction.
+
+The second is the business's `imported_refunds_enabled` switch. `settings` owns the column and
+publishes one public reader, `readImportedRefundsEnabled(tx, companyId, businessId)`, that reads the
+row without creating it and answers a strict boolean: only a stored `true` is on, and a null value,
+a missing row or `false` is off (spec 058 FR-053, PK-Q24). `orders` owns the consumer side,
+`ImportedRefundsPort`, and its adapter calls that reader once on the refund's own transaction. The
+refund uses that decision for the whole refund; a switch change committed after the read does not affect
+that refund (a decision-time read). The refund path also takes the service-session edit-access lock
+(`lockServiceSessionEditAccess`) through the access port.
+
+- **A read, on the caller's transaction.** No new import arrow: `orders: [..., settings]` already
+  exists in §2 (ADR-0041's `DiscountLimitPort`), and `settings` imports nothing new.
+- **Only an imported entitlement reads it.** A sold entitlement refunds under the same rules whether
+  the switch is on or off, so the reader is not called for it at all (spec 058 RF-08).
+- **No second transaction.** The switch is read inside the refund transaction, never in a separate
+  `withTenant`, because the guards' connection budget allows one transaction per request and the
+  authority, the locks and the money must share it.
+- **The write stays out.** Only the owner, or a holder of `manage:imported-refunds:business`, turns
+  imported refunds on, and that route, its permission and its audit land in 46-2a-S; this slice reads
+  the flag only.
+
+`module-map.md` §3 gains the two port rows, §6 gains the four `reads` lines of the refund adapter
+(the two identity readers, the settings reader and the tenancy place reader), and the generated
+`docs/module-map.yaml` is regenerated.

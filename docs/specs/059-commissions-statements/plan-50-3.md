@@ -26,7 +26,7 @@ ADR-0012, ADR-0041 §6, ADR-0054 §4, `docs/runbook.md` 35b-2.
 | --- | --- |
 | Page read of lines/salaries events | `pospay_dispatcher`, one read-only transaction per page, through `commissionInputReplayPage` only |
 | Apply one replayed event | `pospay_app`, `withTenant(companyId)`, one transaction per event: `markEventConsumed` then `consumer.handle`, via the commissions-only `createDeliverer`; a failed handle rolls the mark back |
-| Tips bootstrap page | `pospay_app`, `withTenant`, one transaction per page: `listCurrentSessionTips`, then per session the tip reducer with its revision guard, then `markEventConsumed` for every event id the reader lists |
+| Tips bootstrap | `pospay_app`, `withTenant`: one read-only transaction per page (`listCurrentSessionTips`), then one tenant transaction per visit: `markEventConsumed` for every event id the reader lists (in the live delivery order), then the tip reducer with its revision guard; a failed visit rolls back its own marks and projection, and visits already committed stay committed |
 | Coverage reads | `pospay_app`, `withTenant`, read-only: orders line reader, staff salary reader, tips reader against the projection heads; no write, no lock |
 | Legacy `SalaryChanged` (CS-Q44) | same transaction as its delivery: `readEmployeeBusiness`; `null` leaves the event unmarked and is counted in the report |
 
@@ -146,3 +146,5 @@ the same result line and resume contract as 50-3a.
 Sizes: 50-3a about 240 production lines (delivered); 50-3b about 315 (tips bootstrap 110, shared SQL builder move 140, glue 30, runbook);
 50-3c about 375; 50-3d about 100 production lines (facade 40, schema 5, runner mode and entry flag 50) plus the migration and tests, band 200-300.
 Dependencies: 53-2 needs 50-3a, 50-3b, 50-3c and 50-3d; 50-3d needs 50-3a and 50-0; 50-4 owns the `PackageSaleChanged` handler and its delivery test.
+
+Addendum 2026-11-13 (PR #998 review, fix round 1): the tips bootstrap changed from one transaction per page with a savepoint per visit to one read transaction per page plus one tenant transaction per visit. Reasons: (1) lock order: live delivery claims `consumed_events` first and then takes the session lock and the period locks, so the bootstrap claims every listed event id before it projects; (2) lock retention: releasing a savepoint does not release `pg_advisory_xact_lock` or the period locks, so a page-wide transaction kept one visit's locks while it moved to the next and could deadlock against live delivery. Counts: `counts.sessions` is the number of committed visits and `counts.events` the number of event ids newly claimed by the run; ABORTED keeps the visits committed before the failure.

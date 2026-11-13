@@ -4,6 +4,9 @@ import { createPackageImportRequestTransactions } from './persistence/package-im
 import { PackageExtensionController } from './http/package-extension.controller.ts';
 import { ExtendPackageUseCase } from './use-cases/extend-package/extend-package.usecase.ts';
 import { createPackageExtensionTransactions } from './persistence/package-extension.transactions.ts';
+import { PackageRefundController } from './http/package-refund.controller.ts';
+import { RefundPackageUseCase } from './use-cases/refund-package/refund-package.usecase.ts';
+import { createPackageRefundTransactions } from './persistence/package-refund.transactions.ts';
 import type { Provider, Type } from '@nestjs/common';
 import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import { serviceSessionErrors } from '@pospay/i18n';
@@ -75,7 +78,7 @@ import { discountDeviceBusiness, discountDeviceScope, discountPinFence } from '.
 import { discountPinApprover, type DiscountPinVerifier } from './persistence/discount-pin-approver.adapter.ts';
 import { DISCOUNT_APPROVER_VERIFIER } from '../../shared/discount-approver-pin.ts';
 
-export const ordersControllers: Type[] = [PackageImportPreviewController, PackageExtensionController, SessionRecoveryController, ServiceSessionsController, ServiceSessionFormController, SessionTipsController, DiscountProposalsController];
+export const ordersControllers: Type[] = [PackageImportPreviewController, PackageExtensionController, PackageRefundController, SessionRecoveryController, ServiceSessionsController, ServiceSessionFormController, SessionTipsController, DiscountProposalsController];
 export function ordersPerformerOptionsQuery(database: TenantWrappers, clock: Clock = systemClock) {
   return new SessionPerformerOptionsQueryHandler(database, {
     time: (occurredAt, at, timezone) => sessionTime(new Date(occurredAt), at, timezone).occurred_at.toISOString(),
@@ -218,7 +221,7 @@ export function ordersProviders(database: TenantWrappers | undefined, ids: IdGen
   const writes = database === undefined ? null : {
     transactions: ordersTransactions(database, ids, clock), recovery: createSessionRecovery(database, ids, clock),
   };
-  return [{ provide: RequestPackageImportPreviewUseCase, useValue: database === undefined ? null : new RequestPackageImportPreviewUseCase(createPackageImportRequestTransactions(database, ids), ids, clock) }, { provide: ExtendPackageUseCase, useValue: database === undefined ? null : new ExtendPackageUseCase(createPackageExtensionTransactions(database), ids, clock) }, SelectedCompanyGuard, SessionAdminGuard, SessionAppendGuard, { provide: SessionErrorsFilter, useValue: new SessionErrorsFilter() },
+  return [{ provide: RequestPackageImportPreviewUseCase, useValue: database === undefined ? null : new RequestPackageImportPreviewUseCase(createPackageImportRequestTransactions(database, ids), ids, clock) }, { provide: ExtendPackageUseCase, useValue: database === undefined ? null : new ExtendPackageUseCase(createPackageExtensionTransactions(database), ids, clock) }, { provide: RefundPackageUseCase, useValue: database === undefined ? null : new RefundPackageUseCase(createPackageRefundTransactions(database, ids), ids, clock) }, SelectedCompanyGuard, SessionAdminGuard, SessionAppendGuard, { provide: SessionErrorsFilter, useValue: new SessionErrorsFilter() },
     { provide: SessionPerformerOptionsQueryHandler, useValue: database === undefined ? null : ordersPerformerOptionsQuery(database, clock) },
     { provide: SessionServiceOptionsQueryHandler, useValue: database === undefined ? null : ordersServiceOptionsQuery(database, clock) },
     { provide: RecordingContextQueryHandler, useValue: database === undefined ? null : ordersRecordingContextQuery(database, clock) },

@@ -10,6 +10,8 @@ export const PACKAGE_STORAGE_TABLES = [
   'package_session_slots',
   'package_redemptions',
   'package_extensions',
+  'package_refunds',
+  'package_refund_slots',
 ] as const;
 
 interface ExpectedForeignKey {
@@ -83,6 +85,41 @@ const EXPECTED_FOREIGN_KEYS: Record<string, ExpectedForeignKey[]> = {
     {
       name: 'package_extensions_membership_fk',
       columns: ['company_id', 'extended_by', 'extended_by_membership_id'],
+    },
+  ],
+  package_refunds: [
+    { name: 'package_refunds_company_id_companies_id_fk', columns: ['company_id'] },
+    {
+      name: 'package_refunds_entitlement_fk',
+      columns: ['company_id', 'business_id', 'entitlement_id'],
+    },
+    {
+      name: 'package_refunds_component_fk',
+      columns: ['company_id', 'business_id', 'entitlement_id', 'component_id'],
+    },
+    {
+      name: 'package_refunds_branch_fk',
+      columns: ['company_id', 'business_id', 'branch_id'],
+    },
+    { name: 'package_refunds_refunded_by_user_id_fk', columns: ['refunded_by'] },
+    {
+      name: 'package_refunds_membership_fk',
+      columns: ['company_id', 'refunded_by', 'refunded_by_membership_id'],
+    },
+  ],
+  package_refund_slots: [
+    { name: 'package_refund_slots_company_id_companies_id_fk', columns: ['company_id'] },
+    {
+      name: 'package_refund_slots_refund_fk',
+      columns: ['company_id', 'business_id', 'refund_id'],
+    },
+    {
+      name: 'package_refund_slots_component_fk',
+      columns: ['company_id', 'business_id', 'entitlement_id', 'component_id'],
+    },
+    {
+      name: 'package_refund_slots_slot_fk',
+      columns: ['company_id', 'business_id', 'slot_id'],
     },
   ],
 };

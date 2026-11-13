@@ -421,3 +421,156 @@ export const packageExtensions = pgTable(
     ),
   ],
 );
+
+// سطر الاسترداد: صف واحد لكل استرداد جلسات من مكوّن واحد. السطر ثابت مالوش تعديل ولا حذف، والعكس سطر جديد.
+export const packageRefunds = pgTable(
+  'package_refunds',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id),
+    id: uuid('id').notNull(),
+    businessId: uuid('business_id').notNull(),
+    entitlementId: uuid('entitlement_id').notNull(),
+    componentId: uuid('component_id').notNull(),
+    branchId: uuid('branch_id').notNull(),
+    /** عدد الجلسات المستردة في السطر ده. */
+    sessions: integer('sessions').notNull(),
+    /** المبلغ المسترد بالدينار؛ لازم يساوي مجموع قيم الجلسات المستردة. */
+    amount: money('amount').notNull(),
+    method: text('method').notNull(),
+    /** سبب الاسترداد: بيتخزن في السطر بس، مش في تدقيق ولا حدث ولا idempotency. */
+    reason: text('reason').notNull(),
+    refundedBy: uuid('refunded_by')
+      .notNull()
+      .references(() => user.id),
+    /** عضوية المدير الفعلية وقت الاسترداد، مربوطة بالمستخدم نفسه. */
+    refundedByMembershipId: uuid('refunded_by_membership_id').notNull(),
+    /** لحظة الاسترداد من ساعة العميل، مش من ساعة السيرفر. */
+    refundedAt: timestamp('refunded_at', { withTimezone: true }).notNull(),
+    /** نسخة الاستحقاق بعد الاسترداد ده. */
+    entitlementRevision: integer('entitlement_revision').notNull(),
+  },
+  (t) => [
+    primaryKey({ name: 'package_refunds_pkey', columns: [t.companyId, t.id] }),
+    unique('package_refunds_business_id_key').on(t.companyId, t.businessId, t.id),
+    unique('package_refunds_entitlement_revision_key').on(
+      t.companyId,
+      t.entitlementId,
+      t.entitlementRevision,
+    ),
+    foreignKey({
+      name: 'package_refunds_entitlement_fk',
+      columns: [t.companyId, t.businessId, t.entitlementId],
+      foreignColumns: [
+        packageEntitlements.companyId,
+        packageEntitlements.businessId,
+        packageEntitlements.id,
+      ],
+    }),
+    foreignKey({
+      name: 'package_refunds_component_fk',
+      columns: [t.companyId, t.businessId, t.entitlementId, t.componentId],
+      foreignColumns: [
+        packageComponents.companyId,
+        packageComponents.businessId,
+        packageComponents.entitlementId,
+        packageComponents.id,
+      ],
+    }),
+    foreignKey({
+      name: 'package_refunds_branch_fk',
+      columns: [t.companyId, t.businessId, t.branchId],
+      foreignColumns: [branches.companyId, branches.businessId, branches.id],
+    }),
+    foreignKey({
+      name: 'package_refunds_membership_fk',
+      columns: [t.companyId, t.refundedBy, t.refundedByMembershipId],
+      foreignColumns: [memberships.companyId, memberships.userId, memberships.id],
+    }),
+    index('package_refunds_entitlement_fk_idx').on(t.companyId, t.businessId, t.entitlementId),
+    index('package_refunds_component_fk_idx').on(
+      t.companyId,
+      t.businessId,
+      t.entitlementId,
+      t.componentId,
+    ),
+    index('package_refunds_branch_fk_idx').on(t.companyId, t.businessId, t.branchId),
+    index('package_refunds_refunded_by_idx').on(t.refundedBy),
+    index('package_refunds_membership_fk_idx').on(
+      t.companyId,
+      t.refundedBy,
+      t.refundedByMembershipId,
+    ),
+    check('package_refunds_sessions_check', sql`${t.sessions} BETWEEN 1 AND 365`),
+    check('package_refunds_amount_check', sql`${t.amount} BETWEEN 0 AND 99999999999.999`),
+    check('package_refunds_method_check', sql`${t.method} IN ('CASH','CARD')`),
+    check(
+      'package_refunds_reason_check',
+      sql`char_length(${t.reason}) <= 500 AND btrim(${t.reason}, chr(9) || chr(10) || chr(13) || chr(32)) <> ''`,
+    ),
+    check('package_refunds_entitlement_revision_check', sql`${t.entitlementRevision} >= 2`),
+  ],
+);
+
+// سطر لكل جلسة مستردة: الجلسة دي اتستردت مرة واحدة بس في كل الشركة.
+export const packageRefundSlots = pgTable(
+  'package_refund_slots',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id),
+    id: uuid('id').notNull(),
+    businessId: uuid('business_id').notNull(),
+    refundId: uuid('refund_id').notNull(),
+    entitlementId: uuid('entitlement_id').notNull(),
+    componentId: uuid('component_id').notNull(),
+    slotId: uuid('slot_id').notNull(),
+    /** ترقيم الجلسة داخل المكوّن: نسخة من ترقيم الجلسة المستردة. */
+    ordinal: integer('ordinal').notNull(),
+    /** قيمة الجلسة بالدينار: نسخة من قيمة الجلسة المستردة. */
+    unitValue: money('unit_value').notNull(),
+  },
+  (t) => [
+    primaryKey({ name: 'package_refund_slots_pkey', columns: [t.companyId, t.id] }),
+    unique('package_refund_slots_business_id_key').on(t.companyId, t.businessId, t.id),
+    unique('package_refund_slots_slot_key').on(t.companyId, t.slotId),
+    foreignKey({
+      name: 'package_refund_slots_refund_fk',
+      columns: [t.companyId, t.businessId, t.refundId],
+      foreignColumns: [packageRefunds.companyId, packageRefunds.businessId, packageRefunds.id],
+    }),
+    foreignKey({
+      name: 'package_refund_slots_component_fk',
+      columns: [t.companyId, t.businessId, t.entitlementId, t.componentId],
+      foreignColumns: [
+        packageComponents.companyId,
+        packageComponents.businessId,
+        packageComponents.entitlementId,
+        packageComponents.id,
+      ],
+    }),
+    foreignKey({
+      name: 'package_refund_slots_slot_fk',
+      columns: [t.companyId, t.businessId, t.slotId],
+      foreignColumns: [
+        packageSessionSlots.companyId,
+        packageSessionSlots.businessId,
+        packageSessionSlots.id,
+      ],
+    }),
+    index('package_refund_slots_refund_fk_idx').on(t.companyId, t.businessId, t.refundId),
+    index('package_refund_slots_component_fk_idx').on(
+      t.companyId,
+      t.businessId,
+      t.entitlementId,
+      t.componentId,
+    ),
+    index('package_refund_slots_slot_fk_idx').on(t.companyId, t.businessId, t.slotId),
+    check('package_refund_slots_ordinal_check', sql`${t.ordinal} >= 1`),
+    check(
+      'package_refund_slots_unit_value_check',
+      sql`${t.unitValue} BETWEEN 0 AND 99999999999.999`,
+    ),
+  ],
+);
