@@ -51,14 +51,22 @@ export class DecideDiscountByPinUseCase {
         via: 'PIN',
         deviceId: request.device.deviceId,
         pinRevision: approver.pinRevision,
+        confirmBinding: approver.confirmBinding,
       },
     });
   }
 
-  private async approver(request: PinDecisionRequest): Promise<{ userId: string; pinRevision: string }> {
+  private async approver(
+    request: PinDecisionRequest,
+  ): Promise<Extract<DiscountPinOutcome, { kind: 'ok' }>> {
     const outcome = await this.verify(request);
     if (outcome.kind === 'ok') {
-      return { userId: outcome.userId, pinRevision: outcome.pinRevision };
+      return {
+        kind: 'ok',
+        userId: outcome.userId,
+        pinRevision: outcome.pinRevision,
+        confirmBinding: outcome.confirmBinding,
+      };
     }
     if (outcome.kind === 'refused') throw new DiscountPinError('PIN_INVALID');
     if (outcome.kind === 'locked') throw new DiscountPinError('PIN_LOCKED');

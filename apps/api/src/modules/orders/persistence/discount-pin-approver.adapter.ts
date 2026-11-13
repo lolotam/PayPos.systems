@@ -19,7 +19,12 @@ export function discountPinApprover(verifier: DiscountPinVerifier | null): Disco
         },
       });
       if (outcome.kind !== 'ok') return outcome;
-      return { kind: 'ok', userId: outcome.userId, pinRevision: outcome.pinRevision };
+      return {
+        kind: 'ok',
+        userId: outcome.userId,
+        pinRevision: outcome.pinRevision,
+        confirmBinding: outcome.confirmBinding,
+      };
     },
   };
 }

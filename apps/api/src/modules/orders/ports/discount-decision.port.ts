@@ -47,7 +47,13 @@ export interface DiscountPinVerification extends DiscountDecisionDevice {
 
 /** نتيجة التحقق: صاحب الاعتماد وإصدار اعتماده، أو رفض أو قفل أو زحام. */
 export type DiscountPinOutcome =
-  | { kind: 'ok'; userId: string; pinRevision: string }
+  | {
+      kind: 'ok';
+      userId: string;
+      pinRevision: string;
+      /** بيتأكد إن ارتباط الهاتف بصاحب الاعتماد لسه ثابت؛ النافذة المتبقية من إعادة الفحص لحد commit داخل المعاملة. */
+      confirmBinding: () => Promise<boolean>;
+    }
   | { kind: 'refused' }
   | { kind: 'locked' }
   | { kind: 'busy' };
@@ -69,6 +75,8 @@ export interface DiscountPinFenceProof {
   deviceId: string;
   approverUserId: string;
   pinRevision: string;
+  /** بيتأكد إن ارتباط الهاتف بصاحب الاعتماد لسه ثابت؛ النافذة المتبقية من إعادة الفحص لحد commit داخل المعاملة. */
+  confirmBinding: () => Promise<boolean>;
 }
 
 /** حارس الاعتماد: يثبت أن الجهاز والإصدار ما زالا على حالهما حتى نهاية المعاملة. */

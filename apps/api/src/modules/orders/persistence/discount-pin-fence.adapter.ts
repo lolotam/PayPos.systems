@@ -4,6 +4,7 @@ import {
   lockApproverPinRevision,
   readActiveDeviceBusiness,
 } from '../../identity/index.ts';
+import { SessionError } from '../domain/session-error.ts';
 import type {
   DiscountDecisionDevice,
   DiscountDeviceScopePort,
@@ -15,7 +16,19 @@ export function discountPinFence(tx: Tx, companyId: string, branchId: string): D
     lock: async (proof) => {
       const business = await lockActiveDeviceBusiness(tx, companyId, proof.deviceId, branchId);
       if (business === null) return false;
-      return lockApproverPinRevision(tx, companyId, proof.approverUserId, proof.pinRevision);
+      const sameRevision = await lockApproverPinRevision(
+        tx,
+        companyId,
+        proof.approverUserId,
+        proof.pinRevision,
+      );
+      if (!sameRevision) return false;
+      // تجمع auth محدود وسريع الفشل؛ امتلاؤه رفض قابل لإعادة المحاولة وليس خطأ خادم.
+      try {
+        return await proof.confirmBinding();
+      } catch {
+        throw new SessionError('TRANSACTION_RETRY_REQUIRED');
+      }
     },
   };
 }

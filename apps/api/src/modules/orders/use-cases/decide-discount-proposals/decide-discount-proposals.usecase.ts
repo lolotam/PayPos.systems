@@ -35,7 +35,7 @@ type DecisionContext = SessionWriteContext & {
   decision: 'APPROVE' | 'REJECT';
   input: DecisionInput;
   /** قناة القرار؛ غيابها يعني القرار البعيد بلا جهاز. */
-  channel?: { via: 'PIN'; deviceId: string; pinRevision: string };
+  channel?: { via: 'PIN'; deviceId: string; pinRevision: string; confirmBinding: () => Promise<boolean> };
 };
 type DecisionLabels = (snapshot: DiscountDeciderSnapshot) => { ar: string; en: string };
 interface DecisionFacts {
@@ -65,6 +65,7 @@ export class DecideDiscountProposalsUseCase {
           deviceId: channel.deviceId,
           approverUserId: context.userId,
           pinRevision: channel.pinRevision,
+          confirmBinding: channel.confirmBinding,
         });
         if (!fenced) throw new SessionError('FORBIDDEN');
         return this.decide(tx, context);
