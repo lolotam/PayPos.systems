@@ -327,6 +327,9 @@ no `published_at`, no `attempts`, no mark and no projection change.
 5. **Limits.** The retained-event check covers the four 50-0 types until 50-3d adds the six-type facade. Tip coverage by revision
    and the tip event-id check are deferred to 50-3d (manager decision 2026-11-13) and are not in this report. A clean report is a
    point-in-time read: a row written while it runs is delivered by the live consumer.
+6. **Refusal.** The report refuses with the fixed code `COMMISSION_COVERAGE_SCOPE_INVALID`, prints no report and exits 1 when the
+   company does not exist or `--through` is not a retained event of that company among `ServiceSessionRecorded`,
+   `ServiceSessionLinesAdded`, `ServiceLineChanged` and `SalaryChanged`.
 
 ## Admin service-session browser tests
 

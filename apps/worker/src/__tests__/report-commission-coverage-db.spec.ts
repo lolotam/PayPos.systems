@@ -27,6 +27,7 @@ import {
 } from '../modules/commissions/__tests__/commission-tip-salary-events.ts';
 import { readServiceLineCoveragePage } from '../modules/orders/index.ts';
 import { readSalaryCoveragePage } from '../modules/staff/index.ts';
+import { companyOpen } from '../modules/tenancy/index.ts';
 import { createDeliverer } from '../outbox/deliver.ts';
 import { createTestCommissionInputsConsumer } from './commission-inputs-consumer.ts';
 
@@ -96,6 +97,7 @@ function coverageReport() {
     lines: { readPage: readServiceLineCoveragePage },
     salaries: { readPage: readSalaryCoveragePage },
     retained: dispatcher,
+    companies: { isOpen: companyOpen },
   });
 }
 

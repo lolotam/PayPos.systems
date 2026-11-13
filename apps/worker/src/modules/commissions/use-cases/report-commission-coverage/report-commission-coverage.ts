@@ -11,6 +11,7 @@ import {
 } from '@pospay/commissions-engine';
 
 import type {
+  CoverageCompanyReader,
   CoverageProjectionReader,
   CoverageRetainedPageReader,
   CoverageTenantRunner,
@@ -67,6 +68,7 @@ export interface CommissionCoverageDeps {
   readonly salaries: SalaryCoverageReader;
   readonly projection: CoverageProjectionReader;
   readonly retained: CoverageRetainedPageReader;
+  readonly companies: CoverageCompanyReader;
   readonly consumerId: string;
 }
 
@@ -80,6 +82,16 @@ export class CommissionCoverageEventInvalidError extends Error {
   }
 }
 
+/** نطاق لا يمكن التقرير عنه: شركة غير موجودة أو حد أعلى ليس حدثاً محتفظاً بها. */
+export class CommissionCoverageScopeInvalidError extends Error {
+  readonly code = 'COMMISSION_COVERAGE_SCOPE_INVALID';
+
+  constructor() {
+    super('COMMISSION_COVERAGE_SCOPE_INVALID');
+    this.name = 'CommissionCoverageScopeInvalidError';
+  }
+}
+
 interface CheckContext {
   readonly deps: CommissionCoverageDeps;
   readonly companyId: string;
@@ -87,6 +99,7 @@ interface CheckContext {
 
 interface UnmarkedCheck {
   readonly throughId: string | null;
+  readonly lastEventId: string | null;
   readonly totals: UnmarkedTotals<UnmarkedEvent>;
 }
 
@@ -102,13 +115,19 @@ export async function runCommissionCoverageReport(
   deps: CommissionCoverageDeps,
   scope: CommissionCoverageScope,
 ): Promise<CommissionCoverageReport> {
+  const companyId = scope.companyId.toLowerCase();
+  const open = await deps.withTenant(companyId, (tx) => deps.companies.isOpen(tx, companyId));
+  if (!open) throw new CommissionCoverageScopeInvalidError();
   const context: CheckContext = {
     deps,
-    companyId: scope.companyId.toLowerCase(),
+    companyId,
   };
   const lineTotals = await checkLines(context);
   const salaryTotals = await checkSalaries(context);
   const unmarked = await checkUnmarked(context, scope.throughId);
+  if (scope.throughId !== null && unmarked.lastEventId !== scope.throughId.toLowerCase()) {
+    throw new CommissionCoverageScopeInvalidError();
+  }
   const covered =
     lineTotals.missing.total === 0 &&
     lineTotals.stale.total === 0 &&
@@ -208,6 +227,7 @@ async function checkUnmarked(
 ): Promise<UnmarkedCheck> {
   let totals = emptyUnmarkedTotals<UnmarkedEvent>();
   let throughId = requestedThroughId;
+  let lastEventId: string | null = null;
   let afterId: string | null = null;
   let firstPage = true;
   for (;;) {
@@ -221,7 +241,7 @@ async function checkUnmarked(
       throughId = page.throughId;
       firstPage = false;
     }
-    if (page.events.length === 0) return { throughId, totals };
+    if (page.events.length === 0) return { throughId, lastEventId, totals };
     for (const event of page.events) {
       if (event.companyId.toLowerCase() !== context.companyId) {
         throw new CommissionCoverageEventInvalidError();
@@ -242,8 +262,10 @@ async function checkUnmarked(
       .filter((event) => unmarkedSet.has(event.id.toLowerCase()))
       .map((event) => ({ eventId: event.id, type: event.eventType }));
     totals = addUnmarkedPage(totals, page.events.length, events, REPORT_LIST_LIMIT);
-    afterId = page.events.at(-1)?.id ?? afterId;
-    if (page.events.length < RETAINED_PAGE_SIZE) return { throughId, totals };
+    const lastEvent = page.events.at(-1);
+    afterId = lastEvent?.id ?? afterId;
+    lastEventId = lastEvent?.id.toLowerCase() ?? lastEventId;
+    if (page.events.length < RETAINED_PAGE_SIZE) return { throughId, lastEventId, totals };
   }
 }
 

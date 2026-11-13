@@ -14,6 +14,7 @@ import {
 import { markCommissionEventConsumed } from './persistence/commission-event-consumption.ts';
 import { createCoverageProjectionReader } from './persistence/commission-coverage.reads.ts';
 import type {
+  CoverageCompanyReader,
   CoverageRetainedPageReader,
   SalaryCoverageReader,
   ServiceLineCoverageReader,
@@ -142,6 +143,7 @@ export function createCommissionCoverageReport(dependencies: {
   readonly lines: ServiceLineCoverageReader;
   readonly salaries: SalaryCoverageReader;
   readonly retained: CoverageRetainedPageReader;
+  readonly companies: CoverageCompanyReader;
 }): (scope: CommissionCoverageScope) => Promise<CommissionCoverageReport> {
   return (scope) =>
     runCommissionCoverageReport(
@@ -151,6 +153,7 @@ export function createCommissionCoverageReport(dependencies: {
         salaries: dependencies.salaries,
         projection: createCoverageProjectionReader(),
         retained: dependencies.retained,
+        companies: dependencies.companies,
         consumerId: COMMISSION_INPUTS_CONSUMER_ID,
       },
       scope,

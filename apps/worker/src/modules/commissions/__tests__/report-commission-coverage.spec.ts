@@ -10,6 +10,7 @@ import type {
 } from '../ports/commission-coverage.port.ts';
 import {
   CommissionCoverageEventInvalidError,
+  CommissionCoverageScopeInvalidError,
   runCommissionCoverageReport,
   type CommissionCoverageDeps,
 } from '../use-cases/report-commission-coverage/report-commission-coverage.ts';
@@ -119,15 +120,24 @@ function projectionReader(options: {
   };
 }
 
-function retainedReader(events: readonly ClaimedEvent[]) {
-  const sorted = [...events].sort((left, right) => (left.id < right.id ? -1 : 1));
+function retainedReader(events: readonly ClaimedEvent[], ignoreCompany = false) {
+  const sorted = [...events].sort((left, right) =>
+    left.id.toLowerCase() < right.id.toLowerCase() ? -1 : 1,
+  );
   return {
     // الحد الأعلى بيتحدد من أول صفحة ويتعاد زي ما هو، فالقارئ بيرد بنفس الحد اللي اتبعت.
     commissionInputReplayPage: vi.fn(
-      async (_cid: string, afterId: string | null, throughId: string | null, limit: number) => {
+      async (companyId: string, afterId: string | null, throughId: string | null, limit: number) => {
         const end = throughId ?? sorted.at(-1)?.id ?? null;
         if (end === null) return { throughId: null, events: [] };
-        const page = sorted.filter((item) => item.id > (afterId ?? '') && item.id <= end);
+        const bound = end.toLowerCase();
+        const cursor = (afterId ?? '').toLowerCase();
+        const page = sorted.filter(
+          (item) =>
+            (ignoreCompany || item.companyId.toLowerCase() === companyId.toLowerCase()) &&
+            item.id.toLowerCase() > cursor &&
+            item.id.toLowerCase() <= bound,
+        );
         return { throughId: end, events: page.slice(0, limit) };
       },
     ),
@@ -141,6 +151,8 @@ interface HarnessOptions {
   readonly projectedSalaries?: readonly SalaryRow[];
   readonly events?: readonly ClaimedEvent[];
   readonly marked?: ReadonlySet<string>;
+  readonly companyOpen?: boolean;
+  readonly retainedIgnoresCompany?: boolean;
 }
 
 function harness(options: HarnessOptions) {
@@ -159,7 +171,7 @@ function harness(options: HarnessOptions) {
     salaries: options.projectedSalaries ?? options.sourceSalaries ?? [],
     marked: options.marked ?? new Set<string>(),
   });
-  const retained = retainedReader(options.events ?? []);
+  const retained = retainedReader(options.events ?? [], options.retainedIgnoresCompany ?? false);
   const deps: CommissionCoverageDeps = {
     withTenant,
     lines,
@@ -167,6 +179,7 @@ function harness(options: HarnessOptions) {
     projection,
     retained,
     consumerId: CONSUMER,
+    companies: { isOpen: async () => options.companyOpen ?? true },
   };
   return { deps, tenants, lines, salaries, projection, retained };
 }
@@ -309,7 +322,10 @@ describe('runCommissionCoverageReport: the scope and the report content', () => 
     expect(report.unmarked.checked).toBe(120);
   });
   it('rejects a retained event of another company', async () => {
-    const { deps } = harness({ events: [event(1, 'ServiceSessionRecorded', OTHER)] });
+    const { deps } = harness({
+      events: [event(1, 'ServiceSessionRecorded', OTHER)],
+      retainedIgnoresCompany: true,
+    });
     const failure = await run(deps).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(CommissionCoverageEventInvalidError);
     expect((failure as CommissionCoverageEventInvalidError).code).toBe(
@@ -332,4 +348,51 @@ describe('runCommissionCoverageReport: the scope and the report content', () => 
     expect(serialized).not.toContain('payload');
     expect(serialized).not.toContain('leak-me');
   });
+});
+
+describe('runCommissionCoverageReport: the scope refusal', () => {
+  it('refuses an unknown company instead of reporting COVERED', async () => {
+    const { deps } = harness({ companyOpen: false });
+
+    const failure = await run(deps).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(CommissionCoverageScopeInvalidError);
+    expect((failure as CommissionCoverageScopeInvalidError).code).toBe(
+      'COMMISSION_COVERAGE_SCOPE_INVALID',
+    );
+  });
+  it('refuses a through id that is not a retained event of the company', async () => {
+    const events = [event(1)];
+    const { deps } = harness({ events, marked: allMarked(events) });
+
+    const failure = await run(deps, eventId('f')).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(CommissionCoverageScopeInvalidError);
+    expect((failure as CommissionCoverageScopeInvalidError).code).toBe(
+      'COMMISSION_COVERAGE_SCOPE_INVALID',
+    );
+  });
+  it('refuses a through id that belongs to another company', async () => {
+    const events = [event(1), event(2, 'ServiceSessionRecorded', OTHER)];
+    const { deps } = harness({ events, marked: allMarked(events) });
+
+    const failure = await run(deps, eventId(2)).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(CommissionCoverageScopeInvalidError);
+    expect((failure as CommissionCoverageScopeInvalidError).code).toBe(
+      'COMMISSION_COVERAGE_SCOPE_INVALID',
+    );
+  });
+  it.each([eventId('a'), eventId('a').toUpperCase()])(
+    'accepts a through id that is the last retained event at or below the bound: %s',
+    async (throughId) => {
+      const events = [event('a')];
+      const { deps } = harness({ events, marked: allMarked(events) });
+
+      const report = await run(deps, throughId);
+
+      expect(report.status).toBe('COVERED');
+      expect(report.unmarked.total).toBe(0);
+    },
+  );
 });

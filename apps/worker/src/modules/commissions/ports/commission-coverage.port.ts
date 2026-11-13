@@ -122,3 +122,15 @@ export type CoverageRetainedPageReader = Pick<
   OutboxDispatcherDatabase,
   'commissionInputReplayPage'
 >;
+
+/** وجود الشركة وغياب حذفها؛ التقرير يرفض أي نطاق لشركة غير موجودة بدل أن يغطّي نطاقاً فارغاً. */
+export interface CoverageCompanyReader {
+  /**
+   * هل الشركة موجودة داخل معاملة المستأجر وغير محذوفة.
+   *
+   * @param tx معاملة الشركة التي يقرأ منها التقرير
+   * @param companyId هوية الشركة المفحوصة
+   * @returns هل الشركة موجودة وغير محذوفة
+   */
+  isOpen(tx: CoverageTx, companyId: string): Promise<boolean>;
+}

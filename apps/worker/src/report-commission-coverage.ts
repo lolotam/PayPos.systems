@@ -6,12 +6,14 @@ import { systemUuidV7 } from '@pospay/ids';
 import {
   assertCommissionReplayCursor,
   CommissionCoverageEventInvalidError,
+  CommissionCoverageScopeInvalidError,
   CommissionReplayCursorError,
   createCommissionCoverageReport,
   type CommissionCoverageScope,
 } from './modules/commissions/index.ts';
 import { readServiceLineCoveragePage } from './modules/orders/index.ts';
 import { readSalaryCoveragePage } from './modules/staff/index.ts';
+import { companyOpen } from './modules/tenancy/index.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -36,6 +38,20 @@ function readScope(): CommissionCoverageScope {
   }
 }
 
+/** رمز الخطأ الثابت للمشغّل؛ لا يخرج من نطاقه أي نص خام. */
+function errorCode(error: unknown): string {
+  if (error instanceof Error && error.message === CONFIGURATION_CODE) return CONFIGURATION_CODE;
+  if (
+    error instanceof ReplayCursorError ||
+    error instanceof CommissionReplayCursorError ||
+    error instanceof CommissionCoverageEventInvalidError ||
+    error instanceof CommissionCoverageScopeInvalidError
+  ) {
+    return (error as { readonly code: string }).code;
+  }
+  return 'COMMISSION_COVERAGE_FAILED';
+}
+
 // مشغّل صريح فقط؛ main.ts لا يستورده، ولا يحتاج Redis أو أي قدرة اختيارية.
 try {
   const appUrl = process.env['DATABASE_URL'];
@@ -53,6 +69,7 @@ try {
       lines: { readPage: readServiceLineCoveragePage },
       salaries: { readPage: readSalaryCoveragePage },
       retained: reader,
+      companies: { isOpen: companyOpen },
     })(scope);
     console.log(JSON.stringify(report));
     if (report.status !== 'COVERED') process.exitCode = 1;
@@ -65,14 +82,6 @@ try {
     throw new Error('COMMISSION_COVERAGE_CLOSE_FAILED');
 } catch (error) {
   // الخطأ الخام قد يحمل SQL أو رابط اتصال؛ المشغّل يتلقى رمزًا ثابتًا فقط.
-  console.error(
-    error instanceof Error && error.message === CONFIGURATION_CODE
-      ? CONFIGURATION_CODE
-      : error instanceof ReplayCursorError ||
-          error instanceof CommissionReplayCursorError ||
-          error instanceof CommissionCoverageEventInvalidError
-        ? (error as { readonly code: string }).code
-        : 'COMMISSION_COVERAGE_FAILED',
-  );
+  console.error(errorCode(error));
   process.exitCode = 1;
 }
