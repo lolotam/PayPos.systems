@@ -12,7 +12,12 @@ export function useDiscountApprovalStatus(scope: SessionServiceScope, requestId:
     enabled: requestId !== null,
     retry: false,
     refetchOnWindowFocus: false,
-    refetchInterval: (query) => query.state.data?.items.some((item) => item.status === 'PENDING') ? 5000 : false,
+    refetchInterval: (query) => {
+      // أول قراءة فاشلة كانت بتوقف الاستطلاع فتفضل الشاشة مقفولة ومفيش مخرج؛ الاستطلاع يفضل شغّال لحد ما يوصل لبيانات.
+      const items = query.state.data?.items;
+      if (!items) return 5000;
+      return items.some((item) => item.status === 'PENDING') ? 5000 : false;
+    },
     queryFn: async ({ signal }) => {
       if (requestId === null) throw new Error('DISCOUNT_APPROVAL_REQUEST_REQUIRED');
       const result = await apiClient().GET(statusPath, {

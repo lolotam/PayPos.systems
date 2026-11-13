@@ -12,6 +12,7 @@ export const discountApprovalEn = {
   viaRemote: 'via remote approval',
   expired: 'Approval request expired',
   consumed: 'Approval used',
+  retry: 'Retry',
 };
 
 export const discountApprovalAr: Record<keyof typeof discountApprovalEn, string> = {
@@ -28,4 +29,5 @@ export const discountApprovalAr: Record<keyof typeof discountApprovalEn, string>
   viaRemote: 'عن بُعد',
   expired: 'طلب الموافقة خلص وقته',
   consumed: 'الموافقة اتستخدمت',
+  retry: 'إعادة المحاولة',
 };

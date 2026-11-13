@@ -3,7 +3,7 @@ import { errorEnvelope, rejectedServiceLine, type AppendServiceSessionLinesRespo
 import { SessionSavedDisplayFailure, sessionAttemptUnresolved, type SessionAttempt, type SessionAttemptCommand,
   type SessionJournalEnvelope } from './session-attempt';
 import type { ExpiredRecoveryProof, SessionAttemptJournal } from './session-attempt-journal';
-import { discountApprovalFingerprint } from './discount-approval-request';
+import { discountApprovalFingerprint, type DiscountApprovalContext } from './discount-approval-request';
 import { createSessionDraft, type SessionDraftForm, type SessionDraftLine } from './session-drafts';
 
 export type ExpiredAttemptView = {
@@ -77,10 +77,20 @@ function warnedFeedback(state: SessionRecordingResult): SessionFeedback {
 function isPaidAttemptLine(line: SessionAttempt['body']['lines'][number]): line is Extract<SessionAttempt['body']['lines'][number], { price: string }> {
   return 'price' in line;
 }
+// السياق بيتقرا من المحاولة نفسها: تسجيل جديد بزبونته ووقته، وإلحاق بزيارته وزبونة الزيارة.
+// من غير زبونة مفيش بصمة، فالسطر بيتسلّم من غير موافقة.
+function attemptApprovalContext(state: SessionRecordingResult, attempt: SessionAttempt): DiscountApprovalContext | null {
+  if (attempt.kind === 'record') return { customer_id: attempt.body.customer_id, session_id: null,
+    occurred_at: attempt.body.occurred_at ?? null, requester_membership_id: attempt.body.recorder_membership_id ?? null };
+  if (!state.customerId) return null;
+  return { customer_id: state.customerId, session_id: attempt.sessionId, occurred_at: null,
+    requester_membership_id: attempt.body.recorder_membership_id ?? null };
+}
 function recoverAttempt(state: SessionRecordingResult, attempt: SessionAttempt, wantedIds = attempt.rowIds, replaceVisit = false): SessionRecordingResult {
   const sessionId = attempt.kind === 'append' ? attempt.sessionId : replaceVisit ? null : state.sessionId;
   const sameAttempt = state.attempt?.key === attempt.key;
   if (state.sessionId !== sessionId) state = emptySessionRecordingResult(state.customer);
+  const context = attemptApprovalContext(state, attempt);
   const missing = attempt.body.lines.flatMap((line, index): SessionDraftLine[] => {
     const localId = attempt.rowIds[index];
     if (!localId || !wantedIds.includes(localId) || state.drafts.lines.some((row) => row.local_id === localId)) return [];
@@ -100,8 +110,8 @@ function recoverAttempt(state: SessionRecordingResult, attempt: SessionAttempt, 
       share_mode: line.performers.some((row) => row.share_bps !== undefined) ? 'CUSTOM' : 'EQUAL',
       performers: line.performers.map((row) => ({ employee_id: row.employee_id, selection: null,
         share_percentage: row.share_bps === undefined ? '' : sessionBpsText(row.share_bps) })) };
-    return [{ ...recovered, discount_proposal: line.discount_proposal_id
-      ? { id: line.discount_proposal_id, fingerprint: discountApprovalFingerprint(recovered) } : null }];
+    return [{ ...recovered, discount_proposal: line.discount_proposal_id && context
+      ? { id: line.discount_proposal_id, fingerprint: discountApprovalFingerprint(line, context) } : null }];
   });
   const customerId = attempt.kind === 'record' ? attempt.body.customer_id : state.customerId;
   const lines = missing.length ? [...state.drafts.lines, ...missing] : state.drafts.lines;

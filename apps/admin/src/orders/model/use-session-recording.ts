@@ -7,7 +7,7 @@ import { useRecordServiceSession } from '../api/use-record-service-session';
 import type { SessionServiceScope } from '../api/use-session-services';
 import type { SessionAttempt, SessionAttemptCommand, SessionAttemptRuntime } from './session-attempt';
 import { createSessionAttemptJournal, type SessionAttemptJournal } from './session-attempt-journal';
-import { discountApprovalFingerprint } from './discount-approval-request';
+import { discountApprovalContext, discountApprovalFingerprint, type DiscountApprovalContext } from './discount-approval-request';
 import { normalizeSessionPercent, sessionPerformerInputs, type SessionDraftForm, type SessionDraftLine } from './session-drafts';
 import {
   emptySessionRecordingResult, sessionLeaveFeedback, sessionResultCommand, sessionResultFrozen, transitionSessionRecordingResult,
@@ -40,24 +40,24 @@ const pendingJournal: SessionAttemptJournal = {
   dispose() {},
 };
 
-export function sessionCommandLines(lines: SessionDraftLine[]): SessionAttemptCommand['body']['lines'] {
+export function sessionCommandLines(lines: SessionDraftLine[], approval: DiscountApprovalContext | null = null): SessionAttemptCommand['body']['lines'] {
   return lines.map((line) => {
     if (line.from_package) {
       if (line.package_entitlement_id === null) throw new Error('SESSION_PACKAGE_NOT_CHOSEN');
       return { service_id: line.service_id,
         package: { entitlement_id: line.package_entitlement_id }, performers: sessionPerformerInputs(line) };
     }
-    return {
+    const paid = {
       service_id: line.service_id,
       price: sessionMoney.parse(normalizeKwdInput(line.price)),
       discount: line.discount_kind === 'PERCENT'
         ? { kind: 'PERCENT' as const, bps: discountPercentage.parse(normalizeSessionPercent(line.discount_percentage)) }
         : { kind: 'AMOUNT' as const, amount: sessionMoney.parse(normalizeKwdInput(line.discount_amount)) },
       performers: sessionPerformerInputs(line),
-      // تعديل السطر بعد الطلب يسقط الموافقة بصمت، فيرفضها الخادم برفض الحد العادي بدل TERMS_MISMATCH وتقدر المسجّلة تطلب من جديد.
-      ...(line.discount_proposal && discountApprovalFingerprint(line) === line.discount_proposal.fingerprint
-        ? { discount_proposal_id: line.discount_proposal.id } : {}),
     };
+    // تعديل السطر بعد الطلب يسقط الموافقة بصمت، فيرفضها الخادم برفض الحد العادي بدل TERMS_MISMATCH وتقدر المسجّلة تطلب من جديد.
+    return { ...paid, ...(line.discount_proposal && approval && discountApprovalFingerprint(paid, approval) === line.discount_proposal.fingerprint
+      ? { discount_proposal_id: line.discount_proposal.id } : {}) };
   });
 }
 
@@ -118,7 +118,8 @@ async function runAttempt(journal: SessionAttemptJournal, attempt: SessionAttemp
 
 async function submitRecording(journal: SessionAttemptJournal, mirror: Mirror, drafts: SessionDraftForm, dispatch: Dispatch, record: RecordMutation, append: AppendMutation, setState: (next: SessionRecordingResult) => void) {
   try {
-    const command = sessionResultCommand({ ...mirror.current, drafts }, sessionCommandLines(drafts.lines));
+    const context = discountApprovalContext(mirror.current, drafts);
+    const command = sessionResultCommand({ ...mirror.current, drafts }, sessionCommandLines(drafts.lines, context));
     const attempt = journal.begin(command, drafts.lines.map((line) => line.local_id));
     adoptSubmittedDrafts(mirror, setState, drafts);
     await runAttempt(journal, attempt, dispatch, record, append);

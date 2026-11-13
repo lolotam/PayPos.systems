@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { FormProvider, useForm } from 'react-hook-form';
 import { afterEach, expect, it, vi } from 'vitest';
+import { discountApprovalContext } from '../model/discount-approval-request';
 import { createSessionDraft, type SessionDraftForm } from '../model/session-drafts';
 import { emptySessionRecordingResult, type SessionRecordingResult } from '../model/session-recording-result';
 import { id, instant, rejection, scope } from '../model/session-recording-result.fixture';
@@ -38,9 +39,12 @@ function Harness({ result: value, onCommands }: {
   result: SessionRecordingResult; onCommands: (drafts: SessionDraftForm, lines: ReturnType<typeof sessionCommandLines>) => void;
 }) {
   const form = useForm<SessionDraftForm>({ defaultValues: value.drafts });
+  const rootError = form.formState.errors.root?.message;
   return <FormProvider {...form}>
     <SessionRejectedLines result={value} onEdit={vi.fn()} scope={scope} online />
-    <button type="button" onClick={() => onCommands(form.getValues(), sessionCommandLines(form.getValues('lines')))}>{t(api.locale, 'serviceSessions.save')}</button>
+    {rootError ? <p role="alert">{rootError}</p> : null}
+    <button type="button" onClick={() => onCommands(form.getValues(),
+      sessionCommandLines(form.getValues('lines'), discountApprovalContext(value, form.getValues())))}>{t(api.locale, 'serviceSessions.save')}</button>
   </FormProvider>;
 }
 
@@ -135,4 +139,41 @@ it('shows the existing consumed refusal label on a rejected row', () => {
   value.rejected[0] = { ...row, error: { ...row.error, approval_refusal: 'CONSUMED' } };
   mount(value);
   expect(screen.getByText(discountApprovalRefusals.CONSUMED.message_en)).toBeTruthy();
+});
+
+it('retries the status read that failed and shows the approved proposal', async () => {
+  api.locale = 'en';
+  api.post.mockResolvedValue({ data: requestResponse, response: { status: 201 } });
+  api.get.mockResolvedValueOnce({ error: { code: 'DISCOUNT_APPROVAL_STATUS_FAILED', message_ar: 'Status read failed AR', message_en: 'Status read failed' }, response: { status: 500 } })
+    .mockResolvedValue({ data: { items: [proposal('APPROVED')] }, response: { status: 200 } });
+  mount();
+  await clickRequest('en');
+  await waitFor(() => expect(screen.getByText('Status read failed')).toBeTruthy());
+  const retry = screen.getByRole('button', { name: t('en', 'discountApproval.retry') });
+  await act(async () => { fireEvent.click(retry); await Promise.resolve(); });
+  await waitFor(() => expect(screen.getByText(t('en', 'discountApproval.approved'))).toBeTruthy());
+});
+
+it('shows the invalid line error and sends no request', async () => {
+  api.locale = 'ar';
+  const value = result(), row = value.drafts.lines[0];
+  if (!row) throw new Error('Missing rejected row');
+  value.drafts.lines[0] = { ...row, price: 'abc' };
+  mount(value);
+  await clickRequest('ar');
+  expect(screen.getByText(t('ar', 'admin.unexpected'))).toBeTruthy();
+  expect(api.post).not.toHaveBeenCalled();
+});
+
+it('keeps the pending request after a re-save with a new result', async () => {
+  api.locale = 'en';
+  api.post.mockResolvedValue({ data: requestResponse, response: { status: 201 } });
+  api.get.mockResolvedValue({ data: { items: [proposal('PENDING')] }, response: { status: 200 } });
+  const value = result(), { client, commands, view } = mount(value);
+  await clickRequest('en');
+  await waitFor(() => expect(screen.getByText(t('en', 'discountApproval.pending'))).toBeTruthy());
+  const next = { ...value, rejected: [...value.rejected] };
+  view.rerender(<QueryClientProvider client={client}><Harness result={next} onCommands={commands} /></QueryClientProvider>);
+  expect(screen.getByText(t('en', 'discountApproval.pending'))).toBeTruthy();
+  expect((screen.getByRole('button', { name: t('en', 'discountApproval.request') }) as HTMLButtonElement).disabled).toBe(true);
 });
