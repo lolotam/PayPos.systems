@@ -1,4 +1,5 @@
 import { leaveHistoryPaths } from './staff/leave-history-openapi.js';
+import { leaveHistoryReportApiPaths } from './staff/leave-history-report-api-openapi.js';
 import { ownTipsPaths } from './orders/own-tips-openapi.js';
 import { personalBranchesPaths } from './staff/personal-branches-openapi.js';
 import { ownAttendancePaths } from './staff/own-attendance-openapi.js';
@@ -75,6 +76,7 @@ const PATHS = {
   ...staffPaths,
   ...leavePaths,
   ...leaveHistoryPaths,
+  ...leaveHistoryReportApiPaths,
   ...attendanceExceptionPaths,
   ...attendanceCorrectionPaths,
   ...attendanceChangePaths,

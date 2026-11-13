@@ -28,3 +28,6 @@ export * from './attendance-capabilities.js';
 export * from './own-attendance.js';
 export * from './personal-branches.js';
 export * from './leave-history.js';
+export * from './leave-history-report-job.js';
+export * from './leave-history-report-api.js';
+export * from './leave-history-report-api-openapi.js';

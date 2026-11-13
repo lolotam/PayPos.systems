@@ -1577,6 +1577,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/leave-history/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Accepts a creator-scoped asynchronous leave history report, reusing its matching live pending report or refusing a fourth one. */
+        post: operations["requestLeaveHistoryReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/leave-history/reports/{reportId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Reads the creator-owned report status or its next bounded result page. */
+        get: operations["getLeaveHistoryReportResult"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/attendance-exceptions/{exceptionId}/resolve": {
         parameters: {
             query?: never;
@@ -3740,6 +3774,61 @@ export interface components {
             } | null;
             request_branch_ids: string[];
             absence_branch_ids: string[];
+        };
+        LeaveHistoryReportRequest: {
+            /** Format: date */
+            from: string;
+            /** Format: date */
+            to: string;
+            /** @default [] */
+            "types[]": ("ANNUAL" | "SICK" | "UNPAID" | "OTHER" | "UNEXCUSED_ABSENCE")[];
+            /** @default [] */
+            "statuses[]": ("PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | "ABSENT")[];
+            /** Format: uuid */
+            branch_id?: string;
+        };
+        LeaveHistoryReportAccepted: {
+            /** Format: uuid */
+            report_id: string;
+        };
+        LeaveHistoryReportStatus: {
+            /** @enum {string} */
+            status: "pending";
+        } | {
+            /** @enum {string} */
+            status: "failed";
+            error: {
+                /** @enum {string} */
+                code: "LEAVE_HISTORY_REPORT_FAILED" | "LEAVE_HISTORY_REPORT_TOO_LARGE";
+                message_ar: string;
+                message_en: string;
+            };
+        } | {
+            items: components["schemas"]["LeaveHistoryItem"][];
+            next_cursor: string | null;
+            /** Format: date-time */
+            as_of: string;
+            last_taken: {
+                annual: {
+                    from: components["schemas"]["EmployeeDate"];
+                    to: components["schemas"]["EmployeeDate"];
+                } | null;
+                sick: {
+                    from: components["schemas"]["EmployeeDate"];
+                    to: components["schemas"]["EmployeeDate"];
+                } | null;
+                unpaid: {
+                    from: components["schemas"]["EmployeeDate"];
+                    to: components["schemas"]["EmployeeDate"];
+                } | null;
+                unexcused_absence?: components["schemas"]["EmployeeDate"] | null;
+            } | null;
+            request_branch_ids: string[];
+            absence_branch_ids: string[];
+            /** @enum {string} */
+            status: "ready";
+            /** Format: date-time */
+            computed_at: string;
         };
         DecideLeaveInput: {
             expected_revision: number;
@@ -6363,6 +6452,16 @@ export interface components {
             /** Format: date-time */
             reversed_at: string | null;
         };
+        CustomerPackageExtension: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            previous_expires_on: string;
+            /** Format: date */
+            new_expires_on: string;
+            /** Format: date-time */
+            extended_at: string;
+        };
         CustomerPackageDetail: {
             /** Format: uuid */
             id: string;
@@ -6392,10 +6491,13 @@ export interface components {
             sold_business_date: string | null;
             /** Format: date */
             expires_on: string;
+            business_timezone?: string;
             refunded_amount: components["schemas"]["SessionMoney"];
             revision: number;
             components: components["schemas"]["CustomerPackageDetailComponent"][];
             redemptions: components["schemas"]["CustomerPackageRedemption"][];
+            /** @default [] */
+            extensions: components["schemas"]["CustomerPackageExtension"][];
         };
         ServiceSessionDayQuery: {
             cursor?: string;
@@ -14053,6 +14155,98 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LeaveHistoryPage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    requestLeaveHistoryReport: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeaveHistoryReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Leave history report accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaveHistoryReportAccepted"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getLeaveHistoryReportResult: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                reportId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pending, ready or failed leave history report */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeaveHistoryReportStatus"];
+                };
+            };
+            /** @description LEAVE_HISTORY_REPORT_NOT_FOUND hides unknown, expired, foreign and other creators’ reports; NOT_FOUND hides missing read access. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description LEAVE_HISTORY_REPORT_STALE means the frozen branch sets are no longer contained in the caller’s current access. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bilingual refusal */

@@ -196,6 +196,7 @@ it('shows no phone and no field the detail does not own', async () => {
       'revision',
       'components',
       'redemptions',
+      'extensions',
     ].sort(),
   );
   const component = must(detail.components[0]);

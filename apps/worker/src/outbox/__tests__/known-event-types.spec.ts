@@ -27,6 +27,12 @@ vi.mock('../../modules/staff/jobs/employee-import-recovery.processor.ts', () => 
 vi.mock('../../modules/staff/jobs/document-expiry.processor.ts', () => ({
   startDocumentExpiryProcessor: () => ({}),
 }));
+vi.mock('../../modules/staff/jobs/leave-history-report.processor.ts', () => ({
+  startLeaveHistoryReportProcessor: () => ({}),
+}));
+vi.mock('../../modules/staff/jobs/leave-history-report-cleanup.processor.ts', () => ({
+  startLeaveHistoryReportCleanupProcessor: () => ({}),
+}));
 
 const database: Pick<Database, 'withTenant'> = { withTenant: vi.fn() };
 const ids = { newId: () => '01990000-0000-7000-8000-000000000001' };
@@ -118,4 +124,8 @@ it('retries a package preview request when its transport is absent during rollin
     }),
   ).toEqual({ delivered: false, error: 'TypeError', retryInMs: retryDelayMs(1) });
   expect(database.withTenant).not.toHaveBeenCalled();
+});
+
+it('contributes LeaveHistoryReportRequested from the staff module', () => {
+  expect(knownEventTypes(staff)).toContain('LeaveHistoryReportRequested');
 });

@@ -3,8 +3,11 @@ import { errorMessages, type ErrorMessageCode } from '@pospay/i18n';
 import { CATALOG_SERVICE_STATUS } from './catalog-service-error-statuses.ts';
 import { PACKAGE_SALE_STATUS } from './package-sale-error-statuses.ts';
 import { PACKAGE_READ_STATUS } from './package-read-error-statuses.ts';
-import { PACKAGE_EXTENSION_STATUS } from './package-extension-error-statuses.ts';
-import { PACKAGE_REFUND_STATUS } from './package-refund-error-statuses.ts';
+import { PACKAGE_CHANGE_STATUS } from './package-refund-error-statuses.ts';
+import {
+  LEAVE_HISTORY_REPORT_RAISED_BY_THE_API_ONLY,
+  LEAVE_HISTORY_REPORT_STATUS,
+} from './leave-history-report-error-statuses.ts';
 
 // Every error the API returns and its HTTP status; the messages, in both languages, live in packages/i18n (CLAUDE.md
 // §6, §7). A new code is added to both, never inlined — the type refuses a code with no message.
@@ -69,7 +72,7 @@ const STATUS = {
   LEAVE_NOT_PENDING: 409,
   LEAVE_REVISION_CONFLICT: 409,
   LEAVE_SELF_DECISION_FORBIDDEN: 403,
-  LEAVE_HISTORY_REPORT_REQUIRED: 422,
+  ...LEAVE_HISTORY_REPORT_STATUS,
   ATTENDANCE_EXCEPTION_SELF_FORBIDDEN: 403,
   ATTENDANCE_EXCEPTION_NOT_MANUAL: 409,
   ATTENDANCE_EXCEPTION_REVISION_CONFLICT: 409,
@@ -193,8 +196,7 @@ const STATUS = {
   ...CATALOG_SERVICE_STATUS,
   ...PACKAGE_SALE_STATUS,
   ...PACKAGE_READ_STATUS,
-  ...PACKAGE_EXTENSION_STATUS,
-  ...PACKAGE_REFUND_STATUS,
+  ...PACKAGE_CHANGE_STATUS,
 } as const satisfies Record<ErrorMessageCode, number>;
 
 export type ErrorCode = keyof typeof STATUS;
@@ -236,7 +238,7 @@ const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   'LEAVE_NOT_PENDING',
   'LEAVE_REVISION_CONFLICT',
   'LEAVE_SELF_DECISION_FORBIDDEN',
-  'LEAVE_HISTORY_REPORT_REQUIRED',
+  ...LEAVE_HISTORY_REPORT_RAISED_BY_THE_API_ONLY,
   'ATTENDANCE_EXCEPTION_SELF_FORBIDDEN',
   'ATTENDANCE_EXCEPTION_NOT_MANUAL',
   'ATTENDANCE_EXCEPTION_REVISION_CONFLICT',
@@ -373,8 +375,7 @@ const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   ...(Object.keys(CATALOG_SERVICE_STATUS) as ErrorCode[]),
   ...(Object.keys(PACKAGE_SALE_STATUS) as ErrorCode[]),
   ...(Object.keys(PACKAGE_READ_STATUS) as ErrorCode[]),
-  ...(Object.keys(PACKAGE_EXTENSION_STATUS) as ErrorCode[]),
-  ...(Object.keys(PACKAGE_REFUND_STATUS) as ErrorCode[]),
+  ...(Object.keys(PACKAGE_CHANGE_STATUS) as ErrorCode[]),
   'COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE',
 ]);
 
