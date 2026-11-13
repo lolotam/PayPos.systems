@@ -66,6 +66,7 @@ it('returns package detail with 200 and snake_case keys', async () => {
   expect(detail.customer_id).toBe(fixture.f.customer);
   expect(detail.price_paid).toBe('32.500');
   expect(detail.list_price).toBe('32.500');
+  expect(detail.business_timezone).toBe('Asia/Kuwait');
 
   expect(Object.keys(res.body).sort()).toEqual(
     [
@@ -87,10 +88,12 @@ it('returns package detail with 200 and snake_case keys', async () => {
       'sold_at',
       'sold_business_date',
       'expires_on',
+      'business_timezone',
       'refunded_amount',
       'revision',
       'components',
       'redemptions',
+      'extensions',
     ].sort(),
   );
 

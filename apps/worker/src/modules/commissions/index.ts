@@ -20,3 +20,16 @@ export type {
   CommissionStatementFrozenRow,
   CommissionStatementPaidCash,
 } from './ports/commission-statement-export.port.ts';
+export {
+  assertCommissionReplayCursor,
+  CommissionReplayCursorError,
+  CommissionReplayEventInvalidError,
+  recordCommissionFailureCodes,
+  runCommissionInputReplay,
+} from './jobs/replay-commission-inputs.ts';
+export type {
+  CommissionFailureCodes,
+  CommissionReplayCursor,
+  CommissionReplayResult,
+  CommissionReplayStatus,
+} from './jobs/replay-commission-inputs.ts';

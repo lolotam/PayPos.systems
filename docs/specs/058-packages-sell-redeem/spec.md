@@ -17,7 +17,7 @@
 > PK-Q3 (the recorder cannot name herself the seller), PK-Q5 (refund permission with reason, bell and audit), PK-Q6 (cancel
 > rules of a line), PK-Q7 (expiry by visit date), PK-Q8 (performer change by the 055 rules), PK-Q9 (an imported package's
 > price is what the customer actually paid) and PK-Q10 (an imported package refunds by the refund rules; Abu Salem's note on it
-> became the new question PK-Q24). **PK-Q24 is answered** (Waleed, card through his super agent, 2026-10-22, batch 46: imported refunds stay off until the owner switches them on per business; Abu Salem picked the same, 2026-10-23). **PK-Q26 is final** (batch 47): on 2026-10-24 (12:29 Kuwait) Abu Salem changed his pick on the decisions page to the owner only at first, grantable by the owner, the same as Waleed's card of 2026-10-22, so the switch has its own new permission `manage:imported-refunds:business` (TD-14). His earlier pick of 2026-10-23 (everyone who holds `manage:settings:business`) is kept as history in owner-questions §26. No `TODO(spec)` remains; PK-Q22's
+> became the new question PK-Q24). **PK-Q24 is answered** (Waleed, card through his super agent, 2026-10-22, batch 46: imported refunds stay off until the owner switches them on per business; Abu Salem picked the same, 2026-10-23). **PK-Q26 is final** (batch 47): on 2026-10-24 (12:29 Kuwait) Abu Salem changed his pick on the decisions page to the owner only at first, grantable by the owner, the same as Waleed's card of 2026-10-22, so the switch has its own new permission `manage:imported-refunds:business` (TD-14). His earlier pick of 2026-10-23 (everyone who holds `manage:settings:business`) is kept as history in owner-questions §26. Three `TODO(spec)` markers remain, only for the pending 45-UI-Q1, 45-UI-Q2 and 45-UI-Q3 (extension-reason visibility, Extend-button visibility and its capability source); none of them blocks row 45's delivery; PK-Q22's
 > `list_price_snapshot` is settled as a display-only invariant (FR-063); **no code starts on a sub-PR whose rows name a pending `TODO(spec)`** (§7).
 > **Implements:** SPEC §4 (`PackageEntitlement`, `PackageComponent`, `PackageSessionSlot`, `PackageRedemption`,
 > `PackageRefund`), §5.6, §8 and the M5–M14 behaviour tests of §11; PRD D-30, D-42, D-48, D-51, D-55; plan rows
@@ -439,6 +439,7 @@ business's full service catalog. Arabic column labels are header comments.
   per service the remaining, used and refunded counts and slot values, and the detail with its history (redemptions,
   extensions, refunds); a holder of `read:service-sessions:branch` sees exactly the same. Expired and fully used
   packages are listed last, marked. No package read carries the customer's phone.
+  `TODO(spec)` (45-UI-Q1, 45-UI-Q2, 45-UI-Q3): only the UI behaviour of the extension reason's visibility in the history and the Extend button's visibility and capability source are pending owner answers; this does not block row 45's delivery; remove this marker only when the answers are recorded verbatim in `owner-questions.ar.md`.
 - **CP-02** Another business's or company's packages never appear; a foreign customer id answers like unknown.
 - **CP-03** Both routes are guarded by `RequireAny(['record:service-sessions:branch', 'read:service-sessions:branch'],
   { branch })` (TD-13). A holder of `record:service-sessions:branch` only (reception's default) and a holder of
@@ -685,6 +686,7 @@ business's full service catalog. Arabic column labels are header comments.
   (the same `RequireAny` guard, TD-13; PK-Q17): the sale facts and components
   (42-4); each history section is added by the sub-PR that creates its table (redemptions with their visit dates in
   43-3, extensions in 45, refunds in 46-3), so no query reads a table that is not yet migrated.
+  `TODO(spec)` (45-UI-Q1, 45-UI-Q2, 45-UI-Q3): only the extension reason's visibility in this read is pending (it does not block row 45's delivery); remove this marker only when the answers are recorded verbatim in `owner-questions.ar.md`.
 - **FR-072** (PK-Q13) `GET /v1/businesses/{businessId}/branches/{branchId}/sellable-package-types` under
   **`sell:packages:branch`** at that branch and the `orders` feature (the sale's own gate, FR-011), never
   `read:package-types:business`. It lists the business's package types with `selling_stopped_at IS NULL`, each with

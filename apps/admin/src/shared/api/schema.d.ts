@@ -6435,6 +6435,16 @@ export interface components {
             /** Format: date-time */
             reversed_at: string | null;
         };
+        CustomerPackageExtension: {
+            /** Format: uuid */
+            id: string;
+            /** Format: date */
+            previous_expires_on: string;
+            /** Format: date */
+            new_expires_on: string;
+            /** Format: date-time */
+            extended_at: string;
+        };
         CustomerPackageDetail: {
             /** Format: uuid */
             id: string;
@@ -6464,10 +6474,13 @@ export interface components {
             sold_business_date: string | null;
             /** Format: date */
             expires_on: string;
+            business_timezone?: string;
             refunded_amount: components["schemas"]["SessionMoney"];
             revision: number;
             components: components["schemas"]["CustomerPackageDetailComponent"][];
             redemptions: components["schemas"]["CustomerPackageRedemption"][];
+            /** @default [] */
+            extensions: components["schemas"]["CustomerPackageExtension"][];
         };
         ServiceSessionDayQuery: {
             cursor?: string;

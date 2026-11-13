@@ -191,6 +191,7 @@ export const expectedOpenApiSchemaNames = [
   'CustomerPackageDetail',
   'CustomerPackageDetailComponent',
   'CustomerPackageDetailSlot',
+  'CustomerPackageExtension',
   'CustomerPackageListItem',
   'CustomerPackagePage',
   'CustomerPackageRedemption',
