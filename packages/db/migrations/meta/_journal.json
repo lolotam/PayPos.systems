@@ -1590,6 +1590,13 @@
       "when": 1794577443446,
       "tag": "0228_2026-11-13_service-category-closings",
       "breakpoints": true
+    },
+    {
+      "idx": 229,
+      "version": "7",
+      "when": 1794599554773,
+      "tag": "0229_2026-11-13_six-type-retained-replay-index",
+      "breakpoints": true
     }
   ]
 }
