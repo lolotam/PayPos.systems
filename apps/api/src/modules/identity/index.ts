@@ -102,3 +102,12 @@ export { readOwnAttendanceAccess } from './persistence/own-attendance-access.ts'
 
 export { readOwnServiceSessionsAccess } from './persistence/own-service-sessions-access.ts';
 export { lockDiscountApprovalAccess, readDiscountApprovalAccess } from './persistence/service-session-edit-access.ts';
+
+export { VERIFY_DISCOUNT_APPROVER_PIN } from './identity.module.ts';
+export type { VerifyDiscountApproverPin } from './use-cases/verify-discount-approver-pin/verify-discount-approver-pin.ts';
+export type { ApproverPinOutcome } from './ports/discount-approver-pin.port.ts';
+export {
+  readActiveDeviceBusiness,
+  lockActiveDeviceBusiness,
+  lockApproverPinRevision,
+} from './persistence/discount-approval-device.ts';

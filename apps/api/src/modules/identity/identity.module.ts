@@ -48,6 +48,7 @@ import { authDeviceSecrets } from './persistence/device-secrets.ts';
 import { createDeviceTransactions } from './persistence/device-transactions.ts';
 import { createRedisPairingCodes } from './persistence/redis-pairing-codes.ts';
 import { createRedisPinAttempts } from './persistence/redis-pin-attempts.ts';
+import { createRedisDevicePinCap } from './persistence/redis-device-pin-cap.ts';
 import { createOnboardingTransactions } from './persistence/onboarding-transactions.ts';
 import { tenancyCompanyRegistry } from './persistence/tenancy-company-registry.adapter.ts';
 import { createWorkspaceNames } from './persistence/workspace-names.adapter.ts';
@@ -63,6 +64,7 @@ import { RegisterDevice } from './use-cases/register-device/register-device.ts';
 import { RevokeDevice } from './use-cases/revoke-device/revoke-device.ts';
 import { SetCashierPin } from './use-cases/set-cashier-pin/set-cashier-pin.ts';
 import { VerifyCashierPin } from './use-cases/verify-cashier-pin/verify-cashier-pin.ts';
+import { VerifyDiscountApproverPin } from './use-cases/verify-discount-approver-pin/verify-discount-approver-pin.ts';
 import {
   StaffPinController,
   STAFF_PIN_USE_CASES,
@@ -74,6 +76,9 @@ import { ResetStaffPin } from './use-cases/reset-staff-pin/reset-staff-pin.ts';
 import { PrivateViewController, PRIVATE_VIEW_WINDOWS } from './http/private-view.controller.ts';
 import { OpenPrivateView } from './use-cases/open-private-view/open-private-view.ts';
 import { AUTH_SERVICE } from '../../shared/session.guard.ts';
+
+/** توكن التحقق من PIN اعتماد الخصم — الـ provider بيربطه بالـ use case، والـ orders بيحقنه. */
+export const VERIFY_DISCOUNT_APPROVER_PIN = Symbol('VERIFY_DISCOUNT_APPROVER_PIN');
 
 /** The controllers identity mounts. */
 export const identityControllers = [
@@ -157,6 +162,7 @@ export function identityProviders(
           ? null
           : staffPinUseCases(database, ids, redis, staff?.sessions ?? null),
     },
+    ...discountApproverProviders(database, ids, redis, staff?.sessions ?? null),
     ...privateViewProviders(database, ids, redis),
     { provide: WORKSPACE_NAMES, useValue: names },
     { provide: OnboardCompany, useValue: onboard },
@@ -292,4 +298,30 @@ function staffPinUseCases(
       ...eligibility,
     }),
   };
+}
+
+// التحقق من PIN اعتماد الخصم بيحتاج داتابيز وRedis وجلسات اعتماد معاً؛ ناقص واحد منهم المسار كله بيرفض.
+function discountApproverProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  redis: Redis | undefined,
+  sessions: StaffSessions | null,
+): Provider[] {
+  if (database === undefined || redis === undefined || sessions === null) {
+    return [{ provide: VERIFY_DISCOUNT_APPROVER_PIN, useValue: null }];
+  }
+  const eligibility = createStaffEligibility(database);
+  return [
+    {
+      provide: VERIFY_DISCOUNT_APPROVER_PIN,
+      useValue: new VerifyDiscountApproverPin(
+        createStaffPinTransactions(database, ids),
+        authPinHasher,
+        createRedisPinAttempts(redis, ids),
+        sessions,
+        createRedisDevicePinCap(redis, ids),
+        { valid: (device) => eligibility.context(device).then((found) => found !== null) },
+      ),
+    },
+  ];
 }
