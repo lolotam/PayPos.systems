@@ -1,5 +1,5 @@
 {
-  "id": "22c90e08-6873-4e84-8ef0-2d236b605ca7",
+  "id": "0e0555c2-09a2-4a4f-8298-1016772c88c7",
   "prevId": "bf5309a4-6478-45d4-8422-1cb7c3c7dd93",
   "version": "7",
   "dialect": "postgresql",
@@ -29519,13 +29519,13 @@
           "name": "source_branch_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "source_business_date": {
           "name": "source_business_date",
           "type": "date",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "attached_branch_ids": {
           "name": "attached_branch_ids",
@@ -29761,6 +29761,10 @@
         "commission_corrections_kind": {
           "name": "commission_corrections_kind",
           "value": "\"commission_corrections\".\"kind\" IN ('COMMISSION','SALE','TIP_CARD','TIP_CASH')"
+        },
+        "commission_corrections_amounts": {
+          "name": "commission_corrections_amounts",
+          "value": "\"commission_corrections\".\"amount\" <> 'NaN'::numeric\n        AND \"commission_corrections\".\"previous_amount\" <> 'NaN'::numeric\n        AND \"commission_corrections\".\"new_amount\" <> 'NaN'::numeric"
         },
         "commission_corrections_amount": {
           "name": "commission_corrections_amount",

@@ -121,11 +121,13 @@ export class CommissionCorrectionTargetInputError extends Error {
 }
 
 /** سبب رفض مُدخل خطوة التصحيح؛ كلها أخطاء إدخال صريحة، وليس فيها إعادة محاولة تشغيلية. */
-export type CommissionCorrectionStepRefusal = 'DUPLICATE_SOURCE' | 'MISSING_ATTRIBUTION';
+export type CommissionCorrectionStepRefusal =
+  'DUPLICATE_SOURCE' | 'SOURCE_KIND_CONFLICT' | 'MISSING_ATTRIBUTION' | 'AMOUNT_OUT_OF_RANGE';
 
 /**
  * رفض مُدخل خطوة التصحيح؛ الحساب يتوقف بدل أن يبني صف تصحيح بمبلغ أو نسبة غلط،
- * لأن صفاً غلطاً في كشف رواتب لا يُصحَّح إلا بخطأ آخر.
+ * لأن صفاً غلطاً في كشف رواتب لا يُصحَّح إلا بخطأ آخر. مرجع المصدر هو هوية
+ * المصدر لوحده، فمرجع واحد بنوعين أو مبلغ برّه المدى رفضُ صريح مش مصدرين.
  */
 export class CommissionCorrectionStepInputError extends Error {
   readonly code = 'COMMISSION_CORRECTION_STEP_INPUT_INVALID';

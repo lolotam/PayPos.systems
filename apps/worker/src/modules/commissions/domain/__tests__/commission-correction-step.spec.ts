@@ -1,3 +1,4 @@
+import { MONEY_MAX } from '@pospay/domain';
 import { expect, it } from 'vitest';
 
 import { CommissionCorrectionStepInputError } from '../errors.ts';
@@ -172,23 +173,34 @@ it('refuses a source with no attribution at all', () => {
   ).toThrowError(expect.objectContaining({ reason: 'MISSING_ATTRIBUTION' }));
 });
 
-it('keeps the same source ref with another kind apart', () => {
-  const drafts = computeCommissionCorrections(
-    input({
-      frozen: [
-        { sourceRef: 'tip:s1:CARD', kind: 'TIP_CARD', amount: 5_000n, attribution: ATTRIBUTION },
-      ],
-      recomputed: [
-        { sourceRef: 'tip:s1:CARD', kind: 'TIP_CASH', amount: 3_000n, attribution: RESOLVED },
-      ],
-    }),
+it('refuses one source ref that appears under two kinds', () => {
+  expect(() =>
+    computeCommissionCorrections(
+      input({
+        frozen: [
+          { sourceRef: 'tip:s1:CARD', kind: 'TIP_CARD', amount: 5_000n, attribution: ATTRIBUTION },
+        ],
+        recomputed: [
+          { sourceRef: 'tip:s1:CARD', kind: 'TIP_CASH', amount: 3_000n, attribution: RESOLVED },
+        ],
+      }),
+    ),
+  ).toThrowError(
+    expect.objectContaining({ reason: 'SOURCE_KIND_CONFLICT', sourceRef: 'tip:s1:CARD' }),
   );
-  expect(
-    drafts.map((draft) => [draft.kind, draft.previousAmount, draft.newAmount, draft.amount]),
-  ).toEqual([
-    ['TIP_CARD', 5_000n, 0n, -5_000n],
-    ['TIP_CASH', 0n, 3_000n, 3_000n],
-  ]);
+});
+
+it('refuses one source ref whose kind changes between the frozen row and a posted correction', () => {
+  expect(() =>
+    computeCommissionCorrections(
+      input({
+        frozen: [
+          { sourceRef: 'line:a', kind: 'COMMISSION', amount: 5_000n, attribution: ATTRIBUTION },
+        ],
+        posted: [{ sourceRef: 'line:a', kind: 'SALE', amount: -5_000n }],
+      }),
+    ),
+  ).toThrowError(expect.objectContaining({ reason: 'SOURCE_KIND_CONFLICT', sourceRef: 'line:a' }));
 });
 
 it('CM-43: cancelling A posts -20.000 for B and the late 600 posts +20.000', () => {
@@ -241,7 +253,7 @@ it('rejects a duplicate recomputed source', () => {
   ).toThrowError(expect.objectContaining({ reason: 'DUPLICATE_SOURCE' }));
 });
 
-it('orders the drafts by source ref then kind whatever the input order', () => {
+it('orders the drafts by source ref whatever the input order', () => {
   const drafts = computeCommissionCorrections(
     input({
       frozen: [frozen('line:c', 1_000n), frozen('line:a', 2_000n), frozen('line:b', 3_000n)],
@@ -287,6 +299,81 @@ it('keeps the mills exact where a float would drift', () => {
     newAmount: 0n,
     amount: -66_666_666_666_667n,
   });
+});
+
+it('refuses a delta that leaves the numeric(14,3) range', () => {
+  expect(() =>
+    computeCommissionCorrections(
+      input({
+        frozen: [frozen('line:a', -MONEY_MAX)],
+        recomputed: [recomputed('line:a', MONEY_MAX)],
+      }),
+    ),
+  ).toThrowError(expect.objectContaining({ reason: 'AMOUNT_OUT_OF_RANGE', sourceRef: 'line:a' }));
+});
+
+it('refuses a recomputed amount above the numeric(14,3) range', () => {
+  expect(() =>
+    computeCommissionCorrections(input({ recomputed: [recomputed('line:a', MONEY_MAX + 1n)] })),
+  ).toThrowError(expect.objectContaining({ reason: 'AMOUNT_OUT_OF_RANGE', sourceRef: 'line:a' }));
+});
+
+it('refuses a previous amount whose sum leaves the numeric(14,3) range', () => {
+  expect(() =>
+    computeCommissionCorrections(
+      input({
+        frozen: [frozen('line:a', MONEY_MAX)],
+        posted: [posted('line:a', MONEY_MAX)],
+      }),
+    ),
+  ).toThrowError(expect.objectContaining({ reason: 'AMOUNT_OUT_OF_RANGE', sourceRef: 'line:a' }));
+});
+
+it('accepts a delta at the exact numeric(14,3) bound', () => {
+  const drafts = computeCommissionCorrections(
+    input({
+      frozen: [frozen('line:a', -49_999_999_999_999n)],
+      recomputed: [recomputed('line:a', 50_000_000_000_000n)],
+    }),
+  );
+  expect(drafts[0]).toMatchObject({
+    previousAmount: -49_999_999_999_999n,
+    newAmount: 50_000_000_000_000n,
+    amount: MONEY_MAX,
+  });
+});
+
+it('keeps an attribution with no attached branch', () => {
+  const attribution: CommissionCorrectionAttribution = {
+    sourceBranchId: BRANCH,
+    sourceBusinessDate: '2026-10-05',
+    attachedBranchIds: [],
+  };
+  const drafts = computeCommissionCorrections(
+    input({ frozen: [frozen('line:a', 20_000n, attribution)] }),
+  );
+  expect(drafts[0]?.attribution).toEqual(attribution);
+});
+
+it('refuses a source whose attribution carries no branch', () => {
+  expect(() =>
+    computeCommissionCorrections(
+      input({
+        frozen: [
+          {
+            sourceRef: 'line:a',
+            kind: 'COMMISSION',
+            amount: 20_000n,
+            attribution: {
+              sourceBranchId: '',
+              sourceBusinessDate: '2026-10-05',
+              attachedBranchIds: [],
+            },
+          },
+        ],
+      }),
+    ),
+  ).toThrowError(expect.objectContaining({ reason: 'MISSING_ATTRIBUTION' }));
 });
 
 it('does not touch the rows it reads', () => {

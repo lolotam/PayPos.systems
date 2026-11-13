@@ -84,6 +84,38 @@ it('refuses an amount that is not the difference between the new and the previou
   );
 });
 
+// كل مبلغ لازم يكون رقم حقيقي: NaN بيساوي نفسه في Postgres، فقيد التساوي لوحده
+// كان هيقبل الصف؛ القيد على الأعمدة التلاتة هو اللي بيقول غير كده.
+const NAN_COLUMNS = [
+  ['amount', 'amount'],
+  ['previous_amount', 'previousAmount'],
+  ['new_amount', 'newAmount'],
+] as const;
+
+it.each(NAN_COLUMNS)('refuses a correction whose %s is NaN', async (_column, override) => {
+  const statementId = await targetStatement(A.business, '2026-11');
+  await expectPgError(insertCorrection(statementId, { [override]: 'NaN' }), '23514');
+});
+
+it('refuses a correction whose three amounts are all NaN', async () => {
+  const statementId = await targetStatement(A.business, '2026-11');
+  await expectPgError(
+    insertCorrection(statementId, { amount: 'NaN', previousAmount: 'NaN', newAmount: 'NaN' }),
+    '23514',
+    'commission_corrections_amounts',
+  );
+});
+
+it('refuses a correction without a source branch', async () => {
+  const statementId = await targetStatement(A.business, '2026-11');
+  await expectPgError(insertCorrection(statementId, { sourceBranchId: null }), '23502');
+});
+
+it('refuses a correction without a source business date', async () => {
+  const statementId = await targetStatement(A.business, '2026-11');
+  await expectPgError(insertCorrection(statementId, { sourceBusinessDate: null }), '23502');
+});
+
 it('refuses a target period that is not after the source period', async () => {
   const statementId = await targetStatement(A.business, '2026-10');
   await expectPgError(

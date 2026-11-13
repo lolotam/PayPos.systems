@@ -14,12 +14,15 @@ CREATE TABLE "commission_corrections" (
 	"generation" integer NOT NULL,
 	"event_id" uuid NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"source_branch_id" uuid,
-	"source_business_date" date,
+	"source_branch_id" uuid NOT NULL,
+	"source_business_date" date NOT NULL,
 	"attached_branch_ids" uuid[] DEFAULT '{}'::uuid[] NOT NULL,
 	CONSTRAINT "commission_corrections_pkey" PRIMARY KEY("company_id","id"),
 	CONSTRAINT "commission_corrections_source_key" UNIQUE("company_id","source_period","employee_id","source_ref","generation"),
 	CONSTRAINT "commission_corrections_kind" CHECK ("commission_corrections"."kind" IN ('COMMISSION','SALE','TIP_CARD','TIP_CASH')),
+	CONSTRAINT "commission_corrections_amounts" CHECK ("commission_corrections"."amount" <> 'NaN'::numeric
+        AND "commission_corrections"."previous_amount" <> 'NaN'::numeric
+        AND "commission_corrections"."new_amount" <> 'NaN'::numeric),
 	CONSTRAINT "commission_corrections_amount" CHECK ("commission_corrections"."amount" = "commission_corrections"."new_amount" - "commission_corrections"."previous_amount"),
 	CONSTRAINT "commission_corrections_generation" CHECK ("commission_corrections"."generation" > 0),
 	CONSTRAINT "commission_corrections_source_period" CHECK ("commission_corrections"."source_period" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' AND substr("commission_corrections"."source_period", 1, 4) <> '0000'),

@@ -1,4 +1,4 @@
-import { sumMoney, type Money } from '@pospay/domain';
+import { assertMoney, sumMoney, type Money } from '@pospay/domain';
 
 import { CommissionCorrectionStepInputError } from './errors.ts';
 
@@ -9,10 +9,12 @@ export type CommissionCorrectionKind = 'COMMISSION' | 'SALE' | 'TIP_CARD' | 'TIP
  * نسبة المصدر المصحَّح: الفرع الذي تم فيه العمل، وتاريخ العمل، وفروع الموظفة في
  * ذلك التاريخ. النسبة تُنسخ من الصف المجمَّد ولا تُشتق من الوضع المباشر أبداً
  * (FR-040)، لأن رابطاً عُدِّل بعد الاعتماد ينقل نسبتها وهي مجمَّدة.
+ * الفرع وتاريخ العمل إجباريان: كل صف تصحيح يحمل نسبته كاملة، ومفيش تصحيح
+ * ينزل من غير تاريخ عمل معروف؛ الفروع المرفقة بس ممكن تكون فاضية.
  */
 export interface CommissionCorrectionAttribution {
-  readonly sourceBranchId: string | null;
-  readonly sourceBusinessDate: string | null;
+  readonly sourceBranchId: string;
+  readonly sourceBusinessDate: string;
   readonly attachedBranchIds: readonly string[];
 }
 
@@ -72,14 +74,7 @@ export interface CommissionCorrectionDraft {
   readonly attribution: CommissionCorrectionAttribution;
 }
 
-/** هوية المصدر داخل الخطوة: مرجعه ونوعه، لأن المرجع نفسه بنوعين مصدران مختلفان. */
-interface SourceIdentity {
-  readonly key: string;
-  readonly sourceRef: string;
-  readonly kind: CommissionCorrectionKind;
-}
-
-/** المصادر الثلاث مفهرسة بمفتاح المصدر؛ كل مصدر في كل مجموعة له مدخل واحد فيها. */
+/** المصادر الثلاث مفهرسة بمرجع المصدر؛ كل مصدر في كل مجموعة له مدخل واحد فيها. */
 interface SourceBuckets {
   readonly frozen: Map<string, CommissionFrozenSource>;
   readonly posted: Map<string, CommissionPostedCorrection[]>;
@@ -87,35 +82,47 @@ interface SourceBuckets {
 }
 
 /**
- * يبني مفتاح المصدر من مرجعه ونوعه؛ المفتاح نص مُرمَّز لا يلتصق فيه المرجع
- * بنوعه ولا مرجعان مختلفان، لأن المصدر الواحد لا يُقاس مرتين ولا يُنشر له
- * تصحيحان في نفس الوقت.
+ * يسجّل نوع كل مرجع مصدر: المرجع هو هوية المصدر، فلو ظهر بنوعين مختلفين فالمصدر
+ * مش مصدر واحد، والتصحيحان هيتبانقوا على نفس مفتاح التخزين.
  *
- * @param sourceRef مرجع المصدر كما ورد في الصف المجمَّد
- * @param kind نوع المصدر
- * @returns مفتاح نصي يميّز المصدر عن غيره
+ * @param kinds     سجل نوع كل مرجع مرئي لحد الآن
+ * @param sourceRef مرجع المصدر
+ * @param kind      نوع المصدر
  */
-function sourceKey(sourceRef: string, kind: CommissionCorrectionKind): string {
-  return JSON.stringify([sourceRef, kind]);
+function registerKind(
+  kinds: Map<string, CommissionCorrectionKind>,
+  sourceRef: string,
+  kind: CommissionCorrectionKind,
+): void {
+  const known = kinds.get(sourceRef);
+  if (known === undefined) {
+    kinds.set(sourceRef, kind);
+    return;
+  }
+  if (known !== kind) {
+    throw new CommissionCorrectionStepInputError('SOURCE_KIND_CONFLICT', sourceRef, kind);
+  }
 }
 
 /**
  * يفهرس الصفوف التي لا يتكرر فيها المصدر؛ فالتكرار معناه أن مدخلين مختلفين يحملان
  * هوية واحدة، فالاختيار يتوقف بدل أن يبني تصحيحاً على أساس غلط.
  *
- * @param rows الصفوف المراد فهرستها، صف واحد لكل مصدر
- * @returns فهرس الصفوف بمفتاح المصدر
+ * @param rows  الصفوف المراد فهرستها، صف واحد لكل مصدر
+ * @param kinds سجل نوع كل مرجع، بيتبنى مع الفهرسة
+ * @returns فهرس الصفوف بمرجع المصدر
  */
 function indexBySource<T extends { sourceRef: string; kind: CommissionCorrectionKind }>(
   rows: readonly T[],
+  kinds: Map<string, CommissionCorrectionKind>,
 ): Map<string, T> {
   const index = new Map<string, T>();
   for (const row of rows) {
-    const key = sourceKey(row.sourceRef, row.kind);
-    if (index.has(key)) {
+    registerKind(kinds, row.sourceRef, row.kind);
+    if (index.has(row.sourceRef)) {
       throw new CommissionCorrectionStepInputError('DUPLICATE_SOURCE', row.sourceRef, row.kind);
     }
-    index.set(key, row);
+    index.set(row.sourceRef, row);
   }
   return index;
 }
@@ -124,134 +131,100 @@ function indexBySource<T extends { sourceRef: string; kind: CommissionCorrection
  * يفهرس التصحيحات المنشورة؛ نفس المصدر يتكرر عبر الأجيال، فالتصحيحات له تُجمَّع
  * ولا تُرفض، لأن مجموعها هو ما حُمِّل على المصدر قبل هذا الجيل.
  *
- * @param rows التصحيحات المنشورة لنفس الشهر المصدر
- * @returns فهرس التصحيحات المنشورة بمفتاح المصدر
+ * @param rows  التصحيحات المنشورة لنفس الشهر المصدر
+ * @param kinds سجل نوع كل مرجع، بيتبنى مع الفهرسة
+ * @returns فهرس التصحيحات المنشورة بمرجع المصدر
  */
 function indexPosted(
   rows: readonly CommissionPostedCorrection[],
+  kinds: Map<string, CommissionCorrectionKind>,
 ): Map<string, CommissionPostedCorrection[]> {
   const index = new Map<string, CommissionPostedCorrection[]>();
   for (const row of rows) {
-    const key = sourceKey(row.sourceRef, row.kind);
-    const bucket = index.get(key);
-    if (bucket === undefined) index.set(key, [row]);
+    registerKind(kinds, row.sourceRef, row.kind);
+    const bucket = index.get(row.sourceRef);
+    if (bucket === undefined) index.set(row.sourceRef, [row]);
     else bucket.push(row);
   }
   return index;
 }
 
 /**
- * يجمع هوية كل مصدر ظهر في أي من المجموعات الثلاث؛ المصدر ينتمي للمجموعة حتى لو
- * غاب منها، لأن غيابه هو نفسه معلومة: غاب عن إعادة الحساب فمبلغه الجديد صفر.
+ * بيتأكد إن المبلغ جوه مدى numeric(14,3)؛ برّه المدى المبلغ مش بيتكتب في
+ * الداتابيز أصلاً، فالتصحيح يتوقف بخطأ مُدخَل يحمل مرجع المصدر.
  *
- * @param buckets المصادر الثلاث مفهرسة
- * @returns هوية كل مصدر مرة واحدة
+ * @param work     حساب المبلغ اللي ممكن يخرج بحدّ الفلوس
+ * @param sourceRef مرجع المصدر المسؤول عن المبلغ
+ * @param kind      نوع المصدر
+ * @returns المبلغ بعد ما اتأكد من مداه
  */
-function unionOfSources(buckets: SourceBuckets): SourceIdentity[] {
-  const identities = new Map<string, SourceIdentity>();
-  const remember = (sourceRef: string, kind: CommissionCorrectionKind): void => {
-    const key = sourceKey(sourceRef, kind);
-    if (!identities.has(key)) identities.set(key, { key, sourceRef, kind });
-  };
-  for (const row of buckets.frozen.values()) remember(row.sourceRef, row.kind);
-  for (const rows of buckets.posted.values()) {
-    for (const row of rows) remember(row.sourceRef, row.kind);
+function withinMoneyRange(
+  work: () => Money,
+  sourceRef: string,
+  kind: CommissionCorrectionKind,
+): Money {
+  try {
+    return work();
+  } catch (error) {
+    if (error instanceof RangeError) {
+      throw new CommissionCorrectionStepInputError('AMOUNT_OUT_OF_RANGE', sourceRef, kind);
+    }
+    throw error;
   }
-  for (const row of buckets.recomputed.values()) remember(row.sourceRef, row.kind);
-  return [...identities.values()];
 }
 
 /**
  * يجيب ما حُمِّل على المصدر قبل هذا التصحيح: ما جُمِّد منه زائد ما نُشر عليه
  * من تصحيحات سابقة؛ والصفر يعني أن المصدر لم يُلمَس بعد.
  *
- * @param buckets المصادر الثلاث مفهرسة
- * @param key مفتاح المصدر
+ * @param buckets  المصادر الثلاث مفهرسة
+ * @param sourceRef مرجع المصدر
+ * @param kind      نوع المصدر
  * @returns مجموع المبلغ المجمَّد والمبالغ المنشورة
  */
-function previousAmount(buckets: SourceBuckets, key: string): Money {
+function previousAmount(
+  buckets: SourceBuckets,
+  sourceRef: string,
+  kind: CommissionCorrectionKind,
+): Money {
   const amounts: Money[] = [];
-  const frozen = buckets.frozen.get(key);
+  const frozen = buckets.frozen.get(sourceRef);
   if (frozen !== undefined) amounts.push(frozen.amount);
-  for (const row of buckets.posted.get(key) ?? []) amounts.push(row.amount);
-  return sumMoney(amounts);
+  for (const row of buckets.posted.get(sourceRef) ?? []) amounts.push(row.amount);
+  return withinMoneyRange(() => sumMoney(amounts), sourceRef, kind);
 }
 
 /**
  * يقرر نسبة المصدر: من الصف المجمَّد إن وُجد، وإلا من تصحيح نُشر من قبل، وإلا
  * من النسبة المحلولة المرفقة بالمصدر المعاد حسابه. المصدر بلا نسبة لا يُنشر له
  * تصحيح، لأن النسبة هي التي توزّع الصف على فروع الموظفة في كشف الرواتب، ولا
- * يجوز أن تتغير بعد اعتماد شهرها.
+ * يجوز أن تتغير بعد اعتماد شهرها. والنسبة الناقصة ما تنفعش، فالفرع وتاريخ العمل
+ * إجباريان في كل صف تصحيح.
  *
- * @param identity هوية المصدر
- * @param buckets المصادر الثلاث مفهرسة
+ * @param buckets  المصادر الثلاث مفهرسة
+ * @param sourceRef مرجع المصدر
+ * @param kind      نوع المصدر
  * @returns نسبة المصدر المنسوخة
  */
 function attributionOf(
-  identity: SourceIdentity,
   buckets: SourceBuckets,
+  sourceRef: string,
+  kind: CommissionCorrectionKind,
 ): CommissionCorrectionAttribution {
-  const frozen = buckets.frozen.get(identity.key);
-  if (frozen !== undefined) return frozen.attribution;
-  for (const row of buckets.posted.get(identity.key) ?? []) {
-    if (row.attribution !== undefined) return row.attribution;
+  const frozen = buckets.frozen.get(sourceRef);
+  const posted = buckets.posted.get(sourceRef) ?? [];
+  const recomputed = buckets.recomputed.get(sourceRef);
+  const candidates = [
+    frozen?.attribution,
+    ...posted.map((row) => row.attribution),
+    recomputed?.attribution,
+  ];
+  for (const candidate of candidates) {
+    if (candidate === undefined) continue;
+    if (candidate.sourceBranchId === '' || candidate.sourceBusinessDate === '') continue;
+    return candidate;
   }
-  const recomputed = buckets.recomputed.get(identity.key);
-  if (recomputed?.attribution !== undefined) return recomputed.attribution;
-  throw new CommissionCorrectionStepInputError(
-    'MISSING_ATTRIBUTION',
-    identity.sourceRef,
-    identity.kind,
-  );
-}
-
-/**
- * يبني مسودة التصحيح من فرق المصدر؛ المسودة تحمل ما قبله وما بعده والفرق بينهما،
- * والجيل ومعرف الحدث والشهرين ومعرف كشف الهدف.
- *
- * @param input مُدخلات خطوة التصحيح
- * @param identity هوية المصدر
- * @param buckets المصادر الثلاث مفهرسة
- * @param previous المبلغ المحمَّل على المصدر
- * @param next المبلغ المعاد حسابه
- * @param amount الفرق بين الجديد والقديم
- * @returns مسودة صف التصحيح
- */
-function buildDraft(
-  input: CommissionCorrectionStepInput,
-  identity: SourceIdentity,
-  buckets: SourceBuckets,
-  previous: Money,
-  next: Money,
-  amount: Money,
-): CommissionCorrectionDraft {
-  return {
-    employeeId: input.employeeId,
-    sourcePeriod: input.sourcePeriod,
-    targetPeriod: input.targetPeriod,
-    targetStatementId: input.targetStatementId,
-    sourceRef: identity.sourceRef,
-    kind: identity.kind,
-    previousAmount: previous,
-    newAmount: next,
-    amount,
-    generation: input.generation,
-    eventId: input.eventId,
-    attribution: attributionOf(identity, buckets),
-  };
-}
-
-/**
- * يرتّب المسودات بالمصدر ثم بنوعه؛ الترتيب ثابت فلا يعتمد على ترتيب المُدخلات.
- *
- * @param left المسودة الأولى
- * @param right المسودة الثانية
- * @returns رقم المقارنة
- */
-function bySourceOrder(left: CommissionCorrectionDraft, right: CommissionCorrectionDraft): number {
-  if (left.sourceRef !== right.sourceRef) return left.sourceRef < right.sourceRef ? -1 : 1;
-  if (left.kind !== right.kind) return left.kind < right.kind ? -1 : 1;
-  return 0;
+  throw new CommissionCorrectionStepInputError('MISSING_ATTRIBUTION', sourceRef, kind);
 }
 
 /**
@@ -260,25 +233,49 @@ function bySourceOrder(left: CommissionCorrectionDraft, right: CommissionCorrect
  * ما جُمِّد منه زائد ما حُمِّل عليه من تصحيحات سابقة وبين مبلغه المعاد حسابه.
  * الفرق الصفري لا يُنشر، والتصحيح المنشور في جيل جديد يبني على جيله السابق فلا
  * يكرر ما نُشر، والنسبة تُنسخ من الصف المجمَّد لأنها لا تتغيّر بعد الاعتماد.
+ * هوية المصدر هي مرجعه لوحده: مرجع واحد بنوعين مختلفين رفض مش مصدرين، وكل
+ * مبلغ لازم يكون جوه مدى numeric(14,3) قبل ما المسودة تتبعت. والترتيب بالمصدر
+ * عشان ما يعتمدش على ترتيب المُدخلات.
  *
  * @param input شهر المصدر والموظفة والجيل وهدف التصحيح وثلاث مجموعات المصادر
- * @returns مسودات التصحيح مرتبة بالمصدر ونوعه، وكل مسودة تحمل قبلها وبعدها وفرقها
+ * @returns مسودات التصحيح مرتبة بالمصدر، وكل مسودة تحمل قبلها وبعدها وفرقها
  */
 export function computeCommissionCorrections(
   input: CommissionCorrectionStepInput,
 ): CommissionCorrectionDraft[] {
+  const kinds = new Map<string, CommissionCorrectionKind>();
   const buckets: SourceBuckets = {
-    frozen: indexBySource(input.frozen),
-    posted: indexPosted(input.posted),
-    recomputed: indexBySource(input.recomputed),
+    frozen: indexBySource(input.frozen, kinds),
+    posted: indexPosted(input.posted, kinds),
+    recomputed: indexBySource(input.recomputed, kinds),
   };
   const drafts: CommissionCorrectionDraft[] = [];
-  for (const identity of unionOfSources(buckets)) {
-    const previous = previousAmount(buckets, identity.key);
-    const next = buckets.recomputed.get(identity.key)?.amount ?? 0n;
-    const amount = next - previous;
+  for (const [sourceRef, kind] of kinds) {
+    const previous = previousAmount(buckets, sourceRef, kind);
+    const next = withinMoneyRange(
+      () => assertMoney(buckets.recomputed.get(sourceRef)?.amount ?? 0n),
+      sourceRef,
+      kind,
+    );
+    const amount = withinMoneyRange(() => assertMoney(next - previous), sourceRef, kind);
     if (amount === 0n) continue;
-    drafts.push(buildDraft(input, identity, buckets, previous, next, amount));
+    drafts.push({
+      employeeId: input.employeeId,
+      sourcePeriod: input.sourcePeriod,
+      targetPeriod: input.targetPeriod,
+      targetStatementId: input.targetStatementId,
+      sourceRef,
+      kind,
+      previousAmount: previous,
+      newAmount: next,
+      amount,
+      generation: input.generation,
+      eventId: input.eventId,
+      attribution: attributionOf(buckets, sourceRef, kind),
+    });
   }
-  return drafts.sort(bySourceOrder);
+  return drafts.sort((left, right) => {
+    if (left.sourceRef === right.sourceRef) return 0;
+    return left.sourceRef < right.sourceRef ? -1 : 1;
+  });
 }

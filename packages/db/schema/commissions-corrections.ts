@@ -105,8 +105,10 @@ const commissionCorrectionsColumns = {
   // أثر التصحيح على الحدث اللي سبّبه.
   eventId: uuid('event_id').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  sourceBranchId: uuid('source_branch_id'),
-  sourceBusinessDate: date('source_business_date'),
+  // الفرع وتاريخ العمل إجباريان في كل صف تصحيح (FR-040): النسبة المجمَّدة بتتوزّع
+  // على فروع الموظفة في كشف الرواتب، وصف من غير تاريخ عمل ما ينفعش يتقرّر.
+  sourceBranchId: uuid('source_branch_id').notNull(),
+  sourceBusinessDate: date('source_business_date').notNull(),
   // الفروع اللي كانت الموظفة مربوطة بيها يوم عمل المصدر؛ فاضية لما مفيش ارتباط مجمّد.
   attachedBranchIds: uuid('attached_branch_ids')
     .array()
@@ -152,11 +154,23 @@ const correctionsRelations = (t: CorrectionsSelf) => [
   }),
 ];
 
+const correctionsMoneyChecks = (t: CorrectionsSelf) => [
+  check(
+    'commission_corrections_amounts',
+    sql`${t.amount} <> 'NaN'::numeric
+        AND ${t.previousAmount} <> 'NaN'::numeric
+        AND ${t.newAmount} <> 'NaN'::numeric`,
+  ),
+];
+
 const correctionsChecks = (t: CorrectionsSelf) => [
   check(
     'commission_corrections_kind',
     sql`${t.kind} IN ('COMMISSION','SALE','TIP_CARD','TIP_CASH')`,
   ),
+  // NaN بيساوي نفسه في Postgres، فقيد التساوي لوحده كان هيقبله؛ القيد ده بيقول
+  // إن كل مبلغ لازم يكون رقم حقيقي.
+  ...correctionsMoneyChecks(t),
   check('commission_corrections_amount', sql`${t.amount} = ${t.newAmount} - ${t.previousAmount}`),
   check('commission_corrections_generation', sql`${t.generation} > 0`),
   check('commission_corrections_source_period', sql`${periodFormat(t.sourcePeriod)}`),

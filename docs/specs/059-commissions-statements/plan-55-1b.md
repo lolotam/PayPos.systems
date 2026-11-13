@@ -1,9 +1,12 @@
 # Plan 55-1b — corrections: the generation and correction tables, then the correction step (spec 059, row 55-1)
 
-Status: PLAN ONLY — one docs file, no code, no migration, no test (2026-11-13). Base: `main` @ `971bdb232`, re-verified by grep:
-the last migration on `main` is `0223`, and `commission_period_generations`, `commission_corrections` and `commission_sales`
-are **absent** from `packages/db` (schema, migrations, grants). PR #816 (55-1a, merged) and the open PR #1010 (50-3c) were
-confirmed by the task session with `gh` on 2026-11-13.
+Status (2026-11-13): **55-1b-1 is built and in review as PR #1014** (migrations `0226` tables, `0227` concurrent indexes, RLS and
+grants; the two tables, CM-R06, the pure `computeCommissionCorrections`, the `statementId` pass-through). **55-1b-2** (the
+consumer wiring) is built on a branch stacked on it and opens after #1014 merges. Base of #1014: `main` @ `6bc858ffc` (after
+#996's `0224`/`0225`). Before 55-1b-1, `commission_period_generations`, `commission_corrections` and `commission_sales` were
+absent from `packages/db`; `commission_sales` still is (50-4). PR #816 (55-1a, merged) and the open PR #1010 (50-3c) were
+confirmed with `gh` on 2026-11-13. Sections 4.1 to 4.7 describe the whole of 55-1b; each item is marked **(55-1b-1)** or
+**(55-1b-2)**.
 Inputs: `CLAUDE.md`; `pospay-pipeline/SKILL.md` §§1–3; spec 059 (FR-015, FR-039…FR-045, D-3, D-5, D-11…D-13, D-22, §6
 _Schema_, CM-22, CM-43…CM-49, CM-48c, CM-R06, the §7 rows 55-1/55-2); `owner-questions.ar.md` (CS-Q7, CS-Q8, CS-Q9, CS-Q28,
 CS-Q29); `plan-50-3.md`, `plan-56-1.md`, `plan-56-1b.md`; ADR-0054 §§1, 4, 5, 6; `apps/worker/src/modules/commissions/**` (the
@@ -88,7 +91,7 @@ salary corrections behind 50-4 for no gain.
 
 ## 4. 55-1b in detail
 
-- **Scope:** the two tables with RLS, grants and indexes; the CM-R06 negative isolation test; the pure correction arithmetic;
+- **Scope (55-1b-1):** the two tables with RLS, grants and indexes; the CM-R06 negative isolation test; the pure correction arithmetic and the `statementId` pass-through. **Scope (55-1b-2):** the line-consumer wiring and the FR-044 seed, below. The original draft scope, kept for the record:
   its persistence; the consumer wiring **for the line source only**; and the FR-044 seed for the tests.
 - **The behaviour change that belongs to this row** (FR-015's own words: *"Until 55-1/55-2 add the correction step, an affected
   period that is APPROVED or PAID under the lock makes the delivery throw the worker's domain error `CommissionPeriodClosedError`
@@ -101,7 +104,7 @@ salary corrections behind 50-4 for no gain.
 ### 4.1 Files
 
 - **Create:** `packages/db/schema/commissions-corrections.ts` (both tables, the shape of `commissions-lines.ts`);
-  `packages/db/migrations/0224_<date>_commission-corrections.sql` + `meta/0224_snapshot.json` + the `_journal.json` entry
+  `packages/db/migrations/0226_2026-11-13_commission-corrections.sql` (tables), `0227_…_commission-corrections-rls.sql` (concurrent indexes, RLS, grants) + `meta/0226_snapshot.json` and `0227` + the `_journal.json` entry
   (generated; **the number is taken at merge time** — renumber, never rename, per plan-56-1 §2);
   `packages/db/src/__tests__/rls-commission-corrections.spec.ts` (CM-R06);
   `packages/db/src/__tests__/commission-correction-constraints.spec.ts`;
@@ -138,9 +141,9 @@ every FK).
 NOT NULL`; `source_ref text NOT NULL` (`line:<id>` / `sale:<id>` / `tip:<session>:<method>`); `kind text NOT NULL`; `amount
 numeric(14,3) NOT NULL` (the signed delta); `previous_amount numeric(14,3) NOT NULL`; `new_amount numeric(14,3) NOT NULL`;
 `generation integer NOT NULL`; `event_id uuid NOT NULL` (the trace to the cause); `created_at timestamptz NOT NULL`;
-`source_branch_id uuid NULL`; `source_business_date date NULL`; `attached_branch_ids uuid[] NOT NULL` (empty is allowed — an
+`source_branch_id uuid NOT NULL`; `source_business_date date NOT NULL` (FR-040: every correction row carries both, because the frozen `CORRECTION` row checks of `commission_statement_lines` reject a null branch or date; only `attached_branch_ids` may be empty); `attached_branch_ids uuid[] NOT NULL` (empty is allowed — an
 employee with no frozen interval covering the date).
-- `UNIQUE (company_id, source_period, employee_id, source_ref, generation)`; `CHECK (amount = new_amount − previous_amount)`;
+- `UNIQUE (company_id, source_period, employee_id, source_ref, generation)` — **the identity of a source is its `source_ref` alone** (decision of review round 1, 2026-11-13: spec §6 keys both this table and `commission_statement_lines` on `source_ref` without `kind`, and the documented ref formats `line:<id>`, `sale:<id>`, `tip:<session>:<method>` already encode the kind; the calculator therefore rejects one `source_ref` under two kinds with a typed error, instead of changing the spec's key); `CHECK (amount = new_amount − previous_amount)`; `CHECK (… <> 'NaN')` on `amount`, `previous_amount` and `new_amount` (`NaN = NaN` is true in PostgreSQL, so the equality alone would accept it); the calculator also rejects a recomputed amount or a delta outside `numeric(14,3)` with a typed error;
   `CHECK (kind IN ('COMMISSION','SALE','TIP_CARD','TIP_CASH'))`; `CHECK (target_period > source_period)`; the period-pattern
   CHECK on both periods; composite FK `(company_id, business_id, target_period, target_statement_id)` → `commission_statements
   (company_id, business_id, period, id)` — the `commission_carries` precedent, so the target month and the target statement are
@@ -244,8 +247,8 @@ the live `EmployeeBranch`, so a link edited after approval cannot move it.
   immutable correction row (with its `event_id`) is the financial record. Settled by the Q3 decision in section 5.
 - **Outbox: none.** A correction is an input of the target month (it enters that month's input fingerprint and is frozen at the
   target's approval). `CommissionCorrectionBlockedNoticeRequested` belongs to 55-2.
-- **Migration lane: yes — one migration** (the two tables), one migration task at a time; the manager merges it after the gates
-  and the coordinated order pass (PP-124). The number is assigned at merge time — `0224` if nothing else merges first; renumber,
+- **Migration lane: yes — two migration files** (tables, then indexes/RLS/grants), one migration task at a time; the manager merges it after the gates
+  and the coordinated order pass (PP-124). The numbers are `0226` and `0227` on top of #996's `0225`; if another migration merges first, regenerate,
   never rename. 55-1c and 55-1d plan no migration.
 
 ---
@@ -267,11 +270,7 @@ the live `EmployeeBranch`, so a link edited after approval cannot move it.
   51-1's canonical builder is not merged, so 55-1b uses the fixture's placeholder fingerprints; the correction step never reads
   a fingerprint (it reads the frozen rows), so the tests stay valid and the seed is upgraded when 51-1 lands — `TODO(spec)`, a
   note in the spec, **not** an owner question.
-- **R5 — the projection's completeness:** the recompute of a closed month reads the **current** projection; if the projection
-  was never bootstrapped for that tenant (the 50-3a/50-3b replay is an operator run) the recompute under-counts and posts a
-  wrong correction, and 55-1b must not silently "repair" this — the 50-3 runbook gate and the approval coverage check (53-1/53-2)
-  are the guard, and 50-3d exists for the post-rollback case — `TODO(spec)`, a note: which runbook gate must precede the first
-  correction in a tenant.
+- **R5 — the projection's completeness (prerequisite, decided in review round 1, 2026-11-13):** the recompute of a closed month reads the **current** projection; if it was never bootstrapped for that tenant (the 50-3a/50-3b replay is an operator run) it under-counts and posts a wrong correction, and 55-1b must not silently "repair" this. **Prerequisite, per tenant, before the first correction may post (including for tenants that already have APPROVED or PAID months):** the 50-3 runbook replay has completed for that tenant and its coverage report (50-3c) shows no gap. It is a **condition for enabling the 55-1b-2 wiring in a tenant**, an operator/deploy gate recorded in `docs/runbook.md` by 55-1b-2, not a code check; 53-1/53-2 keep their own approval coverage check, and 50-3d exists for the post-rollback case.
 - **R6 — no `SALE` corrections before 50-4:** no sales projection and no `PackageSaleChanged` handler exist before 50-4, so the
   consumer never sees a sale event — no wrong money, only a missing kind, carried by 55-1d.
 - **R7 — the row's size band** (§3): ~690 against 450–600.
