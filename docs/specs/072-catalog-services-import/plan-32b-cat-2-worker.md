@@ -15,8 +15,8 @@ this PR's first commit). **API and worker only.** The admin screen is `32b-cat-3
 - The worker `catalog` module has only two readers (`package-*-services.reader.ts`); it has no module file, no job
   and no event. `32b-3` (service-import commit) will add the same scaffolding; it has no open PR today. Whichever lands
   second rebases onto the other's `catalog.module.ts` (risk 5).
-- Migration lane: held by 55-1b. The migration here is built and tested on a private lane; renumbering and
-  `db:generate` wait for «lane granted».
+- Migration lane: granted. The migration is committed as `0228_2026-11-13_service-category-closings.sql`, generated
+  with `db:generate` after the grant, together with its `0228_snapshot.json` and `_journal.json` entry.
 
 ## Decisions
 
@@ -36,7 +36,7 @@ this PR's first commit). **API and worker only.** The admin screen is `32b-cat-3
 
 ## Migration (yes: one table)
 
-`0226_<date>_service-category-closings.sql` (provisional number; renumbered on «lane granted»):
+`0228_2026-11-13_service-category-closings.sql`:
 
 - `service_category_closings`: `company_id uuid NOT NULL` (FK `companies`), `id uuid`, `business_id`, `category_id`,
   `action text` (`close` / `reopen`), `status text DEFAULT 'pending'` (`pending` / `completed` / `failed`),
