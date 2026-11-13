@@ -2,7 +2,7 @@ import type { CommissionCorrectionAttribution } from './commission-correction-st
 
 /**
  * مدى ارتباط الموظفة بالفرع في اللقطة المجمّدة: من أول يوم inclusي لآخر يوم inclusي.
- * آخر يوم فاضي يعني إن المدى مفتوح لل未来، فأي تاريخ بعده يكون داخل المدى.
+ * آخر يوم فاضي يعني إن المدى مفتوح للمستقبل، فأي تاريخ بعده يكون داخل المدى.
  */
 export interface CommissionAttachmentInterval {
   readonly branchId: string;
