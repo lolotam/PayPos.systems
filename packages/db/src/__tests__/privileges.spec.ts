@@ -1,4 +1,5 @@
 import { TENANT_TABLES } from '../../test/tenant-table-inventory.ts';
+import { COMMISSION_CORRECTION_COLUMN_GRANTS } from '../../test/commission-correction-grants.ts';
 import { COMMISSION_TIP_SALARY_COLUMN_GRANTS } from '../../test/commission-tip-salary-grants.ts';
 import { PASSKEY_COLUMN_GRANTS } from '../../test/passkey-grants.ts';
 import {
@@ -58,6 +59,7 @@ const OUTBOX_COLUMN_GRANTS = [
 ];
 const REVIEWED_COLUMN_GRANTS = [
   ...COMMISSION_TIP_SALARY_COLUMN_GRANTS,
+  ...COMMISSION_CORRECTION_COLUMN_GRANTS,
   ...OTP_COLUMN_GRANTS,
   ...ATTENDANCE_CHANGE_COLUMN_GRANTS,
   ...BREAK_LEDGER_COLUMN_GRANTS,

@@ -16,6 +16,8 @@ export const TENANT_TABLES = [
   'commission_service_overrides',
   'commission_line_heads',
   'commission_lines',
+  'commission_period_generations',
+  'commission_corrections',
   'late_service_session_notices',
   'service_sessions',
   'service_session_recoveries',

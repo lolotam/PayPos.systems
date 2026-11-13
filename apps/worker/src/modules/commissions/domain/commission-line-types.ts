@@ -35,9 +35,13 @@ export interface CommissionLineEventInput {
   readonly lines: readonly CommissionLineSnapshot[];
 }
 
-/** شهر كشف مقفول بحالته بعد أخذ الأقفال؛ حالة الشهر هي التي تقرر إن كان مغلقاً ولا يُفتح. */
+/**
+ * شهر كشف مقفول بحالته ومعرف كشفه بعد أخذ الأقفال؛ حالة الشهر هي التي تقرر إن كان
+ * مغلقاً ولا يُفتح، ومعرف الكشف هو الذي يحمله التصحيح إلى شهره الهدف.
+ */
 export interface LockedCommissionPeriod {
   readonly period: string;
+  readonly statementId: string;
   readonly status: 'DRAFT' | 'REVIEWED' | 'APPROVED' | 'PAID';
 }
 

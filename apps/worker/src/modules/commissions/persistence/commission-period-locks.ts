@@ -8,5 +8,9 @@ export async function lockCommissionPeriods(tx: Tx, input: CommissionPeriodLockI
     periods: input.periods,
     ids: input.ids,
   });
-  return locked.map((row) => ({ period: row.period, status: row.status }));
+  return locked.map((row) => ({
+    period: row.period,
+    statementId: row.statementId,
+    status: row.status,
+  }));
 }

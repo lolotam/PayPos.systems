@@ -164,7 +164,7 @@ One `withTenant(event.company_id)` transaction, role `pospay_app`, in FR-015's o
 | 3 | read the held revisions, drop the stale ones | same tx | existing |
 | 4 | the affected `(employee, period)` pairs | pure | `affectedCommissionPeriods` |
 | 5 | **one** `lockStatementPeriods` call: every affected period **and**, for each affected period whatever its status before the call, every candidate from it through the current month — ascending | same tx | `commissionPeriodLockPlan`; **one call only** — a second call with an earlier month can deadlock (CM-02) |
-| 6 | re-read the current month **after** the wait | same tx | FR-015 defers the rollover re-read to 55-1, "where a correction target depends on it" — open question Q1 |
+| 6 | re-read the current month **after** the wait | same tx | FR-015 defers the rollover re-read to 55-1, "where a correction target depends on it" — settled by the Q1 decision in section 5 |
 | 7 | classify the affected periods (closed / reviewed) from the statuses that call returned | pure | `classifyCommissionPeriods`; a candidate-only month is never classified |
 | 8 | choose the target per affected closed period with 55-1a's selector, from **the same snapshot** | pure | the snapshot must carry `statementId` → `lockCommissionPeriods` must stop dropping it |
 | 9 | apply the projection change (`replaceLines`) | same tx | FR-015: the projection write happens **before** the correction step |
@@ -240,7 +240,7 @@ the live `EmployeeBranch`, so a link edited after approval cannot move it.
   `pay:commissions:business` are untouched.
 - **Audit: none.** CLAUDE.md §8's audit list covers prices, discounts, permissions, payments, refunds, stock posts, settings,
   device approval, gateway connections, private-file access and marketing sends — a commission correction is not in it, and the
-  immutable correction row (with its `event_id`) is the financial record. See Q3.
+  immutable correction row (with its `event_id`) is the financial record. Settled by the Q3 decision in section 5.
 - **Outbox: none.** A correction is an input of the target month (it enters that month's input fingerprint and is frozen at the
   target's approval). `CommissionCorrectionBlockedNoticeRequested` belongs to 55-2.
 - **Migration lane: yes — one migration** (the two tables), one migration task at a time; the manager merges it after the gates
@@ -277,37 +277,14 @@ the live `EmployeeBranch`, so a link edited after approval cannot move it.
 - **R8 — the salary range is the heavy one:** a salary entry spans every month whose last day falls in `[effective_from,
   next_from)`, several of which may be closed, so one transaction may run several correction steps — that is 55-1c, but the shape
   (one ascending lock call over the whole range plus every candidate) must be designed in 55-1b and not patched later.
-- **R9 — the month rollover between the plan and the lock:** see Q1.
+- **R9 — the month rollover between the plan and the lock:** see the Q1 decision above.
 
-**Open questions.** No **business/money** question is open for 55-1b: the rules it implements are answered (CS-Q7, CS-Q8,
-CS-Q9, CS-Q28, CS-Q29 — the correction posts normally for a departed employee, the carry writer is 53-2 and the display is
-53-3). The three below are **technical** → Waleed only, never on the decisions page (CLAUDE.md §1 5b).
+**Open questions: none left.** The three technical questions of the first draft were settled by the manager on 2026-11-13, because the spec already answers them; no owner card goes to Waleed. They follow the D1/D2 precedent (a manager decision with its spec line).
 
-**Q1 — الشهر المصدر يتغير بين الخطة والقفل** (blocks 55-1b's current-period re-read and CM-48 / CM-48c). `TODO(spec)`.
-The candidate set is computed with the current month read **before** the lock; FR-015 defers the re-read to 55-1 "where a
-correction target depends on it" but does not say what happens when the re-read changes the month. Options:
-1. **(recommended)** تُعاد قراءة الشهر الحالي **بعد** انتظار الأقفال؛ ولو اتغيّر (لفّ الشهر وانتظرنا) تُرمى المعاملة بخطأ
-   مُصنَّف (`COMMISSION_PERIOD_ROLLED_OVER`) فتُلغى كل الكتابات ويُعاد تسليم الحدث في الشهر الجديد، لأن نداء القفل الثاني بشهر
-   أقدم قد يصنع deadlock (CM-02).
-2. تُعاد قراءة الشهر الحالي قبل القفل فقط (سلوك 50-1) وتُعتمد لحظة القراءة، فالتصحيح قد ينزل في شهر لم يعد مرشحاً.
-3. تُعاد قراءة الشهر الحالي بعد القفل، ولو اتغيّر تُقفل الشهور المرشحة الجديدة في **نداء ثانٍ** — خطر deadlock مع كاتب آخر
-   (CM-02)، وغير مسموح.
+**Manager decision Q1 (2026-11-13; spec lines 652-654 and 637, D-13, CM-02, line 643).** The current month is re-read **after** the lock wait, inside the same single ascending `lockStatementPeriods` call. If it changed (the month rolled over while waiting), the consumer throws a typed rollover error (`COMMISSION_PERIOD_ROLLED_OVER`) and the whole transaction rolls back. That error is **retryable by the consumer, never parked**: the event is redelivered and computed again in the new month. A test proves the retry path (the event stays unmarked and a redelivery succeeds). No second lock call is ever made.
 
-**Q2 — هل يبقى `CommissionPeriodClosedError` في المستهلك بعد 55-1؟** (blocks the exact shape of the refusal in 55-1b.)
-`TODO(spec)`. D-3 and FR-002 say a closed period refused by a writer raises the typed error, while FR-015's order and its
-"Until 55-1/55-2 add the correction step" note say the consumer now corrects instead of refusing. Options:
-1. **(recommended)** المستهلك لا يرفض بعد 55-1: يقفل، يصنّف، يختار الهدف، **يكتب الإسقاط**، ثم يصحّح؛ وwriters آخرون (إصدارات
-   الخطة والاستثناءات في الـ API، FR-007/FR-012/FR-043) يبقون يرفضون بـ `StatementPeriodClosedError`.
-2. يبقى الرفض في المستهلك ويُعطَّل التصحيح — يعني بند 55-1 غير قابل للتنفيذ.
-3. يرفض المستهلك **فقط** إذا لم يوجد هدف DRAFT (كل الشهور المرشّحة مغلقة) — حالة غير ممكنة عملياً اليوم لأن الشهر الحالي لا
-   يمكن أن يُعتمد قبل نهايته.
+**Manager decision Q2 (2026-11-13; spec lines 647-651 and 660-662, D1).** For **commission lines only**, the correction path replaces the interim `CommissionPeriodClosedError`. The refusal **stays for tips and salaries until 55-1c**. The refusal also **stays on the line path when the closed-month recompute returns `NO_PLAN` or `NO_SALARY`**, because blocked corrections belong to 55-2 (FR-046); 55-1b posts nothing in that case. The API writers (plan versions, overrides) keep refusing a closed month with `StatementPeriodClosedError` (FR-007, FR-012, FR-043).
 
-**Q3 — سجل التدقيق للتصحيح** (blocks whether 55-1b writes an audit row). `TODO(spec)`. CLAUDE.md §8's audit list does not
-include commission corrections, and the correction row is immutable and carries its `event_id`. Options:
-1. **(recommended)** لا سجل تدقيق جديد؛ صف التصحيح نفسه هو السجل المالي الدائم، و`event_id` هو أثره على الحدث المسبّب.
-2. سجل تدقيق لكل تصحيح (`commission.correction`) — صفوف كثيرة جداً (كل تصحيح في كل شهر).
-3. سجل تدقيق واحد لكل حدث أدخل تصحيحاً — وسط بين 1 و2.
-
----
+**Manager decision Q3 (2026-11-13; FR-039 to FR-045 name no audit entry, FR-040 makes the row insert-only, CLAUDE.md section 8 does not list corrections).** A correction writes **no audit row**: the immutable correction row with its `event_id` is the record, and section 8's "payments" does not cover it.
 
 **Summary:** 55-1b = the two correction tables (RLS, grants, indexes, CM-R06) + the pure correction arithmetic + the FR-039 correction step wired into the **line** consumer, ~300 production lines, **migration: yes (one expand-only migration, the migration lane)**, dependency verdict: **nothing unmerged blocks it** — 50-a, 50-1, 48a-2 and 55-1a are on `main`; only the `SALE` kind defers to 55-1d behind 50-4.

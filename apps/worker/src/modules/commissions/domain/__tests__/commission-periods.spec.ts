@@ -68,12 +68,12 @@ const classifications: {
   {
     label: 'classifies every affected status and leaves candidates alone',
     locked: [
-      { period: '2026-12', status: 'APPROVED' },
-      { period: '2026-10', status: 'DRAFT' },
-      { period: '2027-01', status: 'PAID' },
-      { period: '2026-11', status: 'REVIEWED' },
-      { period: '2026-09', status: 'APPROVED' },
-      { period: '2026-08', status: 'REVIEWED' },
+      { period: '2026-12', statementId: 'statement-2026-12', status: 'APPROVED' },
+      { period: '2026-10', statementId: 'statement-2026-10', status: 'DRAFT' },
+      { period: '2027-01', statementId: 'statement-2027-01', status: 'PAID' },
+      { period: '2026-11', statementId: 'statement-2026-11', status: 'REVIEWED' },
+      { period: '2026-09', statementId: 'statement-2026-09', status: 'APPROVED' },
+      { period: '2026-08', statementId: 'statement-2026-08', status: 'REVIEWED' },
     ],
     affected: ['2027-01', '2026-11', '2026-12', '2026-10'],
     expected: { closed: ['2026-12', '2027-01'], reviewed: ['2026-11'] },
@@ -81,9 +81,9 @@ const classifications: {
   {
     label: 'keeps an approved or reviewed candidate out of both lists',
     locked: [
-      { period: '2026-10', status: 'DRAFT' },
-      { period: '2026-11', status: 'APPROVED' },
-      { period: '2026-12', status: 'REVIEWED' },
+      { period: '2026-10', statementId: 'statement-2026-10', status: 'DRAFT' },
+      { period: '2026-11', statementId: 'statement-2026-11', status: 'APPROVED' },
+      { period: '2026-12', statementId: 'statement-2026-12', status: 'REVIEWED' },
     ],
     affected: ['2026-10'],
     expected: { closed: [], reviewed: [] },
@@ -91,8 +91,8 @@ const classifications: {
   {
     label: 'splits two affected months across the closed and the reviewed list',
     locked: [
-      { period: '2026-11', status: 'APPROVED' },
-      { period: '2026-10', status: 'REVIEWED' },
+      { period: '2026-11', statementId: 'statement-2026-11', status: 'APPROVED' },
+      { period: '2026-10', statementId: 'statement-2026-10', status: 'REVIEWED' },
     ],
     affected: ['2026-11', '2026-10'],
     expected: { closed: ['2026-11'], reviewed: ['2026-10'] },
