@@ -150,6 +150,8 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'service_categories:SELECT',
     'service_category_branch_settings:INSERT',
     'service_category_branch_settings:SELECT',
+    'service_category_closings:INSERT',
+    'service_category_closings:SELECT',
     'service_line_cancel_notices:INSERT',
     'service_line_cancel_notices:SELECT',
     'service_line_cancellations:INSERT',
