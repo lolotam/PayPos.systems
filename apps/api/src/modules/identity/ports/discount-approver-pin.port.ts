@@ -7,7 +7,13 @@ export interface ApproverPinDevice {
 
 /** نتيجة التحقق: صاحب الاعتماد وإصداره، أو رفض أو قفل أو زحام. */
 export type ApproverPinOutcome =
-  | { readonly kind: 'ok'; readonly userId: string; readonly pinRevision: string }
+  | {
+      readonly kind: 'ok';
+      readonly userId: string;
+      readonly pinRevision: string;
+      /** بيتأكد إن ارتباط الهاتف بصاحب الاعتماد لسه ثابت؛ النافذة المتبقية من إعادة الفحص لحد commit داخل المعاملة. */
+      readonly confirmBinding: () => Promise<boolean>;
+    }
   | { readonly kind: 'refused' }
   | { readonly kind: 'locked' }
   | { readonly kind: 'busy' };
@@ -27,8 +33,7 @@ export interface DevicePinCap {
   ): Promise<{ kind: 'ok'; admission: string } | { kind: 'locked' }>;
   /**
    * بيسجّل غلطة على الجهاز وبيقفل الحجز: العدّ بيزيد لحد القفل، لكن لو الجهاز اتقفل قبل التسجيل
-   * بيرجع locked من غير عدّ. و'lockedNew' معناها إن القفل الجديد ده اتعمل دلوقتي، فالمستهلك يسجّله
-   * في الـ audit مرة واحدة بس.
+   * بيرجع locked من غير عدّ. و'lockedNew' معناها إن القفل الجديد ده اتعمل دلوقتي مرة واحدة بس.
    *
    * @param device    الجهاز اللي بيطلب الموافقة
    * @param admission رقم الحجز اللي رجع من admit
@@ -45,6 +50,19 @@ export interface DevicePinCap {
    * @param admission رقم الحجز اللي رجع من admit
    */
   success(device: ApproverPinDevice, admission: string): Promise<'ok' | 'locked' | 'expired'>;
+  /**
+   * بيحجز تدقيق القفل المعلق لطلب واحد؛ الـ crash بعد الـ audit commit وقبل التأكيد ممكن يكرر الصف، وبعد 30 ثانية تُعاد المحاولة.
+   *
+   * @param device الجهاز اللي اتقفل
+   * @returns true لو الطلب ده حجز التدقيق المعلق ولازم يكتبه ويأكده
+   */
+  claimLockAudit(device: ApproverPinDevice): Promise<boolean>;
+  /**
+   * بيمسح علامة التدقيق المعلق وحجزه بعد ما صف الـ audit يتكتب بنجاح.
+   *
+   * @param device الجهاز اللي اتكتب تدقيق قفله
+   */
+  confirmLockAudit(device: ApproverPinDevice): Promise<void>;
   /**
    * بيقفل الحجز من غير ما يعدّ غلطة — لما المقارنة ما كملتش بسبب خطأ مش بسبب PIN.
    *

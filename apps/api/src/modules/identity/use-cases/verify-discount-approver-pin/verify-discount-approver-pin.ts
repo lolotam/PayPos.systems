@@ -54,15 +54,23 @@ export class VerifyDiscountApproverPin {
     const admitted = await this.cap.admit(input.device);
     if (admitted.kind === 'locked') {
       await this.hasher.verify(input.pin, null);
+      await this.ensureLockAudit(input.device);
       return { kind: 'locked' };
     }
     const admission = admitted.admission;
     await this.sessions.ready();
     const userId = await this.sessions.candidate(input.phone);
+    let row: StaffPinRecord | null;
+    try {
+      row = userId === null ? null : await this.read(userId, input.device.companyId);
+    } catch (error) {
+      await this.cap.release(input.device, admission);
+      throw error;
+    }
     const target = {
       companyId: input.device.companyId,
       employeeId:
-        userId === null
+        row === null
           ? this.sessions.pinCounterKey(input.phone)
           : `staff-user:${userId}`,
     };
@@ -72,10 +80,8 @@ export class VerifyDiscountApproverPin {
       await this.hasher.verify(input.pin, null);
       return reserved.kind === 'locked' ? { kind: 'locked' } : { kind: 'busy' };
     }
-    let row: StaffPinRecord | null;
     let matches: boolean;
     try {
-      row = userId === null ? null : await this.read(userId, input.device.companyId);
       matches = await this.hasher.verify(input.pin, row?.hash ?? null);
     } catch (error) {
       await this.attempts.release(target, reserved.reservation);
@@ -91,7 +97,10 @@ export class VerifyDiscountApproverPin {
       return recorded === 'locked' ? { kind: 'locked' } : { kind: 'busy' };
     }
     const capped = await this.cap.success(input.device, admission);
-    if (capped === 'locked') return { kind: 'locked' };
+    if (capped === 'locked') {
+      await this.ensureLockAudit(input.device);
+      return { kind: 'locked' };
+    }
     if (capped === 'expired') return { kind: 'busy' };
     return await this.current(input.phone, input.device, userId, row);
   }
@@ -105,7 +114,7 @@ export class VerifyDiscountApproverPin {
     const failed = await this.attempts.failed(target, reservation);
     const capped = await this.cap.failure(device, admission);
     if (capped === 'locked' || capped === 'lockedNew') {
-      if (capped === 'lockedNew') await this.auditDeviceLock(device);
+      await this.ensureLockAudit(device);
       return { kind: 'locked' };
     }
     if (failed === 'locked') return { kind: 'locked' };
@@ -125,11 +134,23 @@ export class VerifyDiscountApproverPin {
     const sameRevision = (await this.read(userId, device.companyId))?.id === row.id;
     const validDevice = await this.devices.valid(device);
     if (!sameHolder || !sameRevision || !validDevice) return { kind: 'refused' };
-    return { kind: 'ok', userId, pinRevision: row.id };
+    return {
+      kind: 'ok',
+      userId,
+      pinRevision: row.id,
+      confirmBinding: async () => (await this.sessions.candidate(phone)) === userId,
+    };
   }
 
   private read(userId: string, companyId: string): Promise<StaffPinRecord | null> {
     return this.db.run(companyId, null, (scope) => scope.find(userId));
+  }
+
+  private async ensureLockAudit(device: ApproverPinDevice): Promise<void> {
+    if (await this.cap.claimLockAudit(device)) {
+      await this.auditDeviceLock(device);
+      await this.cap.confirmLockAudit(device);
+    }
   }
 
   private auditDeviceLock(device: ApproverPinDevice): Promise<void> {

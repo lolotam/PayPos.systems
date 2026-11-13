@@ -11,8 +11,8 @@ import type { ApproverPinDevice, DevicePinCap } from '../ports/discount-approver
 // A reservation outlives a stalled or crashed request by at most this long; a comparison takes well under a second.
 const ADMISSION_MS = 60_000;
 
-// KEYS: failures, inflight (a sorted set: member = admission id, score = its deadline in ms), lock. Each script
-// runs atomically, and reads the clock from Redis so every API instance agrees on it.
+// KEYS: failures, inflight (a sorted set: member = admission id, score = its deadline in ms), lock, the pending
+// lock-audit marker and its short claim. Each script runs atomically, and reads Redis's clock where needed.
 const NOW = `
   local t = redis.call('TIME')
   local now = tonumber(t[1]) * 1000 + math.floor(tonumber(t[2]) / 1000)
@@ -33,7 +33,10 @@ const FAILURE = `${CLAIM}
   if failures >= tonumber(ARGV[2]) then
     local locked = redis.call('SET', KEYS[3], '1', 'EX', ARGV[4], 'NX')
     redis.call('DEL', KEYS[1])
-    if locked then return 'lockedNew' end
+    if locked then
+      redis.call('SET', KEYS[4], '1', 'EX', ARGV[4])
+      return 'lockedNew'
+    end
     return 'locked'
   end
   return 'failed'`;
@@ -44,10 +47,24 @@ const SUCCESS = `${CLAIM}
 const RELEASE = `
   redis.call('ZREM', KEYS[2], ARGV[1])
   return 'ok'`;
+const CLAIM_LOCK_AUDIT = `
+  if redis.call('EXISTS', KEYS[4]) == 0 then return 0 end
+  local claimed = redis.call('SET', KEYS[5], '1', 'NX', 'EX', 30)
+  if claimed then return 1 end
+  return 0`;
+const CONFIRM_LOCK_AUDIT = `
+  redis.call('DEL', KEYS[4], KEYS[5])
+  return 'ok'`;
 
 const keys = (companyId: string, deviceId: string) => {
   const base = `pindev:${companyId}:${deviceId}`;
-  return [`${base}:failures`, `${base}:inflight`, `${base}:lock`];
+  return [
+    `${base}:failures`,
+    `${base}:inflight`,
+    `${base}:lock`,
+    `${base}:lock-audit`,
+    `${base}:lock-audit-claim`,
+  ];
 };
 
 /**
@@ -60,10 +77,10 @@ export function createRedisDevicePinCap(redis: Redis, ids: IdGenerator): DeviceP
   const run = (script: string, device: ApproverPinDevice, ...args: (string | number)[]) =>
     redis.eval(
       script,
-      3,
+      5,
       ...keys(device.companyId, device.deviceId),
       ...args,
-    ) as Promise<string>;
+    ) as Promise<string | number>;
   return {
     admit: async (device) => {
       const admission = ids.newId();
@@ -81,6 +98,10 @@ export function createRedisDevicePinCap(redis: Redis, ids: IdGenerator): DeviceP
       )) as 'failed' | 'locked' | 'lockedNew' | 'expired',
     success: async (device, admission) =>
       (await run(SUCCESS, device, admission)) as 'ok' | 'locked' | 'expired',
+    claimLockAudit: async (device) => (await run(CLAIM_LOCK_AUDIT, device)) === 1,
+    confirmLockAudit: async (device) => {
+      await run(CONFIRM_LOCK_AUDIT, device);
+    },
     release: async (device, admission) => {
       await run(RELEASE, device, admission);
     },
