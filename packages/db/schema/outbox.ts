@@ -64,6 +64,13 @@ export const outbox = pgTable(
       .on(t.companyId, t.id)
       .concurrently()
       .where(sql`${t.eventType} IN ('ServiceSessionRecorded','ServiceSessionLinesAdded','ServiceLineChanged','SalaryChanged')`),
+    // إعادة تشغيل كل الأنواع المحسوبة الستة (الأنواع الأربعة زائد البقشيش وبيع الباقة) تقرأ نفس
+    // الأوتبوكس المحتفظ به؛ الفهرس الجزئي بنفس ترتيب الأنواع في الاستعلام، فالمخطط يثبته بدل ما
+    // يمسح كل أحداث الشركة.
+    index('outbox_commission_retained_replay_idx')
+      .on(t.companyId, t.id)
+      .concurrently()
+      .where(sql`${t.eventType} IN ('ServiceSessionRecorded','ServiceSessionLinesAdded','ServiceLineChanged','SalaryChanged','SessionTipsChanged','PackageSaleChanged')`),
     // استعادة اكتشاف التقييم تشمل أحداث الزيارة التي أقرها عامل سابق دون مسح بقية أنواع الشركة.
     index('outbox_rating_claims_replay_idx')
       .on(t.companyId, t.id)

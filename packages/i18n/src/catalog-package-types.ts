@@ -96,6 +96,8 @@ export const packageTypeErrorsEn = {
   PACKAGE_SALE_QUOTE_STALE: "The package's service prices changed; reload and confirm again.",
   PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT: 'The discount is above your limit.',
   PACKAGE_SELLER_NOT_ELIGIBLE: 'The seller is not active at this branch on that date.',
+  PACKAGE_SALE_BRANCH_INACTIVE:
+    'The sale branch is not active; activate it or choose another branch and try again.',
   PACKAGE_SELLER_SELF_FORBIDDEN: 'You cannot name yourself as the seller.',
   PACKAGE_SALE_TOO_OLD: 'The sale predates the first day of the previous month.',
   PACKAGE_SALE_IN_FUTURE: 'The sale time is in the future.',
@@ -128,6 +130,8 @@ export const packageTypeErrorsAr = {
   PACKAGE_SALE_QUOTE_STALE: 'أسعار خدمات الباقة اتغيّرت، حدّثي الشاشة وأكّدي تاني.',
   PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT: 'الخصم أكبر من حدك.',
   PACKAGE_SELLER_NOT_ELIGIBLE: 'البائعة مش شغالة أو مش تبع الفرع في التاريخ ده.',
+  PACKAGE_SALE_BRANCH_INACTIVE:
+    'فرع البيع مش شغال دلوقتي؛ فعّلي الفرع أو اختاري فرع تاني وجرّبي تاني.',
   PACKAGE_SELLER_SELF_FORBIDDEN: 'مينفعش تسجّلي نفسك بائعة.',
   PACKAGE_SALE_TOO_OLD: 'البيع أقدم من أول الشهر السابق.',
   PACKAGE_SALE_IN_FUTURE: 'وقت البيع في المستقبل.',

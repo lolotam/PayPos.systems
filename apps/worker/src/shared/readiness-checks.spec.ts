@@ -71,6 +71,9 @@ vi.mock('bullmq', async (original) => {
     (kind: string) =>
     (target: unknown, args: unknown[]): object => {
       resources.bullmq.constructed.push({ kind, name: String(args[0]) });
+      // طابور بيع الباقة ومسح الاسترداد بيتبنوا فعليًا؛ بدل Redis حقيقي بنرجّع مقبض جاهز.
+      if (String(args[0]).startsWith('package-sale'))
+        return { on: vi.fn(), waitUntilReady: async () => undefined, close: async () => undefined };
       if (args[0] === 'package-import-preview')
         return {
           on: vi.fn(),
@@ -154,6 +157,7 @@ vi.mock('./config.ts', () => ({
     DISPATCHER_DATABASE_URL: 'synthetic',
     REDIS_URL: 'synthetic',
     PLATFORM_NOTIFICATIONS_DATABASE_URL: 'synthetic',
+    PACKAGE_SALE_TRANSACTION_TIMEOUT_MS: 30_000,
   }),
 }));
 

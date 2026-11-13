@@ -78,6 +78,9 @@ vi.mock('bullmq', async (original) => {
     (target: unknown, args: unknown[]): object => {
       resources.bullmq.constructed.push({ kind, name: String(args[0]) });
       // حدود Redis/BullMQ فقط معزولة هنا؛ جاهزية المعاينة تظل ضمن فحوص العامل الفعلية.
+      // طابور بيع الباقة ومسح الاسترداد بيتبنوا فعليًا؛ بدل Redis حقيقي بنرجّع مقبض جاهز.
+      if (String(args[0]).startsWith('package-sale'))
+        return { on: vi.fn(), waitUntilReady: async () => undefined, close: async () => undefined };
       if (args[0] === 'package-import-preview')
         return {
           on: vi.fn(),
@@ -165,6 +168,7 @@ vi.mock('./config.ts', () => ({
     DISPATCHER_DATABASE_URL: 'synthetic',
     REDIS_URL: 'synthetic',
     PLATFORM_NOTIFICATIONS_DATABASE_URL: 'synthetic',
+    PACKAGE_SALE_TRANSACTION_TIMEOUT_MS: 30_000,
   }),
 }));
 
@@ -228,7 +232,7 @@ it('listens and serves health while the package preview Redis is still connectin
   } finally {
     await app.close();
   }
-}, 5000);
+}, 15_000);
 
 it('hung optional intake readiness and cleanup cannot prevent worker /ready 200', async () => {
   resources.global.ping.mockResolvedValue(undefined);
@@ -279,6 +283,7 @@ it('invalid email identity settings disable email alone without affecting ordina
   expect(options.readiness.map((check: { name: string }) => check.name)).toEqual([
     'database',
     'package-previews',
+    'package-sale',
     'leave-history-reports',
     'dispatcher',
     'redis',

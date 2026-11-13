@@ -1,0 +1,1 @@
+CREATE INDEX CONCURRENTLY "outbox_commission_retained_replay_idx" ON "outbox" USING btree ("company_id","id") WHERE "outbox"."event_type" IN ('ServiceSessionRecorded','ServiceSessionLinesAdded','ServiceLineChanged','SalaryChanged','SessionTipsChanged','PackageSaleChanged');
