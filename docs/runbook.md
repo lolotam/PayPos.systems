@@ -204,6 +204,55 @@ If an expected retained input is absent, or saved late visits have no recoverabl
 coverage and IDs. Do not claim recovery complete, fabricate events, query outbox through orders, broaden grants,
 reset dedupe or regenerate requests. This procedure does not replay commissions/ratings or grant day-list access.
 
+## 50-3a: replay retained commission inputs (spec 059, D-15)
+
+Replays the retained `ServiceSessionRecorded`, `ServiceSessionLinesAdded`, `ServiceLineChanged` and `SalaryChanged` events of one
+company to the `commissions.project-inputs` consumer alone. Tips are bootstrapped by 50-3b, coverage is checked by 50-3c and the six-type post-rollback replay is 50-3d; until those
+land, approval stays closed. Never reset or delete `published_at`, `attempts`, `parked_at` or `consumed_events`; the commissions consumer adds missing consumed marks with the projection.
+
+1. **Every worker replica first.** Roll the release that registers the consumer to every worker replica, or drain the old dispatchers,
+   before choosing the upper bound. An old replica could otherwise mark a new event published without applying it.
+2. **Run once per company**, from `apps/worker` with the ordinary `DATABASE_URL` (`pospay_app`) and `DISPATCHER_DATABASE_URL`
+   (`pospay_dispatcher`):
+
+   ```sh
+   node dist/replay-commission-inputs.js --company <uuid> [--after <uuid>] [--through <uuid>]
+   ```
+
+   `--after` is only valid together with `--through`; `--after` without `--through` is refused with `COMMISSION_REPLAY_THROUGH_REQUIRED` and nothing is read. A first run has no `--after`; every resume passes `--through`, and passes `--after` only when the printed `afterId` is not null; when `afterId` is null leave `--after` out and resume with `--through <throughId>` alone.
+
+   The entry prints one JSON line: `status`, `afterId`, `throughId`, `handledThroughId` (the last event whose handling finished, informational), per-type `counts`, and `undelivered` (event id, type and error code only,
+   never a payload; at most 200, `truncated` tells when more exist; `counts` are per invocation, not cumulative: a resume does not count the events before its `--after` cursor, and an event after a safe cursor that stopped early can be counted again by the next run). Keep the line, the release SHA and the counts in the operations record.
+   The exit code is 0 only for `COMPLETE`.
+3. **Statuses.**
+   - `COMPLETE`: the range up to `throughId` is applied; do not check the inventory from a single printed line, because the printed
+     `counts` are per invocation. Use the 50-3c coverage report, or a direct inventory of the consumer's marks for the range up to
+     `throughId`; if the printed counts are used instead, add up the counts of every line of the whole run.
+   - `PAGE_LIMIT` or `ABORTED`: resume with `--through <throughId>` from the printed line, adding `--after <afterId>` only when the printed
+     `afterId` is not null; when `afterId` is null leave `--after` out and resume with `--through <throughId>` alone. `afterId` is the safe resume
+     cursor and never moves past the first undelivered event. `ABORTED` means a failure that is not a known business outcome (a database or
+     timeout failure), including a failed page read, which still prints the cursors; fix the cause first. If `undelivered` in the line is not
+     empty, fix its cause before resuming, otherwise the resume reads the same pages again.
+   - `ABORTED` with both `afterId` and `throughId` null: no page succeeded (for example the first page read failed). Fix the cause and re-run as
+     a first run, with no `--after` and no `--through`, or with an explicit `--through` if the operator chose one.
+   - `UNDELIVERED`: the range finished but some events were not applied for a known business reason. Fix the cause, then resume with
+     `--through <throughId>` from the printed line, adding `--after <afterId>` only when the printed `afterId` is not null; when `afterId` is null
+     leave `--after` out and resume with `--through <throughId>` alone. `afterId` never skips a failed event. A full re-run **from the beginning**
+     with the same `--through` is also valid. Marks make the re-run idempotent.
+4. **Legacy `SalaryChanged` without `business_id`** (CS-Q44) is routed through the staff reader on the same transaction. If the employee is not
+   found the event stays unmarked and appears as `COMMISSION_EMPLOYEE_BUSINESS_MISSING`: approval stays closed and the manager investigates.
+   Do not invent an event, a mark or a grant.
+5. **The upper bound is an id bound, not a commit-order proof.** An event whose row commits after the cursor passed it, with a lower id, is
+   not replayed; the live consumer delivers it. Do not record "everything up to the bound was replayed" as coverage: coverage is checked by 50-3c.
+6. **After any worker rollback then upgrade**, re-run the replay with a new upper bound (CS-Q43). The ADR-0012 pending count, shipped in
+   row 53-1, keeps approval closed for any counted event without the consumer's mark. This run replays the four types above; sub-PR 50-3d adds the
+   six-type retained-event replay (`SessionTipsChanged` and `PackageSaleChanged` as well), which is the run to use after a rollback, because
+   the current-state readers of the first bootstrap cover only the business and date range the operator supplied. Every re-run states its upper bound:
+   captured after every replica runs the consumer, passed as `--through`, reused on a resume, new after any rollback. An event aimed at
+   an already APPROVED month stays undelivered (`COMMISSION_PERIOD_CLOSED`) until the 55-1 correction path exists, and takes that path afterwards; the manager owns that case.
+7. **Logs.** A failed replay of a row that already has ten or more attempts logs «outbox event parked» at error level although nothing is
+   written; read the printed result, not that line.
+
 ## Admin service-session browser tests
 
 The Playwright config has no `webServer`. Postgres, Redis, the API and the admin must already be running.
