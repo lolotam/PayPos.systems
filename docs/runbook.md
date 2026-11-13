@@ -253,6 +253,48 @@ land, approval stays closed. Never reset or delete `published_at`, `attempts`, `
 7. **Logs.** A failed replay of a row that already has ten or more attempts logs «outbox event parked» at error level although nothing is
    written; read the printed result, not that line.
 
+## 50-3b: bootstrap the current session-tip state (spec 059, FR-020)
+
+Applies the latest saved tip revision of each visit to the commissions projection and records every listed tip event as consumed by
+`commissions.project-inputs`. It reads the current state through `listCurrentSessionTips` (`packages/db`), not the outbox, so it never
+touches `published_at`, `attempts`, `parked_at` or `consumed_events` rows of other consumers. No migration, role or grant is involved.
+
+1. **Every worker replica first**, exactly as in 50-3a item 1: the release that registers the consumer must run on every replica before
+   the bootstrap starts, so a revision written meanwhile reaches the live consumer.
+2. **The operator supplies the scope** (CS-Q41..CS-Q44, Q3): no enumerator exists, so take the business ids and the business-day range
+   from the release inventory. The range must cover every business day that has tips; a visit outside it is not covered and approval stays
+   closed until the 50-3c coverage report shows no gap. Run once per company, from `apps/worker`, with the ordinary `DATABASE_URL`
+   (`pospay_app`) only:
+
+   ```sh
+   node dist/bootstrap-session-tips.js --company <uuid> --businesses <uuid>[,<uuid>...] --from YYYY-MM-DD --to YYYY-MM-DD
+   ```
+
+   At most 200 business ids. A missing or malformed argument (including a malformed company id, business id or date) prints
+   `SESSION_TIPS_BOOTSTRAP_CONFIGURATION` and reads nothing; a date range with `--from` after `--to`, or a date that does not exist
+   on the calendar, prints `SESSION_TIPS_BOOTSTRAP_RANGE_INVALID`; any other failure prints `SESSION_TIPS_BOOTSTRAP_FAILED`.
+3. **What one run does.** Per business, pages of 100 visits; each page is one tenant transaction and each visit inside it a savepoint:
+   the latest revision is applied through the same use case the live consumer uses (a revision lower than or equal to the saved one is
+   ignored), then every event id the reader lists for that visit, including older revisions, is marked consumed. A visit that fails keeps
+   its event ids unmarked. A revision written after the page was read is delivered by the live consumer, which applies it because its
+   revision is higher.
+4. **Output.** One JSON line: `status`, `counts` (`sessions` and `events`, per invocation), `undelivered` (visit id, business id and error
+   code only, never an amount or an employee; at most 200, `truncated` tells when more exist) and `abortedAt`. The exit code is 0 only for
+   `COMPLETE`. Keep the line, the release SHA and the scope in the operations record.
+5. **Statuses.**
+   - `COMPLETE`: every visit in the scope was applied and marked. This is not a coverage proof; coverage is checked by 50-3c.
+   - `UNDELIVERED`: the scope finished but some visits were refused for a known business reason: `COMMISSION_PERIOD_CLOSED` (the month is
+     APPROVED; it takes the 55-1 correction path and the manager owns it), `COMMISSION_BUSINESS_MISSING` or
+     `COMMISSION_TIP_SALARY_INPUT_INVALID`. Fix the cause and re-run the same command; applied visits are not applied twice.
+   - `ABORTED`: a failure that is not a known business outcome (a database or timeout failure). Pages that committed stay committed;
+     `abortedAt` names the business and the cursor of the last committed page and is informational only. Fix the cause and re-run the
+     same command from the start: the revision guard and the consumed marks make it idempotent.
+6. **First run only.** After any worker rollback then upgrade, do not use this reader: it covers only the businesses and days supplied and
+   the revisions that exist when it runs, so tip and package-sale events published during the rollback would stay unmarked and keep
+   approval closed. Use the six-type retained-event replay of 50-3d with a new upper bound (CS-Q43, PP-185 item d).
+7. **Do not** insert a mark or an event by hand and do not reset any outbox column; the remedy for a missing visit is to re-run with a
+   scope that covers it.
+
 ## Admin service-session browser tests
 
 The Playwright config has no `webServer`. Postgres, Redis, the API and the admin must already be running.
