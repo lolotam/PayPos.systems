@@ -34,7 +34,8 @@ function expired(entry: SessionJournalEnvelope | null, now: number): SessionJour
   if (entry?.state !== 'PENDING' || !retentionElapsed(entry, now)) return entry;
   const attempt = entry.attempt;
   return { version: 1, state: 'EXPIRED', scope: attempt.scope, key: attempt.key, createdAt: attempt.createdAt, ...(entry.lastSentAt !== undefined ? { lastSentAt: entry.lastSentAt } : {}),
-    ...(attempt.kind === 'append' ? { sessionId: attempt.sessionId } : {}) };
+    ...(attempt.kind === 'append' ? { sessionId: attempt.sessionId, ...(entry.occurredAt ? { occurredAt: entry.occurredAt } : {}),
+      ...(entry.customerId ? { customerId: entry.customerId } : {}) } : {}) };
 }
 
 function persistenceError() {
@@ -50,21 +51,24 @@ function rememberVisitTime(times: Map<string, string>, sessionId: string, occurr
 function createVisitMemory() {
   const times = new Map<string, string>(), customers = new Map<string, string>();
   const clear = () => { times.clear(); customers.clear(); };
-  const snapshot = (sessionId: string | undefined, state: 'PARTIAL' | 'SAVED_DISPLAY_FAILED') => {
-    const occurredAt = state === 'PARTIAL' && sessionId ? times.get(sessionId) : undefined;
-    const customerId = state === 'PARTIAL' && sessionId ? customers.get(sessionId) : undefined;
+  const snapshot = (sessionId: string | undefined) => {
+    const occurredAt = sessionId ? times.get(sessionId) : undefined;
+    const customerId = sessionId ? customers.get(sessionId) : undefined;
     return { ...(occurredAt ? { occurredAt } : {}), ...(customerId ? { customerId } : {}) };
   };
   return {
-    clear,
+    clear, snapshot,
     restore(entry: SessionJournalEnvelope | null) {
-      if (entry?.state !== 'PARTIAL') return;
-      if (entry.occurredAt) rememberVisitTime(times, entry.sessionId, entry.occurredAt);
-      if (entry.customerId) customers.set(entry.sessionId, entry.customerId);
+      const sessionId = entry?.state === 'PENDING' && entry.attempt.kind === 'append' ? entry.attempt.sessionId
+        : entry?.state === 'PARTIAL' || entry?.state === 'EXPIRED' ? entry.sessionId : undefined;
+      if (!entry || !sessionId) return;
+      if ('occurredAt' in entry && entry.occurredAt) rememberVisitTime(times, sessionId, entry.occurredAt);
+      if ('customerId' in entry && entry.customerId) customers.set(sessionId, entry.customerId);
     },
     remember(session: WriteResult['data']['session']) { clear(); rememberVisitTime(times, session.id, session.occurred_at); customers.set(session.id, session.customer.id); },
     envelope(scope: SessionAttemptScope | null, sessionId: string | undefined, state: 'PARTIAL' | 'SAVED_DISPLAY_FAILED') {
-      return scope ? { version: 1, state, scope, ...(sessionId ? { sessionId } : {}), ...snapshot(sessionId, state) } as SessionJournalEnvelope : null;
+      return scope ? { version: 1, state, scope, ...(sessionId ? { sessionId } : {}),
+        ...(state === 'PARTIAL' ? snapshot(sessionId) : {}) } as SessionJournalEnvelope : null;
     },
   };
 }
@@ -113,7 +117,8 @@ function createCore(initialScope: SessionAttemptScope, runtime: SessionAttemptRu
       if (!scope || flight || recovered?.state === 'PENDING' || recovered?.state === 'EXPIRED') throw new Error('SESSION_ATTEMPT_UNRESOLVED');
       if (recovered && (recovered.state !== 'PARTIAL' || command.kind !== 'append' || command.sessionId !== recovered.sessionId)) throw new Error('SESSION_VISIT_ALREADY_SAVED');
       if (slots.blocked) throw persistenceError();
-      const attempt = freezeSessionAttempt(scope, command, rowIds, runtime); transition({ version: 1, state: 'PENDING', attempt }, true);
+      const attempt = freezeSessionAttempt(scope, command, rowIds, runtime);
+      transition({ version: 1, state: 'PENDING', attempt, ...(command.kind === 'append' ? visits.snapshot(command.sessionId) : {}) }, true);
       return attempt;
     },
     run<T extends WriteResult>(attempt: SessionAttempt, send: () => Promise<T>): Promise<T> {

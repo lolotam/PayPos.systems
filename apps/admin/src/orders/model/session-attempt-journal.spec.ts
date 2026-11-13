@@ -65,6 +65,20 @@ it('returns customerId in the PARTIAL envelope after reload', async () => {
   expect(reloaded.read()).toEqual({ version: 1, state: 'PARTIAL', scope, sessionId: id(12), occurredAt: instant, customerId: id(7) });
 });
 
+it('keeps the visit customer and time when an append pending across a reload is refused', async () => {
+  const journal = open();
+  await save(journal, id(12), instant);
+  journal.begin({ kind: 'append', sessionId: id(12), body: { lines: [inputLine] } }, [id(10)]);
+  vi.resetModules();
+  const { createSessionAttemptJournal: create } = await import('./session-attempt-journal');
+  const reloaded = create(scope, { now: () => Date.parse(instant), newId: () => id(90) });
+  journals.push(reloaded);
+  const entry = reloaded.read();
+  if (entry?.state !== 'PENDING') throw new Error('Expected PENDING entry');
+  await expect(reloaded.run(entry.attempt, () => Promise.reject(refusal))).rejects.toBe(refusal);
+  expect(reloaded.read()).toEqual({ version: 1, state: 'PARTIAL', scope, sessionId: id(12), occurredAt: instant, customerId: id(7) });
+});
+
 it('drops customerId after leaveVisit so a refused append for another visit carries no customerId', async () => {
   const journal = open();
   await save(journal, id(12), instant);
