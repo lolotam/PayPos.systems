@@ -133,5 +133,5 @@ export interface AttendanceChangeDecided {
   readonly revision: number;
 }
 
-/** سيصدر داخل معاملة قبول تقرير سجل الإجازات في 68-2c عند إنشاء التقرير المعلق؛ لا يوجد منتج له بعد. */
+/** يصدر داخل معاملة قبول RequestLeaveHistoryReportUseCase عند إدراج تقرير معلق جديد فقط، ولا يصدر عند إعادة استخدام طلب مكرر. */
 export type LeaveHistoryReportRequested = LeaveHistoryReportRequestedContract;

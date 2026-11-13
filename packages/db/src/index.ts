@@ -20,7 +20,11 @@ export {
   type AttendanceReportScope,
 } from './attendance-monthly-inputs.ts';
 export { leaveHistorySql } from './leave-history/leave-history-builder.sql.ts';
-export { historyIds, type HistoryScope } from './leave-history/leave-history-days.sql.ts';
+export {
+  historyEmployeeVisible,
+  historyIds,
+  type HistoryScope,
+} from './leave-history/leave-history-days.sql.ts';
 export { historyLeaveSource, historyRows } from './leave-history/leave-history-rows.sql.ts';
 export { historyLastTaken } from './leave-history/leave-history-last.sql.ts';
 export { leaveListRecord, uuidArray } from './leave-history/leave-list-record.sql.ts';
@@ -39,6 +43,16 @@ export { businessIdentityReadStatement, readBusinessIdentity } from './business-
 export { canonicalJson } from './canonical-json.ts';
 export { createDatabase, type Database, type DatabaseOptions } from './client.ts';
 export { markEventConsumed } from './consumed-events.ts';
+export {
+  currentSessionTipsStatement,
+  listCurrentSessionTips,
+  type CurrentSessionTipEntry,
+  type CurrentSessionTips,
+  type CurrentSessionTipsCursor,
+  type CurrentSessionTipsPage,
+  type CurrentSessionTipsPageRequest,
+  type CurrentSessionTipsRange,
+} from './current-session-tips.ts';
 export { branchToday, currentAttachment, type BranchDay } from './employee-branch-links.ts';
 export {
   assignEmployeeNumber,

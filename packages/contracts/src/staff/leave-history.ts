@@ -6,7 +6,7 @@ import { leaveListItem } from './leave.js';
 
 // PostgreSQL لا يقبل سنة صفر، فلازم نرفضها قبل تحويل المدخلات داخل SQL.
 // نمط واحد مشتق من نمط التاريخ نفسه عشان OpenAPI يفضل format: date ويوصف الرفض بدقة.
-const historyDate = z.stringFormat(
+export const historyDate = z.stringFormat(
   'date',
   new RegExp(`^(?!0000-)${z.regexes.date.source.slice(1)}`),
 );
@@ -18,8 +18,8 @@ export const leaveHistoryCursorData = z.strictObject({
 });
 export type LeaveHistoryCursorData = z.infer<typeof leaveHistoryCursorData>;
 
-const historyType = z.enum(['ANNUAL', 'SICK', 'UNPAID', 'OTHER', 'UNEXCUSED_ABSENCE']);
-const historyStatus = z.enum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'ABSENT']);
+export const historyType = z.enum(['ANNUAL', 'SICK', 'UNPAID', 'OTHER', 'UNEXCUSED_ABSENCE']);
+export const historyStatus = z.enum(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'ABSENT']);
 const leaveHistoryQueryShape = {
   from: historyDate,
   to: historyDate,
@@ -35,7 +35,7 @@ const leaveHistoryQueryShape = {
   cursor: z.string().min(1).max(2048).optional(),
   limit: z.coerce.number().int().min(1).max(100).default(50),
 };
-const leaveHistoryRange = (q: { from: string; to: string }) =>
+export const leaveHistoryRange = (q: { from: string; to: string }) =>
   q.from <= q.to &&
   Date.parse(`${q.to}T00:00:00Z`) - Date.parse(`${q.from}T00:00:00Z`) < 366 * 86_400_000;
 export const leaveHistoryQuery = z
