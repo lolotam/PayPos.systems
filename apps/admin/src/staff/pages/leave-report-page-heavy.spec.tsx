@@ -35,11 +35,17 @@ const scope = { companyId: leaveId, businessId: leaveId, userId: leaveId };
 let client: QueryClient;
 let reportResult: GetResult;
 let posted: number;
+let syncReadsFresh: boolean;
 
 function routeGets() {
   api.GET.mockImplementation(async (path: string, options: GetOptions) => {
     if (path.includes('/leave-history/reports/')) return reportResult;
     if (path.endsWith('/leave-history')) {
+      if (syncReadsFresh) {
+        return {
+          data: historyPage({ items: [historyLeaveRow({ note: 'Synthetic fresh sync row' })] }),
+        };
+      }
       return options.params.query['employee_id'] === undefined
         ? requiredRefusal()
         : { data: historyPage({ items: [historyLeaveRow({ note: 'Synthetic employee row' })] }) };
@@ -111,6 +117,7 @@ beforeEach(() => {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   reportResult = { data: pendingReport() };
   posted = 0;
+  syncReadsFresh = false;
   routeGets();
 });
 
@@ -149,6 +156,23 @@ it('keeps one report request when the screen is closed and opened again', async 
   expect(api.POST).toHaveBeenCalledTimes(1);
 });
 
+it('shows the fresh sync rows instead of the stored report after a reopen', async () => {
+  reportResult = readyWith('Synthetic old stored report');
+  const first = renderPage();
+  await flush();
+  expect(api.POST).toHaveBeenCalledTimes(1);
+  expect(screen.getByText('Synthetic old stored report')).toBeTruthy();
+  first.unmount();
+  syncReadsFresh = true;
+  renderPage();
+  await flush();
+  expect(screen.getByText('Synthetic fresh sync row')).toBeTruthy();
+  expect(screen.queryByText('Synthetic old stored report')).toBeNull();
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(reportGets()).toHaveLength(1);
+  expect(api.POST).toHaveBeenCalledTimes(1);
+});
+
 it('asks for a new report when the filters are applied again after reopening', async () => {
   const first = renderPage();
   await flush();
@@ -167,9 +191,11 @@ it('asks for a new report when the filters are applied again after reopening', a
 });
 
 it('never reuses the request of an older run when the screen is reopened', async () => {
+  reportResult = readyWith('Synthetic older run row');
   const first = renderPage();
   await flush();
   expect(api.POST).toHaveBeenCalledTimes(1);
+  expect(screen.getByText('Synthetic older run row')).toBeTruthy();
   fireEvent.change(screen.getByLabelText(t('en', 'leave.from')), {
     target: { value: '2026-02-01' },
   });
@@ -183,9 +209,12 @@ it('never reuses the request of an older run when the screen is reopened', async
   fireEvent.change(screen.getByLabelText(t('en', 'leave.from')), {
     target: { value: '2026-02-01' },
   });
+  reportResult = readyWith('Synthetic final run row');
   applyFilters();
   await flush();
   expect(api.POST).toHaveBeenCalledTimes(3);
+  expect(screen.getByText('Synthetic final run row')).toBeTruthy();
+  expect(screen.queryByText('Synthetic older run row')).toBeNull();
 });
 
 it('shows the preparing text while the report runs and the rows when it is ready', async () => {

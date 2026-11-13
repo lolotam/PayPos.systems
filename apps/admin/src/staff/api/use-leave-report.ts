@@ -105,19 +105,24 @@ function useExpiredCursorReset(
   ]);
 }
 
+/**
+ * التقرير المخزن بيتعرض طول ما القراءة السريعة مرفوضة كتقيل؛ أول ما القراءة السريعة تنجح
+ * الصفحة الحالية هي اللي بتظهر، فالتقرير المخزن القديم ما بيتقريش ولا بيتعرضش.
+ */
 function buildView(
   state: LeaveReportState,
   sync: ReportSync,
   job: ReportJob,
   posted: ReportPosted,
 ): LeaveReportView {
-  const reportId = posted.data?.report_id;
+  const heavy = isReportRequired(sync.error);
+  const reportId = heavy ? posted.data?.report_id : undefined;
   const jobData = reportId === undefined ? undefined : job.result.data;
   const jobError = reportId === undefined ? undefined : job.result.error;
   const view = reportViewState({
     syncPending: sync.isPending,
     syncError: sync.error,
-    postError: posted.error,
+    postError: heavy ? posted.error : undefined,
     jobError,
     jobStatus: jobData,
   });
@@ -128,8 +133,7 @@ function buildView(
     ...(page === undefined ? {} : { page }),
     ...(view.error === undefined ? {} : { error: view.error }),
     ...(lastTaken === undefined ? {} : { lastTaken }),
-    fetching:
-      sync.isFetching || (reportId !== undefined && job.result.isFetching) || posted.isFetching,
+    fetching: sync.isFetching || (heavy && (job.result.isFetching || posted.isFetching)),
     cursor: state.cursor,
     setCursor: state.setCursor,
     apply: state.apply,
@@ -168,7 +172,13 @@ export function useLeaveReport({
     [body, scope, state.run],
   );
   const posted = useLeaveReportPosted(postedKey);
-  const job = useLeaveReportJob(scope, posted.data?.report_id, state.cursor, state.query.limit);
+  const heavy = isReportRequired(sync.error);
+  const job = useLeaveReportJob(
+    scope,
+    heavy ? posted.data?.report_id : undefined,
+    state.cursor,
+    state.query.limit,
+  );
   useLeaveReportRequest(state, sync, client, scope, postedKey, body);
   useLeaveReportEviction(client, scope);
   useExpiredCursorReset(state, sync, client, scope);

@@ -126,3 +126,5 @@ owner-questions §16 (the shared wording of the status and type labels) stays PE
   the all-employees report.
 - The e2e mock server of the document popup registers the sidebar probe as a denied route (the admin frame holds no
   permission strings, only the role code and scope), as it already does for `employee-app-link`.
+- The stored report is read and shown only while the sync read is still refused as heavy (`LEAVE_HISTORY_REPORT_REQUIRED`):
+  after a reopen, a sync read that succeeds shows the current page and the retained report id is neither read nor shown.
