@@ -42,15 +42,11 @@ async function loadPackageSaleRequest(tx: Tx, companyId: string, requestId: stri
   const [stored] = await tx.execute<Record<string, unknown>>(sql`
     SELECT id,business_id,branch_id,recorded_by,recorded_by_membership_id,discount_limit_bps,
       customer_id,package_type_id,expected_type_revision,expected_service_revisions,
-      price_paid::text,paid_method,seller_employee_id,sold_at,recorded_at
+      price_paid::text,paid_method,seller_employee_id,
+      to_char(sold_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS sold_at,
+      to_char(recorded_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS recorded_at
     FROM package_sale_requests
     WHERE company_id=${companyId} AND id=${requestId} AND status='pending' FOR UPDATE`);
   if (stored === undefined) return null;
-  const timestamp = (value: unknown) =>
-    value instanceof Date ? value.toISOString() : value;
-  return parsePackageSaleRequest({
-    ...stored,
-    sold_at: timestamp(stored['sold_at']),
-    recorded_at: timestamp(stored['recorded_at']),
-  });
+  return parsePackageSaleRequest(stored);
 }
