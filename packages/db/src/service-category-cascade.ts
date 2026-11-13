@@ -145,6 +145,7 @@ interface ApplyServiceCategoryClosingInput {
   readonly categoryAuditId: string;
 }
 
+// النسخة دي لازم تطابق serviceCategorySnapshot في domain بتاع الـ api حقل بحقل: نفس المفاتيح وأوقات ISO مقطوعة على المللي ثانية، واختبار التكافؤ في الـ api هو اللي بيبرهن على ده.
 function serviceCategorySnapshotSql(closedAt: SQL, revision: SQL, updatedAt: SQL): SQL {
   return sql`jsonb_build_object(
     'id', u.id, 'business_id', u.business_id, 'name_en', u.name_en, 'name_ar', u.name_ar,
