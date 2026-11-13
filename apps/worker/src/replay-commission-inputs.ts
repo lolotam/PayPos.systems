@@ -21,8 +21,12 @@ try {
       company: { type: 'string' },
       after: { type: 'string' },
       through: { type: 'string' },
+      types: { type: 'string' },
     },
   });
+  // قيمة غير معروفة تُرفض قبل أي قراءة: نطاق غير معروف يعني نطاقاً مختلفاً بلا ما يلمس الداتابايز.
+  const types = values.types ?? 'four';
+  if (types !== 'four' && types !== 'six') throw new Error('COMMISSION_REPLAY_CONFIGURATION');
   assertCommissionReplayCursor(values.after ?? null, values.through ?? null);
   const appUrl = process.env['DATABASE_URL'];
   const dispatcherUrl = process.env['DISPATCHER_DATABASE_URL'];
@@ -48,7 +52,13 @@ try {
       knownEventTypes: wrapped.eventTypes,
     });
     const result = await runCommissionInputReplay(
-      { reader, deliver, failures },
+      {
+        reader,
+        deliver,
+        failures,
+        scope: types === 'six' ? 'SIX_TYPE' : 'FOUR_TYPE',
+        handledTypes: new Set(consumer.eventTypes),
+      },
       {
         companyId: values.company,
         afterId: values.after ?? null,

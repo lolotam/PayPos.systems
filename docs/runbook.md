@@ -245,9 +245,9 @@ land, approval stays closed. Never reset or delete `published_at`, `attempts`, `
 5. **The upper bound is an id bound, not a commit-order proof.** An event whose row commits after the cursor passed it, with a lower id, is
    not replayed; the live consumer delivers it. Do not record "everything up to the bound was replayed" as coverage: coverage is checked by 50-3c.
 6. **After any worker rollback then upgrade**, re-run the replay with a new upper bound (CS-Q43). The ADR-0012 pending count, shipped in
-   row 53-1, keeps approval closed for any counted event without the consumer's mark. This run replays the four types above; sub-PR 50-3d adds the
-   six-type retained-event replay (`SessionTipsChanged` and `PackageSaleChanged` as well), which is the run to use after a rollback, because
-   the current-state readers of the first bootstrap cover only the business and date range the operator supplied. Every re-run states its upper bound:
+   row 53-1, keeps approval closed for any counted event without the consumer's mark. The run to use after a rollback is the six-type run of
+   50-3d (`--types six`), because the current-state readers of the first bootstrap cover only the business and date range the operator
+   supplied, so tip and package-sale events published during the rollback would stay unmarked. Every re-run states its upper bound:
    captured after every replica runs the consumer, passed as `--through`, reused on a resume, new after any rollback. An event aimed at
    an already APPROVED month stays undelivered (`COMMISSION_PERIOD_CLOSED`) until the 55-1 correction path exists, and takes that path afterwards; the manager owns that case.
 7. **Logs.** A failed replay of a row that already has ten or more attempts logs «outbox event parked» at error level although nothing is
@@ -307,29 +307,75 @@ source revision) and the retained events that still lack the `commissions.projec
 no `published_at`, no `attempts`, no mark and no projection change.
 
 1. **What it does.** It compares the projection's revision with the source's revision for every retained line and salary of the
-   company, and it lists the retained events that carry no consumer mark. Nothing else is read and nothing is written.
+   company, and it lists the retained events that carry no consumer mark. A retained event whose type the consumer does not handle is
+   listed apart, under `notHandled`, because it is waiting for a handler rather than missing a mark. Nothing else is read and nothing is
+   written.
 2. **Command.** From `apps/worker`, with the ordinary `DATABASE_URL` (`pospay_app`) and `DISPATCHER_DATABASE_URL`
    (`pospay_dispatcher`):
 
    ```sh
    node dist/report-commission-coverage.js --company <uuid> [--through <uuid>]
+   node dist/report-commission-coverage.js --company <uuid> [--through <uuid>] --businesses <uuid>[,<uuid>...] --from YYYY-MM-DD --to YYYY-MM-DD
    ```
 
    Run it after the 50-3a replay and the 50-3b bootstrap finished, and use the same `--through` as the replay.
+   The tip flags are all three or none: they add the tip coverage by revision over the business ids and the business-day range the operator
+   supplies (at most 200 business ids, `from` not after `to`). Without them the tip coverage is not checked at all, and the report says so.
 3. **Output.** One JSON line: `status` (`COVERED` or `NOT_COVERED`), `throughId`, `lines` and `salaries` (each with `checked`,
    `missing` and `stale`, each list carrying its `total` and at most 200 ids; a salary id is `employeeId|YYYY-MM-DD`), `unmarked`
-   (`checked`, `total` and `events` with `eventId` and `type`, at most 200) and `truncated`. Ids and counts only,
+   (`checked`, `total` and `events` with `eventId` and `type`, at most 200), `notHandled` (`total` and `events` with `eventId`, `type`
+   and the fixed `reason` `COMMISSION_EVENT_TYPE_NOT_HANDLED`, at most 200), `tips` (`checked`, `missing` and `stale` with the same
+   shape as the lines, or `null` when no tip scope was supplied), `tipsNote` (one line saying the tip coverage was NOT checked and how to
+   check it, or `null` when it was) and `truncated`. Ids and counts only,
    never an amount and never a name. The exit code is 0 only for `COVERED`.
 4. **Remedy.** A `missing` or a `stale` line or salary, or an unmarked event whose retained event exists: re-run the 50-3a replay
    for the company with its `--through`, then re-run this report. If a line or a salary stays missing and no retained event exists
    for it, the replay cannot recover it: approval stays closed and the manager investigates (re-emitting an event is not designed).
    Do not insert a mark or an event by hand.
-5. **Limits.** The retained-event check covers the four 50-0 types until 50-3d adds the six-type facade. Tip coverage by revision
-   and the tip event-id check are deferred to 50-3d (manager decision 2026-11-13) and are not in this report. A clean report is a
+5. **Limits.** The retained-event check covers the six counted types (`ServiceSessionRecorded`, `ServiceSessionLinesAdded`,
+   `ServiceLineChanged`, `SalaryChanged`, `SessionTipsChanged` and `PackageSaleChanged`), and every retained `SessionTipsChanged` event id
+   must carry the consumer's mark: that is the tip event-id check. The tip coverage by revision is bounded by the operator's scope, so the
+   company-wide guarantee stays with the retained-event check. A clean report is a
    point-in-time read: a row written while it runs is delivered by the live consumer.
+   **A tenant with any retained `PackageSaleChanged` event stays `NOT_COVERED` until 50-4 registers the handler for it**: those events are
+   listed under `notHandled` with the reason `COMMISSION_EVENT_TYPE_NOT_HANDLED`, not as an ordinary missing mark, so the operator tells
+   "awaiting 50-4" from a real gap. While that is true for the tenant, the 55-1b R5 prerequisite ("coverage shows no gap before the first
+   correction posts") is blocked for it.
 6. **Refusal.** The report refuses with the fixed code `COMMISSION_COVERAGE_SCOPE_INVALID`, prints no report and exits 1 when the
    company does not exist or `--through` is not a retained event of that company among `ServiceSessionRecorded`,
-   `ServiceSessionLinesAdded`, `ServiceLineChanged` and `SalaryChanged`.
+   `ServiceSessionLinesAdded`, `ServiceLineChanged`, `SalaryChanged`, `SessionTipsChanged` and `PackageSaleChanged`.
+   A malformed or partial tip scope (a business id that is not a UUID, a date that is not `YYYY-MM-DD`, `from` after `to`, more than 200
+   business ids, or only some of the three flags) prints `COMMISSION_COVERAGE_CONFIGURATION` and reads nothing.
+
+## 50-3d: replay all six counted types after a rollback (spec 059, CS-Q43)
+
+Replays the retained events of all six counted types of one company to the `commissions.project-inputs` consumer alone, through the
+six-type facade `commissionRetainedEventPage` and its own partial index. It never resets or deletes `published_at`, `attempts`,
+`parked_at` or `consumed_events`; the consumer adds the missing consumed marks with the projection.
+
+1. **Command.** From `apps/worker`, with the ordinary `DATABASE_URL` (`pospay_app`) and `DISPATCHER_DATABASE_URL` (`pospay_dispatcher`):
+
+   ```sh
+   node dist/replay-commission-inputs.js --company <uuid> --types six [--after <uuid>] --through <uuid>
+   ```
+
+   `--types` is `four` (the default, the 50-3a run) or `six`; any other value is refused with `COMMISSION_REPLAY_CONFIGURATION` before
+   anything is read. `--after` is only valid together with `--through`, exactly as in 50-3a, and the result line, the statuses and the
+   resume contract are the ones of 50-3a.
+2. **The upper bound is fixed for the whole run.** Capture it after every worker replica runs the consumer, pass it as `--through`, and
+   reuse the same bound on every resume of that run. After any rollback, take a NEW bound: a bound taken before the rollback does not cover
+   the events the rollback left behind. The bound is an id bound, not a commit-order proof: an event whose row commits after the cursor
+   passed it, with a lower id, is not replayed by this run and the live consumer delivers it.
+3. **`PackageSaleChanged` is reported, not delivered.** Until 50-4 registers the handler for the package sale, the consumer does not handle
+   that type, so the runner does not pass those events to it: they are listed in `undelivered` with the fixed code
+   `COMMISSION_EVENT_TYPE_NOT_HANDLED` (event id, type and code only, never a payload, at most 200 with the `truncated` flag). The run
+   therefore ends `UNDELIVERED` and never `COMPLETE` while a `PackageSaleChanged` row exists, and its `afterId` stops before the first such
+   row so a resume re-reads it. Once 50-4 merges, the same rows are delivered with no change to the runner.
+4. **Coverage.** Run the 50-3c coverage report after the replay. A tenant with any retained `PackageSaleChanged` event stays `NOT_COVERED`
+   until 50-4 merges, and the 55-1b R5 prerequisite ("coverage shows no gap before the first correction posts") is blocked for that tenant
+   until then.
+5. **Do not** insert a mark or an event by hand, do not reset any outbox column, and do not widen the range beyond the fixed bound.
+
 
 ## Admin service-session browser tests
 

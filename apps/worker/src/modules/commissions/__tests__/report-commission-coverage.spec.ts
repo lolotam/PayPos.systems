@@ -7,6 +7,7 @@ import type {
   SalaryCoverageCursor,
   SalaryCoverageRow as SalaryRow,
   ServiceLineCoverageRow as LineRow,
+  TipCoverageRow as TipRow,
 } from '../ports/commission-coverage.port.ts';
 import {
   CommissionCoverageEventInvalidError,
@@ -18,6 +19,14 @@ import {
 const COMPANY = '01920000-0000-7000-8000-0000000000a0';
 const OTHER = '01920000-0000-7000-8000-0000000000b0';
 const CONSUMER = 'commission-coverage';
+// الأنواع التي يسجّلها المستهلك؛ حدث من نوع آخر لا يُفحص في العلامات ولا يُسلّم.
+const HANDLED_TYPES = new Set([
+  'ServiceSessionRecorded',
+  'ServiceSessionLinesAdded',
+  'ServiceLineChanged',
+  'SessionTipsChanged',
+  'SalaryChanged',
+]);
 // القارئات ما بتمسّش الـ tx، فكائن فارغ بيناسب الـ port من غير أي جدول حقيقي.
 const DUMMY_TX = {} as unknown as CoverageTx;
 
@@ -96,6 +105,7 @@ function salaryReader(rows: readonly SalaryRow[]) {
 function projectionReader(options: {
   readonly lines?: readonly LineRow[];
   readonly salaries?: readonly SalaryRow[];
+  readonly tips?: readonly TipRow[];
   readonly marked?: ReadonlySet<string>;
 }) {
   const lineMap = new Map((options.lines ?? []).map((row) => [row.lineId, row]));
@@ -103,6 +113,7 @@ function projectionReader(options: {
   for (const row of options.salaries ?? []) {
     salaryMap.set(row.employeeId, [...(salaryMap.get(row.employeeId) ?? []), row]);
   }
+  const tipMap = new Map((options.tips ?? []).map((row) => [row.sessionId, row]));
   const marked = options.marked ?? new Set<string>();
   return {
     lineRevisions: vi.fn(async (_tx: CoverageTx, _cid: string, ids: readonly string[]) =>
@@ -117,6 +128,9 @@ function projectionReader(options: {
           ids.filter((id) => marked.has(id.toLowerCase())).map((id) => id.toLowerCase()),
         ),
     ),
+    tipRevisions: vi.fn(async (_tx: CoverageTx, _cid: string, ids: readonly string[]) =>
+      ids.map((id) => tipMap.get(id)).filter((row): row is TipRow => row !== undefined),
+    ),
   };
 }
 
@@ -126,7 +140,7 @@ function retainedReader(events: readonly ClaimedEvent[], ignoreCompany = false) 
   );
   return {
     // الحد الأعلى بيتحدد من أول صفحة ويتعاد زي ما هو، فالقارئ بيرد بنفس الحد اللي اتبعت.
-    commissionInputReplayPage: vi.fn(
+    commissionRetainedEventPage: vi.fn(
       async (companyId: string, afterId: string | null, throughId: string | null, limit: number) => {
         const end = throughId ?? sorted.at(-1)?.id ?? null;
         if (end === null) return { throughId: null, events: [] };
@@ -180,6 +194,7 @@ function harness(options: HarnessOptions) {
     retained,
     consumerId: CONSUMER,
     companies: { isOpen: async () => options.companyOpen ?? true },
+    handledTypes: HANDLED_TYPES,
   };
   return { deps, tenants, lines, salaries, projection, retained };
 }
@@ -276,7 +291,7 @@ describe('runCommissionCoverageReport: the retained events and the paging', () =
     const report = await run(deps);
     expect(report.unmarked.checked).toBe(250);
     expect(report.unmarked.total).toBe(0);
-    expect(retained.commissionInputReplayPage).toHaveBeenCalledTimes(3);
+    expect(retained.commissionRetainedEventPage).toHaveBeenCalledTimes(3);
   });
   it('matches a retained event id to its mark regardless of case', async () => {
     const upperId = eventId('a').toUpperCase();
@@ -307,7 +322,7 @@ describe('runCommissionCoverageReport: the scope and the report content', () => 
     const events = Array.from({ length: 150 }, (_, index) => event(index + 1));
     const { deps, retained } = harness({ events, marked: allMarked(events) });
     const report = await run(deps);
-    const page = retained.commissionInputReplayPage;
+    const page = retained.commissionRetainedEventPage;
     expect(page).toHaveBeenNthCalledWith(1, COMPANY, null, null, 100);
     expect(page).toHaveBeenNthCalledWith(2, COMPANY, eventId(100), eventId(150), 100);
     expect(report.throughId).toBe(eventId(150));
@@ -316,7 +331,7 @@ describe('runCommissionCoverageReport: the scope and the report content', () => 
     const events = Array.from({ length: 150 }, (_, index) => event(index + 1));
     const { deps, retained } = harness({ events, marked: allMarked(events) });
     const report = await run(deps, eventId(120));
-    const page = retained.commissionInputReplayPage;
+    const page = retained.commissionRetainedEventPage;
     expect(page).toHaveBeenNthCalledWith(1, COMPANY, null, eventId(120), 100);
     expect(report.throughId).toBe(eventId(120));
     expect(report.unmarked.checked).toBe(120);

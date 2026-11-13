@@ -36,18 +36,24 @@ function fakeEvent(n: number, eventType = 'ServiceSessionRecorded', companyId = 
 }
 
 function fakeReader(events: readonly ClaimedEvent[]) {
+  const page = async (
+    companyId: string,
+    afterId: string | null,
+    throughId: string | null,
+    limit: number,
+  ) => {
+    const companyEvents = events.filter((e) => e.companyId === companyId);
+    const resolvedThroughId = throughId ?? companyEvents.at(-1)?.id ?? null;
+    if (resolvedThroughId === null) return { throughId: null, events: [] };
+    const filtered = companyEvents.filter(
+      (e) => (afterId === null || e.id > afterId) && e.id <= resolvedThroughId,
+    );
+    return { throughId: resolvedThroughId, events: filtered.slice(0, limit) };
+  };
+  // الواجهة الثانية موجودة لأن نوع التبعيات يطلبها؛ نطاق الأربعة لا يستدعيها.
   return {
-    commissionInputReplayPage: vi.fn(
-      async (companyId: string, afterId: string | null, throughId: string | null, limit: number) => {
-        const companyEvents = events.filter((e) => e.companyId === companyId);
-        const resolvedThroughId = throughId ?? companyEvents.at(-1)?.id ?? null;
-        if (resolvedThroughId === null) return { throughId: null, events: [] };
-        const filtered = companyEvents.filter(
-          (e) => (afterId === null || e.id > afterId) && e.id <= resolvedThroughId,
-        );
-        return { throughId: resolvedThroughId, events: filtered.slice(0, limit) };
-      },
-    ),
+    commissionInputReplayPage: vi.fn(page),
+    commissionRetainedEventPage: vi.fn(page),
   };
 }
 
@@ -193,7 +199,10 @@ it('sets truncated to true and caps list length at 200 when undelivered exceeds 
 it('throws CommissionReplayEventInvalidError for another company or non-replayable event type', async () => {
   // الرفض الفوري يحمي من تسليم أحداث خارج نطاق الشركة أو أحداث غير معتمدة للاستعادة
   const otherCompanyEvent = fakeEvent(1, 'ServiceSessionRecorded', OTHER_COMPANY);
-  const leakyReader = { commissionInputReplayPage: vi.fn(async () => ({ throughId: otherCompanyEvent.id, events: [otherCompanyEvent] })) };
+  const leakyReader = {
+    commissionInputReplayPage: vi.fn(async () => ({ throughId: otherCompanyEvent.id, events: [otherCompanyEvent] })),
+    commissionRetainedEventPage: vi.fn(async () => ({ throughId: otherCompanyEvent.id, events: [otherCompanyEvent] })),
+  };
   await expect(
     runCommissionInputReplay({ reader: leakyReader, deliver: vi.fn(), failures: new Map() }, { companyId: COMPANY, afterId: null, throughId: null }),
   ).rejects.toThrow(CommissionReplayEventInvalidError);
@@ -212,6 +221,7 @@ it('stops at PAGE_LIMIT with resumable afterId when 100 full pages are read', as
       const pageIndex = pageCounter++;
       return { throughId: throughId ?? eventId(20000), events: Array.from({ length: limit }, (_, i) => fakeEvent(pageIndex * limit + i + 1)) };
     }),
+    commissionRetainedEventPage: vi.fn(async () => ({ throughId: null, events: [] })),
   };
 
   const result = await runCommissionInputReplay(
@@ -244,6 +254,7 @@ it('handles reader failure: returns ABORTED on generic Error, rethrows ReplayCur
     commissionInputReplayPage: vi.fn()
       .mockResolvedValueOnce({ throughId: eventId(200), events: page1Events })
       .mockRejectedValueOnce(new Error('transient read failure')),
+    commissionRetainedEventPage: vi.fn(async () => ({ throughId: null, events: [] })),
   };
   const result = await runCommissionInputReplay(
     { reader: genericReader, deliver: vi.fn(async (): Promise<DeliveryOutcome> => ({ delivered: true })), failures: new Map() },
@@ -259,12 +270,18 @@ it('handles reader failure: returns ABORTED on generic Error, rethrows ReplayCur
     truncated: false,
   });
 
-  const cursorReader = { commissionInputReplayPage: vi.fn().mockRejectedValue(new ReplayCursorError()) };
+  const cursorReader = {
+    commissionInputReplayPage: vi.fn().mockRejectedValue(new ReplayCursorError()),
+    commissionRetainedEventPage: vi.fn().mockRejectedValue(new ReplayCursorError()),
+  };
   await expect(
     runCommissionInputReplay({ reader: cursorReader, deliver: vi.fn(), failures: new Map() }, { companyId: COMPANY, afterId: null, throughId: null }),
   ).rejects.toThrow(ReplayCursorError);
 
-  const scopeReader = { commissionInputReplayPage: vi.fn().mockRejectedValue(new TypeError('REPLAY_SCOPE_INVALID')) };
+  const scopeReader = {
+    commissionInputReplayPage: vi.fn().mockRejectedValue(new TypeError('REPLAY_SCOPE_INVALID')),
+    commissionRetainedEventPage: vi.fn().mockRejectedValue(new TypeError('REPLAY_SCOPE_INVALID')),
+  };
   await expect(
     runCommissionInputReplay({ reader: scopeReader, deliver: vi.fn(), failures: new Map() }, { companyId: COMPANY, afterId: null, throughId: null }),
   ).rejects.toThrow('REPLAY_SCOPE_INVALID');
