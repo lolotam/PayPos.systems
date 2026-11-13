@@ -48,19 +48,14 @@ export type SellerOptions = {
   readonly linkedUserId?: string | null;
 };
 
-export type ServiceRevision = { readonly service_id: string; readonly revision: number };
-
 export type RequestOverrides = Partial<{
   type: SeededType;
-  business_id: string;
   branch_id: string;
-  recorded_by: string;
-  recorded_by_membership_id: string;
   discount_limit_bps: number | null;
   customer_id: string;
   package_type_id: string;
   expected_type_revision: number;
-  expected_service_revisions: readonly ServiceRevision[];
+  expected_service_revisions: readonly { readonly service_id: string; readonly revision: number }[];
   price_paid: string;
   paid_method: 'CASH' | 'CARD';
   seller_employee_id: string;
@@ -68,89 +63,10 @@ export type RequestOverrides = Partial<{
   recorded_at: string;
 }>;
 
-export type SaleRequestState = {
-  readonly id: string;
-  readonly status: string;
-  readonly error_code: string | null;
-  readonly error_details: unknown;
-  readonly entitlement_id: string | null;
-  readonly finished_at: Date | null;
-  readonly recorded_at: Date;
-  readonly sold_at: Date | null;
-  readonly price_paid: string;
-  readonly discount_limit_bps: number | null;
-};
-
-export type SoldEntitlement = {
-  readonly id: string;
-  readonly provenance: string;
-  readonly list_price: string;
-  readonly price_paid: string;
-  readonly discount: string;
-  readonly discount_bps: number;
-  readonly revision: number;
-  readonly refunded_amount: string;
-  readonly validity_days: number;
-  readonly paid_method: string;
-  readonly seller_employee_id: string;
-  readonly seller_linked_user_id: string | null;
-  readonly sold_branch_id: string;
-  readonly sold_at: Date;
-  readonly sold_business_date: string;
-  readonly sold_timezone: string;
-  readonly late: boolean;
-  readonly expires_on: string;
-  readonly recorded_by: string;
-  readonly recorded_by_membership_id: string;
-};
-
-export type SoldComponent = {
-  readonly id: string;
-  readonly entitlement_id: string;
-  readonly service_id: string;
-  readonly position: number;
-  readonly list_price_snapshot: string;
-  readonly sessions_total: number;
-  readonly component_value: string;
-};
-
-export type SoldSlot = {
-  readonly id: string;
-  readonly component_id: string;
-  readonly ordinal: number;
-  readonly unit_value: string;
-  readonly state: string;
-};
-
-export type SoldAudit = {
-  readonly actor_user_id: string | null;
-  readonly entity: string;
-  readonly entity_id: string;
-  readonly action: string;
-};
-
-export type SoldEvent = {
-  readonly aggregate_type: string;
-  readonly aggregate_id: string;
-  readonly event_type: string;
-  readonly payload: unknown;
-};
-
-export type SoldRows = {
-  readonly entitlements: readonly SoldEntitlement[];
-  readonly components: readonly SoldComponent[];
-  readonly slots: readonly SoldSlot[];
-  readonly audit: readonly SoldAudit[];
-  readonly events: readonly SoldEvent[];
-};
-
-export type SoldCounts = {
-  readonly entitlements: number;
-  readonly components: number;
-  readonly slots: number;
-  readonly audit: number;
-  readonly events: number;
-};
+export type SoldRows = Record<
+  'entitlements' | 'components' | 'slots' | 'audit' | 'events',
+  readonly postgres.Row[]
+>;
 
 type Scope = {
   readonly company: string;
@@ -171,11 +87,6 @@ function nextEmployeeNumber(): number {
   return employeeNumber;
 }
 
-function nextPhone(): string {
-  phoneSequence += 1;
-  return `+999${String(phoneSequence).padStart(8, '0')}`;
-}
-
 function serviceId(type: SeededType, index: number): string {
   const service = type.services[index];
   if (service === undefined) throw new Error('PACKAGE_SALE_FIXTURE_SERVICE_MISSING');
@@ -189,8 +100,10 @@ async function seedCustomer(
   name: string,
 ): Promise<string> {
   const id = ids.newId();
+  phoneSequence += 1;
+  const phone = `+999${String(phoneSequence).padStart(8, '0')}`;
   await owner`INSERT INTO customers(company_id,id,name,phone,locale,created_at,updated_at)
-    VALUES(${companyId},${id},${name},${nextPhone()},'en',now(),now())`;
+    VALUES(${companyId},${id},${name},${phone},'en',now(),now())`;
   return id;
 }
 
@@ -296,10 +209,10 @@ async function insertRequest(
   await owner`INSERT INTO package_sale_requests ${owner({
     company_id: scope.company,
     id,
-    business_id: overrides.business_id ?? scope.business,
+    business_id: scope.business,
     branch_id: overrides.branch_id ?? scope.branch,
-    recorded_by: overrides.recorded_by ?? USER,
-    recorded_by_membership_id: overrides.recorded_by_membership_id ?? ORDER_IDS.membership,
+    recorded_by: USER,
+    recorded_by_membership_id: ORDER_IDS.membership,
     discount_limit_bps:
       overrides.discount_limit_bps === undefined ? 1000 : overrides.discount_limit_bps,
     customer_id: customerId,
@@ -316,53 +229,41 @@ async function insertRequest(
   return id;
 }
 
-async function readState(owner: postgres.Sql, requestId: string): Promise<SaleRequestState> {
-  const [row] = await owner<
-    SaleRequestState[]
-  >`SELECT id,status,error_code,error_details,entitlement_id,
-    finished_at,recorded_at,sold_at,price_paid::text,discount_limit_bps
-    FROM package_sale_requests WHERE id=${requestId}`;
+async function readState(owner: postgres.Sql, requestId: string): Promise<postgres.Row> {
+  const [row] = await owner`SELECT id,status,error_code,error_details,entitlement_id,
+    finished_at,recorded_at,sold_at,price_paid::text,discount_limit_bps FROM package_sale_requests WHERE id=${requestId}`;
   if (row === undefined) throw new Error('PACKAGE_SALE_FIXTURE_REQUEST_MISSING');
   return row;
 }
 
 async function readSold(owner: postgres.Sql, requestId: string): Promise<SoldRows> {
-  const [request] = await owner<
-    { company_id: string; package_type_id: string; customer_id: string }[]
-  >`
-      SELECT company_id,package_type_id,customer_id FROM package_sale_requests WHERE id=${requestId}`;
+  const [request] = await owner`SELECT company_id,package_type_id,customer_id
+    FROM package_sale_requests WHERE id=${requestId}`;
   if (request === undefined) throw new Error('PACKAGE_SALE_FIXTURE_REQUEST_MISSING');
-  const entitlements = await owner<
-    SoldEntitlement[]
-  >`SELECT id,provenance,list_price::text,price_paid::text,
+  const entitlements = await owner`SELECT id,provenance,list_price::text,price_paid::text,
     discount::text,discount_bps,revision,refunded_amount::text,validity_days,paid_method,seller_employee_id,
-    seller_linked_user_id,sold_branch_id,sold_at,sold_business_date::text,sold_timezone,late,expires_on::text,
-    recorded_by,recorded_by_membership_id
+    sold_branch_id,sold_at,sold_business_date::text,late,expires_on::text,recorded_by,recorded_by_membership_id
     FROM package_entitlements
-    WHERE company_id=${request.company_id} AND package_type_id=${request.package_type_id}
-      AND customer_id=${request.customer_id}`;
+    WHERE company_id=${request['company_id']} AND package_type_id=${request['package_type_id']}
+      AND customer_id=${request['customer_id']}`;
   if (entitlements.length === 0)
     return { entitlements: [], components: [], slots: [], audit: [], events: [] };
-  const ids = entitlements.map((entitlement) => entitlement.id);
-  const components = await owner<SoldComponent[]>`SELECT id,entitlement_id,service_id,position,
+  const ids = entitlements.map((entitlement) => entitlement['id'] as string);
+  const components = await owner`SELECT id,entitlement_id,service_id,position,
     list_price_snapshot::text,sessions_total,component_value::text FROM package_components
     WHERE entitlement_id = ANY(${ids}::uuid[]) ORDER BY position`;
-  const slots = await owner<
-    SoldSlot[]
-  >`SELECT s.id,s.component_id,s.ordinal,s.unit_value::text,s.state
+  const slots = await owner`SELECT s.id,s.component_id,s.ordinal,s.unit_value::text,s.state
     FROM package_session_slots s JOIN package_components c ON c.company_id=s.company_id AND c.id=s.component_id
     WHERE s.entitlement_id = ANY(${ids}::uuid[]) ORDER BY c.position,s.ordinal`;
-  const audit = await owner<SoldAudit[]>`SELECT actor_user_id,entity,entity_id,action FROM audit_log
+  const audit = await owner`SELECT actor_user_id,entity,entity_id,action FROM audit_log
     WHERE entity='package_entitlement' AND entity_id = ANY(${ids}::uuid[])`;
-  const events = await owner<
-    SoldEvent[]
-  >`SELECT aggregate_type,aggregate_id,event_type,payload FROM outbox
+  const events = await owner`SELECT aggregate_type,aggregate_id,event_type,payload FROM outbox
     WHERE aggregate_id = ANY(${ids}::uuid[]) AND event_type='PackageSaleChanged'`;
   return { entitlements, components, slots, audit, events };
 }
 
-async function readCounts(owner: postgres.Sql, companyId: string): Promise<SoldCounts> {
-  const [row] = await owner<SoldCounts[]>`SELECT
+async function readCounts(owner: postgres.Sql, companyId: string): Promise<postgres.Row> {
+  const [row] = await owner`SELECT
     (SELECT count(*)::int FROM package_entitlements WHERE company_id=${companyId}) AS entitlements,
     (SELECT count(*)::int FROM package_components WHERE company_id=${companyId}) AS components,
     (SELECT count(*)::int FROM package_session_slots WHERE company_id=${companyId}) AS slots,
