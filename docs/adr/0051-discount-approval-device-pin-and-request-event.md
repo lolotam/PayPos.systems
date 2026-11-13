@@ -103,10 +103,10 @@ session would let any logged-in user probe any manager's PIN, and SPEC §3 has n
    always rings and is outside the team-alerts master switch and rules; the owner bell (057-3b) follows the master switch
    (AL-Q4 = PP-18.24) and its own per-kind alert rule, whose roles replace the fixed `owner` set above (spec 057 D-19).
 8. **No new import arrow.** `orders → identity, settings` already exists; the new consumer-owned ports
-   (`DiscountApprovalAccessPort`, `DiscountPinApproverPort`, worker `DiscountApprovalNoticeRecipients`, worker
-   `DiscountApprovalNoticePlace`, and for the owner bell worker `DiscountSelfApprovalNoticeRecipients` and
-   `DiscountSelfApprovalNoticePlace`) and the reuse of `DiscountLimitPort` for the approver are listed in
-   `docs/module-map.md` §3.
+   (`DiscountApprovalAccessPort`, `DiscountPinApproverPort`, `DiscountPinFencePort`, `DiscountDeviceScopePort`,
+   worker `DiscountApprovalNoticeRecipients`, worker `DiscountApprovalNoticePlace`, and for the owner bell worker
+   `DiscountSelfApprovalNoticeRecipients` and `DiscountSelfApprovalNoticePlace`) and the reuse of `DiscountLimitPort`
+   for the approver are listed in `docs/module-map.md` §3.
 
 ## Consequences
 
