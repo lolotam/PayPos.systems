@@ -55,7 +55,7 @@ export class RecordServiceSessionUseCase {
     const drafts = sessionDrafts(context.input.lines);
     // القراءة بتجيب الخدمات المغلقة مع غيرها، لأن سطر الباقة بيسجّل خدمة مقفولة؛
     // والحكم على السطر المدفوع في الـ domain قبل أي قفل استحقاق أو كتابة.
-    const services = resolveClosedServiceRedemption(catalogServices, drafts);
+    const services = resolveClosedServiceRedemption(catalogServices, { paid: drafts.paid });
     // قفل الاستحقاقات هو آخر قفل مال، فينتظر على المكوّن؛ صلاحية الباقة تقاس بيوم الفرع لا بيوم النشاط.
     // توقيت الفرع يُقرأ وحده عند وجود مسودة باقة، فالزيارة المدفوعة ما تدفعش الاستعلام ده.
     let facts = new Map<number, PackageRedemptionFact>();

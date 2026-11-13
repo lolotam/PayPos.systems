@@ -6,7 +6,7 @@ import type {
 import type { ServiceCategoryRecord } from '../domain/service-category.ts';
 import type { ServiceRecord } from '../domain/service.ts';
 
-/** مدخلات تدقيق إغلاق أو فتح التصنيف وكل أثره على الخدمات في دفعة واحدة. */
+/** مدخلات تدقيق التصنيف عند الإغلاق أو الفتح: صف التدقيق الخاص بالتصنيف وحده، أما تدقيق الخدمات فتكتبه جملة الكاسكاد مع تحديثها. */
 export interface ServiceCategoryClosingAudit extends ServiceCategoryClosingPlan {
   readonly action: 'closed' | 'reopened';
 }
@@ -89,7 +89,8 @@ export interface ServiceCategoryScope {
    */
   lockMarkedServices(businessId: string, categoryId: string): Promise<ServiceRecord[]>;
   /**
-   * يحفظ حالة التصنيف على نسخته المقفولة ويكتب أثر الخدمات في تحديث واحد، ويرفض تعارض النسخة.
+   * يحفظ حالة التصنيف على نسخته المقفولة ويكتب أثر الخدمات في تحديث واحد مع تدقيق كل خدمة في نفس
+   * الأمر، ويرفض تعارض النسخة.
    *
    * @param category التصنيف قبل العملية وبعدها
    * @param services الخدمات المتغيرة قبل العملية وبعدها
@@ -100,9 +101,10 @@ export interface ServiceCategoryScope {
     services: readonly ServiceRecordChange<ServiceRecord>[],
   ): Promise<void>;
   /**
-   * يدخل تدقيق التصنيف وكل خدمة متغيرة في أمر واحد حتى يبقى الأثر كاملاً أو يتراجع كله.
+   * يدخل تدقيق التصنيف وحده في صف واحد؛ تدقيق الخدمات كاتبه أمر الكاسكاد مع تحديثها، فالأثر كله
+   * ذري في أمر واحد.
    *
-   * @param entries فعل العملية والتصنيف والخدمات قبلها وبعدها
+   * @param entries فعل العملية والتصنيف قبله وبعده
    * @returns اكتمال إدخال دفعة التدقيق
    */
   auditClosing(entries: ServiceCategoryClosingAudit): Promise<void>;

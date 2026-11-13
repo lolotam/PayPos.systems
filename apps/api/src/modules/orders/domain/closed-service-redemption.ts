@@ -1,10 +1,9 @@
 import { SessionError } from './session-error.ts';
-import type { ClosedSessionService, PackageSessionDraft, SessionDraft, SessionService } from './session-types.ts';
+import type { ClosedSessionService, SessionDraft, SessionService } from './session-types.ts';
 
-/** مسودات الزيارة كما فرزها sessionDrafts: بنود مدفوعة وبنود من رصيد باقة. */
+/** مسودات الزيارة كما فرزها sessionDrafts: البنود المدفوعة وحدها، فسطر الباقة مسموح على خدمة مقفولة. */
 export interface ClosedServiceDrafts {
   paid: readonly SessionDraft[];
-  packages: readonly PackageSessionDraft[];
 }
 
 /**
@@ -14,7 +13,7 @@ export interface ClosedServiceDrafts {
  * وأول سطر مدفوع على خدمة مغلقة هو المرفوض، بترتيب بنود الطلب.
  *
  * @param services خدمات الكتالوج المقروءة مع علامة إغلاق كل واحدة
- * @param drafts مسودات الزيارة كما فرزها sessionDrafts: مدفوعة وباقة
+ * @param drafts البنود المدفوعة من مسودات الزيارة كما فرزها sessionDrafts
  * @returns خدمات الكتالوج بلا علامة الإغلاق، وقد رُفضت الزيارة لو سطر مدفوع على خدمة مغلقة
  */
 export function resolveClosedServiceRedemption(

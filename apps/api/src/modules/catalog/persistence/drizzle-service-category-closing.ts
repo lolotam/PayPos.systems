@@ -16,12 +16,28 @@ interface CascadeInput {
   readonly businessId: string;
   readonly categoryId: string;
   readonly closing: boolean;
-  readonly closedAt: string | null;
-  readonly marker: string | null;
   readonly at: string;
-  readonly action: 'closed' | 'reopened';
   readonly auditIds: string;
   readonly expectedCount: number;
+}
+
+/** معالم الأثر المشتقة من حالة الإغلاق، وكلها بتتحدد مع بعض. */
+interface CascadeEffect {
+  readonly closedAt: string | null;
+  readonly marker: string | null;
+  readonly action: 'closed' | 'reopened';
+}
+
+/**
+ * الأثر المشتق من حالة الإغلاق: وقت الإغلاق وعلامة التصنيف ونوع الفعل بييجوا من حالة واحدة،
+ * فما ينفع واحد يتناقض مع التانية.
+ */
+function cascadeEffect(input: CascadeInput): CascadeEffect {
+  return {
+    closedAt: input.closing ? input.at : null,
+    marker: input.closing ? input.categoryId : null,
+    action: input.closing ? 'closed' : 'reopened',
+  };
 }
 
 /** معرّفات صفوف التدقيق: بتتولّد في Node عشان تبقى UUID v7 من الـ IdGenerator زي كل تدقيق تاني. */
@@ -53,9 +69,10 @@ function oldRowsCte(input: CascadeInput): SQL {
 
 /** التحديث نفسه: جملة واحدة على كل المجموعة، والصف القديم والجديد بيرجعوا مع بعض في RETURNING. */
 function updatedCte(input: CascadeInput): SQL {
+  const effect = cascadeEffect(input);
   return sql`updated AS (
     UPDATE services s
-    SET closed_at=${input.closedAt}::timestamptz, closed_by_category_id=${input.marker}::uuid,
+    SET closed_at=${effect.closedAt}::timestamptz, closed_by_category_id=${effect.marker}::uuid,
       revision=s.revision+1, updated_at=${input.at}::timestamptz
     FROM old_rows o
     WHERE s.company_id=o.company_id AND s.id=o.id
@@ -104,9 +121,10 @@ function snapshotsCte(): SQL {
  * ما تكتبش تدقيق لمجموعة غير اللي اتخطط لها.
  */
 function cascadeStatement(input: CascadeInput): SQL {
+  const effect = cascadeEffect(input);
   return sql`WITH ${auditIdsCte(input)}, ${oldRowsCte(input)}, ${updatedCte(input)}, ${snapshotsCte()}
     INSERT INTO audit_log (company_id,id,actor_user_id,entity,entity_id,action,before,after)
-    SELECT app_company_id(), s.audit_id, app_user_id(), 'service', s.service_id, ${input.action},
+    SELECT app_company_id(), s.audit_id, app_user_id(), 'service', s.service_id, ${effect.action},
       s.before,
       s.before || jsonb_build_object(
         'closed_at', to_char(date_trunc('milliseconds', s.after_closed_at AT TIME ZONE 'UTC'), ${ISO_INSTANT}),
@@ -145,10 +163,7 @@ export async function saveClosing(
       businessId: category.before.business_id,
       categoryId: category.before.id,
       closing,
-      closedAt: closing ? category.after.updated_at : null,
-      marker: closing ? category.before.id : null,
       at: category.after.updated_at,
-      action: closing ? 'closed' : 'reopened',
       auditIds: JSON.stringify(
         services.map((service) => ({ service_id: service.before.id, audit_id: ids.newId() })),
       ),

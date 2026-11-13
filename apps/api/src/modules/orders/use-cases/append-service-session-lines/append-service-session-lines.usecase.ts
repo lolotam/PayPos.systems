@@ -62,7 +62,7 @@ export class AppendServiceSessionLinesUseCase {
     const drafts = sessionDrafts(context.input.lines);
     // القراءة بتجيب الخدمات المغلقة مع غيرها، لأن سطر الباقة بيسجّل خدمة مقفولة؛
     // والحكم على السطر المدفوع في الـ domain قبل أي قفل استحقاق أو كتابة.
-    const services = resolveClosedServiceRedemption(catalogServices, drafts);
+    const services = resolveClosedServiceRedemption(catalogServices, { paid: drafts.paid });
     // قفل الاستحقاقات هو آخر قفل مال؛ صلاحية الباقة تقاس بيوم فرع الزيارة لا بيوم النشاط.
     // توقيت الفرع يُقرأ وحده عند وجود مسودة باقة، فالإضافة المدفوعة ما تدفعش الاستعلام ده.
     let facts = new Map<number, PackageRedemptionFact>();

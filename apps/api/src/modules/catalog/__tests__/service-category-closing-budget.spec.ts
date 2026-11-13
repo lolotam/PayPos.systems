@@ -14,8 +14,9 @@ import {
 
 /**
  * حجم التصنيف المقاس: 300 خدمة مفتوحة، وهو الحجم اللي «قاعدة الـ 200 مللي» بتقيسه.
- * 300 هو أكبر حجم بقي فيه وسيط الإغلاق والفتح الدافئين تحت 200 مللي في كل قياس على جهاز مشترك،
- * و500 كسر الحد في ربعين من أربع دورات؛ فوق 300 الطلب يفضل متزامن لحد شريحة الـ worker اللي بعدها.
+ * 300 حدّ أمان اختاره القياس على جهاز مشترك محمّل: عند 300 وصل وسيط الفتح 182 مللي، و500 كسر حد
+ * الـ 200 مللي في ربعين من أربع دورات، و400 عدّى في دورتين محليتين بس، ودورتين قليل على أساس قرار.
+ * فوق 300 الطلب يفضل متزامن لحد شريحة الـ worker اللي بعدها.
  */
 const SERVICE_COUNT = 300;
 
@@ -136,9 +137,6 @@ beforeAll(async () => {
   const category = serviceCategory.parse(created.body);
   categoryId = category.id;
   revision = category.revision;
-});
-
-beforeAll(async () => {
   await seedServices();
   const [row] = await f.h.owner`SELECT count(*)::int AS n FROM services
     WHERE company_id=${f.company} AND category_id=${categoryId}`;
