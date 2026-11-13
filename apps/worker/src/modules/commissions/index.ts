@@ -22,8 +22,11 @@ export type {
 } from './ports/commission-statement-export.port.ts';
 export {
   assertCommissionReplayCursor,
+  CommissionReplayConfigurationError,
   CommissionReplayCursorError,
   CommissionReplayEventInvalidError,
+  commissionReplayErrorCode,
+  parseCommissionReplayTypes,
   recordCommissionFailureCodes,
   runCommissionInputReplay,
 } from './jobs/replay-commission-inputs.ts';
@@ -52,6 +55,7 @@ export { createCommissionCoverageReport } from './commissions.module.ts';
 export {
   CommissionCoverageEventInvalidError,
   CommissionCoverageScopeInvalidError,
+  isCommissionCoverageCalendarDate,
   runCommissionCoverageReport,
 } from './use-cases/report-commission-coverage/report-commission-coverage.ts';
 export type {

@@ -1,12 +1,13 @@
 import { parseArgs } from 'node:util';
-import { createDatabase, createOutboxDispatcherDatabase, ReplayCursorError } from '@pospay/db';
+import { createDatabase, createOutboxDispatcherDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import {
   assertCommissionReplayCursor,
-  CommissionReplayCursorError,
-  CommissionReplayEventInvalidError,
+  CommissionReplayConfigurationError,
+  commissionReplayErrorCode,
   createCommissionInputsConsumer,
+  parseCommissionReplayTypes,
   recordCommissionFailureCodes,
   runCommissionInputReplay,
 } from './modules/commissions/index.ts';
@@ -21,13 +22,16 @@ try {
       company: { type: 'string' },
       after: { type: 'string' },
       through: { type: 'string' },
+      types: { type: 'string' },
     },
   });
+  // قيمة غير معروفة تُرفض قبل أي قراءة: نطاق غير معروف يعني نطاقاً مختلفاً بلا ما يلمس الداتابايز.
+  const types = parseCommissionReplayTypes(values.types);
   assertCommissionReplayCursor(values.after ?? null, values.through ?? null);
   const appUrl = process.env['DATABASE_URL'];
   const dispatcherUrl = process.env['DISPATCHER_DATABASE_URL'];
-  if (!values.company || !appUrl || !dispatcherUrl)
-    throw new Error('COMMISSION_REPLAY_CONFIGURATION');
+  if (!values.company) throw new CommissionReplayConfigurationError();
+  if (!appUrl || !dispatcherUrl) throw new CommissionReplayConfigurationError();
   const ids = systemUuidV7();
   const app = createDatabase({ url: appUrl, ids, maxConnections: 1 });
   const reader = createOutboxDispatcherDatabase({ url: dispatcherUrl, maxConnections: 1 });
@@ -48,7 +52,13 @@ try {
       knownEventTypes: wrapped.eventTypes,
     });
     const result = await runCommissionInputReplay(
-      { reader, deliver, failures },
+      {
+        reader,
+        deliver,
+        failures,
+        scope: types === 'six' ? 'SIX_TYPE' : 'FOUR_TYPE',
+        handledTypes: new Set(consumer.eventTypes),
+      },
       {
         companyId: values.company,
         afterId: values.after ?? null,
@@ -66,12 +76,6 @@ try {
     throw new Error('COMMISSION_REPLAY_CLOSE_FAILED');
 } catch (error) {
   // الخطأ الخام قد يحمل SQL أو رابط اتصال؛ المشغّل يتلقى رمزًا ثابتًا فقط.
-  console.error(
-    error instanceof ReplayCursorError ||
-    error instanceof CommissionReplayCursorError ||
-    error instanceof CommissionReplayEventInvalidError
-      ? (error as { readonly code: string }).code
-      : 'COMMISSION_REPLAY_FAILED',
-  );
+  console.error(commissionReplayErrorCode(error));
   process.exitCode = 1;
 }

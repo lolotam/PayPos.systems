@@ -45,6 +45,10 @@ export interface OutboxDispatcherDatabase {
   commissionInputReplayPage(companyId: string, afterId: string | null, throughId: string | null, limit: number): Promise<{
     throughId: string | null; events: readonly ClaimedEvent[];
   }>;
+  /** يقرأ صفحة من كل أنواع الأحداث المحسوبة الستة المحتفظ بها لشركة محددة؛ القراءة فقط، والتوصيل بيعمله المستهلك (50-3d) بـ pospay_app داخل withTenant. */
+  commissionRetainedEventPage(companyId: string, afterId: string | null, throughId: string | null, limit: number): Promise<{
+    throughId: string | null; events: readonly ClaimedEvent[];
+  }>;
   /** يقرأ أحداث اكتشاف التقييم والزيارات الأصلية لشركة واحدة دون تغيير النشر أو الاستهلاك. */
   ratingClaimsReplayPage(companyId: string, afterId: string | null, throughId: string | null, limit: number): Promise<{
     throughId: string | null; events: readonly ClaimedEvent[];
@@ -86,6 +90,10 @@ const SERVICE_SESSION_REPLAY_TYPES = sql`event_type IN ('ServiceSessionRecorded'
 // إعادة تشغيل مدخلات العمولة: السطور والرواتب المحفوظة في الأوتبوكس، بنفس النمط: شركة ومؤشر UUID
 // وحدّ أعلى ممسوك من أول نداء، والصفحات المنشورة وغير المنشورة على السواء.
 const COMMISSION_INPUT_REPLAY_TYPES = sql`event_type IN ('ServiceSessionRecorded','ServiceSessionLinesAdded','ServiceLineChanged','SalaryChanged')`;
+// إعادة تشغيل كل الأنواع المحسوبة الستة (الأنواع الأربعة زائد البقشيش وبيع الباقة): نفس النمط: شركة
+// ومؤشر UUID وحدّ أعلى ممسوك من أول نداء. ترتيب الأنواع نفسه في الفهرس الجزئي عشان يشمل شرط الاستعلام
+// شرط الفهرس فيثبته المخطط.
+const COMMISSION_RETAINED_REPLAY_TYPES = sql`event_type IN ('ServiceSessionRecorded','ServiceSessionLinesAdded','ServiceLineChanged','SalaryChanged','SessionTipsChanged','PackageSaleChanged')`;
 // تشمل القراءة المنشور والمتوقف: عامل قديم ربما أقر الزيارة قبل وجود تسجيل المجدول.
 const RATING_CLAIMS_REPLAY_TYPES = sql`event_type IN ('ServiceSessionRecorded','ServiceSessionLinesAdded','ServiceLineChanged','RatingClaimsDiscoveryRequested')`;
 
@@ -211,11 +219,8 @@ export function createOutboxDispatcherDatabase(options: {
       await assertRole(tx);
       return readReplayPage(tx, companyId, afterId, throughId, limit, SERVICE_SESSION_REPLAY_TYPES);
     }),
-    commissionInputReplayPage: (companyId, afterId, throughId, limit) => db.transaction(async (tx) => {
-      await assertRole(tx);
-      return readReplayPage(tx, companyId, afterId, throughId, limit, COMMISSION_INPUT_REPLAY_TYPES);
-    }),
     ...ratingReplayReaders(db, assertRole),
+    ...commissionReplayReaders(db, assertRole),
     sweepExpiredIdempotencyKeys: async (batchSize) => {
       const [row] = await db.transaction(async (tx) => {
         await assertRole(tx);
@@ -268,6 +273,25 @@ function ratingReplayReaders(
       await assertRatingReplayScope(tx, companyId, afterId, throughId);
       return readReplayPage(tx, companyId, afterId, throughId, limit, RATING_CLAIMS_REPLAY_TYPES);
     }),
+  };
+}
+
+// صفحات استعادة مدخلات العمولة: الأنواع الأربعة ولكل الأنواع المحسوبة الستة، بنفس القراءة
+// وبنفس الحدود، وكل واحدة بفلتر أنواعها هو.
+function commissionReplayReaders(
+  db: PostgresJsDatabase,
+  assertRole: (runner: Pick<PostgresJsDatabase, 'execute'>) => Promise<void>,
+): Pick<OutboxDispatcherDatabase, 'commissionInputReplayPage' | 'commissionRetainedEventPage'> {
+  const page =
+    (types: SQL) =>
+    (companyId: string, afterId: string | null, throughId: string | null, limit: number) =>
+      db.transaction(async (tx) => {
+        await assertRole(tx);
+        return readReplayPage(tx, companyId, afterId, throughId, limit, types);
+      });
+  return {
+    commissionInputReplayPage: page(COMMISSION_INPUT_REPLAY_TYPES),
+    commissionRetainedEventPage: page(COMMISSION_RETAINED_REPLAY_TYPES),
   };
 }
 

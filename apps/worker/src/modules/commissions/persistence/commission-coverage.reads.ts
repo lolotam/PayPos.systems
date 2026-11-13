@@ -6,6 +6,7 @@ import type {
   CoverageProjectionReader,
   SalaryCoverageRow,
   ServiceLineCoverageRow,
+  TipCoverageRow,
 } from '../ports/commission-coverage.port.ts';
 
 function uuidArray(ids: readonly string[]): SQL {
@@ -46,6 +47,16 @@ export function markedEventIdsStatement(
      WHERE company_id = ${companyId}
        AND consumer_id = ${consumerId}
        AND event_id = ANY(${uuidArray(eventIds)})`;
+}
+
+export function projectedTipRevisionsStatement(
+  companyId: string,
+  sessionIds: readonly string[],
+): SQL {
+  return sql`
+    SELECT session_id, revision::int AS revision FROM commission_tip_heads
+     WHERE company_id = ${companyId}
+       AND session_id = ANY(${uuidArray(sessionIds)})`;
 }
 
 export function createCoverageProjectionReader(): CoverageProjectionReader {
@@ -89,6 +100,17 @@ export function createCoverageProjectionReader(): CoverageProjectionReader {
         markedEventIdsStatement(companyId, consumerId, eventIds),
       );
       return new Set(rows.map((row) => row.event_id.toLowerCase()));
+    },
+    tipRevisions: async (
+      tx: Tx,
+      companyId: string,
+      sessionIds: readonly string[],
+    ): Promise<readonly TipCoverageRow[]> => {
+      if (sessionIds.length === 0) return [];
+      const rows = await tx.execute<{ session_id: string; revision: number }>(
+        projectedTipRevisionsStatement(companyId, sessionIds),
+      );
+      return rows.map((row) => ({ sessionId: row.session_id, revision: row.revision }));
     },
   };
 }

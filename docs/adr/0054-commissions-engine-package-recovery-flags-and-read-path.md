@@ -234,9 +234,23 @@ is the pure `compareCoverage` in `packages/commissions-engine`: a projection rev
 with no projection row is missing, and a lower revision is stale; 53-2's api binding reuses it later with api-side readers. The
 Port rows are added to `docs/module-map.md` §3; there is no import arrow, no migration, no new role and no new grant. The
 retained-event check (the events without the consumer's mark) reads the outbox only through `commissionInputReplayPage` as
-`pospay_dispatcher` and reads the consumer's marks through `pospay_app` `withTenant`. It covers the four 50-0 types until 50-3d
-adds the six-type facade. Tip coverage by revision and the tip event-id check are DEFERRED to sub-PR 50-3d (manager decision
-2026-11-13; they need the six-type facade that 50-3d builds), not merely omitted.
+`pospay_dispatcher` and reads the consumer's marks through `pospay_app` `withTenant`. The third coverage reader port is
+`CoverageCompanyReader`: owned by `commissions`, bound at the worker composition root to the tenancy `companyOpen`; it decides
+whether the company exists and is not deleted, so the report refuses a scope it cannot report on instead of covering an empty range.
+
+**Amendment 2026-11-13 (sub-PR 50-3d).** The retained-event check moves to the six-type facade `commissionRetainedEventPage`
+(`ServiceSessionRecorded`, `ServiceSessionLinesAdded`, `ServiceLineChanged`, `SalaryChanged`, `SessionTipsChanged` and
+`PackageSaleChanged`) with its own partial index `outbox_commission_retained_replay_idx`, so the check covers the tip events too:
+every retained `SessionTipsChanged` event id must carry the consumer's mark. The tip coverage by revision is added to the same
+report through the existing root-bound `CurrentTipSessionsReader` (the orders-owned `readCurrentSessionTips`), bound at the worker
+composition root, over the business ids and the business-day range the operator supplies; without that scope the report prints
+`tips: null` and a `tipsNote` that says the tip coverage was NOT checked. The same report gains a `notHandled` block: a retained
+event whose type the consumer does not handle is listed with the fixed reason `COMMISSION_EVENT_TYPE_NOT_HANDLED` instead of as an
+ordinary missing mark. **Consequence:** a tenant with any retained `PackageSaleChanged` event stays `NOT_COVERED` until 50-4
+registers that handler, and the 55-1b R5 prerequisite ("coverage shows no gap before the first correction posts") is blocked for
+that tenant until then. There is no new port, no import arrow, no new role and no new grant: `tipRevisions` is projection-side, the
+tips reader reuses an existing port, and the third coverage reader port remains `CoverageCompanyReader` (owned by `commissions`,
+bound at the worker composition root to the tenancy `companyOpen`).
 
 **The rule from D-16:** if a reader cannot be bound at the root, the sub-PR that needs it stops and adds an ADR and the
 module-map row first.

@@ -154,3 +154,73 @@ deferred scope is the tip projection heads against the tips reader's revisions, 
 carrying the consumer mark. Both need the six-type retained-event facade that 50-3d builds, so they are deferred rather than
 dropped. 50-3c ships the lines, the salaries and the four-type unmarked-event check only, and 50-3d's scope now lists the tip
 coverage by revision and the tip event-id check.
+
+## 50-3d scope (2026-11-13 addendum: files, shapes, tests, sizes)
+
+Files (production):
+- `packages/db/src/dispatcher.ts`: `commissionRetainedEventPage(companyId, afterId, throughId, limit)` on `OutboxDispatcherDatabase`, a thin
+  sibling of `commissionInputReplayPage` over the same `readReplayPage`, with a literal `COMMISSION_RETAINED_REPLAY_TYPES` filter of the six
+  counted types (the four 50-0 types, `SessionTipsChanged`, `PackageSaleChanged`), same order as the index predicate. Read-only, `pospay_dispatcher`,
+  no `consumed_events` join, nothing else changes in the four-type method.
+- `packages/db/schema/outbox.ts`: `outbox_commission_retained_replay_idx` on `(company_id, id)`, partial on the same six types, `.concurrently()`.
+  Migration is the index only (`CREATE INDEX CONCURRENTLY`, pattern of 0220); built and tested on the private lane, renumbered and generated
+  only after «lane granted».
+- `apps/worker/src/modules/commissions/jobs/replay-commission-inputs.ts`: `runCommissionInputReplay` gets `deps.scope: 'FOUR_TYPE' | 'SIX_TYPE'`
+  (default `FOUR_TYPE`, so 50-3a behaviour is unchanged) and `deps.handledTypes` (the consumer's `eventTypes`). In `SIX_TYPE` the page comes from the
+  new facade method and an event whose type is not in `handledTypes` is NOT delivered: it is listed in `undelivered` with the fixed code
+  `COMMISSION_EVENT_TYPE_NOT_HANDLED` (continuable, id/type/code only), so the run ends `UNDELIVERED` and never `COMPLETE`. This is the guard for
+  `PackageSaleChanged` until 50-4 registers its handler; once 50-4 adds the type to the consumer the same rows are delivered with no runner change.
+  Result line, resume contract (`afterId` safe cursor, `throughId` fixed, `AFTER_ID` needs `THROUGH_ID`) and the exit rule stay as in 50-3a.
+- `apps/worker/src/replay-commission-inputs.ts`: flag `--types six` (default four, anything else refused with the fixed configuration code).
+- Tip coverage (extends the 50-3c report, no parallel report):
+  - the unmarked-event check switches from `commissionInputReplayPage` to the six-type facade. This IS the tip event-id check: every retained
+    `SessionTipsChanged` event id must carry the consumer mark (and `PackageSaleChanged` rows show as unmarked until 50-4, which is correct: approval
+    stays closed). `--through` validation widens to the six types.
+  - tip coverage by revision: new `use-cases/report-commission-coverage/check-tip-coverage.ts` (keeps the report file under 300 lines). Optional
+    scope `{ businessIds, from, to }` (flags `--businesses --from --to`, all three or none, same limits as 50-3b). Per business it pages the existing
+    `CurrentTipSessionsReader` port (reuse, bound to `readCurrentSessionTips` at the root) and compares `{ sessionId, revision }` with
+    `commission_tip_heads` through the pure `compareCoverage` (>= covered, none missing, lower stale). Report adds `tips: { checked, missing, stale } | null`
+    (`null` when no scope was supplied). Tips by revision are bounded by the operator scope, so the company-wide guarantee stays with the unmarked
+    check above; a `missing` or `stale` tip makes the status `NOT_COVERED`.
+  - `ports/commission-coverage.port.ts`: `CoverageProjectionReader.tipRevisions(tx, companyId, sessionIds)`; `persistence/commission-coverage.reads.ts`:
+    its statement and reader; `commissions.module.ts`: `tipsReader` in `createCommissionCoverageReport` deps; entry `report-commission-coverage.ts` binds it.
+- Docs: `docs/runbook.md` 50-3a item 6 and a new 50-3d section (command with `--types six`, the upper-bound contract: capture after every replica runs
+  the consumer, reuse on resume, a new one after any rollback, `PackageSaleChanged` reported not handled until 50-4), 50-3c items 3 and 5 and 6
+  (tips block, six-type check, widened `--through` refusal); ADR-0054 50-3c amendment edit (six-type facade, tips by revision, and #1016: name the
+  `CoverageCompanyReader` port, owned by `commissions`, bound to the tenancy `companyOpen`); `docs/module-map.md` no new row (the tips reader reuses an
+  existing port, `tipRevisions` is projection-side).
+
+Tests (Agy lane replaced by Kimi under PP-186; test-guard before commit):
+- `packages/db`: db spec for the facade (six types returned in id order, other types excluded, company scope, `afterId`/`throughId` bounds, `PackageSaleChanged`
+  and `SessionTipsChanged` published, unpublished and parked rows, no write) and an EXPLAIN assertion that the plan uses the new index (no seq scan).
+- `apps/worker`: unit spec of the runner in `SIX_TYPE` (unhandled type listed and never `COMPLETE`, handled six types counted, resume contract, `FOUR_TYPE` unchanged);
+  unit spec of the report with fakes (tips missing, stale, covered, `null` without scope, tip event id unmarked, widened `--through`); a db spec of the new
+  projection statement and one end-to-end report with a tip.
+
+Sizes (changed production lines, tests and the migration excluded):
+
+| Category | Lines |
+| --- | --- |
+| Facade (`dispatcher.ts` interface, filter constant, method, Arabic doc) | 15 |
+| Schema index | 6 |
+| Runner `SIX_TYPE` mode and unhandled-type guard | 35 |
+| Entry flag `--types six` | 15 |
+| Tip coverage: `check-tip-coverage.ts` | 60 |
+| Tip coverage: report type, deps, wiring in the report and module, unmarked switch | 30 |
+| Tip coverage: port method and projection statement/reader | 35 |
+| Tip coverage: entry flags and binding in `report-commission-coverage.ts` | 25 |
+| **Production total** | **about 220 (budget 250)** |
+| Migration SQL | 2 |
+| Tests | about 500 |
+| Docs (runbook about 40, ADR about 12, plan) | about 60 |
+
+Manager decisions 2026-11-13 on the 50-3d plan (approved, with conditions):
+- Optional tip scope approved. With no scope the report prints `tips: null` plus a human line (`tipsNote`) saying tip coverage was skipped and that
+  `--businesses --from --to` enable it; it must never read like a pass. A test asserts that output.
+- Moving the unmarked check to the six-type facade approved. Conditions: (1) a retained `PackageSaleChanged` event appears in the report under the
+  distinct reason `COMMISSION_EVENT_TYPE_NOT_HANDLED` (awaiting 50-4), not as an ordinary missing mark, so an operator tells "awaiting 50-4" from a real
+  gap; (2) the runbook and the ADR-0054 amendment record that a tenant with any retained `PackageSaleChanged` stays NOT_COVERED until 50-4 merges;
+  (3) a test shows a tenant with no package-sale rows is still COVERED.
+- Knock-on effect: the 55-1b R5 prerequisite, "coverage shows no gap before the first correction posts", is blocked for every tenant that has a retained
+  `PackageSaleChanged` event until 50-4 merges.
+- Size budget stays 250 production lines (limit 500); the not-handled split adds about 15 lines to the 220 estimate.

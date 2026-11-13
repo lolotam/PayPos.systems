@@ -74,6 +74,12 @@ export interface SalaryCoverageReader {
   ): Promise<SalaryCoveragePage>;
 }
 
+/** هوية جلسة بقشيش ومراجعتها الحالية في الإسقاط. */
+export interface TipCoverageRow {
+  readonly sessionId: string;
+  readonly revision: number;
+}
+
 export interface CoverageProjectionReader {
   /**
    * يعيد مراجعات رؤوس البنود المطلوبة حتى تكشف المقارنة أي بند غائب أو متأخر.
@@ -115,12 +121,25 @@ export interface CoverageProjectionReader {
     consumerId: string,
     eventIds: readonly string[],
   ): Promise<ReadonlySet<string>>;
+
+  /**
+   * يعيد مراجعات رؤوس البقشيش المطلوبة حتى تكشف المقارنة أي جلسة غائبة أو متأخرة.
+   *
+   * @param tx معاملة الشركة التي يقرأ منها القارئ
+   * @param companyId هوية الشركة صاحبة الرؤوس
+   * @param sessionIds هويات الجلسات المطلوب قراءة مراجعات بقشيشها
+   */
+  tipRevisions(
+    tx: CoverageTx,
+    companyId: string,
+    sessionIds: readonly string[],
+  ): Promise<readonly TipCoverageRow[]>;
 }
 
 /** واجهة صفحات الأحداث المحتفظ بها من 50-0، وتعمل بصلاحية pospay_dispatcher المحدودة. */
 export type CoverageRetainedPageReader = Pick<
   OutboxDispatcherDatabase,
-  'commissionInputReplayPage'
+  'commissionRetainedEventPage'
 >;
 
 /** وجود الشركة وغياب حذفها؛ التقرير يرفض أي نطاق لشركة غير موجودة بدل أن يغطّي نطاقاً فارغاً. */
