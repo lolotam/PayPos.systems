@@ -76,3 +76,19 @@ it('refuses tenant B inserting a refund row with the company of tenant A', async
   const failure = error as { code?: string; cause?: { code?: string } };
   expect(failure?.code ?? failure?.cause?.code).toBe('42501');
 });
+
+it('refuses tenant B inserting a refund slot row with the company of tenant A', async () => {
+  const error = await asTenant(
+    B.company,
+    sql`INSERT INTO package_refund_slots
+      (company_id,id,business_id,refund_id,entitlement_id,component_id,slot_id,ordinal,unit_value)
+      VALUES (${A.company},${f.nextId()},${A.business},${seeded.refund},${seeded.entitlement},
+        ${seeded.component},${seeded.slot},1,'1.000')`,
+  ).then(
+    () => null,
+    (caught: unknown) => caught,
+  );
+  expect(error).toBeInstanceOf(Error);
+  const failure = error as { code?: string; cause?: { code?: string } };
+  expect(failure?.code ?? failure?.cause?.code).toBe('42501');
+});

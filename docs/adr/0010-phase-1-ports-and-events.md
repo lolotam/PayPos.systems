@@ -547,8 +547,10 @@ The second is the business's `imported_refunds_enabled` switch. `settings` owns 
 publishes one public reader, `readImportedRefundsEnabled(tx, companyId, businessId)`, that reads the
 row without creating it and answers a strict boolean: only a stored `true` is on, and a null value,
 a missing row or `false` is off (spec 058 FR-053, PK-Q24). `orders` owns the consumer side,
-`ImportedRefundsPort`, and its adapter calls that reader on the same transaction that holds the
-entitlement, component and slot locks, so the switch cannot change between the check and the write.
+`ImportedRefundsPort`, and its adapter calls that reader once on the refund's own transaction. The
+refund uses that decision for the whole refund; a switch change committed after the read does not affect
+that refund (a decision-time read). The refund path also takes the service-session edit-access lock
+(`lockServiceSessionEditAccess`) through the access port.
 
 - **A read, on the caller's transaction.** No new import arrow: `orders: [..., settings]` already
   exists in §2 (ADR-0041's `DiscountLimitPort`), and `settings` imports nothing new.

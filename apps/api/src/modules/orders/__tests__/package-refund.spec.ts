@@ -143,6 +143,24 @@ it('RF-01 refunds the highest five free ordinals when five sessions are asked fo
   expect(slots.map((row) => row['ordinal'])).toEqual([6, 7, 8, 9, 10]);
 });
 
+it('RF-01 refunding every free session of a discounted package refunds exactly the price paid', async () => {
+  const { f } = fx;
+  const fresh = await seedSoldPackage(f, { discount: '7.500' });
+  const response = await postRefund(f, fresh.entitlement, {
+    body: refundBody({ component_id: fresh.component, sessions: 10 }),
+  });
+  expect(response.status).toBe(201);
+  expect(response.body).toMatchObject({ amount: '22.500', refunded_amount: '22.500' });
+  expect(
+    await f.h.owner`SELECT refunded_amount::text AS refunded_amount FROM package_entitlements
+      WHERE id=${fresh.entitlement}`,
+  ).toEqual([{ refunded_amount: '22.500' }]);
+  const extra = await postRefund(f, fresh.entitlement, {
+    body: refundBody({ component_id: fresh.component, sessions: 1 }),
+  });
+  expect(extra).toMatchObject({ status: 422, body: { code: 'INSUFFICIENT_SLOTS' } });
+});
+
 it('RF-02 refuses more sessions than the package has free and writes nothing', async () => {
   const { f } = fx;
   const fresh = await seedSoldPackage(f, { sessions: 2 });

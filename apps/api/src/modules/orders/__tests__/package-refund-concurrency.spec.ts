@@ -43,6 +43,7 @@ it('RF-03 lets exactly one of a refund and a redemption of the last free session
     }),
   ]);
   if (refund === undefined || redemption === undefined) throw new Error('Expected two outcomes');
+  expect(refund.status).toBe('fulfilled');
   const refundResponse = refund.status === 'fulfilled' ? refund.value : undefined;
   const refunded = refundResponse?.status === 201;
   const redeemed = redemption.status === 'fulfilled';

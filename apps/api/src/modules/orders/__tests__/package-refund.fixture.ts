@@ -12,8 +12,16 @@ export const UNIT = '2.250';
 /** بيع كامل؛ seedPackage يسمي نوع الباقة باسم ثابت، فبنغيّر القديم قبل كل بيع. */
 export async function seedSoldPackage(
   f: SessionFixture,
-  options: { sessions?: number; expiresOn?: string; unit?: string } = {},
+  options: { sessions?: number; expiresOn?: string; unit?: string; discount?: string } = {},
 ): Promise<PackageSeed> {
+  if (options.discount !== undefined) {
+    const seeded = await seedTwoComponentPackage(f, {
+      ...options,
+      sessions: options.sessions ?? 10,
+      components: 1,
+    });
+    return { entitlement: seeded.entitlement, component: must(seeded.components[0]) };
+  }
   await renameSyntheticPackageTypes(f);
   return seedPackage(f, {
     sessions: options.sessions ?? 10,
@@ -112,29 +120,34 @@ export async function approvedDeviceToken(f: SessionFixture): Promise<string> {
   return must((claimed.json() as { device_token: string }).device_token);
 }
 
-/** باقة بمكوّنين: كل استرداد في ملف تاني بيمسك مكوّن من اتنين. المكوّنات كل واحد على خدمة (قيد الاستحقاق والخدمة). */
+/** باقة بمكوّنين افتراضياً، وبمكوّن واحد لاختبار البيع المخفّض؛ قيم الجلسات من المدفوع مش من القائمة. */
 export async function seedTwoComponentPackage(
   f: SessionFixture,
-  options: { sessions?: number; unit?: string } = {},
+  options: { sessions?: number; unit?: string; expiresOn?: string; discount?: string; components?: number } = {},
 ): Promise<{ entitlement: string; components: string[] }> {
   await renameSyntheticPackageTypes(f);
   const sessions = options.sessions ?? 2;
   const unit = options.unit ?? UNIT;
-  const price = moneyToString(BigInt(sessions) * 2n * BigInt(unit.replace('.', '')));
+  const components = Array.from({ length: options.components ?? 2 }, () => ids.newId());
+  const paid = BigInt(sessions) * BigInt(components.length) * BigInt(unit.replace('.', ''));
+  const discount = BigInt((options.discount ?? '0.000').replace('.', ''));
+  const list = paid + discount;
+  const price = moneyToString(paid);
+  const listPrice = moneyToString(list);
+  const discountBps = Number((discount * 10000n + list / 2n) / list);
   const entitlement = ids.newId();
-  const components = [ids.newId(), ids.newId()];
   const type = ids.newId();
   await f.h.owner`INSERT INTO package_types(company_id,id,business_id,name_en,price,validity_days)
-    VALUES(${f.company},${type},${f.business},'Synthetic refund package type',${price},30)`;
+    VALUES(${f.company},${type},${f.business},'Synthetic refund package type',${listPrice},30)`;
   await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`INSERT INTO package_entitlements
       (company_id,id,business_id,customer_id,package_type_id,provenance,name_en,validity_days,list_price,
         price_paid,discount,discount_bps,paid_method,seller_employee_id,sold_branch_id,sold_at,
         sold_business_date,sold_timezone,recorded_by,recorded_by_membership_id,expires_on)
       VALUES(${f.company},${entitlement},${f.business},${f.customer},${type},'SOLD','Synthetic package',30,
-        ${price},${price},0,0,'CASH',${must(f.employees[0])},${f.branch},
+        ${listPrice},${price},${options.discount ?? '0.000'},${discountBps},'CASH',${must(f.employees[0])},${f.branch},
         ${'2026-10-01T08:00:00.000Z'}::timestamptz,'2026-10-20','Asia/Kuwait',${f.userId},${f.membership},
-        ${CURRENT_EXPIRY})`);
+        ${options.expiresOn ?? CURRENT_EXPIRY})`);
     for (const [position, component] of components.entries()) {
       await tx.execute(sql`INSERT INTO package_components
         (company_id,id,business_id,entitlement_id,service_id,position,name_en,list_price_snapshot,

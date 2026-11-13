@@ -232,7 +232,8 @@ BEGIN
   SELECT coalesce(sum(r.amount), 0), count(*), coalesce(max(r.entitlement_revision), 0)
     INTO v_total, v_count, v_max_revision
     FROM public.package_refunds r
-    WHERE r.company_id = v_refund.company_id AND r.entitlement_id = v_refund.entitlement_id;
+    WHERE r.company_id = v_refund.company_id AND r.business_id = v_refund.business_id
+      AND r.entitlement_id = v_refund.entitlement_id;
   IF v_entitlement.refunded_amount IS DISTINCT FROM v_total
     OR v_entitlement.revision IS DISTINCT FROM v_count + 1
     OR v_max_revision IS DISTINCT FROM v_entitlement.revision THEN
@@ -278,7 +279,8 @@ BEGIN
     FROM public.package_refund_slots rs
     LEFT JOIN public.package_session_slots s
       ON s.company_id = rs.company_id AND s.id = rs.slot_id
-    WHERE rs.company_id = v_refund.company_id AND rs.refund_id = v_refund.id;
+    WHERE rs.company_id = v_refund.company_id AND rs.business_id = v_refund.business_id
+      AND rs.refund_id = v_refund.id;
   IF v_slots IS DISTINCT FROM v_refund.sessions OR v_slots_total IS DISTINCT FROM v_refund.amount THEN
     RAISE EXCEPTION 'the sessions or the amount of the refund do not match its refund slots'
       USING ERRCODE = '23514', CONSTRAINT = 'package_refunds_integrity';
@@ -376,6 +378,14 @@ CREATE CONSTRAINT TRIGGER package_session_slots_refund_complete
 AFTER UPDATE OF state ON package_session_slots DEFERRABLE INITIALLY DEFERRED
 FOR EACH ROW WHEN (NEW.state = 'REFUNDED' AND OLD.state IS DISTINCT FROM 'REFUNDED')
 EXECUTE FUNCTION public.package_refund_slot_state_complete();
+--> statement-breakpoint
+-- المستردة نهائية وبتيجي من الحرة بلا مؤشر استرداد، وفحص الاسترداد نفسه بيغطي الاتجاه التاني؛
+-- فحص FOR UPDATE لكل جلسة كان بيكلّف حوالي 120 ms مع 365 جلسة مستردة.
+DROP TRIGGER package_session_slots_redemption_complete ON package_session_slots;
+CREATE CONSTRAINT TRIGGER package_session_slots_redemption_complete AFTER UPDATE OF state, current_redemption_id ON public.package_session_slots
+  DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+  WHEN ((OLD.state IS DISTINCT FROM NEW.state OR OLD.current_redemption_id IS DISTINCT FROM NEW.current_redemption_id) AND NEW.state <> 'REFUNDED')
+  EXECUTE FUNCTION public.package_redemption_complete();
 --> statement-breakpoint
 CREATE CONSTRAINT TRIGGER package_entitlements_refund_complete
 AFTER UPDATE OF refunded_amount, revision ON package_entitlements DEFERRABLE INITIALLY DEFERRED
