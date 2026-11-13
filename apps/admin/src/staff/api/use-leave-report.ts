@@ -1,73 +1,90 @@
 'use client';
 import type { WorkspaceBranch } from '@pospay/contracts';
-import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useEffect, useRef } from 'react';
+import { useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query';
+import { useEffect, useMemo } from 'react';
 import {
   isReportRequired,
   reportLastTaken,
   reportPage,
   reportViewState,
   toReportBody,
+  type LeaveReportBody,
   type LeaveReportScope,
   type LeaveReportView,
 } from '../model/leave-report-view';
-import { useLeaveReportJob } from './use-leave-report-job';
 import {
-  currentOutcome,
-  useLeaveReportState,
-  type LeaveReportState,
-} from './use-leave-report-state';
+  leaveReportPostedKey,
+  postLeaveReport,
+  REPORT_POSTED_GC_MS,
+  useLeaveReportJob,
+  useLeaveReportPosted,
+} from './use-leave-report-job';
+import { useLeaveReportState, type LeaveReportState } from './use-leave-report-state';
 import { useLeaveReportSync } from './use-leave-report-sync';
 
 type ReportSync = ReturnType<typeof useLeaveReportSync>;
 type ReportJob = ReturnType<typeof useLeaveReportJob>;
+type ReportPosted = ReturnType<typeof useLeaveReportPosted>;
+
+/** الطلب اللي بدأ أو خلص بيمنع طلب تاني، أما مدخل المراقب الفاضي (معلق بلا بيانات) فمش بيمنع. */
+function isPostStarted(client: QueryClient, postedKey: QueryKey): boolean {
+  const posted = client.getQueryState(postedKey);
+  return posted !== undefined && (posted.fetchStatus !== 'idle' || posted.status !== 'pending');
+}
 
 /**
- * طلب واحد لكل تشغيل: التشغيل الجاي بياخد رقم جديد، والطلب بيتشال بعد أول مرة عشان تكرار القراءة ما يعملش تقرير تاني.
+ * طلب واحد لكل تشغيل: القيد في كاش الاستعلامات مش في الشاشة، فإعادة فتح الشاشة بتلاقي نفس التشغيل ما تطلبش تاني.
  */
-function useLeaveReportRequest(state: LeaveReportState, sync: ReportSync, job: ReportJob) {
-  const postedRun = useRef<number | undefined>(undefined);
+function useLeaveReportRequest(
+  state: LeaveReportState,
+  sync: ReportSync,
+  client: QueryClient,
+  scope: LeaveReportScope,
+  postedKey: QueryKey,
+  body: LeaveReportBody,
+) {
   useEffect(() => {
     if (!sync.isError || !isReportRequired(sync.error)) return;
     state.setHeavy(true);
-    if (postedRun.current === state.run) return;
-    postedRun.current = state.run;
-    job.request.mutate(toReportBody(state.query), {
-      onSuccess: (accepted) => state.setOutcome({ run: state.run, reportId: accepted.report_id }),
-      onError: (error) => state.setOutcome({ run: state.run, error }),
+    if (isPostStarted(client, postedKey)) return;
+    const request = client.fetchQuery({
+      queryKey: postedKey,
+      queryFn: () => postLeaveReport(scope, body),
+      staleTime: Infinity,
+      retry: false,
+      gcTime: REPORT_POSTED_GC_MS,
     });
-  }, [
-    job.request.mutate,
-    state.query,
-    state.run,
-    state.setHeavy,
-    state.setOutcome,
-    sync.error,
-    sync.isError,
-  ]);
+    // الرفض مش مُبلَع: المراقب على نفس المفتاح بيعرض الخطأ من هناك، والـ catch ده بيمنع rejection مش مقفوض.
+    void request.catch(() => undefined);
+  }, [body, client, postedKey, scope, state.setHeavy, sync.error, sync.isError]);
 }
 
-/** استعلامات التقرير بتتنضف لما الشاشة تقفل، عشان ما تتلخبطش بطلب جديد على نفس النطاق. */
+/** استعلامات التقرير بتتنضف لما الشاشة تقفل، عدا الطلب المنشور: هو اللي بيمنع طلب تاني بعد إعادة الفتح. */
 function useLeaveReportEviction(client: QueryClient, scope: LeaveReportScope) {
   useEffect(
     () => () => {
       client.removeQueries({
         queryKey: ['leave-report', scope.companyId, scope.businessId, scope.userId],
+        predicate: (query) => query.queryKey[4] !== 'posted',
       });
     },
     [client, scope.businessId, scope.companyId, scope.userId],
   );
 }
 
-function buildView(state: LeaveReportState, sync: ReportSync, job: ReportJob): LeaveReportView {
-  const outcome = currentOutcome(state);
-  const reportId = outcome?.reportId;
+function buildView(
+  state: LeaveReportState,
+  sync: ReportSync,
+  job: ReportJob,
+  posted: ReportPosted,
+): LeaveReportView {
+  const reportId = posted.data?.report_id;
   const jobData = reportId === undefined ? undefined : job.result.data;
   const jobError = reportId === undefined ? undefined : job.result.error;
   const view = reportViewState({
     syncPending: sync.isPending,
     syncError: sync.error,
-    postError: outcome?.error,
+    postError: posted.error,
     jobError,
     jobStatus: jobData,
   });
@@ -79,7 +96,7 @@ function buildView(state: LeaveReportState, sync: ReportSync, job: ReportJob): L
     ...(view.error === undefined ? {} : { error: view.error }),
     ...(lastTaken === undefined ? {} : { lastTaken }),
     fetching:
-      sync.isFetching || (reportId !== undefined && job.result.isFetching) || job.request.isPending,
+      sync.isFetching || (reportId !== undefined && job.result.isFetching) || posted.isFetching,
     cursor: state.cursor,
     setCursor: state.setCursor,
     apply: state.apply,
@@ -102,7 +119,7 @@ export function useLeaveReport({
   branches: WorkspaceBranch[];
   timeZone?: string | undefined;
 }): LeaveReportView {
-  const scope: LeaveReportScope = { companyId, businessId, userId };
+  const scope = useMemo(() => ({ companyId, businessId, userId }), [companyId, businessId, userId]);
   const state = useLeaveReportState(branches, timeZone);
   const client = useQueryClient();
   const sync = useLeaveReportSync({
@@ -112,13 +129,14 @@ export function useLeaveReport({
     run: state.run,
     cursor: state.heavy ? undefined : state.cursor,
   });
-  const job = useLeaveReportJob(
-    scope,
-    currentOutcome(state)?.reportId,
-    state.cursor,
-    state.query.limit,
+  const body = useMemo(() => toReportBody(state.query), [state.query]);
+  const postedKey = useMemo(
+    () => leaveReportPostedKey(scope, state.run, body),
+    [body, scope, state.run],
   );
-  useLeaveReportRequest(state, sync, job);
+  const posted = useLeaveReportPosted(postedKey);
+  const job = useLeaveReportJob(scope, posted.data?.report_id, state.cursor, state.query.limit);
+  useLeaveReportRequest(state, sync, client, scope, postedKey, body);
   useLeaveReportEviction(client, scope);
-  return buildView(state, sync, job);
+  return buildView(state, sync, job, posted);
 }

@@ -130,6 +130,23 @@ it('asks for the heavy report once with the period and the filters only', async 
     'types[]': [],
     'statuses[]': [],
   });
+  expect(screen.getByText(t('en', 'leaveHistory.reportPreparing'))).toBeTruthy();
+});
+
+it('keeps one report request when the screen is closed and opened again', async () => {
+  const first = renderPage();
+  await flush();
+  expect(api.POST).toHaveBeenCalledTimes(1);
+  expect(screen.getByText(t('en', 'leaveHistory.reportPreparing'))).toBeTruthy();
+  first.unmount();
+  renderPage();
+  await flush();
+  expect(api.POST).toHaveBeenCalledTimes(1);
+  expect(screen.getByText(t('en', 'leaveHistory.reportPreparing'))).toBeTruthy();
+  reportResult = readyWith('Synthetic stored row');
+  await advance(3000);
+  expect(screen.getByText('Synthetic stored row')).toBeTruthy();
+  expect(api.POST).toHaveBeenCalledTimes(1);
 });
 
 it('shows the preparing text while the report runs and the rows when it is ready', async () => {
@@ -145,6 +162,7 @@ it('shows the preparing text while the report runs and the rows when it is ready
 it('polls the report every three seconds only while it is pending', async () => {
   renderPage();
   await flush();
+  expect(screen.getByText(t('en', 'leaveHistory.reportPreparing'))).toBeTruthy();
   expect(reportGets()).toHaveLength(1);
   await advance(3000);
   expect(reportGets()).toHaveLength(2);
@@ -153,6 +171,7 @@ it('polls the report every three seconds only while it is pending', async () => 
   reportResult = { data: readyReport() };
   await advance(3000);
   expect(reportGets()).toHaveLength(4);
+  expect(screen.queryByText(t('en', 'leaveHistory.reportPreparing'))).toBeNull();
   await advance(9000);
   expect(reportGets()).toHaveLength(4);
 });
@@ -160,8 +179,11 @@ it('polls the report every three seconds only while it is pending', async () => 
 it('never posts again and stops reading once the report is ready', async () => {
   renderPage();
   await flush();
+  expect(screen.getByText(t('en', 'leaveHistory.reportPreparing'))).toBeTruthy();
   reportResult = { data: readyReport({ items: [historyLeaveRow()] }) };
   await advance(3000);
+  expect(screen.queryByText(t('en', 'leaveHistory.reportPreparing'))).toBeNull();
+  expect(screen.getByText('Synthetic past annual')).toBeTruthy();
   const count = reportGets().length;
   await advance(10_000);
   expect(reportGets()).toHaveLength(count);
@@ -259,6 +281,7 @@ it('sends the chosen branch in the body of the new report run', async () => {
     'statuses[]': [],
     branch_id: reportBranchId,
   });
+  expect(screen.getByText(t('en', 'leaveHistory.reportPreparing'))).toBeTruthy();
 });
 
 it('reads the chosen employee from the fast path after a heavy run', async () => {

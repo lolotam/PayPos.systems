@@ -2,6 +2,7 @@ import type {
   LeaveHistoryItem,
   LeaveHistoryPage,
   LeaveHistoryQuery,
+  LeaveHistoryReportRequest,
   LeaveHistoryReportStatus,
 } from '@pospay/contracts';
 
@@ -9,14 +10,8 @@ export type LeaveReportScope = { companyId: string; businessId: string; userId: 
 
 export type LeaveReportStatus = 'loading' | 'preparing' | 'failed' | 'error' | 'ready';
 
-/** جسم الطلب الصارم: أي مفتاح زيادة بيرفضه السيرفر، فمفيش employee_id ولا cursor ولا limit. */
-export type LeaveReportBody = {
-  from: string;
-  to: string;
-  'types[]': LeaveHistoryQuery['types[]'];
-  'statuses[]': LeaveHistoryQuery['statuses[]'];
-  branch_id?: string;
-};
+/** جسم الطلب الصارم: هو نفسه عقد التقارير، فأي مفتاح زيادة بيرفضه السيرفر، فمفيش employee_id ولا cursor ولا limit. */
+export type LeaveReportBody = LeaveHistoryReportRequest;
 
 export type LeaveReportPageData = {
   items: LeaveHistoryItem[];
