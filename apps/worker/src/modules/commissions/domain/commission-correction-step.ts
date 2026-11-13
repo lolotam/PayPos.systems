@@ -2,13 +2,13 @@ import { sumMoney, type Money } from '@pospay/domain';
 
 import { CommissionCorrectionStepInputError } from './errors.ts';
 
-/** أنواع المصدر التي يجرؤ التصحيح؛ نفس أنواع بنود كشف العمولة القابلة للتصحيح. */
+/** أنواع المصدر التي يقبلها التصحيح؛ نفس أنواع بنود كشف العمولة القابلة للتصحيح. */
 export type CommissionCorrectionKind = 'COMMISSION' | 'SALE' | 'TIP_CARD' | 'TIP_CASH';
 
 /**
  * نسبة المصدر المصحَّح: الفرع الذي تم فيه العمل، وتاريخ العمل، وفروع الموظفة في
  * ذلك التاريخ. النسبة تُنسخ من الصف المجمَّد ولا تُشتق من الوضع المباشر أبداً
- * (FR-040)، لأن رابطاً عُدِّل بعد الاعتماد ينقل لولاها ما كان مجمَّداً.
+ * (FR-040)، لأن رابطاً عُدِّل بعد الاعتماد ينقل نسبتها وهي مجمَّدة.
  */
 export interface CommissionCorrectionAttribution {
   readonly sourceBranchId: string | null;
@@ -207,7 +207,7 @@ function attributionOf(
 
 /**
  * يبني مسودة التصحيح من فرق المصدر؛ المسودة تحمل ما قبله وما بعده والفرق بينهما،
- * والجيل واسم الحدث والشهرين ومعرف كشف الهدف.
+ * والجيل ومعرف الحدث والشهرين ومعرف كشف الهدف.
  *
  * @param input مُدخلات خطوة التصحيح
  * @param identity هوية المصدر

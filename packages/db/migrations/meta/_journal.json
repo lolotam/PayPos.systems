@@ -1569,6 +1569,20 @@
       "when": 1794565275182,
       "tag": "0225_2026-11-13_service-closed-state-validate",
       "breakpoints": true
+    },
+    {
+      "idx": 226,
+      "version": "7",
+      "when": 1794572322478,
+      "tag": "0226_2026-11-13_commission-corrections",
+      "breakpoints": true
+    },
+    {
+      "idx": 227,
+      "version": "7",
+      "when": 1794572335108,
+      "tag": "0227_2026-11-13_commission-corrections-rls",
+      "breakpoints": true
     }
   ]
 }
