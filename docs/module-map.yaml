@@ -54,6 +54,12 @@ reads:
   - { from: orders, to: files, symbol: documentFileFacts, file: apps/worker/src/modules/orders/persistence/package-preview.transactions.ts }
   - { from: orders, to: catalog, symbol: readPackageImportServices, file: apps/worker/src/modules/orders/persistence/package-preview.transactions.ts }
   - { from: orders, to: catalog, symbol: readPackageCommitServices, file: apps/worker/src/modules/orders/persistence/package-import-commit.transactions.ts }
+  - { from: orders, to: catalog, symbol: readPackageTypeForSale, file: apps/worker/src/modules/orders/persistence/package-sale.scope.ts }
+  - { from: orders, to: catalog, symbol: lockSessionServicesForSale, file: apps/worker/src/modules/orders/persistence/package-sale.scope.ts }
+  - { from: orders, to: staff, symbol: lockPackageSeller, file: apps/worker/src/modules/orders/persistence/package-sale.scope.ts }
+  - { from: orders, to: staff, symbol: readPackageSeller, file: apps/worker/src/modules/orders/persistence/package-sale.scope.ts }
+  - { from: orders, to: customers, symbol: packageSaleCustomerExists, file: apps/worker/src/modules/orders/persistence/package-sale.scope.ts }
+  - { from: orders, to: tenancy, symbol: packageSalePlace, file: apps/worker/src/modules/orders/persistence/package-sale.scope.ts }
   - { from: orders, to: customers, symbol: readPackageImportCustomers, file: apps/worker/src/modules/orders/persistence/package-preview.transactions.ts }
   - { from: staff, to: identity, symbol: readOwnAttendanceAccess, file: apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts }
   - { from: staff, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts }

@@ -20,3 +20,8 @@ export interface PackageImportCommitted {
   readonly skipped_count: number;
   readonly committed_at: string;
 }
+
+/** يصدر من قبول بيع الباقة في معاملة إنشاء طلب pending نفسها، بمغلف aggregateType='package_sale_request' وaggregateId=request id وeventType='PackageSaleRequested' ومعرف الشركة في المغلف، ليعالجه عامل orders بمهمة package-sale. */
+export interface PackageSaleRequested {
+  readonly sale_request_id: string;
+}

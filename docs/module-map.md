@@ -141,6 +141,10 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `orders` | `SessionServiceOptionsReads` (read-side callbacks) | `catalog` | recording-form service names, list prices and revisions only; same-transaction public read under record permission (ADR-0041 35c-3) |
 | `orders` | `SessionPerformerOptionsReads` (read-side callbacks) | `staff` | dated branch eligibility, names and missing-clock/approved-leave booleans only under record permission; staff owns the working day (ADR-0041 35c-4) |
 | `orders` | `SessionPlacePort` | `tenancy` | business timezone and active branch/business relationship (ADR-0041) |
+| worker `orders` | `PackageSaleScope.lockType` | worker `catalog` | `readPackageTypeForSale` locks the type `FOR SHARE`, then `lockSessionServicesForSale` locks component services in ascending id and returns their prices/revisions for the frozen sale quote (ADR-0034 addendum 2026-11-11, spec 058 FR-018b/c) |
+| worker `orders` | `PackageSaleScope.lockSeller`, `PackageSaleScope.readSeller` | worker `staff` | `lockPackageSeller` takes the employee `FOR SHARE` before `readPackageSeller` returns dated branch eligibility and the persisted user link; no attendance warnings or fresh authorization (ADR-0034 addendum 2026-11-11, spec 058 FR-014) |
+| worker `orders` | `PackageSaleScope.customerExists` | worker `customers` | `packageSaleCustomerExists` proves company-scoped customer existence on the sale transaction, with no phone read (ADR-0034 addendum 2026-11-11, spec 058 FR-018) |
+| worker `orders` | `PackageSaleScope.readPlace` | worker `tenancy` | `packageSalePlace` returns the active branch's effective timezone on the sale transaction; an inactive accepted branch remains an unknown retryable failure pending the spec decision (ADR-0034 addendum 2026-11-11, spec 058 FR-018) |
 | worker `orders` | `LateNoticeRecipients` | worker `identity`, `tenancy` | branchManagerRecipients and companyOpen on the consumer transaction; active scoped system managers, including recorder/performer (ADR-0041 35b-2) |
 | worker `orders` | `LateNoticePlace` | worker `tenancy` | branchPlace names only; the date/timezone remains the saved session snapshot (ADR-0041 35b-2) |
 | worker `orders` | `PriceEditNoticeRecipients` | worker `identity`, `tenancy` | branchManagerRecipients and companyOpen on the consumer transaction; active scoped system managers by the effective alert rule (`AlertRulesPort`, spec 060 D-B14, 62-3); the editor is not excluded (ED-Q10) (ADR-0044, 35d-2) |
@@ -268,6 +272,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `EmployeeImportCommitRequested` | `staff` | `staff` worker registers per-company employee-import-recovery sweep (PR 24 / ADR-0022 discovery), then transports employee-import-commit after outbox claim commits (ADR-0034, ADR-0018) |
 | `ServiceImportCommitRequested` | `catalog` | `catalog` worker registers the per-company service-import-recovery sweep (PR 24 / ADR-0022 discovery), then transports service-import-commit after the outbox claim commits; id-only `{ preview_id }`, company in the envelope (ADR-0034 services-import addendum, ADR-0018) |
 | `ImportCommitted` | `staff`, `orders` (package commit summary; transport activation deferred to 47-2c/d) | None in Phase 1; known to the dispatcher (ADR-0034) |
+| `PackageSaleRequested` | `orders` acceptance, in the same transaction as the `pending` request | worker `orders` `package-sale` processor; id-only `{ sale_request_id }`, envelope `aggregateType='package_sale_request'`, `aggregateId` = request id and company in the envelope (ADR-0034 addendum 2026-11-11, spec 058 FR-018) |
 | `BusinessLogoChanged` | `settings` (`set-business-logo`, 27h-4) | worker `files` retire consumer (27h-3, ADR-0046) |
 | `CompanyCreated` | `identity` | `staff` (worker seeds the recommended document types, ADR-0031, and registers the not-clocked-in schedule, ADR-0037) |
 | `ServiceLineChanged`                                                        | `orders`        | worker `commissions` consumer `commissions.project-inputs` (50-1), `customers`; worker `orders` (35d price/discount-edit bell — only when the optional `change.kind` is `PRICE_DISCOUNT_EDIT`; ADR-0044); worker `orders` also consumes `change.kind` `LINE_CANCELLED` (row 37 cancel bell; ADR-0044 addendum); worker `orders` also consumes `change.kind` `PERFORMERS_CHANGE` (row 37b bell; ADR-0044 addendum) |
@@ -410,6 +415,12 @@ reads:
   - orders -> files.documentFileFacts @ apps/worker/src/modules/orders/persistence/package-preview.transactions.ts
   - orders -> catalog.readPackageImportServices @ apps/worker/src/modules/orders/persistence/package-preview.transactions.ts
   - orders -> catalog.readPackageCommitServices @ apps/worker/src/modules/orders/persistence/package-import-commit.transactions.ts
+  - orders -> catalog.readPackageTypeForSale @ apps/worker/src/modules/orders/persistence/package-sale.scope.ts
+  - orders -> catalog.lockSessionServicesForSale @ apps/worker/src/modules/orders/persistence/package-sale.scope.ts
+  - orders -> staff.lockPackageSeller @ apps/worker/src/modules/orders/persistence/package-sale.scope.ts
+  - orders -> staff.readPackageSeller @ apps/worker/src/modules/orders/persistence/package-sale.scope.ts
+  - orders -> customers.packageSaleCustomerExists @ apps/worker/src/modules/orders/persistence/package-sale.scope.ts
+  - orders -> tenancy.packageSalePlace @ apps/worker/src/modules/orders/persistence/package-sale.scope.ts
   - orders -> customers.readPackageImportCustomers @ apps/worker/src/modules/orders/persistence/package-preview.transactions.ts
   - staff -> identity.readOwnAttendanceAccess @ apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts
   - staff -> tenancy.describeWorkspaces @ apps/api/src/modules/staff/persistence/own-attendance-context.adapter.ts
