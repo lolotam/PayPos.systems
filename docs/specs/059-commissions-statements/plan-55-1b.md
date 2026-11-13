@@ -67,12 +67,13 @@ salaries** (55-1c); then **package sales** (55-1d, after 50-4). Before 50-4 ther
 
 ## 3. Proposed split of the remaining 55-1 work
 
-Row 55-1 is 450–600 hand-written lines and 55-1a took ~120 production lines, leaving ~330–480 for two tables + RLS + grants
+Split decided by the manager on 2026-11-13: 55-1b-1 came out at about 480 production lines (the draft said about 300), so the consumer wiring became 55-1b-2. Row 55-1 is 450–600 hand-written lines and 55-1a took ~120 production lines, leaving ~330–480 for two tables + RLS + grants
 + the correction step + three sources + the FR-044 seed + ten test ids. That does not fit in one PR.
 
 | Sub-PR | One concern | Prod lines | Migration | Lane | Order | Depends on |
 | --- | --- | --- | --- | --- | --- | --- |
-| **55-1b** | The two tables + RLS/grants/indexes + the correction step for **commission lines** (the core) | ~300 | **yes** | migration lane (one at a time, PP-124/PP-130) | 1st — build this next | 50-a, 50-1, 48a-2, 55-1a |
+| **55-1b-1** | The two tables + RLS/grants/indexes (migrations `0226` tables, `0227` concurrent indexes, RLS and grants), CM-R06, the pure `computeCommissionCorrections` arithmetic, and the `statementId` pass-through of `lockCommissionPeriods`. No consumer wiring, no writer: expand-only | ~480 (built) | **yes** | migration lane | 1st | 50-a, 50-1, 48a-2, 55-1a |
+| **55-1b-2** | The consumer wiring for **commission lines**: the correction persistence scope, the correction step inside `project-service-lines` (FR-015 order), the rollover error and its retry, the `NO_PLAN`/`NO_SALARY` and tips/salaries refusals, CM-22, CM-43…CM-49 integration, the FR-044 seed | ~300 | no | — | 2nd, stacked on 55-1b-1 (PP-130) | 55-1b-1 |
 | **55-1c** | The correction step for **tips and salaries** (FR-041, FR-042) | ~180 | no | — | 2nd | 55-1b, 50-2 |
 | **55-1d** | The correction step for **package sales** (kind `SALE`) | ~90 | no | — | after 50-4 | 55-1b, 50-4 |
 
