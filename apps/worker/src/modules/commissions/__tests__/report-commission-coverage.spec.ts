@@ -20,12 +20,16 @@ const CONSUMER = 'commission-coverage';
 // القارئات ما بتمسّش الـ tx، فكائن فارغ بيناسب الـ port من غير أي جدول حقيقي.
 const DUMMY_TX = {} as unknown as CoverageTx;
 
-const eventId = (n: number): string =>
+const eventId = (n: number | string): string =>
   `01970000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 const lineId = (n: number): string =>
   `01980000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 
-const event = (n: number, kind = 'ServiceSessionRecorded', company = COMPANY): ClaimedEvent => ({
+const event = (
+  n: number | string,
+  kind = 'ServiceSessionRecorded',
+  company = COMPANY,
+): ClaimedEvent => ({
   companyId: company,
   id: eventId(n),
   aggregateType: 'service_session',
@@ -44,7 +48,7 @@ const sourceLines = (count: number): LineRow[] =>
   Array.from({ length: count }, (_, index) => line(index + 1, 1));
 
 const allMarked = (events: readonly ClaimedEvent[]): ReadonlySet<string> =>
-  new Set(events.map((item) => item.id));
+  new Set(events.map((item) => item.id.toLowerCase()));
 
 function lineReader(rows: readonly LineRow[]) {
   const sorted = [...rows].sort((left, right) => (left.lineId < right.lineId ? -1 : 1));
@@ -108,7 +112,9 @@ function projectionReader(options: {
     ),
     markedEventIds: vi.fn(
       async (_tx: CoverageTx, _cid: string, _consumer: string, ids: readonly string[]) =>
-        new Set(ids.filter((id) => marked.has(id))),
+        new Set(
+          ids.filter((id) => marked.has(id.toLowerCase())).map((id) => id.toLowerCase()),
+        ),
     ),
   };
 }
@@ -214,6 +220,16 @@ describe('runCommissionCoverageReport: the coverage comparison', () => {
     expect(report.salaries.missing).toEqual({ total: 1, ids: ['emp-1|2026-01-31'] });
     expect(report.salaries.stale).toEqual({ total: 1, ids: ['emp-2|2026-02-28'] });
   });
+  it.each([
+    { count: 250, truncated: true },
+    { count: 200, truncated: false },
+  ])('caps the missing line ids at 200 for a $count-line source', async ({ count, truncated }) => {
+    const { deps } = harness({ sourceLines: sourceLines(count), projectedLines: [] });
+    const report = await run(deps);
+    expect(report.lines.missing.total).toBe(count);
+    expect(report.lines.missing.ids).toHaveLength(200);
+    expect(report.truncated).toBe(truncated);
+  });
 });
 
 describe('runCommissionCoverageReport: the retained events and the paging', () => {
@@ -249,15 +265,27 @@ describe('runCommissionCoverageReport: the retained events and the paging', () =
     expect(report.unmarked.total).toBe(0);
     expect(retained.commissionInputReplayPage).toHaveBeenCalledTimes(3);
   });
-  it.each([
-    { count: 250, truncated: true },
-    { count: 200, truncated: false },
-  ])('caps the missing line ids at 200 for a $count-line source', async ({ count, truncated }) => {
-    const { deps } = harness({ sourceLines: sourceLines(count), projectedLines: [] });
+  it('matches a retained event id to its mark regardless of case', async () => {
+    const upperId = eventId('a').toUpperCase();
+    const markedEvent = { ...event('a'), id: upperId };
+    const { deps } = harness({ events: [markedEvent], marked: allMarked([markedEvent]) });
+
     const report = await run(deps);
-    expect(report.lines.missing.total).toBe(count);
-    expect(report.lines.missing.ids).toHaveLength(200);
-    expect(report.truncated).toBe(truncated);
+
+    expect(report.status).toBe('COVERED');
+    expect(report.unmarked.total).toBe(0);
+
+    const controlId = eventId('b').toUpperCase();
+    const controlEvent = { ...event('b'), id: controlId };
+    const { deps: controlDeps } = harness({ events: [controlEvent] });
+
+    const control = await run(controlDeps);
+
+    expect(control.status).toBe('NOT_COVERED');
+    expect(control.unmarked.total).toBe(1);
+    expect(control.unmarked.events).toEqual([
+      { eventId: controlId, type: 'ServiceSessionRecorded' },
+    ]);
   });
 });
 
@@ -287,6 +315,15 @@ describe('runCommissionCoverageReport: the scope and the report content', () => 
     expect((failure as CommissionCoverageEventInvalidError).code).toBe(
       'COMMISSION_COVERAGE_EVENT_INVALID',
     );
+  });
+  it('accepts a retained event whose company id differs from the run company only by case', async () => {
+    const upper = event(1, 'ServiceSessionRecorded', COMPANY.toUpperCase());
+    const { deps } = harness({ events: [upper], marked: allMarked([upper]) });
+
+    const report = await run(deps);
+
+    expect(report.status).toBe('COVERED');
+    expect(report.unmarked.total).toBe(0);
   });
   it('keeps the event payload out of the report', async () => {
     const { deps } = harness({ events: [event(1), event(2)] });

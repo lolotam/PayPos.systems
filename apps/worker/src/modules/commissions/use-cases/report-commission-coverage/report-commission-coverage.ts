@@ -223,11 +223,11 @@ async function checkUnmarked(
     }
     if (page.events.length === 0) return { throughId, totals };
     for (const event of page.events) {
-      if (event.companyId !== context.companyId) {
+      if (event.companyId.toLowerCase() !== context.companyId) {
         throw new CommissionCoverageEventInvalidError();
       }
     }
-    const eventIds = page.events.map((event) => event.id);
+    const eventIds = page.events.map((event) => event.id.toLowerCase());
     const marked = await context.deps.withTenant(context.companyId, (tx) =>
       context.deps.projection.markedEventIds(
         tx,
@@ -239,7 +239,7 @@ async function checkUnmarked(
     const unmarkedIds = findUnmarkedEventIds(eventIds, marked);
     const unmarkedSet = new Set(unmarkedIds);
     const events = page.events
-      .filter((event) => unmarkedSet.has(event.id))
+      .filter((event) => unmarkedSet.has(event.id.toLowerCase()))
       .map((event) => ({ eventId: event.id, type: event.eventType }));
     totals = addUnmarkedPage(totals, page.events.length, events, REPORT_LIST_LIMIT);
     afterId = page.events.at(-1)?.id ?? afterId;
