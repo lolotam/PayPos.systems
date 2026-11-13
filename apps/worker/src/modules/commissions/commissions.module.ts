@@ -12,6 +12,18 @@ import {
   type BusinessTimeZoneReader,
 } from './persistence/commission-line-projection.scope.ts';
 import { markCommissionEventConsumed } from './persistence/commission-event-consumption.ts';
+import { createCoverageProjectionReader } from './persistence/commission-coverage.reads.ts';
+import type {
+  CoverageCompanyReader,
+  CoverageRetainedPageReader,
+  SalaryCoverageReader,
+  ServiceLineCoverageReader,
+} from './ports/commission-coverage.port.ts';
+import {
+  runCommissionCoverageReport,
+  type CommissionCoverageReport,
+  type CommissionCoverageScope,
+} from './use-cases/report-commission-coverage/report-commission-coverage.ts';
 import { commissionStatementExportTransactions } from './persistence/commission-statement-export.transactions.ts';
 import {
   createCommissionSalaryProjectionScope,
@@ -120,6 +132,29 @@ export function createCommissionTipsBootstrap(
             dependencies.clock,
             dependencies.ids,
           ),
+      },
+      scope,
+    );
+}
+
+/** يربط تقرير تغطية العمولات بقارئات المصدر والإسقاط وبمعرّف المستهلك الثابت. */
+export function createCommissionCoverageReport(dependencies: {
+  readonly database: Pick<TenantWrappers, 'withTenant'>;
+  readonly lines: ServiceLineCoverageReader;
+  readonly salaries: SalaryCoverageReader;
+  readonly retained: CoverageRetainedPageReader;
+  readonly companies: CoverageCompanyReader;
+}): (scope: CommissionCoverageScope) => Promise<CommissionCoverageReport> {
+  return (scope) =>
+    runCommissionCoverageReport(
+      {
+        withTenant: dependencies.database.withTenant,
+        lines: dependencies.lines,
+        salaries: dependencies.salaries,
+        projection: createCoverageProjectionReader(),
+        retained: dependencies.retained,
+        companies: dependencies.companies,
+        consumerId: COMMISSION_INPUTS_CONSUMER_ID,
       },
       scope,
     );
