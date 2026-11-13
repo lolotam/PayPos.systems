@@ -147,3 +147,18 @@ it('keeps a visit time edited while the request is pending', async () => {
   fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.save') }));
   expect(drafts.mock.calls[0]?.[0].occurred_at).toBe(editedTime);
 });
+
+it('keeps tracked requests while the customer is retyped and drops them for a different customer', async () => {
+  api.post.mockResolvedValue({ data: response(first, firstProposal), response: { status: 201 } });
+  api.get.mockResolvedValue({ data: { items: [proposal(firstProposal, 0, 'PENDING')] }, response: { status: 200 } });
+  const value = result(), { client, drafts, view } = mount(value);
+  await clickRequest();
+  await waitFor(() => expect(screen.getByText(t('en', 'discountApproval.pending'))).toBeTruthy());
+  view.rerender(<QueryClientProvider client={client}><Harness value={{ ...value, customerId: null, customer: null }} scopeValue={scope} onDrafts={drafts} /></QueryClientProvider>);
+  expect(screen.getByText(t('en', 'discountApproval.pending'))).toBeTruthy();
+  view.rerender(<QueryClientProvider client={client}><Harness value={value} scopeValue={scope} onDrafts={drafts} /></QueryClientProvider>);
+  expect(screen.getByText(t('en', 'discountApproval.pending'))).toBeTruthy();
+  view.rerender(<QueryClientProvider client={client}><Harness value={{ ...value, customerId: id(70) }} scopeValue={scope} onDrafts={drafts} /></QueryClientProvider>);
+  expect(screen.queryByText(t('en', 'discountApproval.pending'))).toBeNull();
+  expect((screen.getByRole('button', { name: t('en', 'discountApproval.request') }) as HTMLButtonElement).disabled).toBe(false);
+});

@@ -116,10 +116,13 @@ function releaseForbiddenRecorder(state: SessionRecordingResult, error: unknown,
 }
 // مظروف PARTIAL قديم من غير occurredAt ما يتفسّرش «دلوقتي»؛ التصحيح يتقفل لحد ما الزيارة تتنساب.
 // الوقت المعروف ييجي من الزيارة المحمّلة أو من المظروف بس؛ drafts.occurred_at ممكن يكون وقت كتبته المسجّلة، مش وقت الزيارة.
+// مظروف الزيارة صاحب العميل بعد reload، حتى لا ينتقل اختيار زيارة سابقة مع sessionId الجديد.
 function applyPartialEntry(state: SessionRecordingResult, entry: Extract<SessionJournalEnvelope, { state: 'PARTIAL' }>): SessionRecordingResult {
   const seeded = entry.occurredAt && !state.session ? entry.occurredAt : undefined;
   const drafts = seeded !== undefined && seeded !== state.drafts.occurred_at ? { ...state.drafts, occurred_at: seeded } : state.drafts;
-  return { ...state, sessionId: entry.sessionId, customerId: state.customerId ?? entry.customerId ?? null, drafts,
+  const customerId = entry.customerId ?? state.customerId;
+  const customer = entry.customerId && state.customer?.id !== entry.customerId ? null : state.customer;
+  return { ...state, sessionId: entry.sessionId, customerId, customer, drafts,
     visitTimeUnknown: (state.session?.occurred_at ?? entry.occurredAt) === undefined };
 }
 function failedResult(state: SessionRecordingResult, attempt: SessionAttempt, error: unknown): SessionRecordingResult {

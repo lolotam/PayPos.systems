@@ -180,9 +180,12 @@ it('keeps the pending request after a re-save with a new result', async () => {
 it('shows one customer-required alert and sends no request when the fresh visit has no customer', async () => {
   api.locale = 'en';
   const value = { ...result(), customerId: null, customer: null };
-  mount(value);
+  const { client, commands, view } = mount(value);
   await clickRequest('en');
   expect(screen.getAllByText(t('en', 'discountApproval.customerRequired'))).toHaveLength(1);
   expect(screen.getByText(t('en', 'discountApproval.customerRequired')).getAttribute('role')).toBe('alert');
   expect(api.post).not.toHaveBeenCalled();
+  const next = { ...value, customerId: id(7), customer: { id: id(7), name: 'Synthetic customer', phone: '***001' } };
+  view.rerender(<QueryClientProvider client={client}><Harness result={next} onCommands={commands} /></QueryClientProvider>);
+  expect(screen.queryByText(t('en', 'discountApproval.customerRequired'))).toBeNull();
 });

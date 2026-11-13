@@ -21,7 +21,7 @@ type Form = Pick<UseFormReturn<SessionDraftForm>, 'getValues' | 'setValue' | 'se
 type Mutate = (body: ReturnType<typeof buildDiscountApprovalBody>,
   options: { onSuccess: (response: RequestDiscountApprovalResponse) => void }) => void;
 type SendInput = { result: SessionRecordingResult; form: Form; locale: Locale; requestable: string[];
-  mutate: Mutate; onTrack: (request: TrackedDiscountRequest) => void };
+  mutate: Mutate; onCustomerRequired: () => void; onTrack: (request: TrackedDiscountRequest) => void };
 
 function attachApproved(attach: ReturnType<typeof discountApprovalView>['attach'], form: Form) {
   const lines = form.getValues('lines');
@@ -32,7 +32,7 @@ function attachApproved(attach: ReturnType<typeof discountApprovalView>['attach'
   }
 }
 
-function sendRequest({ result, form, locale, requestable, mutate, onTrack }: SendInput) {
+function sendRequest({ result, form, locale, requestable, mutate, onCustomerRequired, onTrack }: SendInput) {
   const drafts = form.getValues();
   const rows = refusedDiscountDrafts(result, drafts.lines).filter((row) => requestable.includes(row.local_id));
   if (rows.length === 0) return;
@@ -42,7 +42,10 @@ function sendRequest({ result, form, locale, requestable, mutate, onTrack }: Sen
     body = buildDiscountApprovalBody(result, { ...drafts, lines: rows }, commands);
   } catch (error) {
     // سطر بسعر أو خصم أو مؤدّين غلط كان بيطلع استثناء برّه المعالج، فالمسجّلة كانت تضيع الطلب من غير رسالة.
-    reportSessionSubmitError(form.setError, error, locale);
+    const code = error instanceof Error ? error.message : null;
+    if (code === 'SESSION_CUSTOMER_REQUIRED') onCustomerRequired();
+    // وقت الزيارة صاحب رسالة الوقت؛ تجاهل الخطأ هنا يمنع بقاء field error بعد تصحيحه.
+    else if (code !== 'SESSION_TIME_INVALID') reportSessionSubmitError(form.setError, error, locale);
     return;
   }
   mutate(body, { onSuccess: (response) => {
@@ -59,6 +62,7 @@ export function SessionDiscountApproval({ result, scope, online }: { result: Ses
   const locale = useLocale(), form = useFormContext<SessionDraftForm>();
   const [requests, setRequests] = useState<TrackedDiscountRequest[]>([]);
   const [sentRejected, setSentRejected] = useState<SessionRecordingResult['rejected'] | null>(null);
+  const [customerRequired, setCustomerRequired] = useState(false);
   const request = useRequestDiscountApproval(scope);
   const queried = latestDiscountApprovalRequests(result.rejected, requests).map((tracked) => tracked.requestId);
   const statuses = useDiscountApprovalStatuses(scope, queried);
@@ -74,10 +78,11 @@ export function SessionDiscountApproval({ result, scope, online }: { result: Ses
         proposal={line.proposal ?? undefined} /> : null;
     })}
     {error ? <p role="alert">{envelopeMessage(error, locale)}</p> : null}
+    {customerRequired && (result.customer?.id ?? result.customerId) === null ? <p role="alert">{t(locale, 'discountApproval.customerRequired')}</p> : null}
     {failed ? <Button type="button" variant="outline" onClick={() => retryFailed(statuses)}>{t(locale, 'discountApproval.retry')}</Button> : null}
     <Button type="button" variant="outline" disabled={!online || sessionResultFrozen(result) || request.isPending || view.requestable.length === 0}
-      onClick={() => { setSentRejected(result.rejected); sendRequest({ result, form, locale, requestable: view.requestable, mutate: request.mutate,
-        onTrack: (tracked) => setRequests((current) => [...current, tracked]) }); }}>
+      onClick={() => { setCustomerRequired(false); setSentRejected(result.rejected); sendRequest({ result, form, locale, requestable: view.requestable, mutate: request.mutate,
+        onCustomerRequired: () => setCustomerRequired(true), onTrack: (tracked) => setRequests((current) => [...current, tracked]) }); }}>
       {t(locale, request.isPending ? 'discountApproval.sending' : 'discountApproval.request')}
     </Button>
   </section>;
