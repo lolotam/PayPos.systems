@@ -1,4 +1,5 @@
 import { leaveHistorySchemas } from './staff/leave-history.js';
+import { leaveHistoryReportApiSchemas } from './staff/leave-history-report-api.js';
 import { orderSchemas } from './orders/openapi-schemas.js';
 import { employeeIbanSchemas } from './staff/employee-iban.js';
 import { commissionSchemas } from './commissions/openapi.js';
@@ -139,6 +140,7 @@ export const openApiSchemas = [
   ...employeeCardSchemas,
   ...leaveSchemas,
   ...leaveHistorySchemas,
+  ...leaveHistoryReportApiSchemas,
   ...leaveDecisionSchemas,
   ...attendanceExceptionSchemas,
   ...attendanceCorrectionSchemas,

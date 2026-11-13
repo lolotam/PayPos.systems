@@ -133,10 +133,25 @@ const leaveDecisionErrorsAr: Record<keyof typeof leaveDecisionErrorsEn, string> 
 const leaveHistoryErrorsEn = {
   LEAVE_HISTORY_REPORT_REQUIRED:
     'This report is too large to show at once. Narrow the date range or pick an employee.',
+  LEAVE_HISTORY_REPORT_BUSY:
+    'You already have three leave history reports in progress, so wait for one to finish.',
+  LEAVE_HISTORY_REPORT_NOT_FOUND: 'This leave history report was not found or has expired.',
+  LEAVE_HISTORY_REPORT_STALE:
+    'Your branch access changed, so request this leave history report again.',
+  LEAVE_HISTORY_REPORT_FAILED:
+    'The leave history report could not be completed, so request it again.',
+  LEAVE_HISTORY_REPORT_TOO_LARGE:
+    'This leave history report has too many rows, so narrow the date range or filters.',
 };
 const leaveHistoryErrorsAr: Record<keyof typeof leaveHistoryErrorsEn, string> = {
   LEAVE_HISTORY_REPORT_REQUIRED:
     'هذا التقرير أكبر من أن يُعرض دفعة واحدة. ضيّق الفترة أو اختر موظفًا.',
+  LEAVE_HISTORY_REPORT_BUSY: 'لديك ثلاثة تقارير سجل إجازات قيد التنفيذ، فانتظر حتى يكتمل أحدها.',
+  LEAVE_HISTORY_REPORT_NOT_FOUND: 'تقرير سجل الإجازات غير موجود أو انتهت صلاحيته.',
+  LEAVE_HISTORY_REPORT_STALE: 'تغيّرت صلاحياتك على الفروع، فاطلب تقرير سجل الإجازات مرة أخرى.',
+  LEAVE_HISTORY_REPORT_FAILED: 'تعذّر إكمال تقرير سجل الإجازات، فاطلبه مرة أخرى.',
+  LEAVE_HISTORY_REPORT_TOO_LARGE:
+    'تقرير سجل الإجازات يحتوي على صفوف كثيرة، فضيّق الفترة أو عوامل التصفية.',
 };
 export const leaveErrorsEn = { ...leaveDecisionErrorsEn, ...leaveHistoryErrorsEn };
 export const leaveErrorsAr: Record<keyof typeof leaveErrorsEn, string> = {

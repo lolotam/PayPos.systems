@@ -44,6 +44,7 @@ const PUBLIC_EXPORTS = [
   'deleteStaffPrivateViewRows',
   'employeeDefaultShiftsStatement',
   'grantPlatformPermission',
+  'historyEmployeeVisible',
   'historyIds',
   'historyLastTaken',
   'historyLeaveSource',
