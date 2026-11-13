@@ -3,10 +3,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createSessionAttemptJournal } from './session-attempt-journal';
-import { createSessionDraft } from './session-drafts';
+import { createSessionDraft, type SessionDraftLine } from './session-drafts';
 import * as SessionRecordingModule from './session-recording-result';
 import { discountError, id, instant, rejection, response, scope } from './session-recording-result.fixture';
-import { useSessionRecording, type SessionRecordingController } from './use-session-recording';
+import { sessionCommandLines, useSessionRecording, type SessionRecordingController } from './use-session-recording';
 
 const post = vi.hoisted(() => vi.fn());
 const trace = vi.hoisted(() => {
@@ -214,4 +214,21 @@ it('reports SESSION_PACKAGE_NOT_CHOSEN and sends no request for a package draft 
   })).rejects.toThrow('SESSION_PACKAGE_NOT_CHOSEN');
   expect(view.result.current.result.attempt).toBeNull();
   expect(post).not.toHaveBeenCalled();
+});
+
+function proposalDraft(): SessionDraftLine {
+  return { ...createSessionDraft(id(10)), service_id: id(5), price: '7.125', discount_kind: 'PERCENT', discount_percentage: '10',
+    performers: [{ employee_id: id(6), share_percentage: '', selection: null }] };
+}
+
+it('always emits the proposal id after price, discount, service, performer or share edits', () => {
+  const line = { ...proposalDraft(), discount_proposal: { id: id(50) } };
+  const changed = [line, { ...line, price: '8.000' }, { ...line, discount_percentage: '11' }, { ...line, service_id: id(51) },
+    { ...line, performers: [{ employee_id: id(52), share_percentage: '', selection: null }] },
+    { ...line, share_mode: 'CUSTOM' as const, performers: [{ employee_id: id(6), share_percentage: '100', selection: null }] }];
+  for (const edited of changed) expect(sessionCommandLines([edited])[0]).toHaveProperty('discount_proposal_id', id(50));
+});
+
+it('omits the proposal id only when the draft has no proposal', () => {
+  expect(sessionCommandLines([proposalDraft()])[0]).not.toHaveProperty('discount_proposal_id');
 });
