@@ -199,7 +199,7 @@ it('a closed service cannot be appended to a saved session', async () => {
   expect(response.body['code']).toBe('SERVICE_CLOSED');
 });
 
-it('the category detail query plans on a tenant-scoped category index', async () => {
+it('the category detail counts use the services category index', async () => {
   const categoryId = await categoryWithService('Indexed detail category');
   const plan = await f.db.withTenant(f.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);
@@ -207,5 +207,5 @@ it('the category detail query plans on a tenant-scoped category index', async ()
       sql`EXPLAIN (ANALYZE, FORMAT JSON) ${serviceCategoryDetailStatement(f.company, f.business, categoryId)}`,
     );
   });
-  expect(JSON.stringify(plan)).toMatch(/service_categories_(company_business_id_key|pkey)/);
+  expect(JSON.stringify(plan)).toContain('services_business_category_idx');
 });
