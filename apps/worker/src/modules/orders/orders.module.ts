@@ -264,21 +264,28 @@ export function startPackagePreviewWorker(
   };
 }
 
+/** يشغّل عامل بيع الباقات ومسح الاسترداد بإعدادات Redis والساعة ومهلة المعاملة الواحدة. */
 export function startPackageSaleWorker(
   database: Pick<TenantWrappers, 'withTenant'>,
   ids: IdGenerator,
-  redisUrl: string,
-  clock: PackageSaleClock,
-  options: { transactionTimeoutMs: number },
-  prefix?: string,
+  options: {
+    redisUrl: string;
+    clock: PackageSaleClock;
+    transactionTimeoutMs: number;
+    prefix?: string;
+  },
 ) {
+  const { redisUrl, clock, transactionTimeoutMs, prefix } = options;
   const sale = new ExecutePackageSale(
-    packageSaleTransactions(database, ids, { timeoutMs: options.transactionTimeoutMs }),
+    packageSaleTransactions(database, ids, { timeoutMs: transactionTimeoutMs }),
     ids,
     clock,
   );
   const processor = startPackageSaleProcessor(sale, redisUrl, prefix);
-  const recoveryUseCase = new RecoverPackageSales(packageSaleRecoveryTransactions(database), clock);
+  const recoveryUseCase = new RecoverPackageSales(
+    packageSaleRecoveryTransactions(database, { timeoutMs: transactionTimeoutMs }),
+    clock,
+  );
   const recovery = startPackageSaleRecoveryProcessor(recoveryUseCase, redisUrl, prefix);
   return {
     eventTypes: ['PackageSaleRequested'],

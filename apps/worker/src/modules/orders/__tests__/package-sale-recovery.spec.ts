@@ -25,7 +25,7 @@ const YOUNG = '2026-11-05T11:55:00Z';
 const NOW = '2026-11-05T12:00:00.000Z';
 
 function sweep() {
-  return new RecoverPackageSales(packageSaleRecoveryTransactions(f.database), f.clock);
+  return new RecoverPackageSales(packageSaleRecoveryTransactions(f.database, { timeoutMs: 30_000 }), f.clock);
 }
 
 async function seedType() {

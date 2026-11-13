@@ -27,23 +27,9 @@ export class PackageSaleRetryError extends Error {
 }
 
 /**
- * رفض نهائي لبيع الباقة لأن الفرع غير نشط؛ الرفض يثبت على صف الطلب ولا يعاد البيع.
- *
- * `code` هو الكود المقروء من شاشة الحالة، والرسالة تشرح السبب الداخلي.
- */
-export class PackageSaleUnavailableError extends Error {
-  readonly code = 'PACKAGE_SALE_FAILED';
-
-  constructor() {
-    super('PACKAGE_SALE_PLACE_UNAVAILABLE');
-    this.name = 'PackageSaleUnavailableError';
-  }
-}
-
-/**
  * ينفذ بيع باقة مقبول ذريًا ويثبت الرفض المسمى بعد التراجع دون إعادة تفويض.
  *
- * رفض الفرع غير النشط نهائي؛ يثبت على صف الطلب ولا يعاد بيعه.
+ * رفض الفرع غير النشط نهائي ومسمّى `PACKAGE_SALE_BRANCH_INACTIVE`؛ يثبت على صف الطلب ولا يعاد بيعه.
  */
 export class ExecutePackageSale {
   constructor(
@@ -95,8 +81,7 @@ export class ExecutePackageSale {
       request.expected_service_revisions,
     );
     const place = await scope.readPlace();
-    // TODO(spec): فرع غير نشط بعد القبول
-    if (place === null) throw new PackageSaleUnavailableError();
+    if (place === null) throw new PackageSaleError('PACKAGE_SALE_BRANCH_INACTIVE');
     const soldAt = request.sold_at === null ? undefined : new Date(request.sold_at);
     const recordedAt = new Date(request.recorded_at);
     const time = packageSaleTime(soldAt, recordedAt, place.timezone);
@@ -133,16 +118,11 @@ export class ExecutePackageSale {
 
 function isNamedRefusal(
   error: unknown,
-): error is
-  | PackageSaleError
-  | PackageSalePricingError
-  | PackageRuleError
-  | PackageSaleUnavailableError {
+): error is PackageSaleError | PackageSalePricingError | PackageRuleError {
   return (
     error instanceof PackageSaleError ||
     error instanceof PackageSalePricingError ||
-    error instanceof PackageRuleError ||
-    error instanceof PackageSaleUnavailableError
+    error instanceof PackageRuleError
   );
 }
 

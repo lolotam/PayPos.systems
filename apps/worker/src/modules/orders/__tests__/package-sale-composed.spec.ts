@@ -23,14 +23,12 @@ const redisUrl =
 type Worker = ReturnType<typeof startPackageSaleWorker>;
 
 function composed(prefix: string): Worker {
-  return startPackageSaleWorker(
-    f.database,
-    f.ids,
+  return startPackageSaleWorker(f.database, f.ids, {
     redisUrl,
-    f.clock,
-    { transactionTimeoutMs: 30_000 },
+    clock: f.clock,
+    transactionTimeoutMs: 30_000,
     prefix,
-  );
+  });
 }
 
 function saleEvent(ids: ReturnType<typeof systemUuidV7>, requestId: string): ClaimedEvent {

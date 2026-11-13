@@ -4,7 +4,7 @@ import type { PackageSaleTransactions } from '../ports/package-sale.port.ts';
 import { parsePackageSaleRequest } from './package-sale.schema.ts';
 import { packageSaleScope } from './package-sale.scope.ts';
 
-// Deployment must supply a measured full-bound transaction budget. No staff 15-second default.
+// النشر لازم يسلّم مهلة معاملة كاملة مقيسة؛ مفيش افتراضي 15 ثانية لحد ما يتقاس.
 export function packageSaleTransactions(
   database: Pick<TenantWrappers, 'withTenant'>,
   ids: IdGenerator,
@@ -28,12 +28,16 @@ export function packageSaleTransactions(
         options,
       ),
     fail: async (companyId, requestId, code, details, at) => {
-      await database.withTenant(companyId, async (tx) => {
-        const serialized = details === undefined ? null : JSON.stringify(details);
-        await tx.execute(sql`UPDATE package_sale_requests
-          SET status='failed',error_code=${code},error_details=${serialized}::jsonb,finished_at=${at}
-          WHERE company_id=${companyId} AND id=${requestId} AND status='pending'`);
-      });
+      await database.withTenant(
+        companyId,
+        async (tx) => {
+          const serialized = details === undefined ? null : JSON.stringify(details);
+          await tx.execute(sql`UPDATE package_sale_requests
+            SET status='failed',error_code=${code},error_details=${serialized}::jsonb,finished_at=${at}
+            WHERE company_id=${companyId} AND id=${requestId} AND status='pending'`);
+        },
+        options,
+      );
     },
   };
 }

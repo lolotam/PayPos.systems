@@ -101,11 +101,11 @@ it('refuses a discount above the limit frozen in the request', async () => {
   ]);
 });
 
-it('closes the request with PACKAGE_SALE_FAILED when the sale branch is not active', async () => {
+it('closes the request with PACKAGE_SALE_BRANCH_INACTIVE when the sale branch is not active', async () => {
   const h = createHarness({ place: null });
   await h.useCase.execute('company', 'request');
   expect(h.failures).toEqual([
-    { code: 'PACKAGE_SALE_FAILED', details: undefined, at: CLOCK_INSTANT },
+    { code: 'PACKAGE_SALE_BRANCH_INACTIVE', details: undefined, at: CLOCK_INSTANT },
   ]);
   expect(h.calls).toEqual(['lockType', 'lockSeller', 'readPlace']);
   expect(h.plans).toEqual([]);

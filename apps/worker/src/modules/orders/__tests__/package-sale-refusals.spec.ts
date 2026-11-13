@@ -160,7 +160,7 @@ it('refuses a sale in a branch that was deactivated after the request was accept
   const type = await blowDry();
   const requestId = await f.request({ type, branch_id: f.inactiveBranch });
   await f.owner`UPDATE branches SET is_active=false WHERE id=${f.inactiveBranch}`;
-  await expectRefusedAndUntouched(requestId, 'PACKAGE_SALE_FAILED');
+  await expectRefusedAndUntouched(requestId, 'PACKAGE_SALE_BRANCH_INACTIVE');
 });
 
 it('keeps a request pending when its package type has no components to value', async () => {

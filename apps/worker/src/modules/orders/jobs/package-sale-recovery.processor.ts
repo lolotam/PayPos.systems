@@ -23,8 +23,10 @@ export function startPackageSaleRecoveryProcessor(
     { connection, concurrency: 1, prefix },
   );
   worker.on('error', () => undefined);
+  const registeredCompanies = new Set<string>();
   return {
     register: async (companyId: string): Promise<void> => {
+      if (registeredCompanies.has(companyId)) return;
       await queue.upsertJobScheduler(
         `${PACKAGE_SALE_RECOVERY_QUEUE}-${companyId}`,
         { every: 60 * 1000 },
@@ -39,6 +41,7 @@ export function startPackageSaleRecoveryProcessor(
           },
         },
       );
+      registeredCompanies.add(companyId);
     },
     ready: () => worker.waitUntilReady().then(() => undefined),
     close: async () => {

@@ -79,13 +79,11 @@ const files = startFilesWorker(app, systemUuidV7(), config.REDIS_URL, process.en
 const previews = startPackagePreviewWorker(app, files.readImportBytes, config.REDIS_URL, {
   now: () => new Date(),
 });
-const sales = startPackageSaleWorker(
-  app,
-  systemUuidV7(),
-  config.REDIS_URL,
-  { now: () => new Date() },
-  { transactionTimeoutMs: config.PACKAGE_SALE_TRANSACTION_TIMEOUT_MS },
-);
+const sales = startPackageSaleWorker(app, systemUuidV7(), {
+  redisUrl: config.REDIS_URL,
+  clock: { now: () => new Date() },
+  transactionTimeoutMs: config.PACKAGE_SALE_TRANSACTION_TIMEOUT_MS,
+});
 const staff = startStaffWorker(app, systemUuidV7(), config.REDIS_URL, { now: () => new Date() });
 const email = await startEmailCapability({
   env: process.env,

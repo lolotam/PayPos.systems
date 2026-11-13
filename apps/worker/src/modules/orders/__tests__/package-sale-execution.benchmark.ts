@@ -17,7 +17,7 @@ afterAll(async () => {
   if (f) await f.close();
 });
 
-// Opt-in config selects this benchmark; the normal src/**/*.spec.ts glob excludes it.
+// التشغيل الاختياري بملف الإعداد هو اللي يختار المقياس ده؛ نمط src/**/*.spec.ts العادي بيستبعده.
 it(
   'BENCHMARK completes five 20 x 365 package sales inside the transaction budget',
   async () => {
