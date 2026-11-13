@@ -45,6 +45,10 @@ export const services = pgTable(
     // مدة الخدمة بالدقائق الكاملة (SI-Q6)؛ فاضي معناه إن الخدمة مالهاش مدة معروفة.
     durationMinutes: smallint('duration_minutes'),
     categoryId: uuid('category_id'),
+    // الإغلاق بيوقف تقديم الخدمة في خط جديد من غير ما يمس الجلسات المسجلة قبله.
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    // العلامة بتتحط بس لما إغلاق التصنيف يقفل الخدمة، عشان فتح التصنيف يرجّع دول بس مش أي خدمة مقفولة لوحدها.
+    closedByCategoryId: uuid('closed_by_category_id'),
     // عداد تعديل يمنع مديرين من الكتابة فوق نفس النسخة (زي employees).
     revision: integer('revision').notNull().default(1),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -84,6 +88,8 @@ export const services = pgTable(
       'services_duration_bounds',
       sql`${t.durationMinutes} IS NULL OR ${t.durationMinutes} BETWEEN 1 AND 600`,
     ),
+    check('services_closed_marker_requires_closed', sql`${t.closedByCategoryId} IS NULL OR ${t.closedAt} IS NOT NULL`),
+    check('services_closed_marker_is_category', sql`${t.closedByCategoryId} IS NULL OR (${t.categoryId} IS NOT NULL AND ${t.closedByCategoryId} = ${t.categoryId})`),
     check(
       'services_rule_kind',
       sql`${t.commissionRuleKind} IN ('FOLLOW_PLAN','ZERO','PCT','FIXED')`,

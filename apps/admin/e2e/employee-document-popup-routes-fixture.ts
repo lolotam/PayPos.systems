@@ -167,6 +167,11 @@ function inventory(): Route[] {
         routeOf('employees', employees, tenant, { limit: '20' }),
         routeOf('denied', `${root}/employee-passkeys`, tenant, { limit: '20' }),
         routeOf('denied', `${root}/staff/employee-app-link`, tenant),
+        routeOf('denied', `${root}/leave-history`, tenant, {
+          from: '2000-01-01',
+          to: '2000-01-01',
+          limit: '1',
+        }),
         ...BUSINESS_DENIALS.map((suffix) => routeOf('denied', `${root}${suffix}`, tenant)),
         ...tenant.employees.flatMap((employeeId) => [
           routeOf('detail', `${employees}/${employeeId}`, tenant),

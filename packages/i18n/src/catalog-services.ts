@@ -98,6 +98,9 @@ export const serviceErrorsEn = {
   SERVICE_NAME_INVALID:
     'The English name is required (1–255 characters); the Arabic name is optional.',
   SERVICE_DURATION_INVALID: 'The duration must be a whole number of minutes from 1 to 600.',
+  SERVICE_CATEGORY_CLOSED: 'The category of this service is closed.',
+  SERVICE_ALREADY_CLOSED: 'The service is already closed.',
+  SERVICE_NOT_CLOSED: 'The service is not closed.',
   SERVICE_REVISION_CONFLICT:
     'Another manager changed this service. Reload the latest record before saving.',
 };
@@ -110,6 +113,9 @@ export const serviceErrorsAr = {
     'السعر لازم يكون مبلغ غير سالب بالدينار الكويتي وبثلاث خانات عشرية بالظبط.',
   SERVICE_NAME_INVALID: 'الاسم الإنجليزي مطلوب (1–255 حرفاً)، والاسم العربي اختياري.',
   SERVICE_DURATION_INVALID: 'المدة لازم تكون عدد دقائق صحيح من 1 إلى 600.',
+  SERVICE_CATEGORY_CLOSED: 'تصنيف هذه الخدمة مغلق.',
+  SERVICE_ALREADY_CLOSED: 'الخدمة مغلقة بالفعل.',
+  SERVICE_NOT_CLOSED: 'الخدمة غير مغلقة.',
   SERVICE_REVISION_CONFLICT: 'عدّل مدير آخر هذه الخدمة. أعد تحميل أحدث سجل قبل الحفظ.',
 };
 

@@ -20,6 +20,8 @@ const RECORD: ServiceRecord = {
   counts_toward_threshold: true,
   duration_minutes: null,
   category_id: 'cat-load',
+  closed_at: null,
+  closed_by_category_id: null,
   revision: 1,
   created_at: '2026-11-01T10:00:00.000Z',
   updated_at: '2026-11-01T10:00:00.000Z',

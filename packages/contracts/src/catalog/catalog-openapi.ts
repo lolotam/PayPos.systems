@@ -74,6 +74,17 @@ export const catalogPaths = {
     },
   },
   '/v1/businesses/{businessId}/service-categories/{categoryId}': {
+    get: {
+      operationId: 'getServiceCategory',
+      description:
+        'Returns a category with open_service_count and marked_service_count for close and reopen confirmation. Requires read:service-categories:business and the catalog feature. Missing, foreign and other-business ids share SERVICE_CATEGORY_NOT_FOUND (404).',
+      parameters: [...parameters, categoryId],
+      responses: {
+        '200': { description: 'Category detail', content: json('ServiceCategoryDetail') },
+        '404': errors,
+        default: errors,
+      },
+    },
     patch: {
       operationId: 'renameServiceCategory',
       description:
@@ -85,6 +96,36 @@ export const catalogPaths = {
         '404': errors,
         '409': errors,
         '422': errors,
+        default: errors,
+      },
+    },
+  },
+  '/v1/businesses/{businessId}/service-categories/{categoryId}/close': {
+    post: {
+      operationId: 'closeServiceCategory',
+      description:
+        'Closes a category and its open services against the confirmed revision and count. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. Errors: SERVICE_CATEGORY_NOT_FOUND (404), SERVICE_CATEGORY_ALREADY_CLOSED, SERVICE_CATEGORY_COUNT_CHANGED and SERVICE_CATEGORY_REVISION_CONFLICT (409).',
+      parameters: [...parameters, categoryId],
+      requestBody: { required: true, content: json('CloseServiceCategoryInput') },
+      responses: {
+        '200': { description: 'Closed category', content: json('CloseServiceCategoryResult') },
+        '404': errors,
+        '409': errors,
+        default: errors,
+      },
+    },
+  },
+  '/v1/businesses/{businessId}/service-categories/{categoryId}/reopen': {
+    post: {
+      operationId: 'reopenServiceCategory',
+      description:
+        'Reopens a category and exactly the services marked by its close. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. Errors: SERVICE_CATEGORY_NOT_FOUND (404), SERVICE_CATEGORY_NOT_CLOSED, SERVICE_CATEGORY_COUNT_CHANGED and SERVICE_CATEGORY_REVISION_CONFLICT (409).',
+      parameters: [...parameters, categoryId],
+      requestBody: { required: true, content: json('ReopenServiceCategoryInput') },
+      responses: {
+        '200': { description: 'Reopened category', content: json('ReopenServiceCategoryResult') },
+        '404': errors,
+        '409': errors,
         default: errors,
       },
     },
@@ -223,6 +264,36 @@ export const catalogPaths = {
       responses: {
         '200': { description: 'Updated service', content: json('Service') },
         '400': errors,
+        '404': errors,
+        '409': errors,
+        default: errors,
+      },
+    },
+  },
+  '/v1/businesses/{businessId}/services/{serviceId}/close': {
+    post: {
+      operationId: 'closeService',
+      description:
+        'Closes one service against expected_revision. Requires close:services:business AND read:services:business and the catalog feature. Errors: SERVICE_NOT_FOUND (404), SERVICE_ALREADY_CLOSED and SERVICE_REVISION_CONFLICT (409).',
+      parameters: [...parameters, serviceId],
+      requestBody: { required: true, content: json('CloseServiceInput') },
+      responses: {
+        '200': { description: 'Closed service', content: json('Service') },
+        '404': errors,
+        '409': errors,
+        default: errors,
+      },
+    },
+  },
+  '/v1/businesses/{businessId}/services/{serviceId}/reopen': {
+    post: {
+      operationId: 'reopenService',
+      description:
+        'Reopens one service against expected_revision. Requires close:services:business AND read:services:business and the catalog feature. Errors: SERVICE_NOT_FOUND (404), SERVICE_NOT_CLOSED, SERVICE_CATEGORY_CLOSED and SERVICE_REVISION_CONFLICT (409).',
+      parameters: [...parameters, serviceId],
+      requestBody: { required: true, content: json('ReopenServiceInput') },
+      responses: {
+        '200': { description: 'Reopened service', content: json('Service') },
         '404': errors,
         '409': errors,
         default: errors,

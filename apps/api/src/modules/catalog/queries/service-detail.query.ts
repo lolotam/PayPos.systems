@@ -9,6 +9,7 @@ export function serviceDetailStatement(companyId: string, businessId: string, se
   return sql`
     SELECT s.id,s.business_id,s.name_en,s.name_ar,s.price,s.commission_rule_kind,s.commission_pct_bps,
       s.commission_fixed_amount,s.counts_toward_threshold,s.duration_minutes,s.category_id,s.revision,
+      to_char(s.closed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS closed_at,
       to_char(s.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
       to_char(s.updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS updated_at,
       c.name_en AS category_name_en,c.name_ar AS category_name_ar,

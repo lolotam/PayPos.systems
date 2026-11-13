@@ -89,6 +89,7 @@ it.each([
   'manage:employees:business',
   'read:services:business',
   'manage:services:business',
+  'close:services:business',
   'create:customers:company',
   'create:customers:business',
   'create:customers:branch',
@@ -225,9 +226,23 @@ const CATALOG_DELEGATION_PERMISSIONS = [
 ] as const satisfies readonly Permission[];
 
 it('SI-Q26 the six catalog permissions are grantable to every human role and never a device', () => {
+  expect(CATALOG_DELEGATION_PERMISSIONS).toHaveLength(6);
+  expect(CATALOG_DELEGATION_PERMISSIONS as readonly string[]).not.toContain(
+    'close:services:business',
+  );
   for (const permission of CATALOG_DELEGATION_PERMISSIONS)
     for (const entry of SYSTEM_ROLES)
       expect(systemRolePolicy(entry.id, 'global')?.permissions.includes(permission)).toBe(
         entry.code !== 'device',
       );
+});
+
+it('SI-Q17 close:services:business is a personal grant for the three managers only', () => {
+  const code = 'close:services:business';
+  const holders = ['owner', 'general_manager', 'business_manager'];
+  for (const entry of SYSTEM_ROLES) {
+    expect(systemRolePolicy(entry.id, 'global')?.permissions.includes(code)).toBe(
+      holders.includes(entry.code),
+    );
+  }
 });

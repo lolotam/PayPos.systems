@@ -10,6 +10,7 @@ import { AttendanceReportNavItem } from './attendance-report-nav-item';
 import { AttendanceStatementNavItem } from './attendance-statement-nav-item';
 import { CompanyEmployeeNumbersNavItem } from './company-employee-numbers-nav-item';
 import { EmployeeAppLinkNavItem } from './employee-app-link-nav-item';
+import { LeaveReportNavItem } from './leave-report-nav-item';
 
 export function StaffNavigation() {
   const locale = useLocale();
@@ -25,7 +26,8 @@ export function StaffNavigation() {
           !pathname.startsWith('/staff/import') &&
           !pathname.startsWith('/staff/attendance') &&
           !pathname.startsWith('/staff/employee-numbers') &&
-          !pathname.startsWith('/staff/employee-app-link')
+          !pathname.startsWith('/staff/employee-app-link') &&
+          !pathname.startsWith('/staff/leave-history')
         }
       >
         <Link href="/staff" />
@@ -45,6 +47,7 @@ export function StaffNavigation() {
       <AttendanceActionsNavItem kind="requests" />
       <AttendanceReportNavItem />
       <AttendanceStatementNavItem />
+      <LeaveReportNavItem />
     </>
   );
 }

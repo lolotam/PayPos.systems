@@ -526,6 +526,16 @@ both owners' picks on SI-Q14 to SI-Q16 (2026-10-29).
   `open_service_count` (services a close would close) and `marked_service_count` (services a reopen would reopen), two
   counts on `services_business_category_idx` with an `EXPLAIN ANALYZE` assertion. The close and reopen confirmations of
   `32b-cat-3` show these counts; the close and reopen responses return the counts actually changed.
+- **Decisions fixed while building `32b-cat-2` (2026-11-12, plan `plan-32b-cat-2.md`, debate `debate-32b-cat-2-advisor.md`):**
+  - The close and reopen responses of a category are flat: the category view plus `services_closed` or `services_reopened`.
+  - A closed service can still be edited (update-service is unchanged for it); moving it to another category clears its marker.
+  - The category cascade locks its service rows `FOR NO KEY UPDATE`, not `FOR UPDATE`: the two conflict identically with the order recorder's `FOR SHARE`, but `FOR UPDATE` would also block the `FOR KEY SHARE` that every foreign-key insert into `service_lines`, `discount_proposals`, `commission_service_overrides` and the package tables takes, and could deadlock a writer that inserts for two services out of order. No key column changes, so the weaker lock is sufficient.
+  - A single-service close or reopen that finds its category changed between the peek and the locks rolls back with `TRANSACTION_RETRY_REQUIRED` and the use case starts over in a new transaction (at most three attempts); it never restarts inside the same transaction, which would invert the category-then-service lock order.
+  - The cascade audit rows are built inside the same SQL statement as the update (an `INSERT … SELECT` from the updated rows, in `persistence/drizzle-service-category-closing.ts`), so the cascade and its audit are one atomic command; `service-category-closing-audit.spec.ts` proves every audit row equals what `serviceSnapshot` produces, field by field, so the SQL mapping cannot drift from the domain one. A warm close and a warm reopen are asserted under 200 ms at 300 services (the sync threshold below).
+  - **Sync threshold and the gap above it (2026-11-13).** Waleed's decision (technical card SI-T2, «الأسرع + خلفية للكبير»): the SQL-built audit is applied, close and reopen run synchronously up to a measured threshold and a background worker job takes larger categories. Measured locally on a shared machine, 2026-11-13, not reproducible in CI (warm medians, ms, close / reopen): 100 services 71-97 / 83-86; 300 services 106-165 / 121-182 (4 runs, all under 200); 400 services 115-116 / 124-127 (2 runs); 500 services 136-330 / 149-358 (2 of 4 runs over 200); 700 services 231-734 / 235-685; 1000 services 231-310 / 266-290. The sync threshold is 300 services, a safety margin picked by that measurement on a loaded shared host, not the largest size that ever measured under 200 ms: at 300 the reopen reached 182 ms, at 500 the 200 ms budget broke in 2 of 4 runs, and 400 passed in 2 local runs only, too few to trust. Waleed's card said the limit is «about 500, confirmed by measurement»; the measurement is that confirmation, and it put the limit below 500. Above 300 services this PR stays synchronous: there is no cap and no refusal, and the request can exceed the 200 ms budget of CLAUDE.md §6 until the follow-up PR lands — roadmap row `32b-cat-2-worker`, «close/reopen large categories as a background job» — which owns the job, its status flow and the threshold constant. PP-187 (Waleed, technical card, 2026-11-13, answer «ندمج الآن والإنتاج يستنى (المقترح)») confirms merging #996 as is on staging and this interim behavior; a GitHub issue tracks the gap. Release precondition (PP-187): no production release of this change before 32b-cat-2-worker merges; staging only.
+  - `SERVICE_CLOSED` is an orders `SessionError` code with HTTP status 409 and the detail `{ service_id }`.
+  - `closed_by_category_id` is an audit-only field: it is in the audit snapshots and never in an HTTP response.
+  - **Decided 2026-11-13 (SI-Q27, SI-Q28), Waleed:** SI-Q27 = a closed service is accepted at record time only when the line redeems a package session through the package path; any other line on a closed service is refused with `SERVICE_CLOSED` (this PR). SI-Q28 = selling a package that contains a closed service is blocked and closed services are hidden in the package-type composer: a separate follow-up slice, unchanged here; how the worker package import treats a closed service stays TODO(spec) until that slice starts. Both questions are recorded in `owner-questions.ar.md`.
 - **The services list filter** (`32b-pre-1`, SI-Q10): the services list read takes an optional `category_id`, uses
   `services_business_category_idx`, and gets its own `EXPLAIN ANALYZE` assertion; the list items carry `category_id`,
   the category names and whether the category is closed. The service's own `closed_at` joins the detail and list
@@ -586,11 +596,12 @@ audit rows runs in the worker. The synchronous preview is measured in 32b-2 (D-7
 
 The category close and reopen cascades (`32b-cat-2`) stay synchronous only while they fit the budget: each is one
 set-based `UPDATE` of the matching services plus one `INSERT … SELECT` of their audit rows, never a row-by-row loop.
-`32b-cat-2` measures a warm close and reopen of a category holding 1,000 services against 200 ms. No maximum number
-of services per category exists today, so a measured 1,000 does not by itself bound the work: before `32b-cat-2`
-the design advisors pick either the worker for every cascade or a synchronous path for categories up to the measured
-size with the worker above it, and if they do not fit at all, the design advisors move the cascade to the worker (a durable command with status and retries, like the import
-commit), and `32b-cat-2` stops and asks Waleed before it goes on (a technical question, never on the decisions page).
+`32b-cat-2` measured a warm close and reopen at 100, 300, 400, 500, 700 and 1,000 services against 200 ms — measured
+locally on a shared machine, 2026-11-13, not reproducible in CI — and set the synchronous threshold at 300 services as a
+safety margin (see the dated note in the cascade section above); Waleed decided on 2026-11-13 (technical card SI-T2) on
+the synchronous SQL-built path with a worker job for larger categories. That worker path is the follow-up PR
+`32b-cat-2-worker` («close/reopen large categories as a background job»); until it lands, categories above 300 services
+stay synchronous with no cap and no refusal.
 
 ### Test plan
 

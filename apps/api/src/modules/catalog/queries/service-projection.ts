@@ -11,6 +11,7 @@ export type ServiceListRow = {
   readonly counts_toward_threshold: boolean;
   readonly duration_minutes: number | null;
   readonly category_id: string | null;
+  readonly closed_at: string | null;
   readonly revision: number;
   readonly category_name_en: string | null;
   readonly category_name_ar: string | null;
@@ -71,6 +72,7 @@ export function toServiceListItem(row: ServiceListRow): ServiceListItem {
     duration_minutes: row.duration_minutes,
     category_id: row.category_id,
     category: categoryFrom(row),
+    closed_at: row.closed_at,
     revision: row.revision,
   });
 }
@@ -88,6 +90,7 @@ export function toService(row: ServiceDetailRow): Service {
     duration_minutes: row.duration_minutes,
     category_id: row.category_id,
     category: categoryFrom(row),
+    closed_at: row.closed_at,
     revision: row.revision,
     created_at: row.created_at,
     updated_at: row.updated_at,

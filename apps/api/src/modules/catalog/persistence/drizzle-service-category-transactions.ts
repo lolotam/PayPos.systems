@@ -7,7 +7,10 @@ import {
   type ServiceCategoryBranchSettingRecord,
 } from '../domain/service-category-branch.ts';
 import { serviceCategorySnapshot, type ServiceCategoryRecord } from '../domain/service-category.ts';
+import { serviceRecordFromRow, type ServiceRowInput } from '../domain/service-row.ts';
+import type { ServiceRecord } from '../domain/service.ts';
 import type { ServiceCategoryTransactions } from '../ports/service-category-transactions.port.ts';
+import { auditClosing, saveClosing } from './drizzle-service-category-closing.ts';
 
 type Row = {
   id: string;
@@ -89,6 +92,25 @@ async function save(
     WHERE company_id=${companyId} AND business_id=${before.business_id} AND id=${before.id}
       AND revision=${before.revision} RETURNING id`);
   if (rows.length === 0) throw new ServiceCategoryError('SERVICE_CATEGORY_REVISION_CONFLICT');
+}
+
+const SERVICE_COLUMNS = sql`id,business_id,name_en,name_ar,price,commission_rule_kind,
+  commission_pct_bps,commission_fixed_amount,counts_toward_threshold,duration_minutes,category_id,
+  closed_at,closed_by_category_id,revision,created_at,updated_at`;
+
+async function lockServices(
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+  categoryId: string,
+  mode: 'open' | 'marked',
+): Promise<ServiceRecord[]> {
+  const state =
+    mode === 'open' ? sql`AND closed_at IS NULL` : sql`AND closed_by_category_id=${categoryId}`;
+  const rows = await tx.execute<ServiceRowInput & Record<string, unknown>>(sql`SELECT ${SERVICE_COLUMNS} FROM services
+    WHERE company_id=${companyId} AND business_id=${businessId} AND category_id=${categoryId}
+    ${state} ORDER BY id FOR NO KEY UPDATE`);
+  return rows.map(serviceRecordFromRow);
 }
 
 async function loadBranchSetting(
@@ -196,6 +218,13 @@ export function createServiceCategoryTransactions(
                   ...(before === null ? {} : { before: serviceCategorySnapshot(before) }),
                   after: serviceCategorySnapshot(after),
                 }),
+              lockOpenServices: (businessId, categoryId) =>
+                lockServices(tx, companyId, businessId, categoryId, 'open'),
+              lockMarkedServices: (businessId, categoryId) =>
+                lockServices(tx, companyId, businessId, categoryId, 'marked'),
+              saveClosing: (category, services) =>
+                saveClosing(tx, companyId, ids, category, services),
+              auditClosing: (entries) => auditClosing(tx, ids, entries),
               insertBranchSetting: (record) => insertBranchSetting(tx, companyId, record),
               saveBranchSetting: (before, after) =>
                 saveBranchSetting(tx, companyId, before, after),

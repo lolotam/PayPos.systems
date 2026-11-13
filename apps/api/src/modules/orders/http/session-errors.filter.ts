@@ -32,6 +32,7 @@ const PACKAGE_UNPROCESSABLE = new Set<string>([
 function sessionErrorHttpStatus(code: string, invalidStatus: number): number {
   if (code === 'SESSION_PERFORMER_SELF_FORBIDDEN') return 403;
   if (code === 'SESSION_RECORDER_MEMBERSHIP_REQUIRED') return 400;
+  if (code === 'SERVICE_CLOSED') return 409;
   // جلسة مجهولة أو خارج الفرع 404 بلا تمييز، وتعارض مراجعة البقشيش 409 مثل تعارض سطر.
   if (code === 'SESSION_RECOVERY_NOT_FOUND' || code === 'SESSION_NOT_FOUND') return 404;
   if (code === 'SESSION_RECOVERY_NOT_YET' || code === 'SESSION_RECOVERY_CLOSED' || code === 'SESSION_LINE_REVISION_STALE' || code === 'TIP_REVISION_CONFLICT') return 409;

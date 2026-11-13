@@ -41,6 +41,7 @@ function serviceRecord(overrides: Partial<ServiceListItem> = {}): ServiceListIte
       name_ar: 'Legacy AR',
       closed_at: '2026-10-05T10:00:00Z',
     },
+    closed_at: null,
     revision: 1,
     ...overrides,
   };

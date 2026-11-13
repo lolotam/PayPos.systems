@@ -65,6 +65,7 @@ it('SV-08b lists exact DTO projections with stable cursor pages and no duplicate
       duration_minutes: record.duration_minutes,
       category_id: record.category_id,
       category: record.category,
+      closed_at: null,
       revision: record.revision,
     })),
   );
@@ -81,6 +82,7 @@ it('SV-08b lists exact DTO projections with stable cursor pages and no duplicate
         duration_minutes: records[2]?.duration_minutes,
         category_id: records[2]?.category_id,
         category: records[2]?.category,
+        closed_at: null,
         revision: records[2]?.revision,
       },
     ],
