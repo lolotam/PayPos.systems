@@ -208,12 +208,12 @@ it('the entitlement refuses every transition until its own row exists (the expir
   await rejected(
     asApp(sql`UPDATE package_entitlements SET refunded_amount=5.000 WHERE id=${SALE}`),
     '23514',
-    'package_entitlements_refunded_amount_closed',
+    'package_entitlements_revision_step',
   );
   await rejected(
     asApp(sql`UPDATE package_entitlements SET revision=2 WHERE id=${SALE}`),
     '23514',
-    'package_entitlements_revision_closed',
+    'package_refunds_integrity',
   );
   await rejected(
     owner`UPDATE package_entitlements SET name_en='Changed' WHERE id=${SALE}`,
@@ -302,6 +302,7 @@ it('a new session starts free and carries no redemption', async () => {
   const componentId = nextId();
   const slot = (options: SlotOptions) => slotInsert(nextId(), entitlementId, componentId, options);
   // حالة USED من غير استرداع بتقع على قيد الجدول نفسه قبل تريغر التركيب.
+  // وال جلسة المستردة بتتولد حرة بس؛ الوصول للحالة المستردة انتقال من 46-1 مش إدخال.
   const states: [string, string][] = [
     ['REFUNDED', 'package_session_slots_initial_state'],
     ['USED', 'package_session_slots_state_redemption_check'],

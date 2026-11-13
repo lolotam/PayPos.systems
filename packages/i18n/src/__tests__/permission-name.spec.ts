@@ -35,6 +35,7 @@ const LABELLED_CODES = [
   'manage:package-types:business',
   'sell:packages:branch',
   'extend:packages:branch',
+  'refund:packages:branch',
   'import:packages:business',
   'read:service-categories:business',
   'manage:service-categories:business',
@@ -100,4 +101,9 @@ it('PK-Q13 sell:packages:branch has an Arabic and an English name', () => {
 it('PK-Q16 extend:packages:branch has an Arabic and an English name', () => {
   expect(permissionName('ar', 'extend:packages:branch')).toBe('تمديد صلاحية الباقة');
   expect(permissionName('en', 'extend:packages:branch')).toBe('Extend package expiry');
+});
+
+it('FR-050 refund:packages:branch has an Arabic and an English name', () => {
+  expect(permissionName('ar', 'refund:packages:branch')).toBe('استرداد جلسات الباقة');
+  expect(permissionName('en', 'refund:packages:branch')).toBe('Refund package sessions');
 });
