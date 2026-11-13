@@ -3,6 +3,7 @@ import { errorEnvelope, rejectedServiceLine, type AppendServiceSessionLinesRespo
 import { SessionSavedDisplayFailure, sessionAttemptUnresolved, type SessionAttempt, type SessionAttemptCommand,
   type SessionJournalEnvelope } from './session-attempt';
 import type { ExpiredRecoveryProof, SessionAttemptJournal } from './session-attempt-journal';
+import { discountApprovalFingerprint } from './discount-approval-request';
 import { createSessionDraft, type SessionDraftForm, type SessionDraftLine } from './session-drafts';
 
 export type ExpiredAttemptView = {
@@ -91,14 +92,16 @@ function recoverAttempt(state: SessionRecordingResult, attempt: SessionAttempt, 
       performers: line.performers.map((row) => ({ employee_id: row.employee_id, selection: null,
         share_percentage: row.share_bps === undefined ? '' : sessionBpsText(row.share_bps) })) }];
     if (!isPaidAttemptLine(line)) return [];
-    return [{ ...draft, from_package: false, package_entitlement_id: null,
+    const recovered: SessionDraftLine = { ...draft, from_package: false, package_entitlement_id: null,
       service_id: line.service_id, price: line.price, discount_kind: line.discount.kind,
       service: { id: line.service_id, name_ar: null, name_en: line.service_id, price: line.price, price_source: 'INPUT' },
       discount_amount: line.discount.kind === 'AMOUNT' ? line.discount.amount : draft.discount_amount,
       discount_percentage: line.discount.kind === 'PERCENT' ? sessionBpsText(line.discount.bps) : draft.discount_percentage,
       share_mode: line.performers.some((row) => row.share_bps !== undefined) ? 'CUSTOM' : 'EQUAL',
       performers: line.performers.map((row) => ({ employee_id: row.employee_id, selection: null,
-        share_percentage: row.share_bps === undefined ? '' : sessionBpsText(row.share_bps) })) }];
+        share_percentage: row.share_bps === undefined ? '' : sessionBpsText(row.share_bps) })) };
+    return [{ ...recovered, discount_proposal: line.discount_proposal_id
+      ? { id: line.discount_proposal_id, fingerprint: discountApprovalFingerprint(recovered) } : null }];
   });
   const customerId = attempt.kind === 'record' ? attempt.body.customer_id : state.customerId;
   const lines = missing.length ? [...state.drafts.lines, ...missing] : state.drafts.lines;

@@ -1,0 +1,31 @@
+export const discountApprovalEn = {
+  section: 'Discount approval',
+  request: 'Request approval',
+  sending: 'Requesting approval…',
+  pending: 'Waiting for approval',
+  approved: 'Approved',
+  approvedSave: 'Save again now',
+  rejected: 'Rejected',
+  reason: 'Reason',
+  decidedBy: 'Decided by',
+  viaPin: 'via PIN',
+  viaRemote: 'via remote approval',
+  expired: 'Approval request expired',
+  consumed: 'Approval used',
+};
+
+export const discountApprovalAr: Record<keyof typeof discountApprovalEn, string> = {
+  section: 'موافقة الخصم',
+  request: 'اطلب موافقة',
+  sending: 'جاري طلب الموافقة…',
+  pending: 'في انتظار الموافقة',
+  approved: 'اتوافق',
+  approvedSave: 'احفظي تاني دلوقتي',
+  rejected: 'اترفض',
+  reason: 'السبب',
+  decidedBy: 'صاحب القرار',
+  viaPin: 'بـ PIN',
+  viaRemote: 'عن بُعد',
+  expired: 'طلب الموافقة خلص وقته',
+  consumed: 'الموافقة اتستخدمت',
+};

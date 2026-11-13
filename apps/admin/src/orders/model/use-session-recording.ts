@@ -7,6 +7,7 @@ import { useRecordServiceSession } from '../api/use-record-service-session';
 import type { SessionServiceScope } from '../api/use-session-services';
 import type { SessionAttempt, SessionAttemptCommand, SessionAttemptRuntime } from './session-attempt';
 import { createSessionAttemptJournal, type SessionAttemptJournal } from './session-attempt-journal';
+import { discountApprovalFingerprint } from './discount-approval-request';
 import { normalizeSessionPercent, sessionPerformerInputs, type SessionDraftForm, type SessionDraftLine } from './session-drafts';
 import {
   emptySessionRecordingResult, sessionLeaveFeedback, sessionResultCommand, sessionResultFrozen, transitionSessionRecordingResult,
@@ -39,7 +40,7 @@ const pendingJournal: SessionAttemptJournal = {
   dispose() {},
 };
 
-function sessionCommandLines(lines: SessionDraftLine[]): SessionAttemptCommand['body']['lines'] {
+export function sessionCommandLines(lines: SessionDraftLine[]): SessionAttemptCommand['body']['lines'] {
   return lines.map((line) => {
     if (line.from_package) {
       if (line.package_entitlement_id === null) throw new Error('SESSION_PACKAGE_NOT_CHOSEN');
@@ -53,6 +54,9 @@ function sessionCommandLines(lines: SessionDraftLine[]): SessionAttemptCommand['
         ? { kind: 'PERCENT' as const, bps: discountPercentage.parse(normalizeSessionPercent(line.discount_percentage)) }
         : { kind: 'AMOUNT' as const, amount: sessionMoney.parse(normalizeKwdInput(line.discount_amount)) },
       performers: sessionPerformerInputs(line),
+      // تعديل السطر بعد الطلب يسقط الموافقة بصمت، فيرفضها الخادم برفض الحد العادي بدل TERMS_MISMATCH وتقدر المسجّلة تطلب من جديد.
+      ...(line.discount_proposal && discountApprovalFingerprint(line) === line.discount_proposal.fingerprint
+        ? { discount_proposal_id: line.discount_proposal.id } : {}),
     };
   });
 }
