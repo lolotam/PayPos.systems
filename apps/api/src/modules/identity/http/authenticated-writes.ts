@@ -73,6 +73,14 @@ export const AUTHENTICATED_WRITES: Readonly<Record<string, AuthenticatedWriteDec
       'RECORD_SCOPED',
       'apps/api/src/modules/identity/persistence/attendance-device-access.ts#readAttendanceDeviceAccess',
     ),
+    'DeviceDiscountProposalsController.approve': declared(
+      'DEVICE_ONLY',
+      'apps/api/src/modules/orders/use-cases/decide-discount-by-pin/decide-discount-by-pin.usecase.ts#execute',
+    ),
+    'DeviceDiscountProposalsController.reject': declared(
+      'DEVICE_ONLY',
+      'apps/api/src/modules/orders/use-cases/decide-discount-by-pin/decide-discount-by-pin.usecase.ts#execute',
+    ),
     'EmployeeCardsController.issueCard': declared(
       'RECORD_SCOPED',
       'apps/api/src/modules/identity/persistence/employee-scope-access.ts#readEmployeeBranchAccess',

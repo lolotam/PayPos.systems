@@ -68,6 +68,12 @@ import type { Clock } from './ports/service-session-transactions.port.ts';
 import { CustomerPackagesController } from './http/customer-packages.controller.ts';
 import { CustomerPackagesQueryHandler } from './queries/customer-packages.query.ts';
 import { CustomerPackageDetailQueryHandler } from './queries/package-entitlement-detail.query.ts';
+import { DeviceDiscountProposalsController } from './http/device-discount-proposals.controller.ts';
+import { DeviceDiscountProposalsQuery } from './queries/device-discount-proposals.query.ts';
+import { DecideDiscountByPinUseCase } from './use-cases/decide-discount-by-pin/decide-discount-by-pin.usecase.ts';
+import { discountDeviceBusiness, discountDeviceScope, discountPinFence } from './persistence/discount-pin-fence.adapter.ts';
+import { discountPinApprover, type DiscountPinVerifier } from './persistence/discount-pin-approver.adapter.ts';
+import { DISCOUNT_APPROVER_VERIFIER } from '../../shared/discount-approver-pin.ts';
 
 export const ordersControllers: Type[] = [PackageImportPreviewController, PackageExtensionController, SessionRecoveryController, ServiceSessionsController, ServiceSessionFormController, SessionTipsController, DiscountProposalsController];
 export function ordersPerformerOptionsQuery(database: TenantWrappers, clock: Clock = systemClock) {
@@ -177,6 +183,7 @@ export function ordersDiscountDecisions(database: TenantWrappers, ids: IdGenerat
     discount: discountLimit(tx, context.companyId, context.businessId),
     approverName: editorName(tx, context.companyId, context.businessId),
     performers: performerCheck(tx, context.companyId, context.businessId, context.branchId),
+    fence: discountPinFence(tx, context.companyId, context.branchId),
   }));
 }
 function decisionLabels(snapshot: DiscountDeciderSnapshot) {
@@ -201,6 +208,11 @@ export function ordersPendingProposals(database: TenantWrappers, clock: Clock = 
     place: (tx, scope) => sessionBranchBelongs(tx, scope.companyId, scope.businessId, scope.branchId),
     read: (tx, scope) => discountApprovalListAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId),
   }, clock);
+}
+export function ordersDeviceProposals(database: TenantWrappers, clock: Clock = systemClock) {
+  return new DeviceDiscountProposalsQuery(database, clock, {
+    businessOf: (tx, scope) => discountDeviceBusiness(tx, scope),
+  });
 }
 export function ordersProviders(database: TenantWrappers | undefined, ids: IdGenerator, clock: Clock = systemClock): Provider[] {
   const writes = database === undefined ? null : {
@@ -228,6 +240,21 @@ export function ordersProviders(database: TenantWrappers | undefined, ids: IdGen
     { provide: DecideDiscountProposalsUseCase, useValue: database === undefined ? null : new DecideDiscountProposalsUseCase(ordersDiscountDecisions(database, ids), clock, decisionLabels) },
     { provide: RequesterDiscountProposalsQuery, useValue: database === undefined ? null : ordersRequesterProposals(database, clock) },
     { provide: PendingDiscountProposalsQuery, useValue: database === undefined ? null : ordersPendingProposals(database, clock) },
+    { provide: DeviceDiscountProposalsQuery, useValue: database === undefined ? null : ordersDeviceProposals(database, clock) },
+    {
+      provide: DecideDiscountByPinUseCase,
+      useFactory: (
+        verifier: DiscountPinVerifier | null,
+        decide: DecideDiscountProposalsUseCase | null,
+      ) => database === undefined || decide === null
+        ? null
+        : new DecideDiscountByPinUseCase(
+            discountPinApprover(verifier),
+            discountDeviceScope(database),
+            decide,
+          ),
+      inject: [DISCOUNT_APPROVER_VERIFIER, DecideDiscountProposalsUseCase],
+    },
     ...customerPackageProviders(database, clock),
     ...ownWorkProviders(clock)];
 }
@@ -239,6 +266,7 @@ import { ownWorkContext } from './persistence/own-work-context.adapter.ts';
 import { ownWorkPeriodAllowed } from './domain/own-work-period.ts';
 import { staffColumns } from './persistence/staff-columns.adapter.ts';
 
+ordersControllers.push(DeviceDiscountProposalsController);
 ordersControllers.push(OwnWorkController);
 export const ownWorkReads: OwnWorkReads = {
   context: ownWorkContext,

@@ -76,6 +76,7 @@ import { ResetStaffPin } from './use-cases/reset-staff-pin/reset-staff-pin.ts';
 import { PrivateViewController, PRIVATE_VIEW_WINDOWS } from './http/private-view.controller.ts';
 import { OpenPrivateView } from './use-cases/open-private-view/open-private-view.ts';
 import { AUTH_SERVICE } from '../../shared/session.guard.ts';
+import { DISCOUNT_APPROVER_VERIFIER } from '../../shared/discount-approver-pin.ts';
 
 /** توكن التحقق من PIN اعتماد الخصم — الـ provider بيربطه بالـ use case، والـ orders بيحقنه. */
 export const VERIFY_DISCOUNT_APPROVER_PIN = Symbol('VERIFY_DISCOUNT_APPROVER_PIN');
@@ -163,6 +164,7 @@ export function identityProviders(
           : staffPinUseCases(database, ids, redis, staff?.sessions ?? null),
     },
     ...discountApproverProviders(database, ids, redis, staff?.sessions ?? null),
+    { provide: DISCOUNT_APPROVER_VERIFIER, useExisting: VERIFY_DISCOUNT_APPROVER_PIN },
     ...privateViewProviders(database, ids, redis),
     { provide: WORKSPACE_NAMES, useValue: names },
     { provide: OnboardCompany, useValue: onboard },

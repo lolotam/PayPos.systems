@@ -33,6 +33,16 @@ export interface PendingProposalPlaceAccess {
 
 type PerformerRow = { employee_id: string; first_name_en: string; first_name_ar: string | null };
 
+/** أعمدة الطالب التي تبني لقطة التسمية، وتشاركها قائمة جهاز الفرع. */
+export interface DiscountProposalRequesterColumns {
+  requester_first_name_ar: string | null;
+  requester_first_name_en: string | null;
+  requester_role: string;
+  requester_role_is_system: boolean;
+  requester_role_name_ar: string | null;
+  requester_role_name_en: string;
+}
+
 type PendingRow = {
   id: string;
   request_id: string;
@@ -66,8 +76,8 @@ type PendingRow = {
 };
 
 const occurred = sql`to_char(d.occurred_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
-const requestedAt = sql`to_char(d.requested_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
-const expiresAt = sql`to_char(d.expires_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
+export const requestedAt = sql`to_char(d.requested_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
+export const expiresAt = sql`to_char(d.expires_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
 
 function cursorScope(scope: SessionDayScope) {
   return { v: 1 as const, company: scope.companyId, business: scope.businessId, branch: scope.branchId };
@@ -108,7 +118,7 @@ export function pendingDiscountProposalsStatement(scope: SessionDayScope, query:
     ORDER BY d.requested_at DESC NULLS LAST,d.id DESC NULLS LAST LIMIT ${query.limit + 1}`;
 }
 
-function requesterSnapshot(row: PendingRow) {
+export function requesterSnapshot(row: DiscountProposalRequesterColumns) {
   return {
     nameAr: row.requester_first_name_ar,
     nameEn: row.requester_first_name_en,

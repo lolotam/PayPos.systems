@@ -441,6 +441,9 @@ reads:
   - orders -> identity.readServiceSessionPerformersAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
   - orders -> identity.lockDiscountApprovalAccess @ apps/api/src/modules/orders/persistence/discount-approval-access.adapter.ts
   - orders -> identity.readDiscountApprovalAccess @ apps/api/src/modules/orders/persistence/discount-approval-access.adapter.ts
+  - orders -> identity.lockActiveDeviceBusiness @ apps/api/src/modules/orders/persistence/discount-pin-fence.adapter.ts
+  - orders -> identity.lockApproverPinRevision @ apps/api/src/modules/orders/persistence/discount-pin-fence.adapter.ts
+  - orders -> identity.readActiveDeviceBusiness @ apps/api/src/modules/orders/persistence/discount-pin-fence.adapter.ts
   - orders -> catalog.readSessionServices @ apps/api/src/modules/orders/persistence/catalog-reader.adapter.ts
   - orders -> catalog.readPackageTypeForSale @ apps/api/src/modules/orders/persistence/catalog-reader.adapter.ts
   - orders -> customers.readSessionCustomer @ apps/api/src/modules/orders/persistence/customer-lookup.adapter.ts
