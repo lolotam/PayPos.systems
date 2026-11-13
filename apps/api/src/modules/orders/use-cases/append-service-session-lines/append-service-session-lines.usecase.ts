@@ -11,6 +11,7 @@ import type { SessionRecord } from '../../domain/session-types.ts';
 import type { SessionRecoveryPort } from '../../ports/session-recovery.port.ts';
 import type { Clock, IdGenerator, ServiceSessionTransactions, SessionWriteContext, SessionTransaction } from '../../ports/service-session-transactions.port.ts';
 import { sessionDrafts } from '../../domain/session-drafts.ts';
+import { resolveClosedServiceRedemption } from '../../domain/closed-service-redemption.ts';
 import { approvalDecisions, commitDiscountApprovals, consumptionActor, lockApprovalProposals } from '../consume-discount-approval/consume-discount-approvals.ts';
 import { assertPackageFactsAllowed, assertRecorderAuthorizedAfterLock, packagePreparedDrafts, packageRedemptionWrites, resolvePackageRedemptions, type PackageRedemptionFact } from '../redeem-package-session/package-redemption-write.ts';
 
@@ -56,9 +57,12 @@ export class AppendServiceSessionLinesUseCase {
     const locked = await lockApprovalProposals(tx, context.input.lines);
     const place = await tx.place.read();
     if (place === null) throw new SessionError('FORBIDDEN');
-    const services = await tx.catalog.read(serviceIds);
+    const catalogServices = await tx.catalog.readIncludingClosed(serviceIds);
     const employees = await tx.performers.read(employeeIds, original.occurred_at);
     const drafts = sessionDrafts(context.input.lines);
+    // القراءة بتجيب الخدمات المغلقة مع غيرها، لأن سطر الباقة بيسجّل خدمة مقفولة؛
+    // والحكم على السطر المدفوع في الـ domain قبل أي قفل استحقاق أو كتابة.
+    const services = resolveClosedServiceRedemption(catalogServices, drafts);
     // قفل الاستحقاقات هو آخر قفل مال؛ صلاحية الباقة تقاس بيوم فرع الزيارة لا بيوم النشاط.
     // توقيت الفرع يُقرأ وحده عند وجود مسودة باقة، فالإضافة المدفوعة ما تدفعش الاستعلام ده.
     let facts = new Map<number, PackageRedemptionFact>();

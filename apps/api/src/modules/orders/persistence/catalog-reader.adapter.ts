@@ -39,6 +39,10 @@ export function catalogReader(tx: Tx, companyId: string, businessId: string): Ca
         throw new SessionError('SERVICE_CLOSED', { service_id: closed.id });
       return rows.map(mapService);
     },
+    readIncludingClosed: async (ids) => {
+      const rows = await readSessionServices(tx, companyId, businessId, ids);
+      return rows.map((row) => ({ ...mapService(row), closed: row.closed_at !== null }));
+    },
     readPackageTypeForSale: async (packageTypeId) => {
       const type = await readPackageTypeForSale(tx, companyId, businessId, packageTypeId);
       if (type === null) return null;
