@@ -107,6 +107,30 @@ export class CommissionCoverageScopeInvalidError extends Error {
   }
 }
 
+const CALENDAR_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * يرفض التواريخ التي يقبلها شكل YYYY-MM-DD ولا وجود لها في التقويم، لأن فحص البقشيش
+ * بنطاق محوّل تلقائياً إلى يوم آخر يعطي المشغّل نتيجة تغطية عن نطاق لم يطلبه.
+ *
+ * @param value التاريخ النصي المطلوب فحصه
+ * @returns true فقط لتاريخ تقويمي حقيقي بصيغة YYYY-MM-DD، بما فيه السنوات 0000-9999
+ */
+export function isCommissionCoverageCalendarDate(value: string): boolean {
+  const match = CALENDAR_DATE.exec(value);
+  if (match === null) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(2000, 0, 1));
+  date.setUTCFullYear(year, month - 1, day);
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
 interface CheckContext {
   readonly deps: CommissionCoverageDeps;
   readonly companyId: string;
@@ -124,6 +148,10 @@ export async function runCommissionCoverageReport(
   deps: CommissionCoverageDeps,
   scope: CommissionCoverageScope,
 ): Promise<CommissionCoverageReport> {
+  if (scope.tips !== undefined &&
+    (!isCommissionCoverageCalendarDate(scope.tips.from) ||
+      !isCommissionCoverageCalendarDate(scope.tips.to)))
+    throw new CommissionCoverageScopeInvalidError();
   const companyId = scope.companyId.toLowerCase();
   const open = await deps.withTenant(companyId, (tx) => deps.companies.isOpen(tx, companyId));
   if (!open) throw new CommissionCoverageScopeInvalidError();

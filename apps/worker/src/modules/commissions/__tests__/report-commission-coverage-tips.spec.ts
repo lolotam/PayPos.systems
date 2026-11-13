@@ -10,6 +10,8 @@ import type {
 } from '../ports/commission-coverage.port.ts';
 import type { BootstrapTipPage, CurrentTipSessionsReader } from '../ports/commission-tip-bootstrap.port.ts';
 import {
+  CommissionCoverageScopeInvalidError,
+  isCommissionCoverageCalendarDate,
   runCommissionCoverageReport,
   type CommissionCoverageDeps,
   type CommissionCoverageScope,
@@ -148,10 +150,9 @@ interface HarnessOptions {
 }
 
 function harness(options: HarnessOptions) {
-  const withTenant: CoverageTenantRunner = async <T>(
-    _companyId: string,
-    fn: (tx: CoverageTx) => Promise<T>,
-  ): Promise<T> => fn(DUMMY_TX);
+  const withTenant = vi.fn(
+    async (_companyId: string, fn: (tx: CoverageTx) => Promise<unknown>) => fn(DUMMY_TX),
+  ) as unknown as CoverageTenantRunner;
   const deps: CommissionCoverageDeps = {
     withTenant,
     lines: emptyLineReader(),
@@ -161,7 +162,7 @@ function harness(options: HarnessOptions) {
       ...(options.marked === undefined ? {} : { marked: options.marked }),
     }),
     retained: retainedReader(options.events ?? []),
-    companies: { isOpen: async () => true },
+    companies: { isOpen: vi.fn(async () => true) },
     consumerId: CONSUMER,
     handledTypes: HANDLED_TYPES,
     tipsReader: tipsReader(options.sessions ?? []),
@@ -283,5 +284,65 @@ describe('runCommissionCoverageReport: the six-type retained events', () => {
     expect(report.throughId).toBe(packageSale.id);
     expect(report.notHandled.total).toBe(1);
     expect(report.status).toBe('NOT_COVERED');
+  });
+});
+
+function expectNoReaderCalls(deps: CommissionCoverageDeps) {
+  expect(deps.withTenant).not.toHaveBeenCalled();
+  expect(deps.companies.isOpen).not.toHaveBeenCalled();
+  expect(deps.lines.readPage).not.toHaveBeenCalled();
+  expect(deps.salaries.readPage).not.toHaveBeenCalled();
+  expect(deps.retained.commissionRetainedEventPage).not.toHaveBeenCalled();
+  expect(deps.tipsReader?.readPage).not.toHaveBeenCalled();
+}
+
+describe('runCommissionCoverageReport: calendar dates in the tip scope', () => {
+  it.each([
+    { from: '2026-02-30', to: '2026-03-10' },
+    { from: '2026-01-01', to: '2026-13-01' },
+    { from: '2026-04-31', to: '2026-05-01' },
+    { from: '2026-02-29', to: '2026-03-01' },
+  ])('refuses the impossible date range $from through $to before any read', async ({ from, to }) => {
+    const { deps } = harness({});
+    const promise = run(deps, { tips: { ...tipScope, from, to } });
+
+    await expect(promise).rejects.toThrow(CommissionCoverageScopeInvalidError);
+    await expect(promise).rejects.toMatchObject({ code: 'COMMISSION_COVERAGE_SCOPE_INVALID' });
+    expectNoReaderCalls(deps);
+  });
+
+  it('accepts 2024-02-29 as a real leap day', async () => {
+    const { deps } = harness({});
+
+    const report = await run(deps, {
+      tips: { ...tipScope, from: '2024-02-29', to: '2024-02-29' },
+    });
+
+    expect(report.status).toBe('COVERED');
+    expect(report.tips?.checked).toBe(0);
+  });
+});
+
+describe('isCommissionCoverageCalendarDate', () => {
+  it.each(['2024-02-29', '2026-02-28', '0000-02-29', '9999-12-31'])(
+    'accepts the real calendar date %s',
+    (value) => {
+      expect(isCommissionCoverageCalendarDate(value)).toBe(true);
+    },
+  );
+
+  it.each([
+    '2026-02-29',
+    '2026-02-30',
+    '2026-13-01',
+    '2026-04-31',
+    '2026-00-01',
+    '2026-01-00',
+    '26-01-01',
+    '2026-1-01',
+    '2026-01-1',
+    'not-a-date',
+  ])('refuses the invalid calendar date %s', (value) => {
+    expect(isCommissionCoverageCalendarDate(value)).toBe(false);
   });
 });

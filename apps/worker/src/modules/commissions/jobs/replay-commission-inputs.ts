@@ -49,6 +49,46 @@ export class CommissionReplayCursorError extends Error {
   }
 }
 
+/** إعدادات تشغيل غير صالحة تُرفض برمز ثابت حتى لا تظهر للمشغّل كفشل استعادة عام. */
+export class CommissionReplayConfigurationError extends Error {
+  readonly code = 'COMMISSION_REPLAY_CONFIGURATION';
+
+  constructor() {
+    super('COMMISSION_REPLAY_CONFIGURATION');
+    this.name = 'CommissionReplayConfigurationError';
+  }
+}
+
+/**
+ * يحوّل أخطاء الاستعادة المعروفة إلى رموزها الثابتة حتى لا يخرج نص خام للمشغّل.
+ *
+ * @param error الخطأ الملتقط من التشغيل أو قراءة الأحداث
+ * @returns رمز الخطأ المعروف، أو COMMISSION_REPLAY_FAILED لأي خطأ آخر
+ */
+export function commissionReplayErrorCode(error: unknown): string {
+  if (
+    error instanceof ReplayCursorError ||
+    error instanceof CommissionReplayCursorError ||
+    error instanceof CommissionReplayEventInvalidError ||
+    error instanceof CommissionReplayConfigurationError
+  ) {
+    return error.code;
+  }
+  return 'COMMISSION_REPLAY_FAILED';
+}
+
+/**
+ * يقيّد نطاق الاستعادة بالنوعين المدعومين حتى لا تبدأ قراءة بنطاق غير معروف.
+ *
+ * @param value قيمة --types الخام، أو undefined لاختيار الأنواع الأربعة
+ * @returns four للأنواع الأربعة أو six للأنواع الستة
+ */
+export function parseCommissionReplayTypes(value: string | undefined): 'four' | 'six' {
+  const types = value ?? 'four';
+  if (types === 'four' || types === 'six') return types;
+  throw new CommissionReplayConfigurationError();
+}
+
 /**
  * يثبت صحة الحدود ويمنع الاستئناف دون حد أعلى حتى يبقى نطاق الاستعادة ثابتًا.
  *

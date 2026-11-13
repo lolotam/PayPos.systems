@@ -328,8 +328,9 @@ no `published_at`, no `attempts`, no mark and no projection change.
    shape as the lines, or `null` when no tip scope was supplied), `tipsNote` (one line saying the tip coverage was NOT checked and how to
    check it, or `null` when it was) and `truncated`. Ids and counts only,
    never an amount and never a name. The exit code is 0 only for `COVERED`.
-4. **Remedy.** A `missing` or a `stale` line or salary, or an unmarked event whose retained event exists: re-run the 50-3a replay
-   for the company with its `--through`, then re-run this report. If a line or a salary stays missing and no retained event exists
+4. **Remedy.** A `missing` or a `stale` line or salary, or an unmarked event whose retained event exists: re-run the 50-3d six-type
+   replay (`--types six`) for the company with its `--through`, then re-run this report. Do not use the 50-3a four-type run for this: it
+   is filtered to the four origin types and cannot replay a retained `SessionTipsChanged` (or `PackageSaleChanged`) event. If a line or a salary stays missing and no retained event exists
    for it, the replay cannot recover it: approval stays closed and the manager investigates (re-emitting an event is not designed).
    Do not insert a mark or an event by hand.
 5. **Limits.** The retained-event check covers the six counted types (`ServiceSessionRecorded`, `ServiceSessionLinesAdded`,

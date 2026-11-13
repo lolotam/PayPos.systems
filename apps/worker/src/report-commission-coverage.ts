@@ -9,6 +9,7 @@ import {
   CommissionCoverageScopeInvalidError,
   CommissionReplayCursorError,
   createCommissionCoverageReport,
+  isCommissionCoverageCalendarDate,
   type CommissionCoverageScope,
 } from './modules/commissions/index.ts';
 import { readCurrentSessionTips, readServiceLineCoveragePage } from './modules/orders/index.ts';
@@ -17,7 +18,6 @@ import { companyOpen } from './modules/tenancy/index.ts';
 
 const MAX_BUSINESS_IDS = 200;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 const CONFIGURATION_CODE = 'COMMISSION_COVERAGE_CONFIGURATION';
 
@@ -62,7 +62,8 @@ function readTipScope(values: ScopeOptions): CommissionCoverageScope['tips'] {
   if (businesses === undefined && from === undefined && to === undefined) return undefined;
   if (businesses === undefined || from === undefined || to === undefined)
     throw new Error(CONFIGURATION_CODE);
-  if (!DATE.test(from) || !DATE.test(to) || from > to) throw new Error(CONFIGURATION_CODE);
+  if (!isCommissionCoverageCalendarDate(from) || !isCommissionCoverageCalendarDate(to) || from > to)
+    throw new Error(CONFIGURATION_CODE);
   const ids = [...new Set(businesses.split(',').map((entry) => entry.trim().toLowerCase()))];
   if (ids.length === 0 || ids.length > MAX_BUSINESS_IDS) throw new Error(CONFIGURATION_CODE);
   for (const id of ids) if (!UUID.test(id)) throw new Error(CONFIGURATION_CODE);

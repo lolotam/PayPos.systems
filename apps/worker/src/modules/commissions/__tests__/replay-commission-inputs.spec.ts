@@ -4,8 +4,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { OutboxConsumer } from '../../../outbox/consumer.ts';
 import {
+  CommissionReplayConfigurationError,
   CommissionReplayCursorError,
   CommissionReplayEventInvalidError,
+  commissionReplayErrorCode,
+  parseCommissionReplayTypes,
   recordCommissionFailureCodes,
   runCommissionInputReplay,
   type CommissionFailureCodes,
@@ -335,5 +338,41 @@ describe('recordCommissionFailureCodes', () => {
     const wrappedSuccess = recordCommissionFailureCodes(consumer(async () => undefined), failures);
     await expect(wrappedSuccess.handle({} as never, successEvent)).resolves.toBeUndefined();
     expect(failures.has(successEvent.id)).toBe(false);
+  });
+});
+
+describe('commission replay configuration', () => {
+  it('rejects an unknown types value with the configuration code', () => {
+    expect(() => parseCommissionReplayTypes('seven')).toThrow(CommissionReplayConfigurationError);
+    expect(() => parseCommissionReplayTypes('seven')).toThrow(
+      expect.objectContaining({ code: 'COMMISSION_REPLAY_CONFIGURATION' }),
+    );
+  });
+
+  it('defaults to four types and accepts the six-type scope', () => {
+    expect(parseCommissionReplayTypes(undefined)).toBe('four');
+    expect(parseCommissionReplayTypes('six')).toBe('six');
+  });
+});
+
+describe('commissionReplayErrorCode', () => {
+  it('returns each typed replay error code', () => {
+    const replayCursorError = new ReplayCursorError();
+    expect(commissionReplayErrorCode(replayCursorError)).toBe(replayCursorError.code);
+    expect(commissionReplayErrorCode(new CommissionReplayCursorError())).toBe(
+      'COMMISSION_REPLAY_THROUGH_REQUIRED',
+    );
+    expect(commissionReplayErrorCode(new CommissionReplayEventInvalidError())).toBe(
+      'COMMISSION_REPLAY_EVENT_INVALID',
+    );
+    expect(commissionReplayErrorCode(new CommissionReplayConfigurationError())).toBe(
+      'COMMISSION_REPLAY_CONFIGURATION',
+    );
+  });
+
+  it('maps an untyped error to the generic replay failure', () => {
+    expect(commissionReplayErrorCode(new Error('database connection lost'))).toBe(
+      'COMMISSION_REPLAY_FAILED',
+    );
   });
 });
