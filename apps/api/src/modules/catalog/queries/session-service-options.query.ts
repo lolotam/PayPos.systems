@@ -14,7 +14,7 @@ export function sessionServiceOptionsStatement(companyId: string, businessId: st
     : sql`coalesce(name_en,name_ar) COLLATE "und-x-icu"`;
   const escapedQ = query.q?.trim().replace(/[\\%_]/g, '\\$&');
   return sql`SELECT id,name_ar,name_en,price,revision,${name} AS sort_key FROM services
-    WHERE company_id=${companyId} AND business_id=${businessId}
+    WHERE company_id=${companyId} AND business_id=${businessId} AND closed_at IS NULL
     ${cursor === null ? sql`` : sql`AND (${name},id)>(${cursor.key}::text COLLATE "und-x-icu",${cursor.id}::uuid)`}
     ${escapedQ === undefined ? sql`` : sql`AND (lower(name_ar COLLATE "und-x-icu") LIKE '%' || lower(${escapedQ}::text COLLATE "und-x-icu") || '%' ESCAPE ${'\\'}
       OR lower(name_en COLLATE "und-x-icu") LIKE '%' || lower(${escapedQ}::text COLLATE "und-x-icu") || '%' ESCAPE ${'\\'})`}

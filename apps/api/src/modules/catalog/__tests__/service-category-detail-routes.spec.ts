@@ -1,7 +1,9 @@
+import { sql } from 'drizzle-orm';
 import { recordServiceSessionResponse, serviceCategory, serviceCategoryDetail } from '@pospay/contracts';
 import { systemUuidV7 } from '@pospay/ids';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
+import { serviceCategoryDetailStatement } from '../queries/service-category-detail.query.ts';
 import {
   ids as sessionIds,
   must,
@@ -195,4 +197,15 @@ it('a closed service cannot be appended to a saved session', async () => {
   });
   expect(response.status).toBe(409);
   expect(response.body['code']).toBe('SERVICE_CLOSED');
+});
+
+it('the category detail query plans on a tenant-scoped category index', async () => {
+  const categoryId = await categoryWithService('Indexed detail category');
+  const plan = await f.db.withTenant(f.company, async (tx) => {
+    await tx.execute(sql`SET LOCAL enable_seqscan=off`);
+    return tx.execute(
+      sql`EXPLAIN (ANALYZE, FORMAT JSON) ${serviceCategoryDetailStatement(f.company, f.business, categoryId)}`,
+    );
+  });
+  expect(JSON.stringify(plan)).toMatch(/service_categories_(company_business_id_key|pkey)/);
 });

@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 import type { Service } from '@pospay/contracts';
 type ServiceCommissionRule = Service['commission_rule'];
 
-type Row = { id: string; name_en: string; name_ar: string | null; price: string; commission_rule_kind: ServiceCommissionRule['kind']; commission_pct_bps: number | null; commission_fixed_amount: string | null; counts_toward_threshold: boolean; revision: number };
+type Row = { id: string; name_en: string; name_ar: string | null; price: string; commission_rule_kind: ServiceCommissionRule['kind']; commission_pct_bps: number | null; commission_fixed_amount: string | null; counts_toward_threshold: boolean; revision: number; closed_at: string | null };
 function rule(row: Row): ServiceCommissionRule {
   switch (row.commission_rule_kind) {
     case 'FOLLOW_PLAN': return { kind: 'FOLLOW_PLAN' };
@@ -18,9 +18,10 @@ export async function readSessionServices(tx: Tx, companyId: string, businessId:
   if (serviceIds.length === 0 || serviceIds.length > 20) throw new RangeError('Session service batch size');
   const ids = [...new Set(serviceIds)].sort();
   const query = sql`SELECT id,name_en,name_ar,price::text,commission_rule_kind,commission_pct_bps,
-    commission_fixed_amount::text,counts_toward_threshold,revision FROM services
+    commission_fixed_amount::text,counts_toward_threshold,revision,
+    to_char(closed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS closed_at FROM services
     WHERE company_id=${companyId} AND business_id=${businessId} AND id=ANY(ARRAY[${sql.join(ids.map((id) => sql`${id}`), sql`,`)}]::uuid[]) ORDER BY id`;
   const rows = await tx.execute<Row>(lockOnly ? sql`${query} FOR SHARE` : query);
   return lockOnly ? [] : rows.map((row) => ({ id: row.id, name_en: row.name_en, name_ar: row.name_ar, price: row.price,
-    rule: rule(row), counts: row.counts_toward_threshold, revision: row.revision }));
+    rule: rule(row), counts: row.counts_toward_threshold, revision: row.revision, closed_at: row.closed_at }));
 }
