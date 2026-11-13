@@ -227,6 +227,17 @@ A root-bound read adds a **Port row** to `docs/module-map.md` §3 and **no impor
 import). 59-0 added the Port rows for its own root-bound readers to `docs/module-map.md` §3 in the same PR; the two
 coverage readers of the 2026-11-12 addendum get theirs in sub-PR 50-3c, the PR that adds the readers.
 
+**Amendment 2026-11-13 (sub-PR 50-3c).** The two coverage readers are the ports `ServiceLineCoverageReader` (the
+orders-owned `readServiceLineCoveragePage`) and `SalaryCoverageReader` (the staff-owned `readSalaryCoveragePage`); both are
+owned by `commissions` and bound at the worker composition root `apps/worker/src/report-commission-coverage.ts`. The comparison
+is the pure `compareCoverage` in `packages/commissions-engine`: a projection revision >= the source revision is covered, a key
+with no projection row is missing, and a lower revision is stale; 53-2's api binding reuses it later with api-side readers. The
+Port rows are added to `docs/module-map.md` §3; there is no import arrow, no migration, no new role and no new grant. The
+retained-event check (the events without the consumer's mark) reads the outbox only through `commissionInputReplayPage` as
+`pospay_dispatcher` and reads the consumer's marks through `pospay_app` `withTenant`. It covers the four 50-0 types until 50-3d
+adds the six-type facade. Tip coverage by revision and the tip event-id check are DEFERRED to sub-PR 50-3d (manager decision
+2026-11-13; they need the six-type facade that 50-3d builds), not merely omitted.
+
 **The rule from D-16:** if a reader cannot be bound at the root, the sub-PR that needs it stops and adds an ADR and the
 module-map row first.
 

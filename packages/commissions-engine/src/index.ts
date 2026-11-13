@@ -13,6 +13,25 @@ export type {
   ServiceCommissionOverride,
   ServiceCommissionRule,
 } from './commission-types.ts';
+export {
+  addComparison,
+  addUnmarkedPage,
+  appendCapped,
+  emptyCappedList,
+  emptyCoverageTotals,
+  emptyUnmarkedTotals,
+} from './coverage-accumulation.ts';
+export type {
+  CappedList,
+  CoverageTotals,
+  UnmarkedTotals,
+} from './coverage-accumulation.ts';
+export {
+  compareCoverage,
+  coverageKey,
+  findUnmarkedEventIds,
+} from './coverage-comparison.ts';
+export type { CoverageComparison, CoverageRow } from './coverage-comparison.ts';
 export type {
   CommissionConfigurationError,
   CommissionValidationError,

@@ -23,3 +23,7 @@ export const daySessionsReader = {
 
 export { startPackagePreviewWorker } from './orders.module.ts';
 export { readCurrentSessionTips } from './queries/current-session-tips.reader.ts';
+export {
+  readServiceLineCoveragePage,
+  serviceLineCoverageStatement,
+} from './queries/service-line-coverage.reader.ts';
