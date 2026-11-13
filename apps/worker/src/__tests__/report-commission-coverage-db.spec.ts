@@ -171,8 +171,8 @@ it('CM-24 reports the uncovered lines and the unmarked events until the replay p
     checked: 2,
     total: 2,
     events: [
-      { eventId: recorded.id, eventType: 'ServiceSessionRecorded' },
-      { eventId: changed.id, eventType: 'ServiceLineChanged' },
+      { eventId: recorded.id, type: 'ServiceSessionRecorded' },
+      { eventId: changed.id, type: 'ServiceLineChanged' },
     ],
   });
 

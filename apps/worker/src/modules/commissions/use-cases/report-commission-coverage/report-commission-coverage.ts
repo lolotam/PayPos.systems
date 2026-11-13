@@ -1,8 +1,13 @@
 import {
+  addComparison,
+  addUnmarkedPage,
   compareCoverage,
   coverageKey,
+  emptyCoverageTotals,
+  emptyUnmarkedTotals,
   findUnmarkedEventIds,
-  type CoverageComparison,
+  type CoverageTotals,
+  type UnmarkedTotals,
 } from '@pospay/commissions-engine';
 
 import type {
@@ -30,6 +35,9 @@ export interface CoverageIdList {
   readonly ids: readonly string[];
 }
 
+/** حدث محتفظ به غير مستهلك في التقرير: هويته ونوعه بلا حمولة. */
+type UnmarkedEvent = { eventId: string; type: string };
+
 /** نتيجة التغطية الخالية من الحمولات والمبالغ والأسماء، مع حالة الاعتماد وسقف القوائم. */
 export interface CommissionCoverageReport {
   readonly status: 'COVERED' | 'NOT_COVERED';
@@ -47,7 +55,7 @@ export interface CommissionCoverageReport {
   readonly unmarked: {
     readonly checked: number;
     readonly total: number;
-    readonly events: readonly { eventId: string; eventType: string }[];
+    readonly events: readonly UnmarkedEvent[];
   };
   readonly truncated: boolean;
 }
@@ -72,29 +80,14 @@ export class CommissionCoverageEventInvalidError extends Error {
   }
 }
 
-interface ReportState {
-  truncated: boolean;
-}
-
 interface CheckContext {
   readonly deps: CommissionCoverageDeps;
   readonly companyId: string;
-  readonly state: ReportState;
 }
 
-interface CoverageTotals {
-  checked: number;
-  missingTotal: number;
-  staleTotal: number;
-  readonly missingIds: string[];
-  readonly staleIds: string[];
-}
-
-interface UnmarkedResult {
-  throughId: string | null;
-  checked: number;
-  total: number;
-  readonly events: { eventId: string; eventType: string }[];
+interface UnmarkedCheck {
+  readonly throughId: string | null;
+  readonly totals: UnmarkedTotals<UnmarkedEvent>;
 }
 
 /**
@@ -112,33 +105,37 @@ export async function runCommissionCoverageReport(
   const context: CheckContext = {
     deps,
     companyId: scope.companyId.toLowerCase(),
-    state: { truncated: false },
   };
-  const lines = await checkLines(context);
-  const salaries = await checkSalaries(context);
+  const lineTotals = await checkLines(context);
+  const salaryTotals = await checkSalaries(context);
   const unmarked = await checkUnmarked(context, scope.throughId);
   const covered =
-    lines.missing.total === 0 &&
-    lines.stale.total === 0 &&
-    salaries.missing.total === 0 &&
-    salaries.stale.total === 0 &&
-    unmarked.total === 0;
+    lineTotals.missing.total === 0 &&
+    lineTotals.stale.total === 0 &&
+    salaryTotals.missing.total === 0 &&
+    salaryTotals.stale.total === 0 &&
+    unmarked.totals.unmarked.total === 0;
   return {
     status: covered ? 'COVERED' : 'NOT_COVERED',
     throughId: unmarked.throughId,
-    lines,
-    salaries,
+    lines: coverageResult(lineTotals),
+    salaries: coverageResult(salaryTotals),
     unmarked: {
-      checked: unmarked.checked,
-      total: unmarked.total,
-      events: unmarked.events,
+      checked: unmarked.totals.checked,
+      total: unmarked.totals.unmarked.total,
+      events: unmarked.totals.unmarked.items,
     },
-    truncated: context.state.truncated,
+    truncated:
+      lineTotals.missing.truncated ||
+      lineTotals.stale.truncated ||
+      salaryTotals.missing.truncated ||
+      salaryTotals.stale.truncated ||
+      unmarked.totals.unmarked.truncated,
   };
 }
 
-async function checkLines(context: CheckContext): Promise<CommissionCoverageReport['lines']> {
-  const totals = emptyCoverageTotals();
+async function checkLines(context: CheckContext): Promise<CoverageTotals> {
+  let totals = emptyCoverageTotals();
   let after: string | null = null;
   for (;;) {
     const result = await context.deps.withTenant(context.companyId, async (tx) => {
@@ -161,14 +158,14 @@ async function checkLines(context: CheckContext): Promise<CommissionCoverageRepo
         ),
       };
     });
-    collectCoverage(totals, result.comparison, context.state);
+    totals = addComparison(totals, result.comparison, REPORT_LIST_LIMIT);
     after = result.nextAfter;
-    if (after === null) return coverageResult(totals);
+    if (after === null) return totals;
   }
 }
 
-async function checkSalaries(context: CheckContext): Promise<CommissionCoverageReport['salaries']> {
-  const totals = emptyCoverageTotals();
+async function checkSalaries(context: CheckContext): Promise<CoverageTotals> {
+  let totals = emptyCoverageTotals();
   let after: Parameters<SalaryCoverageReader['readPage']>[2] = null;
   for (;;) {
     const result = await context.deps.withTenant(context.companyId, async (tx) => {
@@ -192,9 +189,9 @@ async function checkSalaries(context: CheckContext): Promise<CommissionCoverageR
         ),
       };
     });
-    collectCoverage(totals, result.comparison, context.state);
+    totals = addComparison(totals, result.comparison, REPORT_LIST_LIMIT);
     after = result.next;
-    if (after === null) return coverageResult(totals);
+    if (after === null) return totals;
   }
 }
 
@@ -208,27 +205,23 @@ function salaryCoverageRow(row: SalaryCoverageRow) {
 async function checkUnmarked(
   context: CheckContext,
   requestedThroughId: string | null,
-): Promise<UnmarkedResult> {
-  const result: UnmarkedResult = {
-    throughId: requestedThroughId,
-    checked: 0,
-    total: 0,
-    events: [],
-  };
+): Promise<UnmarkedCheck> {
+  let totals = emptyUnmarkedTotals<UnmarkedEvent>();
+  let throughId = requestedThroughId;
   let afterId: string | null = null;
   let firstPage = true;
   for (;;) {
     const page = await context.deps.retained.commissionInputReplayPage(
       context.companyId,
       afterId,
-      result.throughId,
+      throughId,
       RETAINED_PAGE_SIZE,
     );
     if (firstPage) {
-      result.throughId = page.throughId;
+      throughId = page.throughId;
       firstPage = false;
     }
-    if (page.events.length === 0) return result;
+    if (page.events.length === 0) return { throughId, totals };
     for (const event of page.events) {
       if (event.companyId !== context.companyId) {
         throw new CommissionCoverageEventInvalidError();
@@ -247,40 +240,17 @@ async function checkUnmarked(
     const unmarkedSet = new Set(unmarkedIds);
     const events = page.events
       .filter((event) => unmarkedSet.has(event.id))
-      .map((event) => ({ eventId: event.id, eventType: event.eventType }));
-    pushCapped(result.events, events, context.state);
-    result.checked += page.events.length;
-    result.total += unmarkedIds.length;
+      .map((event) => ({ eventId: event.id, type: event.eventType }));
+    totals = addUnmarkedPage(totals, page.events.length, events, REPORT_LIST_LIMIT);
     afterId = page.events.at(-1)?.id ?? afterId;
-    if (page.events.length < RETAINED_PAGE_SIZE) return result;
+    if (page.events.length < RETAINED_PAGE_SIZE) return { throughId, totals };
   }
-}
-
-function emptyCoverageTotals(): CoverageTotals {
-  return { checked: 0, missingTotal: 0, staleTotal: 0, missingIds: [], staleIds: [] };
-}
-
-function collectCoverage(
-  totals: CoverageTotals,
-  comparison: CoverageComparison,
-  state: ReportState,
-): void {
-  totals.checked += comparison.checked;
-  totals.missingTotal += comparison.missing.length;
-  totals.staleTotal += comparison.stale.length;
-  pushCapped(totals.missingIds, comparison.missing, state);
-  pushCapped(totals.staleIds, comparison.stale, state);
-}
-
-function pushCapped<T>(target: T[], additions: readonly T[], state: ReportState): void {
-  if (target.length + additions.length > REPORT_LIST_LIMIT) state.truncated = true;
-  target.push(...additions.slice(0, Math.max(0, REPORT_LIST_LIMIT - target.length)));
 }
 
 function coverageResult(totals: CoverageTotals): CommissionCoverageReport['lines'] {
   return {
     checked: totals.checked,
-    missing: { total: totals.missingTotal, ids: totals.missingIds },
-    stale: { total: totals.staleTotal, ids: totals.staleIds },
+    missing: { total: totals.missing.total, ids: totals.missing.items },
+    stale: { total: totals.stale.total, ids: totals.stale.items },
   };
 }

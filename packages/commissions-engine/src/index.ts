@@ -14,6 +14,19 @@ export type {
   ServiceCommissionRule,
 } from './commission-types.ts';
 export {
+  addComparison,
+  addUnmarkedPage,
+  appendCapped,
+  emptyCappedList,
+  emptyCoverageTotals,
+  emptyUnmarkedTotals,
+} from './coverage-accumulation.ts';
+export type {
+  CappedList,
+  CoverageTotals,
+  UnmarkedTotals,
+} from './coverage-accumulation.ts';
+export {
   compareCoverage,
   coverageKey,
   findUnmarkedEventIds,

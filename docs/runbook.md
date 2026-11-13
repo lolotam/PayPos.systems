@@ -318,7 +318,7 @@ no `published_at`, no `attempts`, no mark and no projection change.
    Run it after the 50-3a replay and the 50-3b bootstrap finished, and use the same `--through` as the replay.
 3. **Output.** One JSON line: `status` (`COVERED` or `NOT_COVERED`), `throughId`, `lines` and `salaries` (each with `checked`,
    `missing` and `stale`, each list carrying its `total` and at most 200 ids; a salary id is `employeeId|YYYY-MM-DD`), `unmarked`
-   (`checked`, `total` and `events` with the event id and the event type, at most 200) and `truncated`. Ids and counts only,
+   (`checked`, `total` and `events` with `eventId` and `type`, at most 200) and `truncated`. Ids and counts only,
    never an amount and never a name. The exit code is 0 only for `COVERED`.
 4. **Remedy.** A `missing` or a `stale` line or salary, or an unmarked event whose retained event exists: re-run the 50-3a replay
    for the company with its `--through`, then re-run this report. If a line or a salary stays missing and no retained event exists

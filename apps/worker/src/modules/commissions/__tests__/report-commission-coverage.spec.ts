@@ -229,8 +229,8 @@ describe('runCommissionCoverageReport: the retained events and the paging', () =
     expect(report.unmarked.checked).toBe(3);
     expect(report.unmarked.total).toBe(2);
     expect(report.unmarked.events).toEqual([
-      { eventId: eventId(1), eventType: 'ServiceSessionRecorded' },
-      { eventId: eventId(3), eventType: 'SalaryChanged' },
+      { eventId: eventId(1), type: 'ServiceSessionRecorded' },
+      { eventId: eventId(3), type: 'SalaryChanged' },
     ]);
   });
   it('checks every source line across the pages of a 450-line source', async () => {
