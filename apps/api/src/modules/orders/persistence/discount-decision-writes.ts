@@ -6,6 +6,7 @@ import type {
   DiscountProposalDecision,
   LockedDiscountProposal,
 } from '../domain/discount-decision-plan.ts';
+import type { DiscountDecisionChannel } from '../domain/discount-decision-records.ts';
 import type { DiscountProposalPerformerIds } from '../ports/discount-decision.port.ts';
 
 export interface DiscountDecisionScope {
@@ -37,6 +38,7 @@ interface DecisionWrite {
   plan: DiscountDecisionPlan;
   decider: DiscountDeciderSnapshot;
   proposal: DiscountProposalDecision;
+  channel: DiscountDecisionChannel;
 }
 
 export async function peekDiscountDecisions(
@@ -103,10 +105,11 @@ export async function decideDiscountProposals(
   scope: DiscountDecisionScope,
   plan: DiscountDecisionPlan,
   decider: DiscountDeciderSnapshot,
+  channel: DiscountDecisionChannel,
 ): Promise<number> {
   let updated = 0;
   for (const proposal of plan.proposals) {
-    const write = { plan, decider, proposal };
+    const write = { plan, decider, proposal, channel };
     const rows = proposal.status === 'APPROVED'
       ? await approve(tx, scope, write)
       : await reject(tx, scope, write);
@@ -116,11 +119,12 @@ export async function decideDiscountProposals(
 }
 
 async function approve(tx: Tx, scope: DiscountDecisionScope, write: DecisionWrite) {
-  const { plan, decider, proposal } = write;
+  const { plan, decider, proposal, channel } = write;
   const decidedAt = plan.decided_at.toISOString();
   return tx.execute<{ id: string }>(sql`UPDATE discount_proposals SET status='APPROVED',
-    decided_by=${plan.decided_by},decided_by_membership_id=${plan.decided_by_membership_id},decided_via='REMOTE',
-    decided_device_id=NULL,decider_name_ar=${decider.decider_name_ar},decider_name_en=${decider.decider_name_en},
+    decided_by=${plan.decided_by},decided_by_membership_id=${plan.decided_by_membership_id},
+    decided_via=${channel.decided_via},decided_device_id=${channel.decided_device_id},
+    decider_name_ar=${decider.decider_name_ar},decider_name_en=${decider.decider_name_en},
     decider_role=${decider.decider_role},decider_role_is_system=${decider.decider_role_is_system},
     decider_role_name_ar=${decider.decider_role_name_ar},decider_role_name_en=${decider.decider_role_name_en},
     decided_at=${decidedAt}::timestamptz,approved_limit_source=${proposal.approved_limit_source},
@@ -130,11 +134,12 @@ async function approve(tx: Tx, scope: DiscountDecisionScope, write: DecisionWrit
 }
 
 async function reject(tx: Tx, scope: DiscountDecisionScope, write: DecisionWrite) {
-  const { plan, decider, proposal } = write;
+  const { plan, decider, proposal, channel } = write;
   const decidedAt = plan.decided_at.toISOString();
   return tx.execute<{ id: string }>(sql`UPDATE discount_proposals SET status='REJECTED',
-    decided_by=${plan.decided_by},decided_by_membership_id=${plan.decided_by_membership_id},decided_via='REMOTE',
-    decided_device_id=NULL,decider_name_ar=${decider.decider_name_ar},decider_name_en=${decider.decider_name_en},
+    decided_by=${plan.decided_by},decided_by_membership_id=${plan.decided_by_membership_id},
+    decided_via=${channel.decided_via},decided_device_id=${channel.decided_device_id},
+    decider_name_ar=${decider.decider_name_ar},decider_name_en=${decider.decider_name_en},
     decider_role=${decider.decider_role},decider_role_is_system=${decider.decider_role_is_system},
     decider_role_name_ar=${decider.decider_role_name_ar},decider_role_name_en=${decider.decider_role_name_en},
     decided_at=${decidedAt}::timestamptz,approved_limit_source=NULL,approved_limit_bps=NULL,

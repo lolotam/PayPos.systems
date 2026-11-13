@@ -147,11 +147,15 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `orders` | `EditorNamePort` | `staff` | the editor's active linked employee names (name_ar, name_en) by company, business and user id, read in the edit transaction and stored as a snapshot in the edit-history row; no linked employee ⇒ null names (ADR-0044 §5, 35d-4) |
 | `orders` | `SessionEditAccessPort` | `identity` | locked recheck of the editor membership, the edit permission, DENY state and the orders feature inside the edit transaction and before an idempotency replay (ADR-0044 §6, 35d-4) |
 | `orders` | `PackageExtensionAccessPort` | `identity` | locked `extend:packages:branch` authority, DENY, orders feature and eligible acting memberships inside the extension transaction (spec 058, 45) |
+| `orders` | `PackageRefundAccessPort` | `identity` | locked `refund:packages:branch` authority, DENY, orders feature and eligible acting memberships inside the refund transaction, rechecked before an idempotent replay (spec 058, 46-2, ADR-0010 addendum 2026-11-13) |
+| `orders` | `ImportedRefundsPort` | `settings` | the business's `imported_refunds_enabled` switch, read on the refund's own transaction and only for an imported entitlement; a missing row or a null value means off (spec 058 FR-053, 46-2, ADR-0010 addendum 2026-11-13) |
 | worker `orders` | `PriceEditNoticePlace` | worker `tenancy` | branchPlace names only; the date comes from the event and the timezone from the saved session snapshot read by the orders repository (ADR-0044, 35d-2) |
 | worker `orders` | `PerformersChangeNoticeRecipients` | worker `identity`, `tenancy` | branchManagerRecipients and companyOpen on the consumer transaction; active scoped system managers by the effective alert rule (`AlertRulesPort`, spec 060 D-B14, 62-3); the changer is not excluded (ADR-0044 addendum, spec 055, 37b-3) |
 | worker `orders` | `PerformersChangeNoticePlace` | worker `tenancy` | branchPlace names only; the date comes from the event and the timezone from the saved session snapshot read by the orders repository (ADR-0044 addendum, spec 055, 37b-3) |
 | `orders` | `DiscountApprovalAccessPort` | `identity` | `lock()` then `read(at)`: `approve:discounts:branch` at the proposal's branch, DENY, the orders feature and the caller's eligible approver memberships (remote: the user's; PIN: the holder's filtered to the device's branch) inside the decision transaction (ADR-0051, spec 057, 057-6) |
-| `orders` | `DiscountPinApproverPort` | `identity` | verifies phone + PIN through identity's existing staff PIN facility (reservation, D-08 lockout, placeholder hash) outside the transaction and returns only the holder's user id or `refused` / `locked` / `busy`; no session (ADR-0051, spec 057, 057-7) |
+| `orders` | `DiscountPinApproverPort` | `identity` | verifies phone + PIN through identity's existing staff PIN facility (reservation, D-08 lockout, placeholder hash) outside the transaction and returns the holder's user id, the PIN revision and a `confirmBinding` recheck, or `refused` / `locked` / `busy`; no session (ADR-0051, spec 057, 057-7) |
+| `orders` | `DiscountPinFencePort` | `identity` | locks the active device row and the approver's PIN-revision row under `FOR SHARE`, then runs the verified outcome's `confirmBinding` recheck of the global phone binding, all inside the decision transaction (ADR-0051, spec 057, 057-7) |
+| `orders` | `DiscountDeviceScopePort` | `identity` | the business of an active paired device in the device's branch, or null for an inactive device or one from another branch (ADR-0051, spec 057, 057-7) |
 | worker `orders` | `DiscountApprovalNoticeRecipients` | worker `identity`, `tenancy` | `discountApproverRecipients(branch)` and companyOpen on the consumer transaction: active users whose membership covering the branch effectively grants `approve:discounts:branch` (role defaults and ALLOW, minus any covering DENY), not the ADR-0037 manager rule; the requester is dropped (PP-15.2, ADR-0051, 057-3) |
 | worker `orders` | `DiscountApprovalNoticePlace` | worker `tenancy` | branchPlace names only; service names come from the event (ADR-0051, 057-3) |
 | worker `orders` | `DiscountSelfApprovalNoticeRecipients` | worker `identity`, `tenancy` | the scoped-role reader with the roles of the kind's effective alert rule (by default `owner`, DA-Q11): every active membership in those roles covering the branch, the approver not excluded (spec 057 D-19, ADR-0051, 057-3b) |
@@ -393,6 +397,10 @@ reads:
   - orders -> identity.readOwnServiceSessionsAccess @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
   - orders -> identity.lockPackageExtensionAccess @ apps/api/src/modules/orders/persistence/package-extension.transactions.ts
   - orders -> identity.readPackageExtensionAccess @ apps/api/src/modules/orders/persistence/package-extension.transactions.ts
+  - orders -> identity.lockPackageRefundAccess @ apps/api/src/modules/orders/persistence/package-refund.transactions.ts
+  - orders -> identity.readPackageRefundAccess @ apps/api/src/modules/orders/persistence/package-refund.transactions.ts
+  - orders -> settings.readImportedRefundsEnabled @ apps/api/src/modules/orders/persistence/package-refund.transactions.ts
+  - orders -> tenancy.packageSalePlace @ apps/api/src/modules/orders/persistence/package-refund.transactions.ts
   - orders -> tenancy.packageSalePlace @ apps/api/src/modules/orders/persistence/package-extension.transactions.ts
   - orders -> tenancy.describeWorkspaces @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
   - orders -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
@@ -443,6 +451,9 @@ reads:
   - orders -> identity.readServiceSessionPerformersAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
   - orders -> identity.lockDiscountApprovalAccess @ apps/api/src/modules/orders/persistence/discount-approval-access.adapter.ts
   - orders -> identity.readDiscountApprovalAccess @ apps/api/src/modules/orders/persistence/discount-approval-access.adapter.ts
+  - orders -> identity.lockActiveDeviceBusiness @ apps/api/src/modules/orders/persistence/discount-pin-fence.adapter.ts
+  - orders -> identity.lockApproverPinRevision @ apps/api/src/modules/orders/persistence/discount-pin-fence.adapter.ts
+  - orders -> identity.readActiveDeviceBusiness @ apps/api/src/modules/orders/persistence/discount-pin-fence.adapter.ts
   - orders -> catalog.readSessionServices @ apps/api/src/modules/orders/persistence/catalog-reader.adapter.ts
   - orders -> catalog.readPackageTypeForSale @ apps/api/src/modules/orders/persistence/catalog-reader.adapter.ts
   - orders -> customers.readSessionCustomer @ apps/api/src/modules/orders/persistence/customer-lookup.adapter.ts

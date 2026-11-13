@@ -55,6 +55,8 @@ export const PERMISSIONS = [
   'sell:packages:branch',
   'import:packages:business',
   'extend:packages:branch',
+  // استرداد جلسات باقة من فرع: صلاحيته الخاصة، ودخول إداري فردي بس (FR-050، RF-10).
+  'refund:packages:branch',
   'manage:services:business',
   'read:memberships:company',
   'read:memberships:business',

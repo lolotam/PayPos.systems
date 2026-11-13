@@ -12,3 +12,4 @@ export type {
 } from '@pospay/domain';
 export { readAlertRule } from './persistence/read-alert-rule.ts';
 export { readStaffColumns, type StaffColumnsSetting } from './persistence/staff-columns.ts';
+export { readImportedRefundsEnabled } from './persistence/read-imported-refunds-enabled.ts';

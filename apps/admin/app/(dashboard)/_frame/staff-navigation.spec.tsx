@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({ path: '/staff/attendance-report' }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 vi.mock('next/navigation', () => ({ usePathname: () => state.path }));
 vi.mock('./employee-app-link-nav-item', () => ({ EmployeeAppLinkNavItem: () => null }));
+vi.mock('./leave-report-nav-item', () => ({ LeaveReportNavItem: () => null }));
 it.each([
   '/staff/attendance',
   '/staff/attendance-exceptions',

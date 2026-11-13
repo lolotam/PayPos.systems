@@ -21,6 +21,8 @@ export { readEmployeeManagementAccess } from './persistence/employee-creation-ac
 export { readPackageImportAccess } from './persistence/package-import-access.ts';
 export { lockPackageExtensionAccess } from './persistence/package-extension-access.ts';
 export { readPackageExtensionAccess } from './persistence/package-extension-access.ts';
+export { lockPackageRefundAccess } from './persistence/package-refund-access.ts';
+export { readPackageRefundAccess } from './persistence/package-refund-access.ts';
 export {
   employeeUserLinkAvailable,
   readEmployeeDetailAccess,
@@ -102,3 +104,12 @@ export { readOwnAttendanceAccess } from './persistence/own-attendance-access.ts'
 
 export { readOwnServiceSessionsAccess } from './persistence/own-service-sessions-access.ts';
 export { lockDiscountApprovalAccess, readDiscountApprovalAccess } from './persistence/service-session-edit-access.ts';
+
+export { VERIFY_DISCOUNT_APPROVER_PIN } from './identity.module.ts';
+export type { VerifyDiscountApproverPin } from './use-cases/verify-discount-approver-pin/verify-discount-approver-pin.ts';
+export type { ApproverPinOutcome } from './ports/discount-approver-pin.port.ts';
+export {
+  readActiveDeviceBusiness,
+  lockActiveDeviceBusiness,
+  lockApproverPinRevision,
+} from './persistence/discount-approval-device.ts';

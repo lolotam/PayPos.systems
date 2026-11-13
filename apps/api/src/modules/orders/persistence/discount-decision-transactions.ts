@@ -16,7 +16,10 @@ import type {
 } from '../ports/discount-decision.port.ts';
 import type { EditorNamePort } from '../ports/line-edit.port.ts';
 import type { SessionWriteContext } from '../ports/service-session-transactions.port.ts';
-import type { DiscountApprovalAccessPort } from '../ports/discount-decision.port.ts';
+import type {
+  DiscountApprovalAccessPort,
+  DiscountPinFencePort,
+} from '../ports/discount-decision.port.ts';
 import type { DiscountLimitPort, PerformerCheckPort } from '../ports/session-readers.port.ts';
 import {
   decideDiscountProposals,
@@ -32,6 +35,7 @@ export interface DiscountDecisionReaders {
   discount: DiscountLimitPort;
   approverName: EditorNamePort;
   performers: PerformerCheckPort;
+  fence: DiscountPinFencePort;
 }
 
 export function createDiscountDecisionTransactions(
@@ -72,7 +76,7 @@ function assemble(
     proposals: {
       peek: (proposalIds) => peekDiscountDecisions(tx, scope, proposalIds),
       lock: (proposalIds) => lockDiscountDecisions(tx, scope, proposalIds),
-      decide: (plan, decider) => decideDiscountProposals(tx, scope, plan, decider),
+      decide: (plan, decider, channel) => decideDiscountProposals(tx, scope, plan, decider, channel),
     },
     idempotent: async (handler) => {
       const outcome = await runIdempotent(tx, {
