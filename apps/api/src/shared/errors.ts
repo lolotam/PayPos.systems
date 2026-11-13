@@ -3,7 +3,7 @@ import { errorMessages, type ErrorMessageCode } from '@pospay/i18n';
 import { CATALOG_SERVICE_STATUS } from './catalog-service-error-statuses.ts';
 import { PACKAGE_SALE_STATUS } from './package-sale-error-statuses.ts';
 import { PACKAGE_READ_STATUS } from './package-read-error-statuses.ts';
-import { PACKAGE_EXTENSION_STATUS } from './package-extension-error-statuses.ts';
+import { PACKAGE_CHANGE_STATUS } from './package-refund-error-statuses.ts';
 import {
   LEAVE_HISTORY_REPORT_RAISED_BY_THE_API_ONLY,
   LEAVE_HISTORY_REPORT_STATUS,
@@ -196,7 +196,7 @@ const STATUS = {
   ...CATALOG_SERVICE_STATUS,
   ...PACKAGE_SALE_STATUS,
   ...PACKAGE_READ_STATUS,
-  ...PACKAGE_EXTENSION_STATUS,
+  ...PACKAGE_CHANGE_STATUS,
 } as const satisfies Record<ErrorMessageCode, number>;
 
 export type ErrorCode = keyof typeof STATUS;
@@ -375,7 +375,7 @@ const RAISED_BY_THE_API_ONLY: ReadonlySet<ErrorCode> = new Set<ErrorCode>([
   ...(Object.keys(CATALOG_SERVICE_STATUS) as ErrorCode[]),
   ...(Object.keys(PACKAGE_SALE_STATUS) as ErrorCode[]),
   ...(Object.keys(PACKAGE_READ_STATUS) as ErrorCode[]),
-  ...(Object.keys(PACKAGE_EXTENSION_STATUS) as ErrorCode[]),
+  ...(Object.keys(PACKAGE_CHANGE_STATUS) as ErrorCode[]),
   'COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE',
 ]);
 

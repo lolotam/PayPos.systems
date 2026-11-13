@@ -46,6 +46,8 @@ export const businessSettings = pgTable(
     // كام شهر لورا الموظفة تشوف في «شغلي» و«حضوري»؛ null = الشهر الحالي والشهر اللي قبله (D-A14، MY-Q2، MY-Q9).
     // الـ CHECK لسه بيسمح حتى 24 في الإصدار ده، والدومين بيقرا أي قيمة فوق 12 على إنها 12 لحد ما يتضيّق (issue #519).
     staffMonthsBack: smallint('staff_months_back'),
+    // استرداد الباقات المستوردة: null = مقفول؛ البيع ما بيقراش الإعداد ده (FR-053، RF-08).
+    importedRefundsEnabled: boolean('imported_refunds_enabled'),
     updatedBy: uuid('updated_by').references(() => user.id),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

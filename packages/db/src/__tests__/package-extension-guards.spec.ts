@@ -252,20 +252,24 @@ it('closes direct metadata writes and nulls forged metadata on insert', async ()
     .toEqual([{ expires_on_changed_system_id: null, expires_on_changed_txid: null, expires_on_before: null }]);
 });
 
-it('keeps refunded_amount and revision closed and enforces their initial values', async () => {
+it('ties refunded_amount and revision to a refund row and enforces their initial values', async () => {
   const sale = await sell();
-  for (const [column, constraint] of [
-    ['refunded_amount', 'package_entitlements_refunded_amount_closed'],
-    ['revision', 'package_entitlements_revision_closed'],
-  ] as const) {
-    await rejected(
-      db.withTenant(A.company, (tx) =>
-        tx.execute(sql`UPDATE package_entitlements SET ${sql.identifier(column)}=2 WHERE id=${sale.entitlement}`),
-      ),
-      '23514',
-      constraint,
-    );
-  }
+  // المبلغ المسترد ما يعدّيش السعر المدفوع.
+  await rejected(
+    db.withTenant(A.company, (tx) =>
+      tx.execute(sql`UPDATE package_entitlements SET refunded_amount=2 WHERE id=${sale.entitlement}`),
+    ),
+    '23514',
+    'package_entitlements_refunded_amount_bounds',
+  );
+  // النسخة ما بتتحركش من غير سطر استرداد: القيد المؤجل بيرفضها عند الـ commit.
+  await rejected(
+    db.withTenant(A.company, (tx) =>
+      tx.execute(sql`UPDATE package_entitlements SET revision=2 WHERE id=${sale.entitlement}`),
+    ),
+    '23514',
+    'package_refunds_integrity',
+  );
   await rejected(sell(nextId(), { refundedAmount: '0.001' }), '23514', 'package_entitlements_initial_refunded_amount');
   await rejected(sell(nextId(), { revision: 2 }), '23514', 'package_entitlements_initial_revision');
 });

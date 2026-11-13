@@ -8,13 +8,17 @@ export const PACKAGE_TABLE_GRANTS = [
   'package_extensions:SELECT',
   'package_redemptions:INSERT',
   'package_redemptions:SELECT',
+  'package_refund_slots:INSERT',
+  'package_refund_slots:SELECT',
+  'package_refunds:INSERT',
+  'package_refunds:SELECT',
   'package_sale_requests:INSERT',
   'package_sale_requests:SELECT',
   'package_session_slots:INSERT',
   'package_session_slots:SELECT',
 ];
 
-// منح الحالة والمؤشر تدعم FREE وUSED المحروسين في 43-1؛ تغيير الانتهاء والمبلغ المسترد والمراجعة يظل مقفولًا حتى 45 و46-1.
+// منح الحالة والمؤشر تدعم FREE وUSED المحروسين في 43-1؛ تغيير الانتهاء اتفتح في 45، والمبلغ المسترد والمراجعة وانتقال الحرة ← المستردة اتفتحوا في 46-1.
 export const PACKAGE_COLUMN_GRANTS = [
   'package_redemptions.reversal_cancellation_id:pospay_app:UPDATE',
   'package_redemptions.reversed_at:pospay_app:UPDATE',
