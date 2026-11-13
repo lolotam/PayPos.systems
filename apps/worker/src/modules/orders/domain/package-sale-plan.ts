@@ -184,3 +184,14 @@ export function planPackageSale(input: PackageSalePlanInput, identities: Package
   };
   return { entitlement, components, event };
 }
+
+/**
+ * بيبني أرقام الجلسات المتسلسلة لمكون واحد من 1 لعدد جلساته الأصلية.
+ * الترقيم من مسؤولية الدومين وحده، عشان ما يتكررش حساب الأرقام في حالة الاستخدام.
+ *
+ * @param sessions عدد جلسات المكون الأصلي
+ * @returns أرقام الجلسات من 1 إلى sessions بالترتيب
+ */
+export function packageSaleSlotOrdinals(sessions: number): readonly number[] {
+  return Array.from({ length: sessions }, (_, index) => index + 1);
+}

@@ -29,6 +29,7 @@ export type PackageSaleErrorCode =
   | 'PACKAGE_SELLER_SELF_FORBIDDEN'
   | 'PACKAGE_SALE_TOO_OLD'
   | 'PACKAGE_SALE_IN_FUTURE'
+  | 'PACKAGE_SALE_BRANCH_INACTIVE'
   | 'PACKAGE_CUSTOMER_NOT_FOUND';
 
 /** التفاصيل الآمنة تُحفظ عشان الاستقبال يعيد تأكيد العرض الجديد بدل بيع سعر قديم. */
