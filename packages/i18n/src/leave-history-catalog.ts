@@ -18,6 +18,12 @@ export const leaveHistoryEn = {
   lastUnpaid: 'Last unpaid',
   lastAbsence: 'Last unexcused absence',
   none: 'None',
+  reportTitle: 'Leave history report',
+  reportEmployee: 'Employee',
+  reportAllEmployees: 'All employees',
+  reportSearchEmployee: 'Search employees',
+  reportEmployeesUnavailable: 'The employee list is not available',
+  reportPreparing: 'Preparing the report…',
 };
 export const leaveHistoryAr: Record<keyof typeof leaveHistoryEn, string> = {
   tabData: 'البيانات',
@@ -38,4 +44,10 @@ export const leaveHistoryAr: Record<keyof typeof leaveHistoryEn, string> = {
   lastUnpaid: 'آخر من غير مرتب',
   lastAbsence: 'آخر غياب من غير عذر',
   none: 'مفيش',
+  reportTitle: 'سجل الإجازات',
+  reportEmployee: 'الموظفة',
+  reportAllEmployees: 'كل الموظفات',
+  reportSearchEmployee: 'دوّر على موظفة',
+  reportEmployeesUnavailable: 'قائمة الموظفات مش متاحة دلوقتي',
+  reportPreparing: 'بنجهّز التقرير…',
 };
