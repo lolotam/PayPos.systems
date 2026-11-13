@@ -52,9 +52,9 @@ function parseOptions() {
   }
 }
 
-/** قائمة الأنشطة؛ فراغها أو تجاوز السقف خطأ إعدادات، لأن التهيئة بلا نطاق لا تنتهي. */
+/** قائمة الأنشطة بحروف صغيرة بلا تكرار وبالترتيب المُعطى؛ السقف يُحسب بعد الحسم. */
 function parseBusinessIds(value: string): string[] {
-  const ids = value.split(',').map((entry) => entry.trim());
+  const ids = [...new Set(value.split(',').map((entry) => entry.trim().toLowerCase()))];
   if (ids.length === 0 || ids.length > MAX_BUSINESS_IDS) throw new BootstrapConfigurationError();
   for (const id of ids) if (!UUID.test(id)) throw new BootstrapConfigurationError();
   return ids;

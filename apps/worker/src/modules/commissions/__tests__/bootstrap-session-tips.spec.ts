@@ -5,14 +5,15 @@ import {
   type BootstrapTipSession,
   type CurrentTipSessionsReader,
 } from '../index.ts';
+import { normalizeBusinessIds } from '../use-cases/bootstrap-session-tips/bootstrap-session-tips.ts';
 
 type BootstrapDeps = Parameters<typeof runSessionTipsBootstrap>[0];
 type BootstrapScope = Parameters<typeof runSessionTipsBootstrap>[1];
 type FakeTx = Parameters<Parameters<BootstrapDeps['withTenant']>[1]>[0];
 type FakeMark = { readonly consumerId: string; readonly eventId: string };
 type FakeCursor = { readonly businessDate: string; readonly sessionId: string };
-type FakeSavepoint = { readonly marks: FakeMark[] };
 type FakeStep = { readonly items: readonly BootstrapTipSession[]; readonly nextCursor: FakeCursor | null };
+type FakeTransaction = { readonly log: string[]; readonly marks: FakeMark[] };
 
 const CONSUMER = 'commissions.project-inputs';
 const COMPANY = '01920000-0000-7000-8000-0000000000a0';
@@ -23,68 +24,122 @@ const EMPLOYEE = '01920000-0000-7000-8000-00000000ee01';
 const eventId = (n: number) => `01970000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 const cursor = (sessionId: string): FakeCursor => ({ businessDate: '2026-12-01', sessionId });
 
-function createFakeHarness(options: {
+/** خيارات المشغّل الوهمي: الصفحات لكل نشاط، والزيارات المرفوضة، وخطأ القارئ، والحسم المسبق. */
+type FakeHarnessOptions = {
   readonly steps: Readonly<Record<string, readonly FakeStep[]>>;
   readonly failures?: Readonly<Record<string, string>>;
   readonly readerError?: unknown;
-}) {
-  const executed: string[] = [];
-  const committed: FakeMark[] = [];
-  const reads: { businessId: string; after: FakeCursor | null }[] = [];
-  const rollbacks = { count: 0 };
+  readonly alreadyConsumed?: readonly string[];
+};
+
+/** حالة المشغّل الوهمي: الصفحات الجاهزة وما سُجّل وما ثبت وما انطوى. */
+interface FakeHarnessState {
+  readonly executed: string[];
+  readonly committed: FakeMark[];
+  readonly reads: { businessId: string; after: FakeCursor | null }[];
+  readonly transactions: FakeTransaction[];
+  readonly rollbacks: { count: number };
+  readonly concurrency: { open: number; max: number };
+  readonly queues: Map<string, FakeStep[]>;
+}
+
+/** يبني الحالة ويجهّز صفحات كل نشاط، فكل صفحة تُقرأ مرة واحدة. */
+function createFakeState(options: FakeHarnessOptions): FakeHarnessState {
   const queues = new Map<string, FakeStep[]>();
   for (const [id, steps] of Object.entries(options.steps)) queues.set(id, [...steps]);
+  return {
+    executed: [],
+    committed: [],
+    reads: [],
+    transactions: [],
+    rollbacks: { count: 0 },
+    concurrency: { open: 0, max: 0 },
+    queues,
+  };
+}
 
-  const reader: CurrentTipSessionsReader = {
-    readPage: async (_tx, _companyId, businessId, _range, page) => {
-      reads.push({ businessId, after: page.after });
+/** قارئ الصفحات: يسجّل كل قراءة، ويرفع خطأ القارئ أو يبيّن أن النشاط بلا صفحة. */
+function createFakeReader(
+  options: FakeHarnessOptions,
+  state: FakeHarnessState,
+): CurrentTipSessionsReader {
+  return {
+    readPage: async (tx, _companyId, businessId, _range, page) => {
+      (tx as unknown as FakeTransaction).log.push('read');
+      state.reads.push({ businessId, after: page.after });
       if (options.readerError !== undefined) throw options.readerError;
-      const step = queues.get(businessId)?.shift();
+      const step = state.queues.get(businessId)?.shift();
       if (step === undefined) throw new Error(`NO_PAGE_FOR_${businessId}`);
       return { items: [...step.items], nextCursor: step.nextCursor };
     },
   };
+}
 
-  const withTenant: BootstrapDeps['withTenant'] = async <T>(
-    _companyId: string,
-    fn: (tx: FakeTx) => Promise<T>,
-  ) => {
-    const tx = {
-      transaction: async (inner: (sp: FakeSavepoint) => Promise<unknown>) => {
-        const savepoint: FakeSavepoint = { marks: [] };
-        try {
-          await inner(savepoint);
-        } catch (error) {
-          rollbacks.count += 1;
-          savepoint.marks.length = 0;
-          throw error;
-        }
-        committed.push(...savepoint.marks);
-        return savepoint;
-      },
-    };
-    return fn(tx as unknown as FakeTx);
+/** معاملة الشركة: لكل زيارة معاملة تسجّل نداءاتها وتثبّت علاماتها أو تلغاها. */
+function createFakeWithTenant(state: FakeHarnessState): BootstrapDeps['withTenant'] {
+  return async <T>(_companyId: string, fn: (tx: FakeTx) => Promise<T>) => {
+    const tx: FakeTransaction = { log: [], marks: [] };
+    state.transactions.push(tx);
+    state.concurrency.open += 1;
+    state.concurrency.max = Math.max(state.concurrency.max, state.concurrency.open);
+    try {
+      const result = await fn(tx as unknown as FakeTx);
+      state.committed.push(...tx.marks);
+      return result;
+    } catch (error) {
+      state.rollbacks.count += 1;
+      tx.marks.length = 0;
+      throw error;
+    } finally {
+      state.concurrency.open -= 1;
+    }
   };
+}
 
-  const tipsFor: BootstrapDeps['tipsFor'] = () => ({
+/** إسقاط البقشيش: يسجّل الزيارة المرفوضة برمزها فتُحسب غير مسلَّمة. */
+function createFakeTipsFor(
+  options: FakeHarnessOptions,
+  state: FakeHarnessState,
+): BootstrapDeps['tipsFor'] {
+  return (tx) => ({
     execute: async (input) => {
-      executed.push(input.sessionId);
+      (tx as unknown as FakeTransaction).log.push(`execute:${input.sessionId}`);
+      state.executed.push(input.sessionId);
       const code = options.failures?.[input.sessionId];
       if (code !== undefined) throw Object.assign(new Error(code), { code });
     },
   });
+}
 
-  const markConsumed: BootstrapDeps['markConsumed'] = async (tx, consumerId, event) => {
-    (tx as unknown as FakeSavepoint).marks.push({ consumerId, eventId: event });
+/** حسم الحدث: يعلّم الجديد ويتخطّى المُعلَّم مسبقاً. */
+function createFakeMarkConsumed(options: FakeHarnessOptions): BootstrapDeps['markConsumed'] {
+  return async (tx, consumerId, event) => {
+    const fake = tx as unknown as FakeTransaction;
+    fake.log.push(`mark:${event}`);
+    if ((options.alreadyConsumed ?? []).includes(event)) return false;
+    fake.marks.push({ consumerId, eventId: event });
     return true;
   };
+}
 
+// المشغّل الوهمي: معاملة لكل قراءة صفحة ولكل زيارة، وكل معاملة تسجّل نداءاتها وعلاماتها
+// وتسقطها إن فشلت، فيبقى الفرق بين «ثابت» و«مُلغى» ظاهراً في العلامات نفسها.
+function createFakeHarness(options: FakeHarnessOptions) {
+  const state = createFakeState(options);
   return {
-    deps: { withTenant, reader, tipsFor, consumerId: CONSUMER, markConsumed },
-    executed,
-    committed,
-    reads,
-    rollbacks,
+    deps: {
+      withTenant: createFakeWithTenant(state),
+      reader: createFakeReader(options, state),
+      tipsFor: createFakeTipsFor(options, state),
+      consumerId: CONSUMER,
+      markConsumed: createFakeMarkConsumed(options),
+    },
+    executed: state.executed,
+    committed: state.committed,
+    reads: state.reads,
+    transactions: state.transactions,
+    rollbacks: state.rollbacks,
+    concurrency: state.concurrency,
   };
 }
 
@@ -137,6 +192,32 @@ it('applies every session of two pages in order and marks every event once', asy
   expect(new Set(harness.committed.map((mark) => mark.consumerId))).toEqual(new Set([CONSUMER]));
   expect(harness.rollbacks.count).toBe(0);
 });
+it('marks every event of a visit before its projection, in the listed order', async () => {
+  // يثبت أن حسم كل أحداث الزيارة يسبق إسقاط بقشيشها وبالترتيب نفسه، مثل المسار الحي
+  const harness = createFakeHarness({
+    steps: { [BUSINESS]: [page([tipSession('s1', 1, [7, 8, 9])])] },
+  });
+  await runSessionTipsBootstrap(harness.deps, scopeOf([BUSINESS]));
+  const visit = harness.transactions.find((tx) => tx.log.includes('execute:s1'));
+  expect(visit?.log).toEqual([
+    `mark:${eventId(7)}`,
+    `mark:${eventId(8)}`,
+    `mark:${eventId(9)}`,
+    'execute:s1',
+  ]);
+});
+it('runs every visit in its own transaction, apart from the page read', async () => {
+  // يثبت أن لكل زيارة معاملة مستقلة لا تتداخل مع غيرها، وأن قراءة الصفحة في معاملة ثالثة
+  const harness = createFakeHarness({
+    steps: { [BUSINESS]: [page([tipSession('s1', 1, [11]), tipSession('s2', 1, [12])])] },
+  });
+  await runSessionTipsBootstrap(harness.deps, scopeOf([BUSINESS]));
+  expect(harness.transactions).toHaveLength(3);
+  expect(harness.transactions[0]?.log).toEqual(['read']);
+  expect(harness.transactions[1]?.log).toEqual([`mark:${eventId(11)}`, 'execute:s1']);
+  expect(harness.transactions[2]?.log).toEqual([`mark:${eventId(12)}`, 'execute:s2']);
+  expect(harness.concurrency.max).toBe(1);
+});
 it('records a closed period as undelivered and keeps the rest of the page applied', async () => {
   // يثبت أن سبباً معروفاً يُسجَّل كجلسة غير مسلَّمة بلا مبالغ ولا موظفات وبقيّة الصفحة تُطبَّق
   const harness = createFakeHarness({
@@ -156,11 +237,28 @@ it('records a closed period as undelivered and keeps the rest of the page applie
   expect(harness.committed.map((mark) => mark.eventId)).toEqual([eventId(10), eventId(12)]);
   expect(harness.rollbacks.count).toBe(1);
 });
+it('rolls back only the marks of the refused visit and applies the next visits', async () => {
+  // يثبت أن رفض زيارة بسبب معروف يُسقط علاماتها وحدها، وما بعدها من زيارات يُطبَّق ويُعلَّم
+  const harness = createFakeHarness({
+    steps: {
+      [BUSINESS]: [
+        page([tipSession('ok1', 1, [20]), tipSession('bad', 1, [21]), tipSession('ok2', 1, [22])]),
+      ],
+    },
+    failures: { bad: 'COMMISSION_PERIOD_CLOSED' },
+  });
+  const result = await runSessionTipsBootstrap(harness.deps, scopeOf([BUSINESS]));
+  expect(result.status).toBe('UNDELIVERED');
+  expect(result.counts).toEqual({ sessions: 2, events: 2 });
+  expect(harness.committed.map((mark) => mark.eventId)).toEqual([eventId(20), eventId(22)]);
+  const refused = harness.transactions.find((tx) => tx.log.includes('execute:bad'));
+  expect(refused?.marks).toEqual([]);
+});
 it('treats the other known reasons as continuable and applies nothing for them', async () => {
   // يثبت أن سببَي العمل الناقص والمبلغ غير الصالح لا يوقفان الصفحة ولا يُطبَّقان
   const harness = createFakeHarness({
     steps: {
-      [BUSINESS]: [page([tipSession('s1', 1, [20]), tipSession('s2', 1, [21])])],
+      [BUSINESS]: [page([tipSession('s1', 1, [30]), tipSession('s2', 1, [31])])],
     },
     failures: {
       s1: 'COMMISSION_BUSINESS_MISSING',
@@ -176,22 +274,22 @@ it('treats the other known reasons as continuable and applies nothing for them',
   expect(result.counts).toEqual({ sessions: 0, events: 0 });
   expect(harness.committed).toEqual([]);
 });
-it('aborts on an unknown reason and keeps the cursor of the last committed page', async () => {
-  // يثبت أن خطأً غير معروف يوقف التشغيل عند آخر صفحة ثبتت فيكمل منها، وصفحة التوقف ما تُحسبش
+it('aborts on an unknown reason and keeps the visits committed before it', async () => {
+  // يثبت أن خطأً غير معروف يوقف التشغيل عند زيارة الصفحة الثانية، وما قبلها يبقى مطبَّقاً بعلاماته
   const harness = createFakeHarness({
     steps: {
       [BUSINESS]: [
-        page([tipSession('s1', 1, [30])], cursor('s1')),
-        page([tipSession('s2', 1, [31])]),
+        page([tipSession('s0', 1, [40])], cursor('s0')),
+        page([tipSession('ok', 1, [41]), tipSession('bad', 1, [42])]),
       ],
     },
-    failures: { s2: 'COMMISSION_SOMETHING_UNKNOWN' },
+    failures: { bad: 'COMMISSION_SOMETHING_UNKNOWN' },
   });
   const result = await runSessionTipsBootstrap(harness.deps, scopeOf([BUSINESS]));
   expect(result.status).toBe('ABORTED');
-  expect(result.abortedAt).toEqual({ businessId: BUSINESS, after: cursor('s1') });
-  expect(result.counts).toEqual({ sessions: 1, events: 1 });
-  expect(harness.committed.map((mark) => mark.eventId)).toEqual([eventId(30)]);
+  expect(result.abortedAt).toEqual({ businessId: BUSINESS, after: cursor('s0') });
+  expect(result.counts).toEqual({ sessions: 2, events: 2 });
+  expect(harness.committed.map((mark) => mark.eventId)).toEqual([eventId(40), eventId(41)]);
 });
 it('propagates a RangeError from the reader unchanged', async () => {
   // يثبت أن خطأ المدى يطلع كما هو بدل ما يتحول إلى توقف صامت
@@ -208,8 +306,8 @@ it('runs the businesses in order with an independent cursor per business', async
   const harness = createFakeHarness({
     steps: {
       [BUSINESS]: [
-        page([tipSession('s1', 1, [40])], cursor('s1')),
-        page([tipSession('s2', 1, [41])]),
+        page([tipSession('s1', 1, [50])], cursor('s1')),
+        page([tipSession('s2', 1, [51])]),
       ],
       [OTHER_BUSINESS]: [page([])],
     },
@@ -228,6 +326,31 @@ it('runs the businesses in order with an independent cursor per business', async
   expect(emptyResult.status).toBe('COMPLETE');
   expect(emptyResult.counts).toEqual({ sessions: 0, events: 0 });
   expect(empty.committed).toEqual([]);
+});
+it('lower-cases the business ids and drops the duplicates in the given order', async () => {
+  // يثبت أن معرّفات الأنشطة تُوحَّد إلى حروف صغيرة بلا تكرار، وبالترتيب المُعطى
+  const harness = createFakeHarness({
+    steps: { [BUSINESS]: [page([])], [OTHER_BUSINESS]: [page([])] },
+  });
+  const result = await runSessionTipsBootstrap(
+    harness.deps,
+    scopeOf([BUSINESS.toUpperCase(), BUSINESS, OTHER_BUSINESS.toUpperCase(), BUSINESS]),
+  );
+  expect(result.status).toBe('COMPLETE');
+  expect(harness.reads.map((read) => read.businessId)).toEqual([BUSINESS, OTHER_BUSINESS]);
+  expect(normalizeBusinessIds([BUSINESS.toUpperCase(), BUSINESS])).toEqual([BUSINESS]);
+});
+it('counts only the events it claimed anew and still projects the visit', async () => {
+  // يثبت أن الحدث المُعلَّم مسبقاً لا يُحسب جديداً، والإسقاط بينفَّذ رغم ذلك
+  const harness = createFakeHarness({
+    steps: { [BUSINESS]: [page([tipSession('s1', 1, [60, 61])])] },
+    alreadyConsumed: [eventId(60)],
+  });
+  const result = await runSessionTipsBootstrap(harness.deps, scopeOf([BUSINESS]));
+  expect(result.status).toBe('COMPLETE');
+  expect(result.counts).toEqual({ sessions: 1, events: 1 });
+  expect(harness.executed).toEqual(['s1']);
+  expect(harness.committed.map((mark) => mark.eventId)).toEqual([eventId(61)]);
 });
 it('caps the undelivered list at 200 and reports truncation', async () => {
   // يثبت سقف التقرير: 200 جلسة غير مسلَّمة والباقي محذوف مع علامة truncation
@@ -250,7 +373,7 @@ it('keeps the tip amounts and employee ids out of the result', async () => {
   const harness = createFakeHarness({
     steps: {
       [BUSINESS]: [
-        page([tipSession('s1', 1, [50], [{ employeeId: EMPLOYEE, method: 'CASH', amount: '77.777' }])]),
+        page([tipSession('s1', 1, [70], [{ employeeId: EMPLOYEE, method: 'CASH', amount: '77.777' }])]),
       ],
     },
     failures: { s1: 'COMMISSION_PERIOD_CLOSED' },

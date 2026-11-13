@@ -1,4 +1,5 @@
 import type {
+  BootstrapTipPage,
   BootstrapTipSession,
   CurrentTipSessionsReader,
   TipsBootstrapTenantRunner,
@@ -37,7 +38,10 @@ export interface UndeliveredTipSession {
 
 /**
  * نتيجة التهيئة: حالة التشغيل وأعداد التسليم والجلسات التي تعذّر تسليمها.
- * abortedAt يحمل النشاط والمؤشر الذي توقّف عنده التشغيل، فتكمل الجلسة من هناك.
+ * counts.sessions هو عدد الزيارات التي ثبتت معاملتها، وcounts.events هو عدد معرّفات الأحداث
+ * التي حُسمت علامةً جديدة في هذا التشغيل (العلامات التي رجعت true) لا كل الأحداث المسرودة.
+ * abortedAt يحمل النشاط ومؤشر الصفحة التي كان التشغيل يعالجها؛ الزيارات التي ثبتت قبل التوقف
+ * تبقى مثبّتة، وإعادة التشغيل من البداية آمنة لأن حارس المراجعة والعلامات يجعلها متكرّرة بلا أثر.
  */
 export interface SessionTipsBootstrapResult {
   readonly status: 'COMPLETE' | 'UNDELIVERED' | 'ABORTED';
@@ -66,10 +70,23 @@ interface BootstrapReport {
   truncated: boolean;
 }
 
+/** سياق التشغيل: الاعتماديات والنطاق الموحَّد والتقرير المشترك بين الزيارات. */
+interface BootstrapRun {
+  readonly deps: SessionTipsBootstrapDeps;
+  readonly scope: SessionTipsBootstrapScope;
+  readonly report: BootstrapReport;
+}
+
+/** نتيجة زيارة واحدة داخل التشغيل: ثبتت، أو مرفوضة بسبب معروف، أو أوقفت التشغيل. */
+type SessionOutcome = 'committed' | 'undelivered' | 'aborted';
+
 /**
  * يقرأ الحالة الحالية للزيارات ويسقط بقشيشها على مسار المستهلك الحي، ثم يسجّل أحداثها كمستهلكة.
- * كل صفحة في معاملة واحدة، وكل جلسة داخل نقطة حفظ مستقلة، فالجلسة المرفوضة بسبب عمل معروف لا تُسقط
- * بقيّة الصفحة، وأي خطأ آخر يُلغي الصفحة ويُوقف التشغيل.
+ * كل صفحة تُقرأ في معاملة قراءة تُثبَت قبل تطبيق أي زيارة فيها، وكل زيارة تُطبَّق في معاملة
+ * مستقلة: يُعلَّم كل حدث من أحداثها بترتيبه ثم يُسقط بقشيشها، فترتيب الحسم ثم القفل يطابق
+ * المسار الحي فلا تتجمّد التهيئة خلف حسم حي غير مثبَّت. الزيارة المرفوضة بسبب عمل معروف
+ * تُسجَّل غير مسلَّمة وتُكمل البقية، وأي خطأ آخر يوقف التشغيل بنتيجة ABORTED وتبقى كل
+ * زيارة ثبتت قبله كما هي.
  *
  * @param deps معاملة الشركة وقارئ الحالة وإسقاط البقشيش ومسجّل الأحداث
  * @param scope الشركة والأنشطة ونطاق يومي العمل المطلوب تهيئته
@@ -80,23 +97,14 @@ export async function runSessionTipsBootstrap(
   scope: SessionTipsBootstrapScope,
 ): Promise<SessionTipsBootstrapResult> {
   const report: BootstrapReport = { sessions: 0, events: 0, undelivered: [], truncated: false };
-  for (const businessId of scope.businessIds) {
-    let cursor: BootstrapTipCursor | null = null;
-    for (;;) {
-      let page: { sessions: number; events: number; nextCursor: BootstrapTipCursor | null };
-      try {
-        page = await deps.withTenant(scope.companyId, (tx) =>
-          readPage(deps, scope, businessId, cursor, tx, report),
-        );
-      } catch (error) {
-        if (error instanceof RangeError) throw error;
-        return abortedResult(report, businessId, cursor);
-      }
-      report.sessions += page.sessions;
-      report.events += page.events;
-      cursor = page.nextCursor;
-      if (cursor === null) break;
-    }
+  const run: BootstrapRun = {
+    deps,
+    scope: { ...scope, businessIds: normalizeBusinessIds(scope.businessIds) },
+    report,
+  };
+  for (const businessId of run.scope.businessIds) {
+    const aborted = await runBusiness(run, businessId);
+    if (aborted !== null) return aborted;
   }
   return {
     status: report.undelivered.length === 0 ? 'COMPLETE' : 'UNDELIVERED',
@@ -105,6 +113,80 @@ export async function runSessionTipsBootstrap(
     truncated: report.truncated,
     abortedAt: null,
   };
+}
+
+/** يمرّ على صفحات النشاط: كل صفحة تُقرأ بمعاملتها، وكل زيارة تُطبَّق بمعاملتها المستقلة. */
+async function runBusiness(
+  run: BootstrapRun,
+  businessId: string,
+): Promise<SessionTipsBootstrapResult | null> {
+  let cursor: BootstrapTipCursor | null = null;
+  for (;;) {
+    let page: BootstrapTipPage;
+    try {
+      page = await readPage(run, businessId, cursor);
+    } catch (error) {
+      if (error instanceof RangeError) throw error;
+      return abortedResult(run.report, businessId, cursor);
+    }
+    for (const session of page.items) {
+      const outcome = await deliverSession(run, businessId, session);
+      if (outcome === 'aborted') return abortedResult(run.report, businessId, cursor);
+    }
+    cursor = page.nextCursor;
+    if (cursor === null) return null;
+  }
+}
+
+/** يقرأ صفحة واحدة في معاملة قراءة مستقلة تُثبَت قبل تطبيق أي زيارة من صفحتها. */
+async function readPage(
+  run: BootstrapRun,
+  businessId: string,
+  cursor: BootstrapTipCursor | null,
+): Promise<BootstrapTipPage> {
+  return run.deps.withTenant(run.scope.companyId, (tx) =>
+    run.deps.reader.readPage(
+      tx,
+      run.scope.companyId,
+      businessId,
+      { from: run.scope.from, to: run.scope.to },
+      { after: cursor, limit: PAGE_SIZE },
+    ),
+  );
+}
+
+/**
+ * يطبّق زيارة واحدة في معاملة مستقلة: يعلّم كل أحداثها بالترتيب ثم يسقط بقشيشها.
+ * الحسم قبل القفل يطابق المسار الحي، والعلامة والإسقاط في معاملة واحدة فإما أن يتمّ الاثنان
+ * أو يُلغى الاثنان.
+ *
+ * @param run سياق التشغيل: الاعتماديات والنطاق والتقرير
+ * @param businessId النشاط الذي تنتمي إليه الزيارة
+ * @param session الزيارة كما قرأها القارئ
+ * @returns نتيجة الزيارة: ثبتت، أو مرفوضة بسبب معروف، أو أوقفت التشغيل
+ */
+async function deliverSession(
+  run: BootstrapRun,
+  businessId: string,
+  session: BootstrapTipSession,
+): Promise<SessionOutcome> {
+  let claimed = 0;
+  try {
+    await run.deps.withTenant(run.scope.companyId, async (tx) => {
+      for (const eventId of session.eventIds) {
+        if (await run.deps.markConsumed(tx, run.deps.consumerId, eventId)) claimed += 1;
+      }
+      await run.deps.tipsFor(tx).execute(toTipInput(run.scope.companyId, businessId, session));
+    });
+  } catch (error) {
+    const code = failureCode(error);
+    if (code === null || !CONTINUABLE_CODES.has(code)) return 'aborted';
+    recordUndelivered(run.report, session.sessionId, businessId, code);
+    return 'undelivered';
+  }
+  run.report.sessions += 1;
+  run.report.events += claimed;
+  return 'committed';
 }
 
 /** يحوّل جلسة البقشيش المقروءة من الحالة الحالية إلى مدخل إسقاط الجلسة، بلا قراءة ولا كتابة. */
@@ -126,57 +208,6 @@ function toTipInput(
       amount: tip.amount,
     })),
   };
-}
-
-/** يقرأ صفحة واحدة في معاملة الشركة ويعدّ ما سُلّم فيها؛ الأعداد لا تُضاف إلا بعد ثبات الصفحة. */
-async function readPage(
-  deps: SessionTipsBootstrapDeps,
-  scope: SessionTipsBootstrapScope,
-  businessId: string,
-  cursor: BootstrapTipCursor | null,
-  tx: TipsBootstrapTx,
-  report: BootstrapReport,
-): Promise<{ sessions: number; events: number; nextCursor: BootstrapTipCursor | null }> {
-  const page = await deps.reader.readPage(
-    tx,
-    scope.companyId,
-    businessId,
-    { from: scope.from, to: scope.to },
-    { after: cursor, limit: PAGE_SIZE },
-  );
-  let sessions = 0;
-  let events = 0;
-  for (const session of page.items) {
-    if (!(await deliverSession(deps, scope, businessId, session, tx, report))) continue;
-    sessions += 1;
-    events += session.eventIds.length;
-  }
-  return { sessions, events, nextCursor: page.nextCursor };
-}
-
-/** يسقط بقشيش الجلسة ويسجّل أحداثها في نقطة حفظ واحدة، فإما أن يتمّ الاثنان أو يُلغى الاثنان. */
-async function deliverSession(
-  deps: SessionTipsBootstrapDeps,
-  scope: SessionTipsBootstrapScope,
-  businessId: string,
-  session: BootstrapTipSession,
-  tx: TipsBootstrapTx,
-  report: BootstrapReport,
-): Promise<boolean> {
-  try {
-    await tx.transaction(async (sp) => {
-      await deps.tipsFor(sp).execute(toTipInput(scope.companyId, businessId, session));
-      for (const eventId of session.eventIds) {
-        await deps.markConsumed(sp, deps.consumerId, eventId);
-      }
-    });
-    return true;
-  } catch (error) {
-    const code = failureCode(error);
-    if (code === null || !CONTINUABLE_CODES.has(code)) throw error;
-    recordUndelivered(report, session.sessionId, businessId, code);
-    return false;
-  }
 }
 
 /** يسجّل الجلسة غير المسلّمة حتى حد السقف، وبعده يبقى الباقي محذوفاً لأن التقرير لا يتضخّم بلا حد. */
@@ -201,7 +232,7 @@ function failureCode(error: unknown): string | null {
   return null;
 }
 
-/** نتيجة الإيقاف: المؤشر يبقى آخر صفحة ثبتت، فالتشغيل كامل من نفس النقطة. */
+/** نتيجة الإيقاف: المؤشر هو مؤشر الصفحة التي كان التشغيل يعالجها؛ وما ثبت قبلها يبقى مثبَّتاً. */
 function abortedResult(
   report: BootstrapReport,
   businessId: string,
@@ -214,4 +245,22 @@ function abortedResult(
     truncated: report.truncated,
     abortedAt: { businessId, after },
   };
+}
+
+/**
+ * يوحّد معرّفات الأنشطة: حروف صغيرة بلا تكرار، وبالترتيب الذي وردت به.
+ *
+ * @param ids معرّفات الأنشطة كما وردت من المشغّل
+ * @returns المعرّفات الموحَّدة بلا تكرار وبالترتيب نفسه
+ */
+export function normalizeBusinessIds(ids: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const id of ids) {
+    const normalized = id.toLowerCase();
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    unique.push(normalized);
+  }
+  return unique;
 }

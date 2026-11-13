@@ -273,11 +273,14 @@ touches `published_at`, `attempts`, `parked_at` or `consumed_events` rows of oth
    At most 200 business ids. A missing or malformed argument (including a malformed company id, business id or date) prints
    `SESSION_TIPS_BOOTSTRAP_CONFIGURATION` and reads nothing; a date range with `--from` after `--to`, or a date that does not exist
    on the calendar, prints `SESSION_TIPS_BOOTSTRAP_RANGE_INVALID`; any other failure prints `SESSION_TIPS_BOOTSTRAP_FAILED`.
-3. **What one run does.** Per business, pages of 100 visits; each page is one tenant transaction and each visit inside it a savepoint:
-   the latest revision is applied through the same use case the live consumer uses (a revision lower than or equal to the saved one is
-   ignored), then every event id the reader lists for that visit, including older revisions, is marked consumed. A visit that fails keeps
-   its event ids unmarked. A revision written after the page was read is delivered by the live consumer, which applies it because its
-   revision is higher.
+3. **What one run does.** Per business, pages of 100 visits; each page is READ in its own tenant transaction, and each visit is
+   applied in its OWN tenant transaction: every event id the reader lists for that visit, including older revisions, is marked
+   consumed first, in the same order as live delivery, then the latest revision is applied through the same use case the live
+   consumer uses (a revision lower than or equal to the saved one is ignored); the mark and the projection commit together or not
+   at all. A visit's locks are released when its transaction commits, before the next visit starts. A visit that fails keeps its
+   event ids unmarked. A revision written after the page was read is delivered by the live consumer, which applies it because its
+   revision is higher. The business ids are lower-cased and de-duplicated in the order they were supplied. `counts.sessions` is the
+   number of visits whose transaction committed and `counts.events` is the number of event ids this run claimed anew.
 4. **Output.** One JSON line: `status`, `counts` (`sessions` and `events`, per invocation), `undelivered` (visit id, business id and error
    code only, never an amount or an employee; at most 200, `truncated` tells when more exist) and `abortedAt`. The exit code is 0 only for
    `COMPLETE`. Keep the line, the release SHA and the scope in the operations record.
@@ -286,9 +289,9 @@ touches `published_at`, `attempts`, `parked_at` or `consumed_events` rows of oth
    - `UNDELIVERED`: the scope finished but some visits were refused for a known business reason: `COMMISSION_PERIOD_CLOSED` (the month is
      APPROVED; it takes the 55-1 correction path and the manager owns it), `COMMISSION_BUSINESS_MISSING` or
      `COMMISSION_TIP_SALARY_INPUT_INVALID`. Fix the cause and re-run the same command; applied visits are not applied twice.
-   - `ABORTED`: a failure that is not a known business outcome (a database or timeout failure). Pages that committed stay committed;
-     `abortedAt` names the business and the cursor of the last committed page and is informational only. Fix the cause and re-run the
-     same command from the start: the revision guard and the consumed marks make it idempotent.
+   - `ABORTED`: a failure that is not a known business outcome (a database or timeout failure). The visits that committed stay
+     committed; `abortedAt` names the business and the cursor of the page that was being processed and is informational only. Fix
+     the cause and re-run the same command from the start: the revision guard and the consumed marks make it idempotent.
 6. **First run only.** After any worker rollback then upgrade, do not use this reader: it covers only the businesses and days supplied and
    the revisions that exist when it runs, so tip and package-sale events published during the rollback would stay unmarked and keep
    approval closed. Use the six-type retained-event replay of 50-3d with a new upper bound (CS-Q43, PP-185 item d).
