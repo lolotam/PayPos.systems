@@ -73,13 +73,20 @@ function strictFields(value: unknown, required: string[], optional: string[] = [
 }
 
 const journalEnvelopeFields = ['version', 'state', 'attempt', 'scope', 'key', 'createdAt', 'lastSentAt', 'sessionId', 'occurredAt', 'customerId'];
+const journalPiiFieldPattern = /phone|mobile|msisdn|name|email|pin|otp|code|challenge|token|password|secret|iban/i;
+
+// الـ slot store يحتاج يميّز النسخة الخام ذات الحقول الزائدة ليعيد كتابتها بعد تنقيتها.
+export function hasUnknownJournalFields(value: unknown): boolean {
+  return !!value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).some((key) => !journalEnvelopeFields.includes(key));
+}
 
 /**
  * التخزين ليس مصدراً موثوقاً: المخطط بإصدار صريح ويتحقق من الحقول المعروفة قبل استعادة أي طلب أو معرف زيارة.
- * حقول المظروف غير المعروفة تُحذف ولا تُرفض، حتى يظل rollback لإصدار أقدم صالحاً عند إضافة حقل جديد.
+ * الحقول غير المعروفة التي لا تشبه PII تُحذف لسلامة rollback؛ والحقل المجهول ذو الاسم الحساس يرفض المدخل حتى لا يبقى هاتف العميل في التخزين (35c).
  */
 export function parseSessionJournalEnvelope(value: unknown): SessionJournalEnvelope {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('SESSION_JOURNAL_INVALID');
+  if (Object.keys(value).some((key) => !journalEnvelopeFields.includes(key) && journalPiiFieldPattern.test(key))) throw new Error('SESSION_JOURNAL_INVALID');
   value = Object.fromEntries(Object.entries(value).filter(([key]) => journalEnvelopeFields.includes(key)));
   strictFields(value, ['version', 'state'], journalEnvelopeFields.filter((key) => key !== 'version' && key !== 'state'));
   if (value.version !== 1) throw new Error('SESSION_JOURNAL_VERSION_INVALID');

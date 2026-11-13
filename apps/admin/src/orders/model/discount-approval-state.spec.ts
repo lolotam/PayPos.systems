@@ -1,4 +1,4 @@
-import type { DiscountProposalStatus, RequesterDiscountProposalList } from '@pospay/contracts';
+import type { DiscountProposalStatus, RejectedServiceLine, RequesterDiscountProposalList } from '@pospay/contracts';
 import { expect, it } from 'vitest';
 import { discountApprovalView, latestDiscountApprovalRequests, type TrackedDiscountRequest } from './discount-approval-state';
 import type { SessionRecordingResult } from './session-recording-result';
@@ -14,7 +14,7 @@ function item(idValue: string, inputIndex: number, status: DiscountProposalStatu
     expires_at: instant, terms_hash: 'a'.repeat(64) };
 }
 
-function row(localId: string, refusal?: 'TERMS_MISMATCH', proposalId?: string): SessionRecordingResult['rejected'][number] {
+function row(localId: string, refusal?: RejectedServiceLine['approval_refusal'], proposalId?: string): SessionRecordingResult['rejected'][number] {
   return { localId, error: { ...rejection, ...(refusal ? { approval_refusal: refusal } : {}),
     ...(proposalId ? { discount_proposal_id: proposalId } : {}) } };
 }
@@ -52,6 +52,14 @@ it('PENDING refused by this proposal becomes requestable without attach', () => 
   const view = discountApprovalView([row(A, 'TERMS_MISMATCH', id(60))], [tracked(first, { 0: A })], { [first]: [pending] });
   expect(view.lines[A]?.covered).toBe(false);
   expect(view.requestable).toEqual([A]);
+  expect(view.attach).toEqual([]);
+});
+
+it.each(['NOT_FOUND', 'NOT_APPROVED', 'EXPIRED', 'CONSUMED'] as const)('PENDING refused with %s stays covered without attach', (code) => {
+  const pending = item(id(60), 0, 'PENDING');
+  const view = discountApprovalView([row(A, code, id(60))], [tracked(first, { 0: A })], { [first]: [pending] });
+  expect(view.lines[A]?.covered).toBe(true);
+  expect(view.requestable).toEqual([]);
   expect(view.attach).toEqual([]);
 });
 

@@ -107,3 +107,31 @@ it('purges foreign actor/scope slots before allowing a new creation', async () =
   const journal = await reload(undefined, { ...scope, userId: id(98) }); expect(journal.read()).toBeNull(); expect(sessionStorage.length).toBe(0);
   expect(journal.begin(record, [id(9)]).scope.userId).toBe(id(98));
 });
+
+it('slot seeded with unknown futureField is rewritten so read returns partial and futureField is purged', async () => {
+  seed({ ...partial, futureField: 'x' } as unknown as SessionJournalEnvelope);
+  const journal = await reload();
+  expect(journal.read()).toEqual(partial);
+  keys.forEach((key) => expect(sessionStorage.getItem(key) ?? '').not.toContain('futureField'));
+  expect((await reload()).read()).toEqual(partial);
+});
+
+it('legacy key holding PENDING with futureField rewrites to new slot and purges legacy key and futureField', async () => {
+  const attempt = freezeSessionAttempt(scope, record, [id(9)], runtime);
+  sessionStorage.setItem(keys[2], JSON.stringify({ version: 1, state: 'PENDING', attempt, futureField: 'x' }));
+  const journal = await reload();
+  expect(journal.read()).toEqual({ version: 1, state: 'PENDING', attempt });
+  expect(sessionStorage.getItem(keys[2])).toBeNull();
+  keys.forEach((key) => expect(sessionStorage.getItem(key) ?? '').not.toContain('futureField'));
+});
+
+it('rewrite failure on slot with futureField keeps the partial marker in read', async () => {
+  seed({ ...partial, futureField: 'x' } as unknown as SessionJournalEnvelope);
+  const backing: JournalStorage = {
+    getItem: (key) => sessionStorage.getItem(key),
+    removeItem: (key) => sessionStorage.removeItem(key),
+    setItem() { throw new Error('Quota'); },
+  };
+  const journal = await reload(backing);
+  expect(journal.read()).toEqual(partial);
+});

@@ -1,4 +1,4 @@
-import { parseSessionJournalEnvelope, sameSessionScope, type SessionAttemptScope, type SessionJournalEnvelope } from './session-attempt';
+import { hasUnknownJournalFields, parseSessionJournalEnvelope, sameSessionScope, type SessionAttemptScope, type SessionJournalEnvelope } from './session-attempt';
 
 const key = 'pospay:service-session-attempt';
 const slots = [`${key}:a`, `${key}:b`] as const;
@@ -40,6 +40,18 @@ export function createSessionAttemptSlotStore(storage?: JournalStorage) {
     }
     active = undefined; generation = 0;
   };
+  function writeSlot(envelope: SessionJournalEnvelope | null): boolean {
+    if (!storage || blocked || generation === Number.MAX_SAFE_INTEGER) return false;
+    const slotKey = active?.key === slots[0] ? slots[1] : slots[0];
+    const raw = JSON.stringify({ generation: ++generation, envelope: envelope ?? { version: 1, state: 'IDLE' } });
+    try {
+      storage.setItem(slotKey, raw);
+      if (storage.getItem(slotKey) !== raw) return false;
+      const candidate = parseSlot(slotKey, raw), previous = active; active = candidate;
+      if (previous && previous.key !== slotKey) { try { storage.removeItem(previous.key); } catch { /* ترتيب الأجيال يظل حاسماً إذا تعذر حذف النسخة الأقدم. */ } }
+      return true;
+    } catch { return false; }
+  }
   return {
     get blocked() { return blocked; }, configure(backing?: JournalStorage) { storage = backing; }, purge,
     recover(scope: SessionAttemptScope | null) {
@@ -47,19 +59,15 @@ export function createSessionAttemptSlotStore(storage?: JournalStorage) {
       const envelope = active?.envelope;
       const place = envelope?.state === 'PENDING' ? envelope.attempt.scope : envelope?.scope;
       if (place && (!scope || !sameSessionScope(scope, place))) { purge(); return null; }
+      if (envelope && active) {
+        const storedEnvelope: unknown = active.key === key ? JSON.parse(active.raw) : JSON.parse(active.raw).envelope;
+        if (hasUnknownJournalFields(storedEnvelope)) {
+          // فشل التنقية لا يستدعي الحذف: مفاتيح PII مرفوضة أصلًا، وحذف الخانة هنا قد يضيّع علامة PENDING.
+          writeSlot(envelope);
+        }
+      }
       return envelope ?? null;
     },
-    write(envelope: SessionJournalEnvelope | null): boolean {
-      if (!storage || blocked || generation === Number.MAX_SAFE_INTEGER) return false;
-      const slotKey = active?.key === slots[0] ? slots[1] : slots[0];
-      const raw = JSON.stringify({ generation: ++generation, envelope: envelope ?? { version: 1, state: 'IDLE' } });
-      try {
-        storage.setItem(slotKey, raw);
-        if (storage.getItem(slotKey) !== raw) return false;
-        const candidate = parseSlot(slotKey, raw), previous = active; active = candidate;
-        if (previous && previous.key !== slotKey) { try { storage.removeItem(previous.key); } catch { /* ترتيب الأجيال يظل حاسماً إذا تعذر حذف النسخة الأقدم. */ } }
-        return true;
-      } catch { return false; }
-    },
+    write(envelope: SessionJournalEnvelope | null): boolean { return writeSlot(envelope); },
   };
 }

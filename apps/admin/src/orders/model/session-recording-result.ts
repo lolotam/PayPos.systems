@@ -162,7 +162,9 @@ function applySessionResultEvent(state: SessionRecordingResult, event: SessionRe
       return { ...state, persistenceWarning: event.persistenceWarning ?? null, feedback: { kind: 'NOT_PERSISTED' } };
     const clearedPendingVisit = !entry && !event.persistenceWarning && journalDependent(state);
     const clearUnknownVisit = !entry && !event.persistenceWarning && state.visitTimeUnknown && !state.session;
-    if (!preserveVisit && (clearedPendingVisit || clearUnknownVisit || (entry?.state === 'PARTIAL' && entry.sessionId !== state.sessionId))) state = emptySessionRecordingResult(state.customer);
+    // تغيّر sessionId يعني زيارة أخرى؛ الاحتفاظ بالمسودة يكون فقط عندما تطابق الزيارة المعروضة.
+    const recoveredVisitChanged = (entry?.state === 'PARTIAL' || entry?.state === 'EXPIRED') && entry.sessionId !== undefined && entry.sessionId !== state.sessionId;
+    if (!preserveVisit && (clearedPendingVisit || clearUnknownVisit || recoveredVisitChanged)) state = emptySessionRecordingResult(state.customer);
     state = { ...state, persistenceWarning: event.persistenceWarning ?? null };
     if (entry?.state === 'PARTIAL' && !preserveVisit) state = applyVisitEntry(state, entry);
     if (entry?.state === 'EXPIRED' && entry.sessionId && !preserveVisit) state = applyVisitEntry(state, { ...entry, sessionId: entry.sessionId });

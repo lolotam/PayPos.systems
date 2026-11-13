@@ -381,3 +381,22 @@ it('restores customer, visit time, and draft occurred_at from an EXPIRED append 
   });
   expect(withoutTime.visitTimeUnknown).toBe(true);
 });
+
+it('JOURNAL EXPIRED for a different session clears previous visit drafts and rejections', () => {
+  const saved = recorded();
+  expect(saved.drafts.lines.length).toBeGreaterThan(0);
+  expect(saved.rejected.length).toBeGreaterThan(0);
+  const entry = { version: 1 as const, state: 'EXPIRED' as const, scope, key: attempt.key, createdAt: attempt.createdAt, sessionId: id(99) };
+  const result = transition(saved, { type: 'JOURNAL', entry });
+  expect(result.sessionId).toBe(id(99));
+  expect(result.drafts.lines).toEqual([]);
+  expect(result.rejected).toEqual([]);
+});
+
+it('JOURNAL EXPIRED for the same session preserves in-tab draft lines', () => {
+  const saved = recorded();
+  expect(saved.sessionId).toBe(id(12));
+  const entry = { version: 1 as const, state: 'EXPIRED' as const, scope, key: attempt.key, createdAt: attempt.createdAt, sessionId: id(12) };
+  const result = transition(saved, { type: 'JOURNAL', entry });
+  expect(result.drafts.lines).toEqual(saved.drafts.lines);
+});

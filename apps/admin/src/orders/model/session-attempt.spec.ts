@@ -45,3 +45,8 @@ it('strips unknown top-level envelope keys while unknown scope keys still throw'
   expect(parseSessionJournalEnvelope({ ...envelope, futureField: 'x' })).toEqual(envelope);
   expect(() => parseSessionJournalEnvelope({ ...envelope, scope: { ...scope, extra: 'y' } })).toThrow('SESSION_JOURNAL_INVALID');
 });
+
+it.each(['phone', 'customerPhone', 'Email', 'otp'] as const)('PII-shaped unknown key %s on PARTIAL envelope throws SESSION_JOURNAL_INVALID', (key) => {
+  const envelope = { version: 1 as const, state: 'PARTIAL' as const, scope, sessionId: id(12) };
+  expect(() => parseSessionJournalEnvelope({ ...envelope, [key]: 'secret' })).toThrow('SESSION_JOURNAL_INVALID');
+});
