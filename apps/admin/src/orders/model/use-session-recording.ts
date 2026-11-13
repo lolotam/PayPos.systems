@@ -39,14 +39,14 @@ const pendingJournal: SessionAttemptJournal = {
   dispose() {},
 };
 
-function sessionCommandLines(lines: SessionDraftLine[]): SessionAttemptCommand['body']['lines'] {
+export function sessionCommandLines(lines: SessionDraftLine[]): SessionAttemptCommand['body']['lines'] {
   return lines.map((line) => {
     if (line.from_package) {
       if (line.package_entitlement_id === null) throw new Error('SESSION_PACKAGE_NOT_CHOSEN');
       return { service_id: line.service_id,
         package: { entitlement_id: line.package_entitlement_id }, performers: sessionPerformerInputs(line) };
     }
-    return {
+    const paid = {
       service_id: line.service_id,
       price: sessionMoney.parse(normalizeKwdInput(line.price)),
       discount: line.discount_kind === 'PERCENT'
@@ -54,6 +54,8 @@ function sessionCommandLines(lines: SessionDraftLine[]): SessionAttemptCommand['
         : { kind: 'AMOUNT' as const, amount: sessionMoney.parse(normalizeKwdInput(line.discount_amount)) },
       performers: sessionPerformerInputs(line),
     };
+    // المعرّف يتبعت دايمًا لأن الخادم صاحب الشروط (D-2، D-4) وهو اللي يرجّع TERMS_MISMATCH أو EXPIRED بوضوح؛ العميل ما يخمّنش.
+    return { ...paid, ...(line.discount_proposal ? { discount_proposal_id: line.discount_proposal.id } : {}) };
   });
 }
 

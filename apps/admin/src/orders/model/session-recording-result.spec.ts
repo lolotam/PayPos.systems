@@ -349,3 +349,12 @@ it('recovers a replayed package line as a package draft and leaves its paid neig
     price: inputLine.price, discount_kind: inputLine.discount.kind, discount_percentage: '10.00' });
   expect(recoveredPaid && sessionPerformerInputs(recoveredPaid)).toEqual(inputLine.performers);
 });
+it('restores the attached discount proposal id on a recovered paid draft', () => {
+  const frozen = { ...recordAttempt, rowIds: [id(30), id(31)],
+    body: { customer_id: id(7), lines: [{ ...inputLine, discount_proposal_id: id(60) }, inputLine] } };
+  const pending = transition(emptySessionRecordingResult(), { type: 'JOURNAL', entry: { version: 1, state: 'PENDING', attempt: frozen } });
+  expect(pending.drafts.lines[0]?.local_id).toBe(id(30));
+  expect(pending.drafts.lines[0]?.discount_proposal).toEqual({ id: id(60) });
+  expect(pending.drafts.lines[1]?.local_id).toBe(id(31));
+  expect(pending.drafts.lines[1]?.discount_proposal).toBeNull();
+});

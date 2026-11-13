@@ -14,6 +14,7 @@ export type SessionDraftLine = Pick<SessionPaidLineInput, 'service_id' | 'price'
   service: SessionServiceSelection | null;
   from_package: boolean;
   package_entitlement_id: string | null;
+  discount_proposal?: { id: string } | null;
   discount_kind: SessionPaidLineInput['discount']['kind'];
   discount_amount: string;
   discount_percentage: string;
@@ -25,7 +26,7 @@ export const SESSION_DRAFT_MIN = 1, SESSION_DRAFT_MAX = 20;
 
 export function createSessionDraft(localId: string = crypto.randomUUID()): SessionDraftLine {
   return { local_id: localId, service_id: '', price: '', service: null, from_package: false, package_entitlement_id: null,
-    discount_kind: 'AMOUNT', discount_amount: '0.000', discount_percentage: '0', share_mode: 'EQUAL',
+    discount_proposal: null, discount_kind: 'AMOUNT', discount_amount: '0.000', discount_percentage: '0', share_mode: 'EQUAL',
     performers: [{ employee_id: '', share_percentage: '', selection: null }] };
 }
 
