@@ -8,6 +8,7 @@ import {
   discountApprovedByPerformerEvent,
   discountDecisionAudits,
   discountDecisionResponse,
+  type DiscountDecisionChannel,
 } from '../../domain/discount-decision-records.ts';
 import { DiscountDecisionError } from '../../domain/discount-decision-error.ts';
 import {
@@ -33,6 +34,8 @@ type DecisionInput = ApproveDiscountProposalsInput | RejectDiscountProposalsInpu
 type DecisionContext = SessionWriteContext & {
   decision: 'APPROVE' | 'REJECT';
   input: DecisionInput;
+  /** قناة القرار؛ غيابها يعني القرار البعيد بلا جهاز. */
+  channel?: { via: 'PIN'; deviceId: string; pinRevision: string; confirmBinding: () => Promise<boolean> };
 };
 type DecisionLabels = (snapshot: DiscountDeciderSnapshot) => { ar: string; en: string };
 interface DecisionFacts {
@@ -55,6 +58,19 @@ export class DecideDiscountProposalsUseCase {
   ) {}
 
   async execute(context: DecisionContext): Promise<DecideDiscountProposalsResponse> {
+    const channel = context.channel;
+    if (channel !== undefined) {
+      return this.transactions.run(context, async (tx) => {
+        const fenced = await tx.fence.lock({
+          deviceId: channel.deviceId,
+          approverUserId: context.userId,
+          pinRevision: channel.pinRevision,
+          confirmBinding: channel.confirmBinding,
+        });
+        if (!fenced) throw new SessionError('FORBIDDEN');
+        return this.decide(tx, context);
+      });
+    }
     return this.transactions.run(context, async (tx) => {
       const response = await tx.idempotent(() => this.decide(tx, context));
       if (response.replayed) {
@@ -70,6 +86,7 @@ export class DecideDiscountProposalsUseCase {
     tx: DiscountDecisionTransaction,
     context: DecisionContext,
   ): Promise<DecideDiscountProposalsResponse> {
+    const channel = this.channel(context);
     await tx.access.lock();
     const peeked = context.decision === 'APPROVE'
       ? await this.peekProposals(tx, context.input.proposal_ids)
@@ -96,23 +113,28 @@ export class DecideDiscountProposalsUseCase {
       await this.recheckApprover(tx, context, membership, decidedAt);
     }
     const plan = this.plan(context, { locked, membership, now: decidedAt }, approval);
-    if (await tx.proposals.decide(plan, decider) !== locked.length) {
+    if (await tx.proposals.decide(plan, decider, channel) !== locked.length) {
       throw new DiscountDecisionError('DISCOUNT_PROPOSAL_NOT_PENDING', {
         proposal_id: locked[0]?.id,
       });
     }
-    await tx.audit(discountDecisionAudits(plan, { decided_via: 'REMOTE', decided_device_id: null }));
+    await tx.audit(discountDecisionAudits(plan, channel));
     const labels = this.labels(decider);
     const event = discountApprovedByPerformerEvent(plan, locked, {
+      ...channel,
       business_id: context.businessId,
       branch_id: context.branchId,
-      decided_via: 'REMOTE',
-      decided_device_id: null,
       decider_label_ar: labels.ar,
       decider_label_en: labels.en,
     });
     if (event !== null) await tx.emit(event);
     return discountDecisionResponse(plan);
+  }
+
+  private channel(context: DecisionContext): DiscountDecisionChannel {
+    const channel = context.channel;
+    if (channel === undefined) return { decided_via: 'REMOTE', decided_device_id: null };
+    return { decided_via: channel.via, decided_device_id: channel.deviceId };
   }
 
   private async recheckApprover(
