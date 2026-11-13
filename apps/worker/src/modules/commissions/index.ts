@@ -48,3 +48,25 @@ export type {
   BootstrapTipSession,
   CurrentTipSessionsReader,
 } from './ports/commission-tip-bootstrap.port.ts';
+export { createCommissionCoverageReport } from './commissions.module.ts';
+export {
+  CommissionCoverageEventInvalidError,
+  runCommissionCoverageReport,
+} from './use-cases/report-commission-coverage/report-commission-coverage.ts';
+export type {
+  CommissionCoverageDeps,
+  CommissionCoverageReport,
+  CommissionCoverageScope,
+  CoverageIdList,
+} from './use-cases/report-commission-coverage/report-commission-coverage.ts';
+export type {
+  CoverageProjectionReader,
+  CoverageRetainedPageReader,
+  SalaryCoverageCursor,
+  SalaryCoveragePage,
+  SalaryCoverageReader,
+  SalaryCoverageRow,
+  ServiceLineCoveragePage,
+  ServiceLineCoverageReader,
+  ServiceLineCoverageRow,
+} from './ports/commission-coverage.port.ts';

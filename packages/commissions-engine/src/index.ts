@@ -13,6 +13,12 @@ export type {
   ServiceCommissionOverride,
   ServiceCommissionRule,
 } from './commission-types.ts';
+export {
+  compareCoverage,
+  coverageKey,
+  findUnmarkedEventIds,
+} from './coverage-comparison.ts';
+export type { CoverageComparison, CoverageRow } from './coverage-comparison.ts';
 export type {
   CommissionConfigurationError,
   CommissionValidationError,

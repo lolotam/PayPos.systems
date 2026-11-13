@@ -300,6 +300,34 @@ touches `published_at`, `attempts`, `parked_at` or `consumed_events` rows of oth
 7. **Do not** insert a mark or an event by hand and do not reset any outbox column; the remedy for a missing visit is to re-run with a
    scope that covers it.
 
+## 50-3c: check that the projection covers every retained input (spec 059, CS-Q41, CS-Q42)
+
+A read-only report of one company: the retained service lines and the retained salaries (the projection revision against the
+source revision) and the retained events that still lack the `commissions.project-inputs` mark. It writes nothing and locks nothing:
+no `published_at`, no `attempts`, no mark and no projection change.
+
+1. **What it does.** It compares the projection's revision with the source's revision for every retained line and salary of the
+   company, and it lists the retained events that carry no consumer mark. Nothing else is read and nothing is written.
+2. **Command.** From `apps/worker`, with the ordinary `DATABASE_URL` (`pospay_app`) and `DISPATCHER_DATABASE_URL`
+   (`pospay_dispatcher`):
+
+   ```sh
+   node dist/report-commission-coverage.js --company <uuid> [--through <uuid>]
+   ```
+
+   Run it after the 50-3a replay and the 50-3b bootstrap finished, and use the same `--through` as the replay.
+3. **Output.** One JSON line: `status` (`COVERED` or `NOT_COVERED`), `throughId`, `lines` and `salaries` (each with `checked`,
+   `missing` and `stale`, each list carrying its `total` and at most 200 ids; a salary id is `employeeId|YYYY-MM-DD`), `unmarked`
+   (`checked`, `total` and `events` with the event id and the event type, at most 200) and `truncated`. Ids and counts only,
+   never an amount and never a name. The exit code is 0 only for `COVERED`.
+4. **Remedy.** A `missing` or a `stale` line or salary, or an unmarked event whose retained event exists: re-run the 50-3a replay
+   for the company with its `--through`, then re-run this report. If a line or a salary stays missing and no retained event exists
+   for it, the replay cannot recover it: approval stays closed and the manager investigates (re-emitting an event is not designed).
+   Do not insert a mark or an event by hand.
+5. **Limits.** The retained-event check covers the four 50-0 types until 50-3d adds the six-type facade. Tip coverage by revision
+   and the tip event-id check are deferred to 50-3d (manager decision 2026-11-13) and are not in this report. A clean report is a
+   point-in-time read: a row written while it runs is delivered by the live consumer.
+
 ## Admin service-session browser tests
 
 The Playwright config has no `webServer`. Postgres, Redis, the API and the admin must already be running.
