@@ -3,6 +3,7 @@ import type {
   DiscountDecisionPlan,
   LockedDiscountProposal,
 } from '../domain/discount-decision-plan.ts';
+import type { DiscountDecisionChannel } from '../domain/discount-decision-records.ts';
 import type { DiscountProposalAuditEntry } from './discount-request.port.ts';
 import type { EditorNamePort, SessionEditFacts } from './line-edit.port.ts';
 import type { SessionWriteContext } from './service-session-transactions.port.ts';
@@ -31,6 +32,75 @@ export interface DiscountProposalPerformerIds {
   employee_ids: readonly string[];
 }
 
+/** جهاز الفرع الذي يطلب الموافقة: الشركة والجهاز والفرع، بلا مستخدم ولا جلسة. */
+export interface DiscountDecisionDevice {
+  companyId: string;
+  deviceId: string;
+  branchId: string;
+}
+
+/** ما يثبّت صاحب الاعتماد: الهاتف والرقم السري وطرفا جهاز الطلب. */
+export interface DiscountPinVerification extends DiscountDecisionDevice {
+  phone: string;
+  pin: string;
+}
+
+/** نتيجة التحقق: صاحب الاعتماد وإصدار اعتماده، أو رفض أو قفل أو زحام. */
+export type DiscountPinOutcome =
+  | {
+      kind: 'ok';
+      userId: string;
+      pinRevision: string;
+      /** بيتأكد إن ارتباط الهاتف بصاحب الاعتماد لسه ثابت؛ النافذة المتبقية من إعادة الفحص لحد commit داخل المعاملة. */
+      confirmBinding: () => Promise<boolean>;
+    }
+  | { kind: 'refused' }
+  | { kind: 'locked' }
+  | { kind: 'busy' };
+
+/** التحقق من الرقم السري لطلب موافقة الخصم على جهاز مقترن. */
+export interface DiscountPinApproverPort {
+  /**
+   * يقارن الهاتف والرقم السري خارج المعاملة ويعيد صاحب الاعتماد وإصداره أو سبب الرفض.
+   * القاعدة: الرد قرار فقط؛ لا تجزئة ولا رقم سري ولا هاتف.
+   *
+   * @param verification الهاتف والرقم السري وطرفا جهاز الطلب
+   * @returns صاحب الاعتماد وإصداره، أو رفض أو قفل أو زحام
+   */
+  verify(verification: DiscountPinVerification): Promise<DiscountPinOutcome>;
+}
+
+/** إثبات الاعتماد داخل المعاملة: الجهاز وصاحب الاعتماد وإصدار اعتماده. */
+export interface DiscountPinFenceProof {
+  deviceId: string;
+  approverUserId: string;
+  pinRevision: string;
+  /** بيتأكد إن ارتباط الهاتف بصاحب الاعتماد لسه ثابت؛ النافذة المتبقية من إعادة الفحص لحد commit داخل المعاملة. */
+  confirmBinding: () => Promise<boolean>;
+}
+
+/** حارس الاعتماد: يثبت أن الجهاز والإصدار ما زالا على حالهما حتى نهاية المعاملة. */
+export interface DiscountPinFencePort {
+  /**
+   * يقفل صف الجهاز وصف اعتماد الرقم السري حتى نهاية المعاملة.
+   *
+   * @param proof الجهاز وصاحب الاعتماد وإصدار اعتماده المتحقق منه
+   * @returns true ما زال الجهاز مقترناً فعالاً والإصدار نفسه، وfalse لأي سحب أو تغيير
+   */
+  lock(proof: DiscountPinFenceProof): Promise<boolean>;
+}
+
+/** قراءة نطاق الجهاز: النشاط الذي يخدمه الجهاز المقترن. */
+export interface DiscountDeviceScopePort {
+  /**
+   * يعيد نشاط الجهاز المقترن في الشركة.
+   *
+   * @param device الشركة والجهاز والفرع
+   * @returns معرّف النشاط، أو null لجهاز غير فعال أو من فرع آخر
+   */
+  businessOf(device: DiscountDecisionDevice): Promise<string | null>;
+}
+
 /** تخزين قرار الاقتراحات؛ النطاق والقفل وCAS مسؤوليته وحده. */
 export interface DiscountDecisionRepository {
   /**
@@ -52,9 +122,14 @@ export interface DiscountDecisionRepository {
    *
    * @param plan خطة الموافقة أو الرفض المكتملة
    * @param decider لقطة الاسم والدور التي تُحفظ مع القرار
+   * @param channel قناة القرار وجهازها؛ القرار البعيد بلا جهاز
    * @returns عدد الصفوف التي تغيّرت فعلاً لاكتشاف أي تعارض دفاعي
    */
-  decide(plan: DiscountDecisionPlan, decider: DiscountDeciderSnapshot): Promise<number>;
+  decide(
+    plan: DiscountDecisionPlan,
+    decider: DiscountDeciderSnapshot,
+    channel: DiscountDecisionChannel,
+  ): Promise<number>;
 }
 
 /** معاملة القرار؛ كل القراءات والآثار على اتصال المستأجر نفسه. */
@@ -64,6 +139,12 @@ export interface DiscountDecisionTransaction {
   approverName: EditorNamePort;
   performers: PerformerCheckPort;
   proposals: DiscountDecisionRepository;
+  /**
+   * يثبت داخل المعاملة أن الجهاز والإصدار الذي تحقّق منه ما زالا على حالهما.
+   *
+   * @returns true ما زال الجهاز فعالاً والإصدار نفسه، وfalse لأي سحب أو تغيير
+   */
+  fence: DiscountPinFencePort;
   /**
    * يحفظ الرد 200 مع القرار والتدقيق والحدث، أو يعيد الرد الأصلي بلا كتابة جديدة.
    *
