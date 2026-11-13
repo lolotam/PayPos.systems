@@ -18,6 +18,11 @@ const CATEGORY_BACK_TO_PENDING = '01920000-0000-7000-8000-0000000008a5';
 const CATEGORY_REVISION = '01920000-0000-7000-8000-0000000008a6';
 const CATEGORY_GRANT = '01920000-0000-7000-8000-0000000008a7';
 const CATEGORY_INSERT = '01920000-0000-7000-8000-0000000008a8';
+// تصنيفات القيد: واحد للإدراج المباشر، وتلاتة للتحديثات لأن الصف المعلّق بيفضل في تصنيفه.
+const CATEGORY_CHECK_INSERT = '01920000-0000-7000-8000-0000000008a9';
+const CATEGORY_CHECK_COMPLETED = '01920000-0000-7000-8000-0000000008aa';
+const CATEGORY_CHECK_FAILED = '01920000-0000-7000-8000-0000000008ab';
+const CATEGORY_CHECK_ERROR_CODE = '01920000-0000-7000-8000-0000000008ac';
 const CATEGORY_IDS = [
   CATEGORY_UNIQUE,
   CATEGORY_COMPLETED,
@@ -27,6 +32,10 @@ const CATEGORY_IDS = [
   CATEGORY_REVISION,
   CATEGORY_GRANT,
   CATEGORY_INSERT,
+  CATEGORY_CHECK_INSERT,
+  CATEGORY_CHECK_COMPLETED,
+  CATEGORY_CHECK_FAILED,
+  CATEGORY_CHECK_ERROR_CODE,
 ];
 const REQUESTED_AT = '2026-11-13T09:00:00Z';
 const DEADLINE_AT = '2026-11-13T09:15:00Z';
@@ -107,16 +116,40 @@ const BASE_ROW = {
 
 interface CheckCase {
   readonly label: string;
+  readonly category: string;
   readonly overrides: Record<string, unknown>;
   readonly constraint: string;
 }
 
-/** القيد نفسه هو اللي بيتفحص: بنوقف الحارس جوه معاملة بتتلغي، فالباقي هو القيد. */
-const insertWithoutGuard = async (row: Record<string, unknown>): Promise<unknown> =>
-  owner.begin(async (tx) => {
-    await tx`ALTER TABLE service_category_closings DISABLE TRIGGER service_category_closing_guard`;
-    await tx`INSERT INTO service_category_closings ${tx(row)}`;
-  });
+/** إدراج صف طلب: الحارس بيمرّ على الصف المعلّق، والقيد هو اللي يرفض الشكل الغلط. */
+const ownerInsert = (row: Record<string, unknown>) =>
+  owner`INSERT INTO service_category_closings ${owner(row)}`;
+
+/** تحديث صف معلّق للشكل الغلط: الحارس يسمح بانتقال pending إلى completed أو failed، فالقيد يرفض. */
+const ownerUpdate = (id: string, shape: Record<string, unknown>) =>
+  owner`UPDATE service_category_closings SET ${owner(shape)} WHERE id = ${id} RETURNING id`;
+
+/** بينفّذ حالة واحدة: بيعمل الشكل الغلط، والقيد هو اللي لازم يرفضه من غير ما يسيب أثر. */
+const refuseShape = async (testCase: CheckCase): Promise<void> => {
+  const { constraint } = testCase;
+  const id = randomUUID();
+  // الشكل النهائي (status مش pending) بيتعمل بتحديث من صف معلّق، وغير كده إدراج مباشر.
+  const isUpdate = 'status' in testCase.overrides && testCase.overrides['status'] !== 'pending';
+  if (isUpdate) {
+    // الصف المعلّق بيتعمل كـ owner: الرفض لازم ييجي من القيد مش من صلاحية الدور.
+    await ownerInsert({ ...BASE_ROW, id, category_id: testCase.category });
+  }
+  const error = await pgError(
+    isUpdate
+      ? ownerUpdate(id, testCase.overrides)
+      : ownerInsert({ ...BASE_ROW, id, category_id: testCase.category, ...testCase.overrides }),
+  );
+  expect(error, testCase.label).toMatchObject({ code: '23514', constraint_name: constraint });
+  // الطلب المرفوض مسيبش أثر: يا ما فيش صف خالص، يا الصف المعلّق لسه معلّق.
+  const rows = await owner`SELECT status,finished_at
+    FROM service_category_closings WHERE id=${id}`;
+  expect(rows, testCase.label).toEqual(isUpdate ? [{ status: 'pending', finished_at: null }] : []);
+};
 
 it('only one pending row per category: a second one is refused and a completed row frees the category', async () => {
   const first = randomUUID();
@@ -206,21 +239,25 @@ it('the CHECK refuses every malformed shape of the row', async () => {
   const cases: CheckCase[] = [
     {
       label: 'a pending row with a finish time',
+      category: CATEGORY_CHECK_INSERT,
       overrides: { finished_at: REQUESTED_AT },
       constraint: 'service_category_closings_shape_check',
     },
     {
       label: 'a completed row without a changed count',
+      category: CATEGORY_CHECK_COMPLETED,
       overrides: { status: 'completed', finished_at: REQUESTED_AT },
       constraint: 'service_category_closings_shape_check',
     },
     {
       label: 'a failed row without an error code',
+      category: CATEGORY_CHECK_FAILED,
       overrides: { status: 'failed', finished_at: REQUESTED_AT },
       constraint: 'service_category_closings_shape_check',
     },
     {
       label: 'an error code outside the six codes',
+      category: CATEGORY_CHECK_ERROR_CODE,
       overrides: {
         status: 'failed',
         error_code: 'SERVICE_CATEGORY_UNKNOWN',
@@ -230,28 +267,18 @@ it('the CHECK refuses every malformed shape of the row', async () => {
     },
     {
       label: 'an expected count of zero',
+      category: CATEGORY_CHECK_INSERT,
       overrides: { expected_service_count: 0 },
       constraint: 'service_category_closings_expected_service_count_check',
     },
     {
       label: 'a deadline that is not after the request',
+      category: CATEGORY_CHECK_INSERT,
       overrides: { deadline_at: REQUESTED_AT },
       constraint: 'service_category_closings_deadline_at_check',
     },
   ];
   for (const testCase of cases) {
-    const error = await insertWithoutGuard({
-      ...BASE_ROW,
-      id: randomUUID(),
-      ...testCase.overrides,
-    }).then(
-      () => null,
-      (cause: unknown) => cause,
-    );
-    expect(error, testCase.label).not.toBeNull();
-    expect(error, testCase.label).toMatchObject({
-      code: '23514',
-      constraint_name: testCase.constraint,
-    });
+    await refuseShape(testCase);
   }
 });
