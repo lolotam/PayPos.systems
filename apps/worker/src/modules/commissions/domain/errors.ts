@@ -119,3 +119,42 @@ export class CommissionCorrectionTargetInputError extends Error {
     this.period = period;
   }
 }
+
+/** سبب رفض مُدخل خطوة التصحيح؛ كلها أخطاء إدخال صريحة، وليس فيها إعادة محاولة تشغيلية. */
+export type CommissionCorrectionStepRefusal =
+  'DUPLICATE_SOURCE' | 'SOURCE_KIND_CONFLICT' | 'MISSING_ATTRIBUTION' | 'AMOUNT_OUT_OF_RANGE';
+
+/**
+ * رفض مُدخل خطوة التصحيح؛ الحساب يتوقف بدل أن يبني صف تصحيح بمبلغ أو نسبة غلط،
+ * لأن صفاً غلطاً في كشف رواتب لا يُصحَّح إلا بخطأ آخر. مرجع المصدر هو هوية
+ * المصدر لوحده، فمرجع واحد بنوعين أو مبلغ برّه المدى رفضُ صريح مش مصدرين.
+ */
+export class CommissionCorrectionStepInputError extends Error {
+  readonly code = 'COMMISSION_CORRECTION_STEP_INPUT_INVALID';
+  readonly reason: CommissionCorrectionStepRefusal;
+  readonly sourceRef: string | null;
+  readonly kind: string | null;
+
+  /**
+   * يحتفظ بسبب الرفض والمصدر المعني حتى يصل صاحب التسليم إلى المدخل المعطوب.
+   *
+   * @param reason سبب الرفض الثابت الذي يصف نوع الخلل
+   * @param sourceRef مرجع المصدر الذي وقع فيه الخلل، أو null إذا لم يكن الخلل مرتبطاً بمصدر
+   * @param kind نوع المصدر الذي وقع فيه الخلل، أو null إذا لم يكن الخلل مرتبطاً بمصدر
+   */
+  constructor(
+    reason: CommissionCorrectionStepRefusal,
+    sourceRef: string | null = null,
+    kind: string | null = null,
+  ) {
+    super(
+      `Invalid commission correction step input: ${reason}${
+        sourceRef === null ? '' : ` (${sourceRef}/${kind ?? ''})`
+      }`,
+    );
+    this.name = 'CommissionCorrectionStepInputError';
+    this.reason = reason;
+    this.sourceRef = sourceRef;
+    this.kind = kind;
+  }
+}

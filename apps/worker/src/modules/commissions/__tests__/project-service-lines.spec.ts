@@ -84,9 +84,9 @@ it('runs locks, head read, one period lock, replacement and affected-only reopen
   const scope = new FakeScope();
   scope.heads = [{ ...line({ revision: 1 }), period: '2026-10' }];
   scope.locked = [
-    { period: '2026-10', status: 'REVIEWED' },
-    { period: '2026-11', status: 'REVIEWED' },
-    { period: '2026-12', status: 'DRAFT' },
+    { period: '2026-10', statementId: 'statement-2026-10', status: 'REVIEWED' },
+    { period: '2026-11', statementId: 'statement-2026-11', status: 'REVIEWED' },
+    { period: '2026-12', statementId: 'statement-2026-12', status: 'DRAFT' },
   ];
   await new ProjectServiceLines(scope, clock, ids).execute(input([line()]));
   expect(scope.calls).toEqual([
@@ -119,7 +119,7 @@ it.each(['APPROVED', 'PAID'] as const)(
   async (status) => {
     const scope = new FakeScope();
     scope.heads = [{ ...line({ revision: 1 }), period: '2026-10' }];
-    scope.locked = [{ period: '2026-10', status }];
+    scope.locked = [{ period: '2026-10', statementId: 'statement-2026-10', status }];
     const work = new ProjectServiceLines(scope, clock, ids).execute(input([line()]));
     await expect(work).rejects.toBeInstanceOf(CommissionPeriodClosedError);
     await expect(work).rejects.toMatchObject({
@@ -136,9 +136,9 @@ it('a business-date change locks removal and addition months through the current
   const scope = new FakeScope();
   scope.heads = [{ ...line({ revision: 1, businessDate: '2026-09-01' }), period: '2026-09' }];
   scope.locked = [
-    { period: '2026-09', status: 'REVIEWED' },
-    { period: '2026-10', status: 'REVIEWED' },
-    { period: '2026-11', status: 'REVIEWED' },
+    { period: '2026-09', statementId: 'statement-2026-09', status: 'REVIEWED' },
+    { period: '2026-10', statementId: 'statement-2026-10', status: 'REVIEWED' },
+    { period: '2026-11', statementId: 'statement-2026-11', status: 'REVIEWED' },
   ];
   await new ProjectServiceLines(scope, clock, ids).execute(
     input([line({ businessDate: '2026-10-15' })]),

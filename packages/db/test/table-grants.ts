@@ -1,4 +1,8 @@
 import { ATTENDANCE_TABLE_GRANTS } from './attendance-grants.ts';
+import {
+  COMMISSION_CORRECTION_TABLE_GRANTS,
+  COMMISSION_PERIOD_GENERATION_TABLE_GRANTS,
+} from './commission-correction-grants.ts';
 import { DISCOUNT_PROPOSAL_TABLE_GRANTS } from './discount-proposal-grants.ts';
 import { COMMISSION_STATEMENT_TABLE_GRANTS } from './commission-statement-grants.ts';
 import { COMMISSION_PLAN_VERSION_TABLE_GRANTS } from './commission-plan-version-grants.ts';
@@ -32,7 +36,9 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'cashier_pins:INSERT',
     'cashier_pins:SELECT',
     'cashier_pins:UPDATE',
+    ...COMMISSION_CORRECTION_TABLE_GRANTS,
     ...COMMISSION_LINE_TABLE_GRANTS,
+    ...COMMISSION_PERIOD_GENERATION_TABLE_GRANTS,
     ...COMMISSION_PLAN_VERSION_TABLE_GRANTS,
     'commission_salaries:INSERT',
     'commission_salaries:SELECT',
