@@ -25,7 +25,9 @@ const ADMIT = `${NOW}
 // An expired admission changes nothing: its slot was already given back, and its answer no longer counts.
 const CLAIM = `${NOW}
   if redis.call('ZREM', KEYS[2], ARGV[1]) == 0 then return 'expired' end`;
+// A straggler admitted before the lock must not count after it and pollute the next window.
 const FAILURE = `${CLAIM}
+  if redis.call('EXISTS', KEYS[3]) == 1 then return 'locked' end
   local failures = redis.call('INCR', KEYS[1])
   if failures == 1 then redis.call('EXPIRE', KEYS[1], ARGV[3]) end
   if failures >= tonumber(ARGV[2]) then
