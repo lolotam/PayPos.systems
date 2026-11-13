@@ -1996,7 +1996,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** @description Returns a category with open_service_count and marked_service_count for close and reopen confirmation. Requires read:service-categories:business and the catalog feature. Missing, foreign and other-business ids share SERVICE_CATEGORY_NOT_FOUND (404). */
+        get: operations["getServiceCategory"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2004,6 +2005,40 @@ export interface paths {
         head?: never;
         /** @description Renames any category of the business, including a closed one, against expected_revision. visibility may only change BRANCH to BUSINESS. Requires manage:service-categories:business and the catalog feature. */
         patch: operations["renameServiceCategory"];
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/service-categories/{categoryId}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Closes a category and its open services against the confirmed revision and count. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. Errors: SERVICE_CATEGORY_NOT_FOUND (404), SERVICE_CATEGORY_ALREADY_CLOSED, SERVICE_CATEGORY_COUNT_CHANGED and SERVICE_CATEGORY_REVISION_CONFLICT (409). */
+        post: operations["closeServiceCategory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/service-categories/{categoryId}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Reopens a category and exactly the services marked by its close. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. Errors: SERVICE_CATEGORY_NOT_FOUND (404), SERVICE_CATEGORY_NOT_CLOSED, SERVICE_CATEGORY_COUNT_CHANGED and SERVICE_CATEGORY_REVISION_CONFLICT (409). */
+        post: operations["reopenServiceCategory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/v1/businesses/{businessId}/branches/{branchId}/service-categories": {
@@ -2092,6 +2127,40 @@ export interface paths {
         head?: never;
         /** @description Full replacement of the editable fields against expected_revision. Requires manage:services:business and the catalog feature. A price or rule change is audited; a stale revision returns SERVICE_REVISION_CONFLICT (409). */
         patch: operations["updateService"];
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/services/{serviceId}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Closes one service against expected_revision. Requires close:services:business AND read:services:business and the catalog feature. Errors: SERVICE_NOT_FOUND (404), SERVICE_ALREADY_CLOSED and SERVICE_REVISION_CONFLICT (409). */
+        post: operations["closeService"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/services/{serviceId}/reopen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Reopens one service against expected_revision. Requires close:services:business AND read:services:business and the catalog feature. Errors: SERVICE_NOT_FOUND (404), SERVICE_NOT_CLOSED, SERVICE_CATEGORY_CLOSED and SERVICE_REVISION_CONFLICT (409). */
+        post: operations["reopenService"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/v1/businesses/{businessId}/package-types": {
@@ -4918,6 +4987,12 @@ export interface components {
             /** Format: uuid */
             category_id?: string | null;
         };
+        CloseServiceInput: {
+            expected_revision: number;
+        };
+        ReopenServiceInput: {
+            expected_revision: number;
+        };
         Service: {
             /** Format: uuid */
             id: string;
@@ -4946,6 +5021,8 @@ export interface components {
             /** Format: uuid */
             category_id: string | null;
             category: components["schemas"]["ServiceCategoryLabel"] | null;
+            /** Format: date-time */
+            closed_at: string | null;
             revision: number;
             /** Format: date-time */
             created_at: string;
@@ -4978,6 +5055,8 @@ export interface components {
             /** Format: uuid */
             category_id: string | null;
             category: components["schemas"]["ServiceCategoryLabel"] | null;
+            /** Format: date-time */
+            closed_at: string | null;
             revision: number;
         };
         ServicePage: {
@@ -5094,6 +5173,54 @@ export interface components {
             cursor?: components["schemas"]["ServiceCategoryCursor"];
             /** @default 20 */
             limit: number;
+        };
+        CloseServiceCategoryInput: {
+            expected_revision: number;
+            expected_service_count: number;
+        };
+        ReopenServiceCategoryInput: {
+            expected_revision: number;
+            expected_service_count: number;
+        };
+        CloseServiceCategoryResult: {
+            /** Format: uuid */
+            id: string;
+            name_en: string;
+            name_ar: string;
+            visibility: components["schemas"]["ServiceCategoryVisibility"];
+            /** Format: uuid */
+            owner_branch_id: string | null;
+            /** Format: date-time */
+            closed_at: string | null;
+            revision: number;
+            services_closed: number;
+        };
+        ReopenServiceCategoryResult: {
+            /** Format: uuid */
+            id: string;
+            name_en: string;
+            name_ar: string;
+            visibility: components["schemas"]["ServiceCategoryVisibility"];
+            /** Format: uuid */
+            owner_branch_id: string | null;
+            /** Format: date-time */
+            closed_at: string | null;
+            revision: number;
+            services_reopened: number;
+        };
+        ServiceCategoryDetail: {
+            /** Format: uuid */
+            id: string;
+            name_en: string;
+            name_ar: string;
+            visibility: components["schemas"]["ServiceCategoryVisibility"];
+            /** Format: uuid */
+            owner_branch_id: string | null;
+            /** Format: date-time */
+            closed_at: string | null;
+            revision: number;
+            open_service_count: number;
+            marked_service_count: number;
         };
         PackageTypeComponentInput: {
             /** Format: uuid */
@@ -15201,6 +15328,49 @@ export interface operations {
             };
         };
     };
+    getServiceCategory: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                categoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Category detail */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceCategoryDetail"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     renameServiceCategory: {
         parameters: {
             query?: never;
@@ -15248,6 +15418,118 @@ export interface operations {
             };
             /** @description Bilingual refusal */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    closeServiceCategory: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                categoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CloseServiceCategoryInput"];
+            };
+        };
+        responses: {
+            /** @description Closed category */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CloseServiceCategoryResult"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    reopenServiceCategory: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                categoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReopenServiceCategoryInput"];
+            };
+        };
+        responses: {
+            /** @description Reopened category */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReopenServiceCategoryResult"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -15670,6 +15952,118 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    closeService: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                serviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CloseServiceInput"];
+            };
+        };
+        responses: {
+            /** @description Closed service */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Service"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    reopenService: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                serviceId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReopenServiceInput"];
+            };
+        };
+        responses: {
+            /** @description Reopened service */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Service"];
                 };
             };
             /** @description Bilingual refusal */

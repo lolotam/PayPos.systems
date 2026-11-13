@@ -111,13 +111,13 @@ export const serviceCategoryBranchListQuery = z
 export const closeServiceCategoryInput = z
   .strictObject({
     expected_revision: revision,
-    expected_service_count: z.number().int().min(0).max(100_000),
+    expected_service_count: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
   })
   .meta({ id: 'CloseServiceCategoryInput' });
 export const reopenServiceCategoryInput = z
   .strictObject({
     expected_revision: revision,
-    expected_service_count: z.number().int().min(0).max(100_000),
+    expected_service_count: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
   })
   .meta({ id: 'ReopenServiceCategoryInput' });
 export const closeServiceCategoryResult = responseObject({

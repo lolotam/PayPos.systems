@@ -7,7 +7,7 @@ ALTER TABLE "services" ADD COLUMN "closed_at" timestamptz;
 -- العلامة أثر للاسترجاع مش علاقة مستقلة، عشان كده مالهاش FK خاص بيها.
 ALTER TABLE "services" ADD COLUMN "closed_by_category_id" uuid;
 --> statement-breakpoint
--- القيدان NOT VALID عشان فحص الصفوف يتأجل لذيل 0222 بدل ما يحصل تحت قفل ADD COLUMN.
+-- القيدان NOT VALID عشان فحص الصفوف يتأجل لذيل 0224 بدل ما يحصل تحت قفل ADD COLUMN.
 -- لازم العلامة تصف التصنيف الحالي وتكون مصحوبة بإغلاق فعلي، وإلا فتح التصنيف ممكن يرجّع خدمة غلط.
 ALTER TABLE "services" ADD CONSTRAINT "services_closed_marker_requires_closed" CHECK ("closed_by_category_id" IS NULL OR "closed_at" IS NOT NULL) NOT VALID;
 --> statement-breakpoint
