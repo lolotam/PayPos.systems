@@ -1,4 +1,4 @@
-import { hasUnknownJournalFields, parseSessionJournalEnvelope, sameSessionScope, type SessionAttemptScope, type SessionJournalEnvelope } from './session-attempt';
+import { hasUnknownJournalFields, isJournalPiiKey, parseSessionJournalEnvelope, sameSessionScope, type SessionAttemptScope, type SessionJournalEnvelope } from './session-attempt';
 
 const key = 'pospay:service-session-attempt';
 const slots = [`${key}:a`, `${key}:b`] as const;
@@ -7,8 +7,10 @@ type Slot = { key: string; generation: number; raw: string; envelope: SessionJou
 
 function parseSlot(slotKey: string, raw: string): Slot {
   const value: unknown = JSON.parse(raw);
-  if (!value || typeof value !== 'object' || Object.keys(value).length !== 2 || !('generation' in value) || !('envelope' in value) ||
+  if (!value || typeof value !== 'object' || !('generation' in value) || !('envelope' in value) ||
     !Number.isSafeInteger(value.generation) || typeof value.generation !== 'number' || value.generation < 1) throw new Error('SESSION_SLOT_INVALID');
+  // حقل غلاف حساس يرفض الخانة؛ أي حقل غلاف تاني بيتجاهل عشان ما يمسحش زيارة سليمة.
+  if (Object.keys(value).some((field) => field !== 'generation' && field !== 'envelope' && isJournalPiiKey(field))) throw new Error('SESSION_SLOT_INVALID');
   const envelope = value.envelope;
   const idle = envelope && typeof envelope === 'object' && Object.keys(envelope).length === 2 &&
     'version' in envelope && envelope.version === 1 && 'state' in envelope && envelope.state === 'IDLE';
@@ -59,11 +61,14 @@ export function createSessionAttemptSlotStore(storage?: JournalStorage) {
       const envelope = active?.envelope;
       const place = envelope?.state === 'PENDING' ? envelope.attempt.scope : envelope?.scope;
       if (place && (!scope || !sameSessionScope(scope, place))) { purge(); return null; }
-      if (envelope && active) {
-        const storedEnvelope: unknown = active.key === key ? JSON.parse(active.raw) : JSON.parse(active.raw).envelope;
-        if (hasUnknownJournalFields(storedEnvelope)) {
+      if (active) {
+        const stored = JSON.parse(active.raw) as Record<string, unknown>;
+        const storedEnvelope: unknown = active.key === key ? stored : stored.envelope;
+        // حقل غلاف غريب بينقّى بنفس إعادة كتابة المظروف، فتبقى الخانة الجديدة فيها generation و envelope بس.
+        const unknownWrapper = active.key !== key && Object.keys(stored).some((field) => field !== 'generation' && field !== 'envelope');
+        if ((envelope && hasUnknownJournalFields(storedEnvelope)) || unknownWrapper) {
           // فشل التنقية لا يستدعي الحذف: مفاتيح PII مرفوضة أصلًا، وحذف الخانة هنا قد يضيّع علامة PENDING.
-          writeSlot(envelope);
+          writeSlot(envelope ?? null);
         }
       }
       return envelope ?? null;

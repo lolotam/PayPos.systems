@@ -135,3 +135,24 @@ it('rewrite failure on slot with futureField keeps the partial marker in read', 
   const journal = await reload(backing);
   expect(journal.read()).toEqual(partial);
 });
+
+it('slot wrapper with harmless extra field writerVersion rewrites to keep only generation and envelope', async () => {
+  sessionStorage.setItem(keys[0], JSON.stringify({ generation: 1, envelope: partial, writerVersion: 2 }));
+  expect((await reload()).read()).toEqual(partial);
+  keys.forEach((key) => expect(sessionStorage.getItem(key) ?? '').not.toContain('writerVersion'));
+  expect((await reload()).read()).toEqual(partial);
+});
+
+it('slot wrapper with PII extra field rejects the slot and purges storage', async () => {
+  sessionStorage.setItem(keys[0], JSON.stringify({ generation: 1, envelope: partial, customerPhone: 'x' }));
+  expect((await reload()).read()).toBeNull();
+  expect(sessionStorage.length).toBe(0);
+});
+
+it('slot carrying PENDING envelope with extra errorCode rewrites without errorCode', async () => {
+  const attempt = freezeSessionAttempt(scope, record, [id(9)], runtime);
+  sessionStorage.setItem(keys[0], JSON.stringify({ generation: 1, envelope: { version: 1, state: 'PENDING', attempt, errorCode: 'E1' } }));
+  const journal = await reload();
+  expect(journal.read()).toEqual({ version: 1, state: 'PENDING', attempt });
+  keys.forEach((key) => expect(sessionStorage.getItem(key) ?? '').not.toContain('errorCode'));
+});

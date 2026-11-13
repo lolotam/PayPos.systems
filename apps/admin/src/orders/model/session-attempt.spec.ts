@@ -50,3 +50,8 @@ it.each(['phone', 'customerPhone', 'Email', 'otp'] as const)('PII-shaped unknown
   const envelope = { version: 1 as const, state: 'PARTIAL' as const, scope, sessionId: id(12) };
   expect(() => parseSessionJournalEnvelope({ ...envelope, [key]: 'secret' })).toThrow('SESSION_JOURNAL_INVALID');
 });
+
+it.each(['errorCode', 'displayName', 'filename'] as const)('drops unknown harmless key %s from PARTIAL envelope', (key) => {
+  const envelope = { version: 1 as const, state: 'PARTIAL' as const, scope, sessionId: id(12) };
+  expect(parseSessionJournalEnvelope({ ...envelope, [key]: 'x' })).toEqual(envelope);
+});

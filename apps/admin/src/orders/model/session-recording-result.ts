@@ -164,7 +164,9 @@ function applySessionResultEvent(state: SessionRecordingResult, event: SessionRe
     const clearUnknownVisit = !entry && !event.persistenceWarning && state.visitTimeUnknown && !state.session;
     // تغيّر sessionId يعني زيارة أخرى؛ الاحتفاظ بالمسودة يكون فقط عندما تطابق الزيارة المعروضة.
     const recoveredVisitChanged = (entry?.state === 'PARTIAL' || entry?.state === 'EXPIRED') && entry.sessionId !== undefined && entry.sessionId !== state.sessionId;
-    if (!preserveVisit && (clearedPendingVisit || clearUnknownVisit || recoveredVisitChanged)) state = emptySessionRecordingResult(state.customer);
+    // زيارة EXPIRED مختلفة ما ترجعش لزبون الزيارة السابقة؛ العميل ييجي من المدخل نفسه.
+    const expiredVisitChanged = entry?.state === 'EXPIRED' && entry.sessionId !== undefined && entry.sessionId !== state.sessionId;
+    if (!preserveVisit && (clearedPendingVisit || clearUnknownVisit || recoveredVisitChanged)) state = emptySessionRecordingResult(expiredVisitChanged ? null : state.customer);
     state = { ...state, persistenceWarning: event.persistenceWarning ?? null };
     if (entry?.state === 'PARTIAL' && !preserveVisit) state = applyVisitEntry(state, entry);
     if (entry?.state === 'EXPIRED' && entry.sessionId && !preserveVisit) state = applyVisitEntry(state, { ...entry, sessionId: entry.sessionId });
