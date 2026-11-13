@@ -114,12 +114,13 @@ const CALENDAR_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
  * بنطاق محوّل تلقائياً إلى يوم آخر يعطي المشغّل نتيجة تغطية عن نطاق لم يطلبه.
  *
  * @param value التاريخ النصي المطلوب فحصه
- * @returns true فقط لتاريخ تقويمي حقيقي بصيغة YYYY-MM-DD، بما فيه السنوات 0000-9999
+ * @returns true فقط لتاريخ تقويمي حقيقي بصيغة YYYY-MM-DD، للسنوات 0001-9999 لأن PostgreSQL لا يحتوي على سنة صفرية
  */
 export function isCommissionCoverageCalendarDate(value: string): boolean {
   const match = CALENDAR_DATE.exec(value);
   if (match === null) return false;
   const year = Number(match[1]);
+  if (year === 0) return false;
   const month = Number(match[2]);
   const day = Number(match[3]);
   const date = new Date(Date.UTC(2000, 0, 1));

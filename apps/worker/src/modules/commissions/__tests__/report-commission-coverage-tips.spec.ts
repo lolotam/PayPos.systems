@@ -324,7 +324,7 @@ describe('runCommissionCoverageReport: calendar dates in the tip scope', () => {
 });
 
 describe('isCommissionCoverageCalendarDate', () => {
-  it.each(['2024-02-29', '2026-02-28', '0000-02-29', '9999-12-31'])(
+  it.each(['2024-02-29', '2026-02-28', '0001-01-01', '9999-12-31'])(
     'accepts the real calendar date %s',
     (value) => {
       expect(isCommissionCoverageCalendarDate(value)).toBe(true);
@@ -332,6 +332,8 @@ describe('isCommissionCoverageCalendarDate', () => {
   );
 
   it.each([
+    '0000-02-29',
+    '0000-01-01',
     '2026-02-29',
     '2026-02-30',
     '2026-13-01',
