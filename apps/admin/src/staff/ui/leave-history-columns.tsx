@@ -20,7 +20,7 @@ function civilDate(value: string, locale: Locale): string {
   });
 }
 
-function periodColumn(locale: Locale): ColumnDef<Row> {
+export function periodColumn(locale: Locale): ColumnDef<Row> {
   return {
     id: 'period',
     header: t(locale, 'leave.date'),
@@ -42,7 +42,7 @@ function periodColumn(locale: Locale): ColumnDef<Row> {
   };
 }
 
-function typeColumn(locale: Locale): ColumnDef<Row> {
+export function typeColumn(locale: Locale): ColumnDef<Row> {
   return {
     id: 'type',
     header: t(locale, 'leave.type'),
@@ -58,7 +58,7 @@ function typeColumn(locale: Locale): ColumnDef<Row> {
   };
 }
 
-function statusColumn(locale: Locale): ColumnDef<Row> {
+export function statusColumn(locale: Locale): ColumnDef<Row> {
   return {
     id: 'status',
     header: t(locale, 'leave.status'),
@@ -94,7 +94,7 @@ function shiftRanges(shifts: Shift[]) {
   ));
 }
 
-function detailsColumn(locale: Locale): ColumnDef<Row> {
+export function detailsColumn(locale: Locale): ColumnDef<Row> {
   return {
     id: 'details',
     header: t(locale, 'leave.decisionReason'),
