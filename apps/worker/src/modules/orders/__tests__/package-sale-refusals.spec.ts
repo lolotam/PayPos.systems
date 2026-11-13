@@ -163,17 +163,18 @@ it('refuses a sale in a branch that was deactivated after the request was accept
   await expectRefusedAndUntouched(requestId, 'PACKAGE_SALE_BRANCH_INACTIVE');
 });
 
-it('keeps a request pending when its package type has no components to value', async () => {
+it('refuses a package type with no components by name instead of retrying it', async () => {
   const type = await f.seedType({ price: '25.000', validityDays: 90, components: [] });
   const requestId = await f.request({
     type,
     expected_service_revisions: [{ service_id: f.ids.newId(), revision: 1 }],
   });
   const before = await f.counts();
-  await expect(f.worker().execute(f.company, requestId)).rejects.toThrow('PACKAGE_SALE_RETRY');
+  await expect(f.worker().execute(f.company, requestId)).resolves.toBeUndefined();
   const state = await f.state(requestId);
-  expect(state.status).toBe('pending');
-  expect(state.error_code).toBeNull();
-  expect(state.finished_at).toBeNull();
+  expect(state.status).toBe('failed');
+  expect(state.error_code).not.toBe('PACKAGE_SALE_FAILED');
+  expect(state.error_code).not.toBeNull();
+  expect(state.finished_at).not.toBeNull();
   expect(await f.counts()).toEqual(before);
 });

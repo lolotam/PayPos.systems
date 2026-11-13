@@ -3,7 +3,7 @@ import { appendFileSync } from 'node:fs';
 import { cpus } from 'node:os';
 import { packageSaleFixture, type PackageSaleFixture } from './package-sale.fixture.ts';
 
-// ميزانية معاملة البيع اللي العامل بيستخدمها؛ القياس بيقيسها مش بيخترعها.
+// مهلة معاملة البيع بتتمرر للعامل؛ القياس بيسجل الأزمنة بس ومفيش حد مطلق عليها (PP-165).
 const TIMEOUT_MS = 30_000;
 const WARMUPS = 1;
 const RUNS = 5;
@@ -19,7 +19,7 @@ afterAll(async () => {
 
 // التشغيل الاختياري بملف الإعداد هو اللي يختار المقياس ده؛ نمط src/**/*.spec.ts العادي بيستبعده.
 it(
-  'BENCHMARK completes five 20 x 365 package sales inside the transaction budget',
+  'BENCHMARK records five complete 20 x 365 package sales',
   async () => {
     const type = await f.seedType({
       price: '20.000',
@@ -34,7 +34,6 @@ it(
       platform: process.platform,
       cpuCount: cpus().length,
     };
-    const durations: number[] = [];
     for (let run = 0; run < WARMUPS + RUNS; run++) {
       const requestId = await f.request({
         type,
@@ -46,10 +45,8 @@ it(
       const durationMs = performance.now() - started;
       expect((await f.state(requestId)).status).toBe('completed');
       if (run < WARMUPS) continue;
-      durations.push(durationMs);
       record({ durationMs, ...environment });
     }
-    expect(Math.max(...durations)).toBeLessThan(TIMEOUT_MS);
   },
   600_000,
 );

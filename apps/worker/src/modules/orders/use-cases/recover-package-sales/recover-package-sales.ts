@@ -1,4 +1,7 @@
-import { packageSaleStaleBefore } from '../../domain/package-sale-recovery.ts';
+import {
+  PACKAGE_SALE_RECOVERY_MAX_PAGES,
+  packageSaleStaleBefore,
+} from '../../domain/package-sale-recovery.ts';
 import type { PackageSaleRecoveryTransactions } from '../../ports/package-sale-recovery.port.ts';
 import type { PackageSaleClock } from '../../ports/package-sale.port.ts';
 
@@ -13,7 +16,7 @@ export class RecoverPackageSales {
     const now = this.clock.now();
     const before = packageSaleStaleBefore(now);
     const at = now.toISOString();
-    for (;;) {
+    for (let page = 0; page < PACKAGE_SALE_RECOVERY_MAX_PAGES; page += 1) {
       const ids = await this.transactions.candidates(companyId, before);
       if (ids.length === 0) return;
       for (const id of ids) {

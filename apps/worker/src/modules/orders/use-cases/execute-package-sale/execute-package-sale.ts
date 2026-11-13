@@ -1,7 +1,7 @@
 import { PackageRuleError, parseMoney } from '@pospay/domain';
 import { PackageSaleError, PackageSalePricingError } from '../../domain/package-sale-errors.ts';
 import type { PackageSaleIdentities } from '../../domain/package-sale-plan.ts';
-import { planPackageSale } from '../../domain/package-sale-plan.ts';
+import { packageSaleSlotOrdinals, planPackageSale } from '../../domain/package-sale-plan.ts';
 import {
   assertPackageSaleQuote,
   checkPackageSeller,
@@ -135,8 +135,8 @@ function packageSaleIdentities(
     components: type.components.map((component) => ({
       serviceId: component.service_id,
       id: ids.newId(),
-      slots: Array.from({ length: component.sessions }, (_, index) => ({
-        ordinal: index + 1,
+      slots: packageSaleSlotOrdinals(component.sessions).map((ordinal) => ({
+        ordinal,
         id: ids.newId(),
       })),
     })),

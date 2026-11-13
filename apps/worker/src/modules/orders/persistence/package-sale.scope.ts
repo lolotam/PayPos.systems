@@ -80,12 +80,15 @@ async function lockSaleType(context: SaleContext): Promise<SalePackageType | nul
     request.package_type_id,
   );
   if (type === null) return null;
-  const services = await lockSessionServicesForSale(
-    tx,
-    companyId,
-    request.business_id,
-    type.components.map((component) => component.service_id),
-  );
+  const services: Awaited<ReturnType<typeof lockSessionServicesForSale>> =
+    type.components.length === 0
+      ? []
+      : await lockSessionServicesForSale(
+          tx,
+          companyId,
+          request.business_id,
+          type.components.map((component) => component.service_id),
+        );
   const byId = new Map(services.map((service) => [service.id, service]));
   return {
     id: type.id,
