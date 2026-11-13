@@ -18,6 +18,7 @@ export function refusedDiscountDrafts(result: Pick<SessionRecordingResult, 'reje
 export function buildDiscountApprovalBody(result: ApprovalResult, drafts: SessionDraftForm, commands: CommandLines): RequestDiscountApprovalInput {
   const rows = refusedDiscountDrafts(result, drafts.lines);
   if (rows.length !== commands.length) throw new Error('DISCOUNT_APPROVAL_ROWS_INVALID');
+  if (!result.sessionId && drafts.occurred_at === '') throw new Error('SESSION_TIME_INVALID');
   const customerId = result.sessionId ? result.customerId : result.customer?.id ?? result.customerId;
   if (!customerId) throw new Error('SESSION_CUSTOMER_REQUIRED');
   const lines = commands.map((line) => {
@@ -28,7 +29,7 @@ export function buildDiscountApprovalBody(result: ApprovalResult, drafts: Sessio
   });
   return {
     customer_id: customerId,
-    ...(result.sessionId ? { session_id: result.sessionId } : drafts.occurred_at ? { occurred_at: drafts.occurred_at } : {}),
+    ...(result.sessionId ? { session_id: result.sessionId } : drafts.occurred_at === undefined ? {} : { occurred_at: drafts.occurred_at }),
     lines,
     ...(drafts.recorder_membership_id ? { requester_membership_id: drafts.recorder_membership_id } : {}),
   };

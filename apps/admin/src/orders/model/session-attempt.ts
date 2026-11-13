@@ -64,7 +64,7 @@ export function sessionAttemptUnresolved(error: unknown): boolean {
 export type SessionJournalEnvelope =
   | { version: 1; state: 'PENDING'; attempt: SessionAttempt; lastSentAt?: number }
   | { version: 1; state: 'EXPIRED'; scope: SessionAttemptScope; key: string; createdAt: number; lastSentAt?: number; sessionId?: string }
-  | { version: 1; state: 'PARTIAL'; scope: SessionAttemptScope; sessionId: string; occurredAt?: string }
+  | { version: 1; state: 'PARTIAL'; scope: SessionAttemptScope; sessionId: string; occurredAt?: string; customerId?: string }
   | { version: 1; state: 'SAVED_DISPLAY_FAILED'; scope: SessionAttemptScope; sessionId?: string };
 
 function strictFields(value: unknown, required: string[], optional: string[] = []): asserts value is Record<string, unknown> {
@@ -74,7 +74,7 @@ function strictFields(value: unknown, required: string[], optional: string[] = [
 
 /** التخزين ليس مصدراً موثوقاً: المخطط بإصدار صريح ويرفض الحقول الزائدة قبل استعادة أي طلب أو معرف زيارة. */
 export function parseSessionJournalEnvelope(value: unknown): SessionJournalEnvelope {
-  strictFields(value, ['version', 'state'], ['attempt', 'scope', 'key', 'createdAt', 'lastSentAt', 'sessionId', 'occurredAt']);
+  strictFields(value, ['version', 'state'], ['attempt', 'scope', 'key', 'createdAt', 'lastSentAt', 'sessionId', 'occurredAt', 'customerId']);
   if (value.version !== 1) throw new Error('SESSION_JOURNAL_VERSION_INVALID');
   if (value.state === 'PENDING') {
     strictFields(value, ['version', 'state', 'attempt'], ['lastSentAt']);
@@ -83,8 +83,9 @@ export function parseSessionJournalEnvelope(value: unknown): SessionJournalEnvel
     strictFields(value.attempt, ['kind', 'body', 'scope', 'key', 'createdAt', 'route', 'rowIds', ...(value.attempt.kind === 'append' ? ['sessionId'] : [])]);
   } else {
     if (typeof value.state !== 'string' || !['PARTIAL', 'EXPIRED', 'SAVED_DISPLAY_FAILED'].includes(value.state)) throw new Error('SESSION_JOURNAL_INVALID');
-    strictFields(value, ['version', 'state', 'scope', ...(value.state === 'EXPIRED' ? ['key', 'createdAt'] : value.state === 'PARTIAL' ? ['sessionId'] : [])], value.state === 'PARTIAL' ? ['occurredAt'] : value.state === 'EXPIRED' ? ['sessionId', 'lastSentAt'] : ['sessionId']);
+    strictFields(value, ['version', 'state', 'scope', ...(value.state === 'EXPIRED' ? ['key', 'createdAt'] : value.state === 'PARTIAL' ? ['sessionId'] : [])], value.state === 'PARTIAL' ? ['occurredAt', 'customerId'] : value.state === 'EXPIRED' ? ['sessionId', 'lastSentAt'] : ['sessionId']);
     if (Object.hasOwn(value, 'sessionId')) id.parse(value.sessionId);
+    if (Object.hasOwn(value, 'customerId') && !id.safeParse(value.customerId).success) throw new Error('SESSION_JOURNAL_CUSTOMER_INVALID');
     if (value.state === 'EXPIRED') id.parse(value.key);
     // Date.parse بيقبل وقت من غير إزاحة، والعقد بيرفضه؛ وإلا التصحيح يتبعت بوقت الخادم ما يقدرش يفسّره.
     if (Object.hasOwn(value, 'occurredAt') && !timestamp.safeParse(value.occurredAt).success) throw new Error('SESSION_JOURNAL_TIME_INVALID');

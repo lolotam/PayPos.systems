@@ -61,3 +61,21 @@ it('always emits the proposal id after price, discount, service, performer or sh
 it('omits the proposal id only when the draft has no proposal', () => {
   expect(sessionCommandLines([draft()])[0]).not.toHaveProperty('discount_proposal_id');
 });
+
+it('throws SESSION_TIME_INVALID for a fresh visit with an empty occurred_at', () => {
+  const line = draft();
+  const drafts: SessionDraftForm = { occurred_at: '', lines: [line] };
+  const result: SessionRecordingResult = { ...emptySessionRecordingResult(), customerId: id(7), sessionId: null,
+    rejected: [{ localId: line.local_id, error: rejection }] };
+  expect(() => buildDiscountApprovalBody(result, drafts, sessionCommandLines([line]))).toThrow('SESSION_TIME_INVALID');
+});
+
+it('omits occurred_at for a saved visit even when drafts occurred_at is empty', () => {
+  const line = draft();
+  const drafts: SessionDraftForm = { occurred_at: '', lines: [line] };
+  const result: SessionRecordingResult = { ...emptySessionRecordingResult(), customerId: id(7), sessionId: id(12),
+    rejected: [{ localId: line.local_id, error: rejection }] };
+  const body = buildDiscountApprovalBody(result, drafts, sessionCommandLines([line]));
+  expect(body.session_id).toBe(id(12));
+  expect(body).not.toHaveProperty('occurred_at');
+});

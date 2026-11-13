@@ -13,14 +13,17 @@ function latestRequest(requests: TrackedDiscountRequest[], localId: string): Tra
   return null;
 }
 
+export function latestDiscountApprovalRequests(rejected: SessionRecordingResult['rejected'], requests: TrackedDiscountRequest[]): TrackedDiscountRequest[] {
+  const latest = new Set(rejected.map((row) => latestRequest(requests, row.localId)?.requestId));
+  return requests.filter((request) => latest.has(request.requestId));
+}
+
 // القرارات من إشارات الخادم فقط: الحالة وapproval_refusal مع discount_proposal_id؛ بلا ساعة أو بصمة لأن الانتهاء والشروط للخادم (D-4، D-7).
 export function discountApprovalView(
   rejected: SessionRecordingResult['rejected'], requests: TrackedDiscountRequest[], itemsByRequest: Record<string, Item[] | undefined>,
 ): { queried: string[]; lines: Record<string, LineView>; requestable: string[];
   attach: Array<{ localId: string; proposalId: string }> } {
-  const rejectedIds = new Set(rejected.map((row) => row.localId));
-  const queried = requests.filter((request) => Object.values(request.localIds).some((localId) => rejectedIds.has(localId)))
-    .map((request) => request.requestId);
+  const queried = latestDiscountApprovalRequests(rejected, requests).map((request) => request.requestId);
   const lines: Record<string, LineView> = {}, requestable: string[] = [];
   const attach: Array<{ localId: string; proposalId: string }> = [];
   for (const row of rejected) {

@@ -358,3 +358,10 @@ it('restores the attached discount proposal id on a recovered paid draft', () =>
   expect(pending.drafts.lines[1]?.local_id).toBe(id(31));
   expect(pending.drafts.lines[1]?.discount_proposal).toBeNull();
 });
+it('recovering a PARTIAL journal entry restores customerId when absent and keeps an existing customerId', () => {
+  const entry = { version: 1 as const, state: 'PARTIAL' as const, scope, sessionId: id(12), customerId: id(7) };
+  const restored = transition(emptySessionRecordingResult(null), { type: 'JOURNAL', entry });
+  expect(restored.customerId).toBe(id(7));
+  const existing = transition(emptySessionRecordingResult({ id: id(99), name: 'Existing', phone: '***099' }), { type: 'JOURNAL', entry });
+  expect(existing.customerId).toBe(id(99));
+});

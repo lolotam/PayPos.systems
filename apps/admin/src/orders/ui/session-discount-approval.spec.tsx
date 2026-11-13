@@ -176,3 +176,13 @@ it('keeps the pending request after a re-save with a new result', async () => {
   expect(screen.getByText(t('en', 'discountApproval.pending'))).toBeTruthy();
   expect((screen.getByRole('button', { name: t('en', 'discountApproval.request') }) as HTMLButtonElement).disabled).toBe(true);
 });
+
+it('shows one customer-required alert and sends no request when the fresh visit has no customer', async () => {
+  api.locale = 'en';
+  const value = { ...result(), customerId: null, customer: null };
+  mount(value);
+  await clickRequest('en');
+  expect(screen.getAllByText(t('en', 'discountApproval.customerRequired'))).toHaveLength(1);
+  expect(screen.getByText(t('en', 'discountApproval.customerRequired')).getAttribute('role')).toBe('alert');
+  expect(api.post).not.toHaveBeenCalled();
+});

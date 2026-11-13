@@ -40,5 +40,10 @@ export function reportSessionSubmitError(setError: UseFormSetError<SessionDraftF
     for (const row of known) setError(row.name, { message: row.message });
     return;
   }
-  setError('root', { message: envelopeMessage(error, locale) });
+  if (error instanceof Error && error.message === 'SESSION_TIME_INVALID') {
+    setError('occurred_at', { message: t(locale, 'serviceSessions.invalidTime') });
+    return;
+  }
+  setError('root', { message: error instanceof Error && error.message === 'SESSION_CUSTOMER_REQUIRED'
+    ? t(locale, 'discountApproval.customerRequired') : envelopeMessage(error, locale) });
 }

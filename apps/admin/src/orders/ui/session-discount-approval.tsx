@@ -10,8 +10,8 @@ import { useDiscountApprovalStatuses, type DiscountApprovalStatus } from '../api
 import { useRequestDiscountApproval } from '../api/use-request-discount-approval';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { buildDiscountApprovalBody, discountProposalLocalIds, refusedDiscountDrafts } from '../model/discount-approval-request';
-import { discountApprovalView, type TrackedDiscountRequest } from '../model/discount-approval-state';
-import type { SessionDraftForm, SessionDraftLine } from '../model/session-drafts';
+import { discountApprovalView, latestDiscountApprovalRequests, type TrackedDiscountRequest } from '../model/discount-approval-state';
+import type { SessionDraftForm } from '../model/session-drafts';
 import { sessionResultFrozen, type SessionRecordingResult } from '../model/session-recording-result';
 import { reportSessionSubmitError } from '../model/session-submit-error';
 import { sessionCommandLines } from '../model/use-session-recording';
@@ -20,7 +20,7 @@ import { SessionDiscountApprovalStatus } from './session-discount-approval-statu
 type Form = Pick<UseFormReturn<SessionDraftForm>, 'getValues' | 'setValue' | 'setError'>;
 type Mutate = (body: ReturnType<typeof buildDiscountApprovalBody>,
   options: { onSuccess: (response: RequestDiscountApprovalResponse) => void }) => void;
-type SendInput = { result: SessionRecordingResult; form: Form; locale: Locale; rows: SessionDraftLine[];
+type SendInput = { result: SessionRecordingResult; form: Form; locale: Locale; requestable: string[];
   mutate: Mutate; onTrack: (request: TrackedDiscountRequest) => void };
 
 function attachApproved(attach: ReturnType<typeof discountApprovalView>['attach'], form: Form) {
@@ -32,8 +32,10 @@ function attachApproved(attach: ReturnType<typeof discountApprovalView>['attach'
   }
 }
 
-function sendRequest({ result, form, locale, rows, mutate, onTrack }: SendInput) {
+function sendRequest({ result, form, locale, requestable, mutate, onTrack }: SendInput) {
   const drafts = form.getValues();
+  const rows = refusedDiscountDrafts(result, drafts.lines).filter((row) => requestable.includes(row.local_id));
+  if (rows.length === 0) return;
   let body: ReturnType<typeof buildDiscountApprovalBody>;
   try {
     const commands = sessionCommandLines(rows);
@@ -58,12 +60,11 @@ export function SessionDiscountApproval({ result, scope, online }: { result: Ses
   const [requests, setRequests] = useState<TrackedDiscountRequest[]>([]);
   const [sentRejected, setSentRejected] = useState<SessionRecordingResult['rejected'] | null>(null);
   const request = useRequestDiscountApproval(scope);
-  const queried = discountApprovalView(result.rejected, requests, {}).queried;
+  const queried = latestDiscountApprovalRequests(result.rejected, requests).map((tracked) => tracked.requestId);
   const statuses = useDiscountApprovalStatuses(scope, queried);
   const itemsByRequest = Object.fromEntries(Object.entries(statuses).map(([requestId, status]) => [requestId, status.data]));
   const view = discountApprovalView(result.rejected, requests, itemsByRequest);
   useEffect(() => { attachApproved(view.attach, form); }, [form, view.attach]);
-  const rows = refusedDiscountDrafts(result, form.getValues('lines')).filter((row) => view.requestable.includes(row.local_id));
   const failed = Object.values(statuses).find((status) => status.error);
   const error = (sentRejected === result.rejected ? request.error : null) ?? failed?.error ?? null;
   return <section className="grid gap-2" aria-label={t(locale, 'discountApproval.section')}>
@@ -74,8 +75,8 @@ export function SessionDiscountApproval({ result, scope, online }: { result: Ses
     })}
     {error ? <p role="alert">{envelopeMessage(error, locale)}</p> : null}
     {failed ? <Button type="button" variant="outline" onClick={() => retryFailed(statuses)}>{t(locale, 'discountApproval.retry')}</Button> : null}
-    <Button type="button" variant="outline" disabled={!online || sessionResultFrozen(result) || request.isPending || rows.length === 0}
-      onClick={() => { setSentRejected(result.rejected); sendRequest({ result, form, locale, rows, mutate: request.mutate,
+    <Button type="button" variant="outline" disabled={!online || sessionResultFrozen(result) || request.isPending || view.requestable.length === 0}
+      onClick={() => { setSentRejected(result.rejected); sendRequest({ result, form, locale, requestable: view.requestable, mutate: request.mutate,
         onTrack: (tracked) => setRequests((current) => [...current, tracked]) }); }}>
       {t(locale, request.isPending ? 'discountApproval.sending' : 'discountApproval.request')}
     </Button>

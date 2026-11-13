@@ -119,7 +119,8 @@ function releaseForbiddenRecorder(state: SessionRecordingResult, error: unknown,
 function applyPartialEntry(state: SessionRecordingResult, entry: Extract<SessionJournalEnvelope, { state: 'PARTIAL' }>): SessionRecordingResult {
   const seeded = entry.occurredAt && !state.session ? entry.occurredAt : undefined;
   const drafts = seeded !== undefined && seeded !== state.drafts.occurred_at ? { ...state.drafts, occurred_at: seeded } : state.drafts;
-  return { ...state, sessionId: entry.sessionId, drafts, visitTimeUnknown: (state.session?.occurred_at ?? entry.occurredAt) === undefined };
+  return { ...state, sessionId: entry.sessionId, customerId: state.customerId ?? entry.customerId ?? null, drafts,
+    visitTimeUnknown: (state.session?.occurred_at ?? entry.occurredAt) === undefined };
 }
 function failedResult(state: SessionRecordingResult, attempt: SessionAttempt, error: unknown): SessionRecordingResult {
   const envelope = errorEnvelope.safeParse(error);

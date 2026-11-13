@@ -1,6 +1,6 @@
 import type { DiscountProposalStatus, RequesterDiscountProposalList } from '@pospay/contracts';
 import { expect, it } from 'vitest';
-import { discountApprovalView, type TrackedDiscountRequest } from './discount-approval-state';
+import { discountApprovalView, latestDiscountApprovalRequests, type TrackedDiscountRequest } from './discount-approval-state';
 import type { SessionRecordingResult } from './session-recording-result';
 import { id, instant, rejection } from './session-recording-result.fixture';
 
@@ -97,4 +97,9 @@ it('a request with no remaining rejected line drops out of queried', () => {
   const view = discountApprovalView([row(A)], [tracked(first, { 0: B })], {});
   expect(view.queried).toEqual([]);
   expect(view.requestable).toEqual([A]);
+});
+
+it('latestDiscountApprovalRequests returns only newest request per row and drops fully covered requests', () => {
+  const requests = [tracked(first, { 0: A }), tracked(second, { 0: A })];
+  expect(latestDiscountApprovalRequests([row(A)], requests)).toEqual([tracked(second, { 0: A })]);
 });
