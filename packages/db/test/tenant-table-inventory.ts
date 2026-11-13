@@ -47,6 +47,7 @@ export const TENANT_TABLES = [
   'services',
   'service_categories',
   'service_category_branch_settings',
+  'service_category_closings',
   'package_types',
   'package_type_components',
   'package_entitlements',

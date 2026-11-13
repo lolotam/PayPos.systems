@@ -40,3 +40,11 @@ export const SERVICE_CATEGORY_BRANCH_SETTING_COLUMN_GRANTS = [
   'service_category_branch_settings.state:pospay_app:UPDATE',
   'service_category_branch_settings.updated_at:pospay_app:UPDATE',
 ];
+
+// طلب القفل ثابت بعد الإنشاء؛ حالة النتيجة وعدد الخدمات والخطأ ووقت الانتهاء فقط قابلة للتحديث.
+export const SERVICE_CATEGORY_CLOSING_COLUMN_GRANTS = [
+  'service_category_closings.error_code:pospay_app:UPDATE',
+  'service_category_closings.finished_at:pospay_app:UPDATE',
+  'service_category_closings.services_changed:pospay_app:UPDATE',
+  'service_category_closings.status:pospay_app:UPDATE',
+];
