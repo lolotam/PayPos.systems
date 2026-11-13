@@ -17,7 +17,12 @@ const request = {
 
 function fixture() {
   const pins = {
-    verify: vi.fn(async () => ({ kind: 'ok' as const, userId: 'user-1', pinRevision: 'revision-1' })),
+    verify: vi.fn(async () => ({
+      kind: 'ok' as const,
+      userId: 'user-1',
+      pinRevision: 'revision-1',
+      confirmBinding: vi.fn(async () => true),
+    })),
   } as unknown as DiscountPinApproverPort;
   const scope = { businessOf: vi.fn(async () => 'business-1') } as unknown as DiscountDeviceScopePort;
   const decide = { execute: vi.fn(async () => ({ proposals: [] })) } as unknown as DecideDiscountProposalsUseCase;
@@ -76,6 +81,8 @@ it('the delegated decision carries the PIN channel and no phone or PIN at any de
     fingerprint: '',
     decision: 'APPROVE',
     input: { proposal_ids: ['proposal-1'], terms_hashes: ['a'.repeat(64)] },
-    channel: { via: 'PIN', deviceId: 'device-1', pinRevision: 'revision-1' },
+    channel: {
+      via: 'PIN', deviceId: 'device-1', pinRevision: 'revision-1', confirmBinding: expect.any(Function),
+    },
   });
 });

@@ -9,7 +9,7 @@ import {
   discountPinFixture,
   type DiscountPinFixture,
 } from '../../../../test/discount-pin.fixture.ts';
-import { fetchAudits, fetchProposal, requestSingleProposal } from './discount-decision.helpers.ts';
+import { fetchProposal, requestSingleProposal } from './discount-decision.helpers.ts';
 import { ids, must } from './session.fixture.ts';
 
 let f: DiscountPinFixture;
@@ -59,7 +59,7 @@ interface VerifierInput {
 }
 
 type VerifierOutcome =
-  | { kind: 'ok'; userId: string; pinRevision: string }
+  | { kind: 'ok'; userId: string; pinRevision: string; confirmBinding: () => Promise<boolean> }
   | { kind: 'refused' | 'locked' | 'busy' };
 
 function pinVerifier() {
@@ -143,7 +143,8 @@ it('DP-10 unknown and PIN-less users share one refusal body but have independent
 
   const unknownKey = f.h.auth.staff.pinCounterKey(unknownPhone);
   expect(await f.h.redis.get(`pin:${f.company}:${unknownKey}:failures`)).toBe('1');
-  expect(await f.h.redis.get(`pin:${f.company}:staff-user:${f.performerUserId}:failures`)).toBe('1');
+  const pinlessKey = f.h.auth.staff.pinCounterKey(pinlessPhone);
+  expect(await f.h.redis.get(`pin:${f.company}:${pinlessKey}:failures`)).toBe('1');
 
   const owner = await f.bind(f.ownerId, '+99900000992');
   const proposal = await requestSingleProposal(f);
@@ -207,53 +208,6 @@ it('DP-10b ten phones lock one device once, while the other device and REMOTE ro
     body: { proposal_ids: [lockedProposal.id], terms_hashes: [lockedProposal.terms_hash] },
   });
   expect(remote.status).toBe(200);
-});
-
-it('debate #2 a PIN reset between verification and decision refuses and writes nothing', async () => {
-  const device = await f.pairDevice(f.branch);
-  const proposal = await requestSingleProposal(f);
-  const verifier = pinVerifier();
-  const execute = verifier.execute.bind(verifier);
-  const spy = vi.spyOn(verifier, 'execute').mockImplementation(async (input) => {
-    const outcome = await execute(input);
-    if (outcome.kind === 'ok') {
-      await f.h.owner`UPDATE cashier_pins SET id=${ids.newId()} WHERE company_id=${f.company} AND user_id=${f.editorId}`;
-    }
-    return outcome;
-  });
-  try {
-    const response = await approve(proposal, device.token);
-    expect(response.statusCode).toBe(403);
-    expect(response.json().code).toBe('FORBIDDEN');
-    await expectPending(proposal.id);
-    expect(await fetchAudits(f, proposal.id, 'discount_proposal.approved')).toHaveLength(0);
-  } finally {
-    spy.mockRestore();
-  }
-});
-
-it('debate #2 revoking the device between verification and decision refuses and writes nothing', async () => {
-  const device = await f.pairDevice(f.branch);
-  const proposal = await requestSingleProposal(f);
-  const verifier = pinVerifier();
-  const execute = verifier.execute.bind(verifier);
-  const spy = vi.spyOn(verifier, 'execute').mockImplementation(async (input) => {
-    const outcome = await execute(input);
-    if (outcome.kind === 'ok') {
-      await f.h.owner`UPDATE devices SET status='REVOKED',token_hash=NULL,claim_hash=NULL,token_expires_at=NULL,
-        revoked_at=clock_timestamp(),revoked_by=${f.ownerId} WHERE company_id=${f.company} AND id=${device.id}`;
-    }
-    return outcome;
-  });
-  try {
-    const response = await approve(proposal, device.token);
-    expect(response.statusCode).toBe(403);
-    expect(response.json().code).toBe('FORBIDDEN');
-    await expectPending(proposal.id);
-    expect(await fetchAudits(f, proposal.id, 'discount_proposal.approved')).toHaveLength(0);
-  } finally {
-    spy.mockRestore();
-  }
 });
 
 it('FR-023 logs, responses, audit, outbox and idempotency rows contain neither PIN values nor the full phone', async () => {

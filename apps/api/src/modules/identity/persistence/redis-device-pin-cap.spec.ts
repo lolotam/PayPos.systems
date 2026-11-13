@@ -89,6 +89,22 @@ it('ten failures lock once and an eleventh admitted failure observes the existin
   expect((await cap.admit(device)).kind).toBe('locked');
 });
 
+it('a new lock leaves one claimable audit marker until confirmed', async () => {
+  const admitted = await admissions(10);
+  await Promise.all(admitted.map((admission) => cap.failure(device, admission)));
+  await expect(cap.claimLockAudit(device)).resolves.toBe(true);
+  await expect(cap.claimLockAudit(device)).resolves.toBe(false);
+  const claimKey = `pindev:${device.companyId}:${device.deviceId}:lock-audit-claim`;
+  await redis.del(claimKey);
+  await expect(cap.claimLockAudit(device)).resolves.toBe(true);
+  await cap.confirmLockAudit(device);
+  await expect(cap.claimLockAudit(device)).resolves.toBe(false);
+});
+
+it('a device that never locked has no audit to claim', async () => {
+  await expect(cap.claimLockAudit(device)).resolves.toBe(false);
+});
+
 it('debate #3 twelve admissions cannot produce a success after ten failures lock the device', async () => {
   const admitted = await admissions(12);
   const failures = await Promise.all(admitted.slice(0, 10).map((admission) => cap.failure(device, admission)));
