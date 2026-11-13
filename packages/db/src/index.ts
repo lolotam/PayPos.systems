@@ -43,6 +43,16 @@ export { businessIdentityReadStatement, readBusinessIdentity } from './business-
 export { canonicalJson } from './canonical-json.ts';
 export { createDatabase, type Database, type DatabaseOptions } from './client.ts';
 export { markEventConsumed } from './consumed-events.ts';
+export {
+  currentSessionTipsStatement,
+  listCurrentSessionTips,
+  type CurrentSessionTipEntry,
+  type CurrentSessionTips,
+  type CurrentSessionTipsCursor,
+  type CurrentSessionTipsPage,
+  type CurrentSessionTipsPageRequest,
+  type CurrentSessionTipsRange,
+} from './current-session-tips.ts';
 export { branchToday, currentAttachment, type BranchDay } from './employee-branch-links.ts';
 export {
   assignEmployeeNumber,
