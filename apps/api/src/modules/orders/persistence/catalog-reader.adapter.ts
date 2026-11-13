@@ -65,6 +65,7 @@ export function catalogReader(tx: Tx, companyId: string, businessId: string): Ca
         price: parseMoney(type.price),
         validity_days: type.validity_days,
         revision: type.revision,
+        selling_stopped_at: type.selling_stopped_at,
         components,
       };
     },

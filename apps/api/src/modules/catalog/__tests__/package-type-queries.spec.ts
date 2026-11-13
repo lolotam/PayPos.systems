@@ -49,6 +49,7 @@ it('lists exact DTO projections with stable cursor pages and no duplicate rows',
       validity_days: record.validity_days,
       component_count: record.components.length,
       revision: record.revision,
+      selling_stopped_at: null,
     })),
   );
   expect(first.next_cursor).toBe(records[1]?.id);
@@ -62,6 +63,7 @@ it('lists exact DTO projections with stable cursor pages and no duplicate rows',
         validity_days: records[2]?.validity_days,
         component_count: records[2]?.components.length,
         revision: records[2]?.revision,
+        selling_stopped_at: null,
       },
     ],
     next_cursor: records[2]?.id,
@@ -117,4 +119,20 @@ it('the detail projection matches the contract and uses a tenant-scoped index', 
   });
   expect(JSON.stringify(plan)).toMatch(/package_types_(pkey|company_business_id_key)/);
   expect(JSON.stringify(plan)).toMatch(/package_type_components_type_(idx|position_key)/);
+});
+
+it('returns exact ISO selling_stopped_at on list item and detail after being stopped', async () => {
+  const record = records[0];
+  if (record === undefined) throw new Error('Synthetic package fixture missing');
+  const stoppedAt = '2026-11-14T08:00:00.123Z';
+  await f.h.owner`UPDATE package_types SET selling_stopped_at=${stoppedAt} WHERE id=${record.id}`;
+
+  const detail = await f.db.withTenant(f.company, (tx) =>
+    getPackageTypeDetail(tx, f.company, f.business, record.id),
+  );
+  expect(detail?.selling_stopped_at).toBe(stoppedAt);
+
+  const page = await list(1);
+  expect(page.items[0]?.id).toBe(record.id);
+  expect(page.items[0]?.selling_stopped_at).toBe(stoppedAt);
 });
