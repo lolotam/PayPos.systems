@@ -12,7 +12,7 @@ import {
 it('runs the sale in the lock order the catalog and seller races depend on', async () => {
   const h = createHarness();
   await h.useCase.execute('company', 'request');
-  // ترتيب الأقفال هو العقد نفسه: نوع ثم بائعة ثم قراءات، فالتسابق مع تعديل الكتالوج يتحدد由此.
+  // ترتيب الأقفال هو العقد نفسه: نوع ثم بائعة ثم قراءات، فالتسابق مع تعديل الكتالوج يتحدد منها.
   expect(h.calls).toEqual([
     'lockType',
     'lockSeller',

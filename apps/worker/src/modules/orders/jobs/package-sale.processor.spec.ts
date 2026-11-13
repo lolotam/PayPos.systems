@@ -28,7 +28,7 @@ function saleEvent(ids: Ids, overrides: Partial<ClaimedEvent> = {}): ClaimedEven
   };
 }
 
-/** بوابة مفتوحة ب她的手؛ بنستخدمها عشان نلحق نقرا حالة الـ job وهو شغّال. */
+/** بوابة نفتحها يدويًا؛ بنستخدمها عشان نلحق نقرا حالة الـ job وهو شغّال. */
 function gate() {
   let open = (): void => undefined;
   const opened = new Promise<void>((resolve) => {
