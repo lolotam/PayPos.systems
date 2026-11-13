@@ -41,8 +41,14 @@ import { json, operation } from './openapi-operation.js';
 import { openApiSchemas } from './openapi-schemas.js';
 import { packageExtensionPaths } from './orders/package-extension-openapi.js';
 import { packageExtensionSchemas } from './orders/package-extension.js';
+import { packageRefundPaths } from './orders/package-refund-openapi.js';
+import { packageRefundSchemas } from './orders/package-refund.js';
 
-const allSchemas: readonly z.ZodType[] = [...openApiSchemas, ...packageExtensionSchemas];
+const allSchemas: readonly z.ZodType[] = [
+  ...openApiSchemas,
+  ...packageExtensionSchemas,
+  ...packageRefundSchemas,
+];
 
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
@@ -51,6 +57,7 @@ const PATHS = {
   ...personalBranchesPaths,
   ...packageImportPreviewPaths,
   ...packageExtensionPaths,
+  ...packageRefundPaths,
   ...customerPackagePaths,
   ...attendanceMonthlyReportPaths,
   ...employeeIbanPaths,

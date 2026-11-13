@@ -2,6 +2,7 @@
 export const expectedOpenApiSchemaNames = [
   'RequestPackageImportPreviewInput', 'PackageImportPreviewAccepted', 'PackageImportPreviewRequested', 'PackageImportPreviewRowError', 'PackageImportPreviewStatus',
   'ExtendPackageInput', 'PackageExtensionResponse',
+  'RefundPackageInput', 'PackageRefundResponse',
   'SessionPerformerOptionsQuery',
   'SessionPerformerOption',
   'SessionPerformerOptionPage',
