@@ -23,6 +23,7 @@ class FakePackageSaleRequestTransactions implements PackageSaleRequestTransactio
 
   access: SessionAccess;
   limit: SessionLimit;
+  placeTimezone: string | null = 'Asia/Kuwait';
   replayed = false;
   storedBody: AcceptedPackageSale | null = null;
 
@@ -53,6 +54,9 @@ class FakePackageSaleRequestTransactions implements PackageSaleRequestTransactio
       },
       discountLimit: {
         read: async () => this.limit,
+      },
+      place: {
+        timezone: async () => this.placeTimezone,
       },
       idempotent: async <R>(handler: () => Promise<R>): Promise<{ body: R; replayed: boolean }> => {
         if (this.replayed) {
@@ -154,6 +158,36 @@ it('replays stored body, inserts nothing again, and re-reads access', async () =
   expect(fake.accessLocks).toBe(1);
 });
 
+it('replays the stored body even when the caller now has two eligible memberships and the body names none', async () => {
+  const fake = new FakePackageSaleRequestTransactions(m1);
+  fake.access.membership_ids = [m1, m2];
+  fake.replayed = true;
+  fake.storedBody = { sale_request_id: ids.newId() };
+  const { idGenerator, context } = createContext();
+  const useCase = new AcceptPackageSaleUseCase(fake, idGenerator, clock);
+
+  const result = await useCase.execute(context);
+  expect(result).toEqual(fake.storedBody);
+  expect(fake.inserted).toHaveLength(0);
+  expect(fake.published).toHaveLength(0);
+});
+
+it.each([
+  ['denied access', { denied: true }, 'FORBIDDEN'],
+  ['feature off', { feature: false }, 'FEATURE_DISABLED'],
+])('replay still re-checks access: %s', async (_scenario, patch, expectedCode) => {
+  const fake = new FakePackageSaleRequestTransactions(m1);
+  fake.access = { ...fake.access, ...patch };
+  fake.replayed = true;
+  fake.storedBody = { sale_request_id: ids.newId() };
+  const { idGenerator, context } = createContext();
+  const useCase = new AcceptPackageSaleUseCase(fake, idGenerator, clock);
+
+  await expect(useCase.execute(context)).rejects.toMatchObject({ code: expectedCode });
+  expect(fake.inserted).toHaveLength(0);
+  expect(fake.published).toHaveLength(0);
+});
+
 const m1 = ids.newId();
 const m2 = ids.newId();
 const otherM = ids.newId();
@@ -207,3 +241,15 @@ it.each([
     expect(fake.published).toHaveLength(0);
   },
 );
+
+it('refuses with FORBIDDEN and writes nothing when place is null', async () => {
+  const membershipId = ids.newId();
+  const fake = new FakePackageSaleRequestTransactions(membershipId);
+  fake.placeTimezone = null;
+  const { idGenerator, context } = createContext();
+  const useCase = new AcceptPackageSaleUseCase(fake, idGenerator, clock);
+
+  await expect(useCase.execute(context)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  expect(fake.inserted).toHaveLength(0);
+  expect(fake.published).toHaveLength(0);
+});

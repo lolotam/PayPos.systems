@@ -40,6 +40,15 @@ it.each(['BANK_TRANSFER', 'missing'])(
   },
 );
 
+it.each([
+  ['expected_type_revision out of bounds', { expected_type_revision: 2147483648 }],
+  ['sold_at in year zero', { sold_at: '0000-01-01T00:00:00Z' }],
+])('refuses %s with 400 without storing a request', async (_scenario, patch) => {
+  const response = await postSale(f, { body: saleBody(f, patch) });
+  expect(response).toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } });
+  expect(await readSaleRequests(f)).toHaveLength(0);
+});
+
 it('accepts one sale with its validated snapshot and one id-only outbox event', async () => {
   const body = saleBody(f);
   const response = await postSale(f, { body });
@@ -59,6 +68,7 @@ it('accepts one sale with its validated snapshot and one id-only outbox event', 
   });
   const events = await readSaleOutbox(f, parsed.sale_request_id);
   expect(events).toHaveLength(1);
+  expect(events[0]?.['payload']).toEqual({ sale_request_id: parsed.sale_request_id });
   expect(events[0]).toMatchObject({
     aggregate_type: 'package_sale_request',
     aggregate_id: parsed.sale_request_id,
@@ -149,6 +159,16 @@ it('refuses a membership of another company as the recorder without a row in eit
   expect(response.status).toBe(403);
   expect(await readSaleRequests(f)).toHaveLength(0);
   expect(await readSaleRequests(f, f.otherCompany)).toHaveLength(0);
+});
+
+it('refuses another business of the same company with the branch with 403', async () => {
+  const response = await postSale(f, {
+    businessId: f.secondBusiness,
+    branchId: f.branch,
+    cookie: f.ownerCookie,
+  });
+  expect(response.status).toBe(403);
+  expect(await readSaleRequests(f)).toHaveLength(0);
 });
 
 it('SA-10 completes one HTTP acceptance in under 200 ms', async () => {

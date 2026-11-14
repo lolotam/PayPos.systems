@@ -108,9 +108,26 @@ it.each([
       ],
     },
   ],
+  ['an expected_type_revision exceeding 2147483647', { expected_type_revision: 2147483648 }],
+  [
+    'a service revision exceeding 2147483647',
+    { expected_service_revisions: [{ service_id: service, revision: 2147483648 }] },
+  ],
+  ['a sold_at timestamp in year zero', { sold_at: '0000-01-01T00:00:00Z' }],
   ['an unknown key', { note: 'extra' }],
 ])('refuses a sale input with %s', (_scenario, change) => {
   expect(sellPackageInput.safeParse({ ...input, ...change }).success).toBe(false);
+});
+
+it.each([
+  ['expected_type_revision at upper bound', { expected_type_revision: 2147483647 }],
+  [
+    'service revision at upper bound',
+    { expected_service_revisions: [{ service_id: service, revision: 2147483647 }] },
+  ],
+  ['a normal sold_at', { sold_at: '2026-10-17T12:00:00.000Z' }],
+])('accepts a sale input with %s', (_scenario, change) => {
+  expect(sellPackageInput.safeParse({ ...input, ...change }).success).toBe(true);
 });
 
 it('refuses an unknown key on the sale event', () => {

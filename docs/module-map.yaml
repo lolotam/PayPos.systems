@@ -44,6 +44,7 @@ reads:
   - { from: orders, to: identity, symbol: readPackageExtensionAccess, file: apps/api/src/modules/orders/persistence/package-extension.transactions.ts }
   - { from: orders, to: identity, symbol: lockPackageSaleAccess, file: apps/api/src/modules/orders/persistence/package-sale-request.transactions.ts }
   - { from: orders, to: identity, symbol: readPackageSaleAccess, file: apps/api/src/modules/orders/persistence/package-sale-request.transactions.ts }
+  - { from: orders, to: tenancy, symbol: packageSalePlace, file: apps/api/src/modules/orders/persistence/package-sale-request.transactions.ts }
   - { from: orders, to: identity, symbol: lockPackageRefundAccess, file: apps/api/src/modules/orders/persistence/package-refund.transactions.ts }
   - { from: orders, to: identity, symbol: readPackageRefundAccess, file: apps/api/src/modules/orders/persistence/package-refund.transactions.ts }
   - { from: orders, to: settings, symbol: readImportedRefundsEnabled, file: apps/api/src/modules/orders/persistence/package-refund.transactions.ts }

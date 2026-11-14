@@ -7,6 +7,7 @@ import {
   type Tx,
 } from '@pospay/db';
 import { lockPackageSaleAccess, readPackageSaleAccess } from '../../identity/index.ts';
+import { packageSalePlace } from '../../tenancy/index.ts';
 import { SessionError } from '../domain/session-error.ts';
 import type {
   PackageSaleRequestTransaction,
@@ -65,6 +66,9 @@ function packageSaleRequestTransaction(
       },
     },
     discountLimit: discountLimit(tx, context.companyId, context.businessId),
+    place: {
+      timezone: () => packageSalePlace(tx, context.companyId, context.businessId, context.branchId),
+    },
     insertPending: (request) => insertPendingPackageSale(tx, request),
     publishRequested: (requestId) =>
       appendOutboxEvent(tx, ids.newId(), {

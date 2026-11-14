@@ -8,6 +8,14 @@ export interface PackageSaleRequestTransaction {
   readonly access: SessionRecordAccessPort;
   /** حد العضوية المختارة المجمد مع الطلب ليحكم العامل على الخصم لاحقاً. */
   readonly discountLimit: DiscountLimitPort;
+  readonly place: {
+    /**
+     * يثبت ملكية النشاط للفرع قبل إدخال طلب البيع.
+     *
+     * @returns توقيت الفرع أو null عند عدم تطابق النطاق
+     */
+    timezone(): Promise<string | null>;
+  };
   /**
    * يحفظ رد 202 أو يعيده مع replayed لإعادة التفويض دون تكرار الآثار.
    *

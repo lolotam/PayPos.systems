@@ -1,6 +1,7 @@
 import type { AcceptedPackageSale, SellPackageInput } from '@pospay/contracts';
 import { pendingPackageSale } from '../../domain/package-sale-request.ts';
 import { resolveSessionRecorder } from '../../domain/session-authority.ts';
+import { SessionError } from '../../domain/session-error.ts';
 import type {
   PackageSaleRequestTransaction,
   PackageSaleRequestTransactions,
@@ -24,9 +25,19 @@ export class AcceptPackageSaleUseCase {
   async execute(context: AcceptPackageSaleContext): Promise<AcceptedPackageSale> {
     return this.transactions.run(context, async (tx) => {
       const result = await tx.idempotent(() => this.accept(tx, context));
+      // إعادة البيع المعتمد تتجاوز غموض العضوية فقط، مع بقاء كل فحوص الوصول الأخرى.
       if (result.replayed) {
         await tx.access.lock();
-        await this.authorize(tx, this.clock.now(), context);
+        try {
+          await this.authorize(tx, this.clock.now(), context);
+        } catch (error) {
+          if (
+            !(error instanceof SessionError) ||
+            error.code !== 'SESSION_RECORDER_MEMBERSHIP_REQUIRED'
+          ) {
+            throw error;
+          }
+        }
       }
       return result.body;
     });
@@ -39,6 +50,8 @@ export class AcceptPackageSaleUseCase {
     await tx.access.lock();
     const at = this.clock.now();
     const membershipId = await this.authorize(tx, at, context);
+    const place = await tx.place.timezone();
+    if (place === null) throw new SessionError('FORBIDDEN');
     const limit = await tx.discountLimit.read(membershipId);
     const requestId = this.ids.newId();
     const request = pendingPackageSale(context.input, {

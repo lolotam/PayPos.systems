@@ -12,7 +12,7 @@ export const packagePaidMethod = z.enum(['CASH', 'CARD']).meta({ id: 'PackagePai
 export const packageServiceRevision = z
   .strictObject({
     service_id: id,
-    revision: z.number().int().positive(),
+    revision: z.number().int().positive().max(2147483647),
   })
   .meta({ id: 'PackageServiceRevision' });
 
@@ -20,7 +20,7 @@ export const sellPackageInput = z
   .strictObject({
     customer_id: id,
     package_type_id: id,
-    expected_type_revision: z.number().int().positive(),
+    expected_type_revision: z.number().int().positive().max(2147483647),
     // خدمة واحدة لكل مكوّن: تكرارها يخلّي مقارنة العرض ملتبسة (أنهي نسخة تتقارن؟).
     expected_service_revisions: z
       .array(packageServiceRevision)
@@ -30,7 +30,8 @@ export const sellPackageInput = z
     price_paid: sessionMoney,
     paid_method: packagePaidMethod,
     seller_employee_id: id,
-    sold_at: timestamp.optional(),
+    // PostgreSQL مافيهوش سنة صفر، فالرفض هنا بيمنع خطأ 500 عند التحويل إلى timestamptz.
+    sold_at: timestamp.refine((value) => new Date(value).getUTCFullYear() >= 1).optional(),
     recorder_membership_id: id.optional(),
   })
   .meta({ id: 'SellPackageInput' });
