@@ -1,7 +1,7 @@
 'use client';
 import type { ServiceListItem } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { Button } from '@pospay/ui';
+import { Badge, Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { serviceCategoryLabel } from '../model/service-category-label';
 import { SERVICE_RULE_LABEL } from '../model/service-rule';
@@ -18,7 +18,14 @@ export function ServiceTableRow({
   const locale = useLocale();
   return (
     <tr className={selected ? 'bg-secondary/50' : ''}>
-      <td>{locale === 'ar' ? (item.name_ar ?? item.name_en) : item.name_en}</td>
+      <td>
+        <div className="flex flex-wrap items-center gap-2">
+          <span>{locale === 'ar' ? (item.name_ar ?? item.name_en) : item.name_en}</span>
+          {item.closed_at ? (
+            <Badge variant="neutral">{t(locale, 'catalogServiceCategories.closed')}</Badge>
+          ) : null}
+        </div>
+      </td>
       <td dir="ltr">{item.price}</td>
       <td>
         {item.duration_minutes === null ? (

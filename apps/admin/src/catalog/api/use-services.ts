@@ -10,7 +10,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 
-const key = (companyId: string, businessId: string, userId: string) =>
+export const key = (companyId: string, businessId: string, userId: string) =>
   ['services', companyId, businessId, userId] as const;
 
 async function list(
