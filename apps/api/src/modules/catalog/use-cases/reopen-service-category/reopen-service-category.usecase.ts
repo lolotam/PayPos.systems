@@ -45,7 +45,7 @@ export class ReopenServiceCategoryUseCase {
 
   async execute(command: ReopenServiceCategoryCommand): Promise<ServiceCategoryReopenOutcome> {
     const outcome = await this.transactions.run(command, async (scope) => {
-      const now = this.clock.now();
+      const precheckAt = this.clock.now();
       const intent = {
         action: 'reopen' as const,
         expected_revision: command.input.expected_revision,
@@ -56,11 +56,14 @@ export class ReopenServiceCategoryUseCase {
         command.businessId,
         command.categoryId,
         intent,
-        now,
+        precheckAt,
       );
       if (prechecked !== null) return prechecked;
       const current = await scope.load(command.businessId, command.categoryId);
       if (current === null) throw new ServiceCategoryError('SERVICE_CATEGORY_NOT_FOUND');
+      // وقت التعديل بيتقري بعد قفل الصف، عشان تعديل متزامن مسك القفل قبلنا
+      // ما يبقاش updated_at بتاعه أحدث من الوقت اللي إحنا بنكتبه.
+      const now = this.clock.now();
       // الطلب المعلّق بيتفحص قبل النسخة والحالة والعدد: التصنيف مشغول، فأي طلب تاني عليه
       // يرد «شغّال» ومعاه هوية الطلب، مش «نسخة قديمة» اللي الشاشة بتتوقع غيرها.
       const pending = await resolvePendingClosing(
