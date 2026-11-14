@@ -642,8 +642,9 @@ Recorded here before the behaviour ships (#1027). The decisions are W-1 to W-11 
   closed alone and another assigned in) pass both checks, and the job applies to the category's services as they are
   when it runs (W-4).
 - **Permissions:** no new permission. Accept keeps the close route's pair; the job does not re-check it. The status
-  route's permission is SI-Q29 and what the screen shows after a large confirm is SI-Q30, both **PENDING**
-  (`owner-questions.ar.md` §31, §32); sub-PR 3 waits for them.
+  route requires the same pair (SI-Q29); after a large confirm the screen carries on and shows «جاري القفل…» (SI-Q30);
+  the job applies to the category's services at run time (SI-Q31, W-4). Waleed answered all three on 2026-11-14
+  (PP-191, `owner-questions.ar.md` §31-§33); they are feature questions, so Abu Salem's pick binds if it differs.
 - **Tests:** sub-PR 1 has the RLS negative, grant, CHECK, guard-trigger and shared-SQL parity tests; sub-PR 2 has the
   job tests (completed above 300 services with the requester as actor, reopen restores only marked services, replay is
   a no-op, each failure code changes nothing, last-attempt failure, another tenant's job touches nothing, no deadlock

@@ -19,6 +19,14 @@ vi.mock('../../modules/orders/jobs/package-sale-recovery.processor.ts', () => ({
     register: async () => undefined,
   }),
 }));
+vi.mock('../../modules/catalog/jobs/service-category-closing.processor.ts', () => ({
+  startServiceCategoryClosingProcessor: () => ({
+    ready: async () => undefined,
+    close: async () => undefined,
+    deliver: async () => ({ delivered: true }),
+  }),
+}));
+import { startCatalogWorker } from '../../modules/catalog/index.ts';
 import { startPackagePreviewWorker, startPackageSaleWorker } from '../../modules/orders/index.ts';
 import type { Database } from '@pospay/db';
 import { createLogger } from '@pospay/observability';
@@ -71,14 +79,16 @@ const sales = startPackageSaleWorker(database, ids, {
   clock,
   transactionTimeoutMs: 5000,
 });
+const catalog = startCatalogWorker(database, ids, 'synthetic', clock);
 
 it('recognizes every event emitted by API and worker, including finite template expansions', () => {
   const emitted = emittedEventTypes();
   const consumers = [notifications.consumer, createStaffDocumentDefaults(ids)];
   const supported = new Set([
-    ...knownEventTypes(staff, notifications, null, previews, sales),
+    ...knownEventTypes(staff, notifications, null, previews, sales, catalog),
     ...consumers.flatMap((consumer) => consumer.eventTypes),
   ]);
+  expect(catalog.eventTypes).toContain('ServiceCategoryClosingRequested');
   expect([...emitted.keys()]).toEqual(
     expect.arrayContaining([
       'LeaveRequested',
