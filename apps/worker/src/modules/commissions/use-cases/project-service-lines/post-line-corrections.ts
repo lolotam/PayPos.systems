@@ -14,14 +14,13 @@ import type {
   CommissionLineSnapshot,
   CommissionPeriodEmployee,
 } from '../../domain/commission-line-types.ts';
-import { commissionLineSourceRef } from '../../domain/commission-source-ref.ts';
 import { CommissionPeriodClosedError } from '../../domain/errors.ts';
-import type {
-  CommissionCorrectionMonthProjection,
-  CommissionCorrectionScope,
-} from '../../ports/commission-correction.port.ts';
+import type { CommissionCorrectionScope } from '../../ports/commission-correction.port.ts';
 import type { CommissionLineProjectionScope } from '../../ports/commission-line-projection.port.ts';
-import { recomputeCommissionMonth } from '../commission-month-recompute.ts';
+import {
+  recomputeCommissionMonth,
+  type CommissionMonthRecomputedSource,
+} from '../commission-month-recompute.ts';
 
 export interface CommissionLineCorrectionTarget {
   readonly sourcePeriod: string;
@@ -113,7 +112,6 @@ async function postEmployeeCorrections(
     input,
     target,
     employeeId,
-    projection,
     frozen,
     posted,
     result.sources,
@@ -136,10 +134,9 @@ async function resolveRecomputedAttributions(
   input: PostLineCorrectionsInput,
   target: CommissionLineCorrectionTarget,
   employeeId: string,
-  projection: CommissionCorrectionMonthProjection,
   frozen: readonly CommissionFrozenSource[],
   posted: readonly CommissionPostedCorrection[],
-  sources: readonly CommissionRecomputedSource[],
+  sources: readonly CommissionMonthRecomputedSource[],
 ): Promise<CommissionRecomputedSource[]> {
   const known = new Set([...frozen, ...posted].map((source) => source.sourceRef));
   if (sources.every((source) => known.has(source.sourceRef))) return [...sources];
@@ -148,18 +145,16 @@ async function resolveRecomputedAttributions(
     statementId: target.sourceStatementId,
     employeeId,
   });
-  const lines = new Map(
-    projection.lines.map((line) => [commissionLineSourceRef(line.lineId), line] as const),
-  );
   return sources.map((source) => {
     if (known.has(source.sourceRef)) return source;
-    const line = lines.get(source.sourceRef);
-    if (line === undefined) return source;
+    if (source.sourceBranchId === undefined || source.sourceBusinessDate === undefined) {
+      return source;
+    }
     return {
       ...source,
       attribution: resolveSourceAttribution({
-        sourceBranchId: line.branchId,
-        sourceBusinessDate: line.businessDate,
+        sourceBranchId: source.sourceBranchId,
+        sourceBusinessDate: source.sourceBusinessDate,
         attachments,
       }),
     };

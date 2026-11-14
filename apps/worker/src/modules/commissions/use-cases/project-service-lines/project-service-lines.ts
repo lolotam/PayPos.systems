@@ -43,9 +43,7 @@ import {
 } from './post-line-corrections.ts';
 
 type CommissionInputEventPayload =
-  | ServiceSessionRecorded
-  | ServiceSessionLinesAdded
-  | ServiceLineChanged;
+  ServiceSessionRecorded | ServiceSessionLinesAdded | ServiceLineChanged;
 
 export { CommissionLineEventInvalidError } from '../../domain/errors.ts';
 

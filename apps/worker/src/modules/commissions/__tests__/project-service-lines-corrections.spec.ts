@@ -14,7 +14,7 @@ import type {
   LockedCommissionPeriod,
 } from '../domain/commission-line-types.ts';
 import type {
-  CommissionCorrectionMonthProjection,
+  CommissionMonthProjection,
   CommissionCorrectionScope,
   CommissionCorrectionInsertInput,
 } from '../ports/commission-correction.port.ts';
@@ -92,7 +92,7 @@ class FakeScope implements CommissionLineProjectionScope {
   }
 }
 
-const plan = (): CommissionCorrectionMonthProjection['versions'][number] => ({
+const plan = (): CommissionMonthProjection['versions'][number] => ({
   employeeId: 'employee-a',
   effectiveFrom: '2026-10-01',
   wholePeriod: false,
@@ -104,8 +104,8 @@ const plan = (): CommissionCorrectionMonthProjection['versions'][number] => ({
 });
 
 const monthProjection = (
-  patch: Partial<CommissionCorrectionMonthProjection> = {},
-): CommissionCorrectionMonthProjection => ({
+  patch: Partial<CommissionMonthProjection> = {},
+): CommissionMonthProjection => ({
   employeeId: 'employee-a',
   period: '2026-10',
   lines: [
@@ -146,7 +146,7 @@ class FakeCorrections implements CommissionCorrectionScope {
     this.calls.push('bumpGeneration');
     return 1;
   }
-  async readMonthProjection(): Promise<CommissionCorrectionMonthProjection> {
+  async readMonthProjection(): Promise<CommissionMonthProjection> {
     this.calls.push('readMonthProjection');
     return this.projection;
   }
@@ -267,9 +267,7 @@ it('rolls over after the lock wait without any projection or correction write', 
   const corrections = new FakeCorrections(scope.calls);
   const rollingClock = {
     now: () =>
-      new Date(
-        scope.lockInputs.length === 0 ? '2026-12-31T20:59:00Z' : '2027-01-01T00:00:00Z',
-      ),
+      new Date(scope.lockInputs.length === 0 ? '2026-12-31T20:59:00Z' : '2027-01-01T00:00:00Z'),
   };
 
   const work = new ProjectServiceLines(scope, rollingClock, ids, corrections).execute(

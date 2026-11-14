@@ -37,11 +37,11 @@ export interface CommissionLineEventInput {
 }
 
 /** صف منفّذ محفوظ قبل الاستبدال؛ شهره يحدد أي كشف مغلق يحتاج تصحيحاً للموظفة. */
-export interface CommissionLinePerformerPeriod {
+export type CommissionLinePerformerPeriod = {
   readonly lineId: string;
   readonly employeeId: string;
   readonly period: string;
-}
+};
 
 /** موظفة وشهر مغلق يحتاجان جيل تصحيح واحداً بعد تغيّر البنود. */
 export interface CommissionPeriodEmployee {
