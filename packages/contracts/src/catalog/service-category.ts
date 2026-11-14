@@ -6,10 +6,7 @@ import { id } from '../scalars/id.js';
 import { withoutControlChars } from '../scalars/no-control-chars.js';
 import { timestamp } from '../scalars/timestamp.js';
 
-const categoryName = withoutControlChars(z.string())
-  .trim()
-  .min(1)
-  .max(100);
+const categoryName = withoutControlChars(z.string()).trim().min(1).max(100);
 const revision = z.number().int().min(1).max(2_147_483_646);
 
 export const serviceCategoryVisibility = z
@@ -132,6 +129,7 @@ export const serviceCategoryDetail = responseObject({
   ...categoryFields,
   open_service_count: z.number().int().min(0),
   marked_service_count: z.number().int().min(0),
+  pending_closing_id: id.nullable(),
 }).meta({ id: 'ServiceCategoryDetail' });
 
 export const serviceCategorySchemas = [
@@ -169,20 +167,12 @@ export type ServiceCategoryCursorData = z.infer<typeof serviceCategoryCursorData
 export type ServiceCategoryPage = z.infer<typeof serviceCategoryPage>;
 export type ServiceCategoryListQuery = z.infer<typeof serviceCategoryListQuery>;
 export type ServiceCategoryBranchView = z.infer<typeof serviceCategoryBranchView>;
-export type ServiceCategoryBranchSettingState = z.infer<
-  typeof serviceCategoryBranchSettingState
->;
-export type SetServiceCategoryBranchStateInput = z.infer<
-  typeof setServiceCategoryBranchStateInput
->;
+export type ServiceCategoryBranchSettingState = z.infer<typeof serviceCategoryBranchSettingState>;
+export type SetServiceCategoryBranchStateInput = z.infer<typeof setServiceCategoryBranchStateInput>;
 export type ServiceCategoryBranchListItem = z.infer<typeof serviceCategoryBranchListItem>;
-export type ServiceCategoryBranchStateResult = z.infer<
-  typeof serviceCategoryBranchStateResult
->;
+export type ServiceCategoryBranchStateResult = z.infer<typeof serviceCategoryBranchStateResult>;
 export type ServiceCategoryBranchPage = z.infer<typeof serviceCategoryBranchPage>;
-export type ServiceCategoryBranchListQuery = z.infer<
-  typeof serviceCategoryBranchListQuery
->;
+export type ServiceCategoryBranchListQuery = z.infer<typeof serviceCategoryBranchListQuery>;
 export type CloseServiceCategoryInput = z.infer<typeof closeServiceCategoryInput>;
 export type ReopenServiceCategoryInput = z.infer<typeof reopenServiceCategoryInput>;
 export type CloseServiceCategoryResult = z.infer<typeof closeServiceCategoryResult>;

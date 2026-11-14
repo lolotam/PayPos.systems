@@ -9,6 +9,7 @@ import {
   Post,
   Query,
   Req,
+  Res,
 } from '@nestjs/common';
 import {
   closeServiceCategoryInput,
@@ -24,12 +25,13 @@ import {
   type ReopenServiceCategoryInput,
   type ReopenServiceCategoryResult,
   type ServiceCategory,
+  type ServiceCategoryClosingPending,
   type ServiceCategoryDetail,
   type ServiceCategoryListQuery,
   type ServiceCategoryPage,
 } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { Require, RequireAll, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
@@ -152,17 +154,20 @@ export class ServiceCategoriesController {
     @Body(new ServiceCategoryValidationPipe(closeServiceCategoryInput))
     input: CloseServiceCategoryInput,
     @Req() request: FastifyRequest,
-  ): Promise<CloseServiceCategoryResult> {
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<CloseServiceCategoryResult | ServiceCategoryClosingPending> {
     if (this.closeCategory === null) throw new ApiError('NOT_READY');
     try {
-      return await this.closeCategory.execute({
+      const outcome = await this.closeCategory.execute({
         ...actorOf(request),
         businessId,
         categoryId,
         input,
       });
+      if (outcome.kind === 'pending') void reply.status(202);
+      return outcome.result;
     } catch (error) {
-      if (error instanceof ServiceCategoryError) throw new ApiError(error.code);
+      if (error instanceof ServiceCategoryError) throw new ApiError(error.code, error.details);
       throw error;
     }
   }
@@ -179,17 +184,20 @@ export class ServiceCategoriesController {
     @Body(new ServiceCategoryValidationPipe(reopenServiceCategoryInput))
     input: ReopenServiceCategoryInput,
     @Req() request: FastifyRequest,
-  ): Promise<ReopenServiceCategoryResult> {
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ): Promise<ReopenServiceCategoryResult | ServiceCategoryClosingPending> {
     if (this.reopenCategory === null) throw new ApiError('NOT_READY');
     try {
-      return await this.reopenCategory.execute({
+      const outcome = await this.reopenCategory.execute({
         ...actorOf(request),
         businessId,
         categoryId,
         input,
       });
+      if (outcome.kind === 'pending') void reply.status(202);
+      return outcome.result;
     } catch (error) {
-      if (error instanceof ServiceCategoryError) throw new ApiError(error.code);
+      if (error instanceof ServiceCategoryError) throw new ApiError(error.code, error.details);
       throw error;
     }
   }

@@ -1,8 +1,13 @@
+import type { OutboxWriter } from '../../../shared/ports/outbox-writer.port.ts';
 import type { ServiceCategoryBranchSettingRecord } from '../domain/service-category-branch.ts';
 import type {
   ServiceCategoryClosingPlan,
   ServiceRecordChange,
 } from '../domain/service-category-closing.ts';
+import type {
+  NewServiceCategoryClosing,
+  PendingServiceCategoryClosing,
+} from '../domain/service-category-closing-path.ts';
 import type { ServiceCategoryRecord } from '../domain/service-category.ts';
 import type { ServiceRecord } from '../domain/service.ts';
 
@@ -109,6 +114,51 @@ export interface ServiceCategoryScope {
    */
   auditClosing(entries: ServiceCategoryClosingAudit): Promise<void>;
   /**
+   * يعدّ الخدمات التي يمسّها القفل أو الفتح، قبل قفل أي صف خدمة: العدد يحدّد المسار
+   * والوقت، فقفل صف خدمة قبله يضيّق نافذة الكتابة بلا فايدة.
+   *
+   * @param businessId النشاط المالك
+   * @param categoryId التصنيف المطلوب
+   * @param mode      خدمات القفل (المفتوحة) أو خدمات الفتح (المعلّمة بهذا التصنيف)
+   * @returns عدد الخدمات المتأثرة
+   */
+  countAffectedServices(
+    businessId: string,
+    categoryId: string,
+    mode: 'open' | 'marked',
+  ): Promise<number>;
+  /**
+   * يقرأ طلب القفل أو الفتح المعلق على التصنيف، لو فيه واحد.
+   *
+   * @param businessId النشاط المالك
+   * @param categoryId التصنيف المطلوب
+   * @returns صف الطلب المعلق أو غيابه
+   */
+  findPendingClosing(
+    businessId: string,
+    categoryId: string,
+  ): Promise<PendingServiceCategoryClosing | null>;
+  /**
+   * ينهي الطلب المعلق بعلامة الفشل بسبب انتهاء الموعد، فيرفع الحجب عن التصنيف.
+   *
+   * @param closingId صف الطلب
+   * @param at        لحظة الانتهاء المحقونة
+   * @returns اكتمال التحديث
+   */
+  expireClosing(closingId: string, at: Date): Promise<void>;
+  /**
+   * ينشئ صف الطلب المعلق، والحدث بتاعه بيتبعت في نفس المعاملة عن طريق `outbox`.
+   *
+   * @param request صف الطلب الجديد بكل بياناته
+   * @returns اكتمال الإنشاء
+   */
+  createClosing(request: NewServiceCategoryClosing): Promise<void>;
+  /**
+   * كاتب الـ outbox المشترك: الحدث بيتكتب جوه نفس المعاملة، فالتغيير والحدث ما
+   * بيفترقوش، ولا يبقى حدث لتغيير متسجلش.
+   */
+  readonly outbox: OutboxWriter;
+  /**
    * يدرج أول إعداد لتصنيف في فرع؛ تعارض المفتاح الفريد يتحول إلى نفس رفض النسخة القديمة.
    *
    * @param record إعداد النسخة الأولى
@@ -154,5 +204,8 @@ export interface ServiceCategoryTransactions {
    * @param work خطوات الحفظ على المعاملة
    * @returns النتيجة بعد الالتزام
    */
-  run<T>(actor: ServiceCategoryActor, work: (scope: ServiceCategoryScope) => Promise<T>): Promise<T>;
+  run<T>(
+    actor: ServiceCategoryActor,
+    work: (scope: ServiceCategoryScope) => Promise<T>,
+  ): Promise<T>;
 }
