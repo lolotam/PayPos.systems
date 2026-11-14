@@ -105,12 +105,21 @@ error message on 409 (PP-7.2).
 1. 33b-1 merges and deploys first. The staging receipt shows the worker `/ready` and its image SHA at the 33b-1 merge
    SHA or later (the SHA that contains the `PACKAGE_TYPE_NOT_SELLABLE` check).
 2. 33b-2 (the stop route) does not merge until that receipt exists. Its PR body carries these notes.
-3. **Rollback floor = the 33b-1 merge SHA for the worker.** Once any type is stopped, a worker below that SHA would
-   sell a stopped type. A rollback of the worker below the floor first disables the stop route (rolls the API back
-   below 33b-2) and resumes every stopped type, or is refused.
-4. The migration is expand-only (nullable column, column grant); rolling the code back below 33b-1 leaves the column
+3. **Production follows the same order.** The stop route is enabled in production only after every production worker
+   instance runs the 33b-1 merge SHA (`ce7ecbbbb`) or later; one worker below the floor could still sell a stopped
+   type. The API image that carries 33b-2 deploys after that fleet check, never in the same step.
+4. **Rollback floor = the 33b-1 merge SHA for the worker.** Once any type is stopped, a worker below that SHA would
+   sell a stopped type. A rollback of the worker below the floor runs in this order, or is refused:
+   1. resume every stopped type first, through the resume route while the API still carries 33b-2 (or set
+      `selling_stopped_at = NULL` with a revision bump, by the migration owner, if the route is unavailable);
+   2. then roll the API back below 33b-2, so no new stop can happen;
+   3. only then roll the worker back below the floor.
+   Rolling the API back first would remove the resume route while types are still stopped.
+   The three steps run as one uninterrupted procedure, and new stops are blocked for the whole window (no stop
+   request is accepted between step 1 and step 2), so no type can be stopped again after the resume in step 1.
+5. The migration is expand-only (nullable column, column grant); rolling the code back below 33b-1 leaves the column
    unused and harmless.
-5. Production stays Waleed's decision.
+6. Production stays Waleed's decision.
 
 ## Sizes (estimated lines added/changed; the 2× refusal yardstick per dispatch)
 
