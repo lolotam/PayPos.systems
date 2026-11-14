@@ -121,6 +121,34 @@ it('posts one trimmed request with the opening expiry, then closes and saves', a
   expect(screen.queryByRole('dialog')).toBeNull();
 });
 
+it('saves the extension without submitting a surrounding visit form', async () => {
+  state.post.mockResolvedValueOnce(saved);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  function Host() {
+    const [open, setOpen] = useState(true);
+    const [outerStatus, setOuterStatus] = useState('Synthetic visit draft');
+    return (
+      <form onSubmit={(event) => { event.preventDefault(); setOuterStatus('Synthetic visit submitted'); }}>
+        <span>{outerStatus}</span>
+        {open ? (
+          <ExtendPackageDialog
+            scope={scope} customerId={customerId} entitlementId={entitlementId} currentExpiresOn={OLD}
+            onSaved={() => undefined}
+            onClose={() => { setOpen(false); }}
+          />
+        ) : null}
+      </form>
+    );
+  }
+  render(<QueryClientProvider client={client}><Host /></QueryClientProvider>);
+  fillValid();
+  submit();
+  await waitFor(() => expect(state.post).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(screen.getByText('Synthetic visit draft')).toBeTruthy();
+  expect(screen.queryByText('Synthetic visit submitted')).toBeNull();
+});
+
 it('sends one request for two clicks in one tick and disables submit while pending', async () => {
   let finish: (value: typeof saved) => void = () => undefined;
   state.post.mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
