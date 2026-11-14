@@ -21,7 +21,8 @@ const median = (values: readonly number[]): number => {
 };
 
 // خط الأساس هو مسار الإغلاق المتزامن في الـ API كما هو: نفس الأقفال ونفس الجمل بنفس الترتيب
-// (persistence/drizzle-service-category-transactions.ts وdrizzle-service-category-closing.ts).
+// بيعكس apps/api/src/modules/catalog/use-cases/close-service-category/close-service-category.usecase.ts؛
+// أي تغيير هناك لازم يتنقل هنا (persistence/drizzle-service-category-transactions.ts وclosing.ts).
 // الـ worker ما ينفعش يستورد كود الـ API، فالجمل منسوخة هنا بدل حالة الاستخدام نفسها.
 const baseline = async (
   fixture: ServiceCategoryClosingFixture,
