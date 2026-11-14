@@ -462,6 +462,7 @@ reads:
   - orders -> identity.readServiceSessionCancelAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
   - orders -> identity.lockServiceSessionPerformersAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
   - orders -> identity.readServiceSessionPerformersAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
+  - orders -> identity.readPackageExtensionAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
   - orders -> identity.lockDiscountApprovalAccess @ apps/api/src/modules/orders/persistence/discount-approval-access.adapter.ts
   - orders -> identity.readDiscountApprovalAccess @ apps/api/src/modules/orders/persistence/discount-approval-access.adapter.ts
   - orders -> identity.lockActiveDeviceBusiness @ apps/api/src/modules/orders/persistence/discount-pin-fence.adapter.ts

@@ -439,7 +439,7 @@ business's full service catalog. Arabic column labels are header comments.
   per service the remaining, used and refunded counts and slot values, and the detail with its history (redemptions,
   extensions, refunds); a holder of `read:service-sessions:branch` sees exactly the same. Expired and fully used
   packages are listed last, marked. No package read carries the customer's phone.
-  `TODO(spec)` (45-UI-Q1, 45-UI-Q2, 45-UI-Q3): only the UI behaviour of the extension reason's visibility in the history and the Extend button's visibility and capability source are pending owner answers; this does not block row 45's delivery; remove this marker only when the answers are recorded verbatim in `owner-questions.ar.md`.
+  The extension history shows each extension's reason to everyone who sees the detail, and the Extend button shows only when the FR-071 detail's server-computed `can_extend` (the caller's `extend:packages:branch` on the acting branch) is true; the extension POST stays authoritative (PP-189: 45-UI-Q1, 45-UI-Q2, 45-UI-Q3).
 - **CP-02** Another business's or company's packages never appear; a foreign customer id answers like unknown.
 - **CP-03** Both routes are guarded by `RequireAny(['record:service-sessions:branch', 'read:service-sessions:branch'],
   { branch })` (TD-13). A holder of `record:service-sessions:branch` only (reception's default) and a holder of

@@ -147,7 +147,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Requires record:service-sessions:branch or read:service-sessions:branch, and the orders feature. Returns stored sale facts, components and slots; unknown or inaccessible packages share PACKAGE_NOT_FOUND. */
+        /** @description Requires record:service-sessions:branch or read:service-sessions:branch, and the orders feature. Returns stored sale facts, components and slots; unknown or inaccessible packages share PACKAGE_NOT_FOUND. can_extend is a display hint for extend:packages:branch on the acting branch; the extension POST stays authoritative. */
         get: operations["customerPackageDetail"];
         put?: never;
         post?: never;
@@ -6592,6 +6592,7 @@ export interface components {
             new_expires_on: string;
             /** Format: date-time */
             extended_at: string;
+            reason?: string;
         };
         CustomerPackageDetail: {
             /** Format: uuid */
@@ -6625,6 +6626,8 @@ export interface components {
             business_timezone?: string;
             refunded_amount: components["schemas"]["SessionMoney"];
             revision: number;
+            /** @default false */
+            can_extend: boolean;
             components: components["schemas"]["CustomerPackageDetailComponent"][];
             redemptions: components["schemas"]["CustomerPackageRedemption"][];
             /** @default [] */

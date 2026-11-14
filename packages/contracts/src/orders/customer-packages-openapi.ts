@@ -42,7 +42,7 @@ export const customerPackagePaths = {
   '/v1/businesses/{businessId}/branches/{branchId}/customers/{customerId}/packages/{entitlementId}': {
     get: {
       operationId: 'customerPackageDetail',
-      description: `${guard} Returns stored sale facts, components and slots; unknown or inaccessible packages share PACKAGE_NOT_FOUND.`,
+      description: `${guard} Returns stored sale facts, components and slots; unknown or inaccessible packages share PACKAGE_NOT_FOUND. can_extend is a display hint for extend:packages:branch on the acting branch; the extension POST stays authoritative.`,
       parameters: [
         ...parameters,
         { in: 'path', name: 'entitlementId', required: true, schema: { type: 'string', format: 'uuid' } },
