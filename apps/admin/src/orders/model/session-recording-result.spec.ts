@@ -358,3 +358,47 @@ it('restores the attached discount proposal id on a recovered paid draft', () =>
   expect(pending.drafts.lines[1]?.local_id).toBe(id(31));
   expect(pending.drafts.lines[1]?.discount_proposal).toBeNull();
 });
+it('recovering a PARTIAL journal entry takes the entry customer and drops a different selected one', () => {
+  const entry = { version: 1 as const, state: 'PARTIAL' as const, scope, sessionId: id(12), customerId: id(7) };
+  expect(transition(emptySessionRecordingResult(null), { type: 'JOURNAL', entry }).customerId).toBe(id(7));
+  const dropped = transition(emptySessionRecordingResult({ id: id(99), name: 'Other', phone: '***099' }), { type: 'JOURNAL', entry });
+  expect(dropped.customerId).toBe(id(7));
+  expect(dropped.customer).toBeNull();
+  const kept = transition(emptySessionRecordingResult({ id: id(7), name: 'Same', phone: '***007' }), { type: 'JOURNAL', entry });
+  expect(kept.customer?.id).toBe(id(7));
+});
+
+it('restores customer, visit time, and draft occurred_at from an EXPIRED append entry', () => {
+  const entry = { version: 1 as const, state: 'EXPIRED' as const, scope, key: attempt.key, createdAt: attempt.createdAt, sessionId: id(12), occurredAt: instant, customerId: id(7) };
+  const restored = transition(emptySessionRecordingResult(null), { type: 'JOURNAL', entry });
+  expect(restored.customerId).toBe(id(7));
+  expect(restored.visitTimeUnknown).toBe(false);
+  expect(restored.drafts.occurred_at).toBe(instant);
+  expect(restored.feedback.kind).toBe('EXPIRED');
+  const withoutTime = transition(emptySessionRecordingResult(null), {
+    type: 'JOURNAL',
+    entry: { version: 1 as const, state: 'EXPIRED' as const, scope, key: attempt.key, createdAt: attempt.createdAt, sessionId: id(12), customerId: id(7) },
+  });
+  expect(withoutTime.visitTimeUnknown).toBe(true);
+});
+
+it('JOURNAL EXPIRED for a different session clears previous visit drafts, rejections and customer', () => {
+  const saved = recorded();
+  expect(saved.customerId).not.toBeNull();
+  expect(saved.drafts.lines.length).toBeGreaterThan(0); expect(saved.rejected.length).toBeGreaterThan(0);
+  const entry = { version: 1 as const, state: 'EXPIRED' as const, scope, key: attempt.key, createdAt: attempt.createdAt, sessionId: id(99) };
+  const result = transition(saved, { type: 'JOURNAL', entry });
+  expect(result.sessionId).toBe(id(99));
+  expect(result.customerId).toBeNull(); expect(result.customer).toBeNull();
+  expect(result.drafts.lines).toEqual([]);
+  expect(result.rejected).toEqual([]);
+  expect(transition(saved, { type: 'JOURNAL', entry: { ...entry, customerId: id(77) } }).customerId).toBe(id(77));
+});
+
+it('JOURNAL EXPIRED for the same session preserves in-tab draft lines', () => {
+  const saved = recorded();
+  expect(saved.sessionId).toBe(id(12));
+  const entry = { version: 1 as const, state: 'EXPIRED' as const, scope, key: attempt.key, createdAt: attempt.createdAt, sessionId: id(12) };
+  const result = transition(saved, { type: 'JOURNAL', entry });
+  expect(result.drafts.lines).toEqual(saved.drafts.lines);
+});

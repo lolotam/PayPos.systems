@@ -19,3 +19,4 @@ export { recoverRatingClaims, type RatingClaimsReplayCursor } from './jobs/recov
 export { startRatingClaimsRegistrar, RatingClaimsReadinessError } from './jobs/rating-claims.registration.ts';
 
 export { readPackageImportCustomers } from './persistence/package-import-customers.reader.ts';
+export { packageSaleCustomerExists } from './persistence/package-sale-customer.reader.ts';

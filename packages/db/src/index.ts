@@ -53,6 +53,12 @@ export {
   type CurrentSessionTipsPageRequest,
   type CurrentSessionTipsRange,
 } from './current-session-tips.ts';
+export {
+  applyServiceCategoryClosing,
+  lockServiceCategoryCascadeServices,
+  serviceCategoryCascadeStatement,
+  type ServiceCategoryCascadeInput,
+} from './service-category-cascade.ts';
 export { branchToday, currentAttachment, type BranchDay } from './employee-branch-links.ts';
 export {
   assignEmployeeNumber,

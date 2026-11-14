@@ -1,13 +1,9 @@
 import {
   addComparison,
-  addUnmarkedPage,
   compareCoverage,
   coverageKey,
   emptyCoverageTotals,
-  emptyUnmarkedTotals,
-  findUnmarkedEventIds,
   type CoverageTotals,
-  type UnmarkedTotals,
 } from '@pospay/commissions-engine';
 
 import type {
@@ -19,15 +15,32 @@ import type {
   SalaryCoverageRow,
   ServiceLineCoverageReader,
 } from '../../ports/commission-coverage.port.ts';
+import type { CurrentTipSessionsReader } from '../../ports/commission-tip-bootstrap.port.ts';
+import {
+  checkUnmarked,
+  REPORT_LIST_LIMIT,
+  type NotHandledEvent,
+  type UnmarkedEvent,
+} from './check-retained-events.ts';
+import { checkTipCoverage, type TipCoverageResult } from './check-tip-coverage.ts';
+
+export { CommissionCoverageEventInvalidError } from './check-retained-events.ts';
 
 const SOURCE_PAGE_SIZE = 200;
-const RETAINED_PAGE_SIZE = 100;
-const REPORT_LIST_LIMIT = 200;
+// النص يشرح أن البقشيش لم يُفحص وكيف يفحصه المشغّل، فلا يُقرأ كنتيجة نجاح.
+const TIPS_NOT_CHECKED_NOTE =
+  'Tip coverage by revision was NOT checked: pass --businesses <uuid>[,<uuid>...] --from YYYY-MM-DD --to YYYY-MM-DD to check it.';
 
 /** نطاق التقرير: شركة واحدة وحد أعلى ثابت للأحداث المحتفظ بها، أو أحدث حدث عند البدء. */
 export interface CommissionCoverageScope {
   readonly companyId: string;
   readonly throughId: string | null;
+  /** نطاق فحص البقشيش بالمراجعة؛ بدونه لا يُفحص البقشيش ويقول التقرير ذلك صراحة. */
+  readonly tips?: {
+    readonly businessIds: readonly string[];
+    readonly from: string;
+    readonly to: string;
+  };
 }
 
 /** قائمة هويات محدودة للمشغّل مع العدد الكامل حتى لا يخفي السقف حجم الفجوة. */
@@ -35,9 +48,6 @@ export interface CoverageIdList {
   readonly total: number;
   readonly ids: readonly string[];
 }
-
-/** حدث محتفظ به غير مستهلك في التقرير: هويته ونوعه بلا حمولة. */
-type UnmarkedEvent = { eventId: string; type: string };
 
 /** نتيجة التغطية الخالية من الحمولات والمبالغ والأسماء، مع حالة الاعتماد وسقف القوائم. */
 export interface CommissionCoverageReport {
@@ -58,6 +68,17 @@ export interface CommissionCoverageReport {
     readonly total: number;
     readonly events: readonly UnmarkedEvent[];
   };
+  /** الأحداث التي لا يسجّل المستهلك لنوعها؛ سببها واحد حتى ينضم معالجها في 50-4. */
+  readonly notHandled: {
+    readonly total: number;
+    readonly events: readonly NotHandledEvent[];
+  };
+  readonly tips: {
+    readonly checked: number;
+    readonly missing: CoverageIdList;
+    readonly stale: CoverageIdList;
+  } | null;
+  readonly tipsNote: string | null;
   readonly truncated: boolean;
 }
 
@@ -70,16 +91,10 @@ export interface CommissionCoverageDeps {
   readonly retained: CoverageRetainedPageReader;
   readonly companies: CoverageCompanyReader;
   readonly consumerId: string;
-}
-
-/** حدث محتفظ به خارج شركة النطاق؛ الرفض يمنع نسبة حدث شركة أخرى إلى التقرير. */
-export class CommissionCoverageEventInvalidError extends Error {
-  readonly code = 'COMMISSION_COVERAGE_EVENT_INVALID';
-
-  constructor() {
-    super('COMMISSION_COVERAGE_EVENT_INVALID');
-    this.name = 'CommissionCoverageEventInvalidError';
-  }
+  /** أنواع الأحداث التي يسجّلها المستهلك؛ الحدث من نوع آخر لا يُفحص في العلامات ولا يُسلّم. */
+  readonly handledTypes: ReadonlySet<string>;
+  /** قارئ الزيارات التي لها بقشيش؛ لازم لفحص البقشيش بالمراجعة. */
+  readonly tipsReader?: CurrentTipSessionsReader;
 }
 
 /** نطاق لا يمكن التقرير عنه: شركة غير موجودة أو حد أعلى ليس حدثاً محتفظاً بها. */
@@ -92,29 +107,52 @@ export class CommissionCoverageScopeInvalidError extends Error {
   }
 }
 
+const CALENDAR_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * يرفض التواريخ التي يقبلها شكل YYYY-MM-DD ولا وجود لها في التقويم، لأن فحص البقشيش
+ * بنطاق محوّل تلقائياً إلى يوم آخر يعطي المشغّل نتيجة تغطية عن نطاق لم يطلبه.
+ *
+ * @param value التاريخ النصي المطلوب فحصه
+ * @returns true فقط لتاريخ تقويمي حقيقي بصيغة YYYY-MM-DD، للسنوات 0001-9999 لأن PostgreSQL لا يحتوي على سنة صفرية
+ */
+export function isCommissionCoverageCalendarDate(value: string): boolean {
+  const match = CALENDAR_DATE.exec(value);
+  if (match === null) return false;
+  const year = Number(match[1]);
+  if (year === 0) return false;
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(2000, 0, 1));
+  date.setUTCFullYear(year, month - 1, day);
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
 interface CheckContext {
   readonly deps: CommissionCoverageDeps;
   readonly companyId: string;
-}
-
-interface UnmarkedCheck {
-  readonly throughId: string | null;
-  readonly lastEventId: string | null;
-  readonly totals: UnmarkedTotals<UnmarkedEvent>;
 }
 
 /**
  * يثبت أن بنود الخدمة والرواتب والأحداث المحتفظ بها مغطاة قبل اعتماد كشف العمولة.
  * ثبوت الحد الأعلى من أول صفحة يمنع الأحداث الجديدة من تغيير نطاق الفحص أثناء تشغيله.
  *
- * @param deps قارئات المصدر والإسقاط والأحداث المحتفظ بها ومعرّف المستهلك
- * @param scope الشركة والحد الأعلى الاختياري لفحص الأحداث المحتفظ بها
+ * @param deps قارئات المصدر والإسقاط والأحداث المحتفظ بها ومعرّف المستهلك وأنواعه
+ * @param scope الشركة والحد الأعلى الاختياري لفحص الأحداث المحتفظ بها ونطاق البقشيش الاختياري
  * @returns حالة التغطية والأعداد والهويات الناقصة أو المتأخرة أو غير المستهلكة
  */
 export async function runCommissionCoverageReport(
   deps: CommissionCoverageDeps,
   scope: CommissionCoverageScope,
 ): Promise<CommissionCoverageReport> {
+  if (scope.tips !== undefined &&
+    (!isCommissionCoverageCalendarDate(scope.tips.from) ||
+      !isCommissionCoverageCalendarDate(scope.tips.to)))
+    throw new CommissionCoverageScopeInvalidError();
   const companyId = scope.companyId.toLowerCase();
   const open = await deps.withTenant(companyId, (tx) => deps.companies.isOpen(tx, companyId));
   if (!open) throw new CommissionCoverageScopeInvalidError();
@@ -128,12 +166,15 @@ export async function runCommissionCoverageReport(
   if (scope.throughId !== null && unmarked.lastEventId !== scope.throughId.toLowerCase()) {
     throw new CommissionCoverageScopeInvalidError();
   }
+  const tips = await checkTips(context, scope);
   const covered =
     lineTotals.missing.total === 0 &&
     lineTotals.stale.total === 0 &&
     salaryTotals.missing.total === 0 &&
     salaryTotals.stale.total === 0 &&
-    unmarked.totals.unmarked.total === 0;
+    unmarked.totals.unmarked.total === 0 &&
+    unmarked.notHandled.unmarked.total === 0 &&
+    (tips === null || (tips.missing.total === 0 && tips.stale.total === 0));
   return {
     status: covered ? 'COVERED' : 'NOT_COVERED',
     throughId: unmarked.throughId,
@@ -144,12 +185,23 @@ export async function runCommissionCoverageReport(
       total: unmarked.totals.unmarked.total,
       events: unmarked.totals.unmarked.items,
     },
+    notHandled: {
+      total: unmarked.notHandled.unmarked.total,
+      events: unmarked.notHandled.unmarked.items,
+    },
+    tips:
+      tips === null
+        ? null
+        : { checked: tips.checked, missing: tips.missing, stale: tips.stale },
+    tipsNote: tips === null ? TIPS_NOT_CHECKED_NOTE : null,
     truncated:
       lineTotals.missing.truncated ||
       lineTotals.stale.truncated ||
       salaryTotals.missing.truncated ||
       salaryTotals.stale.truncated ||
-      unmarked.totals.unmarked.truncated,
+      unmarked.totals.unmarked.truncated ||
+      unmarked.notHandled.unmarked.truncated ||
+      (tips !== null && tips.truncated),
   };
 }
 
@@ -221,52 +273,21 @@ function salaryCoverageRow(row: SalaryCoverageRow) {
   };
 }
 
-async function checkUnmarked(
+/** يفحص البقشيش بالمراجعة إذا طلب المشغّل نطاقاً؛ بدون نطاق لا فحص والورقة تشرح ذلك. */
+async function checkTips(
   context: CheckContext,
-  requestedThroughId: string | null,
-): Promise<UnmarkedCheck> {
-  let totals = emptyUnmarkedTotals<UnmarkedEvent>();
-  let throughId = requestedThroughId;
-  let lastEventId: string | null = null;
-  let afterId: string | null = null;
-  let firstPage = true;
-  for (;;) {
-    const page = await context.deps.retained.commissionInputReplayPage(
-      context.companyId,
-      afterId,
-      throughId,
-      RETAINED_PAGE_SIZE,
-    );
-    if (firstPage) {
-      throughId = page.throughId;
-      firstPage = false;
-    }
-    if (page.events.length === 0) return { throughId, lastEventId, totals };
-    for (const event of page.events) {
-      if (event.companyId.toLowerCase() !== context.companyId) {
-        throw new CommissionCoverageEventInvalidError();
-      }
-    }
-    const eventIds = page.events.map((event) => event.id.toLowerCase());
-    const marked = await context.deps.withTenant(context.companyId, (tx) =>
-      context.deps.projection.markedEventIds(
-        tx,
-        context.companyId,
-        context.deps.consumerId,
-        eventIds,
-      ),
-    );
-    const unmarkedIds = findUnmarkedEventIds(eventIds, marked);
-    const unmarkedSet = new Set(unmarkedIds);
-    const events = page.events
-      .filter((event) => unmarkedSet.has(event.id.toLowerCase()))
-      .map((event) => ({ eventId: event.id, type: event.eventType }));
-    totals = addUnmarkedPage(totals, page.events.length, events, REPORT_LIST_LIMIT);
-    const lastEvent = page.events.at(-1);
-    afterId = lastEvent?.id ?? afterId;
-    lastEventId = lastEvent?.id.toLowerCase() ?? lastEventId;
-    if (page.events.length < RETAINED_PAGE_SIZE) return { throughId, lastEventId, totals };
-  }
+  scope: CommissionCoverageScope,
+): Promise<TipCoverageResult | null> {
+  if (scope.tips === undefined) return null;
+  const tipsReader = context.deps.tipsReader;
+  if (tipsReader === undefined) throw new CommissionCoverageScopeInvalidError();
+  return checkTipCoverage({
+    withTenant: context.deps.withTenant,
+    projection: context.deps.projection,
+    tipsReader,
+    companyId: context.companyId,
+    scope: scope.tips,
+  });
 }
 
 function coverageResult(totals: CoverageTotals): CommissionCoverageReport['lines'] {

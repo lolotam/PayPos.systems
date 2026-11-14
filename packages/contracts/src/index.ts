@@ -40,6 +40,7 @@ export {
   type ServiceCommissionRuleInput,
 } from './catalog/service.js';
 export * from './catalog/service-category.js';
+export * from './catalog/service-category-closing.js';
 export { errorEnvelope, type ErrorEnvelope } from './errors/envelope.js';
 export { page, pageQuery, type PageQuery, type PageQueryRequest } from './pagination/cursor.js';
 export { responseObject } from './response-object.js';

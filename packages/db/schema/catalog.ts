@@ -16,6 +16,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
+import { user } from './identity-auth.ts';
 import { branches, businesses, companies } from './tenancy.ts';
 
 // خدمات النشاط: الاسم والسعر وقاعدة العمولة وراية احتسابها في المجمّع.
@@ -276,6 +277,86 @@ export const serviceCategories = pgTable(
       sql`${t.visibility} <> 'BRANCH' OR ${t.ownerBranchId} IS NOT NULL`,
     ),
     check('service_categories_revision_positive', sql`${t.revision} > 0`),
+  ],
+);
+
+// طلبات قفل وفتح التصنيفات الكبيرة في الخلفية؛ بيانات الطلب ثابتة والنتيجة وحدها تتغير.
+export const serviceCategoryClosings = pgTable(
+  'service_category_closings',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id),
+    id: uuid('id').notNull(),
+    businessId: uuid('business_id').notNull(),
+    categoryId: uuid('category_id').notNull(),
+    action: text('action').notNull(),
+    status: text('status').notNull().default('pending'),
+    expectedRevision: integer('expected_revision').notNull(),
+    // العدد المتوقع وقت القبول يكشف أي تغيير في الخدمات قبل أن ينفذ العامل العملية.
+    expectedServiceCount: integer('expected_service_count').notNull(),
+    // عدد الخدمات المتغيرة فعلاً يُحفظ عند الاكتمال ليطابق المدير النتيجة مع ما أكّده.
+    servicesChanged: integer('services_changed'),
+    errorCode: text('error_code'),
+    requestedBy: uuid('requested_by').notNull(),
+    requestedAt: timestamp('requested_at', { withTimezone: true }).notNull(),
+    // الموعد النهائي يمنع طلباً مفقوداً من إبقاء التصنيف محجوباً بعملية معلقة للأبد.
+    deadlineAt: timestamp('deadline_at', { withTimezone: true }).notNull(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+  },
+  (t) => [
+    primaryKey({ name: 'service_category_closings_pkey', columns: [t.companyId, t.id] }),
+    foreignKey({
+      name: 'service_category_closings_category_fk',
+      columns: [t.companyId, t.businessId, t.categoryId],
+      foreignColumns: [
+        serviceCategories.companyId,
+        serviceCategories.businessId,
+        serviceCategories.id,
+      ],
+    }),
+    foreignKey({
+      name: 'service_category_closings_requester_fk',
+      columns: [t.requestedBy],
+      foreignColumns: [user.id],
+    }),
+    index('service_category_closings_category_idx').on(
+      t.companyId,
+      t.businessId,
+      t.categoryId,
+    ),
+    index('service_category_closings_requester_idx').on(t.requestedBy),
+    uniqueIndex('service_category_closings_one_pending_uq')
+      .on(t.companyId, t.categoryId)
+      .where(sql`${t.status} = 'pending'`),
+    check('service_category_closings_action_check', sql`${t.action} IN ('close', 'reopen')`),
+    check(
+      'service_category_closings_status_check',
+      sql`${t.status} IN ('pending', 'completed', 'failed')`,
+    ),
+    check('service_category_closings_expected_revision_check', sql`${t.expectedRevision} >= 1`),
+    check(
+      'service_category_closings_expected_service_count_check',
+      sql`${t.expectedServiceCount} > 0`,
+    ),
+    check(
+      'service_category_closings_services_changed_check',
+      sql`${t.servicesChanged} IS NULL OR ${t.servicesChanged} >= 0`,
+    ),
+    check(
+      'service_category_closings_error_code_check',
+      sql`${t.errorCode} IS NULL OR ${t.errorCode} IN ('SERVICE_CATEGORY_REVISION_CONFLICT', 'SERVICE_CATEGORY_ALREADY_CLOSED', 'SERVICE_CATEGORY_NOT_CLOSED', 'SERVICE_CATEGORY_COUNT_CHANGED', 'SERVICE_CATEGORY_CLOSING_EXPIRED', 'SERVICE_CATEGORY_CLOSING_FAILED')`,
+    ),
+    check(
+      'service_category_closings_deadline_at_check',
+      sql`${t.deadlineAt} > ${t.requestedAt}`,
+    ),
+    check(
+      'service_category_closings_shape_check',
+      sql`(${t.status} = 'pending' AND ${t.servicesChanged} IS NULL AND ${t.errorCode} IS NULL AND ${t.finishedAt} IS NULL)
+      OR (${t.status} = 'completed' AND ${t.servicesChanged} IS NOT NULL AND ${t.errorCode} IS NULL AND ${t.finishedAt} IS NOT NULL)
+      OR (${t.status} = 'failed' AND ${t.servicesChanged} IS NULL AND ${t.errorCode} IS NOT NULL AND ${t.finishedAt} IS NOT NULL)`,
+    ),
   ],
 );
 

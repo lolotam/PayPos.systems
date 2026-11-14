@@ -316,4 +316,9 @@ export const FUNCTION_INVENTORY = [
     prosecdef: false,
     proconfig: ['search_path=pg_catalog, public'],
   },
+  {
+    proname: 'service_category_closing_guard',
+    prosecdef: false,
+    proconfig: ['search_path=pg_catalog, public'],
+  },
 ].sort((a, b) => a.proname.localeCompare(b.proname));

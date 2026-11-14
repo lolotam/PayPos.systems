@@ -66,6 +66,15 @@ export function createCommissionStatementExportReader(
 /** هوية المستهلك الثابتة؛ التهيئة تستعمل نفس الهوية فتُحسم أحداث البقشيش مرة واحدة. */
 export const COMMISSION_INPUTS_CONSUMER_ID = 'commissions.project-inputs';
 
+/** أنواع أحداث مدخلات العمولة التي يسجّلها المستهلك؛ التقرير يقارنها بنفس القائمة. */
+const COMMISSION_INPUT_EVENT_TYPES = [
+  'ServiceSessionRecorded',
+  'ServiceSessionLinesAdded',
+  'ServiceLineChanged',
+  'SessionTipsChanged',
+  'SalaryChanged',
+];
+
 export interface CommissionInputsConsumerDependencies {
   readonly ids: IdGenerator;
   readonly clock: Clock;
@@ -101,13 +110,7 @@ export function createCommissionInputsConsumer(
   });
   return {
     id: COMMISSION_INPUTS_CONSUMER_ID,
-    eventTypes: [
-      'ServiceSessionRecorded',
-      'ServiceSessionLinesAdded',
-      'ServiceLineChanged',
-      'SessionTipsChanged',
-      'SalaryChanged',
-    ],
+    eventTypes: [...COMMISSION_INPUT_EVENT_TYPES],
     handle: (tx, event) => onCommissionInputEvent(bind(tx), event),
   };
 }
@@ -144,6 +147,7 @@ export function createCommissionCoverageReport(dependencies: {
   readonly salaries: SalaryCoverageReader;
   readonly retained: CoverageRetainedPageReader;
   readonly companies: CoverageCompanyReader;
+  readonly tipsReader?: CurrentTipSessionsReader;
 }): (scope: CommissionCoverageScope) => Promise<CommissionCoverageReport> {
   return (scope) =>
     runCommissionCoverageReport(
@@ -155,6 +159,8 @@ export function createCommissionCoverageReport(dependencies: {
         retained: dependencies.retained,
         companies: dependencies.companies,
         consumerId: COMMISSION_INPUTS_CONSUMER_ID,
+        handledTypes: new Set(COMMISSION_INPUT_EVENT_TYPES),
+        ...(dependencies.tipsReader === undefined ? {} : { tipsReader: dependencies.tipsReader }),
       },
       scope,
     );

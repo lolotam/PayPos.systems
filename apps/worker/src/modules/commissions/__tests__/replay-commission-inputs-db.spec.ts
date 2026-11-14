@@ -242,6 +242,13 @@ it('skips event committed behind the cursor during replay and delivers it via li
       }
       return page;
     },
+    // نطاق الأربعة ما بيستدعيش واجهة الأنواع الستة، بس نوع التبعيات يطلب وجودها.
+    commissionRetainedEventPage: async (
+      companyId: string,
+      afterId: string | null,
+      throughId: string | null,
+      limit: number,
+    ) => dispatcher.commissionRetainedEventPage(companyId, afterId, throughId, limit),
   };
 
   const result = await runCommissionInputReplay(

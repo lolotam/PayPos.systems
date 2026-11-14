@@ -62,9 +62,9 @@ export function sessionAttemptUnresolved(error: unknown): boolean {
 }
 
 export type SessionJournalEnvelope =
-  | { version: 1; state: 'PENDING'; attempt: SessionAttempt; lastSentAt?: number }
-  | { version: 1; state: 'EXPIRED'; scope: SessionAttemptScope; key: string; createdAt: number; lastSentAt?: number; sessionId?: string }
-  | { version: 1; state: 'PARTIAL'; scope: SessionAttemptScope; sessionId: string; occurredAt?: string }
+  | { version: 1; state: 'PENDING'; attempt: SessionAttempt; lastSentAt?: number; occurredAt?: string; customerId?: string }
+  | { version: 1; state: 'EXPIRED'; scope: SessionAttemptScope; key: string; createdAt: number; lastSentAt?: number; sessionId?: string; occurredAt?: string; customerId?: string }
+  | { version: 1; state: 'PARTIAL'; scope: SessionAttemptScope; sessionId: string; occurredAt?: string; customerId?: string }
   | { version: 1; state: 'SAVED_DISPLAY_FAILED'; scope: SessionAttemptScope; sessionId?: string };
 
 function strictFields(value: unknown, required: string[], optional: string[] = []): asserts value is Record<string, unknown> {
@@ -72,23 +72,45 @@ function strictFields(value: unknown, required: string[], optional: string[] = [
     Object.keys(value).some((key) => !required.includes(key) && !optional.includes(key))) throw new Error('SESSION_JOURNAL_INVALID');
 }
 
-/** التخزين ليس مصدراً موثوقاً: المخطط بإصدار صريح ويرفض الحقول الزائدة قبل استعادة أي طلب أو معرف زيارة. */
+const journalEnvelopeFields = ['version', 'state', 'attempt', 'scope', 'key', 'createdAt', 'lastSentAt', 'sessionId', 'occurredAt', 'customerId'];
+const journalPiiKeyTokens = new Set(['phone', 'mobile', 'msisdn', 'email', 'otp', 'pin', 'passcode', 'password', 'secret', 'token', 'iban', 'challenge']);
+
+// الدليل كلمة كاملة من قائمة محددة؛ الاسم والكود عامّان ومش دليل بيانات حساسة لوحدهما.
+export function isJournalPiiKey(key: string): boolean {
+  const tokens = key.match(/[A-Z]+(?![a-z])|[A-Z]?[a-z]+|[0-9]+/g) ?? [];
+  return tokens.some((token) => journalPiiKeyTokens.has(token.toLowerCase()));
+}
+
+// الـ slot store يحتاج يميّز النسخة الخام ذات الحقول الزائدة ليعيد كتابتها بعد تنقيتها.
+export function hasUnknownJournalFields(value: unknown): boolean {
+  return !!value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).some((key) => !journalEnvelopeFields.includes(key));
+}
+
+/**
+ * التخزين ليس مصدراً موثوقاً: المخطط بإصدار صريح ويتحقق من الحقول المعروفة قبل استعادة أي طلب أو معرف زيارة.
+ * الحقول غير المعروفة تُحذف لسلامة rollback؛ والمفتاح المجهول اللي فيه كلمة حساسة كاملة من قائمة محددة يرفض المدخل حتى لا يبقى هاتف العميل في التخزين (35c).
+ */
 export function parseSessionJournalEnvelope(value: unknown): SessionJournalEnvelope {
-  strictFields(value, ['version', 'state'], ['attempt', 'scope', 'key', 'createdAt', 'lastSentAt', 'sessionId', 'occurredAt']);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('SESSION_JOURNAL_INVALID');
+  if (Object.keys(value).some((key) => !journalEnvelopeFields.includes(key) && isJournalPiiKey(key))) throw new Error('SESSION_JOURNAL_INVALID');
+  value = Object.fromEntries(Object.entries(value).filter(([key]) => journalEnvelopeFields.includes(key)));
+  strictFields(value, ['version', 'state'], journalEnvelopeFields.filter((key) => key !== 'version' && key !== 'state'));
   if (value.version !== 1) throw new Error('SESSION_JOURNAL_VERSION_INVALID');
   if (value.state === 'PENDING') {
-    strictFields(value, ['version', 'state', 'attempt'], ['lastSentAt']);
+    strictFields(value, ['version', 'state', 'attempt'], ['lastSentAt', 'occurredAt', 'customerId']);
     strictFields(value.attempt, ['kind', 'body', 'scope', 'key', 'createdAt', 'route', 'rowIds'], ['sessionId']);
     if (value.attempt.kind !== 'record' && value.attempt.kind !== 'append') throw new Error('SESSION_JOURNAL_INVALID');
+    if (value.attempt.kind === 'record' && (Object.hasOwn(value, 'occurredAt') || Object.hasOwn(value, 'customerId'))) throw new Error('SESSION_JOURNAL_INVALID');
     strictFields(value.attempt, ['kind', 'body', 'scope', 'key', 'createdAt', 'route', 'rowIds', ...(value.attempt.kind === 'append' ? ['sessionId'] : [])]);
   } else {
     if (typeof value.state !== 'string' || !['PARTIAL', 'EXPIRED', 'SAVED_DISPLAY_FAILED'].includes(value.state)) throw new Error('SESSION_JOURNAL_INVALID');
-    strictFields(value, ['version', 'state', 'scope', ...(value.state === 'EXPIRED' ? ['key', 'createdAt'] : value.state === 'PARTIAL' ? ['sessionId'] : [])], value.state === 'PARTIAL' ? ['occurredAt'] : value.state === 'EXPIRED' ? ['sessionId', 'lastSentAt'] : ['sessionId']);
+    strictFields(value, ['version', 'state', 'scope', ...(value.state === 'EXPIRED' ? ['key', 'createdAt'] : value.state === 'PARTIAL' ? ['sessionId'] : [])], value.state === 'PARTIAL' ? ['occurredAt', 'customerId'] : value.state === 'EXPIRED' ? ['sessionId', 'lastSentAt', ...(Object.hasOwn(value, 'sessionId') ? ['occurredAt', 'customerId'] : [])] : ['sessionId']);
     if (Object.hasOwn(value, 'sessionId')) id.parse(value.sessionId);
     if (value.state === 'EXPIRED') id.parse(value.key);
-    // Date.parse بيقبل وقت من غير إزاحة، والعقد بيرفضه؛ وإلا التصحيح يتبعت بوقت الخادم ما يقدرش يفسّره.
-    if (Object.hasOwn(value, 'occurredAt') && !timestamp.safeParse(value.occurredAt).success) throw new Error('SESSION_JOURNAL_TIME_INVALID');
   }
+  if (Object.hasOwn(value, 'customerId') && !id.safeParse(value.customerId).success) throw new Error('SESSION_JOURNAL_CUSTOMER_INVALID');
+  // Date.parse بيقبل وقت من غير إزاحة، والعقد بيرفضه؛ وإلا التصحيح يتبعت بوقت الخادم ما يقدرش يفسّره.
+  if (Object.hasOwn(value, 'occurredAt') && !timestamp.safeParse(value.occurredAt).success) throw new Error('SESSION_JOURNAL_TIME_INVALID');
   const entry = value.state === 'PENDING' ? value.attempt as Record<string, unknown> : value;
   strictFields(entry.scope, ['companyId', 'businessId', 'branchId', 'userId']);
   freezeSessionAttemptScope(entry.scope as SessionAttemptScope);
