@@ -4,6 +4,9 @@ import { createPackageImportRequestTransactions } from './persistence/package-im
 import { PackageExtensionController } from './http/package-extension.controller.ts';
 import { ExtendPackageUseCase } from './use-cases/extend-package/extend-package.usecase.ts';
 import { createPackageExtensionTransactions } from './persistence/package-extension.transactions.ts';
+import { PackageSalesController } from './http/package-sales.controller.ts';
+import { AcceptPackageSaleUseCase } from './use-cases/accept-package-sale/accept-package-sale.usecase.ts';
+import { createPackageSaleRequestTransactions } from './persistence/package-sale-request.transactions.ts';
 import { PackageRefundController } from './http/package-refund.controller.ts';
 import { RefundPackageUseCase } from './use-cases/refund-package/refund-package.usecase.ts';
 import { createPackageRefundTransactions } from './persistence/package-refund.transactions.ts';
@@ -259,6 +262,7 @@ export function ordersProviders(database: TenantWrappers | undefined, ids: IdGen
       inject: [DISCOUNT_APPROVER_VERIFIER, DecideDiscountProposalsUseCase],
     },
     ...customerPackageProviders(database, clock),
+    ...packageSaleProviders(database, ids, clock),
     ...ownWorkProviders(clock)];
 }
 
@@ -284,6 +288,26 @@ function ownWorkProviders(clock: Clock): Provider[] {
   return [
     { provide: OWN_WORK_READS, useValue: ownWorkReads },
     { provide: OWN_WORK_CLOCK, useValue: clock },
+  ];
+}
+
+ordersControllers.push(PackageSalesController);
+function packageSaleProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  clock: Clock,
+): Provider[] {
+  return [
+    {
+      provide: AcceptPackageSaleUseCase,
+      useValue: database === undefined
+        ? null
+        : new AcceptPackageSaleUseCase(
+            createPackageSaleRequestTransactions(database, ids),
+            ids,
+            clock,
+          ),
+    },
   ];
 }
 

@@ -12,7 +12,7 @@ export const packagePaidMethod = z.enum(['CASH', 'CARD']).meta({ id: 'PackagePai
 export const packageServiceRevision = z
   .strictObject({
     service_id: id,
-    revision: z.number().int().positive(),
+    revision: z.number().int().positive().max(2147483647),
   })
   .meta({ id: 'PackageServiceRevision' });
 
@@ -20,7 +20,7 @@ export const sellPackageInput = z
   .strictObject({
     customer_id: id,
     package_type_id: id,
-    expected_type_revision: z.number().int().positive(),
+    expected_type_revision: z.number().int().positive().max(2147483647),
     // خدمة واحدة لكل مكوّن: تكرارها يخلّي مقارنة العرض ملتبسة (أنهي نسخة تتقارن؟).
     expected_service_revisions: z
       .array(packageServiceRevision)
@@ -30,7 +30,14 @@ export const sellPackageInput = z
     price_paid: sessionMoney,
     paid_method: packagePaidMethod,
     seller_employee_id: id,
-    sold_at: timestamp.optional(),
+    // PostgreSQL مافيهوش سنة صفر، وتسلسل JSON/ISO للسنوات فوق 9999 غير مقبول،
+    // فالرفض هنا بيمنع خطأ 500 عند التحويل إلى timestamptz.
+    sold_at: timestamp
+      .refine((value) => {
+        const year = new Date(value).getUTCFullYear();
+        return year >= 1 && year <= 9999;
+      })
+      .optional(),
     recorder_membership_id: id.optional(),
   })
   .meta({ id: 'SellPackageInput' });
@@ -74,10 +81,10 @@ export const soldPackageEntitlement = z
   })
   .meta({ id: 'SoldPackageEntitlement' });
 
-// FR-010: 201 { entitlement }؛ صف الاستحقاق هو البيع نفسه (TD-1).
-export const sellPackageResponse = z
-  .strictObject({ entitlement: soldPackageEntitlement })
-  .meta({ id: 'SellPackageResponse' });
+// FR-010 (PP-170): 202 { sale_request_id }؛ الـ worker هو اللي بينفذ البيع بعد القبول
+export const acceptedPackageSale = z
+  .strictObject({ sale_request_id: id })
+  .meta({ id: 'AcceptedPackageSale' });
 
 // branch_id و business_date هما فرع البيع ويومه في كل نسخة، ومرتجع من فرع تاني ميغيّرهمش،
 // عشان إسقاط العمولة (059 CM-20) يحدد شهر العمولة وفرع المصدر منهم (TD-7).
@@ -104,7 +111,7 @@ export const packageSaleSchemas = [
   sellPackageInput,
   soldPackageComponent,
   soldPackageEntitlement,
-  sellPackageResponse,
+  acceptedPackageSale,
   packageSaleChanged,
 ];
 
@@ -113,5 +120,5 @@ export type PackageServiceRevision = z.infer<typeof packageServiceRevision>;
 export type SellPackageInput = z.infer<typeof sellPackageInput>;
 export type SoldPackageComponent = z.infer<typeof soldPackageComponent>;
 export type SoldPackageEntitlement = z.infer<typeof soldPackageEntitlement>;
-export type SellPackageResponse = z.infer<typeof sellPackageResponse>;
+export type AcceptedPackageSale = z.infer<typeof acceptedPackageSale>;
 export type PackageSaleChanged = z.infer<typeof packageSaleChanged>;
