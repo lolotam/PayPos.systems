@@ -1,135 +1,29 @@
 import { packageTypeSchemas } from './package-type.js';
 import { packageServiceOptionSchemas } from './package-service-option.js';
 import { serviceCategorySchemas } from './service-category.js';
+import { serviceCategoryClosingSchemas } from './service-category-closing.js';
 import { serviceSchemas } from './service.js';
+import {
+  branchId,
+  categoryId,
+  errors,
+  json,
+  packageTypeId,
+  parameters,
+  serviceId,
+} from './catalog-openapi-common.js';
+import { serviceCategoryPaths } from './catalog-openapi-service-categories.js';
 
 export const catalogSchemas = [
   ...serviceSchemas,
   ...serviceCategorySchemas,
+  ...serviceCategoryClosingSchemas,
   ...packageTypeSchemas,
   ...packageServiceOptionSchemas,
 ];
 
-const json = (schema: string) => ({
-  'application/json': { schema: { $ref: `#/components/schemas/${schema}` } },
-});
-const parameters = [
-  {
-    in: 'header',
-    name: 'x-company-id',
-    required: true,
-    schema: { type: 'string', format: 'uuid' },
-  },
-  { in: 'path', name: 'businessId', required: true, schema: { type: 'string', format: 'uuid' } },
-];
-const serviceId = {
-  in: 'path',
-  name: 'serviceId',
-  required: true,
-  schema: { type: 'string', format: 'uuid' },
-};
-const packageTypeId = { ...serviceId, name: 'packageTypeId' };
-const categoryId = { ...serviceId, name: 'categoryId' };
-const branchId = { ...serviceId, name: 'branchId' };
-const errors = { description: 'Bilingual refusal', content: json('ErrorEnvelope') };
-
 export const catalogPaths = {
-  '/v1/businesses/{businessId}/service-categories': {
-    get: {
-      operationId: 'listServiceCategories',
-      description:
-        'Cursor-paginated categories in normalized English-name order. status is open, closed or all (default open). Requires read:service-categories:business and the catalog feature.',
-      parameters: [
-        ...parameters,
-        {
-          in: 'query',
-          name: 'status',
-          schema: { type: 'string', enum: ['open', 'closed', 'all'], default: 'open' },
-        },
-        { in: 'query', name: 'cursor', schema: { type: 'string', maxLength: 2048 } },
-        {
-          in: 'query',
-          name: 'limit',
-          schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
-        },
-      ],
-      responses: {
-        '200': { description: 'Service category page', content: json('ServiceCategoryPage') },
-        default: errors,
-      },
-    },
-    post: {
-      operationId: 'createServiceCategory',
-      description:
-        'Creates a BUSINESS category with no owner branch. Both names are required. Requires manage:service-categories:business and the catalog feature. Duplicate normalized English names return SERVICE_CATEGORY_NAME_TAKEN (409).',
-      parameters,
-      requestBody: { required: true, content: json('CreateServiceCategoryInput') },
-      responses: {
-        '201': { description: 'Created category', content: json('ServiceCategory') },
-        '404': errors,
-        '409': errors,
-        '422': errors,
-        default: errors,
-      },
-    },
-  },
-  '/v1/businesses/{businessId}/service-categories/{categoryId}': {
-    get: {
-      operationId: 'getServiceCategory',
-      description:
-        'Returns a category with open_service_count and marked_service_count for close and reopen confirmation. Requires read:service-categories:business and the catalog feature. Missing, foreign and other-business ids share SERVICE_CATEGORY_NOT_FOUND (404).',
-      parameters: [...parameters, categoryId],
-      responses: {
-        '200': { description: 'Category detail', content: json('ServiceCategoryDetail') },
-        '404': errors,
-        default: errors,
-      },
-    },
-    patch: {
-      operationId: 'renameServiceCategory',
-      description:
-        'Renames any category of the business, including a closed one, against expected_revision. visibility may only change BRANCH to BUSINESS. Requires manage:service-categories:business and the catalog feature.',
-      parameters: [...parameters, categoryId],
-      requestBody: { required: true, content: json('RenameServiceCategoryInput') },
-      responses: {
-        '200': { description: 'Renamed or shared category', content: json('ServiceCategory') },
-        '404': errors,
-        '409': errors,
-        '422': errors,
-        default: errors,
-      },
-    },
-  },
-  '/v1/businesses/{businessId}/service-categories/{categoryId}/close': {
-    post: {
-      operationId: 'closeServiceCategory',
-      description:
-        'Closes a category and its open services against the confirmed revision and count. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. Errors: SERVICE_CATEGORY_NOT_FOUND (404), SERVICE_CATEGORY_ALREADY_CLOSED, SERVICE_CATEGORY_COUNT_CHANGED and SERVICE_CATEGORY_REVISION_CONFLICT (409).',
-      parameters: [...parameters, categoryId],
-      requestBody: { required: true, content: json('CloseServiceCategoryInput') },
-      responses: {
-        '200': { description: 'Closed category', content: json('CloseServiceCategoryResult') },
-        '404': errors,
-        '409': errors,
-        default: errors,
-      },
-    },
-  },
-  '/v1/businesses/{businessId}/service-categories/{categoryId}/reopen': {
-    post: {
-      operationId: 'reopenServiceCategory',
-      description:
-        'Reopens a category and exactly the services marked by its close. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. Errors: SERVICE_CATEGORY_NOT_FOUND (404), SERVICE_CATEGORY_NOT_CLOSED, SERVICE_CATEGORY_COUNT_CHANGED and SERVICE_CATEGORY_REVISION_CONFLICT (409).',
-      parameters: [...parameters, categoryId],
-      requestBody: { required: true, content: json('ReopenServiceCategoryInput') },
-      responses: {
-        '200': { description: 'Reopened category', content: json('ReopenServiceCategoryResult') },
-        '404': errors,
-        '409': errors,
-        default: errors,
-      },
-    },
-  },
+  ...serviceCategoryPaths,
   '/v1/businesses/{businessId}/branches/{branchId}/service-categories': {
     get: {
       operationId: 'listBranchServiceCategories',

@@ -12709,7 +12709,7 @@
     "/v1/businesses/{businessId}/service-categories/{categoryId}": {
       "get": {
         "operationId": "getServiceCategory",
-        "description": "Returns a category with open_service_count and marked_service_count for close and reopen confirmation. Requires read:service-categories:business and the catalog feature. Missing, foreign and other-business ids share SERVICE_CATEGORY_NOT_FOUND (404).",
+        "description": "Returns a category with open_service_count and marked_service_count for close and reopen confirmation, and pending_closing_id when a background close or reopen of this category is running. Requires read:service-categories:business and the catalog feature. Missing, foreign and other-business ids share SERVICE_CATEGORY_NOT_FOUND (404).",
         "parameters": [
           {
             "in": "header",
@@ -12871,7 +12871,7 @@
     "/v1/businesses/{businessId}/service-categories/{categoryId}/close": {
       "post": {
         "operationId": "closeServiceCategory",
-        "description": "Closes a category and its open services against the confirmed revision and count. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. Errors: SERVICE_CATEGORY_NOT_FOUND (404), SERVICE_CATEGORY_ALREADY_CLOSED, SERVICE_CATEGORY_COUNT_CHANGED and SERVICE_CATEGORY_REVISION_CONFLICT (409).",
+        "description": "Closes a category and its open services against the confirmed revision and count. Up to 300 services the answer is 200 and the category is closed; above 300 the answer is 202 and a background request carries the closing_id, leaving the category untouched until the job commits. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. Errors: SERVICE_CATEGORY_NOT_FOUND (404), SERVICE_CATEGORY_ALREADY_CLOSED, SERVICE_CATEGORY_COUNT_CHANGED, SERVICE_CATEGORY_REVISION_CONFLICT and SERVICE_CATEGORY_CLOSING_IN_PROGRESS (409, with details.closing_id).",
         "parameters": [
           {
             "in": "header",
@@ -12922,6 +12922,16 @@
               }
             }
           },
+          "202": {
+            "description": "Background request accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceCategoryClosingPending"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Bilingual refusal",
             "content": {
@@ -12958,7 +12968,7 @@
     "/v1/businesses/{businessId}/service-categories/{categoryId}/reopen": {
       "post": {
         "operationId": "reopenServiceCategory",
-        "description": "Reopens a category and exactly the services marked by its close. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. Errors: SERVICE_CATEGORY_NOT_FOUND (404), SERVICE_CATEGORY_NOT_CLOSED, SERVICE_CATEGORY_COUNT_CHANGED and SERVICE_CATEGORY_REVISION_CONFLICT (409).",
+        "description": "Reopens a category and exactly the services marked by its close. Up to 300 services the answer is 200 and the category is reopened; above 300 the answer is 202 and a background request carries the closing_id, leaving the category untouched until the job commits. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. Errors: SERVICE_CATEGORY_NOT_FOUND (404), SERVICE_CATEGORY_NOT_CLOSED, SERVICE_CATEGORY_COUNT_CHANGED, SERVICE_CATEGORY_REVISION_CONFLICT and SERVICE_CATEGORY_CLOSING_IN_PROGRESS (409, with details.closing_id).",
         "parameters": [
           {
             "in": "header",
@@ -13009,6 +13019,16 @@
               }
             }
           },
+          "202": {
+            "description": "Background request accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceCategoryClosingPending"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Bilingual refusal",
             "content": {
@@ -13020,6 +13040,82 @@
             }
           },
           "409": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/service-categories/{categoryId}/closings/{closingId}": {
+      "get": {
+        "operationId": "getServiceCategoryClosing",
+        "description": "Returns the state of one close or reopen request of the category: pending, completed with services_changed, or failed with its error code. A pending request past its deadline reads as failed with SERVICE_CATEGORY_CLOSING_EXPIRED. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. An unknown id, another category's id and another tenant's id share SERVICE_CATEGORY_CLOSING_NOT_FOUND (404).",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "categoryId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "closingId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Closing request state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceCategoryClosingStatus"
+                }
+              }
+            }
+          },
+          "404": {
             "description": "Bilingual refusal",
             "content": {
               "application/json": {
@@ -28524,6 +28620,12 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
+          },
+          "pending_closing_id": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           }
         },
         "required": [
@@ -28535,8 +28637,106 @@
           "closed_at",
           "revision",
           "open_service_count",
-          "marked_service_count"
+          "marked_service_count",
+          "pending_closing_id"
         ]
+      },
+      "ServiceCategoryClosingAction": {
+        "type": "string",
+        "enum": [
+          "close",
+          "reopen"
+        ]
+      },
+      "ServiceCategoryClosingState": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "completed",
+          "failed"
+        ]
+      },
+      "ServiceCategoryClosingPending": {
+        "type": "object",
+        "properties": {
+          "closing_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending"
+            ]
+          }
+        },
+        "required": [
+          "closing_id",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceCategoryClosingStatus": {
+        "type": "object",
+        "properties": {
+          "closing_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "category_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "action": {
+            "$ref": "#/components/schemas/ServiceCategoryClosingAction"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ServiceCategoryClosingState"
+          },
+          "services_changed": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "error_code": {
+            "nullable": true,
+            "type": "string",
+            "enum": [
+              "SERVICE_CATEGORY_REVISION_CONFLICT",
+              "SERVICE_CATEGORY_ALREADY_CLOSED",
+              "SERVICE_CATEGORY_NOT_CLOSED",
+              "SERVICE_CATEGORY_COUNT_CHANGED",
+              "SERVICE_CATEGORY_CLOSING_EXPIRED",
+              "SERVICE_CATEGORY_CLOSING_FAILED"
+            ]
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "finished_at": {
+            "nullable": true,
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "closing_id",
+          "category_id",
+          "action",
+          "status",
+          "services_changed",
+          "error_code",
+          "requested_at",
+          "finished_at"
+        ],
+        "additionalProperties": false
       },
       "PackageTypeComponentInput": {
         "type": "object",

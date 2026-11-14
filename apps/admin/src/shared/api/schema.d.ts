@@ -2047,7 +2047,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Returns a category with open_service_count and marked_service_count for close and reopen confirmation. Requires read:service-categories:business and the catalog feature. Missing, foreign and other-business ids share SERVICE_CATEGORY_NOT_FOUND (404). */
+        /** @description Returns a category with open_service_count and marked_service_count for close and reopen confirmation, and pending_closing_id when a background close or reopen of this category is running. Requires read:service-categories:business and the catalog feature. Missing, foreign and other-business ids share SERVICE_CATEGORY_NOT_FOUND (404). */
         get: operations["getServiceCategory"];
         put?: never;
         post?: never;
@@ -2067,7 +2067,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Closes a category and its open services against the confirmed revision and count. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. Errors: SERVICE_CATEGORY_NOT_FOUND (404), SERVICE_CATEGORY_ALREADY_CLOSED, SERVICE_CATEGORY_COUNT_CHANGED and SERVICE_CATEGORY_REVISION_CONFLICT (409). */
+        /** @description Closes a category and its open services against the confirmed revision and count. Up to 300 services the answer is 200 and the category is closed; above 300 the answer is 202 and a background request carries the closing_id, leaving the category untouched until the job commits. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. Errors: SERVICE_CATEGORY_NOT_FOUND (404), SERVICE_CATEGORY_ALREADY_CLOSED, SERVICE_CATEGORY_COUNT_CHANGED, SERVICE_CATEGORY_REVISION_CONFLICT and SERVICE_CATEGORY_CLOSING_IN_PROGRESS (409, with details.closing_id). */
         post: operations["closeServiceCategory"];
         delete?: never;
         options?: never;
@@ -2084,8 +2084,25 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Reopens a category and exactly the services marked by its close. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. Errors: SERVICE_CATEGORY_NOT_FOUND (404), SERVICE_CATEGORY_NOT_CLOSED, SERVICE_CATEGORY_COUNT_CHANGED and SERVICE_CATEGORY_REVISION_CONFLICT (409). */
+        /** @description Reopens a category and exactly the services marked by its close. Up to 300 services the answer is 200 and the category is reopened; above 300 the answer is 202 and a background request carries the closing_id, leaving the category untouched until the job commits. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. Errors: SERVICE_CATEGORY_NOT_FOUND (404), SERVICE_CATEGORY_NOT_CLOSED, SERVICE_CATEGORY_COUNT_CHANGED, SERVICE_CATEGORY_REVISION_CONFLICT and SERVICE_CATEGORY_CLOSING_IN_PROGRESS (409, with details.closing_id). */
         post: operations["reopenServiceCategory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/service-categories/{categoryId}/closings/{closingId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Returns the state of one close or reopen request of the category: pending, completed with services_changed, or failed with its error code. A pending request past its deadline reads as failed with SERVICE_CATEGORY_CLOSING_EXPIRED. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. An unknown id, another category's id and another tenant's id share SERVICE_CATEGORY_CLOSING_NOT_FOUND (404). */
+        get: operations["getServiceCategoryClosing"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5327,6 +5344,33 @@ export interface components {
             revision: number;
             open_service_count: number;
             marked_service_count: number;
+            /** Format: uuid */
+            pending_closing_id: string | null;
+        };
+        /** @enum {string} */
+        ServiceCategoryClosingAction: "close" | "reopen";
+        /** @enum {string} */
+        ServiceCategoryClosingState: "pending" | "completed" | "failed";
+        ServiceCategoryClosingPending: {
+            /** Format: uuid */
+            closing_id: string;
+            /** @enum {string} */
+            status: "pending";
+        };
+        ServiceCategoryClosingStatus: {
+            /** Format: uuid */
+            closing_id: string;
+            /** Format: uuid */
+            category_id: string;
+            action: components["schemas"]["ServiceCategoryClosingAction"];
+            status: components["schemas"]["ServiceCategoryClosingState"];
+            services_changed: number | null;
+            /** @enum {string|null} */
+            error_code: "SERVICE_CATEGORY_REVISION_CONFLICT" | "SERVICE_CATEGORY_ALREADY_CLOSED" | "SERVICE_CATEGORY_NOT_CLOSED" | "SERVICE_CATEGORY_COUNT_CHANGED" | "SERVICE_CATEGORY_CLOSING_EXPIRED" | "SERVICE_CATEGORY_CLOSING_FAILED" | null;
+            /** Format: date-time */
+            requested_at: string;
+            /** Format: date-time */
+            finished_at: string | null;
         };
         PackageTypeComponentInput: {
             /** Format: uuid */
@@ -15766,6 +15810,15 @@ export interface operations {
                     "application/json": components["schemas"]["CloseServiceCategoryResult"];
                 };
             };
+            /** @description Background request accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceCategoryClosingPending"];
+                };
+            };
             /** @description Bilingual refusal */
             404: {
                 headers: {
@@ -15822,6 +15875,15 @@ export interface operations {
                     "application/json": components["schemas"]["ReopenServiceCategoryResult"];
                 };
             };
+            /** @description Background request accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceCategoryClosingPending"];
+                };
+            };
             /** @description Bilingual refusal */
             404: {
                 headers: {
@@ -15833,6 +15895,50 @@ export interface operations {
             };
             /** @description Bilingual refusal */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getServiceCategoryClosing: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                categoryId: string;
+                closingId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Closing request state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceCategoryClosingStatus"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -1,4 +1,10 @@
-import { appendAuditLog, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
+import {
+  appendAuditLog,
+  appendOutboxEvent,
+  type IdGenerator,
+  type TenantWrappers,
+  type Tx,
+} from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 import { ServiceCategoryError } from '../domain/errors.ts';
@@ -9,8 +15,17 @@ import {
 import { serviceCategorySnapshot, type ServiceCategoryRecord } from '../domain/service-category.ts';
 import { serviceRecordFromRow, type ServiceRowInput } from '../domain/service-row.ts';
 import type { ServiceRecord } from '../domain/service.ts';
-import type { ServiceCategoryTransactions } from '../ports/service-category-transactions.port.ts';
+import type {
+  ServiceCategoryScope,
+  ServiceCategoryTransactions,
+} from '../ports/service-category-transactions.port.ts';
 import { auditClosing, saveClosing } from './drizzle-service-category-closing.ts';
+import {
+  countAffectedServices,
+  createClosing,
+  expireClosing,
+  findPendingClosing,
+} from './drizzle-service-category-closing-request.ts';
 
 type Row = {
   id: string;
@@ -51,7 +66,8 @@ async function load(
   mode: 'update' | 'share' = 'update',
 ): Promise<ServiceCategoryRecord | null> {
   const lock = mode === 'share' ? sql`FOR SHARE` : sql`FOR UPDATE`;
-  const [row] = await tx.execute<Row>(sql`SELECT id,business_id,name_en,name_ar,owner_branch_id,visibility,
+  const [row] =
+    await tx.execute<Row>(sql`SELECT id,business_id,name_en,name_ar,owner_branch_id,visibility,
     closed_at,revision,created_at,updated_at FROM service_categories
     WHERE company_id=${companyId} AND business_id=${businessId} AND id=${categoryId} ${lock}`);
   if (row === undefined) return null;
@@ -69,11 +85,7 @@ async function load(
   };
 }
 
-async function branchBusiness(
-  tx: Tx,
-  companyId: string,
-  branchId: string,
-): Promise<string | null> {
+async function branchBusiness(tx: Tx, companyId: string, branchId: string): Promise<string | null> {
   // قفل المشاركة يمنع حذف الفرع أو تغيير مفاتيحه حتى نهاية المعاملة، فلا تسقط الكتابة بخطأ مفتاح أجنبي.
   const [row] = await tx.execute<{ business_id: string }>(sql`
     SELECT business_id FROM branches WHERE company_id=${companyId} AND id=${branchId} FOR KEY SHARE`);
@@ -107,7 +119,9 @@ async function lockServices(
 ): Promise<ServiceRecord[]> {
   const state =
     mode === 'open' ? sql`AND closed_at IS NULL` : sql`AND closed_by_category_id=${categoryId}`;
-  const rows = await tx.execute<ServiceRowInput & Record<string, unknown>>(sql`SELECT ${SERVICE_COLUMNS} FROM services
+  const rows = await tx.execute<
+    ServiceRowInput & Record<string, unknown>
+  >(sql`SELECT ${SERVICE_COLUMNS} FROM services
     WHERE company_id=${companyId} AND business_id=${businessId} AND category_id=${categoryId}
     ${state} ORDER BY id FOR NO KEY UPDATE`);
   return rows.map(serviceRecordFromRow);
@@ -191,6 +205,51 @@ function cleanError(error: unknown): never {
   throw error;
 }
 
+function categoryScope(tx: Tx, companyId: string, ids: IdGenerator): ServiceCategoryScope {
+  return {
+    insert: (record) => insert(tx, companyId, record),
+    load: (businessId, categoryId) => load(tx, companyId, businessId, categoryId),
+    loadForShare: (businessId, categoryId) => load(tx, companyId, businessId, categoryId, 'share'),
+    loadBranchSetting: (businessId, branchId, categoryId) =>
+      loadBranchSetting(tx, companyId, businessId, branchId, categoryId),
+    branchBusiness: (branchId) => branchBusiness(tx, companyId, branchId),
+    save: (before, after) => save(tx, companyId, before, after),
+    audit: (before, after) =>
+      appendAuditLog(tx, ids.newId(), {
+        entity: 'service_category',
+        entityId: after.id,
+        action: before === null ? 'created' : 'updated',
+        ...(before === null ? {} : { before: serviceCategorySnapshot(before) }),
+        after: serviceCategorySnapshot(after),
+      }),
+    lockOpenServices: (businessId, categoryId) =>
+      lockServices(tx, companyId, businessId, categoryId, 'open'),
+    lockMarkedServices: (businessId, categoryId) =>
+      lockServices(tx, companyId, businessId, categoryId, 'marked'),
+    saveClosing: (category, services) => saveClosing(tx, companyId, ids, category, services),
+    auditClosing: (entries) => auditClosing(tx, ids, entries),
+    countAffectedServices: (businessId, categoryId, mode) =>
+      countAffectedServices(tx, companyId, businessId, categoryId, mode),
+    findPendingClosing: (businessId, categoryId) =>
+      findPendingClosing(tx, companyId, businessId, categoryId),
+    expireClosing: (closingId, at) => expireClosing(tx, companyId, closingId, at),
+    createClosing: (request) => createClosing(tx, companyId, request),
+    outbox: {
+      append: (event) => appendOutboxEvent(tx, ids.newId(), event),
+    },
+    insertBranchSetting: (record) => insertBranchSetting(tx, companyId, record),
+    saveBranchSetting: (before, after) => saveBranchSetting(tx, companyId, before, after),
+    auditBranchSetting: (before, after) =>
+      appendAuditLog(tx, ids.newId(), {
+        entity: 'service_category_branch_setting',
+        entityId: after.id,
+        action: before === null ? 'created' : 'updated',
+        ...(before === null ? {} : { before: serviceCategoryBranchSettingSnapshot(before) }),
+        after: serviceCategoryBranchSettingSnapshot(after),
+      }),
+  };
+}
+
 export function createServiceCategoryTransactions(
   database: TenantWrappers,
   ids: IdGenerator,
@@ -200,46 +259,10 @@ export function createServiceCategoryTransactions(
       try {
         return await database.withTenant(
           companyId,
-          (tx) =>
-            work({
-              insert: (record) => insert(tx, companyId, record),
-              load: (businessId, categoryId) => load(tx, companyId, businessId, categoryId),
-              loadForShare: (businessId, categoryId) =>
-                load(tx, companyId, businessId, categoryId, 'share'),
-              loadBranchSetting: (businessId, branchId, categoryId) =>
-                loadBranchSetting(tx, companyId, businessId, branchId, categoryId),
-              branchBusiness: (branchId) => branchBusiness(tx, companyId, branchId),
-              save: (before, after) => save(tx, companyId, before, after),
-              audit: (before, after) =>
-                appendAuditLog(tx, ids.newId(), {
-                  entity: 'service_category',
-                  entityId: after.id,
-                  action: before === null ? 'created' : 'updated',
-                  ...(before === null ? {} : { before: serviceCategorySnapshot(before) }),
-                  after: serviceCategorySnapshot(after),
-                }),
-              lockOpenServices: (businessId, categoryId) =>
-                lockServices(tx, companyId, businessId, categoryId, 'open'),
-              lockMarkedServices: (businessId, categoryId) =>
-                lockServices(tx, companyId, businessId, categoryId, 'marked'),
-              saveClosing: (category, services) =>
-                saveClosing(tx, companyId, ids, category, services),
-              auditClosing: (entries) => auditClosing(tx, ids, entries),
-              insertBranchSetting: (record) => insertBranchSetting(tx, companyId, record),
-              saveBranchSetting: (before, after) =>
-                saveBranchSetting(tx, companyId, before, after),
-              auditBranchSetting: (before, after) =>
-                appendAuditLog(tx, ids.newId(), {
-                  entity: 'service_category_branch_setting',
-                  entityId: after.id,
-                  action: before === null ? 'created' : 'updated',
-                  ...(before === null
-                    ? {}
-                    : { before: serviceCategoryBranchSettingSnapshot(before) }),
-                  after: serviceCategoryBranchSettingSnapshot(after),
-                }),
-            }),
-          { userId },
+          (tx) => work(categoryScope(tx, companyId, ids)),
+          {
+            userId,
+          },
         );
       } catch (error) {
         cleanError(error);

@@ -15,6 +15,7 @@ export type ServiceCategoryDetailRow = {
   readonly revision: number;
   readonly open_service_count: number;
   readonly marked_service_count: number;
+  readonly pending_closing_id: string | null;
 };
 
 // شاشة تأكيد قفل وفتح التصنيف تقرأ العددين اللذين سيتغيران مع بيانات التصنيف في استعلام واحد.
@@ -31,7 +32,11 @@ export function serviceCategoryDetailStatement(
       ) AS open_service_count,
       (SELECT count(*)::int FROM services s WHERE s.company_id=c.company_id
         AND s.business_id=c.business_id AND s.category_id=c.id AND s.closed_by_category_id=c.id
-      ) AS marked_service_count
+      ) AS marked_service_count,
+      (SELECT cl.id FROM service_category_closings cl WHERE cl.company_id=c.company_id
+        AND cl.category_id=c.id AND cl.status='pending' AND cl.deadline_at > now()
+        LIMIT 1
+      ) AS pending_closing_id
     FROM service_categories c
     WHERE c.company_id=${companyId} AND c.business_id=${businessId} AND c.id=${categoryId}`;
 }
