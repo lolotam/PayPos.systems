@@ -32,7 +32,7 @@ import { discountLimit } from './persistence/discount-limit.adapter.ts';
 import { editorName } from './persistence/editor-name.adapter.ts';
 import { sessionBranchBelongs, sessionPlace } from './persistence/session-place.adapter.ts';
 import { discountRequestAccess, sessionRecordAccess } from './persistence/session-record-access.adapter.ts';
-import { sessionCancelCapability, sessionPerformersCapability } from './persistence/session-edit-access.adapter.ts';
+import { packageExtendCapability, sessionCancelCapability, sessionPerformersCapability } from './persistence/session-edit-access.adapter.ts';
 import { discountApprovalListAccess, sessionReadAccess } from './persistence/session-read-access.adapter.ts';
 import { BranchDayServiceSessionsQuery } from './queries/branch-day-service-sessions.query.ts';
 import { ServiceSessionCapabilitiesQuery } from './queries/service-session-capabilities.query.ts';
@@ -300,7 +300,8 @@ function customerPackageProviders(database: TenantWrappers | undefined, clock: C
       provide: CustomerPackageDetailQueryHandler,
       useValue: database === undefined ? null : new CustomerPackageDetailQueryHandler(database, {
         place: (tx, scope) => sessionPlace(tx, scope.companyId, scope.businessId, scope.branchId).branchTimezone(),
-      }),
+        canExtend: (tx, scope, at) => packageExtendCapability(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
+      }, clock),
     },
   ];
 }

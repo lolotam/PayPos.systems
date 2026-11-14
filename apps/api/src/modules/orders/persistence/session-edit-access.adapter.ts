@@ -3,6 +3,7 @@ import {
   lockServiceSessionCancelAccess,
   lockServiceSessionEditAccess,
   lockServiceSessionPerformersAccess,
+  readPackageExtensionAccess,
   readServiceSessionCancelAccess,
   readServiceSessionEditAccess,
   readServiceSessionPerformersAccess,
@@ -53,6 +54,19 @@ export function sessionPerformersAccess(
     () => lockServiceSessionPerformersAccess(tx, companyId),
     (at) => readServiceSessionPerformersAccess(tx, companyId, userId, businessId, branchId, at),
   );
+}
+
+// قدرة التمديد لزرار شاشة الباقة: نفس قرار ExtendPackageUseCase بس من غير قفل الشركة.
+export async function packageExtendCapability(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  businessId: string,
+  branchId: string,
+  at: Date,
+): Promise<boolean> {
+  const access = await readPackageExtensionAccess(tx, companyId, userId, businessId, branchId, at);
+  return !access.denied && access.feature && access.eligible.length > 0;
 }
 
 // قراءة القدرة بلا FOR SHARE؛ قفل الشركة هنا كان هيعلّق قائمة اليوم.

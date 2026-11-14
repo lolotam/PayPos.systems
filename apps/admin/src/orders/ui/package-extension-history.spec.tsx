@@ -12,6 +12,7 @@ const rows: CustomerPackageExtension[] = [
     previous_expires_on: '2027-01-31',
     new_expires_on: '2027-02-28',
     extended_at: '2026-10-17T21:30:00.000Z',
+    reason: 'Synthetic extension reason',
   },
   {
     id: '01920000-0000-7000-8000-000000000001',
@@ -21,7 +22,7 @@ const rows: CustomerPackageExtension[] = [
   },
 ];
 
-it('shows dated rows newest first with branch-local time and no reason or money text', () => {
+it('shows dated rows newest first with branch-local time and reason when present, without money text', () => {
   render(<PackageExtensionHistory extensions={rows} timeZone="Asia/Kuwait" />);
   const items = screen.getAllByRole('listitem');
   expect(items).toHaveLength(2);
@@ -39,7 +40,11 @@ it('shows dated rows newest first with branch-local time and no reason or money 
         .toBe(true);
     }
   }
-  expect(screen.queryByText('Synthetic private reason')).toBeNull();
+  expect(items[0]?.textContent).toContain('Reason: Synthetic extension reason');
+  const reason = screen.getByText('Synthetic extension reason');
+  expect(reason.tagName.toLowerCase()).toBe('bdi');
+  expect(reason.getAttribute('dir')).toBe('auto');
+  expect(items[1]?.textContent).not.toContain('Reason:');
   expect(screen.queryByText(/KWD|\b\d+\.\d{3}\b/)).toBeNull();
 });
 

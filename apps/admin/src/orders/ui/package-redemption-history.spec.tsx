@@ -18,6 +18,7 @@ function detail(
   redemptions: CustomerPackageRedemption[],
   extensions: CustomerPackageExtension[] = [],
   business_timezone?: string,
+  can_extend = false,
 ): CustomerPackageDetail {
   return {
     id: entitlementId,
@@ -40,6 +41,7 @@ function detail(
     expires_on: '2026-12-31',
     refunded_amount: '0.000',
     revision: 1,
+    can_extend,
     components: [{
       id: componentId,
       service_id: '01920000-0000-7000-8000-000000000030',
@@ -75,14 +77,13 @@ function mockDetail(data: CustomerPackageDetail) {
   get.mockResolvedValue({ data, response: { status: 200 } });
 }
 
-function renderHistory(canExtend = false) {
+function renderHistory() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(<QueryClientProvider client={client}>
     <PackageRedemptionHistory
       scope={scope}
       customerId={customerId}
       entitlementId={entitlementId}
-      canExtend={canExtend}
     />
   </QueryClientProvider>);
 }
@@ -149,7 +150,7 @@ const extension: CustomerPackageExtension = {
 };
 
 it('shows the detail timezone to a viewer without recording-context access and hides extend by default', async () => {
-  mockDetail(detail([], [extension], 'Asia/Kuwait'));
+  mockDetail(detail([], [extension], 'Asia/Kuwait', false));
   renderHistory();
   openHistory();
   expect(await screen.findByText(t('en', 'packageExtension.historyTitle'))).toBeTruthy();
@@ -174,9 +175,9 @@ it('omits extension timestamps when an older detail has no business timezone', a
   expect(screen.queryByText(extension.extended_at)).toBeNull();
 });
 
-it('opens the extend dialog when canExtend is true', async () => {
-  mockDetail(detail([], [extension]));
-  renderHistory(true);
+it('opens the extend dialog when can_extend is true', async () => {
+  mockDetail(detail([], [extension], undefined, true));
+  renderHistory();
   openHistory();
   const button = await screen.findByRole('button', { name: t('en', 'packageExtension.extend') });
   fireEvent.click(button);

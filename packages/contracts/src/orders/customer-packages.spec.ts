@@ -223,21 +223,39 @@ const validExtension = {
   extended_at: '2027-01-01T08:00:00.000Z',
 };
 
-it('parses extension history and rejects a leaked reason in strict responses', async () => {
+it('parses extension history with or without reason including in strict responses', async () => {
+  const withReason = { ...validExtension, reason: 'Synthetic extension reason' };
   expect(customerPackageExtension.parse(validExtension)).toEqual(validExtension);
-  expect(customerPackageDetail.parse({ ...validDetail, extensions: [validExtension] }).extensions)
-    .toEqual([validExtension]);
+  expect(customerPackageExtension.parse(withReason)).toEqual(withReason);
+  expect(customerPackageDetail.parse({ ...validDetail, extensions: [withReason] }).extensions)
+    .toEqual([withReason]);
   vi.stubEnv('POSPAY_STRICT_RESPONSES', '1');
   vi.resetModules();
   try {
     const strict = await import('./customer-packages.js');
-    const detail = {
+    const detailWithReason = {
       ...validDetail,
-      extensions: [{ ...validExtension, reason: 'Synthetic private reason' }],
+      extensions: [withReason],
     };
-    expect(strict.customerPackageDetail.safeParse(detail).success).toBe(false);
+    const parsedWithReason = strict.customerPackageDetail.parse(detailWithReason);
+    expect(parsedWithReason.extensions).toEqual([withReason]);
+    expect(parsedWithReason.extensions[0]?.reason).toBe('Synthetic extension reason');
+
+    const detailWithoutReason = {
+      ...validDetail,
+      extensions: [validExtension],
+    };
+    const parsedWithoutReason = strict.customerPackageDetail.parse(detailWithoutReason);
+    expect(parsedWithoutReason.extensions).toEqual([validExtension]);
+    expect(parsedWithoutReason.extensions[0]?.reason).toBeUndefined();
   } finally {
     vi.unstubAllEnvs();
     vi.resetModules();
   }
+});
+
+it('defaults can_extend to false when absent and accepts boolean only', () => {
+  expect(customerPackageDetail.parse(validDetail).can_extend).toBe(false);
+  expect(customerPackageDetail.parse({ ...validDetail, can_extend: true }).can_extend).toBe(true);
+  expect(customerPackageDetail.safeParse({ ...validDetail, can_extend: 'yes' }).success).toBe(false);
 });

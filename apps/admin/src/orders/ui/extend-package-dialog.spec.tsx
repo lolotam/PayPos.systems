@@ -32,7 +32,7 @@ function detail(expires_on = OLD): CustomerPackageDetail {
     name_en: 'Synthetic package', name_ar: null, validity_days: null, list_price: null,
     price_paid: '0.000', discount: null, discount_bps: null, paid_method: null,
     seller_employee_id: null, seller_linked_user_id: null, sold_branch_id: null,
-    sold_at: null, sold_business_date: null, expires_on, refunded_amount: '0.000', revision: 1,
+    sold_at: null, sold_business_date: null, expires_on, refunded_amount: '0.000', revision: 1, can_extend: false,
     components: [], redemptions: [], extensions: [],
   };
 }
