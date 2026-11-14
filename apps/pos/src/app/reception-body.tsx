@@ -3,6 +3,7 @@ import { StaffLoginPanel } from '@/staff-login/ui/staff-login-panel';
 import { useStaffLogin } from '@/staff-login/api/use-staff-login';
 import { AttendanceHome } from '@/attendance/ui/attendance-home';
 import { CardClockAvailability } from '@/attendance/ui/card-clock-availability';
+import { DeviceDiscountApprovals } from '@/discount-approval/ui/device-discount-approvals';
 import { useEffect, useRef, useState } from 'react';
 
 export function ReceptionBody({
@@ -58,6 +59,9 @@ export function ReceptionBody({
         signedIn={operator.authenticatedSession !== null}
         retry={retry}
       />
+      <div className="lg:col-span-2">
+        <DeviceDiscountApprovals branchId={branchId} onRejected={retry} />
+      </div>
     </div>
   );
 }

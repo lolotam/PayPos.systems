@@ -51,6 +51,24 @@ function testValidEnvelope(): void {
       },
     });
   });
+
+  it('keeps details in the envelope when present, and omits details key when absent', async () => {
+    const withDetails = await call(async () => ({
+      response: new Response(null, { status: 422 }),
+      error: { code: 'INVALID', message_ar: 'خطأ', message_en: 'Error', details: { field: 'pin' } },
+    }));
+    const withoutDetails = await call(async () => ({
+      response: new Response(null, { status: 400 }),
+      error: { code: 'BAD', message_ar: 'خطأ', message_en: 'Error' },
+    }));
+
+    if (withDetails.ok || withoutDetails.ok) throw new Error('expected failures');
+    if (withDetails.failure.kind !== 'http' || withoutDetails.failure.kind !== 'http') {
+      throw new Error('expected http failures');
+    }
+    expect(withDetails.failure.envelope?.details).toEqual({ field: 'pin' });
+    expect('details' in (withoutDetails.failure.envelope ?? {})).toBe(false);
+  });
 }
 
 function testMalformedEnvelope(): void {
