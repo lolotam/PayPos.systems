@@ -20,6 +20,9 @@ vi.mock('@/staff-login/ui/staff-login-panel', () => ({
 vi.mock('@/attendance/ui/attendance-home', () => ({
   AttendanceHome: () => <h2>attendance</h2>,
 }));
+vi.mock('@/discount-approval/ui/device-discount-approvals', () => ({
+  DeviceDiscountApprovals: () => <h2>approvals</h2>,
+}));
 
 function show(locale: 'ar' | 'en') {
   return render(
@@ -78,3 +81,10 @@ it.each(['en', 'ar'] as const)(
     expect(calls.clock).not.toHaveBeenCalled();
   },
 );
+
+it('renders the discount approvals panel alongside login and attendance', async () => {
+  show('ar');
+  expect(await screen.findByRole('heading', { name: 'approvals' })).not.toBeNull();
+  expect(screen.getByRole('heading', { name: 'login' })).not.toBeNull();
+  expect(screen.getByRole('heading', { name: 'attendance' })).not.toBeNull();
+});

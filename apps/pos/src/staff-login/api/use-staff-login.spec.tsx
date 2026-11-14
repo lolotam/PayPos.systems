@@ -94,6 +94,20 @@ it('revocation on the next probe removes private queries and exposes no previous
   expect(h.result.current.session).toBeNull();
 });
 
+it('removes private queries but keeps device proposals after signed-out probe', async () => {
+  const h = display();
+  await waitFor(() => expect(h.result.current.session).not.toBeNull());
+  h.cache.setQueryData(['private-sales'], 'synthetic-private');
+  h.cache.setQueryData(['device-discount-proposals', 'some-branch'], 'device-data');
+  calls.probe.mockResolvedValue(null);
+  await act(async () => {
+    await h.cache.invalidateQueries({ queryKey: ['staff-session'] });
+  });
+  await waitFor(() => expect(h.cache.getQueryData(['private-sales'])).toBeUndefined());
+  expect(h.cache.getQueryData(['device-discount-proposals', 'some-branch'])).toBe('device-data');
+  expect(h.result.current.session).toBeNull();
+});
+
 it('acknowledged logout clears local private data and announces only a structural tab signal', async () => {
   const h = display();
   await waitFor(() => expect(h.result.current.session).not.toBeNull());
