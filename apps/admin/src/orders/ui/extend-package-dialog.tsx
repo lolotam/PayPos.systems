@@ -95,7 +95,9 @@ export function ExtendPackageDialog(props: ExtendPackageDialogProps) {
     props.onClose();
   };
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
+    // الديالوج جوه فورم تسجيل الزيارة، فلازم نوقف الـ submit هنا عشان التمديد ما يبعتش الزيارة كمان
     event.preventDefault();
+    event.stopPropagation();
     if (submitting.current || pending || blocked) return;
     submitting.current = true;
     void form.handleSubmit(submit)(event).finally(() => {

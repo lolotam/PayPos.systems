@@ -22,7 +22,7 @@ beforeAll(async () => {
   f = fixture.f;
   const reads = { place: async () => 'Asia/Kuwait' };
   listHandler = new CustomerPackagesQueryHandler(f.db, reads, f.clock);
-  detailHandler = new CustomerPackageDetailQueryHandler(f.db, reads);
+  detailHandler = new CustomerPackageDetailQueryHandler(f.db, { place: async () => 'Asia/Kuwait', canExtend: async () => false }, f.clock);
 });
 
 afterAll(async () => {
@@ -65,7 +65,7 @@ it('enforces company tenancy isolation at the query level for cross-tenant entit
   };
 
   // استعلام تفاصيل باقة من شركة أخرى بنطاق شركتنا يرمي PACKAGE_NOT_FOUND
-  await expect(detailHandler.execute(ownScope, fixture.pkgOtherCompany)).rejects.toThrow(
+  await expect(detailHandler.execute(ownScope, fixture.pkgOtherCompany, true)).rejects.toThrow(
     new CustomerPackageReadError('PACKAGE_NOT_FOUND'),
   );
 
