@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { packageSaleChanged, sellPackageInput, sellPackageResponse } from './package-sale.js';
+import { acceptedPackageSale, packageSaleChanged, sellPackageInput } from './package-sale.js';
 
 const customer = '01920000-0000-7000-8000-000000004001';
 const packageType = '01920000-0000-7000-8000-000000004002';
@@ -87,6 +87,8 @@ const longQuote = Array.from({ length: 21 }, (_, index) => ({
 }));
 
 it.each([
+  ['a bank transfer payment method (SA-06)', { paid_method: 'BANK_TRANSFER' }],
+  ['a missing payment method (SA-06)', { paid_method: undefined }],
   ['a payment method outside cash and card', { paid_method: 'TRANSFER' }],
   ['a price with fewer than three decimals', { price_paid: '10.5' }],
   ['a price sent as a number', { price_paid: 10.5 }],
@@ -121,12 +123,18 @@ it('publishes a sale event that carries the selling branch and the business date
   expect(packageSaleChanged.safeParse({ ...event, schema_version: 2 }).success).toBe(false);
   expect(packageSaleChanged.safeParse(withoutKey(event, 'branch_id')).success).toBe(false);
   expect(packageSaleChanged.safeParse(withoutKey(event, 'business_date')).success).toBe(false);
-  expect(packageSaleChanged.safeParse({ ...event, business_date: '2026-13-45' }).success).toBe(false);
+  expect(packageSaleChanged.safeParse({ ...event, business_date: '2026-13-45' }).success).toBe(
+    false,
+  );
 });
 
-it('returns the entitlement as the sale and refuses an entitlement without components', () => {
-  expect(sellPackageResponse.parse({ entitlement })).toEqual({ entitlement });
+it('parses an accepted package sale and rejects an extra key and a non-uuid', () => {
+  const saleRequestId = '01920000-0000-7000-8000-000000004010';
+  expect(acceptedPackageSale.parse({ sale_request_id: saleRequestId })).toEqual({
+    sale_request_id: saleRequestId,
+  });
   expect(
-    sellPackageResponse.safeParse({ entitlement: { ...entitlement, components: [] } }).success,
+    acceptedPackageSale.safeParse({ sale_request_id: saleRequestId, extra: 'bad' }).success,
   ).toBe(false);
+  expect(acceptedPackageSale.safeParse({ sale_request_id: 'not-a-uuid' }).success).toBe(false);
 });

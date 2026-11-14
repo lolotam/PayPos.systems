@@ -404,6 +404,8 @@ reads:
   - orders -> identity.readOwnServiceSessionsAccess @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
   - orders -> identity.lockPackageExtensionAccess @ apps/api/src/modules/orders/persistence/package-extension.transactions.ts
   - orders -> identity.readPackageExtensionAccess @ apps/api/src/modules/orders/persistence/package-extension.transactions.ts
+  - orders -> identity.lockPackageSaleAccess @ apps/api/src/modules/orders/persistence/package-sale-request.transactions.ts
+  - orders -> identity.readPackageSaleAccess @ apps/api/src/modules/orders/persistence/package-sale-request.transactions.ts
   - orders -> identity.lockPackageRefundAccess @ apps/api/src/modules/orders/persistence/package-refund.transactions.ts
   - orders -> identity.readPackageRefundAccess @ apps/api/src/modules/orders/persistence/package-refund.transactions.ts
   - orders -> settings.readImportedRefundsEnabled @ apps/api/src/modules/orders/persistence/package-refund.transactions.ts

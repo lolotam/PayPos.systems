@@ -74,10 +74,10 @@ export const soldPackageEntitlement = z
   })
   .meta({ id: 'SoldPackageEntitlement' });
 
-// FR-010: 201 { entitlement }؛ صف الاستحقاق هو البيع نفسه (TD-1).
-export const sellPackageResponse = z
-  .strictObject({ entitlement: soldPackageEntitlement })
-  .meta({ id: 'SellPackageResponse' });
+// FR-010 (PP-170): 202 { sale_request_id }؛ الـ worker هو اللي بينفذ البيع بعد القبول
+export const acceptedPackageSale = z
+  .strictObject({ sale_request_id: id })
+  .meta({ id: 'AcceptedPackageSale' });
 
 // branch_id و business_date هما فرع البيع ويومه في كل نسخة، ومرتجع من فرع تاني ميغيّرهمش،
 // عشان إسقاط العمولة (059 CM-20) يحدد شهر العمولة وفرع المصدر منهم (TD-7).
@@ -104,7 +104,7 @@ export const packageSaleSchemas = [
   sellPackageInput,
   soldPackageComponent,
   soldPackageEntitlement,
-  sellPackageResponse,
+  acceptedPackageSale,
   packageSaleChanged,
 ];
 
@@ -113,5 +113,5 @@ export type PackageServiceRevision = z.infer<typeof packageServiceRevision>;
 export type SellPackageInput = z.infer<typeof sellPackageInput>;
 export type SoldPackageComponent = z.infer<typeof soldPackageComponent>;
 export type SoldPackageEntitlement = z.infer<typeof soldPackageEntitlement>;
-export type SellPackageResponse = z.infer<typeof sellPackageResponse>;
+export type AcceptedPackageSale = z.infer<typeof acceptedPackageSale>;
 export type PackageSaleChanged = z.infer<typeof packageSaleChanged>;

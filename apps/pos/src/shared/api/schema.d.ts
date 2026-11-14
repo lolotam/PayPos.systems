@@ -106,6 +106,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/package-sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Accepts a package sale for the background worker. Requires sell:packages:branch, the orders feature and an individual admin login. No customer, type, seller or price checks run at acceptance. */
+        post: operations["sellPackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/packages/{entitlementId}/refunds": {
         parameters: {
             query?: never;
@@ -6479,8 +6496,9 @@ export interface components {
             revision: number;
             components: components["schemas"]["SoldPackageComponent"][];
         };
-        SellPackageResponse: {
-            entitlement: components["schemas"]["SoldPackageEntitlement"];
+        AcceptedPackageSale: {
+            /** Format: uuid */
+            sale_request_id: string;
         };
         PackageSaleChanged: {
             /** Format: uuid */
@@ -9000,6 +9018,81 @@ export interface operations {
                 };
             };
             /** @description PACKAGE_EXTENSION_NOT_LATER, PACKAGE_EXTENSION_TOO_LONG or IDEMPOTENCY_KEY_REUSED. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    sellPackage: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SellPackageInput"];
+            };
+        };
+        responses: {
+            /** @description Sale accepted; poll the status read. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptedPackageSale"];
+                };
+            };
+            /** @description Invalid body (including paid_method other than CASH or CARD) or Idempotency-Key. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Permission, DENY, device principal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description IDEMPOTENCY_KEY_IN_PROGRESS. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description IDEMPOTENCY_KEY_REUSED. */
             422: {
                 headers: {
                     [name: string]: unknown;
