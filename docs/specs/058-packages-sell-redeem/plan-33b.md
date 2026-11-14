@@ -110,13 +110,19 @@ error message on 409 (PP-7.2).
    type. The API image that carries 33b-2 deploys after that fleet check, never in the same step.
 4. **Rollback floor = the 33b-1 merge SHA for the worker.** Once any type is stopped, a worker below that SHA would
    sell a stopped type. A rollback of the worker below the floor runs in this order, or is refused:
-   1. resume every stopped type first, through the resume route while the API still carries 33b-2 (or set
-      `selling_stopped_at = NULL` with a revision bump, by the migration owner, if the route is unavailable);
-   2. then roll the API back below 33b-2, so no new stop can happen;
-   3. only then roll the worker back below the floor.
+   1. block new stop requests: from here on no stop request is accepted;
+   2. drain every stop request already accepted: wait until each in-flight stop transaction has committed or
+      failed. A stop can wait behind a sale reader's `FOR SHARE` lock (ST-03b) and commit after a resume that ran
+      too early, which would leave its type stopped;
+   3. only then resume every stopped type, through the resume route while the API still carries 33b-2 (or set
+      `selling_stopped_at = NULL` with a revision bump, by the migration owner, if the route is unavailable), and
+      check that no type is left with `selling_stopped_at` set;
+   4. then roll the API back below 33b-2, keeping the block from step 1 active until that rollback has finished;
+   5. only then roll the worker back below the floor.
    Rolling the API back first would remove the resume route while types are still stopped.
-   The three steps run as one uninterrupted procedure, and new stops are blocked for the whole window (no stop
-   request is accepted between step 1 and step 2), so no type can be stopped again after the resume in step 1.
+   The steps run as one uninterrupted procedure. Because the block stays active from step 1 to the end of step 4,
+   and the drain in step 2 finishes every stop accepted before it, no type can be stopped again after the resume in
+   step 3.
 5. The migration is expand-only (nullable column, column grant); rolling the code back below 33b-1 leaves the column
    unused and harmless.
 6. Production stays Waleed's decision.
