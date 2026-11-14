@@ -12,10 +12,11 @@ import {
 export type PinDecision = 'approve' | 'reject';
 type DecisionState = { outcome: PinDecisionOutcome; decision: PinDecision };
 
-export function usePinDecision(branchId: string) {
+export function usePinDecision(branchId: string, operatorKey: string) {
   const client = useQueryClient();
   const mounted = useRef(true);
   const busy = useRef(false);
+  const generation = useRef(operatorKey);
   const [pending, setPending] = useState(false);
   const [current, setCurrent] = useState<DecisionState | null>(null);
   useEffect(() => {
@@ -24,6 +25,10 @@ export function usePinDecision(branchId: string) {
       mounted.current = false;
     };
   }, []);
+  useEffect(() => {
+    generation.current = operatorKey;
+    setCurrent(null);
+  }, [operatorKey]);
   const decide = async (
     proposal: DeviceProposal,
     decision: PinDecision,
@@ -31,6 +36,7 @@ export function usePinDecision(branchId: string) {
     reason = '',
   ) => {
     if (!navigator.onLine || busy.current) return;
+    const requestGeneration = operatorKey;
     busy.current = true;
     setPending(true);
     setCurrent(null);
@@ -42,7 +48,10 @@ export function usePinDecision(branchId: string) {
     };
     if (decision === 'reject' && reason.trim() !== '') body.reason = reason.trim();
     const outcome = pinDecisionOutcome(await decideDeviceDiscountProposal(decision, body));
-    if (mounted.current) setCurrent({ outcome, decision });
+    // نتيجة طلب قديم لا تظهر للمشغّل الجديد بعد تبديله.
+    if (mounted.current && generation.current === requestGeneration) {
+      setCurrent({ outcome, decision });
+    }
     if (outcome.kind === 'done' || outcome.kind === 'stale') {
       void client.invalidateQueries({ queryKey: ['device-discount-proposals', branchId] });
     }

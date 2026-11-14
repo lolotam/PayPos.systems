@@ -1,6 +1,6 @@
 import { t, type Locale } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 import { failureText } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -27,13 +27,6 @@ function useProposalSelection(
   operatorKey: string,
 ) {
   const [requested, setRequested] = useState<{ id: string; operatorKey: string } | null>(null);
-  const clearOutcome = useRef(clear);
-  useEffect(() => {
-    clearOutcome.current = clear;
-  }, [clear]);
-  useEffect(() => {
-    clearOutcome.current();
-  }, [operatorKey]);
   const exists = requested !== null && items.some((proposal) => proposal.id === requested.id);
   const selectedId =
     outcome?.kind === 'done' || !exists || requested.operatorKey !== operatorKey
@@ -120,7 +113,7 @@ export function DeviceDiscountApprovals({
   const titleId = useId();
   const now = useNow(30_000);
   const list = useDeviceDiscountProposals(branchId, onRejected);
-  const controller = usePinDecision(branchId);
+  const controller = usePinDecision(branchId, operatorKey);
   const { outcome, decision, clear } = controller;
   const selection = useProposalSelection(list.items, outcome, clear, operatorKey);
   const { selectedId, choose, cancel } = selection;
