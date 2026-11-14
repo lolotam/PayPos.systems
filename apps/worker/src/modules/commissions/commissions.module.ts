@@ -11,6 +11,7 @@ import {
   createCommissionLineProjectionScope,
   type BusinessTimeZoneReader,
 } from './persistence/commission-line-projection.scope.ts';
+import { createCommissionCorrectionScope } from './persistence/commission-correction.scope.ts';
 import { markCommissionEventConsumed } from './persistence/commission-event-consumption.ts';
 import { createCoverageProjectionReader } from './persistence/commission-coverage.reads.ts';
 import type {
@@ -92,6 +93,7 @@ export function createCommissionInputsConsumer(
       createCommissionLineProjectionScope(tx, dependencies.businessTimeZone),
       dependencies.clock,
       dependencies.ids,
+      createCommissionCorrectionScope(tx, dependencies.ids, dependencies.clock),
     ),
     tips: new ProjectSessionTips(
       createCommissionTipProjectionScope(tx, dependencies.businessTimeZone, dependencies.ids),

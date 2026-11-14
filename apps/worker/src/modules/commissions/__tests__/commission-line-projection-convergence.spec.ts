@@ -21,6 +21,7 @@ import {
   onCommissionInputEvent,
   type CommissionInputUseCases,
 } from '../events/handlers/on-commission-input-event.handler.ts';
+import { createCommissionCorrectionScope } from '../persistence/commission-correction.scope.ts';
 import { createCommissionLineProjectionScope } from '../persistence/commission-line-projection.scope.ts';
 import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
 import { ProjectServiceLines } from '../use-cases/project-service-lines/project-service-lines.ts';
@@ -133,7 +134,12 @@ it('CM-22a a failure after replacement rolls back rows and mark, then redelivery
       } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'];
       await onCommissionInputEvent(
         {
-          lines: new ProjectServiceLines(failingScope, clock, ids),
+          lines: new ProjectServiceLines(
+            failingScope,
+            clock,
+            ids,
+            createCommissionCorrectionScope(tx, ids, clock),
+          ),
           tips: unusedUseCase,
           salary: unusedUseCase,
         },

@@ -32,7 +32,21 @@ export interface CommissionLineEventInput {
   readonly companyId: string;
   readonly businessId: string;
   readonly sessionId: string;
+  readonly eventId: string;
   readonly lines: readonly CommissionLineSnapshot[];
+}
+
+/** صف منفّذ محفوظ قبل الاستبدال؛ شهره يحدد أي كشف مغلق يحتاج تصحيحاً للموظفة. */
+export interface CommissionLinePerformerPeriod {
+  readonly lineId: string;
+  readonly employeeId: string;
+  readonly period: string;
+}
+
+/** موظفة وشهر مغلق يحتاجان جيل تصحيح واحداً بعد تغيّر البنود. */
+export interface CommissionPeriodEmployee {
+  readonly period: string;
+  readonly employeeId: string;
 }
 
 /**
