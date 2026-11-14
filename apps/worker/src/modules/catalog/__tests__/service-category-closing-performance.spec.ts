@@ -10,7 +10,7 @@ import {
 let f: ServiceCategoryClosingFixture;
 
 const SERVICES = 1000;
-const ROUNDS = 4;
+const ROUNDS = 5;
 const AT = '2026-11-14T10:00:00.000Z';
 
 const median = (values: readonly number[]): number => {
@@ -85,24 +85,35 @@ afterAll(async () => {
   await f?.close();
 });
 
+const timeJob = async (): Promise<number> => {
+  const category = await f.category({ open: SERVICES });
+  const closingId = await f.closing(category, { action: 'close' });
+  const start = performance.now();
+  const outcome = await f.useCase.execute(f.company, closingId);
+  const elapsed = performance.now() - start;
+  // زمن طلب فشل مالوش معنى في المقارنة، فلازم يكون قفل الألف خدمة فعلاً
+  expect(outcome).toEqual({ kind: 'completed', servicesChanged: SERVICES });
+  return elapsed;
+};
+
+const timeBaseline = async (): Promise<number> => {
+  const category = await f.category({ open: SERVICES });
+  const start = performance.now();
+  await baseline(f, category.categoryId);
+  return performance.now() - start;
+};
+
 it('runs a thousand services within twice the unchanged sync close of the same run', async () => {
   const jobTimes: number[] = [];
   const baselineTimes: number[] = [];
   for (let round = 0; round < ROUNDS; round++) {
-    const jobCategory = await f.category({ open: SERVICES });
-    const closingId = await f.closing(jobCategory, { action: 'close' });
-    const jobStart = performance.now();
-    await f.useCase.execute(f.company, closingId);
-    const jobMs = performance.now() - jobStart;
-
-    const baselineCategory = await f.category({ open: SERVICES });
-    const baselineStart = performance.now();
-    await baseline(f, baselineCategory.categoryId);
-    const baselineMs = performance.now() - baselineStart;
-
+    // الترتيب بيتبادل كل جولة، عشان سخونة الكاش ما تميلش لطرف واحد
+    const jobFirst = round % 2 === 0;
+    const first = jobFirst ? await timeJob() : await timeBaseline();
+    const second = jobFirst ? await timeBaseline() : await timeJob();
     if (round === 0) continue;
-    jobTimes.push(jobMs);
-    baselineTimes.push(baselineMs);
+    jobTimes.push(jobFirst ? first : second);
+    baselineTimes.push(jobFirst ? second : first);
   }
 
   expect(median(jobTimes)).toBeLessThanOrEqual(2 * median(baselineTimes) + 5);

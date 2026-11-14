@@ -29,7 +29,8 @@ export function startCatalogWorker(
   clock: Clock,
   prefix?: string,
 ) {
-  const logger = createLogger('error');
+  // اسم الحدث لازم يكون مسجّل: المراقب بيستبدل أي رسالة مش في قايمة الأحداث، فالتشخيص كان بيضيع.
+  const logger = createLogger('error', { events: ['service category closing failed'] });
   const processor = startServiceCategoryClosingProcessor(
     new RunServiceCategoryClosing(
       serviceCategoryClosingTransactions(

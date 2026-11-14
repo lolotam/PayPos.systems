@@ -636,7 +636,11 @@ Recorded here before the behaviour ships (#1027). The decisions are W-1 to W-11 
   `closing_id`, any other gets 409 `SERVICE_CATEGORY_CLOSING_IN_PROGRESS` with `{ closing_id }`, an expired pending
   row stops blocking); a status read `GET …/service-categories/{categoryId}/closings/{closingId}`; the category detail
   gains `pending_closing_id`. While a job is pending, rename, visibility, single-service changes and assignments are
-  not blocked; each makes the job fail with a revision or count conflict (W-4).
+  not blocked. A rename or visibility change bumps the category revision and fails the job with
+  `SERVICE_CATEGORY_REVISION_CONFLICT`; a single-service change or assignment that changes how many services the job
+  would touch fails it with `SERVICE_CATEGORY_COUNT_CHANGED`. Changes that leave that number the same (one service
+  closed alone and another assigned in) pass both checks, and the job applies to the category's services as they are
+  when it runs (W-4).
 - **Permissions:** no new permission. Accept keeps the close route's pair; the job does not re-check it. The status
   route's permission is SI-Q29 and what the screen shows after a large confirm is SI-Q30, both **PENDING**
   (`owner-questions.ar.md` §31, §32); sub-PR 3 waits for them.

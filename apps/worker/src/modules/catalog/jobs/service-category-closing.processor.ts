@@ -78,6 +78,32 @@ async function persistFailure(
 }
 
 /**
+ * BullMQ بيفشل المهمة من غير ما المعالج يتنده لما تتجاوز حد التوقف، فصف الطلب بيفضل معلّق.
+ * finishedOn بيتكتب بس لما المهمة تتقفل نهائيًا؛ أي فشل لسه فيه محاولات باقية بيتأجل ومش إنهاء.
+ */
+function isTerminalFailure(job: Job): boolean {
+  return typeof job.finishedOn === 'number';
+}
+
+/**
+ * يكتب رمز الفشل على صف الطلب اللي BullMQ قفله من غير ما المعالج يشتغل.
+ * `fail` بيكتب بس على صف لسه pending، فالصف اللي المعالج خلّصه ما بيتغيرش.
+ */
+async function persistTerminalFailure(useCase: RunServiceCategoryClosing, job: Job): Promise<void> {
+  const parsed = serviceCategoryClosingJob.safeParse(job.data);
+  if (!parsed.success) return;
+  try {
+    await useCase.fail(
+      parsed.data.companyId,
+      parsed.data.closingId,
+      'SERVICE_CATEGORY_CLOSING_FAILED',
+    );
+  } catch {
+    // الموعد النهائي بيخلي الصف المعلّق ما يفضلش قفل التصنيف، فرفض الكتابة هنا مش بيوقف العامل.
+  }
+}
+
+/**
  * يشغّل طابور قفل وفتح التصنيفات الكبيرة: يسلّم الحدث للطابور، ويشغّل الصف تحته.
  *
  * @param useCase  حالة الاستخدام اللي تشغيل الطلب وكتابة نتيجته
@@ -102,6 +128,10 @@ export function startServiceCategoryClosingProcessor(
     prefix,
   });
   worker.on('error', () => undefined);
+  worker.on('failed', (job) => {
+    if (job == null || !isTerminalFailure(job)) return;
+    void persistTerminalFailure(useCase, job).catch(() => undefined);
+  });
   return {
     deliver: (event: ClaimedEvent) => deliverClosing(queue, useCase, event),
     ready: () => worker.waitUntilReady().then(() => undefined),

@@ -154,24 +154,25 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
   return { promise, resolve };
 }
 
+/** قفل ممسوك من معاملة تانية؛ الإفراج بيستنى المعاملة تخلص. */
+export interface HeldLock {
+  readonly release: () => Promise<void>;
+}
+
 /**
- * يمسك قفل التصنيف من معاملة تانية: الاختبار يعدّل الساعة وهو القفل ماسك، وبعدين يفكه
- * فتبقى المعاملة اللي بتشغّل الطلب واقفة ورا القفل.
+ * يفتح معاملة ويوقفها بعد ما تاخد أقفالها لحد ما الاختبار يفرج عنها،
+ * عشان ترتيب المعاملات المتزاحمة يبقى محدد مش متروك للجدولة.
  */
-async function holdCategoryLock(
-  owner: postgres.Sql,
-  companyId: string,
-  categoryId: string,
-): Promise<{ release: () => Promise<void> }> {
+export async function hold(
+  start: (whileHeld: () => Promise<void>) => Promise<unknown>,
+): Promise<HeldLock> {
   const released = deferred();
   const acquired = deferred();
-  const holder = owner.begin(async (tx) => {
-    await tx`SELECT id FROM service_categories
-      WHERE company_id=${companyId} AND id=${categoryId} FOR UPDATE`;
+  const holder = start(async () => {
     acquired.resolve();
     await released.promise;
   });
-  await acquired.promise;
+  await Promise.race([acquired.promise, holder]);
   let done = false;
   return {
     release: async () => {
@@ -180,6 +181,51 @@ async function holdCategoryLock(
       released.resolve();
       await holder;
     },
+  };
+}
+
+/** يمسك قفل التصنيف من معاملة المالك، فالطلب يقف وراه والاختبار يحرك الساعة. */
+function holdCategoryLock(
+  owner: postgres.Sql,
+  companyId: string,
+  categoryId: string,
+): Promise<HeldLock> {
+  return hold((whileHeld) =>
+    owner.begin(async (tx) => {
+      await tx`SELECT id FROM service_categories
+        WHERE company_id=${companyId} AND id=${categoryId} FOR UPDATE`;
+      await whileHeld();
+    }),
+  );
+}
+
+/** يمسك جدول الـ audit بوضع SHARE، فالطلب يقف عند أول إدخال بعد ما يقفل الخدمات. */
+function holdAuditInserts(owner: postgres.Sql): Promise<HeldLock> {
+  return hold((whileHeld) =>
+    owner.begin(async (tx) => {
+      await tx`LOCK TABLE audit_log IN SHARE MODE`;
+      await whileHeld();
+    }),
+  );
+}
+
+/** يستنى لحد ما عدد المعاملات الواقفة على قفل يوصل للمطلوب، عشان الترتيب يتأكد قبل الإفراج. */
+async function waitForLockWaiters(owner: postgres.Sql, count: number): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const [row] = await owner`SELECT count(*)::int AS waiting FROM pg_stat_activity
+      WHERE datname=current_database() AND wait_event_type='Lock'`;
+    if ((row?.['waiting'] as number) >= count) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error(`expected ${count} lock waiters`);
+}
+
+/** أدوات الأقفال المربوطة بقاعدة الاختبار، عشان المواصفات تحدد ترتيب المعاملات. */
+function lockHelpers(owner: postgres.Sql, companyId: string) {
+  return {
+    holdCategoryLock: (categoryId: string) => holdCategoryLock(owner, companyId, categoryId),
+    holdAuditInserts: () => holdAuditInserts(owner),
+    waitForLockWaiters: (count: number) => waitForLockWaiters(owner, count),
   };
 }
 
@@ -214,7 +260,7 @@ export async function serviceCategoryClosingFixture() {
     userId: USER,
     clock: { now: () => NOW },
     useCaseWithClock: (clock: MutableClock) => new RunServiceCategoryClosing(transactions, clock),
-    holdCategoryLock: (categoryId: string) => holdCategoryLock(owner, context.company, categoryId),
+    ...lockHelpers(owner, context.company),
     category: (input: CategoryInput = {}) => seedCategory(context, input),
     closing: (category: SeededCategory, input: ClosingInput) =>
       seedClosing(context, category, input),

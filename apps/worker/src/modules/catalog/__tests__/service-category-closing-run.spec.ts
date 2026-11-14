@@ -196,6 +196,7 @@ it('fails a job whose deadline passes while the category lock is held', async ()
   const lock = await f.holdCategoryLock(category.categoryId);
 
   const running = useCase.execute(f.company, closingId);
+  await f.waitForLockWaiters(1);
   const afterDeadline = new Date('2026-11-14T10:15:00.001Z');
   clock.set(afterDeadline);
   await lock.release();

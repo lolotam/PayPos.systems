@@ -17,6 +17,7 @@ const state = vi.hoisted(() => ({
     waitUntilReady: ReturnType<typeof vi.fn>;
     close: ReturnType<typeof vi.fn>;
   }[],
+  failed: [] as ((job: never) => void)[],
 }));
 
 vi.mock('bullmq', () => ({
@@ -31,7 +32,9 @@ vi.mock('bullmq', () => ({
   Worker: class {
     waitUntilReady = vi.fn(async () => undefined);
     close = vi.fn(async () => undefined);
-    on = vi.fn();
+    on = vi.fn((event: string, listener: (job: never) => void) => {
+      if (event === 'failed') state.failed.push(listener);
+    });
     constructor(
       readonly name: string,
       readonly handler: (job: never, token?: string) => Promise<unknown>,
@@ -57,6 +60,7 @@ const ids = systemUuidV7();
 beforeEach(() => {
   state.queues.length = 0;
   state.workers.length = 0;
+  state.failed.length = 0;
 });
 
 function event(overrides: Partial<ClaimedEvent> = {}): ClaimedEvent {
@@ -156,6 +160,9 @@ interface TestJob {
   attemptsMade: number;
   stalledCounter: number;
   opts: { attempts: number };
+  /** BullMQ بيكتبه بس لما المهمة تتقفل نهائيًا؛ الفشل اللي فيه محاولات باقية بيفضل فاضي. */
+  finishedOn: number | undefined;
+  failedReason: string | undefined;
   updateProgress: ReturnType<typeof vi.fn>;
   moveToDelayed: ReturnType<typeof vi.fn>;
 }
@@ -168,12 +175,20 @@ function job(): TestJob {
     attemptsMade: 2,
     stalledCounter: 0,
     opts: { attempts: 3 },
+    finishedOn: undefined,
+    failedReason: undefined,
     updateProgress: vi.fn(async (progress: unknown) => {
       value.progress = progress;
     }),
     moveToDelayed: vi.fn(async () => undefined),
   };
   return value;
+}
+
+function failedListener(): (job: never) => void {
+  const listener = state.failed[0];
+  if (listener === undefined) throw new Error('EXPECTED_CLOSING_PROCESSOR_FAILED_LISTENER');
+  return listener;
 }
 
 describe('job handler', () => {
@@ -280,5 +295,45 @@ describe('delayed finalization', () => {
       value.data.closingId,
       'SERVICE_CATEGORY_CLOSING_FAILED',
     );
+  });
+});
+
+describe('terminal job failure', () => {
+  it('writes the failure when the stalled limit closes a job that still has attempts', () => {
+    const { fail } = start();
+    const value = job();
+    value.attemptsMade = 1;
+    value.stalledCounter = 2;
+    value.finishedOn = 1_700_000_000_000;
+    value.failedReason = 'job stalled more than allowable limit';
+    failedListener()(value as never);
+    expect(fail).toHaveBeenCalledWith(
+      value.data.companyId,
+      value.data.closingId,
+      'SERVICE_CATEGORY_CLOSING_FAILED',
+    );
+  });
+
+  it('leaves the request row alone when the failure still has attempts left', () => {
+    const { fail } = start();
+    const value = job();
+    value.attemptsMade = 1;
+    value.stalledCounter = 0;
+    value.finishedOn = undefined;
+    value.failedReason = 'private processing failure';
+    failedListener()(value as never);
+    expect(fail).not.toHaveBeenCalled();
+  });
+
+  it('swallows a rejected failure write instead of throwing into the queue', async () => {
+    const fail = vi.fn(async () => {
+      throw new Error('private persistence failure');
+    });
+    start({ fail });
+    const value = job();
+    value.finishedOn = 1_700_000_000_000;
+    expect(() => failedListener()(value as never)).not.toThrow();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(fail).toHaveBeenCalledTimes(1);
   });
 });
