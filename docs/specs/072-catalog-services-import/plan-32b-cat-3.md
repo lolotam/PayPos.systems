@@ -1,7 +1,7 @@
 # Plan: 32b-cat-3, the admin category screen
 
 Roadmap row `32b-cat-3` («شاشة التصنيفات»), the last category row of [spec 072](spec.md) before the import. It is
-the screen over the API that `32b-cat-1`, `32b-cat-1b`, `32b-cat-2` (#996) and `32b-cat-2-worker` (#1021, #1050)
+the screen over the API that `32b-cat-1`, `32b-cat-1b`, `32b-cat-2` (#996) and `32b-cat-2-worker` (#1021, #1044, #1050)
 merged. **Admin only.** No API change, no migration, no new permission.
 
 ## Prerequisites (checked on `origin/main` 8ca472831)
@@ -65,7 +65,7 @@ files except the page shell and the i18n catalogs.
 | U-3 | **List.** `GET …/service-categories?status=open\|closed\|all&cursor&limit=20`, three tabs, default `open`, cursor paging as on `services-page.tsx`. Each row shows both names, the visibility and a closed mark. It also shows «جاري القفل…» or «جاري الفتح…» while this screen tracks a pending job for that category (U-6). | Spec row part 1. |
 | U-4 | **Create and rename.** One form with both names required, posting `createServiceCategoryInput` and `renameServiceCategoryInput` with `expected_revision`. Visibility is fixed to `BUSINESS` on this page (the private and shared choice is branch context, `3b`). An error shows the envelope message through `envelopeMessage`. `SERVICE_CATEGORY_REVISION_CONFLICT` adds a «إعادة التحميل» action that re-reads the detail. | Spec: both names required; existing form pattern. |
 | U-5 | **The confirmation reads the detail first.** Close and reopen open a confirmation that reads `GET …/{categoryId}` and names the count: `open_service_count` for close, `marked_service_count` for reopen. It then posts `{ expected_revision, expected_service_count }` from that same read. A count of zero is shown and allowed, as the API accepts it. | The count the manager confirms is the count the API checks. |
-| U-6 | **200 against 202.** The mutation reads `response.response.status`. On **200** it shows the done state at once, with `services_closed` or `services_reopened`. On **202** it stores `{ categoryId, closingId, action }` in page state and starts the status read. The status read is `useQuery` on `…/closings/{closingId}`, with `refetchInterval` set to `CLOSING_POLL_MS` (2,000 ms, an exported constant that tests replace) while `status === 'pending'`, and `false` otherwise. The page stays usable while the job runs (SI-Q30). | The 202 body carries no category fields, so only the status code tells the two paths apart. |
+| U-6 | **200 against 202.** The mutation reads `response.response.status`. On **200** it shows the done state at once, with `services_closed` or `services_reopened`. On **202** it stores `{ categoryId, closingId, action }` in page state and starts the status read. The status read is `useQuery` on `…/closings/{closingId}`, with `refetchInterval` set to the hook argument `pollMs` (default 2,000 ms, so a spec passes a small value without mocking the module) while `status === 'pending'`, and `false` otherwise. The page stays usable while the job runs (SI-Q30). | The 202 body carries no category fields, so only the status code tells the two paths apart. |
 | U-7 | **After a reload.** When the detail read returns a non-null `pending_closing_id`, the panel picks the job up and polls it the same way. The list row alone does not know about a job started in another tab or before a reload, because the list item has no `pending_closing_id`. The row learns about it once the category is opened. Adding the field to the list read is an API change and is **not** in this plan (see «Decision for the manager»). | No API change in a UI row. |
 | U-8 | **The states, from one pure function** `closingView(status)` in `src/catalog/model/service-category-closing.ts`. `pending` → «جاري القفل…» or «جاري الفتح…». `completed` → «اتقفل التصنيف و<N> خدمة» or «اتفتح التصنيف و<N> خدمة». `failed` → the `error_code` message from `packages/i18n` plus «حاول تاني». «حاول تاني» re-reads the detail and opens the confirmation again with the fresh count; it never re-sends the old body. | SI-Q30 option 1, word for word. A retry with stale numbers would only fail with the same code. |
 | U-9 | **Refusals of close and reopen (synchronous 409):** `SERVICE_CATEGORY_COUNT_CHANGED` and `SERVICE_CATEGORY_REVISION_CONFLICT` show the message, re-read the detail, and keep the confirmation open with the new count. `SERVICE_CATEGORY_CLOSING_IN_PROGRESS` shows its message and starts polling the running job from `details.closing_id`. `SERVICE_CATEGORY_ALREADY_CLOSED`, `SERVICE_CATEGORY_NOT_CLOSED` and `SERVICE_CATEGORY_NOT_FOUND` show the message and refresh the list. `FORBIDDEN` (403) shows the envelope message; the admin hides no button by permission today, and the server decides (same as the package-type screen). | Spec: «the screen reloads the count and asks again». The job already running is the answer the manager wants. |
@@ -83,14 +83,14 @@ files except the page shell and the i18n catalogs.
 | Pure model | `model/service-category-closing.ts` (`closingView`, poll rule) | ~45 |
 | Page and UI | `pages/service-categories-page.tsx`, `ui/service-categories-table.tsx`, `ui/service-category-row.tsx`, `ui/service-category-status-tabs.tsx`, `ui/service-category-form.tsx`, `ui/service-category-panel.tsx`, `ui/service-category-closing-confirm.tsx`, `ui/service-category-closing-notice.tsx`, closed mark in `ui/service-table-row.tsx` | ~460 |
 | Copy (ar and en) | `packages/i18n/src/catalog-service-categories.ts` (+ screen keys) | ~110 |
-| **Production total** | | **~850 to 910** |
+| **Production total** | | **~910** |
 | Tests (not counted) | hook specs (200 and 202 branch, polling with fake timers, stop on terminal and on 404), `closingView` unit spec, page and panel specs | ~500 |
 
 No file goes over 300 lines, and no function goes over 60 lines.
 
 ## Tests (visible outcomes, PP-7.2)
 
-- The 202 path with an injected `CLOSING_POLL_MS`:
+- The 202 path with a small `pollMs` and fake timers:
   - the row and the panel show «جاري القفل…» while the status is `pending`;
   - after the next poll returns `completed` with 450, the screen shows «اتقفل التصنيف و450 خدمة», and the row shows
     the closed mark;
@@ -110,8 +110,9 @@ No file goes over 300 lines, and no function goes over 60 lines.
 
 ## Delivery (PP-186 lanes, fences as in 32b-cat-2-worker)
 
-- **Implementation:** Kimi `k3.1-pro` CLI through the relay, behind the env-stash fence (HEAD, stash and status are
-  checked before and after). PP-112 fallback: MiniMax, then Grok.
+- **Implementation (PP-186):** Kimi K3.1 Pro CLI through the relay, behind the env-stash fence (HEAD, stash and
+  status are checked before and after). Grok 4.7 build-fast and MiniMax-M3.1-Flash are equal implementers: two
+  availability failures move the work to one of them (PP-112), and a weak delivery stays on the same lane for its fix.
 - **Tests:** Agy `gemini-3.8-flash-high`, in a separate brief on the same contracts.
 - **Briefs:** each under 400 lines; a delivery over twice the brief's size is refused.
 - **Claude:** reviews the diff, runs `clean-code-guard`, `test-guard` and `docs-guard`, then runs the local gates:
@@ -121,9 +122,14 @@ No file goes over 300 lines, and no function goes over 60 lines.
 
 ## Decision for the manager
 
-1. **Split:** `32b-cat-3a` (this plan, ~850 to 910 production lines) now, and `32b-cat-3b` (single-service close and
-   reopen plus the branch context, about 500 to 600) as a new roadmap row after it. The alternative, the whole spec row
-   in one PR, is about 1,400 lines, over PP-192.
+1. **Split:** `32b-cat-3a` (this plan, about 910 production lines, at the top of the PP-192 band) now, and
+   `32b-cat-3b` (single-service close and reopen plus the branch context, about 500 to 600) as a new roadmap row after
+   it. The whole spec row in one PR would be about 1,400 lines, over PP-192.
+   - **Lever:** moving create and rename (the form, the save hook and their copy, about 180 to 200 lines) to `3b` puts
+     `3a` near 700 and keeps it to what the coordinator named: closed states, polling and refusals. `3b` then grows
+     to about 700 to 800.
+   - **Follow-ups once the split is chosen:** the `3a` PR amends the `32b-cat-3` row of `spec.md` into `3a` and `3b`,
+     and the roadmap gains a `32b-cat-3b` row.
 2. **Optional API gap (not in this plan):** add `pending_closing_id` to the category list item, so a row shows
    «جاري القفل…» after a reload without opening the category. It is about 20 API lines plus tests and is a
    `32b-cat-2-worker` follow-up. The recommendation is to skip it: the detail read already covers the reload case.
