@@ -130,7 +130,10 @@ describe('reading the list', () => {
       .replace('{hours}', '3')
       .replace('{minutes}', '20');
     expect(screen.getByText(timeLeft)).not.toBeNull();
+    expect(screen.getByText(t('ar', 'deviceDiscountApproval.percentLabel'))).not.toBeNull();
+    expect(screen.getByText(t('ar', 'deviceDiscountApproval.timeLeftLabel'))).not.toBeNull();
     expect(document.body.textContent).not.toMatch(/\+?\d{8,}/);
+    expect(document.body.textContent).not.toMatch(/\{\w+\}/);
   });
 
   it('shows the empty message when the proposal list is empty', async () => {

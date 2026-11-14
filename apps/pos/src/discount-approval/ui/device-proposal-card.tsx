@@ -19,7 +19,7 @@ function useProposalFields(proposal: DeviceProposal, now: Date) {
     ['discount', `${proposal.discount} ${currency}`],
     ['net', `${proposal.net} ${currency}`],
     [
-      'percent',
+      'percentLabel',
       t(locale, 'deviceDiscountApproval.percent').replace(
         '{value}',
         percentText(proposal.effective_bps),
@@ -30,7 +30,7 @@ function useProposalFields(proposal: DeviceProposal, now: Date) {
       localName(locale, proposal.requester_first_name_ar, proposal.requester_first_name_en),
     ],
     ['customer', proposal.customer_first_name],
-    ['timeLeft', timeLeft],
+    ['timeLeftLabel', timeLeft],
   ] as const;
 }
 
