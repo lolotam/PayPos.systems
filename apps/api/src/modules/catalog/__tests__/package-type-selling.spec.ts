@@ -235,6 +235,18 @@ it(
   },
 );
 
+const waitForPackageTypeLockWaiter = async () => {
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    const [row] = await f.h.owner`SELECT count(*)::int AS n FROM pg_stat_activity
+      WHERE wait_event_type = 'Lock' AND query ILIKE '%package_types%'
+        AND query ILIKE '%FOR UPDATE%'`;
+    if ((row?.['n'] as number) >= 1) return true;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return false;
+};
+
 it(
   'ST-03b serializes with catalog sale reader FOR SHARE so stop waits for sale commit',
   async () => {
@@ -266,26 +278,15 @@ it(
       return res;
     });
 
-    const deadline = Date.now() + 5000;
-    let locked = false;
-    while (Date.now() < deadline) {
-      const [row] = await f.h.owner`
-        SELECT count(*)::int AS n FROM pg_stat_activity
-        WHERE wait_event_type = 'Lock'
-          AND query ILIKE '%package_types%'
-          AND query ILIKE '%FOR UPDATE%'
-      `;
-      if ((row?.['n'] as number) >= 1) {
-        locked = true;
-        break;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 25));
+    try {
+      const locked = await waitForPackageTypeLockWaiter();
+      expect(locked).toBe(true);
+      expect(stopCompleted).toBe(false);
+    } finally {
+      releaseSale();
+      await saleTransaction;
+      await stopPromise.catch(() => undefined);
     }
-    expect(locked).toBe(true);
-    expect(stopCompleted).toBe(false);
-
-    releaseSale();
-    await saleTransaction;
 
     const stopResponse = await stopPromise;
     expect(stopResponse.status).toBe(200);
