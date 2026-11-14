@@ -84,3 +84,55 @@ Kimi CLI `k3.1-pro` for production code and tests, MiniMax-M3.1-Flash (opencode)
    at 5,000); the same `FOR NO KEY UPDATE` as #996, so foreign-key inserts are not blocked.
 4. **PP-165 baselines** compare new code with the unchanged sync path; the manager confirms the two pairs above.
 5. **`32b-3`** creates the same worker `catalog` module; the second to land rebases.
+
+## Sub-PR 3 work plan (2026-11-14, on `origin/main` 2be6da3b8)
+
+Sub-PR 1 (#1021) and sub-PR 2 (#1044, the dormant worker job) are merged. Sub-PR 3 makes the API emit the job; until
+it merges, #996 stays out of production (#1012). Three owner questions are open: SI-Q29 (who may read a job's status),
+SI-Q30 (what the screen shows; the API supports both answers) and SI-Q31 (W-4, count-neutral changes; option 1 is the
+current behaviour). Only the status route's guard waits for SI-Q29; nothing else in this list depends on an answer.
+
+### Steps, in order (contract → domain → persistence → use case → http → tests)
+
+| # | Change | Files | Code lines |
+|---|---|---|---|
+| 1 | Contracts: the 202 body `{ closing_id, status: 'pending' }`; the status response (W-9 shape, `status` and `error_code` from `SERVICE_CATEGORY_CLOSING_FAILURE_CODES`); `pending_closing_id` (nullable) on the category detail; the error `SERVICE_CATEGORY_CLOSING_IN_PROGRESS` with `details: { closing_id }`; OpenAPI entries (200 and 202 on close and reopen, the status route) | `packages/contracts/src/catalog/service-category-closing.ts`, `service-category.ts`, `catalog-openapi.ts` | 70 |
+| 2 | Domain: `SERVICE_CATEGORY_SYNC_CLOSING_LIMIT = 300` and `serviceCategoryClosingPath(count)` → `sync` / `job`; the replay rule (identical action, revision and count → same job, otherwise in progress) and the deadline rule, as pure functions with Arabic JSDoc | `apps/api/src/modules/catalog/domain/service-category-closing-path.ts`, `domain/errors.ts` | 60 |
+| 3 | Port and persistence: `countAffectedServices` (index `services_business_category_idx`, before any service lock), `findPendingClosing` (partial unique index), `expireClosing`, `createClosing` and the outbox row `ServiceCategoryClosingRequested` in the same transaction (precedent `orders/persistence/package-import-request.transactions.ts`) | `ports/service-category-transactions.port.ts`, `persistence/drizzle-service-category-transactions.ts` (or a new `persistence/drizzle-service-category-closing-request.ts` if the file passes 300 lines) | 120 |
+| 4 | Use cases: close and reopen lock the category, check revision and state, count, then take the sync path unchanged at 300 or fewer, or the job path above (W-1, W-2, W-3). The result becomes a union `{ kind: 'done', … } | { kind: 'pending', closing_id }` | `use-cases/close-service-category/`, `use-cases/reopen-service-category/`, one shared helper in `use-cases/` for the pending lookup if both need it | 80 |
+| 5 | HTTP: dynamic 200 / 202 through `@Res({ passthrough: true })` (precedent `companies.controller.ts`); the 409 mapping in `shared/catalog-service-error-statuses.ts`; the status route `GET …/service-categories/{categoryId}/closings/{closingId}` with its guard **left for SI-Q29** | `http/service-categories.controller.ts` (196 lines; a new `http/service-category-closings.controller.ts` for the status route keeps it under 300) | 70 |
+| 6 | Read path: the status query (a pending row past its deadline is projected as `failed` / `SERVICE_CATEGORY_CLOSING_EXPIRED`) and `pending_closing_id` on the detail query | `queries/service-category-closing.query.ts`, `queries/service-category-detail.query.ts` | 60 |
+| 7 | Event and wiring: `events/published.ts` (new in this module, Arabic one-liner), `catalog.module.ts` bindings, module-map rows if the API differs from #1027 | `events/published.ts`, `catalog.module.ts`, `docs/module-map.md` | 30 |
+| 8 | i18n ar/en for `SERVICE_CATEGORY_CLOSING_IN_PROGRESS` and the six failure codes shown by the screen; regenerated clients (`pnpm contracts:openapi`, not counted) | `packages/i18n/src/catalog-service-categories.ts` | 20 |
+
+Total about **510 code lines** (refuse above 1,020), close to the ~480 estimated in the split table.
+
+### Tests (about 600 lines)
+
+- Domain unit: the path at 299, 300, 301; the replay rule (identical, different action, different revision, different
+  count); the deadline at, before and after `deadline_at`.
+- Integration on the lane: 300 → 200 sync and the #996 specs unchanged; 301 → 202, one pending row, one outbox event,
+  no service or category changed; identical replay → same `closing_id`, no second row or event; a different request →
+  409 `SERVICE_CATEGORY_CLOSING_IN_PROGRESS` with `closing_id`; an expired pending row is marked expired and no longer
+  blocks; a count mismatch stays the synchronous 409; another tenant's category or `closingId` → 404.
+- Queries: status shape for pending, completed, failed and the expired projection, `EXPLAIN ANALYZE` on the primary
+  key; detail `pending_closing_id` set and null.
+- End to end on the lane: accept at 301, the worker job runs, the status read shows `completed` with
+  `services_changed` (the worker and API are both merged now).
+- Perf (PP-165): accept at 301 ≤ 2× the unchanged sync close at 300 in the same run, + 5 ms (risk 4, the manager
+  confirms the pair).
+- Route coverage and permission tests for close and reopen as today; the status route's permission test waits for
+  SI-Q29.
+
+### Held until the owner answers
+
+- **SI-Q29:** the status route's `@Require…` decorator and its permission test (recommended: the close route's pair).
+  Everything else on the route (query, shape, 404 for another tenant) is built now.
+- **SI-Q30:** nothing in the API.
+- **SI-Q31 (W-4):** option 1 needs nothing. Option 2 would add a migration (the service ids fixed at accept) and a guard
+  in the worker job; that would be a separate migration PR, not this one.
+
+### Implementer
+
+Per PP-186 and PP-112 (as sub-PR 2): MiniMax-M3.1-Flash (opencode) for code and tests, Kimi CLI `k3.1-pro` if its
+quota is back; every run fenced as above. One brief, dispatched only after the manager's go.
