@@ -48,7 +48,7 @@ const namedRefusals = [
   {
     name: 'PackageRuleError',
     error: new PackageRuleError('INVALID_COMPONENTS'),
-    code: 'INVALID_COMPONENTS',
+    code: 'PACKAGE_TYPE_INVALID_COMPONENTS',
     details: undefined,
   },
 ];
@@ -60,6 +60,25 @@ it.each(namedRefusals)(
     await h.useCase.execute('company', 'request');
     expect(h.failures).toEqual([{ code, details, at: CLOCK_INSTANT }]);
     expect(h.plans).toEqual([]);
+  },
+);
+
+const mappedRuleErrors = [
+  ['INVALID_PRICE', 'PACKAGE_TYPE_PRICE_INVALID'],
+  ['INVALID_COMPONENTS', 'PACKAGE_TYPE_INVALID_COMPONENTS'],
+  ['DUPLICATE_SERVICE', 'PACKAGE_TYPE_DUPLICATE_SERVICE'],
+  ['INVALID_SESSIONS', 'PACKAGE_TYPE_INVALID_SESSIONS'],
+  ['INVALID_SLOTS', 'PACKAGE_TYPE_INVALID_SESSIONS'],
+  ['INVALID_DATE', 'PACKAGE_TYPE_VALIDITY_INVALID'],
+] as const;
+
+it.each(mappedRuleErrors)(
+  'maps rule error %s to public code %s and never stores the raw code',
+  async (rawCode, publicCode) => {
+    const h = createHarness({ scopeError: new PackageRuleError(rawCode) });
+    await h.useCase.execute('company', 'request');
+    expect(h.failures).toEqual([{ code: publicCode, details: undefined, at: CLOCK_INSTANT }]);
+    expect(h.failures[0]?.code).not.toBe(rawCode);
   },
 );
 
@@ -88,6 +107,26 @@ it.each(unknownFailures)('retries %s without failing the request', async (_name,
   expect(h.failures).toEqual([]);
   expect(h.calls).toEqual([]);
 });
+
+const unmappedInternalErrors: [string, Error][] = [
+  ['INVALID_REMAINING_SESSIONS', new PackageRuleError('INVALID_REMAINING_SESSIONS')],
+  ['PACKAGE_EXPIRED', new PackageRuleError('PACKAGE_EXPIRED')],
+  ['PACKAGE_EXTENSION_NOT_LATER', new PackageRuleError('PACKAGE_EXTENSION_NOT_LATER')],
+  ['PACKAGE_EXTENSION_TOO_LONG', new PackageRuleError('PACKAGE_EXTENSION_TOO_LONG')],
+  ['INSUFFICIENT_SLOTS', new PackageRuleError('INSUFFICIENT_SLOTS')],
+  ['INVALID_LIMIT', new PackageSalePricingError('INVALID_LIMIT')],
+];
+
+it.each(unmappedInternalErrors)(
+  'retries internal error %s without failing the request',
+  async (_name, error) => {
+    const h = createHarness({ scopeError: error });
+    const thrown = await h.useCase.execute('company', 'request').catch((reason: unknown) => reason);
+    expect(thrown).toBeInstanceOf(PackageSaleRetryError);
+    expect(thrown).toMatchObject({ failureCode: undefined });
+    expect(h.failures).toEqual([]);
+  },
+);
 
 it('refuses a discount above the limit frozen in the request', async () => {
   const h = createHarness({ request: { price_paid: '21.000', discount_limit_bps: 1000 } });
