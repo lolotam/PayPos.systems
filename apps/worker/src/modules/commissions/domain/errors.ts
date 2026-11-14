@@ -18,6 +18,23 @@ export class CommissionLineEventInvalidError extends Error {
   }
 }
 
+/** خطة العمولة المخزّنة مشوهة؛ رفض فكّها يمنع تحويل إعداد مالي مجهول إلى تصحيح بقيمة صفرية. */
+export class CommissionPlanDecodeError extends Error {
+  readonly code = 'COMMISSION_PLAN_DECODE_INVALID';
+  readonly fieldPath: string;
+
+  /**
+   * يحتفظ بمسار الحقل المعطوب فقط، لأن محتوى الخطة قد يكشف إعدادات مالية لا تدخل في رسالة الخطأ.
+   *
+   * @param fieldPath مسار الحقل الذي منع فكّ الخطة بأمان
+   */
+  constructor(fieldPath: string) {
+    super(`Invalid commission plan at: ${fieldPath}`);
+    this.name = 'CommissionPlanDecodeError';
+    this.fieldPath = fieldPath;
+  }
+}
+
 /** النشاط غير موجود عند قراءة منطقته الزمنية؛ إيقاف الإسقاط يمنع إنشاء شهور لنشاط مجهول. */
 export class CommissionBusinessMissingError extends Error {
   readonly code = 'COMMISSION_BUSINESS_MISSING';
