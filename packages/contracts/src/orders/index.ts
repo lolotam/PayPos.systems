@@ -1,6 +1,7 @@
 export * from './service-session.js';
 export * from './session-tips.js';
 export * from './package-sale.js';
+export * from './package-sale-refusal.js';
 export * from './customer-packages.js';
 export * from './recording-context.js';
 export * from './service-session-options.js';

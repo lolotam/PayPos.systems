@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { packageSaleChanged, sellPackageInput, sellPackageResponse } from './package-sale.js';
+import { acceptedPackageSale, packageSaleChanged, sellPackageInput } from './package-sale.js';
 
 const customer = '01920000-0000-7000-8000-000000004001';
 const packageType = '01920000-0000-7000-8000-000000004002';
@@ -87,6 +87,8 @@ const longQuote = Array.from({ length: 21 }, (_, index) => ({
 }));
 
 it.each([
+  ['a bank transfer payment method (SA-06)', { paid_method: 'BANK_TRANSFER' }],
+  ['a missing payment method (SA-06)', { paid_method: undefined }],
   ['a payment method outside cash and card', { paid_method: 'TRANSFER' }],
   ['a price with fewer than three decimals', { price_paid: '10.5' }],
   ['a price sent as a number', { price_paid: 10.5 }],
@@ -106,9 +108,30 @@ it.each([
       ],
     },
   ],
+  ['an expected_type_revision exceeding 2147483647', { expected_type_revision: 2147483648 }],
+  [
+    'a service revision exceeding 2147483647',
+    { expected_service_revisions: [{ service_id: service, revision: 2147483648 }] },
+  ],
+  ['a sold_at timestamp in year zero', { sold_at: '0000-01-01T00:00:00Z' }],
+  ['a sold_at timestamp rolling over to year 10000', { sold_at: '9999-12-31T23:00:00-01:00' }],
+  ['a sold_at timestamp rolling back to year zero', { sold_at: '0001-01-01T00:30:00+01:00' }],
   ['an unknown key', { note: 'extra' }],
 ])('refuses a sale input with %s', (_scenario, change) => {
   expect(sellPackageInput.safeParse({ ...input, ...change }).success).toBe(false);
+});
+
+it.each([
+  ['expected_type_revision at upper bound', { expected_type_revision: 2147483647 }],
+  [
+    'service revision at upper bound',
+    { expected_service_revisions: [{ service_id: service, revision: 2147483647 }] },
+  ],
+  ['a normal sold_at', { sold_at: '2026-10-17T12:00:00.000Z' }],
+  ['the latest sold_at in year 9999', { sold_at: '9999-12-31T23:59:59.999Z' }],
+  ['the earliest sold_at in year one', { sold_at: '0001-01-01T00:00:00Z' }],
+])('accepts a sale input with %s', (_scenario, change) => {
+  expect(sellPackageInput.safeParse({ ...input, ...change }).success).toBe(true);
 });
 
 it('refuses an unknown key on the sale event', () => {
@@ -121,12 +144,18 @@ it('publishes a sale event that carries the selling branch and the business date
   expect(packageSaleChanged.safeParse({ ...event, schema_version: 2 }).success).toBe(false);
   expect(packageSaleChanged.safeParse(withoutKey(event, 'branch_id')).success).toBe(false);
   expect(packageSaleChanged.safeParse(withoutKey(event, 'business_date')).success).toBe(false);
-  expect(packageSaleChanged.safeParse({ ...event, business_date: '2026-13-45' }).success).toBe(false);
+  expect(packageSaleChanged.safeParse({ ...event, business_date: '2026-13-45' }).success).toBe(
+    false,
+  );
 });
 
-it('returns the entitlement as the sale and refuses an entitlement without components', () => {
-  expect(sellPackageResponse.parse({ entitlement })).toEqual({ entitlement });
+it('parses an accepted package sale and rejects an extra key and a non-uuid', () => {
+  const saleRequestId = '01920000-0000-7000-8000-000000004010';
+  expect(acceptedPackageSale.parse({ sale_request_id: saleRequestId })).toEqual({
+    sale_request_id: saleRequestId,
+  });
   expect(
-    sellPackageResponse.safeParse({ entitlement: { ...entitlement, components: [] } }).success,
+    acceptedPackageSale.safeParse({ sale_request_id: saleRequestId, extra: 'bad' }).success,
   ).toBe(false);
+  expect(acceptedPackageSale.safeParse({ sale_request_id: 'not-a-uuid' }).success).toBe(false);
 });

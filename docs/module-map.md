@@ -141,6 +141,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `orders` | `SessionServiceOptionsReads` (read-side callbacks) | `catalog` | recording-form service names, list prices and revisions only; same-transaction public read under record permission (ADR-0041 35c-3) |
 | `orders` | `SessionPerformerOptionsReads` (read-side callbacks) | `staff` | dated branch eligibility, names and missing-clock/approved-leave booleans only under record permission; staff owns the working day (ADR-0041 35c-4) |
 | `orders` | `SessionPlacePort` | `tenancy` | business timezone and active branch/business relationship (ADR-0041) |
+| `orders` | `PackageSaleRequestTransaction.place` | `tenancy` | `packageSalePlace` proves the requested business owns the authorized branch before the pending sale insert (spec 058, 42-3b2) |
 | worker `orders` | `PackageSaleScope.lockType` | worker `catalog` | `readPackageTypeForSale` locks the type `FOR SHARE`, then `lockSessionServicesForSale` locks component services in ascending id and returns their prices/revisions for the frozen sale quote (ADR-0034 addendum 2026-11-11, spec 058 FR-018b/c) |
 | worker `orders` | `PackageSaleScope.lockSeller`, `PackageSaleScope.readSeller` | worker `staff` | `lockPackageSeller` takes the employee `FOR SHARE` before `readPackageSeller` returns dated branch eligibility and the persisted user link; no attendance warnings or fresh authorization (ADR-0034 addendum 2026-11-11, spec 058 FR-014) |
 | worker `orders` | `PackageSaleScope.customerExists` | worker `customers` | `packageSaleCustomerExists` proves company-scoped customer existence on the sale transaction, with no phone read (ADR-0034 addendum 2026-11-11, spec 058 FR-018) |
@@ -404,6 +405,9 @@ reads:
   - orders -> identity.readOwnServiceSessionsAccess @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
   - orders -> identity.lockPackageExtensionAccess @ apps/api/src/modules/orders/persistence/package-extension.transactions.ts
   - orders -> identity.readPackageExtensionAccess @ apps/api/src/modules/orders/persistence/package-extension.transactions.ts
+  - orders -> identity.lockPackageSaleAccess @ apps/api/src/modules/orders/persistence/package-sale-request.transactions.ts
+  - orders -> identity.readPackageSaleAccess @ apps/api/src/modules/orders/persistence/package-sale-request.transactions.ts
+  - orders -> tenancy.packageSalePlace @ apps/api/src/modules/orders/persistence/package-sale-request.transactions.ts
   - orders -> identity.lockPackageRefundAccess @ apps/api/src/modules/orders/persistence/package-refund.transactions.ts
   - orders -> identity.readPackageRefundAccess @ apps/api/src/modules/orders/persistence/package-refund.transactions.ts
   - orders -> settings.readImportedRefundsEnabled @ apps/api/src/modules/orders/persistence/package-refund.transactions.ts
