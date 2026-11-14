@@ -22,6 +22,8 @@ export const packageSchemaNames = [
   'PackageImportPreviewStatus',
   'PackagePaidMethod',
   'PackageSaleChanged',
+  'PackageSaleRefusalCode',
+  'PackageSaleStatus',
   'PackageServiceOption',
   'PackageServiceOptionPage',
   'PackageServiceRevision',

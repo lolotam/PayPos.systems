@@ -832,6 +832,92 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/branches/{branchId}/package-sales/{saleRequestId}": {
+      "get": {
+        "operationId": "getPackageSaleStatus",
+        "description": "Returns the creator-scoped status of an accepted package sale. Requires sell:packages:branch, the orders feature and an individual admin login. Any other caller, branch or id receives 404 PACKAGE_SALE_REQUEST_NOT_FOUND.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "saleRequestId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pending, completed or failed package sale.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageSaleStatus"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission, DENY, device principal or disabled orders feature.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "PACKAGE_SALE_REQUEST_NOT_FOUND.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual authentication or readiness refusal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/branches/{branchId}/packages/{entitlementId}/refunds": {
       "post": {
         "operationId": "refundPackage",
@@ -33541,6 +33627,103 @@
           "sale_request_id"
         ],
         "additionalProperties": false
+      },
+      "PackageSaleRefusalCode": {
+        "type": "string",
+        "enum": [
+          "PACKAGE_TYPE_NOT_FOUND",
+          "PACKAGE_TYPE_REVISION_CONFLICT",
+          "PACKAGE_TYPE_NOT_SELLABLE",
+          "PACKAGE_SALE_QUOTE_STALE",
+          "PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT",
+          "PACKAGE_SELLER_NOT_ELIGIBLE",
+          "PACKAGE_SELLER_SELF_FORBIDDEN",
+          "PACKAGE_SALE_TOO_OLD",
+          "PACKAGE_SALE_IN_FUTURE",
+          "PACKAGE_SALE_BRANCH_INACTIVE",
+          "PACKAGE_CUSTOMER_NOT_FOUND",
+          "PACKAGE_TYPE_INVALID_COMPONENTS",
+          "PACKAGE_TYPE_DUPLICATE_SERVICE",
+          "PACKAGE_TYPE_INVALID_SESSIONS",
+          "PACKAGE_TYPE_PRICE_INVALID",
+          "PACKAGE_TYPE_VALIDITY_INVALID",
+          "PACKAGE_SALE_FAILED"
+        ]
+      },
+      "PackageSaleStatus": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "completed"
+                ]
+              },
+              "entitlement": {
+                "$ref": "#/components/schemas/SoldPackageEntitlement"
+              }
+            },
+            "required": [
+              "status",
+              "entitlement"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "failed"
+                ]
+              },
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "$ref": "#/components/schemas/PackageSaleRefusalCode"
+                  },
+                  "message_ar": {
+                    "type": "string"
+                  },
+                  "message_en": {
+                    "type": "string"
+                  },
+                  "details": {}
+                },
+                "required": [
+                  "code",
+                  "message_ar",
+                  "message_en"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "status",
+              "error"
+            ],
+            "additionalProperties": false
+          }
+        ]
       },
       "PackageSaleChanged": {
         "type": "object",

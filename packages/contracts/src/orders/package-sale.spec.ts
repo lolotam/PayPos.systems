@@ -1,5 +1,10 @@
 import { expect, it } from 'vitest';
-import { acceptedPackageSale, packageSaleChanged, sellPackageInput } from './package-sale.js';
+import {
+  acceptedPackageSale,
+  packageSaleChanged,
+  packageSaleStatus,
+  sellPackageInput,
+} from './package-sale.js';
 
 const customer = '01920000-0000-7000-8000-000000004001';
 const packageType = '01920000-0000-7000-8000-000000004002';
@@ -158,4 +163,69 @@ it('parses an accepted package sale and rejects an extra key and a non-uuid', ()
     acceptedPackageSale.safeParse({ sale_request_id: saleRequestId, extra: 'bad' }).success,
   ).toBe(false);
   expect(acceptedPackageSale.safeParse({ sale_request_id: 'not-a-uuid' }).success).toBe(false);
+});
+
+it('parses a pending package sale status', () => {
+  expect(packageSaleStatus.parse({ status: 'pending' })).toEqual({ status: 'pending' });
+});
+
+it('parses a completed package sale status with entitlement', () => {
+  expect(packageSaleStatus.parse({ status: 'completed', entitlement })).toEqual({
+    status: 'completed',
+    entitlement,
+  });
+});
+
+it('parses a failed package sale status with or without error details', () => {
+  const withoutDetails = {
+    status: 'failed' as const,
+    error: {
+      code: 'PACKAGE_TYPE_INVALID_COMPONENTS' as const,
+      message_ar: 'مكونات نوع الباقة غير صالحة',
+      message_en: 'Package type components are invalid',
+    },
+  };
+  expect(packageSaleStatus.parse(withoutDetails)).toEqual(withoutDetails);
+
+  const withDetails = {
+    status: 'failed' as const,
+    error: {
+      code: 'PACKAGE_TYPE_INVALID_COMPONENTS' as const,
+      message_ar: 'مكونات نوع الباقة غير صالحة',
+      message_en: 'Package type components are invalid',
+      details: { service_id: service },
+    },
+  };
+  expect(packageSaleStatus.parse(withDetails)).toEqual(withDetails);
+});
+
+it.each([
+  [
+    'an unknown error code',
+    {
+      status: 'failed',
+      error: {
+        code: 'INVALID_COMPONENTS',
+        message_ar: 'خطأ',
+        message_en: 'Error',
+      },
+    },
+  ],
+  ['an unknown status', { status: 'unknown' }],
+  ['an extra key on pending', { status: 'pending', extra: 'bad' }],
+  ['an extra key on completed', { status: 'completed', entitlement, extra: 'bad' }],
+  [
+    'an extra key on failed',
+    {
+      status: 'failed',
+      error: {
+        code: 'PACKAGE_TYPE_INVALID_COMPONENTS',
+        message_ar: 'خطأ',
+        message_en: 'Error',
+      },
+      extra: 'bad',
+    },
+  ],
+])('rejects %s in packageSaleStatus', (_scenario, payload) => {
+  expect(packageSaleStatus.safeParse(payload).success).toBe(false);
 });

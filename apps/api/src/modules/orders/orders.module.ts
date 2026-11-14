@@ -7,6 +7,7 @@ import { createPackageExtensionTransactions } from './persistence/package-extens
 import { PackageSalesController } from './http/package-sales.controller.ts';
 import { AcceptPackageSaleUseCase } from './use-cases/accept-package-sale/accept-package-sale.usecase.ts';
 import { createPackageSaleRequestTransactions } from './persistence/package-sale-request.transactions.ts';
+import { PackageSaleStatusQuery } from './queries/package-sale-status.query.ts';
 import { PackageRefundController } from './http/package-refund.controller.ts';
 import { RefundPackageUseCase } from './use-cases/refund-package/refund-package.usecase.ts';
 import { createPackageRefundTransactions } from './persistence/package-refund.transactions.ts';
@@ -307,6 +308,10 @@ function packageSaleProviders(
             ids,
             clock,
           ),
+    },
+    {
+      provide: PackageSaleStatusQuery,
+      useValue: database === undefined ? null : new PackageSaleStatusQuery(database),
     },
   ];
 }
