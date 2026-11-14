@@ -1,6 +1,6 @@
 import type { Money } from '../money.js';
 
-/** نوع الباقة كما اتقرا تحت أقفال البيع؛ بلا selling_stopped_at لحد ما 33b يضيف العمود (PP-100.1). */
+/** نوع الباقة كما اتقرا تحت أقفال البيع؛ يحمل selling_stopped_at لضبط قبول البيع (PP-100.1). */
 export interface SalePackageType {
   readonly id: string;
   readonly name_en: string;
@@ -8,6 +8,8 @@ export interface SalePackageType {
   readonly price: Money;
   readonly validity_days: number;
   readonly revision: number;
+  /** بيتقرأ تحت قفل النوع FOR SHARE؛ أي قيمة غير null بترفض البيع (FR-018b). */
+  readonly selling_stopped_at: string | null;
   readonly components: readonly SalePackageComponent[];
 }
 

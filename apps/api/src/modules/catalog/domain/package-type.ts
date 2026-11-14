@@ -27,6 +27,8 @@ export interface PackageTypeRecord extends PackageTypeTerms {
   readonly id: string;
   readonly business_id: string;
   readonly revision: number;
+  /** وقت الإيقاف هو مصدر حالة البيع؛ null يعني معروضاً للبيع، وتعديل النوع لا يغيّره. */
+  readonly selling_stopped_at: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -106,12 +108,13 @@ export function packageTypeTerms(
 
 /**
  * يبني النسخة الأولى بوقت ومعرف محقونين ليظل الإنشاء قابلاً للاختبار بدون ساعة النظام.
+ * النوع الجديد يبدأ معروضاً للبيع، ولذلك يكون selling_stopped_at بلا قيمة.
  *
  * @param terms الشروط المتحققة
  * @param id معرف النوع المحقون
  * @param businessId النشاط المالك
  * @param at وقت الإنشاء المحقون
- * @returns سجل النسخة الأولى
+ * @returns سجل النسخة الأولى المعروضة للبيع
  */
 export function newPackageType(
   terms: PackageTypeTerms,
@@ -124,6 +127,7 @@ export function newPackageType(
     id,
     business_id: businessId,
     revision: 1,
+    selling_stopped_at: null,
     created_at: at.toISOString(),
     updated_at: at.toISOString(),
   };
@@ -131,6 +135,7 @@ export function newPackageType(
 
 /**
  * يرفض النسخة القديمة حتى في الطلب الخالي من التغييرات؛ تغيير ترتيب الخدمات تعديل فعلي.
+ * التعديل يحتفظ بـ selling_stopped_at كما هو، ولا يدخل في مقارنة غياب التغيير.
  *
  * @param current السجل المقفول الحالي
  * @param terms الشروط البديلة كاملة
@@ -167,10 +172,10 @@ export function planPackageTypeUpdate(
 }
 
 /**
- * يحفظ تعريف النوع فقط في التدقيق؛ أسعار الخدمات الحالية ليست جزءاً مما اشتراه العميل.
+ * يحفظ تعريف النوع وحالة إيقاف بيعه في التدقيق؛ أسعار الخدمات الحالية ليست جزءاً مما اشتراه العميل.
  *
  * @param record السجل الصافي
- * @returns نسخة JSON بسعر ثلاثي الخانات ومكونات مرتبة
+ * @returns نسخة JSON بسعر ثلاثي الخانات ومكونات مرتبة وselling_stopped_at
  */
 export function packageTypeSnapshot(record: PackageTypeRecord) {
   return {
@@ -182,10 +187,11 @@ export function packageTypeSnapshot(record: PackageTypeRecord) {
 
 /**
  * يتحقق أن كل خدمة قُرئت من نفس النشاط، ثم يضم أسماءها وأسعارها الحالية للعرض فقط.
+ * العرض يحمل selling_stopped_at من اللقطة ليبقى واضحاً بعد الإنشاء والتعديل.
  *
  * @param record سجل النوع
  * @param services الخدمات المقروءة ضمن النشاط والشركة
- * @returns تفاصيل النوع على السلك؛ الخدمة غير المعروفة ترفض التعريف كله
+ * @returns تفاصيل النوع وحالة بيعه على السلك؛ الخدمة غير المعروفة ترفض التعريف كله
  */
 export function packageTypeView(record: PackageTypeRecord, services: readonly PackageService[]) {
   const components = record.components.map((component) => {

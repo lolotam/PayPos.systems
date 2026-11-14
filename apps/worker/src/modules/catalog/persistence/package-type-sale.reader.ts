@@ -8,6 +8,7 @@ type PackageTypeRow = {
   price: string;
   validity_days: number;
   revision: number;
+  selling_stopped_at: Date | null;
 };
 type ComponentRow = { service_id: string; sessions: number; position: number };
 
@@ -19,7 +20,7 @@ export async function readPackageTypeForSale(
 ) {
   // النسخة العاملة من apps/api/src/modules/catalog/persistence/package-type-sale.reader.ts لقفل تعريف البيع (FR-018b).
   const types =
-    await tx.execute<PackageTypeRow>(sql`SELECT id,name_en,name_ar,price::text,validity_days,revision FROM package_types
+    await tx.execute<PackageTypeRow>(sql`SELECT id,name_en,name_ar,price::text,validity_days,revision,selling_stopped_at FROM package_types
     WHERE company_id=${companyId} AND business_id=${businessId} AND id=${packageTypeId} FOR SHARE`);
   const type = types[0];
   if (type === undefined) return null;
@@ -33,6 +34,8 @@ export async function readPackageTypeForSale(
     price: type.price,
     validity_days: type.validity_days,
     revision: type.revision,
+    selling_stopped_at:
+      type.selling_stopped_at === null ? null : new Date(type.selling_stopped_at).toISOString(),
     components: components.map((row) => ({
       service_id: row.service_id,
       sessions: row.sessions,
