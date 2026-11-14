@@ -34,6 +34,7 @@ export const packageSchemaNames = [
   'PackageTypeListItem',
   'PackageTypeListQuery',
   'PackageTypePage',
+  'PackageTypeSellingInput',
   'RequestPackageImportPreviewInput',
   'SellPackageInput',
   'SoldPackageComponent',

@@ -1,4 +1,5 @@
 import { packageTypeSchemas } from './package-type.js';
+import { packageTypeSellingPaths } from './package-type-selling-openapi.js';
 import { packageServiceOptionSchemas } from './package-service-option.js';
 import { serviceCategorySchemas } from './service-category.js';
 import { serviceCategoryClosingSchemas } from './service-category-closing.js';
@@ -279,4 +280,5 @@ export const catalogPaths = {
       },
     },
   },
+  ...packageTypeSellingPaths,
 };

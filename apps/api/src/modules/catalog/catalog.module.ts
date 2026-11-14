@@ -5,6 +5,8 @@ import { ServiceCategoryClosingsController } from './http/service-category-closi
 import { createPackageTypeTransactions } from './persistence/drizzle-package-type-transactions.ts';
 import { createServiceCategoryTransactions } from './persistence/drizzle-service-category-transactions.ts';
 import { CreatePackageTypeUseCase } from './use-cases/create-package-type/create-package-type.usecase.ts';
+import { ResumeSellingPackageTypeUseCase } from './use-cases/resume-selling-package-type/resume-selling-package-type.usecase.ts';
+import { StopSellingPackageTypeUseCase } from './use-cases/stop-selling-package-type/stop-selling-package-type.usecase.ts';
 import { UpdatePackageTypeUseCase } from './use-cases/update-package-type/update-package-type.usecase.ts';
 import { CloseServiceCategoryUseCase } from './use-cases/close-service-category/close-service-category.usecase.ts';
 import { CreateServiceCategoryUseCase } from './use-cases/create-service-category/create-service-category.usecase.ts';
@@ -77,6 +79,15 @@ export function catalogProviders(
     {
       provide: UpdatePackageTypeUseCase,
       useValue: packages === null ? null : new UpdatePackageTypeUseCase(packages, systemClock),
+    },
+    {
+      provide: StopSellingPackageTypeUseCase,
+      useValue: packages === null ? null : new StopSellingPackageTypeUseCase(packages, systemClock),
+    },
+    {
+      provide: ResumeSellingPackageTypeUseCase,
+      useValue:
+        packages === null ? null : new ResumeSellingPackageTypeUseCase(packages, systemClock),
     },
     {
       provide: CreateServiceUseCase,
