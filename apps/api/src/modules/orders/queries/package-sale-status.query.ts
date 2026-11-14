@@ -69,43 +69,24 @@ function soldPackageEntitlementStatement(actor: PackageSaleLookup, entitlementId
     AND e.business_id=${actor.businessId} AND e.id=${entitlementId}`;
 }
 
-export function packageSaleStatusQuery(
-  database: Pick<TenantWrappers, 'withTenant'>,
-  actor: PackageSaleLookup,
-): Promise<PackageSaleStatus> {
-  return database.withTenant(
-    actor.companyId,
-    async (tx) => {
-      const [request] = await tx.execute<{
-        status: 'pending' | 'completed' | 'failed';
-        entitlement_id: string | null;
-        error_code: string | null;
-        error_details: unknown;
-      }>(packageSaleStatusStatement(actor));
-      if (request === undefined) throw new ApiError('PACKAGE_SALE_REQUEST_NOT_FOUND');
-      if (request.status === 'pending') return packageSaleStatus.parse({ status: 'pending' });
-      if (request.status === 'completed') {
-        const [row] = await tx.execute<{ entitlement: unknown }>(
-          soldPackageEntitlementStatement(actor, request.entitlement_id),
-        );
-        return packageSaleStatus.parse({ status: 'completed', entitlement: row?.entitlement });
-      }
-      const storedCode = request.error_code;
-      const code = packageSaleRefusalCode.options.includes(storedCode as PackageSaleRefusalCode)
-        ? (storedCode as PackageSaleRefusalCode)
-        : 'PACKAGE_SALE_FAILED';
-      const details = request.error_details;
-      return packageSaleStatus.parse({
-        status: 'failed',
-        error: {
-          code,
-          ...errorMessages(code),
-          ...(details === null || details === undefined ? {} : { details }),
-        },
-      });
+function isRefusalCode(code: string | null): code is PackageSaleRefusalCode {
+  return packageSaleRefusalCode.safeParse(code).success;
+}
+
+function failedStatus(request: {
+  error_code: string | null;
+  error_details: unknown;
+}): PackageSaleStatus {
+  const code = isRefusalCode(request.error_code) ? request.error_code : 'PACKAGE_SALE_FAILED';
+  const details = request.error_details;
+  return packageSaleStatus.parse({
+    status: 'failed',
+    error: {
+      code,
+      ...errorMessages(code),
+      ...(details === null || details === undefined ? {} : { details }),
     },
-    { userId: actor.userId },
-  );
+  });
 }
 
 // الغلاف ده موجود عشان الـ controller والـ module يقدروا يحقنوا الـ database في استعلام حالة البيع.
@@ -113,6 +94,26 @@ export class PackageSaleStatusQuery {
   constructor(private readonly database: Pick<TenantWrappers, 'withTenant'>) {}
 
   execute(actor: PackageSaleLookup): Promise<PackageSaleStatus> {
-    return packageSaleStatusQuery(this.database, actor);
+    return this.database.withTenant(
+      actor.companyId,
+      async (tx) => {
+        const [request] = await tx.execute<{
+          status: 'pending' | 'completed' | 'failed';
+          entitlement_id: string | null;
+          error_code: string | null;
+          error_details: unknown;
+        }>(packageSaleStatusStatement(actor));
+        if (request === undefined) throw new ApiError('PACKAGE_SALE_REQUEST_NOT_FOUND');
+        if (request.status === 'pending') return packageSaleStatus.parse({ status: 'pending' });
+        if (request.status === 'completed') {
+          const [row] = await tx.execute<{ entitlement: unknown }>(
+            soldPackageEntitlementStatement(actor, request.entitlement_id),
+          );
+          return packageSaleStatus.parse({ status: 'completed', entitlement: row?.entitlement });
+        }
+        return failedStatus(request);
+      },
+      { userId: actor.userId },
+    );
   }
 }

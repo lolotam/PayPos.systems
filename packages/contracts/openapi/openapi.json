@@ -33707,13 +33707,7 @@
                   "message_en": {
                     "type": "string"
                   },
-                  "details": {
-                    "allOf": [
-                      {
-                        "$ref": "#/components/schemas/__shared#/definitions/schema0"
-                      }
-                    ]
-                  }
+                  "details": {}
                 },
                 "required": [
                   "code",
@@ -43513,42 +43507,6 @@
           "revision",
           "refunded_at"
         ]
-      },
-      "__shared": {
-        "definitions": {
-          "schema0": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "number"
-              },
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "string",
-                "nullable": true,
-                "enum": [
-                  null
-                ]
-              },
-              {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/__shared#/definitions/schema0"
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": {
-                  "$ref": "#/components/schemas/__shared#/definitions/schema0"
-                }
-              }
-            ]
-          }
-        }
       }
     },
     "securitySchemes": {

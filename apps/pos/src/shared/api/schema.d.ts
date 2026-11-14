@@ -6533,7 +6533,7 @@ export interface components {
                 code: components["schemas"]["PackageSaleRefusalCode"];
                 message_ar: string;
                 message_en: string;
-                details?: components["schemas"]["__shared"];
+                details?: unknown;
             };
         };
         PackageSaleChanged: {
@@ -8681,7 +8681,6 @@ export interface components {
             /** Format: date-time */
             refunded_at: string;
         };
-        __shared: unknown;
     };
     responses: never;
     parameters: never;

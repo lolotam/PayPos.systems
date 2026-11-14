@@ -98,7 +98,7 @@ const failedPackageSale = z.strictObject({
     code: packageSaleRefusalCode,
     message_ar: z.string(),
     message_en: z.string(),
-    details: z.json().optional(),
+    details: z.unknown().optional(),
   }),
 });
 

@@ -62,18 +62,23 @@ it('returns 200 completed with entitlement and string money fields when finished
   });
   expect(response.status).toBe(200);
   const parsed = packageSaleStatus.parse(response.body);
-  expect(parsed.status).toBe('completed');
-  if (parsed.status === 'completed') {
-    expect(parsed.entitlement.id).toBe(seeded.entitlement);
-    expect(parsed.entitlement.components).toHaveLength(1);
-    expect(parsed.entitlement.components[0]?.id).toBe(seeded.component);
-    expect(typeof parsed.entitlement.list_price).toBe('string');
-    expect(typeof parsed.entitlement.price_paid).toBe('string');
-    expect(typeof parsed.entitlement.discount).toBe('string');
-    expect(typeof parsed.entitlement.refunded_amount).toBe('string');
-    expect(typeof parsed.entitlement.components[0]?.list_price_snapshot).toBe('string');
-    expect(typeof parsed.entitlement.components[0]?.component_value).toBe('string');
-  }
+  expect(parsed).toMatchObject({
+    status: 'completed',
+    entitlement: {
+      id: seeded.entitlement,
+      list_price: expect.any(String),
+      price_paid: expect.any(String),
+      discount: expect.any(String),
+      refunded_amount: expect.any(String),
+      components: [
+        {
+          id: seeded.component,
+          list_price_snapshot: expect.any(String),
+          component_value: expect.any(String),
+        },
+      ],
+    },
+  });
 });
 
 it('returns 200 failed with catalogue error code, non-empty messages and passed-through details', async () => {
@@ -87,13 +92,15 @@ it('returns 200 failed with catalogue error code, non-empty messages and passed-
   });
   expect(response.status).toBe(200);
   const parsed = packageSaleStatus.parse(response.body);
-  expect(parsed.status).toBe('failed');
-  if (parsed.status === 'failed') {
-    expect(parsed.error.code).toBe('PACKAGE_TYPE_INVALID_COMPONENTS');
-    expect(parsed.error.message_ar.length).toBeGreaterThan(0);
-    expect(parsed.error.message_en.length).toBeGreaterThan(0);
-    expect(parsed.error.details).toEqual(details);
-  }
+  expect(parsed).toMatchObject({
+    status: 'failed',
+    error: {
+      code: 'PACKAGE_TYPE_INVALID_COMPONENTS',
+      message_ar: expect.stringMatching(/\S/),
+      message_en: expect.stringMatching(/\S/),
+      details,
+    },
+  });
 });
 
 it('returns code PACKAGE_SALE_FAILED when the stored error code is LEGACY_UNKNOWN and never exposes the raw code', async () => {
@@ -106,12 +113,14 @@ it('returns code PACKAGE_SALE_FAILED when the stored error code is LEGACY_UNKNOW
   });
   expect(response.status).toBe(200);
   const parsed = packageSaleStatus.parse(response.body);
-  expect(parsed.status).toBe('failed');
-  if (parsed.status === 'failed') {
-    expect(parsed.error.code).toBe('PACKAGE_SALE_FAILED');
-    expect(parsed.error.message_ar.length).toBeGreaterThan(0);
-    expect(parsed.error.message_en.length).toBeGreaterThan(0);
-  }
+  expect(parsed).toMatchObject({
+    status: 'failed',
+    error: {
+      code: 'PACKAGE_SALE_FAILED',
+      message_ar: expect.stringMatching(/\S/),
+      message_en: expect.stringMatching(/\S/),
+    },
+  });
   expect(JSON.stringify(response.body)).not.toContain('LEGACY_UNKNOWN');
 });
 
