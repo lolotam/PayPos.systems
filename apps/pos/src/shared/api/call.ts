@@ -2,6 +2,7 @@ export interface ErrorEnvelope {
   code: string;
   message_ar: string;
   message_en: string;
+  details?: unknown;
 }
 
 export type Failure =
@@ -46,8 +47,18 @@ function retryAfterSeconds(response: Response): number | undefined {
 
 function readEnvelope(value: unknown): ErrorEnvelope | null {
   if (typeof value !== 'object' || value === null) return null;
-  const body = value as { code?: unknown; message_ar?: unknown; message_en?: unknown };
+  const body = value as {
+    code?: unknown;
+    message_ar?: unknown;
+    message_en?: unknown;
+    details?: unknown;
+  };
   if (typeof body.code !== 'string') return null;
   if (typeof body.message_ar !== 'string' || typeof body.message_en !== 'string') return null;
-  return { code: body.code, message_ar: body.message_ar, message_en: body.message_en };
+  return {
+    code: body.code,
+    message_ar: body.message_ar,
+    message_en: body.message_en,
+    ...('details' in body && body.details !== undefined ? { details: body.details } : {}),
+  };
 }
