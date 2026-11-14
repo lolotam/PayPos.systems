@@ -1,6 +1,6 @@
 import { t, type Locale } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import { failureText } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -24,17 +24,28 @@ function useProposalSelection(
   items: DeviceProposal[],
   outcome: PinDecisionOutcome | null,
   clear: () => void,
+  operatorKey: string,
 ) {
-  const [requestedId, setRequestedId] = useState<string | null>(null);
-  const exists = requestedId !== null && items.some((proposal) => proposal.id === requestedId);
-  const selectedId = outcome?.kind === 'done' || !exists ? null : requestedId;
+  const [requested, setRequested] = useState<{ id: string; operatorKey: string } | null>(null);
+  const clearOutcome = useRef(clear);
+  useEffect(() => {
+    clearOutcome.current = clear;
+  }, [clear]);
+  useEffect(() => {
+    clearOutcome.current();
+  }, [operatorKey]);
+  const exists = requested !== null && items.some((proposal) => proposal.id === requested.id);
+  const selectedId =
+    outcome?.kind === 'done' || !exists || requested.operatorKey !== operatorKey
+      ? null
+      : requested.id;
   const choose = (id: string) => {
     clear();
-    setRequestedId(id);
+    setRequested({ id, operatorKey });
   };
   const cancel = () => {
     clear();
-    setRequestedId(null);
+    setRequested(null);
   };
   return { selectedId, choose, cancel };
 }
@@ -98,9 +109,11 @@ function outcomeNotice(
 
 export function DeviceDiscountApprovals({
   branchId,
+  operatorKey = '0:none',
   onRejected,
 }: {
   branchId: string;
+  operatorKey?: string;
   onRejected: () => Promise<void>;
 }) {
   const locale = useLocale();
@@ -109,7 +122,8 @@ export function DeviceDiscountApprovals({
   const list = useDeviceDiscountProposals(branchId, onRejected);
   const controller = usePinDecision(branchId);
   const { outcome, decision, clear } = controller;
-  const { selectedId, choose, cancel } = useProposalSelection(list.items, outcome, clear);
+  const selection = useProposalSelection(list.items, outcome, clear, operatorKey);
+  const { selectedId, choose, cancel } = selection;
   return (
     <section aria-labelledby={titleId} className="grid gap-4">
       <div>
@@ -121,7 +135,7 @@ export function DeviceDiscountApprovals({
       {listNotice(list, locale) ?? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {list.items.map((proposal) => (
-            <div key={proposal.id}>
+            <div key={proposal.id} className="flex flex-col">
               <DeviceProposalCard
                 proposal={proposal}
                 now={now}
@@ -131,7 +145,7 @@ export function DeviceDiscountApprovals({
               />
               {selectedId === proposal.id ? (
                 <PinDecisionForm
-                  key={proposal.id}
+                  key={`${proposal.id}:${operatorKey}`}
                   proposal={proposal}
                   controller={controller}
                   onCancel={cancel}

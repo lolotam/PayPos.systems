@@ -6,6 +6,22 @@ import { CardClockAvailability } from '@/attendance/ui/card-clock-availability';
 import { DeviceDiscountApprovals } from '@/discount-approval/ui/device-discount-approvals';
 import { useEffect, useRef, useState } from 'react';
 
+function renderDeviceDiscountApprovals(
+  branchId: string,
+  operatorKey: string,
+  onRejected: () => Promise<void>,
+) {
+  return (
+    <div className="lg:col-span-2">
+      <DeviceDiscountApprovals
+        branchId={branchId}
+        operatorKey={operatorKey}
+        onRejected={onRejected}
+      />
+    </div>
+  );
+}
+
 export function ReceptionBody({
   branchId,
   deviceId,
@@ -22,6 +38,7 @@ export function ReceptionBody({
   const operator = useStaffLogin();
   const [branchZone, setBranchZone] = useState<{ id: string; timezone: string } | null>(null);
   const session = operator.authenticatedSession;
+  const operatorKey = `${operator.epoch}:${session?.user_id ?? 'none'}`;
   const mismatch =
     session !== null &&
     (!deviceId || session.branch_id !== branchId || session.device_id !== deviceId);
@@ -59,9 +76,7 @@ export function ReceptionBody({
         signedIn={operator.authenticatedSession !== null}
         retry={retry}
       />
-      <div className="lg:col-span-2">
-        <DeviceDiscountApprovals branchId={branchId} onRejected={retry} />
-      </div>
+      {renderDeviceDiscountApprovals(branchId, operatorKey, retry)}
     </div>
   );
 }

@@ -54,19 +54,43 @@ const secondPageFixture: DeviceProposal = {
   service_name_en: 'Oil Bath',
 };
 
-function display(onRejected = vi.fn().mockResolvedValue(undefined)) {
+function renderTree(client: QueryClient, operatorKey: string, onRejected: () => Promise<void>) {
+  return (
+    <QueryClientProvider client={client}>
+      <DirectionProvider dir="rtl">
+        <LocaleProvider locale="ar" setLocale={() => undefined}>
+          <DeviceDiscountApprovals
+            branchId={branchId}
+            operatorKey={operatorKey}
+            onRejected={onRejected}
+          />
+        </LocaleProvider>
+      </DirectionProvider>
+    </QueryClientProvider>
+  );
+}
+
+function display(
+  operatorKeyOrOnRejected: string | (() => Promise<void>) = '0:op-a',
+  maybeOnRejected = vi.fn().mockResolvedValue(undefined),
+) {
+  const onRejected =
+    typeof operatorKeyOrOnRejected === 'function'
+      ? operatorKeyOrOnRejected
+      : maybeOnRejected;
+  const initialKey =
+    typeof operatorKeyOrOnRejected === 'string'
+      ? operatorKeyOrOnRejected
+      : '0:op-a';
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const view = render(renderTree(client, initialKey, onRejected));
+  const setOperator = (key: string) => {
+    view.rerender(renderTree(client, key, onRejected));
+  };
   return {
     onRejected,
-    ...render(
-      <QueryClientProvider client={client}>
-        <DirectionProvider dir="rtl">
-          <LocaleProvider locale="ar" setLocale={() => undefined}>
-            <DeviceDiscountApprovals branchId={branchId} onRejected={onRejected} />
-          </LocaleProvider>
-        </DirectionProvider>
-      </QueryClientProvider>,
-    ),
+    setOperator,
+    ...view,
   };
 }
 
@@ -383,5 +407,24 @@ describe('review round 1', () => {
       pin: '1234',
       reason: 'too high',
     });
+  });
+});
+
+describe('operator change', () => {
+  it('clears the half-typed decision form and reopens empty when operator changes', async () => {
+    const { setOperator } = display();
+    await chooseAndFill('+96550000001', '1234');
+    setOperator('1:none');
+
+    expect(screen.queryByLabelText(t('ar', 'deviceDiscountApproval.phone'))).toBeNull();
+    expect(screen.queryByLabelText(t('ar', 'deviceDiscountApproval.pin'))).toBeNull();
+    expect(screen.getByRole('heading', { level: 3, name: 'Dye AR' })).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: t('ar', 'deviceDiscountApproval.choose') }));
+    const phoneInput = screen.getByLabelText(t('ar', 'deviceDiscountApproval.phone'));
+    const pinInput = screen.getByLabelText(t('ar', 'deviceDiscountApproval.pin'));
+    expect((phoneInput as HTMLInputElement).value).toBe('');
+    expect((pinInput as HTMLInputElement).value).toBe('');
+    expect(calls.decide).not.toHaveBeenCalled();
   });
 });

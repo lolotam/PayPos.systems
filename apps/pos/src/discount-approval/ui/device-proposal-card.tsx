@@ -50,7 +50,7 @@ export function DeviceProposalCard({
   const locale = useLocale();
   const fields = useProposalFields(proposal, now);
   return (
-    <Card className="flex h-full flex-col gap-4 p-4">
+    <Card className="flex flex-col gap-4 p-4">
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-lg font-semibold">
           {localName(locale, proposal.service_name_ar, proposal.service_name_en)}
