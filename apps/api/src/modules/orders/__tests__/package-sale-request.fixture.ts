@@ -1,8 +1,9 @@
 import type { FastifyRequest } from 'fastify';
 import { PackageSalesController } from '../http/package-sales.controller.ts';
 import { createPackageSaleRequestTransactions } from '../persistence/package-sale-request.transactions.ts';
+import { PackageSaleStatusQuery } from '../queries/package-sale-status.query.ts';
 import { AcceptPackageSaleUseCase } from '../use-cases/accept-package-sale/accept-package-sale.usecase.ts';
-import { AT, ids, sessionFixture, type SessionFixture } from './session.fixture.ts';
+import { AT, ids, must, sessionFixture, type SessionFixture } from './session.fixture.ts';
 
 export interface PackageSaleRequestFixture {
   f: SessionFixture;
@@ -101,7 +102,65 @@ export async function cleanPackageSales(f: SessionFixture): Promise<void> {
 export function buildPackageSalesController(f: SessionFixture) {
   const transactions = createPackageSaleRequestTransactions(f.db, ids);
   const useCase = new AcceptPackageSaleUseCase(transactions, ids, f.clock);
-  return new PackageSalesController(useCase);
+  return new PackageSalesController(useCase, new PackageSaleStatusQuery(f.db));
+}
+
+export function saleStatusPath(
+  f: SessionFixture,
+  saleRequestId: string,
+  businessId = f.business,
+  branchId = f.branch,
+): string {
+  return `${salePath(f, businessId, branchId)}/${saleRequestId}`;
+}
+
+export async function insertSaleRequestRow(
+  f: SessionFixture,
+  overrides: Record<string, unknown> = {},
+): Promise<string> {
+  const id = (overrides['id'] as string | undefined) ?? ids.newId();
+  const companyId = (overrides['company_id'] as string | undefined) ?? f.company;
+  const businessId = (overrides['business_id'] as string | undefined) ?? f.business;
+  const branchId = (overrides['branch_id'] as string | undefined) ?? f.branch;
+  const recordedBy = (overrides['recorded_by'] as string | undefined) ?? f.userId;
+  const membershipId =
+    (overrides['recorded_by_membership_id'] as string | undefined) ?? f.membership;
+  const customerId = (overrides['customer_id'] as string | undefined) ?? f.customer;
+  const sellerId = (overrides['seller_employee_id'] as string | undefined) ?? must(f.employees[0]);
+  const typeId = (overrides['package_type_id'] as string | undefined) ?? ids.newId();
+  const revisions = f.h.owner.json([{ service_id: f.services[0], revision: 1 }]);
+  await f.h.owner`INSERT INTO package_sale_requests
+    (company_id, id, business_id, branch_id, recorded_by, recorded_by_membership_id,
+     discount_limit_bps, customer_id, package_type_id, expected_type_revision,
+     expected_service_revisions, price_paid, paid_method, seller_employee_id, sold_at,
+     status)
+    VALUES (${companyId}, ${id}, ${businessId}, ${branchId}, ${recordedBy}, ${membershipId},
+     1000, ${customerId}, ${typeId}, 1, ${revisions}, 50.000, 'CARD',
+     ${sellerId}, now(), 'pending')`;
+  return id;
+}
+
+export async function completeSaleRequest(
+  f: SessionFixture,
+  id: string,
+  entitlementId: string,
+): Promise<void> {
+  await f.h.owner`UPDATE package_sale_requests
+    SET status = 'completed', entitlement_id = ${entitlementId}, finished_at = now()
+    WHERE id = ${id}`;
+}
+
+export async function failSaleRequest(
+  f: SessionFixture,
+  id: string,
+  errorCode: string,
+  errorDetails?: unknown,
+): Promise<void> {
+  const details = errorDetails === undefined ? null : f.h.owner.json(errorDetails as never);
+  await f.h.owner`UPDATE package_sale_requests
+    SET status = 'failed', error_code = ${errorCode},
+        error_details = ${details}, finished_at = now()
+    WHERE id = ${id}`;
 }
 
 export function createControllerRequest(

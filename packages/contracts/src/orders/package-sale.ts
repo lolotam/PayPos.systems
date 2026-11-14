@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { id as sharedId } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 import { sessionMoney } from './service-session.js';
+import { packageSaleRefusalCode } from './package-sale-refusal.js';
 
 const id = sharedId.toLowerCase();
 const businessDate = z.iso.date();
@@ -86,6 +87,26 @@ export const acceptedPackageSale = z
   .strictObject({ sale_request_id: id })
   .meta({ id: 'AcceptedPackageSale' });
 
+const pendingPackageSale = z.strictObject({ status: z.literal('pending') });
+const completedPackageSale = z.strictObject({
+  status: z.literal('completed'),
+  entitlement: soldPackageEntitlement,
+});
+const failedPackageSale = z.strictObject({
+  status: z.literal('failed'),
+  error: z.strictObject({
+    code: packageSaleRefusalCode,
+    message_ar: z.string(),
+    message_en: z.string(),
+    details: z.unknown().optional(),
+  }),
+});
+
+// FR-010/SA-09b: نتيجة طلب البيع للقراءة بالاستطلاع.
+export const packageSaleStatus = z
+  .discriminatedUnion('status', [pendingPackageSale, completedPackageSale, failedPackageSale])
+  .meta({ id: 'PackageSaleStatus' });
+
 // branch_id و business_date هما فرع البيع ويومه في كل نسخة، ومرتجع من فرع تاني ميغيّرهمش،
 // عشان إسقاط العمولة (059 CM-20) يحدد شهر العمولة وفرع المصدر منهم (TD-7).
 // و status ثابت 'SOLD' في المرحلة الأولى، محجوز لإلغاء بيع لاحقاً.
@@ -112,6 +133,8 @@ export const packageSaleSchemas = [
   soldPackageComponent,
   soldPackageEntitlement,
   acceptedPackageSale,
+  packageSaleRefusalCode,
+  packageSaleStatus,
   packageSaleChanged,
 ];
 
@@ -121,4 +144,5 @@ export type SellPackageInput = z.infer<typeof sellPackageInput>;
 export type SoldPackageComponent = z.infer<typeof soldPackageComponent>;
 export type SoldPackageEntitlement = z.infer<typeof soldPackageEntitlement>;
 export type AcceptedPackageSale = z.infer<typeof acceptedPackageSale>;
+export type PackageSaleStatus = z.infer<typeof packageSaleStatus>;
 export type PackageSaleChanged = z.infer<typeof packageSaleChanged>;

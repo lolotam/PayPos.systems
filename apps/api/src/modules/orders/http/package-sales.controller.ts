@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   Inject,
   Param,
@@ -20,6 +21,7 @@ import {
   type IdempotencyInput,
 } from '../../../shared/idempotency.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
+import { PackageSaleStatusQuery } from '../queries/package-sale-status.query.ts';
 import {
   AcceptPackageSaleUseCase,
   SessionError,
@@ -54,6 +56,8 @@ export class PackageSalesController {
   constructor(
     @Inject(AcceptPackageSaleUseCase)
     private readonly acceptPackageSale: AcceptPackageSaleUseCase | null,
+    @Inject(PackageSaleStatusQuery)
+    private readonly packageSaleStatus: PackageSaleStatusQuery | null,
   ) {}
 
   @Post()
@@ -81,6 +85,25 @@ export class PackageSalesController {
     } catch (error) {
       return mapPackageSaleError(error);
     }
+  }
+
+  @Get(':saleRequestId')
+  @Require('sell:packages:branch', { branch: 'branchId' })
+  @RequiresFeature('orders')
+  @UseGuards(SessionAdminGuard)
+  status(
+    @Param('businessId', new ZodValidationPipe(id.toLowerCase())) businessId: string,
+    @Param('branchId', new ZodValidationPipe(id.toLowerCase())) branchId: string,
+    @Param('saleRequestId', new ZodValidationPipe(id.toLowerCase())) saleRequestId: string,
+    @Req() request: FastifyRequest,
+  ) {
+    if (this.packageSaleStatus === null) throw new ApiError('NOT_READY');
+    return this.packageSaleStatus.execute({
+      ...actorOf(request),
+      businessId,
+      branchId,
+      saleRequestId,
+    });
   }
 }
 
