@@ -18,6 +18,7 @@ const record = {
   validity_days: 90,
   components: [{ service_id: id, sessions: 10, name_en: 'Free', name_ar: null, price: '0.000' }],
   revision: 1,
+  selling_stopped_at: null,
   created_at: '2026-10-05T10:00:00Z',
   updated_at: '2026-10-05T10:00:00Z',
 };

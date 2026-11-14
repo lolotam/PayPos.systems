@@ -65,6 +65,7 @@ export const packageTypeDetail = responseObject({
     price,
     validity_days: fields.validity_days,
     revision,
+    selling_stopped_at: timestamp.nullable(),
     components: z.array(packageTypeComponent).min(1).max(20),
     created_at: timestamp,
     updated_at: timestamp,

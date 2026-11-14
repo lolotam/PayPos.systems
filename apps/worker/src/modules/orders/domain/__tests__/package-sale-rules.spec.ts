@@ -20,6 +20,7 @@ const type: SalePackageType = {
   price: 25000n,
   validity_days: 90,
   revision: 2,
+  selling_stopped_at: null,
   components: ['b', 'a'].map((id, index) => ({
     service_id: id,
     sessions: 10,
@@ -107,6 +108,40 @@ describe('quote confirmation after catalog locks (FR-018b/c)', () => {
       }
     },
   );
+});
+
+describe('stopped package type quote refusal (FR-018b)', () => {
+  const stoppedType = { ...type, selling_stopped_at: '2026-11-14T08:00:00.000Z' };
+  const quote = [
+    { service_id: 'a', revision: 4 },
+    { service_id: 'b', revision: 4 },
+  ] as const;
+
+  it.each([
+    ['matching revision', 2, quote],
+    ['stale revision', 1, quote],
+    ['stale service revisions', 2, [{ service_id: 'a', revision: 999 }]],
+  ])(
+    'refuses a stopped type on %s before evaluating revisions with PACKAGE_TYPE_NOT_SELLABLE',
+    (_label, expectedRevision, expectedServices) => {
+      let thrown: unknown;
+      try {
+        assertPackageSaleQuote(stoppedType, expectedRevision, expectedServices);
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown).toBeInstanceOf(PackageSaleError);
+      expect(thrown).toMatchObject({
+        code: 'PACKAGE_TYPE_NOT_SELLABLE',
+        details: undefined,
+      });
+    },
+  );
+
+  it('accepts an active type with a matching quote', () => {
+    const activeType = { ...type, selling_stopped_at: null };
+    expect(() => assertPackageSaleQuote(activeType, 2, quote)).not.toThrow();
+  });
 });
 
 describe('package sale calendar/window (FR-016, TD-4)', () => {

@@ -43,6 +43,7 @@ it('resets after successful creation so another click cannot submit the saved pa
         { service_id: id, sessions: 10, name_en: 'Service', name_ar: null, price: '1.000' },
       ],
       revision: 1,
+      selling_stopped_at: null,
       created_at: '2026-10-08T00:00:00Z',
       updated_at: '2026-10-08T00:00:00Z',
     },

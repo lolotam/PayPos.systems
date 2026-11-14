@@ -1,9 +1,37 @@
+import type {
+  CommissionPeriodProjection,
+  CommissionSalary,
+  ProjectedCommissionLine,
+  ProjectedCommissionTip,
+  ProjectedPackageSale,
+} from '@pospay/commissions-engine';
+
 import type { CommissionAttachmentInterval } from '../domain/commission-correction-attribution.ts';
 import type {
   CommissionCorrectionDraft,
   CommissionFrozenSource,
   CommissionPostedCorrection,
 } from '../domain/commission-correction-step.ts';
+
+/** بند الشهر مع فرعه وتاريخ عمله، حتى لا تفقد إعادة الحساب أصل نسبة التصحيح. */
+export type CommissionMonthLine = ProjectedCommissionLine & {
+  readonly branchId: string;
+  readonly businessDate: string;
+};
+
+/** بقشيش الشهر مع فرعه وتاريخ عمله كما وصلا من الإسقاط المصدر. */
+export type CommissionMonthTip = ProjectedCommissionTip & {
+  readonly branchId: string;
+  readonly businessDate: string;
+};
+
+/** إسقاط الشهر الذي يحفظ بيانات أصل المصادر بجانب مدخلات تسعير المحرك. */
+export type CommissionMonthProjection = CommissionPeriodProjection<
+  CommissionMonthLine,
+  ProjectedPackageSale,
+  CommissionSalary,
+  CommissionMonthTip
+>;
 
 /** مُدخلات قراءة المصادر المجمّدة لموظفة في كشف شهر المصدر. */
 export interface CommissionFrozenSourcesInput {
@@ -24,6 +52,13 @@ export interface CommissionAttachmentSnapshotInput {
   readonly businessId: string;
   readonly statementId: string;
   readonly employeeId: string;
+}
+
+/** مُدخلات قراءة إسقاط موظفة في شهر واحد بأشكال محرك العمولة. */
+export interface CommissionMonthProjectionInput {
+  readonly businessId: string;
+  readonly employeeId: string;
+  readonly period: string;
 }
 
 /** مُدخلات رفع جيل تصحيحات موظفة في شهر واحد. */
@@ -71,6 +106,12 @@ export interface CommissionCorrectionScope {
   readAttachmentSnapshot(
     input: CommissionAttachmentSnapshotInput,
   ): Promise<readonly CommissionAttachmentInterval[]>;
+  /**
+   * يرجع إسقاط الشهر بالمدخلات الحالية لأن إعادة الحساب تحتاج أشكال محرك العمولة نفسها.
+   *
+   * @param input النشاط والموظفة والشهر المطلوب إسقاطه
+   */
+  readMonthProjection(input: CommissionMonthProjectionInput): Promise<CommissionMonthProjection>;
   /**
    * يرفع جيل تصحيحات الموظفة في الشهر: جيل واحد لو الصف غايب، وجيل زائد لو
    * موجود، ويرجع الرقم الجديد.

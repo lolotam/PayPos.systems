@@ -5366,6 +5366,8 @@ export interface components {
             price: string;
             validity_days: number;
             revision: number;
+            /** Format: date-time */
+            selling_stopped_at: string | null;
             components: components["schemas"]["PackageTypeComponent"][];
             /** Format: date-time */
             created_at: string;
@@ -5380,6 +5382,8 @@ export interface components {
             price: string;
             validity_days: number;
             revision: number;
+            /** Format: date-time */
+            selling_stopped_at: string | null;
             component_count: number;
         };
         PackageTypePage: {
