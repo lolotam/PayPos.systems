@@ -30,7 +30,7 @@ this PR's first commit). **API and worker only.** The admin screen is `32b-cat-3
 | W-6 | **Actor.** The job runs with `userId = requested_by`, so `app_user_id()` in the SQL audit is the requesting manager (tested). Permission is checked at accept only (`@RequireAll` manage + read, as today); the job does not re-check it. | Same actor as the sync path; a permission revoked between accept and a job that runs seconds later is accepted, as for every other worker job here (employee import, package import). |
 | W-7 | **Replay and lost jobs.** BullMQ `jobId = event.id`, `attempts: 3`, exponential backoff, `removeOnComplete: true`. A redelivered event after completion re-enqueues; the job sees the row is no longer `pending` and does nothing. After the last attempt the processor writes `failed`/`SERVICE_CATEGORY_CLOSING_FAILED` (leave-history `persistFailure` pattern). An invalid event payload fails the row and is dropped. No ADR-0022 recovery sweep: the request is user-driven, the row expires (W-3), and the manager retries. | ADR-0018 transport; leave-history processor as the model. |
 | W-8 | **One copy of the cascade SQL.** The cascade statement and its audit-snapshot mapping move **unchanged** from `apps/api/.../persistence/drizzle-service-category-closing.ts` to `packages/db/src/service-category-cascade.ts` (precedent: `packages/db/src/leave-history/`, `current-session-tips.ts`, consumed by both apps). `saveClosing` imports it; a no-behaviour-change commit with the three existing closing specs untouched and green. The worker also needs the **category** update and audit row: they join the same `packages/db` file as SQL (`UPDATE … RETURNING` before/after, one `audit_log` row), and `service-category-closing-audit.spec.ts` is extended to assert that this category row equals `serviceCategorySnapshot(before/after)` field by field, the same guard #996 uses for the service rows. The api sync path keeps its TypeScript category update. | `apps/worker` cannot import `apps/api`; a second copy of the snapshot mapping would drift. The parity spec lives in the api, next to the domain snapshot functions. |
-| W-9 | **HTTP.** The existing routes `POST …/service-categories/{categoryId}/close` and `…/reopen` return **200** (sync, body as today) **or 202** `{ closing_id, status: 'pending' }`, through `@Res({ passthrough: true })` (precedent `companies.controller.ts`). Both responses are registered in OpenAPI and the three clients are regenerated. New read `GET …/service-categories/{categoryId}/closings/{closingId}` → `{ closing_id, category_id, action: 'close' \| 'reopen', status: 'pending' \| 'completed' \| 'failed', services_changed, error_code, requested_at, finished_at }` from `queries/` (a pending row past its deadline is projected as `failed` / `SERVICE_CATEGORY_CLOSING_EXPIRED`); result-shape test and `EXPLAIN ANALYZE` on the primary key. The category detail read gains `pending_closing_id` (nullable, from the partial unique index), so the screen finds a running job after a reload. The status route's permission is **PENDING SI-Q29** (recommended: the close route's pair, `@RequireAll` manage + read). | Spec says «→ 200»; the addendum records 200 or 202. |
+| W-9 | **HTTP.** The existing routes `POST …/service-categories/{categoryId}/close` and `…/reopen` return **200** (sync, body as today) **or 202** `{ closing_id, status: 'pending' }`, through `@Res({ passthrough: true })` (precedent `companies.controller.ts`). Both responses are registered in OpenAPI and the three clients are regenerated. New read `GET …/service-categories/{categoryId}/closings/{closingId}` → `{ closing_id, category_id, action: 'close' \| 'reopen', status: 'pending' \| 'completed' \| 'failed', services_changed, error_code, requested_at, finished_at }` from `queries/` (a pending row past its deadline is projected as `failed` / `SERVICE_CATEGORY_CLOSING_EXPIRED`); result-shape test and `EXPLAIN ANALYZE` on the primary key. The category detail read gains `pending_closing_id` (nullable, from the partial unique index), so the screen finds a running job after a reload. The status route uses the close route's pair, `@RequireAll` manage + read (SI-Q29, PP-191). | Spec says «→ 200»; the addendum records 200 or 202. |
 | W-10 | **Event.** `ServiceCategoryClosingRequested`, payload `{ closing_id }`, aggregate `service_category_closing`, company in the envelope, emitted in the accept transaction; transported by the worker `catalog` module to the BullMQ queue `service-category-closing` after the outbox claim commits (ADR-0018). New `apps/api/src/modules/catalog/events/published.ts` (Arabic one-liner), the module-map event row, and module-map line 295 (the worker catalog module also owns this job). No business consumer. | ADR-0018. |
 | W-11 | **No new permission, no new ADR.** The job follows ADR-0018 and the leave-history / package-import job shapes; the decisions are recorded in this plan and a spec 072 addendum. | Nothing architectural is new. |
 
@@ -84,3 +84,52 @@ Kimi CLI `k3.1-pro` for production code and tests, MiniMax-M3.1-Flash (opencode)
    at 5,000); the same `FOR NO KEY UPDATE` as #996, so foreign-key inserts are not blocked.
 4. **PP-165 baselines** compare new code with the unchanged sync path; the manager confirms the two pairs above.
 5. **`32b-3`** creates the same worker `catalog` module; the second to land rebases.
+
+## Sub-PR 3 work plan (2026-11-14, on `origin/main` 2be6da3b8)
+
+Sub-PR 1 (#1021) and sub-PR 2 (#1044, the dormant worker job) are merged. Sub-PR 3 makes the API emit the job; until
+it merges, #996 stays out of production (#1012). The three owner questions SI-Q29, SI-Q30 and SI-Q31 were answered
+on 2026-11-14 (PP-191, below).
+
+### Steps, in order (contract → domain → persistence → use case → http → tests)
+
+| # | Change | Files | Code lines |
+|---|---|---|---|
+| 1 | Contracts: the 202 body `{ closing_id, status: 'pending' }`; the status response (W-9 shape, `status` and `error_code` from `SERVICE_CATEGORY_CLOSING_FAILURE_CODES`); `pending_closing_id` (nullable) on the category detail; the error `SERVICE_CATEGORY_CLOSING_IN_PROGRESS` with `details: { closing_id }`; OpenAPI entries (200 and 202 on close and reopen, the status route) | `packages/contracts/src/catalog/service-category-closing.ts`, `service-category.ts`, `catalog-openapi.ts` | 70 |
+| 2 | Domain: `SERVICE_CATEGORY_SYNC_CLOSING_LIMIT = 300` and `serviceCategoryClosingPath(count)` → `sync` / `job`; the replay rule (identical action, revision and count → same job, otherwise in progress) and the deadline rule, as pure functions with Arabic JSDoc | `apps/api/src/modules/catalog/domain/service-category-closing-path.ts`, `domain/errors.ts` | 60 |
+| 3 | Port and persistence: `countAffectedServices` (index `services_business_category_idx`, before any service lock), `findPendingClosing` (partial unique index), `expireClosing`, `createClosing` and the outbox row `ServiceCategoryClosingRequested` in the same transaction (precedent `orders/persistence/package-import-request.transactions.ts`) | `ports/service-category-transactions.port.ts`, `persistence/drizzle-service-category-transactions.ts` (or a new `persistence/drizzle-service-category-closing-request.ts` if the file passes 300 lines) | 120 |
+| 4 | Use cases: close and reopen lock the category, check revision and state, count, then take the sync path unchanged at 300 or fewer, or the job path above (W-1, W-2, W-3). The result becomes a union `{ kind: 'done', … } | { kind: 'pending', closing_id }` | `use-cases/close-service-category/`, `use-cases/reopen-service-category/`, one shared helper in `use-cases/` for the pending lookup if both need it | 80 |
+| 5 | HTTP: dynamic 200 / 202 through `@Res({ passthrough: true })` (precedent `companies.controller.ts`); the 409 mapping in `shared/catalog-service-error-statuses.ts`; the status route `GET …/service-categories/{categoryId}/closings/{closingId}` with the SI-Q29 guard | `http/service-categories.controller.ts` (196 lines; a new `http/service-category-closings.controller.ts` for the status route keeps it under 300) | 70 |
+| 6 | Read path: the status query (a pending row past its deadline is projected as `failed` / `SERVICE_CATEGORY_CLOSING_EXPIRED`) and `pending_closing_id` on the detail query | `queries/service-category-closing.query.ts`, `queries/service-category-detail.query.ts` | 60 |
+| 7 | Event and wiring: `events/published.ts` (new in this module, Arabic one-liner), `catalog.module.ts` bindings, module-map rows if the API differs from #1027 | `events/published.ts`, `catalog.module.ts`, `docs/module-map.md` | 30 |
+| 8 | i18n ar/en for `SERVICE_CATEGORY_CLOSING_IN_PROGRESS` and the six failure codes shown by the screen; regenerated clients (`pnpm contracts:openapi`, not counted) | `packages/i18n/src/catalog-service-categories.ts` | 20 |
+
+Total about **510 code lines** (refuse above 1,020), close to the ~480 estimated in the split table.
+
+### Tests (about 600 lines)
+
+- Domain unit: the path at 299, 300, 301; the replay rule (identical, different action, different revision, different
+  count); the deadline at, before and after `deadline_at`.
+- Integration on the lane: 300 → 200 sync and the #996 specs unchanged; 301 → 202, one pending row, one outbox event,
+  no service or category changed; identical replay → same `closing_id`, no second row or event; a different request →
+  409 `SERVICE_CATEGORY_CLOSING_IN_PROGRESS` with `closing_id`; an expired pending row is marked expired and no longer
+  blocks; a count mismatch stays the synchronous 409; another tenant's category or `closingId` → 404.
+- Queries: status shape for pending, completed, failed and the expired projection, `EXPLAIN ANALYZE` on the primary
+  key; detail `pending_closing_id` set and null.
+- End to end on the lane: accept at 301, the worker job runs, the status read shows `completed` with
+  `services_changed` (the worker and API are both merged now).
+- Perf (PP-165): accept at 301 ≤ 2× the unchanged sync close at 300 in the same run, + 5 ms (risk 4, the manager
+  confirms the pair).
+- Route coverage and permission tests for close and reopen as today, and for the status route (SI-Q29 pair).
+
+### Owner answers (PP-191, 2026-11-14)
+
+Waleed answered SI-Q29, SI-Q30 and SI-Q31 by card in the manager chat, each with the recommended option: the status
+route uses the close route's pair, kept in one constant `SERVICE_CATEGORY_CLOSING_STATUS_PERMISSIONS`; SI-Q30 is for
+the screen (`32b-cat-3`) only; W-4 stays as written, with no migration. They are feature questions; Abu Salem's pick
+on the decisions page binds if it differs.
+
+### Implementer
+
+Per PP-186 and PP-112 (as sub-PR 2): MiniMax-M3.1-Flash (opencode) for code and tests, Kimi CLI `k3.1-pro` if its
+quota is back; every run fenced as above. One brief, dispatched only after the manager's go.
