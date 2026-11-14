@@ -4,7 +4,7 @@ import {
   PackageSalePricingError,
   PackageSaleIdentityInvariantError,
 } from '../package-sale-errors.ts';
-import { planPackageSale } from '../package-sale-plan.ts';
+import { packageSaleSlotOrdinals, planPackageSale } from '../package-sale-plan.ts';
 import { allocationFixtures } from '../../../../../../../packages/domain/src/__tests__/package-allocation.vectors.ts';
 
 import { input, baseService, identities, componentIdentity } from './fixtures/package-sale.ts';
@@ -240,3 +240,9 @@ it.each(
     );
   },
 );
+
+it('numbers the sessions of a component from one up to the session count', () => {
+  expect(packageSaleSlotOrdinals(3)).toEqual([1, 2, 3]);
+  expect(packageSaleSlotOrdinals(1)).toEqual([1]);
+  expect(packageSaleSlotOrdinals(0)).toEqual([]);
+});

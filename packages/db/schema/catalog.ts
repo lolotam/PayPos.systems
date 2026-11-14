@@ -133,6 +133,8 @@ export const packageTypes = pgTable(
     /** أيام الصلاحية من تاريخ البيع؛ آخر يوم استخدام هو تاريخ البيع زائد هذا العدد. */
     validityDays: integer('validity_days').notNull(),
     revision: integer('revision').notNull().default(1),
+    /** وقت الإيقاف يمثل حالة البيع؛ NULL تعني معروض للبيع؛ يكتبه الإيقاف والاستئناف فقط ولا يمسه تعديل النوع. */
+    sellingStoppedAt: timestamp('selling_stopped_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

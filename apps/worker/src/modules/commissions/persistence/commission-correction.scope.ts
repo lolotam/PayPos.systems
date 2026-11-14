@@ -5,6 +5,7 @@ import type {
   CommissionCorrectionScope,
   CommissionFrozenSourcesInput,
   CommissionGenerationInput,
+  CommissionMonthProjectionInput,
   CommissionPostedCorrectionsInput,
   CommissionAttachmentSnapshotInput,
 } from '../ports/commission-correction.port.ts';
@@ -14,6 +15,7 @@ import {
   readFrozenSources,
   readPostedCorrections,
 } from './commission-correction-readers.ts';
+import { readMonthProjection } from './commission-correction-month-readers.ts';
 import { bumpGeneration, insertCorrections } from './commission-correction-writers.ts';
 
 /**
@@ -36,6 +38,7 @@ export function createCommissionCorrectionScope(
       readPostedCorrections(tx, input),
     readAttachmentSnapshot: (input: CommissionAttachmentSnapshotInput) =>
       readAttachmentSnapshot(tx, input),
+    readMonthProjection: (input: CommissionMonthProjectionInput) => readMonthProjection(tx, input),
     bumpGeneration: (input: CommissionGenerationInput) => bumpGeneration(tx, ids, input),
     insertCorrections: (input: CommissionCorrectionInsertInput) =>
       insertCorrections(tx, ids, clock, input),

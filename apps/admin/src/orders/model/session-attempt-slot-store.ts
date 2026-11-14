@@ -1,4 +1,4 @@
-import { parseSessionJournalEnvelope, sameSessionScope, type SessionAttemptScope, type SessionJournalEnvelope } from './session-attempt';
+import { hasUnknownJournalFields, isJournalPiiKey, parseSessionJournalEnvelope, sameSessionScope, type SessionAttemptScope, type SessionJournalEnvelope } from './session-attempt';
 
 const key = 'pospay:service-session-attempt';
 const slots = [`${key}:a`, `${key}:b`] as const;
@@ -7,8 +7,10 @@ type Slot = { key: string; generation: number; raw: string; envelope: SessionJou
 
 function parseSlot(slotKey: string, raw: string): Slot {
   const value: unknown = JSON.parse(raw);
-  if (!value || typeof value !== 'object' || Object.keys(value).length !== 2 || !('generation' in value) || !('envelope' in value) ||
+  if (!value || typeof value !== 'object' || !('generation' in value) || !('envelope' in value) ||
     !Number.isSafeInteger(value.generation) || typeof value.generation !== 'number' || value.generation < 1) throw new Error('SESSION_SLOT_INVALID');
+  // حقل غلاف حساس يرفض الخانة؛ أي حقل غلاف تاني بيتجاهل عشان ما يمسحش زيارة سليمة.
+  if (Object.keys(value).some((field) => field !== 'generation' && field !== 'envelope' && isJournalPiiKey(field))) throw new Error('SESSION_SLOT_INVALID');
   const envelope = value.envelope;
   const idle = envelope && typeof envelope === 'object' && Object.keys(envelope).length === 2 &&
     'version' in envelope && envelope.version === 1 && 'state' in envelope && envelope.state === 'IDLE';
@@ -40,6 +42,18 @@ export function createSessionAttemptSlotStore(storage?: JournalStorage) {
     }
     active = undefined; generation = 0;
   };
+  function writeSlot(envelope: SessionJournalEnvelope | null): boolean {
+    if (!storage || blocked || generation === Number.MAX_SAFE_INTEGER) return false;
+    const slotKey = active?.key === slots[0] ? slots[1] : slots[0];
+    const raw = JSON.stringify({ generation: ++generation, envelope: envelope ?? { version: 1, state: 'IDLE' } });
+    try {
+      storage.setItem(slotKey, raw);
+      if (storage.getItem(slotKey) !== raw) return false;
+      const candidate = parseSlot(slotKey, raw), previous = active; active = candidate;
+      if (previous && previous.key !== slotKey) { try { storage.removeItem(previous.key); } catch { /* ترتيب الأجيال يظل حاسماً إذا تعذر حذف النسخة الأقدم. */ } }
+      return true;
+    } catch { return false; }
+  }
   return {
     get blocked() { return blocked; }, configure(backing?: JournalStorage) { storage = backing; }, purge,
     recover(scope: SessionAttemptScope | null) {
@@ -47,19 +61,18 @@ export function createSessionAttemptSlotStore(storage?: JournalStorage) {
       const envelope = active?.envelope;
       const place = envelope?.state === 'PENDING' ? envelope.attempt.scope : envelope?.scope;
       if (place && (!scope || !sameSessionScope(scope, place))) { purge(); return null; }
+      if (active) {
+        const stored = JSON.parse(active.raw) as Record<string, unknown>;
+        const storedEnvelope: unknown = active.key === key ? stored : stored.envelope;
+        // حقل غلاف غريب بينقّى بنفس إعادة كتابة المظروف، فتبقى الخانة الجديدة فيها generation و envelope بس.
+        const unknownWrapper = active.key !== key && Object.keys(stored).some((field) => field !== 'generation' && field !== 'envelope');
+        if ((envelope && hasUnknownJournalFields(storedEnvelope)) || unknownWrapper) {
+          // فشل التنقية لا يستدعي الحذف: مفاتيح PII مرفوضة أصلًا، وحذف الخانة هنا قد يضيّع علامة PENDING.
+          writeSlot(envelope ?? null);
+        }
+      }
       return envelope ?? null;
     },
-    write(envelope: SessionJournalEnvelope | null): boolean {
-      if (!storage || blocked || generation === Number.MAX_SAFE_INTEGER) return false;
-      const slotKey = active?.key === slots[0] ? slots[1] : slots[0];
-      const raw = JSON.stringify({ generation: ++generation, envelope: envelope ?? { version: 1, state: 'IDLE' } });
-      try {
-        storage.setItem(slotKey, raw);
-        if (storage.getItem(slotKey) !== raw) return false;
-        const candidate = parseSlot(slotKey, raw), previous = active; active = candidate;
-        if (previous && previous.key !== slotKey) { try { storage.removeItem(previous.key); } catch { /* ترتيب الأجيال يظل حاسماً إذا تعذر حذف النسخة الأقدم. */ } }
-        return true;
-      } catch { return false; }
-    },
+    write(envelope: SessionJournalEnvelope | null): boolean { return writeSlot(envelope); },
   };
 }

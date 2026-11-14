@@ -28,3 +28,4 @@ export type {
   StatementTotals,
 } from './domain/attendance-statement-data.ts';
 export { AttendanceStatementRequestMissing } from './use-cases/read-attendance-statement/read-attendance-statement.ts';
+export { lockPackageSeller, readPackageSeller } from './persistence/package-seller.reader.ts';

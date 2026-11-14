@@ -5,3 +5,4 @@ export { businessNames } from './persistence/business-names.ts';
 export { branchPlace } from './persistence/branch-place.ts';
 export { branchScheduleHours } from './persistence/branch-schedule-hours.ts';
 export { companyOpen } from './persistence/company-open.ts';
+export { packageSalePlace } from './persistence/package-sale-place.reader.ts';

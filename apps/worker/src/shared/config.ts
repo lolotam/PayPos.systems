@@ -24,6 +24,11 @@ const schema = z.object({
     z.coerce.number().int().min(1).max(65_535).default(3001),
   ),
   LOG_LEVEL: z.preprocess(optionalValue, z.enum(LOG_LEVELS).default('info')),
+  // ميزانية معاملة البيع يقيسها تشغيل SA-10؛ لا ترث افتراضياً من staff.
+  PACKAGE_SALE_TRANSACTION_TIMEOUT_MS: z.preprocess(
+    optionalValue,
+    z.coerce.number().int().min(1000).max(120000).default(30000),
+  ),
 });
 
 export type WorkerConfig = z.output<typeof schema>;

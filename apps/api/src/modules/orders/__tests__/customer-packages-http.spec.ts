@@ -91,6 +91,7 @@ it('returns package detail with 200 and snake_case keys', async () => {
       'business_timezone',
       'refunded_amount',
       'revision',
+      'can_extend',
       'components',
       'redemptions',
       'extensions',

@@ -92,6 +92,7 @@ it('edit sends the full definition and expected revision without display-only se
         price: '99999999999.999',
         validity_days: 730,
         revision: 8,
+        selling_stopped_at: null,
         created_at: '2026-10-08T00:00:00Z',
         updated_at: '2026-10-08T00:00:00Z',
         components: [

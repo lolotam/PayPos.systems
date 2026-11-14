@@ -439,7 +439,7 @@ business's full service catalog. Arabic column labels are header comments.
   per service the remaining, used and refunded counts and slot values, and the detail with its history (redemptions,
   extensions, refunds); a holder of `read:service-sessions:branch` sees exactly the same. Expired and fully used
   packages are listed last, marked. No package read carries the customer's phone.
-  `TODO(spec)` (45-UI-Q1, 45-UI-Q2, 45-UI-Q3): only the UI behaviour of the extension reason's visibility in the history and the Extend button's visibility and capability source are pending owner answers; this does not block row 45's delivery; remove this marker only when the answers are recorded verbatim in `owner-questions.ar.md`.
+  The extension history shows each extension's reason to everyone who sees the detail, and the Extend button shows only when the FR-071 detail's server-computed `can_extend` (the caller's `extend:packages:branch` on the acting branch) is true; the extension POST stays authoritative (PP-189: 45-UI-Q1, 45-UI-Q2, 45-UI-Q3).
 - **CP-02** Another business's or company's packages never appear; a foreign customer id answers like unknown.
 - **CP-03** Both routes are guarded by `RequireAny(['record:service-sessions:branch', 'read:service-sessions:branch'],
   { branch })` (TD-13). A holder of `record:service-sessions:branch` only (reception's default) and a holder of
@@ -874,6 +874,7 @@ migration, as 0084 did; never held by a device; grantable to any human role (`ma
 - `PACKAGE_TYPE_NOT_SELLABLE` 422 — «الباقة دي متوقف بيعها.» / "This package is not on sale."
 - `PACKAGE_SALE_REQUEST_NOT_FOUND` 404 — «طلب البيع ده مش موجود.» / "This sale request was not found." (PP-170)
 - `PACKAGE_SALE_FAILED` — status-read code only (SA-09b) — «البيع ماتمّش؛ جرّبي تاني.» / "The sale did not complete; try again." (PP-170)
+- `PACKAGE_SALE_BRANCH_INACTIVE` — status-read code only (SA-09b, PP-188) — «فرع البيع مش شغال دلوقتي؛ فعّلي الفرع أو اختاري فرع تاني وجرّبي تاني.» / "The sale branch is not active; activate it or choose another branch and try again." Written when the branch was deactivated after the request was accepted; terminal, no retry.
 - `PACKAGE_SALE_QUOTE_STALE` 409 — «أسعار خدمات الباقة اتغيّرت، حدّثي الشاشة وأكّدي تاني.» / "The package's service prices changed; reload and confirm again." (details: current service revisions)
 - `PACKAGE_TYPE_SELLING_UNCHANGED` 409 — «الباقة أصلاً على نفس الحالة.» / "The package is already in that state."
 - `PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT` 422 — «الخصم أكبر من حدك.» / "The discount is above your limit." (details: limit bps)

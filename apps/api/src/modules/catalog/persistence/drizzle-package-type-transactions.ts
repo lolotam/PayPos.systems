@@ -9,8 +9,12 @@ import {
 } from '../domain/package-type.ts';
 import type { PackageTypeTransactions } from '../ports/package-type-transactions.port.ts';
 
-type Row = Omit<PackageTypeRecord, 'price' | 'created_at' | 'updated_at'> & {
+type Row = Omit<
+  PackageTypeRecord,
+  'price' | 'selling_stopped_at' | 'created_at' | 'updated_at'
+> & {
   price: string;
+  selling_stopped_at: Date | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -45,7 +49,7 @@ async function load(
   packageTypeId: string,
 ): Promise<PackageTypeRecord | null> {
   const [row] = await tx.execute<Row>(sql`SELECT id,business_id,name_en,name_ar,price,validity_days,
-    revision,created_at,updated_at FROM package_types
+    revision,selling_stopped_at,created_at,updated_at FROM package_types
     WHERE company_id=${companyId} AND business_id=${businessId} AND id=${packageTypeId} FOR UPDATE`);
   if (row === undefined) return null;
   const components = await tx.execute<{ service_id: string; sessions: number }>(sql`
@@ -55,6 +59,8 @@ async function load(
   return {
     ...row,
     ...packageTypeTerms({ ...row, components }),
+    selling_stopped_at:
+      row.selling_stopped_at === null ? null : new Date(row.selling_stopped_at).toISOString(),
     created_at: new Date(row.created_at).toISOString(),
     updated_at: new Date(row.updated_at).toISOString(),
   };

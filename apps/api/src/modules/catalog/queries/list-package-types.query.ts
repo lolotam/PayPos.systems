@@ -13,6 +13,7 @@ export function listPackageTypesStatement(
   query: PackageTypeListQuery,
 ) {
   return sql`SELECT p.id,p.name_en,p.name_ar,p.price,p.validity_days,p.revision,
+    to_char(p.selling_stopped_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS selling_stopped_at,
     (SELECT count(*)::int FROM package_type_components c WHERE c.company_id=p.company_id
       AND c.business_id=p.business_id AND c.package_type_id=p.id) AS component_count
     FROM package_types p WHERE p.company_id=${companyId} AND p.business_id=${businessId}

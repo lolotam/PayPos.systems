@@ -31,10 +31,11 @@ export function discountApprovalView(
     const items = latest ? itemsByRequest[latest.requestId] : undefined;
     const proposal = latest && items
       ? items.find((item) => latest.localIds[item.input_index] === row.localId) ?? null : null;
+    const refusedThis = proposal !== null && row.error.approval_refusal !== undefined && row.error.discount_proposal_id === proposal.id;
     let covered = latest !== null && items === undefined;
-    if (proposal?.status === 'PENDING') covered = true;
+    // PENDING يفضل مغطى إلا مع TERMS_MISMATCH حتى لا يتكرر الطلب لرفض لا يغيّر شروطه.
+    if (proposal?.status === 'PENDING') covered = !(refusedThis && row.error.approval_refusal === 'TERMS_MISMATCH');
     if (proposal?.status === 'APPROVED') {
-      const refusedThis = row.error.approval_refusal !== undefined && row.error.discount_proposal_id === proposal.id;
       covered = !refusedThis;
       if (!refusedThis) attach.push({ localId: row.localId, proposalId: proposal.id });
     }

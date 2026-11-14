@@ -10,6 +10,8 @@ export type { ServiceLinePerformersNoticeRequested } from '@pospay/contracts';
 export type { DiscountApprovalNoticeRequested } from '@pospay/contracts';
 /** يلحقه عامل orders مرة لكل مجموعة ملاك بحد أقصى 100، داخل معاملة المستهلك التي تحجز دفتر القرار، وفقط عندما يوجد مالك نشط واحد على الأقل (DA-Q3). */
 export type { DiscountSelfApprovalNoticeRequested } from '@pospay/contracts';
+/** يصدره عامل orders داخل معاملة البيع نفسها مع قيد التدقيق، بعد إدخال الاستحقاق ومكوّناته وجلساته وقبل تعليم الطلب كمكتمل؛ aggregateType 'package_entitlement' وaggregateId هو معرّف الاستحقاق. */
+export type { PackageSaleChanged } from '@pospay/contracts';
 
 /** خلاصة استيراد الباقات داخل معاملة التثبيت؛ لا تحمل بيانات العملاء أو حدث بيع. */
 export interface PackageImportCommitted {
@@ -19,4 +21,9 @@ export interface PackageImportCommitted {
   readonly created_count: number;
   readonly skipped_count: number;
   readonly committed_at: string;
+}
+
+/** يصدر من قبول بيع الباقة في معاملة إنشاء طلب pending نفسها، بمغلف aggregateType='package_sale_request' وaggregateId=request id وeventType='PackageSaleRequested' ومعرف الشركة في المغلف، ليعالجه عامل orders بمهمة package-sale. */
+export interface PackageSaleRequested {
+  readonly sale_request_id: string;
 }

@@ -52,7 +52,7 @@ export class CustomerPackagesController {
   ) {
     if (this.detail === null) throw new ApiError('NOT_READY');
     try {
-      return await this.detail.execute({ ...actorOf(request), businessId, branchId, customerId }, entitlementId);
+      return await this.detail.execute({ ...actorOf(request), businessId, branchId, customerId }, entitlementId, request.principal?.kind === 'user');
     } catch (error) {
       if (error instanceof CustomerPackageReadError) throw new ApiError(error.code);
       throw error;
