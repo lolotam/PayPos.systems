@@ -40,6 +40,7 @@ it('returns the package type with its components in position order and every ser
   expect(type?.price).toBe(30000n);
   expect(type?.validity_days).toBe(90);
   expect(type?.revision).toBe(1);
+  expect(type?.selling_stopped_at).toBeNull();
   expect(type?.components.map((component) => component.service_id)).toEqual([
     must(f.services[1]),
     must(f.services[0]),
@@ -103,4 +104,11 @@ it('plans the package type and its component read as index scans', async () => {
       expect(JSON.stringify(plan)).toMatch(/Index (Only )?Scan|Bitmap Index Scan/);
     }
   });
+});
+
+it('returns selling_stopped_at as an ISO string after the type is stopped', async () => {
+  const stoppedAt = '2026-11-14T08:00:00.123Z';
+  await f.h.owner`UPDATE package_types SET selling_stopped_at=${stoppedAt} WHERE id=${packageType}`;
+  const type = await read(packageType);
+  expect(type?.selling_stopped_at).toBe(stoppedAt);
 });

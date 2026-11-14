@@ -1597,6 +1597,13 @@
       "when": 1794599554773,
       "tag": "0229_2026-11-13_six-type-retained-replay-index",
       "breakpoints": true
+    },
+    {
+      "idx": 230,
+      "version": "7",
+      "when": 1794610070465,
+      "tag": "0230_2026-11-13_package-type-selling-stopped-at",
+      "breakpoints": true
     }
   ]
 }
