@@ -1,10 +1,18 @@
-import {
-  closeServiceCategoryResult,
-  reopenServiceCategoryResult,
-  serviceCategory,
-} from '@pospay/contracts';
+import { serviceCategory } from '@pospay/contracts';
+import { systemUuidV7 } from '@pospay/ids';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
+import { ServiceCategoryError } from '../domain/errors.ts';
+import {
+  assertServiceCategoryCloseable,
+  planServiceCategoryClose,
+} from '../domain/service-category-closing.ts';
+import { serviceCategoryView } from '../domain/service-category.ts';
+import {
+  CloseServiceCategoryUseCase,
+  type CloseServiceCategoryCommand,
+} from '../use-cases/close-service-category/close-service-category.usecase.ts';
+import { ReopenServiceCategoryUseCase } from '../use-cases/reopen-service-category/reopen-service-category.usecase.ts';
 import {
   grantCategories,
   namesFor,
@@ -22,23 +30,39 @@ let syncCategoryId = '';
 let syncRevision = 0;
 let jobCategoryId = '';
 
+const ids = systemUuidV7();
+const clock = { now: () => new Date('2026-10-29T10:00:00Z') };
+
 const createCategory = (body: object) =>
   f.h.send('POST', `/v1/businesses/${f.business}/service-categories`, {
     cookie: f.cookie,
     company: f.company,
     body,
   });
-const closeCategory = (categoryId: string, body: object) =>
-  f.h.send('POST', `/v1/businesses/${f.business}/service-categories/${categoryId}/close`, {
-    cookie: f.cookie,
-    company: f.company,
-    body,
-  });
-const reopenCategory = (categoryId: string, body: object) =>
-  f.h.send('POST', `/v1/businesses/${f.business}/service-categories/${categoryId}/reopen`, {
-    cookie: f.cookie,
-    company: f.company,
-    body,
+
+const commandFor = (
+  categoryId: string,
+  revision: number,
+  serviceCount: number,
+): CloseServiceCategoryCommand => ({
+  companyId: f.company,
+  userId: f.userId,
+  businessId: f.business,
+  categoryId,
+  input: { expected_revision: revision, expected_service_count: serviceCount },
+});
+
+// نسخة القفل المتزامن قبل الـ PR، محفوظة هنا كخط أساس PP-165.
+const legacySyncClose = (command: CloseServiceCategoryCommand) =>
+  f.transactions.run(command, async (scope) => {
+    const current = await scope.load(command.businessId, command.categoryId);
+    if (current === null) throw new ServiceCategoryError('SERVICE_CATEGORY_NOT_FOUND');
+    assertServiceCategoryCloseable(current, command.input);
+    const services = await scope.lockOpenServices(command.businessId, command.categoryId);
+    const plan = planServiceCategoryClose(current, command.input, services, clock.now());
+    await scope.saveClosing(plan.category, plan.services);
+    await scope.auditClosing({ ...plan, action: 'closed' });
+    return { ...serviceCategoryView(plan.category.after), services_closed: plan.services.length };
   });
 
 /** التصنيف بمئتين وثلاثين أو ثلاثمئة وخدمة، بجملة واحدة على مقبض الـ owner. */
@@ -64,30 +88,24 @@ const clearPending = async (): Promise<void> => {
 const measureAccept = async (): Promise<number> => {
   await clearPending();
   const started = performance.now();
-  const response = await closeCategory(jobCategoryId, {
-    expected_revision: 1,
-    expected_service_count: JOB_SERVICES,
-  });
+  const outcome = await new CloseServiceCategoryUseCase(f.transactions, clock, ids).execute(
+    commandFor(jobCategoryId, 1, JOB_SERVICES),
+  );
   const elapsed = performance.now() - started;
-  expect(response.status).toBe(202);
+  expect(outcome.kind).toBe('pending');
   return elapsed;
 };
 
 const measureSyncClose = async (): Promise<number> => {
   const started = performance.now();
-  const closed = await closeCategory(syncCategoryId, {
-    expected_revision: syncRevision,
-    expected_service_count: SYNC_SERVICES,
-  });
+  const closed = await legacySyncClose(commandFor(syncCategoryId, syncRevision, SYNC_SERVICES));
   const elapsed = performance.now() - started;
-  expect(closed.status).toBe(200);
-  syncRevision = closeServiceCategoryResult.parse(closed.body).revision;
-  const reopened = await reopenCategory(syncCategoryId, {
-    expected_revision: syncRevision,
-    expected_service_count: SYNC_SERVICES,
-  });
-  expect(reopened.status).toBe(200);
-  syncRevision = reopenServiceCategoryResult.parse(reopened.body).revision;
+  syncRevision = closed.revision;
+  const reopened = await new ReopenServiceCategoryUseCase(f.transactions, clock, ids).execute(
+    commandFor(syncCategoryId, syncRevision, SYNC_SERVICES),
+  );
+  expect(reopened.kind).toBe('done');
+  if (reopened.kind === 'done') syncRevision = reopened.result.revision;
   return elapsed;
 };
 
@@ -118,9 +136,9 @@ afterAll(async () => {
   await f?.h.close();
 });
 
-it('accepts 301 services within twice the unchanged sync close of 300 in the same run', async () => {
+it('accepts 301 services within twice the pre-PR sync close baseline of 300 in the same run', async () => {
   const acceptTimes: number[] = [];
-  const syncTimes: number[] = [];
+  const baselineTimes: number[] = [];
   for (let round = 0; round < ROUNDS; round += 1) {
     // الترتيب بيتبادل كل جولة، عشان سخونة الكاش ما تميلش لطرف واحد
     const acceptFirst = round % 2 === 0;
@@ -128,15 +146,15 @@ it('accepts 301 services within twice the unchanged sync close of 300 in the sam
     const second = acceptFirst ? await measureSyncClose() : await measureAccept();
     if (round === 0) continue;
     acceptTimes.push(acceptFirst ? first : second);
-    syncTimes.push(acceptFirst ? second : first);
+    baselineTimes.push(acceptFirst ? second : first);
   }
   process.stdout.write(
     `SERVICE_CATEGORY_CLOSING_ACCEPT ${JSON.stringify({
       accept_ms: acceptTimes,
-      sync_ms: syncTimes,
+      pre_pr_sync_close_baseline_ms: baselineTimes,
       accept_p95_ms: p95(acceptTimes),
-      sync_p95_ms: p95(syncTimes),
+      pre_pr_sync_close_baseline_p95_ms: p95(baselineTimes),
     })}\n`,
   );
-  expect(p95(acceptTimes)).toBeLessThanOrEqual(2 * p95(syncTimes) + 5);
+  expect(p95(acceptTimes)).toBeLessThanOrEqual(2 * p95(baselineTimes) + 5);
 });

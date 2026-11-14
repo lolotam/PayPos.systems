@@ -17,10 +17,14 @@ export type ServiceCategoryClosingRow = {
   readonly finished_at: string | null;
 };
 
-// شاشة متابعة قفل التصنيف تقرأ حالة الطلب الواحد. البحث بمفتاح الصف الأساسي (الشركة
-// والمعرّف) بس، فالمفهرس اللي يتقرأ هو مفهرس المفتاح نفسه؛ التصنيف والنشاط بيتقارنوا
-// بعد القراءة، فطلب تصنيف تاني ما يطلعش من هنا.
-export function serviceCategoryClosingStatusStatement(companyId: string, closingId: string) {
+// شاشة متابعة قفل التصنيف تقرأ حالة الطلب الواحد بمفتاحه الأساسي (الشركة والمعرّف)،
+// والنشاط والتصنيف مرشّحان على الصف نفسه حتى يطابق Postgres معرّفات uuid بغضّ النظر عن حالة الحروف.
+export function serviceCategoryClosingStatusStatement(
+  companyId: string,
+  businessId: string,
+  categoryId: string,
+  closingId: string,
+) {
   return sql`SELECT id,business_id,category_id,action,
       CASE WHEN status='pending' AND deadline_at <= now() THEN 'failed' ELSE status END AS status,
       CASE WHEN status='pending' AND deadline_at <= now() THEN 'SERVICE_CATEGORY_CLOSING_EXPIRED'
@@ -29,7 +33,8 @@ export function serviceCategoryClosingStatusStatement(companyId: string, closing
       to_char(requested_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS requested_at,
       to_char(finished_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS finished_at
     FROM service_category_closings
-    WHERE company_id=${companyId} AND id=${closingId}`;
+    WHERE company_id=${companyId} AND id=${closingId}
+      AND business_id=${businessId} AND category_id=${categoryId}`;
 }
 
 export async function serviceCategoryClosingStatus(
@@ -40,11 +45,10 @@ export async function serviceCategoryClosingStatus(
   closingId: string,
 ): Promise<ServiceCategoryClosingStatus | null> {
   const rows = await tx.execute<ServiceCategoryClosingRow>(
-    serviceCategoryClosingStatusStatement(companyId, closingId),
+    serviceCategoryClosingStatusStatement(companyId, businessId, categoryId, closingId),
   );
   const row = rows[0];
   if (row === undefined) return null;
-  if (row.business_id !== businessId || row.category_id !== categoryId) return null;
   return serviceCategoryClosingStatusSchema.parse({
     closing_id: row.id,
     category_id: row.category_id,

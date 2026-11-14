@@ -15,9 +15,12 @@ import type {
   ServiceCategoryTransactions,
 } from '../../ports/service-category-transactions.port.ts';
 import {
+  closingValidationAfterExpiry,
   pendingClosingOutcome,
+  precheckPendingClosing,
   requestServiceCategoryClosing,
   resolvePendingClosing,
+  rethrowClosingRefusal,
 } from '../service-category-closing-request.ts';
 
 export { ServiceCategoryError };
@@ -40,34 +43,48 @@ export class ReopenServiceCategoryUseCase {
     private readonly ids: IdGenerator,
   ) {}
 
-  execute(command: ReopenServiceCategoryCommand): Promise<ServiceCategoryReopenOutcome> {
-    return this.transactions.run(command, async (scope) => {
+  async execute(command: ReopenServiceCategoryCommand): Promise<ServiceCategoryReopenOutcome> {
+    const outcome = await this.transactions.run(command, async (scope) => {
+      const now = this.clock.now();
+      const intent = {
+        action: 'reopen' as const,
+        expected_revision: command.input.expected_revision,
+        expected_service_count: command.input.expected_service_count,
+      };
+      const prechecked = await precheckPendingClosing(
+        scope,
+        command.businessId,
+        command.categoryId,
+        intent,
+        now,
+      );
+      if (prechecked !== null) return prechecked;
       const current = await scope.load(command.businessId, command.categoryId);
       if (current === null) throw new ServiceCategoryError('SERVICE_CATEGORY_NOT_FOUND');
-      const now = this.clock.now();
       // الطلب المعلّق بيتفحص قبل النسخة والحالة والعدد: التصنيف مشغول، فأي طلب تاني عليه
       // يرد «شغّال» ومعاه هوية الطلب، مش «نسخة قديمة» اللي الشاشة بتتوقع غيرها.
       const pending = await resolvePendingClosing(
         scope,
         command.businessId,
         command.categoryId,
-        {
-          action: 'reopen',
-          expected_revision: command.input.expected_revision,
-          expected_service_count: command.input.expected_service_count,
-        },
+        intent,
         now,
       );
       const replayed = pendingClosingOutcome(pending);
       if (replayed !== null) return replayed;
-      assertServiceCategoryReopenable(current, command.input);
-      const count = await scope.countAffectedServices(
-        command.businessId,
-        command.categoryId,
-        'marked',
-      );
-      if (count !== command.input.expected_service_count)
-        throw new ServiceCategoryError('SERVICE_CATEGORY_COUNT_CHANGED');
+      const validated = await closingValidationAfterExpiry(pending, async () => {
+        assertServiceCategoryReopenable(current, command.input);
+        const count = await scope.countAffectedServices(
+          command.businessId,
+          command.categoryId,
+          'marked',
+        );
+        if (count !== command.input.expected_service_count)
+          throw new ServiceCategoryError('SERVICE_CATEGORY_COUNT_CHANGED');
+        return count;
+      });
+      if (typeof validated !== 'number') return validated;
+      const count = validated;
       return serviceCategoryClosingPath(count) === 'sync'
         ? this.reopenNow(scope, command, current, now)
         : requestServiceCategoryClosing(scope, this.ids, {
@@ -80,6 +97,7 @@ export class ReopenServiceCategoryUseCase {
             requested_at: now,
           });
     });
+    return rethrowClosingRefusal(outcome);
   }
 
   /** الفتح المتزامن: نفس خطوات #996 كما هي، بتأثيره وتدقيقه في معاملة واحدة. */

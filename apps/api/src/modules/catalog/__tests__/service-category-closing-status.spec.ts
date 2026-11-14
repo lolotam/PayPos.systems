@@ -200,7 +200,7 @@ it("answers an unknown id, another category's id and another tenant's id as not 
   expect(otherTenant.body['code']).toBe('SERVICE_CATEGORY_CLOSING_NOT_FOUND');
 });
 
-it('reads the request on the primary key of the closing rows', async () => {
+it('reads the request through an index of the closing rows', async () => {
   const categoryId = await category();
   const closingId = await seedClosing(categoryId, FAR_FUTURE);
   const plan = await f.db.withTenant(f.company, async (tx) => {
@@ -208,11 +208,16 @@ it('reads the request on the primary key of the closing rows', async () => {
     return tx.execute(
       sql`EXPLAIN (ANALYZE, FORMAT JSON) ${serviceCategoryClosingStatusStatement(
         f.company,
+        f.business,
+        categoryId,
         closingId,
       )}`,
     );
   });
-  expect(JSON.stringify(plan)).toContain('service_category_closings_pkey');
+  const planJson = JSON.stringify(plan);
+  expect(planJson).toMatch(/Index (Only )?Scan/);
+  expect(planJson).toMatch(/service_category_closings_(pkey|category_idx)/);
+  expect(planJson).not.toContain('Seq Scan');
 });
 
 it('refuses a caller without the manage permission and a caller without the read permission', async () => {

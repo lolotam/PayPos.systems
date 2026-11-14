@@ -22,6 +22,12 @@ export interface ServiceCategoryClosingPendingOutcome {
   readonly result: ServiceCategoryClosingPending;
 }
 
+/** رفض داخلي مؤجل حتى يلتزم انتهاء الطلب القديم قبل وصول الخطأ للعميل. */
+export interface ServiceCategoryClosingRefusal {
+  readonly kind: 'refused';
+  readonly error: ServiceCategoryError;
+}
+
 /**
  * يقرأ الطلب المعلق على التصنيف ويقرّر مصيره: الطلب المطابق يُعاد بنفس هويته، والطلب
  * المنتهي يُنهى فيرفع الحجب عن التصنيف، والطلب المختلف يُرفض بأنه شغّال بالفعل.
@@ -65,6 +71,65 @@ export function pendingClosingOutcome(
       closing_id: decision.closing_id,
     });
   return null;
+}
+
+/**
+ * يفحص الطلب المعلق قبل قفل التصنيف حتى يرد الطلب المطابق أو المتعارض فوراً أثناء عمل العامل.
+ * القراءة بلا قفل ولا كتابة؛ إعادة الفحص بعد القفل تظل مسؤولة عن السباق وعن تسجيل الانتهاء.
+ *
+ * @param scope      نطاق المعاملة الجاري
+ * @param businessId النشاط المالك
+ * @param categoryId التصنيف المطلوب
+ * @param intent     الطلب الجديد: الفعل والنسخة والعدد
+ * @param now        اللحظة المحقونة اللي يُقاس بها الموعد النهائي
+ * @returns نتيجة إعادة الطلب المطابق، أو null للطلب الجديد أو المنتهي
+ * @throws ServiceCategoryError لما يكون التصنيف شغّال بطلب تاني
+ */
+export async function precheckPendingClosing(
+  scope: ServiceCategoryScope,
+  businessId: string,
+  categoryId: string,
+  intent: ServiceCategoryClosingIntent,
+  now: Date,
+): Promise<ServiceCategoryClosingPendingOutcome | null> {
+  const pending = await scope.findPendingClosing(businessId, categoryId);
+  return pendingClosingOutcome(decideServiceCategoryClosingPending(pending, intent, now));
+}
+
+/**
+ * يحفظ رفض التحقق كقيمة فقط عندما سبقه تسجيل انتهاء طلب قديم، حتى تلتزم المعاملة
+ * بدل ما يمحو الرفض أثر الانتهاء. أي رفض آخر يُرمى فوراً وتتراجع المعاملة كالمعتاد.
+ *
+ * @param decision   قرار الطلب المعلق بعد قفل التصنيف
+ * @param validation فحص الحالة والنسخة والعدد فقط، من غير أي خطوة كتابة لاحقة
+ * @returns نتيجة التحقق الناجح، أو الرفض الداخلي المؤجل بعد انتهاء الطلب القديم
+ * @throws الخطأ الأصلي في كل حالة غير رفض تحقق مسمّى بعد قرار منتهي
+ */
+export async function closingValidationAfterExpiry<T>(
+  decision: ServiceCategoryClosingPendingDecision,
+  validation: () => Promise<T>,
+): Promise<T | ServiceCategoryClosingRefusal> {
+  try {
+    return await validation();
+  } catch (error) {
+    if (decision.kind === 'expired' && error instanceof ServiceCategoryError)
+      return { kind: 'refused', error };
+    throw error;
+  }
+}
+
+/**
+ * يعيد رفض التحقق بعد نجاح التزام المعاملة، فيصل للعميل نفس الخطأ بينما يبقى أثر الانتهاء محفوظاً.
+ *
+ * @param outcome نتيجة العملية أو رفض التحقق الداخلي
+ * @returns نتيجة العملية الأصلية بعد نجاحها
+ * @throws ServiceCategoryError الرفض المؤجل بعد الالتزام
+ */
+export function rethrowClosingRefusal<T extends { readonly kind: string }>(
+  outcome: T | ServiceCategoryClosingRefusal,
+): T {
+  if (outcome.kind === 'refused' && 'error' in outcome) throw outcome.error;
+  return outcome as T;
 }
 
 /**
