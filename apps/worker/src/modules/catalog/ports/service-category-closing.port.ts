@@ -14,10 +14,14 @@ export interface ServiceCategoryClosingTransactions {
    *
    * @param companyId الشركة المالكة لصف الطلب
    * @param closingId صف طلب القفل أو الفتح
-   * @param at        اللحظة المحقونة التي تُقاس بها الموعد وتُكتب بها الأوقات
+   * @param now       الساعة المحقونة، تُقرأ بعد الأقفال عشان الموعد يُقاس على لحظة الفحص نفسها
    * @returns اكتمال التشغيل مع عدد الخدمات المتغيرة، أو رمز الفشل، أو لا عمل
    */
-  run(companyId: string, closingId: string, at: Date): Promise<ServiceCategoryClosingOutcome>;
+  run(
+    companyId: string,
+    closingId: string,
+    now: () => Date,
+  ): Promise<ServiceCategoryClosingOutcome>;
   /**
    * يكتب رمز الفشل على صف معلق فقط، حتى لا يمحو نتيجة اكتملت قبله.
    *

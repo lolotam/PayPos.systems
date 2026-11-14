@@ -15,7 +15,7 @@ export class RunServiceCategoryClosing {
   ) {}
 
   async execute(companyId: string, closingId: string): Promise<ServiceCategoryClosingOutcome> {
-    const outcome = await this.transactions.run(companyId, closingId, this.clock.now());
+    const outcome = await this.transactions.run(companyId, closingId, () => this.clock.now());
     if (outcome.kind === 'failed') await this.report(companyId, closingId, outcome.code);
     return outcome;
   }

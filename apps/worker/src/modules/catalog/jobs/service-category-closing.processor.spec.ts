@@ -229,4 +229,21 @@ describe('finalization', () => {
     );
     expect(value.moveToDelayed).toHaveBeenCalledWith(expect.any(Number), 'token');
   });
+
+  it('persists the generic failure even when the progress marker is rejected', async () => {
+    const execute = vi.fn(async () => {
+      throw new Error('private processing failure');
+    });
+    const { fail } = start({ execute });
+    const value = job();
+    value.updateProgress.mockImplementation(async () => {
+      throw new Error('private progress outage');
+    });
+    await first(state.workers).handler(value as never, 'token');
+    expect(fail).toHaveBeenCalledWith(
+      value.data.companyId,
+      value.data.closingId,
+      'SERVICE_CATEGORY_CLOSING_FAILED',
+    );
+  });
 });

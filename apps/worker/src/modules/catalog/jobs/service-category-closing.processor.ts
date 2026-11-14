@@ -33,10 +33,22 @@ function closingHandler(useCase: RunServiceCategoryClosing) {
         stage: FINALIZING_FAILURE,
         code: 'SERVICE_CATEGORY_CLOSING_FAILED',
       });
-      await job.updateProgress(failure);
+      await markFailureProgress(job, failure);
       return persistFailure(useCase, job, token, { companyId, closingId, ...failure });
     }
   };
+}
+
+/**
+ * يكتب مؤشر الفشل في الطابور كخطوة اختيارية: رفض الكتابة ما يمنعش حفظ الفشل على صف الطلب،
+ * لأن المؤشر للعرض فقط، وصف الطلب في القاعدة هو المصدر.
+ */
+async function markFailureProgress(job: Job, failure: Failure): Promise<void> {
+  try {
+    await job.updateProgress(failure);
+  } catch {
+    // المؤشر ثانوي؛ رفضه ما يمنعش كتابة الفشل في القاعدة.
+  }
 }
 
 /** يكتب رمز الفشل على صف الطلب؛ لو الكتابة نفسها فشلت، المهمة بتتأجل بدل ما تضيع. */

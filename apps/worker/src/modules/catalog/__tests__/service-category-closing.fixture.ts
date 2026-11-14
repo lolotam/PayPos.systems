@@ -128,6 +128,61 @@ async function seedClosing(
   return closingId;
 }
 
+/** ساعة الاختبار: تقرأ لحظة الطلب، والاختبار يقدر يغيّرها وهو شغّال. */
+export interface MutableClock {
+  now(): Date;
+  set(at: Date): void;
+}
+
+/** يبني ساعة تبدأ من لحظة معيّنة وبتعديلها الاختبار وقت ما يحب. */
+export function mutableClock(start: Date): MutableClock {
+  let current = start;
+  return {
+    now: () => current,
+    set: (at: Date) => {
+      current = at;
+    },
+  };
+}
+
+/** وعد بحلّه متاح من برّه: الاختبار هو اللي يقرر وقت الفك. */
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+/**
+ * يمسك قفل التصنيف من معاملة تانية: الاختبار يعدّل الساعة وهو القفل ماسك، وبعدين يفكه
+ * فتبقى المعاملة اللي بتشغّل الطلب واقفة ورا القفل.
+ */
+async function holdCategoryLock(
+  owner: postgres.Sql,
+  companyId: string,
+  categoryId: string,
+): Promise<{ release: () => Promise<void> }> {
+  const released = deferred();
+  const acquired = deferred();
+  const holder = owner.begin(async (tx) => {
+    await tx`SELECT id FROM service_categories
+      WHERE company_id=${companyId} AND id=${categoryId} FOR UPDATE`;
+    acquired.resolve();
+    await released.promise;
+  });
+  await acquired.promise;
+  let done = false;
+  return {
+    release: async () => {
+      if (done) return;
+      done = true;
+      released.resolve();
+      await holder;
+    },
+  };
+}
+
 /** قاعدة مستقلة للعامل؛ صف الطلب هو بديل المنتج لحد ما يجي مفتاح الـ API. */
 export async function serviceCategoryClosingFixture() {
   const testDb = await createTestDatabase();
@@ -144,10 +199,8 @@ export async function serviceCategoryClosingFixture() {
     company: TENANT.A.company,
     business: TENANT.A.business,
   };
-  const useCase = new RunServiceCategoryClosing(
-    serviceCategoryClosingTransactions(db, ids, 60_000, 5_000),
-    { now: () => NOW },
-  );
+  const transactions = serviceCategoryClosingTransactions(db, ids, 60_000, 5_000);
+  const useCase = new RunServiceCategoryClosing(transactions, { now: () => NOW });
 
   return {
     db,
@@ -160,6 +213,8 @@ export async function serviceCategoryClosingFixture() {
     otherBusiness: TENANT.B.business,
     userId: USER,
     clock: { now: () => NOW },
+    useCaseWithClock: (clock: MutableClock) => new RunServiceCategoryClosing(transactions, clock),
+    holdCategoryLock: (categoryId: string) => holdCategoryLock(owner, context.company, categoryId),
     category: (input: CategoryInput = {}) => seedCategory(context, input),
     closing: (category: SeededCategory, input: ClosingInput) =>
       seedClosing(context, category, input),

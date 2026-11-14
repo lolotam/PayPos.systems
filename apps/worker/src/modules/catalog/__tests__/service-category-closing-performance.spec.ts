@@ -1,8 +1,5 @@
-import {
-  applyServiceCategoryClosing,
-  lockServiceCategoryCascadeServices,
-  serviceCategoryCascadeStatement,
-} from '@pospay/db';
+import { appendAuditLogs, serviceCategoryCascadeStatement } from '@pospay/db';
+import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import {
@@ -23,45 +20,57 @@ const median = (values: readonly number[]): number => {
   return middle;
 };
 
-/** خط الأساس: نفس الجمل المشتركة في معاملة مستأجر واحدة، على بيانات مطابقة للوظيفة. */
+// خط الأساس هو مسار الإغلاق المتزامن في الـ API كما هو: نفس الأقفال ونفس الجمل بنفس الترتيب
+// (persistence/drizzle-service-category-transactions.ts وdrizzle-service-category-closing.ts).
+// الـ worker ما ينفعش يستورد كود الـ API، فالجمل منسوخة هنا بدل حالة الاستخدام نفسها.
 const baseline = async (
   fixture: ServiceCategoryClosingFixture,
   categoryId: string,
 ): Promise<void> => {
+  const { company, business } = fixture;
   await fixture.db.withTenant(
-    fixture.company,
+    company,
     async (tx) => {
-      const serviceIds = await lockServiceCategoryCascadeServices(tx, {
-        companyId: fixture.company,
-        businessId: fixture.business,
-        categoryId,
-        closing: true,
-      });
-      await applyServiceCategoryClosing(tx, {
-        companyId: fixture.company,
-        businessId: fixture.business,
-        categoryId,
-        closing: true,
-        at: AT,
-        expectedRevision: 1,
-        categoryAuditId: fixture.ids.newId(),
-      });
+      const [category] = await tx.execute<{ revision: number }>(sql`SELECT id,business_id,name_en,
+        name_ar,owner_branch_id,visibility,closed_at,revision,created_at,updated_at
+        FROM service_categories
+        WHERE company_id=${company} AND business_id=${business} AND id=${categoryId} FOR UPDATE`);
+      if (category === undefined) throw new Error('the baseline category is missing');
+      const services = await tx.execute<{ id: string }>(sql`SELECT id,business_id,name_en,name_ar,
+        price,commission_rule_kind,commission_pct_bps,commission_fixed_amount,
+        counts_toward_threshold,duration_minutes,category_id,closed_at,closed_by_category_id,
+        revision,created_at,updated_at FROM services
+        WHERE company_id=${company} AND business_id=${business} AND category_id=${categoryId}
+          AND closed_at IS NULL ORDER BY id FOR NO KEY UPDATE`);
+      await tx.execute(sql`UPDATE service_categories
+        SET closed_at=${AT}::timestamptz,updated_at=${AT}::timestamptz,revision=${category.revision + 1}
+        WHERE company_id=${company} AND business_id=${business} AND id=${categoryId}
+          AND revision=${category.revision} RETURNING id`);
       await tx.execute(
         serviceCategoryCascadeStatement({
-          companyId: fixture.company,
-          businessId: fixture.business,
+          companyId: company,
+          businessId: business,
           categoryId,
           closing: true,
           at: AT,
           auditIds: JSON.stringify(
-            serviceIds.map((serviceId) => ({
-              service_id: serviceId,
-              audit_id: fixture.ids.newId(),
-            })),
+            services.map((service) => ({ service_id: service.id, audit_id: fixture.ids.newId() })),
           ),
-          expectedCount: serviceIds.length,
+          expectedCount: services.length,
         }),
       );
+      await appendAuditLogs(tx, [
+        {
+          id: fixture.ids.newId(),
+          entry: {
+            entity: 'service_category',
+            entityId: categoryId,
+            action: 'closed',
+            before: { closed_at: null, revision: category.revision },
+            after: { closed_at: AT, revision: category.revision + 1 },
+          },
+        },
+      ]);
     },
     { userId: fixture.userId },
   );
@@ -75,7 +84,7 @@ afterAll(async () => {
   await f?.close();
 });
 
-it('runs a thousand services within twice the baseline of the same run', async () => {
+it('runs a thousand services within twice the unchanged sync close of the same run', async () => {
   const jobTimes: number[] = [];
   const baselineTimes: number[] = [];
   for (let round = 0; round < ROUNDS; round++) {

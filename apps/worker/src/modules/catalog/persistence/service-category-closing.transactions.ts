@@ -35,11 +35,14 @@ type CategoryRow = {
   closed_at: Date | null;
 };
 
-/** التشغيل الواحد: الصف والشركة واللحظة، عشان يوصلوا لكل خطوة من غير تكرار. */
-interface ClosingRun {
+interface ClosingTarget {
   readonly companyId: string;
   readonly closingId: string;
-  readonly at: Date;
+}
+
+interface ClosingContext extends ClosingTarget {
+  readonly ids: IdGenerator;
+  readonly now: () => Date;
 }
 
 const CLOSING_COLUMNS = sql`business_id,category_id,action,status,expected_revision,
@@ -96,12 +99,13 @@ async function lockCategory(
 /** يكتب رمز الفشل على صف معلق فقط؛ الصف اللي خلص ما بيتغيرش. */
 async function markFailed(
   tx: Tx,
-  run: ClosingRun,
+  target: ClosingTarget,
   code: ServiceCategoryClosingFailure,
+  at: Date,
 ): Promise<void> {
   await tx.execute(sql`UPDATE service_category_closings SET status='failed',error_code=${code},
-    finished_at=${run.at.toISOString()}::timestamptz
-    WHERE company_id=${run.companyId} AND id=${run.closingId} AND status='pending'`);
+    finished_at=${at.toISOString()}::timestamptz
+    WHERE company_id=${target.companyId} AND id=${target.closingId} AND status='pending'`);
 }
 
 /**
@@ -111,45 +115,45 @@ async function markFailed(
  */
 async function applyClosing(
   tx: Tx,
-  ids: IdGenerator,
-  run: ClosingRun,
+  context: ClosingContext,
   row: ClosingRow,
+  at: Date,
 ): Promise<ServiceCategoryClosingOutcome> {
   const closing = row.action === 'close';
-  const atIso = run.at.toISOString();
+  const atIso = at.toISOString();
   const serviceIds = await lockServiceCategoryCascadeServices(tx, {
-    companyId: run.companyId,
+    companyId: context.companyId,
     businessId: row.business_id,
     categoryId: row.category_id,
     closing,
   });
   const count = decideServiceCategoryClosingCount(row.expected_service_count, serviceIds.length);
   if (count !== 'proceed') {
-    await markFailed(tx, run, count);
+    await markFailed(tx, context, count, at);
     return { kind: 'failed', code: count };
   }
   const applied = await applyServiceCategoryClosing(tx, {
-    companyId: run.companyId,
+    companyId: context.companyId,
     businessId: row.business_id,
     categoryId: row.category_id,
     closing,
     at: atIso,
     expectedRevision: row.expected_revision,
-    categoryAuditId: ids.newId(),
+    categoryAuditId: context.ids.newId(),
   });
   if (applied === 'revision-conflict') {
-    await markFailed(tx, run, 'SERVICE_CATEGORY_REVISION_CONFLICT');
+    await markFailed(tx, context, 'SERVICE_CATEGORY_REVISION_CONFLICT', at);
     return { kind: 'failed', code: 'SERVICE_CATEGORY_REVISION_CONFLICT' };
   }
   const audited = await tx.execute(
     serviceCategoryCascadeStatement({
-      companyId: run.companyId,
+      companyId: context.companyId,
       businessId: row.business_id,
       categoryId: row.category_id,
       closing,
       at: atIso,
       auditIds: JSON.stringify(
-        serviceIds.map((serviceId) => ({ service_id: serviceId, audit_id: ids.newId() })),
+        serviceIds.map((serviceId) => ({ service_id: serviceId, audit_id: context.ids.newId() })),
       ),
       expectedCount: serviceIds.length,
     }),
@@ -158,29 +162,37 @@ async function applyClosing(
     throw new Error('SERVICE_CATEGORY_CLOSING_AUDIT_MISMATCH');
   await tx.execute(sql`UPDATE service_category_closings SET status='completed',
     services_changed=${serviceIds.length},finished_at=${atIso}::timestamptz
-    WHERE company_id=${run.companyId} AND id=${run.closingId} AND status='pending'`);
+    WHERE company_id=${context.companyId} AND id=${context.closingId} AND status='pending'`);
   return { kind: 'completed', servicesChanged: serviceIds.length };
 }
 
-/** القرار وفحص الصف تحت قفل التصنيف: الفشل يكتب صف الطلب بس، والمتابعة تمشي على الخدمات. */
+/**
+ * القرار وفحص الصف تحت قفل التصنيف: الفشل يكتب صف الطلب بس، والمتابعة تمشي على الخدمات.
+ * الساعة تُقرأ بعد الأقفال، لأن الموعد لازم يُقاس على لحظة الفحص نفسها مش على لحظة وصول الطلب.
+ */
 async function runInTransaction(
   tx: Tx,
-  ids: IdGenerator,
-  run: ClosingRun,
+  context: ClosingContext,
 ): Promise<ServiceCategoryClosingOutcome> {
-  const target = await readClosing(tx, run.companyId, run.closingId, WITHOUT_LOCK);
+  const target = await readClosing(tx, context.companyId, context.closingId, WITHOUT_LOCK);
   if (target === null) return { kind: 'noop' };
-  const category = await lockCategory(tx, run.companyId, target.business_id, target.category_id);
+  const category = await lockCategory(
+    tx,
+    context.companyId,
+    target.business_id,
+    target.category_id,
+  );
   if (category === null) throw new Error('SERVICE_CATEGORY_CLOSING_CATEGORY_MISSING');
-  const row = await readClosing(tx, run.companyId, run.closingId, WITH_UPDATE_LOCK);
+  const row = await readClosing(tx, context.companyId, context.closingId, WITH_UPDATE_LOCK);
   if (row === null) return { kind: 'noop' };
-  const decision = decideServiceCategoryClosing(jobOf(row), categoryOf(category), run.at);
+  const at = context.now();
+  const decision = decideServiceCategoryClosing(jobOf(row), categoryOf(category), at);
   if (decision === 'noop') return { kind: 'noop' };
   if (decision !== 'proceed') {
-    await markFailed(tx, run, decision);
+    await markFailed(tx, context, decision, at);
     return { kind: 'failed', code: decision };
   }
-  return applyClosing(tx, ids, run, row);
+  return applyClosing(tx, context, row, at);
 }
 
 /** يقرأ طالب الطلب في معاملة قصيرة: الـ actor في تدقيق الـ SQL هو اللي طلب العملية. */
@@ -188,12 +200,17 @@ async function readRequester(
   database: Pick<TenantWrappers, 'withTenant'>,
   companyId: string,
   closingId: string,
+  timeoutMs: number,
 ): Promise<string | null> {
-  return database.withTenant(companyId, async (tx) => {
-    const [row] = await tx.execute<{ requested_by: string }>(sql`SELECT requested_by
-      FROM service_category_closings WHERE company_id=${companyId} AND id=${closingId}`);
-    return row?.requested_by ?? null;
-  });
+  return database.withTenant(
+    companyId,
+    async (tx) => {
+      const [row] = await tx.execute<{ requested_by: string }>(sql`SELECT requested_by
+        FROM service_category_closings WHERE company_id=${companyId} AND id=${closingId}`);
+      return row?.requested_by ?? null;
+    },
+    { timeoutMs },
+  );
 }
 
 /**
@@ -201,28 +218,24 @@ async function readRequester(
  * صف شركة تانية ما بيظهرش تحت عزل الصفوف، فالتشغيل بيعمل لا عمل.
  */
 async function runClosing(
+  context: ClosingContext,
   database: Pick<TenantWrappers, 'withTenant'>,
-  ids: IdGenerator,
-  run: ClosingRun,
   timeoutMs: number,
+  failureTimeoutMs: number,
 ): Promise<ServiceCategoryClosingOutcome> {
-  const requester = await readRequester(database, run.companyId, run.closingId);
+  const requester = await readRequester(
+    database,
+    context.companyId,
+    context.closingId,
+    failureTimeoutMs,
+  );
   if (requester === null) return { kind: 'noop' };
-  return database.withTenant(run.companyId, (tx) => runInTransaction(tx, ids, run), {
+  return database.withTenant(context.companyId, (tx) => runInTransaction(tx, context), {
     userId: requester,
     timeoutMs,
   });
 }
 
-/**
- * معاملات قفل وفتح التصنيف في قاعدة البيانات: معاملة واحدة لكل تشغيل، ومعاملة قصيرة لكتابة الفشل.
- *
- * @param database          بوابة المستأجر اللي بتنفّذ المعاملات
- * @param ids               مولّد المعرّفات لمعرّفات التدقيق
- * @param timeoutMs         مهلة معاملة التشغيل
- * @param failureTimeoutMs  مهلة معاملة كتابة الفشل
- * @returns المعاملات جاهزة للاستخدام من حالة الاستخدام
- */
 export function serviceCategoryClosingTransactions(
   database: Pick<TenantWrappers, 'withTenant'>,
   ids: IdGenerator,
@@ -230,16 +243,17 @@ export function serviceCategoryClosingTransactions(
   failureTimeoutMs: number,
 ): ServiceCategoryClosingTransactions {
   return {
-    run: (companyId, closingId, at) =>
-      runClosing(database, ids, { companyId, closingId, at }, timeoutMs),
+    run: (companyId, closingId, now) =>
+      runClosing({ companyId, closingId, ids, now }, database, timeoutMs, failureTimeoutMs),
     fail: (companyId, closingId, code, at) =>
       database.withTenant(
         companyId,
         async (tx) => {
-          await markFailed(tx, { companyId, closingId, at }, code);
+          await markFailed(tx, { companyId, closingId }, code, at);
         },
         { timeoutMs: failureTimeoutMs },
       ),
-    readRequester: (companyId, closingId) => readRequester(database, companyId, closingId),
+    readRequester: (companyId, closingId) =>
+      readRequester(database, companyId, closingId, failureTimeoutMs),
   };
 }

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import {
+  mutableClock,
   serviceCategoryClosingFixture,
   type SeededCategory,
   type ServiceCategoryClosingFixture,
@@ -182,5 +183,30 @@ it('touches nothing when the job id belongs to another company', async () => {
   });
   const services = await f.serviceRows(category.categoryId);
   expect(services.every((service) => service['closed_at'] === null)).toBe(true);
+  expect(await f.auditRows(category.categoryId)).toEqual([]);
+});
+
+it('fails a job whose deadline passes while the category lock is held', async () => {
+  const category = await f.category({ open: 3 });
+  const deadlineAt = new Date('2026-11-14T10:15:00.000Z');
+  const closingId = await f.closing(category, { action: 'close', deadlineAt });
+  const clock = mutableClock(new Date('2026-11-14T10:00:00.000Z'));
+  const useCase = f.useCaseWithClock(clock);
+  const servicesBefore = await f.serviceRows(category.categoryId);
+  const lock = await f.holdCategoryLock(category.categoryId);
+
+  const running = useCase.execute(f.company, closingId);
+  const afterDeadline = new Date('2026-11-14T10:15:00.001Z');
+  clock.set(afterDeadline);
+  await lock.release();
+
+  expect(await running).toEqual({ kind: 'failed', code: 'SERVICE_CATEGORY_CLOSING_EXPIRED' });
+  expect(await f.closingRow(closingId)).toMatchObject({
+    status: 'failed',
+    services_changed: null,
+    error_code: 'SERVICE_CATEGORY_CLOSING_EXPIRED',
+    finished_at: afterDeadline,
+  });
+  expect(await f.serviceRows(category.categoryId)).toEqual(servicesBefore);
   expect(await f.auditRows(category.categoryId)).toEqual([]);
 });

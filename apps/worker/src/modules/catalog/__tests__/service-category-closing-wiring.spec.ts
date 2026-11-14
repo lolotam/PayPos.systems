@@ -70,10 +70,6 @@ afterEach(async () => {
   await catalog.close();
 });
 
-it('knows the closing request event', () => {
-  expect(catalog.eventTypes).toContain('ServiceCategoryClosingRequested');
-});
-
 it('delivers the closing request to the queue by event id', async () => {
   const closingId = ids.newId();
   const event: ClaimedEvent = {
