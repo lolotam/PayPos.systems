@@ -5,11 +5,11 @@ import { useLocale } from '@/shared/locale/locale-context';
 import type { DeviceProposal } from '../api/device-discount-calls';
 import { localName, percentText, timeLeftParts } from '../model/proposal-display';
 
-function useProposalFields(proposal: DeviceProposal) {
+function useProposalFields(proposal: DeviceProposal, now: Date) {
   const locale = useLocale();
   const currency = t(locale, 'deviceDiscountApproval.currency');
   const number = new Intl.NumberFormat(locale, { numberingSystem: 'latn' });
-  const left = timeLeftParts(new Date(proposal.expires_at), new Date());
+  const left = timeLeftParts(new Date(proposal.expires_at), now);
   const timeLeft = t(locale, 'deviceDiscountApproval.timeLeft')
     .replace('{hours}', number.format(left.hours))
     .replace('{minutes}', number.format(left.minutes));
@@ -36,15 +36,19 @@ function useProposalFields(proposal: DeviceProposal) {
 
 export function DeviceProposalCard({
   proposal,
+  now,
   selected,
+  disabled,
   onChoose,
 }: {
   proposal: DeviceProposal;
+  now: Date;
   selected: boolean;
+  disabled: boolean;
   onChoose: () => void;
 }) {
   const locale = useLocale();
-  const fields = useProposalFields(proposal);
+  const fields = useProposalFields(proposal, now);
   return (
     <Card className="flex h-full flex-col gap-4 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -69,6 +73,7 @@ export function DeviceProposalCard({
         type="button"
         variant={selected ? 'default' : 'outline'}
         aria-pressed={selected}
+        disabled={disabled}
         onClick={onChoose}
         className="mt-auto"
       >

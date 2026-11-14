@@ -17,6 +17,32 @@ function decisionLabel(locale: 'ar' | 'en', pending: boolean, decision: PinDecis
   );
 }
 
+function validationAlert(hasErrors: boolean, locale: 'ar' | 'en') {
+  if (!hasErrors) return null;
+  return (
+    <p role="alert" className="text-destructive">
+      {t(locale, 'deviceDiscountApproval.pinInvalid')}
+    </p>
+  );
+}
+
+function rejectionReason(
+  reason: string,
+  setReason: (reason: string) => void,
+  locale: 'ar' | 'en',
+) {
+  return (
+    <>
+      <Label htmlFor="discount-reason">{t(locale, 'deviceDiscountApproval.reason')}</Label>
+      <Input
+        id="discount-reason"
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+      />
+    </>
+  );
+}
+
 function useOnlineStatus() {
   const [online, setOnline] = useState(navigator.onLine);
   useEffect(() => {
@@ -39,7 +65,9 @@ function useDecisionForm(proposal: DeviceProposal, controller: ReturnType<typeof
     await controller.decide(proposal, decision, input, reason);
     form.resetField('pin');
   };
-  return { form, reason, setReason, online, submit };
+  const disabled = !online || controller.pending;
+  const resetPin = () => form.resetField('pin', { keepError: true });
+  return { form, reason, setReason, online, submit, disabled, resetPin };
 }
 
 export function PinDecisionForm({
@@ -52,14 +80,15 @@ export function PinDecisionForm({
   onCancel: () => void;
 }) {
   const locale = useLocale();
-  const { form, reason, setReason, online, submit } = useDecisionForm(proposal, controller);
-  const disabled = !online || controller.pending;
-  const resetPin = () => form.resetField('pin', { keepError: true });
+  const { form, reason, setReason, online, submit, disabled, resetPin } = useDecisionForm(
+    proposal,
+    controller,
+  );
   return (
     <form
       className="mt-3 grid gap-3 rounded-lg border p-4"
       noValidate
-      onSubmit={form.handleSubmit(submit('approve'), resetPin)}
+      onSubmit={(event) => event.preventDefault()}
     >
       <fieldset disabled={disabled} className="grid gap-3">
         <Label htmlFor="discount-phone">{t(locale, 'deviceDiscountApproval.phone')}</Label>
@@ -73,19 +102,15 @@ export function PinDecisionForm({
           autoComplete="off"
           {...form.register('pin')}
         />
-        <Label htmlFor="discount-reason">{t(locale, 'deviceDiscountApproval.reason')}</Label>
-        <Input
-          id="discount-reason"
-          value={reason}
-          onChange={(event) => setReason(event.target.value)}
-        />
-        {Object.keys(form.formState.errors).length !== 0 ? (
-          <p role="alert" className="text-destructive">
-            {t(locale, 'deviceDiscountApproval.pinInvalid')}
-          </p>
-        ) : null}
+        {rejectionReason(reason, setReason, locale)}
+        {validationAlert(Object.keys(form.formState.errors).length !== 0, locale)}
         <div className="grid gap-2 sm:grid-cols-2">
-          <Button type="submit">{decisionLabel(locale, controller.pending, 'approve')}</Button>
+          <Button
+            type="button"
+            onClick={form.handleSubmit(submit('approve'), resetPin)}
+          >
+            {decisionLabel(locale, controller.pending, 'approve')}
+          </Button>
           <Button
             type="button"
             variant="destructive"

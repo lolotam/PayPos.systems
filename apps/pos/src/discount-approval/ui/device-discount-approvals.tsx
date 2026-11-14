@@ -1,6 +1,6 @@
 import { t, type Locale } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 import { failureText } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -10,6 +10,15 @@ import { usePinDecision, type PinDecision } from '../api/use-pin-decision';
 import type { PinDecisionOutcome } from '../model/pin-decision-outcome';
 import { DeviceProposalCard } from './device-proposal-card';
 import { PinDecisionForm } from './pin-decision-form';
+
+function useNow(intervalMs: number): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), intervalMs);
+    return () => window.clearInterval(timer);
+  }, [intervalMs]);
+  return now;
+}
 
 function useProposalSelection(
   items: DeviceProposal[],
@@ -96,6 +105,7 @@ export function DeviceDiscountApprovals({
 }) {
   const locale = useLocale();
   const titleId = useId();
+  const now = useNow(30_000);
   const list = useDeviceDiscountProposals(branchId, onRejected);
   const controller = usePinDecision(branchId);
   const { outcome, decision, clear } = controller;
@@ -114,7 +124,9 @@ export function DeviceDiscountApprovals({
             <div key={proposal.id}>
               <DeviceProposalCard
                 proposal={proposal}
+                now={now}
                 selected={selectedId === proposal.id}
+                disabled={controller.pending}
                 onChoose={() => choose(proposal.id)}
               />
               {selectedId === proposal.id ? (

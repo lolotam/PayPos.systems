@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
@@ -112,6 +112,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  onlineManager.setOnline(true);
 });
 
 describe('reading the list', () => {
@@ -312,5 +313,72 @@ describe('offline and validation', () => {
         .matches(':disabled'),
     ).toBe(true);
     expect(calls.decide).not.toHaveBeenCalled();
+  });
+});
+
+function remainingText(minutes: string) {
+  return t('ar', 'deviceDiscountApproval.timeLeft')
+    .replace('{hours}', '3')
+    .replace('{minutes}', minutes);
+}
+
+describe('review round 1', () => {
+  it('counts down the time left on an idle screen after two minutes', async () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'], shouldAdvanceTime: true });
+    vi.setSystemTime(new Date('2026-11-04T10:00:00.000Z'));
+    display();
+    expect(await screen.findByText(remainingText('20'))).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(120_000);
+    });
+    expect(screen.getByText(remainingText('18'))).not.toBeNull();
+    expect(screen.queryByText(remainingText('20'))).toBeNull();
+  });
+
+  it('disables every choose button while pending and shows status when resolved', async () => {
+    let resolve: (value: unknown) => void = () => undefined;
+    calls.read.mockResolvedValueOnce({ items: [fixture, secondPageFixture], next_cursor: null });
+    calls.decide.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
+    display();
+    const buttons = await screen.findAllByRole('button', { name: t('ar', 'deviceDiscountApproval.choose') });
+    const [first] = buttons;
+    if (!first) throw new Error('no choose button');
+    fireEvent.click(first);
+    fireEvent.change(screen.getByLabelText(t('ar', 'deviceDiscountApproval.phone')), { target: { value: '+96550000001' } });
+    fireEvent.change(screen.getByLabelText(t('ar', 'deviceDiscountApproval.pin')), { target: { value: '1234' } });
+    fireEvent.click(screen.getByRole('button', { name: t('ar', 'deviceDiscountApproval.approve') }));
+    await waitFor(() => {
+      const chooseButtons = screen.getAllByRole('button', { name: t('ar', 'deviceDiscountApproval.choose') });
+      expect(chooseButtons).toHaveLength(2);
+      for (const btn of chooseButtons) expect(btn.matches(':disabled')).toBe(true);
+    });
+    await act(async () => {
+      resolve({ ok: true, data: { proposals: [{ id: fixture.id, status: 'APPROVED', expires_at: fixture.expires_at }] } });
+    });
+    expect(await screen.findByRole('status')).not.toBeNull();
+    expect(screen.getByRole('status').textContent).toContain(t('ar', 'deviceDiscountApproval.approved'));
+  });
+
+  it('ignores Enter in the rejection reason and rejects only on button click', async () => {
+    display();
+    await chooseAndFill('+96550000001', '1234');
+    const reason = screen.getByLabelText(t('ar', 'deviceDiscountApproval.reason'));
+    fireEvent.change(reason, { target: { value: 'too high' } });
+    fireEvent.keyDown(reason, { key: 'Enter', code: 'Enter' });
+    const form = reason.closest('form');
+    if (!form) throw new Error('no form');
+    fireEvent.submit(form);
+    expect(calls.decide).not.toHaveBeenCalled();
+    expect(screen.queryByText(t('ar', 'deviceDiscountApproval.approved'))).toBeNull();
+    expect(screen.queryByText(t('ar', 'deviceDiscountApproval.rejected'))).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: t('ar', 'deviceDiscountApproval.reject') }));
+    expect(await screen.findByText(t('ar', 'deviceDiscountApproval.rejected'))).not.toBeNull();
+    expect(calls.decide).toHaveBeenCalledWith('reject', {
+      proposal_ids: [fixture.id],
+      terms_hashes: [fixture.terms_hash],
+      phone: '+96550000001',
+      pin: '1234',
+      reason: 'too high',
+    });
   });
 });
