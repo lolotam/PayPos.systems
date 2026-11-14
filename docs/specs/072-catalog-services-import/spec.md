@@ -603,6 +603,49 @@ the synchronous SQL-built path with a worker job for larger categories. That wor
 `32b-cat-2-worker` («close/reopen large categories as a background job»); until it lands, categories above 300 services
 stay synchronous with no cap and no refusal.
 
+### Large categories in the background (`32b-cat-2-worker`, addendum 2026-11-14)
+
+Recorded here before the behaviour ships (#1027). The decisions are W-1 to W-11 of
+[plan-32b-cat-2-worker.md](plan-32b-cat-2-worker.md); this addendum states what they mean for the spec.
+
+- **Schema** (migration `0228_2026-11-13_service-category-closings.sql`, sub-PR 1, #1021): tenant table
+  `service_category_closings`, one row per large close or reopen: `action` (`close` / `reopen`), `status`
+  (`pending` / `completed` / `failed`), `expected_revision`, `expected_service_count` (> 0), `services_changed`,
+  `error_code` (one of the six codes below), `requested_by` (FK `user`, `ON DELETE no action` like every audit-style
+  user reference), `requested_at`, `deadline_at` (`requested_at` + 15 minutes), `finished_at`. PK
+  `(company_id, id)`, composite FK to the category, at most one `pending` row per category (partial unique index). RLS
+  enabled and forced; `pospay_app` may select, insert and update only the four result columns; no delete. A guard
+  trigger allows only `pending → completed | failed`. Rows are kept; no cleanup job.
+- **Nothing changes at accept** (W-1). Above the synchronous threshold of 300 services the category and its services
+  stay untouched until the job's single transaction commits; a partial state is never visible.
+- **The job** (sub-PR 2, worker `catalog` module, queue `service-category-closing`) runs in one tenant transaction
+  as the requesting manager, so every audit row names them as actor (W-6). Under the category lock and the job-row
+  lock it re-checks, in this order, the deadline, the revision, the state and the affected count; a mismatch ends the
+  row `failed` with its code and changes nothing else. Otherwise it closes or reopens the services and the category and
+  writes their audit rows with the same SQL as the synchronous path (one shared copy in `packages/db`), and ends the
+  row `completed` with `services_changed`. A completed or failed row is never run again. After the last queue attempt
+  the row ends `failed` / `SERVICE_CATEGORY_CLOSING_FAILED`.
+- **Failure codes** (`SERVICE_CATEGORY_CLOSING_FAILURE_CODES` in `packages/contracts`):
+  `SERVICE_CATEGORY_REVISION_CONFLICT`, `SERVICE_CATEGORY_ALREADY_CLOSED`, `SERVICE_CATEGORY_NOT_CLOSED`,
+  `SERVICE_CATEGORY_COUNT_CHANGED`, `SERVICE_CATEGORY_CLOSING_EXPIRED`, `SERVICE_CATEGORY_CLOSING_FAILED`.
+- **Event:** `ServiceCategoryClosingRequested`, payload `{ closing_id }`, company in the envelope, emitted by the
+  accept transaction and transported to the job after the outbox claim commits (ADR-0018). The worker consumes it from
+  sub-PR 2; the API emits it from sub-PR 3. No business consumer.
+- **API** (sub-PR 3, not shipped yet): close and reopen answer **200** as today at 300 services or fewer and **202**
+  `{ closing_id, status: 'pending' }` above; one pending request per category (an identical request gets the same
+  `closing_id`, any other gets 409 `SERVICE_CATEGORY_CLOSING_IN_PROGRESS` with `{ closing_id }`, an expired pending
+  row stops blocking); a status read `GET …/service-categories/{categoryId}/closings/{closingId}`; the category detail
+  gains `pending_closing_id`. While a job is pending, rename, visibility, single-service changes and assignments are
+  not blocked; each makes the job fail with a revision or count conflict (W-4).
+- **Permissions:** no new permission. Accept keeps the close route's pair; the job does not re-check it. The status
+  route's permission is SI-Q29 and what the screen shows after a large confirm is SI-Q30, both **PENDING**
+  (`owner-questions.ar.md` §31, §32); sub-PR 3 waits for them.
+- **Tests:** sub-PR 1 has the RLS negative, grant, CHECK, guard-trigger and shared-SQL parity tests; sub-PR 2 has the
+  job tests (completed above 300 services with the requester as actor, reopen restores only marked services, replay is
+  a no-op, each failure code changes nothing, last-attempt failure, another tenant's job touches nothing, no deadlock
+  with the order recorder's `FOR SHARE` locks) and a PP-165 ratio test at 1,000 services; sub-PR 3 has the 200/202
+  split, replay and in-progress answers, the status read with `EXPLAIN ANALYZE`, and permission tests.
+
 ### Test plan
 
 - **Domain unit** (`catalog/domain`, no database): the cell converters (price strings: `12.5`, `0`, `7.500`, `7.5555`,

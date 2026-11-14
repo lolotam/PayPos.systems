@@ -271,6 +271,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `EmployeeImported` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
 | `EmployeeImportCommitRequested` | `staff` | `staff` worker registers per-company employee-import-recovery sweep (PR 24 / ADR-0022 discovery), then transports employee-import-commit after outbox claim commits (ADR-0034, ADR-0018) |
 | `ServiceImportCommitRequested` | `catalog` | `catalog` worker registers the per-company service-import-recovery sweep (PR 24 / ADR-0022 discovery), then transports service-import-commit after the outbox claim commits; id-only `{ preview_id }`, company in the envelope (ADR-0034 services-import addendum, ADR-0018) |
+| `ServiceCategoryClosingRequested` | `catalog` (emitted from 32b-cat-2-worker sub-PR 3, in the accept transaction of a close or reopen above 300 services) | worker `catalog` `service-category-closing` processor (sub-PR 2); id-only `{ closing_id }`, company in the envelope, transported after the outbox claim commits (ADR-0018); no business consumer |
 | `ImportCommitted` | `staff`, `orders` (package commit summary; transport activation deferred to 47-2c/d) | None in Phase 1; known to the dispatcher (ADR-0034) |
 | `PackageSaleRequested` | `orders` acceptance, in the same transaction as the `pending` request | worker `orders` `package-sale` processor; id-only `{ sale_request_id }`, envelope `aggregateType='package_sale_request'`, `aggregateId` = request id and company in the envelope (ADR-0034 addendum 2026-11-11, spec 058 FR-018) |
 | `BusinessLogoChanged` | `settings` (`set-business-logo`, 27h-4) | worker `files` retire consumer (27h-3, ADR-0046) |
@@ -300,7 +301,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `StatementAwaitingReview`                                                   | `commissions`   | `notifications`                                                                                   |
 | `StatementAwaitingApproval`                                                 | `commissions`   | `notifications`                                                                                   |
 
-The worker `catalog` module lives at `apps/worker/src/modules/catalog`, owns the `service-import-commit` and `service-import-recovery` jobs, and is wired at `apps/worker/src/main.ts`. Its imports follow the existing `catalog: [tenancy]` entry for both applications. No code registers `ServiceImportCommitRequested` before sub-PR 32b-3.
+The worker `catalog` module lives at `apps/worker/src/modules/catalog`, owns the `service-import-commit` and `service-import-recovery` jobs and the `service-category-closing` job (32b-cat-2-worker), and is wired at `apps/worker/src/main.ts`. Its imports follow the existing `catalog: [tenancy]` entry for both applications. No code registers `ServiceImportCommitRequested` before sub-PR 32b-3.
 
 **Two consumers by default.** Every event has its business handler **and** the `realtime` publisher (`06` §5.10). That is what guarantees a screen never shows something that didn't actually commit.
 
