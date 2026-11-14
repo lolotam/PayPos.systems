@@ -114,6 +114,8 @@ it.each([
     { expected_service_revisions: [{ service_id: service, revision: 2147483648 }] },
   ],
   ['a sold_at timestamp in year zero', { sold_at: '0000-01-01T00:00:00Z' }],
+  ['a sold_at timestamp rolling over to year 10000', { sold_at: '9999-12-31T23:00:00-01:00' }],
+  ['a sold_at timestamp rolling back to year zero', { sold_at: '0001-01-01T00:30:00+01:00' }],
   ['an unknown key', { note: 'extra' }],
 ])('refuses a sale input with %s', (_scenario, change) => {
   expect(sellPackageInput.safeParse({ ...input, ...change }).success).toBe(false);
@@ -126,6 +128,8 @@ it.each([
     { expected_service_revisions: [{ service_id: service, revision: 2147483647 }] },
   ],
   ['a normal sold_at', { sold_at: '2026-10-17T12:00:00.000Z' }],
+  ['the latest sold_at in year 9999', { sold_at: '9999-12-31T23:59:59.999Z' }],
+  ['the earliest sold_at in year one', { sold_at: '0001-01-01T00:00:00Z' }],
 ])('accepts a sale input with %s', (_scenario, change) => {
   expect(sellPackageInput.safeParse({ ...input, ...change }).success).toBe(true);
 });

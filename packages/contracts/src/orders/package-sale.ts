@@ -30,8 +30,14 @@ export const sellPackageInput = z
     price_paid: sessionMoney,
     paid_method: packagePaidMethod,
     seller_employee_id: id,
-    // PostgreSQL مافيهوش سنة صفر، فالرفض هنا بيمنع خطأ 500 عند التحويل إلى timestamptz.
-    sold_at: timestamp.refine((value) => new Date(value).getUTCFullYear() >= 1).optional(),
+    // PostgreSQL مافيهوش سنة صفر، وتسلسل JSON/ISO للسنوات فوق 9999 غير مقبول،
+    // فالرفض هنا بيمنع خطأ 500 عند التحويل إلى timestamptz.
+    sold_at: timestamp
+      .refine((value) => {
+        const year = new Date(value).getUTCFullYear();
+        return year >= 1 && year <= 9999;
+      })
+      .optional(),
     recorder_membership_id: id.optional(),
   })
   .meta({ id: 'SellPackageInput' });

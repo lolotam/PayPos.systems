@@ -43,6 +43,7 @@ it.each(['BANK_TRANSFER', 'missing'])(
 it.each([
   ['expected_type_revision out of bounds', { expected_type_revision: 2147483648 }],
   ['sold_at in year zero', { sold_at: '0000-01-01T00:00:00Z' }],
+  ['sold_at rolling over to year 10000', { sold_at: '9999-12-31T23:00:00-01:00' }],
 ])('refuses %s with 400 without storing a request', async (_scenario, patch) => {
   const response = await postSale(f, { body: saleBody(f, patch) });
   expect(response).toMatchObject({ status: 400, body: { code: 'VALIDATION_FAILED' } });
