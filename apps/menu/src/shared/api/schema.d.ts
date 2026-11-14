@@ -123,6 +123,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/package-sales/{saleRequestId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Returns the creator-scoped status of an accepted package sale. Requires sell:packages:branch, the orders feature and an individual admin login. Any other caller, branch or id receives 404 PACKAGE_SALE_REQUEST_NOT_FOUND. */
+        get: operations["getPackageSaleStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/packages/{entitlementId}/refunds": {
         parameters: {
             query?: never;
@@ -6500,6 +6517,25 @@ export interface components {
             /** Format: uuid */
             sale_request_id: string;
         };
+        /** @enum {string} */
+        PackageSaleRefusalCode: "PACKAGE_TYPE_NOT_FOUND" | "PACKAGE_TYPE_REVISION_CONFLICT" | "PACKAGE_TYPE_NOT_SELLABLE" | "PACKAGE_SALE_QUOTE_STALE" | "PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT" | "PACKAGE_SELLER_NOT_ELIGIBLE" | "PACKAGE_SELLER_SELF_FORBIDDEN" | "PACKAGE_SALE_TOO_OLD" | "PACKAGE_SALE_IN_FUTURE" | "PACKAGE_SALE_BRANCH_INACTIVE" | "PACKAGE_CUSTOMER_NOT_FOUND" | "PACKAGE_TYPE_INVALID_COMPONENTS" | "PACKAGE_TYPE_DUPLICATE_SERVICE" | "PACKAGE_TYPE_INVALID_SESSIONS" | "PACKAGE_TYPE_PRICE_INVALID" | "PACKAGE_TYPE_VALIDITY_INVALID" | "PACKAGE_SALE_FAILED";
+        PackageSaleStatus: {
+            /** @enum {string} */
+            status: "pending";
+        } | {
+            /** @enum {string} */
+            status: "completed";
+            entitlement: components["schemas"]["SoldPackageEntitlement"];
+        } | {
+            /** @enum {string} */
+            status: "failed";
+            error: {
+                code: components["schemas"]["PackageSaleRefusalCode"];
+                message_ar: string;
+                message_en: string;
+                details?: components["schemas"]["__shared"];
+            };
+        };
         PackageSaleChanged: {
             /** Format: uuid */
             sale_id: string;
@@ -8645,6 +8681,7 @@ export interface components {
             /** Format: date-time */
             refunded_at: string;
         };
+        __shared: unknown;
     };
     responses: never;
     parameters: never;
@@ -9094,6 +9131,59 @@ export interface operations {
             };
             /** @description IDEMPOTENCY_KEY_REUSED. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPackageSaleStatus: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                saleRequestId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pending, completed or failed package sale. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageSaleStatus"];
+                };
+            };
+            /** @description Permission, DENY, device principal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description PACKAGE_SALE_REQUEST_NOT_FOUND. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
