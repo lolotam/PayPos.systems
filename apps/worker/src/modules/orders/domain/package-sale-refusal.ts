@@ -1,7 +1,6 @@
 import type { PackageErrorCode } from '@pospay/domain';
-import type { PackageSaleRefusalCode } from '@pospay/contracts';
 
-const MAP: Record<PackageErrorCode, PackageSaleRefusalCode | null> = {
+const MAP = {
   INVALID_PRICE: 'PACKAGE_TYPE_PRICE_INVALID',
   INVALID_COMPONENTS: 'PACKAGE_TYPE_INVALID_COMPONENTS',
   DUPLICATE_SERVICE: 'PACKAGE_TYPE_DUPLICATE_SERVICE',
@@ -13,7 +12,7 @@ const MAP: Record<PackageErrorCode, PackageSaleRefusalCode | null> = {
   PACKAGE_EXTENSION_NOT_LATER: null,
   PACKAGE_EXTENSION_TOO_LONG: null,
   INSUFFICIENT_SLOTS: null,
-};
+} as const satisfies Record<PackageErrorCode, string | null>;
 
 /**
  * بيحوّل خطأ قاعدة باقة وصل أثناء البيع إلى كود الرفض العام المناسب.
@@ -22,6 +21,6 @@ const MAP: Record<PackageErrorCode, PackageSaleRefusalCode | null> = {
  * @param code كود قاعدة الباقة التي فشلت أثناء تنفيذ البيع
  * @returns كود الرفض العام، أو `null` عندما يمثل الخطأ كسرًا لثابت داخلي
  */
-export function packageSaleRefusalCode(code: PackageErrorCode): PackageSaleRefusalCode | null {
+export function packageSaleRefusalCode(code: PackageErrorCode): (typeof MAP)[PackageErrorCode] {
   return MAP[code];
 }

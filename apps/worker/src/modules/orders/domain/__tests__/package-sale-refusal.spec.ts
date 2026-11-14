@@ -41,19 +41,6 @@ it('maps every domain error code to the expected public code from the plan table
   }
 });
 
-it('returns null for the five unreachable domain rule codes', () => {
-  const nullCodes: PackageErrorCode[] = [
-    'INVALID_REMAINING_SESSIONS',
-    'PACKAGE_EXPIRED',
-    'PACKAGE_EXTENSION_NOT_LATER',
-    'PACKAGE_EXTENSION_TOO_LONG',
-    'INSUFFICIENT_SLOTS',
-  ];
-  for (const code of nullCodes) {
-    expect(packageSaleRefusalCode(code)).toBeNull();
-  }
-});
-
 it('maps reachable domain rule errors to contract refusal codes with localized messages', () => {
   for (const domainCode of ALL) {
     const code = packageSaleRefusalCode(domainCode);

@@ -146,73 +146,46 @@ it('asks the dispatcher to retry when the queue refuses the job', async () => {
   }
 });
 
-it('retries an unknown failure three times and then closes the request', async () => {
-  const ids = systemUuidV7();
-  const prefix = `package-sale-attempts-${ids.newId()}`;
-  const execute = vi.fn(async () => {
-    throw new Error('Synthetic unknown failure');
-  });
-  const fail = vi.fn(async () => undefined);
-  const processor = startPackageSaleProcessor(
-    { execute, fail } as unknown as ExecutePackageSale,
-    redisUrl,
-    prefix,
-  );
-  const queue = new Queue(PACKAGE_SALE_QUEUE, { connection: { url: redisUrl }, prefix });
-  const claimed = saleEvent(ids);
-  try {
-    await processor.ready();
-    expect(await processor.deliver(claimed)).toEqual({ delivered: true });
-    await vi.waitFor(
-      () =>
-        expect(fail).toHaveBeenCalledWith(
-          claimed.companyId,
-          claimed.aggregateId,
-          'PACKAGE_SALE_FAILED',
-          undefined,
-        ),
-      { timeout: 25000 },
+it.each([
+  ['an unknown error', new Error('Synthetic unknown failure')],
+  ['an internal sale retry error', new PackageSaleRetryError()],
+])(
+  'retries %s three times and then closes the request with PACKAGE_SALE_FAILED',
+  async (scenario, failure) => {
+    const ids = systemUuidV7();
+    const prefix = `package-sale-attempts-${scenario.replaceAll(' ', '-')}-${ids.newId()}`;
+    const execute = vi.fn(async () => {
+      throw failure;
+    });
+    const fail = vi.fn(async () => undefined);
+    const processor = startPackageSaleProcessor(
+      { execute, fail } as unknown as ExecutePackageSale,
+      redisUrl,
+      prefix,
     );
-    expect(execute).toHaveBeenCalledTimes(3);
-    expect(fail).toHaveBeenCalledTimes(1);
-  } finally {
-    await shutdown(processor, queue);
-  }
-}, 40000);
-
-it('closes a retried internal sale failure with the generic catalogue code on the final attempt', async () => {
-  const ids = systemUuidV7();
-  const prefix = `package-sale-internal-${ids.newId()}`;
-  const execute = vi.fn(async () => {
-    throw new PackageSaleRetryError();
-  });
-  const fail = vi.fn(async () => undefined);
-  const processor = startPackageSaleProcessor(
-    { execute, fail } as unknown as ExecutePackageSale,
-    redisUrl,
-    prefix,
-  );
-  const queue = new Queue(PACKAGE_SALE_QUEUE, { connection: { url: redisUrl }, prefix });
-  const claimed = saleEvent(ids);
-  try {
-    await processor.ready();
-    expect(await processor.deliver(claimed)).toEqual({ delivered: true });
-    await vi.waitFor(
-      () =>
-        expect(fail).toHaveBeenCalledWith(
-          claimed.companyId,
-          claimed.aggregateId,
-          'PACKAGE_SALE_FAILED',
-          undefined,
-        ),
-      { timeout: 25000 },
-    );
-    expect(execute).toHaveBeenCalledTimes(3);
-    expect(fail).toHaveBeenCalledTimes(1);
-  } finally {
-    await shutdown(processor, queue);
-  }
-}, 40000);
+    const queue = new Queue(PACKAGE_SALE_QUEUE, { connection: { url: redisUrl }, prefix });
+    const claimed = saleEvent(ids);
+    try {
+      await processor.ready();
+      expect(await processor.deliver(claimed)).toEqual({ delivered: true });
+      await vi.waitFor(
+        () =>
+          expect(fail).toHaveBeenCalledWith(
+            claimed.companyId,
+            claimed.aggregateId,
+            'PACKAGE_SALE_FAILED',
+            undefined,
+          ),
+        { timeout: 25000 },
+      );
+      expect(execute).toHaveBeenCalledTimes(3);
+      expect(fail).toHaveBeenCalledTimes(1);
+    } finally {
+      await shutdown(processor, queue);
+    }
+  },
+  40000,
+);
 
 it('finalizes a named refusal with its code and details without selling again', async () => {
   const ids = systemUuidV7();

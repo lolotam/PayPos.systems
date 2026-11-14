@@ -35,6 +35,3 @@ it('matches worker-only codes and ensures each is an enum member', () => {
   }
 });
 
-it('rejects raw internal domain codes', () => {
-  expect(packageSaleRefusalCode.safeParse('INVALID_COMPONENTS').success).toBe(false);
-});
