@@ -4,6 +4,10 @@ import { createPackageImportRequestTransactions } from './persistence/package-im
 import { PackageExtensionController } from './http/package-extension.controller.ts';
 import { ExtendPackageUseCase } from './use-cases/extend-package/extend-package.usecase.ts';
 import { createPackageExtensionTransactions } from './persistence/package-extension.transactions.ts';
+import { PackageSalesController } from './http/package-sales.controller.ts';
+import { AcceptPackageSaleUseCase } from './use-cases/accept-package-sale/accept-package-sale.usecase.ts';
+import { createPackageSaleRequestTransactions } from './persistence/package-sale-request.transactions.ts';
+import { PackageSaleStatusQuery } from './queries/package-sale-status.query.ts';
 import { PackageRefundController } from './http/package-refund.controller.ts';
 import { RefundPackageUseCase } from './use-cases/refund-package/refund-package.usecase.ts';
 import { createPackageRefundTransactions } from './persistence/package-refund.transactions.ts';
@@ -32,7 +36,7 @@ import { discountLimit } from './persistence/discount-limit.adapter.ts';
 import { editorName } from './persistence/editor-name.adapter.ts';
 import { sessionBranchBelongs, sessionPlace } from './persistence/session-place.adapter.ts';
 import { discountRequestAccess, sessionRecordAccess } from './persistence/session-record-access.adapter.ts';
-import { sessionCancelCapability, sessionPerformersCapability } from './persistence/session-edit-access.adapter.ts';
+import { packageExtendCapability, sessionCancelCapability, sessionPerformersCapability } from './persistence/session-edit-access.adapter.ts';
 import { discountApprovalListAccess, sessionReadAccess } from './persistence/session-read-access.adapter.ts';
 import { BranchDayServiceSessionsQuery } from './queries/branch-day-service-sessions.query.ts';
 import { ServiceSessionCapabilitiesQuery } from './queries/service-session-capabilities.query.ts';
@@ -259,6 +263,7 @@ export function ordersProviders(database: TenantWrappers | undefined, ids: IdGen
       inject: [DISCOUNT_APPROVER_VERIFIER, DecideDiscountProposalsUseCase],
     },
     ...customerPackageProviders(database, clock),
+    ...packageSaleProviders(database, ids, clock),
     ...ownWorkProviders(clock)];
 }
 
@@ -287,6 +292,30 @@ function ownWorkProviders(clock: Clock): Provider[] {
   ];
 }
 
+ordersControllers.push(PackageSalesController);
+function packageSaleProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  clock: Clock,
+): Provider[] {
+  return [
+    {
+      provide: AcceptPackageSaleUseCase,
+      useValue: database === undefined
+        ? null
+        : new AcceptPackageSaleUseCase(
+            createPackageSaleRequestTransactions(database, ids),
+            ids,
+            clock,
+          ),
+    },
+    {
+      provide: PackageSaleStatusQuery,
+      useValue: database === undefined ? null : new PackageSaleStatusQuery(database),
+    },
+  ];
+}
+
 ordersControllers.push(CustomerPackagesController);
 function customerPackageProviders(database: TenantWrappers | undefined, clock: Clock): Provider[] {
   return [
@@ -300,7 +329,8 @@ function customerPackageProviders(database: TenantWrappers | undefined, clock: C
       provide: CustomerPackageDetailQueryHandler,
       useValue: database === undefined ? null : new CustomerPackageDetailQueryHandler(database, {
         place: (tx, scope) => sessionPlace(tx, scope.companyId, scope.businessId, scope.branchId).branchTimezone(),
-      }),
+        canExtend: (tx, scope, at) => packageExtendCapability(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
+      }, clock),
     },
   ];
 }

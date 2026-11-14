@@ -8,11 +8,10 @@ import type { SessionServiceScope } from '../api/use-session-services';
 import { ExtendPackageDialog } from './extend-package-dialog';
 import { PackageExtensionHistory } from './package-extension-history';
 
-export function PackageRedemptionHistory({ scope, customerId, entitlementId, canExtend = false }: {
+export function PackageRedemptionHistory({ scope, customerId, entitlementId }: {
   scope: SessionServiceScope;
   customerId: string;
   entitlementId: string;
-  canExtend?: boolean;
 }) {
   const locale = useLocale();
   const [open, setOpen] = useState(false);
@@ -42,7 +41,7 @@ export function PackageRedemptionHistory({ scope, customerId, entitlementId, can
         extensions={detail.data.extensions}
         timeZone={detail.data.business_timezone}
       /> : null}
-      {canExtend && open && detail.data ? <Button type="button" onClick={() => setDialogOpen(true)}>
+      {open && detail.data?.can_extend ? <Button type="button" onClick={() => setDialogOpen(true)}>
         {t(locale, 'packageExtension.extend')}
       </Button> : null}
     </details>

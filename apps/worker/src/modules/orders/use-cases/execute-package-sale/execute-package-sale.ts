@@ -1,5 +1,6 @@
 import { PackageRuleError, parseMoney } from '@pospay/domain';
 import { PackageSaleError, PackageSalePricingError } from '../../domain/package-sale-errors.ts';
+import { packageSaleRefusalCode } from '../../domain/package-sale-refusal.ts';
 import type { PackageSaleIdentities } from '../../domain/package-sale-plan.ts';
 import { packageSaleSlotOrdinals, planPackageSale } from '../../domain/package-sale-plan.ts';
 import {
@@ -30,6 +31,8 @@ export class PackageSaleRetryError extends Error {
  * ينفذ بيع باقة مقبول ذريًا ويثبت الرفض المسمى بعد التراجع دون إعادة تفويض.
  *
  * رفض الفرع غير النشط نهائي ومسمّى `PACKAGE_SALE_BRANCH_INACTIVE`؛ يثبت على صف الطلب ولا يعاد بيعه.
+ * أخطاء قواعد الباقة تتحول لكتالوج الرفض العام؛ `INVALID_LIMIT` والقواعد غير القابلة للوصول
+ * أثناء البيع تظل أخطاء داخلية تُعاد محاولتها ولا تُحفظ بأكوادها الخام.
  */
 export class ExecutePackageSale {
   constructor(
@@ -46,11 +49,13 @@ export class ExecutePackageSale {
       });
     } catch (error) {
       if (!isNamedRefusal(error)) throw new PackageSaleRetryError();
+      const code = refusalCode(error);
+      if (code === undefined) throw new PackageSaleRetryError();
       const details = 'details' in error ? error.details : undefined;
       try {
-        await this.fail(companyId, requestId, error.code, details);
+        await this.fail(companyId, requestId, code, details);
       } catch {
-        throw new PackageSaleRetryError(error.code, details);
+        throw new PackageSaleRetryError(code, details);
       }
     }
   }
@@ -121,9 +126,19 @@ function isNamedRefusal(
 ): error is PackageSaleError | PackageSalePricingError | PackageRuleError {
   return (
     error instanceof PackageSaleError ||
-    error instanceof PackageSalePricingError ||
+    (error instanceof PackageSalePricingError &&
+      error.code === 'PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT') ||
     error instanceof PackageRuleError
   );
+}
+
+function refusalCode(
+  error: PackageSaleError | PackageSalePricingError | PackageRuleError,
+): string | undefined {
+  if (error instanceof PackageRuleError) {
+    return packageSaleRefusalCode(error.code) ?? undefined;
+  }
+  return error.code;
 }
 
 function packageSaleIdentities(

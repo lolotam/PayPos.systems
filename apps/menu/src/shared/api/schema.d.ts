@@ -106,6 +106,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/package-sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Accepts a package sale for the background worker. Requires sell:packages:branch, the orders feature and an individual admin login. No customer, type, seller or price checks run at acceptance. */
+        post: operations["sellPackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/package-sales/{saleRequestId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Returns the creator-scoped status of an accepted package sale. Requires sell:packages:branch, the orders feature and an individual admin login. Any other caller, branch or id receives 404 PACKAGE_SALE_REQUEST_NOT_FOUND. */
+        get: operations["getPackageSaleStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/packages/{entitlementId}/refunds": {
         parameters: {
             query?: never;
@@ -147,7 +181,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Requires record:service-sessions:branch or read:service-sessions:branch, and the orders feature. Returns stored sale facts, components and slots; unknown or inaccessible packages share PACKAGE_NOT_FOUND. */
+        /** @description Requires record:service-sessions:branch or read:service-sessions:branch, and the orders feature. Returns stored sale facts, components and slots; unknown or inaccessible packages share PACKAGE_NOT_FOUND. can_extend is a display hint for extend:packages:branch on the acting branch; the extension POST stays authoritative. */
         get: operations["customerPackageDetail"];
         put?: never;
         post?: never;
@@ -6516,8 +6550,28 @@ export interface components {
             revision: number;
             components: components["schemas"]["SoldPackageComponent"][];
         };
-        SellPackageResponse: {
+        AcceptedPackageSale: {
+            /** Format: uuid */
+            sale_request_id: string;
+        };
+        /** @enum {string} */
+        PackageSaleRefusalCode: "PACKAGE_TYPE_NOT_FOUND" | "PACKAGE_TYPE_REVISION_CONFLICT" | "PACKAGE_TYPE_NOT_SELLABLE" | "PACKAGE_SALE_QUOTE_STALE" | "PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT" | "PACKAGE_SELLER_NOT_ELIGIBLE" | "PACKAGE_SELLER_SELF_FORBIDDEN" | "PACKAGE_SALE_TOO_OLD" | "PACKAGE_SALE_IN_FUTURE" | "PACKAGE_SALE_BRANCH_INACTIVE" | "PACKAGE_CUSTOMER_NOT_FOUND" | "PACKAGE_TYPE_INVALID_COMPONENTS" | "PACKAGE_TYPE_DUPLICATE_SERVICE" | "PACKAGE_TYPE_INVALID_SESSIONS" | "PACKAGE_TYPE_PRICE_INVALID" | "PACKAGE_TYPE_VALIDITY_INVALID" | "PACKAGE_SALE_FAILED";
+        PackageSaleStatus: {
+            /** @enum {string} */
+            status: "pending";
+        } | {
+            /** @enum {string} */
+            status: "completed";
             entitlement: components["schemas"]["SoldPackageEntitlement"];
+        } | {
+            /** @enum {string} */
+            status: "failed";
+            error: {
+                code: components["schemas"]["PackageSaleRefusalCode"];
+                message_ar: string;
+                message_en: string;
+                details?: unknown;
+            };
         };
         PackageSaleChanged: {
             /** Format: uuid */
@@ -6629,6 +6683,7 @@ export interface components {
             new_expires_on: string;
             /** Format: date-time */
             extended_at: string;
+            reason?: string;
         };
         CustomerPackageDetail: {
             /** Format: uuid */
@@ -6662,6 +6717,8 @@ export interface components {
             business_timezone?: string;
             refunded_amount: components["schemas"]["SessionMoney"];
             revision: number;
+            /** @default false */
+            can_extend: boolean;
             components: components["schemas"]["CustomerPackageDetailComponent"][];
             redemptions: components["schemas"]["CustomerPackageRedemption"][];
             /** @default [] */
@@ -9035,6 +9092,134 @@ export interface operations {
             };
             /** @description PACKAGE_EXTENSION_NOT_LATER, PACKAGE_EXTENSION_TOO_LONG or IDEMPOTENCY_KEY_REUSED. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    sellPackage: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SellPackageInput"];
+            };
+        };
+        responses: {
+            /** @description Sale accepted; poll the status read. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptedPackageSale"];
+                };
+            };
+            /** @description Invalid body (including paid_method other than CASH or CARD) or Idempotency-Key. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Permission, DENY, device principal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description IDEMPOTENCY_KEY_IN_PROGRESS. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description IDEMPOTENCY_KEY_REUSED. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPackageSaleStatus: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                saleRequestId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pending, completed or failed package sale. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageSaleStatus"];
+                };
+            };
+            /** @description Permission, DENY, device principal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description PACKAGE_SALE_REQUEST_NOT_FOUND. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

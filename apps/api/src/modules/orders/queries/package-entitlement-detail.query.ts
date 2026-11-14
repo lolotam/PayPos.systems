@@ -71,6 +71,7 @@ function extensionProjection(): SQL {
       'id', x.id,
       'previous_expires_on', to_char(x.previous_expires_on, 'YYYY-MM-DD'),
       'new_expires_on', to_char(x.new_expires_on, 'YYYY-MM-DD'),
+      'reason', x.reason,
       'extended_at', to_char(x.extended_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
     ) ORDER BY x.extended_at DESC, x.id)
     FROM package_extensions x
@@ -82,6 +83,7 @@ function extensionProjection(): SQL {
 /**
  * استعلام تفاصيل الباقة: الاستحقاق ومكوّناته وجلساته وسجل استرداداته وتمديداته في statement واحد.
  * الشاشة اللي بتستهلكه: «تفاصيل باقة عميلة» وسجل الاستخدام في الاستقبال (FR-071، شرائح 42-4 و43-3 و45).
+ * سجل التمديدات بيشمل سبب كل تمديد (PP-189، 45-UI-Q1).
  * المفاتيح snake_case زي API contract عشان النتيجة تتقرأ من غير mapper.
  * الاستعلام واحد عشان الاستحقاق والمكوّنات والجلسات والسجل يتثبّتوا في لقطة واحدة؛
  * لقطة لكل جدول كانت هتسمح لصفقة جلسة تغيّر نص العرض.
@@ -123,6 +125,7 @@ export function packageEntitlementDetailStatement(
 
 /**
  * يقرأ تفاصيل باقة عميلة واحدة بشكل API contract: حقائق البيع والمكوّنات والجلسات وسجل الاستردادات والتمديدات.
+ * سجل التمديدات بيشمل سبب كل تمديد (PP-189، 45-UI-Q1).
  * القارئ ما بيفتحش معاملة ولا connection ولا بيكتب ولا بيقفل: المستدعي بيبعت
  * معاملة مستأجره جاهزة ونشاط متأكّد منه، والـ RLS هو خط الدفاع الأخير؛ المنطقة الزمنية بتتضاف في الـ handler.
  *
@@ -144,14 +147,20 @@ export async function readPackageEntitlementDetail(
   return row?.detail ?? null;
 }
 
+export interface CustomerPackageDetailReads extends CustomerPackageReads {
+  /** هل المستخدم يقدر يمدد باقات على الفرع ده دلوقتي؛ قراءة من غير أقفال عشان الزرار بس. */
+  canExtend(tx: Tx, scope: CustomerPackageScope, at: Date): Promise<boolean>;
+}
+
 // بيضيف المنطقة الزمنية الفعلية للفرع من قراءة الصلاحية نفسها لتفاصيل الباقة.
 export class CustomerPackageDetailQueryHandler {
   constructor(
     private readonly db: TenantWrappers,
-    private readonly reads: CustomerPackageReads,
+    private readonly reads: CustomerPackageDetailReads,
+    private readonly clock: { now(): Date },
   ) {}
 
-  async execute(scope: CustomerPackageScope, entitlementId: string): Promise<CustomerPackageDetail> {
+  async execute(scope: CustomerPackageScope, entitlementId: string, individual: boolean): Promise<CustomerPackageDetail> {
     return this.db.withTenant(scope.companyId, async (tx) => {
       const timezone = await this.reads.place(tx, scope);
       if (timezone === null) throw new CustomerPackageReadError('FORBIDDEN');
@@ -159,7 +168,9 @@ export class CustomerPackageDetailQueryHandler {
       if (detail === null || detail.customer_id !== scope.customerId) {
         throw new CustomerPackageReadError('PACKAGE_NOT_FOUND');
       }
-      return customerPackageDetail.parse({ ...detail, business_timezone: timezone });
+      // علم الزرار مش بيرمي رفض يوقف شاشة التفاصيل؛ و403 بتاع POST هو القرار النهائي.
+      const canExtend = individual && await this.reads.canExtend(tx, scope, this.clock.now());
+      return customerPackageDetail.parse({ ...detail, business_timezone: timezone, can_extend: canExtend });
     }, { userId: scope.userId });
   }
 }

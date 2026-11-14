@@ -37,6 +37,7 @@ const sampleDetail = {
   expires_on: '2027-01-13',
   refunded_amount: '0.000',
   revision: 1,
+  can_extend: false,
   components: [
     {
       id: '01920000-0000-7000-8000-000000000020',

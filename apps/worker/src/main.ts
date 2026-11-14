@@ -33,6 +33,7 @@ import {
   readEmployeeBusiness,
   startStaffWorker,
 } from './modules/staff/index.ts';
+import { startCatalogWorker } from './modules/catalog/index.ts';
 import {
   createLateServiceSessionNoticeConsumer,
   createLineCancelNoticeConsumer,
@@ -85,6 +86,10 @@ const sales = startPackageSaleWorker(app, systemUuidV7(), {
   transactionTimeoutMs: config.PACKAGE_SALE_TRANSACTION_TIMEOUT_MS,
 });
 const staff = startStaffWorker(app, systemUuidV7(), config.REDIS_URL, { now: () => new Date() });
+// قفل وفتح التصنيفات الكبيرة عملية خلفية واحدة لكل طلب؛ العامل نايم لحد ما يجي المنتج.
+const catalog = startCatalogWorker(app, systemUuidV7(), config.REDIS_URL, {
+  now: () => new Date(),
+});
 const email = await startEmailCapability({
   env: process.env,
   production,
@@ -176,7 +181,7 @@ const businessDeliver = createDeliverer(
     }),
   ],
   logger,
-  { knownEventTypes: knownEventTypes(staff, notifications, inApp, previews, sales) },
+  { knownEventTypes: knownEventTypes(staff, notifications, inApp, previews, sales, catalog) },
 );
 let queue: OptionalCapabilities['queue'];
 let documents: DocumentRendering | undefined;
@@ -187,11 +192,13 @@ const ratingClaims = closedRatingClaimsLifecycle();
 const deliver: typeof businessDeliver = (event) =>
   previews.deliver(event, (event) =>
     sales.deliver(event, (event) =>
-      deliverFilesEvent(event, {
-        register: (claimed) => files.deliver(claimed),
-        staff: (claimed, next) => staff.deliver(claimed, next),
-        core: (claimed) => ratingClaims.deliver(claimed, pushTransport),
-      }),
+      catalog.deliver(event, (event) =>
+        deliverFilesEvent(event, {
+          register: (claimed) => files.deliver(claimed),
+          staff: (claimed, next) => staff.deliver(claimed, next),
+          core: (claimed) => ratingClaims.deliver(claimed, pushTransport),
+        }),
+      ),
     ),
   );
 const loop = createDispatchLoop({ dispatcher, deliver, logger });
@@ -204,6 +211,7 @@ const release = async (): Promise<void> => {
   await sales.close();
   await files.close();
   await staff.close();
+  await catalog.close();
   // المسجّل المغلق ما عندوش موارد، بس الإغلاق بيبقى في مسار الإيقاف زي أي بقية.
   await ratingClaims.close();
   // المتصفح بيتقفل بعد تصفية الطابور، مش مع إيقاف الحلقة.
@@ -254,6 +262,7 @@ async function startWorkerCore(): Promise<void> {
         { name: 'package-previews', check: () => previews.ready() },
         { name: 'package-sale', check: () => sales.ready() },
         { name: 'leave-history-reports', check: () => staff.reportsReady() },
+        { name: 'service-category-closing', check: () => catalog.ready() },
         // A wrong dispatcher URL or password leaves the worker with nothing to do — it is not ready.
         { name: 'dispatcher', check: () => dispatcher.ping() },
         {
