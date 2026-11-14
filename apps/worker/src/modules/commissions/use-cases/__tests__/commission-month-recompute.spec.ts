@@ -1,11 +1,11 @@
-import type {
-  CommissionPeriodProjection,
-  CommissionPlanVersion,
-  ProjectedCommissionLine,
-  ProjectedCommissionTip,
-} from '@pospay/commissions-engine';
+import type { CommissionPlanVersion } from '@pospay/commissions-engine';
 import { expect, it } from 'vitest';
 
+import type {
+  CommissionMonthLine,
+  CommissionMonthProjection,
+  CommissionMonthTip,
+} from '../../ports/commission-correction.port.ts';
 import { recomputeCommissionMonth } from '../commission-month-recompute.ts';
 
 const EMPLOYEE = 'employee-a';
@@ -32,9 +32,10 @@ const salaryPlan = (): CommissionPlanVersion => ({
   },
 });
 
-const line = (patch: Partial<ProjectedCommissionLine> = {}): ProjectedCommissionLine => ({
+const line = (patch: Partial<CommissionMonthLine> = {}): CommissionMonthLine => ({
   employeeId: EMPLOYEE,
   serviceId: 'service-a',
+  branchId: 'branch-a',
   lineId: 'line-a',
   occurredAt: 1n,
   recordedAt: 1n,
@@ -47,18 +48,17 @@ const line = (patch: Partial<ProjectedCommissionLine> = {}): ProjectedCommission
   ...patch,
 });
 
-const tip = (patch: Partial<ProjectedCommissionTip> = {}): ProjectedCommissionTip => ({
+const tip = (patch: Partial<CommissionMonthTip> = {}): CommissionMonthTip => ({
   sessionId: 'session-a',
   employeeId: EMPLOYEE,
+  branchId: 'branch-a',
   businessDate: '2026-10-10',
   method: 'CARD',
   amount: 5_000n,
   ...patch,
 });
 
-const projection = (
-  patch: Partial<CommissionPeriodProjection> = {},
-): CommissionPeriodProjection => ({
+const projection = (patch: Partial<CommissionMonthProjection> = {}): CommissionMonthProjection => ({
   employeeId: EMPLOYEE,
   period: '2026-10',
   lines: [],
@@ -75,7 +75,15 @@ it('prices the month and returns every priced source by its reference', () => {
   const result = recomputeCommissionMonth(projection({ lines: [line()] }));
   expect(result).toEqual({
     ok: true,
-    sources: [{ sourceRef: 'line:line-a', kind: 'COMMISSION', amount: 10_000n }],
+    sources: [
+      {
+        sourceRef: 'line:line-a',
+        kind: 'COMMISSION',
+        amount: 10_000n,
+        sourceBranchId: 'branch-a',
+        sourceBusinessDate: '2026-10-10',
+      },
+    ],
   });
 });
 
@@ -87,7 +95,15 @@ it('leaves the cancelled line out of the recomputed sources', () => {
   );
   expect(result).toEqual({
     ok: true,
-    sources: [{ sourceRef: 'line:line-a', kind: 'COMMISSION', amount: 10_000n }],
+    sources: [
+      {
+        sourceRef: 'line:line-a',
+        kind: 'COMMISSION',
+        amount: 10_000n,
+        sourceBranchId: 'branch-a',
+        sourceBusinessDate: '2026-10-10',
+      },
+    ],
   });
 });
 
@@ -101,11 +117,56 @@ it('passes the tips through unpriced with their own references', () => {
   expect(result).toEqual({
     ok: true,
     sources: [
-      { sourceRef: 'line:line-a', kind: 'COMMISSION', amount: 10_000n },
-      { sourceRef: 'tip:session-a:CARD', kind: 'TIP_CARD', amount: 5_000n },
-      { sourceRef: 'tip:session-b:CASH', kind: 'TIP_CASH', amount: 3_000n },
+      {
+        sourceRef: 'line:line-a',
+        kind: 'COMMISSION',
+        amount: 10_000n,
+        sourceBranchId: 'branch-a',
+        sourceBusinessDate: '2026-10-10',
+      },
+      {
+        sourceRef: 'tip:session-a:CARD',
+        kind: 'TIP_CARD',
+        amount: 5_000n,
+        sourceBranchId: 'branch-a',
+        sourceBusinessDate: '2026-10-10',
+      },
+      {
+        sourceRef: 'tip:session-b:CASH',
+        kind: 'TIP_CASH',
+        amount: 3_000n,
+        sourceBranchId: 'branch-a',
+        sourceBusinessDate: '2026-10-10',
+      },
     ],
   });
+});
+
+it('does not treat a correction received by the month as a source', () => {
+  const expected = recomputeCommissionMonth(projection({ lines: [line()], tips: [tip()] }));
+  const result = recomputeCommissionMonth(
+    projection({
+      lines: [line()],
+      tips: [tip()],
+      corrections: [
+        {
+          employeeId: EMPLOYEE,
+          sourcePeriod: '2026-09',
+          targetPeriod: '2026-10',
+          sourceRef: 'line:received-correction',
+          kind: 'COMMISSION',
+          amount: 99_000n,
+          previousAmount: 0n,
+          newAmount: 99_000n,
+          generation: 1n,
+        },
+      ],
+    }),
+  );
+  expect(result).toEqual(expected);
+  expect(
+    result.ok && result.sources.some((source) => source.sourceRef === 'line:received-correction'),
+  ).toBe(false);
 });
 
 it('propagates the missing plan instead of pricing nothing', () => {

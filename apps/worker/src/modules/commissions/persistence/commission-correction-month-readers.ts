@@ -1,9 +1,6 @@
 import type {
-  CommissionPeriodProjection,
   CommissionPlanVersion,
   CommissionSalary,
-  ProjectedCommissionLine,
-  ProjectedCommissionTip,
   ReceivedCommissionCorrection,
   ServiceCommissionOverride,
 } from '@pospay/commissions-engine';
@@ -12,7 +9,12 @@ import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 import type { CommissionCorrectionKind } from '../domain/commission-correction-step.ts';
-import type { CommissionMonthProjectionInput } from '../ports/commission-correction.port.ts';
+import type {
+  CommissionMonthLine,
+  CommissionMonthProjection,
+  CommissionMonthProjectionInput,
+  CommissionMonthTip,
+} from '../ports/commission-correction.port.ts';
 import {
   commissionOverrideOf,
   commissionPlanVersionOf,
@@ -25,6 +27,7 @@ type LineRow = {
   lineId: string;
   employeeId: string;
   serviceId: string;
+  branchId: string;
   occurredAt: string;
   recordedAt: string;
   businessDate: string;
@@ -40,6 +43,7 @@ type LineRow = {
 type TipRow = {
   sessionId: string;
   employeeId: string;
+  branchId: string;
   method: string;
   amount: string;
   businessDate: string;
@@ -63,10 +67,11 @@ type ReceivedCorrectionRow = {
   generation: number;
 };
 
-function projectedLine(row: LineRow): ProjectedCommissionLine {
+function projectedLine(row: LineRow): CommissionMonthLine {
   return {
     employeeId: row.employeeId,
     serviceId: row.serviceId,
+    branchId: row.branchId,
     lineId: row.lineId,
     occurredAt: BigInt(row.occurredAt),
     recordedAt: BigInt(row.recordedAt),
@@ -79,10 +84,11 @@ function projectedLine(row: LineRow): ProjectedCommissionLine {
   };
 }
 
-function projectedTip(row: TipRow): ProjectedCommissionTip {
+function projectedTip(row: TipRow): CommissionMonthTip {
   return {
     sessionId: row.sessionId,
     employeeId: row.employeeId,
+    branchId: row.branchId,
     businessDate: row.businessDate,
     method: row.method === 'CASH' ? 'CASH' : 'CARD',
     amount: parseMoney(row.amount),
@@ -92,9 +98,10 @@ function projectedTip(row: TipRow): ProjectedCommissionTip {
 async function readLines(
   tx: Tx,
   input: CommissionMonthProjectionInput,
-): Promise<ProjectedCommissionLine[]> {
+): Promise<CommissionMonthLine[]> {
   const rows = await tx.execute<LineRow>(sql`SELECT
     l.line_id AS "lineId", l.employee_id AS "employeeId", l.service_id AS "serviceId",
+    h.branch_id AS "branchId",
     (extract(epoch from l.occurred_at)*1000000)::bigint::text AS "occurredAt",
     (extract(epoch from l.recorded_at)*1000000)::bigint::text AS "recordedAt",
     l.business_date::text AS "businessDate", l.net_share::text AS "netShare",
@@ -112,10 +119,10 @@ async function readLines(
 async function readTips(
   tx: Tx,
   input: CommissionMonthProjectionInput,
-): Promise<ProjectedCommissionTip[]> {
+): Promise<CommissionMonthTip[]> {
   const rows = await tx.execute<TipRow>(sql`SELECT
-    t.session_id AS "sessionId", t.employee_id AS "employeeId", t.method AS "method",
-    t.amount::text AS amount, h.business_date::text AS "businessDate"
+    t.session_id AS "sessionId", t.employee_id AS "employeeId", h.branch_id AS "branchId",
+    t.method AS "method", t.amount::text AS amount, h.business_date::text AS "businessDate"
     FROM commission_tips t
     JOIN commission_tip_heads h ON h.company_id = t.company_id
       AND h.business_id = t.business_id AND h.session_id = t.session_id
@@ -213,7 +220,7 @@ async function readReceivedCorrections(
 export async function readMonthProjection(
   tx: Tx,
   input: CommissionMonthProjectionInput,
-): Promise<CommissionPeriodProjection> {
+): Promise<CommissionMonthProjection> {
   return {
     employeeId: input.employeeId,
     period: input.period,

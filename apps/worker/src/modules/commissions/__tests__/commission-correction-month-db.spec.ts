@@ -27,6 +27,7 @@ it('reads the month projection of the employee in the engine input shapes', asyn
     lineId: COMMISSION_LINE_IDS.lineA,
     employeeId: A.employee,
     serviceId: A.service,
+    branchId: A.branch,
     businessDate: '2026-10-05',
     netShare: 10_000n,
     shareBps: 10_000n,
@@ -39,6 +40,7 @@ it('reads the month projection of the employee in the engine input shapes', asyn
     {
       sessionId: TIP_SESSION,
       employeeId: A.employee,
+      branchId: A.branch,
       businessDate: '2026-10-05',
       method: 'CARD',
       amount: 7_500n,

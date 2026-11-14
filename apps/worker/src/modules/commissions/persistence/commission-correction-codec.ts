@@ -7,8 +7,11 @@ import {
   type CommissionTiers,
   type ServiceCommissionOverride,
   type ServiceCommissionRule,
+  validateCommissionPlan,
 } from '@pospay/commissions-engine';
 import { parseMoney } from '@pospay/domain';
+
+import { CommissionPlanDecodeError } from '../domain/errors.ts';
 
 export type PlanVersionRow = {
   employeeId: string;
@@ -42,69 +45,129 @@ export function commissionRuleOf(
   return { kind: 'FOLLOW_PLAN' };
 }
 
-function decodeCalc(value: unknown): CommissionCalc | undefined {
-  if (value === null || value === undefined) return undefined;
-  const calc = value as { kind?: string; bps?: number; amount?: string };
-  if (calc.kind === 'FIXED') return { kind: 'FIXED', value: parseMoney(calc.amount ?? '0.000') };
-  return { kind: 'PCT', value: BigInt(calc.bps ?? 0) };
+function invalid(fieldPath: string): never {
+  throw new CommissionPlanDecodeError(fieldPath);
 }
 
-function decodeComponent(value: unknown): CommissionComponent {
-  const component = (value ?? {}) as { enabled?: boolean; calc?: unknown };
-  if (component.enabled !== true) return { enabled: false };
-  return { enabled: true, calc: decodeCalc(component.calc) ?? { kind: 'PCT', value: 0n } };
+function objectOf(value: unknown, fieldPath: string): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) invalid(fieldPath);
+  return value as Record<string, unknown>;
 }
 
-function decodeThreshold(value: unknown): CommissionThreshold {
-  const threshold = (value ?? {}) as { kind?: string; value?: string | number };
-  if (threshold.kind === 'SESSIONS') {
-    return { kind: 'SESSIONS', value: BigInt(threshold.value ?? 0) };
+function bigintOf(value: string | number, fieldPath: string): bigint {
+  try {
+    return BigInt(value);
+  } catch {
+    return invalid(fieldPath);
   }
-  if (threshold.kind === 'SALARY_MULTIPLE') {
-    const multiple = parseSalaryMultiple(String(threshold.value ?? '0'));
-    return { kind: 'SALARY_MULTIPLE', value: multiple.ok ? multiple.hundredths : 0n };
-  }
-  return { kind: 'AMOUNT', value: parseMoney(String(threshold.value ?? '0.000')) };
 }
 
-function decodeTiers(value: unknown): CommissionTiers {
-  const tiers = (value ?? {}) as {
-    enabled?: boolean;
-    mode?: 'MARGINAL' | 'WHOLE';
-    accumulator?: 'AMOUNT' | 'SESSIONS';
-    steps?: readonly { from?: unknown; calc?: unknown }[];
-  };
-  if (tiers.enabled !== true) return { enabled: false };
-  return {
-    enabled: true,
-    mode: tiers.mode ?? 'MARGINAL',
-    accumulator: tiers.accumulator ?? 'AMOUNT',
-    steps: (tiers.steps ?? []).map((step) => ({
-      from: decodeThreshold(step.from),
-      calc: decodeCalc(step.calc) ?? { kind: 'PCT', value: 0n },
-    })),
-  };
+function moneyOf(value: string, fieldPath: string): bigint {
+  try {
+    return parseMoney(value);
+  } catch {
+    return invalid(fieldPath);
+  }
+}
+
+function salaryMultipleOf(value: string, fieldPath: string): bigint {
+  try {
+    const multiple = parseSalaryMultiple(value);
+    return multiple.ok ? multiple.hundredths : invalid(fieldPath);
+  } catch {
+    return invalid(fieldPath);
+  }
+}
+
+function decodeCalc(value: unknown, fieldPath: string): CommissionCalc {
+  const calc = objectOf(value, fieldPath);
+  if (calc.kind === 'PCT') {
+    if (typeof calc.bps !== 'number' || !Number.isSafeInteger(calc.bps)) {
+      invalid(`${fieldPath}.bps`);
+    }
+    return { kind: 'PCT', value: BigInt(calc.bps) };
+  }
+  if (calc.kind === 'FIXED') {
+    if (typeof calc.amount !== 'string') invalid(`${fieldPath}.amount`);
+    return { kind: 'FIXED', value: moneyOf(calc.amount, `${fieldPath}.amount`) };
+  }
+  return invalid(`${fieldPath}.kind`);
+}
+
+function decodeComponent(value: unknown, fieldPath: string): CommissionComponent {
+  const component = objectOf(value, fieldPath);
+  if (typeof component.enabled !== 'boolean') invalid(`${fieldPath}.enabled`);
+  if (component.calc === undefined) {
+    if (component.enabled) invalid(`${fieldPath}.calc`);
+    return { enabled: false };
+  }
+  const calc = decodeCalc(component.calc, `${fieldPath}.calc`);
+  return component.enabled ? { enabled: true, calc } : { enabled: false };
+}
+
+function decodeThreshold(value: unknown, fieldPath: string): CommissionThreshold {
+  const threshold = objectOf(value, fieldPath);
+  const kind = threshold.kind;
+  if (kind !== 'AMOUNT' && kind !== 'SESSIONS' && kind !== 'SALARY_MULTIPLE') {
+    invalid(`${fieldPath}.kind`);
+  }
+  if (typeof threshold.value !== 'string' && typeof threshold.value !== 'number') {
+    invalid(`${fieldPath}.value`);
+  }
+  const storedValue = threshold.value;
+  if (kind === 'SESSIONS') {
+    return { kind, value: bigintOf(storedValue, `${fieldPath}.value`) };
+  }
+  if (kind === 'SALARY_MULTIPLE') {
+    return { kind, value: salaryMultipleOf(String(storedValue), `${fieldPath}.value`) };
+  }
+  return { kind, value: moneyOf(String(storedValue), `${fieldPath}.value`) };
+}
+
+function decodeTiers(value: unknown, fieldPath: string): CommissionTiers {
+  const tiers = objectOf(value, fieldPath);
+  if (typeof tiers.enabled !== 'boolean') invalid(`${fieldPath}.enabled`);
+  const configured =
+    tiers.mode !== undefined || tiers.accumulator !== undefined || tiers.steps !== undefined;
+  if (!tiers.enabled && !configured) return { enabled: false };
+  const mode = tiers.mode;
+  const accumulator = tiers.accumulator;
+  if (mode !== 'MARGINAL' && mode !== 'WHOLE') invalid(`${fieldPath}.mode`);
+  if (accumulator !== 'AMOUNT' && accumulator !== 'SESSIONS') {
+    invalid(`${fieldPath}.accumulator`);
+  }
+  if (!Array.isArray(tiers.steps)) invalid(`${fieldPath}.steps`);
+  const steps = tiers.steps.map((step, index) => {
+    const storedStep = objectOf(step, `${fieldPath}.steps.${index}`);
+    return {
+      from: decodeThreshold(storedStep.from, `${fieldPath}.steps.${index}.from`),
+      calc: decodeCalc(storedStep.calc, `${fieldPath}.steps.${index}.calc`),
+    };
+  });
+  if (!tiers.enabled) return { enabled: false };
+  return { enabled: true, mode, accumulator, steps };
 }
 
 /**
  * الخطة المحفوظة jsonb بصيغة العقد (نِسَب بأرقام ومبالغ بنصوص)، والمحرك بيشتغل
  * بمبالغ bigint، فالترجمة بتعمل هنا عند الحد مرة واحدة وما بتتكررش في المجال.
+ * أي حقل ناقص أو نوع مجهول يوقف القراءة بدل اختراع خطة صفرية، ثم يؤكد المحرك صلاحية التركيب.
  */
 export function commissionPlanVersionOf(row: PlanVersionRow): CommissionPlanVersion {
-  const stored = (row.plan ?? {}) as {
-    base?: unknown;
-    tiers?: unknown;
-    package_sale?: unknown;
+  const stored = objectOf(row.plan, 'plan');
+  const plan = {
+    base: decodeComponent(stored.base, 'base'),
+    tiers: decodeTiers(stored.tiers, 'tiers'),
+    packageSale: decodeComponent(stored.package_sale, 'package_sale'),
   };
+  if (!validateCommissionPlan(plan).ok) invalid('plan');
   return {
     employeeId: row.employeeId,
     effectiveFrom: row.effectiveFrom,
     wholePeriod: row.wholePeriod,
     createdAt: BigInt(row.createdAt),
     version: BigInt(row.version),
-    base: decodeComponent(stored.base),
-    tiers: decodeTiers(stored.tiers),
-    packageSale: decodeComponent(stored.package_sale),
+    ...plan,
   };
 }
 
