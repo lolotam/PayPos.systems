@@ -2267,6 +2267,40 @@ export interface paths {
         patch: operations["updatePackageType"];
         trace?: never;
     };
+    "/v1/businesses/{businessId}/package-types/{packageTypeId}/stop-selling": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Stops new sales of a package type against expected_revision without changing sold or imported packages. Requires manage:package-types:business and the catalog feature. Unknown types return PACKAGE_TYPE_NOT_FOUND (404); stale revisions and an already-stopped type return PACKAGE_TYPE_REVISION_CONFLICT and PACKAGE_TYPE_SELLING_UNCHANGED (409). */
+        post: operations["stopPackageTypeSelling"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/package-types/{packageTypeId}/resume-selling": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Resumes new sales of a package type against expected_revision without changing sold or imported packages. Requires manage:package-types:business and the catalog feature. Unknown types return PACKAGE_TYPE_NOT_FOUND (404); stale revisions and an already-active type return PACKAGE_TYPE_REVISION_CONFLICT and PACKAGE_TYPE_SELLING_UNCHANGED (409). */
+        post: operations["resumePackageTypeSelling"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/alert-rules": {
         parameters: {
             query?: never;
@@ -5346,6 +5380,9 @@ export interface components {
             price: string;
             validity_days: number;
             components: components["schemas"]["PackageTypeComponentInput"][];
+            expected_revision: number;
+        };
+        PackageTypeSellingInput: {
             expected_revision: number;
         };
         PackageTypeComponent: {
@@ -16602,6 +16639,136 @@ export interface operations {
         };
         responses: {
             /** @description Updated package type */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageTypeDetail"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    stopPackageTypeSelling: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                packageTypeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageTypeSellingInput"];
+            };
+        };
+        responses: {
+            /** @description Stopped package type */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageTypeDetail"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    resumePackageTypeSelling: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                packageTypeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageTypeSellingInput"];
+            };
+        };
+        responses: {
+            /** @description Active package type */
             200: {
                 headers: {
                     [name: string]: unknown;

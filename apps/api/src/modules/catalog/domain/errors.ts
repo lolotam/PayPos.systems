@@ -20,6 +20,7 @@ export class PackageTypeError extends Error {
       | 'PACKAGE_TYPE_NAME_TAKEN'
       | 'PACKAGE_TYPE_NAME_INVALID'
       | 'PACKAGE_TYPE_REVISION_CONFLICT'
+      | 'PACKAGE_TYPE_SELLING_UNCHANGED'
       | 'TRANSACTION_RETRY_REQUIRED',
   ) {
     super(code);

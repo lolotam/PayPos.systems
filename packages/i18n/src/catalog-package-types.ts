@@ -92,6 +92,7 @@ export const packageTypeErrorsEn = {
   PACKAGE_TYPE_REVISION_CONFLICT:
     'Another manager changed this package type. Reload before saving.',
   // رموز بيع الباقة، spec 058 §6؛ هنا عشان en.ts وصل حد الأسطر
+  PACKAGE_TYPE_SELLING_UNCHANGED: 'This package is already in that selling state.',
   PACKAGE_TYPE_NOT_SELLABLE: 'This package is not on sale.',
   PACKAGE_SALE_QUOTE_STALE: "The package's service prices changed; reload and confirm again.",
   PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT: 'The discount is above your limit.',
@@ -126,6 +127,7 @@ export const packageTypeErrorsAr = {
   PACKAGE_TYPE_NAME_INVALID: 'كل اسم مدخل من ١ إلى ٢٥٥ حرفاً؛ الاسم الإنجليزي مطلوب.',
   PACKAGE_TYPE_REVISION_CONFLICT: 'عدّل مدير آخر نوع الباقة. أعد التحميل قبل الحفظ.',
   // رموز بيع الباقة، spec 058 §6؛ هنا عشان en.ts وصل حد الأسطر
+  PACKAGE_TYPE_SELLING_UNCHANGED: 'الباقة بالفعل في حالة البيع دي.',
   PACKAGE_TYPE_NOT_SELLABLE: 'الباقة دي متوقف بيعها.',
   PACKAGE_SALE_QUOTE_STALE: 'أسعار خدمات الباقة اتغيّرت، حدّثي الشاشة وأكّدي تاني.',
   PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT: 'الخصم أكبر من حدك.',
