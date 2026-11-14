@@ -16,6 +16,10 @@ const failureProgress = z.strictObject({
   code: z.enum(SERVICE_CATEGORY_CLOSING_FAILURE_CODES),
 });
 type Failure = z.infer<typeof failureProgress>;
+const GENERIC_FAILURE: Failure = {
+  stage: FINALIZING_FAILURE,
+  code: 'SERVICE_CATEGORY_CLOSING_FAILED',
+};
 
 function closingHandler(useCase: RunServiceCategoryClosing) {
   return async (job: Job, token?: string) => {
@@ -25,29 +29,36 @@ function closingHandler(useCase: RunServiceCategoryClosing) {
     const progress = failureProgress.safeParse(job.progress);
     if (progress.success)
       return persistFailure(useCase, job, token, { companyId, closingId, ...progress.data });
+    if (reactivatedAfterDelay(job))
+      return persistFailure(useCase, job, token, { companyId, closingId, ...GENERIC_FAILURE });
     try {
       await useCase.execute(companyId, closingId);
     } catch (error) {
       if (job.attemptsMade + 1 < (job.opts.attempts ?? 1)) throw error;
-      const failure = failureProgress.parse({
-        stage: FINALIZING_FAILURE,
-        code: 'SERVICE_CATEGORY_CLOSING_FAILED',
-      });
-      await markFailureProgress(job, failure);
-      return persistFailure(useCase, job, token, { companyId, closingId, ...failure });
+      await markFailureProgress(job, GENERIC_FAILURE);
+      return persistFailure(useCase, job, token, { companyId, closingId, ...GENERIC_FAILURE });
     }
   };
 }
 
 /**
- * يكتب مؤشر الفشل في الطابور كخطوة اختيارية: رفض الكتابة ما يمنعش حفظ الفشل على صف الطلب،
- * لأن المؤشر للعرض فقط، وصف الطلب في القاعدة هو المصدر.
+ * بيكشف إن المهمة اتفتحت تاني بعد تأخير أنا عملته: BullMQ بيزوّد attemptsStarted مع كل تفعيل
+ * و attemptsMade بس مع كل محاولة فاشلة، فالفرق بعد طرح مرات الـ stall هو عدد تأخيراتنا.
+ */
+function reactivatedAfterDelay(job: Job): boolean {
+  return job.attemptsStarted - job.attemptsMade - 1 - job.stalledCounter > 0;
+}
+
+/**
+ * يكتب مؤشر الفشل في الطابور كخطوة اختيارية: رفض الكتابة ما يمنعش حفظ الفشل على صف الطلب.
+ * المؤشر مش للعرض بس؛ هو اللي بيمنع إعادة تشغيل العمل بعد خلاص المحاولات، وعدّادات
+ * المحاولات بتغطي الحالة اللي المؤشر ما انكتبش فيها.
  */
 async function markFailureProgress(job: Job, failure: Failure): Promise<void> {
   try {
     await job.updateProgress(failure);
   } catch {
-    // المؤشر ثانوي؛ رفضه ما يمنعش كتابة الفشل في القاعدة.
+    // المؤشر بيمنع إعادة تشغيل العمل؛ رفضه ما يمنعش كتابة الفشل في القاعدة.
   }
 }
 

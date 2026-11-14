@@ -152,7 +152,9 @@ describe('delivery', () => {
 interface TestJob {
   data: { companyId: string; closingId: string };
   progress: unknown;
+  attemptsStarted: number;
   attemptsMade: number;
+  stalledCounter: number;
   opts: { attempts: number };
   updateProgress: ReturnType<typeof vi.fn>;
   moveToDelayed: ReturnType<typeof vi.fn>;
@@ -162,7 +164,9 @@ function job(): TestJob {
   const value: TestJob = {
     data: { companyId: ids.newId(), closingId: ids.newId() },
     progress: undefined,
+    attemptsStarted: 3,
     attemptsMade: 2,
+    stalledCounter: 0,
     opts: { attempts: 3 },
     updateProgress: vi.fn(async (progress: unknown) => {
       value.progress = progress;
@@ -189,6 +193,7 @@ describe('job handler', () => {
     start({ execute });
     const value = job();
     value.attemptsMade = 0;
+    value.attemptsStarted = 1;
     await expect(first(state.workers).handler(value as never, 'token')).rejects.toThrow(
       'private processing failure',
     );
@@ -241,6 +246,36 @@ describe('finalization', () => {
     });
     await first(state.workers).handler(value as never, 'token');
     expect(fail).toHaveBeenCalledWith(
+      value.data.companyId,
+      value.data.closingId,
+      'SERVICE_CATEGORY_CLOSING_FAILED',
+    );
+  });
+});
+
+describe('delayed finalization', () => {
+  it('retries only the failure write when the delayed finalization reactivates the job', async () => {
+    const execute = vi.fn(async () => {
+      throw new Error('private processing failure');
+    });
+    const fail = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('private persistence failure'))
+      .mockResolvedValueOnce(undefined);
+    start({ execute, fail });
+    const value = job();
+    value.updateProgress.mockImplementation(async () => {
+      throw new Error('private progress outage');
+    });
+    await expect(first(state.workers).handler(value as never, 'token')).rejects.toBeInstanceOf(
+      DelayedError,
+    );
+
+    value.attemptsStarted += 1;
+    await expect(first(state.workers).handler(value as never, 'token')).resolves.toBeUndefined();
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(value.updateProgress).toHaveBeenCalledTimes(1);
+    expect(fail).toHaveBeenLastCalledWith(
       value.data.companyId,
       value.data.closingId,
       'SERVICE_CATEGORY_CLOSING_FAILED',
