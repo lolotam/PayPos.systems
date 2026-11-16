@@ -1,6 +1,7 @@
 import { appendAuditLog, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { PackageTypeError } from '../domain/errors.ts';
+import type { PackageTypeSellingState } from '../domain/package-type-selling.ts';
 import {
   packageTypeSnapshot,
   packageTypeTerms,
@@ -9,8 +10,12 @@ import {
 } from '../domain/package-type.ts';
 import type { PackageTypeTransactions } from '../ports/package-type-transactions.port.ts';
 
-type Row = Omit<PackageTypeRecord, 'price' | 'created_at' | 'updated_at'> & {
+type Row = Omit<
+  PackageTypeRecord,
+  'price' | 'selling_stopped_at' | 'created_at' | 'updated_at'
+> & {
   price: string;
+  selling_stopped_at: Date | null;
   created_at: Date;
   updated_at: Date;
 };
@@ -45,7 +50,7 @@ async function load(
   packageTypeId: string,
 ): Promise<PackageTypeRecord | null> {
   const [row] = await tx.execute<Row>(sql`SELECT id,business_id,name_en,name_ar,price,validity_days,
-    revision,created_at,updated_at FROM package_types
+    revision,selling_stopped_at,created_at,updated_at FROM package_types
     WHERE company_id=${companyId} AND business_id=${businessId} AND id=${packageTypeId} FOR UPDATE`);
   if (row === undefined) return null;
   const components = await tx.execute<{ service_id: string; sessions: number }>(sql`
@@ -55,6 +60,8 @@ async function load(
   return {
     ...row,
     ...packageTypeTerms({ ...row, components }),
+    selling_stopped_at:
+      row.selling_stopped_at === null ? null : new Date(row.selling_stopped_at).toISOString(),
     created_at: new Date(row.created_at).toISOString(),
     updated_at: new Date(row.updated_at).toISOString(),
   };
@@ -77,6 +84,41 @@ async function save(
   await tx.execute(sql`DELETE FROM package_type_components WHERE company_id=${companyId}
     AND business_id=${before.business_id} AND package_type_id=${before.id}`);
   await replaceComponents(tx, companyId, after, ids);
+}
+
+async function saveSelling(
+  tx: Tx,
+  companyId: string,
+  before: PackageTypeRecord,
+  after: PackageTypeSellingState,
+  at: Date,
+) {
+  const rows = await tx.execute(sql`UPDATE package_types
+    SET selling_stopped_at=${after.selling_stopped_at},revision=${after.revision},updated_at=${at.toISOString()}
+    WHERE company_id=${companyId} AND business_id=${before.business_id} AND id=${before.id}
+      AND revision=${before.revision} RETURNING id`);
+  if (rows.length === 0) throw new PackageTypeError('PACKAGE_TYPE_REVISION_CONFLICT');
+}
+
+async function auditSelling(
+  tx: Tx,
+  ids: IdGenerator,
+  before: PackageTypeRecord,
+  after: PackageTypeSellingState,
+) {
+  await appendAuditLog(tx, ids.newId(), {
+    entity: 'package_type',
+    entityId: before.id,
+    action: after.selling_stopped_at === null ? 'selling_resumed' : 'selling_stopped',
+    before: {
+      selling_stopped_at: before.selling_stopped_at,
+      revision: before.revision,
+    },
+    after: {
+      selling_stopped_at: after.selling_stopped_at,
+      revision: after.revision,
+    },
+  });
 }
 
 function cleanError(error: unknown): never {
@@ -129,6 +171,8 @@ export function createPackageTypeTransactions(
             ORDER BY id FOR SHARE`),
                 ),
               save: (before, after) => save(tx, companyId, before, after, ids),
+              saveSelling: (before, after, at) => saveSelling(tx, companyId, before, after, at),
+              auditSelling: (before, after) => auditSelling(tx, ids, before, after),
               audit: (before, after) =>
                 appendAuditLog(tx, ids.newId(), {
                   entity: 'package_type',

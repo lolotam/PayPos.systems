@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import { PackageTypeError } from '../errors.ts';
 import {
   planPackageTypeSelling,
+  resolvePackageTypeSelling,
   type PackageTypeSellingDecision,
   type PackageTypeSellingState,
 } from '../package-type-selling.ts';
@@ -136,5 +138,33 @@ describe('the read state handed to the transition', () => {
     const decision = planPackageTypeSelling(current, 9, 'STOPPED', at);
     expect(decision.kind).toBe('revision-conflict');
     expect(current).toEqual({ selling_stopped_at: null, revision: 4 });
+  });
+});
+
+describe('resolving the selling transition outcome', () => {
+  const afterChange: PackageTypeSellingState = {
+    selling_stopped_at: '2026-10-08T10:00:00.000Z',
+    revision: 5,
+  };
+
+  it('a change decision resolves to the after state', () => {
+    const decision = { kind: 'change', before: active, after: afterChange } as const;
+    expect(resolvePackageTypeSelling(decision)).toEqual(afterChange);
+  });
+
+  it.each([
+    [
+      'unchanged',
+      'PACKAGE_TYPE_SELLING_UNCHANGED',
+      { kind: 'unchanged', before: active, after: active } as const,
+    ],
+    [
+      'revision-conflict',
+      'PACKAGE_TYPE_REVISION_CONFLICT',
+      { kind: 'revision-conflict', before: active } as const,
+    ],
+  ])('a %s decision is refused with %s', (_kind, code, decision) => {
+    expect(() => resolvePackageTypeSelling(decision)).toThrow(PackageTypeError);
+    expect(() => resolvePackageTypeSelling(decision)).toThrow(expect.objectContaining({ code }));
   });
 });

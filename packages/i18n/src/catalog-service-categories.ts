@@ -12,10 +12,12 @@ export const serviceCategoryErrorsEn = {
     'A shared category is never made private again, and a branch renames only its own private categories.',
   SERVICE_CATEGORY_REVISION_CONFLICT:
     'Another manager changed this category. Reload the latest record before saving.',
+  SERVICE_CATEGORY_CLOSING_IN_PROGRESS:
+    'A close or reopen of this category is already running in the background. Wait for it to finish, then try again.',
+  SERVICE_CATEGORY_CLOSING_NOT_FOUND: 'This closing request does not exist for this category.',
 };
 export const serviceCategoryErrorsAr = {
-  SERVICE_CATEGORY_NAME_INVALID:
-    'الاسمان مطلوبان: كل واحد من ١ إلى ١٠٠ حرف وبلا محرف تحكم.',
+  SERVICE_CATEGORY_NAME_INVALID: 'الاسمان مطلوبان: كل واحد من ١ إلى ١٠٠ حرف وبلا محرف تحكم.',
   SERVICE_CATEGORY_NAME_TAKEN: 'يوجد تصنيف بنفس الاسم في هذا النشاط.',
   SERVICE_CATEGORY_NOT_FOUND: 'التصنيف غير موجود في هذا النشاط.',
   SERVICE_CATEGORY_CLOSED: 'هذا التصنيف مغلق.',
@@ -26,4 +28,7 @@ export const serviceCategoryErrorsAr = {
   SERVICE_CATEGORY_VISIBILITY_FIXED:
     'التصنيف المشترك لا يعود خاصاً أبداً، والفرع يعدّل تصنيفاته الخاصة به وحدها.',
   SERVICE_CATEGORY_REVISION_CONFLICT: 'عدّل مدير آخر هذا التصنيف. أعد تحميل أحدث سجل قبل الحفظ.',
+  SERVICE_CATEGORY_CLOSING_IN_PROGRESS:
+    'فيه قفل أو فتح شغّال بالفعل على هذا التصنيف في الخلفية. استنى لحد ما يخلص وبعدين حاول تاني.',
+  SERVICE_CATEGORY_CLOSING_NOT_FOUND: 'طلب القفل أو الفتح ده مش موجود على هذا التصنيف.',
 };

@@ -106,6 +106,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/package-sales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Accepts a package sale for the background worker. Requires sell:packages:branch, the orders feature and an individual admin login. No customer, type, seller or price checks run at acceptance. */
+        post: operations["sellPackage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/package-sales/{saleRequestId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Returns the creator-scoped status of an accepted package sale. Requires sell:packages:branch, the orders feature and an individual admin login. Any other caller, branch or id receives 404 PACKAGE_SALE_REQUEST_NOT_FOUND. */
+        get: operations["getPackageSaleStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/packages/{entitlementId}/refunds": {
         parameters: {
             query?: never;
@@ -147,7 +181,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Requires record:service-sessions:branch or read:service-sessions:branch, and the orders feature. Returns stored sale facts, components and slots; unknown or inaccessible packages share PACKAGE_NOT_FOUND. */
+        /** @description Requires record:service-sessions:branch or read:service-sessions:branch, and the orders feature. Returns stored sale facts, components and slots; unknown or inaccessible packages share PACKAGE_NOT_FOUND. can_extend is a display hint for extend:packages:branch on the acting branch; the extension POST stays authoritative. */
         get: operations["customerPackageDetail"];
         put?: never;
         post?: never;
@@ -2047,7 +2081,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Returns a category with open_service_count and marked_service_count for close and reopen confirmation. Requires read:service-categories:business and the catalog feature. Missing, foreign and other-business ids share SERVICE_CATEGORY_NOT_FOUND (404). */
+        /** @description Returns a category with open_service_count and marked_service_count for close and reopen confirmation, and pending_closing_id when a background close or reopen of this category is running. Requires read:service-categories:business and the catalog feature. Missing, foreign and other-business ids share SERVICE_CATEGORY_NOT_FOUND (404). */
         get: operations["getServiceCategory"];
         put?: never;
         post?: never;
@@ -2067,7 +2101,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Closes a category and its open services against the confirmed revision and count. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. Errors: SERVICE_CATEGORY_NOT_FOUND (404), SERVICE_CATEGORY_ALREADY_CLOSED, SERVICE_CATEGORY_COUNT_CHANGED and SERVICE_CATEGORY_REVISION_CONFLICT (409). */
+        /** @description Closes a category and its open services against the confirmed revision and count. Up to 300 services the answer is 200 and the category is closed; above 300 the answer is 202 and a background request carries the closing_id, leaving the category untouched until the job commits. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. Errors: SERVICE_CATEGORY_NOT_FOUND (404), SERVICE_CATEGORY_ALREADY_CLOSED, SERVICE_CATEGORY_COUNT_CHANGED, SERVICE_CATEGORY_REVISION_CONFLICT and SERVICE_CATEGORY_CLOSING_IN_PROGRESS (409, with details.closing_id). */
         post: operations["closeServiceCategory"];
         delete?: never;
         options?: never;
@@ -2084,8 +2118,25 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Reopens a category and exactly the services marked by its close. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. Errors: SERVICE_CATEGORY_NOT_FOUND (404), SERVICE_CATEGORY_NOT_CLOSED, SERVICE_CATEGORY_COUNT_CHANGED and SERVICE_CATEGORY_REVISION_CONFLICT (409). */
+        /** @description Reopens a category and exactly the services marked by its close. Up to 300 services the answer is 200 and the category is reopened; above 300 the answer is 202 and a background request carries the closing_id, leaving the category untouched until the job commits. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. Errors: SERVICE_CATEGORY_NOT_FOUND (404), SERVICE_CATEGORY_NOT_CLOSED, SERVICE_CATEGORY_COUNT_CHANGED, SERVICE_CATEGORY_REVISION_CONFLICT and SERVICE_CATEGORY_CLOSING_IN_PROGRESS (409, with details.closing_id). */
         post: operations["reopenServiceCategory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/service-categories/{categoryId}/closings/{closingId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Returns the state of one close or reopen request of the category: pending, completed with services_changed, or failed with its error code. A pending request past its deadline reads as failed with SERVICE_CATEGORY_CLOSING_EXPIRED. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. An unknown id, another category's id and another tenant's id share SERVICE_CATEGORY_CLOSING_NOT_FOUND (404). */
+        get: operations["getServiceCategoryClosing"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2265,6 +2316,40 @@ export interface paths {
         head?: never;
         /** @description Full replacement of names, price, validity and ordered components against expected_revision. Requires manage:package-types:business and the catalog feature. Effective changes are audited; a no-op preserves the revision and writes no audit entry. A stale revision returns PACKAGE_TYPE_REVISION_CONFLICT (409); duplicate names return PACKAGE_TYPE_NAME_TAKEN (409). Existing sold entitlements are unaffected. */
         patch: operations["updatePackageType"];
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/package-types/{packageTypeId}/stop-selling": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Stops new sales of a package type against expected_revision without changing sold or imported packages. Requires manage:package-types:business and the catalog feature. Unknown types return PACKAGE_TYPE_NOT_FOUND (404); stale revisions and an already-stopped type return PACKAGE_TYPE_REVISION_CONFLICT and PACKAGE_TYPE_SELLING_UNCHANGED (409). */
+        post: operations["stopPackageTypeSelling"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/package-types/{packageTypeId}/resume-selling": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Resumes new sales of a package type against expected_revision without changing sold or imported packages. Requires manage:package-types:business and the catalog feature. Unknown types return PACKAGE_TYPE_NOT_FOUND (404); stale revisions and an already-active type return PACKAGE_TYPE_REVISION_CONFLICT and PACKAGE_TYPE_SELLING_UNCHANGED (409). */
+        post: operations["resumePackageTypeSelling"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/v1/businesses/{businessId}/alert-rules": {
@@ -5327,6 +5412,33 @@ export interface components {
             revision: number;
             open_service_count: number;
             marked_service_count: number;
+            /** Format: uuid */
+            pending_closing_id: string | null;
+        };
+        /** @enum {string} */
+        ServiceCategoryClosingAction: "close" | "reopen";
+        /** @enum {string} */
+        ServiceCategoryClosingState: "pending" | "completed" | "failed";
+        ServiceCategoryClosingPending: {
+            /** Format: uuid */
+            closing_id: string;
+            /** @enum {string} */
+            status: "pending";
+        };
+        ServiceCategoryClosingStatus: {
+            /** Format: uuid */
+            closing_id: string;
+            /** Format: uuid */
+            category_id: string;
+            action: components["schemas"]["ServiceCategoryClosingAction"];
+            status: components["schemas"]["ServiceCategoryClosingState"];
+            services_changed: number | null;
+            /** @enum {string|null} */
+            error_code: "SERVICE_CATEGORY_REVISION_CONFLICT" | "SERVICE_CATEGORY_ALREADY_CLOSED" | "SERVICE_CATEGORY_NOT_CLOSED" | "SERVICE_CATEGORY_COUNT_CHANGED" | "SERVICE_CATEGORY_CLOSING_EXPIRED" | "SERVICE_CATEGORY_CLOSING_FAILED" | null;
+            /** Format: date-time */
+            requested_at: string;
+            /** Format: date-time */
+            finished_at: string | null;
         };
         PackageTypeComponentInput: {
             /** Format: uuid */
@@ -5348,6 +5460,9 @@ export interface components {
             components: components["schemas"]["PackageTypeComponentInput"][];
             expected_revision: number;
         };
+        PackageTypeSellingInput: {
+            expected_revision: number;
+        };
         PackageTypeComponent: {
             /** Format: uuid */
             service_id: string;
@@ -5366,6 +5481,8 @@ export interface components {
             price: string;
             validity_days: number;
             revision: number;
+            /** Format: date-time */
+            selling_stopped_at: string | null;
             components: components["schemas"]["PackageTypeComponent"][];
             /** Format: date-time */
             created_at: string;
@@ -5380,6 +5497,8 @@ export interface components {
             price: string;
             validity_days: number;
             revision: number;
+            /** Format: date-time */
+            selling_stopped_at: string | null;
             component_count: number;
         };
         PackageTypePage: {
@@ -6475,8 +6594,28 @@ export interface components {
             revision: number;
             components: components["schemas"]["SoldPackageComponent"][];
         };
-        SellPackageResponse: {
+        AcceptedPackageSale: {
+            /** Format: uuid */
+            sale_request_id: string;
+        };
+        /** @enum {string} */
+        PackageSaleRefusalCode: "PACKAGE_TYPE_NOT_FOUND" | "PACKAGE_TYPE_REVISION_CONFLICT" | "PACKAGE_TYPE_NOT_SELLABLE" | "PACKAGE_SALE_QUOTE_STALE" | "PACKAGE_SALE_DISCOUNT_ABOVE_LIMIT" | "PACKAGE_SELLER_NOT_ELIGIBLE" | "PACKAGE_SELLER_SELF_FORBIDDEN" | "PACKAGE_SALE_TOO_OLD" | "PACKAGE_SALE_IN_FUTURE" | "PACKAGE_SALE_BRANCH_INACTIVE" | "PACKAGE_CUSTOMER_NOT_FOUND" | "PACKAGE_TYPE_INVALID_COMPONENTS" | "PACKAGE_TYPE_DUPLICATE_SERVICE" | "PACKAGE_TYPE_INVALID_SESSIONS" | "PACKAGE_TYPE_PRICE_INVALID" | "PACKAGE_TYPE_VALIDITY_INVALID" | "PACKAGE_SALE_FAILED";
+        PackageSaleStatus: {
+            /** @enum {string} */
+            status: "pending";
+        } | {
+            /** @enum {string} */
+            status: "completed";
             entitlement: components["schemas"]["SoldPackageEntitlement"];
+        } | {
+            /** @enum {string} */
+            status: "failed";
+            error: {
+                code: components["schemas"]["PackageSaleRefusalCode"];
+                message_ar: string;
+                message_en: string;
+                details?: unknown;
+            };
         };
         PackageSaleChanged: {
             /** Format: uuid */
@@ -6588,6 +6727,7 @@ export interface components {
             new_expires_on: string;
             /** Format: date-time */
             extended_at: string;
+            reason?: string;
         };
         CustomerPackageDetail: {
             /** Format: uuid */
@@ -6621,6 +6761,8 @@ export interface components {
             business_timezone?: string;
             refunded_amount: components["schemas"]["SessionMoney"];
             revision: number;
+            /** @default false */
+            can_extend: boolean;
             components: components["schemas"]["CustomerPackageDetailComponent"][];
             redemptions: components["schemas"]["CustomerPackageRedemption"][];
             /** @default [] */
@@ -8994,6 +9136,134 @@ export interface operations {
             };
             /** @description PACKAGE_EXTENSION_NOT_LATER, PACKAGE_EXTENSION_TOO_LONG or IDEMPOTENCY_KEY_REUSED. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    sellPackage: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SellPackageInput"];
+            };
+        };
+        responses: {
+            /** @description Sale accepted; poll the status read. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AcceptedPackageSale"];
+                };
+            };
+            /** @description Invalid body (including paid_method other than CASH or CARD) or Idempotency-Key. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Permission, DENY, device principal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description IDEMPOTENCY_KEY_IN_PROGRESS. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description IDEMPOTENCY_KEY_REUSED. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPackageSaleStatus: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+                saleRequestId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Pending, completed or failed package sale. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageSaleStatus"];
+                };
+            };
+            /** @description Permission, DENY, device principal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description PACKAGE_SALE_REQUEST_NOT_FOUND. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -15759,6 +16029,15 @@ export interface operations {
                     "application/json": components["schemas"]["CloseServiceCategoryResult"];
                 };
             };
+            /** @description Background request accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceCategoryClosingPending"];
+                };
+            };
             /** @description Bilingual refusal */
             404: {
                 headers: {
@@ -15815,6 +16094,15 @@ export interface operations {
                     "application/json": components["schemas"]["ReopenServiceCategoryResult"];
                 };
             };
+            /** @description Background request accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceCategoryClosingPending"];
+                };
+            };
             /** @description Bilingual refusal */
             404: {
                 headers: {
@@ -15826,6 +16114,50 @@ export interface operations {
             };
             /** @description Bilingual refusal */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getServiceCategoryClosing: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                categoryId: string;
+                closingId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Closing request state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceCategoryClosingStatus"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -16598,6 +16930,136 @@ export interface operations {
         };
         responses: {
             /** @description Updated package type */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageTypeDetail"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    stopPackageTypeSelling: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                packageTypeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageTypeSellingInput"];
+            };
+        };
+        responses: {
+            /** @description Stopped package type */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageTypeDetail"];
+                };
+            };
+            /** @description Bilingual refusal */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    resumePackageTypeSelling: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                packageTypeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PackageTypeSellingInput"];
+            };
+        };
+        responses: {
+            /** @description Active package type */
             200: {
                 headers: {
                     [name: string]: unknown;

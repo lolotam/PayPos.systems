@@ -41,6 +41,7 @@ import { catalogPaths } from './catalog/catalog-openapi.js';
 import { json, operation } from './openapi-operation.js';
 import { openApiSchemas } from './openapi-schemas.js';
 import { packageExtensionPaths } from './orders/package-extension-openapi.js';
+import { packageSalePaths } from './orders/package-sale-openapi.js';
 import { packageExtensionSchemas } from './orders/package-extension.js';
 import { packageRefundPaths } from './orders/package-refund-openapi.js';
 import { packageRefundSchemas } from './orders/package-refund.js';
@@ -58,6 +59,7 @@ const PATHS = {
   ...personalBranchesPaths,
   ...packageImportPreviewPaths,
   ...packageExtensionPaths,
+  ...packageSalePaths,
   ...packageRefundPaths,
   ...customerPackagePaths,
   ...attendanceMonthlyReportPaths,

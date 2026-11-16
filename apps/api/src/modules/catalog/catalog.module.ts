@@ -1,9 +1,12 @@
 import { PackageTypesController } from './http/package-types.controller.ts';
 import { BranchServiceCategoriesController } from './http/branch-service-categories.controller.ts';
 import { ServiceCategoriesController } from './http/service-categories.controller.ts';
+import { ServiceCategoryClosingsController } from './http/service-category-closings.controller.ts';
 import { createPackageTypeTransactions } from './persistence/drizzle-package-type-transactions.ts';
 import { createServiceCategoryTransactions } from './persistence/drizzle-service-category-transactions.ts';
 import { CreatePackageTypeUseCase } from './use-cases/create-package-type/create-package-type.usecase.ts';
+import { ResumeSellingPackageTypeUseCase } from './use-cases/resume-selling-package-type/resume-selling-package-type.usecase.ts';
+import { StopSellingPackageTypeUseCase } from './use-cases/stop-selling-package-type/stop-selling-package-type.usecase.ts';
 import { UpdatePackageTypeUseCase } from './use-cases/update-package-type/update-package-type.usecase.ts';
 import { CloseServiceCategoryUseCase } from './use-cases/close-service-category/close-service-category.usecase.ts';
 import { CreateServiceCategoryUseCase } from './use-cases/create-service-category/create-service-category.usecase.ts';
@@ -25,6 +28,7 @@ export const catalogControllers = [
   ServicesController,
   PackageTypesController,
   ServiceCategoriesController,
+  ServiceCategoryClosingsController,
   BranchServiceCategoriesController,
 ];
 
@@ -32,7 +36,11 @@ type ServiceTx = ReturnType<typeof createServiceTransactions> | null;
 type CategoryTx = ReturnType<typeof createServiceCategoryTransactions> | null;
 
 /** مزوّدو قفل وفتح التصنيفات والخدمات، منفصلون عشان قائمة المزوّدين الرئيسية تفضل في حد الدالة. */
-function closingProviders(transactions: ServiceTx, categories: CategoryTx): Provider[] {
+function closingProviders(
+  transactions: ServiceTx,
+  categories: CategoryTx,
+  ids: IdGenerator,
+): Provider[] {
   return [
     {
       provide: CloseServiceUseCase,
@@ -45,12 +53,12 @@ function closingProviders(transactions: ServiceTx, categories: CategoryTx): Prov
     {
       provide: CloseServiceCategoryUseCase,
       useValue:
-        categories === null ? null : new CloseServiceCategoryUseCase(categories, systemClock),
+        categories === null ? null : new CloseServiceCategoryUseCase(categories, systemClock, ids),
     },
     {
       provide: ReopenServiceCategoryUseCase,
       useValue:
-        categories === null ? null : new ReopenServiceCategoryUseCase(categories, systemClock),
+        categories === null ? null : new ReopenServiceCategoryUseCase(categories, systemClock, ids),
     },
   ];
 }
@@ -73,21 +81,27 @@ export function catalogProviders(
       useValue: packages === null ? null : new UpdatePackageTypeUseCase(packages, systemClock),
     },
     {
+      provide: StopSellingPackageTypeUseCase,
+      useValue: packages === null ? null : new StopSellingPackageTypeUseCase(packages, systemClock),
+    },
+    {
+      provide: ResumeSellingPackageTypeUseCase,
+      useValue:
+        packages === null ? null : new ResumeSellingPackageTypeUseCase(packages, systemClock),
+    },
+    {
       provide: CreateServiceUseCase,
       useValue:
         transactions === null ? null : new CreateServiceUseCase(transactions, ids, systemClock),
     },
     {
       provide: UpdateServiceUseCase,
-      useValue:
-        transactions === null ? null : new UpdateServiceUseCase(transactions, systemClock),
+      useValue: transactions === null ? null : new UpdateServiceUseCase(transactions, systemClock),
     },
     {
       provide: CreateServiceCategoryUseCase,
       useValue:
-        categories === null
-          ? null
-          : new CreateServiceCategoryUseCase(categories, ids, systemClock),
+        categories === null ? null : new CreateServiceCategoryUseCase(categories, ids, systemClock),
     },
     {
       provide: RenameServiceCategoryUseCase,
@@ -101,6 +115,6 @@ export function catalogProviders(
           ? null
           : new SetServiceCategoryBranchStateUseCase(categories, ids, systemClock),
     },
-    ...closingProviders(transactions, categories),
+    ...closingProviders(transactions, categories, ids),
   ];
 }

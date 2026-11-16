@@ -1,5 +1,33 @@
-vi.mock('../../modules/orders/jobs/package-preview.processor.ts', () => ({ startPackagePreviewProcessor: () => ({ ready: async () => undefined, close: async () => undefined, deliver: async () => ({ delivered: true }) }) }));
-import { startPackagePreviewWorker } from '../../modules/orders/index.ts';
+vi.mock('../../modules/orders/jobs/package-preview.processor.ts', () => ({
+  startPackagePreviewProcessor: () => ({
+    ready: async () => undefined,
+    close: async () => undefined,
+    deliver: async () => ({ delivered: true }),
+  }),
+}));
+vi.mock('../../modules/orders/jobs/package-sale.processor.ts', () => ({
+  startPackageSaleProcessor: () => ({
+    ready: async () => undefined,
+    close: async () => undefined,
+    deliver: async () => ({ delivered: true }),
+  }),
+}));
+vi.mock('../../modules/orders/jobs/package-sale-recovery.processor.ts', () => ({
+  startPackageSaleRecoveryProcessor: () => ({
+    ready: async () => undefined,
+    close: async () => undefined,
+    register: async () => undefined,
+  }),
+}));
+vi.mock('../../modules/catalog/jobs/service-category-closing.processor.ts', () => ({
+  startServiceCategoryClosingProcessor: () => ({
+    ready: async () => undefined,
+    close: async () => undefined,
+    deliver: async () => ({ delivered: true }),
+  }),
+}));
+import { startCatalogWorker } from '../../modules/catalog/index.ts';
+import { startPackagePreviewWorker, startPackageSaleWorker } from '../../modules/orders/index.ts';
 import type { Database } from '@pospay/db';
 import { createLogger } from '@pospay/observability';
 import { expect, it, vi } from 'vitest';
@@ -46,14 +74,21 @@ const notifications = createNotificationModule({
 });
 const inApp = createInAppNotificationModule(options);
 const previews = startPackagePreviewWorker(database, async () => null, 'synthetic', clock);
+const sales = startPackageSaleWorker(database, ids, {
+  redisUrl: 'synthetic',
+  clock,
+  transactionTimeoutMs: 5000,
+});
+const catalog = startCatalogWorker(database, ids, 'synthetic', clock);
 
 it('recognizes every event emitted by API and worker, including finite template expansions', () => {
   const emitted = emittedEventTypes();
   const consumers = [notifications.consumer, createStaffDocumentDefaults(ids)];
   const supported = new Set([
-    ...knownEventTypes(staff, notifications, null, previews),
+    ...knownEventTypes(staff, notifications, null, previews, sales, catalog),
     ...consumers.flatMap((consumer) => consumer.eventTypes),
   ]);
+  expect(catalog.eventTypes).toContain('ServiceCategoryClosingRequested');
   expect([...emitted.keys()]).toEqual(
     expect.arrayContaining([
       'LeaveRequested',

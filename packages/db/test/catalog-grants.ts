@@ -20,6 +20,7 @@ export const PACKAGE_TYPE_COLUMN_GRANTS = [
   'package_types.name_en:pospay_app:UPDATE',
   'package_types.price:pospay_app:UPDATE',
   'package_types.revision:pospay_app:UPDATE',
+  'package_types.selling_stopped_at:pospay_app:UPDATE',
   'package_types.updated_at:pospay_app:UPDATE',
   'package_types.validity_days:pospay_app:UPDATE',
 ];

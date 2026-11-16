@@ -97,6 +97,7 @@ async function lockSaleType(context: SaleContext): Promise<SalePackageType | nul
     price: parseMoney(type.price),
     validity_days: type.validity_days,
     revision: type.revision,
+    selling_stopped_at: type.selling_stopped_at,
     components: type.components.map((component) => {
       const service = byId.get(component.service_id);
       if (service === undefined) throw new Error('Package component service missing');

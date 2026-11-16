@@ -39,6 +39,10 @@ export function PackageExtensionHistory({
                 {t(locale, 'packageExtension.historyRowTime').replace('{at}', '')}
                 <bdi dir="ltr">{formatInstant(new Date(extension.extended_at), locale, timeZone)}</bdi>
               </span> : null}
+              {typeof extension.reason === 'string' && extension.reason.length > 0 ? <span>
+                {t(locale, 'packageExtension.historyRowReason').replace('{reason}', '')}
+                <bdi dir="auto">{extension.reason}</bdi>
+              </span> : null}
             </li>
           ))}
         </ol>

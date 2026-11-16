@@ -89,6 +89,7 @@ export const customerPackageExtension = responseObject({
   previous_expires_on: businessDate,
   new_expires_on: businessDate,
   extended_at: timestamp,
+  reason: z.string().optional(),
 }).meta({ id: 'CustomerPackageExtension' });
 
 export const customerPackageDetail = responseObject({
@@ -113,6 +114,7 @@ export const customerPackageDetail = responseObject({
   business_timezone: z.string().min(1).optional(),
   refunded_amount: sessionMoney,
   revision: z.number().int().positive(),
+  can_extend: z.boolean().default(false),
   components: z.array(customerPackageDetailComponent),
   redemptions: z.array(customerPackageRedemption),
   extensions: z.array(customerPackageExtension).default([]),

@@ -9,6 +9,7 @@ export function packageTypeDetailStatement(
   packageTypeId: string,
 ) {
   return sql`SELECT p.id,p.business_id,p.name_en,p.name_ar,p.price,p.validity_days,p.revision,
+    to_char(p.selling_stopped_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS selling_stopped_at,
     to_char(p.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,
     to_char(p.updated_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS updated_at,
     (SELECT jsonb_agg(jsonb_build_object('service_id',c.service_id,'sessions',c.sessions,

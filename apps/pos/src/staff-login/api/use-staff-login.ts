@@ -4,6 +4,9 @@ import { announceOperatorChange, observeOperatorChange } from '../model/operator
 import { probeStaffSession, signOutStaff } from './staff-calls';
 import { useSessionDeadline } from '@/shared/api/use-session-deadline';
 
+// قائمة موافقات الجهاز مش بيانات operator خاصة، فتنظيف الجلسة الخاص مش لازم يلغيها أو يمسحها.
+const deviceScopedKeys = new Set<unknown>(['staff-session', 'device-discount-proposals']);
+
 export function useStaffLogin() {
   const cache = useQueryClient();
   const [epoch, setEpoch] = useState(0);
@@ -65,7 +68,8 @@ function usePrivateCacheCleanup(
   useEffect(() => {
     if (!(isSuccess && data === null)) return;
     const privateQueries = {
-      predicate: (query: { queryKey: readonly unknown[] }) => query.queryKey[0] !== 'staff-session',
+      predicate: (query: { queryKey: readonly unknown[] }) =>
+        !deviceScopedKeys.has(query.queryKey[0]),
     };
     const owner = cache.getQueryCache().find({ queryKey: ['staff-session', epoch], exact: true });
     void cache.cancelQueries(privateQueries).then(() => {

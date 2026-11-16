@@ -52,7 +52,7 @@ it('returns an empty extension history when no extension exists', async () => {
   expect(must(await read(fixture.sold.entitlement)).extensions).toEqual([]);
 });
 
-it('returns two extensions newest first with exactly the public fields and UTC dates', async () => {
+it('returns two extensions newest first with public fields, reason and UTC dates', async () => {
   const seeded = await fresh();
   const reason = 'Synthetic private extension reason';
   expect((await postExtension(f, seeded.entitlement, {
@@ -70,14 +70,15 @@ it('returns two extensions newest first with exactly the public fields and UTC d
     .toEqual(['2027-02-28', NEXT_EXPIRY]);
   for (const row of detail.extensions) {
     expect(Object.keys(row).sort())
-      .toEqual(['extended_at', 'id', 'new_expires_on', 'previous_expires_on']);
+      .toEqual(['extended_at', 'id', 'new_expires_on', 'previous_expires_on', 'reason']);
     expect(row.previous_expires_on).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(row.new_expires_on).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(row.extended_at.endsWith('Z')).toBe(true);
     expect(Number.isNaN(Date.parse(row.extended_at))).toBe(false);
   }
+  expect(detail.extensions[1]?.reason).toBe(reason);
   const serialized = JSON.stringify(detail);
-  expect(serialized).not.toContain(reason);
+  expect(serialized).toContain(reason);
   expect(serialized).not.toContain(f.membership);
   expect(serialized).not.toContain('extended_by');
 });

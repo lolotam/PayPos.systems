@@ -50,6 +50,9 @@ export const updatePackageTypeInput = z
     expected_revision: revision,
   })
   .meta({ id: 'UpdatePackageTypeInput' });
+export const packageTypeSellingInput = z
+  .strictObject({ expected_revision: revision })
+  .meta({ id: 'PackageTypeSellingInput' });
 // نسخة الرد بتتشال منها المفاتيح الزيادة؛ طلب المكوّن لسه بيرفضها (ADR-0047).
 export const packageTypeComponent = responseObject({
   ...packageTypeComponentInput.shape,
@@ -65,6 +68,7 @@ export const packageTypeDetail = responseObject({
     price,
     validity_days: fields.validity_days,
     revision,
+    selling_stopped_at: timestamp.nullable(),
     components: z.array(packageTypeComponent).min(1).max(20),
     created_at: timestamp,
     updated_at: timestamp,
@@ -90,6 +94,7 @@ export const packageTypeSchemas = [
   packageTypeComponentInput,
   createPackageTypeInput,
   updatePackageTypeInput,
+  packageTypeSellingInput,
   packageTypeComponent,
   packageTypeDetail,
   packageTypeListItem,
@@ -98,7 +103,9 @@ export const packageTypeSchemas = [
 ];
 export type CreatePackageTypeInput = z.infer<typeof createPackageTypeInput>;
 export type UpdatePackageTypeInput = z.infer<typeof updatePackageTypeInput>;
+export type PackageTypeSellingInput = z.infer<typeof packageTypeSellingInput>;
 export type PackageTypeDetail = z.infer<typeof packageTypeDetail>;
 export type PackageTypeListItem = z.infer<typeof packageTypeListItem>;
 export type PackageTypePage = z.infer<typeof packageTypePage>;
 export type PackageTypeListQuery = z.infer<typeof packageTypeListQuery>;
+

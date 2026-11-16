@@ -247,3 +247,33 @@ it.each([
     new RegExp(`package_type_components_${constraint}`),
   );
 });
+
+it('application role can set and clear selling_stopped_at on its own tenant package type', async () => {
+  const stopped = Array.from(
+    await asA(
+      sql`UPDATE package_types SET selling_stopped_at=now() WHERE id=${ID} RETURNING id, selling_stopped_at`,
+    ),
+  );
+  expect(stopped).toHaveLength(1);
+  expect(stopped[0]?.id).toBe(ID);
+  expect(stopped[0]?.selling_stopped_at).not.toBeNull();
+
+  const resumed = Array.from(
+    await asA(
+      sql`UPDATE package_types SET selling_stopped_at=NULL WHERE id=${ID} RETURNING id, selling_stopped_at`,
+    ),
+  );
+  expect(resumed).toHaveLength(1);
+  expect(resumed[0]?.id).toBe(ID);
+  expect(resumed[0]?.selling_stopped_at).toBeNull();
+});
+
+it('cross-tenant UPDATE of selling_stopped_at as tenant A returns 0 rows', async () => {
+  expect(
+    Array.from(
+      await asA(
+        sql`UPDATE package_types SET selling_stopped_at=now() WHERE company_id=${B.company} RETURNING id`,
+      ),
+    ),
+  ).toEqual([]);
+});

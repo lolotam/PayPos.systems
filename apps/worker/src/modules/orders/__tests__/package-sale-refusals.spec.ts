@@ -135,6 +135,24 @@ it('refuses a quote whose package type revision moved and reports the current re
   });
 });
 
+// إيقاف البيع يرفع النسخة، والهدف إثبات أن فحص الإيقاف يسبق تعارض النسخة تحت قفل النوع.
+it('refuses a request accepted while the type is on sale with PACKAGE_TYPE_NOT_SELLABLE after the type is stopped', async () => {
+  const type = await blowDry();
+  const requestId = await f.request({ type });
+  await f.owner`UPDATE package_types SET selling_stopped_at=now(), revision=revision+1 WHERE id=${type.typeId}`;
+  await expectRefusedAndUntouched(requestId, 'PACKAGE_TYPE_NOT_SELLABLE');
+});
+
+it('refuses an old request with PACKAGE_TYPE_REVISION_CONFLICT after the type is stopped and resumed', async () => {
+  const type = await blowDry();
+  const requestId = await f.request({ type });
+  const newRevision = type.revision + 2;
+  await f.owner`UPDATE package_types SET selling_stopped_at=NULL, revision=${newRevision} WHERE id=${type.typeId}`;
+  await expectRefusedAndUntouched(requestId, 'PACKAGE_TYPE_REVISION_CONFLICT', {
+    current_revision: newRevision,
+  });
+});
+
 it('refuses a quote whose service revision moved and reports the current service revisions', async () => {
   const type = await blowDry();
   const requestId = await f.request({ type });

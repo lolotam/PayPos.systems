@@ -78,8 +78,8 @@ vi.mock('bullmq', async (original) => {
     (target: unknown, args: unknown[]): object => {
       resources.bullmq.constructed.push({ kind, name: String(args[0]) });
       // حدود Redis/BullMQ فقط معزولة هنا؛ جاهزية المعاينة تظل ضمن فحوص العامل الفعلية.
-      // طابور بيع الباقة ومسح الاسترداد بيتبنوا فعليًا؛ بدل Redis حقيقي بنرجّع مقبض جاهز.
-      if (String(args[0]).startsWith('package-sale'))
+      // طابور بيع الباقة ومسح الاسترداد وقفل التصنيفات بيتبنوا فعليًا؛ بدل Redis حقيقي بنرجّع مقبض جاهز.
+      if (String(args[0]).startsWith('package-sale') || args[0] === 'service-category-closing')
         return { on: vi.fn(), waitUntilReady: async () => undefined, close: async () => undefined };
       if (args[0] === 'package-import-preview')
         return {
@@ -285,6 +285,7 @@ it('invalid email identity settings disable email alone without affecting ordina
     'package-previews',
     'package-sale',
     'leave-history-reports',
+    'service-category-closing',
     'dispatcher',
     'redis',
   ]);

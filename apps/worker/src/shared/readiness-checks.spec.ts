@@ -71,8 +71,8 @@ vi.mock('bullmq', async (original) => {
     (kind: string) =>
     (target: unknown, args: unknown[]): object => {
       resources.bullmq.constructed.push({ kind, name: String(args[0]) });
-      // طابور بيع الباقة ومسح الاسترداد بيتبنوا فعليًا؛ بدل Redis حقيقي بنرجّع مقبض جاهز.
-      if (String(args[0]).startsWith('package-sale'))
+      // طابور بيع الباقة ومسح الاسترداد وقفل التصنيفات بيتبنوا فعليًا؛ بدل Redis حقيقي بنرجّع مقبض جاهز.
+      if (String(args[0]).startsWith('package-sale') || args[0] === 'service-category-closing')
         return { on: vi.fn(), waitUntilReady: async () => undefined, close: async () => undefined };
       if (args[0] === 'package-import-preview')
         return {

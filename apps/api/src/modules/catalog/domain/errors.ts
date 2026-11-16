@@ -20,6 +20,7 @@ export class PackageTypeError extends Error {
       | 'PACKAGE_TYPE_NAME_TAKEN'
       | 'PACKAGE_TYPE_NAME_INVALID'
       | 'PACKAGE_TYPE_REVISION_CONFLICT'
+      | 'PACKAGE_TYPE_SELLING_UNCHANGED'
       | 'TRANSACTION_RETRY_REQUIRED',
   ) {
     super(code);
@@ -62,7 +63,8 @@ export class ServiceCategoryError extends Error {
   /**
    * يثبت سبب الرفض دون تسريب صف قاعدة البيانات أو خطأ السائق.
    *
-   * @param code سبب الرفض المسمّى
+   * @param code    سبب الرفض المسمّى
+   * @param details تفاصيل الرفض الآمنة اللي بتوصل للعميل، زي هوية الطلب الشغّال
    */
   constructor(
     readonly code:
@@ -75,7 +77,10 @@ export class ServiceCategoryError extends Error {
       | 'SERVICE_CATEGORY_COUNT_CHANGED'
       | 'SERVICE_CATEGORY_VISIBILITY_FIXED'
       | 'SERVICE_CATEGORY_REVISION_CONFLICT'
+      | 'SERVICE_CATEGORY_CLOSING_IN_PROGRESS'
+      | 'SERVICE_CATEGORY_CLOSING_NOT_FOUND'
       | 'TRANSACTION_RETRY_REQUIRED',
+    readonly details?: unknown,
   ) {
     super(code);
     this.name = 'ServiceCategoryError';

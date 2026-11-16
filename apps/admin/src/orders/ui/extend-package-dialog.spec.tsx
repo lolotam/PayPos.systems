@@ -32,7 +32,7 @@ function detail(expires_on = OLD): CustomerPackageDetail {
     name_en: 'Synthetic package', name_ar: null, validity_days: null, list_price: null,
     price_paid: '0.000', discount: null, discount_bps: null, paid_method: null,
     seller_employee_id: null, seller_linked_user_id: null, sold_branch_id: null,
-    sold_at: null, sold_business_date: null, expires_on, refunded_amount: '0.000', revision: 1,
+    sold_at: null, sold_business_date: null, expires_on, refunded_amount: '0.000', revision: 1, can_extend: false,
     components: [], redemptions: [], extensions: [],
   };
 }
@@ -119,6 +119,34 @@ it('posts one trimmed request with the opening expiry, then closes and saves', a
   expect(state.post).toHaveBeenCalledTimes(1);
   expect(bodyOf(0)).toEqual({ new_expires_on: NEW, expected_expires_on: OLD, reason: 'Synthetic reason' });
   expect(screen.queryByRole('dialog')).toBeNull();
+});
+
+it('saves the extension without submitting a surrounding visit form', async () => {
+  state.post.mockResolvedValueOnce(saved);
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  function Host() {
+    const [open, setOpen] = useState(true);
+    const [outerStatus, setOuterStatus] = useState('Synthetic visit draft');
+    return (
+      <form onSubmit={(event) => { event.preventDefault(); setOuterStatus('Synthetic visit submitted'); }}>
+        <span>{outerStatus}</span>
+        {open ? (
+          <ExtendPackageDialog
+            scope={scope} customerId={customerId} entitlementId={entitlementId} currentExpiresOn={OLD}
+            onSaved={() => undefined}
+            onClose={() => { setOpen(false); }}
+          />
+        ) : null}
+      </form>
+    );
+  }
+  render(<QueryClientProvider client={client}><Host /></QueryClientProvider>);
+  fillValid();
+  submit();
+  await waitFor(() => expect(state.post).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(screen.getByText('Synthetic visit draft')).toBeTruthy();
+  expect(screen.queryByText('Synthetic visit submitted')).toBeNull();
 });
 
 it('sends one request for two clicks in one tick and disables submit while pending', async () => {

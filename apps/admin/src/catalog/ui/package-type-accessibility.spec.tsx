@@ -20,6 +20,7 @@ const record: PackageTypeDetail = {
   price: '1.000',
   validity_days: 90,
   revision: 1,
+  selling_stopped_at: null,
   created_at: '2026-10-08T00:00:00Z',
   updated_at: '2026-10-08T00:00:00Z',
   components: [{ service_id: id, sessions: 1, name_en: 'Service', name_ar: null, price: '1.000' }],

@@ -20,6 +20,7 @@ const TYPE: SalePackageType = {
   price: 25000n,
   validity_days: 90,
   revision: 1,
+  selling_stopped_at: null,
   components: [
     {
       service_id: 'service',

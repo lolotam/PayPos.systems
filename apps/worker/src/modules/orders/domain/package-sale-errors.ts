@@ -22,6 +22,7 @@ export class PackageSalePricingError extends Error {
 
 /** رفض البيع بعد قراءة الحقائق المقفولة؛ النقل اللاحق يختار الحالة والترجمة. */
 export type PackageSaleErrorCode =
+  | 'PACKAGE_TYPE_NOT_SELLABLE'
   | 'PACKAGE_TYPE_NOT_FOUND'
   | 'PACKAGE_TYPE_REVISION_CONFLICT'
   | 'PACKAGE_SALE_QUOTE_STALE'

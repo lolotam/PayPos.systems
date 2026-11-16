@@ -108,7 +108,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 
 | Consumer                            | Port it defines                                                                         | Reads from  | What it needs                                                                                                                                                        |
 | ----------------------------------- | --------------------------------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `orders` | `CatalogReaderPort` | `catalog` | 35a bounded service list price, names, revision, all four commission rules and threshold flag (ADR-0041); 42-1 the package type for a sale under `FOR SHARE` (type, then component services in ascending id, FR-018b/c; `selling_stopped_at` joins in 33b, PP-100.1); later item reads remain as planned in ADR-0010 |
+| `orders` | `CatalogReaderPort` | `catalog` | 35a bounded service list price, names, revision, all four commission rules and threshold flag (ADR-0041); 42-1 the package type for a sale under `FOR SHARE` (type, then component services in ascending id, FR-018b/c; with `selling_stopped_at` since 33b, PP-100.1); later item reads remain as planned in ADR-0010 |
 | `orders`                            | `CustomerCreditPort`                                                                    | `customers` | credit limit, current balance, block status                                                                                                                          |
 | `payments`                          | `OrderTotalsPort`                                                                       | `orders`    | order total + currency to charge                                                                                                                                     |
 | `cash`                              | `ShiftPaymentsPort`                                                                     | `payments`  | tenders belonging to a shift, incl. `PENDING_GATEWAY` ones                                                                                                           |
@@ -141,6 +141,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `orders` | `SessionServiceOptionsReads` (read-side callbacks) | `catalog` | recording-form service names, list prices and revisions only; same-transaction public read under record permission (ADR-0041 35c-3) |
 | `orders` | `SessionPerformerOptionsReads` (read-side callbacks) | `staff` | dated branch eligibility, names and missing-clock/approved-leave booleans only under record permission; staff owns the working day (ADR-0041 35c-4) |
 | `orders` | `SessionPlacePort` | `tenancy` | business timezone and active branch/business relationship (ADR-0041) |
+| `orders` | `PackageSaleRequestTransaction.place` | `tenancy` | `packageSalePlace` proves the requested business owns the authorized branch before the pending sale insert (spec 058, 42-3b2) |
 | worker `orders` | `PackageSaleScope.lockType` | worker `catalog` | `readPackageTypeForSale` locks the type `FOR SHARE`, then `lockSessionServicesForSale` locks component services in ascending id and returns their prices/revisions for the frozen sale quote (ADR-0034 addendum 2026-11-11, spec 058 FR-018b/c) |
 | worker `orders` | `PackageSaleScope.lockSeller`, `PackageSaleScope.readSeller` | worker `staff` | `lockPackageSeller` takes the employee `FOR SHARE` before `readPackageSeller` returns dated branch eligibility and the persisted user link; no attendance warnings or fresh authorization (ADR-0034 addendum 2026-11-11, spec 058 FR-014) |
 | worker `orders` | `PackageSaleScope.customerExists` | worker `customers` | `packageSaleCustomerExists` proves company-scoped customer existence on the sale transaction, with no phone read (ADR-0034 addendum 2026-11-11, spec 058 FR-018) |
@@ -271,6 +272,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `EmployeeImported` | `staff` | None in Phase 1; known to the dispatcher (ADR-0034) |
 | `EmployeeImportCommitRequested` | `staff` | `staff` worker registers per-company employee-import-recovery sweep (PR 24 / ADR-0022 discovery), then transports employee-import-commit after outbox claim commits (ADR-0034, ADR-0018) |
 | `ServiceImportCommitRequested` | `catalog` | `catalog` worker registers the per-company service-import-recovery sweep (PR 24 / ADR-0022 discovery), then transports service-import-commit after the outbox claim commits; id-only `{ preview_id }`, company in the envelope (ADR-0034 services-import addendum, ADR-0018) |
+| `ServiceCategoryClosingRequested` | `catalog` (emitted from 32b-cat-2-worker sub-PR 3, in the accept transaction of a close or reopen above 300 services) | worker `catalog` `service-category-closing` processor (sub-PR 2); id-only `{ closing_id }`, company in the envelope, transported after the outbox claim commits (ADR-0018); no business consumer |
 | `ImportCommitted` | `staff`, `orders` (package commit summary; transport activation deferred to 47-2c/d) | None in Phase 1; known to the dispatcher (ADR-0034) |
 | `PackageSaleRequested` | `orders` acceptance, in the same transaction as the `pending` request | worker `orders` `package-sale` processor; id-only `{ sale_request_id }`, envelope `aggregateType='package_sale_request'`, `aggregateId` = request id and company in the envelope (ADR-0034 addendum 2026-11-11, spec 058 FR-018) |
 | `BusinessLogoChanged` | `settings` (`set-business-logo`, 27h-4) | worker `files` retire consumer (27h-3, ADR-0046) |
@@ -300,7 +302,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `StatementAwaitingReview`                                                   | `commissions`   | `notifications`                                                                                   |
 | `StatementAwaitingApproval`                                                 | `commissions`   | `notifications`                                                                                   |
 
-The worker `catalog` module lives at `apps/worker/src/modules/catalog`, owns the `service-import-commit` and `service-import-recovery` jobs, and is wired at `apps/worker/src/main.ts`. Its imports follow the existing `catalog: [tenancy]` entry for both applications. No code registers `ServiceImportCommitRequested` before sub-PR 32b-3.
+The worker `catalog` module lives at `apps/worker/src/modules/catalog`, owns the `service-import-commit` and `service-import-recovery` jobs and the `service-category-closing` job (32b-cat-2-worker), and is wired at `apps/worker/src/main.ts`. Its imports follow the existing `catalog: [tenancy]` entry for both applications. No code registers `ServiceImportCommitRequested` before sub-PR 32b-3.
 
 **Two consumers by default.** Every event has its business handler **and** the `realtime` publisher (`06` §5.10). That is what guarantees a screen never shows something that didn't actually commit.
 
@@ -403,6 +405,9 @@ reads:
   - orders -> identity.readOwnServiceSessionsAccess @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
   - orders -> identity.lockPackageExtensionAccess @ apps/api/src/modules/orders/persistence/package-extension.transactions.ts
   - orders -> identity.readPackageExtensionAccess @ apps/api/src/modules/orders/persistence/package-extension.transactions.ts
+  - orders -> identity.lockPackageSaleAccess @ apps/api/src/modules/orders/persistence/package-sale-request.transactions.ts
+  - orders -> identity.readPackageSaleAccess @ apps/api/src/modules/orders/persistence/package-sale-request.transactions.ts
+  - orders -> tenancy.packageSalePlace @ apps/api/src/modules/orders/persistence/package-sale-request.transactions.ts
   - orders -> identity.lockPackageRefundAccess @ apps/api/src/modules/orders/persistence/package-refund.transactions.ts
   - orders -> identity.readPackageRefundAccess @ apps/api/src/modules/orders/persistence/package-refund.transactions.ts
   - orders -> settings.readImportedRefundsEnabled @ apps/api/src/modules/orders/persistence/package-refund.transactions.ts
@@ -461,6 +466,7 @@ reads:
   - orders -> identity.readServiceSessionCancelAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
   - orders -> identity.lockServiceSessionPerformersAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
   - orders -> identity.readServiceSessionPerformersAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
+  - orders -> identity.readPackageExtensionAccess @ apps/api/src/modules/orders/persistence/session-edit-access.adapter.ts
   - orders -> identity.lockDiscountApprovalAccess @ apps/api/src/modules/orders/persistence/discount-approval-access.adapter.ts
   - orders -> identity.readDiscountApprovalAccess @ apps/api/src/modules/orders/persistence/discount-approval-access.adapter.ts
   - orders -> identity.lockActiveDeviceBusiness @ apps/api/src/modules/orders/persistence/discount-pin-fence.adapter.ts

@@ -31,18 +31,22 @@ export function packageSaleTime(soldAt: Date | undefined, recordedAt: Date, time
 }
 
 /**
- * نسخة النوع تُفحص قبل نسخ الخدمات؛ المجموعة لازم تطابق العرض كله حتى لو الأسعار متساوية.
+ * النوع المتوقف بيعه يُرفض أولاً، ثم نسخة النوع، ثم نسخ الخدمات؛ لأن الإيقاف نفسه يرفع النسخة.
+ * المجموعة لازم تطابق العرض كله حتى لو الأسعار متساوية.
  *
  * @param type النوع وخدماته بعد أقفال الكتالوج
  * @param expectedTypeRevision نسخة النوع التي أكدها الاستقبال
  * @param expectedServices مجموعة الخدمات ونسخها التي أكدها الاستقبال
- * @returns لا شيء؛ العرض القديم يُرفض ومعه النسخ الحالية
+ * @returns لا شيء؛ النوع المتوقف أو العرض القديم يُرفض، ومعه النسخ الحالية عند تعارض العرض
  */
 export function assertPackageSaleQuote(
   type: SalePackageType,
   expectedTypeRevision: number,
   expectedServices: readonly { service_id: string; revision: number }[],
 ): void {
+  if (type.selling_stopped_at !== null) {
+    throw new PackageSaleError('PACKAGE_TYPE_NOT_SELLABLE');
+  }
   if (type.revision !== expectedTypeRevision) {
     throw new PackageSaleError('PACKAGE_TYPE_REVISION_CONFLICT', {
       current_revision: type.revision,

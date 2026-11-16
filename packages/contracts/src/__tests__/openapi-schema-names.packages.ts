@@ -1,5 +1,6 @@
 // قائمة مستقلة بأسماء سكيما الباقات، عشان كل موديل يبقى له ملف أسماء قابل للمراجعة لوحده.
 export const packageSchemaNames = [
+  'AcceptedPackageSale',
   'CreatePackageTypeInput',
   'CustomerPackageComponent',
   'CustomerPackageDetail',
@@ -21,6 +22,8 @@ export const packageSchemaNames = [
   'PackageImportPreviewStatus',
   'PackagePaidMethod',
   'PackageSaleChanged',
+  'PackageSaleRefusalCode',
+  'PackageSaleStatus',
   'PackageServiceOption',
   'PackageServiceOptionPage',
   'PackageServiceRevision',
@@ -31,9 +34,9 @@ export const packageSchemaNames = [
   'PackageTypeListItem',
   'PackageTypeListQuery',
   'PackageTypePage',
+  'PackageTypeSellingInput',
   'RequestPackageImportPreviewInput',
   'SellPackageInput',
-  'SellPackageResponse',
   'SoldPackageComponent',
   'SoldPackageEntitlement',
   'UpdatePackageTypeInput',
