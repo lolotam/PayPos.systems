@@ -1,5 +1,5 @@
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { StaffPinInput } from '@pospay/contracts';
 
 import { pinDecisionOutcome, type PinDecisionOutcome } from '../model/pin-decision-outcome';
@@ -20,7 +20,9 @@ function useDecisionRuntime(operatorKey: string) {
   const held = useRef<HeldDecision | null>(null);
   const [pending, setPending] = useState(false);
   const [current, setCurrent] = useState<DecisionState | null>(null);
-  generation.current = operatorKey;
+  useLayoutEffect(() => {
+    generation.current = operatorKey;
+  }, [operatorKey]);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -47,9 +49,7 @@ async function sendDecision(
   runtime.busy.current = true;
   runtime.setPending(true);
   runtime.setCurrent(null);
-  let outcome = pinDecisionOutcome(
-    await decideDeviceDiscountProposal(input.decision, input.body),
-  );
+  let outcome = pinDecisionOutcome(await decideDeviceDiscountProposal(input.decision, input.body));
   if (retry && outcome.kind === 'pickMembership') {
     outcome = { kind: 'failure', failure: outcome.failure };
   }
