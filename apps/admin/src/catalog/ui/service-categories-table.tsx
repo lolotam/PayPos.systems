@@ -1,10 +1,11 @@
 'use client';
-import type { ServiceCategoryClosingAction, ServiceCategoryListItem } from '@pospay/contracts';
+import type { ServiceCategoryListItem } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { DataTableFrame } from '@pospay/ui';
 import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { useMemo } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
+import type { TrackedServiceCategoryClosing } from '../model/service-category-closing';
 import { ServiceCategoryRow } from './service-category-row';
 
 export function ServiceCategoriesTable({
@@ -15,7 +16,7 @@ export function ServiceCategoriesTable({
 }: {
   items: readonly ServiceCategoryListItem[];
   selectedId: string;
-  tracked: { categoryId: string; action: ServiceCategoryClosingAction } | null;
+  tracked: Readonly<Record<string, Pick<TrackedServiceCategoryClosing, 'action'>>>;
   onSelect: (id: string) => void;
 }) {
   'use no memo';
@@ -53,7 +54,7 @@ export function ServiceCategoriesTable({
               key={original.id}
               item={original}
               selected={selectedId === original.id}
-              pendingAction={tracked?.categoryId === original.id ? tracked.action : null}
+              pendingAction={tracked[original.id]?.action ?? null}
               onSelect={onSelect}
             />
           ))}

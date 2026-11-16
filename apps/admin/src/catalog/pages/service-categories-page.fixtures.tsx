@@ -12,6 +12,7 @@ export const categoryAId = '01920000-0000-7000-8000-0000000000a1';
 export const categoryBId = '01920000-0000-7000-8000-0000000000b1';
 export const categoryCId = '01920000-0000-7000-8000-0000000000c1';
 export const closingId = '01920000-0000-7000-8000-000000000099';
+export const closingBId = '01920000-0000-7000-8000-000000000098';
 
 export const categoryA: ServiceCategoryListItem = {
   id: categoryAId,
@@ -173,37 +174,42 @@ export function setupCategoriesGet(
 }
 
 export function setupClosingFlowGet(get: Mock, isClosed: () => boolean) {
-  get.mockImplementation((path: string, req?: { params?: { path?: { categoryId?: string } } }) => {
-    const aClosed = isClosed();
-    if (path === '/v1/businesses/{businessId}/service-categories') {
-      const items = aClosed
-        ? [{ ...categoryA, closed_at: '2026-10-05T10:00:00Z' }, categoryB]
-        : [categoryA, categoryB];
-      return Promise.resolve({ data: { items, next_cursor: null }, response: { status: 200 } });
-    }
-    if (path.includes('/closings/')) {
-      const data = aClosed
-        ? {
-            closing_id: closingId,
-            category_id: categoryAId,
-            action: 'close' as const,
-            status: 'completed' as const,
-            services_changed: 450,
-            error_code: null,
-            requested_at: '2026-10-05T10:00:00Z',
-            finished_at: '2026-10-05T10:00:05Z',
-          }
-        : pendingStatus;
-      return Promise.resolve({ data, response: { status: 200 } });
-    }
-    if (req?.params?.path?.categoryId === categoryAId) {
-      const data = aClosed
-        ? { ...detailA, closed_at: '2026-10-05T10:00:00Z', open_service_count: 0 }
-        : detailA;
-      return Promise.resolve({ data, response: { status: 200 } });
-    }
-    return Promise.resolve({ data: {}, response: { status: 200 } });
-  });
+  get.mockImplementation(
+    (
+      path: string,
+      req?: { params?: { path?: { categoryId?: string }; query?: { status?: string } } },
+    ) => {
+      const aClosed = isClosed();
+      const closedA = { ...categoryA, closed_at: '2026-10-05T10:00:00Z' };
+      if (path === '/v1/businesses/{businessId}/service-categories') {
+        const status = req?.params?.query?.status ?? 'open';
+        const items =
+          status === 'closed'
+            ? [...(aClosed ? [closedA] : []), closedCategoryC]
+            : [...(aClosed ? [] : [categoryA]), categoryB];
+        return Promise.resolve({ data: { items, next_cursor: null }, response: { status: 200 } });
+      }
+      if (path.includes('/closings/')) {
+        const data =
+          req?.params?.path?.categoryId === categoryBId
+            ? { ...pendingStatus, closing_id: closingBId, category_id: categoryBId }
+            : aClosed
+              ? completedStatus
+              : pendingStatus;
+        return Promise.resolve({ data, response: { status: 200 } });
+      }
+      if (req?.params?.path?.categoryId === categoryAId) {
+        const data = aClosed
+          ? { ...detailA, closed_at: '2026-10-05T10:00:00Z', open_service_count: 0 }
+          : detailA;
+        return Promise.resolve({ data, response: { status: 200 } });
+      }
+      if (req?.params?.path?.categoryId === categoryBId) {
+        return Promise.resolve({ data: detailB, response: { status: 200 } });
+      }
+      return Promise.resolve({ data: {}, response: { status: 200 } });
+    },
+  );
 }
 
 export function setupReopenFlowGet(get: Mock) {

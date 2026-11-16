@@ -8,6 +8,7 @@ import {
   categoryB,
   categoryBId,
   closingId,
+  closingBId,
   detailA,
   detailB,
   findPanel,
@@ -15,6 +16,7 @@ import {
   pendingStatus,
   renderPage,
   selectRow,
+  setupClosingFlowGet,
   setupRace1Get,
 } from './service-categories-page.fixtures';
 
@@ -177,4 +179,59 @@ it('11. Race 2: late reply does not land on another row (202 and 200 variants)',
     data: { ...detailA, revision: 2, closed_at: '2026-10-05T10:00:00Z', services_closed: 5 },
     response: { status: 200 },
   });
+});
+
+it('Concurrent jobs: A completes after B starts and keeps its own result', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  let aClosed = false;
+  setupClosingFlowGet(get, () => aClosed);
+  post
+    .mockResolvedValueOnce({ data: { closing_id: closingId, status: 'pending' }, response: { status: 202 } })
+    .mockResolvedValueOnce({
+      data: { closing_id: closingBId, status: 'pending' },
+      response: { status: 202 },
+    });
+  renderPage('en');
+
+  await screen.findByText(categoryA.name_en);
+  selectRow(categoryA.name_en, 'en');
+  fireEvent.click(
+    await screen.findByRole('button', { name: t('en', 'catalogServiceCategories.closeCategory') }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'catalogServiceCategories.confirm') }));
+  await waitFor(() =>
+    expect(
+      within(findRow(categoryA.name_en)).getByText(t('en', 'catalogServiceCategories.closing')),
+    ).toBeTruthy(),
+  );
+
+  selectRow(categoryB.name_en, 'en');
+  fireEvent.click(
+    await screen.findByRole('button', { name: t('en', 'catalogServiceCategories.closeCategory') }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'catalogServiceCategories.confirm') }));
+  await waitFor(() =>
+    expect(
+      within(findRow(categoryB.name_en)).getByText(t('en', 'catalogServiceCategories.closing')),
+    ).toBeTruthy(),
+  );
+
+  aClosed = true;
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(2_100);
+  });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'catalogServiceCategories.tabClosed') }));
+  expect(await screen.findByText(categoryA.name_en)).toBeTruthy();
+  expect(
+    within(findRow(categoryA.name_en)).getByText(t('en', 'catalogServiceCategories.closed')),
+  ).toBeTruthy();
+
+  const tabs = screen.getByRole('group');
+  fireEvent.click(
+    within(tabs).getByRole('button', { name: t('en', 'catalogServiceCategories.tabOpen') }),
+  );
+  expect(await screen.findByText(categoryB.name_en)).toBeTruthy();
+  expect(
+    within(findRow(categoryB.name_en)).getByText(t('en', 'catalogServiceCategories.closing')),
+  ).toBeTruthy();
 });

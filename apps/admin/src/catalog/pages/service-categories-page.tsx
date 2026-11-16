@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import {
   useServiceCategoryClosing,
-  useServiceCategoryClosingStatus,
+  useServiceCategoryClosingStatuses,
   type ServiceCategoryClosingRequest,
 } from '../api/use-service-category-closing';
 import { useServiceCategoryList, serviceCategoryKey } from '../api/use-service-category-list';
@@ -21,13 +21,17 @@ type ServiceCategoriesPageProps = {
   business: WorkspaceBusiness;
   userId: string;
 };
-type CategoryOutcome = { categoryId: string; value: NoticeInput };
-type CategoryRefusal = { categoryId: string; error: unknown };
 type CategoryClosingState = {
-  tracked: TrackedServiceCategoryClosing | null;
-  outcome: CategoryOutcome | null;
-  refusal: CategoryRefusal | null;
+  tracked: Readonly<Record<string, TrackedServiceCategoryClosing>>;
+  outcome: Readonly<Record<string, NoticeInput>>;
+  refusal: Readonly<Record<string, unknown>>;
 };
+
+function withoutCategory<T>(values: Readonly<Record<string, T>>, categoryId: string) {
+  return Object.fromEntries(
+    Object.entries(values).filter(([id]) => id !== categoryId),
+  ) as Record<string, T>;
+}
 
 function errorClosingId(error: unknown): string | null {
   if (typeof error !== 'object' || error === null || !('details' in error)) return null;
@@ -39,9 +43,9 @@ function errorClosingId(error: unknown): string | null {
 /** مجموعة المنتهية والحالة الذرية بتمنع مهمة قديمة من الرجوع بعد اكتمالها أو بعد retry. */
 function useClosingState() {
   const [state, setState] = useState<CategoryClosingState>({
-    tracked: null,
-    outcome: null,
-    refusal: null,
+    tracked: {},
+    outcome: {},
+    refusal: {},
   });
   const finished = useRef(new Set<string>());
   const track = (
@@ -51,16 +55,16 @@ function useClosingState() {
   ) => {
     if (finished.current.has(closingId)) return;
     setState((current) => ({
-      tracked: { categoryId, closingId, action },
-      outcome: current.outcome?.categoryId === categoryId ? null : current.outcome,
-      refusal: current.refusal?.categoryId === categoryId ? null : current.refusal,
+      tracked: { ...current.tracked, [categoryId]: { categoryId, closingId, action } },
+      outcome: withoutCategory(current.outcome, categoryId),
+      refusal: withoutCategory(current.refusal, categoryId),
     }));
   };
   const retry = (categoryId: string) => {
     setState((current) => ({
-      tracked: current.tracked?.categoryId === categoryId ? null : current.tracked,
-      outcome: current.outcome?.categoryId === categoryId ? null : current.outcome,
-      refusal: current.refusal?.categoryId === categoryId ? null : current.refusal,
+      tracked: withoutCategory(current.tracked, categoryId),
+      outcome: withoutCategory(current.outcome, categoryId),
+      refusal: withoutCategory(current.refusal, categoryId),
     }));
   };
   return { state, setState, finished, track, retry };
@@ -79,13 +83,16 @@ function useClosingRequest(
   const succeed = (categoryId: string, result: ServiceCategoryClosingMutationResult) => {
     if (result.kind === 'pending') return track(categoryId, result.closingId, result.action);
     setState((current) => ({
-      tracked: current.tracked?.categoryId === categoryId ? null : current.tracked,
-      outcome: { categoryId, value: result },
-      refusal: current.refusal?.categoryId === categoryId ? null : current.refusal,
+      tracked: withoutCategory(current.tracked, categoryId),
+      outcome: { ...current.outcome, [categoryId]: result },
+      refusal: withoutCategory(current.refusal, categoryId),
     }));
   };
   const fail = (input: ServiceCategoryClosingRequest, error: unknown) => {
-    setState((current) => ({ ...current, refusal: { categoryId: input.categoryId, error } }));
+    setState((current) => ({
+      ...current,
+      refusal: { ...current.refusal, [input.categoryId]: error },
+    }));
     const code = typeof error === 'object' && error !== null && 'code' in error ? error.code : '';
     if (
       code === 'SERVICE_CATEGORY_COUNT_CHANGED' ||
@@ -109,7 +116,7 @@ function useClosingRequest(
   const requestClosing = (input: ServiceCategoryClosingRequest, onAccepted?: () => void) => {
     setState((current) => ({
       ...current,
-      refusal: current.refusal?.categoryId === input.categoryId ? null : current.refusal,
+      refusal: withoutCategory(current.refusal, input.categoryId),
     }));
     mutation.mutate(input, {
       onSuccess: (result) => {
@@ -126,33 +133,42 @@ function useClosingRequest(
 function usePageClosing(companyId: string, businessId: string, userId: string) {
   const controller = useClosingState();
   const request = useClosingRequest(companyId, businessId, userId, controller);
-  const terminal = (value: ServiceCategoryClosingStatus) => {
-    controller.finished.current.add(value.closing_id);
+  const terminal = (terminalStatus: ServiceCategoryClosingStatus) => {
+    controller.finished.current.add(terminalStatus.closing_id);
     controller.setState((current) => ({
-      tracked: current.tracked?.closingId === value.closing_id ? null : current.tracked,
-      outcome: { categoryId: value.category_id, value },
-      refusal: current.refusal?.categoryId === value.category_id ? null : current.refusal,
+      tracked:
+        current.tracked[terminalStatus.category_id]?.closingId === terminalStatus.closing_id
+          ? withoutCategory(current.tracked, terminalStatus.category_id)
+          : current.tracked,
+      outcome: { ...current.outcome, [terminalStatus.category_id]: terminalStatus },
+      refusal: withoutCategory(current.refusal, terminalStatus.category_id),
     }));
   };
-  const closing = useServiceCategoryClosingStatus(
+  const trackedJobs = Object.values(controller.state.tracked);
+  const closing = useServiceCategoryClosingStatuses({
     companyId,
     businessId,
     userId,
-    controller.state.tracked?.categoryId ?? '',
-    controller.state.tracked?.closingId ?? '',
-    2_000,
-    terminal,
-  );
-  return { ...controller.state, ...request, closing, ...controller };
+    jobs: trackedJobs,
+    pollMs: 2_000,
+    onTerminal: terminal,
+  });
+  const closingFor = (categoryId: string) => {
+    const index = trackedJobs.findIndex((job) => job.categoryId === categoryId);
+    return index === -1 ? undefined : closing[index];
+  };
+  return { ...controller.state, ...request, closingFor, ...controller };
 }
 
 function closingNotice(
   jobs: ReturnType<typeof usePageClosing>,
   selectedId: string,
 ): NoticeInput | null {
-  if (jobs.outcome?.categoryId === selectedId) return jobs.outcome.value;
-  if (jobs.tracked?.categoryId !== selectedId) return null;
-  return jobs.closing.data ?? { action: jobs.tracked.action, status: 'pending' };
+  const outcome = jobs.outcome[selectedId];
+  if (outcome) return outcome;
+  const tracked = jobs.tracked[selectedId];
+  if (!tracked) return null;
+  return jobs.closingFor(selectedId)?.data ?? { action: tracked.action, status: 'pending' };
 }
 
 export function ServiceCategoriesPage({ companyId, business, userId }: ServiceCategoriesPageProps) {
@@ -195,11 +211,11 @@ export function ServiceCategoriesPage({ companyId, business, userId }: ServiceCa
         userId={userId}
         selectedId={selectedId}
         creating={creating}
-        tracked={jobs.tracked}
+        tracked={jobs.tracked[selectedId] ?? null}
         finished={jobs.finished}
         noticeInput={closingNotice(jobs, selectedId)}
-        noticeError={jobs.closing.error}
-        closingError={jobs.refusal?.categoryId === selectedId ? jobs.refusal.error : undefined}
+        noticeError={jobs.closingFor(selectedId)?.error}
+        closingError={jobs.refusal[selectedId]}
         closingPending={jobs.mutation.isPending}
         requestClosing={jobs.requestClosing}
         onTrack={jobs.track}

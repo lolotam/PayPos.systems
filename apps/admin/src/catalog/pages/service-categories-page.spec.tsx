@@ -140,9 +140,17 @@ it('3. The 202 path (ar locale, the SI-Q30 check): shows closing, completes, and
   await waitFor(() => expect(within(panelAfter).getByText(expectedDone)).toBeTruthy());
   await waitFor(() =>
     expect(
-      within(findRow(categoryA.name_ar)).getByText(t('ar', 'catalogServiceCategories.closed')),
-    ).toBeTruthy(),
+      screen.queryAllByText(categoryA.name_ar).some((element) => element.closest('tr')),
+    ).toBe(false),
   );
+
+  fireEvent.click(
+    screen.getByRole('button', { name: t('ar', 'catalogServiceCategories.tabClosed') }),
+  );
+  expect(await screen.findByText(categoryA.name_ar)).toBeTruthy();
+  expect(
+    within(findRow(categoryA.name_ar)).getByText(t('ar', 'catalogServiceCategories.closed')),
+  ).toBeTruthy();
 });
 
 it('4. Reopen through 202: displays reopening and reopened texts with count', async () => {

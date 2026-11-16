@@ -7,10 +7,13 @@ import {
   type ServiceCategoryClosingAction,
   type ServiceCategoryClosingStatus,
 } from '@pospay/contracts';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { apiClient } from '@/shared/api/client';
-import type { ServiceCategoryClosingMutationResult } from '../model/service-category-closing';
+import type {
+  ServiceCategoryClosingMutationResult,
+  TrackedServiceCategoryClosing,
+} from '../model/service-category-closing';
 import { key as servicesKey } from './use-services';
 import { serviceCategoryKey } from './use-service-category-list';
 
@@ -85,6 +88,38 @@ async function status(
   return serviceCategoryClosingStatus.parse(response.data);
 }
 
+type ServiceCategoryClosingQueryOptions = {
+  companyId: string;
+  businessId: string;
+  userId: string;
+  categoryId: string;
+  closingId: string;
+  pollMs: number;
+};
+
+function closingStatusQuery({
+  companyId,
+  businessId,
+  userId,
+  categoryId,
+  closingId,
+  pollMs,
+}: ServiceCategoryClosingQueryOptions) {
+  return {
+    queryKey: ['closing-status', companyId, businessId, userId, categoryId, closingId],
+    queryFn: ({ signal }: { signal: AbortSignal }) =>
+      status(companyId, businessId, categoryId, closingId, signal),
+    enabled: categoryId !== '' && closingId !== '',
+    retry: (count: number, error: unknown) => count < 3 && !stopsPolling(error),
+    refetchInterval: (current: {
+      state: { error: unknown; data: ServiceCategoryClosingStatus | undefined };
+    }) => {
+      if (stopsPolling(current.state.error)) return false;
+      return !current.state.data || current.state.data.status === 'pending' ? pollMs : false;
+    },
+  };
+}
+
 /** جسم 202 مفيهوش kind على السلك، فالتمييز بين النتيجة الفورية والمهمة الخلفية بيتم من HTTP status. */
 export function useServiceCategoryClosing(companyId: string, businessId: string, userId: string) {
   const client = useQueryClient();
@@ -113,16 +148,9 @@ export function useServiceCategoryClosingStatus(
 ) {
   const client = useQueryClient();
   const handled = useRef('');
-  const query = useQuery({
-    queryKey: ['closing-status', companyId, businessId, userId, categoryId, closingId],
-    queryFn: ({ signal }) => status(companyId, businessId, categoryId, closingId, signal),
-    enabled: categoryId !== '' && closingId !== '',
-    retry: (count, error) => count < 3 && !stopsPolling(error),
-    refetchInterval: (current) => {
-      if (stopsPolling(current.state.error)) return false;
-      return !current.state.data || current.state.data.status === 'pending' ? pollMs : false;
-    },
-  });
+  const query = useQuery(
+    closingStatusQuery({ companyId, businessId, userId, categoryId, closingId, pollMs }),
+  );
   const data = query.data;
   useEffect(() => {
     if (!data || data.status === 'pending') return;
@@ -134,4 +162,45 @@ export function useServiceCategoryClosingStatus(
     void client.invalidateQueries({ queryKey: servicesKey(companyId, businessId, userId) });
   }, [businessId, client, companyId, data, onTerminal, userId]);
   return query;
+}
+
+type ServiceCategoryClosingStatusesOptions = {
+  companyId: string;
+  businessId: string;
+  userId: string;
+  jobs: readonly Pick<TrackedServiceCategoryClosing, 'categoryId' | 'closingId'>[];
+  pollMs?: number;
+  onTerminal?: (closingStatus: ServiceCategoryClosingStatus) => void;
+};
+
+/** كل مهمة خلفية لها استعلام مستقل حتى لا يوقف تصنيف جديد متابعة تصنيف سابق. */
+export function useServiceCategoryClosingStatuses({
+  companyId,
+  businessId,
+  userId,
+  jobs,
+  pollMs = 2_000,
+  onTerminal,
+}: ServiceCategoryClosingStatusesOptions) {
+  const client = useQueryClient();
+  const handled = useRef(new Set<string>());
+  const queries = useQueries({
+    queries: jobs.map(({ categoryId, closingId }) =>
+      closingStatusQuery({ companyId, businessId, userId, categoryId, closingId, pollMs }),
+    ),
+  });
+  const terminalStatuses = queries.flatMap(({ data: closingStatus }) =>
+    closingStatus && closingStatus.status !== 'pending' ? [closingStatus] : [],
+  );
+  useEffect(() => {
+    for (const terminalStatus of terminalStatuses) {
+      const receipt = `${terminalStatus.closing_id}:${terminalStatus.status}`;
+      if (handled.current.has(receipt)) continue;
+      handled.current.add(receipt);
+      onTerminal?.(terminalStatus);
+      void client.invalidateQueries({ queryKey: serviceCategoryKey(companyId, businessId, userId) });
+      void client.invalidateQueries({ queryKey: servicesKey(companyId, businessId, userId) });
+    }
+  }, [businessId, client, companyId, onTerminal, terminalStatuses, userId]);
+  return queries;
 }

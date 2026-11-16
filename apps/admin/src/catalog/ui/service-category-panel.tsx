@@ -43,7 +43,12 @@ export function ServiceCategoryPanel(props: ServiceCategoryPanelProps) {
     if (!id || tracked?.categoryId === record.id || finished.current.has(id)) return;
     onTrack(record.id, id, record.closed_at === null ? 'close' : 'reopen');
   }, [finished, onTrack, record, tracked]);
-  const refresh = async () => Boolean((await detail.refetch()).data);
+  const refresh = async () => {
+    const refetchResult = await detail.refetch();
+    return (
+      refetchResult.status === 'success' && !refetchResult.error && Boolean(refetchResult.data)
+    );
+  };
   return (
     <Card className="flex max-w-xl flex-col gap-4 p-6">
       <div className="flex items-center justify-between gap-3">

@@ -1,9 +1,10 @@
 'use client';
-import type { ServiceCategoryClosingAction, ServiceCategoryPage } from '@pospay/contracts';
+import type { ServiceCategoryPage } from '@pospay/contracts';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { t } from '@pospay/i18n';
 import { Button, PageHeader } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
+import type { TrackedServiceCategoryClosing } from '../model/service-category-closing';
 import { ServiceCategoriesListPanel } from './service-categories-list-panel';
 import { ServiceCategoryStatusTabs } from './service-category-status-tabs';
 
@@ -24,7 +25,7 @@ export function ServiceCategoryPageControls({
   list: UseQueryResult<ServiceCategoryPage>;
   selectedId: string;
   cursor: string | undefined;
-  tracked: { categoryId: string; action: ServiceCategoryClosingAction } | null;
+  tracked: Readonly<Record<string, Pick<TrackedServiceCategoryClosing, 'action'>>>;
   onSelect: (id: string) => void;
   onPage: (cursor: string | undefined) => void;
 }) {

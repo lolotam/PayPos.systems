@@ -8,6 +8,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 export function ServiceCategoryNameFields({ mode }: { mode: 'create' | 'rename' }) {
   const locale = useLocale();
   const { register, formState } = useFormContext<CreateServiceCategoryInput>();
+  const errorId = `${mode}-category-name-error`;
   return (
     <>
       <Label htmlFor={`${mode}-category-name-en`}>
@@ -17,6 +18,8 @@ export function ServiceCategoryNameFields({ mode }: { mode: 'create' | 'rename' 
         id={`${mode}-category-name-en`}
         dir="ltr"
         aria-invalid={!!formState.errors.name_en}
+        aria-required="true"
+        aria-describedby={formState.errors.name_en ? errorId : undefined}
         {...register('name_en')}
       />
       <Label htmlFor={`${mode}-category-name-ar`}>
@@ -26,10 +29,14 @@ export function ServiceCategoryNameFields({ mode }: { mode: 'create' | 'rename' 
         id={`${mode}-category-name-ar`}
         dir="rtl"
         aria-invalid={!!formState.errors.name_ar}
+        aria-required="true"
+        aria-describedby={formState.errors.name_ar ? errorId : undefined}
         {...register('name_ar')}
       />
       {Object.keys(formState.errors).length ? (
-        <p role="alert">{t(locale, 'catalogServiceCategories.nameRequired')}</p>
+        <p id={errorId} role="alert">
+          {t(locale, 'catalogServiceCategories.nameRequired')}
+        </p>
       ) : null}
     </>
   );

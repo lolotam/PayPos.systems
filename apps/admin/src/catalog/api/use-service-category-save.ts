@@ -8,6 +8,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 import { serviceCategoryKey } from './use-service-category-list';
+import { key as servicesKey } from './use-services';
 
 async function create(
   companyId: string,
@@ -62,6 +63,9 @@ export function useRenameServiceCategory(companyId: string, businessId: string, 
     mutationFn: ({ categoryId, ...body }: RenameServiceCategoryInput & { categoryId: string }) =>
       rename(companyId, businessId, categoryId, body),
     onSuccess: () =>
-      client.invalidateQueries({ queryKey: serviceCategoryKey(companyId, businessId, userId) }),
+      Promise.all([
+        client.invalidateQueries({ queryKey: serviceCategoryKey(companyId, businessId, userId) }),
+        client.invalidateQueries({ queryKey: servicesKey(companyId, businessId, userId) }),
+      ]),
   });
 }
