@@ -1,3 +1,5 @@
+import { PackageTypeError } from './errors.ts';
+
 /** حالة بيع نوع الباقة: نشط للبيع، أو متوقف مؤقتاً عن البيع. */
 export type PackageTypeSellingStatus = 'ACTIVE' | 'STOPPED';
 
@@ -72,4 +74,20 @@ export function planPackageTypeSelling(
       revision: current.revision + 1,
     },
   };
+}
+
+/**
+ * يترجم قرار انتقال البيع إلى الحالة التي تُحفظ، مع إبقاء الرفضين المسمّين قبل أي كتابة.
+ * تعارض النسخة يحتفظ برفض التعديل المعتاد، والحالة المطابقة تُرفض كي لا تُنشئ تدقيقاً أو نسخة بلا تغيير.
+ *
+ * @param decision قرار الانتقال الناتج من planPackageTypeSelling
+ * @returns الحالة الجديدة عند قرار change فقط
+ */
+export function resolvePackageTypeSelling(
+  decision: PackageTypeSellingDecision,
+): PackageTypeSellingState {
+  if (decision.kind === 'revision-conflict')
+    throw new PackageTypeError('PACKAGE_TYPE_REVISION_CONFLICT');
+  if (decision.kind === 'unchanged') throw new PackageTypeError('PACKAGE_TYPE_SELLING_UNCHANGED');
+  return decision.after;
 }

@@ -1,6 +1,7 @@
 import { appendAuditLog, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 import { PackageTypeError } from '../domain/errors.ts';
+import type { PackageTypeSellingState } from '../domain/package-type-selling.ts';
 import {
   packageTypeSnapshot,
   packageTypeTerms,
@@ -85,6 +86,41 @@ async function save(
   await replaceComponents(tx, companyId, after, ids);
 }
 
+async function saveSelling(
+  tx: Tx,
+  companyId: string,
+  before: PackageTypeRecord,
+  after: PackageTypeSellingState,
+  at: Date,
+) {
+  const rows = await tx.execute(sql`UPDATE package_types
+    SET selling_stopped_at=${after.selling_stopped_at},revision=${after.revision},updated_at=${at.toISOString()}
+    WHERE company_id=${companyId} AND business_id=${before.business_id} AND id=${before.id}
+      AND revision=${before.revision} RETURNING id`);
+  if (rows.length === 0) throw new PackageTypeError('PACKAGE_TYPE_REVISION_CONFLICT');
+}
+
+async function auditSelling(
+  tx: Tx,
+  ids: IdGenerator,
+  before: PackageTypeRecord,
+  after: PackageTypeSellingState,
+) {
+  await appendAuditLog(tx, ids.newId(), {
+    entity: 'package_type',
+    entityId: before.id,
+    action: after.selling_stopped_at === null ? 'selling_resumed' : 'selling_stopped',
+    before: {
+      selling_stopped_at: before.selling_stopped_at,
+      revision: before.revision,
+    },
+    after: {
+      selling_stopped_at: after.selling_stopped_at,
+      revision: after.revision,
+    },
+  });
+}
+
 function cleanError(error: unknown): never {
   if (error instanceof PackageTypeError) throw error;
   const cause = error instanceof Error && 'cause' in error ? error.cause : error;
@@ -135,6 +171,8 @@ export function createPackageTypeTransactions(
             ORDER BY id FOR SHARE`),
                 ),
               save: (before, after) => save(tx, companyId, before, after, ids),
+              saveSelling: (before, after, at) => saveSelling(tx, companyId, before, after, at),
+              auditSelling: (before, after) => auditSelling(tx, ids, before, after),
               audit: (before, after) =>
                 appendAuditLog(tx, ids.newId(), {
                   entity: 'package_type',

@@ -14,11 +14,13 @@ import {
 import {
   id,
   packageTypeListQuery,
+  packageTypeSellingInput,
   type CreatePackageTypeInput,
   type PackageServiceOptionPage,
   type PackageTypeDetail,
   type PackageTypeListQuery,
   type PackageTypePage,
+  type PackageTypeSellingInput,
   type UpdatePackageTypeInput,
 } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
@@ -36,6 +38,8 @@ import {
   CreatePackageTypeUseCase,
   PackageTypeError,
 } from '../use-cases/create-package-type/create-package-type.usecase.ts';
+import { ResumeSellingPackageTypeUseCase } from '../use-cases/resume-selling-package-type/resume-selling-package-type.usecase.ts';
+import { StopSellingPackageTypeUseCase } from '../use-cases/stop-selling-package-type/stop-selling-package-type.usecase.ts';
 import { UpdatePackageTypeUseCase } from '../use-cases/update-package-type/update-package-type.usecase.ts';
 
 @Controller('businesses/:businessId/package-types')
@@ -45,6 +49,10 @@ export class PackageTypesController {
     private readonly createPackageType: CreatePackageTypeUseCase | null,
     @Inject(UpdatePackageTypeUseCase)
     private readonly updatePackageType: UpdatePackageTypeUseCase | null,
+    @Inject(StopSellingPackageTypeUseCase)
+    private readonly stopSellingPackageType: StopSellingPackageTypeUseCase | null,
+    @Inject(ResumeSellingPackageTypeUseCase)
+    private readonly resumeSellingPackageType: ResumeSellingPackageTypeUseCase | null,
     @Inject(DATABASE) private readonly database: TenantWrappers | null,
   ) {}
 
@@ -131,6 +139,54 @@ export class PackageTypesController {
     if (this.updatePackageType === null) throw new ApiError('NOT_READY');
     try {
       return await this.updatePackageType.execute({
+        ...actorOf(request),
+        businessId,
+        packageTypeId,
+        input,
+      });
+    } catch (error) {
+      if (error instanceof PackageTypeError) throw new ApiError(error.code);
+      throw error;
+    }
+  }
+
+  @Post(':packageTypeId/stop-selling')
+  @HttpCode(200)
+  @Require('manage:package-types:business', { business: 'businessId' })
+  @RequiresFeature('catalog')
+  async stopSelling(
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
+    @Param('packageTypeId', new ZodValidationPipe(id)) packageTypeId: string,
+    @Body(new ZodValidationPipe(packageTypeSellingInput)) input: PackageTypeSellingInput,
+    @Req() request: FastifyRequest,
+  ): Promise<PackageTypeDetail> {
+    if (this.stopSellingPackageType === null) throw new ApiError('NOT_READY');
+    try {
+      return await this.stopSellingPackageType.execute({
+        ...actorOf(request),
+        businessId,
+        packageTypeId,
+        input,
+      });
+    } catch (error) {
+      if (error instanceof PackageTypeError) throw new ApiError(error.code);
+      throw error;
+    }
+  }
+
+  @Post(':packageTypeId/resume-selling')
+  @HttpCode(200)
+  @Require('manage:package-types:business', { business: 'businessId' })
+  @RequiresFeature('catalog')
+  async resumeSelling(
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
+    @Param('packageTypeId', new ZodValidationPipe(id)) packageTypeId: string,
+    @Body(new ZodValidationPipe(packageTypeSellingInput)) input: PackageTypeSellingInput,
+    @Req() request: FastifyRequest,
+  ): Promise<PackageTypeDetail> {
+    if (this.resumeSellingPackageType === null) throw new ApiError('NOT_READY');
+    try {
+      return await this.resumeSellingPackageType.execute({
         ...actorOf(request),
         businessId,
         packageTypeId,
