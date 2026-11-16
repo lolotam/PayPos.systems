@@ -14612,6 +14612,200 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/package-types/{packageTypeId}/stop-selling": {
+      "post": {
+        "operationId": "stopPackageTypeSelling",
+        "description": "Stops new sales of a package type against expected_revision without changing sold or imported packages. Requires manage:package-types:business and the catalog feature. Unknown types return PACKAGE_TYPE_NOT_FOUND (404); stale revisions and an already-stopped type return PACKAGE_TYPE_REVISION_CONFLICT and PACKAGE_TYPE_SELLING_UNCHANGED (409).",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "packageTypeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageTypeSellingInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stopped package type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageTypeDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/package-types/{packageTypeId}/resume-selling": {
+      "post": {
+        "operationId": "resumePackageTypeSelling",
+        "description": "Resumes new sales of a package type against expected_revision without changing sold or imported packages. Requires manage:package-types:business and the catalog feature. Unknown types return PACKAGE_TYPE_NOT_FOUND (404); stale revisions and an already-active type return PACKAGE_TYPE_REVISION_CONFLICT and PACKAGE_TYPE_SELLING_UNCHANGED (409).",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "packageTypeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageTypeSellingInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Active package type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageTypeDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/alert-rules": {
       "get": {
         "operationId": "getBusinessAlertRules",
@@ -29061,6 +29255,20 @@
           "price",
           "validity_days",
           "components",
+          "expected_revision"
+        ],
+        "additionalProperties": false
+      },
+      "PackageTypeSellingInput": {
+        "type": "object",
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          }
+        },
+        "required": [
           "expected_revision"
         ],
         "additionalProperties": false
