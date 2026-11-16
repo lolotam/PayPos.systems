@@ -11,7 +11,7 @@ import { apiClient } from '@/shared/api/client';
 export type DeviceProposal = DeviceDiscountProposalList['items'][number];
 export type DeviceDecisionInput = Pick<
   DeviceApproveDiscountProposalsInput,
-  'proposal_ids' | 'terms_hashes' | 'phone' | 'pin'
+  'proposal_ids' | 'terms_hashes' | 'phone' | 'pin' | 'approver_membership_id'
 > & { reason?: NonNullable<DeviceRejectDiscountProposalsInput['reason']> };
 
 export class DeviceDiscountReadError extends Error {
@@ -43,5 +43,10 @@ export function decideDeviceDiscountProposal(
   body: DeviceDecisionInput,
 ): Promise<CallResult<unknown>> {
   const path = `/v1/devices/me/discount-proposals/${decision}` as const;
-  return call(() => apiClient().POST(path, { body, cache: 'no-store' }));
+  const { approver_membership_id: membershipId, ...input } = body;
+  const payload = {
+    ...input,
+    ...(membershipId === undefined ? {} : { approver_membership_id: membershipId }),
+  };
+  return call(() => apiClient().POST(path, { body: payload, cache: 'no-store' }));
 }

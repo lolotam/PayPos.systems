@@ -8,6 +8,7 @@ import { useForm } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { DeviceProposal } from '../api/device-discount-calls';
 import type { PinDecision, usePinDecision } from '../api/use-pin-decision';
+import { ApproverMembershipSelect } from './approver-membership-select';
 
 function decisionLabel(locale: 'ar' | 'en', pending: boolean, decision: PinDecision): string {
   if (pending) return t(locale, 'deviceDiscountApproval.deciding');
@@ -70,6 +71,47 @@ function useDecisionForm(proposal: DeviceProposal, controller: ReturnType<typeof
   return { form, reason, setReason, online, submit, disabled, resetPin };
 }
 
+function pinFields(
+  view: ReturnType<typeof useDecisionForm>,
+  locale: 'ar' | 'en',
+  controller: ReturnType<typeof usePinDecision>,
+  onCancel: () => void,
+) {
+  const { form, reason, setReason, submit, disabled, resetPin } = view;
+  return (
+    <fieldset disabled={disabled} className="grid gap-3">
+      <Label htmlFor="discount-phone">{t(locale, 'deviceDiscountApproval.phone')}</Label>
+      <Input id="discount-phone" type="tel" autoComplete="off" {...form.register('phone')} />
+      <Label htmlFor="discount-pin">{t(locale, 'deviceDiscountApproval.pin')}</Label>
+      <Input
+        id="discount-pin"
+        type="password"
+        inputMode="numeric"
+        maxLength={4}
+        autoComplete="off"
+        {...form.register('pin')}
+      />
+      {rejectionReason(reason, setReason, locale)}
+      {validationAlert(Object.keys(form.formState.errors).length !== 0, locale)}
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Button type="button" onClick={form.handleSubmit(submit('approve'), resetPin)}>
+          {decisionLabel(locale, controller.pending, 'approve')}
+        </Button>
+        <Button
+          type="button"
+          variant="destructive"
+          onClick={form.handleSubmit(submit('reject'), resetPin)}
+        >
+          {decisionLabel(locale, controller.pending, 'reject')}
+        </Button>
+      </div>
+      <Button type="button" variant="ghost" onClick={onCancel}>
+        {t(locale, 'deviceDiscountApproval.cancel')}
+      </Button>
+    </fieldset>
+  );
+}
+
 export function PinDecisionForm({
   proposal,
   controller,
@@ -80,50 +122,27 @@ export function PinDecisionForm({
   onCancel: () => void;
 }) {
   const locale = useLocale();
-  const { form, reason, setReason, online, submit, disabled, resetPin } = useDecisionForm(
-    proposal,
-    controller,
-  );
+  const view = useDecisionForm(proposal, controller);
+  const picking = controller.outcome?.kind === 'pickMembership' && controller.decision !== null;
   return (
     <form
       className="mt-3 grid gap-3 rounded-lg border p-4"
       noValidate
       onSubmit={(event) => event.preventDefault()}
     >
-      <fieldset disabled={disabled} className="grid gap-3">
-        <Label htmlFor="discount-phone">{t(locale, 'deviceDiscountApproval.phone')}</Label>
-        <Input id="discount-phone" type="tel" autoComplete="off" {...form.register('phone')} />
-        <Label htmlFor="discount-pin">{t(locale, 'deviceDiscountApproval.pin')}</Label>
-        <Input
-          id="discount-pin"
-          type="password"
-          inputMode="numeric"
-          maxLength={4}
-          autoComplete="off"
-          {...form.register('pin')}
+      {picking && controller.outcome?.kind === 'pickMembership' && controller.decision !== null ? (
+        <ApproverMembershipSelect
+          memberships={controller.outcome.memberships}
+          decision={controller.decision}
+          pending={controller.pending}
+          online={view.online}
+          onChoose={controller.chooseMembership}
+          onCancel={onCancel}
         />
-        {rejectionReason(reason, setReason, locale)}
-        {validationAlert(Object.keys(form.formState.errors).length !== 0, locale)}
-        <div className="grid gap-2 sm:grid-cols-2">
-          <Button
-            type="button"
-            onClick={form.handleSubmit(submit('approve'), resetPin)}
-          >
-            {decisionLabel(locale, controller.pending, 'approve')}
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={form.handleSubmit(submit('reject'), resetPin)}
-          >
-            {decisionLabel(locale, controller.pending, 'reject')}
-          </Button>
-        </div>
-        <Button type="button" variant="ghost" onClick={onCancel}>
-          {t(locale, 'deviceDiscountApproval.cancel')}
-        </Button>
-      </fieldset>
-      {!online ? <p role="status">{t(locale, 'deviceDiscountApproval.offline')}</p> : null}
+      ) : (
+        pinFields(view, locale, controller, onCancel)
+      )}
+      {!view.online ? <p role="status">{t(locale, 'deviceDiscountApproval.offline')}</p> : null}
     </form>
   );
 }

@@ -1,4 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import type { StaffPinInput } from '@pospay/contracts';
 
@@ -11,35 +11,71 @@ import {
 
 export type PinDecision = 'approve' | 'reject';
 type DecisionState = { outcome: PinDecisionOutcome; decision: PinDecision };
+type HeldDecision = { body: DeviceDecisionInput; decision: PinDecision; generation: string };
 
-export function usePinDecision(branchId: string, operatorKey: string) {
-  const client = useQueryClient();
+function useDecisionRuntime(operatorKey: string) {
   const mounted = useRef(true);
   const busy = useRef(false);
   const generation = useRef(operatorKey);
+  const held = useRef<HeldDecision | null>(null);
   const [pending, setPending] = useState(false);
   const [current, setCurrent] = useState<DecisionState | null>(null);
+  generation.current = operatorKey;
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
+      held.current = null;
     };
   }, []);
   useEffect(() => {
-    generation.current = operatorKey;
+    held.current = null;
     setCurrent(null);
   }, [operatorKey]);
+  return { mounted, busy, generation, held, pending, setPending, current, setCurrent };
+}
+
+type DecisionRuntime = ReturnType<typeof useDecisionRuntime>;
+
+async function sendDecision(
+  runtime: DecisionRuntime,
+  client: QueryClient,
+  branchId: string,
+  input: HeldDecision,
+) {
+  const retry = input.body.approver_membership_id !== undefined;
+  runtime.busy.current = true;
+  runtime.setPending(true);
+  runtime.setCurrent(null);
+  let outcome = pinDecisionOutcome(
+    await decideDeviceDiscountProposal(input.decision, input.body),
+  );
+  if (retry && outcome.kind === 'pickMembership') {
+    outcome = { kind: 'failure', failure: outcome.failure };
+  }
+  // نتيجة طلب قديم لا تحتفظ ببياناته ولا تظهر للمشغّل الجديد بعد تبديله.
+  if (runtime.mounted.current && runtime.generation.current === input.generation) {
+    if (!retry && outcome.kind === 'pickMembership') runtime.held.current = input;
+    runtime.setCurrent({ outcome, decision: input.decision });
+  }
+  if (outcome.kind === 'done' || outcome.kind === 'stale') {
+    void client.invalidateQueries({ queryKey: ['device-discount-proposals', branchId] });
+  }
+  runtime.busy.current = false;
+  if (runtime.mounted.current) runtime.setPending(false);
+}
+
+export function usePinDecision(branchId: string, operatorKey: string) {
+  const client = useQueryClient();
+  const runtime = useDecisionRuntime(operatorKey);
   const decide = async (
     proposal: DeviceProposal,
     decision: PinDecision,
     { phone, pin }: StaffPinInput,
     reason = '',
   ) => {
-    if (!navigator.onLine || busy.current) return;
-    const requestGeneration = operatorKey;
-    busy.current = true;
-    setPending(true);
-    setCurrent(null);
+    if (!navigator.onLine || runtime.busy.current) return;
+    runtime.held.current = null;
     const body: DeviceDecisionInput = {
       proposal_ids: [proposal.id],
       terms_hashes: [proposal.terms_hash],
@@ -47,22 +83,33 @@ export function usePinDecision(branchId: string, operatorKey: string) {
       pin,
     };
     if (decision === 'reject' && reason.trim() !== '') body.reason = reason.trim();
-    const outcome = pinDecisionOutcome(await decideDeviceDiscountProposal(decision, body));
-    // نتيجة طلب قديم لا تظهر للمشغّل الجديد بعد تبديله.
-    if (mounted.current && generation.current === requestGeneration) {
-      setCurrent({ outcome, decision });
+    const input = { body, decision, generation: operatorKey };
+    await sendDecision(runtime, client, branchId, input);
+  };
+  const chooseMembership = async (membershipId: string) => {
+    if (
+      !navigator.onLine ||
+      runtime.busy.current ||
+      runtime.current?.outcome.kind !== 'pickMembership'
+    ) {
+      return;
     }
-    if (outcome.kind === 'done' || outcome.kind === 'stale') {
-      void client.invalidateQueries({ queryKey: ['device-discount-proposals', branchId] });
-    }
-    busy.current = false;
-    if (mounted.current) setPending(false);
+    const input = runtime.held.current;
+    if (input === null) return;
+    runtime.held.current = null;
+    const body = { ...input.body, approver_membership_id: membershipId };
+    await sendDecision(runtime, client, branchId, { ...input, body });
+  };
+  const clear = () => {
+    runtime.held.current = null;
+    runtime.setCurrent(null);
   };
   return {
-    pending,
-    outcome: current?.outcome ?? null,
-    decision: current?.decision ?? null,
+    pending: runtime.pending,
+    outcome: runtime.current?.outcome ?? null,
+    decision: runtime.current?.decision ?? null,
     decide,
-    clear: () => setCurrent(null),
+    chooseMembership,
+    clear,
   };
 }

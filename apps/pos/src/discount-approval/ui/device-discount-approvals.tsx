@@ -32,6 +32,9 @@ function useProposalSelection(
     outcome?.kind === 'done' || !exists || requested.operatorKey !== operatorKey
       ? null
       : requested.id;
+  useEffect(() => {
+    if (selectedId === null && outcome?.kind === 'pickMembership') clear();
+  }, [selectedId, outcome, clear]);
   const choose = (id: string) => {
     clear();
     setRequested({ id, operatorKey });
@@ -66,7 +69,7 @@ const outcomeKeys = {
 } as const;
 
 function outcomeText(outcome: PinDecisionOutcome | null, locale: Locale): string | null {
-  if (outcome === null || outcome.kind === 'done') return null;
+  if (outcome === null || outcome.kind === 'done' || outcome.kind === 'pickMembership') return null;
   if (outcome.kind === 'stale' || outcome.kind === 'failure') {
     return failureText(outcome.failure, locale);
   }

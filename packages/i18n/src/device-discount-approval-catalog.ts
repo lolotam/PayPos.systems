@@ -32,6 +32,13 @@ export const deviceDiscountApprovalEn = {
     'PIN approval is paused for 15 minutes after too many wrong attempts. Try again later, or approve from the admin app.',
   busy: 'Too many attempts are in progress. Try again in a moment.',
   offline: 'PIN approval needs an internet connection.',
+  membershipPrompt:
+    'You hold more than one membership that can decide this. Choose the one to decide with.',
+  membership: 'Membership',
+  membershipN: 'Membership {n}',
+  scopeCompany: 'Company',
+  scopeBusiness: 'Business',
+  scopeBranch: 'Branch',
 };
 
 export const deviceDiscountApprovalAr: Record<keyof typeof deviceDiscountApprovalEn, string> = {
@@ -68,4 +75,10 @@ export const deviceDiscountApprovalAr: Record<keyof typeof deviceDiscountApprova
     'الموافقة بالرقم السري متوقفة 15 دقيقة بعد محاولات غلط كتير. جربي تاني بعدين، أو وافقي من تطبيق الإدارة.',
   busy: 'في محاولات كتير شغالة دلوقتي. جربي تاني بعد شوية.',
   offline: 'الموافقة بالرقم السري محتاجة اتصال بالإنترنت.',
+  membershipPrompt: 'عندك أكتر من عضوية تقدري تاخدي بيها القرار. اختاري العضوية اللي هتاخدي بيها القرار.',
+  membership: 'العضوية',
+  membershipN: 'عضوية {n}',
+  scopeCompany: 'الشركة',
+  scopeBusiness: 'النشاط',
+  scopeBranch: 'الفرع',
 };
