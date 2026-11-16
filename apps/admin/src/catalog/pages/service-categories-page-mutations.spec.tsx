@@ -1,4 +1,4 @@
-import { t } from '@pospay/i18n';
+import { t, type Locale } from '@pospay/i18n';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import {
@@ -14,13 +14,14 @@ import {
 const get = vi.hoisted(() => vi.fn());
 const post = vi.hoisted(() => vi.fn());
 const patch = vi.hoisted(() => vi.fn());
+const localeState = vi.hoisted(() => ({ selected: 'en' as Locale }));
 
 vi.mock('@/shared/api/client', () => ({
   apiClient: () => ({ GET: get, POST: post, PATCH: patch }),
 }));
 
 vi.mock('@/shared/locale/locale-context', () => ({
-  useLocale: () => 'en',
+  useLocale: () => localeState.selected,
 }));
 
 const createdId = '01920000-0000-7000-8000-0000000000dd';
@@ -29,6 +30,7 @@ beforeEach(() => {
   get.mockReset();
   post.mockReset();
   patch.mockReset();
+  localeState.selected = 'en';
 });
 
 afterEach(() => {
@@ -111,4 +113,38 @@ it('13. Rename with 409 SERVICE_CATEGORY_REVISION_CONFLICT: displays refusal and
   expect(
     screen.getByRole('button', { name: t('en', 'catalogServiceCategories.reload') }),
   ).toBeTruthy();
+});
+
+it.each([
+  ['en', 'nameEn'],
+  ['en', 'nameAr'],
+  ['ar', 'nameEn'],
+  ['ar', 'nameAr'],
+] as const)('reports the name length instead of a missing name (%s, %s)', async (locale, field) => {
+  localeState.selected = locale;
+  setupCreateCategoryMocks(get, post, createdId);
+  renderPage(locale);
+  fireEvent.click(
+    screen.getByRole('button', { name: t(locale, 'catalogServiceCategories.create') }),
+  );
+  for (const name of ['nameEn', 'nameAr'] as const) {
+    fireEvent.change(screen.getByLabelText(t(locale, `catalogServiceCategories.${name}`)), {
+      target: { value: name === field ? 'x'.repeat(101) : 'Valid name' },
+    });
+  }
+  const buttons = screen.getAllByRole('button', {
+    name: t(locale, 'catalogServiceCategories.create'),
+  });
+  const submitButton = buttons.at(-1);
+  if (!submitButton) throw new Error('submit button not found');
+  fireEvent.click(submitButton);
+  const alert = await screen.findByRole('alert');
+  expect(alert.textContent).toMatch(/100|١٠٠/);
+  expect(alert.textContent).not.toContain(t(locale, 'catalogServiceCategories.nameRequired'));
+  expect(
+    screen
+      .getByLabelText(t(locale, `catalogServiceCategories.${field}`))
+      .getAttribute('aria-describedby'),
+  ).toBe(alert.id);
+  expect(post).not.toHaveBeenCalled();
 });
