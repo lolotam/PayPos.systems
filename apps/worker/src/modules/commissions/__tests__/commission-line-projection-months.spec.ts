@@ -71,16 +71,17 @@ const closedRemovalMonths = [
 ] as const;
 
 it.each(closedRemovalMonths)(
-  'a $status removal month refuses the move because the employee has no plan version',
+  'a $status removal month delivers the moved line without a frozen correction',
   async ({ status, from, to, now }) => {
     expect(await deliverAt(now, recorded(`${from}-15`, followPlan))).toEqual({ delivered: true });
     await walkCommissionStatement(db, { tenant: A, period: from, ids, to: status });
-    expect(await deliverAt(now, moved(`${to}-15`, followPlan))).toMatchObject({ delivered: false });
+    expect(await deliverAt(now, moved(`${to}-15`, followPlan))).toEqual({ delivered: true });
     expect(await heads()).toHaveLength(1);
-    expect((await heads())[0]).toMatchObject({ revision: 1, period: from });
+    expect((await heads())[0]).toMatchObject({ revision: 2, period: to });
     expect(await lines()).toHaveLength(1);
-    expect((await lines())[0]).toMatchObject({ period: from, net: '10.001' });
-    expect(await marks()).toHaveLength(1);
+    expect((await lines())[0]).toMatchObject({ period: to, net: '10.001' });
+    expect(await owner`SELECT * FROM commission_corrections`).toEqual([]);
+    expect(await marks()).toHaveLength(2);
   },
 );
 

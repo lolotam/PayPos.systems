@@ -185,10 +185,15 @@ it('Q1 a month rollover throws the typed error, writes nothing and redelivery su
 
 it('Q2 a FOLLOW_PLAN closed month without a plan version keeps the closed-period refusal', async () => {
   await seedClosedMonth({ withPlan: false });
+  const edited = changed({
+    status: 'ACTIVE',
+    changeKind: 'PRICE_DISCOUNT_EDIT',
+    net: '300.000',
+  });
 
-  expect(await deliverAt(CURRENT, changed())).toMatchObject({
+  expect(await deliverAt(CURRENT, edited)).toMatchObject({
     delivered: false,
-    error: 'COMMISSION_PERIOD_CLOSED',
+    error: 'Error:COMMISSION_PERIOD_CLOSED',
   });
   expect(await heads()).toMatchObject([{ revision: 1, status: 'ACTIVE' }]);
   expect(await corrections()).toEqual([]);
@@ -218,7 +223,7 @@ it('keeps the refusal when no DRAFT target month is available', async () => {
 
   expect(await deliverAt(CURRENT, changed())).toMatchObject({
     delivered: false,
-    error: 'COMMISSION_PERIOD_CLOSED',
+    error: 'Error:COMMISSION_PERIOD_CLOSED',
   });
   expect(await heads()).toMatchObject([{ revision: 1, status: 'ACTIVE' }]);
   expect(await corrections()).toEqual([]);
