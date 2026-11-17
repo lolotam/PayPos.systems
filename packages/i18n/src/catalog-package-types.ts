@@ -16,6 +16,10 @@ export const catalogPackageTypesEn = {
   price: 'Price (KWD, 3 decimals)',
   validity: 'Validity (days)',
   componentCount: 'Services',
+  selling: 'Selling',
+  notOnSale: 'Not on sale',
+  stopSelling: 'Stop selling',
+  resumeSelling: 'Resume selling',
   validityHelp:
     'Usable through the end of the sale date + validity days, in branch time. Sold on 1 October with 30 days: usable through 31 October.',
   snapshotHelp:
@@ -57,6 +61,10 @@ export const catalogPackageTypesAr = {
   price: 'السعر (دينار كويتي، ٣ خانات عشرية)',
   validity: 'الصلاحية بالأيام',
   componentCount: 'الخدمات',
+  selling: 'البيع',
+  notOnSale: 'البيع متوقف',
+  stopSelling: 'إيقاف البيع',
+  resumeSelling: 'استئناف البيع',
   validityHelp:
     'صالحة حتى نهاية تاريخ البيع زائد أيام الصلاحية بتوقيت الفرع. البيع يوم ١ أكتوبر بصلاحية ٣٠ يوماً: الاستخدام حتى نهاية ٣١ أكتوبر.',
   snapshotHelp:

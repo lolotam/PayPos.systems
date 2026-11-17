@@ -91,6 +91,40 @@ async function update(
   return packageTypeDetail.parse(response.data);
 }
 
+async function stopSelling(
+  companyId: string,
+  businessId: string,
+  packageTypeId: string,
+  expected_revision: number,
+): Promise<PackageTypeDetail> {
+  const response = await apiClient().POST(
+    '/v1/businesses/{businessId}/package-types/{packageTypeId}/stop-selling',
+    {
+      params: { header: { 'x-company-id': companyId }, path: { businessId, packageTypeId } },
+      body: { expected_revision },
+    },
+  );
+  if (response.error) throw response.error;
+  return packageTypeDetail.parse(response.data);
+}
+
+async function resumeSelling(
+  companyId: string,
+  businessId: string,
+  packageTypeId: string,
+  expected_revision: number,
+): Promise<PackageTypeDetail> {
+  const response = await apiClient().POST(
+    '/v1/businesses/{businessId}/package-types/{packageTypeId}/resume-selling',
+    {
+      params: { header: { 'x-company-id': companyId }, path: { businessId, packageTypeId } },
+      body: { expected_revision },
+    },
+  );
+  if (response.error) throw response.error;
+  return packageTypeDetail.parse(response.data);
+}
+
 export function usePackageTypes(
   companyId: string,
   businessId: string,
@@ -139,4 +173,31 @@ export function usePackageTypeEdit(
     },
   });
   return { record, save };
+}
+
+export function usePackageTypeSelling(companyId: string, businessId: string, userId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationKey: ['package-type-selling', companyId, businessId, userId],
+    mutationFn: ({
+      packageTypeId,
+      expectedRevision,
+      action,
+    }: {
+      packageTypeId: string;
+      expectedRevision: number;
+      action: 'stop' | 'resume';
+    }) =>
+      action === 'stop'
+        ? stopSelling(companyId, businessId, packageTypeId, expectedRevision)
+        : resumeSelling(companyId, businessId, packageTypeId, expectedRevision),
+    retry: false,
+    onSuccess: (saved) => {
+      client.setQueryData([...key(companyId, businessId, userId), 'detail', saved.id], saved);
+      return client.invalidateQueries({
+        queryKey: key(companyId, businessId, userId),
+        predicate: (query) => query.queryKey[4] === 'list' || query.queryKey[5] === saved.id,
+      });
+    },
+  });
 }

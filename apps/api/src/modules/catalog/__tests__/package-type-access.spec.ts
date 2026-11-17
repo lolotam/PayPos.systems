@@ -107,3 +107,41 @@ it('PT-08 feature disabled and Device close every route including historical per
     WHERE company_id=${f.company} AND id=${f.memberId}`;
   }
 });
+
+it('ST-05 reports can_manage by permission with the same item shape for read-only members', async () => {
+  const made = await f.createPackage.execute({
+    companyId: f.company,
+    userId: f.userId,
+    businessId: f.business,
+    input: packageTerms(f, 'Capability'),
+  });
+  const manager = await request('GET');
+  expect(manager.statusCode).toBe(200);
+  expect(manager.json()['can_manage']).toBe(true);
+  await f.h.owner`DELETE FROM permission_overrides
+    WHERE company_id=${f.company} AND membership_id=${f.memberId}
+      AND permission_code='manage:package-types:business'`;
+  try {
+    const reader = await request('GET');
+    expect(reader.statusCode).toBe(200);
+    expect(reader.json()).toEqual({ ...manager.json(), can_manage: false });
+    const item = (reader.json()['items'] as Array<Record<string, unknown>>).find(
+      (row) => row['id'] === made.id,
+    );
+    expect(item).toEqual({
+      id: made.id,
+      name_en: made.name_en,
+      name_ar: made.name_ar,
+      price: made.price,
+      validity_days: made.validity_days,
+      component_count: 1,
+      revision: 1,
+      selling_stopped_at: null,
+    });
+  } finally {
+    await f.h.owner`INSERT INTO permission_overrides
+      (company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+      VALUES (${f.company},${ids.newId()},${f.memberId},'manage:package-types:business',
+        'ALLOW','BUSINESS',${f.business},'Synthetic grant',${f.userId})`;
+  }
+});

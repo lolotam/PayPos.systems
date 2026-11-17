@@ -26,10 +26,10 @@ export async function listPackageTypes(
   companyId: string,
   businessId: string,
   query: PackageTypeListQuery,
-): Promise<PackageTypePage> {
+): Promise<Omit<PackageTypePage, 'can_manage'>> {
   const rows = await tx.execute(listPackageTypesStatement(companyId, businessId, query));
   const items = rows.slice(0, query.limit);
-  return packageTypePage.parse({
+  return packageTypePage.omit({ can_manage: true }).parse({
     items,
     next_cursor: rows.length > query.limit ? items.at(-1)?.['id'] : null,
   });

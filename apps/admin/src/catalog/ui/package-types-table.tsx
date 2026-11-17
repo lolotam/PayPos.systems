@@ -6,13 +6,22 @@ import { useLocale } from '@/shared/locale/locale-context';
 import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { useMemo } from 'react';
 import { PackageTypeTableRow } from './package-type-table-row';
+import { packageTypesTableColumns } from './package-types-table-columns';
 
 export function PackageTypesTable({
   items,
+  canManage,
+  companyId,
+  businessId,
+  userId,
   selectedId,
   onSelect,
 }: {
   items: readonly PackageTypeListItem[];
+  canManage: boolean;
+  companyId: string;
+  businessId: string;
+  userId: string;
   selectedId: string;
   onSelect: (id: string) => void;
 }) {
@@ -21,13 +30,7 @@ export function PackageTypesTable({
   const data = useMemo(() => [...items], [items]);
   const table = useReactTable({
     data,
-    columns: [
-      { id: 'name', header: t(locale, 'catalogPackageTypes.nameEn') },
-      { id: 'price', header: t(locale, 'catalogPackageTypes.price') },
-      { id: 'validity', header: t(locale, 'catalogPackageTypes.validity') },
-      { id: 'components', header: t(locale, 'catalogPackageTypes.componentCount') },
-      { id: 'edit', header: t(locale, 'catalogPackageTypes.edit') },
-    ],
+    columns: packageTypesTableColumns(locale),
     getRowId: (item) => item.id,
     getCoreRowModel: getCoreRowModel(),
     manualPagination: true,
@@ -51,6 +54,10 @@ export function PackageTypesTable({
             <PackageTypeTableRow
               key={original.id}
               item={original}
+              canManage={canManage}
+              companyId={companyId}
+              businessId={businessId}
+              userId={userId}
               selected={selectedId === original.id}
               onSelect={onSelect}
             />

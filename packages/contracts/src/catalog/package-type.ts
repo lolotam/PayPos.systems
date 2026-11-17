@@ -6,10 +6,7 @@ import { id } from '../scalars/id.js';
 import { withoutControlChars } from '../scalars/no-control-chars.js';
 import { timestamp } from '../scalars/timestamp.js';
 
-const packageNameEn = withoutControlChars(z.string())
-  .trim()
-  .min(1)
-  .max(255);
+const packageNameEn = withoutControlChars(z.string()).trim().min(1).max(255);
 const packageNameAr = packageNameEn;
 const price = z.string().regex(/^(0|[1-9]\d{0,10})\.\d{3}$/);
 const revision = z.number().int().min(1).max(2_147_483_646);
@@ -61,19 +58,18 @@ export const packageTypeComponent = responseObject({
   price,
 }).meta({ id: 'PackageTypeComponent' });
 export const packageTypeDetail = responseObject({
-    id,
-    business_id: id,
-    name_en: packageNameEn,
-    name_ar: packageNameAr.nullable(),
-    price,
-    validity_days: fields.validity_days,
-    revision,
-    selling_stopped_at: timestamp.nullable(),
-    components: z.array(packageTypeComponent).min(1).max(20),
-    created_at: timestamp,
-    updated_at: timestamp,
-  })
-  .meta({ id: 'PackageTypeDetail' });
+  id,
+  business_id: id,
+  name_en: packageNameEn,
+  name_ar: packageNameAr.nullable(),
+  price,
+  validity_days: fields.validity_days,
+  revision,
+  selling_stopped_at: timestamp.nullable(),
+  components: z.array(packageTypeComponent).min(1).max(20),
+  created_at: timestamp,
+  updated_at: timestamp,
+}).meta({ id: 'PackageTypeDetail' });
 export const packageTypeListItem = packageTypeDetail
   .omit({
     business_id: true,
@@ -83,7 +79,9 @@ export const packageTypeListItem = packageTypeDetail
   })
   .extend({ component_count: z.number().int().min(1).max(20) })
   .meta({ id: 'PackageTypeListItem' });
-export const packageTypePage = page(packageTypeListItem).meta({ id: 'PackageTypePage' });
+export const packageTypePage = page(packageTypeListItem)
+  .extend({ can_manage: z.boolean() })
+  .meta({ id: 'PackageTypePage' });
 export const packageTypeListQuery = z
   .strictObject({
     cursor: id.optional(),
@@ -108,4 +106,3 @@ export type PackageTypeDetail = z.infer<typeof packageTypeDetail>;
 export type PackageTypeListItem = z.infer<typeof packageTypeListItem>;
 export type PackageTypePage = z.infer<typeof packageTypePage>;
 export type PackageTypeListQuery = z.infer<typeof packageTypeListQuery>;
-

@@ -2272,7 +2272,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Cursor-paginated package-types of one business. Missing, foreign and other-business ids answer like unknown. Requires read:package-types:business and the catalog feature. */
+        /** @description Cursor-paginated package-types of one business. Missing, foreign and other-business ids answer like unknown. Requires read:package-types:business and the catalog feature. The page-level can_manage field is the live manage:package-types:business decision for the caller on that business, so the admin can hide stop/resume. */
         get: operations["listPackageTypes"];
         put?: never;
         /** @description Creates a package type with a KWD price, validity and ordered service components. Requires manage:package-types:business and the catalog feature. Names are unique within the business ignoring case and surrounding spaces; duplicates return PACKAGE_TYPE_NAME_TAKEN (409). A zero price and zero-price services are allowed. The write and its audit row commit in one transaction. */
@@ -5504,6 +5504,7 @@ export interface components {
         PackageTypePage: {
             items: components["schemas"]["PackageTypeListItem"][];
             next_cursor: string | null;
+            can_manage: boolean;
         };
         PackageTypeListQuery: {
             /** Format: uuid */
