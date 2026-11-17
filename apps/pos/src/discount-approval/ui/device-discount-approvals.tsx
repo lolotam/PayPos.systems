@@ -1,6 +1,6 @@
 import { t, type Locale } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 
 import { failureText } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -27,18 +27,14 @@ function useProposalSelection(
   operatorKey: string,
 ) {
   const [requested, setRequested] = useState<{ id: string; operatorKey: string } | null>(null);
-  const clearOutcome = useRef(clear);
-  useEffect(() => {
-    clearOutcome.current = clear;
-  }, [clear]);
-  useEffect(() => {
-    clearOutcome.current();
-  }, [operatorKey]);
   const exists = requested !== null && items.some((proposal) => proposal.id === requested.id);
   const selectedId =
     outcome?.kind === 'done' || !exists || requested.operatorKey !== operatorKey
       ? null
       : requested.id;
+  useEffect(() => {
+    if (selectedId === null && outcome?.kind === 'pickMembership') clear();
+  }, [selectedId, outcome, clear]);
   const choose = (id: string) => {
     clear();
     setRequested({ id, operatorKey });
@@ -73,7 +69,7 @@ const outcomeKeys = {
 } as const;
 
 function outcomeText(outcome: PinDecisionOutcome | null, locale: Locale): string | null {
-  if (outcome === null || outcome.kind === 'done') return null;
+  if (outcome === null || outcome.kind === 'done' || outcome.kind === 'pickMembership') return null;
   if (outcome.kind === 'stale' || outcome.kind === 'failure') {
     return failureText(outcome.failure, locale);
   }
@@ -120,7 +116,7 @@ export function DeviceDiscountApprovals({
   const titleId = useId();
   const now = useNow(30_000);
   const list = useDeviceDiscountProposals(branchId, onRejected);
-  const controller = usePinDecision(branchId);
+  const controller = usePinDecision(branchId, operatorKey);
   const { outcome, decision, clear } = controller;
   const selection = useProposalSelection(list.items, outcome, clear, operatorKey);
   const { selectedId, choose, cancel } = selection;

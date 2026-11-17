@@ -109,8 +109,7 @@ Split (manager decision 2):
   messages (everything except the pick): ~540.
 - **057-8b-2** — DP-09b membership pick (outcome reader, select, one-retry PIN hold) + its tests: ~190.
 
-Until 057-8b-2 lands, an approver with two eligible memberships gets the server's localized
-`DISCOUNT_APPROVER_MEMBERSHIP_REQUIRED` message on the device and can still approve remotely from the admin app.
+057-8b-2 adds the membership pick, so an approver with two eligible memberships now picks one on the device.
 
 ## Overlap
 

@@ -3,10 +3,15 @@ import { describe, expect, it } from 'vitest';
 import type { Failure } from '@/shared/api/call';
 import { pinDecisionOutcome } from './pin-decision-outcome';
 
-const httpFail = (code: string, status = 400): Failure => ({
+const httpFail = (code: string, status = 400, details?: unknown): Failure => ({
   kind: 'http',
   status,
-  envelope: { code, message_ar: 'خطأ', message_en: 'Error' },
+  envelope: {
+    code,
+    message_ar: 'خطأ',
+    message_en: 'Error',
+    ...(details === undefined ? {} : { details }),
+  },
 });
 
 describe('pinDecisionOutcome', () => {
@@ -42,6 +47,27 @@ describe('pinDecisionOutcome', () => {
 
   it('maps unknown code to failure with the same failure object', () => {
     const failure = httpFail('UNKNOWN_CODE', 418);
+    expect(pinDecisionOutcome({ ok: false, failure })).toEqual({ kind: 'failure', failure });
+  });
+});
+
+describe('membership-required outcome', () => {
+  it('maps readable membership details to pickMembership', () => {
+    const failure = httpFail('DISCOUNT_APPROVER_MEMBERSHIP_REQUIRED', 422, {
+      approver_memberships: [{ membership_id: 'm1' }, { membership_id: 'm2' }],
+    });
+    expect(pinDecisionOutcome({ ok: false, failure })).toEqual({
+      kind: 'pickMembership',
+      memberships: [
+        { membershipId: 'm1', scopeType: null, role: null },
+        { membershipId: 'm2', scopeType: null, role: null },
+      ],
+      failure,
+    });
+  });
+
+  it('maps the same code without details to failure', () => {
+    const failure = httpFail('DISCOUNT_APPROVER_MEMBERSHIP_REQUIRED', 422);
     expect(pinDecisionOutcome({ ok: false, failure })).toEqual({ kind: 'failure', failure });
   });
 });
