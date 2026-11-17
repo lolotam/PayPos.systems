@@ -1,336 +1,55 @@
+import type { Type } from '@nestjs/common';
 import { PackageImportPreviewController } from './http/package-import-preview.controller.ts';
-import { RequestPackageImportPreviewUseCase } from './use-cases/request-package-import-preview/request-package-import-preview.usecase.ts';
-import { createPackageImportRequestTransactions } from './persistence/package-import-request.transactions.ts';
 import { PackageExtensionController } from './http/package-extension.controller.ts';
-import { ExtendPackageUseCase } from './use-cases/extend-package/extend-package.usecase.ts';
-import { createPackageExtensionTransactions } from './persistence/package-extension.transactions.ts';
-import { PackageSalesController } from './http/package-sales.controller.ts';
-import { AcceptPackageSaleUseCase } from './use-cases/accept-package-sale/accept-package-sale.usecase.ts';
-import { createPackageSaleRequestTransactions } from './persistence/package-sale-request.transactions.ts';
-import { PackageSaleStatusQuery } from './queries/package-sale-status.query.ts';
 import { PackageRefundController } from './http/package-refund.controller.ts';
-import { RefundPackageUseCase } from './use-cases/refund-package/refund-package.usecase.ts';
-import { createPackageRefundTransactions } from './persistence/package-refund.transactions.ts';
-import type { Provider, Type } from '@nestjs/common';
-import type { IdGenerator, TenantWrappers } from '@pospay/db';
-import { serviceSessionErrors } from '@pospay/i18n';
-import { systemClock } from '../../shared/adapters/system-clock.ts';
-import { SelectedCompanyGuard } from '../../shared/selected-company.guard.ts';
-import { ServiceSessionsController } from './http/service-sessions.controller.ts';
-import { DiscountProposalsController } from './http/discount-proposals.controller.ts';
-import { SessionTipsController } from './http/session-tips.controller.ts';
-import { ServiceSessionFormController } from './http/service-session-form.controller.ts';
-import { RecordingContextQueryHandler } from './queries/recording-context.query.ts';
-import { SessionServiceOptionsQueryHandler } from './queries/session-service-options.query.ts';
-import { sessionServiceOptions } from './persistence/session-service-options.adapter.ts';
-import { SessionPerformerOptionsQueryHandler } from './queries/session-performer-options.query.ts';
-import { sessionTime } from './domain/session-time.ts';
-import { sessionPerformerOptions } from './persistence/session-performer-options.adapter.ts';
-import { pickerAccess, recordingAccess, recordingLimit, sessionRecordCapability } from './persistence/recording-context.adapter.ts';
-import { SessionAdminGuard, SessionAppendGuard } from './http/session-access.guard.ts';
-import { SessionErrorsFilter } from './http/session-errors.filter.ts';
-import { catalogReader } from './persistence/catalog-reader.adapter.ts';
-import { customerLookup } from './persistence/customer-lookup.adapter.ts';
-import { performerCheck } from './persistence/performer-check.adapter.ts';
-import { discountLimit } from './persistence/discount-limit.adapter.ts';
-import { editorName } from './persistence/editor-name.adapter.ts';
-import { sessionBranchBelongs, sessionPlace } from './persistence/session-place.adapter.ts';
-import { discountRequestAccess, sessionRecordAccess } from './persistence/session-record-access.adapter.ts';
-import { packageExtendCapability, sessionCancelCapability, sessionPerformersCapability } from './persistence/session-edit-access.adapter.ts';
-import { discountApprovalListAccess, sessionReadAccess } from './persistence/session-read-access.adapter.ts';
-import { BranchDayServiceSessionsQuery } from './queries/branch-day-service-sessions.query.ts';
-import { ServiceSessionCapabilitiesQuery } from './queries/service-session-capabilities.query.ts';
-import { ServiceLineCancellationQuery } from './queries/service-line-cancellation.query.ts';
-import { ServiceLineEditHistoryQuery } from './queries/service-line-edits.query.ts';
-import { ServiceLinePerformerChangeHistoryQuery } from './queries/service-line-performer-changes.query.ts';
-import { SessionTipsCurrentQuery } from './queries/session-tips-current.query.ts';
-import { createServiceSessionTransactions } from './persistence/service-session-transactions.ts';
-import { bindLineEditReaders, createLineEditTransactions } from './persistence/line-edit-transactions.ts';
-import { bindLineCancelReaders, createLineCancelTransactions } from './persistence/line-cancel-transactions.ts';
-import { bindLinePerformersReaders, createLinePerformersTransactions } from './persistence/line-performers-transactions.ts';
-import { createSessionTipsTransactions } from './persistence/session-tip-transactions.ts';
-import { createSessionRecovery, recoveryKeyHash } from './persistence/session-recovery.adapter.ts';
-import { createDiscountRequestTransactions } from './persistence/discount-request-transactions.ts';
-import { termsHash } from './persistence/terms-hash.adapter.ts';
-import { PendingDiscountProposalsQuery } from './queries/pending-discount-proposals.query.ts';
-import { RequesterDiscountProposalsQuery } from './queries/requester-discount-proposals.query.ts';
-import { RequestDiscountApprovalUseCase } from './use-cases/request-discount-approval/request-discount-approval.usecase.ts';
-import { DecideDiscountProposalsUseCase } from './use-cases/decide-discount-proposals/decide-discount-proposals.usecase.ts';
-import { createDiscountDecisionTransactions } from './persistence/discount-decision-transactions.ts';
-import { discountApprovalAccess } from './persistence/discount-approval-access.adapter.ts';
-import type { DiscountDeciderSnapshot } from './domain/discount-decision-plan.ts';
-import { editorLabel } from '@pospay/i18n';
-import { sessionRecoveryPlace, sessionRecoveryRecord } from './persistence/session-recovery-read.adapter.ts';
-import { createSessionRecoveryConfirm } from './persistence/session-recovery-confirm.adapter.ts';
-import { SessionRecoveryQuery } from './queries/session-recovery.query.ts';
-import { RecordServiceSessionUseCase } from './use-cases/record-service-session/record-service-session.usecase.ts';
-import { AppendServiceSessionLinesUseCase } from './use-cases/append-service-session-lines/append-service-session-lines.usecase.ts';
-import { EditServiceLinePriceUseCase } from './use-cases/edit-service-line-price/edit-service-line-price.usecase.ts';
-import { CancelServiceLineUseCase } from './use-cases/cancel-service-line/cancel-service-line.usecase.ts';
-import { ChangeLinePerformersUseCase } from './use-cases/change-line-performers/change-line-performers.usecase.ts';
-import { RecordSessionTipsUseCase } from './use-cases/record-session-tips/record-session-tips.usecase.ts';
-import { ConfirmSessionRecoveryUseCase } from './use-cases/confirm-session-recovery/confirm-session-recovery.usecase.ts';
 import { SessionRecoveryController } from './http/session-recovery.controller.ts';
-import type { Clock } from './ports/service-session-transactions.port.ts';
-import { CustomerPackagesController } from './http/customer-packages.controller.ts';
-import { CustomerPackagesQueryHandler } from './queries/customer-packages.query.ts';
-import { CustomerPackageDetailQueryHandler } from './queries/package-entitlement-detail.query.ts';
+import { ServiceSessionsController } from './http/service-sessions.controller.ts';
+import { ServiceSessionFormController } from './http/service-session-form.controller.ts';
+import { SessionTipsController } from './http/session-tips.controller.ts';
+import { DiscountProposalsController } from './http/discount-proposals.controller.ts';
 import { DeviceDiscountProposalsController } from './http/device-discount-proposals.controller.ts';
-import { DeviceDiscountProposalsQuery } from './queries/device-discount-proposals.query.ts';
-import { DecideDiscountByPinUseCase } from './use-cases/decide-discount-by-pin/decide-discount-by-pin.usecase.ts';
-import { discountDeviceBusiness, discountDeviceScope, discountPinFence } from './persistence/discount-pin-fence.adapter.ts';
-import { discountPinApprover, type DiscountPinVerifier } from './persistence/discount-pin-approver.adapter.ts';
-import { DISCOUNT_APPROVER_VERIFIER } from '../../shared/discount-approver-pin.ts';
+import { OwnWorkController } from './http/own-work.controller.ts';
+import { PackageSalesController } from './http/package-sales.controller.ts';
+import { CustomerPackagesController } from './http/customer-packages.controller.ts';
 
-export const ordersControllers: Type[] = [PackageImportPreviewController, PackageExtensionController, PackageRefundController, SessionRecoveryController, ServiceSessionsController, ServiceSessionFormController, SessionTipsController, DiscountProposalsController];
-export function ordersPerformerOptionsQuery(database: TenantWrappers, clock: Clock = systemClock) {
-  return new SessionPerformerOptionsQueryHandler(database, {
-    time: (occurredAt, at, timezone) => sessionTime(new Date(occurredAt), at, timezone).occurred_at.toISOString(),
-    place: (tx, scope) => sessionPlace(tx, scope.companyId, scope.businessId, scope.branchId).read(),
-    access: (tx, scope, at) => pickerAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
-    options: (tx, scope, query, normalizeTime) => sessionPerformerOptions(tx, scope.companyId, scope.businessId, scope.branchId, query, normalizeTime),
-  }, clock);
-}
-export function ordersServiceOptionsQuery(database: TenantWrappers, clock: Clock = systemClock) {
-  return new SessionServiceOptionsQueryHandler(database, {
-    place: (tx, scope) => sessionPlace(tx, scope.companyId, scope.businessId, scope.branchId).read(),
-    access: (tx, scope, at) => recordingAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
-    options: (tx, scope, query) => sessionServiceOptions(tx, scope.companyId, scope.businessId, scope.branchId, query),
-  }, clock);
-}
-export function ordersRecordingContextQuery(database: TenantWrappers, clock: Clock = systemClock) {
-  return new RecordingContextQueryHandler(database, {
-    place: (tx, scope) => sessionPlace(tx, scope.companyId, scope.businessId, scope.branchId).read(),
-    access: (tx, scope, at) => pickerAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
-    limit: (tx, scope, membershipId) => recordingLimit(tx, scope.companyId, scope.businessId, membershipId),
-  }, clock);
-}
-export function ordersRecoveryQuery(database: TenantWrappers, clock: Clock = systemClock) {
-  return new SessionRecoveryQuery(database, {
-    place: (tx, scope) => sessionRecoveryPlace(tx, scope.companyId, scope.businessId, scope.branchId),
-    record: (tx, scope, at) => sessionRecoveryRecord(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
-  }, clock, recoveryKeyHash);
-}
-export function ordersRecoveryConfirm(database: TenantWrappers, ids: IdGenerator, clock: Clock = systemClock) {
-  return new ConfirmSessionRecoveryUseCase(createSessionRecoveryConfirm(database), ids, clock);
-}
-export function ordersDayQuery(database: TenantWrappers) {
-  return new BranchDayServiceSessionsQuery(database, {
-    place: (tx, scope) => sessionBranchBelongs(tx, scope.companyId, scope.businessId, scope.branchId),
-    read: (tx, scope) => sessionReadAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId),
-  });
-}
-export function ordersLineEditHistory(database: TenantWrappers) {
-  return new ServiceLineEditHistoryQuery(database, {
-    place: (tx, scope) => sessionBranchBelongs(tx, scope.companyId, scope.businessId, scope.branchId),
-    read: (tx, scope) => sessionReadAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId),
-  });
-}
-export function ordersLinePerformerChangeHistory(database: TenantWrappers) {
-  return new ServiceLinePerformerChangeHistoryQuery(database, {
-    place: (tx, scope) => sessionBranchBelongs(tx, scope.companyId, scope.businessId, scope.branchId),
-    read: (tx, scope) => sessionReadAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId),
-  });
-}
-export function ordersLineCancellation(database: TenantWrappers) {
-  return new ServiceLineCancellationQuery(database, {
-    place: (tx, scope) => sessionBranchBelongs(tx, scope.companyId, scope.businessId, scope.branchId),
-    read: (tx, scope) => sessionReadAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId),
-  });
-}
-export function ordersCapabilitiesQuery(database: TenantWrappers) {
-  return new ServiceSessionCapabilitiesQuery(database, {
-    place: (tx, scope) => sessionBranchBelongs(tx, scope.companyId, scope.businessId, scope.branchId),
-    read: (tx, scope) => sessionReadAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId),
-    cancel: (tx, scope, at) => sessionCancelCapability(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
-    performers: (tx, scope, at) => sessionPerformersCapability(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
-    record: (tx, scope, at) => sessionRecordCapability(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
-  });
-}
-export function ordersLineEdits(database: TenantWrappers) {
-  return createLineEditTransactions(database, bindLineEditReaders);
-}
-export function ordersLineCancels(database: TenantWrappers) {
-  return createLineCancelTransactions(database, bindLineCancelReaders);
-}
-export function ordersLinePerformers(database: TenantWrappers) {
-  return createLinePerformersTransactions(database, bindLinePerformersReaders);
-}
-export function ordersSessionTips(database: TenantWrappers) {
-  return createSessionTipsTransactions(database);
-}
-export function ordersSessionTipsCurrent(database: TenantWrappers, clock: Clock = systemClock) {
-  return new SessionTipsCurrentQuery(database, {
-    access: (tx, scope, at) => sessionRecordAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId).read(at),
-  }, clock);
-}
-export function ordersTransactions(database: TenantWrappers, ids: IdGenerator, clock: Clock = systemClock) {
-  return createServiceSessionTransactions(database, ids, (tx, context) => ({
-    catalog: catalogReader(tx, context.companyId, context.businessId), customer: customerLookup(tx, context.companyId),
-    performers: performerCheck(tx, context.companyId, context.businessId, context.branchId), discount: discountLimit(tx, context.companyId, context.businessId),
-    place: sessionPlace(tx, context.companyId, context.businessId, context.branchId),
-    access: sessionRecordAccess(tx, context.companyId, context.userId, context.businessId, context.branchId),
-    discountMessages: serviceSessionErrors.SESSION_DISCOUNT_ABOVE_LIMIT,
-  }), clock);
-}
-export function ordersDiscountRequests(database: TenantWrappers, ids: IdGenerator) {
-  return createDiscountRequestTransactions(database, ids, (tx, context) => ({
-    place: sessionPlace(tx, context.companyId, context.businessId, context.branchId),
-    access: discountRequestAccess(tx, context.companyId, context.userId, context.businessId, context.branchId),
-    catalog: catalogReader(tx, context.companyId, context.businessId),
-    customer: customerLookup(tx, context.companyId),
-    performers: performerCheck(tx, context.companyId, context.businessId, context.branchId),
-    discount: discountLimit(tx, context.companyId, context.businessId),
-    requesterName: editorName(tx, context.companyId, context.businessId),
-  }));
-}
-export function ordersDiscountDecisions(database: TenantWrappers, ids: IdGenerator) {
-  return createDiscountDecisionTransactions(database, ids, (tx, context) => ({
-    access: discountApprovalAccess(tx, context.companyId, context.userId, context.businessId, context.branchId),
-    discount: discountLimit(tx, context.companyId, context.businessId),
-    approverName: editorName(tx, context.companyId, context.businessId),
-    performers: performerCheck(tx, context.companyId, context.businessId, context.branchId),
-    fence: discountPinFence(tx, context.companyId, context.branchId),
-  }));
-}
-function decisionLabels(snapshot: DiscountDeciderSnapshot) {
-  const editor = {
-    nameAr: snapshot.decider_name_ar,
-    nameEn: snapshot.decider_name_en,
-    role: snapshot.decider_role,
-    roleIsSystem: snapshot.decider_role_is_system,
-    roleNameAr: snapshot.decider_role_name_ar,
-    roleNameEn: snapshot.decider_role_name_en,
-  };
-  return { ar: editorLabel('ar', editor), en: editorLabel('en', editor) };
-}
-export function ordersRequesterProposals(database: TenantWrappers, clock: Clock = systemClock) {
-  return new RequesterDiscountProposalsQuery(database, {
-    place: (tx, scope) => sessionBranchBelongs(tx, scope.companyId, scope.businessId, scope.branchId),
-    access: (tx, scope, at) => sessionRecordAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId).read(at),
-  }, clock);
-}
-export function ordersPendingProposals(database: TenantWrappers, clock: Clock = systemClock) {
-  return new PendingDiscountProposalsQuery(database, {
-    place: (tx, scope) => sessionBranchBelongs(tx, scope.companyId, scope.businessId, scope.branchId),
-    read: (tx, scope) => discountApprovalListAccess(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId),
-  }, clock);
-}
-export function ordersDeviceProposals(database: TenantWrappers, clock: Clock = systemClock) {
-  return new DeviceDiscountProposalsQuery(database, clock, {
-    businessOf: (tx, scope) => discountDeviceBusiness(tx, scope),
-  });
-}
-export function ordersProviders(database: TenantWrappers | undefined, ids: IdGenerator, clock: Clock = systemClock): Provider[] {
-  const writes = database === undefined ? null : {
-    transactions: ordersTransactions(database, ids, clock), recovery: createSessionRecovery(database, ids, clock),
-  };
-  return [{ provide: RequestPackageImportPreviewUseCase, useValue: database === undefined ? null : new RequestPackageImportPreviewUseCase(createPackageImportRequestTransactions(database, ids), ids, clock) }, { provide: ExtendPackageUseCase, useValue: database === undefined ? null : new ExtendPackageUseCase(createPackageExtensionTransactions(database), ids, clock) }, { provide: RefundPackageUseCase, useValue: database === undefined ? null : new RefundPackageUseCase(createPackageRefundTransactions(database, ids), ids, clock) }, SelectedCompanyGuard, SessionAdminGuard, SessionAppendGuard, { provide: SessionErrorsFilter, useValue: new SessionErrorsFilter() },
-    { provide: SessionPerformerOptionsQueryHandler, useValue: database === undefined ? null : ordersPerformerOptionsQuery(database, clock) },
-    { provide: SessionServiceOptionsQueryHandler, useValue: database === undefined ? null : ordersServiceOptionsQuery(database, clock) },
-    { provide: RecordingContextQueryHandler, useValue: database === undefined ? null : ordersRecordingContextQuery(database, clock) },
-    { provide: BranchDayServiceSessionsQuery, useValue: database === undefined ? null : ordersDayQuery(database) },
-    { provide: ServiceLineEditHistoryQuery, useValue: database === undefined ? null : ordersLineEditHistory(database) },
-    { provide: ServiceLinePerformerChangeHistoryQuery, useValue: database === undefined ? null : ordersLinePerformerChangeHistory(database) },
-    { provide: ServiceLineCancellationQuery, useValue: database === undefined ? null : ordersLineCancellation(database) },
-    { provide: ServiceSessionCapabilitiesQuery, useValue: database === undefined ? null : ordersCapabilitiesQuery(database) },
-    { provide: SessionRecoveryQuery, useValue: database === undefined ? null : ordersRecoveryQuery(database, clock) },
-    { provide: ConfirmSessionRecoveryUseCase, useValue: database === undefined ? null : ordersRecoveryConfirm(database, ids, clock) },
-    { provide: RecordServiceSessionUseCase, useValue: writes === null ? null : new RecordServiceSessionUseCase(writes.transactions, writes.recovery, ids, clock) },
-    { provide: AppendServiceSessionLinesUseCase, useValue: writes === null ? null : new AppendServiceSessionLinesUseCase(writes.transactions, writes.recovery, ids, clock) },
-    { provide: EditServiceLinePriceUseCase, useValue: database === undefined ? null : new EditServiceLinePriceUseCase(ordersLineEdits(database), ids, clock) },
-    { provide: CancelServiceLineUseCase, useValue: database === undefined ? null : new CancelServiceLineUseCase(ordersLineCancels(database), ids, clock) },
-    { provide: ChangeLinePerformersUseCase, useValue: database === undefined ? null : new ChangeLinePerformersUseCase(ordersLinePerformers(database), ids, clock) },
-    { provide: RecordSessionTipsUseCase, useValue: database === undefined ? null : new RecordSessionTipsUseCase(ordersSessionTips(database), ids, clock) },
-    { provide: SessionTipsCurrentQuery, useValue: database === undefined ? null : ordersSessionTipsCurrent(database, clock) },
-    { provide: RequestDiscountApprovalUseCase, useValue: database === undefined ? null : new RequestDiscountApprovalUseCase(ordersDiscountRequests(database, ids), ids, clock, termsHash()) },
-    { provide: DecideDiscountProposalsUseCase, useValue: database === undefined ? null : new DecideDiscountProposalsUseCase(ordersDiscountDecisions(database, ids), clock, decisionLabels) },
-    { provide: RequesterDiscountProposalsQuery, useValue: database === undefined ? null : ordersRequesterProposals(database, clock) },
-    { provide: PendingDiscountProposalsQuery, useValue: database === undefined ? null : ordersPendingProposals(database, clock) },
-    { provide: DeviceDiscountProposalsQuery, useValue: database === undefined ? null : ordersDeviceProposals(database, clock) },
-    {
-      provide: DecideDiscountByPinUseCase,
-      useFactory: (
-        verifier: DiscountPinVerifier | null,
-        decide: DecideDiscountProposalsUseCase | null,
-      ) => database === undefined || decide === null
-        ? null
-        : new DecideDiscountByPinUseCase(
-            discountPinApprover(verifier),
-            discountDeviceScope(database),
-            decide,
-          ),
-      inject: [DISCOUNT_APPROVER_VERIFIER, DecideDiscountProposalsUseCase],
-    },
-    ...customerPackageProviders(database, clock),
-    ...packageSaleProviders(database, ids, clock),
-    ...ownWorkProviders(clock)];
-}
+export {
+  ordersCapabilitiesQuery,
+  ordersDayQuery,
+  ordersDeviceProposals,
+  ordersDiscountDecisions,
+  ordersDiscountRequests,
+  ordersLineCancellation,
+  ordersLineCancels,
+  ordersLineEditHistory,
+  ordersLineEdits,
+  ordersLinePerformerChangeHistory,
+  ordersLinePerformers,
+  ordersPendingProposals,
+  ordersPerformerOptionsQuery,
+  ordersRecordingContextQuery,
+  ordersRecoveryConfirm,
+  ordersRecoveryQuery,
+  ordersRequesterProposals,
+  ordersServiceOptionsQuery,
+  ordersSessionTips,
+  ordersSessionTipsCurrent,
+  ordersTransactions,
+  ownWorkReads,
+} from './orders-query-factories.ts';
+export { ordersProviders } from './orders-provider-factories.ts';
 
-import { parseMoney, sumMonthlyTipTotalsByMethod } from '@pospay/domain';
-import { OwnWorkController, OWN_WORK_CLOCK } from './http/own-work.controller.ts';
-import { OWN_WORK_READS, type OwnWorkReads } from './queries/own-work-context.ts';
-import { ownWorkContext } from './persistence/own-work-context.adapter.ts';
-import { ownWorkPeriodAllowed } from './domain/own-work-period.ts';
-import { staffColumns } from './persistence/staff-columns.adapter.ts';
+export const ordersControllers: Type[] = [
+  PackageImportPreviewController,
+  PackageExtensionController,
+  PackageRefundController,
+  SessionRecoveryController,
+  ServiceSessionsController,
+  ServiceSessionFormController,
+  SessionTipsController,
+  DiscountProposalsController,
+];
 
 ordersControllers.push(DeviceDiscountProposalsController);
 ordersControllers.push(OwnWorkController);
-export const ownWorkReads: OwnWorkReads = {
-  context: ownWorkContext,
-  periodAllowed: ownWorkPeriodAllowed,
-  monthsBack: staffColumns.monthsBack,
-  allowed: staffColumns.allowed,
-  tipTotals: (entries) => sumMonthlyTipTotalsByMethod(entries.map((entry) => ({
-    method: entry.method, amount: parseMoney(entry.amount),
-  }))),
-};
-function ownWorkProviders(clock: Clock): Provider[] {
-  return [
-    { provide: OWN_WORK_READS, useValue: ownWorkReads },
-    { provide: OWN_WORK_CLOCK, useValue: clock },
-  ];
-}
-
 ordersControllers.push(PackageSalesController);
-function packageSaleProviders(
-  database: TenantWrappers | undefined,
-  ids: IdGenerator,
-  clock: Clock,
-): Provider[] {
-  return [
-    {
-      provide: AcceptPackageSaleUseCase,
-      useValue: database === undefined
-        ? null
-        : new AcceptPackageSaleUseCase(
-            createPackageSaleRequestTransactions(database, ids),
-            ids,
-            clock,
-          ),
-    },
-    {
-      provide: PackageSaleStatusQuery,
-      useValue: database === undefined ? null : new PackageSaleStatusQuery(database),
-    },
-  ];
-}
-
 ordersControllers.push(CustomerPackagesController);
-function customerPackageProviders(database: TenantWrappers | undefined, clock: Clock): Provider[] {
-  return [
-    {
-      provide: CustomerPackagesQueryHandler,
-      useValue: database === undefined ? null : new CustomerPackagesQueryHandler(database, {
-        place: (tx, scope) => sessionPlace(tx, scope.companyId, scope.businessId, scope.branchId).branchTimezone(),
-      }, clock),
-    },
-    {
-      provide: CustomerPackageDetailQueryHandler,
-      useValue: database === undefined ? null : new CustomerPackageDetailQueryHandler(database, {
-        place: (tx, scope) => sessionPlace(tx, scope.companyId, scope.businessId, scope.branchId).branchTimezone(),
-        canExtend: (tx, scope, at) => packageExtendCapability(tx, scope.companyId, scope.userId, scope.businessId, scope.branchId, at),
-      }, clock),
-    },
-  ];
-}
