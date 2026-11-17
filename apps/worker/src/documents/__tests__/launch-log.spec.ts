@@ -97,6 +97,7 @@ it('logs neither a person name nor an attendance value', async () => {
     const payload = text
       .trim()
       .split('\n')
+      .filter((line) => line.trim().length > 0)
       .map((line) => {
         const { time, ...fields } = JSON.parse(line) as Record<string, unknown>;
         expect(time).toBe('2026-11-17T08:17:52.309Z');
