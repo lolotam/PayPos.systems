@@ -250,7 +250,7 @@ jobs:
 
   # apps/api integration · RLS negative · EXPLAIN, split into eight parallel shards (vitest --shard): each shard brings
   # up its own compose Postgres (ADR-0006) and runs an eighth of the spec files. Public repo → free runners.
-  # PP-131.1: shards start alongside `check`; build and ci-gate still require both jobs to succeed.
+  # PP-131.1: shards start alongside `check`; ci-gate still requires every job to succeed.
   api-tests:
     name: api tests ${{ matrix.shard }}/8
     needs: changes
@@ -413,21 +413,11 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-  # The build still waits for all existing dependencies. PP-157 permits only PR #909 to diagnose with
-  # worker-tests failed; check, packages and API shards must pass, cancellation/skips stay closed, and ci-gate still requires worker success.
+  # Starts with the independent test jobs; ci-gate still requires every test job and this build to succeed.
   build:
     name: build all apps
-    needs: [changes, check, packages-tests, api-tests, worker-tests]
-    if: >-
-      ${{ !cancelled() &&
-        needs.changes.result == 'success' &&
-        needs.changes.outputs.code == 'true' &&
-        needs.check.result == 'success' &&
-        needs.packages-tests.result == 'success' &&
-        needs.api-tests.result == 'success' &&
-        (needs.worker-tests.result == 'success' ||
-          (github.event_name == 'pull_request' && github.event.pull_request.number == 909 &&
-            needs.worker-tests.result == 'failure')) }}
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -484,20 +474,37 @@ jobs:
             echo "DECOY=never-in-an-image" > "$file"
           done
 
+      # Build the shared stage alone, then cap target builds at two processes to contain runner memory use.
       - name: build api · migrate · worker · backup · admin · pos (and the build stage)
         run: |
+          set -euo pipefail
           registry="$(echo "$REGISTRY" | tr '[:upper:]' '[:lower:]')"
-          docker build -f deploy/Dockerfile.api --target build -t pospay-build-stage:check .
-          docker build -f deploy/Dockerfile.api --target api -t "$registry/pospay-api:$SHA" .
-          docker build -f deploy/Dockerfile.api --target migrate -t "$registry/pospay-migrate:$SHA" .
-          docker build -f deploy/Dockerfile.worker -t "$registry/pospay-worker:$SHA" .
-          docker build -f deploy/Dockerfile.backup -t "$registry/pospay-backup:$SHA" .
-          docker build -f deploy/Dockerfile.admin --build-arg NEXT_PUBLIC_POS_URL="$PRODUCTION_POS_URL" -t "$registry/pospay-admin:$SHA" .
-          docker build -f deploy/Dockerfile.pos -t "$registry/pospay-pos:$SHA" .
-          # Staging variants: the API origin is baked into both front ends at build time.
-          docker build -f deploy/Dockerfile.admin --build-arg NEXT_PUBLIC_API_URL="$STAGING_API_URL" --build-arg NEXT_PUBLIC_POS_URL="$STAGING_POS_URL" -t "$registry/pospay-admin-staging:$SHA" .
-          docker build -f deploy/Dockerfile.pos --build-arg VITE_API_URL="$STAGING_API_URL" -t "$registry/pospay-pos-staging:$SHA" .
           echo "REGISTRY_LC=$registry" >> "$GITHUB_ENV"
+          docker build -f deploy/Dockerfile.api --target build -t pospay-build-stage:check .
+          pids=()
+          failed=0
+          build_target() {
+            "$@" &
+            pids+=("$!")
+            if [ "${#pids[@]}" -eq 2 ]; then
+              if ! wait "${pids[0]}"; then failed=1; fi
+              pids=("${pids[@]:1}")
+            fi
+          }
+          build_target docker build -f deploy/Dockerfile.api --target api -t "$registry/pospay-api:$SHA" .
+          build_target docker build -f deploy/Dockerfile.api --target migrate -t "$registry/pospay-migrate:$SHA" .
+          build_target docker build -f deploy/Dockerfile.worker -t "$registry/pospay-worker:$SHA" .
+          build_target docker build -f deploy/Dockerfile.backup -t "$registry/pospay-backup:$SHA" .
+          build_target docker build -f deploy/Dockerfile.admin --build-arg NEXT_PUBLIC_POS_URL="$PRODUCTION_POS_URL" -t "$registry/pospay-admin:$SHA" .
+          build_target docker build -f deploy/Dockerfile.pos -t "$registry/pospay-pos:$SHA" .
+          if [ "$PUSH" = "true" ]; then
+            build_target docker build -f deploy/Dockerfile.admin --build-arg NEXT_PUBLIC_API_URL="$STAGING_API_URL" --build-arg NEXT_PUBLIC_POS_URL="$STAGING_POS_URL" -t "$registry/pospay-admin-staging:$SHA" .
+            build_target docker build -f deploy/Dockerfile.pos --build-arg VITE_API_URL="$STAGING_API_URL" -t "$registry/pospay-pos-staging:$SHA" .
+          fi
+          for pid in "${pids[@]}"; do
+            if ! wait "$pid"; then failed=1; fi
+          done
+          [ "$failed" -eq 0 ]
 
       - name: no env file in any image or build stage
         run: |
@@ -507,7 +514,9 @@ jobs:
           images="$images $REGISTRY_LC/pospay-migrate:$SHA $REGISTRY_LC/pospay-worker:$SHA $REGISTRY_LC/pospay-backup:$SHA"
           images="$images $REGISTRY_LC/pospay-admin:$SHA"
           images="$images $REGISTRY_LC/pospay-pos:$SHA"
-          images="$images $REGISTRY_LC/pospay-admin-staging:$SHA $REGISTRY_LC/pospay-pos-staging:$SHA"
+          if [ "$PUSH" = "true" ]; then
+            images="$images $REGISTRY_LC/pospay-admin-staging:$SHA $REGISTRY_LC/pospay-pos-staging:$SHA"
+          fi
           search='find / \( -name ".env" -o -name ".env.*" -o -name "*.env" \) ! -name "*.env.example" ! -name ".env.example" -not -path "/proc/*" 2>/dev/null; true'
           for image in $images; do
             # A failed inspection fails the step (set -e); it never counts as "nothing found".
@@ -526,14 +535,9 @@ jobs:
 
   admin-document-popup:
     name: admin document popup · production browser
-    needs: [changes, build]
-    # The explicit status function permits PR #909's successful diagnostic build without treating its failed
-    # worker ancestor as green; no failed, skipped, or cancelled build can start the native browser job.
-    if: >-
-      ${{ !cancelled() &&
-        needs.changes.result == 'success' &&
-        needs.changes.outputs.code == 'true' &&
-        needs.build.result == 'success' }}
+    # Its complete production build is independent of `build`; ci-gate still requires both to succeed.
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
