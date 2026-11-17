@@ -2600,3 +2600,13 @@ so much beteer to creat this advisore for the project level so you and the manag
 5. حدود الملف والدالة (§3) وسقف الجولات (PP-131.2) والتقسيم بعد السقف (PP-69.8) زي ما هي.
 
 **الأثر:** البند 51 بيتعمل في PRين بترتيب الاعتماد: PR1 = جدول `commission_carries` وRLS واختبار العزل CM-R11، والـbuilders النقية للمدخل والكشف وبصماتهم (D-6، D-26) وport الـhash واختبار CM-34e (حوالي 390 سطر)؛ وPR2 = use cases الإنشاء والقراءة والـHTTP، وmigration صلاحية `review:commissions:business` بقيمها الافتراضية ومنحها من المالك بس، واختبارات CM-27…CM-29 وCM-33 وCM-23d…h (حوالي 460 سطر). التوزيع ده مكتوب في صف 51-1 في الـspec نفسها. البند 51 بيبدأ بعد 50-4 و55-2 و50-5. التعديل في جدول الـsub-PRs: `specs/059-commissions-statements/spec.md` (صف 51-1).
+
+## اعتماد خطوتي CI المتبقيتين في PR مستقل (ANSWERED، 2026-11-17)
+
+**النوع والمصدر:** قرار تقني لوليد مباشرة في thread المدير `dfb4c927-5b17-4231-b0c8-34274c1edb05` بعد مقارنة قياسات CI؛ نص الموافقة الحرفي ونطاقها محفوظان في هذا السجل أدناه. مفيش رقم PP جديد.
+
+**الإجابة حرفيًا:** «أعتمد : نحتفظ بالتحسين الحالي، ونعمل الخطوتين المتبقيتين في **PR مستق**؛ دون خلطهما بمهام المنتج».
+
+**القاعدة:** نحتفظ بفصل packages وshards الحالية؛ `build` و`admin-document-popup` يبدأوا بدري من غير ما `ci-gate` يتنازل عن أي job؛ استثناء PR909 القديم يتشال؛ صور Docker تتبنى بتوازي محدود بعمليتين، وصور staging ما تتبنيش في PRs لكنها تتبنى وتتفحص وتتدفع على main. `CLAUDE.md` §10 يتحدث في نفس PR المستقل. القياس الحقيقي وملاحظة الذاكرة/فشل البناء مطلوبين، ومفيش ضمان سرعة.
+
+**الحدود:** ممنوع push مباشر لـ main أو deploy أو تغيير secrets/permissions أو تخفيف gates أو تعديل منتج. تفضل الفحوص deterministic ومراجعة Astra high ثم Judge Sol6.1 high وكل exact-head receipts وCI/freshness/order مطلوبة. سلطة migration/deploy مستقلة، وbackup/restore مش blanket merge gate حسب آخر owner override.
