@@ -93,12 +93,27 @@ Three PRs, in this order. The worker refusal ships in 33b-1, before the stop rou
 
 ### 33b-3 — admin list toggle and badge
 
-`apps/admin/src/catalog`: `api/use-package-types.ts` gains stop/resume mutations (generated client, `expected_revision`,
-invalidates list and detail); `ui/package-type-table-row.tsx` shows a «متوقف البيع / Not on sale» badge when
-`selling_stopped_at` is set and a stop/resume button only for holders of `manage:package-types:business`; the 409
-codes show their i18n message; i18n keys ar/en (logical CSS only). Component tests assert what the user sees: the
-badge, the button label switching, the button hidden without the permission, the disabled state while pending, the
-error message on 409 (PP-7.2).
+- **Who sees the button (PK-Q12, PP-16.1):** holders of `manage:package-types:business` only. The admin has no
+  client-side permission set, so the list response carries a page-level `can_manage: boolean`. The controller computes
+  it through the shared `REQUEST_AUTHORIZER` (the live guard evaluation, as `staff/queries/attendance-capabilities.query.ts`
+  does), sequentially after the list transaction and never inside it (connection budget, §6). This follows 45-UI-Q3
+  (PP-189.3, "a capability field with the screen"). It is additive and has no new module arrow.
+- `packages/contracts`: `packageTypePage` gains `can_manage` (same schema id); the list route's OpenAPI description
+  names it.
+- `apps/admin/src/catalog`: `api/use-package-types.ts` gains stop/resume mutations (generated client,
+  `expected_revision`, `retry: false`, invalidates list and detail); a new `ui/package-type-selling-toggle.tsx` and
+  `ui/package-type-table-row.tsx` show a badge when `selling_stopped_at` is set and a stop/resume button only when
+  `can_manage` is true. The button is disabled while pending, and the 409 codes (`PACKAGE_TYPE_SELLING_UNCHANGED`,
+  `PACKAGE_TYPE_REVISION_CONFLICT`) show their i18n message through `envelopeMessage`.
+- i18n ar/en keys (logical CSS only). Wording per 33b-UI-Q1 (Waleed, 2026-11-15): badge «البيع متوقف» / "Not on sale",
+  buttons «إيقاف البيع» / "Stop selling" and «استئناف البيع» / "Resume selling". Stopping has no confirmation step
+  (33b-UI-Q2, Waleed, 2026-11-15). Abu Salem's pick is pending on the decisions page; a different pick is a follow-up.
+- No arithmetic in the UI: the badge depends only on `selling_stopped_at !== null`, and the revision comes from the
+  row unchanged.
+- Tests: API `can_manage` true for a manage holder and false for a read-only holder, with an unchanged item shape;
+  admin component tests assert what the user sees (the badge, the label switching, the button hidden without
+  `can_manage`, disabled while pending, the 409 message) and the hook tests assert the list refreshes after a stop
+  (PP-7.2).
 
 ## Rollout (#941) — worker first, rollback floor
 
@@ -133,7 +148,7 @@ error message on 409 (PP-7.2).
 |---|---|---|---|---|
 | 33b-1 | ~45 (contracts 2, API domain/queries/readers ~25, packages/domain 2, worker ~12, module-map 1) + generated OpenAPI | ~140 (worker unit 25, worker integration 60, API query/reader 25, db grant/RLS 30) + fixture churn ~15 across ~8 admin/API spec files | ~10 SQL + schema 2 (+ generated meta snapshot/journal) | ~190 (this plan ~130, PP-189/190 audit ~60, mine) |
 | 33b-2 | ~240 (error code + i18n 10, domain rule 25, contract + OpenAPI 40, port 25, persistence 40, two use cases 70, controller + wiring 30) | ~300 (ST-01…ST-04 + ST-03b integration ~260, unit ~40) | — | PR body rollout notes |
-| 33b-3 | ~100 (hooks 40, row badge/toggle 45, i18n 15) | ~130 (component tests) | — | — |
+| 33b-3 | ~210 (API capability 45, contract 8, hooks 50, toggle/row/table 90, i18n 16) | ~260 (API 60, hooks 50, components 150) | — | — |
 
 ## Lanes (PP-186, PP-175.2, PP-112)
 

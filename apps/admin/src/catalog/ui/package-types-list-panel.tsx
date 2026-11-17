@@ -10,12 +10,18 @@ import { PackageTypesTable } from './package-types-table';
 
 export function PackageTypesListPanel({
   list,
+  companyId,
+  businessId,
+  userId,
   selectedId,
   cursor,
   onSelect,
   onPage,
 }: {
   list: UseQueryResult<PackageTypePage>;
+  companyId: string;
+  businessId: string;
+  userId: string;
   selectedId: string;
   cursor: string | undefined;
   onSelect: (id: string) => void;
@@ -36,7 +42,15 @@ export function PackageTypesListPanel({
   return (
     <div className="flex flex-col gap-4">
       {list.data.items.length ? (
-        <PackageTypesTable items={list.data.items} selectedId={selectedId} onSelect={onSelect} />
+        <PackageTypesTable
+          items={list.data.items}
+          canManage={list.data.can_manage}
+          companyId={companyId}
+          businessId={businessId}
+          userId={userId}
+          selectedId={selectedId}
+          onSelect={onSelect}
+        />
       ) : (
         <EmptyState icon={<Store />} title={t(locale, 'catalogPackageTypes.empty')} />
       )}

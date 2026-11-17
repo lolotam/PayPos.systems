@@ -41,6 +41,9 @@ export function PackageTypesPage({
       />
       <PackageTypesListPanel
         list={list}
+        companyId={companyId}
+        businessId={business.id}
+        userId={userId}
         selectedId={packageTypeId}
         cursor={cursor}
         onSelect={setPackageTypeId}

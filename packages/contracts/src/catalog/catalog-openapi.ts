@@ -199,7 +199,7 @@ export const catalogPaths = {
     get: {
       operationId: 'listPackageTypes',
       description:
-        'Cursor-paginated package-types of one business. Missing, foreign and other-business ids answer like unknown. Requires read:package-types:business and the catalog feature.',
+        'Cursor-paginated package-types of one business. Missing, foreign and other-business ids answer like unknown. Requires read:package-types:business and the catalog feature. The page-level can_manage field is the live manage:package-types:business decision for the caller on that business, so the admin can hide stop/resume.',
       parameters: [
         ...parameters,
         { in: 'query', name: 'cursor', schema: { type: 'string', format: 'uuid' } },

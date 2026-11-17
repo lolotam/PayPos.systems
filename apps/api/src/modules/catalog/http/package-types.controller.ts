@@ -30,8 +30,10 @@ import { Require, RequiresFeature } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
+import { REQUEST_AUTHORIZER, type RequestAuthorizer } from '../../../shared/request-authorizer.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { listPackageTypes } from '../queries/list-package-types.query.ts';
+import { readPackageTypeManageCapability } from '../queries/package-type-capability.query.ts';
 import { getPackageTypeDetail } from '../queries/package-type-detail.query.ts';
 import { listPackageServiceOptions } from '../queries/package-service-options.query.ts';
 import {
@@ -54,6 +56,7 @@ export class PackageTypesController {
     @Inject(ResumeSellingPackageTypeUseCase)
     private readonly resumeSellingPackageType: ResumeSellingPackageTypeUseCase | null,
     @Inject(DATABASE) private readonly database: TenantWrappers | null,
+    @Inject(REQUEST_AUTHORIZER) private readonly authorizer: RequestAuthorizer | null,
   ) {}
 
   @Post()
@@ -82,13 +85,19 @@ export class PackageTypesController {
     @Query(new ZodValidationPipe(packageTypeListQuery)) query: PackageTypeListQuery,
     @Req() request: FastifyRequest,
   ): Promise<PackageTypePage> {
-    if (this.database === null) throw new ApiError('NOT_READY');
+    if (this.database === null || this.authorizer === null) throw new ApiError('NOT_READY');
     const actor = actorOf(request);
-    return this.database.withTenant(
+    const page = await this.database.withTenant(
       actor.companyId,
       (tx) => listPackageTypes(tx, actor.companyId, businessId, query),
       { userId: actor.userId },
     );
+    const can_manage = await readPackageTypeManageCapability(this.authorizer, {
+      companyId: actor.companyId,
+      businessId,
+      userId: actor.userId,
+    });
+    return { ...page, can_manage };
   }
 
   @Get('service-options')
