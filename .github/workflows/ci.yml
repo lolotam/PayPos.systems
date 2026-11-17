@@ -145,12 +145,8 @@ jobs:
           pnpm turbo run test --filter=@pospay/domain
           pnpm --filter @pospay/api test:unit
 
-      # apps/api, the slow suite, runs in the four `api-tests` shards below; the worker runs in its own job.
-      - name: Chromium headless shell (spec 056)
-        run: pnpm --filter @pospay/documents exec node scripts/install-headless-shell.mjs
-
-      - name: integration · RLS negative · EXPLAIN (packages)
-        run: pnpm turbo run test --filter=!@pospay/domain --filter=!@pospay/api --filter=!@pospay/worker
+      # The integration suites run in parallel jobs: packages in `packages-tests`, apps/api in the eight
+      # `api-tests` shards, the worker in the four `worker-tests` shards.
 
       # With `continue-on-error`, a telemetry failure shows as step `outcome: failure` while its
       # `conclusion` is `success`, so the gate steps alone decide the job.
@@ -177,11 +173,86 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-  # apps/api integration · RLS negative · EXPLAIN, split into four parallel shards (vitest --shard): each shard brings
-  # up its own compose Postgres (ADR-0006) and runs a quarter of the spec files. Public repo → free runners.
+  # Package integration · RLS negative · EXPLAIN, moved out of `check` into its own job.
+  # It starts alongside the static gates and app test shards.
+  packages-tests:
+    name: integration · packages
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    # Per-task duration and cache status for the telemetry report; it does not change any task hash.
+    env:
+      TURBO_RUN_SUMMARY: 'true'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Chromium headless shell (spec 056)
+        run: pnpm --filter @pospay/documents exec node scripts/install-headless-shell.mjs
+
+      - name: Local infra (Postgres 16 + Redis 7)
+        run: |
+          {
+            echo "POSTGRES_OWNER_PASSWORD=$(openssl rand -hex 24)"
+            echo "POSTGRES_APP_PASSWORD=$(openssl rand -hex 24)"
+            echo "POSTGRES_AUTH_PASSWORD=$(openssl rand -hex 24)"
+            echo "POSTGRES_DISPATCHER_PASSWORD=$(openssl rand -hex 24)"
+            echo "REDIS_PASSWORD=$(openssl rand -hex 24)"
+          } > .env
+          pnpm infra:up
+
+      - name: Turbo cache
+        uses: actions/cache@v6
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-packages-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-packages-
+            turbo-${{ runner.os }}-
+
+      - name: integration · RLS negative · EXPLAIN (packages)
+        run: pnpm turbo run test --filter=!@pospay/domain --filter=!@pospay/api --filter=!@pospay/worker
+
+      # With `continue-on-error`, a telemetry failure shows as step `outcome: failure` while its
+      # `conclusion` is `success`, so the gate steps alone decide the job.
+      - name: telemetry · report
+        if: always()
+        continue-on-error: true
+        env:
+          CI_TELEMETRY_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CI_TELEMETRY_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          CI_TELEMETRY_PNPM_VERSION="$(pnpm --version 2>/dev/null || true)"
+          CI_TELEMETRY_CHECKOUT_SHA="$(git rev-parse HEAD)"
+          export CI_TELEMETRY_PNPM_VERSION CI_TELEMETRY_CHECKOUT_SHA
+          node scripts/ci-telemetry/cli.mjs --label packages-tests --turbo-runs .turbo/runs --out "$RUNNER_TEMP/ci-telemetry"
+
+      # Best-effort: a hard cancel can skip it, so an artifact is not guaranteed.
+      - name: telemetry · upload
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ci-telemetry-packages-tests-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ci-telemetry/
+          retention-days: 14
+          if-no-files-found: warn
+
+  # apps/api integration · RLS negative · EXPLAIN, split into eight parallel shards (vitest --shard): each shard brings
+  # up its own compose Postgres (ADR-0006) and runs an eighth of the spec files. Public repo → free runners.
   # PP-131.1: shards start alongside `check`; build and ci-gate still require both jobs to succeed.
   api-tests:
-    name: api tests ${{ matrix.shard }}/4
+    name: api tests ${{ matrix.shard }}/8
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
@@ -192,7 +263,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@v7
 
@@ -230,8 +301,8 @@ jobs:
       - name: build api, worker and their dependencies
         run: pnpm turbo run build --filter=@pospay/api... --filter=@pospay/worker...
 
-      - name: api integration · RLS negative · EXPLAIN (shard ${{ matrix.shard }}/4)
-        run: pnpm --filter @pospay/api exec vitest run --shard=${{ matrix.shard }}/4
+      - name: api integration · RLS negative · EXPLAIN (shard ${{ matrix.shard }}/8)
+        run: pnpm --filter @pospay/api exec vitest run --shard=${{ matrix.shard }}/8
 
       # With `continue-on-error`, a telemetry failure shows as step `outcome: failure` while its
       # `conclusion` is `success`, so the gate steps alone decide the job.
@@ -259,7 +330,7 @@ jobs:
           if-no-files-found: warn
 
   worker-tests:
-    name: integration · worker
+    name: integration · worker ${{ matrix.shard }}/4
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
@@ -267,6 +338,10 @@ jobs:
     # Per-task duration and cache status for the telemetry report; it does not change any task hash.
     env:
       TURBO_RUN_SUMMARY: 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v7
 
@@ -298,17 +373,20 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .turbo/cache
-          key: turbo-${{ runner.os }}-worker-${{ github.sha }}
+          key: turbo-${{ runner.os }}-worker-${{ matrix.shard }}-${{ github.sha }}
           restore-keys: |
+            turbo-${{ runner.os }}-worker-${{ matrix.shard }}-
             turbo-${{ runner.os }}-worker-
             turbo-${{ runner.os }}-
 
       # turbo.json chains worker#test → api#test, so selecting the worker through turbo would run the whole api
       # suite again unsharded: the worker is excluded from turbo test and run directly by vitest here.
-      - name: integration · worker
-        run: |
-          pnpm turbo run build --filter=@pospay/worker...
-          pnpm --filter @pospay/worker exec vitest run
+      # Build and test are separate steps so the timings show each on its own.
+      - name: build worker and its dependencies
+        run: pnpm turbo run build --filter=@pospay/worker...
+
+      - name: integration · worker (shard ${{ matrix.shard }}/4)
+        run: pnpm --filter @pospay/worker exec vitest run --shard=${{ matrix.shard }}/4
 
       # With `continue-on-error`, a telemetry failure shows as step `outcome: failure` while its
       # `conclusion` is `success`, so the gate steps alone decide the job.
@@ -322,7 +400,7 @@ jobs:
           CI_TELEMETRY_PNPM_VERSION="$(pnpm --version 2>/dev/null || true)"
           CI_TELEMETRY_CHECKOUT_SHA="$(git rev-parse HEAD)"
           export CI_TELEMETRY_PNPM_VERSION CI_TELEMETRY_CHECKOUT_SHA
-          node scripts/ci-telemetry/cli.mjs --label worker-tests --turbo-runs .turbo/runs --out "$RUNNER_TEMP/ci-telemetry"
+          node scripts/ci-telemetry/cli.mjs --label worker-tests-shard-${{ matrix.shard }} --turbo-runs .turbo/runs --out "$RUNNER_TEMP/ci-telemetry"
 
       # Best-effort: a hard cancel can skip it, so an artifact is not guaranteed.
       - name: telemetry · upload
@@ -330,21 +408,22 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ci-telemetry-worker-tests-${{ github.run_attempt }}
+          name: ci-telemetry-worker-tests-shard-${{ matrix.shard }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/ci-telemetry/
           retention-days: 14
           if-no-files-found: warn
 
   # The build still waits for all existing dependencies. PP-157 permits only PR #909 to diagnose with
-  # worker-tests failed; check/API shards must pass, cancellation/skips stay closed, and ci-gate still requires worker success.
+  # worker-tests failed; check, packages and API shards must pass, cancellation/skips stay closed, and ci-gate still requires worker success.
   build:
     name: build all apps
-    needs: [changes, check, api-tests, worker-tests]
+    needs: [changes, check, packages-tests, api-tests, worker-tests]
     if: >-
       ${{ !cancelled() &&
         needs.changes.result == 'success' &&
         needs.changes.outputs.code == 'true' &&
         needs.check.result == 'success' &&
+        needs.packages-tests.result == 'success' &&
         needs.api-tests.result == 'success' &&
         (needs.worker-tests.result == 'success' ||
           (github.event_name == 'pull_request' && github.event.pull_request.number == 909 &&
@@ -544,7 +623,8 @@ jobs:
   # docs-only changes need every heavy job skipped. Unknown classification and all other results fail.
   gate:
     name: ci-gate
-    needs: [changes, check, api-tests, worker-tests, build, images, admin-document-popup]
+    needs:
+      [changes, check, packages-tests, api-tests, worker-tests, build, images, admin-document-popup]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 2
@@ -552,6 +632,7 @@ jobs:
       - env:
           CHANGES: ${{ needs.changes.result }}
           CHECK: ${{ needs.check.result }}
+          PACKAGES_TESTS: ${{ needs.packages-tests.result }}
           API_TESTS: ${{ needs.api-tests.result }}
           WORKER_TESTS: ${{ needs.worker-tests.result }}
           BUILD: ${{ needs.build.result }}
@@ -559,12 +640,12 @@ jobs:
           ADMIN_DOCUMENT_POPUP: ${{ needs.admin-document-popup.result }}
           CODE: ${{ needs.changes.outputs.code }}
         run: |
-          echo "changes=$CHANGES check=$CHECK api_tests=$API_TESTS worker_tests=$WORKER_TESTS build=$BUILD images=$IMAGES admin_document_popup=$ADMIN_DOCUMENT_POPUP code=$CODE"
+          echo "changes=$CHANGES check=$CHECK packages_tests=$PACKAGES_TESTS api_tests=$API_TESTS worker_tests=$WORKER_TESTS build=$BUILD images=$IMAGES admin_document_popup=$ADMIN_DOCUMENT_POPUP code=$CODE"
           [ "$CHANGES" = "success" ] || exit 1
           if [ "$CODE" = "true" ]; then
-            [ "$CHECK" = "success" ] && [ "$API_TESTS" = "success" ] && [ "$WORKER_TESTS" = "success" ] && [ "$BUILD" = "success" ] && [ "$IMAGES" = "success" ] && [ "$ADMIN_DOCUMENT_POPUP" = "success" ]
+            [ "$CHECK" = "success" ] && [ "$PACKAGES_TESTS" = "success" ] && [ "$API_TESTS" = "success" ] && [ "$WORKER_TESTS" = "success" ] && [ "$BUILD" = "success" ] && [ "$IMAGES" = "success" ] && [ "$ADMIN_DOCUMENT_POPUP" = "success" ]
           elif [ "$CODE" = "false" ]; then
-            [ "$CHECK" = "skipped" ] && [ "$API_TESTS" = "skipped" ] && [ "$WORKER_TESTS" = "skipped" ] && [ "$BUILD" = "skipped" ] && [ "$IMAGES" = "skipped" ] && [ "$ADMIN_DOCUMENT_POPUP" = "skipped" ]
+            [ "$CHECK" = "skipped" ] && [ "$PACKAGES_TESTS" = "skipped" ] && [ "$API_TESTS" = "skipped" ] && [ "$WORKER_TESTS" = "skipped" ] && [ "$BUILD" = "skipped" ] && [ "$IMAGES" = "skipped" ] && [ "$ADMIN_DOCUMENT_POPUP" = "skipped" ]
           else
             echo "::error::Unknown code classification: $CODE"
             exit 1
