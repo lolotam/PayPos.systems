@@ -1,7 +1,10 @@
 import { reopenReviewedStatementPeriods, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
-import type { HeldCommissionLineHead } from '../domain/commission-line-types.ts';
+import type {
+  CommissionLinePerformerPeriod,
+  HeldCommissionLineHead,
+} from '../domain/commission-line-types.ts';
 import type {
   CommissionLineHeadWrite,
   CommissionLinePerformerWrite,
@@ -19,6 +22,8 @@ export type BusinessTimeZoneReader = (
 type HeadRow = {
   [Key in keyof HeldCommissionLineHead]: HeldCommissionLineHead[Key];
 };
+
+type PerformerRow = CommissionLinePerformerPeriod;
 
 export function createCommissionLineProjectionScope(
   tx: Tx,
@@ -46,6 +51,17 @@ export function createCommissionLineProjectionScope(
     },
     businessTimeZone: (companyId, businessId) => businessTimeZone(tx, companyId, businessId),
     lockPeriods: async (input) => lockCommissionPeriods(tx, input),
+    readLinePerformers: async (lineIds) => {
+      if (lineIds.length === 0) return [];
+      return tx.execute<PerformerRow>(sql`SELECT
+        line_id AS "lineId",employee_id AS "employeeId",period
+        FROM commission_lines
+        WHERE company_id=app_company_id() AND line_id=ANY(ARRAY[${sql.join(
+          lineIds.map((lineId) => sql`${lineId}`),
+          sql`,`,
+        )}]::uuid[])
+        ORDER BY line_id,employee_id`);
+    },
     replaceLines: async (replacements) => replaceLines(tx, replacements),
     reopenReviewed: (input) => reopenReviewedStatementPeriods(tx, input),
   };
