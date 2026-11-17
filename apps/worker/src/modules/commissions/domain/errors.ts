@@ -86,6 +86,26 @@ export class CommissionPeriodClosedError extends Error {
   }
 }
 
+/** الشهر الحالي تغيّر أثناء انتظار قفل الشهور؛ التراجع وإعادة المحاولة يمنعان اختيار هدف من لقطة ناقصة. */
+export class CommissionPeriodRolledOverError extends Error {
+  readonly code = 'COMMISSION_PERIOD_ROLLED_OVER';
+  readonly plannedPeriod: string;
+  readonly currentPeriod: string;
+
+  /**
+   * يحتفظ بشهر خطة القفل والشهر الحالي بعد الانتظار حتى يعيد التسليم الحساب بخطة كاملة.
+   *
+   * @param plannedPeriod الشهر الحالي الذي بُنيت عليه خطة القفل
+   * @param currentPeriod الشهر الحالي بعد اكتمال القفل
+   */
+  constructor(plannedPeriod: string, currentPeriod: string) {
+    super(`Commission current period rolled over: ${plannedPeriod} -> ${currentPeriod}`);
+    this.name = 'CommissionPeriodRolledOverError';
+    this.plannedPeriod = plannedPeriod;
+    this.currentPeriod = currentPeriod;
+  }
+}
+
 /** مدخل بقشاش أو راتب غير صالح؛ المبلغ المشوّه يوقف الحدث عند منتجه (FR-017) ولا يصير صفراً. */
 export class CommissionTipSalaryInputInvalidError extends Error {
   readonly code = 'COMMISSION_TIP_SALARY_INPUT_INVALID';

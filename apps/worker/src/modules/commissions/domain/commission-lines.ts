@@ -3,6 +3,8 @@ import type {
   CommissionLineEventInput,
   CommissionLineSnapshot,
   CommissionRuleColumns,
+  CommissionLinePerformerPeriod,
+  CommissionPeriodEmployee,
   HeldCommissionLineHead,
 } from './commission-line-types.ts';
 
@@ -98,6 +100,42 @@ export function affectedCommissionPeriods(
     periods.add(periodOfBusinessDate(line.businessDate));
   }
   return [...periods].sort();
+}
+
+/**
+ * يشتق الموظفات اللاتي يحتجن تصحيحاً في كل شهر مغلق من اتحاد صفوف البنود قبل
+ * الاستبدال ومنفّذي اللقطات الجديدة. المنفّذ المحذوف يفقد مبلغه والمضاف يكتسبه،
+ * وانتقال البند يترك أثراً في الشهرين؛ لذلك لا تكفي صفوف الحدث الجديدة وحدها.
+ *
+ * @param lines اللقطات الأحدث التي ستستبدل صفوف بنودها
+ * @param stored صفوف المنفّذين المحفوظة قبل الاستبدال
+ * @param closedPeriods الشهور المتأثرة المغلقة وحدها
+ * @returns أزواج الشهر والموظفة، فريدة ومرتبة بالشهر ثم بهوية الموظفة
+ */
+export function affectedCommissionLineEmployees(
+  lines: readonly CommissionLineSnapshot[],
+  stored: readonly CommissionLinePerformerPeriod[],
+  closedPeriods: readonly string[],
+): CommissionPeriodEmployee[] {
+  const changedLineIds = new Set(lines.map((line) => line.lineId));
+  const closed = new Set(closedPeriods);
+  const pairs = new Map<string, CommissionPeriodEmployee>();
+  const add = (period: string, employeeId: string): void => {
+    if (!closed.has(period)) return;
+    pairs.set(`${period}:${employeeId}`, { period, employeeId });
+  };
+  for (const row of stored) {
+    if (changedLineIds.has(row.lineId)) add(row.period, row.employeeId);
+  }
+  for (const line of lines) {
+    const period = periodOfBusinessDate(line.businessDate);
+    for (const performer of line.performers) add(period, performer.employeeId);
+  }
+  return [...pairs.values()].sort((left, right) => {
+    if (left.period !== right.period) return left.period < right.period ? -1 : 1;
+    if (left.employeeId === right.employeeId) return 0;
+    return left.employeeId < right.employeeId ? -1 : 1;
+  });
 }
 
 /**

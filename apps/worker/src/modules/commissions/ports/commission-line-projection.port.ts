@@ -1,6 +1,7 @@
 import type {
   CommissionLineRuleSnapshot,
   CommissionLineStatus,
+  CommissionLinePerformerPeriod,
   HeldCommissionLineHead,
   LockedCommissionPeriod,
 } from '../domain/commission-line-types.ts';
@@ -17,6 +18,7 @@ export interface IdGenerator {
 
 /** حقول غلاف outbox التي يتحقق منها كل مُطبِّق لمدخلات العمولة قبل الوثوق بالحمولة. */
 export interface CommissionInputEventEnvelope {
+  readonly id: string;
   readonly aggregateType: string;
   readonly aggregateId: string;
   readonly companyId: string;
@@ -99,6 +101,13 @@ export interface CommissionLineProjectionScope {
    * @param input النشاط والشهور المطلوب قفلها ومولّد هويات الكشوف الجديدة
    */
   lockPeriods(input: CommissionPeriodLockInput): Promise<readonly LockedCommissionPeriod[]>;
+  /**
+   * يرجع منفّذي البنود وشهورهم قبل الاستبدال، حتى يدخل المنفّذ المحذوف وشهر البند القديم
+   * في اتحاد تصحيحات الشهور المغلقة.
+   *
+   * @param lineIds هويات البنود الأحدث التي ستُستبدل صفوفها
+   */
+  readLinePerformers(lineIds: readonly string[]): Promise<readonly CommissionLinePerformerPeriod[]>;
   /**
    * يستبدل رؤوس البنود وصفوف منفّذيها دفعة واحدة داخل معاملة الحدث.
    *

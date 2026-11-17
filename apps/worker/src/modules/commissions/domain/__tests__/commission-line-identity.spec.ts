@@ -34,6 +34,7 @@ it.each(identityFields)(
         companyId: 'company-a',
         businessId: incoming.businessId,
         sessionId: incoming.sessionId,
+        eventId: '01920000-0000-7000-8000-00000000ffff',
         lines: [incoming],
       }),
     ).not.toThrow();

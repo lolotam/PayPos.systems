@@ -61,7 +61,8 @@ const event = (row: Record<string, unknown> = {}) =>
 const projectionCount = async () => ({
   heads: await owner`SELECT line_id FROM commission_line_heads`,
   lines: await owner`SELECT line_id FROM commission_lines`,
-  marks: await owner`SELECT event_id FROM consumed_events WHERE consumer_id='commissions.project-inputs'`,
+  marks:
+    await owner`SELECT event_id FROM consumed_events WHERE consumer_id='commissions.project-inputs'`,
 });
 
 const closedAffectedMonths = [
@@ -70,44 +71,62 @@ const closedAffectedMonths = [
 ] as const;
 
 it.each(closedAffectedMonths)(
-  'an $status affected month refuses delivery before rows or a mark',
+  'an $status affected month refuses delivery because the employee has no plan version',
   async ({ status, period, now }) => {
     await walkCommissionStatement(db, { tenant: A, period, ids, to: status });
-    const outcome = await deliverAt(now, event({ businessDate: `${period}-15` }));
+    const outcome = await deliverAt(
+      now,
+      event({
+        businessDate: `${period}-15`,
+        ruleSnapshot: { kind: 'FOLLOW_PLAN' },
+      }),
+    );
     expect(outcome).toMatchObject({ delivered: false });
     expect(await projectionCount()).toEqual({ heads: [], lines: [], marks: [] });
-    expect(await owner`SELECT status FROM commission_statements WHERE period=${period}`)
-      .toEqual([{ status }]);
+    expect(await owner`SELECT status FROM commission_statements WHERE period=${period}`).toEqual([
+      { status },
+    ]);
   },
 );
 
 it('REVIEWED affected month reopens while a later REVIEWED candidate stays reviewed', async () => {
   await walkCommissionStatement(db, { tenant: A, period: '2027-04', ids, to: 'REVIEWED' });
   await walkCommissionStatement(db, { tenant: A, period: '2027-05', ids, to: 'REVIEWED' });
-  expect(await deliverAt('2027-06-05T09:00:00Z', event({ businessDate: '2027-04-15' })))
-    .toEqual({ delivered: true });
-  expect(await owner`SELECT status,reviewed_fingerprint,reviewed_statement_fingerprint,
-    reviewed_by,reviewed_membership_id,reviewed_at FROM commission_statements WHERE period='2027-04'`)
-    .toEqual([{
-      status: 'DRAFT', reviewed_fingerprint: null, reviewed_statement_fingerprint: null,
-      reviewed_by: null, reviewed_membership_id: null, reviewed_at: null,
-    }]);
-  const [candidate] = await owner`SELECT status,reviewed_by FROM commission_statements WHERE period='2027-05'`;
+  expect(await deliverAt('2027-06-05T09:00:00Z', event({ businessDate: '2027-04-15' }))).toEqual({
+    delivered: true,
+  });
+  expect(
+    await owner`SELECT status,reviewed_fingerprint,reviewed_statement_fingerprint,
+    reviewed_by,reviewed_membership_id,reviewed_at FROM commission_statements WHERE period='2027-04'`,
+  ).toEqual([
+    {
+      status: 'DRAFT',
+      reviewed_fingerprint: null,
+      reviewed_statement_fingerprint: null,
+      reviewed_by: null,
+      reviewed_membership_id: null,
+      reviewed_at: null,
+    },
+  ]);
+  const [candidate] =
+    await owner`SELECT status,reviewed_by FROM commission_statements WHERE period='2027-05'`;
   expect(candidate?.status).toBe('REVIEWED');
   expect(candidate?.reviewed_by).not.toBeNull();
 });
 
 it('candidate months through the fixed current business month receive DRAFT rows', async () => {
-  expect(await deliverAt('2027-09-05T09:00:00Z', event({ businessDate: '2027-07-15' })))
-    .toEqual({ delivered: true });
-  expect(await owner`SELECT period,status FROM commission_statements
+  expect(await deliverAt('2027-09-05T09:00:00Z', event({ businessDate: '2027-07-15' }))).toEqual({
+    delivered: true,
+  });
+  expect(
+    await owner`SELECT period,status FROM commission_statements
     WHERE company_id=${A.company} AND business_id=${A.business}
-      AND period BETWEEN '2027-07' AND '2027-09' ORDER BY period`)
-    .toEqual([
-      { period: '2027-07', status: 'DRAFT' },
-      { period: '2027-08', status: 'DRAFT' },
-      { period: '2027-09', status: 'DRAFT' },
-    ]);
+      AND period BETWEEN '2027-07' AND '2027-09' ORDER BY period`,
+  ).toEqual([
+    { period: '2027-07', status: 'DRAFT' },
+    { period: '2027-08', status: 'DRAFT' },
+    { period: '2027-09', status: 'DRAFT' },
+  ]);
 });
 
 it('a missing business fails with the named error before any write', async () => {
@@ -117,25 +136,28 @@ it('a missing business fails with the named error before any write', async () =>
     clock: { now: () => new Date('2027-10-05T09:00:00Z') },
     businessTimeZone,
   });
-  await expect(db.withTenant(A.company, (tx) => consumer.handle(tx, missing)))
-    .rejects.toBeInstanceOf(CommissionBusinessMissingError);
+  await expect(
+    db.withTenant(A.company, (tx) => consumer.handle(tx, missing)),
+  ).rejects.toBeInstanceOf(CommissionBusinessMissingError);
   expect(await deliverAt('2027-10-05T09:00:00Z', missing)).toMatchObject({ delivered: false });
   expect(await projectionCount()).toEqual({ heads: [], lines: [], marks: [] });
 });
 
 it('an approved candidate month is not classified and stays approved', async () => {
   await walkCommissionStatement(db, { tenant: A, period: '2027-12', ids });
-  expect(await deliverAt('2028-01-05T09:00:00Z', event({ businessDate: '2027-11-15' })))
-    .toEqual({ delivered: true });
+  expect(await deliverAt('2028-01-05T09:00:00Z', event({ businessDate: '2027-11-15' }))).toEqual({
+    delivered: true,
+  });
   const projection = await projectionCount();
   expect(projection.heads).toHaveLength(1);
   expect(projection.lines).toHaveLength(1);
   expect(projection.marks).toHaveLength(1);
-  expect(await owner`SELECT period,status FROM commission_statements
+  expect(
+    await owner`SELECT period,status FROM commission_statements
     WHERE company_id=${A.company} AND business_id=${A.business}
-      AND period IN ('2027-11','2027-12') ORDER BY period`)
-    .toEqual([
-      { period: '2027-11', status: 'DRAFT' },
-      { period: '2027-12', status: 'APPROVED' },
-    ]);
+      AND period IN ('2027-11','2027-12') ORDER BY period`,
+  ).toEqual([
+    { period: '2027-11', status: 'DRAFT' },
+    { period: '2027-12', status: 'APPROVED' },
+  ]);
 });

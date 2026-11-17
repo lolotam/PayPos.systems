@@ -27,6 +27,7 @@ import {
   onCommissionInputEvent,
   type CommissionInputUseCases,
 } from '../events/handlers/on-commission-input-event.handler.ts';
+import { createCommissionCorrectionScope } from '../persistence/commission-correction.scope.ts';
 import { createCommissionLineProjectionScope } from '../persistence/commission-line-projection.scope.ts';
 import {
   normalizeCommissionLineEvent,
@@ -122,7 +123,12 @@ async function instrumentedAttempt(incoming: ClaimedEvent | CommissionLineEventI
         return scope.lockPeriods(input);
       },
     };
-    const useCase = new ProjectServiceLines(observed, clock, ids);
+    const useCase = new ProjectServiceLines(
+      observed,
+      clock,
+      ids,
+      createCommissionCorrectionScope(tx, ids, clock),
+    );
     if ('eventType' in incoming) {
       const unusedUseCase = {
         execute: async () => {
@@ -217,6 +223,7 @@ it('#802 a mixed batch leaves valid updates, unseen lines, statements and delive
     companyId: A.company,
     businessId: A.business,
     sessionId: COMMISSION_LINE_IDS.sessionA,
+    eventId: snapshots[0]?.eventId ?? ids.newId(),
     lines: snapshots.flatMap((snapshot) => snapshot.lines),
   };
   timezoneRequests = 0;

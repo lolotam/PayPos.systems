@@ -25,8 +25,9 @@ import type {
 import {
   CommissionBusinessMissingError,
   CommissionLineEventInvalidError,
-  CommissionPeriodClosedError,
+  CommissionPeriodRolledOverError,
 } from '../../domain/errors.ts';
+import type { CommissionCorrectionScope } from '../../ports/commission-correction.port.ts';
 import type {
   Clock,
   CommissionInputEventEnvelope,
@@ -35,20 +36,24 @@ import type {
   CommissionLineReplacement,
   IdGenerator,
 } from '../../ports/commission-line-projection.port.ts';
+import {
+  postCommissionLineCorrections,
+  readCommissionLineCorrectionEmployees,
+  selectCommissionLineCorrectionTargets,
+} from './post-line-corrections.ts';
 
 type CommissionInputEventPayload =
-  | ServiceSessionRecorded
-  | ServiceSessionLinesAdded
-  | ServiceLineChanged;
+  ServiceSessionRecorded | ServiceSessionLinesAdded | ServiceLineChanged;
 
 export { CommissionLineEventInvalidError } from '../../domain/errors.ts';
 
-/** يطبّق أحدث لقطات بنود الخدمة على إسقاط العمولة ويفتح مراجعة الشهر المتأثر عند الحاجة. */
+/** يطبّق بنود الخدمة ويكتب تصحيحات الشهور المغلقة ثم يعيد فتح الشهور المراجعة. */
 export class ProjectServiceLines {
   constructor(
     private readonly scope: CommissionLineProjectionScope,
     private readonly clock: Clock,
     private readonly ids: IdGenerator,
+    private readonly corrections: CommissionCorrectionScope,
   ) {}
 
   async execute(input: CommissionLineEventInput): Promise<void> {
@@ -61,16 +66,28 @@ export class ProjectServiceLines {
     const affected = affectedCommissionPeriods(newer, heads);
     const timeZone = await this.scope.businessTimeZone(input.companyId, input.businessId);
     if (timeZone === null) throw new CommissionBusinessMissingError(input.businessId);
-    const currentPeriod = currentBusinessPeriod(this.clock.now(), timeZone);
-    const plan = commissionPeriodLockPlan(affected, currentPeriod);
+    const plannedPeriod = currentBusinessPeriod(this.clock.now(), timeZone);
+    const plan = commissionPeriodLockPlan(affected, plannedPeriod);
     const locked = await this.scope.lockPeriods({
       businessId: input.businessId,
       periods: plan.periodsToLock,
       ids: this.ids,
     });
+    const currentPeriod = currentBusinessPeriod(this.clock.now(), timeZone);
+    if (currentPeriod !== plannedPeriod) {
+      throw new CommissionPeriodRolledOverError(plannedPeriod, currentPeriod);
+    }
     const { closed, reviewed } = classifyCommissionPeriods(locked, plan.affectedPeriods);
-    if (closed.length > 0) throw new CommissionPeriodClosedError(closed);
+    const targets = selectCommissionLineCorrectionTargets(locked, closed, currentPeriod);
+    const employees = await readCommissionLineCorrectionEmployees(this.scope, newer, closed);
     await this.scope.replaceLines(newer.map(projectLine));
+    await postCommissionLineCorrections({
+      scope: this.corrections,
+      businessId: input.businessId,
+      eventId: input.eventId,
+      targets,
+      employees,
+    });
     await this.scope.reopenReviewed({ businessId: input.businessId, periods: reviewed });
   }
 }
@@ -87,6 +104,7 @@ export function normalizeCommissionLineEvent(
     companyId: event.companyId,
     businessId: payload.business_id,
     sessionId: payload.session_id,
+    eventId: event.id,
     lines: lines.map(normalizeCommissionLine),
   };
 }
