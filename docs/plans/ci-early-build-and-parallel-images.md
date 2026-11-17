@@ -2,7 +2,7 @@
 
 ## Authority and scope
 
-Waleed approved the remaining CI steps in an independent PR on 2026-11-17. The verbatim source and boundaries are in `briefs/ci-steps-1-and-3-20261117/owner-authority.md`; the Arabic audit append is in `docs/owner-decisions.ar.md` without a new PP number.
+Waleed approved the remaining CI steps in an independent PR on 2026-11-17. The verbatim approval, source thread identifier and boundaries are preserved in `docs/owner-decisions.ar.md`, section «اعتماد خطوتي CI المتبقيتين في PR مستقل (ANSWERED، 2026-11-17)» without a new PP number.
 
 Only `.github/workflows/ci.yml`, `CLAUDE.md`, this plan, and that audit append change. Existing package separation, eight API shards, four worker shards, commands, caches, action pins, runners, permissions, secrets references, and release behavior outside this scheduling change stay intact.
 
