@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useLocale } from '@/shared/locale/locale-context';
 
-/** مدخلا الخدمات وأنواع الباقات، مع تمييز المدخل المطابق للمسار الحالي فقط. */
+/** مداخل الخدمات والتصنيفات وأنواع الباقات، مع تمييز المدخل المطابق للمسار الحالي فقط. */
 export function CatalogNavItem() {
   const locale = useLocale();
   const pathname = usePathname();
@@ -15,9 +15,21 @@ export function CatalogNavItem() {
         asChild
         icon={<Store />}
         label={t(locale, 'catalogServices.listTitle')}
-        active={pathname.startsWith('/catalog') && !pathname.startsWith('/catalog/package-types')}
+        active={
+          pathname.startsWith('/catalog') &&
+          !pathname.startsWith('/catalog/package-types') &&
+          !pathname.startsWith('/catalog/categories')
+        }
       >
         <Link href="/catalog" />
+      </AppSidebarItem>
+      <AppSidebarItem
+        asChild
+        icon={<Store />}
+        label={t(locale, 'catalogServiceCategories.navTitle')}
+        active={pathname.startsWith('/catalog/categories')}
+      >
+        <Link href="/catalog/categories" />
       </AppSidebarItem>
       <AppSidebarItem
         asChild

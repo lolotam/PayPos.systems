@@ -35,6 +35,7 @@ const input = (lines: readonly CommissionLineSnapshot[]) => ({
   companyId: 'company-a',
   businessId: 'business-a',
   sessionId: 'session-a',
+  eventId: '01920000-0000-7000-8000-00000000ffff',
   lines,
 });
 

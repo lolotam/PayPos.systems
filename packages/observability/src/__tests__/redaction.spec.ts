@@ -125,9 +125,21 @@ describe('errors are logged as type, code and frames — never the message or ca
     for (const secret of ['tok_live_abcdef', '96550012345', '4821', 'hunter2hunter2', 'SELECT']) {
       expect(line).not.toContain(secret);
     }
-    // '28P01' is outside the code allowlist (only E… and FST_ERR_… shapes are printed), so it is dropped too.
+    // '28P01' is outside the code allowlist, so it is dropped too.
     expect(JSON.parse(line)).toMatchObject({ err: { type: 'Error' } });
     expect(JSON.parse(line).err).not.toHaveProperty('code');
+  });
+
+  it('exposes the closed commission period code without exposing its message', () => {
+    const error = Object.assign(new Error('sensitive period detail'), {
+      name: 'CommissionPeriodClosedError',
+      code: 'COMMISSION_PERIOD_CLOSED',
+    });
+    const line = capture((logger) => logger.error({ err: error }, 'boom'));
+    expect(JSON.parse(line)).toMatchObject({
+      err: { type: 'Error', code: 'COMMISSION_PERIOD_CLOSED' },
+    });
+    expect(line).not.toContain('sensitive period detail');
   });
 });
 
