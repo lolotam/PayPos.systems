@@ -6,9 +6,9 @@ import { apiClient } from '@/shared/api/client';
 import { packageSaleParams, packageSaleScopeKey } from './use-package-sale-context';
 import {
   readSaleAttempt,
-  restoreSaleAttempt,
   saveSaleAttempt,
   withSaleAttemptLock,
+  updateOwnedSaleAttempt,
   type HeldAttempt,
 } from './package-sale-attempt';
 import type { SessionServiceScope } from './use-session-services';
@@ -64,7 +64,7 @@ async function postSale(
     const failure = { ...result.error, status: result.response.status };
     // A refusal on replay can occur before the server looks up the original request.
     if (!saved && dropAttemptOnKnownError(failure)) {
-      saveSaleAttempt(scopeKey, null);
+      await updateOwnedSaleAttempt(scopeKey, attempt.key, null);
       held.current = null;
     }
     throw failure;
@@ -72,7 +72,7 @@ async function postSale(
   const parsed = acceptedPackageSale.safeParse(result.data);
   if (!parsed.success) throw Object.assign(parsed.error, { status: result.response.status });
   attempt.saleId = parsed.data.sale_request_id;
-  saveSaleAttempt(scopeKey, attempt);
+  await updateOwnedSaleAttempt(scopeKey, attempt.key, attempt);
   return parsed.data.sale_request_id;
 }
 
@@ -82,7 +82,7 @@ export function useSellPackage(scope: SessionServiceScope) {
   const [, refresh] = useState(0);
   const [restoredScope, setRestoredScope] = useState<string | null>(null);
   useEffect(() => {
-    held.current = restoreSaleAttempt(scopeKey);
+    held.current = readSaleAttempt(scopeKey);
     setRestoredScope(scopeKey);
     const sync = (event: StorageEvent) => {
       if (event.key !== null && event.key !== `pospay:package-sale:${scopeKey}`) return;
@@ -104,9 +104,8 @@ export function useSellPackage(scope: SessionServiceScope) {
     recoveryRequired && Date.now() - (held.current?.createdAt ?? 0) >= 23 * 60 * 60 * 1000;
   return {
     ...mutation,
-    releaseFailed: () => {
-      held.current = null;
-      saveSaleAttempt(scopeKey, null);
+    releaseFailed: (saleId: string | null) => {
+      if (held.current?.saleId === saleId) held.current = null;
       mutation.reset();
     },
     recoveryRequired,

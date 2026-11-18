@@ -6,6 +6,7 @@ import {
   choosePackageSaleTypeAndSeller as chooseTypeAndSeller,
   packageSalePath as salePath,
   packageSaleScope,
+  failedPackageSale,
   renderPackageSaleForm as renderForm,
   resetPackageSaleFormTest,
   submitPackageSale as submitSale,
@@ -31,7 +32,6 @@ vi.mock('@/shared/locale/locale-context', () => ({
 }));
 
 beforeEach(() => {
-  sessionStorage.clear();
   localStorage.clear();
   resetPackageSaleFormTest(state);
 });
@@ -62,7 +62,6 @@ it('restores the original body and key after reload and locks a second sale', as
   });
   first.unmount();
   first.client.clear();
-  sessionStorage.clear();
   renderForm();
   expect(await screen.findByText(t('en', 'packageSale.recoverOriginal'))).toBeTruthy();
   expect(
@@ -257,22 +256,6 @@ it('allows a corrected new sale with a new key after confirmed failure', async (
   ).toHaveProperty('disabled', true);
 });
 
-it('migrates a legacy session journal on mount and restores recovery', async () => {
-  const first = await uncertainSale();
-  const saved = localStorage.getItem(storageKey) ?? 'null';
-  first.unmount();
-  first.client.clear();
-  localStorage.clear();
-  sessionStorage.setItem(storageKey, saved);
-  renderForm();
-  expect(await screen.findByText(t('en', 'packageSale.recoverOriginal'))).toBeTruthy();
-  expect(
-    screen.getByLabelText(t('en', 'packageSale.pricePaid')).closest('fieldset'),
-  ).toHaveProperty('disabled', true);
-  expect(localStorage.getItem(storageKey)).toBe(saved);
-  expect(sessionStorage.getItem(storageKey)).toBeNull();
-});
-
 it('reserves one key for racing tabs and locks the second form into recovery', async () => {
   let queue = Promise.resolve();
   const request = vi.fn((_name: string, callback: () => unknown) => {
@@ -312,4 +295,41 @@ it('reserves one key for racing tabs and locks the second form into recovery', a
     saleCalls()[0]?.[1].params.header['Idempotency-Key'],
   );
   expect(request.mock.calls[0]?.[0]).toBe(request.mock.calls[1]?.[0]);
+});
+
+it('keeps a newer tab reservation when an older sale failure arrives', async () => {
+  Object.defineProperty(navigator, 'locks', {
+    configurable: true,
+    value: { request: vi.fn((_name, callback) => Promise.resolve().then(callback)) },
+  });
+  const seed = await uncertainSale();
+  const older = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
+  seed.unmount();
+  seed.client.clear();
+  localStorage.setItem(storageKey, JSON.stringify({ ...older, saleId: 'older-sale' }));
+  const read = state.get.getMockImplementation();
+  let failOlder!: () => void;
+  state.get.mockImplementation((path, init) => {
+    if (String(path).endsWith('/{saleRequestId}')) {
+      return new Promise((resolve) => {
+        failOlder = () => resolve({ data: failedPackageSale, response: { status: 200 } });
+      });
+    }
+    return read?.(path, init);
+  });
+  const tabB = renderForm();
+  await waitFor(() => expect(failOlder).toBeTypeOf('function'));
+  tabB.container.remove();
+  // Another tab has already confirmed the older sale and released its journal.
+  localStorage.removeItem(storageKey);
+  const tabA = await uncertainSale();
+  const newer = localStorage.getItem(storageKey);
+  expect(JSON.parse(newer ?? 'null').key).not.toBe(older.key);
+  document.body.append(tabB.container);
+  await act(async () => failOlder());
+  expect(await within(tabB.container).findByText(/The quote changed/)).toBeTruthy();
+  expect(localStorage.getItem(storageKey)).toBe(newer);
+  expect(
+    within(tabA.container).getByLabelText(t('en', 'packageSale.pricePaid')).closest('fieldset'),
+  ).toHaveProperty('disabled', true);
 });

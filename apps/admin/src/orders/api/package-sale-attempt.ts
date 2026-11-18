@@ -19,9 +19,9 @@ export function saveSaleAttempt(scope: string, attempt: HeldAttempt | null) {
   }
 }
 
-export function readSaleAttempt(scope: string, storage?: Storage): HeldAttempt | null {
+export function readSaleAttempt(scope: string): HeldAttempt | null {
   try {
-    const raw = (storage ?? localStorage).getItem(`pospay:package-sale:${scope}`);
+    const raw = localStorage.getItem(`pospay:package-sale:${scope}`);
     const attempt = raw ? (JSON.parse(raw) as HeldAttempt) : null;
     if (
       !attempt ||
@@ -38,23 +38,14 @@ export function readSaleAttempt(scope: string, storage?: Storage): HeldAttempt |
   }
 }
 
-export function restoreSaleAttempt(scope: string): HeldAttempt | null {
-  const current = readSaleAttempt(scope);
-  try {
-    const legacy = readSaleAttempt(scope, sessionStorage);
-    if (!legacy) return current;
-    const attempt = current ?? legacy;
-    const key = `pospay:package-sale:${scope}`;
-    localStorage.setItem(key, JSON.stringify(attempt));
-    sessionStorage.removeItem(key);
-    return attempt;
-  } catch {
-    return current;
-  }
-}
-
 export function withSaleAttemptLock<T>(scope: string, reserve: () => T): Promise<T> {
   if (typeof navigator !== 'undefined' && typeof navigator.locks?.request === 'function')
     return navigator.locks.request(`pospay:package-sale:${scope}`, reserve);
   return Promise.resolve(reserve());
+}
+
+export function updateOwnedSaleAttempt(scope: string, key: string, attempt: HeldAttempt | null) {
+  return withSaleAttemptLock(scope, () => {
+    if (readSaleAttempt(scope)?.key === key) saveSaleAttempt(scope, attempt);
+  });
 }

@@ -123,7 +123,7 @@ function usePackageSaleFormState(scope: SessionServiceScope, locale: 'ar' | 'en'
   const statusQuery = usePackageSaleStatus(scope, knownSaleId, (failed) => {
     setFailure(failed);
     setSaleRequestId(null);
-    mutation.releaseFailed();
+    mutation.releaseFailed(knownSaleId);
   });
   const status = { ...statusQuery, data: statusQuery.data ?? failure };
   const pending =
