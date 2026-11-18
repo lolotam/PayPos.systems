@@ -1,6 +1,7 @@
 'use client';
 import {
   sellPackageInput,
+  type PackageSaleStatus,
   type PackageSaleRecorder,
   type SellablePackageType,
   type SellPackageInput,
@@ -102,6 +103,12 @@ function packageSaleSubmission(
   };
 }
 
+const saleDefaults: PackageSaleFieldValues = {
+  price_paid: '',
+  paid_method: 'CASH',
+  seller_employee_id: '',
+};
+
 function usePackageSaleFormState(scope: SessionServiceScope, locale: 'ar' | 'en') {
   const [customer, setCustomer] = useState<SessionCustomerSelection | null>(null);
   const [type, setType] = useState<SellablePackageType | null>(null);
@@ -109,16 +116,16 @@ function usePackageSaleFormState(scope: SessionServiceScope, locale: 'ar' | 'en'
   const context = usePackageSaleContext(scope);
   const recorders = context.data?.recorders ?? [];
   const submissionLatch = useRef(false);
-  const form = useForm<PackageSaleFieldValues>({
-    defaultValues: {
-      price_paid: '',
-      paid_method: 'CASH',
-      seller_employee_id: '',
-    },
-  });
+  const form = useForm<PackageSaleFieldValues>({ defaultValues: saleDefaults });
   const mutation = useSellPackage(scope);
   const knownSaleId = saleRequestId ?? mutation.restoredSaleId;
-  const status = usePackageSaleStatus(scope, knownSaleId);
+  const [failure, setFailure] = useState<PackageSaleStatus>();
+  const statusQuery = usePackageSaleStatus(scope, knownSaleId, (failed) => {
+    setFailure(failed);
+    setSaleRequestId(null);
+    mutation.releaseFailed();
+  });
+  const status = { ...statusQuery, data: statusQuery.data ?? failure };
   const pending =
     mutation.isPending ||
     (knownSaleId !== null &&
@@ -172,10 +179,12 @@ function packageSaleSubmitLabel(locale: 'ar' | 'en', pending: boolean, recovery:
 }
 
 function packageSaleResult(
-  status: ReturnType<typeof usePackageSaleStatus>,
+  status: Pick<ReturnType<typeof usePackageSaleStatus>, 'timedOut' | 'recheck' | 'error'> & {
+    data: PackageSaleStatus | undefined;
+  },
   saleRequestId: string | null,
 ) {
-  return saleRequestId ? (
+  return saleRequestId || status.data?.status === 'failed' ? (
     <PackageSaleResult
       status={status.data}
       timedOut={status.timedOut}

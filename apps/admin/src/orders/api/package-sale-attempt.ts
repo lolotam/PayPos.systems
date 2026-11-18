@@ -12,8 +12,8 @@ export type HeldAttempt = {
 export function saveSaleAttempt(scope: string, attempt: HeldAttempt | null) {
   try {
     const key = `pospay:package-sale:${scope}`;
-    if (attempt) sessionStorage.setItem(key, JSON.stringify(attempt));
-    else sessionStorage.removeItem(key);
+    if (attempt) localStorage.setItem(key, JSON.stringify(attempt));
+    else localStorage.removeItem(key);
   } catch {
     // Storage may be disabled or full; the hook retains the original attempt in memory.
   }
@@ -21,7 +21,7 @@ export function saveSaleAttempt(scope: string, attempt: HeldAttempt | null) {
 
 export function readSaleAttempt(scope: string): HeldAttempt | null {
   try {
-    const raw = sessionStorage.getItem(`pospay:package-sale:${scope}`);
+    const raw = localStorage.getItem(`pospay:package-sale:${scope}`);
     const attempt = raw ? (JSON.parse(raw) as HeldAttempt) : null;
     if (
       !attempt ||

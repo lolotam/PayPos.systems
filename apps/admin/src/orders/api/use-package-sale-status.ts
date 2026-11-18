@@ -20,7 +20,31 @@ function useConfirmedSale(scope: SessionServiceScope, data: PackageSaleStatus | 
   }, [data, scope]);
 }
 
-export function usePackageSaleStatus(scope: SessionServiceScope, saleRequestId: string | null) {
+async function readStatus(
+  scope: SessionServiceScope,
+  saleRequestId: string | null,
+  signal: AbortSignal,
+  onFailed?: (status: PackageSaleStatus) => void,
+) {
+  if (saleRequestId === null) throw new Error('PACKAGE_SALE_NOT_REQUESTED');
+  const result = await apiClient().GET(statusPath, {
+    params: {
+      ...packageSaleParams(scope),
+      path: { businessId: scope.businessId, branchId: scope.branchId, saleRequestId },
+    },
+    signal,
+  });
+  if (result.error) throw { ...result.error, status: result.response.status };
+  const status = packageSaleStatus.parse(result.data);
+  if (status.status === 'failed') onFailed?.(status);
+  return status;
+}
+
+export function usePackageSaleStatus(
+  scope: SessionServiceScope,
+  saleRequestId: string | null,
+  onFailed?: (status: PackageSaleStatus) => void,
+) {
   const client = useQueryClient();
   const queryKey = useMemo(
     () => ['package-sale-status', ...packageSaleScopeKey(scope), saleRequestId],
@@ -38,18 +62,7 @@ export function usePackageSaleStatus(scope: SessionServiceScope, saleRequestId: 
       if (deadline?.request !== requestKey || deadline.done) return false;
       return Date.now() - deadline.at < PACKAGE_SALE_POLL_LIMIT_MS ? 1000 : false;
     },
-    queryFn: async ({ signal }) => {
-      if (saleRequestId === null) throw new Error('PACKAGE_SALE_NOT_REQUESTED');
-      const result = await apiClient().GET(statusPath, {
-        params: {
-          ...packageSaleParams(scope),
-          path: { businessId: scope.businessId, branchId: scope.branchId, saleRequestId },
-        },
-        signal,
-      });
-      if (result.error) throw { ...result.error, status: result.response.status };
-      return packageSaleStatus.parse(result.data);
-    },
+    queryFn: ({ signal }) => readStatus(scope, saleRequestId, signal, onFailed),
   });
   useEffect(() => {
     if (saleRequestId === null) {

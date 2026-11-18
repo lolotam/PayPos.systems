@@ -31,7 +31,7 @@ vi.mock('@/shared/locale/locale-context', () => ({
 }));
 
 beforeEach(() => {
-  sessionStorage.clear();
+  localStorage.clear();
   resetPackageSaleFormTest(state);
 });
 
@@ -52,12 +52,13 @@ async function uncertainSale() {
 it('restores the original body and key after reload and locks a second sale', async () => {
   const first = await uncertainSale();
   const original = saleCalls()[0]?.[1];
-  expect(JSON.parse(sessionStorage.getItem(storageKey) ?? 'null')).toMatchObject({
+  expect(JSON.parse(localStorage.getItem(storageKey) ?? 'null')).toMatchObject({
     key: original.params.header['Idempotency-Key'],
     body: original.body,
   });
   first.unmount();
   first.client.clear();
+  sessionStorage.clear();
   renderForm();
   expect(await screen.findByText(t('en', 'packageSale.recoverOriginal'))).toBeTruthy();
   expect(
@@ -75,7 +76,7 @@ it('restores the original body and key after reload and locks a second sale', as
       true,
     ),
   );
-  expect(sessionStorage.getItem(storageKey)).not.toBeNull();
+  expect(localStorage.getItem(storageKey)).not.toBeNull();
 });
 
 it('releases recovery after the bounded request aborts', async () => {
@@ -123,8 +124,8 @@ it.each(['ar', 'en'] as const)(
   'blocks expired replay with a visible %s explanation',
   async (locale) => {
     const first = await uncertainSale();
-    const saved = JSON.parse(sessionStorage.getItem(storageKey) ?? 'null');
-    sessionStorage.setItem(
+    const saved = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
+    localStorage.setItem(
       storageKey,
       JSON.stringify({ ...saved, createdAt: Date.now() - 24 * 60 * 60 * 1000 }),
     );
@@ -142,8 +143,8 @@ it.each(['ar', 'en'] as const)(
 
 it('restores a known sale with status reads only and clears its confirmed outcome', async () => {
   const first = await uncertainSale();
-  const saved = JSON.parse(sessionStorage.getItem(storageKey) ?? 'null');
-  sessionStorage.setItem(
+  const saved = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
+  localStorage.setItem(
     storageKey,
     JSON.stringify({ ...saved, saleId: '01920000-0000-7000-8000-000000000034' }),
   );
@@ -152,10 +153,92 @@ it('restores a known sale with status reads only and clears its confirmed outcom
   state.outcome = 'completed';
   renderForm();
   expect(await screen.findByText(t('en', 'packageSale.completed'))).toBeTruthy();
-  await waitFor(() => expect(sessionStorage.getItem(storageKey)).toBeNull());
+  await waitFor(() => expect(localStorage.getItem(storageKey)).toBeNull());
   expect(saleCalls()).toHaveLength(1);
   expect(screen.getByRole('button', { name: t('en', 'packageSale.submit') })).toHaveProperty(
     'disabled',
     true,
   );
+});
+
+it('re-reads another tab journal before submitting and reuses its key', async () => {
+  const first = await uncertainSale();
+  const saved = localStorage.getItem(storageKey) ?? '';
+  const original = saleCalls()[0]?.[1];
+  first.unmount();
+  first.client.clear();
+  localStorage.clear();
+  renderForm();
+  await chooseCustomer(state);
+  await chooseTypeAndSeller(state);
+  localStorage.setItem(storageKey, saved);
+  state.post.mockRejectedValueOnce(new Error('Response lost again'));
+  await submitSale(state);
+  expect(await screen.findByText(t('en', 'packageSale.recoverOriginal'))).toBeTruthy();
+  expect(
+    screen.getByLabelText(t('en', 'packageSale.pricePaid')).closest('fieldset'),
+  ).toHaveProperty('disabled', true);
+  expect(saleCalls()[1]?.[1].params.header['Idempotency-Key']).toBe(
+    original.params.header['Idempotency-Key'],
+  );
+  expect(saleCalls()[1]?.[1].body).toEqual(original.body);
+});
+
+it('updates an open form when another tab writes and clears recovery', async () => {
+  const first = await uncertainSale();
+  const saved = localStorage.getItem(storageKey) ?? '';
+  first.unmount();
+  first.client.clear();
+  localStorage.clear();
+  renderForm();
+  await chooseCustomer(state);
+  await act(async () => {
+    localStorage.setItem(storageKey, saved);
+    window.dispatchEvent(new StorageEvent('storage', { key: storageKey }));
+  });
+  expect(await screen.findByText(t('en', 'packageSale.recoverOriginal'))).toBeTruthy();
+  expect(
+    screen.getByLabelText(t('en', 'packageSale.pricePaid')).closest('fieldset'),
+  ).toHaveProperty('disabled', true);
+  await act(async () => {
+    localStorage.removeItem(storageKey);
+    window.dispatchEvent(new StorageEvent('storage', { key: storageKey }));
+  });
+  await waitFor(() =>
+    expect(screen.queryByText(t('en', 'packageSale.recoverOriginal'))).toBeNull(),
+  );
+  expect(
+    screen.getByLabelText(t('en', 'packageSale.pricePaid')).closest('fieldset'),
+  ).toHaveProperty('disabled', false);
+});
+
+it('allows a corrected new sale with a new key after confirmed failure', async () => {
+  state.outcome = 'failed';
+  renderForm();
+  await chooseCustomer(state);
+  await chooseTypeAndSeller(state);
+  await submitSale(state);
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: t('en', 'packageSale.submit') })).toHaveProperty(
+      'disabled',
+      false,
+    ),
+  );
+  expect(localStorage.getItem(storageKey)).toBeNull();
+  fireEvent.change(screen.getByLabelText(t('en', 'packageSale.pricePaid')), {
+    target: { value: '25.000' },
+  });
+  state.outcome = 'pending';
+  state.post.mockResolvedValueOnce({
+    data: { sale_request_id: '01920000-0000-7000-8000-000000000099' },
+    response: { status: 202 },
+  });
+  await submitSale(state);
+  await waitFor(() => expect(saleCalls()).toHaveLength(2));
+  expect(saleCalls()[1]?.[1].params.header['Idempotency-Key']).not.toBe(
+    saleCalls()[0]?.[1].params.header['Idempotency-Key'],
+  );
+  expect(
+    await screen.findByRole('button', { name: t('en', 'packageSale.submitting') }),
+  ).toHaveProperty('disabled', true);
 });

@@ -23,7 +23,8 @@ async function postSale(
   held: { current: HeldAttempt | null },
 ): Promise<string> {
   const scopeKey = JSON.stringify(packageSaleScopeKey(scope));
-  const saved = held.current?.scope === scopeKey ? held.current : null;
+  const saved =
+    (held.current?.scope === scopeKey ? held.current : null) ?? readSaleAttempt(scopeKey);
   const attempt =
     saved ?? (body && { key: crypto.randomUUID(), scope: scopeKey, body, createdAt: Date.now() });
   if (!attempt) throw new Error('No original package sale to retry');
@@ -67,10 +68,18 @@ async function postSale(
 export function useSellPackage(scope: SessionServiceScope) {
   const held = useRef<HeldAttempt | null>(null);
   const scopeKey = JSON.stringify(packageSaleScopeKey(scope));
+  const [, refresh] = useState(0);
   const [restoredScope, setRestoredScope] = useState<string | null>(null);
   useEffect(() => {
     held.current = readSaleAttempt(scopeKey);
     setRestoredScope(scopeKey);
+    const sync = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== `pospay:package-sale:${scopeKey}`) return;
+      held.current = readSaleAttempt(scopeKey);
+      refresh((value) => value + 1);
+    };
+    window.addEventListener('storage', sync);
+    return () => window.removeEventListener('storage', sync);
   }, [scopeKey]);
   const mutation = useMutation({
     mutationKey: ['sell-package', ...packageSaleScopeKey(scope)],
@@ -84,6 +93,11 @@ export function useSellPackage(scope: SessionServiceScope) {
     recoveryRequired && Date.now() - (held.current?.createdAt ?? 0) >= 23 * 60 * 60 * 1000;
   return {
     ...mutation,
+    releaseFailed: () => {
+      held.current = null;
+      saveSaleAttempt(scopeKey, null);
+      mutation.reset();
+    },
     recoveryRequired,
     verificationRequired,
     restoring: restoredScope !== scopeKey,

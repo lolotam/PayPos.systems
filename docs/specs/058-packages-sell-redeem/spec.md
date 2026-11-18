@@ -1020,10 +1020,12 @@ PR on those files (pipeline rule: only disjoint files in parallel).
 
 ### Sale picker recovery (PP-131.2)
 
+The recovery journal uses localStorage. Before creating a new sale key, each tab re-reads its scoped journal and restores any unresolved attempt; storage events synchronize recovery across open tabs. Confirmed failed sales release the form for a corrected sale with a new key.
+
 Persist the original sale body and idempotency key before sending, isolated by company, business,
 branch and user. Reload restores the attempt and locks a new sale. Storage failures retain the attempt
 in memory. Sale requests abort after 15 seconds; retries reuse the saved body and key. After 23 hours,
 block replay and explain that the original sale must be verified with the manager. Once its request ID
 is known, use status reads only. Remove the journal only after a confirmed terminal outcome or a
 first-request definitive rejection. Local UI coverage includes reload, timeout, unavailable storage
-and expired-window messages in Arabic and English. The production size cap is lifted for this S0/P1 fix.
+and expired-window messages in Arabic and English.
