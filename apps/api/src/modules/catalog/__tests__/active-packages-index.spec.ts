@@ -44,7 +44,9 @@ it('uses the partial index without stopped-row filtering or sorting for both cur
   const cursors = [undefined, '01920000-0000-7000-8000-000000002710'];
   const explain = (cursor?: string) =>
     f.db.withTenant(f.company, (tx) =>
-      tx.execute(sql`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${statement(cursor)}`),
+      tx.execute<{ 'QUERY PLAN': [{ 'Execution Time': number }] }>(
+        sql`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${statement(cursor)}`,
+      ),
     );
   const before = [];
   for (const cursor of cursors) before.push(await explain(cursor));
@@ -54,6 +56,11 @@ it('uses the partial index without stopped-row filtering or sorting for both cur
   for (const [page, cursor] of cursors.entries()) {
     const after = await explain(cursor);
     evidence.push({ page, before: before[page], after });
+    const baselineTime = before[page]?.[0]?.['QUERY PLAN'][0]['Execution Time'];
+    const indexedTime = after[0]?.['QUERY PLAN'][0]['Execution Time'];
+    expect(baselineTime).toBeTypeOf('number');
+    // PP-165: بنقارن بنفس التشغيل، وسماح 5 ms بيستوعب ضوضاء CI من غير حد زمني ثابت.
+    expect(indexedTime).toBeLessThanOrEqual(2 * Number(baselineTime) + 5);
     const plan = JSON.stringify(after);
     expect(plan).toContain('package_types_active_business_id_idx');
     expect(plan).not.toContain('"Node Type":"Sort"');
