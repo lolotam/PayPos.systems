@@ -34,7 +34,7 @@ export const sessionPerformerCursorCodec = {
 export function createSessionReaders(reads: {
   page(tx: Tx, companyId: string, businessId: string, branchId: string, day: string, query: SessionPerformerOptionsQuery,
     codec: typeof sessionPerformerCursorCodec, requestedAt: string, scopeHash: string,
-    employeeNumber: number | null): Promise<SessionPerformerOptionPage>;
+    employeeNumber: number | null, excludedUserId?: string): Promise<SessionPerformerOptionPage>;
   warningColumns(branchId: string, day: string, occurredAt: Date): SQL;
 }) {
   return {
@@ -43,18 +43,20 @@ export function createSessionReaders(reads: {
       return sessionPerformers(tx, companyId, businessId, branchId, employeeIds, occurredAt, reads.warningColumns, lockOnly);
     },
     async readSessionPerformerOptions(tx: Tx, companyId: string, businessId: string, branchId: string, query: SessionPerformerOptionsQuery,
-      normalizeTime: (instant: string) => string) {
+      normalizeTime: (instant: string) => string, excludedUserId?: string) {
       const place = await schedulingContext(tx, companyId, businessId, branchId);
       if (place === null || !('timezone' in place)) return { items: [], next_cursor: null };
       const requestedAt = new Date(query.occurred_at).toISOString();
-      const scopeHash = sessionPerformerCursorCodec.scope(companyId, businessId, branchId);
+      const scopeHash = excludedUserId === undefined
+        ? sessionPerformerCursorCodec.scope(companyId, businessId, branchId)
+        : searchHash(JSON.stringify([companyId, businessId, branchId, excludedUserId]));
       const cursor = readCursor(query, requestedAt, scopeHash);
       const effectiveAt = cursor?.effective_at ?? normalizeTime(requestedAt);
       // تثبيت لحظة الصفحة الأولى يمنع تبدّل الإجازة الجزئية؛ نتيجة تطبيع الساعة الجديدة لا تُستخدم بعد فحص النافذة.
       if (cursor !== null) normalizeTime(effectiveAt);
       const day = attendanceWorkingDate(new Date(effectiveAt), place.timezone);
       return reads.page(tx, companyId, businessId, branchId, day, { ...query, occurred_at: effectiveAt },
-        sessionPerformerCursorCodec, requestedAt, scopeHash, (query.q === undefined ? null : parseEmployeeNumber(query.q.trim())));
+        sessionPerformerCursorCodec, requestedAt, scopeHash, (query.q === undefined ? null : parseEmployeeNumber(query.q.trim())), excludedUserId);
     },
   };
 }

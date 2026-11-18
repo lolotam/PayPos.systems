@@ -6,13 +6,7 @@ import { actorOf } from '../../../shared/actor.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { AppendServiceSessionLinesUseCase } from '../use-cases/append-service-session-lines/append-service-session-lines.usecase.ts';
 
-@Injectable()
-export class SessionAdminGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
-    if (context.switchToHttp().getRequest<FastifyRequest>().principal?.kind !== 'user') throw new ApiError('FORBIDDEN');
-    return true;
-  }
-}
+export { SessionAdminGuard } from '../../../shared/session-admin.guard.ts';
 @Injectable()
 export class SessionAppendGuard implements CanActivate {
   constructor(@Inject(AppendServiceSessionLinesUseCase) private readonly append: AppendServiceSessionLinesUseCase | null) {}

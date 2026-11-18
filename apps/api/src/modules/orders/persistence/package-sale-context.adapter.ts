@@ -46,6 +46,7 @@ export async function options(
     scope.branchId,
     query,
     (instant) => instant,
+    scope.userId,
   );
   return packageSaleSellerOptionPage.parse({
     sale_anchor: query.occurred_at,

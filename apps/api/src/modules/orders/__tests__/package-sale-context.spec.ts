@@ -89,3 +89,24 @@ it('uses the refreshed server date for branch attachment eligibility', async () 
     setAt(new Date('2026-10-15T08:00:00.000Z'));
   }
 });
+
+it('excludes the recorder employee before paginating sellers and keeps other performers', async () => {
+  const recorder = must(f.employees[0]);
+  const anchor = f.clock.now().toISOString();
+  const before = await handler.sellers(scope(), sellerQuery(anchor));
+  expect(before.items.map((entry) => entry.id)).toContain(recorder);
+  await f.h.owner`UPDATE employees SET user_id=${f.userId} WHERE company_id=${f.company} AND id=${recorder}`;
+  try {
+    const sellers: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await handler.sellers(scope(), sellerQuery(anchor, 1, cursor));
+      sellers.push(...page.items.map((entry) => entry.id));
+      cursor = page.next_cursor ?? undefined;
+    } while (cursor !== undefined);
+    expect(sellers).not.toContain(recorder);
+    expect(sellers.sort()).toEqual(before.items.map((entry) => entry.id).filter((id) => id !== recorder).sort());
+  } finally {
+    await f.h.owner`UPDATE employees SET user_id=NULL WHERE company_id=${f.company} AND id=${recorder}`;
+  }
+});
