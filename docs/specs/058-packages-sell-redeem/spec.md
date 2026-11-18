@@ -1017,3 +1017,13 @@ PR on those files (pipeline rule: only disjoint files in parallel).
 - The bell and dialog copy are proposed; changing them needs no migration.
 - A redeemed line keeps the SS-Q2 self rule: a recorder cannot redeem a session she performs.
 - Phase 1 has no production packages; the import (47) is how the pilot salon's open packages arrive (D-48, D-51).
+
+### Sale picker recovery (PP-131.2)
+
+Persist the original sale body and idempotency key before sending, isolated by company, business,
+branch and user. Reload restores the attempt and locks a new sale. Storage failures retain the attempt
+in memory. Sale requests abort after 15 seconds; retries reuse the saved body and key. After 23 hours,
+block replay and explain that the original sale must be verified with the manager. Once its request ID
+is known, use status reads only. Remove the journal only after a confirmed terminal outcome or a
+first-request definitive rejection. Local UI coverage includes reload, timeout, unavailable storage
+and expired-window messages in Arabic and English. The production size cap is lifted for this S0/P1 fix.

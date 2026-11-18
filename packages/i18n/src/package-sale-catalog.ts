@@ -26,6 +26,8 @@ export const packageSaleEn = {
   recoverOriginal:
     'The previous sale may have been accepted. Edits are locked; retry only the original sale.',
   retryOriginal: 'Retry original sale',
+  verificationRequired:
+    'The retry window has expired. Verify the original sale with your manager before starting another sale.',
   customerUnavailable: 'You do not have access to customer selection for this sale.',
   invalid: 'Choose a customer, package, seller and recorder, and enter a valid price.',
   pending: 'Processing',
@@ -64,6 +66,8 @@ export const packageSaleAr: Record<keyof typeof packageSaleEn, string> = {
   submitting: 'جاري بيع الباقة…',
   recoverOriginal: 'البيع السابق ممكن يكون اتقبل. التعديل مقفول؛ أعيدي محاولة البيع الأصلي فقط.',
   retryOriginal: 'إعادة محاولة البيع الأصلي',
+  verificationRequired:
+    'انتهت مهلة إعادة المحاولة. تحققي من نتيجة البيع الأصلي مع المدير قبل بدء بيع جديد.',
   customerUnavailable: 'اختيار الزبونة غير متاح بصلاحياتك لهذا البيع.',
   invalid: 'اختاري الزبونة والباقة والبائعة وعضوية التسجيل، واكتبي سعر صحيح.',
   pending: 'قيد التنفيذ',

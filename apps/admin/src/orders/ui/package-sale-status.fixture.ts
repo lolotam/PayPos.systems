@@ -281,6 +281,7 @@ export async function submitPackageSale(state: PackageSaleFormTestState) {
 }
 
 export function resetPackageSaleFormTest(state: PackageSaleFormTestState) {
+  sessionStorage.clear();
   state.get.mockReset();
   state.post.mockReset();
   state.locale = 'en';

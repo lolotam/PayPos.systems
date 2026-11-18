@@ -110,6 +110,7 @@ async function expectStatusOnlyRecheck(
 }
 
 beforeEach(() => {
+  sessionStorage.clear();
   state.get.mockReset();
   state.post.mockReset();
 });

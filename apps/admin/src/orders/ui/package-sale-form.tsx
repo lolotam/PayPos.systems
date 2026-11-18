@@ -117,13 +117,14 @@ function usePackageSaleFormState(scope: SessionServiceScope, locale: 'ar' | 'en'
     },
   });
   const mutation = useSellPackage(scope);
-  const status = usePackageSaleStatus(scope, saleRequestId);
+  const knownSaleId = saleRequestId ?? mutation.restoredSaleId;
+  const status = usePackageSaleStatus(scope, knownSaleId);
   const pending =
     mutation.isPending ||
-    (saleRequestId !== null &&
+    (knownSaleId !== null &&
       status.data?.status !== 'completed' &&
       status.data?.status !== 'failed');
-  const locked = pending || mutation.recoveryRequired;
+  const locked = pending || mutation.recoveryRequired || mutation.restoring;
   const { recorder, recorderField } = usePackageSaleRecorderField(recorders, locale, locked);
   const submitSale = packageSaleSubmission(form, locale, mutation, setSaleRequestId);
   const entryScope = context.data?.customer_entry_scope;
@@ -132,7 +133,8 @@ function usePackageSaleFormState(scope: SessionServiceScope, locale: 'ar' | 'en'
   );
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (submissionLatch.current || pending) return;
+    if (submissionLatch.current || pending || mutation.restoring || mutation.verificationRequired)
+      return;
     submissionLatch.current = true;
     const request = mutation.recoveryRequired
       ? mutation.mutateAsync(undefined).then(setSaleRequestId, () => undefined)
@@ -146,7 +148,7 @@ function usePackageSaleFormState(scope: SessionServiceScope, locale: 'ar' | 'en'
     customer,
     type,
     recorderField,
-    saleRequestId,
+    saleRequestId: knownSaleId,
     form,
     mutation,
     status,
@@ -181,6 +183,27 @@ function packageSaleResult(
       error={status.error}
     />
   ) : null;
+}
+
+function packageSaleRecoveryMessage(
+  locale: 'ar' | 'en',
+  mutation: ReturnType<typeof useSellPackage>,
+) {
+  return (
+    <>
+      {mutation.recoveryRequired ? (
+        <p role="alert">
+          {t(
+            locale,
+            mutation.verificationRequired
+              ? 'packageSale.verificationRequired'
+              : 'packageSale.recoverOriginal',
+          )}
+        </p>
+      ) : null}
+      {mutation.isError ? <p role="alert">{envelopeMessage(mutation.error, locale)}</p> : null}
+    </>
+  );
 }
 
 export function PackageSaleForm({ scope }: { scope: SessionServiceScope }) {
@@ -223,14 +246,14 @@ export function PackageSaleForm({ scope }: { scope: SessionServiceScope }) {
       />
       <PackageSaleFields scope={scope} form={form} disabled={locked} />
       {form.formState.errors.root ? <p role="alert">{form.formState.errors.root.message}</p> : null}
-      {mutation.recoveryRequired ? (
-        <p role="alert">{t(locale, 'packageSale.recoverOriginal')}</p>
-      ) : null}
-      {mutation.isError ? <p role="alert">{envelopeMessage(mutation.error, locale)}</p> : null}
+      {packageSaleRecoveryMessage(locale, mutation)}
       <Button
         type="submit"
         disabled={
           pending ||
+          mutation.restoring ||
+          mutation.verificationRequired ||
+          saleRequestId !== null ||
           (!entryScope && !mutation.recoveryRequired) ||
           status.data?.status === 'completed'
         }
