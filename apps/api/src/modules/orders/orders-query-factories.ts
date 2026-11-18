@@ -195,7 +195,6 @@ function sessionReads(a: OrdersQueryAdapters) {
 }
 
 function optionQueries(a: OrdersQueryAdapters) {
-  const reads = sessionReads(a);
   return {
     ordersPerformerOptionsQuery(database: TenantWrappers, clock: Clock = systemClock) {
       const options = a.performerOptions;
@@ -242,7 +241,8 @@ function optionQueries(a: OrdersQueryAdapters) {
     ordersCapabilitiesQuery(database: TenantWrappers) {
       const capabilities = a.capabilities;
       return new ServiceSessionCapabilitiesQuery(database, {
-        ...reads(),
+        place: branchArgs(capabilities.place),
+        read: userArgs(capabilities.read),
         cancel: userArgs(capabilities.cancel),
         performers: userArgs(capabilities.performers),
         record: userArgs(capabilities.record),
