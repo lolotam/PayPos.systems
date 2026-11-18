@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { t } from '@pospay/i18n';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import {
@@ -31,11 +31,15 @@ vi.mock('@/shared/locale/locale-context', () => ({
 }));
 
 beforeEach(() => {
+  sessionStorage.clear();
   localStorage.clear();
   resetPackageSaleFormTest(state);
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  Reflect.deleteProperty(navigator, 'locks');
+  vi.restoreAllMocks();
+});
 const storageKey = `pospay:package-sale:${JSON.stringify(Object.values(packageSaleScope))}`;
 const saleCalls = () => state.post.mock.calls.filter(([path]) => path === salePath);
 
@@ -228,12 +232,22 @@ it('allows a corrected new sale with a new key after confirmed failure', async (
   fireEvent.change(screen.getByLabelText(t('en', 'packageSale.pricePaid')), {
     target: { value: '25.000' },
   });
+  expect(screen.getByText(/The quote changed/)).toBeTruthy();
   state.outcome = 'pending';
-  state.post.mockResolvedValueOnce({
-    data: { sale_request_id: '01920000-0000-7000-8000-000000000099' },
-    response: { status: 202 },
-  });
+  let accept!: () => void;
+  state.post.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        accept = () =>
+          resolve({
+            data: { sale_request_id: '01920000-0000-7000-8000-000000000099' },
+            response: { status: 202 },
+          });
+      }),
+  );
   await submitSale(state);
+  await waitFor(() => expect(screen.queryByText(/The quote changed/)).toBeNull());
+  await act(async () => accept());
   await waitFor(() => expect(saleCalls()).toHaveLength(2));
   expect(saleCalls()[1]?.[1].params.header['Idempotency-Key']).not.toBe(
     saleCalls()[0]?.[1].params.header['Idempotency-Key'],
@@ -241,4 +255,61 @@ it('allows a corrected new sale with a new key after confirmed failure', async (
   expect(
     await screen.findByRole('button', { name: t('en', 'packageSale.submitting') }),
   ).toHaveProperty('disabled', true);
+});
+
+it('migrates a legacy session journal on mount and restores recovery', async () => {
+  const first = await uncertainSale();
+  const saved = localStorage.getItem(storageKey) ?? 'null';
+  first.unmount();
+  first.client.clear();
+  localStorage.clear();
+  sessionStorage.setItem(storageKey, saved);
+  renderForm();
+  expect(await screen.findByText(t('en', 'packageSale.recoverOriginal'))).toBeTruthy();
+  expect(
+    screen.getByLabelText(t('en', 'packageSale.pricePaid')).closest('fieldset'),
+  ).toHaveProperty('disabled', true);
+  expect(localStorage.getItem(storageKey)).toBe(saved);
+  expect(sessionStorage.getItem(storageKey)).toBeNull();
+});
+
+it('reserves one key for racing tabs and locks the second form into recovery', async () => {
+  let queue = Promise.resolve();
+  const request = vi.fn((_name: string, callback: () => unknown) => {
+    const next = queue.then(callback);
+    queue = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
+  });
+  Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } });
+  const first = renderForm();
+  await chooseCustomer(state);
+  await chooseTypeAndSeller(state);
+  // Temporarily detach the first form so the shared fixture can prepare the second tab.
+  first.container.remove();
+  const second = renderForm();
+  await chooseCustomer(state);
+  await chooseTypeAndSeller(state);
+  document.body.append(first.container);
+  state.post.mockImplementationOnce(() => new Promise(() => {}));
+  const firstForm = first.container.querySelector('form');
+  const secondForm = second.container.querySelector('form');
+  if (!firstForm || !secondForm) throw new Error('Missing sale forms');
+  await act(async () => {
+    fireEvent.submit(firstForm);
+    fireEvent.submit(secondForm);
+  });
+  expect(
+    await within(second.container).findByText(t('en', 'packageSale.recoverOriginal')),
+  ).toBeTruthy();
+  expect(
+    within(second.container).getByLabelText(t('en', 'packageSale.pricePaid')).closest('fieldset'),
+  ).toHaveProperty('disabled', true);
+  expect(saleCalls()).toHaveLength(1);
+  expect(JSON.parse(localStorage.getItem(storageKey) ?? 'null').key).toBe(
+    saleCalls()[0]?.[1].params.header['Idempotency-Key'],
+  );
+  expect(request.mock.calls[0]?.[0]).toBe(request.mock.calls[1]?.[0]);
 });

@@ -142,6 +142,7 @@ function usePackageSaleFormState(scope: SessionServiceScope, locale: 'ar' | 'en'
     event.preventDefault();
     if (submissionLatch.current || pending || mutation.restoring || mutation.verificationRequired)
       return;
+    setFailure(undefined);
     submissionLatch.current = true;
     const request = mutation.recoveryRequired
       ? mutation.mutateAsync(undefined).then(setSaleRequestId, () => undefined)

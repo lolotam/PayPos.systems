@@ -4,7 +4,13 @@ import { useMutation } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { apiClient } from '@/shared/api/client';
 import { packageSaleParams, packageSaleScopeKey } from './use-package-sale-context';
-import { readSaleAttempt, saveSaleAttempt, type HeldAttempt } from './package-sale-attempt';
+import {
+  readSaleAttempt,
+  restoreSaleAttempt,
+  saveSaleAttempt,
+  withSaleAttemptLock,
+  type HeldAttempt,
+} from './package-sale-attempt';
 import type { SessionServiceScope } from './use-session-services';
 
 const salePath = '/v1/businesses/{businessId}/branches/{branchId}/package-sales';
@@ -23,16 +29,21 @@ async function postSale(
   held: { current: HeldAttempt | null },
 ): Promise<string> {
   const scopeKey = JSON.stringify(packageSaleScopeKey(scope));
-  const saved =
-    (held.current?.scope === scopeKey ? held.current : null) ?? readSaleAttempt(scopeKey);
-  const attempt =
-    saved ?? (body && { key: crypto.randomUUID(), scope: scopeKey, body, createdAt: Date.now() });
-  if (!attempt) throw new Error('No original package sale to retry');
-  held.current = attempt;
+  const { saved, attempt } = await withSaleAttemptLock(scopeKey, () => {
+    const saved =
+      readSaleAttempt(scopeKey) ?? (held.current?.scope === scopeKey ? held.current : null);
+    const attempt =
+      saved ?? (body && { key: crypto.randomUUID(), scope: scopeKey, body, createdAt: Date.now() });
+    if (!attempt) throw new Error('No original package sale to retry');
+    held.current = attempt;
+    if (saved && body && typeof navigator.locks?.request === 'function')
+      throw new Error('PACKAGE_SALE_RECOVERY_REQUIRED');
+    saveSaleAttempt(scopeKey, attempt);
+    return { saved, attempt };
+  });
   if (attempt.saleId) return attempt.saleId;
   if (Date.now() - attempt.createdAt >= 23 * 60 * 60 * 1000)
     throw new Error('PACKAGE_SALE_VERIFICATION_REQUIRED');
-  saveSaleAttempt(scopeKey, attempt);
   const { sold_at, recorder_membership_id, ...required } = attempt.body;
   const result = await apiClient().POST(salePath, {
     signal: AbortSignal.timeout(15_000),
@@ -71,7 +82,7 @@ export function useSellPackage(scope: SessionServiceScope) {
   const [, refresh] = useState(0);
   const [restoredScope, setRestoredScope] = useState<string | null>(null);
   useEffect(() => {
-    held.current = readSaleAttempt(scopeKey);
+    held.current = restoreSaleAttempt(scopeKey);
     setRestoredScope(scopeKey);
     const sync = (event: StorageEvent) => {
       if (event.key !== null && event.key !== `pospay:package-sale:${scopeKey}`) return;
