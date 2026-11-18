@@ -11,7 +11,7 @@ import { useId, useLayoutEffect, useRef } from 'react';
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
-import { useSessionCustomer } from '../api/use-session-customer';
+import { useSessionCustomer, type SessionCustomerEntryScope } from '../api/use-session-customer';
 
 export type SessionCustomerSelection = Pick<Customer, 'id' | 'name' | 'phone'>;
 
@@ -19,6 +19,8 @@ type SessionCustomerFieldProps = {
   companyId: string;
   branchId: string;
   userId: string;
+  businessId?: string;
+  entryScope?: SessionCustomerEntryScope;
   value: SessionCustomerSelection | null;
   onChange: (value: SessionCustomerSelection | null) => void;
   onBlur?: () => void;
@@ -123,16 +125,18 @@ function useSessionCustomerEntry({
   companyId,
   branchId,
   userId,
+  businessId,
+  entryScope = 'branch',
   value,
   onChange,
   locale,
 }: SessionCustomerEntryOptions) {
-  const mutation = useSessionCustomer(companyId, branchId, userId);
+  const mutation = useSessionCustomer(companyId, branchId, userId, entryScope, businessId);
   const form = useForm<FindOrCreateCustomerInput>({
     resolver: zodResolver(findOrCreateCustomerInput),
     defaultValues: customerEntry(value?.name ?? '', locale),
   });
-  const scope = JSON.stringify([companyId, branchId, userId]);
+  const scope = JSON.stringify([companyId, branchId, userId, businessId, entryScope]);
   const publish = useSessionCustomerSynchronization({
     form,
     mutation,
@@ -236,6 +240,8 @@ export function SessionCustomerField({
   companyId,
   branchId,
   userId,
+  businessId,
+  entryScope = 'branch',
   value,
   onChange,
   onBlur,
@@ -244,7 +250,16 @@ export function SessionCustomerField({
   const locale = useLocale();
   const prefix = useId();
   const { form, mutation, invalid, nameEntry, callingCode, nationalNumber, resolve, invalidate } =
-    useSessionCustomerEntry({ companyId, branchId, userId, value, onChange, locale });
+    useSessionCustomerEntry({
+      companyId,
+      branchId,
+      userId,
+      ...(businessId === undefined ? {} : { businessId }),
+      entryScope,
+      value,
+      onChange,
+      locale,
+    });
   return (
     <fieldset
       disabled={disabled || mutation.isPending || form.formState.isSubmitting}

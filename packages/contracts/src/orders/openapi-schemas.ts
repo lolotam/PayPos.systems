@@ -2,6 +2,7 @@ import { packageImportPreviewSchemas } from './package-import-preview.js';
 import { discountApprovalEventSchemas } from './discount-approval-events.js';
 import { discountApprovalSchemas } from './discount-approval.js';
 import { packageSaleSchemas } from './package-sale.js';
+import { packageSaleContextSchemas } from './package-sale-context.js';
 import { customerPackageSchemas } from './customer-packages.js';
 import { serviceSessionDaySchemas } from './service-session-day.js';
 import { serviceLineCancellationSchemas } from './service-line-cancellation.js';
@@ -19,6 +20,7 @@ export const orderSchemas = [
   ...serviceSessionSchemas,
   ...sessionTipsSchemas,
   ...packageSaleSchemas,
+  ...packageSaleContextSchemas,
   ...customerPackageSchemas,
   ...serviceSessionDaySchemas,
   ...serviceLineEditsSchemas,

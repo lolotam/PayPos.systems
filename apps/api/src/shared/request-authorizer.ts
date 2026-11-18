@@ -7,5 +7,6 @@ export interface RequestAuthorizer {
     permission: string;
     businessParam?: unknown;
     branchParam?: unknown;
-  }): Promise<unknown | null>;
+    featureFlag?: string;
+  }): Promise<{ feature?: { enabled: boolean } } | null>;
 }

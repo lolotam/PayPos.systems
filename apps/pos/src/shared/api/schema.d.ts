@@ -106,6 +106,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/branches/{branchId}/package-sales/context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Returns the current server sale anchor, effective branch timezone and only the caller's sale-eligible recorder memberships. Requires sell:packages:branch and the orders feature; no session-recording permission. */
+        get: operations["getPackageSaleContext"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/package-sales/seller-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Cursor-paginated sale-eligible seller ids, names and employee numbers. The first page uses the current server clock and returns that sale_anchor for subsequent cursors. Requires sell:packages:branch and the orders feature; no session-recording or performer-change permission. No attendance or private HR fields. */
+        get: operations["listPackageSaleSellers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/package-sales": {
         parameters: {
             query?: never;
@@ -2259,6 +2293,23 @@ export interface paths {
         put?: never;
         /** @description Reopens one service against expected_revision. Requires close:services:business AND read:services:business and the catalog feature. Errors: SERVICE_NOT_FOUND (404), SERVICE_NOT_CLOSED, SERVICE_CATEGORY_CLOSED and SERVICE_REVISION_CONFLICT (409). */
         post: operations["reopenService"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/branches/{branchId}/sellable-package-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Cursor-paginated package types available for reception sale. Requires sell:packages:branch and the orders feature, never read:package-types:business. Lists only types whose selling is not stopped. Missing permission, a device, or a disabled orders feature is refused. */
+        get: operations["listSellablePackageTypes"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5512,6 +5563,35 @@ export interface components {
             /** @default 20 */
             limit: number;
         };
+        SellablePackageComponent: {
+            /** Format: uuid */
+            service_id: string;
+            service_revision: number;
+            name_en: string;
+            name_ar: string | null;
+            sessions: number;
+            list_price: string;
+        };
+        SellablePackageType: {
+            /** Format: uuid */
+            id: string;
+            revision: number;
+            name_en: string;
+            name_ar: string | null;
+            price: string;
+            validity_days: number;
+            components: components["schemas"]["SellablePackageComponent"][];
+        };
+        SellablePackageTypePage: {
+            items: components["schemas"]["SellablePackageType"][];
+            next_cursor: string | null;
+        };
+        SellablePackageTypeListQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
         PackageServiceOption: {
             /** Format: uuid */
             id: string;
@@ -6638,6 +6718,35 @@ export interface components {
             revision: number;
             /** @enum {number} */
             schema_version: 1;
+        };
+        PackageSaleRecorder: {
+            /** Format: uuid */
+            membership_id: string;
+            /** @enum {string} */
+            scope_type: "COMPANY" | "BUSINESS" | "BRANCH";
+            /** Format: uuid */
+            scope_id: string;
+        };
+        PackageSaleContext: {
+            /** Format: date-time */
+            generated_at: string;
+            business_timezone: string;
+            /** @enum {string|null} */
+            customer_entry_scope: "branch" | "business" | "company" | null;
+            recorders: components["schemas"]["PackageSaleRecorder"][];
+        };
+        PackageSaleSellerOption: {
+            /** Format: uuid */
+            id: string;
+            name_ar: string | null;
+            name_en: string;
+            employee_number: number;
+        };
+        PackageSaleSellerOptionPage: {
+            /** Format: date-time */
+            sale_anchor: string;
+            items: components["schemas"]["PackageSaleSellerOption"][];
+            next_cursor: string | null;
         };
         CustomerPackagesQuery: {
             cursor?: string;
@@ -9137,6 +9246,107 @@ export interface operations {
             };
             /** @description PACKAGE_EXTENSION_NOT_LATER, PACKAGE_EXTENSION_TOO_LONG or IDEMPOTENCY_KEY_REUSED. */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getPackageSaleContext: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Package-sale read result. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageSaleContext"];
+                };
+            };
+            /** @description Permission, DENY, invalid place, device principal or disabled orders feature. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual authentication or readiness refusal. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listPackageSaleSellers: {
+        parameters: {
+            query: {
+                lang: "ar" | "en";
+                occurred_at: string;
+                cursor?: string;
+                q?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Package-sale read result. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageSaleSellerOptionPage"];
+                };
+            };
+            /** @description Invalid query or cursor. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Permission, DENY, invalid place, device principal or disabled orders feature. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -16706,6 +16916,52 @@ export interface operations {
             };
             /** @description Bilingual refusal */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listSellablePackageTypes: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                branchId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sellable package type page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SellablePackageTypePage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -5,6 +5,7 @@ import { ar } from './ar.js';
 import { commissionStatementAr, commissionStatementEn } from './commission-statement-catalog.js';
 import { en } from './en.js';
 import { nativeShellAr, nativeShellEn } from './native-shell-catalog.js';
+import { packageSaleAr, packageSaleEn } from './package-sale-catalog.js';
 import { ratingRequestAr, ratingRequestEn } from './rating-catalog.js';
 import { publicRatingAr, publicRatingEn } from './public-rating-catalog.js';
 import { sessionTipsAr, sessionTipsEn } from './session-tips-catalog.js';
@@ -45,6 +46,7 @@ type RegisteredCatalog = Catalog & {
   readonly staffAppColumns: Record<keyof typeof staffAppColumnsEn, string>;
   readonly staffPush: Record<keyof typeof staffPushEn, string>;
   readonly nativeShell: Record<keyof typeof nativeShellEn, string>;
+  readonly packageSale: Record<keyof typeof packageSaleEn, string>;
   readonly ratingRequest: Record<keyof typeof ratingRequestEn, string>;
 };
 
@@ -74,6 +76,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     staffAppColumns: staffAppColumnsAr,
     staffPush: staffPushAr,
     nativeShell: nativeShellAr,
+    packageSale: packageSaleAr,
     ratingRequest: ratingRequestAr,
   },
   en: {
@@ -93,6 +96,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     staffAppColumns: staffAppColumnsEn,
     staffPush: staffPushEn,
     nativeShell: nativeShellEn,
+    packageSale: packageSaleEn,
     ratingRequest: ratingRequestEn,
   },
 };

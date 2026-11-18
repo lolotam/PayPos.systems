@@ -15,6 +15,7 @@ import { DiscountProposalsController } from './http/discount-proposals.controlle
 import { DeviceDiscountProposalsController } from './http/device-discount-proposals.controller.ts';
 import { OwnWorkController, OWN_WORK_CLOCK } from './http/own-work.controller.ts';
 import { PackageSalesController } from './http/package-sales.controller.ts';
+import { PackageSaleContextController } from './http/package-sale-context.controller.ts';
 import { CustomerPackagesController } from './http/customer-packages.controller.ts';
 import { RequestPackageImportPreviewUseCase } from './use-cases/request-package-import-preview/request-package-import-preview.usecase.ts';
 import { ExtendPackageUseCase } from './use-cases/extend-package/extend-package.usecase.ts';
@@ -46,12 +47,15 @@ import { DeviceDiscountProposalsQuery } from './queries/device-discount-proposal
 import { CustomerPackagesQueryHandler } from './queries/customer-packages.query.ts';
 import { CustomerPackageDetailQueryHandler } from './queries/package-entitlement-detail.query.ts';
 import { PackageSaleStatusQuery } from './queries/package-sale-status.query.ts';
+import { PackageSaleContextQueryHandler } from './queries/package-sale-context.query.ts';
+import { packageSaleContextValue } from './queries/package-sale-context.query.ts';
 import { OWN_WORK_READS } from './queries/own-work-context.ts';
 import { sessionTime } from './domain/session-time.ts';
 import { createPackageImportRequestTransactions } from './persistence/package-import-request.transactions.ts';
 import { createPackageExtensionTransactions } from './persistence/package-extension.transactions.ts';
 import { createPackageRefundTransactions } from './persistence/package-refund.transactions.ts';
 import { createPackageSaleRequestTransactions } from './persistence/package-sale-request.transactions.ts';
+import * as saleContext from './persistence/package-sale-context.adapter.ts';
 import { sessionServiceOptions } from './persistence/session-service-options.adapter.ts';
 import { sessionPerformerOptions } from './persistence/session-performer-options.adapter.ts';
 import {
@@ -155,6 +159,7 @@ export const ordersControllers: Type[] = [
 
 ordersControllers.push(DeviceDiscountProposalsController);
 ordersControllers.push(OwnWorkController);
+ordersControllers.push(PackageSaleContextController);
 ordersControllers.push(PackageSalesController);
 ordersControllers.push(CustomerPackagesController);
 
@@ -283,15 +288,6 @@ function ordersPackageCommandProviders(
   ];
 }
 
-function ordersSessionGuardProviders(): Provider[] {
-  return [
-    SelectedCompanyGuard,
-    SessionAdminGuard,
-    SessionAppendGuard,
-    value(SessionErrorsFilter, new SessionErrorsFilter()),
-  ];
-}
-
 function ordersSessionProviders(
   writes: OrdersWrites,
   database: TenantWrappers | undefined,
@@ -379,6 +375,7 @@ function ordersDiscountAndPackageProviders(
       createPackageSaleRequestTransactions,
     ),
     fromDb(PackageSaleStatusQuery, database, packageSaleStatusValue),
+    fromDb(PackageSaleContextQueryHandler, database, packageSaleContextValue, saleContext, clock),
   ];
 }
 
@@ -396,7 +393,10 @@ export function ordersProviders(
         };
   return [
     ...ordersPackageCommandProviders(database, ids, clock),
-    ...ordersSessionGuardProviders(),
+    SelectedCompanyGuard,
+    SessionAdminGuard,
+    SessionAppendGuard,
+    value(SessionErrorsFilter, new SessionErrorsFilter()),
     ...ordersSessionProviders(writes, database, ids, clock),
     ...ordersDiscountAndPackageProviders(database, ids, clock),
     value(OWN_WORK_READS, ownWorkReads),
