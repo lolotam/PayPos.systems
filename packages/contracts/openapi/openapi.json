@@ -714,6 +714,197 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/branches/{branchId}/package-sales/context": {
+      "get": {
+        "operationId": "getPackageSaleContext",
+        "description": "Returns the current server sale anchor, effective branch timezone and only the caller's sale-eligible recorder memberships. Requires sell:packages:branch and the orders feature; no session-recording permission.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Package-sale read result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageSaleContext"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission, DENY, invalid place, device principal or disabled orders feature.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual authentication or readiness refusal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/branches/{branchId}/package-sales/seller-options": {
+      "get": {
+        "operationId": "listPackageSaleSellers",
+        "description": "Cursor-paginated sale-eligible seller ids, names and employee numbers. The first page uses the current server clock and returns that sale_anchor for subsequent cursors. Requires sell:packages:branch and the orders feature; no session-recording or performer-change permission. No attendance or private HR fields.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lang",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ar",
+                "en"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "occurred_at",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Package-sale read result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageSaleSellerOptionPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query or cursor.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Permission, DENY, invalid place, device principal or disabled orders feature.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual authentication or readiness refusal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/branches/{branchId}/package-sales": {
       "post": {
         "operationId": "sellPackage",
@@ -14200,6 +14391,91 @@
             }
           },
           "409": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/branches/{branchId}/sellable-package-types": {
+      "get": {
+        "operationId": "listSellablePackageTypes",
+        "description": "Cursor-paginated package types available for reception sale. Requires sell:packages:branch and the orders feature, never read:package-types:business. Lists only types whose selling is not stopped. Missing permission, a device, or a disabled orders feature is refused.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "branchId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sellable package type page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SellablePackageTypePage"
+                }
+              }
+            }
+          },
+          "403": {
             "description": "Bilingual refusal",
             "content": {
               "application/json": {
@@ -29507,6 +29783,153 @@
         },
         "additionalProperties": false
       },
+      "SellablePackageComponent": {
+        "type": "object",
+        "properties": {
+          "service_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "service_revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "name_en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "not": {
+              "type": "string",
+              "pattern": "[\\x00-\\x1F\\x7F-\\x9F]"
+            }
+          },
+          "name_ar": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "not": {
+              "type": "string",
+              "pattern": "[\\x00-\\x1F\\x7F-\\x9F]"
+            }
+          },
+          "sessions": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 365
+          },
+          "list_price": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d{0,10})\\.\\d{3}$"
+          }
+        },
+        "required": [
+          "service_id",
+          "service_revision",
+          "name_en",
+          "name_ar",
+          "sessions",
+          "list_price"
+        ]
+      },
+      "SellablePackageType": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483646
+          },
+          "name_en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "not": {
+              "type": "string",
+              "pattern": "[\\x00-\\x1F\\x7F-\\x9F]"
+            }
+          },
+          "name_ar": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "not": {
+              "type": "string",
+              "pattern": "[\\x00-\\x1F\\x7F-\\x9F]"
+            }
+          },
+          "price": {
+            "type": "string",
+            "pattern": "^(0|[1-9]\\d{0,10})\\.\\d{3}$"
+          },
+          "validity_days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 730
+          },
+          "components": {
+            "minItems": 1,
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SellablePackageComponent"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "revision",
+          "name_en",
+          "name_ar",
+          "price",
+          "validity_days",
+          "components"
+        ]
+      },
+      "SellablePackageTypePage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SellablePackageType"
+            }
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "SellablePackageTypeListQuery": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      },
       "PackageServiceOption": {
         "type": "object",
         "properties": {
@@ -34209,6 +34632,131 @@
           "schema_version"
         ],
         "additionalProperties": false
+      },
+      "PackageSaleRecorder": {
+        "type": "object",
+        "properties": {
+          "membership_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "scope_type": {
+            "type": "string",
+            "enum": [
+              "COMPANY",
+              "BUSINESS",
+              "BRANCH"
+            ]
+          },
+          "scope_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "membership_id",
+          "scope_type",
+          "scope_id"
+        ]
+      },
+      "PackageSaleContext": {
+        "type": "object",
+        "properties": {
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "business_timezone": {
+            "type": "string",
+            "minLength": 1
+          },
+          "customer_entry_scope": {
+            "nullable": true,
+            "type": "string",
+            "enum": [
+              "branch",
+              "business",
+              "company"
+            ]
+          },
+          "recorders": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackageSaleRecorder"
+            }
+          }
+        },
+        "required": [
+          "generated_at",
+          "business_timezone",
+          "customer_entry_scope",
+          "recorders"
+        ]
+      },
+      "PackageSaleSellerOption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name_ar": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "name_en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "employee_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999999
+          }
+        },
+        "required": [
+          "id",
+          "name_ar",
+          "name_en",
+          "employee_number"
+        ]
+      },
+      "PackageSaleSellerOptionPage": {
+        "type": "object",
+        "properties": {
+          "sale_anchor": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "items": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PackageSaleSellerOption"
+            }
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        },
+        "required": [
+          "sale_anchor",
+          "items",
+          "next_cursor"
+        ]
       },
       "CustomerPackagesQuery": {
         "type": "object",

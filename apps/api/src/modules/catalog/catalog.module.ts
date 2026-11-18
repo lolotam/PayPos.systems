@@ -1,9 +1,12 @@
 import { PackageTypesController } from './http/package-types.controller.ts';
+import { SellablePackageTypesController } from './http/sellable-package-types.controller.ts';
 import { BranchServiceCategoriesController } from './http/branch-service-categories.controller.ts';
 import { ServiceCategoriesController } from './http/service-categories.controller.ts';
 import { ServiceCategoryClosingsController } from './http/service-category-closings.controller.ts';
 import { createPackageTypeTransactions } from './persistence/drizzle-package-type-transactions.ts';
 import { createServiceCategoryTransactions } from './persistence/drizzle-service-category-transactions.ts';
+import { readSellablePackageSalePlace } from './persistence/package-sale-place.adapter.ts';
+import { SELLABLE_PACKAGE_PLACE } from './queries/sellable-package-types.query.ts';
 import { CreatePackageTypeUseCase } from './use-cases/create-package-type/create-package-type.usecase.ts';
 import { ResumeSellingPackageTypeUseCase } from './use-cases/resume-selling-package-type/resume-selling-package-type.usecase.ts';
 import { StopSellingPackageTypeUseCase } from './use-cases/stop-selling-package-type/stop-selling-package-type.usecase.ts';
@@ -27,6 +30,7 @@ import { UpdateServiceUseCase } from './use-cases/update-service/update-service.
 export const catalogControllers = [
   ServicesController,
   PackageTypesController,
+  SellablePackageTypesController,
   ServiceCategoriesController,
   ServiceCategoryClosingsController,
   BranchServiceCategoriesController,
@@ -72,6 +76,10 @@ export function catalogProviders(
   const categories =
     database === undefined ? null : createServiceCategoryTransactions(database, ids);
   return [
+    {
+      provide: SELLABLE_PACKAGE_PLACE,
+      useValue: readSellablePackageSalePlace,
+    },
     {
       provide: CreatePackageTypeUseCase,
       useValue: packages === null ? null : new CreatePackageTypeUseCase(packages, ids, systemClock),

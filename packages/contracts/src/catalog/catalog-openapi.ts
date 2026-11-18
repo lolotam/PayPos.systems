@@ -1,5 +1,6 @@
 import { packageTypeSchemas } from './package-type.js';
 import { packageTypeSellingPaths } from './package-type-selling-openapi.js';
+import { sellablePackageTypeSchemas } from './sellable-package-type.js';
 import { packageServiceOptionSchemas } from './package-service-option.js';
 import { serviceCategorySchemas } from './service-category.js';
 import { serviceCategoryClosingSchemas } from './service-category-closing.js';
@@ -20,6 +21,7 @@ export const catalogSchemas = [
   ...serviceCategorySchemas,
   ...serviceCategoryClosingSchemas,
   ...packageTypeSchemas,
+  ...sellablePackageTypeSchemas,
   ...packageServiceOptionSchemas,
 ];
 
@@ -191,6 +193,31 @@ export const catalogPaths = {
         '200': { description: 'Reopened service', content: json('Service') },
         '404': errors,
         '409': errors,
+        default: errors,
+      },
+    },
+  },
+  '/v1/businesses/{businessId}/branches/{branchId}/sellable-package-types': {
+    get: {
+      operationId: 'listSellablePackageTypes',
+      description:
+        'Cursor-paginated package types available for reception sale. Requires sell:packages:branch and the orders feature, never read:package-types:business. Lists only types whose selling is not stopped. Missing permission, a device, or a disabled orders feature is refused.',
+      parameters: [
+        ...parameters,
+        branchId,
+        { in: 'query', name: 'cursor', schema: { type: 'string', format: 'uuid' } },
+        {
+          in: 'query',
+          name: 'limit',
+          schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'Sellable package type page',
+          content: json('SellablePackageTypePage'),
+        },
+        '403': errors,
         default: errors,
       },
     },

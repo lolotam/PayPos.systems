@@ -142,6 +142,8 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `orders` | `SessionPerformerOptionsReads` (read-side callbacks) | `staff` | dated branch eligibility, names and missing-clock/approved-leave booleans only under record permission; staff owns the working day (ADR-0041 35c-4) |
 | `orders` | `SessionPlacePort` | `tenancy` | business timezone and active branch/business relationship (ADR-0041) |
 | `orders` | `PackageSaleRequestTransaction.place` | `tenancy` | `packageSalePlace` proves the requested business owns the authorized branch before the pending sale insert (spec 058, 42-3b2) |
+| `orders` | `PackageSaleContextReads.access/place/options` | `identity`, `tenancy`, `staff` | sale-only authority and eligible recorders, active place/timezone, and current seller choice facts on one tenant transaction; no session-recording authority (spec 058, 42 picker R1; ADR-0041 addendum 2026-11-18) |
+| `catalog` | `SellablePackagePlace` | `tenancy` | public `packageSalePlace` validates the route's company/business/active-branch pair on the picker's transaction before catalog-only SQL (spec 058, 42 picker R1; ADR-0041 addendum 2026-11-18) |
 | worker `orders` | `PackageSaleScope.lockType` | worker `catalog` | `readPackageTypeForSale` locks the type `FOR SHARE`, then `lockSessionServicesForSale` locks component services in ascending id and returns their prices/revisions for the frozen sale quote (ADR-0034 addendum 2026-11-11, spec 058 FR-018b/c) |
 | worker `orders` | `PackageSaleScope.lockSeller`, `PackageSaleScope.readSeller` | worker `staff` | `lockPackageSeller` takes the employee `FOR SHARE` before `readPackageSeller` returns dated branch eligibility and the persisted user link; no attendance warnings or fresh authorization (ADR-0034 addendum 2026-11-11, spec 058 FR-014) |
 | worker `orders` | `PackageSaleScope.customerExists` | worker `customers` | `packageSaleCustomerExists` proves company-scoped customer existence on the sale transaction, with no phone read (ADR-0034 addendum 2026-11-11, spec 058 FR-018) |
@@ -568,6 +570,10 @@ reads:
   - staff -> identity.branchManagerRecipientsStatement @ apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts
   - staff -> identity.businessPermissionHolders @ apps/worker/src/modules/staff/persistence/file-reader-recipients.adapter.ts
   - staff -> identity.activeMembership @ apps/worker/src/modules/staff/persistence/employee-push-access.ts
+  - orders -> identity.readPackageSaleAccess @ apps/api/src/modules/orders/persistence/package-sale-context.adapter.ts
+  - orders -> tenancy.packageSalePlace @ apps/api/src/modules/orders/persistence/package-sale-context.adapter.ts
+  - orders -> staff.readSessionPerformerOptions @ apps/api/src/modules/orders/persistence/package-sale-context.adapter.ts
+  - catalog -> tenancy.packageSalePlace @ apps/api/src/modules/catalog/persistence/package-sale-place.adapter.ts
 ```
 
 The check (`pnpm module-map:check`, plan v4 T12b): `docs/module-map.yaml` is generated from this block and must be

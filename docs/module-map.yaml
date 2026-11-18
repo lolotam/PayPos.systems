@@ -205,3 +205,7 @@ reads:
   - { from: staff, to: identity, symbol: branchManagerRecipientsStatement, file: apps/worker/src/modules/staff/persistence/branch-manager-recipients.adapter.ts }
   - { from: staff, to: identity, symbol: businessPermissionHolders, file: apps/worker/src/modules/staff/persistence/file-reader-recipients.adapter.ts }
   - { from: staff, to: identity, symbol: activeMembership, file: apps/worker/src/modules/staff/persistence/employee-push-access.ts }
+  - { from: orders, to: identity, symbol: readPackageSaleAccess, file: apps/api/src/modules/orders/persistence/package-sale-context.adapter.ts }
+  - { from: orders, to: tenancy, symbol: packageSalePlace, file: apps/api/src/modules/orders/persistence/package-sale-context.adapter.ts }
+  - { from: orders, to: staff, symbol: readSessionPerformerOptions, file: apps/api/src/modules/orders/persistence/package-sale-context.adapter.ts }
+  - { from: catalog, to: tenancy, symbol: packageSalePlace, file: apps/api/src/modules/catalog/persistence/package-sale-place.adapter.ts }

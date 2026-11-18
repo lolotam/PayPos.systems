@@ -1,6 +1,7 @@
 export * from './service-session.js';
 export * from './session-tips.js';
 export * from './package-sale.js';
+export * from './package-sale-context.js';
 export * from './package-sale-refusal.js';
 export * from './customer-packages.js';
 export * from './recording-context.js';
@@ -18,4 +19,14 @@ export * from './service-line-performers-notice.js';
 export * from './discount-approval.js';
 export * from './discount-approval-events.js';
 
-export { packageImportPreviewJob } from './package-import-preview.js';
+export {
+  packageImportPreviewJob,
+  requestPackageImportPreviewInput,
+  packageImportPreviewAccepted,
+  packageImportPreviewRequested,
+  packageImportPreviewRowError,
+  packageImportPreviewStatus,
+  type RequestPackageImportPreviewInput,
+  type PackageImportPreviewRequested,
+  type PackageImportPreviewStatus,
+} from './package-import-preview.js';

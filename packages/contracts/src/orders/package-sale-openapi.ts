@@ -20,12 +20,18 @@ const parameters = [
     schema: { type: 'string', format: 'uuid' },
   })),
 ];
+const readParameters = parameters.filter((parameter) => parameter.name !== 'Idempotency-Key');
 const refusal = (description: string) => ({
   description,
   content: json('ErrorEnvelope'),
 });
+const readResponses = (schema: string) => ({
+  '200': { description: 'Package-sale read result.', content: json(schema) },
+  '403': refusal('Permission, DENY, invalid place, device principal or disabled orders feature.'),
+  default: refusal('Bilingual authentication or readiness refusal.'),
+});
 const statusParameters = [
-  ...parameters.filter((parameter) => parameter.name !== 'Idempotency-Key'),
+  ...readParameters,
   {
     in: 'path',
     name: 'saleRequestId',
@@ -33,8 +39,47 @@ const statusParameters = [
     schema: { type: 'string', format: 'uuid' },
   },
 ];
+const sellerParameters = [
+  ...readParameters,
+  ...['lang', 'occurred_at'].map((name) => ({
+    in: 'query',
+    name,
+    required: true,
+    schema:
+      name === 'lang'
+        ? { type: 'string', enum: ['ar', 'en'] }
+        : { type: 'string', format: 'date-time' },
+  })),
+  ...['cursor', 'q', 'limit'].map((name) => ({
+    in: 'query',
+    name,
+    required: false,
+    schema: name === 'limit' ? { type: 'integer', minimum: 1, maximum: 100 } : { type: 'string' },
+  })),
+];
 
 export const packageSalePaths = {
+  '/v1/businesses/{businessId}/branches/{branchId}/package-sales/context': {
+    get: {
+      operationId: 'getPackageSaleContext',
+      description:
+        "Returns the current server sale anchor, effective branch timezone and only the caller's sale-eligible recorder memberships. Requires sell:packages:branch and the orders feature; no session-recording permission.",
+      parameters: readParameters,
+      responses: readResponses('PackageSaleContext'),
+    },
+  },
+  '/v1/businesses/{businessId}/branches/{branchId}/package-sales/seller-options': {
+    get: {
+      operationId: 'listPackageSaleSellers',
+      description:
+        'Cursor-paginated sale-eligible seller ids, names and employee numbers. The first page uses the current server clock and returns that sale_anchor for subsequent cursors. Requires sell:packages:branch and the orders feature; no session-recording or performer-change permission. No attendance or private HR fields.',
+      parameters: sellerParameters,
+      responses: {
+        '400': refusal('Invalid query or cursor.'),
+        ...readResponses('PackageSaleSellerOptionPage'),
+      },
+    },
+  },
   '/v1/businesses/{businessId}/branches/{branchId}/package-sales': {
     post: {
       operationId: 'sellPackage',
