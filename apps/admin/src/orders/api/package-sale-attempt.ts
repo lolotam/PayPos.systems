@@ -37,3 +37,15 @@ export function readSaleAttempt(scope: string): HeldAttempt | null {
     return null;
   }
 }
+
+export function withSaleAttemptLock<T>(scope: string, reserve: () => T): Promise<T> {
+  if (typeof navigator !== 'undefined' && typeof navigator.locks?.request === 'function')
+    return navigator.locks.request(`pospay:package-sale:${scope}`, reserve);
+  return Promise.resolve(reserve());
+}
+
+export function updateOwnedSaleAttempt(scope: string, key: string, attempt: HeldAttempt | null) {
+  return withSaleAttemptLock(scope, () => {
+    if (readSaleAttempt(scope)?.key === key) saveSaleAttempt(scope, attempt);
+  });
+}

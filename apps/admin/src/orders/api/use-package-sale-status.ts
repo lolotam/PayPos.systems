@@ -4,21 +4,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { apiClient } from '@/shared/api/client';
 import { packageSaleParams, packageSaleScopeKey } from './use-package-sale-context';
-import { saveSaleAttempt } from './package-sale-attempt';
+import { readSaleAttempt, updateOwnedSaleAttempt } from './package-sale-attempt';
 import type { SessionServiceScope } from './use-session-services';
 
 export const PACKAGE_SALE_POLL_LIMIT_MS = 60_000;
 const statusPath = '/v1/businesses/{businessId}/branches/{branchId}/package-sales/{saleRequestId}';
 
 type StatusDeadline = { request: string; at: number; done: boolean };
-
-function useConfirmedSale(scope: SessionServiceScope, data: PackageSaleStatus | undefined) {
-  useEffect(() => {
-    if (data?.status === 'completed' || data?.status === 'failed') {
-      saveSaleAttempt(JSON.stringify(packageSaleScopeKey(scope)), null);
-    }
-  }, [data, scope]);
-}
 
 async function readStatus(
   scope: SessionServiceScope,
@@ -27,6 +19,8 @@ async function readStatus(
   onFailed?: (status: PackageSaleStatus) => void,
 ) {
   if (saleRequestId === null) throw new Error('PACKAGE_SALE_NOT_REQUESTED');
+  const scopeKey = JSON.stringify(packageSaleScopeKey(scope));
+  const owned = readSaleAttempt(scopeKey);
   const result = await apiClient().GET(statusPath, {
     params: {
       ...packageSaleParams(scope),
@@ -36,6 +30,8 @@ async function readStatus(
   });
   if (result.error) throw { ...result.error, status: result.response.status };
   const status = packageSaleStatus.parse(result.data);
+  if (status.status !== 'pending' && owned?.saleId === saleRequestId)
+    await updateOwnedSaleAttempt(scopeKey, owned.key, null);
   if (status.status === 'failed') onFailed?.(status);
   return status;
 }
@@ -80,7 +76,6 @@ export function usePackageSaleStatus(
       void client.cancelQueries({ queryKey, exact: true });
     };
   }, [client, queryKey, requestKey, saleRequestId]);
-  useConfirmedSale(scope, query.data);
   const timedOut =
     saleRequestId !== null &&
     deadline?.request === requestKey &&

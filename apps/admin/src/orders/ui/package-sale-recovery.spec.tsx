@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { t } from '@pospay/i18n';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import {
@@ -6,6 +6,7 @@ import {
   choosePackageSaleTypeAndSeller as chooseTypeAndSeller,
   packageSalePath as salePath,
   packageSaleScope,
+  failedPackageSale,
   renderPackageSaleForm as renderForm,
   resetPackageSaleFormTest,
   submitPackageSale as submitSale,
@@ -35,7 +36,10 @@ beforeEach(() => {
   resetPackageSaleFormTest(state);
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  Reflect.deleteProperty(navigator, 'locks');
+  vi.restoreAllMocks();
+});
 const storageKey = `pospay:package-sale:${JSON.stringify(Object.values(packageSaleScope))}`;
 const saleCalls = () => state.post.mock.calls.filter(([path]) => path === salePath);
 
@@ -58,7 +62,6 @@ it('restores the original body and key after reload and locks a second sale', as
   });
   first.unmount();
   first.client.clear();
-  sessionStorage.clear();
   renderForm();
   expect(await screen.findByText(t('en', 'packageSale.recoverOriginal'))).toBeTruthy();
   expect(
@@ -228,17 +231,105 @@ it('allows a corrected new sale with a new key after confirmed failure', async (
   fireEvent.change(screen.getByLabelText(t('en', 'packageSale.pricePaid')), {
     target: { value: '25.000' },
   });
+  expect(screen.getByText(/The quote changed/)).toBeTruthy();
   state.outcome = 'pending';
-  state.post.mockResolvedValueOnce({
-    data: { sale_request_id: '01920000-0000-7000-8000-000000000099' },
-    response: { status: 202 },
-  });
+  let accept!: () => void;
+  state.post.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        accept = () =>
+          resolve({
+            data: { sale_request_id: '01920000-0000-7000-8000-000000000099' },
+            response: { status: 202 },
+          });
+      }),
+  );
   await submitSale(state);
+  await waitFor(() => expect(screen.queryByText(/The quote changed/)).toBeNull());
+  await act(async () => accept());
   await waitFor(() => expect(saleCalls()).toHaveLength(2));
   expect(saleCalls()[1]?.[1].params.header['Idempotency-Key']).not.toBe(
     saleCalls()[0]?.[1].params.header['Idempotency-Key'],
   );
   expect(
     await screen.findByRole('button', { name: t('en', 'packageSale.submitting') }),
+  ).toHaveProperty('disabled', true);
+});
+
+it('reserves one key for racing tabs and locks the second form into recovery', async () => {
+  let queue = Promise.resolve();
+  const request = vi.fn((_name: string, callback: () => unknown) => {
+    const next = queue.then(callback);
+    queue = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
+  });
+  Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } });
+  const first = renderForm();
+  await chooseCustomer(state);
+  await chooseTypeAndSeller(state);
+  // Temporarily detach the first form so the shared fixture can prepare the second tab.
+  first.container.remove();
+  const second = renderForm();
+  await chooseCustomer(state);
+  await chooseTypeAndSeller(state);
+  document.body.append(first.container);
+  state.post.mockImplementationOnce(() => new Promise(() => {}));
+  const firstForm = first.container.querySelector('form');
+  const secondForm = second.container.querySelector('form');
+  if (!firstForm || !secondForm) throw new Error('Missing sale forms');
+  await act(async () => {
+    fireEvent.submit(firstForm);
+    fireEvent.submit(secondForm);
+  });
+  expect(
+    await within(second.container).findByText(t('en', 'packageSale.recoverOriginal')),
+  ).toBeTruthy();
+  expect(
+    within(second.container).getByLabelText(t('en', 'packageSale.pricePaid')).closest('fieldset'),
+  ).toHaveProperty('disabled', true);
+  expect(saleCalls()).toHaveLength(1);
+  expect(JSON.parse(localStorage.getItem(storageKey) ?? 'null').key).toBe(
+    saleCalls()[0]?.[1].params.header['Idempotency-Key'],
+  );
+  expect(request.mock.calls[0]?.[0]).toBe(request.mock.calls[1]?.[0]);
+});
+
+it('keeps a newer tab reservation when an older sale failure arrives', async () => {
+  Object.defineProperty(navigator, 'locks', {
+    configurable: true,
+    value: { request: vi.fn((_name, callback) => Promise.resolve().then(callback)) },
+  });
+  const seed = await uncertainSale();
+  const older = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
+  seed.unmount();
+  seed.client.clear();
+  localStorage.setItem(storageKey, JSON.stringify({ ...older, saleId: 'older-sale' }));
+  const read = state.get.getMockImplementation();
+  let failOlder!: () => void;
+  state.get.mockImplementation((path, init) => {
+    if (String(path).endsWith('/{saleRequestId}')) {
+      return new Promise((resolve) => {
+        failOlder = () => resolve({ data: failedPackageSale, response: { status: 200 } });
+      });
+    }
+    return read?.(path, init);
+  });
+  const tabB = renderForm();
+  await waitFor(() => expect(failOlder).toBeTypeOf('function'));
+  tabB.container.remove();
+  // Another tab has already confirmed the older sale and released its journal.
+  localStorage.removeItem(storageKey);
+  const tabA = await uncertainSale();
+  const newer = localStorage.getItem(storageKey);
+  expect(JSON.parse(newer ?? 'null').key).not.toBe(older.key);
+  document.body.append(tabB.container);
+  await act(async () => failOlder());
+  expect(await within(tabB.container).findByText(/The quote changed/)).toBeTruthy();
+  expect(localStorage.getItem(storageKey)).toBe(newer);
+  expect(
+    within(tabA.container).getByLabelText(t('en', 'packageSale.pricePaid')).closest('fieldset'),
   ).toHaveProperty('disabled', true);
 });

@@ -4,7 +4,13 @@ import { useMutation } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { apiClient } from '@/shared/api/client';
 import { packageSaleParams, packageSaleScopeKey } from './use-package-sale-context';
-import { readSaleAttempt, saveSaleAttempt, type HeldAttempt } from './package-sale-attempt';
+import {
+  readSaleAttempt,
+  saveSaleAttempt,
+  withSaleAttemptLock,
+  updateOwnedSaleAttempt,
+  type HeldAttempt,
+} from './package-sale-attempt';
 import type { SessionServiceScope } from './use-session-services';
 
 const salePath = '/v1/businesses/{businessId}/branches/{branchId}/package-sales';
@@ -23,16 +29,21 @@ async function postSale(
   held: { current: HeldAttempt | null },
 ): Promise<string> {
   const scopeKey = JSON.stringify(packageSaleScopeKey(scope));
-  const saved =
-    (held.current?.scope === scopeKey ? held.current : null) ?? readSaleAttempt(scopeKey);
-  const attempt =
-    saved ?? (body && { key: crypto.randomUUID(), scope: scopeKey, body, createdAt: Date.now() });
-  if (!attempt) throw new Error('No original package sale to retry');
-  held.current = attempt;
+  const { saved, attempt } = await withSaleAttemptLock(scopeKey, () => {
+    const saved =
+      readSaleAttempt(scopeKey) ?? (held.current?.scope === scopeKey ? held.current : null);
+    const attempt =
+      saved ?? (body && { key: crypto.randomUUID(), scope: scopeKey, body, createdAt: Date.now() });
+    if (!attempt) throw new Error('No original package sale to retry');
+    held.current = attempt;
+    if (saved && body && typeof navigator.locks?.request === 'function')
+      throw new Error('PACKAGE_SALE_RECOVERY_REQUIRED');
+    saveSaleAttempt(scopeKey, attempt);
+    return { saved, attempt };
+  });
   if (attempt.saleId) return attempt.saleId;
   if (Date.now() - attempt.createdAt >= 23 * 60 * 60 * 1000)
     throw new Error('PACKAGE_SALE_VERIFICATION_REQUIRED');
-  saveSaleAttempt(scopeKey, attempt);
   const { sold_at, recorder_membership_id, ...required } = attempt.body;
   const result = await apiClient().POST(salePath, {
     signal: AbortSignal.timeout(15_000),
@@ -53,7 +64,7 @@ async function postSale(
     const failure = { ...result.error, status: result.response.status };
     // A refusal on replay can occur before the server looks up the original request.
     if (!saved && dropAttemptOnKnownError(failure)) {
-      saveSaleAttempt(scopeKey, null);
+      await updateOwnedSaleAttempt(scopeKey, attempt.key, null);
       held.current = null;
     }
     throw failure;
@@ -61,7 +72,7 @@ async function postSale(
   const parsed = acceptedPackageSale.safeParse(result.data);
   if (!parsed.success) throw Object.assign(parsed.error, { status: result.response.status });
   attempt.saleId = parsed.data.sale_request_id;
-  saveSaleAttempt(scopeKey, attempt);
+  await updateOwnedSaleAttempt(scopeKey, attempt.key, attempt);
   return parsed.data.sale_request_id;
 }
 
@@ -93,9 +104,8 @@ export function useSellPackage(scope: SessionServiceScope) {
     recoveryRequired && Date.now() - (held.current?.createdAt ?? 0) >= 23 * 60 * 60 * 1000;
   return {
     ...mutation,
-    releaseFailed: () => {
-      held.current = null;
-      saveSaleAttempt(scopeKey, null);
+    releaseFailed: (saleId: string | null) => {
+      if (held.current?.saleId === saleId) held.current = null;
       mutation.reset();
     },
     recoveryRequired,

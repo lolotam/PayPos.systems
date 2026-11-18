@@ -1020,7 +1020,7 @@ PR on those files (pipeline rule: only disjoint files in parallel).
 
 ### Sale picker recovery (PP-131.2)
 
-The recovery journal uses localStorage. Before creating a new sale key, each tab re-reads its scoped journal and restores any unresolved attempt; storage events synchronize recovery across open tabs. Confirmed failed sales release the form for a corrected sale with a new key.
+The recovery journal uses localStorage. A scope-derived Web Lock atomically covers reading, creating and saving a reservation; concurrent new submits enter recovery without another sale request. Without Web Locks, retain the existing best-effort behavior. A new submission clears the previous failure status. Later journal updates and terminal cleanup compare the owned attempt key inside the same scope lock, so an older response cannot replace or remove a newer reservation. Before creating a new sale key, each tab re-reads its scoped journal and restores any unresolved attempt; storage events synchronize recovery across open tabs. Confirmed failed sales release the form for a corrected sale with a new key.
 
 Persist the original sale body and idempotency key before sending, isolated by company, business,
 branch and user. Reload restores the attempt and locks a new sale. Storage failures retain the attempt
