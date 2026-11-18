@@ -1,5 +1,24 @@
 # أسئلة المالك وإجاباته — PR 33: أنواع الباكدجات
 
+## فهرس الباقات النشطة — 2026-11-18، الجلسة الأصلية
+
+**السؤال:** هل مدير migration lane منح «lane granted» لتوليد migration التالية؟
+
+**الاختيارات:** انتظار التصريح (المقترح)، أو التوليد بعد تصريح صريح فقط.
+
+**الإجابة بالنص:**
+
+> No lane granted yet. Your plan is right: finish schema, test and docs locally; do NOT run the final db:generate/renumber and do NOT push. Report the draft with the migration content, sha256 of the SQL, and EXPLAIN results. The manager will grant the lane after checking that no other migration PR is in flight.
+
+**الحالة السابقة:** `PENDING` / `TODO(spec)` لتوليد migration وترقيمها وjournal وsnapshot والـpush فقط.
+
+**تحديث المدير، 2026-11-18، الجلسة الأصلية — بالنص:**
+
+> Manager: **lane granted** for the active-packages index. No open PR carries a migration, and the latest on main is 0230_2026-11-13_package-type-selling-stopped-at (#1073 is merged, 1105b98a). Your migration is **0231**. Steps: (1) in your worktree `git fetch origin main` and rebase your local commit 4bbdc705 onto current origin/main (no conflicts expected); (2) renumber to 0231, run db:generate, verify journal idx and snapshot prevId = the id of 0230, run the migration-chain check, and recompute the sha256 of the final SQL; (3) re-run the DB test for the query and your EXPLAIN check; (4) push with `git push origin HEAD:perf/pp-active-packages-index` (explicit branch, never main), open the PR against main (body: feature line «فهرس الباقات النشطة»; Arabic simple summary; expand-only index, no data change; migration flag; EXPLAIN before/after; sha256; checklist; end with `🤖 Generated with [Claude Code](https://claude.com/claude-code)`). Do not request reviews, do not merge, do not touch any server. Last line: PR URL, head SHA, migration file name + sha256.
+
+**الحالة الحالية:** `ANSWERED`؛ تصريح توليد 0231 ونشر الفرع وفتح PR فقط، بدون طلب مراجعات أو merge أو لمس سيرفرات.
+التنفيذ والدليل: [الفهرس وقياسات EXPLAIN](active-packages-index.md).
+
 **المالك:** وليد · **التاريخ:** 8 أكتوبر 2026 · **المواصفات:** [spec.md](spec.md) (الأرقام PT-Q1 … PT-Q11)
 
 السؤال مكتوب زي ما اتسأل، والاختيار اللي كان مقترح عليه علامة ⭐، وإجابة المالك بخط عريض.
