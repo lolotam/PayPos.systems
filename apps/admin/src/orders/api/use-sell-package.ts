@@ -7,7 +7,7 @@ import { packageSaleParams, packageSaleScopeKey } from './use-package-sale-conte
 import type { SessionServiceScope } from './use-session-services';
 
 const salePath = '/v1/businesses/{businessId}/branches/{branchId}/package-sales';
-type HeldAttempt = { key: string; fingerprint: string };
+type HeldAttempt = { key: string; scope: string; body: SellPackageInput };
 
 function dropAttemptOnKnownError(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
@@ -19,16 +19,15 @@ function dropAttemptOnKnownError(error: unknown): boolean {
 
 async function postSale(
   scope: SessionServiceScope,
-  body: SellPackageInput,
+  body: SellPackageInput | undefined,
   held: { current: HeldAttempt | null },
 ): Promise<string> {
-  const fingerprint = JSON.stringify([...packageSaleScopeKey(scope), body]);
-  const attempt =
-    held.current?.fingerprint === fingerprint
-      ? held.current
-      : { key: crypto.randomUUID(), fingerprint };
+  const scopeKey = JSON.stringify(packageSaleScopeKey(scope));
+  const saved = held.current?.scope === scopeKey ? held.current : null;
+  const attempt = saved ?? (body && { key: crypto.randomUUID(), scope: scopeKey, body });
+  if (!attempt) throw new Error('No original package sale to retry');
   held.current = attempt;
-  const { sold_at, recorder_membership_id, ...required } = body;
+  const { sold_at, recorder_membership_id, ...required } = attempt.body;
   const result = await apiClient().POST(salePath, {
     params: {
       ...packageSaleParams(scope),
@@ -45,7 +44,8 @@ async function postSale(
   });
   if (result.error) {
     const failure = { ...result.error, status: result.response.status };
-    if (dropAttemptOnKnownError(failure)) held.current = null;
+    // A refusal on replay can occur before the server looks up the original request.
+    if (!saved && dropAttemptOnKnownError(failure)) held.current = null;
     throw failure;
   }
   const parsed = acceptedPackageSale.safeParse(result.data);
@@ -56,11 +56,13 @@ async function postSale(
 
 export function useSellPackage(scope: SessionServiceScope) {
   const held = useRef<HeldAttempt | null>(null);
-  return useMutation({
+  const mutation = useMutation({
     mutationKey: ['sell-package', ...packageSaleScopeKey(scope)],
     retry: false,
     gcTime: 0,
     networkMode: 'always',
-    mutationFn: (body: SellPackageInput) => postSale(scope, body, held),
+    mutationFn: (body: SellPackageInput | undefined) => postSale(scope, body, held),
   });
+  const recoveryRequired = held.current?.scope === JSON.stringify(packageSaleScopeKey(scope));
+  return { ...mutation, recoveryRequired };
 }

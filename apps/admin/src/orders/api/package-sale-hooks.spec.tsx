@@ -87,7 +87,11 @@ async function expectStatusOnlyRecheck(
   state.get.mockResolvedValueOnce({
     data: {
       status: 'failed',
-      error: { code: 'PACKAGE_SALE_FAILED', message_ar: 'AR', message_en: 'EN' },
+      error: {
+        code: 'PACKAGE_SALE_FAILED',
+        message_ar: 'AR',
+        message_en: 'EN',
+      },
     },
     response: { status: 200 },
   });
@@ -187,17 +191,27 @@ it('reuses one idempotency key after an uncertain network failure for the identi
   expect(state.post.mock.calls[1]?.[1].body).toEqual(body);
 });
 
-it('mints a new key when the body changes after an uncertain failure', async () => {
-  state.post.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(accepted);
+it('retries only the saved body and key when an edited submit follows an uncertain failure', async () => {
+  state.post
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValueOnce({ error: { code: 'FORBIDDEN' }, response: { status: 403 } })
+    .mockResolvedValueOnce(accepted);
   const changed = renderHook(() => useSellPackage(scope), {
     wrapper: clientWrapper(newClient()),
   });
   await send(changed.result.current.mutateAsync);
+  await waitFor(() => expect(changed.result.current.recoveryRequired).toBe(true));
   await send(changed.result.current.mutateAsync, {
     ...body,
     price_paid: '23.000',
   });
-  expect(keyAt(1)).not.toBe(keyAt(0));
+  expect(keyAt(1)).toBe(keyAt(0));
+  expect(state.post.mock.calls[1]?.[1].body).toEqual(body);
+  expect(changed.result.current.recoveryRequired).toBe(true);
+  await send(changed.result.current.mutateAsync);
+  expect(keyAt(2)).toBe(keyAt(0));
+  expect(state.post.mock.calls[2]?.[1].body).toEqual(body);
+  await waitFor(() => expect(changed.result.current.recoveryRequired).toBe(false));
 });
 
 it('mints a new key after a definitive refusal', async () => {

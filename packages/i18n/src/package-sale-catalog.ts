@@ -23,6 +23,9 @@ export const packageSaleEn = {
   chooseRecorder: 'Choose the recorder membership',
   submit: 'Sell package',
   submitting: 'Selling package…',
+  recoverOriginal:
+    'The previous sale may have been accepted. Edits are locked; retry only the original sale.',
+  retryOriginal: 'Retry original sale',
   customerUnavailable: 'You do not have access to customer selection for this sale.',
   invalid: 'Choose a customer, package, seller and recorder, and enter a valid price.',
   pending: 'Processing',
@@ -59,6 +62,8 @@ export const packageSaleAr: Record<keyof typeof packageSaleEn, string> = {
   chooseRecorder: 'اختاري عضوية تسجيل البيع',
   submit: 'بيع الباقة',
   submitting: 'جاري بيع الباقة…',
+  recoverOriginal: 'البيع السابق ممكن يكون اتقبل. التعديل مقفول؛ أعيدي محاولة البيع الأصلي فقط.',
+  retryOriginal: 'إعادة محاولة البيع الأصلي',
   customerUnavailable: 'اختيار الزبونة غير متاح بصلاحياتك لهذا البيع.',
   invalid: 'اختاري الزبونة والباقة والبائعة وعضوية التسجيل، واكتبي سعر صحيح.',
   pending: 'قيد التنفيذ',

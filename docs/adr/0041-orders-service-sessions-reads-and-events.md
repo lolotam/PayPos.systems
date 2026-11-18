@@ -470,3 +470,18 @@ real eligible tenant/business isolation and historical-transfer tests, plus the
 query/materialisation/aggregation benchmark. Existing tests supply those proofs;
 this record does not claim CI success or waive fresh-head review. No write/table,
 migration, service-lines endpoint or B query design is authorized by this addendum.
+
+## Addendum 2026-11-18 — 42 package-sale picker reads
+
+Spec 058 row 42 authorizes exactly these four consumer-adapter/public-reader pairs; no other read is granted.
+
+| Consumer adapter under `persistence/` | Provider public reader |
+|---|---|
+| `orders/package-sale-context.adapter.ts` | `identity.readPackageSaleAccess` |
+| `orders/package-sale-context.adapter.ts` | `tenancy.packageSalePlace` |
+| `orders/package-sale-context.adapter.ts` | `staff.readSessionPerformerOptions` |
+| `catalog/package-sale-place.adapter.ts` | `tenancy.packageSalePlace` |
+
+Each reader uses the caller's existing `withTenant` transaction: no nested transaction, second connection, cross-context join, or write. Orders composes authority, place, and seller facts on that transaction; catalog proves place before catalog-only SQL.
+
+Consequences: providers own their SQL and minimal projections, while consumers own the adapters. Existing macro imports suffice; sale authority and POST/worker rechecks stay unchanged, with boundary/map/cycle and tenant-isolation tests mandatory.
