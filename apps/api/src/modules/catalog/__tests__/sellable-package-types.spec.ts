@@ -145,7 +145,7 @@ it('isolates a foreign tenant and same-company foreign business at the catalog b
   expect(leaked).toEqual({ items: [], next_cursor: null });
 });
 
-it('uses existing tenant/component indexes for first and subsequent pages', async () => {
+it('uses tenant/component indexes for first and subsequent pages', async () => {
   for (const cursor of [undefined, active[0]?.id]) {
     const plan = await f.db.withTenant(f.company, async (tx) => {
       await tx.execute(sql`SET LOCAL enable_seqscan=off`);
@@ -156,7 +156,9 @@ it('uses existing tenant/component indexes for first and subsequent pages', asyn
         })}`,
       );
     });
-    expect(JSON.stringify(plan)).toMatch(/package_types_(company_business_id_key|pkey)/);
+    expect(JSON.stringify(plan)).toMatch(
+      /package_types_(active_business_id_idx|company_business_id_key|pkey)/,
+    );
     expect(JSON.stringify(plan)).toMatch(/package_type_components_type_(idx|position_key)/);
   }
 });

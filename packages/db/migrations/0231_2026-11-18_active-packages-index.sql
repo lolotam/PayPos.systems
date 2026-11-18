@@ -1,0 +1,1 @@
+CREATE INDEX CONCURRENTLY "package_types_active_business_id_idx" ON "package_types" USING btree ("company_id","business_id","id") WHERE "package_types"."selling_stopped_at" IS NULL;

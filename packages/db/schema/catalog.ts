@@ -140,6 +140,10 @@ export const packageTypes = pgTable(
   },
   (t) => [
     primaryKey({ name: 'package_types_pkey', columns: [t.companyId, t.id] }),
+    index('package_types_active_business_id_idx')
+      .on(t.companyId, t.businessId, t.id)
+      .where(sql`${t.sellingStoppedAt} IS NULL`)
+      .concurrently(),
     unique('package_types_company_business_id_key').on(t.companyId, t.businessId, t.id),
     foreignKey({
       name: 'package_types_business_fk',
