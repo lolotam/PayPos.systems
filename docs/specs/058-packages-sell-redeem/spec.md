@@ -1029,3 +1029,7 @@ block replay and explain that the original sale must be verified with the manage
 is known, use status reads only. Remove the journal only after a confirmed terminal outcome or a
 first-request definitive rejection. Local UI coverage includes reload, timeout, unavailable storage
 and expired-window messages in Arabic and English.
+
+### API picker follow-ups (#1075)
+
+Sellable package types explicitly declare the same user-only guard as package sale context and submission. Device principals remain forbidden by the global permission guard as well. Seller options exclude every employee linked to the authenticated recorder user before pagination; other eligible performers remain selectable, including employees without a linked user. No migration or public contract change is required.

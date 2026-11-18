@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Param, Query, Req } from '@nestjs/common';
+import { Controller, Get, Inject, Param, Query, Req, UseGuards } from '@nestjs/common';
 import {
   id,
   sellablePackageTypeListQuery,
@@ -9,6 +9,7 @@ import type { TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 
 import { Require, RequiresFeature } from '../../../shared/access.decorators.ts';
+import { SessionAdminGuard } from '../../../shared/session-admin.guard.ts';
 import { actorOf } from '../../../shared/actor.ts';
 import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
@@ -29,6 +30,7 @@ export class SellablePackageTypesController {
   @Get()
   @Require('sell:packages:branch', { branch: 'branchId' })
   @RequiresFeature('orders')
+  @UseGuards(SessionAdminGuard)
   async list(
     @Param('businessId', new ZodValidationPipe(id.toLowerCase())) businessId: string,
     @Param('branchId', new ZodValidationPipe(id.toLowerCase())) branchId: string,
