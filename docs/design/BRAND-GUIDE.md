@@ -55,7 +55,10 @@ Ember is a seasoning. If more than about a fifth of a screen is orange, it is wr
 
 ### 2.3 Scales
 Full 50–950 scales for `ember`, `ink`, `teal` and `sand`, plus `amber`, `crimson` and `indigo` (semantic and chart
-use only), are in `tokens/tokens.json` and exposed as Tailwind utilities (`bg-ember-500`, `text-ink-600`, …).
+use only), are in `tokens/tokens.json`. In the app, the Tailwind utilities for the `ember`, `ink`, `teal` and
+`crimson` scales and for `sand-50` were removed in DS-3 A2 (#1081): they collapsed every shade to one token and
+nothing used them. Use the semantic tokens instead: `bg-cta` / `text-cta-foreground` (Ember), `text-foreground`
+(Ink), `bg-primary` (Teal), `text-destructive` (Crimson). `sand-100…950`, `amber-*` and `indigo-*` stay as aliases.
 Visual sheet: `palette.png`.
 
 ### 2.4 Rules
