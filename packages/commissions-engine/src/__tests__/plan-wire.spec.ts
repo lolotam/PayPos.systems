@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 
-import { toEngineCommissionPlan } from '../plan-codec.ts';
+import { validateCommissionPlan } from '../plan-validation.ts';
+import { toEngineCommissionPlan, validateWireCommissionPlan } from '../plan-wire.ts';
 
 it('converts every wire value to the engine representation without numeric money', () => {
   expect(
@@ -58,4 +59,39 @@ it('converts sessions and preserves disabled component settings for the validato
       steps: [{ from: { kind: 'SESSIONS', value: 4n }, calc: { kind: 'PCT', value: 100n } }],
     },
   });
+});
+
+it('validates the wire body exactly like the translate-then-validate call', () => {
+  const accepted = {
+    base: { enabled: true, calc: { kind: 'FIXED', amount: '1.250' } },
+    tiers: {
+      enabled: true,
+      mode: 'MARGINAL',
+      accumulator: 'AMOUNT',
+      steps: [
+        {
+          from: { kind: 'SALARY_MULTIPLE', value: '2.05' },
+          calc: { kind: 'PCT', bps: 500 },
+        },
+        {
+          from: { kind: 'SALARY_MULTIPLE', value: '2.50' },
+          calc: { kind: 'FIXED', amount: '2.000' },
+        },
+      ],
+    },
+    package_sale: { enabled: false },
+  } as const;
+  const refused = {
+    base: { enabled: true, calc: { kind: 'PCT', bps: 10001 } },
+    tiers: { enabled: false },
+    package_sale: { enabled: false },
+  } as const;
+  expect(validateWireCommissionPlan(accepted)).toEqual({ ok: true });
+  expect(validateWireCommissionPlan(accepted)).toEqual(
+    validateCommissionPlan(toEngineCommissionPlan(accepted)),
+  );
+  expect(validateWireCommissionPlan(refused)).toEqual({ ok: false, code: 'INVALID_CALC' });
+  expect(validateWireCommissionPlan(refused)).toEqual(
+    validateCommissionPlan(toEngineCommissionPlan(refused)),
+  );
 });

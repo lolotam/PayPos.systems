@@ -1,0 +1,212 @@
+import type {
+  CommissionPlanCalc,
+  CommissionPlanComponent,
+  CommissionPlanThreshold,
+  CommissionPlanTiers,
+  CreateCommissionPlanVersionInput,
+} from '@pospay/contracts';
+import { localDate, normalizeKwdInput } from '@pospay/i18n';
+
+export type CalcDraft = { kind: CommissionPlanCalc['kind']; bps: string; amount: string };
+export type ComponentDraft = { enabled: boolean; calc: CalcDraft };
+export interface StepDraft {
+  fromKind: CommissionPlanThreshold['kind'];
+  fromValue: string;
+  calc: CalcDraft;
+}
+export interface TiersDraft {
+  enabled: boolean;
+  /** أول لمسة للإعدادات بتحتفظ بيها لما البلوك يتقفل تاني بدل ما تضيع من اللي كتبه المدير (CM-06). */
+  touched: boolean;
+  mode: NonNullable<CommissionPlanTiers['mode']>;
+  accumulator: NonNullable<CommissionPlanTiers['accumulator']>;
+  steps: StepDraft[];
+}
+export interface PlanDraft {
+  effectiveFrom: string;
+  wholePeriod: boolean;
+  base: ComponentDraft;
+  tiers: TiersDraft;
+  packageSale: ComponentDraft;
+}
+
+export type DraftErrorCode =
+  | 'INVALID_DATE'
+  | 'INVALID_BPS'
+  | 'INVALID_MONEY'
+  | 'INVALID_SESSIONS'
+  | 'INVALID_MULTIPLE';
+export type DraftBlock = 'base' | 'tiers' | 'packageSale' | 'effectiveFrom';
+export interface DraftError {
+  block: DraftBlock;
+  code: DraftErrorCode;
+}
+/** جسم الطلب المرشّح للإرسال، مع أخطاء قراءة الحقول؛ الترشيح بيعمل استبدال مؤقت ولا يقرر صحة الخطة. */
+export interface WireCandidateResult {
+  candidate: unknown;
+  errors: DraftError[];
+}
+
+function parseInteger(text: string, pattern: RegExp): number | null {
+  const trimmed = text.trim();
+  return pattern.test(trimmed) ? Number(trimmed) : null;
+}
+
+/** يقرأ نص النسبة كنقاط أساس صحيحة، أو يرجع null للنص المرفوض. */
+function parseBps(text: string): number | null {
+  return parseInteger(text, /^\d{1,5}$/);
+}
+
+function parseKwd(text: string): string | null {
+  const trimmed = text.trim();
+  if (trimmed === '') return null;
+  const normalized = normalizeKwdInput(trimmed);
+  return /^(0|[1-9]\d{0,10})\.\d{3}$/.test(normalized) ? normalized : null;
+}
+
+function parseSessions(text: string): number | null {
+  return parseInteger(text, /^\d{1,9}$/);
+}
+
+function parseMultiple(text: string): string | null {
+  const trimmed = text.trim();
+  if (!/^\d{1,4}(?:\.\d{1,2})?$/.test(trimmed)) return null;
+  const [whole = '0', fraction = ''] = trimmed.split('.');
+  return `${whole.replace(/^0+(?=\d)/, '')}.${fraction.padEnd(2, '0')}`;
+}
+
+function valueOrError<T>(value: T | null, fallback: T, error: DraftError, errors: DraftError[]): T {
+  if (value !== null) return value;
+  errors.push(error);
+  return fallback;
+}
+
+function calcEmpty(calc: CalcDraft): boolean {
+  return calc.kind === 'PCT' ? calc.bps.trim() === '' : calc.amount.trim() === '';
+}
+
+function calcWire(calc: CalcDraft, block: DraftBlock, errors: DraftError[]): CommissionPlanCalc {
+  if (calc.kind === 'PCT') {
+    const bps = valueOrError(parseBps(calc.bps), 0, { block, code: 'INVALID_BPS' }, errors);
+    return { kind: 'PCT', bps };
+  }
+  const amount = valueOrError(
+    parseKwd(calc.amount),
+    '0.000',
+    { block, code: 'INVALID_MONEY' },
+    errors,
+  );
+  return { kind: 'FIXED', amount };
+}
+
+// البلوك المعطّل بيحتفظ بحسابه عشان ما يضيعش اللي المدير كتبه، والفاضي بيبقى {enabled:false} بس.
+function componentWire(
+  draft: ComponentDraft,
+  block: DraftBlock,
+  errors: DraftError[],
+): CommissionPlanComponent {
+  if (!draft.enabled && calcEmpty(draft.calc)) return { enabled: false };
+  return { enabled: draft.enabled, calc: calcWire(draft.calc, block, errors) };
+}
+
+const THRESHOLD_RULES = {
+  AMOUNT: { parse: parseKwd, code: 'INVALID_MONEY', fallback: '0.000' },
+  SESSIONS: { parse: parseSessions, code: 'INVALID_SESSIONS', fallback: 0 },
+  SALARY_MULTIPLE: { parse: parseMultiple, code: 'INVALID_MULTIPLE', fallback: '0.00' },
+} as const;
+
+function thresholdWire(step: StepDraft, errors: DraftError[]): CommissionPlanThreshold {
+  const rule = THRESHOLD_RULES[step.fromKind];
+  const value = valueOrError(
+    rule.parse(step.fromValue),
+    rule.fallback,
+    { block: 'tiers', code: rule.code },
+    errors,
+  );
+  return { kind: step.fromKind, value } as CommissionPlanThreshold;
+}
+
+// البلوك اللي المدير ما لمسهوش بيبقى {enabled:false}، والممسوس بيحتفظ بنمطه ومجمّعه وشرائحه.
+function tiersWire(draft: TiersDraft, errors: DraftError[]): CommissionPlanTiers {
+  const settings = {
+    mode: draft.mode,
+    accumulator: draft.accumulator,
+    steps: draft.steps.map((step) => ({
+      from: thresholdWire(step, errors),
+      calc: calcWire(step.calc, 'tiers', errors),
+    })),
+  };
+  if (draft.enabled) return { enabled: true, ...settings };
+  return draft.touched ? { enabled: false, ...settings } : { enabled: false };
+}
+
+/**
+ * يبني جسم الطلب المرشّح من نصوص المسودة بقراءة حقول فقط: كل نص إما قيمة سليمة لنوعه أو خطأ
+ * قراءة معلّم ببلوكه، والاستبدال المؤقت في الجسم بيخلي الترشيح ما يرميش، والقرار للعقد والمحرك.
+ *
+ * @param draft قيم النموذج النصية
+ * @returns الجسم بصيغة العقد مع قائمة أخطاء القراءة
+ */
+export function toWireCandidate(draft: PlanDraft): WireCandidateResult {
+  const errors: DraftError[] = [];
+  const effectiveFrom = draft.effectiveFrom.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom))
+    errors.push({ block: 'effectiveFrom', code: 'INVALID_DATE' });
+  const candidate = {
+    effective_from: effectiveFrom,
+    whole_period: draft.wholePeriod,
+    base: componentWire(draft.base, 'base', errors),
+    tiers: tiersWire(draft.tiers, errors),
+    package_sale: componentWire(draft.packageSale, 'packageSale', errors),
+  };
+  return { candidate, errors };
+}
+
+/** يبدأ مسودة فاضية بتاريخ النهارده في توقيت النشاط وكل البلوكات معطّلة. */
+export function emptyPlanDraft(timeZone: string, now: Date): PlanDraft {
+  return {
+    effectiveFrom: localDate(now, timeZone),
+    wholePeriod: false,
+    base: { enabled: false, calc: { kind: 'PCT', bps: '', amount: '' } },
+    tiers: { enabled: false, touched: false, mode: 'MARGINAL', accumulator: 'AMOUNT', steps: [] },
+    packageSale: { enabled: false, calc: { kind: 'PCT', bps: '', amount: '' } },
+  };
+}
+
+function calcDraft(calc: CommissionPlanCalc | undefined): CalcDraft {
+  if (calc === undefined) return { kind: 'PCT', bps: '', amount: '' };
+  return calc.kind === 'PCT'
+    ? { kind: 'PCT', bps: String(calc.bps), amount: '' }
+    : { kind: 'FIXED', bps: '', amount: calc.amount };
+}
+
+function componentDraft(component: CommissionPlanComponent): ComponentDraft {
+  return { enabled: component.enabled, calc: calcDraft(component.calc) };
+}
+
+function tiersDraft(tiers: CommissionPlanTiers): TiersDraft {
+  const { enabled, ...settings } = tiers;
+  const kept = enabled || Object.values(settings).some((value) => value !== undefined);
+  return {
+    enabled,
+    touched: kept,
+    mode: tiers.mode ?? 'MARGINAL',
+    accumulator: tiers.accumulator ?? 'AMOUNT',
+    steps: (tiers.steps ?? []).map((step) => ({
+      fromKind: step.from.kind,
+      fromValue: String(step.from.value),
+      calc: calcDraft(step.calc),
+    })),
+  };
+}
+
+/** يبني المسودة من نسخة مخزّنة عشان المدير يعدّل عليها بدل ما يبدأ من الصفر. */
+export function draftFromVersion(version: CreateCommissionPlanVersionInput): PlanDraft {
+  return {
+    effectiveFrom: version.effective_from,
+    wholePeriod: version.whole_period,
+    base: componentDraft(version.base),
+    tiers: tiersDraft(version.tiers),
+    packageSale: componentDraft(version.package_sale),
+  };
+}

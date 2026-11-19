@@ -19,7 +19,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run && pnpm run test:node",
-    "test:node": "node --input-type=module -e \"import { computePeriod, validateCommissionPlan } from '@pospay/commissions-engine'; import { validateCommissionPlan as fromValidation } from '@pospay/commissions-engine/validation'; if (fromValidation !== validateCommissionPlan || typeof computePeriod !== 'function') process.exit(1); await import('@pospay/commissions-engine/dist/plan-validation.js').then(() => process.exit(1), () => undefined);\""
+    "test:node": "node --input-type=module -e \"import { computePeriod, validateCommissionPlan, validateWireCommissionPlan } from '@pospay/commissions-engine'; import { validateCommissionPlan as fromValidation, validateWireCommissionPlan as wireFromValidation } from '@pospay/commissions-engine/validation'; if (fromValidation !== validateCommissionPlan || wireFromValidation !== validateWireCommissionPlan || typeof computePeriod !== 'function' || typeof validateWireCommissionPlan !== 'function') process.exit(1); const validation = await import('@pospay/commissions-engine/validation'); if (validation.computePeriod !== undefined) process.exit(1); await import('@pospay/commissions-engine/dist/plan-validation.js').then(() => process.exit(1), () => undefined);\""
   },
   "dependencies": {
     "@pospay/domain": "workspace:*"
