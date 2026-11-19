@@ -119,6 +119,24 @@ async function observedExpiryStaysExpired(locale: 'ar' | 'en') {
   expect(saleCalls()).toHaveLength(1);
 }
 
+async function latchedJournalStaysStillUnderWakeups(locale: 'ar' | 'en') {
+  const createdAt = Date.now() - (replayWindow + 60 * 60 * 1000);
+  await seedJournal(locale, { createdAt, seenAt: createdAt + replayWindow });
+  const setItem = vi.spyOn(Storage.prototype, 'setItem');
+  const view = renderForm();
+  await expectVerificationWithLockedRetry(locale);
+  act(() => {
+    for (let round = 0; round < 3; round += 1) {
+      window.dispatchEvent(new StorageEvent('storage', { key: storageKey }));
+      window.dispatchEvent(new Event('focus'));
+    }
+  });
+  expect(setItem.mock.calls.filter(([key]) => key === storageKey)).toHaveLength(0);
+  expect(screen.getByText(t(locale, 'packageSale.verificationRequired'))).toBeTruthy();
+  view.unmount();
+  view.client.clear();
+}
+
 describe.each(['ar', 'en'] as const)('package sale recovery clock (%s)', (locale) => {
   beforeEach(() => {
     state.locale = locale;
@@ -129,4 +147,6 @@ describe.each(['ar', 'en'] as const)('package sale recovery clock (%s)', (locale
     smallBackwardCorrectionKeepsRecoveryOpen(locale));
   it('keeps an observed expiry expired after the clock moves back', () =>
     observedExpiryStaysExpired(locale));
+  it('keeps a latched journal still under storage and focus wake-ups', () =>
+    latchedJournalStaysStillUnderWakeups(locale));
 });

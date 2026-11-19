@@ -102,17 +102,16 @@ export function saleAttemptExpiresIn(attempt: HeldAttempt, now: number): number 
   return Math.max(0, attempt.createdAt + PACKAGE_SALE_REPLAY_WINDOW_MS - Math.max(now, last));
 }
 
-// Records an observation of the attempt at `now`: an observed expiry is latched so it stays
-// expired whatever the clock does later, and earlier observations within one minute are
-// absorbed to keep storage writes rare. Status-only records are never touched.
+// Records an observation of the attempt at `now`: an observed expiry latches `seenAt` to the
+// window's end once, and an already-latched attempt is returned unchanged whatever the clock
+// reads next, so repeated observations never rewrite the record. Observations within one
+// minute are absorbed to keep storage writes rare. Status-only records are never touched.
 export function touchSaleAttempt(attempt: HeldAttempt, now: number): HeldAttempt {
   if (attempt.saleId !== undefined) return attempt;
   const last = attempt.seenAt ?? attempt.createdAt;
-  if (saleAttemptExpired(attempt, now)) {
-    const latched = Math.max(now, last, attempt.createdAt + PACKAGE_SALE_REPLAY_WINDOW_MS);
-    if (attempt.seenAt === latched) return attempt;
-    return { ...attempt, seenAt: latched };
-  }
+  if (last - attempt.createdAt >= PACKAGE_SALE_REPLAY_WINDOW_MS) return attempt;
+  if (saleAttemptExpired(attempt, now))
+    return { ...attempt, seenAt: attempt.createdAt + PACKAGE_SALE_REPLAY_WINDOW_MS };
   if (now - last < 60_000) return attempt;
   return { ...attempt, seenAt: now };
 }

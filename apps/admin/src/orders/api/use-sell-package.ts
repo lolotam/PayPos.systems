@@ -55,7 +55,7 @@ function dropAttemptOnKnownError(error: unknown): boolean {
   return typeof status === 'number' && status >= 400 && status < 500;
 }
 
-type SaleReservation = { attempt: HeldAttempt; saved: boolean };
+type SaleReservation = { attempt: HeldAttempt; replay: boolean };
 
 function reserveSale(
   scopeKey: string,
@@ -63,9 +63,9 @@ function reserveSale(
   journal: SaleJournal,
 ): Promise<SaleReservation> {
   return withSaleAttemptLock(scopeKey, (): SaleReservation => {
-    const saved = readSaleAttempt(scopeKey) ?? journal.held.get(scopeKey) ?? null;
-    const attempt = saved
-      ? touchSaleAttempt(saved, Date.now())
+    const existing = readSaleAttempt(scopeKey) ?? journal.held.get(scopeKey) ?? null;
+    const attempt = existing
+      ? touchSaleAttempt(existing, Date.now())
       : body && {
           key: crypto.randomUUID(),
           scope: scopeKey,
@@ -74,10 +74,10 @@ function reserveSale(
         };
     if (!attempt) throw new Error('No original package sale to retry');
     journal.held.set(scopeKey, attempt);
-    if (saved && body && typeof navigator.locks?.request === 'function')
+    if (existing && body && typeof navigator.locks?.request === 'function')
       throw new Error('PACKAGE_SALE_RECOVERY_REQUIRED');
     journal.onPersist(scopeKey, saveSaleAttempt(scopeKey, attempt));
-    return { attempt, saved: saved !== null };
+    return { attempt, replay: existing !== null };
   });
 }
 
@@ -97,7 +97,7 @@ function observeSaleAttempt(scopeKey: string, journal: SaleJournal): void {
     if (
       stored !== null &&
       stored.key === entry.key &&
-      (stored.saleId !== undefined || stored !== touched)
+      (stored.saleId !== undefined || stored.seenAt !== touched.seenAt)
     ) {
       journal.held.set(scopeKey, stored);
       journal.bump();
@@ -134,7 +134,7 @@ async function postSale(
   journal: SaleJournal,
 ): Promise<string> {
   const scopeKey = JSON.stringify(packageSaleScopeKey(scope));
-  const { attempt, saved } = await reserveSale(scopeKey, body, journal);
+  const { attempt, replay } = await reserveSale(scopeKey, body, journal);
   if (attempt.saleId) return attempt.saleId;
   if (!attempt.body) throw new Error('No original package sale to retry');
   if (saleAttemptExpired(attempt, Date.now()))
@@ -158,7 +158,7 @@ async function postSale(
   if (result.error) {
     const failure = { ...result.error, status: result.response.status };
     // A refusal on replay can occur before the server looks up the original request.
-    if (!saved && dropAttemptOnKnownError(failure)) {
+    if (!replay && dropAttemptOnKnownError(failure)) {
       await updateOwnedSaleAttempt(scopeKey, attempt.key, null);
       if (journal.held.get(scopeKey)?.key === attempt.key) journal.held.delete(scopeKey);
     }
@@ -216,13 +216,12 @@ function releaseFailedSale(
   journal: SaleJournal,
   gate: SaleMutationGate,
   saleId: string | null,
-  bump: () => void,
 ): void {
   const entry = journal.held.get(scopeKey);
   if (entry !== undefined && entry.saleId === saleId) {
     journal.held.delete(scopeKey);
     journal.unsaved.delete(scopeKey);
-    bump();
+    journal.bump();
   }
   gate.reset();
 }
@@ -286,7 +285,7 @@ export function useSellPackage(scope: SessionServiceScope) {
     ...mutation,
     releaseFailed: (saleId: string | null) =>
       // The status-read callback runs after later renders, so the held entry must be re-read now.
-      releaseFailedSale(scopeKey, journal, mutation, saleId, bump),
+      releaseFailedSale(scopeKey, journal, mutation, saleId),
     recoveryRequired,
     verificationRequired,
     attemptKey: entry?.key ?? null,

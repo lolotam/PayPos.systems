@@ -1039,8 +1039,8 @@ send, and on the expiry timer, window focus and visibility change — raises the
 observation time once more than a minute has passed since the previous observation. Expiry works from
 that last observation with a five-minute clock tolerance: a clock more than five minutes behind the
 last observation expires the attempt, as does an age of 23 hours since creation measured against the
-later of the current clock and `seenAt`; an observed expiry is latched into `seenAt` (at the window's
-end at the latest) so it stays expired whatever the clock does afterwards, and for a clock moved back
+later of the current clock and `seenAt`; an observed expiry is latched into `seenAt` at the
+window's end so it stays expired whatever the clock does afterwards, and for a clock moved back
 by more than that tolerance the check can only block replay, never allow it. With the screen open, a
 timer fires at the expiry instant, and window focus and visibility changes re-check it, so the message
 and the locked retry flip without a reload. Once the window has expired, the operator who verified the
