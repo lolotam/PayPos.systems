@@ -45,6 +45,8 @@ there is no runtime `shadcn` dependency or second component library. Icons are
 Lucide as required by `06`. Each React component has its own file, and every
 user-facing label comes from props or children backed by `packages/i18n`.
 
+Addendum (2026-11-19): [ADR-0060](./0060-phosphor-icons.md) supersedes the lucide-react pin and the Lucide icon statements above; the other pins are unchanged.
+
 **CSS is the theme source.** Light and dark semantic variables feed Tailwind's
 `@theme inline` mapping. Neutral surfaces, 18px interactive radii, 24px card radii,
 a 4px spacing unit and business-status colors implement constitution VI. The

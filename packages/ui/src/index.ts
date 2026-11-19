@@ -10,7 +10,7 @@ export {
   WifiOff,
   CircleAlert,
   Clock3,
-  MonitorX,
+  DeviceMobileSlash,
   LoaderCircle,
   Inbox,
   LogOut,
@@ -21,7 +21,7 @@ export {
   Sun,
   Moon,
   Monitor,
-} from 'lucide-react';
+} from './icons.js';
 export { BrandMark, type BrandMarkProps } from './brand-mark.js';
 export { BrandWordmark, type BrandWordmarkProps } from './brand-wordmark.js';
 export { BrandLockup, type BrandLockupProps } from './brand-lockup.js';

@@ -1,5 +1,5 @@
 'use client';
-import { Copy } from 'lucide-react';
+import { CopyIcon } from '@phosphor-icons/react/dist/ssr';
 import { useState } from 'react';
 import { Button } from './button.js';
 
@@ -36,7 +36,7 @@ export function Identifier({ value, copy }: Props) {
           title={copy.label}
           onClick={() => void copyValue()}
         >
-          <Copy aria-hidden="true" />
+          <CopyIcon aria-hidden="true" />
         </Button>
       ) : null}
       <span role="status" className="sr-only">

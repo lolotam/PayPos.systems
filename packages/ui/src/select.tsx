@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown } from 'lucide-react';
+import { CaretDownIcon } from '@phosphor-icons/react/dist/ssr';
 import { Select as SelectPrimitive } from 'radix-ui';
 import type { ReactNode } from 'react';
 
@@ -51,7 +51,7 @@ export function Select({
       >
         <SelectPrimitive.Value {...(placeholder === undefined ? {} : { placeholder })} />
         <SelectPrimitive.Icon className="text-muted-foreground">
-          <ChevronDown aria-hidden className="size-4" />
+          <CaretDownIcon aria-hidden className="size-4" />
         </SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal>
