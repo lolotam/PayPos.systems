@@ -126,7 +126,7 @@ The status paragraph inside journeys 01–47 was written before #533 and may sti
 | 54 | [Seeing and searching the employee number](54-employee-number-everywhere.md) — الرقم الوظيفي في كل الشاشات والبحث بيه | #317, #320, #344, #371, #379 | yes |
 | 55 | [Business identity](55-business-identity.md) — هوية النشاط | #365, #384, #392, #393, #394, #397 | names yes; logo upload fails (no object storage on staging) |
 | 56 | [The PDF renderer](56-pdf-renderer.md) — محرّك ملفات الـ PDF | #413, #425, #426 | nothing to click (worker capability; no document kind registered yet) |
-| 57 | [Discount approval (foundation)](57-discount-approval.md) — الموافقة على خصم فوق الحد (الأساس) | #465, #469, #498, #504, #523 | foundation only: the permission shows on `/permissions`; no request/approve route or screen yet; the bell never rings yet |
+| 57 | [Discount approval (foundation)](57-discount-approval.md) — الموافقة على خصم فوق الحد (الأساس) | #465, #469, #498, #504, #523 | yes: request and use on the recording screen ([70](70-discount-approval-request.md)), PIN decision on the reception device ([71](71-discount-approval-decide.md)); the remote decision is API only |
 | 58 | [Alert rules](58-alert-rules.md) — قواعد التنبيهات | #467, #493, #501, #503, #510, #521 | yes; the screen is [62](62-alert-rules-screen.md) (`/alert-rules`) |
 | 59 | [Staff app settings: columns and months back](59-staff-app-settings.md) — إعداد تطبيق الموظفات: الأعمدة وعدد الشهور | #468, #513, #516 | yes; the screen is [61](61-staff-app-columns-screen.md) (`/staff-app-columns`); months back is read by the employee's own attendance and work reads |
 | 60 | [Staff push subscriptions](60-staff-push-subscriptions.md) — اشتراك موبايل الموظفة في الإشعارات | #530 | API on staging; the on/off control and the sender are [64](64-staff-web-push.md); needs the personal session (OTP OFF) and the push keys set in Dokploy |
@@ -138,5 +138,14 @@ The status paragraph inside journeys 01–47 was written before #533 and may sti
 | 66 | [Staff sign-out that always finishes](66-staff-sign-out.md) — خروج الموظفة اللي دايمًا بيكمل | #597 | yes for the paired device; the personal session needs OTP (OFF) |
 | 67 | [Official attendance statement (PDF)](67-attendance-statement.md) — كشف الحضور الرسمي (PDF) | #589, #608, #684, #697, #705 | screen and routes yes (`/staff/attendance-statement`); the PDF needs the worker's renderer |
 | 68 | [Staff app link and QR](68-employee-app-link-qr.md) — لينك تطبيق الموظفات والـ QR | #638 | yes (`/staff/employee-app-link`); no print sheet yet |
+| 69 | [List a branch's pending devices](69-pending-devices.md) — قائمة أجهزة الفرع اللي مستنية موافقة | #660 | API on staging; no screen (issue #634) |
+| 70 | [Ask for a discount approval and use it](70-discount-approval-request.md) — اطلب موافقة على خصم واستخدمها | #560, #595, #657, #1015, #1022 | yes, on `/orders/service-sessions/new`; not from the edit dialog yet |
+| 71 | [Approve or reject a discount (PIN or remotely)](71-discount-approval-decide.md) — الموافقة على الخصم أو رفضه | #957, #1002, #1053, #1062 | PIN screen yes on a paired reception device; the remote decision is API only |
+| 72 | [Owner bell: a discount approved on the approver's own work](72-discount-self-approval-bell.md) — جرس المالك: موافقة على خصم على شغل الموافِق | #937, #945, #946, #948 | yes; worker consumer, shown in the admin bell; rule on `/alert-rules` |
+| 73 | [Service categories](73-service-categories.md) — تصنيفات الخدمات | #721, #726, #729, #1060 | yes (`/catalog/categories`); branch categories are API only |
+| 74 | [A service's duration and category](74-service-duration-category.md) — مدة الخدمة وتصنيفها | #757, #771 | yes (`/catalog`) |
+| 75 | [Close and reopen a category and its services](75-close-reopen-categories.md) — قفل وفتح التصنيف وخدماته | #996, #1021, #1044, #1050, #1060 | yes for a category; closing one service alone is API only |
+| 76 | [Rating requests: scheduling and the on/off switch](76-rating-requests.md) — طلبات التقييم: الجدولة ومفتاح التشغيل | #670, #692, #734, #741, #751, #785, #883 | the switch yes (`/alert-rules`); nothing is sent (row 59b-3 not built) |
+| 77 | [The customer's rating page](77-public-rating-page.md) — صفحة تقييم العميلة | #704, #731, #738, #847 | no: `apps/menu` is not deployed on staging and no link is sent yet |
 
 New journeys are added after every merge.
