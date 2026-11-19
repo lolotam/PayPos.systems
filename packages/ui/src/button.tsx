@@ -12,6 +12,7 @@ import {
 } from 'react';
 
 import { cn } from './shared/cn.js';
+import { SIDEBAR_GHOST_CLASSES } from './sidebar-classes.js';
 
 export const buttonVariants = cva(
   'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-interactive text-[15px] font-semibold transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
@@ -23,6 +24,7 @@ export const buttonVariants = cva(
         secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
         outline: 'border border-input bg-background hover:bg-accent hover:text-accent-foreground',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
+        sidebar: SIDEBAR_GHOST_CLASSES,
         destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
         link: 'text-link underline-offset-4 hover:underline',
       },

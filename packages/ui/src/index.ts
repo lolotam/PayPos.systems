@@ -18,6 +18,9 @@ export {
   Languages,
   Upload,
   Smartphone,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
 export { BrandMark, type BrandMarkProps } from './brand-mark.js';
 export { BrandWordmark, type BrandWordmarkProps } from './brand-wordmark.js';
@@ -49,3 +52,11 @@ export {
 } from './direction-provider.js';
 export { cn } from './shared/cn.js';
 export { fadeIn, slideIn, reducedMotion } from './motion.js';
+export { ThemeSwitch, type ThemeSwitchLabels, type ThemeSwitchProps } from './theme-switch.js';
+export {
+  effectiveTheme,
+  readThemePreference,
+  setThemePreference,
+  subscribeToThemePreference,
+  type ThemePreference,
+} from './theme.js';

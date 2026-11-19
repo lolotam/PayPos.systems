@@ -5,8 +5,8 @@ import { BrandLockup } from '../brand-lockup.js';
 it.each([
   ['', 'ink', 'text-foreground'],
   ['dark', 'ink', 'text-foreground'],
-  ['', 'light', 'text-sand-50'],
-  ['dark', 'light', 'text-sand-50'],
+  ['', 'sidebar', 'text-sidebar-foreground'],
+  ['dark', 'sidebar', 'text-sidebar-foreground'],
 ] as const)(
   'keeps the %s theme %s wordmark readable without recolouring the tile',
   (theme, tone, colour) => {

@@ -1,6 +1,6 @@
 import type { StaffSessionContext } from '@pospay/contracts';
 import { formatRemainingMinutes, t } from '@pospay/i18n';
-import { Button } from '@pospay/ui';
+import { Button, ThemeSwitch } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 
 export function StaffHome({
@@ -24,6 +24,15 @@ export function StaffHome({
       <Button size="touch" variant="ghost" onClick={onSignOut}>
         {t(locale, 'staffLogin.signOut')}
       </Button>
+      <ThemeSwitch
+        className="mt-2"
+        labels={{
+          label: t(locale, 'theme.label'),
+          light: t(locale, 'theme.light'),
+          dark: t(locale, 'theme.dark'),
+          system: t(locale, 'theme.system'),
+        }}
+      />
     </div>
   );
 }

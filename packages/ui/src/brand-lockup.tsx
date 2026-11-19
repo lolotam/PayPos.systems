@@ -7,7 +7,7 @@ export type BrandLockupProps = ComponentProps<'div'> & {
   title: string;
   latinName: string;
   arabicName: string;
-  tone?: 'ink' | 'light';
+  tone?: 'ink' | 'sidebar';
 };
 
 export function BrandLockup({

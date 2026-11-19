@@ -13,11 +13,15 @@ export function AppSidebarContent({
 }) {
   return (
     <>
-      <div className="flex shrink-0 flex-col gap-6 border-b border-white/10 p-4">{header}</div>
+      <div className="flex shrink-0 flex-col gap-6 border-b border-sidebar-border p-4">
+        {header}
+      </div>
       <nav aria-label={title} className="flex-1 p-4">
         {navigation}
       </nav>
-      <div className="flex shrink-0 flex-col gap-2 border-t border-white/10 p-4">{footer}</div>
+      <div className="flex shrink-0 flex-col gap-2 border-t border-sidebar-border p-4">
+        {footer}
+      </div>
     </>
   );
 }

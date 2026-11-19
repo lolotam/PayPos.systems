@@ -7,7 +7,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 
 import { useSignOut } from '../api/use-sign-out';
 
-export function SignOutButton({ tone = 'ink' }: { tone?: 'ink' | 'light' }) {
+export function SignOutButton({ tone = 'ink' }: { tone?: 'ink' | 'sidebar' }) {
   const locale = useLocale();
   const signOut = useSignOut();
   return (
@@ -23,11 +23,9 @@ export function SignOutButton({ tone = 'ink' }: { tone?: 'ink' | 'light' }) {
       ) : null}
       <Button
         type="button"
-        variant="ghost"
+        variant={tone === 'sidebar' ? 'sidebar' : 'ghost'}
         size="sm"
-        className={
-          tone === 'light' ? 'justify-start hover:bg-white/10 hover:text-white' : 'justify-start'
-        }
+        className="justify-start"
         disabled={signOut.pending}
         onClick={() => void signOut.submit()}
       >

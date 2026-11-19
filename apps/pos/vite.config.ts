@@ -1,10 +1,47 @@
 import { fileURLToPath } from 'node:url';
 
+import { THEME_BOOT_SCRIPT, THEME_COLOR_METAS, THEME_COLORS } from '@pospay/ui/theme';
+
 import { POS_HOSTS } from '@pospay/contracts';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig } from 'vitest/config';
+
+const themeColorMetas = THEME_COLOR_METAS.map(({ media, content }) => ({
+  tag: 'meta',
+  attrs: {
+    name: 'theme-color',
+    content,
+    media,
+  },
+  injectTo: 'head' as const,
+}));
+
+const themeBootPlugin = {
+  name: 'souk-theme-boot',
+  transformIndexHtml: () => [
+    // الـ metas الأول عشان سكربت الإقلاع يلاقي أول meta لـ theme-color في الشجرة،
+    // فيدرَج الـ meta المملوكة قبلها؛ لو مش موجودة بيفضل الـ head-prepend fallback.
+    ...themeColorMetas,
+    { tag: 'script', children: THEME_BOOT_SCRIPT, injectTo: 'head' as const },
+  ],
+};
+
+const appIcons = [192, 512].flatMap((size) => [
+  {
+    src: `android-chrome-${size}x${size}.png`,
+    sizes: `${size}x${size}`,
+    type: 'image/png',
+    purpose: 'any',
+  },
+  {
+    src: `maskable-icon-${size}x${size}.png`,
+    sizes: `${size}x${size}`,
+    type: 'image/png',
+    purpose: 'maskable',
+  },
+]);
 
 const testing = process.env.VITEST === 'true';
 
@@ -32,6 +69,7 @@ export default defineConfig(({ mode }) => {
         }
       : {}),
     plugins: [
+      themeBootPlugin,
       react(),
       tailwindcss(),
       testing || native
@@ -42,7 +80,6 @@ export default defineConfig(({ mode }) => {
             filename: 'sw.ts',
             registerType: 'autoUpdate',
             manifestFilename: 'manifest.webmanifest',
-            includeAssets: ['icon.svg'],
             manifest: {
               name: 'PosPay',
               short_name: 'PosPay',
@@ -51,12 +88,12 @@ export default defineConfig(({ mode }) => {
               display: 'standalone',
               start_url: '/',
               scope: '/',
-              theme_color: '#FF6421',
-              background_color: '#FCFAF6',
-              icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
+              theme_color: THEME_COLORS.light,
+              background_color: THEME_COLORS.light,
+              icons: appIcons,
             },
             injectManifest: {
-              globPatterns: ['**/*.{js,css,html,svg,woff,woff2}'],
+              globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2}'],
             },
             devOptions: { enabled: false },
           }),

@@ -1,6 +1,6 @@
 'use client';
 import { t } from '@pospay/i18n';
-import { AppSidebar, BrandLockup } from '@pospay/ui';
+import { AppSidebar, BrandLockup, ThemeSwitch } from '@pospay/ui';
 import { EnrolLink } from '@/session/ui/enrol-link';
 import { SignOutButton } from '@/session/ui/sign-out-button';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -19,7 +19,7 @@ export function DashboardSidebar({ account }: { account: SessionAccount | null }
       header={
         <>
           <BrandLockup
-            tone="light"
+            tone="sidebar"
             title={t(locale, 'brand.title')}
             latinName={t(locale, 'brand.latinName')}
             arabicName={t(locale, 'brand.arabicName')}
@@ -32,7 +32,16 @@ export function DashboardSidebar({ account }: { account: SessionAccount | null }
         <>
           <DashboardAccount account={account} />
           <EnrolLink />
-          <SignOutButton tone="light" />
+          <ThemeSwitch
+            tone="sidebar"
+            labels={{
+              label: t(locale, 'theme.label'),
+              light: t(locale, 'theme.light'),
+              dark: t(locale, 'theme.dark'),
+              system: t(locale, 'theme.system'),
+            }}
+          />
+          <SignOutButton tone="sidebar" />
         </>
       }
     />
