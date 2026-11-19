@@ -2,12 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 import { ThemeSwitch } from '../theme-switch.js';
-import {
-  THEME_COLORS,
-  THEME_STORAGE_KEY,
-  setThemePreference,
-  subscribeToThemePreference,
-} from '../theme.js';
+import { THEME_COLORS, THEME_STORAGE_KEY, subscribeToThemePreference } from '../theme.js';
 
 const labels = {
   label: 'fixture.theme',
@@ -25,8 +20,8 @@ function systemTheme(matches = false) {
 }
 
 /** بديل systemTheme: نظام بيتغيّر وقت التشغيل، وبيجمع مستمعي تغيّره. */
-function changeableSystemTheme() {
-  const state = { matches: false };
+function changeableSystemTheme(matches = false) {
+  const state = { matches };
   const listeners: ((event: { matches: boolean }) => void)[] = [];
   vi.stubGlobal('matchMedia', () => ({
     get matches() {
@@ -63,12 +58,11 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // dispose بيهدم المثيل الواحد بالمستمعين والاختيار اللي في الذاكرة مع كل اختبار،
+  // فالاختبار اللي بعده يبدأ نظيف بدل ما نرجّع الاختيار للنظام بإيدنا.
+  window.__pospayTheme?.dispose();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
-  // الاختيار المحفوظ في الذاكرة بيتصفّر بإرجاع الاختيار للنظام، عشان ما يتسرّبش بين الاختبارات.
-  act(() => {
-    setThemePreference('system');
-  });
   localStorage.clear();
   document.documentElement.classList.remove('dark');
   document.head.innerHTML = '';
@@ -165,6 +159,64 @@ it('keeps an explicit choice when the system setting changes', () => {
 
   expect(document.documentElement.classList.contains('dark')).toBe(true);
   expect(choice('fixture.dark').getAttribute('aria-pressed')).toBe('true');
+});
+
+it('keeps an explicit dark choice on screen when the browser refuses to store it, even as the system turns light', () => {
+  const system = changeableSystemTheme(true);
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    throw new Error('denied');
+  });
+  render(<ThemeSwitch labels={labels} />);
+
+  fireEvent.click(choice('fixture.dark'));
+  expect(choice('fixture.dark').getAttribute('aria-pressed')).toBe('true');
+  expect(document.documentElement.classList.contains('dark')).toBe(true);
+  expect(ownedThemeColor()).toBe(THEME_COLORS.dark);
+
+  act(() => {
+    system.change(false);
+  });
+
+  expect(choice('fixture.dark').getAttribute('aria-pressed')).toBe('true');
+  expect(document.documentElement.classList.contains('dark')).toBe(true);
+  expect(ownedThemeColor()).toBe(THEME_COLORS.dark);
+});
+
+it('keeps a refused dark choice when the system changes while an older light value is still stored', () => {
+  // القيمة القديمة 'light' لسه في التخزين والكتابة الجديدة مرفوضة: اختيار الذاكرة 'dark'
+  // هو الأحدث، فتغيّر النظام لازم ما يرجّعش الصفحة لورا للقيمة المخزَّنة الأقدم منه.
+  const system = changeableSystemTheme(true);
+  localStorage.setItem(THEME_STORAGE_KEY, 'light');
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    throw new Error('denied');
+  });
+  render(<ThemeSwitch labels={labels} />);
+
+  fireEvent.click(choice('fixture.dark'));
+  expect(choice('fixture.dark').getAttribute('aria-pressed')).toBe('true');
+
+  act(() => {
+    system.change(false);
+  });
+
+  expect(choice('fixture.dark').getAttribute('aria-pressed')).toBe('true');
+  expect(document.documentElement.classList.contains('dark')).toBe(true);
+  expect(ownedThemeColor()).toBe(THEME_COLORS.dark);
+  expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('light');
+});
+
+it('serves re-renders from the cached preference instead of reading localStorage again', () => {
+  systemTheme();
+  localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+  const { rerender } = render(<ThemeSwitch labels={labels} />);
+  const getItem = vi.spyOn(Storage.prototype, 'getItem');
+
+  rerender(<ThemeSwitch labels={labels} />);
+  rerender(<ThemeSwitch labels={labels} />);
+  rerender(<ThemeSwitch labels={labels} />);
+
+  expect(choice('fixture.dark').getAttribute('aria-pressed')).toBe('true');
+  expect(getItem).not.toHaveBeenCalled();
 });
 
 it('names the group for screen readers', () => {

@@ -14,7 +14,9 @@ Arabic and Latin subsets served locally. Apply `.dark` to the document element
 element. A `.dark` subtree switches the same tokens for the elements inside it.
 Dark mode follows the system setting by default, and `ThemeSwitch` lets the user
 override it with light / dark / system, storing the choice under the same key the
-boot script reads.
+boot script reads. The boot script and the switch share one theme runtime
+instance, exposed as `window.__pospayTheme`, so a page never carries two sets of
+`storage` / `prefers-color-scheme` listeners.
 
 All text, including accessible names, placeholders and icon-button labels, must
 come from the consumer's `@pospay/i18n` catalog. The kit owns no user-facing strings.

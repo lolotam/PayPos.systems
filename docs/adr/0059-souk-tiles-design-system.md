@@ -16,6 +16,8 @@ Keep lucide-react. Port the source theme storage key, pre-paint initialization a
 
 Addendum (2026-11-19, DS-2): [ADR-0060](./0060-phosphor-icons.md) supersedes «Keep lucide-react»; Phosphor is now the icon library.
 
+Addendum (2026-11-20, DS-3 A1): the theme runtime has one source and one instance. The boot script is generated from the module's `installThemeRuntime`, `createThemePainter` and `createThemeStore`, and the installed instance lives on `window.__pospayTheme`. The boot script installs the `storage` and `prefers-color-scheme` listeners on every page, and the module joins that instance instead of installing a second one.
+
 Dark mode follows the system setting by default, and the user can override it with the `ThemeSwitch` (light / dark / system) in the admin sidebar footer and the POS operator panel. The switch writes the same storage key the boot script reads, so the choice survives a reload and reaches the other tabs.
 
 ## Consequences
