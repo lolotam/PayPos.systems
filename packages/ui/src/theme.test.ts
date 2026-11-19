@@ -18,6 +18,26 @@ function mockSystemTheme(matches = false) {
   return listeners;
 }
 
+/** بديل mockSystemTheme: نظام بيتغيّر وقت التشغيل، والرسم بيتتبع قيمة matches الحالية مش قيمة التثبيت. */
+function changeableSystemTheme(matches = false) {
+  const state = { matches };
+  const listeners: SystemThemeListener[] = [];
+  vi.stubGlobal('matchMedia', () => ({
+    get matches() {
+      return state.matches;
+    },
+    addEventListener: (_event: string, listener: SystemThemeListener) => listeners.push(listener),
+    removeEventListener: vi.fn(),
+  }));
+  return {
+    listeners,
+    change(next: boolean) {
+      state.matches = next;
+      for (const listener of listeners) listener({ matches: next });
+    },
+  };
+}
+
 function systemThemeColors() {
   return [...document.querySelectorAll('meta[name="theme-color"]:not([data-pospay-theme])')].map(
     (meta) => meta.getAttribute('content'),
@@ -36,6 +56,14 @@ function firstThemeColorIsOwned() {
   return first?.hasAttribute('data-pospay-theme') ?? false;
 }
 
+/** بيرجّع الصفحة لحالة قبل التشغيل: من غير مثيل ولا مفتاح محفوظ ولا كلاس dark ولا metas، فالنص يتقاس من الأول. */
+function resetThemePage() {
+  window.__pospayTheme?.dispose();
+  localStorage.removeItem(THEME_STORAGE_KEY);
+  document.documentElement.classList.remove('dark');
+  document.head.innerHTML = '';
+}
+
 beforeEach(() => {
   mockSystemTheme();
   document.head.innerHTML = `
@@ -44,6 +72,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // المثيل الواحد لازم يموت مع كل اختبار: المستمعين والاختيار اللي في الذاكرة بيتحرروا معاه،
+  // فالاختبار اللي بعده يبدأ نظيف بدل ما يرث مستمعين أو اختيار من صفحة قبله.
+  window.__pospayTheme?.dispose();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   localStorage.clear();
@@ -106,30 +137,30 @@ describe('browser theme color', () => {
 
 describe('system theme changes', () => {
   it('follows system changes only while no theme is stored', () => {
-    const listeners = mockSystemTheme();
+    const system = changeableSystemTheme();
     new Function(THEME_BOOT_SCRIPT)();
-    expect(listeners).toHaveLength(1);
+    expect(system.listeners).toHaveLength(1);
 
-    listeners[0]?.({ matches: true });
+    system.change(true);
     expect(document.documentElement.classList.contains('dark')).toBe(true);
 
     localStorage.setItem(THEME_STORAGE_KEY, 'light');
     document.documentElement.classList.remove('dark');
-    listeners[0]?.({ matches: true });
+    system.change(true);
     expect(document.documentElement.classList.contains('dark')).toBe(false);
   });
 
   it('keeps the system listener registered with a stored theme, and the system takes over once the key is cleared', () => {
-    const listeners = mockSystemTheme();
+    const system = changeableSystemTheme();
     localStorage.setItem(THEME_STORAGE_KEY, 'dark');
     new Function(THEME_BOOT_SCRIPT)();
-    expect(listeners).toHaveLength(1);
+    expect(system.listeners).toHaveLength(1);
 
-    listeners[0]?.({ matches: false });
+    system.change(false);
     expect(document.documentElement.classList.contains('dark')).toBe(true);
 
     localStorage.removeItem(THEME_STORAGE_KEY);
-    listeners[0]?.({ matches: false });
+    system.change(false);
     expect(document.documentElement.classList.contains('dark')).toBe(false);
   });
 });
@@ -155,6 +186,7 @@ describe('theme preference at runtime', () => {
     const bootDark = document.documentElement.classList.contains('dark');
     const bootMeta = ownedThemeColor();
 
+    window.__pospayTheme?.dispose();
     document.documentElement.classList.remove('dark');
     document.head.innerHTML = '';
     setThemePreference('dark');
@@ -180,5 +212,81 @@ describe('theme preference at runtime', () => {
     unsubscribe();
     setThemePreference('light');
     expect(listener).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('one runtime instance', () => {
+  it('the module joins the runtime the boot script installed, so a second boot registers no second system listener', () => {
+    const listeners = mockSystemTheme();
+    new Function(THEME_BOOT_SCRIPT)();
+    setThemePreference('dark');
+    const unsubscribe = subscribeToThemePreference(() => {});
+    new Function(THEME_BOOT_SCRIPT)();
+
+    expect(listeners).toHaveLength(1);
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    expect(ownedThemeColor()).toBe(THEME_COLORS.dark);
+
+    unsubscribe();
+  });
+
+  it('a theme stored in another tab applies through the boot listener with no subscriber mounted', () => {
+    new Function(THEME_BOOT_SCRIPT)();
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+
+    localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+    window.dispatchEvent(new StorageEvent('storage', { key: THEME_STORAGE_KEY, newValue: 'dark' }));
+
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    expect(ownedThemeColor()).toBe(THEME_COLORS.dark);
+  });
+
+  it('clearing the key from another tab hands the theme back to the light system and drops the owned meta', () => {
+    localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+    new Function(THEME_BOOT_SCRIPT)();
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    expect(ownedThemeColor()).toBe(THEME_COLORS.dark);
+
+    localStorage.removeItem(THEME_STORAGE_KEY);
+    window.dispatchEvent(new StorageEvent('storage', { key: THEME_STORAGE_KEY, newValue: null }));
+
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+    expect(ownedThemeColor()).toBeUndefined();
+  });
+
+  it('clearing the stored key mid-session removes the owned meta once the system changes', () => {
+    const system = changeableSystemTheme();
+    localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+    new Function(THEME_BOOT_SCRIPT)();
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    expect(ownedThemeColor()).toBe(THEME_COLORS.dark);
+
+    localStorage.removeItem(THEME_STORAGE_KEY);
+    system.change(false);
+
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+    expect(ownedThemeColor()).toBeUndefined();
+  });
+
+  it('the boot script survives a missing matchMedia: stored dark still wins, nothing stored stays light', () => {
+    vi.stubGlobal('matchMedia', undefined);
+    localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+    expect(() => new Function(THEME_BOOT_SCRIPT)()).not.toThrow();
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    expect(ownedThemeColor()).toBe(THEME_COLORS.dark);
+
+    resetThemePage();
+    expect(() => new Function(THEME_BOOT_SCRIPT)()).not.toThrow();
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+    expect(ownedThemeColor()).toBeUndefined();
+  });
+
+  it('the emitted boot script stays plain for old WebViews and turns a stored dark into a dark page', () => {
+    // الصياغة الممنوعة: optional chaining أو nullish أو catch من غير معامل أو backtick أو helpers مترجمات — كلها بتكسر الـ WebViews القديمة.
+    expect(THEME_BOOT_SCRIPT).not.toMatch(/catch\s*\{|\?\.|\?\?|`|__name\(/);
+
+    localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+    new Function(THEME_BOOT_SCRIPT)();
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
   });
 });
