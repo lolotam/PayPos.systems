@@ -283,7 +283,10 @@ describe('one runtime instance', () => {
 
   it('the emitted boot script stays plain for old WebViews and turns a stored dark into a dark page', () => {
     // الصياغة الممنوعة: optional chaining أو nullish أو catch من غير معامل أو backtick أو helpers مترجمات — كلها بتكسر الـ WebViews القديمة.
+    // وtypeof window متبوعة بمقارنة ممنوعة كمان: مترجم سيرفر Next بيبدّلها بالثابت "undefined"
+    // فيتجمّد الحرس في السكربت المتولّد — لكن typeof window.matchMedia مسموحة ومش بتتقاس.
     expect(THEME_BOOT_SCRIPT).not.toMatch(/catch\s*\{|\?\.|\?\?|`|__name\(/);
+    expect(THEME_BOOT_SCRIPT).not.toMatch(/typeof window\s*[!=]==/);
 
     localStorage.setItem(THEME_STORAGE_KEY, 'dark');
     new Function(THEME_BOOT_SCRIPT)();

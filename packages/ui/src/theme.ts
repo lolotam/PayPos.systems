@@ -87,7 +87,9 @@ type ThemeStoreFactory = (config: ThemeRuntimeConfig) => ThemeStore;
 /* eslint-disable no-var, @typescript-eslint/no-dynamic-delete, @typescript-eslint/no-unused-vars --
    نص الدوال الثلاثة دي بيتولّد في THEME_BOOT_SCRIPT وبيشتغل خام في الـ HTML من غير أي ترجمة،
    فالصياغة الـ plain (var والحذف الديناميكي للمقبض) مقصودة: مترجمات الإنتاج ما بتحقنش
-   helpers، والـ WebViews القديمة بتشغّل السكربت كما هو. والاستثناء من no-unused-vars هنا بس
+   helpers، والـ WebViews القديمة بتشغّل السكربت كما هو. ومن ممنوعات نصوصها كذلك أي typeof window
+   متبوعة بمقارنة: مترجمات سيرفر Next بتستبدلها بالثابت "undefined" فيتجمّد الحرس في السكربت المتولّد.
+   والاستثناء من no-unused-vars هنا بس
    عشان معامل catch (error) المقصود ما بيتستخدمش: الربط الإجباري للخطأ هو اللي بيمنع
    optional catch binding اللي بتكسر السكربت على الـ WebViews القديمة. الباقي في الملف بيفضل مفحوص عادي. */
 /**
@@ -103,7 +105,10 @@ type ThemeStoreFactory = (config: ThemeRuntimeConfig) => ThemeStore;
  */
 function createThemePainter(config: ThemeRuntimeConfig): ThemePainter {
   var media: MediaQueryList | null = null;
-  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+  // الحرس على window.matchMedia لوحدها من غير typeof window: مترجم سيرفر Next بيبدّل typeof window
+  // جوّه الدالة المتسلسلة بالثابت "undefined"، فيتجمّد الحرس على false في سكربت الإقلاع
+  // والصفحة ما تتبعش تغيّر النظام أبدًا. السكربت والمثبت بيتشغّلوا في المتصفح بس.
+  if (typeof window.matchMedia === 'function') {
     media = window.matchMedia(config.darkMediaQuery);
   }
 

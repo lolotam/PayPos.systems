@@ -81,6 +81,9 @@ They are serialised with `Function.prototype.toString()`, so each one must be fu
 - Every dependency arrives through a parameter. No reference to a module constant, import, or another module function.
 - Plain syntax only: `var`/`function`, no spread, no destructuring, no classes, no async, no optional chaining, no
   nullish coalescing, no template literals, no optional catch binding (`catch (error)`, never `catch {`). This keeps compilers from injecting helpers and keeps old WebViews working.
+- No `typeof window` comparison inside them. The Next server compiler replaces `typeof window` with `"undefined"`,
+  which froze the `matchMedia` guard to `if (false)` in the admin boot script (found in the browser review, fix
+  round 2). Guard the member instead: `typeof window.matchMedia === 'function'`.
 - Each stays under the 60-line function limit (`max-lines-per-function`, blank lines and comments skipped).
 - `theme.ts` stays one file with no imports (the POS Vite config loads it in Node) and under 300 lines.
 
