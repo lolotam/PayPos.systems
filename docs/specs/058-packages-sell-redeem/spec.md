@@ -1030,6 +1030,21 @@ is known, use status reads only. Remove the journal only after a confirmed termi
 first-request definitive rejection. Local UI coverage includes reload, timeout, unavailable storage
 and expired-window messages in Arabic and English.
 
+The held attempts live per scope in memory, so a request that started under one scope reads and writes
+only that scope's entry whatever the form shows when the response settles. The stored record passes a
+fail-closed shape check (bounded key and sale id, valid body, or a status-only record with a sale id and
+no body), and a write that storage refuses keeps the attempt in memory and warns «could not be saved on
+this device» while the attempt is unresolved. Each observation past the first minute raises the record's
+`seenAt` high-water mark, and expiry compares the larger of the current clock and that mark against the
+creation time, so a clock set back can only block replay, never allow it: a record whose creation time is
+in the future is expired at once, and one seen 23 hours after creation stays expired even if the clock
+then reads one hour after creation. With the screen open, a timer fires at the expiry instant, and window
+focus and visibility changes re-check it, so the message and the locked retry flip without a reload. Once
+the window has expired, the operator who verified the original sale with the manager ticks an explicit
+acknowledgement and discards the expired attempt locally: the journal entry and its stored record are
+removed under the scope lock, the unsaved warning clears, and the form opens for a new sale; the server's
+idempotency window stays the authority on duplicates.
+
 ### API picker follow-ups (#1075)
 
 Sellable package types explicitly declare the same user-only guard as package sale context and submission. Device principals remain forbidden by the global permission guard as well. Seller options exclude every employee linked to the authenticated recorder user before pagination; other eligible performers remain selectable, including employees without a linked user. No migration or public contract change is required.
