@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 
-import { THEME_BOOT_SCRIPT } from '@pospay/ui/theme';
+import { THEME_BOOT_SCRIPT, THEME_COLORS } from '@pospay/ui/theme';
 
 import { POS_HOSTS } from '@pospay/contracts';
 import tailwindcss from '@tailwindcss/vite';
@@ -8,10 +8,21 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig } from 'vitest/config';
 
+const themeColorMetas = (['light', 'dark'] as const).map((theme) => ({
+  tag: 'meta',
+  attrs: {
+    name: 'theme-color',
+    content: THEME_COLORS[theme],
+    media: `(prefers-color-scheme: ${theme})`,
+  },
+  injectTo: 'head' as const,
+}));
+
 const themeBootPlugin = {
   name: 'souk-theme-boot',
   transformIndexHtml: () => [
     { tag: 'script', children: THEME_BOOT_SCRIPT, injectTo: 'head' as const },
+    ...themeColorMetas,
   ],
 };
 
@@ -29,6 +40,13 @@ const appIcons = [192, 512].flatMap((size) => [
     purpose: 'maskable',
   },
 ]);
+
+const precacheExclusions = [
+  'brand/logo-mark-simple-tile.png',
+  'favicon-16x16.png',
+  'favicon-32x32.png',
+  'favicon-96x96.png',
+];
 
 const testing = process.env.VITEST === 'true';
 
@@ -67,7 +85,6 @@ export default defineConfig(({ mode }) => {
             filename: 'sw.ts',
             registerType: 'autoUpdate',
             manifestFilename: 'manifest.webmanifest',
-            includeAssets: ['*.png', '*.ico', 'brand/*.png'],
             manifest: {
               name: 'PosPay',
               short_name: 'PosPay',
@@ -76,12 +93,13 @@ export default defineConfig(({ mode }) => {
               display: 'standalone',
               start_url: '/',
               scope: '/',
-              theme_color: '#EEF4F2',
-              background_color: '#EEF4F2',
+              theme_color: THEME_COLORS.light,
+              background_color: THEME_COLORS.light,
               icons: appIcons,
             },
             injectManifest: {
               globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2}'],
+              globIgnores: precacheExclusions,
             },
             devOptions: { enabled: false },
           }),

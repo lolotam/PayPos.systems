@@ -35,7 +35,7 @@ export function AppSidebarItem({
         aria-hidden="true"
         className={cn(
           'absolute start-3 top-1/2 size-1.5 -translate-y-1/2 rounded-full',
-          active ? 'bg-sidebar-active' : 'bg-transparent',
+          active ? 'bg-sidebar-primary' : 'bg-transparent',
         )}
       />
       <span aria-hidden="true" className="[&_svg]:size-4">
@@ -51,8 +51,8 @@ export function AppSidebarItem({
       className={cn(
         'relative flex min-h-11 items-center gap-2 rounded-interactive ps-7 pe-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-ring',
         active
-          ? 'bg-white/10 font-medium text-white'
-          : 'text-sidebar-foreground hover:bg-white/5 hover:text-white',
+          ? 'bg-sidebar-primary font-medium text-sidebar-primary-foreground'
+          : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
         className,
       )}
       {...props}

@@ -42,7 +42,14 @@ it.each(['rtl', 'ltr'] as const)(
     expect(dialog.getAttribute('aria-modal')).toBe('true');
     const link = screen.getByRole('link', { name: 'fixture.home' });
     expect(link.getAttribute('dir')).toBe(dir);
-    const dot = link.querySelector('.bg-sidebar-active');
+    expect(link.classList.contains('bg-sidebar-primary')).toBe(true);
+    expect(link.classList.contains('text-sidebar-primary-foreground')).toBe(true);
+    expect(
+      screen
+        .getByRole('button', { name: 'fixture.close' })
+        .classList.contains('hover:bg-sidebar-accent'),
+    ).toBe(true);
+    const dot = link.querySelector('.bg-sidebar-primary');
     expect(dot?.classList.contains('start-3')).toBe(true);
     expect(link.classList.contains('relative')).toBe(true);
     expect(dialog.contains(document.activeElement)).toBe(true);
@@ -82,6 +89,6 @@ it.each(['rtl', 'ltr'] as const)('anchors the active dot to logical inline-start
   );
   const link = screen.getByRole('link', { name: 'fixture.home' });
   expect(link.getAttribute('dir')).toBe(dir);
-  expect(link.querySelector('.bg-sidebar-active')?.classList.contains('start-3')).toBe(true);
+  expect(link.querySelector('.bg-sidebar-primary')?.classList.contains('start-3')).toBe(true);
   expect(link.classList.contains('relative')).toBe(true);
 });

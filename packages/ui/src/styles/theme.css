@@ -1,38 +1,38 @@
-/* Souk Tiles foundations: lovable-pospay@0440911. See ADR-0059. */
+/* أساسيات Souk Tiles من lovable-pospay@0440911، وفق ADR-0059. */
 @import 'tailwindcss';
 @import './fonts/fonts.css';
 @source "../";
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Design system definition.
+ * تعريف نظام التصميم.
  *
- * The design lives in this file: oklch color tokens on the shadcn variables
- * (--background, --foreground, --primary, --secondary, --muted, --accent, ...) plus
- * new tokens as needed, font tokens, and custom styles and animations.
+ * التصميم كله في هذا الملف: ألوان oklch على متغيرات shadcn
+ * (--background, --foreground, --primary, --secondary, --muted, --accent, ...)،
+ * مع الرموز الجديدة والخطوط والأنماط والحركات عند الحاجة.
  *
- * The @theme inline block maps CSS custom properties to Tailwind utility
- * classes (e.g. --color-primary -> bg-primary, text-primary).
+ * كتلة @theme inline تربط خصائص CSS بأدوات Tailwind،
+ * مثل --color-primary -> bg-primary, text-primary.
  *
- * The :root and .dark blocks define the actual color values using oklch.
- * All colors MUST use oklch format.
+ * كتلتا :root و.dark تحددان قيم الألوان الفعلية بصيغة oklch.
+ * كل الألوان لازم تستخدم oklch.
  *
- * To add a new semantic color:
- * 1. Add the variable to :root (light value) and .dark (dark value)
- * 2. Register it in @theme inline as --color-<name>: var(--<name>)
+ * لإضافة لون دلالي جديد:
+ * 1. أضف المتغير إلى :root بقيمة فاتحة وإلى .dark بقيمة داكنة.
+ * 2. سجله في @theme inline بالشكل --color-<name>: var(--<name>).
  *
- * The palette comes from the logo: teal primary, orange call to action, navy, cream.
- * - primary is teal and safe as text on background, card, muted and secondary.
- * - accent is a pale orange hover and chip background. It is not a text color.
- * - cta is the orange block (navy text). White text on it fails contrast.
- * - success and destructive are text colors, each readable on its *-soft background.
- * - tile-* are the color blocks of the dashboard summary tiles.
+ * لوحة الألوان مستمدة من الشعار: teal أساسي، وorange للإجراء، وnavy، وcream.
+ * - primary لون teal صالح للنص على background وcard وmuted وsecondary.
+ * - accent خلفية orange فاتحة للـhover والـchips، وليس لونًا للنص.
+ * - cta كتلة orange مع نص navy؛ النص الأبيض عليها لا يحقق التباين.
+ * - success وdestructive لونا نص، وكل منهما مقروء على خلفية *-soft الخاصة به.
+ * - tile-* هي كتل ألوان بطاقات ملخص لوحة المعلومات.
  */
 
 @theme inline {
   --font-sans: 'Readex Pro', system-ui, sans-serif;
   --font-display: 'Baloo Bhaijaan 2', 'Readex Pro', system-ui, sans-serif;
-  /* Capped: 16px controls such as checkboxes would otherwise round into circles. */
+  /* الحد الأقصى يمنع عناصر 16px مثل checkboxes من التحول إلى دوائر. */
   --radius-sm: min(0.3125rem, calc(var(--radius) - 4px));
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -87,9 +87,6 @@
 }
 
 :root {
-  --google-button-background: #ffffff;
-  --google-button-border: #747775;
-  --google-button-foreground: #1f1f1f;
   --radius: 1.375rem;
   --background: oklch(0.962 0.007 174.4);
   --foreground: oklch(0.244 0.029 227.2);
@@ -137,9 +134,6 @@
 }
 
 .dark {
-  --google-button-background: #131314;
-  --google-button-border: #8e918f;
-  --google-button-foreground: #e3e3e3;
   --background: oklch(0.194 0.019 208.2);
   --foreground: oklch(0.957 0.01 181.4);
   --card: oklch(0.253 0.028 211.3);
@@ -285,7 +279,7 @@
   --color-ink-700: var(--foreground);
   --color-ink-800: var(--foreground);
   --color-ink-900: var(--foreground);
-  --color-ink-950: var(--foreground);
+  --color-ink-950: oklch(0.187 0.034 252.7);
   --color-teal-50: var(--primary);
   --color-teal-100: var(--primary);
   --color-teal-200: var(--primary);
@@ -297,7 +291,7 @@
   --color-teal-800: var(--primary);
   --color-teal-900: var(--primary);
   --color-teal-950: var(--primary);
-  --color-sand-50: var(--tile-navy-foreground);
+  --color-sand-50: oklch(0.988 0.005 84.6);
   --color-sand-100: var(--tile-sand);
   --color-sand-200: var(--tile-sand);
   --color-sand-300: var(--tile-sand);

@@ -14,7 +14,7 @@ export function EnrolLink() {
     <Button
       variant="ghost"
       size="sm"
-      className="justify-start hover:bg-white/10 hover:text-white"
+      className="justify-start hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
       asChild
     >
       <Link href="/security/two-factor">

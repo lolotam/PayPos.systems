@@ -26,7 +26,7 @@ export function AppSidebarDrawer({
         </Button>
       </Dialog.Trigger>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-ink-950/40" />
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
         <Dialog.Content
           dir={dir}
           aria-modal="true"
@@ -42,7 +42,7 @@ export function AppSidebarDrawer({
               <Button
                 variant="ghost"
                 size="icon"
-                className="ms-auto hover:bg-white/10 hover:text-white"
+                className="ms-auto hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                 aria-label={closeLabel}
               >
                 <X aria-hidden="true" />

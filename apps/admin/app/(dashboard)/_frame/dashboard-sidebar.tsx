@@ -19,7 +19,7 @@ export function DashboardSidebar({ account }: { account: SessionAccount | null }
       header={
         <>
           <BrandLockup
-            tone="light"
+            tone="sidebar"
             title={t(locale, 'brand.title')}
             latinName={t(locale, 'brand.latinName')}
             arabicName={t(locale, 'brand.arabicName')}
@@ -32,7 +32,7 @@ export function DashboardSidebar({ account }: { account: SessionAccount | null }
         <>
           <DashboardAccount account={account} />
           <EnrolLink />
-          <SignOutButton tone="light" />
+          <SignOutButton tone="sidebar" />
         </>
       }
     />

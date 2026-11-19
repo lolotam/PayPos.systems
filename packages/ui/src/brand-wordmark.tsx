@@ -4,7 +4,7 @@ import { cn } from './shared/cn.js';
 export type BrandWordmarkProps = ComponentProps<'span'> & {
   latinName: string;
   arabicName: string;
-  tone?: 'ink' | 'light';
+  tone?: 'ink' | 'light' | 'sidebar';
 };
 
 // TODO(brand): replace with outlined final artwork — النص مؤقت لحد اعتماد المسارات النهائية.
@@ -19,7 +19,9 @@ export function BrandWordmark({
     <span
       className={cn(
         'flex flex-col gap-2 font-sans font-bold leading-none',
-        tone === 'light' ? 'text-sand-50' : 'text-foreground',
+        tone === 'light' && 'text-sand-50',
+        tone === 'sidebar' && 'text-sidebar-foreground',
+        tone === 'ink' && 'text-foreground',
         className,
       )}
       {...props}
