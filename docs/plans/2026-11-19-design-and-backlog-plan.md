@@ -176,5 +176,26 @@ disabled until the new quote is acknowledged (#1075, the picker item). The serve
 | 3 | C3, D1 (if unblocked), E1, E2 | C3 starts after C2. |
 | Waleed only | MCP token rotation | Secrets (PP-14). |
 
+## Waleed's answers (tier cards, 2026-11-19, manager thread)
+
+- DS-3: «زي ما هي + مراجعة بالمتصفح» — tiers as proposed, plus an exception: before each DS-3 merge a session opens
+  staging (or the PR build) in a browser and attaches light/dark, ar/en screenshots.
+- #1075: «كله Medium» — B1, B2 and B3 all run Medium; B3 merges without a Waleed card.
+- Package import: «زي ما هي (المقترح)» — C1/C2 Heavy, C3 Medium, order C1 → C2 → C3.
+- 48-3: «نفك التأجيل ونبدأها دلوقتي» — PP-169.1 is lifted; D1 starts in wave 1 (Heavy).
+- Note from Waleed: «اللي بيكتب الخطط هو fable 5.2 medium» — every task's implementation plan is written by
+  Claude Fable 5.2 (medium); Heavy plans then get one Astra 6.2 (medium) debate round.
+- Note from Waleed: every feature addition updates its user-journey file under `docs/journey/`; the missing journeys
+  are caught up as task J1 (Light).
+
+## Revised start order
+
+| Wave | Sessions |
+| --- | --- |
+| 1 (now) | A1 · A2 then A3 · B1 → B2 → B3 (one session, three PRs) · C1 · D1 |
+| 2 | A4 (after A1) · C2 (after C1 is on staging) |
+| 3 | C3 · E1 · E2 |
+| Manager | J1 journey catch-up (Light, docs only) |
+
 Every merge report carries the plan summary and the three closing headings (PP-195 §6). `roadmap.json` gets one row per
 task.
