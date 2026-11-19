@@ -33,7 +33,7 @@ export const DRAFT_ERROR_KEYS: Record<DraftErrorCode, MessageKey> = {
  * @param error الخطأ القادم من طبقة الطلب
  * @returns كود المحرك أو null
  */
-export function planErrorCode(error: unknown): CommissionValidationError | null {
+function planErrorCode(error: unknown): CommissionValidationError | null {
   if (typeof error !== 'object' || error === null) return null;
   const envelope = error as { code?: unknown; details?: unknown };
   if (envelope.code !== 'COMMISSION_PLAN_INVALID') return null;
@@ -45,7 +45,7 @@ export function planErrorCode(error: unknown): CommissionValidationError | null 
 }
 
 /** رسالة السيرفر بلغة الواجهة من غلاف الخطأ، أو null لو مالوش رسالة صالحة فيستعمل errorSaveFailed. */
-export function serverMessage(error: unknown, locale: Locale): string | null {
+function serverMessage(error: unknown, locale: Locale): string | null {
   if (typeof error !== 'object' || error === null) return null;
   const key = locale === 'ar' ? 'message_ar' : 'message_en';
   const message = (error as Record<string, unknown>)[key];

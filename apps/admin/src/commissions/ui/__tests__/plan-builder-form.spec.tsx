@@ -180,38 +180,32 @@ it('submits a valid body whose KWD money stays text', async () => {
   expect(body.package_sale).toEqual({ enabled: false });
 });
 
-it('shows a server INVALID_CALC inside the base block when base alone reproduces the code', async () => {
-  const initial = { ...emptyPlanDraft(ZONE, NOW), base: { enabled: true, calc: pctCalc('10001') } };
+it('shows a server code at form level when the form has not submitted a body', async () => {
+  const initial = { ...emptyPlanDraft(ZONE, NOW), base: { enabled: true, calc: pctCalc('500') } };
   const view = renderForm(initial);
   rerenderWith(view, initial, planInvalid('INVALID_CALC'));
-  const alert = await within(block(B.base)).findByRole('alert');
+  const alert = await screen.findByRole('alert');
   expect(alert.textContent).toBe(t('en', 'commissionPlanBuilder.errorInvalidCalc'));
   expect(screen.getAllByRole('alert').length).toBe(1);
+  expect(within(block(B.base)).queryByRole('alert')).toBeNull();
+  expect(within(block(B.packageSale)).queryByRole('alert')).toBeNull();
 });
 
-it('shows a server INVALID_CALC inside the package-sale block when it alone reproduces the code', async () => {
-  const initial = {
-    ...emptyPlanDraft(ZONE, NOW),
-    packageSale: { enabled: true, calc: pctCalc('10001') },
-  };
-  const view = renderForm(initial);
-  rerenderWith(view, initial, planInvalid('INVALID_CALC'));
-  const alert = await within(block(B.packageSale)).findByRole('alert');
-  expect(alert.textContent).toBe(t('en', 'commissionPlanBuilder.errorInvalidCalc'));
-  expect(screen.getAllByRole('alert').length).toBe(1);
-});
-
-it('shows an ambiguous INVALID_CALC at form level when two blocks reproduce the code', async () => {
-  const initial = {
-    ...emptyPlanDraft(ZONE, NOW),
-    base: { enabled: true, calc: pctCalc('10001') },
-    packageSale: { enabled: true, calc: pctCalc('10001') },
-  };
-  renderForm(initial, planInvalid('INVALID_CALC'));
-  expect(await screen.findByRole('alert')).toBeTruthy();
-  expect(screen.getAllByRole('alert').length).toBe(3);
-  expect(within(block(B.base)).getByRole('alert')).toBeTruthy();
-  expect(within(block(B.packageSale)).getByRole('alert')).toBeTruthy();
+it('shows a late server error at form level, not on the body the admin has since changed', async () => {
+  const onSave = vi.fn();
+  const initial = { ...emptyPlanDraft(ZONE, NOW), base: { enabled: true, calc: pctCalc('500') } };
+  const view = renderForm(initial, null, onSave);
+  await waitFor(() => expect(saveButton().disabled).toBe(false));
+  fireEvent.click(saveButton());
+  await waitFor(() => expect(onSave).toHaveBeenCalled());
+  fireEvent.change(within(block(B.base)).getByLabelText(B.bpsLabel), {
+    target: { value: '10001' },
+  });
+  rerenderWith(view, initial, planInvalid('INVALID_CALC'), onSave);
+  await waitFor(() => expect(screen.getAllByRole('alert').length).toBe(2));
+  expect(within(block(B.base)).getByRole('alert').textContent).toBe(
+    t('en', 'commissionPlanBuilder.errorInvalidCalc'),
+  );
 });
 
 it('shows a server code at form level when the sent body passes the local check', async () => {

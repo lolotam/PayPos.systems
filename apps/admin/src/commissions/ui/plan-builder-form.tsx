@@ -7,7 +7,7 @@ import { Button } from '@pospay/ui';
 import { useEffect, useState } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
-import { toWireCandidate, type PlanDraft } from '../model/plan-draft';
+import type { PlanDraft } from '../model/plan-draft';
 import { planServerAlerts } from '../model/plan-messages';
 import { createPlanResolver } from '../model/plan-resolver';
 import { CalcFields } from './calc-fields';
@@ -17,7 +17,8 @@ import { TiersBlock } from './tiers-block';
 
 /**
  * نموذج بناء الخطة بلا طبقة بيانات: الحفظ متعطل طول ما النموذج غير صالح أو فيه حفظ شغال،
- * ورفض السيرفر بيتوجه لبلوكه أو للفورم، وأي تعديل بيخفي رسالة السيرفر فورًا.
+ * ورفض السيرفر بيتحكّم على جسم الطلب المُرسول نفسه وبيظهر في بلوكه أو على الفورم،
+ * وأي تعديل بيخفي رسالة السيرفر فورًا.
  */
 export function PlanBuilderForm({
   initial,
@@ -37,6 +38,7 @@ export function PlanBuilderForm({
     defaultValues: initial,
   });
   const [dismissedFor, setDismissedFor] = useState<unknown>(null);
+  const [submittedBody, setSubmittedBody] = useState<CommissionPlanWire | null>(null);
   useEffect(() => {
     const subscription = form.watch((_values, { type }) => {
       if (type === 'change') {
@@ -48,15 +50,16 @@ export function PlanBuilderForm({
     return () => subscription.unsubscribe();
   }, [form, serverError]);
   useEffect(() => {
+    // mode: 'onChange' ما بيتحققش عند التركيب، والتمام هنا بيعرض أخطاء المسودة الابتدائية ويقفل الحفظ من أول لحظة.
     void form.trigger();
   }, [form]);
-  const values = form.watch();
-  const built = toWireCandidate(values);
-  // الترشيح بيطلع جسم الطلب بصيغة العقد بالبناء، والفحص محتاج الشكل لا النوع.
-  const body = built.errors.length > 0 ? null : (built.candidate as CommissionPlanWire);
   const dismissed = dismissedFor === serverError;
-  const alerts = dismissed ? null : planServerAlerts(serverError, body, locale);
-  const submit = form.handleSubmit((body) => onSubmit(body));
+  // الرسالة بيتحكّم عليها على الجسم اللي السيرفر حاكم عليه فعلاً مش على الجسم الحي، عشان ما تطيبش على بلوك غلط.
+  const alerts = dismissed ? null : planServerAlerts(serverError, submittedBody, locale);
+  const submit = form.handleSubmit((body) => {
+    setSubmittedBody(body);
+    onSubmit(body);
+  });
   return (
     <FormProvider {...form}>
       <form onSubmit={submit} className="flex flex-col gap-3 text-start">
