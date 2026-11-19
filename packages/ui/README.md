@@ -18,7 +18,7 @@ boot script reads.
 
 All text, including accessible names, placeholders and icon-button labels, must
 come from the consumer's `@pospay/i18n` catalog. The kit owns no user-facing strings.
-Icons come from `lucide-react`. Components accept React 19 refs as ordinary props.
+Icons come from `@phosphor-icons/react` (ADR-0060). Components accept React 19 refs as ordinary props.
 `Button` defaults to `type="button"`; pass `type="submit"` for form submission or
 `asChild` to style another element through Radix Slot.
 

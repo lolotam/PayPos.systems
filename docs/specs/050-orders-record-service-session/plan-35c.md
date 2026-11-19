@@ -235,7 +235,7 @@ TODO. Never bundle the 35c PRs into one PR. No speculative day-list integration 
 ## 6. UI, i18n and verification gates
 
 Use existing packages/ui Input, Label, Select/NativeSelect, Button, Card, Badge, PageHeader and EmptyState;
-lucide icons through that kit, no second library/custom component kit. Compose a customer header, unsaved service
+Phosphor icons through that kit (ADR-0060), no second library/custom component kit. Compose a customer header, unsaved service
 cards, recorder limit/time fields, draft summary and submit action; after save show saved lines separately from
 rejected editable drafts. Label every control, focus the first indexed error, announce save/partial/offline/warnings
 with status/alert regions, support keyboard operation. CSS uses text-start, ps/pe/ms/me/start/end only; numeric

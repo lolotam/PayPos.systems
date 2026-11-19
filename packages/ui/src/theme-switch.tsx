@@ -1,6 +1,6 @@
 'use client';
 
-import { Monitor, Moon, Sun } from 'lucide-react';
+import { MonitorIcon, MoonIcon, SunIcon } from '@phosphor-icons/react';
 import { useSyncExternalStore } from 'react';
 
 import { cn } from './shared/cn.js';
@@ -27,10 +27,10 @@ export type ThemeSwitchProps = {
   className?: string;
 };
 
-const OPTIONS: { value: ThemePreference; icon: typeof Sun }[] = [
-  { value: 'light', icon: Sun },
-  { value: 'dark', icon: Moon },
-  { value: 'system', icon: Monitor },
+const OPTIONS: { value: ThemePreference; icon: typeof SunIcon }[] = [
+  { value: 'light', icon: SunIcon },
+  { value: 'dark', icon: MoonIcon },
+  { value: 'system', icon: MonitorIcon },
 ];
 
 /** على السيرفر مفيش تخزين، فالنظام هو الافتراضي لحد ما العميل يقرا الاختيار المحفوظ. */

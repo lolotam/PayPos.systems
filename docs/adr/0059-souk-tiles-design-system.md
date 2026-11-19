@@ -14,6 +14,8 @@ Self-host Readex Pro and Baloo Bhaijaan 2 Arabic and Latin variable WOFF2 subset
 
 Keep lucide-react. Port the source theme storage key, pre-paint initialization and browser theme-color synchronization. Storage denial still permits system-theme initialization. Preserve POS PWA scope, start URL, display mode and offline service worker; precache fonts and new icons.
 
+Addendum (2026-11-19, DS-2): [ADR-0060](./0060-phosphor-icons.md) supersedes «Keep lucide-react»; Phosphor is now the icon library.
+
 Dark mode follows the system setting by default, and the user can override it with the `ThemeSwitch` (light / dark / system) in the admin sidebar footer and the POS operator panel. The switch writes the same storage key the boot script reads, so the choice survives a reload and reaches the other tabs.
 
 ## Consequences

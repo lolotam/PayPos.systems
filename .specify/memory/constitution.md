@@ -1,5 +1,6 @@
 <!--
 Sync Impact Report
+- 3.8.1 (2026-11-19, PATCH): PP-193.3 and ADR-0060 replace Lucide with Phosphor (`@phosphor-icons/react`) in Principle VI. Rationale: it aligns the stated icon rule with the owner's approved library substitution without changing the design-system principle.
 - 3.8.0 (2026-11-05, MINOR): PP-130 stacks a second open migration PR on the first's branch instead of `main`, keeps the merge-order number reservation, and adds a CI check for the journal sequence and the snapshot `prevId` chain. Rationale: it adds guidance for parallel migrations without redefining Principle I (MINOR). PP-129's pre-migration staging snapshot is an operational rule in `docs/agent-delivery-pipeline.md`, not a principle change.
 - 3.7.0 (2026-11-05, MINOR): PP-124 gives the manager the merge decision for a migration PR once its exact-head gates, verified backup and restore, and coordinated migration order pass; a migration-lane wait is a manager-resolved parking reason. Deploy, production, production-data, server, secret and HOLD cases stay with Waleed. PP-125 puts new slices on Codex `gpt-6.1-sol` with MiniMax as first fallback.
 - 3.6.0 (2026-11-04, MINOR): PP-72.2 replaces the duplicate full-check job with equivalent distributed CI coverage and admin/POS api:check in check. The existing workflow remains required until the reviewed replacement lands. PP-119.1 consolidates correction rounds after all bot results into one push. PP-119.2 R2 cache is deferred: no brief, implementation or secrets now; measure CI after PP-72.2 and wait for Waleed's next decision.
@@ -217,7 +218,7 @@ semantic status colors for business states (paid, pending, failed, low stock, op
 and an Arabic font family paired with the Latin face. Forms use react-hook-form with the
 Zod contract; tables use TanStack Table with server pagination; data fetching uses TanStack
 Query through generated client hooks, never `fetch` in a component. No second component
-library may be installed; icons are lucide. Third-party admin templates, including the
+library may be installed; icons are Phosphor (`@phosphor-icons/react`, ADR-0060). Third-party admin templates, including the
 AdminCN reference copy, MAY be consulted for layout and table patterns but MUST NOT be
 copied as code, because they are built on Base UI and physical CSS.
 
@@ -461,7 +462,7 @@ guidance, PATCH for clarifications. Every PR review MUST verify compliance with 
 I–VII; any added complexity MUST be justified against `CLAUDE.architecture.md` §12.
 `CLAUDE.md` remains the runtime guidance file for day-to-day development.
 
-**Version**: 3.8.0 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-11-05
+**Version**: 3.8.1 | **Ratified**: 2026-09-16 | **Last Amended**: 2026-11-19
 
 ## PR 6 amendment — ADR-0019, 2026-10-02
 

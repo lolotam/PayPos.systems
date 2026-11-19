@@ -572,7 +572,7 @@ T8's API-level isolation proof needs a real session, and its first-owner rule ne
 
 Shells come first so every later slice can ship its screen with it (`CLAUDE.md` §1 ends a slice with UI).
 
-- [ ] P1-T2.1 `packages/ui`: shadcn RTL kit, Tailwind tokens, Arabic fonts, Framer presets, lucide icons.
+- [ ] P1-T2.1 `packages/ui`: shadcn RTL kit, Tailwind tokens, Arabic fonts, Framer presets, Phosphor icons (ADR-0060).
 - [ ] P1-T2.2 `apps/admin`: Next.js App Router shell, `app/` routes only, `src/<business-area>/`, Better Auth login + TOTP, company / business / branch selector locked server-side to the user's memberships, generated API client + TanStack Query.
 - [ ] P1-T2.3 `apps/pos`: Vite React PWA shell (`app/ shared/ attendance/`), device-token pairing screen, generated API client.
 - [ ] P1-T2.4 Admin "Users & permissions" screen: memberships, role, ALLOW/DENY overrides, temporary `ends_at`.

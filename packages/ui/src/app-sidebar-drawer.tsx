@@ -1,5 +1,5 @@
 'use client';
-import { Menu, X } from 'lucide-react';
+import { ListIcon, XIcon } from '@phosphor-icons/react';
 import { Dialog } from 'radix-ui';
 import { useState, type ReactNode } from 'react';
 import { Button } from './button.js';
@@ -22,7 +22,7 @@ export function AppSidebarDrawer({
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
         <Button variant="ghost" size="icon" aria-label={openLabel}>
-          <Menu aria-hidden="true" />
+          <ListIcon aria-hidden="true" />
         </Button>
       </Dialog.Trigger>
       <Dialog.Portal>
@@ -40,7 +40,7 @@ export function AppSidebarDrawer({
             <Dialog.Title className="text-sm font-medium">{title}</Dialog.Title>
             <Dialog.Close asChild>
               <Button variant="sidebar" size="icon" className="ms-auto" aria-label={closeLabel}>
-                <X aria-hidden="true" />
+                <XIcon aria-hidden="true" />
               </Button>
             </Dialog.Close>
           </div>
