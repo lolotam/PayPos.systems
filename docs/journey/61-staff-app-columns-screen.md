@@ -3,9 +3,9 @@
 **Status / الحالة:** shipped in #553 (57c-2: the admin screen on `/staff-app-columns`), merged. It is the screen for
 the two routes of [59](59-staff-app-settings.md), so that journey's rules (default columns, months back 1–12, the
 audit row per changed value) still hold. **Runs on staging** (`https://app.staging.pospay.systems/staff-app-columns`).
-What reads the setting today: only **months back**, by the employee's own attendance read
-(`apps/api/src/modules/staff/queries/own-attendance.query.ts`) and her own work read
-(`apps/api/src/modules/orders/queries/own-work-context.ts`). No staff-app screen shows the chosen **columns** yet.
+What reads the setting today: **months back**, by the employee's own attendance read ([83](83-own-attendance.md))
+and her own tips read ([85](85-own-monthly-tips.md)); and the **Tip** column, which decides whether the own-tips read
+answers with amounts or `HIDDEN`. No staff-app screen shows the chosen **columns** yet.
 
 **Before you start / قبل ما تبدأ:**
 - [00 Local setup](00-local-setup.md) with the API and the admin, then `pnpm db:migrate` and `pnpm db:seed`; or the

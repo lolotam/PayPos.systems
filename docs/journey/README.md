@@ -92,8 +92,8 @@ The status paragraph inside journeys 01–47 was written before #533 and may sti
 | 20 | [Role default permissions](20-role-default-permissions.md) — صلاحيات الدور الافتراضية | #91 | yes |
 | 21 | [Role follow-ups](21-role-followups.md) — تكملة صلاحيات الأدوار | #93 | yes; customers are created from Record a visit (47) |
 | 22 | [Personal phone passkey](22-personal-phone-passkey.md) — مفتاح المرور على الموبايل الشخصي | #94 | no: the personal session needs OTP (OFF pending Meta templates + secrets) |
-| 23 | [Request leave](23-request-leave.md) — طلب إجازة | #95 | manager side yes; the employee's own request is API only (no staff-app screen) |
-| 24 | [Decide leave](24-decide-leave.md) — اعتماد الإجازات | #98 | yes (`/leave`); the employee's view is API only; no notification sent |
+| 23 | [Request leave](23-request-leave.md) — طلب إجازة | #95 | manager side yes; the employee's own request is [84](84-my-leave.md) |
+| 24 | [Decide leave](24-decide-leave.md) — اعتماد الإجازات | #98 | yes (`/leave`); the employee's view is [84](84-my-leave.md); no notification sent |
 | 25 | [Unbind a passkey](25-unbind-passkey.md) — فك ربط مفتاح المرور | #97, #100 | manager unbind yes; re-enrolment needs the personal session (OTP OFF) |
 | 26 | [Clock in and out from the personal phone](26-clock-attendance.md) — تسجيل الحضور والانصراف من الهاتف الشخصي | #99 | no: the personal session needs OTP (OFF); the card clock (30) works |
 | 27 | [Import employees from Excel](27-employee-import.md) — استيراد الموظفين من Excel | #107 | screen exists; the upload fails (no object storage on staging) |
@@ -128,7 +128,7 @@ The status paragraph inside journeys 01–47 was written before #533 and may sti
 | 56 | [The PDF renderer](56-pdf-renderer.md) — محرّك ملفات الـ PDF | #413, #425, #426 | nothing to click (worker capability; no document kind registered yet) |
 | 57 | [Discount approval (foundation)](57-discount-approval.md) — الموافقة على خصم فوق الحد (الأساس) | #465, #469, #498, #504, #523 | yes: request and use on the recording screen ([70](70-discount-approval-request.md)), PIN decision on the reception device ([71](71-discount-approval-decide.md)); the remote decision is API only |
 | 58 | [Alert rules](58-alert-rules.md) — قواعد التنبيهات | #467, #493, #501, #503, #510, #521 | yes; the screen is [62](62-alert-rules-screen.md) (`/alert-rules`) |
-| 59 | [Staff app settings: columns and months back](59-staff-app-settings.md) — إعداد تطبيق الموظفات: الأعمدة وعدد الشهور | #468, #513, #516 | yes; the screen is [61](61-staff-app-columns-screen.md) (`/staff-app-columns`); months back is read by the employee's own attendance and work reads |
+| 59 | [Staff app settings: columns and months back](59-staff-app-settings.md) — إعداد تطبيق الموظفات: الأعمدة وعدد الشهور | #468, #513, #516 | yes; the screen is [61](61-staff-app-columns-screen.md) (`/staff-app-columns`); months back is read by the employee's own attendance and tips reads ([83](83-own-attendance.md), [85](85-own-monthly-tips.md)) |
 | 60 | [Staff push subscriptions](60-staff-push-subscriptions.md) — اشتراك موبايل الموظفة في الإشعارات | #530 | API on staging; the on/off control and the sender are [64](64-staff-web-push.md); needs the personal session (OTP OFF) and the push keys set in Dokploy |
 | 61 | [Staff app columns screen](61-staff-app-columns-screen.md) — شاشة أعمدة تطبيق الموظفين | #553 | yes (`/staff-app-columns`) |
 | 62 | [Alerts screen](62-alert-rules-screen.md) — شاشة التنبيهات | #562, #619 | yes (`/alert-rules`) |
@@ -147,5 +147,13 @@ The status paragraph inside journeys 01–47 was written before #533 and may sti
 | 75 | [Close and reopen a category and its services](75-close-reopen-categories.md) — قفل وفتح التصنيف وخدماته | #996, #1021, #1044, #1050, #1060 | yes for a category; closing one service alone is API only |
 | 76 | [Rating requests: scheduling and the on/off switch](76-rating-requests.md) — طلبات التقييم: الجدولة ومفتاح التشغيل | #670, #692, #734, #741, #751, #785, #883 | the switch yes (`/alert-rules`); nothing is sent (row 59b-3 not built) |
 | 77 | [The customer's rating page](77-public-rating-page.md) — صفحة تقييم العميلة | #704, #731, #738, #847 | no: `apps/menu` is not deployed on staging and no link is sent yet |
+| 78 | [Commission plan versions](78-commission-plan-versions.md) — نسخ خطة العمولة | #551, #695, #730, #793 | API on staging; no screen (row 48-3 deferred) |
+| 79 | [A special commission for one employee on one service](79-commission-service-overrides.md) — عمولة خاصة لموظفة على خدمة واحدة | #762 | API on staging; no screen (row 49-2) |
+| 80 | [Monthly commission statements: the groundwork](80-commission-statements-groundwork.md) — كشوف العمولة الشهرية: الأساس | #611, #613, #645, #650, #651, #659, #707, #717, #727, #790, #813, #816, #821, #844, #928, #983, #998, #1010, #1014, #1020, #1023, #1024 | nothing to click (worker projection and storage; no statement route yet) |
+| 81 | [A customer's profile and per-business notes](81-customer-profile-notes.md) — ملف العميلة وملاحظات كل نشاط | #766 | API on staging; no screen for the new fields |
+| 82 | [The private view on the reception device, and the «own» permissions](82-private-view-window.md) — العرض الخاص على جهاز الريسبشن وصلاحيات «بتاعتي» | #775, #784, #845 | permissions yes on `/permissions`; the window is API only |
+| 83 | [«حضوري»: an employee reads her own attendance](83-own-attendance.md) — الموظفة تقرا حضورها | #861 | API on staging; no screen; needs a private view (82) or the personal session (OTP OFF) |
+| 84 | [«إجازاتي»: an employee requests leave and follows it](84-my-leave.md) — الموظفة تطلب إجازة وتتابعها | #881, #882 | yes on a paired reception device; her own phone needs OTP (OFF) |
+| 85 | [An employee reads her own tips for the month](85-own-monthly-tips.md) — الموظفة تقرا بقشيشها في الشهر | #896 | API on staging; no screen; needs a private view (82) or the personal session (OTP OFF) |
 
 New journeys are added after every merge.
