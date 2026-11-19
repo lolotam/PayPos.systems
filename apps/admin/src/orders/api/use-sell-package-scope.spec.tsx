@@ -132,3 +132,29 @@ it('reports verificationRequired once the fake clock passes the expiry instant',
   });
   expect(hook.result.current.verificationRequired).toBe(true);
 });
+
+it('writes the accepted sale back after a failed reservation save', async () => {
+  const saleId = '01920000-0000-7000-8000-0000000000b2';
+  const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementationOnce(() => {
+    throw new Error('full');
+  });
+  state.post.mockResolvedValueOnce({
+    data: { sale_request_id: saleId },
+    response: { status: 202 },
+  });
+  const hook = renderHook(() => useSellPackage(scope), {
+    wrapper: clientWrapper(newClient()),
+  });
+  await act(async () => {
+    await hook.result.current.mutateAsync(body);
+  });
+  setItem.mockRestore();
+  const stored = JSON.parse(localStorage.getItem(storageKeyFor(scope)) ?? 'null') as {
+    key?: unknown;
+    saleId?: unknown;
+  } | null;
+  expect(stored?.saleId).toBe(saleId);
+  expect(stored?.key).toEqual(expect.any(String));
+  expect(hook.result.current.journalUnsaved).toBe(false);
+  expect(hook.result.current.recoveryRequired).toBe(false);
+});

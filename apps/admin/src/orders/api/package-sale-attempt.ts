@@ -3,6 +3,9 @@ import type { SellPackageInput } from '@pospay/contracts';
 
 export const PACKAGE_SALE_REPLAY_WINDOW_MS = 23 * 60 * 60 * 1000;
 
+// A manual or NTP correction of at most this much must not expire a fresh attempt.
+export const PACKAGE_SALE_CLOCK_SKEW_MS = 5 * 60 * 1000;
+
 export type HeldAttempt = {
   key: string;
   scope: string;
@@ -55,15 +58,30 @@ export function withSaleAttemptLock<T>(scope: string, reserve: () => T): Promise
   return Promise.resolve(reserve());
 }
 
+// Decides on the record freshly read inside the scope lock and writes only while the lock
+// still holds the given key, so an outcome that raced the lock can never overwrite a newer
+// record. `revise` returning `undefined` leaves the stored record in place, `null` removes it.
+export function reviseOwnedSaleAttempt(
+  scope: string,
+  key: string,
+  revise: (stored: HeldAttempt) => HeldAttempt | null | undefined,
+): Promise<{ stored: HeldAttempt | null; saved: boolean }> {
+  return withSaleAttemptLock(scope, () => {
+    const stored = readSaleAttempt(scope);
+    if (stored === null || stored.key !== key) return { stored, saved: true };
+    const revised = revise(stored);
+    if (revised === undefined) return { stored, saved: true };
+    const saved = saveSaleAttempt(scope, revised);
+    return { stored: saved ? revised : stored, saved };
+  });
+}
+
 export function updateOwnedSaleAttempt(
   scope: string,
   key: string,
   attempt: HeldAttempt | null,
 ): Promise<boolean> {
-  return withSaleAttemptLock(scope, () => {
-    if (readSaleAttempt(scope)?.key !== key) return true;
-    return saveSaleAttempt(scope, attempt);
-  });
+  return reviseOwnedSaleAttempt(scope, key, () => attempt).then((result) => result.saved);
 }
 
 export function statusOnlyAttempt(attempt: HeldAttempt, saleId: string): HeldAttempt {
@@ -71,19 +89,30 @@ export function statusOnlyAttempt(attempt: HeldAttempt, saleId: string): HeldAtt
 }
 
 export function saleAttemptExpired(attempt: HeldAttempt, now: number): boolean {
-  if (now < attempt.createdAt) return true;
+  const last = attempt.seenAt ?? attempt.createdAt;
   return (
-    Math.max(now, attempt.seenAt ?? attempt.createdAt) - attempt.createdAt >=
-    PACKAGE_SALE_REPLAY_WINDOW_MS
+    now < last - PACKAGE_SALE_CLOCK_SKEW_MS ||
+    Math.max(now, last) - attempt.createdAt >= PACKAGE_SALE_REPLAY_WINDOW_MS
   );
 }
 
 export function saleAttemptExpiresIn(attempt: HeldAttempt, now: number): number {
   if (saleAttemptExpired(attempt, now)) return 0;
-  return Math.max(0, attempt.createdAt + PACKAGE_SALE_REPLAY_WINDOW_MS - now);
+  const last = attempt.seenAt ?? attempt.createdAt;
+  return Math.max(0, attempt.createdAt + PACKAGE_SALE_REPLAY_WINDOW_MS - Math.max(now, last));
 }
 
+// Records an observation of the attempt at `now`: an observed expiry is latched so it stays
+// expired whatever the clock does later, and earlier observations within one minute are
+// absorbed to keep storage writes rare. Status-only records are never touched.
 export function touchSaleAttempt(attempt: HeldAttempt, now: number): HeldAttempt {
-  if (now - (attempt.seenAt ?? attempt.createdAt) < 60_000) return attempt;
+  if (attempt.saleId !== undefined) return attempt;
+  const last = attempt.seenAt ?? attempt.createdAt;
+  if (saleAttemptExpired(attempt, now)) {
+    const latched = Math.max(now, last, attempt.createdAt + PACKAGE_SALE_REPLAY_WINDOW_MS);
+    if (attempt.seenAt === latched) return attempt;
+    return { ...attempt, seenAt: latched };
+  }
+  if (now - last < 60_000) return attempt;
   return { ...attempt, seenAt: now };
 }

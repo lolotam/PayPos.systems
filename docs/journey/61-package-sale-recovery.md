@@ -20,8 +20,9 @@ browser remembers and shows.
   turns into **إعادة محاولة البيع الأصلي** / **Retry original sale** under the alert **البيع السابق ممكن يكون اتقبل…** /
   **The previous sale may have been accepted…**. Do **not** press it yet if you want to test the window.
 - **The 23-hour window:** the retry stays possible for 23 hours from the attempt's creation, by the device clock. The
-  device also remembers the latest time it *saw* the attempt (`seenAt`), so setting the clock back never reopens the
-  window; a clock ahead of the creation time blocks the attempt at once.
+  device also remembers the latest time it *saw* the attempt (`seenAt`) and allows a five-minute clock tolerance: a
+  clock more than five minutes behind that last observation expires the attempt at once, and an observed expiry is
+  latched into `seenAt`, so no later clock move reopens the window.
 - For the expired state by hand: change the device clock forward 23 hours (or let a real attempt age) and reload the
   screen in the same browser profile — the journal is per company, business, branch **and user**.
 
@@ -104,8 +105,9 @@ browser remembers and shows.
     expired state: fake the browser clock 23 hours forward and reload, or seed the journal record directly (below).
 - **Journal** (`localStorage`, key `pospay:package-sale:[companyId,businessId,branchId,userId]` — the key itself is only
   ever in the journal and the `Idempotency-Key` header, never in a URL or a log):
-  - A not-yet-accepted record holds `{ key, scope, createdAt, seenAt?, body }`; expiry compares
-    `max(now, seenAt ?? createdAt) - createdAt` against 23 h and fails closed (`now < createdAt` is already expired).
+  - A not-yet-accepted record holds `{ key, scope, createdAt, seenAt?, body }`; expiry allows a five-minute tolerance
+    behind the last observation (`seenAt ?? createdAt`), expires at 23 h since `createdAt` measured to the later of
+    the two clocks, and latches an observed expiry into `seenAt` so it stays expired.
   - An accepted record holds exactly `{ key, scope, createdAt, saleId }` — no `body`.
   - After **Discard the original attempt** the key is removed and no request was sent.
 - **Assertions:**

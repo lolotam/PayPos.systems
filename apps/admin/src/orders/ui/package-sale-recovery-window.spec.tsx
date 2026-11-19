@@ -154,6 +154,54 @@ async function acknowledgementBindsToItsAttempt(locale: 'ar' | 'en') {
   ).toHaveProperty('disabled', true);
 }
 
+async function discardRefusesARecordThatGainedSaleId(locale: 'ar' | 'en') {
+  await seedJournal(locale, { createdAt: Date.now() - 24 * 60 * 60 * 1000 });
+  const view = renderForm();
+  expect(await screen.findByText(t(locale, 'packageSale.verificationRequired'))).toBeTruthy();
+  fireEvent.click(
+    screen.getByRole('checkbox', { name: t(locale, 'packageSale.verifiedWithManager') }),
+  );
+  const saved = JSON.parse(localStorage.getItem(storageKey) ?? 'null') as Record<string, unknown>;
+  localStorage.setItem(
+    storageKey,
+    JSON.stringify({
+      key: saved.key,
+      scope: saved.scope,
+      createdAt: saved.createdAt,
+      saleId: packageSaleRequestId,
+    }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: t(locale, 'packageSale.discardExpired') }));
+  expect(await screen.findByText(t(locale, 'packageSale.pending'))).toBeTruthy();
+  expect(localStorage.getItem(storageKey)).not.toBeNull();
+  expect(
+    screen.queryByRole('button', { name: t(locale, 'packageSale.discardExpired') }),
+  ).toBeNull();
+  view.unmount();
+  view.client.clear();
+  expect(saleCalls()).toHaveLength(1);
+}
+
+async function failedRemovalKeepsTheAttempt(locale: 'ar' | 'en') {
+  await seedJournal(locale, { createdAt: Date.now() - 24 * 60 * 60 * 1000 });
+  const view = renderForm();
+  expect(await screen.findByText(t(locale, 'packageSale.verificationRequired'))).toBeTruthy();
+  fireEvent.click(
+    screen.getByRole('checkbox', { name: t(locale, 'packageSale.verifiedWithManager') }),
+  );
+  const removal = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+    throw new Error('denied');
+  });
+  fireEvent.click(screen.getByRole('button', { name: t(locale, 'packageSale.discardExpired') }));
+  expect(await screen.findByText(t(locale, 'packageSale.journalUnsaved'))).toBeTruthy();
+  expect(screen.getByText(t(locale, 'packageSale.verificationRequired'))).toBeTruthy();
+  expect(localStorage.getItem(storageKey)).not.toBeNull();
+  removal.mockRestore();
+  view.unmount();
+  view.client.clear();
+  expect(saleCalls()).toHaveLength(1);
+}
+
 async function acceptedSaleStoresStatusOnlyRecord(locale: 'ar' | 'en') {
   const view = renderForm();
   await chooseCustomer(state);
@@ -233,6 +281,10 @@ describe.each(['ar', 'en'] as const)('package sale recovery window (%s)', (local
     discardAcknowledgedExpiredAttempt(locale));
   it('rebinds the acknowledgement when another attempt replaces the stored journal record', () =>
     acknowledgementBindsToItsAttempt(locale));
+  it('refuses to discard when the stored record gained a sale id', () =>
+    discardRefusesARecordThatGainedSaleId(locale));
+  it('keeps the attempt and warns when the discard removal fails', () =>
+    failedRemovalKeepsTheAttempt(locale));
   it('stores a status-only record for an accepted sale and polls without reselling', () =>
     acceptedSaleStoresStatusOnlyRecord(locale));
   it('hides the unsaved-device warning once the sale reaches a confirmed completion', () =>

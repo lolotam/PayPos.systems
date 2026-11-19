@@ -6,6 +6,7 @@ import { apiClient } from '@/shared/api/client';
 import { packageSaleParams, packageSaleScopeKey } from './use-package-sale-context';
 import {
   readSaleAttempt,
+  reviseOwnedSaleAttempt,
   saleAttemptExpired,
   saveSaleAttempt,
   statusOnlyAttempt,
@@ -19,9 +20,12 @@ import type { SessionServiceScope } from './use-session-services';
 
 const salePath = '/v1/businesses/{businessId}/branches/{branchId}/package-sales';
 
+type SaleMutationGate = { isPending: boolean; reset: () => void };
+
 type SaleJournal = {
   held: Map<string, HeldAttempt>;
   unsaved: Set<string>;
+  bump: () => void;
   onPersist: (scopeKey: string, ok: boolean) => void;
 };
 
@@ -32,6 +36,7 @@ function createSaleJournal(
   return {
     held: new Map(),
     unsaved: new Set(),
+    bump: () => refresh((value) => value + 1),
     onPersist: (scopeKey, ok) => {
       const journal = journalRef.current;
       if (journal === null) return;
@@ -76,6 +81,53 @@ function reserveSale(
   });
 }
 
+// Records the current observation of a held attempt on the device. The record written is
+// built from the fresh read inside the scope lock, never from the earlier snapshot, and a
+// stored record that moved ahead (a sale id, a later observation) replaces the held copy.
+function observeSaleAttempt(scopeKey: string, journal: SaleJournal): void {
+  const entry = journal.held.get(scopeKey);
+  if (entry === undefined) return;
+  const touched = touchSaleAttempt(entry, Date.now());
+  if (touched === entry) return;
+  journal.held.set(scopeKey, touched);
+  void reviseOwnedSaleAttempt(scopeKey, entry.key, (stored) =>
+    stored.saleId !== undefined ? undefined : touchSaleAttempt(stored, Date.now()),
+  ).then((result) => {
+    const stored = result.stored;
+    if (
+      stored !== null &&
+      stored.key === entry.key &&
+      (stored.saleId !== undefined || stored !== touched)
+    ) {
+      journal.held.set(scopeKey, stored);
+      journal.bump();
+    }
+  });
+}
+
+async function persistAcceptedSale(
+  scopeKey: string,
+  attemptKey: string,
+  settled: HeldAttempt,
+  journal: SaleJournal,
+): Promise<boolean> {
+  if (readSaleAttempt(scopeKey) !== null || !journal.unsaved.has(scopeKey)) {
+    // The update resolves true when the record is merely unreadable, so only a device read that
+    // still holds this key proves the status-only record was saved.
+    return (
+      (await updateOwnedSaleAttempt(scopeKey, attemptKey, settled)) &&
+      readSaleAttempt(scopeKey)?.key === attemptKey
+    );
+  }
+  // The reservation write was refused, so the accepted sale is written back after the device
+  // is re-read and still holds nothing for the scope.
+  return withSaleAttemptLock(scopeKey, () => {
+    const stored = readSaleAttempt(scopeKey);
+    if (stored !== null) return stored.key === attemptKey;
+    return saveSaleAttempt(scopeKey, settled);
+  });
+}
+
 async function postSale(
   scope: SessionServiceScope,
   body: SellPackageInput | undefined,
@@ -116,13 +168,63 @@ async function postSale(
   if (!parsed.success) throw Object.assign(parsed.error, { status: result.response.status });
   const settled = statusOnlyAttempt(attempt, parsed.data.sale_request_id);
   if (journal.held.get(scopeKey)?.key === attempt.key) journal.held.set(scopeKey, settled);
-  // The update resolves true when the record is merely unreadable, so only a device read that
-  // still holds this key proves the status-only record was saved.
-  const persisted =
-    (await updateOwnedSaleAttempt(scopeKey, attempt.key, settled)) &&
-    readSaleAttempt(scopeKey)?.key === attempt.key;
-  journal.onPersist(scopeKey, persisted);
+  journal.onPersist(scopeKey, await persistAcceptedSale(scopeKey, attempt.key, settled, journal));
   return parsed.data.sale_request_id;
+}
+
+// The removal is decided on the fresh read inside the lock, so a record that gained a sale
+// id (an accepted sale confirmed elsewhere) or left the expiry window survives the discard.
+async function discardExpiredAttempt(
+  scopeKey: string,
+  journal: SaleJournal,
+  gate: SaleMutationGate,
+  bump: () => void,
+): Promise<void> {
+  // The closure outlives the render that created it, so the held entry must be re-read now.
+  const entry = journal.held.get(scopeKey);
+  if (
+    entry === undefined ||
+    entry.saleId !== undefined ||
+    !saleAttemptExpired(entry, Date.now()) ||
+    gate.isPending
+  )
+    return;
+  const result = await reviseOwnedSaleAttempt(scopeKey, entry.key, (stored) =>
+    stored.saleId === undefined && saleAttemptExpired(stored, Date.now()) ? null : undefined,
+  );
+  if (!result.saved) {
+    journal.onPersist(scopeKey, false);
+    return;
+  }
+  if (result.stored !== null && result.stored.key === entry.key) {
+    journal.held.set(scopeKey, result.stored);
+    bump();
+    return;
+  }
+  const held = journal.held.get(scopeKey);
+  if (held?.key === entry.key) {
+    if (result.stored !== null) journal.held.set(scopeKey, result.stored);
+    else journal.held.delete(scopeKey);
+  }
+  journal.unsaved.delete(scopeKey);
+  gate.reset();
+  bump();
+}
+
+function releaseFailedSale(
+  scopeKey: string,
+  journal: SaleJournal,
+  gate: SaleMutationGate,
+  saleId: string | null,
+  bump: () => void,
+): void {
+  const entry = journal.held.get(scopeKey);
+  if (entry !== undefined && entry.saleId === saleId) {
+    journal.held.delete(scopeKey);
+    journal.unsaved.delete(scopeKey);
+    bump();
+  }
+  gate.reset();
 }
 
 function useRestoredSaleAttempt(scopeKey: string, journal: SaleJournal, onRestored: () => void) {
@@ -130,18 +232,27 @@ function useRestoredSaleAttempt(scopeKey: string, journal: SaleJournal, onRestor
   useEffect(() => {
     const restored = readSaleAttempt(scopeKey);
     if (restored) {
-      const touched = touchSaleAttempt(restored, Date.now());
-      journal.held.set(scopeKey, touched);
-      if (touched !== restored) void updateOwnedSaleAttempt(scopeKey, restored.key, touched);
+      journal.held.set(scopeKey, restored);
+      observeSaleAttempt(scopeKey, journal);
       onRestored();
+    } else if (!journal.unsaved.has(scopeKey)) {
+      // A finished sale must not come back when the same hook instance returns to its scope;
+      // an entry without a sale id may still belong to an in-flight request.
+      const held = journal.held.get(scopeKey);
+      if (held?.saleId !== undefined) journal.held.delete(scopeKey);
     }
     setRestoredScope(scopeKey);
     const sync = (event: StorageEvent) => {
       if (event.key !== null && event.key !== `pospay:package-sale:${scopeKey}`) return;
       const record = readSaleAttempt(scopeKey);
-      // A scope whose journal write failed keeps its in-memory attempt across other tabs' events.
-      if (record) journal.held.set(scopeKey, record);
-      else if (!journal.unsaved.has(scopeKey)) journal.held.delete(scopeKey);
+      if (record) {
+        journal.held.set(scopeKey, record);
+        journal.unsaved.delete(scopeKey);
+        observeSaleAttempt(scopeKey, journal);
+      } else if (!journal.unsaved.has(scopeKey)) {
+        // A scope whose journal write failed keeps its in-memory attempt across other tabs' events.
+        journal.held.delete(scopeKey);
+      }
       onRestored();
     };
     window.addEventListener('storage', sync);
@@ -156,10 +267,11 @@ export function useSellPackage(scope: SessionServiceScope) {
   const [, refresh] = useState(0);
   if (journalRef.current === null) journalRef.current = createSaleJournal(journalRef, refresh);
   const journal = journalRef.current;
-  const bump = useCallback(() => refresh((value) => value + 1), []);
+  const bump = journal.bump;
   const restoredScope = useRestoredSaleAttempt(scopeKey, journal, bump);
   const entry = journal.held.get(scopeKey);
-  usePackageSaleWindow(entry);
+  const onObserve = useCallback(() => observeSaleAttempt(scopeKey, journal), [scopeKey, journal]);
+  usePackageSaleWindow(entry, onObserve);
   const mutation = useMutation({
     mutationKey: ['sell-package', ...packageSaleScopeKey(scope)],
     retry: false,
@@ -170,39 +282,16 @@ export function useSellPackage(scope: SessionServiceScope) {
   const recoveryRequired = entry !== undefined && entry.saleId === undefined;
   const verificationRequired =
     recoveryRequired && entry !== undefined && saleAttemptExpired(entry, Date.now());
-  const discardExpired = async (): Promise<void> => {
-    // The closure outlives the render that created it, so the held entry must be re-read now.
-    const entry = journal.held.get(scopeKey);
-    if (
-      entry === undefined ||
-      entry.saleId !== undefined ||
-      !saleAttemptExpired(entry, Date.now()) ||
-      mutation.isPending
-    )
-      return;
-    await updateOwnedSaleAttempt(scopeKey, entry.key, null);
-    if (journal.held.get(scopeKey)?.key === entry.key) journal.held.delete(scopeKey);
-    journal.unsaved.delete(scopeKey);
-    mutation.reset();
-    bump();
-  };
   return {
     ...mutation,
-    releaseFailed: (saleId: string | null) => {
+    releaseFailed: (saleId: string | null) =>
       // The status-read callback runs after later renders, so the held entry must be re-read now.
-      const entry = journal.held.get(scopeKey);
-      if (entry !== undefined && entry.saleId === saleId) {
-        journal.held.delete(scopeKey);
-        journal.unsaved.delete(scopeKey);
-        bump();
-      }
-      mutation.reset();
-    },
+      releaseFailedSale(scopeKey, journal, mutation, saleId, bump),
     recoveryRequired,
     verificationRequired,
     attemptKey: entry?.key ?? null,
     journalUnsaved: journal.unsaved.has(scopeKey) && entry !== undefined,
-    discardExpired,
+    discardExpired: () => discardExpiredAttempt(scopeKey, journal, mutation, bump),
     restoring: restoredScope !== scopeKey,
     restoredSaleId: restoredScope === scopeKey ? (entry?.saleId ?? null) : null,
   };
