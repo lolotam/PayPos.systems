@@ -9,7 +9,7 @@ import {
   type ReactElement,
 } from 'react';
 import { cn } from './shared/cn.js';
-import { sidebarGhostVariants } from './button.js';
+import { SIDEBAR_GHOST_CLASSES } from './sidebar-classes.js';
 import { useDirection } from './direction-provider.js';
 
 export type AppSidebarItemProps = ComponentProps<'a'> & {
@@ -54,7 +54,7 @@ export function AppSidebarItem({
         'relative flex min-h-11 items-center gap-2 rounded-interactive ps-7 pe-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-ring',
         active
           ? 'bg-sidebar-primary font-medium text-sidebar-primary-foreground'
-          : sidebarGhostVariants(),
+          : SIDEBAR_GHOST_CLASSES,
         className,
       )}
       {...props}

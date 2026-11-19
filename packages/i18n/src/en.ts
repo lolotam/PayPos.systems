@@ -1,4 +1,8 @@
-import { attendanceActionsEn, attendanceBoardEn, attendanceReportEn } from './attendance-actions-catalog.js';
+import {
+  attendanceActionsEn,
+  attendanceBoardEn,
+  attendanceReportEn,
+} from './attendance-actions-catalog.js';
 import { staffDuplicateNameEn } from './staff-duplicate-name-catalog.js';
 import { attendanceChangeEn } from './attendance-change.js';
 import { inAppEn } from './in-app-catalog.js';
@@ -22,7 +26,9 @@ import { catalogServicesEn, catalogServiceErrorsEn } from './catalog-services.js
 import { catalogServiceCategoriesEn } from './catalog-service-categories.js';
 import { adminEn } from './admin-catalog.js';
 import { employeeIbanEn, employeeIbanErrorsEn } from './employee-iban-catalog.js';
-import { scheduleShellEn } from './schedule-shell-catalog.js'; import { employeeDefaultHoursEn } from './employee-default-hours-catalog.js'; import { employeeNumberErrorsEn } from './employee-number-catalog.js';
+import { scheduleShellEn } from './schedule-shell-catalog.js';
+import { employeeDefaultHoursEn } from './employee-default-hours-catalog.js';
+import { employeeNumberErrorsEn } from './employee-number-catalog.js';
 import { employeeNumberAdminEn } from './employee-number-admin-catalog.js';
 import { staffScreensEn } from './staff-screens-catalog.js';
 import { businessIdentityEn } from './business-identity-catalog.js';
@@ -36,7 +42,8 @@ export const en = {
   attendanceBoard: attendanceBoardEn,
   attendanceReport: attendanceReportEn,
   phoneLock: phoneLockEn,
-  employeeIban: employeeIbanEn, employeeDefaultHours: employeeDefaultHoursEn,
+  employeeIban: employeeIbanEn,
+  employeeDefaultHours: employeeDefaultHoursEn,
   employeeDocuments: employeeDocumentsEn,
   passkeyAdmin: enPasskeyAdmin,
   leave: leaveEn,
@@ -45,6 +52,12 @@ export const en = {
     title: 'PosPay — بوس باي',
     latinName: 'PosPay',
     arabicName: 'بوس باي',
+  },
+  theme: {
+    label: 'Display theme',
+    light: 'Light',
+    dark: 'Dark',
+    system: 'System',
   },
   salary: salaryEn,
   employeeCard: clockCardAdminEn,
@@ -220,7 +233,8 @@ export const en = {
     EMPLOYEE_CARD_CODE_UNAVAILABLE: "This card code can't be used. Choose another code.",
     ...employeeImportErrorsEn,
     ...catalogServiceErrorsEn,
-    ALERT_RULE_INVALID: 'A value is outside what this alert kind allows (minutes, roles or channels).',
+    ALERT_RULE_INVALID:
+      'A value is outside what this alert kind allows (minutes, roles or channels).',
     ...packageTypeErrorsEn,
     ...discountApprovalErrorsEn,
     ...staffErrorsEn,

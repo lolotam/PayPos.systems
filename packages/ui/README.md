@@ -12,6 +12,9 @@ Readex Pro for body text and Baloo Bhaijaan 2 for display headings, with the
 Arabic and Latin subsets served locally. Apply `.dark` to the document element
 (`html`) to switch the semantic colors; the boot script toggles the class on that
 element. A `.dark` subtree switches the same tokens for the elements inside it.
+Dark mode follows the system setting by default, and `ThemeSwitch` lets the user
+override it with light / dark / system, storing the choice under the same key the
+boot script reads.
 
 All text, including accessible names, placeholders and icon-button labels, must
 come from the consumer's `@pospay/i18n` catalog. The kit owns no user-facing strings.

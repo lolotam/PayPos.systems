@@ -76,8 +76,8 @@ Visual sheet: `palette.png`.
 | Body text (Arabic + Latin) | **Readex Pro** (already in `packages/ui`; free, OFL) | 160 · 400 · 500 · 700 |
 | Display headings | **Baloo Bhaijaan 2** (already in `packages/ui`; free, OFL) | 400 · 500 · 700 · 800 |
 
-- One family per role keeps RTL and LTR screens visually identical. Arabic is the default and `:lang(en)`
-  switches to Latin.
+- One family per role keeps RTL and LTR screens visually identical. Both scripts use the same
+  body family (`--font-sans`), so there is no per-script font switch.
 - Money uses `font-variant-numeric: tabular-nums` (already set on `body` in `theme.css`) so columns of KWD align.
 - Type scale for apps (rem): 0.75 · 0.875 · 1 · 1.125 · 1.25 · 1.5 · 2 · 2.5. Landing hero: 3–4.5 rem, weight 700.
 - The final wordmark will be custom-drawn outlines. Do not ship the logo as live text.

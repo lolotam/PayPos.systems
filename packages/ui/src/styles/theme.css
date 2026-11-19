@@ -118,6 +118,9 @@
   /* لون شارة المعلومات أغمق من chart-5 في الوضع الفاتح، لأن نص الشارة (#EEF4F2)
      فوق chart-5 بيوصل 3.75:1 بس، والحد المطلوب 4.5:1. */
   --info: oklch(0.52 0.073 251.1);
+  /* درجة أغمق من الجمرة لشارة المخزون الضعيف: التحذير والمعلّق بياخدوا لون
+     الـaccent-foreground نفسه، فالمخزون الضعيف لازم يبان كحالة مختلفة. */
+  --low-stock-base: oklch(0.52 0.16 42.5);
   --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.244 0.029 227.2);
   --sidebar-primary: oklch(0.502 0.084 188.3);
@@ -165,6 +168,7 @@
   --chart-4: oklch(0.809 0.138 85.2);
   --chart-5: oklch(0.745 0.064 250.9);
   --info: var(--chart-5);
+  --low-stock-base: oklch(0.78 0.14 55);
   --sidebar: oklch(0.222 0.023 210.1);
   --sidebar-foreground: oklch(0.957 0.01 181.4);
   --sidebar-primary: oklch(0.735 0.113 186.2);
@@ -206,13 +210,15 @@
     color-scheme: light;
   }
 
-  html.dark {
+  .dark {
     color-scheme: dark;
   }
 
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -233,7 +239,7 @@
   --paid: var(--success);
   --pending: var(--accent-foreground);
   --failed: var(--destructive);
-  --low-stock: var(--accent-foreground);
+  --low-stock: var(--low-stock-base);
   /* شارة الوردية المفتوحة: chart-5 مع نص الشارة بيوصل 3.75:1 بس في الوضع الفاتح،
      فبترجع للون المعلومات الغامق عشان يعدّي 4.5:1. */
   --open-shift: var(--info);
@@ -326,11 +332,4 @@
   --color-indigo-300: var(--chart-5);
   --color-indigo-500: var(--chart-5);
   --color-indigo-700: var(--chart-5);
-}
-
-@layer base {
-  body {
-    font-family: var(--font-sans);
-    font-variant-numeric: tabular-nums;
-  }
 }

@@ -69,13 +69,6 @@ function resolve(name: string, scopeMap: Declarations, baseMap: Declarations): s
   return resolve(referenced, scopeMap, baseMap);
 }
 
-/** بيحسب قيمة var(...) بالاستناد لنطاق معيّن. */
-function substitute(raw: string, scopeMap: Declarations): string {
-  const referenced = /^var\(\s*(--[a-z0-9-]+)\s*\)$/i.exec(raw)?.[1];
-  if (!referenced) return raw;
-  return substitute(scopeMap.get(referenced) ?? '', scopeMap);
-}
-
 function toRgb(value: string): [number, number, number] {
   const match = /^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*\)$/.exec(value);
   if (!match) throw new Error(`التوكن ده مش مدعوم: ${value}`);
@@ -130,13 +123,13 @@ const dark = scope('.dark');
 
 /** قيم الـ html المحسوبة في الوضع الفاتح: التوكن بيحسب في النطاق اللي بيعلنه. */
 const rootComputed = new Map<string, string>();
-for (const [name, raw] of light) rootComputed.set(name, substitute(raw, light));
+for (const name of light.keys()) rootComputed.set(name, resolve(name, light, light));
 
 /** قيم عنصر جوّه شجرة .dark: المعلن في الشجرة بيتحسب فيها، وإلا بيرث المحسوب من الـ html. */
 const subtreeScope = new Map<string, string>([...rootComputed, ...dark]);
 function subtreeValue(name: string): string {
   if (!dark.has(name)) return rootComputed.get(name) ?? '';
-  return substitute(dark.get(name) ?? '', subtreeScope);
+  return resolve(name, subtreeScope, rootComputed);
 }
 
 /** خلفيات الشارات اللي النص بيتقرا فوقها بـ --status-foreground. */
@@ -175,6 +168,11 @@ describe('لوحة ألوان الشارات', () => {
   it('لون المعلومات بيتغمق في الوضع الفاتح بس، والوضع الداكن بيفضل زي chart-5', () => {
     expect(resolve('--info', light, light)).not.toBe(resolve('--chart-5', light, light));
     expect(resolve('--info', dark, light)).toBe(resolve('--chart-5', dark, light));
+  });
+
+  it('لون المخزون الضعيف مختلف عن المعلّق في الوضعين، عشان الشارتين ماتبحطّوش في نفس اللون', () => {
+    expect(resolve('--low-stock', light, light)).not.toBe(resolve('--pending', light, light));
+    expect(resolve('--low-stock', dark, light)).not.toBe(resolve('--pending', dark, light));
   });
 
   it('الأسماء البديلة بتتحسب جوّه شجرة .dark زي ما بتتحسب على الـ html', () => {

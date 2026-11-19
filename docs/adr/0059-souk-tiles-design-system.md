@@ -14,6 +14,8 @@ Self-host Readex Pro and Baloo Bhaijaan 2 Arabic and Latin variable WOFF2 subset
 
 Keep lucide-react. Port the source theme storage key, pre-paint initialization and browser theme-color synchronization. Storage denial still permits system-theme initialization. Preserve POS PWA scope, start URL, display mode and offline service worker; precache fonts and new icons.
 
+Dark mode follows the system setting by default, and the user can override it with the `ThemeSwitch` (light / dark / system) in the admin sidebar footer and the POS operator panel. The switch writes the same storage key the boot script reads, so the choice survives a reload and reaches the other tabs.
+
 ## Consequences
 
 Phosphor requires a later owner decision and ADR. App-shell, navigation, dashboard, charts, page builder and permissions are follow-ups. No new component library, API, DB or migration is included. The `.area-tab-bar` rule is omitted because no existing component uses it.

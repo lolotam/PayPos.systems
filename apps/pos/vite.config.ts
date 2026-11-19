@@ -21,8 +21,10 @@ const themeColorMetas = (['light', 'dark'] as const).map((theme) => ({
 const themeBootPlugin = {
   name: 'souk-theme-boot',
   transformIndexHtml: () => [
-    { tag: 'script', children: THEME_BOOT_SCRIPT, injectTo: 'head' as const },
+    // الـ metas الأول عشان سكربت الإقلاع يلاقي أول meta لـ theme-color في الشجرة،
+    // فيدرَج الـ meta المملوكة قبلها؛ لو مش موجودة بيفضل الـ head-prepend fallback.
     ...themeColorMetas,
+    { tag: 'script', children: THEME_BOOT_SCRIPT, injectTo: 'head' as const },
   ],
 };
 
