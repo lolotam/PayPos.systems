@@ -34,5 +34,5 @@ test notification in step 1 is inserted by Claude.
 
 ## For an agent
 
-- The bell is a button with the Phosphor Bell icon and the unread count as its badge.
+- The bell is a button with the lucide Bell icon and the unread count as its badge.
 - API: `GET /v1/me/notifications/unread-count` with `x-company-id` must equal the badge.

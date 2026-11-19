@@ -10,7 +10,7 @@ export {
   WifiSlashIcon as WifiOff,
   WarningCircleIcon as CircleAlert,
   ClockIcon as Clock3,
-  MonitorIcon as MonitorX,
+  ProhibitIcon as MonitorX,
   CircleNotchIcon as LoaderCircle,
   TrayIcon as Inbox,
   SignOutIcon as LogOut,

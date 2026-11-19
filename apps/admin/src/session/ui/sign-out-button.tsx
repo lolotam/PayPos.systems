@@ -29,7 +29,7 @@ export function SignOutButton({ tone = 'ink' }: { tone?: 'ink' | 'sidebar' }) {
         disabled={signOut.pending}
         onClick={() => void signOut.submit()}
       >
-        <LogOut aria-hidden="true" />
+        <LogOut aria-hidden="true" className="rtl:-scale-x-100" />
         {t(locale, 'admin.signOut')}
       </Button>
     </div>

@@ -26,7 +26,7 @@
 >
 > **Changelog**
 >
-> - **V3.21 (2026-11-19)** — §7: icons move from lucide-react to Phosphor through `@phosphor-icons/react` (PP-193.3, ADR-0060).
+> - **V3.25 (2026-11-19)** — §7: icons move from lucide-react to Phosphor through `@phosphor-icons/react` (PP-193.3, ADR-0060).
 > - **V3.24 (2026-11-17)** — §10: `build` and `admin-document-popup` start alongside the independent test jobs; Docker target builds are bounded to two processes and staging variants are main-only. `ci-gate` still requires every current job before merge (Waleed, owner authorization in `docs/owner-decisions.ar.md`, section «اعتماد خطوتي CI المتبقيتين في PR مستقل (ANSWERED، 2026-11-17)»).
 > - **V3.23 (2026-11-11)** — §9: a before/after performance test on shared CI runners is judged only by its ratio to the unchanged baseline measured in the same run, never by a fixed millisecond limit; §6 200 ms budgets stay (PP-165, Waleed, `docs/owner-decisions.ar.md` item 76).
 > - **V3.22 (2026-11-05)** — §10: the worker integration job starts alongside `check` and the API test shards; `build` and `ci-gate` require all of them (PP-131.3, `docs/owner-decisions.ar.md` item 68).
