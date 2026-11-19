@@ -1,8 +1,7 @@
 import { fileURLToPath } from 'node:url';
 
-import { THEME_BOOT_SCRIPT, THEME_COLOR_METAS, THEME_COLORS } from '@pospay/ui/theme';
-
 import { POS_HOSTS } from '@pospay/contracts';
+import { THEME_BOOT_SCRIPT, THEME_COLOR_METAS, THEME_COLORS } from '@pospay/ui/theme';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
