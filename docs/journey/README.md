@@ -36,14 +36,15 @@ What still does not work there, whatever the journey:
 
 - **WhatsApp and OTP sending is OFF** until the Meta templates and secrets are in place. So staff OTP sign-in, the personal phone
   passkey and every flow that needs the personal staff session cannot be finished on staging.
-- **File uploads fail.** The staging compose passes no object-storage (`STORAGE_*`) settings to the API or the worker, so an upload
-  answers `STORAGE_NOT_CONFIGURED`. This hits employee documents, the Excel import and the business logo.
+- **File uploads need the storage values.** Since #547 the staging compose passes the object-storage (`STORAGE_*`) settings to the
+  API and the worker; while any of them is empty in Dokploy an upload answers `STORAGE_NOT_CONFIGURED`. This hits employee
+  documents, the Excel import and the business logo. The rows below that say "no object storage on staging" were written before #547.
 - **Worker-only jobs** run there, but you only see their result (a bell message), never a screen.
 
 من #533 (2026-10-23) الستاجنج شغال على Dokploy (الإدارة والكاشير والـ API والـ worker وخطوة الـ migrate) وبيتحدّث بعد كل merge، والمنيو العام (`apps/menu`) **لسه مش متركّب هناك**: لوحة الإدارة على
 `https://app.staging.pospay.systems`، والكاشير على `https://pos.staging.pospay.systems`، والـ API على
 `https://api.staging.pospay.systems` ومعاه الـ worker. البيانات تجريبية بس: شركة «صالون الأميرة (تجريبي)» بفرعين، السالمية وحولي،
-و8 خدمات و7 موظفين. لسه مقفول هناك: إرسال الواتساب والـ OTP (مستني قوالب Meta والأسرار)، ورفع الملفات (مفيش إعدادات تخزين)،
+و8 خدمات و7 موظفين. لسه مقفول هناك: إرسال الواتساب والـ OTP (مستني قوالب Meta والأسرار)، ورفع الملفات (من #547 الإعدادات بتتبعت للـ API والـ worker، بس لو قيمة منها فاضية في Dokploy الرفع بيرد `STORAGE_NOT_CONFIGURED`)،
 والـ jobs اللي بتشتغل في الخلفية بتشوف نتيجتها في الجرس بس.
 
 ## Testing on staging with a browser agent — التجربة على الستاجنج بـ agent
@@ -63,8 +64,8 @@ What still does not work there, whatever the journey:
 Since #80 the admin has a dark sidebar (logo, company/business/branch, navigation, account and authenticator at the bottom) and a slim top row (notifications bell, language). On a phone the sidebar opens from the ☰ button.
 من بعد #80 لوحة الإدارة فيها قائمة جانبية كحلي (اللوجو، الشركة/النشاط/الفرع، القائمة، والحساب والمصادقة تحت) وشريط صغير فوق (الجرس واللغة). على الموبايل القائمة بتفتح من زرار ☰.
 
-The status paragraph inside journeys 01–47 was written before #533 and may still say the admin or POS is not deployed. This table
-is the current answer.
+The status paragraph inside journeys 01–47 was written before #533 and may still say the admin or POS is not deployed. Journeys
+57–60 were written before their screens shipped, and their bodies still say "no screen yet". This table is the current answer.
 
 | # | Journey | Shipped in | Runs on staging? |
 |---|---|---|---|
@@ -126,8 +127,16 @@ is the current answer.
 | 55 | [Business identity](55-business-identity.md) — هوية النشاط | #365, #384, #392, #393, #394, #397 | names yes; logo upload fails (no object storage on staging) |
 | 56 | [The PDF renderer](56-pdf-renderer.md) — محرّك ملفات الـ PDF | #413, #425, #426 | nothing to click (worker capability; no document kind registered yet) |
 | 57 | [Discount approval (foundation)](57-discount-approval.md) — الموافقة على خصم فوق الحد (الأساس) | #465, #469, #498, #504, #523 | foundation only: the permission shows on `/permissions`; no request/approve route or screen yet; the bell never rings yet |
-| 58 | [Alert rules](58-alert-rules.md) — قواعد التنبيهات | #467, #493, #501, #503, #510, #521 | API and worker on staging; no screen yet; you see it only in which bells arrive |
-| 59 | [Staff app settings: columns and months back](59-staff-app-settings.md) — إعداد تطبيق الموظفات: الأعمدة وعدد الشهور | #468, #513, #516 | API on staging; no screen yet; nothing reads the setting yet |
-| 60 | [Staff push subscriptions](60-staff-push-subscriptions.md) — اشتراك موبايل الموظفة في الإشعارات | #530 | API on staging; no screen yet; needs the personal session (OTP OFF) and push keys (not in the staging env); nothing is sent yet |
+| 58 | [Alert rules](58-alert-rules.md) — قواعد التنبيهات | #467, #493, #501, #503, #510, #521 | yes; the screen is [62](62-alert-rules-screen.md) (`/alert-rules`) |
+| 59 | [Staff app settings: columns and months back](59-staff-app-settings.md) — إعداد تطبيق الموظفات: الأعمدة وعدد الشهور | #468, #513, #516 | yes; the screen is [61](61-staff-app-columns-screen.md) (`/staff-app-columns`); months back is read by the employee's own attendance and work reads |
+| 60 | [Staff push subscriptions](60-staff-push-subscriptions.md) — اشتراك موبايل الموظفة في الإشعارات | #530 | API on staging; the on/off control and the sender are [64](64-staff-web-push.md); needs the personal session (OTP OFF) and the push keys set in Dokploy |
+| 61 | [Staff app columns screen](61-staff-app-columns-screen.md) — شاشة أعمدة تطبيق الموظفين | #553 | yes (`/staff-app-columns`) |
+| 62 | [Alerts screen](62-alert-rules-screen.md) — شاشة التنبيهات | #562, #619 | yes (`/alert-rules`) |
+| 63 | [«PosPay Business» app shell](63-native-app-shell.md) — غلاف تطبيق «PosPay Business» | #563, #575, #602, #627, #667 | no web page: native build only; the employee side needs OTP (OFF) |
+| 64 | [Mobile notifications in the staff app](64-staff-web-push.md) — إشعارات الموبايل في تطبيق الموظفة | #557, #599, #612 | no: the control is on the personal screen (OTP OFF) |
+| 65 | [«Your shift ends soon» reminder](65-shift-ending-reminder.md) — تذكير «دوامك قرب يخلص» | #577, #585, #594 | worker job on staging; the push needs a subscribed phone (64); lead time on `/alert-rules` |
+| 66 | [Staff sign-out that always finishes](66-staff-sign-out.md) — خروج الموظفة اللي دايمًا بيكمل | #597 | yes for the paired device; the personal session needs OTP (OFF) |
+| 67 | [Official attendance statement (PDF)](67-attendance-statement.md) — كشف الحضور الرسمي (PDF) | #589, #608, #684, #697, #705 | screen and routes yes (`/staff/attendance-statement`); the PDF needs the worker's renderer |
+| 68 | [Staff app link and QR](68-employee-app-link-qr.md) — لينك تطبيق الموظفات والـ QR | #638 | yes (`/staff/employee-app-link`); no print sheet yet |
 
 New journeys are added after every merge.
