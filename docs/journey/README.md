@@ -155,5 +155,11 @@ The status paragraph inside journeys 01–47 was written before #533 and may sti
 | 83 | [«حضوري»: an employee reads her own attendance](83-own-attendance.md) — الموظفة تقرا حضورها | #861 | API on staging; no screen; needs a private view (82) or the personal session (OTP OFF) |
 | 84 | [«إجازاتي»: an employee requests leave and follows it](84-my-leave.md) — الموظفة تطلب إجازة وتتابعها | #881, #882 | yes on a paired reception device; her own phone needs OTP (OFF) |
 | 85 | [An employee reads her own tips for the month](85-own-monthly-tips.md) — الموظفة تقرا بقشيشها في الشهر | #896 | API on staging; no screen; needs a private view (82) or the personal session (OTP OFF) |
+| 86 | [Sell a package at reception](86-sell-package.md) — بيع باقة من الريسبشن | #756, #778, #815, #834, #929, #1025, #1051, #1052, #1073 | yes (`/orders/package-sales/new`); needs the worker; no payment is captured |
+| 87 | [Use a package session in a visit, and give it back](87-redeem-package-session.md) — استخدام جلسة من الباقة في زيارة وإرجاعها | #818, #820, #838, #839, #841, #846, #931, #956 | yes, on `/orders/service-sessions/new` («من الباقة») |
+| 88 | [Extend a package's expiry](88-extend-package.md) — تمديد صلاحية الباقة | #975, #985, #1045 | yes, in the package detail under «من الباقة» |
+| 89 | [Refund unused package sessions](89-refund-package-sessions.md) — استرداد جلسات الباقة اللي ما اتستخدمتش | #819, #999 | API on staging; no dialog or bell yet; imported packages cannot be refunded yet |
+| 90 | [Import open packages from Excel (preview only)](90-import-packages.md) — استيراد الباقات المفتوحة من Excel (المعاينة بس) | #851, #871, #877, #889 | preview API only; nothing can be committed yet; needs object storage |
+| 91 | [Stop and resume selling a package type](91-stop-resume-selling-package.md) — إيقاف بيع نوع باقة واستئنافه | #814, #1042, #1055, #1067 | yes (`/catalog/package-types`) |
 
 New journeys are added after every merge.
