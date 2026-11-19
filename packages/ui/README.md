@@ -10,8 +10,8 @@ Wrap the application in `DirectionProvider`, which defaults to `rtl` and accepts
 `lang` in the application shell. Both scripts use the bundled Souk Tiles faces:
 Readex Pro for body text and Baloo Bhaijaan 2 for display headings, with the
 Arabic and Latin subsets served locally. Apply `.dark` to the document element
-(`html`) to switch the semantic colors; the class is toggled on that element
-only, so it is not inherited from a subtree.
+(`html`) to switch the semantic colors; the boot script toggles the class on that
+element. A `.dark` subtree switches the same tokens for the elements inside it.
 
 All text, including accessible names, placeholders and icon-button labels, must
 come from the consumer's `@pospay/i18n` catalog. The kit owns no user-facing strings.

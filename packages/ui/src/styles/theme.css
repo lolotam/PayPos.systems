@@ -216,7 +216,12 @@
   }
 }
 
-:root {
+/*
+ * الأسماء البديلة دي بتتحسب على كل عنصر، فاللي جوه شجرة فيها .dark
+ * بياخد قيم الوضع الداكن زي ما بياخدها الـ html نفسه.
+ */
+:root,
+.dark {
   --brand: var(--cta);
   --brand-foreground: var(--cta-foreground);
   --brand-strong: var(--primary);
@@ -229,7 +234,9 @@
   --pending: var(--accent-foreground);
   --failed: var(--destructive);
   --low-stock: var(--accent-foreground);
-  --open-shift: var(--chart-5);
+  /* شارة الوردية المفتوحة: chart-5 مع نص الشارة بيوصل 3.75:1 بس في الوضع الفاتح،
+     فبترجع للون المعلومات الغامق عشان يعدّي 4.5:1. */
+  --open-shift: var(--info);
   --status-foreground: var(--background);
   --chart-6: var(--muted-foreground);
   --radius-control: var(--radius-md);

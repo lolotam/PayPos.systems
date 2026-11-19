@@ -1,35 +1,41 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve as resolvePath } from 'node:path';
+import { readFileSync } from 'node:fs';
+// بنستخدم URL بتاعة node:url ومسمّيتها NodeURL: الـ URL العالمية في بيئة jsdom بتحسب المسار النسبي على أساس
+// المستند، وVite بيحوّل المسار اللي شكله new URL('...', import.meta.url) لعنوان السيرفر.
+import { URL as NodeURL, fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-// مسار الملف بيتحسب من مجلد التشغيل، عشان يتقرا من جوه vitest في أي بيئة.
-const themePath = [
-  resolvePath(process.cwd(), 'src/styles/theme.css'),
-  resolvePath(process.cwd(), 'packages/ui/src/styles/theme.css'),
-].find((candidate) => existsSync(candidate));
-
-if (!themePath) throw new Error('ملف theme.css اتشال من مكانه');
-
+// الملف بيتقرأ من مساره جوّه الحزمة، عشان يتقرا من غير ما نكون شايفين على مجلد التشغيل.
+const themePath = fileURLToPath(new NodeURL('../styles/theme.css', import.meta.url));
 const themeCss = readFileSync(themePath, 'utf8');
 
 type Declarations = Map<string, string>;
 
-/** بيقسّم ملف CSS لبلوكات على المستوى الأعلى، بعد ما التعليقات تتشال. */
+/** بيقسّم ملف CSS لبلوكات على المستوى الأعلى بعد ما التعليقات تتشال، بعدّ الأقواس عشان البلوكات المتداخلة ما تقراش خطأ. */
 function topLevelBlocks(css: string): { selector: string; body: string }[] {
   const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
   const blocks: { selector: string; body: string }[] = [];
+  let depth = 0;
+  let blockStart = -1;
+  let selectorStart = 0;
+  let selector = '';
   let index = 0;
   while (index < withoutComments.length) {
-    const open = withoutComments.indexOf('{', index);
-    if (open === -1) break;
-    const close = withoutComments.indexOf('}', open);
-    if (close === -1) break;
-    const raw = withoutComments.slice(index, open);
-    blocks.push({
-      selector: raw.slice(raw.lastIndexOf('}') + 1).trim(),
-      body: withoutComments.slice(open + 1, close),
-    });
-    index = close + 1;
+    const character = withoutComments[index];
+    if (character === '{') {
+      if (depth === 0) {
+        blockStart = index + 1;
+        selector = withoutComments.slice(selectorStart, index).trim();
+      }
+      depth += 1;
+    } else if (character === '}') {
+      depth -= 1;
+      if (depth === 0 && blockStart !== -1) {
+        blocks.push({ selector, body: withoutComments.slice(blockStart, index) });
+        blockStart = -1;
+        selectorStart = index + 1;
+      }
+    }
+    index += 1;
   }
   return blocks;
 }
@@ -44,11 +50,12 @@ function declarationsOf(body: string): Declarations {
   return declarations;
 }
 
-/** بيجمع كل بلوكات محدد معيّن، زي :root اللي بيتكرر أكتر من مرة. */
+/** بيجمع كل بلوكات محدد معيّن، وبيقبل المحدد المركّب زي ":root, .dark". */
 function scope(selector: string): Declarations {
   const merged: Declarations = new Map();
   for (const block of topLevelBlocks(themeCss)) {
-    if (block.selector !== selector) continue;
+    const selectors = block.selector.split(',').map((part) => part.trim());
+    if (!selectors.includes(selector)) continue;
     for (const [name, value] of declarationsOf(block.body)) merged.set(name, value);
   }
   return merged;
@@ -60,6 +67,13 @@ function resolve(name: string, scopeMap: Declarations, baseMap: Declarations): s
   const referenced = /^var\(\s*(--[a-z0-9-]+)\s*\)$/i.exec(raw)?.[1];
   if (!referenced) return raw;
   return resolve(referenced, scopeMap, baseMap);
+}
+
+/** بيحسب قيمة var(...) بالاستناد لنطاق معيّن. */
+function substitute(raw: string, scopeMap: Declarations): string {
+  const referenced = /^var\(\s*(--[a-z0-9-]+)\s*\)$/i.exec(raw)?.[1];
+  if (!referenced) return raw;
+  return substitute(scopeMap.get(referenced) ?? '', scopeMap);
 }
 
 function toRgb(value: string): [number, number, number] {
@@ -114,22 +128,57 @@ function contrastRatio(background: string, foreground: string): number {
 const light = scope(':root');
 const dark = scope('.dark');
 
+/** قيم الـ html المحسوبة في الوضع الفاتح: التوكن بيحسب في النطاق اللي بيعلنه. */
+const rootComputed = new Map<string, string>();
+for (const [name, raw] of light) rootComputed.set(name, substitute(raw, light));
+
+/** قيم عنصر جوّه شجرة .dark: المعلن في الشجرة بيتحسب فيها، وإلا بيرث المحسوب من الـ html. */
+const subtreeScope = new Map<string, string>([...rootComputed, ...dark]);
+function subtreeValue(name: string): string {
+  if (!dark.has(name)) return rootComputed.get(name) ?? '';
+  return substitute(dark.get(name) ?? '', subtreeScope);
+}
+
+/** خلفيات الشارات اللي النص بيتقرا فوقها بـ --status-foreground. */
+const STATUS_BACKGROUNDS = [
+  { name: 'معلومات', token: '--info' },
+  { name: 'وردية مفتوحة', token: '--open-shift' },
+  { name: 'مدفوع', token: '--paid' },
+  { name: 'نجاح', token: '--success' },
+  { name: 'معلّق', token: '--pending' },
+  { name: 'تحذير', token: '--warning' },
+  { name: 'فشل', token: '--failed' },
+  { name: 'مخزون ضعيف', token: '--low-stock' },
+];
+
 describe('لوحة ألوان الشارات', () => {
-  it('نص شارة المعلومات بيفضل مقروء فوق خلفيتها في الوضعين الفاتح والداكن', () => {
-    const lightContrast = contrastRatio(
-      resolve('--info', light, light),
-      resolve('--status-foreground', light, light),
-    );
-    const darkContrast = contrastRatio(
-      resolve('--info', dark, light),
-      resolve('--status-foreground', dark, light),
-    );
-    expect(lightContrast).toBeGreaterThanOrEqual(4.5);
-    expect(darkContrast).toBeGreaterThanOrEqual(4.5);
+  it('كتلتا :root و.dark موجودتين في theme.css', () => {
+    expect(light.size).toBeGreaterThan(0);
+    expect(dark.size).toBeGreaterThan(0);
   });
+
+  for (const { name, token } of STATUS_BACKGROUNDS) {
+    it(`نص شارة ${name} بيفضل مقروء فوق خلفيتها في الوضعين الفاتح والداكن`, () => {
+      const lightContrast = contrastRatio(
+        resolve(token, light, light),
+        resolve('--status-foreground', light, light),
+      );
+      const darkContrast = contrastRatio(
+        resolve(token, dark, light),
+        resolve('--status-foreground', dark, light),
+      );
+      expect(lightContrast).toBeGreaterThanOrEqual(4.5);
+      expect(darkContrast).toBeGreaterThanOrEqual(4.5);
+    });
+  }
 
   it('لون المعلومات بيتغمق في الوضع الفاتح بس، والوضع الداكن بيفضل زي chart-5', () => {
     expect(resolve('--info', light, light)).not.toBe(resolve('--chart-5', light, light));
     expect(resolve('--info', dark, light)).toBe(resolve('--chart-5', dark, light));
+  });
+
+  it('الأسماء البديلة بتتحسب جوّه شجرة .dark زي ما بتتحسب على الـ html', () => {
+    expect(subtreeValue('--open-shift')).toBe(resolve('--chart-5', dark, light));
+    expect(subtreeValue('--status-foreground')).toBe(resolve('--background', dark, light));
   });
 });
