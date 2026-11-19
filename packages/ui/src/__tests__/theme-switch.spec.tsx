@@ -182,6 +182,29 @@ it('keeps an explicit dark choice on screen when the browser refuses to store it
   expect(ownedThemeColor()).toBe(THEME_COLORS.dark);
 });
 
+it('keeps a refused dark choice when the system changes while an older light value is still stored', () => {
+  // القيمة القديمة 'light' لسه في التخزين والكتابة الجديدة مرفوضة: اختيار الذاكرة 'dark'
+  // هو الأحدث، فتغيّر النظام لازم ما يرجّعش الصفحة لورا للقيمة المخزَّنة الأقدم منه.
+  const system = changeableSystemTheme(true);
+  localStorage.setItem(THEME_STORAGE_KEY, 'light');
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    throw new Error('denied');
+  });
+  render(<ThemeSwitch labels={labels} />);
+
+  fireEvent.click(choice('fixture.dark'));
+  expect(choice('fixture.dark').getAttribute('aria-pressed')).toBe('true');
+
+  act(() => {
+    system.change(false);
+  });
+
+  expect(choice('fixture.dark').getAttribute('aria-pressed')).toBe('true');
+  expect(document.documentElement.classList.contains('dark')).toBe(true);
+  expect(ownedThemeColor()).toBe(THEME_COLORS.dark);
+  expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('light');
+});
+
 it('serves re-renders from the cached preference instead of reading localStorage again', () => {
   systemTheme();
   localStorage.setItem(THEME_STORAGE_KEY, 'dark');

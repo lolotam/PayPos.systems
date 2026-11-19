@@ -31,7 +31,7 @@ export function effectiveTheme(preference: ThemePreference): Theme {
 /** الوضع الغامق حسب النظام: البيئات اللي من غير matchMedia (SSR، اختبارات) بتعتبر الفاتح هو الآمن. */
 function prefersDarkSystemTheme(): boolean {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  return window.matchMedia(THEME_RUNTIME_CONFIG.darkMediaQuery).matches;
 }
 
 /**
@@ -166,7 +166,10 @@ export type ThemeRuntime = {
    * @returns دالة إلغاء الاشتراك
    */
   subscribe(listener: () => void): () => void;
-  /** بيفك المستمعين وبيشيل المقبض من window — للاختبارات وآمن مع HMR. */
+  /**
+   * للاختبارات: بيفك المستمعين وبيمسح المشتركين المركّبين وبيشيل المقبض من window.
+   * المشترك المركّب بيسقط مع النداء، فلازم يشترك تاني في المثيل الجديد بعد إعادة التثبيت.
+   */
   dispose(): void;
 };
 
@@ -243,22 +246,24 @@ function installThemeRuntime(
   var subscribers = new Set<() => void>();
   var current: ThemePreference = read();
   var runtime: ThemeRuntime = { get: get, set: set, subscribe: subscribe, dispose: dispose };
-  window[config.handle] = runtime;
   painter.paint(current);
   if (typeof window.addEventListener === 'function')
     window.addEventListener('storage', handleStorageEvent);
   if (painter.media && typeof painter.media.addEventListener === 'function')
     painter.media.addEventListener('change', refresh);
+  // المقبض بيتنشر آخر خطوة: لو الرسم أو التسجيل فشل، مفيش مثيل مكسور من غير مستمعين
+  // بيفضل معلّق على window وكل نداء لاحق بيلتحق بيه — النداء الجاي بيركّب من الأول.
+  window[config.handle] = runtime;
   return runtime;
 
   /**
-   * بيقرأ الاختيار وقت النداء: المخزَّن الصريح بيفوز، ولو مفيش قيمة صالحة أو التخزين رفض
-   * بنرجّع الاختيار اللي في الذاكرة، وإلا 'system'.
+   * بيقرأ الاختيار وقت النداء: اختيار الذاكرة بيفوز الأول، لأنه ما بيتولّدش غير لما التخزين
+   * يرفض كتابة آخر اختيار، فأي قيمة في التخزين ساعتها أقدم من قرار المستخدم الأخير
+   * وتغيّر النظام ما يقدرش يرجّعه لورا. بعدها القيمة المخزَّنة الصريحة، وإلا 'system'.
    */
   function read(): ThemePreference {
-    var stored = store.read();
-    if (stored) return stored;
-    return memoryPreference ? memoryPreference : 'system';
+    if (memoryPreference) return memoryPreference;
+    return store.read() || 'system';
   }
 
   /** بيرسم الاختيار الجديد ويحدّث الذاكرة المؤقتة ويبلّغ المشتركين — مسار موحّد لكل تغيير. */
@@ -311,6 +316,9 @@ function installThemeRuntime(
       window.removeEventListener('storage', handleStorageEvent);
     if (painter.media && typeof painter.media.removeEventListener === 'function')
       painter.media.removeEventListener('change', refresh);
+    // المشتركين بيمسحوا مع المثيل: بعد dispose المثيل مات، فمستمع لسه شايل إشارة ليه
+    // ما يتناداش على حالة قديمة لو المثيل اتركّب تاني.
+    subscribers.clear();
     delete window[config.handle];
   }
 }

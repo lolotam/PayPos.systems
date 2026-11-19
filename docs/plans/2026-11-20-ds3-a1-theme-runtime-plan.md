@@ -85,7 +85,8 @@ They are serialised with `Function.prototype.toString()`, so each one must be fu
   which froze the `matchMedia` guard to `if (false)` in the admin boot script (found in the browser review, fix
   round 2). Guard the member instead: `typeof window.matchMedia === 'function'`.
 - Each stays under the 60-line function limit (`max-lines-per-function`, blank lines and comments skipped).
-- `theme.ts` stays one file with no imports (the POS Vite config loads it in Node) and under 300 lines.
+- `theme.ts` stays one file with no imports (the POS Vite config loads it in Node) and inside the `max-lines` lint limit
+  (300 warn / 400 error; the rule skips comments and blank lines, and the Arabic doc comments make the physical file longer).
 
 ### Runtime behaviour (exact)
 
@@ -101,7 +102,9 @@ They are serialised with `Function.prototype.toString()`, so each one must be fu
 - `get()`: returns the cached `current`. No storage read.
 - Listener attach/detach is guarded (`media` may be `null`; `addEventListener`/`removeEventListener` may be missing
   on old engines and in test mocks).
-- `dispose()`: removes both listeners and deletes `window[config.handle]`. Used by tests and safe for HMR.
+- `read()` order (review round 1): a non-null memory preference wins over storage, because it only exists when a
+  write was refused, so storage then holds a value older than the user's last choice.
+- `dispose()`: removes both listeners, drops the subscribers and deletes `window[config.handle]`. Used by tests.
 
 `effectiveTheme`, `THEME_COLORS`, `THEME_COLOR_METAS`, `THEME_STORAGE_KEY` and every name exported from
 `packages/ui/src/index.ts` stay unchanged. The window handle is `__pospayTheme`, typed through a `declare global`
@@ -130,7 +133,7 @@ existing clean-up. The boot script is run with `new Function(THEME_BOOT_SCRIPT)(
 | 1082.4 | Run the boot script, then call `setThemePreference('dark')` and `subscribeToThemePreference`; run the boot script a second time. | Exactly one system `change` listener was registered; `.dark` is set; the owned meta is the dark colour. |
 | 1082.4 | Existing «runtime helper reaches the same theme and owned meta as the boot script». | Kept, with a dispose between the two halves. |
 | 1082.2 | Boot script only, no `ThemeSwitch`, no subscriber. Store `dark` and dispatch a `storage` event. | `.dark` is set and the owned meta is the dark colour. |
-| 1082.2 / 1081.1 | Boot script only, stored `dark`, then the other tab clears the key (`storage` event, `newValue: null`) with a dark→light system. | `.dark` follows the system and the owned meta is gone. |
+| 1082.2 / 1081.1 | Boot script only, stored `dark`, then the other tab clears the key (`storage` event, `newValue: null`) on a light system. | `.dark` is removed and the owned meta is gone. |
 | 1082.1 | `setItem` throws. Render `ThemeSwitch`, click Dark, then the system changes to light. | `.dark` stays, the Dark button stays pressed, the owned meta stays the dark colour. |
 | 1082.3 | Boot script with stored `dark`, no subscriber. `removeItem`, then a system change to light. | `.dark` is removed **and** the owned meta is absent. |
 | 1082.5 | `matchMedia` undefined. Run the boot script with stored `dark`, and again (after dispose) with nothing stored. | No throw; stored dark gives `.dark` and the dark owned meta; nothing stored gives light and no owned meta. |

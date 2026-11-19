@@ -215,6 +215,14 @@ describe('theme preference at runtime', () => {
   });
 });
 
+/**
+ * أي مقارنة على typeof window في السكربت المتولّد ممنوعة — المباشرة ضيقة أو واسعة،
+ * والمعكوسة اللي المضغوطة ممكن تطلعها — لأن مترجم سيرفر Next بيبدّل typeof window
+ * بالثابت "undefined" فيتجمّد الحرس. لكن typeof window.matchMedia مسموحة ومش بتتقاس.
+ */
+const BANNED_WINDOW_COMPARISON =
+  /typeof window\s*[!=]==?|["']undefined["']\s*[!=]==?\s*typeof window(?![.\w])/;
+
 describe('one runtime instance', () => {
   it('the module joins the runtime the boot script installed, so a second boot registers no second system listener', () => {
     const listeners = mockSystemTheme();
@@ -283,10 +291,9 @@ describe('one runtime instance', () => {
 
   it('the emitted boot script stays plain for old WebViews and turns a stored dark into a dark page', () => {
     // الصياغة الممنوعة: optional chaining أو nullish أو catch من غير معامل أو backtick أو helpers مترجمات — كلها بتكسر الـ WebViews القديمة.
-    // وtypeof window متبوعة بمقارنة ممنوعة كمان: مترجم سيرفر Next بيبدّلها بالثابت "undefined"
-    // فيتجمّد الحرس في السكربت المتولّد — لكن typeof window.matchMedia مسموحة ومش بتتقاس.
+    // ومقارنات typeof window ممنوعة كمان (BANNED_WINDOW_COMPARISON فوق) لكن typeof window.matchMedia مسموحة ومش بتتقاس.
     expect(THEME_BOOT_SCRIPT).not.toMatch(/catch\s*\{|\?\.|\?\?|`|__name\(/);
-    expect(THEME_BOOT_SCRIPT).not.toMatch(/typeof window\s*[!=]==/);
+    expect(THEME_BOOT_SCRIPT).not.toMatch(BANNED_WINDOW_COMPARISON);
 
     localStorage.setItem(THEME_STORAGE_KEY, 'dark');
     new Function(THEME_BOOT_SCRIPT)();
