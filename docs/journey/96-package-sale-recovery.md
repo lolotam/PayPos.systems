@@ -1,4 +1,4 @@
-# 61 · Package sale recovery when the response is lost — استرجاع بيع الباقة لما الرد يضيع
+# 96 · Package sale recovery when the response is lost — استرجاع بيع الباقة لما الرد يضيع
 
 **Status / الحالة:** the sale screen shipped in #1073 and the cross-tab journal reservation in #1077. The follow-ups of
 issue #1075 hardened what the browser remembers and shows: the fail-closed expiry check with the `seenAt` high-water
@@ -6,7 +6,7 @@ mark, per-scope held attempts, the status-only record, the expiry refresh while 
 saved on this device» warning, and the acknowledged discard of an expired attempt. It needs the `orders` feature and
 reaches staging with the next daily batch after the merge. No browser test covers it yet.
 
-This continues [47](47-record-visit-reception.md) and the package sale screen: the sell **بيع باقة** / **Sell a package**
+This continues step 14 of [86](86-sell-package.md), the package sale screen: the sell **بيع باقة** / **Sell a package**
 request goes out with an idempotency key, and the response can be lost (network blip, tab crash, device sleep) after the
 server accepted it. The journal in the browser's `localStorage` remembers the attempt so the same sale is retried with
 the same key — never sold twice. The server stays authoritative for every sale; everything here is only what the
