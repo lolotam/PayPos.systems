@@ -24,6 +24,12 @@ function ownedThemeColor() {
     ?.getAttribute('content');
 }
 
+/** أول meta لـ theme-color في الشجرة — المتصفح يعتمد عليها، فالمملوكة لازم تكون هي. */
+function firstThemeColorIsOwned() {
+  const first = document.head.querySelector('meta[name="theme-color"]');
+  return first?.hasAttribute('data-pospay-theme') ?? false;
+}
+
 beforeEach(() => {
   mockSystemTheme();
   document.head.innerHTML = `
@@ -47,6 +53,22 @@ describe('browser theme color', () => {
     expect(systemThemeColors()).toEqual([THEME_COLORS.light, THEME_COLORS.dark]);
     expect(ownedThemeColor()).toBe(THEME_COLORS.dark);
     expect(listeners).toHaveLength(0);
+  });
+
+  it('puts the owned meta before the system metas so the stored choice wins the browser bar', () => {
+    localStorage.setItem(THEME_STORAGE_KEY, 'light');
+    new Function(THEME_BOOT_SCRIPT)();
+    expect(firstThemeColorIsOwned()).toBe(true);
+    expect(ownedThemeColor()).toBe(THEME_COLORS.light);
+    expect(systemThemeColors()).toEqual([THEME_COLORS.light, THEME_COLORS.dark]);
+  });
+
+  it('prepends the owned meta when the document has no theme-color meta yet', () => {
+    document.head.innerHTML = '';
+    localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+    new Function(THEME_BOOT_SCRIPT)();
+    expect(firstThemeColorIsOwned()).toBe(true);
+    expect(ownedThemeColor()).toBe(THEME_COLORS.dark);
   });
 
   it('without a stored theme the metas keep following the system setting', () => {
