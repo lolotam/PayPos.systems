@@ -161,5 +161,9 @@ The status paragraph inside journeys 01–47 was written before #533 and may sti
 | 89 | [Refund unused package sessions](89-refund-package-sessions.md) — استرداد جلسات الباقة اللي ما اتستخدمتش | #819, #999 | API on staging; no dialog or bell yet; imported packages cannot be refunded yet |
 | 90 | [Import open packages from Excel (preview only)](90-import-packages.md) — استيراد الباقات المفتوحة من Excel (المعاينة بس) | #851, #871, #877, #889 | preview API only; nothing can be committed yet; needs object storage |
 | 91 | [Stop and resume selling a package type](91-stop-resume-selling-package.md) — إيقاف بيع نوع باقة واستئنافه | #814, #1042, #1055, #1067 | yes (`/catalog/package-types`) |
+| 92 | [The «الإجازات» tab in an employee's file](92-employee-leave-tab.md) — تبويب «الإجازات» في ملف الموظفة | #893, #897, #898, #958 | yes (`/staff/<employee id>/leave`) |
+| 93 | [Leave history report for all employees](93-leave-history-report.md) — تقرير سجل الإجازات لكل الموظفين | #942, #981, #982, #997, #1001 | yes (`/staff/leave-history`); large reports are built by the worker |
+| 94 | [Services import from Excel: the cell-reading core](94-services-import-parsing.md) — استيراد الخدمات من Excel: أساس قراءة الخلايا | #817, #823, #824 | nothing to click (pure rules, checked by tests; no import route or screen yet) |
+| 95 | [The new look and the light / dark switch](95-design-system-theme.md) — الشكل الجديد ومفتاح فاتح / غامق | #1079, #1083 | yes, in the admin and the POS |
 
 New journeys are added after every merge.
