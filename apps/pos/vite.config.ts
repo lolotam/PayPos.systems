@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 
-import { THEME_BOOT_SCRIPT, THEME_COLORS } from '@pospay/ui/theme';
+import { THEME_BOOT_SCRIPT, THEME_COLOR_METAS, THEME_COLORS } from '@pospay/ui/theme';
 
 import { POS_HOSTS } from '@pospay/contracts';
 import tailwindcss from '@tailwindcss/vite';
@@ -8,12 +8,12 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig } from 'vitest/config';
 
-const themeColorMetas = (['light', 'dark'] as const).map((theme) => ({
+const themeColorMetas = THEME_COLOR_METAS.map(({ media, content }) => ({
   tag: 'meta',
   attrs: {
     name: 'theme-color',
-    content: THEME_COLORS[theme],
-    media: `(prefers-color-scheme: ${theme})`,
+    content,
+    media,
   },
   injectTo: 'head' as const,
 }));

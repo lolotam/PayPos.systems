@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
-import { THEME_BOOT_SCRIPT, THEME_COLORS } from '@pospay/ui/theme';
+import { THEME_BOOT_SCRIPT, THEME_COLOR_METAS } from '@pospay/ui/theme';
 
 import { t } from '@pospay/i18n';
 
@@ -24,12 +24,9 @@ export async function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang={locale} dir={dir} suppressHydrationWarning>
       <head>
-        <meta
-          name="theme-color"
-          content={THEME_COLORS.light}
-          media="(prefers-color-scheme: light)"
-        />
-        <meta name="theme-color" content={THEME_COLORS.dark} media="(prefers-color-scheme: dark)" />
+        {THEME_COLOR_METAS.map(({ media, content }) => (
+          <meta key={media} name="theme-color" content={content} media={media} />
+        ))}
         <meta name="msapplication-config" content="/browserconfig.xml" />
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
       </head>

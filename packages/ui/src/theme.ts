@@ -8,11 +8,26 @@ export const THEME_STORAGE_KEY = 'pospay-theme';
 /** لون شريط المتصفح لكل وضع، مطابق لـ--background في packages/ui/src/styles/theme.css. */
 export const THEME_COLORS: Record<Theme, string> = { light: '#EEF4F2', dark: '#0A1719' };
 
+/**
+ * واصف meta الـ theme-color لكل وضع: تطبيق الويب وتطبيق POS بياخدوا نفس الواصف،
+ * عشان شريط المتصفح يبقى متطابق في التنين والـ metas ما تتبنيش بإيد مرتين.
+ */
+export const THEME_COLOR_METAS: { media: string; content: string }[] = [
+  { media: '(prefers-color-scheme: light)', content: THEME_COLORS.light },
+  { media: '(prefers-color-scheme: dark)', content: THEME_COLORS.dark },
+];
+
 const META_SELECTOR = 'meta[name="theme-color"][data-pospay-theme]';
 
 const FIRST_THEME_COLOR_SELECTOR = 'meta[name="theme-color"]';
 
 const DARK_MEDIA_QUERY = '(prefers-color-scheme: dark)';
+
+/**
+ * الاختيار المحفوظ في الذاكرة: بيتكتب فيه بس لما التخزين يفشل (تصفح خاص مثلًا)،
+ * عشان اختيار المستخدم يفضل ظاهر على الشاشة بدل ما يرجع لوضعه القديم.
+ */
+let memoryPreference: ThemePreference | null = null;
 
 /**
  * بيقرأ اختيار الوضع المخزَّن، ويرجع 'system' لو مفيش اختيار صريح.
@@ -22,10 +37,11 @@ const DARK_MEDIA_QUERY = '(prefers-color-scheme: dark)';
 export function readThemePreference(): ThemePreference {
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
-    return stored === 'light' || stored === 'dark' ? stored : 'system';
+    if (stored === 'light' || stored === 'dark') return stored;
   } catch {
-    return 'system';
+    // التخزين متاحش: مفيش اختيار محفوظ فيه، فالاختيار في الذاكرة هو المصدر الوحيد.
   }
+  return memoryPreference ?? 'system';
 }
 
 /**
@@ -36,7 +52,13 @@ export function readThemePreference(): ThemePreference {
  */
 export function effectiveTheme(preference: ThemePreference): Theme {
   if (preference !== 'system') return preference;
-  return window.matchMedia(DARK_MEDIA_QUERY).matches ? 'dark' : 'light';
+  return prefersDarkSystemTheme() ? 'dark' : 'light';
+}
+
+/** الوضع الغامق حسب النظام: البيئات اللي من غير matchMedia (SSR، اختبارات) بتعتبر الفاتح هو الآمن. */
+function prefersDarkSystemTheme(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia(DARK_MEDIA_QUERY).matches;
 }
 
 /** بيعمل meta مملوكة للوضع المختار يدويًا، وتدرَجها قبل أول meta لـ theme-color. */
@@ -74,7 +96,49 @@ function notifyPreferenceListeners(): void {
 }
 
 /**
+ * الاختيار اتغيّر في تبويب تاني: لازم يتطبّق على الصفحة دي زي ما اتطبّق هناك، مش بس يحدّث القارئات.
+ * التخزين مشترك بين التبويبات، فالاختيار المخزَّن هنا بيكون الاختيار الجديد بالفعل.
+ */
+function handleStorageEvent(event: StorageEvent): void {
+  if (event.key !== null && event.key !== THEME_STORAGE_KEY) return;
+  // الحدث ده بيأكد إن التخزين شغال في هذا الأصل، فنسقط الاختيار المحفوظ في الذاكرة.
+  memoryPreference = null;
+  const preference = readThemePreference();
+  applyTheme(preference);
+  notifyPreferenceListeners();
+}
+
+/**
+ * نظام التشغيل غيّر إعداده بعد إقلاع الصفحة: وقت الاختيار 'system' بس هو اللي بيتبع النظام،
+ * فبنطبّق الوضع الجديد ونحدّث القارئات. سكربت الإقلاع بيتكفّل بالفترة اللي قبل الإقلاع.
+ */
+function handleSystemThemeChange(): void {
+  if (readThemePreference() !== 'system') return;
+  applyTheme('system');
+  notifyPreferenceListeners();
+}
+
+let systemMedia: MediaQueryList | null = null;
+
+function attachSystemListener(): void {
+  if (systemMedia) return;
+  if (typeof window.matchMedia !== 'function') return;
+  const media = window.matchMedia(DARK_MEDIA_QUERY);
+  media.addEventListener('change', handleSystemThemeChange);
+  systemMedia = media;
+}
+
+function detachSystemListener(): void {
+  if (!systemMedia) return;
+  if (typeof systemMedia.removeEventListener === 'function') {
+    systemMedia.removeEventListener('change', handleSystemThemeChange);
+  }
+  systemMedia = null;
+}
+
+/**
  * بيحفظ اختيار الوضع وبيطبّقه فورًا: 'light' و'dark' بيتخزنوا في localStorage، و'system' بيشيل المفتاح.
+ * لو التخزين فشل، الاختيار بيتحفظ في الذاكرة عشان يفضل ظاهر على الشاشة.
  *
  * @param preference الاختيار الجديد
  */
@@ -82,8 +146,10 @@ export function setThemePreference(preference: ThemePreference): void {
   try {
     if (preference === 'system') localStorage.removeItem(THEME_STORAGE_KEY);
     else localStorage.setItem(THEME_STORAGE_KEY, preference);
+    memoryPreference = null;
   } catch {
-    // التخزين متاحش (تصفح خاص مثلًا): الاختيار بيفضل على الصفحة الحالية بس،مش لحد إعادة التحميل.
+    // التخزين متاحش (تصفح خاص مثلًا): بنحتفظ بالاختيار في الذاكرة، فالمبدّل بيعرض اللي اتختار.
+    memoryPreference = preference;
   }
   applyTheme(preference);
   notifyPreferenceListeners();
@@ -97,14 +163,16 @@ export function setThemePreference(preference: ThemePreference): void {
  */
 export function subscribeToThemePreference(listener: () => void): () => void {
   preferenceListeners.add(listener);
-  const onStorage = (event: StorageEvent) => {
-    if (event.key !== null && event.key !== THEME_STORAGE_KEY) return;
-    listener();
-  };
-  window.addEventListener('storage', onStorage);
+  if (preferenceListeners.size === 1) {
+    window.addEventListener('storage', handleStorageEvent);
+    attachSystemListener();
+  }
   return () => {
     preferenceListeners.delete(listener);
-    window.removeEventListener('storage', onStorage);
+    if (preferenceListeners.size === 0) {
+      window.removeEventListener('storage', handleStorageEvent);
+      detachSystemListener();
+    }
   };
 }
 

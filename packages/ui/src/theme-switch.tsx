@@ -4,6 +4,7 @@ import { Monitor, Moon, Sun } from 'lucide-react';
 import { useSyncExternalStore } from 'react';
 
 import { cn } from './shared/cn.js';
+import { SIDEBAR_GHOST_CLASSES } from './sidebar-classes.js';
 import {
   readThemePreference,
   setThemePreference,
@@ -53,7 +54,7 @@ export function ThemeSwitch({ labels, tone = 'default', className }: ThemeSwitch
       : 'bg-brand text-brand-foreground';
   const idle =
     tone === 'sidebar'
-      ? 'text-sidebar-foreground hover:bg-sidebar-accent'
+      ? SIDEBAR_GHOST_CLASSES
       : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground';
   return (
     <div
