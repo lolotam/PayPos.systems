@@ -248,8 +248,8 @@ PR 2's access tests use a real `QueryClient` and deferred HTTP answers, never a 
 | CM-06 | Every one of the seven engine codes has an Arabic and an English message. | `model/__tests__/plan-messages.spec.ts` |
 | — | `toWireCandidate`: each parser's accepted and refused texts; disabled-empty → `{ enabled: false }`; disabled-filled keeps settings; `draftFromVersion` round trip. | `model/__tests__/plan-draft.spec.ts` |
 | CM-09 | Three blocks render with switches and no formula text; turning tiers on with no step shows the `NO_STEPS` message **inside the tiers block** and the save button is **disabled**; fixing it enables save; a descending step shows `STEPS_NOT_ASCENDING` in the tiers block while base stays clean. | `ui/__tests__/plan-builder-form.spec.tsx` |
-| CM-09 | A refused date (year `0000`) and a malformed amount each show a visible message and a disabled save. | same |
-| CM-09 | A server `COMMISSION_PLAN_INVALID`: located in its block when one block reproduces the code; shown at form level when it is ambiguous (`INVALID_CALC` with two candidate blocks); cleared after an edit. | same |
+| CM-09 | A refused date (year `0000`), an amount longer than the contract allows and a salary multiple of `10000.00` each show a visible message and a disabled save; a valid KWD amount round-trips as text with no `number`. | same |
+| CM-09 | A server `COMMISSION_PLAN_INVALID`: located in its block when one block reproduces the code; shown at form level when it is ambiguous (`INVALID_CALC` with two candidate blocks) or when the sent body passes the local check; `INVALID_CALC` is tested in base and in package sale separately; cleared after an edit. | same |
 | — | The translator spec with its independent `bigint` expectations, moved with the translator; `validateWireCommissionPlan` equals the two-step call; the API create-plan use-case specs still pass. | `packages/commissions-engine/src/__tests__/plan-wire.spec.ts` |
 
 **PR 2**
@@ -261,6 +261,7 @@ PR 2's access tests use a real `QueryClient` and deferred HTTP answers, never a 
 | FR-010a | An accountant-like session (plan list 200) reaches the screen from the link and picks an employee through the plan endpoint only (no `/employees` request is made); a session whose plan list answers 403 gets the denied state on a direct visit and no link. |
 | **P1-1** | (a) First page 200 with `next_cursor`; «load more» is pending; the next page answers 403 → name, number, link, picker and section are gone, and the scope's cache holds no employee or version entry. (b) Identity A shown, switch to B, back to A within 30 s → nothing of A is shown until A's fresh first page succeeds; a late answer of A's old request, completed after the switch, changes nothing. |
 | **P1-2** | Nav and page mounted together, a second employee's versions cached and another request in flight: a 403 from (i) a version read and (ii) the save each close the whole scope (as above) and clear the selection, the draft and the held key; entries of **another** identity are untouched. While the server keeps refusing, no request loop occurs (request count asserted). «Try again» with a 200 shows the list again with no employee selected. |
+| — | A value the admin typed stays visible after a 500 on the history, a failed «load more» and a refetch for the same employee, and is gone after access is revoked. |
 | — | Employee 404 → local message, the list and the link remain. Switching from employee A to B while A's save is pending: A's answer does not alter B's form. Save success → the new version is first in the history and the form shows it. Unchanged body after a network failure reuses the idempotency key; a changed body or employee takes a new one. |
 | — | Nav item spec: hidden before success, hidden on 403, shown on 200. |
 
@@ -272,7 +273,8 @@ PR 2's access tests use a real `QueryClient` and deferred HTTP answers, never a 
 2. Engine package: move the translator, add `validateWireCommissionPlan`, export from both entries, extend
    `test:node`, move the spec. Rewire the API use case and delete `plan-codec.ts`. ADR-0054 §1 and spec D-17 addenda.
 3. Add `@pospay/commissions-engine` to `apps/admin/package.json`; `pnpm install` for the lockfile.
-4. i18n catalog `commissionPlanBuilder` (ar/en, the same key set, wired in `catalog.ts`).
+4. i18n catalog `commissionPlanBuilder` (ar/en, the same key set), wired where the two languages are actually
+   assembled (`packages/i18n/src/ar.ts`, `en.ts` and the catalog type), so the keys reach the public `t`.
 5. Model files with their unit tests.
 6. Editor UI with its component tests.
 7. Local gates, each its own command, in this order:
@@ -328,5 +330,14 @@ P2). Each point and what this revision does with it:
 | 9 | P2 | Complete the FR-010a and CM-09 screen proof; TanStack Table for the history. | **Applied.** §3.6 and §4 PR 2 rows (name fallback, number, business-day default, 503 distinct from empty, plan-only and employees-only sessions, disabled block in history, order after paging). The «employees-only» case is tested as «the plan list answers 403», which is what the browser can observe. |
 | 10 | P2 | The gate commands were incomplete (`typecheck lint` in one filter call runs neither script; builds first; engine and API gates). | **Applied.** §5 step 7. The API use-case specs need the database lane; if none is free they are reported as left to `ci-gate`, not as passed. |
 
-No second debate round is authorized (PP-195: one round). Revision 2 has therefore **not** been re-read by Astra; the
-manager may ask for a re-check before dispatch.
+**Second read of the same round.** The first Codex attempt, stopped by the usage limit, resumed by itself after the
+reset and also finished. It read **revision 1** and returned **APPROVE WITH CHANGES** (eight P1, two P2). Its points
+are the ones above (shared denied state, fresh success per identity entry, both-entry export, Zod before the
+translator, first-error equivalence, unplaceable server codes, draft replacement, the unproven budgets, gate commands,
+the accountant path). What it added and this revision takes: the i18n keys are wired in `ar.ts` and `en.ts` (§5 step
+4); tests for an over-long amount, a `10000.00` multiple, `INVALID_CALC` in base and in package sale separately, and a
+typed value surviving a failed history read (§4). Not taken: keeping the wire type internal — the type is exported so
+the admin model can name the body it checks.
+
+No further debate round is authorized (PP-195: one round). Revision 2 has **not** been re-read by Astra; the manager
+may ask for a re-check before dispatch.
