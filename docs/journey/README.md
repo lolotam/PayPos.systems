@@ -129,6 +129,6 @@ is the current answer.
 | 58 | [Alert rules](58-alert-rules.md) — قواعد التنبيهات | #467, #493, #501, #503, #510, #521 | API and worker on staging; no screen yet; you see it only in which bells arrive |
 | 59 | [Staff app settings: columns and months back](59-staff-app-settings.md) — إعداد تطبيق الموظفات: الأعمدة وعدد الشهور | #468, #513, #516 | API on staging; no screen yet; nothing reads the setting yet |
 | 60 | [Staff push subscriptions](60-staff-push-subscriptions.md) — اشتراك موبايل الموظفة في الإشعارات | #530 | API on staging; no screen yet; needs the personal session (OTP OFF) and push keys (not in the staging env); nothing is sent yet |
-| 61 | [Package sale recovery when the response is lost](61-package-sale-recovery.md) — استرجاع بيع الباقة لما الرد يضيع | #1075 | yes; needs the `orders` feature |
+| 61 | [Package sale recovery when the response is lost](61-package-sale-recovery.md) — استرجاع بيع الباقة لما الرد يضيع | #1073, #1077, #1094 | yes; needs the `orders` feature |
 
 New journeys are added after every merge.
