@@ -9,7 +9,7 @@ import {
 import { moneyToString, parseMoney } from '@pospay/domain';
 import { normalizeKwdInput, t } from '@pospay/i18n';
 import { Button, Label, NativeSelect } from '@pospay/ui';
-import { useRef, useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import { usePackageSaleContext } from '../api/use-package-sale-context';
@@ -21,6 +21,8 @@ import { PackageSaleFields, type PackageSaleFieldValues } from './package-sale-f
 import { PackageSaleRecoveryNotice } from './package-sale-recovery-notice';
 import { PackageSaleResult } from './package-sale-result';
 import { PackageSaleTypeField } from './package-sale-type-field';
+import { usePackageSaleTypeOptions } from './package-sale-type-option';
+import { usePackageSaleSubmit } from './use-package-sale-submit';
 
 function saleBody(
   values: PackageSaleFieldValues,
@@ -115,7 +117,6 @@ function usePackageSaleFormState(scope: SessionServiceScope, locale: 'ar' | 'en'
   const [saleRequestId, setSaleRequestId] = useState<string | null>(null);
   const context = usePackageSaleContext(scope);
   const recorders = context.data?.recorders ?? [];
-  const submissionLatch = useRef(false);
   const form = useForm<PackageSaleFieldValues>({ defaultValues: saleDefaults });
   const mutation = useSellPackage(scope);
   const knownSaleId = saleRequestId ?? mutation.restoredSaleId;
@@ -135,26 +136,27 @@ function usePackageSaleFormState(scope: SessionServiceScope, locale: 'ar' | 'en'
   const { recorder, recorderField } = usePackageSaleRecorderField(recorders, locale, locked);
   const submitSale = packageSaleSubmission(form, locale, mutation, setSaleRequestId);
   const entryScope = context.data?.customer_entry_scope;
+  const selectType = (selected: SellablePackageType) => {
+    setType(selected);
+    form.setValue('price_paid', selected.price, { shouldDirty: true });
+  };
+  const picker = usePackageSaleTypeOptions(scope, type, selectType, locked);
+  // استرجاع البيع الأصلي بيبعت الطلب المحفوظ، فالعرض المحدّث ما بيمنعهوش
+  const quoteStale = picker.quoteChanged && !mutation.recoveryRequired;
   const submit = form.handleSubmit((values) =>
     submitSale(values, entryScope ? customer : null, type, recorder),
   );
-  const onSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (submissionLatch.current || pending || mutation.restoring || mutation.verificationRequired)
-      return;
-    setFailure(undefined);
-    submissionLatch.current = true;
-    const request = mutation.recoveryRequired
-      ? mutation.mutateAsync(undefined).then(setSaleRequestId, () => undefined)
-      : submit(event);
-    void request.finally(() => {
-      submissionLatch.current = false;
-    });
-  };
+  const { onSubmit } = usePackageSaleSubmit({
+    mutation,
+    pending,
+    quoteStale,
+    clearFailure: () => setFailure(undefined),
+    recordSaleRequestId: setSaleRequestId,
+    submit,
+  });
   return {
     entryScope,
     customer,
-    type,
     recorderField,
     saleRequestId: knownSaleId,
     form,
@@ -162,6 +164,8 @@ function usePackageSaleFormState(scope: SessionServiceScope, locale: 'ar' | 'en'
     status,
     pending,
     locked,
+    picker,
+    quoteStale,
     onSubmit,
     setCustomer,
     setType,
@@ -200,7 +204,6 @@ export function PackageSaleForm({ scope }: { scope: SessionServiceScope }) {
   const {
     entryScope,
     customer,
-    type,
     recorderField,
     saleRequestId,
     form,
@@ -208,6 +211,8 @@ export function PackageSaleForm({ scope }: { scope: SessionServiceScope }) {
     status,
     pending,
     locked,
+    picker,
+    quoteStale,
     onSubmit,
     setCustomer,
     setType,
@@ -223,16 +228,7 @@ export function PackageSaleForm({ scope }: { scope: SessionServiceScope }) {
         onChange={setCustomer}
         disabled={locked || !entryScope}
       />
-      <PackageSaleTypeField
-        scope={scope}
-        value={type}
-        disabled={locked}
-        onChange={(selected) => {
-          setType(selected);
-          form.setValue('price_paid', selected.price, { shouldDirty: true });
-        }}
-        onReconfirm={setType}
-      />
+      <PackageSaleTypeField picker={picker} disabled={locked} onReconfirm={setType} />
       <PackageSaleFields scope={scope} form={form} disabled={locked} />
       {form.formState.errors.root ? <p role="alert">{form.formState.errors.root.message}</p> : null}
       <PackageSaleRecoveryNotice mutation={mutation} status={status.data?.status} />
@@ -242,6 +238,7 @@ export function PackageSaleForm({ scope }: { scope: SessionServiceScope }) {
           pending ||
           mutation.restoring ||
           mutation.verificationRequired ||
+          quoteStale ||
           saleRequestId !== null ||
           (!entryScope && !mutation.recoveryRequired) ||
           status.data?.status === 'completed'

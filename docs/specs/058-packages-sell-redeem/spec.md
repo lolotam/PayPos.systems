@@ -1050,6 +1050,10 @@ gained a sale id, and otherwise the journal entry and its stored record are remo
 warning clears, and the form opens for a new sale; a removal the device refuses keeps the attempt and
 the unsaved warning, and the server's idempotency window stays the authority on duplicates.
 
+While the selected package's refreshed quote is unconfirmed, the form cannot submit a new sale — the sell
+button stays disabled and the submit handler does nothing; recovering an original sale replays the saved
+body and is unaffected.
+
 ### API picker follow-ups (#1075)
 
 Sellable package types explicitly declare the same user-only guard as package sale context and submission. Device principals remain forbidden by the global permission guard as well. Seller options exclude every employee linked to the authenticated recorder user before pagination; other eligible performers remain selectable, including employees without a linked user. No migration or public contract change is required.

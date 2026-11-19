@@ -3,28 +3,18 @@ import type { SellablePackageType } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { envelopeMessage } from '@/shared/api/api-error';
-import type { SessionServiceScope } from '../api/use-session-services';
-import { usePackageSaleTypeOptions } from './package-sale-type-option';
+import type { usePackageSaleTypeOptions } from './package-sale-type-option';
 
 export function PackageSaleTypeField({
-  scope,
-  value,
-  onChange,
+  picker,
   onReconfirm,
   disabled,
 }: {
-  scope: SessionServiceScope;
-  value: SellablePackageType | null;
-  onChange: (type: SellablePackageType) => void;
+  picker: ReturnType<typeof usePackageSaleTypeOptions>;
   onReconfirm: (type: SellablePackageType) => void;
   disabled: boolean;
 }) {
-  const { locale, query, options, refreshed, quoteChanged } = usePackageSaleTypeOptions(
-    scope,
-    value,
-    onChange,
-    disabled,
-  );
+  const { locale, query, options, refreshed, quoteChanged } = picker;
   return (
     <fieldset disabled={disabled} className="grid gap-3 text-start">
       <legend>{t(locale, 'packageSale.packageType')}</legend>
