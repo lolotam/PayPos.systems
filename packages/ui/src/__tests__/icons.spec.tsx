@@ -8,6 +8,7 @@ import {
   Building2,
   CircleAlert,
   Clock3,
+  DeviceMobileSlash,
   EmptyState,
   House,
   Inbox,
@@ -17,7 +18,6 @@ import {
   LogOut,
   MapPin,
   Monitor,
-  MonitorX,
   Moon,
   ShieldCheck,
   Smartphone,
@@ -41,7 +41,7 @@ const ICONS: readonly (readonly [string, IconComponent])[] = [
   ['WifiOff', WifiOff],
   ['CircleAlert', CircleAlert],
   ['Clock3', Clock3],
-  ['MonitorX', MonitorX],
+  ['DeviceMobileSlash', DeviceMobileSlash],
   ['LoaderCircle', LoaderCircle],
   ['Inbox', Inbox],
   ['LogOut', LogOut],
@@ -63,21 +63,54 @@ it.each(ICONS)('%s renders an SVG in client DOM and SSR markup', (_name, Icon) =
   expect(html).toContain('<svg');
 });
 
-it('renders MonitorX with a distinct glyph from Monitor', () => {
-  const unsupported = renderToStaticMarkup(<MonitorX aria-hidden />);
-  const monitor = renderToStaticMarkup(<Monitor aria-hidden />);
-  expect(unsupported).toContain('<svg');
-  expect(monitor).toContain('<svg');
-  expect(unsupported).not.toBe(monitor);
+it('renders DeviceMobileSlash as the unsupported-device glyph', () => {
+  const { container } = render(<DeviceMobileSlash aria-hidden />);
+  expect(container.querySelector('svg')).not.toBeNull();
+  expect(container.querySelectorAll('path').length).toBeGreaterThan(0);
 });
 
-it('preserves default 24px (size-6) icon sizing and hidden glyph semantics in EmptyState', () => {
+it('defaults exported icons to 24px', () => {
+  const { container } = render(<Bell aria-hidden />);
+  const svg = container.querySelector('svg');
+  expect(svg?.getAttribute('width')).toBe('24');
+  expect(svg?.getAttribute('height')).toBe('24');
+});
+
+it('keeps an explicit size prop over the 24px default', () => {
+  const { container } = render(<Bell aria-hidden size={32} />);
+  const svg = container.querySelector('svg');
+  expect(svg?.getAttribute('width')).toBe('32');
+  expect(svg?.getAttribute('height')).toBe('32');
+});
+
+it('does not force 24px when the caller passes a size-* class', () => {
+  const { container } = render(<Bell aria-hidden className="size-5" />);
+  const svg = container.querySelector('svg');
+  expect(svg?.getAttribute('width')).not.toBe('24');
+  expect(svg?.getAttribute('height')).not.toBe('24');
+  expect(svg?.classList.contains('size-5')).toBe(true);
+});
+
+it('mirrors the directional LogOut icon in RTL and leaves other icons alone', () => {
+  const { container } = render(
+    <>
+      <LogOut aria-hidden className="extra" data-testid="logout" />
+      <Bell aria-hidden data-testid="bell" />
+    </>,
+  );
+  const logout = container.querySelector('[data-testid="logout"]');
+  expect(logout?.classList.contains('rtl:-scale-x-100')).toBe(true);
+  expect(logout?.classList.contains('extra')).toBe(true);
+  expect(
+    container.querySelector('[data-testid="bell"]')?.classList.contains('rtl:-scale-x-100'),
+  ).toBe(false);
+});
+
+it('renders EmptyState icons as hidden glyphs inside the aria-hidden wrapper', () => {
   render(<EmptyState icon={<CircleAlert />} title="fixture.title" />);
   const heading = screen.getByRole('heading', { name: 'fixture.title' });
-  const card = heading.parentElement;
-  expect(card).not.toBeNull();
-  const wrapper = card?.querySelector('span[aria-hidden="true"]');
-  expect(wrapper).not.toBeNull();
-  expect(wrapper?.className).toContain('[&_svg:not([class*="size-"])]:size-6');
-  expect(wrapper?.querySelector('svg')).not.toBeNull();
+  const wrapper = heading.parentElement?.querySelector('span[aria-hidden="true"]');
+  const svg = wrapper?.querySelector('svg');
+  expect(svg).not.toBeNull();
+  expect(svg?.getAttribute('width')).toBe('24');
 });

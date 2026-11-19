@@ -32,7 +32,7 @@ Nominal size: **S** = 2 focused days, **M** = 4, **L** = 7 (the Phase 0 conventi
 | #   | PR                                                                                                                  | Size         | Depends on         |
 | --- | ------------------------------------------------------------------------------------------------------------------- | ------------ | ------------------ |
 |     | **M1 · shells and access**                                                                                          |              |                    |
-| 1   | `packages/ui`: RTL kit, tokens, Arabic font, lucide                                                                 | M            | —                  |
+| 1   | `packages/ui`: RTL kit, tokens, Arabic font, Phosphor                                                                 | M            | —                  |
 | 1b  | GET /v1/me/workspaces (memberships → companies, businesses, branches)                                               | S            | —                  |
 | 2   | `apps/admin` shell: login, TOTP, tenant selector, generated client                                                  | M            | 1, 1b              |
 | 3   | `apps/pos` shell: PWA, device pairing screen                                                                        | M            | 1                  |

@@ -1,5 +1,5 @@
 'use client';
-import { ListIcon, XIcon } from '@phosphor-icons/react';
+import { ListIcon, XIcon } from '@phosphor-icons/react/dist/ssr';
 import { Dialog } from 'radix-ui';
 import { useState, type ReactNode } from 'react';
 import { Button } from './button.js';

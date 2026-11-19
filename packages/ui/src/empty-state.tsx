@@ -24,7 +24,7 @@ export function EmptyState({
       <span
         aria-hidden="true"
         className={cn(
-          'mb-2 flex size-12 items-center justify-center rounded-interactive bg-secondary [&_svg:not([class*="size-"])]:size-6',
+          'mb-2 flex size-12 items-center justify-center rounded-interactive bg-secondary',
           tone === 'warning'
             ? 'text-warning'
             : tone === 'danger'

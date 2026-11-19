@@ -1,5 +1,5 @@
 'use client';
-import { CopyIcon } from '@phosphor-icons/react';
+import { CopyIcon } from '@phosphor-icons/react/dist/ssr';
 import { useState } from 'react';
 import { Button } from './button.js';
 

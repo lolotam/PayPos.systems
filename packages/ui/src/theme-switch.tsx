@@ -1,6 +1,6 @@
 'use client';
 
-import { MonitorIcon, MoonIcon, SunIcon } from '@phosphor-icons/react';
+import { MonitorIcon, MoonIcon, SunIcon } from '@phosphor-icons/react/dist/ssr';
 import { useSyncExternalStore } from 'react';
 
 import { cn } from './shared/cn.js';

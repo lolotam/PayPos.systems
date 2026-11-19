@@ -8,14 +8,16 @@ Waleed selected Phosphor on 2026-11-19 in PP-193.3: «ننقل لـ Phosphor (ا
 
 ## Decision
 
-Use `@phosphor-icons/react` 2.1.10 everywhere instead of lucide-react. Pin the dependency exactly and import its non-deprecated `…Icon` exports. Existing `@pospay/ui` export names remain as aliases where needed, so consumers keep their current component API. The shared package's public icon re-exports use `@phosphor-icons/react/dist/ssr` because Next.js server components cannot evaluate the client entry's `createContext`; client components use the regular package entry.
+Use `@phosphor-icons/react` 2.1.10 everywhere instead of lucide-react. Pin the dependency exactly and import its non-deprecated `…Icon` exports. Existing `@pospay/ui` export names remain as aliases where needed, so consumers keep their current component API. Every Phosphor import in `packages/ui` uses `@phosphor-icons/react/dist/ssr`, one entry point, because Next.js server components cannot evaluate the client entry's `createContext`; no `IconContext` provider exists, so nothing is lost. Apps import icons only through `@pospay/ui`.
+
+Phosphor defaults to `size="1em"` where lucide defaulted to 24px. The icons exported by `@pospay/ui` are thin wrappers (`packages/ui/src/icons.tsx`) that default to `size={24}`; an explicit `size` prop or a `size-*` class wins.
 
 The default weight is `regular`, including every icon migrated by DS-2. Do not set another weight unless the Lovable source clearly uses one for that icon; no such override applies to the current usages.
 
-Horizontal directional icons, including arrows and left/right carets, must follow reading direction. Mirror them in RTL with `rtl:-scale-x-100`, or use Phosphor's `mirrored` prop when the direction is already available as a prop. Vertical carets and non-directional icons are not mirrored.
+Horizontal directional icons, including arrows and left/right carets, must follow reading direction. The exported directional icon (`LogOut`) mirrors itself in RTL with `rtl:-scale-x-100` merged into the caller's class, so call sites add nothing. A new horizontal directional alias is created with the same `mirrorInRtl` option. Vertical carets and non-directional icons are not mirrored.
 
 ## Consequences
 
-Lucide imports and its dependency are removed. Icon sizes, class names, accessible hiding and existing RTL behavior stay unchanged. ADR-0059's «Keep lucide-react» item and the icon rule in `CLAUDE.md` §7 point to this ADR; the corresponding constitution rule moves to Phosphor.
+Lucide imports and its dependency are removed. Icon sizes (24px default), class names and accessible hiding stay unchanged. Directional icons now mirror in RTL by design, inside the shared export. `MonitorX` has no Phosphor equivalent, so the unsupported-device notice uses `DeviceMobileSlash`. ADR-0059's «Keep lucide-react» item and the icon rule in `CLAUDE.md` §7 point to this ADR; the corresponding constitution rule moves to Phosphor.
 
 No component library, API, permission, money behavior, database schema or migration changes. Future icons use Phosphor by default and follow the same weight and direction rules.
