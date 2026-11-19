@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- لوجو PosPay البرتقالي على شاشة الفتح من أندرويد 12 (APP-Q11، APP-Q25)؛ نفس apps/pos/public/icon.svg، ومتصغّر
+<!-- لوجو PosPay البرتقالي على شاشة الفتح من أندرويد 12 (APP-Q11، APP-Q25)؛ نفس apps/business/assets/brand/icon.svg، ومتصغّر
      جوّه دايرة الـ 72 من 108 اللي النظام بيقصّ عليها، عشان أركان المربع ما تتقصّش. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="288dp"

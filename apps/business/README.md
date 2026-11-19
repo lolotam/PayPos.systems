@@ -94,7 +94,7 @@ ignore pattern يقدر يخمّن اسم الملف ده.
 
 ## الأيقونات وشاشة الفتح (M-1e)
 
-مصادر التصميم في `assets/brand/` (SVG): نفس حرف P والنقطة بتوع أيقونة الويب (`apps/pos/public/icon.svg`)، ودايرة كحلي
+مصادر التصميم في `assets/brand/` (SVG): نفس حرف P والنقطة بتوع أيقونة الويب (`apps/business/assets/brand/icon.svg`)، ودايرة كحلي
 فيها «B» في الركن (APP-Q21)، وشريط بنفسجي مايل فيه «تجربة» على أيقونة نسخة التجربة (APP-Q22). صور أندرويد
 (`android/app/src/main/res/mipmap-*` و`drawable*/splash.png`، وأيقونات التجربة في `android/app/src/staging/res/`)
 وصور iOS (`AppIcon` و`AppIconStaging` و`Splash` جوّه `Assets.xcassets`) متولّدة من المصادر دي بـ Playwright (Chromium على

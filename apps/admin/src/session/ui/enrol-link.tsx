@@ -11,12 +11,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 export function EnrolLink() {
   const locale = useLocale();
   return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="justify-start hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-      asChild
-    >
+    <Button variant="sidebar" size="sm" className="justify-start" asChild>
       <Link href="/security/two-factor">
         <KeyRound aria-hidden="true" />
         {t(locale, 'admin.enrolLink')}

@@ -7,9 +7,11 @@ including when the package is reached through `node_modules`.
 
 Wrap the application in `DirectionProvider`, which defaults to `rtl` and accepts
 `dir="ltr"`. It sets both the DOM direction and Radix context. Set the document's
-`lang` in the application shell; English uses the system Latin font, and Arabic uses
-the bundled IBM Plex Sans Arabic weights 400, 500 and 700. Apply `.dark` to the
-document or a subtree to switch the semantic colors.
+`lang` in the application shell. Both scripts use the bundled Souk Tiles faces:
+Readex Pro for body text and Baloo Bhaijaan 2 for display headings, with the
+Arabic and Latin subsets served locally. Apply `.dark` to the document element
+(`html`) to switch the semantic colors; the class is toggled on that element
+only, so it is not inherited from a subtree.
 
 All text, including accessible names, placeholders and icon-button labels, must
 come from the consumer's `@pospay/i18n` catalog. The kit owns no user-facing strings.

@@ -2,7 +2,7 @@
 @import 'tailwindcss';
 @import './fonts/fonts.css';
 @source "../";
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where(.dark, .dark *));
 
 /*
  * تعريف نظام التصميم.
@@ -115,6 +115,9 @@
   --chart-3: oklch(0.244 0.029 227.2);
   --chart-4: oklch(0.729 0.146 77.9);
   --chart-5: oklch(0.585 0.073 251.1);
+  /* لون شارة المعلومات أغمق من chart-5 في الوضع الفاتح، لأن نص الشارة (#EEF4F2)
+     فوق chart-5 بيوصل 3.75:1 بس، والحد المطلوب 4.5:1. */
+  --info: oklch(0.52 0.073 251.1);
   --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.244 0.029 227.2);
   --sidebar-primary: oklch(0.502 0.084 188.3);
@@ -161,6 +164,7 @@
   --chart-3: oklch(0.957 0.01 181.4);
   --chart-4: oklch(0.809 0.138 85.2);
   --chart-5: oklch(0.745 0.064 250.9);
+  --info: var(--chart-5);
   --sidebar: oklch(0.222 0.023 210.1);
   --sidebar-foreground: oklch(0.957 0.01 181.4);
   --sidebar-primary: oklch(0.735 0.113 186.2);
@@ -198,7 +202,7 @@
     outline-offset: 2px;
   }
 
-  html {
+  :root {
     color-scheme: light;
   }
 
@@ -221,7 +225,6 @@
   --sidebar-active: var(--sidebar-primary);
   --sidebar-active-foreground: var(--sidebar-primary-foreground);
   --warning: var(--accent-foreground);
-  --info: var(--chart-5);
   --paid: var(--success);
   --pending: var(--accent-foreground);
   --failed: var(--destructive);

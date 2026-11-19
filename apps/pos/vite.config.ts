@@ -41,13 +41,6 @@ const appIcons = [192, 512].flatMap((size) => [
   },
 ]);
 
-const precacheExclusions = [
-  'brand/logo-mark-simple-tile.png',
-  'favicon-16x16.png',
-  'favicon-32x32.png',
-  'favicon-96x96.png',
-];
-
 const testing = process.env.VITEST === 'true';
 
 export default defineConfig(({ mode }) => {
@@ -99,7 +92,6 @@ export default defineConfig(({ mode }) => {
             },
             injectManifest: {
               globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2}'],
-              globIgnores: precacheExclusions,
             },
             devOptions: { enabled: false },
           }),

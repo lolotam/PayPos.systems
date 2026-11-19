@@ -23,13 +23,9 @@ export function SignOutButton({ tone = 'ink' }: { tone?: 'ink' | 'sidebar' }) {
       ) : null}
       <Button
         type="button"
-        variant="ghost"
+        variant={tone === 'sidebar' ? 'sidebar' : 'ghost'}
         size="sm"
-        className={
-          tone === 'sidebar'
-            ? 'justify-start hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-            : 'justify-start'
-        }
+        className="justify-start"
         disabled={signOut.pending}
         onClick={() => void signOut.submit()}
       >

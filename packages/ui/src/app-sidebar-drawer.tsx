@@ -39,12 +39,7 @@ export function AppSidebarDrawer({
           <div className="flex items-center gap-2 ps-4 pe-2 pt-2">
             <Dialog.Title className="text-sm font-medium">{title}</Dialog.Title>
             <Dialog.Close asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="ms-auto hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-                aria-label={closeLabel}
-              >
+              <Button variant="sidebar" size="icon" className="ms-auto" aria-label={closeLabel}>
                 <X aria-hidden="true" />
               </Button>
             </Dialog.Close>

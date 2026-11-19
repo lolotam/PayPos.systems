@@ -9,6 +9,7 @@ import {
   type ReactElement,
 } from 'react';
 import { cn } from './shared/cn.js';
+import { sidebarGhostVariants } from './button.js';
 import { useDirection } from './direction-provider.js';
 
 export type AppSidebarItemProps = ComponentProps<'a'> & {
@@ -35,7 +36,8 @@ export function AppSidebarItem({
         aria-hidden="true"
         className={cn(
           'absolute start-3 top-1/2 size-1.5 -translate-y-1/2 rounded-full',
-          active ? 'bg-sidebar-primary' : 'bg-transparent',
+          // النقطة بتاخد لون نص الخلفية النشط، وإلا اختفت جوه لون الخلفية نفسه.
+          active ? 'bg-sidebar-primary-foreground' : 'bg-transparent',
         )}
       />
       <span aria-hidden="true" className="[&_svg]:size-4">
@@ -52,7 +54,7 @@ export function AppSidebarItem({
         'relative flex min-h-11 items-center gap-2 rounded-interactive ps-7 pe-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-ring',
         active
           ? 'bg-sidebar-primary font-medium text-sidebar-primary-foreground'
-          : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+          : sidebarGhostVariants(),
         className,
       )}
       {...props}

@@ -44,13 +44,13 @@ it.each(['rtl', 'ltr'] as const)(
     expect(link.getAttribute('dir')).toBe(dir);
     expect(link.classList.contains('bg-sidebar-primary')).toBe(true);
     expect(link.classList.contains('text-sidebar-primary-foreground')).toBe(true);
-    expect(
-      screen
-        .getByRole('button', { name: 'fixture.close' })
-        .classList.contains('hover:bg-sidebar-accent'),
-    ).toBe(true);
-    const dot = link.querySelector('.bg-sidebar-primary');
+    const close = screen.getByRole('button', { name: 'fixture.close' });
+    expect(close.classList.contains('hover:bg-sidebar-accent')).toBe(true);
+    expect(close.classList.contains('hover:text-sidebar-accent-foreground')).toBe(true);
+    expect(close.classList.contains('text-sidebar-foreground')).toBe(true);
+    const dot = link.querySelector('.bg-sidebar-primary-foreground');
     expect(dot?.classList.contains('start-3')).toBe(true);
+    expect(link.querySelector('.bg-sidebar-primary')).toBeNull();
     expect(link.classList.contains('relative')).toBe(true);
     expect(dialog.contains(document.activeElement)).toBe(true);
     fireEvent.keyDown(document.activeElement ?? dialog, { key: 'Escape' });
@@ -89,6 +89,7 @@ it.each(['rtl', 'ltr'] as const)('anchors the active dot to logical inline-start
   );
   const link = screen.getByRole('link', { name: 'fixture.home' });
   expect(link.getAttribute('dir')).toBe(dir);
-  expect(link.querySelector('.bg-sidebar-primary')?.classList.contains('start-3')).toBe(true);
+  const dot = link.querySelector('.bg-sidebar-primary-foreground');
+  expect(dot?.classList.contains('start-3')).toBe(true);
   expect(link.classList.contains('relative')).toBe(true);
 });
