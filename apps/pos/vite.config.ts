@@ -1,10 +1,34 @@
 import { fileURLToPath } from 'node:url';
 
+import { THEME_BOOT_SCRIPT } from '@pospay/ui/theme';
+
 import { POS_HOSTS } from '@pospay/contracts';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import { defineConfig } from 'vitest/config';
+
+const themeBootPlugin = {
+  name: 'souk-theme-boot',
+  transformIndexHtml: () => [
+    { tag: 'script', children: THEME_BOOT_SCRIPT, injectTo: 'head' as const },
+  ],
+};
+
+const appIcons = [192, 512].flatMap((size) => [
+  {
+    src: `android-chrome-${size}x${size}.png`,
+    sizes: `${size}x${size}`,
+    type: 'image/png',
+    purpose: 'any',
+  },
+  {
+    src: `maskable-icon-${size}x${size}.png`,
+    sizes: `${size}x${size}`,
+    type: 'image/png',
+    purpose: 'maskable',
+  },
+]);
 
 const testing = process.env.VITEST === 'true';
 
@@ -32,6 +56,7 @@ export default defineConfig(({ mode }) => {
         }
       : {}),
     plugins: [
+      themeBootPlugin,
       react(),
       tailwindcss(),
       testing || native
@@ -42,7 +67,7 @@ export default defineConfig(({ mode }) => {
             filename: 'sw.ts',
             registerType: 'autoUpdate',
             manifestFilename: 'manifest.webmanifest',
-            includeAssets: ['icon.svg'],
+            includeAssets: ['*.png', '*.ico', 'brand/*.png'],
             manifest: {
               name: 'PosPay',
               short_name: 'PosPay',
@@ -51,12 +76,12 @@ export default defineConfig(({ mode }) => {
               display: 'standalone',
               start_url: '/',
               scope: '/',
-              theme_color: '#FF6421',
-              background_color: '#FCFAF6',
-              icons: [{ src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
+              theme_color: '#EEF4F2',
+              background_color: '#EEF4F2',
+              icons: appIcons,
             },
             injectManifest: {
-              globPatterns: ['**/*.{js,css,html,svg,woff,woff2}'],
+              globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2}'],
             },
             devOptions: { enabled: false },
           }),

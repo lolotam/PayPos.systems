@@ -1,0 +1,194 @@
+[
+  {
+    "app": "pos",
+    "width": 375,
+    "theme": "light",
+    "overflow": false,
+    "dark": false,
+    "font": "\"Readex Pro\", system-ui, sans-serif",
+    "background": "oklch(0.962 0.007 174.4)",
+    "heading": "ربط هذا الجهاز",
+    "fonts": [
+      "Readex Pro",
+      "Readex Pro",
+      "Baloo Bhaijaan 2",
+      "Baloo Bhaijaan 2"
+    ]
+  },
+  {
+    "app": "pos",
+    "width": 375,
+    "theme": "dark",
+    "overflow": false,
+    "dark": true,
+    "font": "\"Readex Pro\", system-ui, sans-serif",
+    "background": "oklch(0.194 0.019 208.2)",
+    "heading": "ربط هذا الجهاز",
+    "fonts": [
+      "Readex Pro",
+      "Readex Pro",
+      "Baloo Bhaijaan 2",
+      "Baloo Bhaijaan 2"
+    ]
+  },
+  {
+    "app": "pos",
+    "width": 768,
+    "theme": "light",
+    "overflow": false,
+    "dark": false,
+    "font": "\"Readex Pro\", system-ui, sans-serif",
+    "background": "oklch(0.962 0.007 174.4)",
+    "heading": "ربط هذا الجهاز",
+    "fonts": [
+      "Readex Pro",
+      "Readex Pro",
+      "Baloo Bhaijaan 2",
+      "Baloo Bhaijaan 2"
+    ]
+  },
+  {
+    "app": "pos",
+    "width": 768,
+    "theme": "dark",
+    "overflow": false,
+    "dark": true,
+    "font": "\"Readex Pro\", system-ui, sans-serif",
+    "background": "oklch(0.194 0.019 208.2)",
+    "heading": "ربط هذا الجهاز",
+    "fonts": [
+      "Readex Pro",
+      "Readex Pro",
+      "Baloo Bhaijaan 2",
+      "Baloo Bhaijaan 2"
+    ]
+  },
+  {
+    "app": "pos",
+    "width": 1280,
+    "theme": "light",
+    "overflow": false,
+    "dark": false,
+    "font": "\"Readex Pro\", system-ui, sans-serif",
+    "background": "oklch(0.962 0.007 174.4)",
+    "heading": "ربط هذا الجهاز",
+    "fonts": [
+      "Readex Pro",
+      "Readex Pro",
+      "Baloo Bhaijaan 2",
+      "Baloo Bhaijaan 2"
+    ]
+  },
+  {
+    "app": "pos",
+    "width": 1280,
+    "theme": "dark",
+    "overflow": false,
+    "dark": true,
+    "font": "\"Readex Pro\", system-ui, sans-serif",
+    "background": "oklch(0.194 0.019 208.2)",
+    "heading": "ربط هذا الجهاز",
+    "fonts": [
+      "Readex Pro",
+      "Readex Pro",
+      "Baloo Bhaijaan 2",
+      "Baloo Bhaijaan 2"
+    ]
+  },
+  {
+    "app": "admin",
+    "width": 375,
+    "theme": "light",
+    "overflow": false,
+    "dark": false,
+    "font": "\"Readex Pro\", system-ui, sans-serif",
+    "background": "oklch(0.962 0.007 174.4)",
+    "heading": "تسجيل الدخول",
+    "fonts": [
+      "Readex Pro",
+      "Readex Pro",
+      "Baloo Bhaijaan 2",
+      "Baloo Bhaijaan 2"
+    ]
+  },
+  {
+    "app": "admin",
+    "width": 375,
+    "theme": "dark",
+    "overflow": false,
+    "dark": true,
+    "font": "\"Readex Pro\", system-ui, sans-serif",
+    "background": "oklch(0.194 0.019 208.2)",
+    "heading": "تسجيل الدخول",
+    "fonts": [
+      "Readex Pro",
+      "Readex Pro",
+      "Baloo Bhaijaan 2",
+      "Baloo Bhaijaan 2"
+    ]
+  },
+  {
+    "app": "admin",
+    "width": 768,
+    "theme": "light",
+    "overflow": false,
+    "dark": false,
+    "font": "\"Readex Pro\", system-ui, sans-serif",
+    "background": "oklch(0.962 0.007 174.4)",
+    "heading": "تسجيل الدخول",
+    "fonts": [
+      "Readex Pro",
+      "Readex Pro",
+      "Baloo Bhaijaan 2",
+      "Baloo Bhaijaan 2"
+    ]
+  },
+  {
+    "app": "admin",
+    "width": 768,
+    "theme": "dark",
+    "overflow": false,
+    "dark": true,
+    "font": "\"Readex Pro\", system-ui, sans-serif",
+    "background": "oklch(0.194 0.019 208.2)",
+    "heading": "تسجيل الدخول",
+    "fonts": [
+      "Readex Pro",
+      "Readex Pro",
+      "Baloo Bhaijaan 2",
+      "Baloo Bhaijaan 2"
+    ]
+  },
+  {
+    "app": "admin",
+    "width": 1280,
+    "theme": "light",
+    "overflow": false,
+    "dark": false,
+    "font": "\"Readex Pro\", system-ui, sans-serif",
+    "background": "oklch(0.962 0.007 174.4)",
+    "heading": "تسجيل الدخول",
+    "fonts": [
+      "Readex Pro",
+      "Readex Pro",
+      "Baloo Bhaijaan 2",
+      "Baloo Bhaijaan 2"
+    ]
+  },
+  {
+    "app": "admin",
+    "width": 1280,
+    "theme": "dark",
+    "overflow": false,
+    "dark": true,
+    "font": "\"Readex Pro\", system-ui, sans-serif",
+    "background": "oklch(0.194 0.019 208.2)",
+    "heading": "تسجيل الدخول",
+    "fonts": [
+      "Readex Pro",
+      "Readex Pro",
+      "Baloo Bhaijaan 2",
+      "Baloo Bhaijaan 2"
+    ]
+  }
+]

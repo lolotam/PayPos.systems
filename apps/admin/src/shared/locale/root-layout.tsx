@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
+import { THEME_BOOT_SCRIPT, THEME_COLORS } from '@pospay/ui/theme';
+
 import { t } from '@pospay/i18n';
 
 import { DocumentShell } from './document-shell';
@@ -9,14 +11,28 @@ import '@/styles/app.css';
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await readRequestLocale();
-  return { title: t(locale, 'admin.appName'), icons: { icon: '/icon.svg' } };
+  return {
+    title: t(locale, 'admin.appName'),
+    manifest: '/site.webmanifest',
+    icons: { icon: '/favicon.ico', apple: '/apple-touch-icon.png' },
+  };
 }
 
 export async function RootLayout({ children }: { children: ReactNode }) {
   const locale = await readRequestLocale();
   const dir = locale === 'ar' ? 'rtl' : 'ltr';
   return (
-    <html lang={locale} dir={dir}>
+    <html lang={locale} dir={dir} suppressHydrationWarning>
+      <head>
+        <meta
+          name="theme-color"
+          content={THEME_COLORS.light}
+          media="(prefers-color-scheme: light)"
+        />
+        <meta name="theme-color" content={THEME_COLORS.dark} media="(prefers-color-scheme: dark)" />
+        <meta name="msapplication-config" content="/browserconfig.xml" />
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body className="min-h-dvh bg-background text-foreground antialiased">
         <DocumentShell locale={locale}>{children}</DocumentShell>
       </body>
