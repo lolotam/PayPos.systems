@@ -65,7 +65,9 @@ Since #80 the admin has a dark sidebar (logo, company/business/branch, navigatio
 من بعد #80 لوحة الإدارة فيها قائمة جانبية كحلي (اللوجو، الشركة/النشاط/الفرع، القائمة، والحساب والمصادقة تحت) وشريط صغير فوق (الجرس واللغة). على الموبايل القائمة بتفتح من زرار ☰.
 
 The status paragraph inside journeys 01–47 was written before #533 and may still say the admin or POS is not deployed. Journeys
-57–60 were written before their screens shipped, and their bodies still say "no screen yet". This table is the current answer.
+57–60 were written before their screens shipped, and their bodies still say "no screen yet"; journey 58's list of kinds that are
+"saved but change nothing yet" is also older than #562 and #594 (see [62](62-alert-rules-screen.md)). This table is the current
+answer.
 
 | # | Journey | Shipped in | Runs on staging? |
 |---|---|---|---|
@@ -97,7 +99,7 @@ The status paragraph inside journeys 01–47 was written before #533 and may sti
 | 25 | [Unbind a passkey](25-unbind-passkey.md) — فك ربط مفتاح المرور | #97, #100 | manager unbind yes; re-enrolment needs the personal session (OTP OFF) |
 | 26 | [Clock in and out from the personal phone](26-clock-attendance.md) — تسجيل الحضور والانصراف من الهاتف الشخصي | #99 | no: the personal session needs OTP (OFF); the card clock (30) works |
 | 27 | [Import employees from Excel](27-employee-import.md) — استيراد الموظفين من Excel | #107 | screen exists; the upload fails (no object storage on staging) |
-| 28 | [Document expiry alerts](28-document-expiry.md) — تنبيه انتهاء الوثائق | #110 | worker job on staging; nobody is notified yet; documents need object storage |
+| 28 | [Document expiry alerts](28-document-expiry.md) — تنبيه انتهاء الوثائق | #110 | worker job on staging; recipients follow the alert rules ([62](62-alert-rules-screen.md)) since #562; documents need the storage values |
 | 29 | [Services](29-services.md) — الخدمات | #114 | yes; needs the `catalog` feature; no delete yet |
 | 30 | [Employee cards and clock-by-card](30-employee-cards-and-clock-by-card.md) — كروت الموظفين والحضور بالكارت | #120, #121 | yes (admin card section, POS clock-by-card) |
 | 31 | [Attendance change requests](31-attendance-change-requests.md) — طلبات تعديل الحضور (طلب وموافقة) | #148 | yes, now on `/staff/attendance-requests` |

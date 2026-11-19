@@ -28,7 +28,9 @@ person can see today is only the **switch** on the alerts screen. The low-rating
 5. **الجدولة (في الخلفية):** لما زيارة عميلة تتسجّل، الـ worker بيجهّز طلب تقييم واحد للعميلة في اليوم ده للنشاط:
    ميعاده بعد الزيارة بساعة، وما يعدّيش ميعاد قفل الفرع. مفيش حاجة تتشاف على أي شاشة.
 6. **طلب واحد في اليوم:** زيارتين لنفس العميلة في نفس اليوم في نفس النشاط ← طلب واحد برضه.
-7. **المفتاح مقفول وقت الميعاد:** الطلب بيتلغى بسبب `REQUESTS_OFF` ومش بيتبعت بعدين لما المفتاح يتفتح.
+7. **المفتاح مقفول وقت الميعاد (مبني ومش شغال):** خطوة «تجهيز الطلب للإرسال» اتبنت، وفيها إن الطلب بيتلغى بسبب
+   `REQUESTS_OFF` لو المفتاح مقفول. بس مجدولها مش بيشتغل من إقلاع الـ worker لسه (`closedRatingClaimsLifecycle`)،
+   فالطلبات المجدولة بتفضل زي ما هي.
 8. **الإرسال:** لسه مش مبني (59b-3). الطلبات الجاهزة ما بتطلعش رسالة واتساب.
 
 **ممنوع يحصل:**
@@ -53,8 +55,9 @@ person can see today is only the **switch** on the alerts screen. The low-rating
    for that customer, that day, for the business: due one hour after the visit, and never after the branch closes.
    Nothing shows on any screen.
 6. **One request per day:** two visits by the same customer on one day in one business → still one request.
-7. **Switch off at the due time:** the request is cancelled with the reason `REQUESTS_OFF`, and is not sent later
-   when the switch is turned back on.
+7. **Switch off at the due time (built, not running):** the step that claims a due request is built, and it cancels
+   the request with the reason `REQUESTS_OFF` when the switch is off. Its scheduler is not started when the worker
+   boots yet (`closedRatingClaimsLifecycle`), so scheduled requests stay as they are.
 8. **Sending:** not built yet (59b-3). Ready requests produce no WhatsApp message.
 
 **Must NOT happen:**
@@ -73,7 +76,9 @@ person can see today is only the **switch** on the alerts screen. The low-rating
 - **API:** `GET|PUT /v1/businesses/<BUSINESS_ID>/rating-settings` with `manage:rating-requests:business`
   (`apps/api/src/modules/customers/http/rating-settings.controller.ts`).
 - **Worker:** `apps/worker/src/modules/customers/` (`customers.module.ts`, `jobs/rating-claims.processor.ts`,
-  `jobs/bootstrap-rating-requests.ts`). Token keys: `RATING_TOKEN_DERIVATION_KEY`,
+  `jobs/bootstrap-rating-requests.ts`). `apps/worker/src/main.ts` registers the scheduling consumer
+  (`createRatingSchedulingConsumer`) and a **closed** claims lifecycle, so step 5 runs and the claim scheduler does
+  not. Token keys: `RATING_TOKEN_DERIVATION_KEY`,
   `RATING_TOKEN_DERIVATION_KEY_VERSION`, `RATING_TOKEN_DERIVATION_RETIRED_KEYS` (worker env only; ADR-0057).
 - **Rules:** one row per `(company, business, customer, business_date)`; `ratingSchedule`: 1 hour after, capped by
   the branch's closing time, deadline +30 minutes (spec 060 FR-B02, FR-B03).

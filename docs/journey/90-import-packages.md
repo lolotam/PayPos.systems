@@ -30,7 +30,8 @@ API بس، والمعاينة بس.
 4. **عميلة مش موجودة:** صف رقمه مش لعميلة في الشركة ← الصف مرفوض.
 5. **خدمة مش موجودة:** اسم خدمة مش في النشاط (بالعربي أو الإنجليزي، من غير حساسية لحالة الحروف) ← الصف مرفوض.
 6. **تاريخ انتهاء قديم:** تاريخ فات ← مقبول (الباقة بتتسجّل منتهية).
-7. **مرجع مكرر:** `external_ref` موجود قبل كده في الشركة ← الصف بيتخطّى.
+7. **مرجع مكرر:** نفس `external_ref` متكرر جوّه الملف ← الصف مرفوض (`IMPORT_EXTERNAL_REF_DUPLICATE`). تخطّي مرجع
+   موجود قبل كده في الشركة بيحصل وقت التثبيت، ولسه مش شغال.
 8. **ملف كبير:** أكتر من 500 صف، أو 68 عمود، أو 4 شيتات، أو 2 ميجا ← المعاينة «فشلت».
 9. **معاينة حد تاني:** مستخدم تاني، أو نشاط أو شركة تانية، يسأل عن نفس الرقم ← «مش موجودة» (`IMPORT_PREVIEW_NOT_FOUND`)،
    نفس الرد لرقم مش موجود أصلًا.
@@ -57,7 +58,9 @@ API only, and the preview only.
 5. **An unknown service:** a service name that is not in the business (Arabic or English, case-insensitive) → the
    row is refused.
 6. **A past expiry:** a date in the past → accepted (the package is recorded as expired).
-7. **A duplicate reference:** an `external_ref` that already exists in the company → the row is skipped.
+7. **A duplicate reference:** the same `external_ref` twice inside the file → the row is refused
+   (`IMPORT_EXTERNAL_REF_DUPLICATE`). Skipping a reference that already exists in the company happens at commit,
+   which is not active yet.
 8. **A big file:** more than 500 rows, 68 columns, 4 sheets or 2 MiB → the preview fails.
 9. **Someone else's preview:** another user, business or company asks for the same id → not found
    (`IMPORT_PREVIEW_NOT_FOUND`), the same answer as for an id that never existed.
@@ -79,6 +82,10 @@ API only, and the preview only.
 - **Worker:** `apps/worker/src/modules/orders/use-cases/execute-package-preview`; the commit use case
   `commit-package-import` exists but nothing requests it yet.
 - **Limits:** 500 rows, 68 columns, 2 MiB, 4 sheets (spec 058 row 47-1b).
+- **Row codes** (`apps/worker/src/modules/orders/domain/package-import-row.ts`, `package-import-validation.ts`):
+  `IMPORT_CUSTOMER_NOT_FOUND` · `IMPORT_SERVICE_NOT_FOUND` · `IMPORT_SERVICE_AMBIGUOUS` · `IMPORT_PHONE_INVALID` ·
+  `IMPORT_NAME_INVALID` · `IMPORT_DATE_INVALID` · `IMPORT_EXTERNAL_REF_INVALID` · `IMPORT_EXTERNAL_REF_DUPLICATE` ·
+  `IMPORT_REQUIRED_CELL` · `IMPORT_CELL_INVALID` · `IMPORT_HEADER_INVALID` · `IMPORT_ROW_LIMIT_EXCEEDED`.
 - **Rules:** one row = one package; no per-service price column, the price paid is split by session count only; an
   imported package names no package type, no seller and no payment method (spec 058 FR-061 … FR-067).
 - **Permission default:** the manager roles (`packages/db/src/role-defaults.ts`).
