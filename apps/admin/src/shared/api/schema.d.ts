@@ -430,6 +430,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/employees/{employeeId}/commission-override-services": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Every service of the business by name with its own catalog commission rule and price, plus the employee’s single current override per service, if any (FR-013a). current_override null means no eligible override today — never zero and never follow-the-plan; closed services are listed with closed_at and stay editable (CS-Q49, CS-Q50). The cursor is the last service id of the page. Requires manage:commission-plans:business and the commissions feature; the plan permission alone is enough, no services permission. Reads only. */
+        get: operations["listCommissionOverrideServices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/commission-plan-employees": {
         parameters: {
             query?: never;
@@ -3524,6 +3541,64 @@ export interface components {
         };
         CommissionServiceOverrideList: {
             items: components["schemas"]["CommissionServiceOverrideListItem"][];
+            next_cursor: string | null;
+        };
+        CommissionOverrideServiceListQuery: {
+            /** Format: uuid */
+            cursor?: string;
+            /** @default 50 */
+            limit: number;
+        };
+        CommissionOverrideServiceCurrentOverride: {
+            /** Format: uuid */
+            id: string;
+            rule: {
+                /** @enum {string} */
+                kind: "FOLLOW_PLAN";
+            } | {
+                /** @enum {string} */
+                kind: "ZERO";
+            } | {
+                /** @enum {string} */
+                kind: "PCT";
+                value: number;
+            } | {
+                /** @enum {string} */
+                kind: "FIXED";
+                value: components["schemas"]["ServicePrice"];
+            };
+            effective_from: components["schemas"]["CommissionPlanDate"];
+            /** Format: date-time */
+            created_at: string;
+        };
+        CommissionOverrideServiceItem: {
+            /** Format: uuid */
+            service_id: string;
+            name_en: string;
+            name_ar: string | null;
+            /** Format: date-time */
+            closed_at: string | null;
+            service_rule: {
+                /** @enum {string} */
+                kind: "FOLLOW_PLAN";
+            } | {
+                /** @enum {string} */
+                kind: "ZERO";
+            } | {
+                /** @enum {string} */
+                kind: "PCT";
+                value: number;
+            } | {
+                /** @enum {string} */
+                kind: "FIXED";
+                value: components["schemas"]["ServicePrice"];
+            };
+            price: components["schemas"]["ServicePrice"];
+            current_override: components["schemas"]["CommissionOverrideServiceCurrentOverride"] | null;
+        };
+        CommissionOverrideServiceList: {
+            items: components["schemas"]["CommissionOverrideServiceItem"][];
+            /** Format: uuid */
             next_cursor: string | null;
         };
         CommissionPlanEmployeeListQuery: {
@@ -10534,6 +10609,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommissionEffectiveFromPastError"] | components["schemas"]["CommissionPlanIdempotencyKeyReusedError"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listCommissionOverrideServices: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The business services with the employee’s current override per service */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionOverrideServiceList"];
+                };
+            };
+            /** @description Invalid cursor or query */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform 403 refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description EMPLOYEE_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Bilingual refusal */

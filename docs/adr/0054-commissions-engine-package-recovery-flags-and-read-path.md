@@ -224,6 +224,12 @@ No employee query is copied into commissions, no provider join or read use
 case is introduced, and the query imports no domain or engine. This is the manager-confirmed query-local design
 of 49-1 ([plan](../specs/059-commissions-statements/plan-49-1.md), 2026-11-01).
 
+**Addendum 2026-11-20 (49-2a, FR-013a).** The override screen's service list reuses the same
+`CommissionServiceOverrideListReads` with one more root-bound provider: the catalog services page through
+`readCommissionOverrideServices` (CS-Q49 name, catalog rule and price; CS-Q50 closed services stay listed and
+editable). The provider set of the Port row grows by `catalog`; there is no import arrow, no read use case and no
+migration — the page reads the existing `services` unique key and the existing override index.
+
 **Lines and salaries are not a binding.** Spec 059 D-15 (decided 2026-10-25) replays the retained `ServiceSessionRecorded`,
 `ServiceSessionLinesAdded`, `ServiceLineChanged` and `SalaryChanged` events from the outbox through a typed replay facade
 in `packages/db` (read as `pospay_dispatcher`, effect and mark through `pospay_app` `withTenant`), so commissions needs

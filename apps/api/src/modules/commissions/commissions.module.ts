@@ -6,6 +6,7 @@ import { systemClock } from '../../shared/adapters/system-clock.ts';
 import { CommissionPlanVersionsController } from './http/commission-plan-versions.controller.ts';
 import { CommissionPlanEmployeesController } from './http/commission-plan-employees.controller.ts';
 import { CommissionServiceOverridesController } from './http/commission-service-overrides.controller.ts';
+import { CommissionOverrideServicesController } from './http/commission-override-services.controller.ts';
 import {
   createCommissionServiceOverrideListReaders,
   type CommissionServiceOverrideListReadProviders,
@@ -29,6 +30,7 @@ import { CreateCommissionServiceOverrideUseCase } from './use-cases/create-commi
 export const commissionsControllers = [
   CommissionPlanVersionsController,
   CommissionServiceOverridesController,
+  CommissionOverrideServicesController,
   CommissionPlanEmployeesController,
 ];
 
