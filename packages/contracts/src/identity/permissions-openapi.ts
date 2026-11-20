@@ -49,6 +49,8 @@ function operation(operationId: string, schema: string, status = '200') {
     },
   };
 }
+const grantOverride = operation('grantPermissionOverride', 'PermissionOverride', '201');
+
 const companyPermissionPaths = {
   '/v1/permissions/memberships/{membershipId}/discount-limit': {
     post: {
@@ -78,7 +80,15 @@ const companyPermissionPaths = {
   },
   '/v1/permissions/memberships/{membershipId}/overrides': {
     post: {
-      ...operation('grantPermissionOverride', 'PermissionOverride', '201'),
+      ...grantOverride,
+      responses: {
+        ...grantOverride.responses,
+        '422': {
+          description:
+            'PERMISSION_ROLE_NOT_ELIGIBLE: granting read:ratings:branch as ALLOW is refused unless the membership current role is owner, general manager, business manager or branch manager.',
+          content: json('ErrorEnvelope'),
+        },
+      },
       parameters: [company, member],
       requestBody: { required: true, content: json('PermissionOverrideInput') },
     },

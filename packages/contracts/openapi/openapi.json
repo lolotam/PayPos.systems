@@ -11995,6 +11995,16 @@
               }
             }
           },
+          "422": {
+            "description": "PERMISSION_ROLE_NOT_ELIGIBLE: granting read:ratings:branch as ALLOW is refused unless the membership current role is owner, general manager, business manager or branch manager.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
           "default": {
             "description": "The API error envelope",
             "content": {
@@ -12266,6 +12276,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PermissionOverride"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "PERMISSION_ROLE_NOT_ELIGIBLE: granting read:ratings:branch as ALLOW is refused unless the membership current role is owner, general manager, business manager or branch manager.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
                 }
               }
             }

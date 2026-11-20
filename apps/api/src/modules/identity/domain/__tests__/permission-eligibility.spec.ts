@@ -4,6 +4,7 @@ import {
   permissionHolderIsOwner,
   type PermissionEditContext,
 } from '../permission-edit.ts';
+import { RATINGS_READ_PERMISSION } from '../ratings-read-eligibility.ts';
 
 const companyId = 'company';
 const terms = {
@@ -65,3 +66,61 @@ it('accepts default and optional cells and preserves custom-role policy despite 
   expect(permissionEditFailure(terms, custom)).toBeNull();
   expect(permissionHolderIsOwner(custom)).toBe(false);
 });
+
+it('confines the ratings-read ALLOW to the membership own scope (FR-B15)', () => {
+  const ratingsTerms = { ...terms, permission_code: RATINGS_READ_PERMISSION };
+  const branch = scopedMembership('branch_manager', 'BRANCH', 'branch-1');
+  expect(
+    permissionEditFailure({ ...ratingsTerms, scope_type: 'BRANCH', scope_id: 'branch-1' }, branch),
+  ).toBeNull();
+  expect(
+    permissionEditFailure({ ...ratingsTerms, scope_type: 'BRANCH', scope_id: 'branch-2' }, branch),
+  ).toBe('PERMISSION_SCOPE_OUTSIDE_REACH');
+  expect(
+    permissionEditFailure(
+      { ...ratingsTerms, scope_type: 'BUSINESS', scope_id: 'business-1' },
+      branch,
+    ),
+  ).toBe('PERMISSION_SCOPE_OUTSIDE_REACH');
+  expect(permissionEditFailure(ratingsTerms, branch)).toBe('PERMISSION_SCOPE_OUTSIDE_REACH');
+  const business = scopedMembership('business_manager', 'BUSINESS', 'business-1');
+  expect(
+    permissionEditFailure(
+      { ...ratingsTerms, scope_type: 'BUSINESS', scope_id: 'business-1' },
+      business,
+    ),
+  ).toBeNull();
+  expect(permissionEditFailure(ratingsTerms, business)).toBe('PERMISSION_SCOPE_OUTSIDE_REACH');
+  expect(
+    permissionEditFailure(ratingsTerms, scopedMembership('owner', 'COMPANY', companyId)),
+  ).toBeNull();
+  expect(
+    permissionEditFailure({ ...ratingsTerms, effect: 'DENY' }, branch),
+  ).toBeNull();
+});
+
+function scopedMembership(
+  systemRoleCode: string,
+  scopeType: 'COMPANY' | 'BUSINESS' | 'BRANCH',
+  scopeId: string,
+): PermissionEditContext {
+  if (context.membership === null) throw new Error('Synthetic membership missing');
+  return {
+    ...context,
+    catalog: [RATINGS_READ_PERMISSION],
+    grants: ['manage:memberships:company', RATINGS_READ_PERMISSION].map((permission) => ({
+      permission,
+      effect: 'ALLOW' as const,
+      scopeType: 'COMPANY' as const,
+      scopeId: companyId,
+    })),
+    membership: {
+      ...context.membership,
+      roleCode: systemRoleCode,
+      systemRoleCode,
+      allowedPermissions: [RATINGS_READ_PERMISSION],
+      scopeType,
+      scopeId,
+    },
+  };
+}

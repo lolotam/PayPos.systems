@@ -15542,6 +15542,15 @@ export interface operations {
                     "application/json": components["schemas"]["PermissionOverride"];
                 };
             };
+            /** @description PERMISSION_ROLE_NOT_ELIGIBLE: granting read:ratings:branch as ALLOW is refused unless the membership current role is owner, general manager, business manager or branch manager. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description The API error envelope */
             default: {
                 headers: {
@@ -15690,6 +15699,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PermissionOverride"];
+                };
+            };
+            /** @description PERMISSION_ROLE_NOT_ELIGIBLE: granting read:ratings:branch as ALLOW is refused unless the membership current role is owner, general manager, business manager or branch manager. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description The API error envelope */

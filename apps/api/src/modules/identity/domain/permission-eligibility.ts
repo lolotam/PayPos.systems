@@ -1,7 +1,9 @@
 import type { OverrideTerms, PermissionEditContext } from './permission-edit.ts';
+import { RATINGS_READ_PERMISSION } from './ratings-read-eligibility.ts';
 
 /**
  * ❌ لا يقبل ALLOW حتى لو المدير يملك الإذن؛ الأدوار المخصصة تحتفظ بسياسة PR 7.
+ * وقراءة التقييمات ما تتجاوزش نطاق العضوية نفسها، لأن القارئ بيطبّق نطاق الاستثناء المحفوظ زي ما هو.
  *
  * @param terms قرار السماح الجديد
  * @param context هوية الدور وأهلية المرجع ونطاق العضوية المؤكد بعد القفل
@@ -38,6 +40,13 @@ export function personalAllowFailure(terms: OverrideTerms, context: PermissionEd
     (member.scopeType !== 'BRANCH' ||
       terms.scope_type !== 'BRANCH' ||
       terms.scope_id !== member.scopeId)
+  )
+    return 'PERMISSION_SCOPE_OUTSIDE_REACH' as const;
+  // المنح بنطاق أوسع من عضوية صاحبه هيفتح له فروع خارج نطاقه، لأن القارئ بياخد نطاق الاستثناء المحفوظ كما هو.
+  if (
+    terms.permission_code === RATINGS_READ_PERMISSION &&
+    member.scopeType !== 'COMPANY' &&
+    (terms.scope_type !== member.scopeType || terms.scope_id !== member.scopeId)
   )
     return 'PERMISSION_SCOPE_OUTSIDE_REACH' as const;
   return null;
