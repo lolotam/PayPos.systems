@@ -123,6 +123,26 @@ export class CommissionTipSalaryInputInvalidError extends Error {
   }
 }
 
+/**
+ * حجم مجموعة جرس التوقف غير صالح؛ القسمة بحجم مش عدد صحيح موجب بتلف لامتناهي
+ * أو بتقطّع مجموعات ناقصة، فالاستدعاء الغلط بيتوقف عند منتجه بدل ما يكتب حدثاً باطلاً (FR-049).
+ */
+export class CommissionBlockNoticeGroupSizeError extends Error {
+  readonly code = 'COMMISSION_BLOCK_NOTICE_GROUP_SIZE_INVALID';
+  readonly size: number;
+
+  /**
+   * يحتفظ بالحجم المرفوض حتى يصلح صاحب الاستدعاء الثابت أو المُدخل.
+   *
+   * @param size حجم المجموعة المرفوض
+   */
+  constructor(size: number) {
+    super(`Invalid commission block notice group size: ${size}`);
+    this.name = 'CommissionBlockNoticeGroupSizeError';
+    this.size = size;
+  }
+}
+
 /** سبب رفض المُدخل؛ كلها أخطاء إدخال صريحة، وليس فيها إعادة محاولة تشغيلية. */
 export type CommissionCorrectionTargetRefusal =
   | 'INVALID_SOURCE_PERIOD'

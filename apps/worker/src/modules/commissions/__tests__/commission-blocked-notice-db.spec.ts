@@ -1,4 +1,4 @@
-import { SYSTEM_ROLES, type ClaimedEvent } from '@pospay/db';
+import { type ClaimedEvent } from '@pospay/db';
 import { commissionCorrectionBlockedNoticeRequested } from '@pospay/contracts';
 import { createLogger } from '@pospay/observability';
 import { expect, it } from 'vitest';
@@ -7,6 +7,7 @@ import { createTestCommissionInputsConsumer } from '../../../__tests__/commissio
 import { COMMISSION_LINE_IDS } from '../../../../../../packages/db/test/commission-line-fixtures.ts';
 import { SECOND_REVIEWER } from '../../../../../../packages/db/test/commission-statement-fixtures.ts';
 import { USER } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
+import { employeeNameMatchKey } from '@pospay/domain';
 import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
 import {
   onCommissionInputEvent,
@@ -18,6 +19,7 @@ import type { CommissionBlockNotices } from '../ports/commission-block-notice.po
 import { ProjectServiceLines } from '../use-cases/project-service-lines/project-service-lines.ts';
 import {
   A,
+  approveClosed,
   blocks,
   CURRENT,
   db,
@@ -26,6 +28,8 @@ import {
   linesAdded,
   marks,
   owner,
+  seedLineSession,
+  seedPlan,
   seedSeptemberNoSalary,
   seedSeptemberPlanGap,
 } from './commission-blocked-corrections-db.fixture.ts';
@@ -33,15 +37,12 @@ import { commissionSalaryEvent } from './commission-tip-salary-events.ts';
 import type { OutboxConsumer } from '../../../outbox/consumer.ts';
 import { createDeliverer } from '../../../outbox/deliver.ts';
 
-const accountantRole = SYSTEM_ROLES.find((role) => role.code === 'accountant');
-if (accountantRole === undefined) throw new Error('the accountant role is missing');
-
-const businessTimeZone = fakeBusinessTimeZone(A.business);
-
 const bellRows = () =>
   owner`SELECT seq, aggregate_id::text AS aggregate_id, payload FROM outbox
     WHERE company_id=${A.company} AND event_type='CommissionCorrectionBlockedNoticeRequested'
     ORDER BY seq`;
+
+const businessTimeZone = fakeBusinessTimeZone(A.business);
 
 const bellPayloads = async () =>
   (await bellRows()).map((row) => commissionCorrectionBlockedNoticeRequested.parse(row.payload));
@@ -119,41 +120,76 @@ it('N5b (CM-54) the resolution of the block rings nothing new', async () => {
   expect(await bellPayloads()).toHaveLength(1);
 });
 
-it('N3 (CM-54) 250 holders ring three grouped bells of 100, 100 and 50 with the block', async () => {
-  // الاختبار ده بيضيف أعضاء كثر، فبيتشغّل الأخير عشان مايلوّثش قراءة حاملي الصلاحية في اللي قبله.
-  const holders = Array.from({ length: 248 }, () => ids.newId());
-  await owner.begin(async (tx) => {
-    for (const [index, holder] of holders.entries()) {
-      await tx`INSERT INTO "user"(id, name, email)
-        VALUES (${holder}, ${'Commission holder ' + index}, ${'commission-holder-' + index + '@example.test'})`;
-      await tx`INSERT INTO memberships(company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id, starts_at)
-        VALUES (${A.company}, ${ids.newId()}, ${holder}, ${accountantRole.id}, 'global', 'BUSINESS', ${A.business}, '2026-01-01')`;
-    }
-  });
-  const everyone = [...holders, SECOND_REVIEWER.user, USER].sort();
-  const { lateEvent } = await seedSeptemberPlanGap();
+it('N10 (plan-55-2 line 621) the bell rings once per block: one event blocking two employees rings two bells', async () => {
+  const { lateEvent, secondEmployee } = await seedTwoEmployeePlanGap();
 
   expect(await deliver(CURRENT, lateEvent)).toEqual({ delivered: true });
 
-  expect(await blocks()).toHaveLength(1);
-  const payloads = await bellPayloads();
-  expect(payloads.map((payload) => payload.group_index)).toEqual([0, 1, 2]);
-  expect(payloads.map((payload) => payload.notification_recipients.length)).toEqual([100, 100, 50]);
-  const recipients = payloads.flatMap((payload) =>
-    payload.notification_recipients.map((recipient) => recipient.user_id),
+  const blockedRows = await blocks();
+  expect(blockedRows).toHaveLength(2);
+  expect(blockedRows.map((row) => row.employee_id).sort()).toEqual(
+    [A.employee, secondEmployee].sort(),
   );
-  expect(recipients).toEqual(everyone);
+  const payloads = await bellPayloads();
+  expect(payloads).toHaveLength(2);
   for (const payload of payloads) {
-    expect(payload.business_id).toBe(A.business);
+    expect(payload.group_index).toBe(0);
     expect(payload.source_period).toBe('2026-09');
     expect(payload.notification_recipients.map((recipient) => recipient.user_id)).toEqual(
-      [...payload.notification_recipients.map((recipient) => recipient.user_id)].sort(),
+      [SECOND_REVIEWER.user, USER].sort(),
     );
   }
-  expect(payloads.every((payload) => payload.block_id === payloads[0]?.block_id)).toBe(true);
-  const block = (await blocks())[0];
-  expect((await bellRows())[0]?.aggregate_id).toBe(block?.id);
-}, 120_000);
+  expect(payloads.map((payload) => payload.block_id).sort()).toEqual(
+    blockedRows.map((row) => row.id).sort(),
+  );
+}, 60_000);
+
+/** يبني سيناريو بند متأخر واحد بمنفّذتين قبل خطة الأولى؛ يرجع الحدث وموظفة الثانية. */
+async function seedTwoEmployeePlanGap() {
+  const secondUser = ids.newId();
+  const secondEmployee = ids.newId();
+  await owner`INSERT INTO "user"(id, name, email)
+    VALUES (${secondUser}, 'Commission employee 2', 'commission-employee-2@example.test')`;
+  await owner`INSERT INTO employees(company_id, id, business_id, primary_branch_id, user_id,
+      name_en, name_en_key, role_code, hire_date, employee_number)
+    VALUES (${A.company}, ${secondEmployee}, ${A.business}, ${A.branch}, ${secondUser},
+      'Commission employee 2', ${employeeNameMatchKey('Commission employee 2')}, 'staff',
+      '2026-01-01', 3)`;
+  await seedLineSession('2026-09', 15, '200.000');
+  await seedPlan('2026-09-15', {
+    base: { enabled: true, calc: { kind: 'PCT', bps: 500 } },
+    tiers: { enabled: false },
+    package_sale: { enabled: false },
+  });
+  await approveClosed('2026-09', [
+    {
+      kind: 'COMMISSION',
+      lineId: COMMISSION_LINE_IDS.lineA,
+      sourceRef: `line:${COMMISSION_LINE_IDS.lineA}`,
+      amount: '10.000',
+      sourceBusinessDate: '2026-09-15',
+    },
+  ]);
+  const lateEvent = linesAdded(
+    [
+      {
+        lineId: COMMISSION_LINE_IDS.lineB,
+        businessDate: '2026-09-10',
+        occurredAt: '2026-09-10T09:00:00.000Z',
+        net: '200.000',
+        previousNet: '200.000',
+        revision: 1,
+        ruleSnapshot: { kind: 'FOLLOW_PLAN' },
+        performers: [
+          { employee_id: A.employee, share_bps: 5000 },
+          { employee_id: secondEmployee, share_bps: 5000 },
+        ],
+      },
+    ],
+    COMMISSION_LINE_IDS.sessionA,
+  );
+  return { lateEvent, secondEmployee };
+}
 
 /** مستهلك يفشل إلحاق مجموعة الجرس الثالثة بعد تسجيل التوقف؛ إخفاق المجموعة بيلغي التوقف ومجموعاتها (CM-54). */
 function deliverFailingThirdAppend(event: ClaimedEvent) {

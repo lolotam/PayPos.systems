@@ -39,6 +39,7 @@ import {
   type CommissionSalaryEventOverrides,
   type CommissionTipEventOverrides,
 } from './commission-tip-salary-events.ts';
+import { noCommissionBlockNotices } from './commission-block-notice.fakes.ts';
 import { businessTimeZone } from './project-service-lines-corrections-db.fixture.ts';
 
 export * from './project-service-lines-corrections-db.fixture.ts';
@@ -305,6 +306,7 @@ export function failingTipsCorrectionsConsumer(): OutboxConsumer {
                 throw new Error('injected correction insert failure');
               },
             },
+            noCommissionBlockNotices,
           ),
           salary: unused,
         },
@@ -346,6 +348,7 @@ export function failingSalaryCorrectionsConsumer(): OutboxConsumer {
                 throw new Error('injected correction insert failure');
               },
             },
+            noCommissionBlockNotices,
           ),
         },
         event,

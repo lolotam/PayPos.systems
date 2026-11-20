@@ -66,10 +66,16 @@ const inAppBase = {
 export const lateServiceSessionParameters = z.tuple([
   displayParameter('branch_name_ar'),
   displayParameter('branch_name_en'),
-  z.strictObject({ name: z.literal('business_date'), type: z.literal('text'), value: z.iso.date() }),
+  z.strictObject({
+    name: z.literal('business_date'),
+    type: z.literal('text'),
+    value: z.iso.date(),
+  }),
 ]);
 export const lateServiceSessionRecipient = z.strictObject({
-  ...inAppBase, template_key: z.literal('late_service_session'), safe_parameters: lateServiceSessionParameters,
+  ...inAppBase,
+  template_key: z.literal('late_service_session'),
+  safe_parameters: lateServiceSessionParameters,
 });
 /** فلتر أمان للجرس أوسع من sessionMoney الذي يمنع الصفر البادئ، لأن منتج 35d-2 يمرّر قيمًا متحققة بـ sessionMoney أصلًا. */
 const bellMoney = z.string().regex(/^\d{1,11}\.\d{3}$/);
@@ -81,7 +87,11 @@ export const serviceLinePriceEditedParameters = z.tuple([
   displayParameter('service_name_en'),
   displayParameter('branch_name_ar'),
   displayParameter('branch_name_en'),
-  z.strictObject({ name: z.literal('business_date'), type: z.literal('text'), value: z.iso.date() }),
+  z.strictObject({
+    name: z.literal('business_date'),
+    type: z.literal('text'),
+    value: z.iso.date(),
+  }),
   moneyParameter('previous_net'),
   moneyParameter('new_net'),
   displayParameter('editor_name_ar'),
@@ -99,7 +109,11 @@ export const serviceLineCancelledParameters = z.tuple([
   displayParameter('service_name_en'),
   displayParameter('branch_name_ar'),
   displayParameter('branch_name_en'),
-  z.strictObject({ name: z.literal('business_date'), type: z.literal('text'), value: z.iso.date() }),
+  z.strictObject({
+    name: z.literal('business_date'),
+    type: z.literal('text'),
+    value: z.iso.date(),
+  }),
   moneyParameter('cancelled_net'),
 ]);
 /** مراجعة القالب 1 لأن نص الإلغاء ثابت؛ تغيير النص لاحقًا مراجعة جديدة حتى لا يُعاد تفسير الصفوف المخزنة. */
@@ -114,7 +128,11 @@ export const serviceLinePerformersChangedParameters = z.tuple([
   displayParameter('service_name_en'),
   displayParameter('branch_name_ar'),
   displayParameter('branch_name_en'),
-  z.strictObject({ name: z.literal('business_date'), type: z.literal('text'), value: z.iso.date() }),
+  z.strictObject({
+    name: z.literal('business_date'),
+    type: z.literal('text'),
+    value: z.iso.date(),
+  }),
   moneyParameter('line_net'),
 ]);
 /** مراجعة القالب 1 لأن نص تغيير المنفّذين ثابت؛ تغيير النص لاحقًا مراجعة جديدة حتى لا يُعاد تفسير الصفوف المخزنة. */
@@ -125,8 +143,12 @@ export const serviceLinePerformersChangedRecipient = z.strictObject({
 });
 // النسبة نص bps/100 بلا أصفار زائدة (2000 → 20، 2050 → 20.5)، لأن bps الخام 4 أرقام يرفضها فلتر الأمان.
 const maxPercentParameter = z.strictObject({
-  name: z.literal('max_percent'), type: z.literal('text'),
-  value: z.string().regex(/^(?:100|[1-9]?\d(?:\.\d?[1-9])?)$/).refine((value) => value !== '0'),
+  name: z.literal('max_percent'),
+  type: z.literal('text'),
+  value: z
+    .string()
+    .regex(/^(?:100|[1-9]?\d(?:\.\d?[1-9])?)$/)
+    .refine((value) => value !== '0'),
 });
 /**
  * spec 057 FR-024: الخدمة هي أول خدمة في services الحدث (ترتيب الإدخال، بلا تكرار)، والعدد يوضّح أن في سطور غيرها.
@@ -137,7 +159,11 @@ export const discountApprovalRequestedParameters = z.tuple([
   displayParameter('branch_name_en'),
   displayParameter('service_name_ar'),
   displayParameter('service_name_en'),
-  z.strictObject({ name: z.literal('line_count'), type: z.literal('text'), value: z.string().regex(/^(?:[1-9]|1\d|20)$/) }),
+  z.strictObject({
+    name: z.literal('line_count'),
+    type: z.literal('text'),
+    value: z.string().regex(/^(?:[1-9]|1\d|20)$/),
+  }),
   maxPercentParameter,
 ]);
 /** مراجعة القالب 1 لأن نص الطلب ثابت؛ تغيير النص لاحقًا مراجعة جديدة حتى لا يُعاد تفسير الصفوف المخزنة. */
@@ -165,10 +191,14 @@ export const discountSelfApprovedRecipient = z.strictObject({
   template_key: z.literal('discount_self_approved'),
   safe_parameters: discountSelfApprovedParameters,
 });
-/** شهر المصدر بصيغة YYYY-MM؛ معامل واحد آمن بلا مبلغ ولا اسم موظفة (FR-049). */
-const commissionPeriod = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
+/** شهر مصدر التصحيح الموقوف بصيغة YYYY-MM؛ معامل واحد آمن بلا مبلغ ولا اسم موظفة (FR-049). */
+export const commissionCorrectionPeriod = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 export const commissionCorrectionBlockedParameters = z.tuple([
-  z.strictObject({ name: z.literal('period'), type: z.literal('text'), value: commissionPeriod }),
+  z.strictObject({
+    name: z.literal('period'),
+    type: z.literal('text'),
+    value: commissionCorrectionPeriod,
+  }),
 ]);
 /** مراجعة القالب 1 لأن نص الإيقاف ثابت؛ تغييره لاحقًا مراجعة جديدة حتى لا يُعاد تفسير الصفوف المخزنة. */
 export const commissionCorrectionBlockedRecipient = z.strictObject({
@@ -252,7 +282,8 @@ const inAppNotificationBase = {
 export const inAppNotification = z
   .discriminatedUnion('template_key', [
     responseObject({
-      ...inAppNotificationBase, template_key: z.literal('late_service_session'),
+      ...inAppNotificationBase,
+      template_key: z.literal('late_service_session'),
       safe_parameters: lateServiceSessionParameters,
     }),
     responseObject({

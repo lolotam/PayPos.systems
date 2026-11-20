@@ -1,4 +1,5 @@
 import { resolveSourceAttribution } from '../../domain/commission-correction-attribution.ts';
+import { commissionCorrectionBlockedNoticeGroupSize } from '@pospay/contracts';
 import {
   computeCommissionCorrections,
   type CommissionFrozenSource,
@@ -60,10 +61,10 @@ interface PostCommissionCorrectionsInput {
   readonly eventId: string;
   readonly targets: readonly CommissionCorrectionTarget[];
   readonly employees: readonly CommissionPeriodEmployee[];
-  /** منفذ جرس أصحاب صلاحية خطط العمولة اختياري: غيابه يعني الكلام من غير جرس. */
-  readonly notices?: CommissionBlockNotices | undefined;
-  /** الشركة المالكة للتوقف؛ قارئ حاملي الصلاحية بيحتاجها، وغيابها مع الجرس يعني الجرس ما يطلّعش. */
-  readonly companyId?: string | undefined;
+  /** منفذ جرس أصحاب صلاحية خطط العمولة؛ الاختبارات اللي مش مهمها الجرس بتبني منفذ صامت صريح. */
+  readonly notices: CommissionBlockNotices;
+  /** الشركة المالكة للتوقف؛ قارئ حاملي الصلاحية بيحتاجها لتحديد المستلمين. */
+  readonly companyId: string;
 }
 
 /**
@@ -200,13 +201,17 @@ async function ringBlockBell(
   blockId: string,
   sourcePeriod: string,
 ): Promise<void> {
-  const notices = input.notices;
-  const companyId = input.companyId;
-  if (notices === undefined || companyId === undefined) return;
-  const recipients = await notices.recipients(companyId, input.businessId, notices.now());
-  const groups = groupCommissionBlockNoticeRecipients(recipients, 100);
+  const recipients = await input.notices.recipients(
+    input.companyId,
+    input.businessId,
+    input.notices.now(),
+  );
+  const groups = groupCommissionBlockNoticeRecipients(
+    recipients,
+    commissionCorrectionBlockedNoticeGroupSize,
+  );
   for (const [groupIndex, group] of groups.entries()) {
-    await notices.append({
+    await input.notices.append({
       blockId,
       groupIndex,
       businessId: input.businessId,

@@ -45,7 +45,7 @@ export class ProjectSessionTips {
     private readonly clock: Clock,
     private readonly ids: IdGenerator,
     private readonly corrections: CommissionCorrectionScope,
-    private readonly notices?: CommissionBlockNotices,
+    private readonly notices: CommissionBlockNotices,
   ) {}
 
   async execute(input: ProjectSessionTipsInput): Promise<void> {

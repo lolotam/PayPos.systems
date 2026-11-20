@@ -16,6 +16,7 @@ import {
 } from './project-tip-salary-corrections.fakes.ts';
 import { ProjectSalary } from '../use-cases/project-salary/project-salary.ts';
 import { ProjectSessionTips } from '../use-cases/project-session-tips/project-session-tips.ts';
+import { noCommissionBlockNotices } from './commission-block-notice.fakes.ts';
 
 const clock = { now: () => new Date(clockNow) };
 const ids = { newId: () => '01920000-0000-7000-8000-00000000ffff' };
@@ -31,7 +32,7 @@ it('U1 tips: one lock call and the order targets, replaceTipSession, inserts, re
   corrections.frozen = [frozenTip('CARD', 5_000n)];
   corrections.projection = monthProjection({ tips: [projectedTip('CARD', 8_000n)] });
 
-  await new ProjectSessionTips(scope, clock, ids, corrections).execute(tipInput());
+  await new ProjectSessionTips(scope, clock, ids, corrections, noCommissionBlockNotices).execute(tipInput());
 
   expect(scope.lockInputs).toHaveLength(1);
   expect(scope.lockInputs[0]?.periods).toEqual(['2026-10', '2026-11', '2026-12']);
@@ -74,7 +75,7 @@ it('U2 tips: a rollover during the lock wait writes nothing', async () => {
       new Date(scope.lockInputs.length === 0 ? '2026-12-31T20:59:00Z' : '2027-01-01T00:00:00Z'),
   };
 
-  const work = new ProjectSessionTips(scope, rollingClock, ids, corrections).execute(tipInput());
+  const work = new ProjectSessionTips(scope, rollingClock, ids, corrections, noCommissionBlockNotices).execute(tipInput());
 
   await expect(work).rejects.toMatchObject({
     code: 'COMMISSION_PERIOD_ROLLED_OVER',
@@ -96,7 +97,7 @@ it('U3 tips: a null event id with a closed affected month keeps the closed refus
   ];
   const corrections = new FakeCorrections(scope.calls);
 
-  const work = new ProjectSessionTips(scope, clock, ids, corrections).execute({
+  const work = new ProjectSessionTips(scope, clock, ids, corrections, noCommissionBlockNotices).execute({
     ...tipInput(),
     eventId: null,
   });
@@ -119,7 +120,7 @@ it('U4 tips: a null event id with open months only projects as today', async () 
   ];
   const corrections = new FakeCorrections(scope.calls);
 
-  await new ProjectSessionTips(scope, clock, ids, corrections).execute({
+  await new ProjectSessionTips(scope, clock, ids, corrections, noCommissionBlockNotices).execute({
     ...tipInput(),
     eventId: null,
   });
@@ -163,7 +164,7 @@ it('U5 tips: a recompute without a plan records a blocked correction', async () 
     tips: [projectedTip('CARD', 8_000n)],
   });
 
-  await new ProjectSessionTips(scope, clock, ids, corrections).execute(tipInput());
+  await new ProjectSessionTips(scope, clock, ids, corrections, noCommissionBlockNotices).execute(tipInput());
 
   expect(corrections.drafts).toEqual([]);
   expect(corrections.insertedBlocks).toEqual([
@@ -212,7 +213,7 @@ it('U6 salary: one lock call over the range, one step per closed month, upsert b
     },
   ];
 
-  await new ProjectSalary(scope, clock, ids, corrections).execute(salaryInput());
+  await new ProjectSalary(scope, clock, ids, corrections, noCommissionBlockNotices).execute(salaryInput());
 
   expect(scope.lockInputs).toHaveLength(1);
   expect(scope.lockInputs[0]?.periods).toEqual(['2026-10', '2026-11', '2026-12']);
@@ -239,7 +240,7 @@ it('U7 salary: a rollover throws the typed error and writes nothing', async () =
       new Date(scope.lockInputs.length === 0 ? '2026-12-31T20:59:00Z' : '2027-01-01T00:00:00Z'),
   };
 
-  const work = new ProjectSalary(scope, rollingClock, ids, corrections).execute(salaryInput());
+  const work = new ProjectSalary(scope, rollingClock, ids, corrections, noCommissionBlockNotices).execute(salaryInput());
 
   await expect(work).rejects.toMatchObject({
     code: 'COMMISSION_PERIOD_ROLLED_OVER',
@@ -268,7 +269,7 @@ it('U8 salary: a closed month without a DRAFT target refuses before the upsert',
   ];
   const corrections = new FakeCorrections(scope.calls);
 
-  const work = new ProjectSalary(scope, clock, ids, corrections).execute(salaryInput());
+  const work = new ProjectSalary(scope, clock, ids, corrections, noCommissionBlockNotices).execute(salaryInput());
 
   await expect(work).rejects.toMatchObject({
     code: 'COMMISSION_PERIOD_CLOSED',

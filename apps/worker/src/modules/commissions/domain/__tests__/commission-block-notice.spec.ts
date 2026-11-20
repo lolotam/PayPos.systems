@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 
+import { CommissionBlockNoticeGroupSizeError } from '../errors.ts';
 import { groupCommissionBlockNoticeRecipients } from '../commission-block-notice.ts';
 
 const userId = (index: number): string =>
@@ -28,3 +29,12 @@ it('N1 keeps a full hundred as one group and a hundred and one as a hundred and 
     100, 1,
   ]);
 });
+
+it.each([0, -5, 2.5, Number.NaN])(
+  'N1 refuses a group size that is not a positive integer: %s',
+  (size) => {
+    expect(() => groupCommissionBlockNoticeRecipients([userId(1)], size)).toThrowError(
+      CommissionBlockNoticeGroupSizeError,
+    );
+  },
+);

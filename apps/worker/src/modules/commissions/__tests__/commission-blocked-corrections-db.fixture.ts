@@ -30,6 +30,7 @@ import { createTestCommissionInputsConsumer } from '../../../__tests__/commissio
 import type { OutboxConsumer } from '../../../outbox/consumer.ts';
 import { createDeliverer } from '../../../outbox/deliver.ts';
 import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
+import { noCommissionBlockNotices } from './commission-block-notice.fakes.ts';
 import {
   onCommissionInputEvent,
   type CommissionInputUseCases,
@@ -298,6 +299,7 @@ function failingInsertBlockConsumer(): OutboxConsumer {
                 throw new Error('injected block insert failure');
               },
             },
+            noCommissionBlockNotices,
           ),
           tips: unused,
           salary: unused,

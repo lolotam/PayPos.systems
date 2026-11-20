@@ -28,6 +28,7 @@ import type {
   CommissionPeriodReopenInput,
 } from '../ports/commission-line-projection.port.ts';
 import { ProjectServiceLines } from '../use-cases/project-service-lines/project-service-lines.ts';
+import { noCommissionBlockNotices } from './commission-block-notice.fakes.ts';
 import type { CommissionOpenBlock } from '../domain/commission-blocked-correction.ts';
 
 const line = (patch: Partial<CommissionLineSnapshot> = {}): CommissionLineSnapshot => ({
@@ -211,7 +212,7 @@ it('posts a late line correction with projected attribution using one period loc
     { branchId: 'branch-a', attachedFrom: '2026-10-01', attachedTo: null },
   ];
 
-  await new ProjectServiceLines(scope, clock, ids, corrections).execute(input([line()]));
+  await new ProjectServiceLines(scope, clock, ids, corrections, noCommissionBlockNotices).execute(input([line()]));
 
   expect(scope.lockInputs).toHaveLength(1);
   expect(corrections.drafts).toHaveLength(1);
@@ -272,7 +273,7 @@ it('chooses the target before reopening a REVIEWED affected month', async () => 
     },
   ];
 
-  await new ProjectServiceLines(scope, clock, ids, corrections).execute(
+  await new ProjectServiceLines(scope, clock, ids, corrections, noCommissionBlockNotices).execute(
     input([line({ businessDate: '2026-11-02' })]),
   );
 
@@ -297,7 +298,7 @@ it('rolls over after the lock wait without any projection or correction write', 
       new Date(scope.lockInputs.length === 0 ? '2026-12-31T20:59:00Z' : '2027-01-01T00:00:00Z'),
   };
 
-  const work = new ProjectServiceLines(scope, rollingClock, ids, corrections).execute(
+  const work = new ProjectServiceLines(scope, rollingClock, ids, corrections, noCommissionBlockNotices).execute(
     input([line()]),
   );
 
@@ -324,7 +325,7 @@ it('records a blocked correction when recomputation returns NO_PLAN', async () =
   const corrections = new FakeCorrections(scope.calls);
   corrections.projection = monthProjection({ versions: [] });
 
-  await new ProjectServiceLines(scope, clock, ids, corrections).execute(input([line()]));
+  await new ProjectServiceLines(scope, clock, ids, corrections, noCommissionBlockNotices).execute(input([line()]));
 
   expect(corrections.drafts).toEqual([]);
   expect(corrections.insertedBlocks).toEqual([
