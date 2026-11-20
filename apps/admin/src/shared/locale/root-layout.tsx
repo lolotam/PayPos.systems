@@ -1,9 +1,8 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
-import { THEME_BOOT_SCRIPT, THEME_COLOR_METAS } from '@pospay/ui/theme';
-
 import { t } from '@pospay/i18n';
+import { THEME_BOOT_SCRIPT, THEME_COLOR_METAS } from '@pospay/ui/theme';
 
 import { DocumentShell } from './document-shell';
 import { readRequestLocale } from './request-locale';
