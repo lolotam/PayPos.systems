@@ -1,5 +1,10 @@
 import { leaveListRecord, uuidArray, type BranchDay, type Tx } from '@pospay/db';
-import type { EmployeeLeaveListQuery, LeaveInboxQuery, LeavePage } from '@pospay/contracts';
+import type {
+  EmployeeLeaveListQuery,
+  LeaveInboxQuery,
+  LeavePage,
+  OwnLeaveListQuery,
+} from '@pospay/contracts';
 import { sql } from 'drizzle-orm';
 export const LEAVE_READ_ACCESS = Symbol('LEAVE_READ_ACCESS');
 export interface LeaveReadContext {
@@ -43,6 +48,7 @@ export function leavePageSql(
     asOf?: string;
   },
   pending: boolean,
+  order: 'oldest' | 'newest' = 'oldest',
 ) {
   const employee = scope.employeeId ?? context.employeeId;
   // سجل الموظف وصندوق المدير يقرآن نفس الشكل، مع تصفية المجال قبل cursor والحد.
@@ -58,12 +64,18 @@ export function leavePageSql(
     ${query.branch_id === undefined ? sql`` : sql`AND l.branch_id=${query.branch_id}::uuid`}
     ${query.from === undefined ? sql`` : sql`AND l."to">=${query.from}::date`}
     ${query.to === undefined ? sql`` : sql`AND l."from"<=${query.to}::date`}
-    ${query.cursor === undefined ? sql`` : sql`AND l.id>${query.cursor}::uuid`}${
+    ${
+      query.cursor === undefined
+        ? sql``
+        : order === 'newest'
+          ? sql`AND l.id<${query.cursor}::uuid`
+          : sql`AND l.id>${query.cursor}::uuid`
+    }${
       query.open === 'true'
         ? sql` AND (l."to">=(${scope.asOf}::timestamptz AT TIME ZONE l.timezone)::date OR l.status='PENDING')`
         : sql``
     }
-    ORDER BY l.id LIMIT ${query.limit + 1}`;
+    ${order === 'newest' ? sql`ORDER BY l.id DESC` : sql`ORDER BY l.id`} LIMIT ${query.limit + 1}`;
 }
 async function page(
   tx: Tx,
@@ -71,6 +83,7 @@ async function page(
   query: LeaveInboxQuery & Pick<EmployeeLeaveListQuery, 'open' | 'as_of'>,
   access: LeaveReadAccess,
   pending: boolean,
+  order: 'oldest' | 'newest' = 'oldest',
 ): Promise<LeavePage | 'FEATURE_DISABLED' | 'VALIDATION_FAILED' | null> {
   const scope = await access.check(tx, context);
   if (!scope || scope.branches.length === 0) return null;
@@ -83,7 +96,7 @@ async function page(
   )
     return 'VALIDATION_FAILED';
   const rows = await tx.execute<{ record: LeavePage['items'][number] }>(
-    leavePageSql(context, query, { ...scope, asOf: asOf.toISOString() }, pending),
+    leavePageSql(context, query, { ...scope, asOf: asOf.toISOString() }, pending, order),
   );
   const items = rows.slice(0, query.limit).map((r) => r.record);
   return {
@@ -110,6 +123,21 @@ export const employeeLeaveHistory = (
     },
     access,
     false,
+  );
+// شاشة «إجازاتي» في apps/pos تقرأ هنا؛ الأحدث أولًا لأن الموظفة بتتابع آخر طلباتها، والـ id (UUID v7) هو ترتيب الإنشاء نفسه.
+export const ownLeaveHistory = (
+  tx: Tx,
+  context: LeaveReadContext,
+  query: Pick<OwnLeaveListQuery, 'limit' | 'cursor'>,
+  access: LeaveReadAccess,
+) =>
+  page(
+    tx,
+    context,
+    { limit: query.limit, ...(query.cursor === undefined ? {} : { cursor: query.cursor }) },
+    access,
+    false,
+    'newest',
   );
 export const pendingLeaveInbox = (
   tx: Tx,
