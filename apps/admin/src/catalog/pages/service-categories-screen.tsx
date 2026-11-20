@@ -1,9 +1,12 @@
 'use client';
-import type { WorkspaceBusiness, WorkspaceCompany } from '@pospay/contracts';
+import type { WorkspaceBranch, WorkspaceBusiness, WorkspaceCompany } from '@pospay/contracts';
+import { t } from '@pospay/i18n';
+import { EmptyState, Store } from '@pospay/ui';
 import { useState } from 'react';
 import { BranchServiceCategoriesSection } from './branch-service-categories-section';
 import { ServiceCategoriesPage } from './service-categories-page';
 import { ServiceCategoryScopeSelect } from '../ui/service-category-scope-select';
+import { useLocale } from '@/shared/locale/locale-context';
 
 type ServiceCategoriesScreenProps = {
   companyId: string;
@@ -14,7 +17,7 @@ type ServiceCategoriesScreenProps = {
 };
 
 /** الفروع النشطة بس هي اللي بتظهر في القايمة وبتاخد فرع البداية، فالفرع الموقوف ما يرجعله حد بالغلط. */
-function activeBranchesOf(business: WorkspaceBusiness) {
+function activeBranchesOf(business: WorkspaceBusiness): readonly WorkspaceBranch[] {
   return business.branches.filter((branch) => branch.is_active);
 }
 
@@ -23,19 +26,18 @@ function activeBranchesOf(business: WorkspaceBusiness) {
  * على كل استعلام — علشان كده الفرع بيفتح على فرعه بدل قائمة النشاط.
  *
  * @param scope              أوسع عضوية ليها اليوزر في الشركة
- * @param business           النشاط المختار بفروعه
+ * @param activeBranches     الفروع النشطة للنشاط المختار بفروعه
  * @param rememberedBranchId الفرع المتذكر من مساحة العمل، لو موجود
  * @returns فرع البداية من الفروع النشطة: المتذكر، وإلا أول فرع نشط، و«كل النشاط» لما النطاق أوسع من فرع
  */
 function openingBranch(
   scope: WorkspaceCompany['scope'],
-  business: WorkspaceBusiness,
+  activeBranches: readonly WorkspaceBranch[],
   rememberedBranchId: string | undefined,
 ): string | null {
   if (scope !== 'BRANCH') return null;
-  const active = activeBranchesOf(business);
-  const remembered = active.find((branch) => branch.id === rememberedBranchId);
-  return remembered?.id ?? active[0]?.id ?? null;
+  const remembered = activeBranches.find((branch) => branch.id === rememberedBranchId);
+  return remembered?.id ?? activeBranches[0]?.id ?? null;
 }
 
 export function ServiceCategoriesScreen({
@@ -45,40 +47,53 @@ export function ServiceCategoriesScreen({
   scope,
   rememberedBranchId,
 }: ServiceCategoriesScreenProps) {
+  const locale = useLocale();
+  const activeBranches = activeBranchesOf(business);
   const [branchId, setBranchId] = useState<string | null>(() =>
-    openingBranch(scope, business, rememberedBranchId),
+    openingBranch(scope, activeBranches, rememberedBranchId),
   );
   // عضوية الفرع أوسع من فرع واحد بس، فمفيش طريقة تعرف منها إذن الوصول لمستوى النشاط
   // على نشاط مختار — القرار ده مؤجل لقرار المالك (issue #1133) والسلوك الحالي بيفضل زي ما هو.
   const businessReach = scope !== 'BRANCH';
+  const branchScopeEmpty = scope === 'BRANCH' && activeBranches.length === 0;
   return (
     <section className="flex min-w-0 flex-col gap-8 text-start">
       <ServiceCategoryScopeSelect
-        branches={activeBranchesOf(business)}
+        branches={activeBranches}
         includeBusiness={businessReach}
         value={branchId}
         onChange={setBranchId}
       />
-      {businessReach || branchId === null ? (
-        // الصفحة بتفضل محمولة مخفية وقت الفرع، عشان مهام القفل المعلقة (202) وأثرها ما يضيعش لما المستخدم يرجع.
-        <div hidden={branchId !== null}>
-          <ServiceCategoriesPage
-            key={`${companyId}:${business.id}:${userId}`}
-            companyId={companyId}
-            business={business}
-            userId={userId}
-          />
-        </div>
-      ) : null}
-      {branchId !== null ? (
-        <BranchServiceCategoriesSection
-          key={branchId}
-          companyId={companyId}
-          businessId={business.id}
-          userId={userId}
-          branchId={branchId}
+      {branchScopeEmpty ? (
+        // فرع-سكوب من غير فرع نشط: قائمة النشاط هترجع 403 له، فبيعرض حالة فاضية واضحة بدلها.
+        <EmptyState
+          icon={<Store />}
+          title={t(locale, 'catalogServiceCategoryBranches.noActiveBranch')}
         />
-      ) : null}
+      ) : (
+        <>
+          {businessReach || branchId === null ? (
+            // الصفحة بتفضل محمولة مخفية وقت الفرع، عشان مهام القفل المعلقة (202) وأثرها ما يضيعش لما المستخدم يرجع.
+            <div hidden={branchId !== null}>
+              <ServiceCategoriesPage
+                key={`${companyId}:${business.id}:${userId}`}
+                companyId={companyId}
+                business={business}
+                userId={userId}
+              />
+            </div>
+          ) : null}
+          {branchId !== null ? (
+            <BranchServiceCategoriesSection
+              key={branchId}
+              companyId={companyId}
+              businessId={business.id}
+              userId={userId}
+              branchId={branchId}
+            />
+          ) : null}
+        </>
+      )}
     </section>
   );
 }

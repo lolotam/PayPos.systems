@@ -10,6 +10,7 @@ export const catalogServiceCategoryBranchesEn = {
   ownedHere: "This branch's own",
   hiddenHere: 'Hidden here',
   branchColumn: 'In this branch',
+  noActiveBranch: 'No active branch to show categories for.',
 };
 
 export const catalogServiceCategoryBranchesAr = {
@@ -22,4 +23,5 @@ export const catalogServiceCategoryBranchesAr = {
   ownedHere: 'بتاع الفرع ده',
   hiddenHere: 'مخفي عندك',
   branchColumn: 'في الفرع ده',
+  noActiveBranch: 'مفيش فرع نشط تقدر تشوف التصنيفات بتاعته.',
 };

@@ -280,3 +280,13 @@ it('falls back to the first active branch when the remembered branch is unknown'
   expect(select.selectedOptions[0]?.textContent).toBe('Second branch');
   expect(screen.queryByRole('option', { name: 'First branch' })).toBeNull();
 });
+
+it('shows a no-active-branch empty state without reading the business list', async () => {
+  get.mockImplementation(() => Promise.resolve(refusal(403)));
+  renderScreen({ scope: 'BRANCH', business: business([branch({ is_active: false })]) });
+  expect(
+    await screen.findByText(t('en', 'catalogServiceCategoryBranches.noActiveBranch')),
+  ).toBeTruthy();
+  expect(screen.queryByRole('combobox')).toBeNull();
+  expect(get.mock.calls.some(([path]) => path === businessListPath)).toBe(false);
+});
