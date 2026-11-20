@@ -4,8 +4,11 @@
 > Base: `origin/main` at `b3fd3ffa4`. Branch: `feat/059-48-3-plan-builder`.
 > Sources: `spec.md` row 48-3, FR-006, FR-009, FR-010, FR-010a, CM-06, CM-09, D-17, D-35; `owner-questions.ar.md` §§43, 45, 46, 51, 52;
 > ADR-0054 §1; merged 48-2 (#730) and 48-2b (#793); `docs/owner-decisions.ar.md` items 112 (PP-192), 113 (PP-193), 116 (PP-196).
-> Status: **revision 2, after the one Astra debate round (verdict REJECT on revision 1; every point applied or answered in §8).
-> Implementer dispatch is blocked on the size decision (`owner-questions.ar.md` §52).**
+> Status: **revision 3 (2026-11-20). PR 1 (the editor) is implemented and open as #1104; PR 2 (screen, route, nav, journey) is
+> not started.** Revision 2 came after the one Astra debate round (verdict REJECT on revision 1; every point applied or
+> answered in §8). The size decision that blocked dispatch is **answered** (`owner-questions.ar.md` §52, PP-199: PR 1 about
+> 900 lines, PR 2 ≤750); §1's «decision» block below is kept as the historical record of what was asked. Revision 3
+> corrects the save-key rule (§3.5 rule 9) after review on #1104.
 
 ## 0. What this row delivers
 
@@ -63,13 +66,15 @@ PP-192 has two readings here:
 
 This plan does not choose the favourable reading. The decision asked for must name all of these explicitly:
 
-- **Budgets:** PR 1 ≤ 720, PR 2 ≤ 620, row total ≤ 1,340. This is **above** the old total cap of 1,140; the old caps
-  (total ≤1140, B1 ≤910) are retired as history or they are not, in words.
+- **Budgets (as proposed at the time: PR 1 ≤ 720, PR 2 ≤ 620, row total ≤ 1,340; superseded).** The answer in §52 first
+  accepted 720 and 620 (PP-197), then, when PR 1 measured about 893 lines, replaced them: **PR 1 about 900 lines (it
+  landed at 898) and PR 2 ≤ 750 (PP-199)**. Those are the budgets a delivery is checked against now. They are above
+  the old total cap of 1,140, which, with the old B1 cap of 910, is closed as history.
 - **Correction rounds:** the historical 5/5 stays on record; each PR gets the Heavy cap of the current pipeline (5).
 - **Ownership:** under PP-118 this session owns PR 1 through merge; PR 2 needs its own assignment and starts after PR 1
   merges.
 
-**No implementer is dispatched until that answer is recorded in §52.**
+**Historical:** no implementer was dispatched until that answer was recorded in §52; it has been, and PR 1 is built.
 
 ## 2. What is lifted from the earlier attempt
 
@@ -213,9 +218,16 @@ fetch (403 → reset → 403), and a running save's callbacks survive a reset.
 8. **Lists.** Employees are one `useInfiniteQuery` (`limit` 50, opaque cursor); versions are one `useInfiniteQuery`
    per employee (`limit` 20). A failed later page shows a local «could not load more» message with a retry, unless it
    is a 403 (rule 4). A `503 COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE` shows its own message, not the empty state.
-9. **Save.** One `Idempotency-Key` per (identity, employee, body): kept across a network failure of the same body, new
-   when the body or the employee changes (the pattern of `use-cancel-service-line.ts`). On success the first history
-   page is refetched and the form is re-based on the stored version.
+9. **Save.** The create endpoint is idempotent only through its `Idempotency-Key`: a repeated body with a new key inserts
+   the same plan again as the next version, and that duplicate cannot be removed. So the key is remembered **per
+   (identity, employee)** as an unresolved attempt `{ key, body fingerprint }` in a small map, as `use-cancel-service-line.ts`
+   does (`Map<…, UnresolvedCancel>`). A submit of the **same body for the same employee reuses that attempt's key until a
+   save with that key succeeds**; a different body for that employee replaces the attempt with a new key. Switching to
+   another employee and coming back does **not** drop the attempt (a response lost to a network failure may have
+   committed on the server). The map is cleared only by: a successful save with that key, a 403 that closes the scope
+   (rule 4), or an identity change (the route remounts). The 404 for an employee removes that employee's entry. On
+   success the first history page is refetched and the form is re-based on the stored version. PR 1 contains no save
+   hook, so this is a rule for PR 2's `use-save-commission-plan.ts`, with its test below.
 10. Hooks set `retry: false`; fetches live in `api/`, never in a component; responses are parsed with the contract
     schemas.
 
@@ -262,7 +274,7 @@ PR 2's access tests use a real `QueryClient` and deferred HTTP answers, never a 
 | **P1-1** | (a) First page 200 with `next_cursor`; «load more» is pending; the next page answers 403 → name, number, link, picker and section are gone, and the scope's cache holds no employee or version entry. (b) Identity A shown, switch to B, back to A within 30 s → nothing of A is shown until A's fresh first page succeeds; a late answer of A's old request, completed after the switch, changes nothing. |
 | **P1-2** | Nav and page mounted together, a second employee's versions cached and another request in flight: a 403 from (i) a version read and (ii) the save each close the whole scope (as above) and clear the selection, the draft and the held key; entries of **another** identity are untouched. While the server keeps refusing, no request loop occurs (request count asserted). «Try again» with a 200 shows the list again with no employee selected. |
 | — | A value the admin typed stays visible after a 500 on the history, a failed «load more» and a refetch for the same employee, and is gone after access is revoked. |
-| — | Employee 404 → local message, the list and the link remain. Switching from employee A to B while A's save is pending: A's answer does not alter B's form. Save success → the new version is first in the history and the form shows it. Unchanged body after a network failure reuses the idempotency key; a changed body or employee takes a new one. |
+| — | Employee 404 → local message, the list and the link remain. Switching from employee A to B while A's save is pending: A's answer does not alter B's form. Save success → the new version is first in the history and the form shows it. Unchanged body after a network failure reuses the idempotency key, **including after switching to another employee and back**; a changed body takes a new key; a successful save, a 403 or an identity change clears the remembered attempt. |
 | — | Nav item spec: hidden before success, hidden on 403, shown on 200. |
 
 ## 5. Steps
