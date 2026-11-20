@@ -53,6 +53,36 @@ export interface CommissionServiceOverrideListReads {
    * @returns true عند وجود الموظفة النشطة
    */
   employeeExists(companyId: string, businessId: string, employeeId: string): Promise<boolean>;
+  /**
+   * صفحة خدمات النشاط لشاشة التجاوزات، بترتيب معرّف الخدمة على نفس معاملة القراءة؛
+   * صلاحية الخطط بتبدل مفيش صلاحية خدمات، فالأسماء بتتقرا من كتالوج النشاط بالمزود المربوط في الجذر.
+   *
+   * @param companyId  الشركة المفتوحة في معاملة القراءة
+   * @param businessId النشاط المطلوب
+   * @param query      المؤشر (آخر معرّف خدمة) والحد
+   * @returns صفحة الخدمات بالأسماء والأسعار وقواعد الكتالوج، و`next_cursor` للصفحة الجاية
+   */
+  services(
+    companyId: string,
+    businessId: string,
+    query: { readonly cursor?: string | undefined; readonly limit: number },
+  ): Promise<CommissionOverrideServicePage>;
+}
+
+/** صف خدمة شاشة التجاوزات كما يرجعه قارئ الكتالوج المربوط في الجذر (CS-Q49: الاسم والقاعدة والسعر). */
+export interface CommissionOverrideServiceRow {
+  readonly id: string;
+  readonly name_ar: string | null;
+  readonly name_en: string;
+  readonly price: string;
+  readonly closed_at: string | null;
+  readonly rule: CommissionServiceOverrideRuleView;
+}
+
+/** صفحة خدمات شاشة التجاوزات على معاملة القراءة نفسها، بمفتاح معرّف آخر خدمة للصفحة الجاية. */
+export interface CommissionOverrideServicePage {
+  readonly items: readonly CommissionOverrideServiceRow[];
+  readonly next_cursor: string | null;
 }
 
 export type CommissionServiceOverrideListReadsFactory = (

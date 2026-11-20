@@ -35,6 +35,10 @@ import type { FilesRuntime } from '../src/modules/files/index.ts';
 
 export { readSessionServices } from '../src/modules/catalog/index.ts';
 export {
+  commissionOverrideServicesStatement,
+  readCommissionOverrideServices,
+} from '../src/modules/catalog/index.ts';
+export {
   readCommissionPlanAccess,
   readCommissionPlanListAccess,
 } from '../src/modules/identity/index.ts';
