@@ -82,8 +82,9 @@ query without telling the manager, because that would bring the index and EXPLAI
      `postCommissionLineCorrections` → `postCommissionCorrections`, `CommissionLineCorrectionTarget` →
      `CommissionCorrectionTarget`. The function bodies do not change. `readCommissionLineCorrectionEmployees` is
      line-specific: it stays in a small `use-cases/project-service-lines/post-line-corrections.ts`.
-     This is the one touch outside the two use cases of the slice; it is needed because a use case folder must not import
-     another use case folder's internals. Add the one-line Arabic comment above each exported function (§3.1, `use-cases/**`).
+     This is the one touch outside the two use cases of the slice. It is a design choice, not a lint requirement: the
+     step is no longer line-specific, and `commission-month-recompute.ts` is the precedent for a helper shared by use
+     cases at the `use-cases/` root. Add the one-line Arabic comment above each exported function (§3.1, `use-cases/**`).
    - Edit `use-cases/project-service-lines/project-service-lines.ts`: imports and the three renamed identifiers only.
    - Edit `use-cases/project-session-tips/project-session-tips.ts`: `ProjectSessionTipsInput` gains
      `eventId: string | null`; the constructor gains the `CommissionCorrectionScope`; `execute` follows §4.1;
@@ -96,8 +97,12 @@ query without telling the manager, because that would bring the index and EXPLAI
    - Edit `commissions.module.ts`: pass `createCommissionCorrectionScope(tx, ids, clock)` to `ProjectSessionTips` and
      `ProjectSalary` in `createCommissionInputsConsumer`, and to `ProjectSessionTips` in `createCommissionTipsBootstrap`
      (it is never used there because the bootstrap's `eventId` is null, §4.3).
-   - The test consumer factory `apps/worker/src/__tests__/commission-inputs-consumer.ts` wraps
-     `createCommissionInputsConsumer`, so it needs no edit. Specs that construct the two use cases by hand pass the scope.
+   - **Every call site, checked by grep on the base commit:** `new ProjectSessionTips(` appears at
+     `commissions.module.ts` lines 98 and 135, `new ProjectSalary(` at line 103, and nowhere else in `apps/worker/src`.
+     `ProjectSessionTipsInput` is built by hand only in `bootstrap-session-tips.ts` (`toTipInput`). The three renamed
+     identifiers are used only by `project-service-lines.ts`. No spec constructs the two use cases directly: they deliver
+     through `createTestCommissionInputsConsumer` (`apps/worker/src/__tests__/commission-inputs-consumer.ts`), which wraps
+     `createCommissionInputsConsumer` and needs no edit. `index.ts` needs no edit. Re-run the grep before editing.
 6. **Integration tests:** §7.
 7. **UI:** none.
 8. **Docs in the implementation PR:** `docs/runbook.md` — the two sentences that say a closed-month visit "takes the 55-1
@@ -234,9 +239,10 @@ case in the PR body otherwise):
 - D8 a frozen `TIP_CARD` 5.000 recomputed as 8.000 → one draft: previous 5.000, new 8.000, amount +3.000, kind `TIP_CARD`.
 - D9 a frozen `TIP_CASH` source absent from the recompute → amount −(frozen), kind `TIP_CASH`.
 
-`use-cases/__tests__/commission-month-recompute.spec.ts` — add only if missing:
+`use-cases/__tests__/commission-month-recompute.spec.ts`:
 
-- D10 the same lines with a higher selected salary move the salary-based threshold and change the per-line amounts.
+- D10 the worked example of §7.3: with salaries 500.000, 550.000 and 560.000 the recompute returns L1 0.000 and L2
+  20.000, 15.000 and 14.000. This test is written first; it is the oracle for the salary DB tests.
 
 ### 7.2 Use-case tests with fake scopes (no database)
 
@@ -283,16 +289,35 @@ New `__tests__/project-tip-corrections-db.spec.ts`:
 - T11 (Q2) the closed month has an ACTIVE `FOLLOW_PLAN` line and no plan version → refusal, nothing written.
 - X1 after T1, a read of `commission_corrections` and `commission_period_generations` as company B returns 0 rows.
 
-New `__tests__/project-salary-corrections-db.spec.ts`:
+New `__tests__/project-salary-corrections-db.spec.ts`.
+
+**The worked example every salary test uses.** Plan version for سارة, effective before January: base off, package sale
+off, tiers on, mode `MARGINAL`, accumulator `AMOUNT`, one step from `SALARY_MULTIPLE` 1.00 that pays 10 %. So she earns
+10 % of her monthly net above one salary. Each seeded month holds two ACTIVE `FOLLOW_PLAN` lines, in this order:
+L1 net 400.000, then L2 net 300.000.
+
+| Selected salary of the month | Threshold | L1 | L2 |
+| --- | --- | --- | --- |
+| 500.000 (frozen at approval) | 500.000 | 0.000 | (700.000 − 500.000) × 10 % = **20.000** |
+| 550.000 (the back-dated entry) | 550.000 | 0.000 | (700.000 − 550.000) × 10 % = **15.000** |
+| 560.000 (its later revision) | 560.000 | 0.000 | (700.000 − 560.000) × 10 % = **14.000** |
+
+Expected corrections per closed month: first event, generation 1, one row for `line:<L2>`: previous 20.000, new 15.000,
+amount **−5.000**; no row for L1. The revision, generation 2: previous 15.000 (20.000 − 5.000), new 14.000, amount
+**−1.000**. These figures were derived by hand from `marginal-tiers.ts` and `salary-thresholds.ts`. The implementer
+proves them first with the pure test D10; if the engine returns different figures, stop and report to the manager. Do
+not copy an expected value from the test output.
 
 - S1 (**CM-46b**, exact) سارة has entries on 1 January (500.000) and 10 April (600.000); January and February are
   APPROVED, March is REVIEWED, April is DRAFT and current; her lines use a salary-based plan. A back-dated entry on
   15 January (550.000): one `lockPeriods` call holds January…April ascending; corrections for January and February are
   posted into **April**; March returns to DRAFT and gets no correction row; no row has `source_period = 2026-04`.
-  The amounts and source refs are asserted exactly.
-- S2 (CM-46b, second half) a later revision of the 15 January entry → generation 2 for January and February, each row
-  equal to `new − (frozen + posted)`.
-- S3 (CM-46) only the lines whose threshold moved get a row; a line whose commission did not change gets none.
+  With the worked example in January and February: two rows in total, each `line:<L2>` −5.000, generation 1, target
+  `2026-04`.
+- S2 (CM-46b, second half) the 15 January entry is revised to 560.000 → two more rows, each `line:<L2>` −1.000,
+  generation 2, previous 15.000, new 14.000.
+- S3 (CM-46) one APPROVED month with the worked example and a 500.000 → 550.000 change: exactly one row, `line:<L2>`
+  −5.000, kind `COMMISSION`; L1 gets no row.
 - S4 a closed month in the range in which the employee has no line → the event is consumed and no correction row exists
   for that month.
 - S5 (CM-47) a PAID month in the range behaves like an APPROVED one.
@@ -307,15 +332,22 @@ New `__tests__/project-salary-corrections-db.spec.ts`:
 Edit `__tests__/commission-tip-salary-concurrency.spec.ts`:
 
 - C1 (**CM-48c** shape, salary) September is REVIEWED, October and November are DRAFT; a seed transaction holds
-  September's lock and approves it (barrier before its commit) while a salary event whose range includes September waits;
-  after the wait the consumer sees September APPROVED and posts into October with no second lock call.
+  September's lock, approves it and writes its frozen rows from the worked example (L2 20.000) with a barrier before
+  its commit, while a salary revision 500.000 → 550.000 effective 1 September waits; after the wait the consumer sees
+  September APPROVED and posts `line:<L2>` −5.000 into October with no second lock call.
 
 Edit the existing tests that assert the old interim refusal:
 
-- `commission-tip-projection.spec.ts` «closed guard: affected month APPROVED refuses delivery…» and
-  `commission-salary-projection.spec.ts` «closed guard: affected month APPROVED refuses delivery…»: each becomes a
-  delivery that succeeds (no frozen source and no priced line, so the projection is written and no correction row is
-  posted). State the rewrite in the PR body, as #1061 did for the line tests.
+Both specs run with the clock at 2026-12-05 and November APPROVED with no frozen row, so December is the DRAFT target.
+State both rewrites in the PR body, as #1061 did for the line tests.
+
+- `commission-tip-projection.spec.ts` line 218 «closed guard: affected month APPROVED refuses delivery…» (a tip dated
+  2026-11-15): the delivery now **succeeds**; the head, the tip rows and the mark exist; and because the tip was never
+  frozen, one correction row per tip row is posted: previous 0.000, new = the tip amount, amount = the tip amount, kind
+  by method, generation 1, target `2026-12`, empty `attached_branch_ids` (no frozen attachment).
+- `commission-salary-projection.spec.ts` line 214 «closed guard: affected month APPROVED refuses delivery…» (a salary
+  effective 2026-11-01, an employee with no line): the delivery now **succeeds**; the salary row and the mark exist; no
+  correction row is posted; `commission_period_generations` holds generation 1 for `(employee, 2026-11)` (R4).
 - `bootstrap-session-tips*.spec.ts`: the `COMMISSION_PERIOD_CLOSED` expectations **stay**. Add B1 to
   `bootstrap-session-tips-db.spec.ts`: after the refused closed-month visit there is no correction row and no generation row.
 
