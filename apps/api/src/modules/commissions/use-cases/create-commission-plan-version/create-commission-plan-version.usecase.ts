@@ -1,10 +1,9 @@
 import type { CommissionPlanVersion } from '@pospay/contracts';
-import { validateCommissionPlan } from '@pospay/commissions-engine';
+import { validateWireCommissionPlan } from '@pospay/commissions-engine';
 import { localDate } from '@pospay/i18n';
 
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts';
-import { toEngineCommissionPlan } from '../../domain/plan-codec.ts';
 import { CommissionPlanVersionError } from '../../domain/errors.ts';
 import {
   assertCommissionPlanEffectiveFrom,
@@ -41,7 +40,7 @@ export async function writeCommissionPlanVersion(
   ids: IdGenerator,
   clock: Clock,
 ): Promise<CommissionPlanVersion> {
-  const validation = validateCommissionPlan(toEngineCommissionPlan(command.input));
+  const validation = validateWireCommissionPlan(command.input);
   if (!validation.ok) {
     throw new CommissionPlanVersionError('COMMISSION_PLAN_INVALID', { code: validation.code });
   }
