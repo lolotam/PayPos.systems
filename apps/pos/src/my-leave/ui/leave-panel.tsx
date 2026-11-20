@@ -1,8 +1,9 @@
 import { leaveErrorText } from '../model/error-text';
-import { t } from '@pospay/i18n';
+import { t, type Locale } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { LeaveContext } from '../model/context';
+import type { LeavePage, OwnLeaveWriteResult, RequestLeaveInput } from '@pospay/contracts';
 import { useMyLeave } from '../api/use-my-leave';
 import { LeaveForm } from './leave-form';
 import { LeaveHistory } from './leave-history';
@@ -42,38 +43,79 @@ export function LeavePanel({ context, branch, timezone, sessionRefused }: LeaveP
           {t(locale, 'myLeave.retry')}
         </Button>
       ) : (
-        <>
-          {state.lastRequest ? (
-            <LatestLeaveRequest
-              request={state.lastRequest}
-              busy={state.busy}
-              cancel={state.cancel}
-            />
-          ) : null}
-          <p>
-            {t(locale, 'leave.timezone')}
-            {timezone ? `: ${timezone}` : ''}
-          </p>
-          {canCreate && (context.mode === 'personal' || timezone !== undefined) ? (
-            <LeaveForm busy={state.busy} submit={state.create} />
-          ) : null}
-          {items.length === 0 ? (
-            <p>{t(locale, 'leave.empty')}</p>
-          ) : (
-            <LeaveHistory items={items} busy={state.busy} cancel={state.cancel} />
-          )}
-          {state.query.hasNextPage ? (
-            <Button
-              disabled={state.query.isFetchingNextPage}
-              onClick={() => {
-                void state.query.fetchNextPage();
-              }}
-            >
-              {t(locale, 'leave.next')}
-            </Button>
-          ) : null}
-        </>
+        <LeaveReadyState
+          locale={locale}
+          timezone={timezone}
+          context={context}
+          canCreate={canCreate}
+          items={items}
+          lastRequest={state.lastRequest}
+          busy={state.busy}
+          cancel={state.cancel}
+          create={state.create}
+          hasNextPage={state.query.hasNextPage}
+          isFetchingNextPage={state.query.isFetchingNextPage}
+          fetchNextPage={state.query.fetchNextPage}
+        />
       )}
     </div>
+  );
+}
+
+function LeaveReadyState({
+  locale,
+  timezone,
+  context,
+  canCreate,
+  items,
+  lastRequest,
+  busy,
+  cancel,
+  create,
+  hasNextPage,
+  isFetchingNextPage,
+  fetchNextPage,
+}: {
+  locale: Locale;
+  timezone: string | undefined;
+  context: LeaveContext;
+  canCreate: boolean;
+  items: LeavePage['items'];
+  lastRequest: OwnLeaveWriteResult | null;
+  busy: boolean;
+  cancel(id: string, revision: number): Promise<void>;
+  create(input: RequestLeaveInput): Promise<void>;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  fetchNextPage(): Promise<unknown>;
+}) {
+  return (
+    <>
+      {lastRequest ? (
+        <LatestLeaveRequest request={lastRequest} busy={busy} cancel={cancel} />
+      ) : null}
+      <p>
+        {t(locale, 'leave.timezone')}
+        {timezone ? `: ${timezone}` : ''}
+      </p>
+      {canCreate && (context.mode === 'personal' || timezone !== undefined) ? (
+        <LeaveForm busy={busy} submit={create} />
+      ) : null}
+      {items.length === 0 ? (
+        <p>{t(locale, 'leave.empty')}</p>
+      ) : (
+        <LeaveHistory items={items} busy={busy} cancel={cancel} />
+      )}
+      {hasNextPage ? (
+        <Button
+          disabled={isFetchingNextPage}
+          onClick={() => {
+            void fetchNextPage();
+          }}
+        >
+          {t(locale, 'leave.next')}
+        </Button>
+      ) : null}
+    </>
   );
 }
