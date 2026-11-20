@@ -24,6 +24,7 @@ import { salaryEn } from './salary-catalog.js';
 import { staffLoginEn } from './staff-login-catalog.js';
 import { catalogServicesEn, catalogServiceErrorsEn } from './catalog-services.js';
 import { catalogServiceCategoriesEn } from './catalog-service-categories.js';
+import { catalogServiceCategoryBranchesEn } from './catalog-service-category-branches.js';
 import { adminEn } from './admin-catalog.js';
 import { employeeIbanEn, employeeIbanErrorsEn } from './employee-iban-catalog.js';
 import { scheduleShellEn } from './schedule-shell-catalog.js';
@@ -320,6 +321,7 @@ export const en = {
   },
   catalogServices: catalogServicesEn,
   catalogServiceCategories: catalogServiceCategoriesEn,
+  catalogServiceCategoryBranches: catalogServiceCategoryBranchesEn,
   catalogPackageTypes: catalogPackageTypesEn,
   packageExtension: catalogPackageExtensionEn,
   admin: adminEn,

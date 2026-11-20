@@ -12,7 +12,11 @@ import type {
   CommissionSalaryProjectionRow,
   CommissionTipProjectionSession,
 } from '../domain/commission-tip-salary-inputs.ts';
+import type { CommissionOpenBlock } from '../domain/commission-blocked-correction.ts';
 import type {
+  CommissionBlockCodeUpdateInput,
+  CommissionBlockInsertInput,
+  CommissionBlockResolutionInput,
   CommissionMonthProjection,
   CommissionCorrectionInsertInput,
   CommissionCorrectionScope,
@@ -181,6 +185,10 @@ export class FakeCorrections implements CommissionCorrectionScope {
   attachments: readonly CommissionAttachmentInterval[] = [];
   readonly drafts: CommissionCorrectionDraft[] = [];
   readonly bumpPeriods: CommissionPeriodEmployee[] = [];
+  openBlock: CommissionOpenBlock | null = null;
+  readonly insertedBlocks: CommissionBlockInsertInput[] = [];
+  readonly codeUpdates: CommissionBlockCodeUpdateInput[] = [];
+  readonly resolutions: CommissionBlockResolutionInput[] = [];
 
   constructor(private readonly calls: string[]) {}
 
@@ -208,6 +216,23 @@ export class FakeCorrections implements CommissionCorrectionScope {
   async insertCorrections(input: CommissionCorrectionInsertInput): Promise<void> {
     this.calls.push('insertCorrections');
     this.drafts.push(...input.drafts);
+  }
+  async readOpenBlock(): Promise<CommissionOpenBlock | null> {
+    this.calls.push('readOpenBlock');
+    return this.openBlock;
+  }
+  async insertBlock(input: CommissionBlockInsertInput): Promise<string> {
+    this.calls.push('insertBlock');
+    this.insertedBlocks.push(input);
+    return 'block-1';
+  }
+  async updateBlockCode(input: CommissionBlockCodeUpdateInput): Promise<void> {
+    this.calls.push('updateBlockCode');
+    this.codeUpdates.push(input);
+  }
+  async resolveBlock(input: CommissionBlockResolutionInput): Promise<void> {
+    this.calls.push('resolveBlock');
+    this.resolutions.push(input);
   }
 }
 

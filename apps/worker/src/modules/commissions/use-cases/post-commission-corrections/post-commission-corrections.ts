@@ -11,6 +11,10 @@ import {
 } from '../../domain/commission-correction-target.ts';
 import type { CommissionPeriodEmployee } from '../../domain/commission-line-types.ts';
 import { CommissionPeriodClosedError } from '../../domain/errors.ts';
+import {
+  decideCommissionBlock,
+  type CommissionBlockDecision,
+} from '../../domain/commission-blocked-correction.ts';
 import type { CommissionCorrectionScope } from '../../ports/commission-correction.port.ts';
 import {
   recomputeCommissionMonth,
@@ -59,6 +63,8 @@ interface PostCommissionCorrectionsInput {
 /**
  * ينشر تصحيحات كل شهر مغلق لكل موظفة متأثرة داخل معاملة الحدث نفسها؛ الجيل يُرفع قبل
  * إعادة الحساب فشهر بلا فرق يأخذ جيلاً بلا صفوف، وأي فشل يُرجع الإسقاط والتصحيح معاً.
+ * الشهر اللي ما يتسعّرش بيسجّل توقفاً بدل ما يفشل الحدث، والحل بيتأجّل لحدث ينجح فيه
+ * الحساب وينشر (FR-046).
  */
 export async function postCommissionCorrections(
   input: PostCommissionCorrectionsInput,
@@ -88,14 +94,38 @@ async function postEmployeeCorrections(
     period: target.sourcePeriod,
   });
   const result = recomputeCommissionMonth(projection);
-  if (!result.ok) throw new CommissionPeriodClosedError([target.sourcePeriod]);
-  const frozen = await scope.readFrozenSources({
-    businessId,
+  const open = await scope.readOpenBlock({
+    employeeId,
+    sourcePeriod: target.sourcePeriod,
+  });
+  if (!result.ok) {
+    return applyBlockedOutcome(input, target, employeeId, decideCommissionBlock(open, result));
+  }
+  const decision = decideCommissionBlock(open, result);
+  await postPricedCorrections(input, target, employeeId, generation, result.sources);
+  if (decision.kind === 'RESOLVE') {
+    await scope.resolveBlock({ blockId: decision.blockId, generation });
+  }
+}
+
+/**
+ * بينشر تصحيحات الشهر اللي اتسعّر في هدف الحدث نفسه المختار وقت النشر، مش الشهر
+ * المحتجز المسجّل (CM-53b)، لأن الهدف الصح بيتقاس من لقطة القفل لحظة النجاح.
+ */
+async function postPricedCorrections(
+  input: PostCommissionCorrectionsInput,
+  target: CommissionCorrectionTarget,
+  employeeId: string,
+  generation: number,
+  sources: readonly CommissionMonthRecomputedSource[],
+): Promise<void> {
+  const frozen = await input.scope.readFrozenSources({
+    businessId: input.businessId,
     statementId: target.sourceStatementId,
     employeeId,
   });
-  const posted = await scope.readPostedCorrections({
-    businessId,
+  const posted = await input.scope.readPostedCorrections({
+    businessId: input.businessId,
     employeeId,
     sourcePeriod: target.sourcePeriod,
   });
@@ -105,7 +135,7 @@ async function postEmployeeCorrections(
     employeeId,
     frozen,
     posted,
-    result.sources,
+    sources,
   );
   const drafts = computeCommissionCorrections({
     sourcePeriod: target.sourcePeriod,
@@ -118,7 +148,38 @@ async function postEmployeeCorrections(
     posted,
     recomputed,
   });
-  await scope.insertCorrections({ businessId, drafts });
+  await input.scope.insertCorrections({ businessId: input.businessId, drafts });
+}
+
+/**
+ * بينفّذ قرار التوقف بلا نشر: التسجيل بيرسم الشهر المحتجز وكشفه والحدث الأول مرة
+ * واحدة من لقطة الحدث المسجّل، وتبديل الرمز بيتمسّ الرمز بس، والإبقاء بلا كتابة
+ * لأن أحداث لاحقة بتعيد استعمال الصف المسجّل زي ما هو (FR-047, CM-52b, CM-53b).
+ */
+async function applyBlockedOutcome(
+  input: PostCommissionCorrectionsInput,
+  target: CommissionCorrectionTarget,
+  employeeId: string,
+  decision: Extract<CommissionBlockDecision, { kind: 'RECORD' | 'UPDATE_CODE' | 'KEEP' }>,
+): Promise<void> {
+  if (decision.kind === 'RECORD') {
+    await input.scope.insertBlock({
+      businessId: input.businessId,
+      employeeId,
+      sourcePeriod: target.sourcePeriod,
+      code: decision.code,
+      firstEventId: input.eventId,
+      targetPeriod: target.targetPeriod,
+      targetStatementId: target.targetStatementId,
+    });
+    return;
+  }
+  if (decision.kind === 'UPDATE_CODE') {
+    await input.scope.updateBlockCode({
+      blockId: decision.blockId,
+      code: decision.code,
+    });
+  }
 }
 
 async function resolveRecomputedAttributions(

@@ -45,6 +45,14 @@ export const catalogServicesEn = {
   reload: 'Reload service',
   cancel: 'Back to services',
   invalid: 'Check the names, the price (3 decimals) and the commission rule value.',
+  closeService: 'Close service',
+  reopenService: 'Reopen service',
+  closeServiceConfirm:
+    'The service will not be offered for a new order in any branch. Past orders do not change.',
+  closeServiceConfirmAction: 'Confirm',
+  serviceClosed: 'Service closed.',
+  serviceReopened: 'Service reopened.',
+  editsUnsaved: 'Save your edits first. Closing or reopening drops unsaved changes.',
 };
 
 export const catalogServicesAr = {
@@ -88,6 +96,13 @@ export const catalogServicesAr = {
   reload: 'إعادة تحميل الخدمة',
   cancel: 'العودة إلى الخدمات',
   invalid: 'راجع الأسماء والسعر (٣ خانات عشرية) وقيمة قاعدة العمولة.',
+  closeService: 'قفل الخدمة',
+  reopenService: 'فتح الخدمة',
+  closeServiceConfirm: 'الخدمة مش هتتعرض لأوردر جديد في كل الفروع. الأوردرات القديمة ما بتتغيرش.',
+  closeServiceConfirmAction: 'تأكيد',
+  serviceClosed: 'اتقفلت الخدمة.',
+  serviceReopened: 'اتفتحت الخدمة.',
+  editsUnsaved: 'احفظ تعديلاتك الأول. القفل أو فتح الخدمة بيلغي التعديلات اللي لسه متحفظاش.',
 };
 
 export const serviceErrorsEn = {

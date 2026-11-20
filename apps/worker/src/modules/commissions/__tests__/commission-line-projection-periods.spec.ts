@@ -6,6 +6,7 @@ import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 
 import { walkCommissionStatement } from '../../../../../../packages/db/test/commission-statement-fixtures.ts';
 import {
+  COMMISSION_LINE_IDS,
   COMMISSION_LINE_TENANTS,
   commissionLineEvent,
   seedCommissionLineTenants,
@@ -40,6 +41,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  await owner`DELETE FROM commission_blocked_corrections`;
   await owner`DELETE FROM commission_lines`;
   await owner`DELETE FROM commission_line_heads`;
   await owner`DELETE FROM consumed_events WHERE consumer_id='commissions.project-inputs'`;
@@ -71,21 +73,27 @@ const closedAffectedMonths = [
 ] as const;
 
 it.each(closedAffectedMonths)(
-  'an $status affected month refuses delivery because the employee has no plan version',
+  'an $status affected month without a plan version is consumed with one open blocked row',
   async ({ status, period, now }) => {
     await walkCommissionStatement(db, { tenant: A, period, ids, to: status });
-    const outcome = await deliverAt(
-      now,
-      event({
-        businessDate: `${period}-15`,
-        ruleSnapshot: { kind: 'FOLLOW_PLAN' },
-      }),
-    );
-    expect(outcome).toMatchObject({ delivered: false });
-    expect(await projectionCount()).toEqual({ heads: [], lines: [], marks: [] });
+    const recorded = event({
+      businessDate: `${period}-15`,
+      ruleSnapshot: { kind: 'FOLLOW_PLAN' },
+    });
+
+    expect(await deliverAt(now, recorded)).toEqual({ delivered: true });
+
+    expect(await projectionCount()).toEqual({
+      heads: [{ line_id: COMMISSION_LINE_IDS.lineA }],
+      lines: [{ line_id: COMMISSION_LINE_IDS.lineA }],
+      marks: [{ event_id: recorded.id }],
+    });
     expect(await owner`SELECT status FROM commission_statements WHERE period=${period}`).toEqual([
       { status },
     ]);
+    expect(
+      await owner`SELECT code,source_period,resolved_at FROM commission_blocked_corrections`,
+    ).toEqual([{ code: 'NO_PLAN', source_period: period, resolved_at: null }]);
   },
 );
 

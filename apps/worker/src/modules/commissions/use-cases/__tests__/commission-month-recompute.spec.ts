@@ -299,3 +299,60 @@ it('O1 the flat repair oracle prices the late line at 5% and keeps the priced li
   expect(amounts.get('line:line-l1')).toBe(10_000n);
   expect(amounts.get('line:line-l2')).toBe(30_000n);
 });
+
+it('O3 the missing-salary month refuses NO_SALARY then prices the line at the marginal remainder', () => {
+  // V2 قبل سبتمبر: شرائح بشرط مضاعف راتب 1.00 يدفع 10%؛ هبة بلا مرتب نهائياً.
+  const september = (salaries: CommissionMonthProjection['salaries']) =>
+    recomputeCommissionMonth(
+      projection({
+        period: '2026-09',
+        lines: [line({ lineId: 'line-l1', businessDate: '2026-09-20', netShare: 700_000n })],
+        versions: [salaryThresholdPlan()],
+        salaries,
+      }),
+    );
+
+  // البند المتأخر وحده بلا مرتب: الشهر مرفوض بلا تسعير، وده اللي بيسجّل التوقف (CM-53).
+  expect(september([])).toEqual({ ok: false, code: 'NO_SALARY' });
+
+  // الراتب 500.000 من أول سبتمبر: (700.000 − 500.000) × 10% = 20.000 فوق الحد.
+  const after = september([
+    { employeeId: EMPLOYEE, effectiveFrom: '2026-09-01', amount: 500_000n },
+  ]);
+  expect(after.ok).toBe(true);
+  if (!after.ok) throw new Error('the month must price once the salary exists');
+  const amounts = new Map(after.sources.map((source) => [source.sourceRef, source.amount]));
+  expect(amounts.get('line:line-l1')).toBe(20_000n);
+});
+
+it('O4a the engine error order is NO_SALARY for the later line alone and NO_PLAN once the earlier line has no plan', () => {
+  // V2 سريانها 15 سبتمبر: البند La (20) بعدها، والبند Lb (10) قبلها.
+  const v2 = { ...salaryThresholdPlan(), effectiveFrom: '2026-09-15' };
+  // وقت الخدمة هو ترتيب التسعير (line-order)، فبند يوم 10 مايقدرش يكون حصل بعد بند يوم 20.
+  const micros = (iso: string) => BigInt(new Date(iso).getTime()) * 1000n;
+  const la = line({
+    lineId: 'line-la',
+    businessDate: '2026-09-20',
+    netShare: 700_000n,
+    occurredAt: micros('2026-09-20T09:00:00Z'),
+    recordedAt: micros('2026-09-20T09:00:00Z'),
+  });
+  const lb = line({
+    lineId: 'line-lb',
+    businessDate: '2026-09-10',
+    netShare: 200_000n,
+    occurredAt: micros('2026-09-10T09:00:00Z'),
+    recordedAt: micros('2026-09-10T09:00:00Z'),
+  });
+  const salary = { employeeId: EMPLOYEE, effectiveFrom: '2026-09-01', amount: 500_000n };
+  const month = (
+    lines: readonly (typeof la)[],
+    salaries: CommissionMonthProjection['salaries'] = [],
+  ) => recomputeCommissionMonth(projection({ period: '2026-09', lines, versions: [v2], salaries }));
+
+  // La وحدها بلا مرتب: NO_SALARY.
+  expect(month([la])).toEqual({ ok: false, code: 'NO_SALARY' });
+  // Lb قبل الخطة: المحرّك بيسعّر بالترتيب ويقف عندها، فالرمز NO_PLAN حتى مع الراتب موجود.
+  expect(month([lb, la])).toEqual({ ok: false, code: 'NO_PLAN' });
+  expect(month([lb, la], [salary])).toEqual({ ok: false, code: 'NO_PLAN' });
+});
