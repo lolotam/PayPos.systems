@@ -24,7 +24,11 @@ afterAll(async () => {
   await f?.h.close();
 });
 
-/** عضوية حيّة بالدور المطلوب على الفرع؛ المنح الشخصي بيجي بنطاق العضوية نفسها. */
+/**
+ * عضوية حيّة بالدور المطلوب على الفرع؛ المنح الشخصي بيجي بنطاق العضوية نفسها.
+ * خانات الأدوار النظامية جاية من `systemRolePolicy` في الكود مش من صفوف القاعدة،
+ * فقبل ما 61-1c تزوّد الافتراضيات، مسار الرفض المسمّى (422) بيتوصل عن طريق دور مخصص خاناته null.
+ */
 async function memberWithRole(roleCode: string): Promise<string> {
   const member = await newMember(f, roleCode);
   await f.h.owner`UPDATE memberships SET scope_type='BRANCH',scope_id=${f.branch}
@@ -43,8 +47,8 @@ async function state() {
   };
 }
 
-it.each(['cashier', 'synthetic_viewer'])(
-  'the role %s is refused with 422 PERMISSION_ROLE_NOT_ELIGIBLE and nothing is written',
+it.each(['synthetic_viewer'])(
+  'the %s custom role is refused with 422 PERMISSION_ROLE_NOT_ELIGIBLE and nothing is written',
   async (roleCode) => {
     const member = await memberWithRole(roleCode);
     const before = await state();
@@ -56,10 +60,27 @@ it.each(['cashier', 'synthetic_viewer'])(
   },
 );
 
-it('the new rule does not refuse a branch manager; the grant waits for the defaults of 61-1c', async () => {
+it('refuses a branch manager today with the generic slot 403 until 61-1c gives the defaults', async () => {
   const member = await memberWithRole('branch_manager');
-  const granted = await grant(member, 'ALLOW');
-  expect(granted.body['code']).not.toBe('PERMISSION_ROLE_NOT_ELIGIBLE');
+  const before = await state();
+  const refused = await grant(member, 'ALLOW');
+  expect(refused.status).toBe(403);
+  expect(refused.body['code']).toBe('PERMISSION_ROLE_FORBIDDEN');
+  expect(await state()).toEqual(before);
+});
+
+it('refuses a COMPANY-scope ALLOW for a BRANCH-scoped membership: the grant cannot widen its own scope (FR-B15)', async () => {
+  const member = await memberWithRole('synthetic_viewer');
+  const before = await state();
+  const widened = await save(f, member, {
+    permission_code: code,
+    effect: 'ALLOW',
+    scope_type: 'COMPANY',
+    scope_id: f.company,
+  });
+  expect(widened.status).toBe(403);
+  expect(widened.body['code']).toBe('PERMISSION_SCOPE_OUTSIDE_REACH');
+  expect(await state()).toEqual(before);
 });
 
 it('a DENY stays possible for a cashier, so a wrong grant can still be ended', async () => {

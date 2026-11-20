@@ -139,7 +139,7 @@ export function permissionPossessionFailure(
 /**
  * بيتحقق من السلطة والنطاق والمدة؛ تفويض كودي إدارة النشاط لمديره لا يتجاوز نشاط عضويته.
  * منح ALLOW للصلاحيات المحمية محصور في المالك؛ قرارات الحضور وخطط العمولة ومرتجع الباقات المستوردة تحتاجه أيضاً عند المنع والسحب.
- * ومنح قراءة التقييمات محصور في أدوار الإدارة الأربعة مهما كانت سلطة المُمنِح (FR-B15).
+ * ومنح قراءة التقييمات محصور في أدوار الإدارة الأربعة وفي نطاق العضوية نفسها مهما كانت سلطة المُمنِح (FR-B15).
  *
  * @param terms بيانات الاستثناء المطلوبة
  * @param context العضوية والصلاحيات والهدف الموثوق والوقت المحقون
@@ -186,14 +186,14 @@ export function permissionEditFailure(
     !context.editorIsCompanyOwner
   )
     return 'PERMISSION_OWNER_ONLY';
-  // رفض قراءة التقييمات المسمّى بيتقدم على فحص الخانات العام عشان كود FR-B15 يفضل هو الرد الثابت لأي دور غير إداري.
+  const eligibility = operation === 'SAVE' ? personalAllowFailure(terms, context) : null;
+  if (eligibility !== null) return eligibility;
+  // فحص دور قراءة التقييمات بيجي بعد فحص الخانات والنطاق عشان رفض الجهاز أو الخانة الناقصة يفضل بالكود العام الثابت.
   const ratingsGrant =
     operation === 'SAVE'
       ? ratingsReadGrantFailure(terms.permission_code, terms.effect, membership.systemRoleCode)
       : null;
   if (ratingsGrant !== null) return ratingsGrant;
-  const eligibility = operation === 'SAVE' ? personalAllowFailure(terms, context) : null;
-  if (eligibility !== null) return eligibility;
   return permissionPossessionFailure(
     context.grants,
     terms.permission_code,

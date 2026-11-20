@@ -113,3 +113,37 @@ describe('permissionEditFailure keeps its existing outcomes with the guard in pl
     ).toBe('PERMISSION_ROLE_FORBIDDEN');
   });
 });
+
+describe('the ratings-read ALLOW stays inside the membership own scope (FR-B15)', () => {
+  const branchTerms = { ...terms, scope_type: 'BRANCH' as const, scope_id: 'branch-1' };
+  function branchMembership(systemRoleCode: string): PermissionEditContext {
+    const base = context(systemRoleCode);
+    if (base.membership === null) throw new Error('Synthetic membership missing');
+    return {
+      ...base,
+      membership: { ...base.membership, scopeType: 'BRANCH', scopeId: 'branch-1' },
+    };
+  }
+
+  it('refuses a wider scope than the membership own BRANCH scope with the reach failure', () => {
+    expect(
+      permissionEditFailure(
+        { ...terms, scope_type: 'COMPANY', scope_id: company },
+        branchMembership('branch_manager'),
+      ),
+    ).toBe('PERMISSION_SCOPE_OUTSIDE_REACH');
+    expect(
+      permissionEditFailure({ ...branchTerms, scope_id: 'branch-2' }, branchMembership('branch_manager')),
+    ).toBe('PERMISSION_SCOPE_OUTSIDE_REACH');
+    expect(permissionEditFailure(branchTerms, branchMembership('branch_manager'))).toBeNull();
+  });
+
+  it('keeps the slot refusal ahead of the named rule for a role without the slot', () => {
+    expect(permissionEditFailure(branchTerms, context('cashier', ['read:branches:branch']))).toBe(
+      'PERMISSION_ROLE_FORBIDDEN',
+    );
+    expect(permissionEditFailure(branchTerms, context('cashier', [RATINGS_READ_PERMISSION]))).toBe(
+      'PERMISSION_ROLE_NOT_ELIGIBLE',
+    );
+  });
+});
