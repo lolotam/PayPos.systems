@@ -111,7 +111,7 @@ export const employeeLeaveHistory = (
   query: EmployeeLeaveListQuery,
   access: LeaveReadAccess,
 ) =>
-  // السجل مربوط بالموظف في كل فروع النشاط؛ branch_id في الجلسة الشخصية يختار الجلسة ولا يصفي القائمة.
+  // قائمة موظف واحد في لوحة الإدارة؛ ترتيبها تصاعدي بالـ id لأن عملاءها يعتمدون على الـ cursor ده (spec 068 TD-2).
   page(
     tx,
     context,
@@ -124,7 +124,8 @@ export const employeeLeaveHistory = (
     access,
     false,
   );
-// شاشة «إجازاتي» في apps/pos تقرأ هنا؛ الأحدث أولًا لأن الموظفة بتتابع آخر طلباتها، والـ id (UUID v7) هو ترتيب الإنشاء نفسه.
+// شاشة «إجازاتي» في apps/pos تقرأ هنا؛ الأحدث أولًا لأن الموظفة بتتابع آخر طلباتها، والـ id (UUID v7) يتبع وقت الإنشاء.
+// السجل مربوط بالموظفة في كل فروع النشاط؛ branch_id في الجلسة الشخصية يختار الجلسة ولا يصفي القائمة.
 export const ownLeaveHistory = (
   tx: Tx,
   context: LeaveReadContext,

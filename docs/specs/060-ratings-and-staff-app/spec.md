@@ -226,13 +226,15 @@ Named tests; integration tests against real Postgres (T2 stack) unless marked un
 - **MY-16** «إجازاتي» requests, cancels a pending request and lists her requests through the ADR-0026 routes; errors
   are the existing named errors; a UI test asserts the visible status of each request.
 - **MY-16b** (issue #885) Her list is newest first: `GET /v1/staff/me/leave-requests` orders by the request id
-  descending (a UUID v7, so creation order; unique, so it needs no second key), `next_cursor` stays the bare id of
+  descending (a UUID v7, so it follows creation time: exactly inside one API process, to clock precision across
+  processes; unique, so it needs no second key), `next_cursor` stays the bare id of
   the page's last item and the next page holds older requests (`id < cursor`). A request made while she pages
   appears only on a fresh first page; no row is skipped or repeated, and a decision or cancellation keeps the
   row's place. The admin employee list, its `open=true` filter and the manager inbox keep their ascending id order
   (spec 068 TD-2). The only consumer is the POS «إجازاتي» screen, which treats the cursor as opaque, so an older
-  bundle keeps working; an ascending cursor held across the deploy yields one repeated page that the screen's
-  15-second re-read from the first page corrects. No new index: `leave_requests_company_employee_id_idx` is read
+  bundle keeps working; a cursor held across the deploy (or across a rollback) is read in the other direction, so
+  that one «Next page» repeats rows already on screen and ends the paging until the screen's 15-second re-read
+  from the first page corrects it; no row is lost. No new index: `leave_requests_company_employee_id_idx` is read
   backwards. Tests: pagination over several pages, a request inserted mid-pagination, the EXPLAIN assertion, and a
   UI test of the visible order across two pages.
 

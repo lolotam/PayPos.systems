@@ -19,8 +19,10 @@ import {
 let f: LeaveFixture;
 let ids: string[];
 const newestFirst = (made: string[]) => [...made].reverse();
+// سياق الجلسة الذاتية نفسه اللي بيبنيه المسار: الموظفة بتتحدد من المستخدم مش من employeeId.
+const ownContext = () => ({ ...leaveContext(f), own: true, branchId: f.branch });
 const ownPage = (query: { limit: number; cursor?: string }) =>
-  f.db.withTenant(f.company, (tx) => ownLeaveHistory(tx, leaveContext(f), query, f.access));
+  f.db.withTenant(f.company, (tx) => ownLeaveHistory(tx, ownContext(), query, f.access));
 const seedDay = (n: number) => new Date(Date.UTC(2031, 0, 1 + n)).toISOString().slice(0, 10);
 const seedLeave = async (employeeId: string, count: number) => {
   for (let n = 0; n < count; n += 1) {
@@ -93,21 +95,26 @@ it('a decision changes the status but keeps the newest request first', async () 
   expect(page.items[0]).toMatchObject({ id: newest, status: 'CANCELLED' });
   expect(page.items.map((r) => r.id)).toEqual([newest, ids.at(-2)]);
 });
-it('own scope stays personal: unknown employees and other companies read nothing', async () => {
+it('own scope stays personal: colleague leave is left out, unknown employees and other companies read nothing', async () => {
+  const colleague = await f.useCase.execute({
+    companyId: f.company,
+    userId: f.userId,
+    businessId: f.business,
+    input: termsFor(f, 'Synthetic colleague'),
+  });
+  await seedLeave(colleague.id, 1);
+  const mine = leavePage.parse(await ownPage({ limit: 100 }));
+  expect(mine.items.length).toBeGreaterThan(0);
+  expect(new Set(mine.items.map((r) => r.employee_id))).toEqual(new Set([f.employee.id]));
   for (const employeeId of [leaveIds.newId(), f.otherCompany])
     expect(
       await f.db.withTenant(f.company, (tx) =>
-        ownLeaveHistory(tx, { ...leaveContext(f), employeeId }, { limit: 20 }, f.access),
+        ownLeaveHistory(tx, { ...ownContext(), employeeId }, { limit: 20 }, f.access),
       ),
     ).toBeNull();
   expect(
     await f.db.withTenant(f.otherCompany, (tx) =>
-      ownLeaveHistory(
-        tx,
-        { ...leaveContext(f), companyId: f.otherCompany },
-        { limit: 20 },
-        f.access,
-      ),
+      ownLeaveHistory(tx, { ...ownContext(), companyId: f.otherCompany }, { limit: 20 }, f.access),
     ),
   ).toBeNull();
 });

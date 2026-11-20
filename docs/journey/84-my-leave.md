@@ -90,7 +90,8 @@ anyone, and there is no leave balance.
 - **Rules:** full days at most 90 inclusive days; a partial day uses increasing times on 15-minute steps; `OTHER`
   needs a note of at most 500 characters; a row is cancellable only when the API marks it `can_cancel`.
 - **Assertions:** the history is newest first by request id, with a bare-id cursor (spec 060 MY-16b, issue
-  #885); the history has no months-back limit; the history is cleared on an identity change
+  #885; `apps/pos/src/my-leave/ui/leave-newest-first.spec.tsx`,
+  `apps/api/src/modules/staff/__tests__/own-leave-newest-first.spec.ts`); the history has no months-back limit; the history is cleared on an identity change
   (`apps/pos/src/my-leave/ui/my-leave-screen.spec.tsx`).
 - **Sources:** `docs/specs/060-ratings-and-staff-app/plan-57b-2.md`,
   `docs/specs/060-ratings-and-staff-app/57b-2a-validation.md`, `57b-2b-validation.md`, journeys
