@@ -121,6 +121,14 @@ it('keeps the creation card through a local cancellation and failed history refr
     const path = new URL(request.url).pathname;
     if (request.method === 'POST' && !path.endsWith('/cancel'))
       return Response.json({ ...records[0], id: 'new-request', note: 'Just submitted' });
+    if (request.method === 'POST')
+      return Response.json({
+        ...records[0],
+        id: 'new-request',
+        note: 'Just submitted',
+        status: 'CANCELLED',
+        can_cancel: false,
+      });
     if (request.method === 'GET' && path.endsWith('/leave-requests') && failRead)
       return Response.json({ code: 'NOT_READY' }, { status: 503 });
     return original(request);
@@ -129,14 +137,13 @@ it('keeps the creation card through a local cancellation and failed history refr
   await chooseBranch();
   dates();
   fireEvent.click(screen.getByRole('button', { name: 'Submit request' }));
-  await screen.findByRole('region', { name: 'Latest request' });
+  const card = await screen.findByRole('region', { name: 'Latest request' });
   failRead = true;
-  fireEvent.click(screen.getByRole('button', { name: 'Cancel request' }));
+  fireEvent.click(within(card).getByRole('button', { name: 'Cancel request' }));
   await screen.findByRole('alert');
-  const card = screen.getByRole('region', { name: 'Latest request' });
-  expect(within(card).getByText('Annual — Pending')).toBeTruthy();
+  expect(within(card).getByText('Annual — Cancelled')).toBeTruthy();
   expect(within(card).getByText('Just submitted')).toBeTruthy();
-  expect(screen.queryByRole('button', { name: 'Cancel request' })).toBeNull();
+  expect(within(card).queryByRole('button', { name: 'Cancel request' })).toBeNull();
   failRead = false;
   await act(async () => {
     await view.cache.refetchQueries({

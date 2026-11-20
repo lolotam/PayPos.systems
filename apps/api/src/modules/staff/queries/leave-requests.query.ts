@@ -77,6 +77,37 @@ export function leavePageSql(
     }
     ${order === 'newest' ? sql`ORDER BY l.id DESC` : sql`ORDER BY l.id`} LIMIT ${query.limit + 1}`;
 }
+// بند can_cancel بتاع صف القائمة في جملة واحدة؛ المسارات الذاتية تعيد استخدامه عشان الكارت والسجل ما يختلفوش.
+export function ownLeaveCancelAuthoritySql(
+  context: LeaveReadContext,
+  leaveId: string,
+  scope: { employeeId?: string; branches: string[]; cancelBranches: string[]; now?: Date },
+) {
+  const employee = scope.employeeId ?? context.employeeId;
+  return sql`SELECT COALESCE((${leaveListRecord(context, scope)})->>'can_cancel','false')::boolean AS can_cancel
+    FROM leave_requests l JOIN employees subject ON subject.company_id=l.company_id AND subject.business_id=l.business_id AND subject.id=l.employee_id
+    WHERE l.company_id=${context.companyId} AND l.business_id=${context.businessId}
+    AND l.id=${leaveId}::uuid AND l.employee_id=${employee}
+    AND l.branch_id=ANY(${uuidArray(scope.branches)})
+    AND EXISTS (SELECT 1 FROM employees e JOIN employee_branches eb
+      ON eb.company_id=e.company_id AND eb.employee_id=e.id
+      WHERE e.company_id=l.company_id AND e.business_id=l.business_id AND e.id=l.employee_id
+      AND e.deleted_at IS NULL AND eb.branch_id=ANY(${uuidArray(scope.branches)}))`;
+}
+// كارت «آخر طلب» في «إجازاتي» بياخد زر الإلغاء منه بعد الكتابة مباشرة؛ الصلاحية قراءة حية لأنها لا تخزن مع الطلب.
+export async function ownLeaveCancelAuthority(
+  tx: Tx,
+  context: LeaveReadContext,
+  leaveId: string,
+  access: LeaveReadAccess,
+): Promise<boolean> {
+  const scope = await access.check(tx, context);
+  if (!scope || !scope.featureEnabled) return false;
+  const rows = await tx.execute<{ can_cancel: boolean | null }>(
+    ownLeaveCancelAuthoritySql(context, leaveId, scope),
+  );
+  return rows[0]?.can_cancel === true;
+}
 async function page(
   tx: Tx,
   context: LeaveReadContext,

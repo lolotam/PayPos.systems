@@ -43,7 +43,13 @@ export function LeavePanel({ context, branch, timezone, sessionRefused }: LeaveP
         </Button>
       ) : (
         <>
-          {state.lastRequest ? <LatestLeaveRequest request={state.lastRequest} /> : null}
+          {state.lastRequest ? (
+            <LatestLeaveRequest
+              request={state.lastRequest}
+              busy={state.busy}
+              cancel={state.cancel}
+            />
+          ) : null}
           <p>
             {t(locale, 'leave.timezone')}
             {timezone ? `: ${timezone}` : ''}

@@ -55,3 +55,31 @@ it('publishes both change kinds of a changed line', () => {
 it('publishes no empty "not" schema: the z.never() shape our OpenAPI 3.0 toolchain cannot represent', () => {
   expect(JSON.stringify(buildOpenApiDocument())).not.toContain('"not":{}');
 });
+
+// روتَي الكتابة الذاتية بس اللي بيرجعوا OwnLeaveWriteResult؛ روتات الإدارة لسه بترجع LeaveRequest.
+it('own write operations answer OwnLeaveWriteResult while admin write operations keep LeaveRequest', () => {
+  const paths = buildOpenApiDocument()['paths'] as Record<
+    string,
+    Record<
+      string,
+      { responses: Record<string, { content: Record<string, { schema: { $ref?: string } }> }> }
+    >
+  >;
+  const ref = (path: string, status: string) =>
+    paths[path]?.post?.responses[status]?.content['application/json']?.schema.$ref;
+  expect(ref('/v1/staff/me/leave-requests', '201')).toBe(
+    '#/components/schemas/OwnLeaveWriteResult',
+  );
+  expect(ref('/v1/staff/me/leave-requests/{leaveId}/cancel', '200')).toBe(
+    '#/components/schemas/OwnLeaveWriteResult',
+  );
+  expect(ref('/v1/businesses/{businessId}/employees/{employeeId}/leave-requests', '201')).toBe(
+    '#/components/schemas/LeaveRequest',
+  );
+  expect(
+    ref(
+      '/v1/businesses/{businessId}/employees/{employeeId}/leave-requests/{leaveId}/cancel',
+      '200',
+    ),
+  ).toBe('#/components/schemas/LeaveRequest');
+});

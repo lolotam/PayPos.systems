@@ -22,7 +22,7 @@ anyone, and there is no leave balance.
    توجد فروع متاحة**.
 3. **أيام كاملة:** في **الوحدة** تختار **أيام كاملة**، وتحدد **من تاريخ** و**حتى تاريخ**، و**نوع الإجازة** (**سنوية**،
    **مرضية**، **بدون أجر**، **أخرى**)، وتدوس **إرسال الطلب** ← الطلب بيظهر في السجل بحالة **معلقة**، وفوق **آخر
-   طلب**.
+   طلب**. لو السيرفر بيسمح لها تلغيه، الكارت فيه زرار **إلغاء الطلب**؛ بعد الإلغاء الكارت يبقى **ملغاة** من غير زرار.
 4. **جزء من يوم:** تختار **جزء من يوم**، و**التاريخ** و**وقت البداية** و**وقت النهاية** ← نفس النتيجة. مكتوب
    **الأوقات حسب المنطقة الزمنية للفرع المختار**.
 5. **إدخال غلط:** أكتر من 90 يوم، أو وقت نهاية قبل البداية، أو أوقات مش على ربع ساعة، أو **أخرى** من غير ملاحظة ←
@@ -52,7 +52,8 @@ anyone, and there is no leave balance.
    With none → **No eligible branches**.
 3. **Full days:** under **Unit** she picks **Full days**, sets **From date** and **Through date**, a **Leave type**
    (**Annual**, **Sick**, **Unpaid**, **Other**) and clicks **Submit request** → the request appears in the history
-   as **Pending**, and at the top as **Latest request**.
+   as **Pending**, and at the top as **Latest request**. When the server allows her to cancel it, the card has a
+   **Cancel request** button; after cancelling, the card shows **Cancelled** with no button.
 4. **Part of a day:** she picks **Part of a day**, a **Date**, a **Start time** and an **End time** → the same
    result. The screen says **Times use the selected branch timezone**.
 5. **Bad input:** more than 90 days, an end before the start, times off the 15-minute steps, or **Other** with no

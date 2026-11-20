@@ -39,7 +39,7 @@ import {
 } from '../queries/leave-requests.query.ts';
 import { RequestLeaveUseCase } from '../use-cases/request-leave/request-leave.usecase.ts';
 import { CancelLeaveUseCase } from '../use-cases/cancel-leave/cancel-leave.usecase.ts';
-import { leaveHttpResult, ownLeaveActor } from './leave-http.ts';
+import { leaveHttpResult, ownLeaveActor, ownLeaveWriteResult } from './leave-http.ts';
 import { StaffLeaveGuard } from './staff-leave.guard.ts';
 @Controller('staff/me/leave-requests')
 @UseGuards(StaffLeaveGuard)
@@ -55,21 +55,23 @@ export class OwnLeaveController {
   @Authenticated()
   @SetMetadata(STAFF_ROUTE, 'staff')
   @SetMetadata(PERSONAL_ROUTE, 'staff')
-  request(
+  async request(
     @Query(new ZodValidationPipe(ownLeaveBranchQuery)) query: OwnLeaveBranchQuery,
     @Body(new LeaveValidationPipe(requestLeaveInput)) input: RequestLeaveInput,
     @Idempotency() idem: IdempotencyInput,
     @Req() req: FastifyRequest,
   ) {
     if (!this.create) throw new ApiError('NOT_READY');
-    return leaveHttpResult(this.create.execute(ownLeaveActor(req, idem, query.branch_id), input));
+    const actor = ownLeaveActor(req, idem, query.branch_id);
+    const record = await leaveHttpResult(this.create.execute(actor, input));
+    return ownLeaveWriteResult(this.database, this.access, actor, record);
   }
   @Post(':leaveId/cancel')
   @HttpCode(200)
   @Authenticated()
   @SetMetadata(STAFF_ROUTE, 'staff')
   @SetMetadata(PERSONAL_ROUTE, 'staff')
-  cancelRequest(
+  async cancelRequest(
     @Query(new ZodValidationPipe(ownLeaveBranchQuery)) query: OwnLeaveBranchQuery,
     @Param('leaveId', new ZodValidationPipe(id)) leaveId: string,
     @Body(new ZodValidationPipe(cancelLeaveInput)) input: CancelLeaveInput,
@@ -77,9 +79,9 @@ export class OwnLeaveController {
     @Req() req: FastifyRequest,
   ) {
     if (!this.cancel) throw new ApiError('NOT_READY');
-    return leaveHttpResult(
-      this.cancel.execute({ ...ownLeaveActor(req, idem, query.branch_id), leaveId }, input),
-    );
+    const actor = ownLeaveActor(req, idem, query.branch_id);
+    const record = await leaveHttpResult(this.cancel.execute({ ...actor, leaveId }, input));
+    return ownLeaveWriteResult(this.database, this.access, actor, record);
   }
   @Get()
   @Authenticated()
