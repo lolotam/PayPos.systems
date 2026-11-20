@@ -52,6 +52,7 @@ export const catalogServicesEn = {
   closeServiceConfirmAction: 'Confirm',
   serviceClosed: 'Service closed.',
   serviceReopened: 'Service reopened.',
+  editsUnsaved: 'Save your edits first. Closing or reopening drops unsaved changes.',
 };
 
 export const catalogServicesAr = {
@@ -101,6 +102,7 @@ export const catalogServicesAr = {
   closeServiceConfirmAction: 'تأكيد',
   serviceClosed: 'اتقفلت الخدمة.',
   serviceReopened: 'اتفتحت الخدمة.',
+  editsUnsaved: 'احفظ تعديلاتك الأول. القفل أو فتح الخدمة بيلغي التعديلات اللي لسه متحفظاش.',
 };
 
 export const serviceErrorsEn = {

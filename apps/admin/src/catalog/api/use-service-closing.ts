@@ -7,6 +7,8 @@ import { key as servicesKey } from './use-services';
 
 export type ServiceClosingAction = 'close' | 'reopen';
 
+export type ServiceClosingInput = { action: ServiceClosingAction; expectedRevision: number };
+
 // الرفض ده معناه السيرفر شايف حالة أحدث من الكاش، فالتفاصيل تتجدد عشان الشارة والزرار يظهروا الواقع؛
 // أما SERVICE_CATEGORY_CLOSED والـ403 فالرسالة كفاية والحالة ما اتغيرتش.
 const REFUSAL_REFRESH_CODES = new Set([
@@ -20,8 +22,6 @@ function refreshesDetail(error: unknown): boolean {
     typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined;
   return typeof code === 'string' && REFUSAL_REFRESH_CODES.has(code);
 }
-
-type ServiceClosingInput = { action: ServiceClosingAction; expectedRevision: number };
 
 async function run(
   companyId: string,

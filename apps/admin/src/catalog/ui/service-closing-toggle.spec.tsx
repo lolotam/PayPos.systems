@@ -8,8 +8,11 @@ import { ServiceEditPanel } from './service-edit-panel';
 
 const get = vi.hoisted(() => vi.fn());
 const post = vi.hoisted(() => vi.fn());
+const patch = vi.hoisted(() => vi.fn());
 const localeState = vi.hoisted(() => ({ selected: 'en' as Locale }));
-vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: get, POST: post }) }));
+vi.mock('@/shared/api/client', () => ({
+  apiClient: () => ({ GET: get, POST: post, PATCH: patch }),
+}));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => localeState.selected }));
 
 const companyId = '01920000-0000-7000-8000-000000000001';
@@ -94,6 +97,7 @@ function refused(code: string, messageEn: string, messageAr: string, status: num
 beforeEach(() => {
   get.mockReset();
   post.mockReset();
+  patch.mockReset();
   localeState.selected = 'en';
 });
 
@@ -220,4 +224,128 @@ it('a 403 shows the envelope message and the badge does not change', async () =>
   expect(await screen.findByRole('alert').then((alert) => alert.textContent)).toBe('Forbidden');
   expect(screen.getByText('Open')).toBeTruthy();
   expect(screen.queryByRole('status')).toBeNull();
+});
+
+it('after a close and a reopen the close confirmation asks again and posts the fresh revision', async () => {
+  const locale: Locale = 'en';
+  mockDetailSequence([serviceRecord()]);
+  post.mockResolvedValueOnce({
+    data: serviceRecord({ closed_at: '2026-11-20T10:00:00Z', revision: 2 }),
+    response: { status: 200 },
+  });
+  post.mockResolvedValueOnce({ data: serviceRecord({ revision: 3 }), response: { status: 200 } });
+  post.mockResolvedValueOnce({
+    data: serviceRecord({ closed_at: '2026-11-20T12:00:00Z', revision: 4 }),
+    response: { status: 200 },
+  });
+  renderPanel(locale);
+  await screen.findByText('Open');
+  fireEvent.click(screen.getByRole('button', { name: 'Close service' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+  expect(await screen.findByText('Closed')).toBeTruthy();
+  fireEvent.click(await screen.findByRole('button', { name: 'Reopen service' }));
+  expect(await screen.findByText('Open')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Close service' }));
+  expect(await screen.findByText(t(locale, 'catalogServices.closeServiceConfirm'))).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+  await waitFor(() =>
+    expect(post).toHaveBeenLastCalledWith(closeRoute, {
+      params: { header: { 'x-company-id': companyId }, path: { businessId, serviceId } },
+      body: { expected_revision: 3 },
+    }),
+  );
+  expect(await screen.findByText('Closed')).toBeTruthy();
+});
+
+it('a dirty edit form blocks closing with a hint until the edits are saved', async () => {
+  const locale: Locale = 'en';
+  mockDetailSequence([serviceRecord()]);
+  patch.mockResolvedValueOnce({ data: serviceRecord({ revision: 2 }), response: { status: 200 } });
+  renderPanel(locale);
+  await screen.findByText('Open');
+  expect(
+    (screen.getByRole('button', { name: 'Close service' }) as HTMLButtonElement).disabled,
+  ).toBe(false);
+  fireEvent.change(screen.getByLabelText('English name'), { target: { value: 'Renamed' } });
+  await waitFor(() =>
+    expect(
+      (screen.getByRole('button', { name: 'Close service' }) as HTMLButtonElement).disabled,
+    ).toBe(true),
+  );
+  expect(screen.getByText(t(locale, 'catalogServices.editsUnsaved'))).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  expect(await screen.findByText('Service updated.')).toBeTruthy();
+  await waitFor(() =>
+    expect(
+      (screen.getByRole('button', { name: 'Close service' }) as HTMLButtonElement).disabled,
+    ).toBe(false),
+  );
+  expect(screen.queryByText(t(locale, 'catalogServices.editsUnsaved'))).toBeNull();
+});
+
+it('the edit form is disabled while close is in flight', async () => {
+  const locale: Locale = 'en';
+  mockDetailSequence([serviceRecord()]);
+  let resolveClose!: (value: unknown) => void;
+  post.mockReturnValueOnce(
+    new Promise((resolve) => {
+      resolveClose = resolve;
+    }),
+  );
+  renderPanel(locale);
+  await screen.findByText('Open');
+  fireEvent.click(screen.getByRole('button', { name: 'Close service' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+  await waitFor(() =>
+    expect((screen.getByRole('button', { name: 'Confirm' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    ),
+  );
+  // jsdom ما بينفذش تعطيل fieldset على الأزرار جواه، فالتحقق بيكون على الخاصية نفسها.
+  expect(screen.getByRole('button', { name: 'Save changes' }).closest('fieldset')?.disabled).toBe(
+    true,
+  );
+  resolveClose({
+    data: serviceRecord({ closed_at: '2026-11-20T10:00:00Z', revision: 2 }),
+    response: { status: 200 },
+  });
+  expect(await screen.findByText('Service closed.')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Save changes' }).closest('fieldset')?.disabled).toBe(
+    false,
+  );
+});
+
+it('reloading clears the closing result', async () => {
+  const locale: Locale = 'en';
+  mockDetailSequence([serviceRecord()]);
+  post.mockResolvedValueOnce({
+    data: serviceRecord({ closed_at: '2026-11-20T10:00:00Z', revision: 2 }),
+    response: { status: 200 },
+  });
+  renderPanel(locale);
+  await screen.findByText('Open');
+  fireEvent.click(screen.getByRole('button', { name: 'Close service' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+  expect(await screen.findByText('Service closed.')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Reload service' }));
+  await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+  expect(screen.queryByText('Service closed.')).toBeNull();
+});
+
+it('saving clears the closing result', async () => {
+  const locale: Locale = 'en';
+  mockDetailSequence([serviceRecord()]);
+  post.mockResolvedValueOnce({
+    data: serviceRecord({ closed_at: '2026-11-20T10:00:00Z', revision: 2 }),
+    response: { status: 200 },
+  });
+  patch.mockResolvedValueOnce({ data: serviceRecord({ revision: 3 }), response: { status: 200 } });
+  renderPanel(locale);
+  await screen.findByText('Open');
+  fireEvent.click(screen.getByRole('button', { name: 'Close service' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm' }));
+  expect(await screen.findByText('Service closed.')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  expect(await screen.findByText('Service updated.')).toBeTruthy();
+  expect(screen.queryByText('Service closed.')).toBeNull();
 });

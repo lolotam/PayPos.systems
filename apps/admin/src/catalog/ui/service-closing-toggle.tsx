@@ -1,38 +1,34 @@
 'use client';
 import type { Service } from '@pospay/contracts';
+import type { UseMutationResult } from '@tanstack/react-query';
 import { t } from '@pospay/i18n';
 import { Badge, Button } from '@pospay/ui';
 import { useState } from 'react';
-import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
-import { useServiceClosing } from '../api/use-service-closing';
+import type { ServiceClosingInput } from '../api/use-service-closing';
 import { ServiceClosingConfirm } from './service-closing-confirm';
 
+type ServiceClosingMutation = UseMutationResult<Service, Error, ServiceClosingInput>;
+
 type ServiceClosingToggleProps = {
-  companyId: string;
-  businessId: string;
-  userId: string;
-  serviceId: string;
   record: Service;
-  savePending: boolean;
+  closing: ServiceClosingMutation;
+  disabled: boolean;
+  dirty: boolean;
+  onRequest: (input: ServiceClosingInput) => void;
 };
 
 // القفل بس اللي بيسأل مرة قبل التنفيذ، والفتح بيرجّع البيع فبيتنفذ على طول؛
-// الزرار بيتعطل وقت حفظ نموذج التعديل أو تنفيذ القفل نفسه.
+// الزرار بيتعطل وقت تنفيذ الحفظ أو القفل، وفيه تعديلات متحفظاش لأن القفل بيغيّر النسخة وبيمسحها.
 export function ServiceClosingToggle(props: ServiceClosingToggleProps) {
   const locale = useLocale();
-  const closing = useServiceClosing(
-    props.companyId,
-    props.businessId,
-    props.userId,
-    props.serviceId,
-  );
   const [confirming, setConfirming] = useState(false);
   const closed = props.record.closed_at !== null;
-  // التأكيد بيسيب مكانه بعد النجاح، لأن الشارة بتبين الحالة الجديدة ورسالة النتيجة ظاهرة.
-  const confirmVisible = confirming && !closed && !closing.isSuccess;
+  // التأكيد بيسيب مكانه بعد النجاح؛ وفتح القفل من الأول بيمسح نتيجة الطلب اللي فات
+  // عشان التأكيد يظهر تاني بعد قفل وفتح في نفس اللوحة، وما يفضلش سطر نتيجة قديم معلق.
+  const confirmVisible = confirming && !closed && !props.closing.isSuccess;
   const request = () =>
-    closing.mutate({
+    props.onRequest({
       action: closed ? 'reopen' : 'close',
       expectedRevision: props.record.revision,
     });
@@ -46,8 +42,15 @@ export function ServiceClosingToggle(props: ServiceClosingToggleProps) {
           <Button
             variant="outline"
             size="sm"
-            disabled={props.savePending || closing.isPending}
-            onClick={() => (closed ? request() : setConfirming(true))}
+            disabled={props.disabled}
+            onClick={() => {
+              if (closed) {
+                request();
+                return;
+              }
+              props.closing.reset();
+              setConfirming(true);
+            }}
           >
             {t(locale, closed ? 'catalogServices.reopenService' : 'catalogServices.closeService')}
           </Button>
@@ -55,22 +58,13 @@ export function ServiceClosingToggle(props: ServiceClosingToggleProps) {
       </div>
       {confirmVisible ? (
         <ServiceClosingConfirm
-          pending={closing.isPending}
+          pending={props.closing.isPending}
+          dirty={props.dirty}
           onConfirm={request}
           onCancel={() => setConfirming(false)}
         />
       ) : null}
-      {closing.isError ? <p role="alert">{envelopeMessage(closing.error, locale)}</p> : null}
-      {closing.isSuccess && closing.data ? (
-        <p role="status">
-          {t(
-            locale,
-            closing.data.closed_at
-              ? 'catalogServices.serviceClosed'
-              : 'catalogServices.serviceReopened',
-          )}
-        </p>
-      ) : null}
+      {props.dirty ? <p className="text-sm">{t(locale, 'catalogServices.editsUnsaved')}</p> : null}
     </div>
   );
 }
