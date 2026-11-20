@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
+import type {
+  CommissionTipProjectionRow,
+  CommissionTipProjectionSession,
+} from '../commission-tip-salary-inputs.ts';
+
 import {
+  affectedCommissionTipEmployees,
   assertSalaryIdentityUnchanged,
   assertTipIdentityUnchanged,
   salaryAffectedPeriods,
@@ -104,6 +110,104 @@ describe('tipAffectedPeriods', () => {
 
   it('returns only the new period when held is null', () => {
     expect(tipAffectedPeriods(null, '2026-11-15')).toEqual(['2026-11']);
+  });
+});
+
+const tipRow = (
+  employeeId: string,
+  method: 'CARD' | 'CASH' = 'CARD',
+  amount = 5_000n,
+): CommissionTipProjectionRow => ({ employeeId, method, amount });
+const held = (
+  period: string,
+  rows: readonly CommissionTipProjectionRow[],
+): Pick<CommissionTipProjectionSession, 'rows'> & { period: string } => ({ period, rows });
+const next = (
+  businessDate: string,
+  rows: readonly CommissionTipProjectionRow[],
+): Pick<CommissionTipProjectionSession, 'businessDate' | 'rows'> => ({ businessDate, rows });
+const employeeB = '01920000-0000-7000-8000-00000000000b';
+const employeeC = '01920000-0000-7000-8000-00000000000c';
+
+describe('affectedCommissionTipEmployees - who is corrected', () => {
+  it('D1 pairs every employee of the new rows when there is no held session', () => {
+    expect(
+      affectedCommissionTipEmployees(
+        null,
+        next('2026-10-15', [tipRow(employeeB), tipRow(employeeC, 'CASH')]),
+        ['2026-10'],
+      ),
+    ).toEqual([
+      { period: '2026-10', employeeId: employeeB },
+      { period: '2026-10', employeeId: employeeC },
+    ]);
+  });
+
+  it('D2 keeps the employee whose tip the new event removed under the held period', () => {
+    expect(
+      affectedCommissionTipEmployees(held('2026-10', [tipRow(employeeB)]), next('2026-10-15', []), [
+        '2026-10',
+      ]),
+    ).toEqual([{ period: '2026-10', employeeId: employeeB }]);
+  });
+
+  it('D3 a session moved between closed months pairs held employees with A and new with B', () => {
+    expect(
+      affectedCommissionTipEmployees(
+        held('2026-09', [tipRow(employeeB)]),
+        next('2026-10-15', [tipRow(employeeC)]),
+        ['2026-09', '2026-10'],
+      ),
+    ).toEqual([
+      { period: '2026-09', employeeId: employeeB },
+      { period: '2026-10', employeeId: employeeC },
+    ]);
+  });
+
+  it('D4 drops the pairs of whichever month is open', () => {
+    expect(
+      affectedCommissionTipEmployees(
+        held('2026-09', [tipRow(employeeB)]),
+        next('2026-10-15', [tipRow(employeeB), tipRow(employeeC)]),
+        ['2026-09'],
+      ),
+    ).toEqual([{ period: '2026-09', employeeId: employeeB }]);
+  });
+});
+
+describe('affectedCommissionTipEmployees - dedup and ordering', () => {
+  it('D5 one employee with a CARD and a CASH row is one pair, not two', () => {
+    expect(
+      affectedCommissionTipEmployees(
+        null,
+        next('2026-10-15', [tipRow(employeeB, 'CARD'), tipRow(employeeB, 'CASH', 3_000n)]),
+        ['2026-10'],
+      ),
+    ).toEqual([{ period: '2026-10', employeeId: employeeB }]);
+  });
+
+  it('D6 returns an empty result when no affected month is closed', () => {
+    expect(
+      affectedCommissionTipEmployees(
+        held('2026-10', [tipRow(employeeB)]),
+        next('2026-11-15', [tipRow(employeeC)]),
+        [],
+      ),
+    ).toEqual([]);
+  });
+
+  it('D7 sorts by period then employee id whatever the input order', () => {
+    expect(
+      affectedCommissionTipEmployees(
+        held('2026-11', [tipRow(employeeC)]),
+        next('2026-10-15', [tipRow(employeeC), tipRow(employeeB)]),
+        ['2026-10', '2026-11'],
+      ),
+    ).toEqual([
+      { period: '2026-10', employeeId: employeeB },
+      { period: '2026-10', employeeId: employeeC },
+      { period: '2026-11', employeeId: employeeC },
+    ]);
   });
 });
 

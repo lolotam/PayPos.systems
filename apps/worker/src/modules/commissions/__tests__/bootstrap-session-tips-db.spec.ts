@@ -18,6 +18,7 @@ import {
   insertOutbox,
   markedIds,
   outboxSnapshot,
+  owner,
   revisionOf,
   rowsOf,
   seedSession,
@@ -167,6 +168,13 @@ it('a closed month stays undelivered while the open month is applied', async () 
   expect(await rowsOf(closedSession)).toEqual([]);
   expect(await markedIds()).toEqual([eventId(82)]);
   expect(await revisionOf(openSession)).toBe(1);
+  // B1: زيارة التهيئة المرفوضة لا تكتب تصحيحاً ولا جيلاً (CS-Q45 يبقى على الرفض الحالي)
+  expect(await owner`SELECT count(*)::int AS total FROM commission_corrections`).toMatchObject([
+    { total: 0 },
+  ]);
+  expect(
+    await owner`SELECT count(*)::int AS total FROM commission_period_generations`,
+  ).toMatchObject([{ total: 0 }]);
 });
 it('never touches another company and skips the sessions outside the range', async () => {
   // يثبت عزل التهيئة: شركة B ما بتتلمسش، والنشاط الخطأ ما بيطبّقش، والنطاق بيقصّ الجلسات

@@ -32,6 +32,20 @@ const salaryPlan = (): CommissionPlanVersion => ({
   },
 });
 
+// خطة المثال المحسوب لاختبارات تصحيحات الراتب: شرط واحد من مضاعف راتب 1.00 يدفع 10%.
+const salaryThresholdPlan = (): CommissionPlanVersion => ({
+  ...salaryPlan(),
+  effectiveFrom: '2025-06-01',
+  tiers: {
+    enabled: true,
+    accumulator: 'AMOUNT',
+    mode: 'MARGINAL',
+    steps: [
+      { from: { kind: 'SALARY_MULTIPLE', value: 100n }, calc: { kind: 'PCT', value: 1000n } },
+    ],
+  },
+});
+
 const line = (patch: Partial<CommissionMonthLine> = {}): CommissionMonthLine => ({
   employeeId: EMPLOYEE,
   serviceId: 'service-a',
@@ -210,4 +224,42 @@ it('returns the same result whatever the order of the inputs', () => {
 
 it('returns an empty source list for a month without any source', () => {
   expect(recomputeCommissionMonth(projection())).toEqual({ ok: true, sources: [] });
+});
+
+it('D10 the salary-threshold worked example prices L1 at zero and L2 at the marginal remainder', () => {
+  const month = (salaryAmount: bigint) =>
+    recomputeCommissionMonth(
+      projection({
+        period: '2026-01',
+        lines: [
+          line({
+            lineId: 'line-l1',
+            netShare: 400_000n,
+            occurredAt: 1n,
+            businessDate: '2026-01-10',
+          }),
+          line({
+            lineId: 'line-l2',
+            netShare: 300_000n,
+            occurredAt: 2n,
+            businessDate: '2026-01-20',
+          }),
+        ],
+        versions: [salaryThresholdPlan()],
+        salaries: [{ employeeId: EMPLOYEE, effectiveFrom: '2026-01-01', amount: salaryAmount }],
+      }),
+    );
+  const amountOf = (result: ReturnType<typeof month>, sourceRef: string): bigint => {
+    if (!result.ok) throw new Error(`the month refused with ${result.code}`);
+    const source = result.sources.find((row) => row.sourceRef === sourceRef);
+    if (source === undefined) throw new Error(`the source ${sourceRef} is missing`);
+    return source.amount;
+  };
+
+  expect(amountOf(month(500_000n), 'line:line-l1')).toBe(0n);
+  expect(amountOf(month(500_000n), 'line:line-l2')).toBe(20_000n);
+  expect(amountOf(month(550_000n), 'line:line-l1')).toBe(0n);
+  expect(amountOf(month(550_000n), 'line:line-l2')).toBe(15_000n);
+  expect(amountOf(month(560_000n), 'line:line-l1')).toBe(0n);
+  expect(amountOf(month(560_000n), 'line:line-l2')).toBe(14_000n);
 });

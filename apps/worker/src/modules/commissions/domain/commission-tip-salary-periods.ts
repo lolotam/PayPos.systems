@@ -1,7 +1,9 @@
+import type { CommissionPeriodEmployee } from './commission-line-types.ts';
 import type {
   CommissionSalaryInputEvent,
   CommissionSalaryProjectionRow,
   CommissionTipInputEvent,
+  CommissionTipProjectionRow,
   CommissionTipProjectionSession,
 } from './commission-tip-salary-inputs.ts';
 import { CommissionTipSalaryInputInvalidError } from './errors.ts';
@@ -42,13 +44,42 @@ export function salaryAffectedPeriods(
  * @param newBusinessDate تاريخ العمل الجديد بصيغة YYYY-MM-DD
  * @returns الشهور المتأثرة فريدة ومرتبة تصاعدياً
  */
-export function tipAffectedPeriods(
-  heldPeriod: string | null,
-  newBusinessDate: string,
-): string[] {
+export function tipAffectedPeriods(heldPeriod: string | null, newBusinessDate: string): string[] {
   const periods = new Set<string>([newBusinessDate.slice(0, 7)]);
   if (heldPeriod !== null) periods.add(heldPeriod);
   return [...periods].sort();
+}
+
+/**
+ * يشتق الموظفات اللاتي يحتجن تصحيحاً في كل شهر مغلق من اتحاد صفوف البقشيش المحفوظة
+ * قبل الاستبدال وصفوف الحدث الجديد؛ الموظفة التي فقدت بقشيشها تدخل النتيجة لأن صفها
+ * المجمّد سيعيد حسابه صفراً، وأزواج الشهر المفتوح تُهمل لأنه لا يحتاج تصحيحاً.
+ *
+ * @param held النسخة المحفوظة للجلسة بصفوفها وشهرها، أو null عند غيابها
+ * @param next النسخة الجديدة للجلسة بصفوفها وتاريخ عملها
+ * @param closedPeriods الشهور المتأثرة المغلقة وحدها
+ * @returns أزواج الشهر والموظفة، فريدة ومرتبة بالشهر ثم بهوية الموظفة
+ */
+export function affectedCommissionTipEmployees(
+  held: (Pick<CommissionTipProjectionSession, 'rows'> & { readonly period: string }) | null,
+  next: Pick<CommissionTipProjectionSession, 'businessDate' | 'rows'>,
+  closedPeriods: readonly string[],
+): CommissionPeriodEmployee[] {
+  const closed = new Set(closedPeriods);
+  const pairs = new Map<string, CommissionPeriodEmployee>();
+  const add = (rows: readonly CommissionTipProjectionRow[], period: string): void => {
+    if (!closed.has(period)) return;
+    for (const row of rows) {
+      pairs.set(`${period}:${row.employeeId}`, { period, employeeId: row.employeeId });
+    }
+  };
+  if (held !== null) add(held.rows, held.period);
+  add(next.rows, next.businessDate.slice(0, 7));
+  return [...pairs.values()].sort((left, right) => {
+    if (left.period !== right.period) return left.period < right.period ? -1 : 1;
+    if (left.employeeId === right.employeeId) return 0;
+    return left.employeeId < right.employeeId ? -1 : 1;
+  });
 }
 
 /**

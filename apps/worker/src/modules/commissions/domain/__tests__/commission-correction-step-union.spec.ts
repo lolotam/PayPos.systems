@@ -81,6 +81,37 @@ it('drops a source the recompute no longer carries to zero', () => {
   expect(drafts[0]).toMatchObject({ previousAmount: 12_000n, newAmount: 0n, amount: -12_000n });
 });
 
+it('D8 a frozen TIP_CARD recomputed higher posts the positive delta as TIP_CARD', () => {
+  const drafts = computeCommissionCorrections(
+    input({
+      frozen: [{ ...frozen('tip:s1:CARD', 5_000n), kind: 'TIP_CARD' }],
+      recomputed: [{ sourceRef: 'tip:s1:CARD', kind: 'TIP_CARD', amount: 8_000n }],
+    }),
+  );
+  expect(drafts).toHaveLength(1);
+  expect(drafts[0]).toMatchObject({
+    sourceRef: 'tip:s1:CARD',
+    kind: 'TIP_CARD',
+    previousAmount: 5_000n,
+    newAmount: 8_000n,
+    amount: 3_000n,
+  });
+});
+
+it('D9 a frozen TIP_CASH absent from the recompute posts the negative amount as TIP_CASH', () => {
+  const drafts = computeCommissionCorrections(
+    input({ frozen: [{ ...frozen('tip:s1:CASH', 4_000n), kind: 'TIP_CASH' }] }),
+  );
+  expect(drafts).toHaveLength(1);
+  expect(drafts[0]).toMatchObject({
+    sourceRef: 'tip:s1:CASH',
+    kind: 'TIP_CASH',
+    previousAmount: 4_000n,
+    newAmount: 0n,
+    amount: -4_000n,
+  });
+});
+
 it('CM-43: cancelling A posts -20.000 for B and the late 600 posts +20.000', () => {
   const frozenRows = [frozen('line:a', 20_000n)];
   const firstGeneration = computeCommissionCorrections(input({ frozen: frozenRows }));

@@ -57,9 +57,12 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  await owner`DELETE FROM commission_corrections`;
+  await owner`DELETE FROM commission_period_generations`;
   await owner`DELETE FROM commission_tips`;
   await owner`DELETE FROM commission_tip_heads`;
   await owner`DELETE FROM commission_statements`;
+  await owner`DELETE FROM commission_plan_versions`;
   await owner`DELETE FROM consumed_events WHERE consumer_id='commissions.project-inputs'`;
 });
 
@@ -69,6 +72,11 @@ const heads = () => owner`SELECT * FROM commission_tip_heads ORDER BY session_id
 const tips = () => owner`SELECT * FROM commission_tips ORDER BY employee_id,method`;
 const marks = () =>
   owner`SELECT event_id FROM consumed_events WHERE consumer_id='commissions.project-inputs'`;
+const postedCorrections = () => owner`SELECT employee_id,source_period,target_period,source_ref,
+  kind,amount,previous_amount,new_amount,generation,event_id,attached_branch_ids
+  FROM commission_corrections ORDER BY employee_id,source_ref`;
+const postedGenerations = () => owner`SELECT employee_id,period,generation
+  FROM commission_period_generations ORDER BY employee_id,period`;
 
 it('regression: consumer keeps id commissions.project-inputs and five event types', () => {
   expect(consumer.id).toBe('commissions.project-inputs');
@@ -215,14 +223,33 @@ it('business change on a newer revision throws TIP_IDENTITY_CHANGED with no writ
   expect(await marks()).toHaveLength(1);
 });
 
-it('closed guard: affected month APPROVED refuses delivery before head, rows or mark', async () => {
+it('closed guard rewrite: a tip in an APPROVED month is consumed and posts never-frozen corrections', async () => {
   await walkCommissionStatement(db, { tenant: A, period: '2026-11', ids, to: 'APPROVED' });
-  expect(await deliver(tipEvent({ businessDate: '2026-11-15' }))).toMatchObject({
-    delivered: false,
-  });
-  expect(await heads()).toEqual([]);
-  expect(await tips()).toEqual([]);
-  expect(await marks()).toEqual([]);
+  const event = tipEvent({ businessDate: '2026-11-15' });
+
+  expect(await deliver(event)).toEqual({ delivered: true });
+
+  expect(await heads()).toHaveLength(1);
+  expect(await tips()).toHaveLength(1);
+  expect(await marks()).toHaveLength(1);
+  // البقشيش ما كان تجمّد من قبل: صف تصحيح لكل صف بقشيش، قبله صفر وبعده مبلغه، والارتباط فارغ.
+  expect(await postedCorrections()).toMatchObject([
+    {
+      employee_id: A.employee,
+      source_period: '2026-11',
+      target_period: '2026-12',
+      kind: 'TIP_CARD',
+      amount: '10.000',
+      previous_amount: '0.000',
+      new_amount: '10.000',
+      generation: 1,
+      event_id: event.id,
+      attached_branch_ids: [],
+    },
+  ]);
+  expect(await postedGenerations()).toEqual([
+    { employee_id: A.employee, period: '2026-11', generation: 1 },
+  ]);
 });
 
 it('candidate-only later APPROVED month does not block delivery of an earlier affected month', async () => {

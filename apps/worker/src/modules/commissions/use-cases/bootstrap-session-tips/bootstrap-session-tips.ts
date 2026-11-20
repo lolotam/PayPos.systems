@@ -58,9 +58,15 @@ export interface SessionTipsBootstrapResult {
 export interface SessionTipsBootstrapDeps {
   readonly withTenant: TipsBootstrapTenantRunner;
   readonly reader: CurrentTipSessionsReader;
-  readonly tipsFor: (tx: TipsBootstrapTx) => { execute(input: ProjectSessionTipsInput): Promise<void> };
+  readonly tipsFor: (tx: TipsBootstrapTx) => {
+    execute(input: ProjectSessionTipsInput): Promise<void>;
+  };
   readonly consumerId: string;
-  readonly markConsumed: (tx: TipsBootstrapTx, consumerId: string, eventId: string) => Promise<boolean>;
+  readonly markConsumed: (
+    tx: TipsBootstrapTx,
+    consumerId: string,
+    eventId: string,
+  ) => Promise<boolean>;
 }
 
 interface BootstrapReport {
@@ -197,6 +203,7 @@ function toTipInput(
 ): ProjectSessionTipsInput {
   return {
     companyId,
+    eventId: null,
     businessId,
     branchId: session.branchId,
     sessionId: session.sessionId,

@@ -249,7 +249,8 @@ land, approval stays closed. Never reset or delete `published_at`, `attempts`, `
    50-3d (`--types six`), because the current-state readers of the first bootstrap cover only the business and date range the operator
    supplied, so tip and package-sale events published during the rollback would stay unmarked. Every re-run states its upper bound:
    captured after every replica runs the consumer, passed as `--through`, reused on a resume, new after any rollback. An event aimed at
-   an already APPROVED month stays undelivered (`COMMISSION_PERIOD_CLOSED`) until the 55-1 correction path exists, and takes that path afterwards; the manager owns that case.
+   an already APPROVED month takes the 55-1 correction path since 55-1c: a replayed `SessionTipsChanged` or `SalaryChanged` posts
+   `TIP_CARD`/`TIP_CASH`/`COMMISSION` correction rows into the earliest DRAFT month, and the manager owns that case.
 7. **Logs.** A failed replay of a row that already has ten or more attempts logs «outbox event parked» at error level although nothing is
    written; read the printed result, not that line.
 
@@ -289,7 +290,8 @@ touches `published_at`, `attempts`, `parked_at` or `consumed_events` rows of oth
 5. **Statuses.**
    - `COMPLETE`: every visit in the scope was applied and marked. This is not a coverage proof; coverage is checked by 50-3c.
    - `UNDELIVERED`: the scope finished but some visits were refused for a known business reason: `COMMISSION_PERIOD_CLOSED` (the month is
-     APPROVED; it takes the 55-1 correction path and the manager owns it), `COMMISSION_BUSINESS_MISSING` or
+     APPROVED; the tips **bootstrap** visit stays refused even after 55-1c — a correction needs a real `event_id`, and whether a
+     bootstrap visit may ever post one is CS-Q45, still PENDING — and the manager owns it), `COMMISSION_BUSINESS_MISSING` or
      `COMMISSION_TIP_SALARY_INPUT_INVALID`. Fix the cause and re-run the same command; applied visits are not applied twice.
    - `ABORTED`: a failure that is not a known business outcome (a database or timeout failure). The visits that committed stay
      committed; `abortedAt` names the business and the cursor of the page that was being processed and is informational only. Fix

@@ -64,9 +64,13 @@ beforeEach(async () => {
   await owner`DELETE FROM commission_service_overrides`;
   await owner`DELETE FROM commission_plan_versions`;
   await owner`DELETE FROM commission_salaries`;
+  await owner`DELETE FROM commission_tips`;
+  await owner`DELETE FROM commission_tip_heads`;
   await owner`DELETE FROM commission_lines`;
   await owner`DELETE FROM commission_line_heads`;
   await owner`DELETE FROM consumed_events WHERE consumer_id='commissions.project-inputs'`;
+  // salaryAffectedPeriods يؤرّض المدى بشهر إنشاء النشاط؛ التاريخ الثابت يثبّت الشهور المتأثرة.
+  await owner`UPDATE businesses SET created_at = '2025-01-01T00:00:00Z' WHERE company_id = ${A.company} AND id = ${A.business}`;
 });
 
 export function consumerWithClock(clock: { now: () => Date }): OutboxConsumer {
