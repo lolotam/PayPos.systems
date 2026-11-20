@@ -1,5 +1,9 @@
 # Plan 55-1b — corrections: the generation and correction tables, then the correction step (spec 059, row 55-1)
 
+> **Status update (2026-11-20):** 55-1b is fully merged: 55-1b-1 (#1014), then 55-1b-2 as 55-1b-2a1 (#1020), 55-1b-2a2
+> (#1024) and 55-1b-2b (#1061). The next sub-slice is **55-1c**, planned in `plan-55-1c.md`; 55-1d still waits for 50-4.
+> The status paragraph and the split table below are the 2026-11-13 record.
+
 Status (2026-11-13): **55-1b-1 is built and in review as PR #1014** (migrations `0226` tables, `0227` concurrent indexes, RLS and
 grants; the two tables, CM-R06, the pure `computeCommissionCorrections`, the `statementId` pass-through). **55-1b-2** (the
 consumer wiring) is built on a branch stacked on it and opens after #1014 merges. Base of #1014: `main` @ `6bc858ffc` (after
