@@ -16,6 +16,7 @@ export function BranchServiceCategoryPanel({
   onShared,
   onReload,
   onClose,
+  onSeeAvailable,
 }: {
   companyId: string;
   businessId: string;
@@ -25,6 +26,7 @@ export function BranchServiceCategoryPanel({
   onShared: (category: ServiceCategory) => void;
   onReload: () => void;
   onClose: () => void;
+  onSeeAvailable: () => void;
 }) {
   const locale = useLocale();
   return (
@@ -37,6 +39,7 @@ export function BranchServiceCategoryPanel({
         branchId={branchId}
         record={record}
         onRenamed={onClose}
+        onSeeAvailable={onSeeAvailable}
         onReload={onReload}
       />
       <BranchServiceCategoryShare

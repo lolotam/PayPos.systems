@@ -137,3 +137,16 @@ it('renames from the seeded names and posts no visibility key', async () => {
   });
   expect(call?.[1]?.body).not.toHaveProperty('visibility');
 });
+
+it('associates each name label with its own mounted form input', () => {
+  const first = renderForm({ mode: 'create' });
+  first.container.hidden = true;
+  const second = renderForm({ mode: 'create' });
+  const firstInput = first.container.querySelector('input[name="name_en"]');
+  const secondInput = second.container.querySelector('input[name="name_en"]');
+  const label = [...second.container.querySelectorAll('label')].find(
+    (item) => item.textContent === t('en', 'catalogServiceCategories.nameEn'),
+  );
+  expect(label?.control).toBe(secondInput);
+  expect(label?.control).not.toBe(firstInput);
+});

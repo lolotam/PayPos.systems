@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { t, type MessageKey } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import {
   branchCategory,
@@ -44,7 +44,7 @@ function mockBranchLists() {
 
 function renderSection() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const view = render(
     <BranchServiceCategoriesSection {...{ companyId, businessId, userId, branchId }} />,
     {
       wrapper: ({ children }: { children: ReactNode }) => (
@@ -54,6 +54,7 @@ function renderSection() {
       ),
     },
   );
+  return { ...view, client };
 }
 
 async function openTab(
@@ -217,9 +218,12 @@ it('re-seeds the rename form after a revision conflict reload and posts the new 
     envelope(409, 'SERVICE_CATEGORY_REVISION_CONFLICT', 'Another manager changed it.'),
   );
   mockBranchLists();
-  renderSection();
+  const { client } = renderSection();
   await clickSeenButton('catalogServiceCategories.manage');
   typeInto('catalogServiceCategories.nameEn', 'Local En');
+  inUse = [ownPrivateRow('Server En', 'Server AR', 5)];
+  await act(async () => client.invalidateQueries());
+  expect(inputOf('catalogServiceCategories.nameEn').value).toBe('Local En');
   clickButton('catalogServiceCategories.save');
   expect(await screen.findByText(/Another manager changed it\./)).toBeTruthy();
   inUse = [ownPrivateRow('Server En', 'Server AR', 5)];
@@ -334,6 +338,8 @@ it('shares an own private category after the one-way warning and stops offering 
   expect(
     screen.queryByRole('button', { name: t('en', 'catalogServiceCategories.manage') }),
   ).toBeNull();
+  expect(await screen.findByText(/The category is now shared with every branch/)).toBeTruthy();
+  expect(screen.queryByLabelText(t('en', 'catalogServiceCategories.nameEn'))).toBeNull();
   expect(patch.mock.calls[0]?.[0]).toBe(patchPath);
   expect(patch.mock.calls[0]?.[1]?.body).toEqual({
     name_en: 'Hair',

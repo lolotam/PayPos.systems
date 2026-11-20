@@ -39,21 +39,21 @@ function useSectionState() {
   const [view, setView] = useState<ServiceCategoryBranchView>('in_use');
   const [cursor, setCursor] = useState<string>();
   const [creating, setCreating] = useState(false);
-  const [selectedId, setSelectedId] = useState('');
+  const [selected, setSelected] = useState<ServiceCategoryBranchListItem | null>(null);
   const [outcome, setOutcome] = useState<BranchCategoryOutcome | null>(null);
   const switchView = (next: ServiceCategoryBranchView) => {
     setView(next);
     setCursor(undefined);
     setCreating(false);
-    setSelectedId('');
+    setSelected(null);
   };
   const openCreate = () => {
     setCreating(true);
-    setSelectedId('');
+    setSelected(null);
     setOutcome(null);
   };
-  const manageRow = (categoryId: string) => {
-    setSelectedId(categoryId);
+  const manageRow = (item: ServiceCategoryBranchListItem) => {
+    setSelected(item);
     setCreating(false);
   };
   const lead =
@@ -64,12 +64,12 @@ function useSectionState() {
     view,
     cursor,
     creating,
-    selectedId,
+    selected,
     outcome,
     lead,
     createLabel: t(locale, 'catalogServiceCategories.create'),
     setCursor,
-    setSelectedId,
+    setSelected,
     setOutcome,
     switchView,
     openCreate,
@@ -78,6 +78,18 @@ function useSectionState() {
 }
 
 type SectionState = ReturnType<typeof useSectionState>;
+
+async function reloadSelectedCategory(
+  list: ReturnType<typeof useBranchServiceCategories>,
+  section: SectionState,
+) {
+  const selected = section.selected;
+  const result = await list.refetch();
+  if (selected && result.isSuccess) {
+    const refreshed = result.data.items.find((item) => item.id === selected.id) ?? null;
+    section.setSelected((current) => (current === selected ? refreshed : current));
+  }
+}
 
 /** النتايج بتحتفظ في القسم مش في البند: البند بيسيب التاب بعد النجاح أو الرفض، فالسطر الثابت هو اللي يوضّح انتهى إيه. */
 function useSectionOutcomes(
@@ -129,15 +141,14 @@ function useSectionOutcomes(
       name: categoryName(category, locale),
       kind: 'shared',
     });
-    section.setSelectedId('');
+    section.setSelected(null);
   };
   return {
     writeState,
     onCreated,
     onShared,
-    reload: () => void list.refetch(),
+    reload: () => void reloadSelectedCategory(list, section),
     pending: stateWrite.isPending,
-    selected: list.data?.items.find((item) => item.id === section.selectedId) ?? null,
   };
 }
 
@@ -170,14 +181,15 @@ export function BranchServiceCategoriesSection(scope: BranchSectionScope) {
           onSeeAvailable={() => section.switchView('available')}
         />
       ) : null}
-      {outcomes.selected ? (
+      {section.selected ? (
         <BranchServiceCategoryPanel
-          key={`${outcomes.selected.id}:${outcomes.selected.revision}`}
+          key={`${section.selected.id}:${section.selected.revision}`}
           {...scope}
-          record={outcomes.selected}
+          record={section.selected}
           onShared={outcomes.onShared}
           onReload={outcomes.reload}
-          onClose={() => section.setSelectedId('')}
+          onClose={() => section.setSelected(null)}
+          onSeeAvailable={() => section.switchView('available')}
         />
       ) : null}
       <BranchServiceCategoriesTable
@@ -188,7 +200,10 @@ export function BranchServiceCategoriesSection(scope: BranchSectionScope) {
         cursor={section.cursor}
         onPage={section.setCursor}
         onState={outcomes.writeState}
-        onManage={section.manageRow}
+        onManage={(id) => {
+          const item = list.data?.items.find((row) => row.id === id);
+          if (item) section.manageRow(item);
+        }}
       />
     </section>
   );
