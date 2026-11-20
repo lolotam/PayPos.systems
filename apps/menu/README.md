@@ -4,6 +4,12 @@ Rating-only Next.js shell for spec 060 row 60-2 and ADR-0058.
 The root route takes the capability from the URL fragment. No login or tenant
 selection is used. Only the business name and rating form/status are shown.
 
+The page follows the device's light/dark setting through the shared theme boot
+script and theme-color metas from `@pospay/ui/theme`; it has no theme switch
+(PP-200). Its favicons are Next `app/` icon files (`favicon.ico`, `icon.png`,
+`apple-icon.png`) copied from the admin brand assets; there is no `public/`
+directory and no web manifest.
+
 Set `NEXT_PUBLIC_API_URL` to the public API origin when building this application.
 An absent value produces a generic error state; no request is sent.
 The browser omits credentials and sends the capability in `x-rating-token`.
