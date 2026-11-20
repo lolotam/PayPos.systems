@@ -12,6 +12,8 @@ import {
   type BusinessTimeZoneReader,
 } from './persistence/commission-line-projection.scope.ts';
 import { createCommissionCorrectionScope } from './persistence/commission-correction.scope.ts';
+import { createCommissionBlockNotices } from './persistence/commission-block-notice.outbox.ts';
+import type { CommissionPermissionHoldersReader } from './ports/commission-block-notice.port.ts';
 import { markCommissionEventConsumed } from './persistence/commission-event-consumption.ts';
 import { createCoverageProjectionReader } from './persistence/commission-coverage.reads.ts';
 import type {
@@ -79,6 +81,7 @@ export interface CommissionInputsConsumerDependencies {
   readonly businessTimeZone: BusinessTimeZoneReader;
   readonly employeeBusiness: EmployeeBusinessReader;
   readonly businessCalendar: BusinessCalendarReader;
+  readonly permissionHolders: CommissionPermissionHoldersReader;
 }
 
 /** يربط مستهلك مدخلات العمولة بقارئ المنطقة الزمنية وبالساعة والمولّد المحقونين من الجذر. */
@@ -87,18 +90,26 @@ export function createCommissionInputsConsumer(
 ): OutboxConsumer {
   const bind = (tx: Tx) => {
     const corrections = createCommissionCorrectionScope(tx, dependencies.ids, dependencies.clock);
+    const notices = createCommissionBlockNotices(
+      tx,
+      dependencies.ids,
+      dependencies.clock,
+      dependencies.permissionHolders,
+    );
     return {
       lines: new ProjectServiceLines(
         createCommissionLineProjectionScope(tx, dependencies.businessTimeZone),
         dependencies.clock,
         dependencies.ids,
         corrections,
+        notices,
       ),
       tips: new ProjectSessionTips(
         createCommissionTipProjectionScope(tx, dependencies.businessTimeZone, dependencies.ids),
         dependencies.clock,
         dependencies.ids,
         corrections,
+        notices,
       ),
       salary: new ProjectSalary(
         createCommissionSalaryProjectionScope(
@@ -109,6 +120,7 @@ export function createCommissionInputsConsumer(
         dependencies.clock,
         dependencies.ids,
         corrections,
+        notices,
       ),
     };
   };
@@ -140,6 +152,12 @@ export function createCommissionTipsBootstrap(
             dependencies.ids,
             // نطاق التصحيح يُبنى ولا يُستعمل: التهيئة بلا حدث مرفوضة قبل أي هدف مغلق (CS-Q45).
             createCommissionCorrectionScope(tx, dependencies.ids, dependencies.clock),
+            createCommissionBlockNotices(
+              tx,
+              dependencies.ids,
+              dependencies.clock,
+              dependencies.permissionHolders,
+            ),
           ),
       },
       scope,

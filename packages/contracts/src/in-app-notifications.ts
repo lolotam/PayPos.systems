@@ -165,6 +165,17 @@ export const discountSelfApprovedRecipient = z.strictObject({
   template_key: z.literal('discount_self_approved'),
   safe_parameters: discountSelfApprovedParameters,
 });
+/** شهر المصدر بصيغة YYYY-MM؛ معامل واحد آمن بلا مبلغ ولا اسم موظفة (FR-049). */
+const commissionPeriod = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
+export const commissionCorrectionBlockedParameters = z.tuple([
+  z.strictObject({ name: z.literal('period'), type: z.literal('text'), value: commissionPeriod }),
+]);
+/** مراجعة القالب 1 لأن نص الإيقاف ثابت؛ تغييره لاحقًا مراجعة جديدة حتى لا يُعاد تفسير الصفوف المخزنة. */
+export const commissionCorrectionBlockedRecipient = z.strictObject({
+  ...inAppBase,
+  template_key: z.literal('commission_correction_blocked'),
+  safe_parameters: commissionCorrectionBlockedParameters,
+});
 const changeParameter = z.strictObject({
   name: z.literal('change'),
   type: z.literal('text'),
@@ -193,6 +204,7 @@ export const inAppRecipient = z.discriminatedUnion('template_key', [
   serviceLinePerformersChangedRecipient,
   discountApprovalRequestedRecipient,
   discountSelfApprovedRecipient,
+  commissionCorrectionBlockedRecipient,
   z.strictObject({
     ...inAppBase,
     template_key: z.literal('break_returned_other_branch'),
@@ -267,6 +279,11 @@ export const inAppNotification = z
       ...inAppNotificationBase,
       template_key: z.literal('discount_self_approved'),
       safe_parameters: discountSelfApprovedParameters,
+    }),
+    responseObject({
+      ...inAppNotificationBase,
+      template_key: z.literal('commission_correction_blocked'),
+      safe_parameters: commissionCorrectionBlockedParameters,
     }),
     responseObject({
       ...inAppNotificationBase,

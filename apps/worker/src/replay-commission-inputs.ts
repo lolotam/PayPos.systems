@@ -12,6 +12,7 @@ import {
   runCommissionInputReplay,
 } from './modules/commissions/index.ts';
 import { readEmployeeBusiness } from './modules/staff/index.ts';
+import { businessPermissionHolders } from './modules/identity/index.ts';
 import { businessCalendar, businessTimeZone } from './modules/tenancy/index.ts';
 import { createDeliverer } from './outbox/deliver.ts';
 
@@ -45,6 +46,7 @@ try {
       businessTimeZone,
       employeeBusiness: readEmployeeBusiness,
       businessCalendar,
+      permissionHolders: businessPermissionHolders,
     });
     const failures = new Map<string, string>();
     const wrapped = recordCommissionFailureCodes(consumer, failures);

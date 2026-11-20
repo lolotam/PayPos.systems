@@ -1,7 +1,7 @@
 import type { InAppNotification } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 
-/** نص الجرس. generic_notice يبقى على locale الصف؛ تنبيهات الحضور والجلسات وتعديل السعر والإلغاء وتغيير المنفّذين وطلب موافقة الخصم وموافقة المنفّذ تتبع لغة الواجهة، والعربي الغائب يرجع للإنجليزي. */
+/** نص الجرس. generic_notice يبقى على locale الصف؛ تنبيهات الحضور والجلسات وتعديل السعر والإلغاء وتغيير المنفّذين وطلب موافقة الخصم وموافقة المنفّذ وتوقف تصحيح العمولة تتبع لغة الواجهة، والعربي الغائب يرجع للإنجليزي. */
 export function renderNotification(item: InAppNotification, viewerLocale?: Locale): string {
   const serviceLine = renderServiceLineNotice(item, viewerLocale);
   if (serviceLine !== null) return serviceLine;
@@ -12,6 +12,12 @@ export function renderNotification(item: InAppNotification, viewerLocale?: Local
     return fill(
       t(viewerLocale ?? item.locale, `inApp.${item.template_key}`),
       discountApprovalValues(item.safe_parameters),
+    );
+  }
+  if (item.template_key === 'commission_correction_blocked') {
+    return fill(
+      t(viewerLocale ?? item.locale, 'inApp.commission_correction_blocked'),
+      Object.fromEntries(item.safe_parameters.map((parameter) => [parameter.name, parameter.value])),
     );
   }
   if (item.template_key === 'late_service_session') {
