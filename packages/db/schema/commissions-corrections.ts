@@ -22,7 +22,8 @@ import { branches, companies } from './tenancy.ts';
 // نمط الشهر: YYYY-MM بس؛ وسنة 0000 مرفوضة لأن to_date مش بيعرف يحوّلها.
 const PERIOD_PATTERN = '^[0-9]{4}-(0[1-9]|1[0-2])$';
 
-const periodFormat = (column: SQLWrapper) =>
+/** نمط شهر التصحيحات نفسه، بيتشارك بين جداول العمولة اللي بتميّز شهر بمفتاح. */
+export const periodFormat = (column: SQLWrapper) =>
   sql`${column} ~ ${sql.raw(`'${PERIOD_PATTERN}'`)} AND substr(${column}, 1, 4) <> '0000'`;
 
 const commissionPeriodGenerationsColumns = {

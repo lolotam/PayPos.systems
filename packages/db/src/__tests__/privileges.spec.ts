@@ -1,5 +1,8 @@
 import { TENANT_TABLES } from '../../test/tenant-table-inventory.ts';
-import { COMMISSION_CORRECTION_COLUMN_GRANTS } from '../../test/commission-correction-grants.ts';
+import {
+  COMMISSION_BLOCKED_CORRECTION_COLUMN_GRANTS,
+  COMMISSION_CORRECTION_COLUMN_GRANTS,
+} from '../../test/commission-correction-grants.ts';
 import { COMMISSION_TIP_SALARY_COLUMN_GRANTS } from '../../test/commission-tip-salary-grants.ts';
 import { PASSKEY_COLUMN_GRANTS } from '../../test/passkey-grants.ts';
 import {
@@ -32,7 +35,10 @@ import { PUSH_SUBSCRIPTION_COLUMN_GRANTS } from '../../test/push-subscription-gr
 import { PUSH_ATTEMPT_COLUMN_GRANTS } from '../../test/push-attempt-grants.ts';
 import { DISCOUNT_PROPOSAL_COLUMN_GRANTS } from '../../test/discount-proposal-grants.ts';
 import { COMMISSION_STATEMENT_COLUMN_GRANTS } from '../../test/commission-statement-grants.ts';
-import { RATING_REQUEST_COLUMN_GRANTS, RATING_SETTINGS_COLUMN_GRANTS } from '../../test/rating-grants.ts';
+import {
+  RATING_REQUEST_COLUMN_GRANTS,
+  RATING_SETTINGS_COLUMN_GRANTS,
+} from '../../test/rating-grants.ts';
 import { CUSTOMER_COLUMN_GRANTS } from '../../test/customer-grants.ts';
 import { ALLOWED_TABLE_GRANTS } from '../../test/table-grants.ts';
 import postgres from 'postgres';
@@ -61,6 +67,7 @@ const OUTBOX_COLUMN_GRANTS = [
 const REVIEWED_COLUMN_GRANTS = [
   ...COMMISSION_TIP_SALARY_COLUMN_GRANTS,
   ...COMMISSION_CORRECTION_COLUMN_GRANTS,
+  ...COMMISSION_BLOCKED_CORRECTION_COLUMN_GRANTS,
   ...OTP_COLUMN_GRANTS,
   ...ATTENDANCE_CHANGE_COLUMN_GRANTS,
   ...BREAK_LEDGER_COLUMN_GRANTS,
@@ -222,8 +229,10 @@ describe('effective privileges match the reviewed allowlist', () => {
 
 // A role the application can SET ROLE to is a way around every check above, even without inheritance.
 const settableRoles = async (role: string): Promise<string[]> =>
-  (await owner<{ name: string }[]>`SELECT rolname AS name FROM pg_roles
-    WHERE rolname <> ${role} AND pg_has_role(${role}, oid, 'SET') ORDER BY 1`).map((r) => r.name);
+  (
+    await owner<{ name: string }[]>`SELECT rolname AS name FROM pg_roles
+    WHERE rolname <> ${role} AND pg_has_role(${role}, oid, 'SET') ORDER BY 1`
+  ).map((r) => r.name);
 
 describe('no application role can switch to another role', () => {
   it.each(APP_ROLES)('%s can SET ROLE to no other role, directly or indirectly', async (role) => {

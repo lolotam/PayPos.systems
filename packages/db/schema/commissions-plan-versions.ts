@@ -64,6 +64,14 @@ export const commissionPlanVersions = pgTable(
       'commission_plan_versions_repair_period',
       sql`${t.repairPeriod} IS NULL OR (${t.repairPeriod} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' AND substr(${t.repairPeriod},1,4) <> '0000')`,
     ),
+    // نسخة الإصلاح بتسري من أول يوم في شهرها؛ والفحص ده بتاع المحاذاة بس: الشهر المشوّه
+    // بيفضل رفض فحص الشهر بتاعه، والدالة to_date ما بتشوفش نص مشكّل أبداً.
+    check(
+      'commission_plan_versions_repair_matches_effective_from',
+      sql`${t.repairPeriod} IS NULL
+        OR NOT (${t.repairPeriod} ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' AND substr(${t.repairPeriod},1,4) <> '0000')
+        OR ${t.effectiveFrom} = to_date(${t.repairPeriod} || '-01', 'YYYY-MM-DD')`,
+    ),
     check('commission_plan_versions_plan_object', sql`jsonb_typeof(${t.plan}) = 'object'`),
     index('commission_plan_versions_employee_idx').on(
       t.companyId,
