@@ -50,6 +50,22 @@ the engine — and changes no regex. Code that needs an engine type belongs in t
 no import beyond `@pospay/domain`. `apps/admin/src/commissions` (created by 48-3) may import `"./validation"` and
 nothing else of the package, so the builder screen runs the same validator as the API (CM-06).
 
+**Addendum (2026-11-20, 48-3 PR 1; Waleed's size answer and the Astra debate, spec 059 owner-questions §52).** The API
+receives a plan in the contract's wire shape (KWD strings, `package_sale`) and the validator takes the engine's shape
+(`bigint`, `packageSale`). Until 48-3 the translation between the two lived in the API's commissions `domain/`
+(`plan-codec.ts`), which the paragraph above says must stay empty, and the builder would have needed a second, hand-kept
+copy of it in the browser. A drifted copy would let the builder accept a plan the API refuses, on a money rule. So:
+
+- The translator moves unchanged into the package (`src/plan-wire.ts`) and stays **internal**: neither entry exports it.
+- The package gains one function, `validateWireCommissionPlan(plan)`, which translates and then calls
+  `validateCommissionPlan`. Both entries export it with its input type `CommissionPlanWire`: the root for the API's
+  use case, and `"./validation"` for `apps/admin/src/commissions`.
+- `"./validation"` therefore exports `validateCommissionPlan`, `validateWireCommissionPlan`, the error codes, the plan
+  types and `CommissionPlanWire`. It stays browser-safe with no import beyond `@pospay/domain`.
+- The `"exports"` map, the three enforcement layers and every regex are unchanged. The package's `test:node` script also
+  checks that both entries export the same `validateWireCommissionPlan` and that `"./validation"` does not export
+  `computePeriod`.
+
 **Enforcement, in three layers.** It is DECLARED by 59-0 and DELIVERED by 48a-1:
 
 - **(a) The module-map check.** `docs/module-map.md` §6 gains `packages_restricted: commissions-engine: [commissions]`.

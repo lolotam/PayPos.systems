@@ -1,5 +1,8 @@
 import { parseMoney } from '@pospay/domain';
 
+import type { CommissionValidationResult } from './errors.ts';
+import { validateCommissionPlan } from './plan-validation.ts';
+
 interface WireCalc {
   readonly kind: 'PCT' | 'FIXED';
   readonly bps?: number;
@@ -82,4 +85,15 @@ export function toEngineCommissionPlan(plan: CommissionPlanWire): unknown {
     },
     packageSale: component(plan.package_sale),
   };
+}
+
+/**
+ * يتحقق من جسم الخطة بصيغة العقد كما هو بلا ترجمة يدوية عند المستدعي؛ الـ API ومنشئ الخطط
+ * في الأدمن بيمروا الاثنين من الدالة دي عشان يرفضا نفس التركيبات بنفس الكود المسمى (ADR-0054 §1، CM-06).
+ *
+ * @param plan جسم الطلب بصيغة العقد snake_case قبل أي تحويل
+ * @returns نجاح أو كود مسمى من أكواد المحرك نفسها
+ */
+export function validateWireCommissionPlan(plan: CommissionPlanWire): CommissionValidationResult {
+  return validateCommissionPlan(toEngineCommissionPlan(plan));
 }

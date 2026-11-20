@@ -245,6 +245,37 @@ it('own requester sees and cancels their pending leave from another paired branc
     timezone: made.timezone,
   });
 });
+it('own list paginates newest first: limit 1 returns the newest and its cursor fetches the older one', async () => {
+  const older = await f.h.app.inject({
+    method: 'POST',
+    url: '/v1/staff/me/leave-requests',
+    headers: own(),
+    payload: { ...ownPayload, date: '2027-03-10' },
+  });
+  const newer = await f.h.app.inject({
+    method: 'POST',
+    url: '/v1/staff/me/leave-requests',
+    headers: own(),
+    payload: { ...ownPayload, date: '2027-03-11' },
+  });
+  expect([older.statusCode, newer.statusCode]).toEqual([201, 201]);
+  const first = await f.h.app.inject({
+    method: 'GET',
+    url: '/v1/staff/me/leave-requests?limit=1',
+    headers: own(),
+  });
+  expect(first.statusCode).toBe(200);
+  const page = leavePage.parse(first.json());
+  expect(page.items).toHaveLength(1);
+  expect(page.items[0]?.id).toBe(leaveRequest.parse(newer.json()).id);
+  const second = await f.h.app.inject({
+    method: 'GET',
+    url: `/v1/staff/me/leave-requests?limit=1&cursor=${page.next_cursor}`,
+    headers: own(),
+  });
+  expect(second.statusCode).toBe(200);
+  expect(leavePage.parse(second.json()).items[0]?.id).toBe(leaveRequest.parse(older.json()).id);
+});
 it('owner immunity permits own leave despite a historical DENY; the same DENY blocks a non-owner', async () => {
   const owner = SYSTEM_ROLES.find((r) => r.code === 'owner');
   await f.h

@@ -148,7 +148,7 @@ answer.
 | 74 | [A service's duration and category](74-service-duration-category.md) — مدة الخدمة وتصنيفها | #757, #771 | yes (`/catalog`) |
 | 75 | [Close and reopen a category and its services](75-close-reopen-categories.md) — قفل وفتح التصنيف وخدماته | #996, #1021, #1044, #1050, #1060 | yes for a category; closing one service alone is API only |
 | 76 | [Rating requests: scheduling and the on/off switch](76-rating-requests.md) — طلبات التقييم: الجدولة ومفتاح التشغيل | #670, #692, #734, #741, #751, #785, #883 | the switch yes (`/alert-rules`); nothing is sent (row 59b-3 not built) |
-| 77 | [The customer's rating page](77-public-rating-page.md) — صفحة تقييم العميلة | #704, #731, #738, #847 | no: `apps/menu` is not deployed on staging and no link is sent yet |
+| 77 | [The customer's rating page](77-public-rating-page.md) — صفحة تقييم العميلة | #704, #731, #738, #847, #1105 | no: `apps/menu` is not deployed on staging and no link is sent yet |
 | 78 | [Commission plan versions](78-commission-plan-versions.md) — نسخ خطة العمولة | #551, #695, #730, #793 | API on staging; no screen (row 48-3 deferred) |
 | 79 | [A special commission for one employee on one service](79-commission-service-overrides.md) — عمولة خاصة لموظفة على خدمة واحدة | #762 | API on staging; no screen (row 49-2) |
 | 80 | [Monthly commission statements: the groundwork](80-commission-statements-groundwork.md) — كشوف العمولة الشهرية: الأساس | #611, #613, #645, #650, #651, #659, #707, #717, #727, #790, #813, #816, #821, #844, #928, #983, #998, #1010, #1014, #1020, #1023, #1024 | nothing to click (worker projection and storage; no statement route yet) |
@@ -166,7 +166,7 @@ answer.
 | 92 | [The «الإجازات» tab in an employee's file](92-employee-leave-tab.md) — تبويب «الإجازات» في ملف الموظفة | #893, #897, #898, #958 | yes (`/staff/<employee id>/leave`) |
 | 93 | [Leave history report for all employees](93-leave-history-report.md) — تقرير سجل الإجازات لكل الموظفين | #942, #981, #982, #997, #1001 | yes (`/staff/leave-history`); large reports are built by the worker |
 | 94 | [Services import from Excel: the cell-reading core](94-services-import-parsing.md) — استيراد الخدمات من Excel: أساس قراءة الخلايا | #817, #823, #824 | nothing to click (pure rules, checked by tests; no import route or screen yet) |
-| 95 | [The new look and the light / dark switch](95-design-system-theme.md) — الشكل الجديد ومفتاح فاتح / غامق | #1079, #1083, #1095 | yes, in the admin and the POS |
+| 95 | [The new look and the light / dark switch](95-design-system-theme.md) — الشكل الجديد ومفتاح فاتح / غامق | #1079, #1083, #1095, DS-3 A3 | yes, in the admin and the POS |
 | 96 | [Package sale recovery when the response is lost](96-package-sale-recovery.md) — استرجاع بيع الباقة لما الرد يضيع | #1077, #1094 | after the next staging batch; needs the `orders` feature; continues [86](86-sell-package.md) step 14 |
 
 New journeys are added after every merge.
