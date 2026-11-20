@@ -9,6 +9,7 @@ import {
   businessTimeZone,
   employeeExistsInBusiness,
   lockEmployeeForUpdate,
+  readCommissionOverrideServices,
   readCommissionPlanAccess,
   readCommissionPlanListAccess,
   readSessionServices,
@@ -75,6 +76,17 @@ function overrideHttp(plan: CommissionPlanFixture) {
           company: plan.company,
         },
       ),
+    overrideServicesPath: (businessId: string, employeeId: string) =>
+      `/v1/businesses/${businessId}/employees/${employeeId}/commission-override-services`,
+    getOverrideServices: (query = '', businessId = plan.business, actor = plan.cookie) =>
+      h.send(
+        'GET',
+        `/v1/businesses/${businessId}/employees/${plan.employee}/commission-override-services${query}`,
+        {
+          cookie: actor,
+          company: plan.company,
+        },
+      ),
   };
 }
 
@@ -120,11 +132,12 @@ export async function commissionServiceOverridesFixture() {
     serviceReader: async (tx: Tx, companyId: string, businessId: string, serviceId: string) =>
       (await readSessionServices(tx, companyId, businessId, [serviceId])).length > 0,
   };
-  // قراءات مسار القائمة بنفس المهايئ اللي بيربطه جذر التطبيق.
+  // قراءات مسار القائمة بنفس المهايئ اللي بيربطه جذر التطبيق، وقارئ خدمات الكتالوج معاها (49-2a).
   const listReaders = createCommissionServiceOverrideListReaders({
     access: readCommissionPlanListAccess,
     timeZone: businessTimeZone,
     employeeExists: employeeExistsInBusiness,
+    services: readCommissionOverrideServices,
   });
   return {
     ...plan,

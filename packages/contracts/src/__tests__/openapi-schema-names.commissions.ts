@@ -1,6 +1,10 @@
 // قائمة مستقلة بأسماء سكيما العمولات، عشان كل موديل يبقى له ملف أسماء قابل للمراجعة لوحده.
 export const commissionSchemaNames = [
   'CommissionEffectiveFromPastError',
+  'CommissionOverrideServiceCurrentOverride',
+  'CommissionOverrideServiceItem',
+  'CommissionOverrideServiceList',
+  'CommissionOverrideServiceListQuery',
   'CommissionPeriodBeforeBusinessError',
   'CommissionPlanCalc',
   'CommissionPlanComponent',

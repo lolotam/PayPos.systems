@@ -53,6 +53,7 @@ import {
 import {
   catalogControllers,
   catalogProviders,
+  readCommissionOverrideServices,
   readSessionServices,
 } from './modules/catalog/index.ts';
 import { ordersControllers, ordersProviders } from './modules/orders/index.ts';
@@ -176,6 +177,8 @@ function commissionBindings(deps: AppDependencies) {
       access: readCommissionPlanListAccess,
       timeZone: businessTimeZone,
       employeeExists: employeeExistsInBusiness,
+      // خدمات شاشة التجاوزات (49-2a): صلاحية الخطط بتبدل مفيش صلاحية خدمات، فالأسماء بتيجي من الكتالوج.
+      services: readCommissionOverrideServices,
     },
     {
       access: readCommissionPlanListAccess,
