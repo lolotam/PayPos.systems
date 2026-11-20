@@ -6,6 +6,7 @@ import {
   commissionPlanBuilderAr,
   commissionPlanBuilderEn,
 } from './commission-plan-builder-catalog.js';
+import { commissionOverridesAr, commissionOverridesEn } from './commission-override-catalog.js';
 import { commissionStatementAr, commissionStatementEn } from './commission-statement-catalog.js';
 import { en } from './en.js';
 import { nativeShellAr, nativeShellEn } from './native-shell-catalog.js';
@@ -40,6 +41,7 @@ type RegisteredCatalog = Catalog & {
   readonly publicRating: Record<keyof typeof publicRatingEn, string>;
   readonly alertRules: Record<keyof typeof alertRulesEn, string>;
   readonly commissionPlanBuilder: Record<keyof typeof commissionPlanBuilderEn, string>;
+  readonly commissionOverrides: Record<keyof typeof commissionOverridesEn, string>;
   readonly commissionStatement: Record<keyof typeof commissionStatementEn, string>;
   readonly serviceSessions: Record<keyof typeof serviceSessionsEn, string>;
   readonly discountApproval: Record<keyof typeof discountApprovalEn, string>;
@@ -71,6 +73,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     ...ar,
     alertRules: alertRulesAr,
     commissionPlanBuilder: commissionPlanBuilderAr,
+    commissionOverrides: commissionOverridesAr,
     commissionStatement: commissionStatementAr,
     serviceSessions: serviceSessionsAr,
     discountApproval: discountApprovalAr,
@@ -92,6 +95,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     ...en,
     alertRules: alertRulesEn,
     commissionPlanBuilder: commissionPlanBuilderEn,
+    commissionOverrides: commissionOverridesEn,
     commissionStatement: commissionStatementEn,
     serviceSessions: serviceSessionsEn,
     discountApproval: discountApprovalEn,
