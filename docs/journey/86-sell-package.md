@@ -40,6 +40,7 @@ package types themselves are [37](37-package-types.md); using a sold session is 
 14. **النت قطع بعد الضغط:** ← **البيع السابق ممكن يكون اتقبل. التعديل مقفول؛ أعيدي محاولة البيع الأصلي فقط.** وزرار
     **إعادة محاولة البيع الأصلي**. إعادة المحاولة بتبعت نفس الطلب بنفس المفتاح، فمفيش بيع مرتين. لو المهلة خلصت ←
     **انتهت مهلة إعادة المحاولة. تحققي من نتيجة البيع الأصلي مع المدير قبل بدء بيع جديد.**
+    التفاصيل كلها (المهلة، مراجعة المدير، تجاهل المحاولة، تحذير الجهاز) في [96](96-package-sale-recovery.md).
 15. **ناقص حاجة:** ← **اختاري الزبونة والباقة والبائعة وعضوية التسجيل، واكتبي سعر صحيح.**
 
 **ممنوع يحصل:**
@@ -78,6 +79,8 @@ package types themselves are [37](37-package-types.md); using a sold session is 
     only the original sale.** with **Retry original sale**. The retry sends the same request with the same key, so
     nothing is sold twice. When the window is over → **The retry window has expired. Verify the original sale with
     your manager before starting another sale.**
+    The full flow (the window, the manager check, discarding the attempt, the device warning) is in
+    [96](96-package-sale-recovery.md).
 15. **Something is missing:** → **Choose a customer, package, seller and recorder, and enter a valid price.**
 
 **Must NOT happen:**

@@ -28,6 +28,10 @@ export const packageSaleEn = {
   retryOriginal: 'Retry original sale',
   verificationRequired:
     'The retry window has expired. Verify the original sale with your manager before starting another sale.',
+  journalUnsaved:
+    'This sale attempt could not be saved on this device. Keep this page open until the result appears; reloading may lose track of it.',
+  verifiedWithManager: 'I verified the original sale with the manager.',
+  discardExpired: 'Discard the original attempt',
   customerUnavailable: 'You do not have access to customer selection for this sale.',
   invalid: 'Choose a customer, package, seller and recorder, and enter a valid price.',
   pending: 'Processing',
@@ -68,6 +72,10 @@ export const packageSaleAr: Record<keyof typeof packageSaleEn, string> = {
   retryOriginal: 'إعادة محاولة البيع الأصلي',
   verificationRequired:
     'انتهت مهلة إعادة المحاولة. تحققي من نتيجة البيع الأصلي مع المدير قبل بدء بيع جديد.',
+  journalUnsaved:
+    'تعذّر حفظ محاولة البيع على الجهاز ده. خلّي الصفحة مفتوحة لحد ما النتيجة تظهر؛ إعادة التحميل ممكن تضيّع متابعتها.',
+  verifiedWithManager: 'اتحققت من نتيجة البيع الأصلي مع المدير.',
+  discardExpired: 'تجاهل المحاولة الأصلية',
   customerUnavailable: 'اختيار الزبونة غير متاح بصلاحياتك لهذا البيع.',
   invalid: 'اختاري الزبونة والباقة والبائعة وعضوية التسجيل، واكتبي سعر صحيح.',
   pending: 'قيد التنفيذ',

@@ -1030,6 +1030,26 @@ is known, use status reads only. Remove the journal only after a confirmed termi
 first-request definitive rejection. Local UI coverage includes reload, timeout, unavailable storage
 and expired-window messages in Arabic and English.
 
+The held attempts live per scope in memory, so a request that started under one scope reads and writes
+only that scope's entry whatever the form shows when the response settles. The stored record passes a
+fail-closed shape check (bounded key and sale id, valid body, or a status-only record with a sale id and
+no body), and a write that storage refuses keeps the attempt in memory and warns «could not be saved on
+this device» while the attempt is unresolved. Every observation of the attempt — on restore, before each
+send, and on the expiry timer, window focus and visibility change — raises the record's `seenAt` to the
+observation time once more than a minute has passed since the previous observation. Expiry works from
+that last observation with a five-minute clock tolerance: a clock more than five minutes behind the
+last observation expires the attempt, as does an age of 23 hours since creation measured against the
+later of the current clock and `seenAt`; an observed expiry is latched into `seenAt` at the
+window's end so it stays expired whatever the clock does afterwards, and for a clock moved back
+by more than that tolerance the check can only block replay, never allow it. With the screen open, a
+timer fires at the expiry instant, and window focus and visibility changes re-check it, so the message
+and the locked retry flip without a reload. Once the window has expired, the operator who verified the
+original sale with the manager ticks an explicit acknowledgement and discards the expired attempt
+locally: the discard is decided on the fresh read inside the scope lock and refuses a record that has
+gained a sale id, and otherwise the journal entry and its stored record are removed, the unsaved
+warning clears, and the form opens for a new sale; a removal the device refuses keeps the attempt and
+the unsaved warning, and the server's idempotency window stays the authority on duplicates. An unreadable device is not treated as an empty one: when reading the journal itself fails, the discard is refused, the attempt stays and the unsaved warning shows. When memory and the device disagree about the same attempt, a known sale id wins, and otherwise the later observation wins, so an older stored copy never reopens an expired attempt or hides an accepted sale. A refused observation write keeps the expiry latch in memory and shows the unsaved warning.
+
 ### API picker follow-ups (#1075)
 
 Sellable package types explicitly declare the same user-only guard as package sale context and submission. Device principals remain forbidden by the global permission guard as well. Seller options exclude every employee linked to the authenticated recorder user before pagination; other eligible performers remain selectable, including employees without a linked user. No migration or public contract change is required.
