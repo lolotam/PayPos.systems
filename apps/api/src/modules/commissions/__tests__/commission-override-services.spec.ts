@@ -21,10 +21,15 @@ import {
 
 let f: CommissionServiceOverrideFixture;
 let today: string;
+let member: { cookie: string; userId: string; membershipId: string };
+let deviceToken: string;
 
 beforeAll(async () => {
   f = await commissionServiceOverridesFixture();
   today = await businessToday(f);
+  // عضو واحد بصلاحية قابلة للتبديل وجهاز معتمد مرة واحدة: القاعدة المشتركة بين اختبارات الملف.
+  member = await memberWithoutPlanPermission(f);
+  deviceToken = await approvedDeviceToken(f);
 });
 afterAll(async () => {
   await closeCommissionFixture(f);
@@ -58,6 +63,13 @@ async function grantPlanPermission(membershipId: string): Promise<void> {
     WHERE company_id=${f.company} AND id=${membershipId}`;
 }
 
+async function revokePlanPermission(membershipId: string): Promise<void> {
+  await f.h.owner`DELETE FROM role_permissions
+    WHERE company_id=${f.company} AND permission_code='manage:commission-plans:business'
+      AND role_id=(SELECT role_id FROM memberships
+        WHERE company_id=${f.company} AND id=${membershipId})`;
+}
+
 it('FR-013a the plan permission alone lists every service with its catalog rule and price', async () => {
   const pctService = await seedService({
     nameEn: 'Keratin',
@@ -66,7 +78,7 @@ it('FR-013a the plan permission alone lists every service with its catalog rule 
     ruleKind: 'PCT',
     pctBps: 1000,
   });
-  const member = await memberWithoutPlanPermission(f);
+  await revokePlanPermission(member.membershipId);
   await grantPlanPermission(member.membershipId);
   const listed = await f.getOverrideServices('', f.business, member.cookie);
   expect(listed.status).toBe(200);
@@ -102,6 +114,7 @@ it('FR-013a the plan permission alone lists every service with its catalog rule 
     company: f.company,
   });
   expect([catalog.status, catalog.body['code']]).toEqual([403, 'FORBIDDEN']);
+  await revokePlanPermission(member.membershipId);
 });
 
 it('CM-12 current_override is exactly the row the overrides list marks is_current', async () => {
@@ -164,8 +177,6 @@ it('CS-Q50 a closed service stays listed with closed_at and its override is retu
 });
 
 it('the refusal order matches the overrides list: access, then feature, then employee', async () => {
-  const member = await memberWithoutPlanPermission(f);
-  await grantPlanPermission(member.membershipId);
   const scope = {
     companyId: f.company,
     userId: member.userId,
@@ -176,12 +187,11 @@ it('the refusal order matches the overrides list: access, then feature, then emp
     f.db.withTenant(f.company, (tx) =>
       listCommissionOverrideServices(tx, f.listReaders(tx), scope, { limit: 50 }),
     );
+  await revokePlanPermission(member.membershipId);
+  await grantPlanPermission(member.membershipId);
   const allowed = await f.getOverrideServices('', f.business, member.cookie);
   expect(allowed.status).toBe(200);
-  await f.h.owner`DELETE FROM role_permissions
-    WHERE company_id=${f.company} AND permission_code='manage:commission-plans:business'
-      AND role_id=(SELECT role_id FROM memberships
-        WHERE company_id=${f.company} AND id=${member.membershipId})`;
+  await revokePlanPermission(member.membershipId);
   await expect(list()).rejects.toMatchObject({ code: 'FORBIDDEN' });
   await grantPlanPermission(member.membershipId);
   await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by)
@@ -190,22 +200,23 @@ it('the refusal order matches the overrides list: access, then feature, then emp
   await f.h.owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='commissions'`;
   const gone = structuredClone(scope);
   gone.employeeId = ids.newId();
+  // الموظفة المجهولة بتتفحص والصلاحية شغالة، عشان ترتيب الرفض يوصل لفحص الموظفة فعلاً.
   await expect(
     f.db.withTenant(f.company, (tx) =>
       listCommissionOverrideServices(tx, f.listReaders(tx), gone, { limit: 50 }),
     ),
   ).rejects.toMatchObject({ code: 'EMPLOYEE_NOT_FOUND' });
+  await revokePlanPermission(member.membershipId);
 });
 
 it('a member without the plan permission, a device and a disabled feature are refused', async () => {
-  const member = await memberWithoutPlanPermission(f);
+  await revokePlanPermission(member.membershipId);
   const refused = await f.getOverrideServices('', f.business, member.cookie);
   expect([refused.status, refused.body['code']]).toEqual([403, 'FORBIDDEN']);
-  const token = await approvedDeviceToken(f);
   const device = await f.h.app.inject({
     method: 'GET',
     url: f.overrideServicesPath(f.business, f.employee),
-    headers: { authorization: `Device ${token}`, 'x-company-id': f.company },
+    headers: { authorization: `Device ${deviceToken}`, 'x-company-id': f.company },
   });
   expect(device.statusCode).toBe(403);
   await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by)
@@ -244,14 +255,25 @@ it('an unknown employee answers EMPLOYEE_NOT_FOUND and another business never le
 it('pages follow the service id cursor with no repeats and refuse malformed input', async () => {
   const second = await seedService({ nameEn: 'Page service b' });
   const third = await seedService({ nameEn: 'Page service c' });
+  const full = await f.getOverrideServices('?limit=100');
+  const allIds = (full.body as unknown as OverrideServicesBody).items.map(
+    (item) => item['service_id'] as string,
+  );
+  expect(allIds).toEqual([...allIds].sort());
+  expect(allIds).toEqual(expect.arrayContaining([f.service, second, third]));
   const first = await f.getOverrideServices('?limit=2');
   const firstBody = first.body as unknown as OverrideServicesBody;
-  expect(firstBody.items.map((item) => item['service_id'])).toEqual([f.service, second]);
-  expect(firstBody.next_cursor).toBe(second);
-  const secondPage = await f.getOverrideServices(`?limit=2&cursor=${second}`);
+  const firstIds = firstBody.items.map((item) => item['service_id'] as string);
+  expect(firstIds).toEqual(allIds.slice(0, 2));
+  expect(firstBody.next_cursor).toBe(firstIds[1]);
+  const secondPage = await f.getOverrideServices(`?limit=2&cursor=${firstBody.next_cursor}`);
   const secondBody = secondPage.body as unknown as OverrideServicesBody;
-  expect(secondBody.items.map((item) => item['service_id'])).toEqual([third]);
-  expect(secondBody.next_cursor).toBeNull();
+  const secondIds = secondBody.items.map((item) => item['service_id'] as string);
+  expect(secondIds).toEqual(allIds.slice(2, 4));
+  const rest = await f.getOverrideServices(`?limit=100&cursor=${secondIds[1]}`);
+  const restBody = rest.body as unknown as OverrideServicesBody;
+  expect(restBody.items.map((item) => item['service_id'])).toEqual(allIds.slice(4));
+  expect(restBody.next_cursor).toBeNull();
   const malformed = await f.h.app.inject({
     method: 'GET',
     url: `${f.overrideServicesPath(f.business, f.employee)}?cursor=not-a-uuid`,

@@ -79,7 +79,9 @@ it('the current-override plan reads the employee/service index with no sort', as
       sql`EXPLAIN (ANALYZE, FORMAT JSON) ${commissionOverrideCurrentStatement(scope(), [f.service], 'Asia/Kuwait')}`,
     );
     const text = JSON.stringify(row?.['QUERY PLAN']);
-    expect(text).toContain('commission_service_overrides_employee_service_idx');
+    // الصفحة بيمرّر معرّفات خدمات، فالمخطط ممكن يمشي على فهرس الموظفة أو فهرس الخدمة —
+    // القايمة المفلترة في 49-1 بتقبل الاتنين، والمطلوب قراءة مفهرسة من غير Sort ولا Seq Scan.
+    expect(text).toMatch(/commission_service_overrides_(employee_service|service)_idx/);
     expect(text).not.toContain('"Node Type":"Seq Scan"');
     expect(text).not.toContain('"Node Type":"Sort"');
     expect(text).not.toContain('"Node Type":"Incremental Sort"');
