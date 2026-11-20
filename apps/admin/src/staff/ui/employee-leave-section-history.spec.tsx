@@ -312,9 +312,11 @@ it('refreshes the open list every 30 seconds while the history is on page 2', as
   await act(async () => {
     await vi.advanceTimersByTimeAsync(30_000);
   });
-  expect(within(openRegion()).getByText('Synthetic refreshed open')).toBeTruthy();
+  // نتيجة التحديث بتوصل React على setTimeout حقيقي (دفعة إشعارات TanStack Query) ممكن يشتغل بعد act()،
+  // فبنرجّع setInterval الحقيقي الأول عشان findByText يقدر يستنى الصف.
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-10-24T09:00:00Z'));
+  expect(await within(openRegion()).findByText('Synthetic refreshed open')).toBeTruthy();
 });
 
 it('offers exactly the workspace branches in the branch filter', async () => {
