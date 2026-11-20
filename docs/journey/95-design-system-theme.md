@@ -87,5 +87,7 @@ permissions screens redrawn in the new style.
   `subscribe`), which also holds the `storage` and `prefers-color-scheme` listeners on pages with no switch.
 - **Assertions:** no request leaves for a font or icon CDN; `lucide-react` is no longer imported
   (`@phosphor-icons/react` only); the POS manifest scope, start URL and display mode are unchanged.
+- **The public rating page:** `apps/menu` has the same look and follows the device theme, with no switch (PP-200);
+  its steps are in [77](77-public-rating-page.md).
 - **Sources:** `docs/adr/0059-souk-tiles-design-system.md`, `docs/adr/0060-phosphor-icons.md`,
   `docs/design/BRAND-GUIDE.md`, `packages/ui/README.md`.

@@ -20,8 +20,16 @@ Addendum (2026-11-20, DS-3 A1): the theme runtime has one source and one instanc
 
 Dark mode follows the system setting by default, and the user can override it with the `ThemeSwitch` (light / dark / system) in the admin sidebar footer and the POS operator panel. The switch writes the same storage key the boot script reads, so the choice survives a reload and reaches the other tabs.
 
+Addendum (2026-11-20, DS-3 A4, issue #1082 item 7): the public rating page, `apps/menu`, is on this design system too (PP-193.1). It already imported `@pospay/ui/styles.css`; it now also renders the shared `THEME_COLOR_METAS` and `THEME_BOOT_SCRIPT` from `packages/ui/src/theme.ts` in its root layout, takes its icons from `@pospay/ui` (ADR-0060), and builds its form from `packages/ui` components and tokens.
+
+- **Theme: the device setting, no switch (PP-200).** Waleed answered «يمشي مع إعداد الجهاز (المقترح)» on 2026-11-20; the question is DS3-Q1 in batch 95 of the decisions page, where Abu Salem's pick is pending and binds if it differs. `apps/menu` mounts no `ThemeSwitch` and never calls `setThemePreference`. The theme runtime has no separate system-only mode and needs none: nothing on the menu origin writes the storage key, so the runtime resolves to `system` and follows `prefers-color-scheme`, live. The shared script would still honour a `pospay-theme` value already stored on the same origin; that only happens when another PosPay app is served from the menu's origin, as two apps on one `localhost` port in development are, and never on the menu's own address (ADR-0058).
+- **ADR-0058 still holds.** The boot script is first-party inline code. It only reads `localStorage`; the page writes nothing to the browser, so «no persistence» is unchanged. No tracker, analytics or service worker is added.
+- **Favicons without a manifest.** `favicon.ico`, `icon.png` (192px) and `apple-icon.png` are byte copies of the admin's brand assets, placed in `apps/menu/app/` so Next emits and links them; the standalone runtime copies no `public/` directory. The menu has no web manifest, maskable icons or `browserconfig.xml`: the page is not an installable app, and a manifest `start_url` would open it without the rating token that lives in the URL fragment.
+- **Selection by colour, not icon weight.** The star options keep the `regular` Phosphor weight (ADR-0060); the chosen option is marked with the primary colours.
+- **One export added to `packages/ui`:** the `Star` icon.
+
 ## Consequences
 
-Phosphor requires a later owner decision and ADR. App-shell, navigation, dashboard, charts, page builder and permissions are follow-ups. No new component library, API, DB or migration is included. The `.area-tab-bar` rule is omitted because no existing component uses it.
+`apps/menu` follows the device theme with no switch (PP-200, the DS-3 A4 addendum above). Phosphor requires a later owner decision and ADR. App-shell, navigation, dashboard, charts, page builder and permissions are follow-ups. No new component library, API, DB or migration is included. The `.area-tab-bar` rule is omitted because no existing component uses it.
 
 Mobile apps/business inherits the foundations through the apps/pos build. Future frontend/mobile tasks use this design system. Native builds continue to omit the web manifest and service worker.
