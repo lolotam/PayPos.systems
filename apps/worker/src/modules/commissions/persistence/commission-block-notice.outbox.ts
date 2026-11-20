@@ -1,15 +1,33 @@
-import { commissionCorrectionBlockedNoticeRequested } from '@pospay/contracts';
 import { appendOutboxEvent, type Tx } from '@pospay/db';
 
+import { groupCommissionBlockNoticeRecipients } from '../domain/commission-block-notice.ts';
 import type {
   CommissionBlockNoticeInput,
   CommissionBlockNotices,
-  CommissionPermissionHoldersReader,
 } from '../ports/commission-block-notice.port.ts';
 import type { Clock, IdGenerator } from '../ports/commission-line-projection.port.ts';
 
 /** صلاحية إدارة خطط العمولة: أصحابها هما اللي بيصلّحوا التصحيح الموقوف (CS-Q19). */
 const MANAGE_COMMISSION_PLANS = 'manage:commission-plans:business';
+
+/**
+ * قارئ حاملي صلاحية على النشاط: هوية الوحدة مربوطة عند جذر التوصيل بلا سهم
+ * استيراد (D-16)، فالوحدة ما تعرفش جداول العضويات.
+ *
+ * @param tx معاملة الشركة
+ * @param companyId الشركة
+ * @param businessId النشاط
+ * @param permission كود الصلاحية
+ * @param at لحظة قراءة العضويات والمنح
+ * @returns معرفات المستخدمين المؤهلين
+ */
+export type CommissionPermissionHoldersReader = (
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+  permission: string,
+  at: Date,
+) => Promise<readonly string[]>;
 
 /**
  * يبني منفذ الجرس على معاملة التوقف نفسها: المستلمون من الهوية بلا قفل، والحدث
@@ -18,25 +36,37 @@ const MANAGE_COMMISSION_PLANS = 'manage:commission-plans:business';
  * @param tx معاملة withTenant الحالية
  * @param ids مولّد هوية الحدث المحقون
  * @param clock ساعة اللحظة الحالية المحقونة
- * @param permissionHolders قارئ حاملي الصلاحية المربوط عند جذر التوصيل
+ * @param boundary قارئ حاملي الصلاحية وحد المجموعة ومدقق الحمولة من جذر التوصيل
  * @returns منفذ الجرس مربوط بالمعاملة
  */
 export function createCommissionBlockNotices(
   tx: Tx,
   ids: IdGenerator,
   clock: Clock,
-  permissionHolders: CommissionPermissionHoldersReader,
+  boundary: {
+    readonly permissionHolders: CommissionPermissionHoldersReader;
+    readonly groupSize: number;
+    readonly parsePayload: (payload: unknown) => unknown;
+  },
 ): CommissionBlockNotices {
   return {
     now: () => clock.now(),
-    recipients: (companyId, businessId, at) =>
-      permissionHolders(tx, companyId, businessId, MANAGE_COMMISSION_PLANS, at),
+    recipientGroups: async (companyId, businessId, at) => {
+      const recipients = await boundary.permissionHolders(
+        tx,
+        companyId,
+        businessId,
+        MANAGE_COMMISSION_PLANS,
+        at,
+      );
+      return groupCommissionBlockNoticeRecipients(recipients, boundary.groupSize);
+    },
     append: async (input: CommissionBlockNoticeInput) => {
       await appendOutboxEvent(tx, ids.newId(), {
         aggregateType: 'commission_blocked_correction',
         aggregateId: input.blockId,
         eventType: 'CommissionCorrectionBlockedNoticeRequested',
-        payload: commissionCorrectionBlockedNoticeRequested.parse({
+        payload: boundary.parsePayload({
           schema_version: 1,
           block_id: input.blockId,
           group_index: input.groupIndex,

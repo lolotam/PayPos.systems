@@ -6,6 +6,6 @@ import type { CommissionBlockNotices } from '../ports/commission-block-notice.po
  */
 export const noCommissionBlockNotices: CommissionBlockNotices = {
   now: () => new Date(0),
-  recipients: async () => [],
+  recipientGroups: async () => [],
   append: async () => undefined,
 };

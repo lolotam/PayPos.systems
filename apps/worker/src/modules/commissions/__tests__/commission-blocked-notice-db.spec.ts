@@ -1,5 +1,8 @@
-import { type ClaimedEvent } from '@pospay/db';
-import { commissionCorrectionBlockedNoticeRequested } from '@pospay/contracts';
+import { type ClaimedEvent, type Tx } from '@pospay/db';
+import {
+  commissionCorrectionBlockedNoticeGroupSize,
+  commissionCorrectionBlockedNoticeRequested,
+} from '@pospay/contracts';
 import { createLogger } from '@pospay/observability';
 import { expect, it } from 'vitest';
 
@@ -14,6 +17,7 @@ import {
   type CommissionInputUseCases,
 } from '../events/handlers/on-commission-input-event.handler.ts';
 import { createCommissionCorrectionScope } from '../persistence/commission-correction.scope.ts';
+import { createCommissionBlockNotices } from '../persistence/commission-block-notice.outbox.ts';
 import { createCommissionLineProjectionScope } from '../persistence/commission-line-projection.scope.ts';
 import type { CommissionBlockNotices } from '../ports/commission-block-notice.port.ts';
 import { ProjectServiceLines } from '../use-cases/project-service-lines/project-service-lines.ts';
@@ -50,9 +54,9 @@ const bellPayloads = async () =>
 it('N4 (CM-54) a failure at the third bell append rolls back the block and every group', async () => {
   const { lateEvent } = await seedSeptemberPlanGap();
   const marksBefore = await marks();
-
-  expect(await deliverFailingThirdAppend(lateEvent)).toMatchObject({ delivered: false });
-
+  const { delivery, writtenGroups } = await deliverFailingThirdAppend(lateEvent);
+  expect(delivery).toMatchObject({ delivered: false });
+  expect(writtenGroups).toEqual([0, 1]);
   expect(await blocks()).toEqual([]);
   expect(await bellRows()).toEqual([]);
   expect(await marks()).toEqual(marksBefore);
@@ -192,16 +196,10 @@ async function seedTwoEmployeePlanGap() {
 }
 
 /** مستهلك يفشل إلحاق مجموعة الجرس الثالثة بعد تسجيل التوقف؛ إخفاق المجموعة بيلغي التوقف ومجموعاتها (CM-54). */
-function deliverFailingThirdAppend(event: ClaimedEvent) {
+async function deliverFailingThirdAppend(event: ClaimedEvent) {
   const clock = { now: () => new Date(CURRENT) };
   const standard = createTestCommissionInputsConsumer({ ids, clock, businessTimeZone });
-  const notices: CommissionBlockNotices = {
-    now: () => clock.now(),
-    recipients: async () => Array.from({ length: 250 }, () => ids.newId()),
-    append: async (input) => {
-      if (input.groupIndex === 2) throw new Error('injected third append failure');
-    },
-  };
+  const writtenGroups: number[] = [];
   const consumer: OutboxConsumer = {
     id: standard.id,
     eventTypes: standard.eventTypes,
@@ -219,7 +217,7 @@ function deliverFailingThirdAppend(event: ClaimedEvent) {
             clock,
             ids,
             corrections,
-            notices,
+            bindFailingNotices(tx, clock, (index) => writtenGroups.push(index)),
           ),
           tips: unused,
           salary: unused,
@@ -228,7 +226,28 @@ function deliverFailingThirdAppend(event: ClaimedEvent) {
       );
     },
   };
-  return createDeliverer(db, [consumer], createLogger('silent'), {
+  const delivery = await createDeliverer(db, [consumer], createLogger('silent'), {
     knownEventTypes: consumer.eventTypes,
   })(event);
+  return { delivery, writtenGroups };
+}
+
+function bindFailingNotices(
+  tx: Tx,
+  clock: { now(): Date },
+  onWritten: (groupIndex: number) => void,
+): CommissionBlockNotices {
+  const notices = createCommissionBlockNotices(tx, ids, clock, {
+    permissionHolders: async () => Array.from({ length: 250 }, () => ids.newId()),
+    groupSize: commissionCorrectionBlockedNoticeGroupSize,
+    parsePayload: (payload) => commissionCorrectionBlockedNoticeRequested.parse(payload),
+  });
+  return {
+    ...notices,
+    append: async (input) => {
+      if (input.groupIndex === 2) throw new Error('injected third append failure');
+      await notices.append(input);
+      onWritten(input.groupIndex);
+    },
+  };
 }

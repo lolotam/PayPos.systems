@@ -1,5 +1,4 @@
 import { resolveSourceAttribution } from '../../domain/commission-correction-attribution.ts';
-import { commissionCorrectionBlockedNoticeGroupSize } from '@pospay/contracts';
 import {
   computeCommissionCorrections,
   type CommissionFrozenSource,
@@ -16,7 +15,6 @@ import {
   decideCommissionBlock,
   type CommissionBlockDecision,
 } from '../../domain/commission-blocked-correction.ts';
-import { groupCommissionBlockNoticeRecipients } from '../../domain/commission-block-notice.ts';
 import type { CommissionCorrectionScope } from '../../ports/commission-correction.port.ts';
 import type { CommissionBlockNotices } from '../../ports/commission-block-notice.port.ts';
 import {
@@ -201,14 +199,10 @@ async function ringBlockBell(
   blockId: string,
   sourcePeriod: string,
 ): Promise<void> {
-  const recipients = await input.notices.recipients(
+  const groups = await input.notices.recipientGroups(
     input.companyId,
     input.businessId,
     input.notices.now(),
-  );
-  const groups = groupCommissionBlockNoticeRecipients(
-    recipients,
-    commissionCorrectionBlockedNoticeGroupSize,
   );
   for (const [groupIndex, group] of groups.entries()) {
     await input.notices.append({

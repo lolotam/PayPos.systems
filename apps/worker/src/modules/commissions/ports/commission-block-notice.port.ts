@@ -1,5 +1,3 @@
-import type { Tx } from '@pospay/db';
-
 /** مُدخلات جرس التوقف: هوية الصف ومجموعته والنشاط وشهر المصدر ومستلمو المجموعة. */
 export interface CommissionBlockNoticeInput {
   readonly blockId: string;
@@ -8,25 +6,6 @@ export interface CommissionBlockNoticeInput {
   readonly sourcePeriod: string;
   readonly recipients: readonly string[];
 }
-
-/**
- * قارئ حاملي صلاحية على النشاط: هوية الوحدة مربوطة عند جذر التوصيل بلا سهم
- * استيراد (D-16)، فالوحدة ما تعرفش جداول العضويات.
- *
- * @param tx معاملة الشركة
- * @param companyId الشركة
- * @param businessId النشاط
- * @param permission كود الصلاحية
- * @param at لحظة قراءة العضويات والمنح
- * @returns معرفات المستخدمين المؤهلين
- */
-export type CommissionPermissionHoldersReader = (
-  tx: Tx,
-  companyId: string,
-  businessId: string,
-  permission: string,
-  at: Date,
-) => Promise<readonly string[]>;
 
 /**
  * منفذ جرس أصحاب صلاحية خطط العمولة: قراءة المستلمين وكتابة حدث الجرس في
@@ -46,9 +25,13 @@ export interface CommissionBlockNotices {
    * @param companyId الشركة
    * @param businessId النشاط
    * @param at لحظة القراءة
-   * @returns معرفات المستخدمين المؤهلين
+   * @returns مجموعات معرفات المستخدمين المؤهلين ضمن حد عقد الحدث
    */
-  recipients(companyId: string, businessId: string, at: Date): Promise<readonly string[]>;
+  recipientGroups(
+    companyId: string,
+    businessId: string,
+    at: Date,
+  ): Promise<readonly (readonly string[])[]>;
   /**
    * يكتب مجموعة المستلمين كحدث جرس واحد في معاملة التوقف نفسها.
    *

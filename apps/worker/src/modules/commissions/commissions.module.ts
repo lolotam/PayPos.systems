@@ -1,3 +1,7 @@
+import {
+  commissionCorrectionBlockedNoticeGroupSize,
+  commissionCorrectionBlockedNoticeRequested,
+} from '@pospay/contracts';
 import type { TenantWrappers, Tx } from '@pospay/db';
 
 import type { OutboxConsumer } from '../../outbox/consumer.ts';
@@ -12,8 +16,10 @@ import {
   type BusinessTimeZoneReader,
 } from './persistence/commission-line-projection.scope.ts';
 import { createCommissionCorrectionScope } from './persistence/commission-correction.scope.ts';
-import { createCommissionBlockNotices } from './persistence/commission-block-notice.outbox.ts';
-import type { CommissionPermissionHoldersReader } from './ports/commission-block-notice.port.ts';
+import {
+  createCommissionBlockNotices,
+  type CommissionPermissionHoldersReader,
+} from './persistence/commission-block-notice.outbox.ts';
 import { markCommissionEventConsumed } from './persistence/commission-event-consumption.ts';
 import { createCoverageProjectionReader } from './persistence/commission-coverage.reads.ts';
 import type {
@@ -84,18 +90,21 @@ export interface CommissionInputsConsumerDependencies {
   readonly permissionHolders: CommissionPermissionHoldersReader;
 }
 
+const commissionBlockNoticeContract = {
+  groupSize: commissionCorrectionBlockedNoticeGroupSize,
+  parsePayload: (payload: unknown) => commissionCorrectionBlockedNoticeRequested.parse(payload),
+};
+
 /** يربط مستهلك مدخلات العمولة بقارئ المنطقة الزمنية وبالساعة والمولّد المحقونين من الجذر. */
 export function createCommissionInputsConsumer(
   dependencies: CommissionInputsConsumerDependencies,
 ): OutboxConsumer {
   const bind = (tx: Tx) => {
     const corrections = createCommissionCorrectionScope(tx, dependencies.ids, dependencies.clock);
-    const notices = createCommissionBlockNotices(
-      tx,
-      dependencies.ids,
-      dependencies.clock,
-      dependencies.permissionHolders,
-    );
+    const notices = createCommissionBlockNotices(tx, dependencies.ids, dependencies.clock, {
+      ...commissionBlockNoticeContract,
+      permissionHolders: dependencies.permissionHolders,
+    });
     return {
       lines: new ProjectServiceLines(
         createCommissionLineProjectionScope(tx, dependencies.businessTimeZone),
@@ -152,12 +161,10 @@ export function createCommissionTipsBootstrap(
             dependencies.ids,
             // نطاق التصحيح يُبنى ولا يُستعمل: التهيئة بلا حدث مرفوضة قبل أي هدف مغلق (CS-Q45).
             createCommissionCorrectionScope(tx, dependencies.ids, dependencies.clock),
-            createCommissionBlockNotices(
-              tx,
-              dependencies.ids,
-              dependencies.clock,
-              dependencies.permissionHolders,
-            ),
+            createCommissionBlockNotices(tx, dependencies.ids, dependencies.clock, {
+              ...commissionBlockNoticeContract,
+              permissionHolders: dependencies.permissionHolders,
+            }),
           ),
       },
       scope,
