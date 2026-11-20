@@ -5,7 +5,15 @@ import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useOpenServiceCategories } from '../api/use-service-categories';
 import { useServiceEdit } from '../api/use-services';
-import { EditServiceForm } from './edit-service-form';
+import { ServiceEditRecord } from './service-edit-record';
+
+type ServiceEditPanelProps = {
+  companyId: string;
+  businessId: string;
+  userId: string;
+  serviceId: string;
+  onClose: () => void;
+};
 
 export function ServiceEditPanel({
   companyId,
@@ -13,13 +21,7 @@ export function ServiceEditPanel({
   userId,
   serviceId,
   onClose,
-}: {
-  companyId: string;
-  businessId: string;
-  userId: string;
-  serviceId: string;
-  onClose: () => void;
-}) {
+}: ServiceEditPanelProps) {
   const locale = useLocale();
   const { record, save } = useServiceEdit(companyId, businessId, userId, serviceId);
   const categoryQuery = useOpenServiceCategories(companyId, businessId, userId);
@@ -38,11 +40,14 @@ export function ServiceEditPanel({
         />
       ) : null}
       {record.data && !record.isError ? (
-        <EditServiceForm
-          key={`${record.data.id}:${record.data.revision}`}
-          categoryQuery={categoryQuery}
+        <ServiceEditRecord
+          companyId={companyId}
+          businessId={businessId}
+          userId={userId}
+          serviceId={serviceId}
           record={record.data}
-          pending={save.isPending}
+          categoryQuery={categoryQuery}
+          savePending={save.isPending}
           onSave={(terms) => save.mutate(terms)}
         />
       ) : null}
