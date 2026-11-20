@@ -20,8 +20,16 @@ function useDecisionRuntime(operatorKey: string) {
   const held = useRef<HeldDecision | null>(null);
   const [pending, setPending] = useState(false);
   const [current, setCurrent] = useState<DecisionState | null>(null);
+  const [stateOperator, setStateOperator] = useState(operatorKey);
+  // مسح أثر قرار المشغّل السابق لازم يحصل أثناء الرندر نفسه، مش في effect متأخر —
+  // أول commit للمشغّل الجديد لازم يعرض تنبيهات قراره هو بس.
+  if (stateOperator !== operatorKey) {
+    setStateOperator(operatorKey);
+    setCurrent(null);
+  }
   useLayoutEffect(() => {
     generation.current = operatorKey;
+    held.current = null;
   }, [operatorKey]);
   useEffect(() => {
     mounted.current = true;
@@ -30,10 +38,6 @@ function useDecisionRuntime(operatorKey: string) {
       held.current = null;
     };
   }, []);
-  useEffect(() => {
-    held.current = null;
-    setCurrent(null);
-  }, [operatorKey]);
   return { mounted, busy, generation, held, pending, setPending, current, setCurrent };
 }
 
