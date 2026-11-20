@@ -21,6 +21,7 @@ import {
   Moon,
   ShieldCheck,
   Smartphone,
+  Star,
   Store,
   Sun,
   Upload,
@@ -52,6 +53,7 @@ const ICONS: readonly (readonly [string, IconComponent])[] = [
   ['Sun', Sun],
   ['Moon', Moon],
   ['Monitor', Monitor],
+  ['Star', Star],
 ];
 
 it.each(ICONS)('%s renders an SVG in client DOM and SSR markup', (_name, Icon) => {

@@ -21,6 +21,7 @@ export {
   Sun,
   Moon,
   Monitor,
+  Star,
 } from './icons.js';
 export { BrandMark, type BrandMarkProps } from './brand-mark.js';
 export { BrandWordmark, type BrandWordmarkProps } from './brand-wordmark.js';
