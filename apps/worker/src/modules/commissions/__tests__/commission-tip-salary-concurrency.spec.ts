@@ -283,13 +283,22 @@ it('two different-date salary events of one employee delivered concurrently both
   expect(marks).toHaveLength(2);
 }, 30_000);
 
-/** ينتظر حتى يظهر منتظر على قفل صف كشف؛ العائق يضمن أن المستهلك وصل إلى الانتظار فعلاً. */
+/**
+ * ينتظر حتى يظهر منتظر على قفل صف كشف؛ العائق يضمن أن المستهلك وصل إلى الانتظار فعلاً.
+ * الحصر بقاعدة الاختبار بيجي من pg_stat_activity مش من pg_locks.database: أقفال transactionid
+ * بتتسجل بـ database NULL، ففلتر الداتابيز على pg_locks كان هيصفّيها كلها. واستبعاد دور
+ * المراقبة (owner) بيمنع أي عميل غريب أو مواصفة توازية على نفس الكلاستر إنه يفتح العائق
+ * قبل وصول المستهلك الحقيقي؛ معاملة العائق ماسكة الأقفال ومش مستنية، فلا تُحسب أصلاً.
+ */
 async function waitForStatementLockWaiter(): Promise<void> {
   const deadline = Date.now() + POLL_LIMIT_MS;
   while (Date.now() < deadline) {
     const [row] = await owner<{ waiting: number }[]>`
-      SELECT count(*)::int AS waiting FROM pg_locks
-      WHERE NOT granted AND locktype IN ('transactionid', 'tuple')`;
+      SELECT count(*)::int AS waiting FROM pg_locks l
+      JOIN pg_stat_activity a ON a.pid = l.pid
+      WHERE NOT l.granted AND l.locktype IN ('transactionid', 'tuple')
+        AND a.datname = current_database()
+        AND a.usename <> current_user`;
     if ((row?.waiting ?? 0) >= 1) return;
     await sleep(POLL_INTERVAL_MS);
   }
@@ -386,9 +395,21 @@ it('C1 (CM-48c shape, salary) the consumer waits for the in-flight approval and 
     revision: 2,
   });
   const delivery = deliver(event);
-  await waitForStatementLockWaiter();
-  releaseSeed();
-  await Promise.all([seed, delivery]);
+  // لو الانتظار فشل لازم العائق يتحرر برضه، وإلا معاملة الاعتماد تفضل متجمدة ماسكة اتصال
+  // وأقفال الكشف، والفشل الحقيقي يغرق في ضجيج teardown. الوعدَين بيتسوّوا بـ allSettled قبل الرمي.
+  let waiterError: unknown;
+  try {
+    await waitForStatementLockWaiter();
+  } catch (error) {
+    waiterError = error;
+  } finally {
+    releaseSeed();
+  }
+  const [seedOutcome, deliveryOutcome] = await Promise.allSettled([seed, delivery]);
+  if (waiterError !== undefined) throw waiterError;
+  // رفض seed أو delivery كان سينتشر عبر Promise.all قبل التعديل؛ بنعيد إثباته صراحة بعد allSettled.
+  if (seedOutcome.status === 'rejected') throw seedOutcome.reason;
+  if (deliveryOutcome.status === 'rejected') throw deliveryOutcome.reason;
 
   const [september] = await owner`SELECT status FROM commission_statements
     WHERE company_id=${A.company} AND period='2026-09'`;
