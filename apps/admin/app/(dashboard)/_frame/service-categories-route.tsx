@@ -12,9 +12,12 @@ export function ServiceCategoriesRoute() {
   const workspace = useWorkspace();
   if (workspace.status !== 'ready' || userId === null) return null;
   if (!workspace.business) return <p>{t(locale, 'admin.chooseBusiness')}</p>;
+  // لاحقة الفرع في المفتاح لعضوية الفرع بس: مستوى النشاط لو غيّر فرع الهيدر ما يفقدش
+  // تعديلاته ومهام القفل المعلقة (202)، لأن الشاشة بنفس المفتاح ما بتعملش remount.
+  const branchKey = workspace.company.scope === 'BRANCH' ? (workspace.branch?.id ?? '') : '';
   return (
     <ServiceCategoriesScreen
-      key={`${workspace.company.id}:${workspace.business.id}:${userId}:${workspace.branch?.id ?? ''}`}
+      key={`${workspace.company.id}:${workspace.business.id}:${userId}:${branchKey}`}
       companyId={workspace.company.id}
       business={workspace.business}
       userId={userId}
