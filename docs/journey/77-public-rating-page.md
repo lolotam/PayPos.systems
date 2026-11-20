@@ -2,7 +2,7 @@
 
 **Status / الحالة:** shipped in #704 (58-2b: the one-way rating opt-out guard on the customer), #731 (58-2c: opting
 out from the rating link), #738 (60-1: the public view and submit API) and #847 (60-2: the public page in
-`apps/menu` and its own CORS origin), all merged (spec 060 rows 58 and 60, ADR-0011, ADR-0058); #TBD-A4 (DS-3 A4:
+`apps/menu` and its own CORS origin), all merged (spec 060 rows 58 and 60, ADR-0011, ADR-0058); #1105 (DS-3 A4:
 the page's new look, and light / dark by the device setting; ADR-0059 addendum, PP-200) is in review. **Not reachable by a
 real customer yet:** nothing sends the link (row 59b-3, see [76](76-rating-requests.md)), and the staging compose
 has no `menu` service, so the page is **not deployed on staging**. The three public API routes are in the API; they
@@ -32,9 +32,9 @@ in a test.
 7. **لينك منتهي أو غلط:** بعد 7 أيام، أو لينك متغيّر فيه حرف ← **الرابط ده مش متاح.** نفس الرسالة للحالتين.
 8. **النت قطع:** ← **حصل خطأ. حاولي تاني.** وزرار **حاولي تاني**.
 9. **طلبات كتير:** طلبات كتير من نفس الـ IP ← السيرفر بيرد 429 (`TOO_MANY_REQUESTS`) ومعاه `Retry-After`.
-10. **الشكل (#TBD-A4):** الصفحة بألوان وخطوط النظام الجديدة: النموذج جوّه كارت، وكل نجمة زرار فيه رقم وأيقونة نجمة،
+10. **الشكل (#1105):** الصفحة بألوان وخطوط النظام الجديدة: النموذج جوّه كارت، وكل نجمة زرار فيه رقم وأيقونة نجمة،
     والنجمة اللي اختارتها بتتلوّن. وأيقونة PosPay في تبويب المتصفح.
-11. **فاتح وغامق (#TBD-A4):** موبايلها على الوضع الغامق ← الصفحة بتفتح غامقة من غير وميض فاتح، ولون شريط المتصفح
+11. **فاتح وغامق (#1105):** موبايلها على الوضع الغامق ← الصفحة بتفتح غامقة من غير وميض فاتح، ولون شريط المتصفح
     غامق معاها. موبايلها فاتح ← الصفحة فاتحة. لو غيّرت وضع الجهاز والصفحة مفتوحة ← الصفحة بتتغيّر لوحدها. مفيش زرار
     في الصفحة يغيّر الوضع.
 
@@ -70,9 +70,9 @@ in a test.
 8. **Network failure:** → **Something went wrong. Please try again.** with **Try again**.
 9. **Too many requests:** many requests from one IP → the server answers 429 (`TOO_MANY_REQUESTS`) with
    `Retry-After`.
-10. **The look (#TBD-A4):** the page uses the new colours and fonts: the form sits in a card, each star is a button
+10. **The look (#1105):** the page uses the new colours and fonts: the form sits in a card, each star is a button
     with its number and a star icon, and the chosen one is coloured. The PosPay icon shows in the browser tab.
-11. **Light and dark (#TBD-A4):** her phone is in dark mode → the page opens dark with no light flash, and the
+11. **Light and dark (#1105):** her phone is in dark mode → the page opens dark with no light flash, and the
     browser's bar is dark with it. A light phone → a light page. Changing the device's theme while the page is open →
     the page follows by itself. There is no button on the page that changes the theme.
 
