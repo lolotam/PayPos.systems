@@ -244,6 +244,8 @@ export const ar: Catalog = {
     PERMISSION_SCOPE_OUTSIDE_REACH: 'النطاق المطلوب خارج نطاق صلاحيتك',
     PERMISSION_OWNER_ONLY: 'صاحب الشركة فقط يقدر يمنح الصلاحية دي',
     PERMISSION_ROLE_FORBIDDEN: 'لا يمكن منح هذه الصلاحية لهذا الدور النظامي',
+    PERMISSION_ROLE_NOT_ELIGIBLE:
+      'صلاحية قراءة التقييمات تُمنح لأدوار الإدارة فقط (المالك، المدير العام، مدير النشاط، مدير الفرع)',
     PERMISSION_OVERRIDE_ENDED: 'هذا الاستثناء انتهى بالفعل',
     TRANSACTION_RETRY_REQUIRED: 'تعارض التغيير مع عملية أخرى ولم يُحفظ. حاول مرة أخرى.',
     OTP_UNAVAILABLE: 'الدخول بواتساب غير متاح. اطلب مساعدة المدير للدخول بالرقم السري الخاص بك.',
