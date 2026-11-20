@@ -3,9 +3,19 @@ import type { ServiceCategory, ServiceCategoryBranchListItem } from '@pospay/con
 import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useState } from 'react';
-import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useBranchServiceCategoryShare } from '../api/use-branch-service-category-save';
+import { ServiceCategoryFormFeedback } from './service-category-form-feedback';
+
+type BranchServiceCategoryShareProps = {
+  companyId: string;
+  businessId: string;
+  userId: string;
+  branchId: string;
+  record: ServiceCategoryBranchListItem;
+  onShared: (category: ServiceCategory) => void;
+  onReload: () => void;
+};
 
 /**
  * زرار «خليه مشترك لكل الفروع» بتأكيده. المشاركة قرار في اتجاه واحد (SI-Q23)
@@ -18,14 +28,8 @@ export function BranchServiceCategoryShare({
   branchId,
   record,
   onShared,
-}: {
-  companyId: string;
-  businessId: string;
-  userId: string;
-  branchId: string;
-  record: ServiceCategoryBranchListItem;
-  onShared: (category: ServiceCategory) => void;
-}) {
+  onReload,
+}: BranchServiceCategoryShareProps) {
   const locale = useLocale();
   const [confirming, setConfirming] = useState(false);
   const share = useBranchServiceCategoryShare(companyId, businessId, userId, branchId);
@@ -61,7 +65,12 @@ export function BranchServiceCategoryShare({
           {t(locale, 'catalogServiceCategoryBranches.share')}
         </Button>
       )}
-      {share.error ? <p role="alert">{envelopeMessage(share.error, locale)}</p> : null}
+      <ServiceCategoryFormFeedback
+        mode="share"
+        error={share.error}
+        success={false}
+        onReload={onReload}
+      />
     </div>
   );
 }

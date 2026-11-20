@@ -30,6 +30,6 @@ export function envelope(status: number, code: string, messageEn: string) {
   };
 }
 
-export function okPage(items: unknown[]) {
-  return { data: { items, next_cursor: null }, response: { status: 200 } };
+export function okPage(items: unknown[], nextCursor: string | null = null) {
+  return { data: { items, next_cursor: nextCursor }, response: { status: 200 } };
 }

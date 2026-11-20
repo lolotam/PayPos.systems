@@ -14,7 +14,7 @@ export function ServiceCategoryFormFeedback({
   success,
   onReload,
 }: {
-  mode: 'create' | 'rename';
+  mode: 'create' | 'rename' | 'share';
   error?: unknown;
   success: boolean;
   onReload: () => void;

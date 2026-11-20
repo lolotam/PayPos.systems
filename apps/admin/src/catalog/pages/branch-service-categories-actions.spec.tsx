@@ -91,6 +91,23 @@ async function clickSeenButton(nameKey: MessageKey) {
   fireEvent.click(await screen.findByRole('button', { name: t('en', nameKey) }));
 }
 
+function pendingWrite() {
+  let finish!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  return { waiting, finish };
+}
+
+async function expectNavigationBlocked() {
+  const availableTab = screen.getByRole('button', {
+    name: t('en', 'catalogServiceCategoryBranches.tabAvailable'),
+  });
+  await vi.waitFor(() => expect(availableTab.closest('fieldset')?.disabled).toBe(true));
+  availableTab.click();
+  expect(availableTab.getAttribute('aria-pressed')).toBe('false');
+}
+
 function clickButton(nameKey: MessageKey) {
   fireEvent.click(screen.getByRole('button', { name: t('en', nameKey) }));
 }
@@ -247,7 +264,9 @@ it('re-seeds the rename form after a revision conflict reload and posts the new 
 });
 
 it('creates a private category with the branch choice and shows it as its own', async () => {
+  const write = pendingWrite();
   post.mockImplementation(async () => {
+    await write.waiting;
     inUse = [
       branchCategory({
         id: '01920000-0000-7000-8000-0000000000d1',
@@ -274,6 +293,9 @@ it('creates a private category with the branch choice and shows it as its own', 
   openCreateForm();
   fillCreateForm('Spa', 'Spa AR', 'catalogServiceCategoryBranches.visibilityPrivate');
   submitCreate();
+  await expectNavigationBlocked();
+  write.finish();
+  expect(await screen.findByText(/Category created\./)).toBeTruthy();
   const row = await screen.findByRole('row', { name: /Spa/ });
   expect(within(row).getByText(t('en', 'catalogServiceCategoryBranches.ownedHere'))).toBeTruthy();
   expect(post.mock.calls[0]?.[0]).toBe(branchListPath);
@@ -311,8 +333,10 @@ it('jumps to the available tab from the taken-name refusal', async () => {
 });
 
 it('shares an own private category after the one-way warning and stops offering rename', async () => {
+  const write = pendingWrite();
   inUse = [branchCategory({ visibility: 'BRANCH', owner_branch_id: branchId, revision: 2 })];
   patch.mockImplementation(async () => {
+    await write.waiting;
     inUse = [branchCategory({ visibility: 'BUSINESS', owner_branch_id: branchId, revision: 3 })];
     return {
       data: branchCategory({ visibility: 'BUSINESS', owner_branch_id: branchId, revision: 3 }),
@@ -331,6 +355,13 @@ it('shares an own private category after the one-way warning and stops offering 
   fireEvent.click(
     screen.getByRole('button', { name: t('en', 'catalogServiceCategories.confirm') }),
   );
+  await expectNavigationBlocked();
+  expect(
+    screen
+      .getByRole('button', { name: t('en', 'catalogServiceCategories.save') })
+      .closest('fieldset[disabled]'),
+  ).toBeTruthy();
+  write.finish();
   const row = await screen.findByRole('row', { name: /Hair/ });
   expect(
     within(row).getByText(t('en', 'catalogServiceCategories.visibilityBusiness')),
@@ -345,6 +376,51 @@ it('shares an own private category after the one-way warning and stops offering 
     name_en: 'Hair',
     name_ar: 'Hair AR',
     expected_revision: 2,
+    visibility: 'BUSINESS',
+  });
+});
+
+it('closes the selected editor when navigating to the next page', async () => {
+  mockBranchLists();
+  const selected = ownPrivateRow('Page one', 'Page one AR', 1);
+  get.mockResolvedValueOnce(okPage([selected], JSON.stringify([selected.name_en, selected.id])));
+  renderSection();
+  await clickSeenButton('catalogServiceCategories.manage');
+  expect(inputOf('catalogServiceCategories.nameEn').value).toBe('Page one');
+  clickButton('catalogServices.next');
+  expect(screen.queryByLabelText(t('en', 'catalogServiceCategories.nameEn'))).toBeNull();
+});
+
+it('reloads and re-confirms a share with the refreshed names and revision', async () => {
+  inUse = [ownPrivateRow('Old En', 'Old AR', 3)];
+  patch.mockResolvedValueOnce(
+    envelope(409, 'SERVICE_CATEGORY_REVISION_CONFLICT', 'Another manager changed it.'),
+  );
+  mockBranchLists();
+  renderSection();
+  await clickSeenButton('catalogServiceCategories.manage');
+  clickButton('catalogServiceCategoryBranches.share');
+  clickButton('catalogServiceCategories.confirm');
+  expect(await screen.findByText('Another manager changed it.')).toBeTruthy();
+
+  const updated = ownPrivateRow('Server En', 'Server AR', 5);
+  inUse = [updated];
+  clickButton('catalogServiceCategories.reload');
+  await vi.waitFor(() =>
+    expect(inputOf('catalogServiceCategories.nameEn').value).toBe('Server En'),
+  );
+  expect(patch).toHaveBeenCalledTimes(1);
+  patch.mockResolvedValue({
+    data: { ...updated, visibility: 'BUSINESS' },
+    response: { status: 200 },
+  });
+  clickButton('catalogServiceCategoryBranches.share');
+  clickButton('catalogServiceCategories.confirm');
+  expect(await screen.findByText(/The category is now shared with every branch/)).toBeTruthy();
+  expect(patch.mock.calls[1]?.[1]?.body).toEqual({
+    name_en: 'Server En',
+    name_ar: 'Server AR',
+    expected_revision: 5,
     visibility: 'BUSINESS',
   });
 });

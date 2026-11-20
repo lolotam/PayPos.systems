@@ -5,10 +5,28 @@ import {
   type ServiceCategory,
   type ServiceCategoryVisibility,
 } from '@pospay/contracts';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useIsMutating, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 import { serviceCategoryKey } from './use-service-category-list';
 import { key as servicesKey } from './use-services';
+
+const branchSaveKey = (companyId: string, businessId: string, userId: string, branchId: string) =>
+  ['branch-service-category-save', companyId, businessId, userId, branchId] as const;
+
+/** يخلّي نموذج الفرع مفتوح لحد ما الكتابة ونتيجتها تخلص. */
+export function useBranchServiceCategorySavePending({
+  companyId,
+  businessId,
+  userId,
+  branchId,
+}: {
+  companyId: string;
+  businessId: string;
+  userId: string;
+  branchId: string;
+}) {
+  return useIsMutating({ mutationKey: branchSaveKey(companyId, businessId, userId, branchId) }) > 0;
+}
 
 type BranchCategoryNames = { name_en: string; name_ar: string };
 type BranchCategoryPatch = BranchCategoryNames & {
@@ -73,7 +91,7 @@ export function useBranchServiceCategoryCreate(
 ) {
   const client = useQueryClient();
   return useMutation({
-    mutationKey: ['branch-create-service-category', companyId, businessId, userId, branchId],
+    mutationKey: [...branchSaveKey(companyId, businessId, userId, branchId), 'create'],
     mutationFn: (body: CreateBranchServiceCategoryInput) =>
       branchCreate(companyId, businessId, branchId, body),
     onSuccess: () =>
@@ -93,7 +111,7 @@ export function useBranchServiceCategoryRename(
 ) {
   const client = useQueryClient();
   return useMutation({
-    mutationKey: ['branch-rename-service-category', companyId, businessId, userId, branchId],
+    mutationKey: [...branchSaveKey(companyId, businessId, userId, branchId), 'rename'],
     mutationFn: (body: BranchCategoryPatch) => branchPatch(companyId, businessId, branchId, body),
     onSuccess: () =>
       Promise.all([
@@ -115,7 +133,7 @@ export function useBranchServiceCategoryShare(
 ) {
   const client = useQueryClient();
   return useMutation({
-    mutationKey: ['branch-share-service-category', companyId, businessId, userId, branchId],
+    mutationKey: [...branchSaveKey(companyId, businessId, userId, branchId), 'share'],
     mutationFn: (body: BranchCategoryPatch) =>
       branchPatch(companyId, businessId, branchId, { ...body, visibility: 'BUSINESS' }),
     onSuccess: () =>

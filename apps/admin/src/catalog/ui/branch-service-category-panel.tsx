@@ -49,6 +49,7 @@ export function BranchServiceCategoryPanel({
         branchId={branchId}
         record={record}
         onShared={onShared}
+        onReload={onReload}
       />
       <div>
         <Button type="button" size="sm" variant="outline" onClick={onClose}>

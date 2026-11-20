@@ -10,6 +10,7 @@ import { Button } from '@pospay/ui';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useBranchServiceCategories } from '../api/use-branch-service-categories';
+import { useBranchServiceCategorySavePending } from '../api/use-branch-service-category-save';
 import { useBranchServiceCategoryState } from '../api/use-branch-service-category-state';
 import { BranchServiceCategoriesTable } from '../ui/branch-service-categories-table';
 import { BranchServiceCategoryForm } from '../ui/branch-service-category-form';
@@ -56,6 +57,10 @@ function useSectionState() {
     setSelected(item);
     setCreating(false);
   };
+  const changePage = (next: string | undefined) => {
+    setCursor(next);
+    setSelected(null);
+  };
   const lead =
     view === 'in_use'
       ? t(locale, 'catalogServiceCategoryBranches.leadInUse')
@@ -68,7 +73,7 @@ function useSectionState() {
     outcome,
     lead,
     createLabel: t(locale, 'catalogServiceCategories.create'),
-    setCursor,
+    changePage,
     setSelected,
     setOutcome,
     switchView,
@@ -86,7 +91,13 @@ async function reloadSelectedCategory(
   const selected = section.selected;
   const result = await list.refetch();
   if (selected && result.isSuccess) {
-    const refreshed = result.data.items.find((item) => item.id === selected.id) ?? null;
+    const refreshed =
+      result.data.items.find(
+        (item) =>
+          item.id === selected.id &&
+          item.visibility === 'BRANCH' &&
+          item.owner_branch_id === selected.owner_branch_id,
+      ) ?? null;
     section.setSelected((current) => (current === selected ? refreshed : current));
   }
 }
@@ -162,8 +173,9 @@ export function BranchServiceCategoriesSection(scope: BranchSectionScope) {
     { view: section.view, cursor: section.cursor },
   );
   const outcomes = useSectionOutcomes(scope, list, section);
+  const saving = useBranchServiceCategorySavePending(scope);
   return (
-    <section className="flex min-w-0 flex-col gap-4 text-start">
+    <fieldset disabled={saving} className="flex min-w-0 flex-col gap-4 text-start">
       <p>{section.lead}</p>
       <div className="flex flex-wrap items-center gap-2">
         <BranchServiceCategoryViewTabs value={section.view} onChange={section.switchView} />
@@ -198,13 +210,13 @@ export function BranchServiceCategoriesSection(scope: BranchSectionScope) {
         view={section.view}
         pending={outcomes.pending}
         cursor={section.cursor}
-        onPage={section.setCursor}
+        onPage={section.changePage}
         onState={outcomes.writeState}
         onManage={(id) => {
           const item = list.data?.items.find((row) => row.id === id);
           if (item) section.manageRow(item);
         }}
       />
-    </section>
+    </fieldset>
   );
 }
