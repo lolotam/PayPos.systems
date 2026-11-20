@@ -11,7 +11,6 @@ import { normalizeKwdInput, t } from '@pospay/i18n';
 import { Button, Label, NativeSelect } from '@pospay/ui';
 import { useRef, useState, type FormEvent } from 'react';
 import { useForm, type UseFormReturn } from 'react-hook-form';
-import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { usePackageSaleContext } from '../api/use-package-sale-context';
 import { usePackageSaleStatus } from '../api/use-package-sale-status';
@@ -19,6 +18,7 @@ import { useSellPackage } from '../api/use-sell-package';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { SessionCustomerField, type SessionCustomerSelection } from './session-customer-field';
 import { PackageSaleFields, type PackageSaleFieldValues } from './package-sale-fields';
+import { PackageSaleRecoveryNotice } from './package-sale-recovery-notice';
 import { PackageSaleResult } from './package-sale-result';
 import { PackageSaleTypeField } from './package-sale-type-field';
 
@@ -195,27 +195,6 @@ function packageSaleResult(
   ) : null;
 }
 
-function packageSaleRecoveryMessage(
-  locale: 'ar' | 'en',
-  mutation: ReturnType<typeof useSellPackage>,
-) {
-  return (
-    <>
-      {mutation.recoveryRequired ? (
-        <p role="alert">
-          {t(
-            locale,
-            mutation.verificationRequired
-              ? 'packageSale.verificationRequired'
-              : 'packageSale.recoverOriginal',
-          )}
-        </p>
-      ) : null}
-      {mutation.isError ? <p role="alert">{envelopeMessage(mutation.error, locale)}</p> : null}
-    </>
-  );
-}
-
 export function PackageSaleForm({ scope }: { scope: SessionServiceScope }) {
   const locale = useLocale();
   const {
@@ -256,7 +235,7 @@ export function PackageSaleForm({ scope }: { scope: SessionServiceScope }) {
       />
       <PackageSaleFields scope={scope} form={form} disabled={locked} />
       {form.formState.errors.root ? <p role="alert">{form.formState.errors.root.message}</p> : null}
-      {packageSaleRecoveryMessage(locale, mutation)}
+      <PackageSaleRecoveryNotice mutation={mutation} status={status.data?.status} />
       <Button
         type="submit"
         disabled={
