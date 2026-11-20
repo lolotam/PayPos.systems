@@ -3,6 +3,7 @@ import {
   packageCommitRows,
   countCreatedPackageImports,
 } from '../../domain/package-import-commit.ts';
+import { packageImportCommitWindowClosed } from '../../domain/package-import-recovery.ts';
 import type {
   PackageCommitClock,
   PackageCommitTransactions,
@@ -48,5 +49,15 @@ export class CommitPackageImport {
         throw new PackageCommitRetryError(error.code);
       }
     }
+  }
+
+  /** يفوّض قرار إغلاق نافذة العشر دقائق إلى domain ليستعمله المعالج بلا حساب. */
+  windowClosed(enqueuedAtMs: number, nowMs: number): boolean {
+    return packageImportCommitWindowClosed(enqueuedAtMs, nowMs);
+  }
+
+  /** يثبت فشل الطلب المعلق برمز آمن بعد استنفاد المحاولات أو رفض الحدث. */
+  fail(companyId: string, previewId: string, code: PackageCommitError['code']): Promise<void> {
+    return this.transactions.fail(companyId, previewId, code);
   }
 }

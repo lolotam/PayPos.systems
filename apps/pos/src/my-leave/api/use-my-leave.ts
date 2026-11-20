@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { LeaveRequest, RequestLeaveInput } from '@pospay/contracts';
+import type { LeaveRequest, OwnLeaveWriteResult, RequestLeaveInput } from '@pospay/contracts';
 import { leaveIdentity, type LeaveContext } from '../model/context';
 import { leaveReadRefused } from '../model/read-error';
 import { leaveCalls } from './leave-calls';
@@ -105,7 +105,7 @@ function useLeaveWrite(
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [success, setSuccess] = useState<'saved' | 'cancelled' | null>(null);
-  const [lastRequest, setLastRequest] = useState<LeaveRequest | null>(null);
+  const [lastRequest, setLastRequest] = useState<OwnLeaveWriteResult | null>(null);
   // تغيير الكاش المحلي مش قراءة جديدة؛ الكارت ينتظر قراءة بدأت بعد تأكيد الإنشاء ونجحت.
   const creationRead = useRef(0);
   const completedRead = reads.current.completed;
@@ -114,7 +114,7 @@ function useLeaveWrite(
   }, [completedRead]);
   const write = async (
     fingerprint: string,
-    operation: (key: string, signal: AbortSignal) => Promise<LeaveRequest>,
+    operation: (key: string, signal: AbortSignal) => Promise<OwnLeaveWriteResult>,
     message: 'saved' | 'cancelled',
   ) => {
     const signal = controller.current.signal;
@@ -133,7 +133,11 @@ function useLeaveWrite(
       if (message === 'saved') {
         creationRead.current = reads.current.started;
         setLastRequest(result);
-      } else await refresh(result);
+      } else {
+        // الكارت بيعرض النتيجة المؤكدة قبل تحديث السجل، عشان فشل التحديث ما يسيبش زر إلغاء قديم.
+        setLastRequest((current) => (current && current.id === result.id ? result : current));
+        await refresh(result);
+      }
     } catch (failure) {
       if (!signal.aborted) {
         setError(failure);

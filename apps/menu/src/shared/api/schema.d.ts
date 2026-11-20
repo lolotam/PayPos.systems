@@ -3781,6 +3781,53 @@ export interface components {
             revocation_reason: string | null;
             revision: number;
         };
+        OwnLeaveWriteResult: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            business_id: string;
+            /** Format: uuid */
+            branch_id: string;
+            /** Format: uuid */
+            employee_id: string;
+            /** @enum {string} */
+            kind: "FULL_DAY" | "PARTIAL";
+            from: components["schemas"]["EmployeeDate"];
+            to: components["schemas"]["EmployeeDate"];
+            start: string | null;
+            end: string | null;
+            timezone: components["schemas"]["TimeZone"];
+            /** Format: date-time */
+            starts_at: string;
+            /** Format: date-time */
+            ends_at: string;
+            /** @enum {string} */
+            type: "ANNUAL" | "SICK" | "UNPAID" | "OTHER";
+            note: string | null;
+            /** @enum {string} */
+            status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+            /** Format: uuid */
+            requested_by: string;
+            /** Format: date-time */
+            requested_at: string;
+            /** Format: uuid */
+            cancelled_by: string | null;
+            /** Format: date-time */
+            cancelled_at: string | null;
+            /** Format: uuid */
+            decided_by: string | null;
+            /** Format: date-time */
+            decided_at: string | null;
+            rejection_reason: string | null;
+            decision_reason: string | null;
+            /** Format: uuid */
+            revoked_by: string | null;
+            /** Format: date-time */
+            revoked_at: string | null;
+            revocation_reason: string | null;
+            revision: number;
+            can_cancel: boolean;
+        };
         LeaveListQuery: {
             /** Format: uuid */
             cursor?: string;
@@ -14628,13 +14675,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description LeaveRequest */
+            /** @description OwnLeaveWriteResult */
             201: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LeaveRequest"];
+                    "application/json": components["schemas"]["OwnLeaveWriteResult"];
                 };
             };
             /** @description Bilingual refusal */
@@ -14672,13 +14719,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description LeaveRequest */
+            /** @description OwnLeaveWriteResult */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LeaveRequest"];
+                    "application/json": components["schemas"]["OwnLeaveWriteResult"];
                 };
             };
             /** @description Bilingual refusal */

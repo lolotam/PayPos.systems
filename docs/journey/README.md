@@ -157,7 +157,7 @@ answer.
 | 83 | [«حضوري»: an employee reads her own attendance](83-own-attendance.md) — الموظفة تقرا حضورها | #861 | API on staging; no screen; needs a private view (82) or the personal session (OTP OFF) |
 | 84 | [«إجازاتي»: an employee requests leave and follows it](84-my-leave.md) — الموظفة تطلب إجازة وتتابعها | #881, #882 | yes on a paired reception device; her own phone needs OTP (OFF) |
 | 85 | [An employee reads her own tips for the month](85-own-monthly-tips.md) — الموظفة تقرا بقشيشها في الشهر | #896 | API on staging; no screen; needs a private view (82) or the personal session (OTP OFF) |
-| 86 | [Sell a package at reception](86-sell-package.md) — بيع باقة من الريسبشن | #756, #778, #815, #834, #929, #1025, #1051, #1052, #1073 | yes (`/orders/package-sales/new`); needs the worker; no payment is captured |
+| 86 | [Sell a package at reception](86-sell-package.md) — بيع باقة من الريسبشن | #756, #778, #815, #834, #929, #1025, #1051, #1052, #1073, #1100 | yes (`/orders/package-sales/new`); needs the worker; no payment is captured |
 | 87 | [Use a package session in a visit, and give it back](87-redeem-package-session.md) — استخدام جلسة من الباقة في زيارة وإرجاعها | #818, #820, #838, #839, #841, #846, #931, #956 | yes, on `/orders/service-sessions/new` («من الباقة») |
 | 88 | [Extend a package's expiry](88-extend-package.md) — تمديد صلاحية الباقة | #975, #985, #1045 | yes, in the package detail under «من الباقة» |
 | 89 | [Refund unused package sessions](89-refund-package-sessions.md) — استرداد جلسات الباقة اللي ما اتستخدمتش | #819, #999 | API on staging; no dialog or bell yet; imported packages cannot be refunded yet |
@@ -167,6 +167,7 @@ answer.
 | 93 | [Leave history report for all employees](93-leave-history-report.md) — تقرير سجل الإجازات لكل الموظفين | #942, #981, #982, #997, #1001 | yes (`/staff/leave-history`); large reports are built by the worker |
 | 94 | [Services import from Excel: the cell-reading core](94-services-import-parsing.md) — استيراد الخدمات من Excel: أساس قراءة الخلايا | #817, #823, #824 | nothing to click (pure rules, checked by tests; no import route or screen yet) |
 | 95 | [The new look and the light / dark switch](95-design-system-theme.md) — الشكل الجديد ومفتاح فاتح / غامق | #1079, #1083, #1095, DS-3 A3 | yes, in the admin and the POS |
-| 96 | [The commission plan builder](96-commission-plan-builder.md) — منشئ خطط العمولة | #1104, this PR | yes (`/commissions/plans`) |
+| 96 | [Package sale recovery when the response is lost](96-package-sale-recovery.md) — استرجاع بيع الباقة لما الرد يضيع | #1077, #1094 | after the next staging batch; needs the `orders` feature; continues [86](86-sell-package.md) step 14 |
+| 97 | [The commission plan builder](97-commission-plan-builder.md) — منشئ خطط العمولة | #1104, this PR | yes (`/commissions/plans`) |
 
 New journeys are added after every merge.

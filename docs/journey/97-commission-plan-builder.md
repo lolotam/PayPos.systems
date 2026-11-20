@@ -1,4 +1,4 @@
-# 96 · The commission plan builder — منشئ خطط العمولة
+# 97 · The commission plan builder — منشئ خطط العمولة
 
 **Status / الحالة:** shipped in #1104 (PR 1: the plan editor and the shared wire validator, 48-3 PR 1 of 2) and
 this PR (PR 2: the screen, the route, the sidebar entry and the version history; 48-3 PR 2 of 2, spec 059 row 48-3).

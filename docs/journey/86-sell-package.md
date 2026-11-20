@@ -35,11 +35,12 @@ package types themselves are [37](37-package-types.md); using a sold session is 
 10. **البائعة هي نفسها:** هبة تختار الموظفة المربوطة بحسابها ← **مينفعش تسجّلي نفسك بائعة.**
 11. **البائعة مش في الفرع:** ← **البائعة مش شغالة أو مش تبع الفرع في التاريخ ده.**
 12. **الأسعار اتغيّرت:** لو أسعار خدمات الباقة اتغيّرت وهي فاتحة الشاشة ← **راجعي الباقة والأسعار المحدّثة وأكديهم**،
-    والبيع ما يتمش غير بعد ما تأكّد.
+    وزرار **بيع الباقة** بيفضل مقفول لحد ما تأكّدي، والبيع ما يتمش غير بعدها.
 13. **الباقة اتوقف بيعها:** وهي بتبيع ← **الباقة دي متوقف بيعها.**
 14. **النت قطع بعد الضغط:** ← **البيع السابق ممكن يكون اتقبل. التعديل مقفول؛ أعيدي محاولة البيع الأصلي فقط.** وزرار
     **إعادة محاولة البيع الأصلي**. إعادة المحاولة بتبعت نفس الطلب بنفس المفتاح، فمفيش بيع مرتين. لو المهلة خلصت ←
     **انتهت مهلة إعادة المحاولة. تحققي من نتيجة البيع الأصلي مع المدير قبل بدء بيع جديد.**
+    التفاصيل كلها (المهلة، مراجعة المدير، تجاهل المحاولة، تحذير الجهاز) في [96](96-package-sale-recovery.md).
 15. **ناقص حاجة:** ← **اختاري الزبونة والباقة والبائعة وعضوية التسجيل، واكتبي سعر صحيح.**
 
 **ممنوع يحصل:**
@@ -49,6 +50,7 @@ package types themselves are [37](37-package-types.md); using a sold session is 
 - المبلغ المدفوع ما يتوزّعش بالكامل على جلسات الباقة (مجموع قيم الجلسات = المبلغ بالفلس).
 - تعديل نوع الباقة بعد البيع يغيّر جلسات أو قيم أو تاريخ انتهاء باقة اتباعت.
 - بيع يتسجّل في فرع أو شركة تانية.
+- بيع جديد يتبعت بنسخة الباقة القديمة والتأكيد لسه ظاهر (إعادة محاولة البيع الأصلي بتبعت الطلب المحفوظ زي ما هو).
 
 ## English
 
@@ -72,12 +74,15 @@ package types themselves are [37](37-package-types.md); using a sold session is 
     seller.**
 11. **The seller is not at the branch:** → **The seller is not active at this branch on that date.**
 12. **Prices changed:** if the package's service prices changed while the screen was open → **Confirm the refreshed
-    package and prices**, and the sale goes through only after she confirms.
+    package and prices**. The **Sell package** button stays disabled until she confirms, and the sale goes through
+    only after that.
 13. **Selling was stopped:** while she is selling → **This package is not on sale.**
 14. **The network dropped after the click:** → **The previous sale may have been accepted. Edits are locked; retry
     only the original sale.** with **Retry original sale**. The retry sends the same request with the same key, so
     nothing is sold twice. When the window is over → **The retry window has expired. Verify the original sale with
     your manager before starting another sale.**
+    The full flow (the window, the manager check, discarding the attempt, the device warning) is in
+    [96](96-package-sale-recovery.md).
 15. **Something is missing:** → **Choose a customer, package, seller and recorder, and enter a valid price.**
 
 **Must NOT happen:**
@@ -87,6 +92,8 @@ package types themselves are [37](37-package-types.md); using a sold session is 
 - The price paid not fully split over the package's sessions (the session values sum to the amount, to the mill).
 - A later edit of the package type changing the sessions, values or expiry of a package already sold.
 - A sale recorded in another branch or company.
+- A new sale is sent with the old revision while the confirmation is still shown (a retry of the original sale
+  replays its saved request as it was).
 
 ## For an agent
 

@@ -74,6 +74,7 @@ export const staffSchemaNames = [
   'LeaveListQuery',
   'LeavePage',
   'LeaveRequest',
+  'OwnLeaveWriteResult',
   'PasskeyBindingStatus',
   'PasskeyEmployee',
   'PasskeyEmployeePage',

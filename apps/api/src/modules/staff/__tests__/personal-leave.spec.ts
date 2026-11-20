@@ -1,5 +1,5 @@
 import { employeeNameMatchKey } from '@pospay/domain';
-import { leavePage, leaveRequest } from '@pospay/contracts';
+import { leavePage, ownLeaveWriteResult } from '@pospay/contracts';
 import { OWNER_ROLE_ID, SYSTEM_ROLES } from '@pospay/db';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { personalFixture, personalOrigin } from '../../../../test/personal-staff.fixture.ts';
@@ -72,7 +72,7 @@ it('LIMITED personal sessions create, replay, list and cancel their own leave wi
   const request = { method: 'POST' as const, url: path(), headers: headers(), payload: input };
   const made = await f.app.inject(request);
   expect(made.statusCode).toBe(201);
-  const row = leaveRequest.parse(made.json());
+  const row = ownLeaveWriteResult.parse(made.json());
   ownLeave = row.id;
   expect(row).toMatchObject({
     employee_id: f.employeeId,
@@ -92,7 +92,7 @@ it('LIMITED personal sessions create, replay, list and cancel their own leave wi
     payload: { expected_revision: 1 },
   });
   expect(cancelled.statusCode).toBe(200);
-  expect(leaveRequest.parse(cancelled.json())).toMatchObject({
+  expect(ownLeaveWriteResult.parse(cancelled.json())).toMatchObject({
     id: ownLeave,
     status: 'CANCELLED',
     revision: 2,
@@ -210,7 +210,7 @@ it('personal own history shows decision/reason but grants no manager decision or
     payload: leaveTerms('2027-06-01'),
   });
   expect(created.statusCode).toBe(201);
-  const row = leaveRequest.parse(created.json());
+  const row = ownLeaveWriteResult.parse(created.json());
   const approver = f.ids.newId();
   const manager = SYSTEM_ROLES.find((r) => r.code === 'business_manager');
   await f.owner`INSERT INTO "user"(id,name,email) VALUES(${approver},'Synthetic approver','personal-leave-approver@example.test')`;

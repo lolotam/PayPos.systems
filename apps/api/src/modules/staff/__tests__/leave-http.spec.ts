@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { leavePage, leaveRequest } from '@pospay/contracts';
+import { leavePage, leaveRequest, ownLeaveWriteResult } from '@pospay/contracts';
 import { SYSTEM_ROLES } from '@pospay/db';
 import { paired, origin } from '../../../../test/staff-otp-harness.ts';
 import { leaveFixture, leaveIds, leaveTerms, type LeaveFixture } from './leave.fixture.ts';
@@ -125,7 +125,7 @@ it('own route derives identity only from staff session, refuses injected IDs and
     payload,
   });
   expect(result.statusCode).toBe(201);
-  const row = leaveRequest.parse(result.json());
+  const row = ownLeaveWriteResult.parse(result.json());
   expect(row.employee_id).toBe(f.employee.id);
   expect(row.requested_by).toBe(f.userId);
   expect(
@@ -267,14 +267,16 @@ it('own list paginates newest first: limit 1 returns the newest and its cursor f
   expect(first.statusCode).toBe(200);
   const page = leavePage.parse(first.json());
   expect(page.items).toHaveLength(1);
-  expect(page.items[0]?.id).toBe(leaveRequest.parse(newer.json()).id);
+  expect(page.items[0]?.id).toBe(ownLeaveWriteResult.parse(newer.json()).id);
   const second = await f.h.app.inject({
     method: 'GET',
     url: `/v1/staff/me/leave-requests?limit=1&cursor=${page.next_cursor}`,
     headers: own(),
   });
   expect(second.statusCode).toBe(200);
-  expect(leavePage.parse(second.json()).items[0]?.id).toBe(leaveRequest.parse(older.json()).id);
+  expect(leavePage.parse(second.json()).items[0]?.id).toBe(
+    ownLeaveWriteResult.parse(older.json()).id,
+  );
 });
 it('owner immunity permits own leave despite a historical DENY; the same DENY blocks a non-owner', async () => {
   const owner = SYSTEM_ROLES.find((r) => r.code === 'owner');

@@ -53,7 +53,7 @@ import { documentType, documentTypeList, employeeDocument, employeeDocumentsView
 import { employeeIbanHistoryPage, employeeIbanView, setEmployeeIbanInput } from './staff/employee-iban.js';
 import { employeeImportCommitAccepted, employeeImportPreview, employeeImportStatus, employeeImportTemplate, previewEmployeeImportInput } from './staff/employee-import.js';
 import { employeeNameMatches, employeeNameMatchesInput } from './staff/employee-name-matches.js';
-import { leavePage, leaveRequest, requestLeaveInput } from './staff/leave.js';
+import { leavePage, leaveRequest, ownLeaveWriteResult, requestLeaveInput } from './staff/leave.js';
 import { employeeSalary, salaryHistoryPage, setSalaryInput } from './staff/salary.js';
 import { scheduleGrid, setScheduleInput, staffSchedule } from './staff/schedules.js';
 import { branchScheduleSettings, scheduleSettings, setScheduleSettingsInput } from './staff/schedule-settings.js';
@@ -108,6 +108,7 @@ const responses = [
   { name: 'attendanceQrBranch', schema: attendanceQrBranch },
   { name: 'leavePage', schema: leavePage },
   { name: 'leaveRequest', schema: leaveRequest },
+  { name: 'ownLeaveWriteResult', schema: ownLeaveWriteResult },
   { name: 'membershipPermissions', schema: membershipPermissions },
   { name: 'myMembershipsResponse', schema: myMembershipsResponse },
   { name: 'myWorkspacesResponse', schema: myWorkspacesResponse },
@@ -263,4 +264,12 @@ it.each(requests)('$name still rejects an unknown key', ({ schema }) => {
   expect(parsed.success).toBe(false);
   if (parsed.success) return;
   expect(JSON.stringify(parsed.error.issues)).toContain('unrecognized_keys');
+});
+
+it('ownLeaveWriteResult accepts a written record with can_cancel and rejects one without it', () => {
+  const clean = validSample(ownLeaveWriteResult) as Record<string, unknown>;
+  expect(ownLeaveWriteResult.safeParse(clean).success).toBe(true);
+  const withoutFlag = { ...clean };
+  delete withoutFlag.can_cancel;
+  expect(ownLeaveWriteResult.safeParse(withoutFlag).success).toBe(false);
 });

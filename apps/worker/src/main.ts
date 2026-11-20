@@ -17,6 +17,7 @@ import {
   startPushCapability,
 } from './modules/notifications/index.ts';
 import { createDispatchLoop } from './outbox/dispatch-loop.ts';
+import { retryDelayMs } from './outbox/retry-policy.ts';
 import { readConfig } from './shared/config.ts';
 import { WORKER_LOG_EVENTS } from './shared/log-events.ts';
 import { createWorker } from './worker.ts';
@@ -44,6 +45,7 @@ import {
   daySessionsReader,
   startPackagePreviewWorker,
   startPackageSaleWorker,
+  startPackageImportCommitWorker,
 } from './modules/orders/index.ts';
 import {
   closedRatingClaimsLifecycle,
@@ -84,6 +86,13 @@ const sales = startPackageSaleWorker(app, systemUuidV7(), {
   redisUrl: config.REDIS_URL,
   clock: { now: () => new Date() },
   transactionTimeoutMs: config.PACKAGE_SALE_TRANSACTION_TIMEOUT_MS,
+});
+// المستهلك مسجّل قبل المنتج (47-2d)؛ لا شيء يصدر PackageImportCommitRequested بعد في الإنتاج.
+const imports = startPackageImportCommitWorker(app, systemUuidV7(), {
+  redisUrl: config.REDIS_URL,
+  clock: { now: () => new Date() },
+  transactionTimeoutMs: config.PACKAGE_IMPORT_COMMIT_TRANSACTION_TIMEOUT_MS,
+  retryDelayMs,
 });
 const staff = startStaffWorker(app, systemUuidV7(), config.REDIS_URL, { now: () => new Date() });
 // قفل وفتح التصنيفات الكبيرة عملية خلفية واحدة لكل طلب؛ العامل نايم لحد ما يجي المنتج.
@@ -181,7 +190,17 @@ const businessDeliver = createDeliverer(
     }),
   ],
   logger,
-  { knownEventTypes: knownEventTypes(staff, notifications, inApp, previews, sales, catalog) },
+  {
+    knownEventTypes: knownEventTypes(
+      staff,
+      notifications,
+      inApp,
+      previews,
+      sales,
+      imports,
+      catalog,
+    ),
+  },
 );
 let queue: OptionalCapabilities['queue'];
 let documents: DocumentRendering | undefined;
@@ -192,12 +211,14 @@ const ratingClaims = closedRatingClaimsLifecycle();
 const deliver: typeof businessDeliver = (event) =>
   previews.deliver(event, (event) =>
     sales.deliver(event, (event) =>
-      catalog.deliver(event, (event) =>
-        deliverFilesEvent(event, {
-          register: (claimed) => files.deliver(claimed),
-          staff: (claimed, next) => staff.deliver(claimed, next),
-          core: (claimed) => ratingClaims.deliver(claimed, pushTransport),
-        }),
+      imports.deliver(event, (event) =>
+        catalog.deliver(event, (event) =>
+          deliverFilesEvent(event, {
+            register: (claimed) => files.deliver(claimed),
+            staff: (claimed, next) => staff.deliver(claimed, next),
+            core: (claimed) => ratingClaims.deliver(claimed, pushTransport),
+          }),
+        ),
       ),
     ),
   );
@@ -206,6 +227,8 @@ const loop = createDispatchLoop({ dispatcher, deliver, logger });
 const release = async (): Promise<void> => {
   stopping = true;
   clearInterval(capabilityTimer);
+  // تثبيت الاستيراد أول عامل يُغلق وبالقوة: الإغلاق القسري لا ينتظر، ويمنعه من بدء تثبيت مالي جديد بينما بقية العمال تُصفّى.
+  await imports.close();
   // ننتظر فحص الملفات الجاري قبل إغلاق اتصال قاعدة البيانات.
   await previews.close();
   await sales.close();
@@ -261,6 +284,7 @@ async function startWorkerCore(): Promise<void> {
         { name: 'database', check: () => app.ping() },
         { name: 'package-previews', check: () => previews.ready() },
         { name: 'package-sale', check: () => sales.ready() },
+        { name: 'package-import-commit', check: () => imports.ready() },
         { name: 'leave-history-reports', check: () => staff.reportsReady() },
         { name: 'service-category-closing', check: () => catalog.ready() },
         // A wrong dispatcher URL or password leaves the worker with nothing to do — it is not ready.

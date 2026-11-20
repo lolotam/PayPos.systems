@@ -1,4 +1,4 @@
-import { leavePage, leaveRequest } from '@pospay/contracts';
+import { leavePage, ownLeaveWriteResult } from '@pospay/contracts';
 import { SYSTEM_ROLES } from '@pospay/db';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { personalFixture, personalOrigin } from '../../../../test/personal-staff.fixture.ts';
@@ -73,7 +73,7 @@ it('own history stays business-wide: a session selected on one branch lists a de
     payload: leaveTerms('2027-08-01'),
   });
   expect(created.statusCode).toBe(201);
-  const leave = leaveRequest.parse(created.json());
+  const leave = ownLeaveWriteResult.parse(created.json());
   expect(leave.branch_id).toBe(secondBranch);
   await f.owner`UPDATE memberships SET role_id=${role('staff')},scope_type='BRANCH',scope_id=${f.branchId}
     WHERE company_id=${f.companyId} AND id=${f.membershipId}`;

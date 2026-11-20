@@ -849,7 +849,9 @@ audit trail).
   package-import-recovery sweep (ADR-0022 tenant discovery; at most 50 requests aged ten minutes or more per read, a
   still-pending request conditionally marked `failed` with `IMPORT_COMMIT_FAILED`, no re-enqueue), then transports the
   `package-import-commit` BullMQ job after the outbox claim commits (ADR-0018). An ADR-0034 addendum and a module-map §4
-  row record it. Row 50 consumes `PackageSaleChanged` and the
+  row record it. As built in 47-2c: the sweep is one conditional statement per page whose candidate read skips a row
+  locked by a running commit (`FOR UPDATE SKIP LOCKED`), at most 20 pages per run; a job older than ten minutes since
+  enqueue starts no new financial attempt; a malformed event is parked without a database call. Row 50 consumes `PackageSaleChanged` and the
   redeemed lines.
 
 ### Permissions (PK-Q12…PK-Q17 answered by Waleed, PP-16; PK-Q18 by Abu Salem; PK-Q5, PK-Q6 and PK-Q26 answered by both owners)
@@ -988,6 +990,8 @@ Every row waits on this spec's merge and on the owner answers named in its "Bloc
 | **47-1b** | Execute package preview in worker and activate producer | Hardened shared reader and pure validators/money without cross-app imports or duplicate rules; storage outside transactions; batched lookups and terminal ready/failed update under withTenant; duplicate/retry isolation; BullMQ transport with durable failure-code finalization and nonblocking startup; production API controller registration only with the available consumer; invalid events fail a known pending aggregate before parking, and creator polling projects expired pending as failed (read-only fallback, no sweep); unchanged 500 rows/68 cols/2 MiB/4 sheets | 47-1a merged; same owning session, one PR at a time |
 | **47-2** | Financial import commit (after complete asynchronous preview) | 1. Commit request route (202, `Idempotency-Key`, sets `commit_requested` and appends `PackageImportCommitRequested` in one transaction), the event's contract, worker known type, ADR-0034 addendum and module-map §4 row. 2. Orders worker: financial commit use case, `package-import-commit` processor and its recovery sweep, wired like staff's. The preview worker belongs to 47-1 by the manager's decision. 3. IM-01…IM-08, plus worker tests: the job is enqueued only after the claim commits, and a commit request left pending ten minutes is marked `failed` | Complete 47-1 asynchronous preview |
 | **47-2b** | Worker financial commit and preview contract | One `CommitPackageImport` use case: locked accepted preview, frozen membership identity, dense source-row positions, bigint session-count values, targeted external-reference conflict skipping, atomic entitlements/components/slots plus one audit and ImportCommitted summary. Two ordered migrations: nullable identity/FK/grant and package guards, then concurrent FK index and validation. Enforce partition presence and PP-134 legacy refusal; staff unchanged. Bounded slot batches preserve one transaction. No request route, producer, transport or recovery activation (47-2c/d). See [brief](47-2b-brief.md) and [local verification](47-2b-local-receipt.md). | 47-2a merged and deployed to staging; final migration numbering/generation/push require the manager lane grant |
+| **47-2c** | Worker transport and recovery for the import commit | `PackageImportCommitRequested` contract (id-only, not yet in OpenAPI) and worker known type; `package-import-commit` processor enqueued only after the dispatcher claim commits, with progress-persisted safe failure codes and no new financial attempt after ten minutes from enqueue; per-company `package-import-recovery` sweep (one `SKIP LOCKED` statement per page, 50 × 20) that marks a request `commit_requested` for ten minutes `failed` / `IMPORT_COMMIT_FAILED` without re-enqueue; ADR-0034 addendum 2026-11-20 and module-map §4 row. No migration, no route, no producer. See [plan and debate record](47-2c-plan.md) and [local verification](47-2c-local-receipt.md). | 47-2b merged |
+| **47-2d** | Commit request route (producer) | Route (202, `Idempotency-Key`, `ready → commit_requested` and `PackageImportCommitRequested` in one transaction), OpenAPI registration, status contract variants, IM-01…IM-08. **Blocked until** the transaction budget question 47-2c-Q1 is answered; must weigh the single-concurrency queue limit recorded in the 47-2c plan §8; the event payload is a strict object, so any added payload field needs the worker deployed first. | 47-2c merged and deployed to staging |
 | **47-3** | Import screen | 1. Upload/preview/commit screen. 2. Row errors. 3. Component tests | 47-2 |
 
 **Detail query order:** 42-4b-a (#818) created the FR-071 query and 42-4r exposes it; 43-3, then 45, then 46-3 each add one history section to the
@@ -1029,6 +1033,30 @@ block replay and explain that the original sale must be verified with the manage
 is known, use status reads only. Remove the journal only after a confirmed terminal outcome or a
 first-request definitive rejection. Local UI coverage includes reload, timeout, unavailable storage
 and expired-window messages in Arabic and English.
+
+The held attempts live per scope in memory, so a request that started under one scope reads and writes
+only that scope's entry whatever the form shows when the response settles. The stored record passes a
+fail-closed shape check (bounded key and sale id, valid body, or a status-only record with a sale id and
+no body), and a write that storage refuses keeps the attempt in memory and warns «could not be saved on
+this device» while the attempt is unresolved. Every observation of the attempt — on restore, before each
+send, and on the expiry timer, window focus and visibility change — raises the record's `seenAt` to the
+observation time once more than a minute has passed since the previous observation. Expiry works from
+that last observation with a five-minute clock tolerance: a clock more than five minutes behind the
+last observation expires the attempt, as does an age of 23 hours since creation measured against the
+later of the current clock and `seenAt`; an observed expiry is latched into `seenAt` at the
+window's end so it stays expired whatever the clock does afterwards, and for a clock moved back
+by more than that tolerance the check can only block replay, never allow it. With the screen open, a
+timer fires at the expiry instant, and window focus and visibility changes re-check it, so the message
+and the locked retry flip without a reload. Once the window has expired, the operator who verified the
+original sale with the manager ticks an explicit acknowledgement and discards the expired attempt
+locally: the discard is decided on the fresh read inside the scope lock and refuses a record that has
+gained a sale id, and otherwise the journal entry and its stored record are removed, the unsaved
+warning clears, and the form opens for a new sale; a removal the device refuses keeps the attempt and
+the unsaved warning, and the server's idempotency window stays the authority on duplicates. An unreadable device is not treated as an empty one: when reading the journal itself fails, the discard is refused, the attempt stays and the unsaved warning shows. When memory and the device disagree about the same attempt, a known sale id wins, and otherwise the later observation wins, so an older stored copy never reopens an expired attempt or hides an accepted sale. A refused observation write keeps the expiry latch in memory and shows the unsaved warning.
+
+While the selected package's refreshed quote is unconfirmed, the form cannot submit a new sale — the sell
+button stays disabled and the submit handler does nothing; recovering an original sale replays the saved
+body and is unaffected.
 
 ### API picker follow-ups (#1075)
 
