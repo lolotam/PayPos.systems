@@ -11,6 +11,19 @@ export const catalogServiceCategoryBranchesEn = {
   hiddenHere: 'Hidden here',
   branchColumn: 'In this branch',
   noActiveBranch: 'No active branch to show categories for.',
+  hide: 'Hide from this branch',
+  enable: 'Enable in this branch',
+  hidden: 'Hidden from this branch.',
+  enabled: 'Enabled in this branch.',
+  visibilityChoice: 'Who uses this category',
+  visibilityPrivate: 'This branch only',
+  visibilityShared: 'Shared with every branch',
+  visibilityRequired: 'Choose who uses this category.',
+  seeAvailable: 'See available categories',
+  share: 'Share with every branch',
+  shareConfirm:
+    'A shared category never becomes private again, and it is renamed from the business level.',
+  shared: 'The category is now shared with every branch.',
 };
 
 export const catalogServiceCategoryBranchesAr = {
@@ -24,4 +37,16 @@ export const catalogServiceCategoryBranchesAr = {
   hiddenHere: 'مخفي عندك',
   branchColumn: 'في الفرع ده',
   noActiveBranch: 'مفيش فرع نشط تقدر تشوف التصنيفات بتاعته.',
+  hide: 'إخفاء من الفرع',
+  enable: 'تفعيل في الفرع',
+  hidden: 'اتخفى من الفرع ده.',
+  enabled: 'اتفعّل في الفرع ده.',
+  visibilityChoice: 'مين يستخدم التصنيف ده',
+  visibilityPrivate: 'خاص بالفرع ده',
+  visibilityShared: 'مشترك لكل الفروع',
+  visibilityRequired: 'اختار مين يستخدم التصنيف.',
+  seeAvailable: 'شوف التصنيفات المتاحة',
+  share: 'خليه مشترك لكل الفروع',
+  shareConfirm: 'بعد ما يبقى مشترك مش هيرجع خاص تاني، وتعديل اسمه هيبقى من مستوى النشاط.',
+  shared: 'التصنيف بقى مشترك لكل الفروع.',
 };

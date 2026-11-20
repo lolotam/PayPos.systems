@@ -1,5 +1,10 @@
 'use client';
-import type { ServiceCategoryBranchPage } from '@pospay/contracts';
+import type {
+  ServiceCategoryBranchListItem,
+  ServiceCategoryBranchPage,
+  ServiceCategoryBranchSettingState,
+  ServiceCategoryBranchView,
+} from '@pospay/contracts';
 import type { UseQueryResult } from '@tanstack/react-query';
 import { t, type Locale } from '@pospay/i18n';
 import { CircleAlert, EmptyState, LoaderCircle, Store } from '@pospay/ui';
@@ -14,18 +19,27 @@ const columns = (locale: Locale) => [
   { id: 'name', header: t(locale, 'catalogServiceCategories.listTitle') },
   { id: 'visibility', header: t(locale, 'catalogServiceCategories.visibility') },
   { id: 'marks', header: t(locale, 'catalogServiceCategoryBranches.branchColumn') },
+  { id: 'actions', header: '' },
 ];
 
 export function BranchServiceCategoriesTable({
   list,
   branchId,
+  view,
+  pending,
   cursor,
   onPage,
+  onState,
+  onManage,
 }: {
   list: UseQueryResult<ServiceCategoryBranchPage>;
   branchId: string;
+  view: ServiceCategoryBranchView;
+  pending: boolean;
   cursor: string | undefined;
   onPage: (cursor: string | undefined) => void;
+  onState: (item: ServiceCategoryBranchListItem, state: ServiceCategoryBranchSettingState) => void;
+  onManage: (categoryId: string) => void;
 }) {
   'use no memo';
   const locale = useLocale();
@@ -51,7 +65,14 @@ export function BranchServiceCategoriesTable({
   return (
     <div className="flex flex-col gap-4">
       {list.data.items.length ? (
-        <BranchServiceCategoriesFrame table={table} branchId={branchId} />
+        <BranchServiceCategoriesFrame
+          table={table}
+          branchId={branchId}
+          view={view}
+          pending={pending}
+          onState={onState}
+          onManage={onManage}
+        />
       ) : (
         <EmptyState icon={<Store />} title={t(locale, 'catalogServiceCategories.empty')} />
       )}
