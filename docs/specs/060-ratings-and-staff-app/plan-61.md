@@ -259,7 +259,8 @@ the reason for 59b-3's gate.
   `LOW_RATING` rule and a branch override save and read back ~50; **RLS negative** for `low_rating_notices`
   (cross-tenant read = 0 rows, insert with a foreign `company_id` = error, re-home refused, no UPDATE/DELETE grant)
   ~90; unique-claim test (second insert for the same rating conflicts) ~30; kind-list parity between domain,
-  contracts and SQL ~20.
+  contracts and SQL ~20. Update the existing unknown-kind case in `packages/db/src/__tests__/rls-alert-rules.spec.ts`
+  (it inserts `LOW_RATING` and expects `alert_rules_kind` to refuse it) to use a kind that stays unsupported.
 - **Stop line:** no emitter, no listing, no i18n label for the kind.
 
 ### 61-1e — Wire: the two in-app templates
@@ -330,9 +331,11 @@ closure is needed.
   7. names and details per plan-61-1 §3.5: performers ordered by `employee_id`, first word of the stored name, the
      ar → en → generic-label fallback as `null`; customer full name; `phone_last3` with the same semantics as API
      `maskPhone`; `business_date` from the request;
-  8. one recipient list → groups of at most 100 → one `LowRatingReceived` per group, appended in the same transaction.
-- **`TODO(spec)` RT-Q17:** the function that maps the stored comment into the notice (`noticeComment`) is the only
-  place that answer changes. **This sub-PR does not start until RT-Q17 is answered.**
+  8. each non-empty partition from step 6 (`low_rating_with_comment` and `low_rating`) → groups of at most 100 within
+     that partition → one `LowRatingReceived` per group, appended in the same transaction. A group never mixes the two
+     templates.
+- **RT-Q17 (answered, PP-207.1):** the comment is shown as written. `noticeComment` is the only place that answer
+  changes; if Abu Salem picks differently on the page, only that function changes in a follow-up.
 - **Files** (`apps/worker/src/modules/customers`): `domain/low-rating-notice.ts` (pure: partition, groups, details
   composer, first-name rule reusing `display-name.ts` / `performer-label.ts`; Arabic JSDoc) ~110;
   `ports/low-rating-notice.ports.ts` (rule, recipients, place, repository, outbox; one-line Arabic doc per method)
@@ -447,8 +450,9 @@ closure is needed.
 
 ## 8. Open items handed to the manager
 
-1. Accept or reject M1–M4 (§3.1). Without M1 the design returns to `plan-61-1.md`, whose U2/U4 stay open.
-2. Route RT-Q17 (§3.3): a feature question for the decisions page and for Waleed, on 59b-3's critical path.
+1. Done: M1 and M2 accepted by Waleed, M3 and M4 by the manager (PP-207, §3.1).
+2. Done: RT-Q17 answered by Waleed (PP-207.1, batch 98). Abu Salem's pick on the page is still pending; if it differs,
+   only `noticeComment` in 61-1h and the comment column in 61-2b change.
 3. Migrations: **yes, two** (61-1c permission seed; 61-1d kind CHECK + ledger table), plus a possible index migration
    in 61-2b decided by `EXPLAIN`. They follow the migration lane, stacked per PP-130, with a fresh staging snapshot
    before `migrate` (PP-129).
