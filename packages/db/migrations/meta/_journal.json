@@ -1611,6 +1611,20 @@
       "when": 1795019370623,
       "tag": "0231_2026-11-18_active-packages-index",
       "breakpoints": true
+    },
+    {
+      "idx": 232,
+      "version": "7",
+      "when": 1795165587690,
+      "tag": "0232_2026-11-20_commission-blocked-corrections",
+      "breakpoints": true
+    },
+    {
+      "idx": 233,
+      "version": "7",
+      "when": 1795165652401,
+      "tag": "0233_2026-11-20_commission-blocked-corrections-rls",
+      "breakpoints": true
     }
   ]
 }

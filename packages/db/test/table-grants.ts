@@ -1,5 +1,6 @@
 import { ATTENDANCE_TABLE_GRANTS } from './attendance-grants.ts';
 import {
+  COMMISSION_BLOCKED_CORRECTION_TABLE_GRANTS,
   COMMISSION_CORRECTION_TABLE_GRANTS,
   COMMISSION_PERIOD_GENERATION_TABLE_GRANTS,
 } from './commission-correction-grants.ts';
@@ -36,6 +37,7 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'cashier_pins:INSERT',
     'cashier_pins:SELECT',
     'cashier_pins:UPDATE',
+    ...COMMISSION_BLOCKED_CORRECTION_TABLE_GRANTS,
     ...COMMISSION_CORRECTION_TABLE_GRANTS,
     ...COMMISSION_LINE_TABLE_GRANTS,
     ...COMMISSION_PERIOD_GENERATION_TABLE_GRANTS,

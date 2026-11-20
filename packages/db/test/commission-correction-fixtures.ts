@@ -117,3 +117,36 @@ export async function insertCommissionCorrection(
       ${value(overrides, 'sourceBusinessDate', '2026-10-15')},${uuidArraySql(attachedBranchIds)})`);
   return id;
 }
+
+/**
+ * بيكتب صف تصحيح موقوف واحد، مع تجاوزات محدودة لاختبار قيود قاعدة البيانات.
+ * الافتراضي صف مفتوح صحيح: شهر مصدر قبل الشهر المحتجز، وكشف الهدف هو الكشف الممرّر؛
+ * عمودا الحل مش في جملة الإدخال أصلاً لأن pospay_app ما منحوش إدخالهم، فالصف بيتولد مفتوح دايماً.
+ *
+ * @param tx                المعاملة الجارية — لازم تكون معاملة المستأجر نفسه
+ * @param tenant            الشريحة صاحب الصف
+ * @param ids               مولّد الـ ids
+ * @param targetStatementId كشف الشهر الهدف المحتجز
+ * @param overrides         قيم تتجاوز الافتراضي (الرمز والشهور والشريحة)
+ * @returns معرّف الصف اللي اتكتب
+ */
+export async function insertCommissionBlockedCorrection(
+  tx: Tx,
+  tenant: CommissionTenant,
+  ids: IdGenerator,
+  targetStatementId: string,
+  overrides: RowOverrides = {},
+): Promise<string> {
+  const id = value(overrides, 'id', ids.newId()) as string;
+  await tx.execute(sql`INSERT INTO commission_blocked_corrections(
+    company_id,id,business_id,employee_id,source_period,code,first_event_id,target_period,
+    target_statement_id,created_at)
+    VALUES(${value(overrides, 'companyId', tenant.company)},${id},
+      ${value(overrides, 'businessId', tenant.business)},
+      ${value(overrides, 'employeeId', tenant.employee)},
+      ${value(overrides, 'sourcePeriod', '2026-10')},${value(overrides, 'code', 'NO_PLAN')},
+      ${value(overrides, 'firstEventId', ids.newId())},
+      ${value(overrides, 'targetPeriod', '2026-11')},${value(overrides, 'targetStatementId', targetStatementId)},
+      ${value(overrides, 'createdAt', '2026-11-01T08:00:00Z')})`);
+  return id;
+}
