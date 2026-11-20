@@ -31,8 +31,8 @@ Unchanged: the admin employee routes (their POST responses stay `LeaveRequest`),
 - **Refusal = `false`.** If the access check returns `null`, the feature is disabled, the row is not visible, or
   the read itself throws, the write has already committed, so the route still answers 201/200 with the record
   and `can_cancel: false`. `false` means "the server did not confirm cancel authority"; it is never `true` by
-  default. A read failure is logged through the module's existing logger if one is injected; do not add a new
-  logging dependency.
+  default. No logger is injected into the own-leave controller, so a read failure is not logged (no new
+  logging dependency was added). A confirmed cancel answers `can_cancel: false` without a second read.
 
 ## 3. Code (implementer)
 
@@ -83,7 +83,7 @@ API — put HTTP cases on the personal-session harness (mirror `personal-leave.s
 - **Isolation:** the flag is never `true` for a request the caller did not make (e.g. made for her by a manager)
   and never leaks another tenant; reuse the existing own-scope patterns.
 - **Query result shape + EXPLAIN (CLAUDE.md §9)** for `ownLeaveCancelAuthority`: true/false/unknown-id cases, and
-  `EXPLAIN (ANALYZE, FORMAT JSON)` shows an index lookup on `leave_requests_pkey` (no Seq Scan, no Sort).
+  `EXPLAIN (ANALYZE, FORMAT JSON)` shows a bounded single-row index lookup on one of the leave_requests indexes whose columns are all bound (the planner does not deterministically pick the pkey), with no Seq Scan and no Sort.
 
 Contracts: a test that `ownLeaveWriteResult` accepts a record with `can_cancel` and rejects one without it, and
 that the own POST operations in the generated OpenAPI reference `OwnLeaveWriteResult` while the admin POST

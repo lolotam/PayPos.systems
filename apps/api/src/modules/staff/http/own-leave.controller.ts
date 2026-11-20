@@ -81,7 +81,8 @@ export class OwnLeaveController {
     if (!this.cancel) throw new ApiError('NOT_READY');
     const actor = ownLeaveActor(req, idem, query.branch_id);
     const record = await leaveHttpResult(this.cancel.execute({ ...actor, leaveId }, input));
-    return ownLeaveWriteResult(this.database, this.access, actor, record);
+    // الطلب بعد الإلغاء مش PENDING، فمفيش صلاحية إلغاء تتقرا ولا معاملة زيادة.
+    return { ...record, can_cancel: false };
   }
   @Get()
   @Authenticated()

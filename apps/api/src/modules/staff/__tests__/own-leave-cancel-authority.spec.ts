@@ -92,24 +92,27 @@ it('a cancel DENY answers create with can_cancel false and refuses the cancel it
   const deny = f.ids.newId();
   await f.owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,scope_type,scope_id,effect,reason,granted_by)
     VALUES(${f.companyId},${deny},${f.membershipId},'cancel:leave:own','BRANCH',${f.branchId},'DENY','Synthetic cancel DENY',${f.userId})`;
-  const created = await f.app.inject({
-    method: 'POST',
-    url: path(),
-    headers: headers(),
-    payload: leaveTerms('2027-04-01'),
-  });
-  expect(created.statusCode).toBe(201);
-  expect(ownLeaveWriteResult.parse(created.json()).can_cancel).toBe(false);
-  const row = ownLeaveWriteResult.parse(created.json());
-  const refused = await f.app.inject({
-    method: 'POST',
-    url: path(`/${row.id}/cancel`),
-    headers: headers(),
-    payload: { expected_revision: row.revision },
-  });
-  expect(refused.statusCode).toBe(404);
-  expect(refused.json().code).toBe('NOT_FOUND');
-  await f.owner`DELETE FROM permission_overrides WHERE company_id=${f.companyId} AND id=${deny}`;
+  try {
+    const created = await f.app.inject({
+      method: 'POST',
+      url: path(),
+      headers: headers(),
+      payload: leaveTerms('2027-04-01'),
+    });
+    expect(created.statusCode).toBe(201);
+    expect(ownLeaveWriteResult.parse(created.json()).can_cancel).toBe(false);
+    const row = ownLeaveWriteResult.parse(created.json());
+    const refused = await f.app.inject({
+      method: 'POST',
+      url: path(`/${row.id}/cancel`),
+      headers: headers(),
+      payload: { expected_revision: row.revision },
+    });
+    expect(refused.statusCode).toBe(404);
+    expect(refused.json().code).toBe('NOT_FOUND');
+  } finally {
+    await f.owner`DELETE FROM permission_overrides WHERE company_id=${f.companyId} AND id=${deny}`;
+  }
 });
 
 it('an idempotent create replay answers the authority of the moment, not the stored one', async () => {
