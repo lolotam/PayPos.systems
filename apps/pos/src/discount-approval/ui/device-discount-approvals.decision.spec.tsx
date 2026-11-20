@@ -2,6 +2,7 @@ import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
+import { type ReactNode, useLayoutEffect } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CallResult } from '@/shared/api/call';
@@ -47,11 +48,17 @@ const fixture: DeviceProposal = {
   terms_hash: 'a'.repeat(64),
 };
 
-function renderTree(client: QueryClient, operatorKey: string, onRejected: () => Promise<void>) {
+function renderTree(
+  client: QueryClient,
+  operatorKey: string,
+  onRejected: () => Promise<void>,
+  probe?: ReactNode,
+) {
   return (
     <QueryClientProvider client={client}>
       <DirectionProvider dir="rtl">
         <LocaleProvider locale="ar" setLocale={() => undefined}>
+          {probe}
           <DeviceDiscountApprovals
             branchId={branchId}
             operatorKey={operatorKey}
@@ -63,12 +70,19 @@ function renderTree(client: QueryClient, operatorKey: string, onRejected: () => 
   );
 }
 
-function display(initialKey = '0:op-a') {
+function display(initialKey = '0:op-a', commitLog?: CommitNotice[]) {
   const onRejected = vi.fn().mockResolvedValue(undefined);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const view = render(renderTree(client, initialKey, onRejected));
+  const tree = (operatorKey: string) =>
+    renderTree(
+      client,
+      operatorKey,
+      onRejected,
+      commitLog ? <CommitProbe key={operatorKey} log={commitLog} /> : undefined,
+    );
+  const view = render(tree(initialKey));
   const setOperator = (key: string) => {
-    view.rerender(renderTree(client, key, onRejected));
+    view.rerender(tree(key));
   };
   return {
     onRejected,
@@ -121,6 +135,19 @@ function deferredDecide() {
   });
   calls.decide.mockReturnValueOnce(promise);
   return { promise, resolve };
+}
+
+// يسجّل حالة الـ DOM داخل useLayoutEffect — قبل الـ passive effects — عشان يبص على أول commit فعلي للمشغّل الجديد.
+type CommitNotice = { approved: boolean; alert: boolean };
+
+function CommitProbe({ log }: { log: CommitNotice[] }) {
+  useLayoutEffect(() => {
+    log.push({
+      approved: screen.queryByText(t('ar', 'deviceDiscountApproval.approved')) !== null,
+      alert: screen.queryAllByRole('alert').length > 0,
+    });
+  });
+  return null;
 }
 
 beforeEach(() => {
@@ -179,5 +206,52 @@ describe('late result after an operator change (#1059)', () => {
     });
 
     expect(await screen.findByText(t('ar', 'deviceDiscountApproval.approved'))).not.toBeNull();
+  });
+});
+
+describe('prior-operator feedback during replacement (#1063)', () => {
+  it('drops an approved notice from the first committed render after operator replacement', async () => {
+    const commits: CommitNotice[] = [];
+    const { setOperator } = display('0:op-a', commits);
+    await submitApproval();
+    expect(await screen.findByText(t('ar', 'deviceDiscountApproval.approved'))).not.toBeNull();
+
+    const before = commits.length;
+    setOperator('1:op-b');
+
+    expect(commits.length).toBeGreaterThan(before);
+    expect(commits.slice(before).every((commit) => !commit.approved && !commit.alert)).toBe(true);
+  });
+
+  it('drops an invalid-PIN alert from the first committed render after operator replacement', async () => {
+    const commits: CommitNotice[] = [];
+    calls.decide.mockResolvedValueOnce(decideFailure(401, 'PIN_INVALID', 'x', 'x'));
+    const { setOperator } = display('0:op-a', commits);
+    await submitApproval();
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      t('ar', 'deviceDiscountApproval.pinInvalid'),
+    );
+
+    const before = commits.length;
+    setOperator('1:op-b');
+
+    expect(commits.length).toBeGreaterThan(before);
+    expect(commits.slice(before).every((commit) => !commit.approved && !commit.alert)).toBe(true);
+  });
+
+  it('still refreshes the list when a stale verdict resolves after operator replacement', async () => {
+    const pending = deferredDecide();
+    const { setOperator } = display();
+    await submitApproval();
+    setOperator('1:op-b');
+    const readsBefore = calls.read.mock.calls.length;
+    await act(async () => {
+      pending.resolve(decideFailure(409, 'DISCOUNT_PROPOSAL_CHANGED', 'x', 'x'));
+    });
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    await waitFor(() => {
+      expect(calls.read.mock.calls.length).toBeGreaterThan(readsBefore);
+    });
   });
 });
