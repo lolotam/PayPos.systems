@@ -14,6 +14,7 @@ const version = (): CommissionPlanVersion => ({
   employeeId: EMPLOYEE,
   effectiveFrom: '2026-10-01',
   wholePeriod: false,
+  repairPeriod: null,
   createdAt: 1n,
   version: 1n,
   base: { enabled: true, calc: { kind: 'PCT', value: 1000n } },
@@ -262,4 +263,39 @@ it('D10 the salary-threshold worked example prices L1 at zero and L2 at the marg
   expect(amountOf(month(550_000n), 'line:line-l2')).toBe(15_000n);
   expect(amountOf(month(560_000n), 'line:line-l1')).toBe(0n);
   expect(amountOf(month(560_000n), 'line:line-l2')).toBe(14_000n);
+});
+
+it('O1 the flat repair oracle prices the late line at 5% and keeps the priced line at 10%', () => {
+  // V1 خطة عادية سريانها 15 سبتمبر بالأساسي 10%؛ R خطة إصلاح سبتمبر بالأساسي 5%.
+  const ordinary: CommissionPlanVersion = { ...version(), effectiveFrom: '2026-09-15' };
+  const repairPlan: CommissionPlanVersion = {
+    ...version(),
+    effectiveFrom: '2026-09-01',
+    repairPeriod: '2026-09',
+    createdAt: 2n,
+    version: 2n,
+    base: { enabled: true, calc: { kind: 'PCT', value: 500n } },
+  };
+  const september = (versions: CommissionPlanVersion[]) =>
+    recomputeCommissionMonth(
+      projection({
+        period: '2026-09',
+        lines: [
+          line({ lineId: 'line-l1', businessDate: '2026-09-10', netShare: 200_000n }),
+          line({ lineId: 'line-l2', businessDate: '2026-09-20', netShare: 300_000n }),
+        ],
+        versions,
+      }),
+    );
+
+  // قبل الإصلاح: البند المتأخر يوم 10 ماكانش له خطة، فالشهر برمّه مارفضّش يتسعّر.
+  expect(september([ordinary])).toEqual({ ok: false, code: 'NO_PLAN' });
+
+  const after = september([ordinary, repairPlan]);
+  expect(after.ok).toBe(true);
+  if (!after.ok) throw new Error('the repaired month must price');
+  const amounts = new Map(after.sources.map((source) => [source.sourceRef, source.amount]));
+  // line:l1 بخطة الإصلاح 5%: 200.000 × 5% = 10.000؛ line:l2 على خطتها العادية 10%: 30.000.
+  expect(amounts.get('line:line-l1')).toBe(10_000n);
+  expect(amounts.get('line:line-l2')).toBe(30_000n);
 });

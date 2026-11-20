@@ -46,6 +46,8 @@ export interface CommissionPlanVersion extends CommissionPlan {
   readonly employeeId: string;
   readonly effectiveFrom: string;
   readonly wholePeriod: boolean;
+  /** شهر خطة الإصلاح (YYYY-MM) الذي تسري فيه وحدها، أو null للإصدار العادي. */
+  readonly repairPeriod: string | null;
   readonly createdAt: bigint;
   readonly version: bigint;
 }
