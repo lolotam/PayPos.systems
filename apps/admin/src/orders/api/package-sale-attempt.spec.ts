@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   PACKAGE_SALE_CLOCK_SKEW_MS,
   PACKAGE_SALE_REPLAY_WINDOW_MS,
+  inspectSaleAttempt,
+  reconcileSaleAttempt,
   saleAttemptExpired,
   saleAttemptExpiresIn,
   touchSaleAttempt,
@@ -90,5 +92,76 @@ describe('saleAttemptExpiresIn', () => {
     expect(saleAttemptExpiresIn(attempt({ createdAt: 0, seenAt: 30 * minute }), 28 * minute)).toBe(
       replayWindow - 30 * minute,
     );
+  });
+});
+
+describe('reconcileSaleAttempt', () => {
+  const saleId = '01920000-0000-7000-8000-0000000000b2';
+
+  it('returns the held attempt, or null, when nothing is stored', () => {
+    const held = attempt({ seenAt: minute });
+    expect(reconcileSaleAttempt(held, null)).toBe(held);
+    expect(reconcileSaleAttempt(undefined, null)).toBeNull();
+  });
+
+  it('lets the stored record win when nothing is held or the keys differ', () => {
+    const stored = attempt({ key: 'stored-key' });
+    expect(reconcileSaleAttempt(undefined, stored)).toBe(stored);
+    expect(reconcileSaleAttempt(attempt({ saleId }), stored)).toBe(stored);
+  });
+
+  it('keeps the held sale id when storage is behind for the same key', () => {
+    const held = attempt({ saleId });
+    expect(reconcileSaleAttempt(held, attempt({ seenAt: minute }))).toBe(held);
+  });
+
+  it('lets a stored sale id win for the same key', () => {
+    const stored = attempt({ saleId });
+    expect(reconcileSaleAttempt(attempt({ seenAt: minute }), stored)).toBe(stored);
+    expect(reconcileSaleAttempt(attempt({ saleId: 'older-sale' }), stored)).toBe(stored);
+  });
+
+  it('returns the stored record when its observation is at or after the held one', () => {
+    const stored = attempt({ seenAt: 2 * minute });
+    expect(reconcileSaleAttempt(attempt({ seenAt: minute }), stored)).toBe(stored);
+    expect(reconcileSaleAttempt(attempt({ seenAt: 2 * minute }), stored)).toBe(stored);
+    expect(reconcileSaleAttempt(attempt(), attempt())).toEqual(attempt());
+  });
+
+  it('carries the later held observation onto a copy of the stored record', () => {
+    const held = attempt({ seenAt: replayWindow });
+    const stored = attempt({ seenAt: 30 * minute });
+    const reconciled = reconcileSaleAttempt(held, stored);
+    expect(reconciled).toEqual(attempt({ seenAt: replayWindow }));
+    expect(reconciled).not.toBe(stored);
+    expect(stored.seenAt).toBe(30 * minute);
+    expect(held.seenAt).toBe(replayWindow);
+  });
+});
+
+describe('inspectSaleAttempt', () => {
+  const scope = attempt().scope;
+  const storageKey = `pospay:package-sale:${scope}`;
+
+  beforeEach(() => localStorage.clear());
+  afterEach(() => vi.restoreAllMocks());
+
+  it('reports an unreadable device when reading storage throws', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('private');
+    });
+    expect(inspectSaleAttempt(scope)).toEqual({ readable: false, attempt: null });
+  });
+
+  it('reports a readable device holding nothing valid for garbage and absent records', () => {
+    expect(inspectSaleAttempt(scope)).toEqual({ readable: true, attempt: null });
+    localStorage.setItem(storageKey, '{not json');
+    expect(inspectSaleAttempt(scope)).toEqual({ readable: true, attempt: null });
+  });
+
+  it('returns a stored status-only record', () => {
+    const settled = attempt({ saleId: '01920000-0000-7000-8000-0000000000b2' });
+    localStorage.setItem(storageKey, JSON.stringify(settled));
+    expect(inspectSaleAttempt(scope)).toEqual({ readable: true, attempt: settled });
   });
 });

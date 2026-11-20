@@ -1048,7 +1048,7 @@ original sale with the manager ticks an explicit acknowledgement and discards th
 locally: the discard is decided on the fresh read inside the scope lock and refuses a record that has
 gained a sale id, and otherwise the journal entry and its stored record are removed, the unsaved
 warning clears, and the form opens for a new sale; a removal the device refuses keeps the attempt and
-the unsaved warning, and the server's idempotency window stays the authority on duplicates.
+the unsaved warning, and the server's idempotency window stays the authority on duplicates. An unreadable device is not treated as an empty one: when reading the journal itself fails, the discard is refused, the attempt stays and the unsaved warning shows. When memory and the device disagree about the same attempt, a known sale id wins, and otherwise the later observation wins, so an older stored copy never reopens an expired attempt or hides an accepted sale. A refused observation write keeps the expiry latch in memory and shows the unsaved warning.
 
 ### API picker follow-ups (#1075)
 

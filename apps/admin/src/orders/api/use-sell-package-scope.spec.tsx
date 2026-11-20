@@ -83,6 +83,8 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
+  Reflect.deleteProperty(navigator, 'locks');
 });
 
 it('keeps scope B recovery while scope A is refused after the hook switched to B', async () => {
@@ -157,4 +159,195 @@ it('writes the accepted sale back after a failed reservation save', async () => 
   expect(stored?.key).toEqual(expect.any(String));
   expect(hook.result.current.journalUnsaved).toBe(false);
   expect(hook.result.current.recoveryRequired).toBe(false);
+});
+
+const hour = 60 * 60 * 1000;
+const minute = 60_000;
+const acceptedSaleId = '01920000-0000-7000-8000-0000000000b2';
+
+function seedRecord(createdAt: number, seenAt?: number) {
+  const scopeKey = JSON.stringify(Object.values(scope));
+  localStorage.setItem(
+    storageKeyFor(scope),
+    JSON.stringify({
+      key: '01920000-0000-7000-8000-0000000000a1',
+      scope: scopeKey,
+      createdAt,
+      ...(seenAt === undefined ? {} : { seenAt }),
+      body,
+    }),
+  );
+}
+
+function refuseSaleIdWrites() {
+  const original = Storage.prototype.setItem;
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (
+    this: Storage,
+    key: string,
+    value: string,
+  ) {
+    if (value.includes('"saleId"')) throw new Error('full');
+    original.call(this, key, value);
+  });
+}
+
+async function acceptSaleWithRefusedStatusWrite() {
+  refuseSaleIdWrites();
+  state.post.mockResolvedValueOnce({
+    data: { sale_request_id: acceptedSaleId },
+    response: { status: 202 },
+  });
+  const hook = renderHook(({ place }) => useSellPackage(place), {
+    wrapper: clientWrapper(newClient()),
+    initialProps: { place: scope },
+  });
+  await act(async () => {
+    await hook.result.current.mutateAsync(body);
+  });
+  await waitFor(() => expect(hook.result.current.journalUnsaved).toBe(true));
+  expect(hook.result.current.restoredSaleId).toBe(acceptedSaleId);
+  return hook;
+}
+
+it('keeps the expiry latch in memory when the observation write is refused', async () => {
+  const created = 1_700_000_000_000;
+  seedRecord(created, created + 22 * hour + 59 * minute);
+  const now = vi.spyOn(Date, 'now').mockReturnValue(created + 23 * hour + 2 * minute);
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    throw new Error('full');
+  });
+  const hook = renderHook(() => useSellPackage(scope), { wrapper: clientWrapper(newClient()) });
+  await waitFor(() => expect(hook.result.current.journalUnsaved).toBe(true));
+  expect(hook.result.current.verificationRequired).toBe(true);
+  now.mockReturnValue(created + 22 * hour + 58 * minute);
+  await act(async () => {
+    await expect(hook.result.current.mutateAsync(undefined)).rejects.toThrow(
+      'PACKAGE_SALE_VERIFICATION_REQUIRED',
+    );
+  });
+  expect(state.post).not.toHaveBeenCalled();
+});
+
+it('keeps an accepted sale across a scope round trip when its status write was refused', async () => {
+  const hook = await acceptSaleWithRefusedStatusWrite();
+  hook.rerender({ place: otherScope });
+  await waitFor(() => expect(hook.result.current.restoredSaleId).toBeNull());
+  hook.rerender({ place: scope });
+  await waitFor(() => expect(hook.result.current.restoredSaleId).toBe(acceptedSaleId));
+  expect(hook.result.current.recoveryRequired).toBe(false);
+});
+
+it('ignores an older stored record for the same key and keeps the unsaved flag', async () => {
+  const hook = await acceptSaleWithRefusedStatusWrite();
+  act(() => {
+    window.dispatchEvent(new StorageEvent('storage', { key: storageKeyFor(scope) }));
+  });
+  expect(hook.result.current.restoredSaleId).toBe(acceptedSaleId);
+  expect(hook.result.current.recoveryRequired).toBe(false);
+  expect(hook.result.current.journalUnsaved).toBe(true);
+});
+
+// Holds every Web Lock request until `unblock`, so a write can be kept in flight on purpose.
+function queueLockRequests() {
+  const waiting: Array<() => void> = [];
+  let blocked = true;
+  const request = vi.fn(
+    (_name: string, callback: () => unknown) =>
+      new Promise((resolve, reject) => {
+        const run = () => Promise.resolve().then(callback).then(resolve, reject);
+        if (blocked) waiting.push(run);
+        else run();
+      }),
+  );
+  Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } });
+  return {
+    waiting,
+    request,
+    unblock: () => {
+      blocked = false;
+    },
+  };
+}
+
+it('does not let a late observation replace an accepted sale', async () => {
+  const start = 1_700_000_000_000;
+  seedRecord(start - hour);
+  const now = vi.spyOn(Date, 'now').mockReturnValue(start);
+  const locks = queueLockRequests();
+  const { waiting, request } = locks;
+  refuseSaleIdWrites();
+  state.post.mockResolvedValueOnce({
+    data: { sale_request_id: acceptedSaleId },
+    response: { status: 202 },
+  });
+  const hook = renderHook(() => useSellPackage(scope), { wrapper: clientWrapper(newClient()) });
+  await waitFor(() => expect(waiting).toHaveLength(1));
+  locks.unblock();
+  now.mockReturnValue(start + 2 * minute);
+  await act(async () => {
+    await hook.result.current.mutateAsync(undefined);
+  });
+  expect(hook.result.current.restoredSaleId).toBe(acceptedSaleId);
+  await act(async () => {
+    waiting.forEach((run) => run());
+    await Promise.resolve();
+  });
+  // A late observation changes nothing visible, so its lock request is the only sign it ran.
+  await waitFor(() => expect(request).toHaveBeenCalledTimes(3));
+  expect(hook.result.current.restoredSaleId).toBe(acceptedSaleId);
+  expect(hook.result.current.recoveryRequired).toBe(false);
+});
+
+it('raises no unsaved warning when a late observation fails after its entry was replaced', async () => {
+  const start = 1_700_000_000_000;
+  seedRecord(start - hour);
+  const now = vi.spyOn(Date, 'now').mockReturnValue(start);
+  const locks = queueLockRequests();
+  const { waiting } = locks;
+  state.post.mockResolvedValueOnce({
+    data: { sale_request_id: acceptedSaleId },
+    response: { status: 202 },
+  });
+  const hook = renderHook(() => useSellPackage(scope), { wrapper: clientWrapper(newClient()) });
+  await waitFor(() => expect(waiting).toHaveLength(1));
+  locks.unblock();
+  now.mockReturnValue(start + 2 * minute);
+  await act(async () => {
+    await hook.result.current.mutateAsync(undefined);
+  });
+  expect(hook.result.current.restoredSaleId).toBe(acceptedSaleId);
+  expect(hook.result.current.journalUnsaved).toBe(false);
+  const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    throw new Error('unreadable');
+  });
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    throw new Error('full');
+  });
+  await act(async () => {
+    waiting.forEach((run) => run());
+    await waitFor(() => expect(getItem).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(hook.result.current.restoredSaleId).toBe(acceptedSaleId);
+  expect(hook.result.current.journalUnsaved).toBe(false);
+});
+
+it('never writes over a device that became unreadable after a refused reservation', async () => {
+  const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementationOnce(() => {
+    throw new Error('full');
+  });
+  state.post.mockImplementationOnce(async () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('unreadable');
+    });
+    return { data: { sale_request_id: acceptedSaleId }, response: { status: 202 } };
+  });
+  const hook = renderHook(() => useSellPackage(scope), { wrapper: clientWrapper(newClient()) });
+  await act(async () => {
+    await hook.result.current.mutateAsync(body);
+  });
+  // Only the refused reservation write ran; the accepted sale was not written back.
+  expect(setItem).toHaveBeenCalledTimes(1);
+  expect(hook.result.current.journalUnsaved).toBe(true);
+  expect(hook.result.current.restoredSaleId).toBe(acceptedSaleId);
 });
