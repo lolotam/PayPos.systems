@@ -47,13 +47,13 @@ This is a plan (PP-204). It holds no production code and no tests.
 ## Scope: three PRs
 
 The spec row estimates 500 to 600 lines. `3a` was planned at about 910 and delivered about 1,540, so this plan
-counts per file. The row is about **1,000 production lines**, split by what a manager does on one screen:
+counts per file. The row is about **1,070 production lines**, split by what a manager does on one screen:
 
 | PR | What the manager gets | Production | Tests |
 |---|---|---|---|
 | `32b-cat-3b-1` | Close and reopen one service on the service panel | ~165 | ~260 |
 | `32b-cat-3b-2` | The category page for one branch: «مستخدمة» and «متاحة» lists (read only) | ~420 | ~330 |
-| `32b-cat-3b-3` | Branch actions: hide, enable, create shared or private, rename, make shared | ~420 | ~420 |
+| `32b-cat-3b-3` | Branch actions: hide, enable, create shared or private, rename, make shared | ~485 | ~450 |
 
 - `3b-1` touches the services screen only and can run beside `3b-2`.
 - `3b-3` stacks on `3b-2`.
@@ -71,19 +71,20 @@ counts per file. The row is about **1,000 production lines**, split by what a ma
 | S-4 | **On 200** the hook writes the answer into the detail key `['services', companyId, businessId, userId, 'detail', serviceId]` with `setQueryData`. It then invalidates the services list key and the category key root (`serviceCategoryKey`). A `role="status"` line shows «اتقفلت الخدمة» or «اتفتحت الخدمة». | `EditServiceForm` is keyed on `id:revision`, so it must see the new revision. The category detail's `open_service_count` changed. |
 | S-5 | **Unsaved edits are dropped by a close or reopen**, because the new revision remounts the form. The button is disabled while a save is pending. | The same effect as the panel's existing «إعادة التحميل» button. |
 | S-6 | **Refusals.** Every refusal shows `envelopeMessage(error, locale)` in a `role="alert"` line. `SERVICE_REVISION_CONFLICT`, `SERVICE_ALREADY_CLOSED` and `SERVICE_NOT_CLOSED` also invalidate the detail key, so the badge and the button show the current state. `SERVICE_CATEGORY_CLOSED` (a refused reopen) and 403 show the message only. | The server decides; the admin hides no button by permission (the `3a` rule, U-9). |
-| S-7 | **The edit form is unchanged.** A closed service stays editable: `update-service` does not refuse it. | No API change. |
+| S-7 | **The edit form is unchanged.** A closed service stays editable: neither the `update-service` use case nor the service domain rule checks `closed_at` on an edit. | No API change. |
 
 ### `3b-2`: the branch views
 
 | # | Decision | Why |
 |---|---|---|
 | B-1 | **One page, a scope select.** `/catalog/categories` gains a select above the list: «كل النشاط» plus one option per branch of `business.branches`. «كل النشاط» renders the `3a` page unchanged. A branch renders the new branch section, keyed by `branchId`. The select is hidden when the business has no branch. | Spec row part 2: «for a branch the user manages». The precedent is `settings/alert-rules/ui/scope-selector.tsx`. |
-| B-2 | **The first choice.** When `workspace.company.scope === 'BRANCH'`, the page opens on `workspace.branch`, or the first branch of the business when none is remembered. Otherwise it opens on «كل النشاط». Both kinds of option are always offered. | The scope picks a view, it grants nothing: the API checks the membership on every call. A branch manager no longer lands on a 403. |
+| B-2 | **Which scopes are offered.** `workspace.company.scope` is the widest membership the user holds in the company (`my-workspaces.query.ts`). When it is `BRANCH`, the select offers branches only and the page opens on `workspace.branch`, or on the first branch when none is remembered; «كل النشاط» is not offered. Otherwise «كل النشاط» is offered and is the first choice. | A branch-scoped membership cannot satisfy a `:business` permission (spec 031), so «كل النشاط» would always answer 403. The spec row asks for «a branch manager who sees only the branch views». The scope only picks a view; the API still checks every call. |
 | B-3 | **A new shell, `3a` untouched.** A new `pages/service-categories-screen.tsx` holds the select and renders either `ServiceCategoriesPage` or the branch section. `_frame/service-categories-route.tsx` renders the shell. | `ServiceCategoriesPage` is 233 lines and its function is at the 60-line limit. Not mounting it in branch scope also stops its business list read, which would 403 every 30 seconds. |
 | B-4 | **Two tabs:** «مستخدمة» (`view=in_use`, the default) and «متاحة» (`view=available`), with cursor paging and `limit=20` as on the `3a` list. Changing tab or scope resets the cursor. | The contract's two views. |
-| B-5 | **The row** shows the name in the page language, the visibility badge (existing keys), and a second badge from a pure function `branchCategoryMark(item, branchId)`: «بتاع الفرع ده» when `owner_branch_id === branchId`, «مخفي عندك» when `setting_state === 'HIDDEN'`, otherwise none. | A manager must tell their own private category from another branch's, and a hidden category from a never-enabled one. |
+| B-5 | **The row** shows the name in the page language, the visibility badge (existing keys), and the badges from a pure function `branchCategoryMarks(item, branchId)`: «بتاع الفرع ده» when `visibility === 'BRANCH' && owner_branch_id === branchId`, and «مخفي عندك» when `setting_state === 'HIDDEN'`. A row can carry both, or neither. | A manager must tell their own private category from another branch's, and a hidden category from a never-enabled one. A shared category the branch created is not marked as its own: the branch can no longer rename it (SI-Q23). |
 | B-6 | **Reads from the list item only.** The branch section never calls the business list or the business detail. | Both need `read:service-categories:business`, which a branch manager lacks. `ServiceCategoryPanel` and `useServiceCategoryDetail` are not reused here. |
 | B-7 | **Query keys** sit under the `3a` root: `[...serviceCategoryKey(companyId, businessId, userId), 'branch', branchId, 'list', view, cursor]`, with `refetchInterval: 30_000`. | A business-wide close, reopen or rename already invalidates that root, so the branch lists follow it. |
+| B-9 | **Switching scope** unmounts the `3a` page, so the jobs it tracks in page state are dropped. Nothing is lost: on return, opening the category reads `pending_closing_id` from the detail and picks the job up (`3a` U-7). | The `3a` page is not changed. |
 | B-8 | **Errors.** A list error shows `envelopeMessage` in the `EmptyState` danger pattern of the `3a` list panel; an empty page shows `catalogServiceCategories.empty`. | Same pattern as `service-categories-list-panel.tsx`. |
 
 ### `3b-3`: the branch actions
@@ -91,12 +92,13 @@ counts per file. The row is about **1,000 production lines**, split by what a ma
 | # | Decision | Why |
 |---|---|---|
 | A-1 | **Which actions a row offers** comes from one pure function `branchCategoryActions(item, branchId, view)` in `model/service-category-branch.ts`: `hide` when `view === 'in_use'`; `enable` when `view === 'available'`; `rename` and `share` when `visibility === 'BRANCH' && owner_branch_id === branchId`. | Any other rename or share is `SERVICE_CATEGORY_VISIBILITY_FIXED` (SI-Q23, SI-Q25). The rule is tested with no rendering. |
-| A-2 | **Hide and enable** are one button on the row («إخفاء من الفرع» or «تفعيل في الفرع»), each row with its own mutation (the `package-type-selling-toggle.tsx` pattern). The body is `{ state, expected_revision: item.setting_revision }`. On 200 the hook invalidates `[...root, 'branch', branchId]`, so the row moves to the other tab. | SI-Q20 (enable without asking), SI-Q22 and SI-Q24 (hide in this branch only, own private ones included). |
+| A-2 | **Hide and enable** are one button on the row («إخفاء من الفرع» or «تفعيل في الفرع»). The body is `{ state, expected_revision: item.setting_revision }`. On 200 the hook invalidates `[...root, 'branch', branchId]`, so the row moves to the other tab. | SI-Q20 (enable without asking), SI-Q22 and SI-Q24 (hide in this branch only, own private ones included). |
+| A-2b | **The section owns the mutation and its outcome, not the row.** One `useBranchServiceCategoryState` in the section. The section keeps the last write as `{ categoryId, name, kind, error }`, where `kind` is `hidden`, `enabled` or `refused`, and shows it in one line above the table (`role="status"` or `role="alert"`) with the category's name. The row only gets `pending` and `onState`. | After a success, and after a refusal that refetches, the row leaves the tab and unmounts. A message held by the row would never be seen. `3a` keeps `refusal` in page state for the same reason. |
 | A-3 | **No confirmation for hide or enable.** | Neither touches a service or another branch (SI-Q21), and each is undone from the other tab. |
-| A-4 | **Refusals of the state write** show `envelopeMessage` under the button and invalidate the branch lists (`SERVICE_CATEGORY_REVISION_CONFLICT`, `SERVICE_CATEGORY_CLOSED`, `SERVICE_CATEGORY_NOT_FOUND`). 403 shows the message only. | A stale row must be replaced by the current one. |
+| A-4 | **Refusals of the state write** show `envelopeMessage` in the section's line (A-2b) and invalidate the branch lists (`SERVICE_CATEGORY_REVISION_CONFLICT`, `SERVICE_CATEGORY_CLOSED`, `SERVICE_CATEGORY_NOT_FOUND`). 403 shows the message only. | A stale row must be replaced by the current one. |
 | A-5 | **Create.** «إضافة تصنيف» opens a form: both names (the existing `ServiceCategoryNameFields`) and a required choice «خاص بالفرع ده» (`BRANCH`) or «مشترك لكل الفروع» (`BUSINESS`). **No option is preselected.** The form validates with `createBranchServiceCategoryInput`. On 201 the section shows «تمت إضافة التصنيف.» and returns to «مستخدمة». | SI-Q19: the creator picks. The spec names no default, so the screen does not choose one. |
 | A-6 | **Name already taken.** `SERVICE_CATEGORY_NAME_TAKEN` shows its message plus a button «شوف التصنيفات المتاحة» that switches to the «متاحة» tab. | Spec: «the second is offered the existing category to enable instead». The answer carries no category id, so the screen cannot point at the row (see «Decision for the manager»). |
-| A-7 | **Rename** (own private categories only) opens the same form without the visibility choice and sends `{ name_en, name_ar, expected_revision: item.revision }`, with no `visibility` key. `SERVICE_CATEGORY_REVISION_CONFLICT` shows the existing «إعادة التحميل» action, which refetches the branch list. | The contract; `ServiceCategoryFormFeedback` already carries this action. |
+| A-7 | **Rename** (own private categories only) opens the same form without the visibility choice and sends `{ name_en, name_ar, expected_revision: item.revision }`, with no `visibility` key. `SERVICE_CATEGORY_REVISION_CONFLICT` shows the existing «إعادة التحميل» action, which refetches the branch list. The form is keyed on `id:revision`, so the refetched item re-seeds its fields and its `expected_revision`. | The contract; `ServiceCategoryFormFeedback` already carries this action. Without the key, the form would resend the stale revision. |
 | A-8 | **Make shared** is a button «خليه مشترك لكل الفروع» in the same panel with an inline confirmation: «بعد ما يبقى مشترك مش هيرجع خاص تاني، وتعديل اسمه هيبقى من مستوى النشاط.» It sends the item's current names, `visibility: 'BUSINESS'` and `expected_revision`. | SI-Q23: sharing goes one way, so the manager is told before it happens. |
 | A-9 | **Invalidation** after create, rename and share: the category key root (which holds the branch lists) and, for rename and share, the services key root. | Category labels on the services list; the same rule as the `3a` rename. |
 
@@ -120,7 +122,7 @@ Paths are under `apps/admin/src/catalog/` unless they start with `apps/` or `pac
 | `pages/service-categories-screen.tsx` (B-1, B-2, B-3) | new | ~55 |
 | `ui/service-category-scope-select.tsx` | new | ~40 |
 | `api/use-branch-service-categories.ts`: the key helper and the list read (B-7) | new | ~60 |
-| `model/service-category-branch.ts`: `branchCategoryMark` (B-5) | new | ~25 |
+| `model/service-category-branch.ts`: `branchCategoryMarks` (B-5) | new | ~25 |
 | `pages/branch-service-categories-section.tsx`: tabs, cursor, list (B-4) | new | ~80 |
 | `ui/branch-service-category-view-tabs.tsx` | new | ~32 |
 | `ui/branch-service-categories-table.tsx` (B-8) | new | ~55 |
@@ -129,18 +131,19 @@ Paths are under `apps/admin/src/catalog/` unless they start with `apps/` or `pac
 | `packages/i18n/src/catalog-service-category-branches.ts`: a new namespace `catalogServiceCategoryBranches`, 9 keys in each language | new | ~24 |
 | `packages/i18n/src/ar.ts` and `en.ts`: import and register the namespace | edit | +4 |
 
-### `3b-3` (~420)
+### `3b-3` (~485)
 
 | File | New or edit | Lines |
 |---|---|---|
 | `model/service-category-branch.ts`: `branchCategoryActions` (A-1) | edit | +25 |
 | `api/use-branch-service-category-state.ts` (A-2, A-4) | new | ~45 |
-| `ui/branch-service-category-state-button.tsx` | new | ~50 |
+| `ui/branch-service-category-state-button.tsx`: the button only | new | ~30 |
+| `ui/branch-service-category-outcome.tsx`: the section's status or alert line (A-2b) | new | ~35 |
 | `api/use-branch-service-category-save.ts`: create, rename and share (A-5, A-7, A-8, A-9) | new | ~85 |
 | `ui/branch-service-category-form.tsx`: create and rename modes | new | ~85 |
 | `ui/service-category-visibility-field.tsx` (A-5) | new | ~35 |
 | `ui/branch-service-category-panel.tsx`: rename and make shared for an own private category (A-7, A-8) | new | ~70 |
-| `pages/branch-service-categories-section.tsx`: the create button, the selected row, the «متاحة» jump (A-6) | edit | +25 |
+| `pages/branch-service-categories-section.tsx`: the state mutation and its outcome (A-2b), the create button, the selected row, the «متاحة» jump (A-6) | edit | +40 |
 | `ui/branch-service-category-row.tsx`: the state button and «إدارة» | edit | +12 |
 | `packages/i18n/src/catalog-service-category-branches.ts`: 12 more keys in each language | edit | +24 |
 
@@ -200,7 +203,8 @@ string is hardcoded, and only logical CSS properties are used.
 Each PR has its own fixtures file; `service-categories-page.fixtures.tsx` (332 lines) is not extended. A mock-call
 assertion never stands alone. Both locales are checked, with the `dir`, as `services-list.spec.tsx` does.
 
-**`3b-1`** (`ui/service-closing-toggle.spec.tsx`, `api/use-service-closing.spec.tsx`):
+**`3b-1`** (`ui/service-closing-toggle.spec.tsx`, `pages/services-page-closing.spec.tsx`,
+`api/use-service-closing.spec.tsx`):
 
 - An open service shows «مفتوحة» and «قفل الخدمة». After the confirmation and a 200, the panel shows «مقفولة»,
   «فتح الخدمة» and «اتقفلت الخدمة.»; the posted body carries the detail's `expected_revision`.
@@ -210,18 +214,22 @@ assertion never stands alone. Both locales are checked, with the `dir`, as `serv
   the badge stays «مقفولة».
 - A 409 `SERVICE_REVISION_CONFLICT` shows its message, and after the refetch the badge shows the server's state.
 - A 403 shows the envelope message and the badge does not change.
-- The hook spec: after a 200, the services list query is refetched and the row shows the «مقفولة» badge.
+- On the services page (`pages/services-page-closing.spec.tsx`): after a close, the row of that service in the list
+  shows the «مقفولة» badge.
+- The hook spec renders a small probe component: after a 200 the probe shows the new `closed_at` from the detail
+  cache, and after a 409 it shows the error code.
 
 **`3b-2`** (`pages/service-categories-screen.spec.tsx`, `model/service-category-branch.spec.ts`):
 
-- **A branch-scoped user** opens on their branch: the «مستخدمة» rows are shown and no request goes to the business
-  list route.
+- **A branch-scoped user** opens on their branch: the «مستخدمة» rows are shown, the select has no «كل النشاط»
+  option, and no request goes to the business list route.
 - A business-scoped user opens on «كل النشاط» and sees the `3a` list; choosing a branch shows that branch's rows.
 - «متاحة» shows only the `available` rows; another branch's private category shows «الفرع», and a hidden one shows
   «مخفي عندك».
 - A category owned by the branch shows «بتاع الفرع ده».
 - A 403 on the branch list shows the envelope message; an empty page shows the empty line.
-- `branchCategoryMark` unit cases: owned, hidden, owned and hidden, neither.
+- `branchCategoryMarks` unit cases: own private, hidden, own private and hidden, shared but created by this branch
+  (no own mark), neither.
 
 **`3b-3`** (`pages/branch-service-categories-actions.spec.tsx`, `ui/branch-service-category-form.spec.tsx`,
 `model/service-category-branch.spec.ts`):
@@ -231,7 +239,11 @@ assertion never stands alone. Both locales are checked, with the `dir`, as `serv
 - «إخفاء من الفرع» on an `in_use` row: after the 200 and the refetch, the row leaves «مستخدمة» and is listed under
   «متاحة» with «مخفي عندك». The body carries `expected_revision: null` for a row with no settings row.
 - «تفعيل في الفرع» on another branch's private category moves it to «مستخدمة».
-- A 409 `SERVICE_CATEGORY_CLOSED` on enable shows the envelope's message and the row is refetched.
+- The section line shows «اتخفى من الفرع ده.» after the hide, although the row has left the tab.
+- A 409 `SERVICE_CATEGORY_CLOSED` on enable shows the envelope's message in the section line, and it stays visible
+  after the refetch removes the row.
+- After a 409 `SERVICE_CATEGORY_REVISION_CONFLICT` on rename, «إعادة التحميل» shows the refetched names in the
+  fields, and the next save posts the new `expected_revision`.
 - Create refuses a submit with no visibility choice («اختار مين يستخدم التصنيف.») and with an empty Arabic name.
 - Create with «خاص بالفرع ده» posts `visibility: 'BRANCH'`, and the new row shows «بتاع الفرع ده».
 - `SERVICE_CATEGORY_NAME_TAKEN` shows its message and «شوف التصنيفات المتاحة», which switches the tab.
@@ -257,7 +269,7 @@ Stop and report to the manager, without widening the PR, if any of these is need
 - a change to `packages/contracts`, `apps/api`, `apps/worker`, `packages/db` or any migration;
 - an edit to a `3a` file not listed above (`service-categories-page.tsx` and its hooks, panel and specs stay as they are);
 - hiding a control by role or permission in the admin;
-- a delivery heading past twice a PR's budget above: `3b-1` over ~330, `3b-2` or `3b-3` over ~840.
+- a delivery heading past twice a PR's budget above: `3b-1` over ~330, `3b-2` over ~840, `3b-3` over ~970.
 
 Out of scope, on purpose:
 
@@ -288,15 +300,16 @@ Out of scope, on purpose:
    branch context on the **category** screen, and no service has a branch setting: a category only groups, and a
    service sells in every branch (SI-Q21). This plan follows the spec. If Waleed meant a per-branch setting of a
    service, that is a new feature question, not this row.
-2. **Three PRs, about 1,000 lines.** The spec's 500 to 600 does not hold once the files are counted.
-   - **Lever:** `3b-2` and `3b-3` as one PR of about 840 lines is inside the PP-192 band (no money, no migration,
+2. **Three PRs, about 1,070 lines.** The spec's 500 to 600 does not hold once the files are counted.
+   - **Lever:** `3b-2` and `3b-3` as one PR of about 905 lines is at the top of the PP-192 band (no money, no migration,
      no sensitive permission). It saves one review cycle and gives a larger diff.
-   - **If `3b-3` grows:** split it at the state write (hide and enable, about 120 lines) against create, rename and
+   - **If `3b-3` grows:** split it at the state write (hide and enable, about 150 lines) against create, rename and
      make shared (about 300).
 3. **Optional API gap (not in this plan):** `SERVICE_CATEGORY_NAME_TAKEN` carries no `details`. Adding
    `details.category_id` (about 15 API lines plus tests) would let the create form point at the existing category
    and offer «تفعيل» on the spot, which is what the spec's sentence describes. Recommendation: skip it for now; the
    jump to «متاحة» covers the case.
-4. **Not verified:** whether the workspaces read narrows `business.branches` for a branch-scoped member. The plan
-   works either way: with a full list, a branch the user does not manage answers 403 and the screen shows the
-   message.
+4. **Known limit of B-2:** `scope` is the widest *membership*. A branch-scoped member who was given a personal
+   grant of a `:business` category permission (SI-Q26) is not offered «كل النشاط» on this page. Whether such a grant
+   can exist for a branch-scoped member was not checked. If it can, offering «كل النشاط» to everyone is a one-line
+   change, at the price of a 403 message for a plain branch manager who picks it.
