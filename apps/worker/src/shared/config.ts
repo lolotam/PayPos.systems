@@ -29,6 +29,12 @@ const schema = z.object({
     optionalValue,
     z.coerce.number().int().min(1000).max(120000).default(30000),
   ),
+  // TODO(spec): 47-2c-Q1 — القيمة الافتراضية مؤقتة وليست قياس إنتاج (القياس الوحيد 470 ثانية على lane خاص)، ولا تورث من staff أو البيع.
+  // السقف نافذة العشر دقائق لحد ما وليد يحسم الميزانية قبل فتح المنتج في 47-2d.
+  PACKAGE_IMPORT_COMMIT_TRANSACTION_TIMEOUT_MS: z.preprocess(
+    optionalValue,
+    z.coerce.number().int().min(1000).max(600_000).default(600_000),
+  ),
 });
 
 export type WorkerConfig = z.output<typeof schema>;

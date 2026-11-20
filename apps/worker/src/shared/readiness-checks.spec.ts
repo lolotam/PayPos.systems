@@ -71,8 +71,13 @@ vi.mock('bullmq', async (original) => {
     (kind: string) =>
     (target: unknown, args: unknown[]): object => {
       resources.bullmq.constructed.push({ kind, name: String(args[0]) });
-      // طابور بيع الباقة ومسح الاسترداد وقفل التصنيفات بيتبنوا فعليًا؛ بدل Redis حقيقي بنرجّع مقبض جاهز.
-      if (String(args[0]).startsWith('package-sale') || args[0] === 'service-category-closing')
+      // طوابير البيع وتثبيت الاستيراد ومسحيهما وقفل التصنيفات تُبنى فعليًا؛ بدل Redis حقيقي مقبض جاهز.
+      if (
+        String(args[0]).startsWith('package-sale') ||
+        args[0] === 'service-category-closing' ||
+        args[0] === 'package-import-commit' ||
+        args[0] === 'package-import-recovery'
+      )
         return { on: vi.fn(), waitUntilReady: async () => undefined, close: async () => undefined };
       if (args[0] === 'package-import-preview')
         return {
@@ -158,6 +163,7 @@ vi.mock('./config.ts', () => ({
     REDIS_URL: 'synthetic',
     PLATFORM_NOTIFICATIONS_DATABASE_URL: 'synthetic',
     PACKAGE_SALE_TRANSACTION_TIMEOUT_MS: 30_000,
+    PACKAGE_IMPORT_COMMIT_TRANSACTION_TIMEOUT_MS: 600_000,
   }),
 }));
 
@@ -203,7 +209,13 @@ it('package preview readiness remains required alongside optional OTP isolation'
   expect(response.json()).toMatchObject({
     code: 'NOT_READY',
     details: {
-      checks: { 'package-previews': 'down', database: 'up', dispatcher: 'up', redis: 'up' },
+      checks: {
+        'package-previews': 'down',
+        'package-import-commit': 'up',
+        database: 'up',
+        dispatcher: 'up',
+        redis: 'up',
+      },
     },
   });
 });
@@ -219,6 +231,7 @@ it('leave history readiness is 503 with only leave-history-reports down', async 
       checks: {
         'leave-history-reports': 'down',
         'package-previews': 'up',
+        'package-import-commit': 'up',
         database: 'up',
         dispatcher: 'up',
         redis: 'up',

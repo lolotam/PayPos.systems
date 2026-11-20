@@ -561,3 +561,68 @@ drain exists on timeout (the worker's database is not the bounded wrapper), so t
 **Deploy ordering.** 68-2b-2a ships tables only, so it adds nothing to wait for; 68-2c waits for 68-2b-2b worker readiness and merges
 only after 68-2b-2b is deployed to staging with the worker's `/ready` including the `leave-history-reports` check (build and cleanup workers). Rollback floor: the API first, then the worker. A lost cleanup
 scheduler (Redis flush) leaves expired reports until that company's next event: accepted.
+
+## Addendum 2026-11-20 — package import commit transport and recovery (058 / 47-2c)
+
+**What.** The orders worker now has the way in to the 47-2b financial commit: the
+`package-import-commit` BullMQ transport and the per-company `package-import-recovery` sweep.
+`PackageImportCommitRequested` (id-only `{ preview_id }`, envelope `aggregateType='import_preview'`,
+`aggregateId` = preview id) is in the module's `eventTypes`, so `knownEventTypes` registers it.
+**Nothing emits it yet**: the API commit request route, its idempotency and the OpenAPI
+registration are 47-2d. The consumer ships before its producer, as 42-3b1b did for the sale.
+
+**Transport (ADR-0018).** The deliver chain runs after the dispatcher claim has committed. For
+this type it first registers the company's sweep (ADR-0022 tenant discovery), then adds the id-only
+job with `jobId` = event id, and only then acknowledges. A failure in either step returns a retry
+outcome whose delay follows the outbox retry policy (5 s, 10 s, 20 s …), injected from the
+composition root; a fixed 2 s delay would spend the ten claims in about thirty seconds of Redis
+outage and park the event before any sweep exists. Residual: an outage longer than the retry span
+(about 43 minutes) parks the event; if it was the company's first one, the request stays
+`commit_requested` until an operator replays the parked event. A malformed event is parked with
+**no database call**: the sweep, already registered, fails a real request behind it.
+
+**Failure finalization.** The handler copies the preview job: a permanent refusal's safe code is
+stored in job progress before the write, so a database outage or a worker restart finishes the
+failure without running the financial transaction again. Only the fixed code leaves the handler,
+never error text. This is best effort inside the ten-minute window; after it, when the progress
+write fails on the last attempt, or when BullMQ's stall limit ends the job without calling the
+handler, the request ends with the sweep's generic `IMPORT_COMMIT_FAILED`.
+
+**No new attempt after ten minutes.** `withTenant`'s deadline rejects the caller while the
+database transaction may still be running, so a blind retry would wait behind that lock and spend
+a whole budget again; three attempts could hold one request, and the single-concurrency queue of
+every tenant, for about three budgets. A job older than ten minutes since enqueue neither retries
+nor starts; the sweep owns the request. The worker sets its lock duration explicitly because this
+is the first orders job that can run for minutes, and closes with the force flag so a deploy does
+not wait for a commit in flight. The interrupted transaction then either rolls back or has already
+committed (a `COMMIT` sent before the connection dropped may have succeeded); nothing assumes
+which. Every re-run and the sweep read the stored status: a re-run waits for the preview row lock,
+and on a status other than `commit_requested` writes nothing.
+
+**What a refusal guarantees.** A refusal is final once it is stored in `import_previews`. A crash
+after a refusal was computed but before the failed status or the job progress was stored re-runs
+the job against current data, so a state-dependent refusal (`IMPORT_SERVICE_NOT_FOUND`) may end
+`committed` if its cause has gone; the creator had only seen «pending». Making the refusal durable
+earlier would need a new column or table, which this slice does not add.
+
+**Sweep.** Every minute per company, at most 50 requests per page and 20 pages: package requests
+still `commit_requested` ten minutes after `requested_at` become `failed` / `IMPORT_COMMIT_FAILED`
+in one statement per page, with no re-enqueue. The candidates are a materialized CTE read with
+`FOR UPDATE SKIP LOCKED`, so the page limit is computed once:
+the financial transaction holds the preview row for its whole length (470 s measured at the full
+bound), and blocking behind it would fail the sweep job every minute. Either order is atomic: a
+finished commit fails the outer predicate on re-check; a sweep that wins leaves the commit a
+`null` preview. No migration: the 0215 guard already allows this transition, and the read uses
+`import_previews_company_status_requested_idx`.
+
+**Budget.** `PACKAGE_IMPORT_COMMIT_TRANSACTION_TIMEOUT_MS` defaults to 600 000 ms and is capped
+there. This is **provisional**: the one measurement is a private lane, not production, and the
+owner's answer (`owner-questions.ar.md`, 47-2c-Q1) is `PENDING` and blocks 47-2d, not this slice.
+`statement_timeout` bounds each statement rather than the whole transaction, and the commit-outcome
+watchdog adds one more budget, so a handler can wait up to two budgets before it sees the outcome.
+The failure write has its own 5 s timeout.
+
+**Known limit.** Staleness counts from `requested_at` and the queue runs one job at a time for all
+tenants, so a healthy request queued behind a long commit for more than ten minutes is failed
+before it starts. It is fail-closed, with no partial money effect; 47-2d weighs it before the
+producer opens. Plan and debate record: `docs/specs/058-packages-sell-redeem/47-2c-plan.md`.
