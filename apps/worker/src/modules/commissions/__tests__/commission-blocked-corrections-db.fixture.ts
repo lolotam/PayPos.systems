@@ -88,6 +88,8 @@ beforeEach(async () => {
   await owner`DELETE FROM commission_lines`;
   await owner`DELETE FROM commission_line_heads`;
   await owner`DELETE FROM consumed_events WHERE consumer_id='commissions.project-inputs'`;
+  // جرس التوقف (55-2d): صفوفه في outbox بتتولد مع كل تسجيل توقف، فبتتنضف مع جداول الشهر.
+  await owner`DELETE FROM outbox WHERE event_type='CommissionCorrectionBlockedNoticeRequested'`;
   await owner`UPDATE businesses SET created_at = '2025-01-01T00:00:00Z' WHERE company_id = ${A.company} AND id = ${A.business}`;
 });
 
