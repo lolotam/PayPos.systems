@@ -676,6 +676,12 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
     bootstrap visit that touches a closed month keeps the `COMMISSION_PERIOD_CLOSED` refusal; whether it should ever
     post a correction is `TODO(spec)` (CS-Q45, PENDING, `owner-questions.ar.md` §53). The payable half of CM-46 is
     asserted by the slice that computes payable from received corrections (51-1); 55-1c asserts the row and its kind.
+  - _What 55-2c adds (`plan-55-2.md` §5):_ the recompute refusal of a closed month (`NO_PLAN`/`NO_SALARY`) is no
+    longer a refusal (FR-046): the consumer records one open blocked correction for that employee and month, reusing
+    the open row and following the engine's code either way, and a successful recompute resolves it with its
+    generation (FR-047's resolution half). The held target month and its statement are drawn once from the recording
+    event's lock snapshot (CM-53b); posting always targets the DRAFT month chosen at posting time. The
+    `COMMISSION_PERIOD_CLOSED` refusal stays for a closed month with no DRAFT target and for the tips bootstrap (CS-Q45).
 - **FR-016** Projection tables (§6 _Schema_): `commission_line_heads` + `commission_lines` (one row per line × performer,
   D-11), `commission_tip_heads` + `commission_tips`, `commission_salaries`, `commission_sales`.
 - **FR-017** Money from events is parsed with `parseMoney`; a malformed amount parks the event (it is a producer bug), never

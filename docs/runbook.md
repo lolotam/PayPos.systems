@@ -250,8 +250,11 @@ land, approval stays closed. Never reset or delete `published_at`, `attempts`, `
    supplied, so tip and package-sale events published during the rollback would stay unmarked. Every re-run states its upper bound:
    captured after every replica runs the consumer, passed as `--through`, reused on a resume, new after any rollback. Since 55-1c a replayed
    `SessionTipsChanged` or `SalaryChanged` aimed at an already APPROVED or PAID month posts `TIP_CARD`/`TIP_CASH`/`COMMISSION` correction
-   rows into the earliest DRAFT month, and the manager owns that case. Two refusals remain (FR-015): `COMMISSION_PERIOD_CLOSED` when no
-   DRAFT target month exists after the source, or when a closed month's recompute returns `NO_PLAN`/`NO_SALARY`; the event is retried and
+   rows into the earliest DRAFT month, and the manager owns that case. Since 55-2c a replayed event whose closed month cannot be
+   priced (`NO_PLAN`/`NO_SALARY`) is consumed and recorded as one open blocked correction for that employee and month (FR-046); it is
+   resolved later by a dated salary or by a period repair, which posts the correction normally. One refusal remains (FR-015):
+   `COMMISSION_PERIOD_CLOSED` when no DRAFT target month exists after the source, or when the tips bootstrap touches a closed month
+   (CS-Q45); the event is retried and
    then parked. A `PackageSaleChanged` event in the `--types six` run still has no consumer before 55-1d and stays undelivered until then.
 7. **Logs.** A failed replay of a row that already has ten or more attempts logs «outbox event parked» at error level although nothing is
    written; read the printed result, not that line.

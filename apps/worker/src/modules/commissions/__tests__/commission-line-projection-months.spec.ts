@@ -39,6 +39,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  await owner`DELETE FROM commission_blocked_corrections`;
   await owner`DELETE FROM commission_lines`;
   await owner`DELETE FROM commission_line_heads`;
   await owner`DELETE FROM consumed_events WHERE consumer_id='commissions.project-inputs'`;
@@ -85,18 +86,22 @@ it.each(closedRemovalMonths)(
   },
 );
 
-it('an approved addition month refuses the move because the employee has no plan version', async () => {
+it('an approved addition month without a plan version is consumed with one open blocked row', async () => {
+  const movedEvent = moved('2027-08-15', followPlan);
   expect(await deliverAt('2027-09-05T09:00:00Z', recorded('2027-07-15', followPlan))).toEqual({
     delivered: true,
   });
   await walkCommissionStatement(db, { tenant: A, period: '2027-08', ids });
-  expect(await deliverAt('2027-09-05T09:00:00Z', moved('2027-08-15', followPlan))).toMatchObject({
-    delivered: false,
-  });
+  expect(await deliverAt('2027-09-05T09:00:00Z', movedEvent)).toEqual({ delivered: true });
   expect(await heads()).toHaveLength(1);
-  expect((await heads())[0]).toMatchObject({ revision: 1, period: '2027-07' });
+  expect((await heads())[0]).toMatchObject({ revision: 2, period: '2027-08' });
   expect(await lines()).toHaveLength(1);
-  expect(await marks()).toHaveLength(1);
+  expect(await marks()).toHaveLength(2);
+  expect(
+    await owner`SELECT code,source_period,first_event_id,resolved_at FROM commission_blocked_corrections`,
+  ).toEqual([
+    { code: 'NO_PLAN', source_period: '2027-08', first_event_id: movedEvent.id, resolved_at: null },
+  ]);
 });
 
 it('a move between two reviewed months reopens both months to draft', async () => {

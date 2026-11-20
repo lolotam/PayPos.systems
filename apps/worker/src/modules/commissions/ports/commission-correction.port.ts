@@ -12,6 +12,10 @@ import type {
   CommissionFrozenSource,
   CommissionPostedCorrection,
 } from '../domain/commission-correction-step.ts';
+import type {
+  CommissionBlockCode,
+  CommissionOpenBlock,
+} from '../domain/commission-blocked-correction.ts';
 
 /** بند الشهر مع فرعه وتاريخ عمله، حتى لا تفقد إعادة الحساب أصل نسبة التصحيح. */
 export type CommissionMonthLine = ProjectedCommissionLine & {
@@ -74,6 +78,38 @@ export interface CommissionCorrectionInsertInput {
   readonly drafts: readonly CommissionCorrectionDraft[];
 }
 
+/** مُدخلات قراءة التوقوف المفتوح لموظفة في شهر مصدر واحد. */
+export interface CommissionOpenBlockInput {
+  readonly businessId: string;
+  readonly employeeId: string;
+  readonly sourcePeriod: string;
+}
+
+/** مُدخلات تسجيل توقوف جديد: الرمز والحدث الأول والشهر المحتجز وكشفه المرسوم مرة واحدة. */
+export interface CommissionBlockInsertInput {
+  readonly businessId: string;
+  readonly employeeId: string;
+  readonly sourcePeriod: string;
+  readonly code: CommissionBlockCode;
+  readonly firstEventId: string;
+  readonly targetPeriod: string;
+  readonly targetStatementId: string;
+}
+
+/** مُدخلات تبديل رمز التوقوف المفتوح؛ الشهر المحتجز والحدث الأول لا يتبدلان. */
+export interface CommissionBlockCodeUpdateInput {
+  readonly businessId: string;
+  readonly blockId: string;
+  readonly code: CommissionBlockCode;
+}
+
+/** مُدخلات حلّ التوقوف المفتوح بلحظة الحل وجيل الخطوة التي نجحت ونشرت. */
+export interface CommissionBlockResolutionInput {
+  readonly businessId: string;
+  readonly blockId: string;
+  readonly generation: number;
+}
+
 /**
  * نطاق التصحيح: يقرأ مصادر شهر مغلق، يعيد حسابه بالمدخلات الحالية، ويكتب صفوف التصحيح.
  * كل دالة بتشتغل في معاملة الحدث نفسها اللي ماسكة أقفال الشهور، فما ينفع تفتح معاملة تانية.
@@ -125,4 +161,28 @@ export interface CommissionCorrectionScope {
    * @param input النشاط والمسودات المحسوبة
    */
   insertCorrections(input: CommissionCorrectionInsertInput): Promise<void>;
+  /**
+   * يرجع التوقوف المفتوح للموظفة في الشهر، اللي الخطوة بتعيد استعماله بدل صف جديد (FR-046).
+   *
+   * @param input النشاط والموظفة وشهر المصدر
+   */
+  readOpenBlock(input: CommissionOpenBlockInput): Promise<CommissionOpenBlock | null>;
+  /**
+   * بيسجّل التوقوف برمزه والشهر المحتجز وكشفه المرسوم مرة واحدة، ويرجع هويته (FR-046).
+   *
+   * @param input الرمز والحدث الأول والشهر المحتجز وكشفه
+   */
+  insertBlock(input: CommissionBlockInsertInput): Promise<string>;
+  /**
+   * بيبدّل رمز التوقوف المفتوح بس، لأن الشهر المحتجز والحدث الأول ممنوع يتبدلوا (CM-52b).
+   *
+   * @param input هوية الصف والرمز الجديد
+   */
+  updateBlockCode(input: CommissionBlockCodeUpdateInput): Promise<void>;
+  /**
+   * بيحلّ التوقوف المفتوح بلحظة الحل وجيل الخطوة اللي نجحت ونشرت (FR-047).
+   *
+   * @param input هوية الصف وجيل الخطوة الحالّة
+   */
+  resolveBlock(input: CommissionBlockResolutionInput): Promise<void>;
 }

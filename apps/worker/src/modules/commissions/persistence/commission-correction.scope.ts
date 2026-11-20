@@ -1,11 +1,15 @@
 import type { Tx } from '@pospay/db';
 
 import type {
+  CommissionBlockCodeUpdateInput,
+  CommissionBlockInsertInput,
+  CommissionBlockResolutionInput,
   CommissionCorrectionInsertInput,
   CommissionCorrectionScope,
   CommissionFrozenSourcesInput,
   CommissionGenerationInput,
   CommissionMonthProjectionInput,
+  CommissionOpenBlockInput,
   CommissionPostedCorrectionsInput,
   CommissionAttachmentSnapshotInput,
 } from '../ports/commission-correction.port.ts';
@@ -17,6 +21,12 @@ import {
 } from './commission-correction-readers.ts';
 import { readMonthProjection } from './commission-correction-month-readers.ts';
 import { bumpGeneration, insertCorrections } from './commission-correction-writers.ts';
+import {
+  insertBlock,
+  readOpenBlock,
+  resolveBlock,
+  updateBlockCode,
+} from './commission-blocked-correction-writers.ts';
 
 /**
  * يبني نطاق التصحيح على معاملة الحدث نفسها، بنفس الساعة ومولّد الهويات المحقونين.
@@ -42,5 +52,9 @@ export function createCommissionCorrectionScope(
     bumpGeneration: (input: CommissionGenerationInput) => bumpGeneration(tx, ids, input),
     insertCorrections: (input: CommissionCorrectionInsertInput) =>
       insertCorrections(tx, ids, clock, input),
+    readOpenBlock: (input: CommissionOpenBlockInput) => readOpenBlock(tx, input),
+    insertBlock: (input: CommissionBlockInsertInput) => insertBlock(tx, ids, clock, input),
+    updateBlockCode: (input: CommissionBlockCodeUpdateInput) => updateBlockCode(tx, input),
+    resolveBlock: (input: CommissionBlockResolutionInput) => resolveBlock(tx, clock, input),
   };
 }
