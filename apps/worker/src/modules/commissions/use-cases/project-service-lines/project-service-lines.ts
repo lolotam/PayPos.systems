@@ -37,10 +37,10 @@ import type {
   IdGenerator,
 } from '../../ports/commission-line-projection.port.ts';
 import {
-  postCommissionLineCorrections,
-  readCommissionLineCorrectionEmployees,
-  selectCommissionLineCorrectionTargets,
-} from './post-line-corrections.ts';
+  postCommissionCorrections,
+  selectCommissionCorrectionTargets,
+} from '../post-commission-corrections/post-commission-corrections.ts';
+import { readCommissionLineCorrectionEmployees } from './post-line-corrections.ts';
 
 type CommissionInputEventPayload =
   ServiceSessionRecorded | ServiceSessionLinesAdded | ServiceLineChanged;
@@ -78,10 +78,10 @@ export class ProjectServiceLines {
       throw new CommissionPeriodRolledOverError(plannedPeriod, currentPeriod);
     }
     const { closed, reviewed } = classifyCommissionPeriods(locked, plan.affectedPeriods);
-    const targets = selectCommissionLineCorrectionTargets(locked, closed, currentPeriod);
+    const targets = selectCommissionCorrectionTargets(locked, closed, currentPeriod);
     const employees = await readCommissionLineCorrectionEmployees(this.scope, newer, closed);
     await this.scope.replaceLines(newer.map(projectLine));
-    await postCommissionLineCorrections({
+    await postCommissionCorrections({
       scope: this.corrections,
       businessId: input.businessId,
       eventId: input.eventId,

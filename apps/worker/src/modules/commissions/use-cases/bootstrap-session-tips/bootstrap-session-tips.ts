@@ -11,6 +11,8 @@ const PAGE_SIZE = 100;
 const UNDELIVERED_LIMIT = 200;
 const CONTINUABLE_CODES = new Set([
   'COMMISSION_PERIOD_CLOSED',
+  // تغيّر الشهر بين القراءتين بيرفض الزيارة قبل أي كتابة، فهي غير مسلّمة معروفة والتشغيل يكمل بعدها.
+  'COMMISSION_PERIOD_ROLLED_OVER',
   'COMMISSION_BUSINESS_MISSING',
   'COMMISSION_TIP_SALARY_INPUT_INVALID',
 ]);
@@ -58,9 +60,15 @@ export interface SessionTipsBootstrapResult {
 export interface SessionTipsBootstrapDeps {
   readonly withTenant: TipsBootstrapTenantRunner;
   readonly reader: CurrentTipSessionsReader;
-  readonly tipsFor: (tx: TipsBootstrapTx) => { execute(input: ProjectSessionTipsInput): Promise<void> };
+  readonly tipsFor: (tx: TipsBootstrapTx) => {
+    execute(input: ProjectSessionTipsInput): Promise<void>;
+  };
   readonly consumerId: string;
-  readonly markConsumed: (tx: TipsBootstrapTx, consumerId: string, eventId: string) => Promise<boolean>;
+  readonly markConsumed: (
+    tx: TipsBootstrapTx,
+    consumerId: string,
+    eventId: string,
+  ) => Promise<boolean>;
 }
 
 interface BootstrapReport {
@@ -197,6 +205,7 @@ function toTipInput(
 ): ProjectSessionTipsInput {
   return {
     companyId,
+    eventId: null,
     businessId,
     branchId: session.branchId,
     sessionId: session.sessionId,

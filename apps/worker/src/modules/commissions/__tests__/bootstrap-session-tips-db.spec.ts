@@ -18,6 +18,7 @@ import {
   insertOutbox,
   markedIds,
   outboxSnapshot,
+  owner,
   revisionOf,
   rowsOf,
   seedSession,
@@ -167,6 +168,38 @@ it('a closed month stays undelivered while the open month is applied', async () 
   expect(await rowsOf(closedSession)).toEqual([]);
   expect(await markedIds()).toEqual([eventId(82)]);
   expect(await revisionOf(openSession)).toBe(1);
+  // B1: زيارة التهيئة المرفوضة لا تكتب تصحيحاً ولا جيلاً (CS-Q45 يبقى على الرفض الحالي)
+  expect(await owner`SELECT count(*)::int AS total FROM commission_corrections`).toMatchObject([
+    { total: 0 },
+  ]);
+  expect(
+    await owner`SELECT count(*)::int AS total FROM commission_period_generations`,
+  ).toMatchObject([{ total: 0 }]);
+});
+
+it('B2 a rolled-over visit stays undelivered with its code and the run continues to the rest', async () => {
+  // يثبت أن تغيّر الشهر بين قراءتي الزيارة لا يوقف التشغيل: الزيارة تُسجَّل غير مسلَّمة بسببها
+  // المعروف وما يُكتب لها شيء، والزيارات التالية في التشغيل نفسه تُطبَّق وتُعلَّم كالمعتاد.
+  const ctx = tipCtx(A);
+  const { sessionId: rolledSession } = await seedSession(A, '2026-12-01', CUSTOMER_A);
+  const { sessionId: nextSession } = await seedSession(A, '2026-12-02', CUSTOMER_A);
+  await writeTipRevision(ctx, rolledSession, 1, eventId(111), [tip(A.employee, 'CASH', '10.000')]);
+  await writeTipRevision(ctx, nextSession, 1, eventId(112), [tip(A.employee, 'CARD', '20.000')]);
+
+  let reads = 0;
+  const rollingClock = {
+    now: () => new Date(reads++ === 0 ? '2026-12-31T20:59:00Z' : '2027-01-01T00:00:00Z'),
+  };
+  const result = await bootstrap(undefined, rollingClock)(SCOPE);
+
+  expect(result.status).toBe('UNDELIVERED');
+  expect(result.undelivered).toEqual([
+    { sessionId: rolledSession, businessId: A.business, code: 'COMMISSION_PERIOD_ROLLED_OVER' },
+  ]);
+  expect(result.counts).toEqual({ sessions: 1, events: 1 });
+  expect(await headOf(rolledSession)).toBeUndefined();
+  expect(await headOf(nextSession)).toMatchObject({ revision: 1, period: '2026-12' });
+  expect(await markedIds()).toEqual([eventId(112)]);
 });
 it('never touches another company and skips the sessions outside the range', async () => {
   // يثبت عزل التهيئة: شركة B ما بتتلمسش، والنشاط الخطأ ما بيطبّقش، والنطاق بيقصّ الجلسات

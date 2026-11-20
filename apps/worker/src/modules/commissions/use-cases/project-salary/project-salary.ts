@@ -16,27 +16,34 @@ import {
 import {
   CommissionBusinessMissingError,
   CommissionEmployeeBusinessMissingError,
-  CommissionPeriodClosedError,
+  CommissionPeriodRolledOverError,
   CommissionTipSalaryInputInvalidError,
 } from '../../domain/errors.ts';
+import type { CommissionCorrectionScope } from '../../ports/commission-correction.port.ts';
 import type { CommissionInputEventEnvelope } from '../../ports/commission-line-projection.port.ts';
 import type {
   Clock,
   CommissionSalaryProjectionScope,
   IdGenerator,
 } from '../../ports/commission-tip-salary-projection.port.ts';
+import {
+  postCommissionCorrections,
+  selectCommissionCorrectionTargets,
+} from '../post-commission-corrections/post-commission-corrections.ts';
 
 export interface ProjectSalaryInput extends Omit<CommissionSalaryInputEvent, 'businessId'> {
   readonly companyId: string;
   readonly businessId: string | null;
+  readonly eventId: string;
 }
 
-/** يطبّق أحدث راتب على مدى شهور سريانه ويفتح مراجعة الشهور المتأثرة فقط. */
+/** يطبّق أحدث راتب على مدى شهور سريانه، وينشر تصحيحات المغلقة، ويعيد فتح المراجعة. */
 export class ProjectSalary {
   constructor(
     private readonly scope: CommissionSalaryProjectionScope,
     private readonly clock: Clock,
     private readonly ids: IdGenerator,
+    private readonly corrections: CommissionCorrectionScope,
   ) {}
 
   async execute(input: ProjectSalaryInput): Promise<void> {
@@ -53,19 +60,35 @@ export class ProjectSalary {
     assertSalaryIdentityUnchanged(held, event);
     const calendar = await this.scope.businessCalendar(input.companyId, businessId);
     if (calendar === null) throw new CommissionBusinessMissingError(businessId);
-    const currentPeriod = currentBusinessPeriod(this.clock.now(), calendar.timeZone);
+    const plannedPeriod = currentBusinessPeriod(this.clock.now(), calendar.timeZone);
     const startPeriod = currentBusinessPeriod(calendar.createdAt, calendar.timeZone);
     const nextFrom = await this.scope.readNextEffectiveFrom(input.employeeId, input.effectiveFrom);
-    const affected = salaryAffectedPeriods(input.effectiveFrom, nextFrom, currentPeriod, startPeriod);
-    const plan = commissionPeriodLockPlan(affected, currentPeriod);
+    const affected = salaryAffectedPeriods(
+      input.effectiveFrom,
+      nextFrom,
+      plannedPeriod,
+      startPeriod,
+    );
+    const plan = commissionPeriodLockPlan(affected, plannedPeriod);
     const locked = await this.scope.lockPeriods({
       businessId,
       periods: plan.periodsToLock,
       ids: this.ids,
     });
+    const currentPeriod = currentBusinessPeriod(this.clock.now(), calendar.timeZone);
+    if (currentPeriod !== plannedPeriod) {
+      throw new CommissionPeriodRolledOverError(plannedPeriod, currentPeriod);
+    }
     const { closed, reviewed } = classifyCommissionPeriods(locked, plan.affectedPeriods);
-    if (closed.length > 0) throw new CommissionPeriodClosedError(closed);
+    const targets = selectCommissionCorrectionTargets(locked, closed, currentPeriod);
     await this.scope.upsertSalary({ ...row, id: this.ids.newId() });
+    await postCommissionCorrections({
+      scope: this.corrections,
+      businessId,
+      eventId: input.eventId,
+      targets,
+      employees: closed.map((period) => ({ period, employeeId: input.employeeId })),
+    });
     await this.scope.reopenReviewed({ businessId, periods: reviewed });
   }
 
@@ -89,6 +112,7 @@ export function normalizeSalaryEvent(
   }
   return {
     companyId: event.companyId,
+    eventId: event.id,
     businessId: payload.business_id ?? null,
     employeeId: payload.employee_id,
     effectiveFrom: payload.effective_from,

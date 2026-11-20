@@ -32,10 +32,7 @@ import {
   type BusinessCalendarReader,
   type EmployeeBusinessReader,
 } from './persistence/commission-tip-salary-projection.scope.ts';
-import type {
-  Clock,
-  IdGenerator,
-} from './ports/commission-line-projection.port.ts';
+import type { Clock, IdGenerator } from './ports/commission-line-projection.port.ts';
 import type { CurrentTipSessionsReader } from './ports/commission-tip-bootstrap.port.ts';
 import { ProjectSalary } from './use-cases/project-salary/project-salary.ts';
 import { ProjectServiceLines } from './use-cases/project-service-lines/project-service-lines.ts';
@@ -88,28 +85,33 @@ export interface CommissionInputsConsumerDependencies {
 export function createCommissionInputsConsumer(
   dependencies: CommissionInputsConsumerDependencies,
 ): OutboxConsumer {
-  const bind = (tx: Tx) => ({
-    lines: new ProjectServiceLines(
-      createCommissionLineProjectionScope(tx, dependencies.businessTimeZone),
-      dependencies.clock,
-      dependencies.ids,
-      createCommissionCorrectionScope(tx, dependencies.ids, dependencies.clock),
-    ),
-    tips: new ProjectSessionTips(
-      createCommissionTipProjectionScope(tx, dependencies.businessTimeZone, dependencies.ids),
-      dependencies.clock,
-      dependencies.ids,
-    ),
-    salary: new ProjectSalary(
-      createCommissionSalaryProjectionScope(
-        tx,
-        dependencies.businessCalendar,
-        dependencies.employeeBusiness,
+  const bind = (tx: Tx) => {
+    const corrections = createCommissionCorrectionScope(tx, dependencies.ids, dependencies.clock);
+    return {
+      lines: new ProjectServiceLines(
+        createCommissionLineProjectionScope(tx, dependencies.businessTimeZone),
+        dependencies.clock,
+        dependencies.ids,
+        corrections,
       ),
-      dependencies.clock,
-      dependencies.ids,
-    ),
-  });
+      tips: new ProjectSessionTips(
+        createCommissionTipProjectionScope(tx, dependencies.businessTimeZone, dependencies.ids),
+        dependencies.clock,
+        dependencies.ids,
+        corrections,
+      ),
+      salary: new ProjectSalary(
+        createCommissionSalaryProjectionScope(
+          tx,
+          dependencies.businessCalendar,
+          dependencies.employeeBusiness,
+        ),
+        dependencies.clock,
+        dependencies.ids,
+        corrections,
+      ),
+    };
+  };
   return {
     id: COMMISSION_INPUTS_CONSUMER_ID,
     eventTypes: [...COMMISSION_INPUT_EVENT_TYPES],
@@ -136,6 +138,8 @@ export function createCommissionTipsBootstrap(
             createCommissionTipProjectionScope(tx, dependencies.businessTimeZone, dependencies.ids),
             dependencies.clock,
             dependencies.ids,
+            // نطاق التصحيح يُبنى ولا يُستعمل: التهيئة بلا حدث مرفوضة قبل أي هدف مغلق (CS-Q45).
+            createCommissionCorrectionScope(tx, dependencies.ids, dependencies.clock),
           ),
       },
       scope,

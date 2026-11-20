@@ -56,6 +56,8 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  await owner`DELETE FROM commission_corrections`;
+  await owner`DELETE FROM commission_period_generations`;
   await owner`DELETE FROM commission_salaries`;
   await owner`DELETE FROM commission_statements`;
   await owner`DELETE FROM consumed_events WHERE consumer_id='commissions.project-inputs'`;
@@ -71,6 +73,11 @@ const salaries = () =>
     FROM commission_salaries ORDER BY effective_from, revision`;
 const marks = () =>
   owner`SELECT event_id FROM consumed_events WHERE consumer_id='commissions.project-inputs'`;
+const postedCorrections = () => owner`SELECT employee_id,source_period,target_period,source_ref,
+  kind,amount,previous_amount,new_amount,generation FROM commission_corrections
+  ORDER BY employee_id,source_ref`;
+const postedGenerations = () => owner`SELECT employee_id,period,generation
+  FROM commission_period_generations ORDER BY employee_id,period`;
 
 it('CM-19 same-date newer revision replaces amount; older no-ops; two dates coexist', async () => {
   const rev1 = salaryEvent({ effectiveFrom: '2026-04-01', amount: '500.000', revision: 1 });
@@ -156,12 +163,7 @@ it('D2 floor: salary dated years before business created_at creates statements o
   const createdPeriods = await owner<{ period: string }[]>`
     SELECT period FROM commission_statements
     WHERE company_id=${A.company} AND business_id=${A.business} ORDER BY period`;
-  expect(createdPeriods.map((p) => p.period)).toEqual([
-    '2026-09',
-    '2026-10',
-    '2026-11',
-    '2026-12',
-  ]);
+  expect(createdPeriods.map((p) => p.period)).toEqual(['2026-09', '2026-10', '2026-11', '2026-12']);
   expect(createdPeriods.some((p) => p.period < '2026-09')).toBe(false);
 });
 
@@ -211,13 +213,16 @@ it('a present business_id of another business in the same company fails FK with 
   expect(await marks()).toEqual([]);
 });
 
-it('closed guard: affected month APPROVED refuses delivery before row or mark', async () => {
+it('closed guard rewrite: a salary for an APPROVED month with no line is consumed with a generation and no correction', async () => {
   await walkCommissionStatement(db, { tenant: A, period: '2026-11', ids, to: 'APPROVED' });
-  expect(await deliver(salaryEvent({ effectiveFrom: '2026-11-01' }))).toMatchObject({
-    delivered: false,
-  });
-  expect(await salaries()).toEqual([]);
-  expect(await marks()).toEqual([]);
+  expect(await deliver(salaryEvent({ effectiveFrom: '2026-11-01' }))).toEqual({ delivered: true });
+  expect(await salaries()).toHaveLength(1);
+  expect(await marks()).toHaveLength(1);
+  // الموظفة بلا بنود في الشهر: الجيل يُرفع بلا صفوف (R4) ولا يُنشر أي تصحيح.
+  expect(await postedCorrections()).toEqual([]);
+  expect(await postedGenerations()).toEqual([
+    { employee_id: A.employee, period: '2026-11', generation: 1 },
+  ]);
 });
 
 it('regression PR #928: uppercase employee_id with lowercase aggregate id is projected, not rejected', async () => {

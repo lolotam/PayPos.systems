@@ -6,6 +6,7 @@ import {
   currentBusinessPeriod,
 } from '../../domain/commission-periods.ts';
 import {
+  affectedCommissionTipEmployees,
   assertTipIdentityUnchanged,
   tipAffectedPeriods,
 } from '../../domain/commission-tip-salary-periods.ts';
@@ -16,25 +17,33 @@ import {
 import {
   CommissionBusinessMissingError,
   CommissionPeriodClosedError,
+  CommissionPeriodRolledOverError,
   CommissionTipSalaryInputInvalidError,
 } from '../../domain/errors.ts';
+import type { CommissionCorrectionScope } from '../../ports/commission-correction.port.ts';
 import type { CommissionInputEventEnvelope } from '../../ports/commission-line-projection.port.ts';
 import type {
   Clock,
   CommissionTipProjectionScope,
   IdGenerator,
 } from '../../ports/commission-tip-salary-projection.port.ts';
+import {
+  postCommissionCorrections,
+  selectCommissionCorrectionTargets,
+} from '../post-commission-corrections/post-commission-corrections.ts';
 
 export interface ProjectSessionTipsInput extends CommissionTipInputEvent {
   readonly companyId: string;
+  readonly eventId: string | null;
 }
 
-/** يطبّق أحدث بقشيش للجلسة ويفتح مراجعة الشهور المتأثرة دون كتابة شهر مغلق. */
+/** يطبّق أحدث بقشيش للجلسة، وينشر تصحيحات الشهور المغلقة، ويعيد فتح الشهور المراجعة. */
 export class ProjectSessionTips {
   constructor(
     private readonly scope: CommissionTipProjectionScope,
     private readonly clock: Clock,
     private readonly ids: IdGenerator,
+    private readonly corrections: CommissionCorrectionScope,
   ) {}
 
   async execute(input: ProjectSessionTipsInput): Promise<void> {
@@ -48,17 +57,32 @@ export class ProjectSessionTips {
     assertTipIdentityUnchanged(held, input);
     const timeZone = await this.scope.businessTimeZone(input.companyId, input.businessId);
     if (timeZone === null) throw new CommissionBusinessMissingError(input.businessId);
-    const currentPeriod = currentBusinessPeriod(this.clock.now(), timeZone);
+    const plannedPeriod = currentBusinessPeriod(this.clock.now(), timeZone);
     const affected = tipAffectedPeriods(held?.period ?? null, input.businessDate);
-    const plan = commissionPeriodLockPlan(affected, currentPeriod);
+    const plan = commissionPeriodLockPlan(affected, plannedPeriod);
     const locked = await this.scope.lockPeriods({
       businessId: input.businessId,
       periods: plan.periodsToLock,
       ids: this.ids,
     });
+    const currentPeriod = currentBusinessPeriod(this.clock.now(), timeZone);
+    if (currentPeriod !== plannedPeriod) {
+      throw new CommissionPeriodRolledOverError(plannedPeriod, currentPeriod);
+    }
     const { closed, reviewed } = classifyCommissionPeriods(locked, plan.affectedPeriods);
-    if (closed.length > 0) throw new CommissionPeriodClosedError(closed);
+    // تهيئة البقشيش بلا حدث لا تنشر تصحيحاً بلا معرّف سبب، فتُرفض قبل أي كتابة حين لمس شهراً مغلقاً (CS-Q45).
+    if (closed.length > 0 && input.eventId === null) throw new CommissionPeriodClosedError(closed);
+    const targets = selectCommissionCorrectionTargets(locked, closed, currentPeriod);
+    const employees = affectedCommissionTipEmployees(held, session, closed);
     await this.scope.replaceTipSession(session);
+    await postCommissionCorrections({
+      scope: this.corrections,
+      businessId: input.businessId,
+      // الأهداف الفارغة وحدها تصل إلى هنا بلا حدث، فالقيمة البديلة لا تُقرأ أصلاً.
+      eventId: input.eventId ?? '',
+      targets,
+      employees,
+    });
     await this.scope.reopenReviewed({ businessId: input.businessId, periods: reviewed });
   }
 }
@@ -75,6 +99,7 @@ export function normalizeSessionTipsEvent(
   }
   return {
     companyId: event.companyId,
+    eventId: event.id,
     businessId: payload.business_id,
     branchId: payload.branch_id,
     sessionId: payload.session_id,

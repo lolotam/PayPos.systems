@@ -32,7 +32,11 @@ import { type CurrentTipSessionsReader } from '../index.ts';
 import { commissionTipEvent } from './commission-tip-salary-events.ts';
 
 export type Method = 'CASH' | 'CARD';
-export type TipInput = { readonly employeeId: string; readonly method: Method; readonly amount: string };
+export type TipInput = {
+  readonly employeeId: string;
+  readonly method: Method;
+  readonly amount: string;
+};
 type ConsumerDependencies = Parameters<typeof createTestCommissionInputsConsumer>[0];
 type TipEventOverrides = Parameters<typeof commissionTipEvent>[2];
 
@@ -79,6 +83,8 @@ export function useBootstrapHarness(): void {
   });
 
   beforeEach(async () => {
+    await owner`DELETE FROM commission_corrections`;
+    await owner`DELETE FROM commission_period_generations`;
     await owner`DELETE FROM commission_tips`;
     await owner`DELETE FROM commission_tip_heads`;
     await owner`DELETE FROM commission_statements`;
@@ -100,8 +106,16 @@ export async function seedRecorder(): Promise<void> {
   }
 }
 
-export const tip = (employeeId: string, method: Method, amount: string) => ({ employeeId, method, amount });
-export const eventTip = (emp: string, method: Method, amount: string) => ({ employee_id: emp, method, amount });
+export const tip = (employeeId: string, method: Method, amount: string) => ({
+  employeeId,
+  method,
+  amount,
+});
+export const eventTip = (emp: string, method: Method, amount: string) => ({
+  employee_id: emp,
+  method,
+  amount,
+});
 export const tipEvent = (
   id: string,
   sessionId: string,
@@ -144,15 +158,19 @@ export async function writeTipRevision(
   return row.eventId;
 }
 
-export const bootstrap = (wrapReader?: (real: CurrentTipSessionsReader) => CurrentTipSessionsReader) => {
-  const dependencies = { ids, clock, businessTimeZone, database: db };
+export const bootstrap = (
+  wrapReader?: (real: CurrentTipSessionsReader) => CurrentTipSessionsReader,
+  clockOverride?: { now: () => Date },
+) => {
+  const dependencies = { ids, clock: clockOverride ?? clock, businessTimeZone, database: db };
   return createTestCommissionTipsBootstrap(
     wrapReader === undefined ? dependencies : { ...dependencies, wrapReader },
   );
 };
 export type BootstrapResult = Awaited<ReturnType<ReturnType<typeof bootstrap>>>;
 export const headOf = async (sessionId: string) => {
-  const [row] = await owner`SELECT business_id, branch_id, revision, business_date::text AS business_date, period
+  const [row] =
+    await owner`SELECT business_id, branch_id, revision, business_date::text AS business_date, period
     FROM commission_tip_heads WHERE session_id=${sessionId}`;
   return row;
 };
@@ -163,8 +181,10 @@ export const rowsOf = (sessionId: string) =>
 export const expectRows = async (sessionId: string, expected: readonly unknown[]) =>
   expect(await rowsOf(sessionId)).toEqual(expected);
 export const markedIds = async () =>
-  (await owner`SELECT event_id FROM consumed_events
-    WHERE consumer_id='commissions.project-inputs' ORDER BY event_id`).map((row) => row.event_id);
+  (
+    await owner`SELECT event_id FROM consumed_events
+    WHERE consumer_id='commissions.project-inputs' ORDER BY event_id`
+  ).map((row) => row.event_id);
 export const outboxSnapshot = (companyId: string) =>
   owner`SELECT id, published_at, attempts, next_attempt_at, parked_at, last_error
     FROM outbox WHERE company_id=${companyId} ORDER BY id`;
