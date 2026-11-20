@@ -25,6 +25,7 @@ import { staffLoginAr } from './staff-login-catalog.js';
 import { permissionCodesAr } from './permission-codes-catalog.js';
 import { catalogServicesAr, catalogServiceErrorsAr } from './catalog-services.js';
 import { catalogServiceCategoriesAr } from './catalog-service-categories.js';
+import { catalogServiceCategoryBranchesAr } from './catalog-service-category-branches.js';
 import { adminAr } from './admin-catalog.js';
 import { employeeIbanAr, employeeIbanErrorsAr } from './employee-iban-catalog.js';
 import { scheduleShellAr } from './schedule-shell-catalog.js';
@@ -318,6 +319,7 @@ export const ar: Catalog = {
   },
   catalogServices: catalogServicesAr,
   catalogServiceCategories: catalogServiceCategoriesAr,
+  catalogServiceCategoryBranches: catalogServiceCategoryBranchesAr,
   catalogPackageTypes: catalogPackageTypesAr,
   packageExtension: catalogPackageExtensionAr,
   admin: adminAr,
