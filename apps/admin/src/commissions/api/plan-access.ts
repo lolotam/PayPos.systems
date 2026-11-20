@@ -25,6 +25,16 @@ export function planVersionsKey(scope: PlanScope, employeeId: string) {
   return [...scope, 'versions', employeeId] as const;
 }
 
+/** مفتاح جدول خدمات الشاشة: خدمات النشاط مع التجاوز الحالي لكل خدمة. */
+export function planOverrideServicesKey(scope: PlanScope, employeeId: string) {
+  return [...scope, 'override-services', employeeId] as const;
+}
+
+/** مفتاح تاريخ التجاوزات: سطور خدمة واحدة للموظفة، الأحدث في الأول. */
+export function planOverrideHistoryKey(scope: PlanScope, employeeId: string, serviceId: string) {
+  return [...scope, 'override-history', employeeId, serviceId] as const;
+}
+
 function planAccessKey(scope: PlanScope) {
   return [...scope, 'access'] as const;
 }
@@ -48,6 +58,8 @@ export async function denyPlanAccess(client: QueryClient, scope: PlanScope): Pro
   await client.cancelQueries({ queryKey: scope }, { revert: false });
   client.removeQueries({ queryKey: planEmployeesKey(scope) });
   client.removeQueries({ queryKey: [...scope, 'versions'] });
+  client.removeQueries({ queryKey: [...scope, 'override-services'] });
+  client.removeQueries({ queryKey: [...scope, 'override-history'] });
 }
 
 /** بيرجّع الوصول بجيل جديد من غير أي بيانات: أول صفحة موظفين ناجحة في الجيل الجديد بس هي اللي بتظهر. */
