@@ -8,7 +8,9 @@ const ZONE = 'Asia/Kuwait';
 const DATE = '2026-11-20';
 
 function calcDraft(kind: CalcDraft['kind'], text: string): CalcDraft {
-  return kind === 'PCT' ? { kind: 'PCT', bps: text, amount: '' } : { kind: 'FIXED', bps: '', amount: text };
+  return kind === 'PCT'
+    ? { kind: 'PCT', bps: text, amount: '' }
+    : { kind: 'FIXED', bps: '', amount: text };
 }
 
 function step(fromKind: StepDraft['fromKind'], fromValue: string, calc: CalcDraft): StepDraft {
@@ -26,7 +28,12 @@ function tiersDraft(partial: Partial<TiersDraft>): TiersDraft {
   };
 }
 
-function draft(partial: { base?: ComponentDraft; tiers?: TiersDraft; packageSale?: ComponentDraft; effectiveFrom?: string }): PlanDraft {
+function draft(partial: {
+  base?: ComponentDraft;
+  tiers?: TiersDraft;
+  packageSale?: ComponentDraft;
+  effectiveFrom?: string;
+}): PlanDraft {
   return {
     effectiveFrom: partial.effectiveFrom ?? DATE,
     wholePeriod: false,
@@ -59,7 +66,9 @@ it.each([
 ])('reads the basis-points text %s as %i', (text, expected) => {
   const result = toWireCandidate(draft({ base: { enabled: true, calc: calcDraft('PCT', text) } }));
   expect(result.errors).toEqual([]);
-  expect(result.candidate).toMatchObject({ base: { enabled: true, calc: { kind: 'PCT', bps: expected } } });
+  expect(result.candidate).toMatchObject({
+    base: { enabled: true, calc: { kind: 'PCT', bps: expected } },
+  });
 });
 
 it.each(['-1', '12.5', 'abc', '', '100000'])('refuses the basis-points text %s', (text) => {
@@ -159,7 +168,10 @@ it.each(['2026-1-5', '20-11-2026', '', 'abc'])('refuses the date text %s', (text
 it('sends a disabled empty component as enabled false only', () => {
   const result = toWireCandidate(draft({}));
   expect(result.errors).toEqual([]);
-  expect(result.candidate).toMatchObject({ base: { enabled: false }, package_sale: { enabled: false } });
+  expect(result.candidate).toMatchObject({
+    base: { enabled: false },
+    package_sale: { enabled: false },
+  });
   expect(result.candidate).not.toMatchObject({ base: { calc: { bps: 0 } } });
 });
 
@@ -174,7 +186,9 @@ it('keeps the calc of a disabled filled component', () => {
 });
 
 it('drops the unreadable retained calc of a disabled component with no reading error', () => {
-  const result = toWireCandidate(draft({ base: { enabled: false, calc: calcDraft('PCT', 'abc') } }));
+  const result = toWireCandidate(
+    draft({ base: { enabled: false, calc: calcDraft('PCT', 'abc') } }),
+  );
   expect(result.errors).toEqual([]);
   expect(result.candidate).toEqual({
     effective_from: DATE,

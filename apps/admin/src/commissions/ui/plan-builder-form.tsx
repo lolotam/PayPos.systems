@@ -15,22 +15,18 @@ import { PlanPeriodFields } from './plan-period-fields';
 import { PlanSwitchBlock } from './plan-switch-block';
 import { TiersBlock } from './tiers-block';
 
+interface PlanBuilderFormProps {
+  initial: PlanDraft;
+  pending: boolean;
+  serverError: unknown;
+  onSubmit(body: CreateCommissionPlanVersionInput): void;
+}
 /**
  * نموذج بناء الخطة بلا طبقة بيانات: الحفظ متعطل طول ما النموذج غير صالح أو فيه حفظ شغال،
  * ورفض السيرفر بيتحكّم على جسم الطلب المُرسول نفسه وبيظهر في بلوكه أو على الفورم،
  * وأي تعديل بيخفي رسالة السيرفر فورًا.
  */
-export function PlanBuilderForm({
-  initial,
-  pending,
-  serverError,
-  onSubmit,
-}: {
-  initial: PlanDraft;
-  pending: boolean;
-  serverError: unknown;
-  onSubmit(body: CreateCommissionPlanVersionInput): void;
-}) {
+export function PlanBuilderForm({ initial, pending, serverError, onSubmit }: PlanBuilderFormProps) {
   const locale = useLocale();
   const form = useForm<PlanDraft, unknown, CreateCommissionPlanVersionInput>({
     resolver: createPlanResolver(locale),
@@ -68,12 +64,17 @@ export function PlanBuilderForm({
           <PlanSwitchBlock block="base" serverAlert={alerts?.base ?? null}>
             <CalcFields id="base" path="base.calc" />
           </PlanSwitchBlock>
-          <TiersBlock serverAlert={alerts?.tiers ?? null} />
+          <TiersBlock
+            serverAlert={alerts?.tiers ?? null}
+            onUserEdit={() => setDismissedFor(serverError)}
+          />
           <PlanSwitchBlock block="packageSale" serverAlert={alerts?.packageSale ?? null}>
             <CalcFields id="package-sale" path="packageSale.calc" />
           </PlanSwitchBlock>
           <Button type="submit" disabled={!form.formState.isValid || pending}>
-            {pending ? t(locale, 'commissionPlanBuilder.saving') : t(locale, 'commissionPlanBuilder.save')}
+            {pending
+              ? t(locale, 'commissionPlanBuilder.saving')
+              : t(locale, 'commissionPlanBuilder.save')}
           </Button>
         </fieldset>
         {alerts?.form != null ? <p role="alert">{alerts.form}</p> : null}

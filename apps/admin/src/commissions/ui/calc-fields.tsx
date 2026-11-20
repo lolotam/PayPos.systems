@@ -10,7 +10,8 @@ import type { CalcPath } from './plan-form-types';
 
 /**
  * حقلا طريقة الحساب وقيمته لنص واحد؛ نص المبلغ بلغة لاتينية وبيتطبّع على blur بس
- * عشان الكتابة ما تتعطلش، والنص غير الصالح بيفضل زي ما هو لحد ما يقرأه النموذج.
+ * عشان الكتابة ما تتعطلش والنص الغلط بيفضل زي ما هو؛ وkey بيركّب حقل القيمة عند تغيير النوع
+ * لأن الرجوع لاسم سابق بيطابق ref العقدة القديمة فيطّلع إعادة القراءة فيبقى المعروض غير المرسل.
  */
 export function CalcFields({ id, path }: { id: string; path: CalcPath }) {
   const locale = useLocale();
@@ -36,6 +37,7 @@ export function CalcFields({ id, path }: { id: string; path: CalcPath }) {
           : t(locale, 'commissionPlanBuilder.amountLabel')}
       </Label>
       <Input
+        key={kind}
         id={`${id}-value`}
         dir="ltr"
         inputMode="decimal"

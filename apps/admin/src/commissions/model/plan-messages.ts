@@ -80,7 +80,8 @@ export function planServerAlerts(
   if (code === null) {
     return {
       ...noAlerts(),
-      form: serverMessage(serverError, locale) ?? t(locale, 'commissionPlanBuilder.errorSaveFailed'),
+      form:
+        serverMessage(serverError, locale) ?? t(locale, 'commissionPlanBuilder.errorSaveFailed'),
     };
   }
   const alerts = noAlerts();

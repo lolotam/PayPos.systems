@@ -47,9 +47,7 @@ it('converts sessions and preserves disabled component settings for the validato
         enabled: false,
         mode: 'WHOLE',
         accumulator: 'SESSIONS',
-        steps: [
-          { from: { kind: 'SESSIONS', value: 4 }, calc: { kind: 'PCT', bps: 100 } },
-        ],
+        steps: [{ from: { kind: 'SESSIONS', value: 4 }, calc: { kind: 'PCT', bps: 100 } }],
       },
       package_sale: { enabled: false },
     }),

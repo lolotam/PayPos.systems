@@ -1,4 +1,8 @@
-import type { CommissionPlanWire, CommissionValidationError, CommissionValidationResult } from '@pospay/commissions-engine/validation';
+import type {
+  CommissionPlanWire,
+  CommissionValidationError,
+  CommissionValidationResult,
+} from '@pospay/commissions-engine/validation';
 import { validateWireCommissionPlan } from '@pospay/commissions-engine/validation';
 
 export interface PlanBlockErrors {
@@ -23,9 +27,7 @@ export function checkPlanBlocks(plan: CommissionPlanWire): PlanBlockErrors {
   const off = { enabled: false } as const;
   return {
     base: codeOf(validateWireCommissionPlan({ base: plan.base, tiers: off, package_sale: off })),
-    tiers: codeOf(
-      validateWireCommissionPlan({ base: off, tiers: plan.tiers, package_sale: off }),
-    ),
+    tiers: codeOf(validateWireCommissionPlan({ base: off, tiers: plan.tiers, package_sale: off })),
     packageSale: codeOf(
       validateWireCommissionPlan({ base: off, tiers: off, package_sale: plan.package_sale }),
     ),

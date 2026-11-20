@@ -1,4 +1,7 @@
-import { createCommissionPlanVersionInput, type CreateCommissionPlanVersionInput } from '@pospay/contracts';
+import {
+  createCommissionPlanVersionInput,
+  type CreateCommissionPlanVersionInput,
+} from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 import type { FieldErrors, Resolver } from 'react-hook-form';
 import { checkPlanBlocks } from './plan-check';
@@ -32,7 +35,8 @@ export function createPlanResolver(
   return (values) => {
     const built = toWireCandidate(values);
     const errors: FieldErrors<PlanDraft> = {};
-    for (const error of built.errors) setMessage(errors, error.block, t(locale, DRAFT_ERROR_KEYS[error.code]));
+    for (const error of built.errors)
+      setMessage(errors, error.block, t(locale, DRAFT_ERROR_KEYS[error.code]));
     const parsed = createCommissionPlanVersionInput.safeParse(built.candidate);
     if (!parsed.success) {
       for (const issue of parsed.error.issues) {
@@ -41,9 +45,12 @@ export function createPlanResolver(
         setMessage(
           errors,
           block,
-          t(locale, block === 'effectiveFrom'
-            ? 'commissionPlanBuilder.errorInvalidDate'
-            : 'commissionPlanBuilder.errorInvalidPlan'),
+          t(
+            locale,
+            block === 'effectiveFrom'
+              ? 'commissionPlanBuilder.errorInvalidDate'
+              : 'commissionPlanBuilder.errorInvalidPlan',
+          ),
         );
       }
       // كود العقد اللي ملوش بلوك معروف (زي whole_period) بيقفل البوابة برسالة عامة بدل ما يرجع الفورم صالح فجأة.

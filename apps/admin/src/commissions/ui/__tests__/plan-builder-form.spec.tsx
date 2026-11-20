@@ -19,6 +19,9 @@ const B = {
   on: t('en', 'commissionPlanBuilder.blockOn'),
   off: t('en', 'commissionPlanBuilder.blockOff'),
   effectiveFrom: t('en', 'commissionPlanBuilder.effectiveFrom'),
+  calcKind: t('en', 'commissionPlanBuilder.calcKind'),
+  calcPct: t('en', 'commissionPlanBuilder.calcPct'),
+  calcFixed: t('en', 'commissionPlanBuilder.calcFixed'),
   bpsLabel: t('en', 'commissionPlanBuilder.bpsLabel'),
   amountLabel: t('en', 'commissionPlanBuilder.amountLabel'),
   thresholdValue: t('en', 'commissionPlanBuilder.thresholdValue'),
@@ -40,6 +43,19 @@ function part<T>(items: readonly T[], at: number): T {
 
 function saveButton(): HTMLButtonElement {
   return screen.getByRole('button', { name: B.save }) as HTMLButtonElement;
+}
+
+function kindSelect(): HTMLSelectElement {
+  return within(block(B.base)).getByLabelText(B.calcKind) as HTMLSelectElement;
+}
+
+async function submittedBody(
+  onSave: ReturnType<typeof vi.fn>,
+): Promise<CreateCommissionPlanVersionInput> {
+  await waitFor(() => expect(saveButton().disabled).toBe(false));
+  fireEvent.click(saveButton());
+  await waitFor(() => expect(onSave).toHaveBeenCalled());
+  return onSave.mock.calls[0]?.[0] as CreateCommissionPlanVersionInput;
 }
 
 function pctCalc(bps: string) {
@@ -65,13 +81,28 @@ function planInvalid(code: CommissionValidationError): unknown {
 
 function renderForm(initial: PlanDraft, serverError: unknown = null, onSave = vi.fn()) {
   return render(
-    <PlanBuilderForm initial={initial} pending={false} serverError={serverError} onSubmit={onSave} />,
+    <PlanBuilderForm
+      initial={initial}
+      pending={false}
+      serverError={serverError}
+      onSubmit={onSave}
+    />,
   );
 }
 
-function rerenderWith(view: ReturnType<typeof renderForm>, initial: PlanDraft, serverError: unknown, onSave = vi.fn()) {
+function rerenderWith(
+  view: ReturnType<typeof renderForm>,
+  initial: PlanDraft,
+  serverError: unknown,
+  onSave = vi.fn(),
+) {
   view.rerender(
-    <PlanBuilderForm initial={initial} pending={false} serverError={serverError} onSubmit={onSave} />,
+    <PlanBuilderForm
+      initial={initial}
+      pending={false}
+      serverError={serverError}
+      onSubmit={onSave}
+    />,
   );
 }
 
@@ -177,9 +208,7 @@ it('shows STEPS_NOT_ASCENDING inside tiers while the base block stays clean', as
   const initial = {
     ...emptyPlanDraft(ZONE, NOW),
     base: { enabled: true, calc: pctCalc('500') },
-    tiers: tiersWith([
-      { fromKind: 'AMOUNT' as const, fromValue: '10.000', calc: pctCalc('100') },
-    ]),
+    tiers: tiersWith([{ fromKind: 'AMOUNT' as const, fromValue: '10.000', calc: pctCalc('100') }]),
   };
   renderForm(initial);
   const tiers = block(B.tiers);
@@ -203,7 +232,10 @@ it('refuses the year 0000 with a visible message and a disabled save', async () 
 });
 
 it('refuses an over-long amount with a visible message and a disabled save', async () => {
-  renderForm({ ...emptyPlanDraft(ZONE, NOW), base: { enabled: true, calc: fixedCalc('12345678901234.000') } });
+  renderForm({
+    ...emptyPlanDraft(ZONE, NOW),
+    base: { enabled: true, calc: fixedCalc('12345678901234.000') },
+  });
   const alert = await within(block(B.base)).findByRole('alert');
   expect(alert.textContent).toBe(t('en', 'commissionPlanBuilder.errorInvalidMoney'));
   expect(saveButton().disabled).toBe(true);
@@ -212,7 +244,9 @@ it('refuses an over-long amount with a visible message and a disabled save', asy
 it('refuses a salary multiple of 10000.00 with a visible message and a disabled save', async () => {
   renderForm({
     ...emptyPlanDraft(ZONE, NOW),
-    tiers: tiersWith([{ fromKind: 'SALARY_MULTIPLE' as const, fromValue: '10000.00', calc: pctCalc('100') }]),
+    tiers: tiersWith([
+      { fromKind: 'SALARY_MULTIPLE' as const, fromValue: '10000.00', calc: pctCalc('100') },
+    ]),
   });
   const alert = await within(block(B.tiers)).findByRole('alert');
   expect(alert.textContent).toBe(t('en', 'commissionPlanBuilder.errorInvalidMultiple'));
@@ -298,6 +332,90 @@ it('clears the server message as soon as any field changes', async () => {
     target: { value: '600' },
   });
   await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+});
+
+it('keeps the displayed base value equal to the submitted bps across pct then fixed then pct', async () => {
+  const onSave = vi.fn();
+  renderForm(
+    { ...emptyPlanDraft(ZONE, NOW), base: { enabled: true, calc: pctCalc('500') } },
+    null,
+    onSave,
+  );
+  fireEvent.change(kindSelect(), { target: { value: 'FIXED' } });
+  const amount = (await within(block(B.base)).findByLabelText(B.amountLabel)) as HTMLInputElement;
+  fireEvent.change(amount, { target: { value: '1.250' } });
+  expect(amount.value).toBe('1.250');
+  fireEvent.change(kindSelect(), { target: { value: 'PCT' } });
+  const bps = (await within(block(B.base)).findByLabelText(B.bpsLabel)) as HTMLInputElement;
+  const body = await submittedBody(onSave);
+  if (!body.base.enabled || body.base.calc.kind !== 'PCT') {
+    throw new Error('the submitted base calc is not a percentage');
+  }
+  expect(bps.value).toBe('500');
+  expect(bps.value).toBe(String(body.base.calc.bps));
+});
+
+it('keeps the displayed base value equal to the submitted amount across fixed then pct then fixed', async () => {
+  const onSave = vi.fn();
+  renderForm(
+    { ...emptyPlanDraft(ZONE, NOW), base: { enabled: true, calc: fixedCalc('1.250') } },
+    null,
+    onSave,
+  );
+  fireEvent.change(kindSelect(), { target: { value: 'PCT' } });
+  const bps = (await within(block(B.base)).findByLabelText(B.bpsLabel)) as HTMLInputElement;
+  fireEvent.change(bps, { target: { value: '700' } });
+  fireEvent.change(kindSelect(), { target: { value: 'FIXED' } });
+  const amount = (await within(block(B.base)).findByLabelText(B.amountLabel)) as HTMLInputElement;
+  const body = await submittedBody(onSave);
+  if (!body.base.enabled || body.base.calc.kind !== 'FIXED') {
+    throw new Error('the submitted base calc is not a fixed amount');
+  }
+  expect(amount.value).toBe('1.250');
+  expect(amount.value).toBe(body.base.calc.amount);
+});
+
+it('dismisses a visible server refusal when a valid tier step is removed', async () => {
+  const initial = {
+    ...emptyPlanDraft(ZONE, NOW),
+    base: { enabled: true, calc: pctCalc('500') },
+    tiers: tiersWith([{ fromKind: 'AMOUNT' as const, fromValue: '10.000', calc: pctCalc('100') }]),
+  };
+  renderForm(initial, planInvalid('INVALID_CALC'));
+  expect(await screen.findByText(t('en', 'commissionPlanBuilder.errorInvalidCalc'))).toBeTruthy();
+  fireEvent.click(within(block(B.tiers)).getByRole('button', { name: B.removeStep }));
+  await waitFor(() =>
+    expect(screen.queryByText(t('en', 'commissionPlanBuilder.errorInvalidCalc'))).toBeNull(),
+  );
+  expect((await within(block(B.tiers)).findByRole('alert')).textContent).toBe(
+    t('en', 'commissionPlanBuilder.errorNoSteps'),
+  );
+});
+
+it('dismisses a visible server refusal when a step is added to tiers', async () => {
+  const initial = {
+    ...emptyPlanDraft(ZONE, NOW),
+    base: { enabled: true, calc: pctCalc('500') },
+    tiers: tiersWith([]),
+  };
+  renderForm(initial, planInvalid('INVALID_CALC'));
+  expect(await screen.findByText(t('en', 'commissionPlanBuilder.errorInvalidCalc'))).toBeTruthy();
+  fireEvent.click(within(block(B.tiers)).getByRole('button', { name: B.addStep }));
+  await waitFor(() =>
+    expect(screen.queryByText(t('en', 'commissionPlanBuilder.errorInvalidCalc'))).toBeNull(),
+  );
+  expect((await within(block(B.tiers)).findByRole('alert')).textContent).toBe(
+    t('en', 'commissionPlanBuilder.errorInvalidBps'),
+  );
+});
+
+it('keeps the visible server refusal when only validation re-runs without a change', async () => {
+  const initial = { ...emptyPlanDraft(ZONE, NOW), base: { enabled: true, calc: pctCalc('500') } };
+  renderForm(initial, planInvalid('INVALID_CALC'));
+  expect(await screen.findByText(t('en', 'commissionPlanBuilder.errorInvalidCalc'))).toBeTruthy();
+  fireEvent.blur(within(block(B.base)).getByLabelText(B.bpsLabel));
+  await waitFor(() => expect(saveButton().disabled).toBe(false));
+  expect(screen.queryByText(t('en', 'commissionPlanBuilder.errorInvalidCalc'))).not.toBeNull();
 });
 
 it('disables save and shows the saving label while pending', () => {

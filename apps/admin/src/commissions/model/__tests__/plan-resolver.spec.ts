@@ -58,7 +58,8 @@ const COMBOS = CALC_KINDS.flatMap((calcKind) =>
               base,
               tiers,
               packageSale,
-            }))),
+            })),
+          ),
         ),
       ),
     ),
@@ -154,8 +155,16 @@ it('agrees with the engine across the §5.7 product and reports the whole-plan c
 });
 
 it.each([
-  ['mixed threshold kinds', tiersOn('MARGINAL', 'AMOUNT', [stepOf('AMOUNT', 'PCT'), stepOf('SESSIONS', 'PCT')]), 'MIXED_THRESHOLDS'],
-  ['two equal steps', tiersOn('WHOLE', 'AMOUNT', [stepOf('AMOUNT', 'PCT'), stepOf('AMOUNT', 'PCT')]), 'STEPS_NOT_ASCENDING'],
+  [
+    'mixed threshold kinds',
+    tiersOn('MARGINAL', 'AMOUNT', [stepOf('AMOUNT', 'PCT'), stepOf('SESSIONS', 'PCT')]),
+    'MIXED_THRESHOLDS',
+  ],
+  [
+    'two equal steps',
+    tiersOn('WHOLE', 'AMOUNT', [stepOf('AMOUNT', 'PCT'), stepOf('AMOUNT', 'PCT')]),
+    'STEPS_NOT_ASCENDING',
+  ],
   [
     'two descending steps',
     tiersOn('MARGINAL', 'AMOUNT', [
@@ -209,7 +218,11 @@ it.each([
   ['10000', true],
   ['10001', false],
 ])('matches the engine on the percentage boundary %s basis points', (text, accepted) => {
-  const draft = edgeDraft({ enabled: true, calc: { kind: 'PCT', bps: text, amount: '' } }, null, null);
+  const draft = edgeDraft(
+    { enabled: true, calc: { kind: 'PCT', bps: text, amount: '' } },
+    null,
+    null,
+  );
   const built = toWireCandidate(draft);
   const result = runResolver(draft);
   const refused = Object.keys(result.errors).length > 0;
@@ -230,7 +243,9 @@ it.each([
 ])('matches the engine on the salary-multiple boundary %s', (text, accepted) => {
   const draft = edgeDraft(
     null,
-    tiersOn('MARGINAL', 'AMOUNT', [{ fromKind: 'SALARY_MULTIPLE', fromValue: text, calc: calcOf('PCT') }]),
+    tiersOn('MARGINAL', 'AMOUNT', [
+      { fromKind: 'SALARY_MULTIPLE', fromValue: text, calc: calcOf('PCT') },
+    ]),
     null,
   );
   const built = toWireCandidate(draft);
@@ -250,12 +265,16 @@ it.each([
 it('reports two different blocks when base and tiers each carry a different reading error', () => {
   const draft = edgeDraft(
     { enabled: true, calc: { kind: 'PCT', bps: 'abc', amount: '' } },
-    tiersOn('MARGINAL', 'AMOUNT', [{ fromKind: 'AMOUNT', fromValue: 'wrong', calc: calcOf('PCT') }]),
+    tiersOn('MARGINAL', 'AMOUNT', [
+      { fromKind: 'AMOUNT', fromValue: 'wrong', calc: calcOf('PCT') },
+    ]),
     null,
   );
   const result = runResolver(draft);
   expect(messageOf(result.errors, 'base')).toBe(t('en', 'commissionPlanBuilder.errorInvalidBps'));
-  expect(messageOf(result.errors, 'tiers')).toBe(t('en', 'commissionPlanBuilder.errorInvalidMoney'));
+  expect(messageOf(result.errors, 'tiers')).toBe(
+    t('en', 'commissionPlanBuilder.errorInvalidMoney'),
+  );
 });
 
 it('refuses a draft whose whole-period flag is not a boolean with the generic plan message on a block', () => {

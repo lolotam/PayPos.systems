@@ -19,15 +19,8 @@ export function PlanPeriodFields() {
       <Input id="plan-effective-from" type="date" dir="ltr" {...register('effectiveFrom')} />
       {typeof dateError === 'string' ? <p role="alert">{dateError}</p> : null}
       <div className="flex items-center gap-3">
-        <input
-          id="plan-whole-period"
-          type="checkbox"
-          role="switch"
-          {...register('wholePeriod')}
-        />
-        <Label htmlFor="plan-whole-period">
-          {t(locale, 'commissionPlanBuilder.wholePeriod')}
-        </Label>
+        <input id="plan-whole-period" type="checkbox" role="switch" {...register('wholePeriod')} />
+        <Label htmlFor="plan-whole-period">{t(locale, 'commissionPlanBuilder.wholePeriod')}</Label>
       </div>
     </div>
   );

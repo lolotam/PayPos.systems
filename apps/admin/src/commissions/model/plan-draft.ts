@@ -31,11 +31,7 @@ export interface PlanDraft {
 }
 
 export type DraftErrorCode =
-  | 'INVALID_DATE'
-  | 'INVALID_BPS'
-  | 'INVALID_MONEY'
-  | 'INVALID_SESSIONS'
-  | 'INVALID_MULTIPLE';
+  'INVALID_DATE' | 'INVALID_BPS' | 'INVALID_MONEY' | 'INVALID_SESSIONS' | 'INVALID_MULTIPLE';
 export type DraftBlock = 'base' | 'tiers' | 'packageSale' | 'effectiveFrom';
 export interface DraftError {
   block: DraftBlock;

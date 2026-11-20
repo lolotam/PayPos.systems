@@ -32,8 +32,7 @@ export function PlanSwitchBlock({
   const { formState, register, watch } = useFormContext<PlanDraft>();
   const enabled = watch(`${block}.enabled`);
   const blockError = formState.errors[block]?.message;
-  const message =
-    serverAlert ?? (typeof blockError === 'string' ? blockError : null);
+  const message = serverAlert ?? (typeof blockError === 'string' ? blockError : null);
   return (
     <Card role="group" aria-label={t(locale, TITLES[block])} className="flex flex-col gap-3 p-4">
       <p className="font-semibold">{t(locale, TITLES[block])}</p>
