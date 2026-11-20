@@ -1,4 +1,4 @@
-/** نصوص منشئ خطة العمولة في الأدمن (spec 059 صف 48-3) — مفاتيح المحرّر فقط، وشاشة الموظفين والتاريخ لPR 2. */
+/** نصوص منشئ خطة عمولة الموظفة في الأدمن (spec 059 صف 48-3) — المحرّر ومفاتيح الشاشة ووصولها. */
 
 /** نصوص منشئ خطة العمولة (en). */
 export const commissionPlanBuilderEn = {
@@ -46,6 +46,23 @@ export const commissionPlanBuilderEn = {
   errorInvalidSessions: 'Enter the session count as whole digits.',
   errorInvalidMultiple: 'Enter the salary multiple with two decimals, for example 2.00.',
   errorSaveFailed: 'Saving the plan failed. Try again.',
+  navTitle: 'Commission plans',
+  pageTitle: 'Plan builder',
+  pickerLabel: 'Employee',
+  pickerPlaceholder: 'Choose an employee',
+  loadMore: 'Load more',
+  listEmpty: 'No employees to build plans for.',
+  historyTitle: 'Plan versions',
+  colVersion: 'Version',
+  colBlocks: 'Plan',
+  colCreatedAt: 'Created at',
+  wholeYes: 'Yes',
+  wholeNo: 'No',
+  summarySteps: 'Steps',
+  deniedTitle: 'No access to the plan builder',
+  deniedBody: 'You do not have the permission to manage commission plans in this business.',
+  tryAgain: 'Try again',
+  couldNotLoadMore: 'Could not load more; try again.',
 };
 
 /** نفس مفاتيح منشئ خطة العمولة بالعربي. */
@@ -91,4 +108,21 @@ export const commissionPlanBuilderAr: Record<keyof typeof commissionPlanBuilderE
   errorInvalidSessions: 'اكتب عدد الجلسات بأرقام صحيحة.',
   errorInvalidMultiple: 'اكتب مضاعف الراتب بخانتين عشريتين، زي 2.00.',
   errorSaveFailed: 'حفظ الخطة فشل، جرّب تاني.',
+  navTitle: 'خطط العمولة',
+  pageTitle: 'منشئ خطط العمولة',
+  pickerLabel: 'الموظفة',
+  pickerPlaceholder: 'اختار موظفة',
+  loadMore: 'حمّل أكتر',
+  listEmpty: 'مفيش موظفين ليبني لهم خطط.',
+  historyTitle: 'نسخ الخطة',
+  colVersion: 'النسخة',
+  colBlocks: 'الخطة',
+  colCreatedAt: 'أُنشئت في',
+  wholeYes: 'أيوه',
+  wholeNo: 'لأ',
+  summarySteps: 'الشرائح',
+  deniedTitle: 'مفيش صلاحية لمنشئ الخطط',
+  deniedBody: 'معاكش صلاحية إدارة خطط العمولة في النشاط ده.',
+  tryAgain: 'جرّب تاني',
+  couldNotLoadMore: 'تعذّر تحميل المزيد، جرّب تاني.',
 };

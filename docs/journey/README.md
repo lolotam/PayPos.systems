@@ -168,5 +168,6 @@ answer.
 | 94 | [Services import from Excel: the cell-reading core](94-services-import-parsing.md) — استيراد الخدمات من Excel: أساس قراءة الخلايا | #817, #823, #824 | nothing to click (pure rules, checked by tests; no import route or screen yet) |
 | 95 | [The new look and the light / dark switch](95-design-system-theme.md) — الشكل الجديد ومفتاح فاتح / غامق | #1079, #1083, #1095, DS-3 A3 | yes, in the admin and the POS |
 | 96 | [Package sale recovery when the response is lost](96-package-sale-recovery.md) — استرجاع بيع الباقة لما الرد يضيع | #1077, #1094 | after the next staging batch; needs the `orders` feature; continues [86](86-sell-package.md) step 14 |
+| 97 | [The commission plan builder](97-commission-plan-builder.md) — منشئ خطط العمولة | #1104, this PR | yes (`/commissions/plans`) |
 
 New journeys are added after every merge.

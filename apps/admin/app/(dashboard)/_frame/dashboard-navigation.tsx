@@ -7,6 +7,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 import { AlertRulesNavItem } from './alert-rules-nav-item';
 import { BusinessIdentityNavItem } from './business-identity-nav-item';
 import { CatalogNavItem } from './catalog-nav-item';
+import { CommissionPlansNavItem } from './commission-plans-nav-item';
 import { PackageSaleNavItem } from './package-sale-nav-item';
 import { SessionDayNavItem } from './session-day-nav-item';
 import { SessionNavItem } from './session-nav-item';
@@ -58,6 +59,7 @@ export function DashboardNavigation() {
       <BusinessIdentityNavItem />
       <StaffAppColumnsNavItem />
       <AlertRulesNavItem />
+      <CommissionPlansNavItem />
     </AppSidebarGroup>
   );
 }
