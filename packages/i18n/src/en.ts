@@ -245,6 +245,8 @@ export const en = {
     PERMISSION_SCOPE_OUTSIDE_REACH: 'The target scope is outside your permission’s reach',
     PERMISSION_OWNER_ONLY: 'Only the company owner can grant this permission',
     PERMISSION_ROLE_FORBIDDEN: 'This system role cannot receive this permission',
+    PERMISSION_ROLE_NOT_ELIGIBLE:
+      'The ratings-read permission can only be granted to management roles (owner, general manager, business manager, branch manager)',
     PERMISSION_OVERRIDE_ENDED: 'This override has already ended',
     ALERT_RULE_REVISION_CONFLICT: 'Another manager changed this alert rule. Reload before saving.',
     TRANSACTION_RETRY_REQUIRED:
