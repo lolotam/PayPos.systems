@@ -56,6 +56,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  await owner`DELETE FROM commission_blocked_corrections`;
   await owner`DELETE FROM commission_corrections`;
   await owner`DELETE FROM commission_period_generations`;
   await owner`DELETE FROM commission_statement_attachments`;
@@ -205,6 +206,9 @@ export function failingCorrectionsConsumer(): OutboxConsumer {
 export const corrections = () => owner`SELECT employee_id,source_period,target_period,
   target_statement_id,source_ref,kind,amount,previous_amount,new_amount,generation,event_id
   FROM commission_corrections ORDER BY employee_id,generation,source_ref`;
+export const blocks = () => owner`SELECT employee_id,source_period,code,first_event_id,
+  target_period,target_statement_id,resolved_at,resolved_generation
+  FROM commission_blocked_corrections ORDER BY employee_id,source_period`;
 export const generations = () => owner`SELECT employee_id,period,generation
   FROM commission_period_generations ORDER BY employee_id,period`;
 export const marks = () => owner`SELECT event_id FROM consumed_events

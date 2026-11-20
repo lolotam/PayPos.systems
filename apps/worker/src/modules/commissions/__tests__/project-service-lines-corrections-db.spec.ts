@@ -4,6 +4,7 @@ import { walkCommissionStatement } from '../../../../../../packages/db/test/comm
 import { CommissionPeriodRolledOverError } from '../domain/errors.ts';
 import {
   A,
+  blocks,
   changed,
   consumerWithClock,
   corrections,
@@ -183,7 +184,7 @@ it('Q1 a month rollover throws the typed error, writes nothing and redelivery su
   expect(await marks()).toHaveLength(2);
 });
 
-it('Q2 a FOLLOW_PLAN closed month without a plan version keeps the closed-period refusal', async () => {
+it('Q2 a FOLLOW_PLAN closed month without a plan version is consumed with one open blocked row', async () => {
   await seedClosedMonth({ withPlan: false });
   const edited = changed({
     status: 'ACTIVE',
@@ -191,14 +192,26 @@ it('Q2 a FOLLOW_PLAN closed month without a plan version keeps the closed-period
     net: '300.000',
   });
 
-  expect(await deliverAt(CURRENT, edited)).toMatchObject({
-    delivered: false,
-    error: 'Error:COMMISSION_PERIOD_CLOSED',
-  });
-  expect(await heads()).toMatchObject([{ revision: 1, status: 'ACTIVE' }]);
+  expect(await deliverAt(CURRENT, edited)).toEqual({ delivered: true });
+  expect(await heads()).toMatchObject([
+    { line_id: COMMISSION_LINE_IDS.lineA, revision: 2, status: 'ACTIVE' },
+  ]);
   expect(await corrections()).toEqual([]);
-  expect(await generations()).toEqual([]);
-  expect(await marks()).toHaveLength(1);
+  expect(await generations()).toEqual([
+    { employee_id: A.employee, period: SOURCE_PERIOD, generation: 1 },
+  ]);
+  expect(await blocks()).toMatchObject([
+    {
+      employee_id: A.employee,
+      source_period: SOURCE_PERIOD,
+      code: 'NO_PLAN',
+      first_event_id: edited.id,
+      target_period: TARGET_PERIOD,
+      resolved_at: null,
+      resolved_generation: null,
+    },
+  ]);
+  expect(await marks()).toHaveLength(2);
 });
 
 it('Q2 a closed month with only ZERO-rule lines delivers without a correction', async () => {

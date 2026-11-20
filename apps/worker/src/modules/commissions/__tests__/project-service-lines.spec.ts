@@ -95,6 +95,10 @@ const unusedCorrections = (): CommissionCorrectionScope => {
     readMonthProjection: unexpected,
     bumpGeneration: unexpected,
     insertCorrections: unexpected,
+    readOpenBlock: unexpected,
+    insertBlock: unexpected,
+    updateBlockCode: unexpected,
+    resolveBlock: unexpected,
   };
 };
 
@@ -125,7 +129,9 @@ it.each([1, 2])(
   async (revision) => {
     const scope = new FakeScope();
     scope.heads = [{ ...line({ revision: 2 }), period: '2026-10' }];
-    await new ProjectServiceLines(scope, clock, ids, unusedCorrections()).execute(input([line({ revision })]));
+    await new ProjectServiceLines(scope, clock, ids, unusedCorrections()).execute(
+      input([line({ revision })]),
+    );
     expect(scope.calls).toEqual(['lockLines', 'readHeads']);
     expect(scope.replacements).toEqual([]);
     expect(scope.reopenInput).toBeUndefined();

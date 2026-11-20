@@ -17,6 +17,9 @@ import type {
   CommissionMonthProjection,
   CommissionCorrectionScope,
   CommissionCorrectionInsertInput,
+  CommissionBlockInsertInput,
+  CommissionBlockCodeUpdateInput,
+  CommissionBlockResolutionInput,
 } from '../ports/commission-correction.port.ts';
 import type {
   CommissionLineProjectionScope,
@@ -25,6 +28,7 @@ import type {
   CommissionPeriodReopenInput,
 } from '../ports/commission-line-projection.port.ts';
 import { ProjectServiceLines } from '../use-cases/project-service-lines/project-service-lines.ts';
+import type { CommissionOpenBlock } from '../domain/commission-blocked-correction.ts';
 
 const line = (patch: Partial<CommissionLineSnapshot> = {}): CommissionLineSnapshot => ({
   lineId: 'line-a',
@@ -140,6 +144,10 @@ class FakeCorrections implements CommissionCorrectionScope {
   posted: readonly CommissionPostedCorrection[] = [];
   attachments: readonly CommissionAttachmentInterval[] = [];
   readonly drafts: CommissionCorrectionDraft[] = [];
+  openBlock: CommissionOpenBlock | null = null;
+  readonly insertedBlocks: CommissionBlockInsertInput[] = [];
+  readonly codeUpdates: CommissionBlockCodeUpdateInput[] = [];
+  readonly resolutions: CommissionBlockResolutionInput[] = [];
 
   constructor(private readonly calls: string[]) {}
 
@@ -166,6 +174,23 @@ class FakeCorrections implements CommissionCorrectionScope {
   async insertCorrections(input: CommissionCorrectionInsertInput): Promise<void> {
     this.calls.push('insertCorrections');
     this.drafts.push(...input.drafts);
+  }
+  async readOpenBlock(): Promise<CommissionOpenBlock | null> {
+    this.calls.push('readOpenBlock');
+    return this.openBlock;
+  }
+  async insertBlock(input: CommissionBlockInsertInput): Promise<string> {
+    this.calls.push('insertBlock');
+    this.insertedBlocks.push(input);
+    return 'block-1';
+  }
+  async updateBlockCode(input: CommissionBlockCodeUpdateInput): Promise<void> {
+    this.calls.push('updateBlockCode');
+    this.codeUpdates.push(input);
+  }
+  async resolveBlock(input: CommissionBlockResolutionInput): Promise<void> {
+    this.calls.push('resolveBlock');
+    this.resolutions.push(input);
   }
 }
 
@@ -214,6 +239,7 @@ it('posts a late line correction with projected attribution using one period loc
     'replaceLines',
     'bumpGeneration',
     'readMonthProjection',
+    'readOpenBlock',
     'readFrozenSources',
     'readPostedCorrections',
     'readAttachmentSnapshot',
@@ -286,7 +312,7 @@ it('rolls over after the lock wait without any projection or correction write', 
   expect(scope.calls).toEqual(['lockLines', 'readHeads', 'businessTimeZone', 'lockPeriods']);
 });
 
-it('keeps the closed-period refusal when recomputation returns NO_PLAN', async () => {
+it('records a blocked correction when recomputation returns NO_PLAN', async () => {
   const scope = new FakeScope();
   scope.heads = [{ ...line({ revision: 1 }), period: '2026-10' }];
   scope.performers = [{ lineId: 'line-a', employeeId: 'employee-a', period: '2026-10' }];
@@ -298,14 +324,23 @@ it('keeps the closed-period refusal when recomputation returns NO_PLAN', async (
   const corrections = new FakeCorrections(scope.calls);
   corrections.projection = monthProjection({ versions: [] });
 
-  const work = new ProjectServiceLines(scope, clock, ids, corrections).execute(input([line()]));
+  await new ProjectServiceLines(scope, clock, ids, corrections).execute(input([line()]));
 
-  await expect(work).rejects.toMatchObject({
-    code: 'COMMISSION_PERIOD_CLOSED',
-    periods: ['2026-10'],
-  });
   expect(corrections.drafts).toEqual([]);
-  expect(scope.reopenInput).toBeUndefined();
+  expect(corrections.insertedBlocks).toEqual([
+    {
+      businessId: 'business-a',
+      employeeId: 'employee-a',
+      sourcePeriod: '2026-10',
+      code: 'NO_PLAN',
+      firstEventId: 'event-a',
+      targetPeriod: '2026-11',
+      targetStatementId: 'statement-nov',
+    },
+  ]);
+  expect(corrections.codeUpdates).toEqual([]);
+  expect(corrections.resolutions).toEqual([]);
+  expect(scope.reopenInput?.periods).toEqual([]);
   expect(scope.calls).toEqual([
     'lockLines',
     'readHeads',
@@ -315,5 +350,8 @@ it('keeps the closed-period refusal when recomputation returns NO_PLAN', async (
     'replaceLines',
     'bumpGeneration',
     'readMonthProjection',
+    'readOpenBlock',
+    'insertBlock',
+    'reopenReviewed',
   ]);
 });
