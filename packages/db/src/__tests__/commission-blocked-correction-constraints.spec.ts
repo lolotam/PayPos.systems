@@ -210,27 +210,39 @@ it('C6: the held target is updatable by no privilege, and by no role including t
   expect(await resolveRow(blockId, 1)).toHaveLength(1);
 });
 
-it('C7: resolved_at and resolved_generation come together or not at all', async () => {
+it('C7: resolved_at and resolved_generation come together or not at all, and a row is born open', async () => {
   const statementId = await statementOf('2026-11');
   const blockId = await insertBlock(statementId, { sourcePeriod: '2026-04' });
   const pair = 'commission_blocked_corrections_resolution_pair';
+  // الصف بيتولد مفتوح بس: إدخال pospay_app بعمود الحل مرفوض بالصلاحية قبل أي قيد.
   await expectPgError(
     db.withTenant(A.company, (tx) =>
-      insertCommissionBlockedCorrection(tx, A, ids, statementId, {
-        sourcePeriod: '2026-01',
-        resolvedAt: '2026-11-05T08:00:00Z',
-      }),
+      tx.execute(
+        sql`INSERT INTO commission_blocked_corrections(
+          company_id,id,business_id,employee_id,source_period,code,first_event_id,target_period,
+          target_statement_id,created_at,resolved_at)
+          VALUES (${A.company},${ids.newId()},${A.business},${A.employee},'2026-01','NO_PLAN',
+            ${ids.newId()},'2026-11',${statementId},'2026-11-01T08:00:00Z','2026-11-05T08:00:00Z')`,
+      ),
     ),
+    '42501',
+  );
+  // كـ owner الإدخال بعمود حل واحد بس بيرفض بقيد الزوج في الاتجاهين.
+  await expectPgError(
+    owner`INSERT INTO commission_blocked_corrections(
+      company_id,id,business_id,employee_id,source_period,code,first_event_id,target_period,
+      target_statement_id,created_at,resolved_at)
+      VALUES (${A.company},${ids.newId()},${A.business},${A.employee},'2026-01','NO_PLAN',
+        ${ids.newId()},'2026-11',${statementId},'2026-11-01T08:00:00Z','2026-11-05T08:00:00Z')`,
     '23514',
     pair,
   );
   await expectPgError(
-    db.withTenant(A.company, (tx) =>
-      insertCommissionBlockedCorrection(tx, A, ids, statementId, {
-        sourcePeriod: '2025-12',
-        resolvedGeneration: 1,
-      }),
-    ),
+    owner`INSERT INTO commission_blocked_corrections(
+      company_id,id,business_id,employee_id,source_period,code,first_event_id,target_period,
+      target_statement_id,created_at,resolved_generation)
+      VALUES (${A.company},${ids.newId()},${A.business},${A.employee},'2026-01','NO_PLAN',
+        ${ids.newId()},'2026-11',${statementId},'2026-11-01T08:00:00Z',1)`,
     '23514',
     pair,
   );

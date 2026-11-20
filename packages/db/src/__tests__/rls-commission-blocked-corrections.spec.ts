@@ -61,6 +61,14 @@ it('CM-R07: company B reads and writes none of the blocked corrections of compan
     period: '2026-11',
     ids,
   });
+  // كشف B هو لشهر بعد كشف A، عشان إدراجات B الحقيقية تحت (كشف B هو) تبقى مرفوضة بالمفتاح المركّب بس.
+  const bStatementId = await lockTargetStatement({
+    db,
+    companyId: B.company,
+    businessId: B.business,
+    period: '2026-12',
+    ids,
+  });
   let blockId = '';
   await db.withTenant(A.company, async (tx) => {
     blockId = await insertCommissionBlockedCorrection(tx, A, ids, statementId);
@@ -76,13 +84,25 @@ it('CM-R07: company B reads and writes none of the blocked corrections of compan
     ),
     '42501',
   );
+  // صف B كله بصفوف B هو، بس بيحاول يستحوذ على كشف A: الزوج (شركة B، نشاط B، الشهر، كشف A) مش موجود.
   await expectPgError(
     db.withTenant(B.company, (tx) =>
-      insertCommissionBlockedCorrection(tx, A, ids, statementId, {
-        targetStatementId: statementId,
+      insertCommissionBlockedCorrection(tx, B, ids, statementId, { targetPeriod: '2026-11' }),
+    ),
+    '23503',
+    'commission_blocked_corrections_target_statement_fk',
+  );
+  // وصف B بموظفة A: الموظفة جزء من مفتاح الموظفة المركّب، فالإحالة لصف شركة تانية مستحيلة أصلاً.
+  // الشهر المحتجز وكشف B متطابقين هنا عشان الرفض يكون من مفتاح الموظفة هو بس.
+  await expectPgError(
+    db.withTenant(B.company, (tx) =>
+      insertCommissionBlockedCorrection(tx, B, ids, bStatementId, {
+        targetPeriod: '2026-12',
+        employeeId: A.employee,
       }),
     ),
-    '42501',
+    '23503',
+    'commission_blocked_corrections_employee_fk',
   );
   // تحديث صف شركة تانية: سياسة التحديث ما بتخليش صف واحد يتغيّر.
   expect(

@@ -27145,10 +27145,6 @@
           "name": "commission_plan_versions_repair_period",
           "value": "\"commission_plan_versions\".\"repair_period\" IS NULL OR (\"commission_plan_versions\".\"repair_period\" ~ '^[0-9]{4}-(0[1-9]|1[0-2])$' AND substr(\"commission_plan_versions\".\"repair_period\",1,4) <> '0000')"
         },
-        "commission_plan_versions_repair_matches_effective_from": {
-          "name": "commission_plan_versions_repair_matches_effective_from",
-          "value": "\"commission_plan_versions\".\"repair_period\" IS NULL OR \"commission_plan_versions\".\"effective_from\" = to_date(\"commission_plan_versions\".\"repair_period\" || '-01', 'YYYY-MM-DD')"
-        },
         "commission_plan_versions_plan_object": {
           "name": "commission_plan_versions_plan_object",
           "value": "jsonb_typeof(\"commission_plan_versions\".\"plan\") = 'object'"

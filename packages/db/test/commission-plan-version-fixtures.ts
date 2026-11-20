@@ -31,10 +31,9 @@ export async function insertCommissionPlanVersion(
   const repairPeriod = value('repairPeriod', null) as string | null;
   const realRepairMonth =
     repairPeriod !== null &&
-    repairPeriod.slice(0, 4) !== '0000' &&
-    /^(0[1-9]|1[0-2])$/.test(repairPeriod.slice(5, 7));
-  const effectiveFrom =
-    repairPeriod !== null && realRepairMonth ? `${repairPeriod}-01` : '2026-10-25';
+    /^[0-9]{4}-(0[1-9]|1[0-2])$/.test(repairPeriod) &&
+    repairPeriod.slice(0, 4) !== '0000';
+  const effectiveFrom = realRepairMonth ? `${repairPeriod}-01` : '2026-10-25';
   await tx.execute(sql`INSERT INTO commission_plan_versions(
     company_id,id,business_id,employee_id,version,effective_from,whole_period,repair_period,plan,created_by)
     VALUES (${value('companyId', tenant.company)},${ids.newId()},${value('businessId', tenant.business)},

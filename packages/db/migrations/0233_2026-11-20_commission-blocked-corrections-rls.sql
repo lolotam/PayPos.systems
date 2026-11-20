@@ -12,7 +12,10 @@ CREATE POLICY commission_blocked_corrections_update ON commission_blocked_correc
 --> statement-breakpoint
 REVOKE ALL ON commission_blocked_corrections FROM PUBLIC, pospay_app, pospay_auth, pospay_dispatcher, pospay_notifications;
 --> statement-breakpoint
-GRANT SELECT, INSERT ON commission_blocked_corrections TO pospay_app;
+GRANT SELECT ON commission_blocked_corrections TO pospay_app;
+--> statement-breakpoint
+-- الإدخال بالأعمدة المسموحة بس: الصف بيتولد مفتوح دايماً؛ عمودا الحل مش ممنوحين إدخالاً فيُمنع صف يبقى محلولاً من أول لحظة.
+GRANT INSERT (company_id, id, business_id, employee_id, source_period, code, first_event_id, target_period, target_statement_id, created_at) ON commission_blocked_corrections TO pospay_app;
 --> statement-breakpoint
 -- التعديل محصور في كود التوقف وعلامات الحل؛ الشهر المحتجز وكشفه ما بيتبدلوش بالصلاحية ولا بالتريغر (CM-52b، CM-53b).
 GRANT UPDATE (code, resolved_at, resolved_generation) ON commission_blocked_corrections TO pospay_app;
@@ -45,8 +48,9 @@ GRANT EXECUTE ON FUNCTION commission_blocked_corrections_update_guard() TO pospa
 CREATE TRIGGER commission_blocked_corrections_update_guard BEFORE UPDATE ON commission_blocked_corrections
 FOR EACH ROW EXECUTE FUNCTION commission_blocked_corrections_update_guard();
 --> statement-breakpoint
--- قيد نسخة الإصلاح (Q2) بيتضاف NOT VALID عشان فحص الصفوف الموجودة يتأجل، والتحقق جملة مستقلة زي 0224/0225؛
--- VALIDATE بيمسك SHARE UPDATE EXCLUSIVE فالكتابة تفضل شغالة أثناءه. المحاذاة بتاعتنا للشهور السليمة بس:
+-- قيد نسخة الإصلاح (Q2): الـ runner بينفّذ كل migration في transaction واحدة، فـ VALIDATE هنا
+-- بيمسك قفل الجدول من أول الجملة لآخر الفحص؛ ده مقبول لأن الجدول صغير، والـ NOT VALID + VALIDATE
+-- متخليين بس عشان لو الفحص فشل الخطأ يطلع باسم القيد. المحاذاة بتاعتنا للشهور السليمة بس:
 -- الشهر المشوّه بيفضل رفض فحص الشهر القديم، و to_date ما بتشوفش نص مشكّل فما بترفعش 22008.
 ALTER TABLE "commission_plan_versions" ADD CONSTRAINT "commission_plan_versions_repair_matches_effective_from"
   CHECK ("repair_period" IS NULL
