@@ -34,7 +34,7 @@ Anything not in this table is a CI failure. Every arrow points **down** this lis
 | `files`         | `tenancy`             | Storage keys are `{companyId}/{businessId}/…`.                                 |
 | `platform`      | `tenancy`             | Super-admin over tenants.                                                      |
 | `catalog`       | `tenancy`             |                                                                                |
-| `customers`     | `tenancy`, `settings`, `staff`, `identity` | `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader only (ADR-0010 addendum 2026-10-21). The rating message reads the performer's first name from staff's public reader (ADR-0010 addendum 2026-10-31; ADR-0037 §4, spec 060 FR-B07).  API low-rating recipients read identity public interfaces (A-1, spec 060); no worker-to-API edge. |
+| `customers`     | `tenancy`, `settings`, `staff`, `identity` | `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader only (ADR-0010 addendum 2026-10-21). The rating message reads the performer's first name from staff's public reader (ADR-0010 addendum 2026-10-31; ADR-0037 §4, spec 060 FR-B07).  The worker low-rating notice reads identity's public recipients readers and tenancy's place reads, and 61-2's API ratings reads use the same identity arrow (ADR-0010 addendum A-2, spec 060); no worker-to-API edge. |
 | `expenses`      | `tenancy`             |                                                                                |
 | `inventory`     | `tenancy`             |                                                                                |
 | `staff`         | `tenancy`, `identity`, `files`, `settings` | An employee may be linked to a user; a document binds a verified file (ADR-0031). `StaffColumnsPort` / `AlertRulesPort` adapters read settings' public reader, and the staff `AlertRulesPort.roleHolders` adapter reads identity's scoped role holders (ADR-0010 addendum 2026-10-21; ADR-0040 addendum, 62-2b). |
@@ -187,9 +187,9 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `commissions` | customer-names reader (port named by the sub-PR that adds it) | `customers` | the customer's full name for the statement detail and the export, never a phone (spec 059 D-16, D-20; no import arrow) |
 | `commissions` | tips and package-sales bootstrap readers (ports named by 50-3 and 50-4; lines and salaries are replayed from the outbox through a `packages/db` facade, not a port, spec 059 D-15) | `orders` | the latest revision of each input with its event ids, in paged form, for the bootstrap before approval opens; bound at the composition root, never read from commissions code (spec 059 D-15, ADR-0041 §6; no import arrow) |
 | `customers`                         | `PerformerNamePort`                                                                     | `staff`     | performer's first name, in the rating message (ADR-0010)                                                                                                             |
-| API `customers` | `RatingAlertRecipientsPort` | API `identity` | scoped managers and effective comment readers, same tenant transaction (A-1) |
-| API `customers` | `PerformerNamePort` | API `staff` | snapshotted employee first names through the API public reader (A-1) |
-| API `customers` | `LowRatingNoticePlacePort` | API `tenancy` | exact request branch names and mandatory tenant/place context through describeWorkspaces (A-1) |
+| worker `customers` | `AlertRulePort` | worker `settings` | the effective `LOW_RATING` rule (branch override, otherwise the business rule, master switch applied), read at the worker's decision instant (ADR-0010 addendum A-2, spec 060 D-B9, 61-1h) |
+| worker `customers` | `LowRatingRecipientsPort` | worker `identity` | `branchManagerRecipients` for the rule's roles and the new `ratingCommentReaders` for the comment partition, deduplicated and sorted at the decision instant (ADR-0010 addendum A-2, BR-B4, reader 61-1g, adapter 61-1h) |
+| worker `customers` | `LowRatingPlacePort` | worker `tenancy` | `branchPlace` names and `companyOpen` eligibility on the consumer transaction (ADR-0010 addendum A-2, 61-1h) |
 | `customers`                         | `DaySessionsPort`                                                                       | `orders`    | the customer's active lines and performers for a business day — read at claim time, the authoritative boundary for rating attribution (ADR-0010)                     |
 | `customers`                         | `BusinessNamesPort`                                                                     | `tenancy`   | the business's Arabic and English name, shown on the public rating page (spec 060 D-B9, 60-1)                                                                    |
 | `staff` | `EmployeeDocumentScope.file` | `files` | a READY file uploaded by the recorder for this employee and business, read in the same tenant transaction; staff keeps the verified key only (ADR-0031) |
@@ -295,7 +295,8 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `SessionTipsChanged`                                                        | `orders`        | worker `commissions` consumer `commissions.project-inputs` (50-2b card 2)                         |
 | `RatingRequestReady`                                                        | `customers`     | `notifications`                                                                                   |
 | `RatingClaimsDiscoveryRequested` | customers migration data step | worker `customers` claim-registration transport only when active (59b-2c, PP-96); independent `rating_claims_discovery` aggregate, empty payload; production remains dormant |
-| `LowRatingReceived`                                                         | `customers`     | `notifications`                                                                                   |
+| `LowRatingSubmitted` | `customers` (API submit transaction, 61-1i) | worker `customers` consumer `request-low-rating-notice` (61-1h); `{ schema_version: 1, rating_id, request_id, business_id, branch_id, stars }`, aggregate `rating`/`rating_id` (ADR-0010 addendum A-2, spec 060 D-B9) |
+| `LowRatingReceived` | worker `customers` (emitter moved from the API module, ADR-0010 addendum A-2) | `notifications` |
 | `AttendanceExceptionRaised`                                                 | `staff` (worker missed-out job, ADR-0032) | `notifications` (in-app managers by the `ATTENDANCE_EXCEPTION` rule; no row when it resolves to nobody, 62-2d) |
 | `ShiftNotClockedIn` | `staff` (worker not-clocked-in job, ADR-0037) | `notifications` (in-app managers by the interim rule; PR 62 replaces the rule) |
 | `ShiftBreakNotReturned` | `staff` (worker not-clocked-in job, break detector, spec 041 BW-Q5) | `notifications` (in-app managers by the same interim rule; PR 62 replaces the rule) |
@@ -398,12 +399,13 @@ composition_roots:
 # (ADR-0010 addendum 2026-10-31).
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
-# A-1 planned API reads; activate each entry WITH its adapter in the later emitter.
-# Planned E: customers -> settings.readAlertRule @ apps/api/src/modules/customers/persistence/alert-rules.adapter.ts
-# Planned E: customers -> identity.readBranchRoleHolders @ apps/api/src/modules/customers/persistence/rating-alert-recipients.adapter.ts
-# Planned E: customers -> identity.readRatingCommentReaders @ apps/api/src/modules/customers/persistence/rating-alert-recipients.adapter.ts
-# Planned E: customers -> staff.readEmployeeDisplayNames @ apps/api/src/modules/customers/persistence/performer-name.adapter.ts
-# Planned E: customers -> tenancy.describeWorkspaces @ apps/api/src/modules/customers/persistence/low-rating-names.adapter.ts
+# A-2 planned worker reads (ADR-0010 addendum 2026-11); each lands as a real reads line WITH its adapter in 61-1h
+# (the identity ratingCommentReaders reader is built in 61-1g; 61-2's API access readers land with their own adapters).
+# Planned: customers -> settings.alertRule @ apps/worker/src/modules/customers/persistence/alert-rule.adapter.ts
+# Planned: customers -> identity.branchManagerRecipients @ apps/worker/src/modules/customers/persistence/low-rating-recipients.adapter.ts
+# Planned: customers -> identity.ratingCommentReaders @ apps/worker/src/modules/customers/persistence/low-rating-recipients.adapter.ts
+# Planned: customers -> tenancy.branchPlace @ apps/worker/src/modules/customers/persistence/low-rating-place.adapter.ts
+# Planned: customers -> tenancy.companyOpen @ apps/worker/src/modules/customers/persistence/low-rating-place.adapter.ts
 reads:
   - orders -> staff.readOwnEmployee @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
   - orders -> identity.readOwnServiceSessionsAccess @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
