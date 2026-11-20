@@ -47,8 +47,13 @@ export interface WireCandidateResult {
   errors: DraftError[];
 }
 
+// لوحة الكيبورد العربية بتكتب ٥ بدل 5؛ بتتحول ASCII قبل القراءة عشان كل الخانات الرقمية تتقبل زي مبلغ الدينار.
+function toAsciiDigits(text: string): string {
+  return text.replace(/[\u0660-\u0669\u06F0-\u06F9]/g, (digit) => String(digit.charCodeAt(0) & 15));
+}
+
 function parseInteger(text: string, pattern: RegExp): number | null {
-  const trimmed = text.trim();
+  const trimmed = toAsciiDigits(text.trim());
   return pattern.test(trimmed) ? Number(trimmed) : null;
 }
 
@@ -60,7 +65,7 @@ function parseBps(text: string): number | null {
 function parseKwd(text: string): string | null {
   const trimmed = text.trim();
   if (trimmed === '') return null;
-  const normalized = normalizeKwdInput(trimmed);
+  const normalized = normalizeKwdInput(toAsciiDigits(trimmed));
   return /^(0|[1-9]\d{0,10})\.\d{3}$/.test(normalized) ? normalized : null;
 }
 
@@ -69,7 +74,7 @@ function parseSessions(text: string): number | null {
 }
 
 function parseMultiple(text: string): string | null {
-  const trimmed = text.trim();
+  const trimmed = toAsciiDigits(text.trim());
   if (!/^\d{1,4}(?:\.\d{1,2})?$/.test(trimmed)) return null;
   const [whole = '0', fraction = ''] = trimmed.split('.');
   return `${whole.replace(/^0+(?=\d)/, '')}.${fraction.padEnd(2, '0')}`;
@@ -79,10 +84,6 @@ function valueOrError<T>(value: T | null, fallback: T, error: DraftError, errors
   if (value !== null) return value;
   errors.push(error);
   return fallback;
-}
-
-function calcEmpty(calc: CalcDraft): boolean {
-  return calc.kind === 'PCT' ? calc.bps.trim() === '' : calc.amount.trim() === '';
 }
 
 function calcWire(calc: CalcDraft, block: DraftBlock, errors: DraftError[]): CommissionPlanCalc {
@@ -99,14 +100,16 @@ function calcWire(calc: CalcDraft, block: DraftBlock, errors: DraftError[]): Com
   return { kind: 'FIXED', amount };
 }
 
-// البلوك المعطّل بيحتفظ بحسابه عشان ما يضيعش اللي المدير كتبه، والفاضي بيبقى {enabled:false} بس.
+// المقفول بيحتفظ بحسابه لو لسه بيقرى صح، والمعطوب بيتشال من غير خطأ (CM-06) عشان ما يمنعش الحفظ وهو مقفول.
 function componentWire(
   draft: ComponentDraft,
   block: DraftBlock,
   errors: DraftError[],
 ): CommissionPlanComponent {
-  if (!draft.enabled && calcEmpty(draft.calc)) return { enabled: false };
-  return { enabled: draft.enabled, calc: calcWire(draft.calc, block, errors) };
+  if (draft.enabled) return { enabled: true, calc: calcWire(draft.calc, block, errors) };
+  const quiet: DraftError[] = [];
+  const calc = calcWire(draft.calc, block, quiet);
+  return quiet.length === 0 ? { enabled: false, calc } : { enabled: false };
 }
 
 const THRESHOLD_RULES = {
@@ -126,18 +129,16 @@ function thresholdWire(step: StepDraft, errors: DraftError[]): CommissionPlanThr
   return { kind: step.fromKind, value } as CommissionPlanThreshold;
 }
 
-// البلوك اللي المدير ما لمسهوش بيبقى {enabled:false}، والممسوس بيحتفظ بنمطه ومجمّعه وشرائحه.
+// المفعّل بيشتدّ على النص المعطوب برسالة في بلوكه، والملموس المقفول بيحتفظ بالشرائح اللي بتتقرى بس (CM-06).
 function tiersWire(draft: TiersDraft, errors: DraftError[]): CommissionPlanTiers {
-  const settings = {
-    mode: draft.mode,
-    accumulator: draft.accumulator,
-    steps: draft.steps.map((step) => ({
-      from: thresholdWire(step, errors),
-      calc: calcWire(step.calc, 'tiers', errors),
-    })),
-  };
-  if (draft.enabled) return { enabled: true, ...settings };
-  return draft.touched ? { enabled: false, ...settings } : { enabled: false };
+  if (!draft.enabled && !draft.touched) return { enabled: false };
+  const steps = draft.steps.flatMap((step) => {
+    const sink = draft.enabled ? errors : [];
+    const from = thresholdWire(step, sink);
+    const calc = calcWire(step.calc, 'tiers', sink);
+    return draft.enabled || sink.length === 0 ? [{ from, calc }] : [];
+  });
+  return { enabled: draft.enabled, mode: draft.mode, accumulator: draft.accumulator, steps };
 }
 
 /**

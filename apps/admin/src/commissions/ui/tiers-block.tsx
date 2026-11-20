@@ -16,7 +16,7 @@ function emptyStep(): StepDraft {
 /** بلوك الشرائح: النمط والمجمّع وقائمة الشرائح بالإضافة والحذف عبر useFieldArray. */
 export function TiersBlock({ serverAlert }: { serverAlert?: string | null }) {
   const locale = useLocale();
-  const { control, register, setValue } = useFormContext<PlanDraft>();
+  const { control, register, setValue, trigger } = useFormContext<PlanDraft>();
   const { append, fields, remove } = useFieldArray({ control, name: 'tiers.steps' });
   const markTouched = () => setValue('tiers.touched', true, { shouldValidate: true });
   return (
@@ -44,6 +44,8 @@ export function TiersBlock({ serverAlert }: { serverAlert?: string | null }) {
             onRemove={() => {
               remove(index);
               markTouched();
+              // الإضافة والحذف من useFieldArray مش بيطلعوا حدث change، فالتمام هنا هو اللي بيرجّع رسالة البلوك.
+              void trigger();
             }}
           />
         ))}
@@ -54,6 +56,7 @@ export function TiersBlock({ serverAlert }: { serverAlert?: string | null }) {
           onClick={() => {
             append(emptyStep());
             markTouched();
+            void trigger();
           }}
         >
           {t(locale, 'commissionPlanBuilder.addStep')}

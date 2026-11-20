@@ -39,7 +39,8 @@ function planErrorCode(error: unknown): CommissionValidationError | null {
   if (envelope.code !== 'COMMISSION_PLAN_INVALID') return null;
   if (typeof envelope.details !== 'object' || envelope.details === null) return null;
   const code = (envelope.details as { code?: unknown }).code;
-  return typeof code === 'string' && code in PLAN_ERROR_KEYS
+  // hasOwn مش in عشان أسماء موروثة زي constructor ما تتعملش أكواد محرك.
+  return typeof code === 'string' && Object.hasOwn(PLAN_ERROR_KEYS, code)
     ? (code as CommissionValidationError)
     : null;
 }

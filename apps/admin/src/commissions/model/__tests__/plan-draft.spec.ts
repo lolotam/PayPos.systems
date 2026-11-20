@@ -55,6 +55,7 @@ it.each([
   ['500', 500],
   ['0', 0],
   ['10000', 10000],
+  ['٥٠٠', 500],
 ])('reads the basis-points text %s as %i', (text, expected) => {
   const result = toWireCandidate(draft({ base: { enabled: true, calc: calcDraft('PCT', text) } }));
   expect(result.errors).toEqual([]);
@@ -70,6 +71,7 @@ it.each([
   ['1.25', '1.250'],
   ['1.250', '1.250'],
   ['3000', '3000.000'],
+  ['٥٠٠', '500.000'],
 ])('reads the KWD text %s as %s', (text, expected) => {
   const result = toWireCandidate(
     draft({ base: { enabled: true, calc: calcDraft('FIXED', text) } }),
@@ -90,6 +92,7 @@ it.each(['abc', '1.2.3', ''])('refuses the KWD text %s', (text) => {
 it.each([
   ['4', 4],
   ['0', 0],
+  ['٤', 4],
 ])('reads the sessions text %s as %i', (text, expected) => {
   const value = draft({
     tiers: tiersDraft({
@@ -119,6 +122,7 @@ it.each([
   ['2.00', '2.00'],
   ['2', '2.00'],
   ['9999.99', '9999.99'],
+  ['٢٥', '25.00'],
 ])('reads the salary-multiple text %s as %s', (text, expected) => {
   const value = draft({
     tiers: tiersDraft({
@@ -131,7 +135,8 @@ it.each([
   expect(result.candidate).toMatchObject({ tiers: { steps: [{ from: { value: expected } }] } });
 });
 
-it.each(['10000.00', '2.123', '2.5.0'])('refuses the salary-multiple text %s', (text) => {
+// الفاصلة العشرية العربية ٫ مش مقبولة زي بقية الأرقام؛ الرسالة بطلب 2.00 صراحة.
+it.each(['10000.00', '2.123', '2.5.0', '٢٫٥'])('refuses the salary-multiple text %s', (text) => {
   const value = draft({
     tiers: tiersDraft({
       enabled: true,
@@ -165,6 +170,41 @@ it('keeps the calc of a disabled filled component', () => {
   expect(result.errors).toEqual([]);
   expect(result.candidate).toMatchObject({
     base: { enabled: false, calc: { kind: 'FIXED', amount: '2.500' } },
+  });
+});
+
+it('drops the unreadable retained calc of a disabled component with no reading error', () => {
+  const result = toWireCandidate(draft({ base: { enabled: false, calc: calcDraft('PCT', 'abc') } }));
+  expect(result.errors).toEqual([]);
+  expect(result.candidate).toEqual({
+    effective_from: DATE,
+    whole_period: false,
+    base: { enabled: false },
+    tiers: { enabled: false },
+    package_sale: { enabled: false },
+  });
+});
+
+it('keeps the readable steps of disabled touched tiers and drops the unreadable ones silently', () => {
+  const result = toWireCandidate(
+    draft({
+      tiers: tiersDraft({
+        touched: true,
+        steps: [
+          step('AMOUNT', '10.000', calcDraft('PCT', '100')),
+          step('AMOUNT', 'oops', calcDraft('PCT', 'abc')),
+        ],
+      }),
+    }),
+  );
+  expect(result.errors).toEqual([]);
+  expect(result.candidate).toMatchObject({
+    tiers: {
+      enabled: false,
+      mode: 'MARGINAL',
+      accumulator: 'AMOUNT',
+      steps: [{ from: { kind: 'AMOUNT', value: '10.000' }, calc: { kind: 'PCT', bps: 100 } }],
+    },
   });
 });
 

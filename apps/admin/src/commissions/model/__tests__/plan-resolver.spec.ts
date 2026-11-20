@@ -257,3 +257,15 @@ it('reports two different blocks when base and tiers each carry a different read
   expect(messageOf(result.errors, 'base')).toBe(t('en', 'commissionPlanBuilder.errorInvalidBps'));
   expect(messageOf(result.errors, 'tiers')).toBe(t('en', 'commissionPlanBuilder.errorInvalidMoney'));
 });
+
+it('refuses a draft whose whole-period flag is not a boolean with the generic plan message on a block', () => {
+  const draft = {
+    ...edgeDraft({ enabled: true, calc: calcOf('PCT') }, null, null),
+    wholePeriod: 'yes' as unknown as boolean,
+  };
+  const built = toWireCandidate(draft);
+  const result = runResolver(draft);
+  expect(built.errors).toEqual([]);
+  expect(Object.keys(result.errors).length).toBeGreaterThan(0);
+  expect(messageOf(result.errors, 'base')).toBe(t('en', 'commissionPlanBuilder.errorInvalidPlan'));
+});

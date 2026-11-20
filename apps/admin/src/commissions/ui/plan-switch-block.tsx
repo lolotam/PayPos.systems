@@ -16,8 +16,8 @@ const TITLES: Record<BlockRoot, MessageKey> = {
 };
 
 /**
- * بلوك واحد من الخطة: العنوان ومفتاح التشغيل وتنبيهه؛ الأطفال بيفضلوا ظاهرين ومعطلين لما المفتاح
- * يقفل عشان كتابة المدير تفضل محفوظة، وتنبيه السيرفر الموجّه للبلوك بيقدم على تنبيه الحقل.
+ * بلوك واحد من الخطة: العنوان ومفتاح تشغيل اسمه المتاح ثابت باسم البلوك وتنبيهه؛ الأطفال بيفضلوا
+ * ظاهرين ومعطلين لما المفتاح يقفل عشان كتابة المدير تفضل محفوظة، وتنبيه السيرفر بيتقدم على تنبيه الحقل.
  */
 export function PlanSwitchBlock({
   block,
@@ -42,6 +42,7 @@ export function PlanSwitchBlock({
           id={`${block}-enabled`}
           type="checkbox"
           role="switch"
+          aria-label={t(locale, TITLES[block])}
           {...register(`${block}.enabled`)}
         />
         <Label htmlFor={`${block}-enabled`}>

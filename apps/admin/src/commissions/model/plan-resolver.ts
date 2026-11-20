@@ -46,6 +46,9 @@ export function createPlanResolver(
             : 'commissionPlanBuilder.errorInvalidPlan'),
         );
       }
+      // كود العقد اللي ملوش بلوك معروف (زي whole_period) بيقفل البوابة برسالة عامة بدل ما يرجع الفورم صالح فجأة.
+      if (Object.keys(errors).length === 0)
+        setMessage(errors, 'base', t(locale, 'commissionPlanBuilder.errorInvalidPlan'));
       return { values: {}, errors };
     }
     const blocks = checkPlanBlocks(parsed.data);

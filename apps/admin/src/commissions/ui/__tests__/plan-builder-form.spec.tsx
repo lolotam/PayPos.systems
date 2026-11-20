@@ -23,6 +23,7 @@ const B = {
   amountLabel: t('en', 'commissionPlanBuilder.amountLabel'),
   thresholdValue: t('en', 'commissionPlanBuilder.thresholdValue'),
   addStep: t('en', 'commissionPlanBuilder.addStep'),
+  removeStep: t('en', 'commissionPlanBuilder.removeStep'),
   save: t('en', 'commissionPlanBuilder.save'),
   saving: t('en', 'commissionPlanBuilder.saving'),
 };
@@ -74,16 +75,15 @@ function rerenderWith(view: ReturnType<typeof renderForm>, initial: PlanDraft, s
   );
 }
 
-it('renders the three blocks with switches and shows no formula text', () => {
+it('renders the three blocks with switches named by their block titles and shows the state text', () => {
   renderForm(emptyPlanDraft(ZONE, NOW));
-  for (const [name, label] of [
-    [B.base, B.off],
-    [B.tiers, B.off],
-    [B.packageSale, B.off],
-  ] as const) {
+  for (const name of [B.base, B.tiers, B.packageSale]) {
     const area = block(name);
-    expect(within(area).getByRole('switch')).toBeTruthy();
-    expect(within(area).getByRole('switch', { name: label })).toBeTruthy();
+    const toggle = within(area).getByRole('switch', { name });
+    expect(within(area).getByText(B.off)).toBeTruthy();
+    fireEvent.click(toggle);
+    expect(within(area).getByRole('switch', { name })).toBeTruthy();
+    expect(within(area).getByText(B.on)).toBeTruthy();
   }
   expect(document.body.textContent).not.toContain('of every sale');
   expect(document.body.textContent).not.toContain('% of');
@@ -109,6 +109,68 @@ it('enables save after adding a valid step to the tiers block', async () => {
   const bpsInput = await within(tiers).findByLabelText(B.bpsLabel);
   fireEvent.change(bpsInput, { target: { value: '100' } });
   await waitFor(() => expect(saveButton().disabled).toBe(false));
+});
+
+it('shows the no-steps alert inside tiers and disables save after the last step is removed', async () => {
+  const initial = {
+    ...emptyPlanDraft(ZONE, NOW),
+    base: { enabled: true, calc: pctCalc('500') },
+    tiers: tiersWith([{ fromKind: 'AMOUNT' as const, fromValue: '10.000', calc: pctCalc('100') }]),
+  };
+  renderForm(initial);
+  await waitFor(() => expect(saveButton().disabled).toBe(false));
+  const tiers = block(B.tiers);
+  fireEvent.click(within(tiers).getByRole('button', { name: B.removeStep }));
+  const alert = await within(tiers).findByRole('alert');
+  expect(alert.textContent).toBe(t('en', 'commissionPlanBuilder.errorNoSteps'));
+  expect(saveButton().disabled).toBe(true);
+});
+
+it('replaces the no-steps alert with the real step error after adding a step to empty tiers', async () => {
+  renderForm(emptyPlanDraft(ZONE, NOW));
+  const tiers = block(B.tiers);
+  fireEvent.click(within(tiers).getByRole('switch'));
+  expect((await within(tiers).findByRole('alert')).textContent).toBe(
+    t('en', 'commissionPlanBuilder.errorNoSteps'),
+  );
+  fireEvent.click(within(tiers).getByRole('button', { name: B.addStep }));
+  const alert = await within(tiers).findByRole('alert');
+  expect(alert.textContent).toBe(t('en', 'commissionPlanBuilder.errorInvalidBps'));
+  expect(saveButton().disabled).toBe(true);
+});
+
+it('drops a blank retained step when tiers switch off and keeps save enabled', async () => {
+  const initial = { ...emptyPlanDraft(ZONE, NOW), base: { enabled: true, calc: pctCalc('500') } };
+  renderForm(initial);
+  const tiers = block(B.tiers);
+  fireEvent.click(within(tiers).getByRole('switch'));
+  await within(tiers).findByRole('alert');
+  fireEvent.click(within(tiers).getByRole('button', { name: B.addStep }));
+  await within(tiers).findByRole('alert');
+  fireEvent.click(within(tiers).getByRole('switch'));
+  await waitFor(() => expect(saveButton().disabled).toBe(false));
+  expect(within(tiers).queryByRole('alert')).toBeNull();
+});
+
+it('drops a malformed retained bps when the base block is off and keeps save enabled', async () => {
+  renderForm({ ...emptyPlanDraft(ZONE, NOW), base: { enabled: false, calc: pctCalc('abc') } });
+  expect(within(block(B.base)).queryByRole('alert')).toBeNull();
+  await waitFor(() => expect(saveButton().disabled).toBe(false));
+});
+
+it('refuses an unparseable whole-period flag with a visible plan message and never saves', async () => {
+  const onSave = vi.fn();
+  const initial = {
+    ...emptyPlanDraft(ZONE, NOW),
+    base: { enabled: true, calc: pctCalc('500') },
+    wholePeriod: 'yes' as unknown as boolean,
+  };
+  renderForm(initial, null, onSave);
+  const alert = await within(block(B.base)).findByRole('alert');
+  expect(alert.textContent).toBe(t('en', 'commissionPlanBuilder.errorInvalidPlan'));
+  expect(saveButton().disabled).toBe(true);
+  fireEvent.click(saveButton());
+  expect(onSave).not.toHaveBeenCalled();
 });
 
 it('shows STEPS_NOT_ASCENDING inside tiers while the base block stays clean', async () => {
