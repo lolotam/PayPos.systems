@@ -28,7 +28,7 @@ anyone, and there is no leave balance.
 5. **إدخال غلط:** أكتر من 90 يوم، أو وقت نهاية قبل البداية، أو أوقات مش على ربع ساعة، أو **أخرى** من غير ملاحظة ←
    **راجعي التواريخ والأوقات…** ومفيش حاجة بتتبعت.
 6. **السجل:** كل الطلبات بحالاتها الأربعة: **معلقة**، **معتمدة**، **مرفوضة**، **ملغاة**، ومعاها التواريخ والأوقات.
-   **الصفحة التالية** بتجيب الأقدم. لو مفيش ← **لا توجد طلبات إجازة**.
+   الأحدث فوق، و**الصفحة التالية** بتجيب الأقدم. لو مفيش ← **لا توجد طلبات إجازة**.
 7. **القرار:** سارة تعتمد أو ترفض من لوحة الإدارة ← الشاشة عند هبة بتتحدّث لوحدها، ومع الرفض **سبب القرار**. لو
    الموافقة اتسحبت قبل ما الإجازة تبدأ ← **سبب سحب الموافقة**.
 8. **إلغاء:** على طلب **معلقة** تدوس **إلغاء الطلب** ← الحالة تبقى **ملغاة**. الزرار بيظهر للطلب المعلق بس.
@@ -58,7 +58,7 @@ anyone, and there is no leave balance.
 5. **Bad input:** more than 90 days, an end before the start, times off the 15-minute steps, or **Other** with no
    note → **Check the dates and times. …** and nothing is sent.
 6. **History:** every request in its four statuses, **Pending**, **Approved**, **Rejected**, **Cancelled**, with its
-   dates and times. **Next page** loads older ones. With none → **No leave requests**.
+   dates and times, newest first. **Next page** loads older ones. With none → **No leave requests**.
 7. **The decision:** Sara approves or rejects in the admin → Heba's screen updates by itself, with the **Decision
    reason** on a rejection. If the approval is revoked before the leave starts → the **Revocation reason**.
 8. **Cancel:** on a **Pending** request she clicks **Cancel request** → it becomes **Cancelled**. The button shows
@@ -89,7 +89,9 @@ anyone, and there is no leave balance.
   `personal-branches.controller.ts` (personal session only). Writes send an `Idempotency-Key`.
 - **Rules:** full days at most 90 inclusive days; a partial day uses increasing times on 15-minute steps; `OTHER`
   needs a note of at most 500 characters; a row is cancellable only when the API marks it `can_cancel`.
-- **Assertions:** the history has no months-back limit; the history is cleared on an identity change
+- **Assertions:** the history is newest first by request id, with a bare-id cursor (spec 060 MY-16b, issue
+  #885; `apps/pos/src/my-leave/ui/leave-newest-first.spec.tsx`,
+  `apps/api/src/modules/staff/__tests__/own-leave-newest-first.spec.ts`); the history has no months-back limit; the history is cleared on an identity change
   (`apps/pos/src/my-leave/ui/my-leave-screen.spec.tsx`).
 - **Sources:** `docs/specs/060-ratings-and-staff-app/plan-57b-2.md`,
   `docs/specs/060-ratings-and-staff-app/57b-2a-validation.md`, `57b-2b-validation.md`, journeys

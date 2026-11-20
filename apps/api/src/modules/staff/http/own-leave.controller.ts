@@ -34,7 +34,7 @@ import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { LeaveValidationPipe } from './leave-validation.pipe.ts';
 import {
   LEAVE_READ_ACCESS,
-  employeeLeaveHistory,
+  ownLeaveHistory,
   type LeaveReadAccess,
 } from '../queries/leave-requests.query.ts';
 import { RequestLeaveUseCase } from '../use-cases/request-leave/request-leave.usecase.ts';
@@ -93,7 +93,7 @@ export class OwnLeaveController {
     const context = ownLeaveActor(req, undefined, query.branch_id);
     const result = await this.database.withTenant(
       context.companyId,
-      (tx) => employeeLeaveHistory(tx, context, query, this.access),
+      (tx) => ownLeaveHistory(tx, context, query, this.access),
       { userId: context.userId },
     );
     if (result === null) throw new ApiError('NOT_FOUND');
