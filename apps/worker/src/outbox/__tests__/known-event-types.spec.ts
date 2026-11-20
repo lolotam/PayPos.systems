@@ -19,6 +19,20 @@ vi.mock('../../modules/orders/jobs/package-sale-recovery.processor.ts', () => ({
     register: async () => undefined,
   }),
 }));
+vi.mock('../../modules/orders/jobs/package-import-commit.processor.ts', () => ({
+  startPackageImportCommitProcessor: () => ({
+    ready: async () => undefined,
+    close: async () => undefined,
+    deliver: async () => ({ delivered: true }),
+  }),
+}));
+vi.mock('../../modules/orders/jobs/package-import-recovery.processor.ts', () => ({
+  startPackageImportRecoveryProcessor: () => ({
+    ready: async () => undefined,
+    close: async () => undefined,
+    register: async () => undefined,
+  }),
+}));
 vi.mock('../../modules/catalog/jobs/service-category-closing.processor.ts', () => ({
   startServiceCategoryClosingProcessor: () => ({
     ready: async () => undefined,
@@ -27,7 +41,11 @@ vi.mock('../../modules/catalog/jobs/service-category-closing.processor.ts', () =
   }),
 }));
 import { startCatalogWorker } from '../../modules/catalog/index.ts';
-import { startPackagePreviewWorker, startPackageSaleWorker } from '../../modules/orders/index.ts';
+import {
+  startPackagePreviewWorker,
+  startPackageSaleWorker,
+  startPackageImportCommitWorker,
+} from '../../modules/orders/index.ts';
 import type { Database } from '@pospay/db';
 import { createLogger } from '@pospay/observability';
 import { expect, it, vi } from 'vitest';
@@ -79,13 +97,18 @@ const sales = startPackageSaleWorker(database, ids, {
   clock,
   transactionTimeoutMs: 5000,
 });
+const imports = startPackageImportCommitWorker(database, ids, {
+  redisUrl: 'synthetic',
+  clock,
+  transactionTimeoutMs: 5000,
+});
 const catalog = startCatalogWorker(database, ids, 'synthetic', clock);
 
 it('recognizes every event emitted by API and worker, including finite template expansions', () => {
   const emitted = emittedEventTypes();
   const consumers = [notifications.consumer, createStaffDocumentDefaults(ids)];
   const supported = new Set([
-    ...knownEventTypes(staff, notifications, null, previews, sales, catalog),
+    ...knownEventTypes(staff, notifications, null, previews, sales, imports, catalog),
     ...consumers.flatMap((consumer) => consumer.eventTypes),
   ]);
   expect(catalog.eventTypes).toContain('ServiceCategoryClosingRequested');
@@ -163,4 +186,11 @@ it('retries a package preview request when its transport is absent during rollin
 
 it('contributes LeaveHistoryReportRequested from the staff module', () => {
   expect(knownEventTypes(staff)).toContain('LeaveHistoryReportRequested');
+});
+
+it('recognizes the package import commit transport before its producer exists', () => {
+  expect(imports.eventTypes).toEqual(['PackageImportCommitRequested']);
+  expect(knownEventTypes(staff, notifications, null, previews, sales, imports, catalog)).toContain(
+    'PackageImportCommitRequested',
+  );
 });

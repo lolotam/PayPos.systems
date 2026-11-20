@@ -1,8 +1,15 @@
 import { startPackagePreviewProcessor } from './jobs/package-preview.processor.ts';
+import { startPackageImportCommitProcessor } from './jobs/package-import-commit.processor.ts';
+import { startPackageImportRecoveryProcessor } from './jobs/package-import-recovery.processor.ts';
 import { packagePreviewWorkbook } from './persistence/package-preview-workbook.ts';
 import { packagePreviewTransactions } from './persistence/package-preview.transactions.ts';
+import { packageImportCommitTransactions } from './persistence/package-import-commit.transactions.ts';
+import { packageImportRecoveryTransactions } from './persistence/package-import-recovery.transactions.ts';
 import { ExecutePackagePreview } from './use-cases/execute-package-preview/execute-package-preview.ts';
+import { CommitPackageImport } from './use-cases/commit-package-import/commit-package-import.ts';
+import { RecoverPackageImports } from './use-cases/recover-package-imports/recover-package-imports.ts';
 import type { PackagePreviewClock } from './ports/package-preview.port.ts';
+import type { PackageCommitClock } from './ports/package-import-commit.port.ts';
 import { startPackageSaleProcessor } from './jobs/package-sale.processor.ts';
 import { startPackageSaleRecoveryProcessor } from './jobs/package-sale-recovery.processor.ts';
 import { packageSaleTransactions } from './persistence/package-sale.transactions.ts';
@@ -289,7 +296,10 @@ export function startPackageSaleWorker(
   const recovery = startPackageSaleRecoveryProcessor(recoveryUseCase, redisUrl, prefix);
   return {
     eventTypes: ['PackageSaleRequested'],
-    deliver: async (event: ClaimedEvent, next: (event: ClaimedEvent) => Promise<DeliveryOutcome>) => {
+    deliver: async (
+      event: ClaimedEvent,
+      next: (event: ClaimedEvent) => Promise<DeliveryOutcome>,
+    ) => {
       if (event.eventType !== 'PackageSaleRequested') return next(event);
       try {
         await recovery.register(event.companyId);
@@ -300,5 +310,70 @@ export function startPackageSaleWorker(
     },
     ready: () => Promise.all([processor.ready(), recovery.ready()]).then(() => undefined),
     close: () => Promise.all([processor.close(), recovery.close()]).then(() => undefined),
+  };
+}
+
+// بيانات المسح قصيرة ومفهرسة على (company,status,requested_at)؛ لا تستخدم ميزانية المعاملة المالية أبدًا.
+const PACKAGE_IMPORT_RECOVERY_TIMEOUT_MS = 5_000;
+
+/** يشغّل نقل تثبيت استيراد الباقات ومسح استرداده؛ الحدث لا يُقرّ إلا بعد تسجيل المسح وقبول Redis للمهمة. */
+export function startPackageImportCommitWorker(
+  database: Pick<TenantWrappers, 'withTenant'>,
+  ids: IdGenerator,
+  options: {
+    redisUrl: string;
+    clock: PackageCommitClock;
+    transactionTimeoutMs: number;
+    retryDelayMs?: (attempt: number) => number | null;
+    prefix?: string;
+  },
+) {
+  const { redisUrl, clock, transactionTimeoutMs, retryDelayMs, prefix } = options;
+  // null من السياسة يعني الإيقاف عند آخر محاولة؛ لا يتحول إلى إعادة بعد ثانيتين.
+  const retryDelay = retryDelayMs ?? (() => 2000);
+  const commit = startPackageImportCommitProcessor(
+    new CommitPackageImport(
+      packageImportCommitTransactions(database, ids, { timeoutMs: transactionTimeoutMs }),
+      clock,
+    ),
+    redisUrl,
+    {
+      ...(prefix === undefined ? {} : { prefix }),
+      ...(retryDelayMs === undefined ? {} : { retryDelayMs }),
+    },
+  );
+  const recoveryUseCase = new RecoverPackageImports(
+    packageImportRecoveryTransactions(database, { timeoutMs: PACKAGE_IMPORT_RECOVERY_TIMEOUT_MS }),
+    clock,
+  );
+  const recovery = startPackageImportRecoveryProcessor(recoveryUseCase, redisUrl, prefix);
+  return {
+    eventTypes: ['PackageImportCommitRequested'],
+    deliver: async (
+      event: ClaimedEvent,
+      next: (event: ClaimedEvent) => Promise<DeliveryOutcome>,
+    ) => {
+      if (event.eventType !== 'PackageImportCommitRequested') return next(event);
+      try {
+        await recovery.register(event.companyId);
+      } catch {
+        return {
+          delivered: false,
+          error: 'PACKAGE_IMPORT_RECOVERY_SCHEDULE_RETRY',
+          retryInMs: retryDelay(event.attempt),
+        };
+      }
+      return commit.deliver(event);
+    },
+    ready: () => Promise.all([commit.ready(), recovery.ready()]).then(() => undefined),
+    close: async () => {
+      // الإغلاق القسري لا ينتظر شيئًا فيأتي أولًا: يوقف سحب طلبات تثبيت جديدة قبل أن يبدأ إغلاق المسح التدريجي.
+      // وهو يوقف انتظار BullMQ فقط؛ المعاملة المتقطعة إما تراجعت أو سبق أن أثبُتت، وكل إعادة تشغيل والمسح يقرآن الحالة المخزنة.
+      try {
+        await commit.close(true);
+      } finally {
+        await recovery.close();
+      }
+    },
   };
 }

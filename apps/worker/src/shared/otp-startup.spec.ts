@@ -67,8 +67,7 @@ vi.mock('ioredis', () => ({
     evalsha = resources.redis.evalsha;
   },
 }));
-// الطابور والعامل الحقيقيين بيسجّلوا اللي اتعمل، عشان نعرف إن مجدول المطالبات ما اتفتحش.
-// الوحدة الحقيقية بتتحمّل مرة واحدة بس: بعد إعادة ضبط الموديولات مفيش تحميل بارد تاني.
+// الطابور والعامل الحقيقيان يسجّلان ما يُبنى لنعرف إن مجدول المطالبات ما اتفتحش، والوحدة تُحمّل مرة واحدة فلا تحميل بارد بعد إعادة الضبط.
 const bullmqActual = vi.hoisted(() => ({ module: undefined as typeof BullMq | undefined }));
 vi.mock('bullmq', async (original) => {
   const actual = bullmqActual.module ?? (await original<typeof BullMq>());
@@ -77,9 +76,12 @@ vi.mock('bullmq', async (original) => {
     (kind: string) =>
     (target: unknown, args: unknown[]): object => {
       resources.bullmq.constructed.push({ kind, name: String(args[0]) });
-      // حدود Redis/BullMQ فقط معزولة هنا؛ جاهزية المعاينة تظل ضمن فحوص العامل الفعلية.
-      // طابور بيع الباقة ومسح الاسترداد وقفل التصنيفات بيتبنوا فعليًا؛ بدل Redis حقيقي بنرجّع مقبض جاهز.
-      if (String(args[0]).startsWith('package-sale') || args[0] === 'service-category-closing')
+      // طوابير البيع وتثبيت الاستيراد ومسحيهما وقفل التصنيفات تُبنى فعليًا؛ بدل Redis حقيقي مقبض جاهز.
+      const queueName = String(args[0]);
+      if (
+        (queueName.startsWith('package-') && queueName !== 'package-import-preview') ||
+        queueName === 'service-category-closing'
+      )
         return { on: vi.fn(), waitUntilReady: async () => undefined, close: async () => undefined };
       if (args[0] === 'package-import-preview')
         return {
@@ -95,8 +97,7 @@ vi.mock('bullmq', async (original) => {
     Worker: new Proxy(actual.Worker, { construct: record('worker') }),
   };
 });
-// موديل العملاء بيتحمل مرة واحدة بس: بعد إعادة ضبط الموديولات مفيش تحميل بارد تاني،
-// لأن الرسم البياني بتاعه أتقل واحد في الإقلاع وبياكل مهلة عزل الاختبار.
+// موديل العملاء بيتحمّل مرة واحدة فقط: لا تحميل بارد بعد إعادة الضبط، ورسمه البياني يُبنى مرة واحدة في الإقلاع بدل مهلة عزل الاختبار.
 const customersActual = vi.hoisted(() => ({ module: undefined as typeof Customers | undefined }));
 vi.mock('../modules/customers/index.ts', async (original) => {
   const actual = customersActual.module ?? (await original<typeof Customers>());
@@ -139,8 +140,7 @@ vi.mock('../modules/notifications/index.ts', async (original) => ({
     return resources.otp;
   },
 }));
-// جدول الخروج المفقود يحتاج Redis حقيقياً؛ هنا يُعزل كي يبقى الاختبار عن جاهزية OTP فقط.
-// معالجات الاحتفاظ تفتح Redis؛ هذا الاختبار يعزل جاهزية OTP فقط.
+// معالجات الاحتفاظ وجدول الخروج المفقود يفتحون Redis حقيقياً؛ يُعزلان هنا فيبقى الاختبار عن جاهزية OTP فقط.
 vi.mock('../modules/files/index.ts', () => ({
   startFilesWorker: () => ({
     consumer: { eventTypes: [] },
@@ -169,6 +169,7 @@ vi.mock('./config.ts', () => ({
     REDIS_URL: 'synthetic',
     PLATFORM_NOTIFICATIONS_DATABASE_URL: 'synthetic',
     PACKAGE_SALE_TRANSACTION_TIMEOUT_MS: 30_000,
+    PACKAGE_IMPORT_COMMIT_TRANSACTION_TIMEOUT_MS: 600_000,
   }),
 }));
 
@@ -226,9 +227,7 @@ it('listens and serves health while the package preview Redis is still connectin
     expect(health.json()).toEqual({ status: 'ok' });
     const ready = await app.inject('/ready');
     expect(ready.statusCode).toBe(503);
-    expect(ready.json()).toMatchObject({
-      details: { checks: { 'package-previews': 'down' } },
-    });
+    expect(ready.json()).toMatchObject({ details: { checks: { 'package-previews': 'down' } } });
   } finally {
     await app.close();
   }
@@ -284,6 +283,7 @@ it('invalid email identity settings disable email alone without affecting ordina
     'database',
     'package-previews',
     'package-sale',
+    'package-import-commit',
     'leave-history-reports',
     'service-category-closing',
     'dispatcher',
@@ -375,13 +375,7 @@ it('a failing optional intake is diagnosed and isolated from ordinary worker rea
   );
   expect(resources.logger.fatal).not.toHaveBeenCalled();
   expect(resources.logger.warn).toHaveBeenCalledWith(
-    {
-      capability: {
-        name: 'WHATSAPP_INTAKE',
-        state: 'UNAVAILABLE',
-        reason: 'SETUP_FAILED',
-      },
-    },
+    { capability: { name: 'WHATSAPP_INTAKE', state: 'UNAVAILABLE', reason: 'SETUP_FAILED' } },
     'staff OTP capability',
   );
 });

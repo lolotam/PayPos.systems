@@ -19,7 +19,11 @@ import {
   type PreparedPackageImport,
 } from './package-import-commit.writes.ts';
 
-// Deployment must supply a measured full-bound transaction budget. No staff 15-second default.
+// تثبيت الفشل يحدث بعد rollback أو من المسح؛ مهلة قصيرة حتى لا ينتظر النهائي خلف معاملة تثبيت ما زالت شغالة.
+const PACKAGE_IMPORT_FAIL_TIMEOUT_MS = 5_000;
+
+// The caller supplies the budget; nothing is inherited from staff's 15 seconds. The worker's configured
+// default is provisional until the owner answers 47-2c-Q1 (see apps/worker/src/shared/config.ts).
 export function packageImportCommitTransactions(
   database: Pick<TenantWrappers, 'withTenant'>,
   ids: IdGenerator,
@@ -41,10 +45,14 @@ export function packageImportCommitTransactions(
         )
         .catch(mapSqlError),
     fail: async (companyId, previewId, code) => {
-      await database.withTenant(companyId, async (tx) => {
-        await tx.execute(sql`UPDATE import_previews SET status='failed',error_code=${code}
-          WHERE company_id=${companyId} AND id=${previewId} AND entity='packages' AND status='commit_requested'`);
-      });
+      await database.withTenant(
+        companyId,
+        async (tx) => {
+          await tx.execute(sql`UPDATE import_previews SET status='failed',error_code=${code}
+            WHERE company_id=${companyId} AND id=${previewId} AND entity='packages' AND status='commit_requested'`);
+        },
+        { timeoutMs: PACKAGE_IMPORT_FAIL_TIMEOUT_MS },
+      );
     },
   };
 }
