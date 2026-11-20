@@ -6,6 +6,7 @@ import { walkCommissionStatement } from '../../../../../../packages/db/test/comm
 import { CommissionPeriodRolledOverError } from '../domain/errors.ts';
 import {
   A,
+  blocks,
   consumerWithClock,
   corrections,
   CURRENT,
@@ -240,22 +241,45 @@ it('S8 (Q1) a rollover throws the typed error, writes nothing and redelivery suc
   expect(await marks()).toHaveLength(1);
 });
 
-it('S9 (Q2) one NO_PLAN closed month in the range refuses the whole salary event', async () => {
+it('S9 (Q2) a NO_PLAN closed month records its block and the salary row is still written', async () => {
   await insertCommissionSalary(A.employee, '2026-01-01', '500.000');
   await insertCommissionSalary(A.employee, '2026-04-10', '600.000');
   await seedSalaryWorkedMonth('2026-01');
   await seedSalaryWorkedMonth('2026-02');
   const event = salaryEvent({ effectiveFrom: '2026-01-01', amount: '550.000', revision: 2 });
 
-  expect(await deliverAt(CURRENT, event)).toMatchObject({
-    delivered: false,
-    error: 'Error:COMMISSION_PERIOD_CLOSED',
-  });
+  expect(await deliverAt(CURRENT, event)).toEqual({ delivered: true });
 
-  expect(await salaryRows()).toHaveLength(2);
+  expect(await salaryRows()).toMatchObject([
+    { effective_from: '2026-01-01', amount: '550.000', revision: 2 },
+    { effective_from: '2026-04-10', amount: '600.000', revision: 1 },
+  ]);
   expect(await corrections()).toEqual([]);
-  expect(await generations()).toEqual([]);
-  expect(await marks()).toHaveLength(0);
+  expect(await generations()).toEqual([
+    { employee_id: A.employee, period: '2026-01', generation: 1 },
+    { employee_id: A.employee, period: '2026-02', generation: 1 },
+  ]);
+  expect(await blocks()).toMatchObject([
+    {
+      employee_id: A.employee,
+      source_period: '2026-01',
+      code: 'NO_PLAN',
+      first_event_id: event.id,
+      target_period: '2026-03',
+      resolved_at: null,
+      resolved_generation: null,
+    },
+    {
+      employee_id: A.employee,
+      source_period: '2026-02',
+      code: 'NO_PLAN',
+      first_event_id: event.id,
+      target_period: '2026-03',
+      resolved_at: null,
+      resolved_generation: null,
+    },
+  ]);
+  expect(await marks()).toHaveLength(1);
 });
 
 it('S10 (FR-018b) a legacy event without a business id resolves the business and posts', async () => {

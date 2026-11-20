@@ -58,6 +58,7 @@ it('U1 tips: one lock call and the order targets, replaceTipSession, inserts, re
     'replaceTipSession',
     'bumpGeneration',
     'readMonthProjection',
+    'readOpenBlock',
     'readFrozenSources',
     'readPostedCorrections',
     'insertCorrections',
@@ -137,7 +138,7 @@ it('U4 tips: a null event id with open months only projects as today', async () 
   ]);
 });
 
-it('U5 tips: a recompute without a plan keeps the closed refusal', async () => {
+it('U5 tips: a recompute without a plan records a blocked correction', async () => {
   const scope = new FakeTipScope();
   scope.locked = closedOctNovDec();
   const corrections = new FakeCorrections(scope.calls);
@@ -162,14 +163,23 @@ it('U5 tips: a recompute without a plan keeps the closed refusal', async () => {
     tips: [projectedTip('CARD', 8_000n)],
   });
 
-  const work = new ProjectSessionTips(scope, clock, ids, corrections).execute(tipInput());
+  await new ProjectSessionTips(scope, clock, ids, corrections).execute(tipInput());
 
-  await expect(work).rejects.toMatchObject({
-    code: 'COMMISSION_PERIOD_CLOSED',
-    periods: ['2026-10'],
-  });
-  expect(scope.replaced).not.toBeNull();
   expect(corrections.drafts).toEqual([]);
+  expect(corrections.insertedBlocks).toEqual([
+    {
+      businessId: 'business-a',
+      employeeId: employeeA,
+      sourcePeriod: '2026-10',
+      code: 'NO_PLAN',
+      firstEventId: 'event-a',
+      targetPeriod: '2026-12',
+      targetStatementId: 'statement-dec',
+    },
+  ]);
+  expect(corrections.codeUpdates).toEqual([]);
+  expect(corrections.resolutions).toEqual([]);
+  expect(scope.replaced).not.toBeNull();
   expect(scope.calls).toEqual([
     'lockSession',
     'readTipSession',
@@ -178,6 +188,9 @@ it('U5 tips: a recompute without a plan keeps the closed refusal', async () => {
     'replaceTipSession',
     'bumpGeneration',
     'readMonthProjection',
+    'readOpenBlock',
+    'insertBlock',
+    'reopenReviewed',
   ]);
 });
 

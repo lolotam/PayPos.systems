@@ -9,6 +9,7 @@ import { walkCommissionStatement } from '../../../../../../packages/db/test/comm
 import { CommissionPeriodRolledOverError } from '../domain/errors.ts';
 import {
   A,
+  blocks,
   consumerWithClock,
   corrections,
   CURRENT,
@@ -21,7 +22,9 @@ import {
   marks,
   owner,
   seedClosedTipMonth,
+  SOURCE_PERIOD,
   statementStatus,
+  TARGET_PERIOD,
   tipEvent,
   tipHeads,
   tipRows,
@@ -315,7 +318,7 @@ it('T10 keeps the refusal when no DRAFT target month is available', async () => 
   expect(await marks()).toHaveLength(1);
 });
 
-it('T11 (Q2) a closed month with a FOLLOW_PLAN line and no plan version keeps the refusal', async () => {
+it('T11 (Q2) a closed month with a FOLLOW_PLAN line and no plan version is consumed with one open blocked row', async () => {
   const { sessionId } = await seedClosedTipMonth({ withPlan: false, withLine: true });
   const event = tipEvent({
     sessionId,
@@ -324,14 +327,24 @@ it('T11 (Q2) a closed month with a FOLLOW_PLAN line and no plan version keeps th
     tips: [{ employee_id: A.employee, method: 'CARD', amount: '8.000' }],
   });
 
-  expect(await deliverAt(CURRENT, event)).toMatchObject({
-    delivered: false,
-    error: 'Error:COMMISSION_PERIOD_CLOSED',
-  });
-  expect(await tipHeads()).toMatchObject([{ session_id: sessionId, revision: 1 }]);
+  expect(await deliverAt(CURRENT, event)).toEqual({ delivered: true });
+  expect(await tipHeads()).toMatchObject([{ session_id: sessionId, revision: 2 }]);
   expect(await corrections()).toEqual([]);
-  expect(await generations()).toEqual([]);
-  expect(await marks()).toHaveLength(1);
+  expect(await generations()).toEqual([
+    { employee_id: A.employee, period: SOURCE_PERIOD, generation: 1 },
+  ]);
+  expect(await blocks()).toMatchObject([
+    {
+      employee_id: A.employee,
+      source_period: SOURCE_PERIOD,
+      code: 'NO_PLAN',
+      first_event_id: event.id,
+      target_period: TARGET_PERIOD,
+      resolved_at: null,
+      resolved_generation: null,
+    },
+  ]);
+  expect(await marks()).toHaveLength(2);
 });
 
 it('X1 after the tip correction the correction and generation tables read empty as company B', async () => {
