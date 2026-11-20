@@ -18,6 +18,7 @@
     "@hookform/resolvers": "5.9.1",
     "@next/env": "16.3.7",
     "@pospay/auth": "workspace:*",
+    "@pospay/commissions-engine": "workspace:*",
     "@pospay/contracts": "workspace:*",
     "@pospay/domain": "workspace:*",
     "@pospay/i18n": "workspace:*",
