@@ -17,9 +17,11 @@ import {
 export function useCommissionOverrideServices(scope: PlanScope, employeeId: string) {
   const client = useQueryClient();
   const access = usePlanAccess(scope);
-  const [gone, setGone] = useState(false);
+  const queryKey = planOverrideServicesKey(scope, employeeId);
+  const identity = JSON.stringify(queryKey);
+  const [gone, setGone] = useState<string>();
   return useInfiniteQuery({
-    queryKey: planOverrideServicesKey(scope, employeeId),
+    queryKey,
     queryFn: async ({ pageParam: cursor, signal }) => {
       const started = planGeneration(client, scope);
       try {
@@ -28,12 +30,13 @@ export function useCommissionOverrideServices(scope: PlanScope, employeeId: stri
           throw new Error('commission-plan-generation-changed');
         return page;
       } catch (error) {
+        if (signal.aborted || planGeneration(client, scope) !== started) throw error;
         if (isPlanForbidden(error)) await denyPlanAccess(client, scope);
-        if (isPlanNotFound(error)) setGone(true);
+        if (isPlanNotFound(error)) setGone(identity);
         throw error;
       }
     },
-    enabled: !gone && !access.denied,
+    enabled: gone !== identity && !access.denied,
     retry: false,
     staleTime: 0,
     gcTime: 0,

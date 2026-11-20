@@ -61,7 +61,7 @@ export function useSaveCommissionOverride(
       try {
         const row = await createServiceOverride(scope, employeeId, held.key, request.body);
         if (planGeneration(client, scope) !== started) return row;
-        memory.current.delete(key);
+        if (memory.current.get(key) === held) memory.current.delete(key);
         await client.resetQueries({
           queryKey: planOverrideHistoryKey(scope, employeeId, request.serviceId),
         });
@@ -70,10 +70,11 @@ export function useSaveCommissionOverride(
         });
         return row;
       } catch (error) {
+        if (planGeneration(client, scope) !== started) throw error;
         if (isPlanForbidden(error)) {
           memory.current.clear();
           await denyPlanAccess(client, scope);
-        } else if (planGeneration(client, scope) === started && isPlanNotFound(error)) {
+        } else if (isPlanNotFound(error) && memory.current.get(key) === held) {
           memory.current.delete(key);
         }
         throw error;

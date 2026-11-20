@@ -31,6 +31,7 @@ export function useCommissionOverrideHistory(
           throw new Error('commission-plan-generation-changed');
         return page;
       } catch (error) {
+        if (signal.aborted || planGeneration(client, scope) !== started) throw error;
         if (isPlanForbidden(error)) await denyPlanAccess(client, scope);
         throw error;
       }

@@ -187,3 +187,18 @@ it('a 403 from the save closes the whole scope', async () => {
   expect(entries(client, scope).history).toBeUndefined();
   expect(hook.result.current.attempts.current.size).toBe(0);
 });
+
+it('loads another employee after the previous employee returns 404', async () => {
+  const client = createQueryClient();
+  api.GET.mockResolvedValueOnce(refusal(404, 'NOT_FOUND'));
+  const hook = renderHook(({ employeeId }) => useCommissionOverrideServices(scope, employeeId), {
+    initialProps: { employeeId: EMP_A },
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+  await waitFor(() => expect(hook.result.current.isError).toBe(true));
+  hook.rerender({ employeeId: '01920000-0000-7000-8000-000000000099' });
+  await waitFor(() => expect(hook.result.current.isSuccess).toBe(true));
+  expect(hook.result.current.data?.pages[0]?.items[0]?.service_id).toBe(SERVICE_A);
+});

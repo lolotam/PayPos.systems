@@ -5,7 +5,12 @@ import type { QueryClient } from '@tanstack/react-query';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { CreateCommissionServiceOverrideInput } from '@pospay/contracts';
 import { createQueryClient } from '@/shared/api/query-client';
-import { denyPlanAccess, planOverrideServicesKey, planScope } from '../plan-access';
+import {
+  denyPlanAccess,
+  planOverrideServicesKey,
+  planScope,
+  restorePlanAccess,
+} from '../plan-access';
 import { useCommissionOverrideHistory } from '../use-commission-override-history';
 import { useCommissionOverrideServices } from '../use-commission-override-services';
 import {
@@ -193,4 +198,58 @@ it('a late answer after the scope generation moved changes nothing', async () =>
   deferred.resolve(ok(overrideItem(SERVICE_A)));
   await pending;
   expect(api.GET).toHaveBeenCalledTimes(readsBefore);
+});
+
+it('keeps restored access and a newer held attempt when an older save returns 403', async () => {
+  const client = createQueryClient();
+  const older = deferredAnswer();
+  const hook = mount(client);
+  api.POST.mockReturnValueOnce(older.promise).mockRejectedValueOnce(new Error('offline'));
+  let pending!: Promise<unknown>;
+  act(() => {
+    pending = hook.result.current.save
+      .mutateAsync({ serviceId: SERVICE_A, body: BODY })
+      .catch((error: unknown) => error);
+  });
+  await waitFor(() => expect(api.POST).toHaveBeenCalledTimes(1));
+  await act(async () => {
+    await denyPlanAccess(client, scope);
+    restorePlanAccess(client, scope);
+    await expect(
+      hook.result.current.save.mutateAsync({ serviceId: SERVICE_A, body: CHANGED_BODY }),
+    ).rejects.toThrow('offline');
+  });
+  const newerKey = sentKey(1);
+  await act(async () => {
+    older.resolve(refusal(403, 'FORBIDDEN'));
+    await expect(pending).resolves.toMatchObject({ status: 403 });
+  });
+  expect(client.getQueryData([...scope, 'access'])).toMatchObject({ denied: false });
+  expect(heldKey(hook.result.current.attempts, SERVICE_A)).toBe(newerKey);
+});
+
+it('keeps the key for a newer uncertain save after an older save succeeds', async () => {
+  const older = deferredAnswer();
+  const hook = mount(createQueryClient());
+  api.POST.mockReturnValueOnce(older.promise).mockRejectedValueOnce(new Error('offline'));
+  let pending!: Promise<unknown>;
+  act(() => {
+    pending = hook.result.current.save.mutateAsync({ serviceId: SERVICE_A, body: BODY });
+  });
+  await waitFor(() => expect(api.POST).toHaveBeenCalledTimes(1));
+  await act(async () => {
+    await expect(
+      hook.result.current.save.mutateAsync({ serviceId: SERVICE_A, body: CHANGED_BODY }),
+    ).rejects.toThrow('offline');
+  });
+  await act(async () => {
+    older.resolve(ok(overrideItem(SERVICE_A)));
+    await pending;
+  });
+  api.POST.mockResolvedValueOnce(ok(overrideItem(SERVICE_A)));
+  await act(async () => {
+    await hook.result.current.save.mutateAsync({ serviceId: SERVICE_A, body: CHANGED_BODY });
+  });
+  expect(sentKey(2)).toBe(sentKey(1));
+  expect(sentKey(2)).not.toBe(sentKey(0));
 });
