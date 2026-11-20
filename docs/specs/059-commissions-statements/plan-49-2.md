@@ -34,8 +34,9 @@ read from `main`, block a screen built only on them:
 
 This is the 48-2b situation again (FR-010a gave the plan screens their own employee list because the accountant has
 no employees permission). The plan therefore adds one **read** endpoint owned by `commissions` before the screen.
-What it may show of a service is a who-sees-what question, **PENDING as CS-Q49** (§57); whether closed services are
-listed is **PENDING as CS-Q50** (§58). The parts that depend on them are marked `TODO(spec)` below.
+What it may show of a service was a who-sees-what question, answered by Waleed as **CS-Q49 = name + the service's own
+commission + its price** (§57, PP-206.1); closed services are listed with a «closed» mark and stay editable (**CS-Q50**,
+§58, PP-206.2). Abu Salem's picks on batch 97 are pending; if his pick differs, it replaces these (follow-up).
 
 A third constraint shapes the table: the 49-1 list is ordered by `(service_id, created_at DESC, id DESC)` over
 current and history rows together and has no current-only filter, so «the current override of each service on this
@@ -72,9 +73,10 @@ hook tests mount it through a real `QueryClient`.
   is `{ id, rule, effective_from, created_at } | null`. `rule` is `serviceCommissionRuleView` (the catalog rule shape
   49-1 already reuses). `null` means no eligible override today; the screen must never render it as `ZERO` or as
   `FOLLOW_PLAN` (CM-12: no row means the line's own saved snapshot).
-  `TODO(spec)` CS-Q49: whether the item also carries `service_rule` (the service's own current commission rule).
-  The recommended answer adds it; the price, duration and category are never returned.
-  `TODO(spec)` CS-Q50: whether closed services are listed. Until answered the query lists all and returns `closed_at`.
+  CS-Q49 (PP-206.1): each item also carries `service_rule` (the service's own current commission rule) and
+  `price` (the service's current price in KWD, the catalog's money shape: string with 3 decimals). Duration and
+  category are never returned. The 49-2a budget grows by ~15 lines for `price`.
+  CS-Q50 (PP-206.2): closed services are listed with `closed_at`, and their override stays editable.
   The 49-1 write accepts a closed service today: its service check is `readSessionServices(...).length > 0`
   (`app.ts`), which does not filter `closed_at`.
   Items come in service-id order, as every service list on `main` does; there is no search and no name ordering
@@ -181,8 +183,8 @@ The screen shares the plan builder's identity scope, access state and employee l
 - **Section** (keyed by employee): the services table once the first page has succeeded; a failed first page shows
   its refusal; `EmptyState` when the business has no service.
 - **Table** (TanStack Table in `DataTableFrame`, server pagination by «load more»): service name (Arabic when the
-  locale is Arabic and it exists, else English), a «closed» `Badge` when `closed_at` is set (`TODO(spec)` CS-Q50),
-  the service's own rule (`TODO(spec)` CS-Q49), the employee's current override as rule text with its start date, or
+  locale is Arabic and it exists, else English), a «closed» `Badge` when `closed_at` is set (CS-Q50),
+  the service's price (KWD, 3 decimals via packages/i18n) and its own rule (CS-Q49), the employee's current override as rule text with its start date, or
   «no special commission», and an «edit» button.
 - **Dialog** (`ModalDialog` from `@/shared/ui/modal-dialog`), one service: react-hook-form with the resolver from
   `toOverrideBody`; a kind `NativeSelect` with exactly four options; a value `Input` (`dir="ltr"`, KWD normalised on
