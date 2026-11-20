@@ -202,6 +202,27 @@ async function failedRemovalKeepsTheAttempt(locale: 'ar' | 'en') {
   expect(saleCalls()).toHaveLength(1);
 }
 
+async function unreadableDeviceKeepsTheAttempt(locale: 'ar' | 'en') {
+  await seedJournal(locale, { createdAt: Date.now() - 24 * 60 * 60 * 1000 });
+  const view = renderForm();
+  expect(await screen.findByText(t(locale, 'packageSale.verificationRequired'))).toBeTruthy();
+  fireEvent.click(
+    screen.getByRole('checkbox', { name: t(locale, 'packageSale.verifiedWithManager') }),
+  );
+  vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    throw new Error('private');
+  });
+  fireEvent.click(screen.getByRole('button', { name: t(locale, 'packageSale.discardExpired') }));
+  expect(await screen.findByText(t(locale, 'packageSale.journalUnsaved'))).toBeTruthy();
+  expect(screen.getByText(t(locale, 'packageSale.verificationRequired'))).toBeTruthy();
+  expect(
+    screen.getByLabelText(t(locale, 'packageSale.pricePaid')).closest('fieldset'),
+  ).toHaveProperty('disabled', true);
+  view.unmount();
+  view.client.clear();
+  expect(saleCalls()).toHaveLength(1);
+}
+
 async function acceptedSaleStoresStatusOnlyRecord(locale: 'ar' | 'en') {
   const view = renderForm();
   await chooseCustomer(state);
@@ -285,6 +306,8 @@ describe.each(['ar', 'en'] as const)('package sale recovery window (%s)', (local
     discardRefusesARecordThatGainedSaleId(locale));
   it('keeps the attempt and warns when the discard removal fails', () =>
     failedRemovalKeepsTheAttempt(locale));
+  it('keeps the attempt and warns when the device cannot be read during the discard', () =>
+    unreadableDeviceKeepsTheAttempt(locale));
   it('stores a status-only record for an accepted sale and polls without reselling', () =>
     acceptedSaleStoresStatusOnlyRecord(locale));
   it('hides the unsaved-device warning once the sale reaches a confirmed completion', () =>

@@ -12,6 +12,7 @@ import {
   MoonIcon,
   ShieldCheckIcon,
   SignOutIcon,
+  StarIcon,
   StorefrontIcon,
   SunIcon,
   TranslateIcon,
@@ -86,3 +87,4 @@ export const Smartphone = withDefaults(DeviceMobileIcon);
 export const Sun = withDefaults(SunIcon);
 export const Moon = withDefaults(MoonIcon);
 export const Monitor = withDefaults(MonitorIcon);
+export const Star = withDefaults(StarIcon);

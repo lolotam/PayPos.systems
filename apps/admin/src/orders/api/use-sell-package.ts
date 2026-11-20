@@ -5,7 +5,9 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { apiClient } from '@/shared/api/client';
 import { packageSaleParams, packageSaleScopeKey } from './use-package-sale-context';
 import {
+  inspectSaleAttempt,
   readSaleAttempt,
+  reconcileSaleAttempt,
   reviseOwnedSaleAttempt,
   saleAttemptExpired,
   saveSaleAttempt,
@@ -63,7 +65,7 @@ function reserveSale(
   journal: SaleJournal,
 ): Promise<SaleReservation> {
   return withSaleAttemptLock(scopeKey, (): SaleReservation => {
-    const existing = readSaleAttempt(scopeKey) ?? journal.held.get(scopeKey) ?? null;
+    const existing = reconcileSaleAttempt(journal.held.get(scopeKey), readSaleAttempt(scopeKey));
     const attempt = existing
       ? touchSaleAttempt(existing, Date.now())
       : body && {
@@ -82,8 +84,11 @@ function reserveSale(
 }
 
 // Records the current observation of a held attempt on the device. The record written is
-// built from the fresh read inside the scope lock, never from the earlier snapshot, and a
-// stored record that moved ahead (a sale id, a later observation) replaces the held copy.
+// built from the fresh read inside the scope lock, never from the earlier snapshot. A refused
+// write keeps the touched copy in memory and raises the unsaved warning; a completed one adopts
+// the reconciled record only while the held entry is still the copy this observation made. A
+// completed write never clears the unsaved flag: it proves a record exists, not that it matches
+// the held copy, so only a device read, an accepted sale or a discard may clear it.
 function observeSaleAttempt(scopeKey: string, journal: SaleJournal): void {
   const entry = journal.held.get(scopeKey);
   if (entry === undefined) return;
@@ -93,15 +98,21 @@ function observeSaleAttempt(scopeKey: string, journal: SaleJournal): void {
   void reviseOwnedSaleAttempt(scopeKey, entry.key, (stored) =>
     stored.saleId !== undefined ? undefined : touchSaleAttempt(stored, Date.now()),
   ).then((result) => {
-    const stored = result.stored;
-    if (
-      stored !== null &&
-      stored.key === entry.key &&
-      (stored.saleId !== undefined || stored.seenAt !== touched.seenAt)
-    ) {
-      journal.held.set(scopeKey, stored);
-      journal.bump();
+    // A failed write for an entry that was discarded or replaced meanwhile must not warn: no
+    // held attempt is left for the warning to describe.
+    if (journal.held.get(scopeKey) !== touched) return;
+    if (!result.saved) {
+      journal.onPersist(scopeKey, false);
+      return;
     }
+    const adopted = reconcileSaleAttempt(touched, result.stored);
+    const unchanged =
+      adopted.key === touched.key &&
+      adopted.saleId === touched.saleId &&
+      adopted.seenAt === touched.seenAt;
+    if (unchanged) return;
+    journal.held.set(scopeKey, adopted);
+    journal.bump();
   });
 }
 
@@ -112,17 +123,19 @@ async function persistAcceptedSale(
   journal: SaleJournal,
 ): Promise<boolean> {
   if (readSaleAttempt(scopeKey) !== null || !journal.unsaved.has(scopeKey)) {
-    // The update resolves true when the record is merely unreadable, so only a device read that
-    // still holds this key proves the status-only record was saved.
+    // The update also resolves true when the device holds another attempt, so only a device read
+    // that still holds this key proves the status-only record was saved.
     return (
       (await updateOwnedSaleAttempt(scopeKey, attemptKey, settled)) &&
       readSaleAttempt(scopeKey)?.key === attemptKey
     );
   }
   // The reservation write was refused, so the accepted sale is written back after the device
-  // is re-read and still holds nothing for the scope.
+  // is re-read and still holds nothing for the scope. An unreadable device is not an empty one,
+  // so it is never written over.
   return withSaleAttemptLock(scopeKey, () => {
-    const stored = readSaleAttempt(scopeKey);
+    const { readable, attempt: stored } = inspectSaleAttempt(scopeKey);
+    if (!readable) return false;
     if (stored !== null) return stored.key === attemptKey;
     return saveSaleAttempt(scopeKey, settled);
   });
@@ -192,7 +205,7 @@ async function discardExpiredAttempt(
   const result = await reviseOwnedSaleAttempt(scopeKey, entry.key, (stored) =>
     stored.saleId === undefined && saleAttemptExpired(stored, Date.now()) ? null : undefined,
   );
-  if (!result.saved) {
+  if (!result.readable || !result.saved) {
     journal.onPersist(scopeKey, false);
     return;
   }
@@ -226,12 +239,21 @@ function releaseFailedSale(
   gate.reset();
 }
 
+// Returns false when the device holds no valid record. Otherwise the held entry becomes the
+// reconciled record, and the unsaved flag clears only when the device itself already reflects it.
+function adoptStoredAttempt(scopeKey: string, journal: SaleJournal): boolean {
+  const stored = readSaleAttempt(scopeKey);
+  if (stored === null) return false;
+  const adopted = reconcileSaleAttempt(journal.held.get(scopeKey), stored);
+  journal.held.set(scopeKey, adopted);
+  if (adopted === stored) journal.unsaved.delete(scopeKey);
+  return true;
+}
+
 function useRestoredSaleAttempt(scopeKey: string, journal: SaleJournal, onRestored: () => void) {
   const [restoredScope, setRestoredScope] = useState<string | null>(null);
   useEffect(() => {
-    const restored = readSaleAttempt(scopeKey);
-    if (restored) {
-      journal.held.set(scopeKey, restored);
+    if (adoptStoredAttempt(scopeKey, journal)) {
       observeSaleAttempt(scopeKey, journal);
       onRestored();
     } else if (!journal.unsaved.has(scopeKey)) {
@@ -243,10 +265,7 @@ function useRestoredSaleAttempt(scopeKey: string, journal: SaleJournal, onRestor
     setRestoredScope(scopeKey);
     const sync = (event: StorageEvent) => {
       if (event.key !== null && event.key !== `pospay:package-sale:${scopeKey}`) return;
-      const record = readSaleAttempt(scopeKey);
-      if (record) {
-        journal.held.set(scopeKey, record);
-        journal.unsaved.delete(scopeKey);
+      if (adoptStoredAttempt(scopeKey, journal)) {
         observeSaleAttempt(scopeKey, journal);
       } else if (!journal.unsaved.has(scopeKey)) {
         // A scope whose journal write failed keeps its in-memory attempt across other tabs' events.

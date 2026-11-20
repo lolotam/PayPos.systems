@@ -69,6 +69,8 @@ export type {
 } from './plan-types.ts';
 export { validateCommissionPlan } from './plan-validation.ts';
 export { selectCommissionPlanVersion } from './plan-version.ts';
+export { validateWireCommissionPlan } from './plan-wire.ts';
+export type { CommissionPlanWire } from './plan-wire.ts';
 export {
   parseSalaryMultiple,
   resolveCommissionPlan,

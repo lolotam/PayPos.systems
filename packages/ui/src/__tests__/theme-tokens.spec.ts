@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 // المستند، وVite بيحوّل المسار اللي شكله new URL('...', import.meta.url) لعنوان السيرفر.
 import { URL as NodeURL, fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { THEME_COLORS } from '../theme.js';
 
 // الملف بيتقرأ من مساره جوّه الحزمة، عشان يتقرا من غير ما نكون شايفين على مجلد التشغيل.
 const themePath = fileURLToPath(new NodeURL('../styles/theme.css', import.meta.url));
@@ -178,5 +179,49 @@ describe('لوحة ألوان الشارات', () => {
   it('الأسماء البديلة بتتحسب جوّه شجرة .dark زي ما بتتحسب على الـ html', () => {
     expect(subtreeValue('--open-shift')).toBe(resolve('--chart-5', dark, light));
     expect(subtreeValue('--status-foreground')).toBe(resolve('--background', dark, light));
+  });
+});
+
+// ألوان المتصفح (browserconfig وsite.webmanifest) بتنسخ قيمها يدويًا من theme.css،
+// فالتزامن مع THEME_COLORS مش مضمون بالبناء: الاختبار ده بيمسك أي انزلاق في تحويل oklch
+// أو أي تعديل لون اتعمل في ملف منهم من غير التاني.
+describe('browser theme colours', () => {
+  /** بيقرا ملف من المستودع بمسار نسبي من الجذر: الجذر أبعد بأربعة مستويات عن packages/ui/src/__tests__. */
+  function repoFile(relativePath: string): string {
+    return readFileSync(
+      fileURLToPath(new NodeURL(`../../../../${relativePath}`, import.meta.url)),
+      'utf8',
+    );
+  }
+
+  /** بيحوّل قناة RGB لخانة hex من رقمين، عشان النتيجة تطلع #RRGGBB دايمًا. */
+  function toHex([red, green, blue]: [number, number, number]): string {
+    const channel = (value: number) => value.toString(16).padStart(2, '0');
+    return `#${channel(red)}${channel(green)}${channel(blue)}`.toUpperCase();
+  }
+
+  it('background and browser tile colours stay in sync with THEME_COLORS', () => {
+    expect(toHex(toRgb(resolve('--background', light, light)))).toBe(
+      THEME_COLORS.light.toUpperCase(),
+    );
+    expect(toHex(toRgb(resolve('--background', dark, light)))).toBe(
+      THEME_COLORS.dark.toUpperCase(),
+    );
+
+    const tileColorOf = (xml: string) =>
+      /<TileColor>([^<]+)<\/TileColor>/.exec(xml)?.[1]?.trim().toUpperCase();
+    expect(tileColorOf(repoFile('apps/admin/public/browserconfig.xml'))).toBe(
+      THEME_COLORS.light.toUpperCase(),
+    );
+    expect(tileColorOf(repoFile('apps/pos/public/browserconfig.xml'))).toBe(
+      THEME_COLORS.light.toUpperCase(),
+    );
+
+    const manifest = JSON.parse(repoFile('apps/admin/public/site.webmanifest')) as {
+      theme_color?: string;
+      background_color?: string;
+    };
+    expect(manifest.theme_color?.toUpperCase()).toBe(THEME_COLORS.light.toUpperCase());
+    expect(manifest.background_color?.toUpperCase()).toBe(THEME_COLORS.light.toUpperCase());
   });
 });

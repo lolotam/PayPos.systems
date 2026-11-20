@@ -561,6 +561,7 @@ jobs:
       - name: Build synthetic admin and its dependency closure
         run: |
           pnpm --filter @pospay/domain build
+          pnpm --filter @pospay/commissions-engine build
           pnpm --filter @pospay/ids build
           pnpm --filter @pospay/observability build
           pnpm --filter @pospay/contracts build

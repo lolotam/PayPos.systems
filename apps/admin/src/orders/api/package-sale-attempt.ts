@@ -30,9 +30,8 @@ export function saveSaleAttempt(scope: string, attempt: HeldAttempt | null): boo
 const isShortKey = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= 64;
 
-export function readSaleAttempt(scope: string): HeldAttempt | null {
+function parseSaleAttempt(scope: string, raw: string | null): HeldAttempt | null {
   try {
-    const raw = localStorage.getItem(`pospay:package-sale:${scope}`);
     const attempt = raw ? (JSON.parse(raw) as HeldAttempt) : null;
     if (
       !attempt ||
@@ -52,27 +51,79 @@ export function readSaleAttempt(scope: string): HeldAttempt | null {
   }
 }
 
+// A device that cannot be read is not an empty device: only `readable: false` means the read
+// itself threw, while an absent or invalid record is a readable device holding nothing valid.
+export function inspectSaleAttempt(scope: string): {
+  readable: boolean;
+  attempt: HeldAttempt | null;
+} {
+  let raw: string | null;
+  try {
+    raw = localStorage.getItem(`pospay:package-sale:${scope}`);
+  } catch {
+    return { readable: false, attempt: null };
+  }
+  return { readable: true, attempt: parseSaleAttempt(scope, raw) };
+}
+
+export function readSaleAttempt(scope: string): HeldAttempt | null {
+  return inspectSaleAttempt(scope).attempt;
+}
+
+const lastObservation = (attempt: HeldAttempt): number => attempt.seenAt ?? attempt.createdAt;
+
+// The one rule for a record held in memory against the record on the device. A genuinely
+// different attempt on the device wins, a known sale id outranks a missing one, and for the
+// same unsettled attempt the later observation survives, so a refused storage write can never
+// allow an older stored copy to reopen an expired attempt. Getting the stored object itself
+// back tells the caller that the device already reflects the outcome.
+export function reconcileSaleAttempt(
+  held: HeldAttempt | undefined,
+  stored: HeldAttempt,
+): HeldAttempt;
+export function reconcileSaleAttempt(held: HeldAttempt, stored: HeldAttempt | null): HeldAttempt;
+export function reconcileSaleAttempt(
+  held: HeldAttempt | undefined,
+  stored: HeldAttempt | null,
+): HeldAttempt | null;
+export function reconcileSaleAttempt(
+  held: HeldAttempt | undefined,
+  stored: HeldAttempt | null,
+): HeldAttempt | null {
+  if (stored === null) return held ?? null;
+  if (held === undefined || held.key !== stored.key) return stored;
+  if (held.saleId !== undefined && stored.saleId === undefined) return held;
+  if (stored.saleId !== undefined) return stored;
+  if (lastObservation(stored) >= lastObservation(held)) return stored;
+  return { ...stored, seenAt: lastObservation(held) };
+}
+
 export function withSaleAttemptLock<T>(scope: string, reserve: () => T): Promise<T> {
   if (typeof navigator !== 'undefined' && typeof navigator.locks?.request === 'function')
     return navigator.locks.request(`pospay:package-sale:${scope}`, reserve);
   return Promise.resolve(reserve());
 }
 
+export type RevisedSaleAttempt = { stored: HeldAttempt | null; saved: boolean; readable: boolean };
+
 // Decides on the record freshly read inside the scope lock and writes only while the lock
 // still holds the given key, so an outcome that raced the lock can never overwrite a newer
 // record. `revise` returning `undefined` leaves the stored record in place, `null` removes it.
+// An unreadable device resolves `readable: false` and `saved: false` without calling `revise`.
 export function reviseOwnedSaleAttempt(
   scope: string,
   key: string,
   revise: (stored: HeldAttempt) => HeldAttempt | null | undefined,
-): Promise<{ stored: HeldAttempt | null; saved: boolean }> {
-  return withSaleAttemptLock(scope, () => {
-    const stored = readSaleAttempt(scope);
-    if (stored === null || stored.key !== key) return { stored, saved: true };
+): Promise<RevisedSaleAttempt> {
+  return withSaleAttemptLock(scope, (): RevisedSaleAttempt => {
+    const inspected = inspectSaleAttempt(scope);
+    if (!inspected.readable) return { stored: null, saved: false, readable: false };
+    const stored = inspected.attempt;
+    if (stored === null || stored.key !== key) return { stored, saved: true, readable: true };
     const revised = revise(stored);
-    if (revised === undefined) return { stored, saved: true };
+    if (revised === undefined) return { stored, saved: true, readable: true };
     const saved = saveSaleAttempt(scope, revised);
-    return { stored: saved ? revised : stored, saved };
+    return { stored: saved ? revised : stored, saved, readable: true };
   });
 }
 
@@ -89,7 +140,7 @@ export function statusOnlyAttempt(attempt: HeldAttempt, saleId: string): HeldAtt
 }
 
 export function saleAttemptExpired(attempt: HeldAttempt, now: number): boolean {
-  const last = attempt.seenAt ?? attempt.createdAt;
+  const last = lastObservation(attempt);
   return (
     now < last - PACKAGE_SALE_CLOCK_SKEW_MS ||
     Math.max(now, last) - attempt.createdAt >= PACKAGE_SALE_REPLAY_WINDOW_MS
@@ -98,7 +149,7 @@ export function saleAttemptExpired(attempt: HeldAttempt, now: number): boolean {
 
 export function saleAttemptExpiresIn(attempt: HeldAttempt, now: number): number {
   if (saleAttemptExpired(attempt, now)) return 0;
-  const last = attempt.seenAt ?? attempt.createdAt;
+  const last = lastObservation(attempt);
   return Math.max(0, attempt.createdAt + PACKAGE_SALE_REPLAY_WINDOW_MS - Math.max(now, last));
 }
 
@@ -108,7 +159,7 @@ export function saleAttemptExpiresIn(attempt: HeldAttempt, now: number): number 
 // minute are absorbed to keep storage writes rare. Status-only records are never touched.
 export function touchSaleAttempt(attempt: HeldAttempt, now: number): HeldAttempt {
   if (attempt.saleId !== undefined) return attempt;
-  const last = attempt.seenAt ?? attempt.createdAt;
+  const last = lastObservation(attempt);
   if (last - attempt.createdAt >= PACKAGE_SALE_REPLAY_WINDOW_MS) return attempt;
   if (saleAttemptExpired(attempt, now))
     return { ...attempt, seenAt: attempt.createdAt + PACKAGE_SALE_REPLAY_WINDOW_MS };

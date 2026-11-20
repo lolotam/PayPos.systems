@@ -1,5 +1,7 @@
-// شاشة منشئ الخطط في الأدمن تشغّل نفس مُتحقّق الخطة الذي تشغّله الـ API (D-17, CM-06).
+// شاشة منشئ الخطط في الأدمن تشغّل نفس مُتحقّق الخطة الذي تشغّله الـ API، وجسم الخطة بصيغة العقد بيمرّ
+// عبر validateWireCommissionPlan في الاثنين (D-17, CM-06).
 export { validateCommissionPlan } from './plan-validation.ts';
+export { validateWireCommissionPlan, type CommissionPlanWire } from './plan-wire.ts';
 export type { CommissionValidationError, CommissionValidationResult } from './errors.ts';
 export type {
   CommissionComponent,
