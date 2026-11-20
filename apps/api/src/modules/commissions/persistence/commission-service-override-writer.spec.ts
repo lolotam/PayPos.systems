@@ -89,6 +89,7 @@ function engineInput(
         employeeId: fixture.employee,
         effectiveFrom: '2026-10-01',
         wholePeriod: false,
+        repairPeriod: null,
         createdAt: 1n,
         version: 1n,
         base: { enabled: true, calc: { kind: 'PCT', value: 2000n } },

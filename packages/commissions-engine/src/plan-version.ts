@@ -3,7 +3,8 @@ import type { CommissionPlanVersion } from './plan-types.ts';
 /**
  * يختار إصدار الموظفة بتاريخ النشاط؛ wholePeriod يرجع لبداية شهر تاريخ سريانه فقط.
  * الأحدث إنشاءً ثم رقم الإصدار يفوز حتى لو كان تاريخ سريانه أقدم.
- * إصدار الإصلاح (repairPeriod) يُختار في شهره فقط، ولما مايكونش فيه إصدار عادي يغطي التاريخ،
+ * إصدار الإصلاح (repairPeriod) يُختار في شهره فقط دون اختبار تاريخ سريانه أو wholePeriod،
+ * ولما مايكونش فيه إصدار عادي يغطي التاريخ بيغطي أي يوم خطته ناقصة في شهره،
  * فالسطور اللي ليها خطة عادية تفضل عليها ومايلمسهاش الإصلاح (D-12, CS-Q11).
  *
  * @param employeeId الموظفة صاحبة الخطة
@@ -16,16 +17,16 @@ export function selectCommissionPlanVersion(
   businessDate: string,
   versions: readonly CommissionPlanVersion[],
 ): CommissionPlanVersion | null {
-  const ordinary = bestVersion(
-    employeeId,
-    businessDate,
-    versions,
-    (candidate) => candidate.repairPeriod === null,
-  );
+  const ordinary = bestVersion(employeeId, versions, (candidate) => {
+    if (candidate.repairPeriod !== null) return false;
+    return (
+      candidate.effectiveFrom <= businessDate ||
+      (candidate.wholePeriod && candidate.effectiveFrom.slice(0, 7) === businessDate.slice(0, 7))
+    );
+  });
   if (ordinary !== null) return ordinary;
   return bestVersion(
     employeeId,
-    businessDate,
     versions,
     (candidate) => candidate.repairPeriod === businessDate.slice(0, 7),
   );
@@ -33,18 +34,13 @@ export function selectCommissionPlanVersion(
 
 function bestVersion(
   employeeId: string,
-  businessDate: string,
   versions: readonly CommissionPlanVersion[],
-  eligible: (candidate: CommissionPlanVersion) => boolean,
+  applies: (candidate: CommissionPlanVersion) => boolean,
 ): CommissionPlanVersion | null {
   let selected: CommissionPlanVersion | null = null;
   for (const candidate of versions) {
     if (candidate.employeeId !== employeeId) continue;
-    if (!eligible(candidate)) continue;
-    const applies =
-      candidate.effectiveFrom <= businessDate ||
-      (candidate.wholePeriod && candidate.effectiveFrom.slice(0, 7) === businessDate.slice(0, 7));
-    if (!applies) continue;
+    if (!applies(candidate)) continue;
     if (
       selected === null ||
       candidate.createdAt > selected.createdAt ||

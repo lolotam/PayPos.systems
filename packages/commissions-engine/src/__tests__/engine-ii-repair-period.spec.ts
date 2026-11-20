@@ -31,7 +31,12 @@ it('E3 a date in the month after the repair month ignores the repair version', (
 });
 
 it('E4 a date in the month before the repair month ignores the repair version', () => {
-  expect(selectCommissionPlanVersion('employee-a', '2026-08-31', [repair()])).toBeNull();
+  // سريان الإصلاح قبل تاريخ أغسطس نفسه، فشرط الشهر هو الوحيد اللي يرفضه هنا.
+  expect(
+    selectCommissionPlanVersion('employee-a', '2026-08-31', [
+      repair({ effectiveFrom: '2026-08-01' }),
+    ]),
+  ).toBeNull();
 });
 
 it('E5 a repair version dated earlier never wins the ordinary pass', () => {
@@ -46,7 +51,7 @@ it('E5 a repair version dated earlier never wins the ordinary pass', () => {
 it('E6 two repair versions of the same month tie-break by createdAt then version', () => {
   const older = repair({ createdAt: 1n, version: 1n });
   const newer = repair({ createdAt: 3n, version: 2n });
-  expect(selectCommissionPlanVersion('employee-a', '2026-09-12', [older, newer])).toBe(newer);
+  expect(selectCommissionPlanVersion('employee-a', '2026-09-12', [newer, older])).toBe(newer);
   const tiedLower = repair({ createdAt: 5n, version: 1n });
   const tiedHigher = repair({ createdAt: 5n, version: 2n });
   expect(selectCommissionPlanVersion('employee-a', '2026-09-12', [tiedHigher, tiedLower])).toBe(
@@ -63,4 +68,12 @@ it('E7 a whole-period ordinary version of the month covers every day, so the rep
 it('E8 a repair version of another employee is ignored', () => {
   const otherEmployee = repair({ employeeId: 'employee-b' });
   expect(selectCommissionPlanVersion('employee-a', '2026-09-10', [otherEmployee])).toBeNull();
+});
+
+it('E9 a repair version covers a plan-less day earlier in its month than its own effectiveFrom', () => {
+  // الربط بين سريان الإصلاح وأول شهره شرط قاعدة بيانات بينزل في 55-2b؛ في المحرك شهر الإصلاح هو الفيصل.
+  const midMonthRepair = repair({ effectiveFrom: '2026-09-15' });
+  expect(selectCommissionPlanVersion('employee-a', '2026-09-10', [midMonthRepair])).toBe(
+    midMonthRepair,
+  );
 });
