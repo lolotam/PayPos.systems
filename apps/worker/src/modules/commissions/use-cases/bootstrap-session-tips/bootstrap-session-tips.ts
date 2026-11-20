@@ -11,7 +11,7 @@ const PAGE_SIZE = 100;
 const UNDELIVERED_LIMIT = 200;
 const CONTINUABLE_CODES = new Set([
   'COMMISSION_PERIOD_CLOSED',
-  // تغيّر الشهر بين القراءتين يكتب شيئاً ويرفض نفسه، فالزيارة غير مسلّمة معروفة والتشغيل يكمل بعدها.
+  // تغيّر الشهر بين القراءتين بيرفض الزيارة قبل أي كتابة، فهي غير مسلّمة معروفة والتشغيل يكمل بعدها.
   'COMMISSION_PERIOD_ROLLED_OVER',
   'COMMISSION_BUSINESS_MISSING',
   'COMMISSION_TIP_SALARY_INPUT_INVALID',
