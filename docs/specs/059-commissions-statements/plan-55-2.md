@@ -5,7 +5,7 @@
 > Plan branch: `docs/059-55-2-plan`. No PR is opened by the planner.
 > Sources: `spec.md` FR-039…FR-049, D-1, D-5, D-12, D-13, D-16, CM-22, CM-49, CM-51…CM-54, CM-52b, CM-52c, CM-53b,
 > CM-R07, the §6 schema row of `commission_blocked_corrections`, the §7 rows 51-1, 52-1, 53-2 and 55-2;
-> `owner-questions.ar.md` (CS-Q1, CS-Q11, CS-Q19, CS-Q27, CS-Q38, CS-Q45, and the new CS-Q46 and CS-Q47);
+> `owner-questions.ar.md` (CS-Q1, CS-Q11, CS-Q19, CS-Q27, CS-Q38, CS-Q45, and the new CS-Q46, CS-Q47 and CS-Q48);
 > `plan-55-1b.md` (Q2, R4, R5, R7) and `plan-55-1c.md` (§4, D10, R2, R4); `docs/module-map.md`; ADR-0054; the code under
 > `apps/worker/src/modules/commissions`, `apps/api/src/modules/commissions` and `packages/commissions-engine` on the base
 > commit.
@@ -17,7 +17,7 @@ event is consumed, one **blocked correction** is recorded for that employee and 
 the plan permission, and the block is resolved later by a dated salary (`NO_SALARY`) or by a **period repair**
 (`NO_PLAN`), which posts the correction normally.
 
-Six sub-PRs. Five can start now; the last one waits on two questions.
+Six sub-PRs. Five can start now (55-2e cannot merge before CS-Q48); the last one waits on two questions.
 
 | Sub-PR | Content | Production lines | Migration | Blocked by |
 | --- | --- | --- | --- | --- |
@@ -25,7 +25,7 @@ Six sub-PRs. Five can start now; the last one waits on two questions.
 | **55-2b** | Table `commission_blocked_corrections`, RLS, grants, trigger, CM-R07 | 100 | **yes** | nothing |
 | **55-2c** | The consumer records, updates and resolves blocks (FR-046; CM-51, CM-53, CM-53b stored target) | 170 | no | 55-2a, 55-2b |
 | **55-2d** | The bell (FR-049 notice: contract, template, registrations, module-map event row; CM-54) | 210 | no | 55-2c |
-| **55-2e** | The list `GET …/commission-blocked-corrections` (FR-049, `queries/`) | 140 | no | 55-2b |
+| **55-2e** | The list `GET …/commission-blocked-corrections` (FR-049, `queries/`) | 140 | no | 55-2b; its guard waits on **CS-Q48** (build may start, merge may not) |
 | **55-2f** | The repair use case and HTTP (FR-047; CM-52, CM-52b, CM-52c) | 220, plus a move-only PR | no | 55-2c, **CS-Q46, CS-Q47** |
 
 **Total: about 890 production lines, against the row's 400–550.** The overrun is stated, not hidden (as R7 of
@@ -52,9 +52,9 @@ the list (55-2e).
 | Q2 | The engine type `CommissionPlanVersion` gains a **required** field `repairPeriod: string \| null`. A repair row is stored with `effective_from` = the first day of its `repair_period` and `whole_period = false` | Required, so the compiler lists every construction site and no reader can forget the column (a forgotten column would make a repair version apply to every later month). The first day keeps `assembleCommissionPeriodInput`'s filter `effectiveFrom <= periodLastDay` true for its own month |
 | Q3 | The generation is still bumped **before** the recompute (FR-039's order). A blocked step leaves a generation with no rows (as R4 of `plan-55-1c.md`). `resolved_generation` stores the generation of the step that succeeded and posted | No reorder of merged money code; the stored value points at the exact rows the resolution posted |
 | Q4 | Block reads and writes are four new methods on the existing `CommissionCorrectionScope` | Same transaction, same `tx`, one scope per event; no new constructor argument in the three projectors |
-| Q5 | The list of 55-2e is guarded by `manage:commission-plans:business` | Derived, not guessed: CS-Q19 sends the bell to the holders of that permission «اللي يقدر يصلّحه هو اللي يعرف», and CS-Q1 gives them the repair; the people who are told must be able to open the list. A statement reader sees blocks on the statement view (FR-027, 51-1). **Flagged to the manager:** if this reads as a «who sees what» question, publish it before 55-2e merges |
-| Q6 | 55-2 ships **no** unused FR-048 reader function. It ships the partial index and a database test that runs the exact FR-048 predicate with `EXPLAIN` | A function with no caller is dead code until 52-1; the first caller writes it against a proved index |
-| Q7 | Bell: template key `commission_correction_blocked`, one safe parameter `period` (the source month, `YYYY-MM`); the business travels as the event's `business_id` scope. No amount, no employee name, no customer data (FR-049). When the business has **no** holder of the permission, no event is appended and the block is still recorded | The contract requires at least one recipient; the block must not depend on who holds a permission |
+| Q5 | Who may open the list of 55-2e is **not** decided here: it is a «who sees what» rule, so it is the owner question **CS-Q48**. The recommended option is `manage:commission-plans:business` | The spec's permission table gives that code the plan versions, the overrides and the repair, and says nothing about this list. CS-Q19 sends the bell to its holders, which is why it is recommended, but a recommendation is not an answer |
+| Q6 | 55-2 ships **no** unused FR-048 reader function. It ships the partial index and a database test that runs the exact FR-048 predicate with `EXPLAIN` | A function with no caller is dead code until 52-1; the first caller writes it against a proved index. This replaces the «reader» named in the planner's stage-1 note |
+| Q7 | Bell: template key `commission_correction_blocked`, one safe parameter `period` (the source month, `YYYY-MM`); the business travels as the event's `business_id` scope. No amount, no employee name, no customer data (FR-049). When the business has **no** holder of the permission, no event is appended and the block is still recorded. The ar/en sentence in §6.1 is the planner's draft; the manager may reword it before dispatch | The contract requires at least one recipient; the block must not depend on who holds a permission |
 | Q8 | 55-2c may merge before 55-2d | No approval route exists (53-2 is not merged), so no tenant has a closed month and no block can be recorded before the bell ships. Both merge before 53-2 by the §7 dependency |
 
 Provisional, decided together with CS-Q46 (55-2f only): the correction rows a repair posts carry the block's
@@ -115,8 +115,11 @@ closed month is now consumed and recorded as a blocked correction.
    (`packages/commissions-engine/src/__tests__/engine-ii-fixtures.ts`, `period-input-assembly.spec.ts`,
    `engine-ii-versions-salary.spec.ts`, the worker's `commission-month-recompute.spec.ts`, `commission-correction-codec.spec.ts`,
    `project-service-lines-corrections.spec.ts`, `project-tip-salary-corrections.fakes.ts`), each with `repairPeriod: null`.
-   **If a production file outside the engine and the two worker files above fails to compile, stop and report**; the
-   admin builder and the API writer use the contract type, not the engine type, and must not change here.
+   **If a production file outside the engine and the two worker files above fails to compile, stop and report.** Checked
+   by grep on the base commit: `apps/admin/src/commissions` imports only `@pospay/commissions-engine/validation`
+   (`CommissionPlanWire`, the validator and its result types) and takes `CommissionPlanVersion` from `@pospay/contracts`;
+   `apps/api` imports only `validateWireCommissionPlan` from the engine. Neither constructs the engine type, so neither
+   changes here.
 
 `assembleCommissionPeriodInput` does not change.
 
@@ -191,7 +194,8 @@ The table is new and empty, so plain `CREATE INDEX` inside the migration is corr
   column other than `code`, `resolved_at`, `resolved_generation`; refuses `resolved_at` going back to null. `code` may move
   `NO_PLAN` ↔ `NO_SALARY` only while the row is open (CM-52b). The function runs with the invoker's rights
   (no `SECURITY DEFINER`).
-- Also in this migration: `commission_plan_versions` gains
+- Also in this migration (and in `packages/db/schema/commissions-plan-versions.ts`, so the Drizzle snapshot does not
+  drift): `commission_plan_versions` gains
   `CHECK (repair_period IS NULL OR effective_from = to_date(repair_period || '-01', 'YYYY-MM-DD'))` (Q2), added
   `NOT VALID` and validated in a second statement, following the 0224/0225 precedent. The table holds no repair row today
   (the only writer stores null), so validation is instant. If the database reviewer prefers one statement, follow the
@@ -340,7 +344,8 @@ Every test name starts with its id. Money is asserted as exact three-decimal str
 - U6 salary, two closed months: one blocked, one posts; `upsertSalary` was called; exactly one `lockPeriods` call.
 - U7 a closed month with no DRAFT target still throws `CommissionPeriodClosedError` before any write (Q1).
 
-**Oracle, pure, written first** — `use-cases/__tests__/commission-month-recompute.spec.ts`: O3 of §7.3.
+**Oracle, pure, written first** — `use-cases/__tests__/commission-month-recompute.spec.ts`: O3 of §7.3, and O4a of §7.4
+(the engine's error order, which K4 depends on).
 
 **Integration on a private lane** (real Postgres, one cloned database per spec file, ADR-0006; closed months seeded
 through the storage layer as FR-044 says) — new `__tests__/commission-blocked-corrections-db.spec.ts`:
@@ -359,7 +364,8 @@ through the storage layer as FR-044 says) — new `__tests__/commission-blocked-
 - K5 (**CM-53b**, stored target) October is REVIEWED when the September recompute fails → the row stores
   `target_period = 2026-11` and November's statement id. October is then set back to DRAFT through the storage layer (no
   return route exists yet). The resolving salary event posts into **October**; the row's stored target is still
-  `2026-11`. Variant K5b: October is seeded APPROVED before the resolution → the correction goes to **November**.
+  `2026-11`. Variant K5b: October is seeded APPROVED before the resolution → the correction goes to **November**. In K5b the salary
+  event's range also covers October, so a step runs for October too; she has no October source, so it posts no row.
 - K6 tips: a `SessionTipsChanged` in the blocked month writes the tip rows, posts no `TIP_*` row and keeps the block; the
   resolving event then posts the tip row and the line row together.
 - K7 a salary event over August and September, where September is `NO_PLAN`: August posts its correction, September
@@ -407,12 +413,17 @@ every layer that knows templates. The list below is the registration surface of 
    - new `domain/commission-block-notice.ts`: `groupCommissionBlockNoticeRecipients(userIds, size)` — de-duplicates,
      sorts ascending, cuts into consecutive groups; Arabic JSDoc.
    - `ports/commission-correction.port.ts` (or a new `ports/commission-block-notice.port.ts` if the file would pass 300
-     lines): `CommissionBlockNotices { recipients(businessId, at): Promise<readonly string[]>; append(input): Promise<void> }`.
+     lines): `CommissionBlockNotices { recipients(companyId, businessId, at): Promise<readonly string[]>; append(input): Promise<void> }`.
+     `businessPermissionHolders(tx, companyId, businessId, permission, at)` needs the company id, and `bind(tx)` does not
+     have it, so `PostCommissionCorrectionsInput` gains `companyId` and the three projectors pass `input.companyId`.
    - new `persistence/commission-block-notice.outbox.ts`: `appendOutboxEvent(tx, ids.newId(), { aggregateType:
      'commission_blocked_correction', aggregateId: blockId, eventType: 'CommissionCorrectionBlockedNoticeRequested',
      payload: schema.parse(…) })`.
    - `use-cases/post-commission-corrections/post-commission-corrections.ts`: after `insertBlock` (step 5a only), read the
-     recipients, group them, append one event per group with its `group_index`. `PostCommissionCorrectionsInput` gains
+     recipients, group them, append one event per group with its `group_index`. Each recipient is built exactly as
+     `request-discount-self-approval-notice.ts` builds one: `{ channel: 'IN_APP', user_id, locale: 'ar', template_key:
+     'commission_correction_blocked', template_revision: 1, safe_parameters: [{ name: 'period', type: 'text', value }] }`
+     (the `inAppBase` fields of `in-app-notifications.ts`). `PostCommissionCorrectionsInput` gains
      `notices: CommissionBlockNotices`; the three projectors pass it through (one constructor argument each).
    - `commissions.module.ts`: `CommissionInputsConsumerDependencies` gains `permissionHolders` (a reader function);
      `bind` builds the notices adapter from `tx`, `ids`, `clock` and that reader.
@@ -508,7 +519,10 @@ becomes `NO_PLAN`. The salary 500.000 from 1 September is then set: still `NO_PL
 | Lb | R: 200.000 × 5 % = **10.000**; accumulator 0 → 200.000 |
 | La | V2, threshold 500.000: 200.000 → 900.000: (900.000 − 500.000) × 10 % = **40.000** |
 
-Corrections: `line:<Lb>` +10.000 and `line:<La>` +40.000 (neither was frozen). La's 40.000 depends on CS-Q47 in the same
+**O4a (55-2c, no repair involved):** with V2 from 15 September, no salary and only La → `NO_SALARY`; with La and Lb and
+no salary → `NO_PLAN`; with La, Lb and the salary 500.000 → `NO_PLAN`. This is the code order K4 asserts.
+
+Corrections after the repair: `line:<Lb>` +10.000 and `line:<La>` +40.000 (neither was frozen). La's 40.000 depends on CS-Q47 in the same
 way as O2 (20.000 under its second option).
 
 ## 8. 55-2e — the list (FR-049)
@@ -525,8 +539,9 @@ way as O2 (20.000 under its second option).
    ordered `created_at DESC, id DESC`, keyset cursor, projected straight into the DTO shape, served by
    `(company_id, business_id, created_at, id)`. It imports neither `domain/` nor `use-cases/`.
 3. **HTTP:** new `http/commission-blocked-corrections.controller.ts`,
-   `GET /v1/businesses/:businessId/commission-blocked-corrections`, `@Require('manage:commission-plans:business',
-   { business: 'businessId' })`, `@RequiresFeature('commissions')`, Zod pipes, one `withTenant(companyId, tx => …,
+   `GET /v1/businesses/:businessId/commission-blocked-corrections`, guarded by the permission **CS-Q48** names (the
+   recommended option is `@Require('manage:commission-plans:business', { business: 'businessId' })`; the route may be
+   built with it and marked `TODO(spec)`, and must not merge before the answer), `@RequiresFeature('commissions')`, Zod pipes, one `withTenant(companyId, tx => …,
    { userId })` transaction for the unlocked access recheck (`readCommissionPlanListAccess`, as the two existing lists
    do) and the query — one transaction, no nested one (guard connection budget, PP-7.2).
 4. **Module:** register the controller in `commissions.module.ts`. `docs/module-map.md`: no change (no new arrow).
@@ -546,15 +561,17 @@ the posted correction. The correction step — pure arithmetic (`domain/commissi
 `commission-source-ref.ts`, `use-cases/commission-month-recompute.ts`), the orchestration
 (`post-commission-corrections.ts`), the port and about 660 lines of SQL (`persistence/commission-correction-*.ts`) —
 lives in `apps/worker/src/modules/commissions`. `apps/api` cannot import `apps/worker`. The spec, ADR-0054 and
-`plan-55-1b.md` are silent. Two later rows hit the same wall: 51-1's statement builder must read the same month
-projection in the API, and 53-2's carry writer must use the D-13 target selector, which is a worker `domain/` file today.
+`plan-55-1b.md` are silent on this **write** step. (The API's reads are planned separately: D-25 and ADR-0054 §5 give
+50-5 and 51-1 their own read-only adapters, so the estimate and the statement view do not depend on this answer.) One
+later row hits the same wall: 53-2's carry writer must choose its target «exactly as a correction's» (D-22), and the
+D-13 selector is a worker `domain/` file today.
 
 | | Option A (recommended) — a shared home | Option B — the repair goes through the outbox |
 | --- | --- | --- |
 | What | A move-only PR (55-2f-0) puts the correction step where both apps' `commissions` modules can import it; the API runs the repair synchronously | The API stores the repair version, the audit row and a new event; a worker consumer recomputes and posts later |
 | Spec | FR-047 unchanged | FR-047 changes: no «same transaction»; CM-52b's code flip and CM-52's resolution happen after the request returns; a second repair can be accepted before the first is applied |
 | Cost | CLAUDE.md §2.1 changes (a new package, or `packages/commissions-engine` gains a second, non-pure part), an ADR-0054 addendum, the module-map `packages_restricted` entry, the ESLint boundary blocks; about 1 500 lines moved with their tests, no logic change | A new event type and consumer, a module-map event row; smaller now |
-| Later rows | Unblocks 51-1 (projection readers) and 53-2 (target selector and carry writer) with the same move | Unblocks neither: both still need the shared code |
+| Later rows | Gives 53-2 the D-13 target selector with the same move; 50-5 and 51-1 may reuse the shared month reader instead of writing a second copy, but do not need it | Gives 53-2 nothing: it still needs the selector moved or copied. 50-5 and 51-1 are unaffected |
 
 ### 9.2 What does not depend on the answer
 
@@ -613,7 +630,9 @@ projection in the API, and 53-2's carry writer must use the D-13 target selector
 
 - **R1 — a repair version read as an ordinary one.** Any reader that builds an engine `CommissionPlanVersion` without
   `repair_period` would apply the repair plan to later months. Q2 makes the field required; today the worker month reader
-  is the only such reader. 51-1's readers must select it too: noted in the spec row.
+  is the only such reader. 51-1's readers must select it too: noted in the spec row. Before 55-2f stores the first repair
+  row, check that no «latest version» logic counts it as the employee's current plan (the admin plan screens of 48-3
+  and the plan-version list).
 - **R2 — the projection must be complete** (R5 of `plan-55-1b.md`). A block recorded from an incomplete projection is a
   false alarm, and a resolution from one posts a wrong correction. The operator gate before a tenant's first approval is
   unchanged.
@@ -632,7 +651,8 @@ projection in the API, and 53-2's carry writer must use the D-13 target selector
 | --- | --- | --- | --- | --- |
 | CS-Q46 | technical — Waleed only | «إصلاح الشهر المقفول بيتطلب من الـ API، وخطوة التصحيح عايشة في الـ worker: نشارك الكود ولا نخلّي الإصلاح يتنفّذ بعدين؟» | **PENDING** (`owner-questions.ar.md` §54) | 55-2f (and its move-only PR). Not 55-2a…55-2e |
 | CS-Q47 | feature — decisions page, both owners; Abu Salem's pick binds | «خطة الإصلاح وسطور الشرايح: الجلسة المتأخرة تحرّك شريحة السطور اللي اتحسبت قبل كده؟» | **PENDING** (`owner-questions.ar.md` §55) | 55-2f only (O2, O4). The engine rule of 55-2a is the same under both options |
+| CS-Q48 | feature — decisions page, both owners; Abu Salem's pick binds | «قايمة «التصحيحات الموقوفة»: مين يقدر يفتحها؟» | **PENDING** (`owner-questions.ar.md` §56) | the merge of 55-2e (its guard). Its build may start |
 | CS-Q45 | technical — Waleed only | the tips bootstrap meeting a closed month | PENDING since 55-1c | nothing here |
 
-No business rule was guessed. For the manager's attention, not owner questions: Q5 (who opens the list) and the
-provisional `event_id` of a repair's corrections (§1).
+No business rule was guessed. For the manager's attention, not owner questions: the provisional `event_id` of a
+repair's corrections (§1) and the bell's draft copy (Q7).
