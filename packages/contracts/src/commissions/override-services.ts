@@ -4,6 +4,7 @@ import { service, serviceCommissionRuleView } from '../catalog/service.js';
 import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
+import type { CommissionServiceOverrideRuleView } from './service-overrides.js';
 import { commissionPlanDate } from './plan-versions.js';
 
 /**
@@ -64,6 +65,23 @@ export const commissionOverrideServiceSchemas = [
 ];
 
 export type CommissionOverrideServiceListQuery = z.infer<typeof commissionOverrideServiceListQuery>;
+
+/** صف خدمة شاشة التجاوزات كما يقرأه قارئ الكتالوج (CS-Q49: الاسم والقاعدة والسعر، وCS-Q50 الإغلاق). */
+export type CommissionOverrideServiceRow = {
+  readonly id: string;
+  readonly name_ar: string | null;
+  readonly name_en: string;
+  readonly price: string;
+  readonly closed_at: string | null;
+  readonly rule: CommissionServiceOverrideRuleView;
+};
+
+/** صفحة خدمات شاشة التجاوزات: العناصر ومفتاح آخر خدمة للصفحة الجاية (null في الأخيرة). */
+export type CommissionOverrideServicePage = {
+  readonly items: readonly CommissionOverrideServiceRow[];
+  readonly next_cursor: string | null;
+};
+
 export type CommissionOverrideServiceCurrentOverride = z.infer<
   typeof commissionOverrideServiceCurrentOverride
 >;

@@ -1,6 +1,7 @@
 import {
   commissionServiceOverrideList,
   commissionServiceOverrideListItem,
+  type CommissionOverrideServicePage,
   type CommissionServiceOverrideList,
   type CommissionServiceOverrideListItem,
   type CommissionServiceOverrideListQuery,
@@ -67,22 +68,6 @@ export interface CommissionServiceOverrideListReads {
     businessId: string,
     query: { readonly cursor?: string | undefined; readonly limit: number },
   ): Promise<CommissionOverrideServicePage>;
-}
-
-/** صف خدمة شاشة التجاوزات كما يرجعه قارئ الكتالوج المربوط في الجذر (CS-Q49: الاسم والقاعدة والسعر). */
-export interface CommissionOverrideServiceRow {
-  readonly id: string;
-  readonly name_ar: string | null;
-  readonly name_en: string;
-  readonly price: string;
-  readonly closed_at: string | null;
-  readonly rule: CommissionServiceOverrideRuleView;
-}
-
-/** صفحة خدمات شاشة التجاوزات على معاملة القراءة نفسها، بمفتاح معرّف آخر خدمة للصفحة الجاية. */
-export interface CommissionOverrideServicePage {
-  readonly items: readonly CommissionOverrideServiceRow[];
-  readonly next_cursor: string | null;
 }
 
 export type CommissionServiceOverrideListReadsFactory = (

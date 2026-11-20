@@ -3,13 +3,13 @@ import {
   commissionOverrideServiceList,
   type CommissionOverrideServiceList,
   type CommissionOverrideServiceListQuery,
+  type CommissionOverrideServicePage,
 } from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 import {
   CommissionServiceOverrideReadError,
-  type CommissionOverrideServicePage,
   type CommissionServiceOverrideListReads,
 } from './commission-service-overrides.query.ts';
 

@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 
 import { commissionOverrideServicesStatement } from '../../../../test/harness.ts';
-import { closeCommissionFixture } from './commission-plan-versions.fixture.ts';
+import { closeCommissionFixture, ids } from './commission-plan-versions.fixture.ts';
 import {
   commissionServiceOverridesFixture,
   type CommissionServiceOverrideFixture,
@@ -27,6 +27,8 @@ beforeAll(async () => {
     effective_from,created_at,created_by)
     SELECT ${f.company},gen_random_uuid(),${f.business},${f.employee},${f.service},
       'ZERO',NULL,NULL,CURRENT_DATE,now(),${f.userId} FROM generate_series(1, 200)`;
+  await f.h.owner`INSERT INTO services(company_id,id,business_id,name_en,price,commission_rule_kind)
+    VALUES (${f.company},${ids.newId()},${f.otherBusiness},'Explain second business service',10.000,'ZERO')`;
   await f.h.owner`ANALYZE services`;
   await f.h.owner`ANALYZE commission_service_overrides`;
 });

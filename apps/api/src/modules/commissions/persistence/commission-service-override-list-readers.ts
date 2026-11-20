@@ -1,4 +1,4 @@
-import type { CommissionServiceOverrideRuleView } from '@pospay/contracts';
+import type { CommissionOverrideServicePage } from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 
 /**
@@ -25,17 +25,7 @@ export interface CommissionServiceOverrideListReadProviders {
     companyId: string,
     businessId: string,
     query: { readonly cursor?: string | undefined; readonly limit: number },
-  ) => Promise<{
-    readonly items: readonly {
-      readonly id: string;
-      readonly name_ar: string | null;
-      readonly name_en: string;
-      readonly price: string;
-      readonly closed_at: string | null;
-      readonly rule: CommissionServiceOverrideRuleView;
-    }[];
-    readonly next_cursor: string | null;
-  }>;
+  ) => Promise<CommissionOverrideServicePage>;
 }
 
 /**

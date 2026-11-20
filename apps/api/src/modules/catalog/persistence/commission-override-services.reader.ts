@@ -1,17 +1,9 @@
-import type { CommissionServiceOverrideRuleView } from '@pospay/contracts';
+import type { CommissionOverrideServiceRow } from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
-type Row = {
-  readonly id: string;
-  readonly name_en: string;
-  readonly name_ar: string | null;
-  readonly price: string;
-  readonly closed_at: string | null;
-  readonly rule: CommissionServiceOverrideRuleView;
-};
+type Row = CommissionOverrideServiceRow;
 
-/** جملة صفحة خدمات شاشة التجاوزات: نفس مفتاح قائمة خيارات الخدمات، مع الإغلاق وقاعدة الكتالوج. */
 export function commissionOverrideServicesStatement(
   companyId: string,
   businessId: string,
@@ -28,10 +20,6 @@ export function commissionOverrideServicesStatement(
     ORDER BY id LIMIT ${query.limit + 1}`;
 }
 
-/**
- * يقرأ صفحة خدمات النشاط لشاشة العمولة الخاصة (CS-Q49: الاسم والقاعدة والسعر، وCS-Q50 الإغلاق)
- * بترتيب معرّف الخدمة، بصفحات مفتاحية على نفس معاملة القارئ.
- */
 export async function readCommissionOverrideServices(
   tx: Tx,
   companyId: string,
@@ -42,15 +30,5 @@ export async function readCommissionOverrideServices(
     commissionOverrideServicesStatement(companyId, businessId, query),
   );
   const items = rows.slice(0, query.limit);
-  return {
-    items: items.map(({ id, name_ar, name_en, price, closed_at, rule }) => ({
-      id,
-      name_ar,
-      name_en,
-      price,
-      closed_at,
-      rule,
-    })),
-    next_cursor: rows.length > query.limit ? (items.at(-1)?.id ?? null) : null,
-  };
+  return { items, next_cursor: rows.length > query.limit ? (items.at(-1)?.id ?? null) : null };
 }

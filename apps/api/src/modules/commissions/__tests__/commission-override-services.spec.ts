@@ -80,41 +80,44 @@ it('FR-013a the plan permission alone lists every service with its catalog rule 
   });
   await revokePlanPermission(member.membershipId);
   await grantPlanPermission(member.membershipId);
-  const listed = await f.getOverrideServices('', f.business, member.cookie);
-  expect(listed.status).toBe(200);
-  const body = listed.body as unknown as OverrideServicesBody;
-  const byService = new Map(body.items.map((item) => [item['service_id'], item]));
-  expect(byService.get(pctService)).toEqual({
-    service_id: pctService,
-    name_en: 'Keratin',
-    name_ar: 'فرد',
-    closed_at: null,
-    service_rule: { kind: 'PCT', value: 1000 },
-    price: '25.500',
-    current_override: null,
-  });
-  expect(byService.get(f.service)).toMatchObject({
-    service_id: f.service,
-    name_en: 'Override service',
-    price: '10.000',
-    current_override: null,
-  });
-  expect(Object.keys(byService.get(pctService) as object).sort()).toEqual([
-    'closed_at',
-    'current_override',
-    'name_ar',
-    'name_en',
-    'price',
-    'service_id',
-    'service_rule',
-  ]);
-  // صلاحية الخطط لوحدها بتكفي القايمة دي، وقائمة الخدمات نفسها لسه مقفولة عليها.
-  const catalog = await f.h.send('GET', `/v1/businesses/${f.business}/services`, {
-    cookie: member.cookie,
-    company: f.company,
-  });
-  expect([catalog.status, catalog.body['code']]).toEqual([403, 'FORBIDDEN']);
-  await revokePlanPermission(member.membershipId);
+  try {
+    const listed = await f.getOverrideServices('', f.business, member.cookie);
+    expect(listed.status).toBe(200);
+    const body = listed.body as unknown as OverrideServicesBody;
+    const byService = new Map(body.items.map((item) => [item['service_id'], item]));
+    expect(byService.get(pctService)).toEqual({
+      service_id: pctService,
+      name_en: 'Keratin',
+      name_ar: 'فرد',
+      closed_at: null,
+      service_rule: { kind: 'PCT', value: 1000 },
+      price: '25.500',
+      current_override: null,
+    });
+    expect(byService.get(f.service)).toMatchObject({
+      service_id: f.service,
+      name_en: 'Override service',
+      price: '10.000',
+      current_override: null,
+    });
+    expect(Object.keys(byService.get(pctService) as object).sort()).toEqual([
+      'closed_at',
+      'current_override',
+      'name_ar',
+      'name_en',
+      'price',
+      'service_id',
+      'service_rule',
+    ]);
+    // صلاحية الخطط لوحدها بتكفي القايمة دي، وقائمة الخدمات نفسها لسه مقفولة عليها.
+    const catalog = await f.h.send('GET', `/v1/businesses/${f.business}/services`, {
+      cookie: member.cookie,
+      company: f.company,
+    });
+    expect([catalog.status, catalog.body['code']]).toEqual([403, 'FORBIDDEN']);
+  } finally {
+    await revokePlanPermission(member.membershipId);
+  }
 });
 
 it('CM-12 current_override is exactly the row the overrides list marks is_current', async () => {
@@ -189,24 +192,33 @@ it('the refusal order matches the overrides list: access, then feature, then emp
     );
   await revokePlanPermission(member.membershipId);
   await grantPlanPermission(member.membershipId);
-  const allowed = await f.getOverrideServices('', f.business, member.cookie);
-  expect(allowed.status).toBe(200);
-  await revokePlanPermission(member.membershipId);
-  await expect(list()).rejects.toMatchObject({ code: 'FORBIDDEN' });
-  await grantPlanPermission(member.membershipId);
-  await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by)
-    VALUES (${f.company},'commissions',false,'Synthetic after guard',${f.userId})`;
-  await expect(list()).rejects.toMatchObject({ code: 'FEATURE_DISABLED' });
-  await f.h.owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='commissions'`;
-  const gone = structuredClone(scope);
-  gone.employeeId = ids.newId();
-  // الموظفة المجهولة بتتفحص والصلاحية شغالة، عشان ترتيب الرفض يوصل لفحص الموظفة فعلاً.
-  await expect(
-    f.db.withTenant(f.company, (tx) =>
-      listCommissionOverrideServices(tx, f.listReaders(tx), gone, { limit: 50 }),
-    ),
-  ).rejects.toMatchObject({ code: 'EMPLOYEE_NOT_FOUND' });
-  await revokePlanPermission(member.membershipId);
+  try {
+    const allowed = await f.getOverrideServices('', f.business, member.cookie);
+    expect(allowed.status).toBe(200);
+    await revokePlanPermission(member.membershipId);
+    try {
+      await expect(list()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    } finally {
+      await grantPlanPermission(member.membershipId);
+    }
+    try {
+      await f.h.owner`INSERT INTO company_feature_overrides(company_id,flag,enabled,reason,set_by)
+        VALUES (${f.company},'commissions',false,'Synthetic after guard',${f.userId})`;
+      await expect(list()).rejects.toMatchObject({ code: 'FEATURE_DISABLED' });
+    } finally {
+      await f.h.owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='commissions'`;
+    }
+    const gone = structuredClone(scope);
+    gone.employeeId = ids.newId();
+    // الموظفة المجهولة بتتفحص والصلاحية شغالة، عشان ترتيب الرفض يوصل لفحص الموظفة فعلاً.
+    await expect(
+      f.db.withTenant(f.company, (tx) =>
+        listCommissionOverrideServices(tx, f.listReaders(tx), gone, { limit: 50 }),
+      ),
+    ).rejects.toMatchObject({ code: 'EMPLOYEE_NOT_FOUND' });
+  } finally {
+    await revokePlanPermission(member.membershipId);
+  }
 });
 
 it('a member without the plan permission, a device and a disabled feature are refused', async () => {
