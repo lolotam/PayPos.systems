@@ -18,6 +18,7 @@ export type PlanVersionRow = {
   version: number;
   effectiveFrom: string;
   wholePeriod: boolean;
+  repairPeriod: string | null;
   plan: unknown;
   createdAt: string;
 };
@@ -165,6 +166,7 @@ export function commissionPlanVersionOf(row: PlanVersionRow): CommissionPlanVers
     employeeId: row.employeeId,
     effectiveFrom: row.effectiveFrom,
     wholePeriod: row.wholePeriod,
+    repairPeriod: row.repairPeriod,
     createdAt: BigInt(row.createdAt),
     version: BigInt(row.version),
     ...plan,

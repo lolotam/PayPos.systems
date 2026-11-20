@@ -96,6 +96,7 @@ const plan = (): CommissionMonthProjection['versions'][number] => ({
   employeeId: 'employee-a',
   effectiveFrom: '2026-10-01',
   wholePeriod: false,
+  repairPeriod: null,
   createdAt: 1n,
   version: 1n,
   base: { enabled: true, calc: { kind: 'PCT', value: 1000n } },

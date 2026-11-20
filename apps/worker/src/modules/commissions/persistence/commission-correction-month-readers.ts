@@ -156,7 +156,8 @@ async function readPlanVersions(
 ): Promise<CommissionPlanVersion[]> {
   const rows = await tx.execute<PlanVersionRow>(sql`SELECT
     employee_id AS "employeeId", version AS "version",
-    effective_from::text AS "effectiveFrom", whole_period AS "wholePeriod", plan AS plan,
+    effective_from::text AS "effectiveFrom", whole_period AS "wholePeriod",
+    repair_period AS "repairPeriod", plan AS plan,
     (extract(epoch from created_at)*1000000)::bigint::text AS "createdAt"
     FROM commission_plan_versions
     WHERE company_id = app_company_id() AND business_id = ${input.businessId}::uuid

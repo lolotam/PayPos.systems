@@ -33,6 +33,7 @@ export function version(patch: Partial<CommissionPlanVersion> = {}): CommissionP
     employeeId: 'employee-a',
     effectiveFrom: '2026-10-01',
     wholePeriod: false,
+    repairPeriod: null,
     createdAt: 1n,
     version: 1n,
     base: { enabled: true, calc: pct(1000n) },

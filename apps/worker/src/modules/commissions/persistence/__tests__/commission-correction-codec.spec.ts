@@ -9,6 +9,7 @@ function row(plan: unknown): PlanVersionRow {
     version: 7,
     effectiveFrom: '2026-10-01',
     wholePeriod: true,
+    repairPeriod: null,
     plan,
     createdAt: '42',
   };
@@ -40,6 +41,7 @@ it.each([
     version: 7n,
     effectiveFrom: '2026-10-01',
     wholePeriod: true,
+    repairPeriod: null,
     createdAt: 42n,
     base: { enabled: true, calc: { kind: 'PCT', value: 1000n } },
     tiers: {
@@ -55,6 +57,15 @@ it.each([
     },
     packageSale: { enabled: true, calc: { kind: 'FIXED', value: 2_500n } },
   });
+});
+
+it('P1 maps the stored repair month onto the engine version and keeps null for an ordinary one', () => {
+  const repaired = commissionPlanVersionOf({
+    ...row(validPlan('AMOUNT')),
+    repairPeriod: '2026-09',
+  });
+  expect(repaired.repairPeriod).toBe('2026-09');
+  expect(commissionPlanVersionOf(row(validPlan('AMOUNT'))).repairPeriod).toBeNull();
 });
 
 function planWithBaseCalc(calc: unknown) {
