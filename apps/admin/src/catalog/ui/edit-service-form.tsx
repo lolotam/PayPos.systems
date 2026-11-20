@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { updateServiceInput, type Service, type UpdateServiceInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
+import { useEffect } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import { omitRefusedCategory, type ServiceCategoriesQuery } from '../api/use-service-categories';
@@ -14,11 +15,13 @@ export function EditServiceForm({
   categoryQuery,
   record,
   pending,
+  onDirtyChange,
   onSave,
 }: {
   categoryQuery: ServiceCategoriesQuery;
   record: Service;
   pending: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
   onSave: (terms: UpdateServiceInput) => void;
 }) {
   const locale = useLocale();
@@ -35,6 +38,10 @@ export function EditServiceForm({
       category_id: record.category_id,
     },
   });
+  const isDirty = form.formState.isDirty;
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
   const submit = form.handleSubmit((terms) => {
     onSave(omitRefusedCategory(terms, categoryQuery.error));
   });
