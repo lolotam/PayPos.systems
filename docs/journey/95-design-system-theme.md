@@ -2,8 +2,8 @@
 
 **Status / الحالة:** shipped in #1079 (DS-1: the Souk Tiles design system foundations: colours, fonts, light and dark
 themes, the theme switch, new app icons; ADR-0059) and #1083 (DS-2: every icon moved from lucide-react to Phosphor;
-ADR-0060), both merged; #1095 (DS-3 A1: the theme switch behaves the same on every page, including before sign-in)
-is in review. **Runs on staging** in the admin (`https://app.staging.pospay.systems`) and the POS
+ADR-0060), both merged, as is #1095 (DS-3 A1: the theme switch behaves the same on every page, including before sign-in);
+DS-3 A3 (the native app icons) is in review. **Runs on staging** in the admin (`https://app.staging.pospay.systems`) and the POS
 (`https://pos.staging.pospay.systems`). Nothing in how the business works changed: the same screens, the same text,
 the same rules. Still to come, as follow-ups named in ADR-0059: the app shell, navigation, dashboard, charts and
 permissions screens redrawn in the new style.
@@ -27,9 +27,12 @@ permissions screens redrawn in the new style.
    الطريقة. الكاشير بيفضل شغال من غير نت زي الأول، والخطوط والأيقونات الجديدة محفوظة معاه.
 8. **الأيقونات:** كل الأيقونات في القائمة والأزرار بقت من مكتبة واحدة (Phosphor)، ومفيش أيقونة ناقصة أو مكانها فاضي.
 9. **العربي:** بدّل اللغة للعربي ← الاتجاه من اليمين للشمال، والخط العربي الجديد، ومفيش حاجة مقلوبة.
-10. **قبل الدخول (#1095):** افتح تبويبين: واحد جوّه لوحة الإدارة، والتاني على صفحة تسجيل الدخول (أو شاشة الكاشير قبل
+10. **أيقونة التطبيق (DS-3 A3):** على موبايل فيه تطبيق «PosPay Business» (نسخة التجربة أو الإنتاج) ← أيقونته على الشاشة
+    الرئيسية فيها حرف P بنقشة Souk Tiles على خلفية كريمي ودايرة «B» في الركن، زي أيقونة الويب، ومفيش P برتقالي. نسخة
+    التجربة عليها كمان شريط «تجربة».
+11. **قبل الدخول (#1095):** افتح تبويبين: واحد جوّه لوحة الإدارة، والتاني على صفحة تسجيل الدخول (أو شاشة الكاشير قبل
     دخول الموظفة). غيّر الوضع من الأول ← التاني بيتغيّر فورًا من غير تحديث.
-11. **المتصفح رافض التخزين (#1095):** لو المتصفح مانع الحفظ (تصفح خاص مثلًا) واخترت **غامق** ← الشاشة بتفضل غامقة
+12. **المتصفح رافض التخزين (#1095):** لو المتصفح مانع الحفظ (تصفح خاص مثلًا) واخترت **غامق** ← الشاشة بتفضل غامقة
     حتى لو وضع الجهاز اتغيّر، لحد ما تقفل الصفحة.
 
 **ممنوع يحصل:**
@@ -59,9 +62,12 @@ permissions screens redrawn in the new style.
    missing or blank.
 9. **Arabic:** switch the language to Arabic → right-to-left layout, the new Arabic font, and nothing mirrored
    wrongly.
-10. **Before sign-in (#1095):** open two tabs: one inside the admin, the other on the sign-in page (or the POS screen
+10. **The app icon (DS-3 A3):** on a phone with the «PosPay Business» app (the test or the production build) → its
+    home-screen icon shows the P in the Souk Tiles pattern on a cream background with the «B» circle in the corner,
+    like the web icon, and no orange P. The test build also carries the «تجربة» strip.
+11. **Before sign-in (#1095):** open two tabs: one inside the admin, the other on the sign-in page (or the POS screen
     before an employee signs in). Change the theme in the first → the second changes at once, with no reload.
-11. **The browser refuses to store (#1095):** if the browser blocks saving (private browsing, for example) and you
+12. **The browser refuses to store (#1095):** if the browser blocks saving (private browsing, for example) and you
     choose **Dark** → the screen stays dark even when the device's theme changes, until you close the page.
 
 **Must NOT happen:**
