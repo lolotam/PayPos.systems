@@ -14,7 +14,7 @@ export function ServiceCategoriesRoute() {
   if (!workspace.business) return <p>{t(locale, 'admin.chooseBusiness')}</p>;
   return (
     <ServiceCategoriesScreen
-      key={`${workspace.company.id}:${workspace.business.id}:${userId}`}
+      key={`${workspace.company.id}:${workspace.business.id}:${userId}:${workspace.branch?.id ?? ''}`}
       companyId={workspace.company.id}
       business={workspace.business}
       userId={userId}

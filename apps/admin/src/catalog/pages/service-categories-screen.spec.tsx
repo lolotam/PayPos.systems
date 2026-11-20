@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { ServiceCategoryBranchView } from '@pospay/contracts';
+import type { ServiceCategoryBranchView, ServiceCategoryListItem } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, within } from '@testing-library/react';
@@ -9,6 +9,7 @@ import {
   branchCategory,
   branchId,
   business,
+  businessId,
   companyId,
   secondBranch,
   userId,
@@ -53,6 +54,7 @@ function renderScreen(
   props: Partial<{
     scope: 'COMPANY' | 'BUSINESS' | 'BRANCH';
     rememberedBranchId: string | undefined;
+    business: ReturnType<typeof business>;
   }> = {},
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -202,4 +204,79 @@ it('shows the empty line when the branch has no categories in the view', async (
   mockBranchList(() => []);
   renderScreen();
   expect(await screen.findByText(t('en', 'catalogServiceCategories.empty'))).toBeTruthy();
+});
+
+const businessRow = (overrides: Partial<ServiceCategoryListItem>): ServiceCategoryListItem => ({
+  id: '01920000-0000-7000-8000-0000000000c4',
+  name_en: 'Business row',
+  name_ar: 'Business row AR',
+  visibility: 'BUSINESS',
+  owner_branch_id: null,
+  closed_at: null,
+  revision: 1,
+  ...overrides,
+});
+
+it('keeps the business page state across a branch round-trip', async () => {
+  get.mockImplementation((path: string, options?: { params?: { query?: { status?: string } } }) => {
+    if (path === businessListPath) {
+      const closed = (options?.params?.query?.status ?? 'open') === 'closed';
+      return Promise.resolve(
+        okPage([
+          businessRow(
+            closed
+              ? { name_en: 'Closed row', closed_at: '2026-01-01T00:00:00Z' }
+              : { name_en: 'Open row' },
+          ),
+        ]),
+      );
+    }
+    if (path === branchListPath) return Promise.resolve(okPage([]));
+    return Promise.resolve(refusal(500));
+  });
+  renderScreen({ scope: 'BUSINESS' });
+  expect(await screen.findByRole('row', { name: /Open row/ })).toBeTruthy();
+  fireEvent.click(
+    screen.getByRole('button', { name: t('en', 'catalogServiceCategories.tabClosed') }),
+  );
+  expect(await screen.findByRole('row', { name: /Closed row/ })).toBeTruthy();
+  const select = screen.getByRole('combobox', {
+    name: t('en', 'catalogServiceCategoryBranches.scopeLabel'),
+  });
+  fireEvent.change(select, { target: { value: branchId } });
+  expect(await screen.findByText(t('en', 'catalogServiceCategories.empty'))).toBeTruthy();
+  fireEvent.change(select, { target: { value: '' } });
+  const closedTab = screen.getByRole('button', {
+    name: t('en', 'catalogServiceCategories.tabClosed'),
+  });
+  expect(closedTab.getAttribute('aria-pressed')).toBe('true');
+  expect(await screen.findByRole('row', { name: /Closed row/ })).toBeTruthy();
+  expect(screen.queryByRole('row', { name: /Open row/ })).toBeNull();
+});
+
+it('opens on the remembered branch when it is an active branch', async () => {
+  mockBranchList(() => [branchCategory({ name_en: 'Second branch row' })]);
+  renderScreen({ scope: 'BRANCH', rememberedBranchId: secondBranch().id });
+  const select = screen.getByRole('combobox', {
+    name: t('en', 'catalogServiceCategoryBranches.scopeLabel'),
+  }) as HTMLSelectElement;
+  expect(select.value).toBe(secondBranch().id);
+  expect(select.selectedOptions[0]?.textContent).toBe('Second branch');
+  expect(await screen.findByRole('row', { name: /Second branch row/ })).toBeTruthy();
+  const calls = get.mock.calls.filter(([path]) => path === branchListPath);
+  expect(calls.at(-1)?.[1]?.params?.path).toEqual({ businessId, branchId: secondBranch().id });
+});
+
+it('falls back to the first active branch when the remembered branch is unknown', async () => {
+  mockBranchList(() => []);
+  renderScreen({
+    scope: 'BRANCH',
+    rememberedBranchId: '01920000-0000-7000-8000-0000000000ff',
+    business: business([branch({ is_active: false }), secondBranch()]),
+  });
+  const select = screen.getByRole('combobox', {
+    name: t('en', 'catalogServiceCategoryBranches.scopeLabel'),
+  }) as HTMLSelectElement;
+  expect(select.selectedOptions[0]?.textContent).toBe('Second branch');
+  expect(screen.queryByRole('option', { name: 'First branch' })).toBeNull();
 });

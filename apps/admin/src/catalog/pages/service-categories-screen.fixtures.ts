@@ -5,7 +5,7 @@ import type {
 } from '@pospay/contracts';
 
 export const companyId = '01920000-0000-7000-8000-000000000001';
-const businessId = '01920000-0000-7000-8000-000000000002';
+export const businessId = '01920000-0000-7000-8000-000000000002';
 export const userId = '01920000-0000-7000-8000-000000000003';
 export const branchId = '01920000-0000-7000-8000-0000000000b1';
 const otherBranchId = '01920000-0000-7000-8000-0000000000b2';
