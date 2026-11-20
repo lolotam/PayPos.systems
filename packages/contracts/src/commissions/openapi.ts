@@ -1,3 +1,4 @@
+import { commissionOverrideServiceSchemas } from './override-services.js';
 import { commissionPlanEmployeePaths } from './plan-employees-openapi.js';
 import { commissionPlanEmployeeSchemas } from './plan-employees.js';
 import { commissionPlanVersionPaths } from './plan-versions-openapi.js';
@@ -8,6 +9,7 @@ import { commissionServiceOverrideSchemas } from './service-overrides.js';
 export const commissionSchemas = [
   ...commissionPlanVersionSchemas,
   ...commissionServiceOverrideSchemas,
+  ...commissionOverrideServiceSchemas,
   ...commissionPlanEmployeeSchemas,
 ];
 
