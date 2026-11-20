@@ -54,11 +54,12 @@ function parseInteger(text: string, pattern: RegExp): number | null {
 }
 
 /** يقرأ نص النسبة كنقاط أساس صحيحة، أو يرجع null للنص المرفوض. */
-function parseBps(text: string): number | null {
+export function parseBps(text: string): number | null {
   return parseInteger(text, /^\d{1,5}$/);
 }
 
-function parseKwd(text: string): string | null {
+/** يقرأ نص المبلغ بالدينار وبيطبّعه لثلاث خانات عشرية، أو يرجع null للنص المرفوض. */
+export function parseKwd(text: string): string | null {
   const trimmed = text.trim();
   if (trimmed === '') return null;
   const normalized = normalizeKwdInput(toAsciiDigits(trimmed));
