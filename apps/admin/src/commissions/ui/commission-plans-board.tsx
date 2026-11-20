@@ -1,0 +1,69 @@
+'use client';
+
+import type { PlanAttemptMemory } from '../api/use-save-commission-plan';
+import type { PlanScope } from '../api/plan-access';
+import { isCursorUnavailable } from '../api/plan-access';
+import { useCommissionPlanEmployees } from '../api/use-commission-plan-employees';
+import { t } from '@pospay/i18n';
+import { useLocale } from '@/shared/locale/locale-context';
+import {
+  CommissionPlanEmployeePicker,
+  commissionPlanEmployeeLabel,
+} from '../ui/commission-plan-employee-picker';
+import { planRefusalMessage } from '../ui/plan-server-messages';
+import { CommissionPlanSection } from '../ui/commission-plan-section';
+import { useState } from 'react';
+
+interface CommissionPlansBoardProps {
+  scope: PlanScope;
+  memory: PlanAttemptMemory;
+}
+
+/**
+ * لقطة الموظفين والتاريخ لموظفة مختارة: بيبنيوا على أول صفحة موظفين ناجحة، والاختيار عايش هنا
+ * فبيضيع لوحده مع قفل الوصول ومفيش استعادة للاختيار القديم بعد «جرّب تاني».
+ */
+export function CommissionPlansBoard({ scope, memory }: CommissionPlansBoardProps) {
+  const locale = useLocale();
+  const [selectedId, setSelectedId] = useState('');
+  const employees = useCommissionPlanEmployees(scope);
+  const items = employees.data?.pages.flatMap((page) => page.items) ?? [];
+  const timeZone = employees.data?.pages[0]?.time_zone ?? 'UTC';
+  const selected = items.find((item) => item.id === selectedId) ?? null;
+  return (
+    <>
+      {employees.isError ? (
+        <p role="alert">
+          {isCursorUnavailable(employees.error)
+            ? t(locale, 'errors.COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE')
+            : planRefusalMessage(employees.error, locale)}
+        </p>
+      ) : null}
+      {employees.isFetchNextPageError ? (
+        <p role="alert">{t(locale, 'commissionPlanBuilder.couldNotLoadMore')}</p>
+      ) : null}
+      {employees.isSuccess ? (
+        <CommissionPlanEmployeePicker
+          items={items}
+          hasNextPage={employees.hasNextPage}
+          loadingMore={employees.isFetchingNextPage}
+          // جلب الصفحة التالية ممكن يرفض CancelledError لما 403 يقفل النطاق ويلغي الطلب،
+          // والفشل نفسه مسجّل في حالة الاستعلام فالرسالة وزرار المحاولة بيبانوا عادي.
+          onLoadMore={() => employees.fetchNextPage().catch(() => undefined)}
+          value={selectedId}
+          onChange={setSelectedId}
+        />
+      ) : null}
+      {selected !== null ? (
+        <CommissionPlanSection
+          key={selected.id}
+          scope={scope}
+          employee={selected}
+          employeeLabel={commissionPlanEmployeeLabel(selected, locale)}
+          timeZone={timeZone}
+          memory={memory}
+        />
+      ) : null}
+    </>
+  );
+}

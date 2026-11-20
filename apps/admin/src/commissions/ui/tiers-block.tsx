@@ -25,8 +25,9 @@ export function TiersBlock({
   const { control, register, setValue, trigger } = useFormContext<PlanDraft>();
   const { append, fields, remove } = useFieldArray({ control, name: 'tiers.steps' });
   const markTouched = () => setValue('tiers.touched', true, { shouldValidate: true });
-  // الإضافة والحذف من useFieldArray مش بيطلعوا حدث change ولا بيوصلا لمراقب watch، فonUserEdit
-  // بيخفي رفض السيرفر الظاهر، والتمام هنا هو اللي بيرجّع رسالة البلوك.
+  // إضافة وحذف الشرائح من useFieldArray بتطلّع values من غير type، فمراقب watch بيوصله فعلاً،
+  // وحارس type === 'change' في plan-builder-form هو اللي بيتجاهله؛ عشان كده onUserEdit هنا
+  // بيسمع رسالة السيرفر الظاهرة، والتمام ده نفسه هو اللي بيرجّع رسالة البلوك.
   const editStep = (edit: () => void) => {
     edit();
     markTouched();
