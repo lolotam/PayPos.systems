@@ -121,6 +121,8 @@ lines and one event row, **flagged as requiring an ADR-0010 addendum (A-2)**:
 | M3 | P1 ships as guard (61-1b) then seed (61-1c); proof of «guard deployed» is the staging deploy receipt with the API image SHA, since staging runs one `api` container replaced as a whole | 61-1c |
 | M4 | Two migrations (61-1c, 61-1d) may be generated when their turn in the migration lane comes (PP-124, PP-130) | 61-1c, 61-1d |
 
+**Decisions (2026-11-20 14:35 Kuwait, PP-207):** M1 accepted by Waleed («في الـ worker (المقترح)», PP-207.2). M2 accepted by Waleed («لحظة قرار الـ worker (المقترح)», PP-207.3). M3 and M4 accepted by the manager (PP-124, PP-130; PP-207.4). RT-Q17 answered by Waleed: the note is shown as written (PP-207.1, batch 98).
+
 ### 3.2 Technical choices made here (recorded, reversible in review)
 
 | # | Choice | Reason |
