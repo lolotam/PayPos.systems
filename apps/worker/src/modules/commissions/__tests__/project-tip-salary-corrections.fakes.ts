@@ -1,4 +1,4 @@
-﻿import type { CommissionAttachmentInterval } from '../domain/commission-correction-attribution.ts';
+import type { CommissionAttachmentInterval } from '../domain/commission-correction-attribution.ts';
 import type {
   CommissionCorrectionDraft,
   CommissionFrozenSource,
@@ -239,7 +239,7 @@ export const projectedTip = (
   amount,
 });
 
-/** Ø¥Ø³Ù‚Ø§Ø· Ø§Ù„Ù…Ø«Ø§Ù„ Ø§Ù„Ù…Ø­Ø³ÙˆØ¨ Ù„Ø´Ù‡Ø± Ø§Ù„Ø±Ø§ØªØ¨: Ø¨Ù†ÙˆØ¯Ø§ L1 ÙˆL2 Ø¨Ø®Ø·Ø© Ù…Ø¶Ø§Ø¹Ù Ø§Ù„Ø±Ø§ØªØ¨ ÙˆØ§Ù„Ø±Ø§ØªØ¨ Ø§Ù„Ø¬Ø¯ÙŠØ¯. */
+/** إسقاط المثال المحسوب لشهر الراتب: بنودا L1 وL2 بخطة مضاعف الراتب والراتب الجديد. */
 export const salaryWorkedProjection = (
   patch: Partial<CommissionMonthProjection> = {},
 ): CommissionMonthProjection =>

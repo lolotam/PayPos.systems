@@ -248,9 +248,11 @@ land, approval stays closed. Never reset or delete `published_at`, `attempts`, `
    row 53-1, keeps approval closed for any counted event without the consumer's mark. The run to use after a rollback is the six-type run of
    50-3d (`--types six`), because the current-state readers of the first bootstrap cover only the business and date range the operator
    supplied, so tip and package-sale events published during the rollback would stay unmarked. Every re-run states its upper bound:
-   captured after every replica runs the consumer, passed as `--through`, reused on a resume, new after any rollback. An event aimed at
-   an already APPROVED month takes the 55-1 correction path since 55-1c: a replayed `SessionTipsChanged` or `SalaryChanged` posts
-   `TIP_CARD`/`TIP_CASH`/`COMMISSION` correction rows into the earliest DRAFT month, and the manager owns that case.
+   captured after every replica runs the consumer, passed as `--through`, reused on a resume, new after any rollback. Since 55-1c a replayed
+   `SessionTipsChanged` or `SalaryChanged` aimed at an already APPROVED or PAID month posts `TIP_CARD`/`TIP_CASH`/`COMMISSION` correction
+   rows into the earliest DRAFT month, and the manager owns that case. Two refusals remain (FR-015): `COMMISSION_PERIOD_CLOSED` when no
+   DRAFT target month exists after the source, or when a closed month's recompute returns `NO_PLAN`/`NO_SALARY`; the event is retried and
+   then parked. A `PackageSaleChanged` event in the `--types six` run still has no consumer before 55-1d and stays undelivered until then.
 7. **Logs.** A failed replay of a row that already has ten or more attempts logs «outbox event parked» at error level although nothing is
    written; read the printed result, not that line.
 
@@ -291,8 +293,10 @@ touches `published_at`, `attempts`, `parked_at` or `consumed_events` rows of oth
    - `COMPLETE`: every visit in the scope was applied and marked. This is not a coverage proof; coverage is checked by 50-3c.
    - `UNDELIVERED`: the scope finished but some visits were refused for a known business reason: `COMMISSION_PERIOD_CLOSED` (the month is
      APPROVED; the tips **bootstrap** visit stays refused even after 55-1c — a correction needs a real `event_id`, and whether a
-     bootstrap visit may ever post one is CS-Q45, still PENDING — and the manager owns it), `COMMISSION_BUSINESS_MISSING` or
-     `COMMISSION_TIP_SALARY_INPUT_INVALID`. Fix the cause and re-run the same command; applied visits are not applied twice.
+     bootstrap visit may ever post one is CS-Q45, still PENDING — and the manager owns it), `COMMISSION_PERIOD_ROLLED_OVER` (the month
+     changed between the delivery's two current-month reads; nothing was written, and re-running applies the visit as-is),
+     `COMMISSION_BUSINESS_MISSING` or `COMMISSION_TIP_SALARY_INPUT_INVALID`. Fix the cause and re-run the same command; applied visits are
+     not applied twice.
    - `ABORTED`: a failure that is not a known business outcome (a database or timeout failure). The visits that committed stay
      committed; `abortedAt` names the business and the cursor of the page that was being processed and is informational only. Fix
      the cause and re-run the same command from the start: the revision guard and the consumed marks make it idempotent.

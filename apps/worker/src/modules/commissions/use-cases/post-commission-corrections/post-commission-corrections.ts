@@ -1,21 +1,21 @@
-import { resolveSourceAttribution } from '../domain/commission-correction-attribution.ts';
+import { resolveSourceAttribution } from '../../domain/commission-correction-attribution.ts';
 import {
   computeCommissionCorrections,
   type CommissionFrozenSource,
   type CommissionPostedCorrection,
   type CommissionRecomputedSource,
-} from '../domain/commission-correction-step.ts';
+} from '../../domain/commission-correction-step.ts';
 import {
   selectCommissionCorrectionTarget,
   type CommissionCorrectionCandidate,
-} from '../domain/commission-correction-target.ts';
-import type { CommissionPeriodEmployee } from '../domain/commission-line-types.ts';
-import { CommissionPeriodClosedError } from '../domain/errors.ts';
-import type { CommissionCorrectionScope } from '../ports/commission-correction.port.ts';
+} from '../../domain/commission-correction-target.ts';
+import type { CommissionPeriodEmployee } from '../../domain/commission-line-types.ts';
+import { CommissionPeriodClosedError } from '../../domain/errors.ts';
+import type { CommissionCorrectionScope } from '../../ports/commission-correction.port.ts';
 import {
   recomputeCommissionMonth,
   type CommissionMonthRecomputedSource,
-} from './commission-month-recompute.ts';
+} from '../commission-month-recompute.ts';
 
 /** هدف تصحيح واحد: شهر المصدر المغلق وكشفه، وأقرب شهر DRAFT بعده وكشفه. */
 export interface CommissionCorrectionTarget {

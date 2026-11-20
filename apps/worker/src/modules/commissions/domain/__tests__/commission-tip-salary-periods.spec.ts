@@ -151,7 +151,7 @@ describe('affectedCommissionTipEmployees - who is corrected', () => {
     ).toEqual([{ period: '2026-10', employeeId: employeeB }]);
   });
 
-  it('D3 a session moved between closed months pairs held employees with A and new with B', () => {
+  it('D3 a session moved between closed months pairs held employees with the held month and new employees with the new month', () => {
     expect(
       affectedCommissionTipEmployees(
         held('2026-09', [tipRow(employeeB)]),

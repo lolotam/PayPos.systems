@@ -160,8 +160,9 @@ export async function writeTipRevision(
 
 export const bootstrap = (
   wrapReader?: (real: CurrentTipSessionsReader) => CurrentTipSessionsReader,
+  clockOverride?: { now: () => Date },
 ) => {
-  const dependencies = { ids, clock, businessTimeZone, database: db };
+  const dependencies = { ids, clock: clockOverride ?? clock, businessTimeZone, database: db };
   return createTestCommissionTipsBootstrap(
     wrapReader === undefined ? dependencies : { ...dependencies, wrapReader },
   );

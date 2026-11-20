@@ -39,7 +39,7 @@ import type {
 import {
   postCommissionCorrections,
   selectCommissionCorrectionTargets,
-} from '../post-commission-corrections.ts';
+} from '../post-commission-corrections/post-commission-corrections.ts';
 import { readCommissionLineCorrectionEmployees } from './post-line-corrections.ts';
 
 type CommissionInputEventPayload =
