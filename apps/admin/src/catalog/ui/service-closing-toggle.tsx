@@ -13,7 +13,7 @@ type ServiceClosingMutation = UseMutationResult<Service, Error, ServiceClosingIn
 type ServiceClosingToggleProps = {
   record: Service;
   closing: ServiceClosingMutation;
-  disabled: boolean;
+  formPending: boolean;
   dirty: boolean;
   onRequest: (input: ServiceClosingInput) => void;
 };
@@ -42,7 +42,7 @@ export function ServiceClosingToggle(props: ServiceClosingToggleProps) {
           <Button
             variant="outline"
             size="sm"
-            disabled={props.disabled}
+            disabled={props.formPending || props.dirty}
             onClick={() => {
               if (closed) {
                 request();
@@ -58,7 +58,7 @@ export function ServiceClosingToggle(props: ServiceClosingToggleProps) {
       </div>
       {confirmVisible ? (
         <ServiceClosingConfirm
-          pending={props.closing.isPending}
+          pending={props.formPending}
           dirty={props.dirty}
           onConfirm={request}
           onCancel={() => setConfirming(false)}

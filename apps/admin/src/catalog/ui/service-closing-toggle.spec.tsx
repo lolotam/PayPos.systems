@@ -349,3 +349,45 @@ it('saving clears the closing result', async () => {
   expect(await screen.findByText('Service updated.')).toBeTruthy();
   expect(screen.queryByText('Service closed.')).toBeNull();
 });
+
+// الحفظ المعلّق بيعطّل التأكيد (وإلغاء معاه)؛ أما التعديلات غير المحفوظة فبتعطّل التأكيد بس
+// وما بتمسحش إلغاء، عشان المدير يقدر يتراجع من نافذة التأكيد حتى لو النموذج متسخ.
+it('a save in flight disables Confirm, and unsaved edits disable Confirm but not Cancel', async () => {
+  const locale: Locale = 'en';
+  mockDetailSequence([serviceRecord()]);
+  renderPanel(locale);
+  await screen.findByText('Open');
+  fireEvent.click(screen.getByRole('button', { name: 'Close service' }));
+  await screen.findByText(t(locale, 'catalogServices.closeServiceConfirm'));
+  expect((screen.getByRole('button', { name: 'Confirm' }) as HTMLButtonElement).disabled).toBe(
+    false,
+  );
+  fireEvent.change(screen.getByLabelText('English name'), { target: { value: 'Renamed' } });
+  await waitFor(() =>
+    expect((screen.getByRole('button', { name: 'Confirm' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    ),
+  );
+  expect((screen.getByRole('button', { name: 'Cancel' }) as HTMLButtonElement).disabled).toBe(
+    false,
+  );
+  let resolvePatch!: (value: unknown) => void;
+  patch.mockReturnValueOnce(
+    new Promise((resolve) => {
+      resolvePatch = resolve;
+    }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  await waitFor(() =>
+    expect((screen.getByRole('button', { name: 'Cancel' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    ),
+  );
+  resolvePatch({ data: serviceRecord({ revision: 2 }), response: { status: 200 } });
+  expect(await screen.findByText('Service updated.')).toBeTruthy();
+  await waitFor(() =>
+    expect((screen.getByRole('button', { name: 'Confirm' }) as HTMLButtonElement).disabled).toBe(
+      false,
+    ),
+  );
+});

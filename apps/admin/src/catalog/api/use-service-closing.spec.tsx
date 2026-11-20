@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Service } from '@pospay/contracts';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { useServiceClosing } from './use-service-closing';
 import { useServiceEdit } from './use-services';
@@ -205,4 +205,42 @@ it('a 403 shows the code and leaves the detail read untouched', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'run' }));
   await waitFor(() => expect(screen.getByText('error-code:FORBIDDEN')).toBeTruthy());
   expect(reads).toBe(1);
+});
+
+// قراءة تفاصيل قديمة لسه شغالة لازم ما تطغطش رد 200 المحفوظ: الإلغاء بيحصل قبل كتابة الكاش،
+// والرد القديم اللي بيرجع بعدها بيرفض لأن الاستعلام اتلغى.
+it('a saved answer survives an older in-flight detail fetch', async () => {
+  let reads = 0;
+  let releaseSecondRead!: (value: unknown) => void;
+  get.mockImplementation((path: string) => {
+    if (path === detailRoute) {
+      reads += 1;
+      if (reads === 1) {
+        return Promise.resolve({ data: serviceRecord(), response: { status: 200 } });
+      }
+      return new Promise((resolve) => {
+        releaseSecondRead = resolve;
+      });
+    }
+    return Promise.resolve({ data: {}, response: { status: 200 } });
+  });
+  post.mockResolvedValueOnce({
+    data: serviceRecord({ closed_at: '2026-11-20T10:00:00Z', revision: 2 }),
+    response: { status: 200 },
+  });
+  const client = createQueryClient();
+  renderProbe(client, 'close');
+  await waitFor(() =>
+    expect((screen.getByRole('button', { name: 'run' }) as HTMLButtonElement).disabled).toBe(false),
+  );
+  void client.refetchQueries({
+    queryKey: ['services', companyId, businessId, userId, 'detail', serviceId],
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'run' }));
+  await waitFor(() => expect(screen.getByText('closed-at:2026-11-20T10:00:00Z')).toBeTruthy());
+  await act(async () => {
+    releaseSecondRead({ data: serviceRecord(), response: { status: 200 } });
+  });
+  expect(screen.getByText('closed-at:2026-11-20T10:00:00Z')).toBeTruthy();
+  expect(screen.queryByText('closed-at:open')).toBeNull();
 });

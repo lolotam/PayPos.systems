@@ -62,7 +62,9 @@ export function useServiceClosing(
     mutationKey: [...detailKey, 'closing'],
     retry: false,
     mutationFn: (input: ServiceClosingInput) => run(companyId, businessId, serviceId, input),
-    onSuccess: (saved) => {
+    onSuccess: async (saved) => {
+      // إلغاء أي قراءة تفاصيل قديمة لسه شغالة الأول، عشان ما تطبقش رد قديم فوق النسخة المحفوظة.
+      await client.cancelQueries({ queryKey: detailKey });
       client.setQueryData(detailKey, saved);
       void client.invalidateQueries({
         queryKey: [...servicesKey(companyId, businessId, userId), 'list'],

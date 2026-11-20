@@ -31,7 +31,7 @@ export function ServiceEditRecord(props: ServiceEditRecordProps) {
       <ServiceClosingToggle
         record={props.record}
         closing={props.closing}
-        disabled={formPending || formDirty}
+        formPending={formPending}
         dirty={formDirty}
         onRequest={props.onRequestClosing}
       />
