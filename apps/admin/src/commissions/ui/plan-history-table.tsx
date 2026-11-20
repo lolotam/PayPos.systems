@@ -10,6 +10,7 @@ import { planHistoryColumns } from './plan-history-columns';
 
 interface PlanHistoryTableProps {
   items: readonly CommissionPlanVersion[];
+  timeZone: string;
   hasNextPage: boolean;
   loadingMore: boolean;
   loadMoreError: boolean;
@@ -19,6 +20,7 @@ interface PlanHistoryTableProps {
 /** تاريخ نسخ الخطة بترقيم صفحات من السيرفر: الأحدث فوق، وزرار تحميل بيلحق بالترتيب نفسه. */
 export function PlanHistoryTable({
   items,
+  timeZone,
   hasNextPage,
   loadingMore,
   loadMoreError,
@@ -26,9 +28,11 @@ export function PlanHistoryTable({
 }: PlanHistoryTableProps) {
   const locale = useLocale();
   const data = useMemo(() => [...items], [items]);
+  // هوية الأعمدة الثابتة شرط في TanStack Table: مصفوفة جديدة كل رسم بتتعامل كتغيير نموذج.
+  const columns = useMemo(() => planHistoryColumns(locale, timeZone), [locale, timeZone]);
   const table = useReactTable({
     data,
-    columns: planHistoryColumns(locale),
+    columns,
     getRowId: (row) => row.id,
     getCoreRowModel: getCoreRowModel(),
     manualPagination: true,

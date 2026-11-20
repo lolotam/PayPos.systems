@@ -230,3 +230,49 @@ it('a successful save tops the history with the stored version and re-bases the 
   expect(bpsInput().value).toBe('250');
   expect(api.POST.mock.calls[0]?.[1].params.header['Idempotency-Key']).toBeTruthy();
 });
+
+it('a pending or refused second save keeps the edited form; only a successful save re-bases it', async () => {
+  const pending = deferredAnswer();
+  routeGet(api.GET, async () => pending.promise);
+  mountSection(EMP_A);
+  pending.resolve(ok(versionPage([], null)));
+  const firstSave = await fillValidBase();
+  api.POST.mockResolvedValueOnce(
+    ok(
+      versionItem(EMP_A_ID, 1, {
+        effective_from: '2027-01-05',
+        base: { enabled: true, calc: { kind: 'PCT', bps: 250 } },
+      }),
+    ),
+  );
+  fireEvent.click(firstSave);
+  await waitFor(() => expect(dateInput().value).toBe('2027-01-05'));
+  expect(bpsInput().value).toBe('250');
+  // المدير بيعدّل بعد أول حفظ ناجح ويحفظ تاني: الجواب مؤجّل فالانتظار لازم ما يركّب الفورم من جديد.
+  fireEvent.change(bpsInput(), { target: { value: '750' } });
+  const secondSave = (await screen.findByRole('button', { name: B.save })) as HTMLButtonElement;
+  await waitFor(() => expect(secondSave.disabled).toBe(false));
+  const saving = deferredAnswer();
+  api.POST.mockImplementationOnce(() => saving.promise);
+  fireEvent.click(secondSave);
+  // الانتظار هنا مقصود: إرسال الفورم بيمرّ بتحقق غير متزامن قبل ما الحفظ يبدأ فعلاً.
+  expect(
+    await screen.findByRole('button', { name: t('en', 'commissionPlanBuilder.saving') }),
+  ).toBeTruthy();
+  expect(bpsInput().value).toBe('750');
+  saving.resolve(refusal(422, 'EFFECTIVE_FROM_IN_PAST'));
+  expect((await screen.findByRole('alert')).textContent).toBe('Synthetic refusal');
+  expect(bpsInput().value).toBe('750');
+  // الحفظ الناجح التاني هو الوحيد اللي بيرتكز على النسخة المخزّنة الجديدة.
+  api.POST.mockResolvedValueOnce(
+    ok(
+      versionItem(EMP_A_ID, 2, {
+        effective_from: '2027-02-01',
+        base: { enabled: true, calc: { kind: 'PCT', bps: 750 } },
+      }),
+    ),
+  );
+  fireEvent.click(screen.getByRole('button', { name: B.save }));
+  await waitFor(() => expect(dateInput().value).toBe('2027-02-01'));
+  expect(bpsInput().value).toBe('750');
+});

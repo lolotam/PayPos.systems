@@ -37,13 +37,15 @@ export function planGeneration(client: QueryClient, scope: PlanScope): number {
 /**
  * بيقفل نطاق الهوية عند أول 403: بيرفع الجيل الأول عشان كل اللي بيشوفه يتوقف، ويلغي الجلب الشغّال،
  * ويمسح بيانات القوائم. مفيش إعادة جلب تلقائية: الاستعلامات معطّلة والدنيا بترجع بس بزرار «جرّب تاني».
+ * الإلغاء بلا revert: النطاق سابق لمفتاح الوصول نفسه، وrevert الافتراضي بيرجّع حالة الاستعلام للخلف
+ * ويمسح الإنكار المكتوب للتو، والإلغاء من غيره بيمنع جلب الوصول يكتب فوق الإنكار لما يخلص.
  */
 export async function denyPlanAccess(client: QueryClient, scope: PlanScope): Promise<void> {
   client.setQueryData<PlanAccessState>(planAccessKey(scope), {
     denied: true,
     generation: planGeneration(client, scope) + 1,
   });
-  await client.cancelQueries({ queryKey: scope });
+  await client.cancelQueries({ queryKey: scope }, { revert: false });
   client.removeQueries({ queryKey: planEmployeesKey(scope) });
   client.removeQueries({ queryKey: [...scope, 'versions'] });
 }

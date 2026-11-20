@@ -29,32 +29,40 @@ const OLDEST = versionItem(EMP, 1, {
   effective_from: '2025-06-01',
 });
 
-it('lists stored versions newest first with their dates and the whole-period mark', () => {
-  render(
+function renderTable(
+  items: readonly (typeof NEWEST)[],
+  timeZone = 'Asia/Kuwait',
+  hasNextPage = false,
+) {
+  return render(
     <PlanHistoryTable
-      items={[NEWEST, OLDEST]}
-      hasNextPage={false}
+      items={items}
+      timeZone={timeZone}
+      hasNextPage={hasNextPage}
       loadingMore={false}
       loadMoreError={false}
       onLoadMore={vi.fn()}
     />,
   );
+}
+
+it('lists stored versions newest first with their dates and the whole-period mark', () => {
+  renderTable([NEWEST, OLDEST]);
   const list = rows();
   expect(rowVersion(list[0] as HTMLElement)).toBe('2');
   expect(rowVersion(list[1] as HTMLElement)).toBe('1');
   expect(list[0]?.textContent).toContain(t('en', 'commissionPlanBuilder.wholeNo'));
 });
 
+it('shows created_at in the business time zone, not UTC', () => {
+  const createdLateUtc = versionItem(EMP, 3, { created_at: '2026-01-04T22:30:00Z' });
+  renderTable([createdLateUtc]);
+  const row = rows()[0] as HTMLElement;
+  expect(within(row).getAllByRole('cell')[4]?.textContent).toBe('January 5, 2026');
+});
+
 it('shows a disabled block that kept its settings as off with the settings beside it', () => {
-  render(
-    <PlanHistoryTable
-      items={[NEWEST]}
-      hasNextPage={false}
-      loadingMore={false}
-      loadMoreError={false}
-      onLoadMore={vi.fn()}
-    />,
-  );
+  renderTable([NEWEST]);
   const newestRow = rows()[0] as HTMLElement;
   expect(newestRow.textContent).toContain(t('en', 'commissionPlanBuilder.blockOff'));
   expect(newestRow.textContent).toContain('500');
@@ -68,6 +76,7 @@ it('appends the next page in order when load more answers', () => {
   const view = render(
     <PlanHistoryTable
       items={[NEWEST]}
+      timeZone="Asia/Kuwait"
       hasNextPage
       loadingMore={false}
       loadMoreError={false}
@@ -80,6 +89,7 @@ it('appends the next page in order when load more answers', () => {
   view.rerender(
     <PlanHistoryTable
       items={[NEWEST, OLDEST]}
+      timeZone="Asia/Kuwait"
       hasNextPage={false}
       loadingMore={false}
       loadMoreError={false}
@@ -95,6 +105,7 @@ it('shows the could-not-load-more message and disables the button while the next
   const view = render(
     <PlanHistoryTable
       items={[NEWEST]}
+      timeZone="Asia/Kuwait"
       hasNextPage
       loadingMore
       loadMoreError={false}
@@ -108,6 +119,7 @@ it('shows the could-not-load-more message and disables the button while the next
   view.rerender(
     <PlanHistoryTable
       items={[NEWEST]}
+      timeZone="Asia/Kuwait"
       hasNextPage
       loadingMore={false}
       loadMoreError

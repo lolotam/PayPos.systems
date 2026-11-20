@@ -67,3 +67,22 @@ it('denyPlanAccess keeps the access entry itself so the nav item and the page se
   await waitFor(() => expect(accessEntry(client)?.denied).toBe(true));
   expect(accessEntry(client)).toEqual({ denied: true, generation: 1 });
 });
+
+it('a deny landing while the access query initial fetch is in flight keeps the denied state and starts no loop', async () => {
+  const client = createQueryClient();
+  client.setQueryData(planEmployeesKey(scope), employeePage([{ id: 'emp' }], null));
+  client.setQueryData(planVersionsKey(scope, 'emp'), { items: [], next_cursor: null });
+  // مشترك بيبدأ جلب الوصول الأولي وموجِّه بيأخّره: نافذة إنكار وصلت والجلب لسه شغّال.
+  const accessRead = deferredAnswer();
+  const accessPending = client.fetchQuery({
+    queryKey: [...scope, 'access'],
+    queryFn: () => accessRead.promise as never,
+  });
+  accessPending.catch(() => undefined);
+  await denyPlanAccess(client, scope);
+  expect(accessEntry(client)).toEqual({ denied: true, generation: 1 });
+  expect(client.getQueryData(planEmployeesKey(scope))).toBeUndefined();
+  expect(client.getQueryData(planVersionsKey(scope, 'emp'))).toBeUndefined();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(accessEntry(client)?.denied).toBe(true);
+});

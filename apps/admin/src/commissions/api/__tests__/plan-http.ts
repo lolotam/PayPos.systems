@@ -1,11 +1,11 @@
 import type { Mock } from 'vitest';
 import type { CommissionPlanVersion } from '@pospay/contracts';
 
-/** جواب الـ apiClient المؤجّل: الشكل نفسه اللي openapi-fetch بيرجّعه ({data} أو {error, response}). */
+/** جواب الـ apiClient المؤجّل: الشكل نفسه اللي openapi-fetch بيرجّعه ({data, response} أو {error, response}). */
 export type ApiAnswer = {
   data?: unknown;
   error?: unknown;
-  response?: { status: number };
+  response?: { status: number; ok: boolean };
 };
 
 export interface DeferredAnswer {
@@ -24,15 +24,21 @@ export function deferredAnswer(): DeferredAnswer {
   return { promise, resolve, reject };
 }
 
+/** جواب نجاح بالشكل اللي openapi-fetch بيرجّعه فعلاً: الداتا مع الـ response اللي حالتها 200. */
 export function ok(data: unknown): ApiAnswer {
-  return { data };
+  return { data, response: { status: 200, ok: true } };
 }
 
 export function refusal(status: number, code: string): ApiAnswer {
   return {
     error: { code, message_ar: 'رسالة تجريبية', message_en: 'Synthetic refusal' },
-    response: { status },
+    response: { status, ok: false },
   };
+}
+
+/** رفض بجسم فاضي زي جواب بوابة الـ 403 الفارغ: openapi-fetch بيرجّع error نص فاضي وقتها. */
+export function emptyRefusal(status: number): ApiAnswer {
+  return { error: '', response: { status, ok: false } };
 }
 
 export const COMPANY = '01920000-0000-7000-8000-0000000000c1';

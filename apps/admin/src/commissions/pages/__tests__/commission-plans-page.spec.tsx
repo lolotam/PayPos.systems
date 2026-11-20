@@ -10,6 +10,7 @@ import {
   deferredAnswer,
   EMP_A as EMP_A_ID,
   EMP_B as EMP_B_ID,
+  emptyRefusal,
   employeeItem,
   employeePage,
   employeesPath,
@@ -325,4 +326,86 @@ it('nav and page share one access state: deny reaches the nav through the page c
     await deny.denyPlanAccess(client, scope);
   });
   await waitFor(() => expect(screen.queryByRole('link', { name: B.navTitle })).toBeNull());
+});
+
+it('a 403 with an empty body closes the whole scope like any other 403', async () => {
+  const router = makeRouter();
+  const employeesRead = deferredAnswer();
+  router.on(employeesPath, () => employeesRead.promise);
+  renderScreen();
+  employeesRead.resolve(emptyRefusal(403));
+  await screen.findByText(t('en', 'commissionPlanBuilder.deniedTitle'));
+  expect(screen.queryByRole('link', { name: B.navTitle })).toBeNull();
+  expect(screen.queryByLabelText(B.pickerLabel)).toBeNull();
+  const reads = api.GET.mock.calls.length;
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(api.GET.mock.calls.length).toBe(reads);
+});
+
+it('a 404 with an empty body on the versions read is the local employee-not-found', async () => {
+  const router = makeRouter();
+  const employeesRead = deferredAnswer();
+  const versionsRead = deferredAnswer();
+  router.on(employeesPath, () => employeesRead.promise);
+  router.on(versionsPath, () => versionsRead.promise);
+  renderScreen();
+  employeesRead.resolve(ok(employeePage([EMP_A], null)));
+  await chooseEmployee(EMP_A_ID);
+  versionsRead.resolve(emptyRefusal(404));
+  // الجسم الفاضي مفيش فيه كود، فالرسالة العامة، بس المعالجة المحلية: تنبيه مكان المحرّر من غير قفل نطاق.
+  expect(await screen.findByRole('alert')).toBeTruthy();
+  expect(screen.getByLabelText(B.pickerLabel)).toBeTruthy();
+  expect(screen.getByRole('link', { name: B.navTitle })).toBeTruthy();
+  expect(screen.queryByText(t('en', 'commissionPlanBuilder.deniedTitle'))).toBeNull();
+});
+
+it('a 500 with an empty body shows the generic error, never a denied state', async () => {
+  const router = makeRouter();
+  const employeesRead = deferredAnswer();
+  const versionsRead = deferredAnswer();
+  router.on(employeesPath, () => employeesRead.promise);
+  router.on(versionsPath, () => versionsRead.promise);
+  renderScreen();
+  employeesRead.resolve(ok(employeePage([EMP_A], null)));
+  await chooseEmployee(EMP_A_ID);
+  versionsRead.resolve(emptyRefusal(500));
+  expect(await screen.findByText(t('en', 'admin.unexpected'))).toBeTruthy();
+  expect(screen.getByLabelText(B.pickerLabel)).toBeTruthy();
+  expect(screen.queryByText(t('en', 'commissionPlanBuilder.deniedTitle'))).toBeNull();
+});
+
+it('a failed background employees refetch keeps the picker and the link; only a 403 hides them', async () => {
+  const router = makeRouter();
+  const employeesRead = deferredAnswer();
+  const versionsRead = deferredAnswer();
+  router.on(employeesPath, () => employeesRead.promise);
+  router.on(versionsPath, () => versionsRead.promise);
+  renderScreen();
+  employeesRead.resolve(ok(employeePage([EMP_A], null)));
+  await chooseEmployee(EMP_A_ID);
+  versionsRead.resolve(ok(versionPage([], null)));
+  await screen.findByRole('button', { name: B.save });
+  // إعادة جلب خلفية فشلت بعد أول صفحة ناجحة: الرسالة بتظهر واللينك واللقطة بيفضلوا موجودين.
+  const failedRefetch = deferredAnswer();
+  router.on(employeesPath, () => failedRefetch.promise);
+  await act(async () => {
+    const refetching = client.refetchQueries({ queryKey: planEmployeesKey(scope) });
+    failedRefetch.resolve(refusal(500, 'INTERNAL'));
+    await refetching;
+  });
+  expect(await screen.findByText('Synthetic refusal')).toBeTruthy();
+  expect(screen.getByLabelText(B.pickerLabel)).toBeTruthy();
+  expect(screen.getByRole('link', { name: B.navTitle })).toBeTruthy();
+  expect(screen.queryByText(t('en', 'commissionPlanBuilder.deniedTitle'))).toBeNull();
+  // 403 في إعادة الجلب هو الوحيد اللي بيخفيهم.
+  const denyingRefetch = deferredAnswer();
+  router.on(employeesPath, () => denyingRefetch.promise);
+  await act(async () => {
+    const refetching = client.refetchQueries({ queryKey: planEmployeesKey(scope) });
+    denyingRefetch.resolve(refusal(403, 'FORBIDDEN'));
+    await refetching;
+  });
+  await screen.findByText(t('en', 'commissionPlanBuilder.deniedTitle'));
+  expect(screen.queryByLabelText(B.pickerLabel)).toBeNull();
+  expect(screen.queryByRole('link', { name: B.navTitle })).toBeNull();
 });

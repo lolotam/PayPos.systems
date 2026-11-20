@@ -36,7 +36,8 @@ export async function fetchCommissionPlanEmployees(
     },
     signal,
   });
-  if (result.error) throw refusal(result.error, result.response.status);
+  // الفحص على حالة الرد مش على الجسم: الجسم الفاضي بيرجّع error فاضي بيضيع 403 لو اتساب لتحليل السكيما.
+  if (!result.response.ok) throw refusal(result.error ?? {}, result.response.status);
   return commissionPlanEmployeeList.parse(result.data);
 }
 
@@ -55,7 +56,7 @@ export async function fetchCommissionPlanVersions(
     },
     signal,
   });
-  if (result.error) throw refusal(result.error, result.response.status);
+  if (!result.response.ok) throw refusal(result.error ?? {}, result.response.status);
   return commissionPlanVersionList.parse(result.data);
 }
 
@@ -73,6 +74,6 @@ export async function createCommissionPlanVersion(
     },
     body: body as PlanVersionWireBody,
   });
-  if (result.error) throw refusal(result.error, result.response.status);
+  if (!result.response.ok) throw refusal(result.error ?? {}, result.response.status);
   return commissionPlanVersion.parse(result.data);
 }

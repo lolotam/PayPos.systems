@@ -68,12 +68,16 @@ function civilDate(value: string, locale: Locale): string {
   });
 }
 
-function stampDate(value: string, locale: Locale): string {
-  return formatDate(new Date(value), { locale, calendar: 'gregorian', timeZone: 'UTC' });
+/** لحظة الإنشاء بتتعرض في توقيت النشاط من الـ scope مش بتوقيت UTC، وeffective_from تاريخ مدني فبيفضل زي ما هو. */
+function stampDate(value: string, locale: Locale, timeZone: string): string {
+  return formatDate(new Date(value), { locale, calendar: 'gregorian', timeZone });
 }
 
 /** أعمدة تاريخ النسخ: الرقم والتاريخ وكامل الفترة وملخّص البلوكات الثلاثة ووقت الإنشاء. */
-export function planHistoryColumns(locale: Locale): ColumnDef<CommissionPlanVersion>[] {
+export function planHistoryColumns(
+  locale: Locale,
+  timeZone: string,
+): ColumnDef<CommissionPlanVersion>[] {
   return [
     {
       id: 'version',
@@ -110,7 +114,7 @@ export function planHistoryColumns(locale: Locale): ColumnDef<CommissionPlanVers
     {
       id: 'createdAt',
       header: t(locale, 'commissionPlanBuilder.colCreatedAt'),
-      cell: ({ row }) => stampDate(row.original.created_at, locale),
+      cell: ({ row }) => stampDate(row.original.created_at, locale, timeZone),
     },
   ];
 }

@@ -1,7 +1,11 @@
 'use client';
 
-import type { CommissionPlanEmployeeListItem, CommissionPlanVersionList } from '@pospay/contracts';
-import { useEffect, useMemo } from 'react';
+import type {
+  CommissionPlanEmployeeListItem,
+  CommissionPlanVersion,
+  CommissionPlanVersionList,
+} from '@pospay/contracts';
+import { useEffect, useMemo, useState } from 'react';
 import { isPlanNotFound, type PlanScope } from '../api/plan-access';
 import { useCommissionPlanVersions } from '../api/use-commission-plan-versions';
 import { useSaveCommissionPlan, type PlanAttemptMemory } from '../api/use-save-commission-plan';
@@ -46,7 +50,9 @@ export function CommissionPlanSection({
     () => (firstPage === undefined ? null : sectionDraft(firstPage, timeZone)),
     [firstPage, timeZone],
   );
-  const rebased = save.isSuccess && save.data !== undefined ? draftFromVersion(save.data) : null;
+  // مفتاح النموذج من آخر نسخة محفوظة ناجحة بس: الحفظ اللي بيستنى أو بيرفض ما بيغيّرش المفتاح
+  // فالمحرّر ما بيتركّبش من جديد وتعديلات المدير بتفضل مكانها لحد ما نجاح حقيقي يعيد الأساس.
+  const [saved, setSaved] = useState<CommissionPlanVersion | null>(null);
   useEffect(() => {
     if (notFound) memory.current.delete(employee.id);
   }, [employee.id, memory, notFound]);
@@ -59,16 +65,17 @@ export function CommissionPlanSection({
       {failure !== null ? <p role="alert">{planRefusalMessage(failure, locale)}</p> : null}
       {initial !== null ? (
         <PlanBuilderForm
-          key={rebased === null ? 'initial' : 'rebased'}
-          initial={rebased ?? initial}
+          key={saved === null ? 'initial' : saved.id}
+          initial={saved === null ? initial : draftFromVersion(saved)}
           pending={save.isPending}
           serverError={save.error}
-          onSubmit={(body) => save.mutate(body)}
+          onSubmit={(body) => save.mutate(body, { onSuccess: (version) => setSaved(version) })}
         />
       ) : null}
       {versions.data !== undefined ? (
         <PlanHistoryTable
           items={items}
+          timeZone={timeZone}
           hasNextPage={versions.hasNextPage}
           loadingMore={versions.isFetchingNextPage}
           loadMoreError={versions.isFetchNextPageError}

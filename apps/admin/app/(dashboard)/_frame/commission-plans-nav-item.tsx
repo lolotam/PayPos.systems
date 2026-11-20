@@ -27,7 +27,8 @@ export function CommissionPlansNavItem() {
       : null;
   const access = usePlanAccess(scope);
   const employees = useCommissionPlanEmployees(scope);
-  if (scope === null || !employees.isSuccess || access.denied) return null;
+  // البيانات المحفوظة هي الشرط مش isSuccess: إعادة جلب خلفية فاشلة ما بيخفيش اللينك، والقفل بس هو اللي بيخفيه.
+  if (scope === null || employees.data === undefined || access.denied) return null;
   return (
     <AppSidebarItem
       asChild

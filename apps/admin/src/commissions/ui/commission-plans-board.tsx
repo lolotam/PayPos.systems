@@ -1,7 +1,7 @@
 'use client';
 
 import type { PlanAttemptMemory } from '../api/use-save-commission-plan';
-import type { PlanScope } from '../api/plan-access';
+import { usePlanAccess, type PlanScope } from '../api/plan-access';
 import { isCursorUnavailable } from '../api/plan-access';
 import { useCommissionPlanEmployees } from '../api/use-commission-plan-employees';
 import { t } from '@pospay/i18n';
@@ -27,9 +27,12 @@ export function CommissionPlansBoard({ scope, memory }: CommissionPlansBoardProp
   const locale = useLocale();
   const [selectedId, setSelectedId] = useState('');
   const employees = useCommissionPlanEmployees(scope);
+  const access = usePlanAccess(scope);
   const items = employees.data?.pages.flatMap((page) => page.items) ?? [];
   const timeZone = employees.data?.pages[0]?.time_zone ?? 'UTC';
   const selected = items.find((item) => item.id === selectedId) ?? null;
+  // البيانات المحفوظة هي الشرط مش isSuccess: إعادة جلب خلفية فاشلة بتفضل اللقطة ظاهرة وتحتها رسالة الخطأ.
+  const showPicker = !access.denied && employees.data !== undefined;
   return (
     <>
       {employees.isError ? (
@@ -42,7 +45,7 @@ export function CommissionPlansBoard({ scope, memory }: CommissionPlansBoardProp
       {employees.isFetchNextPageError ? (
         <p role="alert">{t(locale, 'commissionPlanBuilder.couldNotLoadMore')}</p>
       ) : null}
-      {employees.isSuccess ? (
+      {showPicker ? (
         <CommissionPlanEmployeePicker
           items={items}
           hasNextPage={employees.hasNextPage}
