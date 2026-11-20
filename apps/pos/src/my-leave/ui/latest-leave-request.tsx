@@ -1,8 +1,17 @@
-import type { LeaveRequest } from '@pospay/contracts';
+import type { OwnLeaveWriteResult } from '@pospay/contracts';
 import { formatDate, t } from '@pospay/i18n';
+import { Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 
-export function LatestLeaveRequest({ request }: { request: LeaveRequest }) {
+export function LatestLeaveRequest({
+  request,
+  busy,
+  cancel,
+}: {
+  request: OwnLeaveWriteResult;
+  busy: boolean;
+  cancel(id: string, revision: number): Promise<void>;
+}) {
   const locale = useLocale();
   const title = t(locale, 'myLeave.latestRequest');
   const date = (value: string) =>
@@ -26,6 +35,17 @@ export function LatestLeaveRequest({ request }: { request: LeaveRequest }) {
         </p>
       ) : null}
       {request.note ? <p>{request.note}</p> : null}
+      {request.can_cancel === true ? (
+        <Button
+          disabled={busy}
+          variant="outline"
+          onClick={() => {
+            void cancel(request.id, request.revision);
+          }}
+        >
+          {t(locale, 'leave.cancel')}
+        </Button>
+      ) : null}
     </section>
   );
 }

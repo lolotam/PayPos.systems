@@ -56,14 +56,19 @@ const paging = [
   { in: 'query', name: 'cursor', schema: { type: 'string', format: 'uuid' } },
   { in: 'query', name: 'limit', schema: { type: 'integer', minimum: 1, maximum: 100 } },
 ];
-const operation = (operationId: string, parameters: unknown[], body?: string, status = '200') => ({
+const operation = (
+  operationId: string,
+  parameters: unknown[],
+  body?: string,
+  options?: { status?: string; response?: string },
+) => ({
   operationId,
   parameters: [...parameters, ...(body ? [idem] : paging)],
   ...(body ? { requestBody: { required: true, content: json(body) } } : {}),
   responses: {
-    [status]: {
-      description: body ? 'LeaveRequest' : 'LeavePage',
-      content: json(body ? 'LeaveRequest' : 'LeavePage'),
+    [options?.status ?? '200']: {
+      description: body ? (options?.response ?? 'LeaveRequest') : 'LeavePage',
+      content: json(body ? (options?.response ?? 'LeaveRequest') : 'LeavePage'),
     },
     default: { description: 'Bilingual refusal', content: json('ErrorEnvelope') },
   },
@@ -82,7 +87,9 @@ export const leavePaths = {
           'Open-list boundary instant in UTC ending in Z, no later than now and at most 24 hours old.',
       },
     ]),
-    post: operation('requestEmployeeLeave', employee, 'RequestEmployeeLeaveInput', '201'),
+    post: operation('requestEmployeeLeave', employee, 'RequestEmployeeLeaveInput', {
+      status: '201',
+    }),
   },
   '/v1/businesses/{businessId}/employees/{employeeId}/leave-requests/{leaveId}/cancel': {
     post: operation('cancelEmployeeLeave', [...employee, path('leaveId')], 'CancelLeaveInput'),
@@ -105,13 +112,18 @@ export const leavePaths = {
   '/v1/staff/me/leave-requests': {
     get: { ...operation('ownLeaveHistory', staff), security: ownSecurity },
     post: {
-      ...operation('requestOwnLeave', staff, 'RequestLeaveInput', '201'),
+      ...operation('requestOwnLeave', staff, 'RequestLeaveInput', {
+        status: '201',
+        response: 'OwnLeaveWriteResult',
+      }),
       security: ownSecurity,
     },
   },
   '/v1/staff/me/leave-requests/{leaveId}/cancel': {
     post: {
-      ...operation('cancelOwnLeave', [...staff, path('leaveId')], 'CancelLeaveInput'),
+      ...operation('cancelOwnLeave', [...staff, path('leaveId')], 'CancelLeaveInput', {
+        response: 'OwnLeaveWriteResult',
+      }),
       security: ownSecurity,
     },
   },

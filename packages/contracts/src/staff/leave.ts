@@ -76,6 +76,9 @@ export const leaveRequest = responseObject({
     revision: z.number().int().positive(),
   })
   .meta({ id: 'LeaveRequest' });
+export const ownLeaveWriteResult = leaveRequest
+  .extend({ can_cancel: z.boolean() })
+  .meta({ id: 'OwnLeaveWriteResult' });
 export const leaveListQuery = z
   .strictObject({
     cursor: employeeInputId.optional(),
@@ -106,6 +109,7 @@ export type RequestLeaveInput = z.infer<typeof requestLeaveInput>;
 export type RequestEmployeeLeaveInput = z.infer<typeof requestEmployeeLeaveInput>;
 export type CancelLeaveInput = z.infer<typeof cancelLeaveInput>;
 export type LeaveRequest = z.infer<typeof leaveRequest>;
+export type OwnLeaveWriteResult = z.infer<typeof ownLeaveWriteResult>;
 export type LeaveListQuery = z.infer<typeof leaveListQuery>;
 export type EmployeeLeaveListQuery = z.infer<typeof employeeLeaveListQuery>;
 export type OwnLeaveBranchQuery = z.infer<typeof ownLeaveBranchQuery>;
@@ -116,6 +120,7 @@ export const leaveSchemas = [
   requestEmployeeLeaveInput,
   cancelLeaveInput,
   leaveRequest,
+  ownLeaveWriteResult,
   leaveListQuery,
   employeeLeaveListQuery,
   leaveListItem,
