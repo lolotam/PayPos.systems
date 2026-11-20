@@ -6,6 +6,8 @@ import type {
 import { GrantPermissionOverride } from './grant-permission-override.ts';
 import { RevokePermissionOverride } from '../revoke-permission-override/revoke-permission-override.ts';
 import type { PermissionEditContext } from '../../domain/permission-edit.ts';
+import { RATINGS_READ_PERMISSION } from '../../domain/ratings-read-eligibility.ts';
+import { ApiError } from '../../../../shared/errors.ts';
 const now = new Date('2026-10-03T10:00:00Z');
 const actor = { companyId: 'company', userId: 'editor' };
 const membershipId = 'member';
@@ -165,4 +167,45 @@ describe('permission write ordering', () => {
       expect(s.invalidate).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('the ratings-read grant rule (FR-B15)', () => {
+  const ratingsTerms = { ...terms, permission_code: RATINGS_READ_PERMISSION };
+  function ratingsContext(systemRoleCode: string): PermissionEditContext {
+    if (context.membership === null) throw new Error('Synthetic membership missing');
+    return {
+      ...context,
+      catalog: [RATINGS_READ_PERMISSION],
+      membership: { ...context.membership, systemRoleCode },
+      grants: [RATINGS_READ_PERMISSION, 'manage:memberships:company'].map((permission) => ({
+        permission,
+        effect: 'ALLOW' as const,
+        scopeType: 'COMPANY' as const,
+        scopeId: actor.companyId,
+      })),
+    };
+  }
+
+  it('saves an ALLOW for a branch manager and runs the full grant path', async () => {
+    const s = setup(false, false, ratingsContext('branch_manager'));
+    expect(await s.grant.execute(actor, membershipId, ratingsTerms)).toEqual(saved);
+    expect(s.events).toEqual(['begin', 'insert', 'audit', 'commit', 'invalidate']);
+    expect(s.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'permission.granted' }),
+    );
+  });
+
+  it('refuses an ALLOW for a cashier with 422 PERMISSION_ROLE_NOT_ELIGIBLE and writes nothing', async () => {
+    const s = setup(false, false, ratingsContext('cashier'));
+    const error: unknown = await s.grant
+      .execute(actor, membershipId, ratingsTerms)
+      .then(() => null, (thrown: unknown) => thrown);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).code).toBe('PERMISSION_ROLE_NOT_ELIGIBLE');
+    expect((error as ApiError).status).toBe(422);
+    expect((error as ApiError).toEnvelope().message_ar).toContain('قراءة التقييمات');
+    expect(s.events).toEqual(['begin']);
+    expect(s.record).not.toHaveBeenCalled();
+    expect(s.invalidate).not.toHaveBeenCalled();
+  });
 });

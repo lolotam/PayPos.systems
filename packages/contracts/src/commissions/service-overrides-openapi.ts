@@ -96,4 +96,30 @@ export const commissionServiceOverridePaths = {
       },
     },
   },
+  '/v1/businesses/{businessId}/employees/{employeeId}/commission-override-services': {
+    get: {
+      operationId: 'listCommissionOverrideServices',
+      description:
+        'Every service of the business by name with its own catalog commission rule and price, plus the employee’s single current override per service, if any (FR-013a). current_override null means no eligible override today — never zero and never follow-the-plan; closed services are listed with closed_at and stay editable (CS-Q49, CS-Q50). The cursor is the last service id of the page. Requires manage:commission-plans:business and the commissions feature; the plan permission alone is enough, no services permission. Reads only.',
+      parameters: [
+        ...parameters,
+        { in: 'query', name: 'cursor', schema: { type: 'string', format: 'uuid' } },
+        {
+          in: 'query',
+          name: 'limit',
+          schema: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'The business services with the employee’s current override per service',
+          content: json('CommissionOverrideServiceList'),
+        },
+        '400': { description: 'Invalid cursor or query', content: json('ErrorEnvelope') },
+        '403': forbidden,
+        '404': { description: 'EMPLOYEE_NOT_FOUND', content: json('ErrorEnvelope') },
+        default: errors,
+      },
+    },
+  },
 };

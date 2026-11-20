@@ -1,6 +1,7 @@
 import {
   commissionServiceOverrideList,
   commissionServiceOverrideListItem,
+  type CommissionOverrideServicePage,
   type CommissionServiceOverrideList,
   type CommissionServiceOverrideListItem,
   type CommissionServiceOverrideListQuery,
@@ -53,6 +54,20 @@ export interface CommissionServiceOverrideListReads {
    * @returns true عند وجود الموظفة النشطة
    */
   employeeExists(companyId: string, businessId: string, employeeId: string): Promise<boolean>;
+  /**
+   * صفحة خدمات النشاط لشاشة التجاوزات، بترتيب معرّف الخدمة على نفس معاملة القراءة؛
+   * صلاحية الخطط بتبدل مفيش صلاحية خدمات، فالأسماء بتتقرا من كتالوج النشاط بالمزود المربوط في الجذر.
+   *
+   * @param companyId  الشركة المفتوحة في معاملة القراءة
+   * @param businessId النشاط المطلوب
+   * @param query      المؤشر (آخر معرّف خدمة) والحد
+   * @returns صفحة الخدمات بالأسماء والأسعار وقواعد الكتالوج، و`next_cursor` للصفحة الجاية
+   */
+  services(
+    companyId: string,
+    businessId: string,
+    query: { readonly cursor?: string | undefined; readonly limit: number },
+  ): Promise<CommissionOverrideServicePage>;
 }
 
 export type CommissionServiceOverrideListReadsFactory = (

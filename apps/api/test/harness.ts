@@ -33,7 +33,9 @@ import { API_LOG_EVENTS } from '../src/shared/log-events.ts';
 import { createPersonalEligibility } from '../src/modules/staff/index.ts';
 import type { FilesRuntime } from '../src/modules/files/index.ts';
 
-export { readSessionServices } from '../src/modules/catalog/index.ts';
+export { readSessionServices, readCommissionOverrideServices } from '../src/modules/catalog/index.ts';
+// جملة الـ EXPLAIN للاختبارات بس: استيراد معامل من ملف الـ persistence، مش من السطح العام للوحدة.
+export { commissionOverrideServicesStatement } from '../src/modules/catalog/persistence/commission-override-services.reader.ts';
 export {
   readCommissionPlanAccess,
   readCommissionPlanListAccess,
