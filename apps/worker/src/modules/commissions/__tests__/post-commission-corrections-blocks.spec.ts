@@ -171,9 +171,7 @@ it('U2 an open block under a month whose code changed is updated by code only', 
 
   await run(corrections);
 
-  expect(corrections.codeUpdates).toEqual([
-    { businessId: 'business-a', blockId: 'block-1', code: 'NO_SALARY' },
-  ]);
+  expect(corrections.codeUpdates).toEqual([{ blockId: 'block-1', code: 'NO_SALARY' }]);
   expect(corrections.blocks).toEqual([]);
   expect(corrections.resolutions).toEqual([]);
   expect(corrections.drafts).toEqual([]);
@@ -220,9 +218,7 @@ it('U4 a priced month with an open block posts the corrections then resolves it 
     generation: 1,
     eventId: EVENT,
   });
-  expect(corrections.resolutions).toEqual([
-    { businessId: 'business-a', blockId: 'block-1', generation: 1 },
-  ]);
+  expect(corrections.resolutions).toEqual([{ blockId: 'block-1', generation: 1 }]);
   expect(corrections.blocks).toEqual([]);
   expect(corrections.calls.indexOf('insertCorrections')).toBeLessThan(
     corrections.calls.indexOf('resolveBlock'),

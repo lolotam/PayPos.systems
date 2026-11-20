@@ -23,9 +23,33 @@ export type CommissionBlockDecision =
   | { readonly kind: 'KEEP'; readonly blockId: string };
 
 /**
- * بيقرر مصير التوقوف المفتوح لموظفة وشهرها بعد إعادة الحساب (FR-046/FR-047):
+ * الحساب الفاشل بيرجع قرار كتابة على التوقف: تسجيل أو تبديل رمز أو إبقاء.
+ *
+ * @param open           الصف المفتوح الحالي، أو null لو مفيش
+ * @param recompute      نتيجة إعادة الحساب الفاشلة
+ * @param recompute.ok   دائماً false في الشكل ده
+ * @param recompute.code رمز الرفض من المحرك (NO_PLAN أو NO_SALARY)
+ */
+export function decideCommissionBlock(
+  open: CommissionOpenBlock | null,
+  recompute: { readonly ok: false; readonly code: CommissionBlockCode },
+): Extract<CommissionBlockDecision, { kind: 'RECORD' | 'UPDATE_CODE' | 'KEEP' }>;
+/**
+ * الحساب الناجح بيرجع ولا كتابة أو حلّ الصف المفتوح.
+ *
+ * @param open         الصف المفتوح الحالي، أو null لو مفيش
+ * @param recompute    نتيجة إعادة الحساب الناجحة
+ * @param recompute.ok دائماً true في الشكل ده
+ */
+export function decideCommissionBlock(
+  open: CommissionOpenBlock | null,
+  recompute: { readonly ok: true },
+): Extract<CommissionBlockDecision, { kind: 'NONE' | 'RESOLVE' }>;
+/**
+ * بيقرر مصير التوقف المفتوح لموظفة وشهرها بعد إعادة الحساب (FR-046/FR-047):
  * إعادة الحساب الفاشلة ما بتنشرش، فالصف المفتوح بيتعاد استعماله ورمزه بيمشي مع المحرك
- * في الحالتين، وإعادة الحساب الناجحة بتحلّ التوقوف.
+ * في الحالتين، وإعادة الحساب الناجحة بتحلّ التوقف. الأنماط المحمولة بتربط شكل القرار
+ * بشكل النتيجة: فشل يرجع تسجيلاً أو تبديلاً أو إبقاء، ونجاح يرجع ولا شيء أو حلاً.
  *
  * @param open      الصف المفتوح الحالي للموظفة في الشهر، أو null لو مفيش
  * @param recompute نتيجة إعادة الحساب: نجحت، أو سبب رفضها

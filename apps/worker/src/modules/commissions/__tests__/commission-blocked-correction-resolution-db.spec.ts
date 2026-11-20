@@ -1,7 +1,11 @@
 import { expect, it } from 'vitest';
 
 import { COMMISSION_LINE_IDS } from '../../../../../../packages/db/test/commission-line-fixtures.ts';
-import { walkCommissionStatement } from '../../../../../../packages/db/test/commission-statement-fixtures.ts';
+import { lockTargetStatement } from '../../../../../../packages/db/test/commission-correction-fixtures.ts';
+import {
+  OTHER_COMMISSION_IDS,
+  walkCommissionStatement,
+} from '../../../../../../packages/db/test/commission-statement-fixtures.ts';
 import { commissionSalaryEvent, commissionTipEvent } from './commission-tip-salary-events.ts';
 import {
   A,
@@ -14,6 +18,7 @@ import {
   generations,
   ids,
   linesAdded,
+  owner,
   reopenDraft,
   salaryRows,
   seedLineSession,
@@ -23,6 +28,9 @@ import {
   tipHeads,
   SALARY_THRESHOLD_PLAN,
 } from './commission-blocked-corrections-db.fixture.ts';
+import { createCommissionCorrectionScope } from '../persistence/commission-correction.scope.ts';
+
+const clock = { now: () => new Date(CURRENT) };
 
 const resolvingSalary = () =>
   commissionSalaryEvent(A, ids, {
@@ -30,6 +38,53 @@ const resolvingSalary = () =>
     amount: '500.000',
     revision: 1,
   });
+
+it('an open block recorded under another business is found, updated and resolved by the index key', async () => {
+  const otherBusiness = OTHER_COMMISSION_IDS.business;
+  expect(otherBusiness).not.toBe(A.business);
+  const targetStatementId = await lockTargetStatement({
+    db,
+    companyId: A.company,
+    businessId: A.business,
+    period: '2026-11',
+    ids,
+  });
+  await db.withTenant(A.company, async (tx) => {
+    const scope = createCommissionCorrectionScope(tx, ids, clock);
+    const blockId = await scope.insertBlock({
+      businessId: A.business,
+      employeeId: A.employee,
+      sourcePeriod: '2026-09',
+      code: 'NO_PLAN',
+      firstEventId: ids.newId(),
+      targetPeriod: '2026-11',
+      targetStatementId,
+    });
+
+    // القراءة بمفتاح الفهرس (شركة، موظفة، شهر) بتلقى الصف المسجّل تحت A.business حتى
+    // لو الحدث اللاحق جه باسم عمل آخر لنفس الموظفة، فالقرار يوصل للكتابة بدل 23505.
+    const open = await scope.readOpenBlock({ employeeId: A.employee, sourcePeriod: '2026-09' });
+    expect(open).toMatchObject({ id: blockId, code: 'NO_PLAN' });
+
+    await scope.updateBlockCode({ blockId, code: 'NO_SALARY' });
+    const flipped = await scope.readOpenBlock({ employeeId: A.employee, sourcePeriod: '2026-09' });
+    expect(flipped).toMatchObject({ id: blockId, code: 'NO_SALARY' });
+
+    await scope.resolveBlock({ blockId, generation: 2 });
+    expect(
+      await scope.readOpenBlock({ employeeId: A.employee, sourcePeriod: '2026-09' }),
+    ).toBeNull();
+  });
+
+  const [row] = await owner`SELECT business_id::text AS business_id, code, resolved_at,
+    resolved_generation FROM commission_blocked_corrections`;
+  expect(row).toMatchObject({
+    business_id: A.business,
+    code: 'NO_SALARY',
+    resolved_generation: 2,
+  });
+  expect(row?.resolved_at).not.toBeNull();
+});
 
 it('K3 (CM-53) the resolving salary posts the O3 oracle amount and resolves the block', async () => {
   const { lineEvent, lineRef } = await seedSeptemberNoSalary('2025-06-01');

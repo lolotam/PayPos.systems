@@ -95,21 +95,16 @@ async function postEmployeeCorrections(
   });
   const result = recomputeCommissionMonth(projection);
   const open = await scope.readOpenBlock({
-    businessId,
     employeeId,
     sourcePeriod: target.sourcePeriod,
   });
-  const decision = decideCommissionBlock(open, result);
-  if (decision.kind === 'RECORD' || decision.kind === 'UPDATE_CODE' || decision.kind === 'KEEP') {
-    return applyBlockedOutcome(input, target, employeeId, decision);
-  }
   if (!result.ok) {
-    // القرار بيغطّي كل حالات الفشل بكتابة توقوف، فالوصول لهنا كسر ثابت مش مسار متوقع.
-    throw new Error('the failed month recompute has no blocked-correction decision');
+    return applyBlockedOutcome(input, target, employeeId, decideCommissionBlock(open, result));
   }
+  const decision = decideCommissionBlock(open, result);
   await postPricedCorrections(input, target, employeeId, generation, result.sources);
   if (decision.kind === 'RESOLVE') {
-    await scope.resolveBlock({ businessId, blockId: decision.blockId, generation });
+    await scope.resolveBlock({ blockId: decision.blockId, generation });
   }
 }
 
@@ -157,9 +152,9 @@ async function postPricedCorrections(
 }
 
 /**
- * بينفّذ قرار التوقوف بلا نشر: التسجيل بيرسم الشهر المحتجز وكشفه والحدث الأول مرة
+ * بينفّذ قرار التوقف بلا نشر: التسجيل بيرسم الشهر المحتجز وكشفه والحدث الأول مرة
  * واحدة من لقطة الحدث المسجّل، وتبديل الرمز بيتمسّ الرمز بس، والإبقاء بلا كتابة
- * لأني أحداث لاحقة بتعيد استعمال الصف المسجّل زي ما هو (FR-047, CM-52b, CM-53b).
+ * لأن أحداث لاحقة بتعيد استعمال الصف المسجّل زي ما هو (FR-047, CM-52b, CM-53b).
  */
 async function applyBlockedOutcome(
   input: PostCommissionCorrectionsInput,
@@ -181,7 +176,6 @@ async function applyBlockedOutcome(
   }
   if (decision.kind === 'UPDATE_CODE') {
     await input.scope.updateBlockCode({
-      businessId: input.businessId,
       blockId: decision.blockId,
       code: decision.code,
     });

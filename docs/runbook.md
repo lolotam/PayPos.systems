@@ -252,7 +252,20 @@ land, approval stays closed. Never reset or delete `published_at`, `attempts`, `
    `SessionTipsChanged` or `SalaryChanged` aimed at an already APPROVED or PAID month posts `TIP_CARD`/`TIP_CASH`/`COMMISSION` correction
    rows into the earliest DRAFT month, and the manager owns that case. Since 55-2c a replayed event whose closed month cannot be
    priced (`NO_PLAN`/`NO_SALARY`) is consumed and recorded as one open blocked correction for that employee and month (FR-046); it is
-   resolved later by a dated salary or by a period repair, which posts the correction normally. One refusal remains (FR-015):
+   resolved later by a dated salary or by a period repair, which posts the correction normally.
+   An open `NO_SALARY` block resolves itself when a later dated salary makes the month price. An open `NO_PLAN` block has no
+   resolution path yet: the period repair that clears it is 55-2f, which waits on CS-Q46 and CS-Q47, so the row stays open
+   until that row ships. Until the bell of 55-2d and the list of 55-2e land, nothing in the product exposes these rows:
+   no notification rings and no screen lists them. To see the open blocks, run this read-only query as `pospay_owner`:
+
+    ```sql
+    SELECT id, employee_id, source_period, code, first_event_id, target_period, target_statement_id, created_at
+    FROM commission_blocked_corrections
+    WHERE resolved_at IS NULL
+    ORDER BY created_at, id;
+    ```
+
+   One refusal remains (FR-015):
    `COMMISSION_PERIOD_CLOSED` when no DRAFT target month exists after the source, or when the tips bootstrap touches a closed month
    (CS-Q45); the event is retried and
    then parked. A `PackageSaleChanged` event in the `--types six` run still has no consumer before 55-1d and stays undelivered until then.
