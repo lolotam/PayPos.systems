@@ -25,13 +25,15 @@ Six sub-PRs. Batch 96 settled CS-Q47 and CS-Q48. The preparatory code move still
 | **55-2b** | Table `commission_blocked_corrections`, RLS, grants, trigger, CM-R07 | 100 | **yes** | nothing |
 | **55-2c** | The consumer records, updates and resolves blocks (FR-046; CM-51, CM-53, CM-53b stored target) | 170 | no | 55-2a, 55-2b |
 | **55-2d** | The bell (FR-049 notice: contract, template, registrations, module-map event row; CM-54) | 210 | no | 55-2c |
-| **55-2e** | The list `GET …/commission-blocked-corrections` (FR-049, `queries/`) | 140 | no | 55-2b; guard confirmed by **CS-Q48** |
+| **55-2e** | The list `GET …/commission-blocked-corrections` (FR-049, `queries/`) | 140 estimated, 487 measured (see Section 8) | no | 55-2b; guard confirmed by **CS-Q48** |
 | **55-2f** | The repair use case and HTTP (FR-047; CM-52, CM-52b, CM-52c) | 220, plus a move-only PR | no | 55-2c and the shared-correction move (CS-Q46); tier behavior confirmed by CS-Q47 |
 
-**Total: about 890 production lines, against the row's 400–550.** The overrun is stated, not hidden (as R7 of
+**Original estimate: about 890 production lines, against the row's 400–550.** The overrun is stated, not hidden (as R7 of
 `plan-55-1b.md` did for row 55-1). Reasons: the bell touches five packages for one template (55-2d), the list is a full
 read endpoint with its contract and EXPLAIN test (55-2e), and the spec's row counted the repair as one use case without
 the code-sharing problem of §8. The manager accepted an over-budget total on 2026-11-20 (thread message, stage 1).
+Substituting the measured 487 lines for the 55-2e estimate gives about 1,237 lines with the other original
+estimates unchanged, before the shared-code move. This comparison is not a measurement of the whole row.
 
 **Not in this row** (no host exists on the base commit; each clause is named so nothing is lost):
 
@@ -527,7 +529,7 @@ Corrections after the repair: `line:<Lb>` +10.000 and `line:<La>` +40.000 (neith
 
 **Approved production ceiling: 520 changed lines (additions plus deletions), one PR.**
 The original estimate was 140, with a stop at 190 and refusal above 280. The owner approved this slice-specific
-ceiling after the measured delivery reached 486 production lines. See `owner-questions.ar.md`, 55-2e-DELIVERY-1.
+ceiling after the measured delivery reached 486 production lines. The reviewed candidate measures 487. See `owner-questions.ar.md`, 55-2e-DELIVERY-1.
 No migration (the index is 55-2b's). API only.
 
 1. **Contract:** new `packages/contracts/src/commissions/blocked-corrections.ts` — `commissionBlockedCorrection`
