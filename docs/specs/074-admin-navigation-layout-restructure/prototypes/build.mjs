@@ -15,7 +15,8 @@ ${read(`${v}.css`)}
 ${read('data.js')}
 ${read('core.js')}
 ${read(`${v}.js`)}
-boot();
+/* The file has no <body> tag of its own (an Artifact adds one); opened as a local file the script runs first, so wait. */
+if (document.body) boot(); else document.addEventListener('DOMContentLoaded', boot);
 </script>
 `;
   writeFileSync(new URL(`pospay-nav-${v}.html`, here), html);
