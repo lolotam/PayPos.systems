@@ -59,7 +59,7 @@ beforeEach(() => {
       role_code: 'owner',
       scope: 'COMPANY',
     },
-    business: { id, name_ar: null, name_en: 'Synthetic business', branches: [] },
+    business: { id, name_ar: null, name_en: 'Synthetic business', business_type: 'salon', country: null, branches: [] },
     branch: undefined,
     companies: [],
     choose: vi.fn(),

@@ -1,5 +1,5 @@
 'use client';
-import type { WorkspaceBusiness } from '@pospay/contracts';
+import type { WorkspaceBusinessRead } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 import { Card, EmptyState, CircleAlert, LoaderCircle } from '@pospay/ui';
 import { useState } from 'react';
@@ -15,7 +15,7 @@ import { EmployeeProfileHeading } from './employee-profile-heading';
 
 type EmployeeEditPanelProps = {
   companyId: string;
-  business: WorkspaceBusiness;
+  business: WorkspaceBusinessRead;
   userId: string;
   employeeId: string;
   onClose: () => void;
@@ -23,7 +23,7 @@ type EmployeeEditPanelProps = {
 type EditState = ReturnType<typeof useEmployeeEdit>;
 type DataTabProps = {
   companyId: string;
-  business: WorkspaceBusiness;
+  business: WorkspaceBusinessRead;
   userId: string;
   record: EditState['record'];
   save: EditState['save'];
@@ -128,7 +128,7 @@ export function EmployeeEditPanel({
 
 function recordSectionProps(
   companyId: string,
-  business: WorkspaceBusiness,
+  business: WorkspaceBusinessRead,
   userId: string,
   record: { id: string; primary_branch_id: string },
 ) {

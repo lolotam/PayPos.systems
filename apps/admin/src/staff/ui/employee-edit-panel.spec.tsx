@@ -42,6 +42,8 @@ const business = {
   id,
   name_en: 'Synthetic salon',
   name_ar: null,
+  business_type: 'salon' as const,
+  country: null,
   vertical_type: 'salon' as const,
   timezone: 'Asia/Kuwait',
   branches: [

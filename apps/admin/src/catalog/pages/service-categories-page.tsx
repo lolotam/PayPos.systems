@@ -1,5 +1,5 @@
 'use client';
-import type { ServiceCategoryClosingStatus, WorkspaceBusiness } from '@pospay/contracts';
+import type { ServiceCategoryClosingStatus, WorkspaceBusinessRead } from '@pospay/contracts';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import {
@@ -18,7 +18,7 @@ import { ServiceCategoryPageControls } from '../ui/service-category-page-control
 
 type ServiceCategoriesPageProps = {
   companyId: string;
-  business: WorkspaceBusiness;
+  business: WorkspaceBusinessRead;
   userId: string;
 };
 type CategoryClosingState = {

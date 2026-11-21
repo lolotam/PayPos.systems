@@ -9058,6 +9058,9 @@ export interface components {
             id: string;
             name_ar: string | null;
             name_en: string;
+            business_type: components["schemas"]["VerticalType"];
+            /** @enum {string|null} */
+            country: "KW" | "SA" | "AE" | "BH" | "QA" | "OM" | null;
             branches: components["schemas"]["WorkspaceBranch"][];
         };
         WorkspaceCompany: {

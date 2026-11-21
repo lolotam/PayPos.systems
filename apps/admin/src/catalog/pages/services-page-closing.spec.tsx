@@ -102,7 +102,7 @@ it('after a close the service row in the list shows the closed badge and the lis
   render(
     <ServicesPage
       companyId={companyId}
-      business={{ id: businessId, name_en: 'Business', name_ar: null, branches: [] }}
+      business={{ id: businessId, name_en: 'Business', name_ar: null, business_type: 'salon', country: null, branches: [] }}
       userId={userId}
     />,
     { wrapper: wrapper(client) },

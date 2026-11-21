@@ -79,7 +79,7 @@ function renderPage(client: QueryClient = createQueryClient()) {
   return render(
     <ServicesPage
       companyId={companyId}
-      business={{ id: businessId, name_en: 'Business', name_ar: null, branches: [] }}
+      business={{ id: businessId, name_en: 'Business', name_ar: null, business_type: 'salon', country: null, branches: [] }}
       userId={userId}
     />,
     { wrapper: wrapper(client) },

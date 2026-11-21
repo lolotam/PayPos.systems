@@ -1,6 +1,6 @@
 'use client';
 
-import type { WorkspaceBusiness, WorkspaceCompany } from '@pospay/contracts';
+import type { WorkspaceBusinessRead, WorkspaceCompanyRead } from '@pospay/contracts';
 import type { Locale } from '@pospay/i18n';
 import { t } from '@pospay/i18n';
 
@@ -20,15 +20,15 @@ function namedOptions(
 }
 
 function chooseBusiness(
-  company: WorkspaceCompany | undefined,
+  company: WorkspaceCompanyRead | undefined,
   businessId: string,
 ): SelectionChoice {
   return { companyId: company?.id, businessId };
 }
 
 function chooseBranch(
-  company: WorkspaceCompany | undefined,
-  business: WorkspaceBusiness | undefined,
+  company: WorkspaceCompanyRead | undefined,
+  business: WorkspaceBusinessRead | undefined,
   branchId: string,
 ): SelectionChoice {
   return { companyId: company?.id, businessId: business?.id, branchId };
