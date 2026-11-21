@@ -325,15 +325,17 @@ export function matchesNavigationRoute(routePattern: string, pathname: string): 
   });
 }
 
-export function findNavigationPageByPathname(pathname: string): NavigationPageEntry | undefined {
+export function findNavigationPageByPathname(
+  pathname: string,
+  pages: readonly NavigationPageEntry[] = NAVIGATION_PAGES,
+): NavigationPageEntry | undefined {
   const normalized = normalizePathname(pathname);
   if (normalized.startsWith('/soon/')) {
-    // FR-023: retain the old address after promotion. The route checks the entry's current visibility.
+    // FR-023: the route checks the matched entry's current visibility before opening or forwarding.
     const id = normalized.slice('/soon/'.length);
-    const entry = PAGES_BY_ID.get(id);
-    return entry !== undefined && isTopLevelPage(entry) ? entry : undefined;
+    return pages.find((entry) => (entry.state === 'soon' ? entry.id : entry.formerSoonId) === id);
   }
-  const livePages = NAVIGATION_PAGES.filter(isLiveRoutePage);
+  const livePages = pages.filter(isLiveRoutePage);
   const exact = livePages.find((entry) => !entry.route.includes('[') && entry.route === normalized);
   if (exact !== undefined) return exact;
   return livePages.find((entry) => entry.route.includes('[') && matchesNavigationRoute(entry.route, normalized));

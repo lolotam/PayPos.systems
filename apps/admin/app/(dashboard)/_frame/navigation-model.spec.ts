@@ -135,11 +135,25 @@ describe('navigation model route coverage (074-1 + 074-2)', () => {
     expect(diskRoutes).toContain('/staff-app-columns');
   });
 
-  it('resolves a former Soon address to the live entry for its current visibility check', () => {
-    const promoted = findNavigationPageByPathname(soonPageHref('services'));
-    expect(promoted).toMatchObject({ id: 'services', state: 'live', route: '/catalog' });
+  it('leaves live entries without a former Soon alias and unknown IDs unresolved', () => {
+    expect(findNavigationPageByPathname(soonPageHref('services'))).toBeUndefined();
     expect(findNavigationPageByPathname(soonPageHref('service-create'))).toBeUndefined();
     expect(findNavigationPageByPathname(soonPageHref('unknown-entry'))).toBeUndefined();
+  });
+
+  it('resolves a promoted child through its published Soon alias', () => {
+    const child = requiredPageById('service-create');
+    if (!isLiveRoutePage(child)) throw new Error('Expected a live child route');
+    const promoted = { ...child, formerSoonId: 'new-services' };
+    expect(findNavigationPageByPathname(soonPageHref('new-services'), [promoted])).toBe(promoted);
+  });
+
+  it('resolves an embedded page through its published Soon alias', () => {
+    const embedded = requiredPageById('schedule-settings');
+    if (embedded.state !== 'live' || embedded.embeddedInParent !== true)
+      throw new Error('Expected an embedded live page');
+    const promoted = { ...embedded, formerSoonId: 'new-schedules' };
+    expect(findNavigationPageByPathname(soonPageHref('new-schedules'), [promoted])).toBe(promoted);
   });
 });
 

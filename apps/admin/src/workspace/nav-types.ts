@@ -116,21 +116,24 @@ interface BaseNavigationPageEntry {
   readonly appMapEntry: boolean;
 }
 
-/** صفحة حية لها مسار فعلي مبني في apps/admin/app اليوم. */
-export interface LiveRoutePageEntry extends BaseNavigationPageEntry {
+interface LiveNavigationPageEntry extends BaseNavigationPageEntry {
   readonly state: 'live';
+  readonly visible: NavigationVisibilityCondition;
+  /** المعرّف المنشور سابقًا تحت /soon/، حتى لو صارت الصفحة فرعية أو مضمّنة (FR-023). */
+  readonly formerSoonId?: string;
+}
+
+/** صفحة حية لها مسار فعلي مبني في apps/admin/app اليوم. */
+export interface LiveRoutePageEntry extends LiveNavigationPageEntry {
   readonly route: string;
   readonly parent?: string;
-  readonly visible: NavigationVisibilityCondition;
   readonly embeddedInParent?: false;
 }
 
 /** صفحة حية مضمّنة مؤقتًا داخل صفحتها الأب (مثل إعدادات الجداول داخل /schedules حتى الخطوة 11). */
-export interface EmbeddedLivePageEntry extends BaseNavigationPageEntry {
-  readonly state: 'live';
+export interface EmbeddedLivePageEntry extends LiveNavigationPageEntry {
   readonly route?: undefined;
   readonly parent: string;
-  readonly visible: NavigationVisibilityCondition;
   readonly embeddedInParent: true;
   readonly appMapEntry: true;
 }

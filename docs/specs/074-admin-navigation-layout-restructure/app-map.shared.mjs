@@ -408,8 +408,9 @@ if (targets[1].file && sameFile(targets[1].file, targets[0].file)) {
 const same = (x, y) => x.replace(/\r\n/g, '\n') === y.replace(/\r\n/g, '\n');
 for (const [, rows] of MANAGE) {
   for (const [, page, , pospayState, lovableState, , roles] of rows) {
-    if ((pospayState === S || lovableState === S) && (!roles || roles === R_LIVE)) {
-      throw new Error('Missing planned roles for Soon entry: ' + page);
+    const planned = [pospayState, lovableState].some((state) => state === S || state === N);
+    if (planned && (!roles || roles === R_LIVE)) {
+      throw new Error('Missing planned roles for Soon or New entry: ' + page);
     }
   }
 }
