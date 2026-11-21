@@ -87,7 +87,7 @@ export const employeeDocumentPaths = {
     get: {
       operationId: 'employeeDocumentNumbers',
       description:
-        'Current document numbers by id, one CSV of 1 to 20 distinct UUIDs (case-insensitive; repeated query parameters refused). Requires read:files:business on the business and the staff feature, checked before any document row is read; without it every ids value answers the same 404. Absent from the answer: foreign ids, replaced documents, deleted employees, documents without a number. Cache-Control: no-store.',
+        'Current document numbers by id, one CSV of 1 to 20 distinct UUIDs (case-insensitive; repeated query parameters refused). Invalid query shape returns 400. For valid ids, the staff feature and read:files:business are checked before reading any document row. A missing or inaccessible business returns a uniform 404. Authorized lookups return 200, omitting unknown or foreign ids, replaced documents, deleted employees, and documents without a number. When nothing matches, items is empty. Cache-Control: no-store.',
       parameters: [
         company,
         { in: 'path', name: 'businessId', required: true, schema: uuid },
@@ -104,8 +104,16 @@ export const employeeDocumentPaths = {
           headers: { 'Cache-Control': { schema: { type: 'string', enum: ['no-store'] } } },
           content: json('EmployeeDocumentNumbers'),
         },
+        400: {
+          description: 'Invalid query shape',
+          content: json('ErrorEnvelope'),
+        },
+        404: {
+          description: 'Uniform refusal for a missing or inaccessible business with valid ids',
+          content: json('ErrorEnvelope'),
+        },
         default: {
-          description: 'Bilingual refusal; no permission and unknown ids share the same refusal',
+          description: 'Bilingual error envelope',
           content: json('ErrorEnvelope'),
         },
       },

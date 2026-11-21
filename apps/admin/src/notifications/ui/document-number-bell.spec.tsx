@@ -1,13 +1,13 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
-import { afterEach, expect, it, vi } from 'vitest';
-
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { createQueryClient } from '@/shared/api/query-client';
 import * as clientModule from '@/shared/api/client';
 import { clearSelection } from '@/shared/api/selection-cookie';
 import { LocaleProvider } from '@/shared/locale/locale-context';
+import { usePermissions } from '@/permissions/api/use-permissions';
 import { NotificationBell } from './notification-bell';
 
 function deferred<T>() {
@@ -20,6 +20,9 @@ function deferred<T>() {
 
 const companyId = '01920000-0000-7000-8000-0000000000a0';
 const documentId = '01920000-0000-7000-8000-0000000000c3';
+beforeEach(() => {
+  vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
+});
 afterEach(() => {
   vi.restoreAllMocks();
   clearSelection();
@@ -53,6 +56,11 @@ function response(data: unknown): Response {
     headers: { 'Content-Type': 'application/json' },
   });
 }
+function defaultBellResponse(path: string): Response {
+  if (path.endsWith('/unread-count')) return response({ count: 1 });
+  return response({ items: [documentItem()], next_cursor: null });
+}
+
 const userId = '01920000-0000-7000-8000-0000000000f1';
 const inboxKey = ['me', 'notifications', companyId, userId, 'list'];
 
@@ -82,9 +90,8 @@ const numberedText = t('en', 'inApp.document_expiring_numbered')
 const numbersPath = (path: string) => path.includes('employee-document-numbers');
 
 it('DN-22 makes no number request while the panel is closed, then shows the number when the lookup returns it', async () => {
-  vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
   const numbersFetch = vi.fn();
-  const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
     const request = input as Request;
     const path = new URL(request.url).pathname;
     if (numbersPath(path)) {
@@ -92,25 +99,20 @@ it('DN-22 makes no number request while the panel is closed, then shows the numb
       expect(request.signal.aborted).toBe(false);
       return response({ items: [{ document_id: documentId, document_number: 'SYN-BELL-0001' }] });
     }
-    if (path.endsWith('/unread-count')) return response({ count: 1 });
-    return response({ items: [documentItem()], next_cursor: null });
+    return defaultBellResponse(path);
   });
   renderBell();
   expect(numbersFetch).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'inApp.title') }));
   expect(await screen.findByText(numberedText)).not.toBeNull();
   expect(screen.queryByText(new RegExp(documentId))).toBeNull();
-  expect(fetchSpy.mock.calls.length).toBeGreaterThan(0);
-  void todayText;
 });
 
 it('DN-22 falls back to today’s text when the lookup finds nothing for the id', async () => {
-  vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
     const path = new URL((input as Request).url).pathname;
     if (numbersPath(path)) return response({ items: [] });
-    if (path.endsWith('/unread-count')) return response({ count: 1 });
-    return response({ items: [documentItem()], next_cursor: null });
+    return defaultBellResponse(path);
   });
   renderBell();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'inApp.title') }));
@@ -118,7 +120,6 @@ it('DN-22 falls back to today’s text when the lookup finds nothing for the id'
 });
 
 it('DN-22 falls back to today’s text when the lookup fails, and clears values after close', async () => {
-  vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
   let fail = true;
   const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
     const path = new URL((input as Request).url).pathname;
@@ -126,8 +127,7 @@ it('DN-22 falls back to today’s text when the lookup fails, and clears values 
       if (fail) return new Response('{"code":"FORBIDDEN"}', { status: 404 });
       return response({ items: [{ document_id: documentId, document_number: 'SYN-BELL-0002' }] });
     }
-    if (path.endsWith('/unread-count')) return response({ count: 1 });
-    return response({ items: [documentItem()], next_cursor: null });
+    return defaultBellResponse(path);
   });
   renderBell();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'inApp.title') }));
@@ -148,7 +148,6 @@ it('DN-22 falls back to today’s text when the lookup fails, and clears values 
 });
 
 it('hides the last number during a same-id inbox refresh and retains the ordinary text after refusal', async () => {
-  vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
   const request = deferred<Response>();
   const lookup = vi
     .fn()
@@ -159,8 +158,7 @@ it('hides the last number during a same-id inbox refresh and retains the ordinar
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
     const path = new URL((input as Request).url).pathname;
     if (numbersPath(path)) return lookup();
-    if (path.endsWith('/unread-count')) return response({ count: 1 });
-    return response({ items: [documentItem()], next_cursor: null });
+    return defaultBellResponse(path);
   });
   const { client } = renderBell();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'inApp.title') }));
@@ -176,7 +174,6 @@ it('hides the last number during a same-id inbox refresh and retains the ordinar
 });
 
 it('revalidates the number when the app learns a document changed while the bell is open', async () => {
-  vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
   const request = deferred<Response>();
   const lookup = vi
     .fn()
@@ -187,14 +184,13 @@ it('revalidates the number when the app learns a document changed while the bell
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
     const path = new URL((input as Request).url).pathname;
     if (numbersPath(path)) return lookup();
-    if (path.endsWith('/unread-count')) return response({ count: 1 });
-    return response({ items: [documentItem()], next_cursor: null });
+    return defaultBellResponse(path);
   });
   const { client } = renderBell();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'inApp.title') }));
   await screen.findByText(numberedText);
   await act(async () => {
-    client.invalidateQueries({ queryKey: ['me', 'document-numbers'] });
+    void client.resetQueries({ queryKey: ['me', 'document-numbers'] });
   });
   await waitFor(() => expect(lookup).toHaveBeenCalledTimes(2));
   expect(screen.queryByText(numberedText)).toBeNull();
@@ -203,35 +199,58 @@ it('revalidates the number when the app learns a document changed while the bell
   expect(screen.getByText(todayText)).toBeTruthy();
 });
 
-it('revalidates the number when the app learns permissions changed, and a refusal falls back to today', async () => {
-  vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
-  const request = deferred<Response>();
+it('discards the first lookup in flight when a permission override changes', async () => {
+  const stale = deferred<Response>();
   const lookup = vi
-    .fn()
-    .mockResolvedValueOnce(
-      response({ items: [{ document_id: documentId, document_number: 'SYN-BELL-0001' }] }),
-    )
-    .mockReturnValue(request.promise);
+    .fn<(request: Request) => Promise<Response>>()
+    .mockReturnValueOnce(stale.promise)
+    .mockResolvedValue(new Response('{"code":"NOT_FOUND"}', { status: 404 }));
+  const override = {
+    permission_code: 'read:files:business',
+    effect: 'DENY' as const,
+    scope_type: 'BUSINESS' as const,
+    scope_id: companyId,
+    reason: 'Synthetic reason',
+    expires_at: null,
+  };
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-    const path = new URL((input as Request).url).pathname;
-    if (numbersPath(path)) return lookup();
+    const request = input as Request;
+    const path = new URL(request.url).pathname;
+    if (numbersPath(path)) return lookup(request);
     if (path.endsWith('/unread-count')) return response({ count: 1 });
+    if (path.endsWith('/overrides') && request.method === 'POST') {
+      return response({
+        ...override,
+        id: userId,
+        granted_by: userId,
+        granted_at: '2026-11-01T12:00:00Z',
+      });
+    }
     return response({ items: [documentItem()], next_cursor: null });
   });
   const { client } = renderBell();
+  const permissions = renderHook(() => usePermissions(companyId, userId, userId), {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'inApp.title') }));
-  await screen.findByText(numberedText);
+  await waitFor(() => expect(lookup).toHaveBeenCalledTimes(1));
   await act(async () => {
-    client.invalidateQueries({ queryKey: ['me', 'document-numbers'] });
+    await permissions.result.current.save.mutateAsync(override);
   });
   await waitFor(() => expect(lookup).toHaveBeenCalledTimes(2));
+  expect(lookup.mock.calls[0]?.[0].signal.aborted).toBe(true);
+  await act(async () => {
+    stale.resolve(
+      response({ items: [{ document_id: documentId, document_number: 'SYN-BELL-0001' }] }),
+    );
+  });
   expect(screen.queryByText(numberedText)).toBeNull();
-  await act(async () => request.resolve(response({ items: [] })));
   expect(screen.getByText(todayText)).toBeTruthy();
 });
 
 it('clears the previous number when changing business inside the same company', async () => {
-  vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
   const request = deferred<Response>();
   const lookup = vi
     .fn()
@@ -242,8 +261,7 @@ it('clears the previous number when changing business inside the same company', 
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
     const path = new URL((input as Request).url).pathname;
     if (numbersPath(path)) return lookup();
-    if (path.endsWith('/unread-count')) return response({ count: 1 });
-    return response({ items: [documentItem()], next_cursor: null });
+    return defaultBellResponse(path);
   });
   const { client, changeBusiness } = renderBell();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'inApp.title') }));
@@ -262,7 +280,6 @@ it('clears the previous number when changing business inside the same company', 
 
 it('isolates a per-activity denial: the refused business falls back while the authorized one keeps its number', async () => {
   const otherBusiness = '01920000-0000-7000-8000-0000000000df';
-  vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
   const sibling = vi.fn<(signal: AbortSignal) => void>();
   const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
     const request = input as Request;
@@ -310,12 +327,10 @@ it('a late reply for a removed scope never surfaces after the id set changes', a
     .fn()
     .mockImplementationOnce(() => late.promise)
     .mockImplementationOnce(() => changed.promise);
-  vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
     const path = new URL((input as Request).url).pathname;
     if (numbersPath(path)) return lookup();
-    if (path.endsWith('/unread-count')) return response({ count: 1 });
-    return response({ items: [documentItem()], next_cursor: null });
+    return defaultBellResponse(path);
   });
   const { client } = renderBell();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'inApp.title') }));
@@ -351,7 +366,6 @@ it('a late reply for a removed scope never surfaces after the id set changes', a
 
 it('normalizes document id case when reading the numbers map', async () => {
   const upperId = documentId.toUpperCase();
-  vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
     const path = new URL((input as Request).url).pathname;
     if (numbersPath(path)) {

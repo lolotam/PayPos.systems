@@ -268,7 +268,7 @@ function useDocumentRecord(
       if (context) {
         client.invalidateQueries({ queryKey: context.key });
         // تسجيل/استبدال وثيقة = تغيّر معروف في المستند الحالي؛ جرس انتهاء المستند يعيد التحقق من الرقم.
-        client.invalidateQueries({ queryKey: ['me', 'document-numbers'] });
+        void client.resetQueries({ queryKey: ['me', 'document-numbers'] });
       }
       return undefined;
     },

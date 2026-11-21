@@ -138,7 +138,7 @@ export function usePermissions(
     // تغيير صلاحية = تغيّر معروف يستهلكه جرس انتهاء المستند في إعادة التحقق من الرقم.
     onSuccess: (_saved, _body, context) => {
       client.invalidateQueries({ queryKey: context.queryKey });
-      client.invalidateQueries({ queryKey: ['me', 'document-numbers'] });
+      void client.resetQueries({ queryKey: ['me', 'document-numbers'] });
     },
   });
   const revoke = useMutation({
@@ -147,7 +147,7 @@ export function usePermissions(
     onMutate: () => ({ queryKey: key(companyId, userId, businessId) }),
     onSuccess: (_saved, _body, context) => {
       client.invalidateQueries({ queryKey: context.queryKey });
-      client.invalidateQueries({ queryKey: ['me', 'document-numbers'] });
+      void client.resetQueries({ queryKey: ['me', 'document-numbers'] });
     },
   });
   return { detail, save, revoke };

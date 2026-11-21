@@ -609,7 +609,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Current document numbers by id, one CSV of 1 to 20 distinct UUIDs (case-insensitive; repeated query parameters refused). Requires read:files:business on the business and the staff feature, checked before any document row is read; without it every ids value answers the same 404. Absent from the answer: foreign ids, replaced documents, deleted employees, documents without a number. Cache-Control: no-store. */
+        /** @description Current document numbers by id, one CSV of 1 to 20 distinct UUIDs (case-insensitive; repeated query parameters refused). Invalid query shape returns 400. For valid ids, the staff feature and read:files:business are checked before reading any document row. A missing or inaccessible business returns a uniform 404. Authorized lookups return 200, omitting unknown or foreign ids, replaced documents, deleted employees, and documents without a number. When nothing matches, items is empty. Cache-Control: no-store. */
         get: operations["employeeDocumentNumbers"];
         put?: never;
         post?: never;
@@ -11475,7 +11475,25 @@ export interface operations {
                     "application/json": components["schemas"]["EmployeeDocumentNumbers"];
                 };
             };
-            /** @description Bilingual refusal; no permission and unknown ids share the same refusal */
+            /** @description Invalid query shape */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform refusal for a missing or inaccessible business with valid ids */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual error envelope */
             default: {
                 headers: {
                     [name: string]: unknown;
