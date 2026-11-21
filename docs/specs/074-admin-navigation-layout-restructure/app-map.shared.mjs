@@ -321,15 +321,18 @@ const targets = [
     file: '' },
 ];
 const args = process.argv.slice(2);
+const USAGE = 'Usage: node app-map.shared.mjs [path-to-022-app-map.md] | node app-map.shared.mjs --check <path-to-022-app-map.md>';
 const check = args[0] === '--check';
-const otherPath = check ? args[1] : args[0];
+const paths = check ? args.slice(1) : args;
+// Nothing is read or written until the whole argument list is valid: an option anywhere else, or an extra argument, is an error.
+if (paths.some((a) => a.startsWith('-')) || paths.length > 1 || (check && paths.length !== 1)) { console.error(USAGE); process.exit(1); }
+const otherPath = paths[0];
 targets[1].file = otherPath ? resolve(otherPath) : '';
 targets[0].file = resolve(targets[0].file);
 if (targets[1].file && targets[1].file.toLowerCase() === targets[0].file.toLowerCase()) {
   console.error('The path given is this project\'s own app-map.md. Pass the lovable-pospay copy.');
   process.exit(1);
 }
-if (check && !targets[1].file) { console.error('Usage: node app-map.shared.mjs --check <path-to-022-app-map.md>'); process.exit(1); }
 const same = (x, y) => x.replace(/\r\n/g, '\n') === y.replace(/\r\n/g, '\n');
 let drift = 0;
 for (const t of targets) {
