@@ -80,6 +80,36 @@ export interface TipCoverageRow {
   readonly revision: number;
 }
 
+/** هوية بيع باقة ومراجعته الحالية في المصدر أو الإسقاط. */
+export interface SaleCoverageRow {
+  readonly saleId: string;
+  readonly revision: number;
+}
+
+/** صفحة من مبيعات الباقات ومؤشر الاستمرار عند اكتمال الصفحة. */
+export interface SaleCoveragePage {
+  readonly rows: readonly SaleCoverageRow[];
+  readonly nextAfter: string | null;
+}
+
+export interface PackageSaleCoverageReader {
+  /**
+   * يعيد كل باكدج مُباع بمراجعته الحالية لإثبات أن إسقاط العمولة يغطي المصدر قبل الاعتماد،
+   * والمستورَد بلا بيع فلا حدث له ولا يدخل التغطية أصلاً (D-51).
+   *
+   * @param tx معاملة الشركة التي يقرأ منها القارئ
+   * @param companyId هوية الشركة صاحبة البيعات
+   * @param after معرّف آخر بيع في الصفحة السابقة أو null لأول صفحة
+   * @param limit أقصى عدد صفوف في الصفحة
+   */
+  readPage(
+    tx: CoverageTx,
+    companyId: string,
+    after: string | null,
+    limit: number,
+  ): Promise<SaleCoveragePage>;
+}
+
 export interface CoverageProjectionReader {
   /**
    * يعيد مراجعات رؤوس البنود المطلوبة حتى تكشف المقارنة أي بند غائب أو متأخر.
@@ -134,6 +164,19 @@ export interface CoverageProjectionReader {
     companyId: string,
     sessionIds: readonly string[],
   ): Promise<readonly TipCoverageRow[]>;
+
+  /**
+   * يعيد مراجعات صفوف البيع المطلوبة حتى تكشف المقارنة أي بيع غائب أو متأخر (CM-20b).
+   *
+   * @param tx معاملة الشركة التي يقرأ منها القارئ
+   * @param companyId هوية الشركة صاحبة الصفوف
+   * @param saleIds هويات البيعات المطلوب قراءة مراجعاتها في الإسقاط
+   */
+  saleRevisions(
+    tx: CoverageTx,
+    companyId: string,
+    saleIds: readonly string[],
+  ): Promise<readonly SaleCoverageRow[]>;
 }
 
 /** واجهة صفحات الأحداث المحتفظ بها من 50-0، وتعمل بصلاحية pospay_dispatcher المحدودة. */

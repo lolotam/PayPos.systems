@@ -22,11 +22,12 @@ const CONTINUABLE_FAILURE_CODES = new Set([
   'COMMISSION_EMPLOYEE_BUSINESS_MISSING',
   'COMMISSION_LINE_EVENT_INVALID',
   'COMMISSION_TIP_SALARY_INPUT_INVALID',
+  'COMMISSION_SALE_INPUT_INVALID',
   'COMMISSION_BUSINESS_MISSING',
   'COMMISSION_PERIOD_CLOSED',
   'COMMISSION_EVENT_TYPE_NOT_HANDLED',
 ]);
-// نوع لا يسجّله المستهلك بعد (بيع الباقة قبل 50-4): رمز ثابت يفرق بين "بانتظار المعالج" و"فجوة حقيقية".
+// نوع لا يسجّله المستهلك: رمز ثابت يفرق بين "بانتظار المعالج" و"فجوة حقيقية"؛ والأنواع الستة كلها مسجّلة من 50-4.
 const EVENT_TYPE_NOT_HANDLED = 'COMMISSION_EVENT_TYPE_NOT_HANDLED';
 
 /** حدث خارج شركة النطاق أو نوعه لا تقبله استعادة العمولات؛ الرفض يمنع تسليم حدث لمستهلك غير مقصود. */

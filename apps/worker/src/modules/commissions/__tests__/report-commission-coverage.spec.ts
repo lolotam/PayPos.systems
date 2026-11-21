@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type {
   CoverageTenantRunner,
   CoverageTx,
+  SaleCoverageRow as SaleRow,
   SalaryCoverageCursor,
   SalaryCoverageRow as SalaryRow,
   ServiceLineCoverageRow as LineRow,
@@ -26,6 +27,7 @@ const HANDLED_TYPES = new Set([
   'ServiceLineChanged',
   'SessionTipsChanged',
   'SalaryChanged',
+  'PackageSaleChanged',
 ]);
 // القارئات ما بتمسّش الـ tx، فكائن فارغ بيناسب الـ port من غير أي جدول حقيقي.
 const DUMMY_TX = {} as unknown as CoverageTx;
@@ -74,6 +76,20 @@ function lineReader(rows: readonly LineRow[]) {
   };
 }
 
+function saleReader(rows: readonly SaleRow[]) {
+  const sorted = [...rows].sort((left, right) => (left.saleId < right.saleId ? -1 : 1));
+  return {
+    readPage: vi.fn(async (_tx: CoverageTx, _cid: string, after: string | null, limit: number) => {
+      const start = after === null ? 0 : sorted.findIndex((row) => row.saleId > after);
+      const from = start === -1 ? sorted.length : start;
+      const page = sorted.slice(from, from + limit);
+      const last = page.at(-1);
+      const more = from + page.length < sorted.length;
+      return { rows: page, nextAfter: page.length === limit && more && last ? last.saleId : null };
+    }),
+  };
+}
+
 function salaryReader(rows: readonly SalaryRow[]) {
   const sorted = [...rows].sort((left, right) => {
     if (left.employeeId !== right.employeeId) return left.employeeId < right.employeeId ? -1 : 1;
@@ -106,6 +122,7 @@ function projectionReader(options: {
   readonly lines?: readonly LineRow[];
   readonly salaries?: readonly SalaryRow[];
   readonly tips?: readonly TipRow[];
+  readonly sales?: readonly SaleRow[];
   readonly marked?: ReadonlySet<string>;
 }) {
   const lineMap = new Map((options.lines ?? []).map((row) => [row.lineId, row]));
@@ -114,6 +131,7 @@ function projectionReader(options: {
     salaryMap.set(row.employeeId, [...(salaryMap.get(row.employeeId) ?? []), row]);
   }
   const tipMap = new Map((options.tips ?? []).map((row) => [row.sessionId, row]));
+  const saleMap = new Map((options.sales ?? []).map((row) => [row.saleId, row]));
   const marked = options.marked ?? new Set<string>();
   return {
     lineRevisions: vi.fn(async (_tx: CoverageTx, _cid: string, ids: readonly string[]) =>
@@ -130,6 +148,9 @@ function projectionReader(options: {
     ),
     tipRevisions: vi.fn(async (_tx: CoverageTx, _cid: string, ids: readonly string[]) =>
       ids.map((id) => tipMap.get(id)).filter((row): row is TipRow => row !== undefined),
+    ),
+    saleRevisions: vi.fn(async (_tx: CoverageTx, _cid: string, ids: readonly string[]) =>
+      ids.map((id) => saleMap.get(id)).filter((row): row is SaleRow => row !== undefined),
     ),
   };
 }
@@ -163,7 +184,10 @@ interface HarnessOptions {
   readonly projectedLines?: readonly LineRow[];
   readonly sourceSalaries?: readonly SalaryRow[];
   readonly projectedSalaries?: readonly SalaryRow[];
+  readonly sourceSales?: readonly SaleRow[];
+  readonly projectedSales?: readonly SaleRow[];
   readonly events?: readonly ClaimedEvent[];
+  /** علامات الاستهلاك المعروفة؛ الغياب يعني لا علامات، فكل الأحداث المحتفظ بها غير مستهلكة. */
   readonly marked?: ReadonlySet<string>;
   readonly companyOpen?: boolean;
   readonly retainedIgnoresCompany?: boolean;
@@ -180,23 +204,21 @@ function harness(options: HarnessOptions) {
   };
   const lines = lineReader(options.sourceLines ?? []);
   const salaries = salaryReader(options.sourceSalaries ?? []);
+  const sales = saleReader(options.sourceSales ?? []);
   const projection = projectionReader({
     lines: options.projectedLines ?? options.sourceLines ?? [],
     salaries: options.projectedSalaries ?? options.sourceSalaries ?? [],
+    sales: options.projectedSales ?? options.sourceSales ?? [],
     marked: options.marked ?? new Set<string>(),
   });
   const retained = retainedReader(options.events ?? [], options.retainedIgnoresCompany ?? false);
   const deps: CommissionCoverageDeps = {
-    withTenant,
-    lines,
-    salaries,
-    projection,
-    retained,
+    withTenant, lines, salaries, sales, projection, retained,
     consumerId: CONSUMER,
     companies: { isOpen: async () => options.companyOpen ?? true },
     handledTypes: HANDLED_TYPES,
   };
-  return { deps, tenants, lines, salaries, projection, retained };
+  return { deps, tenants, lines, salaries, sales, projection, retained };
 }
 
 const run = (deps: CommissionCoverageDeps, throughId: string | null = null, companyId = COMPANY) =>

@@ -1,6 +1,7 @@
 import { createDatabase, createOutboxDispatcherDatabase } from '@pospay/db';
 import type { ClaimedEvent, Database, OutboxDispatcherDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
+import { sql } from 'drizzle-orm';
 import { createLogger } from '@pospay/observability';
 import postgres from 'postgres';
 import { afterAll, afterEach, beforeAll, expect, it } from 'vitest';
@@ -24,8 +25,9 @@ import {
 } from '../modules/commissions/__tests__/commission-line-projection-time-zone.ts';
 import {
   commissionSalaryEvent,
+  commissionSaleEvent,
 } from '../modules/commissions/__tests__/commission-tip-salary-events.ts';
-import { readServiceLineCoveragePage } from '../modules/orders/index.ts';
+import { listCurrentPackageSales, readServiceLineCoveragePage } from '../modules/orders/index.ts';
 import { readSalaryCoveragePage } from '../modules/staff/index.ts';
 import { companyOpen } from '../modules/tenancy/index.ts';
 import { createDeliverer } from '../outbox/deliver.ts';
@@ -65,6 +67,8 @@ beforeAll(async () => {
     ${A.customer},'Coverage customer','***123',${USER},${A.membership},now(),now(),current_date,
     'Asia/Kuwait',false),(${B.company},${SESSION},${B.business},${B.branch},${B.customer},
     'Coverage customer','***123',${USER},${B.membership},now(),now(),current_date,'Asia/Kuwait',false)`;
+  await owner`INSERT INTO package_types(company_id,id,business_id,name_en,price,validity_days)
+    VALUES (${A.company},${SALE_TYPE},${A.business},'Coverage package type',1.000,30)`;
   db = createDatabase({ url: testDb.appUrl, ids });
   dispatcher = createOutboxDispatcherDatabase({ url: testDb.dispatcherUrl, maxConnections: 1 });
 });
@@ -85,6 +89,9 @@ afterEach(async () => {
     await tx`DELETE FROM commission_lines`;
     await tx`DELETE FROM commission_line_heads`;
     await tx`DELETE FROM commission_salaries`;
+    await tx`DELETE FROM commission_sales`;
+    await tx`DELETE FROM package_components`;
+    await tx`DELETE FROM package_entitlements`;
     await tx`DELETE FROM employee_salaries`;
     await tx`DELETE FROM consumed_events`;
     await tx`DELETE FROM outbox`;
@@ -96,18 +103,25 @@ function coverageReport() {
     database: db,
     lines: { readPage: readServiceLineCoveragePage },
     salaries: { readPage: readSalaryCoveragePage },
+    sales: { readPage: listCurrentPackageSales },
     retained: dispatcher,
     companies: { isOpen: companyOpen },
   });
 }
 
-async function replayCompanyA(): Promise<void> {
+async function replayCompanyA(scope: 'FOUR_TYPE' | 'SIX_TYPE' = 'FOUR_TYPE'): Promise<void> {
   const failures = new Map<string, string>();
   const timezone = fakeBusinessTimeZone(A.business);
   const consumer = createTestCommissionInputsConsumer({ ids, clock, businessTimeZone: timezone });
   const deliver = createDeliverer(db, [consumer], logger, { knownEventTypes: consumer.eventTypes });
   const result = await runCommissionInputReplay(
-    { reader: dispatcher, deliver, failures },
+    {
+      reader: dispatcher,
+      deliver,
+      failures,
+      scope,
+      handledTypes: new Set(consumer.eventTypes),
+    },
     { companyId: A.company, afterId: null, throughId: null },
   );
   expect(result.status).toBe('COMPLETE');
@@ -224,6 +238,106 @@ it('CM-25 covers a legacy salary only after the replay projects it', async () =>
   expect(after.salaries.stale.total).toBe(0);
   expect(after.unmarked.total).toBe(0);
 });
+
+const SALE_TYPE = '01920000-0000-7000-8000-00000000f301';
+
+async function seedSoldEntitlement(saleId: string): Promise<void> {
+  // قيد سلامة التشغيل مؤجَّل حتى نهاية المعاملة، فالباكدج ومكوّنه في معاملة واحدة.
+  await db.withTenant(A.company, async (tx) => {
+    await tx.execute(sql`INSERT INTO package_entitlements
+      (company_id,id,business_id,customer_id,package_type_id,provenance,name_en,validity_days,list_price,
+        price_paid,discount,discount_bps,paid_method,seller_employee_id,sold_branch_id,sold_at,
+        sold_business_date,sold_timezone,recorded_by,recorded_by_membership_id,expires_on,
+        refunded_amount,revision)
+      VALUES (${A.company},${saleId},${A.business},${A.customer},${SALE_TYPE},'SOLD','Coverage package',
+        30,'1.000','30.000','0.000',0,'CASH',${A.employee},${A.branch},now(),'2026-11-01','Asia/Kuwait',
+        ${USER},${A.membership},'2026-11-30','0.000',1)`);
+    await tx.execute(sql`INSERT INTO package_components
+      (company_id,id,business_id,entitlement_id,service_id,position,name_en,list_price_snapshot,
+        sessions_total,component_value)
+      VALUES (${A.company},${ids.newId()},${A.business},${saleId},${A.service},
+      1,'Coverage component',30.000,1,30.000)`);
+    const component = await tx.execute<{ id: string }>(sql`
+      SELECT id FROM package_components WHERE company_id=${A.company} AND entitlement_id=${saleId}`);
+    await tx.execute(sql`INSERT INTO package_session_slots
+      (company_id,id,business_id,entitlement_id,component_id,ordinal,unit_value,state)
+      VALUES (${A.company},${ids.newId()},${A.business},${saleId},${component[0]?.id},
+      1,30.000,'FREE')`);
+  });
+}
+
+/** باقة مستوردة بمعاينة استيراد حقيقية؛ المستورَد بلا بيع فلا حدث ولا يدخل تغطية البيع. */
+async function seedImportedEntitlement(entitlementId: string): Promise<void> {
+  const file = ids.newId();
+  const preview = ids.newId();
+  await owner`INSERT INTO file_objects(company_id,id,business_id,owner_module,owner_entity_id,
+    staging_key,content_type,size_bytes,required_permission,created_by,created_at)
+    VALUES (${A.company},${file},${A.business},'import',${file},'synthetic-import-file',
+    'application/pdf',10,'read:files:business',${USER},now())`;
+  await owner`INSERT INTO import_previews(company_id,id,business_id,entity,file_id,created_by,
+    created_at,expires_at,row_count,error_count,rows,errors)
+    VALUES (${A.company},${preview},${A.business},'packages',${file},${USER},now(),
+    now()+interval '1 day',1,0,'[]'::jsonb,'[]'::jsonb)`;
+  await db.withTenant(A.company, async (tx) => {
+    await tx.execute(sql`INSERT INTO package_entitlements
+      (company_id,id,business_id,customer_id,provenance,name_en,price_paid,recorded_by,
+        recorded_by_membership_id,external_ref,import_batch_id,import_row,expires_on,
+        refunded_amount,revision)
+      VALUES (${A.company},${entitlementId},${A.business},${A.customer},'IMPORTED',
+        'Coverage imported package','30.000',${USER},${A.membership},${'EXT-' + entitlementId},
+        ${preview},1,'2026-11-30','0.000',1)`);
+    await tx.execute(sql`INSERT INTO package_components
+      (company_id,id,business_id,entitlement_id,service_id,position,name_en,list_price_snapshot,
+        sessions_total,component_value)
+      VALUES (${A.company},${ids.newId()},${A.business},${entitlementId},${A.service},
+      1,'Coverage component',30.000,1,30.000)`);
+    const component = await tx.execute<{ id: string }>(sql`
+      SELECT id FROM package_components WHERE company_id=${A.company} AND entitlement_id=${entitlementId}`);
+    await tx.execute(sql`INSERT INTO package_session_slots
+      (company_id,id,business_id,entitlement_id,component_id,ordinal,unit_value,state)
+      VALUES (${A.company},${ids.newId()},${A.business},${entitlementId},${component[0]?.id},
+      1,30.000,'FREE')`);
+  });
+}
+
+it('CM-20b covers a package sale only after the replay projects it and never counts an import', async () => {
+  await seedSoldEntitlement(FIRST);
+  await insertOutbox(commissionSaleEvent(A, ids, { saleId: FIRST }));
+  await seedSoldEntitlement(STALE);
+  await seedImportedEntitlement(SECOND);
+
+  const before = await coverageReport()({ companyId: A.company, throughId: null });
+  expect(before.status).toBe('NOT_COVERED');
+  expect(before.sales).toEqual({
+    checked: 2,
+    missing: { total: 2, ids: [FIRST, STALE] },
+    stale: { total: 0, ids: [] },
+  });
+  expect(before.unmarked.total).toBe(1);
+
+  await replayCompanyA('SIX_TYPE');
+
+  const after = await coverageReport()({ companyId: A.company, throughId: null });
+  expect(after.status).toBe('NOT_COVERED');
+  expect(after.sales).toEqual({
+    checked: 2,
+    missing: { total: 1, ids: [STALE] },
+    stale: { total: 0, ids: [] },
+  });
+  expect(after.unmarked.total).toBe(0);
+
+  await insertProjectedSaleRow(STALE, 1);
+  const covered = await coverageReport()({ companyId: A.company, throughId: null });
+  expect(covered.status).toBe('COVERED');
+  expect(covered.sales.missing.total).toBe(0);
+});
+
+async function insertProjectedSaleRow(saleId: string, revision: number): Promise<void> {
+  await owner`INSERT INTO commission_sales (company_id,id,business_id,sale_id,branch_id,
+    seller_employee_id,business_date,period,price_paid,refunded_amount,status,revision)
+    VALUES (${A.company},${ids.newId()},${A.business},${saleId},${A.branch},${A.employee},
+    '2026-11-01','2026-11','30.000','0.000','SOLD',${revision})`;
+}
 
 it('keeps a source line missing when its retained event does not exist', async () => {
   const orphan = await seedLine(A, { id: ORPHAN, ordinal: 1, revision: 1, kind: 'session' });

@@ -18,9 +18,12 @@ import {
   createCoverageProjectionReader,
   markedEventIdsStatement,
   projectedLineRevisionsStatement,
+  projectedSaleRevisionsStatement,
   projectedSalaryRevisionsStatement,
 } from '../modules/commissions/persistence/commission-coverage.reads.ts';
 import {
+  listCurrentPackageSales,
+  packageSaleCoverageStatement,
   readServiceLineCoveragePage,
   serviceLineCoverageStatement,
 } from '../modules/orders/index.ts';
@@ -63,6 +66,9 @@ beforeAll(async () => {
     'Coverage customer','***123',${USER},${B.membership},now(),now(),current_date,'Asia/Kuwait',false)`;
   await owner`UPDATE employees SET deleted_at='2026-02-01T00:00:00Z'
     WHERE company_id=${A.company} AND id=${COMMISSION_LINE_IDS.thirdEmployee}`;
+  for (const tenant of [A, B])
+    await owner`INSERT INTO package_types(company_id,id,business_id,name_en,price,validity_days)
+      VALUES (${tenant.company},${PACKAGE_TYPE},${tenant.business},'Coverage package type',1.000,30)`;
   db = createDatabase({ url: testDb.appUrl, ids });
 });
 
@@ -81,7 +87,11 @@ afterEach(async () => {
     await tx`DELETE FROM service_lines`;
     await tx`DELETE FROM commission_line_heads`;
     await tx`DELETE FROM commission_salaries`;
+    await tx`DELETE FROM commission_sales`;
     await tx`DELETE FROM employee_salaries`;
+    await tx`DELETE FROM package_session_slots`;
+    await tx`DELETE FROM package_components`;
+    await tx`DELETE FROM package_entitlements`;
     await tx`DELETE FROM consumed_events`;
   });
 });
@@ -147,6 +157,84 @@ async function insertMark(companyId: string, consumerId: string, eventId: string
     ${consumerId},${eventId})`;
 }
 
+const PACKAGE_TYPE = '01920000-0000-7000-8000-00000000f301';
+
+/** باقة مستوردة بمعاينة استيراد حقيقية؛ سلسلة الملف والمعاينة والاستحقاق والمكوّن والجلسة. */
+async function insertImportedEntitlement(tenant: Tenant, entitlementId: string): Promise<void> {
+  const file = ids.newId();
+  const preview = ids.newId();
+  await owner`INSERT INTO file_objects(company_id,id,business_id,owner_module,owner_entity_id,
+    staging_key,content_type,size_bytes,required_permission,created_by,created_at)
+    VALUES (${tenant.company},${file},${tenant.business},'import',${file},'synthetic-import-file',
+    'application/pdf',10,'read:files:business',${USER},now())`;
+  await owner`INSERT INTO import_previews(company_id,id,business_id,entity,file_id,created_by,
+    created_at,expires_at,row_count,error_count,rows,errors)
+    VALUES (${tenant.company},${preview},${tenant.business},'packages',${file},${USER},now(),
+    now()+interval '1 day',1,0,'[]'::jsonb,'[]'::jsonb)`;
+  await db.withTenant(tenant.company, async (tx) => {
+    await tx.execute(sql`INSERT INTO package_entitlements
+      (company_id,id,business_id,customer_id,provenance,name_en,price_paid,recorded_by,
+        recorded_by_membership_id,external_ref,import_batch_id,import_row,expires_on,
+        refunded_amount,revision)
+      VALUES (${tenant.company},${entitlementId},${tenant.business},${tenant.customer},'IMPORTED',
+        'Coverage imported package','1.000',${USER},${tenant.membership},${'EXT-' + entitlementId},
+        ${preview},1,'2026-11-30','0.000',1)`);
+    await tx.execute(sql`INSERT INTO package_components
+      (company_id,id,business_id,entitlement_id,service_id,position,name_en,list_price_snapshot,
+        sessions_total,component_value)
+      VALUES (${tenant.company},${ids.newId()},${tenant.business},${entitlementId},${tenant.service},
+      1,'Coverage component',1.000,1,1.000)`);
+    const component = await tx.execute<{ id: string }>(sql`
+      SELECT id FROM package_components WHERE company_id=${tenant.company} AND entitlement_id=${entitlementId}`);
+    await tx.execute(sql`INSERT INTO package_session_slots
+      (company_id,id,business_id,entitlement_id,component_id,ordinal,unit_value,state)
+      VALUES (${tenant.company},${ids.newId()},${tenant.business},${entitlementId},${component[0]?.id},
+      1,1.000,'FREE')`);
+  });
+}
+
+async function insertSoldEntitlement(tenant: Tenant, entitlementId: string): Promise<void> {
+  // قيد سلامة التشغيل مؤجَّل حتى نهاية المعاملة، فالباكدج ومكوّنه في معاملة واحدة.
+  await db.withTenant(tenant.company, async (tx) => {
+    await tx.execute(sql`INSERT INTO package_entitlements
+      (company_id,id,business_id,customer_id,package_type_id,provenance,name_en,validity_days,list_price,
+        price_paid,discount,discount_bps,paid_method,seller_employee_id,sold_branch_id,sold_at,
+        sold_business_date,sold_timezone,recorded_by,recorded_by_membership_id,expires_on,
+        refunded_amount,revision)
+      VALUES (${tenant.company},${entitlementId},${tenant.business},${tenant.customer},
+        ${PACKAGE_TYPE},'SOLD','Coverage package',30,
+        '1.000','1.000','0.000',0,'CASH',
+        ${tenant.employee},${tenant.branch},now(),
+        '2026-11-01','Asia/Kuwait',${USER},${tenant.membership},
+        '2026-11-30','0.000',1)`);
+    await tx.execute(sql`INSERT INTO package_components
+      (company_id,id,business_id,entitlement_id,service_id,position,name_en,list_price_snapshot,
+        sessions_total,component_value)
+      VALUES (${tenant.company},${ids.newId()},${tenant.business},${entitlementId},${tenant.service},
+      1,'Coverage component',1.000,1,1.000)`);
+    const component = await tx.execute<{ id: string }>(sql`
+      SELECT id FROM package_components WHERE company_id=${tenant.company} AND entitlement_id=${entitlementId}`);
+    await tx.execute(sql`INSERT INTO package_session_slots
+      (company_id,id,business_id,entitlement_id,component_id,ordinal,unit_value,state)
+      VALUES (${tenant.company},${ids.newId()},${tenant.business},${entitlementId},${component[0]?.id},
+      1,1.000,'FREE')`);
+  });
+}
+
+async function insertProjectedSale(
+  tenant: Tenant,
+  saleId: string,
+  revision: number,
+): Promise<void> {
+  await owner`INSERT INTO commission_sales (company_id,id,business_id,sale_id,branch_id,
+    seller_employee_id,business_date,period,price_paid,refunded_amount,status,revision)
+    VALUES (${tenant.company},${ids.newId()},${tenant.business},${saleId},${tenant.branch},
+    ${tenant.employee},'2026-11-01','2026-11','1.000','0.000','SOLD',${revision})`;
+}
+
+const readSales = (companyId: string, after: string | null, limit: number) =>
+  db.withTenant(companyId, (tx) => listCurrentPackageSales(tx, companyId, after, limit));
+
 function planNodes(value: unknown): Record<string, unknown>[] {
   if (value === null || typeof value !== 'object') return [];
   if (Array.isArray(value)) return value.flatMap(planNodes);
@@ -157,7 +245,9 @@ function planNodes(value: unknown): Record<string, unknown>[] {
 const COVERAGE_STATEMENTS: readonly (readonly [SQL, string])[] = [
   [serviceLineCoverageStatement(A.company, null, 10), 'service_lines'],
   [salaryCoverageStatement(A.company, null, 10), 'employee_salaries'],
+  [packageSaleCoverageStatement(A.company, null, 10), 'package_entitlements'],
   [projectedLineRevisionsStatement(A.company, [FIRST]), 'commission_line_heads'],
+  [projectedSaleRevisionsStatement(A.company, [FIRST]), 'commission_sales'],
   [projectedSalaryRevisionsStatement(A.company, [A.employee]), 'commission_salaries'],
   [markedEventIdsStatement(A.company, CONSUMER, [MARKED]), 'consumed_events'],
 ];
@@ -247,6 +337,49 @@ it('the projection reads return the head, the salary and the marked event of the
   expect([...read.empty.marked]).toEqual([]);
 });
 
+it('the sale reader returns the tenant sold entitlements with numeric revisions, hides imports and other tenants, and pages by the last id', async () => {
+  await insertSoldEntitlement(A, FIRST);
+  await insertSoldEntitlement(A, SECOND);
+  await insertImportedEntitlement(A, THIRD);
+  await insertSoldEntitlement(B, B_LINE);
+
+  const forA = await readSales(A.company, null, 50);
+  const forB = await readSales(B.company, null, 50);
+  expect(forA.rows).toEqual([
+    { saleId: FIRST, revision: 1 },
+    { saleId: SECOND, revision: 1 },
+  ]);
+  expect(forA.nextAfter).toBeNull();
+  expect(forB.rows).toEqual([{ saleId: B_LINE, revision: 1 }]);
+
+  const first = await readSales(A.company, null, 1);
+  expect(first.rows.map((row) => row.saleId)).toEqual([FIRST]);
+  expect(first.nextAfter).toBe(FIRST);
+
+  const second = await readSales(A.company, first.nextAfter, 1);
+  expect(second.rows.map((row) => row.saleId)).toEqual([SECOND]);
+  // الصفحة الكاملة بترجّع مؤشر دايماً حتى لو التالي فاضي؛ النهاية بتتعرف بصفحة فارية.
+  expect(second.nextAfter).toBe(SECOND);
+
+  const third = await readSales(A.company, second.nextAfter, 1);
+  expect(third.rows).toEqual([]);
+  expect(third.nextAfter).toBeNull();
+});
+
+it('the sale projection read returns the tenant sale rows only and nothing for an empty id list', async () => {
+  await insertProjectedSale(A, FIRST, 3);
+  await insertProjectedSale(B, B_LINE, 7);
+  const projection = createCoverageProjectionReader();
+
+  const read = await db.withTenant(A.company, async (tx) => ({
+    sales: await projection.saleRevisions(tx, A.company, [FIRST, SECOND]),
+    empty: await projection.saleRevisions(tx, A.company, []),
+  }));
+
+  expect(read.sales).toEqual([{ saleId: FIRST, revision: 3 }]);
+  expect(read.empty).toEqual([]);
+});
+
 it('the coverage statements refuse a page limit outside the allowed range', () => {
   for (const limit of [0, 501]) {
     expect(() => serviceLineCoverageStatement(A.company, null, limit)).toThrowError(RangeError);
@@ -257,11 +390,17 @@ it('the coverage statements refuse a page limit outside the allowed range', () =
     expect(() => salaryCoverageStatement(A.company, null, limit)).toThrowError(
       'COVERAGE_PAGE_LIMIT_INVALID',
     );
+    expect(() => packageSaleCoverageStatement(A.company, null, limit)).toThrowError(RangeError);
+    expect(() => packageSaleCoverageStatement(A.company, null, limit)).toThrowError(
+      'COVERAGE_PAGE_LIMIT_INVALID',
+    );
   }
 });
 
-it('the five coverage statements plan on indexes and never on a sequential scan', async () => {
+it('the coverage statements plan on indexes and never on a sequential scan', async () => {
   await insertHead(A, FIRST, 5);
+  await insertSoldEntitlement(A, FIRST);
+  await insertProjectedSale(A, FIRST, 5);
 
   const plans = await db.withTenant(A.company, async (tx) => {
     await tx.execute(sql`SET LOCAL enable_seqscan=off`);

@@ -99,3 +99,53 @@ export function commissionSalaryEvent(
     attempt: overrides.attempt ?? 1,
   };
 }
+
+export interface CommissionSaleEventOverrides {
+  readonly id?: string;
+  readonly companyId?: string;
+  readonly aggregateType?: string;
+  readonly aggregateId?: string;
+  readonly saleId?: string;
+  readonly businessId?: string;
+  readonly branchId?: string;
+  readonly sellerEmployeeId?: string;
+  readonly soldAt?: string;
+  readonly businessDate?: string;
+  readonly pricePaid?: string;
+  readonly refundedAmount?: string;
+  readonly revision?: number;
+  readonly attempt?: number;
+  readonly payloadOverrides?: Record<string, unknown>;
+}
+
+/** يبني حدث PackageSaleChanged مكتمل بغلاف ClaimedEvent؛ هوية البيع هي المجمّع. */
+export function commissionSaleEvent(
+  tenant: CommissionTenant,
+  ids: IdGenerator,
+  overrides: CommissionSaleEventOverrides = {},
+): ClaimedEvent {
+  const saleId = overrides.saleId ?? ids.newId();
+  const payload = {
+    sale_id: saleId,
+    business_id: overrides.businessId ?? tenant.business,
+    branch_id: overrides.branchId ?? tenant.branch,
+    sold_at: overrides.soldAt ?? '2026-10-31T21:30:00.000Z',
+    business_date: overrides.businessDate ?? '2026-11-01',
+    seller_employee_id: overrides.sellerEmployeeId ?? tenant.employee,
+    price_paid: overrides.pricePaid ?? '30.000',
+    refunded_amount: overrides.refundedAmount ?? '0.000',
+    status: 'SOLD',
+    revision: overrides.revision ?? 1,
+    schema_version: 1,
+    ...overrides.payloadOverrides,
+  };
+  return {
+    companyId: overrides.companyId ?? tenant.company,
+    id: overrides.id ?? ids.newId(),
+    aggregateType: overrides.aggregateType ?? 'package_entitlement',
+    aggregateId: overrides.aggregateId ?? saleId,
+    eventType: 'PackageSaleChanged',
+    payload,
+    attempt: overrides.attempt ?? 1,
+  };
+}

@@ -71,7 +71,7 @@ beforeEach(async () => {
   await owner`DELETE FROM commission_lines`;
   await owner`DELETE FROM commission_line_heads`;
   await owner`DELETE FROM consumed_events WHERE consumer_id='commissions.project-inputs'`;
-  // salaryAffectedPeriods يؤرّض المدى بشهر إنشاء النشاط؛ التاريخ الثابت يثبّت الشهور المتأثرة.
+  // salaryAffectedPeriods ÙŠØ¤Ø±Ù‘Ø¶ Ø§Ù„Ù…Ø¯Ù‰ Ø¨Ø´Ù‡Ø± Ø¥Ù†Ø´Ø§Ø¡ Ø§Ù„Ù†Ø´Ø§Ø·Ø› Ø§Ù„ØªØ§Ø±ÙŠØ® Ø§Ù„Ø«Ø§Ø¨Øª ÙŠØ«Ø¨Ù‘Øª Ø§Ù„Ø´Ù‡ÙˆØ± Ø§Ù„Ù…ØªØ£Ø«Ø±Ø©.
   await owner`UPDATE businesses SET created_at = '2025-01-01T00:00:00Z' WHERE company_id = ${A.company} AND id = ${A.business}`;
 });
 
@@ -181,7 +181,7 @@ export function failingCorrectionsConsumer(): OutboxConsumer {
         execute: async () => {
           throw new Error('unused line-only use case');
         },
-      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'];
+      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'] & CommissionInputUseCases['sales'];
       await onCommissionInputEvent(
         {
           lines: new ProjectServiceLines(
@@ -198,6 +198,7 @@ export function failingCorrectionsConsumer(): OutboxConsumer {
           ),
           tips: unused,
           salary: unused,
+          sales: unused,
         },
         event,
       );

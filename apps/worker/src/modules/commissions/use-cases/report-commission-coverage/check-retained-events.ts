@@ -13,7 +13,7 @@ import type {
 
 const RETAINED_PAGE_SIZE = 100;
 export const REPORT_LIST_LIMIT = 200;
-// سبب رفض الحدث الذي لا يسجّل المستهلك لنوعه؛ رمز واحد يفرق بين "بانتظار 50-4" و"فجوة حقيقية".
+// سبب رفض الحدث الذي لا يسجّل المستهلك لنوعه؛ رمز واحد يفرق بين نوع غير مسجَّل وفجوة حقيقية.
 const EVENT_TYPE_NOT_HANDLED: NotHandledEvent['reason'] = 'COMMISSION_EVENT_TYPE_NOT_HANDLED';
 
 /** الحدث المحتفظ به كما ترجعه واجهة الأوتبوكس؛ النوع مشتق من المنفذ حتى لا يستورد الـ use case @pospay/db. */

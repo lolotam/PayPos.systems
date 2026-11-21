@@ -4,7 +4,7 @@ import type { CommissionTipMethod } from './commission-tip-salary-inputs.ts';
 /** بادئة مرجع مصدر البند: نفس المفتاح اللي بيبنيه محرك العمولة لكل بند مسعَّر. */
 export const COMMISSION_LINE_SOURCE_PREFIX = 'line:';
 
-/** بادئة مرجع مصدر بيع الباقة: بتظهر مع 50-4 لما إسقاط البيع يوصل. */
+/** بادئة مرجع مصدر بيع الباقة: إسقاط البيع يبنيها من 50-4، والتصحيح عليها بند 55-1d. */
 export const COMMISSION_SALE_SOURCE_PREFIX = 'sale:';
 
 /** بادئة مرجع مصدر البقشيش: هوية الجلسة ثم طريقة الدفع. */

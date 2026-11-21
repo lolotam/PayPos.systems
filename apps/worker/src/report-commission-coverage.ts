@@ -12,7 +12,11 @@ import {
   isCommissionCoverageCalendarDate,
   type CommissionCoverageScope,
 } from './modules/commissions/index.ts';
-import { readCurrentSessionTips, readServiceLineCoveragePage } from './modules/orders/index.ts';
+import {
+  listCurrentPackageSales,
+  readCurrentSessionTips,
+  readServiceLineCoveragePage,
+} from './modules/orders/index.ts';
 import { readSalaryCoveragePage } from './modules/staff/index.ts';
 import { companyOpen } from './modules/tenancy/index.ts';
 
@@ -100,6 +104,7 @@ try {
       database: app,
       lines: { readPage: readServiceLineCoveragePage },
       salaries: { readPage: readSalaryCoveragePage },
+      sales: { readPage: listCurrentPackageSales },
       retained: reader,
       companies: { isOpen: companyOpen },
       tipsReader: { readPage: readCurrentSessionTips },

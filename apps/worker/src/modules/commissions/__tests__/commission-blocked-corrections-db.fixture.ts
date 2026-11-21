@@ -45,7 +45,7 @@ export const ids = systemUuidV7();
 export const CURRENT = '2026-12-05T09:00:00Z';
 export const FOLLOW_PLAN = { kind: 'FOLLOW_PLAN' } as const;
 const businessTimeZone = fakeBusinessTimeZone(A.business);
-// خطة المثال المحسوب (O3): شرائح بشرط مضاعف راتب 1.00 يدفع 10% فوق الحد، بلا أساسي.
+// Ø®Ø·Ø© Ø§Ù„Ù…Ø«Ø§Ù„ Ø§Ù„Ù…Ø­Ø³ÙˆØ¨ (O3): Ø´Ø±Ø§Ø¦Ø­ Ø¨Ø´Ø±Ø· Ù…Ø¶Ø§Ø¹Ù Ø±Ø§ØªØ¨ 1.00 ÙŠØ¯ÙØ¹ 10% ÙÙˆÙ‚ Ø§Ù„Ø­Ø¯ØŒ Ø¨Ù„Ø§ Ø£Ø³Ø§Ø³ÙŠ.
 export const SALARY_THRESHOLD_PLAN = {
   base: { enabled: false },
   tiers: {
@@ -89,7 +89,7 @@ beforeEach(async () => {
   await owner`DELETE FROM commission_lines`;
   await owner`DELETE FROM commission_line_heads`;
   await owner`DELETE FROM consumed_events WHERE consumer_id='commissions.project-inputs'`;
-  // جرس التوقف (55-2d): صفوفه في outbox بتتولد مع كل تسجيل توقف، فبتتنضف مع جداول الشهر.
+  // Ø¬Ø±Ø³ Ø§Ù„ØªÙˆÙ‚Ù (55-2d): ØµÙÙˆÙÙ‡ ÙÙŠ outbox Ø¨ØªØªÙˆÙ„Ø¯ Ù…Ø¹ ÙƒÙ„ ØªØ³Ø¬ÙŠÙ„ ØªÙˆÙ‚ÙØŒ ÙØ¨ØªØªÙ†Ø¶Ù Ù…Ø¹ Ø¬Ø¯Ø§ÙˆÙ„ Ø§Ù„Ø´Ù‡Ø±.
   await owner`DELETE FROM outbox WHERE event_type='CommissionCorrectionBlockedNoticeRequested'`;
   await owner`UPDATE businesses SET created_at = '2025-01-01T00:00:00Z' WHERE company_id = ${A.company} AND id = ${A.business}`;
 });
@@ -169,7 +169,7 @@ export const linesAdded = (
     lines,
   });
 
-/** يرجع October إلى DRAFT عبر طبقة التخزين نفسها بترتيب القفل والفتح الحقيقي. */
+/** ÙŠØ±Ø¬Ø¹ October Ø¥Ù„Ù‰ DRAFT Ø¹Ø¨Ø± Ø·Ø¨Ù‚Ø© Ø§Ù„ØªØ®Ø²ÙŠÙ† Ù†ÙØ³Ù‡Ø§ Ø¨ØªØ±ØªÙŠØ¨ Ø§Ù„Ù‚ÙÙ„ ÙˆØ§Ù„ÙØªØ­ Ø§Ù„Ø­Ù‚ÙŠÙ‚ÙŠ. */
 export async function reopenDraft(period: string): Promise<void> {
   await db.withTenant(A.company, async (tx) => {
     await lockStatementPeriods(tx, { businessId: A.business, periods: [period], ids });
@@ -208,7 +208,7 @@ export interface SeptemberBlockSeed {
   readonly secondLateEvent: ClaimedEvent;
 }
 
-/** يبني سيناريو K1: سبتمبر معتمد بخطة من 15 فقط، وبندان متأخران قبل الخطة بلا تسجيل بعد. */
+/** ÙŠØ¨Ù†ÙŠ Ø³ÙŠÙ†Ø§Ø±ÙŠÙˆ K1: Ø³Ø¨ØªÙ…Ø¨Ø± Ù…Ø¹ØªÙ…Ø¯ Ø¨Ø®Ø·Ø© Ù…Ù† 15 ÙÙ‚Ø·ØŒ ÙˆØ¨Ù†Ø¯Ø§Ù† Ù…ØªØ£Ø®Ø±Ø§Ù† Ù‚Ø¨Ù„ Ø§Ù„Ø®Ø·Ø© Ø¨Ù„Ø§ ØªØ³Ø¬ÙŠÙ„ Ø¨Ø¹Ø¯. */
 export async function seedSeptemberPlanGap(lineNet = '200.000'): Promise<SeptemberBlockSeed> {
   await seedLineSession('2026-09', 15, lineNet);
   await seedPlan('2026-09-15', {
@@ -255,7 +255,7 @@ export async function seedSeptemberPlanGap(lineNet = '200.000'): Promise<Septemb
   return { lateEvent, secondLateEvent };
 }
 
-/** يبني سيناريو NO_SALARY: سبتمبر معتمد بلا صف مجمّد لها، وبند L1 قبل أي مرتب. */
+/** ÙŠØ¨Ù†ÙŠ Ø³ÙŠÙ†Ø§Ø±ÙŠÙˆ NO_SALARY: Ø³Ø¨ØªÙ…Ø¨Ø± Ù…Ø¹ØªÙ…Ø¯ Ø¨Ù„Ø§ ØµÙ Ù…Ø¬Ù…Ù‘Ø¯ Ù„Ù‡Ø§ØŒ ÙˆØ¨Ù†Ø¯ L1 Ù‚Ø¨Ù„ Ø£ÙŠ Ù…Ø±ØªØ¨. */
 export async function seedSeptemberNoSalary(
   planEffectiveFrom: string,
 ): Promise<{ lineEvent: ClaimedEvent; lineRef: string }> {
@@ -273,7 +273,7 @@ export async function seedSeptemberNoSalary(
   return { lineEvent, lineRef };
 }
 
-/** مستهلك يفشل كتابة التوقف نفسها بعد إعادة الحساب؛ CM-22 لخطوة التوقف. */
+/** Ù…Ø³ØªÙ‡Ù„Ùƒ ÙŠÙØ´Ù„ ÙƒØªØ§Ø¨Ø© Ø§Ù„ØªÙˆÙ‚Ù Ù†ÙØ³Ù‡Ø§ Ø¨Ø¹Ø¯ Ø¥Ø¹Ø§Ø¯Ø© Ø§Ù„Ø­Ø³Ø§Ø¨Ø› CM-22 Ù„Ø®Ø·ÙˆØ© Ø§Ù„ØªÙˆÙ‚Ù. */
 function failingInsertBlockConsumer(): OutboxConsumer {
   const clock = { now: () => new Date(CURRENT) };
   const standard = createTestCommissionInputsConsumer({ ids, clock, businessTimeZone });
@@ -286,7 +286,7 @@ function failingInsertBlockConsumer(): OutboxConsumer {
         execute: async () => {
           throw new Error('unused line-only use case');
         },
-      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'];
+      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'] & CommissionInputUseCases['sales'];
       await onCommissionInputEvent(
         {
           lines: new ProjectServiceLines(
@@ -303,6 +303,7 @@ function failingInsertBlockConsumer(): OutboxConsumer {
           ),
           tips: unused,
           salary: unused,
+          sales: unused,
         },
         event,
       );

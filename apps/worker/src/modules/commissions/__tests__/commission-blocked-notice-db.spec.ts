@@ -148,7 +148,7 @@ it('N10 (plan-55-2 line 621) the bell rings once per block: one event blocking t
   );
 }, 60_000);
 
-/** يبني سيناريو بند متأخر واحد بمنفّذتين قبل خطة الأولى؛ يرجع الحدث وموظفة الثانية. */
+/** ÙŠØ¨Ù†ÙŠ Ø³ÙŠÙ†Ø§Ø±ÙŠÙˆ Ø¨Ù†Ø¯ Ù…ØªØ£Ø®Ø± ÙˆØ§Ø­Ø¯ Ø¨Ù…Ù†ÙÙ‘Ø°ØªÙŠÙ† Ù‚Ø¨Ù„ Ø®Ø·Ø© Ø§Ù„Ø£ÙˆÙ„Ù‰Ø› ÙŠØ±Ø¬Ø¹ Ø§Ù„Ø­Ø¯Ø« ÙˆÙ…ÙˆØ¸ÙØ© Ø§Ù„Ø«Ø§Ù†ÙŠØ©. */
 async function seedTwoEmployeePlanGap() {
   const secondUser = ids.newId();
   const secondEmployee = ids.newId();
@@ -195,7 +195,7 @@ async function seedTwoEmployeePlanGap() {
   return { lateEvent, secondEmployee };
 }
 
-/** مستهلك يفشل إلحاق مجموعة الجرس الثالثة بعد تسجيل التوقف؛ إخفاق المجموعة بيلغي التوقف ومجموعاتها (CM-54). */
+/** Ù…Ø³ØªÙ‡Ù„Ùƒ ÙŠÙØ´Ù„ Ø¥Ù„Ø­Ø§Ù‚ Ù…Ø¬Ù…ÙˆØ¹Ø© Ø§Ù„Ø¬Ø±Ø³ Ø§Ù„Ø«Ø§Ù„Ø«Ø© Ø¨Ø¹Ø¯ ØªØ³Ø¬ÙŠÙ„ Ø§Ù„ØªÙˆÙ‚ÙØ› Ø¥Ø®ÙØ§Ù‚ Ø§Ù„Ù…Ø¬Ù…ÙˆØ¹Ø© Ø¨ÙŠÙ„ØºÙŠ Ø§Ù„ØªÙˆÙ‚Ù ÙˆÙ…Ø¬Ù…ÙˆØ¹Ø§ØªÙ‡Ø§ (CM-54). */
 async function deliverFailingThirdAppend(event: ClaimedEvent) {
   const clock = { now: () => new Date(CURRENT) };
   const standard = createTestCommissionInputsConsumer({ ids, clock, businessTimeZone });
@@ -209,7 +209,7 @@ async function deliverFailingThirdAppend(event: ClaimedEvent) {
         execute: async () => {
           throw new Error('unused line-only use case');
         },
-      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'];
+      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'] & CommissionInputUseCases['sales'];
       await onCommissionInputEvent(
         {
           lines: new ProjectServiceLines(
@@ -221,6 +221,7 @@ async function deliverFailingThirdAppend(event: ClaimedEvent) {
           ),
           tips: unused,
           salary: unused,
+          sales: unused,
         },
         claimed,
       );

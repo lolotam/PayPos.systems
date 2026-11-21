@@ -6,6 +6,7 @@ import {
 } from './commission-correction-grants.ts';
 import { DISCOUNT_PROPOSAL_TABLE_GRANTS } from './discount-proposal-grants.ts';
 import { COMMISSION_STATEMENT_TABLE_GRANTS } from './commission-statement-grants.ts';
+import { COMMISSION_SALES_TABLE_GRANTS } from './commission-sales-grants.ts';
 import { COMMISSION_PLAN_VERSION_TABLE_GRANTS } from './commission-plan-version-grants.ts';
 import { COMMISSION_SERVICE_OVERRIDE_TABLE_GRANTS } from './commission-service-override-grants.ts';
 import { COMMISSION_LINE_TABLE_GRANTS } from './commission-line-grants.ts';
@@ -44,6 +45,7 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     ...COMMISSION_PLAN_VERSION_TABLE_GRANTS,
     'commission_salaries:INSERT',
     'commission_salaries:SELECT',
+    ...COMMISSION_SALES_TABLE_GRANTS,
     ...COMMISSION_SERVICE_OVERRIDE_TABLE_GRANTS,
     ...COMMISSION_STATEMENT_TABLE_GRANTS,
     'commission_tip_heads:INSERT',

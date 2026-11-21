@@ -9,14 +9,17 @@ import {
 const COMPANY = '01920000-0000-7000-8000-0000000000a0';
 const eventId = (n: number) => `01970000-0000-7000-8000-${String(n).padStart(12, '0')}`;
 
-// الأنواع الخمسة التي يسجّلها المستهلك؛ بيع الباقة ينضم لها في 50-4.
-const HANDLED_FIVE = new Set([
+// الأنواع الستة التي يسجّلها المستهلك من 50-4؛ بيع الباقة انضم للقائمة في 50-4.
+const HANDLED_SIX = new Set([
   'ServiceSessionRecorded',
   'ServiceSessionLinesAdded',
   'ServiceLineChanged',
   'SessionTipsChanged',
   'SalaryChanged',
+  'PackageSaleChanged',
 ]);
+// مجموعة أضيق افتراضية لتدريب حارس الـ runner على نوع غير مسجَّل؛ المستهلك الحقيقي يسجّل الستة كلها.
+const HANDLED_BEFORE_50_4 = new Set([...HANDLED_SIX].filter((type) => type !== 'PackageSaleChanged'));
 
 function fakeEvent(n: number, eventType: string): ClaimedEvent {
   return {
@@ -56,7 +59,8 @@ const delivered = (): Promise<DeliveryOutcome> => Promise.resolve({ delivered: t
 
 describe('runCommissionInputReplay: a type the consumer does not handle', () => {
   it('lists it as undelivered with the fixed code and never delivers it', async () => {
-    // نوع لا يسجّله المستهلك لا يُسلَّم أصلاً؛ يُدرج برمز ثابت ومؤشر الاستئناف يتوقف قبله
+    // حارس الـ runner على مجموعة أضيق افتراضية: نوع لا يسجّله المستهلك لا يُسلَّم أصلاً؛
+    // يُدرج برمز ثابت ومؤشر الاستئناف يتوقف قبله. المستهلك الحقيقي من 50-4 يسجّل الستة كلها.
     const events = [
       fakeEvent(1, 'ServiceSessionRecorded'),
       fakeEvent(2, 'PackageSaleChanged'),
@@ -66,7 +70,7 @@ describe('runCommissionInputReplay: a type the consumer does not handle', () => 
     const deliver = vi.fn(delivered);
 
     const result = await runCommissionInputReplay(
-      { reader, deliver, failures: new Map(), scope: 'SIX_TYPE', handledTypes: HANDLED_FIVE },
+      { reader, deliver, failures: new Map(), scope: 'SIX_TYPE', handledTypes: HANDLED_BEFORE_50_4 },
       { companyId: COMPANY, afterId: null, throughId: null },
     );
 
@@ -88,8 +92,8 @@ describe('runCommissionInputReplay: a type the consumer does not handle', () => 
     expect(result.truncated).toBe(false);
   });
 
-  it('delivers the same event and ends COMPLETE once the consumer handles its type', async () => {
-    // معالج نوع البيع في 50-4 يخلّي نفس الصف يتسلّم بلا تغيير في الـ runner
+  it('delivers a retained sale event to the registered consumer and ends COMPLETE', async () => {
+    // تسجيل نوع البيع في المستهلك من 50-4 يخلّي نفس الصف يتسلّم ويتقفل بلا تغيير في الـ runner (CS-Q51)
     const events = [fakeEvent(1, 'ServiceSessionRecorded'), fakeEvent(2, 'PackageSaleChanged')];
     const reader = fakeReader(events);
     const deliver = vi.fn(delivered);
@@ -100,7 +104,7 @@ describe('runCommissionInputReplay: a type the consumer does not handle', () => 
         deliver,
         failures: new Map(),
         scope: 'SIX_TYPE',
-        handledTypes: new Set([...HANDLED_FIVE, 'PackageSaleChanged']),
+        handledTypes: HANDLED_SIX,
       },
       { companyId: COMPANY, afterId: null, throughId: null },
     );
@@ -133,7 +137,7 @@ describe('runCommissionInputReplay: the six-type page and the four-type default'
         deliver,
         failures: new Map(),
         scope: 'SIX_TYPE',
-        handledTypes: new Set([...HANDLED_FIVE, 'PackageSaleChanged']),
+        handledTypes: HANDLED_SIX,
       },
       { companyId: COMPANY, afterId: null, throughId: null },
     );
@@ -177,7 +181,7 @@ describe('runCommissionInputReplay: the six-type result line', () => {
     const failures: CommissionFailureCodes = new Map();
 
     const result = await runCommissionInputReplay(
-      { reader, deliver, failures, scope: 'SIX_TYPE', handledTypes: HANDLED_FIVE },
+      { reader, deliver, failures, scope: 'SIX_TYPE', handledTypes: HANDLED_SIX },
       { companyId: COMPANY, afterId: null, throughId: null },
     );
 
