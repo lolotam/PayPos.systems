@@ -30,6 +30,7 @@ import { createTestCommissionInputsConsumer } from '../../../__tests__/commissio
 import type { OutboxConsumer } from '../../../outbox/consumer.ts';
 import { createDeliverer } from '../../../outbox/deliver.ts';
 import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
+import { noCommissionBlockNotices } from './commission-block-notice.fakes.ts';
 import {
   onCommissionInputEvent,
   type CommissionInputUseCases,
@@ -88,6 +89,8 @@ beforeEach(async () => {
   await owner`DELETE FROM commission_lines`;
   await owner`DELETE FROM commission_line_heads`;
   await owner`DELETE FROM consumed_events WHERE consumer_id='commissions.project-inputs'`;
+  // جرس التوقف (55-2d): صفوفه في outbox بتتولد مع كل تسجيل توقف، فبتتنضف مع جداول الشهر.
+  await owner`DELETE FROM outbox WHERE event_type='CommissionCorrectionBlockedNoticeRequested'`;
   await owner`UPDATE businesses SET created_at = '2025-01-01T00:00:00Z' WHERE company_id = ${A.company} AND id = ${A.business}`;
 });
 
@@ -296,6 +299,7 @@ function failingInsertBlockConsumer(): OutboxConsumer {
                 throw new Error('injected block insert failure');
               },
             },
+            noCommissionBlockNotices,
           ),
           tips: unused,
           salary: unused,

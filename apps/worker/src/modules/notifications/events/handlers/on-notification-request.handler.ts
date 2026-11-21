@@ -71,6 +71,7 @@ export const NOTIFICATION_SOURCE_EVENTS = [
   'DocumentExpiring',
   'StatementAwaitingReview',
   'StatementAwaitingApproval',
+  'CommissionCorrectionBlockedNoticeRequested',
 ] as const;
 
 export function notificationRequestConsumer(

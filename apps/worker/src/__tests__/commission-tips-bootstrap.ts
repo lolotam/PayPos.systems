@@ -5,6 +5,7 @@ import {
   type CurrentTipSessionsReader,
 } from '../modules/commissions/index.ts';
 import { readCurrentSessionTips } from '../modules/orders/index.ts';
+import { businessPermissionHolders } from '../modules/identity/index.ts';
 import { readEmployeeBusiness } from '../modules/staff/index.ts';
 import { businessCalendar } from '../modules/tenancy/index.ts';
 
@@ -23,7 +24,7 @@ export type CommissionTipsBootstrapRunner = ReturnType<
 export interface CommissionTipsBootstrapTestDependencies
   extends Omit<
     BootstrapDependencies,
-    'employeeBusiness' | 'businessCalendar' | 'tipsReader' | 'database'
+    'employeeBusiness' | 'businessCalendar' | 'permissionHolders' | 'tipsReader' | 'database'
   > {
   readonly database: Pick<TenantWrappers, 'withTenant'>;
   readonly wrapReader?: (real: CurrentTipSessionsReader) => CurrentTipSessionsReader;
@@ -41,6 +42,7 @@ export function createTestCommissionTipsBootstrap(
     businessTimeZone: dependencies.businessTimeZone,
     employeeBusiness: readEmployeeBusiness,
     businessCalendar,
+    permissionHolders: businessPermissionHolders,
     database: dependencies.database,
     tipsReader:
       dependencies.wrapReader === undefined ? real : dependencies.wrapReader(real),

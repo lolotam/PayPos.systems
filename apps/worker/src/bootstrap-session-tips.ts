@@ -4,6 +4,7 @@ import { systemUuidV7 } from '@pospay/ids';
 import { createCommissionTipsBootstrap } from './modules/commissions/index.ts';
 import { readCurrentSessionTips } from './modules/orders/index.ts';
 import { readEmployeeBusiness } from './modules/staff/index.ts';
+import { businessPermissionHolders } from './modules/identity/index.ts';
 import { businessCalendar, businessTimeZone } from './modules/tenancy/index.ts';
 
 const MAX_BUSINESS_IDS = 200;
@@ -76,6 +77,7 @@ try {
       businessTimeZone,
       employeeBusiness: readEmployeeBusiness,
       businessCalendar,
+      permissionHolders: businessPermissionHolders,
       database: app,
       tipsReader: { readPage: readCurrentSessionTips },
     });

@@ -24,6 +24,7 @@ import {
   postCommissionCorrections,
   selectCommissionCorrectionTargets,
 } from '../use-cases/post-commission-corrections/post-commission-corrections.ts';
+import { noCommissionBlockNotices } from './commission-block-notice.fakes.ts';
 import { ProjectSalary } from '../use-cases/project-salary/project-salary.ts';
 import {
   employeeA,
@@ -131,9 +132,11 @@ const run = async (
   postCommissionCorrections({
     scope,
     businessId: 'business-a',
+    companyId: 'company-a',
     eventId: EVENT,
     targets: [target()],
     employees,
+    notices: noCommissionBlockNotices,
   });
 
 it('U1 a NO_PLAN month records the block with the event id and the event target and posts nothing', async () => {
@@ -272,7 +275,9 @@ it('U6 salary over two closed months: one records a block, the other posts, one 
   });
   corrections.projection(employeeA, '2026-11', { lines: [line(employeeA, '2026-11')] });
 
-  await new ProjectSalary(scope, clock, ids, corrections).execute(salaryInput());
+  await new ProjectSalary(scope, clock, ids, corrections, noCommissionBlockNotices).execute(
+    salaryInput(),
+  );
 
   expect(scope.lockInputs).toHaveLength(1);
   expect(scope.upserted).toMatchObject({ employeeId: employeeA, amount: 550_000n, revision: 2 });

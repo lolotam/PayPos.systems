@@ -16,6 +16,7 @@ import {
   type CommissionBlockDecision,
 } from '../../domain/commission-blocked-correction.ts';
 import type { CommissionCorrectionScope } from '../../ports/commission-correction.port.ts';
+import type { CommissionBlockNotices } from '../../ports/commission-block-notice.port.ts';
 import {
   recomputeCommissionMonth,
   type CommissionMonthRecomputedSource,
@@ -58,6 +59,10 @@ interface PostCommissionCorrectionsInput {
   readonly eventId: string;
   readonly targets: readonly CommissionCorrectionTarget[];
   readonly employees: readonly CommissionPeriodEmployee[];
+  /** منفذ جرس أصحاب صلاحية خطط العمولة؛ الاختبارات اللي مش مهمها الجرس بتبني منفذ صامت صريح. */
+  readonly notices: CommissionBlockNotices;
+  /** الشركة المالكة للتوقف؛ قارئ حاملي الصلاحية بيحتاجها لتحديد المستلمين. */
+  readonly companyId: string;
 }
 
 /**
@@ -152,9 +157,10 @@ async function postPricedCorrections(
 }
 
 /**
- * بينفّذ قرار التوقف بلا نشر: التسجيل بيرسم الشهر المحتجز وكشفه والحدث الأول مرة
- * واحدة من لقطة الحدث المسجّل، وتبديل الرمز بيتمسّ الرمز بس، والإبقاء بلا كتابة
- * لأن أحداث لاحقة بتعيد استعمال الصف المسجّل زي ما هو (FR-047, CM-52b, CM-53b).
+ * بينفّذ قرار التوقف: التسجيل بيرسم الشهر المحتجز وكشفه والحدث الأول مرة
+ * واحدة من لقطة الحدث المسجّل وبيطلّع جرس أصحاب الصلاحية، وتبديل الرمز بيتمسّ
+ * الرمز بس من غير جرس، والإبقاء بلا كتابة لأن أحداث لاحقة بتعيد استعمال الصف
+ * المسجّل زي ما هو (FR-047, CM-52b, CM-53b, CM-54).
  */
 async function applyBlockedOutcome(
   input: PostCommissionCorrectionsInput,
@@ -163,7 +169,7 @@ async function applyBlockedOutcome(
   decision: Extract<CommissionBlockDecision, { kind: 'RECORD' | 'UPDATE_CODE' | 'KEEP' }>,
 ): Promise<void> {
   if (decision.kind === 'RECORD') {
-    await input.scope.insertBlock({
+    const blockId = await input.scope.insertBlock({
       businessId: input.businessId,
       employeeId,
       sourcePeriod: target.sourcePeriod,
@@ -172,12 +178,39 @@ async function applyBlockedOutcome(
       targetPeriod: target.targetPeriod,
       targetStatementId: target.targetStatementId,
     });
+    await ringBlockBell(input, blockId, target.sourcePeriod);
     return;
   }
   if (decision.kind === 'UPDATE_CODE') {
     await input.scope.updateBlockCode({
       blockId: decision.blockId,
       code: decision.code,
+    });
+  }
+}
+
+/**
+ * يطلّع جرس أصحاب صلاحية خطط العمولة مع تسجيل التوقف الأول: المستلمون أصحاب
+ * الصلاحية وقت السجل، والمجموعات ما تتجاوز مية، وكل مجموعة حدث مستقل بنفس
+ * معاملة التوقف، فإخفاق أي مجموعة بيلغي التوقف كمان (FR-049، CM-54).
+ */
+async function ringBlockBell(
+  input: PostCommissionCorrectionsInput,
+  blockId: string,
+  sourcePeriod: string,
+): Promise<void> {
+  const groups = await input.notices.recipientGroups(
+    input.companyId,
+    input.businessId,
+    input.notices.now(),
+  );
+  for (const [groupIndex, group] of groups.entries()) {
+    await input.notices.append({
+      blockId,
+      groupIndex,
+      businessId: input.businessId,
+      sourcePeriod,
+      recipients: group,
     });
   }
 }

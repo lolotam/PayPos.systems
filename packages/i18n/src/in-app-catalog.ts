@@ -26,6 +26,8 @@ export const inAppEn = {
     '{{approver_name_en}} approved a discount of up to {{max_percent}}% on {{service_name_en}}, a service they performed, at {{branch_name_en}}.',
   discount_approval_requested:
     'Discount approval requested at {{branch_name_en}}: {{service_name_en}}, {{line_count}} line(s), discount up to {{max_percent}}%.',
+  commission_correction_blocked:
+    'A commission correction for {{period}} is on hold: an employee has no commission plan or no salary for that month. Open the blocked corrections to fix it.',
   editor_role_owner: 'Owner',
   editor_role_manager: 'Manager',
   editor_generic: 'User',
@@ -65,6 +67,8 @@ export const inAppAr = {
     'وافق {{approver_name_ar}} على خصم حتى {{max_percent}}% على خدمة {{service_name_ar}} نفّذها بنفسه في فرع {{branch_name_ar}}.',
   discount_approval_requested:
     'طلب موافقة على خصم في فرع {{branch_name_ar}}: {{service_name_ar}}، عدد السطور {{line_count}}، الخصم حتى {{max_percent}}%.',
+  commission_correction_blocked:
+    'فيه تصحيح عمولة موقوف عن شهر {{period}}: موظفة ناقصها خطة عمولة أو مرتب. افتح التصحيحات الموقوفة عشان يتصلّح.',
   editor_role_owner: 'المالك',
   editor_role_manager: 'المدير',
   editor_generic: 'مستخدم',

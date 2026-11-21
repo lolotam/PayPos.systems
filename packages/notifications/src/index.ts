@@ -25,6 +25,7 @@ export { serviceLineCancelled } from './templates/service-line-cancelled.ts';
 export { serviceLinePerformersChanged } from './templates/service-line-performers-changed.ts';
 export { discountApprovalRequested } from './templates/discount-approval-requested.ts';
 export { discountSelfApproved } from './templates/discount-self-approved.ts';
+export { commissionCorrectionBlocked } from './templates/commission-correction-blocked.ts';
 export { shiftNotClockedIn } from './templates/shift-not-clocked-in.ts';
 export { attendanceExceptionRaised } from './templates/attendance-exception-raised.ts';
 export { documentExpiring } from './templates/document-expiring.ts';
