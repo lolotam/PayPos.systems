@@ -1,4 +1,4 @@
-import type { WorkspaceCompanyNames } from '@pospay/contracts';
+import { country, type WorkspaceCompanyNames } from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 
@@ -32,8 +32,14 @@ function branchHit(companyId: string) {
 }
 
 function businessRows(companyId: string, reached: SQL) {
+  const supported = sql.join(
+    country.options.map((code) => sql`to_jsonb(${code}::text)`),
+    sql`, `,
+  );
   return sql`
-    SELECT bu.id, bu.name_ar, bu.name_en
+    SELECT bu.id, bu.name_ar, bu.name_en, bu.vertical_type AS business_type,
+           CASE WHEN (bu.settings -> 'country') IN (${supported})
+             THEN bu.settings ->> 'country' ELSE NULL END AS country
     FROM businesses bu
     WHERE bu.company_id = ${companyId} AND ${reached}`;
 }
@@ -74,6 +80,7 @@ function treeQuery(companyId: string, payload: string) {
     SELECT c.id, c.name_ar, c.name_en, COALESCE((
       SELECT jsonb_agg(jsonb_build_object(
         'id', bu.id, 'name_ar', bu.name_ar, 'name_en', bu.name_en,
+        'business_type', bu.business_type, 'country', bu.country,
         'branches', COALESCE(bt.branches, '[]'::jsonb)
       ) ORDER BY bu.name_en, bu.id)
       FROM business_hit bu

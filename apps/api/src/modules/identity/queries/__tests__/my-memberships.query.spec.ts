@@ -57,6 +57,8 @@ const names: WorkspaceNames = {
           id: here ? A.business : B.business,
           name_ar: null,
           name_en: 'Clinic',
+          business_type: 'salon' as const,
+          country: null,
           branches: [
             {
               id: here ? A.branch : B.branch,

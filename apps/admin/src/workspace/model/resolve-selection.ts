@@ -1,11 +1,11 @@
-import type { WorkspaceBranch, WorkspaceBusiness, WorkspaceCompany } from '@pospay/contracts';
+import type { WorkspaceBranch, WorkspaceBusinessRead, WorkspaceCompanyRead } from '@pospay/contracts';
 
 import type { SelectionChoice } from '@/shared/api/selection-cookie';
 
 export interface ResolvedSelection {
   status: 'empty' | 'choose' | 'ready';
-  company?: WorkspaceCompany | undefined;
-  business?: WorkspaceBusiness | undefined;
+  company?: WorkspaceCompanyRead | undefined;
+  business?: WorkspaceBusinessRead | undefined;
   branch?: WorkspaceBranch | undefined;
 }
 
@@ -24,7 +24,7 @@ function pick<T extends { id: string }>(
 // A list with one entry is chosen for the user: it is a view context, not a grant — the API re-checks the
 // membership on every request — so picking the only option changes nothing the user could have chosen.
 export function resolveSelection(
-  companies: readonly WorkspaceCompany[],
+  companies: readonly WorkspaceCompanyRead[],
   remembered: SelectionChoice,
 ): ResolvedSelection {
   if (companies.length === 0) return { status: 'empty' };

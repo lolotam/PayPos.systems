@@ -48,7 +48,7 @@ function workspaceWith(business: boolean): WorkspaceController {
       scope: 'COMPANY',
     },
     business: business
-      ? { id: leaveId, name_ar: null, name_en: 'Synthetic business', branches: [] }
+      ? { id: leaveId, name_ar: null, name_en: 'Synthetic business', business_type: 'salon', country: null, branches: [] }
       : undefined,
     branch: undefined,
     companies: [],

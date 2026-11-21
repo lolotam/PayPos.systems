@@ -1,10 +1,10 @@
-import type { WorkspaceCompany } from '@pospay/contracts';
+import type { WorkspaceCompanyRead } from '@pospay/contracts';
 import type { Locale } from '@pospay/i18n';
 import { displayName } from './display-name';
 
 // أسماء النطاقات من الشركة المختارة فقط، عشان معرّف متكرر في شركة تانية ما يغيّرش العرض.
 export function workspaceScopeNames(
-  company: WorkspaceCompany,
+  company: WorkspaceCompanyRead,
   locale: Locale,
 ): Readonly<Record<string, string>> {
   const names: Record<string, string> = { [`COMPANY:${company.id}`]: displayName(company, locale) };

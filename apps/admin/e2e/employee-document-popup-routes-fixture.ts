@@ -93,6 +93,8 @@ export function workspaces() {
           id: tenant.business,
           name_en: `Synthetic business ${index + 1}`,
           name_ar: null,
+          business_type: 'salon',
+          country: null,
           branches: [
             {
               id: tenant.branch,

@@ -1,5 +1,5 @@
 'use client';
-import type { WorkspaceBusiness } from '@pospay/contracts';
+import type { WorkspaceBusinessRead } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button, PageHeader } from '@pospay/ui';
 import Link from 'next/link';
@@ -13,7 +13,7 @@ import { ServicesListPanel } from '../ui/services-list-panel';
 
 type ServicesPageProps = {
   companyId: string;
-  business: WorkspaceBusiness;
+  business: WorkspaceBusinessRead;
   userId: string;
 };
 

@@ -95,7 +95,7 @@ export function renderPage(locale: Locale = 'en', client: QueryClient = createQu
       <div dir={locale === 'ar' ? 'rtl' : 'ltr'}>
         <ServiceCategoriesPage
           companyId={companyId}
-          business={{ id: businessId, name_en: 'Business', name_ar: null, branches: [] }}
+          business={{ id: businessId, name_en: 'Business', name_ar: null, business_type: 'salon', country: null, branches: [] }}
           userId={userId}
         />
       </div>
