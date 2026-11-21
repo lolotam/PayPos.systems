@@ -89,6 +89,7 @@ apps/admin/
 │   │   │   └── *-nav-item.tsx (15 files)  # folded into the model, then removed
 │   │   ├── appearance/page.tsx            # new route
 │   │   ├── overview/[group]/page.tsx      # new route, used by styles B and C
+│   │   ├── approvals/page.tsx             # new route: the Approvals inbox under Home
 │   │   └── soon/[page]/page.tsx           # new route: the shared Under development page
 │   └── layout.tsx                         # reads the style cookie beside the locale cookie
 └── src/

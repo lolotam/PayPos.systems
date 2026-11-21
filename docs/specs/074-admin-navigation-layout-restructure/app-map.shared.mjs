@@ -1,14 +1,17 @@
 // The one source of the app map shared by two projects: lolotam/PayPos.systems (spec 074) and
 // lolotam/lovable-pospay (spec 022). Sections, sub-menus, page names and order are the same in both files;
 // only the State column differs.
-// Usage: node app-map.shared.mjs [path-to-022-app-map.md]
-//   Always rewrites app-map.md beside this file. With the argument it also rewrites the other project's copy.
-//   Change a name, an order or a state here, run it, and open one PR in each repository.
-import { writeFileSync } from 'node:fs';
+// Usage:
+//   node app-map.shared.mjs [path-to-022-app-map.md]            rewrite app-map.md beside this file, and the other copy if given
+//   node app-map.shared.mjs --check <path-to-022-app-map.md>    write nothing; exit 1 if either file differs from what this source generates
+// Change a name, an order, a state or a role here, run it, and open one PR in each repository.
+import { readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const L = 'Live', S = 'Soon', N = 'New';
-// [sub-menu, page, phase, PosPay.systems state, lovable-pospay state, shown only to (business type) or '']
+// [sub-menu, page, phase, PosPay.systems state, lovable-pospay state, shown only to (business type) or '', roles?]
+// roles (optional 7th value): the roles that see a Soon entry. When any row has it, a Roles column is generated.
 const MANAGE = [
   ['1. Home', [
     ['', 'Dashboard (today at a glance)', '1', L, L, ''],
@@ -72,11 +75,11 @@ const MANAGE = [
     ['Customers', 'Tags and blocks', '2', S, S, ''],
     ['Customers', 'Customer wallet (prepaid balance)', '—', S, S, ''],
     ['Customers', 'Ratings and reviews', '1', S, S, ''],
-    ['Appointments', 'Calendar', '4', S, S, 'Salon, spa, barber, clinic, services company, gym'],
-    ['Appointments', 'Resources (chairs, rooms)', '4', S, S, 'Salon, spa, barber, clinic, services company, gym'],
-    ['Appointments', 'Waitlist', '4', S, S, 'Salon, spa, barber, clinic, services company, gym'],
-    ['Appointments', 'Booking rules', '4', S, S, 'Salon, spa, barber, clinic, services company, gym'],
-    ['Appointments', 'Appointment categories', '4', S, S, 'Salon, spa, barber, clinic, services company, gym'],
+    ['Appointments', 'Calendar', '4', S, S, 'Salon, spa, barber, clinic, services company'],
+    ['Appointments', 'Resources (chairs, rooms)', '4', S, S, 'Salon, spa, barber, clinic, services company'],
+    ['Appointments', 'Waitlist', '4', S, S, 'Salon, spa, barber, clinic, services company'],
+    ['Appointments', 'Booking rules', '4', S, S, 'Salon, spa, barber, clinic, services company'],
+    ['Appointments', 'Appointment categories', '4', S, S, 'Salon, spa, barber, clinic, services company'],
     ['Online', 'Company public page', '1', S, L, ''],
     ['Online', 'Online menu builder', '4', S, S, ''],
     ['Marketing', 'Business WhatsApp', '4', S, S, ''],
@@ -119,7 +122,7 @@ const MANAGE = [
     ['Sales reports', 'Payments and customer balances', '5', S, S, ''],
     ['Stock reports', 'Stock and cost of goods', '3', S, S, ''],
     ['Performance', 'Commissions and performance', '5', S, S, ''],
-    ['Performance', 'Appointments report', '5', S, S, 'Salon, spa, barber, clinic, services company, gym'],
+    ['Performance', 'Appointments report', '5', S, S, 'Salon, spa, barber, clinic, services company'],
     ['Expenses', 'Expenses', '5', S, S, ''],
     ['Expenses', 'Recurring expenses', '5', S, S, ''],
     ['Expenses', 'Profit and loss per business', '5', S, S, ''],
@@ -145,7 +148,7 @@ const MANAGE = [
     ['Appearance', 'Appearance (navigation style, light and dark)', '1', N, 'Live (today\'s Settings page; gains the style choice)', ''],
     ['Plan', 'Subscription and billing', '5', S, S, ''],
     ['Developers', 'API keys and webhooks', '5', S, S, ''],
-    ['Compliance', 'ZATCA e-invoicing', '6', S, S, 'Businesses in Saudi Arabia'],
+    ['Compliance', 'ZATCA e-invoicing', '6', S, S, 'Country: Saudi Arabia (any business type)'],
   ]],
 ];
 const NOTMAPPED = 'Separate spec (NAV-Q11)';
@@ -159,7 +162,7 @@ const OTHER = [
     ['Sell', 'Open orders', '2', NOTMAPPED, S, ''],
     ['Sell', 'Returns', '2', NOTMAPPED, S, ''],
     ['Cash', 'My cash shift', '2', NOTMAPPED, S, ''],
-    ['Appointments', 'Today\'s bookings', '4', NOTMAPPED, S, 'Salon, spa, barber, clinic, services company, gym'],
+    ['Appointments', 'Today\'s bookings', '4', NOTMAPPED, S, 'Salon, spa, barber, clinic, services company'],
     ['Setup', 'Appearance', '1', NOTMAPPED, 'Live (today\'s Settings page)', ''],
   ]],
   ['Staff', [
@@ -192,8 +195,10 @@ function count(groups, ix) {
 }
 function table(rows, ix) {
   const sub = rows.some((r) => r[0]);
-  const head = sub ? '| Sub-menu | Page | Phase | State | Shown only to |\n|---|---|---|---|---|' : '| Page | Phase | State | Shown only to |\n|---|---|---|---|';
-  return `${head}\n${rows.map((r) => `|${sub ? ` ${r[0]} |` : ''} ${r[1]} | ${r[2]} | ${r[ix]} | ${r[5] || 'every business type'} |`).join('\n')}`;
+  const roles = rows.some((r) => r[6]);
+  const cols = [...(sub ? ['Sub-menu'] : []), 'Page', 'Phase', 'State', 'Shown only to', ...(roles ? ['Roles'] : [])];
+  const head = `| ${cols.join(' | ')} |\n|${cols.map(() => '---').join('|')}|`;
+  return `${head}\n${rows.map((r) => `|${sub ? ` ${r[0]} |` : ''} ${r[1]} | ${r[2]} | ${r[ix]} | ${r[5] || 'every business type'} |${roles ? ` ${r[6] || 'not set'} |` : ''}`).join('\n')}`;
 }
 function build(project) {
   const ix = project.ix;
@@ -284,8 +289,8 @@ ${OTHER.map(([name, rows]) => `### ${name}\n\n${table(rows, ix)}`).join('\n\n')}
 
 The source of both files is \`docs/specs/074-admin-navigation-layout-restructure/app-map.shared.mjs\` in
 \`lolotam/PayPos.systems\`. Neither \`app-map.md\` is edited by hand. To add, rename, move or reorder a page, or to change
-its state in either project: change that file, run it, and open one docs PR in each repository. The script prints
-whether the two files still match apart from the State column. A task that adds a page to one project updates the
+its state in either project: change that file, run it, and open one docs PR in each repository. Run it with
+\`--check\` and the other copy's path to confirm, without writing, that both checked-in files still match the source. A task that adds a page to one project updates the
 shared source in the same way.
 
 ## The Under development page
@@ -304,10 +309,31 @@ const targets = [
   { ix: 3, spec: '074', other: '`docs/specs/022-navigation-styles/app-map.md` in `lolotam/lovable-pospay`', record: 'NAV-Q17', base: 'an admin route on `main` at `bbb5d7a3b`',
     file: here + 'app-map.md' },
   { ix: 4, spec: '022', other: '`docs/specs/074-admin-navigation-layout-restructure/app-map.md` in `lolotam/PayPos.systems`', record: 'NAV-L5', base: 'a route on `main` at `112b4e1`',
-    file: process.argv[2] || '' },
+    file: '' },
 ];
-for (const t of targets) { if (t.file) writeFileSync(t.file, build(t)); console.log(t.spec, t.file ? 'written' : 'not written (no path given)', count(MANAGE, t.ix), count(OTHER, t.ix)); }
-// The two files must match once the State column and the per-project header lines are removed.
-const strip = (s) => s.split('\n').filter((l) => !l.startsWith('# ') && !l.includes('generated from the same source') && !l.startsWith('(') && !l.startsWith('the two files') && !l.startsWith('owner chose') && !l.includes('In this project') && !l.startsWith('- **Live**'))
-  .map((l) => (l.startsWith('| ') && !l.startsWith('| Section') && !l.startsWith('| 1.') ? l.split('|').filter((_, i, a) => i !== a.length - 3).join('|') : l)).join('\n');
-console.log('identical apart from State:', strip(build(targets[0])) === strip(build(targets[1])));
+const args = process.argv.slice(2);
+const check = args[0] === '--check';
+const otherPath = check ? args[1] : args[0];
+targets[1].file = otherPath ? resolve(otherPath) : '';
+targets[0].file = resolve(targets[0].file);
+if (targets[1].file && targets[1].file.toLowerCase() === targets[0].file.toLowerCase()) {
+  console.error('The path given is this project\'s own app-map.md. Pass the lovable-pospay copy.');
+  process.exit(1);
+}
+if (check && !targets[1].file) { console.error('Usage: node app-map.shared.mjs --check <path-to-022-app-map.md>'); process.exit(1); }
+const same = (x, y) => x.replace(/\r\n/g, '\n') === y.replace(/\r\n/g, '\n');
+let drift = 0;
+for (const t of targets) {
+  if (!t.file) { console.log(t.spec, 'not written (no path given)'); continue; }
+  const want = build(t);
+  if (check) {
+    const ok = same(readFileSync(t.file, 'utf8'), want);
+    if (!ok) drift = 1;
+    console.log(t.spec, ok ? 'matches the source' : 'DIFFERS from the source', t.file);
+  } else {
+    writeFileSync(t.file, want);
+    console.log(t.spec, 'written', count(MANAGE, t.ix), count(OTHER, t.ix));
+  }
+}
+// Both files come from the same rows, so names, order and style placement cannot differ; only the State column is per project.
+process.exit(drift);

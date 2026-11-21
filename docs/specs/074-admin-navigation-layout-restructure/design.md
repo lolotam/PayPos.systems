@@ -127,6 +127,7 @@ Prototypes: `prototypes/pospay-nav-a.html`, `-b.html`, `-c.html` (built by `prot
 Existing URLs do not change in any style. New routes:
 
 - **Appearance** (`/appearance`): the style and theme choice.
+- **Approvals inbox** (`/approvals`): one page under Home listing the kinds of approval that exist, each linking to its existing page (NAV-Q17).
 - **Under development** (`/soon/[page]`): one shared page opened by every entry that is not built yet (`app-map.md`).
 - **Schedule settings** (today a block at the top of `/schedules`) and **Employee detail** (today an inline card on `/staff`).
 - **Overview pages** that only styles B and C use (one per module or workspace). They live under one route, `/overview/[group]`, and are drawn from the navigation model. If the group id is not part of the user's current style (an old link, or the style was switched while on that page), the user is taken to the first page of that group they are allowed to see. An unknown group, or one with no page the user may see, goes to Home.

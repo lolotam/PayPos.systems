@@ -96,11 +96,11 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Customers | Tags and blocks | 2 | Soon | every business type |
 | Customers | Customer wallet (prepaid balance) | — | Soon | every business type |
 | Customers | Ratings and reviews | 1 | Soon | every business type |
-| Appointments | Calendar | 4 | Soon | Salon, spa, barber, clinic, services company, gym |
-| Appointments | Resources (chairs, rooms) | 4 | Soon | Salon, spa, barber, clinic, services company, gym |
-| Appointments | Waitlist | 4 | Soon | Salon, spa, barber, clinic, services company, gym |
-| Appointments | Booking rules | 4 | Soon | Salon, spa, barber, clinic, services company, gym |
-| Appointments | Appointment categories | 4 | Soon | Salon, spa, barber, clinic, services company, gym |
+| Appointments | Calendar | 4 | Soon | Salon, spa, barber, clinic, services company |
+| Appointments | Resources (chairs, rooms) | 4 | Soon | Salon, spa, barber, clinic, services company |
+| Appointments | Waitlist | 4 | Soon | Salon, spa, barber, clinic, services company |
+| Appointments | Booking rules | 4 | Soon | Salon, spa, barber, clinic, services company |
+| Appointments | Appointment categories | 4 | Soon | Salon, spa, barber, clinic, services company |
 | Online | Company public page | 1 | Soon | every business type |
 | Online | Online menu builder | 4 | Soon | every business type |
 | Marketing | Business WhatsApp | 4 | Soon | every business type |
@@ -149,7 +149,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Sales reports | Payments and customer balances | 5 | Soon | every business type |
 | Stock reports | Stock and cost of goods | 3 | Soon | every business type |
 | Performance | Commissions and performance | 5 | Soon | every business type |
-| Performance | Appointments report | 5 | Soon | Salon, spa, barber, clinic, services company, gym |
+| Performance | Appointments report | 5 | Soon | Salon, spa, barber, clinic, services company |
 | Expenses | Expenses | 5 | Soon | every business type |
 | Expenses | Recurring expenses | 5 | Soon | every business type |
 | Expenses | Profit and loss per business | 5 | Soon | every business type |
@@ -178,7 +178,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Appearance | Appearance (navigation style, light and dark) | 1 | New | every business type |
 | Plan | Subscription and billing | 5 | Soon | every business type |
 | Developers | API keys and webhooks | 5 | Soon | every business type |
-| Compliance | ZATCA e-invoicing | 6 | Soon | Businesses in Saudi Arabia |
+| Compliance | ZATCA e-invoicing | 6 | Soon | Country: Saudi Arabia (any business type) |
 
 "Social media management" is the owner's request of 2026-11-21; it is not in the PRD and needs a PRD entry and a spec
 before anything is built. The owner confirmed it is listed as a Soon entry.
@@ -210,7 +210,7 @@ separate cashier and staff app.
 | Sell | Open orders | 2 | Separate spec (NAV-Q11) | every business type |
 | Sell | Returns | 2 | Separate spec (NAV-Q11) | every business type |
 | Cash | My cash shift | 2 | Separate spec (NAV-Q11) | every business type |
-| Appointments | Today's bookings | 4 | Separate spec (NAV-Q11) | Salon, spa, barber, clinic, services company, gym |
+| Appointments | Today's bookings | 4 | Separate spec (NAV-Q11) | Salon, spa, barber, clinic, services company |
 | Setup | Appearance | 1 | Separate spec (NAV-Q11) | every business type |
 
 ### Staff
@@ -275,8 +275,8 @@ separate cashier and staff app.
 
 The source of both files is `docs/specs/074-admin-navigation-layout-restructure/app-map.shared.mjs` in
 `lolotam/PayPos.systems`. Neither `app-map.md` is edited by hand. To add, rename, move or reorder a page, or to change
-its state in either project: change that file, run it, and open one docs PR in each repository. The script prints
-whether the two files still match apart from the State column. A task that adds a page to one project updates the
+its state in either project: change that file, run it, and open one docs PR in each repository. Run it with
+`--check` and the other copy's path to confirm, without writing, that both checked-in files still match the source. A task that adds a page to one project updates the
 shared source in the same way.
 
 ## The Under development page
