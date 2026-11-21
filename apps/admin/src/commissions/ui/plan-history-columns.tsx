@@ -60,7 +60,7 @@ function tiersSummary(block: CommissionPlanTiers, locale: Locale): string {
     : `${t(locale, 'commissionPlanBuilder.blockOff')} (${parts.join(' · ')})`;
 }
 
-function civilDate(value: string, locale: Locale): string {
+export function civilDate(value: string, locale: Locale): string {
   return formatDate(new Date(`${value}T12:00:00Z`), {
     locale,
     calendar: 'gregorian',
@@ -69,7 +69,7 @@ function civilDate(value: string, locale: Locale): string {
 }
 
 /** لحظة الإنشاء بتتعرض في توقيت النشاط من الـ scope مش بتوقيت UTC، وeffective_from تاريخ مدني فبيفضل زي ما هو. */
-function stampDate(value: string, locale: Locale, timeZone: string): string {
+export function stampDate(value: string, locale: Locale, timeZone: string): string {
   return formatDate(new Date(value), { locale, calendar: 'gregorian', timeZone });
 }
 

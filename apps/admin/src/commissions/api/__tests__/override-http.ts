@@ -52,4 +52,16 @@ export function overridePage(items: unknown[], nextCursor: string | null) {
   return { items, next_cursor: nextCursor };
 }
 
+/** جواب حفظ ناجح: السطر المخزّن بعد التحليل مع رد 201. */
+export function postOk(data: unknown) {
+  return { data, response: { status: 201, ok: true } };
+}
+
+/** خدمة «صبغة» بالاسمين، عشان رحلة العمولة الخاصة. */
+export const SERVICE_DYE = '01920000-0000-7000-8000-0000000000b6';
+
+export function dyeService(overrides: Record<string, unknown> = {}) {
+  return serviceItem(SERVICE_DYE, { name_en: 'Dyeing', name_ar: 'صبغة', ...overrides });
+}
+
 export { ok };
