@@ -322,11 +322,11 @@ manager can order them. Nothing here is executed by the implementer.
 | # | Risk | Handling |
 |---|---|---|
 | K1 | CS-Q51 is answered with another option (a state bootstrap, or event ids from orders) | The table, the handler, CM-20, CM-21, CM-22b and CM-R05 are unaffected. The coverage reader stays. A state bootstrap adds roughly the tips bootstrap's size (275 production lines plus tests); event ids from orders would need an orders migration and a producer change, which is a different slice and goes back to Waleed |
-| K2 | A sale or refund lands in a closed month before 55-1d | Refused and parked by design; no tenant has a closed month until 53-2 merges. If 53-2 is scheduled before 55-1d, the manager orders 55-1d first |
+| K2 | A sale or refund lands in a closed month before 55-1d | Refused before a write, with no mark. Live dispatch may park the row. No tenant can close a month until 53-2 merges. If 53-2 is scheduled before 55-1d, the manager orders 55-1d first |
 | K3 | `report-commission-coverage.ts` passes 300 lines (warn) | The sale check is its own file (P12); row P13 names the one extraction that keeps the file under 300 if the warning is not acceptable |
 | K4 | An existing spec still expects `COMMISSION_EVENT_TYPE_NOT_HANDLED` for the sale type | T9 and T12 rewrite those assertions; the code stays for any future unregistered type |
 | K5 | An imported entitlement counted as a missing sale | The reader filters `provenance = 'SOLD'`; T13 asserts it with a refunded import |
-| K6 | The reader's plan degrades on a tenant with many imports | Keyset on the primary key with a residual filter; T13's `EXPLAIN` asserts the index. No new index on an orders table is planned; if the assertion cannot be met, that is reported to the manager, not solved by adding one silently |
+| K6 | The reader's plan degrades on a tenant with many imports | The primary key supports keyset order. The provenance filter can inspect the full tenant history to return an empty page, since the limit bounds rows returned. T13 proves the indexed path, and a provenance-aware orders index requires a separate migration decision |
 | K7 | Delivery size above twice the brief | The brief carries the upper ends above; the two named drifts are refused |
 
 ## Open question

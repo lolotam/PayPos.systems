@@ -124,6 +124,9 @@ export function assertSaleIdentityUnchanged(
  * @returns الشهر بصيغة YYYY-MM
  */
 function periodOfSaleBusinessDate(businessDate: string): string {
+  if (businessDate.startsWith('0000-')) {
+    throw new CommissionSaleInputInvalidError('BUSINESS_DATE_OUT_OF_RANGE');
+  }
   return businessDate.slice(0, 7);
 }
 

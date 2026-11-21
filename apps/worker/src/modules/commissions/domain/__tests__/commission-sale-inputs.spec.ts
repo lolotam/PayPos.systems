@@ -89,6 +89,14 @@ describe('reduceCommissionSale: refuse a producer bug', () => {
     expect(outcome.row?.refundedAmount).toBe(30000n);
   });
 
+  it('bounds the sale business date to supported calendar years', () => {
+    expect(reduceCommissionSale(null, saleEvent({ businessDate: '0001-01-01' })).row?.period)
+      .toBe('0001-01');
+    expect(() => reduceCommissionSale(null, saleEvent({ businessDate: '0000-01-01' }))).toThrow(
+      expect.objectContaining({ code: 'COMMISSION_SALE_INPUT_INVALID', reason: 'BUSINESS_DATE_OUT_OF_RANGE' }),
+    );
+  });
+
   it('accepts the highest integer revision the commission_sales column holds', () => {
     const outcome = reduceCommissionSale(null, saleEvent({ revision: 2147483647 }));
     expect(outcome.applied).toBe(true);

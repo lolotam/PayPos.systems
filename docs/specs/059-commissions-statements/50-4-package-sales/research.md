@@ -123,8 +123,9 @@ runner. Row 53-2 (approval) is not on `main`: no non-test file under `apps/api/s
 `packages/db/src` writes a commission statement to `APPROVED` or `PAID`, and no commit implements 53-1 or 53-2. A
 commission month can therefore be closed only by a test seed today.
 
-**Consequence to state in the PR:** a parked sale event holds later events of the same sale (the dispatcher delivers
-one aggregate in order). 55-1d releases them by re-delivering through the replay.
+**Consequence:** the dispatcher processes each sale in order. A row parked by live dispatch holds later events of
+that sale. The replay records the closed-month refusal without changing dispatcher state. Once 55-1d supports
+the correction, a replay can commit the projection and mark while the live park still requires recovery.
 
 ## R6. Which columns can a newer revision change?
 
