@@ -32,6 +32,8 @@
 
 ## Notes
 
+- On 2026-11-21 the owner chose the grouping of eight sections from three options each (NAV-Q17); `app-map.md` is now generated from one source shared with `lolotam/lovable-pospay` spec 022.
+
 - Validated on 2026-11-21 by the session that wrote the spec, then checked with the docs-guard skill and debated once with Codex (`gpt-6.2-astra`, medium): verdict "agree with changes", nine findings, all applied (`debate-codex-astra.md`).
 - FR-022 / NAV-Q14 was answered on 2026-11-21 (by business type and role). The per-entry table of business types and roles is still to be written in step 1.
 - Business rules BR-001 to BR-005 are the owner's answers, recorded verbatim in `owner-questions.ar.md` (NAV-Q1, NAV-Q6, NAV-Q7, NAV-Q8, NAV-Q10, NAV-Q12).

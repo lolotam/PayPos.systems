@@ -33,7 +33,7 @@ Two defects found while mapping, to fix in the same work:
 
 ## 3. Target grouping
 
-> Extended on 2026-11-21 by `app-map.md`, which lists the whole product including pages not built yet and regroups the top level (seven sections). Where this section or §4 differs from `app-map.md`, `app-map.md` wins. The sizes in §4 and the layout rules in §6 are unchanged.
+> Extended on 2026-11-21 by `app-map.md`, the one map shared with `lolotam/lovable-pospay` (NAV-Q17), which lists the whole product including pages not built yet and regroups the top level (seven sections). Where this section or §4 differs from `app-map.md`, `app-map.md` wins. The sizes in §4 and the layout rules in §6 are unchanged.
 
 All three styles sort the same navigation-reachable pages into the same families: the 26 mapped on `e0e0e642e`, the two commission pages added since, and the new Appearance page, plus four child pages. They differ in how many levels there are and where each level lives.
 
@@ -65,7 +65,7 @@ Prototypes: `prototypes/pospay-nav-a.html`, `-b.html`, `-c.html` (built by `prot
 ### B — Top bar and hubs
 
 - **Level 1:** 6 top-bar modules grouped by task: Today, Sell, Approvals, People, Catalog, Setup.
-- **Approvals** groups three existing pages (Leave approvals, Attendance requests, Attendance exceptions) under one module with one count. The pages themselves are not merged.
+- **Approvals** (superseded on 2026-11-21 by NAV-Q17: approvals are an inbox under Home in every style, see `app-map.md`) grouped three existing pages (Leave approvals, Attendance requests, Attendance exceptions) under one module with one count. The pages themselves are not merged.
 - **Level 2:** a mega menu per module, plus an overview page per module.
 - **Inside a module:** a 240px local list beside the page; a pill strip under 1024px.
 - No sidebar. The page gets the full width.
@@ -127,6 +127,7 @@ Prototypes: `prototypes/pospay-nav-a.html`, `-b.html`, `-c.html` (built by `prot
 Existing URLs do not change in any style. New routes:
 
 - **Appearance** (`/appearance`): the style and theme choice.
+- **Approvals inbox** (`/approvals`): one page under Home listing the kinds of approval that exist, each linking to its existing page (NAV-Q17).
 - **Under development** (`/soon/[page]`): one shared page opened by every entry that is not built yet (`app-map.md`).
 - **Schedule settings** (today a block at the top of `/schedules`) and **Employee detail** (today an inline card on `/staff`).
 - **Overview pages** that only styles B and C use (one per module or workspace). They live under one route, `/overview/[group]`, and are drawn from the navigation model. If the group id is not part of the user's current style (an old link, or the style was switched while on that page), the user is taken to the first page of that group they are allowed to see. An unknown group, or one with no page the user may see, goes to Home.

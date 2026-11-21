@@ -42,7 +42,7 @@ Start the app with `pnpm dev` and sign in to the admin app.
 8. **No permission needed.** Sign in as a user with the fewest permissions. Appearance opens and the style can be changed.
 9. **Overview fallback.** In style B open a module's overview page, then switch to A. The first page of that group opens.
 10. **Three widths, two languages.** Repeat scenarios 2 and 3 at 1280, 820 and 390 pixels wide, in Arabic and in English. No page scrolls sideways; in Arabic the menu is on the right.
-11. **Whole product in the menu.** Compare the menu with `app-map.md`: every section and sub-menu is there. Open three entries marked "Soon" from different sections; each shows the Under development page with that entry's name and a button back to Home.
+11. **Whole product in the menu.** Compare the menu with the Management area of `app-map.md`: every section and sub-menu that applies to the selected business type and your role is there. Open three entries marked "Soon" from different sections; each shows the Under development page with that entry's name and a button back to Home.
 12. **Nothing else moved.** Colours, fonts and buttons look as they did before; the light and dark choice and the language choice are unchanged by switching style.
 
 ## Not covered here
