@@ -35,7 +35,7 @@
 - Validated on 2026-11-21 by the session that wrote the spec, then checked with the docs-guard skill and debated once with Codex (`gpt-6.2-astra`, medium): verdict "agree with changes", nine findings, all applied (`debate-codex-astra.md`).
 - One requirement waits on the owner: FR-022 / NAV-Q14 (who sees not-built entries). It blocks the release step only (`pr-sequence.md` step 7).
 - Business rules BR-001 to BR-005 are the owner's answers, recorded verbatim in `owner-questions.ar.md` (NAV-Q1, NAV-Q6, NAV-Q7, NAV-Q8, NAV-Q10, NAV-Q12).
-- Open and not blocking this feature's first steps: NAV-Q2 (`lovable-pospay`), NAV-Q4 (`--primary` difference), NAV-Q5 (ADR-0059 addendum for the theme switch), NAV-Q11 (cashier app).
-- Two points the spec states as assumptions, not verified: whether existing reads can supply navigation counts, and whether style C's page finder needs a new library.
+- Open and not blocking this feature's first steps: NAV-Q4 (`--primary` difference), NAV-Q5 (ADR-0059 addendum for the theme switch), NAV-Q11 (cashier app), NAV-Q15 (social media management is not in the PRD).
+- One point the spec states as an assumption, not verified: whether existing reads can supply navigation counts.
 - No audit-log entry is proposed for a style change; the spec asks for this to be confirmed in review.
 - The schema row adds a column to a global identity table. ADR-0003 must be amended before the migration is written.
