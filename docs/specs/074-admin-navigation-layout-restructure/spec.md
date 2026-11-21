@@ -144,7 +144,7 @@ The menu names every section of the product, including the ones not built yet: s
 - **FR-025**: Choosing styles in quick succession MUST leave the account holding the last choice made.
 - **FR-026**: The Approvals inbox MUST be a working page under Home from the first release, in the same place in every style. It lists the kinds of approval that exist (leave approvals, attendance requests, attendance exceptions) and links each to its existing page; later kinds are added as they are built. A count is shown per kind, and in the menu, where an existing read supplies it. Each kind of approval also stays in its own section (NAV-Q17).
 - **FR-027**: An entry that belongs to some business types MUST be shown only while a business of one of those types is selected in the workspace switcher, whether its page is built or not (NAV-Q17). An entry limited to a country follows the same rule against the selected business's country. The selected business does not carry its type or country today; step 0c of `pr-sequence.md` adds both to the workspace response and must merge before the release step.
-- **FR-018**: The cashier app is in the owner's scope but out of this feature; it gets its own specification (`TODO(spec)`, NAV-Q3, NAV-Q11).
+- **FR-018**: The cashier app is in the owner's scope but out of this feature; it gets its own specification (`TODO(spec)`, NAV-Q3). One point of it is decided: a cashier's style is kept on the device, one value per employee who signs in there, with no database change (NAV-Q11).
 
 ### Key Entities
 
@@ -236,4 +236,4 @@ Audit: none. A user changing their own navigation style is a recorded exception 
 - Navigation counts (pending leave, attendance requests, open exceptions) are shown only if existing reads can supply them cheaply; otherwise they are left out of the first release. Not verified.
 - The page finder in style C uses components the app already has; if a new library is needed, an ADR comes first.
 - `lovable-pospay` is a separate project with its own spec and plan in its own repository (NAV-Q2); nothing here applies to it.
-- The cashier app and the `--primary` difference (NAV-Q4) are tracked in `owner-questions.ar.md` and do not block this feature's first steps.
+- The cashier app gets its own spec; where a cashier's style is kept is decided (NAV-Q11: on the device, per employee). The `--primary` difference is settled: each project keeps its own value (NAV-Q4).

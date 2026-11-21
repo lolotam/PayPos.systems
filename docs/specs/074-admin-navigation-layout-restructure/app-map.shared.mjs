@@ -5,7 +5,7 @@
 //   node app-map.shared.mjs [path-to-022-app-map.md]            rewrite app-map.md beside this file, and the other copy if given
 //   node app-map.shared.mjs --check <path-to-022-app-map.md>    write nothing; exit 1 if either file differs from what this source generates
 // Change a name, an order, a state or a role here, run it, and open one PR in each repository.
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -81,7 +81,7 @@ const MANAGE = [
     ['Appointments', 'Appointment categories', '4', S, S, 'Salon, spa, barber, clinic, services company'],
     ['Online', 'Company public page', '1', S, L, ''],
     ['Online', 'Online menu builder', '4', S, S, ''],
-    ['Online', 'Customer call (waiting page, the customer scans a QR code)', '—', S, S, ''],
+    ['Online', 'Customer call (set up the waiting page and its QR code)', '—', S, S, ''],
     ['Marketing', 'Business WhatsApp', '4', S, S, ''],
     ['Marketing', 'Campaigns', '4', S, S, ''],
     ['Marketing', 'Message templates', '4', S, S, ''],
@@ -130,6 +130,8 @@ const MANAGE = [
     ['Expenses', 'Profit and loss per business', '5', S, S, ''],
     ['Exports', 'Scheduled reports', '5', S, S, ''],
     ['Exports', 'Accounting export', '5', S, S, ''],
+    ['Exports', 'Qayd filing pack (XBRL)', '—', S, S, 'Country: Kuwait (any business type)'],
+    ['Exports', 'Request the Qayd filing service', '—', S, S, 'Country: Kuwait (any business type)'],
   ]],
   ['7. Setup', [
     ['Business', 'Business identity', '1', L, S, ''],
@@ -177,13 +179,13 @@ const OTHER = [
     ['', 'Appearance', '1', NOTMAPPED, 'Live (today\'s Settings page)', ''],
   ]],
   ['Platform', [
-    ['', 'Dashboard', '1', NOTMAPPED, L, ''],
-    ['', 'Connectors', '1', NOTMAPPED, L, ''],
-    ['', 'Diagnose', '1', NOTMAPPED, L, ''],
-    ['', 'Companies and subscriptions', '5', NOTMAPPED, S, ''],
-    ['', 'Plans and feature flags', '5', NOTMAPPED, S, ''],
-    ['', 'Support and health', '5', NOTMAPPED, S, ''],
-    ['', 'Appearance', '1', NOTMAPPED, 'Live (today\'s Settings page)', ''],
+    ['', 'Dashboard', '1', NOTMAPPED, L, 'Platform role (business type does not apply)'],
+    ['', 'Connectors', '1', NOTMAPPED, L, 'Platform role (business type does not apply)'],
+    ['', 'Diagnose', '1', NOTMAPPED, L, 'Platform role (business type does not apply)'],
+    ['', 'Companies and subscriptions', '5', NOTMAPPED, S, 'Platform role (business type does not apply)'],
+    ['', 'Plans and feature flags', '5', NOTMAPPED, S, 'Platform role (business type does not apply)'],
+    ['', 'Support and health', '5', NOTMAPPED, S, 'Platform role (business type does not apply)'],
+    ['', 'Appearance', '1', NOTMAPPED, 'Live (today\'s Settings page)', 'Platform role (business type does not apply)'],
   ]],
 ];
 
@@ -245,8 +247,7 @@ them may end up as part of another page rather than a page of their own.
 Notes on three of them. The Stock movements ledger sits under Stock reports because the PRD schedules it as a report
 (P3-T7.1). Branches has no phase: the PRD creates branches in Phase 0 tenancy and names only a branch selector in
 Phase 1, so a branch-management screen needs its own PRD entry. Invitations is the exception to the rule above: the
-work is already tracked, as company invitations in PRD P0-T9a.8 and issue #19, and what is missing is only a screen for
-it, so the screen extends that issue rather than starting a new roadmap item. Managing users and their permissions is
+work is already tracked, as company invitations in PRD P0-T9a.8 and issue #19. ${project.invitations} Managing users and their permissions is
 the Permissions page, which the PRD plans in Phase 1 (P1-T2.4).
 
 The stock entries (Stores, Units of measure, the two stock reports) are shown to every business type. The owner
@@ -256,8 +257,19 @@ Customer call was added on 2026-11-21 at the owner's request (NAV-Q20 in spec 07
 the customer on the customer's own phone when an order is ready or a turn has come. The customer scans a QR code and
 waits on a web page, with no app and no account. The feature is named Customer call (نداء العميل). It adds two
 entries, "Customer call" under Online and the "Customer call report", and the call button belongs to the Fulfilment
-board. None of it is in the PRD; it needs a PRD
+board. The Management entry is the staff side: where the feature is set up and the QR code is taken from. The page the
+customer opens is public, sits outside the Management frame and needs no account; its address is defined by the
+feature's own spec. None of it is in the PRD; it needs a PRD
 entry and a spec, which must also settle how the alert reaches a locked phone.
+
+The two Qayd entries were added on 2026-11-21 at the owner's request (NAV-Q21 in spec 074, NAV-L10 in spec 022).
+Kuwait's Ministry of Commerce and Industry takes annual financial statements as XBRL data through its Qayd system,
+voluntary in 2026 and mandatory from 1 January 2027 by the ministry's announcement. The filing pack gathers the year's
+figures this product holds (sales, cost of goods, expenses, pay and commissions, stock value) for the accountant or
+auditor; it is not a complete XBRL filing, because the product has no general ledger and the statements are audited
+before filing. "Request the Qayd filing service" hands the customer to a partner accounting office. Both are shown
+only to businesses in Kuwait, need a PRD entry and a spec, and wait on the ministry's technical specification, which
+was not found when this was written.
 
 How an owner gets a second business type on the same account (created by the platform operator, or by an invitation
 to the same email) is a subscription question, not a menu question, and is not decided here.
@@ -268,7 +280,7 @@ The same map in both projects. ${project.areas}
 
 An entry of the Platform area is not filtered by business type or by company role: a platform workspace has neither,
 and the platform role alone decides who sees it. Staff and Platform have no sections, so Appearance is an entry of its
-own there.
+own there.${project.otherStyles}
 
 ${OTHER.map(([name, rows]) => `### ${name}\n\n${table(rows, ix)}`).join('\n\n')}
 
@@ -304,7 +316,7 @@ ${OTHER.map(([name, rows]) => `### ${name}\n\n${table(rows, ix)}`).join('\n\n')}
   an existing read supplies them. Each kind of approval also stays in its own section.
 - **Reports** are all in Reports and money, including staff reports. Daily attendance work stays under Team.
 - **The style choice** is on the Appearance page under Setup and in the account menu, in every style, together with
-  the light and dark switch. In the other areas it is offered when that area is delivered by its own spec.
+  the light and dark switch. ${project.styleChoice}
 
 ## Keeping the two maps in sync
 
@@ -325,11 +337,18 @@ shared source in the same way.
   not-found page.
 `;
 }
+const OTHER_STYLES = `
+
+How the three styles arrange the other areas in this project. Reception has seven sub-menus (Today, Attendance,
+Sessions, Sell, Cash, Appointments, Setup): they are its top-level entries in A and B and its workspaces in C, and a
+sub-menu with one page opens that page directly, with no tab row, wide menu or panel. Staff and Platform are flat lists
+of at most seven pages: each page is a top-level entry in every style, so A shows no tabs, B no wide menu and C no
+panel, and the page finder of C still lists them.`;
 const here = fileURLToPath(new URL('.', import.meta.url));
 const targets = [
-  { ix: 3, spec: '074', other: '`docs/specs/022-navigation-styles/app-map.md` in `lolotam/lovable-pospay`', record: 'NAV-Q17', areas: 'In this project they are reference only: the cashier and staff apps get their own specs, and the requirements and release checks of spec 074 cover the Management area alone.', base: 'an admin route on `main` at `bbb5d7a3b`',
+  { ix: 3, spec: '074', other: '`docs/specs/022-navigation-styles/app-map.md` in `lolotam/lovable-pospay`', record: 'NAV-Q17', invitations: 'In this project only the screen is missing, so the screen extends that issue rather than starting a new roadmap item.', styleChoice: 'In the other areas it is offered when that area is delivered by its own spec.', otherStyles: '', areas: 'In this project they are reference only: the cashier and staff apps get their own specs, and the requirements and release checks of spec 074 cover the Management area alone.', base: 'an admin route on `main` at `bbb5d7a3b`',
     file: here + 'app-map.md' },
-  { ix: 4, spec: '022', other: '`docs/specs/074-admin-navigation-layout-restructure/app-map.md` in `lolotam/PayPos.systems`', record: 'NAV-L5', areas: 'In this project the four areas are one app drawn by one shell, and spec 022 covers all of them: the three styles, the Appearance page and the Under development page apply in each area (NAV-L4).', base: 'a route on `main` at `112b4e1`',
+  { ix: 4, spec: '022', other: '`docs/specs/074-admin-navigation-layout-restructure/app-map.md` in `lolotam/PayPos.systems`', record: 'NAV-L5', invitations: 'In this project the screen already exists (the team page sends, lists and revokes invitations), so the entry is Live and step 1 maps the existing page; nothing is built for it.', styleChoice: 'The same holds in the other three areas, which this spec also covers.', otherStyles: OTHER_STYLES, areas: 'In this project the four areas are one app drawn by one shell, and spec 022 covers all of them: the three styles, the Appearance page and the Under development page apply in each area (NAV-L4).', base: 'a route on `main` at `112b4e1`',
     file: '' },
 ];
 const args = process.argv.slice(2);
@@ -342,7 +361,9 @@ if (paths.some((p) => p.trim() === '')) { console.error('An empty path was given
 const otherPath = paths[0];
 targets[1].file = otherPath ? resolve(otherPath) : '';
 targets[0].file = resolve(targets[0].file);
-if (targets[1].file && targets[1].file.toLowerCase() === targets[0].file.toLowerCase()) {
+// Same file by name, through a symlink, or as a hard link: compared by resolved path and by device and inode, before any write.
+const sameFile = (x, y) => { if (x.toLowerCase() === y.toLowerCase()) return true; if (!existsSync(x) || !existsSync(y)) return false; if (realpathSync(x).toLowerCase() === realpathSync(y).toLowerCase()) return true; const a = statSync(x), b = statSync(y); return a.ino !== 0 && a.ino === b.ino && a.dev === b.dev; };
+if (targets[1].file && sameFile(targets[1].file, targets[0].file)) {
   console.error('The path given is this project\'s own app-map.md. Pass the lovable-pospay copy.');
   process.exit(1);
 }
