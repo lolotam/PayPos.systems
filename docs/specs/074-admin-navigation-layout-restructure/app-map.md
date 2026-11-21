@@ -12,7 +12,8 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 - **New**: added by this spec.
 - **Phase**: the phase whose tasks in the product PRD (`docs/PRD.md` §7 and §10 in `lolotam/PayPos.systems`) name the
   page or its module. It is this document's reading, not a commitment to a date. "—" means the PRD does not plan it.
-- **Shown only to**: the business types that see the entry (PRD §7.1). An entry is shown for the business that is
+- **Shown only to**: the business types that see the entry (PRD §7.1). The limit holds while the entry is Soon and after
+  its page is built, together with the page's own permission. An entry is shown for the business that is
   selected in the workspace switcher, so an owner with a salon and a restaurant sees the salon's entries while the
   salon is selected and the restaurant's entries after switching. Which roles see each entry is a second table, still to
   be written in the first implementation step.
@@ -26,7 +27,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Page | Phase | State | Shown only to |
 |---|---|---|---|
 | Dashboard (today at a glance) | 1 | Live | every business type |
-| Approvals inbox (everything waiting for a decision, one count) | 2 | Soon | every business type |
+| Approvals inbox (everything waiting for a decision, one count) | 1 | New | every business type |
 | Daily sales dashboard | 2 | Soon | every business type |
 | All-businesses dashboard | 5 | Soon | every business type |
 
@@ -87,10 +88,10 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Customers | Customers | 2 | Soon | every business type |
 | Customers | Tags and blocks | 2 | Soon | every business type |
 | Customers | Ratings and reviews | 1 | Soon | every business type |
-| Appointments | Calendar | 4 | Soon | every business type |
-| Appointments | Resources (chairs, rooms) | 4 | Soon | every business type |
-| Appointments | Waitlist | 4 | Soon | every business type |
-| Appointments | Booking rules | 4 | Soon | every business type |
+| Appointments | Calendar | 4 | Soon | Salon, spa, barber, clinic, services company, gym |
+| Appointments | Resources (chairs, rooms) | 4 | Soon | Salon, spa, barber, clinic, services company, gym |
+| Appointments | Waitlist | 4 | Soon | Salon, spa, barber, clinic, services company, gym |
+| Appointments | Booking rules | 4 | Soon | Salon, spa, barber, clinic, services company, gym |
 | Online | Company public page | 1 | Soon | every business type |
 | Online | Online menu builder | 4 | Soon | every business type |
 | Marketing | Business WhatsApp | 4 | Soon | every business type |
@@ -139,7 +140,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Sales reports | Payments and customer balances | 5 | Soon | every business type |
 | Stock reports | Stock and cost of goods | 3 | Soon | every business type |
 | Performance | Commissions and performance | 5 | Soon | every business type |
-| Performance | Appointments report | 5 | Soon | every business type |
+| Performance | Appointments report | 5 | Soon | Salon, spa, barber, clinic, services company, gym |
 | Expenses | Expenses | 5 | Soon | every business type |
 | Expenses | Recurring expenses | 5 | Soon | every business type |
 | Expenses | Profit and loss per business | 5 | Soon | every business type |
@@ -174,7 +175,8 @@ to the same email) is a subscription question, not a menu question, and is not d
 
 ## Other areas
 
-The same map in both projects. How each project delivers these areas differs: one app with an area per role, or a
+Reference only: these areas are delivered by their own specs, and this spec's requirements and release checks cover the
+Management area alone. The same map in both projects. How each project delivers these areas differs: one app with an area per role, or a
 separate cashier and staff app.
 
 ### Reception / cashier
@@ -189,7 +191,7 @@ separate cashier and staff app.
 | Sell | Open orders | 2 | Separate spec (NAV-Q11) | every business type |
 | Sell | Returns | 2 | Separate spec (NAV-Q11) | every business type |
 | Cash | My cash shift | 2 | Separate spec (NAV-Q11) | every business type |
-| Appointments | Today's bookings | 4 | Separate spec (NAV-Q11) | every business type |
+| Appointments | Today's bookings | 4 | Separate spec (NAV-Q11) | Salon, spa, barber, clinic, services company, gym |
 | Setup | Appearance | 1 | Separate spec (NAV-Q11) | every business type |
 
 ### Staff
@@ -218,7 +220,7 @@ separate cashier and staff app.
 
 ## Counts
 
-- Management area: 110 menu pages. In this project: 28 Live, 1 New, 81 Soon.
+- Management area: 110 menu pages. In this project: 28 Live, 2 New, 80 Soon.
 - Other areas: 24 menu pages. In this project: 0 Live, 0 Soon, 24 not mapped here (the cashier app has its own spec).
 - Child pages (create and detail pages) have no menu entry of their own and are not counted.
 
@@ -242,11 +244,21 @@ separate cashier and staff app.
   drawer with one accordion per section.
 - **C:** a section's sub-menus are the labels of its panel. On a phone the bottom bar holds the workspaces and the
   page finder sits in the top bar.
-- **Approvals** are in the same place in every style: the Approvals inbox under Home, with one count. Each kind of
-  approval also stays in its own section with its own count.
+- **Approvals** are in the same place in every style: the Approvals inbox under Home. It is a page of this spec, not a
+  Soon entry: from the first release it lists the kinds of approval the project already has, each linking to its
+  existing page, and gains the later kinds (voids, cash variance, wastage) as they are built. Counts are shown where
+  an existing read supplies them. Each kind of approval also stays in its own section.
 - **Reports** are all in Reports and money, including staff reports. Daily attendance work stays under Team.
-- **The style choice** is on the Appearance page under Setup and in the account menu, in every style and every area,
-  together with the light and dark switch.
+- **The style choice** is on the Appearance page under Setup and in the account menu, in every style, together with
+  the light and dark switch. In the other areas it is offered when that area is delivered by its own spec.
+
+## Keeping the two maps in sync
+
+The source of both files is `docs/specs/074-admin-navigation-layout-restructure/app-map.shared.mjs` in
+`lolotam/PayPos.systems`. Neither `app-map.md` is edited by hand. To add, rename, move or reorder a page, or to change
+its state in either project: change that file, run it, and open one docs PR in each repository. The script prints
+whether the two files still match apart from the State column. A task that adds a page to one project updates the
+shared source in the same way.
 
 ## The Under development page
 

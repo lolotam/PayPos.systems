@@ -23,7 +23,8 @@ One admin page as the menu knows it.
 | `visible` | The condition that shows the page: the same permission or state check its `*-nav-item.tsx` uses today |
 | `count` | Optional: where a pending count comes from |
 | `state` | `live` (the page exists) or `soon` (not built). A `soon` entry has no `route` of its own; it opens `/soon/<id>` |
-| `businessTypes`, `roles` | For a `soon` entry: the business types (PRD §7.1) and roles (PRD §3.2) that see it. Not used by `live` entries, which keep `visible` |
+| `businessTypes` | The business types (PRD §7.1) that see the entry; empty means every type. It applies to `soon` and `live` entries alike and is checked against the business selected in the workspace switcher |
+| `roles` | For a `soon` entry: the roles (PRD §3.2) that see it. A `live` entry uses `visible` instead |
 | `section`, `submenu` | Where the entry sits in `app-map.md`; the three groupings are built from these |
 
 **Rules**
