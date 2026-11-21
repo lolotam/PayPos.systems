@@ -16,24 +16,24 @@ import { createTestCommissionInputsConsumer } from '../../../__tests__/commissio
 import { commissionSaleEvent } from './commission-tip-salary-events.ts';
 import { createDeliverer } from '../../../outbox/deliver.ts';
 import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
+import { createCommissionSaleProjectionScope } from '../persistence/commission-sale-projection.scope.ts';
+import { COMMISSION_INPUTS_CONSUMER_ID } from '../commissions.module.ts';
+import { markCommissionEventConsumed } from '../persistence/commission-event-consumption.ts';
+import { ProjectPackageSale } from '../use-cases/project-package-sale/project-package-sale.ts';
 
 let testDb: TestDatabase;
 let owner: postgres.Sql;
-let locker: postgres.Sql;
 let db: Database;
 let deliver: (event: ClaimedEvent) => Promise<unknown>;
 const ids = systemUuidV7();
 const { A } = COMMISSION_LINE_TENANTS;
 const clock = { now: () => new Date('2026-12-05T09:00:00Z') };
-const POLL_INTERVAL_MS = 25;
-const POLL_LIMIT_MS = 5_000;
 const SALE = '01970000-0000-7000-8000-000000000001';
 
 beforeAll(async () => {
   testDb = await createTestDatabase();
   await seedCommissionLineTenants(testDb.ownerUrl);
   owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
-  locker = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
   db = createDatabase({ url: testDb.appUrl, ids });
   const consumer = createTestCommissionInputsConsumer({
     ids,
@@ -47,7 +47,6 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db?.close();
-  await locker?.end();
   await owner?.end();
   await testDb?.drop();
 });
@@ -58,76 +57,69 @@ beforeEach(async () => {
   await owner`DELETE FROM consumed_events WHERE consumer_id='commissions.project-inputs'`;
 });
 
-interface HeldLock {
-  readonly release: () => void;
-  readonly finished: Promise<void>;
-}
-
-async function holdLock(lockKey: string): Promise<HeldLock> {
-  let signalAcquired = (): void => undefined;
-  let signalRelease = (): void => undefined;
-  const acquired = new Promise<void>((resolve) => {
-    signalAcquired = () => resolve(undefined);
-  });
-  const released = new Promise<void>((resolve) => {
-    signalRelease = () => resolve(undefined);
-  });
-  const finished = locker.begin(async (tx) => {
-    await tx`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`;
-    signalAcquired();
-    await released;
-  });
-  await Promise.race([
-    acquired,
-    finished.then(() => {
-      throw new Error('the owner transaction ended before it held the lock');
-    }),
-  ]);
-  return { release: signalRelease, finished };
-}
-
-async function countWaitingAdvisoryLocks(lockKeys: readonly string[]): Promise<number> {
-  const [row] = await owner<{ waiting: number }[]>`
-    WITH identity AS (
-      SELECT hashtextextended(k, 0) AS key FROM unnest(${lockKeys}::text[]) AS k
-    )
-    SELECT count(*)::int AS waiting
-    FROM pg_locks
-    WHERE locktype = 'advisory'
-      AND objsubid = 1
-      AND NOT granted
-      AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
-      AND classid::bigint::numeric * 4294967296 + objid::bigint::numeric
-          IN (SELECT CASE WHEN key >= 0 THEN key::numeric ELSE key::numeric + 18446744073709551616 END FROM identity)`;
-  return row?.waiting ?? 0;
-}
-
-const sleep = (ms: number): Promise<void> =>
-  new Promise((resolve) => {
-    setTimeout(() => resolve(), ms);
-  });
-
-async function pollWhileLocked(lock: HeldLock, lockKeys: readonly string[]): Promise<number> {
-  try {
-    const deadline = Date.now() + POLL_LIMIT_MS;
-    let waiting = 0;
-    while (Date.now() < deadline) {
-      waiting = await countWaitingAdvisoryLocks(lockKeys);
-      if (waiting >= 2) return waiting;
-      await sleep(POLL_INTERVAL_MS);
-    }
-    return waiting;
-  } finally {
-    lock.release();
-  }
-}
-
 const saleRow = () =>
   owner`SELECT refunded_amount::text AS "refundedAmount",revision
     FROM commission_sales WHERE company_id=${A.company} AND sale_id=${SALE}`;
+const marks = () =>
+  owner`SELECT event_id FROM consumed_events WHERE consumer_id='commissions.project-inputs' ORDER BY event_id`;
 
-it('a replayed revision 1 and a live revision 2 race on one identity and the newer stands (CM-22b)', async () => {
-  const saleLockKey = `${A.company}:commission-sale:${SALE}`;
+interface SaleEventPayload {
+  readonly business_id: string;
+  readonly branch_id: string;
+  readonly sale_id: string;
+  readonly seller_employee_id: string;
+  readonly business_date: string;
+  readonly price_paid: string;
+  readonly refunded_amount: string;
+  readonly status: string;
+  readonly revision: number;
+}
+
+/**
+ * يفتح كاتب مراجعة أحدث معاملته ويأخذ قفل هوية البيع، ثم يتوقف خلف بوابة تُفتح يدوياً،
+ * فيطبّق الحدث ويعلّم استهلاكه داخل معاملته نفسها زي ما يفعل الموصل.
+ *
+ * @param event حدث المراجعة الأحدث صاحب القفل
+ * @returns وعد الاعتلال بعد أخذ القفل، وفتح البوابة، ووعد اكتمال المعاملة
+ */
+function openHeldSaleWriter(event: ClaimedEvent): {
+  readonly holdsLock: Promise<void>;
+  readonly openGate: () => void;
+  readonly done: Promise<void>;
+} {
+  let signalHolds: () => void = () => undefined;
+  const holdsLock = new Promise<void>((resolve) => {
+    signalHolds = () => resolve(undefined);
+  });
+  let openGate: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => {
+    openGate = () => resolve(undefined);
+  });
+  const payload = event.payload as SaleEventPayload;
+  const done = db.withTenant(A.company, async (tx) => {
+    const scope = createCommissionSaleProjectionScope(tx, fakeBusinessTimeZone(A.business), ids);
+    await scope.lockSale(SALE);
+    signalHolds();
+    await gate;
+    await new ProjectPackageSale(scope, clock, ids).execute({
+      companyId: A.company,
+      eventId: event.id,
+      businessId: payload.business_id,
+      branchId: payload.branch_id,
+      saleId: payload.sale_id,
+      sellerEmployeeId: payload.seller_employee_id,
+      businessDate: payload.business_date,
+      pricePaid: payload.price_paid,
+      refundedAmount: payload.refunded_amount,
+      status: payload.status,
+      revision: payload.revision,
+    });
+    await markCommissionEventConsumed(tx, COMMISSION_INPUTS_CONSUMER_ID, event.id);
+  });
+  return { holdsLock, openGate, done };
+}
+
+it('a revision that commits before a waiting older revision leaves the stale writer a no-op with its mark (CM-22b)', async () => {
   const revision1 = commissionSaleEvent(A, ids, { saleId: SALE });
   const revision2 = commissionSaleEvent(A, ids, {
     saleId: SALE,
@@ -135,15 +127,25 @@ it('a replayed revision 1 and a live revision 2 race on one identity and the new
     refundedAmount: '10.000',
   });
 
-  const lock = await holdLock(saleLockKey);
-  const deliveries = [deliver(revision1), deliver(revision2)];
-  const waiting = await pollWhileLocked(lock, [saleLockKey]);
-  await lock.finished;
-  await Promise.all(deliveries);
+  // الكاتب الأحدث يفتح معاملته ويأخذ قفل الهوية أولاً، ويبقى مفتوحاً خلف بوابة ملحوظة،
+  // فترتيب «المراجعة 2 تُثبَّت قبل المراجعة 1» محسوم لا مرهون بجدولة الأقفال ولا بنوم مؤقت.
+  const w2 = openHeldSaleWriter(revision2);
+  await w2.holdsLock;
 
-  expect(waiting).toBeGreaterThanOrEqual(2);
+  // الكاتب الأقدم يُسلَّم والقفل محتجز، فينتظر خلفه بحتمية؛ ثم تُفتح البوابة، فتُطبَّق المراجعة 2
+  // وتُثبَّت أولاً، ويعيد الكاتب الأقدم الفحص تحت القفل فيطبّق لا شيء ويُعلِّم حدثه فقط.
+  const staleDelivery = deliver(revision1);
+  w2.openGate();
+  await w2.done;
+  await staleDelivery;
+
   const rows = await saleRow();
   expect(rows).toEqual([{ refundedAmount: '10.000', revision: 2 }]);
+  // الحدث الأقدم نُفِّذ no-op ومع ذلك عُلِّم استهلاكه، وعلامة الأحدث موجودة معه وحدهما.
+  const marked = new Set((await marks()).map((row) => row.event_id));
+  expect(marked.has(revision1.id)).toBe(true);
+  expect(marked.has(revision2.id)).toBe(true);
+  expect(marked.size).toBe(2);
 });
 
 it('any permutation of a fixed event set converges to the same row (CM-21)', async () => {

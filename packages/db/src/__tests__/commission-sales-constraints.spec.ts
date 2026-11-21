@@ -70,6 +70,17 @@ it.each([
   );
 });
 
+it('accepts the highest integer revision the column holds as a boundary regression', async () => {
+  const sale = ids.newId();
+  await db.withTenant(A.company, (tx) =>
+    insertCommissionSale(tx, A, { sale, revision: 2147483647 }),
+  );
+  const [row] = await db.withTenant(A.company, (tx) =>
+    tx.execute<{ revision: number }>(sql`SELECT revision FROM commission_sales WHERE sale_id=${sale}`),
+  );
+  expect(row).toEqual({ revision: 2147483647 });
+});
+
 it.each(['2026-13', '2026-00', '26-11', '2026-1'])('rejects the malformed period %s', async (period) => {
   await expectPgError(
     db.withTenant(A.company, (tx) => insertCommissionSale(tx, A, { period })),

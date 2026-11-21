@@ -88,6 +88,22 @@ describe('reduceCommissionSale: refuse a producer bug', () => {
     expect(outcome.applied).toBe(true);
     expect(outcome.row?.refundedAmount).toBe(30000n);
   });
+
+  it('accepts the highest integer revision the commission_sales column holds', () => {
+    const outcome = reduceCommissionSale(null, saleEvent({ revision: 2147483647 }));
+    expect(outcome.applied).toBe(true);
+    expect(outcome.row?.revision).toBe(2147483647);
+  });
+
+  it('refuses a revision above the integer range at the typed continuable path, held revision aside', () => {
+    const work = () => reduceCommissionSale(null, saleEvent({ revision: 2147483648 }));
+    expect(work).toThrow(CommissionSaleInputInvalidError);
+    expect(work).toThrow(expect.objectContaining({ reason: 'REVISION_OUT_OF_RANGE' }));
+    // مراجعة قديمة فوق المدى خطأ منتج كذلك، فالرفض قبل حارس المراجعة لا بعده.
+    const staleWork = () =>
+      reduceCommissionSale(reduceCommissionSale(null, saleEvent()).row, saleEvent({ revision: 3000000000 }));
+    expect(staleWork).toThrow(expect.objectContaining({ reason: 'REVISION_OUT_OF_RANGE' }));
+  });
 });
 
 describe('saleAffectedPeriods', () => {

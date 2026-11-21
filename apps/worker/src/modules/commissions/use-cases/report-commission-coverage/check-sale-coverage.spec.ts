@@ -7,6 +7,7 @@ import type {
   PackageSaleCoverageReader,
   SaleCoverageRow,
 } from '../../ports/commission-coverage.port.ts';
+import { REPORT_LIST_LIMIT } from './check-retained-events.ts';
 import { checkSaleCoverage } from './check-sale-coverage.ts';
 
 const COMPANY = '01920000-0000-7000-8000-0000000000a0';
@@ -114,23 +115,6 @@ describe('checkSaleCoverage: paging', () => {
     expect(txLog).toEqual(['tx', 'tx']);
   });
 
-  it('keeps the full total while capping the id list at the report limit', async () => {
-    const many: SaleCoverageRow[] = Array.from({ length: 5 }, (_, index) => ({
-      saleId: saleId(index + 1),
-      revision: 1,
-    }));
-    const source = sourceReader(many, 1);
-    const result = await checkSaleCoverage({
-      withTenant: runner([]),
-      sales: source as unknown as PackageSaleCoverageReader,
-      projection: projectionReader([]),
-      companyId: COMPANY,
-    });
-    expect(result.checked).toBe(5);
-    expect(result.missing.total).toBe(5);
-    expect(result.missing.ids.length).toBeLessThanOrEqual(5);
-  });
-
   it('opens one read transaction per page on the report company only', async () => {
     const txLog: string[] = [];
     const withTenant = vi.fn(async (companyId: string, fn: (tx: CoverageTx) => Promise<unknown>) => {
@@ -148,5 +132,35 @@ describe('checkSaleCoverage: paging', () => {
       companyId: COMPANY,
     });
     expect(txLog).toEqual([COMPANY, COMPANY]);
+  });
+});
+
+describe('checkSaleCoverage: the diagnostic cap', () => {
+  it('keeps the full total past the diagnostic cap and retains exactly the first REPORT_LIST_LIMIT ids across pages', async () => {
+    // 201 بيع ناقص يقطع الحد الفعلي 200: التقرير يحفظ العدد الكامل وأول 200 هوية بالترتيب ويرية الاقتطاع،
+    // عبر خمس صفحات، فلا يُقرأ الحد كنجاح ولا يُخمَّن أي هوية سقطت من القائمة.
+    const total = REPORT_LIST_LIMIT + 1;
+    const many: SaleCoverageRow[] = Array.from({ length: total }, (_, index) => ({
+      saleId: saleId(index + 1),
+      revision: 1,
+    }));
+    const source = sourceReader(many, 50);
+    const result = await checkSaleCoverage({
+      withTenant: runner([]),
+      sales: source as unknown as PackageSaleCoverageReader,
+      projection: projectionReader([]),
+      companyId: COMPANY,
+    });
+    expect(result.checked).toBe(total);
+    expect(result.missing.total).toBe(total);
+    expect(result.missing.ids).toHaveLength(REPORT_LIST_LIMIT);
+    expect(result.missing.ids).toEqual(
+      many.slice(0, REPORT_LIST_LIMIT).map((row) => row.saleId),
+    );
+    expect(result.missing.ids).not.toContain(many[total - 1]?.saleId);
+    expect(result.stale).toEqual({ total: 0, ids: [] });
+    expect(result.truncated).toBe(true);
+    // صفحات متعددة بالفعل: 201 صف بحجم صفحة 50 يعني خمس معاملات قراءة.
+    expect(source.readPage).toHaveBeenCalledTimes(5);
   });
 });

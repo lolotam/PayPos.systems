@@ -2,6 +2,13 @@ import { parseMoney, type Money } from '@pospay/domain';
 
 import { CommissionSaleInputInvalidError } from './errors.ts';
 
+/**
+ * سقف مراجعة البيع: عمود commission_sales.revision عدد صحيح PostgreSQL (int4)،
+ * ومراجعة أعلى من ذلك خطأ عند المنتج (FR-017) يرفضه المسار المستمر المكتوب
+ * COMMISSION_SALE_INPUT_INVALID بدل خطأ تجاوز قاعدة البيانات.
+ */
+const MAX_SALE_REVISION = 2_147_483_647;
+
 /** حدث تغيّر بيع باقة؛ هويته وتاريخه متحقَّقان قبل هذا الملف، والمال نصي كما في العقد. */
 export interface CommissionSaleInputEvent {
   readonly businessId: string;
@@ -48,6 +55,10 @@ export function reduceCommissionSale(
   held: CommissionSaleProjectionRow | null,
   event: CommissionSaleInputEvent,
 ): CommissionSaleProjectionOutcome {
+  // المراجعة فوق مدى عمود integer خطأ عند المنتج (FR-017)، فتُرفض هنا قبل أي مقارنة أو كتابة.
+  if (event.revision > MAX_SALE_REVISION) {
+    throw new CommissionSaleInputInvalidError('REVISION_OUT_OF_RANGE');
+  }
   if (event.revision <= (held?.revision ?? 0)) {
     return { applied: false, row: null };
   }

@@ -136,7 +136,8 @@ async function instrumentedAttempt(incoming: ClaimedEvent | CommissionLineEventI
         execute: async () => {
           throw new Error('unused in lines test');
         },
-      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'] & CommissionInputUseCases['sales'];
+      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'] &
+      CommissionInputUseCases['sales'];
       await onCommissionInputEvent(
         { lines: useCase, tips: unusedUseCase, salary: unusedUseCase, sales: unusedUseCase },
         incoming,
@@ -150,7 +151,7 @@ const identityChanges = [
   { field: 'branch', row: { branchId: alternateBranch } },
   { field: 'service', row: { serviceId: alternateService } },
   { field: 'customer', row: { customerId: alternateCustomer } },
-  // Ù…Ø±Ø§Ø¬Ø¹ Ø§Ù„Ù†Ø´Ø§Ø· ØªØªØ¨Ø¯Ù„ Ù…Ø¹Ø§Ù‹ Ù„ØªØ¸Ù„ ØµØ§Ù„Ø­Ø© Ù„Ù„Ù€ FKØ› ÙØ´Ù„ Ø§Ù„ØªØ³Ù„ÙŠÙ… Ù‡Ù†Ø§ Ù„ÙŠØ³ Ø±ÙØ¶ Ù…Ø±Ø¬Ø¹ Ù…ÙÙ‚ÙˆØ¯.
+  // مراجع النشاط تتبدل معاً لتظل صالحة للـ FK؛ فشل التسليم هنا ليس رفض مرجع مفقود.
   {
     field: 'business',
     row: {
@@ -213,7 +214,7 @@ it('#802 a mixed batch leaves valid updates, unseen lines, statements and delive
     to: 'REVIEWED',
   });
   const before = await projectionState();
-  // Ø¹Ù‚ÙˆØ¯ Ø§Ù„ØªØ³Ø¬ÙŠÙ„ ØªÙ‚Ø¨Ù„ revision=1 ÙÙ‚Ø·Ø› Ø§Ø®ØªØ¨Ø§Ø± Ø§Ù„Ø¯ÙØ¹Ø© Ø§Ù„Ø£Ø­Ø¯Ø« ÙŠØ®Øµ Ù…Ø¯Ø®Ù„ Ø§Ù„Ù€ use case Ø§Ù„Ù…ÙˆØ­Ù‘Ø¯.
+  // عقود التسجيل تقبل revision=1 فقط؛ اختبار الدفعة الأحدث يخص مدخل الـ use case الموحّد.
   const snapshots = [
     event({ lineId: COMMISSION_LINE_IDS.lineB, revision: 2, net: '20.001' }),
     event({ lineId: other.line }),

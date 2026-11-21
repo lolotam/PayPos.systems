@@ -267,9 +267,12 @@ land, approval stays closed. Never reset or delete `published_at`, `attempts`, `
 
    One refusal remains (FR-015):
    `COMMISSION_PERIOD_CLOSED` when no DRAFT target month exists after the source, or when the tips bootstrap touches a closed month
-   (CS-Q45); the event is retried and
-   then parked. A sale or refund whose month is `APPROVED` or `PAID` is refused the same way by the 50-4 sale handler; the `SALE`
-   correction that would release it is 55-1d, so the parked sale event holds its sale's later events until then.
+   (CS-Q45); live dispatch retries it and then parks it. Keep the two paths apart: **the replay never mutates the dispatcher lifecycle** —
+   it does not set `parked_at`, `attempts` or `next_attempt_at`; it only reports the failure in its `undelivered` list — so a replay mark is
+   not evidence that a live park was cleared, and a live parked row still holds its `parked_at` until live dispatch releases it. A sale or
+   refund whose month is `APPROVED` or `PAID` is refused the same way by the 50-4 sale handler and stays unmarked (no `consumed_events` row,
+   live or replayed); the `SALE` correction that would release it is 55-1d, and until then a live parked sale event holds its sale's later
+   events because the dispatcher delivers one aggregate in order.
 7. **Logs.** A failed replay of a row that already has ten or more attempts logs «outbox event parked» at error level although nothing is
    written; read the printed result, not that line.
 
@@ -392,8 +395,10 @@ six-type facade `commissionRetainedEventPage` and its own partial index. It neve
    the events the rollback left behind. The bound is an id bound, not a commit-order proof: an event whose row commits after the cursor
    passed it, with a lower id, is not replayed by this run and the live consumer delivers it.
 3. **`PackageSaleChanged` is delivered since 50-4.** The consumer registers the sale type, so the runner passes retained sale events to it
-   and each is marked like the other counted types; a sale whose month is `APPROVED` or `PAID` is refused with `COMMISSION_PERIOD_CLOSED`
-   and lands in `undelivered` with that code (the `SALE` correction that releases it is 55-1d). A type the consumer does not register at all is
+   and each successfully applied one is marked like the other counted types; a sale whose month is `APPROVED` or `PAID` is refused with
+   `COMMISSION_PERIOD_CLOSED` and lands in `undelivered` with that code, unmarked (the `SALE` correction that releases it is 55-1d). This is
+   the replay path: the runner mutates no dispatcher lifecycle column, so an event that live dispatch has parked stays parked — a replay mark
+   here is not evidence that a live park was cleared (section 50-3a item 6). A type the consumer does not register at all is
    still listed with `COMMISSION_EVENT_TYPE_NOT_HANDLED` — after 50-4 that means a configuration gap, never an expected wait.
 4. **Coverage.** Run the 50-3c coverage report after the replay. The report now checks the sales section too: every sold package of the company
    must have a `commission_sales` row at the revision orders holds (CS-Q51 answer, 2026-11-21: the replay projects and marks, the reader proves
@@ -408,7 +413,9 @@ six-type replay (owner answer CS-Q51, 2026-11-21: the replay projects and marks,
 1. Every worker replica must run the new release first (the every-replica rule of 50-3a).
 2. Capture the replay upper bound `--through` after the last replica is on the release.
 3. Run the six-type replay with that bound and resume with the same bound until it ends `COMPLETE`
-   (section 50-3d; a sale whose month is closed is refused with `COMMISSION_PERIOD_CLOSED` and parked until 55-1d).
+   (section 50-3d). A sale whose month is closed is refused with `COMMISSION_PERIOD_CLOSED` and stays unmarked
+   until 55-1d; the replay lists it under `undelivered` and mutates no live dispatcher park — release a live
+   parked sale through live dispatch, not by re-running the replay.
 4. Run the 50-3c coverage report. Require `COVERED`, `sales.missing.total = 0`, `sales.stale.total = 0`, and no
    `PackageSaleChanged` under `unmarked` or `notHandled`. Migration 0234 creates an empty `commission_sales` table,
    and 0235 adds its indexes and access controls. The replay fills the table.

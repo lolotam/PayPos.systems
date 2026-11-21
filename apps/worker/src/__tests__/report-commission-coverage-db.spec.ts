@@ -90,6 +90,7 @@ afterEach(async () => {
     await tx`DELETE FROM commission_line_heads`;
     await tx`DELETE FROM commission_salaries`;
     await tx`DELETE FROM commission_sales`;
+    await tx`DELETE FROM package_session_slots`;
     await tx`DELETE FROM package_components`;
     await tx`DELETE FROM package_entitlements`;
     await tx`DELETE FROM employee_salaries`;
