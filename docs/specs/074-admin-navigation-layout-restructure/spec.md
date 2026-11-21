@@ -144,7 +144,7 @@ The menu names every section of the product, including the ones not built yet: s
 - **FR-025**: Choosing styles in quick succession MUST leave the account holding the last choice made.
 - **FR-026**: The Approvals inbox MUST be a working page under Home from the first release, in the same place in every style. It lists the kinds of approval that exist (leave approvals, attendance requests, attendance exceptions) and links each to its existing page; later kinds are added as they are built. A count is shown per kind, and in the menu, where an existing read supplies it. Each kind of approval also stays in its own section (NAV-Q17).
 - **FR-027**: An entry that belongs to some business types MUST be shown only while a business of one of those types is selected in the workspace switcher, whether its page is built or not (NAV-Q17). An entry limited to a country follows the same rule against the selected business's country. The selected business does not carry its type or country today; step 0c of `pr-sequence.md` adds both to the workspace response and must merge before the release step.
-- **FR-018**: The cashier app is in the owner's scope but out of this feature; it gets its own specification (`TODO(spec)`, NAV-Q3, NAV-Q11).
+- **FR-018**: The cashier app is in the owner's scope but out of this feature; it gets its own specification (`TODO(spec)`, NAV-Q3). One point of it is decided: a cashier's style is kept on the device, one value per employee who signs in there, with no database change (NAV-Q11).
 
 ### Key Entities
 

@@ -102,7 +102,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Appointments | Appointment categories | 4 | Soon | Salon, spa, barber, clinic, services company |
 | Online | Company public page | 1 | Soon | every business type |
 | Online | Online menu builder | 4 | Soon | every business type |
-| Online | Customer call (waiting page, the customer scans a QR code) | — | Soon | every business type |
+| Online | Customer call (set up the waiting page and its QR code) | — | Soon | every business type |
 | Marketing | Business WhatsApp | 4 | Soon | every business type |
 | Marketing | Campaigns | 4 | Soon | every business type |
 | Marketing | Message templates | 4 | Soon | every business type |
@@ -157,6 +157,8 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Expenses | Profit and loss per business | 5 | Soon | every business type |
 | Exports | Scheduled reports | 5 | Soon | every business type |
 | Exports | Accounting export | 5 | Soon | every business type |
+| Exports | Qayd filing pack (XBRL) | — | Soon | Country: Kuwait (any business type) |
+| Exports | Request the Qayd filing service | — | Soon | Country: Kuwait (any business type) |
 
 ### 7. Setup
 
@@ -194,8 +196,7 @@ them may end up as part of another page rather than a page of their own.
 Notes on three of them. The Stock movements ledger sits under Stock reports because the PRD schedules it as a report
 (P3-T7.1). Branches has no phase: the PRD creates branches in Phase 0 tenancy and names only a branch selector in
 Phase 1, so a branch-management screen needs its own PRD entry. Invitations is the exception to the rule above: the
-work is already tracked, as company invitations in PRD P0-T9a.8 and issue #19, and what is missing is only a screen for
-it, so the screen extends that issue rather than starting a new roadmap item. Managing users and their permissions is
+work is already tracked, as company invitations in PRD P0-T9a.8 and issue #19. In this project only the screen is missing, so the screen extends that issue rather than starting a new roadmap item. Managing users and their permissions is
 the Permissions page, which the PRD plans in Phase 1 (P1-T2.4).
 
 The stock entries (Stores, Units of measure, the two stock reports) are shown to every business type. The owner
@@ -205,8 +206,19 @@ Customer call was added on 2026-11-21 at the owner's request (NAV-Q20 in spec 07
 the customer on the customer's own phone when an order is ready or a turn has come. The customer scans a QR code and
 waits on a web page, with no app and no account. The feature is named Customer call (نداء العميل). It adds two
 entries, "Customer call" under Online and the "Customer call report", and the call button belongs to the Fulfilment
-board. None of it is in the PRD; it needs a PRD
+board. The Management entry is the staff side: where the feature is set up and the QR code is taken from. The page the
+customer opens is public, sits outside the Management frame and needs no account; its address is defined by the
+feature's own spec. None of it is in the PRD; it needs a PRD
 entry and a spec, which must also settle how the alert reaches a locked phone.
+
+The two Qayd entries were added on 2026-11-21 at the owner's request (NAV-Q21 in spec 074, NAV-L10 in spec 022).
+Kuwait's Ministry of Commerce and Industry takes annual financial statements as XBRL data through its Qayd system,
+voluntary in 2026 and mandatory from 1 January 2027 by the ministry's announcement. The filing pack gathers the year's
+figures this product holds (sales, cost of goods, expenses, pay and commissions, stock value) for the accountant or
+auditor; it is not a complete XBRL filing, because the product has no general ledger and the statements are audited
+before filing. "Request the Qayd filing service" hands the customer to a partner accounting office. Both are shown
+only to businesses in Kuwait, need a PRD entry and a spec, and wait on the ministry's technical specification, which
+was not found when this was written.
 
 How an owner gets a second business type on the same account (created by the platform operator, or by an invitation
 to the same email) is a subscription question, not a menu question, and is not decided here.
@@ -250,17 +262,17 @@ own there.
 
 | Page | Phase | State | Shown only to |
 |---|---|---|---|
-| Dashboard | 1 | Separate spec (NAV-Q11) | every business type |
-| Connectors | 1 | Separate spec (NAV-Q11) | every business type |
-| Diagnose | 1 | Separate spec (NAV-Q11) | every business type |
-| Companies and subscriptions | 5 | Separate spec (NAV-Q11) | every business type |
-| Plans and feature flags | 5 | Separate spec (NAV-Q11) | every business type |
-| Support and health | 5 | Separate spec (NAV-Q11) | every business type |
-| Appearance | 1 | Separate spec (NAV-Q11) | every business type |
+| Dashboard | 1 | Separate spec (NAV-Q11) | Platform role (business type does not apply) |
+| Connectors | 1 | Separate spec (NAV-Q11) | Platform role (business type does not apply) |
+| Diagnose | 1 | Separate spec (NAV-Q11) | Platform role (business type does not apply) |
+| Companies and subscriptions | 5 | Separate spec (NAV-Q11) | Platform role (business type does not apply) |
+| Plans and feature flags | 5 | Separate spec (NAV-Q11) | Platform role (business type does not apply) |
+| Support and health | 5 | Separate spec (NAV-Q11) | Platform role (business type does not apply) |
+| Appearance | 1 | Separate spec (NAV-Q11) | Platform role (business type does not apply) |
 
 ## Counts
 
-- Management area: 125 menu pages. In this project: 28 Live, 2 New, 95 Soon.
+- Management area: 127 menu pages. In this project: 28 Live, 2 New, 97 Soon.
 - Other areas: 24 menu pages. In this project: 0 Live, 0 Soon, 24 not mapped here (the cashier app has its own spec).
 - Child pages (create and detail pages) have no menu entry of their own and are not counted.
 
