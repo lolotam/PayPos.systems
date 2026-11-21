@@ -1,5 +1,6 @@
 import { errorEnvelope } from '@pospay/contracts';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import postgres from 'postgres';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
   permissionFixture,
@@ -231,12 +232,44 @@ describe('the sibling refusal with a business-only holder (OQ-2 scope)', () => {
   });
 });
 
+async function updateCountriesWaitingOnOneRow() {
+  const observer = postgres(f.h.ownerUrl, { max: 1, onnotice: () => undefined });
+  const pending: ReturnType<typeof put>[] = [];
+  try {
+    await f.h.owner.begin(async (holder) => {
+      const [row] = await holder<{ pid: number }[]>`
+        SELECT pg_backend_pid() AS pid FROM businesses
+        WHERE company_id = ${f.company} AND id = ${business} FOR NO KEY UPDATE`;
+      if (!row) throw new Error('Missing synthetic business for contention test');
+
+      pending.push(put({ country: 'KW' }), put({ country: 'QA' }));
+      // بنتحقق من انتظار الاستعلامين قبل فك قفل الصف، لأن بدء الطلبين وحده ما يثبتش تداخل المعاملتين.
+      await vi.waitFor(
+        async () => {
+          const waiting = await observer<{ behindHolder: boolean }[]>`
+            SELECT ${row.pid} = ANY(pg_blocking_pids(pid)) AS "behindHolder"
+            FROM pg_stat_activity
+            WHERE datname = current_database() AND wait_event_type = 'Lock'
+              AND query LIKE '%FROM businesses%FOR NO KEY UPDATE%'`;
+          expect(waiting).toHaveLength(2);
+          expect(waiting.some(({ behindHolder }) => behindHolder)).toBe(true);
+        },
+        { timeout: 8_000, interval: 20 },
+      );
+    });
+    return await Promise.all(pending);
+  } finally {
+    await Promise.allSettled(pending);
+    await observer.end();
+  }
+}
+
 describe('concurrent changes ordering (FOR NO KEY UPDATE)', () => {
   it('orders two concurrent changes so the later audit continues from the earlier audit value', async () => {
     const before = await settingsOf();
     const auditCount = (await countryAudits()).length;
-    const [first, second] = await Promise.all([put({ country: 'KW' }), put({ country: 'QA' })]);
-    expect([first.status, second.status]).toEqual([200, 200]);
+    const responses = await updateCountriesWaitingOnOneRow();
+    expect(responses.map(({ status }) => status)).toEqual([200, 200]);
     const stored = (await settingsOf())['country'];
     expect(['KW', 'QA']).toContain(stored);
     const earlier = stored === 'KW' ? 'QA' : 'KW';
