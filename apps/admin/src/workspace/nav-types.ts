@@ -1,4 +1,4 @@
-import type { Employee, VerticalType } from '@pospay/contracts';
+import type { Country, Employee, VerticalType } from '@pospay/contracts';
 import type { MessageKey } from '@pospay/i18n';
 
 /** أنماط التنقّل المعتمدة في مواصفة 074؛ الافتراضي C. */
@@ -96,9 +96,6 @@ export type PlannedVerticalType = 'clinic' | 'gym' | 'education';
 /** نوع النشاط الذي يظهر له المدخل؛ المصفوفة الفارغة تعني كل أنواع الأنشطة. */
 export type NavigationBusinessType = VerticalType | PlannedVerticalType;
 
-/** رموز الدول وفق ISO-3166 alpha-2 المستخدمة في taxRule.country_code. */
-export type NavigationCountryCode = 'KW' | 'SA';
-
 /** أكواد الأدوار البشرية المعتمدة في @pospay/contracts (PRD §3.2). */
 export type NavigationRoleCode = Employee['role_code'];
 
@@ -113,7 +110,7 @@ interface BaseNavigationPageEntry {
   readonly section: NavigationSectionId;
   readonly submenu: NavigationSubmenuId;
   readonly businessTypes: readonly NavigationBusinessType[];
-  readonly countries?: readonly NavigationCountryCode[];
+  readonly countries?: readonly Country[];
   readonly count?: NavigationCountSource;
   /** true للصفوف الـ 127 الموجودة في منطقة الإدارة بـ app-map.md، وfalse لصفحات الأطفال الفرعية. */
   readonly appMapEntry: boolean;

@@ -1,6 +1,5 @@
 // @vitest-environment node
 
-import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -138,7 +137,7 @@ describe('navigation model route coverage (074-1 + 074-2)', () => {
 });
 
 describe('navigation model alignment with generated app-map', () => {
-  it('matches every Management-area entry of generated app-map.md and keeps generator clean', () => {
+  it('matches the Management-area status totals and records roles in the app map', () => {
     const mapCounts = parseManagementAppMapRows();
     const liveAppMap = APP_MAP_MANAGEMENT_PAGES.filter((entry) => entry.state === 'live');
     const plannedStep7 = APP_MAP_MANAGEMENT_PAGES.filter(isPlannedStep7Entry);
@@ -155,16 +154,7 @@ describe('navigation model alignment with generated app-map', () => {
       '/approvals',
     ]);
 
-    const generatedCheck = execFileSync(
-      process.execPath,
-      ['-e', `
-        import { readFileSync } from 'node:fs';
-        const md = readFileSync(${JSON.stringify(join(SPEC_DIR, 'app-map.md'))}, 'utf8');
-        if (md.includes('| not set |')) process.exit(2);
-      `],
-      { encoding: 'utf8' },
-    );
-    expect(generatedCheck).toBe('');
+    expect(readFileSync(join(SPEC_DIR, 'app-map.md'), 'utf8')).not.toContain('| not set |');
   });
 });
 
@@ -315,6 +305,8 @@ describe('navigation Soon-entry filtering boundaries', () => {
     expect(isEntryShownForWorkspace(stockItems, 'clinic', 'KW')).toBe(true);
     expect(isEntryShownForWorkspace(qayd, 'salon', 'KW')).toBe(true);
     expect(isEntryShownForWorkspace(qayd, 'salon', 'SA')).toBe(false);
+    expect(isEntryShownForWorkspace(qayd, 'salon', 'AE')).toBe(false);
+    expect(isEntryShownForWorkspace(qayd, 'salon', null)).toBe(false);
     expect(isEntryShownForWorkspace(zatca, 'salon', 'SA')).toBe(true);
     expect(isEntryShownForWorkspace(zatca, 'salon', 'KW')).toBe(false);
 
@@ -323,6 +315,7 @@ describe('navigation Soon-entry filtering boundaries', () => {
       expect(isSoonEntryShownForRole(billing, 'owner')).toBe(true);
       expect(isSoonEntryShownForRole(billing, 'cashier')).toBe(false);
       expect(isSoonEntryShownForRole(billing, 'general_manager')).toBe(false);
+      expect(isSoonEntryShownForRole(billing, 'custom_admin')).toBe(false);
     }
 
     expect(appearance.state).toBe('soon');
@@ -330,6 +323,7 @@ describe('navigation Soon-entry filtering boundaries', () => {
       expect(appearance.plannedRoute).toBe('/appearance');
       expect(isSoonEntryShownForRole(appearance, 'viewer')).toBe(true);
       expect(isSoonEntryShownForRole(appearance, 'cashier')).toBe(true);
+      expect(isSoonEntryShownForRole(appearance, 'custom_admin')).toBe(true);
     }
 
     expect(pageEntryHref(scheduleSettings)).toBe('/schedules');

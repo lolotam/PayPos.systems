@@ -1,3 +1,4 @@
+import type { Country } from '@pospay/contracts';
 import type { MessageKey } from '@pospay/i18n';
 
 import { BUSINESS_IDENTITY_NAV_PAGES } from '@/business-identity/nav';
@@ -14,10 +15,8 @@ import { WORKSPACE_NAV_PAGES } from '@/workspace/nav';
 import type {
   LiveRoutePageEntry,
   NavigationBusinessType,
-  NavigationCountryCode,
   NavigationGroupings,
   NavigationPageEntry,
-  NavigationRoleCode,
   NavigationSectionId,
   NavigationSectionMeta,
   NavigationStyle,
@@ -367,7 +366,7 @@ export function findTopLevelGroupForPage(style: NavigationStyle, pageId: string)
 export function isEntryShownForWorkspace(
   entry: NavigationPageEntry,
   businessType: NavigationBusinessType | null,
-  countryCode: NavigationCountryCode | null,
+  countryCode: Country | null,
 ): boolean {
   if (entry.businessTypes.length > 0) {
     if (businessType === null || !entry.businessTypes.includes(businessType)) return false;
@@ -380,7 +379,8 @@ export function isEntryShownForWorkspace(
 
 export function isSoonEntryShownForRole(
   entry: SoonNavigationPageEntry,
-  role: NavigationRoleCode,
+  role: string,
 ): boolean {
-  return entry.roles.includes(role);
+  // صفحة المظهر متاحة لأي مستخدم مسجّل، بما في ذلك الأدوار المخصصة (FR-005).
+  return entry.plannedRoute === '/appearance' || entry.roles.some((allowed) => allowed === role);
 }

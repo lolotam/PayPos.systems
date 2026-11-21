@@ -4,7 +4,7 @@
 
 **Owner approval (2026-11-21):**
 - Combined `074-1 + 074-2` in one Medium PR: «Medium في PR واحد» (`owner-questions.ar.md`).
-- Separate `074-0c` (workspace business type & country fields): «اعتمد Medium» (waits on `34-pre-3`; out of scope here).
+- Separate `074-0c` (workspace business type & country fields): «اعتمد Medium». PR #1161 (32b-1 + 34-pre-3) supplied the stored country. Extending the workspace response belongs to 0c.
 
 ## 1. Deliverable Scope
 
@@ -25,8 +25,8 @@
   - **Three groupings (`NAVIGATION_GROUPINGS.A`, `.B`, `.C`):** built deterministically from canonical `section` and `submenu` metadata matching `app-map.md` (`A`: 7 groups with 4 marked for phone bottom bar; `B`: 6 modules; `C`: 5 workspaces, default `C`). Every top-level entry appears **exactly once** in each grouping.
 - **Authorized business-type, country, role, visibility and count models:**
   - `NavigationBusinessType` extends `VerticalType` from `@pospay/contracts` (`restaurant | salon | laundry | retail | services`) with Phase 6 expansion verticals named in `app-map.md` (`clinic | gym | education`). Empty `businessTypes` means every business type (including stock entries per `NAV-Q19`; partner decision remains `PENDING`).
-  - `NavigationCountryCode` uses ISO-2 codes matching `taxRule.country_code` (`'KW'` for Qayd entries per `NAV-Q21`, `'SA'` for ZATCA).
-  - `NavigationRoleCode` reuses `Employee['role_code']` from `@pospay/contracts`. Each `Soon` entry carries its PRD §3.2 baseline roles for `NAV-Q14`; `Appearance` includes all company roles (`FR-005` / `NAV-Q1`). Live entries carry `visible` instead of `roles`, preserving all 6 existing guarded nav-item conditions verbatim and keeping unguarded live pages `'always'` (`BR-006` / `FR-010`).
+  - Country conditions use `Country` from `@pospay/contracts` (`'KW'` for Qayd entries per `NAV-Q21`, `'SA'` for ZATCA). Step 0c reads the business setting introduced by `34-pre-3`.
+  - `NavigationRoleCode` reuses `Employee['role_code']` from `@pospay/contracts`. Each `Soon` entry carries its PRD §3.2 baseline roles for `NAV-Q14`. Planned Appearance is available to every signed-in user, including custom roles (`FR-005` / `NAV-Q1`). Live entries carry `visible` instead of `roles`, preserving the current guarded nav-item conditions and keeping unguarded live pages `'always'` (`BR-006` / `FR-010`).
   - `NavigationCountSource` is declared only on the 4 entries named in `FR-026` / `research.md` R10 (`approvals-inbox`, `leave-approvals`, `attendance-requests`, `attendance-exceptions`); step 7 binds counts only where an existing cheap read supplies them.
 - **Shared map source (`app-map.shared.mjs` → `app-map.md`):**
   - Adds the `Roles` column data in `app-map.shared.mjs` for Management rows and regenerates `app-map.md` via `node docs/specs/074-admin-navigation-layout-restructure/app-map.shared.mjs`. `app-map.md` is never edited by hand, and `lolotam/lovable-pospay` is untouched.
@@ -44,7 +44,7 @@
 - No edits in any other repository.
 
 ## 3. Verification Criteria
-- `apps/admin/app/(dashboard)/_frame/navigation-model.spec.ts`: proves 100% route coverage of `(dashboard)/**/page.tsx` + `/security/two-factor`, 100% alignment with generated `app-map.md`, exactly one appearance of every top-level entry in A, B, and C, single-entry active resolution including `/staff-app-columns` and child routes, `@pospay/ui` icon export match, `ar`/`en` translation resolution for every key, visibility/count/business-type/country/role rules, and step-7 planned classification.
+- `apps/admin/app/(dashboard)/_frame/navigation-model.spec.ts`: checks coverage of `(dashboard)/**/page.tsx` + `/security/two-factor`, live, planned and Soon totals against generated `app-map.md`, exactly one appearance of every top-level entry in A, B, and C, single-entry active resolution including `/staff-app-columns` and child routes, `@pospay/ui` icon exports, `ar`/`en` translation keys, visibility and count boundaries, and representative business-type, country and role conditions.
 - `packages/i18n/src/admin-nav-catalog.spec.ts`: proves `ar`/`en` key parity, non-empty script shape, `schedules.reload`, style labels, and no date/phase in Under development text.
 - `apps/admin/src/staff/ui/schedule-week-controls.spec.tsx`: proves visible reload button uses `schedules.reload` and not `staff.reload`.
 - Local gates: typecheck, lint (including boundaries), `pnpm lint:docs`, `pnpm module-map:check`, and affected package tests.
