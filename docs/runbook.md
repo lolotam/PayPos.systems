@@ -267,8 +267,12 @@ land, approval stays closed. Never reset or delete `published_at`, `attempts`, `
 
    One refusal remains (FR-015):
    `COMMISSION_PERIOD_CLOSED` when no DRAFT target month exists after the source, or when the tips bootstrap touches a closed month
-   (CS-Q45); the event is retried and
-   then parked. A `PackageSaleChanged` event in the `--types six` run still has no consumer before 55-1d and stays undelivered until then.
+   (CS-Q45); live dispatch retries it and then parks it. Keep the two paths apart: **the replay never mutates the dispatcher lifecycle** —
+   it does not set `parked_at`, `attempts` or `next_attempt_at`; it only reports the failure in its `undelivered` list — so a replay mark is
+   not evidence that a live park was cleared. A sale or
+   refund whose month is `APPROVED` or `PAID` is refused the same way by the 50-4 sale handler and stays unmarked (no `consumed_events` row,
+   live or replayed); the `SALE` correction that would release it is 55-1d, and until then a live parked sale event holds its sale's later
+   events because the dispatcher delivers one aggregate in order.
 7. **Logs.** A failed replay of a row that already has ten or more attempts logs «outbox event parked» at error level although nothing is
    written; read the printed result, not that line.
 
@@ -360,10 +364,11 @@ no `published_at`, no `attempts`, no mark and no projection change.
    must carry the consumer's mark: that is the tip event-id check. The tip coverage by revision is bounded by the operator's scope, so the
    company-wide guarantee stays with the retained-event check. A clean report is a
    point-in-time read: a row written while it runs is delivered by the live consumer.
-   **A tenant with any retained `PackageSaleChanged` event stays `NOT_COVERED` until 50-4 registers the handler for it**: those events are
-   listed under `notHandled` with the reason `COMMISSION_EVENT_TYPE_NOT_HANDLED`, not as an ordinary missing mark, so the operator tells
-   "awaiting 50-4" from a real gap. While that is true for the tenant, the 55-1b R5 prerequisite ("coverage shows no gap before the first
-   correction posts") is blocked for it.
+   **A tenant with any retained `PackageSaleChanged` event is now checked like the other counted types (50-4 registered the handler)**:
+   since 50-4 the sale type is registered by the consumer, so a retained sale event without its mark is listed under `unmarked` like any other
+   counted type, and the report's `sales` section compares every sold package's revision with the projection (`missing`/`stale`). `notHandled` is
+   reserved for a type the consumer does not register at all — after 50-4 that is a real configuration gap, not an expected wait. While any sale
+   stays missing or stale, the 55-1b R5 prerequisite ("coverage shows no gap before the first correction posts") is blocked for the tenant.
 6. **Refusal.** The report refuses with the fixed code `COMMISSION_COVERAGE_SCOPE_INVALID`, prints no report and exits 1 when the
    company does not exist or `--through` is not a retained event of that company among `ServiceSessionRecorded`,
    `ServiceSessionLinesAdded`, `ServiceLineChanged`, `SalaryChanged`, `SessionTipsChanged` and `PackageSaleChanged`.
@@ -389,16 +394,35 @@ six-type facade `commissionRetainedEventPage` and its own partial index. It neve
    reuse the same bound on every resume of that run. After any rollback, take a NEW bound: a bound taken before the rollback does not cover
    the events the rollback left behind. The bound is an id bound, not a commit-order proof: an event whose row commits after the cursor
    passed it, with a lower id, is not replayed by this run and the live consumer delivers it.
-3. **`PackageSaleChanged` is reported, not delivered.** Until 50-4 registers the handler for the package sale, the consumer does not handle
-   that type, so the runner does not pass those events to it: they are listed in `undelivered` with the fixed code
-   `COMMISSION_EVENT_TYPE_NOT_HANDLED` (event id, type and code only, never a payload, at most 200 with the `truncated` flag). The run
-   therefore ends `UNDELIVERED` and never `COMPLETE` while a `PackageSaleChanged` row exists, and its `afterId` stops before the first such
-   row so a resume re-reads it. Once 50-4 merges, the same rows are delivered with no change to the runner.
-4. **Coverage.** Run the 50-3c coverage report after the replay. A tenant with any retained `PackageSaleChanged` event stays `NOT_COVERED`
-   until 50-4 merges, and the 55-1b R5 prerequisite ("coverage shows no gap before the first correction posts") is blocked for that tenant
-   until then.
+3. **`PackageSaleChanged` is delivered since 50-4.** The consumer registers the sale type, so the runner passes retained sale events to it
+   and each successfully applied one is marked like the other counted types; a sale whose month is `APPROVED` or `PAID` is refused with
+   `COMMISSION_PERIOD_CLOSED` and lands in `undelivered` with that code, unmarked (the `SALE` correction that releases it is 55-1d). This is
+   the replay path: the runner mutates no dispatcher lifecycle column, so an event that live dispatch has parked stays parked — a replay mark
+   here is not evidence that a live park was cleared (section 50-3a item 6). A type the consumer does not register at all is
+   still listed with `COMMISSION_EVENT_TYPE_NOT_HANDLED` — after 50-4 that means a configuration gap, never an expected wait.
+4. **Coverage.** Run the 50-3c coverage report after the replay. The report now checks the sales section too: every sold package of the company
+   must have a `commission_sales` row at the revision orders holds (CS-Q51 answer, 2026-11-21: the replay projects and marks, the reader proves
+   coverage). While a sale is `missing` or `stale`, the report is `NOT_COVERED` and the 55-1b R5 prerequisite stays blocked for that tenant.
 5. **Do not** insert a mark or an event by hand, do not reset any outbox column, and do not widen the range beyond the fixed bound.
 
+## 50-4: bring package sales into the commission inputs (spec 059, CS-Q51)
+
+The consumer now registers `PackageSaleChanged`, so sales recorded before this release reach the projection through the ordinary
+six-type replay (owner answer CS-Q51, 2026-11-21: the replay projects and marks, the reader proves coverage). The order for one company:
+
+1. Every worker replica must run the new release first (the every-replica rule of 50-3a).
+2. Capture the replay upper bound `--through` after the last replica is on the release.
+3. Run the six-type replay with that bound and resume with the same bound until it ends `COMPLETE`
+   (section 50-3d). A sale whose month is closed is refused with `COMMISSION_PERIOD_CLOSED` and stays unmarked
+   until 55-1d. The replay lists it under `undelivered` and leaves the dispatcher state intact. A live park
+   requires a separate dispatcher recovery decision.
+4. Run the 50-3c coverage report. Require `COVERED`, `sales.missing.total = 0`, `sales.stale.total = 0`, and no
+   `PackageSaleChanged` under `unmarked` or `notHandled`. Migration 0234 creates an empty `commission_sales` table,
+   and 0235 adds its indexes and access controls. The replay fills the table.
+5. If the replay returns `COMPLETE` but a sale is missing or stale, keep approval closed for that company.
+   Check the reported sale ID and source revision against the retained `PackageSaleChanged` events in the fixed
+   range. If no usable event covers the revision, stop repeating the same replay and escalate for source-history
+   investigation. Keep dispatcher state and consumption marks unchanged.
 
 ## Admin service-session browser tests
 

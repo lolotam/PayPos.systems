@@ -132,7 +132,7 @@ it('CM-22a a failure after replacement rolls back rows and mark, then redelivery
         execute: async () => {
           throw new Error('unused in lines test');
         },
-      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'];
+      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'] & CommissionInputUseCases['sales'];
       await onCommissionInputEvent(
         {
           lines: new ProjectServiceLines(
@@ -144,6 +144,7 @@ it('CM-22a a failure after replacement rolls back rows and mark, then redelivery
           ),
           tips: unusedUseCase,
           salary: unusedUseCase,
+          sales: unusedUseCase,
         },
         claimed,
       );

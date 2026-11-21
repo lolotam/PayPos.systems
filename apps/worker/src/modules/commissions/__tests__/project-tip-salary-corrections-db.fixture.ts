@@ -292,7 +292,8 @@ export function failingTipsCorrectionsConsumer(): OutboxConsumer {
         execute: async () => {
           throw new Error('unused use case');
         },
-      } as unknown as CommissionInputUseCases['lines'] & CommissionInputUseCases['salary'];
+      } as unknown as CommissionInputUseCases['lines'] & CommissionInputUseCases['salary'] &
+        CommissionInputUseCases['sales'];
       await onCommissionInputEvent(
         {
           lines: unused,
@@ -309,6 +310,7 @@ export function failingTipsCorrectionsConsumer(): OutboxConsumer {
             noCommissionBlockNotices,
           ),
           salary: unused,
+          sales: unused,
         },
         event,
       );
@@ -329,11 +331,13 @@ export function failingSalaryCorrectionsConsumer(): OutboxConsumer {
         execute: async () => {
           throw new Error('unused use case');
         },
-      } as unknown as CommissionInputUseCases['lines'] & CommissionInputUseCases['tips'];
+      } as unknown as CommissionInputUseCases['lines'] & CommissionInputUseCases['tips'] &
+        CommissionInputUseCases['sales'];
       await onCommissionInputEvent(
         {
           lines: unused,
           tips: unused,
+          sales: unused,
           salary: new ProjectSalary(
             createCommissionSalaryProjectionScope(
               tx,

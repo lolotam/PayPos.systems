@@ -6,6 +6,7 @@ export const TENANT_TABLES = [
   'commission_tip_heads',
   'commission_tips',
   'commission_salaries',
+  'commission_sales',
   'package_redemptions',
   'package_sale_requests',
   'commission_statements',

@@ -136,9 +136,10 @@ async function instrumentedAttempt(incoming: ClaimedEvent | CommissionLineEventI
         execute: async () => {
           throw new Error('unused in lines test');
         },
-      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'];
+      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'] &
+      CommissionInputUseCases['sales'];
       await onCommissionInputEvent(
-        { lines: useCase, tips: unusedUseCase, salary: unusedUseCase },
+        { lines: useCase, tips: unusedUseCase, salary: unusedUseCase, sales: unusedUseCase },
         incoming,
       );
     } else await useCase.execute(incoming);

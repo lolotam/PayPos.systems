@@ -5,6 +5,7 @@ import {
   COMMISSION_CORRECTION_COLUMN_GRANTS,
 } from '../../test/commission-correction-grants.ts';
 import { COMMISSION_TIP_SALARY_COLUMN_GRANTS } from '../../test/commission-tip-salary-grants.ts';
+import { COMMISSION_SALES_COLUMN_GRANTS } from '../../test/commission-sales-grants.ts';
 import { PASSKEY_COLUMN_GRANTS } from '../../test/passkey-grants.ts';
 import {
   ATTENDANCE_CHANGE_COLUMN_GRANTS,
@@ -67,6 +68,7 @@ const OUTBOX_COLUMN_GRANTS = [
 ];
 const REVIEWED_COLUMN_GRANTS = [
   ...COMMISSION_TIP_SALARY_COLUMN_GRANTS,
+  ...COMMISSION_SALES_COLUMN_GRANTS,
   ...COMMISSION_CORRECTION_COLUMN_GRANTS,
   ...COMMISSION_BLOCKED_CORRECTION_COLUMN_GRANTS,
   ...COMMISSION_BLOCKED_CORRECTION_INSERT_COLUMN_GRANTS,
