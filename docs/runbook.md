@@ -402,15 +402,16 @@ six-type facade `commissionRetainedEventPage` and its own partial index. It neve
 
 ## 50-4: bring package sales into the commission inputs (spec 059, CS-Q51)
 
-The consumer now registers `PackageSaleChanged`, so sales recorded before this release exist reach the projection through the ordinary
+The consumer now registers `PackageSaleChanged`, so sales recorded before this release reach the projection through the ordinary
 six-type replay (owner answer CS-Q51, 2026-11-21: the replay projects and marks, the reader proves coverage). The order for one company:
 
 1. Every worker replica must run the new release first (the every-replica rule of 50-3a).
 2. Capture the replay upper bound `--through` after the last replica is on the release.
 3. Run the six-type replay with that bound and resume with the same bound until it ends `COMPLETE`
    (section 50-3d; a sale whose month is closed is refused with `COMMISSION_PERIOD_CLOSED` and parked until 55-1d).
-4. Run the 50-3c coverage report: expect `sales.missing.total = 0`, `sales.stale.total = 0`, and no `PackageSaleChanged` id under
-   `notHandled`. The table `commission_sales` was created empty by migration 0234/0235; the replay fills it, and nothing writes it by hand.
+4. Run the 50-3c coverage report. Require `COVERED`, `sales.missing.total = 0`, `sales.stale.total = 0`, and no
+   `PackageSaleChanged` under `unmarked` or `notHandled`. Migration 0234 creates an empty `commission_sales` table,
+   and 0235 adds its indexes and access controls. The replay fills the table.
 
 ## Admin service-session browser tests
 

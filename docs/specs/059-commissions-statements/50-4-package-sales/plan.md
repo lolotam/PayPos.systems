@@ -286,7 +286,9 @@ no correction. That absence is the 55-1d boundary in code.
 3. `ci-gate` green on the exact head; every required review bot finished on that head; findings resolved.
 4. The branch is up to date with `main` (the migration-chain check fails on a stale base and only an update fixes
    it); the journal sequence and the snapshot `prevId` chain are intact.
-5. The verified backup and its verified restore that PP-124 requires for a migration PR, and the manager's merge order.
+5. The manager merges in migration order after the gates pass (PP-201). The 2026-11-17 owner decision makes
+   backup and restore optional at merge unless the operation explicitly requires them. The staging snapshot
+   in the next section has its own gate.
 6. **CS-Q51 answered and recorded verbatim** — done: option 1 answered by Waleed on 2026-11-21 («دخل المبيعات القديمة
    بالمسار الموجود، واستعمل القارئ للتأكد إن كل بيع وصل بآخر نسخة»), recorded in `owner-questions.ar.md` §60, and the
    spec 059 amendment notes (D4) are written. The plan already built this option, so no plan change is needed.
@@ -305,8 +307,8 @@ manager can order them. Nothing here is executed by the implementer.
    replica published without applying.
 4. **Bootstrap, per tenant that has package sales:** the six-type replay with one fixed `--through` bound, resumed with
    the same bound until it ends `COMPLETE`.
-5. **Coverage:** the coverage report; expected `sales.missing.total = 0`, `sales.stale.total = 0`, no
-   `PackageSaleChanged` id under `notHandled`. The report is a point-in-time read.
+5. **Coverage:** the report must return `COVERED`, with `sales.missing.total = 0`, `sales.stale.total = 0`, and no
+   `PackageSaleChanged` under `unmarked` or `notHandled`. The report is a point-in-time read.
 6. **Receipt:** `api` and `worker` `/health` and the worker's `/ready`, the image SHA, the snapshot id, the replay
    result line and the coverage status.
 7. **Rollback:** one click back to the previous image. The table stays (expand-only; no older release reads it). Sale
