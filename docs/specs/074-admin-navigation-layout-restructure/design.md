@@ -221,7 +221,7 @@ Navigation counts (pending leave, attendance requests, open exceptions) are show
 
 ## 10. The cashier app
 
-The owner chose "admin and cashier" (NAV-Q3). `apps/pos` has no navigation menu today: its screens change by state (`apps/pos/src/app`). Its people sign in with staff sessions bound to a device (ADR-0019, ADR-0027), which are not admin user accounts, and it is local-first. So three styles for the cashier app need their own page inventory, their own prototypes and an answer to where a staff member's choice is stored. An employee only may be linked to a user account, so "saved on the account" has no settled meaning for PIN and OTP staff yet. That is a separate spec, `TODO(spec)`, opened after this one is agreed (NAV-Q3, NAV-Q11). Nothing in this spec changes `apps/pos`.
+The owner chose "admin and cashier" (NAV-Q3). `apps/pos` has no navigation menu today: its screens change by state (`apps/pos/src/app`). Its people sign in with staff sessions bound to a device (ADR-0019, ADR-0027), which are not admin user accounts, and it is local-first. So three styles for the cashier app need their own page inventory and their own prototypes. Where a staff member's choice is stored is decided (NAV-Q11, 2026-11-21): on the device, one value per employee who signs in there, by PIN or OTP, with no database change. An employee only may be linked to a user account, so "saved on the account" does not apply to them. That is a separate spec, `TODO(spec)`, opened after this one is agreed (NAV-Q3, NAV-Q11). Nothing in this spec changes `apps/pos`.
 
 ## 11. Open questions
 
