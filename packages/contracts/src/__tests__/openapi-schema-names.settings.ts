@@ -19,6 +19,8 @@ export const settingsSchemaNames = [
   'SetAlertRulesInput',
   'SetAlertsMasterInput',
   'SetBusinessLogoInput',
+  'SetImportedRefundsInput',
+  'ImportedRefundsResponse',
   'StaffColumnCode',
   'StaffColumnsSettings',
   'TaxRule',

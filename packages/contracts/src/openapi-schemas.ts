@@ -55,6 +55,7 @@ import { permissionSchemas } from './identity/permissions-openapi.js';
 import { pendingDevicesSchemas } from './identity/devices-openapi.js';
 import { customerSchemas } from './customers.js';
 import { ratingSettingsSchemas } from './customers/rating-settings-openapi.js';
+import { importedRefundsSchemas } from './settings/imported-refunds-openapi.js';
 import { ratingView, submitRatingInput } from './customers/ratings.js';
 import { catalogSchemas } from './catalog/catalog-openapi.js';
 import { attendanceQrToken, attendanceQrBranch, attendanceQrIssue } from './staff/attendance-qr.js';
@@ -183,6 +184,7 @@ export const openApiSchemas = [
   ...catalogSchemas,
   ...alertRuleSchemas,
   ...ratingSettingsSchemas,
+  ...importedRefundsSchemas,
   ...orderSchemas,
   attendanceQrToken,
   attendanceQrBranch,

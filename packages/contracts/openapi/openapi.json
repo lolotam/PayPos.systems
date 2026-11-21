@@ -15682,6 +15682,110 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/settings/imported-refunds": {
+      "get": {
+        "operationId": "getImportedRefunds",
+        "description": "Whether refunds of imported packages are enabled for the business. Requires manage:imported-refunds:business on that business; a caller without it, a settings-only holder, a device, another business and an unknown business are the same 403 FORBIDDEN. A business with no stored switch reads as off. Never writes.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The imported-package refunds switch of the business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportedRefundsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "setImportedRefunds",
+        "description": "Turns refunds of imported packages on or off for the business. Requires manage:imported-refunds:business on that business, rechecked after the row lock so a revocation that commits first wins; every refusal is the same 403 FORBIDDEN. A write that does not change the effective value stores nothing and audits nothing; a changing write stores the value and one audit entry in the same transaction. No Idempotency-Key: a repeated value is a no-op.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetImportedRefundsInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The imported-package refunds switch of the business",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportedRefundsResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions": {
       "get": {
         "operationId": "listBranchDayServiceSessions",
@@ -30843,6 +30947,29 @@
         },
         "required": [
           "requests_enabled"
+        ]
+      },
+      "SetImportedRefundsInput": {
+        "type": "object",
+        "properties": {
+          "imported_refunds_enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "imported_refunds_enabled"
+        ],
+        "additionalProperties": false
+      },
+      "ImportedRefundsResponse": {
+        "type": "object",
+        "properties": {
+          "imported_refunds_enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "imported_refunds_enabled"
         ]
       },
       "RequestPackageImportPreviewInput": {

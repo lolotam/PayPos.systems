@@ -37,6 +37,7 @@ import { privateViewPaths } from './identity/private-view-openapi.js';
 import { mePaths } from './identity/me-openapi.js';
 import { customerPaths } from './customers-openapi.js';
 import { ratingSettingsPaths } from './customers/rating-settings-openapi.js';
+import { importedRefundsPaths } from './settings/imported-refunds-openapi.js';
 import { catalogPaths } from './catalog/catalog-openapi.js';
 import { json, operation } from './openapi-operation.js';
 import { openApiSchemas } from './openapi-schemas.js';
@@ -88,6 +89,7 @@ const PATHS = {
   ...catalogPaths,
   ...alertRulePaths,
   ...ratingSettingsPaths,
+  ...importedRefundsPaths,
   ...serviceSessionPaths,
   ...serviceSessionFormPaths,
   ...serviceSessionRecoveryPaths,

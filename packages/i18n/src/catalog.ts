@@ -11,6 +11,8 @@ import { commissionStatementAr, commissionStatementEn } from './commission-state
 import { en } from './en.js';
 import { nativeShellAr, nativeShellEn } from './native-shell-catalog.js';
 import { packageSaleAr, packageSaleEn } from './package-sale-catalog.js';
+import { customerPackagesAr, customerPackagesEn } from './customer-packages-catalog.js';
+import { importedRefundsAr, importedRefundsEn } from './imported-refunds-catalog.js';
 import { ratingRequestAr, ratingRequestEn } from './rating-catalog.js';
 import { publicRatingAr, publicRatingEn } from './public-rating-catalog.js';
 import { sessionTipsAr, sessionTipsEn } from './session-tips-catalog.js';
@@ -55,6 +57,8 @@ type RegisteredCatalog = Catalog & {
   readonly nativeShell: Record<keyof typeof nativeShellEn, string>;
   readonly packageSale: Record<keyof typeof packageSaleEn, string>;
   readonly ratingRequest: Record<keyof typeof ratingRequestEn, string>;
+  readonly customerPackages: Record<keyof typeof customerPackagesEn, string>;
+  readonly importedRefunds: Record<keyof typeof importedRefundsEn, string>;
 };
 
 /** مفتاح رسالة: <القسم>.<الاسم>، زي errors.NOT_READY. */
@@ -87,6 +91,8 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     nativeShell: nativeShellAr,
     packageSale: packageSaleAr,
     ratingRequest: ratingRequestAr,
+    customerPackages: customerPackagesAr,
+    importedRefunds: importedRefundsAr,
   },
   en: {
     myLeave: myLeaveEn,
@@ -109,6 +115,8 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     nativeShell: nativeShellEn,
     packageSale: packageSaleEn,
     ratingRequest: ratingRequestEn,
+    customerPackages: customerPackagesEn,
+    importedRefunds: importedRefundsEn,
   },
 };
 
