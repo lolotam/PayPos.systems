@@ -170,5 +170,6 @@ answer.
 | 96 | [Package sale recovery when the response is lost](96-package-sale-recovery.md) — استرجاع بيع الباقة لما الرد يضيع | #1077, #1094 | after the next staging batch; needs the `orders` feature; continues [86](86-sell-package.md) step 14 |
 | 97 | [The commission plan builder](97-commission-plan-builder.md) — منشئ خطط العمولة | #1104, this PR | yes (`/commissions/plans`) |
 | 98 | [The special-commission screen](98-commission-service-overrides.md) — شاشة العمولة الخاصة للخدمات | this PR | after the staging batch that includes this PR (`/commissions/overrides`) |
+| 101 | [Admin navigation styles (planned — spec 074)](101-admin-navigation-styles.md) — أنماط تنقّل لوحة الإدارة الثلاثة (مخطط — مواصفة 074) | planned (`074-0b` decision records only; UI in step 7, account sync in step 12) | no — planned only (not built yet; step `074-0b` adds decision records only) |
 
 New journeys are added after every merge.
