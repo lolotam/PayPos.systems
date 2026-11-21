@@ -142,6 +142,8 @@ The menu names every section of the product, including the ones not built yet: s
 - **FR-023**: When a page is built, switching its entry to the real page MUST be a change to that entry alone, and its old Under development address MUST apply the entry's show condition before forwarding to the real page.
 - **FR-024**: Menus, drawers, sheets and the page finder MUST keep keyboard focus inside while open and return it to the control that opened them; every icon-only control MUST have an accessible name; in-page tabs MUST expose which tab is selected; a hidden panel MUST take its links out of the tab order; a menu taller than the window MUST scroll inside itself.
 - **FR-025**: Choosing styles in quick succession MUST leave the account holding the last choice made.
+- **FR-026**: Everything waiting for a decision MUST be reachable from one Approvals inbox under Home, in the same place in every style, with one count; each kind of approval also stays in its own section (NAV-Q17).
+- **FR-027**: Entries that belong to one business type MUST be shown only while a business of that type is selected in the workspace switcher (NAV-Q17).
 - **FR-018**: The cashier app is in the owner's scope but out of this feature; it gets its own specification (`TODO(spec)`, NAV-Q3, NAV-Q11).
 
 ### Key Entities
@@ -164,6 +166,8 @@ This feature is mostly front end. It is delivered as several PRs (see `plan.md`)
 - **BR-005**: The three styles are released together; saving on the account follows (NAV-Q8, NAV-Q12).
 - **BR-006**: Existing permission rules decide which built pages a user sees in the menu; this feature adds and removes none.
 - **BR-007**: The menu names the whole product, phases 1 to 6; a page not built yet opens an Under development page (NAV-Q13). A not-built entry is shown by business type and role, not to everyone (NAV-Q14): a salon does not see Kitchen screens, and a cashier does not see Subscription and billing.
+- **BR-009**: The menu is one map shared with the other project (`lolotam/lovable-pospay`, spec 022): the same sections, sub-menus, page names, order and place in each style. Only the built-or-not state of a page may differ between the two (NAV-Q17).
+- **BR-010**: The menu follows the business selected in the workspace switcher. An owner with more than one business sees each business's own entries after switching to it (NAV-Q17).
 - **BR-008**: "Social media management" is listed as an Under development entry under Marketing at the owner's request (NAV-Q15). It is not in the PRD and needs a PRD entry and a spec before anything is built.
 
 ### Schema changes

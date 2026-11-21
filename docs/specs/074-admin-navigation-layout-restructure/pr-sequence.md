@@ -71,4 +71,4 @@ Checked on 2026-11-21 against open PRs by changed file: #1147 (commissions, bloc
 | A section with 16 pages does not fit a style on a phone | The full map was not prototyped. Step 1 lists the longest sections; step 7 is checked at 390px in each style before release, and a sub-menu may collapse behind its heading |
 | A "Soon" entry promises something that is later dropped or renamed | Names are working names from the PRD; the entry is removed or renamed by the task that decides it, and `/soon/<id>` for a removed id shows not-found |
 | The page finder needs a library | Decide in step 6 before writing it; an ADR if so |
-| Style B groups pages with different permissions under Approvals | Each page keeps its own condition; the count sums only what the user may see |
+| The Approvals inbox under Home gathers pages with different permissions | Each kind keeps its own condition; the inbox lists and counts only what the user may see |
