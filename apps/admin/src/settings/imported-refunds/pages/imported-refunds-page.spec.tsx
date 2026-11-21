@@ -116,8 +116,12 @@ it('a denied write shows the refusal and the guarded GET reestablishes the confi
   api.PUT.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
   const { client, view } = renderPage();
   const control = await screen.findByRole('switch', { name: label });
+  let finishProof: (value: unknown) => void = () => undefined;
+  api.GET.mockImplementationOnce(() => new Promise((resolve) => { finishProof = resolve; }));
   fireEvent.click(control);
-  // الـ GET المحمي هو اللي بيرجّع القيمة المؤكدة بعد الرفض: رسالة الرفض ظاهرة والمفتاح على قيمة الخادم.
+  // الـ GET المحمي لازم يثبت الصلاحية من جديد، والمفتاح مختفي طول انتظار الرد.
+  await waitFor(() => expect(screen.queryByRole('switch')).toBeNull());
+  finishProof({ data: { imported_refunds_enabled: false }, response: { status: 200 } });
   await waitFor(() =>
     expect(screen.getByRole('alert').textContent).toContain(
       t('en', 'importedRefunds.notAllowed'),

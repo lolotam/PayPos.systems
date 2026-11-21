@@ -1,4 +1,4 @@
-﻿import { t } from '@pospay/i18n';
+import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -244,5 +244,11 @@ it('the open extension dialog closes when the entitlement loses extension capabi
     expect(screen.queryByRole('dialog', { name: t('en', 'packageExtension.dialogTitle') })).toBeNull(),
   );
   expect(screen.queryByRole('button', { name: t('en', 'customerPackages.extend') })).toBeNull();
+  api.GET.mockResolvedValue({ data: soldDetail(true), response: { status: 200 } });
+  await client.refetchQueries({
+    queryKey: ['customer-package-detail', companyId, businessId, branchId, 'user', customerId, entitlementId],
+  });
+  await screen.findByRole('button', { name: t('en', 'customerPackages.extend') });
+  expect(screen.queryByRole('dialog', { name: t('en', 'packageExtension.dialogTitle') })).toBeNull();
   view.unmount();
 });

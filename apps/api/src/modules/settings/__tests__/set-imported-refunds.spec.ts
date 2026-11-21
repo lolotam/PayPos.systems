@@ -240,7 +240,7 @@ it('IRS-04 device refusal: a device principal is refused on both routes', async 
     cookie: f.cookie,
     company: f.company,
   });
-  if (!redisAvailable) {
+  if (!redisAvailable && !process.env['CI']) {
     console.warn(
       'IRS-04 device refusal skipped locally: this lane has no Redis (pairing codes are Redis-backed); it runs and must pass where Redis is up.',
     );

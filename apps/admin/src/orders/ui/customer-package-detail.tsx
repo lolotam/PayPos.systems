@@ -29,7 +29,6 @@ export function CustomerPackageDetail({
   onClose: () => void;
 }) {
   const locale = useLocale();
-  const [dialogOpen, setDialogOpen] = useState(false);
   const detail = useCustomerPackageDetail(scope, customerId, entitlementId);
   if (detail.isLoading) return <p role="status">{t(locale, 'customerPackages.detailLoading')}</p>;
   if (detail.isError)
@@ -53,24 +52,53 @@ export function CustomerPackageDetail({
       </section>
       <PackageExtensionHistory extensions={data.extensions} timeZone={data.business_timezone} />
       {data.can_extend ? (
-        <Button type="button" onClick={() => setDialogOpen(true)}>
-          {t(locale, 'customerPackages.extend')}
-        </Button>
+        <ExtensionControls
+          scope={scope}
+          customerId={customerId}
+          entitlementId={entitlementId}
+          expiresOn={data.expires_on}
+          onSaved={() => void detail.refetch()}
+        />
       ) : null}
-      {dialogOpen && data.can_extend ? (
+    </section>
+  );
+}
+
+// سحب قدرة التمديد يشيل حالة الحوار؛ لو القدرة رجعت ما يفتحش إلا بطلب جديد.
+function ExtensionControls({
+  scope,
+  customerId,
+  entitlementId,
+  expiresOn,
+  onSaved,
+}: {
+  scope: SessionServiceScope;
+  customerId: string;
+  entitlementId: string;
+  expiresOn: DetailData['expires_on'];
+  onSaved: () => void;
+}) {
+  const locale = useLocale();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  return (
+    <>
+      <Button type="button" onClick={() => setDialogOpen(true)}>
+        {t(locale, 'customerPackages.extend')}
+      </Button>
+      {dialogOpen ? (
         <ExtendPackageDialog
           scope={scope}
           customerId={customerId}
           entitlementId={entitlementId}
-          currentExpiresOn={data.expires_on}
+          currentExpiresOn={expiresOn}
           onSaved={() => {
-            void detail.refetch();
             setDialogOpen(false);
+            onSaved();
           }}
           onClose={() => setDialogOpen(false)}
         />
       ) : null}
-    </section>
+    </>
   );
 }
 

@@ -40,7 +40,6 @@ it('IRS-06: two first writes serialize and each audit entry carries the true pre
   });
   await f.h.owner`DELETE FROM business_settings WHERE company_id = ${f.company}
     AND business_id = ${f.otherBusiness}`;
-  // القيمتان مختلفتان عشان الكاتب التاني يكتب تغييراً فعلياً بعد انتظاره.
   const [first, second] = await Promise.all([
     put({ imported_refunds_enabled: true }, f.cookie, f.company, f.otherBusiness),
     put({ imported_refunds_enabled: false }, f.managerCookie, f.company, f.otherBusiness),
@@ -48,22 +47,23 @@ it('IRS-06: two first writes serialize and each audit entry carries the true pre
   // الكاتب التاني بيستنى على قفل الشركة أو قفل الصف، فالقرار بيتاخد بالترتيب اللي اتكتب بيه فعلاً.
   expect([first.statusCode, second.statusCode]).toEqual([200, 200]);
   const rows = await audits(f.otherBusiness);
-  expect(rows).toHaveLength(2);
-  expect(rows[0]).toMatchObject({ before: { imported_refunds_enabled: null } });
-  expect(rows[1]).toMatchObject({
-    before: {
-      imported_refunds_enabled: (rows[0] as { after: { imported_refunds_enabled: boolean } }).after
-        .imported_refunds_enabled,
-    },
-  });
-  const finalValue = (rows[1] as { after: { imported_refunds_enabled: boolean } }).after
-    .imported_refunds_enabled;
-  expect(
-    await f.h.owner`SELECT imported_refunds_enabled FROM business_settings
-      WHERE company_id = ${f.company} AND business_id = ${f.otherBusiness}`,
-  ).toEqual([{ imported_refunds_enabled: finalValue }]);
-  const actors = new Set(rows.map((row) => row['actor_user_id']));
-  expect(actors).toEqual(new Set([f.userId, f.managerId]));
+  const stored = await f.h.owner`SELECT imported_refunds_enabled FROM business_settings
+    WHERE company_id = ${f.company} AND business_id = ${f.otherBusiness}`;
+  const finalValue = stored[0]?.['imported_refunds_enabled'];
+  const firstChange = {
+    actor_user_id: f.userId,
+    before: { imported_refunds_enabled: null },
+    after: { imported_refunds_enabled: true },
+  };
+  // لو طلب الإيقاف وصل أولًا فالقيمة أصلًا off ولا يتسجل له تدقيق.
+  const secondChange = {
+    actor_user_id: f.managerId,
+    before: { imported_refunds_enabled: true },
+    after: { imported_refunds_enabled: false },
+  };
+  expect(typeof finalValue).toBe('boolean');
+  expect(rows).toEqual(finalValue === false ? [firstChange, secondChange] : [firstChange]);
+
 });
 
 it('IRS-06: two first writes of the same value leave no audit entry — each write is an initial-false no-op', async () => {
