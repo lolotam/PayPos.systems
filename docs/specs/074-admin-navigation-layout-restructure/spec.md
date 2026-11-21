@@ -155,7 +155,7 @@ The menu names every section of the product, including the ones not built yet: s
 
 ## Slice design *(mandatory — `CLAUDE.md` §1)*
 
-This feature is mostly front end. It is delivered as several PRs (see `plan.md`); only the account preference touches the database and the API.
+This feature is mostly front end. It is delivered as several PRs (see `plan.md`); the account preference touches the database and the API (step 12), and step 0c adds two read-only fields to the workspace response, which the release step needs.
 
 ### Business rules
 

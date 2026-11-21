@@ -30,7 +30,7 @@ const MANAGE = [
     ['Discounts', 'Discount approvals', '1', S, L, ''],
     ['Orders', 'Orders', '2', S, S, ''],
     ['Orders', 'Returns', '2', S, S, ''],
-    ['Orders', 'Fulfilment board (stages, payment status, delays)', '—', S, S, ''],
+    ['Orders', 'Fulfilment board (stages, payment status, delays, call the customer)', '—', S, S, ''],
     ['Payments', 'Payments and refunds', '2', S, S, ''],
     ['Payments', 'Customer accounts (on-account sales)', '2', S, S, ''],
     ['Cash', 'Cash shifts', '2', S, S, ''],
@@ -57,15 +57,15 @@ const MANAGE = [
     ['Catalog', 'Options and modifiers', '2', S, S, ''],
     ['Catalog', 'Price lists', '2', S, S, ''],
     ['Catalog', 'Combos and bundles', '2', S, S, ''],
-    ['Catalog', 'Units of measure', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
-    ['Stores', 'Stock items', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
-    ['Stores', 'Locations', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
-    ['Stores', 'Suppliers', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
-    ['Stores', 'Purchases', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
-    ['Stores', 'Transfers', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
-    ['Stores', 'Stock counts', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
-    ['Stores', 'Adjustments and wastage', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
-    ['Stores', 'Barcode labels', '—', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
+    ['Catalog', 'Units of measure', '3', S, S, ''],
+    ['Stores', 'Stock items', '3', S, S, ''],
+    ['Stores', 'Locations', '3', S, S, ''],
+    ['Stores', 'Suppliers', '3', S, S, ''],
+    ['Stores', 'Purchases', '3', S, S, ''],
+    ['Stores', 'Transfers', '3', S, S, ''],
+    ['Stores', 'Stock counts', '3', S, S, ''],
+    ['Stores', 'Adjustments and wastage', '3', S, S, ''],
+    ['Stores', 'Barcode labels', '—', S, S, ''],
     ['Production', 'Recipes', '3', S, S, 'Restaurant, café'],
     ['Production', 'Production orders', '3', S, S, 'Restaurant, café'],
   ]],
@@ -81,6 +81,7 @@ const MANAGE = [
     ['Appointments', 'Appointment categories', '4', S, S, 'Salon, spa, barber, clinic, services company'],
     ['Online', 'Company public page', '1', S, L, ''],
     ['Online', 'Online menu builder', '4', S, S, ''],
+    ['Online', 'Waiting and call page (customer scans a QR code)', '—', S, S, ''],
     ['Marketing', 'Business WhatsApp', '4', S, S, ''],
     ['Marketing', 'Campaigns', '4', S, S, ''],
     ['Marketing', 'Message templates', '4', S, S, ''],
@@ -119,9 +120,10 @@ const MANAGE = [
     ['Sales reports', 'Sales (by channel, type, method, hour, staff)', '5', S, S, ''],
     ['Sales reports', 'Products and returns', '5', S, S, ''],
     ['Sales reports', 'Payments and customer balances', '5', S, S, ''],
-    ['Stock reports', 'Stock and cost of goods', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
-    ['Stock reports', 'Stock movements ledger (item activity)', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
+    ['Stock reports', 'Stock and cost of goods', '3', S, S, ''],
+    ['Stock reports', 'Stock movements ledger (item activity)', '3', S, S, ''],
     ['Performance', 'Commissions and performance', '5', S, S, ''],
+    ['Performance', 'Waiting and service time', '—', S, S, ''],
     ['Performance', 'Appointments report', '5', S, S, 'Salon, spa, barber, clinic, services company'],
     ['Expenses', 'Expenses', '5', S, S, ''],
     ['Expenses', 'Recurring expenses', '5', S, S, ''],
@@ -240,14 +242,21 @@ wallet, Appointment categories, Branches, Invoice terms and conditions, Invitati
 "—" in the Phase column are not named in the PRD and need a PRD entry and a spec before anything is built. Some of
 them may end up as part of another page rather than a page of their own.
 
-Notes on four of them. The Stock movements ledger sits under Stock reports because the PRD schedules it as a report
+Notes on three of them. The Stock movements ledger sits under Stock reports because the PRD schedules it as a report
 (P3-T7.1). Branches has no phase: the PRD creates branches in Phase 0 tenancy and names only a branch selector in
-Phase 1, so a branch-management screen needs its own PRD entry. Invitations covers company invitations only (PRD
-P0-T9a.8, issue #19); managing users and their permissions is the Permissions page, which the PRD plans in Phase 1
-(P1-T2.4). The stock entries (Stores, Units of measure, the two stock reports) are limited to the business types
-that hold stock: PRD §7.1 gives inventory to restaurants, cafés and grocery or retail and simple products to salons,
-and P3-T3.2 deducts materials for salon sessions and laundry orders. Clinics and services companies are left out.
-That list is the working answer until the owner confirms it (NAV-Q19 in spec 074, NAV-L7 in spec 022).
+Phase 1, so a branch-management screen needs its own PRD entry. Invitations is the exception to the rule above: the
+work is already tracked, as company invitations in PRD P0-T9a.8 and issue #19, and what is missing is only a screen for
+it, so the screen extends that issue rather than starting a new roadmap item. Managing users and their permissions is
+the Permissions page, which the PRD plans in Phase 1 (P1-T2.4).
+
+The stock entries (Stores, Units of measure, the two stock reports) are shown to every business type. The owner
+decided this on 2026-11-21 (NAV-Q19 in spec 074, NAV-L7 in spec 022).
+
+Customer call was added on 2026-11-21 at the owner's request (NAV-Q20 in spec 074, NAV-L8 in spec 022): staff call
+the customer on the customer's own phone when an order is ready or a turn has come. The customer scans a QR code and
+waits on a web page, with no app and no account. It adds two entries, "Waiting and call page" and the "Waiting and
+service time" report, and the call button belongs to the Fulfilment board. None of it is in the PRD; it needs a PRD
+entry and a spec, which must also settle how the alert reaches a locked phone.
 
 How an owner gets a second business type on the same account (created by the platform operator, or by an invitation
 to the same email) is a subscription question, not a menu question, and is not decided here.
@@ -326,6 +335,7 @@ const check = args[0] === '--check';
 const paths = check ? args.slice(1) : args;
 // Nothing is read or written until the whole argument list is valid: an option anywhere else, or an extra argument, is an error.
 if (paths.some((a) => a.startsWith('-')) || paths.length > 1 || (check && paths.length !== 1)) { console.error(USAGE); process.exit(1); }
+if (paths.some((p) => p.trim() === '')) { console.error('An empty path was given. ' + USAGE); process.exit(1); }
 const otherPath = paths[0];
 targets[1].file = otherPath ? resolve(otherPath) : '';
 targets[0].file = resolve(targets[0].file);
