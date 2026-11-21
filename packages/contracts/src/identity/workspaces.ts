@@ -2,10 +2,17 @@ import { z } from 'zod';
 import { responseObject } from '../response-object.js';
 
 import { nameAr, nameEn } from '../bilingual/names.js';
+import { country } from '../reference/country.js';
 import { timeZone } from '../reference/time-zone.js';
 import { id } from '../scalars/id.js';
+import { verticalType } from '../tenancy/business.js';
 
 // الشركات والنشاطات والفروع اللي اليوزر عضو فيها — شاشة اختيار الشركة في الأدمن.
+// في OpenAPI 3.0.3 لازم الـ enum القابل للـ null يسمح بـ null داخل قائمة القيم بتاعته نفسها.
+const workspaceCountry = z
+  .enum(country.options)
+  .nullable()
+  .meta({ enum: [...country.options, null] });
 
 export const workspaceBranch = responseObject({
     id,
@@ -20,6 +27,8 @@ export const workspaceBusiness = responseObject({
     id,
     name_ar: nameAr.nullable(),
     name_en: nameEn,
+    business_type: verticalType,
+    country: workspaceCountry,
     branches: z.array(workspaceBranch),
   })
   .meta({ id: 'WorkspaceBusiness' });

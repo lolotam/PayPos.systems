@@ -43,13 +43,17 @@ async function signIn(): Promise<void> {
   companyB = await h.onboard(otherCookie, 'Beta Co');
 }
 
-async function createBusiness(name: string, timezone?: string): Promise<string> {
+async function createBusiness(
+  name: string,
+  verticalType: 'retail' | 'salon' = 'retail',
+  timezone?: string,
+): Promise<string> {
   const res = await h.send('POST', '/v1/businesses', {
     cookie: ownerCookie,
     company: companyA,
     key: `ws-${name.replaceAll(' ', '-')}`,
     body: {
-      vertical_type: 'retail',
+      vertical_type: verticalType,
       name_en: name,
       ...(timezone === undefined ? {} : { timezone }),
     },
@@ -72,8 +76,14 @@ async function createBranch(businessId: string, name: string, timezone?: string)
 }
 
 async function buildTree(): Promise<void> {
-  northId = await createBusiness('North Shop', 'Asia/Qatar');
-  southId = await createBusiness('South Shop');
+  northId = await createBusiness('North Shop', 'retail', 'Asia/Qatar');
+  southId = await createBusiness('South Shop', 'salon');
+  await h.owner`
+    UPDATE businesses SET settings = jsonb_set(settings, '{country}', '"KW"'::jsonb)
+    WHERE company_id = ${companyA} AND id = ${northId}`;
+  await h.owner`
+    UPDATE businesses SET settings = jsonb_set(settings, '{country}', '"XX"'::jsonb)
+    WHERE company_id = ${companyA} AND id = ${southId}`;
   eastId = await createBranch(northId, 'East');
   westId = await createBranch(northId, 'West');
   riyadhId = await createBranch(southId, 'Riyadh Desk', 'Asia/Riyadh');
@@ -122,6 +132,8 @@ function ownerTree() {
             id: northId,
             name_ar: null,
             name_en: 'North Shop',
+            business_type: 'retail' as const,
+            country: 'KW' as const,
             branches: [
               {
                 id: eastId,
@@ -143,6 +155,8 @@ function ownerTree() {
             id: southId,
             name_ar: null,
             name_en: 'South Shop',
+            business_type: 'salon' as const,
+            country: null,
             branches: [
               {
                 id: riyadhId,
@@ -233,6 +247,7 @@ describe('GET /v1/me/workspaces for a business scope', () => {
       scope: 'BUSINESS',
     });
     expect(company?.businesses.map((business) => business.id)).toEqual([northId]);
+    expect(company?.businesses[0]).toMatchObject({ business_type: 'retail', country: 'KW' });
     expect(company?.businesses[0]?.branches.map((branch) => branch.id)).toEqual([eastId, westId]);
   });
 });
@@ -253,6 +268,8 @@ describe('GET /v1/me/workspaces for a branch scope', () => {
         id: southId,
         name_ar: null,
         name_en: 'South Shop',
+        business_type: 'salon',
+        country: null,
         branches: [
           {
             id: riyadhId,

@@ -43,5 +43,12 @@ export function branchCategory(
 }
 
 export function business(branches: readonly WorkspaceBranch[]): WorkspaceBusiness {
-  return { id: businessId, name_en: 'Business', name_ar: null, branches: [...branches] };
+  return {
+    id: businessId,
+    name_en: 'Business',
+    name_ar: null,
+    business_type: 'salon',
+    country: null,
+    branches: [...branches],
+  };
 }

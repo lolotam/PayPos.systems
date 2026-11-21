@@ -1,4 +1,9 @@
-import type { WorkspaceCompanyNames } from '@pospay/contracts';
+import {
+  country,
+  type Country,
+  type WorkspaceBusiness,
+  type WorkspaceCompanyNames,
+} from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 
@@ -33,7 +38,8 @@ function branchHit(companyId: string) {
 
 function businessRows(companyId: string, reached: SQL) {
   return sql`
-    SELECT bu.id, bu.name_ar, bu.name_en
+    SELECT bu.id, bu.name_ar, bu.name_en, bu.vertical_type AS business_type,
+           bu.settings -> 'country' AS country
     FROM businesses bu
     WHERE bu.company_id = ${companyId} AND ${reached}`;
 }
@@ -74,6 +80,7 @@ function treeQuery(companyId: string, payload: string) {
     SELECT c.id, c.name_ar, c.name_en, COALESCE((
       SELECT jsonb_agg(jsonb_build_object(
         'id', bu.id, 'name_ar', bu.name_ar, 'name_en', bu.name_en,
+        'business_type', bu.business_type, 'country', bu.country,
         'branches', COALESCE(bt.branches, '[]'::jsonb)
       ) ORDER BY bu.name_en, bu.id)
       FROM business_hit bu
@@ -90,21 +97,42 @@ async function currentCompany(tx: Tx): Promise<string | null> {
   return row?.id ?? null;
 }
 
+type RawWorkspaceBusiness = Omit<WorkspaceBusiness, 'country'> & {
+  readonly country?: unknown;
+};
+
 type TreeRow = {
   readonly id: string;
   readonly name_ar: string | null;
   readonly name_en: string;
-  readonly businesses: WorkspaceCompanyNames['businesses'] | string;
+  readonly businesses: readonly RawWorkspaceBusiness[] | string;
 };
 
+function normalizeCountry(raw: unknown): Country | null {
+  const parsed = country.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
+
+function normalizeBusiness(raw: RawWorkspaceBusiness): WorkspaceBusiness {
+  return {
+    id: raw.id,
+    name_ar: raw.name_ar,
+    name_en: raw.name_en,
+    business_type: raw.business_type,
+    country: normalizeCountry(raw.country),
+    branches: raw.branches,
+  };
+}
+
 function treeOf(row: TreeRow): WorkspaceCompanyNames {
-  const businesses =
-    typeof row.businesses === 'string' ? JSON.parse(row.businesses) : row.businesses;
+  const rawBusinesses = (
+    typeof row.businesses === 'string' ? JSON.parse(row.businesses) : row.businesses
+  ) as readonly RawWorkspaceBusiness[];
   return {
     id: row.id,
     name_ar: row.name_ar,
     name_en: row.name_en,
-    businesses: businesses as WorkspaceCompanyNames['businesses'],
+    businesses: rawBusinesses.map(normalizeBusiness),
   };
 }
 
