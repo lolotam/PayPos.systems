@@ -60,7 +60,7 @@ interface CountryAuditRow {
   readonly after: { readonly country: string };
 }
 
-describe('the country change route (B-6/B-7)', () => {
+describe('setting a country after creation (B-6)', () => {
   it('sets a country on a business with template and custom keys, keeping them and auditing once', async () => {
     const created = await f.h.send('POST', '/v1/businesses', {
       cookie: owner,
@@ -87,7 +87,9 @@ describe('the country change route (B-6/B-7)', () => {
       { before: { country: null }, after: { country: 'KW' } },
     ]);
   });
+});
 
+describe('the country change route (B-6/B-7)', () => {
   it('sets the first value on the fixture business and audits unset before it', async () => {
     const res = await put({ country: 'KW' });
     expect(res.status).toBe(200);
