@@ -81,8 +81,8 @@ API only, no screen yet.
   `FORBIDDEN` 403.
 - **Assertions:** slots move `FREE → REFUNDED` only; one `package_refunds` row and one `package_refund_slots` row
   per session; `refunded_amount` on the entitlement grows by the amount; for a sold package a `PackageSaleChanged`
-  event is written in the same transaction (spec 058 FR-052). Its commission projection (spec 059 row 50-4) is not
-  built yet.
+  event is written in the same transaction (spec 058 FR-052). Its commission projection (spec 059 row 50-4) applies
+  the refund event by revision once the slice ships, and the six-type replay brings in sales recorded before it.
 - **Code:** `apps/api/src/modules/orders/use-cases/refund-package/refund-package.usecase.ts`,
   `apps/api/src/modules/orders/domain/package-refund-plan.ts`; the imported-refund switch is read by
   `apps/api/src/modules/settings/persistence/read-imported-refunds-enabled.ts`.

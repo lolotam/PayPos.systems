@@ -20,6 +20,7 @@ import {
   CommissionTipSalaryInputInvalidError,
 } from '../../domain/errors.ts';
 import type { CommissionCorrectionScope } from '../../ports/commission-correction.port.ts';
+import type { CommissionBlockNotices } from '../../ports/commission-block-notice.port.ts';
 import type { CommissionInputEventEnvelope } from '../../ports/commission-line-projection.port.ts';
 import type {
   Clock,
@@ -44,6 +45,7 @@ export class ProjectSalary {
     private readonly clock: Clock,
     private readonly ids: IdGenerator,
     private readonly corrections: CommissionCorrectionScope,
+    private readonly notices: CommissionBlockNotices,
   ) {}
 
   async execute(input: ProjectSalaryInput): Promise<void> {
@@ -88,6 +90,8 @@ export class ProjectSalary {
       eventId: input.eventId,
       targets,
       employees: closed.map((period) => ({ period, employeeId: input.employeeId })),
+      companyId: input.companyId,
+      notices: this.notices,
     });
     await this.scope.reopenReviewed({ businessId, periods: reviewed });
   }

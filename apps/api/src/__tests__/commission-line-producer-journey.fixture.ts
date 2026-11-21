@@ -20,6 +20,7 @@ import { expect, inject } from 'vitest';
 import { editFixture, type EditFixture } from '../../test/service-line-edit.fixture.ts';
 import { AT, ids, must } from '../../test/service-session.fixture.ts';
 import { createCommissionInputsConsumer } from '../../../worker/src/modules/commissions/index.ts';
+import { businessPermissionHolders } from '../../../worker/src/modules/identity/index.ts';
 import { businessCalendar, businessTimeZone } from '../../../worker/src/modules/tenancy/index.ts';
 import { createDeliverer } from '../../../worker/src/outbox/deliver.ts';
 
@@ -41,6 +42,7 @@ export async function journeyFixture() {
       businessTimeZone,
       employeeBusiness: async () => null,
       businessCalendar,
+      permissionHolders: businessPermissionHolders,
     });
     const deliver = createDeliverer(f.db, [consumer], createLogger('silent'), {
       knownEventTypes: consumer.eventTypes,

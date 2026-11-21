@@ -1,0 +1,77 @@
+# 074 — PR sequence
+
+Builds the three switchable navigation styles of `spec.md` and `design.md` in `apps/admin` and `packages/ui`. Each step is one PR. Local gate per CLAUDE.md §1 step 3; a step is done only when `ci-gate` is green on its exact head.
+
+Under PP-204 this session writes the spec and plan only. The manager opens an implementer session per step.
+
+## Tiers (PP-195)
+
+The manager sends the tier card per task; these are the recommendations.
+
+| Steps | Tier | Why |
+|---|---|---|
+| 0a, 0b | Light | Docs only |
+| 0c | Medium (approved 2026-11-21: «اعتمد Medium») | A read-only API contract change: two fields on the workspace response. No money, permission or migration. Separate PR; `34-pre-3` landed in PR #1161 (32b-1 + 34-pre-3) |
+| 1 + 2 | Medium (approved 2026-11-21: «Medium في PR واحد») | Combined single PR for the typed navigation model (`074-1`) and i18n keys (`074-2`): front end and `packages/i18n` only, no API, permission, storage, DB migration or live shell switch. Concise delivery spec in `step-1-2-spec.md` |
+| 3 to 11 | Medium | Front end only, no money, permission, DB or API change, but each is over 150 lines |
+| 12 | Heavy | A migration and a new endpoint. It merges only after Waleed approves it on a card (CLAUDE.md header, PP-195). Who presses merge is a separate matter: PP-201 (`docs/owner-decisions.ar.md` item 121) lets the manager do it. The two records disagree on whether PP-201 also removes the card; until Waleed says so in writing, the card is required |
+
+## Order
+
+| # | PR | Touches | Done when |
+|---|---|---|---|
+| 0a | Spec and plan | This folder | Merged to `main` so later sessions start from it. Done by the PR that adds this folder |
+| 0b | Decision records | `docs/owner-decisions.ar.md` (a PP entry for the 2026-11-21 answers); ADR-0003 addendum (the `nav_style` column on `user`); ADR-0059 addendum (the theme switch moves to the Appearance page and the account menu in all three styles, NAV-Q5); the audit exception written into CLAUDE.md §8 (NAV-Q16); `docs/journey/` step (PP-196.4) | Merged before the step that needs each record: the PP entry before step 1, ADR-0059 before step 7, ADR-0003 and the CLAUDE.md §8 audit exception before step 12 |
+| 0c | Workspace business fields | `packages/contracts/src/identity/workspaces.ts` (`WorkspaceBusiness` gains the business type and the country code, both read-only), the `GET /v1/me/workspaces` read behind it, the regenerated API client | Its own spec and tier card first: this is an API contract change, so it is not a Light step. Both fields are returned for every business the caller can reach, with a result-shape test and an `EXPLAIN ANALYZE` assertion on the changed workspace query (CLAUDE.md §9). Merged before step 7 |
+| 1 | Navigation model | A page export per business area under `apps/admin/src/<area>/`, composed in `apps/admin/app/(dashboard)/_frame/navigation-model.ts` (new), and its spec (CLAUDE.architecture.md §6.4, §11.2) | One typed page list (label key, route, icon, show condition, count source, state `live` or `soon`, section and sub-menu) holding every Management-area page of `app-map.md` (a page marked New there is `soon` until step 7 adds its route), and three groupings, A, B and C. The other areas of that file are outside this sequence. Each `soon` entry also carries the business types (PRD §7.1) and roles (PRD §3.2) that see it (NAV-Q14); the step adds the roles to the shared source `app-map.shared.mjs`, which generates the Roles column, and never edits `app-map.md` by hand. Tests: every `page.tsx` under `(dashboard)` plus `/security/two-factor` is in the page list; every page appears exactly once in each grouping |
+| 2 | i18n keys | `packages/i18n` | Group, tab, section, style-name and Appearance labels in ar and en, the names of every section, sub-menu and page of the Management area of `app-map.md`, the "Soon" mark and the Under development page text. `schedules.reload` added; `staff.reload` no longer used on Schedules |
+| 3 | Shared shell parts | `packages/ui`: `WorkspaceSwitcher`, `AccountMenu`, `NavTabs`, `Pills`, `BottomNav`, `HubCard`, `PageShell` | Component specs assert visible state: current item, open, RTL side |
+| 4 | Style A parts | `packages/ui`: `AppSidebar` gains a collapsed rail state and group items | Specs: collapsed, expanded, current group |
+| 5 | Style B parts | `packages/ui`: `TopNav` with `MegaMenu`, `LocalNav`, drawer with accordion groups | Specs: menu open and closed, current module, drawer on phone width |
+| 6 | Style C parts | `packages/ui`: `NavRail`, `ContextPanel`, `PageFinder` | Specs: current workspace, panel hidden, finder filters and opens a page. If the finder needs a new library, an ADR comes first (CLAUDE.md §11) |
+| 7 | **The switch: three frames go live together** | `apps/admin/app/(dashboard)/_frame` (`dashboard-frame.tsx`, `dashboard-sidebar.tsx`, `dashboard-navigation.tsx`, the 15 `*-nav-item.tsx` files fold into the model), `apps/admin/src/shared/frame/app-frame.tsx`, a `pospay_nav_style` cookie reader and writer beside `src/shared/locale`, new routes `/appearance`, `/approvals` (the Approvals inbox), `/overview/[group]` and `/soon/[page]` (the shared Under development page) | Default is C. Every section and sub-menu of the Management area of `app-map.md` is in the menu; the Approvals inbox under Home is a working page listing the existing kinds of approval, each linking to its page; not-built entries carry the "Soon" mark and open the Under development page. The Appearance page and the account menu switch style with no reload. The server renders the saved style on first paint. Active-item test covers every route in all three styles, including `/staff-app-columns`. One rendered test per style asserts the visible current item. Label keys exist in ar and en. A user with no permissions can switch. Sign-out clears the cookie, and both sign-in paths set or clear it before entering the dashboard. `/security/two-factor` sits outside `(dashboard)` and draws only its enrol gate today: this step brings it inside the frame, keeping its address and its gate, with a rendered test. Employee detail gets its route in step 10 and Schedule settings in step 11; until step 11 Schedule settings is not a menu entry of its own (it stays the block at the top of Weekly schedules), so no two entries share one address. The theme switch is on the Appearance page and in the account menu in all three styles (NAV-Q5). Social media management is listed as a Soon entry (NAV-Q15). On a phone the longest path is tested at 390px starting outside the target group. Soon entries are shown by business type and role (NAV-Q14), and the same rule holds in the menu, the page finder and direct `/soon/...` links, with a test per business type and per role. Every assertion in the existing `*-nav-item.spec.tsx` and `staff-navigation.spec.tsx` files (which items a permission or a loading state hides) is carried over to the model tests before those files are removed |
+| 8 | Page frame | `packages/ui` `PageHeader`, `PageShell` (width and gaps), `DataTableFrame` filter and footer slots, stacked rows under 600px | One list page, one form page and one two-column page migrated as reference |
+| 9 | Sales and Catalog pages | `apps/admin/src/orders/**`, `apps/admin/src/catalog/**` | Record a visit two-column with sticky summary; list and create pages on the templates |
+| 10 | Team and Pay pages | `apps/admin/src/staff/**`, `apps/admin/src/commissions/**` | Employee detail as a tabbed page on its own route; Numbers, Import, Document types, Plans and Overrides on the templates |
+| 11 | Attendance, Leave and Setup pages | attendance, leave, identity, permissions, alerts, staff app, schedules | Board template; list pages; Schedule settings as its own page; per-page branch pickers read the workspace branch |
+| 12 | Account preference | The ADR-0003 addendum and the audit exception from step 0b are merged; `packages/contracts`, `packages/db` (migration: a nullable `nav_style` column on `user`, NAV-Q10), `packages/auth`, `apps/api` (`GET` and `PUT /v1/me/preferences`), `apps/admin` (read on sign-in, write on change) | The `spec.md` integration scenarios PREF-01 to PREF-09 pass; the PUT is registered in `AUTHENTICATED_WRITES`. The choice follows the user to another browser. Until this merges the choice is kept by the cookie on each device |
+
+Steps 1 and 2 are approved as one Medium PR (Waleed, 2026-11-21, «Medium في PR واحد», `owner-questions.ar.md`; concise scope and delivery contract in `step-1-2-spec.md`): the label-key test of step 1 can only pass once the keys of step 2 exist. Separate step `0c` is approved as Medium (Waleed, 2026-11-21, «اعتمد Medium») after `34-pre-3` landed; steps 1 + 2 deliver the typed model and i18n keys without waiting for workspace fields or changing live navigation. Steps 1 to 6 change nothing a user can see (except step 2 fixing the `schedules.reload` button label on Weekly schedules, FR-017). Step 7 is the release of all three styles at once, as the owner asked (NAV-Q8). Steps 4, 5 and 6 are independent of each other; steps 8 to 11 are independent of each other once 8 has merged; step 12 depends only on step 7 and on NAV-Q10. How many run at once is the manager's call under PP-118.
+
+Between step 7 and step 12 the choice is kept per device. The owner accepted this order on 2026-11-21 (NAV-Q12): the three styles release first, saving on the account follows.
+
+The manager reserves the numbers: the next free ADR looks like 0061 and the next PP entry is 212 or later (PP-211 is the highest in `docs/owner-decisions.ar.md` at `cf70114e2`).
+
+Not in this sequence: the cashier app (`design.md` §10, a separate spec first) and `lovable-pospay`, which gets its own spec and plan in its own repository (NAV-Q2).
+
+## Overlap with work in flight
+
+Checked on 2026-11-21 against open PRs by changed file: #1147 (commissions, blocked corrections list), #1145 (pipeline docs) and #1138 (ratings docs). None changes a file under `_frame`, `packages/ui` or `packages/i18n`; #1147 changes the generated `apps/admin/src/shared/api/schema.d.ts` only.
+
+- New admin pages keep arriving (the two commission pages landed between the first draft and this one). After step 1 merges, every PR that adds an admin page must add it to the page list and to all three groupings; the step 1 test fails if it does not. It must also change the shared map source, `app-map.shared.mjs`, regenerate both `app-map.md` files and open the matching docs PR in `lolotam/lovable-pospay`; no local test can catch a missing update there. Tell the manager so briefs for page-adding tasks include it.
+- Until step 7 merges, new pages still add a `*-nav-item.tsx` file. Step 7 must be rebased on `main` and fold in any that appeared.
+- Step 10 must keep the `admin-document-popup` job green.
+
+## Rules for every PR
+
+- No colour, font, radius or button-variant change.
+- Existing URLs unchanged. New routes only as listed in `design.md` §4.
+- Strings through `packages/i18n` only; logical CSS properties only; icons per ADR-0060.
+- UI tests assert what the user sees (CLAUDE.md §9), in each style the PR touches.
+- Guards and review follow PP-198: the implementer runs the guards, the session runs one `/code-review`.
+
+## Risks
+
+| Risk | Mitigation |
+|---|---|
+| Three frames drift: a page is added to one style only | One page list, three groupings, and the step 1 test |
+| Three times the frame tests slow CI | Route and active-item tests are table-driven over the model, not three copies; component specs stay in `packages/ui` |
+| Nav items hidden by async permission reads leave an empty group, tab row or panel section | The model carries the condition; a group with no visible child is hidden; counts load after the frame |
+| A style-only overview route is opened under another style, or the style is switched while on one | `/overview/[group]` sends the user to the first page of that group they are allowed to see; an unknown group, or one with no visible page, goes to Home |
+| Per-page branch pickers disagree with the workspace branch | Step 11 makes the workspace branch the single source; the page picker becomes a filter that defaults to it |
+| Splitting Schedule settings changes where a manager looks | A link from Weekly schedules to Schedule settings stays in the page header |
+| The account write fails or step 12 is late | The cookie keeps the choice per device; the frame never waits on the account call |
+| A section with 16 pages does not fit a style on a phone | The full map was not prototyped. Step 1 lists the longest sections; step 7 is checked at 390px in each style before release, and a sub-menu may collapse behind its heading |
+| A "Soon" entry promises something that is later dropped or renamed | Names are working names from the PRD; the entry is removed or renamed by the task that decides it, and `/soon/<id>` for a removed id shows not-found |
+| The page finder needs a library | Decide in step 6 before writing it; an ADR if so |
+| The Approvals inbox under Home gathers pages with different permissions | Each kind keeps its own condition; the inbox lists and counts only what the user may see |

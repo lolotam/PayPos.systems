@@ -15,6 +15,7 @@ import {
   serviceId,
 } from './catalog-openapi-common.js';
 import { serviceCategoryPaths } from './catalog-openapi-service-categories.js';
+import { serviceImportSchemas } from './service-import.js';
 
 export const catalogSchemas = [
   ...serviceSchemas,
@@ -23,6 +24,7 @@ export const catalogSchemas = [
   ...packageTypeSchemas,
   ...sellablePackageTypeSchemas,
   ...packageServiceOptionSchemas,
+  ...serviceImportSchemas,
 ];
 
 export const catalogPaths = {

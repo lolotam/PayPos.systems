@@ -803,6 +803,18 @@ approach 200 ms) and 32b-3 (worker, long work), pipeline §3 step 2.
 | **32b-5** | Commit request (the producer) | 1. Commit-request use case and route (202, idempotency, the id-only event). 2. Wiring and rollout note: ships only after 32b-3 and 32b-4 are deployed to the environment, so no event is emitted without its consumer and sweep. 3. SIT-05, SIT-09 and the acceptance timing | 32b-2, 32b-3, 32b-4 | 250 to 400 |
 | **32b-6** | The screen | 1. The `catalog/import` page and panel, with the polling hook and the stored request id. 2. The table of resolved rows with the defaulted-rule marker, the link on the services list and the ar/en keys. 3. Component tests that assert visible outcomes; the journey doc `docs/journey/NN-services-import.md` follows in its own docs PR (pipeline step 14) | 32b-5 | 350 to 500 |
 
+**Delivery note (2026-11-21, 32b-1 remainder).** The row 32b-1 shipped in three pieces before this note and its
+remainder ships in the shared delivery with 34-pre-3
+([delivery-32b-1-34-pre-3-spec.md](delivery-32b-1-34-pre-3-spec.md), owner steering «SAME PR SAME PLANE SAME SPEC»
+and tier Medium under PP-212): the price parser (32b-1a, PR #817), the generic `tagCells` step (32b-1c, PR #823) and
+the commission parser (32b-1d, PR #824). The workbook reader move happened as the `packages/import-workbooks` package
+(PR #871, 47-1b), so no `readHeaderRow` was built: `readWorkbookMatrix` returns the whole first-sheet matrix and
+`readSheet` keeps the exact-header check (a separate guarded header read of FR-001 is obsolete text). The remainder
+delivers the contracts and OpenAPI schema registration without paths, the ar/en row-code and column messages, the
+header pre-selection, the name/duration/category/boolean converters, the row mapper, the duplicate key and the
+in-file duplicates with their tests. P-1 (formats matrix), P-2 (sourceRows join), P-3 (template reference-sheet
+margin), P-4 (catalog object-bytes reader port) and P-7 (real-reader sheet tests) belong to 32b-2.
+
 The graph is: the category and attribute PRs run as one serial chain, because three of them carry migrations and take
 the single migration lane: 32b-cat-1, then 32b-cat-1b, then 32b-pre-1, then 32b-cat-2. 32b-pre-2 starts after 32b-pre-1, beside
 32b-cat-2 (disjoint files: the admin service form and list against the API and database), and 32b-cat-3 after

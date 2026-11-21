@@ -4,6 +4,7 @@ import type { Tx } from '@pospay/db';
 
 import type {
   CoverageProjectionReader,
+  SaleCoverageRow,
   SalaryCoverageRow,
   ServiceLineCoverageRow,
   TipCoverageRow,
@@ -59,6 +60,28 @@ export function projectedTipRevisionsStatement(
        AND session_id = ANY(${uuidArray(sessionIds)})`;
 }
 
+export function projectedSaleRevisionsStatement(
+  companyId: string,
+  saleIds: readonly string[],
+): SQL {
+  return sql`
+    SELECT sale_id, revision::int AS revision FROM commission_sales
+     WHERE company_id = ${companyId}
+       AND sale_id = ANY(${uuidArray(saleIds)})`;
+}
+
+async function readSaleRevisions(
+  tx: Tx,
+  companyId: string,
+  saleIds: readonly string[],
+): Promise<readonly SaleCoverageRow[]> {
+  if (saleIds.length === 0) return [];
+  const rows = await tx.execute<{ sale_id: string; revision: number }>(
+    projectedSaleRevisionsStatement(companyId, saleIds),
+  );
+  return rows.map((row) => ({ saleId: row.sale_id, revision: row.revision }));
+}
+
 export function createCoverageProjectionReader(): CoverageProjectionReader {
   return {
     lineRevisions: async (
@@ -112,5 +135,6 @@ export function createCoverageProjectionReader(): CoverageProjectionReader {
       );
       return rows.map((row) => ({ sessionId: row.session_id, revision: row.revision }));
     },
+    saleRevisions: (tx, companyId, saleIds) => readSaleRevisions(tx, companyId, saleIds),
   };
 }

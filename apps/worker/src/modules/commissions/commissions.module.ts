@@ -1,3 +1,7 @@
+import {
+  commissionCorrectionBlockedNoticeGroupSize,
+  commissionCorrectionBlockedNoticeRequested,
+} from '@pospay/contracts';
 import type { TenantWrappers, Tx } from '@pospay/db';
 
 import type { OutboxConsumer } from '../../outbox/consumer.ts';
@@ -12,11 +16,14 @@ import {
   type BusinessTimeZoneReader,
 } from './persistence/commission-line-projection.scope.ts';
 import { createCommissionCorrectionScope } from './persistence/commission-correction.scope.ts';
+import { createCommissionBlockNotices } from './persistence/commission-block-notice.outbox.ts';
 import { markCommissionEventConsumed } from './persistence/commission-event-consumption.ts';
 import { createCoverageProjectionReader } from './persistence/commission-coverage.reads.ts';
+import type { CommissionPermissionHoldersReader } from './ports/commission-block-notice.port.ts';
 import type {
   CoverageCompanyReader,
   CoverageRetainedPageReader,
+  PackageSaleCoverageReader,
   SalaryCoverageReader,
   ServiceLineCoverageReader,
 } from './ports/commission-coverage.port.ts';
@@ -32,9 +39,11 @@ import {
   type BusinessCalendarReader,
   type EmployeeBusinessReader,
 } from './persistence/commission-tip-salary-projection.scope.ts';
+import { createCommissionSaleProjectionScope } from './persistence/commission-sale-projection.scope.ts';
 import type { Clock, IdGenerator } from './ports/commission-line-projection.port.ts';
 import type { CurrentTipSessionsReader } from './ports/commission-tip-bootstrap.port.ts';
 import { ProjectSalary } from './use-cases/project-salary/project-salary.ts';
+import { ProjectPackageSale } from './use-cases/project-package-sale/project-package-sale.ts';
 import { ProjectServiceLines } from './use-cases/project-service-lines/project-service-lines.ts';
 import { ProjectSessionTips } from './use-cases/project-session-tips/project-session-tips.ts';
 import type { CommissionStatementExportData } from './ports/commission-statement-export.port.ts';
@@ -71,6 +80,7 @@ const COMMISSION_INPUT_EVENT_TYPES = [
   'ServiceLineChanged',
   'SessionTipsChanged',
   'SalaryChanged',
+  'PackageSaleChanged',
 ];
 
 export interface CommissionInputsConsumerDependencies {
@@ -79,7 +89,13 @@ export interface CommissionInputsConsumerDependencies {
   readonly businessTimeZone: BusinessTimeZoneReader;
   readonly employeeBusiness: EmployeeBusinessReader;
   readonly businessCalendar: BusinessCalendarReader;
+  readonly permissionHolders: CommissionPermissionHoldersReader<Tx>;
 }
+
+const commissionBlockNoticeContract = {
+  groupSize: commissionCorrectionBlockedNoticeGroupSize,
+  parsePayload: (payload: unknown) => commissionCorrectionBlockedNoticeRequested.parse(payload),
+};
 
 /** يربط مستهلك مدخلات العمولة بقارئ المنطقة الزمنية وبالساعة والمولّد المحقونين من الجذر. */
 export function createCommissionInputsConsumer(
@@ -87,18 +103,24 @@ export function createCommissionInputsConsumer(
 ): OutboxConsumer {
   const bind = (tx: Tx) => {
     const corrections = createCommissionCorrectionScope(tx, dependencies.ids, dependencies.clock);
+    const notices = createCommissionBlockNotices(tx, dependencies.ids, dependencies.clock, {
+      ...commissionBlockNoticeContract,
+      permissionHolders: dependencies.permissionHolders,
+    });
     return {
       lines: new ProjectServiceLines(
         createCommissionLineProjectionScope(tx, dependencies.businessTimeZone),
         dependencies.clock,
         dependencies.ids,
         corrections,
+        notices,
       ),
       tips: new ProjectSessionTips(
         createCommissionTipProjectionScope(tx, dependencies.businessTimeZone, dependencies.ids),
         dependencies.clock,
         dependencies.ids,
         corrections,
+        notices,
       ),
       salary: new ProjectSalary(
         createCommissionSalaryProjectionScope(
@@ -109,6 +131,12 @@ export function createCommissionInputsConsumer(
         dependencies.clock,
         dependencies.ids,
         corrections,
+        notices,
+      ),
+      sales: new ProjectPackageSale(
+        createCommissionSaleProjectionScope(tx, dependencies.businessTimeZone, dependencies.ids),
+        dependencies.clock,
+        dependencies.ids,
       ),
     };
   };
@@ -140,6 +168,10 @@ export function createCommissionTipsBootstrap(
             dependencies.ids,
             // نطاق التصحيح يُبنى ولا يُستعمل: التهيئة بلا حدث مرفوضة قبل أي هدف مغلق (CS-Q45).
             createCommissionCorrectionScope(tx, dependencies.ids, dependencies.clock),
+            createCommissionBlockNotices(tx, dependencies.ids, dependencies.clock, {
+              ...commissionBlockNoticeContract,
+              permissionHolders: dependencies.permissionHolders,
+            }),
           ),
       },
       scope,
@@ -151,6 +183,7 @@ export function createCommissionCoverageReport(dependencies: {
   readonly database: Pick<TenantWrappers, 'withTenant'>;
   readonly lines: ServiceLineCoverageReader;
   readonly salaries: SalaryCoverageReader;
+  readonly sales: PackageSaleCoverageReader;
   readonly retained: CoverageRetainedPageReader;
   readonly companies: CoverageCompanyReader;
   readonly tipsReader?: CurrentTipSessionsReader;
@@ -161,6 +194,7 @@ export function createCommissionCoverageReport(dependencies: {
         withTenant: dependencies.database.withTenant,
         lines: dependencies.lines,
         salaries: dependencies.salaries,
+        sales: dependencies.sales,
         projection: createCoverageProjectionReader(),
         retained: dependencies.retained,
         companies: dependencies.companies,

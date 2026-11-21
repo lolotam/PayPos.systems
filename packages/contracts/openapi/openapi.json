@@ -442,6 +442,84 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/country": {
+      "put": {
+        "operationId": "setBusinessCountry",
+        "description": "Sets the business country (34-pre-3) inside businesses.settings, keeping every other settings key stored. One of the six permitted GCC codes (OQ-3). Requires manage:settings:business on that business. The row is read under FOR NO KEY UPDATE and an unchanged value answers 200 without an UPDATE or an audit row; the audit records only the country before and after. An unknown or a foreign business is refused by the business-scoped guard like every business route (the same 403). No Idempotency-Key: no money or stock effect.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetBusinessCountryInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The business and its stored country",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetBusinessCountryResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/packages/import/previews": {
       "post": {
         "operationId": "requestPackageImportPreview",
@@ -30542,6 +30620,440 @@
           "next_cursor"
         ]
       },
+      "ServiceImportColumn": {
+        "type": "string",
+        "enum": [
+          "name_en",
+          "name_ar",
+          "price",
+          "duration_minutes",
+          "category",
+          "commission_rule",
+          "commission_value",
+          "counts_toward_threshold",
+          "unexpected_column"
+        ]
+      },
+      "ServiceImportErrorCode": {
+        "type": "string",
+        "enum": [
+          "IMPORT_REQUIRED_CELL",
+          "IMPORT_NAME_INVALID",
+          "IMPORT_PRICE_INVALID",
+          "IMPORT_COMMISSION_RULE_INVALID",
+          "IMPORT_COMMISSION_VALUE_INVALID",
+          "IMPORT_BOOLEAN_INVALID",
+          "IMPORT_DURATION_INVALID",
+          "IMPORT_CATEGORY_NOT_FOUND",
+          "IMPORT_CELL_INVALID",
+          "IMPORT_COLUMN_UNEXPECTED",
+          "IMPORT_DUPLICATE_IN_FILE",
+          "IMPORT_SERVICE_EXISTS"
+        ]
+      },
+      "ServiceImportRowError": {
+        "type": "object",
+        "properties": {
+          "row": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 9007199254740991
+          },
+          "column": {
+            "$ref": "#/components/schemas/ServiceImportColumn"
+          },
+          "code": {
+            "$ref": "#/components/schemas/ServiceImportErrorCode"
+          }
+        },
+        "required": [
+          "row",
+          "column",
+          "code"
+        ]
+      },
+      "ServiceImportTemplate": {
+        "type": "object",
+        "properties": {
+          "file_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "content_type": {
+            "type": "string",
+            "enum": [
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ]
+          },
+          "content_base64": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "file_name",
+          "content_type",
+          "content_base64"
+        ]
+      },
+      "PreviewServiceImportInput": {
+        "type": "object",
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "file_id"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceImportRow": {
+        "type": "object",
+        "properties": {
+          "row": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 9007199254740991
+          },
+          "name_en": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "not": {
+              "type": "string",
+              "pattern": "[\\x00-\\x1F\\x7F-\\x9F]"
+            }
+          },
+          "name_ar": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "not": {
+              "type": "string",
+              "pattern": "[\\x00-\\x1F\\x7F-\\x9F]"
+            }
+          },
+          "price": {
+            "$ref": "#/components/schemas/ServicePrice"
+          },
+          "duration_minutes": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 600
+          },
+          "category_id": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "category_name_en": {
+            "nullable": true,
+            "type": "string"
+          },
+          "commission_rule": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "FOLLOW_PLAN"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "ZERO"
+                    ]
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "PCT"
+                    ]
+                  },
+                  "value": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 10000
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "FIXED"
+                    ]
+                  },
+                  "value": {
+                    "$ref": "#/components/schemas/ServicePrice"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "value"
+                ]
+              }
+            ]
+          },
+          "commission_value": {
+            "anyOf": [
+              {
+                "nullable": true,
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000
+              },
+              {
+                "type": "string",
+                "pattern": "^(0|[1-9]\\d{0,10})\\.\\d{3}$"
+              }
+            ]
+          },
+          "commission_rule_defaulted": {
+            "type": "boolean"
+          },
+          "counts_toward_threshold": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "row",
+          "name_en",
+          "name_ar",
+          "price",
+          "duration_minutes",
+          "category_id",
+          "category_name_en",
+          "commission_rule",
+          "commission_value",
+          "commission_rule_defaulted",
+          "counts_toward_threshold"
+        ]
+      },
+      "ServiceImportPreview": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "row_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500
+          },
+          "error_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "errors": {
+            "maxItems": 5000,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceImportRowError"
+            }
+          },
+          "rows": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceImportRow"
+            }
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^(?:[2-9]|[1-9][0-9]{1,5}|10[0-3][0-9]{4}|104[0-7][0-9]{3}|1048[0-4][0-9]{2}|10485[0-6][0-9]|104857[0-6])$",
+            "description": "Original Excel row number from 2 through 1048576."
+          }
+        },
+        "required": [
+          "preview_id",
+          "row_count",
+          "error_count",
+          "errors",
+          "rows",
+          "next_cursor"
+        ]
+      },
+      "ServiceImportRowsCursor": {
+        "type": "string",
+        "pattern": "^(?:[2-9]|[1-9][0-9]{1,5}|10[0-3][0-9]{4}|104[0-7][0-9]{3}|1048[0-4][0-9]{2}|10485[0-6][0-9]|104857[0-6])$",
+        "description": "Original Excel row number from 2 through 1048576."
+      },
+      "ServiceImportRowsQuery": {
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceImportRowsCursor"
+              }
+            ]
+          },
+          "limit": {
+            "default": 20,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      },
+      "ServiceImportRowsPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceImportRow"
+            }
+          },
+          "next_cursor": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^(?:[2-9]|[1-9][0-9]{1,5}|10[0-3][0-9]{4}|104[0-7][0-9]{3}|1048[0-4][0-9]{2}|10485[0-6][0-9]|104857[0-6])$",
+            "description": "Original Excel row number from 2 through 1048576."
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ]
+      },
+      "CommitServiceImportInput": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "preview_id"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceImportCommit": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "created_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500
+          },
+          "service_ids": {
+            "maxItems": 500,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          }
+        },
+        "required": [
+          "preview_id",
+          "created_count",
+          "service_ids"
+        ],
+        "additionalProperties": false
+      },
+      "ServiceImportCommitAccepted": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "required": [
+          "preview_id"
+        ]
+      },
+      "ServiceImportStatus": {
+        "type": "object",
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "commit_requested",
+              "committed",
+              "failed"
+            ]
+          },
+          "created_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500
+          },
+          "error_code": {
+            "nullable": true,
+            "enum": [
+              "IMPORT_SERVICE_EXISTS",
+              "IMPORT_CATEGORY_NOT_FOUND",
+              "IMPORT_PREVIEW_EXPIRED",
+              "IMPORT_PREVIEW_HAS_ERRORS",
+              "IMPORT_COMMIT_FAILED",
+              null
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "preview_id",
+          "status",
+          "created_count",
+          "error_code"
+        ]
+      },
       "AlertKind": {
         "type": "string",
         "enum": [
@@ -41061,6 +41573,117 @@
               "template_key": {
                 "type": "string",
                 "enum": [
+                  "commission_correction_blocked"
+                ]
+              },
+              "safe_parameters": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "enum": [
+                            "period"
+                          ]
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "text"
+                          ]
+                        },
+                        "value": {
+                          "type": "string",
+                          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "type",
+                        "value"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "minItems": 1,
+                "maxItems": 1
+              }
+            },
+            "required": [
+              "id",
+              "company_id",
+              "business_id",
+              "branch_id",
+              "source_event_id",
+              "template_revision",
+              "locale",
+              "created_at",
+              "read_at",
+              "template_key",
+              "safe_parameters"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "company_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "business_id": {
+                "nullable": true,
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "branch_id": {
+                "nullable": true,
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "source_event_id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              "template_revision": {
+                "type": "number",
+                "enum": [
+                  1
+                ]
+              },
+              "locale": {
+                "type": "string",
+                "enum": [
+                  "ar",
+                  "en"
+                ]
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "read_at": {
+                "nullable": true,
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "template_key": {
+                "type": "string",
+                "enum": [
                   "break_returned_other_branch"
                 ]
               },
@@ -43256,7 +43879,12 @@
           "settings": {
             "default": {},
             "type": "object",
-            "additionalProperties": {}
+            "additionalProperties": {},
+            "not": {
+              "required": [
+                "country"
+              ]
+            }
           }
         },
         "required": [
@@ -43264,6 +43892,35 @@
           "name_en"
         ],
         "additionalProperties": false
+      },
+      "SetBusinessCountryInput": {
+        "type": "object",
+        "properties": {
+          "country": {
+            "$ref": "#/components/schemas/Country"
+          }
+        },
+        "required": [
+          "country"
+        ],
+        "additionalProperties": false
+      },
+      "SetBusinessCountryResult": {
+        "type": "object",
+        "properties": {
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "country": {
+            "$ref": "#/components/schemas/Country"
+          }
+        },
+        "required": [
+          "business_id",
+          "country"
+        ]
       },
       "Branch": {
         "type": "object",
@@ -44163,6 +44820,17 @@
           "ZAR",
           "ZMW",
           "ZWG"
+        ]
+      },
+      "Country": {
+        "type": "string",
+        "enum": [
+          "KW",
+          "SA",
+          "AE",
+          "BH",
+          "QA",
+          "OM"
         ]
       },
       "TimeZone": {

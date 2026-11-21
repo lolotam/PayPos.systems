@@ -1,6 +1,6 @@
 'use client';
 
-import type { PlanAttemptMemory } from '../api/use-save-commission-plan';
+import type { CommissionPlanEmployeeListItem } from '@pospay/contracts';
 import { usePlanAccess, type PlanScope } from '../api/plan-access';
 import { isCursorUnavailable } from '../api/plan-access';
 import { useCommissionPlanEmployees } from '../api/use-commission-plan-employees';
@@ -11,19 +11,20 @@ import {
   commissionPlanEmployeeLabel,
 } from '../ui/commission-plan-employee-picker';
 import { planRefusalMessage } from '../ui/plan-server-messages';
-import { CommissionPlanSection } from '../ui/commission-plan-section';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
+/** الاختيار اللي بتسلّمه اللقطة للشاشة اللي تحته: الموظفة والتسمية وتوقيت النشاط. */
+export type PlanBoardSelection = { employee: CommissionPlanEmployeeListItem; employeeLabel: string; timeZone: string };
 interface CommissionPlansBoardProps {
   scope: PlanScope;
-  memory: PlanAttemptMemory;
+  renderSection(selection: PlanBoardSelection): ReactNode;
 }
 
 /**
  * لقطة الموظفين والتاريخ لموظفة مختارة: بيبنيوا على أول صفحة موظفين ناجحة، والاختيار عايش هنا
  * فبيضيع لوحده مع قفل الوصول ومفيش استعادة للاختيار القديم بعد «جرّب تاني».
  */
-export function CommissionPlansBoard({ scope, memory }: CommissionPlansBoardProps) {
+export function CommissionPlansBoard({ scope, renderSection }: CommissionPlansBoardProps) {
   const locale = useLocale();
   const [selectedId, setSelectedId] = useState('');
   const employees = useCommissionPlanEmployees(scope);
@@ -57,16 +58,9 @@ export function CommissionPlansBoard({ scope, memory }: CommissionPlansBoardProp
           onChange={setSelectedId}
         />
       ) : null}
-      {selected !== null ? (
-        <CommissionPlanSection
-          key={selected.id}
-          scope={scope}
-          employee={selected}
-          employeeLabel={commissionPlanEmployeeLabel(selected, locale)}
-          timeZone={timeZone}
-          memory={memory}
-        />
-      ) : null}
+      {selected !== null
+        ? renderSection({ employee: selected, employeeLabel: commissionPlanEmployeeLabel(selected, locale), timeZone })
+        : null}
     </>
   );
 }

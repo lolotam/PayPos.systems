@@ -29,6 +29,7 @@ import {
 } from '../events/handlers/on-commission-input-event.handler.ts';
 import { createCommissionCorrectionScope } from '../persistence/commission-correction.scope.ts';
 import { createCommissionLineProjectionScope } from '../persistence/commission-line-projection.scope.ts';
+import { noCommissionBlockNotices } from './commission-block-notice.fakes.ts';
 import {
   normalizeCommissionLineEvent,
   ProjectServiceLines,
@@ -128,15 +129,17 @@ async function instrumentedAttempt(incoming: ClaimedEvent | CommissionLineEventI
       clock,
       ids,
       createCommissionCorrectionScope(tx, ids, clock),
+      noCommissionBlockNotices,
     );
     if ('eventType' in incoming) {
       const unusedUseCase = {
         execute: async () => {
           throw new Error('unused in lines test');
         },
-      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'];
+      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'] &
+      CommissionInputUseCases['sales'];
       await onCommissionInputEvent(
-        { lines: useCase, tips: unusedUseCase, salary: unusedUseCase },
+        { lines: useCase, tips: unusedUseCase, salary: unusedUseCase, sales: unusedUseCase },
         incoming,
       );
     } else await useCase.execute(incoming);

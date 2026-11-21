@@ -35,6 +35,7 @@ import {
   startStaffWorker,
 } from './modules/staff/index.ts';
 import { startCatalogWorker } from './modules/catalog/index.ts';
+import { businessPermissionHolders } from './modules/identity/index.ts';
 import {
   createLateServiceSessionNoticeConsumer,
   createLineCancelNoticeConsumer,
@@ -187,6 +188,7 @@ const businessDeliver = createDeliverer(
       businessTimeZone,
       employeeBusiness: readEmployeeBusiness,
       businessCalendar,
+      permissionHolders: businessPermissionHolders,
     }),
   ],
   logger,

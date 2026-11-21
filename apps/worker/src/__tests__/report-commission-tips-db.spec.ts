@@ -16,6 +16,7 @@ import {
 import { createCommissionCoverageReport } from '../modules/commissions/index.ts';
 import { createCoverageProjectionReader } from '../modules/commissions/persistence/commission-coverage.reads.ts';
 import {
+  listCurrentPackageSales,
   readCurrentSessionTips,
   readServiceLineCoveragePage,
 } from '../modules/orders/index.ts';
@@ -51,6 +52,7 @@ function coverageReport() {
     database: db,
     lines: { readPage: readServiceLineCoveragePage },
     salaries: { readPage: readSalaryCoveragePage },
+    sales: { readPage: listCurrentPackageSales },
     retained: dispatcher,
     companies: { isOpen: companyOpen },
     tipsReader: { readPage: readCurrentSessionTips },

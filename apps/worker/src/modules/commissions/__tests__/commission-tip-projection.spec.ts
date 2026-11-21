@@ -78,7 +78,7 @@ const postedCorrections = () => owner`SELECT employee_id,source_period,target_pe
 const postedGenerations = () => owner`SELECT employee_id,period,generation
   FROM commission_period_generations ORDER BY employee_id,period`;
 
-it('regression: consumer keeps id commissions.project-inputs and five event types', () => {
+it('regression: consumer keeps id commissions.project-inputs and six event types', () => {
   expect(consumer.id).toBe('commissions.project-inputs');
   expect(consumer.eventTypes).toEqual([
     'ServiceSessionRecorded',
@@ -86,6 +86,7 @@ it('regression: consumer keeps id commissions.project-inputs and five event type
     'ServiceLineChanged',
     'SessionTipsChanged',
     'SalaryChanged',
+    'PackageSaleChanged',
   ]);
 });
 

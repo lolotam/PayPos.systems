@@ -29,6 +29,7 @@ import { createCommissionCorrectionScope } from '../persistence/commission-corre
 import { createCommissionLineProjectionScope } from '../persistence/commission-line-projection.scope.ts';
 import { ProjectServiceLines } from '../use-cases/project-service-lines/project-service-lines.ts';
 import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
+import { noCommissionBlockNotices } from './commission-block-notice.fakes.ts';
 
 export const ids = systemUuidV7();
 export const { A } = COMMISSION_LINE_TENANTS;
@@ -180,7 +181,8 @@ export function failingCorrectionsConsumer(): OutboxConsumer {
         execute: async () => {
           throw new Error('unused line-only use case');
         },
-      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'];
+      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'] &
+        CommissionInputUseCases['sales'];
       await onCommissionInputEvent(
         {
           lines: new ProjectServiceLines(
@@ -193,9 +195,11 @@ export function failingCorrectionsConsumer(): OutboxConsumer {
                 throw new Error('injected correction insert failure');
               },
             },
+            noCommissionBlockNotices,
           ),
           tips: unused,
           salary: unused,
+          sales: unused,
         },
         event,
       );

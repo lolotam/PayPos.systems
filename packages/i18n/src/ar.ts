@@ -24,6 +24,7 @@ import { salaryAr } from './salary-catalog.js';
 import { staffLoginAr } from './staff-login-catalog.js';
 import { permissionCodesAr } from './permission-codes-catalog.js';
 import { catalogServicesAr, catalogServiceErrorsAr } from './catalog-services.js';
+import { serviceImportAr } from './service-import.js';
 import { catalogServiceCategoriesAr } from './catalog-service-categories.js';
 import { catalogServiceCategoryBranchesAr } from './catalog-service-category-branches.js';
 import { adminAr } from './admin-catalog.js';
@@ -318,6 +319,7 @@ export const ar: Catalog = {
     invalid: 'راجع بيانات الموظف والتواريخ ومعرف المستخدم.',
   },
   catalogServices: catalogServicesAr,
+  catalogServiceImport: serviceImportAr,
   catalogServiceCategories: catalogServiceCategoriesAr,
   catalogServiceCategoryBranches: catalogServiceCategoryBranchesAr,
   catalogPackageTypes: catalogPackageTypesAr,

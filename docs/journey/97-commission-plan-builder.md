@@ -4,7 +4,8 @@
 this PR (PR 2: the screen, the route, the sidebar entry and the version history; 48-3 PR 2 of 2, spec 059 row 48-3).
 **Runs on staging** in the admin (`https://app.staging.pospay.systems`) on `/commissions/plans`. The API side (plan
 versions and the plans employee list, journey [78](78-commission-plan-versions.md)) has been live since #551/#730.
-Still out of scope: per-service overrides ([79](79-commission-service-overrides.md)) and monthly statements.
+Still out of scope: monthly statements. The per-service overrides screen is covered in
+[98](98-commission-service-overrides.md).
 
 **Before you start / قبل ما تبدأ:**
 - [00 Local setup](00-local-setup.md) with the admin, or staging.

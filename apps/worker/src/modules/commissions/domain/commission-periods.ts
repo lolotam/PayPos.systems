@@ -47,6 +47,7 @@ export function candidateCommissionPeriods(
     const end = affected > currentPeriod ? affected : currentPeriod;
     for (let period = affected; period <= end; period = nextPeriod(period)) {
       candidates.add(period);
+      if (period === end) break;
     }
   }
   return [...candidates].sort();

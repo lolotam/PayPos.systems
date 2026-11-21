@@ -1,0 +1,943 @@
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PosPay Nav A</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@600;700;800&family=Readex+Pro:wght@400;500;600;700&display=swap">
+<style>
+/* Layout concept: one app frame (a size container) holding a navigation shell and a page column;
+   every responsive rule is a container query, so the Desktop / Tablet / Phone preview and a real
+   small screen take the same path. Tokens are Souk Tiles, copied from packages/ui/src/styles/theme.css. */
+:root {
+  --radius: 1.375rem;
+  --r-ctl: calc(var(--radius) - 2px);
+  --r-card: var(--radius);
+  --background: oklch(0.962 0.007 174.4);
+  --foreground: oklch(0.244 0.029 227.2);
+  --card: oklch(1 0 0);
+  --popover: oklch(1 0 0);
+  --primary: oklch(0.502 0.084 188.3);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.933 0.013 179.5);
+  --muted: oklch(0.945 0.01 174.3);
+  --muted-foreground: oklch(0.475 0.026 218);
+  --accent: oklch(0.941 0.033 51.2);
+  --accent-foreground: oklch(0.4 0.12 40.6);
+  --destructive: oklch(0.503 0.18 22.9);
+  --destructive-foreground: oklch(1 0 0);
+  --success: oklch(0.477 0.08 187.9);
+  --success-soft: oklch(0.933 0.023 183.2);
+  --warning-soft: oklch(0.945 0.045 84.6);
+  --border: oklch(0.898 0.016 177);
+  --input: oklch(0.614 0.027 183.7);
+  --ring: oklch(0.601 0.179 41);
+  --info: oklch(0.52 0.073 251.1);
+  --sidebar: oklch(1 0 0);
+  --cta: oklch(0.679 0.184 42.5);
+  --cta-foreground: oklch(0.223 0.037 252.7);
+  --tile-navy: oklch(0.223 0.037 252.7);
+  --tile-navy-foreground: oklch(0.983 0.006 84.6);
+  --tile-sand: oklch(0.957 0.027 78.2);
+  --status-foreground: oklch(0.962 0.007 174.4);
+  --scrim: oklch(0 0 0 / 0.4);
+  --stage: oklch(0.9 0.012 190);
+  --font-sans: 'Readex Pro', system-ui, sans-serif;
+  --font-display: 'Baloo Bhaijaan 2', 'Readex Pro', system-ui, sans-serif;
+  --t-fast: 150ms;
+  --t-base: 200ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --gut-s: max(16px, env(safe-area-inset-left, 0px));
+  --gut-e: max(16px, env(safe-area-inset-right, 0px));
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --background: oklch(0.194 0.019 208.2);
+    --foreground: oklch(0.957 0.01 181.4);
+    --card: oklch(0.253 0.028 211.3);
+    --popover: oklch(0.29 0.034 208);
+    --primary: oklch(0.735 0.113 186.2);
+    --primary-foreground: oklch(0.222 0.033 188.3);
+    --secondary: oklch(0.308 0.035 204.3);
+    --muted: oklch(0.275 0.03 206);
+    --muted-foreground: oklch(0.751 0.026 184);
+    --accent: oklch(0.29 0.06 47.1);
+    --accent-foreground: oklch(0.876 0.076 52.9);
+    --destructive: oklch(0.715 0.144 16.1);
+    --destructive-foreground: oklch(0.194 0.019 208.2);
+    --success: oklch(0.811 0.098 186.4);
+    --success-soft: oklch(0.303 0.041 197.7);
+    --warning-soft: oklch(0.302 0.047 82.6);
+    --border: oklch(0.347 0.037 192.9);
+    --input: oklch(0.545 0.039 202.9);
+    --ring: oklch(0.711 0.166 44.4);
+    --info: oklch(0.745 0.064 250.9);
+    --sidebar: oklch(0.222 0.023 210.1);
+    --tile-navy: oklch(0.308 0.049 252.8);
+    --tile-sand: oklch(0.284 0.014 95.5);
+    --status-foreground: oklch(0.194 0.019 208.2);
+    --scrim: oklch(0 0 0 / 0.6);
+    --stage: oklch(0.15 0.015 208);
+    color-scheme: dark;
+  }
+}
+:root[data-theme='dark'] {
+  --background: oklch(0.194 0.019 208.2);
+  --foreground: oklch(0.957 0.01 181.4);
+  --card: oklch(0.253 0.028 211.3);
+  --popover: oklch(0.29 0.034 208);
+  --primary: oklch(0.735 0.113 186.2);
+  --primary-foreground: oklch(0.222 0.033 188.3);
+  --secondary: oklch(0.308 0.035 204.3);
+  --muted: oklch(0.275 0.03 206);
+  --muted-foreground: oklch(0.751 0.026 184);
+  --accent: oklch(0.29 0.06 47.1);
+  --accent-foreground: oklch(0.876 0.076 52.9);
+  --destructive: oklch(0.715 0.144 16.1);
+  --destructive-foreground: oklch(0.194 0.019 208.2);
+  --success: oklch(0.811 0.098 186.4);
+  --success-soft: oklch(0.303 0.041 197.7);
+  --warning-soft: oklch(0.302 0.047 82.6);
+  --border: oklch(0.347 0.037 192.9);
+  --input: oklch(0.545 0.039 202.9);
+  --ring: oklch(0.711 0.166 44.4);
+  --info: oklch(0.745 0.064 250.9);
+  --sidebar: oklch(0.222 0.023 210.1);
+  --tile-navy: oklch(0.308 0.049 252.8);
+  --tile-sand: oklch(0.284 0.014 95.5);
+  --status-foreground: oklch(0.194 0.019 208.2);
+  --scrim: oklch(0 0 0 / 0.6);
+  --stage: oklch(0.15 0.015 208);
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+/* Filters hide links with the hidden attribute; without this, display rules on those links win. */
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--stage);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+h1, h2, h3 { font-family: var(--font-display); font-weight: 700; letter-spacing: 0; text-wrap: balance; margin: 0; }
+p { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.num { direction: ltr; unicode-bidi: isolate; }
+svg.i { width: 1rem; height: 1rem; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+[dir='rtl'] svg.i.flip { transform: scaleX(-1); }
+
+/* ---------- prototype bar (not part of the product) ---------- */
+.pbar {
+  flex: none;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  padding-block: 8px; padding-left: var(--gut-s); padding-right: var(--gut-e);
+  background: var(--tile-navy); color: var(--tile-navy-foreground);
+  font-size: 13px;
+}
+.pbar b { font-family: var(--font-display); font-size: 16px; }
+.pbar .sp { flex: 1; min-width: 8px; }
+.seg { display: inline-flex; padding: 2px; border-radius: 999px; background: oklch(1 0 0 / 0.12); }
+.seg button {
+  border: 0; background: transparent; color: inherit; cursor: pointer;
+  min-height: 32px; padding: 0 12px; border-radius: 999px; font-size: 13px; font-weight: 500;
+  transition: background var(--t-fast);
+}
+.seg button[aria-pressed='true'] { background: var(--cta); color: var(--cta-foreground); font-weight: 600; }
+.stage { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: stretch; }
+.stage[data-device='tablet'], .stage[data-device='phone'] { padding: 16px; }
+
+/* ---------- app frame ---------- */
+.app {
+  container: app / inline-size;
+  position: relative; overflow: hidden;
+  width: 100%; height: 100%;
+  background: var(--background);
+  transition: width var(--t-base) var(--ease), border-radius var(--t-base);
+}
+.stage[data-device='tablet'] .app { width: 820px; max-width: 100%; border-radius: 22px; box-shadow: 0 0 0 1px var(--border); }
+.stage[data-device='phone'] .app { width: 390px; max-width: 100%; max-height: 800px; align-self: center; border-radius: 28px; box-shadow: 0 0 0 1px var(--border); }
+.shell { position: absolute; inset: 0; display: flex; }
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.page { max-width: 1200px; margin-inline: auto; padding: 24px; display: flex; flex-direction: column; gap: 24px; }
+.page.narrow { max-width: 840px; }
+@container app (max-width: 767px) { .page { padding: 16px; gap: 16px; } }
+.page > * { animation: rise var(--t-base) var(--ease) both; }
+.page > *:nth-child(2) { animation-delay: 40ms; }
+.page > *:nth-child(3) { animation-delay: 80ms; }
+.page > *:nth-child(n + 4) { animation-delay: 120ms; }
+/* transform only: a stalled animation (thumbnail, background tab) must never leave the page invisible */
+@keyframes rise { from { transform: translateY(8px); } }
+@keyframes fade { from { opacity: 0; } }
+@keyframes slide-s { from { transform: translateX(-100%); } }
+@keyframes slide-e { from { transform: translateX(100%); } }
+@keyframes sheet { from { transform: translateY(100%); } }
+@keyframes pop { from { opacity: 0; transform: translateY(-6px) scale(0.98); } }
+
+/* ---------- primitives (packages/ui) ---------- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;
+  min-height: 48px; padding: 8px 16px; border: 0; border-radius: var(--r-ctl);
+  font-size: 15px; font-weight: 600; cursor: pointer; text-decoration: none;
+  background: var(--cta); color: var(--cta-foreground);
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.btn:hover { background: color-mix(in oklch, var(--cta) 90%, transparent); }
+.btn.sm { min-height: 44px; padding: 8px 12px; }
+.btn.icon { width: 44px; min-height: 44px; padding: 0; }
+.btn.secondary { background: var(--secondary); color: var(--foreground); }
+.btn.secondary:hover { background: color-mix(in oklch, var(--secondary) 80%, transparent); }
+.btn.outline { background: var(--background); color: var(--foreground); box-shadow: inset 0 0 0 1px var(--input); }
+.btn.ghost { background: transparent; color: var(--foreground); }
+.btn.outline:hover, .btn.ghost:hover { background: var(--accent); color: var(--accent-foreground); }
+.btn.destructive { background: var(--destructive); color: var(--destructive-foreground); }
+.btn.link { background: transparent; color: var(--primary); min-height: 0; padding: 0; }
+.btn.link:hover { text-decoration: underline; text-underline-offset: 4px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r-card); min-width: 0; }
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 999px; border: 1px solid transparent; font-size: 12px; font-weight: 500; white-space: nowrap; }
+.badge.neutral { background: var(--secondary); border-color: var(--border); }
+.badge.success { background: var(--success); color: var(--status-foreground); }
+.badge.warning { background: var(--accent-foreground); color: var(--status-foreground); }
+.badge.danger { background: var(--destructive); color: var(--status-foreground); }
+.badge.info { background: var(--info); color: var(--status-foreground); }
+.badge.brand { background: var(--primary); color: var(--primary-foreground); }
+.count { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--cta); color: var(--cta-foreground); font-size: 11px; font-weight: 600; display: inline-grid; place-items: center; }
+.field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.field label { font-size: 14px; font-weight: 500; }
+.field small { color: var(--muted-foreground); font-size: 13px; }
+.input {
+  min-height: 48px; width: 100%; padding: 8px 12px; border-radius: var(--r-ctl);
+  border: 1px solid var(--input); background: var(--card); font-size: 16px; text-align: start;
+}
+textarea.input { min-height: 96px; resize: vertical; }
+.input::placeholder { color: var(--muted-foreground); }
+.check { display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: 14px; }
+.check input { width: 18px; height: 18px; accent-color: var(--primary); }
+
+/* page header: title + description, one primary action at the inline end */
+.phead { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 16px; }
+.phead .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.phead h1 { font-size: 24px; line-height: 1.25; }
+.phead .tx p { font-size: 14px; color: var(--muted-foreground); max-width: 65ch; }
+.phead .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-inline-start: auto; }
+@container app (max-width: 479px) { .phead .acts { width: 100%; } .phead .acts .btn { flex: 1; } }
+
+/* stats */
+.stats { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.stat { padding: 24px; display: flex; flex-direction: column; gap: 8px; }
+.stat .l { font-size: 14px; font-weight: 500; color: var(--muted-foreground); }
+.stat .v { font-size: 24px; font-weight: 700; }
+.stat .d { font-size: 13px; color: var(--muted-foreground); }
+.stat.teal { background: var(--primary); color: var(--primary-foreground); border-color: transparent; }
+.stat.navy { background: var(--tile-navy); color: var(--tile-navy-foreground); border-color: transparent; }
+.stat.sand { background: var(--tile-sand); border-color: transparent; }
+.stat.teal .l, .stat.navy .l, .stat.teal .d, .stat.navy .d { color: inherit; opacity: 0.85; }
+@container app (max-width: 479px) { .stats { grid-template-columns: 1fr 1fr; gap: 12px; } .stat { padding: 16px; } .stat .v { font-size: 20px; } }
+
+/* table frame: title bar, filter bar, table, footer */
+.tframe { overflow: hidden; }
+.tbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 16px; border-bottom: 1px solid var(--border); }
+.tbar h2 { font-size: 16px; }
+.tbar .acts { margin-inline-start: auto; display: flex; flex-wrap: wrap; gap: 8px; }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--muted); }
+.filters .input { width: auto; flex: 1 1 160px; font-size: 14px; }
+.filters .input.search { flex: 2 1 220px; }
+.twrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; text-align: start; font-size: 14px; }
+thead { background: var(--secondary); }
+th { padding: 12px 16px; text-align: start; font-size: 12px; font-weight: 500; color: var(--muted-foreground); white-space: nowrap; }
+td { padding: 12px 16px; text-align: start; white-space: nowrap; }
+tbody tr { border-top: 1px solid var(--border); transition: background var(--t-fast); }
+tbody tr:hover { background: var(--muted); }
+td.strong { font-weight: 600; }
+td .btn.sm { font-size: 13px; }
+.tfoot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted-foreground); }
+.tfoot .acts { margin-inline-start: auto; display: flex; gap: 8px; }
+/* phone: rows become stacked cards, first column is the card title */
+@container app (max-width: 599px) {
+  .tframe.stack thead { display: none; }
+  .tframe.stack table, .tframe.stack tbody, .tframe.stack tr, .tframe.stack td { display: block; }
+  .tframe.stack tr { padding: 12px 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
+  .tframe.stack td { padding: 0; white-space: normal; min-width: 0; }
+  .tframe.stack td::before { content: attr(data-l); display: block; font-size: 11px; color: var(--muted-foreground); }
+  .tframe.stack td:first-child { grid-column: 1 / -1; font-weight: 600; font-size: 15px; }
+  .tframe.stack td:first-child::before { display: none; }
+}
+
+/* form: sections of a 12-col grid; fields span 12 / 6 / 4 */
+.form { display: flex; flex-direction: column; }
+.fsec { padding: 24px; display: grid; gap: 16px; grid-template-columns: repeat(12, minmax(0, 1fr)); }
+.fsec + .fsec { border-top: 1px solid var(--border); }
+.fsec > h2 { grid-column: 1 / -1; font-size: 16px; }
+.fsec > p { grid-column: 1 / -1; font-size: 14px; color: var(--muted-foreground); margin-top: -8px; }
+.fsec .field, .fsec .check { grid-column: span 6; }
+.fsec .s12 { grid-column: 1 / -1; }
+.fsec .s4 { grid-column: span 4; }
+@container app (max-width: 767px) { .fsec { padding: 16px; } .fsec .field, .fsec .check, .fsec .s4 { grid-column: 1 / -1; } }
+.fbar { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; padding: 16px 24px; border-top: 1px solid var(--border); background: var(--muted); border-end-start-radius: var(--r-card); border-end-end-radius: var(--r-card); }
+@container app (max-width: 767px) { .fbar { padding: 16px; } .fbar .btn { flex: 1; } }
+
+/* two-column page: main + side (8 / 4) */
+.split { display: grid; gap: 24px; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: stretch; }
+@container app (max-width: 1023px) { .split { grid-template-columns: minmax(0, 1fr); gap: 16px; } }
+.col { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.panel { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.panel h2 { font-size: 16px; }
+.panel > p { font-size: 14px; color: var(--muted-foreground); }
+@container app (max-width: 767px) { .panel { padding: 16px; } }
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; }
+.kv div { min-width: 0; }
+.kv dt, .kv .k { font-size: 12px; color: var(--muted-foreground); }
+.kv dd, .kv .v { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+.list { display: flex; flex-direction: column; }
+.list .li { display: flex; align-items: center; gap: 12px; padding: 12px 0; min-height: 56px; }
+.list .li + .li { border-top: 1px solid var(--border); }
+.list .li .tx { flex: 1; min-width: 0; }
+.list .li .tx b { display: block; font-weight: 600; font-size: 14px; }
+.list .li .tx span { font-size: 13px; color: var(--muted-foreground); }
+.av { width: 40px; height: 40px; border-radius: 999px; background: var(--secondary); display: grid; place-items: center; font-weight: 600; font-size: 14px; flex: none; }
+.note { padding: 12px 16px; border-radius: var(--r-ctl); background: var(--warning-soft); font-size: 14px; display: flex; gap: 8px; align-items: flex-start; }
+.note.info { background: var(--success-soft); }
+.empty { padding: 32px 24px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.empty .ic { width: 48px; height: 48px; border-radius: var(--r-ctl); background: var(--secondary); display: grid; place-items: center; color: var(--muted-foreground); }
+.empty h2 { font-size: 18px; }
+.empty p { color: var(--muted-foreground); max-width: 48ch; }
+
+/* board (kanban-like columns, e.g. attendance) */
+.board { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items: start; }
+.bcol { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.bcol h2 { font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.bcard { padding: 12px; border-radius: var(--r-ctl); background: var(--muted); display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.bcard b { font-weight: 600; }
+.bcard span { font-size: 13px; color: var(--muted-foreground); }
+
+/* week grid (schedules) */
+.week { display: grid; grid-template-columns: 140px repeat(7, minmax(84px, 1fr)); font-size: 13px; min-width: 760px; }
+.week > div { padding: 6px 8px; display: flex; align-items: center; border-top: 1px solid var(--border); border-inline-start: 1px solid var(--border); min-height: 52px; }
+.week > .h { background: var(--secondary); font-size: 12px; color: var(--muted-foreground); border-top: 0; min-height: 0; }
+.week > .n { font-weight: 600; border-inline-start: 0; }
+.week .sh { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--success-soft); font-size: 12px; }
+.week .off { color: var(--muted-foreground); }
+
+/* in-page tabs (underline) and sub-tabs (pills) */
+.tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--border); position: relative; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs a {
+  position: relative; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
+  min-height: 48px; padding: 0 16px; font-size: 14px; font-weight: 500; color: var(--muted-foreground); text-decoration: none;
+  transition: color var(--t-fast);
+}
+.tabs a:hover { color: var(--foreground); }
+.tabs a[aria-current='page'] { color: var(--foreground); font-weight: 600; }
+.tabs a::after { content: ''; position: absolute; inset-inline: 12px; bottom: -1px; height: 3px; border-radius: 3px 3px 0 0; background: var(--cta); transform: scaleX(0); transition: transform var(--t-base) var(--ease); }
+.tabs a[aria-current='page']::after { transform: scaleX(1); }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.pills a { min-height: 44px; padding: 0 14px; border-radius: 999px; display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; text-decoration: none; color: var(--foreground); background: var(--secondary); transition: background var(--t-fast), color var(--t-fast); }
+.pills a[aria-current='page'] { background: var(--primary); color: var(--primary-foreground); }
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; color: var(--muted-foreground); }
+.crumbs a { color: inherit; text-decoration: none; }
+.crumbs a:hover { color: var(--primary); text-decoration: underline; }
+.crumbs b { color: var(--foreground); font-weight: 500; }
+
+/* overlays */
+.scrim { position: absolute; inset: 0; z-index: 40; background: var(--scrim); animation: fade var(--t-base); }
+.toast { position: absolute; z-index: 60; inset-inline: 0; bottom: 88px; margin-inline: auto; width: max-content; max-width: calc(100% - 32px); padding: 12px 16px; border-radius: var(--r-ctl); background: var(--tile-navy); color: var(--tile-navy-foreground); font-size: 14px; animation: rise var(--t-base) var(--ease); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* ---------- shared chrome pieces ---------- */
+a { color: inherit; }
+.brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; flex: none; }
+.brand .bm { width: 36px; height: 36px; border-radius: 12px; background: var(--primary); color: var(--primary-foreground); display: grid; place-items: center; font-family: var(--font-display); font-weight: 800; font-size: 20px; box-shadow: inset 0 -6px 0 var(--cta); }
+.brand .bw { font-family: var(--font-display); font-weight: 700; font-size: 20px; }
+.wsb { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--r-ctl); background: var(--card); cursor: pointer; text-align: start; min-width: 0; transition: background var(--t-fast); }
+.wsb:hover { background: var(--muted); }
+.wsb .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.wsb .tx b { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wsb .tx span { font-size: 12px; color: var(--muted-foreground); }
+.wsb.chip { min-height: 44px; border-radius: 999px; padding: 4px 14px; }
+.wsb.chip .tx { flex-direction: row; gap: 6px; align-items: baseline; }
+.avb { width: 44px; height: 44px; border-radius: 999px; border: 0; background: var(--tile-navy); color: var(--tile-navy-foreground); font-weight: 600; cursor: pointer; flex: none; }
+.dotw { position: relative; display: grid; }
+.dotw i { position: absolute; top: -3px; inset-inline-end: -3px; width: 9px; height: 9px; border-radius: 99px; background: var(--cta); box-shadow: 0 0 0 2px var(--card); }
+.utils { display: flex; align-items: center; gap: 8px; margin-inline-start: auto; flex: none; }
+@container app (max-width: 599px) { .utils .loc { display: none; } }
+.scrim.p { background: transparent; }
+.pop { position: absolute; z-index: 50; width: 320px; max-width: calc(100% - 16px); padding: 16px; display: flex; flex-direction: column; gap: 12px; background: var(--popover); box-shadow: 0 16px 40px oklch(0 0 0 / 0.18); animation: pop var(--t-base) var(--ease); max-height: 80%; overflow-y: auto; }
+.pop h2 { font-size: 16px; }
+.pop .hint { font-size: 13px; color: var(--muted-foreground); }
+.pop .who { display: flex; gap: 12px; align-items: center; }
+.pop .who .tx { display: flex; flex-direction: column; min-width: 0; }
+.pop .who .tx span { font-size: 13px; color: var(--muted-foreground); }
+.pop .thm { background: var(--secondary); align-self: flex-start; }
+.pop .thm button { min-height: 44px; }
+@container app (max-width: 599px) {
+  .scrim.p { background: var(--scrim); }
+  .pop { inset: auto 0 0 0 !important; width: auto; max-width: none; border-radius: 22px 22px 0 0; border-width: 1px 0 0; padding-bottom: 24px; animation: sheet var(--t-base) var(--ease); }
+}
+.list a.li { text-decoration: none; border-radius: 12px; padding-inline: 8px; margin-inline: -8px; transition: background var(--t-fast); }
+.list a.li:hover { background: var(--muted); }
+.panel.sticky { position: sticky; top: 16px; }
+.pacts { display: flex; flex-wrap: wrap; gap: 8px; }
+.pacts .btn { flex: 1 1 auto; }
+.qr { width: 176px; height: 176px; align-self: center; border-radius: 12px; border: 10px solid var(--card); outline: 1px solid var(--border);
+  background: conic-gradient(from 90deg at 50% 50%, var(--foreground) 25%, transparent 0 50%, var(--foreground) 0 75%, transparent 0) 0 0 / 22px 22px, repeating-linear-gradient(45deg, var(--foreground) 0 6px, transparent 0 14px); }
+.logo-prev { width: 96px; height: 96px; border-radius: 22px; background: var(--primary); color: var(--primary-foreground); display: grid; place-items: center; font-family: var(--font-display); font-size: 48px; font-weight: 800; }
+.steps { list-style: none; margin: 0; padding: 8px 24px; }
+.steps li { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 16px 0; }
+.steps li + li { border-top: 1px solid var(--border); }
+.steps .sn { width: 32px; height: 32px; border-radius: 99px; background: var(--secondary); display: grid; place-items: center; font-weight: 600; flex: none; }
+.steps .tx { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; }
+.steps .tx span { font-size: 13px; color: var(--muted-foreground); }
+.week .sh { min-height: 44px; padding: 0 12px; border: 0; cursor: pointer; font: inherit; font-size: 12px; color: inherit; }
+.week .sh:hover { background: var(--accent); }
+.tabs.sub { margin-top: -8px; }
+.subpane { animation: rise var(--t-base) var(--ease) both; }
+.hub { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.hubc { display: flex; align-items: center; gap: 16px; padding: 20px; text-decoration: none; transition: border-color var(--t-fast), transform var(--t-fast); }
+.hubc:hover { border-color: var(--primary); transform: translateY(-2px); }
+.hubc .hi { width: 48px; height: 48px; border-radius: var(--r-ctl); background: var(--success-soft); color: var(--primary); display: grid; place-items: center; flex: none; }
+.hubc .hi svg.i { width: 22px; height: 22px; }
+.hubc .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.hubc .tx b { font-weight: 600; display: flex; gap: 8px; align-items: center; }
+.hubc .tx span { font-size: 13px; color: var(--muted-foreground); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.hubc > svg.i { color: var(--muted-foreground); }
+@container app (max-width: 599px) { .hub { grid-template-columns: 1fr; gap: 8px; } .hubc { padding: 14px 16px; } }
+
+/* A — sidebar 264px (rail 80px), top bar 64px, tab row 48px, bottom bar 64px on phones. */
+.A .sb { width: 264px; flex: none; display: flex; flex-direction: column; gap: 16px; padding: 16px; background: var(--sidebar); border-inline-end: 1px solid var(--border); transition: width var(--t-base) var(--ease), padding var(--t-base) var(--ease); overflow: hidden auto; }
+.A .sbh { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
+.A .nv { position: relative; display: flex; flex-direction: column; gap: 4px; }
+.A .ind { position: absolute; inset-inline: 0; top: 0; height: 48px; border-radius: var(--r-ctl); background: var(--primary); transition: transform var(--t-base) var(--ease), height var(--t-base); }
+.A .ni { position: relative; display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 14px; border-radius: var(--r-ctl); font-size: 14px; font-weight: 500; text-decoration: none; white-space: nowrap; transition: color var(--t-fast), background var(--t-fast); }
+.A .ni svg.i { width: 20px; height: 20px; }
+.A .ni .lb { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.A .ni:not([aria-current]):hover { background: var(--secondary); }
+.A .ni[aria-current] { color: var(--primary-foreground); font-weight: 600; }
+.A .top { height: 64px; flex: none; display: flex; align-items: center; gap: 16px; padding-inline: 24px; background: var(--card); border-bottom: 1px solid var(--border); }
+.A .sect { font-size: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.A .tabsrow { flex: none; padding-inline: 12px; background: var(--card); border-bottom: 1px solid var(--border); }
+.A .tabsrow .tabs { border-bottom: 0; }
+.A .bb { display: none; }
+
+/* rail: collapsed by the user, or forced between 600 and 1023px */
+.A.is-collapsed .sb { width: 80px; padding-inline: 8px; }
+.A.is-collapsed .sbh { flex-direction: column; gap: 8px; }
+.A.is-collapsed .brand .bw, .A.is-collapsed .wsb .tx, .A.is-collapsed .wsb > svg:last-child { display: none; }
+.A.is-collapsed .wsb { justify-content: center; padding: 0; }
+.A.is-collapsed .ni { flex-direction: column; justify-content: center; gap: 2px; padding: 6px 2px; min-height: 60px; font-size: 10.5px; text-align: center; }
+.A.is-collapsed .ni .lb { flex: none; max-width: 100%; }
+.A.is-collapsed .ni .count { position: absolute; top: 4px; inset-inline-end: 8px; }
+@container app (min-width: 600px) and (max-width: 1023px) {
+  .A .sb { width: 80px; padding-inline: 8px; }
+  .A .sbh { flex-direction: column; gap: 8px; }
+  .A .sbh .cl, .A .brand .bw, .A .wsb .tx, .A .wsb > svg:last-child { display: none; }
+  .A .wsb { justify-content: center; padding: 0; }
+  .A .ni { flex-direction: column; justify-content: center; gap: 2px; padding: 6px 2px; min-height: 60px; font-size: 10.5px; text-align: center; }
+  .A .ni .lb { flex: none; max-width: 100%; }
+  .A .ni .count { position: absolute; top: 4px; inset-inline-end: 8px; }
+}
+@container app (max-width: 599px) {
+  .A .sb { display: none; }
+  .A .top { height: 56px; padding-inline: 16px; }
+  .A .sect { font-size: 18px; }
+  .A .tabsrow { padding-inline: 4px; }
+  .A .bb { flex: none; display: grid; grid-template-columns: repeat(5, 1fr); height: 64px; background: var(--card); border-top: 1px solid var(--border); }
+  .A .bb a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11px; font-weight: 500; text-decoration: none; color: var(--muted-foreground); }
+  .A .bb .bi { width: 52px; height: 28px; border-radius: 99px; display: grid; place-items: center; transition: background var(--t-base) var(--ease); }
+  .A .bb .bi svg.i { width: 20px; height: 20px; }
+  .A .bb a[aria-current] { color: var(--foreground); font-weight: 600; }
+  .A .bb a[aria-current] .bi { background: var(--primary); color: var(--primary-foreground); }
+}
+.pop.more .hi { width: 40px; height: 40px; border-radius: 12px; background: var(--secondary); display: grid; place-items: center; flex: none; }
+
+</style>
+<script>
+/* Page inventory, shared by the three prototypes. Every string is 'English|Arabic'.
+   Sample rows are examples, not real tenant data. Arabic copy here is indicative: the product
+   strings stay in packages/i18n. */
+const B = (b, t) => ({ b, t });
+const A = (a, go, v) => ({ a, go, v });
+const N = (n) => ({ n });
+const BRANCHES = ['Salmiya|السالمية', 'Hawally|حولي', 'Jahra|الجهراء'];
+const ALLBR = ['All branches|كل الفروع', ...BRANCHES];
+const EMP = ['Noor Al-Mutairi|نور المطيري', 'Sara Al-Enezi|سارة العنزي', 'Maryam Hussain|مريم حسين', 'Dalal Al-Rashidi|دلال الرشيدي', 'Fatma Ali|فاطمة علي', 'Hessa Al-Ajmi|حصة العجمي'];
+const SVC = ['Haircut|قص شعر', 'Hair colour|صبغة شعر', 'Manicure|مانيكير', 'Pedicure|باديكير', 'Facial|تنظيف بشرة', 'Blow-dry|سشوار'];
+const LEAVE_T = ['Annual|سنوية', 'Sick|مرضية', 'Unpaid|بدون راتب', 'Other|أخرى'];
+const PAGER = 'pager', MORE = 'more';
+const CUSTOMER = { title: 'Customer|العميل', fields: [
+  ['Customer name|اسم العميل', 'text', 'Latifa Al-Sabah|لطيفة الصباح'],
+  ['Calling code|مفتاح الدولة', 'select', ['+965', '+966', '+971'], 4],
+  ['Phone number (without calling code)|رقم الهاتف (بدون المفتاح)', 'text', '5550 1234', 4],
+  ['', 'button', 'Find or create customer|بحث أو إضافة عميل', 4]] };
+const LEAVE_COLS = ['Date|التاريخ', 'Leave type|نوع الإجازة', 'Status|الحالة', 'Employee|الموظف', 'Decision reason|سبب القرار', 'Decision|القرار'];
+
+const PAGES = {
+  home: { title: 'Workspace|مساحة العمل', desc: 'Your company, business and branch at a glance.|شركتك ونشاطك وفرعك في نظرة واحدة.', blocks: [
+    ['stats', [['Company|الشركة', 'Lulwa Group|مجموعة لولوة', '', 'teal'], ['Business|النشاط', 'Glow Salon|صالون جلو', '', 'navy'], ['Branch|الفرع', 'Salmiya|السالمية', 'Asia/Kuwait', 'sand']]],
+    ['split', [
+      ['panel', { title: 'Needs you today|يحتاج قرارك اليوم', list: [
+        ['Leave requests waiting|طلبات إجازة بانتظار الاعتماد', '3', 'leave-approvals'],
+        ['Attendance requests|طلبات الحضور', '2', 'att-requests'],
+        ['Open attendance exceptions|تحذيرات حضور مفتوحة', '4', 'att-exceptions'],
+        ['Documents expiring soon|وثائق تنتهي قريبًا', '1', 'employees']] }],
+      ['table', { title: 'Today in Salmiya|اليوم في السالمية', cols: ['Time|الوقت', 'Customer|العميل', 'Service|الخدمة', 'Net (KWD)|الصافي (د.ك)'], rows: [
+        [N('10:15'), 'Latifa Al-Sabah|لطيفة الصباح', SVC[0], N('8.000')],
+        [N('11:00'), 'Reem Al-Kandari|ريم الكندري', SVC[1], N('35.000')],
+        [N('11:40'), 'Aisha Behbehani|عائشة بهبهاني', SVC[2], N('6.500')]], acts: [A('Day list|قائمة اليوم', 'day', 'outline')] }]],
+     [
+      ['panel', { title: 'Quick actions|إجراءات سريعة', acts: [A('Record a visit|تسجيل زيارة', 'visit', 'primary'), A('Sell a package|بيع باقة', 'pkgsale', 'secondary'), A('Attendance board|لوحة الحضور', 'att-board', 'outline')] }],
+      ['panel', { title: 'In now|موجودات الآن', list: [[EMP[0], 'Clock-in 09:02|دخول 09:02'], [EMP[1], 'Clock-in 09:10|دخول 09:10'], [EMP[3], 'Clock-in 09:31 · late 16 min|دخول 09:31 · تأخير 16 د']] }]]]] },
+
+  /* ---------- sales ---------- */
+  visit: { title: 'Record a visit|تسجيل زيارة', desc: 'One visit, its services, performers and discount.|زيارة واحدة بخدماتها ومنفذاتها وخصمها.', blocks: [
+    ['split', [
+      ['form', { sections: [
+        { title: 'Recorder|المسجِّل', fields: [['Recorder membership|عضوية المسجِّل', 'select', ['Manager · Glow Salon|مديرة · صالون جلو', 'Reception · Salmiya|استقبال · السالمية']], ['Session time|وقت الجلسة', 'time', '11:40']] },
+        CUSTOMER,
+        { title: 'Service line 1|الخدمة 1', fields: [
+          ['Service|الخدمة', 'select', SVC], ['Price (KWD)|السعر (د.ك)', 'num', '8.000'],
+          ['Discount (%)|الخصم (%)', 'num', '10', 4], ['Discount amount (KWD)|مبلغ الخصم (د.ك)', 'num', '0.800', 4], ['From package|من باقة', 'check', false, 4],
+          ['Performer|المنفذة', 'select', EMP], ['Share (%)|الحصة (%)', 'num', '100']] },
+        { title: 'Service line 2|الخدمة 2', fields: [
+          ['Service|الخدمة', 'select', [SVC[2], ...SVC]], ['Price (KWD)|السعر (د.ك)', 'num', '6.500'],
+          ['Performer|المنفذة', 'select', [EMP[1], ...EMP]], ['Share (%)|الحصة (%)', 'num', '100']] }],
+        submit: [A('Add service|إضافة خدمة', null, 'outline')] }]],
+     [
+      ['panel', { title: 'Draft summary|ملخص المسودة', sticky: true, kv: [['Service line 1|الخدمة 1', '7.200'], ['Service line 2|الخدمة 2', '6.500'], ['Discount|الخصم', '0.800'], ['Draft total (KWD)|إجمالي المسودة (د.ك)', '13.700']],
+        text: 'Discount limit: 15% · source: Business default|حد الخصم: 15% · المصدر: افتراضي النشاط', acts: [A('Save visit|حفظ الزيارة', null, 'primary')] }],
+      ['panel', { title: 'Rejected drafts|مسودات مرفوضة', text: 'No rejected drafts for this customer.|لا توجد مسودات مرفوضة لهذا العميل.' }]]]] },
+  day: { title: 'Day list|قائمة اليوم', desc: 'Every visit recorded in this branch on one day.|كل الزيارات المسجلة في الفرع خلال يوم واحد.', actions: [A('Record a visit|تسجيل زيارة', 'visit', 'primary')], blocks: [
+    ['table', { filters: [['Date|التاريخ', 'date', '2026-11-20'], ['Late only|المتأخرة فقط', 'check']], cols: ['Time|الوقت', 'Customer|العميل', 'Service|الخدمة', 'Performer|المنفذة', 'Price|السعر', 'Discount|الخصم', 'Net (KWD)|الصافي (د.ك)', 'State|الحالة', ''], rows: [
+      [N('10:15'), 'Latifa Al-Sabah|لطيفة الصباح', SVC[0], EMP[0], N('8.000'), N('0.800'), N('7.200'), B('neutral', 'Saved|محفوظة'), A('Details|تفاصيل')],
+      [N('10:15'), 'Latifa Al-Sabah|لطيفة الصباح', SVC[2], EMP[1], N('6.500'), N('0.000'), N('6.500'), B('info', 'Edited|معدّلة'), A('Details|تفاصيل')],
+      [N('11:00'), 'Reem Al-Kandari|ريم الكندري', SVC[1], EMP[2], N('35.000'), N('3.500'), N('31.500'), B('warning', 'Late|متأخرة'), A('Details|تفاصيل')],
+      [N('11:40'), 'Aisha Behbehani|عائشة بهبهاني', SVC[4], EMP[3], N('12.000'), N('0.000'), N('12.000'), B('danger', 'Cancelled|ملغاة'), A('History|السجل')]], foot: MORE }],
+    ['panel', { title: 'Actions on a line|إجراءات على السطر', text: 'Open a line to edit price or discount, change performers, cancel, record a tip or extend a package. Each opens as a dialog over this list.|افتح السطر لتعديل السعر أو الخصم، تغيير المنفذات، الإلغاء، تسجيل إكرامية أو تمديد باقة. كل إجراء يفتح كنافذة فوق القائمة.', acts: [A('Edit price/discount|تعديل السعر/الخصم', null, 'outline'), A('Change performers|تغيير المنفذات', null, 'outline'), A('Record tip|تسجيل إكرامية', null, 'outline'), A('Cancel|إلغاء', null, 'destructive')] }]] },
+  pkgsale: { title: 'Sell a package|بيع باقة', desc: 'Sell a prepaid package to a customer.|بيع باقة مدفوعة مسبقًا لعميل.', narrow: true, blocks: [
+    ['form', { sections: [
+      { title: 'Recorder|المسجِّل', fields: [['Recorder membership|عضوية المسجِّل', 'select', ['Manager · Glow Salon|مديرة · صالون جلو']], ['Seller employee|الموظفة البائعة', 'select', EMP]] },
+      CUSTOMER,
+      { title: 'Package|الباقة', fields: [['Package type|نوع الباقة', 'select', ['Hair care · 6 sessions · 60 days|عناية بالشعر · 6 جلسات · 60 يومًا', 'Nails · 10 sessions · 90 days|أظافر · 10 جلسات · 90 يومًا'], 12], ['Price paid (KWD)|المبلغ المدفوع (د.ك)', 'num', '120.000'], ['Payment method|طريقة الدفع', 'select', ['Cash|نقدًا', 'Card|بطاقة']]] }],
+      submit: [A('Sell package|بيع الباقة', null, 'primary')] }]] },
+
+  /* ---------- catalog ---------- */
+  services: { title: 'Services|الخدمات', desc: 'The business menu: price, commission rule and whether the service counts toward tiers.|قائمة النشاط: السعر وقاعدة العمولة وهل تُحتسب الخدمة في الشرائح.', actions: [A('Add service|إضافة خدمة', 'service-new', 'primary')], blocks: [
+    ['table', { filters: [['Search services|بحث في الخدمات', 'search'], ['Filter by category|تصفية بالتصنيف', 'select', ['All categories|كل التصنيفات', 'Hair|الشعر', 'Nails|الأظافر', 'Skin|البشرة']]], cols: ['English name|الاسم بالإنجليزية', 'Price (KWD)|السعر (د.ك)', 'Duration|المدة', 'Category|التصنيف', 'Commission rule|قاعدة العمولة', ''], rows: [
+      [SVC[0], N('8.000'), '30 min|30 د', 'Hair|الشعر', 'Follow plan|حسب الخطة', A('Edit|تعديل', 'service-new')],
+      [SVC[1], N('35.000'), '120 min|120 د', 'Hair|الشعر', 'Percentage 12%|نسبة 12%', A('Edit|تعديل', 'service-new')],
+      [SVC[2], N('6.500'), '45 min|45 د', 'Nails|الأظافر', 'Follow plan|حسب الخطة', A('Edit|تعديل', 'service-new')],
+      [SVC[3], N('7.500'), '50 min|50 د', 'Nails|الأظافر', 'Fixed 0.500|ثابت 0.500', A('Edit|تعديل', 'service-new')],
+      [[SVC[4], B('neutral', 'Closed|مغلقة')], N('12.000'), '60 min|60 د', 'Skin|البشرة', 'No commission|بدون عمولة', A('Edit|تعديل', 'service-new')]], foot: PAGER }]] },
+  'service-new': { parent: 'services', title: 'Add service|إضافة خدمة', narrow: true, blocks: [
+    ['form', { sections: [
+      { title: 'Name|الاسم', fields: [['English name|الاسم بالإنجليزية', 'text', 'Hair treatment'], ['Arabic name (optional)|الاسم بالعربية (اختياري)', 'text', 'علاج شعر']] },
+      { title: 'Price and time|السعر والمدة', fields: [['Price (KWD)|السعر (د.ك)', 'num', '15.000', 4], ['Duration (minutes)|المدة (دقائق)', 'num', '45', 4], ['Category|التصنيف', 'select', ['No category|بدون تصنيف', 'Hair|الشعر'], 4]] },
+      { title: 'Commission|العمولة', fields: [['Commission rule|قاعدة العمولة', 'select', ['Follow plan|حسب الخطة', 'No commission|بدون عمولة', 'Percentage|نسبة', 'Fixed amount (KWD)|مبلغ ثابت (د.ك)']], ['Value|القيمة', 'num', ''], ['Counts toward accumulation|تُحتسب في التراكم', 'check', true, 12]] }],
+      submit: [A('Back to services|رجوع للخدمات', 'services', 'outline'), A('Add service|إضافة خدمة', null, 'primary')] }]] },
+  categories: { title: 'Categories|التصنيفات', desc: 'Manage service categories, their visibility and their open state.|إدارة تصنيفات الخدمات وظهورها وحالة فتحها.', actions: [A('Add category|إضافة تصنيف', null, 'primary')], blocks: [
+    ['table', { toggle: ['Open|مفتوحة', 'Closed|مغلقة', 'All|الكل'], cols: ['Name|الاسم', 'Visibility|الظهور', 'State|الحالة', ''], rows: [
+      ['Hair|الشعر', 'Whole business|كل النشاط', B('success', 'Open|مفتوح'), A('Open|فتح')],
+      ['Nails|الأظافر', 'Whole business|كل النشاط', B('success', 'Open|مفتوح'), A('Open|فتح')],
+      ['Skin|البشرة', 'Branch · Salmiya|فرع · السالمية', B('neutral', 'Closed|مغلق'), A('Open|فتح')]], foot: PAGER }]] },
+  packages: { title: 'Package types|أنواع الباقات', desc: 'Packages available across all branches of this business.|الباقات المتاحة في كل فروع هذا النشاط.', actions: [A('Add package type|إضافة نوع باقة', 'package-new', 'primary')], blocks: [
+    ['table', { cols: ['English name|الاسم بالإنجليزية', 'Price (KWD)|السعر (د.ك)', 'Validity (days)|الصلاحية (أيام)', 'Services|الخدمات', 'Selling|البيع', ''], rows: [
+      ['Hair care|عناية بالشعر', N('120.000'), N('60'), N('3'), A('Stop selling|إيقاف البيع'), A('Edit|تعديل', 'package-new')],
+      ['Nails|أظافر', N('55.000'), N('90'), N('2'), A('Stop selling|إيقاف البيع'), A('Edit|تعديل', 'package-new')],
+      [['Bridal|العروس', B('neutral', 'Not on sale|غير معروضة')], N('300.000'), N('30'), N('5'), A('Resume selling|استئناف البيع'), A('Edit|تعديل', 'package-new')]], foot: PAGER }]] },
+  'package-new': { parent: 'packages', title: 'Add package type|إضافة نوع باقة', narrow: true, blocks: [
+    ['form', { sections: [
+      { title: 'Package|الباقة', fields: [['English name|الاسم بالإنجليزية', 'text', ''], ['Arabic name (optional)|الاسم بالعربية (اختياري)', 'text', ''], ['Price (KWD)|السعر (د.ك)', 'num', ''], ['Validity (days)|الصلاحية (أيام)', 'num', '']] },
+      { title: 'Package services|خدمات الباقة', fields: [['Service|الخدمة', 'select', ['Choose a service|اختر خدمة', ...SVC]], ['Sessions|الجلسات', 'num', '6'], ['Service|الخدمة', 'select', [SVC[5]]], ['Sessions|الجلسات', 'num', '6'], ['', 'button', 'Add service|إضافة خدمة', 12]] }],
+      submit: [A('Back to package types|رجوع لأنواع الباقات', 'packages', 'outline'), A('Add package type|إضافة نوع باقة', null, 'primary')] }]] },
+
+  /* ---------- team ---------- */
+  employees: { title: 'Employees|الموظفون', desc: 'Manage employee records and working branches.|إدارة سجلات الموظفين وفروع العمل.', actions: [A('Create employee|إضافة موظف', 'employee-new', 'primary')], blocks: [
+    ['table', { filters: [['Search by name or number|بحث بالاسم أو الرقم', 'search'], ['Branch|الفرع', 'select', ALLBR], ['Role|الدور', 'select', ['All roles|كل الأدوار', 'Stylist|مصففة', 'Reception|استقبال']]], cols: ['Name|الاسم', 'Employee number|الرقم الوظيفي', 'Role|الدور', 'Primary branch|الفرع الأساسي', 'Documents|الوثائق', ''], rows: [
+      [EMP[0], N('1001'), B('brand', 'Manager|مديرة'), BRANCHES[0], B('success', 'Valid|سارية'), A('Open|فتح', 'employee')],
+      [EMP[1], N('1002'), B('neutral', 'Stylist|مصففة'), BRANCHES[0], B('warning', 'Expiring soon|تنتهي قريبًا'), A('Open|فتح', 'employee')],
+      [EMP[2], N('1003'), B('neutral', 'Stylist|مصففة'), BRANCHES[1], B('success', 'Valid|سارية'), A('Open|فتح', 'employee')],
+      [EMP[3], N('1004'), B('neutral', 'Nail technician|فنية أظافر'), BRANCHES[0], B('danger', 'Expired|منتهية'), A('Open|فتح', 'employee')],
+      [EMP[4], N('1005'), B('neutral', 'Reception|استقبال'), BRANCHES[2], B('success', 'Valid|سارية'), A('Open|فتح', 'employee')]], foot: PAGER }]] },
+  'employee-new': { parent: 'employees', title: 'Create employee|إضافة موظف', narrow: true, blocks: [
+    ['form', { sections: [
+      { title: 'Identity|الهوية', fields: [['English name|الاسم بالإنجليزية', 'text', ''], ['Arabic name|الاسم بالعربية', 'text', ''], ['Employee number|الرقم الوظيفي', 'text', '', 6, 'Leave this blank to take the next number.|اتركه فارغًا لأخذ الرقم التالي.'], ['Existing user ID|معرّف مستخدم موجود', 'text', '']] },
+      { title: 'Work|العمل', fields: [['Primary branch|الفرع الأساسي', 'select', BRANCHES], ['Role|الدور', 'select', ['Stylist|مصففة', 'Reception|استقبال', 'Manager|مديرة']], ['Hire date|تاريخ التعيين', 'date', '2026-11-20'], ['Contract end|نهاية العقد', 'date', '']] }],
+      submit: [A('Back to employees|رجوع للموظفين', 'employees', 'outline'), A('Create employee|إضافة موظف', null, 'primary')] }]] },
+  employee: { parent: 'employees', title: 'Sara Al-Enezi|سارة العنزي', desc: 'Employee 1002 · Stylist · Salmiya|موظفة 1002 · مصففة · السالمية', actions: [A('Reload employee|إعادة تحميل الموظف', null, 'outline')], blocks: [
+    ['subtabs', [
+      { t: 'Details|البيانات', blocks: [['form', { sections: [
+        { title: 'Identity|الهوية', fields: [['English name|الاسم بالإنجليزية', 'text', 'Sara Al-Enezi'], ['Arabic name|الاسم بالعربية', 'text', 'سارة العنزي'], ['Employee number|الرقم الوظيفي', 'text', '1002', 4], ['Role|الدور', 'select', ['Stylist|مصففة'], 4], ['Existing user ID|معرّف مستخدم موجود', 'text', '', 4]] },
+        { title: 'Work|العمل', fields: [['Primary branch|الفرع الأساسي', 'select', BRANCHES, 4], ['Hire date|تاريخ التعيين', 'date', '2024-03-01', 4], ['Contract end|نهاية العقد', 'date', '2027-02-28', 4], ['Salmiya|السالمية', 'check', true, 4], ['Hawally|حولي', 'check', true, 4], ['Jahra|الجهراء', 'check', false, 4], ['Branch change date (Gregorian)|تاريخ تغيير الفرع (ميلادي)', 'date', '']] }],
+        submit: [A('Save changes|حفظ التغييرات', null, 'primary')] }]] },
+      { t: 'Pay|الراتب والبنك', blocks: [
+        ['table', { title: 'Monthly basic salary|الراتب الأساسي الشهري', cols: ['Effective from|ساري من', 'Monthly basic salary|الراتب الأساسي', 'Revision|المراجعة', 'Reason|السبب'], rows: [[N('2026-01-01'), N('450.000'), N('2'), 'Annual raise|زيادة سنوية'], [N('2024-03-01'), N('400.000'), N('1'), 'Hired|تعيين']], acts: [A('Set salary|تحديد الراتب', null, 'outline')] }],
+        ['table', { title: 'Bank account (IBAN)|الحساب البنكي (IBAN)', cols: ['Revision|المراجعة', 'IBAN', 'Bank|البنك', 'Account holder name in English|اسم صاحب الحساب بالإنجليزية', 'Set at|تاريخ التحديد'], rows: [[N('1'), N('KW81 CBKU •••• •••• 0101'), 'NBK|الوطني', 'Sara Al-Enezi', N('2024-03-02')]], acts: [A('Save bank account|حفظ الحساب البنكي', null, 'outline')] }]] },
+      { t: 'Hours and card|الدوام والبطاقة', blocks: [['split', [
+        ['form', { sections: [{ title: 'Default working hours|ساعات العمل الافتراضية', hint: 'Saturday to Friday. Leave a day empty for a day off.|من السبت إلى الجمعة. اترك اليوم فارغًا للإجازة.', fields: [['Saturday|السبت', 'text', '09:00 – 17:00', 4], ['Sunday|الأحد', 'text', '09:00 – 17:00', 4], ['Monday|الاثنين', 'text', '09:00 – 17:00', 4], ['Tuesday|الثلاثاء', 'text', '13:00 – 21:00', 4], ['Wednesday|الأربعاء', 'text', '13:00 – 21:00', 4], ['Thursday|الخميس', 'text', '09:00 – 17:00', 4], ['Friday|الجمعة', 'text', '', 4]] }], submit: [A('Clear default hours|مسح الساعات', null, 'outline'), A('Save default hours|حفظ الساعات', null, 'primary')] }]],
+        [['panel', { title: 'Attendance card|بطاقة الحضور', kv: [['Card code|رمز البطاقة', 'GL-1002-A']], acts: [A('Issue card|إصدار بطاقة', null, 'outline'), A('Revoke card|إلغاء البطاقة', null, 'destructive')] }],
+         ['panel', { title: 'Passkey|مفتاح المرور', text: 'Bound on 2026-08-14 from the staff app.|مربوط بتاريخ 2026-08-14 من تطبيق الموظفات.', acts: [A('Unbind passkey|فك ربط المفتاح', null, 'outline')] }]]]] },
+      { t: 'Documents|الوثائق', blocks: [['table', { cols: ['Document type|نوع الوثيقة', 'Expires on|تنتهي في', 'Status|الحالة', ''], rows: [['Civil ID|البطاقة المدنية', N('2027-06-30'), B('success', 'Valid|سارية'), A('Open|فتح')], ['Health card|البطاقة الصحية', N('2026-12-05'), B('warning', 'Expiring soon|تنتهي قريبًا'), A('Replace|استبدال')], ['Contract|العقد', '—', B('neutral', 'No expiry|بدون انتهاء'), A('Open|فتح')]], acts: [A('Upload and record|رفع وتسجيل', null, 'outline')] }]] },
+      { t: 'Leave|الإجازات', count: 1, blocks: [
+        ['stats', [['Last annual|آخر سنوية', '2026-08-10'], ['Last sick|آخر مرضية', '2026-10-02'], ['Last unpaid|آخر بدون راتب', '—'], ['Last unexcused absence|آخر غياب بدون عذر', '—']]],
+        ['table', { title: 'Upcoming and pending requests|الطلبات القادمة والمعلقة', cols: ['Date|التاريخ', 'Leave type|نوع الإجازة', 'Status|الحالة', 'Decision reason|سبب القرار', 'Decision|القرار'], rows: [[N('2026-12-01 → 12-05'), LEAVE_T[0], B('warning', 'Pending|معلّقة'), '—', A('Approve|اعتماد')]], acts: [A('Request leave on behalf|طلب إجازة بالنيابة', null, 'outline')] }]] }]]] },
+  numbers: { title: 'Employee numbers|الأرقام الوظيفية', desc: 'Every employee in the company: name, business and number.|كل موظفي الشركة: الاسم والنشاط والرقم.', actions: [A('Start numbering from|بدء الترقيم من', null, 'outline')], blocks: [
+    ['table', { filters: [['Search by name or number|بحث بالاسم أو الرقم', 'search']], cols: ['Name|الاسم', 'Business|النشاط', 'Employee number|الرقم الوظيفي', ''], rows: EMP.slice(0, 5).map((e, i) => [e, i < 4 ? 'Glow Salon|صالون جلو' : 'Glow Spa|سبا جلو', N(String(1001 + i)), A('Edit|تعديل')]) }]] },
+  import: { title: 'Import employees|استيراد الموظفين', desc: 'Download the template, fill it, upload it and preview before committing.|نزّل القالب، املأه، ارفعه، وراجع قبل الاعتماد.', narrow: true, blocks: [
+    ['steps', [['Download template|تنزيل القالب', 'An .xlsx file with the required columns.|ملف ‎.xlsx بالأعمدة المطلوبة.', A('Download template|تنزيل القالب', null, 'outline')], ['Upload the filled file|رفع الملف بعد تعبئته', 'employees-nov.xlsx · 14 rows|employees-nov.xlsx · 14 صفًا', A('Choose the filled .xlsx file|اختر ملف ‎.xlsx', null, 'outline')], ['Preview and commit|مراجعة واعتماد', '2 rows need fixing before you can commit.|صفّان يحتاجان تصحيحًا قبل الاعتماد.', A('Commit import|اعتماد الاستيراد', null, 'primary')]]],
+    ['table', { title: 'Rows to fix|صفوف تحتاج تصحيحًا', cols: ['Row|الصف', 'Column|العمود', 'Reason|السبب'], rows: [[N('6'), 'Hire date|تاريخ التعيين', 'Not a valid date|تاريخ غير صحيح'], [N('11'), 'Primary branch|الفرع الأساسي', 'Unknown branch|فرع غير معروف']] }]] },
+  doctypes: { title: 'Document types|أنواع الوثائق', desc: 'Types apply to the whole company. Each type sets its own expiry alert.|الأنواع تسري على الشركة كلها، ولكل نوع تنبيه انتهاء خاص.', actions: [A('Add type|إضافة نوع', null, 'primary')], blocks: [
+    ['table', { cols: ['Document type|نوع الوثيقة', 'Alert days before expiry|أيام التنبيه قبل الانتهاء', 'Expiry date|تاريخ الانتهاء', 'State|الحالة', ''], rows: [['Civil ID|البطاقة المدنية', N('30'), 'Required|مطلوب', B('success', 'Active|فعّال'), A('Edit|تعديل')], ['Health card|البطاقة الصحية', N('45'), 'Required|مطلوب', B('success', 'Active|فعّال'), A('Edit|تعديل')], ['Contract|العقد', N('0'), 'Optional|اختياري', B('neutral', 'Inactive|غير فعّال'), A('Edit|تعديل')]] }]] },
+  schedules: { title: 'Weekly schedules|جداول العمل الأسبوعية', desc: 'Saturday to Friday in the selected branch timezone.|من السبت إلى الجمعة بتوقيت الفرع المختار.', actions: [A('Reload|إعادة تحميل', null, 'outline')], blocks: [
+    ['week', { start: '2026-11-21', rows: [[EMP[0], '09–17', '09–17', '09–17', '09–17', '09–17', '09–17', ''], [EMP[1], '09–17', '09–17', '09–17', '13–21', '13–21', '09–17', ''], [EMP[2], '13–21', '13–21', '', '13–21', '13–21', '13–21', '10–16'], [EMP[3], '09–17', '', '09–17', '09–17', '09–13', '09–17', '']] }]] },
+  'schedule-rules': { title: 'Schedule settings|إعدادات الجداول', desc: 'How many shifts may start in one day, for the business and for each branch.|كم وردية يمكن أن تبدأ في اليوم، للنشاط ولكل فرع.', narrow: true, blocks: [
+    ['form', { sections: [{ title: 'Business|النشاط', fields: [['Maximum shifts starting per day|أقصى عدد ورديات تبدأ يوميًا', 'num', '3', 6, 'Default: 3 shifts per day|الافتراضي: 3 ورديات يوميًا']] }], submit: [A('Save schedule settings|حفظ إعدادات الجداول', null, 'primary')] }],
+    ['table', { title: 'Active branches|الفروع الفعّالة', cols: ['Branch|الفرع', "This branch's maximum shifts per day|أقصى ورديات الفرع يوميًا", 'Source|المصدر', ''], rows: [[BRANCHES[0], N('4'), B('brand', 'Branch number|رقم الفرع'), A('Use the business number|استخدم رقم النشاط')], [BRANCHES[1], N('3'), B('neutral', 'Business number|رقم النشاط'), A('Save branch number|حفظ رقم الفرع')], [BRANCHES[2], N('3'), B('neutral', 'Default number|الرقم الافتراضي'), A('Save branch number|حفظ رقم الفرع')]] }]] },
+
+  /* ---------- attendance ---------- */
+  'att-board': { title: 'Attendance board|لوحة الحضور', desc: 'Who is in now and how today went.|من الموجودات الآن وكيف سار اليوم.', blocks: [
+    ['board', [
+      { t: 'In now|موجودات الآن', n: 3, cards: [[EMP[0], '1001 · QR · 09:02 · still in 2:38|1001 · QR · 09:02 · مستمرة 2:38'], [EMP[1], '1002 · Card · 09:10 · still in 2:30|1002 · بطاقة · 09:10 · مستمرة 2:30'], [EMP[3], '1004 · Manual · 09:31 · late 16 min|1004 · يدوي · 09:31 · تأخير 16 د']] },
+      { t: 'Not in yet|لم يحضرن بعد', n: 1, cards: [[EMP[2], 'Scheduled 13:00|مجدولة 13:00']] },
+      { t: 'Refused clock attempts|محاولات تسجيل مرفوضة', n: 1, cards: [[EMP[4], 'Clock-in · outside branch range · 08:55|دخول · خارج نطاق الفرع · 08:55']] }]],
+    ['table', { title: 'Daily attendance|الحضور اليومي', filters: [['Branch|الفرع', 'select', BRANCHES], ['Working date|تاريخ العمل', 'date', '2026-11-20']], cols: ['Employee|الموظف', 'Employee number|الرقم الوظيفي', 'Clock-in|الدخول', 'Clock-out|الخروج', 'Source|المصدر', 'Late minutes|دقائق التأخير', 'Status|الحالة', ''], rows: [
+      [EMP[0], N('1001'), N('09:02'), '—', 'QR', N('0'), B('info', 'Open|مفتوح'), A('Correct time|تصحيح الوقت')],
+      [EMP[3], N('1004'), N('09:31'), '—', 'Manual|يدوي', N('16'), B('info', 'Open|مفتوح'), A('Correct time|تصحيح الوقت')],
+      [EMP[5], N('1006'), N('08:58'), N('17:04'), 'Card|بطاقة', N('0'), B('neutral', 'Closed|مغلق'), A('Correction history|سجل التصحيح')]] }]] },
+  'att-exceptions': { title: 'Attendance exceptions|تحذيرات الحضور', desc: 'Late arrivals, missing clock-outs and other flags to acknowledge.|تأخير، خروج غير مسجل، وتحذيرات أخرى تحتاج إقرارًا.', blocks: [
+    ['table', { toggle: ['Open|مفتوحة', 'Resolved|محلولة'], filters: [['Branch|الفرع', 'select', ALLBR]], cols: ['Employee|الموظف', 'Kind|النوع', 'Raised at|وقت التحذير', 'Clock-in|الدخول', 'Clock-out|الخروج', 'Reason|السبب', ''], rows: [
+      [EMP[3], B('warning', 'Late|تأخير'), N('11-20 09:31'), N('09:31'), '—', '—', A('Resolve|حل')],
+      [EMP[5], B('danger', 'Missing clock-out|خروج غير مسجل'), N('11-19 23:59'), N('09:00'), '—', '—', A('Resolve|حل')],
+      [EMP[1], B('warning', 'Early leave|انصراف مبكر'), N('11-18 15:40'), N('09:05'), N('15:40'), '—', A('Resolve|حل')]], foot: MORE }]] },
+  'att-requests': { title: 'Attendance requests|طلبات الحضور', desc: 'Manual days and day cancellations waiting for a decision.|أيام يدوية وإلغاءات أيام بانتظار القرار.', actions: [A('Manual day|يوم يدوي', null, 'primary')], blocks: [
+    ['table', { filters: [['Branch|الفرع', 'select', ALLBR], ['Status|الحالة', 'select', ['All statuses|كل الحالات', 'Pending|معلّق', 'Approved|معتمد', 'Rejected|مرفوض', 'Withdrawn|مسحوب']]], cols: ['Employee|الموظف', 'Kind|النوع', 'Status|الحالة', 'Date|التاريخ', 'Reason|السبب', ''], rows: [
+      [EMP[2], 'Manual day|يوم يدوي', B('warning', 'Pending|معلّق'), N('2026-11-18'), 'Phone was broken|الهاتف كان معطلاً', A('Approve|اعتماد')],
+      [EMP[4], 'Cancel day|إلغاء يوم', B('warning', 'Pending|معلّق'), N('2026-11-17'), 'Clocked in by mistake|تسجيل بالخطأ', A('Approve|اعتماد')],
+      [EMP[0], 'Manual day|يوم يدوي', B('success', 'Approved|معتمد'), N('2026-11-12'), 'Training outside|تدريب خارجي', A('Withdraw|سحب')]], foot: MORE }]] },
+  'att-report': { title: 'Monthly attendance report|تقرير الحضور الشهري', desc: 'Hours are shown as h:mm.|الساعات معروضة بصيغة س:د.', actions: [A('Download CSV|تنزيل CSV', null, 'outline')], blocks: [
+    ['table', { filters: [['Month|الشهر', 'month', '2026-11'], ['Branch|الفرع', 'select', ALLBR]], cols: ['Employee name|اسم الموظف', 'Employee number|الرقم الوظيفي', 'Days present|أيام الحضور', 'Worked hours|ساعات العمل', 'Scheduled hours|الساعات المجدولة', 'Leave|الإجازات', 'Difference|الفرق', 'Late count|مرات التأخير', 'Late minutes|دقائق التأخير', 'Missing clock-out|خروج غير مسجل', 'Manual days|أيام يدوية'], rows: [
+      [EMP[0], N('1001'), N('17'), N('136:10'), N('136:00'), '—', B('success', '+0:10'), N('0'), N('0'), N('0'), N('1')],
+      [EMP[1], N('1002'), N('15'), N('118:30'), N('120:00'), 'Sick 1 d|مرضية يوم', B('warning', '−1:30'), N('2'), N('21'), N('0'), N('0')],
+      [EMP[3], N('1004'), N('16'), N('121:05'), N('128:00'), '—', B('danger', '−6:55'), N('5'), N('74'), N('1'), N('0')]] }]] },
+  'att-statement': { title: 'Attendance statement|بيان الحضور', desc: 'A signed PDF statement for a branch or one employee.|بيان PDF موقّع لفرع أو لموظف واحد.', narrow: true, blocks: [
+    ['form', { sections: [
+      { title: 'What|ماذا', fields: [['Statement type|نوع البيان', 'select', ['Branch statement|بيان فرع', 'Employee statement|بيان موظف']], ['Branch|الفرع', 'select', BRANCHES], ['Employee|الموظف', 'select', ['All employees|كل الموظفين', ...EMP]], ['Shift|الوردية', 'select', ['All shifts|كل الورديات']]] },
+      { title: 'When|متى', fields: [['Period|الفترة', 'select', ['Whole month|شهر كامل', 'Custom period|فترة مخصصة']], ['Month|الشهر', 'month', '2026-11'], ['Statement language|لغة البيان', 'select', ['Arabic|العربية', 'English|الإنجليزية']]] }],
+      submit: [A('Request statement|طلب البيان', null, 'primary')] }]] },
+
+  /* ---------- leave ---------- */
+  'leave-approvals': { title: 'Leave approvals|اعتماد الإجازات', desc: 'Requests in the branches you are authorized for.|الطلبات في الفروع المصرح لك بها.', blocks: [
+    ['table', { filters: [['Branch|الفرع', 'select', ['All authorized branches|كل الفروع المصرح بها', ...BRANCHES]], ['From date|من تاريخ', 'date', '2026-11-01'], ['Through date|إلى تاريخ', 'date', '2026-12-31']], cols: LEAVE_COLS, rows: [
+      [N('12-01 → 12-05'), LEAVE_T[0], B('warning', 'Pending|معلّقة'), EMP[1], '—', A('Approve|اعتماد')],
+      [N('11-24'), LEAVE_T[1], B('warning', 'Pending|معلّقة'), EMP[3], '—', A('Approve|اعتماد')],
+      [N('11-27 13:00–17:00'), LEAVE_T[3], B('warning', 'Pending|معلّقة'), EMP[4], '—', A('Approve|اعتماد')],
+      [N('11-10 → 11-12'), LEAVE_T[0], B('success', 'Approved|معتمدة'), EMP[0], 'Covered by Hessa|تغطية من حصة', A('Revoke approval|إلغاء الاعتماد')]], foot: PAGER }]] },
+  'leave-history': { title: 'Leave history report|سجل الإجازات', desc: 'Leave and absence per employee over a period.|الإجازات والغياب لكل موظف خلال فترة.', blocks: [
+    ['stats', [['Last annual|آخر سنوية', '2026-11-10'], ['Last sick|آخر مرضية', '2026-10-02'], ['Last unpaid|آخر بدون راتب', '2026-05-19'], ['Last unexcused absence|آخر غياب بدون عذر', '2026-09-30']]],
+    ['table', { filters: [['Search employees|بحث في الموظفين', 'search'], ['Branch|الفرع', 'select', ALLBR], ['Leave type|نوع الإجازة', 'select', ['All types|كل الأنواع', ...LEAVE_T, 'Unexcused absence|غياب بدون عذر']], ['Status|الحالة', 'select', ['All statuses|كل الحالات', 'Absent|غائب']]], cols: ['Employee|الموظف', 'Branch|الفرع', 'Date|التاريخ', 'Leave type|نوع الإجازة', 'Status|الحالة', 'Decision reason|سبب القرار'], rows: [
+      [EMP[0], BRANCHES[0], N('11-10 → 11-12'), LEAVE_T[0], B('success', 'Approved|معتمدة'), 'Covered by Hessa|تغطية من حصة'],
+      [EMP[1], BRANCHES[0], N('10-02'), LEAVE_T[1], B('success', 'Approved|معتمدة'), '—'],
+      [EMP[3], BRANCHES[0], N('09-30'), 'Unexcused absence|غياب بدون عذر', B('danger', 'Absent|غائب'), '—']], foot: PAGER }]] },
+
+  /* ---------- setup ---------- */
+  identity: { title: 'Business identity|هوية النشاط', desc: 'Official names and logo for this business.|الأسماء الرسمية والشعار لهذا النشاط.', blocks: [
+    ['split', [['form', { sections: [{ title: 'Official names|الأسماء الرسمية', fields: [['Official Arabic name|الاسم الرسمي بالعربية', 'text', 'صالون جلو للسيدات', 12], ['Official English name|الاسم الرسمي بالإنجليزية', 'text', 'Glow Ladies Salon', 12]] }], submit: [A('Save names|حفظ الأسماء', null, 'primary')] }]],
+      [['panel', { title: 'Logo|الشعار', logo: true, text: 'PNG or SVG, square, at least 512 px.|PNG أو SVG، مربع، 512 بكسل على الأقل.', acts: [A('Replace logo|استبدال الشعار', null, 'outline'), A('Remove logo|إزالة الشعار', null, 'destructive')] }]]]] },
+  permissions: { title: 'Permissions|الصلاحيات', desc: 'Review role defaults and manage personal access decisions.|مراجعة افتراضيات الأدوار وإدارة قرارات الوصول الشخصية.', blocks: [
+    ['subtabs', [
+      { t: 'Memberships|العضويات', blocks: [['split', [
+        ['table', { filters: [['Scope|النطاق', 'select', ['Business|النشاط', 'Company|الشركة']]], cols: ['Holder|صاحب العضوية', 'Role|الدور', 'Scope|النطاق', ''], rows: [['usr_8f2k…19', B('brand', 'Owner|مالك'), 'Company|الشركة', A('View|عرض')], ['usr_3ad1…7c', B('neutral', 'Manager|مدير'), 'Glow Salon|صالون جلو', A('View|عرض')], ['usr_c90e…42', B('neutral', 'Reception|استقبال'), 'Salmiya|السالمية', A('View|عرض')]], foot: PAGER }]],
+        [['panel', { title: 'Manager · usr_3ad1…7c|مدير · usr_3ad1…7c', kv: [['Membership window|فترة العضوية', '2025-01-01 → No expiry|2025-01-01 ← بدون انتهاء'], ['Personal discount limit|حد الخصم الشخصي', '20%']], list: [['manage:orders:branch', 'Allow · Salmiya · until 2026-12-31|سماح · السالمية · حتى 2026-12-31'], ['manage:refunds:business', 'Deny · reason: trial period|منع · السبب: فترة تجربة']], acts: [A('Save override|حفظ الاستثناء', null, 'outline')] }]]]] },
+      { t: 'Discount limits|حدود الخصم', blocks: [['form', { sections: [{ title: 'Default discount limit · Glow Salon|حد الخصم الافتراضي · صالون جلو', fields: [['Default discount limit (%)|حد الخصم الافتراضي (%)', 'num', '15'], ['Reason|السبب', 'text', '']] }], submit: [A('Clear discount limit|مسح حد الخصم', null, 'outline'), A('Save discount limit|حفظ حد الخصم', null, 'primary')] }]] }]]] },
+  alerts: { title: 'Alerts|التنبيهات', desc: 'Who is told about what, per business or per branch.|من يُبلَّغ بماذا، للنشاط أو لكل فرع.', blocks: [
+    ['form', { sections: [{ title: 'Scope|النطاق', fields: [['Rules scope|نطاق القواعد', 'select', ['Business rules|قواعد النشاط', ...BRANCHES]], ['Send rating requests to customers|إرسال طلبات التقييم للعملاء', 'check', true, 3], ['All team alerts on|كل تنبيهات الفريق مفعّلة', 'check', true, 3]] }] }],
+    ['table', { title: 'Alert rules|قواعد التنبيه', cols: ['Alert|التنبيه', 'Source|المصدر', 'Recipients|المستلمون', 'Minutes|الدقائق'], rows: [
+      ['Late clock-in|تأخر الدخول', B('neutral', 'Business|النشاط'), 'Manager, Owner|المدير، المالك', N('15')],
+      ['Missing clock-out|خروج غير مسجل', B('neutral', 'Business|النشاط'), 'Manager|المدير', N('30')],
+      ['Shift ending reminder|تذكير نهاية الوردية', B('brand', 'Branch|الفرع'), 'Employee|الموظف', N('10')],
+      ['Document expiring|وثيقة تنتهي', B('neutral', 'Business|النشاط'), 'Owner|المالك', '—'],
+      ['Discount approval requested|طلب اعتماد خصم', B('neutral', 'Business|النشاط'), 'Manager|المدير', '—'],
+      ['Low rating received|تقييم منخفض', B('neutral', 'Business|النشاط'), 'Owner|المالك', '—']], acts: [A('Save|حفظ', null, 'primary')] }]] },
+  applink: { title: 'Staff app|تطبيق الموظفات', desc: 'The link your team opens to clock in and see their statements.|الرابط الذي يفتحه فريقك لتسجيل الحضور ورؤية كشوفهم.', narrow: true, blocks: [
+    ['panel', { qr: true, kv: [['Business|النشاط', 'Glow Salon|صالون جلو'], ['App link|رابط التطبيق', 'pos.pospay.systems/personal?b=glow']], acts: [A('Copy link|نسخ الرابط', null, 'primary'), A('Send on WhatsApp|إرسال عبر واتساب', null, 'outline')] }]] },
+  appcols: { title: 'Staff app columns|أعمدة تطبيق الموظفين', desc: 'What each employee sees about her own work in the staff app.|ما تراه كل موظفة عن عملها في تطبيق الموظفات.', narrow: true, blocks: [
+    ['form', { sections: [{ title: 'Columns|الأعمدة', fields: ['Date|التاريخ', 'Time|الوقت', 'Service|الخدمة', 'Customer name|اسم العميل', 'Price before discount|السعر قبل الخصم', 'Discount|الخصم', 'Net|الصافي', 'Her share|حصتها', 'Estimated commission|العمولة التقديرية', 'Tip|الإكرامية'].map((c, i) => [c, 'check', i !== 3 && i !== 4, 4]) }, { title: 'History|السجل', fields: [['Months back|عدد الأشهر السابقة', 'num', '3', 4, '1–12']] }], submit: [A('Save|حفظ', null, 'primary')] }]] },
+  security: { title: 'Authenticator app|تطبيق المصادقة', desc: 'Two-step sign-in for your own account.|تسجيل دخول بخطوتين لحسابك.', narrow: true, blocks: [
+    ['steps', [['Confirm your password|أكّد كلمة المرور', 'Needed before the QR code is shown.|مطلوب قبل إظهار رمز QR.', A('Continue|متابعة', null, 'primary')], ['Scan the QR code|امسح رمز QR', 'Use any authenticator app.|استخدم أي تطبيق مصادقة.'], ['Save your backup codes|احفظ رموز الاحتياط', 'Each code works once.|كل رمز يعمل مرة واحدة.', A('Copy codes|نسخ الرموز', null, 'outline')]]]] },
+};
+
+/* Shared prototype runtime: language, device preview, hash routing, block renderers, popovers. */
+const S = { lang: 'ar', device: 'desktop', sub: {}, last: {} };
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const T = (s) => { if (s == null) return ''; s = String(s); const i = s.indexOf('|'); return i < 0 ? s : S.lang === 'ar' ? s.slice(i + 1) : s.slice(0, i); };
+const E = (s) => esc(T(s));
+
+const ICONS = {
+  home: 'M4 11l8-7 8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1z',
+  receipt: 'M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6',
+  tag: 'M3 12V4h8l10 10-8 8zM7.5 8.5h.01',
+  users: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM2.5 20c0-3.3 2.9-6 6.5-6s6.5 2.7 6.5 6M16 4.3a3.5 3.5 0 0 1 0 6.4M18 14.4c2 .8 3.5 2.8 3.5 5.6',
+  clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
+  calendar: 'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4',
+  inbox: 'M3 13l3-8h12l3 8v6H3zM3 13h5l1 3h6l1-3h5',
+  gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1',
+  bell: 'M6 16v-5a6 6 0 1 1 12 0v5l2 2H4zM10 21h4',
+  search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4',
+  menu: 'M4 7h16M4 12h16M4 17h16',
+  x: 'M6 6l12 12M18 6L6 18',
+  chev: 'M9 6l6 6-6 6',
+  down: 'M6 9l6 6 6-6',
+  plus: 'M12 5v14M5 12h14',
+  shield: 'M12 3l8 3v6c0 4.5-3.3 8-8 9-4.7-1-8-4.5-8-9V6zM9 12l2 2 4-4',
+  building: 'M5 21V4h9v17M14 9h5v12M3 21h18M8 8h3M8 12h3M8 16h3',
+  phone: 'M8 2h8v20H8zM11 18h2',
+  upload: 'M12 16V4M7 9l5-5 5 5M4 20h16',
+  alert: 'M12 3l10 18H2zM12 10v5M12 18h.01',
+  sun: 'M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5',
+  logout: 'M10 4H5v16h5M15 8l4 4-4 4M9 12h10',
+  grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+  dots: 'M5 12h.01M12 12h.01M19 12h.01',
+  side: 'M4 5h16v14H4zM9 5v14',
+  chart: 'M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-8',
+  doc: 'M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 16h6',
+  id: 'M3 6h18v12H3zM14 10h4M14 14h4M8.5 11.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM5.5 15.5c.6-2 5.4-2 6 0',
+  back: 'M15 6l-6 6 6 6',
+};
+const FLIP = { chev: 1, logout: 1, side: 1, back: 1 };
+const I = (n, cls = '') => `<svg class="i ${FLIP[n] ? 'flip' : ''} ${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[n] || ICONS.grid}"/></svg>`;
+const PICON = { home: 'home', visit: 'receipt', day: 'calendar', pkgsale: 'tag', services: 'tag', categories: 'grid', packages: 'doc', employees: 'users', numbers: 'id', import: 'upload', doctypes: 'doc', schedules: 'calendar', 'schedule-rules': 'gear', 'att-board': 'clock', 'att-exceptions': 'alert', 'att-requests': 'inbox', 'att-report': 'chart', 'att-statement': 'doc', 'leave-approvals': 'inbox', 'leave-history': 'chart', identity: 'building', permissions: 'shield', alerts: 'bell', applink: 'phone', appcols: 'grid', security: 'shield' };
+const COUNTS = { 'leave-approvals': 3, 'att-requests': 2, 'att-exceptions': 4 };
+const cnt = (ids) => ids.reduce((n, id) => n + (COUNTS[id] || 0), 0);
+const badgeN = (n) => (n ? `<span class="count num">${n}</span>` : '');
+
+/* ---------- cells, buttons ---------- */
+const btn = (a, sm) => `<button type="button" class="btn ${sm ? 'sm ' : ''}${a.v === 'primary' || (!a.v && !sm) ? '' : a.v || 'outline'}" ${a.go ? `data-go="${a.go}"` : 'data-toast'}>${E(a.a)}</button>`;
+function cell(c) {
+  if (Array.isArray(c)) return c.map(cell).join(' ');
+  if (c && typeof c === 'object') {
+    if (c.b) return `<span class="badge ${c.b}">${E(c.t)}</span>`;
+    if (c.a) return btn(c, true);
+    if (c.n != null) return `<span class="num">${esc(c.n)}</span>`;
+  }
+  return E(c);
+}
+function control([label, type, val, , hint], i, pid) {
+  const id = `f-${pid}-${i}`;
+  const l = E(label);
+  if (type === 'check') return `<label class="check"><input type="checkbox" id="${id}" ${val ? 'checked' : ''}> ${l}</label>`;
+  if (type === 'button') return `<div class="field" style="justify-content:flex-end"><button type="button" class="btn outline" data-toast>${E(val)}</button></div>`;
+  let c;
+  if (type === 'select') c = `<select class="input" id="${id}">${val.map((o) => `<option>${E(o)}</option>`).join('')}</select>`;
+  else if (type === 'textarea') c = `<textarea class="input" id="${id}">${E(val)}</textarea>`;
+  else c = `<input class="input ${type === 'num' ? 'num' : ''}" id="${id}" type="${{ date: 'date', time: 'time', month: 'month' }[type] || 'text'}" ${type === 'num' ? 'inputmode="decimal"' : ''} value="${E(val)}">`;
+  return `<div class="field"><label for="${id}">${l}</label>${c}${hint ? `<small>${E(hint)}</small>` : ''}</div>`;
+}
+const spanCls = (s) => (s === 12 ? 's12' : s === 4 || s === 3 ? 's4' : '');
+const wrapSpan = (html, s) => (spanCls(s) ? html.replace(/class="(field|check)"/, `class="$1 ${spanCls(s)}"`) : html);
+
+/* ---------- blocks ---------- */
+let BID = 0;
+const BLOCK = {
+  stats: (rows) => `<div class="stats">${rows.map(([l, v, d, tone]) => `<div class="card stat ${tone || ''}"><span class="l">${E(l)}</span><span class="v">${/^[\d\-—+−:.\s]+$/.test(T(v)) ? `<span class="num">${E(v)}</span>` : E(v)}</span>${d ? `<span class="d">${E(d)}</span>` : ''}</div>`).join('')}</div>`,
+  table(t, pid) {
+    const fl = (t.filters || []).map(([l, type, v], i) => {
+      const id = `q-${pid}-${++BID}-${i}`;
+      if (type === 'search') return `<input class="input search" id="${id}" type="search" placeholder="${E(l)}" aria-label="${E(l)}">`;
+      if (type === 'select') return `<select class="input" id="${id}" aria-label="${E(l)}">${v.map((o) => `<option>${E(o)}</option>`).join('')}</select>`;
+      if (type === 'check') return `<label class="check"><input type="checkbox" id="${id}"> ${E(l)}</label>`;
+      return `<input class="input" id="${id}" type="${type}" value="${esc(v || '')}" aria-label="${E(l)}">`;
+    }).join('');
+    const tg = t.toggle ? `<div class="pills" role="group">${t.toggle.map((o, i) => `<a href="#" data-toast ${i ? '' : 'aria-current="page"'}>${E(o)}</a>`).join('')}</div>` : '';
+    return `<div class="card tframe stack">
+      ${t.title || t.acts ? `<div class="tbar">${t.title ? `<h2>${E(t.title)}</h2>` : ''}<div class="acts">${(t.acts || []).map((a) => btn(a, true)).join('')}</div></div>` : ''}
+      ${fl || tg ? `<div class="filters">${tg}${fl}</div>` : ''}
+      <div class="twrap"><table><thead><tr>${t.cols.map((c) => `<th scope="col">${E(c)}</th>`).join('')}</tr></thead>
+      <tbody>${t.rows.map((r) => `<tr>${r.map((c, i) => `<td data-l="${E(t.cols[i])}" class="${i ? '' : 'strong'}">${cell(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+      ${t.foot ? `<div class="tfoot"><span>${T('Showing|المعروض')} <span class="num">${t.rows.length}</span></span><div class="acts">${t.foot === 'pager' ? `<button class="btn sm outline" data-toast>${T('First page|الصفحة الأولى')}</button><button class="btn sm outline" data-toast>${T('Next page|الصفحة التالية')}</button>` : `<button class="btn sm outline" data-toast>${T('Load more|تحميل المزيد')}</button>`}</div></div>` : ''}
+    </div>`;
+  },
+  form: (f, pid) => `<div class="card form">${f.sections.map((s, si) => `<div class="fsec"><h2>${E(s.title)}</h2>${s.hint ? `<p>${E(s.hint)}</p>` : ''}${s.fields.map((fd, i) => wrapSpan(control(fd, `${++BID}-${si}-${i}`, pid), fd[3])).join('')}</div>`).join('')}${f.submit ? `<div class="fbar">${f.submit.map((a) => btn(a)).join('')}</div>` : ''}</div>`,
+  split: (a, pid, b) => `<div class="split"><div class="col">${blocks(a, pid)}</div><div class="col">${blocks(b, pid)}</div></div>`,
+  panel: (p) => `<div class="card panel ${p.sticky ? 'sticky' : ''}">
+    ${p.title ? `<h2>${E(p.title)}</h2>` : ''}
+    ${p.qr ? `<div class="qr" role="img" aria-label="QR"></div>` : ''}${p.logo ? `<div class="logo-prev">G</div>` : ''}
+    ${p.kv ? `<dl class="kv">${p.kv.map(([k, v]) => `<div><dt>${E(k)}</dt><dd>${/^[\d.%]+$/.test(T(v)) ? `<span class="num">${E(v)}</span>` : E(v)}</dd></div>`).join('')}</dl>` : ''}
+    ${p.text ? `<p>${E(p.text)}</p>` : ''}
+    ${p.list ? `<div class="list">${p.list.map(([t, s, go]) => `<${go ? `a href="#${go}"` : 'div'} class="li">${go ? '' : `<span class="av">${E(t).slice(0, 1)}</span>`}<span class="tx"><b>${E(t)}</b>${/^\d+$/.test(s) ? '' : `<span>${E(s)}</span>`}</span>${/^\d+$/.test(s) ? badgeN(s) : ''}${go ? I('chev') : ''}</${go ? 'a' : 'div'}>`).join('')}</div>` : ''}
+    ${p.acts ? `<div class="pacts">${p.acts.map((a) => btn(a)).join('')}</div>` : ''}</div>`,
+  steps: (st) => `<ol class="card steps">${st.map(([t, d, a], i) => `<li><span class="sn num">${i + 1}</span><div class="tx"><b>${E(t)}</b><span>${E(d)}</span></div>${a ? btn(a, true) : ''}</li>`).join('')}</ol>`,
+  board: (cols) => `<div class="board">${cols.map((c) => `<div class="card bcol"><h2>${E(c.t)} ${badgeN(c.n)}</h2>${c.cards.map(([t, s]) => `<div class="bcard"><b>${E(t)}</b><span>${E(s)}</span></div>`).join('')}</div>`).join('')}</div>`,
+  week(w) {
+    const days = ['Sat|السبت', 'Sun|الأحد', 'Mon|الاثنين', 'Tue|الثلاثاء', 'Wed|الأربعاء', 'Thu|الخميس', 'Fri|الجمعة'];
+    return `<div class="card tframe"><div class="filters"><input class="input" type="date" value="${w.start}" aria-label="${T('Week starts (Saturday)|بداية الأسبوع (السبت)')}"><span class="check">${T('Tap a cell to edit that day.|اضغط الخلية لتعديل اليوم.')}</span></div>
+      <div class="twrap"><div class="week"><div class="h n">${T('Employee|الموظف')}</div>${days.map((d, i) => `<div class="h">${E(d)} <span class="num">${21 + i}</span></div>`).join('')}
+      ${w.rows.map((r) => `<div class="n">${E(r[0])}</div>${r.slice(1).map((c) => `<div>${c ? `<button class="sh num" data-toast>${c}</button>` : `<span class="off">${T('No shifts|بلا ورديات')}</span>`}</div>`).join('')}`).join('')}</div></div>
+      <div class="tfoot"><span>${T('4 employees attached this week|4 موظفات مرتبطات هذا الأسبوع')}</span></div></div>`;
+  },
+  subtabs(tabs, pid) {
+    const cur = S.sub[pid] || 0;
+    return `<div class="tabs sub" role="tablist">${tabs.map((t, i) => `<a href="#" role="tab" data-st="${i}" ${i === cur ? 'aria-current="page"' : ''}>${E(t.t)} ${badgeN(t.count)}</a>`).join('')}</div><div class="col subpane">${blocks(tabs[cur].blocks, pid)}</div>`;
+  },
+  hub: (ids) => `<div class="hub">${ids.map((id) => `<a class="card hubc" href="#${id}"><span class="hi">${I(PICON[id])}</span><span class="tx"><b>${E(PAGES[id].title)} ${badgeN(COUNTS[id])}</b><span>${E(PAGES[id].desc || '')}</span></span>${I('chev')}</a>`).join('')}</div>`,
+  note: (t, _p, tone) => `<div class="note ${tone || ''}">${I('alert')}<span>${E(t)}</span></div>`,
+};
+const blocks = (list, pid) => list.map(([k, a, b]) => BLOCK[k](a, pid, b)).join('');
+
+function pageHTML(id, o = {}) {
+  const p = PAGES[id];
+  const acts = (p.actions || []).map((a) => btn(a)).join('');
+  return `<div class="page ${p.narrow && !o.wide ? 'narrow' : ''}">${o.top || ''}
+    <header class="phead"><div class="tx"><h1>${E(p.title)}</h1>${p.desc ? `<p>${E(p.desc)}</p>` : ''}</div>${acts ? `<div class="acts">${acts}</div>` : ''}</header>
+    ${o.mid || ''}${blocks(p.blocks, id)}</div>`;
+}
+const crumbs = (parts) => `<nav class="crumbs" aria-label="breadcrumb">${parts.map(([l, go], i) => (i === parts.length - 1 ? `<b>${E(l)}</b>` : `${go ? `<a href="#${go}">${E(l)}</a>` : `<span>${E(l)}</span>`}${I('chev')}`)).join('')}</nav>`;
+const root = (id) => (PAGES[id] && PAGES[id].parent) || id;
+
+/* ---------- shared chrome pieces ---------- */
+const WS = { company: 'Lulwa Group|مجموعة لولوة', business: 'Glow Salon|صالون جلو', branch: 'Salmiya|السالمية' };
+const brand = (small) => `<a class="brand" href="#home" aria-label="PosPay"><span class="bm">P</span>${small ? '' : '<span class="bw">PosPay</span>'}</a>`;
+const wsBtn = (mode) => `<button type="button" class="wsb ${mode || ''}" data-pop="ws" aria-haspopup="dialog">${I('building')}<span class="tx"><b>${E(WS.business)}</b><span>${E(WS.branch)}</span></span>${I('down')}</button>`;
+const utils = () => `<button type="button" class="btn ghost icon" data-pop="notif" aria-label="${T('Notifications|الإشعارات')}"><span class="dotw">${I('bell')}<i></i></span></button>
+  <button type="button" class="btn outline sm loc" data-lang="${S.lang === 'ar' ? 'en' : 'ar'}">${S.lang === 'ar' ? 'English' : 'العربية'}</button>
+  <button type="button" class="avb" data-pop="acct" aria-label="${T('Account|الحساب')}">W</button>`;
+const POPS = {
+  ws: () => `<h2>${T('Where you are working|أين تعمل الآن')}</h2>
+    ${[['Company|الشركة', [WS.company]], ['Business|النشاط', [WS.business, 'Glow Spa|سبا جلو']], ['Branch|الفرع', BRANCHES]].map(([l, o], i) => `<div class="field"><label for="ws${i}">${E(l)}</label><select class="input" id="ws${i}">${o.map((x) => `<option>${E(x)}</option>`).join('')}</select></div>`).join('')}
+    <p class="hint">${T('Attendance, leave and alerts pages follow this branch.|صفحات الحضور والإجازات والتنبيهات تتبع هذا الفرع.')}</p>`,
+  notif: () => `<h2>${T('Notifications|الإشعارات')}</h2><div class="list">
+    <a class="li" href="#leave-approvals"><span class="tx"><b>${T('Sara asked for annual leave|سارة طلبت إجازة سنوية')}</b><span>${T('1–5 December · 8 min ago|1–5 ديسمبر · قبل 8 دقائق')}</span></span></a>
+    <a class="li" href="#att-exceptions"><span class="tx"><b>${T('Dalal clocked in 16 minutes late|دلال سجلت دخولًا متأخرًا 16 دقيقة')}</b><span>${T('Salmiya · 09:31|السالمية · 09:31')}</span></span></a>
+    <a class="li" href="#employee"><span class="tx"><b>${T('Health card expires in 15 days|البطاقة الصحية تنتهي خلال 15 يومًا')}</b><span>${T('Sara Al-Enezi|سارة العنزي')}</span></span></a></div>
+    <button class="btn sm outline" data-toast>${T('Mark all read|تعليم الكل كمقروء')}</button>`,
+  acct: () => `<div class="who"><span class="av">W</span><span class="tx"><b>Waleed M.</b><span>owner@glow.example</span></span></div>
+    <div class="list"><a class="li" href="#security">${I('shield')}<span class="tx"><b>${T('Authenticator|المصادقة')}</b></span></a></div>
+    <div class="seg thm">${[['light', 'Light|فاتح'], ['dark', 'Dark|داكن'], ['', 'System|النظام']].map(([v, l]) => `<button data-theme="${v}" aria-pressed="${(document.documentElement.dataset.theme || '') === v}">${E(l)}</button>`).join('')}</div>
+    <button class="btn sm outline" data-toast>${I('logout')}${T('Sign out|تسجيل الخروج')}</button>`,
+};
+function closePop() { $$('.pop, .scrim.p').forEach((e) => e.remove()); }
+function openPop(kind, anchor, html) {
+  const app = $('#app'); closePop();
+  const r = anchor.getBoundingClientRect(), a = app.getBoundingClientRect();
+  const scrim = document.createElement('div'); scrim.className = 'scrim p'; scrim.onclick = closePop;
+  const pop = document.createElement('div'); pop.className = `pop card ${kind}`; pop.setAttribute('role', 'dialog');
+  pop.innerHTML = html || POPS[kind]();
+  pop.style.top = `${Math.min(r.bottom - a.top + 8, a.height - 120)}px`;
+  if (r.left + r.width / 2 > a.left + a.width / 2) pop.style.right = `${Math.max(8, a.right - r.right)}px`; else pop.style.left = `${Math.max(8, r.left - a.left)}px`;
+  app.append(scrim, pop);
+  const f = pop.querySelector('select, a, button, input'); if (f) f.focus({ preventScroll: true });
+}
+function toast(msg) {
+  $$('.toast').forEach((e) => e.remove());
+  const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); t.textContent = msg;
+  $('#app').append(t); setTimeout(() => t.remove(), 2200);
+}
+
+/* ---------- boot ---------- */
+const route = () => { const h = location.hash.slice(1); return Object.hasOwn(PAGES, h) ? h : 'home'; };
+function paint(full) {
+  const d = document.documentElement; d.lang = S.lang; d.dir = S.lang === 'ar' ? 'rtl' : 'ltr';
+  $$('.pbar [data-lang]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.lang === S.lang));
+  $$('.pbar [data-device]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.device === S.device));
+  $('.stage').dataset.device = S.device;
+  if (full) Shell.mount($('#app'));
+  closePop(); Shell.update(route());
+  const sc = $('#app .scroll'); if (sc) sc.scrollTop = 0;
+}
+function boot() {
+  try { S.lang = localStorage.getItem('pp-lang') || S.lang; } catch (e) { /* storage may be blocked */ }
+  if (window.innerWidth < 700) S.device = 'desktop';
+  document.body.insertAdjacentHTML('afterbegin', `<div class="pbar"><b>${Shell.letter}</b><span>${Shell.name}</span><span class="sp"></span>
+    <div class="seg dev" role="group" aria-label="Device">${[['desktop', 'Desktop'], ['tablet', 'Tablet'], ['phone', 'Phone']].map(([v, l]) => `<button data-device="${v}">${l}</button>`).join('')}</div>
+    <div class="seg" role="group" aria-label="Language"><button data-lang="ar">العربية</button><button data-lang="en">English</button></div></div>
+    <div class="stage"><div class="app" id="app"></div></div>`);
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-lang],.pbar [data-device],[data-theme],[data-pop],[data-go],[data-st],[data-toast],[data-act]');
+    if (!t) return;
+    if (t.dataset.lang) { S.lang = t.dataset.lang; try { localStorage.setItem('pp-lang', S.lang); } catch (x) { /* ignore */ } return paint(true); }
+    if (t.dataset.device) { S.device = t.dataset.device; return paint(true); }
+    if (t.dataset.theme != null && t.closest('.thm')) { const d = document.documentElement; if (t.dataset.theme) d.dataset.theme = t.dataset.theme; else delete d.dataset.theme; return closePop(); }
+    if (t.dataset.pop) return openPop(t.dataset.pop, t);
+    if (t.dataset.go) { location.hash = t.dataset.go; return; }
+    if (t.dataset.st != null) { e.preventDefault(); S.sub[route()] = +t.dataset.st; return Shell.update(route()); }
+    if (t.dataset.act) { e.preventDefault(); return Shell.act(t.dataset.act, t); }
+    if (t.hasAttribute('data-toast')) { e.preventDefault(); toast(`${T('Prototype only|نموذج فقط')} · ${t.textContent.trim()}`); }
+  });
+  document.addEventListener('click', (e) => { const l = e.target.closest('a[href^="#"]'); if (l && !e.defaultPrevented && l.getAttribute('href') !== '#' && l.getAttribute('href').slice(1) === location.hash.slice(1)) { closePop(); if (Shell.act) Shell.act('esc'); } });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closePop(); if (Shell.act) Shell.act('esc'); } if (Shell.key) Shell.key(e); });
+  window.addEventListener('hashchange', () => paint(false));
+  paint(true);
+}
+
+/* Prototype A — six sidebar entries; second level is a tab row; third level is pills. */
+const NAV = [
+  { id: 'home', l: 'Home|الرئيسية', i: 'home', tabs: [{ p: 'home' }] },
+  { id: 'sales', l: 'Sales|المبيعات', i: 'receipt', tabs: [{ p: 'visit' }, { p: 'day' }, { p: 'pkgsale' }] },
+  { id: 'catalog', l: 'Catalog|الكتالوج', i: 'tag', tabs: [{ p: 'services' }, { p: 'categories' }, { p: 'packages' }] },
+  { id: 'team', l: 'Team|الفريق', i: 'users', tabs: [
+    { p: 'employees', sub: ['employees', 'numbers', 'import', 'doctypes'] },
+    { p: 'schedules', l: 'Schedules|الجداول', sub: ['schedules', 'schedule-rules'] }] },
+  { id: 'time', l: 'Attendance & leave|الحضور والإجازات', i: 'clock', tabs: [
+    { p: 'att-board', l: 'Board|اللوحة' }, { p: 'att-requests', l: 'Requests|الطلبات' }, { p: 'att-exceptions', l: 'Exceptions|التحذيرات' },
+    { p: 'leave-approvals' }, { p: 'att-report', l: 'Reports|التقارير', sub: ['att-report', 'att-statement', 'leave-history'] }] },
+  { id: 'setup', l: 'Setup|الإعداد', i: 'gear', tabs: [
+    { p: 'identity' }, { p: 'permissions' }, { p: 'alerts' },
+    { p: 'applink', l: 'Staff app|تطبيق الموظفات', sub: ['applink', 'appcols'] }, { p: 'security', l: 'Sign-in security|أمان الدخول' }] },
+];
+const SUBL = { employees: 'List|القائمة', schedules: 'Week|الأسبوع', 'schedule-rules': 'Shift limits|حدود الورديات', applink: 'Link and QR|الرابط و QR', appcols: 'Columns|الأعمدة' };
+const tabIds = (t) => t.sub || [t.p];
+const grpIds = (g) => g.tabs.flatMap(tabIds);
+function find(id) { const r = root(id); for (const g of NAV) for (const t of g.tabs) if (tabIds(t).includes(r)) return { g, t }; return { g: NAV[0], t: NAV[0].tabs[0] }; }
+const gHref = (g) => S.last[g.id] || g.tabs[0].p;
+
+const Shell = {
+  letter: 'A', name: 'Sidebar + tabs',
+  mount(app) {
+    const bb = [NAV[0], NAV[1], NAV[3], NAV[4]];
+    app.innerHTML = `<div class="shell A ${S.col ? 'is-collapsed' : ''}">
+      <aside class="sb"><div class="sbh">${brand()}<button class="btn ghost icon cl" data-act="collapse" aria-label="${T('Collapse navigation|طي القائمة')}">${I('side')}</button></div>
+        ${wsBtn()}
+        <nav class="nv" aria-label="${T('Workspace navigation|التنقل في مساحة العمل')}"><span class="ind"></span>
+          ${NAV.map((g) => `<a class="ni" data-g="${g.id}" href="#${gHref(g)}" title="${E(g.l)}">${I(g.i)}<span class="lb">${E(g.l)}</span>${badgeN(cnt(grpIds(g)))}</a>`).join('')}</nav>
+      </aside>
+      <div class="main"><header class="top"><h2 class="sect"></h2><div class="utils">${utils()}</div></header>
+        <div class="tabsrow"></div><div class="scroll" id="view"></div>
+        <nav class="bb" aria-label="${T('Workspace navigation|التنقل في مساحة العمل')}">${bb.map((g) => `<a data-g="${g.id}" href="#${gHref(g)}"><span class="bi">${I(g.i)}</span>${E(g.l.replace('Attendance & leave|الحضور والإجازات', 'Time|الدوام'))}</a>`).join('')}
+          <a href="#" data-act="more" data-g="more"><span class="bi">${I('dots')}</span>${T('More|المزيد')}</a></nav></div></div>`;
+  },
+  update(id) {
+    const { g, t } = find(id), r = root(id);
+    S.last[g.id] = r;
+    $$('#app [data-g]').forEach((a) => {
+      const on = a.dataset.g === g.id || (a.dataset.g === 'more' && ['catalog', 'setup'].includes(g.id));
+      a.toggleAttribute('aria-current', on); if (on) a.setAttribute('aria-current', 'page');
+      const ng = NAV.find((x) => x.id === a.dataset.g); if (ng) a.setAttribute('href', `#${gHref(ng)}`);
+    });
+    const cur = $(`#app .ni[data-g="${g.id}"]`), ind = $('#app .ind');
+    ind.style.transform = `translateY(${cur.offsetTop}px)`; ind.style.height = `${cur.offsetHeight}px`;
+    $('#app .sect').textContent = T(g.l);
+    const row = $('#app .tabsrow');
+    row.hidden = g.tabs.length < 2;
+    row.innerHTML = `<div class="tabs">${g.tabs.map((x) => `<a href="#${x.p}" ${x === t ? 'aria-current="page"' : ''}>${E(x.l || PAGES[x.p].title)} ${badgeN(cnt(tabIds(x)))}</a>`).join('')}</div>`;
+    const on = $('.tabs [aria-current]', row); if (on) on.scrollIntoView({ block: 'nearest', inline: 'center' });
+    const pills = t.sub ? `<div class="pills">${t.sub.map((p) => `<a href="#${p}" ${p === r ? 'aria-current="page"' : ''}>${E(SUBL[p] || PAGES[p].title)}</a>`).join('')}</div>` : '';
+    const top = r !== id ? crumbs([[g.l], [PAGES[r].title, r], [PAGES[id].title]]) : '';
+    $('#view').innerHTML = pageHTML(id, { top, mid: r === id ? pills : '' });
+  },
+  act(a, el) {
+    if (a === 'collapse') { S.col = !S.col; $('#app .shell').classList.toggle('is-collapsed', S.col); setTimeout(() => Shell.update(route()), 210); }
+    if (a === 'more') openPop('more', el, `<h2>${T('More|المزيد')}</h2><div class="list">${[NAV[2], NAV[5]].map((g) => `<a class="li" href="#${gHref(g)}"><span class="hi">${I(g.i)}</span><span class="tx"><b>${E(g.l)}</b><span>${g.tabs.map((x) => T(x.l || PAGES[x.p].title)).join(' · ')}</span></span>${I('chev')}</a>`).join('')}</div>${wsBtn()}`);
+  },
+};
+
+/* The file has no <body> tag of its own (an Artifact adds one); opened as a local file the script runs first, so wait. */
+if (document.body) boot(); else document.addEventListener('DOMContentLoaded', boot);
+</script>

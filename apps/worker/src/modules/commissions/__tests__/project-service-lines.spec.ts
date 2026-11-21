@@ -14,6 +14,7 @@ import type {
   CommissionPeriodReopenInput,
 } from '../ports/commission-line-projection.port.ts';
 import { ProjectServiceLines } from '../use-cases/project-service-lines/project-service-lines.ts';
+import { noCommissionBlockNotices } from './commission-block-notice.fakes.ts';
 
 function line(overrides: Partial<CommissionLineSnapshot> = {}): CommissionLineSnapshot {
   return {
@@ -110,7 +111,7 @@ it('runs locks, head read, one period lock, replacement and affected-only reopen
     { period: '2026-11', statementId: 'statement-2026-11', status: 'REVIEWED' },
     { period: '2026-12', statementId: 'statement-2026-12', status: 'DRAFT' },
   ];
-  await new ProjectServiceLines(scope, clock, ids, unusedCorrections()).execute(input([line()]));
+  await new ProjectServiceLines(scope, clock, ids, unusedCorrections(), noCommissionBlockNotices).execute(input([line()]));
   expect(scope.calls).toEqual([
     'lockLines',
     'readHeads',
@@ -129,7 +130,7 @@ it.each([1, 2])(
   async (revision) => {
     const scope = new FakeScope();
     scope.heads = [{ ...line({ revision: 2 }), period: '2026-10' }];
-    await new ProjectServiceLines(scope, clock, ids, unusedCorrections()).execute(
+    await new ProjectServiceLines(scope, clock, ids, unusedCorrections(), noCommissionBlockNotices).execute(
       input([line({ revision })]),
     );
     expect(scope.calls).toEqual(['lockLines', 'readHeads']);
@@ -148,7 +149,7 @@ it.each(['APPROVED', 'PAID'] as const)(
       { period: '2026-11', statementId: 'statement-2026-11', status: 'REVIEWED' },
       { period: '2026-12', statementId: 'statement-2026-12', status: 'REVIEWED' },
     ];
-    const work = new ProjectServiceLines(scope, clock, ids, unusedCorrections()).execute(
+    const work = new ProjectServiceLines(scope, clock, ids, unusedCorrections(), noCommissionBlockNotices).execute(
       input([line()]),
     );
     await expect(work).rejects.toMatchObject({
@@ -169,7 +170,7 @@ it('a business-date change locks removal and addition months through the current
     { period: '2026-10', statementId: 'statement-2026-10', status: 'REVIEWED' },
     { period: '2026-11', statementId: 'statement-2026-11', status: 'REVIEWED' },
   ];
-  await new ProjectServiceLines(scope, clock, ids, unusedCorrections()).execute(
+  await new ProjectServiceLines(scope, clock, ids, unusedCorrections(), noCommissionBlockNotices).execute(
     input([line({ businessDate: '2026-10-15' })]),
   );
   expect(scope.lockInput?.periods).toEqual(['2026-09', '2026-10', '2026-11', '2026-12']);

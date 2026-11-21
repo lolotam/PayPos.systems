@@ -1,0 +1,46 @@
+/* A — sidebar 264px (rail 80px), top bar 64px, tab row 48px, bottom bar 64px on phones. */
+.A .sb { width: 264px; flex: none; display: flex; flex-direction: column; gap: 16px; padding: 16px; background: var(--sidebar); border-inline-end: 1px solid var(--border); transition: width var(--t-base) var(--ease), padding var(--t-base) var(--ease); overflow: hidden auto; }
+.A .sbh { display: flex; align-items: center; justify-content: space-between; min-height: 44px; }
+.A .nv { position: relative; display: flex; flex-direction: column; gap: 4px; }
+.A .ind { position: absolute; inset-inline: 0; top: 0; height: 48px; border-radius: var(--r-ctl); background: var(--primary); transition: transform var(--t-base) var(--ease), height var(--t-base); }
+.A .ni { position: relative; display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 0 14px; border-radius: var(--r-ctl); font-size: 14px; font-weight: 500; text-decoration: none; white-space: nowrap; transition: color var(--t-fast), background var(--t-fast); }
+.A .ni svg.i { width: 20px; height: 20px; }
+.A .ni .lb { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.A .ni:not([aria-current]):hover { background: var(--secondary); }
+.A .ni[aria-current] { color: var(--primary-foreground); font-weight: 600; }
+.A .top { height: 64px; flex: none; display: flex; align-items: center; gap: 16px; padding-inline: 24px; background: var(--card); border-bottom: 1px solid var(--border); }
+.A .sect { font-size: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.A .tabsrow { flex: none; padding-inline: 12px; background: var(--card); border-bottom: 1px solid var(--border); }
+.A .tabsrow .tabs { border-bottom: 0; }
+.A .bb { display: none; }
+
+/* rail: collapsed by the user, or forced between 600 and 1023px */
+.A.is-collapsed .sb { width: 80px; padding-inline: 8px; }
+.A.is-collapsed .sbh { flex-direction: column; gap: 8px; }
+.A.is-collapsed .brand .bw, .A.is-collapsed .wsb .tx, .A.is-collapsed .wsb > svg:last-child { display: none; }
+.A.is-collapsed .wsb { justify-content: center; padding: 0; }
+.A.is-collapsed .ni { flex-direction: column; justify-content: center; gap: 2px; padding: 6px 2px; min-height: 60px; font-size: 10.5px; text-align: center; }
+.A.is-collapsed .ni .lb { flex: none; max-width: 100%; }
+.A.is-collapsed .ni .count { position: absolute; top: 4px; inset-inline-end: 8px; }
+@container app (min-width: 600px) and (max-width: 1023px) {
+  .A .sb { width: 80px; padding-inline: 8px; }
+  .A .sbh { flex-direction: column; gap: 8px; }
+  .A .sbh .cl, .A .brand .bw, .A .wsb .tx, .A .wsb > svg:last-child { display: none; }
+  .A .wsb { justify-content: center; padding: 0; }
+  .A .ni { flex-direction: column; justify-content: center; gap: 2px; padding: 6px 2px; min-height: 60px; font-size: 10.5px; text-align: center; }
+  .A .ni .lb { flex: none; max-width: 100%; }
+  .A .ni .count { position: absolute; top: 4px; inset-inline-end: 8px; }
+}
+@container app (max-width: 599px) {
+  .A .sb { display: none; }
+  .A .top { height: 56px; padding-inline: 16px; }
+  .A .sect { font-size: 18px; }
+  .A .tabsrow { padding-inline: 4px; }
+  .A .bb { flex: none; display: grid; grid-template-columns: repeat(5, 1fr); height: 64px; background: var(--card); border-top: 1px solid var(--border); }
+  .A .bb a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11px; font-weight: 500; text-decoration: none; color: var(--muted-foreground); }
+  .A .bb .bi { width: 52px; height: 28px; border-radius: 99px; display: grid; place-items: center; transition: background var(--t-base) var(--ease); }
+  .A .bb .bi svg.i { width: 20px; height: 20px; }
+  .A .bb a[aria-current] { color: var(--foreground); font-weight: 600; }
+  .A .bb a[aria-current] .bi { background: var(--primary); color: var(--primary-foreground); }
+}
+.pop.more .hi { width: 40px; height: 40px; border-radius: 12px; background: var(--secondary); display: grid; place-items: center; flex: none; }

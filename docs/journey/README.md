@@ -150,7 +150,7 @@ answer.
 | 76 | [Rating requests: scheduling and the on/off switch](76-rating-requests.md) — طلبات التقييم: الجدولة ومفتاح التشغيل | #670, #692, #734, #741, #751, #785, #883 | the switch yes (`/alert-rules`); nothing is sent (row 59b-3 not built) |
 | 77 | [The customer's rating page](77-public-rating-page.md) — صفحة تقييم العميلة | #704, #731, #738, #847, #1105 | no: `apps/menu` is not deployed on staging and no link is sent yet |
 | 78 | [Commission plan versions](78-commission-plan-versions.md) — نسخ خطة العمولة | #551, #695, #730, #793 | API on staging; no screen (row 48-3 deferred) |
-| 79 | [A special commission for one employee on one service](79-commission-service-overrides.md) — عمولة خاصة لموظفة على خدمة واحدة | #762 | API on staging; no screen (row 49-2) |
+| 79 | [A special commission for one employee on one service](79-commission-service-overrides.md) — عمولة خاصة لموظفة على خدمة واحدة | #762 | API on staging; the screen is [98](98-commission-service-overrides.md) |
 | 80 | [Monthly commission statements: the groundwork](80-commission-statements-groundwork.md) — كشوف العمولة الشهرية: الأساس | #611, #613, #645, #650, #651, #659, #707, #717, #727, #790, #813, #816, #821, #844, #928, #983, #998, #1010, #1014, #1020, #1023, #1024 | nothing to click (worker projection and storage; no statement route yet) |
 | 81 | [A customer's profile and per-business notes](81-customer-profile-notes.md) — ملف العميلة وملاحظات كل نشاط | #766 | API on staging; no screen for the new fields |
 | 82 | [The private view on the reception device, and the «own» permissions](82-private-view-window.md) — العرض الخاص على جهاز الريسبشن وصلاحيات «بتاعتي» | #775, #784, #845 | permissions yes on `/permissions`; the window is API only |
@@ -169,5 +169,7 @@ answer.
 | 95 | [The new look and the light / dark switch](95-design-system-theme.md) — الشكل الجديد ومفتاح فاتح / غامق | #1079, #1083, #1095, DS-3 A3 | yes, in the admin and the POS |
 | 96 | [Package sale recovery when the response is lost](96-package-sale-recovery.md) — استرجاع بيع الباقة لما الرد يضيع | #1077, #1094 | after the next staging batch; needs the `orders` feature; continues [86](86-sell-package.md) step 14 |
 | 97 | [The commission plan builder](97-commission-plan-builder.md) — منشئ خطط العمولة | #1104, this PR | yes (`/commissions/plans`) |
+| 98 | [The special-commission screen](98-commission-service-overrides.md) — شاشة العمولة الخاصة للخدمات | this PR | after the staging batch that includes this PR (`/commissions/overrides`) |
+| 101 | [Admin navigation styles (planned — spec 074)](101-admin-navigation-styles.md) — أنماط تنقّل لوحة الإدارة الثلاثة (مخطط — مواصفة 074) | planned (`074-0b` decision records only; UI in step 7, account sync in step 12) | no — planned only (not built yet; step `074-0b` adds decision records only) |
 
 New journeys are added after every merge.

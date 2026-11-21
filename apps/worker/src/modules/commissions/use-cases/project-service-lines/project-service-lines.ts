@@ -28,6 +28,7 @@ import {
   CommissionPeriodRolledOverError,
 } from '../../domain/errors.ts';
 import type { CommissionCorrectionScope } from '../../ports/commission-correction.port.ts';
+import type { CommissionBlockNotices } from '../../ports/commission-block-notice.port.ts';
 import type {
   Clock,
   CommissionInputEventEnvelope,
@@ -54,6 +55,7 @@ export class ProjectServiceLines {
     private readonly clock: Clock,
     private readonly ids: IdGenerator,
     private readonly corrections: CommissionCorrectionScope,
+    private readonly notices: CommissionBlockNotices,
   ) {}
 
   async execute(input: CommissionLineEventInput): Promise<void> {
@@ -87,6 +89,8 @@ export class ProjectServiceLines {
       eventId: input.eventId,
       targets,
       employees,
+      companyId: input.companyId,
+      notices: this.notices,
     });
     await this.scope.reopenReviewed({ businessId: input.businessId, periods: reviewed });
   }

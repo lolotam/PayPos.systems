@@ -1,10 +1,10 @@
 # 79 · A special commission for one employee on one service — عمولة خاصة لموظفة على خدمة واحدة
 
 **Status / الحالة:** shipped in #762 (49-1: dated per-service employee overrides: contracts, table, use case, routes
-and list), merged (spec 059 row 49). **API only, no screen:** the overrides screen is row 49-2 and is not built
-(deferred with 48-3, PP-169.1). The routes are on staging and need the `commissions` feature. Like a plan version
-([78](78-commission-plan-versions.md)), an override changes no payslip until monthly statements are built
-([80](80-commission-statements-groundwork.md)).
+and list), merged (spec 059 row 49). **The screen is row 49-2 and ships with this PR (49-2c):** the admin screen for
+the overrides is [98](98-commission-service-overrides.md) on `/commissions/overrides`. The routes are on staging and
+need the `commissions` feature. Like a plan version ([78](78-commission-plan-versions.md)), an override changes no
+payslip until monthly statements are built ([80](80-commission-statements-groundwork.md)).
 
 **Before you start / قبل ما تبدأ:**
 - Everything of [78](78-commission-plan-versions.md): the Owner or an Accountant, the employee منى (Mona), the
@@ -13,7 +13,7 @@ and list), merged (spec 059 row 49). **API only, no screen:** the overrides scre
 
 ## العربي
 
-API بس، لسه مفيش شاشة.
+القواعد نفسها عن طريق الـ API، وشاشة الأدمن في الرحلة [98](98-commission-service-overrides.md).
 
 1. **عمولة خاصة:** صاحب الشركة يبعت لمنى قاعدة خاصة على «قص شعر»: نسبة 20% (`PCT`، `bps: 2000`) من النهارده ← 201.
    من التاريخ ده، سطور «قص شعر» اللي منى عملتها بتتحسب بـ 20% بدل قاعدة الخطة.
@@ -38,7 +38,7 @@ API بس، لسه مفيش شاشة.
 
 ## English
 
-API only, no screen yet.
+The rules themselves are API only; the admin screen is [98](98-commission-service-overrides.md).
 
 1. **A special commission:** the Owner posts an override for Mona on «قص شعر»: 20% (`PCT`, `bps: 2000`) from today →
    201. From that date, the «قص شعر» lines Mona performs are computed at 20% instead of the plan's rule.
@@ -65,7 +65,8 @@ API only, no screen yet.
 
 ## For an agent
 
-- **Screens:** none (row 49-2).
+- **Screens:** the admin screen for the same rules is [98](98-commission-service-overrides.md) (row 49-2); this
+  journey stays on the API.
 - **API** (`apps/api/src/modules/commissions/http/commission-service-overrides.controller.ts`,
   `manage:commission-plans:business` + the `commissions` feature):
   `POST|GET /v1/businesses/<BUSINESS_ID>/employees/<EMPLOYEE_ID>/commission-overrides`; the `POST` needs an
