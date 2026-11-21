@@ -31,8 +31,7 @@ export class CommissionBlockedCorrectionsController {
     private readonly runner: CommissionBlockedCorrectionListRunner | null,
   ) {}
 
-  // TODO(spec): CS-Q48 (مين يفتح قايمة التصحيحات الموقوفة) لسه PENDING على اختيار أبو سالم؛
-  // الصلاحية دي هي الاختيار المؤقت المسجّل لوليد، والدمج متوقف على الإجابة (plan-55-2.md §8).
+  // CS-Q48: القائمة لأصحاب صلاحية خطط العمولة، زي الجرس وإصلاح التصحيحات.
   @Get()
   @Require('manage:commission-plans:business', { business: 'businessId' })
   @RequiresFeature('commissions')
