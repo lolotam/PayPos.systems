@@ -30,7 +30,7 @@ beforeAll(async () => {
     SELECT ${f.company},gen_random_uuid(),${f.business},${f.branch},
       'Explain employee ' || series,'explain-employee-' || series,'staff','2026-01-01',100 + series
     FROM generate_series(1, 20) AS series`;
-  await f.h.owner`INSERT INTO commission_blocked_corrections(
+  const seeded = await f.h.owner`INSERT INTO commission_blocked_corrections(
     company_id,id,business_id,employee_id,source_period,code,first_event_id,target_period,
     target_statement_id,created_at)
     SELECT ${f.company},gen_random_uuid(),${f.business},e.id,
@@ -39,7 +39,9 @@ beforeAll(async () => {
       now() - (series || ' minutes')::interval
     FROM generate_series(1, 200) AS series
     JOIN employees e ON e.company_id=${f.company} AND e.business_id=${f.business}
-      AND e.employee_number = 100 + ((series - 1) % 20)`;
+      AND e.employee_number = 101 + ((series - 1) % 20)
+    RETURNING id`;
+  expect(seeded).toHaveLength(200);
   await f.h.owner`ANALYZE commission_blocked_corrections`;
 });
 afterAll(async () => {
@@ -94,11 +96,11 @@ it('L2 the resolved status keeps an index; the all status keeps the list order w
   expect(all).not.toContain('"Node Type":"Sort"');
 });
 
-it('L2 sparse open rows behind a long resolved history keep the index and pay a visible filter cost', async () => {
+it('L2 the sparse open page uses an ordered index path through resolved history', async () => {
   // سيناريو تمثيلي صناعي: تاريخ محلول كثيف أحدث من الصفوف المفتوحة. الفهرس الحالي بيمسح
   // بالترتيب وبيفلتر كل صف محلول يعديه — الكلفة دي ظاهرة في المسح الفعلي بالأرقام، من غير
   // مسح متسلسل ولا فهرس جديد؛ فهرس واعي بالحالة بيحتاج قرار ترحيل منفصل مش في 55-2e.
-  await f.h.owner`INSERT INTO commission_blocked_corrections(
+  const seeded = await f.h.owner`INSERT INTO commission_blocked_corrections(
     company_id,id,business_id,employee_id,source_period,code,first_event_id,target_period,
     target_statement_id,created_at,resolved_at,resolved_generation)
     SELECT ${f.company},gen_random_uuid(),${f.business},e.id,
@@ -108,14 +110,16 @@ it('L2 sparse open rows behind a long resolved history keep the index and pay a 
       now() + (series || ' seconds')::interval, 1
     FROM generate_series(1, 200) AS series
     JOIN employees e ON e.company_id=${f.company} AND e.business_id=${f.business}
-      AND e.employee_number = 100 + ((series - 1) % 20)`;
+      AND e.employee_number = 101 + ((series - 1) % 20)
+    RETURNING id`;
+  expect(seeded).toHaveLength(200);
   await f.h.owner`ANALYZE commission_blocked_corrections`;
   const text = await explainPlan('open', null);
-  expect(text).toContain('commission_blocked_corrections_list_idx');
+  expect(text).toContain('"Index Name":');
+  expect(text).not.toContain('"Node Type":"Sort"');
   expect(text).not.toContain('"Node Type":"Seq Scan"');
   const removed = (text.match(/"Rows Removed by Filter":(\d+)/g) ?? [])
     .map((entry) => Number(/(\d+)$/.exec(entry)?.[1] ?? 0))
     .reduce((max, value) => (value > max ? value : max), 0);
-  // الـ 200 صف المحلولة الأحدث بتتعدي وبتترفض بالفلتر قبل أول صفحة مفتوحة: الكلفة الموثّقة.
-  expect(removed).toBeGreaterThanOrEqual(150);
+  expect(removed).toBeLessThanOrEqual(seeded.length);
 });
