@@ -49,7 +49,7 @@ function renderPage() {
         <PackageTypesPage
           companyId={id}
           userId={id}
-          business={{ id, name_en: 'Business', name_ar: null, branches: [] }}
+          business={{ id, name_en: 'Business', name_ar: null, business_type: 'salon', country: null, branches: [] }}
         />
       </QueryClientProvider>
     </LocaleProvider>,

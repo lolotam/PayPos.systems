@@ -129,18 +129,7 @@ export {
   type LoginInput,
   type TotpCodeInput,
 } from './identity/session.js';
-export {
-  myWorkspacesResponse,
-  workspaceBranch,
-  workspaceBusiness,
-  workspaceCompany,
-  workspaceCompanyNames,
-  type MyWorkspacesResponse,
-  type WorkspaceBranch,
-  type WorkspaceBusiness,
-  type WorkspaceCompany,
-  type WorkspaceCompanyNames,
-} from './identity/workspaces.js';
+export * from './identity/workspaces.js';
 export {
   myMembership,
   myMembershipsResponse,

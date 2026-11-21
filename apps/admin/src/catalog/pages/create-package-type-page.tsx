@@ -1,5 +1,5 @@
 'use client';
-import type { WorkspaceBusiness } from '@pospay/contracts';
+import type { WorkspaceBusinessRead } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -12,7 +12,7 @@ export function CreatePackageTypePage({
   userId,
 }: {
   companyId: string;
-  business: WorkspaceBusiness;
+  business: WorkspaceBusinessRead;
   userId: string;
 }) {
   const locale = useLocale();

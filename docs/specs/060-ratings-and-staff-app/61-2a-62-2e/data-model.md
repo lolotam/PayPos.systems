@@ -36,10 +36,10 @@ Unchanged: primary key `(company_id, id)`, every index, the RLS policies and gra
 
 ### Migration strategy (expand only)
 
-| File (provisional number — tail at the pin is 0235) | Content | Lock |
+| File (after imported-refunds migration 0236) | Content | Lock |
 |---|---|---|
-| `0236_<date>_employee-document-number.sql` | `SET LOCAL lock_timeout = '5s'`; `ADD COLUMN`; `ADD CONSTRAINT … CHECK (…) NOT VALID` | short `ACCESS EXCLUSIVE`, no table scan |
-| `0237_<date>_employee-document-number-validate.sql` | `VALIDATE CONSTRAINT` | `SHARE UPDATE EXCLUSIVE`, in its own transaction |
+| `0237_2026-11-21_employee-document-number.sql` | `SET LOCAL lock_timeout = '5s'`; `ADD COLUMN`; `ADD CONSTRAINT … CHECK (…) NOT VALID` | short `ACCESS EXCLUSIVE`, no table scan |
+| `0238_2026-11-21_employee-document-number-validate.sql` | `VALIDATE CONSTRAINT` | `SHARE UPDATE EXCLUSIVE`, in its own transaction |
 
 Model: 0194 → 0195. Generated beside them: two `meta/NNNN_snapshot.json` files (about 30,800 lines each at the pin)
 and two `_journal.json` entries. Old code keeps working against the new column (it never names it), so the release

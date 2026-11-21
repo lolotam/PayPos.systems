@@ -48,6 +48,8 @@ const company1: WorkspaceCompany = {
       id: '01923f66-3d2b-7c00-8000-000000000011',
       name_ar: null,
       name_en: 'First Business',
+      business_type: 'salon',
+      country: null,
       branches: [activeBranch, inactiveBranch],
     },
   ],

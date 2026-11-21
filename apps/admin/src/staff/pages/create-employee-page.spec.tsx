@@ -48,6 +48,8 @@ const business = {
   id,
   name_en: 'Synthetic business',
   name_ar: null,
+  business_type: 'salon' as const,
+  country: null,
   branches: [
     {
       id,

@@ -1,10 +1,20 @@
-import type { WorkspaceCompany } from '@pospay/contracts';
-
 /** تلميحات نطاق ids-only من روابط التبويب الجديد — بلا أسماء أو تليفونات أو PII. */
 export interface ScopeHint {
   companyId?: string | undefined;
   businessId?: string | undefined;
   branchId?: string | undefined;
+}
+
+/**
+ * عقد قراءة متوافق مع شكل الـ workspace المقروء (074-0c): الحل يحتاج ids فقط،
+ * فيقبل `WorkspaceCompanyRead` و `WorkspaceCompany` — الحل هيكلي بلا أي منح من العنوان.
+ */
+export interface ScopeHintWorkspaceRead {
+  readonly id: string;
+  readonly businesses: readonly {
+    readonly id: string;
+    readonly branches: readonly { readonly id: string }[];
+  }[];
 }
 
 export interface ResolvedScopeHint {
@@ -24,7 +34,7 @@ export interface ResolvedScopeHint {
  */
 export function resolveScopeHint(
   hint: ScopeHint,
-  companies: readonly WorkspaceCompany[],
+  companies: readonly ScopeHintWorkspaceRead[],
   current: {
     company: string | undefined;
     business: string | undefined;

@@ -56,7 +56,7 @@ function workspaceWith(
   return {
     status: 'ready',
     company: { ...company, scope },
-    business: { id: businessId, name_en: 'Business', name_ar: null, branches },
+    business: { id: businessId, name_en: 'Business', name_ar: null, business_type: 'salon', country: null, branches },
     branch: branches.find((branch) => branch.id === branchId),
     companies: [],
     choose: vi.fn(),

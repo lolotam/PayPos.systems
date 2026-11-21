@@ -13,6 +13,8 @@ const company = workspaceCompany.parse({
       id: '01920000-0000-7000-8000-000000000002',
       name_en: 'Synthetic Business',
       name_ar: null,
+      business_type: 'salon',
+      country: null,
       branches: [
         {
           id: '01920000-0000-7000-8000-000000000003',
