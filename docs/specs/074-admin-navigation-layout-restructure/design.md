@@ -225,7 +225,7 @@ The owner chose "admin and cashier" (NAV-Q3). `apps/pos` has no navigation menu 
 
 ## 11. Open questions
 
-Recorded in `owner-questions.ar.md`. Still open: NAV-Q4 (`--primary` difference) and NAV-Q11 (cashier app: what "account" means for staff). Answered on 2026-11-21: NAV-Q2 (`lovable-pospay` has its own spec in its own repository), NAV-Q5 (one place for the theme switch in all three styles), NAV-Q9 (the owner alone), NAV-Q10 (a column on `user`), NAV-Q12 (styles first, account saving follows), NAV-Q14 (not-built entries by business type and role), NAV-Q15 (social media management listed as Soon), NAV-Q16 (no audit entry; recorded exception).
+Recorded in `owner-questions.ar.md`. None is open. Answered on 2026-11-21: NAV-Q4 (each project keeps its `--primary` value), NAV-Q11 (a cashier's style is kept on the device, one value per employee), NAV-Q2 (`lovable-pospay` has its own spec in its own repository), NAV-Q5 (one place for the theme switch in all three styles), NAV-Q9 (the owner alone), NAV-Q10 (a column on `user`), NAV-Q12 (styles first, account saving follows), NAV-Q14 (not-built entries by business type and role), NAV-Q15 (social media management listed as Soon), NAV-Q16 (no audit entry; recorded exception).
 
 ## 12. Decisions this spec sits under
 

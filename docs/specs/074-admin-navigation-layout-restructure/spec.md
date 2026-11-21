@@ -236,4 +236,4 @@ Audit: none. A user changing their own navigation style is a recorded exception 
 - Navigation counts (pending leave, attendance requests, open exceptions) are shown only if existing reads can supply them cheaply; otherwise they are left out of the first release. Not verified.
 - The page finder in style C uses components the app already has; if a new library is needed, an ADR comes first.
 - `lovable-pospay` is a separate project with its own spec and plan in its own repository (NAV-Q2); nothing here applies to it.
-- The cashier app and the `--primary` difference (NAV-Q4) are tracked in `owner-questions.ar.md` and do not block this feature's first steps.
+- The cashier app gets its own spec; where a cashier's style is kept is decided (NAV-Q11: on the device, per employee). The `--primary` difference is settled: each project keeps its own value (NAV-Q4).

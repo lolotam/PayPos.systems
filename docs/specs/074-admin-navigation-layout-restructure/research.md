@@ -71,4 +71,4 @@ Checked against `origin/main` at `cf70114e2` on 2026-11-21. Each entry says what
 ## R12. Cashier app
 
 - **Decision**: Out of this feature; a separate specification.
-- **Rationale**: `apps/pos` has no navigation menu (its screens change by state), its people use staff sessions bound to a device (ADR-0019, ADR-0027), and an employee is not always linked to a user account, so "saved on the account" has no settled meaning there yet (NAV-Q11).
+- **Rationale**: `apps/pos` has no navigation menu (its screens change by state), its people use staff sessions bound to a device (ADR-0019, ADR-0027), and an employee is not always linked to a user account, so "saved on the account" does not apply there: the owner decided on 2026-11-21 that a cashier's style is kept on the device, one value per employee (NAV-Q11).
