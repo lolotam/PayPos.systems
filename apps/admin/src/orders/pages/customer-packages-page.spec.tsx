@@ -1,0 +1,243 @@
+﻿import { t } from '@pospay/i18n';
+import { DirectionProvider } from '@pospay/ui';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, expect, it, vi } from 'vitest';
+import type { SessionServiceScope } from '../api/use-session-services';
+import { CustomerPackagesPage } from './customer-packages-page';
+
+const api = vi.hoisted(() => ({ GET: vi.fn() }));
+const nav = vi.hoisted(() => ({
+  search: '',
+  push: vi.fn(),
+}));
+vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
+vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: nav.push }),
+  useSearchParams: () => new URLSearchParams(nav.search),
+}));
+
+const companyId = '01920000-0000-7000-8000-000000000101';
+const businessId = '01920000-0000-7000-8000-000000000102';
+const branchId = '01920000-0000-7000-8000-000000000103';
+const customerId = '01920000-0000-7000-8000-0000000000f1';
+const packageA = '01920000-0000-7000-8000-0000000000a1';
+const packageB = '01920000-0000-7000-8000-0000000000a2';
+const packageC = '01920000-0000-7000-8000-0000000000a3';
+const scope: SessionServiceScope = { companyId, businessId, branchId, userId: 'user' };
+const listPath = '/v1/businesses/{businessId}/branches/{branchId}/customers/{customerId}/packages';
+const detailPath = `${listPath}/{entitlementId}`;
+
+function item(id: string, name_en: string, expired: boolean, used_up: boolean) {
+  return {
+    id,
+    provenance: 'SOLD',
+    name_en,
+    name_ar: null,
+    expires_on: '2026-12-01',
+    expired,
+    used_up,
+    price_paid: '36.000',
+    refunded_amount: '0.000',
+    components: [
+      {
+        id: '01920000-0000-7000-8000-0000000001c1',
+        service_id: '01920000-0000-7000-8000-0000000001c2',
+        position: 1,
+        name_en: 'Haircut',
+        name_ar: null,
+        sessions_total: 4,
+        remaining: 2,
+        used: 1,
+        refunded: 1,
+        next_unit_value: '9.000',
+        slot_values: [{ unit_value: '9.000', free: 2, used: 1, refunded: 1 }],
+      },
+    ],
+  };
+}
+
+function renderPage(search = '') {
+  nav.search = search;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <DirectionProvider dir="ltr">
+        <CustomerPackagesPage scope={scope} customerId={customerId} />
+      </DirectionProvider>
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => {
+  api.GET.mockReset();
+  nav.push.mockReset();
+  nav.search = '';
+});
+
+it('shows the generic heading, the active package first and the expired mark on the expired one', async () => {
+  api.GET.mockResolvedValue({
+    data: {
+      items: [item(packageA, 'Gold', false, false), item(packageB, 'Old', true, false)],
+      next_cursor: null,
+    },
+    response: { status: 200 },
+  });
+  renderPage();
+  expect(screen.getByRole('heading', { name: t('en', 'customerPackages.title') })).toBeTruthy();
+  await screen.findByText('Gold');
+  expect(screen.getByText('Old')).toBeTruthy();
+  expect(screen.getByText(t('en', 'customerPackages.expiredBadge'))).toBeTruthy();
+  const hrefs = screen.getAllByRole('button').map((button) => button.textContent);
+  expect(hrefs.indexOf('Gold')).toBeLessThan(hrefs.indexOf('Old'));
+});
+
+it('paginates by appending pages without repeating one package', async () => {
+  api.GET.mockResolvedValueOnce({
+    data: {
+      items: [item(packageA, 'Gold', false, false), item(packageB, 'Old', true, false)],
+      next_cursor: 'c2',
+    },
+    response: { status: 200 },
+  }).mockResolvedValueOnce({
+    data: {
+      items: [item(packageB, 'Old', true, false), item(packageC, 'New', false, false)],
+      next_cursor: null,
+    },
+    response: { status: 200 },
+  });
+  renderPage();
+  await screen.findByText('Gold');
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'customerPackages.loadMore') }));
+  await screen.findByText('New');
+  const names = screen.getAllByText(/Gold|Old|New/).map((node) => node.textContent);
+  expect(names.filter((name) => name === 'Gold')).toHaveLength(1);
+  expect(names.filter((name) => name === 'Old')).toHaveLength(1);
+  expect(names.filter((name) => name === 'New')).toHaveLength(1);
+});
+
+it('shows the distinct empty and refusal states instead of data', async () => {
+  api.GET.mockResolvedValue({ data: { items: [], next_cursor: null }, response: { status: 200 } });
+  const first = renderPage();
+  await waitFor(() =>
+    expect(screen.getByRole('status').textContent).toContain(t('en', 'customerPackages.empty')),
+  );
+  first.unmount();
+  api.GET.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
+  renderPage();
+  await waitFor(() =>
+    expect(screen.getByRole('alert').textContent).toContain(t('en', 'customerPackages.notAllowed')),
+  );
+  expect(screen.queryByText('Gold')).toBeNull();
+});
+
+it('a refused read supersedes a preseeded cache on the same client', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  api.GET.mockResolvedValueOnce({
+    data: { items: [item(packageA, 'Gold', false, false)], next_cursor: null },
+    response: { status: 200 },
+  });
+  const primed = render(
+    <QueryClientProvider client={client}>
+      <DirectionProvider dir="ltr">
+        <CustomerPackagesPage scope={scope} customerId={customerId} />
+      </DirectionProvider>
+    </QueryClientProvider>,
+  );
+  await screen.findByText('Gold');
+  primed.unmount();
+  api.GET.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
+  render(
+    <QueryClientProvider client={client}>
+      <DirectionProvider dir="ltr">
+        <CustomerPackagesPage scope={scope} customerId={customerId} />
+      </DirectionProvider>
+    </QueryClientProvider>,
+  );
+  await waitFor(() =>
+    expect(screen.getByRole('alert').textContent).toContain(t('en', 'customerPackages.notAllowed')),
+  );
+  expect(screen.queryByText('Gold')).toBeNull();
+});
+
+it('a failed load offers a retry that loads the packages', async () => {
+  api.GET.mockResolvedValueOnce({
+    error: { code: 'UNEXPECTED' },
+    response: { status: 500 },
+  }).mockResolvedValueOnce({
+    data: { items: [item(packageA, 'Gold', false, false)], next_cursor: null },
+    response: { status: 200 },
+  });
+  renderPage();
+  await waitFor(() =>
+    expect(screen.getByRole('alert').textContent).toContain(t('en', 'customerPackages.loadFailed')),
+  );
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'customerPackages.retry') }));
+  await screen.findByText('Gold');
+});
+
+it('a malformed customer segment shows not found without any request', () => {
+  const malformed = render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <DirectionProvider dir="ltr">
+        <CustomerPackagesPage scope={scope} customerId="not-a-uuid" />
+      </DirectionProvider>
+    </QueryClientProvider>,
+  );
+  expect(malformed.getByRole('alert').textContent).toContain(t('en', 'customerPackages.notFound'));
+  expect(api.GET).not.toHaveBeenCalled();
+});
+
+it('opening a package pushes its address and the detail renders from the query value', async () => {
+  api.GET.mockImplementation((path: string) => {
+    if (path === listPath)
+      return Promise.resolve({
+        data: { items: [item(packageA, 'Gold', false, false)], next_cursor: null },
+        response: { status: 200 },
+      });
+    return Promise.resolve({
+      error: { code: 'NOT_FOUND' },
+      response: { status: 404 },
+    });
+  });
+  renderPage();
+  await screen.findByText('Gold');
+  fireEvent.click(screen.getByRole('button', { name: 'Gold' }));
+  expect(nav.push).toHaveBeenCalledWith(`?package=${packageA}`);
+  const withSelection = renderPage(`?package=${packageA}`);
+  await waitFor(() =>
+    expect(withSelection.getByRole('alert').textContent).toContain(
+      t('en', 'customerPackages.detailNotFound'),
+    ),
+  );
+});
+
+it('a malformed query value shows detail not found without requesting the detail', async () => {
+  api.GET.mockResolvedValue({
+    data: { items: [item(packageA, 'Gold', false, false)], next_cursor: null },
+    response: { status: 200 },
+  });
+  renderPage('?package=broken-value');
+  await screen.findByText('Gold');
+  expect(screen.getByRole('alert').textContent).toContain(
+    t('en', 'customerPackages.detailNotFound'),
+  );
+  expect(api.GET.mock.calls.filter(([path]) => path === detailPath)).toHaveLength(0);
+  expect(api.GET).toHaveBeenCalledWith(listPath, expect.anything());
+});
+
+it('never renders a phone number or a customer name', async () => {
+  api.GET.mockResolvedValue({
+    data: { items: [item(packageA, 'Gold', false, false)], next_cursor: null },
+    response: { status: 200 },
+  });
+  renderPage('?package=broken-value');
+  await screen.findByText('Gold');
+  expect(screen.queryByText(/\+965/)).toBeNull();
+  expect(screen.queryByText('Noura')).toBeNull();
+  const href = `/orders/customers/${customerId}/packages`;
+  expect(href).not.toMatch(/noura|phone/i);
+});

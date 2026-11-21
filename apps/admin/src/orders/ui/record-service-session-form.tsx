@@ -3,14 +3,28 @@ import type { RecordingContext } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useEffect, useRef, useState } from 'react';
-import { FormProvider, useForm, useWatch, type UseFormReset, type UseFormReturn } from 'react-hook-form';
+import {
+  FormProvider,
+  useForm,
+  useWatch,
+  type UseFormReset,
+  type UseFormReturn,
+} from 'react-hook-form';
 import { useRevokeOwnRecording } from '../api/use-own-recordings';
 import type { SessionServiceScope } from '../api/use-session-services';
 import type { ExpiredRecoveryProof, SessionAttemptJournal } from '../model/session-attempt-journal';
 import { createSessionDraft, type SessionDraftForm } from '../model/session-drafts';
 import { sessionLocalTime } from '../model/session-local-time';
 import { clearPackagePicks } from '../model/session-package-options';
-import { confirmExpiredRecording, leaveUnknownVisit, sessionLeaveFeedback, sessionResultFrozen, type RecoveryConfirmOutcome, type SessionFeedback, type SessionRecordingResult } from '../model/session-recording-result';
+import {
+  confirmExpiredRecording,
+  leaveUnknownVisit,
+  sessionLeaveFeedback,
+  sessionResultFrozen,
+  type RecoveryConfirmOutcome,
+  type SessionFeedback,
+  type SessionRecordingResult,
+} from '../model/session-recording-result';
 import { reportSessionSubmitError } from '../model/session-submit-error';
 import type { SessionRecordingController } from '../model/use-session-recording';
 import { useServerAnchoredValue } from '../model/use-server-anchored-now';
@@ -34,7 +48,11 @@ function shownVisitTime(drafts: SessionDraftForm, savedAt: string | undefined): 
   return { ...seeded, occurred_at: savedAt };
 }
 
-function useDraftReset(reset: UseFormReset<SessionDraftForm>, drafts: SessionDraftForm, savedAt: string | undefined) {
+function useDraftReset(
+  reset: UseFormReset<SessionDraftForm>,
+  drafts: SessionDraftForm,
+  savedAt: string | undefined,
+) {
   const seen = useRef({ drafts, savedAt });
   useEffect(() => {
     if (seen.current.drafts === drafts && seen.current.savedAt === savedAt) return;
@@ -48,11 +66,16 @@ function focusDraftPrice(localId: string) {
 }
 
 // فشل مسح العلامة يرمي قبل الإلغاء، فالرسالة تظهر واللوحة تفضل لأن التخزين لسه شايل المحاولة.
-export function bindExpiredConfirm(recording: SessionRecordingController, revoke: (proof: ExpiredRecoveryProof) => Promise<unknown>) {
+export function bindExpiredConfirm(
+  recording: SessionRecordingController,
+  revoke: (proof: ExpiredRecoveryProof) => Promise<unknown>,
+) {
   return (outcome: RecoveryConfirmOutcome) => {
     if (!recording.journal || recording.result.feedback.kind !== 'EXPIRED') return;
     try {
-      recording.replaceResult(confirmExpiredRecording(recording.result, recording.journal, outcome, revoke));
+      recording.replaceResult(
+        confirmExpiredRecording(recording.result, recording.journal, outcome, revoke),
+      );
     } catch (error) {
       if (sessionLeaveFeedback(error).kind !== 'NOT_PERSISTED') throw error;
       recording.replaceResult({ ...recording.result, persistenceWarning: 'NOT_PERSISTED' });
@@ -61,23 +84,46 @@ export function bindExpiredConfirm(recording: SessionRecordingController, revoke
 }
 
 // النتيجة المحفوظة بتختفي لما session تكون null، فالزر هنا هو طريق الخروج الوحيد من زيارة وقتها مش معروف.
-function leaveUnknownTimeVisit(result: SessionRecordingResult, journal: Pick<SessionAttemptJournal, 'leaveVisit'> | null, replace: (next: SessionRecordingResult) => void, report: (feedback: SessionFeedback) => void) {
+function leaveUnknownTimeVisit(
+  result: SessionRecordingResult,
+  journal: Pick<SessionAttemptJournal, 'leaveVisit'> | null,
+  replace: (next: SessionRecordingResult) => void,
+  report: (feedback: SessionFeedback) => void,
+) {
   if (!journal) return;
-  try { replace(leaveUnknownVisit(result, journal)); }
-  catch (error) { report(sessionLeaveFeedback(error)); }
+  try {
+    replace(leaveUnknownVisit(result, journal));
+  } catch (error) {
+    report(sessionLeaveFeedback(error));
+  }
 }
 
 // الكتابة في حقول الزبونة بتبعت null؛ ده مش تغيير للزبونة، والمسح يحصل فقط بعد تحديد زبونة مختلفة.
-function changeSessionCustomer(customer: SessionCustomerSelection | null, result: SessionRecordingResult,
-  recording: SessionRecordingController, form: UseFormReturn<SessionDraftForm>, lastKnownCustomerId: { current: string | null }) {
+function changeSessionCustomer(
+  customer: SessionCustomerSelection | null,
+  result: SessionRecordingResult,
+  recording: SessionRecordingController,
+  form: UseFormReturn<SessionDraftForm>,
+  lastKnownCustomerId: { current: string | null },
+) {
   const customerChanged = customer !== null && customer.id !== lastKnownCustomerId.current;
   if (customer !== null) lastKnownCustomerId.current = customer.id;
   recording.selectCustomer(customer);
-  if (result.sessionId === null && customerChanged) form.setValue('lines', clearPackagePicks(form.getValues('lines')));
+  if (result.sessionId === null && customerChanged)
+    form.setValue('lines', clearPackagePicks(form.getValues('lines')));
 }
 
-export function RecordServiceSessionForm({ scope, context, online, recording, onRefreshScope }: {
-  scope: SessionServiceScope; context: RecordingContext; online: boolean; recording: SessionRecordingController;
+export function RecordServiceSessionForm({
+  scope,
+  context,
+  online,
+  recording,
+  onRefreshScope,
+}: {
+  scope: SessionServiceScope;
+  context: RecordingContext;
+  online: boolean;
+  recording: SessionRecordingController;
   onRefreshScope: () => void;
 }) {
   const locale = useLocale();
@@ -96,43 +142,148 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   const timeUnknown = result.visitTimeUnknown;
   const savedAt = result.session?.occurred_at;
   const [seed] = useState(() => shownVisitTime(result.drafts, savedAt));
-  const [leaveFailure, setLeaveFailure] = useState<{ source: SessionRecordingResult; feedback: SessionFeedback } | null>(null);
+  const [leaveFailure, setLeaveFailure] = useState<{
+    source: SessionRecordingResult;
+    feedback: SessionFeedback;
+  } | null>(null);
   // العداد هنا عشان فك المحرر ما يفكّش القفل والـ PATCH لسه ما خلصش. النهاية بتيجي من finally حتى بعد الفك.
   const [editsInFlight, setEditsInFlight] = useState(0);
   const editBusy = editsInFlight > 0;
-  const beginLineEdit = () => { setEditsInFlight((count) => count + 1); };
-  const endLineEdit = () => { setEditsInFlight((count) => count - 1); };
+  const beginLineEdit = () => {
+    setEditsInFlight((count) => count + 1);
+  };
+  const endLineEdit = () => {
+    setEditsInFlight((count) => count - 1);
+  };
   const form = useForm<SessionDraftForm>({ defaultValues: seed });
   const draftedAt = useWatch({ control: form.control, name: 'occurred_at' });
   const occurredAt = savedAt ?? draftedAt;
-  const impliedDate = useServerAnchoredValue(context.generated_at, (instant) => sessionLocalTime(instant, context.business_timezone).slice(0, 10));
-  const visitDate = occurredAt ? sessionLocalTime(occurredAt, context.business_timezone).slice(0, 10) : impliedDate;
+  const impliedDate = useServerAnchoredValue(context.generated_at, (instant) =>
+    sessionLocalTime(instant, context.business_timezone).slice(0, 10),
+  );
+  const visitDate = occurredAt
+    ? sessionLocalTime(occurredAt, context.business_timezone).slice(0, 10)
+    : impliedDate;
   useDraftReset(form.reset, result.drafts, savedAt);
   const rootError = form.formState.errors.root?.message;
   const unknownLeave = leaveFailure?.source === result ? leaveFailure.feedback : null;
-  return <FormProvider {...form}>
-    <form className="grid gap-4 text-start" noValidate onSubmit={form.handleSubmit(async (drafts) => {
-      if (editBusy) return;
-      try { await recording.submit(drafts); } catch (error) { reportSessionSubmitError(form.setError, error, locale); }
-    })}>
-      <SessionCustomerField companyId={scope.companyId} branchId={scope.branchId} userId={scope.userId}
-        value={result.customer} onChange={(customer) => changeSessionCustomer(customer, result, recording, form, lastKnownCustomerId)}
-        disabled={!online || locked} />
-      {timeUnknown ? <div className="grid gap-2">
-        <p role="alert">{t(locale, 'serviceSessions.unknownVisitTime')}</p>
-        <Button type="button" variant="outline" disabled={!journal || editBusy} onClick={() => { if (editBusy) return; leaveUnknownTimeVisit(result, journal, recording.replaceResult, (feedback) => setLeaveFailure({ source: result, feedback })); }}>{t(locale, 'serviceSessions.newVisitSameCustomer')}</Button>
-        {unknownLeave ? <SessionWriteFeedback result={{ ...result, feedback: unknownLeave, attempt: null }} /> : null}
-      </div> : <SessionTimeField context={context} disabled={locked} />}
-      <SessionRecordingHeader scope={scope} disabled={!online || frozen} readOnly={membershipFixed} />
-      <SessionDraftLines scope={scope} customerId={result.customerId} {...(occurredAt !== undefined ? { occurredAt } : {})} visitDate={visitDate} disabled={!online || frozen || timeUnknown} />
-      <SessionRejectedLines result={result} onEdit={focusDraftPrice} scope={scope} online={online} />
-      {rootError ? <p role="alert">{rootError}</p> : null}
-      <SessionWriteFeedback result={result} onRefreshScope={onRefreshScope} {...(online && !editBusy ? { onReplay: () => { void recording.retry(); } } : {})}
-        {...(journal && result.expiredAttempt && !editBusy ? { scope, timeZone: context.business_timezone, onConfirm: bindExpiredConfirm(recording, (proof) => revoke.mutateAsync(proof)) } : {})} />
-      <Button type="submit" disabled={!online || frozen || timeUnknown || editBusy || !journal || (!result.sessionId && !result.customer)} onClick={(event) => { if (editBusy) event.preventDefault(); }}>
-        {t(locale, result.sessionId ? 'serviceSessions.correctAndAppend' : 'serviceSessions.save')}
-      </Button>
-    </form>
-    {journal ? <SessionSavedResult result={result} journal={journal} onNewVisit={recording.replaceResult} scope={scope} online={online} editBusy={editBusy} onRequestStart={beginLineEdit} onRequestEnd={endLineEdit} /> : null}
-  </FormProvider>;
+  return (
+    <FormProvider {...form}>
+      <form
+        className="grid gap-4 text-start"
+        noValidate
+        onSubmit={form.handleSubmit(async (drafts) => {
+          if (editBusy) return;
+          try {
+            await recording.submit(drafts);
+          } catch (error) {
+            reportSessionSubmitError(form.setError, error, locale);
+          }
+        })}
+      >
+        <SessionCustomerField
+          companyId={scope.companyId}
+          branchId={scope.branchId}
+          userId={scope.userId}
+          packagesScope={scope}
+          value={result.customer}
+          onChange={(customer) =>
+            changeSessionCustomer(customer, result, recording, form, lastKnownCustomerId)
+          }
+          disabled={!online || locked}
+        />
+        {timeUnknown ? (
+          <div className="grid gap-2">
+            <p role="alert">{t(locale, 'serviceSessions.unknownVisitTime')}</p>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={!journal || editBusy}
+              onClick={() => {
+                if (editBusy) return;
+                leaveUnknownTimeVisit(result, journal, recording.replaceResult, (feedback) =>
+                  setLeaveFailure({ source: result, feedback }),
+                );
+              }}
+            >
+              {t(locale, 'serviceSessions.newVisitSameCustomer')}
+            </Button>
+            {unknownLeave ? (
+              <SessionWriteFeedback result={{ ...result, feedback: unknownLeave, attempt: null }} />
+            ) : null}
+          </div>
+        ) : (
+          <SessionTimeField context={context} disabled={locked} />
+        )}
+        <SessionRecordingHeader
+          scope={scope}
+          disabled={!online || frozen}
+          readOnly={membershipFixed}
+        />
+        <SessionDraftLines
+          scope={scope}
+          customerId={result.customerId}
+          {...(occurredAt !== undefined ? { occurredAt } : {})}
+          visitDate={visitDate}
+          disabled={!online || frozen || timeUnknown}
+        />
+        <SessionRejectedLines
+          result={result}
+          onEdit={focusDraftPrice}
+          scope={scope}
+          online={online}
+        />
+        {rootError ? <p role="alert">{rootError}</p> : null}
+        <SessionWriteFeedback
+          result={result}
+          onRefreshScope={onRefreshScope}
+          {...(online && !editBusy
+            ? {
+                onReplay: () => {
+                  void recording.retry();
+                },
+              }
+            : {})}
+          {...(journal && result.expiredAttempt && !editBusy
+            ? {
+                scope,
+                timeZone: context.business_timezone,
+                onConfirm: bindExpiredConfirm(recording, (proof) => revoke.mutateAsync(proof)),
+              }
+            : {})}
+        />
+        <Button
+          type="submit"
+          disabled={
+            !online ||
+            frozen ||
+            timeUnknown ||
+            editBusy ||
+            !journal ||
+            (!result.sessionId && !result.customer)
+          }
+          onClick={(event) => {
+            if (editBusy) event.preventDefault();
+          }}
+        >
+          {t(
+            locale,
+            result.sessionId ? 'serviceSessions.correctAndAppend' : 'serviceSessions.save',
+          )}
+        </Button>
+      </form>
+      {journal ? (
+        <SessionSavedResult
+          result={result}
+          journal={journal}
+          onNewVisit={recording.replaceResult}
+          scope={scope}
+          online={online}
+          editBusy={editBusy}
+          onRequestStart={beginLineEdit}
+          onRequestEnd={endLineEdit}
+        />
+      ) : null}
+    </FormProvider>
+  );
 }

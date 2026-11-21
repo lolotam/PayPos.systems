@@ -12,6 +12,7 @@ import { useForm, type UseFormReturn } from 'react-hook-form';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useSessionCustomer, type SessionCustomerEntryScope } from '../api/use-session-customer';
+import { CustomerPackagesLink } from './customer-packages-link';
 
 export type SessionCustomerSelection = Pick<Customer, 'id' | 'name' | 'phone'>;
 
@@ -225,6 +226,7 @@ function sessionCustomerContact({
 function sessionCustomerCard(
   value: SessionCustomerSelection | null,
   locale: SessionCustomerLocale,
+  packages: { companyId: string; businessId: string; branchId: string; userId: string } | null,
 ) {
   if (!value) return null;
   return (
@@ -232,6 +234,8 @@ function sessionCustomerCard(
       <p>{t(locale, 'serviceSessions.selected')}</p>
       <p>{value.name}</p>
       <bdi>{value.phone}</bdi>
+      {/* رابط باقات العميلة يظهر بس لما النموذج يمرر نطاق النشاط والفرع، ويفتح في تبويب جديد عشان النموذج ما يضيعش. */}
+      {packages !== null ? <CustomerPackagesLink customerId={value.id} newTab /> : null}
     </Card>
   );
 }
@@ -246,7 +250,15 @@ export function SessionCustomerField({
   onChange,
   onBlur,
   disabled = false,
-}: SessionCustomerFieldProps) {
+  packagesScope = null,
+}: SessionCustomerFieldProps & {
+  packagesScope?: {
+    companyId: string;
+    businessId: string;
+    branchId: string;
+    userId: string;
+  } | null;
+}) {
   const locale = useLocale();
   const prefix = useId();
   const { form, mutation, invalid, nameEntry, callingCode, nationalNumber, resolve, invalidate } =
@@ -286,7 +298,7 @@ export function SessionCustomerField({
         </p>
       ) : null}
       {mutation.isError ? <p role="alert">{envelopeMessage(mutation.error, locale)}</p> : null}
-      {sessionCustomerCard(value, locale)}
+      {sessionCustomerCard(value, locale, packagesScope)}
     </fieldset>
   );
 }

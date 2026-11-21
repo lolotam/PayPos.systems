@@ -1,5 +1,6 @@
 export { Button, buttonVariants, type ButtonProps } from './button.js';
 export {
+  ArrowCounterClockwise,
   Bell,
   Building2,
   Store,
