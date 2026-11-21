@@ -60,6 +60,31 @@ export interface StoredResult {
 }
 
 /**
+ * نطاق تغيير دولة النشاط: القارئ والكاتب مربوطين بنفس transaction الشركة المتأكد منها، والتدقيق
+ * بيكتب جواها (34-pre-3 B-6) — قراءة الصف مقفولاً أول، وبعدين كتابة اختيارية واحدة.
+ */
+export interface BusinessCountryScope {
+  readonly companyId: string;
+  readonly audit: AuditTrail;
+  /**
+   * بيقرأ إعدادات النشاط تحت قفل `FOR NO KEY UPDATE` على صف النشاط نفسه، عشان تغيير متزامنين
+   * يترتبوا ورا بعض من غير ما يمنعوا إدخال صفوف وليدة على الـ FK؛ `null` يعني النشاط مش مرئي.
+   *
+   * @param businessId النشاط المطلوب تغيير دولته
+   * @returns كائن الإعدادات، أو `{}` لو القيمة المخزّنة مش كائن JSON، أو `null` لو صف النشاط مش مرئي
+   */
+  lockBusinessCountry(businessId: string): Promise<Record<string, unknown> | null>;
+  /**
+   * بيدمج مفتاح `country` فقط في الإعدادات المخزّنة بـ SQL على مستوى قاعدة البيانات، فكل مفتاح
+   * تاني — `modules` و`features` ومفاتيح الشاشات — بيفضل بقيمته المخزّنة زي ما هو.
+   *
+   * @param businessId النشاط المطلوب تحديثه
+   * @param country رمز الدولة الجديد المتحقق من العقد
+   */
+  saveBusinessCountry(businessId: string, country: string): Promise<void>;
+}
+
+/**
  * بيفتح withTenant للشركة المتأكد منها ويعمل claim للمفتاح في نطاق COMPANY قبل أي كتابة (plan v4 T7).
  */
 export interface TenancyTransactions {
@@ -80,6 +105,19 @@ export interface TenancyTransactions {
     idempotency: { key: string; fingerprint: string },
     work: (scope: TenancyScope) => Promise<StoredResult>,
   ): Promise<StoredResult & { replayed: boolean }>;
+  /**
+   * بيفتح withTenant واحدة لتغيير دولة النشاط من غير idempotency — مفيش أثر مال أو مخزون (B-6) —
+   * فالقراءة تحت القفل والكتابة الاختيارية والتدقيق كلها جوه transaction واحدة.
+   *
+   * @param context           الشركة والمستخدم اللي بيعمل التغيير
+   * @param context.companyId الشركة اللي الـ guard اتأكد منها
+   * @param context.userId    المستخدم صاحب صلاحية `manage:settings:business`
+   * @param work              القرار والكتابة جوه نفس الـ transaction؛ `null` يعني النشاط مش مرئي
+   */
+  runBusinessCountryChange(
+    context: { companyId: string; userId: string },
+    work: (scope: BusinessCountryScope) => Promise<StoredResult | null>,
+  ): Promise<StoredResult | null>;
 }
 
 /**

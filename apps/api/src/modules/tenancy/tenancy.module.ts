@@ -7,6 +7,7 @@ import { createTenancyTransactions } from './persistence/tenancy-transactions.ts
 import { jsonVerticalTemplates } from './persistence/vertical-templates.ts';
 import { CreateBranch } from './use-cases/create-branch/create-branch.ts';
 import { CreateBusiness } from './use-cases/create-business/create-business.ts';
+import { SetBusinessCountry } from './use-cases/set-business-country/set-business-country.ts';
 
 /** The controllers tenancy mounts. */
 export const tenancyControllers = [BusinessesController, BranchesController];
@@ -33,6 +34,10 @@ export function tenancyProviders(
     {
       provide: CreateBranch,
       useValue: transactions === null ? null : new CreateBranch(transactions, ids),
+    },
+    {
+      provide: SetBusinessCountry,
+      useValue: transactions === null ? null : new SetBusinessCountry(transactions),
     },
   ];
 }

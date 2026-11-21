@@ -1,4 +1,4 @@
-﻿import type { WorkspaceController } from '@/workspace/model/workspace-provider';
+import type { WorkspaceController } from '@/workspace/model/workspace-provider';
 import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -117,15 +117,18 @@ it('a denied write shows the refusal and the guarded GET reestablishes the confi
   const { client, view } = renderPage();
   const control = await screen.findByRole('switch', { name: label });
   let finishProof: (value: unknown) => void = () => undefined;
-  api.GET.mockImplementationOnce(() => new Promise((resolve) => { finishProof = resolve; }));
+  api.GET.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finishProof = resolve;
+      }),
+  );
   fireEvent.click(control);
   // الـ GET المحمي لازم يثبت الصلاحية من جديد، والمفتاح مختفي طول انتظار الرد.
   await waitFor(() => expect(screen.queryByRole('switch')).toBeNull());
   finishProof({ data: { imported_refunds_enabled: false }, response: { status: 200 } });
   await waitFor(() =>
-    expect(screen.getByRole('alert').textContent).toContain(
-      t('en', 'importedRefunds.notAllowed'),
-    ),
+    expect(screen.getByRole('alert').textContent).toContain(t('en', 'importedRefunds.notAllowed')),
   );
   await waitFor(() => {
     const settled = screen.getByRole('switch', { name: label }) as HTMLInputElement;
@@ -156,9 +159,7 @@ it('a read denial while a write is in flight wins over the late write settlement
   // قراية أحدث مرفوضة (زي refetch بعد سحب التفويض) بتظهر الرفض وتشيل التحكم فورًا.
   api.GET.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
   await client.invalidateQueries({ queryKey: ['imported-refunds', id, 'user', id] });
-  await waitFor(() =>
-    expect(screen.getByRole('alert').textContent).toContain(refused),
-  );
+  await waitFor(() => expect(screen.getByRole('alert').textContent).toContain(refused));
   expect(screen.queryByRole('switch')).toBeNull();
   // تسوية الكتابة القديمة (حتى لو نجحت) ما بترجعش المفتاح: الرفض بيفضل هو العرض الوحيد.
   releaseWrite({ data: { imported_refunds_enabled: true }, response: { status: 200 } });
@@ -172,19 +173,21 @@ it('a read denial while a write is in flight wins over the late write settlement
 it('a changed scope refetches its own value and ignores late answers of the previous one', async () => {
   const otherBusiness = '01920000-0000-7000-8000-0000000000d1';
   let releaseFirst: (value: unknown) => void = () => undefined;
-  api.GET.mockImplementation((_path: string, options?: { params?: { path?: Record<string, string> } }) => {
-    const business = options?.params?.path?.businessId;
-    if (business === id) {
-      // قراية النشاط القديم معلّقة، وبتتحل متأخر جدًا بعد ما النطاق اتبدّل خالص.
-      return new Promise((resolve) => {
-        releaseFirst = resolve;
+  api.GET.mockImplementation(
+    (_path: string, options?: { params?: { path?: Record<string, string> } }) => {
+      const business = options?.params?.path?.businessId;
+      if (business === id) {
+        // قراية النشاط القديم معلّقة، وبتتحل متأخر جدًا بعد ما النطاق اتبدّل خالص.
+        return new Promise((resolve) => {
+          releaseFirst = resolve;
+        });
+      }
+      return Promise.resolve({
+        data: { imported_refunds_enabled: business === otherBusiness },
+        response: { status: 200 },
       });
-    }
-    return Promise.resolve({
-      data: { imported_refunds_enabled: business === otherBusiness },
-      response: { status: 200 },
-    });
-  });
+    },
+  );
   const first = renderPage();
   // تغيير النشاط في الـ workspace بيعمل remount بمفتاح كويري جديد: قيمة النشاط الجديد هي المعروضة،
   // ورد النشاط القديم المتأخر ما بيلمسش المفتاح الجديد.
@@ -194,14 +197,22 @@ it('a changed scope refetches its own value and ignores late answers of the prev
   first.view.unmount();
   releaseFirst({ data: { imported_refunds_enabled: false }, response: { status: 200 } });
   await waitFor(() => expect((control as HTMLInputElement).checked).toBe(true));
-  expect(api.GET.mock.calls.filter((call) => (call[1] as { params?: { path?: { businessId?: string } } })?.params?.path?.businessId === otherBusiness).length).toBeGreaterThan(0);
+  expect(
+    api.GET.mock.calls.filter(
+      (call) =>
+        (call[1] as { params?: { path?: { businessId?: string } } })?.params?.path?.businessId ===
+        otherBusiness,
+    ).length,
+  ).toBeGreaterThan(0);
   second.client.clear();
   second.view.unmount();
 });
 
 it('a preseeded switch stays hidden while the current GET is pending, shows after it authorizes, and a denial hides it', async () => {
   api.GET.mockImplementation(() => new Promise(() => undefined));
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 30_000 } },
+  });
   client.setQueryData(['imported-refunds', id, 'user', id], { imported_refunds_enabled: true });
   const { view } = renderPage(id, client);
   // كاش متخزن وقراية حالية معلّقة: المفتاح مخفي بالكامل قبل الإثبات.
@@ -224,16 +235,19 @@ it('a preseeded switch stays hidden while the current GET is pending, shows afte
 it('a denied write stays visible even when the following GET equals the requested value', async () => {
   // الكتابة اترفض وقيمة الخادم بعدها بقت مساوية للقيمة المطلوبة (فاعل تاني شغّلها):
   // رسالة الرفض بتفضل ظاهرة وما بتختفيش، والقيمة المعروضة هي القيمة المؤكدة من الخادم.
-  api.GET
-    .mockResolvedValueOnce({ data: { imported_refunds_enabled: false }, response: { status: 200 } })
-    .mockResolvedValue({ data: { imported_refunds_enabled: true }, response: { status: 200 } });
+  api.GET.mockResolvedValueOnce({
+    data: { imported_refunds_enabled: false },
+    response: { status: 200 },
+  }).mockResolvedValue({ data: { imported_refunds_enabled: true }, response: { status: 200 } });
   api.PUT.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
   renderPage();
   const control = await screen.findByRole('switch', { name: label });
   expect((control as HTMLInputElement).checked).toBe(false);
   fireEvent.click(control);
   await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
-  await waitFor(() => expect((screen.getByRole('switch', { name: label }) as HTMLInputElement).disabled).toBe(false));
+  await waitFor(() =>
+    expect((screen.getByRole('switch', { name: label }) as HTMLInputElement).disabled).toBe(false),
+  );
   expect(screen.getByRole('alert').textContent).toContain(t('en', 'importedRefunds.notAllowed'));
   expect((screen.getByRole('switch', { name: label }) as HTMLInputElement).checked).toBe(true);
 });

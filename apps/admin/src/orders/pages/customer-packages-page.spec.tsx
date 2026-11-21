@@ -1,11 +1,25 @@
-﻿import { customerPackageDetail } from '@pospay/contracts';
+import { customerPackageDetail } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { SessionServiceScope } from '../api/use-session-services';
+import { usePackageRouteSelection } from '../model/use-package-route-selection';
 import { CustomerPackagesPage } from './customer-packages-page';
+
+function TestPage({ scope, customerId }: { scope: SessionServiceScope; customerId: string }) {
+  const scopeKey = [scope.companyId, scope.businessId, scope.branchId, scope.userId].join(':');
+  const selection = usePackageRouteSelection(scopeKey);
+  return (
+    <CustomerPackagesPage
+      key={scopeKey}
+      scope={scope}
+      customerId={customerId}
+      selection={selection}
+    />
+  );
+}
 
 const api = vi.hoisted(() => ({ GET: vi.fn() }));
 const nav = vi.hoisted(() => ({
@@ -65,7 +79,7 @@ function renderPage(search: string, client: QueryClient) {
   return render(
     <QueryClientProvider client={client}>
       <DirectionProvider dir="ltr">
-        <CustomerPackagesPage scope={scope} customerId={customerId} />
+        <TestPage scope={scope} customerId={customerId} />
       </DirectionProvider>
     </QueryClientProvider>,
   );
@@ -77,7 +91,7 @@ function renderDefaultPage(search = '') {
   return render(
     <QueryClientProvider client={client}>
       <DirectionProvider dir="ltr">
-        <CustomerPackagesPage scope={scope} customerId={customerId} />
+        <TestPage scope={scope} customerId={customerId} />
       </DirectionProvider>
     </QueryClientProvider>,
   );
@@ -155,7 +169,7 @@ it('a refused read supersedes a preseeded cache on the same client', async () =>
   const primed = render(
     <QueryClientProvider client={client}>
       <DirectionProvider dir="ltr">
-        <CustomerPackagesPage scope={scope} customerId={customerId} />
+        <TestPage scope={scope} customerId={customerId} />
       </DirectionProvider>
     </QueryClientProvider>,
   );
@@ -165,7 +179,7 @@ it('a refused read supersedes a preseeded cache on the same client', async () =>
   render(
     <QueryClientProvider client={client}>
       <DirectionProvider dir="ltr">
-        <CustomerPackagesPage scope={scope} customerId={customerId} />
+        <TestPage scope={scope} customerId={customerId} />
       </DirectionProvider>
     </QueryClientProvider>,
   );
@@ -197,7 +211,7 @@ it('a malformed customer segment shows not found without any request', () => {
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
       <DirectionProvider dir="ltr">
-        <CustomerPackagesPage scope={scope} customerId="not-a-uuid" />
+        <TestPage scope={scope} customerId="not-a-uuid" />
       </DirectionProvider>
     </QueryClientProvider>,
   );
@@ -284,19 +298,31 @@ function switchDetail(id: string, name_en: string, canExtend: boolean) {
   };
 }
 
-it('switching to another cached entitlement opens its detail with no stale dialog', async () => {  api.GET.mockImplementation((path: string, options?: { params?: { path?: Record<string, string> } }) => {
-    if (path === listPath)
+it('switching to another cached entitlement opens its detail with no stale dialog', async () => {
+  api.GET.mockImplementation(
+    (path: string, options?: { params?: { path?: Record<string, string> } }) => {
+      if (path === listPath)
+        return Promise.resolve({
+          data: {
+            items: [item(packageA, 'Gold', false, false), item(packageC, 'Silver', false, false)],
+            next_cursor: null,
+          },
+          response: { status: 200 },
+        });
+      const entitlement = options?.params?.path?.entitlementId;
       return Promise.resolve({
-        data: { items: [item(packageA, 'Gold', false, false), item(packageC, 'Silver', false, false)], next_cursor: null },
+        data: switchDetail(
+          entitlement as string,
+          entitlement === packageA ? 'Gold' : 'Silver',
+          true,
+        ),
         response: { status: 200 },
       });
-    const entitlement = options?.params?.path?.entitlementId;
-    return Promise.resolve({
-      data: switchDetail(entitlement as string, entitlement === packageA ? 'Gold' : 'Silver', true),
-      response: { status: 200 },
-    });
+    },
+  );
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   client.setQueryData(
     ['customer-package-detail', companyId, businessId, branchId, 'user', customerId, packageC],
     customerPackageDetail.parse(switchDetail(packageC, 'Silver', true)),
@@ -306,18 +332,22 @@ it('switching to another cached entitlement opens its detail with no stale dialo
   // انتظار تفصيل A نفسه (زر التمديد) قبل الفتح — الباقة بتحمل بعد الكارت.
   const extendA = await screen.findByRole('button', { name: t('en', 'customerPackages.extend') });
   fireEvent.click(extendA);
-  expect(screen.getByRole('dialog', { name: t('en', 'packageExtension.dialogTitle') })).toBeTruthy();
+  expect(
+    screen.getByRole('dialog', { name: t('en', 'packageExtension.dialogTitle') }),
+  ).toBeTruthy();
   // Ø§Ù„ØªÙ†Ù‚Ù„ Ù„Ø¨Ø§Ù‚Ø© ØªØ§Ù†ÙŠØ© Ù…ØªØ®Ø²Ù†Ø© ÙÙŠ Ø§Ù„ÙƒØ§Ø´ Ø¨ÙŠØ¹Ù…Ù„ remount Ù„Ù„ØªÙØµÙŠÙ„: Ù…ÙÙŠØ´ Ø­ÙˆØ§Ø± Ù‚Ø¯ÙŠÙ… Ù…Ø¹Ø§Ù‡Ø§ØŒ ÙˆØªÙØ§ØµÙŠÙ„Ù‡Ø§ Ù‡ÙŠ Ø§Ù„Ù„ÙŠ Ø¨ØªØªØ¹Ø±Ø¶.
   nav.search = `?package=${packageC}`;
   view.rerender(
     <QueryClientProvider client={client}>
       <DirectionProvider dir="ltr">
-        <CustomerPackagesPage scope={scope} customerId={customerId} />
+        <TestPage scope={scope} customerId={customerId} />
       </DirectionProvider>
     </QueryClientProvider>,
   );
   await screen.findByRole('heading', { name: 'Silver' });
-  expect(screen.queryByRole('dialog', { name: t('en', 'packageExtension.dialogTitle') })).toBeNull();
+  expect(
+    screen.queryByRole('dialog', { name: t('en', 'packageExtension.dialogTitle') }),
+  ).toBeNull();
   // تفصيل السيلفر اتحمل: زر التمديد بتاعه ظاهر ومن غير أي حوار قديم.
   expect(screen.getByRole('button', { name: t('en', 'customerPackages.extend') })).toBeTruthy();
   view.unmount();

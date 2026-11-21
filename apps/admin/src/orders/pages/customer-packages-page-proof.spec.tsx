@@ -4,7 +4,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { SessionServiceScope } from '../api/use-session-services';
+import { usePackageRouteSelection } from '../model/use-package-route-selection';
 import { CustomerPackagesPage } from './customer-packages-page';
+
+function TestPage({ scope, customerId }: { scope: SessionServiceScope; customerId: string }) {
+  const scopeKey = [scope.companyId, scope.businessId, scope.branchId, scope.userId].join(':');
+  const selection = usePackageRouteSelection(scopeKey);
+  return (
+    <CustomerPackagesPage
+      key={scopeKey}
+      scope={scope}
+      customerId={customerId}
+      selection={selection}
+    />
+  );
+}
 
 const api = vi.hoisted(() => ({ GET: vi.fn() }));
 const nav = vi.hoisted(() => ({
@@ -27,7 +41,6 @@ const packageA = '01920000-0000-7000-8000-0000000000a1';
 const packageB = '01920000-0000-7000-8000-0000000000a2';
 const scope: SessionServiceScope = { companyId, businessId, branchId, userId: 'user' };
 const listPath = '/v1/businesses/{businessId}/branches/{branchId}/customers/{customerId}/packages';
-const detailPath = `${listPath}/{entitlementId}`;
 
 function item(id: string, name_en: string, expired: boolean, used_up: boolean) {
   return {
@@ -86,14 +99,23 @@ function pageDetail(id: string, name_en: string, canExtend: boolean) {
   };
 }
 
-function preseedList(client: QueryClient, items: ReturnType<typeof item>[], nextCursor: string | null) {
-  client.setQueryData(
-    ['customer-packages', companyId, businessId, branchId, 'user', customerId],
-    { pages: [{ items, next_cursor: nextCursor }], pageParams: [undefined] },
-  );
+function preseedList(
+  client: QueryClient,
+  items: ReturnType<typeof item>[],
+  nextCursor: string | null,
+) {
+  client.setQueryData(['customer-packages', companyId, businessId, branchId, 'user', customerId], {
+    pages: [{ items, next_cursor: nextCursor }],
+    pageParams: [undefined],
+  });
 }
 
-function preseedDetail(client: QueryClient, entitlementId: string, name_en: string, canExtend: boolean) {
+function preseedDetail(
+  client: QueryClient,
+  entitlementId: string,
+  name_en: string,
+  canExtend: boolean,
+) {
   client.setQueryData(
     ['customer-package-detail', companyId, businessId, branchId, 'user', customerId, entitlementId],
     pageDetail(entitlementId, name_en, canExtend),
@@ -105,7 +127,7 @@ function renderPageWith(search: string, client: QueryClient) {
   return render(
     <QueryClientProvider client={client}>
       <DirectionProvider dir="ltr">
-        <CustomerPackagesPage scope={scope} customerId={customerId} />
+        <TestPage scope={scope} customerId={customerId} />
       </DirectionProvider>
     </QueryClientProvider>,
   );
@@ -113,11 +135,13 @@ function renderPageWith(search: string, client: QueryClient) {
 
 function renderPage() {
   nav.search = '';
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 30_000 } },
+  });
   const view = render(
     <QueryClientProvider client={client}>
       <DirectionProvider dir="ltr">
-        <CustomerPackagesPage scope={scope} customerId={customerId} />
+        <TestPage scope={scope} customerId={customerId} />
       </DirectionProvider>
     </QueryClientProvider>,
   );
@@ -132,7 +156,9 @@ beforeEach(() => {
 });
 
 it('a preseeded list stays hidden until the current authorized GET lands, and a denial keeps it hidden', async () => {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 30_000 } },
+  });
   preseedList(client, [item(packageA, 'Gold', false, false)], null);
   api.GET.mockImplementation(() => new Promise(() => undefined));
   const view = renderPageWith(`?package=${packageA}`, client);
@@ -140,7 +166,9 @@ it('a preseeded list stays hidden until the current authorized GET lands, and a 
   await waitFor(() => expect(screen.queryByText('Gold')).toBeNull());
   expect(screen.getByRole('status').textContent).toContain(t('en', 'customerPackages.loading'));
   api.GET.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
-  await client.invalidateQueries({ queryKey: ['customer-packages', companyId, businessId, branchId, 'user', customerId] });
+  await client.invalidateQueries({
+    queryKey: ['customer-packages', companyId, businessId, branchId, 'user', customerId],
+  });
   await screen.findByRole('alert');
   expect(screen.queryByText('Gold')).toBeNull();
   expect(screen.getByRole('alert').textContent).toContain(t('en', 'customerPackages.notAllowed'));
@@ -149,14 +177,18 @@ it('a preseeded list stays hidden until the current authorized GET lands, and a 
     data: { items: [item(packageA, 'Gold', false, false)], next_cursor: null },
     response: { status: 200 },
   });
-  await client.invalidateQueries({ queryKey: ['customer-packages', companyId, businessId, branchId, 'user', customerId] });
+  await client.invalidateQueries({
+    queryKey: ['customer-packages', companyId, businessId, branchId, 'user', customerId],
+  });
   await screen.findByText('Gold');
   view.unmount();
   client.clear();
 });
 
 it('a preseeded detail stays hidden while its proof is pending and after a denial', async () => {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 30_000 } },
+  });
   preseedDetail(client, packageA, 'Gold', true);
   api.GET.mockImplementation((path: string) => {
     if (path === listPath)
@@ -179,19 +211,30 @@ it('a preseeded detail stays hidden while its proof is pending and after a denia
       });
     return Promise.resolve({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
   });
-  await client.invalidateQueries({ queryKey: ['customer-package-detail', companyId, businessId, branchId, 'user', customerId, packageA] });
+  await client.invalidateQueries({
+    queryKey: [
+      'customer-package-detail',
+      companyId,
+      businessId,
+      branchId,
+      'user',
+      customerId,
+      packageA,
+    ],
+  });
   await screen.findByRole('alert');
-  expect(screen.getByRole('alert').textContent).toContain(t('en', 'customerPackages.detailNotAllowed'));
+  expect(screen.getByRole('alert').textContent).toContain(
+    t('en', 'customerPackages.detailNotAllowed'),
+  );
   view.unmount();
   client.clear();
 });
 
 it('a transient pagination error keeps authorized pages and retries only the next page', async () => {
-  api.GET
-    .mockResolvedValueOnce({
-      data: { items: [item(packageA, 'Gold', false, false)], next_cursor: 'c2' },
-      response: { status: 200 },
-    })
+  api.GET.mockResolvedValueOnce({
+    data: { items: [item(packageA, 'Gold', false, false)], next_cursor: 'c2' },
+    response: { status: 200 },
+  })
     .mockResolvedValueOnce({ error: { code: 'UNEXPECTED' }, response: { status: 500 } })
     .mockResolvedValueOnce({
       data: { items: [item(packageB, 'Old', true, false)], next_cursor: null },
@@ -210,42 +253,13 @@ it('a transient pagination error keeps authorized pages and retries only the nex
 });
 
 it('a 403 pagination error hides every page', async () => {
-  api.GET
-    .mockResolvedValueOnce({
-      data: { items: [item(packageA, 'Gold', false, false)], next_cursor: 'c2' },
-      response: { status: 200 },
-    })
-    .mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
+  api.GET.mockResolvedValueOnce({
+    data: { items: [item(packageA, 'Gold', false, false)], next_cursor: 'c2' },
+    response: { status: 200 },
+  }).mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
   renderPage();
   await screen.findByText('Gold');
   fireEvent.click(screen.getByRole('button', { name: t('en', 'customerPackages.loadMore') }));
   await waitFor(() => expect(screen.queryByText('Gold')).toBeNull());
   expect(screen.getByRole('alert').textContent).toContain(t('en', 'customerPackages.notAllowed'));
-});
-
-it('a workspace change clears a selected package before any stale detail fetch', async () => {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  api.GET.mockImplementation(() => new Promise(() => undefined));
-  const view = renderPageWith(`?package=${packageA}`, client);
-  const otherScope: SessionServiceScope = {
-    companyId: '01920000-0000-7000-8000-000000000201',
-    businessId: '01920000-0000-7000-8000-000000000202',
-    branchId: '01920000-0000-7000-8000-000000000203',
-    userId: 'user',
-  };
-  view.rerender(
-    <QueryClientProvider client={client}>
-      <DirectionProvider dir="ltr">
-        <CustomerPackagesPage scope={otherScope} customerId={customerId} />
-      </DirectionProvider>
-    </QueryClientProvider>,
-  );
-  // العنوان اتساب من المسار فورًا (replace) قبل أي طلب تفصيل بالنطاق الجديد.
-  await waitFor(() => expect(nav.replace).toHaveBeenCalled());
-  const replaced = nav.replace.mock.calls[0]?.[0] as string;
-  expect(replaced).not.toContain('package=');
-  const detailCalls = api.GET.mock.calls.filter(([path]) => path === detailPath);
-  expect(detailCalls).toHaveLength(0);
-  view.unmount();
-  client.clear();
 });

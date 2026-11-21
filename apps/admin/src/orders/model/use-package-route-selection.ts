@@ -9,28 +9,32 @@ import { parsePackageRouteId } from './customer-package-view';
  * وتغيير النطاق بيمسح الاختيار فورًا قبل أي طلب تفصيل بالنطاق الجديد، والقيم الفاسخ بترجع null
  * من غير أي طلب (FR-A07/CP-02).
  */
-export function usePackageRouteSelection(scopeKey: string) {
+export function usePackageRouteSelection(scopeKey: string | null) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawSelection = searchParams.get('package');
   const [activeScope, setActiveScope] = useState(scopeKey);
+  const selectionLive = activeScope === null || activeScope === scopeKey;
   useEffect(() => {
-    if (activeScope === scopeKey) return;
-    setActiveScope(scopeKey);
-    if (rawSelection === null) return;
-    // نطاق اتبدّل والاختيار لسه في العنوان: مسح فوري قبل ما التفصيل الجديد يطلب أي حاجة.
+    if (scopeKey === null || activeScope === scopeKey) return;
+    if (selectionLive || rawSelection === null) {
+      setActiveScope(scopeKey);
+      return;
+    }
+    // Keep the old selection suppressed until the router has removed it.
     const params = new URLSearchParams(searchParams.toString());
     params.delete('package');
     const query = params.toString();
-    router.replace(query === '' ? '?' : `?${query}`);
-  }, [activeScope, rawSelection, router, scopeKey, searchParams]);
-  const selectionLive = activeScope === scopeKey;
+    router.replace(query === '' ? '?' : '?' + query);
+  }, [activeScope, rawSelection, router, scopeKey, searchParams, selectionLive]);
   const entitlementId = selectionLive ? parsePackageRouteId(rawSelection) : null;
   const select = useCallback(
     (next: string) => {
-      router.push(`?package=${next}`);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('package', next);
+      router.push('?' + params.toString());
     },
-    [router],
+    [router, searchParams],
   );
   const close = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
@@ -59,7 +63,11 @@ export function packageListState(state: {
     return {
       state: 'error',
       errorMessage:
-        status === 403 || status === 401 ? 'notAllowed' : status === 404 ? 'notFound' : 'loadFailed',
+        status === 403 || status === 401
+          ? 'notAllowed'
+          : status === 404
+            ? 'notFound'
+            : 'loadFailed',
     };
   }
   if (state.isPending) return { state: 'loading', errorMessage: null };

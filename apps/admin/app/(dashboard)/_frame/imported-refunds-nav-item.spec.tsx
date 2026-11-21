@@ -21,15 +21,16 @@ vi.mock('next/navigation', () => ({ usePathname: () => '/' }));
 const id = '01920000-0000-7000-8000-0000000000b1';
 const label = t('en', 'importedRefunds.title');
 
-function renderNav() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+function renderNav(client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
+  const nav = () => (
     <QueryClientProvider client={client}>
       <DirectionProvider dir="ltr">
         <ImportedRefundsNavItem />
       </DirectionProvider>
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+  const view = render(nav());
+  return { ...view, rerenderNav: () => view.rerender(nav()) };
 }
 
 beforeEach(() => {
@@ -88,4 +89,50 @@ it('does not read or render before a business is selected', () => {
   renderNav();
   expect(screen.queryByRole('link', { name: label })).toBeNull();
   expect(api.GET).not.toHaveBeenCalled();
+});
+
+it('hides the link when switching to a previously cached business until its read authorizes it', async () => {
+  const otherBusiness = '01920000-0000-7000-8000-0000000000b2';
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 30_000 } },
+  });
+  client.setQueryData(['imported-refunds', id, 'user', otherBusiness], {
+    imported_refunds_enabled: true,
+  });
+  api.GET.mockResolvedValueOnce({
+    data: { imported_refunds_enabled: false },
+    response: { status: 200 },
+  });
+  const view = renderNav(client);
+  await screen.findByRole('link', { name: label });
+
+  if (state.workspace?.status !== 'ready' || !state.workspace.business) {
+    throw new Error('missing workspace');
+  }
+  state.workspace = {
+    ...state.workspace,
+    business: { ...state.workspace.business, id: otherBusiness },
+  };
+  api.GET.mockImplementation(() => new Promise(() => undefined));
+  view.rerenderNav();
+  expect(screen.queryByRole('link', { name: label })).toBeNull();
+  api.GET.mockResolvedValue({
+    data: { imported_refunds_enabled: true },
+    response: { status: 200 },
+  });
+  await client.invalidateQueries({ queryKey: ['imported-refunds', id, 'user', otherBusiness] });
+  expect(await screen.findByRole('link', { name: label })).toBeTruthy();
+});
+
+it('removes the visible entry after a guarded refetch refuses access', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  api.GET.mockResolvedValue({
+    data: { imported_refunds_enabled: true },
+    response: { status: 200 },
+  });
+  renderNav(client);
+  await screen.findByRole('link', { name: label });
+  api.GET.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
+  await client.invalidateQueries({ queryKey: ['imported-refunds', id, 'user', id] });
+  await waitFor(() => expect(screen.queryByRole('link', { name: label })).toBeNull());
 });

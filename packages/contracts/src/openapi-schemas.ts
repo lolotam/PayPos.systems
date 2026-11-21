@@ -119,8 +119,15 @@ import {
   updateBusinessSettingsInput,
 } from './settings/business-settings.js';
 import { currency } from './reference/currency.js';
+import { country } from './reference/country.js';
 import { timeZone } from './reference/time-zone.js';
-import { business, createBusinessInput, verticalType } from './tenancy/business.js';
+import {
+  business,
+  createBusinessInput,
+  setBusinessCountryInput,
+  setBusinessCountryResult,
+  verticalType,
+} from './tenancy/business.js';
 import { branch, createBranchInput, geo } from './tenancy/branch.js';
 import { company, createCompanyInput } from './tenancy/company.js';
 import { openingHours } from './tenancy/opening-hours.js';
@@ -221,6 +228,8 @@ export const openApiSchemas = [
   createCompanyInput,
   business,
   createBusinessInput,
+  setBusinessCountryInput,
+  setBusinessCountryResult,
   branch,
   createBranchInput,
   pairingCode,
@@ -248,6 +257,7 @@ export const openApiSchemas = [
   // المكوّنات المتداخلة لازم تتسجل هي كمان، وإلا Zod بيحطها تحت __shared بدل components.
   verticalType,
   currency,
+  country,
   timeZone,
   geo,
   openingHours,

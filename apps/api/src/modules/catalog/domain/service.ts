@@ -251,7 +251,14 @@ export function toCommissionRule(rule: ServiceRuleWire): ServiceCommissionRule {
   return { kind: rule.kind };
 }
 
-function toRuleWire(rule: ServiceCommissionRule): ServiceRuleWire {
+/**
+ * بيحوّل قاعدة العمولة الصافية لشكل السلك الذي يخزن في التدقيق ويظهر في رد الخدمة وفي الصفوف
+ * المطبّعة للاستيراد (32b-1): PCT عدد bps صحيح، وFIXED نص دينار بثلاث خانات، والحالان الآخران بلا قيمة.
+ *
+ * @param rule القاعدة الصافية بالفلوس
+ * @returns القاعدة على السلك
+ */
+export function toRuleWire(rule: ServiceCommissionRule): ServiceRuleWire {
   if (rule.kind === 'PCT') return { kind: 'PCT', value: Number(rule.value) };
   if (rule.kind === 'FIXED') return { kind: 'FIXED', value: moneyToString(rule.value) };
   return { kind: rule.kind };

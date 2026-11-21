@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
 import type {
+  BusinessCountryScope,
   NewBranch,
   NewBusiness,
   TenancyScope,
@@ -19,6 +20,36 @@ async function insertBusiness(tx: Tx, companyId: string, b: NewBusiness) {
     RETURNING to_json(created_at) #>> '{}' AS created_at`);
   if (row === undefined) throw new Error('insert returned no row');
   return { createdAt: row.created_at };
+}
+
+async function lockBusinessSettings(
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+): Promise<Record<string, unknown> | null> {
+  // صف مفقود يعني null (نشاط مش مرئي)، أما settings الفارغة أو غير الكائن (إرث قبل هذا التسليم)
+  // فتُقرأ كائناً فارغاً تحت نفس القفل، فالدمج يبدأ من {} ولا يفسد أي قيمة غير كائنية.
+  const [row] = await tx.execute<{ settings: Record<string, unknown> | null }>(sql`
+    SELECT CASE WHEN jsonb_typeof(settings) = 'object' THEN settings ELSE '{}'::jsonb END AS settings
+    FROM businesses
+    WHERE company_id = ${companyId} AND id = ${businessId}
+    FOR NO KEY UPDATE`);
+  return row?.settings ?? null;
+}
+
+async function saveBusinessCountry(
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+  country: string,
+): Promise<void> {
+  // الدمج على مستوى قاعدة البيانات: مفتاح country فقط بيتضاف أو بيتبدل، وكل مفتاح تاني بيفضل مخزّناً؛
+  // والإرث غير الكائني يبدأ من {} بدل إلحاق كائن بمصفوفة أو قيمة.
+  await tx.execute(sql`
+    UPDATE businesses
+    SET settings = CASE WHEN jsonb_typeof(settings) = 'object' THEN settings ELSE '{}'::jsonb END
+                  || jsonb_build_object('country', ${country}::text)
+    WHERE company_id = ${companyId} AND id = ${businessId}`);
 }
 
 async function insertBranch(tx: Tx, companyId: string, b: NewBranch) {
@@ -58,6 +89,21 @@ export function createTenancyTransactions(
             };
             return work(scope);
           }),
+        { userId },
+      ),
+    runBusinessCountryChange: ({ companyId, userId }, work) =>
+      db.withTenant(
+        companyId,
+        (tx) => {
+          const scope: BusinessCountryScope = {
+            companyId,
+            ...transactionWriters(tx, ids),
+            lockBusinessCountry: (businessId) => lockBusinessSettings(tx, companyId, businessId),
+            saveBusinessCountry: (businessId, country) =>
+              saveBusinessCountry(tx, companyId, businessId, country),
+          };
+          return work(scope);
+        },
         { userId },
       ),
   };

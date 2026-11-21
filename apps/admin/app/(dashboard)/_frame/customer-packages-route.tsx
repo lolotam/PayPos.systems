@@ -3,6 +3,7 @@ import { t } from '@pospay/i18n';
 import { useSearchParams } from 'next/navigation';
 import { CustomerPackagesPage } from '@/orders/pages/customer-packages-page';
 import { resolveScopeHint } from '@/orders/model/resolve-scope-hint';
+import { usePackageRouteSelection } from '@/orders/model/use-package-route-selection';
 import { useSessionUser } from '@/session/api/use-session';
 import { useMounted } from '@/shared/browser/use-mounted';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -22,6 +23,11 @@ export function CustomerPackagesRoute({ customerId }: { customerId: string }) {
   const userId = useSessionUser(useMounted());
   const workspace = useWorkspace();
   const searchParams = useSearchParams();
+  const scopeKey =
+    workspace.status === 'ready' && workspace.business && workspace.branch && userId !== null
+      ? [workspace.company.id, workspace.business.id, workspace.branch.id, userId].join(':')
+      : null;
+  const selection = usePackageRouteSelection(scopeKey);
   if (workspace.status !== 'ready' || userId === null) return null;
   if (!workspace.business) return <p>{t(locale, 'admin.chooseBusiness')}</p>;
   if (!workspace.branch) return <p>{t(locale, 'serviceSessions.chooseBranch')}</p>;
@@ -66,6 +72,7 @@ export function CustomerPackagesRoute({ customerId }: { customerId: string }) {
     <CustomerPackagesPage
       key={`${scope.companyId}:${scope.businessId}:${scope.branchId}:${scope.userId}:${customerId}`}
       scope={scope}
+      selection={selection}
       customerId={customerId}
     />
   );

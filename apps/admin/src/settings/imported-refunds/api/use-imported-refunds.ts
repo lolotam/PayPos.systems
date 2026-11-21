@@ -14,5 +14,7 @@ export function useImportedRefunds(
     enabled: Boolean(companyId && userId && businessId),
     queryFn: ({ signal }) => readImportedRefunds(companyId ?? '', businessId ?? '', signal),
     retry: false,
+    refetchOnMount: 'always',
+    staleTime: 0,
   });
 }
