@@ -32,6 +32,19 @@ describe('emitted cursor schema', () => {
     // نفس السكيما للمعاينة وصفوف الصفحة: مرجع واحد مش نسختين.
     expect(preview).toEqual(page);
   });
+
+  it.each([
+    ['1', false],
+    ['2', true],
+    ['1048576', true],
+    ['1048577', false],
+  ])('checks the row boundary for %s in the published query and response', (value, accepted) => {
+    const schemas = committedDocument.components.schemas;
+    expect(new RegExp(schemas.ServiceImportRowsCursor.pattern).test(value)).toBe(accepted);
+    expect(new RegExp(schemas.ServiceImportRowsPage.properties.next_cursor.pattern).test(value)).toBe(
+      accepted,
+    );
+  });
 });
 
 describe('emitted nullable import fields', () => {

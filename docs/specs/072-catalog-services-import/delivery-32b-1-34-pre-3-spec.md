@@ -28,7 +28,7 @@ files (plan §6). §9 lists the repository rules this choice overrides and what 
 | Generic cell tagging | `apps/api/src/shared/import/tag-cells.ts` (`tagCells`, `TaggedImportCell`) | PR #823 (32b-1c), merge `ed5ee5e15` | Reused as is |
 | The xlsx reader, zip guard, XML guard, `readSheet`, `ImportCell`, `INVALID_CELL` | package `packages/import-workbooks` (`@pospay/import-workbooks`); `apps/api/src/shared/import/import-sheet.ts` and `xlsx-sheet-reader.ts` only re-export it; staff keeps a thin wrapper with its own bounds and error type | PR #871 (47-1b, package import preview), commit `3fc65c268`, the only commit in the package's history | The reader move that 072 gave to 32b-1 and that `PP-103.1` (CI-T1) gave to 34b was **done by neither**. It is not work of this delivery. The object-bytes reader was **not** moved (§8, P-4) |
 | Per-field service validators, `serviceTerms`, exported `toCommissionRule` | `…/catalog/domain/service-validation.ts`, `service.ts` | PR #757 (32b-pre-1), `185f328f3` | Reused as is |
-| Category key | `serviceCategoryKey`, `normalizeServiceCategoryName` in `…/catalog/domain/service-category.ts` | PR #721 (32b-cat-1) | Reused for the category cell and for the duplicate key |
+| Category key | `serviceCategoryKey`, `normalizeServiceCategoryName` in `…/catalog/domain/service-category.ts` | PR #721 (32b-cat-1) | Reused for the service duplicate key. Category matching uses the resolver in A-12 |
 | Service form, list, filter; branch category actions | admin | PR #771 (32b-pre-2), PR #1139 (32b-cat-3b-3, `81c336a07`) | The 32b-1 blockers of 072 are met |
 | ADR-0034 services addendum, module-map rows | `docs/adr/0034-employee-import-framework.md` | PR #706 (32b-0), `474145c84` | Governs D-1 to D-9 |
 | Customer profile fields | — | PR #766 (34-pre-1), `4a9898818` | 34-pre-3 is next in the corrected order 34-pre-1 → 34-pre-3 → 34-pre-2 → 34b |
@@ -91,7 +91,7 @@ Sources: 072 FR-001, FR-004 to FR-007, FR-014, D-8, D-9, SI-Q1 to SI-Q4, SI-Q6 t
   | `name_ar` | no Arabic name | trimmed; `validateServiceNameAr`, else `IMPORT_NAME_INVALID`; empty after trim is no Arabic name | its text is the name ◊ | `IMPORT_NAME_INVALID` ◊ | `IMPORT_NAME_INVALID` ◊ |
   | `price` | existing `parseServiceImportPriceCell`, unchanged | | | | |
   | `duration_minutes` | no duration | ASCII digits only, then `validateServiceDuration` (1 to 600); a fraction, a sign, exponent text, `0`, `601` are `IMPORT_DURATION_INVALID`; leading zeroes are allowed (090 represents 90) | same rule on its text (a numeric `1e2` arrives as `100`) | `IMPORT_DURATION_INVALID` | `IMPORT_DURATION_INVALID` |
-  | `category` | no category | matched by `serviceCategoryKey` against the open categories given; no match is `IMPORT_CATEGORY_NOT_FOUND` | matched by its text ◊ | `IMPORT_CATEGORY_NOT_FOUND` ◊ | `IMPORT_CATEGORY_NOT_FOUND` ◊ |
+  | `category` | no category | trimmed text is passed to the caller-owned resolver in A-12; no match is `IMPORT_CATEGORY_NOT_FOUND` | matched by its text ◊ | `IMPORT_CATEGORY_NOT_FOUND` ◊ | `IMPORT_CATEGORY_NOT_FOUND` ◊ |
   | `commission_rule`, `commission_value` | existing `parseServiceImportCommissionCells`, unchanged; reasons map `CELL_INVALID` → `IMPORT_CELL_INVALID`, `RULE_INVALID` → `IMPORT_COMMISSION_RULE_INVALID`, `VALUE_INVALID` → `IMPORT_COMMISSION_VALUE_INVALID`, `REQUIRED` → `IMPORT_REQUIRED_CELL` on `commission_value` ◊ | | | | |
   | `counts_toward_threshold` | `true` (SR-005) | `true`/`false`, `yes`/`no`, `نعم`/`لا`, case-insensitive after trim; else `IMPORT_BOOLEAN_INVALID` | `IMPORT_BOOLEAN_INVALID` | its value | `IMPORT_BOOLEAN_INVALID` |
 
@@ -123,7 +123,7 @@ Sources: 072 FR-001, FR-004 to FR-007, FR-014, D-8, D-9, SI-Q1 to SI-Q4, SI-Q6 t
   boundary-safe sharing or verification of SQL parity on Postgres. Vectors alone do not establish Unicode parity.
   Do not add Unicode normalization or accent folding.
 - **A-12 Mapper input, fixed here:** `{ headers: string[], rows: { row: number, cells: tagged cell[] }[] }` plus a
-  caller-supplied category resolver — `(lookupText: string) => { id, name_en } | null` (correction 2026-11-21,
+  caller-supplied category resolver — `(lookupText: string) => { id: string; nameEn: string } | null` (correction 2026-11-21,
   review batch 2: the pure mapper no longer scans or normalizes categories in JavaScript; **32b-2 owns the
   tenant/business/open-category Postgres query with the exact index normalization and equality**, builds the
   lookup keyed by the submitted category text — trimming only, as the converter trims — and hands the mapper the

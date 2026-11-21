@@ -54,12 +54,6 @@ const countryAudits = async (id = business, company = f.company) =>
     WHERE company_id = ${company} AND entity = 'business' AND entity_id = ${id}
       AND action = 'country.changed' ORDER BY id`;
 
-/** صف تدقيق دولة النشاط كما يرجعه الاستعلام، بقيمة ما قبل وما بعد. */
-interface CountryAuditRow {
-  readonly before: { readonly country: string | null };
-  readonly after: { readonly country: string };
-}
-
 describe('setting a country after creation (B-6)', () => {
   it('sets a country on a business with template and custom keys, keeping them and auditing once', async () => {
     const created = await f.h.send('POST', '/v1/businesses', {
@@ -240,19 +234,16 @@ describe('the sibling refusal with a business-only holder (OQ-2 scope)', () => {
 describe('concurrent changes ordering (FOR NO KEY UPDATE)', () => {
   it('orders two concurrent changes so the later audit continues from the earlier audit value', async () => {
     const before = await settingsOf();
+    const auditCount = (await countryAudits()).length;
     const [first, second] = await Promise.all([put({ country: 'KW' }), put({ country: 'QA' })]);
     expect([first.status, second.status]).toEqual([200, 200]);
     const stored = (await settingsOf())['country'];
     expect(['KW', 'QA']).toContain(stored);
-    const audits = await countryAudits();
-    // زوج التغييرات المتزامنة: سجلّا تدقيق جديدين اثنين بالظبط، والأخير بيكمل من قيمة الأول، وآخرها = المخزّن.
-    expect(audits.length).toBeGreaterThanOrEqual(4);
-    const penultimate = audits[audits.length - 2] as CountryAuditRow;
-    const last = audits[audits.length - 1] as CountryAuditRow;
-    expect(penultimate.before.country).not.toBeNull();
-    expect(last.before.country).toBe(penultimate.after.country);
-    expect(last.after.country).toBe(stored);
-    expect(before['country']).not.toBe(stored);
+    const earlier = stored === 'KW' ? 'QA' : 'KW';
+    expect((await countryAudits()).slice(auditCount)).toEqual([
+      { before: { country: before['country'] ?? null }, after: { country: earlier } },
+      { before: { country: earlier }, after: { country: stored } },
+    ]);
   });
 });
 

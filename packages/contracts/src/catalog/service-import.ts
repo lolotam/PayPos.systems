@@ -99,11 +99,16 @@ export const serviceImportRow = responseObject({
 
 // مؤشر صف الورقة واحد للطلب والرد: نص عشري قانوني للصف الأصلي الموجب من 2 فأكثر، بلا UUID —
 // لأن مؤشر الاستيراد هو رقم الصف في المصنف مش معرّف قاعدة بيانات، وحدّه الأعلى حدّ صفوف Excel نفسه.
+const excelRowNumberPattern = new RegExp(
+  '^(?:' +
+    '[2-9]|[1-9][0-9]{1,5}|' + // 2–999999
+    '10[0-3][0-9]{4}|104[0-7][0-9]{3}|' + // 1000000–1047999
+    '1048[0-4][0-9]{2}|10485[0-6][0-9]|104857[0-6]' + // 1048000–1048576
+    ')$',
+);
 const serviceImportRowsCursorValue = z
   .string()
-  .max(7)
-  .regex(/^(?:[2-9]|[1-9][0-9]+)$/)
-  .refine((value) => Number(value) <= 1_048_576)
+  .regex(excelRowNumberPattern)
   .describe('Original Excel row number from 2 through 1048576.');
 export const serviceImportRowsCursor = serviceImportRowsCursorValue.meta({
   id: 'ServiceImportRowsCursor',

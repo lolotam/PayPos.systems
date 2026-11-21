@@ -67,11 +67,11 @@ export interface BusinessCountryScope {
   readonly companyId: string;
   readonly audit: AuditTrail;
   /**
-   * بيقرأ إعدادات النشاط تحت قفل `FOR NO KEY UPDATE` على صف الشركة نفسه، عشان تغيير متزامنين
+   * بيقرأ إعدادات النشاط تحت قفل `FOR NO KEY UPDATE` على صف النشاط نفسه، عشان تغيير متزامنين
    * يترتبوا ورا بعض من غير ما يمنعوا إدخال صفوف وليدة على الـ FK؛ `null` يعني النشاط مش مرئي.
    *
    * @param businessId النشاط المطلوب تغيير دولته
-   * @returns الإعدادات المخزّنة كما هي، أو `null` لو النشاط غائب أو لشركة تانية
+   * @returns كائن الإعدادات، أو `{}` لو القيمة المخزّنة مش كائن JSON، أو `null` لو صف النشاط مش مرئي
    */
   lockBusinessCountry(businessId: string): Promise<Record<string, unknown> | null>;
   /**
