@@ -204,6 +204,17 @@ it('BI-Q1 business identity defaults to the owner and stays owner-granted', () =
   expect(OWNER_GRANTED_PERMISSIONS).toContain('manage:business-identity:business');
 });
 
+it('PK-Q24/PK-Q26 imported refunds default to the owner, stay owner-granted and never reach a device', () => {
+  const code = 'manage:imported-refunds:business';
+  expect(ROLE_DEFAULTS[code]).toEqual(['owner']);
+  expect(OWNER_GRANTED_PERMISSIONS).toContain(code);
+  for (const role of SYSTEM_ROLES) {
+    expect(systemRolePolicy(role.id, 'global')?.permissions.includes(code)).toBe(
+      role.code !== 'device',
+    );
+  }
+});
+
 it('EN-Q11 employee number defaults to the owner and stays owner-granted', () => {
   expect(ROLE_DEFAULTS['manage:employee-number:company']).toEqual(['owner']);
   expect(OWNER_GRANTED_PERMISSIONS).toContain('manage:employee-number:company');
@@ -222,13 +233,14 @@ it('cancel:service-lines:branch defaults to the four managers and a device canno
   const staff = SYSTEM_ROLES.find((role) => role.code === 'staff');
   const staffPolicy = systemRolePolicy(staff?.id ?? '', 'global')?.permissions ?? [];
   expect(staffPolicy.includes('cancel:service-lines:branch')).toBe(true);
-  expect((ROLE_DEFAULTS['read:service-sessions:branch'] as readonly string[]).includes('staff')).toBe(
-    false,
-  );
-  expect(staffPolicy.filter((code) => code === 'cancel:service-lines:branch' || code === 'read:service-sessions:branch')).toEqual([
-    'read:service-sessions:branch',
-    'cancel:service-lines:branch',
-  ]);
+  expect(
+    (ROLE_DEFAULTS['read:service-sessions:branch'] as readonly string[]).includes('staff'),
+  ).toBe(false);
+  expect(
+    staffPolicy.filter(
+      (code) => code === 'cancel:service-lines:branch' || code === 'read:service-sessions:branch',
+    ),
+  ).toEqual(['read:service-sessions:branch', 'cancel:service-lines:branch']);
 });
 
 it('change:service-line-performers:branch defaults to the four managers and devices cannot hold it', () => {
@@ -303,7 +315,9 @@ it('AL-Q1 manage:alert-rules:business defaults to the three managers, is delegab
   const defaults = ['owner', 'general_manager', 'business_manager'];
   const holders: readonly string[] = ROLE_DEFAULTS['manage:alert-rules:business'];
   expect(holders).toEqual(defaults);
-  expect(OWNER_GRANTED_PERMISSIONS as readonly string[]).not.toContain('manage:alert-rules:business');
+  expect(OWNER_GRANTED_PERMISSIONS as readonly string[]).not.toContain(
+    'manage:alert-rules:business',
+  );
   for (const role of SYSTEM_ROLES) {
     expect(
       systemRolePolicy(role.id, 'global')?.permissions.includes('manage:alert-rules:business'),
@@ -345,20 +359,30 @@ it('PK-Q13 sell:packages:branch defaults to the five visit roles, is delegable t
   expect(holders).toEqual(defaults);
   expect(OWNER_GRANTED_PERMISSIONS as readonly string[]).not.toContain(code);
   for (const role of SYSTEM_ROLES) {
-    expect(
-      systemRolePolicy(role.id, 'global')?.permissions.includes(code),
-    ).toBe(role.code !== 'device');
+    expect(systemRolePolicy(role.id, 'global')?.permissions.includes(code)).toBe(
+      role.code !== 'device',
+    );
   }
 });
 
 it('PK-Q18 import permission defaults to owner, GM and BM and is never available to devices', () => {
-  expect(ROLE_DEFAULTS['import:packages:business']).toEqual(['owner','general_manager','business_manager']);
+  expect(ROLE_DEFAULTS['import:packages:business']).toEqual([
+    'owner',
+    'general_manager',
+    'business_manager',
+  ]);
   const device = SYSTEM_ROLES.find((role) => role.code === 'device');
   expect(device).toBeDefined();
   if (device === undefined) throw new Error('Missing seeded device role');
-  expect(systemRolePolicy(device.id, 'global')?.permissions).not.toContain('import:packages:business');
+  expect(systemRolePolicy(device.id, 'global')?.permissions).not.toContain(
+    'import:packages:business',
+  );
 });
 
 it('SI-Q17 close:services:business defaults to the three managers only', () => {
-  expect(ROLE_DEFAULTS['close:services:business']).toEqual(['owner', 'general_manager', 'business_manager']);
+  expect(ROLE_DEFAULTS['close:services:business']).toEqual([
+    'owner',
+    'general_manager',
+    'business_manager',
+  ]);
 });

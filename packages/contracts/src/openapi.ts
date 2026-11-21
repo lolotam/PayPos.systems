@@ -1,4 +1,5 @@
 import { leaveHistoryPaths } from './staff/leave-history-openapi.js';
+import { businessCountryPaths } from './tenancy/business-openapi.js';
 import { leaveHistoryReportApiPaths } from './staff/leave-history-report-api-openapi.js';
 import { ownTipsPaths } from './orders/own-tips-openapi.js';
 import { ownRatingSummaryPaths } from './customers/own-rating-summary-openapi.js';
@@ -38,6 +39,7 @@ import { privateViewPaths } from './identity/private-view-openapi.js';
 import { mePaths } from './identity/me-openapi.js';
 import { customerPaths } from './customers-openapi.js';
 import { ratingSettingsPaths } from './customers/rating-settings-openapi.js';
+import { importedRefundsPaths } from './settings/imported-refunds-openapi.js';
 import { catalogPaths } from './catalog/catalog-openapi.js';
 import { json, operation } from './openapi-operation.js';
 import { openApiSchemas } from './openapi-schemas.js';
@@ -59,6 +61,7 @@ const PATHS = {
   ...ownRatingSummaryPaths,
   ...ownAttendancePaths,
   ...personalBranchesPaths,
+  ...businessCountryPaths,
   ...packageImportPreviewPaths,
   ...packageExtensionPaths,
   ...packageSalePaths,
@@ -90,6 +93,7 @@ const PATHS = {
   ...catalogPaths,
   ...alertRulePaths,
   ...ratingSettingsPaths,
+  ...importedRefundsPaths,
   ...serviceSessionPaths,
   ...serviceSessionFormPaths,
   ...serviceSessionRecoveryPaths,

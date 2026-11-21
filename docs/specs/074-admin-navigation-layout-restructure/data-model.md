@@ -20,18 +20,29 @@ One admin page as the menu knows it.
 | `descriptionKey` | Optional key for the one-line description used on overview cards |
 | `icon` | A Phosphor icon exported by `packages/ui` (ADR-0060) |
 | `parent` | Optional: the page this one is a child of (create and detail pages). A child has no menu entry of its own and marks its parent's entry current |
+| `formerSoonId` | Optional on a live entry: its previously published `/soon/<id>` ID. Keep it on promotion, including when the page becomes a child or an embedded section. Current and former IDs share one namespace. After checking the entry's current visibility, an alias for a parameterized child forwards to its concrete parent list |
 | `visible` | The condition that shows the page: the same permission or state check its `*-nav-item.tsx` uses today |
 | `count` | Optional: where a pending count comes from |
 | `state` | `live` (the page exists) or `soon` (not built). A `soon` entry has no `route` of its own; it opens `/soon/<id>` |
+| `businessTypes` | The business types (PRD §7.1) that see the entry; empty means every type. It applies to `soon` and `live` entries alike and is checked against the business selected in the workspace switcher |
+| `countries` | Optional: the countries whose businesses see the entry (ZATCA: Saudi Arabia only). Checked against the selected business, like `businessTypes`, for `soon` and `live` entries alike |
+| `roles` | For a `soon` entry: the roles (PRD §3.2) that see it. A `live` entry uses `visible` instead |
 | `section`, `submenu` | Where the entry sits in `app-map.md`; the three groupings are built from these |
 
 **Rules**
 
 - Every `page.tsx` under `(dashboard)`, plus `/security/two-factor`, has exactly one `live` entry.
-- Every page listed in `app-map.md` has exactly one entry, `live` or `soon`.
-- Who sees a `soon` entry waits on NAV-Q14 (every user, or by business type and role). Building the page turns it `live` and gives it its route and its own condition in the same change.
+- Every Management-area page listed in `app-map.md` has exactly one entry, `live` or `soon`. The other areas of that file are not part of this model.
+- A page marked New in `app-map.md` (the Approvals inbox, Appearance) has no route until step 7 adds it. In steps 1 to 6 its entry is `soon`; step 7 turns it `live` in the same change that adds `/approvals` and `/appearance`. Nothing a user sees depends on this, because the model is not rendered before step 7.
+- A `soon` entry carries the business types and roles that see it (NAV-Q14) and is hidden from everyone else. Building the page turns it `live` and gives it its route and its own condition in the same change.
 - Each business area owns its entries, their conditions, section and sub-menu (`apps/admin/src/<area>/nav.ts`); the model only composes them and arranges sections per style.
 - `visible` is moved as-is from today's code. This feature adds and removes no permission.
+
+## Where business type and country come from
+
+The menu checks `businessTypes` and `countries` against the business selected in the workspace switcher. Today that business carries neither value: `WorkspaceBusiness` in `packages/contracts/src/identity/workspaces.ts` holds only `id`, the two names and `branches`. The business type exists server-side as the vertical whose template is copied into the business settings (`packages/db/src/vertical-templates.ts`), and a country code exists only inside the tax rule of the business settings (`packages/contracts/src/settings/business-settings.ts`).
+
+Step 0c of `pr-sequence.md` therefore adds two read-only fields to `WorkspaceBusiness` in `GET /v1/me/workspaces`: the business type and the country code. Which stored value each field is read from is settled in that step's own spec (`TODO(spec)`). Step 7 depends on step 0c. Until it merges, the model carries `businessTypes` and `countries` but nothing can apply them.
 
 ## Grouping (front end)
 

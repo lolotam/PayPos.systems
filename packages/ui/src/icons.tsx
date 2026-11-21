@@ -1,4 +1,5 @@
 import {
+  ArrowCounterClockwiseIcon,
   BellIcon,
   BuildingsIcon,
   CircleNotchIcon,
@@ -67,6 +68,7 @@ function withDefaults(Base: IconComponent, options: IconOptions = {}): IconCompo
 }
 
 export const Bell = withDefaults(BellIcon);
+export const ArrowCounterClockwise = withDefaults(ArrowCounterClockwiseIcon);
 export const Building2 = withDefaults(BuildingsIcon);
 export const Store = withDefaults(StorefrontIcon);
 export const MapPin = withDefaults(MapPinIcon);

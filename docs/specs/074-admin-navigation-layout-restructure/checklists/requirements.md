@@ -32,11 +32,13 @@
 
 ## Notes
 
+- On 2026-11-21 the owner chose the grouping of eight sections from three options each (NAV-Q17); `app-map.md` is now generated from one source shared with `lolotam/lovable-pospay` spec 022.
+
 - Validated on 2026-11-21 by the session that wrote the spec, then checked with the docs-guard skill and debated once with Codex (`gpt-6.2-astra`, medium): verdict "agree with changes", nine findings, all applied (`debate-codex-astra.md`).
-- One requirement waits on the owner: FR-022 / NAV-Q14 (who sees not-built entries). It blocks the release step only (`pr-sequence.md` step 7).
+- FR-022 / NAV-Q14 was answered on 2026-11-21 (by business type and role). The per-entry table of business types and roles is still to be written in step 1.
 - Business rules BR-001 to BR-005 are the owner's answers, recorded verbatim in `owner-questions.ar.md` (NAV-Q1, NAV-Q6, NAV-Q7, NAV-Q8, NAV-Q10, NAV-Q12).
-- Open and not blocking this feature's first steps: NAV-Q4 (`--primary` difference), NAV-Q5 (ADR-0059 addendum for the theme switch), NAV-Q11 (cashier app), NAV-Q15 (social media management is not in the PRD).
+- No owner question is open. Answered on 2026-11-21: NAV-Q4 (each project keeps its primary colour), NAV-Q11 (a cashier's style is kept on the device, per employee), NAV-Q19, NAV-Q20, NAV-Q21, NAV-Q5, NAV-Q14, NAV-Q15, NAV-Q16.
 - One point the spec states as an assumption, not verified: whether existing reads can supply navigation counts.
-- Audit treatment of the account write is open (NAV-Q16); it blocks only the account-preference step.
+- Audit: the owner approved a recorded exception for a user changing their own style (NAV-Q16); CLAUDE.md §8 is amended in step 0b.
 - The MergePilot panel reviewed the PR on 2026-11-21 (50 findings); the documentation findings were applied and the prototype findings are fixed or listed in `prototypes/README.md`.
 - The schema row adds a column to a global identity table. ADR-0003 must be amended before the migration is written.

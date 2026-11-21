@@ -223,6 +223,7 @@ export function PackageSaleForm({ scope }: { scope: SessionServiceScope }) {
       {entryScope === null && <p role="alert">{t(locale, 'packageSale.customerUnavailable')}</p>}
       <SessionCustomerField
         {...scope}
+        packagesScope={scope}
         entryScope={entryScope ?? 'branch'}
         value={customer}
         onChange={setCustomer}

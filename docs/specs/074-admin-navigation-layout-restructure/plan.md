@@ -12,7 +12,7 @@ The admin app gets three navigation styles (A sidebar and tabs, B top bar and hu
 
 Technical approach, from [research.md](research.md): one typed page list with three groupings, composed in the dashboard frame from per-area exports; three frame components built from `packages/ui` parts on the Radix primitives the package already ships; a `pospay_nav_style` cookie read the same way as the locale cookie; and one nullable column on the `user` table behind two session-only endpoints.
 
-The work is delivered as 13 PRs. Their order, tiers and "done when" are in [pr-sequence.md](pr-sequence.md); the sizes, route map and layout rules are in [design.md](design.md).
+The work is delivered as 15 PRs, one per step of `pr-sequence.md` (14 if steps 1 and 2 are combined, which that file allows). Their order, tiers and "done when" are in [pr-sequence.md](pr-sequence.md); the sizes, route map and layout rules are in [design.md](design.md).
 
 ## Technical Context
 
@@ -32,7 +32,7 @@ The work is delivered as 13 PRs. Their order, tiers and "done when" are in [pr-s
 
 **Constraints**: No colour, font, radius or button-variant change. Existing URLs unchanged. Strings through `packages/i18n` only. Logical CSS properties only. Interactive targets at least 44px. `apps/pos` untouched.
 
-**Scale/Scope**: 100 menu pages in `app-map.md` (28 built, 1 new, 71 not built and opening one shared Under development page), three groupings, 15 `*-nav-item.tsx` files folded into one model, 13 PRs.
+**Scale/Scope**: 127 management-area menu pages in `app-map.md` (28 built, 2 new, 97 not built and opening one shared Under development page), three groupings, 15 `*-nav-item.tsx` files folded into one model, 15 PRs.
 
 ## Constitution Check
 
@@ -40,15 +40,15 @@ The work is delivered as 13 PRs. Their order, tiers and "done when" are in [pr-s
 
 | Principle | Status | Notes |
 |---|---|---|
-| I. One Vertical Slice at a Time | Pass, with a note | The feature is not one use case; it is cut into 13 PRs, each one reviewable alone (`pr-sequence.md`). The only back-end use case, "set my navigation style", is its own PR (step 12). |
+| I. One Vertical Slice at a Time | Pass, with a note | The feature is not one use case; it is cut into 15 PRs, each one reviewable alone (`pr-sequence.md`). The only back-end use case, "set my navigation style", is its own PR (step 12). |
 | II. Domain Purity and Money Correctness | Not applicable | No money, no arithmetic, no `domain/` function. |
 | III. Tenant Isolation Enforced by the Database | Pass, needs an ADR addendum | No tenant table is added. The new column is on `user`, a global identity table reached only through `packages/auth` on `pospay_auth`. ADR-0003 must classify the column before the migration is written (CLAUDE.md §5). The existing table-level grant to `pospay_auth` covers it; no new grant. |
 | IV. Module Boundaries Are Machine-Enforced | Pass | The navigation model is composed in `app/(dashboard)/_frame` from per-area exports (CLAUDE.architecture.md §11.2); nothing with business meaning goes in `src/shared` (§6.4). The endpoint lives in the `identity` module and reaches the column through `packages/auth` only. No new module arrow. |
 | V. Test-Backed Delivery | Pass | Front-end tests assert visible outcomes in each style; integration scenarios PREF-01 to PREF-09 for the endpoint. Every hide-condition asserted by today's nav-item specs is carried over before those files are removed. |
-| VI. Arabic-First, RTL-Native, One Owned Design System | Pass, needs an ADR addendum | Same tokens and `packages/ui` components; icons per ADR-0060. Moving the theme switch out of the sidebar footer needs an ADR-0059 addendum (NAV-Q5): styles B and C have no sidebar footer. |
+| VI. Arabic-First, RTL-Native, One Owned Design System | Pass, needs an ADR addendum | Same tokens and `packages/ui` components; icons per ADR-0060. The theme switch moves out of the sidebar footer in all three styles (NAV-Q5, answered 2026-11-21), which needs an ADR-0059 addendum. |
 | VII. Documented Why, in Arabic, With the Code | Pass | No `domain/`, `ports/` or `events/published.ts` change is planned. If step 12 adds a port, it carries its Arabic doc comment. |
 
-Gate result: pass. Two addenda are owed before the PRs that depend on them: ADR-0059 (before step 7) and ADR-0003 (before step 12). Both are written in step 0b (`pr-sequence.md`). The ADR-0059 addendum waits for the answer to NAV-Q5.
+Gate result: pass. Two addenda are owed before the PRs that depend on them: ADR-0059 (before step 7) and ADR-0003 (before step 12). Both are written in step 0b (`pr-sequence.md`). NAV-Q5 is answered: one place for the theme switch in all three styles.
 
 Post-design re-check (after Phase 1): unchanged. The data model adds one column and no table; the contract adds two session-only routes and no permission.
 
@@ -69,7 +69,7 @@ docs/specs/074-admin-navigation-layout-restructure/
 │   └── requirements.md  # Spec quality checklist
 ├── app-map.md           # Every section, sub-menu and page of the product, built or not
 ├── design.md            # Problem evidence, sizes, route map of built pages, layout rules
-├── pr-sequence.md       # The 13 PRs, tiers, overlap, risks
+├── pr-sequence.md       # The 15 PRs, tiers, overlap, risks
 ├── owner-questions.ar.md  # Owner answers, verbatim (audit record)
 ├── prototypes/          # Clickable A, B and C
 └── tasks.md             # Phase 2 output (/speckit-tasks), not created here
@@ -89,6 +89,7 @@ apps/admin/
 │   │   │   └── *-nav-item.tsx (15 files)  # folded into the model, then removed
 │   │   ├── appearance/page.tsx            # new route
 │   │   ├── overview/[group]/page.tsx      # new route, used by styles B and C
+│   │   ├── approvals/page.tsx             # new route: the Approvals inbox under Home
 │   │   └── soon/[page]/page.tsx           # new route: the shared Under development page
 │   └── layout.tsx                         # reads the style cookie beside the locale cookie
 └── src/
@@ -126,4 +127,4 @@ File names for new files above are proposals for the implementer; the existing p
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
 | Three frames instead of one | The owner decided to ship all three and let the user choose (NAV-Q1) | One frame was the earlier recommendation; the owner chose otherwise |
-| A feature delivered as 13 PRs, not one slice | A frame swap, 28 pages of layout work and a migration cannot be reviewed as one change | A single PR would exceed every review and size limit and would tie the front end to the migration lane |
+| A feature delivered as 15 PRs, not one slice | A frame swap, 28 pages of layout work and a migration cannot be reviewed as one change | A single PR would exceed every review and size limit and would tie the front end to the migration lane |

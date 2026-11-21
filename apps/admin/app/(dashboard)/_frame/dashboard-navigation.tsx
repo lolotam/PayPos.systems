@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useLocale } from '@/shared/locale/locale-context';
 import { AlertRulesNavItem } from './alert-rules-nav-item';
 import { BusinessIdentityNavItem } from './business-identity-nav-item';
+import { ImportedRefundsNavItem } from './imported-refunds-nav-item';
 import { CatalogNavItem } from './catalog-nav-item';
 import { CommissionPlansNavItem } from './commission-plans-nav-item';
 import { PackageSaleNavItem } from './package-sale-nav-item';
@@ -57,6 +58,7 @@ export function DashboardNavigation() {
       <SessionDayNavItem />
       <StaffNavigation />
       <BusinessIdentityNavItem />
+      <ImportedRefundsNavItem />
       <StaffAppColumnsNavItem />
       <AlertRulesNavItem />
       <CommissionPlansNavItem />

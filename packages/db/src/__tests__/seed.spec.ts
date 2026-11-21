@@ -65,6 +65,16 @@ it('migrations install the package sale permission for the five visit roles befo
     { code: 'sell:packages:branch' },
   ]);
 });
+it('migrations install the imported refunds permission for the owner alone before any seed runs', async () => {
+  const grants = await owner`SELECT r.code,rp.permission_code FROM role_permissions rp
+    JOIN roles r ON r.id=rp.role_id AND r.owner_key=rp.role_owner_key
+    WHERE r.company_id IS NULL AND rp.permission_code='manage:imported-refunds:business'
+    ORDER BY r.code`;
+  expect(grants).toEqual([{ code: 'owner', permission_code: 'manage:imported-refunds:business' }]);
+  expect(
+    await owner`SELECT code FROM permissions WHERE code='manage:imported-refunds:business'`,
+  ).toEqual([{ code: 'manage:imported-refunds:business' }]);
+});
 
 // توقع مستقل لحزم PR 16؛ بقية المرجع يغطيه اختبار المصفوفة الكاملة.
 function expectedScheduleGrants() {

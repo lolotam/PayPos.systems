@@ -14,6 +14,10 @@ export {
   lockBusinessIdentityAccess,
   readBusinessIdentityAccess,
 } from './persistence/business-identity-access.ts';
+export {
+  lockImportedRefundsAccess,
+  readImportedRefundsAccess,
+} from './persistence/imported-refunds-access.ts';
 export { lockMembershipDiscountSubject } from './persistence/membership-discount-read-lock.ts';
 export { lockEmployeeCreationAccess } from './persistence/employee-creation-access.ts';
 export { lockEmployeeManagementAccess } from './persistence/employee-creation-access.ts';

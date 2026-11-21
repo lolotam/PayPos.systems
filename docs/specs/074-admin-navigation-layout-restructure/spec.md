@@ -94,8 +94,8 @@ The menu names every section of the product, including the ones not built yet: s
 
 **Acceptance Scenarios**:
 
-1. **Given** the menu in any style, **When** the user looks at it, **Then** every section and sub-menu of `app-map.md` is present.
-2. **Given** an entry for a page that is not built, **When** the user looks at it, **Then** it carries a "Soon" mark that is also announced to screen readers.
+1. **Given** the menu in any style, **When** the user looks at it, **Then** every section and sub-menu of the Management area of `app-map.md` that applies to the selected business type and the user's role is present.
+2. **Given** an entry for a page that is not built and meant for the user's business type and role, **When** the user looks at it, **Then** it carries a "Soon" mark that is also announced to screen readers.
 3. **Given** such an entry, **When** the user opens it, **Then** an Under development page shows the entry's name, one line saying it is under development, and a way back to Home. It shows no date and no phase number.
 4. **Given** a page is built later, **When** a user opens an old link to its Under development address, **Then** a user who may see the page is forwarded to it and a user who may not gets the not-found page.
 5. **Given** style C's page finder, **When** the user searches for a page that is not built, **Then** it is found and marked "Soon".
@@ -131,18 +131,20 @@ The menu names every section of the product, including the ones not built yet: s
 - **FR-011**: The choice MUST be remembered on the device from the first release, and saved on the user's account in a following release, after which it follows the user to other devices.
 - **FR-012**: Signing out MUST clear the device's remembered choice, and signing in MUST set it from that user's own choice or clear it, so the next person on that browser never inherits it, including after a session that expired.
 - **FR-013**: The account choice MUST be personal: one user's choice never changes what another user sees.
-- **FR-014**: In styles B and C the light, dark and system switch MUST be available on the Appearance page and in the account menu. Its place in style A waits for NAV-Q5 (`TODO(spec)`).
+- **FR-014**: The light, dark and system switch MUST be available on the Appearance page and in the account menu in all three styles, and is removed from the sidebar footer (NAV-Q5).
 - **FR-015**: All of the above MUST hold on desktop, tablet and phone widths, in Arabic (right-to-left) and English.
 - **FR-016**: Admin pages MUST follow the shared layout rules in `design.md` §6 (page width, header, filters, forms, stacked table rows on phones).
 - **FR-017**: The two defects found during mapping MUST be fixed: Staff app columns marks its own entry, not Employees; the Reload button on Weekly schedules no longer reads "Reload employee".
-- **FR-019**: The menu MUST list every section, sub-menu and page in `app-map.md`, in all three styles.
+- **FR-019**: The menu MUST list every section, sub-menu and page of the Management area of `app-map.md`, in all three styles. The other areas in that file are reference for their own specs (FR-018).
 - **FR-020**: A page that is not built yet MUST be marked "Soon" in the menu, and the mark MUST not rely on colour alone.
 - **FR-021**: Opening a not-built page MUST show one shared Under development page with the page's name and a way back to Home, in Arabic and English, with no date and no phase number.
-- **FR-022**: Who sees not-built entries MUST follow one rule in the menu, the page finder and direct links. The owner asked for every section to be shown (NAV-Q13); whether that is every user or follows business type and role is open (NAV-Q14), and its answer is required before the styles are released. Once a page is built, its own permission decides.
+- **FR-022**: A not-built entry MUST be shown only to the business types and roles it is meant for (NAV-Q14), and the same rule MUST apply in the menu, in the page finder and to a direct link. Each entry therefore carries the business types (PRD §7.1) that see it, and each not-built entry the roles (PRD §3.2). Once a page is built, its own permission decides who sees it, and its business-type limit still applies.
 - **FR-023**: When a page is built, switching its entry to the real page MUST be a change to that entry alone, and its old Under development address MUST apply the entry's show condition before forwarding to the real page.
 - **FR-024**: Menus, drawers, sheets and the page finder MUST keep keyboard focus inside while open and return it to the control that opened them; every icon-only control MUST have an accessible name; in-page tabs MUST expose which tab is selected; a hidden panel MUST take its links out of the tab order; a menu taller than the window MUST scroll inside itself.
 - **FR-025**: Choosing styles in quick succession MUST leave the account holding the last choice made.
-- **FR-018**: The cashier app is in the owner's scope but out of this feature; it gets its own specification (`TODO(spec)`, NAV-Q3, NAV-Q11).
+- **FR-026**: The Approvals inbox MUST be a working page under Home from the first release, in the same place in every style. It lists the kinds of approval that exist (leave approvals, attendance requests, attendance exceptions) and links each to its existing page; later kinds are added as they are built. A count is shown per kind, and in the menu, where an existing read supplies it. Each kind of approval also stays in its own section (NAV-Q17).
+- **FR-027**: An entry that belongs to some business types MUST be shown only while a business of one of those types is selected in the workspace switcher, whether its page is built or not (NAV-Q17). An entry limited to a country follows the same rule against the selected business's country. The selected business does not carry its type or country today; step 0c of `pr-sequence.md` adds both to the workspace response and must merge before the release step.
+- **FR-018**: The cashier app is in the owner's scope but out of this feature; it gets its own specification (`TODO(spec)`, NAV-Q3). One point of it is decided: a cashier's style is kept on the device, one value per employee who signs in there, with no database change (NAV-Q11).
 
 ### Key Entities
 
@@ -153,7 +155,7 @@ The menu names every section of the product, including the ones not built yet: s
 
 ## Slice design *(mandatory — `CLAUDE.md` §1)*
 
-This feature is mostly front end. It is delivered as several PRs (see `plan.md`); only the account preference touches the database and the API.
+This feature is mostly front end. It is delivered as several PRs (see `plan.md`); the account preference touches the database and the API (step 12), and step 0c adds two read-only fields to the workspace response, which the release step needs.
 
 ### Business rules
 
@@ -163,8 +165,10 @@ This feature is mostly front end. It is delivered as several PRs (see `plan.md`)
 - **BR-004**: The three styles differ in arrangement only; colours and fonts are shared (NAV-Q7).
 - **BR-005**: The three styles are released together; saving on the account follows (NAV-Q8, NAV-Q12).
 - **BR-006**: Existing permission rules decide which built pages a user sees in the menu; this feature adds and removes none.
-- **BR-007**: The menu names the whole product, phases 1 to 6; a page not built yet opens an Under development page (NAV-Q13).
-- **BR-008**: "Social media management" was asked for by the owner but is not in the PRD. Whether it is listed as an Under development entry or left out is NAV-Q15, unanswered: `TODO(spec)`.
+- **BR-007**: The menu names the whole product, phases 1 to 6; a page not built yet opens an Under development page (NAV-Q13). A not-built entry is shown by business type and role, not to everyone (NAV-Q14): a salon does not see Kitchen screens, and a cashier does not see Subscription and billing.
+- **BR-009**: The menu is one map shared with the other project (`lolotam/lovable-pospay`, spec 022): the same sections, sub-menus, page names, order and place in each style. Only the built-or-not state of a page may differ between the two (NAV-Q17).
+- **BR-010**: The menu follows the business selected in the workspace switcher. An owner with more than one business sees each business's own entries after switching to it (NAV-Q17).
+- **BR-008**: "Social media management" is listed as an Under development entry under Marketing at the owner's request (NAV-Q15). It is not in the PRD and needs a PRD entry and a spec before anything is built.
 
 ### Schema changes
 
@@ -193,13 +197,14 @@ The read and write go through `packages/auth`, the only package that may reach t
 - **Published**: none
 - **Consumed**: none
 
-Audit: not settled. CLAUDE.md §8 asks for an audit entry on every settings change and names no exception for a personal display choice. NAV-Q16 asks the owner for an audit entry or a recorded exception, before the account preference is built.
+Audit: none. A user changing their own navigation style is a recorded exception to the audit rule of CLAUDE.md §8 (owner, NAV-Q16): it changes no business data, money or permission. The exception is written into CLAUDE.md §8 in step 0b before the account preference is built.
 
 ### Test plan
 
 - **Domain unit**: none; no business arithmetic.
 - **Front end, navigation model**: table-driven over the three groupings — every admin route appears exactly once; exactly one top-level entry is current on every route; every label key exists in Arabic and English; every hide-condition asserted by today's `*-nav-item.spec.tsx` and `staff-navigation.spec.tsx` files is carried over before those files are removed.
-- **Front end, not-built pages**: every entry of `app-map.md` is in the model; every not-built entry renders the "Soon" mark in each style; the Under development page shows the entry's name in both languages; an unknown `/soon/...` address shows the app's not-found page; a built entry's old `/soon/...` address forwards.
+- **Front end, approvals and business type**: the Approvals inbox lists each existing kind of approval and opens its page; after switching the workspace from a restaurant to a salon, a restaurant-only entry is gone from the menu, the page finder and its direct link, for built and not-built entries alike.
+- **Front end, not-built pages**: every Management-area entry of `app-map.md` is in the model; a not-built entry is hidden from a business type or role it is not meant for, in the menu, in the page finder and by direct link (not-found); every not-built entry renders the "Soon" mark in each style; the Under development page shows the entry's name in both languages; an unknown `/soon/...` address shows the app's not-found page; a built entry's old `/soon/...` address forwards.
 - **Front end, rendered**: one test per style asserting the visible current item; switching style changes the visible frame and keeps the route; default is C; an unknown stored value shows C; a user with no permissions can switch; sign-out clears the device choice; choosing A then B while the first save is delayed ends with B on the account; a failed account read at sign-in clears the device choice and shows C; an old `/soon/...` link to a built page the user may not see shows not-found; an overview link with no visible page goes to Home; at 390px a page in a section behind More is reached in three taps from another section; after a session that expired without sign-out, the next user with no saved choice sees C; the Authenticator page is drawn inside the frame with its entry current; the server-rendered frame matches the stored choice.
 - **Integration scenarios**: `PREF-01` read with nothing saved returns null · `PREF-02` write then read returns the value · `PREF-03` invalid value rejected · `PREF-04` user X's write does not change user Y's value · `PREF-05` no session is refused (401) · `PREF-06` a staff-purpose session is refused (401) · `PREF-07` a device token is refused (403) · `PREF-08` an existing user signs in, and a user is created through the existing operator path, after the migration (public sign-up is disabled and stays so) · `PREF-09` two writes sent one after the other end with the second value.
 - **RLS negative**: not applicable; no tenant table is added. `PREF-04` covers isolation between users.
@@ -211,7 +216,7 @@ Audit: not settled. CLAUDE.md §8 asks for an audit entry on every settings chan
 
 - **SC-001**: From any admin page, any other page is reached in at most three clicks or taps, in each of the three styles, at desktop, tablet and phone widths.
 - **SC-002**: The top level of the menu has at most seven entries in every style, down from about 25 links in one list today, while naming the whole product.
-- **SC-009**: 100% of the pages in `app-map.md` are present in each style; every one that is not built opens the Under development page.
+- **SC-009**: 100% of the Management-area pages in `app-map.md` are present in each style for the business types and roles they are meant for; every one that is not built opens the Under development page.
 - **SC-003**: A user changes style in two clicks from any page, and the new frame is visible in under one second.
 - **SC-004**: 100% of admin pages are reachable in each of the three styles, and exactly one menu entry is marked current on each.
 - **SC-005**: At 1280, 820 and 390 pixels wide, no admin page scrolls sideways, in Arabic and in English.
@@ -231,4 +236,4 @@ Audit: not settled. CLAUDE.md §8 asks for an audit entry on every settings chan
 - Navigation counts (pending leave, attendance requests, open exceptions) are shown only if existing reads can supply them cheaply; otherwise they are left out of the first release. Not verified.
 - The page finder in style C uses components the app already has; if a new library is needed, an ADR comes first.
 - `lovable-pospay` is a separate project with its own spec and plan in its own repository (NAV-Q2); nothing here applies to it.
-- The cashier app, the `--primary` difference (NAV-Q4) and the theme-switch ADR addendum (NAV-Q5) are tracked in `owner-questions.ar.md` and do not block this feature's first steps.
+- The cashier app gets its own spec; where a cashier's style is kept is decided (NAV-Q11: on the device, per employee). The `--primary` difference is settled: each project keeps its own value (NAV-Q4).

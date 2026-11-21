@@ -11,6 +11,7 @@ export function useCustomerPackageDetail(
   scope: SessionServiceScope,
   customerId: string,
   entitlementId: string | null,
+  revalidateAccess = false,
 ) {
   return useQuery({
     queryKey: [
@@ -23,6 +24,7 @@ export function useCustomerPackageDetail(
       entitlementId,
     ],
     enabled: entitlementId !== null,
+    ...(revalidateAccess ? { refetchOnMount: 'always' as const } : {}),
     retry: false,
     queryFn: async ({ signal }) => {
       if (entitlementId === null) throw new Error('CUSTOMER_PACKAGE_ENTITLEMENT_MISSING');

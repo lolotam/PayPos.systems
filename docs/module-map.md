@@ -122,6 +122,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | `staff` | `EmployeeCreationScope` | `identity` | locked employee-management access and active company membership eligibility for user links (ADR-0021, PR #79) |
 | `settings` | `BusinessDiscountAccess`, `DiscountSubjectReader` | `identity` | locked discount-management authority and scoped personal limit/active owner metadata (ADR-0023) |
 | `settings` | `BusinessIdentityAccess` | `identity` | locked recheck of `manage:business-identity:business` at the business after the settings row lock (spec 052, 27h-1) |
+| `settings` | `ImportedRefundsAccess` | `identity` | locked `manage:imported-refunds:business` on the whole business before the switch write and the same decision rechecked after the settings row lock, so a revocation that commits first wins (spec 058 FR-B03/FR-B06, 46-2a-S) |
 | `settings` | `AlertRulesScope.access`, `AlertRulesReadAccess` | `identity` | locked `manage:alert-rules:business` on the whole business, and on the branch for its override, so a branch DENY refuses it (spec 060 D-B13, 62-1), and the same decision, unlocked, for the branch read |
 | `settings` | `LogoFileReader` | `files` | `documentFileFacts` after the settings lock: ownership, image type, permission, purge (ADR-0046, 27h-4) |
 | worker `files` | `LogoReference` | `@pospay/db` | locks `business_settings` through `lockBusinessLogoReference` and reports whether the file is still the logo; the settings adapter calls the same function, and `files` does not import `settings` (ADR-0046, 27h-3) |
@@ -543,6 +544,8 @@ reads:
   - settings -> identity.readBusinessDiscountAccess @ apps/api/src/modules/settings/persistence/business-discount-access.adapter.ts
   - settings -> identity.lockBusinessIdentityAccess @ apps/api/src/modules/settings/persistence/business-identity-access.adapter.ts
   - settings -> identity.readBusinessIdentityAccess @ apps/api/src/modules/settings/persistence/business-identity-access.adapter.ts
+  - settings -> identity.lockImportedRefundsAccess @ apps/api/src/modules/settings/persistence/imported-refunds-access.adapter.ts
+  - settings -> identity.readImportedRefundsAccess @ apps/api/src/modules/settings/persistence/imported-refunds-access.adapter.ts
   - settings -> identity.lockAlertRulesAccess @ apps/api/src/modules/settings/persistence/alert-rules-store.ts
   - settings -> identity.readAlertRulesAccess @ apps/api/src/modules/settings/persistence/alert-rules-read-access.adapter.ts
   - settings -> identity.lockMembershipDiscountSubject @ apps/api/src/modules/settings/persistence/discount-subject-reader.adapter.ts

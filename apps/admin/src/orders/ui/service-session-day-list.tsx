@@ -125,6 +125,7 @@ function ServiceSessionDayVisitSlot({
       historyLineId={historyLineId}
       detailsLineId={detailsLineId}
       performerHistoryLineId={performerHistoryLineId}
+      packagesScope={list.scope}
       handlers={{
         onEdit: (lineId) => actions.openEdit(visit.id, lineId),
         onCancel: (lineId) => actions.openCancel(visit.id, lineId),

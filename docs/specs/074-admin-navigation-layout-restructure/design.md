@@ -33,7 +33,7 @@ Two defects found while mapping, to fix in the same work:
 
 ## 3. Target grouping
 
-> Extended on 2026-11-21 by `app-map.md`, which lists the whole product including pages not built yet and regroups the top level (seven sections). Where this section or §4 differs from `app-map.md`, `app-map.md` wins. The sizes in §4 and the layout rules in §6 are unchanged.
+> Extended on 2026-11-21 by `app-map.md`, the one map shared with `lolotam/lovable-pospay` (NAV-Q17), which lists the whole product including pages not built yet and regroups the top level (seven sections). Where this section or §4 differs from `app-map.md`, `app-map.md` wins. The sizes in §4 and the layout rules in §6 are unchanged.
 
 All three styles sort the same navigation-reachable pages into the same families: the 26 mapped on `e0e0e642e`, the two commission pages added since, and the new Appearance page, plus four child pages. They differ in how many levels there are and where each level lives.
 
@@ -65,7 +65,7 @@ Prototypes: `prototypes/pospay-nav-a.html`, `-b.html`, `-c.html` (built by `prot
 ### B — Top bar and hubs
 
 - **Level 1:** 6 top-bar modules grouped by task: Today, Sell, Approvals, People, Catalog, Setup.
-- **Approvals** groups three existing pages (Leave approvals, Attendance requests, Attendance exceptions) under one module with one count. The pages themselves are not merged.
+- **Approvals** (superseded on 2026-11-21 by NAV-Q17: approvals are an inbox under Home in every style, see `app-map.md`) grouped three existing pages (Leave approvals, Attendance requests, Attendance exceptions) under one module with one count. The pages themselves are not merged.
 - **Level 2:** a mega menu per module, plus an overview page per module.
 - **Inside a module:** a 240px local list beside the page; a pill strip under 1024px.
 - No sidebar. The page gets the full width.
@@ -127,6 +127,7 @@ Prototypes: `prototypes/pospay-nav-a.html`, `-b.html`, `-c.html` (built by `prot
 Existing URLs do not change in any style. New routes:
 
 - **Appearance** (`/appearance`): the style and theme choice.
+- **Approvals inbox** (`/approvals`): one page under Home listing the kinds of approval that exist, each linking to its existing page (NAV-Q17).
 - **Under development** (`/soon/[page]`): one shared page opened by every entry that is not built yet (`app-map.md`).
 - **Schedule settings** (today a block at the top of `/schedules`) and **Employee detail** (today an inline card on `/staff`).
 - **Overview pages** that only styles B and C use (one per module or workspace). They live under one route, `/overview/[group]`, and are drawn from the navigation model. If the group id is not part of the user's current style (an old link, or the style was switched while on that page), the user is taken to the first page of that group they are allowed to see. An unknown group, or one with no page the user may see, goes to Home.
@@ -143,7 +144,7 @@ A URL opened under any style shows the same page. Only the frame around it diffe
 - **Shared browsers:** the cookie belongs to the browser, not the person. Signing out clears it, so the next person to sign in on that browser starts from their own saved choice, or from C if they have none.
 - **Account:** the choice is also written to the account (§9). On sign-in the account value overwrites the cookie. If the account write fails, the frame still changes, the cookie keeps the choice on this device, and the user sees a message that it was not saved to the account. Saves from one tab are sent one at a time and a waiting save is replaced by the newest choice, so an older choice can never land after a newer one.
 - **Other tabs:** a tab that is already open keeps its frame until its next navigation or reload.
-- **Theme:** styles B and C have no sidebar footer, so in those styles the light, dark and system switch must sit on the Appearance page and in the account menu. Whether style A keeps it in the sidebar footer, and the ADR-0059 addendum that records the placement, wait for NAV-Q5: `TODO(spec)`.
+- **Theme:** the light, dark and system switch sits on the Appearance page and in the account menu in all three styles, and leaves the sidebar footer (NAV-Q5, answered 2026-11-21). ADR-0059 placed it in the sidebar footer, so an addendum records the move.
 
 One navigation model feeds all three frames: a typed list of pages (label key, route, icon, the condition that shows it, count source) and three groupings of those pages. Each business area exports its own pages; the model is composed in `app/(dashboard)/_frame`, where cross-area composition belongs (CLAUDE.architecture.md §11.2). It does not go in `src/shared`, which must hold nothing with business meaning (§6.4). A page added later is added once and must be placed in all three groupings; a test fails otherwise (§8).
 
@@ -211,7 +212,7 @@ This file is the hand-written design reference. The specification itself, `spec.
   - **A new table keyed on the user**, read and written through `withUser`, which needs its own policies and a negative isolation test (CLAUDE.md §5).
 - **API:** `GET` and `PUT /v1/me/preferences`, session-only (`@Authenticated()`), personal to the caller. The write declares where its check lives (PP-7.1). No `Idempotency-Key`: no money or stock effect.
 - **Contract:** a Zod schema in `packages/contracts`.
-- **Events:** none. **Audit:** not settled. CLAUDE.md §8 asks for an audit entry on every settings change and names no exception for a personal display choice. NAV-Q16 asks for an audit entry or a recorded exception; it is answered before step 12.
+- **Events:** none. **Audit:** none. The owner approved a recorded exception to CLAUDE.md §8 for a user changing their own navigation style (NAV-Q16, answered 2026-11-21); it is written into CLAUDE.md §8 in step 0b.
 - **Tests:** integration tests for read, write and the default; a test that one user cannot read or write another user's preference.
 
 Navigation counts (pending leave, attendance requests, open exceptions) are shown in the prototypes as examples. Whether the existing list endpoints can supply them cheaply is not verified; if not, counts are dropped from the first release rather than adding an endpoint here.
@@ -220,11 +221,11 @@ Navigation counts (pending leave, attendance requests, open exceptions) are show
 
 ## 10. The cashier app
 
-The owner chose "admin and cashier" (NAV-Q3). `apps/pos` has no navigation menu today: its screens change by state (`apps/pos/src/app`). Its people sign in with staff sessions bound to a device (ADR-0019, ADR-0027), which are not admin user accounts, and it is local-first. So three styles for the cashier app need their own page inventory, their own prototypes and an answer to where a staff member's choice is stored. An employee only may be linked to a user account, so "saved on the account" has no settled meaning for PIN and OTP staff yet. That is a separate spec, `TODO(spec)`, opened after this one is agreed (NAV-Q3, NAV-Q11). Nothing in this spec changes `apps/pos`.
+The owner chose "admin and cashier" (NAV-Q3). `apps/pos` has no navigation menu today: its screens change by state (`apps/pos/src/app`). Its people sign in with staff sessions bound to a device (ADR-0019, ADR-0027), which are not admin user accounts, and it is local-first. So three styles for the cashier app need their own page inventory and their own prototypes. Where a staff member's choice is stored is decided (NAV-Q11, 2026-11-21): on the device, one value per employee who signs in there, by PIN or OTP, with no database change. An employee only may be linked to a user account, so "saved on the account" does not apply to them. That is a separate spec, `TODO(spec)`, opened after this one is agreed (NAV-Q3, NAV-Q11). Nothing in this spec changes `apps/pos`.
 
 ## 11. Open questions
 
-Recorded in `owner-questions.ar.md`. Still open: NAV-Q2 (`lovable-pospay`), NAV-Q4 (`--primary` difference), NAV-Q5 (theme switch placement, now forced: confirm the addendum), NAV-Q11 (cashier app: what "account" means for staff). Answered on 2026-11-21: NAV-Q9 (the owner alone), NAV-Q10 (a column on `user`), NAV-Q12 (styles first, account saving follows).
+Recorded in `owner-questions.ar.md`. None is open. Answered on 2026-11-21: NAV-Q4 (each project keeps its `--primary` value), NAV-Q11 (a cashier's style is kept on the device, one value per employee), NAV-Q2 (`lovable-pospay` has its own spec in its own repository), NAV-Q5 (one place for the theme switch in all three styles), NAV-Q9 (the owner alone), NAV-Q10 (a column on `user`), NAV-Q12 (styles first, account saving follows), NAV-Q14 (not-built entries by business type and role), NAV-Q15 (social media management listed as Soon), NAV-Q16 (no audit entry; recorded exception).
 
 ## 12. Decisions this spec sits under
 

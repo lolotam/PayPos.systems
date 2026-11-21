@@ -62,7 +62,7 @@ it('DN-19 accepts NULL and a trimmed number of up to 64 code points, supplementa
 it.each([
   { name: 'empty string', value: '' },
   { name: 'edge spaces', value: '  SYN-DOC  ' },
-  { name: 'edge NBSP', value: ' SYN-DOC ' },
+  { name: 'edge NBSP', value: '\u00a0SYN-DOC\u00a0' },
   { name: '65 code points', value: 'خ'.repeat(65) },
   { name: 'tab inside', value: 'SYN\tDOC' },
   { name: 'control inside', value: 'SYN\u0007DOC' },
@@ -85,4 +85,13 @@ it('DN-20 the application role cannot update the number but can still touch repl
       sql`UPDATE employee_documents SET replaced_at=now() WHERE company_id=${A.company} AND id=${id}`,
     ),
   );
+});
+
+it('the follow-up migration validates the document-number constraint', async () => {
+  const constraints = await owner<{ convalidated: boolean }[]>`
+    SELECT convalidated FROM pg_constraint
+    WHERE conrelid = 'public.employee_documents'::regclass
+      AND conname = 'employee_documents_document_number'
+  `;
+  expect(constraints).toEqual([{ convalidated: true }]);
 });

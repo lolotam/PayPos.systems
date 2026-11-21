@@ -55,6 +55,7 @@ import { permissionSchemas } from './identity/permissions-openapi.js';
 import { pendingDevicesSchemas } from './identity/devices-openapi.js';
 import { customerSchemas } from './customers.js';
 import { ratingSettingsSchemas } from './customers/rating-settings-openapi.js';
+import { importedRefundsSchemas } from './settings/imported-refunds-openapi.js';
 import { ratingView, submitRatingInput } from './customers/ratings.js';
 import { catalogSchemas } from './catalog/catalog-openapi.js';
 import { attendanceQrToken, attendanceQrBranch, attendanceQrIssue } from './staff/attendance-qr.js';
@@ -118,8 +119,15 @@ import {
   updateBusinessSettingsInput,
 } from './settings/business-settings.js';
 import { currency } from './reference/currency.js';
+import { country } from './reference/country.js';
 import { timeZone } from './reference/time-zone.js';
-import { business, createBusinessInput, verticalType } from './tenancy/business.js';
+import {
+  business,
+  createBusinessInput,
+  setBusinessCountryInput,
+  setBusinessCountryResult,
+  verticalType,
+} from './tenancy/business.js';
 import { branch, createBranchInput, geo } from './tenancy/branch.js';
 import { company, createCompanyInput } from './tenancy/company.js';
 import { openingHours } from './tenancy/opening-hours.js';
@@ -183,6 +191,7 @@ export const openApiSchemas = [
   ...catalogSchemas,
   ...alertRuleSchemas,
   ...ratingSettingsSchemas,
+  ...importedRefundsSchemas,
   ...orderSchemas,
   attendanceQrToken,
   attendanceQrBranch,
@@ -219,6 +228,8 @@ export const openApiSchemas = [
   createCompanyInput,
   business,
   createBusinessInput,
+  setBusinessCountryInput,
+  setBusinessCountryResult,
   branch,
   createBranchInput,
   pairingCode,
@@ -246,6 +257,7 @@ export const openApiSchemas = [
   // المكوّنات المتداخلة لازم تتسجل هي كمان، وإلا Zod بيحطها تحت __shared بدل components.
   verticalType,
   currency,
+  country,
   timeZone,
   geo,
   openingHours,
