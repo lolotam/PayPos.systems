@@ -1,0 +1,63 @@
+import { COMMISSION_BLOCKED_CORRECTION_CURSOR_MAX } from './blocked-corrections.js';
+
+const json = (schema: string) => ({
+  'application/json': { schema: { $ref: `#/components/schemas/${schema}` } },
+});
+
+const parameters = [
+  {
+    in: 'header',
+    name: 'x-company-id',
+    required: true,
+    schema: { type: 'string', format: 'uuid' },
+  },
+  { in: 'path', name: 'businessId', required: true, schema: { type: 'string', format: 'uuid' } },
+];
+
+const listQueryParameters = [
+  {
+    in: 'query',
+    name: 'status',
+    schema: { type: 'string', enum: ['open', 'resolved', 'all'], default: 'open' },
+  },
+  {
+    in: 'query',
+    name: 'cursor',
+    schema: {
+      type: 'string',
+      minLength: 1,
+      maxLength: COMMISSION_BLOCKED_CORRECTION_CURSOR_MAX,
+      pattern: '^[A-Za-z0-9_-]+$',
+    },
+  },
+  {
+    in: 'query',
+    name: 'limit',
+    schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+  },
+];
+
+export const commissionBlockedCorrectionPaths = {
+  '/v1/businesses/{businessId}/commission-blocked-corrections': {
+    get: {
+      operationId: 'listCommissionBlockedCorrections',
+      description:
+        'The blocked-corrections list (FR-049): one open row per employee and source month whose closed-month recompute returned NO_PLAN or NO_SALARY, plus resolved history under status=resolved|all. The items carry the block identity only — employee_id, source_period, code, the held target_period, created_at and resolved_at. No amount and no employee or customer name is returned; the screen that shows names is a later UI row. Ordered created_at DESC, id DESC with a keyset cursor bound to the company, the business and the requested status; a malformed or foreign cursor is VALIDATION_FAILED. status defaults to open. Requires manage:commission-plans:business (TODO(spec): CS-Q48 is pending the partners’ binding pick; this permission is the recorded provisional option) and the commissions feature; a device session is refused. Reads only.',
+      parameters: [...parameters, ...listQueryParameters],
+      responses: {
+        '200': {
+          description: 'A page of the business’s blocked corrections',
+          content: json('CommissionBlockedCorrectionList'),
+        },
+        '400': { description: 'Invalid cursor or query', content: json('ErrorEnvelope') },
+        '401': { description: 'No individual session', content: json('ErrorEnvelope') },
+        '403': {
+          description:
+            'Uniform 403 refusal: missing permission, foreign business or disabled feature',
+          content: json('ErrorEnvelope'),
+        },
+        default: { description: 'Bilingual refusal', content: json('ErrorEnvelope') },
+      },
+    },
+  },
+};

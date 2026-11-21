@@ -464,6 +464,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/commission-blocked-corrections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The blocked-corrections list (FR-049): one open row per employee and source month whose closed-month recompute returned NO_PLAN or NO_SALARY, plus resolved history under status=resolved|all. The items carry the block identity only — employee_id, source_period, code, the held target_period, created_at and resolved_at. No amount and no employee or customer name is returned; the screen that shows names is a later UI row. Ordered created_at DESC, id DESC with a keyset cursor bound to the company, the business and the requested status; a malformed or foreign cursor is VALIDATION_FAILED. status defaults to open. Requires manage:commission-plans:business (TODO(spec): CS-Q48 is pending the partners’ binding pick; this permission is the recorded provisional option) and the commissions feature; a device session is refused. Reads only. */
+        get: operations["listCommissionBlockedCorrections"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/document-types": {
         parameters: {
             query?: never;
@@ -3616,6 +3633,34 @@ export interface components {
         CommissionPlanEmployeeList: {
             time_zone: components["schemas"]["TimeZone"];
             items: components["schemas"]["CommissionPlanEmployeeListItem"][];
+            next_cursor: string | null;
+        };
+        CommissionBlockedCorrectionListQuery: {
+            /**
+             * @default open
+             * @enum {string}
+             */
+            status: "open" | "resolved" | "all";
+            cursor?: string;
+            /** @default 20 */
+            limit: number;
+        };
+        CommissionBlockedCorrection: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            employee_id: string;
+            source_period: string;
+            /** @enum {string} */
+            code: "NO_PLAN" | "NO_SALARY";
+            target_period: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            resolved_at: string | null;
+        };
+        CommissionBlockedCorrectionList: {
+            items: components["schemas"]["CommissionBlockedCorrection"][];
             next_cursor: string | null;
         };
         /** @enum {string} */
@@ -10740,6 +10785,70 @@ export interface operations {
             };
             /** @description COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE: a stored key is too long for the next cursor */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listCommissionBlockedCorrections: {
+        parameters: {
+            query?: {
+                status?: "open" | "resolved" | "all";
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of the business’s blocked corrections */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionBlockedCorrectionList"];
+                };
+            };
+            /** @description Invalid cursor or query */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No individual session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform 403 refusal: missing permission, foreign business or disabled feature */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
