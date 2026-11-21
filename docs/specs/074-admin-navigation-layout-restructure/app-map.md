@@ -16,9 +16,10 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
   its page is built, together with the page's own permission. An entry is shown for the business that is
   selected in the workspace switcher, so an owner with a salon and a restaurant sees the salon's entries while the
   salon is selected and the restaurant's entries after switching.
-- **Roles**: the PRD §3.2 roles that see each Soon entry (NAV-Q14). Built (Live) entries continue to use their own
-  existing page permissions rather than a static role list. Partner decisions noted as `PENDING` in
-  `owner-questions.ar.md` remain open and are not treated as final here.
+- **Roles**: the shared planned audience for an entry that is Soon in either project (NAV-Q14), based on PRD §3.2
+  and existing role defaults where the page is already built in the other project. New entries use their stated
+  opening condition. When a row is Live in this project, the page's own permission applies regardless of any
+  planned roles shown in this column. Partner decisions marked `PENDING` in `owner-questions.ar.md` are still open.
 - Names are working names in English; the Arabic and English labels are written in the i18n catalogs when an entry is
   added.
 
@@ -32,15 +33,15 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Shift dashboard (current shift and what needs attention) | 2 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
 | Approvals inbox (everything waiting for a decision, one count) | 1 | New | every business type | Owner, General manager, Business manager, Branch manager (by kind) |
 | Daily sales dashboard | 2 | Soon | every business type | Owner, General manager, Accountant, Business manager, Branch manager, Viewer |
-| All-businesses dashboard | 5 | Soon | every business type | Owner, General manager, Accountant, Viewer |
+| All-businesses dashboard | 5 | Soon | every business type | Owner, General manager |
 
 ### 2. Sales
 
 | Sub-menu | Page | Phase | State | Shown only to | Roles |
 |---|---|---|---|---|---|
-| Service visits | Record a visit | 1 | Live | every business type | By page permission |
+| Service visits | Record a visit | 1 | Live | every business type | Owner, General manager, Business manager, Branch manager, Cashier |
 | Service visits | Sessions (day list) | 1 | Live | every business type | By page permission |
-| Service visits | Sell a package | 1 | Live | every business type | By page permission |
+| Service visits | Sell a package | 1 | Live | every business type | Owner, General manager, Business manager, Branch manager, Cashier |
 | Service visits | Customer packages (who holds what, sessions left) | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
 | Service visits | Unassigned services (exceptions) | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
 | Discounts | Discounts | 1 | Soon | every business type | Owner, General manager, Business manager, Marketing |
@@ -71,8 +72,8 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Sub-menu | Page | Phase | State | Shown only to | Roles |
 |---|---|---|---|---|---|
 | Catalog | Services (+ Add service) | 1 | Live | every business type | By page permission |
-| Catalog | Categories | 1 | Live | every business type | By page permission |
-| Catalog | Package types (+ Add package type) | 1 | Live | every business type | By page permission |
+| Catalog | Categories | 1 | Live | every business type | Owner, General manager, Business manager, Branch manager |
+| Catalog | Package types (+ Add package type) | 1 | Live | every business type | Owner, General manager, Business manager |
 | Catalog | Products and variants | 2 | Soon | every business type | Owner, General manager, Business manager |
 | Catalog | Options and modifiers | 2 | Soon | every business type | Owner, General manager, Business manager |
 | Catalog | Price lists | 2 | Soon | every business type | Owner, General manager, Business manager |
@@ -119,19 +120,19 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Sub-menu | Page | Phase | State | Shown only to | Roles |
 |---|---|---|---|---|---|
 | Employees | Employees (+ Create, + Employee detail) | 1 | Live | every business type | By page permission |
-| Employees | Employee numbers | 1 | Live | every business type | By page permission |
-| Employees | Import employees | 1 | Live | every business type | By page permission |
-| Employees | Document types | 1 | Live | every business type | By page permission |
+| Employees | Employee numbers | 1 | Live | every business type | Owner |
+| Employees | Import employees | 1 | Live | every business type | Owner, General manager, Business manager |
+| Employees | Document types | 1 | Live | every business type | Owner |
 | Employees | Attendance cards | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
 | Employees | Phones | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
-| Schedules | Weekly schedules | 1 | Live | every business type | By page permission |
-| Schedules | Schedule settings | 1 | Live (a block of Weekly schedules until it gets its own page) | every business type | By page permission |
-| Attendance | Board | 1 | Live | every business type | By page permission |
-| Attendance | Requests | 1 | Live | every business type | By page permission |
-| Attendance | Exceptions | 1 | Live | every business type | By page permission |
+| Schedules | Weekly schedules | 1 | Live | every business type | Owner, General manager, Business manager, Branch manager |
+| Schedules | Schedule settings | 1 | Live (a block of Weekly schedules until it gets its own page) | every business type | Owner |
+| Attendance | Board | 1 | Live | every business type | Owner, General manager, Accountant, Business manager, Branch manager |
+| Attendance | Requests | 1 | Live | every business type | Owner, General manager, Business manager, Branch manager |
+| Attendance | Exceptions | 1 | Live | every business type | Owner, General manager, Accountant, Business manager, Branch manager |
 | Attendance | Corrections | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
 | Attendance | Insights | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
-| Leave | Leave approvals | 1 | Live | every business type | By page permission |
+| Leave | Leave approvals | 1 | Live | every business type | Owner, General manager, Business manager, Branch manager |
 | Pay | Commission plans | 1 | Live | every business type | By page permission |
 | Pay | Commission overrides | 1 | Live | every business type | By page permission |
 | Pay | Salaries | 1 | Soon | every business type | Owner |
@@ -144,8 +145,8 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Sub-menu | Page | Phase | State | Shown only to | Roles |
 |---|---|---|---|---|---|
 | Staff reports | Attendance report | 1 | Live | every business type | By page permission |
-| Staff reports | Attendance statement | 1 | Live | every business type | By page permission |
-| Staff reports | Leave history report | 1 | Live | every business type | By page permission |
+| Staff reports | Attendance statement | 1 | Live | every business type | Owner, General manager, Accountant, Business manager, Branch manager |
+| Staff reports | Leave history report | 1 | Live | every business type | Owner, General manager, Business manager, Branch manager |
 | Sales reports | Sales (by channel, type, method, hour, staff) | 5 | Soon | every business type | Owner, General manager, Accountant, Business manager, Branch manager, Viewer |
 | Sales reports | Products and returns | 5 | Soon | every business type | Owner, General manager, Accountant, Business manager, Branch manager, Viewer |
 | Sales reports | Payments and customer balances | 5 | Soon | every business type | Owner, General manager, Accountant, Business manager, Viewer |
@@ -166,9 +167,9 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 
 | Sub-menu | Page | Phase | State | Shown only to | Roles |
 |---|---|---|---|---|---|
-| Business | Business identity | 1 | Live | every business type | By page permission |
+| Business | Business identity | 1 | Live | every business type | Owner |
 | Business | Branches | — | Soon | every business type | Owner, General manager, Business manager |
-| Business | Alerts and notifications | 1 | Live | every business type | By page permission |
+| Business | Alerts and notifications | 1 | Live | every business type | Owner, General manager, Business manager |
 | Business | Data import (Excel) | 1 | Soon | every business type | Owner, General manager, Business manager |
 | Business | Tax and invoice template | 2 | Soon | every business type | Owner, General manager, Accountant, Business manager |
 | Business | Invoice terms and conditions | — | Soon | every business type | Owner, General manager, Business manager |
@@ -176,11 +177,11 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Business | Payment methods and gateways | 2 | Soon | every business type | Owner, General manager, Accountant |
 | Access | Permissions | 1 | Live | every business type | By page permission |
 | Access | Invitations | — | Soon | every business type | Owner, General manager |
-| Access | Sign-in security (authenticator) | 1 | Live | every business type | By page permission |
+| Access | Sign-in security (authenticator) | 1 | Live | every business type | Every signed-in admin user (NAV-Q1) |
 | Access | Approval limits | 2 | Soon | every business type | Owner, General manager, Business manager |
 | Access | Activity log (who did what, and when) | — | Soon | every business type | Owner, General manager |
-| Staff app | Staff app link | 1 | Live | every business type | By page permission |
-| Staff app | Staff app columns | 1 | Live | every business type | By page permission |
+| Staff app | Staff app link | 1 | Live | every business type | Owner, General manager, Business manager |
+| Staff app | Staff app columns | 1 | Live | every business type | Owner, General manager, Business manager |
 | Appearance | Appearance (navigation style, light and dark) | 1 | New | every business type | Every signed-in admin user (NAV-Q1) |
 | Plan | Subscription and billing | 5 | Soon | every business type | Owner |
 | Developers | API keys and webhooks | 5 | Soon | every business type | Owner, General manager |

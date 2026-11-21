@@ -134,6 +134,13 @@ describe('navigation model route coverage (074-1 + 074-2)', () => {
     expect(diskRoutes).toContain('/security/two-factor');
     expect(diskRoutes).toContain('/staff-app-columns');
   });
+
+  it('resolves a former Soon address to the live entry for its current visibility check', () => {
+    const promoted = findNavigationPageByPathname(soonPageHref('services'));
+    expect(promoted).toMatchObject({ id: 'services', state: 'live', route: '/catalog' });
+    expect(findNavigationPageByPathname(soonPageHref('service-create'))).toBeUndefined();
+    expect(findNavigationPageByPathname(soonPageHref('unknown-entry'))).toBeUndefined();
+  });
 });
 
 describe('navigation model alignment with generated app-map', () => {
@@ -290,6 +297,13 @@ describe('navigation visibility and count boundaries', () => {
 });
 
 describe('navigation Soon-entry filtering boundaries', () => {
+  it('keeps the unified owner dashboard distinct from company reports', () => {
+    expect(requiredPageById('all-businesses-dashboard')).toMatchObject({
+      state: 'soon',
+      roles: ['owner', 'general_manager'],
+    });
+  });
+
   it('applies business-type, country and role boundaries for Soon and planned entries', () => {
     const kitchen = requiredPageById('kitchen-screens');
     const stockItems = requiredPageById('stock-items');

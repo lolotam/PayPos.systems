@@ -328,9 +328,10 @@ export function matchesNavigationRoute(routePattern: string, pathname: string): 
 export function findNavigationPageByPathname(pathname: string): NavigationPageEntry | undefined {
   const normalized = normalizePathname(pathname);
   if (normalized.startsWith('/soon/')) {
+    // FR-023: retain the old address after promotion. The route checks the entry's current visibility.
     const id = normalized.slice('/soon/'.length);
     const entry = PAGES_BY_ID.get(id);
-    return entry?.state === 'soon' ? entry : undefined;
+    return entry !== undefined && isTopLevelPage(entry) ? entry : undefined;
   }
   const livePages = NAVIGATION_PAGES.filter(isLiveRoutePage);
   const exact = livePages.find((entry) => !entry.route.includes('[') && entry.route === normalized);

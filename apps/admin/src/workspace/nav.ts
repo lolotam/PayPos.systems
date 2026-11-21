@@ -16,13 +16,6 @@ const OPS_REPORTS: readonly [NavigationRoleCode, ...NavigationRoleCode[]] = [
   'viewer',
 ];
 
-const COMPANY_REPORTS: readonly [NavigationRoleCode, ...NavigationRoleCode[]] = [
-  'owner',
-  'general_manager',
-  'accountant',
-  'viewer',
-];
-
 /** مداخل قسم الرئيسية (Home) في منطقة الإدارة. */
 export const WORKSPACE_NAV_PAGES: readonly NavigationPageEntry[] = [
   {
@@ -82,7 +75,7 @@ export const WORKSPACE_NAV_PAGES: readonly NavigationPageEntry[] = [
     section: 'home',
     submenu: 'home',
     businessTypes: [],
-    roles: COMPANY_REPORTS,
+    roles: ['owner', 'general_manager'],
     appMapEntry: true,
   },
 ];

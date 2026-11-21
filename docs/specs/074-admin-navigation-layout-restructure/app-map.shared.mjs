@@ -18,6 +18,7 @@ const R_OWNER = 'Owner';
 const R_CO_MGR = 'Owner, General manager';
 const R_BIZ_MGR = 'Owner, General manager, Business manager';
 const R_OPS_MGR = 'Owner, General manager, Business manager, Branch manager';
+const R_RECEPTION = 'Owner, General manager, Business manager, Branch manager, Cashier';
 const R_FIN = 'Owner, General manager, Accountant';
 const R_FIN_BIZ = 'Owner, General manager, Accountant, Business manager';
 const R_FIN_OPS = 'Owner, General manager, Accountant, Business manager, Branch manager';
@@ -32,19 +33,19 @@ const R_INV_RPT = 'Owner, General manager, Accountant, Business manager, Storeke
 const R_MKT_BIZ = 'Owner, General manager, Business manager, Marketing';
 const R_MKT_OPS = 'Owner, General manager, Business manager, Branch manager, Marketing';
 // [sub-menu, page, phase, PosPay.systems state, lovable-pospay state, shown only to (business type) or '', roles?]
-// roles (optional 7th value): the roles that see a Soon entry. When any row has it, a Roles column is generated.
+// Shared planned audience (7th value): applies when a row is Soon or New in that project. Live pages check their permissions.
 const MANAGE = [
   ['1. Home', [
     ['', 'Dashboard (today at a glance)', '1', L, L, '', R_LIVE],
     ['', 'Shift dashboard (current shift and what needs attention)', '2', S, S, '', R_OPS_MGR],
     ['', 'Approvals inbox (everything waiting for a decision, one count)', '1', N, N, '', R_APPROVALS],
     ['', 'Daily sales dashboard', '2', S, S, '', R_OPS_RPT],
-    ['', 'All-businesses dashboard', '5', S, S, '', R_CO_RPT],
+    ['', 'All-businesses dashboard', '5', S, S, '', R_CO_MGR],
   ]],
   ['2. Sales', [
-    ['Service visits', 'Record a visit', '1', L, S, '', R_LIVE],
+    ['Service visits', 'Record a visit', '1', L, S, '', R_RECEPTION],
     ['Service visits', 'Sessions (day list)', '1', L, L, '', R_LIVE],
-    ['Service visits', 'Sell a package', '1', L, S, '', R_LIVE],
+    ['Service visits', 'Sell a package', '1', L, S, '', R_RECEPTION],
     ['Service visits', 'Customer packages (who holds what, sessions left)', '1', S, S, '', R_OPS_MGR],
     ['Service visits', 'Unassigned services (exceptions)', '1', S, S, '', R_OPS_MGR],
     ['Discounts', 'Discounts', '1', S, L, '', R_MKT_BIZ],
@@ -72,8 +73,8 @@ const MANAGE = [
   ]],
   ['3. Catalog and stores', [
     ['Catalog', 'Services (+ Add service)', '1', L, L, '', R_LIVE],
-    ['Catalog', 'Categories', '1', L, S, '', R_LIVE],
-    ['Catalog', 'Package types (+ Add package type)', '1', L, S, '', R_LIVE],
+    ['Catalog', 'Categories', '1', L, S, '', R_OPS_MGR],
+    ['Catalog', 'Package types (+ Add package type)', '1', L, S, '', R_BIZ_MGR],
     ['Catalog', 'Products and variants', '2', S, S, '', R_BIZ_MGR],
     ['Catalog', 'Options and modifiers', '2', S, S, '', R_BIZ_MGR],
     ['Catalog', 'Price lists', '2', S, S, '', R_BIZ_MGR],
@@ -114,19 +115,19 @@ const MANAGE = [
   ]],
   ['5. Team', [
     ['Employees', 'Employees (+ Create, + Employee detail)', '1', L, L, '', R_LIVE],
-    ['Employees', 'Employee numbers', '1', L, S, '', R_LIVE],
-    ['Employees', 'Import employees', '1', L, S, '', R_LIVE],
-    ['Employees', 'Document types', '1', L, S, '', R_LIVE],
+    ['Employees', 'Employee numbers', '1', L, S, '', R_OWNER],
+    ['Employees', 'Import employees', '1', L, S, '', R_BIZ_MGR],
+    ['Employees', 'Document types', '1', L, S, '', R_OWNER],
     ['Employees', 'Attendance cards', '1', S, L, '', R_OPS_MGR],
     ['Employees', 'Phones', '1', S, L, '', R_OPS_MGR],
-    ['Schedules', 'Weekly schedules', '1', L, S, '', R_LIVE],
-    ['Schedules', 'Schedule settings', '1', 'Live (a block of Weekly schedules until it gets its own page)', S, '', R_LIVE],
-    ['Attendance', 'Board', '1', L, S, '', R_LIVE],
-    ['Attendance', 'Requests', '1', L, S, '', R_LIVE],
-    ['Attendance', 'Exceptions', '1', L, S, '', R_LIVE],
+    ['Schedules', 'Weekly schedules', '1', L, S, '', R_OPS_MGR],
+    ['Schedules', 'Schedule settings', '1', 'Live (a block of Weekly schedules until it gets its own page)', S, '', R_OWNER],
+    ['Attendance', 'Board', '1', L, S, '', R_FIN_OPS],
+    ['Attendance', 'Requests', '1', L, S, '', R_OPS_MGR],
+    ['Attendance', 'Exceptions', '1', L, S, '', R_FIN_OPS],
     ['Attendance', 'Corrections', '1', S, L, '', R_OPS_MGR],
     ['Attendance', 'Insights', '1', S, L, '', R_OPS_MGR],
-    ['Leave', 'Leave approvals', '1', L, S, '', R_LIVE],
+    ['Leave', 'Leave approvals', '1', L, S, '', R_OPS_MGR],
     ['Pay', 'Commission plans', '1', L, L, '', R_LIVE],
     ['Pay', 'Commission overrides', '1', L, L, '', R_LIVE],
     ['Pay', 'Salaries', '1', S, L, '', R_OWNER],
@@ -136,8 +137,8 @@ const MANAGE = [
   ]],
   ['6. Reports and money', [
     ['Staff reports', 'Attendance report', '1', L, L, '', R_LIVE],
-    ['Staff reports', 'Attendance statement', '1', L, S, '', R_LIVE],
-    ['Staff reports', 'Leave history report', '1', L, S, '', R_LIVE],
+    ['Staff reports', 'Attendance statement', '1', L, S, '', R_FIN_OPS],
+    ['Staff reports', 'Leave history report', '1', L, S, '', R_OPS_MGR],
     ['Sales reports', 'Sales (by channel, type, method, hour, staff)', '5', S, S, '', R_OPS_RPT],
     ['Sales reports', 'Products and returns', '5', S, S, '', R_OPS_RPT],
     ['Sales reports', 'Payments and customer balances', '5', S, S, '', R_FIN_RPT],
@@ -155,9 +156,9 @@ const MANAGE = [
     ['Exports', 'Request the Qayd filing service', '—', S, S, 'Country: Kuwait (any business type)', R_FIN],
   ]],
   ['7. Setup', [
-    ['Business', 'Business identity', '1', L, S, '', R_LIVE],
+    ['Business', 'Business identity', '1', L, S, '', R_OWNER],
     ['Business', 'Branches', '—', S, S, '', R_BIZ_MGR],
-    ['Business', 'Alerts and notifications', '1', L, S, '', R_LIVE],
+    ['Business', 'Alerts and notifications', '1', L, S, '', R_BIZ_MGR],
     ['Business', 'Data import (Excel)', '1', S, S, '', R_BIZ_MGR],
     ['Business', 'Tax and invoice template', '2', S, S, '', R_FIN_BIZ],
     ['Business', 'Invoice terms and conditions', '—', S, S, '', R_BIZ_MGR],
@@ -165,11 +166,11 @@ const MANAGE = [
     ['Business', 'Payment methods and gateways', '2', S, S, '', R_FIN],
     ['Access', 'Permissions', '1', L, L, '', R_LIVE],
     ['Access', 'Invitations', '—', S, L, '', R_CO_MGR],
-    ['Access', 'Sign-in security (authenticator)', '1', L, S, '', R_LIVE],
+    ['Access', 'Sign-in security (authenticator)', '1', L, S, '', R_ALL_ADMIN],
     ['Access', 'Approval limits', '2', S, S, '', R_BIZ_MGR],
     ['Access', 'Activity log (who did what, and when)', '—', S, S, '', R_CO_MGR],
-    ['Staff app', 'Staff app link', '1', L, S, '', R_LIVE],
-    ['Staff app', 'Staff app columns', '1', L, S, '', R_LIVE],
+    ['Staff app', 'Staff app link', '1', L, S, '', R_BIZ_MGR],
+    ['Staff app', 'Staff app columns', '1', L, S, '', R_BIZ_MGR],
     ['Appearance', 'Appearance (navigation style, light and dark)', '1', N, 'Live (today\'s Settings page; gains the style choice)', '', R_ALL_ADMIN],
     ['Plan', 'Subscription and billing', '5', S, S, '', R_OWNER],
     ['Developers', 'API keys and webhooks', '5', S, S, '', R_CO_MGR],
@@ -248,9 +249,10 @@ owner chose each grouping on 2026-11-21 from three options per section (\`owner-
   its page is built, together with the page's own permission. An entry is shown for the business that is
   selected in the workspace switcher, so an owner with a salon and a restaurant sees the salon's entries while the
   salon is selected and the restaurant's entries after switching.
-- **Roles**: the PRD §3.2 roles that see each Soon entry (NAV-Q14). Built (Live) entries continue to use their own
-  existing page permissions rather than a static role list. Partner decisions noted as \`PENDING\` in
-  \`owner-questions.ar.md\` remain open and are not treated as final here.
+- **Roles**: the shared planned audience for an entry that is Soon in either project (NAV-Q14), based on PRD §3.2
+  and existing role defaults where the page is already built in the other project. New entries use their stated
+  opening condition. When a row is Live in this project, the page's own permission applies regardless of any
+  planned roles shown in this column. Partner decisions marked \`PENDING\` in \`owner-questions.ar.md\` are still open.
 - Names are working names in English; the Arabic and English labels are written in the i18n catalogs when an entry is
   added.
 
@@ -404,6 +406,13 @@ if (targets[1].file && sameFile(targets[1].file, targets[0].file)) {
   process.exit(1);
 }
 const same = (x, y) => x.replace(/\r\n/g, '\n') === y.replace(/\r\n/g, '\n');
+for (const [, rows] of MANAGE) {
+  for (const [, page, , pospayState, lovableState, , roles] of rows) {
+    if ((pospayState === S || lovableState === S) && (!roles || roles === R_LIVE)) {
+      throw new Error('Missing planned roles for Soon entry: ' + page);
+    }
+  }
+}
 let drift = 0;
 for (const t of targets) {
   if (!t.file) { console.log(t.spec, 'not written (no path given)'); continue; }
