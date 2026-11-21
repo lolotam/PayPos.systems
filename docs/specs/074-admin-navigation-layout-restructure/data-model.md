@@ -20,6 +20,7 @@ One admin page as the menu knows it.
 | `descriptionKey` | Optional key for the one-line description used on overview cards |
 | `icon` | A Phosphor icon exported by `packages/ui` (ADR-0060) |
 | `parent` | Optional: the page this one is a child of (create and detail pages). A child has no menu entry of its own and marks its parent's entry current |
+| `formerSoonId` | Optional on a live entry: its previously published `/soon/<id>` ID. Keep it on promotion, including when the page becomes a child or an embedded section. Current and former IDs share one namespace. After checking the entry's current visibility, an alias for a parameterized child forwards to its concrete parent list |
 | `visible` | The condition that shows the page: the same permission or state check its `*-nav-item.tsx` uses today |
 | `count` | Optional: where a pending count comes from |
 | `state` | `live` (the page exists) or `soon` (not built). A `soon` entry has no `route` of its own; it opens `/soon/<id>` |

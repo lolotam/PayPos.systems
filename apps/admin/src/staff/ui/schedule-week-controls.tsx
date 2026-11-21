@@ -30,7 +30,7 @@ export function ScheduleWeekControls({
       </div>
       <p className="text-sm text-muted-foreground">{timezone}</p>
       <Button variant="outline" disabled={fetching} onClick={onReload}>
-        {t(locale, 'staff.reload')}
+        {t(locale, 'schedules.reload')}
       </Button>
     </div>
   );
