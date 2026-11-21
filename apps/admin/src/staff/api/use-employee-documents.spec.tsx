@@ -151,13 +151,18 @@ function mockUpload(record?: () => Promise<unknown>, download?: Promise<unknown>
   });
   put.mockResolvedValue({ ok: true });
 }
-async function startUpload() {
+async function startUpload(documentNumber?: string) {
   fireEvent.change(await screen.findByLabelText(t('en', 'employeeDocuments.file')), {
     target: { files: [new File(['pdf'], 'civil.pdf', { type: 'application/pdf' })] },
   });
   fireEvent.change(screen.getByLabelText(t('en', 'employeeDocuments.expiresOn')), {
     target: { value: '2026-10-20' },
   });
+  if (documentNumber !== undefined) {
+    fireEvent.change(screen.getByLabelText(t('en', 'employeeDocuments.documentNumber')), {
+      target: { value: documentNumber },
+    });
+  }
   fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeDocuments.upload') }));
 }
 it('lists current documents with their badge only after a fresh read and evicts them on close', async () => {
@@ -293,8 +298,12 @@ it('hides document success when write access was revoked during the POST', async
   }));
   mockUpload(() => posted.promise);
   const { client } = setup();
-  await startUpload();
+  await startUpload('SYN-DOC-PENDING');
   await waitFor(() => expect(api.POST).toHaveBeenCalledWith(recordPath, expect.anything()));
+  const record = client.getMutationCache().find({ mutationKey: [...prefix, 'record'] });
+  expect(record?.state.status).toBe('pending');
+  expect(record?.state.variables).toEqual({});
+
   current = { ...view(), can_manage: false };
   await refresh(client);
   current = view();

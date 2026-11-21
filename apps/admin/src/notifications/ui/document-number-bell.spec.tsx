@@ -204,3 +204,44 @@ it('clears the previous number when changing business inside the same company', 
   );
   request.resolve(response({ items: [] }));
 });
+
+it('cancels other business lookups when one guarded lookup is refused', async () => {
+  const otherBusiness = '01920000-0000-7000-8000-0000000000df';
+  const sibling = vi.fn<(signal: AbortSignal) => void>();
+  vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const request = input as Request;
+    const path = new URL(request.url).pathname;
+    if (numbersPath(path)) {
+      if (path.includes(otherBusiness))
+        return new Response('{"code":"FORBIDDEN"}', { status: 404 });
+      sibling(request.signal);
+      return new Promise((resolve) => {
+        request.signal.addEventListener(
+          'abort',
+          () => resolve(new Response(null, { status: 404 })),
+          { once: true },
+        );
+      });
+    }
+    if (path.endsWith('/unread-count')) return response({ count: 2 });
+    return response({
+      items: [
+        documentItem(),
+        {
+          ...documentItem(),
+          id: '01920000-0000-7000-8000-0000000000c5',
+          business_id: otherBusiness,
+        },
+      ],
+      next_cursor: null,
+    });
+  });
+  const { client } = renderBell();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'inApp.title') }));
+  await waitFor(() => expect(sibling).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(client.isFetching({ queryKey: ['me', 'document-numbers'] })).toBe(0));
+  expect(sibling.mock.calls[0]?.[0].aborted).toBe(true);
+  expect(screen.queryByText(numberedText)).toBeNull();
+  expect(screen.getAllByText(todayText)).toHaveLength(2);
+});

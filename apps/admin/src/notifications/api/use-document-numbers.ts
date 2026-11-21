@@ -34,6 +34,31 @@ async function fetchBusinessNumbers(
   return numbers;
 }
 
+async function fetchInboxNumbers(
+  companyId: string | undefined,
+  targets: ReadonlyMap<string, ReadonlySet<string>>,
+  signal: AbortSignal,
+): Promise<Map<string, string>> {
+  const group = new AbortController();
+  const abort = () => group.abort(signal.reason);
+  if (signal.aborted) abort();
+  else signal.addEventListener('abort', abort, { once: true });
+  const numbers = new Map<string, string>();
+  try {
+    await Promise.all(
+      [...targets.entries()].map(async ([businessId, ids]) => {
+        const rows = await fetchBusinessNumbers(companyId, businessId, [...ids], group.signal);
+        for (const [id, number] of rows) numbers.set(id, number);
+      }),
+    );
+    return numbers;
+  } finally {
+    // لو طلب فشل، نلغي باقي طلبات نفس الدفعة قبل ما الاستعلام ينتهي.
+    group.abort();
+    signal.removeEventListener('abort', abort);
+  }
+}
+
 const noNumbers: ReadonlyMap<string, string> = new Map();
 
 export function useDocumentNumbers({
@@ -73,16 +98,7 @@ export function useDocumentNumbers({
     inboxRead !== null && scope !== null && companyId !== undefined && userId !== null;
   const query = useQuery({
     queryKey: ['me', 'document-numbers', companyId, userId, businessId, inboxRead, scope],
-    queryFn: async ({ signal }) => {
-      const numbers = new Map<string, string>();
-      await Promise.all(
-        [...targets.entries()].map(async ([businessId, ids]) => {
-          const rows = await fetchBusinessNumbers(companyId, businessId, [...ids], signal);
-          for (const [id, number] of rows) numbers.set(id, number);
-        }),
-      );
-      return numbers;
-    },
+    queryFn: ({ signal }) => fetchInboxNumbers(companyId, targets, signal),
     enabled,
     retry: false,
     staleTime: 0,

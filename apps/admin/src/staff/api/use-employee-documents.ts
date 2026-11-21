@@ -47,19 +47,7 @@ export function useEmployeeDocuments(
   const { current, begin, active } = useDocumentAccess(scope, key);
   const [phase, setPhase] = useState<UploadPhase>('idle');
   const recordContext = { companyId, businessId, employeeId, begin, active, onPhase: setPhase };
-  const record = useMutation({
-    mutationKey: [...key, 'record'],
-    // لا تبقى قيم نموذج التسجيل في الذاكرة المؤقتة بعد إغلاق مراقب النطاق.
-    gcTime: 0,
-    retry: false,
-    onMutate: () => ({ scope, key }),
-    mutationFn: (submission: DocumentSubmission) =>
-      recordEmployeeDocument(submission, recordContext),
-    onSettled: (_data, _error, _variables, context) => {
-      if (context?.scope === current.current.scope && current.current.mounted) setPhase('idle');
-      return context ? client.invalidateQueries({ queryKey: context.key }) : undefined;
-    },
-  });
+  const record = useDocumentRecord(scope, key, current, recordContext);
   const open = useDocumentOpen(client, key, params.header, scope, { begin, active }, view);
   const resetRecord = record.reset;
   const resetOpen = open.reset;
@@ -248,6 +236,44 @@ function useDocumentOpen(
     error: ui.error,
     isPending: ui.opening,
     isError: ui.error !== undefined,
+  };
+}
+
+/** القيم المرسلة يتسلمها طلب الحفظ من رمز مؤقت بلا بيانات نموذج في MutationCache. */
+function useDocumentRecord(
+  scope: object,
+  key: string[],
+  current: ReturnType<typeof useDocumentAccess>['current'],
+  recordContext: DocumentRecordContext,
+) {
+  const client = useQueryClient();
+  const pending = useMemo(() => new Map<object, DocumentSubmission>(), [scope]);
+  useEffect(() => () => pending.clear(), [pending]);
+  const record = useMutation({
+    mutationKey: [...key, 'record'],
+    // لا تبقى قيم نموذج التسجيل في الذاكرة المؤقتة بعد إغلاق مراقب النطاق.
+    gcTime: 0,
+    retry: false,
+    onMutate: () => ({ scope, key }),
+    mutationFn: async (ticket: object) => {
+      const submission = pending.get(ticket);
+      pending.delete(ticket);
+      return submission === undefined ? undefined : recordEmployeeDocument(submission, recordContext);
+    },
+    onSettled: (_data, _error, _variables, context) => {
+      if (context?.scope === current.current.scope && current.current.mounted) recordContext.onPhase('idle');
+      return context ? client.invalidateQueries({ queryKey: context.key }) : undefined;
+    },
+  });
+  const ticketFor = (submission: DocumentSubmission) => {
+    const ticket = {};
+    pending.set(ticket, submission);
+    return ticket;
+  };
+  return {
+    ...record,
+    mutate: (submission: DocumentSubmission) => record.mutate(ticketFor(submission)),
+    mutateAsync: (submission: DocumentSubmission) => record.mutateAsync(ticketFor(submission)),
   };
 }
 
