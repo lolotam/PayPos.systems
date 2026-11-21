@@ -26,17 +26,20 @@ const label = t('en', 'importedRefunds.label');
 const offNote = t('en', 'importedRefunds.offNote');
 const refused = t('en', 'importedRefunds.notAllowed');
 
-function renderPage() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
-  return render(
+function renderPage(businessId = id, sharedClient?: QueryClient) {
+  const client =
+    sharedClient ??
+    new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+  const view = render(
     <QueryClientProvider client={client}>
       <DirectionProvider dir="ltr">
-        <ImportedRefundsPage companyId={id} userId="user" businessId={id} />
+        <ImportedRefundsPage companyId={id} userId="user" businessId={businessId} />
       </DirectionProvider>
     </QueryClientProvider>,
   );
+  return { client, view };
 }
 
 beforeEach(() => {
@@ -107,4 +110,87 @@ it('a 403 read shows a not-allowed message with no control', async () => {
   renderPage();
   await waitFor(() => expect(screen.getByRole('alert').textContent).toContain(refused));
   expect(screen.queryByRole('switch')).toBeNull();
+});
+
+it('a denied write shows the refusal and the guarded GET reestablishes the confirmed value', async () => {
+  api.PUT.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
+  const { client, view } = renderPage();
+  const control = await screen.findByRole('switch', { name: label });
+  fireEvent.click(control);
+  // الـ GET المحمي هو اللي بيرجّع القيمة المؤكدة بعد الرفض: رسالة الرفض ظاهرة والمفتاح على قيمة الخادم.
+  await waitFor(() =>
+    expect(screen.getByRole('alert').textContent).toContain(
+      t('en', 'importedRefunds.notAllowed'),
+    ),
+  );
+  await waitFor(() => {
+    const settled = screen.getByRole('switch', { name: label }) as HTMLInputElement;
+    expect(settled.checked).toBe(false);
+    expect(settled.disabled).toBe(false);
+  });
+  expect(api.GET).toHaveBeenCalledTimes(2);
+  client.clear();
+  view.unmount();
+});
+
+it('a read denial while a write is in flight wins over the late write settlement', async () => {
+  api.GET.mockResolvedValueOnce({
+    data: { imported_refunds_enabled: true },
+    response: { status: 200 },
+  });
+  let releaseWrite: (value: unknown) => void = () => undefined;
+  api.PUT.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        releaseWrite = resolve;
+      }),
+  );
+  const { client, view } = renderPage();
+  const control = await screen.findByRole('switch', { name: label });
+  expect((control as HTMLInputElement).checked).toBe(true);
+  fireEvent.click(control);
+  // قراية أحدث مرفوضة (زي refetch بعد سحب التفويض) بتظهر الرفض وتشيل التحكم فورًا.
+  api.GET.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
+  await client.invalidateQueries({ queryKey: ['imported-refunds', id, 'user', id] });
+  await waitFor(() =>
+    expect(screen.getByRole('alert').textContent).toContain(refused),
+  );
+  expect(screen.queryByRole('switch')).toBeNull();
+  // تسوية الكتابة القديمة (حتى لو نجحت) ما بترجعش المفتاح: الرفض بيفضل هو العرض الوحيد.
+  releaseWrite({ data: { imported_refunds_enabled: true }, response: { status: 200 } });
+  await waitFor(() => expect(api.GET.mock.calls.length).toBeGreaterThan(2));
+  expect(screen.getByRole('alert').textContent).toContain(refused);
+  expect(screen.queryByRole('switch')).toBeNull();
+  client.clear();
+  view.unmount();
+});
+
+it('a changed scope refetches its own value and ignores late answers of the previous one', async () => {
+  const otherBusiness = '01920000-0000-7000-8000-0000000000d1';
+  let releaseFirst: (value: unknown) => void = () => undefined;
+  api.GET.mockImplementation((_path: string, options?: { params?: { path?: Record<string, string> } }) => {
+    const business = options?.params?.path?.businessId;
+    if (business === id) {
+      // قراية النشاط القديم معلّقة، وبتتحل متأخر جدًا بعد ما النطاق اتبدّل خالص.
+      return new Promise((resolve) => {
+        releaseFirst = resolve;
+      });
+    }
+    return Promise.resolve({
+      data: { imported_refunds_enabled: business === otherBusiness },
+      response: { status: 200 },
+    });
+  });
+  const first = renderPage();
+  // تغيير النشاط في الـ workspace بيعمل remount بمفتاح كويري جديد: قيمة النشاط الجديد هي المعروضة،
+  // ورد النشاط القديم المتأخر ما بيلمسش المفتاح الجديد.
+  const second = renderPage(otherBusiness);
+  const control = await screen.findByRole('switch', { name: label });
+  expect((control as HTMLInputElement).checked).toBe(true);
+  first.view.unmount();
+  releaseFirst({ data: { imported_refunds_enabled: false }, response: { status: 200 } });
+  await waitFor(() => expect((control as HTMLInputElement).checked).toBe(true));
+  expect(api.GET.mock.calls.filter((call) => (call[1] as { params?: { path?: { businessId?: string } } })?.params?.path?.businessId === otherBusiness).length).toBeGreaterThan(0);
+  second.client.clear();
+  second.view.unmount();
 });

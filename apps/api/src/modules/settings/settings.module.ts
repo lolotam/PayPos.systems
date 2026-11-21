@@ -62,6 +62,7 @@ export function settingsProviders(
 ): Provider[] {
   return [
     ...settingsWiring(database, ids, redis),
+    ...importedRefundsWiring(database, ids),
     ...identityCapabilityProviders(database),
     ...businessIdentityProviders(database),
     {
@@ -134,15 +135,27 @@ function settingsWiring(
     cache,
   );
   const logo = new SetBusinessLogo(createSettingsTransactions(database, ids), cache);
-  const importedRefunds = new SetImportedRefunds(createSettingsTransactions(database, ids));
   return [
     {
       provide: SETTINGS_WIRING,
       useValue: { update, discount, identity, logo, cache, template: SETTINGS_TEMPLATE },
     },
+  ];
+}
+
+// المفتاح كتابة قاعدة بيانات فقط بلا cache ولا Redis: بيتسلك لوحده عشان يفضل شغال بـ DB وحده،
+// والتوكن بيتسجل دايمًا (null بدون قاعدة) عشان المتحكم يرد NOT_READY بقيادة الحارس مش غياب مزود.
+function importedRefundsWiring(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+): Provider[] {
+  if (database === undefined) {
+    return [{ provide: IMPORTED_REFUNDS_WIRING, useValue: null }];
+  }
+  return [
     {
       provide: IMPORTED_REFUNDS_WIRING,
-      useValue: { set: importedRefunds },
+      useValue: { set: new SetImportedRefunds(createSettingsTransactions(database, ids)) },
     },
   ];
 }

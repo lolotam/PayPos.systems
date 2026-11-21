@@ -57,7 +57,7 @@ export function CustomerPackageDetail({
           {t(locale, 'customerPackages.extend')}
         </Button>
       ) : null}
-      {dialogOpen ? (
+      {dialogOpen && data.can_extend ? (
         <ExtendPackageDialog
           scope={scope}
           customerId={customerId}

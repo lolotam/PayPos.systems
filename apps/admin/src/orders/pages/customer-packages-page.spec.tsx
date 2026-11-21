@@ -58,6 +58,17 @@ function item(id: string, name_en: string, expired: boolean, used_up: boolean) {
   };
 }
 
+function renderPageWith(search: string, client: QueryClient) {
+  nav.search = search;
+  return render(
+    <QueryClientProvider client={client}>
+      <DirectionProvider dir="ltr">
+        <CustomerPackagesPage scope={scope} customerId={customerId} />
+      </DirectionProvider>
+    </QueryClientProvider>,
+  );
+}
+
 function renderPage(search = '') {
   nav.search = search;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -240,4 +251,64 @@ it('never renders a phone number or a customer name', async () => {
   expect(screen.queryByText('Noura')).toBeNull();
   const href = `/orders/customers/${customerId}/packages`;
   expect(href).not.toMatch(/noura|phone/i);
+});
+
+it('switching to another cached entitlement opens its detail with no stale dialog', async () => {
+  const pageDetail = (id: string, name_en: string, canExtend: boolean) => ({
+    id,
+    customer_id: customerId,
+    package_type_id: null,
+    provenance: 'SOLD',
+    name_en,
+    name_ar: null,
+    validity_days: null,
+    list_price: null,
+    price_paid: '36.000',
+    discount: null,
+    discount_bps: null,
+    paid_method: null,
+    seller_employee_id: null,
+    seller_linked_user_id: null,
+    sold_branch_id: null,
+    sold_at: null,
+    sold_business_date: null,
+    expires_on: '2026-12-01',
+    refunded_amount: '0.000',
+    revision: 1,
+    can_extend: canExtend,
+    components: [],
+    redemptions: [],
+  });
+  api.GET.mockImplementation((path: string, options?: { params?: { path?: Record<string, string> } }) => {
+    if (path === listPath)
+      return Promise.resolve({
+        data: { items: [item(packageA, 'Gold', false, false), item(packageC, 'Silver', false, false)], next_cursor: null },
+        response: { status: 200 },
+      });
+    const entitlement = options?.params?.path?.entitlementId;
+    return Promise.resolve({
+      data: pageDetail(entitlement as string, entitlement === packageA ? 'Gold' : 'Silver', true),
+      response: { status: 200 },
+    });
+  });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const view = renderPageWith(`?package=${packageA}`, client);
+  await screen.findByText('Gold');
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'customerPackages.extend') }));
+  expect(screen.getByRole('dialog', { name: t('en', 'packageExtension.dialogTitle') })).toBeTruthy();
+  // التنقل لباقة تانية متخزنة في الكاش بيعمل remount للتفصيل: مفيش حوار قديم معاها، وتفاصيلها هي اللي بتتعرض.
+  nav.search = `?package=${packageC}`;
+  view.rerender(
+    <QueryClientProvider client={client}>
+      <DirectionProvider dir="ltr">
+        <CustomerPackagesPage scope={scope} customerId={customerId} />
+      </DirectionProvider>
+    </QueryClientProvider>,
+  );
+  await screen.findByText('Silver');
+  // انتظار تفصيل الباقة الجديدة نفسه (زر التمديد دليل تحميلها)، مش كارت القايمة.
+  await screen.findByRole('button', { name: t('en', 'customerPackages.extend') });
+  expect(screen.queryByRole('dialog', { name: t('en', 'packageExtension.dialogTitle') })).toBeNull();
+  expect(screen.getAllByRole('button', { name: t('en', 'customerPackages.extend') }).length).toBeGreaterThan(0);
+  view.unmount();
 });

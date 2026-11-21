@@ -6,6 +6,10 @@ beforeAll(() => {
     HTMLDialogElement.prototype.close = vi.fn(function (this: HTMLDialogElement) {
       this.removeAttribute('open');
     });
+    // jsdom مبيطبقش showModal: بنحاكي فتح الحوار بوضع open عشان اختبارات الحوارات تلاقي العنصر بدوره.
+    HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) {
+      this.setAttribute('open', '');
+    });
   }
 });
 

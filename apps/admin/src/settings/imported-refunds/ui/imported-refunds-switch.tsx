@@ -25,6 +25,9 @@ export function ImportedRefundsSwitch({
     return <p role="alert">{importedRefundsFailureMessage(query.error, locale)}</p>;
   }
   const enabled = query.data?.imported_refunds_enabled ?? false;
+  // إثبات الصلاحية بيتجدد من الـ GET المحمي: التحكم متعطل أثناء الكتابة وأثناء إعادة إثبات الحالة بعدها،
+  // وأي رد متأخر لتفويض قديم ما بيرجعش المفتاح — القراءة المرفوضة هي اللي بتتحكم في العرض.
+  const reestablishing = (mutation.isSuccess || mutation.isError) && query.isRefetching;
   const writeLanded = mutation.variables !== undefined && enabled === mutation.variables;
   return (
     <div className="flex flex-col gap-2 rounded-card border border-border p-4">
@@ -34,7 +37,7 @@ export function ImportedRefundsSwitch({
           type="checkbox"
           role="switch"
           checked={enabled}
-          disabled={mutation.isPending}
+          disabled={mutation.isPending || reestablishing}
           onChange={(event) => mutation.mutate(event.target.checked)}
         />
         <Label htmlFor="imported-refunds">{t(locale, 'importedRefunds.label')}</Label>

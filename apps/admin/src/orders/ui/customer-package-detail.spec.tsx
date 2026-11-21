@@ -98,20 +98,22 @@ function soldExtensions() {
   ];
 }
 
-function renderDetail() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <QueryClientProvider client={client}>
-      <DirectionProvider dir="ltr">
-        <CustomerPackageDetail
-          scope={scope}
-          customerId={customerId}
-          entitlementId={entitlementId}
-          onClose={() => undefined}
-        />
-      </DirectionProvider>
-    </QueryClientProvider>,
-  );
+function renderDetail(client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
+  return {
+    client,
+    view: render(
+      <QueryClientProvider client={client}>
+        <DirectionProvider dir="ltr">
+          <CustomerPackageDetail
+            scope={scope}
+            customerId={customerId}
+            entitlementId={entitlementId}
+            onClose={() => undefined}
+          />
+        </DirectionProvider>
+      </QueryClientProvider>,
+    ),
+  };
 }
 
 beforeEach(() => {
@@ -188,7 +190,7 @@ it('an imported package marks itself and never renders absent sale facts as empt
 
 it('the Extend button follows can_extend only', async () => {
   api.GET.mockResolvedValue({ data: soldDetail(false), response: { status: 200 } });
-  const withoutButton = renderDetail();
+  const withoutButton = renderDetail().view;
   await screen.findByText('Gold');
   expect(screen.queryByRole('button', { name: t('en', 'customerPackages.extend') })).toBeNull();
   withoutButton.unmount();
@@ -200,7 +202,7 @@ it('the Extend button follows can_extend only', async () => {
 
 it('a refused or unknown package and a network failure each show their own state', async () => {
   api.GET.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
-  const refused = renderDetail();
+  const refused = renderDetail().view;
   await waitFor(() =>
     expect(screen.getByRole('alert').textContent).toContain(
       t('en', 'customerPackages.detailNotAllowed'),
@@ -208,7 +210,7 @@ it('a refused or unknown package and a network failure each show their own state
   );
   refused.unmount();
   api.GET.mockResolvedValue({ error: { code: 'NOT_FOUND' }, response: { status: 404 } });
-  const unknown = renderDetail();
+  const unknown = renderDetail().view;
   await waitFor(() =>
     expect(screen.getByRole('alert').textContent).toContain(
       t('en', 'customerPackages.detailNotFound'),
@@ -225,4 +227,22 @@ it('a refused or unknown package and a network failure each show their own state
   api.GET.mockResolvedValue({ data: soldDetail(true), response: { status: 200 } });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'customerPackages.detailRetry') }));
   await screen.findByText('Gold');
+});
+
+it('the open extension dialog closes when the entitlement loses extension capability', async () => {
+  api.GET.mockResolvedValue({ data: soldDetail(true), response: { status: 200 } });
+  const { client, view } = renderDetail();
+  await screen.findByText('Gold');
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'customerPackages.extend') }));
+  expect(screen.getByRole('dialog', { name: t('en', 'packageExtension.dialogTitle') })).toBeTruthy();
+  // إبطال تفصيل الباقة من متد التمديد نفسه بيعيد القراءة: لو can_extend بقت false والحوار مفتوح، الحوار يقفل.
+  api.GET.mockResolvedValue({ data: soldDetail(false), response: { status: 200 } });
+  await client.refetchQueries({
+    queryKey: ['customer-package-detail', companyId, businessId, branchId, 'user', customerId, entitlementId],
+  });
+  await waitFor(() =>
+    expect(screen.queryByRole('dialog', { name: t('en', 'packageExtension.dialogTitle') })).toBeNull(),
+  );
+  expect(screen.queryByRole('button', { name: t('en', 'customerPackages.extend') })).toBeNull();
+  view.unmount();
 });

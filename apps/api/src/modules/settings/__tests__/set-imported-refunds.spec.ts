@@ -152,7 +152,18 @@ it('IRS-04a: a granted human may read and write, and updated_by carries the acto
     AND membership_id = ${f.managerMember}`;
 });
 
-it('IRS-04b: every other principal is the same refusal on both routes', async () => {
+/** بيرفض المسارين ويثبت إن صف الإعدادات والتدقيق ما اتلمسوش — سيناريو رفض كامل لكل حالة. */
+async function refusesBothRoutes(cookie: string) {
+  const [beforeRow] = await stored();
+  const beforeAudits = await audits();
+  expect((await get(f.business, cookie)).status).toBe(403);
+  const write = await put({ imported_refunds_enabled: true }, f.business, cookie);
+  expect(write.statusCode).toBe(403);
+  expect(await stored()).toEqual([beforeRow]);
+  expect(await audits()).toEqual(beforeAudits);
+}
+
+it('IRS-04b: every refusal scenario refuses both routes and leaves the value and audit untouched', async () => {
   // settings-only manager: manage:settings:business alone is the same 403 on both routes.
   const settingsHolder = await codeHolder(
     'refunds-settings-manager@example.test',
@@ -163,14 +174,9 @@ it('IRS-04b: every other principal is the same refusal on both routes', async ()
     403,
     'FORBIDDEN',
   ]);
-  const settingsWrite = await put(
-    { imported_refunds_enabled: true },
-    f.business,
-    settingsHolder.cookie,
-  );
-  expect(settingsWrite.statusCode).toBe(403);
+  await refusesBothRoutes(settingsHolder.cookie);
 
-  // an explicit DENY covering the business refuses a holder who would otherwise read.
+  // an explicit DENY covering the business refuses a holder who would otherwise read or write.
   const denied = await codeHolder('refunds-denied-holder@example.test');
   await seedOverride(f, denied.member, {
     permission_code: 'manage:imported-refunds:business',
@@ -178,54 +184,69 @@ it('IRS-04b: every other principal is the same refusal on both routes', async ()
     scope_type: 'BUSINESS',
     scope_id: f.business,
   });
-  expect((await get(f.business, denied.cookie)).status).toBe(403);
+  await refusesBothRoutes(denied.cookie);
 
   // an expired grant is not a grant.
   const expired = await codeHolder('refunds-expired-holder@example.test');
   await f.h.owner`UPDATE permission_overrides SET expires_at = clock_timestamp() - interval '1 hour'
     WHERE company_id = ${f.company} AND membership_id = ${expired.member}
       AND permission_code = 'manage:imported-refunds:business'`;
-  expect((await get(f.business, expired.cookie)).status).toBe(403);
+  await refusesBothRoutes(expired.cookie);
 
   // a grant naming another business of the same company does not travel.
   const elsewhere = await codeHolder('refunds-elsewhere-holder@example.test');
   await f.h.owner`UPDATE permission_overrides SET scope_id = ${f.otherBusiness}
     WHERE company_id = ${f.company} AND membership_id = ${elsewhere.member}
       AND permission_code = 'manage:imported-refunds:business'`;
-  expect((await get(f.business, elsewhere.cookie)).status).toBe(403);
+  await refusesBothRoutes(elsewhere.cookie);
 
-  // another company's business is the same refusal, and writes nothing there. The permission editor holds no
-  // membership in the other company, so the guard refuses before any tenant query.
-  expect((await get(foreignBusiness, f.managerCookie, f.otherCompany)).status).toBe(403);
-  const otherCompanyWrite = await put(
-    { imported_refunds_enabled: true },
-    foreignBusiness,
-    f.managerCookie,
-    f.otherCompany,
-  );
-  expect(otherCompanyWrite.statusCode).toBe(403);
-  expect(
-    await f.h.owner`SELECT count(*)::int AS rows FROM business_settings
-      WHERE company_id = ${f.otherCompany} AND business_id = ${foreignBusiness}`,
-  ).toEqual([{ rows: 0 }]);
+  // a branch-scoped grant cannot drive the business-wide switch in either direction.
+  const branchHolder = await codeHolder('refunds-branch-holder@example.test');
+  await f.h.owner`UPDATE permission_overrides SET scope_type = 'BRANCH', scope_id = ${f.branch}
+    WHERE company_id = ${f.company} AND membership_id = ${branchHolder.member}
+      AND permission_code = 'manage:imported-refunds:business'`;
+  await refusesBothRoutes(branchHolder.cookie);
 
   // an anonymous caller is unauthenticated.
   expect((await get(f.business, '')).status).toBe(401);
 });
 
+it('IRS-04c: another company\'s business refuses both routes and writes nothing there', async () => {
+  // المحرر معندوش عضوية في الشركة التانية، فالحارس بيرفض قبل أي query على النشاط الغريب.
+  expect((await get(foreignBusiness, f.managerCookie, f.otherCompany)).status).toBe(403);
+  const write = await put(
+    { imported_refunds_enabled: true },
+    foreignBusiness,
+    f.managerCookie,
+    f.otherCompany,
+  );
+  expect(write.statusCode).toBe(403);
+  expect(
+    await f.h.owner`SELECT count(*)::int AS rows FROM business_settings
+      WHERE company_id = ${f.otherCompany} AND business_id = ${foreignBusiness}`,
+  ).toEqual([{ rows: 0 }]);
+});
+
 it('IRS-04 device refusal: a device principal is refused on both routes', async (ctx) => {
-  // أكواد الاقتران في Redis، والـ lane المحلي بلا Redis (الـ runbook يمنع تشغيله أو استعارة المشترك)،
-  // فالخطوة بتتخطى محليًا مع تسجيل السبب، وبتشتغل كما هي في CI حيث Redis موجود.
+  // أكواد الاقتران في Redis: لو الـ Redis متاح فعلاً (زي CI) الخطوة إلزامية وما تتخطاش؛
+  // التخطي الوحيد المسموح هو الغياب البيئي المثبت على الـ lane المحلي، وبيتسجل بسبب.
+  let redisAvailable = true;
+  try {
+    await f.h.redis.ping();
+  } catch {
+    redisAvailable = false;
+  }
   const code = await f.h.send('POST', `/v1/branches/${f.branch}/devices/pairing-code`, {
     cookie: f.cookie,
     company: f.company,
   });
-  if (code.status !== 201) {
+  if (!redisAvailable) {
     console.warn(
-      'IRS-04 device refusal skipped locally: pairing-code refused (lane has no Redis); it runs unchanged in CI.',
+      'IRS-04 device refusal skipped locally: this lane has no Redis (pairing codes are Redis-backed); it runs and must pass where Redis is up.',
     );
     ctx.skip();
   }
+  expect(code.status).toBe(201);
   const registered = await f.h.app.inject({
     method: 'POST',
     url: '/v1/devices/register',

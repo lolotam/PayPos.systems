@@ -79,6 +79,7 @@ function PackagesSelectionArea({
   if (entitlementId !== null) {
     return (
       <CustomerPackageDetail
+        key={entitlementId}
         scope={scope}
         customerId={customerId}
         entitlementId={entitlementId}

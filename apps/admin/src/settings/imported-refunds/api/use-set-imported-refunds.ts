@@ -12,13 +12,8 @@ export function useSetImportedRefunds(companyId: string, userId: string, busines
     retry: false,
     mutationFn: (enabled: boolean) =>
       setImportedRefunds(companyId, businessId, { imported_refunds_enabled: enabled }),
-    onSuccess: async (saved) => {
-      await client.cancelQueries({ queryKey: key });
-      client.setQueryData(key, saved);
-    },
-    // فشل الكتابة بيرجّع القيمة المخزنة للشاشة: الإلغاء بيخلي الـ GET ييجي تاني من الخادم.
-    onError: () => {
-      void client.invalidateQueries({ queryKey: key });
-    },
+    // الـ GET المحمي هو المرجع الوحيد للكاش: أي تسوية (نجاح أو فشل) بتعيد القراءة من الخادم ولا تخزن
+    // رد الكتابة، فما فيش رد متأخر من تفويض قديم يرجّع المفتاح بعد ما قراية أحدث ترفض (403).
+    onSettled: () => client.invalidateQueries({ queryKey: key }),
   });
 }

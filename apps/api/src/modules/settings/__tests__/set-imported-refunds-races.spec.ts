@@ -66,6 +66,24 @@ it('IRS-06: two first writes serialize and each audit entry carries the true pre
   expect(actors).toEqual(new Set([f.userId, f.managerId]));
 });
 
+it('IRS-06: two first writes of the same value leave no audit entry — each write is an initial-false no-op', async () => {
+  await f.h.owner`DELETE FROM business_settings WHERE company_id = ${f.company}
+    AND business_id = ${f.otherBusiness}`;
+  const beforeAudits = await audits(f.otherBusiness);
+  // القيمتان متطابقتان والقيمة الفعلية أصلًا off: الكاتبان الاتنين no-op — الخطوة بتكتب صف الإعدادات
+  // الفارغ بس، ومن غير أي تدقيق، وهذان هما الدليل على no-op الصحيح للقيمة الأولية false.
+  const [first, second] = await Promise.all([
+    put({ imported_refunds_enabled: false }, f.cookie, f.company, f.otherBusiness),
+    put({ imported_refunds_enabled: false }, f.managerCookie, f.company, f.otherBusiness),
+  ]);
+  expect([first.statusCode, second.statusCode]).toEqual([200, 200]);
+  expect(await audits(f.otherBusiness)).toEqual(beforeAudits);
+  expect(
+    await f.h.owner`SELECT imported_refunds_enabled FROM business_settings
+      WHERE company_id = ${f.company} AND business_id = ${f.otherBusiness}`,
+  ).toEqual([{ imported_refunds_enabled: null }]);
+});
+
 it('IRS-06: a revocation that commits while the write waits refuses it with no change and no audit', async () => {
   await seedOverride(f, f.managerMember, {
     permission_code: 'manage:imported-refunds:business',
