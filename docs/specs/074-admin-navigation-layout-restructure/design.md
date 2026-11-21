@@ -143,7 +143,7 @@ A URL opened under any style shows the same page. Only the frame around it diffe
 - **Shared browsers:** the cookie belongs to the browser, not the person. Signing out clears it, so the next person to sign in on that browser starts from their own saved choice, or from C if they have none.
 - **Account:** the choice is also written to the account (§9). On sign-in the account value overwrites the cookie. If the account write fails, the frame still changes, the cookie keeps the choice on this device, and the user sees a message that it was not saved to the account. Saves from one tab are sent one at a time and a waiting save is replaced by the newest choice, so an older choice can never land after a newer one.
 - **Other tabs:** a tab that is already open keeps its frame until its next navigation or reload.
-- **Theme:** styles B and C have no sidebar footer, so in those styles the light, dark and system switch must sit on the Appearance page and in the account menu. Whether style A keeps it in the sidebar footer, and the ADR-0059 addendum that records the placement, wait for NAV-Q5: `TODO(spec)`.
+- **Theme:** the light, dark and system switch sits on the Appearance page and in the account menu in all three styles, and leaves the sidebar footer (NAV-Q5, answered 2026-11-21). ADR-0059 placed it in the sidebar footer, so an addendum records the move.
 
 One navigation model feeds all three frames: a typed list of pages (label key, route, icon, the condition that shows it, count source) and three groupings of those pages. Each business area exports its own pages; the model is composed in `app/(dashboard)/_frame`, where cross-area composition belongs (CLAUDE.architecture.md §11.2). It does not go in `src/shared`, which must hold nothing with business meaning (§6.4). A page added later is added once and must be placed in all three groupings; a test fails otherwise (§8).
 
@@ -211,7 +211,7 @@ This file is the hand-written design reference. The specification itself, `spec.
   - **A new table keyed on the user**, read and written through `withUser`, which needs its own policies and a negative isolation test (CLAUDE.md §5).
 - **API:** `GET` and `PUT /v1/me/preferences`, session-only (`@Authenticated()`), personal to the caller. The write declares where its check lives (PP-7.1). No `Idempotency-Key`: no money or stock effect.
 - **Contract:** a Zod schema in `packages/contracts`.
-- **Events:** none. **Audit:** not settled. CLAUDE.md §8 asks for an audit entry on every settings change and names no exception for a personal display choice. NAV-Q16 asks for an audit entry or a recorded exception; it is answered before step 12.
+- **Events:** none. **Audit:** none. The owner approved a recorded exception to CLAUDE.md §8 for a user changing their own navigation style (NAV-Q16, answered 2026-11-21); it is written into CLAUDE.md §8 in step 0b.
 - **Tests:** integration tests for read, write and the default; a test that one user cannot read or write another user's preference.
 
 Navigation counts (pending leave, attendance requests, open exceptions) are shown in the prototypes as examples. Whether the existing list endpoints can supply them cheaply is not verified; if not, counts are dropped from the first release rather than adding an endpoint here.
@@ -224,7 +224,7 @@ The owner chose "admin and cashier" (NAV-Q3). `apps/pos` has no navigation menu 
 
 ## 11. Open questions
 
-Recorded in `owner-questions.ar.md`. Still open: NAV-Q2 (`lovable-pospay`), NAV-Q4 (`--primary` difference), NAV-Q5 (theme switch placement, now forced: confirm the addendum), NAV-Q11 (cashier app: what "account" means for staff). Answered on 2026-11-21: NAV-Q9 (the owner alone), NAV-Q10 (a column on `user`), NAV-Q12 (styles first, account saving follows).
+Recorded in `owner-questions.ar.md`. Still open: NAV-Q4 (`--primary` difference) and NAV-Q11 (cashier app: what "account" means for staff). Answered on 2026-11-21: NAV-Q2 (`lovable-pospay` has its own spec in its own repository), NAV-Q5 (one place for the theme switch in all three styles), NAV-Q9 (the owner alone), NAV-Q10 (a column on `user`), NAV-Q12 (styles first, account saving follows), NAV-Q14 (not-built entries by business type and role), NAV-Q15 (social media management listed as Soon), NAV-Q16 (no audit entry; recorded exception).
 
 ## 12. Decisions this spec sits under
 

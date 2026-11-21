@@ -95,7 +95,7 @@ The menu names every section of the product, including the ones not built yet: s
 **Acceptance Scenarios**:
 
 1. **Given** the menu in any style, **When** the user looks at it, **Then** every section and sub-menu of `app-map.md` is present.
-2. **Given** an entry for a page that is not built, **When** the user looks at it, **Then** it carries a "Soon" mark that is also announced to screen readers.
+2. **Given** an entry for a page that is not built and meant for the user's business type and role, **When** the user looks at it, **Then** it carries a "Soon" mark that is also announced to screen readers.
 3. **Given** such an entry, **When** the user opens it, **Then** an Under development page shows the entry's name, one line saying it is under development, and a way back to Home. It shows no date and no phase number.
 4. **Given** a page is built later, **When** a user opens an old link to its Under development address, **Then** a user who may see the page is forwarded to it and a user who may not gets the not-found page.
 5. **Given** style C's page finder, **When** the user searches for a page that is not built, **Then** it is found and marked "Soon".
@@ -131,14 +131,14 @@ The menu names every section of the product, including the ones not built yet: s
 - **FR-011**: The choice MUST be remembered on the device from the first release, and saved on the user's account in a following release, after which it follows the user to other devices.
 - **FR-012**: Signing out MUST clear the device's remembered choice, and signing in MUST set it from that user's own choice or clear it, so the next person on that browser never inherits it, including after a session that expired.
 - **FR-013**: The account choice MUST be personal: one user's choice never changes what another user sees.
-- **FR-014**: In styles B and C the light, dark and system switch MUST be available on the Appearance page and in the account menu. Its place in style A waits for NAV-Q5 (`TODO(spec)`).
+- **FR-014**: The light, dark and system switch MUST be available on the Appearance page and in the account menu in all three styles, and is removed from the sidebar footer (NAV-Q5).
 - **FR-015**: All of the above MUST hold on desktop, tablet and phone widths, in Arabic (right-to-left) and English.
 - **FR-016**: Admin pages MUST follow the shared layout rules in `design.md` §6 (page width, header, filters, forms, stacked table rows on phones).
 - **FR-017**: The two defects found during mapping MUST be fixed: Staff app columns marks its own entry, not Employees; the Reload button on Weekly schedules no longer reads "Reload employee".
 - **FR-019**: The menu MUST list every section, sub-menu and page in `app-map.md`, in all three styles.
 - **FR-020**: A page that is not built yet MUST be marked "Soon" in the menu, and the mark MUST not rely on colour alone.
 - **FR-021**: Opening a not-built page MUST show one shared Under development page with the page's name and a way back to Home, in Arabic and English, with no date and no phase number.
-- **FR-022**: Who sees not-built entries MUST follow one rule in the menu, the page finder and direct links. The owner asked for every section to be shown (NAV-Q13); whether that is every user or follows business type and role is open (NAV-Q14), and its answer is required before the styles are released. Once a page is built, its own permission decides.
+- **FR-022**: A not-built entry MUST be shown only to the business types and roles it is meant for (NAV-Q14), and the same rule MUST apply in the menu, in the page finder and to a direct link. Each not-built entry therefore carries the business types (PRD §7.1) and roles (PRD §3.2) that see it. Once a page is built, its own permission decides.
 - **FR-023**: When a page is built, switching its entry to the real page MUST be a change to that entry alone, and its old Under development address MUST apply the entry's show condition before forwarding to the real page.
 - **FR-024**: Menus, drawers, sheets and the page finder MUST keep keyboard focus inside while open and return it to the control that opened them; every icon-only control MUST have an accessible name; in-page tabs MUST expose which tab is selected; a hidden panel MUST take its links out of the tab order; a menu taller than the window MUST scroll inside itself.
 - **FR-025**: Choosing styles in quick succession MUST leave the account holding the last choice made.
@@ -163,8 +163,8 @@ This feature is mostly front end. It is delivered as several PRs (see `plan.md`)
 - **BR-004**: The three styles differ in arrangement only; colours and fonts are shared (NAV-Q7).
 - **BR-005**: The three styles are released together; saving on the account follows (NAV-Q8, NAV-Q12).
 - **BR-006**: Existing permission rules decide which built pages a user sees in the menu; this feature adds and removes none.
-- **BR-007**: The menu names the whole product, phases 1 to 6; a page not built yet opens an Under development page (NAV-Q13).
-- **BR-008**: "Social media management" was asked for by the owner but is not in the PRD. Whether it is listed as an Under development entry or left out is NAV-Q15, unanswered: `TODO(spec)`.
+- **BR-007**: The menu names the whole product, phases 1 to 6; a page not built yet opens an Under development page (NAV-Q13). A not-built entry is shown by business type and role, not to everyone (NAV-Q14): a salon does not see Kitchen screens, and a cashier does not see Subscription and billing.
+- **BR-008**: "Social media management" is listed as an Under development entry under Marketing at the owner's request (NAV-Q15). It is not in the PRD and needs a PRD entry and a spec before anything is built.
 
 ### Schema changes
 
@@ -193,13 +193,13 @@ The read and write go through `packages/auth`, the only package that may reach t
 - **Published**: none
 - **Consumed**: none
 
-Audit: not settled. CLAUDE.md §8 asks for an audit entry on every settings change and names no exception for a personal display choice. NAV-Q16 asks the owner for an audit entry or a recorded exception, before the account preference is built.
+Audit: none. A user changing their own navigation style is a recorded exception to the audit rule of CLAUDE.md §8 (owner, NAV-Q16): it changes no business data, money or permission. The exception is written into CLAUDE.md §8 in step 0b before the account preference is built.
 
 ### Test plan
 
 - **Domain unit**: none; no business arithmetic.
 - **Front end, navigation model**: table-driven over the three groupings — every admin route appears exactly once; exactly one top-level entry is current on every route; every label key exists in Arabic and English; every hide-condition asserted by today's `*-nav-item.spec.tsx` and `staff-navigation.spec.tsx` files is carried over before those files are removed.
-- **Front end, not-built pages**: every entry of `app-map.md` is in the model; every not-built entry renders the "Soon" mark in each style; the Under development page shows the entry's name in both languages; an unknown `/soon/...` address shows the app's not-found page; a built entry's old `/soon/...` address forwards.
+- **Front end, not-built pages**: every entry of `app-map.md` is in the model; a not-built entry is hidden from a business type or role it is not meant for, in the menu, in the page finder and by direct link (not-found); every not-built entry renders the "Soon" mark in each style; the Under development page shows the entry's name in both languages; an unknown `/soon/...` address shows the app's not-found page; a built entry's old `/soon/...` address forwards.
 - **Front end, rendered**: one test per style asserting the visible current item; switching style changes the visible frame and keeps the route; default is C; an unknown stored value shows C; a user with no permissions can switch; sign-out clears the device choice; choosing A then B while the first save is delayed ends with B on the account; a failed account read at sign-in clears the device choice and shows C; an old `/soon/...` link to a built page the user may not see shows not-found; an overview link with no visible page goes to Home; at 390px a page in a section behind More is reached in three taps from another section; after a session that expired without sign-out, the next user with no saved choice sees C; the Authenticator page is drawn inside the frame with its entry current; the server-rendered frame matches the stored choice.
 - **Integration scenarios**: `PREF-01` read with nothing saved returns null · `PREF-02` write then read returns the value · `PREF-03` invalid value rejected · `PREF-04` user X's write does not change user Y's value · `PREF-05` no session is refused (401) · `PREF-06` a staff-purpose session is refused (401) · `PREF-07` a device token is refused (403) · `PREF-08` an existing user signs in, and a user is created through the existing operator path, after the migration (public sign-up is disabled and stays so) · `PREF-09` two writes sent one after the other end with the second value.
 - **RLS negative**: not applicable; no tenant table is added. `PREF-04` covers isolation between users.
@@ -231,4 +231,4 @@ Audit: not settled. CLAUDE.md §8 asks for an audit entry on every settings chan
 - Navigation counts (pending leave, attendance requests, open exceptions) are shown only if existing reads can supply them cheaply; otherwise they are left out of the first release. Not verified.
 - The page finder in style C uses components the app already has; if a new library is needed, an ADR comes first.
 - `lovable-pospay` is a separate project with its own spec and plan in its own repository (NAV-Q2); nothing here applies to it.
-- The cashier app, the `--primary` difference (NAV-Q4) and the theme-switch ADR addendum (NAV-Q5) are tracked in `owner-questions.ar.md` and do not block this feature's first steps.
+- The cashier app and the `--primary` difference (NAV-Q4) are tracked in `owner-questions.ar.md` and do not block this feature's first steps.

@@ -23,13 +23,14 @@ One admin page as the menu knows it.
 | `visible` | The condition that shows the page: the same permission or state check its `*-nav-item.tsx` uses today |
 | `count` | Optional: where a pending count comes from |
 | `state` | `live` (the page exists) or `soon` (not built). A `soon` entry has no `route` of its own; it opens `/soon/<id>` |
+| `businessTypes`, `roles` | For a `soon` entry: the business types (PRD §7.1) and roles (PRD §3.2) that see it. Not used by `live` entries, which keep `visible` |
 | `section`, `submenu` | Where the entry sits in `app-map.md`; the three groupings are built from these |
 
 **Rules**
 
 - Every `page.tsx` under `(dashboard)`, plus `/security/two-factor`, has exactly one `live` entry.
 - Every page listed in `app-map.md` has exactly one entry, `live` or `soon`.
-- Who sees a `soon` entry waits on NAV-Q14 (every user, or by business type and role). Building the page turns it `live` and gives it its route and its own condition in the same change.
+- A `soon` entry carries the business types and roles that see it (NAV-Q14) and is hidden from everyone else. Building the page turns it `live` and gives it its route and its own condition in the same change.
 - Each business area owns its entries, their conditions, section and sub-menu (`apps/admin/src/<area>/nav.ts`); the model only composes them and arranges sections per style.
 - `visible` is moved as-is from today's code. This feature adds and removes no permission.
 
