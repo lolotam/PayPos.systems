@@ -10,10 +10,11 @@ import { timestamp } from '../scalars/timestamp.js';
 // كما جاء من العميل؛ فبنكتب نفس حدود nameEn/nameAr هنا بدل ما نأخذهم جاهزين.
 const serviceNameEn = withoutControlChars(z.string()).trim().min(1).max(255);
 const serviceNameAr = withoutControlChars(z.string()).trim().min(1).max(255);
+export { serviceNameEn, serviceNameAr };
 
 // المال بيتنقل كنص بـ 3 خانات عشرية دايماً؛ رقم JS كان بيضيّع فلوس (CLAUDE.md §5).
 // نفس حد salaryAmount: numeric(14,3) يعني 11 خانة صحيحة على الأكثر.
-const servicePrice = z
+export const servicePrice = z
   .string()
   .regex(/^(0|[1-9]\d{0,10})\.\d{3}$/)
   .meta({ id: 'ServicePrice' });

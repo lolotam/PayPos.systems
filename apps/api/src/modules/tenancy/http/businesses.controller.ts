@@ -1,10 +1,13 @@
-import { Body, Controller, Get, Inject, Post, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query, Req, Res } from '@nestjs/common';
 import {
   createBusinessInput,
   pageQuery,
+  setBusinessCountryInput,
   type Business,
   type CreateBusinessInput,
   type PageQuery,
+  type SetBusinessCountryInput,
+  type SetBusinessCountryResult,
 } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -17,18 +20,22 @@ import { Idempotency, type IdempotencyInput } from '../../../shared/idempotency.
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { InvalidCursorError, listBusinesses } from '../queries/list-businesses.query.ts';
 import { CreateBusiness } from '../use-cases/create-business/create-business.ts';
+import { SetBusinessCountry } from '../use-cases/set-business-country/set-business-country.ts';
 
 @Controller('businesses')
 export class BusinessesController {
   readonly #create: CreateBusiness | null;
   readonly #db: TenantWrappers | null;
+  readonly #country: SetBusinessCountry | null;
 
   constructor(
     @Inject(CreateBusiness) create: CreateBusiness | null,
     @Inject(DATABASE) db: TenantWrappers | null,
+    @Inject(SetBusinessCountry) country: SetBusinessCountry | null,
   ) {
     this.#create = create;
     this.#db = db;
+    this.#country = country;
   }
 
   @Post()
@@ -61,5 +68,25 @@ export class BusinessesController {
       }
       throw error;
     }
+  }
+
+  @Put(':businessId/country')
+  @HttpCode(200)
+  @Require('manage:settings:business', { business: 'businessId' })
+  async setCountry(
+    @Param('businessId') businessId: string,
+    @Body(new ZodValidationPipe(setBusinessCountryInput)) input: SetBusinessCountryInput,
+    @Req() request: FastifyRequest,
+  ): Promise<SetBusinessCountryResult> {
+    if (this.#country === null) throw new ApiError('NOT_READY');
+    const actor = actorOf(request);
+    const result = await this.#country.execute({
+      companyId: actor.companyId,
+      userId: actor.userId,
+      businessId: businessId.toLowerCase(),
+      country: input.country,
+    });
+    if (result === null) throw new ApiError('NOT_FOUND');
+    return result.body as SetBusinessCountryResult;
   }
 }
