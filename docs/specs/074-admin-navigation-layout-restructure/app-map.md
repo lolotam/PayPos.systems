@@ -42,7 +42,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Service visits | Record a visit | 1 | Live | every business type | Owner, General manager, Business manager, Branch manager, Cashier |
 | Service visits | Sessions (day list) | 1 | Live | every business type | By page permission |
 | Service visits | Sell a package | 1 | Live | every business type | Owner, General manager, Business manager, Branch manager, Cashier |
-| Service visits | Customer packages (who holds what, sessions left) | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
+| Service visits | Customer packages (who holds what, sessions left) | 1 | Live | every business type | Owner, General manager, Business manager, Branch manager |
 | Service visits | Unassigned services (exceptions) | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
 | Discounts | Discounts | 1 | Soon | every business type | Owner, General manager, Business manager, Marketing |
 | Discounts | Discount approvals | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
@@ -170,6 +170,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Business | Business identity | 1 | Live | every business type | Owner |
 | Business | Branches | — | Soon | every business type | Owner, General manager, Business manager |
 | Business | Alerts and notifications | 1 | Live | every business type | Owner, General manager, Business manager |
+| Business | Imported-package refunds | 1 | Live | every business type | Owner |
 | Business | Data import (Excel) | 1 | Soon | every business type | Owner, General manager, Business manager |
 | Business | Tax and invoice template | 2 | Soon | every business type | Owner, General manager, Accountant, Business manager |
 | Business | Invoice terms and conditions | — | Soon | every business type | Owner, General manager, Business manager |
@@ -275,9 +276,9 @@ own there.
 
 ## Counts
 
-- Management area: 127 menu pages. In this project: 28 Live, 2 New, 97 Soon.
+- Management area: 128 mapped pages. In this project: 30 Live, 2 New, 96 Soon.
 - Other areas: 24 menu pages. In this project: 0 Live, 0 Soon, 24 not mapped here (the cashier app has its own spec).
-- Child pages (create and detail pages) have no menu entry of their own and are not counted.
+- Child pages such as customer package details have no menu entry of their own. Only the pages listed in the map are counted.
 
 ## Top level in each style (management area)
 
