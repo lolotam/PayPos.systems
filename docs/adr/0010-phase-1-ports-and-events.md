@@ -585,14 +585,16 @@ addendum's API read approvals and plan-61-1 §4–§6, as M1 records; it adds no
   `isLowRating(stars)` in `customers/domain`), the same transaction appends one internal event `LowRatingSubmitted`
   (customers API ⇒ worker customers): `{ schema_version: 1, rating_id, request_id, business_id, branch_id, stars }`,
   aggregate `rating` / `rating_id`. Nothing else is added to that transaction: no rule read, no identity, staff or
-  tenancy read, no names, no comment. 3+ stars or a rule that is later found off cost the API nothing.
+  tenancy read, no names, no comment. Ratings of 3 stars or more append no event. Ratings of 1 or 2 stars append
+  the same event regardless of the rule state.
 - **Worker `customers` — the consumer.** A new outbox consumer handles `LowRatingSubmitted` with the use case
   `request-low-rating-notice` in one tenant transaction, the same shape as orders'
   `request-late-service-session-notice`: verify the event against the stored rating → company open → the
   `LOW_RATING` rule → recipients → place → claim the `low_rating_notices` ledger (unique `(company_id, rating_id)`,
   so the decision is made once per rating) → comment readers (only for a non-null comment) → names → compose →
   append `LowRatingReceived` (customers ⇒ notifications, a `notificationRequest` payload in groups of at most 100
-  recipients per template partition, ADR-0037 §5).
+  recipients per template partition, ADR-0037 §5). If the rule is off or has no `IN_APP` channel, record a terminal
+  zero-recipient decision in the ledger and emit no notice (spec 060 BR-B5). Redelivery preserves that decision.
 - **`LowRatingReceived` keeps its ADR-0010 meaning and name.** Only its emitter moves from the API `customers`
   module to the worker `customers` module; the `notifications` consumer is unchanged.
 
@@ -635,8 +637,8 @@ writes it. The orders-worker rows are the template.
 ### Consequences
 
 - The public transaction gains one fixed-size outbox insert (about 300 bytes); its cost no longer depends on
-  performers (P) or recipients (R). The worker transaction still grows with P·R — no cap, truncation, chunking or
-  timeout change is approved here — but it runs under the worker delivery limit (`DELIVERY_TIMEOUT_MS = 60_000`):
+  performers (P) or recipients (R). The worker transaction still grows with P·R. The per-event recipient groups
+  do not cap or truncate the recipients or split the decision across transactions. The transaction runs under the existing worker delivery limit (`DELIVERY_TIMEOUT_MS = 60_000`):
   an exceeded delivery rolls back, is retried by the dispatcher and finally parks where an operator sees it.
 - Two outbox hops (rating → worker customers → notifications) before the bell. SC-004 allows 2 minutes; the orders
   bells already take two hops. Sub-PR 61-1i's staging verification measures it once and records the number.
@@ -645,6 +647,6 @@ writes it. The orders-worker rows are the template.
   `low_rating_with_comment`.
 - Module map: §3 replaces the three A-1 API rows with the worker rows; §4 gains `LowRatingSubmitted` and
   `LowRatingReceived`'s emitter moves to worker `customers`; the §6 machine block deletes the five `# Planned E:`
-  comments and adds `# Planned` comments for the worker reads; `docs/module-map.yaml` is regenerated. Spec 060's
-  D-B9, FR-B13, FR-B14, FR-B15, BR-B4 and the 61-x sub-PR rows are updated by the same docs PR (61-1a); its gates
+  comments and adds `# Planned` comments for the worker reads. Those comments leave generated
+  `docs/module-map.yaml` unchanged. Spec 060's D-B9, FR-B13, FR-B14, FR-B15, BR-B4 and the 61-x sub-PR rows are updated by the same docs PR (61-1a); its gates
   are `pnpm format:check`, `pnpm lint:docs` and `pnpm module-map:check`, with no source file change.

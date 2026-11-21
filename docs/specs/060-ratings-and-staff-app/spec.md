@@ -646,8 +646,11 @@ remain unsent, or whether a separately specified recovery policy is needed insid
 
 ### Story B4 — Low rating and averages (row 61, P1/P2)
 
-- **RT-22** A 2-star rating with the alert on emits one `LowRatingReceived` with recipients and channels from the rule
-  (the `LOW_RATING` rule of row 62, whose default is RT-Q8's: on, in-app, the four managers in the visit branch's scope); 3 stars emits nothing; the alert off emits nothing.
+- **RT-22** A 2-star rating with the alert on emits `LowRatingReceived` with recipients and channels from the rule,
+  one event per nonempty group in each template partition (FR-B13). The default `LOW_RATING` rule of row 62 is
+  RT-Q8's: on, in-app, the four managers in the visit branch's scope.
+  A 3-star rating appends no `LowRatingSubmitted`. With the alert off, a 2-star rating still appends `LowRatingSubmitted`
+  and the worker records a terminal zero-recipient decision (BR-B5) without emitting `LowRatingReceived`.
 - **RT-23** RT-Q9 (decided): stars, branch, date, performers' first names, the customer's name and last 3 phone digits; the
   comment only in the in-app notice, WhatsApp/email carry «فيه تقييم منخفض، افتح PosPay» only; never the phone beyond the last 3 digits (S-12), never the token.
 - **RT-24** Both snapshotted performers get the rating; سارة's average is the mean of her attributed ratings in the
