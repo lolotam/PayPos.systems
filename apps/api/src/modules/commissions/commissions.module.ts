@@ -7,6 +7,7 @@ import { CommissionPlanVersionsController } from './http/commission-plan-version
 import { CommissionPlanEmployeesController } from './http/commission-plan-employees.controller.ts';
 import { CommissionServiceOverridesController } from './http/commission-service-overrides.controller.ts';
 import { CommissionOverrideServicesController } from './http/commission-override-services.controller.ts';
+import { CommissionBlockedCorrectionsController } from './http/commission-blocked-corrections.controller.ts';
 import {
   createCommissionServiceOverrideListReaders,
   type CommissionServiceOverrideListReadProviders,
@@ -24,6 +25,11 @@ import {
   createCommissionPlanEmployeeList,
   type CommissionPlanEmployeeListReads,
 } from './queries/commission-plan-employees.query.ts';
+import {
+  COMMISSION_BLOCKED_CORRECTION_LIST,
+  createCommissionBlockedCorrectionList,
+  type CommissionBlockedCorrectionListReads,
+} from './queries/commission-blocked-corrections.query.ts';
 import { CreateCommissionPlanVersionUseCase } from './use-cases/create-commission-plan-version/create-commission-plan-version.usecase.ts';
 import { CreateCommissionServiceOverrideUseCase } from './use-cases/create-commission-service-override/create-commission-service-override.usecase.ts';
 
@@ -32,6 +38,7 @@ export const commissionsControllers = [
   CommissionServiceOverridesController,
   CommissionOverrideServicesController,
   CommissionPlanEmployeesController,
+  CommissionBlockedCorrectionsController,
 ];
 
 /**
@@ -48,6 +55,7 @@ export function commissionsProviders(
   readers: CommissionModuleReaders,
   listReads: CommissionServiceOverrideListReadProviders,
   employeeListReads: CommissionPlanEmployeeListReads,
+  blockedCorrectionListReads: CommissionBlockedCorrectionListReads,
   clock: Clock = systemClock,
 ): Provider[] {
   // الفحص البنيوي هنا: شكل المهايئ لازم يطابق مصنع القراءة بجوار الاستعلام.
@@ -83,6 +91,13 @@ export function commissionsProviders(
         database === undefined
           ? null
           : createCommissionPlanEmployeeList(database, employeeListReads),
+    },
+    {
+      provide: COMMISSION_BLOCKED_CORRECTION_LIST,
+      useValue:
+        database === undefined
+          ? null
+          : createCommissionBlockedCorrectionList(database, blockedCorrectionListReads),
     },
   ];
 }
