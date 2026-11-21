@@ -1,4 +1,5 @@
-﻿import { t } from '@pospay/i18n';
+import { customerPackageDetail } from '@pospay/contracts';
+import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -291,7 +292,11 @@ it('switching to another cached entitlement opens its detail with no stale dialo
       response: { status: 200 },
     });
   });
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  client.setQueryData(
+    ['customer-package-detail', companyId, businessId, branchId, 'user', customerId, packageC],
+    customerPackageDetail.parse(pageDetail(packageC, 'Silver', true)),
+  );
   const view = renderPageWith(`?package=${packageA}`, client);
   await screen.findByText('Gold');
   fireEvent.click(screen.getByRole('button', { name: t('en', 'customerPackages.extend') }));
@@ -305,10 +310,7 @@ it('switching to another cached entitlement opens its detail with no stale dialo
       </DirectionProvider>
     </QueryClientProvider>,
   );
-  await screen.findByText('Silver');
-  // انتظار تفصيل الباقة الجديدة نفسه (زر التمديد دليل تحميلها)، مش كارت القايمة.
-  await screen.findByRole('button', { name: t('en', 'customerPackages.extend') });
+  await screen.findByRole('heading', { name: 'Silver' });
   expect(screen.queryByRole('dialog', { name: t('en', 'packageExtension.dialogTitle') })).toBeNull();
-  expect(screen.getAllByRole('button', { name: t('en', 'customerPackages.extend') }).length).toBeGreaterThan(0);
   view.unmount();
 });

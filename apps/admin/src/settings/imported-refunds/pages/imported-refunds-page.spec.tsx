@@ -188,7 +188,7 @@ it('a changed scope refetches its own value and ignores late answers of the prev
   const first = renderPage();
   // تغيير النشاط في الـ workspace بيعمل remount بمفتاح كويري جديد: قيمة النشاط الجديد هي المعروضة،
   // ورد النشاط القديم المتأخر ما بيلمسش المفتاح الجديد.
-  const second = renderPage(otherBusiness);
+  const second = renderPage(otherBusiness, first.client);
   const control = await screen.findByRole('switch', { name: label });
   expect((control as HTMLInputElement).checked).toBe(true);
   first.view.unmount();

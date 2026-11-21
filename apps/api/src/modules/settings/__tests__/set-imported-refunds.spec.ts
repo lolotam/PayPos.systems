@@ -212,15 +212,17 @@ it('IRS-04b: every refusal scenario refuses both routes and leaves the value and
 });
 
 it('IRS-04c: another company\'s business refuses both routes and writes nothing there', async () => {
-  // المحرر معندوش عضوية في الشركة التانية، فالحارس بيرفض قبل أي query على النشاط الغريب.
-  expect((await get(foreignBusiness, f.managerCookie, f.otherCompany)).status).toBe(403);
-  const write = await put(
-    { imported_refunds_enabled: true },
-    foreignBusiness,
-    f.managerCookie,
-    f.otherCompany,
-  );
-  expect(write.statusCode).toBe(403);
+  // نثبت الرفض سواء اختار المحرر الشركة التانية أو قدم نشاطها وهو داخل شركته.
+  for (const company of [f.otherCompany, f.company]) {
+    expect((await get(foreignBusiness, f.managerCookie, company)).status).toBe(403);
+    const write = await put(
+      { imported_refunds_enabled: true },
+      foreignBusiness,
+      f.managerCookie,
+      company,
+    );
+    expect(write.statusCode).toBe(403);
+  }
   expect(
     await f.h.owner`SELECT count(*)::int AS rows FROM business_settings
       WHERE company_id = ${f.otherCompany} AND business_id = ${foreignBusiness}`,
