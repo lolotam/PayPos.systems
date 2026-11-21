@@ -14,10 +14,8 @@ export { serviceNameEn, serviceNameAr };
 
 // المال بيتنقل كنص بـ 3 خانات عشرية دايماً؛ رقم JS كان بيضيّع فلوس (CLAUDE.md §5).
 // نفس حد salaryAmount: numeric(14,3) يعني 11 خانة صحيحة على الأكثر.
-export const servicePrice = z
-  .string()
-  .regex(/^(0|[1-9]\d{0,10})\.\d{3}$/)
-  .meta({ id: 'ServicePrice' });
+export const servicePriceValue = z.string().regex(/^(0|[1-9]\d{0,10})\.\d{3}$/);
+export const servicePrice = servicePriceValue.meta({ id: 'ServicePrice' });
 
 // نسبة العمولة بوحدات bps (0–10000) مش وحدات Percentage (0–100 بمقياس)؛ والمبلغ الثابت بالفلس كنص.
 const followPlan = { kind: z.literal('FOLLOW_PLAN') };
@@ -41,12 +39,10 @@ export const serviceCommissionRuleView = z.discriminatedUnion('kind', [
 ]);
 
 // مدة الخدمة بالدقائق الكاملة: من 1 إلى 600 دقيقة (SI-Q6)، والقيمة الفارغة معناها بلا مدة.
-export const serviceDurationMinutes = z
-  .number()
-  .int()
-  .min(1)
-  .max(600)
-  .meta({ id: 'ServiceDurationMinutes' });
+export const serviceDurationMinutesValue = z.number().int().min(1).max(600);
+export const serviceDurationMinutes = serviceDurationMinutesValue.meta({
+  id: 'ServiceDurationMinutes',
+});
 
 // تسمية تصنيف الخدمة كما بتظهر في القوائم: الاسمان ووقت الإغلاق وقت التصنيف مقفول.
 export const serviceCategoryLabel = responseObject({

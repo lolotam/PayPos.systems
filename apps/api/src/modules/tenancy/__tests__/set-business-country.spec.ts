@@ -1,5 +1,4 @@
 import { errorEnvelope } from '@pospay/contracts';
-import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
@@ -67,7 +66,11 @@ describe('the country change route (B-6/B-7)', () => {
       cookie: owner,
       company: f.company,
       key: 'country-34p3-business',
-      body: { vertical_type: 'salon', name_en: 'Country Salon', settings: { features: ['tables'], custom_key: 7 } },
+      body: {
+        vertical_type: 'salon',
+        name_en: 'Country Salon',
+        settings: { features: ['tables'], custom_key: 7 },
+      },
     });
     expect(created.status).toBe(201);
     const id = created.body['id'] as string;
@@ -80,7 +83,9 @@ describe('the country change route (B-6/B-7)', () => {
       custom_key: 7,
       country: 'KW',
     });
-    expect(await countryAudits(id)).toEqual([{ before: { country: null }, after: { country: 'KW' } }]);
+    expect(await countryAudits(id)).toEqual([
+      { before: { country: null }, after: { country: 'KW' } },
+    ]);
   });
 
   it('sets the first value on the fixture business and audits unset before it', async () => {
@@ -88,7 +93,9 @@ describe('the country change route (B-6/B-7)', () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ business_id: business, country: 'KW' });
     expect(await settingsOf()).toMatchObject({ country: 'KW' });
-    expect(await countryAudits()).toEqual([{ before: { country: null }, after: { country: 'KW' } }]);
+    expect(await countryAudits()).toEqual([
+      { before: { country: null }, after: { country: 'KW' } },
+    ]);
   });
 
   it('changes the value and audits the country before and after only', async () => {
@@ -108,9 +115,9 @@ describe('the country change route (B-6/B-7)', () => {
     expect(await countryAudits()).toHaveLength(2);
     expect(await settingsOf()).toMatchObject({ country: 'SA' });
     const newStatements = f.h.calls.statements.slice(statementsBefore);
-    expect(
-      newStatements.filter((statement) => /UPDATE\s+businesses/i.test(statement.sql)),
-    ).toEqual([]);
+    expect(newStatements.filter((statement) => /UPDATE\s+businesses/i.test(statement.sql))).toEqual(
+      [],
+    );
   });
 
   it('reaches a second business of the same company independently', async () => {
@@ -130,7 +137,12 @@ describe('the route refusals (B-7, B-8)', () => {
 
   it('answers unknown and foreign businesses with the same 403 envelope and writes nothing', async () => {
     const foreignBefore = await settingsOf(foreignBusiness, f.otherCompany);
-    const unknown = await put({ country: 'KW' }, owner, f.company, '01920000-0000-7000-8000-00000000ffff');
+    const unknown = await put(
+      { country: 'KW' },
+      owner,
+      f.company,
+      '01920000-0000-7000-8000-00000000ffff',
+    );
     const foreign = await put({ country: 'KW' }, owner, f.company, foreignBusiness);
     expect(unknown.status).toBe(403);
     expect(foreign.status).toBe(403);
@@ -152,22 +164,12 @@ describe('the route refusals (B-7, B-8)', () => {
 
 describe('a real authenticated Device principal (403)', () => {
   it('refuses a Device principal paired through the real device routes', async (ctx) => {
-    // مجسّ وجود Redis معزول: دون اختبار مسار الأجهزة الفعلي محلياً، وCI بـ Redis الحقيقي يشغّله كاملاً.
-    const probe = new Redis(process.env['REDIS_URL'] ?? 'redis://127.0.0.1:6379', {
-      lazyConnect: true,
-      connectTimeout: 1_000,
-      retryStrategy: () => null,
-      maxRetriesPerRequest: 1,
-    });
     try {
-      await probe.connect();
-      await probe.ping();
-    } catch {
-      ctx.skip();
-      console.log('device fixture skipped locally: no isolated Redis reachable for the device routes');
+      await f.h.redis.ping();
+    } catch (error) {
+      if (process.env['CI'] === 'true') throw error;
+      ctx.skip('the local test lane has no Redis for the device routes');
       return;
-    } finally {
-      probe.disconnect();
     }
     // الأداة الحقيقية: رمز اقتران جهاز مصادق عليه من مسار الأجهزة الفعلي، مش كوكي عضوية معاد تسميتها.
     const code = await f.h.send('POST', `/v1/branches/${f.branch}/devices/pairing-code`, {
@@ -181,7 +183,11 @@ describe('a real authenticated Device principal (403)', () => {
       payload: { pairing_code: code.body['code'], label: 'Synthetic country refusal' },
     });
     expect(registered.statusCode).toBe(201);
-    const device = registered.json<{ company_id: string; device_id: string; claim_secret: string }>();
+    const device = registered.json<{
+      company_id: string;
+      device_id: string;
+      claim_secret: string;
+    }>();
     const approved = await f.h.send(
       'POST',
       `/v1/branches/${f.branch}/devices/${device.device_id}/approve`,
@@ -224,7 +230,8 @@ describe('the sibling refusal with a business-only holder (OQ-2 scope)', () => {
     expect(errorEnvelope.parse(sibling.body).code).toBe('FORBIDDEN');
     expect(await settingsOf(otherBusiness)).toMatchObject({ country: 'OM' });
     expect(await countryAudits(otherBusiness)).toHaveLength(1);
-    await f.h.owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id=${granted}`;
+    await f.h
+      .owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id=${granted}`;
   });
 });
 
@@ -271,7 +278,12 @@ describe('audit-failure rollback (BD-05 pattern)', () => {
     };
     const useCase = new SetBusinessCountry(transactions);
     await expect(
-      useCase.execute({ companyId: f.company, userId: f.userId, businessId: business, country: requested }),
+      useCase.execute({
+        companyId: f.company,
+        userId: f.userId,
+        businessId: business,
+        country: requested,
+      }),
     ).rejects.toThrow('Synthetic audit failure');
     expect(await settingsOf()).toEqual(before);
     expect(await countryAudits()).toHaveLength(auditCount);
@@ -329,7 +341,11 @@ describe('the create path (B-5, OQ-2, manager disposition 2026-11-21)', () => {
         cookie: owner,
         company: f.company,
         key: `country-34p3-create-${attempted}`,
-        body: { vertical_type: 'salon', name_en: `Create ${attempted}`, settings: { country: attempted } },
+        body: {
+          vertical_type: 'salon',
+          name_en: `Create ${attempted}`,
+          settings: { country: attempted },
+        },
       });
       expect(res.status, attempted).toBe(400);
     }
@@ -340,7 +356,11 @@ describe('the create path (B-5, OQ-2, manager disposition 2026-11-21)', () => {
       cookie: owner,
       company: f.company,
       key: 'country-34p3-create-absent',
-      body: { vertical_type: 'salon', name_en: 'No Country', settings: { features: ['tables'], custom_key: 7 } },
+      body: {
+        vertical_type: 'salon',
+        name_en: 'No Country',
+        settings: { features: ['tables'], custom_key: 7 },
+      },
     });
     expect(res.status).toBe(201);
     const id = res.body['id'] as string;

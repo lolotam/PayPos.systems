@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import committedDocument from '../../openapi/openapi.json' with { type: 'json' };
-import { serviceImportRow } from './service-import.js';
+import { serviceImportRow, serviceImportStatus } from './service-import.js';
 
 // أي evidence على الوثيقة المولّدة نفسها: سلوك الـ runtime والسلوك المنشور معاً، ملف واحد قابل للمراجعة.
 
@@ -21,23 +21,11 @@ const baseRow = {
 
 describe('emitted cursor schema', () => {
   it('uses the same cursor schema for the preview cursor and the rows-page cursor', () => {
-    const committed = committedDocument as {
-      components: {
-        schemas: {
-          ServiceImportPreview: { properties: { next_cursor: object } };
-          ServiceImportRowsPage: { properties: { next_cursor: object } };
-          ServiceImportRowsQuery: { properties: { cursor: object } };
-        };
-      };
-    };
-    const preview = committed.components.schemas.ServiceImportPreview.properties.next_cursor;
-    const page = committed.components.schemas.ServiceImportRowsPage.properties.next_cursor;
-    const query = committed.components.schemas.ServiceImportRowsQuery.properties.cursor;
-    // النمط المعتمد لمرجع مُسمّى قابل للإلغاء: nullable مع allOf، نفس سابق Service.category في العميل.
-    expect(page).toEqual({
-      nullable: true,
-      allOf: [{ $ref: '#/components/schemas/ServiceImportRowsCursor' }],
-    });
+    const schemas = committedDocument.components.schemas;
+    const preview = schemas.ServiceImportPreview.properties.next_cursor;
+    const page = schemas.ServiceImportRowsPage.properties.next_cursor;
+    const query = schemas.ServiceImportRowsQuery.properties.cursor;
+    expect(page).toEqual({ ...schemas.ServiceImportRowsCursor, nullable: true });
     expect(query).toMatchObject({
       allOf: [{ $ref: '#/components/schemas/ServiceImportRowsCursor' }],
     });
@@ -46,7 +34,31 @@ describe('emitted cursor schema', () => {
   });
 });
 
-describe('emitted commission_value schema', () => {
+describe('emitted nullable import fields', () => {
+  it('declares nullable duration and status errors where OpenAPI 3.0 permits null', () => {
+    const schemas = committedDocument.components.schemas;
+    expect(schemas.ServiceImportRow.properties.duration_minutes).toEqual({
+      type: 'integer',
+      minimum: 1,
+      maximum: 600,
+      nullable: true,
+    });
+    expect(schemas.ServiceImportStatus.properties.error_code).toMatchObject({
+      type: 'string',
+      nullable: true,
+      enum: expect.arrayContaining([null, 'IMPORT_COMMIT_FAILED']),
+    });
+    expect(serviceImportRow.safeParse(baseRow).success).toBe(true);
+    expect(
+      serviceImportStatus.safeParse({
+        preview_id: '01920000-0000-7000-8000-000000000001',
+        status: 'ready',
+        created_count: 0,
+        error_code: null,
+      }).success,
+    ).toBe(true);
+  });
+
   it('emits nullability on the union member, not on a nullable anyOf ref', () => {
     const committed = committedDocument as {
       components: {
@@ -64,10 +76,12 @@ describe('emitted commission_value schema', () => {
   });
 });
 
-describe('runtime parity of the inline commission string (no drift from ServicePrice)', () => {
+describe('runtime parity of the commission string with ServicePrice', () => {
   it('accepts and refuses the same values ServicePrice accepts and refuses', () => {
     expect(serviceImportRow.safeParse({ ...baseRow, commission_value: null }).success).toBe(true);
-    expect(serviceImportRow.safeParse({ ...baseRow, commission_value: '12.500' }).success).toBe(false);
+    expect(serviceImportRow.safeParse({ ...baseRow, commission_value: '12.500' }).success).toBe(
+      false,
+    );
     expect(
       serviceImportRow.safeParse({
         ...baseRow,

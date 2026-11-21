@@ -4,8 +4,9 @@ import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import {
   serviceCommissionRuleView,
-  serviceDurationMinutes,
+  serviceDurationMinutesValue,
   servicePrice,
+  servicePriceValue,
   serviceNameAr,
   serviceNameEn,
 } from './service.js';
@@ -44,18 +45,16 @@ export const serviceImportErrorCode = z
   .meta({ id: 'ServiceImportErrorCode' });
 
 export const serviceImportRowError = responseObject({
-    row: z.number().int().min(2),
-    column: serviceImportColumn,
-    code: serviceImportErrorCode,
-  })
-  .meta({ id: 'ServiceImportRowError' });
+  row: z.number().int().min(2),
+  column: serviceImportColumn,
+  code: serviceImportErrorCode,
+}).meta({ id: 'ServiceImportRowError' });
 
 export const serviceImportTemplate = responseObject({
-    file_name: z.string().min(1).max(255),
-    content_type: z.literal('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
-    content_base64: z.string().min(1),
-  })
-  .meta({ id: 'ServiceImportTemplate' });
+  file_name: z.string().min(1).max(255),
+  content_type: z.literal('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
+  content_base64: z.string().min(1),
+}).meta({ id: 'ServiceImportTemplate' });
 
 export const previewServiceImportInput = z
   .strictObject({ file_id: id })
@@ -63,55 +62,62 @@ export const previewServiceImportInput = z
 
 // الصف المطبّع (D-9/FR-014): المال نص ثلاثي الخانات وقيمة القاعدة عدد صحيح bps أو نص مبلغ، فلا رقم جافاسكربت يحمل مالاً،
 // والقيمة بترتبط بنوع القاعدة وقت التحقق نفسه: PCT بنفس الـ bps، وFIXED بنفس النص، وFOLLOW_PLAN وZERO بلا قيمة.
-// الإلغاء على فرع العدد الصحيح جوه الاتحاد، ونص المبلغ مكتوب بنمطه الحرفي بدل $ref معرّى داخل anyOf —
-// التوليفة الوحيدة اللي كان عميل openapi-typescript بيسقطها فيصير باقي حقول الصف مفقودة من العميل المولّد.
-// اختبار العقد بيثبت أن النمط المضمن يقبل ويرفض مثل ServicePrice بالظبط، فما فيش انحراف بين النسختين.
-const servicePriceInline = z.string().regex(/^(0|[1-9]\d{0,10})\.\d{3}$/);
+// المدة والقيمة تستخدمان السكيما المشتركة من غير مرجع في الحقول القابلة لـ null، لتوليد OpenAPI 3.0.
 export const serviceImportRow = responseObject({
-    row: z.number().int().min(2),
-    name_en: serviceNameEn,
-    name_ar: serviceNameAr.nullable(),
-    price: servicePrice,
-    duration_minutes: serviceDurationMinutes.nullable(),
-    category_id: id.nullable(),
-    category_name_en: z.string().nullable(),
-    commission_rule: serviceCommissionRuleView,
-    commission_value: z.union([z.number().int().min(0).max(10_000).nullable(), servicePriceInline]),
-    commission_rule_defaulted: z.boolean(),
-    counts_toward_threshold: z.boolean(),
-  })
+  row: z.number().int().min(2),
+  name_en: serviceNameEn,
+  name_ar: serviceNameAr.nullable(),
+  price: servicePrice,
+  duration_minutes: serviceDurationMinutesValue.nullable(),
+  category_id: id.nullable(),
+  category_name_en: z.string().nullable(),
+  commission_rule: serviceCommissionRuleView,
+  commission_value: z.union([z.number().int().min(0).max(10_000).nullable(), servicePriceValue]),
+  commission_rule_defaulted: z.boolean(),
+  counts_toward_threshold: z.boolean(),
+})
   .superRefine((row, ctx) => {
     const kind = row.commission_rule.kind;
     const value = row.commission_value;
     if (kind === 'FOLLOW_PLAN' || kind === 'ZERO') {
-      if (value !== null) ctx.addIssue({ code: 'custom', path: ['commission_value'], message: 'rule carries no value' });
+      if (value !== null)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['commission_value'],
+          message: 'rule carries no value',
+        });
       return;
     }
     if (value === null || value !== row.commission_rule.value)
-      ctx.addIssue({ code: 'custom', path: ['commission_value'], message: 'value does not match the rule' });
+      ctx.addIssue({
+        code: 'custom',
+        path: ['commission_value'],
+        message: 'value does not match the rule',
+      });
   })
   .meta({ id: 'ServiceImportRow' });
 
 // مؤشر صف الورقة واحد للطلب والرد: نص عشري قانوني للصف الأصلي الموجب من 2 فأكثر، بلا UUID —
 // لأن مؤشر الاستيراد هو رقم الصف في المصنف مش معرّف قاعدة بيانات، وحدّه الأعلى حدّ صفوف Excel نفسه.
-export const serviceImportRowsCursor = z
+const serviceImportRowsCursorValue = z
   .string()
-  .regex(/^[1-9][0-9]*$/)
-  .refine((value) => {
-    const row = Number(value);
-    return Number.isSafeInteger(row) && row >= 2 && row <= 1_048_576;
-  })
-  .meta({ id: 'ServiceImportRowsCursor' });
+  .max(7)
+  .regex(/^(?:[2-9]|[1-9][0-9]+)$/)
+  .refine((value) => Number(value) <= 1_048_576)
+  .describe('Original Excel row number from 2 through 1048576.');
+export const serviceImportRowsCursor = serviceImportRowsCursorValue.meta({
+  id: 'ServiceImportRowsCursor',
+});
+const nextServiceImportRowsCursor = serviceImportRowsCursorValue.nullable();
 
 export const serviceImportPreview = responseObject({
-    preview_id: id,
-    row_count: z.number().int().min(0).max(500),
-    error_count: z.number().int().min(0),
-    errors: z.array(serviceImportRowError).max(5000),
-    rows: z.array(serviceImportRow).max(100),
-    next_cursor: serviceImportRowsCursor.nullable(),
-  })
-  .meta({ id: 'ServiceImportPreview' });
+  preview_id: id,
+  row_count: z.number().int().min(0).max(500),
+  error_count: z.number().int().min(0),
+  errors: z.array(serviceImportRowError).max(5000),
+  rows: z.array(serviceImportRow).max(100),
+  next_cursor: nextServiceImportRowsCursor,
+}).meta({ id: 'ServiceImportPreview' });
 
 export const serviceImportRowsQuery = z
   .strictObject({
@@ -121,10 +127,9 @@ export const serviceImportRowsQuery = z
   .meta({ id: 'ServiceImportRowsQuery' });
 
 export const serviceImportRowsPage = responseObject({
-    items: z.array(serviceImportRow),
-    next_cursor: serviceImportRowsCursor.nullable(),
-  })
-  .meta({ id: 'ServiceImportRowsPage' });
+  items: z.array(serviceImportRow),
+  next_cursor: nextServiceImportRowsCursor,
+}).meta({ id: 'ServiceImportRowsPage' });
 
 export const commitServiceImportInput = z
   .strictObject({ preview_id: id })
@@ -139,24 +144,27 @@ export const serviceImportCommit = z
   .meta({ id: 'ServiceImportCommit' });
 
 // الطلب يقبل مرة واحدة؛ النتيجة النهائية تقرأ من حالة المعاينة بعد تنفيذ الوظيفة.
-export const serviceImportCommitAccepted = responseObject({ preview_id: id })
-  .meta({ id: 'ServiceImportCommitAccepted' });
+export const serviceImportCommitAccepted = responseObject({ preview_id: id }).meta({
+  id: 'ServiceImportCommitAccepted',
+});
+
+const serviceImportStatusErrorCodes = [
+  'IMPORT_SERVICE_EXISTS',
+  'IMPORT_CATEGORY_NOT_FOUND',
+  'IMPORT_PREVIEW_EXPIRED',
+  'IMPORT_PREVIEW_HAS_ERRORS',
+  'IMPORT_COMMIT_FAILED',
+] as const;
 
 export const serviceImportStatus = responseObject({
-    preview_id: id,
-    status: z.enum(['ready', 'commit_requested', 'committed', 'failed']),
-    created_count: z.number().int().min(0).max(500),
-    error_code: z
-      .enum([
-        'IMPORT_SERVICE_EXISTS',
-        'IMPORT_CATEGORY_NOT_FOUND',
-        'IMPORT_PREVIEW_EXPIRED',
-        'IMPORT_PREVIEW_HAS_ERRORS',
-        'IMPORT_COMMIT_FAILED',
-      ])
-      .nullable(),
-  })
-  .meta({ id: 'ServiceImportStatus' });
+  preview_id: id,
+  status: z.enum(['ready', 'commit_requested', 'committed', 'failed']),
+  created_count: z.number().int().min(0).max(500),
+  error_code: z
+    .enum(serviceImportStatusErrorCodes)
+    .nullable()
+    .meta({ enum: [...serviceImportStatusErrorCodes, null] }),
+}).meta({ id: 'ServiceImportStatus' });
 
 // سكيما الاستيراد بلا مسارات: كل مسار بيسجله الـ PR اللي بيفتحه (32b-2 و32b-5)، ومسار منشور بلا route بيجاوب 404.
 export const serviceImportSchemas = [

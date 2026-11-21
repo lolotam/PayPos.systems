@@ -5767,7 +5767,7 @@ export interface components {
             name_en: string;
             name_ar: string | null;
             price: components["schemas"]["ServicePrice"];
-            duration_minutes: components["schemas"]["ServiceDurationMinutes"] | null;
+            duration_minutes: number | null;
             /** Format: uuid */
             category_id: string | null;
             category_name_en: string | null;
@@ -5797,8 +5797,10 @@ export interface components {
             error_count: number;
             errors: components["schemas"]["ServiceImportRowError"][];
             rows: components["schemas"]["ServiceImportRow"][];
-            next_cursor: components["schemas"]["ServiceImportRowsCursor"] | null;
+            /** @description Original Excel row number from 2 through 1048576. */
+            next_cursor: string | null;
         };
+        /** @description Original Excel row number from 2 through 1048576. */
         ServiceImportRowsCursor: string;
         ServiceImportRowsQuery: {
             cursor?: components["schemas"]["ServiceImportRowsCursor"];
@@ -5807,7 +5809,8 @@ export interface components {
         };
         ServiceImportRowsPage: {
             items: components["schemas"]["ServiceImportRow"][];
-            next_cursor: components["schemas"]["ServiceImportRowsCursor"] | null;
+            /** @description Original Excel row number from 2 through 1048576. */
+            next_cursor: string | null;
         };
         CommitServiceImportInput: {
             /** Format: uuid */

@@ -30743,11 +30743,9 @@
           },
           "duration_minutes": {
             "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ServiceDurationMinutes"
-              }
-            ]
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 600
           },
           "category_id": {
             "nullable": true,
@@ -30898,11 +30896,10 @@
           },
           "next_cursor": {
             "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ServiceImportRowsCursor"
-              }
-            ]
+            "type": "string",
+            "maxLength": 7,
+            "pattern": "^(?:[2-9]|[1-9][0-9]+)$",
+            "description": "Original Excel row number from 2 through 1048576."
           }
         },
         "required": [
@@ -30916,7 +30913,9 @@
       },
       "ServiceImportRowsCursor": {
         "type": "string",
-        "pattern": "^[1-9][0-9]*$"
+        "maxLength": 7,
+        "pattern": "^(?:[2-9]|[1-9][0-9]+)$",
+        "description": "Original Excel row number from 2 through 1048576."
       },
       "ServiceImportRowsQuery": {
         "type": "object",
@@ -30948,11 +30947,10 @@
           },
           "next_cursor": {
             "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/ServiceImportRowsCursor"
-              }
-            ]
+            "type": "string",
+            "maxLength": 7,
+            "pattern": "^(?:[2-9]|[1-9][0-9]+)$",
+            "description": "Original Excel row number from 2 through 1048576."
           }
         },
         "required": [
@@ -31041,14 +31039,15 @@
           },
           "error_code": {
             "nullable": true,
-            "type": "string",
             "enum": [
               "IMPORT_SERVICE_EXISTS",
               "IMPORT_CATEGORY_NOT_FOUND",
               "IMPORT_PREVIEW_EXPIRED",
               "IMPORT_PREVIEW_HAS_ERRORS",
-              "IMPORT_COMMIT_FAILED"
-            ]
+              "IMPORT_COMMIT_FAILED",
+              null
+            ],
+            "type": "string"
           }
         },
         "required": [
