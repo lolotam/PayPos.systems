@@ -7,7 +7,8 @@ import { PageHeader } from '@pospay/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
-import { CommissionPlansBoard } from '../ui/commission-plans-board';
+import { CommissionPlanSection } from '../ui/commission-plan-section';
+import { CommissionPlansBoard, type PlanBoardSelection } from '../ui/commission-plans-board';
 import { CommissionPlansDenied } from '../ui/commission-plans-denied';
 
 /**
@@ -31,13 +32,16 @@ export function CommissionPlansPage({
   useEffect(() => {
     if (access.denied) memory.current.clear();
   }, [access.denied, memory]);
+  const renderSection = (selection: PlanBoardSelection) => (
+    <CommissionPlanSection key={selection.employee.id} scope={scope} {...selection} memory={memory} />
+  );
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title={t(locale, 'commissionPlanBuilder.pageTitle')} />
       {access.denied ? (
         <CommissionPlansDenied onRetry={() => restorePlanAccess(client, scope)} />
       ) : (
-        <CommissionPlansBoard scope={scope} memory={memory} />
+        <CommissionPlansBoard scope={scope} renderSection={renderSection} />
       )}
     </div>
   );
