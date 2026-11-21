@@ -1,4 +1,4 @@
-import { createDatabase, type ClaimedEvent, type Database } from '@pospay/db';
+import { createDatabase, type Database } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import postgres from 'postgres';
@@ -25,12 +25,14 @@ import { createCommissionSaleProjectionScope } from '../persistence/commission-s
 import { ProjectPackageSale } from '../use-cases/project-package-sale/project-package-sale.ts';
 import { onCommissionInputEvent } from '../events/handlers/on-commission-input-event.handler.ts';
 import type { CommissionInputUseCases } from '../events/handlers/on-commission-input-event.handler.ts';
+import { recordCommissionFailureCodes } from '../index.ts';
 
 let testDb: TestDatabase;
 let owner: postgres.Sql;
 let db: Database;
 let consumer: OutboxConsumer;
-let deliver: (event: ClaimedEvent) => Promise<unknown>;
+let deliver: ReturnType<typeof createDeliverer>;
+const failures = new Map<string, string>();
 const ids = systemUuidV7();
 const { A } = COMMISSION_LINE_TENANTS;
 const clock = { now: () => new Date('2026-12-05T09:00:00Z') };
@@ -45,7 +47,7 @@ beforeAll(async () => {
     clock,
     businessTimeZone: fakeBusinessTimeZone(A.business),
   });
-  deliver = createDeliverer(db, [consumer], createLogger('silent'), {
+  deliver = createDeliverer(db, [recordCommissionFailureCodes(consumer, failures)], createLogger('silent'), {
     knownEventTypes: consumer.eventTypes,
   });
 });
@@ -57,6 +59,7 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  failures.clear();
   await owner`DELETE FROM commission_blocked_corrections`;
   await owner`DELETE FROM commission_corrections`;
   await owner`DELETE FROM commission_period_generations`;
@@ -142,7 +145,8 @@ it('returns a reviewed month to draft in the same transaction (D-5)', async () =
 it('refuses an approved month before any write: no row, no mark, no correction, no block', async () => {
   await walkCommissionStatement(db, { tenant: A, period: '2026-11', ids, to: 'APPROVED' });
   const event = saleEvent(SALE);
-  await deliver(event);
+  expect(await deliver(event)).toMatchObject({ delivered: false });
+  expect(failures.get(event.id)).toBe('COMMISSION_PERIOD_CLOSED');
   expect(await saleRow(SALE)).toHaveLength(0);
   expect((await marks()).length).toBe(0);
   const corrections = await owner`SELECT 1 FROM commission_corrections`;
@@ -173,7 +177,8 @@ it.each([
     aggregateId: entry.aggregateId,
     aggregateType: entry.aggregateType,
   });
-  await deliver(event);
+  expect(await deliver(event)).toMatchObject({ delivered: false });
+  expect(failures.get(event.id)).toBe('COMMISSION_SALE_INPUT_INVALID');
   expect(await saleRow(SALE)).toHaveLength(0);
   expect((await marks()).length).toBe(0);
 });

@@ -419,6 +419,10 @@ six-type replay (owner answer CS-Q51, 2026-11-21: the replay projects and marks,
 4. Run the 50-3c coverage report. Require `COVERED`, `sales.missing.total = 0`, `sales.stale.total = 0`, and no
    `PackageSaleChanged` under `unmarked` or `notHandled`. Migration 0234 creates an empty `commission_sales` table,
    and 0235 adds its indexes and access controls. The replay fills the table.
+5. If the replay returns `COMPLETE` but a sale is missing or stale, keep approval closed for that company.
+   Check the reported sale ID and source revision against the retained `PackageSaleChanged` events in the fixed
+   range. If no usable event covers the revision, stop repeating the same replay and escalate for source-history
+   investigation. Keep dispatcher state and consumption marks unchanged.
 
 ## Admin service-session browser tests
 
