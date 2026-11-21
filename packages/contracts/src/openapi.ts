@@ -1,4 +1,5 @@
 import { leaveHistoryPaths } from './staff/leave-history-openapi.js';
+import { businessCountryPaths } from './tenancy/business-openapi.js';
 import { leaveHistoryReportApiPaths } from './staff/leave-history-report-api-openapi.js';
 import { ownTipsPaths } from './orders/own-tips-openapi.js';
 import { personalBranchesPaths } from './staff/personal-branches-openapi.js';
@@ -57,6 +58,7 @@ const PATHS = {
   ...ownTipsPaths,
   ...ownAttendancePaths,
   ...personalBranchesPaths,
+  ...businessCountryPaths,
   ...packageImportPreviewPaths,
   ...packageExtensionPaths,
   ...packageSalePaths,

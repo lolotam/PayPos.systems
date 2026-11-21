@@ -262,6 +262,12 @@ services in 32b-1: the other-sheet row ceiling is the 65,536 budget over the col
 10 columns), and the budget must still exceed six times the services data grid (502×10) plus its own
 reference sheet. If that margin does not hold, 32b-1 stops and reports instead of raising the budget.
 
+> **Delivery note (2026-11-21, 32b-1 remainder).** The reader move already happened as the
+> `packages/import-workbooks` package (PR #871), so this section's "move to `apps/api/src/shared/import/`" wording
+> is satisfied by that package and the API compatibility facades; no separate `readHeaderRow` was built. The
+> services grid margin (30,120 of 65,536) is asserted in the 32b-1 domain tests; the template's reference sheets
+> remain a 32b-2 condition. See [the delivery spec](../specs/072-catalog-services-import/delivery-32b-1-34-pre-3-spec.md).
+
 The employee template stays in staff. It carries employee meaning, and the services template is its own
 workbook with its own reference sheet.
 

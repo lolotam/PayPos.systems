@@ -176,3 +176,11 @@ Known constraints:
 - **[PP-102.1]** 34-pre needs the single migration lane. The manager explicitly granted 34-pre-1 the lane at 19:15 Kuwait on 2026-11-01, after #762 merged as `1df1f24b` with migrations through 0197. After local proof, the root rebases latest main, numbers from 0198 (the slice ships two migrations, 0198 and 0199), runs `pnpm db:generate`, pushes with an explicit refspec and opens the PR. Notify the manager after merge to hand the lane to 42-2. Earlier wait instructions remain in the audit as history.
 - **[PP-102.1]** Customer fields and the customer UI remain separate deliveries, 34-pre-1 and 34-pre-2; 34-pre-3 names country settings between them in the session order. The reception form
   lives in `apps/admin/src/orders` and goes through the find-or-create use case of spec 010.
+
+**Delivery note (2026-11-21, 34-pre-3).** 34-pre-1 merged as PR #766. 34-pre-3 shipped in the shared delivery with
+32b-1 ([delivery-32b-1-34-pre-3-spec.md](../072-catalog-services-import/delivery-32b-1-34-pre-3-spec.md), owner
+steering «SAME PR SAME PLANE SAME SPEC», tier Medium under PP-212, OQ-2 (أ) and OQ-3 (أ) recorded in
+[owner-questions.ar.md](owner-questions.ar.md)). It needed no migration, no CHECK and no data step, so the
+conditional migration lane above never applied. Of 34b-1's adapter move, the xlsx reader half already shipped as the
+`packages/import-workbooks` package (PR #871, 47-1b); the object-bytes reader half stays with 34b-2. The country →
+calling-code reference and the customer port over the country reader stay with 34b-2.

@@ -1,0 +1,17 @@
+{
+  "comment": "مسارات مفتاح اسم الخدمة داخل الملف (A-9/A-11): كل زوج في same_key ينتج مفتاحاً واحداً بـ serviceImportNameKey على جافاسكربت، وdifferent_keys يثبت عدم وجود تطبيع يونيكود أو طيّ لهجات (الأصلي والمنفصل مفتاحان مختلفان). تطابق lower() في Postgres مع هذه المسارات شغل 32b-2/32b-3، والمسارات وحدها لا تثبت تكافؤ يونيكود عبر الحدود.",
+  "same_key": [
+    ["Hair Cut", "hair  cut"],
+    ["  صالون الرجال  ", "صالون\u00A0الرجال"],
+    ["Spa & Nail", "SPA & NAIL"],
+    ["İstanbul Spa", "i\u0307stanbul spa"],
+    ["Καφέ Λιστα", "καφέ λιστα"],
+    ["Q\u2009R\u2009Scan", "q r scan"],
+    ["Kids\u00A0Corner", "kids corner"],
+    ["Trim\tTabs", "trim tabs"]
+  ],
+  "different_keys": [
+    ["Café Coiffure", "Cafe\u0301 Coiffure"],
+    ["İZ Güzellik", "iz güzellik"]
+  ]
+}
