@@ -236,7 +236,7 @@ describe('navigation groupings and active route resolution', () => {
 
   it('resolves every live route and child route to exactly one active top-level entry in A, B and C', () => {
     const sampleRoutes = listAdminDashboardRoutes().map((route) =>
-      route.replace('[employeeId]', 'emp-123'),
+      route.replace('[employeeId]', 'emp-123').replace('[customerId]', 'customer-123'),
     );
 
     for (const pathname of sampleRoutes) {
@@ -252,6 +252,10 @@ describe('navigation groupings and active route resolution', () => {
     expect(resolveMenuEntryForPathname('/staff/emp-123/leave')?.id).toBe('employees');
     expect(resolveMenuEntryForPathname('/catalog/create')?.id).toBe('services');
     expect(resolveMenuEntryForPathname('/security/two-factor')?.id).toBe('sign-in-security');
+    expect(resolveMenuEntryForPathname('/orders/customers/customer-123/packages')?.id).toBe(
+      'sessions-day-list',
+    );
+    expect(resolveMenuEntryForPathname('/imported-refunds')?.id).toBe('imported-refunds');
     expect(findNavigationPageByPathname(soonPageHref('kitchen-screens'))?.id).toBe(
       'kitchen-screens',
     );
@@ -317,6 +321,7 @@ describe('navigation visibility and count boundaries', () => {
         ['business-identity', 'business-identity-access'],
         ['commission-overrides', 'commission-plans-access'],
         ['commission-plans', 'commission-plans-access'],
+        ['imported-refunds', 'imported-refunds-access'],
         ['leave-history-report', 'leave-report-access'],
         ['staff-app-columns', 'staff-app-columns-access'],
         ['staff-app-link', 'employee-app-link-access'],

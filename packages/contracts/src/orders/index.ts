@@ -36,3 +36,16 @@ export {
   packageImportCommitJob,
   type PackageImportCommitRequested,
 } from './package-import-commit.js';
+
+export {
+  extendPackageInput,
+  packageExtensionResponse,
+  type ExtendPackageInput,
+  type PackageExtensionResponse,
+} from './package-extension.js';
+export {
+  refundPackageInput,
+  packageRefundResponse,
+  type RefundPackageInput,
+  type PackageRefundResponse,
+} from './package-refund.js';

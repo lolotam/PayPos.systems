@@ -2542,6 +2542,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/settings/imported-refunds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Whether refunds of imported packages are enabled for the business. Requires manage:imported-refunds:business on that business; a caller without it, a settings-only holder, a device, another business and an unknown business are the same 403 FORBIDDEN. A business with no stored switch reads as off. Never writes. */
+        get: operations["getImportedRefunds"];
+        /** @description Turns refunds of imported packages on or off for the business. Requires manage:imported-refunds:business on that business, rechecked after the row lock so a revocation that commits first wins; every refusal is the same 403 FORBIDDEN. A write that does not change the effective value stores nothing and audits nothing; a changing write stores the value and one audit entry in the same transaction. No Idempotency-Key: a repeated value is a no-op. */
+        put: operations["setImportedRefunds"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/service-sessions": {
         parameters: {
             query?: never;
@@ -5944,6 +5962,12 @@ export interface components {
         };
         RatingSettingsResponse: {
             requests_enabled: boolean;
+        };
+        SetImportedRefundsInput: {
+            imported_refunds_enabled: boolean;
+        };
+        ImportedRefundsResponse: {
+            imported_refunds_enabled: boolean;
         };
         RequestPackageImportPreviewInput: {
             /** Format: uuid */
@@ -18162,6 +18186,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RatingSettingsResponse"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getImportedRefunds: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The imported-package refunds switch of the business */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportedRefundsResponse"];
+                };
+            };
+            /** @description The API error envelope */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    setImportedRefunds: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetImportedRefundsInput"];
+            };
+        };
+        responses: {
+            /** @description The imported-package refunds switch of the business */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportedRefundsResponse"];
                 };
             };
             /** @description The API error envelope */

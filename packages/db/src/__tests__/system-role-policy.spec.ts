@@ -172,8 +172,9 @@ it('schedule settings are eligible for humans only', () => {
 
 it('employee hours grants are eligible for humans and never devices', () => {
   for (const entry of SYSTEM_ROLES)
-    expect(systemRolePolicy(entry.id, 'global')?.permissions.includes('manage:employee-hours:business'))
-      .toBe(entry.code !== 'device');
+    expect(
+      systemRolePolicy(entry.id, 'global')?.permissions.includes('manage:employee-hours:business'),
+    ).toBe(entry.code !== 'device');
 });
 
 it('business identity is grantable to every human role and never a device', () => {
@@ -189,6 +190,15 @@ it('employee number is grantable to every human role and never a device', () => 
   for (const entry of SYSTEM_ROLES)
     expect(
       systemRolePolicy(entry.id, 'global')?.permissions.includes('manage:employee-number:company'),
+    ).toBe(entry.code !== 'device');
+});
+
+it('imported refunds management is grantable to every human role and never a device', () => {
+  for (const entry of SYSTEM_ROLES)
+    expect(
+      systemRolePolicy(entry.id, 'global')?.permissions.includes(
+        'manage:imported-refunds:business',
+      ),
     ).toBe(entry.code !== 'device');
 });
 

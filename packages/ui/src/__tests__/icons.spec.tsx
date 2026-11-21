@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
 
 import {
+  ArrowCounterClockwise,
   Bell,
   Building2,
   CircleAlert,
@@ -33,6 +34,7 @@ type IconComponent = ComponentType<{ 'aria-hidden'?: boolean; className?: string
 
 const ICONS: readonly (readonly [string, IconComponent])[] = [
   ['Bell', Bell],
+  ['ArrowCounterClockwise', ArrowCounterClockwise],
   ['Building2', Building2],
   ['Store', Store],
   ['MapPin', MapPin],

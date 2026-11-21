@@ -75,13 +75,16 @@ export const ORDERS_NAV_PAGES: readonly NavigationPageEntry[] = [
   },
   {
     id: 'customer-packages',
+    route: '/orders/customers/[customerId]/packages',
+    parent: 'sessions-day-list',
+    formerSoonId: 'customer-packages',
     labelKey: 'adminNavPages.customerPackages',
     icon: 'Store',
-    state: 'soon',
+    visible: 'always',
+    state: 'live',
     section: 'sales',
     submenu: 'service-visits',
     businessTypes: [],
-    roles: OPS_MANAGERS,
     appMapEntry: true,
   },
   {

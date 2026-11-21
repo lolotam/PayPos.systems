@@ -14,6 +14,10 @@ export {
   lockBusinessIdentityAccess,
   readBusinessIdentityAccess,
 } from './persistence/business-identity-access.ts';
+export {
+  lockImportedRefundsAccess,
+  readImportedRefundsAccess,
+} from './persistence/imported-refunds-access.ts';
 export { lockMembershipDiscountSubject } from './persistence/membership-discount-read-lock.ts';
 export { lockEmployeeCreationAccess } from './persistence/employee-creation-access.ts';
 export { lockEmployeeManagementAccess } from './persistence/employee-creation-access.ts';
@@ -105,7 +109,10 @@ export {
 export { readOwnAttendanceAccess } from './persistence/own-attendance-access.ts';
 
 export { readOwnServiceSessionsAccess } from './persistence/own-service-sessions-access.ts';
-export { lockDiscountApprovalAccess, readDiscountApprovalAccess } from './persistence/service-session-edit-access.ts';
+export {
+  lockDiscountApprovalAccess,
+  readDiscountApprovalAccess,
+} from './persistence/service-session-edit-access.ts';
 
 export { VERIFY_DISCOUNT_APPROVER_PIN } from './identity.module.ts';
 export type { VerifyDiscountApproverPin } from './use-cases/verify-discount-approver-pin/verify-discount-approver-pin.ts';

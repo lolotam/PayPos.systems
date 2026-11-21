@@ -165,6 +165,12 @@ export {
   type StaffColumnCode,
   type StaffColumnsSettings,
 } from './settings/staff-columns.js';
+export {
+  setImportedRefundsInput,
+  importedRefundsResponse,
+  type ImportedRefundsResponse,
+  type SetImportedRefundsInput,
+} from './settings/imported-refunds.js';
 export * from './notifications.js';
 export {
   inAppRecipient,
@@ -376,19 +382,6 @@ export {
 export * from './orders/index.js';
 export * from './documents-render.js';
 export * from './customers/index.js';
-
-export {
-  extendPackageInput,
-  packageExtensionResponse,
-  type ExtendPackageInput,
-  type PackageExtensionResponse,
-} from './orders/package-extension.js';
-export {
-  refundPackageInput,
-  packageRefundResponse,
-  type RefundPackageInput,
-  type PackageRefundResponse,
-} from './orders/package-refund.js';
 
 export * from './staff/index.js';
 

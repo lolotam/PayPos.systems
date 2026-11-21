@@ -4,12 +4,26 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 import type { SessionServiceScope } from './use-session-services';
 
-const packagesPath = '/v1/businesses/{businessId}/branches/{branchId}/customers/{customerId}/packages';
+const packagesPath =
+  '/v1/businesses/{businessId}/branches/{branchId}/customers/{customerId}/packages';
 
-export function useCustomerPackages(scope: SessionServiceScope, customerId: string, enabled = true) {
+export function useCustomerPackages(
+  scope: SessionServiceScope,
+  customerId: string,
+  enabled = true,
+  revalidateAccess = false,
+) {
   return useInfiniteQuery({
-    queryKey: ['customer-packages', scope.companyId, scope.businessId, scope.branchId, scope.userId, customerId],
+    queryKey: [
+      'customer-packages',
+      scope.companyId,
+      scope.businessId,
+      scope.branchId,
+      scope.userId,
+      customerId,
+    ],
     enabled,
+    ...(revalidateAccess ? { refetchOnMount: 'always' as const } : {}),
     retry: false,
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam, signal }) => {
@@ -27,11 +41,15 @@ export function useCustomerPackages(scope: SessionServiceScope, customerId: stri
     },
     getNextPageParam: (last) => last.next_cursor ?? undefined,
     select: (data) => {
-      const occurrences = data.pages.flatMap((page) => page.items).map((item, position) => ({ item, position }));
+      const occurrences = data.pages
+        .flatMap((page) => page.items)
+        .map((item, position) => ({ item, position }));
       // الصفحة اللاحقة بتحمل أحدث حالة للباقة، فالنسخة الأحدث وموقعها هما اللي بيفضلوا في القايمة.
       const latest = new Map<string, (typeof occurrences)[number]>();
       for (const occurrence of occurrences) latest.set(occurrence.item.id, occurrence);
-      const items = [...latest.values()].sort((a, b) => a.position - b.position).map(({ item }) => item);
+      const items = [...latest.values()]
+        .sort((a, b) => a.position - b.position)
+        .map(({ item }) => item);
       return { ...data, items };
     },
   });

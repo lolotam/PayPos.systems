@@ -567,6 +567,37 @@ that refund (a decision-time read). The refund path also takes the service-sessi
 (the two identity readers, the settings reader and the tenancy place reader), and the generated
 `docs/module-map.yaml` is regenerated.
 
+### Addendum 2026-11-21 — 46-2a-S the imported-refund switch write (spec 058)
+
+The write the 2026-11-13 addendum deliberately kept out lands now. `settings` owns
+`GET`/`PUT /v1/businesses/{businessId}/settings/imported-refunds`, guarded by
+`manage:imported-refunds:business` on the business. The write follows the business-identity
+pattern in one `withTenant` transaction: identity locks the company, the memberships and the
+business, decides the permission, the settings row is created and locked, the decision is
+rechecked at the database clock after the waits (so a revocation that commits first wins,
+FR-B06), the changing write stores only the switch and `updated_by`/`updated_at`, and exactly
+one audit entry records who changed it and both values in the same transaction (FR-B05). A
+write that repeats the effective value stores nothing and audits nothing; the empty settings row
+the locking step creates is the same behaviour every settings write has.
+
+- **Two new identity symbols, one shared lock sequence.** The business-identity lock/decision is
+  extracted unchanged into `lockBusinessPermissionAccess`/`readBusinessPermissionAccess`
+  (parameterised by the permission code) and `business-identity-access.ts` keeps its exported
+  names as thin wrappers, so the two real implementations (business identity, imported refunds)
+  share one lock order instead of drifting. settings' adapter binds
+  `lockImportedRefundsAccess`/`readImportedRefundsAccess`; the `settings → identity` arrow and
+  the port row (`ImportedRefundsAccess`) are already declared, and §6 gains the two `reads`
+  lines.
+- **No cache, no event.** The page's read is a `queries/` keyed select; the Redis settings cache
+  holds only the generic settings read, which does not carry this field, so nothing is
+  invalidated, and nothing consumes an outbox event — the audit entry is the record.
+- **The read stays out of this change's path.** The merged orders reader
+  (`readImportedRefundsEnabled`) and the refund use case are untouched; a null default, a missing
+  row and `false` all stay off for it (PK-Q24).
+
+`module-map.md` §3 gains the settings port row, §6 gains the two `reads` lines of the settings
+adapter, and the generated `docs/module-map.yaml` is regenerated.
+
 ## Addendum 2026-11 — A-2 low-rating notice composed in the worker
 
 Spec 060's low-rating alert needs the reads the A-1 addendum above approved on the API side. That design never

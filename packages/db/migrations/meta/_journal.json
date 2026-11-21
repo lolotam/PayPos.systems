@@ -1639,6 +1639,13 @@
       "when": 1795249115717,
       "tag": "0235_2026-11-21_commission-sales-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 236,
+      "version": "7",
+      "when": 1795268353078,
+      "tag": "0236_2026-11-21_imported-refunds-permission",
+      "breakpoints": true
     }
   ]
 }

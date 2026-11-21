@@ -27,6 +27,7 @@ const LABELLED_CODES = [
   'read:settings:business',
   'manage:settings:business',
   'manage:business-identity:business',
+  'manage:imported-refunds:business',
   'manage:alert-rules:business',
   'manage:rating-requests:business',
   'manage:commission-plans:business',
@@ -106,4 +107,15 @@ it('PK-Q16 extend:packages:branch has an Arabic and an English name', () => {
 it('FR-050 refund:packages:branch has an Arabic and an English name', () => {
   expect(permissionName('ar', 'refund:packages:branch')).toBe('استرداد جلسات الباقة');
   expect(permissionName('en', 'refund:packages:branch')).toBe('Refund package sessions');
+});
+
+it('PK-Q24/PK-Q26 manage:imported-refunds:business has an Arabic and an English name', () => {
+  expect(permissionName('ar', 'manage:imported-refunds:business')).toBe('إدارة مرتجع الباقات المستوردة');
+  expect(permissionName('en', 'manage:imported-refunds:business')).toBe(
+    'Manage imported-package refunds',
+  );
+  for (const locale of ['ar', 'en'] as const)
+    expect(permissionName(locale, 'manage:imported-refunds:business')).not.toBe(
+      'manage:imported-refunds:business',
+    );
 });

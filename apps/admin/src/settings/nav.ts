@@ -69,6 +69,18 @@ export const SETTINGS_NAV_PAGES: readonly NavigationPageEntry[] = [
     appMapEntry: true,
   },
   {
+    id: 'imported-refunds',
+    route: '/imported-refunds',
+    labelKey: 'importedRefunds.title',
+    icon: 'ArrowCounterClockwise',
+    visible: 'imported-refunds-access',
+    state: 'live',
+    section: 'setup',
+    submenu: 'business',
+    businessTypes: [],
+    appMapEntry: true,
+  },
+  {
     id: 'data-import',
     labelKey: 'adminNavPages.dataImport',
     icon: 'Upload',

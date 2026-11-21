@@ -13,6 +13,7 @@ import type {
 } from '../ports/settings.port.ts';
 import { createBusinessDiscountAccess } from './business-discount-access.adapter.ts';
 import { createBusinessIdentityAccess } from './business-identity-access.adapter.ts';
+import { createImportedRefundsAccess } from './imported-refunds-access.adapter.ts';
 import { createLogoFileReader } from './logo-file.adapter.ts';
 
 type Row = {
@@ -23,10 +24,11 @@ type Row = {
   official_name_ar: string | null;
   official_name_en: string | null;
   logo_file_id: string | null;
+  imported_refunds_enabled: boolean | null;
   updated_at: string;
 };
 
-const COLUMNS = sql`default_language, calendar, limit_bps, tax_rule, official_name_ar, official_name_en, logo_file_id, to_json(updated_at) #>> '{}' AS updated_at`;
+const COLUMNS = sql`default_language, calendar, limit_bps, tax_rule, official_name_ar, official_name_en, logo_file_id, imported_refunds_enabled, to_json(updated_at) #>> '{}' AS updated_at`;
 const toStored = (row: Row): StoredSettings => ({
   limitBps: row.limit_bps,
   defaultLanguage: row.default_language,
@@ -35,6 +37,7 @@ const toStored = (row: Row): StoredSettings => ({
   officialNameAr: row.official_name_ar,
   officialNameEn: row.official_name_en,
   logoFileId: row.logo_file_id,
+  importedRefundsEnabled: row.imported_refunds_enabled,
   updatedAt: row.updated_at,
 });
 
@@ -43,6 +46,7 @@ function scopeFor(tx: Tx, companyId: string, userId: string, ids: IdGenerator): 
   return {
     discountAccess: createBusinessDiscountAccess(tx, companyId, userId),
     identityAccess: createBusinessIdentityAccess(tx, companyId, userId),
+    importedRefundsAccess: createImportedRefundsAccess(tx, companyId, userId),
     audit: writers.audit,
     outbox: writers.outbox,
     logoFiles: createLogoFileReader(tx, companyId),
@@ -80,6 +84,8 @@ function scopeFor(tx: Tx, companyId: string, userId: string, ids: IdGenerator): 
       saveIdentityNames(tx, companyId, businessId, change, updatedBy),
     saveLogo: (businessId, logoFileId, updatedBy) =>
       saveLogoFile(tx, companyId, businessId, logoFileId, updatedBy),
+    saveImportedRefunds: (businessId, enabled, updatedBy) =>
+      saveImportedRefunds(tx, companyId, businessId, enabled, updatedBy),
   };
 }
 
@@ -123,8 +129,12 @@ async function saveIdentityNames(
   updatedBy: string,
 ): Promise<StoredSettings> {
   const updates: SQL[] = [
-    ...('officialNameAr' in change ? [sql`official_name_ar = ${change.officialNameAr ?? null}`] : []),
-    ...('officialNameEn' in change ? [sql`official_name_en = ${change.officialNameEn ?? null}`] : []),
+    ...('officialNameAr' in change
+      ? [sql`official_name_ar = ${change.officialNameAr ?? null}`]
+      : []),
+    ...('officialNameEn' in change
+      ? [sql`official_name_en = ${change.officialNameEn ?? null}`]
+      : []),
     sql`updated_by = ${updatedBy}`,
     sql`updated_at = now()`,
   ];
@@ -138,7 +148,8 @@ async function saveIdentityNames(
     return toStored(row);
   } catch (error) {
     const cause = error instanceof Error && 'cause' in error ? error.cause : error;
-    const code = typeof cause === 'object' && cause !== null && 'code' in cause ? cause.code : undefined;
+    const code =
+      typeof cause === 'object' && cause !== null && 'code' in cause ? cause.code : undefined;
     const constraint =
       typeof cause === 'object' && cause !== null && 'constraint_name' in cause
         ? String(cause.constraint_name)
@@ -148,6 +159,22 @@ async function saveIdentityNames(
     }
     throw error;
   }
+}
+
+async function saveImportedRefunds(
+  tx: Tx,
+  companyId: string,
+  businessId: string,
+  enabled: boolean,
+  updatedBy: string,
+): Promise<StoredSettings> {
+  const [row] = await tx.execute<Row>(sql`
+    UPDATE business_settings
+    SET imported_refunds_enabled = ${enabled}, updated_by = ${updatedBy}, updated_at = now()
+    WHERE company_id = ${companyId} AND business_id = ${businessId}
+    RETURNING ${COLUMNS}`);
+  if (row === undefined) throw new Error('imported refunds update returned no row');
+  return toStored(row);
 }
 
 /**

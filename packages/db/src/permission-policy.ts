@@ -1,12 +1,12 @@
 import { PERMISSIONS, type Permission } from './access-catalog.ts';
 
-/** الحماية تسبق تفعيل الكتالوج؛ هذا التعريف لا يدخل seed ولا يمنح دوراً افتراضياً. */
+/** كود مفتاح مرتجع الباقات المستوردة: اسم مشترك بين سياسة الأدوار وقاعدة "المالك وحده يمنحه" وصف الـ seed. */
 export const IMPORTED_REFUNDS_PERMISSION = 'manage:imported-refunds:business';
 
-/** أكواد السياسة تشمل الحارس المستقبلي دون توسيع كتالوج التفعيل. */
-export type PolicyPermission = Permission | typeof IMPORTED_REFUNDS_PERMISSION;
+/** أكواد السياسة: الكتالوج كله، والاسم المشترك فوق ضمنه أصلاً. */
+export type PolicyPermission = Permission;
 
-/** إزالة التكرار تحفظ نفس السياسة عندما يفعّل S الكود لاحقاً. */
+/** إزالة التكرار تحفظ نفس السياسة بعد تفعيل الكود في الكتالوج. */
 export const POLICY_PERMISSIONS: readonly PolicyPermission[] = [
   ...new Set<PolicyPermission>([...PERMISSIONS, IMPORTED_REFUNDS_PERMISSION]),
 ];
