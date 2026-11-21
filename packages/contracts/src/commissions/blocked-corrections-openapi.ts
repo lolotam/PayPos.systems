@@ -51,8 +51,7 @@ export const commissionBlockedCorrectionPaths = {
         },
         '400': { description: 'Invalid cursor or query', content: json('ErrorEnvelope') },
         '401': {
-          description:
-            'No session, or an invalid/expired one: the envelope code is UNAUTHENTICATED or AUTHENTICATION_FAILED',
+          description: 'UNAUTHENTICATED: no valid session',
           content: json('ErrorEnvelope'),
         },
         '403': {

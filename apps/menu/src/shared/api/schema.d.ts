@@ -10838,7 +10838,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description No session, or an invalid/expired one: the envelope code is UNAUTHENTICATED or AUTHENTICATION_FAILED */
+            /** @description UNAUTHENTICATED: no valid session */
             401: {
                 headers: {
                     [name: string]: unknown;
