@@ -262,7 +262,9 @@ it('keeps the confirmed value read-only and retries the GET after a save and rea
   api.GET.mockResolvedValue({ error: { code: 'UNEXPECTED' }, response: { status: 500 } });
   fireEvent.click(control);
   const retry = await screen.findByRole('button', { name: t('en', 'importedRefunds.retryRead') });
-  expect(screen.getByRole('switch', { name: label })).toMatchObject({
+  expect(
+    screen.getByRole('switch', { name: t('en', 'importedRefunds.lastConfirmed') }),
+  ).toMatchObject({
     checked: false,
     disabled: true,
   });
@@ -292,4 +294,20 @@ it('prioritizes the current guarded GET refusal over a previous save failure', a
   fireEvent.click(control);
   expect((await screen.findByRole('alert')).textContent).toBe(refused);
   expect(screen.queryByRole('switch', { name: label })).toBeNull();
+});
+
+it('labels the prior value without claiming current policy after a successful PUT and failed GET', async () => {
+  renderPage();
+  const control = await screen.findByRole('switch', { name: label });
+  api.PUT.mockResolvedValue({
+    data: { imported_refunds_enabled: true },
+    response: { status: 200 },
+  });
+  api.GET.mockResolvedValue({ error: { code: 'UNEXPECTED' }, response: { status: 500 } });
+  fireEvent.click(control);
+  await screen.findByRole('button', { name: t('en', 'importedRefunds.retryRead') });
+  expect(
+    screen.getByRole('switch', { name: t('en', 'importedRefunds.lastConfirmed') }),
+  ).toMatchObject({ checked: false, disabled: true });
+  expect(screen.queryByText(offNote)).toBeNull();
 });

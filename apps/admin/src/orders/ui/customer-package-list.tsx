@@ -16,6 +16,7 @@ export function CustomerPackageList({
   state,
   errorMessage,
   hasMore,
+  isFetching,
   onRetry,
   onMore,
   onSelect,
@@ -25,6 +26,7 @@ export function CustomerPackageList({
   state: 'loading' | 'empty' | 'ready' | 'error';
   errorMessage: 'notAllowed' | 'notFound' | 'loadFailed' | null;
   hasMore: boolean;
+  isFetching: boolean;
   onRetry: () => void;
   onMore: () => void;
   onSelect: (entitlementId: string) => void;
@@ -53,13 +55,13 @@ export function CustomerPackageList({
         // أول تحميل لو مفيش صفحات محفوظة لسه.
         <p role="alert">
           {t(locale, 'customerPackages.loadFailed')}{' '}
-          <Button type="button" variant="outline" onClick={onRetry}>
+          <Button type="button" variant="outline" disabled={isFetching} onClick={onRetry}>
             {t(locale, 'customerPackages.retry')}
           </Button>
         </p>
       ) : null}
       {hasMore && state !== 'error' ? (
-        <Button type="button" variant="outline" onClick={onMore}>
+        <Button type="button" variant="outline" disabled={isFetching} onClick={onMore}>
           {t(locale, 'customerPackages.loadMore')}
         </Button>
       ) : null}

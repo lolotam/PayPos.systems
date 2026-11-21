@@ -598,11 +598,94 @@ the locking step creates is the same behaviour every settings write has.
 `module-map.md` §3 gains the settings port row, §6 gains the two `reads` lines of the settings
 adapter, and the generated `docs/module-map.yaml` is regenerated.
 
+## Addendum 2026-11 — A-2 low-rating notice composed in the worker
+
+Spec 060's low-rating alert needs the reads the A-1 addendum above approved on the API side. That design never
+shipped code, and `plan-61.md` (row 61's plan, §2) records why it cannot stand: the composed notice would run inside
+the public rating transaction (`RATING_TRANSACTION_TIMEOUT_MS = 1_000`, an anonymous route), its payload would grow
+with performers × recipients, and BR-B4's emission-time authorization had no selected decision instant there
+(plan-61-1's U2/U4, its §4–§6). The manager asked Waleed where the notice is composed and when its conditions are
+evaluated (owner-questions.ar.md items 34 and 35), and Waleed answered: M1 «في الـ worker (المقترح)» and M2 «لحظة
+قرار الـ worker (المقترح)» (2026-11-20 14:35 Kuwait, PP-207.2 and PP-207.3). RT-Q17 (the comment shown as written,
+PP-207.1) belongs to 61-1h's comment mapping and does not change this addendum. This addendum supersedes the A-1
+addendum's API read approvals and plan-61-1 §4–§6, as M1 records; it adds no import arrow.
+
+### The change
+
+- **API `customers` — the public submit transaction.** When the consumed rating has `stars <= 2` (the pure predicate
+  `isLowRating(stars)` in `customers/domain`), the same transaction appends one internal event `LowRatingSubmitted`
+  (customers API ⇒ worker customers): `{ schema_version: 1, rating_id, request_id, business_id, branch_id, stars }`,
+  aggregate `rating` / `rating_id`. Nothing else is added to that transaction: no rule read, no identity, staff or
+  tenancy read, no names, no comment. Ratings of 3 stars or more append no event. Ratings of 1 or 2 stars append
+  the same event regardless of the rule state.
+- **Worker `customers` — the consumer.** A new outbox consumer handles `LowRatingSubmitted` with the use case
+  `request-low-rating-notice` in one tenant transaction, the same shape as orders'
+  `request-late-service-session-notice`: verify the event against the stored rating → company open → the
+  `LOW_RATING` rule → recipients → place → claim the `low_rating_notices` ledger (unique `(company_id, rating_id)`,
+  so the decision is made once per rating) → comment readers (only for a non-null comment) → names → compose →
+  append `LowRatingReceived` (customers ⇒ notifications, a `notificationRequest` payload in groups of at most 100
+  recipients per template partition, ADR-0037 §5). If the rule is off or has no `IN_APP` channel, record a terminal
+  zero-recipient decision in the ledger and emit no notice (spec 060 BR-B5). Redelivery preserves that decision.
+- **`LowRatingReceived` keeps its ADR-0010 meaning and name.** Only its emitter moves from the API `customers`
+  module to the worker `customers` module; the `notifications` consumer is unchanged.
+
+### The decision instant (M2)
+
+`decidedAt = clock.now()` is read once inside the consumer transaction, exactly as the orders bells decide their
+recipients. BR-B4's «checked at emission» means checked when the worker emits `LowRatingReceived`, normally seconds
+after the rating: a permission revoked between the rating and the decision is honoured (stricter), one granted in
+between is honoured too, and the check is one statement snapshot — a revoke that commits after it does not retract a
+stored notice. BR-B5 and D-B15 are judged at the same instant: a rule change applies to events emitted after it
+commits, where "emitted" is the worker's emission. The customer's rating is committed earlier and is never rolled
+back by the notice.
+
+### Ports and reads declared (no new import arrow)
+
+`customers: [tenancy, settings, staff, identity]` is already declared for both apps in module-map §2; every port
+below is a consumer-owned read on the caller's transaction, and each adapter adds its `reads` line in the PR that
+writes it. The orders-worker rows are the template.
+
+| Consumer | Port | Reads from | Built in |
+|---|---|---|---|
+| worker `customers` | `AlertRulePort.rule` | worker `settings.alertRule` | 61-1h |
+| worker `customers` | `LowRatingRecipientsPort.managers` | worker `identity.branchManagerRecipients` | 61-1h |
+| worker `customers` | `LowRatingRecipientsPort.commentReaders` | worker `identity.ratingCommentReaders` (new public reader) | reader 61-1g, adapter 61-1h |
+| worker `customers` | `LowRatingPlacePort.forBranch` / `.companyOpen` | worker `tenancy.branchPlace` / `tenancy.companyOpen` | 61-1h |
+| worker `customers` | `PerformerNamePort` | worker `staff.readEmployeeDisplayNames` — already declared (2026-10-31 addendum) | exists |
+| API `customers` (61-2) | `OwnRatingsAccessPort` / `RatingsReadAccessPort` | API `identity.readOwnRatingsAccess` / `identity.readRatingsReadAccess` (new) | 61-2a / 61-2b |
+| API `customers` (61-2a) | `OwnEmployeePort` | API `staff.readOwnEmployee` — existing | 61-2a |
+| API `customers` (61-2) | time zone and workspace tree | API `tenancy.activeBusinessTimeZone` / `describeWorkspaces` — existing | 61-2 |
+
+### Withdrawn, and what stays
+
+- **Withdrawn unbuilt** — the A-1 addendum's API approvals: `RatingAlertRecipientsPort`, the API `PerformerNamePort`,
+  `LowRatingNoticePlacePort`, the proposed API readers `readRatingCommentReaders` and the API
+  `staff.readEmployeeDisplayNames` path, the A-1 parser-composition design, and the five `# Planned E:` comments of
+  module-map §6. No code was ever written against them, so nothing is deleted from source.
+- **`customers → identity` stays.** The worker recipients reader and 61-2's API access readers use it; no
+  worker-to-API edge exists or is added.
+
+### Consequences
+
+- The public transaction gains one fixed-size outbox insert (about 300 bytes); its cost no longer depends on
+  performers (P) or recipients (R). The worker transaction still grows with P·R. The per-event recipient groups
+  do not cap or truncate the recipients or split the decision across transactions. The transaction runs under the existing worker delivery limit (`DELIVERY_TIMEOUT_MS = 60_000`):
+  an exceeded delivery rolls back, is retried by the dispatcher and finally parks where an operator sees it.
+- Two outbox hops (rating → worker customers → notifications) before the bell. SC-004 allows 2 minutes; the orders
+  bells already take two hops. Sub-PR 61-1i's staging verification measures it once and records the number.
+- The `low_rating_notices` ledger (61-1d) is required: each redelivery would mint new notice event ids, and a
+  permission change between redeliveries could otherwise give one manager both `low_rating` and
+  `low_rating_with_comment`.
+- Module map: §3 replaces the three A-1 API rows with the worker rows; §4 gains `LowRatingSubmitted` and
+  `LowRatingReceived`'s emitter moves to worker `customers`; the §6 machine block deletes the five `# Planned E:`
+  comments and adds `# Planned` comments for the worker reads. Those comments leave generated
+  `docs/module-map.yaml` unchanged. Spec 060's D-B9, FR-B13, FR-B14, FR-B15, BR-B4 and the 61-x sub-PR rows are updated by the same docs PR (61-1a); its gates
+  are `pnpm format:check`, `pnpm lint:docs` and `pnpm module-map:check`, with no source file change.
+
 ## Addendum 2026-11-21 — 61-2a: the staff rating summary's own-read authority
 
-Scope: the API read `GET /v1/staff/me/rating-summary` (spec 060 FR-A05, FR-B14; `plan-61.md` §6). It is the part of
-`plan-61.md` §2.4 that row 61-2a needs; the worker ports and the two events of that section stay with docs PR 61-1a
-(A-2) and are not approved here.
+Scope: the API read `GET /v1/staff/me/rating-summary` (spec 060 FR-A05, FR-B14; `plan-61.md` §6). The preceding A-2 addendum declares the ports.
+This entry documents the 61-2a implementation.
 
 - API `customers` resolves its authority through reads on already-declared arrows, on the read transaction:
   `tenancy.describeWorkspaces` (the business and its active branches), `staff.readOwnEmployee` (the caller's own

@@ -9,6 +9,14 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, expect, it, vi } from 'vitest';
 import { PackageRedemptionHistory } from './package-redemption-history';
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 const get = vi.hoisted(() => vi.fn());
 vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: get }) }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
@@ -225,15 +233,19 @@ it('hides the visit history cache until a guarded read and closes the dialog whe
     true,
   );
   client.setQueryData(key, authorized);
-  get.mockImplementation(() => new Promise(() => undefined));
+  const request = deferred<{
+    data: CustomerPackageDetail;
+    response: { status: number };
+  }>();
+  get.mockReturnValue(request.promise);
   renderHistory(client);
   openHistory();
   await screen.findByText(t('en', 'serviceSessions.packageLoading'));
   expect(screen.queryByText('Session 2 Synthetic service')).toBeNull();
   expect(screen.queryByRole('button', { name: t('en', 'packageExtension.extend') })).toBeNull();
 
-  mockDetail(authorized);
-  await client.invalidateQueries({ queryKey: key });
+  await waitFor(() => expect(get).toHaveBeenCalledTimes(1));
+  request.resolve({ data: authorized, response: { status: 200 } });
   expect(await screen.findByText('Session 2 Synthetic service')).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'packageExtension.extend') }));
   expect(screen.getByRole('dialog')).toBeTruthy();

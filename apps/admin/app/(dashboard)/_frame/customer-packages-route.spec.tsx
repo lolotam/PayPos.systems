@@ -159,9 +159,9 @@ it('drops a direct package selection on a workspace change before fetching the n
   expect(api.GET.mock.calls.filter(([path]) => path === detailPath)).toHaveLength(1);
 });
 
-it.each([false, true])(
-  'restores the linked scope and package with an incomplete selection: %s',
-  async (incomplete) => {
+it.each(['ready', 'incomplete', 'choose'] as const)(
+  'restores the linked scope and package from %s',
+  async (selection) => {
     if (
       state.workspace?.status !== 'ready' ||
       !state.workspace.branch ||
@@ -183,12 +183,15 @@ it.each([false, true])(
     const choose = vi.fn(() => {
       state.workspace = linkedScope;
     });
-    state.workspace = {
-      ...state.workspace,
-      companies: [linkedCompany],
-      ...(incomplete ? { business: undefined, branch: undefined } : {}),
-      choose,
-    };
+    state.workspace =
+      selection === 'choose'
+        ? { status: 'choose', companies: [linkedCompany], choose }
+        : {
+            ...state.workspace,
+            companies: [linkedCompany],
+            ...(selection === 'incomplete' ? { business: undefined, branch: undefined } : {}),
+            choose,
+          };
     const params = new URLSearchParams({
       scope_company: linkedCompany.id,
       scope_business: linkedBusiness.id,

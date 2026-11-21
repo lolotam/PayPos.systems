@@ -20,6 +20,14 @@ function TestPage({ scope, customerId }: { scope: SessionServiceScope; customerI
   );
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 const api = vi.hoisted(() => ({ GET: vi.fn() }));
 const nav = vi.hoisted(() => ({
   search: '',
@@ -286,4 +294,62 @@ it('a next-page 404 closes the selected detail and removes its controls', async 
   );
   expect(screen.queryByText('Gold detail')).toBeNull();
   expect(screen.queryByRole('button', { name: t('en', 'customerPackages.extend') })).toBeNull();
+});
+
+it('hides cached pages from a failed next page until the mounted observer gets fresh access', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  api.GET.mockResolvedValueOnce({
+    data: { items: [item(packageA, 'Gold', false, false)], next_cursor: 'c2' },
+    response: { status: 200 },
+  }).mockResolvedValueOnce({ error: { code: 'UNEXPECTED' }, response: { status: 500 } });
+  const first = renderPageWith('', client);
+  await screen.findByText('Gold');
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'customerPackages.loadMore') }));
+  await screen.findByRole('alert');
+  expect(screen.getByText('Gold')).toBeTruthy();
+  first.unmount();
+
+  const refreshing = deferred<{
+    error: { code: string };
+    response: { status: number };
+  }>();
+  api.GET.mockReturnValue(refreshing.promise);
+  renderPageWith('?package=' + packageA, client);
+  expect(screen.queryByText('Gold')).toBeNull();
+  expect(screen.queryByRole('button', { name: t('en', 'customerPackages.extend') })).toBeNull();
+  await waitFor(() => expect(api.GET).toHaveBeenCalledTimes(3));
+  refreshing.resolve({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
+  expect(
+    (await screen.findByText(t('en', 'customerPackages.notAllowed'))).getAttribute('role'),
+  ).toBe('alert');
+});
+
+it('waits for the package-list refresh before allowing another page', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const before = item(packageA, 'Gold before extension', false, false);
+  const after = item(packageA, 'Gold after extension', false, false);
+  const page = (pkg: typeof before) => ({
+    data: { items: [pkg], next_cursor: 'c2' },
+    response: { status: 200 },
+  });
+  api.GET.mockResolvedValueOnce(page(before));
+  renderPageWith('', client);
+  await screen.findByText('Gold before extension');
+
+  const refreshing = deferred<ReturnType<typeof page>>();
+  api.GET.mockReturnValue(refreshing.promise);
+  const invalidated = client.invalidateQueries({
+    queryKey: ['customer-packages', companyId, businessId, branchId, 'user', customerId],
+  });
+  const more = screen.getByRole('button', { name: t('en', 'customerPackages.loadMore') });
+  await waitFor(() => expect(more).toMatchObject({ disabled: true }));
+  fireEvent.click(more);
+  expect(api.GET).toHaveBeenCalledTimes(2);
+
+  refreshing.resolve(page(after));
+  await invalidated;
+  expect(await screen.findByText('Gold after extension')).toBeTruthy();
+  expect(screen.getByRole('button', { name: t('en', 'customerPackages.loadMore') })).toMatchObject({
+    disabled: false,
+  });
 });

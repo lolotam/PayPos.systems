@@ -1,5 +1,6 @@
 'use client';
 import { t } from '@pospay/i18n';
+import { Building2, EmptyState } from '@pospay/ui';
 import { useSearchParams } from 'next/navigation';
 import { CustomerPackagesPage } from '@/orders/pages/customer-packages-page';
 import { resolveScopeHint } from '@/orders/model/resolve-scope-hint';
@@ -28,7 +29,9 @@ export function CustomerPackagesRoute({ customerId }: { customerId: string }) {
       ? [workspace.company.id, workspace.business.id, workspace.branch.id, userId].join(':')
       : null;
   const selection = usePackageRouteSelection(scopeKey);
-  if (workspace.status !== 'ready' || userId === null) return null;
+  if (userId === null || (workspace.status !== 'ready' && workspace.status !== 'choose'))
+    return null;
+  const ready = workspace.status === 'ready' ? workspace : undefined;
   const hint = resolveScopeHint(
     {
       companyId: searchParams.get('scope_company') ?? undefined,
@@ -37,9 +40,9 @@ export function CustomerPackagesRoute({ customerId }: { customerId: string }) {
     },
     workspace.companies,
     {
-      company: workspace.company.id,
-      business: workspace.business?.id,
-      branch: workspace.branch?.id,
+      company: ready?.company.id,
+      business: ready?.business?.id,
+      branch: ready?.branch?.id,
     },
   );
   if (!hint.matches) {
@@ -55,6 +58,8 @@ export function CustomerPackagesRoute({ customerId }: { customerId: string }) {
       />
     );
   }
+  if (workspace.status !== 'ready')
+    return <EmptyState icon={<Building2 />} title={t(locale, 'admin.choosePrompt')} />;
   if (!workspace.business) return <p>{t(locale, 'admin.chooseBusiness')}</p>;
   if (!workspace.branch) return <p>{t(locale, 'serviceSessions.chooseBranch')}</p>;
   const scope = {

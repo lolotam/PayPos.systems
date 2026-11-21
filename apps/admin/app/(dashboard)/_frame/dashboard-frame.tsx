@@ -2,6 +2,7 @@
 
 import { t } from '@pospay/i18n';
 import type { ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { CircleAlert, EmptyState } from '@pospay/ui';
 
 import { useSession, useSessionAccount } from '@/session/api/use-session';
@@ -22,6 +23,7 @@ export function DashboardFrame({ children }: { children: ReactNode }) {
   const account = useSessionAccount(mounted);
   const userId = account?.id ?? null;
   const workspace = useWorkspace();
+  const allowsLinkedWorkspace = /^\/orders\/customers\/[^/]+\/packages\/?$/.test(usePathname());
   const companyId = workspace.status === 'ready' ? workspace.company.id : undefined;
   return (
     <AppFrame
@@ -48,7 +50,7 @@ export function DashboardFrame({ children }: { children: ReactNode }) {
           title={t(locale, 'admin.unexpected')}
         />
       ) : null}
-      <WorkspaceBody>{children}</WorkspaceBody>
+      <WorkspaceBody allowsLinkedWorkspace={allowsLinkedWorkspace}>{children}</WorkspaceBody>
     </AppFrame>
   );
 }
