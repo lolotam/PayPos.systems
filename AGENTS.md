@@ -11,6 +11,8 @@
 > **PP-177 (2026-11-07, owner-decisions item 96; clarifies PP-111):** Keep five independent task sessions running at all times, started one after another; under PP-118 five is both the target and the limit. After a task's merge is verified, settle its session and safely remove its own worktree: check the absolute path, a clean tracked/untracked state, preserved work and receipts, and no live process or dependent task. Never remove a shared, main, dirty, in-use, unmerged or deferred worktree. Fill vacancies without bypassing dependency, review or migration gates.
 > Send one consolidated update when a batch completes or a blocker needs Waleed's decision. End every manager report with a recommended next step. Preserve the existing owner-decision audit and partner/business decision-page duties.
 
+> **PosPay PR references in work reports (2026-11-21).** In every update or report, follow each PR number with the actual task or slice identifier from the project plan in parentheses, for example `PR #1147 (55-2e)`. If a task spans multiple PRs, use the actual slice identifier or part number from the plan. For operational documentation or CI without an assigned identifier, use `وثائق التشغيل` or `CI`, respectively.
+
 This repository's rules are **not** duplicated here, so they cannot drift apart.
 Read these files fully, in this order, before any task or any review:
 
