@@ -14,19 +14,38 @@ import type { DocumentSubmission } from '../api/use-employee-documents';
 import { acceptableDocumentFile } from '../model/document-file';
 import { DocumentTypeField } from './document-type-field';
 
-/** خانة رقم المستند الاختياري؛ استُخرجت لإبقاء النموذج تحت سقف طول الدالة. */
+/** خانة رقم المستند الاختياري وخطؤها المحلي؛ استُخرجت لإبقاء النموذج تحت سقف طول الدالة. */
 function DocumentNumberField({
   locale,
+  numberInvalid,
   register,
 }: {
   locale: 'ar' | 'en';
+  numberInvalid: boolean;
   register: ReturnType<typeof useForm<EmployeeDocumentFormValues>>['register'];
 }) {
   return (
     <>
       <Label htmlFor="document-number">{t(locale, 'employeeDocuments.documentNumber')}</Label>
       <Input id="document-number" type="text" autoComplete="off" {...register('document_number')} />
+      {numberInvalid ? (
+        <p role="alert" className="text-sm text-destructive">
+          {t(locale, 'employeeDocuments.numberInvalid')}
+        </p>
+      ) : null}
     </>
+  );
+}
+
+/** تنبيه حالة الانتهاء: إلزامي أو اختياري حسب نوع الوثيقة. */
+function ExpiryHint({ locale, requiresExpiry }: { locale: 'ar' | 'en'; requiresExpiry: boolean }) {
+  return (
+    <p className="text-sm text-muted-foreground">
+      {t(
+        locale,
+        requiresExpiry ? 'employeeDocuments.expiryRequired' : 'employeeDocuments.expiryOptional',
+      )}
+    </p>
   );
 }
 
@@ -54,6 +73,10 @@ export function EmployeeDocumentForm({
   });
   const code = useWatch({ control: form.control, name: 'type_code' });
   const requiresExpiry = types.find((type) => type.code === code)?.requires_expiry ?? false;
+  // خطأ رقم المستند بيظهر محليًا جنب الخانة نفسها؛ التنبيه العام لمصالح الوثيقة التانية بس.
+  const numberInvalid = form.formState.errors.document_number !== undefined;
+  const otherInvalid =
+    invalid || Object.keys(form.formState.errors).some((key) => key !== 'document_number');
   const submit = form.handleSubmit((values) => {
     const missingExpiry = requiresExpiry && values.expires_on === '';
     setInvalid(!acceptableDocumentFile(file) || missingExpiry);
@@ -70,20 +93,17 @@ export function EmployeeDocumentForm({
           accept="application/pdf,image/jpeg,image/png"
           onChange={(event) => setFile(event.target.files?.[0] ?? null)}
         />
-        <DocumentNumberField locale={locale} register={form.register} />
+        <DocumentNumberField
+          locale={locale}
+          numberInvalid={numberInvalid}
+          register={form.register}
+        />
         <Label htmlFor="document-expires">{t(locale, 'employeeDocuments.expiresOn')}</Label>
         <Input id="document-expires" type="date" {...form.register('expires_on')} />
-        <p className="text-sm text-muted-foreground">
-          {t(
-            locale,
-            requiresExpiry
-              ? 'employeeDocuments.expiryRequired'
-              : 'employeeDocuments.expiryOptional',
-          )}
-        </p>
+        <ExpiryHint locale={locale} requiresExpiry={requiresExpiry} />
         <Button type="submit">{t(locale, 'employeeDocuments.upload')}</Button>
       </fieldset>
-      {invalid || Object.keys(form.formState.errors).length > 0 ? (
+      {invalid || otherInvalid ? (
         <p role="alert">{t(locale, 'employeeDocuments.invalid')}</p>
       ) : null}
     </form>

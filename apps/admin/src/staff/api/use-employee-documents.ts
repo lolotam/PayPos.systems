@@ -258,11 +258,19 @@ function useDocumentRecord(
     mutationFn: async (ticket: object) => {
       const submission = pending.get(ticket);
       pending.delete(ticket);
-      return submission === undefined ? undefined : recordEmployeeDocument(submission, recordContext);
+      return submission === undefined
+        ? undefined
+        : recordEmployeeDocument(submission, recordContext);
     },
     onSettled: (_data, _error, _variables, context) => {
-      if (context?.scope === current.current.scope && current.current.mounted) recordContext.onPhase('idle');
-      return context ? client.invalidateQueries({ queryKey: context.key }) : undefined;
+      if (context?.scope === current.current.scope && current.current.mounted)
+        recordContext.onPhase('idle');
+      if (context) {
+        client.invalidateQueries({ queryKey: context.key });
+        // تسجيل/استبدال وثيقة = تغيّر معروف في المستند الحالي؛ جرس انتهاء المستند يعيد التحقق من الرقم.
+        client.invalidateQueries({ queryKey: ['me', 'document-numbers'] });
+      }
+      return undefined;
     },
   });
   const ticketFor = (submission: DocumentSubmission) => {

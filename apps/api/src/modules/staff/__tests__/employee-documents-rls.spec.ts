@@ -11,9 +11,14 @@ import {
 let f: DocumentsFixture;
 let documentId: string;
 let typeId: string;
+const pinnedNumber = 'SYN-RLS-PIN';
 beforeAll(async () => {
   f = await documentsFixture();
-  documentId = (await f.record.execute(recordCommand(f, await documentFile(f)))).id;
+  documentId = (
+    await f.record.execute(
+      recordCommand(f, await documentFile(f), { document_number: pinnedNumber }),
+    )
+  ).id;
   const [type] = await f.h
     .owner`SELECT id FROM document_types WHERE company_id=${f.company} AND code='civil_id'`;
   typeId = type?.['id'] as string;
@@ -77,7 +82,10 @@ it('runtime cannot delete, rehome or rewrite recorded identity, key, expiry or a
   ]);
 });
 
-it('DN-18 another tenant reads no document_number column value, and no role can rewrite it', async () => {
+it('DN-18 the owner reads the pinned number, another tenant reads no value and no role can rewrite it', async () => {
+  expect(
+    await asOwnCompany(sql`SELECT document_number FROM employee_documents WHERE id=${documentId}`),
+  ).toEqual([{ document_number: pinnedNumber }]);
   expect(
     await asOther(
       sql`SELECT document_number FROM employee_documents WHERE id=${documentId} AND document_number IS NOT NULL`,

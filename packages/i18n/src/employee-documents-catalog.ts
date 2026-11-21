@@ -8,6 +8,7 @@ export const employeeDocumentsEn = {
   expiryRequired: 'This type needs an expiry date.',
   expiryOptional: 'Optional for this type.',
   upload: 'Upload and record',
+  numberInvalid: 'The document number is invalid.',
   replace: 'Replace',
   open: 'Open',
   openRetry:
@@ -59,6 +60,7 @@ export const employeeDocumentsAr: Record<keyof typeof employeeDocumentsEn, strin
   expiryRequired: 'هذا النوع يحتاج تاريخ انتهاء.',
   expiryOptional: 'اختياري لهذا النوع.',
   upload: 'رفع وتسجيل',
+  numberInvalid: 'رقم المستند غير صالح.',
   replace: 'استبدال',
   open: 'فتح',
   openRetry: 'تعذر فتح الوثيقة. اختر فتح مرة أخرى، ولو مفتحتش اسمح بالنوافذ المنبثقة للموقع.',

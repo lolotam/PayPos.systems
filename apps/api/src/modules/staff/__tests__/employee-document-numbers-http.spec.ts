@@ -78,11 +78,23 @@ it('DN-12 the same business id in another business context answers empty', async
   expect(response.json()).toEqual({ items: [] });
 });
 
-it('DN-13 a membership without read:files:business gets the same 404 for every ids value', async () => {
+it('DN-13 a membership without read:files:business gets the same 404 for every shape-valid ids value', async () => {
+  const bodies = new Set<string>();
   for (const ids of [String(numberedId), documentIds.newId()]) {
     const response = await read(f.business, ids, otherCookie);
     expect(response.statusCode).toBe(404);
     expect(response.json().code).toBe('NOT_FOUND');
+    expect(response.body).not.toContain('SYN-DOC');
+    bodies.add(response.body);
+  }
+  expect(bodies.size).toBe(1);
+});
+
+it('DN-13b shape validation precedes the permission check for every caller', async () => {
+  for (const cookie of [f.cookie, otherCookie]) {
+    const response = await read(f.business, 'not-a-uuid', cookie);
+    expect(response.statusCode).toBe(400);
+    expect(response.json().code).toBe('VALIDATION_FAILED');
     expect(response.body).not.toContain('SYN-DOC');
   }
 });

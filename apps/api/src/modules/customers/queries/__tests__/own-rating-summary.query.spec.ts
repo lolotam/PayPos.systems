@@ -2,6 +2,7 @@
 import { createDatabase, type Database } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { sql } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { randomBytes } from 'node:crypto';
 import postgres from 'postgres';
 import { afterAll, beforeAll, expect, it } from 'vitest';
@@ -28,15 +29,17 @@ let db: Database;
 const ids = systemUuidV7();
 const { A, B } = RATING_TENANT;
 const employeeId = A.employees[0];
+const defaultEmployeeId = employeeId;
 const context: OwnRatingContext = {
   companyId: A.company,
   businessId: A.business,
   userId: '01920000-0000-7000-8000-0000000000f1',
 };
 let currentTimeZone = 'Asia/Kuwait';
+let currentEmployee: string = employeeId;
 let allowed = true;
 const reads: OwnRatingReads = {
-  context: async () => ({ employeeId, timeZone: currentTimeZone }),
+  context: async () => ({ employeeId: currentEmployee, timeZone: currentTimeZone }),
   allowed: async () => new Set<StaffColumnCode>(allowed ? ['rating_average'] : []),
 };
 
@@ -87,6 +90,8 @@ async function seedStars(
 }
 const at = (month: number, day: number, hour: number) =>
   new Date(Date.UTC(2026, month - 1, day, hour));
+// موظفة ثالثة لصفوف Havana حتى لا تتقاطع صفوفها مع صفوف New York في نوفمبر نفسه.
+const havanaEmployeeId = '01920000-0000-7000-8000-000000000aa4';
 const summary = async (now: Date, sessionTimeZone?: string) =>
   db.withTenant(A.company, async (tx) => {
     if (sessionTimeZone !== undefined)
@@ -104,6 +109,9 @@ beforeAll(async () => {
   await owner`UPDATE employees SET user_id=${context.userId} WHERE company_id=${A.company} AND id=${employeeId}`;
   await owner`INSERT INTO employee_branches(company_id,id,business_id,employee_id,branch_id,"from")
     VALUES (${A.company},${ids.newId()},${A.business},${employeeId},${A.branch},'2026-01-01')`;
+  // موظفة Havana: صفوف نوفمبر بلا تداخل مع صفوف New York في نفس الشهر.
+  await owner`INSERT INTO employees (company_id,id,business_id,primary_branch_id,name_en,name_en_key,role_code,hire_date,employee_number)
+    VALUES (${A.company},${havanaEmployeeId},${A.business},${A.branch},'Synthetic havana','synthetic havana','staff','2026-01-01',99)`;
 });
 afterAll(async () => {
   await owner.end();
@@ -142,7 +150,17 @@ it('answers null average with count zero when the month has no ratings', async (
   });
 });
 
-it.each([
+const monthWindowCases: {
+  name: string;
+  timeZone: string;
+  now: Date;
+  employeeId?: string;
+  excluded: Date;
+  first: Date;
+  last: Date;
+  nextMonth: Date;
+  extras?: { stars: number; at: Date }[];
+}[] = [
   {
     name: 'Asia/Kuwait June boundaries',
     timeZone: 'Asia/Kuwait',
@@ -170,29 +188,52 @@ it.each([
     last: new Date('2026-11-30T23:59:59Z'),
     nextMonth: new Date('2026-12-01T05:00:00Z'),
   },
-])(
+  {
+    name: 'America/Havana November 2024 midnight repeat',
+    timeZone: 'America/Havana',
+    now: new Date('2024-11-15T10:00:00Z'),
+    employeeId: havanaEmployeeId,
+    excluded: new Date('2024-11-01T03:59:59Z'),
+    first: new Date('2024-11-01T04:00:00Z'),
+    last: new Date('2024-12-01T04:59:59Z'),
+    nextMonth: new Date('2024-12-01T05:00:00Z'),
+    extras: [
+      { stars: 5, at: new Date('2024-11-03T04:30:00Z') },
+      { stars: 5, at: new Date('2024-11-03T05:30:00Z') },
+    ],
+  },
+];
+
+it.each(monthWindowCases)(
   'applies the half-open month window for $name',
-  async ({ timeZone, now, excluded, first, last, nextMonth }) => {
+  async ({ timeZone, now, excluded, first, last, nextMonth, employeeId, extras }) => {
     currentTimeZone = timeZone;
+    currentEmployee = employeeId ?? defaultEmployeeId;
     try {
-      await seedStars([
-        { stars: 1, at: excluded },
-        { stars: 5, at: first },
-        { stars: 5, at: last },
-      ]);
+      await seedStars(
+        [
+          { stars: 1, at: excluded },
+          { stars: 5, at: first },
+          { stars: 5, at: last },
+          ...(extras ?? []),
+        ],
+        { employeeId: currentEmployee },
+      );
+      const expectedCount = 2 + (extras?.length ?? 0);
       expect(await summary(now)).toMatchObject({
         visibility: 'VISIBLE',
         average: '5.0',
-        count: 2,
+        count: expectedCount,
       });
-      await seedStars([{ stars: 3, at: nextMonth }]);
+      await seedStars([{ stars: 3, at: nextMonth }], { employeeId: currentEmployee });
       expect(await summary(now)).toMatchObject({
         visibility: 'VISIBLE',
         average: '5.0',
-        count: 2,
+        count: expectedCount,
       });
     } finally {
       currentTimeZone = 'Asia/Kuwait';
+      currentEmployee = defaultEmployeeId;
     }
   },
 );
@@ -212,20 +253,30 @@ it('is independent of the database session timezone', async () => {
   expect(await summary(now)).toEqual(await summary(now, 'America/New_York'));
 });
 
-it('uses rating_attributions_employee_idx', async () => {
-  const now = at(6, 15, 12);
-  await seedStars(
-    Array.from({ length: 300 }, (_, index) => ({
-      stars: (index % 5) + 1,
-      at: at(6, 1, index % 24),
-    })),
-  );
-  await owner`ANALYZE rating_attributions`;
-  const plan = await db.withTenant(A.company, async (tx) => {
-    await tx.execute(sql`SET LOCAL enable_seqscan=off`);
-    return tx.execute(
-      sql`EXPLAIN (ANALYZE, FORMAT JSON) ${ownRatingSummaryStatement(context, employeeId, now, 'Asia/Kuwait')}`,
+it(
+  'uses rating_attributions_employee_idx on the bare submitted_at column',
+  { timeout: 60_000 },
+  async () => {
+    const now = at(6, 15, 12);
+    // الشرط بيقارن العمود المجرد submitted_at بالنطاق المحسوب، مش بيلف العمود في AT TIME ZONE.
+    const statementText = new PgDialect().sqlToQuery(
+      ownRatingSummaryStatement(context, employeeId, now, 'Asia/Kuwait'),
+    ).sql;
+    expect(statementText).toMatch(/submitted_at >=/);
+    expect(statementText).not.toMatch(/submitted_at\s+AT\s+TIME\s+ZONE/);
+    await seedStars(
+      Array.from({ length: 300 }, (_, index) => ({
+        stars: (index % 5) + 1,
+        at: at(6, 1, index % 24),
+      })),
     );
-  });
-  expect(JSON.stringify(plan)).toContain('rating_attributions_employee_idx');
-});
+    await owner`ANALYZE rating_attributions`;
+    const plan = await db.withTenant(A.company, async (tx) => {
+      await tx.execute(sql`SET LOCAL enable_seqscan=off`);
+      return tx.execute(
+        sql`EXPLAIN (ANALYZE, FORMAT JSON) ${ownRatingSummaryStatement(context, employeeId, now, 'Asia/Kuwait')}`,
+      );
+    });
+    expect(JSON.stringify(plan)).toContain('rating_attributions_employee_idx');
+  },
+);

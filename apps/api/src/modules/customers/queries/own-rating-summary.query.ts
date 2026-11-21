@@ -9,6 +9,8 @@ import {
 } from './own-rating-context.ts';
 
 // كارت متوسط تقييمي في شاشة شغلي (61-3): تقييمات الموظفة لنفسها في شهر توقيت النشاط الحالي فقط.
+// الحدان المحليان للشهر ممكن يقعوا في تكرار (رجوع الساعة لمنتصف الليل) أو فجوة (تقدّم الساعة عند منتصف الليل)؛
+// لذلك الحد الفعلي هو أول لحظة صالحة محليتها >= بداية الشهر المحلية، والنهاية أول لحظة محليتها >= بداية الشهر الجاية.
 export function ownRatingSummaryStatement(
   c: OwnRatingContext,
   employeeId: string,
@@ -17,13 +19,25 @@ export function ownRatingSummaryStatement(
 ) {
   return sql`WITH month_start AS (
       SELECT date_trunc('month', ${now.toISOString()}::timestamptz AT TIME ZONE ${timeZone}) AS local_start
+    ), bounds AS (
+      SELECT (SELECT min(g.t) FROM generate_series(
+          (m.local_start - interval '1 day') AT TIME ZONE ${timeZone},
+          (m.local_start + interval '1 day') AT TIME ZONE ${timeZone},
+          interval '1 minute') AS g(t)
+        WHERE (g.t AT TIME ZONE ${timeZone}) >= m.local_start) AS window_start,
+        (SELECT min(g.t) FROM generate_series(
+          (m.local_start + interval '1 month' - interval '1 day') AT TIME ZONE ${timeZone},
+          (m.local_start + interval '1 month' + interval '1 day') AT TIME ZONE ${timeZone},
+          interval '1 minute') AS g(t)
+        WHERE (g.t AT TIME ZONE ${timeZone}) >= m.local_start + interval '1 month') AS window_end
+      FROM month_start m
     )
     SELECT count(*)::int AS count, round(avg(a.stars), 1)::text AS average
-    FROM rating_attributions a, month_start m
+    FROM rating_attributions a, bounds b
     WHERE a.company_id=${c.companyId} AND a.employee_id=${employeeId}
       AND a.business_id=${c.businessId}
-      AND a.submitted_at >= (m.local_start AT TIME ZONE ${timeZone})
-      AND a.submitted_at < ((m.local_start + interval '1 month') AT TIME ZONE ${timeZone})`;
+      AND a.submitted_at >= b.window_start
+      AND a.submitted_at < b.window_end`;
 }
 
 export async function readOwnRatingSummary(

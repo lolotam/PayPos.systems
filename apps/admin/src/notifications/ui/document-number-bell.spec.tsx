@@ -175,6 +175,61 @@ it('hides the last number during a same-id inbox refresh and retains the ordinar
   expect(screen.getByText(todayText)).toBeTruthy();
 });
 
+it('revalidates the number when the app learns a document changed while the bell is open', async () => {
+  vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
+  const request = deferred<Response>();
+  const lookup = vi
+    .fn()
+    .mockResolvedValueOnce(
+      response({ items: [{ document_id: documentId, document_number: 'SYN-BELL-0001' }] }),
+    )
+    .mockReturnValue(request.promise);
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const path = new URL((input as Request).url).pathname;
+    if (numbersPath(path)) return lookup();
+    if (path.endsWith('/unread-count')) return response({ count: 1 });
+    return response({ items: [documentItem()], next_cursor: null });
+  });
+  const { client } = renderBell();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'inApp.title') }));
+  await screen.findByText(numberedText);
+  await act(async () => {
+    client.invalidateQueries({ queryKey: ['me', 'document-numbers'] });
+  });
+  await waitFor(() => expect(lookup).toHaveBeenCalledTimes(2));
+  expect(screen.queryByText(numberedText)).toBeNull();
+  expect(screen.getByText(todayText)).toBeTruthy();
+  await act(async () => request.resolve(new Response('{"code":"FORBIDDEN"}', { status: 404 })));
+  expect(screen.getByText(todayText)).toBeTruthy();
+});
+
+it('revalidates the number when the app learns permissions changed, and a refusal falls back to today', async () => {
+  vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
+  const request = deferred<Response>();
+  const lookup = vi
+    .fn()
+    .mockResolvedValueOnce(
+      response({ items: [{ document_id: documentId, document_number: 'SYN-BELL-0001' }] }),
+    )
+    .mockReturnValue(request.promise);
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const path = new URL((input as Request).url).pathname;
+    if (numbersPath(path)) return lookup();
+    if (path.endsWith('/unread-count')) return response({ count: 1 });
+    return response({ items: [documentItem()], next_cursor: null });
+  });
+  const { client } = renderBell();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'inApp.title') }));
+  await screen.findByText(numberedText);
+  await act(async () => {
+    client.invalidateQueries({ queryKey: ['me', 'document-numbers'] });
+  });
+  await waitFor(() => expect(lookup).toHaveBeenCalledTimes(2));
+  expect(screen.queryByText(numberedText)).toBeNull();
+  await act(async () => request.resolve(response({ items: [] })));
+  expect(screen.getByText(todayText)).toBeTruthy();
+});
+
 it('clears the previous number when changing business inside the same company', async () => {
   vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
   const request = deferred<Response>();
@@ -205,24 +260,19 @@ it('clears the previous number when changing business inside the same company', 
   request.resolve(response({ items: [] }));
 });
 
-it('cancels other business lookups when one guarded lookup is refused', async () => {
+it('isolates a per-activity denial: the refused business falls back while the authorized one keeps its number', async () => {
   const otherBusiness = '01920000-0000-7000-8000-0000000000df';
-  const sibling = vi.fn<(signal: AbortSignal) => void>();
   vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
-  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+  const sibling = vi.fn<(signal: AbortSignal) => void>();
+  const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
     const request = input as Request;
     const path = new URL(request.url).pathname;
     if (numbersPath(path)) {
+      // رفض نشاط واحد (سحب صلاحية مثلًا) ما بيلغي طلب الأنشطة التانية.
       if (path.includes(otherBusiness))
         return new Response('{"code":"FORBIDDEN"}', { status: 404 });
       sibling(request.signal);
-      return new Promise((resolve) => {
-        request.signal.addEventListener(
-          'abort',
-          () => resolve(new Response(null, { status: 404 })),
-          { once: true },
-        );
-      });
+      return response({ items: [{ document_id: documentId, document_number: 'SYN-BELL-0001' }] });
     }
     if (path.endsWith('/unread-count')) return response({ count: 2 });
     return response({
@@ -232,16 +282,105 @@ it('cancels other business lookups when one guarded lookup is refused', async ()
           ...documentItem(),
           id: '01920000-0000-7000-8000-0000000000c5',
           business_id: otherBusiness,
+          safe_parameters: documentItem().safe_parameters.map((parameter) =>
+            parameter.name === 'document_id'
+              ? { ...parameter, value: '01920000-0000-7000-8000-0000000000c9' }
+              : parameter,
+          ),
         },
       ],
       next_cursor: null,
     });
   });
+  renderBell();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'inApp.title') }));
+  expect(await screen.findByText(numberedText)).not.toBeNull();
+  expect(sibling).toHaveBeenCalledTimes(1);
+  expect(screen.getAllByText(todayText)).toHaveLength(1);
+  const deniedTexts = screen.getAllByText(todayText);
+  expect(deniedTexts[0]).toBeTruthy();
+  expect(numbersFetchCount(fetchSpy)).toBe(2);
+});
+
+it('a late reply for a removed scope never surfaces after the id set changes', async () => {
+  const otherDoc = '01920000-0000-7000-8000-0000000000c9';
+  const late = deferred<Response>();
+  const changed = deferred<Response>();
+  const lookup = vi
+    .fn()
+    .mockImplementationOnce(() => late.promise)
+    .mockImplementationOnce(() => changed.promise);
+  vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const path = new URL((input as Request).url).pathname;
+    if (numbersPath(path)) return lookup();
+    if (path.endsWith('/unread-count')) return response({ count: 1 });
+    return response({ items: [documentItem()], next_cursor: null });
+  });
   const { client } = renderBell();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'inApp.title') }));
-  await waitFor(() => expect(sibling).toHaveBeenCalledTimes(1));
-  await waitFor(() => expect(client.isFetching({ queryKey: ['me', 'document-numbers'] })).toBe(0));
-  expect(sibling.mock.calls[0]?.[0].aborted).toBe(true);
-  expect(screen.queryByText(numberedText)).toBeNull();
-  expect(screen.getAllByText(todayText)).toHaveLength(2);
+  await waitFor(() => expect(lookup).toHaveBeenCalledTimes(1));
+  await act(async () => {
+    client.setQueryData(inboxKey, {
+      items: [
+        {
+          ...documentItem(),
+          id: '01920000-0000-7000-8000-0000000000c5',
+          safe_parameters: documentItem().safe_parameters.map((parameter) =>
+            parameter.name === 'document_id' ? { ...parameter, value: otherDoc } : parameter,
+          ),
+        },
+      ],
+      next_cursor: null,
+    });
+  });
+  await waitFor(() => expect(lookup).toHaveBeenCalledTimes(2));
+  await act(async () => {
+    late.resolve(
+      response({ items: [{ document_id: documentId, document_number: 'SYN-LATE-0001' }] }),
+    );
+    changed.resolve(
+      response({
+        items: [{ document_id: otherDoc, document_number: 'SYN-LATE-0002' }],
+      }),
+    );
+  });
+  expect(await screen.findByText(/SYN-LATE-0002/)).not.toBeNull();
+  expect(screen.queryByText(/SYN-LATE-0001/)).toBeNull();
 });
+
+it('normalizes document id case when reading the numbers map', async () => {
+  const upperId = documentId.toUpperCase();
+  vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
+  vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const path = new URL((input as Request).url).pathname;
+    if (numbersPath(path)) {
+      return response({
+        items: [{ document_id: upperId.toLowerCase(), document_number: 'SYN-BELL-0003' }],
+      });
+    }
+    if (path.endsWith('/unread-count')) return response({ count: 1 });
+    return response({
+      items: [
+        {
+          ...documentItem(),
+          safe_parameters: documentItem().safe_parameters.map((parameter) =>
+            parameter.name === 'document_id' ? { ...parameter, value: upperId } : parameter,
+          ),
+        },
+      ],
+      next_cursor: null,
+    });
+  });
+  renderBell();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'inApp.title') }));
+  expect(
+    await screen.findByText(numberedText.replace('SYN-BELL-0001', 'SYN-BELL-0003')),
+  ).not.toBeNull();
+});
+
+function numbersFetchCount(fetchSpy: { mock: { calls: unknown[][] } }) {
+  return fetchSpy.mock.calls.filter(([input]) =>
+    numbersPath(new URL((input as Request).url).pathname),
+  ).length;
+}

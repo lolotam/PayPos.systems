@@ -149,6 +149,21 @@ it('RS-10 accepts only the personal session and is 401 for the admin and recepti
   }
 });
 
+it('RS-10a refuses a valid admin session on the personal route with no rating fields in the answer', async () => {
+  // جلسة المالك صالحة تمامًا على مسارات admin، والمسار الشخصي بيرفضها 401 قبل أي قراءة تقييم.
+  const admin = await f.h.app.inject({
+    method: 'GET',
+    url: '/v1/staff/me/rating-summary',
+    headers: { cookie: f.ownerCookie, origin: personalOrigin },
+  });
+  expect(admin.statusCode).toBe(401);
+  expect(admin.json().code).toBe('UNAUTHENTICATED');
+  expect(admin.json()).not.toHaveProperty('visibility');
+  expect(admin.json()).not.toHaveProperty('average');
+  expect(admin.json()).not.toHaveProperty('count');
+  expect(admin.headers['cache-control']).toBe('no-store');
+});
+
 it('RS-11 never counts another employee or another company', async () => {
   const reads = f.h.app.get<OwnRatingReads>(OWN_RATING_READS);
   const restore = allowColumn(reads);

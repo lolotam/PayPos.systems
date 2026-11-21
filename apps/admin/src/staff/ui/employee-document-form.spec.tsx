@@ -57,17 +57,15 @@ it('DN-21 trims the typed number before submitting and sends an empty field as a
   );
 });
 
-it('DN-21 shows the visible invalid alert and submits nothing for a control character', async () => {
+it('DN-21 shows the field-specific translated error for a control character and submits nothing', async () => {
   const onSubmit = vi.fn();
   renderForm(onSubmit);
   attachFile();
   const number = screen.getByLabelText('Document number (optional)');
   fireEvent.change(number, { target: { value: 'SYN\u0007DOC' } });
   fireEvent.click(screen.getByRole('button', { name: 'Upload and record' }));
-  await waitFor(() => expect(screen.getByRole('alert')).not.toBeNull());
-  expect(screen.getByRole('alert').textContent).toBe(
-    'Choose a type, a file of up to 10 MB and, when required, an expiry date.',
-  );
+  const fieldError = await screen.findByRole('alert');
+  expect(fieldError.textContent).toBe('The document number is invalid.');
   expect(onSubmit).not.toHaveBeenCalled();
   expect(
     employeeDocumentFormInput.safeParse({
@@ -76,6 +74,27 @@ it('DN-21 shows the visible invalid alert and submits nothing for a control char
       document_number: 'SYN\u0007DOC',
     }).success,
   ).toBe(false);
+});
+
+it('DN-21 shows a translated field-specific error, then submits successfully once corrected', async () => {
+  const onSubmit = vi.fn();
+  renderForm(onSubmit);
+  attachFile();
+  const number = screen.getByLabelText('Document number (optional)') as HTMLInputElement;
+  fireEvent.change(number, { target: { value: 'SYN\u0007DOC' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Upload and record' }));
+  const fieldError = await screen.findByRole('alert');
+  expect(fieldError.textContent).toBe('The document number is invalid.');
+  expect(onSubmit).not.toHaveBeenCalled();
+  fireEvent.change(number, { target: { value: 'SYN-DOC-0065' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Upload and record' }));
+  await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+  expect(onSubmit).toHaveBeenCalledWith(
+    expect.objectContaining({
+      values: expect.objectContaining({ document_number: 'SYN-DOC-0065' }),
+    }),
+  );
+  expect(screen.queryByRole('alert')).toBeNull();
 });
 
 it('DN-21 the table shows the number and an em dash placeholder', () => {

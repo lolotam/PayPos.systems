@@ -135,13 +135,20 @@ export function usePermissions(
     mutationFn: (body: PermissionOverrideInput) =>
       saveOverride(companyId, membershipId, body, businessId),
     onMutate: () => ({ queryKey: key(companyId, userId, businessId) }),
-    onSuccess: (_saved, _body, context) => client.invalidateQueries({ queryKey: context.queryKey }),
+    // تغيير صلاحية = تغيّر معروف يستهلكه جرس انتهاء المستند في إعادة التحقق من الرقم.
+    onSuccess: (_saved, _body, context) => {
+      client.invalidateQueries({ queryKey: context.queryKey });
+      client.invalidateQueries({ queryKey: ['me', 'document-numbers'] });
+    },
   });
   const revoke = useMutation({
     mutationFn: ({ overrideId, reason }: { overrideId: string; reason: string }) =>
       revokeOverride(companyId, membershipId, overrideId, { reason }, businessId),
     onMutate: () => ({ queryKey: key(companyId, userId, businessId) }),
-    onSuccess: (_saved, _body, context) => client.invalidateQueries({ queryKey: context.queryKey }),
+    onSuccess: (_saved, _body, context) => {
+      client.invalidateQueries({ queryKey: context.queryKey });
+      client.invalidateQueries({ queryKey: ['me', 'document-numbers'] });
+    },
   });
   return { detail, save, revoke };
 }

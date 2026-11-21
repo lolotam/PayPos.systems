@@ -18,16 +18,15 @@ export function NotificationItem({
 }) {
   const textLocale = item.template_key === 'generic_notice' ? item.locale : locale;
   const documentId = documentIdOf(item);
+  const documentNumber =
+    item.template_key === 'document_expiring' && documentId !== null
+      ? // مفتاح الخريطة مخزَّن بحروف صغيرة؛ نطبّع المعرف عند القراءة كمان.
+        documentNumbers.get(documentId.toLowerCase())
+      : undefined;
   return (
     <li className="flex flex-col gap-2 border-b border-border py-4 text-start last:border-b-0">
       <p lang={textLocale} dir={textLocale === 'ar' ? 'rtl' : 'ltr'}>
-        {renderNotification(
-          item,
-          locale,
-          item.template_key === 'document_expiring' && documentId !== null
-            ? documentNumbers.get(documentId)
-            : undefined,
-        )}
+        {renderNotification(item, locale, documentNumber)}
       </p>
       <div className="flex items-center gap-2">
         <Badge variant={item.read_at === null ? 'brand' : 'neutral'}>
