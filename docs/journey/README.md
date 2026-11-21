@@ -170,5 +170,7 @@ answer.
 | 96 | [Package sale recovery when the response is lost](96-package-sale-recovery.md) — استرجاع بيع الباقة لما الرد يضيع | #1077, #1094 | after the next staging batch; needs the `orders` feature; continues [86](86-sell-package.md) step 14 |
 | 97 | [The commission plan builder](97-commission-plan-builder.md) — منشئ خطط العمولة | #1104, this PR | yes (`/commissions/plans`) |
 | 98 | [The special-commission screen](98-commission-service-overrides.md) — شاشة العمولة الخاصة للخدمات | this PR | after the staging batch that includes this PR (`/commissions/overrides`) |
+| 99 | [A customer's packages](99-customer-packages.md) — باقات العميلة | this PR (42-4) | after the staging batch that includes this PR (`/orders/customers/{customerId}/packages` from the day list and the two forms) |
+| 100 | [The imported-package refunds switch](100-imported-refunds-switch.md) — مفتاح مرتجع الباقات المستوردة | this PR (46-2a-S) | after the staging batch that includes this PR **and its seed migration passes the U gate** (`/imported-refunds`) |
 
 New journeys are added after every merge.
