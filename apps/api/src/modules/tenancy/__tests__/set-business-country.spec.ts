@@ -1,4 +1,5 @@
-import { SYSTEM_ROLES } from '@pospay/db';
+import { errorEnvelope } from '@pospay/contracts';
+import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
@@ -8,23 +9,18 @@ import {
 } from '../../../../test/permissions-fixture.ts';
 import { createTenancyTransactions } from '../persistence/tenancy-transactions.ts';
 import { SetBusinessCountry } from '../use-cases/set-business-country/set-business-country.ts';
+import { businessCountry } from '../queries/business-country.query.ts';
 import type { TenancyTransactions } from '../ports/tenancy-transactions.port.ts';
 
 // 34-pre-3 عبر الـ API على Postgres حقيقي: تغيير واحد مُدوَّن، والقيمة المتساوية بلا كتابة ولا تدقيق،
-// والرفض نفسه للنشاط الغائب والأجنبي، والصلاحية على النشاط، وإنشاء نشاط بدولة صالحة أو غير صالحة أو بلا دولة.
+// والرفض 403 الصريح للنشاط الغائب والأجنبي والجهاز، وصلاحية النشاط وحده، وإرث الإعدادات غير الكائنية،
+// وإنشاء نشاط يحجز مفتاح country، وفشل التدقيق يرجع الكتابة، والتزامن يترتب تحت قفل الصف.
+
 let f: PermissionFixture;
 let owner: string;
 let business: string;
 let otherBusiness: string;
 let foreignBusiness: string;
-
-const deviceRole = SYSTEM_ROLES.find((role) => role.code === 'device')?.id ?? '';
-
-/** صف تدقيق دولة النشاط كما يرجعه الاستعلام، بقيمة ما قبل وما بعد. */
-interface CountryAuditRow {
-  readonly before: { readonly country: string | null };
-  readonly after: { readonly country: string };
-}
 
 beforeAll(async () => {
   f = await permissionFixture();
@@ -59,6 +55,12 @@ const countryAudits = async (id = business, company = f.company) =>
     WHERE company_id = ${company} AND entity = 'business' AND entity_id = ${id}
       AND action = 'country.changed' ORDER BY id`;
 
+/** صف تدقيق دولة النشاط كما يرجعه الاستعلام، بقيمة ما قبل وما بعد. */
+interface CountryAuditRow {
+  readonly before: { readonly country: string | null };
+  readonly after: { readonly country: string };
+}
+
 describe('the country change route (B-6/B-7)', () => {
   it('sets a country on a business with template and custom keys, keeping them and auditing once', async () => {
     const created = await f.h.send('POST', '/v1/businesses', {
@@ -78,8 +80,7 @@ describe('the country change route (B-6/B-7)', () => {
       custom_key: 7,
       country: 'KW',
     });
-    const audits = await countryAudits(id);
-    expect(audits).toEqual([{ before: { country: null }, after: { country: 'KW' } }]);
+    expect(await countryAudits(id)).toEqual([{ before: { country: null }, after: { country: 'KW' } }]);
   });
 
   it('sets the first value on the fixture business and audits unset before it', async () => {
@@ -127,43 +128,110 @@ describe('the route refusals (B-7, B-8)', () => {
     expect(await countryAudits()).toHaveLength(2);
   });
 
-  it('answers unknown and foreign businesses with the same refusal and writes nothing', async () => {
+  it('answers unknown and foreign businesses with the same 403 envelope and writes nothing', async () => {
     const foreignBefore = await settingsOf(foreignBusiness, f.otherCompany);
     const unknown = await put({ country: 'KW' }, owner, f.company, '01920000-0000-7000-8000-00000000ffff');
     const foreign = await put({ country: 'KW' }, owner, f.company, foreignBusiness);
-    expect(unknown.status).toBe(foreign.status);
-    // الصف الأجنبي بيتحقق تحت شركته هو، مش تحت شركة الفاعل، فالتطابق مش اجتياز على صف مش شايفه.
+    expect(unknown.status).toBe(403);
+    expect(foreign.status).toBe(403);
+    expect(errorEnvelope.parse(unknown.body).code).toBe('FORBIDDEN');
+    expect(errorEnvelope.parse(foreign.body).code).toBe('FORBIDDEN');
+    // الصف الأجنبي بيتحقق تحت شركته هو، مش تحت شركة الفاعل، والتطابق ما يعنيش اجتياز على صف مش شايفه.
     expect(await settingsOf(foreignBusiness, f.otherCompany)).toEqual(foreignBefore);
     expect(await countryAudits(foreignBusiness, f.otherCompany)).toEqual([]);
+    expect(await countryAudits()).toHaveLength(2);
   });
 
-  it('refuses a member without manage:settings:business, a device principal, and grants an override holder', async () => {
+  it('refuses a member without manage:settings:business with the 403 envelope', async () => {
     const denied = await put({ country: 'QA' }, f.managerCookie);
     expect(denied.status).toBe(403);
-    // الجهاز مرفوض حتى لو معه ALLOW، زي سابق قواعد التنبيه AL-Q1؛ فنغيّر الدور ونجرب ثم نرجّع الدور.
-    await f.h.owner`UPDATE memberships SET role_id=${deviceRole}, role_owner_key='global'
-      WHERE company_id=${f.company} AND id=${f.managerMember}`;
-    const device = await put({ country: 'QA' }, f.managerCookie);
-    expect(device.status).toBe(403);
-    await f.h.owner`UPDATE memberships SET role_id=(SELECT id FROM roles WHERE company_id=${f.company} AND code='synthetic_editor'),
-      role_owner_key=${f.company} WHERE company_id=${f.company} AND id=${f.managerMember}`;
+    expect(errorEnvelope.parse(denied.body).code).toBe('FORBIDDEN');
+    expect(await settingsOf()).toMatchObject({ country: 'SA' });
+  });
+});
+
+describe('a real authenticated Device principal (403)', () => {
+  it('refuses a Device principal paired through the real device routes', async (ctx) => {
+    // مجسّ وجود Redis معزول: دون اختبار مسار الأجهزة الفعلي محلياً، وCI بـ Redis الحقيقي يشغّله كاملاً.
+    const probe = new Redis(process.env['REDIS_URL'] ?? 'redis://127.0.0.1:6379', {
+      lazyConnect: true,
+      connectTimeout: 1_000,
+      retryStrategy: () => null,
+      maxRetriesPerRequest: 1,
+    });
+    try {
+      await probe.connect();
+      await probe.ping();
+    } catch {
+      ctx.skip();
+      console.log('device fixture skipped locally: no isolated Redis reachable for the device routes');
+      return;
+    } finally {
+      probe.disconnect();
+    }
+    // الأداة الحقيقية: رمز اقتران جهاز مصادق عليه من مسار الأجهزة الفعلي، مش كوكي عضوية معاد تسميتها.
+    const code = await f.h.send('POST', `/v1/branches/${f.branch}/devices/pairing-code`, {
+      cookie: owner,
+      company: f.company,
+    });
+    expect(code.status).toBe(201);
+    const registered = await f.h.app.inject({
+      method: 'POST',
+      url: '/v1/devices/register',
+      payload: { pairing_code: code.body['code'], label: 'Synthetic country refusal' },
+    });
+    expect(registered.statusCode).toBe(201);
+    const device = registered.json<{ company_id: string; device_id: string; claim_secret: string }>();
+    const approved = await f.h.send(
+      'POST',
+      `/v1/branches/${f.branch}/devices/${device.device_id}/approve`,
+      { cookie: owner, company: f.company },
+    );
+    expect(approved.status).toBe(204);
+    const claimed = await f.h.app.inject({
+      method: 'POST',
+      url: '/v1/devices/claim',
+      payload: device,
+    });
+    expect(claimed.statusCode).toBe(200);
+    const token = claimed.json<{ device_token: string }>().device_token;
+    const res = await f.h.app.inject({
+      method: 'PUT',
+      url: `/v1/businesses/${business}/country`,
+      headers: { authorization: `Device ${token}`, 'x-company-id': f.company },
+      payload: { country: 'KW' },
+    });
+    expect(res.statusCode).toBe(403);
+    expect(errorEnvelope.parse(res.json()).code).toBe('FORBIDDEN');
+    expect(await settingsOf()).toMatchObject({ country: 'SA' });
+    expect(await countryAudits()).toHaveLength(2);
+  });
+});
+
+describe('the sibling refusal with a business-only holder (OQ-2 scope)', () => {
+  it('grants a business-only holder this business and refuses her the sibling before the grant is removed', async () => {
     const granted = await seedOverride(f, f.managerMember, {
       permission_code: 'manage:settings:business',
       scope_type: 'BUSINESS',
       scope_id: business,
     });
     const allowed = await put({ country: 'BH' }, f.managerCookie);
-    await f.h.owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id=${granted}`;
     expect(allowed.status).toBe(200);
     expect(await settingsOf()).toMatchObject({ country: 'BH' });
+    // الأخت قبل شيل التفويض: نطاق BUSINESS الواحد ما بيمتدش لنشاط تاني، والإعدادات والتدقيق سليمين.
+    const sibling = await put({ country: 'KW' }, f.managerCookie, f.company, otherBusiness);
+    expect(sibling.status).toBe(403);
+    expect(errorEnvelope.parse(sibling.body).code).toBe('FORBIDDEN');
+    expect(await settingsOf(otherBusiness)).toMatchObject({ country: 'OM' });
+    expect(await countryAudits(otherBusiness)).toHaveLength(1);
+    await f.h.owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id=${granted}`;
   });
+});
 
+describe('concurrent changes ordering (FOR NO KEY UPDATE)', () => {
   it('orders two concurrent changes so the later audit continues from the earlier audit value', async () => {
     const before = await settingsOf();
-    const [first, second] = await Promise.all([
-      put({ country: 'KW' }),
-      put({ country: 'QA' }),
-    ]);
+    const [first, second] = await Promise.all([put({ country: 'KW' }), put({ country: 'QA' })]);
     expect([first.status, second.status]).toEqual([200, 200]);
     const stored = (await settingsOf())['country'];
     expect(['KW', 'QA']).toContain(stored);
@@ -183,6 +251,9 @@ describe('audit-failure rollback (BD-05 pattern)', () => {
   it('rolls the country write back and records no audit row when the audit fails', async () => {
     const before = await settingsOf();
     const auditCount = (await countryAudits()).length;
+    const stored = typeof before['country'] === 'string' ? before['country'] : null;
+    // الدولة المطلوبة مضمونة الاختلاف عن المخزّن، فالتغيير فعلي والكتابة والفشل بيحصلوا بالضرورة.
+    const requested = stored === 'KW' ? 'QA' : 'KW';
     const real = createTenancyTransactions(f.db, f.ids);
     const transactions: TenancyTransactions = {
       run: (context, idempotency, work) => real.run(context, idempotency, work),
@@ -200,11 +271,55 @@ describe('audit-failure rollback (BD-05 pattern)', () => {
     };
     const useCase = new SetBusinessCountry(transactions);
     await expect(
-      useCase.execute({ companyId: f.company, userId: f.userId, businessId: business, country: 'KW' }),
+      useCase.execute({ companyId: f.company, userId: f.userId, businessId: business, country: requested }),
     ).rejects.toThrow('Synthetic audit failure');
     expect(await settingsOf()).toEqual(before);
     expect(await countryAudits()).toHaveLength(auditCount);
   });
+});
+
+describe('legacy non-object settings (manager correction 2026-11-21, item 1)', () => {
+  // الأشكال الإرثية الثلاثة: jsonb null (المكافئ الفارغ لأن العمود NOT NULL)، ومصفوفة، وعدد.
+  const legacyCases: [string, string, string][] = [
+    ['a jsonb null', "'null'::jsonb", 'null'],
+    ['a JSON array', "'[]'::jsonb", 'array'],
+    ['a JSON scalar', "'965'::jsonb", 'number'],
+  ];
+
+  it.each(legacyCases)(
+    'sets a country on a business whose settings are %s, merging from {}',
+    async (_label, literal, expectedKind) => {
+      const created = await f.h.send('POST', '/v1/businesses', {
+        cookie: owner,
+        company: f.company,
+        key: `country-34p3-legacy-${expectedKind}`,
+        body: { vertical_type: 'salon', name_en: `Legacy ${expectedKind}` },
+      });
+      expect(created.status).toBe(201);
+      const id = created.body['id'] as string;
+      // قيم ثابتة من هذا الملف فقط عبر unsafe — المسار الموثّق لpostgres.js للـ SQL الخام.
+      await f.h.owner.unsafe(
+        `UPDATE businesses SET settings = ${literal} WHERE company_id = '${f.company}' AND id = '${id}'`,
+      );
+      const [kindRow] = await f.h
+        .owner`SELECT jsonb_typeof(settings) AS kind FROM businesses WHERE company_id=${f.company} AND id=${id}`;
+      expect(kindRow?.['kind']).toBe(expectedKind);
+      // القارئ الداخلي قبل التغيير: إرث غير كائني يعني «غير محددة»، مش قيمة ولا JSON خام.
+      const readerBefore = await f.db.withTenant(f.company, (tx) =>
+        businessCountry(tx, f.company, id),
+      );
+      expect(readerBefore).toEqual({ country: null });
+      const res = await put({ country: 'KW' }, owner, f.company, id);
+      expect(res.status).toBe(200);
+      expect(await settingsOf(id)).toEqual({ country: 'KW' });
+      const readerAfter = await f.db.withTenant(f.company, (tx) =>
+        businessCountry(tx, f.company, id),
+      );
+      expect(readerAfter).toEqual({ country: 'KW' });
+      const audits = await countryAudits(id);
+      expect(audits).toEqual([{ before: { country: null }, after: { country: 'KW' } }]);
+    },
+  );
 });
 
 describe('the create path (B-5, OQ-2, manager disposition 2026-11-21)', () => {

@@ -24,6 +24,7 @@ export const businessCountryPaths = {
           description: 'The business and its stored country',
           content: json('SetBusinessCountryResult'),
         },
+        '403': { description: 'The API error envelope', content: json('ErrorEnvelope') },
         '404': { description: 'The API error envelope', content: json('ErrorEnvelope') },
         default: { description: 'The API error envelope', content: json('ErrorEnvelope') },
       },

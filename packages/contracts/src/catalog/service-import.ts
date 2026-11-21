@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { responseObject } from '../response-object.js';
 
-import { page } from '../pagination/cursor.js';
 import { id } from '../scalars/id.js';
 import {
   serviceCommissionRuleView,
@@ -64,6 +63,10 @@ export const previewServiceImportInput = z
 
 // الصف المطبّع (D-9/FR-014): المال نص ثلاثي الخانات وقيمة القاعدة عدد صحيح bps أو نص مبلغ، فلا رقم جافاسكربت يحمل مالاً،
 // والقيمة بترتبط بنوع القاعدة وقت التحقق نفسه: PCT بنفس الـ bps، وFIXED بنفس النص، وFOLLOW_PLAN وZERO بلا قيمة.
+// الإلغاء على فرع العدد الصحيح جوه الاتحاد، ونص المبلغ مكتوب بنمطه الحرفي بدل $ref معرّى داخل anyOf —
+// التوليفة الوحيدة اللي كان عميل openapi-typescript بيسقطها فيصير باقي حقول الصف مفقودة من العميل المولّد.
+// اختبار العقد بيثبت أن النمط المضمن يقبل ويرفض مثل ServicePrice بالظبط، فما فيش انحراف بين النسختين.
+const servicePriceInline = z.string().regex(/^(0|[1-9]\d{0,10})\.\d{3}$/);
 export const serviceImportRow = responseObject({
     row: z.number().int().min(2),
     name_en: serviceNameEn,
@@ -73,7 +76,7 @@ export const serviceImportRow = responseObject({
     category_id: id.nullable(),
     category_name_en: z.string().nullable(),
     commission_rule: serviceCommissionRuleView,
-    commission_value: z.union([z.number().int().min(0).max(10_000), servicePrice]).nullable(),
+    commission_value: z.union([z.number().int().min(0).max(10_000).nullable(), servicePriceInline]),
     commission_rule_defaulted: z.boolean(),
     counts_toward_threshold: z.boolean(),
   })
@@ -89,24 +92,39 @@ export const serviceImportRow = responseObject({
   })
   .meta({ id: 'ServiceImportRow' });
 
+// مؤشر صف الورقة واحد للطلب والرد: نص عشري قانوني للصف الأصلي الموجب من 2 فأكثر، بلا UUID —
+// لأن مؤشر الاستيراد هو رقم الصف في المصنف مش معرّف قاعدة بيانات، وحدّه الأعلى حدّ صفوف Excel نفسه.
+export const serviceImportRowsCursor = z
+  .string()
+  .regex(/^[1-9][0-9]*$/)
+  .refine((value) => {
+    const row = Number(value);
+    return Number.isSafeInteger(row) && row >= 2 && row <= 1_048_576;
+  })
+  .meta({ id: 'ServiceImportRowsCursor' });
+
 export const serviceImportPreview = responseObject({
     preview_id: id,
     row_count: z.number().int().min(0).max(500),
     error_count: z.number().int().min(0),
     errors: z.array(serviceImportRowError).max(5000),
     rows: z.array(serviceImportRow).max(100),
-    next_cursor: z.string().nullable(),
+    next_cursor: serviceImportRowsCursor.nullable(),
   })
   .meta({ id: 'ServiceImportPreview' });
 
 export const serviceImportRowsQuery = z
   .strictObject({
-    cursor: id.optional(),
+    cursor: serviceImportRowsCursor.optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
   })
   .meta({ id: 'ServiceImportRowsQuery' });
 
-export const serviceImportRowsPage = page(serviceImportRow).meta({ id: 'ServiceImportRowsPage' });
+export const serviceImportRowsPage = responseObject({
+    items: z.array(serviceImportRow),
+    next_cursor: serviceImportRowsCursor.nullable(),
+  })
+  .meta({ id: 'ServiceImportRowsPage' });
 
 export const commitServiceImportInput = z
   .strictObject({ preview_id: id })
@@ -149,6 +167,7 @@ export const serviceImportSchemas = [
   previewServiceImportInput,
   serviceImportRow,
   serviceImportPreview,
+  serviceImportRowsCursor,
   serviceImportRowsQuery,
   serviceImportRowsPage,
   commitServiceImportInput,
@@ -164,6 +183,7 @@ export type ServiceImportTemplate = z.infer<typeof serviceImportTemplate>;
 export type PreviewServiceImportInput = z.infer<typeof previewServiceImportInput>;
 export type ServiceImportRow = z.infer<typeof serviceImportRow>;
 export type ServiceImportPreview = z.infer<typeof serviceImportPreview>;
+export type ServiceImportRowsCursor = z.infer<typeof serviceImportRowsCursor>;
 export type ServiceImportRowsQuery = z.infer<typeof serviceImportRowsQuery>;
 export type ServiceImportRowsPage = z.infer<typeof serviceImportRowsPage>;
 export type CommitServiceImportInput = z.infer<typeof commitServiceImportInput>;

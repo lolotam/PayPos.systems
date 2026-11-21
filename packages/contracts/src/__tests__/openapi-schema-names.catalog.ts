@@ -41,6 +41,7 @@ export const catalogSchemaNames = [
   'ServiceImportPreview',
   'ServiceImportRow',
   'ServiceImportRowError',
+  'ServiceImportRowsCursor',
   'ServiceImportRowsPage',
   'ServiceImportRowsQuery',
   'ServiceImportStatus',

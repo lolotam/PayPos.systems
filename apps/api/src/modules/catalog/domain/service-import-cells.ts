@@ -1,5 +1,4 @@
 import { ServiceError } from './errors.ts';
-import { serviceCategoryKey } from './service-category.ts';
 import type { ServiceImportTaggedCell } from './service-import-price-cell.ts';
 import {
   validateServiceDuration,
@@ -36,21 +35,23 @@ export type ServiceImportBooleanResult =
   | { readonly ok: true; readonly value: boolean }
   | { readonly ok: false; readonly code: ServiceImportCellErrorCode };
 
-/** التصنيفات المفتوحة للنشاط كما تقرأها المعاينة مرة واحدة؛ التصنيف المقفول ببساطة مش موجود هنا (FR-004). */
-export interface ServiceImportOpenCategory {
-  readonly id: string;
-  readonly name_en: string;
-}
+/**
+ * محلّل التصنيف المعطى للمحوّل من المستهلك (32b-2): نصّ الخلية المطلوب البحث به ↔ التصنيف المحلول
+ * من قاعدة البيانات، أو `null` لمطابقة مفتوحة. المستهلك هو من ينفّذ استعلام Postgres على
+ * النشاط والتصنيفات المفتوحة بتطبيع وألفة الفهرس نفسها، فالمحوّل الصافي لا يقوم بمسح أو تطبيع
+ * عشوائي في جافاسكربت (A-11)، والكتابات غير اللاتينية تُحسم عند المُعرّف مرة واحدة.
+ */
+export type ServiceImportCategoryResolver = (
+  lookupText: string,
+) => { readonly id: string; readonly nameEn: string } | null;
 
-// الكلمتان مقبولتان كتابةً بالحالتين (A-5)؛ مبنيتان من نقاط يونيكود لأن قاعدة نص المستخدم تمنع العربية
-// الحرفية خارج packages/i18n، وهما بيانات محلّل مش نص مستخدم: نعم ولا.
+// الأرقام ASCII فقط مع الصفر البادئ المقبول (090 = 90)؛ الصفر وحده يعدي النمط ويرفض من مدى المدة نفسه.
+const WHOLE_MINUTES = /^[0-9]+$/;
+
 const AFFIRMATIVE_WORD = String.fromCharCode(0x0646, 0x0639, 0x0645);
 const NEGATIVE_WORD = String.fromCharCode(0x0644, 0x0627);
 const BOOLEAN_TRUE = new Set(['true', 'yes', AFFIRMATIVE_WORD]);
 const BOOLEAN_FALSE = new Set(['false', 'no', NEGATIVE_WORD]);
-
-// أرقام ASCII فقط مع الصفر البادئ المقبول (090 = 90)؛ الصفر وحده يعدي النمط ويرفض من مدى المدة نفسه.
-const WHOLE_MINUTES = /^[0-9]+$/;
 
 function cellError(cell: ServiceImportTaggedCell): ServiceImportCellErrorCode | null {
   return cell?.kind === 'error' ? 'IMPORT_CELL_INVALID' : null;
@@ -116,17 +117,18 @@ export function parseServiceImportDurationCell(
 }
 
 /**
- * بيحوّل خلية التصنيف الموسومة بمطابقة مفتاح التصنيف المشترك (`serviceCategoryKey`) على التصنيفات
- * المفتوحة اللي المعاينة قرأتها، فالتصنيف المقفول أو المجهول رفض «مش موجود»، والخلية الفارغة «بلا
- * تصنيف»، وخلية إكسل المكسورة رفض خلية؛ القيمة بترجع بهوية التصنيف واسمه الإنجليزي المخزّن مش نص الخلية.
+ * بيحوّل خلية التصنيف الموسومة عبر محلّل معطى مسبقاً: نص الخلية المشذب هو نصّ البحث، والمحلّل هو
+ * من يرجّع التصنيف المفتوح المحلول أو `null`، فلا مسح تطبيع في جافاسكربت ولا أول-مطابقة هنا؛
+ * قرار المطابقة وحدودها (غير اللاتيني والتشكيل) بيد مستهلك قاعدة البيانات (32b-2). الخلية الفارغة
+ * «بلا تصنيف»، وخلية إكسل المكسورة رفض خلية.
  *
- * @param cell           الخلية الموسومة أو `null` لو الخانة فاضية
- * @param openCategories التصنيفات المفتوحة للنشاط كما قرأتها المعاينة
- * @returns هوية التصنيف واسمه الإنجليزي، أو «بلا تصنيف»، أو سبب الرفض المسمّى
+ * @param cell            الخلية الموسومة أو `null` لو الخانة فاضية
+ * @param resolveCategory محلّل نصّ البحث إلى التصنيف المفتوح المحلول أو `null`
+ * @returns هوية التصنيف واسمه الإنجليزي المخزّن، أو «بلا تصنيف»، أو سبب الرفض المسمّى
  */
 export function parseServiceImportCategoryCell(
   cell: ServiceImportTaggedCell,
-  openCategories: readonly ServiceImportOpenCategory[],
+  resolveCategory: ServiceImportCategoryResolver,
 ): ServiceImportCategoryResult {
   const broken = cellError(cell);
   if (broken !== null) return { ok: false, code: broken };
@@ -134,15 +136,15 @@ export function parseServiceImportCategoryCell(
   const text = cellAsText(cell);
   if (text === null) return { ok: false, code: 'IMPORT_CATEGORY_NOT_FOUND' };
   if (text === '') return { ok: true, value: null };
-  const key = serviceCategoryKey(text);
-  const matched = openCategories.find((category) => serviceCategoryKey(category.name_en) === key);
-  if (matched === undefined) return { ok: false, code: 'IMPORT_CATEGORY_NOT_FOUND' };
-  return { ok: true, value: { id: matched.id, nameEn: matched.name_en } };
+  const matched = resolveCategory(text);
+  if (matched === null) return { ok: false, code: 'IMPORT_CATEGORY_NOT_FOUND' };
+  return { ok: true, value: { id: matched.id, nameEn: matched.nameEn } };
 }
 
 /**
  * بيحوّل خلية الاحتساب في المجمّع: الست كتابات المقبولة بالحالتين (true/false وyes/no ونعم/لا)،
- * والخلية المنطقية بقيمتها، والفراغ الاحتساب الافتراضي `true` (SR-005)، وخلية إكسل المكسورة رفض خلية.
+ * والخلية المنطقية بقيمتها، والفراغ — ولا نص مسافات فقط — الاحتساب الافتراضي `true` (SR-005)،
+ * وخلية إكسل المكسورة رفض خلية.
  *
  * @param cell الخلية الموسومة أو `null` لو الخانة فاضية
  * @returns قيمة الاحتساب أو سبب الرفض المسمّى

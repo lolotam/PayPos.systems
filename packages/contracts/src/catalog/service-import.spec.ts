@@ -6,6 +6,7 @@ import {
   serviceImportPreview,
   serviceImportRow,
   serviceImportRowError,
+  serviceImportRowsCursor,
   serviceImportRowsQuery,
   serviceImportStatus,
 } from './service-import.js';
@@ -83,46 +84,14 @@ describe('service-import row schemas', () => {
 
 describe('commission rule and value correlation', () => {
   it('correlates the value with the rule: mismatched kinds, values and set FOLLOW_PLAN/ZERO values are refused', () => {
-    expect(
-      serviceImportRow.safeParse({
-        ...baseRow,
-        commission_rule: { kind: 'PCT', value: 2000 },
-        commission_value: '20.000',
-        commission_rule_defaulted: false,
-      }).success,
-    ).toBe(false);
-    expect(
-      serviceImportRow.safeParse({
-        ...baseRow,
-        commission_rule: { kind: 'FIXED', value: '0.500' },
-        commission_value: 500,
-        commission_rule_defaulted: false,
-      }).success,
-    ).toBe(false);
-    expect(
-      serviceImportRow.safeParse({
-        ...baseRow,
-        commission_rule: { kind: 'PCT', value: 2000 },
-        commission_value: 1500,
-        commission_rule_defaulted: false,
-      }).success,
-    ).toBe(false);
-    expect(
-      serviceImportRow.safeParse({
-        ...baseRow,
-        commission_rule: { kind: 'ZERO' },
-        commission_value: 0,
-        commission_rule_defaulted: false,
-      }).success,
-    ).toBe(false);
-    expect(
-      serviceImportRow.safeParse({
-        ...baseRow,
-        commission_rule: { kind: 'PCT', value: 2000 },
-        commission_value: 2000,
-        commission_rule_defaulted: false,
-      }).success,
-    ).toBe(true);
+    const mismatched: unknown[] = [
+      { ...baseRow, commission_rule: { kind: 'PCT', value: 2000 }, commission_value: '20.000', commission_rule_defaulted: false },
+      { ...baseRow, commission_rule: { kind: 'FIXED', value: '0.500' }, commission_value: 500, commission_rule_defaulted: false },
+      { ...baseRow, commission_rule: { kind: 'PCT', value: 2000 }, commission_value: 1500, commission_rule_defaulted: false },
+      { ...baseRow, commission_rule: { kind: 'ZERO' }, commission_value: 0, commission_rule_defaulted: false },
+    ];
+    for (const row of mismatched)
+      expect(serviceImportRow.safeParse(row).success, JSON.stringify(row)).toBe(false);
   });
 });
 
@@ -150,15 +119,6 @@ describe('service-import preview and commit shapes', () => {
     ).toBe(false);
   });
 
-  it('keeps the rows query between 1 and 100 and coerces the limit', () => {
-    expect(serviceImportRowsQuery.safeParse({ limit: '50' })).toMatchObject({
-      success: true,
-      data: { limit: 50 },
-    });
-    expect(serviceImportRowsQuery.safeParse({ limit: 0 }).success).toBe(false);
-    expect(serviceImportRowsQuery.safeParse({ limit: 101 }).success).toBe(false);
-  });
-
   it('accepts the preview input, the commit input and the acceptance', () => {
     const fileId = '018f0000-0000-7000-8000-000000000001';
     const previewId = '018f0000-0000-7000-8000-000000000002';
@@ -182,5 +142,36 @@ describe('service-import preview and commit shapes', () => {
         error_code: 'IMPORT_NAME_INVALID',
       }).success,
     ).toBe(false);
+  });
+});
+
+describe('sheet-row cursor runtime behavior', () => {
+  it('keeps the rows query between 1 and 100 and coerces the limit', () => {
+    expect(serviceImportRowsQuery.safeParse({ limit: '50' })).toMatchObject({
+      success: true,
+      data: { limit: 50 },
+    });
+    expect(serviceImportRowsQuery.safeParse({ limit: 0 }).success).toBe(false);
+    expect(serviceImportRowsQuery.safeParse({ limit: 101 }).success).toBe(false);
+  });
+
+  it('round-trips the sheet-row cursor as the canonical decimal of the original row', () => {
+    // الجولة الكاملة: رقم الصف الأصلي نص قانونياً ثم يرجع للرقم نفسه، والصفوف المتخطاة الفارغة ليست حاجزاً.
+    for (const row of [2, 3, 500, 5_000, 1_048_576]) {
+      const cursor = String(row);
+      const parsed = serviceImportRowsCursor.safeParse(cursor);
+      expect(parsed.success, cursor).toBe(true);
+      if (parsed.success) expect(Number(parsed.data)).toBe(row);
+    }
+    expect(serviceImportRowsQuery.safeParse({ cursor: '3' }).success).toBe(true);
+    expect(serviceImportRowsQuery.safeParse({ cursor: '2' })).toMatchObject({
+      success: true,
+      data: { cursor: '2' },
+    });
+  });
+
+  it('refuses non-canonical or out-of-range cursors', () => {
+    for (const bad of ['1', '0', '02', '+3', '1e3', ' 3', '3 ', '', '1048577', '-3', '3.0'])
+      expect(serviceImportRowsCursor.safeParse(bad).success, bad).toBe(false);
   });
 });

@@ -3,7 +3,7 @@ import {
   type ServiceImportNormalizedRow,
   type ServiceImportRowIssue,
 } from '../service-import-row.ts';
-import type { ServiceImportOpenCategory } from '../service-import-cells.ts';
+import type { ServiceImportCategoryResolver } from '../service-import-cells.ts';
 import type { ServiceImportTaggedCell } from '../service-import-price-cell.ts';
 
 /**
@@ -64,13 +64,22 @@ export const HEADERS = [
   'counts_toward_threshold',
 ];
 
-/** هوية التصنيف المفتوح الوحيدة في اختبارات المماسّر، بالاسم الإنجليزي المخزّن المطابق. */
+/** هوية التصنيف المفتوح الوحيدة في اختبارات المماسّر الافتراضية. */
 export const HAIR = '018f0000-0000-7000-8000-000000000001';
 
-/** التصنيفات المفتوحة الافتراضية للنشاط في اختبارات المماسّر. */
-export const OPEN_CATEGORIES: readonly ServiceImportOpenCategory[] = [
-  { id: HAIR, name_en: 'Hair Care' },
-];
+/**
+ * محلّل التصنيف الافتراضي للاختبارات: خريطة نصّ البحث الحرفي إلى التصنيف المحلول — نفس شكل ما
+ * يبنيه 32b-2 من استعلام قاعدة البيانات بتطبيع الفهرس، بلا أي تطبيع جافاسكربت هنا.
+ *
+ * @param lookupText نصّ الخلية المشذب كما أرسله المحوّل حرفياً
+ * @returns التصنيف المحلول أو `null` لمطابقة مفتوحة
+ */
+export const defaultResolver: ServiceImportCategoryResolver = (lookupText) => {
+  const exact: ReadonlyMap<string, { id: string; nameEn: string }> = new Map([
+    ['Hair Care', { id: HAIR, nameEn: 'Hair Care' }],
+  ]);
+  return exact.get(lookupText) ?? null;
+};
 
 /** خلايا صف واحد بالأسماء المرجعية، مع خانة extra للبيانات بعد آخر عنوان. */
 export interface RowCells {
@@ -115,7 +124,7 @@ const sheetOf = (rows: readonly { row: number; cells: RowCells }[], headers: rea
 });
 
 /**
- * بيمرر صفوف اختبار على المماسّر بالتصنيفات المفتوحة الافتراضية ورؤوس الورقة المعطاة.
+ * بيمرر صفوف اختبار على المماسّر بمحلّل التصنيف الافتراضي ورؤوس الورقة المعطاة.
  *
  * @param rows    الصفوف بأرقامها الأصلية وخلاياها بالأسماء المرجعية
  * @param headers عناوين الورقة، والافتراضي الترتيب المرجعي
@@ -124,21 +133,21 @@ const sheetOf = (rows: readonly { row: number; cells: RowCells }[], headers: rea
 export const mapRows = (
   rows: readonly { row: number; cells: RowCells }[],
   headers: readonly string[] = HEADERS,
-) => mapServiceImportRows(sheetOf(rows, headers), OPEN_CATEGORIES);
+) => mapServiceImportRows(sheetOf(rows, headers), defaultResolver);
 
 /**
- * نفس mapRows بتصنيفات مفتوحة مخصصة، لاختبار تصنيف مقفول مش ممرر أصلاً (FR-004).
+ * نفس mapRows بمحلّل تصنيف مخصص، لاختبار مطابقات غير لاتينية متمايزة أو تصنيف مش ممرر (FR-004).
  *
- * @param rows           الصفوف بأرقامها الأصلية وخلاياها
- * @param openCategories التصنيفات المفتوحة المعطاة
- * @param headers        عناوين الورقة، والافتراضي الترتيب المرجعي
+ * @param rows     الصفوف بأرقامها الأصلية وخلاياها
+ * @param resolver محلّل التصنيف المعطى للاختبار
+ * @param headers  عناوين الورقة، والافتراضي الترتيب المرجعي
  * @returns نتيجة المماسّر كما هي
  */
-export const mapRowsWithCategories = (
+export const mapRowsWithResolver = (
   rows: readonly { row: number; cells: RowCells }[],
-  openCategories: readonly ServiceImportOpenCategory[],
+  resolver: ServiceImportCategoryResolver,
   headers: readonly string[] = HEADERS,
-) => mapServiceImportRows(sheetOf(rows, headers), openCategories);
+) => mapServiceImportRows(sheetOf(rows, headers), resolver);
 
 /**
  * بيصيغ أخطاء الصفوف نصاً `row:column:code` عشان مقارنة القوائم تكون واضحة في الفشل.

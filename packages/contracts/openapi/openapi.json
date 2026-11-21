@@ -487,6 +487,16 @@
               }
             }
           },
+          "403": {
+            "description": "The API error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
           "404": {
             "description": "The API error envelope",
             "content": {
@@ -30820,15 +30830,16 @@
             ]
           },
           "commission_value": {
-            "nullable": true,
             "anyOf": [
               {
+                "nullable": true,
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 10000
               },
               {
-                "$ref": "#/components/schemas/ServicePrice"
+                "type": "string",
+                "pattern": "^(0|[1-9]\\d{0,10})\\.\\d{3}$"
               }
             ]
           },
@@ -30887,7 +30898,11 @@
           },
           "next_cursor": {
             "nullable": true,
-            "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceImportRowsCursor"
+              }
+            ]
           }
         },
         "required": [
@@ -30899,13 +30914,19 @@
           "next_cursor"
         ]
       },
+      "ServiceImportRowsCursor": {
+        "type": "string",
+        "pattern": "^[1-9][0-9]*$"
+      },
       "ServiceImportRowsQuery": {
         "type": "object",
         "properties": {
           "cursor": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceImportRowsCursor"
+              }
+            ]
           },
           "limit": {
             "default": 20,
@@ -30927,7 +30948,11 @@
           },
           "next_cursor": {
             "nullable": true,
-            "type": "string"
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ServiceImportRowsCursor"
+              }
+            ]
           }
         },
         "required": [
@@ -43858,7 +43883,12 @@
           "settings": {
             "default": {},
             "type": "object",
-            "additionalProperties": {}
+            "additionalProperties": {},
+            "not": {
+              "required": [
+                "country"
+              ]
+            }
           }
         },
         "required": [

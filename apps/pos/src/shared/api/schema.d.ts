@@ -5786,7 +5786,7 @@ export interface components {
                 kind: "FIXED";
                 value: components["schemas"]["ServicePrice"];
             };
-            commission_value: (number | components["schemas"]["ServicePrice"]) | null;
+            commission_value: (number | null) | string;
             commission_rule_defaulted: boolean;
             counts_toward_threshold: boolean;
         };
@@ -5797,17 +5797,17 @@ export interface components {
             error_count: number;
             errors: components["schemas"]["ServiceImportRowError"][];
             rows: components["schemas"]["ServiceImportRow"][];
-            next_cursor: string | null;
+            next_cursor: components["schemas"]["ServiceImportRowsCursor"] | null;
         };
+        ServiceImportRowsCursor: string;
         ServiceImportRowsQuery: {
-            /** Format: uuid */
-            cursor?: string;
+            cursor?: components["schemas"]["ServiceImportRowsCursor"];
             /** @default 20 */
             limit: number;
         };
         ServiceImportRowsPage: {
             items: components["schemas"]["ServiceImportRow"][];
-            next_cursor: string | null;
+            next_cursor: components["schemas"]["ServiceImportRowsCursor"] | null;
         };
         CommitServiceImportInput: {
             /** Format: uuid */
@@ -9380,6 +9380,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SetBusinessCountryResult"];
+                };
+            };
+            /** @description The API error envelope */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description The API error envelope */

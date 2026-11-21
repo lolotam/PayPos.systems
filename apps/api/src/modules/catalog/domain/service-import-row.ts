@@ -3,7 +3,7 @@ import {
   parseServiceImportCategoryCell,
   parseServiceImportDurationCell,
   parseServiceImportNameCell,
-  type ServiceImportOpenCategory,
+  type ServiceImportCategoryResolver,
 } from './service-import-cells.ts';
 import { serviceImportDuplicateRows, serviceImportNameKey } from './service-import-duplicates.ts';
 import { parseServiceImportCommissionCells } from './service-import-commission.ts';
@@ -69,15 +69,16 @@ function commissionRefusalCode(
  * وأخطاء الصف الواحد بترجع بترتيب أعمدة الورقة نفسها و`unexpected_column` آخرها، ورمز واحد لكل
  * صف وعمود. مفتاح الاسم بيتحسب لكل صف اسمه سليم حتى لو عمود تاني غلط أو الصف مكرر، فتُحمل المفاتيح
  * منفصلة عن الصفوف المطبّعة إلى 32b-2 من غير إعادة اشتقاق (A-10/A-11)، والتكرار يشيل كل أفراد
- * مجموعته من الصفوف المطبّعة ويضيف تشخيصه بترتيب الصفوف.
+ * مجموعته من الصفوف المطبّعة ويضيف تشخيصه بترتيب الصفوف. مطابقة التصنيف بتصير بمحلّل معطى مسبقاً
+ * يقرره المستهلك من قاعدة البيانات، مش بمسح جافاسكربت هنا (A-11).
  *
- * @param sheet          عناوين الورقة المشذبة وصفوفها الموسومة بأرقامها الأصلية
- * @param openCategories التصنيفات المفتوحة للنشاط كما قرأتها المعاينة مرة واحدة
+ * @param sheet           عناوين الورقة المشذبة وصفوفها الموسومة بأرقامها الأصلية
+ * @param resolveCategory محلّل نصّ البحث إلى التصنيف المفتوح المحلول أو `null`
  * @returns الصفوف والمفاتيح والأخطاء، كل قائمة بترتيب الورقة
  */
 export function mapServiceImportRows(
   sheet: ServiceImportSheetInput,
-  openCategories: readonly ServiceImportOpenCategory[],
+  resolveCategory: ServiceImportCategoryResolver,
 ): ServiceImportMapping {
   const positions = new Map(sheet.headers.map((header, index) => [header, index]));
   const layout: SheetLayout = {
@@ -89,7 +90,7 @@ export function mapServiceImportRows(
   const rows: ServiceImportNormalizedRow[] = [];
   const keys: ServiceImportRowKey[] = [];
   for (const source of sheet.rows) {
-    const outcome = mapSheetRow(source, layout, openCategories, errors);
+    const outcome = mapSheetRow(source, layout, resolveCategory, errors);
     if (outcome.key !== null) keys.push({ row: source.row, key: outcome.key });
     if (outcome.row !== null) rows.push(outcome.row);
   }
@@ -98,11 +99,12 @@ export function mapServiceImportRows(
     errors.push({ row, column: 'name_en', code: 'IMPORT_DUPLICATE_IN_FILE' });
   const duplicateRows = new Set(duplicates);
   const rowPositions = new Map(sheet.rows.map(({ row }, index) => [row, index]));
-  // أخطاء التكرار تظهر بعد فحص الورقة كلها، فبنرجّعها لمواضع أعمدتها وصفوفها الأصلية.
-  errors.sort((left, right) =>
-    (rowPositions.get(left.row) ?? 0) - (rowPositions.get(right.row) ?? 0) ||
-    (positions.get(left.column) ?? layout.headerCount) -
-      (positions.get(right.column) ?? layout.headerCount),
+  // أخطاء التكرار تظهر بعد فحص الورقة كلها، فبنرجّعها لمواضع أعمدتها وصفوفها الأصلية (ترتيب الورقة).
+  errors.sort(
+    (left, right) =>
+      (rowPositions.get(left.row) ?? 0) - (rowPositions.get(right.row) ?? 0) ||
+      (positions.get(left.column) ?? layout.headerCount) -
+        (positions.get(right.column) ?? layout.headerCount),
   );
   return { rows: rows.filter((row) => !duplicateRows.has(row.row)), keys, errors };
 }
@@ -125,7 +127,7 @@ interface SheetRowOutcome {
 function mapSheetRow(
   source: { readonly row: number; readonly cells: readonly ServiceImportTaggedCell[] },
   layout: SheetLayout,
-  openCategories: readonly ServiceImportOpenCategory[],
+  resolveCategory: ServiceImportCategoryResolver,
   errors: ServiceImportRowIssue[],
 ): SheetRowOutcome {
   const at = (header: string): ServiceImportTaggedCell =>
@@ -136,7 +138,7 @@ function mapSheetRow(
   };
   if (source.cells.slice(layout.headerCount).some(cellHasData))
     collect('unexpected_column', 'IMPORT_COLUMN_UNEXPECTED');
-  const cells = convertRowCells(at, openCategories, collect);
+  const cells = convertRowCells(at, resolveCategory, collect);
   // مفتاح الاسم بيتحسب لكل صف اسمه سليم حتى لو عمود تاني غلط أو الصف مكرر (A-10).
   const key =
     cells.nameEn.ok && cells.nameEn.value !== null
@@ -192,7 +194,7 @@ interface ConvertedCells {
 // كل خلية بتتحول لوحدها وخطأها بيتجمع على عموده بأول سبب يفوز، فالصف الواحد بيقدّم كل أعمدته الغلط (D-8).
 function convertRowCells(
   at: (header: string) => ServiceImportTaggedCell,
-  openCategories: readonly ServiceImportOpenCategory[],
+  resolveCategory: ServiceImportCategoryResolver,
   collect: (column: ServiceImportRowColumn, code: ServiceImportRowErrorCode) => void,
 ): ConvertedCells {
   const nameEn = parseServiceImportNameCell(at('name_en'), true);
@@ -203,7 +205,7 @@ function convertRowCells(
   if (!price.ok) collect('price', price.code);
   const duration = parseServiceImportDurationCell(at('duration_minutes'));
   if (!duration.ok) collect('duration_minutes', duration.code);
-  const category = parseServiceImportCategoryCell(at('category'), openCategories);
+  const category = parseServiceImportCategoryCell(at('category'), resolveCategory);
   if (!category.ok) collect('category', category.code);
   const commission = parseServiceImportCommissionCells(
     at('commission_rule'),

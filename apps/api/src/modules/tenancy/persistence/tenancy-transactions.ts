@@ -27,8 +27,11 @@ async function lockBusinessSettings(
   companyId: string,
   businessId: string,
 ): Promise<Record<string, unknown> | null> {
+  // صف مفقود يعني null (نشاط مش مرئي)، أما settings الفارغة أو غير الكائن (إرث قبل هذا التسليم)
+  // فتُقرأ كائناً فارغاً تحت نفس القفل، فالدمج يبدأ من {} ولا يفسد أي قيمة غير كائنية.
   const [row] = await tx.execute<{ settings: Record<string, unknown> | null }>(sql`
-    SELECT settings FROM businesses
+    SELECT CASE WHEN jsonb_typeof(settings) = 'object' THEN settings ELSE '{}'::jsonb END AS settings
+    FROM businesses
     WHERE company_id = ${companyId} AND id = ${businessId}
     FOR NO KEY UPDATE`);
   return row?.settings ?? null;
@@ -40,10 +43,12 @@ async function saveBusinessCountry(
   businessId: string,
   country: string,
 ): Promise<void> {
-  // الدمج على مستوى قاعدة البيانات: مفتاح country فقط بيتضاف أو بيتبدل، وكل مفتاح تاني بيفضل مخزّناً.
+  // الدمج على مستوى قاعدة البيانات: مفتاح country فقط بيتضاف أو بيتبدل، وكل مفتاح تاني بيفضل مخزّناً؛
+  // والإرث غير الكائني يبدأ من {} بدل إلحاق كائن بمصفوفة أو قيمة.
   await tx.execute(sql`
     UPDATE businesses
-    SET settings = settings || jsonb_build_object('country', ${country}::text)
+    SET settings = CASE WHEN jsonb_typeof(settings) = 'object' THEN settings ELSE '{}'::jsonb END
+                  || jsonb_build_object('country', ${country}::text)
     WHERE company_id = ${companyId} AND id = ${businessId}`);
 }
 

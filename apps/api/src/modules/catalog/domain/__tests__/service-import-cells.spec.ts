@@ -5,7 +5,7 @@ import {
   parseServiceImportCategoryCell,
   parseServiceImportDurationCell,
   parseServiceImportNameCell,
-  type ServiceImportOpenCategory,
+  type ServiceImportCategoryResolver,
 } from '../service-import-cells.ts';
 import type { ServiceImportTaggedCell } from '../service-import-price-cell.ts';
 
@@ -22,15 +22,27 @@ const unrepresentable = (display: string): ServiceImportTaggedCell => ({
 });
 const errorCell = (): ServiceImportTaggedCell => ({ kind: 'error' });
 
-const HAIR: ServiceImportOpenCategory = {
-  id: '018f0000-0000-7000-8000-000000000001',
-  name_en: 'Hair Care',
-};
-const MAKEUP: ServiceImportOpenCategory = {
-  id: '018f0000-0000-7000-8000-000000000002',
-  name_en: 'مكياج',
-};
-const CATEGORIES: readonly ServiceImportOpenCategory[] = [HAIR, MAKEUP];
+const HAIR = '018f0000-0000-7000-8000-000000000001';
+const MAKEUP = '018f0000-0000-7000-8000-000000000002';
+
+/**
+ * محلّل اختبار بخريطة نصّ-بحث حرفي، بنفس عقد ما يبنيه 32b-2 من قاعدة البيانات بلا تطبيع جافاسكربت.
+ *
+ * @param lookup خريطة النص الحرفي إلى التصنيف المحلول
+ * @returns محلّل التصنيف القائم على الخريطة
+ */
+const mapResolver =
+  (lookup: ReadonlyMap<string, { id: string; nameEn: string }>): ServiceImportCategoryResolver =>
+  (lookupText) =>
+    lookup.get(lookupText) ?? null;
+
+const RESOLVER = mapResolver(
+  new Map([
+    ['Hair Care', { id: HAIR, nameEn: 'Hair Care' }],
+    ['مكياج', { id: MAKEUP, nameEn: 'مكياج' }],
+    ['Cafe\u0301 Latte', { id: MAKEUP, nameEn: 'Cafe\u0301 Latte' }],
+  ]),
+);
 
 describe('name cells (A-5 name_en/name_ar)', () => {
   it('requires name_en and treats a blank or absent cell as required-cell', () => {
@@ -149,57 +161,88 @@ describe('duration cells (A-5 duration_minutes, T-3 leading zeroes)', () => {
   });
 });
 
-describe('category cells (A-5 category)', () => {
-  it('matches the exact stored English name', () => {
-    expect(parseServiceImportCategoryCell(text('Hair Care'), CATEGORIES)).toEqual({
+describe('category resolution via the caller resolver (A-5/A-11)', () => {
+  it('resolves the exact submitted lookup text and preserves UUID and display name', () => {
+    expect(parseServiceImportCategoryCell(text('Hair Care'), RESOLVER)).toEqual({
       ok: true,
-      value: { id: HAIR.id, nameEn: 'Hair Care' },
+      value: { id: HAIR, nameEn: 'Hair Care' },
+    });
+    expect(parseServiceImportCategoryCell(text('مكياج'), RESOLVER)).toEqual({
+      ok: true,
+      value: { id: MAKEUP, nameEn: 'مكياج' },
     });
   });
 
-  it('matches a name differing in case and inner whitespace through the shared key', () => {
-    expect(parseServiceImportCategoryCell(text('  hair  care '), CATEGORIES)).toEqual({
-      ok: true,
-      value: { id: HAIR.id, nameEn: 'Hair Care' },
-    });
-  });
-
-  it('matches an Arabic-only category name', () => {
-    expect(parseServiceImportCategoryCell(text('مكياج'), CATEGORIES)).toEqual({
-      ok: true,
-      value: { id: MAKEUP.id, nameEn: 'مكياج' },
-    });
-  });
-
-  it('refuses an unknown name and a numeric cell that matches nothing', () => {
-    expect(parseServiceImportCategoryCell(text('Nails'), CATEGORIES)).toEqual({
+  it('sends the trimmed submitted text verbatim and lets the resolver decide', () => {
+    // المحوّل ما بيطبّعش ولا بيمسح أول مطابقة: بيرسل النص المشذب حرفياً، والقرار للمحلّل.
+    const seen: string[] = [];
+    const spy: ServiceImportCategoryResolver = (lookupText) => {
+      seen.push(lookupText);
+      return null;
+    };
+    expect(parseServiceImportCategoryCell(text('  Hair  Care '), spy)).toEqual({
       ok: false,
       code: 'IMPORT_CATEGORY_NOT_FOUND',
     });
-    expect(parseServiceImportCategoryCell(numeric('100'), CATEGORIES)).toEqual({
+    expect(seen).toEqual(['Hair  Care']);
+  });
+
+  it('keeps distinct non-ASCII spellings distinct when the caller maps them separately', () => {
+    const distinct = mapResolver(
+      new Map([
+        ['Café Latte', { id: HAIR, nameEn: 'Café Latte' }],
+        ['Cafe\u0301 Latte', { id: MAKEUP, nameEn: 'Cafe\u0301 Latte' }],
+      ]),
+    );
+    expect(parseServiceImportCategoryCell(text('Café Latte'), distinct)).toEqual({
+      ok: true,
+      value: { id: HAIR, nameEn: 'Café Latte' },
+    });
+    expect(parseServiceImportCategoryCell(text('Cafe\u0301 Latte'), distinct)).toEqual({
+      ok: true,
+      value: { id: MAKEUP, nameEn: 'Cafe\u0301 Latte' },
+    });
+  });
+
+  it('refuses a spelling that is not in the caller map at all', () => {
+    // في RESOLVER مفتاح وحيد للإملاء المنفصل، فالمركّب الغايب يرفض غياباً.
+    expect(parseServiceImportCategoryCell(text('Café Latte'), RESOLVER)).toEqual({
+      ok: false,
+      code: 'IMPORT_CATEGORY_NOT_FOUND',
+    });
+  });
+});
+
+describe('category refusals (A-5)', () => {
+  it('refuses an unknown name and a numeric cell that matches nothing', () => {
+    expect(parseServiceImportCategoryCell(text('Nails'), RESOLVER)).toEqual({
+      ok: false,
+      code: 'IMPORT_CATEGORY_NOT_FOUND',
+    });
+    expect(parseServiceImportCategoryCell(numeric('100'), RESOLVER)).toEqual({
       ok: false,
       code: 'IMPORT_CATEGORY_NOT_FOUND',
     });
   });
 
   it('refuses booleans, unrepresentable numbers and error cells', () => {
-    expect(parseServiceImportCategoryCell(bool(true), CATEGORIES)).toEqual({
+    expect(parseServiceImportCategoryCell(bool(true), RESOLVER)).toEqual({
       ok: false,
       code: 'IMPORT_CATEGORY_NOT_FOUND',
     });
-    expect(parseServiceImportCategoryCell(unrepresentable('1e+21'), CATEGORIES)).toEqual({
+    expect(parseServiceImportCategoryCell(unrepresentable('1e+21'), RESOLVER)).toEqual({
       ok: false,
       code: 'IMPORT_CATEGORY_NOT_FOUND',
     });
-    expect(parseServiceImportCategoryCell(errorCell(), CATEGORIES)).toEqual({
+    expect(parseServiceImportCategoryCell(errorCell(), RESOLVER)).toEqual({
       ok: false,
       code: 'IMPORT_CELL_INVALID',
     });
   });
 
   it('reads an absent or blank category as no category', () => {
-    expect(parseServiceImportCategoryCell(null, CATEGORIES)).toEqual({ ok: true, value: null });
-    expect(parseServiceImportCategoryCell(text(' '), CATEGORIES)).toEqual({ ok: true, value: null });
+    expect(parseServiceImportCategoryCell(null, RESOLVER)).toEqual({ ok: true, value: null });
+    expect(parseServiceImportCategoryCell(text(' '), RESOLVER)).toEqual({ ok: true, value: null });
   });
 });
 

@@ -144,7 +144,10 @@ describe('the shared no-control-characters rule', () => {
     const document = JSON.stringify(built);
     expect(document).not.toMatch(/\\[pP]\{/);
     expect(document).not.toContain('"pattern":"^[^\\\\x00');
-    for (const not of notPatternsIn(built)) expect(not).toEqual(publishedProhibition);
+    // نمطا not المنتجَان المسجّلان: منع المحارف التحكمية، وحجز مفتاح country على إنشاء النشاط (34-pre-3).
+    const reservedCountry = { required: ['country'] };
+    for (const not of notPatternsIn(built))
+      expect([publishedProhibition, reservedCountry]).toContainEqual(not);
     const schemas = (built['components'] as { schemas: Record<string, unknown> }).schemas;
     for (const [id, path] of publishedNamePaths) {
       expect(valueAt(schemas[id], path)).toMatchObject({ not: publishedProhibition });

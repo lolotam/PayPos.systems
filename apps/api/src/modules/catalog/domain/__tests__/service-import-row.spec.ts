@@ -26,10 +26,15 @@ describe('a fully valid sheet', () => {
     ]);
   });
 
-  it('matches a category cell to its id and stored English name', () => {
-    const result = mapRows([{ row: 2, cells: goodRow('Cut', { category: text('  hair  care ') }) }]);
+  it('matches a category cell through the caller resolver, preserving UUID and display name', () => {
+    const result = mapRows([{ row: 2, cells: goodRow('Cut', { category: text('Hair Care') }) }]);
     expect(result.errors).toEqual([]);
     expect(result.rows[0]).toMatchObject({ category_id: HAIR, category_name_en: 'Hair Care' });
+  });
+
+  it('treats a spelling the resolver does not map as an unknown category (no JS folding)', () => {
+    const result = mapRows([{ row: 2, cells: goodRow('Cut', { category: text('  hair  care ') }) }]);
+    expect(codes(result.errors)).toEqual(['2:category:IMPORT_CATEGORY_NOT_FOUND']);
   });
 });
 

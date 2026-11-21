@@ -18,10 +18,13 @@ const settings = z.record(z.string(), z.unknown());
 // مفتاح country محجوز على الإنشاء (توجيه المدير 2026-11-21 على OQ-2/B-5): صلاحية create:businesses:company
 // لا تمنح تحديد الدولة، فوجود المفتاح — بقيمة صالحة أو غير صالحة — يرفض الطلب، وكل مفتاح تاني بيمرّ كما هو،
 // والغياب لا يضيف شيئاً. الدولة تتحدد فقط بمسار PUT مصرّح به منفصلاً على النشاط الموجود.
-const createSettings = settings.superRefine((value, ctx) => {
-  if ('country' in value)
-    ctx.addIssue({ code: 'custom', path: ['country'], message: 'reserved at creation' });
-});
+// الـ not في الميتا هي اللي بتصير في وثيقة OpenAPI المولّدة (3.0.3): ممنوع وجود المفتاح، والباقي مسموح.
+const createSettings = settings
+  .superRefine((value, ctx) => {
+    if ('country' in value)
+      ctx.addIssue({ code: 'custom', path: ['country'], message: 'reserved at creation' });
+  })
+  .meta({ not: { required: ['country'] } });
 
 export const business = z
   .object({

@@ -122,9 +122,13 @@ Sources: 072 FR-001, FR-004 to FR-007, FR-014, D-8, D-9, SI-Q1 to SI-Q4, SI-Q6 t
   Arabic, NBSP and mixed whitespace, Turkish dotted I, Greek and composed/decomposed spellings. 32b-2 and 32b-3 own
   boundary-safe sharing or verification of SQL parity on Postgres. Vectors alone do not establish Unicode parity.
   Do not add Unicode normalization or accent folding.
-- **A-12 Mapper input, fixed here:** `{ headers: string[], rows: { row: number, cells: tagged cell[] }[] }` plus
-  `{ openCategories: { id, name_en }[] }`. `row` is the original sourceRows entry. 32b-2 supplies aligned formats and sourceRows after blank rows are removed or columns are reordered. Closed categories are not passed, so
-  a closed one is simply not found (FR-004).
+- **A-12 Mapper input, fixed here:** `{ headers: string[], rows: { row: number, cells: tagged cell[] }[] }` plus a
+  caller-supplied category resolver — `(lookupText: string) => { id, name_en } | null` (correction 2026-11-21,
+  review batch 2: the pure mapper no longer scans or normalizes categories in JavaScript; **32b-2 owns the
+  tenant/business/open-category Postgres query with the exact index normalization and equality**, builds the
+  lookup keyed by the submitted category text — trimming only, as the converter trims — and hands the mapper the
+  resolved match or null). `row` is the original sourceRows entry. 32b-2 supplies aligned formats and sourceRows
+  after blank rows are removed or columns are reordered. Closed categories are simply never resolved (FR-004).
 - **A-13 Bounds (ADR-0034 addendum §3):** services constants are 2 MiB, 500 data rows, 10 columns (eight headers and
   the two-column margin). `WorkbookBounds` also needs `maxWorksheets`; it depends on how many reference sheets the
   template has, so 32b-2 sets it with the template and this delivery does not build the bounds object. Restated margin: `XLSX_EXPANSION_BUDGET` is 65,536; six times the services grid is

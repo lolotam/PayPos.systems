@@ -6,7 +6,7 @@ import {
   goodRow,
   HAIR,
   mapRows,
-  mapRowsWithCategories,
+  mapRowsWithResolver,
   numeric,
   text,
 } from './service-import-row-test-support.ts';
@@ -88,9 +88,9 @@ describe('trim agreement and closed categories (A-7, FR-004)', () => {
 
   it('maps a closed category as not-found because closed categories are never passed (FR-004)', () => {
     // التصنيفات المغلقة لا تُمرَّر أصلاً (FR-004): قائمة المفتوح تختوي على الاسم، فمطابقته رفض «مش موجود».
-    const result = mapRowsWithCategories(
+    const result = mapRowsWithResolver(
       [{ row: 2, cells: goodRow('Cut', { category: text('Hair Care') }) }],
-      [{ id: '018f0000-0000-7000-8000-000000000009', name_en: 'Nails' }],
+      () => null,
     );
     expect(result.errors.map((error) => `${error.row}:${error.column}:${error.code}`)).toEqual([
       '2:category:IMPORT_CATEGORY_NOT_FOUND',
