@@ -29,8 +29,6 @@ export function CustomerPackagesRoute({ customerId }: { customerId: string }) {
       : null;
   const selection = usePackageRouteSelection(scopeKey);
   if (workspace.status !== 'ready' || userId === null) return null;
-  if (!workspace.business) return <p>{t(locale, 'admin.chooseBusiness')}</p>;
-  if (!workspace.branch) return <p>{t(locale, 'serviceSessions.chooseBranch')}</p>;
   const hint = resolveScopeHint(
     {
       companyId: searchParams.get('scope_company') ?? undefined,
@@ -40,28 +38,25 @@ export function CustomerPackagesRoute({ customerId }: { customerId: string }) {
     workspace.companies,
     {
       company: workspace.company.id,
-      business: workspace.business.id,
-      branch: workspace.branch.id,
+      business: workspace.business?.id,
+      branch: workspace.branch?.id,
     },
   );
-  if (hint.hinted && !hint.matches) {
+  if (!hint.matches) {
     return (
       <CustomerPackagesScopeGate
-        companies={workspace.companies}
-        current={{
-          company: workspace.company.id,
-          business: workspace.business.id,
-          branch: workspace.branch.id,
+        hint={hint}
+        onChoose={(choice) => {
+          selection.adoptScope(
+            [choice.companyId, choice.businessId, choice.branchId, userId].join(':'),
+          );
+          workspace.choose(choice);
         }}
-        hint={{
-          companyId: searchParams.get('scope_company') ?? undefined,
-          businessId: searchParams.get('scope_business') ?? undefined,
-          branchId: searchParams.get('scope_branch') ?? undefined,
-        }}
-        onChoose={(choice) => workspace.choose(choice)}
       />
     );
   }
+  if (!workspace.business) return <p>{t(locale, 'admin.chooseBusiness')}</p>;
+  if (!workspace.branch) return <p>{t(locale, 'serviceSessions.chooseBranch')}</p>;
   const scope = {
     companyId: workspace.company.id,
     businessId: workspace.business.id,

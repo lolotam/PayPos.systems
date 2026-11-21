@@ -18,8 +18,8 @@ export function ImportedRefundsNavItem() {
   const workspace = useWorkspace();
   const ready = workspace.status === 'ready' ? workspace : null;
   const access = useImportedRefunds(ready?.company.id, userId, ready?.business?.id);
-  // Ø¥Ø«Ø¨Ø§Øª Ù‚Ø±Ø§Ø¡Ø© Ø­Ø§Ù„ÙŠ Ù„ÙƒÙ„ Ù†Ø·Ø§Ù‚ Ù‚Ø¨Ù„ Ø¥Ø¸Ù‡Ø§Ø± Ø§Ù„Ø¹Ù†ØµØ±: Ø§Ù„ÙƒØ§Ø´ Ø§Ù„Ù…ØªØ®Ø²Ù† Ù„Ø§ ÙŠÙØ¸Ù‡Ø± Ø±Ø§Ø¨Ø·Ù‹Ø§ØŒ ÙˆØ§Ù„Ø±ÙØ¶ ÙŠØ®ÙÙŠÙ‡ØŒ
-  // ÙˆÙ†ØªÙŠØ¬Ø© Ù†Ø·Ø§Ù‚ Ù‚Ø¯ÙŠÙ… Ù…ØªØ£Ø®Ø±Ø© Ø¨ØªØªØ¬Ø§Ù‡Ù„ Ø¹Ø´Ø§Ù† Ø§Ù„Ø±Ø§Ø¨Ø· Ù…Ø§ ÙŠØ¸Ù‡Ø±Ø´ Ù…Ù† ØªÙÙˆÙŠØ¶ Ù…Ø´ Ø­ÙŠ.
+  // إثبات قراءة حالي لكل نطاق قبل إظهار العنصر: الكاش المتخزن لا يُظهر رابطًا، والرفض يخفيه،
+  // ونتيجة نطاق قديم متأخرة بتتجاهل عشان الرابط ما يظهرش من تفويض مش حي.
   const proof = readAccessProof(access);
   if (!ready?.business || userId === null) return null;
   if (proof !== 'granted') return null;

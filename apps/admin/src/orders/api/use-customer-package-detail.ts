@@ -24,7 +24,7 @@ export function useCustomerPackageDetail(
       entitlementId,
     ],
     enabled: entitlementId !== null,
-    ...(revalidateAccess ? { refetchOnMount: 'always' as const } : {}),
+    ...(revalidateAccess ? { refetchOnMount: 'always' as const, staleTime: 0 } : {}),
     retry: false,
     queryFn: async ({ signal }) => {
       if (entitlementId === null) throw new Error('CUSTOMER_PACKAGE_ENTITLEMENT_MISSING');

@@ -14,19 +14,21 @@ export function CustomerPackageExtensionControls({
   entitlementId,
   expiresOn,
   onSaved,
+  buttonLabel,
 }: {
   scope: SessionServiceScope;
   customerId: string;
   entitlementId: string;
   expiresOn: string;
   onSaved: () => void;
+  buttonLabel?: string;
 }) {
   const locale = useLocale();
   const [open, setOpen] = useState(false);
   return (
     <>
       <Button type="button" onClick={() => setOpen(true)}>
-        {t(locale, 'customerPackages.extend')}
+        {buttonLabel ?? t(locale, 'customerPackages.extend')}
       </Button>
       {open ? (
         <ExtendPackageDialog

@@ -42,7 +42,13 @@ export function usePackageRouteSelection(scopeKey: string | null) {
     const query = params.toString();
     router.push(query === '' ? '?' : `?${query}`);
   }, [router, searchParams]);
-  return { entitlementId, hasRawSelection: rawSelection !== null && selectionLive, select, close };
+  return {
+    entitlementId,
+    hasRawSelection: rawSelection !== null && selectionLive,
+    select,
+    close,
+    adoptScope: setActiveScope,
+  };
 }
 
 /** يربط حالة القايمة من الاستعلام اللانهائي: خطأ/تحميل/فاضي/جاهز، ورسالة الخطأ المناسبة لكل رفض. */

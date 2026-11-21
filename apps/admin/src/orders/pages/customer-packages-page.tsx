@@ -19,15 +19,15 @@ interface CustomerPackagesPageProps {
 }
 
 /**
- * Ø´Ø§Ø´Ø© Ø¨Ø§Ù‚Ø§Øª Ø§Ù„Ø¹Ù…ÙŠÙ„Ø©: Ø§Ù„Ø¹Ù†ÙˆØ§Ù† Ø¹Ø§Ù… ÙˆÙ…ÙÙŠØ´ Ø§Ø³Ù… Ø¹Ù…ÙŠÙ„Ø© ÙˆÙ„Ø§ ØªÙ„ÙŠÙÙˆÙ† ÙÙŠ Ø§Ù„Ø¹Ù†ÙˆØ§Ù† ÙˆÙ„Ø§ ÙÙŠ Ø§Ù„ÙƒØ§Ø´ (FR-A08ØŒ SC-005).
- * Ø¥Ø«Ø¨Ø§Øª Ù‚Ø±Ø§Ø¡Ø© Ø­Ø§Ù„ÙŠ Ù‚Ø¨Ù„ Ø¹Ø±Ø¶ Ø£ÙŠ Ø¨ÙŠØ§Ù†Ø§Øª Ù…Ù† Ø§Ù„ÙƒØ§Ø´ â€” Ø§Ù†ØªØ¸Ø§Ø± Ø£Ùˆ Ø±ÙØ¶ ÙŠØ®ÙÙŠ Ø§Ù„Ù‚Ø§ÙŠÙ…Ø© (r4654058100).
- * Ø§Ù„Ø¨Ø§Ù‚Ø© Ø§Ù„Ù…ÙØªÙˆØ­Ø© Ø¨ØªØ¹ÙŠØ´ ÙÙŠ Ø§Ù„Ø§Ø³ØªØ¹Ù„Ø§Ù… ?package= ÙØ²Ø± Ø§Ù„Ø±Ø¬ÙˆØ¹ Ø¨ÙŠÙ‚ÙÙ„Ù‡Ø§ØŒ ÙˆÙ…Ù‚Ø·Ø¹ Ø¹Ù…ÙŠÙ„Ø© ÙØ§Ø³Ø® ÙŠØ¹Ø±Ø¶
- * Â«ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯Â» Ù…Ù† ØºÙŠØ± Ø£ÙŠ Ø·Ù„Ø¨.
+ * شاشة باقات العميلة: العنوان عام ومفيش اسم عميلة ولا تليفون في العنوان ولا في الكاش (FR-A08، SC-005).
+ * إثبات قراءة حالي قبل عرض أي بيانات من الكاش — انتظار أو رفض يخفي القايمة (r4654058100).
+ * الباقة المفتوحة بتعيش في الاستعلام ?package= فزر الرجوع بيقفلها، ومقطع عميلة فاسخ يعرض
+ * «غير موجود» من غير أي طلب.
  */
 export function CustomerPackagesPage({ scope, customerId, selection }: CustomerPackagesPageProps) {
   const locale = useLocale();
   const { entitlementId, hasRawSelection, select, close } = selection;
-  // Ø§Ù„Ù…Ù‚Ø·Ø¹ Ø§Ù„ÙØ§Ø³Ø® Ù„Ù„Ø¹Ù…ÙŠÙ„Ø© ÙŠØ¹Ø±Ø¶ Â«ØºÙŠØ± Ù…ÙˆØ¬ÙˆØ¯Â» Ù…Ù† ØºÙŠØ± Ø£ÙŠ Ø·Ù„Ø¨ (CP-02).
+  // المقطع الفاسخ للعميلة يعرض «غير موجود» من غير أي طلب (CP-02).
   const validCustomerId = parsePackageRouteId(customerId);
   const list = useCustomerPackages(
     scope,
@@ -36,14 +36,14 @@ export function CustomerPackagesPage({ scope, customerId, selection }: CustomerP
     true,
   );
   const proof = readAccessProof(list);
-  const canShowPackages = proof === 'granted' || (proof === 'failed' && list.isFetchNextPageError);
-  const items = canShowPackages ? (list.data?.items ?? []) : [];
-  const derived = packageListState({
+  const { state, errorMessage } = packageListState({
     isError: list.isError,
     isPending: list.isPending,
     error: list.error,
-    itemCount: items.length,
+    itemCount: list.data?.items.length ?? 0,
   });
+  const canShowPackages =
+    proof === 'granted' || (list.isFetchNextPageError && errorMessage === 'loadFailed');
   return (
     <section className="grid gap-4 text-start">
       <h1 className="text-lg font-semibold">{t(locale, 'customerPackages.title')}</h1>
@@ -56,11 +56,11 @@ export function CustomerPackagesPage({ scope, customerId, selection }: CustomerP
       ) : (
         <>
           <CustomerPackageList
-            items={items}
-            state={derived.state}
-            errorMessage={derived.errorMessage}
+            items={canShowPackages ? (list.data?.items ?? []) : []}
+            state={state}
+            errorMessage={errorMessage}
             hasMore={list.hasNextPage}
-            onRetry={() => void list.refetch()}
+            onRetry={() => void (list.isFetchNextPageError ? list.fetchNextPage() : list.refetch())}
             onMore={() => void list.fetchNextPage()}
             onSelect={select}
             selectedId={entitlementId}

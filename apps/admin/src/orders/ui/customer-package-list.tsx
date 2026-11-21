@@ -53,7 +53,7 @@ export function CustomerPackageList({
         // أول تحميل لو مفيش صفحات محفوظة لسه.
         <p role="alert">
           {t(locale, 'customerPackages.loadFailed')}{' '}
-          <Button type="button" variant="outline" onClick={items.length === 0 ? onRetry : onMore}>
+          <Button type="button" variant="outline" onClick={onRetry}>
             {t(locale, 'customerPackages.retry')}
           </Button>
         </p>

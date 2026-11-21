@@ -394,19 +394,6 @@ export * from './orders/index.js';
 export * from './documents-render.js';
 export * from './customers/index.js';
 
-export {
-  extendPackageInput,
-  packageExtensionResponse,
-  type ExtendPackageInput,
-  type PackageExtensionResponse,
-} from './orders/package-extension.js';
-export {
-  refundPackageInput,
-  packageRefundResponse,
-  type RefundPackageInput,
-  type PackageRefundResponse,
-} from './orders/package-refund.js';
-
 export * from './staff/index.js';
 
 export * from './orders/own-work-month.js';

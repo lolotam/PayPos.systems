@@ -1,7 +1,11 @@
-import type { CustomerPackageDetail, CustomerPackageExtension, CustomerPackageRedemption } from '@pospay/contracts';
+import type {
+  CustomerPackageDetail,
+  CustomerPackageExtension,
+  CustomerPackageRedemption,
+} from '@pospay/contracts';
 import { formatInstant, t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { PackageRedemptionHistory } from './package-redemption-history';
 
@@ -42,27 +46,33 @@ function detail(
     refunded_amount: '0.000',
     revision: 1,
     can_extend,
-    components: [{
-      id: componentId,
-      service_id: '01920000-0000-7000-8000-000000000030',
-      position: 1,
-      name_en: 'Synthetic service',
-      name_ar: null,
-      list_price_snapshot: '10.000',
-      component_value: '30.000',
-      sessions_total: 3,
-      remaining: 1,
-      used: 2,
-      refunded: 0,
-      slots: [{ ordinal: 1, state: 'USED', unit_value: '10.000' }],
-    }],
+    components: [
+      {
+        id: componentId,
+        service_id: '01920000-0000-7000-8000-000000000030',
+        position: 1,
+        name_en: 'Synthetic service',
+        name_ar: null,
+        list_price_snapshot: '10.000',
+        component_value: '30.000',
+        sessions_total: 3,
+        remaining: 1,
+        used: 2,
+        refunded: 0,
+        slots: [{ ordinal: 1, state: 'USED', unit_value: '10.000' }],
+      },
+    ],
     business_timezone,
     redemptions,
     extensions,
   };
 }
 
-function redemption(id: string, ordinal: number, reversedAt: string | null): CustomerPackageRedemption {
+function redemption(
+  id: string,
+  ordinal: number,
+  reversedAt: string | null,
+): CustomerPackageRedemption {
   return {
     id,
     component_id: componentId,
@@ -77,15 +87,18 @@ function mockDetail(data: CustomerPackageDetail) {
   get.mockResolvedValue({ data, response: { status: 200 } });
 }
 
-function renderHistory() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(<QueryClientProvider client={client}>
-    <PackageRedemptionHistory
-      scope={scope}
-      customerId={customerId}
-      entitlementId={entitlementId}
-    />
-  </QueryClientProvider>);
+function renderHistory(
+  client = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
+  render(
+    <QueryClientProvider client={client}>
+      <PackageRedemptionHistory
+        scope={scope}
+        customerId={customerId}
+        entitlementId={entitlementId}
+      />
+    </QueryClientProvider>,
+  );
 }
 
 function openHistory() {
@@ -125,7 +138,9 @@ it('shows the empty history message inside the opened section', async () => {
   get.mockResolvedValueOnce({ data: detail([]), response: { status: 200 } });
   renderHistory();
   openHistory();
-  expect((await screen.findByText(t('en', 'serviceSessions.packageHistoryEmpty'))).getAttribute('role')).toBe('status');
+  expect(
+    (await screen.findByText(t('en', 'serviceSessions.packageHistoryEmpty'))).getAttribute('role'),
+  ).toBe('status');
 });
 
 it('keeps the history error inside its collapsible section', async () => {
@@ -163,7 +178,9 @@ it('shows the detail timezone to a viewer without recording-context access and h
   expect(screen.getByText(t('en', 'serviceSessions.packageHistoryEmpty'))).toBeTruthy();
   expect(screen.queryByRole('button', { name: t('en', 'packageExtension.extend') })).toBeNull();
   expect(get).toHaveBeenCalledTimes(1);
-  expect(get.mock.calls.every((call) => !String(call[0]).endsWith('/recording-context'))).toBe(true);
+  expect(get.mock.calls.every((call) => !String(call[0]).endsWith('/recording-context'))).toBe(
+    true,
+  );
 });
 
 it('omits extension timestamps when an older detail has no business timezone', async () => {
@@ -182,7 +199,51 @@ it('opens the extend dialog when can_extend is true', async () => {
   const button = await screen.findByRole('button', { name: t('en', 'packageExtension.extend') });
   fireEvent.click(button);
   const dialog = await screen.findByRole('dialog');
-  expect(within(dialog).getByRole('heading', { name: t('en', 'packageExtension.dialogTitle') }))
-    .toBeTruthy();
+  expect(
+    within(dialog).getByRole('heading', { name: t('en', 'packageExtension.dialogTitle') }),
+  ).toBeTruthy();
   expect(within(dialog).getByLabelText(t('en', 'packageExtension.newDate'))).toBeTruthy();
+});
+
+it('hides the visit history cache until a guarded read and closes the dialog when access is refused', async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 30_000 } },
+  });
+  const key = [
+    'customer-package-detail',
+    scope.companyId,
+    scope.businessId,
+    scope.branchId,
+    scope.userId,
+    customerId,
+    entitlementId,
+  ];
+  const authorized = detail(
+    [redemption('01920000-0000-7000-8000-000000000041', 2, null)],
+    [],
+    'Asia/Kuwait',
+    true,
+  );
+  client.setQueryData(key, authorized);
+  get.mockImplementation(() => new Promise(() => undefined));
+  renderHistory(client);
+  openHistory();
+  await screen.findByText(t('en', 'serviceSessions.packageLoading'));
+  expect(screen.queryByText('Session 2 Synthetic service')).toBeNull();
+  expect(screen.queryByRole('button', { name: t('en', 'packageExtension.extend') })).toBeNull();
+
+  mockDetail(authorized);
+  await client.invalidateQueries({ queryKey: key });
+  expect(await screen.findByText('Session 2 Synthetic service')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'packageExtension.extend') }));
+  expect(screen.getByRole('dialog')).toBeTruthy();
+
+  get.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
+  await client.invalidateQueries({ queryKey: key });
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(screen.queryByText('Session 2 Synthetic service')).toBeNull();
+  expect(screen.queryByRole('button', { name: t('en', 'packageExtension.extend') })).toBeNull();
+  expect(screen.getByRole('alert').textContent).toBe(
+    t('en', 'serviceSessions.packageHistoryLoadFailed'),
+  );
 });
