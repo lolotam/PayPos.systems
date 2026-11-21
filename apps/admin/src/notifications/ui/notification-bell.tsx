@@ -1,7 +1,8 @@
 'use client';
 
 import { t } from '@pospay/i18n';
-import { Badge, Bell, Button } from '@pospay/ui';import { useId, useRef, useState } from 'react';
+import { Badge, Bell, Button } from '@pospay/ui';
+import { useId, useRef, useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useNotifications } from '../api/use-notifications';
 import { useDocumentNumbers } from '../api/use-document-numbers';
@@ -11,6 +12,7 @@ import { useOutsideDismiss } from '../model/use-outside-dismiss';
 interface NotificationBellProps {
   companyId: string | undefined;
   userId: string | null;
+  businessId?: string | undefined;
 }
 
 /** شارة عدد غير المقروء؛ استُخرجت لإبقاء الجرس تحت سقف طول الدالة. */
@@ -28,18 +30,23 @@ function UnreadBadge({ unread, locale }: { unread: number; locale: 'ar' | 'en' |
   );
 }
 
-export function NotificationBell({ companyId, userId }: NotificationBellProps) {
+export function NotificationBell({ companyId, userId, businessId }: NotificationBellProps) {
   const locale = useLocale();
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const { count, list, read } = useNotifications(companyId, open, userId);
-  const documentNumbers = useDocumentNumbers(companyId, userId, open, list.data?.items ?? []);
+  const documentNumbers = useDocumentNumbers({
+    companyId,
+    userId,
+    businessId,
+    inboxRead: open && list.isSuccess && list.fetchStatus === 'idle' ? list.dataUpdatedAt : null,
+    items: list.data?.items ?? [],
+  });
   const unread = count.data?.count ?? 0;
   const close = () => setOpen(false);
   useOutsideDismiss(root, open, close);
-  const focusBack = () => button.current?.focus();
   return (
     <div
       ref={root}
@@ -47,7 +54,7 @@ export function NotificationBell({ companyId, userId }: NotificationBellProps) {
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           close();
-          focusBack();
+          button.current?.focus();
         }
       }}
       onBlur={(event) => {

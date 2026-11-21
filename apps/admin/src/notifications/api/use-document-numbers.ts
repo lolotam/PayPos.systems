@@ -2,8 +2,8 @@
 
 import type { InAppNotification } from '@pospay/contracts';
 import { employeeDocumentNumbers } from '@pospay/contracts';
-import { useEffect, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 import { documentIdOf } from '../model/render-notification';
 
@@ -34,16 +34,24 @@ async function fetchBusinessNumbers(
   return numbers;
 }
 
-export function useDocumentNumbers(
-  companyId: string | undefined,
-  userId: string | null,
-  open: boolean,
-  items: readonly InAppNotification[],
-): Map<string, string> {
-  const client = useQueryClient();
+const noNumbers: ReadonlyMap<string, string> = new Map();
+
+export function useDocumentNumbers({
+  companyId,
+  userId,
+  businessId,
+  inboxRead,
+  items,
+}: {
+  companyId: string | undefined;
+  userId: string | null;
+  businessId: string | undefined;
+  inboxRead: number | null;
+  items: readonly InAppNotification[];
+}): ReadonlyMap<string, string> {
   const targets = useMemo(() => {
     const byBusiness = new Map<string, Set<string>>();
-    if (!open) return byBusiness;
+    if (inboxRead === null) return byBusiness;
     for (const item of items) {
       if (item.template_key !== 'document_expiring' || item.business_id === null) continue;
       const id = documentIdOf(item);
@@ -53,7 +61,7 @@ export function useDocumentNumbers(
       byBusiness.set(item.business_id, ids);
     }
     return byBusiness;
-  }, [open, items]);
+  }, [inboxRead, items]);
   const scope =
     targets.size === 0
       ? null
@@ -61,11 +69,10 @@ export function useDocumentNumbers(
           .map(([businessId, ids]) => `${businessId}:${[...ids].sort().join(',')}`)
           .sort()
           .join('|');
-  useEffect(() => {
-    if (!open) client.removeQueries({ queryKey: ['me', 'document-numbers'] });
-  }, [open, client]);
+  const enabled =
+    inboxRead !== null && scope !== null && companyId !== undefined && userId !== null;
   const query = useQuery({
-    queryKey: ['me', 'document-numbers', companyId, userId, scope],
+    queryKey: ['me', 'document-numbers', companyId, userId, businessId, inboxRead, scope],
     queryFn: async ({ signal }) => {
       const numbers = new Map<string, string>();
       await Promise.all(
@@ -76,10 +83,14 @@ export function useDocumentNumbers(
       );
       return numbers;
     },
-    enabled: open && scope !== null && companyId !== undefined && userId !== null,
+    enabled,
+    retry: false,
     staleTime: 0,
     gcTime: 0,
     refetchOnMount: 'always',
   });
-  return open && query.data !== undefined ? query.data : new Map<string, string>();
+  // المفتاح الجديد يفصل المراقب عن النتيجة القديمة ويلغي طلبها؛ نخفي الرقم أثناء أي إعادة تحقق.
+  return enabled && query.isSuccess && query.isFetchedAfterMount && query.fetchStatus === 'idle'
+    ? query.data
+    : noNumbers;
 }

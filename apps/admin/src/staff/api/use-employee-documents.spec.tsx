@@ -41,9 +41,10 @@ const recordedDocument = {
   recorded_at: '2026-10-04T08:00:00.000Z',
   status: 'EXPIRING',
 };
+const listedDocument = { ...recordedDocument, document_number: null };
 const view = (canManage = true) => ({
   today: '2026-10-05',
-  items: [recordedDocument],
+  items: [listedDocument],
   types: [civil],
   can_manage: canManage,
 });
@@ -174,13 +175,16 @@ it('uploads through files, waits for READY, then records by file id with an idem
     path === '/v1/files/{id}' ? readyFile : { data: view() },
   );
   mockUpload();
-  setup();
+  const { client, unmount } = setup();
   const input = await screen.findByLabelText(t('en', 'employeeDocuments.file'));
   fireEvent.change(input, {
     target: { files: [new File(['pdf'], 'civil.pdf', { type: 'application/pdf' })] },
   });
   fireEvent.change(screen.getByLabelText(t('en', 'employeeDocuments.expiresOn')), {
     target: { value: '2026-10-20' },
+  });
+  fireEvent.change(screen.getByLabelText(t('en', 'employeeDocuments.documentNumber')), {
+    target: { value: 'SYN-DOC-01' },
   });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeDocuments.upload') }));
   await waitFor(() => expect(screen.getByText(t('en', 'employeeDocuments.recorded'))).toBeTruthy());
@@ -199,6 +203,7 @@ it('uploads through files, waits for READY, then records by file id with an idem
     type_code: 'civil_id',
     file_id: fileId,
     expires_on: '2026-10-20',
+    document_number: 'SYN-DOC-01',
   });
   expect(recorded.params.header['Idempotency-Key']).toEqual(expect.any(String));
   expect(put).toHaveBeenCalledWith(
@@ -211,6 +216,10 @@ it('uploads through files, waits for READY, then records by file id with an idem
         'x-goog-meta-added-later': 'signed',
       },
     }),
+  );
+  unmount();
+  await waitFor(() =>
+    expect(client.getMutationCache().findAll({ mutationKey: [...prefix, 'record'] })).toEqual([]),
   );
 });
 it('refuses a missing required expiry or an unsupported file before any upload', async () => {
@@ -300,7 +309,7 @@ it.each(['companyId', 'businessId', 'userId', 'employeeId'] as const)(
     let changed = false;
     const initial = {
       ...view(),
-      items: [{ ...recordedDocument, type_code: 'passport' }],
+      items: [{ ...listedDocument, type_code: 'passport' }],
       types: [civil, passport],
     };
     const next = { ...view(), items: [], types: [civil] };

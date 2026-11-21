@@ -18,6 +18,7 @@ const document = {
   type_name_en: 'Original paper',
   type_name_ar: t('ar', 'permissions.readOnly'),
   object_key: 'synthetic/verified',
+  document_number: null,
   expires_on: null,
   uploaded_by: id,
   recorded_at: '2026-10-04T08:00:00.000Z',

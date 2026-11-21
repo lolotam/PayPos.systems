@@ -33,6 +33,7 @@ export function DashboardFrame({ children }: { children: ReactNode }) {
             key={`${companyId ?? 'unselected'}:${userId ?? 'anonymous'}`}
             companyId={companyId}
             userId={userId}
+            businessId={workspace.status === 'ready' ? workspace.business?.id : undefined}
           />
           <LocaleSwitch />
         </>

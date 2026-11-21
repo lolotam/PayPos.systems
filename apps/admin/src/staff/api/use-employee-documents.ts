@@ -49,6 +49,8 @@ export function useEmployeeDocuments(
   const recordContext = { companyId, businessId, employeeId, begin, active, onPhase: setPhase };
   const record = useMutation({
     mutationKey: [...key, 'record'],
+    // لا تبقى قيم نموذج التسجيل في الذاكرة المؤقتة بعد إغلاق مراقب النطاق.
+    gcTime: 0,
     retry: false,
     onMutate: () => ({ scope, key }),
     mutationFn: (submission: DocumentSubmission) =>
