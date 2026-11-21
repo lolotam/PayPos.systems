@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { t } from '@pospay/i18n';
 import { createQueryClient } from '@/shared/api/query-client';
 import { planOverrideServicesKey, planScope } from '../../api/plan-access';
@@ -108,6 +108,7 @@ async function submitPercentage() {
 }
 
 beforeEach(() => {
+  vi.setSystemTime(new Date('2026-11-20T21:00:00Z'));
   api.GET.mockReset();
   api.POST.mockReset();
   state.locale = 'en';
@@ -120,6 +121,10 @@ beforeEach(() => {
   HTMLDialogElement.prototype.close = vi.fn(function (this: HTMLDialogElement) {
     this.removeAttribute('open');
   });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 it('CM-11: saving PCT 1500 on صبغة shows saved, refreshes the row and tops the history', async () => {
@@ -371,10 +376,7 @@ it('a future-dated save leaves the table row unchanged and adds a history row wi
   fireEvent.click(await screen.findByRole('button', { name: L.edit }));
   const date = await screen.findByLabelText(t('en', 'commissionOverrides.effectiveFrom'));
   fireEvent.change(date, { target: { value: '2026-12-01' } });
-  fireEvent.change(screen.getByLabelText(L.bps), { target: { value: '1500' } });
-  const save = screen.getByRole('button', { name: L.save });
-  await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
-  fireEvent.click(save);
+  await submitPercentage();
   expect(await screen.findByText(L.saved)).toBeTruthy();
   expect(api.POST.mock.calls[0]?.[1].body).toEqual({
     service_id: SERVICE_A,
