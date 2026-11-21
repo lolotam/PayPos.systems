@@ -11,8 +11,9 @@ The manager sends the tier card per task; these are the recommendations.
 | Steps | Tier | Why |
 |---|---|---|
 | 0a, 0b | Light | Docs only |
-| 0c | Medium (recommended) | A read-only API contract change: two fields on the workspace response. No money, permission or migration. It gets its own tier card |
-| 1 to 11 | Medium | Front end only, no money, permission, DB or API change, but each is over 150 lines |
+| 0c | Medium (approved 2026-11-21: «اعتمد Medium») | A read-only API contract change: two fields on the workspace response. No money, permission or migration. Separate PR; waits on `34-pre-3` |
+| 1 + 2 | Medium (approved 2026-11-21: «Medium في PR واحد») | Combined single PR for the typed navigation model (`074-1`) and i18n keys (`074-2`): front end and `packages/i18n` only, no API, permission, storage, DB migration or live shell switch. Concise delivery spec in `step-1-2-spec.md` |
+| 3 to 11 | Medium | Front end only, no money, permission, DB or API change, but each is over 150 lines |
 | 12 | Heavy | A migration and a new endpoint. It merges only after Waleed approves it on a card (CLAUDE.md header, PP-195). Who presses merge is a separate matter: PP-201 (`docs/owner-decisions.ar.md` item 121) lets the manager do it. The two records disagree on whether PP-201 also removes the card; until Waleed says so in writing, the card is required |
 
 ## Order
@@ -35,7 +36,7 @@ The manager sends the tier card per task; these are the recommendations.
 | 11 | Attendance, Leave and Setup pages | attendance, leave, identity, permissions, alerts, staff app, schedules | Board template; list pages; Schedule settings as its own page; per-page branch pickers read the workspace branch |
 | 12 | Account preference | The ADR-0003 addendum and the audit exception from step 0b are merged; `packages/contracts`, `packages/db` (migration: a nullable `nav_style` column on `user`, NAV-Q10), `packages/auth`, `apps/api` (`GET` and `PUT /v1/me/preferences`), `apps/admin` (read on sign-in, write on change) | The `spec.md` integration scenarios PREF-01 to PREF-09 pass; the PUT is registered in `AUTHENTICATED_WRITES`. The choice follows the user to another browser. Until this merges the choice is kept by the cookie on each device |
 
-Steps 1 and 2 may be one PR: the label-key test of step 1 can only pass once the keys of step 2 exist. Steps 1 to 6 change nothing a user can see. Step 7 is the release of all three styles at once, as the owner asked (NAV-Q8). Steps 4, 5 and 6 are independent of each other; steps 8 to 11 are independent of each other once 8 has merged; step 12 depends only on step 7 and on NAV-Q10. How many run at once is the manager's call under PP-118.
+Steps 1 and 2 are approved as one Medium PR (Waleed, 2026-11-21, «Medium في PR واحد», `owner-questions.ar.md`; concise scope and delivery contract in `step-1-2-spec.md`): the label-key test of step 1 can only pass once the keys of step 2 exist. Separate step `0c` is approved as Medium (Waleed, 2026-11-21, «اعتمد Medium») and waits on `34-pre-3`; steps 1 + 2 deliver the typed model and i18n keys without waiting for workspace fields or changing live navigation. Steps 1 to 6 change nothing a user can see (except step 2 fixing the `schedules.reload` button label on Weekly schedules, FR-017). Step 7 is the release of all three styles at once, as the owner asked (NAV-Q8). Steps 4, 5 and 6 are independent of each other; steps 8 to 11 are independent of each other once 8 has merged; step 12 depends only on step 7 and on NAV-Q10. How many run at once is the manager's call under PP-118.
 
 Between step 7 and step 12 the choice is kept per device. The owner accepted this order on 2026-11-21 (NAV-Q12): the three styles release first, saving on the account follows.
 

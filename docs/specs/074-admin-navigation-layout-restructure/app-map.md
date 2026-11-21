@@ -15,8 +15,10 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 - **Shown only to**: the business types that see the entry (PRD §7.1). The limit holds while the entry is Soon and after
   its page is built, together with the page's own permission. An entry is shown for the business that is
   selected in the workspace switcher, so an owner with a salon and a restaurant sees the salon's entries while the
-  salon is selected and the restaurant's entries after switching. Which roles see each entry is a second table, still to
-  be written in the first implementation step.
+  salon is selected and the restaurant's entries after switching.
+- **Roles**: the PRD §3.2 roles that see each Soon entry (NAV-Q14). Built (Live) entries continue to use their own
+  existing page permissions rather than a static role list. Partner decisions noted as `PENDING` in
+  `owner-questions.ar.md` remain open and are not treated as final here.
 - Names are working names in English; the Arabic and English labels are written in the i18n catalogs when an entry is
   added.
 
@@ -24,165 +26,165 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 
 ### 1. Home
 
-| Page | Phase | State | Shown only to |
-|---|---|---|---|
-| Dashboard (today at a glance) | 1 | Live | every business type |
-| Shift dashboard (current shift and what needs attention) | 2 | Soon | every business type |
-| Approvals inbox (everything waiting for a decision, one count) | 1 | New | every business type |
-| Daily sales dashboard | 2 | Soon | every business type |
-| All-businesses dashboard | 5 | Soon | every business type |
+| Page | Phase | State | Shown only to | Roles |
+|---|---|---|---|---|
+| Dashboard (today at a glance) | 1 | Live | every business type | By page permission |
+| Shift dashboard (current shift and what needs attention) | 2 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
+| Approvals inbox (everything waiting for a decision, one count) | 1 | New | every business type | Owner, General manager, Business manager, Branch manager (by kind) |
+| Daily sales dashboard | 2 | Soon | every business type | Owner, General manager, Accountant, Business manager, Branch manager, Viewer |
+| All-businesses dashboard | 5 | Soon | every business type | Owner, General manager, Accountant, Viewer |
 
 ### 2. Sales
 
-| Sub-menu | Page | Phase | State | Shown only to |
-|---|---|---|---|---|
-| Service visits | Record a visit | 1 | Live | every business type |
-| Service visits | Sessions (day list) | 1 | Live | every business type |
-| Service visits | Sell a package | 1 | Live | every business type |
-| Service visits | Customer packages (who holds what, sessions left) | 1 | Soon | every business type |
-| Service visits | Unassigned services (exceptions) | 1 | Soon | every business type |
-| Discounts | Discounts | 1 | Soon | every business type |
-| Discounts | Discount approvals | 1 | Soon | every business type |
-| Orders | Orders | 2 | Soon | every business type |
-| Orders | Returns | 2 | Soon | every business type |
-| Orders | Fulfilment board (stages, payment status, delays, call the customer) | — | Soon | every business type |
-| Payments | Payments and refunds | 2 | Soon | every business type |
-| Payments | Customer accounts (on-account sales) | 2 | Soon | every business type |
-| Cash | Cash shifts | 2 | Soon | every business type |
-| Cash | Paid in and paid out | 2 | Soon | every business type |
-| POS | Open reception / cashier | 1 | Soon | every business type |
-| POS | POS devices and PINs | 2 | Soon | every business type |
-| POS | Receipts and printing | 2 | Soon | every business type |
-| Restaurant | Tables and floor map | 3 | Soon | Restaurant, café |
-| Restaurant | Kitchen screens and stations | 3 | Soon | Restaurant, café |
-| Delivery | Delivery channels | 4 | Soon | Restaurant, café, grocery |
-| Delivery | Delivery zones | 2 | Soon | Restaurant, café, grocery, laundry |
-| Delivery | Drivers | — | Soon | Restaurant, café, grocery, laundry |
-| For this business type | Laundry tickets | 6 | Soon | Laundry |
-| For this business type | Barcode, scale and offers | 6 | Soon | Grocery, retail |
-| For this business type | Quotes and invoices | 6 | Soon | Services company |
-| For this business type | Memberships and classes | 6 | Soon | Gym, education |
-| For this business type | Patient files | 6 | Soon | Clinic |
+| Sub-menu | Page | Phase | State | Shown only to | Roles |
+|---|---|---|---|---|---|
+| Service visits | Record a visit | 1 | Live | every business type | By page permission |
+| Service visits | Sessions (day list) | 1 | Live | every business type | By page permission |
+| Service visits | Sell a package | 1 | Live | every business type | By page permission |
+| Service visits | Customer packages (who holds what, sessions left) | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
+| Service visits | Unassigned services (exceptions) | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
+| Discounts | Discounts | 1 | Soon | every business type | Owner, General manager, Business manager, Marketing |
+| Discounts | Discount approvals | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
+| Orders | Orders | 2 | Soon | every business type | Owner, General manager, Accountant, Business manager, Branch manager |
+| Orders | Returns | 2 | Soon | every business type | Owner, General manager, Accountant, Business manager, Branch manager |
+| Orders | Fulfilment board (stages, payment status, delays, call the customer) | — | Soon | every business type | Owner, General manager, Business manager, Branch manager |
+| Payments | Payments and refunds | 2 | Soon | every business type | Owner, General manager, Accountant, Business manager, Branch manager |
+| Payments | Customer accounts (on-account sales) | 2 | Soon | every business type | Owner, General manager, Accountant, Business manager |
+| Cash | Cash shifts | 2 | Soon | every business type | Owner, General manager, Accountant, Business manager, Branch manager |
+| Cash | Paid in and paid out | 2 | Soon | every business type | Owner, General manager, Accountant, Business manager, Branch manager |
+| POS | Open reception / cashier | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
+| POS | POS devices and PINs | 2 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
+| POS | Receipts and printing | 2 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
+| Restaurant | Tables and floor map | 3 | Soon | Restaurant, café | Owner, General manager, Business manager, Branch manager |
+| Restaurant | Kitchen screens and stations | 3 | Soon | Restaurant, café | Owner, General manager, Business manager, Branch manager |
+| Delivery | Delivery channels | 4 | Soon | Restaurant, café, grocery | Owner, General manager, Business manager |
+| Delivery | Delivery zones | 2 | Soon | Restaurant, café, grocery, laundry | Owner, General manager, Business manager, Branch manager |
+| Delivery | Drivers | — | Soon | Restaurant, café, grocery, laundry | Owner, General manager, Business manager, Branch manager |
+| For this business type | Laundry tickets | 6 | Soon | Laundry | Owner, General manager, Business manager, Branch manager |
+| For this business type | Barcode, scale and offers | 6 | Soon | Grocery, retail | Owner, General manager, Business manager, Branch manager |
+| For this business type | Quotes and invoices | 6 | Soon | Services company | Owner, General manager, Accountant, Business manager, Branch manager |
+| For this business type | Memberships and classes | 6 | Soon | Gym, education | Owner, General manager, Business manager, Branch manager |
+| For this business type | Patient files | 6 | Soon | Clinic | Owner, General manager, Business manager, Branch manager |
 
 ### 3. Catalog and stores
 
-| Sub-menu | Page | Phase | State | Shown only to |
-|---|---|---|---|---|
-| Catalog | Services (+ Add service) | 1 | Live | every business type |
-| Catalog | Categories | 1 | Live | every business type |
-| Catalog | Package types (+ Add package type) | 1 | Live | every business type |
-| Catalog | Products and variants | 2 | Soon | every business type |
-| Catalog | Options and modifiers | 2 | Soon | every business type |
-| Catalog | Price lists | 2 | Soon | every business type |
-| Catalog | Combos and bundles | 2 | Soon | every business type |
-| Catalog | Units of measure | 3 | Soon | every business type |
-| Stores | Stock items | 3 | Soon | every business type |
-| Stores | Locations | 3 | Soon | every business type |
-| Stores | Suppliers | 3 | Soon | every business type |
-| Stores | Purchases | 3 | Soon | every business type |
-| Stores | Transfers | 3 | Soon | every business type |
-| Stores | Stock counts | 3 | Soon | every business type |
-| Stores | Adjustments and wastage | 3 | Soon | every business type |
-| Stores | Barcode labels | — | Soon | every business type |
-| Production | Recipes | 3 | Soon | Restaurant, café |
-| Production | Production orders | 3 | Soon | Restaurant, café |
+| Sub-menu | Page | Phase | State | Shown only to | Roles |
+|---|---|---|---|---|---|
+| Catalog | Services (+ Add service) | 1 | Live | every business type | By page permission |
+| Catalog | Categories | 1 | Live | every business type | By page permission |
+| Catalog | Package types (+ Add package type) | 1 | Live | every business type | By page permission |
+| Catalog | Products and variants | 2 | Soon | every business type | Owner, General manager, Business manager |
+| Catalog | Options and modifiers | 2 | Soon | every business type | Owner, General manager, Business manager |
+| Catalog | Price lists | 2 | Soon | every business type | Owner, General manager, Business manager |
+| Catalog | Combos and bundles | 2 | Soon | every business type | Owner, General manager, Business manager |
+| Catalog | Units of measure | 3 | Soon | every business type | Owner, General manager, Business manager, Storekeeper |
+| Stores | Stock items | 3 | Soon | every business type | Owner, General manager, Business manager, Branch manager, Storekeeper |
+| Stores | Locations | 3 | Soon | every business type | Owner, General manager, Business manager, Storekeeper |
+| Stores | Suppliers | 3 | Soon | every business type | Owner, General manager, Accountant, Business manager, Storekeeper |
+| Stores | Purchases | 3 | Soon | every business type | Owner, General manager, Accountant, Business manager, Storekeeper |
+| Stores | Transfers | 3 | Soon | every business type | Owner, General manager, Business manager, Branch manager, Storekeeper |
+| Stores | Stock counts | 3 | Soon | every business type | Owner, General manager, Business manager, Branch manager, Storekeeper |
+| Stores | Adjustments and wastage | 3 | Soon | every business type | Owner, General manager, Business manager, Branch manager, Storekeeper |
+| Stores | Barcode labels | — | Soon | every business type | Owner, General manager, Business manager, Branch manager, Storekeeper |
+| Production | Recipes | 3 | Soon | Restaurant, café | Owner, General manager, Business manager, Storekeeper |
+| Production | Production orders | 3 | Soon | Restaurant, café | Owner, General manager, Business manager, Branch manager, Storekeeper |
 
 ### 4. Customers and marketing
 
-| Sub-menu | Page | Phase | State | Shown only to |
-|---|---|---|---|---|
-| Customers | Customers | 2 | Soon | every business type |
-| Customers | Tags and blocks | 2 | Soon | every business type |
-| Customers | Customer wallet (prepaid balance) | — | Soon | every business type |
-| Customers | Ratings and reviews | 1 | Soon | every business type |
-| Appointments | Calendar | 4 | Soon | Salon, spa, barber, clinic, services company |
-| Appointments | Resources (chairs, rooms) | 4 | Soon | Salon, spa, barber, clinic, services company |
-| Appointments | Waitlist | 4 | Soon | Salon, spa, barber, clinic, services company |
-| Appointments | Booking rules | 4 | Soon | Salon, spa, barber, clinic, services company |
-| Appointments | Appointment categories | 4 | Soon | Salon, spa, barber, clinic, services company |
-| Online | Company public page | 1 | Soon | every business type |
-| Online | Online menu builder | 4 | Soon | every business type |
-| Online | Customer call (set up the waiting page and its QR code) | — | Soon | every business type |
-| Marketing | Business WhatsApp | 4 | Soon | every business type |
-| Marketing | Campaigns | 4 | Soon | every business type |
-| Marketing | Message templates | 4 | Soon | every business type |
-| Marketing | Social media management | — | Soon | every business type |
-| Loyalty | Loyalty points | 4 | Soon | every business type |
-| Loyalty | Loyalty cards (wallet stamp cards) | 6 | Soon | every business type |
-| Loyalty | Gift cards | 4 | Soon | every business type |
-| Loyalty | Discount cards and codes | 4 | Soon | every business type |
+| Sub-menu | Page | Phase | State | Shown only to | Roles |
+|---|---|---|---|---|---|
+| Customers | Customers | 2 | Soon | every business type | Owner, General manager, Business manager, Branch manager, Marketing |
+| Customers | Tags and blocks | 2 | Soon | every business type | Owner, General manager, Business manager, Branch manager, Marketing |
+| Customers | Customer wallet (prepaid balance) | — | Soon | every business type | Owner, General manager, Accountant, Business manager, Branch manager |
+| Customers | Ratings and reviews | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager, Marketing |
+| Appointments | Calendar | 4 | Soon | Salon, spa, barber, clinic, services company | Owner, General manager, Business manager, Branch manager |
+| Appointments | Resources (chairs, rooms) | 4 | Soon | Salon, spa, barber, clinic, services company | Owner, General manager, Business manager, Branch manager |
+| Appointments | Waitlist | 4 | Soon | Salon, spa, barber, clinic, services company | Owner, General manager, Business manager, Branch manager |
+| Appointments | Booking rules | 4 | Soon | Salon, spa, barber, clinic, services company | Owner, General manager, Business manager |
+| Appointments | Appointment categories | 4 | Soon | Salon, spa, barber, clinic, services company | Owner, General manager, Business manager |
+| Online | Company public page | 1 | Soon | every business type | Owner, General manager, Business manager, Marketing |
+| Online | Online menu builder | 4 | Soon | every business type | Owner, General manager, Business manager, Marketing |
+| Online | Customer call (set up the waiting page and its QR code) | — | Soon | every business type | Owner, General manager, Business manager, Branch manager |
+| Marketing | Business WhatsApp | 4 | Soon | every business type | Owner, General manager, Business manager, Marketing |
+| Marketing | Campaigns | 4 | Soon | every business type | Owner, General manager, Business manager, Marketing |
+| Marketing | Message templates | 4 | Soon | every business type | Owner, General manager, Business manager, Marketing |
+| Marketing | Social media management | — | Soon | every business type | Owner, General manager, Business manager, Marketing |
+| Loyalty | Loyalty points | 4 | Soon | every business type | Owner, General manager, Business manager, Marketing |
+| Loyalty | Loyalty cards (wallet stamp cards) | 6 | Soon | every business type | Owner, General manager, Business manager, Marketing |
+| Loyalty | Gift cards | 4 | Soon | every business type | Owner, General manager, Business manager, Marketing |
+| Loyalty | Discount cards and codes | 4 | Soon | every business type | Owner, General manager, Business manager, Marketing |
 
 ### 5. Team
 
-| Sub-menu | Page | Phase | State | Shown only to |
-|---|---|---|---|---|
-| Employees | Employees (+ Create, + Employee detail) | 1 | Live | every business type |
-| Employees | Employee numbers | 1 | Live | every business type |
-| Employees | Import employees | 1 | Live | every business type |
-| Employees | Document types | 1 | Live | every business type |
-| Employees | Attendance cards | 1 | Soon | every business type |
-| Employees | Phones | 1 | Soon | every business type |
-| Schedules | Weekly schedules | 1 | Live | every business type |
-| Schedules | Schedule settings | 1 | Live (a block of Weekly schedules until it gets its own page) | every business type |
-| Attendance | Board | 1 | Live | every business type |
-| Attendance | Requests | 1 | Live | every business type |
-| Attendance | Exceptions | 1 | Live | every business type |
-| Attendance | Corrections | 1 | Soon | every business type |
-| Attendance | Insights | 1 | Soon | every business type |
-| Leave | Leave approvals | 1 | Live | every business type |
-| Pay | Commission plans | 1 | Live | every business type |
-| Pay | Commission overrides | 1 | Live | every business type |
-| Pay | Salaries | 1 | Soon | every business type |
-| Pay | Commission statements | 1 | Soon | every business type |
-| Pay | Payroll runs and payslips | 5 | Soon | every business type |
-| Pay | Loans and advances | 5 | Soon | every business type |
+| Sub-menu | Page | Phase | State | Shown only to | Roles |
+|---|---|---|---|---|---|
+| Employees | Employees (+ Create, + Employee detail) | 1 | Live | every business type | By page permission |
+| Employees | Employee numbers | 1 | Live | every business type | By page permission |
+| Employees | Import employees | 1 | Live | every business type | By page permission |
+| Employees | Document types | 1 | Live | every business type | By page permission |
+| Employees | Attendance cards | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
+| Employees | Phones | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
+| Schedules | Weekly schedules | 1 | Live | every business type | By page permission |
+| Schedules | Schedule settings | 1 | Live (a block of Weekly schedules until it gets its own page) | every business type | By page permission |
+| Attendance | Board | 1 | Live | every business type | By page permission |
+| Attendance | Requests | 1 | Live | every business type | By page permission |
+| Attendance | Exceptions | 1 | Live | every business type | By page permission |
+| Attendance | Corrections | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
+| Attendance | Insights | 1 | Soon | every business type | Owner, General manager, Business manager, Branch manager |
+| Leave | Leave approvals | 1 | Live | every business type | By page permission |
+| Pay | Commission plans | 1 | Live | every business type | By page permission |
+| Pay | Commission overrides | 1 | Live | every business type | By page permission |
+| Pay | Salaries | 1 | Soon | every business type | Owner |
+| Pay | Commission statements | 1 | Soon | every business type | Owner, General manager, Accountant, Business manager |
+| Pay | Payroll runs and payslips | 5 | Soon | every business type | Owner, General manager, Accountant |
+| Pay | Loans and advances | 5 | Soon | every business type | Owner, General manager, Accountant |
 
 ### 6. Reports and money
 
-| Sub-menu | Page | Phase | State | Shown only to |
-|---|---|---|---|---|
-| Staff reports | Attendance report | 1 | Live | every business type |
-| Staff reports | Attendance statement | 1 | Live | every business type |
-| Staff reports | Leave history report | 1 | Live | every business type |
-| Sales reports | Sales (by channel, type, method, hour, staff) | 5 | Soon | every business type |
-| Sales reports | Products and returns | 5 | Soon | every business type |
-| Sales reports | Payments and customer balances | 5 | Soon | every business type |
-| Stock reports | Stock and cost of goods | 3 | Soon | every business type |
-| Stock reports | Stock movements ledger (item activity) | 3 | Soon | every business type |
-| Performance | Commissions and performance | 5 | Soon | every business type |
-| Performance | Customer call report (waiting and service time) | — | Soon | every business type |
-| Performance | Appointments report | 5 | Soon | Salon, spa, barber, clinic, services company |
-| Expenses | Expenses | 5 | Soon | every business type |
-| Expenses | Recurring expenses | 5 | Soon | every business type |
-| Expenses | Profit and loss per business | 5 | Soon | every business type |
-| Exports | Scheduled reports | 5 | Soon | every business type |
-| Exports | Accounting export | 5 | Soon | every business type |
-| Exports | Qayd filing pack (XBRL) | — | Soon | Country: Kuwait (any business type) |
-| Exports | Request the Qayd filing service | — | Soon | Country: Kuwait (any business type) |
+| Sub-menu | Page | Phase | State | Shown only to | Roles |
+|---|---|---|---|---|---|
+| Staff reports | Attendance report | 1 | Live | every business type | By page permission |
+| Staff reports | Attendance statement | 1 | Live | every business type | By page permission |
+| Staff reports | Leave history report | 1 | Live | every business type | By page permission |
+| Sales reports | Sales (by channel, type, method, hour, staff) | 5 | Soon | every business type | Owner, General manager, Accountant, Business manager, Branch manager, Viewer |
+| Sales reports | Products and returns | 5 | Soon | every business type | Owner, General manager, Accountant, Business manager, Branch manager, Viewer |
+| Sales reports | Payments and customer balances | 5 | Soon | every business type | Owner, General manager, Accountant, Business manager, Viewer |
+| Stock reports | Stock and cost of goods | 3 | Soon | every business type | Owner, General manager, Accountant, Business manager, Viewer |
+| Stock reports | Stock movements ledger (item activity) | 3 | Soon | every business type | Owner, General manager, Accountant, Business manager, Storekeeper, Viewer |
+| Performance | Commissions and performance | 5 | Soon | every business type | Owner, General manager, Accountant, Business manager, Viewer |
+| Performance | Customer call report (waiting and service time) | — | Soon | every business type | Owner, General manager, Business manager, Branch manager, Viewer |
+| Performance | Appointments report | 5 | Soon | Salon, spa, barber, clinic, services company | Owner, General manager, Business manager, Branch manager, Viewer |
+| Expenses | Expenses | 5 | Soon | every business type | Owner, General manager, Accountant |
+| Expenses | Recurring expenses | 5 | Soon | every business type | Owner, General manager, Accountant |
+| Expenses | Profit and loss per business | 5 | Soon | every business type | Owner, General manager, Accountant, Viewer |
+| Exports | Scheduled reports | 5 | Soon | every business type | Owner, General manager, Accountant, Business manager |
+| Exports | Accounting export | 5 | Soon | every business type | Owner, General manager, Accountant |
+| Exports | Qayd filing pack (XBRL) | — | Soon | Country: Kuwait (any business type) | Owner, General manager, Accountant |
+| Exports | Request the Qayd filing service | — | Soon | Country: Kuwait (any business type) | Owner, General manager, Accountant |
 
 ### 7. Setup
 
-| Sub-menu | Page | Phase | State | Shown only to |
-|---|---|---|---|---|
-| Business | Business identity | 1 | Live | every business type |
-| Business | Branches | — | Soon | every business type |
-| Business | Alerts and notifications | 1 | Live | every business type |
-| Business | Data import (Excel) | 1 | Soon | every business type |
-| Business | Tax and invoice template | 2 | Soon | every business type |
-| Business | Invoice terms and conditions | — | Soon | every business type |
-| Business | Working hours and order rules | 2 | Soon | every business type |
-| Business | Payment methods and gateways | 2 | Soon | every business type |
-| Access | Permissions | 1 | Live | every business type |
-| Access | Invitations | — | Soon | every business type |
-| Access | Sign-in security (authenticator) | 1 | Live | every business type |
-| Access | Approval limits | 2 | Soon | every business type |
-| Access | Activity log (who did what, and when) | — | Soon | every business type |
-| Staff app | Staff app link | 1 | Live | every business type |
-| Staff app | Staff app columns | 1 | Live | every business type |
-| Appearance | Appearance (navigation style, light and dark) | 1 | New | every business type |
-| Plan | Subscription and billing | 5 | Soon | every business type |
-| Developers | API keys and webhooks | 5 | Soon | every business type |
-| Compliance | ZATCA e-invoicing | 6 | Soon | Country: Saudi Arabia (any business type) |
+| Sub-menu | Page | Phase | State | Shown only to | Roles |
+|---|---|---|---|---|---|
+| Business | Business identity | 1 | Live | every business type | By page permission |
+| Business | Branches | — | Soon | every business type | Owner, General manager, Business manager |
+| Business | Alerts and notifications | 1 | Live | every business type | By page permission |
+| Business | Data import (Excel) | 1 | Soon | every business type | Owner, General manager, Business manager |
+| Business | Tax and invoice template | 2 | Soon | every business type | Owner, General manager, Accountant, Business manager |
+| Business | Invoice terms and conditions | — | Soon | every business type | Owner, General manager, Business manager |
+| Business | Working hours and order rules | 2 | Soon | every business type | Owner, General manager, Business manager |
+| Business | Payment methods and gateways | 2 | Soon | every business type | Owner, General manager, Accountant |
+| Access | Permissions | 1 | Live | every business type | By page permission |
+| Access | Invitations | — | Soon | every business type | Owner, General manager |
+| Access | Sign-in security (authenticator) | 1 | Live | every business type | By page permission |
+| Access | Approval limits | 2 | Soon | every business type | Owner, General manager, Business manager |
+| Access | Activity log (who did what, and when) | — | Soon | every business type | Owner, General manager |
+| Staff app | Staff app link | 1 | Live | every business type | By page permission |
+| Staff app | Staff app columns | 1 | Live | every business type | By page permission |
+| Appearance | Appearance (navigation style, light and dark) | 1 | New | every business type | Every signed-in admin user (NAV-Q1) |
+| Plan | Subscription and billing | 5 | Soon | every business type | Owner |
+| Developers | API keys and webhooks | 5 | Soon | every business type | Owner, General manager |
+| Compliance | ZATCA e-invoicing | 6 | Soon | Country: Saudi Arabia (any business type) | Owner, General manager, Accountant |
 
 "Social media management" is the owner's request of 2026-11-21; it is not in the PRD and needs a PRD entry and a spec
 before anything is built. The owner confirmed it is listed as a Soon entry.
