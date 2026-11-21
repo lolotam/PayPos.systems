@@ -18,7 +18,7 @@ const versionsPath = '/v1/businesses/{businessId}/employees/{employeeId}/commiss
 type PlanVersionWireBody = components['schemas']['CreateCommissionPlanVersionInput'];
 
 /** رفض السيرفر بيتبعت بحالته عشان 403 يتفرق عن أي رفض تاني في طبقة الوصول. */
-function refusal(error: unknown, status: number): unknown {
+export function refusal(error: unknown, status: number): unknown {
   return { ...(error as object), status };
 }
 
