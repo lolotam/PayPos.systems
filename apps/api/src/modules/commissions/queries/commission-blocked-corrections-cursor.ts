@@ -1,4 +1,4 @@
-import { id } from '@pospay/contracts';
+import { commissionPlanDate, id } from '@pospay/contracts';
 import { z } from 'zod';
 
 /** سياق المؤشر: الشركة والنشاط والفلتر اللي اتطلب بيه — المؤشر ميتنقلش بينهم. */
@@ -24,8 +24,6 @@ export type CommissionBlockedCorrectionCursorDecode =
 const VERSION = 1;
 // وقت UTC خام بالميكروثانية: الصيغة اللي بيطلعها to_char(...,'US') عن PostgreSQL.
 const RAW_MICROSECONDS = /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{6}Z$/;
-// شهر حقيقي بنفس قاعدة commissionCorrectionPeriod في العقد؛ السكالار نفسه مش منشور للحد الخارجي.
-const REAL_MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 const STATUSES = ['open', 'resolved', 'all'] as const;
 
 /** شهر حقيقي بلا سنة صفر؛ النص الخام يظل بالميكروثانية ولا يمر عبر Date. */
@@ -37,7 +35,7 @@ const cursorPayload = z.strictObject({
   t: z
     .string()
     .regex(RAW_MICROSECONDS)
-    .refine((value) => REAL_MONTH.test(value.slice(0, 7))),
+    .refine((value) => commissionPlanDate.safeParse(value.slice(0, 10)).success),
   i: id,
 });
 

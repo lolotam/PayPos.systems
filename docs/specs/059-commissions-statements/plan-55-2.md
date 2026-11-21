@@ -527,7 +527,10 @@ way as O2 (20.000 under its second option).
 
 ## 8. 55-2e — the list (FR-049)
 
-**Budget: 140 production lines. Stop above 190; refused above 280.** No migration (the index is 55-2b's). API only.
+**Approved production ceiling: 520 changed lines (additions plus deletions), one PR.**
+The original estimate was 140, with a stop at 190 and refusal above 280. The owner approved this slice-specific
+ceiling after the measured delivery reached 486 production lines. See `owner-questions.ar.md`, 55-2e-DELIVERY-1.
+No migration (the index is 55-2b's). API only.
 
 1. **Contract:** new `packages/contracts/src/commissions/blocked-corrections.ts` — `commissionBlockedCorrection`
    `{ id, employee_id, source_period, code, target_period, created_at, resolved_at }`, the list query
