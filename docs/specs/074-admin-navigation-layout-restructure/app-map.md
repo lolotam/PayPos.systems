@@ -6,7 +6,7 @@ This file lists every section, its sub-menus and its pages. It extends `design.m
 
 ## How to read it
 
-- **Live**: an admin route exists on `main` at `cf70114e2`. It keeps its address. Two Live entries are not routes of their own yet: Schedule settings is a block of `/schedules`, and Employee detail is an inline card on `/staff`. Until `pr-sequence.md` steps 10 and 11 give them routes, their menu entries point to `/schedules` and `/staff`.
+- **Live**: an admin route exists on `main` at `cf70114e2`. It keeps its address. Two Live items are not routes of their own yet. Employee detail is an inline card on `/staff` and gets its route in `pr-sequence.md` step 10; it is a child page with no menu entry. Schedule settings is a block at the top of `/schedules` and gets its route in step 11; until then it is not a separate menu entry, so no two entries share one address.
 - **Soon**: no admin route on `main` at `cf70114e2`. The menu shows the entry with a "Soon" mark; opening it shows the Under development page. Some Soon entries have back-end work merged or in flight; that is not tracked here.
 - **Phase**: the phase whose tasks in `docs/PRD.md` §10 name the page or its module (§7 where §10 is silent). It is this document's reading of the PRD, not a commitment to a date. "—" means the PRD does not plan it.
 - Names are working names in English. The Arabic and English labels are written in `packages/i18n` when the entry is added.
@@ -87,7 +87,7 @@ Sources: `docs/PRD.md` §3.2 (personas), §7 (functional scope by module), §7.1
 | Loyalty | Gift cards | Soon | 4 |
 | Loyalty | Discount cards and codes | Soon | 4 |
 
-"Social media management" is the owner's request of 2026-11-21. It is not in the PRD; it needs a PRD entry and a spec before anything is built (NAV-Q15).
+"Social media management" is the owner's request of 2026-11-21. It is not in the PRD. Whether it is listed as a Soon entry or left out until it is decided is NAV-Q15, still unanswered: `TODO(spec)`. It is counted below, and is dropped from the release if the answer is to leave it out.
 
 ### 5. Team
 
@@ -182,15 +182,15 @@ Top-level entries, at most seven in any style.
 | 7. Setup | Setup | Business › Setup | Business › Setup |
 | Top-level count | 7 | 7 (Today, Sell, Approvals, Stock, Grow, People, Business) | 5 (Front desk, Stock, Customers, Team, Business) |
 
-- **A:** a section's sub-menus are its tabs; a sub-menu's pages are pills. Sections with many sub-menus (2, 3, 4) scroll their tab row sideways on narrow screens.
+- **A:** a section's sub-menus are its tabs; a sub-menu's pages are pills. On a phone the bottom bar holds four sections and More; the More sheet lists each remaining section with its sub-menus as direct links, so More, sub-menu, page is three taps. Sections with many sub-menus (2, 3, 4) scroll their tab row sideways on narrow screens.
 - **B:** a section's sub-menus are the columns of its mega menu and the headings of its local list. Approvals stays as in `design.md` §4: Leave approvals, Attendance requests and Attendance exceptions, joined later by Soon pages that hold decisions (approval limits, wastage approvals) when they are built.
-- **C:** a section's sub-menus are the section labels of its panel. Front desk keeps today's attendance and leave decisions next to sales, as in `design.md` §4.
+- **C:** a section's sub-menus are the section labels of its panel. On a phone the bottom bar holds the five workspaces and the page finder moves to the context bar. Front desk keeps today's attendance and leave decisions next to sales, as in `design.md` §4.
 - The route map of Live pages in `design.md` §4 still holds, with two renames: A's "Attendance & leave" group is folded into Team (Attendance, Leave) and Reports (Staff reports); A's "Catalog" becomes "Catalog and stores".
 
 ## The Under development page
 
 - One page, opened by every Soon entry. It shows the entry's name, a short line saying the page is under development, and a button back to Home.
 - It shows no date and no phase number to the user.
-- Its address is `/soon/[page]`. When a page is built, its entry changes from Soon to Live and points to its real address; an old `/soon/...` link then forwards to the real page.
+- Its address is `/soon/[page]`. When a page is built, its entry changes from Soon to Live and points to its real address. An old `/soon/...` link then applies the entry's current show condition first: a user who may see the page is forwarded to it; a user who may not gets the not-found page.
 - Who sees Soon entries is not settled. The owner asked for every section to be shown (NAV-Q13); the PRD turns sections on per business type and per role (§3.2, §7.1). NAV-Q14 asks which applies, and its answer is required before `pr-sequence.md` step 7 is approved. Whatever the answer, the same rule applies in the menu, in the page finder and to a direct `/soon/...` link.
 - A Soon entry gives no access to anything: it opens the Under development page only.

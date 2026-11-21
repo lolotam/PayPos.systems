@@ -44,11 +44,11 @@ The work is delivered as 13 PRs. Their order, tiers and "done when" are in [pr-s
 | II. Domain Purity and Money Correctness | Not applicable | No money, no arithmetic, no `domain/` function. |
 | III. Tenant Isolation Enforced by the Database | Pass, needs an ADR addendum | No tenant table is added. The new column is on `user`, a global identity table reached only through `packages/auth` on `pospay_auth`. ADR-0003 must classify the column before the migration is written (CLAUDE.md §5). The existing table-level grant to `pospay_auth` covers it; no new grant. |
 | IV. Module Boundaries Are Machine-Enforced | Pass | The navigation model is composed in `app/(dashboard)/_frame` from per-area exports (CLAUDE.architecture.md §11.2); nothing with business meaning goes in `src/shared` (§6.4). The endpoint lives in the `identity` module and reaches the column through `packages/auth` only. No new module arrow. |
-| V. Test-Backed Delivery | Pass | Front-end tests assert visible outcomes in each style; integration scenarios PREF-01 to PREF-08 for the endpoint. Every hide-condition asserted by today's nav-item specs is carried over before those files are removed. |
+| V. Test-Backed Delivery | Pass | Front-end tests assert visible outcomes in each style; integration scenarios PREF-01 to PREF-09 for the endpoint. Every hide-condition asserted by today's nav-item specs is carried over before those files are removed. |
 | VI. Arabic-First, RTL-Native, One Owned Design System | Pass, needs an ADR addendum | Same tokens and `packages/ui` components; icons per ADR-0060. Moving the theme switch out of the sidebar footer needs an ADR-0059 addendum (NAV-Q5): styles B and C have no sidebar footer. |
 | VII. Documented Why, in Arabic, With the Code | Pass | No `domain/`, `ports/` or `events/published.ts` change is planned. If step 12 adds a port, it carries its Arabic doc comment. |
 
-Gate result: pass. Two addenda are owed before the PRs that depend on them: ADR-0059 (before step 7) and ADR-0003 (before step 12). Both are written in step 0.
+Gate result: pass. Two addenda are owed before the PRs that depend on them: ADR-0059 (before step 7) and ADR-0003 (before step 12). Both are written in step 0b (`pr-sequence.md`). The ADR-0059 addendum waits for the answer to NAV-Q5.
 
 Post-design re-check (after Phase 1): unchanged. The data model adds one column and no table; the contract adds two session-only routes and no permission.
 

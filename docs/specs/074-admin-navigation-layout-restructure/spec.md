@@ -24,8 +24,8 @@ A manager opens the admin app and finds every page under a small number of named
 
 1. **Given** a signed-in user who has never chosen a style, **When** the app opens, **Then** it shows style C: five workspaces on a rail and a panel listing the current workspace's pages.
 2. **Given** any admin page, **When** the user looks at the menu, **Then** exactly one top-level entry is marked current, including on Staff app columns and on the Authenticator page.
-3. **Given** any admin page, **When** the user wants another page, **Then** they reach it in at most three clicks.
-4. **Given** a phone-width screen, **When** the user opens the app, **Then** the main destinations are in a bottom bar and no page scrolls sideways.
+3. **Given** any admin page, **When** the user wants another page, **Then** they reach it in at most three clicks or taps, on a phone too, starting from a different section.
+4. **Given** a phone-width screen, **When** the user opens the app, **Then** the main destinations are in a bottom bar in styles A and C and in a drawer in style B, and no page scrolls sideways.
 5. **Given** Arabic is selected, **When** the app opens, **Then** the menu sits on the right and direction icons are mirrored.
 6. **Given** a user whose permissions hide some pages, **When** the menu is drawn, **Then** those pages are absent and a group left with no pages is not shown.
 
@@ -46,7 +46,7 @@ Any signed-in user opens Appearance and picks style A, B or C by name. The frame
 3. **Given** a user with no permission beyond being signed in, **When** they open Appearance, **Then** they can see it and change the style.
 4. **Given** the user picked B, **When** they reload the page, **Then** the first thing drawn is style B, with no other style shown first.
 5. **Given** any address in the app, **When** it is opened under A, B or C, **Then** the same page is shown; only the frame differs.
-6. **Given** a user is on an overview page that only their current style has, **When** they switch style, **Then** they are taken to the first page of that group.
+6. **Given** a user is on an overview page that only their current style has, **When** they switch style, **Then** they are taken to the first page of that group they may see, or to Home if there is none.
 
 ---
 
@@ -97,7 +97,7 @@ The menu names every section of the product, including the ones not built yet: s
 1. **Given** the menu in any style, **When** the user looks at it, **Then** every section and sub-menu of `app-map.md` is present.
 2. **Given** an entry for a page that is not built, **When** the user looks at it, **Then** it carries a "Soon" mark that is also announced to screen readers.
 3. **Given** such an entry, **When** the user opens it, **Then** an Under development page shows the entry's name, one line saying it is under development, and a way back to Home. It shows no date and no phase number.
-4. **Given** a page is built later, **When** its entry is switched to its real address, **Then** an old link to its Under development address forwards to the real page.
+4. **Given** a page is built later, **When** a user opens an old link to its Under development address, **Then** a user who may see the page is forwarded to it and a user who may not gets the not-found page.
 5. **Given** style C's page finder, **When** the user searches for a page that is not built, **Then** it is found and marked "Soon".
 
 ---
@@ -105,7 +105,9 @@ The menu names every section of the product, including the ones not built yet: s
 ### Edge Cases
 
 - A new admin page is added later: it must appear in all three styles. A page present in one style only is a failed build, not a runtime surprise.
-- A link to an overview page of style B is opened by a user on style A: they land on the first page of that group.
+- A link to an overview page of style B is opened by a user on style A: they land on the first page of that group they may see; if the group is unknown or nothing in it is visible to them, on Home.
+- The user picks A and then B before the first save has finished: the account ends with B.
+- The account cannot be read at sign-in: the user signs in normally and starts on C.
 - The stored choice is not A, B or C (old or damaged value): the app shows C.
 - The user switches style in one tab while another tab is open: the other tab keeps its frame until its next navigation or reload.
 - Permission checks for menu items are still loading: the frame is drawn at once; items appear when their check resolves; no group flashes empty.
@@ -129,7 +131,7 @@ The menu names every section of the product, including the ones not built yet: s
 - **FR-011**: The choice MUST be remembered on the device from the first release, and saved on the user's account in a following release, after which it follows the user to other devices.
 - **FR-012**: Signing out MUST clear the device's remembered choice, and signing in MUST set it from that user's own choice or clear it, so the next person on that browser never inherits it, including after a session that expired.
 - **FR-013**: The account choice MUST be personal: one user's choice never changes what another user sees.
-- **FR-014**: The light, dark and system switch MUST be available on the Appearance page and in the account menu.
+- **FR-014**: In styles B and C the light, dark and system switch MUST be available on the Appearance page and in the account menu. Its place in style A waits for NAV-Q5 (`TODO(spec)`).
 - **FR-015**: All of the above MUST hold on desktop, tablet and phone widths, in Arabic (right-to-left) and English.
 - **FR-016**: Admin pages MUST follow the shared layout rules in `design.md` §6 (page width, header, filters, forms, stacked table rows on phones).
 - **FR-017**: The two defects found during mapping MUST be fixed: Staff app columns marks its own entry, not Employees; the Reload button on Weekly schedules no longer reads "Reload employee".
@@ -137,7 +139,9 @@ The menu names every section of the product, including the ones not built yet: s
 - **FR-020**: A page that is not built yet MUST be marked "Soon" in the menu, and the mark MUST not rely on colour alone.
 - **FR-021**: Opening a not-built page MUST show one shared Under development page with the page's name and a way back to Home, in Arabic and English, with no date and no phase number.
 - **FR-022**: Who sees not-built entries MUST follow one rule in the menu, the page finder and direct links. The owner asked for every section to be shown (NAV-Q13); whether that is every user or follows business type and role is open (NAV-Q14), and its answer is required before the styles are released. Once a page is built, its own permission decides.
-- **FR-023**: When a page is built, switching its entry to the real page MUST be a change to that entry alone, and its old Under development address MUST forward to the real page.
+- **FR-023**: When a page is built, switching its entry to the real page MUST be a change to that entry alone, and its old Under development address MUST apply the entry's show condition before forwarding to the real page.
+- **FR-024**: Menus, drawers, sheets and the page finder MUST keep keyboard focus inside while open and return it to the control that opened them; every icon-only control MUST have an accessible name; in-page tabs MUST expose which tab is selected; a hidden panel MUST take its links out of the tab order; a menu taller than the window MUST scroll inside itself.
+- **FR-025**: Choosing styles in quick succession MUST leave the account holding the last choice made.
 - **FR-018**: The cashier app is in the owner's scope but out of this feature; it gets its own specification (`TODO(spec)`, NAV-Q3, NAV-Q11).
 
 ### Key Entities
@@ -160,7 +164,7 @@ This feature is mostly front end. It is delivered as several PRs (see `plan.md`)
 - **BR-005**: The three styles are released together; saving on the account follows (NAV-Q8, NAV-Q12).
 - **BR-006**: Existing permission rules decide which built pages a user sees in the menu; this feature adds and removes none.
 - **BR-007**: The menu names the whole product, phases 1 to 6; a page not built yet opens an Under development page (NAV-Q13).
-- **BR-008**: "Social media management" is listed at the owner's request but is not in the PRD; it stays an Under development entry until it has a PRD entry and a spec (NAV-Q15).
+- **BR-008**: "Social media management" was asked for by the owner but is not in the PRD. Whether it is listed as an Under development entry or left out is NAV-Q15, unanswered: `TODO(spec)`.
 
 ### Schema changes
 
@@ -177,7 +181,7 @@ Expand only: one nullable column, no backfill, nothing destructive (NAV-Q10: «�
 - **Idempotency-Key**: not required; no money or stock effect, and a repeated write gives the same result
 - **Errors**: `VALIDATION_FAILED` → a value other than A, B, C · `UNAUTHENTICATED` → no session or a staff-purpose session · `FORBIDDEN` → a device token
 
-The read and write go through `packages/auth`, the only package that may reach the identity tables. No other module reads the column.
+The read and write go through `packages/auth`, the only package that may reach the identity tables. No other module reads the column. The `GET` follows the read path of CLAUDE.md §6: a file under the `identity` module's `queries/` that calls the reader `packages/auth` exports, with no use case in between.
 
 ### Permissions
 
@@ -189,23 +193,23 @@ The read and write go through `packages/auth`, the only package that may reach t
 - **Published**: none
 - **Consumed**: none
 
-No audit-log entry: a personal display choice is not one of the audited changes listed in CLAUDE.md §8. To be confirmed in review.
+Audit: not settled. CLAUDE.md §8 asks for an audit entry on every settings change and names no exception for a personal display choice. NAV-Q16 asks the owner for an audit entry or a recorded exception, before the account preference is built.
 
 ### Test plan
 
 - **Domain unit**: none; no business arithmetic.
 - **Front end, navigation model**: table-driven over the three groupings — every admin route appears exactly once; exactly one top-level entry is current on every route; every label key exists in Arabic and English; every hide-condition asserted by today's `*-nav-item.spec.tsx` and `staff-navigation.spec.tsx` files is carried over before those files are removed.
 - **Front end, not-built pages**: every entry of `app-map.md` is in the model; every not-built entry renders the "Soon" mark in each style; the Under development page shows the entry's name in both languages; an unknown `/soon/...` address shows the app's not-found page; a built entry's old `/soon/...` address forwards.
-- **Front end, rendered**: one test per style asserting the visible current item; switching style changes the visible frame and keeps the route; default is C; an unknown stored value shows C; a user with no permissions can switch; sign-out clears the device choice; after a session that expired without sign-out, the next user with no saved choice sees C; the Authenticator page is drawn inside the frame with its entry current; the server-rendered frame matches the stored choice.
-- **Integration scenarios**: `PREF-01` read with nothing saved returns null · `PREF-02` write then read returns the value · `PREF-03` invalid value rejected · `PREF-04` user X's write does not change user Y's value · `PREF-05` no session is refused (401) · `PREF-06` a staff-purpose session is refused (401) · `PREF-07` a device token is refused (403) · `PREF-08` sign-up and sign-in still work after the migration.
+- **Front end, rendered**: one test per style asserting the visible current item; switching style changes the visible frame and keeps the route; default is C; an unknown stored value shows C; a user with no permissions can switch; sign-out clears the device choice; choosing A then B while the first save is delayed ends with B on the account; a failed account read at sign-in clears the device choice and shows C; an old `/soon/...` link to a built page the user may not see shows not-found; an overview link with no visible page goes to Home; at 390px a page in a section behind More is reached in three taps from another section; after a session that expired without sign-out, the next user with no saved choice sees C; the Authenticator page is drawn inside the frame with its entry current; the server-rendered frame matches the stored choice.
+- **Integration scenarios**: `PREF-01` read with nothing saved returns null · `PREF-02` write then read returns the value · `PREF-03` invalid value rejected · `PREF-04` user X's write does not change user Y's value · `PREF-05` no session is refused (401) · `PREF-06` a staff-purpose session is refused (401) · `PREF-07` a device token is refused (403) · `PREF-08` an existing user signs in, and a user is created through the existing operator path, after the migration (public sign-up is disabled and stays so) · `PREF-09` two writes sent one after the other end with the second value.
 - **RLS negative**: not applicable; no tenant table is added. `PREF-04` covers isolation between users.
-- **Queries**: none added under `queries/`.
+- **Queries**: one read for `GET /v1/me/preferences`, with a result-shape test. It reads one row by primary key through `packages/auth`; the `EXPLAIN` assertion required for `queries/` files applies to it.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: From any admin page, any other page is reached in at most three clicks, in each of the three styles.
+- **SC-001**: From any admin page, any other page is reached in at most three clicks or taps, in each of the three styles, at desktop, tablet and phone widths.
 - **SC-002**: The top level of the menu has at most seven entries in every style, down from about 25 links in one list today, while naming the whole product.
 - **SC-009**: 100% of the pages in `app-map.md` are present in each style; every one that is not built opens the Under development page.
 - **SC-003**: A user changes style in two clicks from any page, and the new frame is visible in under one second.

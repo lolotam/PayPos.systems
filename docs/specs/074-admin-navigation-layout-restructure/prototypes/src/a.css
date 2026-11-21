@@ -15,13 +15,13 @@
 .A .bb { display: none; }
 
 /* rail: collapsed by the user, or forced between 600 and 1023px */
-.A.col .sb { width: 80px; padding-inline: 8px; }
-.A.col .sbh { flex-direction: column; gap: 8px; }
-.A.col .brand .bw, .A.col .wsb .tx, .A.col .wsb > svg:last-child { display: none; }
-.A.col .wsb { justify-content: center; padding: 0; }
-.A.col .ni { flex-direction: column; justify-content: center; gap: 2px; padding: 6px 2px; min-height: 60px; font-size: 10.5px; text-align: center; }
-.A.col .ni .lb { flex: none; max-width: 100%; }
-.A.col .ni .count { position: absolute; top: 4px; inset-inline-end: 8px; }
+.A.is-collapsed .sb { width: 80px; padding-inline: 8px; }
+.A.is-collapsed .sbh { flex-direction: column; gap: 8px; }
+.A.is-collapsed .brand .bw, .A.is-collapsed .wsb .tx, .A.is-collapsed .wsb > svg:last-child { display: none; }
+.A.is-collapsed .wsb { justify-content: center; padding: 0; }
+.A.is-collapsed .ni { flex-direction: column; justify-content: center; gap: 2px; padding: 6px 2px; min-height: 60px; font-size: 10.5px; text-align: center; }
+.A.is-collapsed .ni .lb { flex: none; max-width: 100%; }
+.A.is-collapsed .ni .count { position: absolute; top: 4px; inset-inline-end: 8px; }
 @container app (min-width: 600px) and (max-width: 1023px) {
   .A .sb { width: 80px; padding-inline: 8px; }
   .A .sbh { flex-direction: column; gap: 8px; }

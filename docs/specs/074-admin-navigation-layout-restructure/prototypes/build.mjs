@@ -5,7 +5,8 @@ const read = (f) => readFileSync(new URL(`src/${f}`, here), 'utf8');
 const TITLES = { a: 'PosPay Nav A', b: 'PosPay Nav B', c: 'PosPay Nav C' };
 for (const v of ['a', 'b', 'c']) {
   if (!existsSync(new URL(`src/${v}.js`, here))) continue;
-  const html = `<title>${TITLES[v]}</title>
+  const html = `<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${TITLES[v]}</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@600;700;800&family=Readex+Pro:wght@400;500;600;700&display=swap">
 <style>
 ${read('base.css')}

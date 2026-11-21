@@ -84,7 +84,7 @@ Prototypes: `prototypes/pospay-nav-a.html`, `-b.html`, `-c.html` (built by `prot
 | Primary nav, ≥1024px | sidebar 264px, collapses to 80px | top bar 64px | rail 84px |
 | Secondary nav, ≥1024px | tab row 48px | context strip 56px + local list 240px | panel 272px, hideable |
 | Tablet | 600–1023px: rail 80px + tab row | 700–1023px: top bar + pill strip | 600–1023px: rail 84px, panel floats over the page |
-| Phone | <600px: top bar 56px + tab row + bottom bar 64px (4 + More) | <700px: top bar 56px + drawer 304px with accordions | <600px: context bar 56px + bottom tabs 64px (4 + Search) |
+| Phone | <600px: top bar 56px + tab row + bottom bar 64px (4 + More; the More sheet lists the other sections with their sub-menus) | <700px: top bar 56px + drawer 304px with accordions; no bottom bar | <600px: context bar 56px with the page finder + bottom tabs 64px (the five workspaces of `app-map.md`) |
 | Nav item height | 48px (rail 60px) | 44px | 44px |
 | Top-level entries | 6 | 6 | 4 |
 | Levels | 3 | 3 (menu, list, page) | 2 + page finder |
@@ -129,7 +129,7 @@ Existing URLs do not change in any style. New routes:
 - **Appearance** (`/appearance`): the style and theme choice.
 - **Under development** (`/soon/[page]`): one shared page opened by every entry that is not built yet (`app-map.md`).
 - **Schedule settings** (today a block at the top of `/schedules`) and **Employee detail** (today an inline card on `/staff`).
-- **Overview pages** that only styles B and C use (one per module or workspace). They live under one route, `/overview/[group]`, and are drawn from the navigation model. If the group id is not part of the user's current style (an old link, or the style was switched while on that page), the user is taken to the first page of that group instead.
+- **Overview pages** that only styles B and C use (one per module or workspace). They live under one route, `/overview/[group]`, and are drawn from the navigation model. If the group id is not part of the user's current style (an old link, or the style was switched while on that page), the user is taken to the first page of that group they are allowed to see. An unknown group, or one with no page the user may see, goes to Home.
 
 A URL opened under any style shows the same page. Only the frame around it differs.
 
@@ -141,9 +141,9 @@ A URL opened under any style shows the same page. Only the frame around it diffe
 - **Default:** C, for a user who has never chosen.
 - **First paint:** the server reads a `pospay_nav_style` cookie, the same way it reads `pospay_locale` (`apps/admin/src/shared/locale/request-locale.ts`), and renders the right frame. No flash of another style.
 - **Shared browsers:** the cookie belongs to the browser, not the person. Signing out clears it, so the next person to sign in on that browser starts from their own saved choice, or from C if they have none.
-- **Account:** the choice is also written to the account (§9). On sign-in the account value overwrites the cookie. If the account write fails, the frame still changes, the cookie keeps the choice on this device, and the user sees a message that it was not saved to the account.
+- **Account:** the choice is also written to the account (§9). On sign-in the account value overwrites the cookie. If the account write fails, the frame still changes, the cookie keeps the choice on this device, and the user sees a message that it was not saved to the account. Saves from one tab are sent one at a time and a waiting save is replaced by the newest choice, so an older choice can never land after a newer one.
 - **Other tabs:** a tab that is already open keeps its frame until its next navigation or reload.
-- **Theme:** the light, dark and system switch moves to the Appearance page and the account menu. Styles B and C have no sidebar footer to hold it, so shipping all three forces this move. ADR-0059 places the switch in the sidebar footer and needs an addendum (NAV-Q5).
+- **Theme:** styles B and C have no sidebar footer, so in those styles the light, dark and system switch must sit on the Appearance page and in the account menu. Whether style A keeps it in the sidebar footer, and the ADR-0059 addendum that records the placement, wait for NAV-Q5: `TODO(spec)`.
 
 One navigation model feeds all three frames: a typed list of pages (label key, route, icon, the condition that shows it, count source) and three groupings of those pages. Each business area exports its own pages; the model is composed in `app/(dashboard)/_frame`, where cross-area composition belongs (CLAUDE.architecture.md §11.2). It does not go in `src/shared`, which must hold nothing with business meaning (§6.4). A page added later is added once and must be placed in all three groupings; a test fails otherwise (§8).
 
@@ -199,7 +199,7 @@ Each holds in every style unless it names one.
 
 ## 9. Slice design
 
-This spec was written by hand, not by `/speckit-specify`.
+This file is the hand-written design reference. The specification itself, `spec.md`, was created with `/speckit-specify` on 2026-11-21 and planned with `/speckit-plan`; where the two differ, `spec.md` wins.
 
 **Front end (most of the work).** No schema, contract, permission or event change. Every condition that hides a nav item today moves into the navigation model as-is.
 
@@ -211,7 +211,7 @@ This spec was written by hand, not by `/speckit-specify`.
   - **A new table keyed on the user**, read and written through `withUser`, which needs its own policies and a negative isolation test (CLAUDE.md §5).
 - **API:** `GET` and `PUT /v1/me/preferences`, session-only (`@Authenticated()`), personal to the caller. The write declares where its check lives (PP-7.1). No `Idempotency-Key`: no money or stock effect.
 - **Contract:** a Zod schema in `packages/contracts`.
-- **Events:** none. **Audit:** none proposed; a display preference is not a setting in the CLAUDE.md §8 sense. To confirm in review.
+- **Events:** none. **Audit:** not settled. CLAUDE.md §8 asks for an audit entry on every settings change and names no exception for a personal display choice. NAV-Q16 asks for an audit entry or a recorded exception; it is answered before step 12.
 - **Tests:** integration tests for read, write and the default; a test that one user cannot read or write another user's preference.
 
 Navigation counts (pending leave, attendance requests, open exceptions) are shown in the prototypes as examples. Whether the existing list endpoints can supply them cheaply is not verified; if not, counts are dropped from the first release rather than adding an endpoint here.

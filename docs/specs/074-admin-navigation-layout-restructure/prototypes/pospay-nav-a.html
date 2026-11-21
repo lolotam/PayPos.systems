@@ -1,3 +1,4 @@
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PosPay Nav A</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+Bhaijaan+2:wght@600;700;800&family=Readex+Pro:wght@400;500;600;700&display=swap">
 <style>
@@ -107,6 +108,8 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+/* Filters hide links with the hidden attribute; without this, display rules on those links win. */
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 body {
   margin: 0;
@@ -425,13 +428,13 @@ a { color: inherit; }
 .A .bb { display: none; }
 
 /* rail: collapsed by the user, or forced between 600 and 1023px */
-.A.col .sb { width: 80px; padding-inline: 8px; }
-.A.col .sbh { flex-direction: column; gap: 8px; }
-.A.col .brand .bw, .A.col .wsb .tx, .A.col .wsb > svg:last-child { display: none; }
-.A.col .wsb { justify-content: center; padding: 0; }
-.A.col .ni { flex-direction: column; justify-content: center; gap: 2px; padding: 6px 2px; min-height: 60px; font-size: 10.5px; text-align: center; }
-.A.col .ni .lb { flex: none; max-width: 100%; }
-.A.col .ni .count { position: absolute; top: 4px; inset-inline-end: 8px; }
+.A.is-collapsed .sb { width: 80px; padding-inline: 8px; }
+.A.is-collapsed .sbh { flex-direction: column; gap: 8px; }
+.A.is-collapsed .brand .bw, .A.is-collapsed .wsb .tx, .A.is-collapsed .wsb > svg:last-child { display: none; }
+.A.is-collapsed .wsb { justify-content: center; padding: 0; }
+.A.is-collapsed .ni { flex-direction: column; justify-content: center; gap: 2px; padding: 6px 2px; min-height: 60px; font-size: 10.5px; text-align: center; }
+.A.is-collapsed .ni .lb { flex: none; max-width: 100%; }
+.A.is-collapsed .ni .count { position: absolute; top: 4px; inset-inline-end: 8px; }
 @container app (min-width: 600px) and (max-width: 1023px) {
   .A .sb { width: 80px; padding-inline: 8px; }
   .A .sbh { flex-direction: column; gap: 8px; }
@@ -839,7 +842,7 @@ function toast(msg) {
 }
 
 /* ---------- boot ---------- */
-const route = () => { const h = location.hash.slice(1); return PAGES[h] ? h : 'home'; };
+const route = () => { const h = location.hash.slice(1); return Object.hasOwn(PAGES, h) ? h : 'home'; };
 function paint(full) {
   const d = document.documentElement; d.lang = S.lang; d.dir = S.lang === 'ar' ? 'rtl' : 'ltr';
   $$('.pbar [data-lang]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.lang === S.lang));
@@ -857,7 +860,7 @@ function boot() {
     <div class="seg" role="group" aria-label="Language"><button data-lang="ar">العربية</button><button data-lang="en">English</button></div></div>
     <div class="stage"><div class="app" id="app"></div></div>`);
   document.addEventListener('click', (e) => {
-    const t = e.target.closest('[data-lang],[data-device],[data-theme],[data-pop],[data-go],[data-st],[data-toast],[data-act]');
+    const t = e.target.closest('[data-lang],.pbar [data-device],[data-theme],[data-pop],[data-go],[data-st],[data-toast],[data-act]');
     if (!t) return;
     if (t.dataset.lang) { S.lang = t.dataset.lang; try { localStorage.setItem('pp-lang', S.lang); } catch (x) { /* ignore */ } return paint(true); }
     if (t.dataset.device) { S.device = t.dataset.device; return paint(true); }
@@ -868,7 +871,7 @@ function boot() {
     if (t.dataset.act) { e.preventDefault(); return Shell.act(t.dataset.act, t); }
     if (t.hasAttribute('data-toast')) { e.preventDefault(); toast(`${T('Prototype only|نموذج فقط')} · ${t.textContent.trim()}`); }
   });
-  document.addEventListener('click', (e) => { const l = e.target.closest('a[href^="#"]'); if (l && l.getAttribute('href').slice(1) === location.hash.slice(1)) { closePop(); if (Shell.act) Shell.act('esc'); } });
+  document.addEventListener('click', (e) => { const l = e.target.closest('a[href^="#"]'); if (l && !e.defaultPrevented && l.getAttribute('href') !== '#' && l.getAttribute('href').slice(1) === location.hash.slice(1)) { closePop(); if (Shell.act) Shell.act('esc'); } });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closePop(); if (Shell.act) Shell.act('esc'); } if (Shell.key) Shell.key(e); });
   window.addEventListener('hashchange', () => paint(false));
   paint(true);
@@ -899,7 +902,7 @@ const Shell = {
   letter: 'A', name: 'Sidebar + tabs',
   mount(app) {
     const bb = [NAV[0], NAV[1], NAV[3], NAV[4]];
-    app.innerHTML = `<div class="shell A ${S.col ? 'col' : ''}">
+    app.innerHTML = `<div class="shell A ${S.col ? 'is-collapsed' : ''}">
       <aside class="sb"><div class="sbh">${brand()}<button class="btn ghost icon cl" data-act="collapse" aria-label="${T('Collapse navigation|طي القائمة')}">${I('side')}</button></div>
         ${wsBtn()}
         <nav class="nv" aria-label="${T('Workspace navigation|التنقل في مساحة العمل')}"><span class="ind"></span>
@@ -930,7 +933,7 @@ const Shell = {
     $('#view').innerHTML = pageHTML(id, { top, mid: r === id ? pills : '' });
   },
   act(a, el) {
-    if (a === 'collapse') { S.col = !S.col; $('#app .shell').classList.toggle('col', S.col); setTimeout(() => Shell.update(route()), 210); }
+    if (a === 'collapse') { S.col = !S.col; $('#app .shell').classList.toggle('is-collapsed', S.col); setTimeout(() => Shell.update(route()), 210); }
     if (a === 'more') openPop('more', el, `<h2>${T('More|المزيد')}</h2><div class="list">${[NAV[2], NAV[5]].map((g) => `<a class="li" href="#${gHref(g)}"><span class="hi">${I(g.i)}</span><span class="tx"><b>${E(g.l)}</b><span>${g.tabs.map((x) => T(x.l || PAGES[x.p].title)).join(' · ')}</span></span>${I('chev')}</a>`).join('')}</div>${wsBtn()}`);
   },
 };

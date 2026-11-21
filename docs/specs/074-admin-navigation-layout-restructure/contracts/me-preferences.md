@@ -18,6 +18,7 @@ Two interfaces: the account endpoints (step 12) and the device cookie (step 7).
 
 - **Guard**: `@Authenticated()`, with `principal.userId` required. The write changes only the row of the session's user, inside the operation. The route is registered in `AUTHENTICATED_WRITES` in `apps/api/src/modules/identity/http/route-coverage.ts` (PP-7.1).
 - **Idempotency-Key**: not required. No money or stock effect; repeating the request gives the same result.
+- **Ordering**: the server keeps the last write it receives. The client is responsible for order: one tab sends its saves one at a time and replaces a waiting save with the newest choice, so choosing A then B quickly can never end with A stored.
 - **Request**:
 
 ```json
@@ -48,7 +49,7 @@ Zod schema in `packages/contracts/src/identity/me-preferences.ts`; the generated
 |---|---|
 | Values | `A`, `B`, `C`. Anything else is read as the default, C |
 | Written by | The admin app, on every style choice, and on both sign-in paths (password and TOTP) before entering the dashboard when the account has a value |
-| Cleared by | A successful sign-out, and sign-in when the account has no value |
+| Cleared by | A successful sign-out; sign-in when the account has no value; sign-in when the account read fails or does not answer within a short limit (the user then starts on C and sign-in is never held up) |
 | Read by | The admin server layout, per request, before rendering the frame. The account value is fetched uncached |
 | Attributes | Same as `pospay_locale`: `Path=/`, one-year `Max-Age`, `SameSite=Lax`, `Secure` on HTTPS |
 

@@ -167,7 +167,7 @@ function toast(msg) {
 }
 
 /* ---------- boot ---------- */
-const route = () => { const h = location.hash.slice(1); return PAGES[h] ? h : 'home'; };
+const route = () => { const h = location.hash.slice(1); return Object.hasOwn(PAGES, h) ? h : 'home'; };
 function paint(full) {
   const d = document.documentElement; d.lang = S.lang; d.dir = S.lang === 'ar' ? 'rtl' : 'ltr';
   $$('.pbar [data-lang]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.lang === S.lang));
@@ -185,7 +185,7 @@ function boot() {
     <div class="seg" role="group" aria-label="Language"><button data-lang="ar">العربية</button><button data-lang="en">English</button></div></div>
     <div class="stage"><div class="app" id="app"></div></div>`);
   document.addEventListener('click', (e) => {
-    const t = e.target.closest('[data-lang],[data-device],[data-theme],[data-pop],[data-go],[data-st],[data-toast],[data-act]');
+    const t = e.target.closest('[data-lang],.pbar [data-device],[data-theme],[data-pop],[data-go],[data-st],[data-toast],[data-act]');
     if (!t) return;
     if (t.dataset.lang) { S.lang = t.dataset.lang; try { localStorage.setItem('pp-lang', S.lang); } catch (x) { /* ignore */ } return paint(true); }
     if (t.dataset.device) { S.device = t.dataset.device; return paint(true); }
@@ -196,7 +196,7 @@ function boot() {
     if (t.dataset.act) { e.preventDefault(); return Shell.act(t.dataset.act, t); }
     if (t.hasAttribute('data-toast')) { e.preventDefault(); toast(`${T('Prototype only|نموذج فقط')} · ${t.textContent.trim()}`); }
   });
-  document.addEventListener('click', (e) => { const l = e.target.closest('a[href^="#"]'); if (l && l.getAttribute('href').slice(1) === location.hash.slice(1)) { closePop(); if (Shell.act) Shell.act('esc'); } });
+  document.addEventListener('click', (e) => { const l = e.target.closest('a[href^="#"]'); if (l && !e.defaultPrevented && l.getAttribute('href') !== '#' && l.getAttribute('href').slice(1) === location.hash.slice(1)) { closePop(); if (Shell.act) Shell.act('esc'); } });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closePop(); if (Shell.act) Shell.act('esc'); } if (Shell.key) Shell.key(e); });
   window.addEventListener('hashchange', () => paint(false));
   paint(true);

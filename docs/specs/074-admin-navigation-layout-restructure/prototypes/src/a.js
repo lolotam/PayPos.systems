@@ -23,7 +23,7 @@ const Shell = {
   letter: 'A', name: 'Sidebar + tabs',
   mount(app) {
     const bb = [NAV[0], NAV[1], NAV[3], NAV[4]];
-    app.innerHTML = `<div class="shell A ${S.col ? 'col' : ''}">
+    app.innerHTML = `<div class="shell A ${S.col ? 'is-collapsed' : ''}">
       <aside class="sb"><div class="sbh">${brand()}<button class="btn ghost icon cl" data-act="collapse" aria-label="${T('Collapse navigation|طي القائمة')}">${I('side')}</button></div>
         ${wsBtn()}
         <nav class="nv" aria-label="${T('Workspace navigation|التنقل في مساحة العمل')}"><span class="ind"></span>
@@ -54,7 +54,7 @@ const Shell = {
     $('#view').innerHTML = pageHTML(id, { top, mid: r === id ? pills : '' });
   },
   act(a, el) {
-    if (a === 'collapse') { S.col = !S.col; $('#app .shell').classList.toggle('col', S.col); setTimeout(() => Shell.update(route()), 210); }
+    if (a === 'collapse') { S.col = !S.col; $('#app .shell').classList.toggle('is-collapsed', S.col); setTimeout(() => Shell.update(route()), 210); }
     if (a === 'more') openPop('more', el, `<h2>${T('More|المزيد')}</h2><div class="list">${[NAV[2], NAV[5]].map((g) => `<a class="li" href="#${gHref(g)}"><span class="hi">${I(g.i)}</span><span class="tx"><b>${E(g.l)}</b><span>${g.tabs.map((x) => T(x.l || PAGES[x.p].title)).join(' · ')}</span></span>${I('chev')}</a>`).join('')}</div>${wsBtn()}`);
   },
 };

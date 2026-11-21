@@ -37,5 +37,6 @@
 - Business rules BR-001 to BR-005 are the owner's answers, recorded verbatim in `owner-questions.ar.md` (NAV-Q1, NAV-Q6, NAV-Q7, NAV-Q8, NAV-Q10, NAV-Q12).
 - Open and not blocking this feature's first steps: NAV-Q4 (`--primary` difference), NAV-Q5 (ADR-0059 addendum for the theme switch), NAV-Q11 (cashier app), NAV-Q15 (social media management is not in the PRD).
 - One point the spec states as an assumption, not verified: whether existing reads can supply navigation counts.
-- No audit-log entry is proposed for a style change; the spec asks for this to be confirmed in review.
+- Audit treatment of the account write is open (NAV-Q16); it blocks only the account-preference step.
+- The MergePilot panel reviewed the PR on 2026-11-21 (50 findings); the documentation findings were applied and the prototype findings are fixed or listed in `prototypes/README.md`.
 - The schema row adds a column to a global identity table. ADR-0003 must be amended before the migration is written.

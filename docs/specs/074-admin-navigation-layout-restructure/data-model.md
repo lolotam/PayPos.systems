@@ -61,5 +61,5 @@ A user's chosen style.
 - **Owner**: the user. One value per user, the same in every company they belong to.
 - **Table**: `user`, a global identity table (ADR-0003). No tenant RLS. Reached only through `packages/auth` on the `pospay_auth` role.
 - **Migration**: expand only. Add the nullable column and its check. No backfill, no index, nothing dropped.
-- **Lifecycle**: unset → set on first choice → overwritten on each later choice. Never deleted separately from the user.
+- **Lifecycle**: unset → set on first choice → overwritten on each later choice. Never deleted separately from the user. Writes from one tab are serialised and coalesced to the newest choice (see `contracts/me-preferences.md`).
 - **Device copy**: cookie `pospay_nav_style`, same three values. Written on every choice, overwritten from the account on sign-in, cleared on sign-out. It is a cache for the first paint, never the source of truth once the account value exists.

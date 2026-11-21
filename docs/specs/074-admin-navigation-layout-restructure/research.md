@@ -48,13 +48,13 @@ Checked against `origin/main` at `cf70114e2` on 2026-11-21. Each entry says what
 
 ## R8. Overview pages that only some styles have
 
-- **Decision**: One route, `/overview/[group]`, drawn from the model. If the group is not in the user's current style, send them to the first page of that group.
+- **Decision**: One route, `/overview/[group]`, drawn from the model. If the group is not in the user's current style, send them to the first page of that group they may see; an unknown group, or one with nothing visible, goes to Home.
 - **Rationale**: Existing URLs stay identical in every style; a style-only link or a mid-session switch never dead-ends.
 - **Alternatives considered**: Redirect to home (loses the user's place); a route per style (three URL spaces for the same thing).
 
 ## R9. Moving the theme switch
 
-- **Decision**: The light, dark and system switch moves to the Appearance page and the account menu.
+- **Decision**: In styles B and C the light, dark and system switch sits on the Appearance page and in the account menu. Whether style A keeps it in the sidebar footer is NAV-Q5, unanswered: `TODO(spec)`.
 - **Rationale**: Styles B and C have no sidebar footer. ADR-0059 places the switch in the sidebar footer, so an addendum is owed (NAV-Q5).
 
 ## R10. Navigation counts

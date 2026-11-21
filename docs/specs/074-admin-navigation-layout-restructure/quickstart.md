@@ -26,7 +26,7 @@ pnpm lint:docs
 
 Expected: the navigation-model tests report every admin route present exactly once in each of the three groupings and exactly one current entry per route; one rendered test per style passes.
 
-After step 12, the API tests for the `identity` module include scenarios PREF-01 to PREF-08. They need the test database; see the project's test-database notes before running them, and run one database suite at a time.
+After step 12, the API tests for the `identity` module include scenarios PREF-01 to PREF-09. They need the test database; see the project's test-database notes before running them, and run one database suite at a time.
 
 ## Manual scenarios
 

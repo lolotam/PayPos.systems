@@ -104,6 +104,8 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; }
+/* Filters hide links with the hidden attribute; without this, display rules on those links win. */
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 body {
   margin: 0;
