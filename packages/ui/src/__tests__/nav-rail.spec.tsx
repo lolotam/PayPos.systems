@@ -1,0 +1,59 @@
+import { fireEvent, render, screen } from '@testing-library/react';
+import { expect, it, vi } from 'vitest';
+import { DirectionProvider } from '../direction-provider.js';
+import { NavRail, type NavRailProps } from '../nav-rail.js';
+import { chromeLabels, workspaces } from './navigation-fixtures.js';
+
+function tree(dir: 'rtl' | 'ltr', props: Partial<NavRailProps> = {}) {
+  return (
+    <DirectionProvider dir={dir}>
+      <NavRail
+        workspaces={workspaces}
+        labels={chromeLabels}
+        panelOpen={false}
+        onInspect={vi.fn()}
+        {...props}
+      />
+    </DirectionProvider>
+  );
+}
+
+it('keeps the 84px rail, current marker and panel toggle state', () => {
+  const onInspect = vi.fn();
+  const view = render(
+    tree('ltr', {
+      currentWorkspaceId: 'stock',
+      inspectedWorkspaceId: 'stock',
+      panelOpen: true,
+      onInspect,
+    }),
+  );
+  const rail = screen.getByRole('navigation', { name: chromeLabels.navigation });
+  expect(rail.className).toContain('w-21');
+  expect(rail.getAttribute('dir')).toBe('ltr');
+  const inspected = screen.getByRole('button', { name: 'Stock Current Hide panel' });
+  expect(inspected.getAttribute('aria-pressed')).toBe('true');
+  expect(inspected.getAttribute('data-current')).toBe('');
+  expect(inspected.className).toContain('bg-sidebar-primary');
+  fireEvent.click(inspected);
+  expect(onInspect).toHaveBeenCalledExactlyOnceWith('stock');
+  expect(view.container.querySelectorAll('button')).toHaveLength(workspaces.length);
+});
+
+it('does not mark a hidden panel as pressed', () => {
+  render(tree('ltr', { currentWorkspaceId: 'stock', inspectedWorkspaceId: 'customers' }));
+  const button = screen.getByRole('button', { name: 'Customers Inspect' });
+  expect(button.getAttribute('aria-pressed')).toBe('false');
+  expect(button.className).not.toContain('bg-sidebar-primary');
+  expect(screen.getByRole('button', { name: 'Stock Current Inspect' })).toBeTruthy();
+});
+
+it.each(['rtl', 'ltr'] as const)('keeps rail direction and logical icon anchoring in %s', (dir) => {
+  render(tree(dir));
+  const rail = screen.getByRole('navigation', { name: chromeLabels.navigation });
+  expect(rail.getAttribute('dir')).toBe(dir);
+  for (const button of rail.querySelectorAll('button')) {
+    const icon = button.querySelector('span[aria-hidden="true"]');
+    expect(icon).toBeTruthy();
+  }
+});
