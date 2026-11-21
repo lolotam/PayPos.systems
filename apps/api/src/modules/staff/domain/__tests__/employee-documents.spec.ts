@@ -6,6 +6,7 @@ import {
   documentView,
   replaceCurrentDocument,
   requireDocumentFile,
+  storedDocumentNumber,
   validateDocumentRecord,
   type DocumentFileFacts,
   type EmployeeDocumentRecord,
@@ -200,5 +201,13 @@ describe('documentView', () => {
       status: 'EXPIRING',
     });
     expect(documentView(record, { ...type, alert_days: 10 }, '2026-10-04').status).toBe('VALID');
+  });
+});
+
+describe('storedDocumentNumber', () => {
+  it('treats omitted and null as no number and passes a valid value through unchanged', () => {
+    expect(storedDocumentNumber(undefined)).toBeNull();
+    expect(storedDocumentNumber(null)).toBeNull();
+    expect(storedDocumentNumber('SYN-DOC-0001')).toBe('SYN-DOC-0001');
   });
 });

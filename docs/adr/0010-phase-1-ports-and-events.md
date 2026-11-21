@@ -566,3 +566,19 @@ that refund (a decision-time read). The refund path also takes the service-sessi
 `module-map.md` §3 gains the two port rows, §6 gains the four `reads` lines of the refund adapter
 (the two identity readers, the settings reader and the tenancy place reader), and the generated
 `docs/module-map.yaml` is regenerated.
+
+## Addendum 2026-11-21 — 61-2a: the staff rating summary's own-read authority
+
+Scope: the API read `GET /v1/staff/me/rating-summary` (spec 060 FR-A05, FR-B14; `plan-61.md` §6). It is the part of
+`plan-61.md` §2.4 that row 61-2a needs; the worker ports and the two events of that section stay with docs PR 61-1a
+(A-2) and are not approved here.
+
+- API `customers` resolves its authority through reads on already-declared arrows, on the read transaction:
+  `tenancy.describeWorkspaces` (the business and its active branches), `staff.readOwnEmployee` (the caller's own
+  eligible employee), the new `identity.readOwnRatingsAccess` (membership, feature `customers`, `read:ratings:own`)
+  and `tenancy.activeBusinessTimeZone` (the month window of D-B12).
+- The route accepts the ADR-0027 personal staff session only.
+- It is the same shape ADR-0041 records for orders' own-work reads; no interface is shared between the two modules.
+- No import arrow is added. `customers → tenancy, settings, staff, identity` are already declared.
+- The `rating_average` column gate is read through customers' existing `StaffColumnsPort` and stays off until 61-3.
+- No event is added or changed.

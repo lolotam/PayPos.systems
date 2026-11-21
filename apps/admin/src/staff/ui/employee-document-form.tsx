@@ -14,6 +14,22 @@ import type { DocumentSubmission } from '../api/use-employee-documents';
 import { acceptableDocumentFile } from '../model/document-file';
 import { DocumentTypeField } from './document-type-field';
 
+/** خانة رقم المستند الاختياري؛ استُخرجت لإبقاء النموذج تحت سقف طول الدالة. */
+function DocumentNumberField({
+  locale,
+  register,
+}: {
+  locale: 'ar' | 'en';
+  register: ReturnType<typeof useForm<EmployeeDocumentFormValues>>['register'];
+}) {
+  return (
+    <>
+      <Label htmlFor="document-number">{t(locale, 'employeeDocuments.documentNumber')}</Label>
+      <Input id="document-number" type="text" autoComplete="off" {...register('document_number')} />
+    </>
+  );
+}
+
 export function EmployeeDocumentForm({
   types,
   typeCode,
@@ -30,7 +46,11 @@ export function EmployeeDocumentForm({
   const [invalid, setInvalid] = useState(false);
   const form = useForm<EmployeeDocumentFormValues>({
     resolver: zodResolver(employeeDocumentFormInput),
-    defaultValues: { type_code: typeCode ?? types[0]?.code ?? '', expires_on: '' },
+    defaultValues: {
+      type_code: typeCode ?? types[0]?.code ?? '',
+      expires_on: '',
+      document_number: '',
+    },
   });
   const code = useWatch({ control: form.control, name: 'type_code' });
   const requiresExpiry = types.find((type) => type.code === code)?.requires_expiry ?? false;
@@ -50,6 +70,7 @@ export function EmployeeDocumentForm({
           accept="application/pdf,image/jpeg,image/png"
           onChange={(event) => setFile(event.target.files?.[0] ?? null)}
         />
+        <DocumentNumberField locale={locale} register={form.register} />
         <Label htmlFor="document-expires">{t(locale, 'employeeDocuments.expiresOn')}</Label>
         <Input id="document-expires" type="date" {...form.register('expires_on')} />
         <p className="text-sm text-muted-foreground">

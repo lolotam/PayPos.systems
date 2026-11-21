@@ -17,12 +17,19 @@ import {
   createRatingSubmitTransactions,
   createRatingViewTransactions,
 } from './persistence/drizzle-rating-submission-transactions.ts';
+import { ownRatingContext } from './persistence/own-rating-context.adapter.ts';
 import { ratingTokenHash } from './persistence/rating-token-hash.adapter.ts';
+import { staffColumns } from './persistence/staff-columns.adapter.ts';
 import { branchBusiness, workspaceNames } from './persistence/workspace-names.adapter.ts';
 import {
   CUSTOMER_PROFILE_CONTEXT,
   type CustomerProfileContext,
 } from './queries/customer-profile.query.ts';
+import { OWN_RATING_READS } from './queries/own-rating-context.ts';
+import {
+  OwnRatingSummaryController,
+  OWN_RATING_CLOCK,
+} from './http/own-rating-summary.controller.ts';
 import { FindOrCreateCustomerUseCase } from './use-cases/find-or-create-customer/find-or-create-customer.usecase.ts';
 import { OptOutOfRatingsUseCase } from './use-cases/opt-out-of-ratings/opt-out-of-ratings.usecase.ts';
 import { SetRatingRequests } from './use-cases/set-rating-requests/set-rating-requests.usecase.ts';
@@ -36,6 +43,7 @@ export const customersControllers = [
   RatingSettingsController,
   RatingViewController,
   RatingSubmitController,
+  OwnRatingSummaryController,
 ];
 
 /** أقصى عمر لمعاملة رابط التقييم — رفض أو إرسال؛ القفل ما يعلّقش الطلب على زائر. */
@@ -43,6 +51,15 @@ export const RATING_TRANSACTION_TIMEOUT_MS = 1_000;
 
 // أسماء أنشطة الملاحظات: القراءة بتاخدها بنفس شكل الـ context بتاع حد القراءة.
 const profileNames: CustomerProfileContext = workspaceNames.names;
+
+/** قراءة متوسط التقييم: السلطة الحالية أولًا ثم بوابة عمود الإعداد على نفس معاملة القراءة (61-2a). */
+const ownRatingProviders = (clock: Clock): Provider[] => [
+  {
+    provide: OWN_RATING_READS,
+    useValue: { context: ownRatingContext, allowed: staffColumns.allowed },
+  },
+  { provide: OWN_RATING_CLOCK, useValue: clock },
+];
 
 export function customersProviders(
   database: TenantWrappers | undefined,
@@ -59,24 +76,17 @@ export function customersProviders(
     database === undefined
       ? null
       : createRatingSubmitTransactions(database, ids, ratingTransactionTimeoutMs);
+  const findOrCreate =
+    database === undefined
+      ? null
+      : new FindOrCreateCustomerUseCase(
+          createCustomerTransactions(database, ids, branchBusiness),
+          ids,
+          { now: () => new Date() },
+        );
   return [
-    {
-      provide: FindOrCreateCustomerUseCase,
-      useValue:
-        database === undefined
-          ? null
-          : new FindOrCreateCustomerUseCase(
-              createCustomerTransactions(database, ids, branchBusiness),
-              ids,
-              {
-                now: () => new Date(),
-              },
-            ),
-    },
-    {
-      provide: CUSTOMER_PROFILE_CONTEXT,
-      useValue: profileNames,
-    },
+    { provide: FindOrCreateCustomerUseCase, useValue: findOrCreate },
+    { provide: CUSTOMER_PROFILE_CONTEXT, useValue: profileNames },
     {
       provide: OptOutOfRatingsUseCase,
       useValue:
@@ -103,5 +113,6 @@ export function customersProviders(
       provide: SubmitRatingUseCase,
       useValue: submit === null ? null : new SubmitRatingUseCase(submit, ratingTokenHash(), clock),
     },
+    ...ownRatingProviders(clock),
   ];
 }

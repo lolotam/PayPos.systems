@@ -47,8 +47,13 @@ export interface EmployeeDocumentScope {
    *
    * @param replaced الوثيقة القديمة بعد الاستبدال أو null
    * @param recorded الوثيقة الجديدة الحالية
+   * @param documentNumber رقم المستند الجديد أو null؛ يُخزّن في عمود الوثيقة فقط ولا يدخل التدقيق أو الحدث
    */
-  save(replaced: EmployeeDocumentRecord | null, recorded: EmployeeDocumentRecord): Promise<void>;
+  save(
+    replaced: EmployeeDocumentRecord | null,
+    recorded: EmployeeDocumentRecord,
+    documentNumber: string | null,
+  ): Promise<void>;
 }
 /** الغلاف يعيد فحص الوصول ثم يعيد الرد المخزن أو ينفذ التسجيل مرة واحدة. */
 export interface EmployeeDocumentTransactions {

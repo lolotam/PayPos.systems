@@ -286,6 +286,10 @@ async function recordEmployeeDocument(
         type_code: values.type_code,
         file_id: fileId,
         expires_on: values.expires_on === '' ? null : values.expires_on,
+        document_number:
+          values.document_number === undefined || values.document_number.trim() === ''
+            ? null
+            : values.document_number,
       },
     },
   );

@@ -52,12 +52,13 @@ async function save(
   ids: IdGenerator,
   replaced: EmployeeDocumentRecord | null,
   d: EmployeeDocumentRecord,
+  documentNumber: string | null,
 ) {
   if (replaced !== null)
     await tx.execute(sql`UPDATE employee_documents SET replaced_at=GREATEST(recorded_at, ${d.recorded_at}::timestamptz)
       WHERE company_id=${c.companyId} AND id=${replaced.id} AND replaced_at IS NULL`);
-  await tx.execute(sql`INSERT INTO employee_documents(company_id, id, business_id, employee_id, type_code, object_key, expires_on, uploaded_by, recorded_at)
-    VALUES (${c.companyId}, ${d.id}, ${d.business_id}, ${d.employee_id}, ${d.type_code}, ${d.object_key}, ${d.expires_on}::date, ${d.uploaded_by}, ${d.recorded_at}::timestamptz)`);
+  await tx.execute(sql`INSERT INTO employee_documents(company_id, id, business_id, employee_id, type_code, object_key, expires_on, uploaded_by, recorded_at, document_number)
+    VALUES (${c.companyId}, ${d.id}, ${d.business_id}, ${d.employee_id}, ${d.type_code}, ${d.object_key}, ${d.expires_on}::date, ${d.uploaded_by}, ${d.recorded_at}::timestamptz, ${documentNumber})`);
   await appendAuditLog(tx, ids.newId(), {
     entity: 'employee_document',
     entityId: d.id,
@@ -110,7 +111,8 @@ function scope(
         AND replaced_at IS NULL FOR UPDATE`);
       return row ?? null;
     },
-    save: (replaced, recorded) => save(tx, c, ids, replaced, recorded),
+    save: (replaced, recorded, documentNumber) =>
+      save(tx, c, ids, replaced, recorded, documentNumber),
   };
 }
 

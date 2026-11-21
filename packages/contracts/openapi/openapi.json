@@ -152,6 +152,122 @@
         }
       }
     },
+    "/v1/staff/me/rating-summary": {
+      "get": {
+        "operationId": "ownRatingSummary",
+        "description": "Own rating summary for the current business-timezone month. The employee comes from the personal session; any subject key in the query is a 403. Live authority (membership, customers feature, read:ratings:own) is checked before the rating_average column gate; HIDDEN contains only visibility and reads no rating row. The personal staff session only. Cache-Control: no-store.",
+        "security": [
+          {
+            "PersonalStaffSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "HIDDEN, or the own VISIBLE average and count; count = 0 iff average = null",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "visibility": {
+                          "type": "string",
+                          "enum": [
+                            "HIDDEN"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "visibility"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "visibility": {
+                          "type": "string",
+                          "enum": [
+                            "VISIBLE"
+                          ]
+                        },
+                        "average": {
+                          "nullable": true,
+                          "type": "string",
+                          "pattern": "^(?:[1-4]\\.[0-9]|5\\.0)$"
+                        },
+                        "count": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "visibility",
+                        "average",
+                        "count"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION_FAILED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "NOT_READY",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/staff/me/attendance": {
       "get": {
         "operationId": "ownAttendance",
@@ -3601,7 +3717,7 @@
     "/v1/businesses/{businessId}/employees/{employeeId}/documents": {
       "get": {
         "operationId": "listEmployeeDocuments",
-        "description": "Current document per type with its expiry status in the business timezone. Requires read:files:business and the staff feature.",
+        "description": "Current document per type with its expiry status and document number in the business timezone. Requires read:files:business and the staff feature.",
         "parameters": [
           {
             "in": "header",
@@ -3656,7 +3772,7 @@
       },
       "post": {
         "operationId": "recordEmployeeDocument",
-        "description": "Binds a READY file the caller uploaded for this employee; replaces the current document of the type. Row, audit and EmployeeDocumentRecorded commit together.",
+        "description": "Binds a READY file the caller uploaded for this employee; replaces the current document of the type. Row, audit and EmployeeDocumentRecorded commit together. The optional document_number is stored only; the response carries none.",
         "parameters": [
           {
             "in": "header",
@@ -3719,6 +3835,73 @@
           },
           "default": {
             "description": "Bilingual refusal; unknown and inaccessible share NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/employee-document-numbers": {
+      "get": {
+        "operationId": "employeeDocumentNumbers",
+        "description": "Current document numbers by id, one CSV of 1 to 20 distinct UUIDs (case-insensitive; repeated query parameters refused). Requires read:files:business on the business and the staff feature, checked before any document row is read; without it every ids value answers the same 404. Absent from the answer: foreign ids, replaced documents, deleted employees, documents without a number. Cache-Control: no-store.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ids",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Comma-separated UUIDs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "EmployeeDocumentNumbers",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeDocumentNumbers"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal; no permission and unknown ids share the same refusal",
             "content": {
               "application/json": {
                 "schema": {
@@ -21535,6 +21718,10 @@
                 "pattern": "^(?!0000)"
               }
             ]
+          },
+          "document_number": {
+            "nullable": true,
+            "type": "string"
           }
         },
         "required": [
@@ -21612,6 +21799,123 @@
           "status"
         ]
       },
+      "EmployeeDocumentListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "employee_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "type_code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,63}$"
+          },
+          "type_name_en": {
+            "type": "string"
+          },
+          "type_name_ar": {
+            "nullable": true,
+            "type": "string"
+          },
+          "object_key": {
+            "type": "string"
+          },
+          "expires_on": {
+            "nullable": true,
+            "type": "string",
+            "allOf": [
+              {
+                "type": "string",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!0000)"
+              }
+            ]
+          },
+          "uploaded_by": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EmployeeDocumentStatus"
+          },
+          "document_number": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "employee_id",
+          "type_code",
+          "type_name_en",
+          "type_name_ar",
+          "object_key",
+          "expires_on",
+          "uploaded_by",
+          "recorded_at",
+          "status",
+          "document_number"
+        ]
+      },
+      "EmployeeDocumentNumbersQuery": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "additionalProperties": false
+      },
+      "EmployeeDocumentNumber": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "document_number": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id",
+          "document_number"
+        ],
+        "additionalProperties": false
+      },
+      "EmployeeDocumentNumbers": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmployeeDocumentNumber"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
       "EmployeeDocumentsView": {
         "type": "object",
         "properties": {
@@ -21631,7 +21935,7 @@
           "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/EmployeeDocument"
+              "$ref": "#/components/schemas/EmployeeDocumentListItem"
             }
           },
           "types": {

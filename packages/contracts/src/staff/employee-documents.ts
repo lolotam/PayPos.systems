@@ -28,51 +28,100 @@ export const documentTypeRevisionInput = z
   .strictObject({ expected_revision: revision })
   .meta({ id: 'DocumentTypeRevisionInput' });
 export const documentType = responseObject({
-    id,
-    code: documentTypeCode,
-    name_en: z.string(),
-    name_ar: z.string().nullable(),
-    alert_days: z.number().int().min(0).max(365),
-    requires_expiry: z.boolean(),
-    active: z.boolean(),
-    revision,
-  })
-  .meta({ id: 'DocumentType' });
-export const documentTypeList = responseObject({ items: z.array(documentType) })
-  .meta({ id: 'DocumentTypeList' });
+  id,
+  code: documentTypeCode,
+  name_en: z.string(),
+  name_ar: z.string().nullable(),
+  alert_days: z.number().int().min(0).max(365),
+  requires_expiry: z.boolean(),
+  active: z.boolean(),
+  revision,
+}).meta({ id: 'DocumentType' });
+export const documentTypeList = responseObject({ items: z.array(documentType) }).meta({
+  id: 'DocumentTypeList',
+});
+
+// رقم المستند اختياري: نص مقتطع من 1 إلى 64 نقطة يونيكود، وبدون أي حرف تحكم خام قبل القص (AL-Q8c).
+// الشكل المحفوظ نفسه هو حكم القارئ: مقطّط الطرفين، بلا تحكم، ومن 1 إلى 64 نقطة — نفس قيد قاعدة البيانات.
+const isControlCodePoint = (codePoint: number) =>
+  codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f);
+const documentNumberShape = (value: string) => {
+  const codePoints = [...value];
+  return (
+    codePoints.every((character) => !isControlCodePoint(character.codePointAt(0) as number)) &&
+    value.trim() === value &&
+    value.length > 0 &&
+    codePoints.length <= 64
+  );
+};
+export const documentNumberInput = z
+  .string()
+  .refine(
+    (value) =>
+      ![...value].some((character) => isControlCodePoint(character.codePointAt(0) as number)),
+    { message: 'DOCUMENT_NUMBER_CONTROL_CHARACTER' },
+  )
+  .transform((value) => value.trim())
+  .pipe(z.string().refine(documentNumberShape, { message: 'DOCUMENT_NUMBER_INVALID' }));
+export const documentNumber = z
+  .string()
+  .refine(documentNumberShape, { message: 'DOCUMENT_NUMBER_INVALID' });
 
 export const recordEmployeeDocumentInput = z
   .strictObject({
     type_code: documentTypeCode,
     file_id: id,
     expires_on: documentDate.nullable(),
+    document_number: documentNumberInput.nullable().optional(),
   })
   .meta({ id: 'RecordEmployeeDocumentInput' });
 export const employeeDocument = responseObject({
-    id,
-    employee_id: id,
-    type_code: documentTypeCode,
-    type_name_en: z.string(),
-    type_name_ar: z.string().nullable(),
-    object_key: z.string(),
-    expires_on: documentDate.nullable(),
-    uploaded_by: id,
-    recorded_at: timestamp,
-    status: documentStatus,
+  id,
+  employee_id: id,
+  type_code: documentTypeCode,
+  type_name_en: z.string(),
+  type_name_ar: z.string().nullable(),
+  object_key: z.string(),
+  expires_on: documentDate.nullable(),
+  uploaded_by: id,
+  recorded_at: timestamp,
+  status: documentStatus,
+}).meta({ id: 'EmployeeDocument' });
+export const employeeDocumentListItem = employeeDocument
+  .extend({ document_number: documentNumber.nullable() })
+  .meta({ id: 'EmployeeDocumentListItem' });
+export const employeeDocumentNumbersQuery = z
+  .strictObject({
+    ids: z
+      .string()
+      .transform((value) => value.split(',').map((value) => value.trim().toLowerCase()))
+      .pipe(z.array(z.uuid()).min(1).max(20))
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: 'DOCUMENT_NUMBER_IDS_DUPLICATE',
+      }),
   })
-  .meta({ id: 'EmployeeDocument' });
+  .meta({ id: 'EmployeeDocumentNumbersQuery' });
+export const employeeDocumentNumber = z
+  .strictObject({ document_id: id, document_number: documentNumber })
+  .meta({ id: 'EmployeeDocumentNumber' });
+export const employeeDocumentNumbers = responseObject({
+  items: z.array(employeeDocumentNumber),
+}).meta({ id: 'EmployeeDocumentNumbers' });
 export const employeeDocumentsView = responseObject({
-    today: documentDate,
-    items: z.array(employeeDocument),
-    types: z.array(documentType),
-    can_manage: z.boolean(),
-  })
-  .meta({ id: 'EmployeeDocumentsView' });
+  today: documentDate,
+  items: z.array(employeeDocumentListItem),
+  types: z.array(documentType),
+  can_manage: z.boolean(),
+}).meta({ id: 'EmployeeDocumentsView' });
 
-// نموذج الإدارة قبل الرفع: الملف يمر عبر files، والتاريخ الفارغ يعني وثيقة بلا انتهاء.
+// نموذج الإدارة قبل الرفع: الملف يمر عبر files، والتاريخ الفارغ يعني وثيقة بلا انتهاء،
+// والرقم الفارغ أو مسافات فقط يعني بلا رقم قبل الإرسال.
 export const employeeDocumentFormInput = z.strictObject({
   type_code: documentTypeCode,
   expires_on: z.union([z.literal(''), documentDate]),
+  document_number: z
+    .union([z.literal(''), documentNumberInput, z.string().regex(/^\s*$/)])
+    .optional(),
 });
 export type EmployeeDocumentFormValues = z.infer<typeof employeeDocumentFormInput>;
 
@@ -85,6 +134,10 @@ export const employeeDocumentSchemas = [
   documentTypeList,
   recordEmployeeDocumentInput,
   employeeDocument,
+  employeeDocumentListItem,
+  employeeDocumentNumbersQuery,
+  employeeDocumentNumber,
+  employeeDocumentNumbers,
   employeeDocumentsView,
 ];
 export type CreateDocumentTypeInput = z.infer<typeof createDocumentTypeInput>;
@@ -94,5 +147,9 @@ export type DocumentType = z.infer<typeof documentType>;
 export type DocumentTypeList = z.infer<typeof documentTypeList>;
 export type RecordEmployeeDocumentInput = z.infer<typeof recordEmployeeDocumentInput>;
 export type EmployeeDocument = z.infer<typeof employeeDocument>;
+export type EmployeeDocumentListItem = z.infer<typeof employeeDocumentListItem>;
+export type EmployeeDocumentNumbersQuery = z.infer<typeof employeeDocumentNumbersQuery>;
+export type EmployeeDocumentNumber = z.infer<typeof employeeDocumentNumber>;
+export type EmployeeDocumentNumbers = z.infer<typeof employeeDocumentNumbers>;
 export type EmployeeDocumentStatus = z.infer<typeof documentStatus>;
 export type EmployeeDocumentsView = z.infer<typeof employeeDocumentsView>;

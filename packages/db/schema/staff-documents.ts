@@ -69,6 +69,8 @@ export const employeeDocuments = pgTable(
     recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull(),
     // الوثيقة الأحدث من نفس النوع تستبدلها؛ السجل يبقى للتاريخ.
     replacedAt: timestamp('replaced_at', { withTimezone: true }),
+    // رقم المستند اختياري؛ لا يخرج إلا عبر قراءة موثقة بصلاحية الملفات ولا يدخل أي حدث أو تدقيق.
+    documentNumber: text('document_number'),
   },
   (t) => [
     primaryKey({ name: 'employee_documents_pkey', columns: [t.companyId, t.id] }),
@@ -105,6 +107,11 @@ export const employeeDocuments = pgTable(
     check(
       'employee_documents_replaced_after_record',
       sql`${t.replacedAt} IS NULL OR ${t.replacedAt} >= ${t.recordedAt}`,
+    ),
+    // نفس سياسة العقد: مقطّط الطرفين، بلا حروف تحكم، ومن 1 إلى 64 نقطة يونيكود.
+    check(
+      'employee_documents_document_number',
+      sql`${t.documentNumber} IS NULL OR (char_length(${t.documentNumber}) BETWEEN 1 AND 64 AND ${t.documentNumber} = btrim(${t.documentNumber}) AND ${t.documentNumber} !~ '[\\u0001-\\u001f\\u007f-\\u009f]' AND ${t.documentNumber} !~ '^[\\s\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]' AND ${t.documentNumber} !~ '[\\s\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]$')`,
     ),
   ],
 );

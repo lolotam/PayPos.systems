@@ -1639,6 +1639,20 @@
       "when": 1795249115717,
       "tag": "0235_2026-11-21_commission-sales-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 236,
+      "version": "7",
+      "when": 1795274600861,
+      "tag": "0236_2026-11-21_employee-document-number",
+      "breakpoints": true
+    },
+    {
+      "idx": 237,
+      "version": "7",
+      "when": 1795274612491,
+      "tag": "0237_2026-11-21_employee-document-number-validate",
+      "breakpoints": true
     }
   ]
 }

@@ -1,24 +1,33 @@
 import type { InAppNotification } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 import { Badge, Button } from '@pospay/ui';
-import { renderNotification } from '../model/render-notification';
+import { documentIdOf, renderNotification } from '../model/render-notification';
 
 export function NotificationItem({
   item,
   locale,
+  documentNumbers,
   pending,
   onRead,
 }: {
   item: InAppNotification;
   locale: Locale;
+  documentNumbers: ReadonlyMap<string, string>;
   pending: boolean;
   onRead: (id: string) => void;
 }) {
   const textLocale = item.template_key === 'generic_notice' ? item.locale : locale;
+  const documentId = documentIdOf(item);
   return (
     <li className="flex flex-col gap-2 border-b border-border py-4 text-start last:border-b-0">
       <p lang={textLocale} dir={textLocale === 'ar' ? 'rtl' : 'ltr'}>
-        {renderNotification(item, locale)}
+        {renderNotification(
+          item,
+          locale,
+          item.template_key === 'document_expiring' && documentId !== null
+            ? documentNumbers.get(documentId)
+            : undefined,
+        )}
       </p>
       <div className="flex items-center gap-2">
         <Badge variant={item.read_at === null ? 'brand' : 'neutral'}>

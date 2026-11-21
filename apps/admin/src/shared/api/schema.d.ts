@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/staff/me/rating-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Own rating summary for the current business-timezone month. The employee comes from the personal session; any subject key in the query is a 403. Live authority (membership, customers feature, read:ratings:own) is checked before the rating_average column gate; HIDDEN contains only visibility and reads no rating row. The personal staff session only. Cache-Control: no-store. */
+        get: operations["ownRatingSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/staff/me/attendance": {
         parameters: {
             query?: never;
@@ -540,11 +557,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Current document per type with its expiry status in the business timezone. Requires read:files:business and the staff feature. */
+        /** @description Current document per type with its expiry status and document number in the business timezone. Requires read:files:business and the staff feature. */
         get: operations["listEmployeeDocuments"];
         put?: never;
-        /** @description Binds a READY file the caller uploaded for this employee; replaces the current document of the type. Row, audit and EmployeeDocumentRecorded commit together. */
+        /** @description Binds a READY file the caller uploaded for this employee; replaces the current document of the type. Row, audit and EmployeeDocumentRecorded commit together. The optional document_number is stored only; the response carries none. */
         post: operations["recordEmployeeDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employee-document-numbers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Current document numbers by id, one CSV of 1 to 20 distinct UUIDs (case-insensitive; repeated query parameters refused). Requires read:files:business on the business and the staff feature, checked before any document row is read; without it every ids value answers the same 404. Absent from the answer: foreign ids, replaced documents, deleted employees, documents without a number. Cache-Control: no-store. */
+        get: operations["employeeDocumentNumbers"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3655,6 +3689,7 @@ export interface components {
             /** Format: uuid */
             file_id: string;
             expires_on: (string & (string)) | null;
+            document_number?: string | null;
         };
         EmployeeDocument: {
             /** Format: uuid */
@@ -3672,9 +3707,37 @@ export interface components {
             recorded_at: string;
             status: components["schemas"]["EmployeeDocumentStatus"];
         };
+        EmployeeDocumentListItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            employee_id: string;
+            type_code: string;
+            type_name_en: string;
+            type_name_ar: string | null;
+            object_key: string;
+            expires_on: (string & (string)) | null;
+            /** Format: uuid */
+            uploaded_by: string;
+            /** Format: date-time */
+            recorded_at: string;
+            status: components["schemas"]["EmployeeDocumentStatus"];
+            document_number: string | null;
+        };
+        EmployeeDocumentNumbersQuery: {
+            ids: string;
+        };
+        EmployeeDocumentNumber: {
+            /** Format: uuid */
+            document_id: string;
+            document_number: string;
+        };
+        EmployeeDocumentNumbers: {
+            items: components["schemas"]["EmployeeDocumentNumber"][];
+        };
         EmployeeDocumentsView: {
             today: string & (string);
-            items: components["schemas"]["EmployeeDocument"][];
+            items: components["schemas"]["EmployeeDocumentListItem"][];
             types: components["schemas"]["DocumentType"][];
             can_manage: boolean;
         };
@@ -9102,6 +9165,71 @@ export interface operations {
             };
         };
     };
+    ownRatingSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description HIDDEN, or the own VISIBLE average and count; count = 0 iff average = null */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        visibility: "HIDDEN";
+                    } | {
+                        /** @enum {string} */
+                        visibility: "VISIBLE";
+                        average: string | null;
+                        count: number;
+                    };
+                };
+            };
+            /** @description VALIDATION_FAILED */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description UNAUTHENTICATED */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description FORBIDDEN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description NOT_READY */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     ownAttendance: {
         parameters: {
             query?: {
@@ -11002,6 +11130,42 @@ export interface operations {
                 };
             };
             /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    employeeDocumentNumbers: {
+        parameters: {
+            query: {
+                ids: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description EmployeeDocumentNumbers */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeDocumentNumbers"];
+                };
+            };
+            /** @description Bilingual refusal; no permission and unknown ids share the same refusal */
             default: {
                 headers: {
                     [name: string]: unknown;

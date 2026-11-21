@@ -17,6 +17,7 @@ type Props = {
   id: string;
   locale: Locale;
   items: readonly InAppNotification[];
+  documentNumbers: ReadonlyMap<string, string>;
   loading: boolean;
   error: boolean;
   pending: boolean;
@@ -24,11 +25,11 @@ type Props = {
   onRead: (id: string) => void;
   onReadAll: () => void;
 };
-
 export function NotificationPanel({
   id,
   locale,
   items,
+  documentNumbers,
   loading,
   error,
   pending,
@@ -70,6 +71,7 @@ export function NotificationPanel({
               key={item.id}
               item={item}
               locale={locale}
+              documentNumbers={documentNumbers}
               pending={pending}
               onRead={onRead}
             />

@@ -2,7 +2,11 @@ import type { InAppNotification } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 
 /** نص الجرس. generic_notice يبقى على locale الصف؛ تنبيهات الحضور والجلسات وتعديل السعر والإلغاء وتغيير المنفّذين وطلب موافقة الخصم وموافقة المنفّذ وتوقف تصحيح العمولة تتبع لغة الواجهة، والعربي الغائب يرجع للإنجليزي. */
-export function renderNotification(item: InAppNotification, viewerLocale?: Locale): string {
+export function renderNotification(
+  item: InAppNotification,
+  viewerLocale?: Locale,
+  documentNumber?: string,
+): string {
   const serviceLine = renderServiceLineNotice(item, viewerLocale);
   if (serviceLine !== null) return serviceLine;
   if (
@@ -17,7 +21,9 @@ export function renderNotification(item: InAppNotification, viewerLocale?: Local
   if (item.template_key === 'commission_correction_blocked') {
     return fill(
       t(viewerLocale ?? item.locale, 'inApp.commission_correction_blocked'),
-      Object.fromEntries(item.safe_parameters.map((parameter) => [parameter.name, parameter.value])),
+      Object.fromEntries(
+        item.safe_parameters.map((parameter) => [parameter.name, parameter.value]),
+      ),
     );
   }
   if (item.template_key === 'late_service_session') {
@@ -49,7 +55,7 @@ export function renderNotification(item: InAppNotification, viewerLocale?: Local
     item.template_key === 'attendance_exception_raised' ||
     item.template_key === 'document_expiring'
   ) {
-    return renderStaffAlert(item, viewerLocale);
+    return renderStaffAlert(item, viewerLocale, documentNumber);
   }
   return fill(
     t(item.locale, 'inApp.generic_notice'),
@@ -78,10 +84,25 @@ function renderAttendanceChange(item: InAppNotification, viewerLocale?: Locale):
   return fill(t(locale, `inApp.${item.template_key}`), values);
 }
 
-/** جرسا استثناء الحضور وانتهاء المستند: لغة الواجهة، والعربي الغائب يرجع للإنجليزي، ومعرّف المستند ما يظهرش. */
-function renderStaffAlert(item: InAppNotification, viewerLocale?: Locale): string {
+/** معرف المستند من المعاملات الآمنة؛ يبقى خارج النص ولا يُستخدم إلا كمفتاح للقراءة الموثقة. */
+export function documentIdOf(item: InAppNotification): string | null {
+  return item.safe_parameters.find((parameter) => parameter.name === 'document_id')?.value ?? null;
+}
+
+/** جرسا استثناء الحضور وانتهاء المستند: لغة الواجهة، والعربي الغائب يرجع للإنجليزي، ومعرّف المستند ما يظهرش؛ رقم المستند الحالي فقط إذا وصل من القراءة الموثقة. */
+function renderStaffAlert(
+  item: InAppNotification,
+  viewerLocale?: Locale,
+  documentNumber?: string,
+): string {
   const locale = viewerLocale ?? item.locale;
-  return fill(t(locale, `inApp.${item.template_key}`), staffAlertValues(item.safe_parameters));
+  const values = staffAlertValues(item.safe_parameters);
+  const numbered = item.template_key === 'document_expiring' && typeof documentNumber === 'string';
+  if (numbered) values['document_number'] = documentNumber;
+  return fill(
+    t(locale, numbered ? 'inApp.document_expiring_numbered' : `inApp.${item.template_key}`),
+    values,
+  );
 }
 
 function renderServiceLineNotice(item: InAppNotification, viewerLocale?: Locale): string | null {
@@ -202,7 +223,9 @@ function shiftValues(parameters: InAppNotification['safe_parameters']): Record<s
 }
 
 /** قيم جرسَي الاستثناء والمستند: العربي الغائب يرجع للإنجليزي، ومعرّف المستند ما بيتبعتش للنص. */
-function staffAlertValues(parameters: InAppNotification['safe_parameters']): Record<string, string> {
+function staffAlertValues(
+  parameters: InAppNotification['safe_parameters'],
+): Record<string, string> {
   const read = (name: string) => parameters.find((item) => item.name === name)?.value ?? '';
   const arabic = (name: string, english: string) => {
     const value = read(name).trim();

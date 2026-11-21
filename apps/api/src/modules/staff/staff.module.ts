@@ -101,6 +101,7 @@ import { EmployeeSalariesController } from './http/employee-salaries.controller.
 import { systemUuidV7 } from '@pospay/ids';
 import { DocumentTypesController } from './http/document-types.controller.ts';
 import { EmployeeDocumentsController } from './http/employee-documents.controller.ts';
+import { EmployeeDocumentNumbersController } from './http/employee-document-numbers.controller.ts';
 import type { Redis } from 'ioredis';
 
 import { systemClock } from '../../shared/adapters/system-clock.ts';
@@ -180,6 +181,7 @@ export const staffControllers = [
   EmployeeSalariesController,
   DocumentTypesController,
   EmployeeDocumentsController,
+  EmployeeDocumentNumbersController,
   EmployeeImportController,
   AttendanceExceptionsReadController,
   AttendanceCorrectionHistoryController,
@@ -217,13 +219,14 @@ function attendanceExceptionProviders(
 function leaveProviders(database: TenantWrappers | undefined, ids: IdGenerator): Provider[] {
   const tx = database === undefined ? null : createLeaveTransactions(database, ids);
   const readAccess = createLeaveReadAccess(systemClock);
-  const requestLeaveHistoryReport = database === undefined
-    ? null
-    : new RequestLeaveHistoryReportUseCase(
-        createLeaveHistoryReportRequestTransactions(database, ids, readAccess),
-        ids,
-        systemClock,
-      );
+  const requestLeaveHistoryReport =
+    database === undefined
+      ? null
+      : new RequestLeaveHistoryReportUseCase(
+          createLeaveHistoryReportRequestTransactions(database, ids, readAccess),
+          ids,
+          systemClock,
+        );
   return [
     {
       provide: DecideLeaveUseCase,
