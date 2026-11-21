@@ -15,11 +15,10 @@ import {
   employeesPath,
   ok,
   refusal,
-  routeGet,
-  type ApiAnswer,
 } from '../../api/__tests__/plan-http';
 import {
   CURSOR,
+  makeOverrideRouter,
   overrideItem,
   overridePage,
   overrideServicesPath,
@@ -83,25 +82,6 @@ function workspaceFor(userId: string) {
   };
 }
 
-interface RouteOptions {
-  params?: { path?: Record<string, unknown>; query?: Record<string, unknown> };
-}
-
-/** موجِّه بمسارات قابلة للتبديل: كل مسار بيتعامل معاه handler ويقدر يرجع جواب مؤجّل. */
-function makeRouter() {
-  const routes = new Map<string, (options?: RouteOptions) => Promise<ApiAnswer>>();
-  routeGet(api.GET, async (path, options) => {
-    const handler = routes.get(path);
-    if (handler === undefined) return deferredAnswer().promise;
-    return handler(options as RouteOptions | undefined);
-  });
-  return {
-    on(path: string, handler: (options?: RouteOptions) => Promise<ApiAnswer>) {
-      routes.set(path, handler);
-    },
-  };
-}
-
 function renderScreen() {
   function wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
@@ -118,6 +98,13 @@ function renderScreen() {
 async function chooseEmployee(id: string) {
   const picker = await screen.findByLabelText(t(state.locale, 'commissionPlanBuilder.pickerLabel'));
   fireEvent.change(picker, { target: { value: id } });
+}
+
+async function submitPercentage() {
+  fireEvent.change(await screen.findByLabelText(L.bps), { target: { value: '1500' } });
+  const save = screen.getByRole<HTMLButtonElement>('button', { name: L.save });
+  await waitFor(() => expect(save.disabled).toBe(false));
+  fireEvent.click(save);
 }
 
 beforeEach(() => {
@@ -137,7 +124,7 @@ beforeEach(() => {
 
 it('CM-11: saving PCT 1500 on صبغة shows saved, refreshes the row and tops the history', async () => {
   state.locale = 'ar';
-  const router = makeRouter();
+  const router = makeOverrideRouter(api.GET);
   router.on(employeesPath, () =>
     Promise.resolve(ok(employeePage([employeeItem(EMP_A_ID, 7, 'سارة', 'Sara')], null))),
   );
@@ -165,7 +152,7 @@ it('CM-11: saving PCT 1500 on صبغة shows saved, refreshes the row and tops t
 });
 
 it('FR-013a: the table shows name, price, service commission and override from the three commission paths only', async () => {
-  const router = makeRouter();
+  const router = makeOverrideRouter(api.GET);
   router.on(employeesPath, () =>
     Promise.resolve(ok(employeePage([employeeItem(EMP_A_ID, 7, null, 'Sara')], null))),
   );
@@ -203,7 +190,7 @@ it('FR-013a: the table shows name, price, service commission and override from t
 });
 
 it('CM-13: a direct visit with a plan-list 403 shows the denied state, no links and no services request', async () => {
-  const router = makeRouter();
+  const router = makeOverrideRouter(api.GET);
   router.on(employeesPath, () => Promise.resolve(refusal(403, 'FORBIDDEN')));
   renderScreen();
   expect(await screen.findByText(L.denied)).toBeTruthy();
@@ -213,7 +200,7 @@ it('CM-13: a direct visit with a plan-list 403 shows the denied state, no links 
 });
 
 it('the route shows choose-business without a business and nothing without a user', async () => {
-  const router = makeRouter();
+  const router = makeOverrideRouter(api.GET);
   router.on(employeesPath, () => Promise.resolve(ok(employeePage([], null))));
   state.workspace = { ...workspaceFor('user-a'), business: undefined };
   const view = renderScreen();
@@ -231,32 +218,55 @@ it('the route shows choose-business without a business and nothing without a use
   expect(screen.queryByLabelText(t('en', 'commissionPlanBuilder.pickerLabel'))).toBeNull();
 });
 
-it('a 403 from the history read closes the scope and the open dialog, ignores a late answer and drops the held key', async () => {
-  const router = makeRouter();
-  const history = deferredAnswer();
+it('a history 403 closes the screen, ignores a pending save and resets the held key on retry', async () => {
+  const router = makeOverrideRouter(api.GET);
+  const forbiddenHistory = deferredAnswer();
+  const lateSave = deferredAnswer();
+  let allowHistory = false;
   router.on(employeesPath, () =>
     Promise.resolve(ok(employeePage([employeeItem(EMP_A_ID, 7, null, 'Sara')], null))),
   );
   router.on(overrideServicesPath, () => Promise.resolve(ok(servicePage([serviceItem(SERVICE_A)], null))));
-  router.on(overridesPath, () => history.promise);
+  router.on(overridesPath, () =>
+    allowHistory ? Promise.resolve(ok(overridePage([], null))) : forbiddenHistory.promise,
+  );
+  api.POST.mockReturnValueOnce(lateSave.promise).mockResolvedValue(ok(overrideItem(SERVICE_A)));
   renderScreen();
   await chooseEmployee(EMP_A_ID);
   fireEvent.click(await screen.findByRole('button', { name: L.edit }));
-  await screen.findByText(t('en', 'commissionOverrides.historyTitle'));
-  history.resolve(refusal(403, 'FORBIDDEN'));
+  await submitPercentage();
+  expect(await screen.findByRole('button', { name: t('en', 'commissionOverrides.saving') })).toBeTruthy();
+  await waitFor(() => expect(api.POST).toHaveBeenCalledTimes(1));
+  const firstKey = api.POST.mock.calls[0]?.[1].params.header['Idempotency-Key'];
+  expect(firstKey).toBeTruthy();
+
+  await act(async () => forbiddenHistory.resolve(refusal(403, 'FORBIDDEN')));
   expect(await screen.findByText(L.denied)).toBeTruthy();
-  expect(screen.queryByRole('button', { name: L.edit })).toBeNull();
-  const reads = api.GET.mock.calls.length;
-  await act(async () => {
-    history.resolve(ok(overridePage([overrideItem(SERVICE_A)], null)));
-  });
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  expect(api.GET.mock.calls.length).toBe(reads);
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.queryByRole('link', { name: L.nav })).toBeNull();
+  expect(screen.queryByLabelText(t('en', 'commissionPlanBuilder.pickerLabel'))).toBeNull();
+  await act(async () => lateSave.resolve(ok(overrideItem(SERVICE_A))));
+  expect(screen.getByText(L.denied)).toBeTruthy();
+  expect(screen.queryByText(L.saved)).toBeNull();
+
+  allowHistory = true;
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'commissionPlanBuilder.tryAgain') }));
+  expect(await screen.findByRole('link', { name: L.nav })).toBeTruthy();
+  const picker = await screen.findByLabelText(t('en', 'commissionPlanBuilder.pickerLabel'));
+  expect((picker as HTMLSelectElement).value).toBe('');
+  await chooseEmployee(EMP_A_ID);
+  fireEvent.click(await screen.findByRole('button', { name: L.edit }));
+  await submitPercentage();
+  expect(await screen.findByText(L.saved)).toBeTruthy();
+  const retryKey = api.POST.mock.calls[1]?.[1].params.header['Idempotency-Key'];
+  expect(retryKey).toBeTruthy();
+  expect(retryKey).not.toBe(firstKey);
 });
 
 it('late answers after an employee switch change nothing: a services page and a pending save', async () => {
-  const router = makeRouter();
-  const servicesA = deferredAnswer();
+  const router = makeOverrideRouter(api.GET);
+  const nextServicesA = deferredAnswer();
+  const lateSave = deferredAnswer();
   router.on(employeesPath, () =>
     Promise.resolve(
       ok(
@@ -268,26 +278,37 @@ it('late answers after an employee switch change nothing: a services page and a 
     ),
   );
   router.on(overrideServicesPath, (options) => {
-    const employeeId = options?.params?.path?.employeeId;
-    return employeeId === EMP_B_ID
-      ? Promise.resolve(ok(servicePage([serviceItem(SERVICE_B)], null)))
-      : servicesA.promise;
+    if (options?.params?.path?.employeeId === EMP_B_ID)
+      return Promise.resolve(ok(servicePage([serviceItem(SERVICE_B)], null)));
+    if (options?.params?.query?.cursor === CURSOR) return nextServicesA.promise;
+    return Promise.resolve(ok(servicePage([serviceItem(SERVICE_A)], CURSOR)));
   });
   router.on(overridesPath, () => Promise.resolve(ok(overridePage([], null))));
+  api.POST.mockReturnValueOnce(lateSave.promise);
   renderScreen();
   await chooseEmployee(EMP_A_ID);
+  fireEvent.click(await screen.findByRole('button', { name: L.edit }));
+  await submitPercentage();
+  await waitFor(() => expect(api.POST).toHaveBeenCalledTimes(1));
+  const loadMore = screen.getByRole<HTMLButtonElement>('button', { name: L.loadMore });
+  fireEvent.click(loadMore);
+  await waitFor(() => expect(loadMore.disabled).toBe(true));
+
   await chooseEmployee(EMP_B_ID);
   expect(await screen.findByText('Service 4')).toBeTruthy();
   await act(async () => {
-    servicesA.resolve(ok(servicePage([serviceItem(SERVICE_A)], null)));
+    nextServicesA.resolve(ok(servicePage([serviceItem(CURSOR)], null)));
+    lateSave.resolve(ok(overrideItem(SERVICE_A)));
   });
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(screen.queryByText('Service 1')).toBeNull();
   expect(screen.queryByText('Service 3')).toBeNull();
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.queryByText(L.saved)).toBeNull();
   expect(screen.getByText('Service 4')).toBeTruthy();
 });
 
 it('the held key of service A survives a save on B, a dialog close and an employee switch, and A\'s refusal is not shown on B', async () => {
-  const router = makeRouter();
+  const router = makeOverrideRouter(api.GET);
   router.on(employeesPath, () =>
     Promise.resolve(
       ok(
@@ -302,52 +323,49 @@ it('the held key of service A survives a save on B, a dialog close and an employ
     Promise.resolve(ok(servicePage([serviceItem(SERVICE_A), serviceItem(SERVICE_B)], null))),
   );
   router.on(overridesPath, () => Promise.resolve(ok(overridePage([], null))));
-  api.POST.mockRejectedValue(new Error('network died'));
+  api.POST
+    .mockRejectedValueOnce(new Error('network died'))
+    .mockResolvedValueOnce(ok(overrideItem(SERVICE_B)))
+    .mockResolvedValueOnce(ok(overrideItem(SERVICE_A)));
   renderScreen();
   await chooseEmployee(EMP_A_ID);
   fireEvent.click((await screen.findAllByRole('button', { name: L.edit }))[0] as HTMLElement);
-  fireEvent.change(await screen.findByLabelText(L.bps), { target: { value: '1500' } });
-  let save = screen.getByRole('button', { name: L.save });
-  await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
-  fireEvent.click(save);
+  await submitPercentage();
   await waitFor(() => expect(api.POST).toHaveBeenCalledTimes(1));
   const keyA = api.POST.mock.calls[0]?.[1].params.header['Idempotency-Key'];
   expect(await screen.findByText(t('en', 'admin.unexpected'))).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'commissionOverrides.cancel') }));
   await waitFor(() => expect(screen.queryByLabelText(L.bps)).toBeNull());
   fireEvent.click((await screen.findAllByRole('button', { name: L.edit }))[1] as HTMLElement);
-  const bpsB = await screen.findByLabelText(L.bps);
-  fireEvent.change(bpsB, { target: { value: '1500' } });
   expect(screen.queryByText(t('en', 'admin.unexpected'))).toBeNull();
-  save = screen.getByRole('button', { name: L.save });
-  await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
-  fireEvent.click(save);
+  await submitPercentage();
   await waitFor(() => expect(api.POST).toHaveBeenCalledTimes(2));
   const keyB = api.POST.mock.calls[1]?.[1].params.header['Idempotency-Key'];
   expect(keyB).not.toBe(keyA);
+  expect(await screen.findByText(L.saved)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: t('en', 'commissionOverrides.cancel') }));
   await waitFor(() => expect(screen.queryByLabelText(L.bps)).toBeNull());
   await chooseEmployee(EMP_B_ID);
   await chooseEmployee(EMP_A_ID);
   fireEvent.click((await screen.findAllByRole('button', { name: L.edit }))[0] as HTMLElement);
-  fireEvent.change(await screen.findByLabelText(L.bps), { target: { value: '1500' } });
-  save = screen.getByRole('button', { name: L.save });
-  await waitFor(() => expect((save as HTMLButtonElement).disabled).toBe(false));
-  fireEvent.click(save);
+  await submitPercentage();
   await waitFor(() => expect(api.POST).toHaveBeenCalledTimes(3));
   expect(api.POST.mock.calls[2]?.[1].params.header['Idempotency-Key']).toBe(keyA);
 });
 
 it('a future-dated save leaves the table row unchanged and adds a history row without the current mark', async () => {
-  const router = makeRouter();
+  const router = makeOverrideRouter(api.GET);
   router.on(employeesPath, () =>
     Promise.resolve(ok(employeePage([employeeItem(EMP_A_ID, 7, null, 'Sara')], null))),
   );
   router.on(overrideServicesPath, () => Promise.resolve(ok(servicePage([serviceItem(SERVICE_A)], null))));
-  router.on(overridesPath, () =>
-    Promise.resolve(ok(overridePage([overrideItem(SERVICE_A, { is_current: false })], null))),
-  );
-  api.POST.mockResolvedValue(ok(overrideItem(SERVICE_A, { effective_from: '2026-12-01' })));
+  const future = overrideItem(SERVICE_A, { effective_from: '2026-12-01', is_current: false });
+  let written = false;
+  router.on(overridesPath, () => Promise.resolve(ok(overridePage(written ? [future] : [], null))));
+  api.POST.mockImplementationOnce(async () => {
+    written = true;
+    return ok(future);
+  });
   renderScreen();
   await chooseEmployee(EMP_A_ID);
   fireEvent.click(await screen.findByRole('button', { name: L.edit }));
@@ -363,11 +381,15 @@ it('a future-dated save leaves the table row unchanged and adds a history row wi
     rule: { kind: 'PCT', value: 1500 },
     effective_from: '2026-12-01',
   });
-  expect(screen.queryByText(L.current)).toBeNull();
+  const history = within(screen.getByRole('dialog')).getByRole('list');
+  expect(await within(history).findByText('15.00%')).toBeTruthy();
+  expect(within(history).getByText(/Dec(?:ember)?\s+1,?\s+2026/i)).toBeTruthy();
+  expect(within(history).queryByText(L.current)).toBeNull();
+  expect(within(screen.getByRole('row', { name: /Service 3/ })).getByText(L.noOverride)).toBeTruthy();
 });
 
 it('table pages, a failed page, the empty business and a local employee 404', async () => {
-  const router = makeRouter();
+  const router = makeOverrideRouter(api.GET);
   router.on(employeesPath, () =>
     Promise.resolve(ok(employeePage([employeeItem(EMP_A_ID, 7, null, 'Sara')], null))),
   );

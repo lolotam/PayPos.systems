@@ -1,6 +1,6 @@
 import type { CommissionServiceOverrideListItem } from '@pospay/contracts';
 // أدوات الـ HTTP العامة موجودة في helper الخطط عشان متتكررش في اختبارات التجاوزات.
-import { ok } from './plan-http';
+import { deferredAnswer, ok, routeGet, type ApiAnswer } from './plan-http';
 
 export const overrideServicesPath =
   '/v1/businesses/{businessId}/employees/{employeeId}/commission-override-services';
@@ -65,3 +65,22 @@ export function dyeService(overrides: Record<string, unknown> = {}) {
 }
 
 export { ok };
+
+interface RouteOptions {
+  params?: { path?: Record<string, unknown>; query?: Record<string, unknown> };
+}
+
+/** موجِّه بمسارات قابلة للتبديل: كل مسار بيتعامل معاه handler ويقدر يرجع جواب مؤجّل. */
+export function makeOverrideRouter(get: Parameters<typeof routeGet>[0]) {
+  const routes = new Map<string, (options?: RouteOptions) => Promise<ApiAnswer>>();
+  routeGet(get, async (path, options) => {
+    const handler = routes.get(path);
+    if (handler === undefined) return deferredAnswer().promise;
+    return handler(options as RouteOptions | undefined);
+  });
+  return {
+    on(path: string, handler: (options?: RouteOptions) => Promise<ApiAnswer>) {
+      routes.set(path, handler);
+    },
+  };
+}

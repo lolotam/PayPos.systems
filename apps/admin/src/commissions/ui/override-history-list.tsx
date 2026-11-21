@@ -29,7 +29,7 @@ export function OverrideHistoryList({ scope, employeeId, serviceId, timeZone }: 
     <div className="flex flex-col gap-2">
       <h3 className="font-bold">{t(locale, 'commissionOverrides.historyTitle')}</h3>
       {history.isError ? <p role="alert">{planRefusalMessage(history.error, locale)}</p> : null}
-      {items.length === 0 ? <p>{t(locale, 'commissionOverrides.historyEmpty')}</p> : null}
+      {history.isSuccess && items.length === 0 ? <p>{t(locale, 'commissionOverrides.historyEmpty')}</p> : null}
       <ul className="flex flex-col gap-1">
         {items.map((item) => (
           <li key={item.id} className="flex flex-wrap items-center gap-2">

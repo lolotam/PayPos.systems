@@ -46,7 +46,7 @@ an override changes no payslip until monthly statements are built ([80](80-commi
 **ممنوع يحصل:**
 - عمولة خاصة ناقصة تظهر «صفر» أو «حسب الخطة».
 - ضغطة واحدة على الحفظ تعمل قاعدتين.
-- علامة «سارية» على سطر بتاريخ مستقبلي، أو على سطر مش هو الأحدث من السيرفر.
+- علامة «سارية» على سطر السيرفر ما حدّدوش بـ `is_current`. سطر أقدم ممكن يفضل ساري لو الأحدث يبدأ في المستقبل.
 - مبلغ بدون تلات خانات عشرية، أو نسبة مكتوبة برمز.
 - أسماء أو أرقام موظفين فضلية تفضل ظاهرة بعد رفض 403، أو حلقة طلبات بعد الرفض.
 - طلب لقائمة خدمات الكتالوج: الشاشة بتقرأ «خدمات النشاط مع التجاوز الحالي» بس.
@@ -88,7 +88,7 @@ an override changes no payslip until monthly statements are built ([80](80-commi
 **Must NOT happen:**
 - A missing override shown as zero or as «follow the plan».
 - One press saving two overrides.
-- A «current» mark on a future-dated row, or on a row that is not the server's newest.
+- A «current» mark on a row the server has not marked `is_current`. An older row can stay current when the newest row starts in the future.
 - An amount without three decimals, or a percentage written with a symbol.
 - Employee names or numbers lingering after a 403, or a request loop after the refusal.
 - A request to the catalog services list: the screen reads the business's services with their current override only.

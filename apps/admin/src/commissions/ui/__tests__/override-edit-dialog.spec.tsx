@@ -7,7 +7,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createQueryClient } from '@/shared/api/query-client';
 import { planScope } from '../../api/plan-access';
 import type { OverrideAttemptMemory } from '../../api/use-save-commission-override';
-import { deferredAnswer, ok, routeGet } from '../../api/__tests__/plan-http';
+import { deferredAnswer, ok, refusal, routeGet } from '../../api/__tests__/plan-http';
 import { overrideItem, overridePage, SERVICE_A } from '../../api/__tests__/override-http';
 import { OverrideEditDialog } from '../override-edit-dialog';
 
@@ -213,10 +213,25 @@ it('a pending save locks the dialog; after success it shows saved, re-bases the 
   expect(dateInput().value).toBe('2026-11-21');
 });
 
-it('history: the current mark follows is_current, pages append, a failed page retries and an empty history says so', async () => {
-  const empty = mountDialog();
-  expect(await screen.findByText(L.empty)).toBeTruthy();
-  empty.unmount();
+it.each(['empty', 'failed'] as const)('history shows its %s state only after the first page settles', async (outcome) => {
+  const firstPage = deferredAnswer();
+  routeGet(api.GET, () => firstPage.promise);
+  mountDialog();
+  expect(screen.queryByText(L.empty)).toBeNull();
+  await act(async () => {
+    firstPage.resolve(
+      outcome === 'empty' ? ok(overridePage([], null)) : refusal(500, 'INTERNAL'),
+    );
+  });
+  if (outcome === 'empty') {
+    expect(await screen.findByText(L.empty)).toBeTruthy();
+  } else {
+    expect((await screen.findByText('Synthetic refusal')).getAttribute('role')).toBe('alert');
+    expect(screen.queryByText(L.empty)).toBeNull();
+  }
+});
+
+it('history: the current mark follows is_current, pages append and a failed page can retry', async () => {
   let page = 0;
   routeGet(api.GET, async () => {
     page += 1;
