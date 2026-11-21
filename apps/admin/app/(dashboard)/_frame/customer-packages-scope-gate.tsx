@@ -5,7 +5,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 import type { ResolvedScopeHint } from '@/orders/model/resolve-scope-hint';
 
 /**
- * بوابة تلميح النطاق: التطابق يرجّع null (يكمل الراووت عادي)، وعدم التطابق يعرض رفضًا واضحًا
+ * يستدعي الراوت هذه البوابة عند اختلاف نطاق الرابط عن الاختيار الحالي، فتعرض رسالة واضحة
  * مع زر تبديل بإرادة المستخدم لاختيار متحقق من قايمة الجلسة — مفيش تفويض من العنوان.
  */
 export function CustomerPackagesScopeGate({

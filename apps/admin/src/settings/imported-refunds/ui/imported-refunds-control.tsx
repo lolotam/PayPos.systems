@@ -25,9 +25,11 @@ export function ImportedRefundsControl({
           disabled={disabled}
           onChange={(event) => onChange(event.target.checked)}
         />
-        <Label htmlFor="imported-refunds">{t(locale, 'importedRefunds.label')}</Label>
+        <Label htmlFor="imported-refunds">
+          {t(locale, disabled ? 'importedRefunds.lastConfirmed' : 'importedRefunds.label')}
+        </Label>
       </div>
-      {!enabled ? <p role="status">{t(locale, 'importedRefunds.offNote')}</p> : null}
+      {!enabled && !disabled ? <p role="status">{t(locale, 'importedRefunds.offNote')}</p> : null}
     </>
   );
 }

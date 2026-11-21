@@ -25,7 +25,11 @@ export interface ResolvedScopeHint {
 export function resolveScopeHint(
   hint: ScopeHint,
   companies: readonly WorkspaceCompany[],
-  current: { company: string; business: string | undefined; branch: string | undefined },
+  current: {
+    company: string | undefined;
+    business: string | undefined;
+    branch: string | undefined;
+  },
 ): ResolvedScopeHint {
   const hinted =
     hint.companyId !== undefined || hint.businessId !== undefined || hint.branchId !== undefined;

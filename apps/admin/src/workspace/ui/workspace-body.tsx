@@ -8,7 +8,13 @@ import { useLocale } from '@/shared/locale/locale-context';
 
 import { useWorkspace } from '../model/workspace-provider';
 
-export function WorkspaceBody({ children }: { children: ReactNode }) {
+export function WorkspaceBody({
+  children,
+  allowsLinkedWorkspace = false,
+}: {
+  children: ReactNode;
+  allowsLinkedWorkspace?: boolean;
+}) {
   const locale = useLocale();
   const workspace = useWorkspace();
   if (workspace.status === 'loading') {
@@ -28,7 +34,7 @@ export function WorkspaceBody({ children }: { children: ReactNode }) {
       />
     );
   }
-  if (workspace.status === 'choose') {
+  if (workspace.status === 'choose' && !allowsLinkedWorkspace) {
     return <EmptyState icon={<Building2 />} title={t(locale, 'admin.choosePrompt')} />;
   }
   return children;
