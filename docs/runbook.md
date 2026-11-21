@@ -269,7 +269,7 @@ land, approval stays closed. Never reset or delete `published_at`, `attempts`, `
    `COMMISSION_PERIOD_CLOSED` when no DRAFT target month exists after the source, or when the tips bootstrap touches a closed month
    (CS-Q45); live dispatch retries it and then parks it. Keep the two paths apart: **the replay never mutates the dispatcher lifecycle** —
    it does not set `parked_at`, `attempts` or `next_attempt_at`; it only reports the failure in its `undelivered` list — so a replay mark is
-   not evidence that a live park was cleared, and a live parked row still holds its `parked_at` until live dispatch releases it. A sale or
+   not evidence that a live park was cleared. A sale or
    refund whose month is `APPROVED` or `PAID` is refused the same way by the 50-4 sale handler and stays unmarked (no `consumed_events` row,
    live or replayed); the `SALE` correction that would release it is 55-1d, and until then a live parked sale event holds its sale's later
    events because the dispatcher delivers one aggregate in order.
@@ -414,8 +414,8 @@ six-type replay (owner answer CS-Q51, 2026-11-21: the replay projects and marks,
 2. Capture the replay upper bound `--through` after the last replica is on the release.
 3. Run the six-type replay with that bound and resume with the same bound until it ends `COMPLETE`
    (section 50-3d). A sale whose month is closed is refused with `COMMISSION_PERIOD_CLOSED` and stays unmarked
-   until 55-1d; the replay lists it under `undelivered` and mutates no live dispatcher park — release a live
-   parked sale through live dispatch, not by re-running the replay.
+   until 55-1d. The replay lists it under `undelivered` and leaves the dispatcher state intact. A live park
+   requires a separate dispatcher recovery decision.
 4. Run the 50-3c coverage report. Require `COVERED`, `sales.missing.total = 0`, `sales.stale.total = 0`, and no
    `PackageSaleChanged` under `unmarked` or `notHandled`. Migration 0234 creates an empty `commission_sales` table,
    and 0235 adds its indexes and access controls. The replay fills the table.

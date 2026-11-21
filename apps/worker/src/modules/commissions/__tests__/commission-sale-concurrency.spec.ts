@@ -1,8 +1,9 @@
+import { packageSaleChanged } from '@pospay/contracts';
 import { createDatabase, type ClaimedEvent, type Database } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import postgres from 'postgres';
-import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 
 import {
   COMMISSION_LINE_TENANTS,
@@ -19,7 +20,10 @@ import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts'
 import { createCommissionSaleProjectionScope } from '../persistence/commission-sale-projection.scope.ts';
 import { COMMISSION_INPUTS_CONSUMER_ID } from '../commissions.module.ts';
 import { markCommissionEventConsumed } from '../persistence/commission-event-consumption.ts';
-import { ProjectPackageSale } from '../use-cases/project-package-sale/project-package-sale.ts';
+import {
+  normalizePackageSaleEvent,
+  ProjectPackageSale,
+} from '../use-cases/project-package-sale/project-package-sale.ts';
 
 let testDb: TestDatabase;
 let owner: postgres.Sql;
@@ -63,18 +67,6 @@ const saleRow = () =>
 const marks = () =>
   owner`SELECT event_id FROM consumed_events WHERE consumer_id='commissions.project-inputs' ORDER BY event_id`;
 
-interface SaleEventPayload {
-  readonly business_id: string;
-  readonly branch_id: string;
-  readonly sale_id: string;
-  readonly seller_employee_id: string;
-  readonly business_date: string;
-  readonly price_paid: string;
-  readonly refunded_amount: string;
-  readonly status: string;
-  readonly revision: number;
-}
-
 /**
  * يفتح كاتب مراجعة أحدث معاملته ويأخذ قفل هوية البيع، ثم يتوقف خلف بوابة تُفتح يدوياً،
  * فيطبّق الحدث ويعلّم استهلاكه داخل معاملته نفسها زي ما يفعل الموصل.
@@ -95,28 +87,36 @@ function openHeldSaleWriter(event: ClaimedEvent): {
   const gate = new Promise<void>((resolve) => {
     openGate = () => resolve(undefined);
   });
-  const payload = event.payload as SaleEventPayload;
   const done = db.withTenant(A.company, async (tx) => {
     const scope = createCommissionSaleProjectionScope(tx, fakeBusinessTimeZone(A.business), ids);
     await scope.lockSale(SALE);
     signalHolds();
     await gate;
-    await new ProjectPackageSale(scope, clock, ids).execute({
-      companyId: A.company,
-      eventId: event.id,
-      businessId: payload.business_id,
-      branchId: payload.branch_id,
-      saleId: payload.sale_id,
-      sellerEmployeeId: payload.seller_employee_id,
-      businessDate: payload.business_date,
-      pricePaid: payload.price_paid,
-      refundedAmount: payload.refunded_amount,
-      status: payload.status,
-      revision: payload.revision,
-    });
+    await new ProjectPackageSale(scope, clock, ids).execute(
+      normalizePackageSaleEvent(event, packageSaleChanged.parse(event.payload)),
+    );
     await markCommissionEventConsumed(tx, COMMISSION_INPUTS_CONSUMER_ID, event.id);
   });
   return { holdsLock, openGate, done };
+}
+
+async function waitForSaleLock() {
+  const identity = `${A.company}:commission-sale:${SALE}`;
+  await vi.waitFor(
+    async () => {
+      const [row] = await owner<{ waiting: boolean }[]>`
+      WITH identity AS (SELECT hashtextextended(${identity}, 0) AS key)
+      SELECT EXISTS (
+        SELECT 1 FROM pg_locks, identity
+        WHERE locktype = 'advisory' AND objsubid = 1 AND NOT granted
+          AND database = (SELECT oid FROM pg_database WHERE datname = current_database())
+          AND classid::bigint::numeric * 4294967296 + objid::bigint::numeric
+            = CASE WHEN key >= 0 THEN key::numeric ELSE key::numeric + 18446744073709551616 END
+      ) AS waiting`;
+      expect(row?.waiting).toBe(true);
+    },
+    { timeout: 5_000 },
+  );
 }
 
 it('a revision that commits before a waiting older revision leaves the stale writer a no-op with its mark (CM-22b)', async () => {
@@ -130,14 +130,22 @@ it('a revision that commits before a waiting older revision leaves the stale wri
   // الكاتب الأحدث يفتح معاملته ويأخذ قفل الهوية أولاً، ويبقى مفتوحاً خلف بوابة ملحوظة،
   // فترتيب «المراجعة 2 تُثبَّت قبل المراجعة 1» محسوم لا مرهون بجدولة الأقفال ولا بنوم مؤقت.
   const w2 = openHeldSaleWriter(revision2);
-  await w2.holdsLock;
+  await Promise.race([
+    w2.holdsLock,
+    w2.done.then(() => {
+      throw new Error('the newer writer ended before acquiring the sale lock');
+    }),
+  ]);
 
   // الكاتب الأقدم يُسلَّم والقفل محتجز، فينتظر خلفه بحتمية؛ ثم تُفتح البوابة، فتُطبَّق المراجعة 2
   // وتُثبَّت أولاً، ويعيد الكاتب الأقدم الفحص تحت القفل فيطبّق لا شيء ويُعلِّم حدثه فقط.
-  const staleDelivery = deliver(revision1);
-  w2.openGate();
-  await w2.done;
-  await staleDelivery;
+  const deliveries = Promise.all([w2.done, deliver(revision1)]);
+  try {
+    await waitForSaleLock();
+  } finally {
+    w2.openGate();
+    await deliveries;
+  }
 
   const rows = await saleRow();
   expect(rows).toEqual([{ refundedAmount: '10.000', revision: 2 }]);

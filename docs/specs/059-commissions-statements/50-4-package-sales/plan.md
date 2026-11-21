@@ -281,18 +281,15 @@ no correction. That absence is the 55-1d boundary in code.
 
 1. Local gates exit 0 ([quickstart.md](./quickstart.md) §1); the report says «implementation complete, pending
    `ci-gate`», never "done".
-2. Guard pass by the implementer for this Heavy task per PP-198: `clean-code-guard`, `test-guard` and the defensive
-   `waleed-security-reviewer`, `docs-guard` on the changed documents — done in the implementation session — then one
-   end-of-PR review on the full diff as the pipeline assigns. The independent Sol 6.2 Medium security review already
-   ran on this head; its eight findings are addressed by the consolidated correction commit this file ships with.
-   PP-198's guard duties and every CI/review requirement stand unchanged.
+2. Run `clean-code-guard` and `test-guard` on implementation and `docs-guard` on documentation. The Heavy
+   defensive `waleed-security-reviewer` pass and the independent whole-diff review were done by Sol 6.2 Medium
+   per the owner-approved review assignment. The correction round addresses the eight MergePilot panel findings.
 3. `ci-gate` green on the exact head; every required review bot finished on that head; findings resolved.
 4. The branch is up to date with `main` (the migration-chain check fails on a stale base and only an update fixes
    it); the journal sequence and the snapshot `prevId` chain are intact.
-5. The manager merges in migration order after the gates pass (PP-201, which explicitly supersedes the PP-195 Heavy
-   approval card — this migration PR is that exception, and no merge card is required). The 2026-11-17 owner decision
-   makes backup and restore optional at merge unless the operation explicitly requires them. The staging snapshot
-   gate below, the migration order, the CS-Q51 record and the independent rollout/HOLD gates all keep.
+5. The manager merges in migration order after the gates pass (PP-201 supersedes the PP-195 approval card).
+   Under the 2026-11-17 owner decision, backup and restore are optional at merge unless the operation explicitly
+   requires them. The staging snapshot and independent rollout or HOLD decisions are separate gates.
 6. **CS-Q51 answered and recorded verbatim** — done: option 1 answered by Waleed on 2026-11-21 («دخل المبيعات القديمة
    بالمسار الموجود، واستعمل القارئ للتأكد إن كل بيع وصل بآخر نسخة»), recorded in `owner-questions.ar.md` §60, and the
    spec 059 amendment notes (D4) are written. The plan already built this option, so no plan change is needed.
