@@ -81,7 +81,7 @@ const MANAGE = [
     ['Appointments', 'Appointment categories', '4', S, S, 'Salon, spa, barber, clinic, services company'],
     ['Online', 'Company public page', '1', S, L, ''],
     ['Online', 'Online menu builder', '4', S, S, ''],
-    ['Online', 'Waiting and call page (customer scans a QR code)', '—', S, S, ''],
+    ['Online', 'Customer call (waiting page, the customer scans a QR code)', '—', S, S, ''],
     ['Marketing', 'Business WhatsApp', '4', S, S, ''],
     ['Marketing', 'Campaigns', '4', S, S, ''],
     ['Marketing', 'Message templates', '4', S, S, ''],
@@ -123,7 +123,7 @@ const MANAGE = [
     ['Stock reports', 'Stock and cost of goods', '3', S, S, ''],
     ['Stock reports', 'Stock movements ledger (item activity)', '3', S, S, ''],
     ['Performance', 'Commissions and performance', '5', S, S, ''],
-    ['Performance', 'Waiting and service time', '—', S, S, ''],
+    ['Performance', 'Customer call report (waiting and service time)', '—', S, S, ''],
     ['Performance', 'Appointments report', '5', S, S, 'Salon, spa, barber, clinic, services company'],
     ['Expenses', 'Expenses', '5', S, S, ''],
     ['Expenses', 'Recurring expenses', '5', S, S, ''],
@@ -141,7 +141,7 @@ const MANAGE = [
     ['Business', 'Working hours and order rules', '2', S, S, ''],
     ['Business', 'Payment methods and gateways', '2', S, S, ''],
     ['Access', 'Permissions', '1', L, L, ''],
-    ['Access', 'Invitations', '—', S, S, ''],
+    ['Access', 'Invitations', '—', S, L, ''],
     ['Access', 'Sign-in security (authenticator)', '1', L, S, ''],
     ['Access', 'Approval limits', '2', S, S, ''],
     ['Access', 'Activity log (who did what, and when)', '—', S, S, ''],
@@ -254,8 +254,9 @@ decided this on 2026-11-21 (NAV-Q19 in spec 074, NAV-L7 in spec 022).
 
 Customer call was added on 2026-11-21 at the owner's request (NAV-Q20 in spec 074, NAV-L8 in spec 022): staff call
 the customer on the customer's own phone when an order is ready or a turn has come. The customer scans a QR code and
-waits on a web page, with no app and no account. It adds two entries, "Waiting and call page" and the "Waiting and
-service time" report, and the call button belongs to the Fulfilment board. None of it is in the PRD; it needs a PRD
+waits on a web page, with no app and no account. The feature is named Customer call (نداء العميل). It adds two
+entries, "Customer call" under Online and the "Customer call report", and the call button belongs to the Fulfilment
+board. None of it is in the PRD; it needs a PRD
 entry and a spec, which must also settle how the alert reaches a locked phone.
 
 How an owner gets a second business type on the same account (created by the platform operator, or by an invitation
@@ -263,9 +264,11 @@ to the same email) is a subscription question, not a menu question, and is not d
 
 ## Other areas
 
-Reference only: these areas are delivered by their own specs, and this spec's requirements and release checks cover the
-Management area alone. The same map in both projects. How each project delivers these areas differs: one app with an area per role, or a
-separate cashier and staff app.
+The same map in both projects. ${project.areas}
+
+An entry of the Platform area is not filtered by business type or by company role: a platform workspace has neither,
+and the platform role alone decides who sees it. Staff and Platform have no sections, so Appearance is an entry of its
+own there.
 
 ${OTHER.map(([name, rows]) => `### ${name}\n\n${table(rows, ix)}`).join('\n\n')}
 
@@ -324,9 +327,9 @@ shared source in the same way.
 }
 const here = fileURLToPath(new URL('.', import.meta.url));
 const targets = [
-  { ix: 3, spec: '074', other: '`docs/specs/022-navigation-styles/app-map.md` in `lolotam/lovable-pospay`', record: 'NAV-Q17', base: 'an admin route on `main` at `bbb5d7a3b`',
+  { ix: 3, spec: '074', other: '`docs/specs/022-navigation-styles/app-map.md` in `lolotam/lovable-pospay`', record: 'NAV-Q17', areas: 'In this project they are reference only: the cashier and staff apps get their own specs, and the requirements and release checks of spec 074 cover the Management area alone.', base: 'an admin route on `main` at `bbb5d7a3b`',
     file: here + 'app-map.md' },
-  { ix: 4, spec: '022', other: '`docs/specs/074-admin-navigation-layout-restructure/app-map.md` in `lolotam/PayPos.systems`', record: 'NAV-L5', base: 'a route on `main` at `112b4e1`',
+  { ix: 4, spec: '022', other: '`docs/specs/074-admin-navigation-layout-restructure/app-map.md` in `lolotam/PayPos.systems`', record: 'NAV-L5', areas: 'In this project the four areas are one app drawn by one shell, and spec 022 covers all of them: the three styles, the Appearance page and the Under development page apply in each area (NAV-L4).', base: 'a route on `main` at `112b4e1`',
     file: '' },
 ];
 const args = process.argv.slice(2);

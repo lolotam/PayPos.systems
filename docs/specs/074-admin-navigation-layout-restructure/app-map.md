@@ -102,7 +102,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Appointments | Appointment categories | 4 | Soon | Salon, spa, barber, clinic, services company |
 | Online | Company public page | 1 | Soon | every business type |
 | Online | Online menu builder | 4 | Soon | every business type |
-| Online | Waiting and call page (customer scans a QR code) | — | Soon | every business type |
+| Online | Customer call (waiting page, the customer scans a QR code) | — | Soon | every business type |
 | Marketing | Business WhatsApp | 4 | Soon | every business type |
 | Marketing | Campaigns | 4 | Soon | every business type |
 | Marketing | Message templates | 4 | Soon | every business type |
@@ -150,7 +150,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Stock reports | Stock and cost of goods | 3 | Soon | every business type |
 | Stock reports | Stock movements ledger (item activity) | 3 | Soon | every business type |
 | Performance | Commissions and performance | 5 | Soon | every business type |
-| Performance | Waiting and service time | — | Soon | every business type |
+| Performance | Customer call report (waiting and service time) | — | Soon | every business type |
 | Performance | Appointments report | 5 | Soon | Salon, spa, barber, clinic, services company |
 | Expenses | Expenses | 5 | Soon | every business type |
 | Expenses | Recurring expenses | 5 | Soon | every business type |
@@ -203,8 +203,9 @@ decided this on 2026-11-21 (NAV-Q19 in spec 074, NAV-L7 in spec 022).
 
 Customer call was added on 2026-11-21 at the owner's request (NAV-Q20 in spec 074, NAV-L8 in spec 022): staff call
 the customer on the customer's own phone when an order is ready or a turn has come. The customer scans a QR code and
-waits on a web page, with no app and no account. It adds two entries, "Waiting and call page" and the "Waiting and
-service time" report, and the call button belongs to the Fulfilment board. None of it is in the PRD; it needs a PRD
+waits on a web page, with no app and no account. The feature is named Customer call (نداء العميل). It adds two
+entries, "Customer call" under Online and the "Customer call report", and the call button belongs to the Fulfilment
+board. None of it is in the PRD; it needs a PRD
 entry and a spec, which must also settle how the alert reaches a locked phone.
 
 How an owner gets a second business type on the same account (created by the platform operator, or by an invitation
@@ -212,9 +213,11 @@ to the same email) is a subscription question, not a menu question, and is not d
 
 ## Other areas
 
-Reference only: these areas are delivered by their own specs, and this spec's requirements and release checks cover the
-Management area alone. The same map in both projects. How each project delivers these areas differs: one app with an area per role, or a
-separate cashier and staff app.
+The same map in both projects. In this project they are reference only: the cashier and staff apps get their own specs, and the requirements and release checks of spec 074 cover the Management area alone.
+
+An entry of the Platform area is not filtered by business type or by company role: a platform workspace has neither,
+and the platform role alone decides who sees it. Staff and Platform have no sections, so Appearance is an entry of its
+own there.
 
 ### Reception / cashier
 
