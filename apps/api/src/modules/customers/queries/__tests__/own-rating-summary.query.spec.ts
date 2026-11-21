@@ -1,4 +1,4 @@
-﻿import type { StaffColumnCode } from '@pospay/contracts';
+import type { StaffColumnCode } from '@pospay/contracts';
 import { createDatabase, type Database } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { sql } from 'drizzle-orm';
@@ -189,17 +189,17 @@ const monthWindowCases: {
     nextMonth: new Date('2026-12-01T05:00:00Z'),
   },
   {
-    name: 'America/Havana November 2024 midnight repeat',
+    name: 'America/Havana November 2020 repeated month start',
     timeZone: 'America/Havana',
-    now: new Date('2024-11-15T10:00:00Z'),
+    now: new Date('2020-11-15T10:00:00Z'),
     employeeId: havanaEmployeeId,
-    excluded: new Date('2024-11-01T03:59:59Z'),
-    first: new Date('2024-11-01T04:00:00Z'),
-    last: new Date('2024-12-01T04:59:59Z'),
-    nextMonth: new Date('2024-12-01T05:00:00Z'),
+    excluded: new Date('2020-11-01T03:59:59Z'),
+    first: new Date('2020-11-01T04:00:00Z'),
+    last: new Date('2020-12-01T04:59:59Z'),
+    nextMonth: new Date('2020-12-01T05:00:00Z'),
     extras: [
-      { stars: 5, at: new Date('2024-11-03T04:30:00Z') },
-      { stars: 5, at: new Date('2024-11-03T05:30:00Z') },
+      { stars: 5, at: new Date('2020-11-01T04:30:00Z') },
+      { stars: 5, at: new Date('2020-11-01T05:30:00Z') },
     ],
   },
 ];
