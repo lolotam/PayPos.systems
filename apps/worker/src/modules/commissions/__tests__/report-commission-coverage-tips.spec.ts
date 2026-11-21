@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type {
   CoverageTenantRunner,
   CoverageTx,
+  SaleCoverageRow,
   SalaryCoverageRow,
   ServiceLineCoverageRow,
   TipCoverageRow,
@@ -32,6 +33,7 @@ const HANDLED_TYPES = new Set([
   'ServiceLineChanged',
   'SessionTipsChanged',
   'SalaryChanged',
+  'PackageSaleChanged',
 ]);
 
 const eventId = (n: number | string): string =>
@@ -74,6 +76,12 @@ function emptySalaryReader() {
   };
 }
 
+function emptySaleReader() {
+  return {
+    readPage: vi.fn(async () => ({ rows: [] as readonly SaleCoverageRow[], nextAfter: null })),
+  };
+}
+
 function projectionReader(options: {
   readonly tips?: readonly TipCoverageRow[];
   readonly marked?: ReadonlySet<string>;
@@ -82,6 +90,7 @@ function projectionReader(options: {
   const marked = options.marked ?? new Set<string>();  return {
     lineRevisions: vi.fn(async () => [] as readonly ServiceLineCoverageRow[]),
     salaryRevisions: vi.fn(async () => [] as readonly SalaryCoverageRow[]),
+    saleRevisions: vi.fn(async () => [] as readonly SaleCoverageRow[]),
     markedEventIds: vi.fn(
       async (_tx: CoverageTx, _cid: string, _consumer: string, ids: readonly string[]) =>
         new Set(ids.filter((id) => marked.has(id.toLowerCase())).map((id) => id.toLowerCase())),
@@ -157,6 +166,7 @@ function harness(options: HarnessOptions) {
     withTenant,
     lines: emptyLineReader(),
     salaries: emptySalaryReader(),
+    sales: emptySaleReader(),
     projection: projectionReader({
       ...(options.tips === undefined ? {} : { tips: options.tips }),
       ...(options.marked === undefined ? {} : { marked: options.marked }),
@@ -244,20 +254,18 @@ describe('runCommissionCoverageReport: the six-type retained events', () => {
     expect(report.status).toBe('NOT_COVERED');
   });
 
-  it('lists a retained package sale under notHandled and never under unmarked', async () => {
+  it('counts a retained package sale under unmarked once the consumer registers its type', async () => {
     const packageSale = event(2, 'PackageSaleChanged');
     const { deps } = harness({ events: [packageSale], marked: new Set<string>() });
 
     const report = await run(deps);
 
-    expect(report.notHandled).toEqual({
+    expect(report.notHandled).toEqual({ total: 0, events: [] });
+    expect(report.unmarked).toEqual({
+      checked: 1,
       total: 1,
-      events: [
-        { eventId: packageSale.id, type: 'PackageSaleChanged', reason: 'COMMISSION_EVENT_TYPE_NOT_HANDLED' },
-      ],
+      events: [{ eventId: packageSale.id, type: 'PackageSaleChanged' }],
     });
-    expect(report.unmarked.total).toBe(0);
-    expect(report.unmarked.events).toEqual([]);
     expect(report.status).toBe('NOT_COVERED');
   });
 
@@ -282,7 +290,8 @@ describe('runCommissionCoverageReport: the six-type retained events', () => {
     const report = await run(deps, { throughId: packageSale.id });
 
     expect(report.throughId).toBe(packageSale.id);
-    expect(report.notHandled.total).toBe(1);
+    expect(report.notHandled.total).toBe(0);
+    expect(report.unmarked.total).toBe(1);
     expect(report.status).toBe('NOT_COVERED');
   });
 });
@@ -292,6 +301,7 @@ function expectNoReaderCalls(deps: CommissionCoverageDeps) {
   expect(deps.companies.isOpen).not.toHaveBeenCalled();
   expect(deps.lines.readPage).not.toHaveBeenCalled();
   expect(deps.salaries.readPage).not.toHaveBeenCalled();
+  expect(deps.sales.readPage).not.toHaveBeenCalled();
   expect(deps.retained.commissionRetainedEventPage).not.toHaveBeenCalled();
   expect(deps.tipsReader?.readPage).not.toHaveBeenCalled();
 }

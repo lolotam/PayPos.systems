@@ -181,7 +181,8 @@ export function failingCorrectionsConsumer(): OutboxConsumer {
         execute: async () => {
           throw new Error('unused line-only use case');
         },
-      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'];
+      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'] &
+        CommissionInputUseCases['sales'];
       await onCommissionInputEvent(
         {
           lines: new ProjectServiceLines(
@@ -198,6 +199,7 @@ export function failingCorrectionsConsumer(): OutboxConsumer {
           ),
           tips: unused,
           salary: unused,
+          sales: unused,
         },
         event,
       );

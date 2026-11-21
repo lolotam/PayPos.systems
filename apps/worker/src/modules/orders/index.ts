@@ -29,3 +29,7 @@ export {
   readServiceLineCoveragePage,
   serviceLineCoverageStatement,
 } from './queries/service-line-coverage.reader.ts';
+export {
+  listCurrentPackageSales,
+  packageSaleCoverageStatement,
+} from './queries/package-sale-coverage.reader.ts';

@@ -1,9 +1,11 @@
 import {
+  packageSaleChanged,
   salaryChanged,
   serviceLineChanged,
   serviceSessionLinesAdded,
   serviceSessionRecorded,
   sessionTipsChanged,
+  type PackageSaleChanged,
   type SalaryChanged,
   type ServiceLineChanged,
   type ServiceSessionLinesAdded,
@@ -18,6 +20,10 @@ import {
   type ProjectServiceLines,
 } from '../../use-cases/project-service-lines/project-service-lines.ts';
 import {
+  normalizePackageSaleEvent,
+  type ProjectPackageSale,
+} from '../../use-cases/project-package-sale/project-package-sale.ts';
+import {
   normalizeSalaryEvent,
   type ProjectSalary,
 } from '../../use-cases/project-salary/project-salary.ts';
@@ -31,7 +37,8 @@ type CommissionEventSchema =
   | typeof serviceSessionLinesAdded
   | typeof serviceLineChanged
   | typeof sessionTipsChanged
-  | typeof salaryChanged;
+  | typeof salaryChanged
+  | typeof packageSaleChanged;
 
 type CommissionLineEventPayload =
   | ServiceSessionRecorded
@@ -42,6 +49,7 @@ export interface CommissionInputUseCases {
   readonly lines: ProjectServiceLines;
   readonly tips: ProjectSessionTips;
   readonly salary: ProjectSalary;
+  readonly sales: ProjectPackageSale;
 }
 
 const eventSchemas: Record<string, CommissionEventSchema | undefined> = {
@@ -50,6 +58,7 @@ const eventSchemas: Record<string, CommissionEventSchema | undefined> = {
   ServiceLineChanged: serviceLineChanged,
   SessionTipsChanged: sessionTipsChanged,
   SalaryChanged: salaryChanged,
+  PackageSaleChanged: packageSaleChanged,
 };
 
 export async function onCommissionInputEvent(
@@ -66,6 +75,12 @@ export async function onCommissionInputEvent(
   }
   if (event.eventType === 'SalaryChanged') {
     await useCases.salary.execute(normalizeSalaryEvent(event, parsed.data as SalaryChanged));
+    return;
+  }
+  if (event.eventType === 'PackageSaleChanged') {
+    await useCases.sales.execute(
+      normalizePackageSaleEvent(event, parsed.data as PackageSaleChanged),
+    );
     return;
   }
   await useCases.lines.execute(

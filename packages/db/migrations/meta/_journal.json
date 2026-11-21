@@ -1625,6 +1625,20 @@
       "when": 1795165652401,
       "tag": "0233_2026-11-20_commission-blocked-corrections-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 234,
+      "version": "7",
+      "when": 1795248975333,
+      "tag": "0234_2026-11-21_commission-sales",
+      "breakpoints": true
+    },
+    {
+      "idx": 235,
+      "version": "7",
+      "when": 1795249115717,
+      "tag": "0235_2026-11-21_commission-sales-rls",
+      "breakpoints": true
     }
   ]
 }

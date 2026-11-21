@@ -9,5 +9,7 @@ export const tenancySchemaNames = [
   'GeoPoint',
   'OpeningHours',
   'Plan',
+  'SetBusinessCountryInput',
+  'SetBusinessCountryResult',
   'VerticalType',
 ];

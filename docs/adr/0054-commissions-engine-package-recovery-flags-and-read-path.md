@@ -376,6 +376,26 @@ module-map row first.
 The addendum adds one Port row to `docs/module-map.md` §3. It adds no import arrow, no `reads:` line, no write port
 and no grant. PP-122 adds one index migration, which first runs the existing `employee-name-keys` data step.
 
+**Addendum 2026-11-21 (50-4; owner answer CS-Q51, [spec 059 owner-questions §60](../specs/059-commissions-statements/owner-questions.ar.md)):
+the package-sale coverage reader and the replay as the sale bootstrap.**
+
+- **Reader.** Worker `commissions` gains the coverage reader `PackageSaleCoverageReader`, bound at the worker
+  composition root `apps/worker/src/report-commission-coverage.ts` to orders' `listCurrentPackageSales`
+  (`apps/worker/src/modules/orders/queries/package-sale-coverage.reader.ts`), on exactly the terms of
+  `ServiceLineCoverageReader` (the 2026-11-12 addendum): a read-only keyset page on `package_entitlements`' primary key,
+  `provenance = 'SOLD'` only (imports emit no event and stay outside sale coverage, D-51), identity and revision only —
+  no customer, phone, name or money column. It opens no transaction and takes no lock. Coverage proof only, never a
+  projection build; no import arrow and no `reads:` line (one Port row in `docs/module-map.md` §3).
+- **Bootstrap.** The owner answered CS-Q51 verbatim: «دخل المبيعات القديمة بالمسار الموجود، واستعمل القارئ للتأكد إن
+  كل بيع وصل بآخر نسخة». The existing six-type retained-event replay of 50-3d is the sale bootstrap: registering
+  `PackageSaleChanged` in `COMMISSION_INPUT_EVENT_TYPES` is the whole producer-side change, the replay delivers and
+  marks the retained events with no runner change, and the reader is the fail-closed coverage truth by revision.
+  No second bootstrap writer, no event-id column on any orders table, no outbox grant — D-15's prohibitions stand, and
+  the spec 059 D-15, FR-020 and CM-20b rows carry the dated amendment notes.
+- **Table.** `commission_sales` (migrations 0234/0235, expand-only) is a tenant table under `withTenant`, with
+  `FORCE` RLS, tenant-qualified composite foreign keys, column-limited `UPDATE` and no `DELETE`, like the tip and
+  salary tables of the 2026-11-05 entry. CM-R05 ships in the same PR.
+
 ### 4.1 Scoped layer imports for 48-2/49-1 (PP-108.1)
 
 **Accepted by Waleed, 2026-11-01, channel «كارت في شات مدير الويب».** The verbatim decision is preserved in

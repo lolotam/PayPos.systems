@@ -209,7 +209,8 @@ async function deliverFailingThirdAppend(event: ClaimedEvent) {
         execute: async () => {
           throw new Error('unused line-only use case');
         },
-      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'];
+      } as unknown as CommissionInputUseCases['tips'] & CommissionInputUseCases['salary'] &
+        CommissionInputUseCases['sales'];
       await onCommissionInputEvent(
         {
           lines: new ProjectServiceLines(
@@ -221,6 +222,7 @@ async function deliverFailingThirdAppend(event: ClaimedEvent) {
           ),
           tips: unused,
           salary: unused,
+          sales: unused,
         },
         claimed,
       );

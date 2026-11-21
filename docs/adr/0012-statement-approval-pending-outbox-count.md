@@ -248,6 +248,12 @@ consumer re-runs the replay with a new upper bound before approval reopens, or t
 comparison through root-bound orders and staff readers (ADR-0054 §4 addendum); an unprojected item whose retained event
 exists is re-replayed, and a missing retained event keeps approval closed for manual investigation. (d): this ADR's count,
 with its §1 predicate unchanged (counted types, created before `approval_started_at`, no `commissions.project-inputs`
-mark), closes approval after a rollback; after any rollback then upgrade the runbook re-runs the retained-event replay for all six counted types with one fixed upper bound per run. A current-state reader (36-5, the latest package-sale revision) is bound to the business and date range the operator supplies and to the revisions that exist when it runs, while this count is company-wide, so rows published later or outside that scope would stay unmarked; the post-rollback run therefore replays the retained outbox events of every counted type through one six-type replay facade (the four 50-0 types plus `SessionTipsChanged` and `PackageSaleChanged`, a `packages/db` method with its own partial index, delivered in sub-PR 50-3d; until 50-4 registers the `PackageSaleChanged` handler the runner reports those rows as not handled and never prints `COMPLETE`), each retained row getting its own mark through the commissions consumer, so an already approved period takes the correction path. The current-state readers serve the first bootstrap only. Every re-run path states its upper bound (captured after every replica runs the consumer, passed as `--through`, reused on a resume, new after any rollback) and each bootstrap reader proves that every retained event id is returned; rollback
+mark), closes approval after a rollback. After upgrading again, replay all six retained event types through
+the 50-3d facade with one fixed upper bound per run. Capture it after every replica runs the consumer, pass
+it as `--through`, reuse it on resume, and capture a new bound after any rollback. The consumer marks each
+successfully handled event. For `PackageSaleChanged`, the same replay also bootstraps historical sales (CS-Q51,
+2026-11-21). The orders reader returns each sold package's identity and latest revision across the company
+for coverage. The retained-event scan independently verifies the marks. A sale rejected because the month
+is closed stays unmarked until the sale correction path in 55-1d is available. Rollback
 is not blocked at deploy level. (e): the legacy event is delivered to the same consumer, which
 resolves the business through the root-bound staff reader; a null result leaves it unmarked and approval closed.

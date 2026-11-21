@@ -11,6 +11,7 @@ import type {
   CoverageProjectionReader,
   CoverageRetainedPageReader,
   CoverageTenantRunner,
+  PackageSaleCoverageReader,
   SalaryCoverageReader,
   SalaryCoverageRow,
   ServiceLineCoverageReader,
@@ -22,6 +23,7 @@ import {
   type NotHandledEvent,
   type UnmarkedEvent,
 } from './check-retained-events.ts';
+import { checkSaleCoverage } from './check-sale-coverage.ts';
 import { checkTipCoverage, type TipCoverageResult } from './check-tip-coverage.ts';
 
 export { CommissionCoverageEventInvalidError } from './check-retained-events.ts';
@@ -63,12 +65,17 @@ export interface CommissionCoverageReport {
     readonly missing: CoverageIdList;
     readonly stale: CoverageIdList;
   };
+  readonly sales: {
+    readonly checked: number;
+    readonly missing: CoverageIdList;
+    readonly stale: CoverageIdList;
+  };
   readonly unmarked: {
     readonly checked: number;
     readonly total: number;
     readonly events: readonly UnmarkedEvent[];
   };
-  /** الأحداث التي لا يسجّل المستهلك لنوعها؛ سببها واحد حتى ينضم معالجها في 50-4. */
+  /** الأحداث التي لا يسجّل المستهلك لنوعها؛ رمز ثابت واحد يفرق نوعاً غير مسجَّل عن فجوة حقيقية. */
   readonly notHandled: {
     readonly total: number;
     readonly events: readonly NotHandledEvent[];
@@ -87,6 +94,7 @@ export interface CommissionCoverageDeps {
   readonly withTenant: CoverageTenantRunner;
   readonly lines: ServiceLineCoverageReader;
   readonly salaries: SalaryCoverageReader;
+  readonly sales: PackageSaleCoverageReader;
   readonly projection: CoverageProjectionReader;
   readonly retained: CoverageRetainedPageReader;
   readonly companies: CoverageCompanyReader;
@@ -137,8 +145,42 @@ interface CheckContext {
   readonly companyId: string;
 }
 
+/** تحسب حالة الاعتماد: كل قسم مغطى، ولا حدث غير مستهلك ولا نوع غير مسجَّل ولا بقشيش متأخر. */
+function coverageStatus(
+  parts: readonly { missing: { total: number }; stale: { total: number } }[],
+  unmarkedTotal: number,
+  notHandledTotal: number,
+  tips: TipCoverageResult | null,
+): boolean {
+  const sectionsCovered = parts.every(
+    (part) => part.missing.total === 0 && part.stale.total === 0,
+  );
+  return (
+    sectionsCovered &&
+    unmarkedTotal === 0 &&
+    notHandledTotal === 0 &&
+    (tips === null || (tips.missing.total === 0 && tips.stale.total === 0))
+  );
+}
+
+/** يرفض نطاق بقشيش بتواريخ غير تقويمية قبل أي قراءة، لأن تحويله التلقائي يفحص نطاقاً آخر. */
+function assertTipScopeCalendar(scope: CommissionCoverageScope): void {
+  if (scope.tips !== undefined &&
+    (!isCommissionCoverageCalendarDate(scope.tips.from) ||
+      !isCommissionCoverageCalendarDate(scope.tips.to)))
+    throw new CommissionCoverageScopeInvalidError();
+}
+
+/** يرفض حدّاً أعلى لا يساوي آخر حدث مقروء، لأن الاستئناف بنطاق مختلف يضيّع أحداثاً بين الحدين. */
+function assertStableThroughId(lastEventId: string | null, requestedThroughId: string | null): void {
+  const resolved = requestedThroughId?.toLowerCase() ?? null;
+  if (requestedThroughId !== null && lastEventId !== resolved) {
+    throw new CommissionCoverageScopeInvalidError();
+  }
+}
+
 /**
- * يثبت أن بنود الخدمة والرواتب والأحداث المحتفظ بها مغطاة قبل اعتماد كشف العمولة.
+ * يثبت أن بنود الخدمة والرواتب والبيع والأحداث المحتفظ بها مغطاة قبل اعتماد كشف العمولة.
  * ثبوت الحد الأعلى من أول صفحة يمنع الأحداث الجديدة من تغيير نطاق الفحص أثناء تشغيله.
  *
  * @param deps قارئات المصدر والإسقاط والأحداث المحتفظ بها ومعرّف المستهلك وأنواعه
@@ -149,10 +191,7 @@ export async function runCommissionCoverageReport(
   deps: CommissionCoverageDeps,
   scope: CommissionCoverageScope,
 ): Promise<CommissionCoverageReport> {
-  if (scope.tips !== undefined &&
-    (!isCommissionCoverageCalendarDate(scope.tips.from) ||
-      !isCommissionCoverageCalendarDate(scope.tips.to)))
-    throw new CommissionCoverageScopeInvalidError();
+  assertTipScopeCalendar(scope);
   const companyId = scope.companyId.toLowerCase();
   const open = await deps.withTenant(companyId, (tx) => deps.companies.isOpen(tx, companyId));
   if (!open) throw new CommissionCoverageScopeInvalidError();
@@ -162,24 +201,26 @@ export async function runCommissionCoverageReport(
   };
   const lineTotals = await checkLines(context);
   const salaryTotals = await checkSalaries(context);
+  const saleTotals = await checkSales(context);
   const unmarked = await checkUnmarked(context, scope.throughId);
-  if (scope.throughId !== null && unmarked.lastEventId !== scope.throughId.toLowerCase()) {
-    throw new CommissionCoverageScopeInvalidError();
-  }
+  assertStableThroughId(unmarked.lastEventId, scope.throughId);
   const tips = await checkTips(context, scope);
-  const covered =
-    lineTotals.missing.total === 0 &&
-    lineTotals.stale.total === 0 &&
-    salaryTotals.missing.total === 0 &&
-    salaryTotals.stale.total === 0 &&
-    unmarked.totals.unmarked.total === 0 &&
-    unmarked.notHandled.unmarked.total === 0 &&
-    (tips === null || (tips.missing.total === 0 && tips.stale.total === 0));
+  const covered = coverageStatus(
+    [lineTotals, salaryTotals, saleTotals],
+    unmarked.totals.unmarked.total,
+    unmarked.notHandled.unmarked.total,
+    tips,
+  );
   return {
     status: covered ? 'COVERED' : 'NOT_COVERED',
     throughId: unmarked.throughId,
     lines: coverageResult(lineTotals),
     salaries: coverageResult(salaryTotals),
+    sales: {
+      checked: saleTotals.checked,
+      missing: saleTotals.missing,
+      stale: saleTotals.stale,
+    },
     unmarked: {
       checked: unmarked.totals.checked,
       total: unmarked.totals.unmarked.total,
@@ -199,6 +240,7 @@ export async function runCommissionCoverageReport(
       lineTotals.stale.truncated ||
       salaryTotals.missing.truncated ||
       salaryTotals.stale.truncated ||
+      saleTotals.truncated ||
       unmarked.totals.unmarked.truncated ||
       unmarked.notHandled.unmarked.truncated ||
       (tips !== null && tips.truncated),
@@ -271,6 +313,18 @@ function salaryCoverageRow(row: SalaryCoverageRow) {
     key: coverageKey(row.employeeId, row.effectiveFrom),
     revision: row.revision,
   };
+}
+
+/** يفحص بيع الباقات بالمراجعة للشركة كلها، بنفس قاعدة البنود (CS-Q41) وبلا نطاق مشغّل. */
+async function checkSales(
+  context: CheckContext,
+): Promise<ReturnType<typeof checkSaleCoverage>> {
+  return checkSaleCoverage({
+    withTenant: context.deps.withTenant,
+    sales: context.deps.sales,
+    projection: context.deps.projection,
+    companyId: context.companyId,
+  });
 }
 
 /** يفحص البقشيش بالمراجعة إذا طلب المشغّل نطاقاً؛ بدون نطاق لا فحص والورقة تشرح ذلك. */
