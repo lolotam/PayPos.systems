@@ -204,9 +204,9 @@ describe('in-file duplicates inside a sheet (A-10)', () => {
       { row: 4, cells: goodRow('Nails') },
     ]);
     expect(codes(result.errors)).toEqual([
-      '3:price:IMPORT_PRICE_INVALID',
       '2:name_en:IMPORT_DUPLICATE_IN_FILE',
       '3:name_en:IMPORT_DUPLICATE_IN_FILE',
+      '3:price:IMPORT_PRICE_INVALID',
     ]);
     // الصف الرابع اسمه مختلف، فهو الوحيد اللي بيعدي من المجموعة المتكررة لالصفوف المطبّعة.
     expect(result.rows.map((row) => row.row)).toEqual([4]);
@@ -229,10 +229,10 @@ describe('exposed keys carried to 32b-2 (A-11)', () => {
     ]);
     expect(result.rows.map((row) => row.row)).toEqual([4]);
     expect(codes(result.errors)).toEqual([
-      '2:price:IMPORT_PRICE_INVALID',
-      '5:name_en:IMPORT_REQUIRED_CELL',
       '2:name_en:IMPORT_DUPLICATE_IN_FILE',
+      '2:price:IMPORT_PRICE_INVALID',
       '3:name_en:IMPORT_DUPLICATE_IN_FILE',
+      '5:name_en:IMPORT_REQUIRED_CELL',
     ]);
   });
 });
@@ -340,10 +340,10 @@ const SHUFFLED_HEADERS = [
 ];
 
 const MIXED_ERRORS = [
-  '4:category:IMPORT_CATEGORY_NOT_FOUND',
-  '4:duration_minutes:IMPORT_DURATION_INVALID',
   '2:name_en:IMPORT_DUPLICATE_IN_FILE',
   '3:name_en:IMPORT_DUPLICATE_IN_FILE',
+  '4:category:IMPORT_CATEGORY_NOT_FOUND',
+  '4:duration_minutes:IMPORT_DURATION_INVALID',
 ];
 
 describe('mixed shuffled headers with duplicates and independent errors across rows', () => {
@@ -389,7 +389,7 @@ describe('mixed shuffled headers with duplicates and independent errors across r
       ],
       SHUFFLED_HEADERS,
     );
-    // ترتيب الورقة: خطأ صف 4 بترتيب رؤوسها (التصنيف قبل المدة)، ثم تشخيص التكرار بترتيب الصفوف.
+    // أخطاء الصفوف 2 و3 و4 بترتيب الورقة، والتصنيف يسبق المدة حسب ترتيب الأعمدة.
     expect(codes(result.errors)).toEqual(MIXED_ERRORS);
     // الصفان 2 و3 مكرران فيشيلهم الاتنان من الصفوف المطبّعة، والصف 4 غلط في عمودين، فالنتيجة بلا صفوف.
     expect(result.rows).toEqual([]);

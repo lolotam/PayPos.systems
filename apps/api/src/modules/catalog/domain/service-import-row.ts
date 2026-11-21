@@ -97,6 +97,13 @@ export function mapServiceImportRows(
   for (const row of duplicates)
     errors.push({ row, column: 'name_en', code: 'IMPORT_DUPLICATE_IN_FILE' });
   const duplicateRows = new Set(duplicates);
+  const rowPositions = new Map(sheet.rows.map(({ row }, index) => [row, index]));
+  // أخطاء التكرار تظهر بعد فحص الورقة كلها، فبنرجّعها لمواضع أعمدتها وصفوفها الأصلية.
+  errors.sort((left, right) =>
+    (rowPositions.get(left.row) ?? 0) - (rowPositions.get(right.row) ?? 0) ||
+    (positions.get(left.column) ?? layout.headerCount) -
+      (positions.get(right.column) ?? layout.headerCount),
+  );
   return { rows: rows.filter((row) => !duplicateRows.has(row.row)), keys, errors };
 }
 
