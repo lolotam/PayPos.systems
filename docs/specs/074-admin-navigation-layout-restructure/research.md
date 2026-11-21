@@ -55,8 +55,8 @@ Checked against `origin/main` at `cf70114e2` on 2026-11-21. Each entry says what
 
 ## R9. Moving the theme switch
 
-- **Decision**: In styles B and C the light, dark and system switch sits on the Appearance page and in the account menu. Whether style A keeps it in the sidebar footer is NAV-Q5, unanswered: `TODO(spec)`.
-- **Rationale**: Styles B and C have no sidebar footer. ADR-0059 places the switch in the sidebar footer, so an addendum is owed (NAV-Q5).
+- **Decision**: The light, dark and system switch sits on the Appearance page and in the account menu in all three styles and leaves the sidebar footer (NAV-Q5, answered 2026-11-21).
+- **Rationale**: Styles B and C have no sidebar footer, and one place in every style means the user finds it wherever they switch. ADR-0059 places the switch in the sidebar footer, so an addendum is owed.
 
 ## R10. Navigation counts
 

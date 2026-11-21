@@ -87,7 +87,7 @@ Sources: `docs/PRD.md` §3.2 (personas), §7 (functional scope by module), §7.1
 | Loyalty | Gift cards | Soon | 4 |
 | Loyalty | Discount cards and codes | Soon | 4 |
 
-"Social media management" is the owner's request of 2026-11-21. It is not in the PRD. Whether it is listed as a Soon entry or left out until it is decided is NAV-Q15, still unanswered: `TODO(spec)`. It is counted below, and is dropped from the release if the answer is to leave it out.
+"Social media management" is the owner's request of 2026-11-21. It is not in the PRD. The owner confirmed it is listed as a Soon entry (NAV-Q15); it needs a PRD entry and a spec before anything is built.
 
 ### 5. Team
 
@@ -192,5 +192,5 @@ Top-level entries, at most seven in any style.
 - One page, opened by every Soon entry. It shows the entry's name, a short line saying the page is under development, and a button back to Home.
 - It shows no date and no phase number to the user.
 - Its address is `/soon/[page]`. When a page is built, its entry changes from Soon to Live and points to its real address. An old `/soon/...` link then applies the entry's current show condition first: a user who may see the page is forwarded to it; a user who may not gets the not-found page.
-- Who sees Soon entries is not settled. The owner asked for every section to be shown (NAV-Q13); the PRD turns sections on per business type and per role (§3.2, §7.1). NAV-Q14 asks which applies, and its answer is required before `pr-sequence.md` step 7 is approved. Whatever the answer, the same rule applies in the menu, in the page finder and to a direct `/soon/...` link.
+- A Soon entry is shown by business type and role (NAV-Q14), in the menu, in the page finder and to a direct `/soon/...` link: a salon does not see Kitchen screens, a cashier does not see Subscription and billing. `pr-sequence.md` step 1 adds, for every Soon entry, the business types (PRD §7.1) and roles (PRD §3.2) that see it; that table is not written yet.
 - A Soon entry gives no access to anything: it opens the Under development page only.
