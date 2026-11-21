@@ -46,7 +46,7 @@ const MANAGE = [
     ['Service visits', 'Record a visit', '1', L, S, '', R_RECEPTION],
     ['Service visits', 'Sessions (day list)', '1', L, L, '', R_LIVE],
     ['Service visits', 'Sell a package', '1', L, S, '', R_RECEPTION],
-    ['Service visits', 'Customer packages (who holds what, sessions left)', '1', S, S, '', R_OPS_MGR],
+    ['Service visits', 'Customer packages (who holds what, sessions left)', '1', L, S, '', R_OPS_MGR],
     ['Service visits', 'Unassigned services (exceptions)', '1', S, S, '', R_OPS_MGR],
     ['Discounts', 'Discounts', '1', S, L, '', R_MKT_BIZ],
     ['Discounts', 'Discount approvals', '1', S, L, '', R_OPS_MGR],
@@ -159,6 +159,7 @@ const MANAGE = [
     ['Business', 'Business identity', '1', L, S, '', R_OWNER],
     ['Business', 'Branches', '—', S, S, '', R_BIZ_MGR],
     ['Business', 'Alerts and notifications', '1', L, S, '', R_BIZ_MGR],
+    ['Business', 'Imported-package refunds', '1', L, S, '', R_OWNER],
     ['Business', 'Data import (Excel)', '1', S, S, '', R_BIZ_MGR],
     ['Business', 'Tax and invoice template', '2', S, S, '', R_FIN_BIZ],
     ['Business', 'Invoice terms and conditions', '—', S, S, '', R_BIZ_MGR],
@@ -311,9 +312,9 @@ ${OTHER.map(([name, rows]) => `### ${name}\n\n${table(rows, ix)}`).join('\n\n')}
 
 ## Counts
 
-- Management area: ${total} menu pages. In this project: ${m.live} Live, ${m.fresh} New, ${m.soon} Soon.
+- Management area: ${total} mapped pages. In this project: ${m.live} Live, ${m.fresh} New, ${m.soon} Soon.
 - Other areas: ${totalOther} menu pages. In this project: ${o.live} Live, ${o.soon} Soon${o.other ? `, ${o.other} not mapped here (the cashier app has its own spec)` : ''}.
-- Child pages (create and detail pages) have no menu entry of their own and are not counted.
+- Child pages such as customer package details have no menu entry of their own. Only the pages listed in the map are counted.
 
 ## Top level in each style (management area)
 

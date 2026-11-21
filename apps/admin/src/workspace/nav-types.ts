@@ -55,6 +55,7 @@ export type NavigationSubmenuId =
 
 /** أسماء الأيقونات المصدَّرة بالفعل من @pospay/ui وفق ADR-0060. */
 export type NavigationIconName =
+  | 'ArrowCounterClockwise'
   | 'Bell'
   | 'Building2'
   | 'CircleAlert'
@@ -80,6 +81,7 @@ export type NavigationVisibilityCondition =
   | 'business-identity-access'
   | 'commission-plans-access'
   | 'employee-app-link-access'
+  | 'imported-refunds-access'
   | 'leave-report-access'
   | 'staff-app-columns-access';
 
