@@ -34,6 +34,17 @@ export function commissionTipSourceRef(sessionId: string, method: CommissionTipM
 }
 
 /**
+ * يبني مرجع مصدر بيع الباقة: نفس المفتاح اللي بيبنيه محرك العمولة لكل بيع مسعَّر،
+ * فالمصدر بيتعرف عليه من غير ما يتلخبط مع مصدر تاني بنفس الاسم.
+ *
+ * @param saleId هوية البيع المسعَّر
+ * @returns مرجع مصدر بيع الباقة
+ */
+export function commissionSaleSourceRef(saleId: string): string {
+  return `${COMMISSION_SALE_SOURCE_PREFIX}${saleId}`;
+}
+
+/**
  * يحدّد نوع المصدر من مرجعه: البادئة بتقول الشكل وطريقة الدفع بتقول النوع.
  * المرجع المجهول بيتعامل على أنه بند، لأن محرك العمولة ما بيسعّرش غير البند والبيع.
  *

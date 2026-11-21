@@ -42,6 +42,7 @@ export { orderCommissionLines } from './line-order.ts';
 export { allocateLineShares } from './line-shares.ts';
 export { computeMarginalTierNumerator, findActiveTierStep } from './marginal-tiers.ts';
 export { computePackageSaleCommission } from './package-sale-commission.ts';
+export { projectPackageSaleStatus } from './package-sale-status.ts';
 export { computePeriod } from './period-commission.ts';
 export { assembleCommissionPeriodInput } from './period-input-assembly.ts';
 export type {
@@ -68,6 +69,14 @@ export type {
   ResolvedCommissionPlan,
 } from './plan-types.ts';
 export { validateCommissionPlan } from './plan-validation.ts';
+export {
+  commissionOverrideOf,
+  commissionPlanVersionOf,
+  commissionRuleOf,
+  CommissionPlanDecodeError,
+  type StoredOverrideRow,
+  type StoredPlanVersionRow,
+} from './plan-version-decode.ts';
 export { selectCommissionPlanVersion } from './plan-version.ts';
 export { validateWireCommissionPlan } from './plan-wire.ts';
 export type { CommissionPlanWire } from './plan-wire.ts';

@@ -135,6 +135,9 @@ export const ROLE_DEFAULTS = {
   'manage:staff-app-columns:business': managers,
   // قرارا CS-Q1 وCS-Q27 (أبو سالم): إدارة الخطط للمالك والمحاسب افتراضياً، والمالك وحده يمنحها أو يسحبها.
   'manage:commission-plans:business': ['owner', 'accountant'],
+  // CS-Q14 = PP-17.2: قراءة تقدير العمولة ومعاينة كشفها وتصديره؛ المالك والمديرون والمحاسب ومدير الفرع
+  // افتراضياً، والقارئ بيشوف موظفات نطاق فروعه الفعّالة بس (CS-Q20 = PP-20.1).
+  'read:commissions:business': [...managers, 'accountant', 'branch_manager'],
   'view:notifications:business': managers,
   'manage:employees:business': managers,
   'read:services:business': managers,

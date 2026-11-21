@@ -105,6 +105,10 @@ export {
   readCommissionPlanAccess,
   readCommissionPlanListAccess,
 } from './persistence/commission-plan-access.ts';
+export {
+  readCommissionFeatureEnabled,
+  readCommissionScope,
+} from './persistence/commission-read-scope.ts';
 
 export { readOwnAttendanceAccess } from './persistence/own-attendance-access.ts';
 

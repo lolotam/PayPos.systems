@@ -84,6 +84,8 @@ export const PERMISSIONS = [
   'manage:rating-requests:business',
   'manage:staff-app-columns:business',
   'manage:commission-plans:business',
+  // قراءة تقدير العمولة ومعاينة كشفها وتصديره: الصلاحية بتحددها CS-Q14 = PP-17.2.
+  'read:commissions:business',
   'view:notifications:business',
   // صلاحية منصة: بتتدي بـ pnpm platform:grant بس، وعمرها ما بتبقى في role شركة (ADR-0003 §3).
   'create:companies:platform',

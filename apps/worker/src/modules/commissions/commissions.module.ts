@@ -137,6 +137,8 @@ export function createCommissionInputsConsumer(
         createCommissionSaleProjectionScope(tx, dependencies.businessTimeZone, dependencies.ids),
         dependencies.clock,
         dependencies.ids,
+        corrections,
+        notices,
       ),
     };
   };

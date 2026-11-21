@@ -3487,6 +3487,102 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/commissions/periods/{period}/estimate": {
+      "get": {
+        "operationId": "getCommissionEstimate",
+        "description": "The live commission estimate of a business month (FR-021). One full-month engine run per candidate employee, computed on read in a read-only transaction and never stored. Requires read:commissions:business and the commissions feature; a device session is refused. A holder sees only the employees of her effective branch set (CS-Q20): a company- or business-scoped grant without any current DENY sees every employee, while a branch-scoped reader sees only the days she was attached to her branches and her figures are labelled partial. Tips and received corrections pass through unpriced. Reads only.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "period",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "employee_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The visible employees of the month with their priced sources",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommissionEstimate"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid business id, period or employee id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No individual session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Uniform 403 refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/document-types": {
       "get": {
         "operationId": "listDocumentTypes",
@@ -21835,6 +21931,242 @@
         "required": [
           "items",
           "next_cursor"
+        ]
+      },
+      "CommissionEstimatePeriod": {
+        "type": "string",
+        "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+      },
+      "CommissionEstimateMoney": {
+        "type": "string",
+        "pattern": "^-?(0|[1-9]\\d{0,10})\\.\\d{3}$"
+      },
+      "CommissionEstimateQuery": {
+        "type": "object",
+        "properties": {
+          "employee_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CommissionEstimateSource": {
+        "type": "object",
+        "properties": {
+          "source_ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "COMMISSION",
+              "SALE"
+            ]
+          },
+          "amount": {
+            "$ref": "#/components/schemas/CommissionEstimateMoney"
+          },
+          "source_branch_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "source_business_date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          }
+        },
+        "required": [
+          "source_ref",
+          "kind",
+          "amount",
+          "source_branch_id",
+          "source_business_date"
+        ]
+      },
+      "CommissionEstimateSale": {
+        "type": "object",
+        "properties": {
+          "sale_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/CommissionEstimateMoney"
+          },
+          "source_branch_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "source_business_date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          }
+        },
+        "required": [
+          "sale_id",
+          "amount",
+          "source_branch_id",
+          "source_business_date"
+        ]
+      },
+      "CommissionEstimateCorrection": {
+        "type": "object",
+        "properties": {
+          "source_ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "COMMISSION",
+              "SALE",
+              "TIP_CARD",
+              "TIP_CASH"
+            ]
+          },
+          "amount": {
+            "$ref": "#/components/schemas/CommissionEstimateMoney"
+          },
+          "source_branch_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "source_business_date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          }
+        },
+        "required": [
+          "source_ref",
+          "kind",
+          "amount",
+          "source_branch_id",
+          "source_business_date"
+        ]
+      },
+      "CommissionEstimateTips": {
+        "type": "object",
+        "properties": {
+          "card": {
+            "$ref": "#/components/schemas/CommissionEstimateMoney"
+          },
+          "cash": {
+            "$ref": "#/components/schemas/CommissionEstimateMoney"
+          }
+        },
+        "required": [
+          "card",
+          "cash"
+        ]
+      },
+      "CommissionEstimateEmployee": {
+        "type": "object",
+        "properties": {
+          "employee_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name_ar": {
+            "nullable": true,
+            "type": "string"
+          },
+          "name_en": {
+            "type": "string"
+          },
+          "employee_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999999
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OK",
+              "NO_PLAN",
+              "NO_SALARY"
+            ]
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "total": {
+            "$ref": "#/components/schemas/CommissionEstimateMoney"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionEstimateSource"
+            }
+          },
+          "sales": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionEstimateSale"
+            }
+          },
+          "tips": {
+            "$ref": "#/components/schemas/CommissionEstimateTips"
+          },
+          "corrections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionEstimateCorrection"
+            }
+          }
+        },
+        "required": [
+          "employee_id",
+          "name_ar",
+          "name_en",
+          "employee_number",
+          "status",
+          "partial",
+          "total",
+          "sources",
+          "sales",
+          "tips",
+          "corrections"
+        ]
+      },
+      "CommissionEstimate": {
+        "type": "object",
+        "properties": {
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "period": {
+            "$ref": "#/components/schemas/CommissionEstimatePeriod"
+          },
+          "employees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionEstimateEmployee"
+            }
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "total": {
+            "$ref": "#/components/schemas/CommissionEstimateMoney"
+          }
+        },
+        "required": [
+          "business_id",
+          "period",
+          "employees",
+          "partial",
+          "total"
         ]
       },
       "EmployeeDocumentStatus": {

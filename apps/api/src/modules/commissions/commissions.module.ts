@@ -9,6 +9,12 @@ import { CommissionServiceOverridesController } from './http/commission-service-
 import { CommissionOverrideServicesController } from './http/commission-override-services.controller.ts';
 import { CommissionBlockedCorrectionsController } from './http/commission-blocked-corrections.controller.ts';
 import {
+  GET_COMMISSION_ESTIMATE,
+  CommissionEstimateController,
+} from './http/commission-estimate.controller.ts';
+import { createCommissionEstimateReader } from './persistence/commission-estimate-reader.ts';
+import type { CommissionEstimateProviders } from './ports/commission-estimate.port.ts';
+import {
   createCommissionServiceOverrideListReaders,
   type CommissionServiceOverrideListReadProviders,
 } from './persistence/commission-service-override-list-readers.ts';
@@ -32,6 +38,7 @@ import {
 } from './queries/commission-blocked-corrections.query.ts';
 import { CreateCommissionPlanVersionUseCase } from './use-cases/create-commission-plan-version/create-commission-plan-version.usecase.ts';
 import { CreateCommissionServiceOverrideUseCase } from './use-cases/create-commission-service-override/create-commission-service-override.usecase.ts';
+import { GetCommissionEstimateUseCase } from './use-cases/get-commission-estimate/get-commission-estimate.usecase.ts';
 
 export const commissionsControllers = [
   CommissionPlanVersionsController,
@@ -39,6 +46,7 @@ export const commissionsControllers = [
   CommissionOverrideServicesController,
   CommissionPlanEmployeesController,
   CommissionBlockedCorrectionsController,
+  CommissionEstimateController,
 ];
 
 /**
@@ -56,11 +64,31 @@ export function commissionsProviders(
   listReads: CommissionServiceOverrideListReadProviders,
   employeeListReads: CommissionPlanEmployeeListReads,
   blockedCorrectionListReads: CommissionBlockedCorrectionListReads,
+  estimateProviders: CommissionEstimateProviders,
   clock: Clock = systemClock,
 ): Provider[] {
-  // الفحص البنيوي هنا: شكل المهايئ لازم يطابق مصنع القراءة بجوار الاستعلام.
-  const listReaders: CommissionServiceOverrideListReadsFactory =
-    createCommissionServiceOverrideListReaders(listReads);
+  return [
+    ...commissionWriteProviders(database, ids, readers, clock),
+    ...commissionReadProviders(database, listReads, employeeListReads, blockedCorrectionListReads),
+    {
+      provide: GET_COMMISSION_ESTIMATE,
+      useValue:
+        database === undefined
+          ? null
+          : new GetCommissionEstimateUseCase(
+              createCommissionEstimateReader(database, estimateProviders),
+            ),
+    },
+  ];
+}
+
+/** مزودو الكتابة: إصدار الخطة وتجاوز الخدمة، وهما كل واحد في معاملته. */
+function commissionWriteProviders(
+  database: TenantWrappers | undefined,
+  ids: IdGenerator,
+  readers: CommissionModuleReaders,
+  clock: Clock,
+): Provider[] {
   return [
     {
       provide: CreateCommissionPlanVersionUseCase,
@@ -84,6 +112,19 @@ export function commissionsProviders(
               clock,
             ),
     },
+  ];
+}
+
+/** مزودو القراءة: قوائم الخطط والتجاوزات والموظفين والتصحيحات الموقوفة. */
+function commissionReadProviders(
+  database: TenantWrappers | undefined,
+  listReads: CommissionServiceOverrideListReadProviders,
+  employeeListReads: CommissionPlanEmployeeListReads,
+  blockedCorrectionListReads: CommissionBlockedCorrectionListReads,
+): Provider[] {
+  const listReaders: CommissionServiceOverrideListReadsFactory =
+    createCommissionServiceOverrideListReaders(listReads);
+  return [
     { provide: COMMISSION_SERVICE_OVERRIDE_LIST_READS, useValue: listReaders },
     {
       provide: COMMISSION_PLAN_EMPLOYEE_LIST,

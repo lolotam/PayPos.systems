@@ -1,0 +1,81 @@
+import type { TenantWrappers, Tx } from '@pospay/db';
+
+import type {
+  CommissionEstimateMonthRows,
+  CommissionEstimateProviders,
+  CommissionEstimateReader,
+} from '../ports/commission-estimate.port.ts';
+import { createCommissionEstimateReads } from './commission-estimate-readers.ts';
+
+/** طلب القراءة: الشركة والمستخدم والنشاط والشهر. */
+interface EstimateReadRequest {
+  readonly companyId: string;
+  readonly userId: string;
+  readonly businessId: string;
+  readonly period: string;
+}
+
+/**
+ * مصنع قارئ التقدير: بيفتح معاملة قراءة فقط ويقرا كل المدخلات في لقطة واحدة
+ * (D-25). المعاملة READ ONLY فمفيش طريق يكتب من غير ما السطر يبان في الكود،
+ * واللقطة الواحدة بتخلي التسعير والفلترة على نفس البيانات.
+ *
+ * @param database واجهات الداتابيز اللي بتفتح معاملة المستأجر
+ * @param providers مزودو النطاق والاسم والارتباطات المربوطين في جذر التطبيق
+ * @returns قارئ التقدير
+ */
+export function createCommissionEstimateReader(
+  database: TenantWrappers,
+  providers: CommissionEstimateProviders,
+): CommissionEstimateReader {
+  return {
+    read: (input) =>
+      database.withTenant(
+        input.companyId,
+        (tx) => readEstimateInputs(tx, input, providers),
+        { userId: input.userId, readOnly: true },
+      ),
+  };
+}
+
+/** بيفحص النطاق والميزة ويقرا مدخلات التقدير كلها من معاملة القراءة الواحدة. */
+async function readEstimateInputs(
+  tx: Tx,
+  request: EstimateReadRequest,
+  providers: CommissionEstimateProviders,
+): ReturnType<CommissionEstimateReader['read']> {
+  const reads = createCommissionEstimateReads(tx, request.companyId, providers);
+  const scope = await reads.scope(request.companyId, request.userId, request.businessId);
+  if (scope.kind === 'forbidden') return { kind: 'forbidden' };
+  if (scope.kind === 'feature_disabled') return { kind: 'feature_disabled' };
+  if (!(await reads.featureEnabled(request.companyId))) return { kind: 'feature_disabled' };
+  const employees = await reads.employees(request.businessId);
+  const month = await reads.month(request.businessId, request.period);
+  const attachments = await reads.attachments(
+    request.businessId,
+    candidateIds(employees, month),
+  );
+  return {
+    kind: 'ok',
+    inputs: {
+      businessWide: scope.businessWide,
+      branchIds: scope.branchIds,
+      employees,
+      attachments,
+      month,
+    },
+  };
+}
+
+/** الموظفات اللي ممكن يكون ليهن مدخل في الشهر: مرشحات التقدير كلهن. */
+function candidateIds(
+  employees: readonly { readonly employeeId: string }[],
+  month: CommissionEstimateMonthRows,
+): readonly string[] {
+  const ids = new Set(employees.map((employee) => employee.employeeId));
+  for (const line of month.lines) ids.add(line.employeeId);
+  for (const sale of month.sales) if (sale.sellerEmployeeId !== null) ids.add(sale.sellerEmployeeId);
+  for (const tip of month.tips) ids.add(tip.employeeId);
+  for (const correction of month.corrections) ids.add(correction.employeeId);
+  return [...ids];
+}
