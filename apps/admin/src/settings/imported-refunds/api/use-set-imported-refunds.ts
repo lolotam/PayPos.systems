@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { isImportedRefundsRefusal } from '../model/imported-refunds-failure';
@@ -13,8 +13,8 @@ export function useSetImportedRefunds(companyId: string, userId: string, busines
     retry: false,
     mutationFn: (enabled: boolean) =>
       setImportedRefunds(companyId, businessId, { imported_refunds_enabled: enabled }),
-    // الـ GET المحمي هو المرجع الوحيد للكاش: أي تسوية (نجاح أو فشل) بتعيد القراءة من الخادم ولا تخزن
-    // رد الكتابة، فما فيش رد متأخر من تفويض قديم يرجّع المفتاح بعد ما قراية أحدث ترفض (403).
+    // Ø§Ù„Ù€ GET Ø§Ù„Ù…Ø­Ù…ÙŠ Ù‡Ùˆ Ø§Ù„Ù…Ø±Ø¬Ø¹ Ø§Ù„ÙˆØ­ÙŠØ¯ Ù„Ù„ÙƒØ§Ø´: Ø£ÙŠ ØªØ³ÙˆÙŠØ© (Ù†Ø¬Ø§Ø­ Ø£Ùˆ ÙØ´Ù„) Ø¨ØªØ¹ÙŠØ¯ Ø§Ù„Ù‚Ø±Ø§Ø¡Ø© Ù…Ù† Ø§Ù„Ø®Ø§Ø¯Ù… ÙˆÙ„Ø§ ØªØ®Ø²Ù†
+    // Ø±Ø¯ Ø§Ù„ÙƒØªØ§Ø¨Ø©ØŒ ÙÙ…Ø§ ÙÙŠØ´ Ø±Ø¯ Ù…ØªØ£Ø®Ø± Ù…Ù† ØªÙÙˆÙŠØ¶ Ù‚Ø¯ÙŠÙ… ÙŠØ±Ø¬Ù‘Ø¹ Ø§Ù„Ù…ÙØªØ§Ø­ Ø¨Ø¹Ø¯ Ù…Ø§ Ù‚Ø±Ø§ÙŠØ© Ø£Ø­Ø¯Ø« ØªØ±ÙØ¶ (403).
     onSettled: (_saved, error) =>
       isImportedRefundsRefusal(error)
         ? client.resetQueries({ queryKey: key, exact: true })

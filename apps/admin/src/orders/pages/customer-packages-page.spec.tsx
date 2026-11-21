@@ -1,4 +1,4 @@
-import { customerPackageDetail } from '@pospay/contracts';
+﻿import { customerPackageDetail } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -11,11 +11,12 @@ const api = vi.hoisted(() => ({ GET: vi.fn() }));
 const nav = vi.hoisted(() => ({
   search: '',
   push: vi.fn(),
+  replace: vi.fn(),
 }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: nav.push }),
+  useRouter: () => ({ push: nav.push, replace: nav.replace }),
   useSearchParams: () => new URLSearchParams(nav.search),
 }));
 
@@ -59,7 +60,7 @@ function item(id: string, name_en: string, expired: boolean, used_up: boolean) {
   };
 }
 
-function renderPageWith(search: string, client: QueryClient) {
+function renderPage(search: string, client: QueryClient) {
   nav.search = search;
   return render(
     <QueryClientProvider client={client}>
@@ -70,7 +71,7 @@ function renderPageWith(search: string, client: QueryClient) {
   );
 }
 
-function renderPage(search = '') {
+function renderDefaultPage(search = '') {
   nav.search = search;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -85,6 +86,7 @@ function renderPage(search = '') {
 beforeEach(() => {
   api.GET.mockReset();
   nav.push.mockReset();
+  nav.replace.mockReset();
   nav.search = '';
 });
 
@@ -96,7 +98,7 @@ it('shows the generic heading, the active package first and the expired mark on 
     },
     response: { status: 200 },
   });
-  renderPage();
+  renderDefaultPage();
   expect(screen.getByRole('heading', { name: t('en', 'customerPackages.title') })).toBeTruthy();
   await screen.findByText('Gold');
   expect(screen.getByText('Old')).toBeTruthy();
@@ -119,7 +121,7 @@ it('paginates by appending pages without repeating one package', async () => {
     },
     response: { status: 200 },
   });
-  renderPage();
+  renderDefaultPage();
   await screen.findByText('Gold');
   fireEvent.click(screen.getByRole('button', { name: t('en', 'customerPackages.loadMore') }));
   await screen.findByText('New');
@@ -131,13 +133,13 @@ it('paginates by appending pages without repeating one package', async () => {
 
 it('shows the distinct empty and refusal states instead of data', async () => {
   api.GET.mockResolvedValue({ data: { items: [], next_cursor: null }, response: { status: 200 } });
-  const first = renderPage();
+  const first = renderDefaultPage();
   await waitFor(() =>
     expect(screen.getByRole('status').textContent).toContain(t('en', 'customerPackages.empty')),
   );
   first.unmount();
   api.GET.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
-  renderPage();
+  renderDefaultPage();
   await waitFor(() =>
     expect(screen.getByRole('alert').textContent).toContain(t('en', 'customerPackages.notAllowed')),
   );
@@ -181,7 +183,7 @@ it('a failed load offers a retry that loads the packages', async () => {
     data: { items: [item(packageA, 'Gold', false, false)], next_cursor: null },
     response: { status: 200 },
   });
-  renderPage();
+  renderDefaultPage();
   await waitFor(() =>
     expect(screen.getByRole('alert').textContent).toContain(t('en', 'customerPackages.loadFailed')),
   );
@@ -215,11 +217,11 @@ it('opening a package pushes its address and the detail renders from the query v
       response: { status: 404 },
     });
   });
-  renderPage();
+  renderDefaultPage();
   await screen.findByText('Gold');
   fireEvent.click(screen.getByRole('button', { name: 'Gold' }));
   expect(nav.push).toHaveBeenCalledWith(`?package=${packageA}`);
-  const withSelection = renderPage(`?package=${packageA}`);
+  const withSelection = renderDefaultPage(`?package=${packageA}`);
   await waitFor(() =>
     expect(withSelection.getByRole('alert').textContent).toContain(
       t('en', 'customerPackages.detailNotFound'),
@@ -232,7 +234,7 @@ it('a malformed query value shows detail not found without requesting the detail
     data: { items: [item(packageA, 'Gold', false, false)], next_cursor: null },
     response: { status: 200 },
   });
-  renderPage('?package=broken-value');
+  renderDefaultPage('?package=broken-value');
   await screen.findByText('Gold');
   expect(screen.getByRole('alert').textContent).toContain(
     t('en', 'customerPackages.detailNotFound'),
@@ -246,7 +248,7 @@ it('never renders a phone number or a customer name', async () => {
     data: { items: [item(packageA, 'Gold', false, false)], next_cursor: null },
     response: { status: 200 },
   });
-  renderPage('?package=broken-value');
+  renderDefaultPage('?package=broken-value');
   await screen.findByText('Gold');
   expect(screen.queryByText(/\+965/)).toBeNull();
   expect(screen.queryByText('Noura')).toBeNull();
@@ -254,8 +256,8 @@ it('never renders a phone number or a customer name', async () => {
   expect(href).not.toMatch(/noura|phone/i);
 });
 
-it('switching to another cached entitlement opens its detail with no stale dialog', async () => {
-  const pageDetail = (id: string, name_en: string, canExtend: boolean) => ({
+function switchDetail(id: string, name_en: string, canExtend: boolean) {
+  return {
     id,
     customer_id: customerId,
     package_type_id: null,
@@ -279,8 +281,10 @@ it('switching to another cached entitlement opens its detail with no stale dialo
     can_extend: canExtend,
     components: [],
     redemptions: [],
-  });
-  api.GET.mockImplementation((path: string, options?: { params?: { path?: Record<string, string> } }) => {
+  };
+}
+
+it('switching to another cached entitlement opens its detail with no stale dialog', async () => {  api.GET.mockImplementation((path: string, options?: { params?: { path?: Record<string, string> } }) => {
     if (path === listPath)
       return Promise.resolve({
         data: { items: [item(packageA, 'Gold', false, false), item(packageC, 'Silver', false, false)], next_cursor: null },
@@ -288,20 +292,22 @@ it('switching to another cached entitlement opens its detail with no stale dialo
       });
     const entitlement = options?.params?.path?.entitlementId;
     return Promise.resolve({
-      data: pageDetail(entitlement as string, entitlement === packageA ? 'Gold' : 'Silver', true),
+      data: switchDetail(entitlement as string, entitlement === packageA ? 'Gold' : 'Silver', true),
       response: { status: 200 },
     });
   });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   client.setQueryData(
     ['customer-package-detail', companyId, businessId, branchId, 'user', customerId, packageC],
-    customerPackageDetail.parse(pageDetail(packageC, 'Silver', true)),
+    customerPackageDetail.parse(switchDetail(packageC, 'Silver', true)),
   );
-  const view = renderPageWith(`?package=${packageA}`, client);
+  const view = renderPage(`?package=${packageA}`, client);
   await screen.findByText('Gold');
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'customerPackages.extend') }));
+  // انتظار تفصيل A نفسه (زر التمديد) قبل الفتح — الباقة بتحمل بعد الكارت.
+  const extendA = await screen.findByRole('button', { name: t('en', 'customerPackages.extend') });
+  fireEvent.click(extendA);
   expect(screen.getByRole('dialog', { name: t('en', 'packageExtension.dialogTitle') })).toBeTruthy();
-  // التنقل لباقة تانية متخزنة في الكاش بيعمل remount للتفصيل: مفيش حوار قديم معاها، وتفاصيلها هي اللي بتتعرض.
+  // Ø§Ù„ØªÙ†Ù‚Ù„ Ù„Ø¨Ø§Ù‚Ø© ØªØ§Ù†ÙŠØ© Ù…ØªØ®Ø²Ù†Ø© ÙÙŠ Ø§Ù„ÙƒØ§Ø´ Ø¨ÙŠØ¹Ù…Ù„ remount Ù„Ù„ØªÙØµÙŠÙ„: Ù…ÙÙŠØ´ Ø­ÙˆØ§Ø± Ù‚Ø¯ÙŠÙ… Ù…Ø¹Ø§Ù‡Ø§ØŒ ÙˆØªÙØ§ØµÙŠÙ„Ù‡Ø§ Ù‡ÙŠ Ø§Ù„Ù„ÙŠ Ø¨ØªØªØ¹Ø±Ø¶.
   nav.search = `?package=${packageC}`;
   view.rerender(
     <QueryClientProvider client={client}>
@@ -312,5 +318,7 @@ it('switching to another cached entitlement opens its detail with no stale dialo
   );
   await screen.findByRole('heading', { name: 'Silver' });
   expect(screen.queryByRole('dialog', { name: t('en', 'packageExtension.dialogTitle') })).toBeNull();
+  // تفصيل السيلفر اتحمل: زر التمديد بتاعه ظاهر ومن غير أي حوار قديم.
+  expect(screen.getByRole('button', { name: t('en', 'customerPackages.extend') })).toBeTruthy();
   view.unmount();
 });

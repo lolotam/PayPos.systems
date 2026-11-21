@@ -1,23 +1,61 @@
 'use client';
 import { t } from '@pospay/i18n';
+import { useSearchParams } from 'next/navigation';
 import { CustomerPackagesPage } from '@/orders/pages/customer-packages-page';
+import { resolveScopeHint } from '@/orders/model/resolve-scope-hint';
 import { useSessionUser } from '@/session/api/use-session';
 import { useMounted } from '@/shared/browser/use-mounted';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useWorkspace } from '@/workspace/model/workspace-provider';
+import { CustomerPackagesScopeGate } from './customer-packages-scope-gate';
 
 /**
  * راوت باقات العميلة: نفس بناء النطاق بتاع راوت بيع الباقة بنفس رسائل «اختار نشاط/فرع»،
  * والقيد على company:business:branch:user:customer عشان تغيير النطاق أو العميلة يقفل
  * التفصيل والحوار المفتوح ويجيب بيانات النطاق الجديد بس.
+ * تلميحات النطاق من روابط التبويب الجديد (ids بس) بتتحقق ضد قايمة الجلسة نفسها: تطابق → متابعة،
+ * وعدم تطابق → رفض واضح وزر تبديل بإرادة المستخدم (مفيش كتابة تلقائية في الكوكيز المشتركة)،
+ * والعنوان ما يمنش أي صلاحية — الخادم بيجدد الترخيص على كل طلب، ومفيش أسماء أو تليفونات أو PII.
  */
 export function CustomerPackagesRoute({ customerId }: { customerId: string }) {
   const locale = useLocale();
   const userId = useSessionUser(useMounted());
   const workspace = useWorkspace();
+  const searchParams = useSearchParams();
   if (workspace.status !== 'ready' || userId === null) return null;
   if (!workspace.business) return <p>{t(locale, 'admin.chooseBusiness')}</p>;
   if (!workspace.branch) return <p>{t(locale, 'serviceSessions.chooseBranch')}</p>;
+  const hint = resolveScopeHint(
+    {
+      companyId: searchParams.get('scope_company') ?? undefined,
+      businessId: searchParams.get('scope_business') ?? undefined,
+      branchId: searchParams.get('scope_branch') ?? undefined,
+    },
+    workspace.companies,
+    {
+      company: workspace.company.id,
+      business: workspace.business.id,
+      branch: workspace.branch.id,
+    },
+  );
+  if (hint.hinted && !hint.matches) {
+    return (
+      <CustomerPackagesScopeGate
+        companies={workspace.companies}
+        current={{
+          company: workspace.company.id,
+          business: workspace.business.id,
+          branch: workspace.branch.id,
+        }}
+        hint={{
+          companyId: searchParams.get('scope_company') ?? undefined,
+          businessId: searchParams.get('scope_business') ?? undefined,
+          branchId: searchParams.get('scope_branch') ?? undefined,
+        }}
+        onChoose={(choice) => workspace.choose(choice)}
+      />
+    );
+  }
   const scope = {
     companyId: workspace.company.id,
     businessId: workspace.business.id,

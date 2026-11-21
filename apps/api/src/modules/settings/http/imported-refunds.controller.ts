@@ -1,23 +1,30 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Put, Req } from '@nestjs/common';
 import {
-  importedRefundsResponse,
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Put,
+  Req,
+} from '@nestjs/common';
+import {
   setImportedRefundsInput,
   type ImportedRefundsResponse,
   type SetImportedRefundsInput,
 } from '@pospay/contracts';
-import type { TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 
 import { Require } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
-import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
-import { importedRefundsQuery } from '../queries/imported-refunds.query.ts';
 import type { SetImportedRefunds } from '../use-cases/set-imported-refunds/set-imported-refunds.ts';
 
+// القراءة والكتابة كلهم بمزود واحد مسلك من أسلاك الموديول: المتحكم رفيع وما يعرفش TenantWrappers.
 export interface ImportedRefundsWiring {
   readonly set: SetImportedRefunds;
+  readonly read: (companyId: string, userId: string, businessId: string) => Promise<ImportedRefundsResponse>;
 }
 export const IMPORTED_REFUNDS_WIRING = Symbol('IMPORTED_REFUNDS_WIRING');
 
@@ -25,14 +32,9 @@ export const IMPORTED_REFUNDS_WIRING = Symbol('IMPORTED_REFUNDS_WIRING');
 @Controller()
 export class ImportedRefundsController {
   readonly #wiring: ImportedRefundsWiring | null;
-  readonly #db: TenantWrappers | null;
 
-  constructor(
-    @Inject(IMPORTED_REFUNDS_WIRING) wiring: ImportedRefundsWiring | null,
-    @Inject(DATABASE) db: TenantWrappers | null,
-  ) {
+  constructor(@Inject(IMPORTED_REFUNDS_WIRING) wiring: ImportedRefundsWiring | null) {
     this.#wiring = wiring;
-    this.#db = db;
   }
 
   @Get('businesses/:businessId/settings/imported-refunds')
@@ -41,15 +43,9 @@ export class ImportedRefundsController {
     @Param('businessId') businessId: string,
     @Req() request: FastifyRequest,
   ): Promise<ImportedRefundsResponse> {
-    if (this.#db === null) throw new ApiError('NOT_READY');
+    if (this.#wiring === null) throw new ApiError('NOT_READY');
     const actor = actorOf(request);
-    return importedRefundsResponse.parse(
-      await this.#db.withTenant(
-        actor.companyId,
-        (tx) => importedRefundsQuery(tx, actor.companyId, businessId.toLowerCase()),
-        { userId: actor.userId },
-      ),
-    );
+    return this.#wiring.read(actor.companyId, actor.userId, businessId.toLowerCase());
   }
 
   @Put('businesses/:businessId/settings/imported-refunds')

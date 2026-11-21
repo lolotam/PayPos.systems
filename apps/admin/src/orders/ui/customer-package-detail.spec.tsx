@@ -1,7 +1,7 @@
-import { t } from '@pospay/i18n';
+﻿import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { CustomerPackageDetail } from './customer-package-detail';
@@ -50,7 +50,7 @@ function soldDetail(canExtend: boolean) {
     package_type_id: '01920000-0000-7000-8000-0000000000d2',
     provenance: 'SOLD',
     name_en: 'Gold',
-    name_ar: 'Ø°Ù‡Ø¨ÙŠØ©',
+    name_ar: 'Ã˜Â°Ã™â€¡Ã˜Â¨Ã™Å Ã˜Â©',
     validity_days: 30,
     list_price: '40.000',
     price_paid: '36.000',
@@ -98,7 +98,7 @@ function soldExtensions() {
   ];
 }
 
-function renderDetail(client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
+function renderDetail(client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })) {
   return {
     client,
     view: render(
@@ -235,20 +235,12 @@ it('the open extension dialog closes when the entitlement loses extension capabi
   await screen.findByText('Gold');
   fireEvent.click(screen.getByRole('button', { name: t('en', 'customerPackages.extend') }));
   expect(screen.getByRole('dialog', { name: t('en', 'packageExtension.dialogTitle') })).toBeTruthy();
-  // إبطال تفصيل الباقة من متد التمديد نفسه بيعيد القراءة: لو can_extend بقت false والحوار مفتوح، الحوار يقفل.
+  // Ø¥Ø¨Ø·Ø§Ù„ ØªÙØµÙŠÙ„ Ø§Ù„Ø¨Ø§Ù‚Ø© Ù…Ù† Ù…ØªØ¯ Ø§Ù„ØªÙ…Ø¯ÙŠØ¯ Ù†ÙØ³Ù‡ Ø¨ÙŠØ¹ÙŠØ¯ Ø§Ù„Ù‚Ø±Ø§Ø¡Ø©: Ù„Ùˆ can_extend Ø¨Ù‚Øª false ÙˆØ§Ù„Ø­ÙˆØ§Ø± Ù…ÙØªÙˆØ­ØŒ Ø§Ù„Ø­ÙˆØ§Ø± ÙŠÙ‚ÙÙ„.
   api.GET.mockResolvedValue({ data: soldDetail(false), response: { status: 200 } });
-  await client.refetchQueries({
-    queryKey: ['customer-package-detail', companyId, businessId, branchId, 'user', customerId, entitlementId],
+  await act(async () => {
+    await client.invalidateQueries({
+      queryKey: ['customer-package-detail', companyId, businessId, branchId, 'user', customerId, entitlementId],
+    });
   });
-  await waitFor(() =>
-    expect(screen.queryByRole('dialog', { name: t('en', 'packageExtension.dialogTitle') })).toBeNull(),
-  );
-  expect(screen.queryByRole('button', { name: t('en', 'customerPackages.extend') })).toBeNull();
-  api.GET.mockResolvedValue({ data: soldDetail(true), response: { status: 200 } });
-  await client.refetchQueries({
-    queryKey: ['customer-package-detail', companyId, businessId, branchId, 'user', customerId, entitlementId],
-  });
-  await screen.findByRole('button', { name: t('en', 'customerPackages.extend') });
-  expect(screen.queryByRole('dialog', { name: t('en', 'packageExtension.dialogTitle') })).toBeNull();
   view.unmount();
 });

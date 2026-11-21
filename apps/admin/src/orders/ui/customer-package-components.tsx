@@ -5,7 +5,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 import { componentName, packageMoney, slotLabelKey } from '../model/customer-package-view';
 
 /**
- * مكوّنات الباقة في التفصيل: لكل خدمة العدد الإجمالي والعدّادات والقيمة، ثم كل خانة برقمها
+ * مكوّنات الباقة في التفصيل: لكل خدمة العدد الإجمالي المعرّب والعدّادات والقيمة، ثم كل خانة برقمها
  * وحالتها وقيمتها (FR-A05). حالة الخانة بتأتي من الخادم والعرض بس هنا.
  */
 export function CustomerPackageComponents({
@@ -21,16 +21,16 @@ export function CustomerPackageComponents({
           <span className="font-semibold">{componentName(locale, component)}</span>
           <span className="flex flex-wrap gap-2">
             <span>
+              {t(locale, 'customerPackages.sessionsTotal').replace('{n}', String(component.sessions_total))}
+            </span>
+            <span>
               {t(locale, 'customerPackages.remaining').replace('{n}', String(component.remaining))}
             </span>
             <span>
               {t(locale, 'customerPackages.usedCount').replace('{n}', String(component.used))}
             </span>
             <span>
-              {t(locale, 'customerPackages.refundedCount').replace(
-                '{n}',
-                String(component.refunded),
-              )}
+              {t(locale, 'customerPackages.refundedCount').replace('{n}', String(component.refunded))}
             </span>
             <span>
               {t(locale, 'customerPackages.slotValue')}{' '}
@@ -41,10 +41,7 @@ export function CustomerPackageComponents({
             {component.slots.map((slot) => (
               <li key={slot.ordinal} className="flex flex-wrap gap-2">
                 <span>
-                  {t(locale, 'serviceSessions.packageHistorySession').replace(
-                    '{n}',
-                    String(slot.ordinal),
-                  )}
+                  {t(locale, 'serviceSessions.packageHistorySession').replace('{n}', String(slot.ordinal))}
                 </span>
                 <span>{t(locale, slotLabelKey(slot.state))}</span>
                 <span>

@@ -238,8 +238,19 @@ function sessionCustomerCard(
       <p>{t(locale, 'serviceSessions.selected')}</p>
       <p>{value.name}</p>
       <bdi>{value.phone}</bdi>
-      {/* رابط باقات العميلة يظهر بس لما النموذج يمرر نطاق النشاط والفرع، ويفتح في تبويب جديد عشان النموذج ما يضيعش. */}
-      {packages !== null ? <CustomerPackagesLink customerId={value.id} newTab /> : null}
+      {/* رابط باقات العميلة يظهر بس لما النموذج يمرر نطاق النشاط والفرع، ويفتح في تبويب جديد
+          مع تلميحات النطاق (ids بس) عشان الراووت يتحقق منها ضد خيارات الجلسة. */}
+      {packages !== null ? (
+        <CustomerPackagesLink
+          customerId={value.id}
+          newTab
+          hints={{
+            companyId: packages.companyId,
+            businessId: packages.businessId,
+            branchId: packages.branchId,
+          }}
+        />
+      ) : null}
     </Card>
   );
 }

@@ -5,6 +5,7 @@ import { systemUuidV7 } from '@pospay/ids';
 import { describe, expect, it } from 'vitest';
 
 import { DATABASE } from '../../../shared/database.token.ts';
+
 import {
   IMPORTED_REFUNDS_WIRING,
   ImportedRefundsController,
@@ -28,9 +29,13 @@ const unusedDatabase = {
 describe('the imported-refunds wiring availability', () => {
   it('the write wiring is DB-only: it resolves with a database and no Redis, and stays null without a database', () => {
     const dbOnly = settingsProviders(unusedDatabase, ids);
-    const wiring = wiringOf(dbOnly, IMPORTED_REFUNDS_WIRING);
+    const wiring = wiringOf(dbOnly, IMPORTED_REFUNDS_WIRING) as {
+      set: unknown;
+      read: unknown;
+    };
     expect(wiring).not.toBeNull();
-    expect((wiring as { set: unknown }).set).toBeInstanceOf(SetImportedRefunds);
+    expect(wiring.set).toBeInstanceOf(SetImportedRefunds);
+    expect(typeof wiring.read).toBe('function');
     // أسلاك الإعدادات المعتمدة على Redis بتفضل زي ما هي: بدون Redis تفضل null، ومعاه تتحل.
     expect(wiringOf(dbOnly, SETTINGS_WIRING)).toBeNull();
     expect(
@@ -39,7 +44,7 @@ describe('the imported-refunds wiring availability', () => {
     expect(wiringOf(settingsProviders(undefined, ids), IMPORTED_REFUNDS_WIRING)).toBeNull();
   });
 
-  it('app-startup smoke: the controller resolves the DB-only write wiring, and answers NOT_READY wiring without a database', async () => {
+  it('app-startup smoke: the thin controller resolves the DB-only wiring without Redis; no database keeps it null', async () => {
     const withDatabase = await Test.createTestingModule({
       controllers: [ImportedRefundsController],
       providers: [
@@ -47,9 +52,13 @@ describe('the imported-refunds wiring availability', () => {
         ...settingsProviders(unusedDatabase, ids),
       ],
     }).compile();
-    const wiring = withDatabase.get(IMPORTED_REFUNDS_WIRING, { strict: false });
+    const wiring = withDatabase.get(IMPORTED_REFUNDS_WIRING, { strict: false }) as {
+      set: unknown;
+      read: unknown;
+    };
     expect(wiring).not.toBeNull();
     expect(wiring.set).toBeInstanceOf(SetImportedRefunds);
+    expect(typeof wiring.read).toBe('function');
     expect(withDatabase.get(ImportedRefundsController, { strict: false })).toBeInstanceOf(
       ImportedRefundsController,
     );

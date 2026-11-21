@@ -40,6 +40,7 @@ const BUSINESS_DENIALS = [
   '/rating-settings',
   '/settings/identity-capability',
   '/settings/staff-columns',
+  '/settings/imported-refunds',
 ];
 export function failure(status: number, message_en = 'Synthetic unrelated refusal') {
   const denied = status === 403;

@@ -25,6 +25,7 @@ import { BUSINESS_IDENTITY_READER } from './queries/business-identity.query.ts';
 import { IDENTITY_CAPABILITY_ACCESS } from './queries/identity-capability.query.ts';
 import { createRedisSettingsCache } from './persistence/redis-settings-cache.ts';
 import { createSettingsTransactions } from './persistence/settings-transactions.ts';
+import { importedRefundsQuery } from './queries/imported-refunds.query.ts';
 import { UpdateBusinessSettings } from './use-cases/update-business-settings/update-business-settings.ts';
 import { UpdateBusinessIdentityNames } from './use-cases/update-business-identity-names/update-business-identity-names.ts';
 import { SetImportedRefunds } from './use-cases/set-imported-refunds/set-imported-refunds.ts';
@@ -143,8 +144,9 @@ function settingsWiring(
   ];
 }
 
-// المفتاح كتابة قاعدة بيانات فقط بلا cache ولا Redis: بيتسلك لوحده عشان يفضل شغال بـ DB وحده،
+// المفتاح كتابة وقراية قاعدة بيانات فقط بلا cache ولا Redis: بيتسلك لوحده عشان يفضل شغال بـ DB وحده،
 // والتوكن بيتسجل دايمًا (null بدون قاعدة) عشان المتحكم يرد NOT_READY بقيادة الحارس مش غياب مزود.
+// القراءة بيتملكها الهاندلر المربوط هنا: withTenant واحدة للشركة حاملة القراءة المفتاحية من queries/.
 function importedRefundsWiring(
   database: TenantWrappers | undefined,
   ids: IdGenerator,
@@ -155,7 +157,15 @@ function importedRefundsWiring(
   return [
     {
       provide: IMPORTED_REFUNDS_WIRING,
-      useValue: { set: new SetImportedRefunds(createSettingsTransactions(database, ids)) },
+      useValue: {
+        set: new SetImportedRefunds(createSettingsTransactions(database, ids)),
+        read: (companyId: string, userId: string, businessId: string) =>
+          database.withTenant(
+            companyId,
+            (tx) => importedRefundsQuery(tx, companyId, businessId),
+            { userId },
+          ),
+      },
     },
   ];
 }
