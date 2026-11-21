@@ -77,6 +77,8 @@ export const PERMISSIONS = [
   'read:settings:business',
   'manage:settings:business',
   'manage:business-identity:business',
+  // مفتاح مرتجع الباقات المستوردة للنشاط: صلاحيته الخاصة (PK-Q24، PK-Q26)، والمالك وحده يمنحه.
+  'manage:imported-refunds:business',
   'manage:alert-rules:business',
   // مفتاح طلبات التقييم للنشاط: صلاحيته الخاصة، مش صلاحية التنبيهات (RT-Q13، D-B16).
   'manage:rating-requests:business',
