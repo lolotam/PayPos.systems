@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Param, Query, Req } from '@nestjs/common';
+import { Controller, Get, Header, Inject, Param, Query, Req } from '@nestjs/common';
 import {
   commissionBlockedCorrectionListQuery,
   id,
@@ -33,6 +33,7 @@ export class CommissionBlockedCorrectionsController {
 
   // CS-Q48: القائمة لأصحاب صلاحية خطط العمولة، زي الجرس وإصلاح التصحيحات.
   @Get()
+  @Header('Cache-Control', 'no-store')
   @Require('manage:commission-plans:business', { business: 'businessId' })
   @RequiresFeature('commissions')
   async listBlockedCorrections(

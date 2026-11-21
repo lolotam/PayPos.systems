@@ -50,10 +50,14 @@ export const commissionBlockedCorrectionPaths = {
           content: json('CommissionBlockedCorrectionList'),
         },
         '400': { description: 'Invalid cursor or query', content: json('ErrorEnvelope') },
-        '401': { description: 'No individual session', content: json('ErrorEnvelope') },
+        '401': {
+          description:
+            'No session, or an invalid/expired one: the envelope code is UNAUTHENTICATED or AUTHENTICATION_FAILED',
+          content: json('ErrorEnvelope'),
+        },
         '403': {
           description:
-            'Uniform 403 refusal: missing permission, foreign business or disabled feature',
+            'Refused with two distinct envelope codes: FORBIDDEN when a valid session holds no manage:commission-plans:business on that business, or names a missing or foreign business (a device session is a valid non-user principal and answers FORBIDDEN the same way), and FEATURE_DISABLED when the commissions feature is off for the company',
           content: json('ErrorEnvelope'),
         },
         default: { description: 'Bilingual refusal', content: json('ErrorEnvelope') },

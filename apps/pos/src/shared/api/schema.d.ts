@@ -10838,7 +10838,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description No individual session */
+            /** @description No session, or an invalid/expired one: the envelope code is UNAUTHENTICATED or AUTHENTICATION_FAILED */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -10847,7 +10847,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description Uniform 403 refusal: missing permission, foreign business or disabled feature */
+            /** @description Refused with two distinct envelope codes: FORBIDDEN when a valid session holds no manage:commission-plans:business on that business, or names a missing or foreign business (a device session is a valid non-user principal and answers FORBIDDEN the same way), and FEATURE_DISABLED when the commissions feature is off for the company */
             403: {
                 headers: {
                     [name: string]: unknown;

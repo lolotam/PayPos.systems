@@ -143,7 +143,11 @@ async function list(
   query = '',
   actor = fx.f.cookie,
   businessId = fx.f.business,
-): Promise<{ status: number; body: Record<string, unknown> }> {
+): Promise<{
+  status: number;
+  body: Record<string, unknown>;
+  headers: Record<string, unknown>;
+}> {
   return fx.f.h.send('GET', `${listPath(businessId)}${query}`, {
     cookie: actor,
     company: fx.f.company,
@@ -176,6 +180,7 @@ it('L1 the page projects the block identity only, with the open default and no c
   });
   const response = await list('?limit=20');
   expect(response.status).toBe(200);
+  expect(response.headers['cache-control']).toBe('no-store');
   expect(Object.keys(response.body)).toEqual(['items', 'next_cursor']);
   const body = commissionBlockedCorrectionList.parse(response.body);
   expect(body.next_cursor).toBeNull();
@@ -310,13 +315,29 @@ it('L6 rows of another business and of another tenant are never returned', async
   expect(listed).not.toContain(foreignRow);
 });
 
-it('L5 a malformed cursor is VALIDATION_FAILED and a foreign one is refused', async () => {
+it('L5 a malformed cursor, and a real server-issued cursor under another filter or scope, are refused', async () => {
   const statementId = await statementFor(fx.f, fx.f.company, fx.f.business, '2026-11');
-  await seedBlocked(fx.f, { statementId, createdAt: '2026-11-01T08:00:00Z' });
+  await seedBlocked(fx.f, {
+    statementId,
+    sourcePeriod: '2026-08',
+    createdAt: '2026-11-01T08:00:00Z',
+  });
+  await seedBlocked(fx.f, {
+    statementId,
+    sourcePeriod: '2026-09',
+    createdAt: '2026-11-02T08:00:00Z',
+  });
+  await statementFor(fx.f, fx.f.company, fx.otherBusiness, '2026-11');
   const broken = await list('?cursor=not-a-cursor');
   expect([broken.status, broken.body['code']]).toEqual([400, 'VALIDATION_FAILED']);
-  const first = commissionBlockedCorrectionList.parse((await list()).body);
-  expect(first.next_cursor).toBeNull();
+  // مؤشر صالح صادر من السيرفر لصفحة مفتوحة مصرّح بيها: فلتر تاني بنفس النشاط رفض معروف.
+  const first = commissionBlockedCorrectionList.parse((await list('?limit=1')).body);
+  expect(first.next_cursor).not.toBeNull();
+  const issued = encodeURIComponent(first.next_cursor as string);
+  const crossedFilter = await list(`?limit=1&status=resolved&cursor=${issued}`);
+  expect([crossedFilter.status, crossedFilter.body['code']]).toEqual([400, 'VALIDATION_FAILED']);
+  const crossedScope = await list(`?limit=1&cursor=${issued}`, fx.f.cookie, fx.otherBusiness);
+  expect([crossedScope.status, crossedScope.body['code']]).toEqual([400, 'VALIDATION_FAILED']);
 });
 
 it('the accountant system role opens the list like the plan screens', async () => {
