@@ -335,7 +335,7 @@ it('switching to another cached entitlement opens its detail with no stale dialo
   expect(
     screen.getByRole('dialog', { name: t('en', 'packageExtension.dialogTitle') }),
   ).toBeTruthy();
-  // Ø§Ù„ØªÙ†Ù‚Ù„ Ù„Ø¨Ø§Ù‚Ø© ØªØ§Ù†ÙŠØ© Ù…ØªØ®Ø²Ù†Ø© ÙÙŠ Ø§Ù„ÙƒØ§Ø´ Ø¨ÙŠØ¹Ù…Ù„ remount Ù„Ù„ØªÙØµÙŠÙ„: Ù…ÙÙŠØ´ Ø­ÙˆØ§Ø± Ù‚Ø¯ÙŠÙ… Ù…Ø¹Ø§Ù‡Ø§ØŒ ÙˆØªÙØ§ØµÙŠÙ„Ù‡Ø§ Ù‡ÙŠ Ø§Ù„Ù„ÙŠ Ø¨ØªØªØ¹Ø±Ø¶.
+  // التنقل لباقة تانية متخزنة في الكاش بيعمل remount للتفصيل: مفيش حوار قديم معاها، وتفاصيلها هي اللي بتتعرض.
   nav.search = `?package=${packageC}`;
   view.rerender(
     <QueryClientProvider client={client}>

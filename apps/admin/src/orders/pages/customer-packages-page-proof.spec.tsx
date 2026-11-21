@@ -263,3 +263,27 @@ it('a 403 pagination error hides every page', async () => {
   await waitFor(() => expect(screen.queryByText('Gold')).toBeNull());
   expect(screen.getByRole('alert').textContent).toContain(t('en', 'customerPackages.notAllowed'));
 });
+
+it('a next-page 404 closes the selected detail and removes its controls', async () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  api.GET.mockImplementation((path: string) =>
+    Promise.resolve(
+      path === listPath
+        ? {
+            data: { items: [item(packageA, 'Gold', false, false)], next_cursor: 'c2' },
+            response: { status: 200 },
+          }
+        : { data: pageDetail(packageA, 'Gold detail', true), response: { status: 200 } },
+    ),
+  );
+  renderPageWith('?package=' + packageA, client);
+  await screen.findByText('Gold detail');
+  expect(screen.getByRole('button', { name: t('en', 'customerPackages.extend') })).toBeTruthy();
+  api.GET.mockResolvedValue({ error: { code: 'NOT_FOUND' }, response: { status: 404 } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'customerPackages.loadMore') }));
+  expect((await screen.findByRole('alert')).textContent).toContain(
+    t('en', 'customerPackages.notFound'),
+  );
+  expect(screen.queryByText('Gold detail')).toBeNull();
+  expect(screen.queryByRole('button', { name: t('en', 'customerPackages.extend') })).toBeNull();
+});

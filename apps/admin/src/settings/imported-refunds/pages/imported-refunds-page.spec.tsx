@@ -251,3 +251,45 @@ it('a denied write stays visible even when the following GET equals the requeste
   expect(screen.getByRole('alert').textContent).toContain(t('en', 'importedRefunds.notAllowed'));
   expect((screen.getByRole('switch', { name: label }) as HTMLInputElement).checked).toBe(true);
 });
+
+it('keeps the confirmed value read-only and retries the GET after a save and read failure', async () => {
+  api.PUT.mockResolvedValue({
+    error: { code: 'UNEXPECTED', message_en: 'Synthetic save failure' },
+    response: { status: 500 },
+  });
+  renderPage();
+  const control = await screen.findByRole('switch', { name: label });
+  api.GET.mockResolvedValue({ error: { code: 'UNEXPECTED' }, response: { status: 500 } });
+  fireEvent.click(control);
+  const retry = await screen.findByRole('button', { name: t('en', 'importedRefunds.retryRead') });
+  expect(screen.getByRole('switch', { name: label })).toMatchObject({
+    checked: false,
+    disabled: true,
+  });
+  expect(screen.getByRole('alert').textContent).toBe(t('en', 'admin.unexpected'));
+  api.GET.mockResolvedValue({
+    data: { imported_refunds_enabled: true },
+    response: { status: 200 },
+  });
+  fireEvent.click(retry);
+  await waitFor(() =>
+    expect(screen.getByRole('switch', { name: label })).toMatchObject({
+      checked: true,
+      disabled: false,
+    }),
+  );
+  expect(api.PUT).toHaveBeenCalledTimes(1);
+});
+
+it('prioritizes the current guarded GET refusal over a previous save failure', async () => {
+  api.PUT.mockResolvedValue({
+    error: { code: 'UNEXPECTED', message_en: 'Synthetic save failure' },
+    response: { status: 500 },
+  });
+  renderPage();
+  const control = await screen.findByRole('switch', { name: label });
+  api.GET.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
+  fireEvent.click(control);
+  expect((await screen.findByRole('alert')).textContent).toBe(refused);
+  expect(screen.queryByRole('switch', { name: label })).toBeNull();
+});

@@ -50,7 +50,7 @@ function soldDetail(canExtend: boolean) {
     package_type_id: '01920000-0000-7000-8000-0000000000d2',
     provenance: 'SOLD',
     name_en: 'Gold',
-    name_ar: 'Ã˜Â°Ã™â€¡Ã˜Â¨Ã™Å Ã˜Â©',
+    name_ar: null,
     validity_days: 30,
     list_price: '40.000',
     price_paid: '36.000',
@@ -98,7 +98,9 @@ function soldExtensions() {
   ];
 }
 
-function renderDetail(client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })) {
+function renderDetail(
+  client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } }),
+) {
   return {
     client,
     view: render(
@@ -234,13 +236,43 @@ it('the open extension dialog closes when the entitlement loses extension capabi
   const { client, view } = renderDetail();
   await screen.findByText('Gold');
   fireEvent.click(screen.getByRole('button', { name: t('en', 'customerPackages.extend') }));
-  expect(screen.getByRole('dialog', { name: t('en', 'packageExtension.dialogTitle') })).toBeTruthy();
-  // Ø¥Ø¨Ø·Ø§Ù„ ØªÙØµÙŠÙ„ Ø§Ù„Ø¨Ø§Ù‚Ø© Ù…Ù† Ù…ØªØ¯ Ø§Ù„ØªÙ…Ø¯ÙŠØ¯ Ù†ÙØ³Ù‡ Ø¨ÙŠØ¹ÙŠØ¯ Ø§Ù„Ù‚Ø±Ø§Ø¡Ø©: Ù„Ùˆ can_extend Ø¨Ù‚Øª false ÙˆØ§Ù„Ø­ÙˆØ§Ø± Ù…ÙØªÙˆØ­ØŒ Ø§Ù„Ø­ÙˆØ§Ø± ÙŠÙ‚ÙÙ„.
+  expect(
+    screen.getByRole('dialog', { name: t('en', 'packageExtension.dialogTitle') }),
+  ).toBeTruthy();
+  // إبطال تفصيل الباقة من متد التمديد نفسه بيعيد القراءة: لو can_extend بقت false والحوار مفتوح، الحوار يقفل.
   api.GET.mockResolvedValue({ data: soldDetail(false), response: { status: 200 } });
   await act(async () => {
     await client.invalidateQueries({
-      queryKey: ['customer-package-detail', companyId, businessId, branchId, 'user', customerId, entitlementId],
+      queryKey: [
+        'customer-package-detail',
+        companyId,
+        businessId,
+        branchId,
+        'user',
+        customerId,
+        entitlementId,
+      ],
     });
   });
+  const extendLabel = t('en', 'customerPackages.extend');
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(screen.queryByRole('button', { name: extendLabel })).toBeNull();
+
+  api.GET.mockResolvedValue({ data: soldDetail(true), response: { status: 200 } });
+  await act(async () => {
+    await client.invalidateQueries({
+      queryKey: [
+        'customer-package-detail',
+        companyId,
+        businessId,
+        branchId,
+        'user',
+        customerId,
+        entitlementId,
+      ],
+    });
+  });
+  expect(await screen.findByRole('button', { name: extendLabel })).toBeTruthy();
+  expect(screen.queryByRole('dialog')).toBeNull();
   view.unmount();
 });

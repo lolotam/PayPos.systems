@@ -25,12 +25,11 @@ export interface ResolvedScopeHint {
 export function resolveScopeHint(
   hint: ScopeHint,
   companies: readonly WorkspaceCompany[],
-  current: { company?: string; business?: string; branch?: string },
+  current: { company: string; business: string | undefined; branch: string | undefined },
 ): ResolvedScopeHint {
   const hinted =
     hint.companyId !== undefined || hint.businessId !== undefined || hint.branchId !== undefined;
-  if (!hinted)
-    return { hinted: false, matches: true, known: false, choice: null };
+  if (!hinted) return { hinted: false, matches: true, known: false, choice: null };
   const company = companies.find((candidate) => candidate.id === hint.companyId);
   const business = company?.businesses.find((candidate) => candidate.id === hint.businessId);
   const branch = business?.branches.find((candidate) => candidate.id === hint.branchId);

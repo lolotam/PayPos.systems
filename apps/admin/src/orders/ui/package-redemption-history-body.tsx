@@ -1,6 +1,5 @@
 'use client';
 import { t } from '@pospay/i18n';
-import { Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { CustomerPackageDetail } from '@pospay/contracts';
 import { PackageExtensionHistory } from './package-extension-history';
@@ -8,15 +7,9 @@ import { PackageRedemptionList } from './package-redemption-list';
 
 /**
  * جسم سجل الباقة داخل النموذج (43-3): الصفوف نفسها بتاعة التفصيل المستقل من PackageRedemptionList،
- * والتمديدات وزر التمديد بيتتبعوا can_extend من الخادم (BR-A2).
+ * ويعرض التمديدات المسجلة للباقة بعد نجاح القراءة المحمية.
  */
-export function PackageRedemptionHistoryBody({
-  detail,
-  onExtend,
-}: {
-  detail: CustomerPackageDetail;
-  onExtend: () => void;
-}) {
+export function PackageRedemptionHistoryBody({ detail }: { detail: CustomerPackageDetail }) {
   const locale = useLocale();
   return (
     <>
@@ -27,11 +20,6 @@ export function PackageRedemptionHistoryBody({
         <PackageRedemptionList redemptions={detail.redemptions} components={detail.components} />
       ) : null}
       <PackageExtensionHistory extensions={detail.extensions} timeZone={detail.business_timezone} />
-      {detail.can_extend ? (
-        <Button type="button" onClick={onExtend}>
-          {t(locale, 'packageExtension.extend')}
-        </Button>
-      ) : null}
     </>
   );
 }

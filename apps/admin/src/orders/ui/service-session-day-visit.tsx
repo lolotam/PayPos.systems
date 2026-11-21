@@ -21,7 +21,7 @@ export function ServiceSessionDayVisit({ visit, locale, zoneFallback, canCancel,
   return <Card className="grid gap-3 p-3 text-start">
     <p>{visit.customer.name}</p>
     {/* رابط باقات العميلة يظهر بس لما قائمة اليوم تمرر نطاق النشاط والفرع؛ عنوان عام من غير اسم عميلة (FR-A08). */}
-    {packagesScope !== null ? <CustomerPackagesLink customerId={visit.customer.id} /> : null}
+    {packagesScope !== null ? <CustomerPackagesLink customerId={visit.customer.id} hints={packagesScope} /> : null}
     {tipAction}
     <p>{formatInstant(new Date(visit.occurred_at), locale, visit.business_timezone)}</p>
     {visit.late || visit.lines.some((line) => line.late) ? <Badge variant="warning">{t(locale, 'serviceSessions.late')}</Badge> : null}

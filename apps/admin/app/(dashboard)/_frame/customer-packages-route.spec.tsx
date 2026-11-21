@@ -2,7 +2,7 @@ import type { WorkspaceController } from '@/workspace/model/workspace-provider';
 import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { CustomerPackagesRoute } from './customer-packages-route';
 
@@ -158,3 +158,61 @@ it('drops a direct package selection on a workspace change before fetching the n
   expect(screen.queryByText(t('en', 'customerPackages.detailLoading'))).toBeNull();
   expect(api.GET.mock.calls.filter(([path]) => path === detailPath)).toHaveLength(1);
 });
+
+it.each([false, true])(
+  'restores the linked scope and package with an incomplete selection: %s',
+  async (incomplete) => {
+    if (
+      state.workspace?.status !== 'ready' ||
+      !state.workspace.branch ||
+      !state.workspace.business
+    ) {
+      throw new Error('missing workspace');
+    }
+    const entitlementId = '01920000-0000-7000-8000-0000000000a1';
+    const linkedBranch = { ...state.workspace.branch, id: '01920000-0000-7000-8000-000000000103' };
+    const linkedBusiness = { ...state.workspace.business, branches: [linkedBranch] };
+    const linkedCompany = { ...state.workspace.company, businesses: [linkedBusiness] };
+    const linkedScope = {
+      ...state.workspace,
+      company: linkedCompany,
+      companies: [linkedCompany],
+      business: linkedBusiness,
+      branch: linkedBranch,
+    };
+    const choose = vi.fn(() => {
+      state.workspace = linkedScope;
+    });
+    state.workspace = {
+      ...state.workspace,
+      companies: [linkedCompany],
+      ...(incomplete ? { business: undefined, branch: undefined } : {}),
+      choose,
+    };
+    const params = new URLSearchParams({
+      scope_company: linkedCompany.id,
+      scope_business: linkedBusiness.id,
+      scope_branch: linkedBranch.id,
+      package: entitlementId,
+    });
+    state.search = '?' + params.toString();
+    const list = { data: { items: [], next_cursor: null }, response: { status: 200 } };
+    api.GET.mockResolvedValueOnce(list).mockReturnValue(new Promise(() => undefined));
+    const view = renderRoute();
+    const switchScope = screen.getByRole('button', {
+      name: t('en', 'customerPackages.scopeSwitch'),
+    });
+    expect(api.GET).not.toHaveBeenCalled();
+    act(() => {
+      fireEvent.click(switchScope);
+      view.rerenderRoute();
+    });
+    expect(choose).toHaveBeenCalledWith({
+      companyId: linkedCompany.id,
+      businessId: linkedBusiness.id,
+      branchId: linkedBranch.id,
+    });
+    expect(await screen.findByText(t('en', 'customerPackages.detailLoading'))).toBeTruthy();
+    expect(state.replace).not.toHaveBeenCalled();
+  },
+);
