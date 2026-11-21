@@ -1,5 +1,5 @@
 'use client';
-import type { WorkspaceBranch, WorkspaceBusiness, WorkspaceCompany } from '@pospay/contracts';
+import type { WorkspaceBranch, WorkspaceBusinessRead, WorkspaceCompanyRead } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { EmptyState, Store } from '@pospay/ui';
 import { useState } from 'react';
@@ -10,14 +10,14 @@ import { useLocale } from '@/shared/locale/locale-context';
 
 type ServiceCategoriesScreenProps = {
   companyId: string;
-  business: WorkspaceBusiness;
+  business: WorkspaceBusinessRead;
   userId: string;
-  scope: WorkspaceCompany['scope'];
+  scope: WorkspaceCompanyRead['scope'];
   rememberedBranchId: string | undefined;
 };
 
 /** الفروع النشطة بس هي اللي بتظهر في القايمة وبتاخد فرع البداية، فالفرع الموقوف ما يرجعله حد بالغلط. */
-function activeBranchesOf(business: WorkspaceBusiness): readonly WorkspaceBranch[] {
+function activeBranchesOf(business: WorkspaceBusinessRead): readonly WorkspaceBranch[] {
   return business.branches.filter((branch) => branch.is_active);
 }
 
@@ -31,7 +31,7 @@ function activeBranchesOf(business: WorkspaceBusiness): readonly WorkspaceBranch
  * @returns فرع البداية من الفروع النشطة: المتذكر، وإلا أول فرع نشط، و«كل النشاط» لما النطاق أوسع من فرع
  */
 function openingBranch(
-  scope: WorkspaceCompany['scope'],
+  scope: WorkspaceCompanyRead['scope'],
   activeBranches: readonly WorkspaceBranch[],
   rememberedBranchId: string | undefined,
 ): string | null {

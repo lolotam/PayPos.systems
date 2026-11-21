@@ -1,6 +1,6 @@
 # 074 step 0c — Workspace business type and country: API specification
 
-**Status:** Draft design document; this task does not change code.
+**Status:** Implemented in the 074-0c delivery. Exact-head CI and review remain required.
 
 **Date:** 2026-11-21
 

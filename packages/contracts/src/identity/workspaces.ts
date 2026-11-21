@@ -15,23 +15,21 @@ const workspaceCountry = z
   .meta({ enum: [...country.options, null] });
 
 export const workspaceBranch = responseObject({
-    id,
-    name_ar: nameAr.nullable(),
-    name_en: nameEn,
-    effective_timezone: timeZone,
-    is_active: z.boolean(),
-  })
-  .meta({ id: 'WorkspaceBranch' });
+  id,
+  name_ar: nameAr.nullable(),
+  name_en: nameEn,
+  effective_timezone: timeZone,
+  is_active: z.boolean(),
+}).meta({ id: 'WorkspaceBranch' });
 
 export const workspaceBusiness = responseObject({
-    id,
-    name_ar: nameAr.nullable(),
-    name_en: nameEn,
-    business_type: verticalType,
-    country: workspaceCountry,
-    branches: z.array(workspaceBranch),
-  })
-  .meta({ id: 'WorkspaceBusiness' });
+  id,
+  name_ar: nameAr.nullable(),
+  name_en: nameEn,
+  business_type: verticalType,
+  country: workspaceCountry,
+  branches: z.array(workspaceBranch),
+}).meta({ id: 'WorkspaceBusiness' });
 
 /** Names of one company the caller can reach. Identity adds role_code and scope before the response leaves. */
 export const workspaceCompanyNames = responseObject({
@@ -50,11 +48,24 @@ export const workspaceCompany = workspaceCompanyNames
   })
   .meta({ id: 'WorkspaceCompany' });
 
-export const myWorkspacesResponse = responseObject({ companies: z.array(workspaceCompany) })
-  .meta({ id: 'MyWorkspacesResponse' });
+export const myWorkspacesResponse = responseObject({ companies: z.array(workspaceCompany) }).meta({
+  id: 'MyWorkspacesResponse',
+});
 
 export type WorkspaceBranch = z.infer<typeof workspaceBranch>;
 export type WorkspaceBusiness = z.infer<typeof workspaceBusiness>;
 export type WorkspaceCompanyNames = z.infer<typeof workspaceCompanyNames>;
 export type WorkspaceCompany = z.infer<typeof workspaceCompany>;
 export type MyWorkspacesResponse = z.infer<typeof myWorkspacesResponse>;
+
+/** قارئ الأدمن بيتحمّل رد API أقدم أثناء النشر، والحقول تفضل إلزامية في عقد الرد الجديد. */
+const workspaceBusinessRead = workspaceBusiness.partial({ business_type: true, country: true });
+const workspaceCompanyRead = workspaceCompany.extend({
+  businesses: z.array(workspaceBusinessRead),
+});
+export const myWorkspacesReadResponse = myWorkspacesResponse.extend({
+  companies: z.array(workspaceCompanyRead),
+});
+export type WorkspaceBusinessRead = z.infer<typeof workspaceBusinessRead>;
+export type WorkspaceCompanyRead = z.infer<typeof workspaceCompanyRead>;
+export type MyWorkspacesReadResponse = z.infer<typeof myWorkspacesReadResponse>;
