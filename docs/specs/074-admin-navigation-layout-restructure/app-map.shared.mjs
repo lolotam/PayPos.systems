@@ -57,16 +57,15 @@ const MANAGE = [
     ['Catalog', 'Options and modifiers', '2', S, S, ''],
     ['Catalog', 'Price lists', '2', S, S, ''],
     ['Catalog', 'Combos and bundles', '2', S, S, ''],
-    ['Catalog', 'Units of measure', '3', S, S, ''],
-    ['Stores', 'Stock items', '3', S, S, ''],
-    ['Stores', 'Locations', '3', S, S, ''],
-    ['Stores', 'Suppliers', '3', S, S, ''],
-    ['Stores', 'Purchases', '3', S, S, ''],
-    ['Stores', 'Transfers', '3', S, S, ''],
-    ['Stores', 'Stock counts', '3', S, S, ''],
-    ['Stores', 'Adjustments and wastage', '3', S, S, ''],
-    ['Stores', 'Stock movements (item activity)', '3', S, S, ''],
-    ['Stores', 'Barcode labels', '—', S, S, ''],
+    ['Catalog', 'Units of measure', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
+    ['Stores', 'Stock items', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
+    ['Stores', 'Locations', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
+    ['Stores', 'Suppliers', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
+    ['Stores', 'Purchases', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
+    ['Stores', 'Transfers', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
+    ['Stores', 'Stock counts', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
+    ['Stores', 'Adjustments and wastage', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
+    ['Stores', 'Barcode labels', '—', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
     ['Production', 'Recipes', '3', S, S, 'Restaurant, café'],
     ['Production', 'Production orders', '3', S, S, 'Restaurant, café'],
   ]],
@@ -120,7 +119,8 @@ const MANAGE = [
     ['Sales reports', 'Sales (by channel, type, method, hour, staff)', '5', S, S, ''],
     ['Sales reports', 'Products and returns', '5', S, S, ''],
     ['Sales reports', 'Payments and customer balances', '5', S, S, ''],
-    ['Stock reports', 'Stock and cost of goods', '3', S, S, ''],
+    ['Stock reports', 'Stock and cost of goods', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
+    ['Stock reports', 'Stock movements ledger (item activity)', '3', S, S, 'Restaurant, café, grocery, retail, salon, spa, barber, laundry'],
     ['Performance', 'Commissions and performance', '5', S, S, ''],
     ['Performance', 'Appointments report', '5', S, S, 'Salon, spa, barber, clinic, services company'],
     ['Expenses', 'Expenses', '5', S, S, ''],
@@ -131,7 +131,7 @@ const MANAGE = [
   ]],
   ['7. Setup', [
     ['Business', 'Business identity', '1', L, S, ''],
-    ['Business', 'Branches', '1', S, S, ''],
+    ['Business', 'Branches', '—', S, S, ''],
     ['Business', 'Alerts and notifications', '1', L, S, ''],
     ['Business', 'Data import (Excel)', '1', S, S, ''],
     ['Business', 'Tax and invoice template', '2', S, S, ''],
@@ -139,7 +139,7 @@ const MANAGE = [
     ['Business', 'Working hours and order rules', '2', S, S, ''],
     ['Business', 'Payment methods and gateways', '2', S, S, ''],
     ['Access', 'Permissions', '1', L, L, ''],
-    ['Access', 'Users and invitations', '—', S, S, ''],
+    ['Access', 'Invitations', '—', S, S, ''],
     ['Access', 'Sign-in security (authenticator)', '1', L, S, ''],
     ['Access', 'Approval limits', '2', S, S, ''],
     ['Access', 'Activity log (who did what, and when)', '—', S, S, ''],
@@ -235,10 +235,19 @@ ${MANAGE.map(([name, rows]) => `### ${name}\n\n${table(rows, ix)}`).join('\n\n')
 before anything is built. The owner confirmed it is listed as a Soon entry.
 
 Thirteen entries were added on 2026-11-21 after comparing this map with a competing salon product: Shift dashboard,
-Customer packages, Fulfilment board, Drivers, Units of measure, Stock movements, Barcode labels, Customer wallet,
-Appointment categories, Branches, Invoice terms and conditions, Users and invitations, and Activity log. Those marked
+Customer packages, Fulfilment board, Drivers, Units of measure, Stock movements ledger, Barcode labels, Customer
+wallet, Appointment categories, Branches, Invoice terms and conditions, Invitations, and Activity log. Those marked
 "—" in the Phase column are not named in the PRD and need a PRD entry and a spec before anything is built. Some of
 them may end up as part of another page rather than a page of their own.
+
+Notes on four of them. The Stock movements ledger sits under Stock reports because the PRD schedules it as a report
+(P3-T7.1). Branches has no phase: the PRD creates branches in Phase 0 tenancy and names only a branch selector in
+Phase 1, so a branch-management screen needs its own PRD entry. Invitations covers company invitations only (PRD
+P0-T9a.8, issue #19); managing users and their permissions is the Permissions page, which the PRD plans in Phase 1
+(P1-T2.4). The stock entries (Stores, Units of measure, the two stock reports) are limited to the business types
+that hold stock: PRD §7.1 gives inventory to restaurants, cafés and grocery or retail and simple products to salons,
+and P3-T3.2 deducts materials for salon sessions and laundry orders. Clinics and services companies are left out.
+That list is the working answer until the owner confirms it (NAV-Q19 in spec 074, NAV-L7 in spec 022).
 
 How an owner gets a second business type on the same account (created by the platform operator, or by an invitation
 to the same email) is a subscription question, not a menu question, and is not decided here.

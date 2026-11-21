@@ -75,16 +75,15 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Catalog | Options and modifiers | 2 | Soon | every business type |
 | Catalog | Price lists | 2 | Soon | every business type |
 | Catalog | Combos and bundles | 2 | Soon | every business type |
-| Catalog | Units of measure | 3 | Soon | every business type |
-| Stores | Stock items | 3 | Soon | every business type |
-| Stores | Locations | 3 | Soon | every business type |
-| Stores | Suppliers | 3 | Soon | every business type |
-| Stores | Purchases | 3 | Soon | every business type |
-| Stores | Transfers | 3 | Soon | every business type |
-| Stores | Stock counts | 3 | Soon | every business type |
-| Stores | Adjustments and wastage | 3 | Soon | every business type |
-| Stores | Stock movements (item activity) | 3 | Soon | every business type |
-| Stores | Barcode labels | — | Soon | every business type |
+| Catalog | Units of measure | 3 | Soon | Restaurant, café, grocery, retail, salon, spa, barber, laundry |
+| Stores | Stock items | 3 | Soon | Restaurant, café, grocery, retail, salon, spa, barber, laundry |
+| Stores | Locations | 3 | Soon | Restaurant, café, grocery, retail, salon, spa, barber, laundry |
+| Stores | Suppliers | 3 | Soon | Restaurant, café, grocery, retail, salon, spa, barber, laundry |
+| Stores | Purchases | 3 | Soon | Restaurant, café, grocery, retail, salon, spa, barber, laundry |
+| Stores | Transfers | 3 | Soon | Restaurant, café, grocery, retail, salon, spa, barber, laundry |
+| Stores | Stock counts | 3 | Soon | Restaurant, café, grocery, retail, salon, spa, barber, laundry |
+| Stores | Adjustments and wastage | 3 | Soon | Restaurant, café, grocery, retail, salon, spa, barber, laundry |
+| Stores | Barcode labels | — | Soon | Restaurant, café, grocery, retail, salon, spa, barber, laundry |
 | Production | Recipes | 3 | Soon | Restaurant, café |
 | Production | Production orders | 3 | Soon | Restaurant, café |
 
@@ -147,7 +146,8 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Sales reports | Sales (by channel, type, method, hour, staff) | 5 | Soon | every business type |
 | Sales reports | Products and returns | 5 | Soon | every business type |
 | Sales reports | Payments and customer balances | 5 | Soon | every business type |
-| Stock reports | Stock and cost of goods | 3 | Soon | every business type |
+| Stock reports | Stock and cost of goods | 3 | Soon | Restaurant, café, grocery, retail, salon, spa, barber, laundry |
+| Stock reports | Stock movements ledger (item activity) | 3 | Soon | Restaurant, café, grocery, retail, salon, spa, barber, laundry |
 | Performance | Commissions and performance | 5 | Soon | every business type |
 | Performance | Appointments report | 5 | Soon | Salon, spa, barber, clinic, services company |
 | Expenses | Expenses | 5 | Soon | every business type |
@@ -161,7 +161,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Sub-menu | Page | Phase | State | Shown only to |
 |---|---|---|---|---|
 | Business | Business identity | 1 | Live | every business type |
-| Business | Branches | 1 | Soon | every business type |
+| Business | Branches | — | Soon | every business type |
 | Business | Alerts and notifications | 1 | Live | every business type |
 | Business | Data import (Excel) | 1 | Soon | every business type |
 | Business | Tax and invoice template | 2 | Soon | every business type |
@@ -169,7 +169,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Business | Working hours and order rules | 2 | Soon | every business type |
 | Business | Payment methods and gateways | 2 | Soon | every business type |
 | Access | Permissions | 1 | Live | every business type |
-| Access | Users and invitations | — | Soon | every business type |
+| Access | Invitations | — | Soon | every business type |
 | Access | Sign-in security (authenticator) | 1 | Live | every business type |
 | Access | Approval limits | 2 | Soon | every business type |
 | Access | Activity log (who did what, and when) | — | Soon | every business type |
@@ -184,10 +184,19 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 before anything is built. The owner confirmed it is listed as a Soon entry.
 
 Thirteen entries were added on 2026-11-21 after comparing this map with a competing salon product: Shift dashboard,
-Customer packages, Fulfilment board, Drivers, Units of measure, Stock movements, Barcode labels, Customer wallet,
-Appointment categories, Branches, Invoice terms and conditions, Users and invitations, and Activity log. Those marked
+Customer packages, Fulfilment board, Drivers, Units of measure, Stock movements ledger, Barcode labels, Customer
+wallet, Appointment categories, Branches, Invoice terms and conditions, Invitations, and Activity log. Those marked
 "—" in the Phase column are not named in the PRD and need a PRD entry and a spec before anything is built. Some of
 them may end up as part of another page rather than a page of their own.
+
+Notes on four of them. The Stock movements ledger sits under Stock reports because the PRD schedules it as a report
+(P3-T7.1). Branches has no phase: the PRD creates branches in Phase 0 tenancy and names only a branch selector in
+Phase 1, so a branch-management screen needs its own PRD entry. Invitations covers company invitations only (PRD
+P0-T9a.8, issue #19); managing users and their permissions is the Permissions page, which the PRD plans in Phase 1
+(P1-T2.4). The stock entries (Stores, Units of measure, the two stock reports) are limited to the business types
+that hold stock: PRD §7.1 gives inventory to restaurants, cafés and grocery or retail and simple products to salons,
+and P3-T3.2 deducts materials for salon sessions and laundry orders. Clinics and services companies are left out.
+That list is the working answer until the owner confirms it (NAV-Q19 in spec 074, NAV-L7 in spec 022).
 
 How an owner gets a second business type on the same account (created by the platform operator, or by an invitation
 to the same email) is a subscription question, not a menu question, and is not decided here.
