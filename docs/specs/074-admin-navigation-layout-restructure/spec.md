@@ -124,9 +124,9 @@ The menu names every section of the product, including the ones not built yet: s
 - **FR-004**: The app MUST provide an Appearance page that lists the three styles by name, marks the current one, and lets the user pick another. The same choice MUST be available from the account menu.
 - **FR-005**: Any signed-in admin user MUST be able to open Appearance and change the style. No permission guards it.
 - **FR-006**: Picking a style MUST change the frame at once, without a full page reload and without changing the address.
-- **FR-007**: The first frame drawn after a reload MUST be the user's saved style.
+- **FR-007**: The first frame drawn after a reload MUST be the style remembered on that device. A style chosen on another device MUST appear on this device at its next sign-in.
 - **FR-008**: Every existing admin address MUST keep working and show the same page under every style. No existing address changes.
-- **FR-009**: Every admin page MUST appear exactly once in the menu of each style, and exactly one top-level entry MUST be marked current on every page.
+- **FR-009**: Every admin page that is not a child page MUST appear exactly once in the menu of each style. A child page (a create or detail page) has no entry of its own and marks its parent's entry. Exactly one top-level entry MUST be marked current on every page.
 - **FR-010**: A page hidden from a user by an existing permission or condition today MUST stay hidden in every style; a group with no visible page MUST not be shown.
 - **FR-011**: The choice MUST be remembered on the device from the first release, and saved on the user's account in a following release, after which it follows the user to other devices.
 - **FR-012**: Signing out MUST clear the device's remembered choice, and signing in MUST set it from that user's own choice or clear it, so the next person on that browser never inherits it, including after a session that expired.

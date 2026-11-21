@@ -16,7 +16,7 @@ Two interfaces: the account endpoints (step 12) and the device cookie (step 7).
 
 ## `PUT /v1/me/preferences`
 
-- **Guard**: `@Authenticated()`, with `principal.userId` required. The write changes only the row of the session's user, inside the operation. The route is registered in `AUTHENTICATED_WRITES` in `apps/api/src/modules/identity/http/route-coverage.ts` (PP-7.1).
+- **Guard**: `@Authenticated()`, with `principal.userId` required. The write changes only the row of the session's user, inside the operation. The route is registered in `AUTHENTICATED_WRITES` in `apps/api/src/modules/identity/http/authenticated-writes.ts` (checked at start-up through `route-coverage.ts`) (PP-7.1).
 - **Idempotency-Key**: not required. No money or stock effect; repeating the request gives the same result.
 - **Ordering**: the server keeps the last write it receives. The client is responsible for order: one tab sends its saves one at a time and replaces a waiting save with the newest choice, so choosing A then B quickly can never end with A stored.
 - **Request**:

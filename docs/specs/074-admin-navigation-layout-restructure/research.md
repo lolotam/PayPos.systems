@@ -24,6 +24,7 @@ Checked against `origin/main` at `cf70114e2` on 2026-11-21. Each entry says what
 ## R4. How the server knows the style on first paint
 
 - **Decision**: Read a `pospay_nav_style` cookie in the server layout, the way `apps/admin/src/shared/locale/request-locale.ts` reads `pospay_locale`. Unknown or missing value means C.
+- **Scope of the cookie**: on one device, between sign-ins, the cookie decides the first frame. A style chosen on another device reaches this device at its next sign-in, not on a reload of an open session.
 - **Rationale**: Avoids a flash of the wrong frame and needs no API call before rendering. Checked: `locale-cookie.ts` and `request-locale.ts` exist and follow this pattern.
 - **Alternatives considered**: `localStorage`, as the theme uses (`packages/ui/src/theme-switch.tsx`): the server cannot read it, so the wrong frame would show first. Fetching the account value during render: ties every page load to an extra call.
 
@@ -43,7 +44,7 @@ Checked against `origin/main` at `cf70114e2` on 2026-11-21. Each entry says what
 ## R7. The endpoint
 
 - **Decision**: `GET` and `PUT /v1/me/preferences` on the existing `me` controller of the `identity` module, session-only (`@Authenticated()`).
-- **Rationale**: The controller already holds `me/workspaces` and `me/memberships` with the same guard. The decision is personal to the caller, which is the case CLAUDE.md §6 allows for a session-only route; the write is registered in `AUTHENTICATED_WRITES` (`apps/api/src/modules/identity/http/route-coverage.ts`), which is how PP-7.1 is enforced. Both routes require `principal.userId`, as `me/workspaces` does: a device token has none and gets `FORBIDDEN`. Checked: `apps/api/src/modules/identity/http/me.controller.ts`.
+- **Rationale**: The controller already holds `me/workspaces` and `me/memberships` with the same guard. The decision is personal to the caller, which is the case CLAUDE.md §6 allows for a session-only route; the write is registered in `AUTHENTICATED_WRITES` in `apps/api/src/modules/identity/http/authenticated-writes.ts` (checked at start-up through `route-coverage.ts`), which is how PP-7.1 is enforced. Both routes require `principal.userId`, as `me/workspaces` does: a device token has none and gets `FORBIDDEN`. Checked: `apps/api/src/modules/identity/http/me.controller.ts`.
 - **Alternatives considered**: A permission-guarded route (the owner said no permission); writing through Better Auth's client-side `updateUser` (bypasses the project's contract and error envelope).
 
 ## R8. Overview pages that only some styles have

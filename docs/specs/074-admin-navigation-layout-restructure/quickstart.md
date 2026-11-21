@@ -36,7 +36,7 @@ Start the app with `pnpm dev` and sign in to the admin app.
 2. **Every page, one current entry.** Open each page from the menu. One top-level entry is marked each time, including on Staff app columns and Authenticator.
 3. **Switch.** Open Appearance and pick A, then B, then C. Each time the frame changes at once, the address stays `/appearance`, and there is no full page reload.
 4. **Reload.** Pick B and reload. The first thing drawn is style B.
-5. **Same page, any style.** Copy the address of any page, switch style, paste the address. The same page opens.
+5. **Same page, any style.** Copy the address of any page other than an overview page, switch style, paste the address. The same page opens. (Overview pages belong to one style; scenario 9 covers them.)
 6. **Follows the user** (after step 12). Pick A, then sign in as the same user in a second browser. Style A is shown.
 7. **Shared browser.** Pick A, sign out, sign in as a user who has never chosen. Style C is shown.
 8. **No permission needed.** Sign in as a user with the fewest permissions. Appearance opens and the style can be changed.
