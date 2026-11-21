@@ -3,6 +3,7 @@ import type { OutboxWriter } from '../../../shared/ports/outbox-writer.port.ts';
 import type { SettingsOverrides } from '../domain/business-settings.ts';
 import type { BusinessDiscountAccess } from './business-discount-access.port.ts';
 import type { BusinessIdentityAccess } from './business-identity-access.port.ts';
+import type { ImportedRefundsAccess } from './imported-refunds-access.port.ts';
 import type { LogoFileReader } from './logo-file.port.ts';
 
 /**
@@ -18,6 +19,8 @@ export interface StoredSettings extends SettingsOverrides {
   readonly officialNameEn: string | null;
   /** ملف الشعار المخزن، أو null لو مفيش شعار. */
   readonly logoFileId: string | null;
+  /** مفتاح مرتجع الباقات المستوردة زي ما اتخزن: null يعني off، والقيم الفعلية بيتحسبا حسب الطلب. */
+  readonly importedRefundsEnabled: boolean | null;
   /** آخر تعديل، ISO زي ما Postgres كتبه. */
   readonly updatedAt: string;
 }
@@ -45,6 +48,8 @@ export interface SettingsChange {
 export interface SettingsScope {
   readonly discountAccess: BusinessDiscountAccess;
   readonly identityAccess: BusinessIdentityAccess;
+  /** قفل القرار وإعادة قرايته لمفتاح مرتجع الباقات المستوردة على النشاط. */
+  readonly importedRefundsAccess: ImportedRefundsAccess;
   readonly audit: AuditTrail;
   /** الحدث بيتكتب في نفس المعاملة لما إشارة الشعار تتغير. */
   readonly outbox: OutboxWriter;
@@ -86,6 +91,18 @@ export interface SettingsScope {
   saveLogo(
     businessId: string,
     logoFileId: string | null,
+    updatedBy: string,
+  ): Promise<StoredSettings>;
+  /**
+   * بيكتب مفتاح مرتجع الباقات المستوردة بس (و updated_by/updated_at)، وباقي الإعدادات بتفضل زي ما هي.
+   *
+   * @param businessId النشاط
+   * @param enabled    القيمة المخزنة الجديدة
+   * @param updatedBy  المستخدم اللي غيّر
+   */
+  saveImportedRefunds(
+    businessId: string,
+    enabled: boolean,
     updatedBy: string,
   ): Promise<StoredSettings>;
 }

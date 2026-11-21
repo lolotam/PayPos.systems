@@ -1,10 +1,5 @@
 import type { Provider } from '@nestjs/common';
-import {
-  readBusinessIdentity,
-  type IdGenerator,
-  type TenantWrappers,
-  type Tx,
-} from '@pospay/db';
+import { readBusinessIdentity, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
 import type { Redis } from 'ioredis';
 
 import { SelectedCompanyGuard } from '../../shared/selected-company.guard.ts';
@@ -12,6 +7,10 @@ import { SETTINGS_TEMPLATE } from './domain/business-settings.ts';
 import { IdentityCapabilityCompanyGuard } from './http/identity-capability-company.guard.ts';
 import { IdentityCapabilityController } from './http/identity-capability.controller.ts';
 import { SETTINGS_WIRING, SettingsController } from './http/settings.controller.ts';
+import {
+  IMPORTED_REFUNDS_WIRING,
+  ImportedRefundsController,
+} from './http/imported-refunds.controller.ts';
 import { ALERT_RULES_WIRING, AlertRulesController } from './http/alert-rules.controller.ts';
 import { createAlertRulesTransactions } from './persistence/alert-rules-store.ts';
 import { createAlertRulesReadAccess } from './persistence/alert-rules-read-access.adapter.ts';
@@ -28,6 +27,7 @@ import { createRedisSettingsCache } from './persistence/redis-settings-cache.ts'
 import { createSettingsTransactions } from './persistence/settings-transactions.ts';
 import { UpdateBusinessSettings } from './use-cases/update-business-settings/update-business-settings.ts';
 import { UpdateBusinessIdentityNames } from './use-cases/update-business-identity-names/update-business-identity-names.ts';
+import { SetImportedRefunds } from './use-cases/set-imported-refunds/set-imported-refunds.ts';
 import { SetBusinessLogo } from './use-cases/set-business-logo/set-business-logo.ts';
 import { SetBusinessDiscountDefault } from './use-cases/set-business-discount-default/set-business-discount-default.ts';
 import {
@@ -40,6 +40,7 @@ import { createDiscountSubjectReader } from './persistence/discount-subject-read
 /** The controllers settings mounts. */
 export const settingsControllers = [
   SettingsController,
+  ImportedRefundsController,
   IdentityCapabilityController,
   AlertRulesController,
   StaffColumnsController,
@@ -133,10 +134,15 @@ function settingsWiring(
     cache,
   );
   const logo = new SetBusinessLogo(createSettingsTransactions(database, ids), cache);
+  const importedRefunds = new SetImportedRefunds(createSettingsTransactions(database, ids));
   return [
     {
       provide: SETTINGS_WIRING,
       useValue: { update, discount, identity, logo, cache, template: SETTINGS_TEMPLATE },
+    },
+    {
+      provide: IMPORTED_REFUNDS_WIRING,
+      useValue: { set: importedRefunds },
     },
   ];
 }

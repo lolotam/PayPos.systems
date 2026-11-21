@@ -74,30 +74,15 @@ function authorize() {
   });
 }
 
-it('G seed remains inactive and pre-S catalog rejects the future code without writes', async () => {
+it('the seed installs the code with exactly one owner default before any grant', async () => {
   await seedReferenceData(f.h.urls.owner);
-  expect(await f.h.owner`SELECT code FROM permissions WHERE code=${code}`).toHaveLength(0);
+  expect(await f.h.owner`SELECT code FROM permissions WHERE code=${code}`).toEqual([{ code }]);
   expect(
     await f.h.owner`SELECT permission_code FROM role_permissions WHERE permission_code=${code}`,
-  ).toHaveLength(0);
-  const member = await target('staff');
-  for (const business of [false, true]) {
-    const before = await state();
-    for (const effect of ['ALLOW', 'DENY'] as const) {
-      expect((await send(business, member, f.cookie, effect)).status).toBe(403);
-      expect(await state()).toEqual(before);
-    }
-  }
+  ).toEqual([{ permission_code: code }]);
 });
 
 it('post-S owner SAVE ALLOW/DENY and REVOKE work for global staff and custom humans on both routes', async () => {
-  await f.h.owner`INSERT INTO permissions(code) VALUES (${code})`;
-  await f.h.owner`INSERT INTO role_permissions(role_id,role_owner_key,permission_code)
-    VALUES (${role('owner')},'global',${code})`;
-  await seedReferenceData(f.h.urls.owner);
-  expect(
-    await f.h.owner`SELECT permission_code FROM role_permissions WHERE permission_code=${code}`,
-  ).toHaveLength(1);
   for (const kind of ['staff', 'synthetic_viewer']) {
     for (const business of [false, true]) {
       const member = await target(kind);
