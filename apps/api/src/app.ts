@@ -185,6 +185,7 @@ function commissionBindings(deps: AppDependencies) {
       timeZone: businessTimeZone,
       employeeNames: readCommissionPlanEmployeeNames,
     },
+    { access: readCommissionPlanListAccess },
     deps.commissionsClock,
   );
 }
