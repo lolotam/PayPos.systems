@@ -1,11 +1,14 @@
-import { commissionPlanDate, id } from '@pospay/contracts';
-import { z } from 'zod';
+import {
+  COMMISSION_BLOCKED_CORRECTION_CURSOR_VERSION,
+  commissionBlockedCorrectionCursorPayload,
+  type CommissionBlockedCorrectionStatus,
+} from '@pospay/contracts';
 
 /** سياق المؤشر: الشركة والنشاط والفلتر اللي اتطلب بيه — المؤشر ميتنقلش بينهم. */
 export interface CommissionBlockedCorrectionCursorContext {
   readonly companyId: string;
   readonly businessId: string;
-  readonly status: 'open' | 'resolved' | 'all';
+  readonly status: CommissionBlockedCorrectionStatus;
 }
 
 /** موضع الصف في الترتيب: وقت الحفظ الخام بالميكروثانية والمعرّف. */
@@ -21,24 +24,6 @@ export type CommissionBlockedCorrectionCursorDecode =
   | { readonly kind: 'valid'; readonly position: CommissionBlockedCorrectionCursorPosition }
   | { readonly kind: 'invalid' };
 
-const VERSION = 1;
-// وقت UTC خام بالميكروثانية: الصيغة اللي بيطلعها to_char(...,'US') عن PostgreSQL.
-const RAW_MICROSECONDS = /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{6}Z$/;
-const STATUSES = ['open', 'resolved', 'all'] as const;
-
-/** شهر حقيقي بلا سنة صفر؛ النص الخام يظل بالميكروثانية ولا يمر عبر Date. */
-const cursorPayload = z.strictObject({
-  v: z.literal(VERSION),
-  c: id,
-  b: id,
-  s: z.enum(STATUSES),
-  t: z
-    .string()
-    .regex(RAW_MICROSECONDS)
-    .refine((value) => commissionPlanDate.safeParse(value.slice(0, 10)).success),
-  i: id,
-});
-
 /**
  * يبني المؤشر الخام للصفحة الجاية: سياق الطلب مع موضع آخر صف في الترتيب.
  *
@@ -51,7 +36,7 @@ export function encodeCommissionBlockedCorrectionCursor(
   position: CommissionBlockedCorrectionCursorPosition,
 ): string {
   const payload = {
-    v: VERSION,
+    v: COMMISSION_BLOCKED_CORRECTION_CURSOR_VERSION,
     c: context.companyId,
     b: context.businessId,
     s: context.status,
@@ -83,7 +68,7 @@ export function decodeCommissionBlockedCorrectionCursor(
   } catch {
     return { kind: 'invalid' };
   }
-  const parsed = cursorPayload.safeParse(payload);
+  const parsed = commissionBlockedCorrectionCursorPayload.safeParse(payload);
   if (!parsed.success) return { kind: 'invalid' };
   const record = parsed.data;
   // المؤشر تبع طلب تاني أو فلتر تاني: رفض قبل أي SQL.

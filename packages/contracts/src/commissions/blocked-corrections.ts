@@ -4,10 +4,29 @@ import { commissionCorrectionPeriod } from '../in-app-notifications.js';
 import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
+import { commissionPlanDate } from './plan-versions.js';
 
 // المؤشر base64url بسيكتو الترتيب (وقت الحفظ بالميكروثانية والمعرّف) وسياق الطلب (الشركة
 // والنشاط والفلتر): أطول منهج من ده حوالين 270 حرف، و512 حد بهامش زي قايمة التجاوزات.
 export const COMMISSION_BLOCKED_CORRECTION_CURSOR_MAX = 512;
+
+export const COMMISSION_BLOCKED_CORRECTION_CURSOR_VERSION = 1;
+// وقت UTC خام بالميكروثانية: الصيغة اللي بيطلعها to_char(...,'US') عن PostgreSQL.
+const RAW_MICROSECONDS = /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{6}Z$/;
+const BLOCKED_CORRECTION_STATUSES = ['open', 'resolved', 'all'] as const;
+
+/** شهر حقيقي بلا سنة صفر؛ النص الخام يظل بالميكروثانية ولا يمر عبر Date. */
+export const commissionBlockedCorrectionCursorPayload = z.strictObject({
+  v: z.literal(COMMISSION_BLOCKED_CORRECTION_CURSOR_VERSION),
+  c: id,
+  b: id,
+  s: z.enum(BLOCKED_CORRECTION_STATUSES),
+  t: z
+    .string()
+    .regex(RAW_MICROSECONDS)
+    .refine((value) => commissionPlanDate.safeParse(value.slice(0, 10)).success),
+  i: id,
+});
 
 const commissionBlockedCorrectionCursor = z
   .string()
@@ -21,7 +40,7 @@ const commissionBlockedCorrectionCursor = z
  */
 export const commissionBlockedCorrectionListQuery = z
   .strictObject({
-    status: z.enum(['open', 'resolved', 'all']).default('open'),
+    status: z.enum(BLOCKED_CORRECTION_STATUSES).default('open'),
     cursor: commissionBlockedCorrectionCursor.optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
   })
@@ -57,7 +76,7 @@ export const commissionBlockedCorrectionSchemas = [
   commissionBlockedCorrectionList,
 ];
 
-export type CommissionBlockedCorrectionStatus = 'open' | 'resolved' | 'all';
+export type CommissionBlockedCorrectionStatus = (typeof BLOCKED_CORRECTION_STATUSES)[number];
 export type CommissionBlockedCorrectionListQuery = z.infer<
   typeof commissionBlockedCorrectionListQuery
 >;
