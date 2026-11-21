@@ -32,6 +32,7 @@ vi.mock('next/navigation', () => ({ usePathname: () => '/commissions/plans' }));
 const id = '01920000-0000-7000-8000-0000000000b2';
 const scope = planScope(id, id, 'user-a');
 const LABEL = t('en', 'commissionPlanBuilder.navTitle');
+const OVERRIDES_LABEL = t('en', 'commissionOverrides.navTitle');
 
 let client: QueryClient;
 
@@ -100,4 +101,23 @@ it('hides the entry for an admin without a chosen business', () => {
   };
   renderNav();
   expect(screen.queryByRole('link', { name: LABEL })).toBeNull();
+});
+
+it('shows both commission links after one successful probe request', async () => {
+  const pending = deferredAnswer();
+  api.GET.mockImplementation(() => pending.promise);
+  renderNav();
+  pending.resolve(ok(employeePage([employeeItem(EMP_A, 7, null, 'Sara')], null)));
+  const plans = await screen.findByRole('link', { name: LABEL });
+  const overrides = await screen.findByRole('link', { name: OVERRIDES_LABEL });
+  expect(plans.getAttribute('href')).toBe('/commissions/plans');
+  expect(overrides.getAttribute('href')).toBe('/commissions/overrides');
+  expect(api.GET).toHaveBeenCalledTimes(1);
+});
+
+it('hides both links on a 403', async () => {
+  api.GET.mockResolvedValue(refusal(403, 'FORBIDDEN'));
+  renderNav();
+  await waitFor(() => expect(screen.queryByRole('link', { name: LABEL })).toBeNull());
+  expect(screen.queryByRole('link', { name: OVERRIDES_LABEL })).toBeNull();
 });
