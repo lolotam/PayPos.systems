@@ -5,8 +5,8 @@
 //   node app-map.shared.mjs [path-to-022-app-map.md]            rewrite app-map.md beside this file, and the other copy if given
 //   node app-map.shared.mjs --check <path-to-022-app-map.md>    write nothing; exit 1 if either file differs from what this source generates
 // Change a name, an order, a state or a role here, run it, and open one PR in each repository.
-import { existsSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, lstatSync, readFileSync, readlinkSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const L = 'Live', S = 'Soon', N = 'New';
@@ -362,7 +362,20 @@ const otherPath = paths[0];
 targets[1].file = otherPath ? resolve(otherPath) : '';
 targets[0].file = resolve(targets[0].file);
 // Same file by name, through a symlink, or as a hard link: compared by resolved path and by device and inode, before any write.
-const sameFile = (x, y) => { if (x.toLowerCase() === y.toLowerCase()) return true; if (!existsSync(x) || !existsSync(y)) return false; if (realpathSync(x).toLowerCase() === realpathSync(y).toLowerCase()) return true; const a = statSync(x), b = statSync(y); return a.ino !== 0 && a.ino === b.ino && a.dev === b.dev; };
+// Where a path really points: through symlinks, including a link whose target does not exist yet.
+const canon = (p, depth = 0) => {
+  try { return realpathSync(p); } catch { /* missing file or dangling link */ }
+  try { if (depth < 8 && lstatSync(p).isSymbolicLink()) return canon(resolve(dirname(p), readlinkSync(p)), depth + 1); } catch { /* not a link */ }
+  return resolve(p);
+};
+// Case is folded only where the filesystem ignores it.
+const fold = (p) => (process.platform === 'win32' || process.platform === 'darwin' ? p.toLowerCase() : p);
+const sameFile = (x, y) => {
+  if (fold(canon(x)) === fold(canon(y))) return true;
+  if (!existsSync(x) || !existsSync(y)) return false;
+  const i = statSync(x), j = statSync(y);
+  return i.ino !== 0 && i.ino === j.ino && i.dev === j.dev;
+};
 if (targets[1].file && sameFile(targets[1].file, targets[0].file)) {
   console.error('The path given is this project\'s own app-map.md. Pass the lovable-pospay copy.');
   process.exit(1);
