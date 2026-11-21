@@ -14,7 +14,7 @@ function makeBranch(id: string): WorkspaceBranch {
 }
 
 function makeBusiness(id: string, branches: WorkspaceBranch[]): WorkspaceBusiness {
-  return { id, name_ar: id, name_en: id, branches };
+  return { id, name_ar: id, name_en: id, business_type: 'salon', country: null, branches };
 }
 
 function makeCompany(id: string, businesses: WorkspaceBusiness[]): WorkspaceCompany {

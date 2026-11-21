@@ -44500,6 +44500,22 @@
             "minLength": 1,
             "maxLength": 255
           },
+          "business_type": {
+            "$ref": "#/components/schemas/VerticalType"
+          },
+          "country": {
+            "nullable": true,
+            "enum": [
+              "KW",
+              "SA",
+              "AE",
+              "BH",
+              "QA",
+              "OM",
+              null
+            ],
+            "type": "string"
+          },
           "branches": {
             "type": "array",
             "items": {
@@ -44511,6 +44527,8 @@
           "id",
           "name_ar",
           "name_en",
+          "business_type",
+          "country",
           "branches"
         ]
       },

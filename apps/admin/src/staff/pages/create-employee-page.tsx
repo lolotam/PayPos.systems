@@ -1,5 +1,5 @@
 'use client';
-import type { WorkspaceBusiness } from '@pospay/contracts';
+import type { WorkspaceBusinessRead } from '@pospay/contracts';
 import { t, formatDate } from '@pospay/i18n';
 import { useState } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
@@ -14,7 +14,7 @@ export function CreateEmployeePage({
   userId,
 }: {
   companyId: string;
-  business: WorkspaceBusiness;
+  business: WorkspaceBusinessRead;
   userId: string;
 }) {
   const locale = useLocale();

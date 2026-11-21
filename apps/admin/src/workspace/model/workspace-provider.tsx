@@ -1,6 +1,6 @@
 'use client';
 
-import type { WorkspaceBranch, WorkspaceBusiness, WorkspaceCompany } from '@pospay/contracts';
+import type { WorkspaceBranch, WorkspaceBusinessRead, WorkspaceCompanyRead } from '@pospay/contracts';
 import type { Locale } from '@pospay/i18n';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
@@ -22,13 +22,13 @@ type WorkspaceStatus =
   | { status: 'error'; message: string }
   | {
       status: 'ready';
-      company: WorkspaceCompany;
-      business?: WorkspaceBusiness | undefined;
+      company: WorkspaceCompanyRead;
+      business?: WorkspaceBusinessRead | undefined;
       branch?: WorkspaceBranch | undefined;
     };
 
 export type WorkspaceController = WorkspaceStatus & {
-  companies: readonly WorkspaceCompany[];
+  companies: readonly WorkspaceCompanyRead[];
   choose: (next: SelectionChoice) => void;
 };
 
@@ -41,7 +41,7 @@ function viewOf(
   error: unknown,
   locale: Locale,
   resolved: ResolvedSelection,
-  companies: readonly WorkspaceCompany[],
+  companies: readonly WorkspaceCompanyRead[],
   choose: (next: SelectionChoice) => void,
 ): WorkspaceController {
   const shared = { companies, choose };

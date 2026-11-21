@@ -33,6 +33,8 @@ const alpha = {
   id: ALPHA,
   name_ar: null,
   name_en: 'Alpha',
+  business_type: 'retail' as const,
+  country: 'KW' as const,
   branches: [
     {
       id: CLOSED,
@@ -50,11 +52,20 @@ const alpha = {
     },
   ],
 };
-const emptyBusiness = { id: EMPTY, name_ar: null, name_en: 'Empty', branches: [] };
+const emptyBusiness = {
+  id: EMPTY,
+  name_ar: null,
+  name_en: 'Empty',
+  business_type: 'restaurant' as const,
+  country: null,
+  branches: [],
+};
 const zed = {
   id: A.business,
   name_ar: 'زيد',
   name_en: 'Zed',
+  business_type: 'salon' as const,
+  country: null,
   branches: [
     { id: EAST, name_ar: null, name_en: 'East', effective_timezone: 'Asia/Qatar', is_active: true },
     {
@@ -134,15 +145,17 @@ async function shapeCompanyA(ownerUrl: string): Promise<void> {
   try {
     await owner`UPDATE companies SET name_ar = 'شركة أ' WHERE id = ${A.company}`;
     await owner`
-      UPDATE businesses SET name_en = 'Zed', name_ar = 'زيد', timezone = 'Asia/Qatar'
+      UPDATE businesses
+      SET name_en = 'Zed', name_ar = 'زيد', timezone = 'Asia/Qatar',
+          settings = '{"country": "XX"}'::jsonb
       WHERE company_id = ${A.company} AND id = ${A.business}`;
     await owner`
       UPDATE branches SET name_en = 'West', timezone = NULL
       WHERE company_id = ${A.company} AND id = ${A.branch}`;
     await owner`
-      INSERT INTO businesses (id, company_id, vertical_type, name_en, timezone)
-      VALUES (${ALPHA}, ${A.company}, 'retail', 'Alpha', 'Asia/Kuwait'),
-             (${EMPTY}, ${A.company}, 'retail', 'Empty', 'Asia/Kuwait')`;
+      INSERT INTO businesses (id, company_id, vertical_type, name_en, timezone, settings)
+      VALUES (${ALPHA}, ${A.company}, 'retail', 'Alpha', 'Asia/Kuwait', '{"country": "KW"}'::jsonb),
+             (${EMPTY}, ${A.company}, 'restaurant', 'Empty', 'Asia/Kuwait', '{}'::jsonb)`;
     await owner`
       INSERT INTO branches (id, company_id, business_id, name_en, timezone, is_active)
       VALUES (${NORTH}, ${A.company}, ${ALPHA}, 'North', 'Asia/Riyadh', true),
@@ -222,12 +235,38 @@ describe('describeWorkspaces', () => {
   });
 });
 
+describe('describeWorkspaces legacy country normalization', () => {
+  it.each([
+    ['lowercase country', '{"country": "kw"}'],
+    ['numeric country', '{"country": 965}'],
+    ['array country', '{"country": ["KW"]}'],
+    ['non-object array settings', '["KW"]'],
+    ['non-object scalar settings', '"KW"'],
+  ])('maps legacy malformed stored country (%s) to null without failing', async (_label, raw) => {
+    const owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
+    try {
+      await owner`
+        UPDATE businesses SET settings = ${raw}::jsonb
+        WHERE company_id = ${A.company} AND id = ${EMPTY}`;
+      const tree = await read(A.company, [{ scope: 'BUSINESS', scopeId: EMPTY }]);
+      expect(workspaceCompanyNames.parse(tree)).toEqual(tree);
+      expect(tree).toEqual({ ...companyA, businesses: [emptyBusiness] });
+    } finally {
+      await owner`
+        UPDATE businesses SET settings = '{}'::jsonb
+        WHERE company_id = ${A.company} AND id = ${EMPTY}`;
+      await owner.end();
+    }
+  });
+});
+
 describe('describeWorkspaces plan', () => {
-  it('EXPLAIN ANALYZE uses the tenant indexes and never a sequential scan', async () => {
+  it('EXPLAIN ANALYZE uses the tenant indexes, never scans sequentially, and stays at two statements', async () => {
     plans.length = 0;
     await explaining(db).withTenant(A.company, (tx) => describeWorkspaces(tx, company), {
       userId: USER,
     });
+    expect(plans).toHaveLength(2);
     const plan = plans.at(-1) ?? '';
     expect(plan).toContain('companies_pkey');
     expect(

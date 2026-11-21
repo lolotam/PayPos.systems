@@ -46,6 +46,8 @@ beforeEach(() => {
       id: boardId,
       name_ar: null,
       name_en: 'Synthetic business',
+      business_type: 'salon',
+      country: null,
       branches: boardBranches,
     },
     branch: undefined,

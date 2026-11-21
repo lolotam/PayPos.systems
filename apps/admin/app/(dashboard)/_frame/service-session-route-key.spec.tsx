@@ -57,7 +57,7 @@ beforeEach(() => {
   state.workspace = {
     status: 'ready',
     company: { id: boardId, name_ar: null, name_en: 'Synthetic company', businesses: [], role_code: 'viewer', scope: 'BRANCH' },
-    business: { id: boardId, name_ar: null, name_en: 'Synthetic business', branches: boardBranches },
+    business: { id: boardId, name_ar: null, name_en: 'Synthetic business', business_type: 'salon', country: null, branches: boardBranches },
     branch: boardBranches[0],
     companies: [],
     choose: vi.fn(),
