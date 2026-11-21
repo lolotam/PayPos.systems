@@ -1,4 +1,3 @@
-import type { Country } from '@pospay/contracts';
 import type { MessageKey } from '@pospay/i18n';
 
 import { BUSINESS_IDENTITY_NAV_PAGES } from '@/business-identity/nav';
@@ -11,10 +10,14 @@ import { REPORTING_NAV_PAGES } from '@/reporting/nav';
 import { SESSION_NAV_PAGES } from '@/session/nav';
 import { SETTINGS_NAV_PAGES } from '@/settings/nav';
 import { STAFF_NAV_PAGES } from '@/staff/nav';
+import {
+  findNavigationEntryByPathname,
+  isTopLevelPage,
+  navigationEntryHref,
+  resolveMenuEntry,
+} from '@/workspace/model/navigation-rules';
 import { WORKSPACE_NAV_PAGES } from '@/workspace/nav';
 import type {
-  LiveRoutePageEntry,
-  NavigationBusinessType,
   NavigationGroupings,
   NavigationPageEntry,
   NavigationSectionId,
@@ -22,7 +25,6 @@ import type {
   NavigationStyle,
   NavigationSubmenuId,
   NavigationSubmenuMeta,
-  SoonNavigationPageEntry,
   StyleAGroup,
   StyleBColumn,
   StyleBModule,
@@ -198,14 +200,6 @@ function buildCanonicalPageList(): readonly NavigationPageEntry[] {
 /** القائمة الموحّدة لكل صفحات منطقة الإدارة في app-map.md وصفحات الأطفال الحية. */
 export const NAVIGATION_PAGES: readonly NavigationPageEntry[] = buildCanonicalPageList();
 
-export function isTopLevelPage(entry: NavigationPageEntry): entry is TopLevelNavigationPageEntry {
-  return entry.parent === undefined;
-}
-
-export function isLiveRoutePage(entry: NavigationPageEntry): entry is LiveRoutePageEntry {
-  return entry.state === 'live' && entry.route !== undefined;
-}
-
 export const TOP_LEVEL_NAVIGATION_PAGES: readonly TopLevelNavigationPageEntry[] =
   NAVIGATION_PAGES.filter(isTopLevelPage);
 
@@ -294,60 +288,17 @@ export function parseNavigationStyle(raw: string | null | undefined): Navigation
   return DEFAULT_NAVIGATION_STYLE;
 }
 
-export function soonPageHref(pageId: string): string {
-  return `/soon/${pageId}`;
-}
 
 export function pageEntryHref(entry: NavigationPageEntry): string {
-  if (entry.state === 'soon') return soonPageHref(entry.id);
-  if (entry.route !== undefined) return entry.route;
-  const parent = PAGES_BY_ID.get(entry.parent);
-  return parent !== undefined && parent.state === 'live' && parent.route !== undefined
-    ? parent.route
-    : '/';
+  return navigationEntryHref(entry, PAGES_BY_ID);
 }
 
-function normalizePathname(pathname: string): string {
-  if (pathname.length > 1 && pathname.endsWith('/')) return pathname.slice(0, -1);
-  return pathname;
-}
-
-export function matchesNavigationRoute(routePattern: string, pathname: string): boolean {
-  const normalizedPath = normalizePathname(pathname);
-  if (!routePattern.includes('[')) return normalizedPath === routePattern;
-  const patternParts = routePattern.split('/');
-  const pathParts = normalizedPath.split('/');
-  if (patternParts.length !== pathParts.length) return false;
-  return patternParts.every((part, index) => {
-    const segment = pathParts[index];
-    if (part.startsWith('[') && part.endsWith(']')) return segment !== undefined && segment.length > 0;
-    return part === segment;
-  });
-}
-
-export function findNavigationPageByPathname(
-  pathname: string,
-  pages: readonly NavigationPageEntry[] = NAVIGATION_PAGES,
-): NavigationPageEntry | undefined {
-  const normalized = normalizePathname(pathname);
-  if (normalized.startsWith('/soon/')) {
-    // FR-023: the route checks the matched entry's current visibility before opening or forwarding.
-    const id = normalized.slice('/soon/'.length);
-    return pages.find((entry) => (entry.state === 'soon' ? entry.id : entry.formerSoonId) === id);
-  }
-  const livePages = pages.filter(isLiveRoutePage);
-  const exact = livePages.find((entry) => !entry.route.includes('[') && entry.route === normalized);
-  if (exact !== undefined) return exact;
-  return livePages.find((entry) => entry.route.includes('[') && matchesNavigationRoute(entry.route, normalized));
+export function findNavigationPageByPathname(pathname: string): NavigationPageEntry | undefined {
+  return findNavigationEntryByPathname(pathname, NAVIGATION_PAGES);
 }
 
 export function resolveMenuEntryForPathname(pathname: string): TopLevelNavigationPageEntry | undefined {
-  const matched = findNavigationPageByPathname(pathname);
-  if (matched === undefined) return undefined;
-  if (isTopLevelPage(matched)) return matched;
-  if (matched.parent === undefined) return undefined;
-  const parent = PAGES_BY_ID.get(matched.parent);
-  return parent !== undefined && isTopLevelPage(parent) ? parent : undefined;
+  return resolveMenuEntry(findNavigationPageByPathname(pathname), PAGES_BY_ID);
 }
 
 export function findTopLevelGroupForPage(style: NavigationStyle, pageId: string): string | undefined {
@@ -364,26 +315,4 @@ export function findTopLevelGroupForPage(style: NavigationStyle, pageId: string)
   return NAVIGATION_GROUPINGS.C.find((workspace) =>
     workspace.panelSections.some((section) => section.pageIds.includes(pageId)),
   )?.id;
-}
-
-export function isEntryShownForWorkspace(
-  entry: NavigationPageEntry,
-  businessType: NavigationBusinessType | null,
-  countryCode: Country | null,
-): boolean {
-  if (entry.businessTypes.length > 0) {
-    if (businessType === null || !entry.businessTypes.includes(businessType)) return false;
-  }
-  if (entry.countries !== undefined && entry.countries.length > 0) {
-    if (countryCode === null || !entry.countries.includes(countryCode)) return false;
-  }
-  return true;
-}
-
-export function isSoonEntryShownForRole(
-  entry: SoonNavigationPageEntry,
-  role: string,
-): boolean {
-  // صفحة المظهر متاحة لأي مستخدم مسجّل، بما في ذلك الأدوار المخصصة (FR-005).
-  return entry.plannedRoute === '/appearance' || entry.roles.some((allowed) => allowed === role);
 }

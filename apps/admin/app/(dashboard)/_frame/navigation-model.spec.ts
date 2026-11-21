@@ -8,6 +8,14 @@ import { t, type MessageKey } from '@pospay/i18n';
 import * as UI from '@pospay/ui';
 import { describe, expect, it } from 'vitest';
 
+import {
+  findNavigationEntryByPathname,
+  isEntryShownForWorkspace,
+  isLiveRoutePage,
+  isSoonEntryShownForRole,
+  navigationEntryHref,
+  soonPageHref,
+} from '@/workspace/model/navigation-rules';
 import type {
   EmbeddedLivePageEntry,
   LiveRoutePageEntry,
@@ -22,9 +30,6 @@ import {
   DEFAULT_NAVIGATION_STYLE,
   findNavigationPageByPathname,
   findTopLevelGroupForPage,
-  isEntryShownForWorkspace,
-  isLiveRoutePage,
-  isSoonEntryShownForRole,
   NAVIGATION_GROUPINGS,
   NAVIGATION_PAGES,
   NAVIGATION_SECTIONS,
@@ -33,7 +38,6 @@ import {
   pageEntryHref,
   parseNavigationStyle,
   resolveMenuEntryForPathname,
-  soonPageHref,
   TOP_LEVEL_NAVIGATION_PAGES,
 } from './navigation-model';
 
@@ -145,7 +149,7 @@ describe('navigation model route coverage (074-1 + 074-2)', () => {
     const child = requiredPageById('service-create');
     if (!isLiveRoutePage(child)) throw new Error('Expected a live child route');
     const promoted = { ...child, formerSoonId: 'new-services' };
-    expect(findNavigationPageByPathname(soonPageHref('new-services'), [promoted])).toBe(promoted);
+    expect(findNavigationEntryByPathname(soonPageHref('new-services'), [promoted])).toBe(promoted);
   });
 
   it('resolves an embedded page through its published Soon alias', () => {
@@ -153,7 +157,31 @@ describe('navigation model route coverage (074-1 + 074-2)', () => {
     if (embedded.state !== 'live' || embedded.embeddedInParent !== true)
       throw new Error('Expected an embedded live page');
     const promoted = { ...embedded, formerSoonId: 'new-schedules' };
-    expect(findNavigationPageByPathname(soonPageHref('new-schedules'), [promoted])).toBe(promoted);
+    expect(findNavigationEntryByPathname(soonPageHref('new-schedules'), [promoted])).toBe(promoted);
+  });
+
+  it('uses the parent list as the destination of a promoted dynamic child', () => {
+    const child = requiredPageById('employee-leave');
+    if (!isLiveRoutePage(child)) throw new Error('Expected a live child route');
+    const promoted = { ...child, formerSoonId: 'leave-detail' };
+    const parent = requiredPageById('employees');
+    const matched = findNavigationEntryByPathname(soonPageHref('leave-detail'), [promoted, parent]);
+    expect(matched).toBe(promoted);
+    expect(navigationEntryHref(promoted, new Map([[parent.id, parent]]))).toBe('/staff');
+  });
+
+  it('keeps current and former Soon IDs unique', () => {
+    const ids = NAVIGATION_PAGES.map((entry) => (entry.state === 'soon' ? entry.id : entry.formerSoonId))
+      .filter((id) => id !== undefined);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('leaves a collision between a current Soon ID and a former alias unresolved', () => {
+    const live = requiredPageById('services');
+    if (!isLiveRoutePage(live)) throw new Error('Expected a live route');
+    const soon = requiredPageById('kitchen-screens');
+    const entries = [soon, { ...live, formerSoonId: soon.id }];
+    expect(findNavigationEntryByPathname(soonPageHref(soon.id), entries)).toBeUndefined();
   });
 });
 

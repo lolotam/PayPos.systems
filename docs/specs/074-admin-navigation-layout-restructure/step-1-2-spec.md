@@ -13,6 +13,7 @@
 - **Per-domain page exports (`apps/admin/src/<area>/nav.ts`):** each business area owns its own Management-area entries, live visibility condition identifiers, count source identifiers, section and sub-menu placement:
   - `workspace`, `orders`, `catalog`, `customers`, `staff`, `commissions`, `reporting`, `business-identity`, `permissions`, `session`, `settings`.
 - **Composition and groupings (`apps/admin/app/(dashboard)/_frame/navigation-model.ts`):**
+  - The frame composes the domain exports. Route matching, destination selection and visibility rules live in `apps/admin/src/workspace/model/navigation-rules.ts`.
   - Composes all 131 typed entries:
     - **127 Management-area `app-map.md` rows:**
       - **27 live top-level routes** (one per built top-level admin route).
