@@ -27,6 +27,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Page | Phase | State | Shown only to |
 |---|---|---|---|
 | Dashboard (today at a glance) | 1 | Live | every business type |
+| Shift dashboard (current shift and what needs attention) | 2 | Soon | every business type |
 | Approvals inbox (everything waiting for a decision, one count) | 1 | New | every business type |
 | Daily sales dashboard | 2 | Soon | every business type |
 | All-businesses dashboard | 5 | Soon | every business type |
@@ -38,11 +39,13 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Service visits | Record a visit | 1 | Live | every business type |
 | Service visits | Sessions (day list) | 1 | Live | every business type |
 | Service visits | Sell a package | 1 | Live | every business type |
+| Service visits | Customer packages (who holds what, sessions left) | 1 | Soon | every business type |
 | Service visits | Unassigned services (exceptions) | 1 | Soon | every business type |
 | Discounts | Discounts | 1 | Soon | every business type |
 | Discounts | Discount approvals | 1 | Soon | every business type |
 | Orders | Orders | 2 | Soon | every business type |
 | Orders | Returns | 2 | Soon | every business type |
+| Orders | Fulfilment board (stages, payment status, delays) | — | Soon | every business type |
 | Payments | Payments and refunds | 2 | Soon | every business type |
 | Payments | Customer accounts (on-account sales) | 2 | Soon | every business type |
 | Cash | Cash shifts | 2 | Soon | every business type |
@@ -54,6 +57,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Restaurant | Kitchen screens and stations | 3 | Soon | Restaurant, café |
 | Delivery | Delivery channels | 4 | Soon | Restaurant, café, grocery |
 | Delivery | Delivery zones | 2 | Soon | Restaurant, café, grocery, laundry |
+| Delivery | Drivers | — | Soon | Restaurant, café, grocery, laundry |
 | For this business type | Laundry tickets | 6 | Soon | Laundry |
 | For this business type | Barcode, scale and offers | 6 | Soon | Grocery, retail |
 | For this business type | Quotes and invoices | 6 | Soon | Services company |
@@ -71,6 +75,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Catalog | Options and modifiers | 2 | Soon | every business type |
 | Catalog | Price lists | 2 | Soon | every business type |
 | Catalog | Combos and bundles | 2 | Soon | every business type |
+| Catalog | Units of measure | 3 | Soon | every business type |
 | Stores | Stock items | 3 | Soon | every business type |
 | Stores | Locations | 3 | Soon | every business type |
 | Stores | Suppliers | 3 | Soon | every business type |
@@ -78,6 +83,8 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Stores | Transfers | 3 | Soon | every business type |
 | Stores | Stock counts | 3 | Soon | every business type |
 | Stores | Adjustments and wastage | 3 | Soon | every business type |
+| Stores | Stock movements (item activity) | 3 | Soon | every business type |
+| Stores | Barcode labels | — | Soon | every business type |
 | Production | Recipes | 3 | Soon | Restaurant, café |
 | Production | Production orders | 3 | Soon | Restaurant, café |
 
@@ -87,11 +94,13 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 |---|---|---|---|---|
 | Customers | Customers | 2 | Soon | every business type |
 | Customers | Tags and blocks | 2 | Soon | every business type |
+| Customers | Customer wallet (prepaid balance) | — | Soon | every business type |
 | Customers | Ratings and reviews | 1 | Soon | every business type |
 | Appointments | Calendar | 4 | Soon | Salon, spa, barber, clinic, services company, gym |
 | Appointments | Resources (chairs, rooms) | 4 | Soon | Salon, spa, barber, clinic, services company, gym |
 | Appointments | Waitlist | 4 | Soon | Salon, spa, barber, clinic, services company, gym |
 | Appointments | Booking rules | 4 | Soon | Salon, spa, barber, clinic, services company, gym |
+| Appointments | Appointment categories | 4 | Soon | Salon, spa, barber, clinic, services company, gym |
 | Online | Company public page | 1 | Soon | every business type |
 | Online | Online menu builder | 4 | Soon | every business type |
 | Marketing | Business WhatsApp | 4 | Soon | every business type |
@@ -152,14 +161,18 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Sub-menu | Page | Phase | State | Shown only to |
 |---|---|---|---|---|
 | Business | Business identity | 1 | Live | every business type |
+| Business | Branches | 1 | Soon | every business type |
 | Business | Alerts and notifications | 1 | Live | every business type |
 | Business | Data import (Excel) | 1 | Soon | every business type |
 | Business | Tax and invoice template | 2 | Soon | every business type |
+| Business | Invoice terms and conditions | — | Soon | every business type |
 | Business | Working hours and order rules | 2 | Soon | every business type |
 | Business | Payment methods and gateways | 2 | Soon | every business type |
 | Access | Permissions | 1 | Live | every business type |
+| Access | Users and invitations | — | Soon | every business type |
 | Access | Sign-in security (authenticator) | 1 | Live | every business type |
 | Access | Approval limits | 2 | Soon | every business type |
+| Access | Activity log (who did what, and when) | — | Soon | every business type |
 | Staff app | Staff app link | 1 | Live | every business type |
 | Staff app | Staff app columns | 1 | Live | every business type |
 | Appearance | Appearance (navigation style, light and dark) | 1 | New | every business type |
@@ -169,6 +182,12 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 
 "Social media management" is the owner's request of 2026-11-21; it is not in the PRD and needs a PRD entry and a spec
 before anything is built. The owner confirmed it is listed as a Soon entry.
+
+Thirteen entries were added on 2026-11-21 after comparing this map with a competing salon product: Shift dashboard,
+Customer packages, Fulfilment board, Drivers, Units of measure, Stock movements, Barcode labels, Customer wallet,
+Appointment categories, Branches, Invoice terms and conditions, Users and invitations, and Activity log. Those marked
+"—" in the Phase column are not named in the PRD and need a PRD entry and a spec before anything is built. Some of
+them may end up as part of another page rather than a page of their own.
 
 How an owner gets a second business type on the same account (created by the platform operator, or by an invitation
 to the same email) is a subscription question, not a menu question, and is not decided here.
@@ -220,7 +239,7 @@ separate cashier and staff app.
 
 ## Counts
 
-- Management area: 110 menu pages. In this project: 28 Live, 2 New, 80 Soon.
+- Management area: 123 menu pages. In this project: 28 Live, 2 New, 93 Soon.
 - Other areas: 24 menu pages. In this project: 0 Live, 0 Soon, 24 not mapped here (the cashier app has its own spec).
 - Child pages (create and detail pages) have no menu entry of their own and are not counted.
 

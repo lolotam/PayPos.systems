@@ -32,7 +32,7 @@ The work is delivered as 13 PRs. Their order, tiers and "done when" are in [pr-s
 
 **Constraints**: No colour, font, radius or button-variant change. Existing URLs unchanged. Strings through `packages/i18n` only. Logical CSS properties only. Interactive targets at least 44px. `apps/pos` untouched.
 
-**Scale/Scope**: 110 management-area menu pages in `app-map.md` (28 built, 2 new, 80 not built and opening one shared Under development page), three groupings, 15 `*-nav-item.tsx` files folded into one model, 13 PRs.
+**Scale/Scope**: 123 management-area menu pages in `app-map.md` (28 built, 2 new, 93 not built and opening one shared Under development page), three groupings, 15 `*-nav-item.tsx` files folded into one model, 13 PRs.
 
 ## Constitution Check
 

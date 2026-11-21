@@ -12,6 +12,7 @@ const L = 'Live', S = 'Soon', N = 'New';
 const MANAGE = [
   ['1. Home', [
     ['', 'Dashboard (today at a glance)', '1', L, L, ''],
+    ['', 'Shift dashboard (current shift and what needs attention)', '2', S, S, ''],
     ['', 'Approvals inbox (everything waiting for a decision, one count)', '1', N, N, ''],
     ['', 'Daily sales dashboard', '2', S, S, ''],
     ['', 'All-businesses dashboard', '5', S, S, ''],
@@ -20,11 +21,13 @@ const MANAGE = [
     ['Service visits', 'Record a visit', '1', L, S, ''],
     ['Service visits', 'Sessions (day list)', '1', L, L, ''],
     ['Service visits', 'Sell a package', '1', L, S, ''],
+    ['Service visits', 'Customer packages (who holds what, sessions left)', '1', S, S, ''],
     ['Service visits', 'Unassigned services (exceptions)', '1', S, S, ''],
     ['Discounts', 'Discounts', '1', S, L, ''],
     ['Discounts', 'Discount approvals', '1', S, L, ''],
     ['Orders', 'Orders', '2', S, S, ''],
     ['Orders', 'Returns', '2', S, S, ''],
+    ['Orders', 'Fulfilment board (stages, payment status, delays)', '—', S, S, ''],
     ['Payments', 'Payments and refunds', '2', S, S, ''],
     ['Payments', 'Customer accounts (on-account sales)', '2', S, S, ''],
     ['Cash', 'Cash shifts', '2', S, S, ''],
@@ -36,6 +39,7 @@ const MANAGE = [
     ['Restaurant', 'Kitchen screens and stations', '3', S, S, 'Restaurant, café'],
     ['Delivery', 'Delivery channels', '4', S, S, 'Restaurant, café, grocery'],
     ['Delivery', 'Delivery zones', '2', S, S, 'Restaurant, café, grocery, laundry'],
+    ['Delivery', 'Drivers', '—', S, S, 'Restaurant, café, grocery, laundry'],
     ['For this business type', 'Laundry tickets', '6', S, S, 'Laundry'],
     ['For this business type', 'Barcode, scale and offers', '6', S, S, 'Grocery, retail'],
     ['For this business type', 'Quotes and invoices', '6', S, S, 'Services company'],
@@ -50,6 +54,7 @@ const MANAGE = [
     ['Catalog', 'Options and modifiers', '2', S, S, ''],
     ['Catalog', 'Price lists', '2', S, S, ''],
     ['Catalog', 'Combos and bundles', '2', S, S, ''],
+    ['Catalog', 'Units of measure', '3', S, S, ''],
     ['Stores', 'Stock items', '3', S, S, ''],
     ['Stores', 'Locations', '3', S, S, ''],
     ['Stores', 'Suppliers', '3', S, S, ''],
@@ -57,17 +62,21 @@ const MANAGE = [
     ['Stores', 'Transfers', '3', S, S, ''],
     ['Stores', 'Stock counts', '3', S, S, ''],
     ['Stores', 'Adjustments and wastage', '3', S, S, ''],
+    ['Stores', 'Stock movements (item activity)', '3', S, S, ''],
+    ['Stores', 'Barcode labels', '—', S, S, ''],
     ['Production', 'Recipes', '3', S, S, 'Restaurant, café'],
     ['Production', 'Production orders', '3', S, S, 'Restaurant, café'],
   ]],
   ['4. Customers and marketing', [
     ['Customers', 'Customers', '2', S, S, ''],
     ['Customers', 'Tags and blocks', '2', S, S, ''],
+    ['Customers', 'Customer wallet (prepaid balance)', '—', S, S, ''],
     ['Customers', 'Ratings and reviews', '1', S, S, ''],
     ['Appointments', 'Calendar', '4', S, S, 'Salon, spa, barber, clinic, services company, gym'],
     ['Appointments', 'Resources (chairs, rooms)', '4', S, S, 'Salon, spa, barber, clinic, services company, gym'],
     ['Appointments', 'Waitlist', '4', S, S, 'Salon, spa, barber, clinic, services company, gym'],
     ['Appointments', 'Booking rules', '4', S, S, 'Salon, spa, barber, clinic, services company, gym'],
+    ['Appointments', 'Appointment categories', '4', S, S, 'Salon, spa, barber, clinic, services company, gym'],
     ['Online', 'Company public page', '1', S, L, ''],
     ['Online', 'Online menu builder', '4', S, S, ''],
     ['Marketing', 'Business WhatsApp', '4', S, S, ''],
@@ -119,14 +128,18 @@ const MANAGE = [
   ]],
   ['7. Setup', [
     ['Business', 'Business identity', '1', L, S, ''],
+    ['Business', 'Branches', '1', S, S, ''],
     ['Business', 'Alerts and notifications', '1', L, S, ''],
     ['Business', 'Data import (Excel)', '1', S, S, ''],
     ['Business', 'Tax and invoice template', '2', S, S, ''],
+    ['Business', 'Invoice terms and conditions', '—', S, S, ''],
     ['Business', 'Working hours and order rules', '2', S, S, ''],
     ['Business', 'Payment methods and gateways', '2', S, S, ''],
     ['Access', 'Permissions', '1', L, L, ''],
+    ['Access', 'Users and invitations', '—', S, S, ''],
     ['Access', 'Sign-in security (authenticator)', '1', L, S, ''],
     ['Access', 'Approval limits', '2', S, S, ''],
+    ['Access', 'Activity log (who did what, and when)', '—', S, S, ''],
     ['Staff app', 'Staff app link', '1', L, S, ''],
     ['Staff app', 'Staff app columns', '1', L, S, ''],
     ['Appearance', 'Appearance (navigation style, light and dark)', '1', N, 'Live (today\'s Settings page; gains the style choice)', ''],
@@ -215,6 +228,12 @@ ${MANAGE.map(([name, rows]) => `### ${name}\n\n${table(rows, ix)}`).join('\n\n')
 
 "Social media management" is the owner's request of 2026-11-21; it is not in the PRD and needs a PRD entry and a spec
 before anything is built. The owner confirmed it is listed as a Soon entry.
+
+Thirteen entries were added on 2026-11-21 after comparing this map with a competing salon product: Shift dashboard,
+Customer packages, Fulfilment board, Drivers, Units of measure, Stock movements, Barcode labels, Customer wallet,
+Appointment categories, Branches, Invoice terms and conditions, Users and invitations, and Activity log. Those marked
+"—" in the Phase column are not named in the PRD and need a PRD entry and a spec before anything is built. Some of
+them may end up as part of another page rather than a page of their own.
 
 How an owner gets a second business type on the same account (created by the platform operator, or by an invitation
 to the same email) is a subscription question, not a menu question, and is not decided here.
