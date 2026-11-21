@@ -16,6 +16,9 @@ import { CustomerPackagesLink } from './customer-packages-link';
 
 export type SessionCustomerSelection = Pick<Customer, 'id' | 'name' | 'phone'>;
 
+/** نطاق النشاط والفرع والمستخدم اللي يفعّل رابط باقات العميلة في كارت الزبونة المختارة (42-4). */
+type PackagesLinkScope = { companyId: string; businessId: string; branchId: string; userId: string };
+
 type SessionCustomerFieldProps = {
   companyId: string;
   branchId: string;
@@ -26,6 +29,7 @@ type SessionCustomerFieldProps = {
   onChange: (value: SessionCustomerSelection | null) => void;
   onBlur?: () => void;
   disabled?: boolean;
+  packagesScope?: PackagesLinkScope | null;
 };
 type SessionCustomerLocale = FindOrCreateCustomerInput['locale'];
 type SessionCustomerForm = UseFormReturn<FindOrCreateCustomerInput>;
@@ -251,14 +255,7 @@ export function SessionCustomerField({
   onBlur,
   disabled = false,
   packagesScope = null,
-}: SessionCustomerFieldProps & {
-  packagesScope?: {
-    companyId: string;
-    businessId: string;
-    branchId: string;
-    userId: string;
-  } | null;
-}) {
+}: SessionCustomerFieldProps) {
   const locale = useLocale();
   const prefix = useId();
   const { form, mutation, invalid, nameEntry, callingCode, nationalNumber, resolve, invalidate } =
