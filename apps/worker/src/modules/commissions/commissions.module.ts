@@ -16,12 +16,10 @@ import {
   type BusinessTimeZoneReader,
 } from './persistence/commission-line-projection.scope.ts';
 import { createCommissionCorrectionScope } from './persistence/commission-correction.scope.ts';
-import {
-  createCommissionBlockNotices,
-  type CommissionPermissionHoldersReader,
-} from './persistence/commission-block-notice.outbox.ts';
+import { createCommissionBlockNotices } from './persistence/commission-block-notice.outbox.ts';
 import { markCommissionEventConsumed } from './persistence/commission-event-consumption.ts';
 import { createCoverageProjectionReader } from './persistence/commission-coverage.reads.ts';
+import type { CommissionPermissionHoldersReader } from './ports/commission-block-notice.port.ts';
 import type {
   CoverageCompanyReader,
   CoverageRetainedPageReader,
@@ -87,7 +85,7 @@ export interface CommissionInputsConsumerDependencies {
   readonly businessTimeZone: BusinessTimeZoneReader;
   readonly employeeBusiness: EmployeeBusinessReader;
   readonly businessCalendar: BusinessCalendarReader;
-  readonly permissionHolders: CommissionPermissionHoldersReader;
+  readonly permissionHolders: CommissionPermissionHoldersReader<Tx>;
 }
 
 const commissionBlockNoticeContract = {

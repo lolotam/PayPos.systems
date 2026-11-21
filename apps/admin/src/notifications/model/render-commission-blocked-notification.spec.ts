@@ -1,5 +1,8 @@
 import type { InAppNotification } from '@pospay/contracts';
+import { render, screen } from '@testing-library/react';
+import { createElement } from 'react';
 import { expect, it } from 'vitest';
+import { NotificationItem } from '../ui/notification-item';
 import { renderNotification } from './render-notification';
 
 const bell = (locale: 'ar' | 'en'): InAppNotification => ({
@@ -27,4 +30,6 @@ it('N8 renders the blocked-correction bell in the viewer locale with the month',
     'A commission correction for 2026-09 is on hold: an employee has no commission plan or no salary for that month. Open the blocked corrections to fix it.',
   );
   expect(renderNotification(item)).toBe(arabic);
+  render(createElement(NotificationItem, { item, locale: 'ar', pending: false, onRead: () => {} }));
+  expect(screen.getByRole('paragraph').textContent).toBe(arabic);
 });

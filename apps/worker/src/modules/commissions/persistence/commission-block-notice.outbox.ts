@@ -4,30 +4,12 @@ import { groupCommissionBlockNoticeRecipients } from '../domain/commission-block
 import type {
   CommissionBlockNoticeInput,
   CommissionBlockNotices,
+  CommissionPermissionHoldersReader,
 } from '../ports/commission-block-notice.port.ts';
 import type { Clock, IdGenerator } from '../ports/commission-line-projection.port.ts';
 
 /** صلاحية إدارة خطط العمولة: أصحابها هما اللي بيصلّحوا التصحيح الموقوف (CS-Q19). */
 const MANAGE_COMMISSION_PLANS = 'manage:commission-plans:business';
-
-/**
- * قارئ حاملي صلاحية على النشاط: هوية الوحدة مربوطة عند جذر التوصيل بلا سهم
- * استيراد (D-16)، فالوحدة ما تعرفش جداول العضويات.
- *
- * @param tx معاملة الشركة
- * @param companyId الشركة
- * @param businessId النشاط
- * @param permission كود الصلاحية
- * @param at لحظة قراءة العضويات والمنح
- * @returns معرفات المستخدمين المؤهلين
- */
-export type CommissionPermissionHoldersReader = (
-  tx: Tx,
-  companyId: string,
-  businessId: string,
-  permission: string,
-  at: Date,
-) => Promise<readonly string[]>;
 
 /**
  * يبني منفذ الجرس على معاملة التوقف نفسها: المستلمون من الهوية بلا قفل، والحدث
@@ -44,7 +26,7 @@ export function createCommissionBlockNotices(
   ids: IdGenerator,
   clock: Clock,
   boundary: {
-    readonly permissionHolders: CommissionPermissionHoldersReader;
+    readonly permissionHolders: CommissionPermissionHoldersReader<Tx>;
     readonly groupSize: number;
     readonly parsePayload: (payload: unknown) => unknown;
   },
