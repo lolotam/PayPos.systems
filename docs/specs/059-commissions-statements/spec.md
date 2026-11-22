@@ -1231,7 +1231,7 @@ and a refusal test (CLAUDE.md §6).
 - `COMMISSION_UPDATES_PENDING` 409 — en: "updates are still being calculated, try again shortly" (ADR-0012 §5); ar:
   «لسه بنحسب آخر التحديثات، جرّب تاني بعد شوية.»
   It still applies when every earlier check passes and the ADR-0012 count refuses.
-- `COMMISSION_COVERAGE_NOT_PROVEN` 422 (ADR-0054 addendum 2026-11-22, accepted by CS-Q55 on 2026-11-23, except the pending point CS-Q55-ب, the tip-date assumption) — «بيانات الشركة القديمة لسه ماتراجعتش، فالاعتماد مش متاح دلوقتي.» /
+- `COMMISSION_COVERAGE_NOT_PROVEN` 422 (ADR-0054 addendum 2026-11-22, accepted by CS-Q55 and CS-Q55-ب on 2026-11-23) — «بيانات الشركة القديمة لسه ماتراجعتش، فالاعتماد مش متاح دلوقتي.» /
   "This company's earlier commission data has not been verified yet, so approval is not available." It does not clear by retrying; an operator
   issues the proof.
 - `COMMISSION_REPAIR_NOT_ALLOWED` 422 — «مفيش تصحيح موقوف بسبب عدم وجود خطة للموظفة دي في الشهر ده.» / "There is no plan-missing blocked correction
