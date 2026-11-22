@@ -30,9 +30,9 @@ A defect was found and fixed during this review: the shared link class's `whites
 
 `rtl-1280.png`, `rtl-1024.png`, `rtl-820.png`, `rtl-390.png`, `ltr-1280.png`, `ltr-1024.png`, `ltr-820.png`, `ltr-390.png` — full-page captures of the same fixture at each width and direction, showing the kit parts, the list template, the 840px form, the two-column template and the 64px bottom bar.
 
-## Round 2 refresh (fixture evidence, code at `0ead2ba85`)
+## Round 2 and 3 refresh (fixture evidence)
 
-This section is **fixture evidence**: the same isolated harness, rebuilt from the kit source after the review round 2 fixes, with one added table row whose name is 255 unbroken characters and with the workspace switcher's new `switcher` label. It does not replace the signed-in pass on the three live pages, which is tracked for the 074-7 release checklist in issue #1192 (including the real logo panel at 1024px).
+This section is **fixture evidence**: the same isolated harness, rebuilt from the kit source after the review round 2 and round 3 fixes, with a Soon mark on one bottom-bar entry, one added table row whose name is 255 unbroken characters and with the workspace switcher's new `switcher` label. It does not replace the signed-in pass on the three live pages, which is tracked for the 074-7 release checklist in issue #1192 (including the real logo panel at 1024px).
 
 **إثبات على الـ fixture فقط بعد تصليحات الجولة الثانية؛ فحص الصفحات الثلاث الحقيقية بعد تسجيل الدخول متابَع في #1192 ضمن قائمة إصدار 074-7.**
 
@@ -41,7 +41,7 @@ This section is **fixture evidence**: the same isolated harness, rebuilt from th
 | Page scrolls sideways | no | no | no | no |
 | 255-character unbroken name | table scrolls inside its own frame | same | same | **wraps inside the stacked card, no sideways scroll** |
 | Stacked header | shown | shown | shown | visually hidden, still in the accessibility tree |
-| Bottom bar height with icon, label and Soon mark on one line | 64px | 64px | 64px | 64px, no cell overflow |
+| Bottom bar height; the Soon mark sits in the top end corner of its cell, in place of the count | 64px | 64px | 64px | 64px, no cell overflow, mark shown in full |
 | Smallest nav link (width × height) | 81×44 RTL, 87×44 LTR | same | same | 65×44 |
 | Page header description inside the shell | one line | one line | one line | one line with an ellipsis |
 

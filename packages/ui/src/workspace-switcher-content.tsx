@@ -2,6 +2,7 @@
 
 import { Popover } from 'radix-ui';
 
+import { useDirection } from './direction-provider.js';
 import { WorkspaceSwitcherField } from './workspace-switcher-field.js';
 import type { SelectOption } from './select.js';
 
@@ -38,14 +39,17 @@ export function WorkspaceSwitcherContent({
   business: WorkspaceSwitcherFieldState;
   branch: WorkspaceSwitcherFieldState;
 }) {
+  const dir = useDirection();
   return (
     // الاسم المتاح من المستدعي يسمّي الحوار: قارئ الشاشة يدخل اللوحة النمطية
-    // ويسمع اسمها قبل الحقول الثلاثة.
+    // ويسمع اسمها قبل الحقول الثلاثة. الحوار يُرسم في portal خارج العنصر الحامل
+    // للاتجاه، فياخد الاتجاه صراحة؛ ومقاسه مسقوف بالمساحة المتاحة مع تمرير داخلي.
     <Popover.Content
+      dir={dir}
       align="start"
       sideOffset={8}
       aria-label={labels.switcher}
-      className="z-50 flex w-72 flex-col gap-3 rounded-card border border-border bg-card p-4 shadow-sm focus-visible:outline-none"
+      className="z-50 flex max-h-[var(--radix-popover-content-available-height)] w-72 max-w-[var(--radix-popover-content-available-width)] flex-col gap-3 overflow-y-auto rounded-card border border-border bg-card p-4 shadow-sm focus-visible:outline-none"
     >
       <WorkspaceSwitcherField
         id={`${id}-company`}

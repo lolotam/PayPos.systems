@@ -59,7 +59,12 @@ it('shows the business and the branch on the trigger and opens the three fields'
   fireEvent.click(trigger);
   expect(await screen.findByText('Company')).toBeTruthy();
   // الحوار المفتوح يحمل اسمًا متاحًا من المستدعي، فقارئ الشاشة يعرف ماذا فتح
-  expect(screen.getByRole('dialog', { name: 'Workspaces' })).toBeTruthy();
+  const dialog = screen.getByRole('dialog', { name: 'Workspaces' });
+  // الحوار في portal خارج العنصر الحامل للاتجاه، فيحمل اتجاه المستدعي بنفسه
+  expect(dialog.getAttribute('dir')).toBe('rtl');
+  // ومقاسه مسقوف بالمساحة المتاحة مع تمرير داخلي، فلا يخرج حقل عن شاشة قصيرة
+  expect(dialog.className).toContain('max-h-[var(--radix-popover-content-available-height)]');
+  expect(dialog.className).toContain('overflow-y-auto');
   expect(screen.getByRole('combobox', { name: 'Company' })).toBeTruthy();
   expect(screen.getByRole('combobox', { name: 'Business' })).toBeTruthy();
   expect(screen.getByRole('combobox', { name: 'Branch' })).toBeTruthy();

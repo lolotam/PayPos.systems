@@ -28,7 +28,8 @@ const CELL_CLASS =
 
 /**
  * الشريط السفلي 64px لروابط صفحات الهاتف داخل معلم تنقّل مسمّى؛ خانة العدّاد
- * مطلقة عند الطرف المنطقي العلوي حتى لا تزحزح النص، والمدخل الإضافي زرّ يبلّغ.
+ * أو علامة الحالة مطلقة عند ركن النهاية العلوي حتى لا تزحزح النص،
+ * والمدخل الإضافي زرّ يبلّغ.
  */
 export function BottomNav({ items, labels, extra, onNavigate, className }: BottomNavProps) {
   return (
@@ -59,17 +60,15 @@ export function BottomNav({ items, labels, extra, onNavigate, className }: Botto
               {item.icon}
             </span>
           ) : null}
-          {/* الاسم والعلامة على سطر واحد: سطر ثالث تحت الأيقونة يتجاوز ارتفاع الشريط 64px،
-              والعلامة مسقوفة بنصف الخانة فلا تزيح الاسم كله ولا تفيض أفقيًا. */}
-          <span className="flex min-w-0 max-w-full items-center gap-1">
-            <span className="min-w-0 truncate">{item.label}</span>
-            {item.status ? (
-              <span className="max-w-[50%] shrink-0 truncate rounded-full border border-border px-1.5 py-0 text-[10px] font-medium text-muted-foreground">
-                {item.status}
-              </span>
-            ) : null}
-          </span>
-          {item.count ? (
+          <span className="min-w-0 max-w-full truncate">{item.label}</span>
+          {/* العلامة مطلقة عند ركن النهاية العلوي، مكان العدّاد، وتمتد نحو البداية: سطر ثالث
+              تحت الأيقونة يتجاوز ارتفاع الشريط 64px، ووضعها بجانب الاسم يقصّها في خانة
+              هاتف عرضها نحو 62px. المدخل تحت التطوير لا عدّاد له، فالعلامة تحل محله. */}
+          {item.status ? (
+            <span className="absolute end-0.5 top-0.5 max-w-[calc(100%-0.25rem)] truncate rounded-full border border-border bg-card px-1.5 py-0 text-[10px] font-medium text-muted-foreground">
+              {item.status}
+            </span>
+          ) : item.count ? (
             <span className={cn(shellNavCountClass, 'absolute end-2 top-1')}>{item.count}</span>
           ) : null}
         </a>

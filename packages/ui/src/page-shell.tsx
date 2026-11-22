@@ -56,7 +56,8 @@ export function PageShell({
       </div>
     );
   }
-  const hasMain = main !== undefined && main !== null;
+  // `شرط && <كتلة />` يعطي false لما الكتلة غايبة، وReact لا يرسم القيم المنطقية
+  const hasMain = main !== undefined && main !== null && typeof main !== 'boolean';
   return (
     <div
       data-page-shell="two-column"
