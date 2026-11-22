@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ContextPanel } from '../context-panel.js';
 import { DirectionProvider } from '../direction-provider.js';
@@ -332,3 +332,59 @@ it.each(['dialog', 'alertdialog'] as const)(
     expect(confirm).toHaveBeenCalledTimes(1);
   },
 );
+
+it('keeps the focus a destination page took in the same commit that closes the tablet modal', () => {
+  stubViewportWidth(820);
+  function Destination({ arrived }: { arrived: boolean }) {
+    const headingRef = useRef<HTMLHeadingElement>(null);
+    useEffect(() => {
+      if (arrived) headingRef.current?.focus();
+    }, [arrived]);
+    return (
+      <h1 ref={headingRef} tabIndex={-1}>
+        Destination page
+      </h1>
+    );
+  }
+  function Harness() {
+    const openerRef = useRef<HTMLButtonElement>(null);
+    const [open, setOpen] = useState(false);
+    const [arrived, setArrived] = useState(false);
+    return (
+      <DirectionProvider dir="ltr">
+        <NavRail
+          workspaces={workspaces}
+          labels={chromeLabels}
+          currentWorkspaceId="business"
+          panelOpen={open}
+          onInspect={(_workspaceId, opener) => {
+            openerRef.current = opener;
+            setOpen(true);
+          }}
+        />
+        <Destination arrived={arrived} />
+        <ContextPanel
+          workspaces={workspaces}
+          labels={contextLabels}
+          currentWorkspaceId="business"
+          panelOpen={open}
+          openerRef={openerRef}
+          onClose={() => {
+            setArrived(true);
+            setOpen(false);
+          }}
+        />
+      </DirectionProvider>
+    );
+  }
+
+  render(<Harness />);
+  fireEvent.click(screen.getByRole('button', { name: 'Business Current Inspect' }));
+  const dialog = screen.getByRole('dialog', { name: contextLabels.navigation });
+  expect(dialog.contains(document.activeElement)).toBe(true);
+
+  fireEvent.keyDown(document.activeElement ?? dialog, { key: 'Escape' });
+
+  expect(screen.queryByRole('dialog', { name: contextLabels.navigation })).toBeNull();
+  expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Destination page' }));
+});

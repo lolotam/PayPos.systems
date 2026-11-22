@@ -71,6 +71,30 @@ function useVisibilitySession(visibilityKey: string): [Session, SetSession] {
   return [session, setSession];
 }
 
+// عبور 700px بيخفي الزر اللي عليه التركيز بالـ CSS، فالمتصفح بيرجّع activeElement للـ body
+// قبل ما الـ effect يشتغل. بنفتكر آخر تركيز كان جوه التنقل ولا لأ عشان ننقله للزر الظاهر،
+// وضغطة براه بتلغي ده عشان ما نسحبش التركيز من مستخدم ساب التنقل.
+function useLastFocusInNav(rootRef: RefObject<HTMLDivElement | null>) {
+  const lastFocusInNav = useRef(false);
+  useEffect(() => {
+    const isInNav = (event: Event) =>
+      event.target instanceof Node && (rootRef.current?.contains(event.target) ?? false);
+    const onFocusIn = (event: FocusEvent) => {
+      lastFocusInNav.current = isInNav(event);
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (!isInNav(event)) lastFocusInNav.current = false;
+    };
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [rootRef]);
+  return lastFocusInNav;
+}
+
 type BreakpointFocusArgs = FocusTargets & {
   layout: NavigationLayout;
   hasOpenDialog: boolean;
@@ -87,20 +111,32 @@ function useBreakpointFocus({
 }: BreakpointFocusArgs) {
   const previousLayout = useRef(layout);
   const target = useRef<HTMLElement | undefined>(undefined);
+  const lastFocusInNav = useLastFocusInNav(rootRef);
   useEffect(() => {
     if (previousLayout.current === layout) return;
     const crossedPhone = (previousLayout.current === 'phone') !== (layout === 'phone');
     previousLayout.current = layout;
     const active = document.activeElement;
+    const focusLost = active === null || active === document.body;
     const focusInNav =
       hasOpenDialog ||
-      (rootRef.current !== null && active !== null && rootRef.current.contains(active));
+      (focusLost
+        ? lastFocusInNav.current
+        : rootRef.current !== null && rootRef.current.contains(active));
     const breakpointTarget = layout === 'phone' ? drawerTriggerRef.current : moduleTriggerRef.current;
     // Tablet <-> desktop keeps the opener visible, so ordinary close-focus restoration applies.
     target.current = crossedPhone && hasOpenDialog ? (breakpointTarget ?? undefined) : undefined;
     closeDialogs();
     if (crossedPhone && !hasOpenDialog && focusInNav) breakpointTarget?.focus();
-  }, [closeDialogs, drawerTriggerRef, hasOpenDialog, layout, moduleTriggerRef, rootRef]);
+  }, [
+    closeDialogs,
+    drawerTriggerRef,
+    hasOpenDialog,
+    lastFocusInNav,
+    layout,
+    moduleTriggerRef,
+    rootRef,
+  ]);
   return target;
 }
 

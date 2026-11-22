@@ -1,94 +1,21 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import {
+  DIRECTIONS,
+  LABELS,
+  VIEWPORTS,
+  expectAtInlineStart,
+  expectMinTarget,
+  expectNoHorizontalOverflow,
+  expectVisibleCurrentMarker,
+  expectVisibleCurrentModuleSwitcher,
+  expectVisibleNavRailCurrentMarker,
+  openScene,
+  requiredBox,
+} from './navigation-helpers';
 
 // CI-only component fixture: no dashboard route, adapter or deployment is involved.
 // It mounts the reusable navigation components with long Arabic labels and
 // measures real browser geometry at the three required widths in both directions.
-
-type Direction = 'rtl' | 'ltr';
-type Box = { x: number; width: number };
-
-const VIEWPORTS = [
-  { name: 'phone', width: 390, height: 844 },
-  { name: 'tablet', width: 820, height: 1180 },
-  { name: 'desktop', width: 1280, height: 900 },
-] as const;
-
-const DIRECTIONS: readonly Direction[] = ['rtl', 'ltr'];
-
-const LABELS = {
-  navigation: 'التنقل',
-  openMenu: 'افتح القائمة',
-  close: 'إغلاق',
-  collapse: 'طي الشريط الجانبي',
-  drawerOpen: 'افتح التنقل',
-  drawerTitle: 'الوحدات',
-  current: 'الحالي',
-  panelNavigation: 'أقسام مساحة العمل',
-  panelClose: 'إغلاق اللوحة',
-  finderTrigger: 'ابحث عن صفحة',
-  finderSearch: 'ابحث في الصفحات',
-  finderEmpty: 'لا توجد نتائج',
-  business: 'الأعمال والإعدادات',
-  people: 'الموظفون والفرق',
-  columns: 'الأعمدة والتنسيقات المتقدمة',
-  employees: 'قائمة الموظفين النشطة',
-  stock: 'المخزون وأصناف المنتجات',
-  stockPage: 'أصناف المخزون المتاحة',
-  outsideField: 'حقل خارجي',
-  headerAction: 'إجراء الرأس',
-  footerAction: 'إجراء التذييل',
-} as const;
-
-async function openScene(page: Page, scene: string, dir: Direction, extraQuery = ''): Promise<void> {
-  await page.goto(`/?dir=${dir}&scene=${scene}${extraQuery}`);
-  await expect(page.locator('[data-fixture-ready="true"]')).toBeVisible();
-}
-
-async function expectNoHorizontalOverflow(page: Page): Promise<void> {
-  const m = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    clientWidth: document.documentElement.clientWidth,
-  }));
-  expect(m.scrollWidth, `overflow: scroll=${m.scrollWidth} client=${m.clientWidth}`).toBeLessThanOrEqual(m.clientWidth);
-}
-
-function expectAtInlineStart(box: Box, dir: Direction, viewportWidth: number): void {
-  const edge = dir === 'rtl' ? viewportWidth - (box.x + box.width) : box.x;
-  expect(Math.abs(edge), `${dir} inline-start edge`).toBeLessThanOrEqual(2);
-}
-
-async function requiredBox(target: Locator) {
-  const box = await target.boundingBox();
-  if (!box) throw new Error('expected the visible target to have a real bounding box');
-  return box;
-}
-
-async function expectMinTarget(target: Locator, min = 44): Promise<void> {
-  const box = await requiredBox(target);
-  expect(box.width, 'target width').toBeGreaterThanOrEqual(min);
-  expect(box.height, 'target height').toBeGreaterThanOrEqual(min);
-}
-
-async function expectVisibleCurrentMarker(target: Locator): Promise<void> {
-  await expect(target).toHaveAttribute('aria-current', 'page');
-  await expect(target.locator('[data-current-marker]')).toBeVisible();
-  const decoration = await target.evaluate((el) => getComputedStyle(el).textDecorationLine);
-  expect(decoration, 'current item must be visibly marked').toContain('underline');
-}
-
-async function expectVisibleCurrentModuleSwitcher(target: Locator): Promise<void> {
-  await expect(target).toHaveAttribute('aria-current', 'page');
-  await expect(target.locator('[data-current-marker]')).toBeVisible();
-  const background = await target.evaluate((el) => getComputedStyle(el).backgroundColor);
-  expect(background, 'current module must keep a visible background').not.toBe('rgba(0, 0, 0, 0)');
-}
-
-async function expectVisibleNavRailCurrentMarker(target: Locator): Promise<void> {
-  await expect(target).toHaveAttribute('data-current', '');
-  await expect(target.locator('[data-current-marker]')).toBeVisible();
-  const decoration = await target.evaluate((el) => getComputedStyle(el).textDecorationLine);
-  expect(decoration, 'current workspace must be visibly marked in the rail').toContain('underline');
-}
 
 for (const viewport of VIEWPORTS) {
   for (const dir of DIRECTIONS) {
@@ -177,6 +104,7 @@ for (const dir of DIRECTIONS) {
     await destination.click();
     await expect(drawer).toBeHidden();
     await expect(page.locator('body')).toHaveAttribute('data-navigated', 'true');
+    await expect(page, 'drawer link must reach its own address').toHaveURL(/#employees$/);
     await expect(opener).toBeFocused();
   });
 
@@ -235,6 +163,7 @@ for (const dir of DIRECTIONS) {
       await dialog.getByRole('link', { name: LABELS.employees }).click();
       await expect(dialog).toBeHidden();
       await expect(page.locator('body')).toHaveAttribute('data-navigated', 'true');
+      await expect(page, 'menu link must reach its own address').toHaveURL(/#employees$/);
       await expect(opener).toBeFocused();
     }
   });
@@ -350,6 +279,7 @@ for (const dir of DIRECTIONS) {
     await input.press('Enter');
     await expect(dialog).toBeHidden();
     await expect(page.locator('body')).toHaveAttribute('data-navigated', 'true');
+    await expect(page, 'finder result must reach its own address').toHaveURL(/#columns$/);
     await expect(trigger).toBeFocused();
 
     await trigger.click();
@@ -367,6 +297,8 @@ for (const dir of DIRECTIONS) {
     expect(await links.count(), 'fixture must supply at least two finder results').toBeGreaterThan(1);
     await expect(links.first()).toBeHidden();
     await expect(links.nth(1)).toBeVisible();
+    const visibleHref = await links.nth(1).getAttribute('href');
+    expect(visibleHref, 'visible result needs a real address').toMatch(/^#.+/);
     await links.first().evaluate((el) => {
       el.addEventListener('click', () => { document.body.dataset['hiddenFinderClicked'] = 'true'; });
     });
@@ -378,6 +310,23 @@ for (const dir of DIRECTIONS) {
     await expect(page.locator('body')).not.toHaveAttribute('data-hidden-finder-clicked', 'true');
     await expect(page.locator('body')).toHaveAttribute('data-visible-finder-clicked', 'true');
     await expect(page.locator('body')).toHaveAttribute('data-navigated', 'true');
+    expect(new URL(page.url()).hash, 'Enter must follow the visible result').toBe(visibleHref);
+  });
+
+  test(`B closed navigation moves focus to the visible control across 699 and 700 (${dir})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 820, height: 900 });
+    await openScene(page, 'top', dir);
+    const moduleTrigger = page.getByRole('button', { name: LABELS.business }).first();
+    await moduleTrigger.focus();
+    await expect(moduleTrigger).toBeFocused();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    const drawerOpener = page.getByRole('button', { name: LABELS.drawerOpen });
+    await expect(drawerOpener).toBeFocused();
+    await page.setViewportSize({ width: 820, height: 900 });
+    await expect(moduleTrigger).toBeFocused();
   });
 
   test(`navigation keeps focus outside when crossing 699 and 700 (${dir})`, async ({ page }) => {

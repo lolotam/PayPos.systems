@@ -143,3 +143,43 @@ it('keeps a short local page label at a 44px touch target', () => {
   const local = screen.getByRole('navigation', { name: chromeLabels.localNavigation });
   expect(within(local).getByRole('link', { name: 'AI' }).className).toContain('min-w-11');
 });
+
+it('moves focus to the visible control when CSS hides the focused closed-menu control across 700px', async () => {
+  const width = { value: 820 };
+  stubBreakpoints(width);
+  const view = render(tree({ currentModuleId: 'people' }));
+  const moduleTrigger = screen.getByRole('button', { name: /People/ });
+  moduleTrigger.focus();
+  // jsdom applies no CSS: blur() stands in for the browser dropping focus from a hidden control.
+  moduleTrigger.blur();
+  expect(document.activeElement).toBe(document.body);
+
+  width.value = 699;
+  view.rerender(tree({ currentModuleId: 'people' }));
+  const drawerTrigger = screen.getByRole('button', { name: chromeLabels.drawerOpen });
+  await waitFor(() => expect(document.activeElement).toBe(drawerTrigger));
+
+  drawerTrigger.blur();
+  width.value = 700;
+  view.rerender(tree({ currentModuleId: 'people' }));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /People/ })),
+  );
+});
+
+it('leaves focus alone across 700px after the user clicked away from the navigation', async () => {
+  const width = { value: 820 };
+  stubBreakpoints(width);
+  const view = render(tree({ currentModuleId: 'people' }));
+  const moduleTrigger = screen.getByRole('button', { name: /People/ });
+  moduleTrigger.focus();
+  moduleTrigger.blur();
+  fireEvent.pointerDown(document.body);
+
+  width.value = 699;
+  view.rerender(tree({ currentModuleId: 'people' }));
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: chromeLabels.drawerOpen })).toBeTruthy(),
+  );
+  expect(document.activeElement).toBe(document.body);
+});

@@ -216,8 +216,9 @@ function useOutsideFocusTracker({
   return observedOpenerRef;
 }
 
-// اللوحة الثابتة مش modal: لو الأب قفلها والمستخدم بيكتب في حقل في الصفحة، التركيز يفضل مكانه.
-// لما التركيز كان جوه اللوحة بيرجع للـ body بعد إزالتها، وساعتها بس بنرجّعه للزر الفاتح.
+// لو اللوحة اتقفلت والتركيز على عنصر ظاهر براها (حقل بيتكتب فيه، أو صفحة جديدة أخدت التركيز
+// في نفس الـ commit) بنسيبه مكانه. لما التركيز كان جوه اللوحة بيرجع للـ body بعد إزالتها،
+// وساعتها بس بنرجّعه للزر الفاتح أو البديل.
 function hasLiveExternalFocus(): boolean {
   const active = document.activeElement;
   return active instanceof HTMLElement && isFocusTargetEligible(active);
@@ -227,7 +228,6 @@ type PanelReturnFocusInput = {
   panelRef: RefObject<HTMLDivElement | null>;
   panelOpen: boolean;
   freezeObservedOpener: boolean;
-  modal: boolean;
   openerRef: RefObject<HTMLElement | null> | undefined;
   fallbackRef: RefObject<HTMLButtonElement | null> | undefined;
 };
@@ -236,7 +236,6 @@ function usePanelReturnFocus({
   panelRef,
   panelOpen,
   freezeObservedOpener,
-  modal,
   openerRef,
   fallbackRef,
 }: PanelReturnFocusInput) {
@@ -282,11 +281,11 @@ function usePanelReturnFocus({
     const didClose = wasOpen.current && !panelOpen;
     wasOpen.current = panelOpen;
     if (panelOpen) cancelPendingFocus();
-    else if (didClose && (modal || !hasLiveExternalFocus())) {
+    else if (didClose && !hasLiveExternalFocus()) {
       pendingFocusRef.current = true;
       if (!attemptRestore()) startObserving();
     }
-  }, [attemptRestore, cancelPendingFocus, modal, panelOpen, startObserving]);
+  }, [attemptRestore, cancelPendingFocus, panelOpen, startObserving]);
   useEffect(() => {
     if (pendingFocusRef.current) attemptRestore();
   });
@@ -337,7 +336,6 @@ export function ContextPanel({
     panelRef,
     panelOpen,
     freezeObservedOpener: floatingActive,
-    modal: isFloatingOverlay,
     openerRef,
     fallbackRef: returnFocusRef,
   });
