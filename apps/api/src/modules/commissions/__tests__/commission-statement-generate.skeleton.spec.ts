@@ -43,6 +43,15 @@ describe('the read path that feeds the input fingerprint (from review round 1 of
   it.todo(
     'proves the statement fingerprint through the real serializer on read: built rows equal stored rows',
   );
+  it.todo(
+    'loads the projection heads of EVERY line id the statement rows refer to, including lines of earlier months and cancelled lines, in the same transaction (never restricted to the target month or to ACTIVE); a test with historical and cancelled heads proves it',
+  );
+  it.todo(
+    'a required line head that is missing blocks approval instead of freezing a correction row without detail (migration 0183 allowing NULL detail is not a licence)',
+  );
+  it.todo(
+    'guarantees unique source rows (employee_id, source_ref) and unique attachment keys (employee_id, branch_id, attached_from); the builder StatementDuplicateKeyError is only the second line of defence',
+  );
 });
 
 describe('CM-29 a month that has not ended', () => {
