@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 
 export type NavigationPage = {
   id: string;
@@ -80,7 +80,7 @@ export function visiblePages(
 }
 
 export function moduleHasVisiblePages(
-  module: NavigationModule,
+  module: Pick<NavigationModule, 'sections'>,
   visiblePageIds?: readonly string[],
 ): boolean {
   return module.sections.some((section) => visiblePages(section.pages, visiblePageIds).length > 0);
@@ -138,4 +138,13 @@ export function collectFinderResults(
     }
   }
   return results;
+}
+
+// Ctrl/Cmd/Shift-click أو الزر الأوسط بيفتح الرابط في تبويب جديد والصفحة الحالية ما بتتغيرش،
+// فآثار الاختيار (قفل القائمة، onNavigate) لازم تشتغل بس مع الضغطة العادية في نفس التبويب.
+export function onSameTabActivation(handler: (() => void) | undefined) {
+  return (event: MouseEvent<HTMLAnchorElement>): void => {
+    const modified = event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+    if (event.button === 0 && !modified) handler?.();
+  };
 }

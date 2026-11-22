@@ -2,6 +2,7 @@
 
 import { CaretDownIcon, CaretRightIcon } from '@phosphor-icons/react/dist/ssr';
 import {
+  onSameTabActivation,
   visiblePages,
   type NavigationChromeLabels,
   type NavigationModule,
@@ -70,7 +71,7 @@ export function ModuleDrawerSection({
               <a
                 href={page.href}
                 aria-current={page.id === activePageId ? 'page' : undefined}
-                onClick={onSelect}
+                onClick={onSameTabActivation(onSelect)}
                 className={cn(
                   'flex min-h-11 items-center gap-2 rounded-interactive px-3 py-2 text-sm',
                   page.id === activePageId

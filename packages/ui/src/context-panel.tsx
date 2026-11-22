@@ -125,6 +125,19 @@ function hasLiveExternalFocus(): boolean {
   return active instanceof HTMLElement && isFocusTargetEligible(active);
 }
 
+// عند 1024px شجرة الـ modal بتتشال وبتتبدل بلوحة ثابتة، فالتركيز اللي كان محبوس جواها بيقع على body.
+// بننقله لأول عنصر في اللوحة الجديدة، إلا لو عنصر ظاهر براها أخد التركيز.
+function useFloatingToStaticFocus(panelRef: RefObject<HTMLDivElement | null>, floating: boolean) {
+  const wasFloating = useRef(floating);
+  useEffect(() => {
+    const becameStatic = wasFloating.current && !floating;
+    wasFloating.current = floating;
+    if (becameStatic && !hasLiveExternalFocus()) {
+      panelRef.current?.querySelector<HTMLElement>('button, a[href], input')?.focus();
+    }
+  }, [floating, panelRef]);
+}
+
 type PanelReturnFocusInput = {
   panelRef: RefObject<HTMLDivElement | null>;
   panelOpen: boolean;
@@ -140,6 +153,7 @@ function usePanelReturnFocus({
   openerRef,
   fallbackRef,
 }: PanelReturnFocusInput) {
+  useFloatingToStaticFocus(panelRef, freezeObservedOpener);
   const pendingFocusRef = useRef(false);
   const restoringFocusRef = useRef(false);
   const onMutationRef = useRef<() => void>(() => undefined);

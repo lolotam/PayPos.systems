@@ -42,8 +42,17 @@ function useSidebarBreakpointFocus(
         inSidebar: asideRef.current?.contains(target) ?? false,
       };
     };
+    // ضغطة على جزء غير قابل للتركيز برا الشريط بتودّي التركيز للـ body من غير focusin جديد.
+    const forgetOnOutsidePress = (event: PointerEvent) => {
+      const outside = event.target instanceof Node && !asideRef.current?.contains(event.target);
+      if (outside) focusOrigin.current = undefined;
+    };
     document.addEventListener('focusin', rememberFocus);
-    return () => document.removeEventListener('focusin', rememberFocus);
+    document.addEventListener('pointerdown', forgetOnOutsidePress, true);
+    return () => {
+      document.removeEventListener('focusin', rememberFocus);
+      document.removeEventListener('pointerdown', forgetOnOutsidePress, true);
+    };
   }, [asideRef]);
 
   useEffect(() => {

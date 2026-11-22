@@ -3,9 +3,13 @@ import { useEffect, useRef, useState } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ContextPanel } from '../context-panel.js';
 import { DirectionProvider } from '../direction-provider.js';
-import { NavRail } from '../nav-rail.js';
 import { PageFinder } from '../page-finder.js';
-import { chromeLabels, contextLabels, finderLabels, workspaces } from './navigation-fixtures.js';
+import {
+  RailPanelHarness,
+  contextLabels,
+  finderLabels,
+  workspaces,
+} from './navigation-fixtures.js';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -20,35 +24,7 @@ function stubViewportWidth(width: number) {
 
 it('traps Tab and Shift+Tab, closes on Escape from filter input, and restores opener focus at 820px', () => {
   stubViewportWidth(820);
-  function Harness() {
-    const openerRef = useRef<HTMLButtonElement>(null);
-    const [open, setOpen] = useState(false);
-    return (
-      <DirectionProvider dir="ltr">
-        <button type="button">Outside action</button>
-        <NavRail
-          workspaces={workspaces}
-          labels={chromeLabels}
-          currentWorkspaceId="business"
-          panelOpen={open}
-          onInspect={(_workspaceId, opener) => {
-            openerRef.current = opener;
-            setOpen(true);
-          }}
-        />
-        <ContextPanel
-          workspaces={workspaces}
-          labels={contextLabels}
-          currentWorkspaceId="business"
-          panelOpen={open}
-          openerRef={openerRef}
-          onClose={() => setOpen(false)}
-        />
-      </DirectionProvider>
-    );
-  }
-
-  render(<Harness />);
+  render(<RailPanelHarness before={<button type="button">Outside action</button>} />);
   const railButton = screen.getByRole('button', { name: 'Business Current Inspect' });
   fireEvent.click(railButton);
   const dialog = screen.getByRole('dialog', { name: contextLabels.navigation });
@@ -77,39 +53,15 @@ it('traps Tab and Shift+Tab, closes on Escape from filter input, and restores op
 it('hides and blocks the background while the tablet modal is open and closes on a backdrop press', async () => {
   stubViewportWidth(820);
   const outsideAction = vi.fn();
-  function Harness() {
-    const openerRef = useRef<HTMLButtonElement>(null);
-    const [open, setOpen] = useState(false);
-    return (
-      <DirectionProvider dir="ltr">
-        <main>
-          <button type="button" onClick={outsideAction}>
-            Outside destructive action
-          </button>
-          <NavRail
-            workspaces={workspaces}
-            labels={chromeLabels}
-            currentWorkspaceId="business"
-            panelOpen={open}
-            onInspect={(_workspaceId, opener) => {
-              openerRef.current = opener;
-              setOpen(true);
-            }}
-          />
-        </main>
-        <ContextPanel
-          workspaces={workspaces}
-          labels={contextLabels}
-          currentWorkspaceId="business"
-          panelOpen={open}
-          openerRef={openerRef}
-          onClose={() => setOpen(false)}
-        />
-      </DirectionProvider>
-    );
-  }
-
-  render(<Harness />);
+  render(
+    <RailPanelHarness
+      before={
+        <button type="button" onClick={outsideAction}>
+          Outside destructive action
+        </button>
+      }
+    />,
+  );
   const railButton = screen.getByRole('button', { name: 'Business Current Inspect' });
   const outsideButton = screen.getByRole('button', { name: 'Outside destructive action' });
   fireEvent.click(railButton);
@@ -213,39 +165,7 @@ it('preserves the original observed opener across outside focus attempts while t
 
 it('allows switching workspaces by keyboard inside the open tablet modal', () => {
   stubViewportWidth(820);
-  function Harness() {
-    const openerRef = useRef<HTMLButtonElement>(null);
-    const [inspectedWorkspaceId, setInspectedWorkspaceId] = useState<string>('business');
-    const [open, setOpen] = useState(false);
-    return (
-      <DirectionProvider dir="ltr">
-        <NavRail
-          workspaces={workspaces}
-          labels={chromeLabels}
-          currentWorkspaceId="business"
-          inspectedWorkspaceId={inspectedWorkspaceId}
-          panelOpen={open}
-          onInspect={(workspaceId, opener) => {
-            openerRef.current = opener;
-            setInspectedWorkspaceId(workspaceId);
-            setOpen(true);
-          }}
-        />
-        <ContextPanel
-          workspaces={workspaces}
-          labels={contextLabels}
-          currentWorkspaceId="business"
-          inspectedWorkspaceId={inspectedWorkspaceId}
-          panelOpen={open}
-          openerRef={openerRef}
-          onInspect={(workspaceId) => setInspectedWorkspaceId(workspaceId)}
-          onClose={() => setOpen(false)}
-        />
-      </DirectionProvider>
-    );
-  }
-
-  render(<Harness />);
+  render(<RailPanelHarness />);
   const businessRail = screen.getByRole('button', { name: 'Business Current Inspect' });
   businessRail.focus();
   fireEvent.click(businessRail);
@@ -337,50 +257,20 @@ it('lets the page finder open over the tablet modal and closes only the finder o
 
 it('keeps the focus a destination page took in the same commit that closes the tablet modal', () => {
   stubViewportWidth(820);
-  function Destination({ arrived }: { arrived: boolean }) {
+  function Destination({ open }: { open: boolean }) {
     const headingRef = useRef<HTMLHeadingElement>(null);
+    const wasOpen = useRef(open);
     useEffect(() => {
-      if (arrived) headingRef.current?.focus();
-    }, [arrived]);
+      if (wasOpen.current && !open) headingRef.current?.focus();
+      wasOpen.current = open;
+    }, [open]);
     return (
       <h1 ref={headingRef} tabIndex={-1}>
         Destination page
       </h1>
     );
   }
-  function Harness() {
-    const openerRef = useRef<HTMLButtonElement>(null);
-    const [open, setOpen] = useState(false);
-    const [arrived, setArrived] = useState(false);
-    return (
-      <DirectionProvider dir="ltr">
-        <NavRail
-          workspaces={workspaces}
-          labels={chromeLabels}
-          currentWorkspaceId="business"
-          panelOpen={open}
-          onInspect={(_workspaceId, opener) => {
-            openerRef.current = opener;
-            setOpen(true);
-          }}
-        />
-        <Destination arrived={arrived} />
-        <ContextPanel
-          workspaces={workspaces}
-          labels={contextLabels}
-          currentWorkspaceId="business"
-          panelOpen={open}
-          openerRef={openerRef}
-          onClose={() => {
-            setArrived(true);
-            setOpen(false);
-          }}
-        />
-      </DirectionProvider>
-    );
-  }
-
-  render(<Harness />);
+  render(<RailPanelHarness extra={({ open }) => <Destination open={open} />} />);
   fireEvent.click(screen.getByRole('button', { name: 'Business Current Inspect' }));
   const dialog = screen.getByRole('dialog', { name: contextLabels.navigation });
   expect(dialog.contains(document.activeElement)).toBe(true);
@@ -416,4 +306,22 @@ it('ignores Escape during IME composition in the tablet filter and still closes 
 
   fireEvent.keyDown(filter, { key: 'Escape' });
   await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+});
+
+it('moves focus into the static panel when the open tablet modal crosses to desktop', async () => {
+  const width = { value: 820 };
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query.includes('600px') && width.value >= 600 && width.value < 1024,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }));
+  const view = render(<RailPanelHarness />);
+  fireEvent.click(screen.getByRole('button', { name: 'Business Current Inspect' }));
+  screen.getByRole('searchbox', { name: contextLabels.filterPages }).focus();
+
+  width.value = 1024;
+  view.rerender(<RailPanelHarness />);
+
+  const panel = await screen.findByRole('complementary', { name: contextLabels.navigation });
+  await waitFor(() => expect(panel.contains(document.activeElement)).toBe(true));
 });

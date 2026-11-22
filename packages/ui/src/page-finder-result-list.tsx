@@ -1,7 +1,11 @@
 'use client';
 
 import type { RefObject } from 'react';
-import type { FinderResult, NavigationFinderLabels } from './navigation-presentation.js';
+import {
+  onSameTabActivation,
+  type FinderResult,
+  type NavigationFinderLabels,
+} from './navigation-presentation.js';
 import { cn } from './shared/cn.js';
 import { SIDEBAR_GHOST_CLASSES } from './sidebar-classes.js';
 
@@ -22,7 +26,7 @@ export function FinderResultList({ results, labels, activePageId, listRef, onSel
             href={result.page.href}
             data-finder-result=""
             aria-current={result.page.id === activePageId ? 'page' : undefined}
-            onClick={() => onSelect(result)}
+            onClick={onSameTabActivation(() => onSelect(result))}
             className={cn(
               'flex min-h-11 flex-col gap-0.5 rounded-interactive px-3 py-2 text-sm',
               SIDEBAR_GHOST_CLASSES,
@@ -31,6 +35,7 @@ export function FinderResultList({ results, labels, activePageId, listRef, onSel
             <span className="truncate font-medium">{result.page.label}</span>
             <span className="truncate text-xs text-muted-foreground">
               {result.workspace.label} · {result.section.label}
+              {result.page.status ? ` · ${result.page.status}` : ''}
               {result.page.id === activePageId ? ` · ${labels.current}` : ''}
             </span>
           </a>

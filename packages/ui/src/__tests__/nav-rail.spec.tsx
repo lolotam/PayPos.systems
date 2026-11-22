@@ -80,10 +80,17 @@ it.each(['rtl', 'ltr'] as const)('keeps rail direction and logical icon anchorin
 });
 
 it('shows a visible translated label when the workspace has no icon', () => {
-  render(tree('ltr', { workspaces: [{ id: 'plain', label: 'Plain workspace', sections: [] }] }));
+  const sections = [{ id: 's', label: 'S', pages: [{ id: 'p', label: 'P', href: '#p' }] }];
+  render(tree('ltr', { workspaces: [{ id: 'plain', label: 'Plain workspace', sections }] }));
   const button = screen.getByRole('button', { name: 'Plain workspace Inspect' });
   expect(
     screen.getAllByText('Plain workspace').some((node) => !node.className.includes('sr-only')),
   ).toBe(true);
   expect(button.textContent).toContain('Plain workspace');
+});
+
+it('shows no rail button for a workspace whose pages are all hidden', () => {
+  render(tree('ltr', { visiblePageIds: ['employees'] }));
+  expect(screen.getByRole('button', { name: /^Team/ })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: /^Business/ })).toBeNull();
 });

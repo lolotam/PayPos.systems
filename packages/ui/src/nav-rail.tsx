@@ -3,6 +3,7 @@
 import { useDirection } from './direction-provider.js';
 import { RailWorkspaceButton } from './nav-rail-workspace-button.js';
 import {
+  moduleHasVisiblePages,
   resolveInspectedWorkspaceId,
   type NavigationChromeLabels,
   type NavigationWorkspace,
@@ -13,6 +14,7 @@ export type NavRailProps = {
   labels: NavigationChromeLabels;
   currentWorkspaceId?: string | undefined;
   inspectedWorkspaceId?: string | undefined;
+  visiblePageIds?: readonly string[] | undefined;
   panelOpen: boolean;
   onInspect: (workspaceId: string, opener: HTMLButtonElement) => void;
 };
@@ -22,6 +24,7 @@ export function NavRail({
   labels,
   currentWorkspaceId,
   inspectedWorkspaceId,
+  visiblePageIds,
   panelOpen,
   onInspect,
 }: NavRailProps) {
@@ -37,7 +40,9 @@ export function NavRail({
       aria-label={labels.navigation}
       className="flex w-21 shrink-0 flex-col items-center gap-1 bg-sidebar p-2"
     >
-      {workspaces.map((workspace) => (
+      {workspaces
+        .filter((workspace) => moduleHasVisiblePages(workspace, visiblePageIds))
+        .map((workspace) => (
         <RailWorkspaceButton
           key={workspace.id}
           workspace={workspace}

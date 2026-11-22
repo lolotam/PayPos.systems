@@ -30,7 +30,7 @@ export function TopNavHeader({
     <header className="flex h-14 shrink-0 items-center gap-1 border-b border-sidebar-border px-2 min-[1024px]:h-16">
       <nav
         aria-label={labels.navigation}
-        className="hidden min-w-0 items-center gap-1 overflow-x-auto min-[700px]:flex"
+        className="relative hidden min-w-0 items-center gap-1 overflow-x-auto min-[700px]:flex"
       >
         {visibleModules.map((module) => (
           <MegaMenu

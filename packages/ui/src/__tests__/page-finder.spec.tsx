@@ -237,3 +237,15 @@ it('opens from the physical K key on an Arabic layout and ignores key auto-repea
   fireEvent.keyDown(window, { key: 'ن', code: 'KeyK', ctrlKey: true, repeat: true });
   expect(screen.getByRole('dialog', { name: finderLabels.title })).toBeTruthy();
 });
+
+it('shows a supplied status and keeps the finder open on a modified click', () => {
+  const onNavigate = vi.fn();
+  render(tree('ltr', { onNavigate }));
+  const dialog = openWithShortcut('k', 'ctrlKey');
+  const offers = within(dialog).getByRole('link', { name: /العروض/ });
+  expect(offers.textContent).toContain('Soon');
+
+  fireEvent.click(offers, { ctrlKey: true });
+  expect(onNavigate).not.toHaveBeenCalled();
+  expect(screen.getByRole('dialog', { name: finderLabels.title })).toBeTruthy();
+});

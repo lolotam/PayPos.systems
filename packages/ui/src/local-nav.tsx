@@ -1,6 +1,11 @@
 'use client';
 
-import { visiblePages, type NavigationChromeLabels, type NavigationModule } from './navigation-presentation.js';
+import {
+  onSameTabActivation,
+  visiblePages,
+  type NavigationChromeLabels,
+  type NavigationModule,
+} from './navigation-presentation.js';
 import { cn } from './shared/cn.js';
 import { SIDEBAR_GHOST_CLASSES } from './sidebar-classes.js';
 
@@ -31,7 +36,7 @@ export function LocalNav({
               <a
                 href={page.href}
                 aria-current={page.id === activePageId ? 'page' : undefined}
-                onClick={onNavigate}
+                onClick={onSameTabActivation(onNavigate)}
                 className={cn(
                   'flex min-h-11 min-w-11 items-center gap-2 whitespace-nowrap rounded-interactive px-3 py-2 text-sm',
                   page.id === activePageId

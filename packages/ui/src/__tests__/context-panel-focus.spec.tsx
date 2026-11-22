@@ -3,8 +3,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react';
 import { expect, it } from 'vitest';
 import { ContextPanel } from '../context-panel.js';
 import { DirectionProvider } from '../direction-provider.js';
-import { NavRail } from '../nav-rail.js';
-import { chromeLabels, contextLabels, workspaces } from './navigation-fixtures.js';
+import { RailPanelHarness, contextLabels, workspaces } from './navigation-fixtures.js';
 
 it('keeps a pending focus request until a fallback mounts in a later commit', async () => {
   function Harness() {
@@ -274,35 +273,7 @@ it('skips an opener hidden from assistive tech and focuses the visible fallback'
 });
 
 it('returns focus to the rail button captured from a click without focus transfer', () => {
-  function Harness() {
-    const openerRef = useRef<HTMLButtonElement>(null);
-    const [open, setOpen] = useState(false);
-    return (
-      <DirectionProvider dir="ltr">
-        <input aria-label="Outside field" />
-        <NavRail
-          workspaces={workspaces}
-          labels={chromeLabels}
-          currentWorkspaceId="business"
-          panelOpen={open}
-          onInspect={(_workspaceId, opener) => {
-            openerRef.current = opener;
-            setOpen(true);
-          }}
-        />
-        <ContextPanel
-          workspaces={workspaces}
-          labels={contextLabels}
-          currentWorkspaceId="business"
-          panelOpen={open}
-          openerRef={openerRef}
-          onClose={() => setOpen(false)}
-        />
-      </DirectionProvider>
-    );
-  }
-
-  render(<Harness />);
+  render(<RailPanelHarness before={<input aria-label="Outside field" />} />);
   screen.getByRole('textbox', { name: 'Outside field' }).focus();
   const railButton = screen.getByRole('button', { name: 'Business Current Inspect' });
   fireEvent.click(railButton);
@@ -313,40 +284,18 @@ it('returns focus to the rail button captured from a click without focus transfe
 });
 
 it('keeps focus in a page field when the parent closes the non-modal desktop panel', () => {
-  function Harness() {
-    const openerRef = useRef<HTMLButtonElement>(null);
-    const [open, setOpen] = useState(false);
-    return (
-      <DirectionProvider dir="ltr">
-        <NavRail
-          workspaces={workspaces}
-          labels={chromeLabels}
-          currentWorkspaceId="business"
-          panelOpen={open}
-          onInspect={(_workspaceId, opener) => {
-            openerRef.current = opener;
-            setOpen(true);
-          }}
-        />
-        <ContextPanel
-          workspaces={workspaces}
-          labels={contextLabels}
-          currentWorkspaceId="business"
-          panelOpen={open}
-          openerRef={openerRef}
-          onClose={() => setOpen(false)}
-        />
+  render(
+    <RailPanelHarness
+      extra={({ close }) => (
         <input
           aria-label="Page field"
           onKeyDown={(event) => {
-            if (event.key === 'F6') setOpen(false);
+            if (event.key === 'F6') close();
           }}
         />
-      </DirectionProvider>
-    );
-  }
-
-  render(<Harness />);
+      )}
+    />,
+  );
   fireEvent.click(screen.getByRole('button', { name: 'Business Current Inspect' }));
   const pageField = screen.getByRole('textbox', { name: 'Page field' });
   pageField.focus();

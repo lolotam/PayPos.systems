@@ -8,6 +8,7 @@ import { ModuleSwitcher } from './mega-menu-module-switcher.js';
 import { MegaMenuSection } from './mega-menu-section.js';
 import {
   moduleHasVisiblePages,
+  onSameTabActivation,
   type NavigationChromeLabels,
   type NavigationModule,
 } from './navigation-presentation.js';
@@ -69,7 +70,7 @@ export function MegaMenuContent({
       />
       <div className="grid gap-4 min-[700px]:grid-cols-2 min-[1024px]:grid-cols-3">
         {module.href && hasVisiblePages ? (
-          <a href={module.href} onClick={onSelect} className={OVERVIEW_LINK_CLASSES}>
+          <a href={module.href} onClick={onSameTabActivation(onSelect)} className={OVERVIEW_LINK_CLASSES}>
             {labels.overview}
           </a>
         ) : null}

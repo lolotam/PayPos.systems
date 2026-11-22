@@ -29,6 +29,7 @@ for (const viewport of VIEWPORTS) {
 
       if (viewport.width >= 700) {
         const currentTrigger = page.getByRole('button', { name: LABELS.business }).first();
+        await currentTrigger.scrollIntoViewIfNeeded();
         await expect(currentTrigger).toBeVisible();
         await expectMinTarget(currentTrigger);
         await expectVisibleCurrentMarker(currentTrigger);
@@ -286,6 +287,18 @@ for (const dir of DIRECTIONS) {
     await expect(panel).toBeVisible();
     await expect(panel.getByRole('link', { name: LABELS.columns })).toBeVisible();
     await expect(panel.getByRole('link', { name: LABELS.employees })).toHaveCount(0);
+  });
+
+  test(`C open panel keeps keyboard focus when crossing 1023 to 1024 (${dir})`, async ({ page }) => {
+    await page.setViewportSize({ width: 1023, height: 900 });
+    await openScene(page, 'context', dir);
+    const dialog = page.getByRole('dialog', { name: LABELS.panelNavigation });
+    await dialog.getByRole('searchbox').focus();
+
+    await page.setViewportSize({ width: 1024, height: 900 });
+    const panel = page.getByRole('complementary', { name: LABELS.panelNavigation });
+    await expect(panel).toBeVisible();
+    await expect(panel.getByRole('button', { name: LABELS.panelClose })).toBeFocused();
   });
 
   test(`finder keyboard activation and localized empty state (${dir})`, async ({ page }) => {

@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from './button.js';
-import { visiblePagesMatchingQuery, type NavigationWorkspace } from './navigation-presentation.js';
+import { moduleHasVisiblePages, type NavigationWorkspace } from './navigation-presentation.js';
 import { cn } from './shared/cn.js';
 
 type WorkspaceSwitcherProps = {
@@ -20,11 +20,7 @@ export function ContextPanelWorkspaceSwitcher({
   onInspect,
 }: WorkspaceSwitcherProps) {
   if (!onInspect || !workspaces) return null;
-  const visible = workspaces.filter((item) =>
-    item.sections.some(
-      (section) => visiblePagesMatchingQuery(section.pages, visiblePageIds, '').length > 0,
-    ),
-  );
+  const visible = workspaces.filter((item) => moduleHasVisiblePages(item, visiblePageIds));
   if (visible.length === 0 || (visible.length === 1 && visible[0]?.id === inspectedId)) return null;
   return (
     <div className="flex shrink-0 flex-wrap gap-1">

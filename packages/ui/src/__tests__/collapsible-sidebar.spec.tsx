@@ -221,3 +221,19 @@ it('leaves the sidebar shell at the fractional 600 to 599.5 phone boundary', () 
   view.rerender(tree('ltr'));
   expect(view.container.querySelector('aside')).toBeNull();
 });
+
+it('leaves focus alone at the tablet breakpoint after a press outside the sidebar', async () => {
+  let width = 1200;
+  stubMedia(() => ({ width }));
+  const view = render(tree('ltr', { currentGroupId: 'home' }));
+  const toggle = screen.getByRole('button', { name: chromeLabels.collapse });
+  toggle.focus();
+  // A press on non-focusable content drops focus to body without a new focusin.
+  toggle.blur();
+  fireEvent.pointerDown(screen.getByText('page content'));
+
+  width = 800;
+  view.rerender(tree('ltr', { currentGroupId: 'home' }));
+  await waitFor(() => expect(screen.getByRole('link', { name: /Home/ })).toBeTruthy());
+  expect(document.activeElement).toBe(document.body);
+});

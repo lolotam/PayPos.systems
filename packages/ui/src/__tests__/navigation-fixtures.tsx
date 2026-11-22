@@ -1,3 +1,7 @@
+import { useRef, useState, type ReactNode } from 'react';
+import { ContextPanel } from '../context-panel.js';
+import { DirectionProvider } from '../direction-provider.js';
+import { NavRail } from '../nav-rail.js';
 import type {
   NavigationChromeLabels,
   NavigationFinderLabels,
@@ -165,3 +169,46 @@ export const workspaces: readonly NavigationWorkspace[] = [
     ],
   },
 ];
+
+type RailPanelControls = { open: boolean; close: () => void };
+
+type RailPanelHarnessProps = {
+  before?: ReactNode;
+  extra?: (controls: RailPanelControls) => ReactNode;
+};
+
+/** Rail + context panel wired the way a host does it: the rail opens, the panel closes. */
+export function RailPanelHarness({ before, extra }: RailPanelHarnessProps) {
+  const openerRef = useRef<HTMLButtonElement>(null);
+  const [inspected, setInspected] = useState('business');
+  const [open, setOpen] = useState(false);
+  const close = () => setOpen(false);
+  return (
+    <DirectionProvider dir="ltr">
+      {before}
+      <NavRail
+        workspaces={workspaces}
+        labels={chromeLabels}
+        currentWorkspaceId="business"
+        inspectedWorkspaceId={inspected}
+        panelOpen={open}
+        onInspect={(workspaceId, opener) => {
+          openerRef.current = opener;
+          setInspected(workspaceId);
+          setOpen(true);
+        }}
+      />
+      {extra?.({ open, close })}
+      <ContextPanel
+        workspaces={workspaces}
+        labels={contextLabels}
+        currentWorkspaceId="business"
+        inspectedWorkspaceId={inspected}
+        panelOpen={open}
+        openerRef={openerRef}
+        onInspect={setInspected}
+        onClose={close}
+      />
+    </DirectionProvider>
+  );
+}
