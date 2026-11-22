@@ -55,4 +55,28 @@ Estimate: 330 production, 480 tests. If the count passes 800 before step 6, stop
 
 ## Implementation notes
 
-*(filled by the implementer: per item the fix, the proving test, `packages/ui` changes, changed assertions, sizes, open points)*
+**Base:** `origin/main` (it already contains 074-7a). **Status: items 1–3 and 5–14 done; item 4 not done.** The size stop of the brief (800 before plan step 6) was passed after step 5, so step 6 (item 4, test helper components in `style-a-frame.spec.tsx` and `style-c-frame.spec.tsx`) is left for a follow-up. Its planned fix: merge `CurrentRoute`/`PageContent` into one helper file and `DestinationHeading`/`Destination` into one.
+
+| # | Fix | Proving test | Red check |
+|---|---|---|---|
+| 1 | `style-a-frame.tsx` keeps a lone tab when it carries the Soon mark | `style-a-frame-fixes.spec.tsx` (accountant, `/soon/customer-wallet`) | red run before the fix |
+| 2 | `BottomSheet` `closeFocusTarget`; `phone-bar.tsx` sends focus to the sidebar link when not phone | `style-a-frame-fixes.spec.tsx` (widen to 820) | red run before the fix (focus ended on More) |
+| 3 | `frame-chrome.tsx`: `#…` links and any `target` left to the browser | new `frame-chrome.spec.tsx` (`fireEvent.click` returns true) | red run before the fix (`#` and `_self`) |
+| 5 | `frame-workspace-switcher.tsx`: prompt (`admin.chooseCompany` / `admin.chooseBusiness`, existing keys) | `frame-actions.spec.tsx` | red run before the fix |
+| 6 | `FrameChrome onCurrentPage` (plain click whose path equals the current path), wired in `rail-and-panel.tsx` and `phone-bar.tsx`; `closeFloating` in `use-panel-state.ts` | `style-c-frame-panel.spec.tsx`, `style-a-frame-fixes.spec.tsx` (plain closes, ctrl-click stays) | red run before the fix |
+| 7 | optional `resetKey` on `AccountMenu` and `WorkspaceSwitcher`, passed the pathname | `frame-actions.spec.tsx` (two navigations each, same trigger element) | red run before the fix |
+| 8 | `BottomNavExtra.current` (`aria-current="true"`, heavier weight); «Current» text on the section heading in the sheet | `style-a-frame-fixes.spec.tsx` | red run before the fix |
+| 9 | Soon mark on a More link from `list.pages[0].status` (the destination) | `style-a-frame-fixes.spec.tsx` (every More list, both ways) | red run before the fix |
+| 10 | `usePanelState` clears the floating session on leaving 600–1023px | `style-c-frame-panel.spec.tsx` | red run before the fix |
+| 11 | `show`/`hide` touch only their own state (floating or desktop) | `style-c-frame-panel.spec.tsx` (two tests) | red run before the fix |
+| 12 | `useApprovalInbox` (`kinds` + `state`), `useApprovalKindProbes`; page `state` prop; keys `approvalsInboxFailed` new, `admin.loading` reused, `approvalsInboxEmpty` copy changed | `approvals-inbox-page.spec.tsx`, `use-approval-kinds.spec.tsx` | page: mutation (state ignored) fails 2 tests; hook: mutation (idle counts as loading) and mutation (error without status) each fail the same test |
+| 13 | `BottomSheet` leaves focus alone when it is already outside the sheet and not on `body` | `bottom-sheet.spec.tsx` (destination takes focus in an effect) | removing the guard fails the test |
+| 14 | `LocalNav` scrolls its own container by rect deltas; optional `className`; B frame passes `min-[1024px]:max-h-dvh` | `top-nav-local-nav.spec.tsx` (scrollTop/scrollLeft, `scrollIntoView` never called); `style-b-frame.spec.tsx` (class) | red run before the fix |
+
+**`packages/ui` changes (all optional and backward compatible):** `BottomNavExtra.current` (item 8); `BottomSheet.closeFocusTarget` and the «focus already moved» guard (items 2, 13); `AccountMenu.resetKey` and `WorkspaceSwitcher.resetKey` (item 7; the reset close does not call `onOpenChange`); `LocalNav.className` and own-container scrolling (item 14).
+
+**Changed assertions.** `top-nav-local-nav.spec.tsx`: the two tests that asserted `scrollIntoView` calls now assert the list's own scroll offsets (the item says `scrollIntoView` is the bug). `approvals-inbox-page.spec.tsx`: the empty-state test is renamed and also checks the copy no longer claims «nothing is waiting» (the copy changed). `use-approval-kinds.spec.tsx`: `renderKinds` takes the hook as an argument (the three old assertions are unchanged). `frame-test-support.tsx`: `selectBusiness` takes an optional role.
+
+**Other notes.** The approval probes now throw `{ ...error, status }` like `imported-refunds-client.ts`; before, a 403 carried no status and `readAccessProof` read it as a failure, which the new «could not be checked» state would have shown to refused users. `approvalsInboxEmpty` now says no approval list is available, because the inbox never knew how many approvals wait. Two max-lines errors found by lint in my own code were fixed (`MoreSheet` props interface, a spec `describe` split).
+
+**Open points.** Item 4. Focus after an account menu or switcher is closed by Back lands on its trigger (Radix default); not guarded here. Item 2 finds the target with `aside a[aria-current="page"]` in the document. The current-page check of item 6 compares the pathname only. Not verified: real-browser focus, scroll containment (item 14 uses stubbed rects) and breakpoint behaviour (#1192).

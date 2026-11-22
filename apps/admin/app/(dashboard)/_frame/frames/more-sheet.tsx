@@ -5,6 +5,19 @@ import type { RefObject } from 'react';
 
 import type { ResolvedTopLevel } from '../menu/resolve-top-levels';
 
+interface MoreSheetProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  groups: readonly ResolvedTopLevel[];
+  title: string;
+  closeLabel: string;
+  currentPageId: string | undefined;
+  currentGroupId: string | undefined;
+  currentLabel: string;
+  openerRef: RefObject<HTMLElement | null>;
+  closeFocusTarget: () => HTMLElement | null | undefined;
+}
+
 /**
  * ورقة «المزيد» على هاتف النمط A: بقية الأقسام، وقوائمها الفرعية روابط مباشرة (app-map.md)،
  * فالطريق «المزيد ثم القائمة الفرعية ثم الصفحة» ثلاث ضغطات. الورقة مودالية تحبس التركيز
@@ -23,18 +36,7 @@ export function MoreSheet({
   currentLabel,
   openerRef,
   closeFocusTarget,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  groups: readonly ResolvedTopLevel[];
-  title: string;
-  closeLabel: string;
-  currentPageId: string | undefined;
-  currentGroupId: string | undefined;
-  currentLabel: string;
-  openerRef: RefObject<HTMLElement | null>;
-  closeFocusTarget: () => HTMLElement | null | undefined;
-}) {
+}: MoreSheetProps) {
   return (
     <BottomSheet
       open={open}

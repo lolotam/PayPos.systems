@@ -71,13 +71,14 @@ describe('style A when the tab row would hold one tab', () => {
   });
 });
 
+const openSheet = () => {
+  fireEvent.click(moreButton());
+  return screen.getByRole('dialog', { name: label('adminNav.more') });
+};
+const openSheetOnce = () => screen.queryByRole('dialog') ?? openSheet();
+
 describe('style A More sheet on a phone', () => {
   beforeEach(() => stubViewport(390));
-  const openSheet = () => {
-    fireEvent.click(moreButton());
-    return screen.getByRole('dialog', { name: label('adminNav.more') });
-  };
-  const openSheetOnce = () => screen.queryByRole('dialog') ?? openSheet();
 
   it('marks a sub-menu link with Soon when the page it opens is not built', () => {
     const ctx = {
@@ -100,6 +101,10 @@ describe('style A More sheet on a phone', () => {
       expect(marked).toBe(list.pages[0]?.status !== undefined);
     }
   });
+});
+
+describe('style A More sheet, current section and focus', () => {
+  beforeEach(() => stubViewport(390));
 
   it('marks More and its current section while the current page is behind it', () => {
     frameState.pathname = '/staff/attendance-report';
