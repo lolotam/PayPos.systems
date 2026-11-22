@@ -354,7 +354,16 @@ function priceEmployee(
   });
   const computed = computePeriod(assembled.input);
   if (!computed.ok) {
-    return { lines, sales, tips, corrections, perSource: new Map(), status: computed.code };
+    // الشهر ناقص الإعداد بيرجع حالته بدل نتيجة جزئية، والصفوف الملغاة ما بتتسعرش
+    // وما بتتحسبش من شهر الموظفة.
+    return {
+      lines: assembled.lines,
+      sales: assembled.sales,
+      tips: assembled.tips,
+      corrections: assembled.corrections,
+      perSource: new Map(),
+      status: computed.code,
+    };
   }
   return {
     lines: assembled.lines,
