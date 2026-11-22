@@ -1,5 +1,6 @@
 'use client';
 import { findOrCreateScopedCustomerInput } from '@pospay/contracts';
+import { isValidCustomerBirthdayCalendar } from '@pospay/domain';
 import { t, type Locale } from '@pospay/i18n';
 import { Input, Label } from '@pospay/ui';
 import { useId } from 'react';
@@ -11,8 +12,6 @@ import type {
 } from '../api/use-session-customer';
 
 const shape = findOrCreateScopedCustomerInput.shape;
-
-const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
 
 type NumericField = { readonly state: 'empty' } | { readonly state: 'invalid' } | { readonly state: 'value'; readonly value: number };
 
@@ -29,19 +28,6 @@ function numericField(value: unknown): NumericField {
   if (!/^\d+$/.test(text)) return { state: 'invalid' };
   const parsed = Number(text);
   return Number.isInteger(parsed) ? { state: 'value', value: parsed } : { state: 'invalid' };
-}
-
-function isCalendarBirthday(birthday: {
-  day: number;
-  month: number;
-  year?: number | undefined;
-}): boolean {
-  if (birthday.month < 1 || birthday.month > 12) return false;
-  if (birthday.day < 1 || birthday.day > (DAYS_IN_MONTH[birthday.month - 1] ?? 31)) return false;
-  if (birthday.year === undefined) return true;
-  if (birthday.year < 1 || birthday.year > 9999) return false;
-  const leap = birthday.year % 4 === 0 && (birthday.year % 100 !== 0 || birthday.year % 400 === 0);
-  return !(birthday.month === 2 && birthday.day === 29 && !leap);
 }
 
 const issue = { type: 'invalid', message: 'invalid' } as const;
@@ -75,7 +61,7 @@ function resolveBirthday(raw: unknown): { value?: BirthdayValue; invalid: boolea
     day === undefined ||
     month === undefined ||
     !shape.birthday.safeParse({ day, month, ...(year === undefined ? {} : { year }) }).success ||
-    !isCalendarBirthday({ day, month, year })
+    !isValidCustomerBirthdayCalendar({ day, month, year })
   )
     return { invalid: true };
   return { value: { day, month, ...(year === undefined ? {} : { year }) }, invalid: false };
