@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { expect, it } from 'vitest';
 import { ContextPanel } from '../context-panel.js';
 import { DirectionProvider } from '../direction-provider.js';
@@ -11,11 +11,7 @@ it('keeps a pending focus request until a fallback mounts in a later commit', as
     const fallbackRef = useRef<HTMLButtonElement>(null);
     const [open, setOpen] = useState(true);
     const [showOpener, setShowOpener] = useState(true);
-    const [closeCommitted, setCloseCommitted] = useState(false);
     const [showFallback, setShowFallback] = useState(false);
-    useEffect(() => {
-      if (closeCommitted) setShowFallback(true);
-    }, [closeCommitted]);
     return (
       <DirectionProvider dir="ltr">
         {showOpener ? <button type="button">Temporary opener</button> : null}
@@ -33,7 +29,7 @@ it('keeps a pending focus request until a fallback mounts in a later commit', as
           onClose={() => {
             setOpen(false);
             setShowOpener(false);
-            setCloseCommitted(true);
+            queueMicrotask(() => setShowFallback(true));
           }}
         />
       </DirectionProvider>
@@ -48,6 +44,79 @@ it('keeps a pending focus request until a fallback mounts in a later commit', as
   await waitFor(() =>
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Reopen panel' })),
   );
+});
+
+function SiblingFallback({
+  fallbackRef,
+  exposeMount,
+}: {
+  fallbackRef: RefObject<HTMLButtonElement | null>;
+  exposeMount: (mount: () => void) => void;
+}) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    exposeMount(() => setMounted(true));
+  }, [exposeMount]);
+  return mounted ? (
+    <button ref={fallbackRef} type="button">
+      Sibling fallback
+    </button>
+  ) : null;
+}
+
+it('restores focus when a sibling mounts the fallback without rerendering ContextPanel', async () => {
+  let parentCommits = 0;
+  let mountSiblingFallback: (() => void) | undefined;
+
+  function Harness({ onCommit }: { onCommit: () => void }) {
+    const fallbackRef = useRef<HTMLButtonElement>(null);
+    const [open, setOpen] = useState(true);
+    const [showOpener, setShowOpener] = useState(true);
+    useEffect(() => {
+      onCommit();
+    });
+    return (
+      <DirectionProvider dir="ltr">
+        {showOpener ? <button type="button">Temporary opener</button> : null}
+        <SiblingFallback
+          fallbackRef={fallbackRef}
+          exposeMount={(mount) => {
+            mountSiblingFallback = mount;
+          }}
+        />
+        <ContextPanel
+          workspaces={workspaces}
+          labels={contextLabels}
+          panelOpen={open}
+          currentWorkspaceId="business"
+          returnFocusRef={fallbackRef}
+          onClose={() => {
+            setOpen(false);
+            setShowOpener(false);
+          }}
+        />
+      </DirectionProvider>
+    );
+  }
+
+  render(
+    <Harness
+      onCommit={() => {
+        parentCommits += 1;
+      }}
+    />,
+  );
+  screen.getByRole('button', { name: 'Temporary opener' }).focus();
+  const close = screen.getByRole('button', { name: contextLabels.close });
+  close.focus();
+  fireEvent.click(close);
+  const commitsAfterClose = parentCommits;
+  expect(screen.queryByRole('button', { name: 'Sibling fallback' })).toBeNull();
+  mountSiblingFallback?.();
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Sibling fallback' })),
+  );
+  expect(parentCommits).toBe(commitsAfterClose);
 });
 
 it('cancels a pending focus request when the user moves focus before the fallback mounts', () => {

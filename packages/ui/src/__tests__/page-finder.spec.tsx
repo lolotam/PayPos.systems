@@ -184,6 +184,29 @@ it('restores focus to the finder trigger when the shortcut opener is disabled wh
   );
 });
 
+it('restores focus to the finder trigger when the shortcut opener ancestor becomes aria-hidden while open', async () => {
+  render(
+    <DirectionProvider dir="ltr">
+      <div data-testid="opener-wrap">
+        <input aria-label="Outside input" />
+      </div>
+      <PageFinder workspaces={workspaces} labels={finderLabels} />
+    </DirectionProvider>,
+  );
+  const input = screen.getByRole('textbox', { name: 'Outside input' });
+  input.focus();
+  openWithShortcut('k', 'ctrlKey');
+  screen.getByTestId('opener-wrap').setAttribute('aria-hidden', 'true');
+
+  fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() =>
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: finderLabels.trigger }),
+    ),
+  );
+});
+
 it('restores shortcut focus to an opener that is programmatically focusable with tabIndex -1', async () => {
   render(tree('ltr'));
   const outside = screen.getByRole('button', { name: 'outside target' });

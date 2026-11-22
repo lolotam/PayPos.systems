@@ -98,6 +98,7 @@ function isRestorableFocusTarget(element: Element | null | undefined): element i
   if (!(element instanceof HTMLElement) || !element.isConnected) return false;
   if (element === document.body || element === document.documentElement) return false;
   if (element.hasAttribute('disabled') || element.getAttribute('aria-disabled') === 'true') return false;
+  if (element.closest('[aria-hidden="true"], [hidden], [inert]')) return false;
   if (!isVisibleElement(element)) return false;
   return element.tabIndex >= 0 || element.hasAttribute('tabindex') || element.isContentEditable;
 }

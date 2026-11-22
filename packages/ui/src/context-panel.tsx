@@ -32,37 +32,44 @@ function isFocusTargetEligible(target: HTMLElement | undefined): target is HTMLE
   return true;
 }
 
-function usePanelReturnFocus(
+const PENDING_FOCUS_ATTRIBUTES = [
+  'aria-hidden',
+  'hidden',
+  'inert',
+  'style',
+  'class',
+  'disabled',
+];
+
+function usePendingFocusObserver(onMutation: () => void) {
+  const observerRef = useRef<MutationObserver | null>(null);
+  const stopObserving = useCallback(() => {
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+  }, []);
+  const startObserving = useCallback(() => {
+    if (observerRef.current || typeof MutationObserver === 'undefined' || !document.body) return;
+    const observer = new MutationObserver(onMutation);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: PENDING_FOCUS_ATTRIBUTES,
+    });
+    observerRef.current = observer;
+  }, [onMutation]);
+  useEffect(() => stopObserving, [stopObserving]);
+  return { startObserving, stopObserving };
+}
+
+function useOutsideFocusTracker(
   panelRef: RefObject<HTMLDivElement | null>,
   openerRef: RefObject<HTMLElement | null> | undefined,
-  fallbackRef: RefObject<HTMLButtonElement | null> | undefined,
+  restoringFocusRef: RefObject<boolean>,
+  pendingFocusRef: RefObject<boolean>,
+  cancelPendingFocus: () => void,
 ) {
   const observedOpenerRef = useRef<HTMLElement | undefined>(undefined);
-  const pendingFocusRef = useRef(false);
-  const restoringFocusRef = useRef(false);
-
-  const tryFocus = useCallback((target: HTMLElement | undefined) => {
-    if (!isFocusTargetEligible(target)) return false;
-    restoringFocusRef.current = true;
-    try {
-      target.focus();
-      return document.activeElement === target;
-    } finally {
-      restoringFocusRef.current = false;
-    }
-  }, []);
-
-  const focusReturnTarget = useCallback(() => {
-    const opener = openerRef?.current ?? observedOpenerRef.current;
-    if (opener && tryFocus(opener)) {
-      pendingFocusRef.current = false;
-      return;
-    }
-    const fallback = fallbackRef?.current;
-    if (fallback && tryFocus(fallback)) pendingFocusRef.current = false;
-  }, [fallbackRef, openerRef, tryFocus]);
-
-  // Track focus only as a fallback for callers that cannot supply the opener.
   useEffect(() => {
     const rememberOpener = (target: EventTarget | null) => {
       if (
@@ -77,26 +84,72 @@ function usePanelReturnFocus(
     };
     const onFocusIn = (event: FocusEvent) => {
       if (restoringFocusRef.current) return;
-      if (pendingFocusRef.current) pendingFocusRef.current = false;
+      if (pendingFocusRef.current) cancelPendingFocus();
       rememberOpener(event.target);
     };
     document.addEventListener('focusin', onFocusIn);
     rememberOpener(document.activeElement);
     return () => document.removeEventListener('focusin', onFocusIn);
-  }, [openerRef, panelRef]);
+  }, [cancelPendingFocus, openerRef, panelRef, pendingFocusRef, restoringFocusRef]);
+  return observedOpenerRef;
+}
+
+function usePanelReturnFocus(
+  panelRef: RefObject<HTMLDivElement | null>,
+  openerRef: RefObject<HTMLElement | null> | undefined,
+  fallbackRef: RefObject<HTMLButtonElement | null> | undefined,
+) {
+  const pendingFocusRef = useRef(false);
+  const restoringFocusRef = useRef(false);
+  const onMutationRef = useRef<() => void>(() => undefined);
+  const { startObserving, stopObserving } = usePendingFocusObserver(
+    useCallback(() => onMutationRef.current(), []),
+  );
+  const cancelPendingFocus = useCallback(() => {
+    pendingFocusRef.current = false;
+    stopObserving();
+  }, [stopObserving]);
+  const observedOpenerRef = useOutsideFocusTracker(
+    panelRef,
+    openerRef,
+    restoringFocusRef,
+    pendingFocusRef,
+    cancelPendingFocus,
+  );
+
+  const tryFocus = useCallback((target: HTMLElement | undefined) => {
+    if (!isFocusTargetEligible(target)) return false;
+    restoringFocusRef.current = true;
+    try {
+      target.focus();
+      return document.activeElement === target;
+    } finally {
+      restoringFocusRef.current = false;
+    }
+  }, []);
+
+  const attemptRestore = useCallback(() => {
+    const opener = openerRef?.current ?? observedOpenerRef.current;
+    if ((opener && tryFocus(opener)) || (fallbackRef?.current && tryFocus(fallbackRef.current))) {
+      cancelPendingFocus();
+      return true;
+    }
+    return false;
+  }, [cancelPendingFocus, fallbackRef, observedOpenerRef, openerRef, tryFocus]);
+
+  useEffect(() => {
+    onMutationRef.current = () => {
+      if (pendingFocusRef.current) attemptRestore();
+    };
+  }, [attemptRestore]);
 
   const requestFocus = useCallback(() => {
     pendingFocusRef.current = true;
-    focusReturnTarget();
-  }, [focusReturnTarget]);
+    if (!attemptRestore()) startObserving();
+  }, [attemptRestore, startObserving]);
 
-  const cancelPendingFocus = useCallback(() => {
-    pendingFocusRef.current = false;
-  }, []);
-
-  // Run after every committed render: a later commit may mount the fallback.
   const retryFocus = () => {
-    if (pendingFocusRef.current) focusReturnTarget();
+    if (pendingFocusRef.current) attemptRestore();
   };
 
   return { requestFocus, cancelPendingFocus, retryFocus };
