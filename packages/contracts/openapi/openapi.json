@@ -4219,6 +4219,102 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/commissions/periods/{period}/estimate": {
+      "get": {
+        "operationId": "getCommissionEstimate",
+        "description": "The live commission estimate of a business month (FR-021). One full-month engine run per candidate employee, computed on read in a read-only transaction and never stored. Requires read:commissions:business and the commissions feature; a device session is refused. A holder sees only the employees of her effective branch set (CS-Q20): a company- or business-scoped grant without any current DENY sees every employee, while a branch-scoped reader sees only the days she was attached to her branches and her figures are labelled partial. Tips and received corrections pass through unpriced. Reads only.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "period",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(?!0000-)\\d{4}-(0[1-9]|1[0-2])$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "employee_id",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The visible employees of the month with their priced sources",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommissionEstimate"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid business id, period or employee id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No individual session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Uniform 403 refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/document-types": {
       "get": {
         "operationId": "listDocumentTypes",
@@ -14666,6 +14762,334 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/services/import/template": {
+      "get": {
+        "operationId": "getServiceImportTemplate",
+        "description": "Downloads one XLSX import template for the business: the eight authoritative headers with Arabic cell notes, and a reference sheet explaining the four commission rules, the accepted boolean spellings, and every open category of the business with its English and Arabic names; import matches the English names. A business whose complete reference exceeds the guarded reader limits is refused with IMPORT_TEMPLATE_EXCEEDS_LIMITS (422) instead of a truncated or unimportable template. Requires manage:services:business and the catalog feature. Never writes.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Import template workbook",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceImportTemplate"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/services/import/previews": {
+      "post": {
+        "operationId": "previewServiceImport",
+        "description": "Previews one verified private upload against the business: file ownership, READY status and XLSX type are checked before the bytes are read once outside any database transaction, and the 2 MiB and 500-row limits are enforced by the guarded reader on those bytes; category labels are matched in one PostgreSQL batch against open categories of the business and English names are compared against all stored services with the same PostgreSQL fold on both sides. Returns every error with its original sheet row and column, and only error-free normalized rows. The preview, its errors and its rows are saved in one tenant transaction; no service and no service audit is written, and the private-file access itself is recorded once in its own audit entry. Requires manage:services:business and the catalog feature.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewServiceImportInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Saved preview with errors and first clean rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceImportPreview"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/services/import/previews/{previewId}/rows": {
+      "get": {
+        "operationId": "getServiceImportRows",
+        "description": "Cursor-paginated clean normalized rows of one preview, to its creator only within the business; the cursor is the original Excel row number as a decimal string, so sparse sheets keep their numbering. Unknown, foreign or other-entity previews share IMPORT_PREVIEW_NOT_FOUND (404). Requires manage:services:business and the catalog feature.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "previewId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "$ref": "#/components/schemas/ServiceImportRowsCursor"
+            },
+            "description": "Original Excel row number of the last returned row; omit for the first page."
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Clean rows page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceImportRowsPage"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/services/import/previews/{previewId}": {
+      "get": {
+        "operationId": "getServiceImportStatus",
+        "description": "One preview status without row data: preview_id, status, created_count and error_code, to its creator only. Unknown, foreign or other-entity previews share IMPORT_PREVIEW_NOT_FOUND (404). The commit acceptance endpoint and the producer event belong to later deliveries. Requires manage:services:business and the catalog feature.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "previewId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Preview status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceImportStatus"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/branches/{branchId}/service-categories": {
       "get": {
         "operationId": "listBranchServiceCategories",
@@ -22567,6 +22991,258 @@
         "required": [
           "items",
           "next_cursor"
+        ]
+      },
+      "CommissionEstimatePeriod": {
+        "type": "string",
+        "pattern": "^(?!0000-)\\d{4}-(0[1-9]|1[0-2])$"
+      },
+      "CommissionEstimateMoney": {
+        "type": "string",
+        "pattern": "^-?(0|[1-9]\\d{0,10})\\.\\d{3}$"
+      },
+      "CommissionEstimateQuery": {
+        "type": "object",
+        "properties": {
+          "employee_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CommissionEstimateSource": {
+        "type": "object",
+        "properties": {
+          "source_ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "COMMISSION",
+              "SALE"
+            ]
+          },
+          "amount": {
+            "$ref": "#/components/schemas/CommissionEstimateMoney"
+          },
+          "source_branch_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "source_business_date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          },
+          "service_id": {
+            "nullable": true,
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "service_name": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_ref",
+          "kind",
+          "amount",
+          "source_branch_id",
+          "source_business_date",
+          "service_id",
+          "service_name"
+        ]
+      },
+      "CommissionEstimateSale": {
+        "type": "object",
+        "properties": {
+          "sale_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "amount": {
+            "$ref": "#/components/schemas/CommissionEstimateMoney"
+          },
+          "source_branch_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "source_business_date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          }
+        },
+        "required": [
+          "sale_id",
+          "amount",
+          "source_branch_id",
+          "source_business_date"
+        ]
+      },
+      "CommissionEstimateCorrection": {
+        "type": "object",
+        "properties": {
+          "source_ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "COMMISSION",
+              "SALE",
+              "TIP_CARD",
+              "TIP_CASH"
+            ]
+          },
+          "amount": {
+            "$ref": "#/components/schemas/CommissionEstimateMoney"
+          },
+          "source_branch_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "source_business_date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+          }
+        },
+        "required": [
+          "source_ref",
+          "kind",
+          "amount",
+          "source_branch_id",
+          "source_business_date"
+        ]
+      },
+      "CommissionEstimateTips": {
+        "type": "object",
+        "properties": {
+          "card": {
+            "$ref": "#/components/schemas/CommissionEstimateMoney"
+          },
+          "cash": {
+            "$ref": "#/components/schemas/CommissionEstimateMoney"
+          }
+        },
+        "required": [
+          "card",
+          "cash"
+        ]
+      },
+      "CommissionEstimateEmployee": {
+        "type": "object",
+        "properties": {
+          "employee_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name_ar": {
+            "nullable": true,
+            "type": "string"
+          },
+          "name_en": {
+            "type": "string"
+          },
+          "employee_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999999
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OK",
+              "NO_PLAN",
+              "NO_SALARY"
+            ]
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "total": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^-?(0|[1-9]\\d{0,10})\\.\\d{3}$"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionEstimateSource"
+            }
+          },
+          "sales": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionEstimateSale"
+            }
+          },
+          "tips": {
+            "$ref": "#/components/schemas/CommissionEstimateTips"
+          },
+          "corrections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionEstimateCorrection"
+            }
+          }
+        },
+        "required": [
+          "employee_id",
+          "name_ar",
+          "name_en",
+          "employee_number",
+          "status",
+          "partial",
+          "total",
+          "sources",
+          "sales",
+          "tips",
+          "corrections"
+        ]
+      },
+      "CommissionEstimate": {
+        "type": "object",
+        "properties": {
+          "business_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "period": {
+            "$ref": "#/components/schemas/CommissionEstimatePeriod"
+          },
+          "employees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CommissionEstimateEmployee"
+            }
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "total": {
+            "nullable": true,
+            "type": "string",
+            "pattern": "^-?(0|[1-9]\\d{0,10})\\.\\d{3}$"
+          }
+        },
+        "required": [
+          "business_id",
+          "period",
+          "employees",
+          "partial",
+          "total"
         ]
       },
       "EmployeeDocumentStatus": {

@@ -566,6 +566,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/commissions/periods/{period}/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The live commission estimate of a business month (FR-021). One full-month engine run per candidate employee, computed on read in a read-only transaction and never stored. Requires read:commissions:business and the commissions feature; a device session is refused. A holder sees only the employees of her effective branch set (CS-Q20): a company- or business-scoped grant without any current DENY sees every employee, while a branch-scoped reader sees only the days she was attached to her branches and her figures are labelled partial. Tips and received corrections pass through unpriced. Reads only. */
+        get: operations["getCommissionEstimate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/document-types": {
         parameters: {
             query?: never;
@@ -2313,6 +2330,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/services/import/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Downloads one XLSX import template for the business: the eight authoritative headers with Arabic cell notes, and a reference sheet explaining the four commission rules, the accepted boolean spellings, and every open category of the business with its English and Arabic names; import matches the English names. A business whose complete reference exceeds the guarded reader limits is refused with IMPORT_TEMPLATE_EXCEEDS_LIMITS (422) instead of a truncated or unimportable template. Requires manage:services:business and the catalog feature. Never writes. */
+        get: operations["getServiceImportTemplate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/services/import/previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Previews one verified private upload against the business: file ownership, READY status and XLSX type are checked before the bytes are read once outside any database transaction, and the 2 MiB and 500-row limits are enforced by the guarded reader on those bytes; category labels are matched in one PostgreSQL batch against open categories of the business and English names are compared against all stored services with the same PostgreSQL fold on both sides. Returns every error with its original sheet row and column, and only error-free normalized rows. The preview, its errors and its rows are saved in one tenant transaction; no service and no service audit is written, and the private-file access itself is recorded once in its own audit entry. Requires manage:services:business and the catalog feature. */
+        post: operations["previewServiceImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/services/import/previews/{previewId}/rows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Cursor-paginated clean normalized rows of one preview, to its creator only within the business; the cursor is the original Excel row number as a decimal string, so sparse sheets keep their numbering. Unknown, foreign or other-entity previews share IMPORT_PREVIEW_NOT_FOUND (404). Requires manage:services:business and the catalog feature. */
+        get: operations["getServiceImportRows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/services/import/previews/{previewId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description One preview status without row data: preview_id, status, created_count and error_code, to its creator only. Unknown, foreign or other-entity previews share IMPORT_PREVIEW_NOT_FOUND (404). The commit acceptance endpoint and the producer event belong to later deliveries. Requires manage:services:business and the catalog feature. */
+        get: operations["getServiceImportStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/branches/{branchId}/service-categories": {
         parameters: {
             query?: never;
@@ -3782,6 +3867,68 @@ export interface components {
         CommissionBlockedCorrectionList: {
             items: components["schemas"]["CommissionBlockedCorrection"][];
             next_cursor: string | null;
+        };
+        CommissionEstimatePeriod: string;
+        CommissionEstimateMoney: string;
+        CommissionEstimateQuery: {
+            /** Format: uuid */
+            employee_id?: string;
+        };
+        CommissionEstimateSource: {
+            source_ref: string;
+            /** @enum {string} */
+            kind: "COMMISSION" | "SALE";
+            amount: components["schemas"]["CommissionEstimateMoney"];
+            /** Format: uuid */
+            source_branch_id: string;
+            source_business_date: string;
+            /** Format: uuid */
+            service_id: string | null;
+            service_name: string | null;
+        };
+        CommissionEstimateSale: {
+            /** Format: uuid */
+            sale_id: string;
+            amount: components["schemas"]["CommissionEstimateMoney"];
+            /** Format: uuid */
+            source_branch_id: string;
+            source_business_date: string;
+        };
+        CommissionEstimateCorrection: {
+            source_ref: string;
+            /** @enum {string} */
+            kind: "COMMISSION" | "SALE" | "TIP_CARD" | "TIP_CASH";
+            amount: components["schemas"]["CommissionEstimateMoney"];
+            /** Format: uuid */
+            source_branch_id: string;
+            source_business_date: string;
+        };
+        CommissionEstimateTips: {
+            card: components["schemas"]["CommissionEstimateMoney"];
+            cash: components["schemas"]["CommissionEstimateMoney"];
+        };
+        CommissionEstimateEmployee: {
+            /** Format: uuid */
+            employee_id: string;
+            name_ar: string | null;
+            name_en: string;
+            employee_number: number;
+            /** @enum {string} */
+            status: "OK" | "NO_PLAN" | "NO_SALARY";
+            partial: boolean;
+            total: string | null;
+            sources: components["schemas"]["CommissionEstimateSource"][];
+            sales: components["schemas"]["CommissionEstimateSale"][];
+            tips: components["schemas"]["CommissionEstimateTips"];
+            corrections: components["schemas"]["CommissionEstimateCorrection"][];
+        };
+        CommissionEstimate: {
+            /** Format: uuid */
+            business_id: string;
+            period: components["schemas"]["CommissionEstimatePeriod"];
+            employees: components["schemas"]["CommissionEstimateEmployee"][];
+            partial: boolean;
+            total: string | null;
         };
         /** @enum {string} */
         EmployeeDocumentStatus: "NO_EXPIRY" | "VALID" | "EXPIRING" | "EXPIRED";
@@ -11585,6 +11732,69 @@ export interface operations {
             };
         };
     };
+    getCommissionEstimate: {
+        parameters: {
+            query?: {
+                employee_id?: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                period: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The visible employees of the month with their priced sources */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionEstimate"];
+                };
+            };
+            /** @description Invalid business id, period or employee id */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No individual session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform 403 refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     listDocumentTypes: {
         parameters: {
             query?: never;
@@ -17478,6 +17688,229 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ServiceCategoryClosingStatus"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getServiceImportTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Import template workbook */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceImportTemplate"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    previewServiceImport: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewServiceImportInput"];
+            };
+        };
+        responses: {
+            /** @description Saved preview with errors and first clean rows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceImportPreview"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getServiceImportRows: {
+        parameters: {
+            query?: {
+                /** @description Original Excel row number of the last returned row; omit for the first page. */
+                cursor?: components["schemas"]["ServiceImportRowsCursor"];
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                previewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Clean rows page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceImportRowsPage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getServiceImportStatus: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                previewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Preview status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceImportStatus"];
                 };
             };
             /** @description Bilingual refusal */

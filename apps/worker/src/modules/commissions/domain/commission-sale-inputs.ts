@@ -1,5 +1,6 @@
 import { parseMoney, type Money } from '@pospay/domain';
 
+import type { CommissionPeriodEmployee } from './commission-line-types.ts';
 import { CommissionSaleInputInvalidError } from './errors.ts';
 
 /**
@@ -27,7 +28,12 @@ export interface CommissionSaleProjectionRow {
   readonly businessId: string;
   readonly saleId: string;
   readonly branchId: string;
-  readonly sellerEmployeeId: string;
+  /**
+   * البائع كما حفظه الإسقاط: العمود nullable في قاعدة البيانات لأن الباقة المستوردة
+   * مالها بائع، والعقد بيكتب البائع دايماً. البائع الغايب ما بيشاركش في تسعير
+   * أي شهر، فبيتشال من أزواج التصحيح بدل ما يبني جيلاً بلا بائع.
+   */
+  readonly sellerEmployeeId: string | null;
   readonly businessDate: string;
   readonly period: string;
   readonly pricePaid: Money;
@@ -115,6 +121,39 @@ export function assertSaleIdentityUnchanged(
   if (held !== null && held.businessId.toLowerCase() !== event.businessId.toLowerCase()) {
     throw new CommissionSaleInputInvalidError('SALE_BUSINESS_CHANGED');
   }
+}
+
+/**
+ * يبني أزواج الموظفة والشهر اللي لازم تتعاد حسابها بعد تصحيح بيع (55-1d).
+ * الزوج الأول هو البائع القديم وشهره القديم، وهو الشهر اللي اختفى منه البيع لما
+ * المراجعة نقلته لبائع أو لشهر تاني، فبدون إعادة حسابه يفضل مبلغه القديم محمّل
+ * على كشف معتمد. الزوج الثاني هو البائع الجديد وشهره الجديد. الأزواج بتتكرر
+ * بتتلف، فبتتخزن بمفتاح واحد، الشهور المقفولة بس هي اللي بتطلب جيل تصحيح.
+ *
+ * @param held الصف المحفوظ قبل التعديل، أو null لبيع جديد
+ * @param row الصف الأحدث بعد التعديل
+ * @param closedPeriods الشهور المقفولة التي قبلت التصحيح
+ * @returns أزواج الموظفة والشهر فريدة ومرتبة تصاعدياً
+ */
+export function affectedCommissionSaleEmployees(
+  held: CommissionSaleProjectionRow | null,
+  row: CommissionSaleProjectionRow,
+  closedPeriods: readonly string[],
+): CommissionPeriodEmployee[] {
+  const closed = new Set(closedPeriods);
+  const pairs = new Map<string, CommissionPeriodEmployee>();
+  const add = (period: string, employeeId: string | null): void => {
+    if (employeeId === null || employeeId === '') return;
+    if (!closed.has(period)) return;
+    pairs.set(`${period}:${employeeId}`, { period, employeeId });
+  };
+  if (held !== null) add(held.period, held.sellerEmployeeId);
+  add(row.period, row.sellerEmployeeId);
+  return [...pairs.values()].sort((left, right) => {
+    if (left.period !== right.period) return left.period < right.period ? -1 : 1;
+    if (left.employeeId === right.employeeId) return 0;
+    return left.employeeId < right.employeeId ? -1 : 1;
+  });
 }
 
 /**

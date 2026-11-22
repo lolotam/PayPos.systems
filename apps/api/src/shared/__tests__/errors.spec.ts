@@ -99,6 +99,8 @@ afterAll(async () => {
 
 it('does not label a framework 422 as an own-attendance period error', async () => {
   expect(codeForStatus(422)).not.toBe('MY_PERIOD_OUT_OF_RANGE');
+  // ولا كود قالب الاستيراد: 422 إطار عمل عام يجب أن يبقى BAD_REQUEST (مراجعة 1186 P2).
+  expect(codeForStatus(422)).not.toBe('IMPORT_TEMPLATE_EXCEEDS_LIMITS');
   const res = await request('GET', '/v1/probe/unprocessable');
   expect(res.status).toBe(400);
   expect(errorEnvelope.parse(res.body).code).toBe('BAD_REQUEST');

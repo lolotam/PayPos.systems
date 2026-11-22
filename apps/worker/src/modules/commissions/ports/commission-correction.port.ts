@@ -29,10 +29,18 @@ export type CommissionMonthTip = ProjectedCommissionTip & {
   readonly businessDate: string;
 };
 
+/**
+ * بيع الباقة داخل شهر الموظفة مع فرعه وتاريخ عمله، حتى لا تفقد إعادة الحساب أصل
+ * نسبة التصحيح: نسبة البيع بتتبني من فرعه ويوم عمله زي ما بتتبني من فرع البند.
+ */
+export type CommissionMonthSale = ProjectedPackageSale & {
+  readonly branchId: string;
+};
+
 /** إسقاط الشهر الذي يحفظ بيانات أصل المصادر بجانب مدخلات تسعير المحرك. */
 export type CommissionMonthProjection = CommissionPeriodProjection<
   CommissionMonthLine,
-  ProjectedPackageSale,
+  CommissionMonthSale,
   CommissionSalary,
   CommissionMonthTip
 >;

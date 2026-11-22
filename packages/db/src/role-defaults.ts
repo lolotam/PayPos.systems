@@ -36,7 +36,7 @@ export const OWNER_DERIVED_PERMISSIONS = [
   'manage:salaries:business',
 ] as const satisfies readonly Permission[];
 
-/** صلاحيات الوثائق والدوام ولوحة الحضور وطلبات تعديله وهوية النشاط والرقم الوظيفي وخطط العمولة ومرتجع الباقات المستوردة متاحة لكل دور بشري بتفويض شخصي يمنحه المالك فقط؛ الجهاز لا يكتسبها. */
+/** صلاحيات الوثائق والدوام ولوحة الحضور وطلبات تعديله وهوية النشاط والرقم الوظيفي وخطط العمولة ومرتجع الباقات المستوردة وقراءة العمولات متاحة لكل دور بشري بتفويض شخصي يمنحه المالك فقط؛ الجهاز لا يكتسبها. */
 export const OWNER_GRANTED_PERMISSIONS = [
   IMPORTED_REFUNDS_PERMISSION,
   'read:attendance:branch',
@@ -50,6 +50,7 @@ export const OWNER_GRANTED_PERMISSIONS = [
   'manage:business-identity:business',
   'manage:employee-number:company',
   'manage:commission-plans:business',
+  'read:commissions:business',
 ] as const satisfies readonly PolicyPermission[];
 
 /** التفويض الشخصي للجدول والقوالب يخص الأدوار البشرية؛ دور الجهاز محظور في كل خانة. */
@@ -137,6 +138,9 @@ export const ROLE_DEFAULTS = {
   'manage:staff-app-columns:business': managers,
   // قرارا CS-Q1 وCS-Q27 (أبو سالم): إدارة الخطط للمالك والمحاسب افتراضياً، والمالك وحده يمنحها أو يسحبها.
   'manage:commission-plans:business': ['owner', 'accountant'],
+  // CS-Q14 = PP-17.2: قراءة تقدير العمولة ومعاينة كشفها وتصديره؛ المالك والمديرون والمحاسب ومدير الفرع
+  // افتراضياً، والقارئ بيشوف موظفات نطاق فروعه الفعّالة بس (CS-Q20 = PP-20.1).
+  'read:commissions:business': [...managers, 'accountant', 'branch_manager'],
   'view:notifications:business': managers,
   'manage:employees:business': managers,
   'read:services:business': managers,

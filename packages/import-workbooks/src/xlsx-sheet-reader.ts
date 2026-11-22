@@ -43,6 +43,44 @@ function cellValue(value: ExcelJS.CellValue): ImportCell {
   return null;
 }
 
+/** قارئ الورقة المقروء بقيمه وتنسيقاته المحاذاة: ناتج الاختياري الجديد للقالب والمعاينة (072 P-1). */
+export interface WorkbookSheetResult {
+  readonly matrix: ImportMatrix;
+  /** تنسيقات الأرقام بنفس إحداثيات المصفوفة؛ الخانة بلا تنسيق هي undefined. */
+  readonly formats: readonly (readonly (string | undefined)[])[];
+}
+
+/**
+ * بيقرا بايتات `.xlsx` كقيم وتنسيقات من ورقة واحدة بحماية القارئ نفسه (P-1):
+ * نفس التمريرة المحمية الواحدة بتطلّع القيم ومصفوفة التنسيقات المحاذاة،
+ * و`readWorkbookMatrix` هو نفسه النتيجة دي بتنسيقاتها مسقوطة.
+ *
+ * @param bytes  محتوى المصنف الموثّق
+ * @param bounds حدود حجم المصنف وصفوف البيانات والأعمدة والأوراق الخاصة بالكيان
+ * @returns القيم مع التنسيقات المحاذاة
+ */
+export async function readWorkbookSheet(
+  bytes: Uint8Array,
+  bounds: WorkbookBounds,
+): Promise<WorkbookSheetResult> {
+  if (bytes.byteLength > bounds.maxBytes)
+    throw new ImportWorkbookError('IMPORT_FILE_CONTENT_INVALID');
+  try {
+    // هامش عمودين يحفظ أخطاء الأعمدة غير المعنونة؛ أربع أوراق تكفي القالب وورقتين إضافيتين بلا تضخيم.
+    guardXlsxZip(Buffer.from(bytes), {
+      maxRows: bounds.maxDataRows + 2,
+      maxColumns: bounds.maxColumns,
+      maxWorksheets: bounds.maxWorksheets,
+    });
+    return await loadSheet(bytes, bounds);
+  } catch (error) {
+    if (error instanceof ImportWorkbookError) throw error;
+    if (error instanceof Error && error.message === 'IMPORT_ROW_LIMIT_EXCEEDED')
+      throw new ImportWorkbookError('IMPORT_ROW_LIMIT_EXCEEDED');
+    throw new ImportWorkbookError('IMPORT_FILE_CONTENT_INVALID');
+  }
+}
+
 /**
  * بيحوّل بايتات `.xlsx` إلى مصفوفة الخلايا من الورقة الأولى فقط، دون أي قاعدة تجارية.
  *
@@ -54,25 +92,10 @@ export async function readWorkbookMatrix(
   bytes: Uint8Array,
   bounds: WorkbookBounds,
 ): Promise<ImportMatrix> {
-  if (bytes.byteLength > bounds.maxBytes)
-    throw new ImportWorkbookError('IMPORT_FILE_CONTENT_INVALID');
-  try {
-    // هامش عمودين يحفظ أخطاء الأعمدة غير المعنونة؛ أربع أوراق تكفي القالب وورقتين إضافيتين بلا تضخيم.
-    guardXlsxZip(Buffer.from(bytes), {
-      maxRows: bounds.maxDataRows + 2,
-      maxColumns: bounds.maxColumns,
-      maxWorksheets: bounds.maxWorksheets,
-    });
-    return await loadMatrix(bytes, bounds);
-  } catch (error) {
-    if (error instanceof ImportWorkbookError) throw error;
-    if (error instanceof Error && error.message === 'IMPORT_ROW_LIMIT_EXCEEDED')
-      throw new ImportWorkbookError('IMPORT_ROW_LIMIT_EXCEEDED');
-    throw new ImportWorkbookError('IMPORT_FILE_CONTENT_INVALID');
-  }
+  return (await readWorkbookSheet(bytes, bounds)).matrix;
 }
 
-async function loadMatrix(bytes: Uint8Array, bounds: WorkbookBounds): Promise<ImportMatrix> {
+async function loadSheet(bytes: Uint8Array, bounds: WorkbookBounds): Promise<WorkbookSheetResult> {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(
     Buffer.from(bytes) as unknown as Parameters<typeof workbook.xlsx.load>[0],
@@ -86,21 +109,39 @@ async function loadMatrix(bytes: Uint8Array, bounds: WorkbookBounds): Promise<Im
     const value = cellValue(cell.value);
     if (value !== null && String(value).trim() !== '') width = Math.max(width, column);
   });
-  const matrix: ImportCell[][] = [
-    Array.from({ length: width }, (_, column) => cellValue(header.getCell(column + 1).value)),
-  ];
+  const matrix: ImportCell[][] = [];
+  const formats: (string | undefined)[][] = [];
+  const headerValues: ImportCell[] = Array.from({ length: width }, (_, column) =>
+    cellValue(header.getCell(column + 1).value),
+  );
+  matrix.push(headerValues);
+  formats.push(
+    Array.from({ length: width }, (_, column) => header.getCell(column + 1).numFmt ?? undefined),
+  );
   const sourceRows = [1];
   sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
     if (rowNumber === 1) return;
-    const values: ImportCell[] = Array.from({ length: width }, () => null);
+    // آخر عمود فعلي في الصف هو الحد: خلايا بعد آخر عنوان تبقى ظاهرة للمُستورد
+    // ليرفضها IMPORT_COLUMN_UNEXPECTED بدل ما تضيع كصف فارغ أو صف صالح (072 FR-003).
+    let lastColumn = 0;
+    row.eachCell({ includeEmpty: false }, (_cell, column) => {
+      lastColumn = Math.max(lastColumn, column);
+    });
+    // الصفوف القصيرة تُكمل عرض العناوين بقيم null كما في القارئ القديم، وأعمدة الفائض بعد
+    // العناوين تبقى محفوظة ليرصدها المطبّع IMPORT_COLUMN_UNEXPECTED (072 FR-003).
+    const rowLength = Math.max(width, lastColumn);
+    const values: ImportCell[] = Array.from({ length: rowLength }, () => null);
+    const rowFormats: (string | undefined)[] = Array.from({ length: rowLength }, () => undefined);
     row.eachCell({ includeEmpty: false }, (cell, column) => {
       values[column - 1] = cellValue(cell.value);
+      rowFormats[column - 1] = cell.numFmt ?? undefined;
     });
     if (values.every((value) => value === null || String(value).trim() === '')) return;
     if (matrix.length > bounds.maxDataRows)
       throw new ImportWorkbookError('IMPORT_ROW_LIMIT_EXCEEDED');
     matrix.push(values);
+    formats.push(rowFormats);
     sourceRows.push(rowNumber);
   });
-  return Object.assign(matrix, { sourceRows });
+  return { matrix: Object.assign(matrix, { sourceRows }), formats };
 }

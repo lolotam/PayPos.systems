@@ -16,6 +16,7 @@ export const OWNER_GRANTED_PERMISSIONS: readonly string[] = [
   'manage:business-identity:business',
   'manage:employee-number:company',
   'manage:commission-plans:business',
+  'read:commissions:business',
 ];
 
 /** المالك وحده يمنح أو يمنع أو يسحب صلاحيات طلبات تعديل الحضور (ACR-Q1، ACR-Q4) وخطط العمولة (CS-Q27) ومرتجع الباقات المستوردة (PK-Q26)، لأن السحب يغيّر صاحب السلطة. */

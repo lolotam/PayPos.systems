@@ -1,4 +1,8 @@
 import { packageSaleChanged } from '@pospay/contracts';
+import {
+  commissionCorrectionBlockedNoticeGroupSize,
+  commissionCorrectionBlockedNoticeRequested,
+} from '@pospay/contracts';
 import { createDatabase, type ClaimedEvent, type Database } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
@@ -18,6 +22,11 @@ import { commissionSaleEvent } from './commission-tip-salary-events.ts';
 import { createDeliverer } from '../../../outbox/deliver.ts';
 import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
 import { createCommissionSaleProjectionScope } from '../persistence/commission-sale-projection.scope.ts';
+import { createCommissionCorrectionScope } from '../persistence/commission-correction.scope.ts';
+import { createCommissionBlockNotices } from '../persistence/commission-block-notice.outbox.ts';
+
+/** قارئ حاملي الصلاحية ما بيتنادىش في اختبارات البيع؛ بيحتاج identity وده ممنوع جوه الموديول. */
+const noPermissionHolders = async (): Promise<readonly string[]> => [];
 import { COMMISSION_INPUTS_CONSUMER_ID } from '../commissions.module.ts';
 import { markCommissionEventConsumed } from '../persistence/commission-event-consumption.ts';
 import {
@@ -92,7 +101,17 @@ function openHeldSaleWriter(event: ClaimedEvent): {
     await scope.lockSale(SALE);
     signalHolds();
     await gate;
-    await new ProjectPackageSale(scope, clock, ids).execute(
+    await new ProjectPackageSale(
+      scope,
+      clock,
+      ids,
+      createCommissionCorrectionScope(tx, ids, clock),
+      createCommissionBlockNotices(tx, ids, clock, {
+        groupSize: commissionCorrectionBlockedNoticeGroupSize,
+        parsePayload: (payload: unknown) => commissionCorrectionBlockedNoticeRequested.parse(payload),
+        permissionHolders: noPermissionHolders,
+      }),
+    ).execute(
       normalizePackageSaleEvent(event, packageSaleChanged.parse(event.payload)),
     );
     await markCommissionEventConsumed(tx, COMMISSION_INPUTS_CONSUMER_ID, event.id);

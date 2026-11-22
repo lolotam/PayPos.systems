@@ -56,6 +56,8 @@ const deviceForbidden = [
   'manage:staff-app-columns:business',
   // الجهاز لا يحمل صلاحية خطط العمولة أبداً؛ الإدارة لتسجيل دخول إداري فردي (FR-010).
   'manage:commission-plans:business',
+  // الجهاز لا يقرأ تقدير العمولة ولا كشفها أبداً؛ القراءة إدارية (CS-Q14).
+  'read:commissions:business',
   'manage:employee-number:company',
   'view:notifications:business',
   'create:companies:platform',

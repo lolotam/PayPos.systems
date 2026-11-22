@@ -17,6 +17,10 @@ export { createPersonalEligibility } from './persistence/personal-employee.ts';
 export { lockEmployeeForUpdate } from './persistence/lock-employee.ts';
 export { employeeExistsInBusiness } from './persistence/employee-exists.ts';
 export { readCommissionPlanEmployeeNames } from './persistence/commission-plan-employee-names.ts';
+export {
+  readCommissionBranchAttachments,
+  readCommissionEstimateEmployees,
+} from './persistence/commission-estimate-readers.ts';
 export { employeeNamesByUser } from './persistence/employee-names.ts';
 export {
   readEmployeeDisplayNames,

@@ -6,7 +6,7 @@ import type {
   ProjectedPackageSale,
   ReceivedCommissionCorrection,
 } from './period-input-types.ts';
-import type { CommissionPeriodInput, CommissionSalary } from './plan-types.ts';
+import type { CommissionPeriodInput, CommissionPlanVersion, CommissionSalary } from './plan-types.ts';
 import { selectSalaryEntryOnLastDay } from './salary-thresholds.ts';
 
 const PERIOD_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -22,6 +22,26 @@ function getPeriodLastDay(period: string): string {
   }
   const days = month === 2 && isLeapYear ? 29 : monthDays;
   return `${period}-${String(days).padStart(2, '0')}`;
+}
+
+/**
+ * نسخة الخطة تسري للموظفة وبتاريخ سريانها لآخر يوم الشهر، ونسخة الإصلاح تسري
+ * في شهرها بس وده بيتحدّد بـ repair_period مش بتاريخ السريان (D-12, CS-Q11).
+ *
+ * @param version إصدار الخطة المرشح
+ * @param employeeId الموظفة صاحبة الخطة
+ * @param periodLastDay آخر يوم نشاط في الفترة
+ * @param period الشهر بصيغة YYYY-MM
+ * @returns هل الإصدار ينطبق على الفترة
+ */
+function appliesToPeriod(
+  version: CommissionPlanVersion,
+  employeeId: string,
+  periodLastDay: string,
+  period: string,
+): boolean {
+  if (version.employeeId !== employeeId) return false;
+  return version.effectiveFrom <= periodLastDay || version.repairPeriod === period;
 }
 
 /**
@@ -62,9 +82,8 @@ export function assembleCommissionPeriodInput<
       sale.sellerEmployeeId === projection.employeeId &&
       sale.businessDate.slice(0, 7) === projection.period,
   );
-  const versions = projection.versions.filter(
-    (version) =>
-      version.employeeId === projection.employeeId && version.effectiveFrom <= periodLastDay,
+  const versions = projection.versions.filter((version) =>
+    appliesToPeriod(version, projection.employeeId, periodLastDay, projection.period),
   );
   const overrides = projection.overrides.filter(
     (override) =>

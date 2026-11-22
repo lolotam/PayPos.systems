@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": { "incremental": false, "types": ["node"] },
-  "include": ["e2e/**/*.ts", "playwright.config.ts"]
+  "compilerOptions": { "incremental": false, "types": ["node", "vite/client"] },
+  "include": ["e2e/**/*.ts", "e2e/**/*.tsx", "playwright.config.ts", "playwright.navigation.config.ts"]
 }

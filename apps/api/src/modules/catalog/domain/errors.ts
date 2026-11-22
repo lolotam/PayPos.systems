@@ -58,6 +58,31 @@ export class ServiceError extends Error {
   }
 }
 
+/** رفض آمن لمعاينة استيراد الخدمات وتنزيل قالبها؛ الكود وحده يعبر لطبقة الـ HTTP برسالة بلغتين. */
+export class ServiceImportError extends Error {
+  /**
+   * يثبت سبب الرفض المسمّى قبل أي كتابة، فلا يحمل الخطأ صفوفاً أو تفاصيل ملف خام.
+   *
+   * @param code سبب الرفض الآمن
+   */
+  constructor(
+    readonly code:
+      | 'IMPORT_FILE_NOT_FOUND'
+      | 'IMPORT_FILE_NOT_READY'
+      | 'IMPORT_FILE_TYPE_INVALID'
+      | 'IMPORT_FILE_SIZE_INVALID'
+      | 'IMPORT_FILE_CONTENT_INVALID'
+      | 'IMPORT_HEADER_INVALID'
+      | 'IMPORT_ROW_LIMIT_EXCEEDED'
+      | 'IMPORT_TEMPLATE_EXCEEDS_LIMITS'
+      | 'STORAGE_UNAVAILABLE'
+      | 'TRANSACTION_RETRY_REQUIRED',
+  ) {
+    super(code);
+    this.name = 'ServiceImportError';
+  }
+}
+
 /** رفض آمن لإنشاء تصنيف خدمة أو تعديله؛ الكود وحده يعبر لطبقة الـ HTTP. */
 export class ServiceCategoryError extends Error {
   /**
