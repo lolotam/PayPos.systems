@@ -18,7 +18,7 @@ export type HubCardProps = {
 // تحت prefers-reduced-motion. بلا nowrap على مستوى الكرت حتى يمكنه الانكماش
 // داخل عموده؛ القصّ يتولّاه العنوان والوصف بنقطة حذف كلٌّ في سطره.
 const CARD_CLASS =
-  'flex min-h-11 min-w-0 max-w-full items-start gap-4 rounded-card border border-border bg-card p-5 text-start text-sm font-normal transition-[border-color,translate] hover:-translate-y-0.5 hover:border-primary motion-reduce:transform-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+  'flex min-h-11 min-w-0 max-w-full items-start gap-4 rounded-card border border-border bg-card p-5 text-start text-sm font-normal transition-[border-color,translate] hover:-translate-y-0.5 hover:border-primary motion-reduce:translate-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
 /**
  * بطاقة محور لصفحة نظرة عامة: أيقونة وعنوان ووصف سطر واحد، والكرت كله هدف

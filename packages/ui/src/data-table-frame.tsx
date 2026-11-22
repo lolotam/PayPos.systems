@@ -13,29 +13,30 @@ export type DataTableFrameProps = Omit<ComponentProps<'div'>, 'title'> & {
   stacked?: boolean;
 };
 
-// عناصر مكدّسة الصفوف: كلها تحت 599px لأن الطرح عند 600px، والخلية لا تعرض تسميتها
-// إلا إذا حملت data-cell-label — فالخلية الأولى تظل عنوان البطاقة بلا تسمية فارغة فوقها.
+// عناصر مكدّسة الصفوف: كلها تحت 600px (الحدّ 599.99px يشمل العروض الكسورية
+// تحت الستين)، والخلية لا تعرض تسميتها إلا إذا حملت data-cell-label —
+// فالخلية الأولى تظل عنوان البطاقة بلا تسمية فارغة فوقها.
 const STACKED_CLASS = [
-  'max-[599px]:[&_table]:block',
-  'max-[599px]:[&_thead]:hidden',
-  'max-[599px]:[&_tbody]:block',
-  'max-[599px]:[&_tbody_tr]:mb-2',
-  'max-[599px]:[&_tbody_tr]:block',
-  'max-[599px]:[&_tbody_tr]:rounded-card',
-  'max-[599px]:[&_tbody_tr]:border',
-  'max-[599px]:[&_tbody_tr]:bg-card',
-  'max-[599px]:[&_tbody_tr]:p-2',
-  'max-[599px]:[&_tbody_tr:last-child]:mb-0',
-  'max-[599px]:[&_tbody_td]:block',
-  'max-[599px]:[&_tbody_td]:px-0',
-  'max-[599px]:[&_tbody_td]:py-1.5',
-  'max-[599px]:[&_tbody_td:first-child]:text-base',
-  'max-[599px]:[&_tbody_td:first-child]:font-semibold',
-  'max-[599px]:[&_tbody_td[data-cell-label]]:before:content-[attr(data-cell-label)]',
-  'max-[599px]:[&_tbody_td[data-cell-label]]:before:block',
-  'max-[599px]:[&_tbody_td[data-cell-label]]:before:text-xs',
-  'max-[599px]:[&_tbody_td[data-cell-label]]:before:font-medium',
-  'max-[599px]:[&_tbody_td[data-cell-label]]:before:text-muted-foreground',
+  'max-[599.99px]:[&_table]:block',
+  'max-[599.99px]:[&_thead]:hidden',
+  'max-[599.99px]:[&_tbody]:block',
+  'max-[599.99px]:[&_tbody_tr]:mb-2',
+  'max-[599.99px]:[&_tbody_tr]:block',
+  'max-[599.99px]:[&_tbody_tr]:rounded-card',
+  'max-[599.99px]:[&_tbody_tr]:border',
+  'max-[599.99px]:[&_tbody_tr]:bg-card',
+  'max-[599.99px]:[&_tbody_tr]:p-2',
+  'max-[599.99px]:[&_tbody_tr:last-child]:mb-0',
+  'max-[599.99px]:[&_tbody_td]:block',
+  'max-[599.99px]:[&_tbody_td]:px-0',
+  'max-[599.99px]:[&_tbody_td]:py-1.5',
+  'max-[599.99px]:[&_tbody_td:first-child]:text-base',
+  'max-[599.99px]:[&_tbody_td:first-child]:font-semibold',
+  'max-[599.99px]:[&_tbody_td[data-cell-label]]:before:content-[attr(data-cell-label)]',
+  'max-[599.99px]:[&_tbody_td[data-cell-label]]:before:block',
+  'max-[599.99px]:[&_tbody_td[data-cell-label]]:before:text-xs',
+  'max-[599.99px]:[&_tbody_td[data-cell-label]]:before:font-medium',
+  'max-[599.99px]:[&_tbody_td[data-cell-label]]:before:text-muted-foreground',
 ].join(' ');
 
 /**

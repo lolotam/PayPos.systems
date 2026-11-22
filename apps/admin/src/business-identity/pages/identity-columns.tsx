@@ -3,6 +3,7 @@
 import { t } from '@pospay/i18n';
 import { PageHeader, PageShell } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
+import { useBusinessLogo } from '../api/use-business-logo';
 import type { useBusinessIdentity } from '../api/use-business-identity';
 import type { useOfficialNames } from '../api/use-official-names';
 import { identityFailureMessage, isAuthorizationRefusal } from '../model/identity-failure';
@@ -18,6 +19,8 @@ type Scope = { companyId: string; userId: string; businessId: string };
  * قالب هوية النشاط ثنائي الأعمدة: الأسماء الرسمية في العمود الرئيسي (2fr)
  * والشعار في الجانبي (1fr) من 1024px، متكدين الرئيسي أولًا تحته؛ ومن غير
  * كتلة الأسماء يأخذ الشعار العمود الرئيسي كاملًا ولا يترك في الضيق.
+ * قراءة الشعار هنا لا في اللوحة نفسها، لأن اللوحة تنتقل بين العمودين لما
+ * تظهر الأسماء أو تختفي، وحالة الرفع الجارٍ لازم تعيش في موضع ثابت.
  */
 export function IdentityColumns({
   scope,
@@ -29,6 +32,7 @@ export function IdentityColumns({
   names: NamesQuery;
 }) {
   const locale = useLocale();
+  const logo = useBusinessLogo(scope.companyId, scope.userId, scope.businessId);
   const refused = isAuthorizationRefusal(identity.error);
   const showEditor = (identity.isSuccess || identity.isError) && !refused;
   const namesVisible = identity.data !== undefined;
@@ -40,7 +44,7 @@ export function IdentityColumns({
     : (names.data ?? null);
   // خطأ القراءة من غير صف يسيب المعرف مجهولًا؛ null وحده يعني مفيش شعار
   const logoId = identity.data === undefined ? undefined : identity.data.logo_file_id;
-  const logoPanel = <LogoPanelSlot scope={scope} logoId={logoId} baseline={baseline} />;
+  const logoPanel = <LogoPanelSlot scope={scope} logo={logo} logoId={logoId} baseline={baseline} />;
   return (
     <PageShell
       layout="two-column"

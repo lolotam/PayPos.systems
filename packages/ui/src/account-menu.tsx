@@ -1,7 +1,6 @@
 'use client';
 
 import { DropdownMenu } from 'radix-ui';
-import type { ReactNode } from 'react';
 
 import { AccountMenuEntryItem, type AccountMenuEntry } from './account-menu-entry.js';
 import { UserRound } from './icons.js';
@@ -19,10 +18,8 @@ export type AccountMenuProps = {
   /** الاسم والبريد الظاهران أعلى القائمة؛ غيابهما يفتح القائمة بلا كتلة هوية. */
   name?: string;
   email?: string;
-  /** المداخل بترتيبها المعطى — كل نص فيها مترجم من المستدعي. */
+  /** المداخل بترتيبها المعطى — كل نص فيها مترجم من المستدعي، ومنها ما يخص الوضع والمظهر. */
   entries: readonly AccountMenuEntry[];
-  /** خانة بعد المداخل (مثل مبدّل الوضع) محتواها من المستدعي. */
-  footer?: ReactNode;
   className?: string;
 };
 
@@ -31,8 +28,10 @@ const SEPARATOR_CLASS = 'my-1 h-px bg-border';
 /**
  * قائمة الحساب: الاسم والبريد ثم المداخل بترتيبها المعطى، وباب مغلق بالهروب
  * يرجع التركيز إلى الزر؛ الكيت لا يقرأ جلسة ولا مسارًا، وكل نص من المستدعي.
+ * لا خانات حرة بعد المداخل: عناصر Radix لا تصلها لوحة المفاتيح، وأي تحكم
+ * إضافي (مثل مبدّل الوضع) يدخل كمدخل من المداخل في خطوة 074-7.
  */
-export function AccountMenu({ labels, name, email, entries, footer, className }: AccountMenuProps) {
+export function AccountMenu({ labels, name, email, entries, className }: AccountMenuProps) {
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
@@ -69,12 +68,6 @@ export function AccountMenu({ labels, name, email, entries, footer, className }:
           {entries.map((entry) => (
             <AccountMenuEntryItem key={entry.id} entry={entry} />
           ))}
-          {footer ? (
-            <>
-              <DropdownMenu.Separator className={SEPARATOR_CLASS} />
-              <div className="p-1">{footer}</div>
-            </>
-          ) : null}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>

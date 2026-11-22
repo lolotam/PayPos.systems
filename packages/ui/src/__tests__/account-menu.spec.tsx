@@ -10,12 +10,7 @@ const entries: readonly AccountMenuEntry[] = [
   { id: 'signout', label: 'Sign out', onSelect: vi.fn() },
 ];
 
-function menu(props: {
-  name?: string;
-  email?: string;
-  entries?: typeof entries;
-  footer?: React.ReactNode;
-}) {
+function menu(props: { name?: string; email?: string; entries?: typeof entries }) {
   return (
     <DirectionProvider dir="rtl">
       <AccountMenu
@@ -23,7 +18,6 @@ function menu(props: {
         {...(props.name === undefined ? {} : { name: props.name })}
         {...(props.email === undefined ? {} : { email: props.email })}
         entries={props.entries ?? entries}
-        {...(props.footer === undefined ? {} : { footer: props.footer })}
       />
     </DirectionProvider>
   );
@@ -87,18 +81,13 @@ it('disables a pending entry and shows it as waiting', async () => {
   );
 });
 
-it('renders the supplied footer slot below the entries', async () => {
-  render(menu({ name: 'Sara', footer: <div>theme switch slot</div> }));
-  openAccountMenu();
-  expect(await screen.findByText('theme switch slot')).toBeTruthy();
-});
-
 it('closes on Escape and returns the focus to the trigger', async () => {
   render(menu({ name: 'Sara' }));
   const trigger = openAccountMenu();
-  trigger.focus();
-  expect(await screen.findByRole('menu', { name: 'Account menu' })).toBeTruthy();
-  fireEvent.keyDown(document.activeElement ?? trigger, { key: 'Escape' });
+  const menuElement = await screen.findByRole('menu', { name: 'Account menu' });
+  // مفتوحًا، التركيز داخل القائمة نفسها — لا يبقى على الزر قبل الإغلاق
+  expect(menuElement.contains(document.activeElement)).toBe(true);
+  fireEvent.keyDown(document.activeElement ?? menuElement, { key: 'Escape' });
   await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
   await waitFor(() => expect(document.activeElement).toBe(trigger));
 });

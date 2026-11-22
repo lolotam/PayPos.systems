@@ -113,10 +113,14 @@ it('closes on Escape and returns the focus to the trigger button', async () => {
   const onOpenChange = vi.fn();
   render(switcher({ onBranchChange: vi.fn(), onOpenChange }));
   const trigger = screen.getByRole('button', { name: /One business/ });
-  trigger.focus();
   fireEvent.click(trigger);
-  expect(await screen.findByText('Company')).toBeTruthy();
-  fireEvent.keyDown(document.activeElement ?? screen.getByText('Company'), { key: 'Escape' });
+  const companyLabel = await screen.findByText('Company');
+  const popover = companyLabel.closest('[data-radix-popper-content-wrapper]') as HTMLElement;
+  expect(popover).toBeTruthy();
+  // مفتوحًا، التركيز انتقل داخل اللوحة النمطية — ليس على الزر
+  expect(document.activeElement).not.toBe(trigger);
+  expect(popover.contains(document.activeElement)).toBe(true);
+  fireEvent.keyDown(document.activeElement ?? popover, { key: 'Escape' });
   await waitFor(() => expect(screen.queryByText('Company')).toBeNull());
   await waitFor(() => expect(document.activeElement).toBe(trigger));
   expect(onOpenChange).toHaveBeenLastCalledWith(false);

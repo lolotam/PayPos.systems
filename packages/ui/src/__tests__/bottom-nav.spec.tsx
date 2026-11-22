@@ -52,3 +52,15 @@ it('renders no extra control when the caller supplies none', () => {
   render(bar());
   expect(screen.queryByRole('button')).toBeNull();
 });
+
+it('carries the supplied Soon mark on its entry', () => {
+  render(
+    <DirectionProvider dir="rtl">
+      <BottomNav
+        items={[...items, { id: 'reports', label: 'Reports', href: '#reports', status: 'Soon' }]}
+        labels={{ label: 'Workspace pages' }}
+      />
+    </DirectionProvider>,
+  );
+  expect(screen.getByText('Soon')).toBeTruthy();
+});

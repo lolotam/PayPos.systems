@@ -4,6 +4,8 @@
 
 **حarness جاهز مستقل خارج المستودع يبني الكيت من مصدره ويحاكي إطار اللوحة الحقيقي؛ الاتجاهات والمقاسات حقيقية من المتصفح.**
 
+**Known limitation / حدود معروفة (مسجّلة عمدًا):** the three templates in the harness carry synthetic fixture data mirroring the real markup, so this review measures the shared parts and the template geometry — the three live pages' own mobile rendering and the real logo upload panel inside the 1024px column are re-checked in the 074-7 release's full three-width pass (`pr-sequence.md` assigns page checks at three widths to 074-7). **القياسات هنا لأجزاء الكيت وهندسة القوالب ببيانات تجريبية مطابقة للتركيب الحقيقي؛ فحص الصفحات الثلاث الحقيقية على الموبايل ولوحة الشعار الفعلية يعيدونه خطوة 074-7 على ثلاثة مقاسات.**
+
 ## Measured results (Playwright, exact head of this PR)
 
 | Check | 1280 | 1024 | 820 | 390 |

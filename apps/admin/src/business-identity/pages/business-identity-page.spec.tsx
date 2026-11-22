@@ -312,3 +312,45 @@ it('puts the names in the main column and the logo in the side one, and keeps a 
   expect(loneColumns.children).toHaveLength(1);
   expect(loneColumns.children[0]?.contains(loneLogoFile)).toBe(true);
 });
+
+// نتيجة مراجعة 074-3+08 (P2): رفع شعار جارٍ يجب أن ينجو من انتقال اللوحة بين العمودين
+// عندما تنجح قراءة الهوية بعد خطأ مؤقت وتظهر كتلة الأسماء من جديد.
+it('keeps a running logo upload alive when the identity read recovers and the logo moves columns', async () => {
+  const refusal = { error: { code: 'STORAGE_UNAVAILABLE' }, response: { status: 503 } };
+  let identityFailing = true;
+  api.GET.mockImplementation(async (path: string) => {
+    if (path === '/v1/businesses/{businessId}/settings/identity') {
+      return identityFailing ? refusal : { data: settings(null) };
+    }
+    if (path === '/v1/files/{id}') {
+      return { data: { id: fileId, status: 'READY', content_type: 'image/png', size_bytes: 3 } };
+    }
+    return { data: settings(null) };
+  });
+  api.POST.mockImplementation(async (path: string) => {
+    if (path === '/v1/businesses/{businessId}/files/uploads') return { data: ticket(fileId) };
+    if (path === '/v1/files/{id}/confirm') return { data: { id: fileId, status: 'QUEUED' } };
+    return { data: { download_url: 'https://files.test/logo', expires_in: 60 } };
+  });
+  let releaseBind: ((value: unknown) => void) | undefined;
+  const bindFlight = new Promise((resolve) => {
+    releaseBind = resolve;
+  });
+  api.PUT.mockImplementation(async () => bindFlight);
+
+  const { client } = renderPage();
+  await screen.findByLabelText(t('en', 'businessIdentity.logoFile'));
+  fireEvent.change(screen.getByLabelText(t('en', 'businessIdentity.logoFile')), {
+    target: { files: [new File(['png'], 'logo.png', { type: 'image/png' })] },
+  });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'businessIdentity.upload') }));
+  await waitFor(() => expect(api.PUT).toHaveBeenCalled());
+
+  identityFailing = false;
+  await client.invalidateQueries({ queryKey: ['business-identity', id, id, id] });
+  await screen.findByLabelText(t('en', 'businessIdentity.nameEn'));
+
+  releaseBind?.({ data: { logo_file_id: fileId } });
+  await screen.findByText(t('en', 'businessIdentity.ready'));
+  expect(api.PUT.mock.calls.at(-1)?.[1].body).toEqual({ file_id: fileId });
+});

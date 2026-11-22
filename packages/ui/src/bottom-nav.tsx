@@ -60,6 +60,11 @@ export function BottomNav({ items, labels, extra, onNavigate, className }: Botto
             </span>
           ) : null}
           <span className="min-w-0 max-w-full truncate">{item.label}</span>
+          {item.status ? (
+            <span className="shrink-0 rounded-full border border-border px-1.5 py-0 text-[10px] font-medium text-muted-foreground">
+              {item.status}
+            </span>
+          ) : null}
           {item.count ? (
             <span className={cn(shellNavCountClass, 'absolute end-2 top-1')}>{item.count}</span>
           ) : null}

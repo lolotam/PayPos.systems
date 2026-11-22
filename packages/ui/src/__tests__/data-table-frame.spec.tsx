@@ -76,15 +76,15 @@ it('leaves no bordered bar when the filter renders nothing', () => {
 
 it('opts in to stacked rows with per-cell labels, and stays tabular without the flag', () => {
   const { container: stackedContainer } = render(frame({ stacked: true }));
-  const stackedArea = stackedContainer.querySelector('[class*="max-[599px]"]') as HTMLElement;
-  expect(stackedArea.className).toContain('max-[599px]:[&_table]:block');
+  const stackedArea = stackedContainer.querySelector('[class*="max-[599.99px]"]') as HTMLElement;
+  expect(stackedArea.className).toContain('max-[599.99px]:[&_table]:block');
   expect(stackedArea.className).toContain(
-    'max-[599px]:[&_tbody_td[data-cell-label]]:before:content-[attr(data-cell-label)]',
+    'max-[599.99px]:[&_tbody_td[data-cell-label]]:before:content-[attr(data-cell-label)]',
   );
   // الخلية بلا تسمية (الأولى) لا تحمل صنف التسمية على إطلاقًا — التسمية على الخلية نفسها
   expect(stackedArea.querySelector('td[data-cell-label="Price"]')).not.toBeNull();
 
   const { container: plainContainer } = render(frame({}));
   const plainArea = plainContainer.querySelector('table')?.parentElement as HTMLElement | undefined;
-  expect(plainArea?.className).not.toContain('max-[599px]');
+  expect(plainArea?.className).not.toContain('max-[599.99px]');
 });
