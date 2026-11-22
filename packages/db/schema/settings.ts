@@ -100,13 +100,15 @@ export const businessSettings = pgTable(
   ],
 );
 
-const ALERT_KINDS_SQL = sql.raw(
+// القائمة النصية لأنواع التنبيهات داخل CHECK (spec 060 §B.4)؛ مُصدَّرة عشان اختبار التطابق بين الـ domain
+// والـ contracts والـ SQL يقرا نفس القائمة من مكانها الحقيقي.
+export const ALERT_KINDS_LIST =
   "'SHIFT_NOT_CLOCKED_IN','SHIFT_BREAK_NOT_RETURNED','SHIFT_BREAK_RETURNED_OTHER_BRANCH','SHIFT_ENDS_SOON'," +
-    "'ATTENDANCE_EXCEPTION','DOCUMENT_EXPIRING','LATE_SERVICE_SESSION','SERVICE_LINE_EDITED'," +
-    "'SERVICE_LINE_CANCELLED','SERVICE_LINE_PERFORMERS_CHANGED','ATTENDANCE_CHANGE_REQUESTED'," +
-    "'ATTENDANCE_CHANGE_DECIDED','STATEMENT_AWAITING_REVIEW','STATEMENT_AWAITING_APPROVAL'," +
-    "'DISCOUNT_SELF_APPROVED'",
-);
+  "'ATTENDANCE_EXCEPTION','DOCUMENT_EXPIRING','LATE_SERVICE_SESSION','SERVICE_LINE_EDITED'," +
+  "'SERVICE_LINE_CANCELLED','SERVICE_LINE_PERFORMERS_CHANGED','ATTENDANCE_CHANGE_REQUESTED'," +
+  "'ATTENDANCE_CHANGE_DECIDED','STATEMENT_AWAITING_REVIEW','STATEMENT_AWAITING_APPROVAL'," +
+  "'DISCOUNT_SELF_APPROVED','LOW_RATING'";
+const ALERT_KINDS_SQL = sql.raw(ALERT_KINDS_LIST);
 
 // قواعد التنبيه (spec 060 D-B13): صف لكل نوع للنشاط، وصف اختياري لنفس النوع لفرع بيغيّر قاعدة النشاط (AL-Q2).
 // الغياب = الافتراضي من جدول الكود (AL-Q5)، فالجدول بيحمل تعديلات العميل بس.

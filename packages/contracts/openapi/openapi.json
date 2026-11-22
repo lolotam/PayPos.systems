@@ -31712,7 +31712,8 @@
           "ATTENDANCE_CHANGE_DECIDED",
           "STATEMENT_AWAITING_REVIEW",
           "STATEMENT_AWAITING_APPROVAL",
-          "DISCOUNT_SELF_APPROVED"
+          "DISCOUNT_SELF_APPROVED",
+          "LOW_RATING"
         ]
       },
       "AlertRecipientRole": {

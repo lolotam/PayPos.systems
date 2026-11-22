@@ -239,6 +239,37 @@ export const ratings = pgTable(
   ],
 );
 
+// سجل قرارات التقييم الواطي (61-1d): قرار نهائي واحد لكل تقييم — إرسال أو إنهاء مسجّل بلا مستلمين.
+// RLS بالشركة، ومنح pospay_app على SELECT وINSERT فقط؛ السياسة والمنح في migration 61-1d، والقرار لا يُعدَّل ولا يُحذف.
+export const lowRatingNotices = pgTable(
+  'low_rating_notices',
+  {
+    companyId: uuid('company_id')
+      .notNull()
+      .references(() => companies.id),
+    id: uuid('id').notNull(),
+    businessId: uuid('business_id').notNull(),
+    branchId: uuid('branch_id').notNull(),
+    ratingId: uuid('rating_id').notNull(),
+    // معرّف الحدث المصدر من الـ outbox بدون FK تعمدياً؛ دورة حياة الحدث منفصلة عن سجل القرار النهائي.
+    sourceEventId: uuid('source_event_id').notNull(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }).notNull(),
+    // عدد المستلمين الفعليين؛ صفر = إنهاء مسجّل (القاعدة مقفولة أو لا يوجد مستلمون مؤهلون) بلا إرسال.
+    recipientCount: integer('recipient_count').notNull(),
+  },
+  (t) => [
+    primaryKey({ name: 'low_rating_notices_pkey', columns: [t.companyId, t.id] }),
+    // قرار واحد لكل تقييم؛ والفهرس الفريد نفسه يغطي الـ FK المركّب على ratings.
+    unique('low_rating_notices_rating_key').on(t.companyId, t.ratingId),
+    foreignKey({
+      name: 'low_rating_notices_rating_fk',
+      columns: [t.companyId, t.ratingId],
+      foreignColumns: [ratings.companyId, ratings.id],
+    }),
+    check('low_rating_notices_recipient_count', sql`${t.recipientCount} >= 0`),
+  ],
+);
+
 // مفتاح طلبات التقييم للنشاط (D-B16، RT-Q3): صف واحد لكل نشاط، وNULL يعني مقفول — الافتراضي من كود واحد.
 export const ratingSettings = pgTable(
   'rating_settings',

@@ -21,6 +21,7 @@ export const alertKind = z
     'STATEMENT_AWAITING_REVIEW',
     'STATEMENT_AWAITING_APPROVAL',
     'DISCOUNT_SELF_APPROVED',
+    'LOW_RATING',
   ])
   .meta({ id: 'AlertKind' });
 export type AlertKindCode = z.infer<typeof alertKind>;
