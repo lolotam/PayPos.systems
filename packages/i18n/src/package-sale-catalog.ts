@@ -22,7 +22,6 @@ export const packageSaleEn = {
   recorder: 'Recorder membership',
   chooseRecorder: 'Choose the recorder membership',
   submit: 'Sell package',
-  sectionPackage: 'Package',
   sectionPayment: 'Payment',
   submitting: 'Selling package…',
   recoverOriginal:
@@ -69,7 +68,6 @@ export const packageSaleAr: Record<keyof typeof packageSaleEn, string> = {
   recorder: 'عضوية تسجيل البيع',
   chooseRecorder: 'اختاري عضوية تسجيل البيع',
   submit: 'بيع الباقة',
-  sectionPackage: 'الباقة',
   sectionPayment: 'الدفع',
   submitting: 'جاري بيع الباقة…',
   recoverOriginal: 'البيع السابق ممكن يكون اتقبل. التعديل مقفول؛ أعيدي محاولة البيع الأصلي فقط.',

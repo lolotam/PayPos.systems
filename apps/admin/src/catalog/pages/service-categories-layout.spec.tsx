@@ -86,7 +86,13 @@ it('business view: header, then the scope select, then the card with filter, tab
   expect(follows(filter, table)).toBe(true);
   expect(follows(table, next)).toBe(true);
   expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
-  expect(heading.closest('[data-page-shell="list"]')?.contains(table)).toBe(true);
+  const shell = heading.closest('[data-page-shell="list"]') as HTMLElement;
+  expect(shell.contains(table)).toBe(true);
+  expect(shell.querySelectorAll('[data-page-shell]')).toHaveLength(0);
+  const card = table.closest('.rounded-card') as HTMLElement;
+  expect(card.contains(filter)).toBe(true);
+  expect(card.contains(next)).toBe(true);
+  expect(card.contains(select)).toBe(false);
 });
 
 it('business view: keeps the filter inside the card while empty', async () => {
@@ -125,6 +131,11 @@ it('branch view: header, then the scope select, then the card with tabs, table a
   expect(follows(select, tabs)).toBe(true);
   expect(follows(tabs, table)).toBe(true);
   expect(follows(table, next)).toBe(true);
+  const card = table.closest('.rounded-card') as HTMLElement;
+  expect(card.contains(tabs)).toBe(true);
+  expect(card.contains(next)).toBe(true);
+  expect(card.contains(select)).toBe(false);
+  expect(heading.closest('[data-page-shell="list"]')?.contains(card)).toBe(true);
   expect(get.mock.calls.some(([path]) => path === businessListPath)).toBe(false);
 });
 
@@ -195,4 +206,34 @@ it('shows the business lead and the create action only in the business view', as
   await screen.findByRole('button', { name: /In use/ });
   expect(screen.queryByText('Manage service categories, their visibility and their open state.')).toBeNull();
   expect(screen.getAllByRole('button', { name: 'Add category' })).toHaveLength(1);
+});
+
+it('has a working create button on the very first render, before any data arrives', () => {
+  get.mockReturnValue(new Promise(() => undefined));
+  renderScreen('COMPANY');
+  const create = screen.getByRole('button', { name: 'Add category' });
+  expect((create as HTMLButtonElement).disabled).toBe(false);
+  fireEvent.click(create);
+  expect(screen.getByRole('heading', { level: 2, name: 'Add category' })).toBeTruthy();
+});
+
+it('opens the form of the view now shown when create is clicked after switching views', async () => {
+  get.mockImplementation((path: string) =>
+    Promise.resolve(path === branchListPath ? ok([branchCategory()]) : ok([category])),
+  );
+  renderScreen('COMPANY');
+  await screen.findByRole('table');
+  const select = screen.getByLabelText('Show categories for');
+  fireEvent.change(select, { target: { value: branchId } });
+  await screen.findByRole('button', { name: /In use/ });
+  fireEvent.click(screen.getByRole('button', { name: 'Add category' }));
+  const branchForm = await screen.findByRole('form', { name: 'Add category' });
+  const titles = screen.getAllByRole('heading', { level: 2, name: 'Add category' });
+  expect(titles).toHaveLength(1);
+  expect(branchForm.contains(titles[0] as HTMLElement)).toBe(true);
+  fireEvent.change(select, { target: { value: '' } });
+  await screen.findByRole('table');
+  expect(screen.queryByRole('form', { name: 'Add category' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Add category' }));
+  expect(await screen.findByRole('heading', { level: 2, name: 'Add category' })).toBeTruthy();
 });

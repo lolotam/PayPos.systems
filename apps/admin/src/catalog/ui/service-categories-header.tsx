@@ -2,7 +2,7 @@
 import { t } from '@pospay/i18n';
 import { Button, PageHeader } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
-import type { CreateAction } from '../model/use-register-create-action';
+import type { CreateAction } from '../model/use-screen-create-action';
 
 /**
  * ترويسة صفحة التصنيفات الواحدة: العنوان ثابت في كل الحالات، والوصف لعرض النشاط فقط،

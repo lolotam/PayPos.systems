@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react';
+import { Profiler, type ReactNode } from 'react';
 import type { ServiceSessionDayPage as DayPage } from '@pospay/contracts';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { id, instant, scope } from '../model/session-recording-result.fixture';
 import { ServiceSessionDayPage } from './service-session-day-page';
@@ -26,10 +26,11 @@ const visit = {
 };
 const page = (nextCursor: string | null) => ({ data: { items: [visit], next_cursor: nextCursor }, response: { status: 200 } });
 
-function renderPage() {
+function renderPage(onCommit?: () => void) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-  return { client, ...render(<ServiceSessionDayPage scope={scope} timezone="Asia/Kuwait" />, { wrapper }) };
+  const page = <ServiceSessionDayPage scope={scope} timezone="Asia/Kuwait" />;
+  return { client, ...render(onCommit ? <Profiler id="day" onRender={onCommit}>{page}</Profiler> : page, { wrapper }) };
 }
 
 beforeEach(() => {
@@ -88,4 +89,28 @@ it('keeps the same date input, and keyboard focus on it, when a later read is re
   expect((await screen.findByRole('alert')).textContent).toContain('Denied EN');
   expect(screen.getByLabelText('Date')).toBe(date);
   expect(document.activeElement).toBe(date);
+});
+
+// الـProfiler يستدعي بعد كل commit والـDOM محدَّث، فنفحص كل رندر مُلتزَم به لا الحالة النهائية فقط.
+it('never commits a render that shows Load more beside a refused or emptied list', async () => {
+  const first = page('more');
+  state.get.mockResolvedValue(first);
+  const stale: string[] = [];
+  let refused = false;
+  renderPage(() => {
+    if (!refused) return;
+    const more = screen.queryByRole('button', { name: 'Load more' });
+    const listGone = screen.queryByText('Synthetic customer') === null;
+    if (more && (listGone || screen.queryByRole('alert'))) stale.push(document.body.textContent ?? '');
+  });
+  await screen.findByText('Synthetic customer');
+  state.get.mockResolvedValue({
+    error: { code: 'FORBIDDEN', message_ar: 'Denied AR', message_en: 'Denied EN' },
+    response: { status: 403 },
+  });
+  refused = true;
+  fireEvent.click(await screen.findByRole('button', { name: 'Load more' }));
+  expect((await screen.findByRole('alert')).textContent).toContain('Denied EN');
+  await waitFor(() => expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull());
+  expect(stale).toEqual([]);
 });

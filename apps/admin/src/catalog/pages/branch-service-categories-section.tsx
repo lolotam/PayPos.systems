@@ -184,7 +184,7 @@ export function BranchServiceCategoriesSection({
   const saving = useBranchServiceCategorySavePending(scope);
   return (
     <fieldset disabled={saving} className="flex min-w-0 flex-col gap-4 text-start md:gap-6">
-      <BranchServiceCategoriesHeader section={section} saving={saving} embed={embed} />
+      <BranchServiceCategoriesHeader section={section} embed={embed} />
       <BranchServiceCategoryOutcome outcome={section.outcome} />
       {section.creating ? (
         <BranchServiceCategoryForm

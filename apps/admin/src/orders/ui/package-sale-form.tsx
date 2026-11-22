@@ -214,7 +214,7 @@ export function PackageSaleForm({ scope }: { scope: SessionServiceScope }) {
       <Card>
         <CardContent className="grid gap-6">
           <section className="grid gap-4">
-            <h2 className="text-lg font-semibold">{t(locale, 'packageSale.sectionPackage')}</h2>
+            <h2 className="text-lg font-semibold">{t(locale, 'serviceSessions.packagePicker')}</h2>
             <div className="grid grid-cols-12 gap-4">
               {recorderField ? <div className={HALF_CELL}>{recorderField}</div> : null}
               <div className={FULL_CELL}>

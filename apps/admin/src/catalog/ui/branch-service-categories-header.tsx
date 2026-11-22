@@ -11,14 +11,12 @@ import {
  */
 export function BranchServiceCategoriesHeader({
   section,
-  saving,
   embed,
 }: {
   section: { title: string; lead: string; createLabel: string; openCreate: () => void };
-  saving: boolean;
   embed: CreateEmbed | undefined;
 }) {
-  useRegisterCreateAction(embed, section.openCreate, saving);
+  useRegisterCreateAction(embed, section.openCreate);
   if (embed) return <p>{section.lead}</p>;
   return (
     <PageHeader

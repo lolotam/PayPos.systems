@@ -3,7 +3,7 @@ import type { WorkspaceBranch, WorkspaceBusinessRead, WorkspaceCompanyRead } fro
 import { t } from '@pospay/i18n';
 import { EmptyState, PageShell, Store } from '@pospay/ui';
 import { useState } from 'react';
-import type { CreateAction } from '../model/use-register-create-action';
+import { useScreenCreateAction } from '../model/use-screen-create-action';
 import { BranchServiceCategoriesSection } from './branch-service-categories-section';
 import { ServiceCategoriesPage } from './service-categories-page';
 import { ServiceCategoriesHeader } from '../ui/service-categories-header';
@@ -58,11 +58,14 @@ export function ServiceCategoriesScreen({
   );
   const businessReach = scope !== 'BRANCH';
   const branchScopeEmpty = scope === 'BRANCH' && activeBranches.length === 0;
-  const [createAction, setCreateAction] = useState<CreateAction | null>(null);
   const businessView = branchId === null;
+  const { setHandler, action } = useScreenCreateAction(
+    { companyId, businessId: business.id, userId },
+    branchId,
+  );
   return (
     <PageShell layout="list">
-      <ServiceCategoriesHeader businessView={businessView} showLead={businessView && !branchScopeEmpty} action={createAction} />
+      <ServiceCategoriesHeader businessView={businessView} showLead={businessView && !branchScopeEmpty} action={branchScopeEmpty ? null : action} />
       <ServiceCategoryScopeSelect
         branches={activeBranches}
         includeBusiness={businessReach}
@@ -85,7 +88,7 @@ export function ServiceCategoriesScreen({
                 companyId={companyId}
                 business={business}
                 userId={userId}
-                embed={{ register: setCreateAction, active: businessView }}
+                embed={{ setHandler, active: businessView }}
               />
             </div>
           ) : null}
@@ -96,7 +99,7 @@ export function ServiceCategoriesScreen({
               businessId={business.id}
               userId={userId}
               branchId={branchId}
-              embed={{ register: setCreateAction, active: true }}
+              embed={{ setHandler, active: true }}
             />
           ) : null}
         </>

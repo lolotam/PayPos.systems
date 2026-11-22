@@ -33,7 +33,7 @@ export function ServiceCategoryPageControls({
   onPage: (cursor: string | undefined) => void;
 }) {
   const locale = useLocale();
-  useRegisterCreateAction(embed, onCreate, false);
+  useRegisterCreateAction(embed, onCreate);
   return (
     <>
       {embed === undefined ? (

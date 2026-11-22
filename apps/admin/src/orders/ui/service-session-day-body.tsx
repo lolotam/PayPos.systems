@@ -5,7 +5,6 @@ import { useLocale } from '@/shared/locale/locale-context';
 import { useBranchDaySessions } from '../api/use-branch-day-sessions';
 import type { UnresolvedTip } from '../api/use-record-session-tips';
 import type { SessionServiceScope } from '../api/use-session-services';
-import { serviceSessionAccessRevoked } from '../model/service-session-access';
 import { ServiceSessionDayList } from './service-session-day-list';
 
 type ServiceSessionDayBodyProps = {
@@ -19,8 +18,6 @@ type ServiceSessionDayBodyProps = {
   canRecord: boolean;
   onAccessDenied: (message: string) => void;
   tipAttempts: RefObject<Map<string, UnresolvedTip>>;
-  /** يبلّغ الصفحة بدالة «المزيد» عند وجود صفحة تالية، أو null؛ كي يبقى التذييل في كرت الصفحة الثابت. */
-  onMore: (more: (() => Promise<unknown>) | null) => void;
 };
 
 export function ServiceSessionDayBody({
@@ -34,30 +31,17 @@ export function ServiceSessionDayBody({
   canRecord,
   onAccessDenied,
   tipAttempts,
-  onMore,
 }: ServiceSessionDayBodyProps) {
   const locale = useLocale();
   const mounted = useRef(true);
   const query = useBranchDaySessions(scope, date, lateOnly, online);
-  const revoked = serviceSessionAccessRevoked(query.error);
-  // رد 409 متأخر بعد ما الجسم اتفك (رفض وصول) ممنوع يعيد بناء استعلام اتمسح قبل ما الـ Retry ينجح.
+  // رفض الوصول على قراءة اليوم تلتقطه الصفحة من نفس الاستعلام في رندرها هي، فلا يبقى هذا الجسم ولا تذييله لحظة بعده.
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
     };
   }, []);
-  // الكاش بيفضل موجود مع الخطأ؛ الرجوع فاضي في نفس الرندر يمنع لمعان الأسماء قبل ما الصفحة الأم تتشال.
-  useEffect(() => {
-    if (revoked) onAccessDenied(envelopeMessage(query.error, locale));
-  }, [revoked, query.error, locale, onAccessDenied]);
-  const hasNext = query.hasNextPage === true && !revoked;
-  const { fetchNextPage } = query;
-  useEffect(() => {
-    onMore(hasNext ? fetchNextPage : null);
-    return () => onMore(null);
-  }, [hasNext, fetchNextPage, onMore]);
-  if (revoked) return null;
   const visits = query.data?.pages.flatMap((page) => page.items) ?? [];
   return (
     <ServiceSessionDayList

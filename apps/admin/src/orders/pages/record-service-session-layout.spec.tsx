@@ -3,7 +3,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { id, instant, scope } from '../model/session-recording-result.fixture';
-import { SIDE_COLUMN_STRETCH } from '../ui/record-visit-columns';
 import { RecordServiceSessionPage } from './record-service-session-page';
 
 const state = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
@@ -81,7 +80,9 @@ it('puts the sticky summary directly in the side grid item, and stretches that i
   expect(sticky.contains(summary)).toBe(true);
   expect(sticky.className).toContain('lg:sticky');
   expect(sticky.className).toContain('lg:top-4');
-  expect(shell.className).toContain(SIDE_COLUMN_STRETCH);
+  // الحرف كما نتوقعه نحن، لا الثابت المستورد من الكود الإنتاجي، فيُكشف أي خطأ في المحدِّد.
+  expect(shell.className.split(' ')).toContain('lg:[&>div:last-child]:items-stretch');
+  expect(grid).toBe(shell.children[shell.children.length - 1]);
   expect(grid.children[0]?.contains(screen.getByRole('button', { name: t('en', 'serviceSessions.save') }))).toBe(true);
 });
 

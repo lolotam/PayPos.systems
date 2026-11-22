@@ -24,7 +24,7 @@ const columns = (locale: Locale) => [
     id: 'actions',
     // الترويسة كانت فارغة؛ النص مخفي بصريًا فيبقى سطح الجدول كما هو ويكتسب العمود اسمًا لقارئ الشاشة.
     header: () => (
-      <span className="sr-only">{t(locale, 'catalogServiceCategoryBranches.actionsColumn')}</span>
+      <span className="sr-only">{t(locale, 'attendanceActions.actions')}</span>
     ),
   },
 ];

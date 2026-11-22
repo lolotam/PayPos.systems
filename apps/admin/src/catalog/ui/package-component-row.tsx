@@ -23,6 +23,13 @@ export function PackageComponentRow({
   const { control } = useFormContext<CreatePackageTypeInput>();
   const selected = useWatch({ control, name: `components.${index}.service_id` });
   const service = services.find((s) => s.service_id === selected);
+  // في الشبكة يأتي التحذير بعد زر الإزالة كي لا يدفعه إلى صف ثالث عند md؛ وفي لوحة التعديل يبقى قبله كما كان.
+  const freeWarning =
+    service?.price === '0.000' ? (
+      <p role="status" className="col-span-12">
+        {t(locale, 'catalogPackageTypes.freeWarning')}
+      </p>
+    ) : null;
   return (
     <div
       className={`rounded-xl border p-3 ${grid ? 'grid grid-cols-12 gap-3' : 'flex flex-col gap-2'}`}
@@ -44,9 +51,7 @@ export function PackageComponentRow({
         step={1}
         options={{ valueAsNumber: true }}
       />
-      {service?.price === '0.000' ? (
-        <p role="status" className="col-span-12">{t(locale, 'catalogPackageTypes.freeWarning')}</p>
-      ) : null}
+      {grid ? null : freeWarning}
       <Button
         type="button"
         variant="ghost"
@@ -59,6 +64,7 @@ export function PackageComponentRow({
       >
         {t(locale, 'catalogPackageTypes.removeComponent')}
       </Button>
+      {grid ? freeWarning : null}
     </div>
   );
 }

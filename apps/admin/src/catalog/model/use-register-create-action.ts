@@ -1,36 +1,26 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useLayoutEffect } from 'react';
 
-/** إجراء «إضافة تصنيف» الذي تملك الشاشة زرّه في ترويسة واحدة، وينفّذه العرض الظاهر. */
-export type CreateAction = { run: () => void; disabled: boolean };
-export type RegisterCreateAction = (action: CreateAction | null) => void;
-
-/** صلة الصفحة بالشاشة الضامّة: دالة التسجيل، وهل هذا العرض هو الظاهر الآن (المحمول المخفي لا يسجّل). */
-export type CreateEmbed = { register: RegisterCreateAction; active: boolean };
+/** صلة الصفحة بالشاشة الضامّة: دالة تضع معالج الإنشاء (أو تسحبه)، وهل هذا العرض هو الظاهر الآن (المحمول المخفي لا يسجّل). */
+export type CreateEmbed = {
+  setHandler: (run: (() => void) | null) => void;
+  active: boolean;
+};
 
 /**
- * يسجّل إجراء الإنشاء عند الشاشة طالما العرض ظاهرًا، ويسحبه عند إخفائه أو فكّه؛
+ * يضع معالج الإنشاء عند الشاشة طالما العرض ظاهرًا ويسحبه عند إخفائه أو فكّه؛
  * ولا يفعل شيئًا حين لا تكون الصفحة مضمَّنة في شاشة (تعرض ترويستها بنفسها).
- * التسجيل يعتمد على قيمتين بدائيتين وعلى مرجع لآخر دالة، فلا يُعاد كل رندر مهما تغيّرت هوية الدالة.
+ * الشاشة تقرر ظهور الزر وتعطيله من حالتها هي في الرندر نفسه، فلا يتأخر الزر عن أول رسم؛
+ * والتسجيل هنا هوية المعالج فقط، ويتم قبل الرسم (layout effect) فلا توجد لحظة يظهر فيها زر بلا معالج.
  *
- * @param embed    صلة الشاشة الضامّة، أو undefined للصفحة المستقلة
- * @param run      بدء الإنشاء
- * @param disabled تعطيل الزر مؤقتًا أثناء كتابة جارية
+ * @param embed صلة الشاشة الضامّة، أو undefined للصفحة المستقلة
+ * @param run   بدء الإنشاء في العرض
  */
-export function useRegisterCreateAction(
-  embed: CreateEmbed | undefined,
-  run: () => void,
-  disabled: boolean,
-) {
-  const latest = useRef(run);
-  useEffect(() => {
-    latest.current = run;
-  });
-  const register = embed?.register;
+export function useRegisterCreateAction(embed: CreateEmbed | undefined, run: () => void) {
+  const setHandler = embed?.setHandler;
   const active = embed?.active === true;
-  const stableRun = useCallback(() => latest.current(), []);
-  useEffect(() => {
-    if (!register || !active) return;
-    register({ run: stableRun, disabled });
-    return () => register(null);
-  }, [register, active, disabled, stableRun]);
+  useLayoutEffect(() => {
+    if (!setHandler || !active) return;
+    setHandler(run);
+    return () => setHandler(null);
+  });
 }

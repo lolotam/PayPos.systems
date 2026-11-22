@@ -48,7 +48,7 @@ export function BranchServiceCategoryRow({
       >
         {hasMarks ? <BranchServiceCategoryMarks {...marks} /> : null}
       </td>
-      <td role="cell" data-cell-label={t(locale, 'catalogServiceCategoryBranches.actionsColumn')}>
+      <td role="cell" data-cell-label={t(locale, 'attendanceActions.actions')}>
         <div className="flex flex-wrap gap-2">
           <BranchServiceCategoryStateButton
             view={view}

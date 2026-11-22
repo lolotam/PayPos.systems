@@ -70,7 +70,7 @@ it('opens with the heading, the description and the add action in the header', a
   expect(screen.getByText('Packages available across all branches of this business.')).toBeTruthy();
   const action = screen.getByRole('link', { name: 'Add package type' });
   expect(action.getAttribute('href')).toBe('/catalog/package-types/create');
-  expect(action.closest('.ms-auto')).not.toBeNull();
+  expect(heading.closest('header')?.contains(action)).toBe(true);
 });
 
 it('holds the table and the paging inside one card, table first', async () => {
