@@ -14,6 +14,13 @@ function stubMedia(isPhone: () => boolean) {
   }));
 }
 
+async function waitForOnlyDialog(name: string) {
+  await waitFor(() => {
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(screen.getByRole('dialog', { name })).toBeTruthy();
+  });
+}
+
 function tree(props: Partial<TopNavProps> = {}, dir: 'rtl' | 'ltr' = 'ltr') {
   return (
     <DirectionProvider dir={dir}>
@@ -71,6 +78,56 @@ it('returns focus to the original opener after switching modules in an open menu
   expect(document.activeElement).toBe(opener);
 });
 
+it('keeps the original opener after an intermediate module close finishes', async () => {
+  stubMedia(() => false);
+  render(tree({ currentModuleId: 'business' }));
+  const opener = screen.getByRole('button', { name: /Business/ });
+  opener.focus();
+  fireEvent.click(opener);
+
+  const businessDialog = screen.getByRole('dialog', { name: 'Business' });
+  fireEvent.click(within(businessDialog).getByRole('button', { name: /People/ }));
+  await waitForOnlyDialog('People');
+  const peopleDialog = screen.getByRole('dialog', { name: 'People' });
+  fireEvent.keyDown(document.activeElement ?? peopleDialog, { key: 'Escape' });
+
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(document.activeElement).toBe(opener);
+});
+
+it('focuses a visible trigger when the opener disappears while a menu is open', async () => {
+  stubMedia(() => false);
+  const view = render(tree({ currentModuleId: 'business', visiblePageIds: ['columns'] }));
+  const opener = screen.getByRole('button', { name: /Business/ });
+  opener.focus();
+  fireEvent.click(opener);
+  expect(screen.getByRole('dialog', { name: 'Business' })).toBeTruthy();
+
+  view.rerender(tree({ currentModuleId: 'business', visiblePageIds: ['employees'] }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /People/ })),
+  );
+});
+
+it('focuses a visible trigger when the switched-to module disappears', async () => {
+  stubMedia(() => false);
+  const view = render(tree({ currentModuleId: 'business' }));
+  const opener = screen.getByRole('button', { name: /Business/ });
+  opener.focus();
+  fireEvent.click(opener);
+  fireEvent.click(
+    within(screen.getByRole('dialog', { name: 'Business' })).getByRole('button', { name: /People/ }),
+  );
+  await waitForOnlyDialog('People');
+
+  view.rerender(tree({ currentModuleId: 'business', visiblePageIds: ['columns'] }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /Business/ })),
+  );
+});
+
 it('renders overview, supplied destinations and a scrollable short-window menu', async () => {
   stubMedia(() => false);
   const onNavigate = vi.fn();
@@ -84,6 +141,36 @@ it('renders overview, supplied destinations and a scrollable short-window menu',
   fireEvent.click(column);
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   expect(onNavigate).toHaveBeenCalledTimes(1);
+});
+
+it('omits a mega-menu section whose last page is hidden', () => {
+  stubMedia(() => false);
+  const modulesWithHiddenSection = modules.map((module) =>
+    module.id === 'business'
+      ? {
+          ...module,
+          sections: [
+            ...module.sections,
+            {
+              id: 'business-hidden',
+              label: 'Hidden section',
+              pages: [{ id: 'hidden', label: 'Hidden page', href: '#hidden' }],
+            },
+          ],
+        }
+      : module,
+  );
+  render(
+    tree({
+      modules: modulesWithHiddenSection,
+      currentModuleId: 'business',
+      visiblePageIds: ['columns'],
+    }),
+  );
+  fireEvent.click(screen.getByRole('button', { name: /Business/ }));
+  const dialog = screen.getByRole('dialog', { name: 'Business' });
+  expect(within(dialog).getByRole('link', { name: 'Columns' })).toBeTruthy();
+  expect(within(dialog).queryByRole('heading', { name: 'Hidden section' })).toBeNull();
 });
 
 it('marks the supplied active page in the local list and uses wide geometry', () => {

@@ -24,17 +24,20 @@ type Session = {
   openId: string | undefined;
   drawerOpen: boolean;
   opener: HTMLElement | undefined;
-  intermediateCloseId: string | undefined;
+  switchCloseIds: readonly string[];
 };
 
 type SetSession = Dispatch<SetStateAction<Session>>;
 
-type UseTopNavSessionArgs = {
-  visibilityKey: string;
-  isPhone: boolean;
+type FocusTargets = {
   rootRef: RefObject<HTMLDivElement | null>;
   drawerTriggerRef: RefObject<HTMLButtonElement | null>;
   moduleTriggerRef: RefObject<HTMLButtonElement | null>;
+};
+
+type UseTopNavSessionArgs = FocusTargets & {
+  visibilityKey: string;
+  isPhone: boolean;
 };
 
 function freshSession(visibilityKey: string): Session {
@@ -43,7 +46,7 @@ function freshSession(visibilityKey: string): Session {
     openId: undefined,
     drawerOpen: false,
     opener: undefined,
-    intermediateCloseId: undefined,
+    switchCloseIds: [],
   };
 }
 
@@ -54,7 +57,8 @@ function useVisibilitySession(visibilityKey: string): [Session, SetSession] {
   return [current, setSession];
 }
 
-type BreakpointFocusArgs = Omit<UseTopNavSessionArgs, 'visibilityKey'> & {
+type BreakpointFocusArgs = FocusTargets & {
+  isPhone: boolean;
   hasOpenDialog: boolean;
   closeDialogs: () => void;
 };
@@ -91,18 +95,24 @@ function openMenu(setSession: SetSession, id: string | undefined) {
     openId: id,
     drawerOpen: false,
     opener: id === undefined ? previous.opener : (previous.opener ?? opener),
-    intermediateCloseId: id === undefined ? previous.intermediateCloseId : undefined,
+    switchCloseIds:
+      id === undefined
+        ? previous.switchCloseIds
+        : previous.switchCloseIds.filter((closedId) => closedId !== id),
   }));
 }
 
 function switchModule(setSession: SetSession, id: string) {
-  setSession((previous) => ({
-    ...previous,
-    openId: id,
-    drawerOpen: false,
-    intermediateCloseId:
-      previous.openId !== undefined && previous.openId !== id ? previous.openId : undefined,
-  }));
+  setSession((previous) => {
+    const closedId = previous.openId;
+    const switchCloseIds = previous.switchCloseIds.filter((pendingId) => pendingId !== id);
+    return {
+      ...previous,
+      openId: id,
+      drawerOpen: false,
+      switchCloseIds: closedId && closedId !== id ? [...switchCloseIds, closedId] : switchCloseIds,
+    };
+  });
 }
 
 function toggleDrawer(setSession: SetSession, open: boolean) {
@@ -111,48 +121,125 @@ function toggleDrawer(setSession: SetSession, open: boolean) {
     openId: undefined,
     drawerOpen: open,
     opener: undefined,
-    intermediateCloseId: undefined,
   }));
 }
 
-function restoreFocus(
-  event: Event,
-  moduleId: string | undefined,
-  current: Session,
-  setSession: SetSession,
-  breakpointTargetRef: RefObject<HTMLElement | undefined>,
-) {
-  const breakpointTarget = breakpointTargetRef.current;
-  if (breakpointTarget) {
-    event.preventDefault();
-    breakpointTargetRef.current = undefined;
-    breakpointTarget.focus();
-    return;
-  }
-  if (moduleId !== undefined && current.intermediateCloseId === moduleId) {
-    setSession((previous) => ({ ...previous, intermediateCloseId: undefined }));
-    return;
-  }
-  const opener = current.opener;
-  if (!opener?.isConnected) return;
-  event.preventDefault();
-  setSession((previous) => ({ ...previous, opener: undefined, intermediateCloseId: undefined }));
-  opener.focus();
+function isVisibleOpener(opener: HTMLElement | undefined, isPhone: boolean, targets: FocusTargets) {
+  if (!opener?.isConnected) return false;
+  if (isPhone) return opener === targets.drawerTriggerRef.current;
+  return (
+    targets.rootRef.current !== null &&
+    targets.rootRef.current.contains(opener) &&
+    opener !== targets.drawerTriggerRef.current
+  );
 }
 
-function createSessionHandlers(
-  current: Session,
+function focusTarget(
+  event: Event,
+  target: HTMLElement,
+  moduleId: string | undefined,
   setSession: SetSession,
-  breakpointTarget: RefObject<HTMLElement | undefined>,
-): TopNavSessionState {
+) {
+  if (!target.isConnected) return false;
+  event.preventDefault();
+  setSession((previous) => ({
+    ...previous,
+    opener: undefined,
+    switchCloseIds: previous.switchCloseIds.filter((pendingId) => pendingId !== moduleId),
+  }));
+  target.focus();
+  return true;
+}
+
+type RestoreFocusArgs = {
+  event: Event;
+  moduleId: string | undefined;
+  current: Session;
+  setSession: SetSession;
+  isPhone: boolean;
+  targets: FocusTargets;
+  breakpointTargetRef: RefObject<HTMLElement | undefined>;
+};
+
+function focusBreakpointTarget({ event, breakpointTargetRef }: RestoreFocusArgs) {
+  const target = breakpointTargetRef.current;
+  if (!target) return;
+  event.preventDefault();
+  breakpointTargetRef.current = undefined;
+  target.focus();
+}
+
+function isIntermediateClose({ moduleId, current }: RestoreFocusArgs) {
+  return moduleId !== undefined && current.switchCloseIds.includes(moduleId);
+}
+
+function suppressIntermediateClose({ event, moduleId, setSession }: RestoreFocusArgs) {
+  event.preventDefault();
+  setSession((previous) => ({
+    ...previous,
+    switchCloseIds: previous.switchCloseIds.filter((pendingId) => pendingId !== moduleId),
+  }));
+}
+
+function focusVisibleTrigger({
+  event,
+  moduleId,
+  current,
+  setSession,
+  isPhone,
+  targets,
+}: RestoreFocusArgs) {
+  const opener = current.opener;
+  if (opener && isVisibleOpener(opener, isPhone, targets)) {
+    if (focusTarget(event, opener, moduleId, setSession)) return;
+  }
+  const fallback = isPhone ? targets.drawerTriggerRef.current : targets.moduleTriggerRef.current;
+  if (fallback) focusTarget(event, fallback, moduleId, setSession);
+}
+
+function restoreFocus(args: RestoreFocusArgs) {
+  if (args.breakpointTargetRef.current) {
+    focusBreakpointTarget(args);
+    return;
+  }
+  if (isIntermediateClose(args)) {
+    suppressIntermediateClose(args);
+    return;
+  }
+  focusVisibleTrigger(args);
+}
+
+type SessionHandlersArgs = {
+  latestSessionRef: RefObject<Session>;
+  setSession: SetSession;
+  isPhone: boolean;
+  targets: FocusTargets;
+  breakpointTargetRef: RefObject<HTMLElement | undefined>;
+};
+
+function createSessionHandlers({
+  latestSessionRef,
+  setSession,
+  isPhone,
+  targets,
+  breakpointTargetRef,
+}: SessionHandlersArgs): TopNavSessionState {
   return {
-    openId: current.openId,
+    openId: latestSessionRef.current.openId,
     setMenuOpen: (id) => openMenu(setSession, id),
     switchModule: (id) => switchModule(setSession, id),
-    drawerOpen: current.drawerOpen,
+    drawerOpen: latestSessionRef.current.drawerOpen,
     setDrawerOpen: (open) => toggleDrawer(setSession, open),
     onCloseAutoFocus: (event, moduleId) =>
-      restoreFocus(event, moduleId, current, setSession, breakpointTarget),
+      restoreFocus({
+        event,
+        moduleId,
+        current: latestSessionRef.current,
+        setSession,
+        isPhone,
+        targets,
+        breakpointTargetRef,
+      }),
   };
 }
 
@@ -164,13 +251,15 @@ export function useTopNavSession({
   moduleTriggerRef,
 }: UseTopNavSessionArgs): TopNavSessionState {
   const [current, setSession] = useVisibilitySession(visibilityKey);
+  const latestSessionRef = useRef(current);
+  latestSessionRef.current = current;
   const closeDialogs = useCallback(() => {
     setSession((previous) => ({
       ...previous,
       openId: undefined,
       drawerOpen: false,
       opener: undefined,
-      intermediateCloseId: undefined,
+      switchCloseIds: [],
     }));
   }, []);
   const breakpointTarget = useBreakpointFocus({
@@ -181,5 +270,11 @@ export function useTopNavSession({
     hasOpenDialog: Boolean(current.openId || current.drawerOpen),
     closeDialogs,
   });
-  return createSessionHandlers(current, setSession, breakpointTarget);
+  return createSessionHandlers({
+    latestSessionRef,
+    setSession,
+    isPhone,
+    targets: { rootRef, drawerTriggerRef, moduleTriggerRef },
+    breakpointTargetRef: breakpointTarget,
+  });
 }

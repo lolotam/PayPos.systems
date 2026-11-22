@@ -1,11 +1,13 @@
 'use client';
 
 import { XIcon } from '@phosphor-icons/react/dist/ssr';
+import { useState } from 'react';
 import { Button } from './button.js';
 import { ContextPanelEmpty, ContextPanelSection } from './context-panel-section.js';
 import { useDirection } from './direction-provider.js';
+import { Input } from './input.js';
 import {
-  visiblePages,
+  visiblePagesMatchingQuery,
   type ContextPanelLabels,
   type NavigationWorkspace,
 } from './navigation-presentation.js';
@@ -26,9 +28,11 @@ export function ContextPanelBody({
   onClose,
 }: ContextPanelBodyProps) {
   const dir = useDirection();
+  const [query, setQuery] = useState('');
   const sections = workspace?.sections ?? [];
   const hasVisiblePages = sections.some(
-    (section) => visiblePages(section.pages, visiblePageIds).length > 0,
+    (section) =>
+      visiblePagesMatchingQuery(section.pages, visiblePageIds, query).length > 0,
   );
   return (
     <div dir={dir} className="flex h-full flex-col gap-2 overflow-y-auto p-2">
@@ -40,11 +44,20 @@ export function ContextPanelBody({
           <XIcon aria-hidden="true" />
         </Button>
       </div>
+      <Input
+        type="search"
+        value={query}
+        aria-label={labels.filterPages}
+        placeholder={labels.filterPages}
+        onChange={(event) => setQuery(event.currentTarget.value)}
+        className="shrink-0"
+      />
       {hasVisiblePages ? (
         sections.map((section) => (
           <ContextPanelSection
             key={section.id}
             section={section}
+            query={query}
             activePageId={activePageId}
             visiblePageIds={visiblePageIds}
           />

@@ -50,6 +50,19 @@ it('falls back to the current workspace and filters hidden pages', () => {
   expect(screen.getByRole('link', { name: /العروض/ })).toBeTruthy();
 });
 
+it('filters visible pages in the inspected workspace by the filter field', () => {
+  render(tree('ltr', { currentWorkspaceId: 'business' }));
+  const filter = screen.getByRole('searchbox', { name: 'Filter this list' });
+
+  fireEvent.change(filter, { target: { value: 'الأعمدة' } });
+  expect(screen.getByRole('link', { name: 'الأعمدة' })).toBeTruthy();
+  expect(screen.queryByRole('link', { name: /العروض/ })).toBeNull();
+
+  fireEvent.change(filter, { target: { value: 'عروض' } });
+  expect(screen.getByRole('link', { name: /العروض/ })).toBeTruthy();
+  expect(screen.queryByRole('link', { name: 'الأعمدة' })).toBeNull();
+});
+
 it('shows the empty state when inspection data is absent or fully filtered', () => {
   const view = render(tree('ltr'));
   expect(screen.getByRole('heading', { name: contextLabels.empty })).toBeTruthy();

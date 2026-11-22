@@ -42,6 +42,7 @@ const contextLabels: ContextPanelLabels = {
   navigation: 'أقسام مساحة العمل',
   close: 'إغلاق اللوحة',
   empty: 'لا توجد صفحات',
+  filterPages: 'تصفية هذه القائمة',
 };
 
 const finderLabels: NavigationFinderLabels = {

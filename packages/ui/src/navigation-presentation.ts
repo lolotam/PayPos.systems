@@ -60,6 +60,7 @@ export type NavigationChromeLabels = {
 
 export type ContextPanelLabels = Pick<NavigationChromeLabels, 'navigation' | 'close'> & {
   empty: string;
+  filterPages: string;
 };
 
 export type NavigationFinderLabels = {
@@ -109,6 +110,16 @@ export function resolveInspectedWorkspaceId({
 
 export function matchesPageQuery(label: string, query: string): boolean {
   return label.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase());
+}
+
+export function visiblePagesMatchingQuery(
+  pages: readonly NavigationPage[],
+  visiblePageIds: readonly string[] | undefined,
+  query: string,
+): NavigationPage[] {
+  return visiblePages(pages, visiblePageIds).filter((page) =>
+    matchesPageQuery(page.label, query),
+  );
 }
 
 export function collectFinderResults(

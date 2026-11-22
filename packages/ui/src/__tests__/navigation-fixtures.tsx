@@ -35,6 +35,7 @@ export const contextLabels: ContextPanelLabels = {
   navigation: 'Workspace sections',
   close: 'Close panel',
   empty: 'No pages',
+  filterPages: 'Filter this list',
 };
 
 const page = (id: string, label: string, href: string, status?: string) => ({

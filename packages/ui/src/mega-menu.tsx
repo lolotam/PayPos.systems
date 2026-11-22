@@ -43,11 +43,13 @@ function MegaMenuSection({
   visiblePageIds,
   onSelect,
 }: MegaMenuSectionProps) {
+  const pages = visiblePages(section.pages, visiblePageIds);
+  if (pages.length === 0) return null;
   return (
     <section aria-label={section.label} className="min-w-0">
       <h3 className="mb-2 text-xs font-semibold text-muted-foreground">{section.label}</h3>
       <ul className="flex flex-col gap-1">
-        {visiblePages(section.pages, visiblePageIds).map((page) => (
+        {pages.map((page) => (
           <li key={page.id}>
             <a
               href={page.href}

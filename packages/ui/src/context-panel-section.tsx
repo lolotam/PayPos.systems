@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  visiblePages,
+  visiblePagesMatchingQuery,
   type ContextPanelLabels,
   type NavigationSection,
 } from './navigation-presentation.js';
@@ -10,16 +10,18 @@ import { SIDEBAR_GHOST_CLASSES } from './sidebar-classes.js';
 
 export type ContextPanelSectionProps = {
   section: NavigationSection;
+  query: string;
   activePageId?: string | undefined;
   visiblePageIds?: readonly string[] | undefined;
 };
 
 export function ContextPanelSection({
   section,
+  query,
   activePageId,
   visiblePageIds,
 }: ContextPanelSectionProps) {
-  const pages = visiblePages(section.pages, visiblePageIds);
+  const pages = visiblePagesMatchingQuery(section.pages, visiblePageIds, query);
   if (pages.length === 0) return null;
   return (
     <section aria-label={section.label} className="min-w-0">
