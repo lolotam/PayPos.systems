@@ -43,8 +43,10 @@ export async function readDocumentAccess(
   if (time === undefined)
     return { read: false, manage: false, manageTypes: false, featureEnabled: false };
   const access = await readAccessTransaction(tx, companyId, userId, new Date(time.at));
+  const targetBusinessId = businessId?.toLowerCase();
   const atBusiness = (permission: string) =>
-    businessId !== null && evaluateAccess(access.grants, permission, { companyId, businessId });
+    targetBusinessId !== undefined &&
+    evaluateAccess(access.grants, permission, { companyId, businessId: targetBusinessId });
   const read = atBusiness('read:files:business');
   const manageTypes = evaluateAccess(access.grants, 'manage:document-types:company', { companyId });
   return {

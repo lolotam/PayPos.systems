@@ -8,6 +8,7 @@ let noNumberId: string;
 let replacedId: string;
 let deletedId: string;
 let otherCookie: string;
+let otherMembership: string;
 beforeAll(async () => {
   f = await documentsFixture();
   numberedId = documentIds.newId();
@@ -40,9 +41,10 @@ beforeAll(async () => {
   const role = documentIds.newId();
   await f.h.owner`INSERT INTO roles(id,company_id,code,name_en)
     VALUES (${role},${f.company},'synthetic_no_files','Synthetic no files')`;
+  otherMembership = documentIds.newId();
   await f.h
     .owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id,starts_at)
-    VALUES (${f.company},${documentIds.newId()},${otherUser?.['id'] as string},${role},${f.company},'COMPANY',${f.company},'2026-01-01')`;
+    VALUES (${f.company},${otherMembership},${otherUser?.['id'] as string},${role},${f.company},'COMPANY',${f.company},'2026-01-01')`;
 });
 afterAll(async () => {
   await f?.db.close();
@@ -98,6 +100,35 @@ it('refuses missing and foreign businesses uniformly for a company-scoped reader
   expect(foreign.statusCode).toBe(404);
   expect(missing.json().code).toBe('NOT_FOUND');
   expect(foreign.json()).toEqual(missing.json());
+});
+
+it('applies a business-scoped refusal to both document reads regardless of UUID casing', async () => {
+  const grant = documentIds.newId();
+  const denial = documentIds.newId();
+  await f.h
+    .owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+    VALUES (${f.company},${grant},${otherMembership},'read:files:business','ALLOW','COMPANY',${f.company},'Synthetic company grant',${f.userId})`;
+  try {
+    expect((await read(f.business, numberedId, otherCookie)).statusCode).toBe(200);
+    await f.h
+      .owner`INSERT INTO permission_overrides(company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+      VALUES (${f.company},${denial},${otherMembership},'read:files:business','DENY','BUSINESS',${f.business},'Synthetic business denial',${f.userId})`;
+    for (const business of [f.business, f.business.toUpperCase()]) {
+      const lookup = await read(business, numberedId, otherCookie);
+      const list = await f.h.send(
+        'GET',
+        `/v1/businesses/${business}/employees/${f.employee.id}/documents`,
+        { cookie: otherCookie, company: f.company },
+      );
+      expect(lookup.statusCode).toBe(404);
+      expect(lookup.json().code).toBe('NOT_FOUND');
+      expect(list.status).toBe(404);
+      expect(list.body['code']).toBe('NOT_FOUND');
+    }
+  } finally {
+    await f.h
+      .owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND id IN (${grant},${denial})`;
+  }
 });
 
 it('DN-13b shape validation precedes the permission check for every caller', async () => {

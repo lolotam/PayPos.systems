@@ -131,6 +131,7 @@ export function usePermissions(
     enabled: membershipId !== '',
     // بعد الحفظ أو السحب، القرار يحتاج رد القراءة حتى لو المتصفح أعلن انقطاع الاتصال.
     networkMode: 'always',
+    refetchOnReconnect: true,
     refetchInterval: 30_000,
   });
   const save = useMutation({

@@ -310,6 +310,7 @@ async function recordEmployeeDocument(
   });
   if (!active(operation)) return undefined;
   onPhase('recording');
+  const number = values.document_number?.trim();
   const result = await apiClient().POST(
     '/v1/businesses/{businessId}/employees/{employeeId}/documents',
     {
@@ -321,10 +322,7 @@ async function recordEmployeeDocument(
         type_code: values.type_code,
         file_id: fileId,
         expires_on: values.expires_on === '' ? null : values.expires_on,
-        document_number:
-          values.document_number === undefined || values.document_number.trim() === ''
-            ? null
-            : values.document_number,
+        ...(number ? { document_number: number } : {}),
       },
     },
   );
@@ -353,6 +351,7 @@ function useDocumentsView(
     refetchOnMount: 'always',
     // الحفظ ينتظر رد تحقق حقيقي، بدل انتهاء الوعد بينما القراءة متوقفة بسبب حالة الاتصال.
     networkMode: 'always',
+    refetchOnReconnect: true,
     retry: false,
     queryFn: async ({ signal }) => {
       const result = await apiClient().GET(

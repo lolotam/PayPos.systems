@@ -17,6 +17,8 @@ afterEach(() => {
 const id = '01920000-0000-7000-8000-0000000000a2';
 const fileId = '01920000-0000-7000-8000-0000000000f9';
 const prefix = ['employee-documents', id, id, id, id];
+// النسخة القديمة من API لا تقبل مفتاح الرقم في طلب الرفع.
+const legacyRecordBody = { type_code: 'civil_id', file_id: fileId, expires_on: '2026-10-20' };
 const document = {
   id,
   employee_id: id,
@@ -47,13 +49,17 @@ const view = (canManage: boolean) => ({
   ],
 });
 
-it('renders a document returned by an API version that omits the number', async () => {
-  api.GET.mockResolvedValue({ data: { ...view(false), items: [document] } });
+function renderDocumentsSection(client: QueryClient) {
   render(
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={client}>
       <EmployeeDocumentsSection companyId={id} businessId={id} userId={id} employeeId={id} />
     </QueryClientProvider>,
   );
+}
+
+it('renders a document returned by an API version that omits the number', async () => {
+  api.GET.mockResolvedValue({ data: { ...view(false), items: [document] } });
+  renderDocumentsSection(new QueryClient());
   expect(await screen.findByText('Civil ID')).toBeTruthy();
   expect(screen.getByRole('button', { name: t('en', 'employeeDocuments.open') })).toBeTruthy();
 });
@@ -73,7 +79,7 @@ it.each([true, false])(
         };
       return refreshStarted ? refresh : { data: view(true) };
     });
-    api.POST.mockImplementation(async (path: string) => {
+    api.POST.mockImplementation(async (path: string, request: { body: unknown }) => {
       if (path === '/v1/businesses/{businessId}/files/uploads')
         return {
           data: {
@@ -84,22 +90,22 @@ it.each([true, false])(
           },
         };
       if (path === '/v1/files/{id}/confirm') return { data: { id: fileId, status: 'QUEUED' } };
+      expect(request.body).toEqual(legacyRecordBody);
       refreshStarted = true;
       onlineManager.setOnline(onlineDuringRefresh);
       return { data: document };
     });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={client}>
-        <EmployeeDocumentsSection companyId={id} businessId={id} userId={id} employeeId={id} />
-      </QueryClientProvider>,
-    );
+    renderDocumentsSection(client);
     fireEvent.change(await screen.findByLabelText(t('en', 'employeeDocuments.file')), {
       target: { files: [new File(['pdf'], 'civil.pdf', { type: 'application/pdf' })] },
     });
     fireEvent.change(screen.getByLabelText(t('en', 'employeeDocuments.expiresOn')), {
       target: { value: '2026-10-20' },
+    });
+    fireEvent.change(screen.getByLabelText(t('en', 'employeeDocuments.documentNumber')), {
+      target: { value: onlineDuringRefresh ? '' : '   ' },
     });
     fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeDocuments.upload') }));
     await waitFor(() => expect(client.isFetching({ queryKey: prefix })).toBe(1));
