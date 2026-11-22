@@ -81,6 +81,7 @@ export {
   type VerticalType,
 } from './tenancy/business.js';
 export * from './catalog/service-import.js';
+export * from './catalog/service-import-commit.js';
 export {
   branch,
   createBranchInput,

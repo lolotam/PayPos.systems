@@ -51,6 +51,7 @@ import {
   ratingCorsPolicy,
 } from './modules/customers/index.ts';
 import {
+  bindServiceImportFiles,
   catalogControllers,
   catalogProviders,
   readCommissionOverrideServices,
@@ -66,7 +67,12 @@ import {
   staffProviders,
 } from './modules/staff/index.ts';
 import { commissionsControllers, commissionsProviders } from './modules/commissions/index.ts';
-import { filesControllers, filesProviders, type FilesRuntime } from './modules/files/index.ts';
+import {
+  documentFileFacts,
+  filesControllers,
+  filesProviders,
+  type FilesRuntime,
+} from './modules/files/index.ts';
 import { mountAuthRoutes } from './shared/auth-routes.ts';
 import { DATABASE } from './shared/database.token.ts';
 import { RATE_LIMITER } from './shared/device-authenticator.ts';
@@ -223,7 +229,11 @@ class AppModule {
           deps.customersClock,
           deps.customersTransactionTimeoutMs,
         ),
-        ...catalogProviders(deps.database, deps.ids ?? systemUuidV7()),
+        ...catalogProviders(
+          deps.database,
+          deps.ids ?? systemUuidV7(),
+          bindServiceImportFiles(deps.files?.storage ?? null, documentFileFacts),
+        ),
         ...ordersProviders(deps.database, deps.ids ?? systemUuidV7(), deps.ordersClock),
         ...commissionBindings(deps),
         ...settingsProviders(deps.database, deps.ids ?? systemUuidV7(), deps.redis),
