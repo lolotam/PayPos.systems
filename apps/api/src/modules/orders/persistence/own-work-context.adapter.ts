@@ -44,5 +44,6 @@ export async function ownWorkContext(
   return {
     employeeId: employee.employeeId,
     currentMonth: `${part('year')}-${part('month')}`,
+    branches: business.branches.map((b) => ({ id: b.id, name_ar: b.name_ar, name_en: b.name_en })),
   };
 }
