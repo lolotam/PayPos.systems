@@ -2,10 +2,14 @@
 
 import { ListIcon, XIcon } from '@phosphor-icons/react/dist/ssr';
 import { Dialog } from 'radix-ui';
-import { useState } from 'react';
+import { useState, type Ref } from 'react';
 import { Button } from './button.js';
 import { useDirection } from './direction-provider.js';
-import type { NavigationChromeLabels, NavigationModule } from './navigation-presentation.js';
+import {
+  moduleHasVisiblePages,
+  type NavigationChromeLabels,
+  type NavigationModule,
+} from './navigation-presentation.js';
 import { ModuleDrawerSection } from './module-drawer-section.js';
 
 export type ModuleDrawerProps = {
@@ -15,11 +19,13 @@ export type ModuleDrawerProps = {
   currentModuleId?: string | undefined;
   activePageId?: string | undefined;
   visiblePageIds?: readonly string[] | undefined;
+  triggerRef?: Ref<HTMLButtonElement> | undefined;
+  onCloseAutoFocus?: ((event: Event) => void) | undefined;
   onOpenChange: (open: boolean) => void;
   onNavigate?: (() => void) | undefined;
 };
 
-type DrawerContentProps = Omit<ModuleDrawerProps, 'open' | 'onOpenChange'> & {
+type DrawerContentProps = Omit<ModuleDrawerProps, 'open' | 'onOpenChange' | 'triggerRef'> & {
   initialId?: string | undefined;
   onSelect: () => void;
 };
@@ -31,6 +37,7 @@ function ModuleDrawerContent({
   activePageId,
   visiblePageIds,
   initialId,
+  onCloseAutoFocus,
   onSelect,
 }: DrawerContentProps) {
   const dir = useDirection();
@@ -40,6 +47,7 @@ function ModuleDrawerContent({
       dir={dir}
       aria-modal="true"
       aria-describedby={undefined}
+      onCloseAutoFocus={onCloseAutoFocus}
       className="fixed inset-y-0 start-0 z-50 flex w-76 max-w-[calc(100vw-2rem)] flex-col overflow-y-auto bg-sidebar text-sidebar-foreground"
     >
       <div className="flex shrink-0 items-center gap-2 ps-4 pe-2 pt-2">
@@ -76,6 +84,8 @@ export function ModuleDrawer({
   currentModuleId,
   activePageId,
   visiblePageIds,
+  triggerRef,
+  onCloseAutoFocus,
   onOpenChange,
   onNavigate,
 }: ModuleDrawerProps) {
@@ -83,11 +93,20 @@ export function ModuleDrawer({
     onNavigate?.();
     onOpenChange(false);
   };
-  const initialId = currentModuleId ?? modules[0]?.id;
+  const visibleModules = modules.filter((module) => moduleHasVisiblePages(module, visiblePageIds));
+  if (visibleModules.length === 0) return null;
+  const currentIsVisible = visibleModules.some((module) => module.id === currentModuleId);
+  const initialId = currentIsVisible ? currentModuleId : visibleModules[0]?.id;
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Trigger asChild>
-        <Button variant="ghost" size="icon" aria-label={labels.drawerOpen} className="min-[700px]:hidden">
+        <Button
+          ref={triggerRef}
+          variant="ghost"
+          size="icon"
+          aria-label={labels.drawerOpen}
+          className="min-[700px]:hidden"
+        >
           <ListIcon aria-hidden="true" />
         </Button>
       </Dialog.Trigger>
@@ -95,12 +114,13 @@ export function ModuleDrawer({
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 min-[700px]:hidden" />
           <ModuleDrawerContent
-            modules={modules}
+            modules={visibleModules}
             labels={labels}
             currentModuleId={currentModuleId}
             activePageId={activePageId}
             visiblePageIds={visiblePageIds}
             initialId={initialId}
+            onCloseAutoFocus={onCloseAutoFocus}
             onSelect={select}
           />
         </Dialog.Portal>

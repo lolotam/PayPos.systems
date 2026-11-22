@@ -22,18 +22,36 @@ function tree(props: Partial<TopNavProps> = {}, dir: 'rtl' | 'ltr' = 'ltr') {
   );
 }
 
-it('keeps the requested menu open without marking it current', () => {
+it('switches modules from visible controls inside the open menu by pointer and keyboard', async () => {
   stubMedia(() => false);
   render(tree({ currentModuleId: 'sell' }));
-  fireEvent.click(screen.getByRole('button', { name: /Sell/ }));
-  expect(screen.getByRole('dialog', { name: 'Sell' })).toBeTruthy();
-  expect(screen.queryByRole('dialog', { name: 'Grow' })).toBeNull();
+  const opener = screen.getByRole('button', { name: /Sell/ });
+  expect(opener.querySelector('[data-current-marker]')).toBeTruthy();
+  expect(opener.className).toContain('underline');
+  opener.focus();
+  fireEvent.click(opener);
+  const sellDialog = screen.getByRole('dialog', { name: 'Sell' });
+  expect(document.activeElement && sellDialog.contains(document.activeElement)).toBe(true);
+  const switcherCurrent = within(sellDialog).getByRole('button', { name: /Sell.*Current/ });
+  expect(switcherCurrent.querySelector('[data-current-marker]')).toBeTruthy();
+  expect(switcherCurrent.className).toContain('bg-sidebar-primary');
 
-  fireEvent.click(screen.getByRole('button', { name: /Grow/, hidden: true }));
+  const growSwitch = within(sellDialog).getByRole('button', { name: /Grow/ });
+  expect(growSwitch.hasAttribute('hidden')).toBe(false);
+  expect(growSwitch.closest('[aria-hidden="true"]')).toBeNull();
+  fireEvent.click(growSwitch);
+  const growDialog = screen.getByRole('dialog', { name: 'Grow' });
   expect(screen.queryByRole('dialog', { name: 'Sell' })).toBeNull();
-  expect(screen.getByRole('dialog', { name: 'Grow' })).toBeTruthy();
-  expect(screen.getByRole('button', { name: /Grow/, hidden: true }).getAttribute('aria-current')).toBeNull();
-  expect(screen.getByRole('button', { name: /Sell/, hidden: true }).getAttribute('aria-current')).toBe('page');
+
+  const peopleSwitch = within(growDialog).getByRole('button', { name: /People/ });
+  peopleSwitch.focus();
+  fireEvent.keyDown(peopleSwitch, { key: 'Enter' });
+  expect(screen.getByRole('dialog', { name: 'People' })).toBeTruthy();
+  expect(screen.queryByRole('dialog', { name: 'Grow' })).toBeNull();
+  const currentSwitcher = screen.getByRole('button', { name: /Sell.*Current/ });
+  expect(currentSwitcher.getAttribute('aria-current')).toBe('page');
+  expect(currentSwitcher.querySelector('[data-current-marker]')).toBeTruthy();
+  expect(currentSwitcher.className).toContain('bg-sidebar-primary');
 });
 
 it('renders overview, supplied destinations and a scrollable short-window menu', async () => {
@@ -79,6 +97,15 @@ it.each(['rtl', 'ltr'] as const)('navigates from the phone drawer in %s', async 
   expect(onNavigate).toHaveBeenCalledTimes(1);
 });
 
+it('expands the first visible module when the supplied current module has no visible pages', () => {
+  stubMedia(() => true);
+  render(tree({ currentModuleId: 'people', visiblePageIds: ['approvals'] }));
+  fireEvent.click(screen.getByRole('button', { name: chromeLabels.drawerOpen }));
+  const dialog = screen.getByRole('dialog', { name: chromeLabels.drawerTitle });
+  expect(within(dialog).getByRole('button', { name: /Today/ }).getAttribute('aria-expanded')).toBe('true');
+  expect(within(dialog).queryByRole('button', { name: /People/ })).toBeNull();
+});
+
 it('closes on Escape without navigating and returns focus to the opener', async () => {
   stubMedia(() => true);
   const onNavigate = vi.fn();
@@ -93,13 +120,76 @@ it('closes on Escape without navigating and returns focus to the opener', async 
   expect(onNavigate).not.toHaveBeenCalled();
 });
 
-it('releases the drawer focus trap when the breakpoint changes', async () => {
+it('releases the drawer focus trap and transfers focus across 699 and 700', async () => {
   let phone = true;
   stubMedia(() => phone);
   const view = render(tree({ currentModuleId: 'people' }));
   fireEvent.click(screen.getByRole('button', { name: chromeLabels.drawerOpen }));
   expect(screen.getByRole('dialog', { name: chromeLabels.drawerTitle })).toBeTruthy();
+
   phone = false;
   view.rerender(tree({ currentModuleId: 'people' }));
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /People/ })),
+  );
+
+  phone = true;
+  view.rerender(tree({ currentModuleId: 'people' }));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: chromeLabels.drawerOpen }),
+    ),
+  );
+});
+
+it('transfers focus from an open menu to the visible phone trigger at 700 to 699', async () => {
+  let phone = false;
+  stubMedia(() => phone);
+  const view = render(tree({ currentModuleId: 'people' }));
+  fireEvent.click(screen.getByRole('button', { name: /People/ }));
+  expect(screen.getByRole('dialog', { name: 'People' })).toBeTruthy();
+
+  phone = true;
+  view.rerender(tree({ currentModuleId: 'people' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() =>
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: chromeLabels.drawerOpen }),
+    ),
+  );
+});
+
+it('contains the open menu focus and returns it to the visible opener on Escape', async () => {
+  stubMedia(() => false);
+  render(tree({ currentModuleId: 'sell' }));
+  const opener = screen.getByRole('button', { name: /Sell/ });
+  opener.focus();
+  fireEvent.click(opener);
+  const dialog = screen.getByRole('dialog', { name: 'Sell' });
+  expect(dialog.contains(document.activeElement)).toBe(true);
+  fireEvent.keyDown(document.activeElement ?? dialog, { key: 'Tab' });
+  expect(dialog.contains(document.activeElement)).toBe(true);
+  fireEvent.keyDown(document.activeElement ?? dialog, { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(document.activeElement).toBe(opener);
+});
+
+it('renders no navigation chrome when every module has zero visible pages', () => {
+  stubMedia(() => false);
+  render(tree({ currentModuleId: 'business', visiblePageIds: [] }));
+  expect(screen.queryByRole('button', { name: /Business/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: chromeLabels.drawerOpen })).toBeNull();
+  expect(screen.queryByRole('navigation', { name: chromeLabels.localNavigation })).toBeNull();
+});
+
+it('revokes open chrome when visibility changes to zero', async () => {
+  stubMedia(() => false);
+  const view = render(tree({ currentModuleId: 'business', visiblePageIds: ['columns'] }));
+  fireEvent.click(screen.getByRole('button', { name: /Business/ }));
+  expect(screen.getByRole('dialog', { name: 'Business' })).toBeTruthy();
+  view.rerender(tree({ currentModuleId: 'business', visiblePageIds: [] }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(screen.queryByRole('button', { name: /Business/ })).toBeNull();
+  expect(screen.queryByRole('navigation', { name: chromeLabels.localNavigation })).toBeNull();
 });

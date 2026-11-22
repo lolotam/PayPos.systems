@@ -2,7 +2,11 @@
 
 import { useDirection } from './direction-provider.js';
 import { ContextPanelBody } from './context-panel-body.js';
-import type { ContextPanelLabels, NavigationWorkspace } from './navigation-presentation.js';
+import {
+  resolveInspectedWorkspaceId,
+  type ContextPanelLabels,
+  type NavigationWorkspace,
+} from './navigation-presentation.js';
 import { cn } from './shared/cn.js';
 
 export type ContextPanelProps = {
@@ -28,7 +32,11 @@ export function ContextPanel({
 }: ContextPanelProps) {
   const dir = useDirection();
   if (!panelOpen) return null;
-  const inspectedId = inspectedWorkspaceId ?? currentWorkspaceId;
+  const inspectedId = resolveInspectedWorkspaceId({
+    currentWorkspaceId,
+    inspectedWorkspaceId,
+    panelOpen,
+  });
   const workspace = workspaces.find((item) => item.id === inspectedId);
   return (
     <aside

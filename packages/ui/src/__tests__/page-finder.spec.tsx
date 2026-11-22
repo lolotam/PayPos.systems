@@ -46,6 +46,37 @@ it.each(['rtl', 'ltr'] as const)('filters by translated label and selects the fi
   expect(onNavigate).toHaveBeenCalledTimes(1);
 });
 
+it('activates the first visible query result through its link and restores shortcut focus', async () => {
+  const onNavigate = vi.fn();
+  render(tree('ltr', { onNavigate }));
+  const outside = screen.getByRole('button', { name: 'outside target' });
+  outside.focus();
+  const dialog = openWithShortcut('k', 'ctrlKey');
+  const input = within(dialog).getByRole('searchbox', { name: finderLabels.search });
+  const links = within(dialog).getAllByRole('link');
+  const activated: string[] = [];
+  for (const link of links) {
+    link.addEventListener(
+      'click',
+      (event) => {
+        activated.push(link.textContent ?? '');
+        event.preventDefault();
+      },
+      { capture: true },
+    );
+  }
+  links[0]?.setAttribute('hidden', '');
+  const expected = links[1]?.textContent ?? '';
+  expect(expected).not.toBe('');
+
+  fireEvent.keyDown(input, { key: 'Enter' });
+
+  expect(activated).toEqual([expected]);
+  expect(onNavigate).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() => expect(document.activeElement).toBe(outside));
+});
+
 it('filters hidden destinations and shows the empty state', () => {
   render(tree('ltr', { visiblePageIds: ['products'] }));
   const dialog = openWithShortcut('k', 'ctrlKey');

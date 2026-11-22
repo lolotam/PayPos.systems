@@ -40,6 +40,25 @@ it('keeps the 84px rail, current marker and panel toggle state', () => {
   expect(view.container.querySelectorAll('button')).toHaveLength(workspaces.length);
 });
 
+it('defaults the inspected workspace to the current one when the panel is open', () => {
+  render(tree('ltr', { currentWorkspaceId: 'stock', panelOpen: true }));
+  const current = screen.getByRole('button', { name: 'Stock Current Hide panel' });
+  expect(current.getAttribute('aria-pressed')).toBe('true');
+  expect(current.getAttribute('data-current')).toBe('');
+  expect(current.querySelector('[data-current-marker]')).toBeTruthy();
+});
+
+it('distinguishes an explicitly previewed workspace from the current one', () => {
+  render(
+    tree('ltr', { currentWorkspaceId: 'stock', inspectedWorkspaceId: 'business', panelOpen: true }),
+  );
+  expect(screen.getByRole('button', { name: 'Business Hide panel' }).getAttribute('aria-pressed')).toBe('true');
+  const current = screen.getByRole('button', { name: 'Stock Current Inspect' });
+  expect(current.getAttribute('data-current')).toBe('');
+  expect(current.getAttribute('aria-pressed')).toBe('false');
+  expect(current.querySelector('[data-current-marker]')).toBeTruthy();
+});
+
 it('does not mark a hidden panel as pressed', () => {
   render(tree('ltr', { currentWorkspaceId: 'stock', inspectedWorkspaceId: 'customers' }));
   const button = screen.getByRole('button', { name: 'Customers Inspect' });

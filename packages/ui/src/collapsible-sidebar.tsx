@@ -1,7 +1,7 @@
 'use client';
 
 import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react/dist/ssr';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type Ref, type RefObject } from 'react';
 import { AppSidebarGroup } from './app-sidebar-group.js';
 import { AppSidebarItem } from './app-sidebar-item.js';
 import { Button } from './button.js';
@@ -60,6 +60,7 @@ type CollapseToggleProps = {
   expanded: boolean;
   collapseLabel: string;
   expandLabel: string;
+  toggleRef: Ref<HTMLButtonElement>;
   onToggle: () => void;
 };
 
@@ -68,11 +69,13 @@ function CollapseToggle({
   expanded,
   collapseLabel,
   expandLabel,
+  toggleRef,
   onToggle,
 }: CollapseToggleProps) {
   return (
     <div className="flex shrink-0 items-center justify-end p-2">
       <Button
+        ref={toggleRef}
         variant="sidebar"
         size="icon"
         aria-label={expanded ? collapseLabel : expandLabel}
@@ -87,6 +90,63 @@ function CollapseToggle({
         )}
       </Button>
     </div>
+  );
+}
+
+function useSidebarBreakpointFocus(
+  isTablet: boolean,
+  asideRef: RefObject<HTMLElement | null>,
+  toggleRef: RefObject<HTMLButtonElement | null>,
+) {
+  const previousTablet = useRef(isTablet);
+  useEffect(() => {
+    const wasTablet = previousTablet.current;
+    if (wasTablet === isTablet) return;
+    previousTablet.current = isTablet;
+    const active = document.activeElement;
+    if (isTablet) {
+      if (active === toggleRef.current || asideRef.current?.contains(active)) {
+        asideRef.current?.querySelector<HTMLAnchorElement>('nav a[href]')?.focus();
+      }
+      return;
+    }
+    if (asideRef.current?.contains(active)) toggleRef.current?.focus();
+  }, [asideRef, isTablet, toggleRef]);
+}
+
+type SidebarGroupsProps = {
+  groups: readonly NavigationGroup[];
+  title: string;
+  rail: boolean;
+  currentGroupId?: string | undefined;
+  currentPageId?: string | undefined;
+  visiblePageIds?: readonly string[] | undefined;
+};
+
+function SidebarGroups({
+  groups,
+  title,
+  rail,
+  currentGroupId,
+  currentPageId,
+  visiblePageIds,
+}: SidebarGroupsProps) {
+  const shownGroups = groups
+    .map((group) => ({ ...group, pages: visiblePages(group.pages, visiblePageIds) }))
+    .filter((group) => group.pages.length > 0);
+  return (
+    <nav aria-label={title} className="flex-1 px-2 pb-4">
+      <div className="flex flex-col gap-1">
+        {shownGroups.map((group) => (
+          <CollapsibleGroupLink
+            key={group.id}
+            group={group}
+            rail={rail}
+            active={groupIsCurrent(group, currentGroupId, currentPageId)}
+          />
+        ))}
+      </div>
+    </nav>
   );
 }
 
@@ -105,14 +165,16 @@ export function CollapsibleSidebar({
   const [expanded, setExpanded] = useState(true);
   const isPhone = useNavigationMedia('(max-width: 599px)');
   const isTablet = useNavigationMedia('(min-width: 600px) and (max-width: 1023px)');
+  const asideRef = useRef<HTMLElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  useSidebarBreakpointFocus(isTablet, asideRef, toggleRef);
+
   if (isPhone) return null;
 
   const rail = isTablet || !expanded;
-  const shownGroups = groups
-    .map((group) => ({ ...group, pages: visiblePages(group.pages, visiblePageIds) }))
-    .filter((group) => group.pages.length > 0);
   return (
     <aside
+      ref={asideRef}
       dir={dir}
       data-collapsed={rail ? '' : undefined}
       className={cn(
@@ -125,22 +187,19 @@ export function CollapsibleSidebar({
         expanded={expanded}
         collapseLabel={collapseLabel}
         expandLabel={expandLabel}
+        toggleRef={toggleRef}
         onToggle={() => setExpanded((value) => !value)}
       />
-      {header ? <div className={cn('shrink-0 p-2', rail && 'sr-only')}>{header}</div> : null}
-      <nav aria-label={title} className="flex-1 px-2 pb-4">
-        <div className="flex flex-col gap-1">
-          {shownGroups.map((group) => (
-            <CollapsibleGroupLink
-              key={group.id}
-              group={group}
-              rail={rail}
-              active={groupIsCurrent(group, currentGroupId, currentPageId)}
-            />
-          ))}
-        </div>
-      </nav>
-      {footer ? <div className={cn('shrink-0 p-2', rail && 'sr-only')}>{footer}</div> : null}
+      {header && !rail ? <div className="shrink-0 p-2">{header}</div> : null}
+      <SidebarGroups
+        groups={groups}
+        title={title}
+        rail={rail}
+        currentGroupId={currentGroupId}
+        currentPageId={currentPageId}
+        visiblePageIds={visiblePageIds}
+      />
+      {footer && !rail ? <div className="shrink-0 p-2">{footer}</div> : null}
     </aside>
   );
 }

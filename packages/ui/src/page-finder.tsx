@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type RefObject,
 } from 'react';
 import { Button } from './button.js';
 import { useDirection } from './direction-provider.js';
@@ -34,16 +35,18 @@ type FinderResultListProps = {
   results: readonly FinderResult[];
   labels: NavigationFinderLabels;
   activePageId?: string | undefined;
+  listRef: RefObject<HTMLUListElement | null>;
   onSelect: (result: FinderResult) => void;
 };
 
-function FinderResultList({ results, labels, activePageId, onSelect }: FinderResultListProps) {
+function FinderResultList({ results, labels, activePageId, listRef, onSelect }: FinderResultListProps) {
   return (
-    <ul aria-label={labels.title} className="flex flex-col gap-1">
+    <ul ref={listRef} aria-label={labels.title} className="flex flex-col gap-1">
       {results.map((result) => (
         <li key={`${result.workspace.id}:${result.section.id}:${result.page.id}`}>
           <a
             href={result.page.href}
+            data-finder-result=""
             aria-current={result.page.id === activePageId ? 'page' : undefined}
             onClick={() => onSelect(result)}
             className={cn(
@@ -76,13 +79,15 @@ type FinderDialogProps = {
 
 function onFinderInputKeyDown(
   event: KeyboardEvent<HTMLInputElement>,
-  results: readonly FinderResult[],
-  onSelect: (result: FinderResult) => void,
+  listRef: RefObject<HTMLUListElement | null>,
 ) {
-  const first = results[0];
-  if (event.key !== 'Enter' || !first) return;
+  if (event.key !== 'Enter') return;
+  const firstVisible = Array.from(
+    listRef.current?.querySelectorAll<HTMLAnchorElement>('a[data-finder-result]') ?? [],
+  ).find((link) => !link.hasAttribute('hidden') && !link.closest('[hidden]'));
+  if (!firstVisible) return;
   event.preventDefault();
-  onSelect(first);
+  firstVisible.click();
 }
 
 function FinderDialog({
@@ -96,6 +101,7 @@ function FinderDialog({
   onCloseAutoFocus,
 }: FinderDialogProps) {
   const input = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
   return (
     <Dialog.Content
       dir={dir}
@@ -123,7 +129,7 @@ function FinderDialog({
         aria-label={labels.search}
         placeholder={labels.search}
         onChange={(event) => onQueryChange(event.currentTarget.value)}
-        onKeyDown={(event) => onFinderInputKeyDown(event, results, onSelect)}
+        onKeyDown={(event) => onFinderInputKeyDown(event, listRef)}
       />
       <div className="mt-3">
         {results.length === 0 ? (
@@ -133,6 +139,7 @@ function FinderDialog({
             results={results}
             labels={labels}
             activePageId={activePageId}
+            listRef={listRef}
             onSelect={onSelect}
           />
         )}

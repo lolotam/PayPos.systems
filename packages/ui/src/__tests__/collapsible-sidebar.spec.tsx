@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { CollapsibleSidebar, type CollapsibleSidebarProps } from '../collapsible-sidebar.js';
 import { DirectionProvider } from '../direction-provider.js';
@@ -6,16 +6,22 @@ import { chromeLabels, groups } from './navigation-fixtures.js';
 
 afterEach(() => vi.unstubAllGlobals());
 
-function stubMedia({ phone = false, tablet = false } = {}) {
-  vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: query.includes('max-width: 599px')
-      ? phone
-      : query.includes('max-width: 1023px')
-        ? tablet
-        : false,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-  }));
+type MediaState = { phone?: boolean; tablet?: boolean };
+
+function stubMedia(state: MediaState | (() => MediaState) = {}) {
+  const read = () => (typeof state === 'function' ? state() : state);
+  vi.stubGlobal('matchMedia', (query: string) => {
+    const { phone = false, tablet = false } = read();
+    return {
+      matches: query.includes('max-width: 599px')
+        ? phone
+        : query.includes('max-width: 1023px')
+          ? tablet
+          : false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+  });
 }
 
 function tree(dir: 'rtl' | 'ltr', props: Partial<CollapsibleSidebarProps> = {}) {
@@ -88,4 +94,33 @@ it('hides a group whose only page is excluded', () => {
   stubMedia();
   render(tree('ltr', { visiblePageIds: ['missing'] }));
   expect(screen.queryAllByRole('link')).toHaveLength(0);
+});
+
+it('removes hidden header and footer slot controls from the tab order when railed', () => {
+  stubMedia();
+  const header = <button type="button">Header action</button>;
+  const footer = <button type="button">Footer action</button>;
+  render(tree('ltr', { header, footer }));
+  expect(screen.getByRole('button', { name: 'Header action' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Footer action' })).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: chromeLabels.collapse }));
+  expect(screen.queryByRole('button', { name: 'Header action' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Footer action' })).toBeNull();
+});
+
+it('transfers focus from the desktop toggle to a visible rail link at 1024 to 1023', async () => {
+  let tablet = false;
+  stubMedia(() => ({ tablet }));
+  const view = render(tree('ltr', { currentGroupId: 'home' }));
+  const toggle = screen.getByRole('button', { name: chromeLabels.collapse });
+  toggle.focus();
+  tablet = true;
+  view.rerender(tree('ltr', { currentGroupId: 'home' }));
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: /Home/ })));
+
+  tablet = false;
+  view.rerender(tree('ltr', { currentGroupId: 'home' }));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: chromeLabels.collapse })),
+  );
 });

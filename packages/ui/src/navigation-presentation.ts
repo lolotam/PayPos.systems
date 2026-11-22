@@ -78,6 +78,13 @@ export function visiblePages(
   return visiblePageIds ? pages.filter((page) => visiblePageIds.includes(page.id)) : [...pages];
 }
 
+export function moduleHasVisiblePages(
+  module: NavigationModule,
+  visiblePageIds?: readonly string[],
+): boolean {
+  return module.sections.some((section) => visiblePages(section.pages, visiblePageIds).length > 0);
+}
+
 export function groupIsCurrent(
   group: NavigationGroup,
   currentGroupId?: string,
@@ -86,6 +93,18 @@ export function groupIsCurrent(
   return (
     group.id === currentGroupId || group.pages.some((page) => page.id === currentPageId)
   );
+}
+
+export function resolveInspectedWorkspaceId({
+  currentWorkspaceId,
+  inspectedWorkspaceId,
+  panelOpen,
+}: {
+  currentWorkspaceId?: string | undefined;
+  inspectedWorkspaceId?: string | undefined;
+  panelOpen: boolean;
+}): string | undefined {
+  return panelOpen ? (inspectedWorkspaceId ?? currentWorkspaceId) : undefined;
 }
 
 export function matchesPageQuery(label: string, query: string): boolean {

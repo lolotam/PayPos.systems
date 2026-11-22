@@ -624,12 +624,77 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  navigation-components-browser:
+    name: navigation components · real browser
+    # CI-only isolated component fixture: no dashboard route, adapter or deployment.
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      POS_E2E_URL: http://127.0.0.1:18134
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm --filter @pospay/pos exec playwright install --with-deps chromium
+
+      - name: Exercise navigation components at 390/820/1280px in RTL and LTR
+        run: |
+          set -euo pipefail
+          server_pid=''
+          cleanup() {
+            if [ -n "$server_pid" ]; then kill "$server_pid" 2>/dev/null || true; fi
+            if [ -n "$server_pid" ]; then wait "$server_pid" 2>/dev/null || true; fi
+          }
+          trap cleanup EXIT
+          (
+            cd apps/pos
+            exec node node_modules/vite/bin/vite.js --config e2e/navigation-fixture/vite.config.ts
+          ) > "$RUNNER_TEMP/navigation-fixture.log" 2>&1 &
+          server_pid=$!
+          ready=false
+          for _ in $(seq 1 60); do
+            if ! kill -0 "$server_pid" 2>/dev/null; then break; fi
+            if curl -fsS "$POS_E2E_URL/" -o /dev/null 2>/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != true ]; then
+            cat "$RUNNER_TEMP/navigation-fixture.log"
+            exit 1
+          fi
+          pnpm --filter @pospay/pos exec playwright test navigation-components.pw.ts
+
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: navigation-components-browser-${{ github.run_attempt }}
+          path: |
+            apps/pos/test-results/
+            ${{ runner.temp }}/navigation-fixture.log
+          retention-days: 7
+          if-no-files-found: ignore
+
   # The one check branch protection requires. Code changes need every job;
   # docs-only changes need every heavy job skipped. Unknown classification and all other results fail.
   gate:
     name: ci-gate
     needs:
-      [changes, check, packages-tests, api-tests, worker-tests, build, images, admin-document-popup]
+      [changes, check, packages-tests, api-tests, worker-tests, build, images, admin-document-popup, navigation-components-browser]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 2
@@ -643,14 +708,15 @@ jobs:
           BUILD: ${{ needs.build.result }}
           IMAGES: ${{ needs.images.result }}
           ADMIN_DOCUMENT_POPUP: ${{ needs.admin-document-popup.result }}
+          NAVIGATION_COMPONENTS_BROWSER: ${{ needs.navigation-components-browser.result }}
           CODE: ${{ needs.changes.outputs.code }}
         run: |
-          echo "changes=$CHANGES check=$CHECK packages_tests=$PACKAGES_TESTS api_tests=$API_TESTS worker_tests=$WORKER_TESTS build=$BUILD images=$IMAGES admin_document_popup=$ADMIN_DOCUMENT_POPUP code=$CODE"
+          echo "changes=$CHANGES check=$CHECK packages_tests=$PACKAGES_TESTS api_tests=$API_TESTS worker_tests=$WORKER_TESTS build=$BUILD images=$IMAGES admin_document_popup=$ADMIN_DOCUMENT_POPUP navigation_components_browser=$NAVIGATION_COMPONENTS_BROWSER code=$CODE"
           [ "$CHANGES" = "success" ] || exit 1
           if [ "$CODE" = "true" ]; then
-            [ "$CHECK" = "success" ] && [ "$PACKAGES_TESTS" = "success" ] && [ "$API_TESTS" = "success" ] && [ "$WORKER_TESTS" = "success" ] && [ "$BUILD" = "success" ] && [ "$IMAGES" = "success" ] && [ "$ADMIN_DOCUMENT_POPUP" = "success" ]
+            [ "$CHECK" = "success" ] && [ "$PACKAGES_TESTS" = "success" ] && [ "$API_TESTS" = "success" ] && [ "$WORKER_TESTS" = "success" ] && [ "$BUILD" = "success" ] && [ "$IMAGES" = "success" ] && [ "$ADMIN_DOCUMENT_POPUP" = "success" ] && [ "$NAVIGATION_COMPONENTS_BROWSER" = "success" ]
           elif [ "$CODE" = "false" ]; then
-            [ "$CHECK" = "skipped" ] && [ "$PACKAGES_TESTS" = "skipped" ] && [ "$API_TESTS" = "skipped" ] && [ "$WORKER_TESTS" = "skipped" ] && [ "$BUILD" = "skipped" ] && [ "$IMAGES" = "skipped" ] && [ "$ADMIN_DOCUMENT_POPUP" = "skipped" ]
+            [ "$CHECK" = "skipped" ] && [ "$PACKAGES_TESTS" = "skipped" ] && [ "$API_TESTS" = "skipped" ] && [ "$WORKER_TESTS" = "skipped" ] && [ "$BUILD" = "skipped" ] && [ "$IMAGES" = "skipped" ] && [ "$ADMIN_DOCUMENT_POPUP" = "skipped" ] && [ "$NAVIGATION_COMPONENTS_BROWSER" = "skipped" ]
           else
             echo "::error::Unknown code classification: $CODE"
             exit 1
