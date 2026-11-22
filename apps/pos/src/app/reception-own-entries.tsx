@@ -36,7 +36,7 @@ export function ReceptionOwnEntries({
           ...(timezone ? { timezone } : {}),
         }}
       />
-      <ReceptionWorkEntry session={session} epoch={epoch} timezone={timezone} />
+      <ReceptionWorkEntry session={session} epoch={epoch} />
     </>
   );
 }

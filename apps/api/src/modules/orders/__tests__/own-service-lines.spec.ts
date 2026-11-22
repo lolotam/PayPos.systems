@@ -54,6 +54,13 @@ it('MY01 returns exactly her current lines with her own share and never a collea
   );
 });
 
+it('D-A9 carries the business IANA time zone at the top level of a page with lines', async () => {
+  await recordVisit(f);
+  const response = await read();
+  expect(response.items.length).toBeGreaterThan(0);
+  expect(response.time_zone).toBe('Asia/Kuwait');
+});
+
 it('MY02 projects each toggled column alone; a hidden column is absent and never selected', async () => {
   const visit = await recordVisit(f);
   const fields: [StaffColumnCode, string[], RegExp][] = [

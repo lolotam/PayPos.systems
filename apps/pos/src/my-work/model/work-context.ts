@@ -3,6 +3,4 @@ export type WorkContext = {
   mode: 'personal' | 'reception';
   /** هوية الجلسة الحالية: لو اتغيرت (تبديل مشغّلة، جلسة جديدة) الشاشة بتتركّب من الأول. */
   identity: string;
-  /** توقيت الفرع لو الجهاز عارفه؛ من غيره عمود الوقت بيتعرض بتوقيت الجهاز (TODO(spec) D-A9). */
-  timezone?: string;
 };

@@ -9,7 +9,7 @@ export const ownServiceLinesPaths = {
     get: {
       operationId: 'ownServiceLines',
       description:
-        'Own current-performer lines in the session business. Hidden columns are absent. Device branch proves current authority only. line_id (UUID v7) and cancelled_at are context fields: hiding time does not hide recording/cancellation instants. Cursor is line_id only; a removed, foreign or other-month anchor returns uniform 400; restart from page one. Cancelled anchors remain valid. Cache-Control: no-store.',
+        'Own current-performer lines in the session business. Hidden columns are absent. Device branch proves current authority only. line_id (UUID v7) and cancelled_at are context fields: hiding time does not hide recording/cancellation instants. Cursor is line_id only; a removed, foreign or other-month anchor returns uniform 400; restart from page one. Cancelled anchors remain valid. time_zone is the business IANA time zone: a line time and a cancellation date are shown in it on every device, never in the device zone. Cache-Control: no-store.',
       security: [{ PersonalStaffSession: [] }, { KioskStaffSession: [], DeviceToken: [] }],
       parameters: [
         {

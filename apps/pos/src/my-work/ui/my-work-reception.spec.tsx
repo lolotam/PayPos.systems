@@ -247,3 +247,14 @@ it('starts from the PIN step again when another operator replaces her', async ()
   expect(await screen.findByText(label('myWork.pinTitle'))).toBeTruthy();
   expect(screen.queryByText('Haircut')).toBeNull();
 });
+
+it('AC-57-4-9 shows the line time and the cancellation date in the business zone on the reception device too', async () => {
+  const instant = '2026-11-14T21:30:00Z';
+  const line = { ...fullLine, time: instant, cancelled: true, cancelled_at: instant };
+  serve({ lines: () => json(linesPage([line], null, '2026-11', 'Asia/Kuwait')) });
+  open();
+  await enterPin();
+  expect(await screen.findByText('00:30')).toBeTruthy();
+  expect(screen.queryByText('21:30')).toBeNull();
+  expect(screen.getByText(/Cancelled on\s+November 15, 2026/)).toBeTruthy();
+});

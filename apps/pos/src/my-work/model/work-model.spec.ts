@@ -7,7 +7,14 @@ import {
   windowExpired,
   workForbidden,
 } from './work-error';
-import { branchName, formatShare, hasService, serviceName } from './work-format';
+import {
+  branchName,
+  formatCancelledOn,
+  formatLineTime,
+  formatShare,
+  hasService,
+  serviceName,
+} from './work-format';
 import { monthLabel, nextMonth, previousMonth } from './work-month';
 
 const line = (extra: Partial<OwnServiceLine>): OwnServiceLine => ({
@@ -70,4 +77,25 @@ it('tells an expired window, a dead session, a forbidden page and an out-of-rang
   expect([workForbidden(forbidden), workForbidden(expired)]).toEqual([true, false]);
   expect([monthOutOfRange(range), monthOutOfRange(dead)]).toEqual([true, false]);
   expect(windowExpired(new Error('network'))).toBe(false);
+});
+
+it('AC-57-4-9 shows a line time and a cancellation date in the business zone, never the process zone', () => {
+  const instant = '2026-11-14T21:30:00Z';
+  const previous = process.env.TZ;
+  try {
+    for (const processZone of ['America/Los_Angeles', 'Pacific/Auckland', 'UTC']) {
+      process.env.TZ = processZone;
+      expect(formatLineTime(instant, 'en', 'Asia/Kuwait')).toBe('00:30');
+      expect(formatCancelledOn(instant, 'en', 'Asia/Kuwait')).toBe('November 15, 2026');
+    }
+  } finally {
+    if (previous === undefined) delete process.env.TZ;
+    else process.env.TZ = previous;
+  }
+});
+
+it('AC-57-4-9 follows the zone it is given, so a business west of UTC keeps the earlier day', () => {
+  const instant = '2026-11-14T21:30:00Z';
+  expect(formatLineTime(instant, 'en', 'America/New_York')).toBe('16:30');
+  expect(formatCancelledOn(instant, 'en', 'America/New_York')).toBe('November 14, 2026');
 });

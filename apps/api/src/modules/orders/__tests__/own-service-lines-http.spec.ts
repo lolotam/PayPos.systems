@@ -109,7 +109,12 @@ it('a personal session gets only her own lines, newest first, no-store, with a w
   const response = await personal('?limit=100');
   expect(response.statusCode).toBe(200);
   expect(response.headers['cache-control']).toBe('no-store');
-  const body = response.json<{ items: { line_id: string }[]; next_cursor: string | null }>();
+  const body = response.json<{
+    items: { line_id: string }[];
+    next_cursor: string | null;
+    time_zone: string;
+  }>();
+  expect(body.time_zone).toBe('Asia/Kuwait');
   const returned = body.items.map((line) => line.line_id);
   expect([...returned].sort()).toEqual([...own].sort());
   expect(returned).not.toContain(must(colleague[0]));
@@ -150,6 +155,7 @@ it('STAFF_POS needs a live private-view window, expires at idle 61 s, and a dead
   const ok = await kiosk(idle);
   expect(ok.statusCode).toBe(200);
   expect(ok.json<{ items: unknown[] }>().items).toHaveLength(own.length);
+  expect(ok.json<{ time_zone: string }>().time_zone).toBe('Asia/Kuwait');
   instant = new Date(instant.getTime() + 61000);
   expect((await kiosk(idle)).json().code).toBe('PRIVATE_VIEW_EXPIRED');
   const live = await openWindow();

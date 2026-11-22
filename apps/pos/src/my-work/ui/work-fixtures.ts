@@ -39,10 +39,16 @@ export const netOnlyLine = {
   net: '4.500',
 };
 
-export const linesPage = (items: unknown[], next: string | null = null, month = '2026-11') => ({
+export const linesPage = (
+  items: unknown[],
+  next: string | null = null,
+  month = '2026-11',
+  timeZone = 'Asia/Kuwait',
+) => ({
   items,
   next_cursor: next,
   month,
+  time_zone: timeZone,
 });
 export const visibleTips = (month = '2026-11') => ({
   month,

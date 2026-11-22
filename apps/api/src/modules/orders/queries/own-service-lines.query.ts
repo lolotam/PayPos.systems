@@ -29,9 +29,10 @@ export interface OwnLinesRequest {
   limit: number;
   allowed: ReadonlySet<StaffColumnCode>;
   branches: readonly OwnWorkBranch[];
+  timeZone: string;
 }
 
-// بعد السلطة: عضوية سطور الموظفة ثم تفاصيل صفحتها فقط، كل جملة على جدول واحد (plan §5.6).
+// بعد السلطة (ومعها توقيت النشاط الذي تُعرض به أوقات السطور): عضوية سطور الموظفة ثم تفاصيل صفحتها فقط، كل جملة على جدول واحد (plan §5.6).
 export async function readOwnLinesPage(
   tx: Tx,
   c: OwnWorkContext,
@@ -42,7 +43,12 @@ export async function readOwnLinesPage(
   if (!page) throw new ApiError('VALIDATION_FAILED');
   const lineIds = page.keys.map((key) => key.lineId);
   if (lineIds.length === 0)
-    return ownServiceLines.parse({ month: req.month, items: [], next_cursor: null });
+    return ownServiceLines.parse({
+      month: req.month,
+      time_zone: req.timeZone,
+      items: [],
+      next_cursor: null,
+    });
   const details = await readLineDetails(tx, c, lineIds, req.allowed);
   const cancelled = lineIds.filter((lineId) => details.get(lineId)?.status === 'CANCELLED');
   const sources = {
@@ -57,6 +63,7 @@ export async function readOwnLinesPage(
   };
   return ownServiceLines.parse({
     month: req.month,
+    time_zone: req.timeZone,
     items: page.keys.map((key) => projectOwnLine(key, sources, req.allowed)),
     next_cursor: page.nextCursor,
   });
@@ -82,5 +89,6 @@ export async function readOwnServiceLines(
     limit: parsed.data.limit,
     allowed,
     branches: live.branches,
+    timeZone: live.timeZone,
   });
 }

@@ -50,6 +50,7 @@ const request = (t: Target, extra: Partial<OwnLinesRequest>): OwnLinesRequest =>
   limit: 20,
   allowed: ALL,
   branches: [{ id: t.scope.branchId, name_ar: null, name_en: 'Synthetic perf branch' }],
+  timeZone: 'Asia/Kuwait',
   ...extra,
 });
 const ctx = (f: TipFixture, s: PerfScope) => ({

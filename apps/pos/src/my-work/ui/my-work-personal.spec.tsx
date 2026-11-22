@@ -259,3 +259,21 @@ it('does not refetch on its own and asks for the internet when offline', async (
   expect(screen.getByText(label('myWork.offline'))).toBeTruthy();
   expect(offline.requests.length).toBe(0);
 });
+
+it('AC-57-4-9 shows the line time and the cancellation date in the response business zone on her phone', async () => {
+  const late = { ...fullLine, time: '2026-11-14T21:30:00Z' };
+  const cancelled = { ...cancelledLine, time: '2026-11-14T22:00:00Z', cancelled_at: late.time };
+  serve({ lines: () => json(linesPage([late, cancelled], null, '2026-11', 'Asia/Kuwait')) });
+  open();
+  expect(await screen.findByText('00:30')).toBeTruthy();
+  expect(screen.getByText('01:00')).toBeTruthy();
+  expect(screen.queryByText('21:30')).toBeNull();
+  expect(screen.getByText(/Cancelled on\s+November 15, 2026/)).toBeTruthy();
+});
+
+it('AC-57-4-9 follows a different business zone from the response rather than a fixed one', async () => {
+  const line = { ...fullLine, time: '2026-11-14T21:30:00Z' };
+  serve({ lines: () => json(linesPage([line], null, '2026-11', 'America/New_York')) });
+  open();
+  expect(await screen.findByText('16:30')).toBeTruthy();
+});

@@ -112,7 +112,7 @@ it('shows no card, and keeps her lines, when the rating read fails', async () =>
   expect(screen.queryByText(label('myWork.failed'))).toBeNull();
 });
 
-it('TODO(spec) the reception device asks no rating summary and shows no rating card', async () => {
+it('AC-3-4 the reception device asks no rating summary and shows no rating card', async () => {
   const fetched = serve(() => json(visibleRating('4.5', 12)));
   open(reception);
   fireEvent.change(await screen.findByLabelText(label('myWork.pinLabel')), {

@@ -62,17 +62,17 @@ export function formatBusinessDate(date: string, locale: Locale): string {
 }
 
 /**
- * ساعة الخدمة بالدقيقة. TODO(spec): توقيت المنشأة (D-A9) مش بيوصل للـ POS في الجلسة الشخصية،
- * فبنستخدم توقيت الفرع لو الجهاز عارفه وإلا توقيت الجهاز لحد ما الـ spec يحدد مصدره.
+ * ساعة الخدمة بالدقيقة بتوقيت النشاط دايماً، على الموبايل الشخصي وعلى جهاز الاستقبال، ومن غير
+ * ما توقيت الجهاز يدخل (AC-57-4-9). التوقيت جاي من رد «شغلي» نفسه.
  *
  * @param instant لحظة الخدمة
  * @param locale لغة العرض
- * @param timeZone توقيت الفرع لو معروف
+ * @param timeZone اسم IANA لتوقيت النشاط من الرد
  * @returns الساعة للعرض
  */
-export function formatLineTime(instant: string, locale: Locale, timeZone?: string): string {
+export function formatLineTime(instant: string, locale: Locale, timeZone: string): string {
   return new Intl.DateTimeFormat(locale, {
-    ...(timeZone === undefined ? {} : { timeZone }),
+    timeZone,
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',
@@ -81,16 +81,16 @@ export function formatLineTime(instant: string, locale: Locale, timeZone?: strin
 }
 
 /**
- * يوم إلغاء الخدمة. TODO(spec): نفس مصدر التوقيت المفتوح في `formatLineTime`.
+ * يوم إلغاء الخدمة بتوقيت النشاط دايماً، زي `formatLineTime` (AC-57-4-9).
  *
  * @param instant لحظة الإلغاء
  * @param locale لغة العرض
- * @param timeZone توقيت الفرع لو معروف
+ * @param timeZone اسم IANA لتوقيت النشاط من الرد
  * @returns التاريخ للعرض
  */
-export function formatCancelledOn(instant: string, locale: Locale, timeZone?: string): string {
+export function formatCancelledOn(instant: string, locale: Locale, timeZone: string): string {
   return new Intl.DateTimeFormat(locale, {
-    ...(timeZone === undefined ? {} : { timeZone }),
+    timeZone,
     dateStyle: 'long',
     numberingSystem: 'latn',
   }).format(new Date(instant));

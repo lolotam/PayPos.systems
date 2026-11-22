@@ -13,12 +13,13 @@ import { WorkLines } from './work-lines';
 /**
  * محتوى «شغلي» جوّا البوابة الخاصة: الشهر، كارت التقدير، كارت التقييم، الإكراميات، وخدمات الشهر.
  * كارت التقييم بياخد نفس `access` عشان يفضل جوّا النافذة، وبيتقرا للموبايل الشخصي بس.
- * TODO(spec): مسار rating-summary للجلسة الشخصية بس (جهاز الاستقبال بياخد 401، وread:ratings:own ممنوعة للأجهزة)،
- * فمفيش كارت تقييم على جهاز الاستقبال لحد ما المالك يقرر (S-11 بتقول «ريسبشن زي أي موظفة»).
+ * قاعدة AC-3-4: مسار rating-summary للجلسة الشخصية بس (جهاز الاستقبال بياخد 401، وread:ratings:own ممنوعة
+ * للأجهزة)، فمفيش كارت تقييم ولا طلب تقييم على جهاز الاستقبال؛ إظهاره هناك متابعة منفصلة.
  *
  * @param props.context مين بيفتح الشاشة
  * @param props.access رقم النافذة ومعالج الرفض من البوابة
- * @param props.estimateAllowed TODO(spec): مفيش مصدر في الـ POS لـ `estimated_commission` لحد 57-5
+ * @param props.estimateAllowed قاعدة AC-57-4-4 (معدّلة): كارت التقدير ما بيتعرضش من أي مدخل إنتاج لحد 57-5
+ *   (مفيش قراءة في الـ POS لأعمدة الموظفة المسموحة)، والكارت متختبر على مستوى المكوّن بس
  */
 export function MyWorkCards({
   context,
@@ -51,7 +52,7 @@ export function MyWorkCards({
       <EstimateCard allowed={estimateAllowed} />
       <RatingSummaryCard summary={rating.data} />
       <TipsBlock tips={tips.data} />
-      <WorkLines query={lines} {...(context.timezone ? { timezone: context.timezone } : {})} />
+      <WorkLines query={lines} />
     </div>
   );
 }

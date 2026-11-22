@@ -11,7 +11,7 @@ import { PrivateViewGate } from './private-view-gate';
  *
  * @param props.context مين بيفتح الشاشة وهويته
  * @param props.onLeave بتتنده لما الجلسة تتقفل (401) والشاشة الخاصة تتقفل كلها
- * @param props.estimateAllowed هل كارت التقدير مسموح؛ TODO(spec): بيتوصل من 57-5
+ * @param props.estimateAllowed هل كارت التقدير مسموح؛ الافتراضي false من كل مدخل إنتاج لحد 57-5 (AC-57-4-4 المعدّلة)
  */
 export function MyWorkScreen({
   context,

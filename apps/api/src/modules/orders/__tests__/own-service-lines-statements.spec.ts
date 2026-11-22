@@ -69,6 +69,7 @@ it('counts the reader statements for every column and cancellation combination, 
   const month = { month: '2026-10' };
   const noRows = await expectStatements('no performer rows', month, noNames, 1);
   expect(noRows.page?.items).toEqual([]);
+  expect(noRows.page?.time_zone).toBe('Asia/Kuwait');
 
   const older = await recordVisitAt(f, '2026-10-10T08:00:00.000Z');
   const newer = await recordVisitAt(f, '2026-10-12T08:00:00.000Z');

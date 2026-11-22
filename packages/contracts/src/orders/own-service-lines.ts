@@ -4,6 +4,7 @@ import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 import { sessionMoney } from './service-session.js';
 import { ownWorkMonth } from './own-work-month.js';
+import { timeZone } from '../reference/time-zone.js';
 
 export const ownServiceLinesQuery = z.strictObject({
   ...pageQuery.shape,
@@ -32,6 +33,7 @@ export const ownServiceLine = z.strictObject({
 export const ownServiceLines = z.strictObject({
   ...page(ownServiceLine).shape,
   month: ownWorkMonth,
+  time_zone: timeZone,
 });
 export type OwnServiceLine = z.infer<typeof ownServiceLine>;
 export type OwnServiceLines = z.infer<typeof ownServiceLines>;

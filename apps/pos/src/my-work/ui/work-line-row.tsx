@@ -17,9 +17,9 @@ import {
  * الخدمة الملغية متشطوبة مع «اتلغت» وتاريخ الإلغاء (MY-07).
  *
  * @param props.item صف «شغلي»
- * @param props.timezone توقيت الفرع لو الجهاز عارفه
+ * @param props.timeZone توقيت النشاط من رد «شغلي»؛ الوقت وتاريخ الإلغاء بيتعرضوا بيه دايماً
  */
-export function WorkLineRow({ item, timezone }: { item: OwnServiceLine; timezone?: string }) {
+export function WorkLineRow({ item, timeZone }: { item: OwnServiceLine; timeZone: string }) {
   const locale = useLocale();
   const field = (label: string, value: string) => (
     <>
@@ -37,7 +37,7 @@ export function WorkLineRow({ item, timezone }: { item: OwnServiceLine; timezone
             : field(t(locale, 'myWork.date'), formatBusinessDate(item.date, locale))}
           {item.time === undefined
             ? null
-            : field(t(locale, 'myWork.time'), formatLineTime(item.time, locale, timezone))}
+            : field(t(locale, 'myWork.time'), formatLineTime(item.time, locale, timeZone))}
           {hasService(item) ? field(t(locale, 'myWork.service'), serviceName(item, locale)) : null}
           {item.customer_name === undefined
             ? null
@@ -59,7 +59,7 @@ export function WorkLineRow({ item, timezone }: { item: OwnServiceLine; timezone
           {item.cancelled && item.cancelled_at ? (
             <span className="text-sm">
               {t(locale, 'myWork.cancelledOn')}{' '}
-              {formatCancelledOn(item.cancelled_at, locale, timezone)}
+              {formatCancelledOn(item.cancelled_at, locale, timeZone)}
             </span>
           ) : null}
         </div>

@@ -29,9 +29,21 @@ it('preserves absent hidden columns and the integer own share', () => {
 });
 
 it('wraps lines in a month page with a cursor and refuses extra keys', () => {
-  const body = { month: '2026-10', items: [context], next_cursor: null };
+  const body = {
+    month: '2026-10',
+    time_zone: 'Asia/Kuwait',
+    items: [context],
+    next_cursor: null,
+  };
   expect(ownServiceLines.parse(body)).toEqual(body);
   expect(ownServiceLines.safeParse({ ...body, total: 1 }).success).toBe(false);
+});
+
+it('requires the business time zone as an IANA name, never an offset', () => {
+  const body = { month: '2026-10', items: [], next_cursor: null };
+  expect(ownServiceLines.safeParse(body).success).toBe(false);
+  expect(ownServiceLines.safeParse({ ...body, time_zone: '+03:00' }).success).toBe(false);
+  expect(ownServiceLines.safeParse({ ...body, time_zone: 'Asia/Kuwait' }).success).toBe(true);
 });
 
 it('cursor accepts a line id only, without a date/time tuple', () => {

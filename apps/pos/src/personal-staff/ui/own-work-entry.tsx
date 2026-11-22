@@ -49,22 +49,14 @@ export function PersonalWorkEntry({
  *
  * @param props.session جلسة المشغّلة على الجهاز
  * @param props.epoch دورة جلسة المشغّلة
- * @param props.timezone توقيت الفرع لو الجهاز عارفه
  */
 export function ReceptionWorkEntry({
   session,
   epoch,
-  timezone,
 }: {
   session: StaffSessionContext;
   epoch: number;
-  timezone?: string | undefined;
 }) {
   const identity = `${epoch}:${session.user_id}:${session.device_id}:${session.expires_at}`;
-  return (
-    <OwnWorkEntry
-      key={identity}
-      context={{ mode: 'reception', identity, ...(timezone ? { timezone } : {}) }}
-    />
-  );
+  return <OwnWorkEntry key={identity} context={{ mode: 'reception', identity }} />;
 }

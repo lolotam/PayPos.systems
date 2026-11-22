@@ -8,16 +8,11 @@ import { WorkLineRow } from './work-line-row';
 /**
  * قائمة خدمات الشهر بحالاتها: تحميل، شهر خارج الحد، ممنوع، فشل مع إعادة، فاضي، والمزيد بالـ cursor.
  *
+ * الوقت وتاريخ الإلغاء بيتعرضوا بتوقيت النشاط اللي جاي مع كل صفحة، مش بتوقيت الجهاز (AC-57-4-9).
+ *
  * @param props.query استعلام الصفحات
- * @param props.timezone توقيت الفرع لو الجهاز عارفه
  */
-export function WorkLines({
-  query,
-  timezone,
-}: {
-  query: ReturnType<typeof useWorkLines>;
-  timezone?: string;
-}) {
+export function WorkLines({ query }: { query: ReturnType<typeof useWorkLines> }) {
   const locale = useLocale();
   const status = (key: 'loading' | 'outOfRange' | 'refused' | 'empty') => (
     <p role="status">{t(locale, `myWork.${key}`)}</p>
@@ -36,13 +31,15 @@ export function WorkLines({
       />
     );
   }
-  const items = query.data.pages.flatMap((page) => page.items);
+  const items = query.data.pages.flatMap((page) =>
+    page.items.map((item) => ({ item, timeZone: page.time_zone })),
+  );
   if (items.length === 0) return status('empty');
   return (
     <>
       <ul className="grid gap-3">
-        {items.map((item) => (
-          <WorkLineRow key={item.line_id} item={item} {...(timezone ? { timezone } : {})} />
+        {items.map(({ item, timeZone }) => (
+          <WorkLineRow key={item.line_id} item={item} timeZone={timeZone} />
         ))}
       </ul>
       {query.hasNextPage ? (
