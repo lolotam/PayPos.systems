@@ -56,7 +56,9 @@ function plan(employeeId = EMPLOYEE): CommissionPlanVersion {
   };
 }
 
-function attachment(patch: Partial<CommissionEstimateAttachment> = {}): CommissionEstimateAttachment {
+function attachment(
+  patch: Partial<CommissionEstimateAttachment> = {},
+): CommissionEstimateAttachment {
   return {
     employeeId: EMPLOYEE,
     branchId: BRANCH_A,
@@ -162,9 +164,7 @@ describe('the visible rows of the estimate', () => {
       }),
     );
 
-    expect(result.employees[0]?.sources.map((source) => source.sourceRef)).toEqual([
-      'line:line-a',
-    ]);
+    expect(result.employees[0]?.sources.map((source) => source.sourceRef)).toEqual(['line:line-a']);
     expect(result.employees[0]?.total).toBe(10000n);
     expect(result.employees[0]?.partial).toBe(true);
   });
@@ -208,9 +208,7 @@ describe('the pricing failures of the estimate', () => {
     // شايفهوش (CM-23).
     expect(result.employees[0]?.status).toBe('OK');
     expect(result.employees[0]?.total).toBe(10000n);
-    expect(result.employees[0]?.sources.map((source) => source.sourceRef)).toEqual([
-      'line:line-a',
-    ]);
+    expect(result.employees[0]?.sources.map((source) => source.sourceRef)).toEqual(['line:line-a']);
   });
 
   it('refuses the month when a visible source misses its plan', () => {
@@ -226,7 +224,9 @@ describe('the pricing failures of the estimate', () => {
     expect(result.employees[0]?.sources).toEqual([]);
     expect(result.total).toBeNull();
   });
+});
 
+describe('the refused month of the estimate', () => {
   it('keeps only the visible tips and corrections of a refused month', () => {
     // البقشيش والتصحيح بيعدّوا من غير تسعير (D-1)، فرفض التسعير ما بيمسحهمش،
     // واللي على الفرع التاني يفضل مخفي عن قارئ الفرع الأول (CS-Q20).
@@ -248,6 +248,20 @@ describe('the pricing failures of the estimate', () => {
     expect(result.employees[0]?.total).toBeNull();
     expect(result.employees[0]?.tips).toEqual({ card: 2500n, cash: 0n });
     expect(result.employees[0]?.corrections.map((row) => row.sourceRef)).toEqual(['line:old-a']);
+    expect(result.employees[0]?.partial).toBe(true);
+  });
+
+  it('does not label a refused month partial when the reader sees all of it', () => {
+    const result = projectCommissionEstimate(
+      projection({
+        month: month({ lines: [planLine()], tips: [tip()], corrections: [correction()] }),
+        attachments: [attachment()],
+      }),
+    );
+
+    expect(result.employees[0]?.status).toBe('NO_PLAN');
+    expect(result.employees[0]?.partial).toBe(false);
+    expect(result.employees[0]?.tips).toEqual({ card: 2500n, cash: 0n });
   });
 });
 
@@ -284,20 +298,42 @@ describe('the candidates of the estimate', () => {
 
     expect(result.employees).toEqual([]);
   });
+});
 
-  it('does not add a result for a salary row alone', () => {
+describe('the configuration rows of the estimate', () => {
+  it.each<[string, Partial<CommissionEstimateMonthRows>]>([
+    ['salary', { salaries: [{ employeeId: OTHER, effectiveFrom: '2026-11-01', amount: 500000n }] }],
+    ['plan', { versions: [plan(OTHER)] }],
+    [
+      'override',
+      {
+        overrides: [
+          {
+            id: 'override-a',
+            employeeId: OTHER,
+            serviceId: 'service-a',
+            effectiveFrom: '2026-11-01',
+            createdAt: 1n,
+            rule: { kind: 'PCT', value: 1000n },
+          },
+        ],
+      },
+    ],
+  ])('does not add a result for a %s row alone', (_name, rows) => {
+    // قارئ النشاط كله بيشوف كل مرشحة، فالصف ده لو زوّد مرشحة كانت هتظهر بصفر.
     const result = projectCommissionEstimate(
       projection({
+        scope: { businessWide: true, branchIds: [] },
         employeeIds: [OTHER],
-        month: month({
-          salaries: [{ employeeId: OTHER, effectiveFrom: '2026-11-01', amount: 500000n }],
-        }),
+        month: month(rows),
       }),
     );
 
     expect(result.employees).toEqual([]);
   });
+});
 
+describe('the correction-only candidate of the estimate', () => {
   it('shows a departed employee who only received a visible correction', () => {
     // موظفة ارتباطها خلص قبل الشهر ولسه مستلمة تصحيح على فرع القارئ: بتظهر
     // بصف التصحيح من غير أي عمل في الشهر (FR-040).
@@ -327,6 +363,18 @@ describe('the covered days of the estimate', () => {
 
     expect(result.employees[0]?.partial).toBe(false);
     expect(result.employees[0]?.total).toBe(10000n);
+  });
+
+  it('covers December of the last four-digit year for an open attachment', () => {
+    const result = projectCommissionEstimate(
+      projection({
+        period: '9999-12',
+        attachments: [attachment({ from: '9999-12-01' })],
+      }),
+    );
+
+    expect(result.employees).toHaveLength(1);
+    expect(result.employees[0]?.partial).toBe(false);
   });
 
   it('covers nothing for an attachment that ended before the month', () => {

@@ -227,14 +227,17 @@ export async function branchManager(f: {
   readonly company: string;
   readonly business: string;
   readonly branch: string;
+  /** لاحقة بتفرّق قارئ فرع تاني في نفس الشركة عن الأول. */
+  readonly suffix?: string;
 }): Promise<string> {
-  const email = 'commission-estimate-branch-manager@example.test';
+  const suffix = f.suffix ?? '';
+  const email = `commission-estimate-branch-manager${suffix}@example.test`;
   const cookie = await f.h.signedInOperator(email);
   const [user] = await f.h.owner`SELECT id FROM "user" WHERE email=${email}`;
   const role = ids.newId();
   const membershipId = ids.newId();
   await f.h.owner`INSERT INTO roles(id,company_id,code,name_en)
-    VALUES (${role},${f.company},'estimate_branch_reader','Estimate branch reader')`;
+    VALUES (${role},${f.company},${`estimate_branch_reader${suffix}`},'Estimate branch reader')`;
   await f.h.owner`INSERT INTO role_permissions(role_id,role_owner_key,company_id,permission_code)
     VALUES (${role},${f.company},${f.company},${PERMISSION})`;
   await f.h.owner`INSERT INTO memberships(

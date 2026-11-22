@@ -329,19 +329,18 @@ function projectEmployee(
   for (const line of assembled.lines) sourceDates.set(`line:${line.lineId}`, line.businessDate);
   for (const sale of assembled.sales) sourceDates.set(`sale:${sale.saleId}`, sale.businessDate);
   const failure = visibleFailure(scope, attachments, sourceDates, priced);
-  if (failure !== null) {
-    const tips = collectTips(scope, attachments, assembled.tips);
-    const corrections = collectCorrections(scope, assembled.corrections);
-    return refusedMonth(employeeId, failure, tips, corrections);
-  }
   const sources = collectSources(scope, attachments, assembled.lines, assembled.sales, priced);
   const tips = collectTips(scope, attachments, assembled.tips);
   const corrections = collectCorrections(scope, assembled.corrections);
   const outside = sources.outside || tips.outside || corrections.outside;
+  // "جزئي" بتوصف النطاق بس: صف بره فروع القارئ أو تغطية أيام ناقصة. رفض
+  // التسعير بيتقال بالحالة وبالمجموع null، مش بالعلامة دي.
+  const partial = scope === null ? false : outside || covered.size < daysInMonth(period);
+  if (failure !== null) return refusedMonth(employeeId, failure, partial, tips, corrections);
   return {
     employeeId,
     status: 'OK',
-    partial: scope === null ? false : outside || covered.size < daysInMonth(period),
+    partial,
     total: sources.linesTotal + sources.salesTotal,
     sources: sources.sources,
     sales: sources.sales,
@@ -357,6 +356,7 @@ function projectEmployee(
  *
  * @param employeeId الموظفة
  * @param failure سبب منع التسعير
+ * @param partial أرقامها جزئية: صف بره نطاق القارئ أو تغطية أيام ناقصة
  * @param tips البقشيش المرئي للقارئ
  * @param tips.card مجموع بقشيش الكارت المرئي
  * @param tips.cash مجموع بقشيش الكاش المرئي
@@ -367,13 +367,14 @@ function projectEmployee(
 function refusedMonth(
   employeeId: string,
   failure: 'NO_PLAN' | 'NO_SALARY',
+  partial: boolean,
   tips: { readonly card: bigint; readonly cash: bigint },
   corrections: { readonly corrections: readonly CommissionEstimateCorrectionProjection[] },
 ): CommissionEstimateEmployeeProjection {
   return {
     employeeId,
     status: failure,
-    partial: true,
+    partial,
     total: null,
     sources: [],
     sales: [],

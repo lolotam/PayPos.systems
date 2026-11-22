@@ -173,12 +173,20 @@ round-2 receipt plus D-57. Dispositions:
 6. **The fixture database pool is closed** in `afterAll` and when the fixture setup fails, in the
    hidden-plan and refused-rows route specs.
 
+7. **Independent exact-head review (Codex `gpt-6.2-sol`, medium, read-only) on `ebe1f1dfb`:** one P2
+   and three P3, all fixed in the same round. The `partial` flag of a refused row now describes the
+   scope only (a row outside the reader's branches or incomplete day coverage), like a priced row;
+   the refusal is carried by the status and the null total. The month-coverage comparison uses the
+   last day inside the month, so December 9999 is covered. The configuration-row test runs as a
+   business-wide reader and covers a salary, a plan and an override row each alone. A second-branch
+   reader route test proves a visible refusal with only her in-scope tips and corrections.
+
 `0239` was untouched, and no migration, deploy or target operation came from this round.
 
 ### Gates of the round-2 head
 
-- packages/commissions-engine 23 files / 527 tests; the three estimate route specs of apps/api
-  3 files / 13 tests; the worker spec `project-package-sale-corrections-db.spec.ts` 1 file / 10 tests,
+- packages/commissions-engine 23 files / 531 tests; the three estimate route specs of apps/api
+  3 files / 14 tests; the worker spec `project-package-sale-corrections-db.spec.ts` 1 file / 10 tests,
   run against a freshly built engine `dist` — all green on one PostgreSQL lane.
 - typecheck and lint clean for commissions-engine, api and worker; `lint:docs` and `module-map:check`
   green.

@@ -80,20 +80,6 @@ export function attachedDuring(
 }
 
 /**
- * الشهر اللي بعد الشهر المطلوب، بصيغة YYYY-MM.
- *
- * @param period الشهر بصيغة YYYY-MM
- * @returns الشهر التالي
- */
-function nextMonth(period: string): string {
-  const year = Number(period.slice(0, 4));
-  const month = Number(period.slice(5, 7));
-  return month === 12
-    ? `${year + 1}-01`
-    : `${period.slice(0, 5)}${String(month + 1).padStart(2, '0')}`;
-}
-
-/**
  * أيام الشهر اللي الموظفة كانت مربوطة بفرع من نطاق القارئ فيها (CS-Q23).
  * الارتباط نصف مفتوح `[from, to)` وبيتقصّ على الشهر: نهاية في شهر أو سنة
  * بعديّة بتغطي باقي الشهر، والنهاية الماضية والبداية المستقبلية ما بتغطوش
@@ -112,16 +98,18 @@ export function coveredDays(
   const days = new Set<number>();
   const total = daysInMonth(period);
   const monthStart = `${period}-01`;
-  const monthEnd = `${nextMonth(period)}-01`;
+  // المقارنة بآخر يوم جوه الشهر مش بأول الشهر اللي بعده، عشان ديسمبر 9999
+  // ما يعدّيش لسنة بخمس أرقام ترتيبها النصي غلط.
+  const monthLast = `${period}-${String(total).padStart(2, '0')}`;
   for (const attachment of attachments) {
     if (!scope.has(attachment.branchId)) continue;
-    if (attachment.from >= monthEnd) continue;
+    if (attachment.from > monthLast) continue;
     if (attachment.to !== null && attachment.to <= monthStart) continue;
     const firstDay = attachment.from <= monthStart ? 1 : Number(attachment.from.slice(8, 10));
     const lastDay =
-      attachment.to === null || attachment.to >= monthEnd
-        ? total
-        : Number(attachment.to.slice(8, 10)) - 1;
+      attachment.to !== null && attachment.to.startsWith(period)
+        ? Number(attachment.to.slice(8, 10)) - 1
+        : total;
     for (let day = firstDay; day <= lastDay; day += 1) days.add(day);
   }
   return days;

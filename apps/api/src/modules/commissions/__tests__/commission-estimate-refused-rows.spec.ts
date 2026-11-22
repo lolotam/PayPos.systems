@@ -27,6 +27,7 @@ type RefusedRowsFixture = {
   readonly db: Database;
   readonly cookie: string;
   readonly branchCookie: string;
+  readonly secondBranchCookie: string;
   readonly company: string;
   readonly business: string;
   readonly branch: string;
@@ -55,7 +56,14 @@ async function refusedRowsFixture(): Promise<RefusedRowsFixture> {
     await seedTips(db, { ...tenant, employee }, branch, secondBranch);
     await seedCorrections(h, db, { ...base, tenant: { ...tenant, employee, branch } }, secondBranch);
     const branchCookie = await branchManager({ h, company, business, branch });
-    return { h, db, cookie, branchCookie, company, business, branch, secondBranch, employee };
+    const secondBranchCookie = await branchManager({
+      h,
+      company,
+      business,
+      branch: secondBranch,
+      suffix: '_second',
+    });
+    return { h, db, cookie, branchCookie, secondBranchCookie, company, business, branch, secondBranch, employee };
   } catch (error) {
     await db.close().catch(() => undefined);
     await h.close().catch(() => undefined);
@@ -216,6 +224,8 @@ type EstimateBody = {
     status: string;
     tips: { card: string; cash: string };
     corrections: { amount: string }[];
+    sources: unknown[];
+    sales: unknown[];
   }[];
   total: string | null;
 };
@@ -251,4 +261,18 @@ it('keeps the whole tips and corrections of the reader who sees the refused sour
     '3.000',
     '5.000',
   ]);
+});
+
+it('keeps only the in-scope tips and corrections of the branch reader who sees the refusal', async () => {
+  const response = await get(fixture.secondBranchCookie);
+
+  expect(response.status).toBe(200);
+  const body = response.body as EstimateBody;
+  expect(body.employees).toHaveLength(1);
+  expect(body.employees[0]?.status).toBe('NO_PLAN');
+  expect(body.employees[0]?.total).toBeNull();
+  expect(body.employees[0]?.sources).toEqual([]);
+  expect(body.employees[0]?.sales).toEqual([]);
+  expect(body.employees[0]?.tips).toEqual({ card: '0.000', cash: '1.000' });
+  expect(body.employees[0]?.corrections.map((correction) => correction.amount)).toEqual(['3.000']);
 });
