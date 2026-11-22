@@ -79,6 +79,8 @@ export const employeeImportErrorsEn = {
   IMPORT_PREVIEW_EXPIRED: 'The import preview expired after 24 hours.',
   IMPORT_COMMIT_FAILED: 'The import could not be completed. Preview the workbook again.',
   IMPORT_PREVIEW_HAS_ERRORS: 'Fix the preview errors before committing.',
+  IMPORT_TEMPLATE_EXCEEDS_LIMITS:
+    'This business has too many categories for one import template. Trim the unused categories, then try again.',
 } as const;
 
 export const employeeImportErrorsAr = {
@@ -93,4 +95,6 @@ export const employeeImportErrorsAr = {
   IMPORT_PREVIEW_EXPIRED: 'انتهت صلاحية معاينة الاستيراد (24 ساعة).',
   IMPORT_COMMIT_FAILED: 'تعذر إكمال الاستيراد. أنشئ معاينة جديدة للمصنف.',
   IMPORT_PREVIEW_HAS_ERRORS: 'لا يمكن الحفظ لوجود أخطاء في المعاينة.',
+  IMPORT_TEMPLATE_EXCEEDS_LIMITS:
+    'عدد التصنيفات في هذا النشاط أكبر من أن يتحمله قالب واحد. راجع التصنيفات غير المستخدمة ثم حاول مرة أخرى.',
 } as const;

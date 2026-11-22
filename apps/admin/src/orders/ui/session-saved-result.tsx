@@ -9,9 +9,9 @@ import { newSessionVisit, sessionLeaveFeedback, sessionResultFrozen, sessionResu
 import { SessionSavedVisit } from './session-saved-visit';
 import { SessionWriteFeedback } from './session-write-feedback';
 
-export function SessionSavedResult({ result, journal, onNewVisit, scope, online = true, editBusy = false, onRequestStart, onRequestEnd }: {
+export function SessionSavedResult({ result, journal, onNewVisit, scope, online = true, editBusy = false, hideCustomer = false, onRequestStart, onRequestEnd }: {
   result: SessionRecordingResult; journal: Pick<SessionAttemptJournal, 'leaveVisit'>; onNewVisit: (result: SessionRecordingResult) => void;
-  scope?: SessionServiceScope; online?: boolean; editBusy?: boolean; onRequestStart?: () => void; onRequestEnd?: () => void;
+  scope?: SessionServiceScope; online?: boolean; editBusy?: boolean; hideCustomer?: boolean; onRequestStart?: () => void; onRequestEnd?: () => void;
 }) {
   const locale = useLocale(), session = result.session;
   const [failure, setFailure] = useState<{ source: SessionRecordingResult; feedback: SessionFeedback } | null>(null);
@@ -26,7 +26,7 @@ export function SessionSavedResult({ result, journal, onNewVisit, scope, online 
   const complete = !leaveFeedback && result.feedback.kind === 'COMPLETE' && !result.drafts.lines.length && !sessionResultFrozen(result);
   return <Card className="grid gap-3 p-3 text-start">
     <p role="status">{t(locale, 'serviceSessions.saved')}</p>
-    <p>{session.customer.name} <bdi>{session.customer.phone_masked}</bdi></p>
+    {hideCustomer ? null : <p>{session.customer.name} <bdi>{session.customer.phone_masked}</bdi></p>}
     <p>{t(locale, 'serviceSessions.occurredAt')} <bdi>{when}</bdi></p>
     <p>{t(locale, 'serviceSessions.timezone')} <bdi>{session.business_timezone}</bdi></p>
     {sessionResultLate(session) ? <Badge variant="warning">{t(locale, 'serviceSessions.late')}</Badge> : null}

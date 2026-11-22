@@ -1,6 +1,7 @@
 'use client';
 import {
   employeeDocument,
+  employeeDocumentListItem,
   employeeDocumentsView,
   type EmployeeDocumentFormValues,
 } from '@pospay/contracts';
@@ -47,17 +48,7 @@ export function useEmployeeDocuments(
   const { current, begin, active } = useDocumentAccess(scope, key);
   const [phase, setPhase] = useState<UploadPhase>('idle');
   const recordContext = { companyId, businessId, employeeId, begin, active, onPhase: setPhase };
-  const record = useMutation({
-    mutationKey: [...key, 'record'],
-    retry: false,
-    onMutate: () => ({ scope, key }),
-    mutationFn: (submission: DocumentSubmission) =>
-      recordEmployeeDocument(submission, recordContext),
-    onSettled: (_data, _error, _variables, context) => {
-      if (context?.scope === current.current.scope && current.current.mounted) setPhase('idle');
-      return context ? client.invalidateQueries({ queryKey: context.key }) : undefined;
-    },
-  });
+  const record = useDocumentRecord(scope, key, current, recordContext);
   const open = useDocumentOpen(client, key, params.header, scope, { begin, active }, view);
   const resetRecord = record.reset;
   const resetOpen = open.reset;
@@ -68,12 +59,14 @@ export function useEmployeeDocuments(
   }, [scope, resetRecord, resetOpen]);
   const saved = record.data;
   const data = saved && active(saved.operation) ? saved.document : undefined;
+  // إقرار الطلب يمسح المسودة حتى لو فشل تحديث القائمة بعد نجاح الكتابة.
+  const recordedTicket = saved?.operation.scope === scope ? record.variables : undefined;
   return {
     view,
     get documents() {
       return open.documents();
     },
-    record: { ...record, data },
+    record: { ...record, data, recordedTicket },
     open,
     phase,
   };
@@ -249,6 +242,50 @@ function useDocumentOpen(
   };
 }
 
+/** القيم المرسلة يتسلمها طلب الحفظ من رمز مؤقت بلا بيانات نموذج في MutationCache. */
+function useDocumentRecord(
+  scope: object,
+  key: string[],
+  current: ReturnType<typeof useDocumentAccess>['current'],
+  recordContext: DocumentRecordContext,
+) {
+  const client = useQueryClient();
+  const pending = useMemo(() => new Map<object, DocumentSubmission>(), [scope]);
+  useEffect(() => () => pending.clear(), [pending]);
+  const record = useMutation({
+    mutationKey: [...key, 'record'],
+    // لا تبقى قيم نموذج التسجيل في الذاكرة المؤقتة بعد إغلاق مراقب النطاق.
+    gcTime: 0,
+    retry: false,
+    onMutate: () => ({ scope, key }),
+    mutationFn: async (ticket: object) => {
+      const submission = pending.get(ticket);
+      pending.delete(ticket);
+      return submission === undefined
+        ? undefined
+        : recordEmployeeDocument(submission, recordContext);
+    },
+    onSettled: (_data, _error, _variables, context) => {
+      if (context?.scope === current.current.scope && current.current.mounted)
+        recordContext.onPhase('idle');
+      if (!context) return undefined;
+      // تسجيل/استبدال وثيقة = تغيّر معروف في المستند الحالي؛ جرس انتهاء المستند يعيد التحقق من الرقم.
+      void client.resetQueries({ queryKey: ['me', 'document-numbers'] });
+      return client.invalidateQueries({ queryKey: context.key });
+    },
+  });
+  const ticketFor = (submission: DocumentSubmission) => {
+    const ticket = {};
+    pending.set(ticket, submission);
+    return ticket;
+  };
+  return {
+    ...record,
+    mutate: (submission: DocumentSubmission) => record.mutate(ticketFor(submission)),
+    mutateAsync: (submission: DocumentSubmission) => record.mutateAsync(ticketFor(submission)),
+  };
+}
+
 type DocumentRecordContext = {
   companyId: string;
   businessId: string;
@@ -275,6 +312,7 @@ async function recordEmployeeDocument(
   });
   if (!active(operation)) return undefined;
   onPhase('recording');
+  const number = values.document_number?.trim();
   const result = await apiClient().POST(
     '/v1/businesses/{businessId}/employees/{employeeId}/documents',
     {
@@ -286,13 +324,21 @@ async function recordEmployeeDocument(
         type_code: values.type_code,
         file_id: fileId,
         expires_on: values.expires_on === '' ? null : values.expires_on,
+        ...(number ? { document_number: number } : {}),
       },
     },
   );
   if (result.error) throw result.error;
-  if (!active(operation)) return undefined;
+  if (!active(operation)) return { operation };
   return { document: employeeDocument.parse(result.data), operation };
 }
+
+// الواجهة تقرأ النسخة القديمة من API أثناء النشر أو الرجوع. الرد الجديد يحتفظ بالحقل الصريح.
+const compatibleEmployeeDocumentsView = employeeDocumentsView.extend({
+  items: employeeDocumentListItem
+    .extend({ document_number: employeeDocumentListItem.shape.document_number.default(null) })
+    .array(),
+});
 
 function useDocumentsView(
   companyId: string,
@@ -305,6 +351,9 @@ function useDocumentsView(
     queryKey: ['employee-documents', companyId, businessId, userId, employeeId],
     staleTime: 0,
     refetchOnMount: 'always',
+    // الحفظ ينتظر رد تحقق حقيقي، بدل انتهاء الوعد بينما القراءة متوقفة بسبب حالة الاتصال.
+    networkMode: 'always',
+    refetchOnReconnect: true,
     retry: false,
     queryFn: async ({ signal }) => {
       const result = await apiClient().GET(
@@ -315,7 +364,7 @@ function useDocumentsView(
         },
       );
       if (result.error) throw { ...result.error, status: result.response.status };
-      return employeeDocumentsView.parse(result.data);
+      return compatibleEmployeeDocumentsView.parse(result.data);
     },
   });
   // مفاتيح الوثائق لا تبقى في الذاكرة بعد إغلاق الموظف أو سحب الإذن.

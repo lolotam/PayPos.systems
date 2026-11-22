@@ -16,9 +16,16 @@ const input = {
   phone: { calling_code: '1', national_number: '0002025550123' },
   name: 'New name',
   locale: 'ar' as const,
+  gender: 'female' as const,
 };
 const actor = { companyId: 'company', userId: 'user' };
 const at = new Date('2026-10-01T00:00:00Z');
+
+function genderless(value: typeof input): Omit<typeof input, 'gender'> {
+  const { gender, ...rest } = value;
+  void gender;
+  return rest;
+}
 
 function setup(existing: CustomerRecord | null, created = true) {
   const customer: CustomerRecord = {
@@ -68,6 +75,7 @@ describe('find-or-create customer — the creation path', () => {
       phone: '+12025550123',
       locale: 'ar',
       at,
+      gender: 'female',
     });
     expect(h.audit).toHaveBeenCalledWith({
       entity: 'customer',
@@ -87,7 +95,7 @@ describe('find-or-create customer — the creation path', () => {
       scope: { kind: 'company' },
       input: {
         ...input,
-        gender: 'female',
+        gender: 'male',
         birthday: { day: 5, month: 3, year: 1990 },
         email: 'a@b.test',
       },
@@ -98,7 +106,7 @@ describe('find-or-create customer — the creation path', () => {
       phone: '+12025550123',
       locale: 'ar',
       at,
-      gender: 'female',
+      gender: 'male',
       birthday: { day: 5, month: 3, year: 1990 },
       email: 'a@b.test',
     });
@@ -237,5 +245,50 @@ describe('find-or-create customer — the refusals', () => {
     ).rejects.toThrow(InvalidCustomerPhoneError);
     expect(h.transactions.run).not.toHaveBeenCalled();
     expect(h.ids.newId).not.toHaveBeenCalled();
+  });
+});
+
+describe('find-or-create customer — conditional gender', () => {
+  it('refuses a miss with no gender before any id, time, note, insert or audit', async () => {
+    const h = setup(null);
+    await expect(
+      h.useCase.execute({
+        ...actor,
+        scope: { kind: 'branch', branchId: 'branch-id' },
+        input: { ...genderless(input), note: 'Prefers the window seat' },
+      }),
+    ).rejects.toThrow(InvalidCustomerProfileError);
+    expect(h.scope.findByPhone).toHaveBeenCalledWith('+12025550123');
+    expect(h.ids.newId).not.toHaveBeenCalled();
+    expect(h.clock.now).not.toHaveBeenCalled();
+    expect(h.scope.branchBusiness).not.toHaveBeenCalled();
+    expect(h.scope.create).not.toHaveBeenCalled();
+    expect(h.scope.addNote).not.toHaveBeenCalled();
+    expect(h.audit).not.toHaveBeenCalled();
+  });
+
+  it('opens a legacy customer with a NULL gender from a body that omits gender', async () => {
+    const h = setup({
+      id: 'legacy-id',
+      phone: '+12025550123',
+      name: 'Legacy name',
+      locale: 'en',
+      optedOutAt: null,
+    });
+    const response = await h.useCase.execute({
+      ...actor,
+      scope: { kind: 'business', businessId: 'business-id' },
+      input: { ...genderless(input), note: 'Kept for this business' },
+    });
+    expect(response).toEqual({
+      id: 'legacy-id',
+      name: 'Legacy name',
+      locale: 'en',
+      opted_out: false,
+      phone: '***123',
+    });
+    expect(h.scope.create).not.toHaveBeenCalled();
+    expect(h.scope.addNote).not.toHaveBeenCalled();
+    expect(h.audit).not.toHaveBeenCalled();
   });
 });

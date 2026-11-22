@@ -15,7 +15,12 @@ const phoneInput = (national_number: string, calling_code = '1') => ({
   calling_code,
   national_number,
 });
-const payload = { phone: phoneInput('2025550123'), name: 'Example A', locale: 'ar' };
+const payload = {
+  phone: phoneInput('2025550123'),
+  name: 'Example A',
+  locale: 'ar' as const,
+  gender: 'female' as const,
+};
 let h: Harness;
 let cookieA: string;
 let cookieB: string;
@@ -58,6 +63,12 @@ const send = (phone: unknown = payload.phone, extra: object = {}) =>
     company: A,
     body: { ...payload, phone, ...extra },
   });
+
+function genderless(body: typeof payload): Omit<typeof payload, 'gender'> {
+  const { gender, ...rest } = body;
+  void gender;
+  return rest;
+}
 
 it('CUS-08 Owner and GM defaults exist; Viewer without a grant and missing session are refused', async () => {
   expect(
@@ -115,6 +126,51 @@ it('CUS-02 returns the existing identity without overwriting name, locale or tim
   expect(
     await h.owner`SELECT 1 FROM audit_log WHERE company_id = ${A} AND entity_id = ${idA}`,
   ).toHaveLength(1);
+});
+
+it('a new customer without gender is refused before any customer, note or audit write', async () => {
+  const statementsBefore = h.calls.statements.length;
+  const lookup = genderless(payload);
+  const result = await h.send('POST', PATH, {
+    cookie: cookieA,
+    company: A,
+    body: { ...lookup, phone: phoneInput('2025550127') },
+  });
+  expect(result.status).toBe(400);
+  expect(result.body).toMatchObject({ code: 'VALIDATION_FAILED' });
+  expect(result.body).not.toHaveProperty('details');
+  expect(
+    await h.owner`SELECT 1 FROM customers WHERE company_id = ${A} AND phone = '+12025550127'`,
+  ).toHaveLength(0);
+  const written = h.calls.statements.slice(statementsBefore);
+  expect(written.some((entry) => /INSERT INTO customers/i.test(entry.sql))).toBe(false);
+  expect(written.some((entry) => /INSERT INTO customer_notes/i.test(entry.sql))).toBe(false);
+  expect(written.some((entry) => /INSERT INTO audit_log/i.test(entry.sql))).toBe(false);
+});
+
+it('a supplied unsupported gender is refused by the input contract', async () => {
+  const result = await send(phoneInput('2025550128'), { gender: 'other' });
+  expect(result.status).toBe(400);
+  expect(result.body).toMatchObject({ code: 'VALIDATION_FAILED' });
+  expect(result.body).not.toHaveProperty('details');
+});
+
+it('a legacy customer with a NULL gender still opens from a genderless body', async () => {
+  const legacyId = '01920000-0000-7000-8000-0000000000fe';
+  await h.owner`INSERT INTO customers (company_id, id, name, phone, locale, gender, created_at, updated_at)
+    VALUES (${A}, ${legacyId}, 'Legacy name', '+12025550129', 'en', NULL, now(), now())`;
+  const statementsBefore = h.calls.statements.length;
+  const lookup = genderless(payload);
+  const result = await h.send('POST', PATH, {
+    cookie: cookieA,
+    company: A,
+    body: { ...lookup, phone: phoneInput('2025550129') },
+  });
+  expect(result.status).toBe(200);
+  expect(customer.parse(result.body)).toMatchObject({ id: legacyId, name: 'Legacy name' });
+  const written = h.calls.statements.slice(statementsBefore);
+  expect(written.some((entry) => /INSERT INTO customers/i.test(entry.sql))).toBe(false);
+  expect(written.some((entry) => /INSERT INTO audit_log/i.test(entry.sql))).toBe(false);
 });
 
 it('CUS-03 simultaneous callers receive one id, row and creation audit', async () => {

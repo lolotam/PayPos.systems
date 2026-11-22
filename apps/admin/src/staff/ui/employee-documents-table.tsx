@@ -1,5 +1,5 @@
 'use client';
-import type { EmployeeDocument } from '@pospay/contracts';
+import type { EmployeeDocumentListItem } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { DataTableFrame } from '@pospay/ui';
 import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
@@ -9,7 +9,7 @@ import { documentColumns, type DocumentRowActions } from './employee-document-co
 export function EmployeeDocumentsTable({
   items,
   ...actions
-}: DocumentRowActions & { items: EmployeeDocument[] }) {
+}: DocumentRowActions & { items: EmployeeDocumentListItem[] }) {
   'use no memo';
   const locale = useLocale();
   const table = useReactTable({

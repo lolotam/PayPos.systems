@@ -70,6 +70,8 @@ Not here yet:
 11. **الصلاحية:** مستخدم من غير صلاحية التسجيل على الفرع ← **غير مسموح بهذا الإجراء** ومفيش فورم.
     - لو الصلاحية اتشالت وإنت شغال، الشاشة بتعيد قراءة الصلاحية بعد أول رفض.
 12. **تغيير الهوية أو النطاق:** خروج ودخول بمستخدم تاني، أو تغيير الشركة أو النشاط أو الفرع ← الفورم والمحاولة المعلّقة بيتمسحوا.
+13. **تسجيل الزبونة (34-pre-2):** اختاري **النوع** («أنثى» أو «ذكر») — مفيش اختيار مسبق، ومطلوب للعميل الجديد. فتح عميل موجود (حتى لو نوعه غير مسجل) بيتم من غير اختيار نوع: دخلي الرقم واضغطي **إيجاد أو إنشاء الزبونة**. الحقول الاختيارية: **تاريخ الميلاد** (يوم وشهر والسنة اختيارية؛ 29 فبراير مقبول من غير سنة)، **البريد الإلكتروني**، و**ملاحظة لهذا النشاط** — الملاحظة بتظهر في مساري النشاط والفرع بس، وجنبها **ماتكتبش أسرار أو بيانات حساسة**. لو مفيش نوع ومحاولة الإنشاء فشلت، بتظهر إرشادات للخطوة الجاية من غير ما الرسالة تدّعي إن الرقم جديد.
+14. **بطاقة الزبونة:** بعد الاختيار البطاقة بتعرض النوع والميلاد (يوم/شهر لو السنة مش معروفة) والإيميل وملاحظات كل الأنشطة باسم النشاط. لو القراءة فشلت، تسجيل الزيارة والباقات لسه شغالين، والبطاقة ليها **إعادة تحميل البطاقة**.
 
 **ممنوع يحصل:**
 - زيارة تتسجل مرتين بسبب ضغطتين، أو رد ضاع، أو رجوع النت.
@@ -120,6 +122,13 @@ Not here yet:
     - If the permission is removed while working, the screen re-reads it after the first refusal.
 12. **Identity or scope change:** signing out and in as another user, or changing the company, business or branch → the form and any pending
     attempt are cleared.
+13. **Reception registration (34-pre-2):** choose **Gender** («Female» or «Male»); there is no preselection and a new customer requires it.
+    Opening an existing customer — even one with no stored gender — works without choosing one: enter the phone and press **Find or create
+    customer**. Optional fields: **Birthday** (day and month, year optional; 29 February is accepted without a year), **Email**, and **Note for
+    this business** — the note appears only in business and branch entry, beside **Do not write secrets or sensitive data.** If creation fails
+    with no gender selected, the next attempt is guided without claiming the phone is new.
+14. **Customer card:** once selected, the card shows gender, birthday (day/month when the year is unknown), email and the notes of every
+    business labelled with its name. If the read fails, visit recording and packages still work and the card offers **Retry card**.
 
 **Must NOT happen:**
 - A visit recorded twice because of a double click, a lost answer or a reconnect.

@@ -9,7 +9,12 @@ import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts'
 import { customerForReception } from '../../domain/customer.ts';
 import { InvalidCustomerProfileError } from '../../domain/errors.ts';
 import { normalizePhone } from '../../domain/phone.ts';
-import { isEmailShape, isNoteShape, validateBirthday } from '../../domain/profile.ts';
+import {
+  isEmailShape,
+  isNoteShape,
+  requireCustomerGender,
+  validateBirthday,
+} from '../../domain/profile.ts';
 import type {
   CustomerScope,
   CustomerTransactions,
@@ -93,20 +98,21 @@ export class FindOrCreateCustomerUseCase {
     return this.transactions.run(command, async (scope) => {
       const existing = await scope.findByPhone(phone);
       // العميل الموجود بيتقفل عليه زي ما هو: حقول الملف الشخصي والملاحظة بتتجاهل خالص (S-3).
+      // غياب النوع مقبول هنا حتى لو كان النوع المخزّن NULL — البحث مش عملية إنشاء.
       if (existing !== null) return customerForReception(existing);
 
+      // أول خطوة بعد تأكيد الـ miss: النوع مطلوب قبل المعرّف والوقت وحلّ نشاط الملاحظة والإدراج.
+      const gender = requireCustomerGender(command.input.gender);
       const at = this.clock.now();
       // نشاط الملاحظة بيتقري بس لما تكون فيه ملاحظة؛ مسار الشركة مالوش نشاط أصلاً.
       const businessId = note === undefined ? null : await this.noteBusiness(scope, command.scope);
-      // TODO(spec): CI-Q10 activation in 34-pre-2 — النوع مطلوب للعميل الجديد من هنا؛ في 34-pre-1
-      // النوع اختياري وغيابه بيتخزّن NULL، فمفيش اختبار بيقبله على حالة إجبارية.
       const result = await scope.create({
         id: this.ids.newId(),
         name: command.input.name,
         phone,
         locale: command.input.locale,
         at,
-        ...(command.input.gender !== undefined ? { gender: command.input.gender } : {}),
+        gender,
         ...(command.input.birthday !== undefined ? { birthday: command.input.birthday } : {}),
         ...(command.input.email !== undefined ? { email: command.input.email } : {}),
       });

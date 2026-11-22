@@ -9,13 +9,14 @@ import {
 import { moneyToString, parseMoney } from '@pospay/domain';
 import { normalizeKwdInput, t } from '@pospay/i18n';
 import { Button, Label, NativeSelect } from '@pospay/ui';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import { usePackageSaleContext } from '../api/use-package-sale-context';
 import { usePackageSaleStatus } from '../api/use-package-sale-status';
 import { useSellPackage } from '../api/use-sell-package';
 import type { SessionServiceScope } from '../api/use-session-services';
+import { serviceSessionAccessRevoked } from '../model/service-session-access';
 import { SessionCustomerField, type SessionCustomerSelection } from './session-customer-field';
 import { PackageSaleFields, type PackageSaleFieldValues } from './package-sale-fields';
 import { PackageSaleRecoveryNotice } from './package-sale-recovery-notice';
@@ -112,40 +113,40 @@ const saleDefaults: PackageSaleFieldValues = {
 };
 
 function usePackageSaleFormState(scope: SessionServiceScope, locale: 'ar' | 'en') {
-  const [customer, setCustomer] = useState<SessionCustomerSelection | null>(null);
+  const [selection, setSelection] = useState<{
+    customer: SessionCustomerSelection;
+    scopeKey: string;
+  } | null>(null);
   const [type, setType] = useState<SellablePackageType | null>(null);
   const [saleRequestId, setSaleRequestId] = useState<string | null>(null);
-  const context = usePackageSaleContext(scope);
-  const recorders = context.data?.recorders ?? [];
+  const { data: context, error: contextError, isPending: contextPending, refetch: refreshContext } = usePackageSaleContext(scope);
   const form = useForm<PackageSaleFieldValues>({ defaultValues: saleDefaults });
   const mutation = useSellPackage(scope);
   const knownSaleId = saleRequestId ?? mutation.restoredSaleId;
   const [failure, setFailure] = useState<PackageSaleStatus>();
-  const statusQuery = usePackageSaleStatus(scope, knownSaleId, (failed) => {
-    setFailure(failed);
-    setSaleRequestId(null);
-    mutation.releaseFailed(knownSaleId);
-  });
+  const statusQuery = usePackageSaleStatus(scope, knownSaleId, (failed) => { setFailure(failed); setSaleRequestId(null); mutation.releaseFailed(knownSaleId); });
   const status = { ...statusQuery, data: statusQuery.data ?? failure };
-  const pending =
-    mutation.isPending ||
-    (knownSaleId !== null &&
-      status.data?.status !== 'completed' &&
-      status.data?.status !== 'failed');
+  const pending = mutation.isPending || (knownSaleId !== null && status.data?.status !== 'completed' && status.data?.status !== 'failed');
   const locked = pending || mutation.recoveryRequired || mutation.restoring;
-  const { recorder, recorderField } = usePackageSaleRecorderField(recorders, locale, locked);
+  const { recorder, recorderField } = usePackageSaleRecorderField(context?.recorders ?? [], locale, locked);
   const submitSale = packageSaleSubmission(form, locale, mutation, setSaleRequestId);
-  const entryScope = context.data?.customer_entry_scope;
-  const selectType = (selected: SellablePackageType) => {
-    setType(selected);
-    form.setValue('price_paid', selected.price, { shouldDirty: true });
+  const entryScope = serviceSessionAccessRevoked(contextError) ? null : context?.customer_entry_scope;
+  const scopeKey = [scope.companyId, scope.userId, scope.businessId, scope.branchId, entryScope ?? ''].join('|');
+  // اختيار قديم من نطاق تاني ما يتعرضش ولا يبدأ قراءة تحت النطاق الجديد.
+  const customer = selection?.scopeKey === scopeKey ? selection.customer : null;
+  if (selection !== null && customer === null) setSelection(null);
+  const selectCustomer = (next: SessionCustomerSelection | null) => {
+    setSelection(next === null ? null : { customer: next, scopeKey });
   };
+  const onProfileAccessDenied = useCallback(() => {
+    setSelection(null);
+    void refreshContext();
+  }, [refreshContext]);
+  const selectType = (selected: SellablePackageType) => { setType(selected); form.setValue('price_paid', selected.price, { shouldDirty: true }); };
   const picker = usePackageSaleTypeOptions(scope, type, selectType, locked);
   // استرجاع البيع الأصلي بيبعت الطلب المحفوظ، فالعرض المحدّث ما بيمنعهوش
   const quoteStale = picker.quoteChanged && !mutation.recoveryRequired;
-  const submit = form.handleSubmit((values) =>
-    submitSale(values, entryScope ? customer : null, type, recorder),
-  );
+  const submit = form.handleSubmit((values) => submitSale(values, entryScope ? customer : null, type, recorder));
   const { onSubmit } = usePackageSaleSubmit({
     mutation,
     pending,
@@ -156,6 +157,7 @@ function usePackageSaleFormState(scope: SessionServiceScope, locale: 'ar' | 'en'
   });
   return {
     entryScope,
+    contextPending,
     customer,
     recorderField,
     saleRequestId: knownSaleId,
@@ -167,8 +169,9 @@ function usePackageSaleFormState(scope: SessionServiceScope, locale: 'ar' | 'en'
     picker,
     quoteStale,
     onSubmit,
-    setCustomer,
+    selectCustomer,
     setType,
+    onProfileAccessDenied,
   };
 }
 
@@ -201,50 +204,28 @@ function packageSaleResult(
 
 export function PackageSaleForm({ scope }: { scope: SessionServiceScope }) {
   const locale = useLocale();
-  const {
-    entryScope,
-    customer,
-    recorderField,
-    saleRequestId,
-    form,
-    mutation,
-    status,
-    pending,
-    locked,
-    picker,
-    quoteStale,
-    onSubmit,
-    setCustomer,
-    setType,
-  } = usePackageSaleFormState(scope, locale);
+  const { entryScope, contextPending, customer, selectCustomer, recorderField, saleRequestId, form, mutation, status, pending, locked, picker, quoteStale, onSubmit, setType, onProfileAccessDenied } = usePackageSaleFormState(scope, locale);
   return (
     <form noValidate onSubmit={onSubmit} className="grid gap-5 text-start">
       {recorderField}
-      {entryScope === null && <p role="alert">{t(locale, 'packageSale.customerUnavailable')}</p>}
-      <SessionCustomerField
-        {...scope}
-        packagesScope={scope}
-        entryScope={entryScope ?? 'branch'}
-        value={customer}
-        onChange={setCustomer}
-        disabled={locked || !entryScope}
-      />
+      {contextPending ? null : entryScope == null ? (
+        <p role="alert">{t(locale, 'packageSale.customerUnavailable')}</p>
+      ) : (
+        <SessionCustomerField
+          {...scope}
+          packagesScope={scope}
+          entryScope={entryScope}
+          value={customer}
+          onChange={selectCustomer}
+          onAccessDenied={onProfileAccessDenied}
+          disabled={locked}
+        />
+      )}
       <PackageSaleTypeField picker={picker} disabled={locked} onReconfirm={setType} />
       <PackageSaleFields scope={scope} form={form} disabled={locked} />
       {form.formState.errors.root ? <p role="alert">{form.formState.errors.root.message}</p> : null}
       <PackageSaleRecoveryNotice mutation={mutation} status={status.data?.status} />
-      <Button
-        type="submit"
-        disabled={
-          pending ||
-          mutation.restoring ||
-          mutation.verificationRequired ||
-          quoteStale ||
-          saleRequestId !== null ||
-          (!entryScope && !mutation.recoveryRequired) ||
-          status.data?.status === 'completed'
-        }
-      >
+      <Button type="submit" disabled={pending || mutation.restoring || mutation.verificationRequired || quoteStale || saleRequestId !== null || (!entryScope && !mutation.recoveryRequired) || status.data?.status === 'completed'}>
         {packageSaleSubmitLabel(locale, pending, mutation.recoveryRequired)}
       </Button>
       {packageSaleResult(status, saleRequestId)}

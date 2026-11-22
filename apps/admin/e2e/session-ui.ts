@@ -141,13 +141,30 @@ export async function findOrCreateCustomer(
   locale: Locale,
   name: string,
   national: string,
+  gender: 'female' | 'male' = 'female',
 ): Promise<void> {
   const fieldset = page.getByRole('group', { name: t(locale, 'serviceSessions.customer') });
   await byLabel(fieldset, t(locale, 'serviceSessions.name')).fill(name);
   await byLabel(fieldset, t(locale, 'serviceSessions.callingCode')).fill('965');
   await byLabel(fieldset, t(locale, 'serviceSessions.phone')).fill(national);
+  await fieldset
+    .getByRole('radio', {
+      name: t(locale, gender === 'female' ? 'serviceSessions.genderFemale' : 'serviceSessions.genderMale'),
+    })
+    .check();
   await fieldset.getByRole('button', { name: t(locale, 'serviceSessions.findOrCreate') }).click();
-  await expect(fieldset.getByRole('status')).toContainText(t(locale, 'serviceSessions.selected'));
+  await expect(page.getByRole('status').filter({ hasText: t(locale, 'serviceSessions.selected') })).toContainText(name);
+}
+
+export async function expectCustomerCard(
+  page: Page,
+  locale: Locale,
+  expected: { readonly gender?: string; readonly note?: string },
+): Promise<void> {
+  const card = page.getByRole('region', { name: t(locale, 'serviceSessions.profileCard') });
+  await expect(card).toBeVisible();
+  if (expected.gender !== undefined) await expect(card).toContainText(expected.gender);
+  if (expected.note !== undefined) await expect(card).toContainText(expected.note);
 }
 
 async function applyDiscount(group: Locator, locale: Locale, discount: LineSpec['discount']): Promise<void> {

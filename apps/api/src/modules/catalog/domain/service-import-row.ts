@@ -5,7 +5,6 @@ import {
   parseServiceImportNameCell,
   type ServiceImportCategoryResolver,
 } from './service-import-cells.ts';
-import { serviceImportDuplicateRows, serviceImportNameKey } from './service-import-duplicates.ts';
 import { parseServiceImportCommissionCells } from './service-import-commission.ts';
 import { parseServiceImportPriceCell, type ServiceImportTaggedCell } from './service-import-price-cell.ts';
 import type { ServiceImportRowColumn, ServiceImportRowErrorCode } from './service-import.ts';
@@ -24,10 +23,15 @@ export interface ServiceImportRowIssue {
   readonly code: ServiceImportRowErrorCode;
 }
 
-/** مفتاح اسم الصف لكل صف اسمه الإنجليزي سليم، لتحمله إلى 32b-2 من غير إعادة اشتقاق (A-11). */
+/**
+ * اسم الصف المطلق لكل صف اسمه الإنجليزي سليم، لتحمله إلى مقارنة PostgreSQL: التكرار داخل
+ * الملف والوجود في النشاط كلهما يُحسمان بتعبير الطي الواحد في PostgreSQL فلا يبقى مفتاح
+ * جافاسكربت يعارض قاعدة البيانات (FR-007، HIGH مراجعة 1186).
+ */
 export interface ServiceImportRowKey {
   readonly row: number;
-  readonly key: string;
+  /** الاسم المطلق كما ورد في الخلية؛ المقارنة كلها داخل PostgreSQL على الطرفين (A-12). */
+  readonly name: string;
 }
 
 /** مدخل المماسّر الثابت هنا (A-12): الخلايا الموسومة بأرقام الصفوف الأصلية بعد إزالة الفارغ. */
@@ -65,16 +69,15 @@ function commissionRefusalCode(
 }
 
 /**
- * بيحوّل ورقة الخدمات الموسومة لصفوف مطبّعة ومفاتيح وأخطاء مسمّاة (D-8): كل عمود بيتفحص لوحده،
+ * بيحوّل ورقة الخدمات الموسومة لصفوف مطبّعة وأسماء وأخطاء مسمّاة (D-8): كل عمود بيتفحص لوحده،
  * وأخطاء الصف الواحد بترجع بترتيب أعمدة الورقة نفسها و`unexpected_column` آخرها، ورمز واحد لكل
- * صف وعمود. مفتاح الاسم بيتحسب لكل صف اسمه سليم حتى لو عمود تاني غلط أو الصف مكرر، فتُحمل المفاتيح
- * منفصلة عن الصفوف المطبّعة إلى 32b-2 من غير إعادة اشتقاق (A-10/A-11)، والتكرار يشيل كل أفراد
- * مجموعته من الصفوف المطبّعة ويضيف تشخيصه بترتيب الصفوف. مطابقة التصنيف بتصير بمحلّل معطى مسبقاً
- * يقرره المستهلك من قاعدة البيانات، مش بمسح جافاسكربت هنا (A-11).
+ * صف وعمود. اسم كل صف اسمه سليم يُحمل مطلقاً حتى لو عمود تاني غلط أو الصف مكرر، فتقارن الأسماء
+ * داخل PostgreSQL وحدها: التكرار داخل الملف والوجود في النشاط بتعبير طي واحد (FR-007، A-12)،
+ * ومطابقة التصنيف بمحلّل معطى مسبقاً يقرره المستهلك من قاعدة البيانات، مش بمسح جافاسكربت هنا (A-11).
  *
  * @param sheet           عناوين الورقة المشذبة وصفوفها الموسومة بأرقامها الأصلية
  * @param resolveCategory محلّل نصّ البحث إلى التصنيف المفتوح المحلول أو `null`
- * @returns الصفوف والمفاتيح والأخطاء، كل قائمة بترتيب الورقة
+ * @returns الصفوف والأسماء والأخطاء، كل قائمة بترتيب الورقة
  */
 export function mapServiceImportRows(
   sheet: ServiceImportSheetInput,
@@ -91,22 +94,10 @@ export function mapServiceImportRows(
   const keys: ServiceImportRowKey[] = [];
   for (const source of sheet.rows) {
     const outcome = mapSheetRow(source, layout, resolveCategory, errors);
-    if (outcome.key !== null) keys.push({ row: source.row, key: outcome.key });
+    if (outcome.name !== null) keys.push({ row: source.row, name: outcome.name });
     if (outcome.row !== null) rows.push(outcome.row);
   }
-  const duplicates = serviceImportDuplicateRows(keys);
-  for (const row of duplicates)
-    errors.push({ row, column: 'name_en', code: 'IMPORT_DUPLICATE_IN_FILE' });
-  const duplicateRows = new Set(duplicates);
-  const rowPositions = new Map(sheet.rows.map(({ row }, index) => [row, index]));
-  // أخطاء التكرار تظهر بعد فحص الورقة كلها، فبنرجّعها لمواضع أعمدتها وصفوفها الأصلية (ترتيب الورقة).
-  errors.sort(
-    (left, right) =>
-      (rowPositions.get(left.row) ?? 0) - (rowPositions.get(right.row) ?? 0) ||
-      (positions.get(left.column) ?? layout.headerCount) -
-        (positions.get(right.column) ?? layout.headerCount),
-  );
-  return { rows: rows.filter((row) => !duplicateRows.has(row.row)), keys, errors };
+  return { rows, keys, errors };
 }
 
 /** تخطيط الورقة: العناوين نفسها وموضع كل عنوان وعدد الأعمدة المعلنة، ثابت على مستوى الورقة كلها. */
@@ -116,10 +107,10 @@ interface SheetLayout {
   readonly headerCount: number;
 }
 
-/** نتيجة صف واحد: الصف المطبّع أو فراغه، ومفتاح اسمه إن كان سليماً؛ أخطاؤه اتكتبت في القائمة. */
+/** نتيجة صف واحد: الصف المطبّع أو فراغه، واسمه المطلق إن كان سليماً؛ أخطاؤه اتكتبت في القائمة. */
 interface SheetRowOutcome {
   readonly row: ServiceImportNormalizedRow | null;
-  readonly key: string | null;
+  readonly name: string | null;
 }
 
 // بيتحول صف واحد: التوسيم فوق آخر عنوان، ثم كل عمود بيتجمع خطأه، ثم الإخراج بترتيب أعمدة الورقة
@@ -139,11 +130,6 @@ function mapSheetRow(
   if (source.cells.slice(layout.headerCount).some(cellHasData))
     collect('unexpected_column', 'IMPORT_COLUMN_UNEXPECTED');
   const cells = convertRowCells(at, resolveCategory, collect);
-  // مفتاح الاسم بيتحسب لكل صف اسمه سليم حتى لو عمود تاني غلط أو الصف مكرر (A-10).
-  const key =
-    cells.nameEn.ok && cells.nameEn.value !== null
-      ? serviceImportNameKey(cells.nameEn.value)
-      : null;
   for (const header of layout.headers) {
     const column = header as ServiceImportRowColumn;
     const code = perColumn.get(column);
@@ -152,7 +138,8 @@ function mapSheetRow(
   const unexpected = perColumn.get('unexpected_column');
   if (unexpected !== undefined)
     errors.push({ row: source.row, column: 'unexpected_column', code: unexpected });
-  if (perColumn.size > 0) return { row: null, key };
+  const name = cells.nameEn.ok ? cells.nameEn.value : null;
+  if (perColumn.size > 0) return { row: null, name };
   // باب التضييق النوعي: وصلنا بكل الحقول مقبولة، فالسطر ده حرفياً نفس معنى perColumn فاضية.
   if (
     !(
@@ -164,7 +151,7 @@ function mapSheetRow(
       cells.counts.ok
     )
   )
-    return { row: null, key };
+    return { row: null, name };
   const final = buildNormalizedRow(source.row, {
     nameEn: cells.nameEn.value ?? '',
     nameAr: cells.nameAr.ok ? cells.nameAr.value : null,
@@ -175,9 +162,9 @@ function mapSheetRow(
     defaulted: cells.commission.defaulted,
     counts: cells.counts.value,
   });
-  if (final.ok) return { row: final.row, key };
+  if (final.ok) return { row: final.row, name };
   errors.push({ row: source.row, column: final.column, code: final.code });
-  return { row: null, key };
+  return { row: null, name };
 }
 
 /** نتائج تحويل خلايا الصف الثمانية كما خرجت من محوّلاتها، وأخطاؤها متجمعة لكل عمود. */

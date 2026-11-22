@@ -30,7 +30,7 @@ export const customerPaths = {
       },
       parameters: [companyHeader],
       description:
-        'Requires create:customers:company and the customers feature. Existing name and locale are preserved.',
+        'Requires create:customers:company and the customers feature. Existing name and locale are preserved. Gender may be omitted to look up an existing customer, including a legacy NULL; a new customer requires a supported gender and a miss without one is refused before writing.',
     },
   },
   '/v1/businesses/{businessId}/customers/find-or-create': scopedCustomerPath(
@@ -164,7 +164,7 @@ function scopedCustomerPath(parameter: string, scope: string) {
     post: {
       operationId:
         scope === 'business' ? 'findOrCreateBusinessCustomer' : 'findOrCreateBranchCustomer',
-      description: `Requires create:customers:${scope} at the verified context and the customers feature. Customer identity remains company-scoped.`,
+      description: `Requires create:customers:${scope} at the verified context and the customers feature. Customer identity remains company-scoped. Gender may be omitted to look up an existing customer, including a legacy NULL; a new customer requires a supported gender and a miss without one is refused before any note or audit write.`,
       requestBody: { required: true, content: json('FindOrCreateScopedCustomerInput') },
       responses: {
         '200': { description: 'Customer with masked phone', content: json('Customer') },

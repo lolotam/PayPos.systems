@@ -55,6 +55,15 @@ describe('/health and /ready', () => {
     expect(await request('GET', '/health')).toEqual({ status: 200, body: { status: 'ok' } });
   });
 
+  it('starts the catalog import controller without a database and keeps it unavailable', async () => {
+    await start([]);
+    const res = await request(
+      'GET',
+      '/v1/businesses/01920000-0000-7000-8000-0000000000a1/services/import/template',
+    );
+    expect(res.status).toBeLessThan(500);
+  });
+
   it('/ready is 200 when every dependency answers', async () => {
     await start([up, { ...up, name: 'redis' }]);
     expect(await request('GET', '/ready')).toEqual({

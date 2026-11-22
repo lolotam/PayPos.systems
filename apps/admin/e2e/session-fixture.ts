@@ -16,6 +16,7 @@ export {
   addDraftLine,
   chooseCompany,
   documentLocale,
+  expectCustomerCard,
   dropFirstCreate,
   fillLine,
   findOrCreateCustomer,

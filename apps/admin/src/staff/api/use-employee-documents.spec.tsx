@@ -41,9 +41,10 @@ const recordedDocument = {
   recorded_at: '2026-10-04T08:00:00.000Z',
   status: 'EXPIRING',
 };
+const listedDocument = { ...recordedDocument, document_number: null };
 const view = (canManage = true) => ({
   today: '2026-10-05',
-  items: [recordedDocument],
+  items: [listedDocument],
   types: [civil],
   can_manage: canManage,
 });
@@ -150,39 +151,65 @@ function mockUpload(record?: () => Promise<unknown>, download?: Promise<unknown>
   });
   put.mockResolvedValue({ ok: true });
 }
-async function startUpload() {
+async function startUpload(documentNumber?: string) {
   fireEvent.change(await screen.findByLabelText(t('en', 'employeeDocuments.file')), {
     target: { files: [new File(['pdf'], 'civil.pdf', { type: 'application/pdf' })] },
   });
   fireEvent.change(screen.getByLabelText(t('en', 'employeeDocuments.expiresOn')), {
     target: { value: '2026-10-20' },
   });
+  if (documentNumber !== undefined) {
+    fireEvent.change(screen.getByLabelText(t('en', 'employeeDocuments.documentNumber')), {
+      target: { value: documentNumber },
+    });
+  }
   fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeDocuments.upload') }));
 }
 it('lists current documents with their badge only after a fresh read and evicts them on close', async () => {
   api.GET.mockResolvedValueOnce({ data: view(false) });
   const { client, unmount } = setup();
-  await waitFor(() =>
-    expect(screen.getByText(t('en', 'employeeDocuments.status_EXPIRING'))).toBeTruthy(),
-  );
+  expect(await screen.findByText(t('en', 'employeeDocuments.status_EXPIRING'))).toBeTruthy();
   expect(screen.queryByRole('button', { name: t('en', 'employeeDocuments.upload') })).toBeNull();
   unmount();
   expect(client.getQueryCache().findAll({ queryKey: prefix })).toEqual([]);
+});
+
+it('keeps the document number for a retry and clears it for the next upload after success', async () => {
+  mockDocuments(Promise.resolve(readyFile), () => ({ data: view() }));
+  const record = vi.fn<() => Promise<unknown>>(async () => ({ data: recordedDocument }));
+  record.mockResolvedValueOnce(failure('Try the upload again'));
+  mockUpload(record);
+  setup();
+
+  await startUpload('SYN-DOC-RETRY');
+  expect(await screen.findByText('Try the upload again')).toBeTruthy();
+  const number = () => screen.getByLabelText(t('en', 'employeeDocuments.documentNumber'));
+  expect(number()).toHaveProperty('value', 'SYN-DOC-RETRY');
+
+  await startUpload();
+  expect(await screen.findByText(t('en', 'employeeDocuments.recorded'))).toBeTruthy();
+  await waitFor(() => expect(number()).toHaveProperty('value', ''));
+  expect(screen.getByLabelText(t('en', 'employeeDocuments.file'))).toHaveProperty(
+    'files.length',
+    0,
+  );
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeDocuments.upload') }));
+  expect(await screen.findByRole('alert')).toBeTruthy();
+  expect(record).toHaveBeenCalledTimes(2);
+
+  await startUpload();
+  await waitFor(() => expect(record).toHaveBeenCalledTimes(3));
+  const bodies = api.POST.mock.calls.filter(([path]) => path === recordPath).map(([, r]) => r.body);
+  expect(bodies[1]).toMatchObject({ document_number: 'SYN-DOC-RETRY' });
+  expect(bodies[2]).not.toHaveProperty('document_number');
 });
 it('uploads through files, waits for READY, then records by file id with an idempotency key', async () => {
   api.GET.mockImplementation(async (path: string) =>
     path === '/v1/files/{id}' ? readyFile : { data: view() },
   );
   mockUpload();
-  setup();
-  const input = await screen.findByLabelText(t('en', 'employeeDocuments.file'));
-  fireEvent.change(input, {
-    target: { files: [new File(['pdf'], 'civil.pdf', { type: 'application/pdf' })] },
-  });
-  fireEvent.change(screen.getByLabelText(t('en', 'employeeDocuments.expiresOn')), {
-    target: { value: '2026-10-20' },
-  });
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeDocuments.upload') }));
+  const { client, unmount } = setup();
+  await startUpload('SYN-DOC-01');
   await waitFor(() => expect(screen.getByText(t('en', 'employeeDocuments.recorded'))).toBeTruthy());
   expect(api.POST.mock.calls.map((call) => call[0])).toEqual([
     '/v1/businesses/{businessId}/files/uploads',
@@ -199,6 +226,7 @@ it('uploads through files, waits for READY, then records by file id with an idem
     type_code: 'civil_id',
     file_id: fileId,
     expires_on: '2026-10-20',
+    document_number: 'SYN-DOC-01',
   });
   expect(recorded.params.header['Idempotency-Key']).toEqual(expect.any(String));
   expect(put).toHaveBeenCalledWith(
@@ -212,12 +240,15 @@ it('uploads through files, waits for READY, then records by file id with an idem
       },
     }),
   );
+  unmount();
+  await waitFor(() =>
+    expect(client.getMutationCache().findAll({ mutationKey: [...prefix, 'record'] })).toEqual([]),
+  );
 });
 it('refuses a missing required expiry or an unsupported file before any upload', async () => {
   api.GET.mockResolvedValue({ data: view() });
   setup();
-  const input = await screen.findByLabelText(t('en', 'employeeDocuments.file'));
-  fireEvent.change(input, {
+  fireEvent.change(await screen.findByLabelText(t('en', 'employeeDocuments.file')), {
     target: { files: [new File(['x'], 'x.webp', { type: 'image/webp' })] },
   });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeDocuments.upload') }));
@@ -284,8 +315,12 @@ it('hides document success when write access was revoked during the POST', async
   }));
   mockUpload(() => posted.promise);
   const { client } = setup();
-  await startUpload();
+  await startUpload('SYN-DOC-PENDING');
   await waitFor(() => expect(api.POST).toHaveBeenCalledWith(recordPath, expect.anything()));
+  const record = client.getMutationCache().find({ mutationKey: [...prefix, 'record'] });
+  expect(record?.state.status).toBe('pending');
+  expect(record?.state.variables).toEqual({});
+
   current = { ...view(), can_manage: false };
   await refresh(client);
   current = view();
@@ -300,7 +335,7 @@ it.each(['companyId', 'businessId', 'userId', 'employeeId'] as const)(
     let changed = false;
     const initial = {
       ...view(),
-      items: [{ ...recordedDocument, type_code: 'passport' }],
+      items: [{ ...listedDocument, type_code: 'passport' }],
       types: [civil, passport],
     };
     const next = { ...view(), items: [], types: [civil] };

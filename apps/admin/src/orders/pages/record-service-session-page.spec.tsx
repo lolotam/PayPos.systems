@@ -11,6 +11,14 @@ import { RecordServiceSessionPage } from './record-service-session-page';
 
 const state = vi.hoisted(() => ({ locale: 'en' as 'ar' | 'en', get: vi.fn(), post: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: state.get, POST: state.post }) }));
+vi.mock('../api/use-session-customer-profile', () => ({
+  useSessionCustomerProfile: () => ({
+    data: undefined,
+    isError: false,
+    isPending: true,
+    refetch: vi.fn(),
+  }),
+}));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
 
 const service = { id: id(5), name_ar: null, name_en: 'Synthetic service', price: '7.125', revision: 1 };

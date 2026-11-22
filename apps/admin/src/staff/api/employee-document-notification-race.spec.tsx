@@ -39,6 +39,7 @@ const view = {
       type_name_en: 'Synthetic paper',
       type_name_ar: null,
       object_key: 'synthetic/verified',
+      document_number: null,
       expires_on: null,
       uploaded_by: id,
       recorded_at: '2026-10-04T08:00:00.000Z',

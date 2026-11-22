@@ -89,6 +89,29 @@ it('the default rule reaches the owner and attaches the recipients once', async 
   expect(await outboxRows(ctx, tenant.company, EVENT)).toHaveLength(1);
 });
 
+it('AC-D13 a document carrying a number still produces the six-parameter bell with no number anywhere', async () => {
+  const tenant = await f.tenant();
+  await owner(tenant);
+  const employee = await f.employee(tenant);
+  await f.type(tenant, 'passport', 30);
+  await f.document(tenant, employee, 'passport', '2026-11-04', 'SYN-WORKER-NUMBER');
+
+  expect(await f.detect().execute(tenant.company)).toEqual({ notified: 1 });
+  const events = await outboxRows(ctx, tenant.company, EVENT);
+  const bell = eventBell(events[0]);
+  expect(bell?.safe_parameters).toHaveLength(6);
+  expect(bell?.safe_parameters.map((parameter) => parameter.name)).toEqual([
+    'employee_name_ar',
+    'employee_name_en',
+    'document_type_ar',
+    'document_type_en',
+    'expires_on',
+    'document_id',
+  ]);
+  expect(JSON.stringify(events)).not.toContain('SYN-WORKER-NUMBER');
+  expect(JSON.stringify(await auditRows(ctx, tenant.company))).not.toContain('SYN-WORKER-NUMBER');
+});
+
 it('a switched off kind keeps the ledger row and sends no bell, and a later run attaches them', async () => {
   const tenant = await f.tenant();
   const ownerId = await owner(tenant);
