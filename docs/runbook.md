@@ -350,10 +350,15 @@ no `published_at`, no `attempts`, no mark and no projection change.
    difference is not a reason to replay again.
    `--through` here makes a **bounded** check, useful to verify a given replay up to that id. **The evidence used to open approval is ONE
    run with no `--through`, taken in the quiet window (below), naming every business;** the printed `throughId` is the bound it proved up
-   to, and it is what is recorded with the proof. If that run reports unmarked or unhandled retained events, the remedy is the six-type
-   retained replay (50-3d), not the four-type one. If a run cannot prove the whole scope, approval stays closed.
+   to, and it is what is recorded with the proof. The two findings have **different remedies**. An `unmarked` retained event is replayed (the
+   six-type retained replay of 50-3d, not the four-type one) and the report is run again. A `notHandled` event
+   (`COMMISSION_EVENT_TYPE_NOT_HANDLED`) keeps approval closed and is **not** fixed by a replay, because the replay delivers only the event
+   types the consumer registers: first correct the worker release or the handler registration so that the type is handled, then replay,
+   then run the report again. After 50-4 a `notHandled` event is a configuration gap, never an expected wait. If a run cannot prove the
+   whole scope, approval stays closed.
    Without `--through` the bound is **not** taken when the command starts: lines, salaries and sales are scanned first, then the bound is
-   the highest counted retained-event id on the first retained-event page. Do not treat `throughId` as a start-up cutoff; that is one more
+   the highest id among **all** of the company's retained events of the six counted types, read once before the first retained-event page is
+   fetched (not the maximum of the first page). Do not treat `throughId` as a start-up cutoff; that is one more
    reason to take the run in the quiet window. Compare `throughId` values as UUIDs, ignoring letter case: a supplied `--through` is
    printed as typed, while an automatic one comes from PostgreSQL in lower case.
    **The retained-event mark check ends at the printed `throughId` and nothing after it is looked at.** A counted event created after that
