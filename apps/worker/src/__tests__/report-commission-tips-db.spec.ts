@@ -21,7 +21,7 @@ import {
   readServiceLineCoveragePage,
 } from '../modules/orders/index.ts';
 import { readSalaryCoveragePage } from '../modules/staff/index.ts';
-import { companyOpen } from '../modules/tenancy/index.ts';
+import { businessTimeZone, companyOpen } from '../modules/tenancy/index.ts';
 
 useBootstrapHarness();
 
@@ -55,6 +55,10 @@ function coverageReport() {
     sales: { readPage: listCurrentPackageSales },
     retained: dispatcher,
     companies: { isOpen: companyOpen },
+    businesses: {
+      isInCompany: async (tx, companyId, businessId) =>
+        (await businessTimeZone(tx, companyId, businessId)) !== null,
+    },
     tipsReader: { readPage: readCurrentSessionTips },
   });
 }

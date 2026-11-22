@@ -8,6 +8,7 @@ import {
   CommissionCoverageEventInvalidError,
   CommissionCoverageScopeInvalidError,
   CommissionReplayCursorError,
+  commissionCoverageExitCode,
   createCommissionCoverageReport,
   isCommissionCoverageCalendarDate,
   type CommissionCoverageScope,
@@ -18,7 +19,7 @@ import {
   readServiceLineCoveragePage,
 } from './modules/orders/index.ts';
 import { readSalaryCoveragePage } from './modules/staff/index.ts';
-import { companyOpen } from './modules/tenancy/index.ts';
+import { businessTimeZone, companyOpen } from './modules/tenancy/index.ts';
 
 const MAX_BUSINESS_IDS = 200;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -107,10 +108,15 @@ try {
       sales: { readPage: listCurrentPackageSales },
       retained: reader,
       companies: { isOpen: companyOpen },
+      // المنطقة الزمنية null لنشاط غير موجود أو ليس من الشركة، فيصير الانتماء قراءة tenancy الموجودة نفسها.
+      businesses: {
+        isInCompany: async (tx, companyId, businessId) =>
+          (await businessTimeZone(tx, companyId, businessId)) !== null,
+      },
       tipsReader: { readPage: readCurrentSessionTips },
     })(scope);
     console.log(JSON.stringify(report));
-    if (report.status !== 'COVERED') process.exitCode = 1;
+    process.exitCode = commissionCoverageExitCode(report);
   } catch (error) {
     failure = error;
   }

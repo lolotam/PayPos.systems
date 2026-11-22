@@ -10,8 +10,10 @@ import type { CommissionSaleProjectionRow } from '../../domain/commission-sale-i
 import type {
   CommissionSaleProjectionScope,
 } from '../../ports/commission-sale-projection.port.ts';
-import type { CommissionCorrectionScope } from '../../ports/commission-correction.port.ts';
-import type { CommissionBlockNotices } from '../../ports/commission-block-notice.port.ts';
+import type {
+  CommissionCorrectionScope,
+  CommissionBlockNotices,
+} from '@pospay/commissions-posting';
 import { ProjectPackageSale } from './project-package-sale.ts';
 
 const COMPANY = '01920000-0000-7000-8000-0000000000a0';

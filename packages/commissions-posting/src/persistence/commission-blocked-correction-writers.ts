@@ -11,7 +11,7 @@ import type {
   CommissionBlockResolutionInput,
   CommissionOpenBlockInput,
 } from '../ports/commission-correction.port.ts';
-import type { Clock, IdGenerator } from '../ports/commission-line-projection.port.ts';
+import type { Clock, IdGenerator } from '../ports/commission-posting-clock.port.ts';
 
 type BlockRow = { id: string; code: string };
 

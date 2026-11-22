@@ -1,0 +1,102 @@
+import type {
+  CoverageBusinessReader,
+  CoverageCompanyReader,
+  CoverageTenantRunner,
+} from '../../ports/commission-coverage.port.ts';
+
+/** نطاق البقشيش كما طلبه المشغّل: أنشطة الشركة ويوما بداية العمل ونهايته. */
+export interface CommissionCoverageTipScope {
+  readonly businessIds: readonly string[];
+  readonly from: string;
+  readonly to: string;
+}
+
+/** نطاق لا يمكن التقرير عنه: شركة غير موجودة، نشاط ليس لها، نطاق بقشيش مرفوض أو حد أعلى ليس حدثاً محتفظاً بها. */
+export class CommissionCoverageScopeInvalidError extends Error {
+  readonly code = 'COMMISSION_COVERAGE_SCOPE_INVALID';
+
+  constructor() {
+    super('COMMISSION_COVERAGE_SCOPE_INVALID');
+    this.name = 'CommissionCoverageScopeInvalidError';
+  }
+}
+
+const CALENDAR_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * يرفض التواريخ التي يقبلها شكل YYYY-MM-DD ولا وجود لها في التقويم، لأن فحص البقشيش
+ * بنطاق محوّل تلقائياً إلى يوم آخر يعطي المشغّل نتيجة تغطية عن نطاق لم يطلبه.
+ *
+ * @param value التاريخ النصي المطلوب فحصه
+ * @returns true فقط لتاريخ تقويمي حقيقي بصيغة YYYY-MM-DD، للسنوات 0001-9999 لأن PostgreSQL لا يحتوي على سنة صفرية
+ */
+export function isCommissionCoverageCalendarDate(value: string): boolean {
+  const match = CALENDAR_DATE.exec(value);
+  if (match === null) return false;
+  const year = Number(match[1]);
+  if (year === 0) return false;
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(2000, 0, 1));
+  date.setUTCFullYear(year, month - 1, day);
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+/**
+ * يطبّع نطاق البقشيش قبل أي قراءة: تواريخ تقويمية حقيقية و`from` ليس بعد `to`،
+ * وقائمة أنشطة غير فارغة بمعرّفات UUID صغيرة بلا تكرار.
+ * قائمة فارغة كانت تُنفّذ صفر قراءات فتُقرأ نتيجتها كتغطية، ولا يوجد افتراض «كل الأنشطة».
+ *
+ * @param tips نطاق البقشيش المطلوب أو undefined حين لم يطلبه المشغّل
+ * @returns النطاق المطبّع، أو undefined حين لا نطاق بقشيش
+ * @throws CommissionCoverageScopeInvalidError عند أي تاريخ أو قائمة أنشطة غير صالحة
+ */
+export function normalizeTipScope(
+  tips: CommissionCoverageTipScope | undefined,
+): CommissionCoverageTipScope | undefined {
+  if (tips === undefined) return undefined;
+  const datesValid =
+    isCommissionCoverageCalendarDate(tips.from) &&
+    isCommissionCoverageCalendarDate(tips.to) &&
+    tips.from <= tips.to;
+  const businessIds = [...new Set(tips.businessIds.map((id) => id.trim().toLowerCase()))];
+  if (!datesValid || businessIds.length === 0 || !businessIds.every((id) => UUID.test(id)))
+    throw new CommissionCoverageScopeInvalidError();
+  return { businessIds, from: tips.from, to: tips.to };
+}
+
+/** القارئات التي يحتاجها فحص النطاق على معاملة الشركة. */
+interface ScopeCheckDeps {
+  readonly withTenant: CoverageTenantRunner;
+  readonly companies: CoverageCompanyReader;
+  readonly businesses: CoverageBusinessReader;
+}
+
+/**
+ * يثبت أن الشركة موجودة وأن كل نشاط في نطاق البقشيش من أنشطتها، قبل أي مسح.
+ * نشاط شركة أخرى لا يُقرأ منه شيء تحت RLS فكان التقرير يطبع COVERED عن نطاق فارغ.
+ *
+ * @param deps معاملة الشركة وقارئا وجود الشركة والنشاط
+ * @param companyId الشركة المفحوصة بحروف صغيرة
+ * @param tips نطاق البقشيش المطبّع أو undefined
+ * @throws CommissionCoverageScopeInvalidError لشركة غير موجودة أو نشاط ليس من أنشطتها
+ */
+export async function assertCoverageScope(
+  deps: ScopeCheckDeps,
+  companyId: string,
+  tips: CommissionCoverageTipScope | undefined,
+): Promise<void> {
+  const inScope = await deps.withTenant(companyId, async (tx) => {
+    if (!(await deps.companies.isOpen(tx, companyId))) return false;
+    for (const businessId of tips?.businessIds ?? []) {
+      if (!(await deps.businesses.isInCompany(tx, companyId, businessId))) return false;
+    }
+    return true;
+  });
+  if (!inScope) throw new CommissionCoverageScopeInvalidError();
+}

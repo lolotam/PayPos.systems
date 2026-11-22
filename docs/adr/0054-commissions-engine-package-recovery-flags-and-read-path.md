@@ -124,6 +124,42 @@ JSDoc gate (CLAUDE.md §3.1).
 restriction is enforced by the module-map check (layer a), and the *subpath exception* can only be a lint rule (layer b).
 This ADR is that rule.
 
+**Addendum (2026-11-22, 55-2f-0; CS-Q46 = PP-205.1, home confirmed by Waleed as PP-226): the second restricted package
+`packages/commissions-posting`.** The period repair of 55-2f (FR-047) must run the correction step in the API, in one
+transaction with the repair version, and the step lived only in `apps/worker`, which `apps/api` cannot import. The
+engine cannot hold it: it is pure by this section and D-23, with no SQL and no `@pospay/db`. A copy would give two
+pricing paths. CS-Q46 chose a shared home; this addendum fixes it.
+
+- **What it holds.** The worker's correction step, moved without a logic change: the month recompute
+  (`use-cases/commission-month-recompute.ts`), the posting orchestration (`use-cases/post-commission-corrections/`),
+  the pure files it uses (`domain/commission-correction-*.ts`, `commission-source-ref.ts`,
+  `commission-blocked-correction.ts`), its port, its Drizzle persistence and the four error classes it throws. The shape
+  is the module shape of CLAUDE.md §2.2 (`domain/`, `ports/`, `persistence/`, `use-cases/`).
+- **Its dependencies.** `@pospay/commissions-engine` (root entry), `@pospay/domain`, `@pospay/db`, `@pospay/ids` and `drizzle-orm`.
+  `persistence/` uses the transaction type of `@pospay/db` and the Drizzle `sql` tag only; no raw client is exported
+  (CLAUDE.md §5). The one signature change of the move: the block-notice writer is an optional input of the step. A
+  caller that cannot record a block (the repair, which runs only while a block is open) omits it, and the step throws
+  `CommissionBlockNoticesMissingError` immediately before it would insert a new block without one. The generation bump of
+  that month may already have happened in the same transaction, so the caller's obligation is part of the contract: the
+  whole scope the step receives is bound to one tenant transaction, and the error must leave that transaction's callback
+  before any mapping to a response, so everything rolls back; a caller never catches it inside the transaction.
+- **Who may import it.** `@pospay/commissions-posting` (root entry only; `"exports"` lists `"."` and nothing else) only
+  from the `commissions` modules of `apps/api` and `apps/worker`: their `use-cases/`, `ports/` and `persistence/`, the
+  layers that may import the engine, plus the module's wiring file (`commissions.module.ts`) and its module-level
+  `__tests__/`, which bind and exercise the step's adapter and still may not import the engine. `docs/module-map.md` §6
+  gains `packages_restricted: commissions-posting: [commissions]`. A commissions `domain/` still imports only
+  `@pospay/domain`.
+- **The engine's boundary.** The package may itself import the engine's root entry from its own `use-cases/`, `ports/`
+  and `persistence/`, because it stands in for those layers of the commissions module. This is a narrow exception that
+  names this one package: its `domain/` is as bound as any module's, a sibling package still may not import the engine,
+  and the subpath and relative-path bans stay in force for it. The package's own ESLint config
+  (`allowCommissionsEnginePackage`) lifts exactly that, adds an own-files rule (the engine, `@pospay/db`,
+  `@pospay/domain`, `@pospay/ids`, `drizzle-orm` and its own files), and `packages/config/eslint/boundaries.js` carries the three
+  `COMMISSIONS_POSTING_*` bans in every block next to the engine's. `scripts/module-map/commissions-posting.test.mjs`
+  proves each of these, statically, dynamically and by relative path.
+- **Not here.** The bell adapter (outbox, identity reader) stays in `apps/worker`. The engine stays pure. A third
+  consumer of the step needs a new addendum.
+
 ### 2. The global table `operational_recovery_flags` (FR-053) — classification, shape, access
 
 **Classification.** A global operational table: like the global identity tables of ADR-0003 §2, but **not identity**.
@@ -273,6 +309,29 @@ registers that handler, and the 55-1b R5 prerequisite ("coverage shows no gap be
 that tenant until then. There is no new port, no import arrow, no new role and no new grant: `tipRevisions` is projection-side, the
 tips reader reuses an existing port, and the third coverage reader port remains `CoverageCompanyReader` (owned by `commissions`,
 bound at the worker composition root to the tenancy `companyOpen`).
+
+**Amendment 2026-11-22 (issue #1032, the coverage report cannot print a false `COVERED`).** The report keeps every check it has
+(missing and stale revisions, retained counted events without the consumer's mark, unhandled types) and adds to them. The overall
+status is `COVERED` only when lines, salaries, sales and tips were all checked and no check failed; a run with no tip scope reports the
+tips as not checked (`tips: null` and its `tipsNote`), is `NOT_COVERED` and exits non-zero. There is no default to all businesses. The
+use case refuses, before any scan, a company that does not exist, an empty business list, a business id that is not a UUID, a range whose `from` is after its `to`, and a
+business that is not the company's, with the existing `COMMISSION_COVERAGE_SCOPE_INVALID`; the command line refuses the malformed forms
+earlier, while parsing its arguments, with `COMMISSION_COVERAGE_CONFIGURATION`, so it prints `SCOPE_INVALID` only for a company that does not exist, a business
+that is not the company's (both before any scan) and a bad `--through`, which is refused later, after the scan, because it compares the last event read
+with the bound. The retained-event mark check ends at the printed `throughId` and looks at nothing after it. Without `--through` that bound is not taken when
+the command starts: lines, salaries and sales are scanned first, then the bound is the highest id among all of the company's retained events of the six counted
+types, read once before the first retained-event page is fetched (not the maximum of the first page), so `throughId` is not a start-up cutoff. The replay's cutoff and the proof's cutoff are different things: the 50-3a replay bound is chosen over
+four event types and this report's over six, so the two values can legitimately differ and are not required to match. The evidence used to open
+approval is one run with no `--through`, taken in the quiet window and naming every business; its printed `throughId` is the bound it proved up to
+and is recorded with the proof; `throughId` values are compared as UUIDs ignoring letter case. If it reports unmarked retained events the remedy is the six-type
+retained replay (50-3d) and a new run; a `notHandled` event (`COMMISSION_EVENT_TYPE_NOT_HANDLED`) keeps approval closed and is not fixed by a replay, which
+delivers only the types the consumer registers: the worker release or handler registration is corrected first, then the replay, then a new run. A run
+that cannot prove the whole scope leaves approval closed. The fourth coverage reader port is `CoverageBusinessReader`:
+owned by `commissions`, bound at the worker composition root to the existing tenancy `businessTimeZone` on the report's tenant
+transaction (`pospay_app` under `withTenant`); its Port row is in `docs/module-map.md`. The printed result names the business ids and
+the date range the tip check covered (`tipScope`): `COVERED` proves that scope only, and opening approval for a company needs a run
+whose scope is every business of the company and every business day with inputs, which the runbook requires of the operator and the
+tool does not infer. No import arrow, no migration, no new role and no new grant.
 
 **The rule from D-16:** if a reader cannot be bound at the root, the sub-PR that needs it stops and adds an ADR and the
 module-map row first.

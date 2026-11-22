@@ -31,7 +31,7 @@ import { commissionSaleEvent } from './commission-tip-salary-events.ts';
 import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
 import { recordCommissionFailureCodes } from '../index.ts';
 import { createCommissionSaleProjectionScope } from '../persistence/commission-sale-projection.scope.ts';
-import { createCommissionCorrectionScope } from '../persistence/commission-correction.scope.ts';
+import { createCommissionCorrectionScope } from '@pospay/commissions-posting';
 import { createCommissionBlockNotices } from '../persistence/commission-block-notice.outbox.ts';
 import { onCommissionInputEvent } from '../events/handlers/on-commission-input-event.handler.ts';
 import type { CommissionInputUseCases } from '../events/handlers/on-commission-input-event.handler.ts';

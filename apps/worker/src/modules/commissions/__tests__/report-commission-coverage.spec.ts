@@ -20,6 +20,9 @@ import {
 const COMPANY = '01920000-0000-7000-8000-0000000000a0';
 const OTHER = '01920000-0000-7000-8000-0000000000b0';
 const CONSUMER = 'commission-coverage';
+const BUSINESS = '01920000-0000-7000-8000-0000000000c1';
+// نطاق بقشيش حقيقي: COVERED لا تُطبع بدونه (issue #1032)، فكل اختبار هنا يفحص البقشيش على مصدر فارغ.
+const TIP_SCOPE = { businessIds: [BUSINESS], from: '2026-11-01', to: '2026-11-30' };
 // الأنواع التي يسجّلها المستهلك؛ حدث من نوع آخر لا يُفحص في العلامات ولا يُسلّم.
 const HANDLED_TYPES = new Set([
   'ServiceSessionRecorded',
@@ -216,13 +219,15 @@ function harness(options: HarnessOptions) {
     withTenant, lines, salaries, sales, projection, retained,
     consumerId: CONSUMER,
     companies: { isOpen: async () => options.companyOpen ?? true },
+    businesses: { isInCompany: async () => true },
     handledTypes: HANDLED_TYPES,
+    tipsReader: { readPage: async () => ({ items: [], nextCursor: null }) },
   };
   return { deps, tenants, lines, salaries, sales, projection, retained };
 }
 
 const run = (deps: CommissionCoverageDeps, throughId: string | null = null, companyId = COMPANY) =>
-  runCommissionCoverageReport(deps, { companyId, throughId });
+  runCommissionCoverageReport(deps, { companyId, throughId, tips: TIP_SCOPE });
 
 describe('runCommissionCoverageReport: the coverage comparison', () => {
   it('reports COVERED with exact counts and empty lists when everything is covered', async () => {

@@ -25,7 +25,7 @@ import { createDeliverer } from '../../../outbox/deliver.ts';
 import type { OutboxConsumer } from '../../../outbox/consumer.ts';
 import type { CommissionInputUseCases } from '../events/handlers/on-commission-input-event.handler.ts';
 import { onCommissionInputEvent } from '../events/handlers/on-commission-input-event.handler.ts';
-import { createCommissionCorrectionScope } from '../persistence/commission-correction.scope.ts';
+import { createCommissionCorrectionScope } from '@pospay/commissions-posting';
 import { createCommissionLineProjectionScope } from '../persistence/commission-line-projection.scope.ts';
 import { ProjectServiceLines } from '../use-cases/project-service-lines/project-service-lines.ts';
 import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';

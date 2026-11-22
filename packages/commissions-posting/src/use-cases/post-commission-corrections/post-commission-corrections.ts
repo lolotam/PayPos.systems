@@ -10,7 +10,10 @@ import {
   type CommissionCorrectionCandidate,
 } from '../../domain/commission-correction-target.ts';
 import type { CommissionPeriodEmployee } from '../../domain/commission-line-types.ts';
-import { CommissionPeriodClosedError } from '../../domain/errors.ts';
+import {
+  CommissionBlockNoticesMissingError,
+  CommissionPeriodClosedError,
+} from '../../domain/errors.ts';
 import {
   decideCommissionBlock,
   type CommissionBlockDecision,
@@ -59,8 +62,13 @@ interface PostCommissionCorrectionsInput {
   readonly eventId: string;
   readonly targets: readonly CommissionCorrectionTarget[];
   readonly employees: readonly CommissionPeriodEmployee[];
-  /** منفذ جرس أصحاب صلاحية خطط العمولة؛ الاختبارات اللي مش مهمها الجرس بتبني منفذ صامت صريح. */
-  readonly notices: CommissionBlockNotices;
+  /**
+   * منفذ جرس أصحاب صلاحية خطط العمولة. اختياري لأن الإصلاح بيشتغل بس وفيه توقف مفتوح فمش هيسجّل
+   * توقفاً جديداً. لو الخطوة هتسجّل توقفاً جديداً من غير منفذ بترمي CommissionBlockNoticesMissingError
+   * قبل كتابة صف التوقف مباشرة (رفع جيل الشهر ممكن يكون حصل). الخطأ لازم يخرج من معاملة المستأجر
+   * فيتلغي كل حاجة، ومينفعش المستدعي يمسكه جوّه المعاملة ويكمّل (ADR-0054 §1 addendum).
+   */
+  readonly notices?: CommissionBlockNotices;
   /** الشركة المالكة للتوقف؛ قارئ حاملي الصلاحية بيحتاجها لتحديد المستلمين. */
   readonly companyId: string;
 }
@@ -69,7 +77,10 @@ interface PostCommissionCorrectionsInput {
  * ينشر تصحيحات كل شهر مغلق لكل موظفة متأثرة داخل معاملة الحدث نفسها؛ الجيل يُرفع قبل
  * إعادة الحساب فشهر بلا فرق يأخذ جيلاً بلا صفوف، وأي فشل يُرجع الإسقاط والتصحيح معاً.
  * الشهر اللي ما يتسعّرش بيسجّل توقفاً بدل ما يفشل الحدث، والحل بيتأجّل لحدث ينجح فيه
- * الحساب وينشر (FR-046).
+ * الحساب وينشر (FR-046). التوقف الجديد له نتيجتان: مع منفذ جرس بيتسجّل الصف وبيرنّ الجرس لأصحاب
+ * الصلاحية؛ من غير منفذ بترمي الخطوة CommissionBlockNoticesMissingError قبل إدخال صف التوقف، بعد ما
+ * رفع الجيل يكون حصل. النطاق كله مربوط بمعاملة مستأجر واحدة، فالمستدعي لازم يسيب الخطأ يخرج من
+ * الـ callback بتاعها (ويتلغي كل اللي اتكتب) قبل أي تحويل لرد، ومينفعش يمسكه جوّاها ويكمّل.
  */
 export async function postCommissionCorrections(
   input: PostCommissionCorrectionsInput,
@@ -169,6 +180,10 @@ async function applyBlockedOutcome(
   decision: Extract<CommissionBlockDecision, { kind: 'RECORD' | 'UPDATE_CODE' | 'KEEP' }>,
 ): Promise<void> {
   if (decision.kind === 'RECORD') {
+    const { notices } = input;
+    if (notices === undefined) {
+      throw new CommissionBlockNoticesMissingError(employeeId, target.sourcePeriod);
+    }
     const blockId = await input.scope.insertBlock({
       businessId: input.businessId,
       employeeId,
@@ -178,7 +193,7 @@ async function applyBlockedOutcome(
       targetPeriod: target.targetPeriod,
       targetStatementId: target.targetStatementId,
     });
-    await ringBlockBell(input, blockId, target.sourcePeriod);
+    await ringBlockBell(input, notices, blockId, target.sourcePeriod);
     return;
   }
   if (decision.kind === 'UPDATE_CODE') {
@@ -196,16 +211,13 @@ async function applyBlockedOutcome(
  */
 async function ringBlockBell(
   input: PostCommissionCorrectionsInput,
+  notices: CommissionBlockNotices,
   blockId: string,
   sourcePeriod: string,
 ): Promise<void> {
-  const groups = await input.notices.recipientGroups(
-    input.companyId,
-    input.businessId,
-    input.notices.now(),
-  );
+  const groups = await notices.recipientGroups(input.companyId, input.businessId, notices.now());
   for (const [groupIndex, group] of groups.entries()) {
-    await input.notices.append({
+    await notices.append({
       blockId,
       groupIndex,
       businessId: input.businessId,

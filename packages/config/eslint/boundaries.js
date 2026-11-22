@@ -39,9 +39,40 @@ export const COMMISSIONS_ENGINE_PATTERNS = [
   COMMISSIONS_ENGINE_PATH_BAN,
 ];
 
+// ADR-0054 §1 addendum (PP-226) — the correction step is a second restricted package, imported by the same
+// commissions layers as the engine and by nothing else. Its bans mirror the engine's: one root entry, no subpath.
+/** The root entry: only the commissions module of apps/api and apps/worker may import it. */
+export const COMMISSIONS_POSTING_ROOT_BAN = {
+  regex: '^@pospay/commissions-posting$',
+  message:
+    'The commissions correction step is imported only by the commissions module of apps/api and apps/worker (ADR-0054 §1 addendum).',
+};
+
+/** Every subpath: the package exports "." only. */
+export const COMMISSIONS_POSTING_SUBPATH_BAN = {
+  regex: '^@pospay/commissions-posting/.+$',
+  message:
+    'No subpath of @pospay/commissions-posting is importable; the package exports only "." (ADR-0054 §1 addendum).',
+};
+
+/** A relative specifier with a commissions-posting segment skips the exports map — no block lifts it. */
+export const COMMISSIONS_POSTING_PATH_BAN = {
+  regex: '^\\.{1,2}/(?:.*/)?commissions-posting(?:/.*)?$',
+  message:
+    'The commissions correction step is reached through its package exports, never through a relative path (ADR-0054 §1 addendum).',
+};
+
+/** The three bans every block that sets no-restricted-imports carries beside the engine's. */
+export const COMMISSIONS_POSTING_PATTERNS = [
+  COMMISSIONS_POSTING_ROOT_BAN,
+  COMMISSIONS_POSTING_SUBPATH_BAN,
+  COMMISSIONS_POSTING_PATH_BAN,
+];
+
 /** The use-cases/ infrastructure ban, composed back in wherever the rule is replaced. */
 export const USE_CASES_INFRASTRUCTURE_PATTERN = {
-  regex: '^(drizzle-orm|@nestjs/platform-.*|bullmq|ioredis|axios|node:.*|@pospay/db|@pospay/import-workbooks)(/.*)?$',
+  regex:
+    '^(drizzle-orm|@nestjs/platform-.*|bullmq|ioredis|axios|node:.*|@pospay/db|@pospay/import-workbooks)(/.*)?$',
   message: 'use-cases/ reach infrastructure only through ports/ (CLAUDE.md §4.2).',
 };
 
@@ -80,6 +111,31 @@ export const COMMISSIONS_ENGINE_PATH_SYNTAX = engineSyntax(
   ENGINE_PATH,
   COMMISSIONS_ENGINE_PATH_BAN.message,
 );
+
+/** The dynamic-import, require() and import-type selectors of the posting package's root entry. */
+export const COMMISSIONS_POSTING_ROOT_SYNTAX = engineSyntax(
+  '/^@pospay\\/commissions-posting$/',
+  COMMISSIONS_POSTING_ROOT_BAN.message,
+);
+
+/** The dynamic-import, require() and import-type selectors of every posting subpath. */
+export const COMMISSIONS_POSTING_SUBPATH_SYNTAX = engineSyntax(
+  '/^@pospay\\/commissions-posting\\/.+$/',
+  COMMISSIONS_POSTING_SUBPATH_BAN.message,
+);
+
+/** The dynamic-import, require() and import-type selectors of a relative path into the posting package. */
+export const COMMISSIONS_POSTING_PATH_SYNTAX = engineSyntax(
+  '/^\\.{1,2}\\/(?:.*\\/)?commissions-posting(?:\\/.*)?$/',
+  COMMISSIONS_POSTING_PATH_BAN.message,
+);
+
+/** The full posting ban, dynamic and static, for the blocks that lift nothing. */
+export const COMMISSIONS_POSTING_SYNTAX = [
+  ...COMMISSIONS_POSTING_ROOT_SYNTAX,
+  ...COMMISSIONS_POSTING_SUBPATH_SYNTAX,
+  ...COMMISSIONS_POSTING_PATH_SYNTAX,
+];
 
 /** The full engine ban, dynamic and static, for the blocks that lift nothing. */
 export const COMMISSIONS_ENGINE_SYNTAX = [
@@ -203,6 +259,7 @@ export const boundariesConfig = [
             },
             // The engine stands in for the commissions domain/, so a domain/ file may never import it.
             ...COMMISSIONS_ENGINE_PATTERNS,
+            ...COMMISSIONS_POSTING_PATTERNS,
           ],
         },
       ],
@@ -233,6 +290,7 @@ export const boundariesConfig = [
             USE_CASES_INFRASTRUCTURE_PATTERN,
             // The engine is refused here too; only the commissions layers lift it (ADR-0054 §1).
             ...COMMISSIONS_ENGINE_PATTERNS,
+            ...COMMISSIONS_POSTING_PATTERNS,
           ],
         },
       ],

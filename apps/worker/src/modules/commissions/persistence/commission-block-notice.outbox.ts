@@ -1,11 +1,11 @@
-import { appendOutboxEvent, type Tx } from '@pospay/db';
-
-import { groupCommissionBlockNoticeRecipients } from '../domain/commission-block-notice.ts';
 import type {
   CommissionBlockNoticeInput,
   CommissionBlockNotices,
-  CommissionPermissionHoldersReader,
-} from '../ports/commission-block-notice.port.ts';
+} from '@pospay/commissions-posting';
+import { appendOutboxEvent, type Tx } from '@pospay/db';
+
+import { groupCommissionBlockNoticeRecipients } from '../domain/commission-block-notice.ts';
+import type { CommissionPermissionHoldersReader } from '../ports/commission-block-notice.port.ts';
 import type { Clock, IdGenerator } from '../ports/commission-line-projection.port.ts';
 
 /** صلاحية إدارة خطط العمولة: أصحابها هما اللي بيصلّحوا التصحيح الموقوف (CS-Q19). */
