@@ -52,6 +52,7 @@ type SessionCustomerSynchronizationOptions = {
   value: SessionCustomerSelection | null;
   onChange: (value: SessionCustomerSelection | null) => void;
   onReset: () => void;
+  recoveryId: string | null;
 };
 type SessionCustomerResolutionOptions = {
   form: SessionCustomerForm;
@@ -92,8 +93,10 @@ function useSessionCustomerSynchronization({
   value,
   onChange,
   onReset,
+  recoveryId,
 }: SessionCustomerSynchronizationOptions): PublishSessionCustomer {
   const previousScope = useRef(scope);
+  const previousRecovery = useRef(recoveryId);
   const { reset: resetEntry } = form;
   const { reset: resetMutation } = mutation;
   useLayoutEffect(() => {
@@ -104,6 +107,12 @@ function useSessionCustomerSynchronization({
     resetMutation();
     onReset();
   }, [scope, locale, onChange, onReset, resetEntry, resetMutation]);
+  // استعادة زيارة بمعرّف بس لازم تمسح مسودة قديمة كانت هتخفي بطاقة الزبونة المستعادة.
+  useLayoutEffect(() => {
+    if (previousRecovery.current === recoveryId) return;
+    previousRecovery.current = recoveryId;
+    if (recoveryId !== null) { resetEntry(customerEntry('', locale)); resetMutation(); onReset(); }
+  }, [recoveryId, locale, onReset, resetEntry, resetMutation]);
   const observed = useRef(value),
     emitted = useRef<SessionCustomerSelection | null | undefined>(undefined);
   useLayoutEffect(() => {
@@ -170,9 +179,14 @@ function useSessionCustomerEntry({
   value,
   onChange,
   locale,
+  profileCustomerId,
   onGenderNeeded,
   onReset,
-}: SessionCustomerEntryOptions & { onGenderNeeded: () => void; onReset: () => void }) {
+}: SessionCustomerEntryOptions & {
+  profileCustomerId: string | null;
+  onGenderNeeded: () => void;
+  onReset: () => void;
+}) {
   const mutation = useSessionCustomer(companyId, branchId, userId, entryScope, businessId);
   const form = useForm<SessionCustomerFormValues>({
     resolver: sessionCustomerResolver,
@@ -187,6 +201,7 @@ function useSessionCustomerEntry({
     value,
     onChange,
     onReset,
+    recoveryId: value === null ? profileCustomerId : null,
   });
   const resolve = useSessionCustomerResolution({ form, mutation, locale, publish, onGenderNeeded });
   const invalidate = () => {
@@ -220,48 +235,22 @@ function sessionCustomerContact({
   nationalNumber,
   invalidate,
 }: SessionCustomerContactOptions) {
+  const describedBy = invalid ? `${prefix}-error` : undefined;
+  const watched = (entry: SessionCustomerRegistration) => ({
+    ...entry,
+    onChange: (event: Parameters<SessionCustomerRegistration['onChange']>[0]) => {
+      void entry.onChange(event);
+      invalidate();
+    },
+  });
   return (
     <>
       <Label htmlFor={`${prefix}-name`}>{t(locale, 'serviceSessions.name')}</Label>
-      <Input
-        id={`${prefix}-name`}
-        autoComplete="off"
-        aria-invalid={!!form.formState.errors.name}
-        aria-describedby={invalid ? `${prefix}-error` : undefined}
-        {...nameEntry}
-        onChange={(event) => {
-          void nameEntry.onChange(event);
-          invalidate();
-        }}
-      />
+      <Input id={`${prefix}-name`} autoComplete="off" aria-invalid={!!form.formState.errors.name} aria-describedby={describedBy} {...watched(nameEntry)} />
       <Label htmlFor={`${prefix}-code`}>{t(locale, 'serviceSessions.callingCode')}</Label>
-      <Input
-        id={`${prefix}-code`}
-        dir="ltr"
-        inputMode="numeric"
-        autoComplete="off"
-        aria-invalid={!!form.formState.errors.phone?.calling_code}
-        aria-describedby={invalid ? `${prefix}-error` : undefined}
-        {...callingCode}
-        onChange={(event) => {
-          void callingCode.onChange(event);
-          invalidate();
-        }}
-      />
+      <Input id={`${prefix}-code`} dir="ltr" inputMode="numeric" autoComplete="off" aria-invalid={!!form.formState.errors.phone?.calling_code} aria-describedby={describedBy} {...watched(callingCode)} />
       <Label htmlFor={`${prefix}-phone`}>{t(locale, 'serviceSessions.phone')}</Label>
-      <Input
-        id={`${prefix}-phone`}
-        dir="ltr"
-        type="tel"
-        autoComplete="off"
-        aria-invalid={!!form.formState.errors.phone?.national_number}
-        aria-describedby={invalid ? `${prefix}-error` : undefined}
-        {...nationalNumber}
-        onChange={(event) => {
-          void nationalNumber.onChange(event);
-          invalidate();
-        }}
-      />
+      <Input id={`${prefix}-phone`} dir="ltr" type="tel" autoComplete="off" aria-invalid={!!form.formState.errors.phone?.national_number} aria-describedby={describedBy} {...watched(nationalNumber)} />
     </>
   );
 }
@@ -332,7 +321,7 @@ function SessionCustomerFeedback({
 }
 
 function useSessionCustomerFieldState(props: SessionCustomerFieldProps) {
-  const { companyId, branchId, userId, businessId, entryScope = 'branch', value, onChange } = props;
+  const { companyId, branchId, userId, businessId, entryScope = 'branch', value, onChange, profileCustomerId = null } = props;
   const locale = useLocale();
   const prefix = useId();
   const [genderHint, setGenderHint] = useState(false);
@@ -345,6 +334,7 @@ function useSessionCustomerFieldState(props: SessionCustomerFieldProps) {
     value,
     onChange,
     locale,
+    profileCustomerId,
     onGenderNeeded: () => setGenderHint(true),
     onReset: () => setGenderHint(false),
   });

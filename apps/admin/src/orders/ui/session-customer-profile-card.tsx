@@ -78,9 +78,16 @@ export function SessionCustomerProfileCard({ locale, online = true, ...entry }: 
   const profile = query.data;
   if (profile === undefined)
     return (
-      <p aria-live="polite">
-        {t(locale, canRead ? 'serviceSessions.profileLoading' : 'serviceSessions.profileOffline')}
-      </p>
+      <div className="flex flex-col gap-2">
+        <p aria-live="polite">
+          {t(locale, canRead ? 'serviceSessions.profileLoading' : 'serviceSessions.profileOffline')}
+        </p>
+        {canRead ? null : (
+          <Button type="button" disabled={!online} onClick={retry}>
+            {t(locale, 'serviceSessions.profileRetry')}
+          </Button>
+        )}
+      </div>
     );
   const birthday = birthdayText(profile.birthday);
   const empty = t(locale, 'serviceSessions.profileEmpty');
