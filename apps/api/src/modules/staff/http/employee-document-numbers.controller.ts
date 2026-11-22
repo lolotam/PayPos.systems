@@ -28,7 +28,7 @@ export class EmployeeDocumentNumbersController {
   @Authenticated()
   @UseGuards(SelectedCompanyGuard)
   @Header('Cache-Control', 'no-store')
-  numbers(
+  async numbers(
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
     @Query(new ZodValidationPipe(employeeDocumentNumbersQuery)) query: EmployeeDocumentNumbersQuery,
     @Req() request: FastifyRequest,
@@ -36,10 +36,13 @@ export class EmployeeDocumentNumbersController {
     if (this.database === null || this.access === null) throw new ApiError('NOT_READY');
     const context = { ...actorOf(request), businessId };
     const access = this.access;
-    return this.database.withTenant(
+    const result = await this.database.withTenant(
       context.companyId,
       (tx) => readEmployeeDocumentNumbers(tx, context, query.ids, access),
       { userId: context.userId, readOnly: true },
     );
+    if (result === null) throw new ApiError('NOT_FOUND');
+    if (result === 'FEATURE_DISABLED') throw new ApiError('FEATURE_DISABLED');
+    return result;
   }
 }

@@ -11,6 +11,7 @@ type UploadDraft = {
   identity: string;
   saved: object | undefined;
   number: string;
+  typeCode?: string;
   revision: number;
 };
 
@@ -44,6 +45,8 @@ export function EmployeeDocumentsSection(props: {
   if (view.isError) return <p role="alert">{envelopeMessage(view.error, locale)}</p>;
   // العرض والفتح يشتركان في دليل قراءة حقيقية للعمر والـquery الحالية، مش بيانات cache وحدها.
   if (!documents) return null;
+  const retryType = documents.types.find((type) => type.code === draft.typeCode)?.code;
+  const formType = retryType ?? typeCode;
   const progress = PHASES[phase];
   const recorded = record.isSuccess && record.data !== undefined;
   return (
@@ -63,9 +66,10 @@ export function EmployeeDocumentsSection(props: {
         <EmployeeDocumentForm
           key={draft.revision}
           types={documents.types}
-          {...(typeCode === undefined ? {} : { typeCode })}
+          {...(formType === undefined ? {} : { typeCode: formType })}
           pending={record.isPending}
-          initialNumber={draft.number}
+          initialNumber={retryType === undefined ? '' : draft.number}
+          discardRetryFor={draft.discardRetryFor}
           onSubmit={draft.submit}
         />
       ) : null}
@@ -101,16 +105,25 @@ function useUploadDraft(
   const saved = record.recordedTicket;
   const reset =
     draft.identity !== identity ||
-    (draft.number !== '' && denied) ||
+    (draft.typeCode !== undefined && denied) ||
     (saved !== undefined && saved !== draft.saved);
   // الخطأ العابر يخفي النموذج، مع إبقاء الرقم المحلي للمحاولة بعد قراءة مصرح بها.
-  const current = reset ? { identity, number: '', revision: draft.revision + 1, saved } : draft;
+  const current: UploadDraft = reset
+    ? { identity, number: '', revision: draft.revision + 1, saved }
+    : draft;
   if (reset) setDraft(current);
   return {
     number: current.number,
+    typeCode: current.typeCode,
     revision: current.revision,
+    discardRetryFor: (selectedType: string) => {
+      if (current.typeCode === undefined || current.typeCode === selectedType) return false;
+      setDraft({ identity, saved: current.saved, revision: current.revision, number: '' });
+      return true;
+    },
     submit: (submission: Parameters<typeof record.mutate>[0]) => {
-      setDraft({ ...current, number: submission.values.document_number ?? '' });
+      const { type_code, document_number } = submission.values;
+      setDraft({ ...current, typeCode: type_code, number: document_number ?? '' });
       record.mutate(submission);
     },
   };

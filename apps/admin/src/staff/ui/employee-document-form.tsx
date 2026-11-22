@@ -21,16 +21,12 @@ type EmployeeDocumentFormProps = {
   typeCode?: string;
   pending: boolean;
   initialNumber?: string;
+  discardRetryFor?: (typeCode: string) => boolean;
   onSubmit: (submission: DocumentSubmission) => void;
 };
 
-export function EmployeeDocumentForm({
-  types,
-  typeCode,
-  pending,
-  initialNumber = '',
-  onSubmit,
-}: EmployeeDocumentFormProps) {
+export function EmployeeDocumentForm(props: EmployeeDocumentFormProps) {
+  const { types, typeCode, pending, initialNumber = '', discardRetryFor, onSubmit } = props;
   const locale = useLocale();
   const [file, setFile] = useState<File | null>(null);
   const [invalid, setInvalid] = useState(false);
@@ -56,7 +52,14 @@ export function EmployeeDocumentForm({
   return (
     <form onSubmit={submit} className="flex flex-col gap-3 text-start">
       <fieldset disabled={pending} className="flex flex-col gap-3">
-        <DocumentTypeField types={types} register={form.register} />
+        <DocumentTypeField
+          types={types}
+          registration={form.register('type_code', {
+            onChange: (event: { target: HTMLSelectElement }) => {
+              if (discardRetryFor?.(event.target.value)) form.setValue('document_number', '');
+            },
+          })}
+        />
         <Label htmlFor="document-file">{t(locale, 'employeeDocuments.file')}</Label>
         <Input
           id="document-file"

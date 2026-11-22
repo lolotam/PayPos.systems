@@ -46,6 +46,16 @@ const view = (canManage: boolean) => ({
       active: true,
       revision: 1,
     },
+    {
+      id: fileId,
+      code: 'passport',
+      name_en: 'Passport',
+      name_ar: null,
+      alert_days: 30,
+      requires_expiry: true,
+      active: true,
+      revision: 1,
+    },
   ],
 });
 
@@ -69,7 +79,7 @@ it.each([
   ['confirmed save', ''],
   ['access denied', ''],
 ] as const)(
-  'handles the retry number after %s and an offline list refresh',
+  'handles the retry type and number after %s and an offline list refresh',
   async (outcome, number) => {
     api.GET.mockImplementation(async (path: string) => {
       if (!onlineManager.isOnline()) throw new Error('Offline');
@@ -105,6 +115,8 @@ it.each([
       target: { value: '2026-10-20' },
     });
     const numberLabel = t('en', 'employeeDocuments.documentNumber');
+    const typeLabel = t('en', 'employeeDocuments.type');
+    fireEvent.change(screen.getByLabelText(typeLabel), { target: { value: 'passport' } });
     fireEvent.change(screen.getByLabelText(numberLabel), { target: { value: 'SYN-OFFLINE' } });
     fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeDocuments.upload') }));
 
@@ -112,6 +124,12 @@ it.each([
     expect(screen.queryByLabelText(numberLabel)).toBeNull();
     act(() => onlineManager.setOnline(true));
     expect(await screen.findByLabelText(numberLabel)).toHaveProperty('value', number);
+    expect(screen.getByLabelText(typeLabel)).toHaveProperty(
+      'value',
+      outcome === 'transport failure' ? 'passport' : 'civil_id',
+    );
+    fireEvent.change(screen.getByLabelText(typeLabel), { target: { value: 'civil_id' } });
+    expect(screen.getByLabelText(numberLabel)).toHaveProperty('value', '');
   },
 );
 

@@ -2,7 +2,7 @@
 
 1. Add the nullable column and unvalidated constraint in `0237`. Validate the constraint in the separate `0238` migration.
 2. Accept the number when recording or replacing a document. The list and business lookup use one read-only PostgreSQL snapshot for authorization and document rows. Use a canonical business UUID for access decisions.
-3. Add the upload input, the document table column and the on-demand bell lookup. Reset the bell's read on known access or document changes. Hide numbers offline and require a fresh lookup on reconnect. Wait for the upload's document refresh and refetch after connectivity returns. Reset the form after a successful upload. After a transient failure, keep the submitted number in memory for the same employee and replacement selection. Discard it on access denial or scope exit.
+3. Add the upload input, the document table column and the on-demand bell lookup. Reset the bell's read on known access or document changes. Hide numbers offline and require a fresh lookup on reconnect. Wait for the upload's document refresh and refetch after connectivity returns. Reset the form after a successful upload. After a transient failure, keep the submitted type and number together in memory for the same employee and replacement selection. Discard the number on an explicit type change, access denial or scope exit.
 4. Regenerate OpenAPI and the Admin, Menu and POS clients. Verify old document lists and verify that uploads without a number send the prior request shape.
 
 ```text

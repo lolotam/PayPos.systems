@@ -1,7 +1,6 @@
 import { employeeDocumentNumbers } from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
-import { ApiError } from '../../../shared/errors.ts';
 import type { EmployeeDocumentReadAccess } from './employee-documents.query.ts';
 
 // جرس انتهاء المستند في الإدارة (62-2e): أرقام الوثائق الحالية فقط، بعد إثبات صلاحية الملفات وقبل قراءة أي صف وثيقة.
@@ -24,8 +23,8 @@ export async function readEmployeeDocumentNumbers(
   access: EmployeeDocumentReadAccess,
 ) {
   const decision = await access.check(tx, c.companyId, c.userId, c.businessId);
-  if (!decision.read) throw new ApiError('NOT_FOUND');
-  if (!decision.featureEnabled) throw new ApiError('FEATURE_DISABLED');
+  if (!decision.read) return null;
+  if (!decision.featureEnabled) return 'FEATURE_DISABLED' as const;
   const rows = await tx.execute<{ document_id: string; document_number: string }>(
     employeeDocumentNumbersStatement(c, ids),
   );

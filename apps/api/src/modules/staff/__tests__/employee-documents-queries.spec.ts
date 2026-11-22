@@ -162,7 +162,9 @@ it('DN-09 the list carries document_number and the lookup returns only current, 
       createEmployeeDocumentReadAccess(documentClock),
     ),
   );
-  expect(result.items).toEqual([{ document_id: numberedId, document_number: 'SYN-DOC-0009' }]);
+  expect(result).toEqual({
+    items: [{ document_id: numberedId, document_number: 'SYN-DOC-0009' }],
+  });
   const otherBusiness = await f.db.withTenant(f.company, (tx) =>
     readEmployeeDocumentNumbers(
       tx,
@@ -171,7 +173,7 @@ it('DN-09 the list carries document_number and the lookup returns only current, 
       createEmployeeDocumentReadAccess(documentClock),
     ),
   );
-  expect(otherBusiness.items).toEqual([]);
+  expect(otherBusiness).toEqual({ items: [] });
 });
 
 it('DN-09 the lookup statement plans on employee_documents indexes without a seq scan', async () => {
