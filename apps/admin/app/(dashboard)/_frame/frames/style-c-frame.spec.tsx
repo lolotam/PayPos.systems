@@ -164,7 +164,9 @@ describe('style C visibility and the page finder', () => {
       expect(found[0]?.textContent).toContain(label('adminNav.soonBadge'));
     }
   });
+});
 
+describe('style C finder across routes', () => {
   it('closes an open finder on navigation and does not reopen it on the way back', () => {
     frameState.pathname = '/staff';
     renderFrame(page());

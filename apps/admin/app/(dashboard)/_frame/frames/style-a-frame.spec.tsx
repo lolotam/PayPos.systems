@@ -40,6 +40,7 @@ const label = (key: Parameters<typeof t>[1]) => t('en', key);
 const link = (scope: HTMLElement, name: string | RegExp) =>
   within(scope).getByRole('link', { name });
 const tabsNav = () => screen.getByRole('navigation', { name: label('adminNav.tabsLabel') });
+const moreButton = () => screen.getByRole('button', { name: label('adminNav.more') });
 const pillsNav = () => screen.getByRole('navigation', { name: label('adminNav.pillsLabel') });
 
 function CurrentRoute() {
@@ -147,7 +148,6 @@ describe('style A at tablet width and collapsed', () => {
 
 describe('style A on a phone', () => {
   beforeEach(() => stubViewport(390));
-  const moreButton = () => screen.getByRole('button', { name: label('adminNav.more') });
 
   it('shows four sections and More on the bottom bar', () => {
     frameState.pathname = '/staff';
@@ -183,6 +183,10 @@ describe('style A on a phone', () => {
       within(sheet).queryByRole('heading', { name: label('adminNav.submenuStaffReports') }),
     ).toBeNull();
   });
+});
+
+describe('style A sheet on a phone', () => {
+  beforeEach(() => stubViewport(390));
 
   it('closes the sheet on Escape and returns focus to More', async () => {
     renderFrame(<StyleAFrame>Page body</StyleAFrame>);

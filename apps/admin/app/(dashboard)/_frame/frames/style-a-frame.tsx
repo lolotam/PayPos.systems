@@ -1,7 +1,7 @@
 'use client';
 
 import { t } from '@pospay/i18n';
-import { BottomNav, BrandLockup, BrandMark, CollapsibleSidebar, NavTabs, Pills } from '@pospay/ui';
+import { BrandLockup, BrandMark, CollapsibleSidebar, NavTabs, Pills } from '@pospay/ui';
 import { useMemo, type ReactNode } from 'react';
 
 import { useLocale } from '@/shared/locale/locale-context';
@@ -10,9 +10,8 @@ import { useMenuContext } from '../menu/use-menu-context';
 import { buildStyleAView } from '../menu/style-views';
 import { FrameLinks } from './frame-links';
 import { FrameTopBar } from './frame-top-bar';
-import { MoreSheet } from './more-sheet';
+import { PhoneBar } from './phone-bar';
 import { useFrameLabels } from './use-frame-labels';
-import { useRouteScopedState } from './use-route-scoped-state';
 
 // عمود الصفحة يتبع عرض الشريط الجانبي: 80px مطويًا أو على التابلت، و264px موسّعًا من 1024px.
 // الشريط ثابت ويحمل data-collapsed حين يطوى، فنقرأ ذلك بـ CSS دون نسخ حالته إلى هنا.
@@ -29,7 +28,6 @@ export function StyleAFrame({ children }: { children: ReactNode }) {
   const labels = useFrameLabels();
   const ctx = useMenuContext();
   const view = useMemo(() => buildStyleAView(ctx), [ctx]);
-  const [moreOpen, setMoreOpen] = useRouteScopedState(ctx.pathname, false);
   return (
     <FrameLinks>
       <div className="group relative flex min-h-dvh">
@@ -66,25 +64,7 @@ export function StyleAFrame({ children }: { children: ReactNode }) {
           </main>
         </div>
       </div>
-      <div className="fixed inset-x-0 bottom-0 z-30 min-[600px]:hidden">
-        <MoreSheet
-          open={moreOpen}
-          onOpenChange={setMoreOpen}
-          groups={view.more}
-          title={labels.more}
-          closeLabel={labels.chrome.close}
-          currentPageId={view.currentPageId}
-        />
-        <BottomNav
-          items={view.bottom}
-          labels={labels.bottom}
-          extra={{
-            id: 'more',
-            label: labels.more,
-            onPress: () => setMoreOpen(true),
-          }}
-        />
-      </div>
+      <PhoneBar view={view} pathname={ctx.pathname} />
     </FrameLinks>
   );
 }

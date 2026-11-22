@@ -120,7 +120,9 @@ describe('style B layout', () => {
       list.compareDocumentPosition(screen.getByRole('main')) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
+});
 
+describe('style B local list', () => {
   it('draws no local list on a route outside every module', () => {
     frameState.pathname = '/nowhere';
     renderFrame(<StyleBFrame>Page body</StyleBFrame>);
