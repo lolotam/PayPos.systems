@@ -53,4 +53,51 @@ Estimate: 650 production, 750 tests. Stop and report if code plus tests passes 2
 
 ## Implementation notes
 
-*(filled by the implementer: per page what moved, changed assertions, `packages/ui` changes, open points, actual sizes)*
+### What moved, per page
+
+| Page | What moved | Test that proves the structure |
+|---|---|---|
+| Package types | `PageShell list`; `PackageTypesListPanel` now owns one `DataTableFrame stacked` with the paging in its footer; loading, error and empty states render inside the card; the table is bare with explicit roles and `data-cell-label` on every cell after the first | `catalog/pages/package-types-page.spec.tsx` (new) |
+| Add package type | `PageShell form`; one card, titled section «Package details» (new key `catalogPackageTypes.basics`) on the 12-column grid (names span 6, price and validity span 4), services section keeps its own legend, save action last in the card foot | `catalog/pages/create-package-type-page-layout.spec.tsx` (new) |
+| Categories (business view) | one `PageShell list` at `ServiceCategoriesScreen`; status tabs moved into the card's filter area; list, table and paging in one card; stacked rows | `catalog/pages/service-categories-layout.spec.tsx` (new) |
+| Categories (branch view) | a `PageHeader` (title, lead, the same outline create button) replaces the bare lead and button row; view tabs in the filter area; table and paging in one card; stacked rows | same spec |
+| Day list | `PageShell list` (keeps `dir`); one card holds the date and late filter, the visit cards and the «Load more» action in the footer; a refused day keeps the filter bar in the card beside the message and its retry | `orders/pages/service-session-day-layout.spec.tsx` (new) |
+| Customer packages | `PageShell list` with `PageHeader`; the package cards and the load-more or retry action sit in one card; the unreadable-customer and proof-pending messages stay plain messages under the header | `orders/pages/customer-packages-page-layout.spec.tsx` (new) |
+| Sell a package | `PageShell form`; the fields sit in one card, the sell action is last at the card foot, the sale result moved out of the card to below it | `orders/pages/package-sale-page.spec.tsx` (new) |
+| Record a visit | `PageShell two-column` rendered by `RecordServiceSessionForm` (the form provider wraps both columns); the draft summary moved from between the recorder field and the lines to the side column, sticky from 1024px; the discount limit state moved from `SessionRecordingHeader` to the form so it travels with the summary; refusal and loading states render in `PageShell form` | `orders/pages/record-service-session-layout.spec.tsx` (new) |
+
+### Changed assertions and fixtures
+
+All assertions on these pages stay. Two fixtures and one selector changed because the DOM moved:
+
+- `orders/pages/service-session-day-page.spec.tsx`, «uses the locale direction on the day list»: the selector `container.querySelector('section')` became `'[data-page-shell="list"]'`. The `dir` still sits on the page root, which is now the shell instead of a `section`.
+- `orders/ui/session-tips-dialog.spec.tsx`: removed the props `hasNext` and `onMore` from the `ServiceSessionDayList` fixture. The load-more action moved to the card footer in `ServiceSessionDayBody`, so the list no longer takes them. No assertion touched.
+- `orders/ui/session-recording-header.spec.tsx`: the harness now holds the limit state and renders `SessionDraftSummary` beside the header, because the header no longer renders the summary. The four assertions are unchanged.
+
+### `packages/ui` changes
+
+None.
+
+### Other production changes outside the seven pages' own files
+
+- `packages/i18n/src/catalog-package-types.ts`: one key, `basics`, in `ar` and `en` (the «Package details» section title).
+- `BranchServiceCategoriesFrame` renamed `BranchServiceCategoriesGrid` (it is a bare table now).
+- New `catalog/ui/list-query-states.tsx`: the loading, error and empty states shared by the three catalog list cards (keeps each panel under the 60-line function rule).
+- New `orders/ui/record-visit-columns.tsx`: owns the form provider, the two-column shell and the discount-limit state for Record a visit (keeps `RecordServiceSessionForm` under the 60-line rule). `PackageTypeBasicsFields` takes an optional `grid` prop so the edit panel keeps its stacked fields.
+
+### Open points
+
+1. **No tables on the two Sales lists.** Day list and Customer packages are lists of cards, not tables, so there are no stacked rows to switch on and acceptance 2 does not apply to them. No table was invented. Stacked-row labels are proved for the three real tables: Package types, Categories (business) and Categories (branch).
+2. **12-column grid and section titles on Sell a package and Record a visit.** Not done. Their fields are label, input and message fragments shared with the recovery and replay logic, so a grid would need a wrapper per field and would touch dense shared components. Both pages keep one column inside their card or column. A follow-up can do it per field component.
+3. **Page descriptions.** Five of the seven pages have a title only; no description keys were added (the brief allows only section titles and stacked-row labels). Pages without a description: Add package type, Day list, Customer packages, Sell a package, Record a visit.
+4. **Categories header order.** The scope select (branch or whole business) still sits above the header, because it switches between two page bodies that each own their header and their create action. Lifting it would move create and selection state, which this slice does not touch.
+5. **Inline edit panels stay where they are.** The Services edit panel (requirement 7), the Package types edit panel and the Categories editor are still rendered below the list card; no document says where they move.
+6. **Component rows in Add package type** (the «Sessions» input) stay stacked in their bordered row, not on the grid: the row is shared with the edit panel.
+
+### Not verified in a browser
+
+Widths, the 12-column grid spans, the sticky side column and its `top-4` offset under the final frame, stacking under 600px, 44px targets, the look of a nested card in Sell a package, Day list and Customer packages (cards inside the frame card), dialogs inside the Day list card (not clipped by its `overflow-hidden`), and the Arabic layout. They are CSS outcomes a DOM test cannot measure and wait for the browser pass after the 074-7b release.
+
+### Sizes (against `origin/main`)
+
+Production +527 / −384, tests +704 / −4, i18n +2, docs notes excluded. About 1,600 lines added plus removed outside docs, below the 2,800 stop line.
