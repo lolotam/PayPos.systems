@@ -19,25 +19,30 @@ const excludedModule: NavigationModule = {
   sections: [{ id: 'setup', label: 'Setup', pages: [{ id: 'columns', label: 'Columns', href: '#columns' }] }],
 };
 
-function renderOpenMenu(module: NavigationModule, visiblePageIds: readonly string[]) {
-  return render(
+function menuTree(
+  modules: readonly NavigationModule[],
+  module: NavigationModule,
+  open: boolean,
+  visiblePageIds?: readonly string[],
+) {
+  return (
     <DirectionProvider dir="ltr">
       <MegaMenu
-        modules={[visibleModule, excludedModule]}
+        modules={modules}
         module={module}
         labels={chromeLabels}
-        open
+        open={open}
         currentModuleId={module.id}
         visiblePageIds={visiblePageIds}
         onOpenChange={() => {}}
         onSwitchModule={() => {}}
       />
-    </DirectionProvider>,
+    </DirectionProvider>
   );
 }
 
 it('omits excluded modules and their overview from a standalone mega menu', () => {
-  renderOpenMenu(excludedModule, ['orders']);
+  render(menuTree([visibleModule, excludedModule], excludedModule, true, ['orders']));
   const dialog = screen.getByRole('dialog', { name: 'Business' });
   expect(within(dialog).queryByRole('button', { name: /Business/ })).toBeNull();
   expect(within(dialog).queryByRole('link', { name: 'Overview' })).toBeNull();
@@ -51,19 +56,10 @@ it('keeps short module and switcher labels at 44px touch targets', () => {
     href: '#ai',
     sections: [{ id: 'ai-main', label: 'AI', pages: [{ id: 'ai-page', label: 'AI', href: '#ai' }] }],
   };
-  render(
-    <DirectionProvider dir="ltr">
-      <MegaMenu
-        modules={[shortModule]}
-        module={shortModule}
-        labels={chromeLabels}
-        open
-        onOpenChange={() => {}}
-        onSwitchModule={() => {}}
-      />
-    </DirectionProvider>,
-  );
+  const view = render(menuTree([shortModule], shortModule, false));
   expect(screen.getByRole('button', { name: /AI/ }).className).toContain('min-w-11');
+
+  view.rerender(menuTree([shortModule], shortModule, true));
   const dialog = screen.getByRole('dialog', { name: 'AI' });
   expect(within(dialog).getByRole('button', { name: /AI/ }).className).toContain('min-w-11');
 });
