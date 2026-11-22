@@ -243,8 +243,10 @@ export function CustomerProfileInputs({
 }: CustomerProfileInputsProps) {
   const generated = useId();
   const id = `${prefix}-${generated}`;
-  // خطأ التقويم بيشمل المجموعة؛ تصحيح خانة واحدة لازم يمسح أخطاء باقي الخانات فوراً.
+  // خطأ التقويم بيشمل المجموعة؛ بعد أول محاولة، تصحيح خانة يمسح أخطاء باقي الخانات.
+  // قبل أول محاولة مفيش تحقق عشان ما تظهرش أخطاء والمستخدم لسه بيكتب تاريخ صحيح.
   const revalidateBirthday = () => {
+    if (!form.formState.isSubmitted) return;
     void form.trigger(['birthday.day', 'birthday.month', 'birthday.year']);
   };
   return (

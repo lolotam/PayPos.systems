@@ -315,11 +315,12 @@ function SessionCustomerFeedback({
 }) {
   return (
     <>
-      {invalid || profileInvalid ? (
+      {invalid ? (
         <p id={`${prefix}-error`} role="alert">
-          {t(locale, profileInvalid ? 'serviceSessions.invalidProfileFields' : 'serviceSessions.invalidCustomer')}
+          {t(locale, 'serviceSessions.invalidCustomer')}
         </p>
       ) : null}
+      {profileInvalid ? <p role="alert">{t(locale, 'serviceSessions.invalidProfileFields')}</p> : null}
       {genderHint && !hasValue ? (
         <p role="status">{t(locale, 'serviceSessions.genderNeededHint')}</p>
       ) : null}

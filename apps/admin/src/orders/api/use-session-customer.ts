@@ -122,6 +122,8 @@ export function useSessionCustomer(
     mutationKey: ['session-customer', companyId, branchId, userId, entryScope, businessId],
     retry: false,
     gcTime: 0,
+    // طلب موقوف قبل بدء mutationFn مفيش AbortController يتلغي؛ نخليه يفشل فوراً بدل ما يتبعت عند رجوع النت.
+    networkMode: 'always',
     mutationFn: async (input: SessionCustomerFormValues) => {
       const controller = new AbortController();
       pending.current = controller;

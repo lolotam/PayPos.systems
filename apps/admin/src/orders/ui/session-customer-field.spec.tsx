@@ -312,7 +312,7 @@ it.each([
     fireEvent.change(screen.getByLabelText(t('en', label)), { target: { value } });
   }
   resolve();
-  await screen.findByRole('alert');
+  await screen.findAllByRole('alert');
   expect(state.post).not.toHaveBeenCalled();
 });
 

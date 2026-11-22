@@ -70,6 +70,7 @@ export function useSessionCustomerProfile(entry: SessionCustomerProfileEntry) {
     staleTime: 0,
     // مفيش إرسال لوحده بعد رجوع النت؛ القراءة المعلّقة تفشل فوراً بدل ما تكمّل عند الاتصال.
     refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
     networkMode: 'always',
     queryFn: async ({ signal }) => {
       if (customerId === null) throw new Error('CUSTOMER_SELECTION_MISSING');
