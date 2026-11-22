@@ -2,7 +2,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { createServiceInput, type CreateServiceInput } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { Button } from '@pospay/ui';
+import { Button, Card, CardContent, CardFooter } from '@pospay/ui';
 import { FormProvider, useForm } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import { omitRefusedCategory, type ServiceCategoriesQuery } from '../api/use-service-categories';
@@ -37,16 +37,24 @@ export function ServiceForm({
   });
   return (
     <FormProvider {...form}>
-      <form onSubmit={submit} className="flex flex-col gap-3 text-start">
-        <fieldset disabled={pending} className="flex flex-col gap-3">
-          <ServiceBasicsFields />
-          <ServiceAttributesFields
-            categoryQuery={categoryQuery}
-            currentCategoryId={null}
-            currentCategory={null}
-          />
-          <ServiceRuleFields />
-          <Button type="submit">{t(locale, 'catalogServices.create')}</Button>
+      <form onSubmit={submit} className="flex flex-col gap-4 text-start">
+        <fieldset disabled={pending} className="contents">
+          <Card>
+            <CardContent className="flex flex-col gap-3">
+              <ServiceBasicsFields />
+              <ServiceAttributesFields
+                categoryQuery={categoryQuery}
+                currentCategoryId={null}
+                currentCategory={null}
+              />
+              <ServiceRuleFields />
+            </CardContent>
+            <CardFooter>
+              <Button type="submit" className="ms-auto">
+                {t(locale, 'catalogServices.create')}
+              </Button>
+            </CardFooter>
+          </Card>
         </fieldset>
         {Object.keys(form.formState.errors).length ? (
           <p role="alert">{t(locale, 'catalogServices.invalid')}</p>

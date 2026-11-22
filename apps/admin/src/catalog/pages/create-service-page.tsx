@@ -1,6 +1,7 @@
 'use client';
 import type { WorkspaceBusinessRead } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
+import { PageHeader, PageShell } from '@pospay/ui';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useOpenServiceCategories } from '../api/use-service-categories';
@@ -20,8 +21,8 @@ export function CreateServicePage({
   const save = useCreateService(companyId, business.id, userId);
   const categoryQuery = useOpenServiceCategories(companyId, business.id, userId);
   return (
-    <section className="mx-auto flex w-full max-w-xl flex-col gap-4 text-start">
-      <h1 className="text-xl font-semibold">{t(locale, 'catalogServices.title')}</h1>
+    <PageShell layout="form">
+      <PageHeader title={t(locale, 'catalogServices.title')} />
       <ServiceForm
         categoryQuery={categoryQuery}
         pending={save.isPending}
@@ -34,6 +35,6 @@ export function CreateServicePage({
           {locale === 'ar' ? (save.data.name_ar ?? save.data.name_en) : save.data.name_en}
         </p>
       ) : null}
-    </section>
+    </PageShell>
   );
 }

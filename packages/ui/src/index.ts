@@ -62,3 +62,25 @@ export {
   subscribeToThemePreference,
   type ThemePreference,
 } from './theme.js';
+export { PageShell, type PageShellLayout, type PageShellProps } from './page-shell.js';
+export { NavTabs, type NavTabsLabels, type NavTabsProps } from './nav-tabs.js';
+export { Pills, type PillsLabels, type PillsProps } from './pills.js';
+export {
+  BottomNav,
+  type BottomNavExtra,
+  type BottomNavLabels,
+  type BottomNavProps,
+} from './bottom-nav.js';
+export { HubCard, type HubCardItem, type HubCardProps } from './hub-card.js';
+export {
+  WorkspaceSwitcher,
+  type WorkspaceSwitcherLabels,
+  type WorkspaceSwitcherProps,
+} from './workspace-switcher.js';
+export {
+  AccountMenu,
+  type AccountMenuEntry,
+  type AccountMenuLabels,
+  type AccountMenuProps,
+} from './account-menu.js';
+export { type ShellNavItem, shellNavCountClass, shellNavLinkClass } from './shell-nav-item.js';
