@@ -46,6 +46,25 @@ it.each(['rtl', 'ltr'] as const)('filters by translated label and selects the fi
   expect(onNavigate).toHaveBeenCalledTimes(1);
 });
 
+it('keeps the finder open when Enter confirms IME composition', async () => {
+  const onNavigate = vi.fn();
+  render(tree('ltr', { onNavigate }));
+  const dialog = openWithShortcut('k', 'ctrlKey');
+  const input = within(dialog).getByRole('searchbox', { name: finderLabels.search });
+  fireEvent.change(input, { target: { value: 'الأعمدة' } });
+  const click = vi.fn();
+  within(dialog)
+    .getByRole('link', { name: /الأعمدة/ })
+    .addEventListener('click', click, { capture: true });
+
+  fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+
+  expect(click).not.toHaveBeenCalled();
+  expect(onNavigate).not.toHaveBeenCalled();
+  expect(screen.getByRole('dialog', { name: finderLabels.title })).toBeTruthy();
+  await waitFor(() => expect(document.activeElement).toBe(input));
+});
+
 it('activates the first visible query result through its link and restores shortcut focus', async () => {
   const onNavigate = vi.fn();
   render(tree('ltr', { onNavigate }));

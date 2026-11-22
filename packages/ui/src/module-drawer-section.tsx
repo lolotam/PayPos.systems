@@ -9,6 +9,14 @@ import {
 import { cn } from './shared/cn.js';
 import { SIDEBAR_GHOST_CLASSES } from './sidebar-classes.js';
 
+const currentMarker = (
+  <span
+    aria-hidden="true"
+    data-current-marker=""
+    className="size-1.5 shrink-0 rounded-full bg-current"
+  />
+);
+
 export type ModuleDrawerSectionProps = {
   module: NavigationModule;
   labels: NavigationChromeLabels;
@@ -39,6 +47,7 @@ export function ModuleDrawerSection({
       <button
         type="button"
         aria-expanded={expanded}
+        aria-current={current ? 'page' : undefined}
         onClick={onToggle}
         className={cn(
           'flex min-h-11 w-full items-center gap-2 rounded-interactive ps-3 pe-2 py-2 text-start text-sm font-medium',
@@ -46,6 +55,7 @@ export function ModuleDrawerSection({
         )}
       >
         <span className="truncate">{module.label}</span>
+        {current ? currentMarker : null}
         {current ? <span className="sr-only">{labels.current}</span> : null}
         {expanded ? (
           <CaretDownIcon aria-hidden="true" className="ms-auto size-4" />

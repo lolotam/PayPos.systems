@@ -125,7 +125,7 @@ function onFinderInputKeyDown(
   event: KeyboardEvent<HTMLInputElement>,
   listRef: RefObject<HTMLUListElement | null>,
 ) {
-  if (event.key !== 'Enter') return;
+  if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
   const firstVisible = Array.from(
     listRef.current?.querySelectorAll<HTMLAnchorElement>('a[data-finder-result]') ?? [],
   ).find(isVisibleElement);

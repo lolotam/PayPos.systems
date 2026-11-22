@@ -194,7 +194,7 @@ function visibleNavigationKey(
 }
 
 export function TopNav({ modules, visiblePageIds, ...chromeProps }: TopNavProps) {
-  const isPhone = useNavigationMedia('(max-width: 699px)');
+  const isPhone = useNavigationMedia('(width < 700px)');
   const visibleModules = useMemo(
     () => modules.filter((module) => moduleHasVisiblePages(module, visiblePageIds)),
     [modules, visiblePageIds],
