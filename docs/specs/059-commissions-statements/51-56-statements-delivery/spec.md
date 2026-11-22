@@ -154,7 +154,7 @@ canonical spec leaves to the sub-PR:
 Canonical requirements are **FR-025…FR-038, FR-046…FR-055** of spec 059 §5 and row 62-2c of spec 060 §7. The delivery
 requirements below bind how they are shipped; none changes a rule.
 
-- **DR-001** Every part ships exactly the scope its canonical row names. PP-192's split of 51-1 into two PRs, in
+- **DR-001** Every part ships exactly the scope its canonical row names. PP-192's split of 51-1, refined by PP-229 into three PRs for its first part and a separate generate/GET PR, in
   dependency order, is kept.
 - **DR-002** 55-2f-0 changes no behaviour: the worker's four projectors produce the same corrections before and after,
   proven by the existing worker suite passing unchanged.

@@ -92,3 +92,13 @@ merge-ready.
 ## Not yours
 
 The repair route, the pending count, approval, payments, exports, reminders, the alert-rule validator (#486, lane D).
+
+## Addendum — PP-229 and the correction-row ruling
+
+Part 3 is delivered as three PRs (plan.md, «3 (split, PP-229)»): **1a-i** canonical input and input fingerprint
+(about 455 new production lines), **1a-ii** statement builder and statement fingerprint with the pure half of CM-34e
+(about 803, stacked on 1a-i), **1b** the carries table, RLS, CM-R11, the hash port and the carries in the estimate
+(about 426, with the migration, local until «lane granted»). Stop and report above twice a limit. Each PR body gives
+the measured numbers split into new logic, verbatim moves, tests, SQL and generated files. One open delivery PR at a
+time. In 1a-ii a `CORRECTION` row of a `line:<id>` source carries the frozen line detail of spec 059 §6 and D-20, and
+the correction's own id stays the `source_ref` (research.md R10). The three CHECKs beyond §6 are not part of 1b.
