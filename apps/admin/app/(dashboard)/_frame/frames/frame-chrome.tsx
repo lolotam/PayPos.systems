@@ -5,8 +5,9 @@ import type { MouseEvent, ReactNode } from 'react';
 
 function sameOriginTarget(anchor: HTMLAnchorElement): string | null {
   const href = anchor.getAttribute('href');
-  const sameTab = anchor.target === '' || anchor.target === '_self';
-  if (href === null || !sameTab || anchor.hasAttribute('download')) return null;
+  // الرابط الذي له target أو الذي يشير إلى جزء من الصفحة نفسها (#...) يتولاه المتصفح.
+  if (href === null || href.startsWith('#')) return null;
+  if (anchor.hasAttribute('target') || anchor.hasAttribute('download')) return null;
   let url: URL;
   try {
     url = new URL(href, window.location.href);
@@ -29,7 +30,7 @@ function softNavigationTarget(event: MouseEvent<HTMLElement>): string | null {
  * حدّ تنقّل الإطار: يلفّ كل جزء من قوائم الإطار (الشريط الجانبي والعلوي واللوحة والحبوب والشريط السفلي
  * والباحث وقائمة الحساب). روابط @pospay/ui عناصر <a> عادية، فالضغطة العادية في نفس التبويب داخل هذا
  * الحد تذهب إلى موجّه Next بدل تحميل الصفحة كاملة (وهو يُفقد حالة الإطار مثل طيّ الشريط الجانبي).
- * الضغطة بمفتاح تعديل أو الزر الأوسط أو أصل آخر تبقى للمتصفح.
+ * الضغطة بمفتاح تعديل أو الزر الأوسط أو أصل آخر أو رابط له target أو رابط جزء (#) تبقى للمتصفح.
  * المعالجة على الحد نفسه لا على جذر الإطار: أحداث React تصعد عبر الـ portal، فتشمل ما يرسمه جزء
  * من الإطار في body (الأدراج والورقة السفلية والباحث)، ولا تمسّ رابطًا يرسمه محتوى الصفحة، حتى
  * لو رسمه في portal، لأن مكانه في شجرة React خارج هذا الحد.

@@ -93,6 +93,13 @@ describe('style B layout', () => {
     expect(barNav().contains(list)).toBe(false);
   });
 
+  it('bounds the local list height from 1024px so it scrolls inside itself, not the page', () => {
+    frameState.pathname = '/staff';
+    renderFrame(<StyleBFrame>Page body</StyleBFrame>);
+    expect(localList().className).toContain('min-[1024px]:max-h-dvh');
+    expect(localList().className).toContain('min-[1024px]:overflow-y-auto');
+  });
+
   it('groups the local list under the section headings of the module', () => {
     frameState.pathname = '/staff';
     renderFrame(<StyleBFrame>Page body</StyleBFrame>);

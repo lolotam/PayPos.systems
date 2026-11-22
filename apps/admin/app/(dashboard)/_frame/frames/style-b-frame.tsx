@@ -49,6 +49,7 @@ export function StyleBFrame({ children }: { children: ReactNode }) {
               labels={labels.chrome}
               activePageId={view.activePageId}
               visiblePageIds={ctx.visibleIds}
+              className="min-[1024px]:max-h-dvh"
             />
           </FrameChrome>
         ) : null}
