@@ -101,6 +101,10 @@ export function fullRows(): StatementMonthRows {
         refundedAmount: 0n,
       },
     ],
+    tips: [
+      ...base.tips,
+      { ...at(base.tips, 0), sessionId: 'session-2', businessDate: '2026-10-15', amount: 1_500n },
+    ],
     salaries: [
       ...base.salaries,
       { employeeId: SARA, effectiveFrom: '2026-09-01', amount: 300_000n, revision: 1n },
@@ -288,6 +292,13 @@ const SARA_ENTRY = {
       method: 'CASH',
       business_date: '2026-10-05',
       amount: '2.000',
+    },
+    {
+      session_id: 'session-2',
+      revision: '1',
+      method: 'CARD',
+      business_date: '2026-10-15',
+      amount: '1.500',
     },
   ],
   salary: { effective_from: '2026-10-01', amount: '400.000', revision: '3' },

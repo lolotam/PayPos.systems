@@ -3,7 +3,7 @@ import { moneyToString } from '@pospay/domain';
 import { microsToIso, ruleJson, sortedBy } from './canonical-format.ts';
 import { overrideJson, planVersionJson } from './canonical-plan.ts';
 import type { ServiceCommissionOverride } from './commission-types.ts';
-import { assembleCommissionPeriodInput, assertCommissionPeriod } from './period-input-assembly.ts';
+import { assembleForLastDay, commissionPeriodLastDay } from './period-input-assembly.ts';
 import type {
   IncomingCommissionCarry,
   ProjectedCommissionLine,
@@ -231,16 +231,18 @@ function carryJson(carry: IncomingCommissionCarry): object {
  * كل قوائم الموظفة بعد اختيار المجمّع المشترك، أو null لما تكون كلها فاضية.
  *
  * @param period الشهر بصيغة YYYY-MM
+ * @param periodLastDay آخر يوم في الشهر، محسوب مرة واحدة
  * @param employeeId الموظفة
  * @param rows صفوف الموظفة هي بس من كل قائمة
  * @returns إدخال الموظفة أو null
  */
 function employeeEntry(
   period: string,
+  periodLastDay: string,
   employeeId: string,
   rows: CanonicalInputRows,
 ): object | null {
-  const assembled = assembleCommissionPeriodInput({ employeeId, period, ...rows });
+  const assembled = assembleForLastDay({ employeeId, period, ...rows }, periodLastDay);
   const { input } = assembled;
   const blocked = rows.blocked;
   const salary = assembled.salary;
@@ -308,11 +310,16 @@ export function buildCanonicalInput(
   period: string,
   rows: CanonicalInputRows,
 ): { readonly period: string; readonly employees: readonly object[] } {
-  assertCommissionPeriod(period);
+  const periodLastDay = commissionPeriodLastDay(period);
   const grouped = groupRows(rows);
   const employees: object[] = [];
   for (const employeeId of employeeIdsOf(grouped)) {
-    const entry = employeeEntry(period, employeeId, rowsOfEmployee(grouped, employeeId));
+    const entry = employeeEntry(
+      period,
+      periodLastDay,
+      employeeId,
+      rowsOfEmployee(grouped, employeeId),
+    );
     if (entry !== null) employees.push(entry);
   }
   return { period, employees };

@@ -4,7 +4,7 @@ import { microsToIso, sortedBy } from '../canonical-format.ts';
 import { buildCanonicalInput } from '../canonical-input.ts';
 import { assembleCommissionPeriodInput } from '../period-input-assembly.ts';
 import { EXPECTED_CANONICAL_INPUT, fullRows } from './canonical-input-expected.ts';
-import { canonicalMutations, interleaved } from './canonical-input-mutations.ts';
+import { canonicalMutations, interleaved, reversed } from './canonical-input-mutations.ts';
 import { at, PERIOD, SARA, type StatementMonthRows } from './statement-fixtures.ts';
 
 /** النص الثابت لمدخل البصمة؛ `JSON.stringify` بيرمي على أي bigint، فنجاحه دليل إن مفيش bigint هرب. */
@@ -13,6 +13,26 @@ function text(rows: StatementMonthRows, period = PERIOD): string {
 }
 
 const BASE = text(fullRows());
+
+interface Canonical {
+  employees: Array<{
+    employee_id: string;
+    lines: Array<{ line_id: string }>;
+    sales: Array<{ sale_id: string }>;
+    versions: Array<{ version: string }>;
+    corrections: Array<{ source_ref: string; generation: string }>;
+    salary: { revision: string } | null;
+  }>;
+}
+
+/** الموظفة سارة من المدخل القياسي بعد قراءته تاني. */
+function saraOf(rows: StatementMonthRows): Canonical['employees'][number] {
+  const found = (JSON.parse(text(rows)) as Canonical).employees.find(
+    (employee) => employee.employee_id === SARA,
+  );
+  if (found === undefined) throw new RangeError('Sara is missing from the canonical input');
+  return found;
+}
 
 /** مسارات الأوراق (leaves) في قيمة JSON، والعنصر في القايمة بيتكتب `[]`. */
 function leafPaths(value: unknown, path = ''): string[] {
@@ -25,22 +45,173 @@ function leafPaths(value: unknown, path = ''): string[] {
   return [path];
 }
 
+/** كل ورقة بمسارها الفعلي (بالموضع) وقيمتها. */
+function leafValues(
+  value: unknown,
+  path = '',
+  out = new Map<string, unknown>(),
+): Map<string, unknown> {
+  if (Array.isArray(value))
+    value.forEach((item, index) => leafValues(item, `${path}[${index}]`, out));
+  else if (value !== null && typeof value === 'object') {
+    for (const [key, item] of Object.entries(value))
+      leafValues(item, path === '' ? key : `${path}.${key}`, out);
+  } else out.set(path, value);
+  return out;
+}
+
+/** الأوراق اللي اختلفت بين قيمتين (أو اتضافت أو اتشالت)، بمسارها العام. */
+function changedLeaves(before: unknown, after: unknown): Set<string> {
+  const a = leafValues(before);
+  const b = leafValues(after);
+  const changed = new Set<string>();
+  for (const key of new Set([...a.keys(), ...b.keys()])) {
+    if (!a.has(key) || !b.has(key) || a.get(key) !== b.get(key))
+      changed.add(key.replace(/\[\d+\]/g, '[]'));
+  }
+  return changed;
+}
+
 describe('the input fingerprint canonical input, written by hand (D-26)', () => {
   it('equals the value typed by hand from the rules for the full fixture', () => {
     expect(JSON.parse(BASE)).toEqual(EXPECTED_CANONICAL_INPUT);
   });
 
   it('has a mutation for every fingerprinted field and no field the hand-written value lacks', () => {
-    const fields = [...new Set(leafPaths(EXPECTED_CANONICAL_INPUT))].sort();
-    expect(Object.keys(canonicalMutations()).sort()).toEqual(fields);
+    const fields = [...new Set(leafPaths(EXPECTED_CANONICAL_INPUT))].filter((p) => p !== 'period');
+    expect(Object.keys(canonicalMutations()).sort()).toEqual(fields.sort());
   });
 
-  it.each(Object.entries(canonicalMutations()))('moves when only %s changes', (_field, mutated) => {
-    expect(mutated()).not.toBe(BASE);
+  it.each(Object.entries(canonicalMutations()))(
+    'changes exactly %s when only that field changes',
+    (field, mutation) => {
+      const after = JSON.parse(mutation.run());
+      expect(JSON.stringify(after)).not.toBe(BASE);
+      if (mutation.moves) return;
+      const allowed = new Set([field, ...(mutation.alsoChanges ?? [])]);
+      const changed = changedLeaves(JSON.parse(BASE), after);
+      expect(changed.has(field)).toBe(true);
+      expect([...changed].filter((leaf) => !allowed.has(leaf))).toEqual([]);
+    },
+  );
+});
+
+describe('the new value of the fields that matter most', () => {
+  it('writes the new salary revision, the new repair period, the new generation and the new carry kind', () => {
+    const run = (field: string) => JSON.parse(canonicalMutations()[field]?.run() ?? 'null');
+    expect(run('employees[].salary.revision').employees[1].salary.revision).toBe('4');
+    expect(run('employees[].versions[].repair_period').employees[1].versions[0].repair_period).toBe(
+      PERIOD,
+    );
+    expect(run('employees[].corrections[].generation').employees[1].corrections[0].generation).toBe(
+      '2',
+    );
+    expect(run('employees[].carries[].kind').employees[1].carries[0].kind).toBe('TIP_CARD');
+  });
+
+  it('moves a line to the employee she is attributed to and takes it from the previous one', () => {
+    const rows = fullRows();
+    const moved = {
+      ...rows,
+      lines: [{ ...at(rows.lines, 0), employeeId: 'employee-zed' }, ...rows.lines.slice(1)],
+    };
+    const parsed = JSON.parse(text(moved)) as Canonical;
+    const zed = parsed.employees.find((employee) => employee.employee_id === 'employee-zed');
+    expect(zed?.lines.map((line) => line.line_id)).toEqual(['line-1']);
+    expect(saraOf(moved).lines.map((line) => line.line_id)).toEqual(['line-2']);
+  });
+
+  it('moves the input when a newer salary revision arrives alone, and not for an unselected entry', () => {
+    const rows = fullRows();
+    const newer = {
+      ...rows,
+      salaries: rows.salaries.map((s) =>
+        s.effectiveFrom === '2026-10-01' ? { ...s, revision: 4n } : s,
+      ),
+    };
+    expect(text(newer)).not.toBe(BASE);
+    const unselected = {
+      ...rows,
+      salaries: [
+        ...rows.salaries.map((s) =>
+          s.effectiveFrom === '2026-09-01' ? { ...s, amount: 1n, revision: 99n } : s,
+        ),
+        { employeeId: SARA, effectiveFrom: '2026-11-01', amount: 9n, revision: 5n },
+      ],
+    };
+    expect(text(unselected)).toBe(BASE);
   });
 });
 
-describe('what the input fingerprint ignores', () => {
+describe('the period field and the rows it selects', () => {
+  it('writes the requested period for any valid month, on the same empty rows', () => {
+    const empty: StatementMonthRows = {
+      lines: [],
+      sales: [],
+      tips: [],
+      salaries: [],
+      versions: [],
+      overrides: [],
+      corrections: [],
+      blocked: [],
+      carries: [],
+    };
+    expect(buildCanonicalInput('2026-10', empty)).toEqual({ period: '2026-10', employees: [] });
+    expect(buildCanonicalInput('2026-11', empty)).toEqual({ period: '2026-11', employees: [] });
+    expect(buildCanonicalInput('2026-11', fullRows()).period).toBe('2026-11');
+  });
+
+  it('selects the rows of the requested month: a month with none of the fixture rows lists nobody', () => {
+    expect(
+      buildCanonicalInput('2026-11', fullRows()).employees.map(
+        (e) => (e as { employee_id: string }).employee_id,
+      ),
+    ).toEqual(['employee-noor', 'employee-sara']);
+    expect(JSON.parse(text(fullRows(), '2026-11')).employees[1].lines).toEqual([]);
+  });
+
+  it.each(['2026-13', '26-10', '2026-1', '0000-10', 'abcd-10'])(
+    'refuses the month %s even when every list is empty',
+    (month) => {
+      const empty: StatementMonthRows = {
+        lines: [],
+        sales: [],
+        tips: [],
+        salaries: [],
+        versions: [],
+        overrides: [],
+        corrections: [],
+        blocked: [],
+        carries: [],
+      };
+      expect(() => buildCanonicalInput(month, empty)).toThrow(RangeError);
+    },
+  );
+});
+
+describe('what leaves the canonical input: cancelled sources and what the fingerprint ignores', () => {
+  it('drops a cancelled line from the canonical input, and so changes the value', () => {
+    const rows = fullRows();
+    const cancelled = {
+      ...rows,
+      lines: [{ ...at(rows.lines, 0), status: 'CANCELLED' as const }, ...rows.lines.slice(1)],
+    };
+    expect(text(cancelled)).not.toBe(BASE);
+    expect(saraOf(cancelled).lines.map((line) => line.line_id)).toEqual(['line-2']);
+  });
+
+  it('drops a cancelled package sale from the canonical input, and so changes the value', () => {
+    const rows = fullRows();
+    const cancelled = {
+      ...rows,
+      sales: [{ ...at(rows.sales, 0), status: 'CANCELLED' as const }, ...rows.sales.slice(1)],
+    };
+    expect(text(cancelled)).not.toBe(BASE);
+    expect(saraOf(cancelled).sales.map((sale) => sale.sale_id)).toEqual(['sale-2']);
+  });
+});
+
+describe('what the fingerprint ignores', () => {
   it('ignores the branch attribution of a source and the id of a correction (D-26)', () => {
     const rows = fullRows();
     const same: StatementMonthRows = {
@@ -59,36 +230,16 @@ describe('what the input fingerprint ignores', () => {
     expect(text(same)).toBe(BASE);
   });
 
-  it('ignores a salary entry that is not the one selected for the last day of the month', () => {
-    const rows = fullRows();
-    const same: StatementMonthRows = {
-      ...rows,
-      salaries: [
-        ...rows.salaries.map((salary) =>
-          salary.effectiveFrom === '2026-09-01' ? { ...salary, amount: 1n, revision: 99n } : salary,
-        ),
-        { employeeId: SARA, effectiveFrom: '2026-11-01', amount: 9n, revision: 5n },
-      ],
-    };
-    expect(text(same)).toBe(BASE);
-  });
-});
-
-describe('what the input fingerprint ignores in plans and carries', () => {
-  it('ignores a plan version that cannot apply in the month', () => {
+  it('ignores a plan version that cannot apply in the month and a repair of another month', () => {
     const rows = fullRows();
     const later = { ...at(rows.versions, 0), version: 20n, effectiveFrom: '2026-11-01' };
-    expect(text({ ...rows, versions: [...rows.versions, later] })).toBe(BASE);
-  });
-
-  it('ignores a repair version of another month, because pricing ignores it', () => {
-    const rows = fullRows();
     const september = {
       ...at(rows.versions, 0),
       version: 21n,
       effectiveFrom: '2026-09-01',
       repairPeriod: '2026-09',
     };
+    expect(text({ ...rows, versions: [...rows.versions, later] })).toBe(BASE);
     expect(text({ ...rows, versions: [...rows.versions, september] })).toBe(BASE);
     const assembled = assembleCommissionPeriodInput({
       employeeId: SARA,
@@ -99,38 +250,37 @@ describe('what the input fingerprint ignores in plans and carries', () => {
     expect(assembled.input.versions.map((version) => version.version)).not.toContain(21n);
   });
 
-  it('counts a carry only toward its target month', () => {
+  it('counts a carry only toward its target month, and lists no employee with nothing in the month', () => {
     const rows = fullRows();
     const other = { ...at(rows.carries, 0), targetPeriod: '2026-11', sourceStatementId: 'x' };
-    expect(text({ ...rows, carries: [...rows.carries, other] })).toBe(BASE);
-  });
-
-  it('does not list an employee whose lists are all empty or inapplicable', () => {
-    const rows = fullRows();
     const idle = {
       ...at(rows.versions, 0),
       employeeId: 'employee-idle',
       effectiveFrom: '2026-11-01',
     };
-    expect(text({ ...rows, versions: [...rows.versions, idle] })).toBe(BASE);
+    expect(
+      text({ ...rows, carries: [...rows.carries, other], versions: [...rows.versions, idle] }),
+    ).toBe(BASE);
   });
 });
 
-describe('the order and the shape of the canonical input', () => {
+describe('the order of the canonical input', () => {
   it('is stable when the rows of two employees are interleaved or reversed in every list', () => {
     const rows = fullRows();
     expect(text(interleaved(rows))).toBe(BASE);
     expect(text(interleaved(interleaved(rows)))).toBe(BASE);
+    expect(text(reversed(rows))).toBe(BASE);
   });
 
-  it('orders plan versions and generations numerically: 9 before 10, never 10 before 9', () => {
-    const [, sara] = JSON.parse(BASE).employees;
-    expect(sara.versions.map((version: { version: string }) => version.version)).toEqual([
-      '1',
-      '9',
-      '10',
-    ]);
-    expect(sara.corrections.map((entry: { generation: string }) => entry.generation)).toEqual([
+  it('orders two corrections of the same source by generation numerically, fed 10 before 9', () => {
+    const fed = [...fullRows().corrections].sort((a, b) => Number(b.generation - a.generation));
+    expect(fed.map((correction) => correction.generation)).toEqual([10n, 9n, 1n]);
+    const sara = saraOf({ ...fullRows(), corrections: fed });
+    expect(sara.corrections.map((entry) => entry.generation)).toEqual(['1', '9', '10']);
+  });
+
+  it('orders plan versions numerically: 1, 9, 10 and never 1, 10, 9', () => {
+    expect(saraOf(reversed(fullRows())).versions.map((version) => version.version)).toEqual([
       '1',
       '9',
       '10',
@@ -138,24 +288,7 @@ describe('the order and the shape of the canonical input', () => {
   });
 });
 
-describe('the validation and the formatting of the canonical input', () => {
-  it('refuses a malformed month even when every list is empty', () => {
-    const empty: StatementMonthRows = {
-      lines: [],
-      sales: [],
-      tips: [],
-      salaries: [],
-      versions: [],
-      overrides: [],
-      corrections: [],
-      blocked: [],
-      carries: [],
-    };
-    expect(() => buildCanonicalInput('2026-13', empty)).toThrow(RangeError);
-    expect(() => buildCanonicalInput('26-10', empty)).toThrow(RangeError);
-    expect(buildCanonicalInput('2026-10', empty)).toEqual({ period: '2026-10', employees: [] });
-  });
-
+describe('the shape and the formatting of the canonical input', () => {
   it.each([
     [0n, '0.000'],
     [1n, '0.001'],
@@ -165,10 +298,11 @@ describe('the validation and the formatting of the canonical input', () => {
   ])('writes %s mills as the three-decimal text %s', (mills, expected) => {
     const rows = fullRows();
     const lines = [{ ...at(rows.lines, 0), netShare: mills }, ...rows.lines.slice(1)];
-    const [, sara] = JSON.parse(text({ ...rows, lines })).employees;
-    expect(sara.lines[0].net_share).toBe(expected);
+    expect(JSON.parse(text({ ...rows, lines })).employees[1].lines[0].net_share).toBe(expected);
   });
+});
 
+describe('what canonicalJson accepts and how timestamps are written', () => {
   it('emits only what canonicalJson accepts: plain objects, arrays, strings, booleans, numbers and null', () => {
     const walk = (value: unknown): void => {
       expect(value).not.toBeUndefined();
@@ -184,9 +318,7 @@ describe('the validation and the formatting of the canonical input', () => {
     };
     walk(buildCanonicalInput(PERIOD, fullRows()));
   });
-});
 
-describe('the canonical formatting helpers', () => {
   it('writes microsecond timestamps by integer arithmetic', () => {
     expect(microsToIso(0n)).toBe('1970-01-01T00:00:00.000000Z');
     expect(microsToIso(1_700_000_000_123_456n)).toBe('2023-11-14T22:13:20.123456Z');
@@ -195,15 +327,12 @@ describe('the canonical formatting helpers', () => {
   });
 
   it('sorts by a composite text key with the later parts breaking ties', () => {
-    const sorted = sortedBy(
-      [
-        { a: 'b', b: '1' },
-        { a: 'a', b: '2' },
-        { a: 'a', b: '1' },
-      ],
-      (item) => [item.a, item.b],
-    );
-    expect(sorted).toEqual([
+    const items = [
+      { a: 'b', b: '1' },
+      { a: 'a', b: '2' },
+      { a: 'a', b: '1' },
+    ];
+    expect(sortedBy(items, (item) => [item.a, item.b])).toEqual([
       { a: 'a', b: '1' },
       { a: 'a', b: '2' },
       { a: 'b', b: '1' },

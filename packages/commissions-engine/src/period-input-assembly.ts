@@ -18,14 +18,17 @@ const PERIOD_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
 
 /**
- * يرفض أي شهر مش بصيغة YYYY-MM بشهر صالح، قبل أي شغل على الصفوف.
+ * يتحقق من الشهر ويرجّع آخر يوم فيه، مرة واحدة. بيرفض أي شهر مش بصيغة YYYY-MM بشهر صالح، وسنة
+ * 0000 كمان، زي قيد الشهر في جداول العمولة (to_date مش بيعرف يحوّلها).
  *
- * @param period الشهر المطلوب
+ * @param period الشهر المطلوب بصيغة YYYY-MM
+ * @returns آخر يوم في الشهر بصيغة YYYY-MM-DD؛ بيرمي RangeError لو الشهر غلط
  */
-export function assertCommissionPeriod(period: string): void {
-  if (!PERIOD_PATTERN.test(period)) {
+export function commissionPeriodLastDay(period: string): string {
+  if (!PERIOD_PATTERN.test(period) || period.startsWith('0000-')) {
     throw new RangeError('Commission period must use YYYY-MM with a valid month');
   }
+  return getPeriodLastDay(period);
 }
 
 function getPeriodLastDay(period: string): string {
@@ -98,8 +101,28 @@ export function assembleCommissionPeriodInput<
 >(
   projection: CommissionPeriodProjection<L, S, Sal, T, C, Cr>,
 ): AssembledCommissionPeriod<L, S, Sal, T, C, Cr> {
-  assertCommissionPeriod(projection.period);
-  const periodLastDay = getPeriodLastDay(projection.period);
+  return assembleForLastDay(projection, commissionPeriodLastDay(projection.period));
+}
+
+/**
+ * نفس `assembleCommissionPeriodInput` لمتصل تحقق من الشهر وحسب آخر يوم فيه قبل كده (مرة لكل
+ * شهر مش لكل موظفة)؛ الاختيار واحد والنتيجة واحدة.
+ *
+ * @param projection صفوف الموظفة والفترة
+ * @param periodLastDay آخر يوم في الشهر من `commissionPeriodLastDay`
+ * @returns مدخل المحرك والصفوف المختارة
+ */
+export function assembleForLastDay<
+  L extends ProjectedCommissionLine = ProjectedCommissionLine,
+  S extends ProjectedPackageSale = ProjectedPackageSale,
+  Sal extends CommissionSalary = CommissionSalary,
+  T extends ProjectedCommissionTip = ProjectedCommissionTip,
+  C extends ReceivedCommissionCorrection = ReceivedCommissionCorrection,
+  Cr extends IncomingCommissionCarry = IncomingCommissionCarry,
+>(
+  projection: CommissionPeriodProjection<L, S, Sal, T, C, Cr>,
+  periodLastDay: string,
+): AssembledCommissionPeriod<L, S, Sal, T, C, Cr> {
   const salary = selectSalaryEntryOnLastDay(
     projection.employeeId,
     periodLastDay,
