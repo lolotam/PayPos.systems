@@ -31,9 +31,9 @@ function renderPage(initial: NavigationStyle) {
   );
 }
 
-const card = (_locale: 'en' | 'ar', style: NavigationStyle) =>
+const card = (style: NavigationStyle) =>
   document.querySelector<HTMLElement>(`[data-style="${style}"]`);
-const isMarkedCurrent = (style: NavigationStyle) => card('en', style)?.hasAttribute('aria-current');
+const isMarkedCurrent = (style: NavigationStyle) => card(style)?.hasAttribute('aria-current');
 
 beforeEach(() => {
   state.locale = 'en';
@@ -47,7 +47,7 @@ describe.each(['en', 'ar'] as const)('Appearance in %s', (locale) => {
     for (const key of Object.values(NAMES)) {
       expect(screen.getByRole('heading', { name: t(locale, key) })).toBeTruthy();
     }
-    const current = card(locale, 'C') as HTMLElement;
+    const current = card('C') as HTMLElement;
     expect(current.getAttribute('aria-current')).toBe('true');
     expect(current.textContent).toContain(t(locale, 'adminNav.currentStyleBadge'));
     expect(within(current).queryByRole('button')).toBeNull();
@@ -65,8 +65,8 @@ describe('Appearance choices', () => {
     fireEvent.click(screen.getByRole('button', { name: new RegExp(t('en', NAMES.A)) }));
     expect(isMarkedCurrent('A')).toBe(true);
     expect(isMarkedCurrent('C')).toBe(false);
-    expect(within(card('en', 'A') as HTMLElement).queryByRole('button')).toBeNull();
-    expect(within(card('en', 'C') as HTMLElement).getByRole('button')).toBeTruthy();
+    expect(within(card('A') as HTMLElement).queryByRole('button')).toBeNull();
+    expect(within(card('C') as HTMLElement).getByRole('button')).toBeTruthy();
   });
 
   it('can be switched again and again, ending on the last choice', () => {

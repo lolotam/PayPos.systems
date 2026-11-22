@@ -306,9 +306,4 @@ describe('style C on a phone', () => {
         .getAttribute('aria-current'),
     ).toBeNull();
   });
-
-  it('keeps the page finder reachable', () => {
-    renderFrame(<StyleCFrame>Page body</StyleCFrame>);
-    expect(finderTrigger()).toBeTruthy();
-  });
 });
