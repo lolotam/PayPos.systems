@@ -32,9 +32,10 @@ const listed = [
   'DISCOUNT_SELF_APPROVED',
   'ATTENDANCE_CHANGE_REQUESTED',
   'ATTENDANCE_CHANGE_DECIDED',
+  'LOW_RATING',
 ];
 
-it('lists exactly the thirteen emitted kinds in business order', () => {
+it('lists exactly the fourteen emitted kinds in business order', () => {
   expect(listedAlertKinds(rules, false).map((rule) => rule.kind)).toEqual(listed);
 });
 

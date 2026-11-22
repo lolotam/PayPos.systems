@@ -1,6 +1,7 @@
 import { submitRatingInput } from '@pospay/contracts';
 
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
+import { isLowRating } from '../../domain/rating-submission.ts';
 import { parseRatingToken } from '../../domain/rating-token.ts';
 import type { RatingSubmitTransactions } from '../../ports/rating-submission.port.ts';
 import type { RatingTokenHash } from '../../ports/rating-token-hash.port.ts';
@@ -22,7 +23,8 @@ export interface SubmitRatingInput {
  * يسجّل تقييم العميل على طلبه.
  * الخطوة: يتحقق من جسم الطلب الأول، يقرأ التوكن ويتحقق من صيغته، يحسب بصمته، ويفتح معاملة واحدة
  * على الشركة المختارة من بادئة الرابط. جوه المعاملة: يقفل صف الطلب، وبعد القفل يقرأ الساعة، وبعدين
- * يستهلك الطلب ويحفظ التقييم ونسبه — كل ده في نفس المعاملة، فأي فشل بيرجّع الاستهلاك (ADR-0011 §2).
+ * يستهلك الطلب ويحفظ التقييم ونسبه، ولو التقييم نجمة أو نجمتين يلحق حدث `LowRatingSubmitted` الصغير —
+ * كل ده في نفس المعاملة، فأي فشل بيرجّع الاستهلاك (ADR-0011 §2).
  */
 export class SubmitRatingUseCase {
   readonly #transactions: RatingSubmitTransactions;
@@ -54,15 +56,12 @@ export class SubmitRatingUseCase {
       if (!locked) return 'UNAVAILABLE';
       // الساعة بعد القفل: رابط خلص صلاحيته أثناء الانتظار على القفل لازم يترفض، مش يتقبل بتأخير.
       const now = this.#clock.now();
-      const consumed = await scope.consumeAndRate({
-        tokenHash,
-        now,
-        stars: parsed.data.stars,
-        comment,
-      });
+      const stars = parsed.data.stars;
+      const rated = await scope.consumeAndRate({ tokenHash, now, stars, comment });
       // صفر صفوف يعني إن الرابط خلص أو اتستهلك من زاوية تانية: التقييم مش بيتسجل مرتين.
-      if (!consumed) return 'UNAVAILABLE';
-      // TODO(spec): 61-1 appends LowRatingReceived here when stars ≤ 2 and the LOW_RATING rule is on
+      if (rated === null) return 'UNAVAILABLE';
+      // الحدث الصغير بس: القاعدة والمستلمين والأسماء بيقررها عامل customers بعد الـ commit من المحفوظ (D-B9).
+      if (isLowRating(stars)) await scope.appendLowRatingSubmitted(rated, stars);
       return 'SUBMITTED';
     });
   }

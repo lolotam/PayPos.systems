@@ -1,10 +1,12 @@
-import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
+import { lowRatingSubmitted } from '@pospay/contracts';
+import { appendOutboxEvent, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 import type { BusinessNamesPort } from '../ports/business-names.port.ts';
 import {
   RatingSubmissionBusyError,
   type ConsumeAndRateInput,
+  type ConsumedRating,
   type RatingSubmitScope,
   type RatingSubmitTransactions,
   type RatingViewRow,
@@ -57,7 +59,7 @@ async function consumeAndRate(
   companyId: string,
   ids: IdGenerator,
   input: ConsumeAndRateInput,
-): Promise<boolean> {
+): Promise<ConsumedRating | null> {
   const stamp = input.now.toISOString();
   // شرط الاستهلاك هو شرط الصلاحية: لو الرابط خلص في نفس اللحظة دي، يبقى مش متاح.
   const consumed = await tx.execute<RequestRow>(sql`
@@ -66,7 +68,7 @@ async function consumeAndRate(
       AND consumed_at IS NULL AND expires_at > ${stamp}
     RETURNING id, business_id, branch_id`);
   const request = consumed[0];
-  if (request === undefined) return false;
+  if (request === undefined) return null;
 
   const ratingId = ids.newId();
   await tx.execute(sql`
@@ -86,7 +88,35 @@ async function consumeAndRate(
       VALUES (${companyId}, ${ids.newId()}, ${ratingId}, ${request.id}, ${performer.employee_id},
         ${request.business_id}, ${request.branch_id}, ${input.stars}, ${stamp})`);
   }
-  return true;
+  return {
+    ratingId,
+    requestId: request.id,
+    businessId: request.business_id,
+    branchId: request.branch_id,
+  };
+}
+
+async function appendLowRatingSubmitted(
+  tx: Tx,
+  ids: IdGenerator,
+  rating: ConsumedRating,
+  stars: number,
+): Promise<void> {
+  // الحمولة بتتحقق بالعقد قبل الكتابة: حدث ثابت الحجم من معرّفات ونجوم بس، والـ aggregate هو التقييم.
+  const payload = lowRatingSubmitted.parse({
+    schema_version: 1,
+    rating_id: rating.ratingId,
+    request_id: rating.requestId,
+    business_id: rating.businessId,
+    branch_id: rating.branchId,
+    stars,
+  });
+  await appendOutboxEvent(tx, ids.newId(), {
+    aggregateType: 'rating',
+    aggregateId: rating.ratingId,
+    eventType: 'LowRatingSubmitted',
+    payload,
+  });
 }
 
 /**
@@ -138,11 +168,11 @@ export function createRatingViewTransactions(
 
 /**
  * معاملة إرسال التقييم: بتعمل جوه الشركة المختارة من بادئة الرابط (ADR-0011 §1).
- * الطلب بيتقفل `FOR UPDATE` قبل ما الوقت يتقري، وبعدين الاستهلاك والتقييم والنسب كلهم في نفس المعاملة —
- * أي فشل في النسبة بيرجّع الاستهلاك كله (ADR-0011 §2).
+ * الطلب بيتقفل `FOR UPDATE` قبل ما الوقت يتقري، وبعدين الاستهلاك والتقييم والنسب وحدث التقييم المنخفض كلهم في نفس المعاملة —
+ * أي فشل في النسبة أو في الحدث بيرجّع الاستهلاك كله (ADR-0011 §2).
  *
  * @param db        أغلفة الداتابيز المستأجرة
- * @param ids       مولّد الـ ids للتقييم والنسب
+ * @param ids       مولّد الـ ids للتقييم والنسب والحدث
  * @param timeoutMs أقصى عمر للمعاملة كلها، عشان القفل ما يعلّقش الطلب
  * @returns معاملة إرسال التقييم
  */
@@ -157,6 +187,8 @@ export function createRatingSubmitTransactions(
         work({
           lockRequest: (tokenHash) => lockRequest(tx, companyId, tokenHash),
           consumeAndRate: (input) => consumeAndRate(tx, companyId, ids, input),
+          appendLowRatingSubmitted: (rating, stars) =>
+            appendLowRatingSubmitted(tx, ids, rating, stars),
         } satisfies RatingSubmitScope),
       ),
   };

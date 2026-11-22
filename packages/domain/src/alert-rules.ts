@@ -135,7 +135,7 @@ export const ALERT_KIND_DEFINITIONS: Readonly<Record<AlertKind, AlertKindDefinit
     defaults: { enabled: true, recipientRoles: ['owner'], channels: IN_APP, delayMinutes: null, leadMinutes: null },
   }),
   // تنبيه التقييم الواطي على قاعدة RT-Q8 الافتراضية (شغّال، داخل التطبيق، المديرون الأربعة في نطاق فرع الزيارة).
-  // لسه مش مُدرج في شاشة قواعد التنبيهات؛ إدراجه هناك مع تشغيل المُرسِل نفسه (61-1i، RT-26 وSC-005).
+  // مُدرج في شاشة قواعد التنبيهات من 61-1i، مع المُرسِل نفسه (RT-26 وSC-005).
   LOW_RATING: managersInApp(),
 };
 
