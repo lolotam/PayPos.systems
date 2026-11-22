@@ -32,11 +32,13 @@ export function RailWorkspaceButton({
         .filter(Boolean)
         .join(' ')}
       aria-pressed={inspected}
+      title={workspace.icon ? workspace.label : undefined}
       data-current={isCurrent ? '' : undefined}
       data-workspace-id={workspace.id}
       onClick={(event) => onInspect(workspace.id, event.currentTarget)}
       className={cn(
-        'min-h-15 w-15 flex-col gap-1 p-1 text-xs',
+        'min-h-15 w-15 flex-col gap-1 text-xs',
+        workspace.icon ? 'p-1' : 'px-0.5 py-1',
         isCurrent && 'font-semibold underline decoration-2 underline-offset-4',
         inspected ? 'bg-sidebar-primary text-sidebar-primary-foreground' : SIDEBAR_GHOST_CLASSES,
       )}
@@ -48,7 +50,7 @@ export function RailWorkspaceButton({
       ) : (
         <span
           aria-hidden="true"
-          className="line-clamp-2 w-full whitespace-normal break-words text-center leading-tight"
+          className="line-clamp-2 w-full whitespace-normal break-words text-center text-[11px] leading-tight"
         >
           {workspace.label}
         </span>

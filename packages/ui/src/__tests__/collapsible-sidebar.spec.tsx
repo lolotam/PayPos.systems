@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { CollapsibleSidebar, type CollapsibleSidebarProps } from '../collapsible-sidebar.js';
 import { DirectionProvider } from '../direction-provider.js';
+import type { NavigationGroup } from '../navigation-presentation.js';
 import { chromeLabels, groups } from './navigation-fixtures.js';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -251,4 +252,34 @@ it('still transfers focus at the tablet breakpoint when an outside press left fo
   width = 800;
   view.rerender(tree('ltr', { currentGroupId: 'home' }));
   await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: /Home/ })));
+});
+
+function homeWithIcon(): readonly NavigationGroup[] {
+  return groups.map((group) => (group.id === 'home' ? { ...group, icon: <svg /> } : group));
+}
+
+it('gives icon-only rail links a native title and omits it when the label is visible', () => {
+  stubMedia({ width: 800 });
+  render(tree('ltr', { groups: homeWithIcon() }));
+  expect(screen.getByRole('link', { name: 'Home' }).getAttribute('title')).toBe('Home');
+  // no icon: the label itself is the visible content of the rail link
+  expect(screen.getByRole('link', { name: 'Sales' }).hasAttribute('title')).toBe(false);
+});
+
+it('omits the title when the sidebar is expanded and shows the label as text', () => {
+  stubMedia();
+  render(tree('ltr', { groups: homeWithIcon() }));
+  expect(screen.getByRole('link', { name: /Home/ }).hasAttribute('title')).toBe(false);
+});
+
+it('centres the collapse toggle in the rail and keeps it at the inline end when expanded', () => {
+  stubMedia();
+  render(tree('ltr', { currentGroupId: 'home' }));
+  const expandedRow = screen.getByRole('button', { name: chromeLabels.collapse }).parentElement;
+  expect(expandedRow?.className).toContain('justify-end');
+  expect(expandedRow?.className).not.toContain('justify-center');
+  fireEvent.click(screen.getByRole('button', { name: chromeLabels.collapse }));
+  const railRow = screen.getByRole('button', { name: chromeLabels.expand }).parentElement;
+  expect(railRow?.className).toContain('justify-center');
+  expect(railRow?.className).not.toContain('justify-end');
 });

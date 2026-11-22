@@ -111,3 +111,32 @@ it('keeps focus in the rail when a visibility update removes the focused workspa
   view.rerender(tree('ltr', { currentWorkspaceId: 'business', visiblePageIds: ['employees'] }));
   expect(document.activeElement).toBe(document.body);
 });
+
+it('names an icon-only workspace button with a native title and leaves a visible label alone', () => {
+  const sections = [{ id: 's', label: 'S', pages: [{ id: 'p', label: 'P', href: '#p' }] }];
+  render(
+    tree('ltr', {
+      workspaces: [
+        { id: 'iconic', label: 'Iconic workspace', icon: <svg data-testid="ws-icon" />, sections },
+        { id: 'plain', label: 'Plain workspace', sections },
+      ],
+    }),
+  );
+  const iconic = screen.getByRole('button', { name: 'Iconic workspace Inspect' });
+  expect(iconic.getAttribute('title')).toBe('Iconic workspace');
+  const plain = screen.getByRole('button', { name: 'Plain workspace Inspect' });
+  expect(plain.hasAttribute('title')).toBe(false);
+});
+
+it('lets the text fallback wrap between words within the 60px button', () => {
+  const sections = [{ id: 's', label: 'S', pages: [{ id: 'p', label: 'P', href: '#p' }] }];
+  render(tree('ltr', { workspaces: [{ id: 'plain', label: 'الموظفون والفرق', sections }] }));
+  const button = screen.getByRole('button', { name: /الموظفون والفرق/ });
+  const label = screen.getByText('الموظفون والفرق');
+  expect(button.className).toContain('w-15');
+  expect(button.className).toContain('px-0.5');
+  expect(button.className).not.toMatch(/(?<![:\w-])p-1(?!\d)/);
+  expect(label.className).toContain('whitespace-normal');
+  expect(label.className).toContain('w-full');
+  expect(label.className).toContain('text-[11px]');
+});

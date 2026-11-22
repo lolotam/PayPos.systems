@@ -251,3 +251,12 @@ it('shows a supplied status and keeps the finder open on a modified click', () =
   expect(onNavigate).not.toHaveBeenCalled();
   expect(screen.getByRole('dialog', { name: finderLabels.title })).toBeTruthy();
 });
+
+it('centres the dialog at a readable width from 600px and keeps it full width below', () => {
+  render(tree('ltr'));
+  const dialog = openWithShortcut('k', 'ctrlKey');
+  expect(dialog.className).toContain('inset-x-2');
+  expect(dialog.className).toContain('min-[600px]:max-w-lg');
+  expect(dialog.className).toContain('min-[600px]:mx-auto');
+  expect(dialog.className).not.toMatch(/(?<![:\w-])max-w-lg/);
+});

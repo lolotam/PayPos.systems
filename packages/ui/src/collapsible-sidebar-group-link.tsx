@@ -17,6 +17,7 @@ export function CollapsibleGroupLink({ group, rail, active }: GroupLinkProps) {
       <AppSidebarItem
         href={group.href}
         aria-label={rail ? group.label : undefined}
+        title={rail && group.icon ? group.label : undefined}
         icon={
           group.icon ?? (
             rail ? (
