@@ -5,7 +5,8 @@ import { beforeEach, expect, it, vi } from 'vitest';
 
 import { useNavStyle } from '../nav-style/nav-style-context';
 import { FrameActions } from './frame-actions';
-import { renderFrame, resetFrameState } from './frame-test-support';
+import { frameState, goTo, renderFrame, resetFrameState } from './frame-test-support';
+import { FrameWorkspaceSwitcher } from './frame-workspace-switcher';
 
 const signOut = vi.hoisted(() => ({
   pending: false,
@@ -129,4 +130,30 @@ it('keeps the other frame controls beside the menu', () => {
   renderFrame(<FrameActions />);
   expect(screen.getByRole('button', { name: 'Notifications' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Switch language' })).toBeTruthy();
+});
+
+it('closes the account menu on every navigation, Back included, and keeps the same trigger', () => {
+  renderFrame(<FrameActions />);
+  const trigger = screen.getByRole('button', { name: label('adminNav.accountMenuLabel') });
+  openMenu();
+  goTo('/leave');
+  expect(screen.queryByRole('menu')).toBeNull();
+  openMenu();
+  goTo('/');
+  expect(screen.queryByRole('menu')).toBeNull();
+  expect(screen.getByRole('button', { name: label('adminNav.accountMenuLabel') })).toBe(trigger);
+});
+
+it('closes the workspace switcher on every navigation, Back included, and keeps the same trigger', () => {
+  frameState.pathname = '/staff';
+  renderFrame(<FrameWorkspaceSwitcher />);
+  const trigger = screen.getByRole('button', { name: /Synthetic business/ });
+  fireEvent.click(trigger);
+  expect(screen.getByRole('dialog')).toBeTruthy();
+  goTo('/leave');
+  expect(screen.queryByRole('dialog')).toBeNull();
+  fireEvent.click(trigger);
+  goTo('/staff');
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.getByRole('button', { name: /Synthetic business/ })).toBe(trigger);
 });

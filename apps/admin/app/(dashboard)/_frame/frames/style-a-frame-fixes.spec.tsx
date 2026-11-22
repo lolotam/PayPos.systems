@@ -76,6 +76,7 @@ describe('style A More sheet on a phone', () => {
     fireEvent.click(moreButton());
     return screen.getByRole('dialog', { name: label('adminNav.more') });
   };
+  const openSheetOnce = () => screen.queryByRole('dialog') ?? openSheet();
 
   it('marks a sub-menu link with Soon when the page it opens is not built', () => {
     const ctx = {
@@ -112,6 +113,17 @@ describe('style A More sheet on a phone', () => {
     expect(section(label('adminNav.groupASetup'))?.textContent).not.toContain(
       label('adminNav.currentStyleBadge'),
     );
+  });
+
+  it('closes the sheet on a plain click on the current page link, and not on a modified click', () => {
+    frameState.pathname = '/staff/attendance-report';
+    renderFrame(<StyleAFrame>Page body</StyleAFrame>);
+    const own = () =>
+      within(openSheetOnce()).getByRole('link', { name: label('adminNav.submenuStaffReports') });
+    fireEvent.click(own(), { ctrlKey: true });
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    fireEvent.click(own());
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('does not mark More while the current page is on the bottom bar', () => {

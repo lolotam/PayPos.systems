@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 
 import { useMediaQuery } from './use-media-query';
 import { useRouteScopedState } from './use-route-scoped-state';
@@ -15,6 +15,7 @@ export interface PanelState {
   inspectOnly: (workspaceId: string) => void;
   show: (opener: HTMLButtonElement) => void;
   hide: () => void;
+  closeFloating: () => void;
 }
 
 /**
@@ -22,6 +23,8 @@ export interface PanelState {
  * وهي طافية تُفتح للصفحة الحالية فقط، والمساحة المعاينة كذلك: كل تغيّر مرحلي في المسار، بما فيه
  * الرجوع، يُغلق الطافية ويعيد المعاينة إلى المساحة الحالية. الضغطة بمفتاح تعديل لا تغيّر المسار فتبقى مفتوحة.
  * كل فتح يسجّل الزر الذي فتح به (الشريط أو الأداة العلوية) ليعود إليه التركيز عند الإغلاق.
+ * ظهور اللوحة على الحاسوب وفتحها الطافي حالتان منفصلتان: فعل أحدهما لا يمسّ الآخر، والطافية تُمحى عند
+ * مغادرة عرض التابلت فلا تعود مفتوحة عند الرجوع إليه.
  */
 export function usePanelState(
   pathname: string,
@@ -35,15 +38,20 @@ export function usePanelState(
     pathname,
     undefined,
   );
+  const wasFloating = useRef(floating);
+  useEffect(() => {
+    if (wasFloating.current && !floating) setFloatingOpen(false);
+    wasFloating.current = floating;
+  }, [floating, setFloatingOpen]);
   const open = floating ? floatingOpen : !hidden;
   const show = (opener: HTMLButtonElement) => {
     openerRef.current = opener;
-    setHidden(false);
-    setFloatingOpen(true);
+    if (floating) setFloatingOpen(true);
+    else setHidden(false);
   };
   const hide = () => {
-    setHidden(true);
-    setFloatingOpen(false);
+    if (floating) setFloatingOpen(false);
+    else setHidden(true);
   };
   const inspect = (workspaceId: string, opener: HTMLButtonElement) => {
     if (open && (inspectedId ?? currentWorkspaceId) === workspaceId) {
@@ -54,5 +62,13 @@ export function usePanelState(
     setInspectedId(workspaceId);
     show(opener);
   };
-  return { open, inspectedId, inspect, inspectOnly: setInspectedId, show, hide };
+  return {
+    open,
+    inspectedId,
+    inspect,
+    inspectOnly: setInspectedId,
+    show,
+    hide,
+    closeFloating: () => setFloatingOpen(false),
+  };
 }

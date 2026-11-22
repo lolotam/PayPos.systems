@@ -1,6 +1,6 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import type { MouseEvent, ReactNode } from 'react';
 
 function sameOriginTarget(anchor: HTMLAnchorElement): string | null {
@@ -33,9 +33,18 @@ function softNavigationTarget(event: MouseEvent<HTMLElement>): string | null {
  * المعالجة على الحد نفسه لا على جذر الإطار: أحداث React تصعد عبر الـ portal، فتشمل ما يرسمه جزء
  * من الإطار في body (الأدراج والورقة السفلية والباحث)، ولا تمسّ رابطًا يرسمه محتوى الصفحة، حتى
  * لو رسمه في portal، لأن مكانه في شجرة React خارج هذا الحد.
+ * الضغطة على رابط صفحة المسار الحالي لا تغيّر المسار، فلا تُغلق بها الحالات المرتبطة بمفتاح المسار؛
+ * لذلك يستدعي الحد `onCurrentPage` ليغلقها المضيف.
  */
-export function FrameChrome({ children }: { children: ReactNode }) {
+export function FrameChrome({
+  children,
+  onCurrentPage,
+}: {
+  children: ReactNode;
+  onCurrentPage?: () => void;
+}) {
   const router = useRouter();
+  const pathname = usePathname();
   return (
     <div
       className="contents"
@@ -44,6 +53,7 @@ export function FrameChrome({ children }: { children: ReactNode }) {
         if (href === null) return;
         event.preventDefault();
         router.push(href);
+        if (href.split(/[?#]/, 1)[0] === pathname) onCurrentPage?.();
       }}
     >
       {children}

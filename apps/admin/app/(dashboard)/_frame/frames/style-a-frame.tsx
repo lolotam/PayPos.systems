@@ -72,9 +72,7 @@ export function StyleAFrame({ children }: { children: ReactNode }) {
           </main>
         </div>
       </div>
-      <FrameChrome>
-        <PhoneBar view={view} pathname={ctx.pathname} />
-      </FrameChrome>
+      <PhoneBar view={view} pathname={ctx.pathname} />
     </>
   );
 }

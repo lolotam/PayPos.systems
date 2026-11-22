@@ -1,6 +1,7 @@
 'use client';
 
 import { AccountMenu } from '@pospay/ui';
+import { usePathname } from 'next/navigation';
 
 import { NotificationBell } from '@/notifications/ui/notification-bell';
 import { useSessionAccount } from '@/session/api/use-session';
@@ -20,6 +21,7 @@ export function FrameActions() {
   const account = useSessionAccount(useMounted());
   const workspace = useWorkspace();
   const entries = useAccountEntries();
+  const pathname = usePathname();
   const userId = account?.id ?? null;
   const companyId = workspace.status === 'ready' ? workspace.company.id : undefined;
   return (
@@ -36,6 +38,7 @@ export function FrameActions() {
         {...(account?.name ? { name: account.name } : {})}
         {...(account?.email ? { email: account.email } : {})}
         entries={entries}
+        resetKey={pathname}
       />
     </>
   );

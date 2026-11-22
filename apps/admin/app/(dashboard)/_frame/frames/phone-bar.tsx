@@ -4,6 +4,7 @@ import { BottomNav } from '@pospay/ui';
 import { useEffect, useRef } from 'react';
 
 import type { StyleAView } from '../menu/style-views';
+import { FrameChrome } from './frame-chrome';
 import { MoreSheet } from './more-sheet';
 import { useFrameLabels } from './use-frame-labels';
 import { useMediaQuery } from './use-media-query';
@@ -26,31 +27,33 @@ export function PhoneBar({ view, pathname }: { view: StyleAView; pathname: strin
     if (!phone) setMoreOpen(false);
   }, [phone, setMoreOpen]);
   return (
-    <div className="fixed inset-x-0 bottom-0 z-30 min-[600px]:hidden">
-      <MoreSheet
-        open={moreOpen && phone}
-        onOpenChange={setMoreOpen}
-        groups={view.more}
-        title={labels.more}
-        closeLabel={labels.chrome.close}
-        currentPageId={view.currentPageId}
-        currentGroupId={view.currentGroupId}
-        currentLabel={labels.chrome.current}
-        openerRef={openerRef}
-      />
-      <BottomNav
-        items={view.bottom}
-        labels={labels.bottom}
-        extra={{
-          id: 'more',
-          label: labels.more,
-          current: view.more.some((group) => group.id === view.currentGroupId),
-          onPress: (event) => {
-            openerRef.current = event.currentTarget;
-            setMoreOpen(true);
-          },
-        }}
-      />
-    </div>
+    <FrameChrome onCurrentPage={() => setMoreOpen(false)}>
+      <div className="fixed inset-x-0 bottom-0 z-30 min-[600px]:hidden">
+        <MoreSheet
+          open={moreOpen && phone}
+          onOpenChange={setMoreOpen}
+          groups={view.more}
+          title={labels.more}
+          closeLabel={labels.chrome.close}
+          currentPageId={view.currentPageId}
+          currentGroupId={view.currentGroupId}
+          currentLabel={labels.chrome.current}
+          openerRef={openerRef}
+        />
+        <BottomNav
+          items={view.bottom}
+          labels={labels.bottom}
+          extra={{
+            id: 'more',
+            label: labels.more,
+            current: view.more.some((group) => group.id === view.currentGroupId),
+            onPress: (event) => {
+              openerRef.current = event.currentTarget;
+              setMoreOpen(true);
+            },
+          }}
+        />
+      </div>
+    </FrameChrome>
   );
 }
