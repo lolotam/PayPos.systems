@@ -46,6 +46,7 @@ type FactsRow = {
   status: 'PENDING' | 'VERIFYING' | 'READY' | 'REJECTED';
   storage_key: string | null;
   purged: boolean;
+  purge_started: boolean;
 };
 
 async function testFileFacts(
@@ -55,7 +56,8 @@ async function testFileFacts(
 ): Promise<ServiceImportFileFacts | null> {
   const rows = await (tx as Tx).execute<FactsRow>(sql`
     SELECT business_id, created_by, content_type, size_bytes::int AS size_bytes, status,
-      CASE WHEN status='READY' THEN storage_key END AS storage_key, purged_at IS NOT NULL AS purged
+      CASE WHEN status='READY' THEN storage_key END AS storage_key,
+      purged_at IS NOT NULL AS purged, purge_started_at IS NOT NULL AS purge_started
     FROM file_objects WHERE company_id=${companyId} AND id=${fileId}`);
   return rows[0] ?? null;
 }
@@ -91,16 +93,22 @@ type FixtureScope = {
 function uploadHelper(scope: FixtureScope) {
   return async (
     content: Uint8Array,
-    options: { businessId?: string; createdBy?: string; contentType?: string } = {},
+    options: {
+      businessId?: string;
+      createdBy?: string;
+      contentType?: string;
+      purgeStarted?: boolean;
+    } = {},
   ): Promise<string> => {
     const fileId = scope.ids.newId();
     const storageKey = `verified/${scope.ids.newId()}`;
     scope.storage.set(storageKey, content);
     await scope.h.owner`INSERT INTO file_objects
-      (company_id,id,business_id,owner_module,owner_entity_id,staging_key,storage_key,content_type,size_bytes,required_permission,created_by,created_at,status)
+      (company_id,id,business_id,owner_module,owner_entity_id,staging_key,storage_key,content_type,size_bytes,required_permission,created_by,created_at,status,purge_started_at)
       VALUES (${scope.company},${fileId},${options.businessId ?? scope.business},'catalog',${scope.business},${`staging/${fileId}`},${storageKey},
         ${options.contentType ?? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'},${content.byteLength},
-        'read:files:business',${options.createdBy ?? scope.userId},now(),'READY')`;
+        'read:files:business',${options.createdBy ?? scope.userId},now(),'READY',
+        CASE WHEN ${options.purgeStarted === true} THEN now() ELSE NULL END)`;
     return fileId;
   };
 }

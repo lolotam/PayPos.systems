@@ -121,10 +121,15 @@ async function loadSheet(bytes: Uint8Array, bounds: WorkbookBounds): Promise<Wor
   const sourceRows = [1];
   sheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
     if (rowNumber === 1) return;
-    const values: ImportCell[] = Array.from({ length: width }, () => null);
-    const rowFormats: (string | undefined)[] = Array.from({ length: width }, () => undefined);
+    // آخر عمود فعلي في الصف هو الحد: خلايا بعد آخر عنوان تبقى ظاهرة للمُستورد
+    // ليرفضها IMPORT_COLUMN_UNEXPECTED بدل ما تضيع كصف فارغ أو صف صالح (072 FR-003).
+    let lastColumn = 0;
+    row.eachCell({ includeEmpty: false }, (_cell, column) => {
+      lastColumn = Math.max(lastColumn, column);
+    });
+    const values: ImportCell[] = Array.from({ length: lastColumn }, () => null);
+    const rowFormats: (string | undefined)[] = Array.from({ length: lastColumn }, () => undefined);
     row.eachCell({ includeEmpty: false }, (cell, column) => {
-      if (column > width) return;
       values[column - 1] = cellValue(cell.value);
       rowFormats[column - 1] = cell.numFmt ?? undefined;
     });

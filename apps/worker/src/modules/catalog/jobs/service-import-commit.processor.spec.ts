@@ -65,5 +65,48 @@ it(
   }
 });
 
+  it(
+    'refuses an event payload that breaks the strict contract without retrying it',
+    { timeout: 60_000 },
+    async () => {
+      const ids = systemUuidV7();
+      const prefix = `service-import-payload-${ids.newId()}`;
+      const execute = vi.fn(async () => undefined);
+      const fail = vi.fn(async () => undefined);
+      const processor = startServiceImportProcessor(
+        { execute, fail } as unknown as CommitServiceImport,
+        redisUrl,
+        prefix,
+      );
+      try {
+        await processor.ready();
+        const base = {
+          companyId: ids.newId(),
+          id: ids.newId(),
+          aggregateId: ids.newId(),
+          aggregateType: 'import_preview',
+          eventType: 'ServiceImportCommitRequested',
+          attempt: 1,
+        };
+        expect(
+          await processor.deliver({ ...base, payload: { preview_id: ids.newId(), extra: 'x' } }),
+        ).toEqual({
+          delivered: false,
+          error: 'SERVICE_IMPORT_COMMIT_EVENT_INVALID',
+          retryInMs: null,
+        });
+        expect(await processor.deliver({ ...base, payload: {} })).toEqual({
+          delivered: false,
+          error: 'SERVICE_IMPORT_COMMIT_EVENT_INVALID',
+          retryInMs: null,
+        });
+        expect(execute).not.toHaveBeenCalled();
+        expect(fail).not.toHaveBeenCalled();
+      } finally {
+        await processor.close();
+      }
+    },
+  );
+
 // إعادة التسليم بعد النجاح تحفظ النتيجة الأصلية دون إدخال ثانٍ: موثّقة في مواصفة الالتزام
 // (service-import-commit.spec.ts) وعلى دلالة jobId الثابت نفسها التي يعتمدها موظف الموظفين.

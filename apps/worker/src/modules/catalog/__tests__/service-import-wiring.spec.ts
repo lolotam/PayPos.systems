@@ -47,7 +47,7 @@ it(
       expect(next).toHaveBeenCalledTimes(1);
       expect(next).toHaveBeenCalledWith(unrelated);
       // حدث الاستيراد بحمولة مكسورة يذهب إلى فرع الاستيراد الجديد ولا يمر إلى التالي،
-      // ورفضه قابل لإعادة التسليم كأي فشل طابور (اتساق موظف الاستيراد).
+      // ويرفضه فحص العقد الصارم رفضًا غير قابل لإعادة السحب (P2 مراجعة 32b-2).
       const broken: ClaimedEvent = {
         companyId: ids.newId(),
         id: ids.newId(),
@@ -64,8 +64,8 @@ it(
       }));
       expect(await worker.deliver(broken, nextSpy)).toEqual({
         delivered: false,
-        error: 'SERVICE_IMPORT_QUEUE_RETRY',
-        retryInMs: 2000,
+        error: 'SERVICE_IMPORT_COMMIT_EVENT_INVALID',
+        retryInMs: null,
       });
       expect(nextSpy).not.toHaveBeenCalled();
     } finally {

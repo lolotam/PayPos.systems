@@ -11,6 +11,7 @@ export interface ServiceImportFileFacts {
   readonly status: 'PENDING' | 'VERIFYING' | 'READY' | 'REJECTED';
   readonly storage_key: string | null;
   readonly purged: boolean;
+  readonly purge_started: boolean;
 }
 
 /**
@@ -31,6 +32,8 @@ export function validateServiceImportFile(
   if (
     facts === null ||
     facts.purged ||
+    // بدء الحذف يخفي الملف عن حالة files فورًا؛ المعاينة ترفضه قبل قراءة أي بايت (P2 مراجعة 32b-2).
+    facts.purge_started ||
     facts.business_id !== businessId ||
     facts.created_by !== userId
   )

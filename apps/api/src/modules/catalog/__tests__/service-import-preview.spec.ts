@@ -100,6 +100,24 @@ it('marks every group member of an in-file duplicate and every stored-name confl
   }
 });
 
+it('conflicts an import name against a stored service carrying internal whitespace runs', async () => {
+  const f = await serviceImportFixture();
+  try {
+    // الإنهاء اليدوي يخزّن الاسم كما أدخل: مسافة داخلية مزدوجة تبقى في القاعدة (P1 مراجعة 32b-2).
+    await f.h.owner`INSERT INTO services
+      (company_id,id,business_id,name_en,price,commission_rule_kind,counts_toward_threshold)
+      VALUES (${f.company},${f.ids.newId()},${f.business},'Hair  Cut','1.000','FOLLOW_PLAN',TRUE)`;
+    const fileId = await f.upload(
+      await serviceWorkbook([['Hair Cut', null, 5, null, null, null, null, null]]),
+    );
+    const preview = await f.preview.execute(previewCommand(f, fileId));
+    expect(preview.errors.map((error) => error.code)).toContain('IMPORT_SERVICE_EXISTS');
+    expect(preview.rows).toEqual([]);
+  } finally {
+    await f.close();
+  }
+});
+
 it('keeps a valid name key on an otherwise invalid row and conflicts it with stored services', async () => {
   const f = await serviceImportFixture();
   try {
@@ -210,6 +228,20 @@ it('answers unknown, foreign-business and foreign-entity previews with the same 
     await f.close();
   }
 });
+
+  it('refuses a file whose purge has started before reading any bytes', async () => {
+    const f = await serviceImportFixture();
+    try {
+      const fileId = await f.upload(await serviceWorkbook([['A', null, 1, null, null, null, null, null]]), {
+        purgeStarted: true,
+      });
+      await expect(f.preview.execute(previewCommand(f, fileId))).rejects.toMatchObject({
+        code: 'IMPORT_FILE_NOT_FOUND',
+      });
+    } finally {
+      await f.close();
+    }
+  });
 
 it('refuses a workbook with wrong headers, extra sheets overflow and oversized bytes', async () => {
   const f = await serviceImportFixture();

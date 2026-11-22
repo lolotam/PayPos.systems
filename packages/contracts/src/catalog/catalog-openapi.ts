@@ -68,7 +68,21 @@ export const catalogPaths = {
       operationId: 'getServiceImportRows',
       description:
         'Cursor-paginated clean normalized rows of one preview, to its creator only within the business; the cursor is the original Excel row number as a decimal string, so sparse sheets keep their numbering. Unknown, foreign or other-entity previews share IMPORT_PREVIEW_NOT_FOUND (404). Requires manage:services:business and the catalog feature.',
-      parameters: [...parameters, previewId],
+      parameters: [
+        ...parameters,
+        previewId,
+        {
+          in: 'query',
+          name: 'cursor',
+          schema: { type: 'string', pattern: '^(?:[2-9]|[1-9][0-9]{0,5}|104[0-7][0-9]{3}|1048[0-4][0-9]{2}|10485[0-6][0-9]|104857[0-6])$' },
+          description: 'Original Excel row number of the last returned row; omit for the first page.',
+        },
+        {
+          in: 'query',
+          name: 'limit',
+          schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+        },
+      ],
       responses: {
         '200': { description: 'Clean rows page', content: json('ServiceImportRowsPage') },
         '404': errors,

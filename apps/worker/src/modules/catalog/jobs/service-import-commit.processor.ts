@@ -1,6 +1,6 @@
 import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
-import { serviceImportCommitJob } from '@pospay/contracts';
+import { serviceImportCommitJob, serviceImportCommitRequested } from '@pospay/contracts';
 import type { ClaimedEvent, DeliveryOutcome } from '@pospay/db';
 import type { CommitServiceImport } from '../use-cases/commit-service-import/commit-service-import.ts';
 
@@ -42,9 +42,14 @@ export function startServiceImportProcessor(
   return {
     deliver: async (event: ClaimedEvent): Promise<DeliveryOutcome> => {
       try {
+        // عقد الحمولة الصارم يُفحص قبل بناء الوظيفة: حقول زائدة أو preview_id ناقص رفض مسمّى
+        // غير قابل لإعادة السحب، لأن إعادة السحب لن تصلح حدثًا شكله غلط (P2 مراجعة 32b-2).
+        const payload = serviceImportCommitRequested.safeParse(event.payload);
+        if (!payload.success)
+          return { delivered: false, error: 'SERVICE_IMPORT_COMMIT_EVENT_INVALID', retryInMs: null };
         const data = serviceImportCommitJob.parse({
           companyId: event.companyId,
-          previewId: (event.payload as { preview_id?: string }).preview_id,
+          previewId: payload.data.preview_id,
         });
         await queue.add('commit', data, {
           jobId: event.id,

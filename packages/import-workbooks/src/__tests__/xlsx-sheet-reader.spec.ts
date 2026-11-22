@@ -92,3 +92,16 @@ it('keeps formats aligned across skipped blank rows and sparse columns', async (
   expect(result.formats[1]?.[0]).toBe('#,##0');
   expect(result.formats[2]?.[1]).toBeUndefined();
 });
+
+it('keeps cells and formats beyond the last header so importers can reject them', async () => {
+  const bytes = await workbook((sheet) => {
+    sheet.getCell(2, 3).value = 12.5;
+    sheet.getCell(2, 3).numFmt = '0.000';
+    sheet.getCell(3, 4).value = { error: '#REF!' };
+  });
+  const result = await readWorkbookSheet(bytes, bounds);
+  expect(result.matrix.sourceRows).toEqual([1, 2, 3]);
+  expect(result.matrix[1]).toEqual([null, null, 12.5]);
+  expect(result.formats[1]?.[2]).toBe('0.000');
+  expect(result.matrix[2]?.[3]).toBe(INVALID_CELL);
+});

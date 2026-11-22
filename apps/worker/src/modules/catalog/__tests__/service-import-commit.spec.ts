@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { USER } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
 import type { ServiceImportCommitTransactions } from '../ports/service-import-commit.port.ts';
+import { serviceImportCommitTransactions } from '../persistence/service-import-commit.transactions.ts';
 import { CommitServiceImport } from '../use-cases/commit-service-import/commit-service-import.ts';
 import {
   normalizedRow,
@@ -60,6 +61,15 @@ it.each([
     async (f: ServiceImportCommitFixture) => {
       await f.service('Existing');
       return f.requested([normalizedRow('existing  spa'), normalizedRow('Existing')]);
+    },
+  ],
+  [
+    'a stored name with internal whitespace runs conflicts the import',
+    'IMPORT_SERVICE_EXISTS',
+    async (f: ServiceImportCommitFixture) => {
+      // الإنهاء اليدوي يخزّن المسافة المزدوجة كما هي؛ القراءة الحاسمة المطبَّعة تمنع الاستيراد (P1).
+      await f.service('Hair  Cut');
+      return f.requested([normalizedRow('Hair Cut')]);
     },
   ],
   [
@@ -135,6 +145,48 @@ it('rolls the whole transaction back on an injected mid-write failure and stays 
     const [audits] =
       await f.owner`SELECT count(*) AS count FROM audit_log WHERE company_id=${f.company} AND entity='service'`;
     expect(Number(audits?.['count'])).toBe(0);
+  } finally {
+    await f.close();
+  }
+});
+
+it('rolls back services and audits when completion fails after the writes succeeded', async () => {
+  // كسر الإتمام بعد نجاح الإدخال والتدقيق يُظهر التراجع الحقيقي للمعاملة الواحدة (P2 مراجعة 32b-2):
+  // الصفوف والتدقيق كُتبا داخل المعاملة ثم رجعوا، والمعاينة بقيت commit_requested لمحاولات FR-009.
+  const f = await serviceImportCommitFixture();
+  try {
+    const categoryId = await f.category('Hair');
+    const previewId = await f.requested([
+      normalizedRow('Rollback One', { categoryId }),
+      normalizedRow('Rollback Two', { row: 3 }),
+    ]);
+    const before = await f.serviceCount();
+    const [auditsBefore] =
+      await f.owner`SELECT count(*) AS count FROM audit_log WHERE company_id=${f.company} AND entity='service'`;
+    const real = serviceImportCommitTransactions(f.db, f.ids);
+    const failing: ServiceImportCommitTransactions = {
+      run: (companyId, id, work) =>
+        real.run(companyId, id, async (scope) =>
+          work({
+            ...scope,
+            complete: async () => {
+              throw new Error('Injected completion failure');
+            },
+          }),
+        ),
+      fail: (companyId, id, code) => real.fail(companyId, id, code),
+    };
+    await expect(
+      new CommitServiceImport(failing, f.ids, { now: () => f.clock.value }).execute(
+        f.company,
+        previewId,
+      ),
+    ).rejects.toThrow('Injected completion failure');
+    expect(await f.serviceCount()).toBe(before);
+    const [audits] =
+      await f.owner`SELECT count(*) AS count FROM audit_log WHERE company_id=${f.company} AND entity='service'`;
+    expect(Number(audits?.['count'])).toBe(Number(auditsBefore?.['count']));
+    expect(await f.previewRow(previewId)).toMatchObject({ status: 'commit_requested', error_code: null });
   } finally {
     await f.close();
   }

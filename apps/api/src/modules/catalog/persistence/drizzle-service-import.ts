@@ -66,12 +66,16 @@ async function readExistingServiceKeys(
   keys: readonly string[],
 ): Promise<readonly string[]> {
   if (keys.length === 0) return [];
+  // الاسم المخزّن يتطبع بتعبير واحد يوازي ثبيت المطبّع المشترك (طيّ المسافات والتشذيب والحروف
+  // الصغيرة) حتى لا يتسرب تكرار بين «Hair Cut» المستورد و«Hair  Cut» المخزّن يدويًا؛ فرق
+  // Unicode المتبقى بين \s في JS وPostgreSQL موثّق في متجهات A-11 ولا يُعالَج هنا (A-11).
+
   const rows = await tx.execute<{ key: string }>(sql`
-    SELECT DISTINCT lower(name_en) AS key
+    SELECT DISTINCT lower(btrim(regexp_replace(name_en, '\\s+', ' ', 'g'))) AS key
     FROM services
     WHERE company_id = ${companyId}
       AND business_id = ${businessId}
-      AND lower(name_en) = ANY(ARRAY[${sql.join(keys.map((key) => sql`${key}`), sql`, `)}]::text[])`);
+      AND lower(btrim(regexp_replace(name_en, '\\s+', ' ', 'g'))) = ANY(ARRAY[${sql.join(keys.map((key) => sql`${key}`), sql`, `)}]::text[])`);
   return rows.map((row) => row.key);
 }
 
