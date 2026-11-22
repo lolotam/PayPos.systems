@@ -8,6 +8,8 @@ export type TopNavProps = {
   activePageId?: string | undefined;
   visiblePageIds?: readonly string[] | undefined;
   onNavigate?: (() => void) | undefined;
+  /** 'none' يترك رسم القائمة المحلية للمستضيف ليضعها بجانب الصفحة؛ الافتراضي يرسمها تحت الشريط. */
+  localNav?: 'stacked' | 'none' | undefined;
 };
 
 export type TopNavRefs = {

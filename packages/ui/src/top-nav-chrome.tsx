@@ -20,6 +20,7 @@ export function TopNavChrome({
   activePageId,
   visiblePageIds,
   onNavigate,
+  localNav = 'stacked',
   rootRef,
   drawerTriggerRef,
   moduleTriggerRef,
@@ -50,7 +51,7 @@ export function TopNavChrome({
         moduleTriggerRef={moduleTriggerRef}
         state={state}
       />
-      {currentModule ? (
+      {currentModule && localNav === 'stacked' ? (
         <LocalNav
           module={currentModule}
           labels={labels}

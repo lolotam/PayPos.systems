@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import {
   onSameTabActivation,
   visiblePages,
@@ -24,8 +25,17 @@ export function LocalNav({
   visiblePageIds,
   onNavigate,
 }: LocalNavProps) {
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    // في الشريط الأفقي للتابلت قد تقع الصفحة الحالية خارج الشاشة، فنحرّك الشريط إليها عند تغيّرها.
+    const current = navRef.current?.querySelector('[aria-current="page"]');
+    if (typeof current?.scrollIntoView === 'function') {
+      current.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+  }, [activePageId]);
   return (
     <nav
+      ref={navRef}
       aria-label={labels.localNavigation}
       className="hidden overflow-x-auto px-2 py-2 min-[700px]:block min-[1024px]:w-60 min-[1024px]:shrink-0 min-[1024px]:overflow-y-auto min-[1024px]:px-4"
     >
