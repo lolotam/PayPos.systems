@@ -34,7 +34,17 @@ function CollapsibleGroupLink({ group, rail, active }: GroupLinkProps) {
       <AppSidebarItem
         href={group.href}
         aria-label={rail ? group.label : undefined}
-        icon={group.icon ?? <span aria-hidden="true" className="size-4" />}
+        icon={
+          group.icon ?? (
+            rail ? (
+              <span className="line-clamp-2 break-words text-center text-[10px] leading-tight">
+                {group.label}
+              </span>
+            ) : (
+              <span aria-hidden="true" className="size-4" />
+            )
+          )
+        }
         active={active}
         label={
           <span className="flex min-w-0 items-center gap-2">

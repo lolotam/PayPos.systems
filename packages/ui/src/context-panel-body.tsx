@@ -16,16 +16,24 @@ function usePanelReturnFocus(panelRef: RefObject<HTMLDivElement | null>) {
   const returnFocusRef = useRef<HTMLElement | undefined>(undefined);
   // Track the last focus outside the panel so closing can restore it after unmount.
   useEffect(() => {
-    const active = document.activeElement;
-    if (
-      active instanceof HTMLElement &&
-      active !== document.body &&
-      !panelRef.current?.contains(active)
-    ) {
-      returnFocusRef.current = active;
-    }
-  });
-  return useCallback(() => returnFocusRef.current?.focus(), []);
+    const rememberFocus = (target: EventTarget | null) => {
+      if (
+        target instanceof HTMLElement &&
+        target !== document.body &&
+        !panelRef.current?.contains(target)
+      ) {
+        returnFocusRef.current = target;
+      }
+    };
+    const onFocusIn = (event: FocusEvent) => rememberFocus(event.target);
+    document.addEventListener('focusin', onFocusIn);
+    rememberFocus(document.activeElement);
+    return () => document.removeEventListener('focusin', onFocusIn);
+  }, [panelRef]);
+  return useCallback(() => {
+    const opener = returnFocusRef.current;
+    if (opener?.isConnected) opener.focus();
+  }, []);
 }
 
 export type ContextPanelBodyProps = {

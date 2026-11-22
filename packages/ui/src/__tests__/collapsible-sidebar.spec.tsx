@@ -179,6 +179,16 @@ it('transfers focus at the fractional 1024 to 1023.5 sidebar boundary', async ()
   expect(view.container.querySelector('aside')?.getAttribute('data-collapsed')).toBe('');
 });
 
+it('shows group labels in the rail when no icons are supplied', () => {
+  stubMedia({ width: 800 });
+  render(tree('ltr'));
+  const link = screen.getByRole('link', { name: /Home/ });
+  expect(link.getAttribute('aria-label')).toBe('Home');
+  expect(
+    screen.getAllByText('Home').some((node) => !node.className.includes('sr-only')),
+  ).toBe(true);
+});
+
 it('leaves the sidebar shell at the fractional 600 to 599.5 phone boundary', () => {
   let width = 600;
   stubMedia(() => ({ width }));

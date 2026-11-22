@@ -19,6 +19,60 @@ export type NavRailProps = {
   onInspect: (workspaceId: string) => void;
 };
 
+type RailWorkspaceButtonProps = {
+  workspace: NavigationWorkspace;
+  labels: NavigationChromeLabels;
+  isCurrent: boolean;
+  inspected: boolean;
+  onInspect: (workspaceId: string) => void;
+};
+
+function RailWorkspaceButton({
+  workspace,
+  labels,
+  isCurrent,
+  inspected,
+  onInspect,
+}: RailWorkspaceButtonProps) {
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      aria-label={[
+        workspace.label,
+        isCurrent ? labels.current : '',
+        inspected ? labels.hidePanel : labels.inspect,
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      aria-pressed={inspected}
+      data-current={isCurrent ? '' : undefined}
+      onClick={() => onInspect(workspace.id)}
+      className={cn(
+        'min-h-15 w-15 flex-col gap-1 p-1 text-xs',
+        isCurrent && 'font-semibold underline decoration-2 underline-offset-4',
+        inspected ? 'bg-sidebar-primary text-sidebar-primary-foreground' : SIDEBAR_GHOST_CLASSES,
+      )}
+    >
+      {workspace.icon ? (
+        <span aria-hidden="true" className="[&_svg]:size-5">
+          {workspace.icon}
+        </span>
+      ) : (
+        <span
+          aria-hidden="true"
+          className="line-clamp-2 w-full break-words text-center leading-tight"
+        >
+          {workspace.label}
+        </span>
+      )}
+      {isCurrent ? (
+        <span aria-hidden="true" data-current-marker="" className="size-1.5 rounded-full bg-current" />
+      ) : null}
+    </Button>
+  );
+}
+
 export function NavRail({
   workspaces,
   labels,
@@ -39,41 +93,16 @@ export function NavRail({
       aria-label={labels.navigation}
       className="flex w-21 shrink-0 flex-col items-center gap-1 bg-sidebar p-2"
     >
-      {workspaces.map((workspace) => {
-        const isCurrent = workspace.id === currentWorkspaceId;
-        const inspected = workspace.id === inspectedId;
-        return (
-          <Button
-            key={workspace.id}
-            variant="ghost"
-            size="icon"
-            aria-label={[
-              workspace.label,
-              isCurrent ? labels.current : '',
-              inspected ? labels.hidePanel : labels.inspect,
-            ]
-              .filter(Boolean)
-              .join(' ')}
-            aria-pressed={inspected}
-            data-current={isCurrent ? '' : undefined}
-            onClick={() => onInspect(workspace.id)}
-            className={cn(
-              'min-h-15 w-15 flex-col gap-1 p-1 text-xs',
-              isCurrent && 'font-semibold underline decoration-2 underline-offset-4',
-              inspected
-                ? 'bg-sidebar-primary text-sidebar-primary-foreground'
-                : SIDEBAR_GHOST_CLASSES,
-            )}
-          >
-            <span aria-hidden="true" className="[&_svg]:size-5">
-              {workspace.icon ?? <span className="size-5" />}
-            </span>
-            {isCurrent ? (
-              <span aria-hidden="true" data-current-marker="" className="size-1.5 rounded-full bg-current" />
-            ) : null}
-          </Button>
-        );
-      })}
+      {workspaces.map((workspace) => (
+        <RailWorkspaceButton
+          key={workspace.id}
+          workspace={workspace}
+          labels={labels}
+          isCurrent={workspace.id === currentWorkspaceId}
+          inspected={workspace.id === inspectedId}
+          onInspect={onInspect}
+        />
+      ))}
     </nav>
   );
 }

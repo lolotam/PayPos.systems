@@ -76,3 +76,12 @@ it.each(['rtl', 'ltr'] as const)('keeps rail direction and logical icon anchorin
     expect(icon).toBeTruthy();
   }
 });
+
+it('shows a visible translated label when the workspace has no icon', () => {
+  render(tree('ltr', { workspaces: [{ id: 'plain', label: 'Plain workspace', sections: [] }] }));
+  const button = screen.getByRole('button', { name: 'Plain workspace Inspect' });
+  expect(
+    screen.getAllByText('Plain workspace').some((node) => !node.className.includes('sr-only')),
+  ).toBe(true);
+  expect(button.textContent).toContain('Plain workspace');
+});

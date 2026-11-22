@@ -74,6 +74,33 @@ it('returns focus to the inspected workspace control after the panel closes', ()
   expect(document.activeElement).toBe(inspect);
 });
 
+it('restores focus after closing without an intervening re-render', () => {
+  function Harness() {
+    const [open, setOpen] = useState(true);
+    return (
+      <DirectionProvider dir="ltr">
+        <button type="button">Inspect business</button>
+        <ContextPanel
+          workspaces={workspaces}
+          labels={contextLabels}
+          panelOpen={open}
+          currentWorkspaceId="business"
+          onClose={() => setOpen(false)}
+        />
+      </DirectionProvider>
+    );
+  }
+
+  render(<Harness />);
+  const opener = screen.getByRole('button', { name: 'Inspect business' });
+  opener.focus();
+  const close = screen.getByRole('button', { name: contextLabels.close });
+  close.focus();
+  fireEvent.click(close);
+  expect(screen.queryByRole('complementary', { name: contextLabels.navigation })).toBeNull();
+  expect(document.activeElement).toBe(opener);
+});
+
 it('falls back to the current workspace and filters hidden pages', () => {
   render(tree('ltr', { currentWorkspaceId: 'business', visiblePageIds: ['offers'] }));
   expect(screen.getByRole('heading', { name: 'Business' })).toBeTruthy();
