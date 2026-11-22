@@ -263,8 +263,11 @@ the checkpoint (plan §7).
   at all (no empty header, no dash).
 - **AC-57-4-2 (MY-07)** A cancelled line is struck through with «اتلغت» and its cancellation date.
 - **AC-57-4-3 (MY-08)** With `tip` allowed she sees her own tips of the month by method; with it hidden, no tips block.
-- **AC-57-4-4** The estimate card shows the «pending» state only (57-5 wires the amount); with `estimated_commission`
-  not allowed there is no card.
+- **AC-57-4-4 (amended 2026-11-22, Waleed)** The estimate card is not rendered by 57-4 from any production entry;
+  57-5 shows it from the single source, the `HIDDEN` / visible status of FR-A02's own estimate route. The POS has no
+  staff-facing read of the allowed columns, and 57-4 adds no API. The card component and its «pending» state exist
+  and are tested at component level only. Earlier wording, kept as history: «The estimate card shows the «pending»
+  state only (57-5 wires the amount); with `estimated_commission` not allowed there is no card.»
 - **AC-57-4-5 (MY-13b, D-A13)** On the shared reception device «شغلي» first asks for her PIN; after it her lines show.
   After 60 s without input the screen returns to the PIN step and nothing of hers stays on screen or in the query
   cache. A 403 `PRIVATE_VIEW_EXPIRED` returns to the PIN step with سارة still the signed-in operator; a 401 leaves the
