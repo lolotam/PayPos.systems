@@ -37,10 +37,14 @@ function usePanelReturnFocus(
     const opener = returnFocusRef.current;
     if (opener?.isConnected) {
       opener.focus();
-      if (document.activeElement === opener) return;
+      if (document.activeElement === opener) return true;
     }
     const fallback = fallbackRef?.current;
-    if (fallback?.isConnected) fallback.focus();
+    if (fallback?.isConnected) {
+      fallback.focus();
+      return document.activeElement === fallback;
+    }
+    return false;
   }, [fallbackRef]);
 }
 
@@ -71,8 +75,9 @@ export function ContextPanelBody({
       visiblePagesMatchingQuery(section.pages, visiblePageIds, query).length > 0,
   );
   const close = () => {
-    restoreFocus();
+    const restored = restoreFocus();
     onClose();
+    if (!restored) queueMicrotask(restoreFocus);
   };
   return (
     <div ref={panelRef} dir={dir} className="flex h-full flex-col gap-2 overflow-y-auto p-2">

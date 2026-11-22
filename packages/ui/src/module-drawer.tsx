@@ -2,7 +2,7 @@
 
 import { ListIcon, XIcon } from '@phosphor-icons/react/dist/ssr';
 import { Dialog } from 'radix-ui';
-import { useEffect, useRef, useState, type Ref } from 'react';
+import { useEffect, useState, type Ref } from 'react';
 import { Button } from './button.js';
 import { useDirection } from './direction-provider.js';
 import {
@@ -91,11 +91,9 @@ export function ModuleDrawer({
   onNavigate,
 }: ModuleDrawerProps) {
   const isPhone = useNavigationMedia('(width < 700px)');
-  const wasPhone = useRef(isPhone);
+  const dialogOpen = open && isPhone;
   useEffect(() => {
-    const crossedToDesktop = wasPhone.current && !isPhone;
-    wasPhone.current = isPhone;
-    if (crossedToDesktop && open) onOpenChange(false);
+    if (open && !isPhone) onOpenChange(false);
   }, [isPhone, onOpenChange, open]);
   const select = () => {
     onNavigate?.();
@@ -106,7 +104,7 @@ export function ModuleDrawer({
   const currentIsVisible = visibleModules.some((module) => module.id === currentModuleId);
   const initialId = currentIsVisible ? currentModuleId : visibleModules[0]?.id;
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Root open={dialogOpen} onOpenChange={onOpenChange}>
       <Dialog.Trigger asChild>
         <Button
           ref={triggerRef}
@@ -118,7 +116,7 @@ export function ModuleDrawer({
           <ListIcon aria-hidden="true" />
         </Button>
       </Dialog.Trigger>
-      {open ? (
+      {dialogOpen ? (
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40 min-[700px]:hidden" />
           <ModuleDrawerContent

@@ -38,3 +38,33 @@ it('closes a standalone drawer and releases focus when the trigger disappears at
   view.rerender(<Harness />);
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 });
+
+it('does not trap focus in a standalone drawer mounted open at 700px', async () => {
+  vi.stubGlobal('matchMedia', () => ({
+    matches: false,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  }));
+
+  function Harness() {
+    const [open, setOpen] = useState(true);
+    return (
+      <DirectionProvider dir="ltr">
+        <ModuleDrawer
+          modules={modules}
+          labels={chromeLabels}
+          open={open}
+          currentModuleId="business"
+          onOpenChange={setOpen}
+        />
+        <button type="button">Outside drawer</button>
+      </DirectionProvider>
+    );
+  }
+
+  render(<Harness />);
+  const outside = screen.getByRole('button', { name: 'Outside drawer' });
+  outside.focus();
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(document.activeElement).toBe(outside);
+});

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useRef, useState } from 'react';
 import { expect, it, vi } from 'vitest';
 import { ContextPanel, type ContextPanelProps } from '../context-panel.js';
@@ -138,6 +138,52 @@ it('falls back to a caller-supplied visible button when the original opener is r
   fireEvent.click(close);
   expect(screen.queryByRole('complementary', { name: contextLabels.navigation })).toBeNull();
   expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Stable fallback' }));
+});
+
+it('restores focus to a fallback that appears only after the panel closes', async () => {
+  function Harness() {
+    const fallbackRef = useRef<HTMLButtonElement>(null);
+    const [open, setOpen] = useState(true);
+    const [showOpener, setShowOpener] = useState(true);
+    const [showFallback, setShowFallback] = useState(false);
+    return (
+      <DirectionProvider dir="ltr">
+        {showOpener ? (
+          <button type="button" onClick={() => setShowOpener(false)}>
+            Temporary opener
+          </button>
+        ) : null}
+        {showFallback ? (
+          <button ref={fallbackRef} type="button">
+            Reopen panel
+          </button>
+        ) : null}
+        <ContextPanel
+          workspaces={workspaces}
+          labels={contextLabels}
+          panelOpen={open}
+          currentWorkspaceId="business"
+          returnFocusRef={fallbackRef}
+          onClose={() => {
+            setOpen(false);
+            setShowOpener(false);
+            setShowFallback(true);
+          }}
+        />
+      </DirectionProvider>
+    );
+  }
+
+  render(<Harness />);
+  const opener = screen.getByRole('button', { name: 'Temporary opener' });
+  opener.focus();
+  fireEvent.click(opener);
+  const close = screen.getByRole('button', { name: contextLabels.close });
+  close.focus();
+  fireEvent.click(close);
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Reopen panel' })),
+  );
 });
 
 it('falls back to the current workspace and filters hidden pages', () => {
