@@ -83,21 +83,30 @@ function handleOverlayKeyDown(
 function useFloatingPanelOverlay(
   panelRef: RefObject<HTMLDivElement | null>,
   active: boolean,
+  inspectedId: string | undefined,
   onClose: () => void,
 ) {
-  const wasActive = useRef(false);
+  const previousRef = useRef<{ active: boolean; inspectedId: string | undefined }>({
+    active: false,
+    inspectedId: undefined,
+  });
   useEffect(() => {
-    const justActivated = active && !wasActive.current;
-    wasActive.current = active;
+    const prev = previousRef.current;
+    const shouldFocusPanel = active && (!prev.active || prev.inspectedId !== inspectedId);
+    previousRef.current = { active, inspectedId };
     if (!active) return;
-    if (justActivated && !panelRef.current?.contains(document.activeElement)) {
+    if (
+      shouldFocusPanel &&
+      !panelRef.current?.contains(document.activeElement) &&
+      !isInsideAnotherDialog(panelRef.current, document.activeElement)
+    ) {
       getPanelFocusableElements(panelRef.current)[0]?.focus();
     }
     const onKeyDown = (event: KeyboardEvent) =>
       handleOverlayKeyDown(event, panelRef.current, onClose);
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [active, onClose, panelRef]);
+  }, [active, inspectedId, onClose, panelRef]);
 }
 
 const PENDING_FOCUS_ATTRIBUTES = [
@@ -252,14 +261,14 @@ export function ContextPanel({
   const dir = useDirection();
   const isFloatingOverlay = useNavigationMedia(TABLET_OVERLAY_QUERY);
   const panelRef = useRef<HTMLDivElement>(null);
-  usePanelReturnFocus(panelRef, panelOpen, openerRef, returnFocusRef);
-  useFloatingPanelOverlay(panelRef, panelOpen && isFloatingOverlay, onClose);
-  if (!panelOpen) return null;
   const inspectedId = resolveInspectedWorkspaceId({
     currentWorkspaceId,
     inspectedWorkspaceId,
     panelOpen,
   });
+  usePanelReturnFocus(panelRef, panelOpen, openerRef, returnFocusRef);
+  useFloatingPanelOverlay(panelRef, panelOpen && isFloatingOverlay, inspectedId, onClose);
+  if (!panelOpen) return null;
   const workspace = workspaces.find((item) => item.id === inspectedId);
   return (
     <aside

@@ -378,3 +378,47 @@ it('traps Tab and Shift+Tab, closes on Escape from filter input, and restores op
   expect(screen.queryByRole('dialog', { name: contextLabels.navigation })).toBeNull();
   expect(document.activeElement).toBe(railButton);
 });
+
+it('returns focus inside the tablet dialog immediately when switching workspaces from NavRail', () => {
+  stubViewportWidth(820);
+  function Harness() {
+    const openerRef = useRef<HTMLButtonElement>(null);
+    const [inspectedWorkspaceId, setInspectedWorkspaceId] = useState<string>('business');
+    const [open, setOpen] = useState(true);
+    return (
+      <DirectionProvider dir="ltr">
+        <NavRail
+          workspaces={workspaces}
+          labels={chromeLabels}
+          currentWorkspaceId="business"
+          inspectedWorkspaceId={inspectedWorkspaceId}
+          panelOpen={open}
+          onInspect={(workspaceId, opener) => {
+            openerRef.current = opener;
+            setInspectedWorkspaceId(workspaceId);
+            setOpen(true);
+          }}
+        />
+        <ContextPanel
+          workspaces={workspaces}
+          labels={contextLabels}
+          currentWorkspaceId="business"
+          inspectedWorkspaceId={inspectedWorkspaceId}
+          panelOpen={open}
+          openerRef={openerRef}
+          onClose={() => setOpen(false)}
+        />
+      </DirectionProvider>
+    );
+  }
+
+  render(<Harness />);
+  const teamRailButton = screen.getByRole('button', { name: 'Team Inspect' });
+  teamRailButton.focus();
+  fireEvent.click(teamRailButton);
+
+  const dialog = screen.getByRole('dialog', { name: contextLabels.navigation });
+  const closeButton = screen.getByRole('button', { name: contextLabels.close });
+  expect(dialog.contains(document.activeElement)).toBe(true);
+  expect(document.activeElement).toBe(closeButton);
+});

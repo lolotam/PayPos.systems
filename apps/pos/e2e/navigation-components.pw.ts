@@ -321,6 +321,7 @@ for (const dir of DIRECTIONS) {
       await expect(panel.getByRole('link', { name: LABELS.columns })).toHaveCount(0);
 
       const closePanel = panel.getByRole('button', { name: LABELS.panelClose });
+      if (width < 1024) await expect(closePanel).toBeFocused();
       await closePanel.focus();
       await page.keyboard.press('Enter');
       await expect(panel).toBeHidden();
