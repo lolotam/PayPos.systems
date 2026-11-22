@@ -6,13 +6,14 @@ import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
  * import type, and a relative specifier that leaves the package's src folder, so every specifier is
  * resolved here against the importing file instead of being matched by its spelling.
  *
- * @param {{ src: string, packages?: string[], folders?: string[], message: string }} options
+ * @param {{ src: string, packages?: string[], folders?: string[], typeOnlyPackages?: string[], message: string }} options
  *   src: the absolute path of the package's src folder; packages: the package names it may import;
  *   folders: when given, a relative import must also land inside one of these first-level folders of src
- *   (a layer rule for a package that is not a module); message: the text of the report.
+ *   (a layer rule for a package that is not a module); typeOnlyPackages: packages in `packages` that may be imported
+ *   as types only (`import type`, `export type`, an import type), never as a runtime value; message: the text of the report.
  * @returns {import('eslint').Rule.RuleModule} the rule
  */
-export const ownFilesOnly = ({ src, packages = [], folders, message }) => ({
+export const ownFilesOnly = ({ src, packages = [], folders, typeOnlyPackages = [], message }) => ({
   meta: {
     type: 'problem',
     schema: [],
@@ -21,13 +22,15 @@ export const ownFilesOnly = ({ src, packages = [], folders, message }) => ({
     },
   },
   create(context) {
-    const check = (source) => {
+    const check = (source, isType = false) => {
       if (source?.type !== 'Literal' || typeof source.value !== 'string') {
         if (source) context.report({ node: source, messageId: 'outside' });
         return;
       }
       if (!source.value.startsWith('.')) {
         if (!packages.includes(source.value)) {
+          context.report({ node: source, messageId: 'outside' });
+        } else if (!isType && typeOnlyPackages.includes(source.value)) {
           context.report({ node: source, messageId: 'outside' });
         }
         return;
@@ -47,12 +50,14 @@ export const ownFilesOnly = ({ src, packages = [], folders, message }) => ({
       if (argument === undefined) return;
       check(argument);
     };
+    // Only the declaration-level form is type-only: under verbatimModuleSyntax `import { type A } from 'x'` still
+    // emits `import {} from 'x'`, a runtime import.
     return {
-      ImportDeclaration: (node) => check(node.source),
-      ExportNamedDeclaration: (node) => check(node.source),
-      ExportAllDeclaration: (node) => check(node.source),
+      ImportDeclaration: (node) => check(node.source, node.importKind === 'type'),
+      ExportNamedDeclaration: (node) => check(node.source, node.exportKind === 'type'),
+      ExportAllDeclaration: (node) => check(node.source, node.exportKind === 'type'),
       ImportExpression: (node) => check(node.source),
-      TSImportType: (node) => check(node.argument?.literal),
+      TSImportType: (node) => check(node.argument?.literal, true),
       CallExpression: checkRequire,
     };
   },

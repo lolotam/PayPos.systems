@@ -102,13 +102,43 @@ export default [
           'own-files-only': ownFilesOnly({
             src: SRC,
             packages: ['@pospay/commissions-engine', '@pospay/domain', '@pospay/ids'],
+            typeOnlyPackages: ['@pospay/commissions-engine', '@pospay/domain', '@pospay/ids'],
             folders: ['domain', 'ports'],
             message:
-              'packages/commissions-posting ports/ may import only its own domain/ and ports/, @pospay/domain, @pospay/ids and @pospay/commissions-engine types (CLAUDE.architecture.md §3.1).',
+              'packages/commissions-posting ports/ may import only its own domain/ and ports/, and types (import type) of @pospay/domain, @pospay/ids and @pospay/commissions-engine (CLAUDE.architecture.md §3.1).',
           }),
         },
       },
     },
     rules: { 'posting-ports/own-files-only': 'error' },
+  },
+  /**
+   * persistence/ implements the ports over the database: its own ports/ and domain/, the database package, Drizzle and the
+   * shared kernel. It never reaches a use case (CLAUDE.architecture.md §3.1). It uses the engine's runtime values
+   * (the package-sale status and the plan-version decoding), so the engine is not type-only here.
+   */
+  {
+    files: ['src/persistence/**/*.ts'],
+    ignores: ['src/persistence/**/__tests__/**', 'src/persistence/**/*.spec.ts'],
+    plugins: {
+      'posting-persistence': {
+        rules: {
+          'own-files-only': ownFilesOnly({
+            src: SRC,
+            packages: [
+              '@pospay/commissions-engine',
+              '@pospay/db',
+              '@pospay/domain',
+              '@pospay/ids',
+              'drizzle-orm',
+            ],
+            folders: ['domain', 'ports', 'persistence'],
+            message:
+              'packages/commissions-posting persistence/ may import only its own domain/, ports/ and persistence/, @pospay/db, drizzle-orm, @pospay/domain, @pospay/ids and @pospay/commissions-engine, never a use case (CLAUDE.architecture.md §3.1).',
+          }),
+        },
+      },
+    },
+    rules: { 'posting-persistence/own-files-only': 'error' },
   },
 ];

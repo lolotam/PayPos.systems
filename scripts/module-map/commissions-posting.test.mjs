@@ -62,6 +62,7 @@ const RESTRICTIONS = [
   'posting-domain/own-files-only',
   'posting-use-cases/own-files-only',
   'posting-ports/own-files-only',
+  'posting-persistence/own-files-only',
   'engine/own-files-only',
   'no-restricted-globals',
 ];
@@ -186,11 +187,7 @@ add(
 // The posting package itself: the one package that may import the engine root, from its use-cases/, ports/ and persistence/.
 const P = 'src';
 for (const [formName, form] of FORMS) {
-  for (const layer of [
-    'use-cases/probe/probe.ts',
-    'ports/probe.port.ts',
-    'persistence/probe.adapter.ts',
-  ]) {
+  for (const layer of ['use-cases/probe/probe.ts', 'persistence/probe.adapter.ts']) {
     add(
       'posting',
       `${P}/${layer}`,
@@ -199,6 +196,14 @@ for (const [formName, form] of FORMS) {
       `${layer.split('/')[0]} may ${formName} the engine root`,
     );
   }
+  // A port declares interfaces: the engine root is allowed as a type, never as a runtime value.
+  add(
+    'posting',
+    `${P}/ports/probe.port.ts`,
+    form(ENGINE),
+    formName === 'import type' ? ALLOWED : 'ports/ may import only',
+    `a port may ${formName === 'import type' ? '' : 'not '}${formName} the engine root`,
+  );
   for (const layer of ['domain/probe.ts', 'index.ts']) {
     add(
       'posting',
@@ -315,27 +320,117 @@ for (const [formName, form] of FORMS) {
   for (const [spec, what] of [
     ['../domain/commission-correction-step.ts', 'its domain/'],
     ['./commission-correction.port.ts', 'a sibling port'],
+  ]) {
+    add('posting', PORT, form(spec), ALLOWED, `a port may ${formName} ${what}`);
+  }
+  // The three packages a port may name are types only: a value import (or a dynamic import, or require) is refused.
+  for (const [spec, what] of [
     ['@pospay/domain', '@pospay/domain'],
     ['@pospay/ids', '@pospay/ids'],
     [ENGINE, 'the engine root'],
   ]) {
-    add('posting', PORT, form(spec), ALLOWED, `a port may ${formName} ${what}`);
+    add(
+      'posting',
+      PORT,
+      form(spec),
+      formName === 'import type' ? ALLOWED : PORT_ONLY,
+      `a port may ${formName === 'import type' ? '' : 'not '}${formName} ${what}`,
+    );
   }
 }
-add(
-  'posting',
-  `${P}/persistence/probe.adapter.ts`,
-  staticImport('@pospay/ids'),
-  ALLOWED,
-  'persistence may import @pospay/ids',
-);
-add(
-  'posting',
-  `${P}/ports/probe.port.ts`,
-  staticImport('@pospay/ids'),
-  ALLOWED,
-  'a port may import @pospay/ids',
-);
+for (const spec of ['@pospay/domain', '@pospay/ids', ENGINE]) {
+  add(
+    'posting',
+    PORT,
+    `import type { Probe } from '${spec}';
+export type Again = Probe;
+`,
+    ALLOWED,
+    `a port may use import type of ${spec}`,
+  );
+  add(
+    'posting',
+    PORT,
+    `export type { Probe } from '${spec}';
+`,
+    ALLOWED,
+    `a port may use export type from ${spec}`,
+  );
+  add(
+    'posting',
+    PORT,
+    `import { value } from '${spec}';
+export const probe = value;
+`,
+    PORT_ONLY,
+    `a port may not import a value from ${spec}`,
+  );
+  add(
+    'posting',
+    PORT,
+    `import { type Probe } from '${spec}';
+export type Again = Probe;
+`,
+    PORT_ONLY,
+    `a port may not use an inline type-only import from ${spec} (it still emits an import)`,
+  );
+  add(
+    'posting',
+    PORT,
+    `export { value } from '${spec}';
+`,
+    PORT_ONLY,
+    `a port may not re-export a value from ${spec}`,
+  );
+  add(
+    'posting',
+    PORT,
+    `export * from '${spec}';
+`,
+    PORT_ONLY,
+    `a port may not export * from ${spec}`,
+  );
+  add(
+    'posting',
+    PORT,
+    `import '${spec}';
+`,
+    PORT_ONLY,
+    `a port may not import ${spec} for its side effect`,
+  );
+}
+// persistence/ implements the ports over the database: its own domain/ and ports/, the database, Drizzle and the kernel; never a use case.
+const PERSISTENCE_ONLY = 'persistence/ may import only';
+const PERSISTENCE = `${P}/persistence/probe.adapter.ts`;
+for (const [formName, form] of FORMS) {
+  for (const [spec, what] of [
+    ['../use-cases/commission-month-recompute.ts', 'a use case'],
+    [
+      '../use-cases/post-commission-corrections/post-commission-corrections.ts',
+      'a nested use case',
+    ],
+    ['@pospay/auth', 'another package'],
+  ]) {
+    add(
+      'posting',
+      PERSISTENCE,
+      form(spec),
+      PERSISTENCE_ONLY,
+      `persistence may not ${formName} ${what}`,
+    );
+  }
+  for (const [spec, what] of [
+    ['../domain/commission-correction-step.ts', 'its domain/'],
+    ['../ports/commission-correction.port.ts', 'its ports/'],
+    ['./commission-correction.scope.ts', 'a sibling adapter'],
+    ['@pospay/db', '@pospay/db'],
+    ['drizzle-orm', 'drizzle-orm'],
+    ['@pospay/domain', '@pospay/domain'],
+    ['@pospay/ids', '@pospay/ids'],
+  ]) {
+    add('posting', PERSISTENCE, form(spec), ALLOWED, `persistence may ${formName} ${what}`);
+  }
+}
 add(
   'posting',
   `${P}/persistence/probe.adapter.ts`,
