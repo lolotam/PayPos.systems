@@ -255,6 +255,10 @@ the checkpoint (plan §7).
 - **AC-57-2b-8** The route and its OpenAPI operation appear only after AC-57-2b-6 passes locally, and the PR links
   the #894 review thread with the proof.
 - **Not in this checkpoint:** any screen; the estimate (57-3, 57-5); a change to the tips route.
+- **AC-57-2b-9 (clarified 2026-11-22)** The regular suite asserts correctness, read privacy and the statement count
+  per combination (4, 5 or 6; maximum 6). The absolute 200 ms assertion runs only in an explicit, isolated
+  performance run and is proven on the delivery head before merge, for the six-statement combination too, at
+  fixture and at 66,002-line scale. Until that receipt exists the maximum-statement case is not accepted.
 
 ### 57-4 — the «شغلي» screen (checkpoint 13)
 
@@ -383,5 +387,15 @@ answered in the sources of §3; no `[NEEDS CLARIFICATION]` marker remains.
   business time zone, supplied by the server in the own service-lines response (Waleed, 2026-11-22).
 - Q: After a reload or in a new tab on the reception device, while the window is still live, is the PIN asked
   again? → A: Yes, always (Waleed, 2026-11-22); stricter than ADR-0019's addendum item 6 on that one point.
+- Q: How is 57-2b's maximum-statement case (six statements: `customer_name` allowed and a cancelled line) accepted?
+  → A: By wall-clock time including the driver, under the unchanged 200 ms bound, in one explicit isolated
+  performance run at naturally low host load, once on the regular fixture and once at 66,002 lines, stale and
+  normal statistics, first page and cursor; all samples, the host load and the `EXPLAIN ANALYZE` figures are
+  recorded; database time is diagnostic only; no retry until green (manager design decision, 2026-11-22).
+- Q: What counts as low host load for that run? → A: Mean processor load under 40 % over twelve samples in 60
+  seconds, checked before the run; above it the run does not start and the proof is reported as waiting (Waleed,
+  2026-11-22).
+- Q: Does opening the PR wait for that receipt? → A: No. The PR is opened after the third local review session and
+  states the open measurement; the merge waits for the receipt on the delivery head (Waleed, 2026-11-22).
 - Q: Can the producer of 61-1i merge together with its consumer and renderer? → A: Yes. Keep the current
   issuance lock and apply the release and activation evidence in plan §4 (PP-219).
