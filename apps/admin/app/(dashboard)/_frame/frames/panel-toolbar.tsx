@@ -11,7 +11,7 @@ import { useFrameLabels } from './use-frame-labels';
 
 /**
  * بداية الشريط العلوي في النمط C: زر إظهار اللوحة (من 600px) وباحث الصفحات على كل عرض.
- * الباحث يُعاد بناؤه عند كل مسار جديد فيُغلق ويُمحى بحثه، والزر يعطي المضيف نفسه فاتحًا للوحة.
+ * الباحث يبقى مركّبًا ويُغلق ويُمحى بحثه بمفتاح المسار، فلا يفقد تركيزه عند الرجوع، والزر يعطي المضيف نفسه فاتحًا للوحة.
  */
 export function PanelToolbar({
   view,
@@ -46,7 +46,7 @@ export function PanelToolbar({
         {t(locale, 'adminNav.togglePanel')}
       </Button>
       <PageFinder
-        key={routeKey}
+        resetKey={routeKey}
         workspaces={view.workspaces}
         labels={labels.finder}
         visiblePageIds={visibleIds}

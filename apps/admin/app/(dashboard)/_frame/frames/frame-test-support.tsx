@@ -113,6 +113,8 @@ export function selectBusiness(businessType: 'salon' | 'restaurant'): void {
   });
 }
 
+const mediaListeners = new Set<() => void>();
+
 /** يضبط عرض الشاشة لاستعلامات matchMedia التي تستخدمها أجزاء @pospay/ui. */
 export function stubViewport(width: number): void {
   vi.stubGlobal('matchMedia', (query: string) => ({
@@ -125,9 +127,17 @@ export function stubViewport(width: number): void {
       return range ? width >= Number(range[1]) && width < Number(range[2]) : false;
     }),
     media: query,
-    addEventListener: () => undefined,
-    removeEventListener: () => undefined,
+    addEventListener: (_type: string, listener: () => void) => mediaListeners.add(listener),
+    removeEventListener: (_type: string, listener: () => void) => mediaListeners.delete(listener),
   }));
+}
+
+/** يغيّر عرض الشاشة والإطار مركّب، ويُعلم من يراقب matchMedia كما يفعل المتصفح. */
+export function resizeTo(width: number): void {
+  stubViewport(width);
+  act(() => {
+    for (const listener of mediaListeners) listener();
+  });
 }
 
 function wrap(ui: ReactElement, dir: 'ltr' | 'rtl') {

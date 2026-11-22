@@ -3,13 +3,6 @@
 import { useRouter } from 'next/navigation';
 import type { MouseEvent, ReactNode } from 'react';
 
-/** علامة المناطق التي هي تنقّل الإطار حتى لو وقعت داخل <main> (مثل حبوب النمط A فوق المحتوى). */
-const FRAME_CHROME_ATTRIBUTE = 'data-frame-chrome';
-
-function isPageContent(anchor: Element): boolean {
-  return anchor.closest('main') !== null && anchor.closest(`[${FRAME_CHROME_ATTRIBUTE}]`) === null;
-}
-
 function sameOriginTarget(anchor: HTMLAnchorElement): string | null {
   const href = anchor.getAttribute('href');
   const sameTab = anchor.target === '' || anchor.target === '_self';
@@ -29,17 +22,19 @@ function softNavigationTarget(event: MouseEvent<HTMLElement>): string | null {
   if (event.defaultPrevented || event.button !== 0 || modified) return null;
   if (!(event.target instanceof Element)) return null;
   const anchor = event.target.closest('a[href]');
-  if (!(anchor instanceof HTMLAnchorElement) || isPageContent(anchor)) return null;
-  return sameOriginTarget(anchor);
+  return anchor instanceof HTMLAnchorElement ? sameOriginTarget(anchor) : null;
 }
 
 /**
- * روابط القوائم في @pospay/ui عناصر <a> عادية، فهذا المحوّل ينقل الضغطة العادية في نفس التبويب
- * إلى موجّه Next بدل تحميل الصفحة كاملة (وهو يُفقد حالة الإطار مثل طيّ الشريط الجانبي).
- * الضغطة بمفتاح تعديل أو الزر الأوسط تبقى للمتصفح، وروابط محتوى الصفحة داخل <main> لا تُمس إلا
- * ما وُسم بـ data-frame-chrome. المعالجة على الجذر فتشمل القوائم المرسومة في portal أيضًا.
+ * حدّ تنقّل الإطار: يلفّ كل جزء من قوائم الإطار (الشريط الجانبي والعلوي واللوحة والحبوب والشريط السفلي
+ * والباحث وقائمة الحساب). روابط @pospay/ui عناصر <a> عادية، فالضغطة العادية في نفس التبويب داخل هذا
+ * الحد تذهب إلى موجّه Next بدل تحميل الصفحة كاملة (وهو يُفقد حالة الإطار مثل طيّ الشريط الجانبي).
+ * الضغطة بمفتاح تعديل أو الزر الأوسط أو أصل آخر تبقى للمتصفح.
+ * المعالجة على الحد نفسه لا على جذر الإطار: أحداث React تصعد عبر الـ portal، فتشمل ما يرسمه جزء
+ * من الإطار في body (الأدراج والورقة السفلية والباحث)، ولا تمسّ رابطًا يرسمه محتوى الصفحة، حتى
+ * لو رسمه في portal، لأن مكانه في شجرة React خارج هذا الحد.
  */
-export function FrameLinks({ children }: { children: ReactNode }) {
+export function FrameChrome({ children }: { children: ReactNode }) {
   const router = useRouter();
   return (
     <div

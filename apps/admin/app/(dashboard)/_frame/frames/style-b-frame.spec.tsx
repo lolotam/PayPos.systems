@@ -1,7 +1,9 @@
 import { t } from '@pospay/i18n';
 import { fireEvent, screen, within } from '@testing-library/react';
+import { usePathname } from 'next/navigation';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { resolveTopLevels } from '../menu/resolve-top-levels';
 import {
   frameState,
   goTo,
@@ -81,9 +83,9 @@ describe('style B layout', () => {
     renderFrame(<StyleBFrame>Page body</StyleBFrame>);
     const list = localList();
     const main = screen.getByRole('main');
-    expect(list.parentElement).toBe(main.parentElement);
-    expect(list.nextElementSibling).toBe(main);
-    expect(list.parentElement?.className).toContain('min-[1024px]:flex-row');
+    expect(list.parentElement?.parentElement).toBe(main.parentElement);
+    expect(list.parentElement?.nextElementSibling).toBe(main);
+    expect(list.parentElement?.parentElement?.className).toContain('min-[1024px]:flex-row');
     expect(list.className).toContain('min-[1024px]:w-60');
     expect(
       screen.getAllByRole('navigation', { name: label('adminNav.localNavigation') }),
@@ -115,7 +117,7 @@ describe('style B layout', () => {
     frameState.pathname = '/staff';
     renderFrame(<StyleBFrame>Page body</StyleBFrame>);
     const list = localList();
-    expect(list.parentElement?.className).toContain('flex-col');
+    expect(list.parentElement?.parentElement?.className).toContain('flex-col');
     expect(
       list.compareDocumentPosition(screen.getByRole('main')) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
@@ -211,5 +213,57 @@ describe('style B on a phone', () => {
         .getByRole('link', { name: /Import employees/ })
         .getAttribute('href'),
     ).toBe('/staff/import');
+  });
+});
+
+function CurrentRoute() {
+  return <p>Route: {usePathname()}</p>;
+}
+
+describe('style B bar across routes', () => {
+  it('keeps the same module bar element when moving between two pages of one module', () => {
+    frameState.pathname = '/staff';
+    renderFrame(<StyleBFrame>Page body</StyleBFrame>);
+    const bar = barNav();
+    goTo('/staff/import');
+    expect(barNav()).toBe(bar);
+    expect(module(label('adminNav.moduleBPeople')).getAttribute('aria-current')).toBe('page');
+  });
+
+  it('opens a page from the mega menu through the router, the menu being frame-owned', () => {
+    frameState.pathname = '/staff';
+    renderFrame(
+      <StyleBFrame>
+        <CurrentRoute />
+      </StyleBFrame>,
+    );
+    fireEvent.click(module(label('adminNav.moduleBPeople')));
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('link', { name: /Import employees/ }),
+    );
+    expect(screen.getByText('Route: /staff/import')).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});
+
+describe('the Soon mark in the rendered local list', () => {
+  it('is on every not-built page of every module, reached through the module overview address', () => {
+    renderFrame(<StyleBFrame>Page body</StyleBFrame>);
+    const ctx = {
+      translate: (key: Parameters<typeof t>[1]) => t('en', key),
+      pathname: '/',
+      visibleIds: frameState.visible,
+    };
+    let checked = 0;
+    for (const top of resolveTopLevels('B', ctx)) {
+      goTo(`/overview/${top.id}`);
+      const links = within(localList()).getAllByRole('link');
+      for (const page of top.lists.flatMap((list) => list.pages).filter((item) => item.status)) {
+        const shown = links.find((item) => item.getAttribute('href') === page.href);
+        expect(shown?.textContent).toContain(label('adminNav.soonBadge'));
+        checked += 1;
+      }
+    }
+    expect(checked).toBeGreaterThan(40);
   });
 });

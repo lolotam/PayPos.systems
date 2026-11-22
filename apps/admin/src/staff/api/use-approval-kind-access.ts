@@ -4,6 +4,7 @@ import { attendanceChangeRequestPage, attendanceExceptionPage, leavePage } from 
 import { useQuery } from '@tanstack/react-query';
 
 import { apiClient } from '@/shared/api/client';
+import { readAccessProof } from '@/shared/api/read-access-proof';
 
 export type ApprovalKindId = 'leave-approvals' | 'attendance-requests' | 'attendance-exceptions';
 
@@ -34,12 +35,14 @@ function useProbe(
     ],
     enabled: ready,
     retry: false,
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
     refetchOnWindowFocus: false,
     // enabled يمنع التشغيل بلا نطاق، فهنا النطاق موجود دائمًا.
     queryFn: ({ signal }) => read(scope as ApprovalAccessScope, signal),
   });
-  return ready && query.isSuccess;
+  // إثبات حالي لهذا المراقب: النجاح المخزَّن من زيارة سابقة لا يُظهر نوعًا، فمن سُحبت صلاحيته لا يرى رابطًا يردّ 403.
+  return ready && readAccessProof(query) === 'granted';
 }
 
 const header = (scope: ApprovalAccessScope) => ({ 'x-company-id': scope.companyId });

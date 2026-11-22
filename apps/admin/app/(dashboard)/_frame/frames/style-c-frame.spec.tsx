@@ -167,6 +167,21 @@ describe('style C visibility and the page finder', () => {
 });
 
 describe('style C finder across routes', () => {
+  it('keeps the same finder button after a navigation and opens a result through the router', () => {
+    frameState.pathname = '/staff';
+    renderFrame(page());
+    const trigger = finderTrigger();
+    goTo('/leave');
+    expect(finderTrigger()).toBe(trigger);
+    fireEvent.click(trigger);
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'import employees' } });
+    fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('link', { name: /Import employees/ }),
+    );
+    expect(screen.getByRole('heading', { name: 'Destination /staff/import' })).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
   it('closes an open finder on navigation and does not reopen it on the way back', () => {
     frameState.pathname = '/staff';
     renderFrame(page());
@@ -247,7 +262,7 @@ describe('style C on a tablet', () => {
 });
 
 describe('style C panel on a desktop', () => {
-  it('forgets a previewed workspace when the route changes, going and coming back', () => {
+  it('forgets a previewed workspace on the way out, so coming back shows the current one', () => {
     frameState.pathname = '/staff';
     renderFrame(page());
     fireEvent.click(rail('adminNav.workspaceCStock'));
@@ -258,11 +273,10 @@ describe('style C panel on a desktop', () => {
     const afterGoing = within(panelRegion() as HTMLElement);
     expect(afterGoing.queryByRole('link', { name: /^Services/ })).toBeNull();
     expect(afterGoing.getByRole('link', { name: /Import employees/ })).toBeTruthy();
-    fireEvent.click(rail('adminNav.workspaceCStock'));
     goTo('/staff');
-    expect(
-      within(panelRegion() as HTMLElement).queryByRole('link', { name: /^Services/ }),
-    ).toBeNull();
+    const afterBack = within(panelRegion() as HTMLElement);
+    expect(afterBack.queryByRole('link', { name: /^Services/ })).toBeNull();
+    expect(afterBack.getByRole('link', { name: /^Employees/ })).toBeTruthy();
   });
 
   it('toggles from the top bar button and keeps the choice across pages', () => {

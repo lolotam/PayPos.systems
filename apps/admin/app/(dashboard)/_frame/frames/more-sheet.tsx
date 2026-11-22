@@ -1,6 +1,7 @@
 'use client';
 
 import { BottomSheet, cn, shellNavLinkClass } from '@pospay/ui';
+import type { RefObject } from 'react';
 
 import type { ResolvedTopLevel } from '../menu/resolve-top-levels';
 
@@ -16,6 +17,7 @@ export function MoreSheet({
   title,
   closeLabel,
   currentPageId,
+  openerRef,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -23,9 +25,16 @@ export function MoreSheet({
   title: string;
   closeLabel: string;
   currentPageId: string | undefined;
+  openerRef: RefObject<HTMLElement | null>;
 }) {
   return (
-    <BottomSheet open={open} onOpenChange={onOpenChange} title={title} closeLabel={closeLabel}>
+    <BottomSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={title}
+      closeLabel={closeLabel}
+      openerRef={openerRef}
+    >
       {groups.map((group) => (
         <section key={group.id} aria-labelledby={`more-${group.id}`} className="mb-3">
           <h2 id={`more-${group.id}`} className="text-sm font-semibold">

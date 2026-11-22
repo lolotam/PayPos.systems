@@ -1,15 +1,12 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { LocalNavLink } from './local-nav-link.js';
 import {
-  onSameTabActivation,
   visiblePages,
   type NavigationChromeLabels,
   type NavigationModule,
-  type NavigationPage,
 } from './navigation-presentation.js';
-import { cn } from './shared/cn.js';
-import { SIDEBAR_GHOST_CLASSES } from './sidebar-classes.js';
 
 export type LocalNavProps = {
   module: NavigationModule;
@@ -18,35 +15,6 @@ export type LocalNavProps = {
   visiblePageIds?: readonly string[] | undefined;
   onNavigate?: (() => void) | undefined;
 };
-
-function PageLink({
-  page,
-  active,
-  onNavigate,
-}: {
-  page: NavigationPage;
-  active: boolean;
-  onNavigate: (() => void) | undefined;
-}) {
-  return (
-    <li className="shrink-0">
-      <a
-        href={page.href}
-        aria-current={active ? 'page' : undefined}
-        onClick={onSameTabActivation(onNavigate)}
-        className={cn(
-          'flex min-h-11 min-w-11 items-center gap-2 whitespace-nowrap rounded-interactive px-3 py-2 text-sm',
-          active
-            ? 'bg-sidebar-primary font-medium text-sidebar-primary-foreground'
-            : SIDEBAR_GHOST_CLASSES,
-        )}
-      >
-        <span className="truncate">{page.label}</span>
-        {page.status ? <span className="text-xs opacity-80">{page.status}</span> : null}
-      </a>
-    </li>
-  );
-}
 
 /**
  * القائمة المحلية للوحدة الحالية: شريط أفقي مسطّح بين 700 و1023px، وقائمة عمودية من 1024px
@@ -85,7 +53,7 @@ export function LocalNav({
             </h3>
           </li>,
           ...pages.map((page) => (
-            <PageLink
+            <LocalNavLink
               key={page.id}
               page={page}
               active={page.id === activePageId}

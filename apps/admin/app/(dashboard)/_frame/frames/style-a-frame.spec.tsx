@@ -1,9 +1,18 @@
 import { t } from '@pospay/i18n';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { usePathname } from 'next/navigation';
+import { createPortal } from 'react-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { frameState, goTo, renderFrame, resetFrameState, stubViewport } from './frame-test-support';
+import { resolveTopLevels } from '../menu/resolve-top-levels';
+import {
+  frameState,
+  goTo,
+  renderFrame,
+  resetFrameState,
+  resizeTo,
+  stubViewport,
+} from './frame-test-support';
 import { StyleAFrame } from './style-a-frame';
 
 vi.mock('next/navigation', async () => (await import('./frame-test-support')).navigationMock);
@@ -273,4 +282,79 @@ describe('links', () => {
       expect(frameState.push).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('style A sheet and the viewport', () => {
+  const moreButtonNow = () => screen.getByRole('button', { name: label('adminNav.more') });
+
+  it('closes the open sheet when the viewport grows past the phone width, and keeps it closed', () => {
+    stubViewport(390);
+    renderFrame(<StyleAFrame>Page body</StyleAFrame>);
+    fireEvent.click(moreButtonNow());
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    resizeTo(820);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    resizeTo(390);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('returns focus to More even when pressing it did not move focus from another field', async () => {
+    stubViewport(390);
+    renderFrame(
+      <StyleAFrame>
+        <input aria-label="Page field" />
+      </StyleAFrame>,
+    );
+    screen.getByRole('textbox', { name: 'Page field' }).focus();
+    fireEvent.click(moreButtonNow());
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    await waitFor(() => expect(document.activeElement).toBe(moreButtonNow()));
+  });
+});
+
+describe('links owned by the page', () => {
+  it('leaves a link the page draws in a portal to the browser, but takes a frame-owned portal link', () => {
+    stubViewport(390);
+    frameState.pathname = '/';
+    renderFrame(
+      <StyleAFrame>
+        <CurrentRoute />
+        {createPortal(<a href="/leave">Portal link of the page</a>, document.body)}
+      </StyleAFrame>,
+    );
+    fireEvent.click(screen.getByRole('link', { name: 'Portal link of the page' }));
+    expect(screen.getByText('Route: /')).toBeTruthy();
+    expect(frameState.push).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: label('adminNav.more') }));
+    fireEvent.click(link(screen.getByRole('dialog'), label('adminNav.submenuStaffReports')));
+    expect(screen.getByText('Route: /staff/attendance-report')).toBeTruthy();
+  });
+});
+
+describe('the Soon mark in the rendered frame', () => {
+  it('is on every not-built page: in the pills of its sub-menu, or on the tab of an all-not-built sub-menu', () => {
+    const ctx = {
+      translate: (key: Parameters<typeof t>[1]) => t('en', key),
+      pathname: '/',
+      visibleIds: frameState.visible,
+    };
+    const lists = resolveTopLevels('A', ctx).flatMap((group) => group.lists);
+    renderFrame(<StyleAFrame>Page body</StyleAFrame>);
+    let checked = 0;
+    for (const list of lists) {
+      const soonPages = list.pages.filter((page) => page.status !== undefined);
+      if (soonPages.length === 0) continue;
+      goTo(list.pages[0]?.href ?? '/');
+      for (const page of soonPages) {
+        const scope = list.pages.length > 1 ? pillsNav() : tabsNav();
+        const target = list.pages.length > 1 ? page.label : list.label;
+        const shown = within(scope)
+          .getAllByRole('link')
+          .find((item) => item.textContent?.startsWith(target));
+        expect(shown?.textContent).toContain(label('adminNav.soonBadge'));
+        checked += 1;
+      }
+    }
+    expect(checked).toBeGreaterThan(40);
+  });
 });

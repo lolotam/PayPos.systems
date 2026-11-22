@@ -2,7 +2,7 @@
 
 import { XIcon } from '@phosphor-icons/react/dist/ssr';
 import { Dialog } from 'radix-ui';
-import { useRef, type ReactNode } from 'react';
+import { useRef, type ReactNode, type RefObject } from 'react';
 import { Button } from './button.js';
 import { useDirection } from './direction-provider.js';
 
@@ -12,15 +12,25 @@ export type BottomSheetProps = {
   /** اسم الورقة المسمّاة لقارئ الشاشة وعنوانها المرئي؛ من المستدعي مترجمًا. */
   title: string;
   closeLabel: string;
+  /** الزر الذي فتح الورقة بحسب المستدعي؛ إليه يعود التركيز عند الإغلاق. الغياب يعيده إلى ما كان عليه التركيز لحظة الفتح. */
+  openerRef?: RefObject<HTMLElement | null> | undefined;
   children: ReactNode;
 };
 
 /**
  * ورقة سفلية مودالية فوق الشريط السفلي: تحبس التركيز، وتُغلق بالهروب أو بزر الإغلاق، ويعود التركيز
  * إلى الزر الذي فتحها. الورقة بلا زر فتح خاص بها (يفتحها المستدعي من زر في مكان آخر مثل «المزيد»)،
- * فتحفظ العنصر الذي كان عليه التركيز لحظة الفتح وتعيده عند الإغلاق بدل ترك Radix يردّه إلى لا شيء.
+ * فيعطيها المستدعي ذلك الزر في openerRef. ما كان عليه التركيز لحظة الفتح لا يصلح وحده بديلًا لأن
+ * الضغط قد لا ينقل التركيز إلى الزر فيعود إلى حقل آخر.
  */
-export function BottomSheet({ open, onOpenChange, title, closeLabel, children }: BottomSheetProps) {
+export function BottomSheet({
+  open,
+  onOpenChange,
+  title,
+  closeLabel,
+  openerRef,
+  children,
+}: BottomSheetProps) {
   const dir = useDirection();
   const opener = useRef<Element | null>(null);
   return (
@@ -35,9 +45,8 @@ export function BottomSheet({ open, onOpenChange, title, closeLabel, children }:
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            if (opener.current instanceof HTMLElement && opener.current.isConnected) {
-              opener.current.focus();
-            }
+            const target = openerRef?.current ?? opener.current;
+            if (target instanceof HTMLElement && target.isConnected) target.focus();
           }}
           className="fixed inset-x-0 bottom-0 z-50 flex max-h-[80dvh] flex-col overflow-y-auto rounded-t-card border-t border-border bg-card text-card-foreground"
         >

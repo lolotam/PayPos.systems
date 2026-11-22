@@ -46,6 +46,17 @@ function topLevelItem(item: ResolvedTopLevel, current: boolean, ctx: MenuContext
   };
 }
 
+/**
+ * علامة «قريبًا» على تبويب قائمته الفرعية كلها صفحات غير مبنية: القائمة ذات الصفحة الواحدة لا تُرسم لها
+ * حبوب، فلولا العلامة على التبويب لما ظهر في النمط A أنها غير مبنية (القبول 4).
+ */
+function tabMark(list: ResolvedList): { status?: string } {
+  const status = list.pages[0]?.status;
+  return status !== undefined && list.pages.every((page) => page.status !== undefined)
+    ? { status }
+    : {};
+}
+
 function pillsOf(
   list: ResolvedList | undefined,
   currentPageId: string | undefined,
@@ -75,6 +86,7 @@ export function buildStyleAView(ctx: MenuContext): StyleAView {
       label: item.label,
       href: item.href,
       current: item.id === list?.id,
+      ...tabMark(item),
     })),
     pills: pillsOf(list, place.pageId),
     bottom: top

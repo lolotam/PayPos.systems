@@ -8,7 +8,7 @@ import { useLocale } from '@/shared/locale/locale-context';
 
 import { useMenuContext } from '../menu/use-menu-context';
 import { buildStyleAView } from '../menu/style-views';
-import { FrameLinks } from './frame-links';
+import { FrameChrome } from './frame-chrome';
 import { FrameTopBar } from './frame-top-bar';
 import { PhoneBar } from './phone-bar';
 import { useFrameLabels } from './use-frame-labels';
@@ -29,42 +29,50 @@ export function StyleAFrame({ children }: { children: ReactNode }) {
   const ctx = useMenuContext();
   const view = useMemo(() => buildStyleAView(ctx), [ctx]);
   return (
-    <FrameLinks>
+    <>
       <div className="group relative flex min-h-dvh">
-        <CollapsibleSidebar
-          title={labels.chrome.navigation}
-          collapseLabel={labels.chrome.collapse}
-          expandLabel={labels.chrome.expand}
-          groups={view.groups}
-          currentGroupId={view.currentGroupId}
-          currentPageId={view.currentPageId}
-          header={
-            <BrandLockup
-              tone="sidebar"
-              title={t(locale, 'brand.title')}
-              latinName={t(locale, 'brand.latinName')}
-              arabicName={t(locale, 'brand.arabicName')}
-            />
-          }
-        />
+        <FrameChrome>
+          <CollapsibleSidebar
+            title={labels.chrome.navigation}
+            collapseLabel={labels.chrome.collapse}
+            expandLabel={labels.chrome.expand}
+            groups={view.groups}
+            currentGroupId={view.currentGroupId}
+            currentPageId={view.currentPageId}
+            header={
+              <BrandLockup
+                tone="sidebar"
+                title={t(locale, 'brand.title')}
+                latinName={t(locale, 'brand.latinName')}
+                arabicName={t(locale, 'brand.arabicName')}
+              />
+            }
+          />
+        </FrameChrome>
         <div className={PAGE_COLUMN_CLASS}>
           <FrameTopBar
             start={
               <BrandMark title={t(locale, 'brand.title')} className="size-9 min-[600px]:hidden" />
             }
           />
-          {view.tabs.length > 1 ? <NavTabs items={view.tabs} labels={labels.tabs} /> : null}
+          {view.tabs.length > 1 ? (
+            <FrameChrome>
+              <NavTabs items={view.tabs} labels={labels.tabs} />
+            </FrameChrome>
+          ) : null}
           <main className="min-w-0 flex-1 px-4 pt-4 pb-20 min-[600px]:pb-6 min-[768px]:px-6">
             {view.pills.length > 0 ? (
-              <div data-frame-chrome="" className="mb-4">
-                <Pills items={view.pills} labels={labels.pills} />
-              </div>
+              <FrameChrome>
+                <Pills items={view.pills} labels={labels.pills} className="mb-4" />
+              </FrameChrome>
             ) : null}
             {children}
           </main>
         </div>
       </div>
-      <PhoneBar view={view} pathname={ctx.pathname} />
-    </FrameLinks>
+      <FrameChrome>
+        <PhoneBar view={view} pathname={ctx.pathname} />
+      </FrameChrome>
+    </>
   );
 }
