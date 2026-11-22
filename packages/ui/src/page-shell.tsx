@@ -1,0 +1,75 @@
+import type { ComponentProps, ReactNode } from 'react';
+
+import { cn } from './shared/cn.js';
+
+export type PageShellLayout = 'list' | 'form' | 'two-column';
+
+export type PageShellProps = Omit<ComponentProps<'div'>, 'children'> & {
+  /** قوائم ولوحات بعرض 1200px كحد أقصى؛ نماذج بعرض 840px؛ ثنائي الأعمدة بعرض القوائم. */
+  layout?: PageShellLayout;
+  children?: ReactNode;
+  /** كتلة العمود الرئيسي في التخطيط ثنائي الأعمدة (2 من 3 أعمدة من 1024px). */
+  main?: ReactNode;
+  /** كتلة العمود الجانبي (1 من 3)؛ غيابه يترك الكتلة الوحيدة في العمود الرئيسي. */
+  side?: ReactNode;
+};
+
+const WIDTH_CLASS = {
+  list: 'max-w-[1200px]',
+  form: 'max-w-[840px]',
+  'two-column': 'max-w-[1200px]',
+} as const;
+
+// سقف وصف الترويسة 65 حرفًا يطبَّق هنا لا في الترويسة نفسها، ليبقى شكل الترويسات
+// الـ24 خارج القوالب كما هو إلى أن تنقلها 074-7/074-9 إلى القوالب.
+const DESCRIPTION_CAP_CLASS = '[&_[data-page-header-description]]:max-w-[65ch]';
+
+const COLUMN_CLASS = 'flex min-w-0 flex-col gap-4 md:gap-6';
+
+/**
+ * إطار الصفحة المشترك: يملك العرض المركزي وفجوة الأقسام فقط، لا يحرك حشوة الصفحة —
+ * عشان لا تتحشّر صفحة مرتين قبل أن تأتي حشوة القوالب مع 074-7.
+ */
+export function PageShell({
+  layout = 'list',
+  main,
+  side,
+  className,
+  children,
+  ...props
+}: PageShellProps) {
+  if (layout !== 'two-column') {
+    return (
+      <div
+        data-page-shell={layout}
+        className={cn(
+          'mx-auto flex w-full flex-col gap-4 text-start md:gap-6',
+          WIDTH_CLASS[layout],
+          DESCRIPTION_CAP_CLASS,
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </div>
+    );
+  }
+  return (
+    <div
+      data-page-shell="two-column"
+      className={cn(
+        'mx-auto flex w-full flex-col gap-4 text-start md:gap-6',
+        WIDTH_CLASS['two-column'],
+        DESCRIPTION_CAP_CLASS,
+        className,
+      )}
+      {...props}
+    >
+      {children}
+      <div className={cn(COLUMN_CLASS, 'lg:grid lg:grid-cols-[2fr_1fr] lg:items-start lg:gap-6')}>
+        <div className={COLUMN_CLASS}>{main}</div>
+        {side === undefined ? null : <div className={COLUMN_CLASS}>{side}</div>}
+      </div>
+    </div>
+  );
+}

@@ -26,8 +26,10 @@ export function ServiceTableRow({
           ) : null}
         </div>
       </td>
-      <td dir="ltr">{item.price}</td>
-      <td>
+      <td data-cell-label={t(locale, 'catalogServices.price')}>
+        <span dir="ltr">{item.price}</span>
+      </td>
+      <td data-cell-label={t(locale, 'catalogServices.durationColumn')}>
         {item.duration_minutes === null ? (
           t(locale, 'catalogServices.missingValue')
         ) : (
@@ -37,13 +39,15 @@ export function ServiceTableRow({
           </>
         )}
       </td>
-      <td>
+      <td data-cell-label={t(locale, 'catalogServices.categoryColumn')}>
         {item.category
           ? serviceCategoryLabel(item.category, locale)
           : t(locale, 'catalogServices.missingValue')}
       </td>
-      <td>{t(locale, SERVICE_RULE_LABEL[item.commission_rule.kind])}</td>
-      <td>
+      <td data-cell-label={t(locale, 'catalogServices.rule')}>
+        {t(locale, SERVICE_RULE_LABEL[item.commission_rule.kind])}
+      </td>
+      <td data-cell-label={t(locale, 'catalogServices.edit')}>
         <Button
           variant="outline"
           size="sm"

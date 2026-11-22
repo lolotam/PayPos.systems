@@ -1,12 +1,13 @@
 'use client';
 import type { ServiceListItem } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { DataTableFrame } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { useMemo } from 'react';
 import { ServiceTableRow } from './service-table-row';
 
+// الجدول بلا كرت: كرت القائمة يملكه الـ`ServicesListPanel` عشان التصفية والتذييل
+// يجلسوا مع الجدول في نفس الكرت، والجدول نفسه فقط هو ما يُمرَّر داخله.
 export function ServicesTable({
   items,
   selectedId,
@@ -34,30 +35,28 @@ export function ServicesTable({
     manualPagination: true,
   });
   return (
-    <DataTableFrame title={t(locale, 'catalogServices.listTitle')}>
-      <table>
-        <thead>
-          {table.getHeaderGroups().map((group) => (
-            <tr key={group.id}>
-              {group.headers.map((header) => (
-                <th key={header.id} scope="col">
-                  {flexRender(header.column.columnDef.header, header.getContext())}
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {table.getRowModel().rows.map(({ original }) => (
-            <ServiceTableRow
-              key={original.id}
-              item={original}
-              selected={selectedId === original.id}
-              onSelect={onSelect}
-            />
-          ))}
-        </tbody>
-      </table>
-    </DataTableFrame>
+    <table>
+      <thead>
+        {table.getHeaderGroups().map((group) => (
+          <tr key={group.id}>
+            {group.headers.map((header) => (
+              <th key={header.id} scope="col">
+                {flexRender(header.column.columnDef.header, header.getContext())}
+              </th>
+            ))}
+          </tr>
+        ))}
+      </thead>
+      <tbody>
+        {table.getRowModel().rows.map(({ original }) => (
+          <ServiceTableRow
+            key={original.id}
+            item={original}
+            selected={selectedId === original.id}
+            onSelect={onSelect}
+          />
+        ))}
+      </tbody>
+    </table>
   );
 }

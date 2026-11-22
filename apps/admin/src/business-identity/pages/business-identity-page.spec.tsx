@@ -280,3 +280,35 @@ it('refuses a file the logo contract will not upload', async () => {
   expect(await screen.findByText(t('en', 'businessIdentity.invalidFile'))).toBeTruthy();
   expect(api.POST).not.toHaveBeenCalled();
 });
+
+it('puts the names in the main column and the logo in the side one, and keeps a lone logo block in the main column', async () => {
+  api.GET.mockResolvedValue({ data: settings(fileId) });
+  api.POST.mockResolvedValue({ data: { download_url: 'https://files.test/logo', expires_in: 60 } });
+  const view = renderPage();
+  const names = await screen.findByLabelText(t('en', 'businessIdentity.nameEn'));
+  const logo = await screen.findByRole('img', { name: 'Shop' });
+  const columns = names.closest('[data-page-shell="two-column"]')?.lastElementChild as HTMLElement;
+  expect(columns.className).toContain('lg:grid');
+  expect(columns.className).toContain('lg:grid-cols-[2fr_1fr]');
+  const mainColumn = columns.children[0] as HTMLElement;
+  const sideColumn = columns.children[1] as HTMLElement;
+  expect(mainColumn.contains(names)).toBe(true);
+  expect(sideColumn.contains(logo)).toBe(true);
+  view.unmount();
+
+  const refusal = { error: { code: 'STORAGE_UNAVAILABLE' }, response: { status: 503 } };
+  api.GET.mockImplementation(async () => refusal);
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <BusinessIdentityPage companyId={id} userId={id} businessId={id} />
+    </QueryClientProvider>,
+  );
+  const loneLogoFile = await screen.findByLabelText(t('en', 'businessIdentity.logoFile'));
+  const loneColumns = loneLogoFile.closest('[data-page-shell="two-column"]')
+    ?.lastElementChild as HTMLElement;
+  expect(loneColumns.children).toHaveLength(1);
+  expect(loneColumns.children[0]?.contains(loneLogoFile)).toBe(true);
+});
