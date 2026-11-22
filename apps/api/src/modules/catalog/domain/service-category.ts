@@ -1,5 +1,27 @@
 import { ServiceCategoryError } from './errors.ts';
 
+/**
+ * بيطبّع اسم التصنيف كما هو عند واجهة الكتالوج: مسافات مطبّعة إلى مسافة واحدة ثم تشذيب.
+ * التطبيع نفسه الذي يُخزَّن به الاسم وقت الإنشاء، فهو مرجع التطبيع الواحد داخل API (A-11).
+ *
+ * @param name الاسم كما ورد قبل التطبيع
+ * @returns الاسم بعد تفعيع المسافات والتشذيب
+ */
+export function normalizeServiceCategoryName(name: string): string {
+  return name.replace(/\s+/gu, ' ').replace(/^\s+|\s+$/gu, '');
+}
+
+/**
+ * مفتاح اسم التصنيف لفهارس الشاشة والاستعلامات المحلية: التطبيع ثم الحروف الصغيرة. مطابقة
+ * استيراد الخدمات لا تستخدمه — قرارها كله داخل PostgreSQL بتعبير الطي الواحد (FR-007).
+ *
+ * @param nameEn الاسم الإنجليزية بعد محقّه
+ * @returns مفتاح المطابقة المحلي
+ */
+export function serviceCategoryKey(nameEn: string): string {
+  return normalizeServiceCategoryName(nameEn).toLowerCase();
+}
+
 /** مستوى ظهور التصنيف: مشترك بين فروع النشاط كلها، أو خاص بفرع الإنشاء. */
 export type ServiceCategoryVisibility = 'BUSINESS' | 'BRANCH';
 
@@ -50,30 +72,6 @@ export interface ServiceCategoryRenameRequest {
 export interface ServiceCategoryRenamePlan {
   readonly after: ServiceCategoryRecord;
   readonly changed: boolean;
-}
-
-/**
- * يوحّد الاسم بالشكل الذي يشترطه القيد في قاعدة البيانات: تُشال المسافات البادئة والمؤخرة، وكل
- * تتابع مسافات — بما فيها المسافات غير اللاتينية كـ NBSP — يصير مسافة واحدة. القيد في القاعدة
- * يطابق `[[:space:]]`، فأي مسافة يطابقها هناك لازم تطابقها هنا؛ الاختلاف بين التطبيع هنا
- * والتطبيع هناك يجعل الكتابة مرفوضة بخطأ خادم.
- *
- * @param name الاسم كما جاء من العميل
- * @returns الاسم المطبّع
- */
-export function normalizeServiceCategoryName(name: string): string {
-  return name.replace(/\s+/gu, ' ').replace(/^\s+|\s+$/gu, '');
-}
-
-/**
- * مفتاح التصنيف على مستوى النشاط: الاسم الإنجليزي المخزّن مطبّعاً ثم بحروف صغيرة. هو نفسه
- * الفهرس الفريد `service_categories_business_name_uq`، فالتطبيع وحالة الحروف يقرّران التشابه.
- *
- * @param nameEn الاسم الإنجليزي
- * @returns المفتاح على مستوى النشاط
- */
-export function serviceCategoryKey(nameEn: string): string {
-  return normalizeServiceCategoryName(nameEn).toLowerCase();
 }
 
 /**

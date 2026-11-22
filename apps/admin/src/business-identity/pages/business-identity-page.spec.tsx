@@ -280,3 +280,154 @@ it('refuses a file the logo contract will not upload', async () => {
   expect(await screen.findByText(t('en', 'businessIdentity.invalidFile'))).toBeTruthy();
   expect(api.POST).not.toHaveBeenCalled();
 });
+
+it('puts the names in the main column and the logo in the side one, and keeps a lone logo block in the main column', async () => {
+  api.GET.mockResolvedValue({ data: settings(fileId) });
+  api.POST.mockResolvedValue({ data: { download_url: 'https://files.test/logo', expires_in: 60 } });
+  const view = renderPage();
+  const names = await screen.findByLabelText(t('en', 'businessIdentity.nameEn'));
+  const logo = await screen.findByRole('img', { name: 'Shop' });
+  const columns = names.closest('[data-page-shell="two-column"]')?.lastElementChild as HTMLElement;
+  expect(columns.className).toContain('lg:grid');
+  expect(columns.className).toContain('lg:grid-cols-[2fr_1fr]');
+  const mainColumn = columns.children[0] as HTMLElement;
+  const sideColumn = columns.children[1] as HTMLElement;
+  expect(mainColumn.contains(names)).toBe(true);
+  expect(sideColumn.contains(logo)).toBe(true);
+  view.unmount();
+
+  const refusal = { error: { code: 'STORAGE_UNAVAILABLE' }, response: { status: 503 } };
+  api.GET.mockImplementation(async () => refusal);
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <BusinessIdentityPage companyId={id} userId={id} businessId={id} />
+    </QueryClientProvider>,
+  );
+  const loneLogoFile = await screen.findByLabelText(t('en', 'businessIdentity.logoFile'));
+  const loneColumns = loneLogoFile.closest('[data-page-shell="two-column"]')
+    ?.lastElementChild as HTMLElement;
+  expect(loneColumns.children).toHaveLength(1);
+  expect(loneColumns.children[0]?.contains(loneLogoFile)).toBe(true);
+});
+
+// نتيجة مراجعة 074-3+08 (P2): رفع شعار جارٍ يجب أن ينجو من انتقال اللوحة بين العمودين
+// عندما تنجح قراءة الهوية بعد خطأ مؤقت وتظهر كتلة الأسماء من جديد.
+it('keeps a running logo upload alive when the identity read recovers and the logo moves columns', async () => {
+  const refusal = { error: { code: 'STORAGE_UNAVAILABLE' }, response: { status: 503 } };
+  let identityFailing = true;
+  api.GET.mockImplementation(async (path: string) => {
+    if (path === '/v1/businesses/{businessId}/settings/identity') {
+      return identityFailing ? refusal : { data: settings(null) };
+    }
+    if (path === '/v1/files/{id}') {
+      return { data: { id: fileId, status: 'READY', content_type: 'image/png', size_bytes: 3 } };
+    }
+    return { data: settings(null) };
+  });
+  api.POST.mockImplementation(async (path: string) => {
+    if (path === '/v1/businesses/{businessId}/files/uploads') return { data: ticket(fileId) };
+    if (path === '/v1/files/{id}/confirm') return { data: { id: fileId, status: 'QUEUED' } };
+    return { data: { download_url: 'https://files.test/logo', expires_in: 60 } };
+  });
+  let releaseBind: ((value: unknown) => void) | undefined;
+  const bindFlight = new Promise((resolve) => {
+    releaseBind = resolve;
+  });
+  api.PUT.mockImplementation(async () => bindFlight);
+
+  const { client } = renderPage();
+  await screen.findByLabelText(t('en', 'businessIdentity.logoFile'));
+  fireEvent.change(screen.getByLabelText(t('en', 'businessIdentity.logoFile')), {
+    target: { files: [new File(['png'], 'logo.png', { type: 'image/png' })] },
+  });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'businessIdentity.upload') }));
+  await waitFor(() => expect(api.PUT).toHaveBeenCalled());
+
+  identityFailing = false;
+  await client.invalidateQueries({ queryKey: ['business-identity', id, id, id] });
+  await screen.findByLabelText(t('en', 'businessIdentity.nameEn'));
+
+  releaseBind?.({ data: { logo_file_id: fileId } });
+  await screen.findByText(t('en', 'businessIdentity.ready'));
+  expect(api.PUT.mock.calls.at(-1)?.[1].body).toEqual({ file_id: fileId });
+});
+
+// نتيجة مراجعة 074-3+08 (الجولة الثانية): اللوحة في موضع React ثابت، فالملف المختار
+// الذي لم يُرفع بعد يبقى مكانه وتأكيد الحذف المفتوح يبقى مفتوحًا بعد تعافي قراءة الهوية.
+it('keeps a selected-but-not-uploaded file after the identity read recovers and Upload still works', async () => {
+  const refusal = { error: { code: 'STORAGE_UNAVAILABLE' }, response: { status: 503 } };
+  let identityFailing = true;
+  api.GET.mockImplementation(async (path: string) => {
+    if (path === '/v1/businesses/{businessId}/settings/identity') {
+      return identityFailing ? refusal : { data: settings(null) };
+    }
+    if (path === '/v1/files/{id}') {
+      return { data: { id: fileId, status: 'READY', content_type: 'image/png', size_bytes: 3 } };
+    }
+    return { data: settings(null) };
+  });
+  api.POST.mockImplementation(async (path: string) => {
+    if (path === '/v1/businesses/{businessId}/files/uploads') return { data: ticket(fileId) };
+    if (path === '/v1/files/{id}/confirm') return { data: { id: fileId, status: 'QUEUED' } };
+    return { data: { download_url: 'https://files.test/logo', expires_in: 60 } };
+  });
+  api.PUT.mockResolvedValue({ data: { logo_file_id: fileId } });
+  const { client } = renderPage();
+  await screen.findByLabelText(t('en', 'businessIdentity.logoFile'));
+  fireEvent.change(screen.getByLabelText(t('en', 'businessIdentity.logoFile')), {
+    target: { files: [new File(['png'], 'logo.png', { type: 'image/png' })] },
+  });
+
+  identityFailing = false;
+  await client.invalidateQueries({ queryKey: ['business-identity', id, id, id] });
+  await screen.findByLabelText(t('en', 'businessIdentity.nameEn'));
+
+  // الاختيار لم يُفقد: نفس الملف ما زال في الخانة، والرفع يعمل بعده
+  const stillSelected = screen.getByLabelText(
+    t('en', 'businessIdentity.logoFile'),
+  ) as HTMLInputElement;
+  expect(stillSelected.files?.[0]?.name).toBe('logo.png');
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'businessIdentity.upload') }));
+  await screen.findByText(t('en', 'businessIdentity.ready'));
+  expect(api.PUT.mock.calls.at(-1)?.[1].body).toEqual({ file_id: fileId });
+});
+
+it('keeps the open removal confirmation after the identity read recovers', async () => {
+  const refusal = { error: { code: 'STORAGE_UNAVAILABLE' }, response: { status: 503 } };
+  let identityFailing = true;
+  let logo: string | null = fileId;
+  api.GET.mockImplementation(async (path: string) => {
+    if (path === '/v1/businesses/{businessId}/settings/identity') {
+      return identityFailing ? refusal : { data: settings(logo) };
+    }
+    if (path === '/v1/files/{id}') {
+      return { data: { id: fileId, status: 'READY', content_type: 'image/png', size_bytes: 3 } };
+    }
+    return { data: settings(logo) };
+  });
+  api.POST.mockResolvedValue({ data: { download_url: 'https://files.test/logo', expires_in: 60 } });
+  api.PUT.mockImplementation(async () => {
+    logo = null;
+    return { data: { logo_file_id: null } };
+  });
+  const { client } = renderPage();
+  await screen.findByLabelText(t('en', 'businessIdentity.logoFile'));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'businessIdentity.remove') }));
+  expect(await screen.findByText(t('en', 'businessIdentity.removeLead'))).toBeTruthy();
+
+  identityFailing = false;
+  await client.invalidateQueries({ queryKey: ['business-identity', id, id, id] });
+  await screen.findByLabelText(t('en', 'businessIdentity.nameEn'));
+
+  // تأكيد الحذف ما زال مفتوحًا بعد التعافي وبقاؤه داخل اللوحة نفسها
+  expect(screen.getByText(t('en', 'businessIdentity.removeLead'))).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: t('en', 'businessIdentity.removeConfirm') }),
+  ).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'businessIdentity.removeConfirm') }));
+  await screen.findByText(t('en', 'businessIdentity.removed'));
+  expect(api.PUT.mock.calls[0]?.[1].body).toEqual({ file_id: null });
+});

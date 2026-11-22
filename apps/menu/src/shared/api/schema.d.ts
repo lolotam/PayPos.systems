@@ -2031,7 +2031,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Requires create:customers:company and the customers feature. Existing name and locale are preserved. */
+        /** @description Requires create:customers:company and the customers feature. Existing name and locale are preserved. Gender may be omitted to look up an existing customer, including a legacy NULL; a new customer requires a supported gender and a miss without one is refused before writing. */
         post: operations["findOrCreateCustomer"];
         delete?: never;
         options?: never;
@@ -2048,7 +2048,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Requires create:customers:business at the verified context and the customers feature. Customer identity remains company-scoped. */
+        /** @description Requires create:customers:business at the verified context and the customers feature. Customer identity remains company-scoped. Gender may be omitted to look up an existing customer, including a legacy NULL; a new customer requires a supported gender and a miss without one is refused before any note or audit write. */
         post: operations["findOrCreateBusinessCustomer"];
         delete?: never;
         options?: never;
@@ -2065,7 +2065,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Requires create:customers:branch at the verified context and the customers feature. Customer identity remains company-scoped. */
+        /** @description Requires create:customers:branch at the verified context and the customers feature. Customer identity remains company-scoped. Gender may be omitted to look up an existing customer, including a legacy NULL; a new customer requires a supported gender and a miss without one is refused before any note or audit write. */
         post: operations["findOrCreateBranchCustomer"];
         delete?: never;
         options?: never;
@@ -2254,6 +2254,74 @@ export interface paths {
         };
         /** @description Returns the state of one close or reopen request of the category: pending, completed with services_changed, or failed with its error code. A pending request past its deadline reads as failed with SERVICE_CATEGORY_CLOSING_EXPIRED. Requires manage:service-categories:business AND read:service-categories:business and the catalog feature. An unknown id, another category's id and another tenant's id share SERVICE_CATEGORY_CLOSING_NOT_FOUND (404). */
         get: operations["getServiceCategoryClosing"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/services/import/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Downloads one XLSX import template for the business: the eight authoritative headers with Arabic cell notes, and a reference sheet explaining the four commission rules, the accepted boolean spellings, and every open category of the business with its English and Arabic names; import matches the English names. A business whose complete reference exceeds the guarded reader limits is refused with IMPORT_TEMPLATE_EXCEEDS_LIMITS (422) instead of a truncated or unimportable template. Requires manage:services:business and the catalog feature. Never writes. */
+        get: operations["getServiceImportTemplate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/services/import/previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Previews one verified private upload against the business: file ownership, READY status and XLSX type are checked before the bytes are read once outside any database transaction, and the 2 MiB and 500-row limits are enforced by the guarded reader on those bytes; category labels are matched in one PostgreSQL batch against open categories of the business and English names are compared against all stored services with the same PostgreSQL fold on both sides. Returns every error with its original sheet row and column, and only error-free normalized rows. The preview, its errors and its rows are saved in one tenant transaction; no service and no service audit is written, and the private-file access itself is recorded once in its own audit entry. Requires manage:services:business and the catalog feature. */
+        post: operations["previewServiceImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/services/import/previews/{previewId}/rows": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Cursor-paginated clean normalized rows of one preview, to its creator only within the business; the cursor is the original Excel row number as a decimal string, so sparse sheets keep their numbering. Unknown, foreign or other-entity previews share IMPORT_PREVIEW_NOT_FOUND (404). Requires manage:services:business and the catalog feature. */
+        get: operations["getServiceImportRows"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/services/import/previews/{previewId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description One preview status without row data: preview_id, status, created_count and error_code, to its creator only. Unknown, foreign or other-entity previews share IMPORT_PREVIEW_NOT_FOUND (404). The commit acceptance endpoint and the producer event belong to later deliveries. Requires manage:services:business and the catalog feature. */
+        get: operations["getServiceImportStatus"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5464,6 +5532,7 @@ export interface components {
                 created_at: string;
             }[];
         };
+        /** @description Gender may be omitted to look up an existing customer. Creating a new customer requires a supported gender; a missing gender on a miss fails validation without writing anything. */
         FindOrCreateCustomerInput: {
             phone: {
                 calling_code: string;
@@ -5482,6 +5551,7 @@ export interface components {
             /** @description Between 3 and 254 code points; a literal @ and a dot are required; control characters are refused. */
             email?: string;
         };
+        /** @description Gender may be omitted to look up an existing customer. Creating a new customer requires a supported gender; a missing gender on a miss fails validation without writing anything. */
         FindOrCreateScopedCustomerInput: {
             phone: {
                 calling_code: string;
@@ -17149,6 +17219,229 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ServiceCategoryClosingStatus"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getServiceImportTemplate: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Import template workbook */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceImportTemplate"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    previewServiceImport: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewServiceImportInput"];
+            };
+        };
+        responses: {
+            /** @description Saved preview with errors and first clean rows */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceImportPreview"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getServiceImportRows: {
+        parameters: {
+            query?: {
+                /** @description Original Excel row number of the last returned row; omit for the first page. */
+                cursor?: components["schemas"]["ServiceImportRowsCursor"];
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                previewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Clean rows page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceImportRowsPage"];
+                };
+            };
+            /** @description Bilingual refusal */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getServiceImportStatus: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                previewId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Preview status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceImportStatus"];
                 };
             };
             /** @description Bilingual refusal */

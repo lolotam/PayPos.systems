@@ -75,6 +75,10 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   const locale = useLocale();
   const revoke = useRevokeOwnRecording();
   const { result, journal } = recording;
+  const customerKey = JSON.stringify([scope.companyId, scope.userId, scope.businessId, scope.branchId, result.sessionId, result.customerId]);
+  const [deniedCustomerKey, setDeniedCustomerKey] = useState<string | null>(null);
+  const hideCustomer = deniedCustomerKey === customerKey;
+  if (deniedCustomerKey !== null && !hideCustomer) setDeniedCustomerKey(null);
   const lastKnownCustomerId = useRef<string | null>(result.customerId);
   useEffect(() => {
     if (result.customerId !== null) lastKnownCustomerId.current = result.customerId;
@@ -108,7 +112,8 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
       try { await recording.submit(drafts); } catch (error) { reportSessionSubmitError(form.setError, error, locale); }
     })}>
       <RecordVisitCustomerField scope={scope} result={result} recording={recording} form={form}
-        lastKnownCustomerId={lastKnownCustomerId} online={online} locked={locked} />
+        lastKnownCustomerId={lastKnownCustomerId} online={online} locked={locked} hideCustomer={hideCustomer}
+        onAccessDenied={() => { setDeniedCustomerKey(customerKey); onRefreshScope(); }} />
       {timeUnknown ? <div className="grid gap-2">
         <p role="alert">{t(locale, 'serviceSessions.unknownVisitTime')}</p>
         <Button type="button" variant="outline" disabled={!journal || editBusy} onClick={() => { if (editBusy) return; leaveUnknownTimeVisit(result, journal, recording.replaceResult, (feedback) => setLeaveFailure({ source: result, feedback })); }}>{t(locale, 'serviceSessions.newVisitSameCustomer')}</Button>
@@ -124,6 +129,6 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
         {t(locale, result.sessionId ? 'serviceSessions.correctAndAppend' : 'serviceSessions.save')}
       </Button>
     </form>
-    {journal ? <SessionSavedResult result={result} journal={journal} onNewVisit={recording.replaceResult} scope={scope} online={online} editBusy={editBusy} onRequestStart={beginLineEdit} onRequestEnd={endLineEdit} /> : null}
+    {journal ? <SessionSavedResult result={result} journal={journal} onNewVisit={recording.replaceResult} hideCustomer={hideCustomer} scope={scope} online={online} editBusy={editBusy} onRequestStart={beginLineEdit} onRequestEnd={endLineEdit} /> : null}
   </FormProvider>;
 }

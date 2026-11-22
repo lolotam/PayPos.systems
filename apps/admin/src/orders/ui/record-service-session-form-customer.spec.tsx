@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { useEffect } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { id, instant, response, scope } from '../model/session-recording-result.fixture';
+import { emptySessionRecordingResult } from '../model/session-recording-result';
 import { useSessionRecording, type SessionRecordingController } from '../model/use-session-recording';
 import { RecordServiceSessionForm } from './record-service-session-form';
 
@@ -48,6 +49,39 @@ function Harness() {
   return <RecordServiceSessionForm scope={scope} context={context} online recording={recording}
     onRefreshScope={() => undefined} />;
 }
+
+it.each([false, true])('hides the denied customer and refreshes access (saved visit: %s)', async (savedVisit) => {
+  const refreshed = vi.fn();
+  installReads();
+  const reads = state.get.getMockImplementation();
+  state.get.mockImplementation((path: string, init: unknown) =>
+    String(path).includes('/profile')
+      ? Promise.resolve({ error: { code: 'FORBIDDEN', message_ar: t('ar', 'serviceSessions.profileLoadFailed'), message_en: 'Refused' }, response: { status: 403 } })
+      : (reads as (p: string, i: unknown) => unknown)(path, init),
+  );
+  function DenialHarness() {
+    const recording = useSessionRecording(scope);
+    useEffect(() => { active = recording; }, [recording]);
+    const { journal, replaceResult, selectCustomer } = recording;
+    useEffect(() => {
+      if (!journal) return;
+      if (!savedVisit) selectCustomer(customer);
+      else replaceResult({ ...emptySessionRecordingResult(customer), session: complete.session, sessionId: complete.session.id });
+    }, [journal, replaceResult, selectCustomer]);
+    return <RecordServiceSessionForm scope={scope} context={context} online recording={recording} onRefreshScope={refreshed} />;
+  }
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  render(<QueryClientProvider client={client}><DenialHarness /></QueryClientProvider>);
+  await waitFor(() => expect(refreshed).toHaveBeenCalled());
+  expect(screen.queryAllByText(customer.name)).toHaveLength(0);
+  expect(screen.queryByDisplayValue(customer.name)).toBeNull();
+  expect(screen.queryByRole('link', { name: t('en', 'customerPackages.open') })).toBeNull();
+  if (savedVisit) {
+    expect(active?.result.sessionId).toBe(complete.session.id);
+    expect(active?.result.customerId).toBe(customer.id);
+    expect(screen.getByRole('button', { name: t('en', 'serviceSessions.correctAndAppend') })).toBeTruthy();
+  } else expect(saveButton().disabled).toBe(true);
+});
 
 function installReads() {
   state.get.mockImplementation((path: string) => Promise.resolve({

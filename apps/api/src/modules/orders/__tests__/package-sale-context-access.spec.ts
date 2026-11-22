@@ -149,6 +149,7 @@ it.each([
     name: `Synthetic ${route} customer`,
     phone: { calling_code: '999', national_number: route === 'company' ? '00000041' : '00000042' },
     locale: 'en',
+    gender: 'female' as const,
   };
   try {
     expect((await read()).body['customer_entry_scope']).toBe(route);

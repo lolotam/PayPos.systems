@@ -270,6 +270,53 @@ it('does not select a customer after the field unmounts', async () => {
   });
   expect(onChange).not.toHaveBeenCalled();
 });
+it('offers gender with no preselection and scopes the note and its privacy hint to business entry', () => {
+  state.locale = 'en';
+  const view = scopedMount();
+  for (const key of ['genderFemale', 'genderMale'] as const) {
+    expect(
+      (
+        screen.getByRole('radio', {
+          name: t('en', key === 'genderFemale' ? 'serviceSessions.genderFemale' : 'serviceSessions.genderMale'),
+        }) as HTMLInputElement
+      ).checked,
+    ).toBe(false);
+  }
+  expect(screen.getByLabelText(t('en', 'serviceSessions.note'))).toBeTruthy();
+  expect(screen.getByText(t('en', 'serviceSessions.notePrivacy'))).toBeTruthy();
+  view.changeScope({ entryScope: 'company' });
+  expect(screen.queryByLabelText(t('en', 'serviceSessions.note'))).toBeNull();
+  expect(screen.queryByText(t('en', 'serviceSessions.notePrivacy'))).toBeNull();
+});
+
+it.each([
+  ['a day without a month', { birthdayDay: '5', birthdayMonth: '', birthdayYear: '' }],
+  ['a month without a day', { birthdayDay: '', birthdayMonth: '3', birthdayYear: '' }],
+  ['a year alone', { birthdayDay: '', birthdayMonth: '', birthdayYear: '1990' }],
+  ['the thirtieth of February', { birthdayDay: '30', birthdayMonth: '2', birthdayYear: '' }],
+  ['a non-leap twenty-ninth of February', { birthdayDay: '29', birthdayMonth: '2', birthdayYear: '1900' }],
+  ['a nonnumeric day', { birthdayDay: 'abc', birthdayMonth: '', birthdayYear: '' }],
+  ['a fractional year', { birthdayDay: '5', birthdayMonth: '3', birthdayYear: '1990.5' }],
+])('refuses %s before any request', async (_case, birth) => {
+  state.post.mockClear();
+  state.locale = 'en';
+  mount();
+  fill();
+  for (const [key, value] of Object.entries(birth)) {
+    const label =
+      key === 'birthdayDay'
+        ? 'serviceSessions.birthdayDay'
+        : key === 'birthdayMonth'
+          ? 'serviceSessions.birthdayMonth'
+          : 'serviceSessions.birthdayYear';
+    fireEvent.change(screen.getByLabelText(t('en', label)), { target: { value } });
+  }
+  resolve();
+  await screen.findAllByRole('alert');
+  expect(state.post).not.toHaveBeenCalled();
+});
+
+
 it.each(['clear', 'replace', 'pending'] as const)(
   'synchronizes a parent %s without restoring an older customer',
   async (mode) => {
@@ -306,9 +353,13 @@ it.each(['clear', 'replace', 'pending'] as const)(
           .value,
       ).toBe(key === 'name' ? (next?.name ?? '') : '');
     }
-    expect(screen.queryByRole('status')?.textContent ?? '').toBe(
-      next ? t(state.locale, 'serviceSessions.selected') + next.name + next.phone : '',
-    );
+    const statusText = screen.queryByRole('status')?.textContent ?? '';
+    if (next === null) expect(statusText).toBe('');
+    else {
+      expect(statusText).toContain(t(state.locale, 'serviceSessions.selected'));
+      expect(statusText).toContain(next.name);
+      expect(statusText).toContain(next.phone);
+    }
     await waitFor(() => expect(view.client.getMutationCache().getAll()).toHaveLength(0));
   },
 );

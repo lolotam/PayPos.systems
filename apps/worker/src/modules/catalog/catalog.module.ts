@@ -2,9 +2,12 @@ import type { ClaimedEvent, DeliveryOutcome, IdGenerator, TenantWrappers } from 
 import { createLogger } from '@pospay/observability';
 
 import { startServiceCategoryClosingProcessor } from './jobs/service-category-closing.processor.ts';
+import { startServiceImportProcessor } from './jobs/service-import-commit.processor.ts';
 import type { Clock } from './ports/clock.port.ts';
 import { serviceCategoryClosingTransactions } from './persistence/service-category-closing.transactions.ts';
+import { serviceImportCommitTransactions } from './persistence/service-import-commit.transactions.ts';
 import { RunServiceCategoryClosing } from './use-cases/run-service-category-closing/run-service-category-closing.ts';
+import { CommitServiceImport } from './use-cases/commit-service-import/commit-service-import.ts';
 
 // مهلة معاملة القفل: ألف خدمة بتاخد حوالي ٣٠٠ مللي ثانية، ومفيش حد أقصى لعدد خدمات التصنيف،
 // فالمهلة هي الحد، ومعها SERVICE_CATEGORY_CLOSING_FAILED بيقفل الصف بدل ما يفضل معلقاً للأبد.
@@ -13,12 +16,13 @@ const SERVICE_CATEGORY_CLOSING_TIMEOUT_MS = 60_000;
 const SERVICE_CATEGORY_CLOSING_FAILURE_TIMEOUT_MS = 5_000;
 
 /**
- * يشغّل عامل قفل وفتح التصنيفات الكبيرة في الـ worker: طلب واحد في الطابور لكل عملية.
+ * يشغّل عامل الكتالوج في الـ worker: قفل وفتح التصنيفات الكبيرة وتثبيت استيراد الخدمات،
+ * كل طلب في الطابور لعملية واحدة.
  *
  * @param database بوابة المستأجر اللي بتنفّذ المعاملات
- * @param ids      مولّد المعرّفات لمعرّفات التدقيق
+ * @param ids      مولّد المعرّفات لمعرّفات التدقيق والخدمات
  * @param redisUrl عنوان Redis اللي فيه الطابور
- * @param clock    الساعة المحقونة لحدود الموعد النهائي
+ * @param clock    الساعة المحقونة لحدود الموعد النهائي ولحظات الإتمام
  * @param prefix   بادئة طوابير BullMQ
  * @returns أنواع الأحداث والتسليم والجاهزية والإغلاق
  */
@@ -31,7 +35,7 @@ export function startCatalogWorker(
 ) {
   // اسم الحدث لازم يكون مسجّل: المراقب بيستبدل أي رسالة مش في قايمة الأحداث، فالتشخيص كان بيضيع.
   const logger = createLogger('error', { events: ['service category closing failed'] });
-  const processor = startServiceCategoryClosingProcessor(
+  const closing = startServiceCategoryClosingProcessor(
     new RunServiceCategoryClosing(
       serviceCategoryClosingTransactions(
         database,
@@ -51,13 +55,27 @@ export function startCatalogWorker(
     redisUrl,
     prefix,
   );
+  // المستهلك مسجّل قبل المنتج (32b-5): لا شيء يصدر ServiceImportCommitRequested بعد في الإنتاج بعد.
+  const importCommit = startServiceImportProcessor(
+    new CommitServiceImport(serviceImportCommitTransactions(database, ids), ids, clock),
+    redisUrl,
+    prefix,
+  );
   return {
-    eventTypes: ['ServiceCategoryClosingRequested'],
+    eventTypes: ['ServiceCategoryClosingRequested', 'ServiceImportCommitRequested'],
     deliver: (event: ClaimedEvent, next: (event: ClaimedEvent) => Promise<DeliveryOutcome>) =>
       event.eventType === 'ServiceCategoryClosingRequested'
-        ? processor.deliver(event)
-        : next(event),
-    ready: processor.ready,
-    close: processor.close,
+        ? closing.deliver(event)
+        : event.eventType === 'ServiceImportCommitRequested'
+          ? importCommit.deliver(event)
+          : next(event),
+    ready: async () => {
+      await closing.ready();
+      await importCommit.ready();
+    },
+    close: async () => {
+      await closing.close();
+      await importCommit.close();
+    },
   };
 }

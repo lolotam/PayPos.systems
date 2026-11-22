@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Param, Req } from '@nestjs/common';
+import { Controller, Get, Header, Inject, Param, Req } from '@nestjs/common';
 import { id, type CustomerProfile } from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
@@ -23,6 +23,8 @@ export class CustomerProfileController {
   ) {}
 
   @Get('customers/:customerId/profile')
+  // البطاقة فيها بيانات شخصية؛ منع تخزينها في HTTP cache حتى لو تجاهل العميل no-store.
+  @Header('Cache-Control', 'private, no-store')
   @Require('create:customers:company')
   @RequiresFeature('customers')
   async profile(
@@ -33,6 +35,7 @@ export class CustomerProfileController {
   }
 
   @Get('businesses/:businessId/customers/:customerId/profile')
+  @Header('Cache-Control', 'private, no-store')
   @Require('create:customers:business', { business: 'businessId' })
   @RequiresFeature('customers')
   async profileInBusiness(
@@ -43,6 +46,7 @@ export class CustomerProfileController {
   }
 
   @Get('branches/:branchId/customers/:customerId/profile')
+  @Header('Cache-Control', 'private, no-store')
   @Require('create:customers:branch', { branch: 'branchId' })
   @RequiresFeature('customers')
   async profileInBranch(

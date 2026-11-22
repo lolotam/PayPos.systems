@@ -66,7 +66,7 @@ test('clears the draft when another person signs in', async ({ page }) => {
   expect((await dropped()).status()).toBe(201);
   await expect(page.getByRole('alert').filter({ hasText: t('ar', 'serviceSessions.unresolved') })).toBeVisible();
   await expect(page.getByRole('button', { name: t('ar', 'serviceSessions.retryOriginal') })).toBeVisible();
-  await expect(page.getByText(customer)).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: customer })).toBeVisible();
   const other = await page.context().newPage();
   await signInThroughUi(other, state.otherEmail, state.otherPassword);
   await expect(page.locator('#workspace-company')).toContainText(state.otherCompanyName);

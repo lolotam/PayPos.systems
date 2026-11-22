@@ -9,8 +9,8 @@ export interface NewCustomer {
   readonly phone: string;
   readonly locale: 'ar' | 'en';
   readonly at: Date;
-  /** النوع اختياري: لو اتساب مش بيتخزّن (S-1). */
-  readonly gender?: 'female' | 'male';
+  /** النوع مطلوب لكل عميل جديد؛ العملاء القدامى اللي نوعهم NULL ما بيتكتبوش تاني (CI-Q10). */
+  readonly gender: 'female' | 'male';
   /** تاريخ الميلاد اختياري؛ تقويمه اتأكد في الـ domain قبل أي كتابة. */
   readonly birthday?: CustomerBirthday;
   /** البريد اختياري؛ شكله اتأكد في الـ domain قبل أي كتابة. */

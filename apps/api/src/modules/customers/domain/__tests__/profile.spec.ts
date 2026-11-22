@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { InvalidCustomerProfileError } from '../errors.ts';
-import { isEmailShape, isNoteShape, noteLength, validateBirthday } from '../profile.ts';
+import {
+  isEmailShape,
+  isNoteShape,
+  noteLength,
+  requireCustomerGender,
+  validateBirthday,
+} from '../profile.ts';
 
 describe('validateBirthday', () => {
   it.each([
@@ -104,5 +110,21 @@ describe('noteLength and isNoteShape', () => {
     ['a note with a NUL', `a${String.fromCharCode(0)}b`],
   ])('refuses %s', (_case, value) => {
     expect(isNoteShape(value)).toBe(false);
+  });
+});
+
+describe('requireCustomerGender', () => {
+  it.each(['female', 'male'] as const)('passes a supported %s through', (gender) => {
+    expect(requireCustomerGender(gender)).toBe(gender);
+  });
+
+  it('refuses an omitted gender without echoing a value in the error', () => {
+    try {
+      requireCustomerGender(undefined);
+      expect.unreachable();
+    } catch (error) {
+      expect(error).toBeInstanceOf(InvalidCustomerProfileError);
+      expect((error as Error).message).toBe('INVALID_CUSTOMER_PROFILE');
+    }
   });
 });

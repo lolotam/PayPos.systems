@@ -14,6 +14,15 @@ import { RecordServiceSessionForm } from './record-service-session-form';
 
 const state = vi.hoisted(() => ({ locale: 'en' as 'ar' | 'en', get: vi.fn(), post: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ GET: state.get, POST: state.post }) }));
+// البطاقة قراءة مستقلة؛ هذه المجموعة تختبر التسجيل، فردّ ثابت يمنع تنبيه قراءة إضافي.
+vi.mock('../api/use-session-customer-profile', () => ({
+  useSessionCustomerProfile: () => ({
+    data: undefined,
+    isError: false,
+    isPending: true,
+    refetch: vi.fn(),
+  }),
+}));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
 vi.mock('../api/use-customer-packages', () => ({ useCustomerPackages: () => ({
   data: { items: [], pages: [] }, hasNextPage: false, isFetchingNextPage: false,

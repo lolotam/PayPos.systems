@@ -1,4 +1,6 @@
 'use client';
+import { t } from '@pospay/i18n';
+import { useLocale } from '@/shared/locale/locale-context';
 import type { UseFormReturn } from 'react-hook-form';
 import type { SessionServiceScope } from '../api/use-session-services';
 import type { SessionDraftForm } from '../model/session-drafts';
@@ -19,6 +21,8 @@ export function RecordVisitCustomerField({
   lastKnownCustomerId,
   online,
   locked,
+  hideCustomer,
+  onAccessDenied,
 }: {
   scope: SessionServiceScope;
   result: SessionRecordingResult;
@@ -27,7 +31,17 @@ export function RecordVisitCustomerField({
   lastKnownCustomerId: { current: string | null };
   online: boolean;
   locked: boolean;
+  hideCustomer: boolean;
+  onAccessDenied: () => void;
 }) {
+  const locale = useLocale();
+  if (hideCustomer) return <p role="alert">{t(locale, 'serviceSessions.profileLoadFailed')}</p>;
+  const handleDenied = () => {
+    // الزيارة المحفوظة تحتفظ بهويتها؛ الاختيار المؤقت فقط اللي يتسقط.
+    if (result.sessionId === null && result.customerId !== null)
+      changeSessionCustomer(null, result, recording, form, lastKnownCustomerId);
+    onAccessDenied();
+  };
   return (
     <SessionCustomerField
       companyId={scope.companyId}
@@ -35,9 +49,11 @@ export function RecordVisitCustomerField({
       userId={scope.userId}
       packagesScope={scope}
       value={result.customer}
+      profileCustomerId={result.customerId}
       onChange={(customer) =>
         changeSessionCustomer(customer, result, recording, form, lastKnownCustomerId)
       }
+      onAccessDenied={handleDenied}
       disabled={!online || locked}
     />
   );
