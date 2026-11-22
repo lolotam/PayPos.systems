@@ -303,6 +303,9 @@ importers:
       '@pospay/commissions-engine':
         specifier: workspace:*
         version: link:../../packages/commissions-engine
+      '@pospay/commissions-posting':
+        specifier: workspace:*
+        version: link:../../packages/commissions-posting
       '@pospay/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -616,6 +619,9 @@ importers:
       '@pospay/commissions-engine':
         specifier: workspace:*
         version: link:../../packages/commissions-engine
+      '@pospay/commissions-posting':
+        specifier: workspace:*
+        version: link:../../packages/commissions-posting
       '@pospay/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -738,6 +744,34 @@ importers:
       '@pospay/domain':
         specifier: workspace:*
         version: link:../domain
+    devDependencies:
+      '@pospay/config':
+        specifier: workspace:*
+        version: link:../config
+      eslint:
+        specifier: 10.11.0
+        version: 10.11.0(jiti@2.7.0)(supports-color@10.2.2)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: 5.0.1
+        version: 5.0.1(@types/node@26.6.2)(jsdom@30.1.1(@noble/hashes@2.4.0))(vite@8.3.1(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
+  packages/commissions-posting:
+    dependencies:
+      '@pospay/commissions-engine':
+        specifier: workspace:*
+        version: link:../commissions-engine
+      '@pospay/db':
+        specifier: workspace:*
+        version: link:../db
+      '@pospay/domain':
+        specifier: workspace:*
+        version: link:../domain
+      drizzle-orm:
+        specifier: 0.45.2
+        version: 0.45.2(kysely@0.29.6)(postgres@3.4.9(patch_hash=8d9701312739097739235b63e6efd6d6a76d73801da8959087d23f809e992a50))
     devDependencies:
       '@pospay/config':
         specifier: workspace:*

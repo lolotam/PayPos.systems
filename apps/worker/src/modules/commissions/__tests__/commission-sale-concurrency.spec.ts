@@ -22,7 +22,7 @@ import { commissionSaleEvent } from './commission-tip-salary-events.ts';
 import { createDeliverer } from '../../../outbox/deliver.ts';
 import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
 import { createCommissionSaleProjectionScope } from '../persistence/commission-sale-projection.scope.ts';
-import { createCommissionCorrectionScope } from '../persistence/commission-correction.scope.ts';
+import { createCommissionCorrectionScope } from '@pospay/commissions-posting';
 import { createCommissionBlockNotices } from '../persistence/commission-block-notice.outbox.ts';
 
 /** قارئ حاملي الصلاحية ما بيتنادىش في اختبارات البيع؛ بيحتاج identity وده ممنوع جوه الموديول. */

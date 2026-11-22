@@ -6,7 +6,7 @@ import type {
   HeldCommissionLineHead,
   LockedCommissionPeriod,
 } from '../domain/commission-line-types.ts';
-import type { CommissionCorrectionScope } from '../ports/commission-correction.port.ts';
+import type { CommissionCorrectionScope } from '@pospay/commissions-posting';
 import type {
   CommissionLineProjectionScope,
   CommissionLineReplacement,

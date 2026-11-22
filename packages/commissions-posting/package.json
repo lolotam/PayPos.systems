@@ -1,0 +1,32 @@
+{
+  "name": "@pospay/commissions-posting",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The commission correction step shared by the api and worker commissions modules — attribution, target choice, month recompute, posting and its Drizzle persistence. Restricted package (ADR-0054 §1 addendum, PP-226)",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run && pnpm run test:node",
+    "test:node": "node --input-type=module -e \"import { postCommissionCorrections, createCommissionCorrectionScope } from '@pospay/commissions-posting'; if (typeof postCommissionCorrections !== 'function' || typeof createCommissionCorrectionScope !== 'function') process.exit(1); await import('@pospay/commissions-posting/dist/index.js').then(() => process.exit(1), () => undefined);\""
+  },
+  "dependencies": {
+    "@pospay/commissions-engine": "workspace:*",
+    "@pospay/db": "workspace:*",
+    "@pospay/domain": "workspace:*",
+    "drizzle-orm": "0.45.2"
+  },
+  "devDependencies": {
+    "@pospay/config": "workspace:*",
+    "eslint": "10.11.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.1"
+  }
+}

@@ -21,9 +21,11 @@ import {
   type TestDatabase,
 } from '../../../../../../packages/db/test/test-database.ts';
 import { USER } from '../../../../../../packages/db/test/tenancy-fixtures.ts';
-import type { CommissionCorrectionDraft } from '../domain/commission-correction-step.ts';
-import { createCommissionCorrectionScope } from '../persistence/commission-correction.scope.ts';
-import type { CommissionCorrectionScope } from '../ports/commission-correction.port.ts';
+import {
+  type CommissionCorrectionDraft,
+  createCommissionCorrectionScope,
+  type CommissionCorrectionScope,
+} from '@pospay/commissions-posting';
 
 export const ids = systemUuidV7();
 export const { A } = COMMISSION_LINE_TENANTS;

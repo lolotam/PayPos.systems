@@ -16,10 +16,12 @@ import {
   onCommissionInputEvent,
   type CommissionInputUseCases,
 } from '../events/handlers/on-commission-input-event.handler.ts';
-import { createCommissionCorrectionScope } from '../persistence/commission-correction.scope.ts';
+import {
+  createCommissionCorrectionScope,
+  type CommissionBlockNotices,
+} from '@pospay/commissions-posting';
 import { createCommissionBlockNotices } from '../persistence/commission-block-notice.outbox.ts';
 import { createCommissionLineProjectionScope } from '../persistence/commission-line-projection.scope.ts';
-import type { CommissionBlockNotices } from '../ports/commission-block-notice.port.ts';
 import { ProjectServiceLines } from '../use-cases/project-service-lines/project-service-lines.ts';
 import {
   A,

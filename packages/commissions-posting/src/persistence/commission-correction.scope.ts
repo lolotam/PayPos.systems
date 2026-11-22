@@ -13,7 +13,7 @@ import type {
   CommissionPostedCorrectionsInput,
   CommissionAttachmentSnapshotInput,
 } from '../ports/commission-correction.port.ts';
-import type { Clock, IdGenerator } from '../ports/commission-line-projection.port.ts';
+import type { Clock, IdGenerator } from '../ports/commission-posting-clock.port.ts';
 import {
   readAttachmentSnapshot,
   readFrozenSources,

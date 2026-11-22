@@ -35,7 +35,7 @@ import {
   onCommissionInputEvent,
   type CommissionInputUseCases,
 } from '../events/handlers/on-commission-input-event.handler.ts';
-import { createCommissionCorrectionScope } from '../persistence/commission-correction.scope.ts';
+import { createCommissionCorrectionScope } from '@pospay/commissions-posting';
 import { createCommissionLineProjectionScope } from '../persistence/commission-line-projection.scope.ts';
 import { ProjectServiceLines } from '../use-cases/project-service-lines/project-service-lines.ts';
 

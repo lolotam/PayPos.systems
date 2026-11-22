@@ -15,6 +15,12 @@ import {
   COMMISSIONS_ENGINE_SYNTAX,
   COMMISSIONS_ENGINE_VALIDATION_ONLY_BAN,
   COMMISSIONS_ENGINE_VALIDATION_ONLY_SYNTAX,
+  COMMISSIONS_POSTING_PATH_BAN,
+  COMMISSIONS_POSTING_PATH_SYNTAX,
+  COMMISSIONS_POSTING_PATTERNS,
+  COMMISSIONS_POSTING_SUBPATH_BAN,
+  COMMISSIONS_POSTING_SUBPATH_SYNTAX,
+  COMMISSIONS_POSTING_SYNTAX,
   USE_CASES_INFRASTRUCTURE_PATTERN,
 } from './boundaries.js';
 import {
@@ -44,10 +50,16 @@ const FACADES = {
   createPlatformWhatsappDatabase:
     'the global messaging facade is wired only by API/worker roots (ADR-0013).',
 };
+// The two restricted commissions packages (ADR-0054 §1 and its addendum): every block carries both sets of bans.
+const RESTRICTED_PACKAGE_PATTERNS = [
+  ...COMMISSIONS_ENGINE_PATTERNS,
+  ...COMMISSIONS_POSTING_PATTERNS,
+];
+
 const facadeRule = (
   allowed,
   credentials = false,
-  engine = COMMISSIONS_ENGINE_PATTERNS,
+  engine = RESTRICTED_PACKAGE_PATTERNS,
   operator = false,
 ) => [
   'error',
@@ -79,7 +91,7 @@ export const allowDatabaseFacade = (allowed, options = {}) => ({
     'no-restricted-imports': facadeRule(
       allowed,
       options.credentials === true,
-      COMMISSIONS_ENGINE_PATTERNS,
+      RESTRICTED_PACKAGE_PATTERNS,
       options.operator === true,
     ),
     ...(options.operator === true
@@ -124,7 +136,11 @@ const USER_TEXT_SYNTAX = [
   { selector: `JSXText[value=${ARABIC}]`, message: USER_TEXT },
 ];
 
-const restrictedSyntax = ({ userText, engine = COMMISSIONS_ENGINE_SYNTAX, operator = true }) => [
+const restrictedSyntax = ({
+  userText,
+  engine = [...COMMISSIONS_ENGINE_SYNTAX, ...COMMISSIONS_POSTING_SYNTAX],
+  operator = true,
+}) => [
   'error',
   ...CREDENTIAL_SYNTAX,
   ...engine,
@@ -149,25 +165,52 @@ const BACKEND_ENGINE_SYNTAX = [
   ...COMMISSIONS_ENGINE_PATH_SYNTAX,
 ];
 
+// ADR-0054 §1 addendum — the apps' commissions layers lift the posting root as well; the posting package itself
+// keeps its own root refused (it never imports itself).
+const APP_RESTRICTED_SYNTAX = [
+  ...BACKEND_ENGINE_SYNTAX,
+  ...COMMISSIONS_POSTING_SUBPATH_SYNTAX,
+  ...COMMISSIONS_POSTING_PATH_SYNTAX,
+];
+const POSTING_RESTRICTED_SYNTAX = [...BACKEND_ENGINE_SYNTAX, ...COMMISSIONS_POSTING_SYNTAX];
+
+// The module's wiring file and its tests lift the posting root only: they bind the step's adapter and exercise it,
+// and the engine root stays refused there (ADR-0054 §1 addendum).
+const WIRING_RESTRICTED = [
+  ...COMMISSIONS_ENGINE_PATTERNS,
+  COMMISSIONS_POSTING_SUBPATH_BAN,
+  COMMISSIONS_POSTING_PATH_BAN,
+];
+const WIRING_SYNTAX = [
+  ...COMMISSIONS_ENGINE_SYNTAX,
+  ...COMMISSIONS_POSTING_SUBPATH_SYNTAX,
+  ...COMMISSIONS_POSTING_PATH_SYNTAX,
+];
+
 // ADR-0054 §1 — the admin area allows the browser-safe /validation entry point and nothing else.
 const ADMIN_ENGINE_SYNTAX = [
   ...COMMISSIONS_ENGINE_ROOT_SYNTAX,
   ...COMMISSIONS_ENGINE_VALIDATION_ONLY_SYNTAX,
   ...COMMISSIONS_ENGINE_PATH_SYNTAX,
+  ...COMMISSIONS_POSTING_SYNTAX,
 ];
 
 /**
- * The override for the backend apps whose commissions module may import the engine root: only those
- * apps append it — today apps/api; apps/worker appends it with 50-1, when its commissions module
- * arrives. The blocks lift the root entry of the commissions use-cases/, ports/ and persistence/
- * — the layers CLAUDE.architecture.md §3.1 lets import a module's own domain/ — and nothing else.
+ * The four blocks of a commissions module's layers that lift a restricted package's root entry: the
+ * use-cases/, ports/ and persistence/ — the layers CLAUDE.architecture.md §3.1 lets import a module's
+ * own domain/ — and nothing else. Each block re-lists its layer's patterns, because a later block replaces
+ * the whole rule, and comes as a pair with its test files so tests keep the Arabic-text exemption.
  *
- * @returns {import('eslint').Linter.Config[]} the four blocks of the commissions layers
+ * @param {string} prefix the glob of the folder that holds the layers
+ * @param {{ regex: string, message: string }[]} restricted the bans every block keeps: the engine's
+ *   subpath and path, and the posting package's bans minus the root where the root is lifted
+ * @param {unknown[]} syntax the matching dynamic-import selectors
+ * @returns {import('eslint').Linter.Config[]} the four blocks of the layers
  */
-export const allowCommissionsEngineBackend = () => [
+const commissionsLayerBlocks = (prefix, restricted, syntax) => [
   {
-    // ADR-0054 §1 — the commissions use-cases/ lift the engine's root entry and nothing else.
-    files: ['**/modules/commissions/use-cases/**/*.ts'],
+    // ADR-0054 §1 — the commissions use-cases/ lift the root entry and nothing else.
+    files: [`${prefix}/use-cases/**/*.ts`],
     rules: {
       'no-restricted-imports': [
         'error',
@@ -177,69 +220,119 @@ export const allowCommissionsEngineBackend = () => [
             ...CREDENTIAL_PATTERNS,
             ...OPERATOR_PATTERNS,
             USE_CASES_INFRASTRUCTURE_PATTERN,
-            COMMISSIONS_ENGINE_SUBPATH_BAN,
-            COMMISSIONS_ENGINE_PATH_BAN,
+            ...restricted,
           ],
         },
       ],
-      'no-restricted-syntax': restrictedSyntax({
-        userText: false,
-        engine: BACKEND_ENGINE_SYNTAX,
-      }),
+      'no-restricted-syntax': restrictedSyntax({ userText: false, engine: syntax }),
     },
   },
   {
     // ADR-0054 §1 — a commissions use-case test keeps the Arabic-text exemption.
     files: [
-      '**/modules/commissions/use-cases/**/__tests__/**',
-      '**/modules/commissions/use-cases/__tests__/**',
-      '**/modules/commissions/use-cases/**/*.spec.ts',
-      '**/modules/commissions/use-cases/**/test/**',
-      '**/modules/commissions/use-cases/test/**',
+      `${prefix}/use-cases/**/__tests__/**`,
+      `${prefix}/use-cases/__tests__/**`,
+      `${prefix}/use-cases/**/*.spec.ts`,
+      `${prefix}/use-cases/**/test/**`,
+      `${prefix}/use-cases/test/**`,
     ],
     rules: {
-      'no-restricted-syntax': restrictedSyntax({
-        userText: true,
-        engine: BACKEND_ENGINE_SYNTAX,
-      }),
+      'no-restricted-syntax': restrictedSyntax({ userText: true, engine: syntax }),
     },
   },
   {
-    // ADR-0054 §1 — the commissions ports/ and persistence/ lift the engine's root entry only.
-    files: ['**/modules/commissions/ports/**/*.ts', '**/modules/commissions/persistence/**/*.ts'],
+    // ADR-0054 §1 — the commissions ports/ and persistence/ lift the root entry only.
+    files: [`${prefix}/ports/**/*.ts`, `${prefix}/persistence/**/*.ts`],
     rules: {
-      'no-restricted-imports': facadeRule(null, false, [
-        COMMISSIONS_ENGINE_SUBPATH_BAN,
-        COMMISSIONS_ENGINE_PATH_BAN,
-      ]),
-      'no-restricted-syntax': restrictedSyntax({
-        userText: false,
-        engine: BACKEND_ENGINE_SYNTAX,
-      }),
+      'no-restricted-imports': facadeRule(null, false, restricted),
+      'no-restricted-syntax': restrictedSyntax({ userText: false, engine: syntax }),
     },
   },
   {
     // ADR-0054 §1 — a commissions port or persistence test keeps the Arabic-text exemption.
     files: [
-      '**/modules/commissions/ports/**/__tests__/**',
-      '**/modules/commissions/ports/__tests__/**',
-      '**/modules/commissions/ports/**/*.spec.ts',
-      '**/modules/commissions/ports/**/test/**',
-      '**/modules/commissions/ports/test/**',
-      '**/modules/commissions/persistence/**/__tests__/**',
-      '**/modules/commissions/persistence/__tests__/**',
-      '**/modules/commissions/persistence/**/*.spec.ts',
-      '**/modules/commissions/persistence/**/test/**',
-      '**/modules/commissions/persistence/test/**',
+      `${prefix}/ports/**/__tests__/**`,
+      `${prefix}/ports/__tests__/**`,
+      `${prefix}/ports/**/*.spec.ts`,
+      `${prefix}/ports/**/test/**`,
+      `${prefix}/ports/test/**`,
+      `${prefix}/persistence/**/__tests__/**`,
+      `${prefix}/persistence/__tests__/**`,
+      `${prefix}/persistence/**/*.spec.ts`,
+      `${prefix}/persistence/**/test/**`,
+      `${prefix}/persistence/test/**`,
     ],
     rules: {
-      'no-restricted-syntax': restrictedSyntax({
-        userText: true,
-        engine: BACKEND_ENGINE_SYNTAX,
-      }),
+      'no-restricted-syntax': restrictedSyntax({ userText: true, engine: syntax }),
     },
   },
 ];
+
+/**
+ * The blocks that let a commissions module's wiring file and its module-level tests import the correction
+ * step's root entry (ADR-0054 §1 addendum): `<module>.module.ts` binds the step's adapter, and `__tests__/`
+ * builds the projectors on it. The engine root stays refused in both.
+ *
+ * @param {string} prefix the glob of the module folder
+ * @param {keyof typeof FACADES | (keyof typeof FACADES)[] | null} facades the database facade the app owns, which a block that
+ *   replaces the rule must keep allowing
+ * @returns {import('eslint').Linter.Config[]} the two blocks
+ */
+const commissionsWiringBlocks = (prefix, facades) => [
+  {
+    files: [`${prefix}/*.module.ts`],
+    rules: {
+      'no-restricted-imports': facadeRule(facades, false, WIRING_RESTRICTED),
+      'no-restricted-syntax': restrictedSyntax({ userText: false, engine: WIRING_SYNTAX }),
+    },
+  },
+  {
+    files: [`${prefix}/__tests__/**`],
+    rules: {
+      'no-restricted-imports': facadeRule(facades, false, WIRING_RESTRICTED),
+      'no-restricted-syntax': restrictedSyntax({ userText: true, engine: WIRING_SYNTAX }),
+    },
+  },
+];
+
+/**
+ * The override for the backend apps whose commissions module may import the engine root and the
+ * correction step's root (ADR-0054 §1 and its addendum): apps/api and apps/worker append it. Both roots
+ * are lifted in the commissions use-cases/, ports/ and persistence/; the wiring file and the module-level
+ * tests lift the correction step's root only.
+ *
+ * @param {{ facades?: keyof typeof FACADES | (keyof typeof FACADES)[] }} [options] the database facade the app
+ *   owns, so the wiring and test blocks do not take its allowance away
+ * @returns {import('eslint').Linter.Config[]} the blocks of the commissions layers and wiring
+ */
+export const allowCommissionsEngineBackend = (options = {}) => [
+  ...commissionsLayerBlocks(
+    '**/modules/commissions',
+    [
+      COMMISSIONS_ENGINE_SUBPATH_BAN,
+      COMMISSIONS_ENGINE_PATH_BAN,
+      COMMISSIONS_POSTING_SUBPATH_BAN,
+      COMMISSIONS_POSTING_PATH_BAN,
+    ],
+    APP_RESTRICTED_SYNTAX,
+  ),
+  ...commissionsWiringBlocks('**/modules/commissions', options.facades ?? null),
+];
+
+/**
+ * The override of packages/commissions-posting, the one package besides the apps' commissions modules that
+ * may import the engine root (ADR-0054 §1 addendum, PP-226): its use-cases/, ports/ and persistence/ lift the
+ * engine root exactly as a commissions module does, keep the posting package's own bans, and its domain/ stays
+ * as bound as any module's.
+ *
+ * @returns {import('eslint').Linter.Config[]} the four blocks of the package's layers
+ */
+export const allowCommissionsEnginePackage = () =>
+  commissionsLayerBlocks(
+    'src',
+    [COMMISSIONS_ENGINE_SUBPATH_BAN, COMMISSIONS_ENGINE_PATH_BAN, ...COMMISSIONS_POSTING_PATTERNS],
+    POSTING_RESTRICTED_SYNTAX,
+  );
 
 /**
  * The override for apps/admin's commissions area: it may import the engine's browser-safe
@@ -255,6 +348,7 @@ export const allowCommissionsEngineValidation = () => [
         COMMISSIONS_ENGINE_ROOT_BAN,
         COMMISSIONS_ENGINE_VALIDATION_ONLY_BAN,
         COMMISSIONS_ENGINE_PATH_BAN,
+        ...COMMISSIONS_POSTING_PATTERNS,
       ]),
       'no-restricted-syntax': restrictedSyntax({
         userText: false,
