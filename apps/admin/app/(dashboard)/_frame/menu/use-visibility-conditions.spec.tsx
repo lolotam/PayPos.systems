@@ -22,7 +22,9 @@ const state = vi.hoisted(() => ({
 vi.mock('@/shared/browser/use-mounted', () => ({ useMounted: () => true }));
 vi.mock('@/session/api/use-session', () => ({ useSessionUser: () => state.userId }));
 vi.mock('@/workspace/model/workspace-provider', () => ({ useWorkspace: () => state.workspace }));
-vi.mock('@/settings/alert-rules/api/use-alert-rules', () => ({ useAlertRules: () => state.alerts }));
+vi.mock('@/settings/alert-rules/api/use-alert-rules', () => ({
+  useAlertRules: () => state.alerts,
+}));
 vi.mock('@/settings/alert-rules/api/use-rating-settings', () => ({
   useRatingSettings: () => state.rating,
 }));
@@ -60,8 +62,22 @@ beforeEach(() => {
   state.columns = { isPending: true, isError: false };
   state.workspace = {
     status: 'ready',
-    company: { id, name_ar: null, name_en: 'Co', businesses: [], role_code: 'owner', scope: 'COMPANY' },
-    business: { id, name_ar: null, name_en: 'Biz', business_type: 'salon', country: 'KW', branches: [] },
+    company: {
+      id,
+      name_ar: null,
+      name_en: 'Co',
+      businesses: [],
+      role_code: 'owner',
+      scope: 'COMPANY',
+    },
+    business: {
+      id,
+      name_ar: null,
+      name_en: 'Biz',
+      business_type: 'salon',
+      country: 'KW',
+      branches: [],
+    },
     branch: undefined,
     companies: [],
     choose: vi.fn(),

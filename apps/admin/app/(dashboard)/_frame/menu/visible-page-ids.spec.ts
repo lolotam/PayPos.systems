@@ -13,7 +13,9 @@ const closed: VisibilityConditions = {
   'leave-report-access': false,
   'staff-app-columns-access': false,
 };
-const open = Object.fromEntries(Object.keys(closed).map((key) => [key, true])) as VisibilityConditions;
+const open = Object.fromEntries(
+  Object.keys(closed).map((key) => [key, true]),
+) as VisibilityConditions;
 
 function idsFor(input: Partial<Parameters<typeof visiblePageIds>[1]>) {
   return visiblePageIds(NAVIGATION_PAGES, {
@@ -56,7 +58,9 @@ describe('visiblePageIds', () => {
 
   it('shows a not-built entry only to the roles it names', () => {
     expect(idsFor({ businessType: 'restaurant', role: 'owner' })).toContain('kitchen-screens');
-    expect(idsFor({ businessType: 'restaurant', role: 'cashier' })).not.toContain('kitchen-screens');
+    expect(idsFor({ businessType: 'restaurant', role: 'cashier' })).not.toContain(
+      'kitchen-screens',
+    );
     expect(idsFor({ businessType: 'restaurant', role: '' })).not.toContain('kitchen-screens');
   });
 

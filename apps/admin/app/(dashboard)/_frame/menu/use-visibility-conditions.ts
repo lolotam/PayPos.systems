@@ -61,6 +61,14 @@ export function useVisibilityConditions(): VisibilityConditions {
       'leave-report-access': leaveAccess,
       'staff-app-columns-access': columnsAccess,
     }),
-    [alertsOrRating, identityAccess, plansAccess, appLinkAccess, refundsAccess, leaveAccess, columnsAccess],
+    [
+      alertsOrRating,
+      identityAccess,
+      plansAccess,
+      appLinkAccess,
+      refundsAccess,
+      leaveAccess,
+      columnsAccess,
+    ],
   );
 }
