@@ -99,8 +99,8 @@ D-26, emitting KWD strings and ISO dates only), their types; in api `commissions
 `estimate-projection.ts` is already over the 400-line limit and is split, not grown). The full canonical contract of
 both fingerprints is fixed here, with the open blocked corrections in the input fingerprint (CS-Q38) and
 `repair_period` selected by every reader. **Tests:** builder units for every input kind, CM-34e round trip, CM-R11,
-the estimate with a carry. **Size:** about 390 (PP-192). **Depends on:** nothing unmerged to build; merge after 55-2f
-(R4).
+the estimate with a carry. **Size:** about 390 (PP-192). **Depends on:** nothing unmerged to build; opened after its migration turn, merged after
+55-2f (R4, ruling M1).
 
 **4. 51-1 PR 2 (Heavy: permission, migration).** `use-cases/generate-statement/`, `use-cases/get-statement/` (reader
 ports only, `READ ONLY` transaction, D-25), the statement controller, statement contracts; the root-bound branch-names
@@ -171,7 +171,7 @@ collect-time re-check, the audit entry `commission_statement.exported`, the rate
 `documentKindNeedsRenderer`; modelled on the staff attendance-statement request and collect use cases. **Tests:**
 CM-55d, CM-55e, the export part of CM-23d…CM-23h, on statements seeded APPROVED through
 `packages/db/test/commission-statement-fixtures.ts`. **Size:** 300–420. **Depends on:** nothing unmerged to build;
-its canonical row names 53-2, so its merge follows the manager's ruling (_Open decisions_).
+its merge is after 53-2 (manager's ruling M3, _Open decisions_).
 
 **11. 54-1 (Heavy: money, permission, migration).** Research R7. The payment columns, the per-employee payment table
 with RLS and its negative test, the widened column grant and the replaced `commission_statements_update_guard` (today
@@ -280,14 +280,14 @@ A branch that fails the chain check with «expected first parent» is stale and 
 
 | # | Decision | Who | Blocks | Meanwhile |
 | --- | --- | --- | --- | --- |
-| T1 | Home of the moved correction step (research R1) | Waleed (technical) | merge of 55-2f-0 | built on the proposal |
+| T1 | Home of the moved correction step (research R1) | Waleed (technical) | **opening** and merge of 55-2f-0 | built locally on the proposal |
 | T2 | ADR-0061's security choices (research R8) | Waleed (technical) | 56b-1 code | ADR drafted |
-| F1 | CS-Q52: who receives statement notices (DR-008) | both owners, decisions page | the emitter subtask of 52-1 and 56b-1 | everything else in 52-1 |
-| M1 | 51-1 PR 1 merges before or after 55-2f (research R4) | PosPay manager | merge of 51-1 PR 1 | built and opened |
-| M2 | Migration order against row 61 | PosPay manager | every migration push | private clusters |
-| M3 | 56-1c API merges before 53-2 | PosPay manager | merge of 56-1c API | built on fixtures |
-| M4 | The session cap (PP-118) with four implementers under one manager session | PosPay manager | nothing | — |
-| M5 | Record Waleed's Sonnet sentence as a PP item | PosPay manager | nothing | quoted in spec.md |
+| F1 | CS-Q52: who receives statement notices (DR-008) | both owners, decisions page (the manager publishes it in the next batch) | the emitter subtask of 52-1 and 56b-1 | 52-1 is completed without its notice subtask |
+| M1 | 51-1 PR 1 merges before or after 55-2f (research R4) | PosPay manager — **ruled 2026-11-22:** build and test locally; open after its migration turn and the gates; merge after 55-2f (PP-101.2) | merge of 51-1 PR 1 | built locally |
+| M2 | Migration order against row 61 | PosPay manager — **ruled 2026-11-22:** row 61 first; the order in _Migration queue_ is a proposal by readiness and dependency, not a grant and not a reservation of numbers | every migration push | private clusters |
+| M3 | 56-1c API merges before 53-2 | PosPay manager — **ruled 2026-11-22:** local tests on fixtures are allowed; merge after 53-2 (plan-56-1.md); `PAID` support after 54-1 | merge of 56-1c API | built on fixtures |
+| M4 | The session cap (PP-118) with four implementers under one manager session | PosPay manager — **ruled 2026-11-22:** the four run under this session as Waleed asked; every open delivery PR counts in the coordinated cap; a design review is not a delivery | nothing | — |
+| M5 | Record Waleed's Sonnet sentence as a PP item | PosPay manager — **ruled 2026-11-22:** being recorded as PP-225, for this delivery only | nothing | quoted in spec.md |
 | D1 | Design-advisor round for 53-1 and 53-2 (the function; the carry ledger; the parked-event alert; coverage cost) | this session, one round | writing the 53-1 function | 53-1 preparation |
 
 ## Project Structure

@@ -60,8 +60,8 @@ canonical documents leave open. None is a money, permission or tenant rule. R1 a
 
 ## R4 — May 51-1 PR 1 build before 55-2f merges?
 
-- **Decision:** PR 1 is built and opened now; its merge waits for 55-2f, unless the PosPay manager rules otherwise.
-  PR 2 starts after both.
+- **Decision:** PR 1 is built and tested locally now, opened after its migration turn and the gates, and merged
+  after 55-2f (the PosPay manager's ruling, 2026-11-22). PR 2 starts after both.
 - **Rationale:** CS-Q38 = PP-101.2 says row 51 waits for 55-2, and PP-192's impact note says «البند 51 بيبدأ بعد 50-4
   و55-2 و50-5». 55-2a…e are merged; only the repair route is not. PR 1 reads the blocked-corrections table that 55-2b
   shipped and needs nothing of the repair (plan-55-2.md §9.1: the reads have their own adapters). Building is

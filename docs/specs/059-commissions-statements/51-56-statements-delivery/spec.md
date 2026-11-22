@@ -259,7 +259,7 @@ SC-001…SC-006 of spec 059 §8, plus for this delivery:
 
 - The four implementers are Claude Sonnet 5.5 at high effort, by Waleed's sentence quoted under _Input_. The repository
   records no PP item for this lane (PP-204 names GLM for implementers; PP-186 has Claude write no code); the PosPay
-  manager is asked to record the sentence as a PP item. Recorded in plan.md _Route_.
+  manager is recording the sentence as PP-225, for this delivery only (manager's message, 2026-11-22). Recorded in plan.md _Route_.
 - Merge authority is the PosPay manager's under PP-201 (`docs/owner-decisions.ar.md` item 121), which cancelled the
   Waleed merge card of PP-195 for Heavy PRs. The `CLAUDE.md` banner still words the older card; the conflict is
   reported to the manager, not resolved here.
