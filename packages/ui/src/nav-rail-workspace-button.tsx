@@ -47,7 +47,7 @@ export function RailWorkspaceButton({
       ) : (
         <span
           aria-hidden="true"
-          className="line-clamp-2 w-full break-words text-center leading-tight"
+          className="line-clamp-2 w-full whitespace-normal break-words text-center leading-tight"
         >
           {workspace.label}
         </span>

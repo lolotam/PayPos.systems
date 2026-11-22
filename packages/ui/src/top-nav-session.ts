@@ -85,11 +85,12 @@ function useLastFocusInNav(rootRef: RefObject<HTMLDivElement | null>) {
     const onPointerDown = (event: PointerEvent) => {
       if (!isInNav(event)) lastFocusInNav.current = false;
     };
-    document.addEventListener('focusin', onFocusIn);
-    document.addEventListener('pointerdown', onPointerDown);
+    // capture: محتوى الصفحة ممكن يوقف انتشار الحدث، ولازم نشوفه برضه.
+    document.addEventListener('focusin', onFocusIn, true);
+    document.addEventListener('pointerdown', onPointerDown, true);
     return () => {
-      document.removeEventListener('focusin', onFocusIn);
-      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('focusin', onFocusIn, true);
+      document.removeEventListener('pointerdown', onPointerDown, true);
     };
   }, [rootRef]);
   return lastFocusInNav;
