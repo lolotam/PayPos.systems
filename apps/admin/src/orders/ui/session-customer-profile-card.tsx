@@ -41,8 +41,16 @@ function Field({
   );
 }
 
+/** زبونة مستعادة من زيارة محفوظة: معرّف بس من غير ملخص، فالبطاقة بتتحمل من الـ GET. */
+export function RecoveredCustomerCard({
+  customerId,
+  ...props
+}: SessionCustomerProfileCardProps & { customerId: string }) {
+  return <SessionCustomerProfileCard {...props} customerId={customerId} />;
+}
+
 export function SessionCustomerProfileCard({ locale, online = true, ...entry }: SessionCustomerProfileCardProps) {
-  const query = useSessionCustomerProfile(entry);
+  const query = useSessionCustomerProfile(entry, online);
   if (query.isError)
     return (
       <div role="alert" className="flex flex-col gap-2">

@@ -35,6 +35,7 @@ export function RecordVisitCustomerField({
       userId={scope.userId}
       packagesScope={scope}
       value={result.customer}
+      profileCustomerId={result.customerId}
       onChange={(customer) =>
         changeSessionCustomer(customer, result, recording, form, lastKnownCustomerId)
       }

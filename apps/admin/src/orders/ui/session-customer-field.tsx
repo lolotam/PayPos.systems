@@ -15,7 +15,10 @@ import {
 import type { SessionCustomerProfileEntry } from '../api/use-session-customer-profile';
 import { CustomerPackagesLink } from './customer-packages-link';
 import { CustomerProfileInputs, sessionCustomerResolver } from './customer-profile-inputs';
-import { SessionCustomerProfileCard } from './session-customer-profile-card';
+import {
+  RecoveredCustomerCard,
+  SessionCustomerProfileCard,
+} from './session-customer-profile-card';
 
 export type SessionCustomerSelection = Pick<Customer, 'id' | 'name' | 'phone'>;
 
@@ -33,6 +36,8 @@ type SessionCustomerFieldProps = {
   onBlur?: () => void;
   disabled?: boolean;
   packagesScope?: PackagesLinkScope | null;
+  /** معرّف زبونة مستعاد من زيارة محفوظة؛ البطاقة تُقرأ به حتى لو ملخص الزبونة مش موجود. */
+  profileCustomerId?: string | null;
 };
 type SessionCustomerLocale = SessionCustomerFormValues['locale'];
 type SessionCustomerForm = UseFormReturn<SessionCustomerFormValues>;
@@ -350,7 +355,7 @@ function useSessionCustomerFieldState(props: SessionCustomerFieldProps) {
 }
 
 export function SessionCustomerField(props: SessionCustomerFieldProps) {
-  const { companyId, branchId, userId, businessId, onBlur, disabled = false, packagesScope = null, value, entryScope = 'branch' } = props;
+  const { companyId, branchId, userId, businessId, onBlur, disabled = false, packagesScope = null, profileCustomerId = null, value, entryScope = 'branch' } = props;
   const online = useBrowserConnectivity() ?? false;
   const { locale, prefix, genderHint, form, mutation, invalid, nameEntry, callingCode, nationalNumber, resolve, invalidate } =
     useSessionCustomerFieldState(props);
@@ -401,6 +406,9 @@ export function SessionCustomerField(props: SessionCustomerFieldProps) {
           profile={{ companyId, branchId, businessId, userId, entryScope }}
           online={online}
         />
+      )}
+      {value !== null || profileCustomerId === null ? null : (
+        <RecoveredCustomerCard customerId={profileCustomerId} locale={locale} online={online} companyId={companyId} branchId={branchId} businessId={businessId} userId={userId} entryScope={entryScope} />
       )}
     </>
   );

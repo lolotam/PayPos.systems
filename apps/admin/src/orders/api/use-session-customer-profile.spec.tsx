@@ -82,6 +82,18 @@ it('does not fetch without a selection and does not retry a refused read', async
   expect(state.get).toHaveBeenCalledTimes(1);
 });
 
+it('does not issue a profile GET while reads are gated offline', async () => {
+  state.get.mockClear();
+  const hook = renderHook(() => useSessionCustomerProfile(entry, false), { wrapper });
+  await act(async () => undefined);
+  expect(state.get).not.toHaveBeenCalled();
+  expect(hook.result.current.fetchStatus).toBe('idle');
+  state.get.mockResolvedValueOnce({ data: profile, response: { status: 200 } });
+  const allowed = renderHook(() => useSessionCustomerProfile(entry, true), { wrapper });
+  await waitFor(() => expect(allowed.result.current.data).toEqual(profile));
+  expect(state.get).toHaveBeenCalledTimes(1);
+});
+
 it('keys a read by the selected customer so a switch cannot reuse an earlier profile', async () => {
   state.get.mockClear();
   let finish!: (value: unknown) => void;

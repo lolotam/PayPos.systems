@@ -52,7 +52,7 @@ async function fetchProfile(
  * قراءة بطاقة الزبونة على نفس نطاق الإدخال اللي اختارته الموظفة.
  * المفتاح بيشمول الهوية والنطاق ومعرّفات المسار والزبونة، فتغيير أي واحد فيهم بيتجاهل الرد القديم.
  */
-export function useSessionCustomerProfile(entry: SessionCustomerProfileEntry) {
+export function useSessionCustomerProfile(entry: SessionCustomerProfileEntry, canRead = true) {
   const { companyId, branchId, businessId, userId, entryScope, customerId } = entry;
   return useQuery({
     queryKey: [
@@ -64,7 +64,7 @@ export function useSessionCustomerProfile(entry: SessionCustomerProfileEntry) {
       branchId,
       customerId,
     ],
-    enabled: customerId !== null,
+    enabled: customerId !== null && canRead,
     retry: false,
     gcTime: 0,
     staleTime: 0,
