@@ -59,10 +59,7 @@ export function ServiceCategoriesScreen({
   const businessReach = scope !== 'BRANCH';
   const branchScopeEmpty = scope === 'BRANCH' && activeBranches.length === 0;
   const businessView = branchId === null;
-  const { setHandler, action } = useScreenCreateAction(
-    { companyId, businessId: business.id, userId },
-    branchId,
-  );
+  const { setHandler, action } = useScreenCreateAction({ companyId, businessId: business.id, userId }, branchId);
   return (
     <PageShell layout="list">
       <ServiceCategoriesHeader businessView={businessView} showLead={businessView && !branchScopeEmpty} action={branchScopeEmpty ? null : action} />

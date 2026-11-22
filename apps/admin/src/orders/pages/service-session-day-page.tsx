@@ -44,8 +44,8 @@ export function ServiceSessionDayPage({ scope, timezone }: { scope: SessionServi
   // رفض القدرة 401/403/FEATURE_DISABLED معناه إن قراءة اليوم نفسها اتسحبت، مش الإلغاء بس؛ الشاشة تتقفل زي باقي القراءات.
   const dayRefused = serviceSessionAccessRevoked(dayQuery.error) ? { message: envelopeMessage(dayQuery.error, locale) } : null;
   const blocked = denied ?? (serviceSessionAccessRevoked(capability.error) ? { message: envelopeMessage(capability.error, locale) } : dayRefused);
-  // مسح الاستعلامات يمحو خطأ الرفض من المراقب، فنثبّته في الحالة قبل المسح كي لا تنفتح الصفحة وحدها وتعيد القراءة المرفوضة.
-  useEffect(() => { if (dayRefused && denied === null) setDenied(dayRefused); }, [dayRefused, denied]);
+  // مسح الاستعلامات يمحو خطأ الرفض من المراقب، فنثبّته في الحالة أثناء الرندر نفسه (قبل أي commit) كي لا تنفتح الصفحة وحدها وتعيد القراءة المرفوضة.
+  if (dayRefused && denied === null) setDenied(dayRefused);
   // المسح بعد فك تركيب القائمة؛ لو اتمسح والكويري لسه متراقب TanStack بيعيد بناؤه ويجيبه من غير زر.
   const isBlocked = blocked !== null;
   useEffect(() => {
