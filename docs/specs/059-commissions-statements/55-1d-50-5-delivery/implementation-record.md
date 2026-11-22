@@ -216,11 +216,17 @@ One consolidated round against the three new MergePilot threads and one CodeRabb
 4. **CodeRabbit's signed-amount request.** A database-free engine test keeps a negative received
    correction and the tips out of the commission subtotal.
 
+5. **Independent exact-head review (Codex `gpt-6.2-sol`, medium, read-only) on `7c6f77688`:** PASS,
+   no P0-P2, three P3 on the tests, all applied. The snapshot test also asserts a single tenant
+   transaction for the whole request; the candidate test covers a cancelled line, a cancelled sale
+   and an active line and sale of another month; the fixture comment states what `::text::date`
+   preserves.
+
 `0239` was untouched, and no migration, deploy or target operation came from this round.
 
 ### Gates of the round-3 head
 
-- packages/commissions-engine 24 files / 534 tests; four estimate route specs of apps/api (estimate,
+- packages/commissions-engine 24 files / 537 tests; four estimate route specs of apps/api (estimate,
   access, hidden-plan, refused-rows) 4 files / 38 tests — green on one PostgreSQL lane.
 - typecheck and lint clean for commissions-engine and api; `lint:docs` green.
 - The full api and worker suites were not run locally; `ci-gate` on the pushed head decides them

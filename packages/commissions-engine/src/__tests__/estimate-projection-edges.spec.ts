@@ -4,6 +4,8 @@ import {
   projectCommissionEstimate,
   type CommissionEstimateCorrection,
   type CommissionEstimateLine,
+  type CommissionEstimateMonthRows,
+  type CommissionEstimateSale,
 } from '../estimate-projection.ts';
 
 const EMPLOYEE = '01920000-0000-7000-8000-0000000000e1';
@@ -77,23 +79,37 @@ it('keeps a negative correction and the tips out of the commission subtotal', ()
   expect(result.employees[0]?.tips).toEqual({ card: 2500n, cash: 0n });
 });
 
-it('leaves out an unattached employee whose only source is cancelled', () => {
-  // المجمّع المشترك بيسقط البند الملغي قبل التسعير، فما يبقاش للموظفة أي نشاط
-  // ولا ارتباط يخليها تظهر بصفر لقارئ النشاط كله.
+/** بيع باقة ساري في الشهر للموظفة في الفرع. */
+const SALE: CommissionEstimateSale = {
+  saleId: 'sale-a',
+  sellerEmployeeId: EMPLOYEE,
+  businessDate: '2026-11-05',
+  pricePaid: 30000n,
+  refundedAmount: 0n,
+  status: 'ACTIVE',
+  branchId: BRANCH,
+};
+
+it.each<[string, Pick<CommissionEstimateMonthRows, 'lines' | 'sales'>]>([
+  ['a cancelled line', { lines: [{ ...LINE, status: 'CANCELLED' }], sales: [] }],
+  ['a cancelled sale', { lines: [], sales: [{ ...SALE, status: 'CANCELLED' }] }],
+  [
+    'an active line of another month',
+    { lines: [{ ...LINE, businessDate: '2026-10-31' }], sales: [] },
+  ],
+  [
+    'an active sale of another month',
+    { lines: [], sales: [{ ...SALE, businessDate: '2026-12-01' }] },
+  ],
+])('leaves out an unattached employee whose only source is %s', (_name, rows) => {
+  // المجمّع المشترك بيسقط المصدر الملغي أو اللي بره الشهر قبل التسعير، فما
+  // يبقاش للموظفة أي نشاط ولا ارتباط يخليها تظهر بصفر لقارئ النشاط كله.
   const result = projectCommissionEstimate({
     scope: { businessWide: true, branchIds: [] },
     period: PERIOD,
     employeeIds: [EMPLOYEE],
     attachments: [],
-    month: {
-      lines: [{ ...LINE, status: 'CANCELLED' }],
-      sales: [],
-      tips: [],
-      salaries: [],
-      versions: [],
-      overrides: [],
-      corrections: [],
-    },
+    month: { ...rows, tips: [], salaries: [], versions: [], overrides: [], corrections: [] },
   });
 
   expect(result.employees).toEqual([]);

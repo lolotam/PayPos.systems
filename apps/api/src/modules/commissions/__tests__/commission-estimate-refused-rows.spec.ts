@@ -99,8 +99,8 @@ async function seedTransferAttachments(
   for (const [branchId, from, to] of [
     [branch, '2026-11-01', '2026-11-15'],
     // نهاية في سنة بخمس أرقام: القارئ بيقصّها على الشهر في SQL، فترتيبها النصي
-    // ما بيوصلش للمحرك. التاريخ بيتبعت كنص عشان الـ driver ما يحولوش لـ Date
-    // ويرجّعه 9999-12-31.
+    // ما بيوصلش للمحرك. `::text::date` بيحافظ على القيمة الحرفية لحد ما
+    // PostgreSQL نفسه يفسّرها كتاريخ، بدل ما الـ driver يعدّيها على Date.
     [secondBranch, '2026-11-15', '10000-01-01'],
   ] as const) {
     await h.owner`INSERT INTO employee_branches(
@@ -298,10 +298,13 @@ it('keeps only the in-scope tips and corrections of the branch reader who sees t
 
 it('reads the estimate in one read-only repeatable-read transaction', async () => {
   fixture.h.calls.memberSnapshots.length = 0;
+  fixture.h.calls.tenant.length = 0;
 
   const response = await get(fixture.cookie);
 
   expect(response.status).toBe(200);
+  // معاملة مستأجر واحدة بس في الطلب كله، فكل قراءات التقدير جوه نفس اللقطة.
+  expect(fixture.h.calls.tenant).toEqual([fixture.company]);
   expect(fixture.h.calls.memberSnapshots).toEqual([
     { readOnly: 'on', isolation: 'repeatable read' },
   ]);
