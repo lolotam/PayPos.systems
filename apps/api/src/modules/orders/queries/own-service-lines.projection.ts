@@ -1,26 +1,7 @@
-import type { StaffColumnCode } from '@pospay/contracts';
+import type { OwnServiceLine, StaffColumnCode } from '@pospay/contracts';
 import type { OwnLineDetail } from './own-service-lines.details.ts';
 import type { OwnLineKey } from './own-service-lines.page.ts';
 import type { OwnWorkBranch } from './own-work-context.ts';
-
-// الشكل الخارج لسطر واحد: مفاتيحه المسموحة فقط، والباقي غائب لا null (D-A7، MY-02).
-export interface OwnServiceLineItem {
-  line_id: string;
-  branch_name_ar: string | null;
-  branch_name_en: string;
-  cancelled: boolean;
-  cancelled_at?: string;
-  date?: string;
-  late?: boolean;
-  time?: string;
-  service_name_ar?: string | null;
-  service_name_en?: string;
-  customer_name?: string;
-  list_price?: string;
-  discount?: string;
-  net?: string;
-  share_bps?: number;
-}
 
 export interface OwnLineSources {
   details: ReadonlyMap<string, OwnLineDetail>;
@@ -43,12 +24,12 @@ export function projectOwnLine(
   key: OwnLineKey,
   src: OwnLineSources,
   allowed: ReadonlySet<StaffColumnCode>,
-): OwnServiceLineItem {
+): OwnServiceLine {
   const detail = src.details.get(key.lineId);
   const branch = src.branches.find((b) => b.id === key.branchId);
   if (!detail || !branch) throw new Error('Own service line source is missing for a member line');
   const cancelledAt = src.cancellations.get(key.lineId);
-  const item: OwnServiceLineItem = {
+  const item: OwnServiceLine = {
     line_id: key.lineId,
     branch_name_ar: branch.name_ar,
     branch_name_en: branch.name_en,

@@ -2,6 +2,7 @@ import { leaveHistoryPaths } from './staff/leave-history-openapi.js';
 import { businessCountryPaths } from './tenancy/business-openapi.js';
 import { leaveHistoryReportApiPaths } from './staff/leave-history-report-api-openapi.js';
 import { ownTipsPaths } from './orders/own-tips-openapi.js';
+import { ownServiceLinesPaths } from './orders/own-service-lines-openapi.js';
 import { ownRatingSummaryPaths } from './customers/own-rating-summary-openapi.js';
 import { ratingsListPaths } from './customers/ratings-list-openapi.js';
 import { ratingAveragesPaths } from './customers/ratings-averages-openapi.js';
@@ -60,6 +61,7 @@ const allSchemas: readonly z.ZodType[] = [
 // المسارات اللي الـ frontends بتكلمها بالعميل المولّد، بنفس الـ status اللي الـ controller بيرجّعه.
 const PATHS = {
   ...ownTipsPaths,
+  ...ownServiceLinesPaths,
   ...ownRatingSummaryPaths,
   ...ratingsListPaths,
   ...ratingAveragesPaths,

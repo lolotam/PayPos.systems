@@ -80,10 +80,22 @@ const lineColumns = `company_id,id,business_id,session_id,service_id,ordinal,inp
   list_price,price,discount,net,effective_discount_bps,limit_bps_applied,limit_source,name_en,name_ar,catalog_revision,
   rule_kind,rule_pct_bps,rule_fixed_amount,counts_toward_threshold,has_performer_warning,recorded_by,recorded_by_membership_id,recorded_at,late`;
 
+// الدفعة الواحدة فوق 10,000 زيارة تتجاوز مهلة 30 ثانية بسبب فحص المفاتيح الأجنبية لكل صف، فتدخل بلا مشغّلات FK
+// على اتصال المالك وحده (SET LOCAL داخل معاملتها)؛ بياناتها متسقة بالبناء، والأحجام الأصغر تبقى بالمسار العادي.
+async function runBulk(f: TipFixture, fast: boolean, text: string, params: (string | number)[]) {
+  if (!fast) return f.h.owner.unsafe(text, params);
+  return f.h.owner.begin(async (tx) => {
+    await tx.unsafe("SET LOCAL session_replication_role='replica'");
+    return tx.unsafe(text, params);
+  });
+}
+
 // ينسخ زيارة العينة إلى `count` زيارة بسطر لكل منها، يوزع منفذيها بالتناوب على أيام أكتوبر 2026 بلحظات
 // متكررة عمداً كي تتساوى مفاتيح الترتيب. دفعة SQL واحدة، لا تشغّل ANALYZE ولا تلمس الإحصاءات.
 export async function bulkVisits(f: TipFixture, s: PerfScope, count: number, performers: string[]) {
-  await f.h.owner.unsafe(
+  await runBulk(
+    f,
+    count > 10_000,
     `WITH src AS (
       SELECT n,gen_random_uuid() AS session_id,gen_random_uuid() AS line_id,
         date '2026-10-01'+(n%28) AS day,(n%4) AS minute FROM generate_series(1,$4::int) n

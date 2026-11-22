@@ -21,6 +21,7 @@ import { STAFF_ROUTE } from '../../../shared/staff-authentication.ts';
 import { PrivateViewRoute } from '../../../shared/private-view.guard.ts';
 import type { Clock } from '../../../shared/ports/clock.port.ts';
 import { OWN_WORK_READS, type OwnWorkReads } from '../queries/own-work-context.ts';
+import { readOwnServiceLines } from '../queries/own-service-lines.query.ts';
 import { readOwnTips } from '../queries/own-tips.query.ts';
 
 export const OWN_WORK_CLOCK = Symbol('OWN_WORK_CLOCK');
@@ -42,6 +43,22 @@ export class OwnWorkController {
     @Inject(OWN_WORK_CLOCK) private readonly clock: Clock,
   ) {}
 
+  private scope(request: FastifyRequest) {
+    const session = request.staffSession ?? request.personalSession;
+    if (!session) throw new ApiError('UNAUTHENTICATED');
+    if (!this.database) throw new ApiError('NOT_READY');
+    return {
+      database: this.database,
+      now: this.clock.now(),
+      context: {
+        companyId: session.context.companyId,
+        businessId: session.context.businessId,
+        userId: session.userId,
+        ...(request.staffDevice ? { branchId: request.staffDevice.branchId } : {}),
+      },
+    };
+  }
+
   @Get('tips')
   @Authenticated()
   @SetMetadata(STAFF_ROUTE, 'staff')
@@ -49,20 +66,27 @@ export class OwnWorkController {
   @PrivateViewRoute()
   @Header('Cache-Control', 'no-store')
   tips(@Query() query: unknown, @Req() request: FastifyRequest) {
-    const session = request.staffSession ?? request.personalSession;
-    if (!session) throw new ApiError('UNAUTHENTICATED');
-    if (!this.database) throw new ApiError('NOT_READY');
-    const context = {
-      companyId: session.context.companyId,
-      businessId: session.context.businessId,
-      userId: session.userId,
-      ...(request.staffDevice ? { branchId: request.staffDevice.branchId } : {}),
-    };
-    const now = this.clock.now();
-    return this.database.withTenant(
+    const { database, now, context } = this.scope(request);
+    return database.withTenant(
       context.companyId,
       (tx) => readOwnTips(tx, context, query, now, this.reads),
       { userId: context.userId },
+    );
+  }
+
+  // لقطة قراءة واحدة (REPEATABLE READ, READ ONLY): السلطة وعضوية المؤشر والإسقاط من نفس الحالة.
+  @Get('service-lines')
+  @Authenticated()
+  @SetMetadata(STAFF_ROUTE, 'staff')
+  @SetMetadata(PERSONAL_ROUTE, 'staff')
+  @PrivateViewRoute()
+  @Header('Cache-Control', 'no-store')
+  serviceLines(@Query() query: unknown, @Req() request: FastifyRequest) {
+    const { database, now, context } = this.scope(request);
+    return database.withTenant(
+      context.companyId,
+      (tx) => readOwnServiceLines(tx, context, query, now, this.reads),
+      { userId: context.userId, readOnly: true },
     );
   }
 }

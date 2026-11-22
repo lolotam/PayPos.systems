@@ -5,12 +5,15 @@ AC-57-2b-1…8. Base `be0505eba`. Private synthetic lane only (Postgres `127.0.0
 `statement_timeout` 30 s from the lane). No migration, index, server/table setting, statistics target, planner
 flag or raised timeout was added or used. The route, OpenAPI operation and clients are **not** added (§5.3 item 7).
 
-## Status
+## Status and manager decision
 
-- Items 1 and 2 (200 ms, stale and normal statistics): **met**, with a wide margin.
-- Item 3 (a) (no join, no table read once per outer row, no sequential scan): **met**.
-- Item 3 (b) (where an id probe exists, the id is an index condition): **not met**. §5.4 applies: the checkpoint
-  stops here and the route is not added. Evidence below; the decision is the manager's.
+- Items 1 and 2 (200 ms, stale and normal statistics): met at the approved fixture and at the scaled run below.
+- Item 3 (a) (fixed statement count, no join, no sequential scan, no table scanned more than once per statement):
+  met, asserted in the suite.
+- Item 3 (b): **the literal Index Cond check is not claimed.** Under stale statistics the id lists are filters in
+  every id statement (below). Manager design decision, 2026-11-22, option 1 (binding): §5.3(3)(b) is read as
+  requiring indexed per-id probes where such probes are repeated per outer row. A single bounded batch statement
+  with an id Filter is acceptable only if the scaled evidence below passes. It passed, so the route may be exposed.
 
 ## Fixture
 
@@ -50,8 +53,10 @@ recorded one. The spec fails, not skips, when no valid stale attempt can be prod
 Heap and RSS deltas around the call: (A) about 10 MB heap and 5–7 MB RSS; (B) about 0.6–2.8 MB heap and at most
 about 1 MB RSS. Every page matched the oracle exactly (ids and order, including the deep cursor at the 300th line).
 
-**Chosen: (B).** Three to four times faster, one tenth of the memory, and its cost does not grow with the colleagues'
-volume (it grows with her own history instead). (A) was deleted.
+**Chosen: (B).** Three to four times faster and one tenth of the memory. The rows it materialises in the API are
+bounded by the employee (her own performer rows), not by the colleagues. The rows the database *examines* are not:
+under stale statistics each id statement scans the tenant's rows in its table and filters, so examined rows (and
+time) grow linearly with tenant size (measured below). (A) was deleted.
 
 ## Plan evidence
 
@@ -108,3 +113,83 @@ authorization per §5.4).
 - Regression: `own-work-http` 11/11 and `own-tips-isolation` 3/3 still pass with the restored `branches` field of the
   shared context.
 - Unchanged by design: no migration, index, setting, statistics target, planner flag or timeout.
+
+## Scaled one-off run (manager decision 2026-11-22, option 1): ~66,000 target-tenant lines
+
+Spec `__tests__/own-service-lines-scale.spec.ts`, **gated by the environment variable `POSPAY_57_2B_SCALE=1`** and
+therefore skipped in the regular suite (run: `POSPAY_57_2B_SCALE=1 pnpm exec vitest run
+src/modules/orders/__tests__/own-service-lines-scale.spec.ts` from `apps/api`). It shares its code with the regular
+performance spec (`own-service-lines.perf.ts`, `own-service-lines.plans.ts`); the regular spec (600 visits / 602 own
+lines / 6,020 colleague lines) is unchanged in fixture and now also asserts the statement count and loops.
+Bulk batches above 10,000 visits use `SET LOCAL session_replication_role='replica'` on the owner connection only,
+because the per-row foreign-key checks pushed one 65,400-visit statement past the 30 s statement timeout; the rows
+are consistent by construction. No product code, index, schema, statistics target, planner flag or timeout changed.
+
+Fixture (asserted by the independent single-table oracle): 66,002 `service_lines` in the target tenant: **602 own
+lines on 600 own visits** plus **65,400 same-business colleague lines**; two background tenants with 3,000 visits each.
+
+Stale-state verification (`pg_stats` on `company_id`, recorded before and after the measured run, default
+settings, no `ANALYZE` after the target insert): in both runs the target company id was absent from the MCV lists of
+`service_sessions`, `service_lines` and `line_performers` (two ids present, both background tenants) before and
+after; `n_mod_since_analyze` 66,000 before and 66,001 after; no `last_analyze` or `last_autoanalyze` after the
+insert (run 3 had one autoanalyse during the background phase, 13:43:21, before the target existed). First attempt
+valid in both runs; no retry was needed. Normal statistics: one `ANALYZE` of the three tables, only to prepare that
+part (MCV then lists three ids, `reltuples` about 72,000).
+
+Samples (ms, `withTenant` including begin/commit and driver materialisation; first run then five warm runs each;
+5 statements in every sample):
+
+| Run / statistics | page | samples | max |
+|---|---|---|---|
+| run 2, stale | first-20 | 103.4 71.6 67.7 86.1 69.0 63.4 | 103.4 |
+| run 2, stale | first-100 | 62.1 63.1 66.5 74.0 89.2 138.7 | 138.7 |
+| run 2, stale | cursor-100 | 118.0 146.8 183.8 80.3 98.7 65.5 | **183.8** |
+| run 2, stale | deep-cursor-100 | 95.4 67.3 73.6 81.3 67.7 65.6 | 95.4 |
+| run 3, stale | first-20 | 93.2 68.9 60.6 84.9 62.1 60.1 | 93.2 |
+| run 3, stale | first-100 | 62.2 62.2 63.0 62.1 63.9 62.1 | 63.9 |
+| run 3, stale | cursor-100 | 70.4 72.9 64.6 66.1 64.5 70.9 | 72.9 |
+| run 3, stale | deep-cursor-100 | 64.6 62.0 62.1 61.3 62.5 63.2 | 64.6 |
+| run 2, normal | the four pages | 20.6–35.1 | 35.1 |
+| run 3, normal | the four pages | 22.8–41.2 | 41.2 |
+
+Every sample is under 200 ms. The stale-statistics margin is thinner than at the small fixture and noisy: one warm
+sample reached 183.8 ms (run 2), the other run peaked at 103 ms. Heap delta at most 1.8 MB and RSS delta at most
+3.1 MB per page. Every page equalled the oracle, including the deep cursor at the 300th line.
+
+EXPLAIN (ANALYZE, BUFFERS) facts for the batched id statements, stale statistics, 66,002 tenant lines (run 2):
+
+| Statement | Scan | Rows returned | Rows removed by filter | Loops | Shared hit blocks | ms |
+|---|---|---|---|---|---|---|
+| her performer rows | `line_performers_employee_idx`, employee as Index Cond | 602 | none | 1 | 561 | 0.2 |
+| lines by id | `service_lines_recorder_idx`, Index Cond `company_id` only, id list as Filter | 602 | 65,400 | 1 | 2,255 | 9.5 |
+| sessions by id | `service_sessions_recorder_idx`, Index Cond `company_id` only, id list as Filter | 600 | 65,400 | 1 | 1,792 | 11.3 |
+| line details (100) | `service_lines_recorder_idx`, id list as Filter | 100 | 65,902 | 1 | 2,255 | 10.0 |
+| customer names (100) | `service_sessions_recorder_idx`, id list as Filter | 100 | 65,900 | 1 | 1,792 | 12.3 |
+
+Each table is scanned exactly once per statement (loops 1, no join, no per-id repeat, no sequential scan), and the
+statement count is asserted at exactly 5 per page (independent of page size and tenant size). The examined rows are
+linear in tenant size, as the previous section warned: 65,400 rows removed per statement at this size, against about
+6,600 at the approved fixture, with about 10 ms per statement. With normal statistics at the same size, run 2 showed
+the id list as an Index Cond in every id statement (`service_lines_company_id_id_pk`, `service_sessions_company_id_id_pk`,
+`service_lines_business_id_key`, `service_sessions_business_id_key`) and about 1 ms per statement; this is an
+observation of that run, not a claim about the literal check under stale statistics.
+
+Remaining risk, unchanged and for the record: the stale-statistics cost is linear in the tenant's rows until
+autovacuum refreshes the statistics, so a tenant much larger than 66,000 lines would exceed the budget in that
+window; the remedies (index, statistics, planner setting) stay out of scope without separate authorization.
+
+Run 4 (final code, after the contract output parse was added): stale statistics max 93.4 ms (first-20), the three
+other pages 62–74 ms; normal statistics 20.7–38.5 ms; target absent from all three MCV lists before and after
+(two ids listed, `n_mod_since_analyze` 66,000 then 66,001, one autoanalyse at 13:56:10, before the target insert);
+5 statements per sample. All four scaled runs (2, 3, 4 and the one summarised above) passed every 200 ms assertion.
+
+## Phase 3: route exposed
+
+Recorded before the route was added: the manager's design decision of 2026-11-22, option 1 (above), and the scaled
+evidence above. The route `GET /v1/staff/me/service-lines?month&cursor&limit` (personal session or `STAFF_POS` with a
+live private-view window, `no-store`, one `readOnly: true` snapshot), the contract
+`packages/contracts/src/orders/own-service-lines.ts` and its OpenAPI paths file were then added, replacing the local
+placeholder schema and type. The OpenAPI registration in `packages/contracts/src/openapi.ts` and the generated
+clients are the manager's step. HTTP spec `own-service-lines-http.spec.ts` (6 tests: personal session, own lines
+only and a walkable cursor, uniform 400, `STAFF_POS` window expiry and dead operator, scope keys and session-less
+access, DENY and unlinked employee, log privacy) and the contract spec pass.

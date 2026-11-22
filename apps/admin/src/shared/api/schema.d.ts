@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/staff/me/service-lines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Own current-performer lines in the session business. Hidden columns are absent. Device branch proves current authority only. line_id (UUID v7) and cancelled_at are context fields: hiding time does not hide recording/cancellation instants. Cursor is line_id only; a removed, foreign or other-month anchor returns uniform 400; restart from page one. Cancelled anchors remain valid. Cache-Control: no-store. */
+        get: operations["ownServiceLines"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/staff/me/rating-summary": {
         parameters: {
             query?: never;
@@ -9433,6 +9450,93 @@ export interface operations {
                         status: "VISIBLE";
                         total_cash: string;
                         total_card: string;
+                    };
+                };
+            };
+            /** @description VALIDATION_FAILED */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description UNAUTHENTICATED */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description FORBIDDEN or PRIVATE_VIEW_EXPIRED */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description MY_PERIOD_OUT_OF_RANGE */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    ownServiceLines: {
+        parameters: {
+            query?: {
+                month?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header?: {
+                "x-private-view-window-id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Own lines, newest business date, occurrence instant and line id first */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            line_id: string;
+                            branch_name_ar: string | null;
+                            branch_name_en: string;
+                            cancelled: boolean;
+                            /** Format: date-time */
+                            cancelled_at?: string;
+                            /** Format: date */
+                            date?: string;
+                            late?: boolean;
+                            /** Format: date-time */
+                            time?: string;
+                            service_name_ar?: string | null;
+                            service_name_en?: string;
+                            customer_name?: string;
+                            list_price?: string;
+                            discount?: string;
+                            net?: string;
+                            share_bps?: number;
+                        }[];
+                        next_cursor: string | null;
+                        month: string;
                     };
                 };
             };
