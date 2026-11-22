@@ -93,7 +93,15 @@ export async function expectVisibleNavRailCurrentMarker(target: Locator): Promis
 export async function expectTapAwayKeepsFocusOut(page: Page, trigger: Locator): Promise<void> {
   await trigger.focus();
   await expect(trigger).toBeFocused();
+  // لازم نثبت إن التركيز لسه على الزر وقت pointerup، وإلا الاختبار ينجح من غير فحص click.
+  await trigger.evaluate((el) => {
+    const snapshot = () => {
+      document.documentElement.dataset['focusAtPointerUp'] = String(document.activeElement === el);
+    };
+    window.addEventListener('pointerup', snapshot, { capture: true, once: true });
+  });
   await page.locator('main h1').tap();
+  await expect(page.locator('html')).toHaveAttribute('data-focus-at-pointer-up', 'true');
   await expect(page.locator('body')).toBeFocused();
   await page.setViewportSize({ width: 390, height: 844 });
   const drawerOpener = page.getByRole('button', { name: LABELS.drawerOpen });
