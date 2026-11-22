@@ -22,7 +22,7 @@ Already done in 074-3 + 074-8 and not touched here: Services (`/catalog`), Add s
 
 ## Requirements
 
-1. Each page above is wrapped in `PageShell` with the variant its template names, and uses `PageHeader` for title, one-line description and actions (one primary action at the inline end, further actions as outline buttons before it).
+1. Each page above is wrapped in `PageShell` with the variant its template names, and uses `PageHeader` for the title, an optional one-line description where an existing key fits, and actions (one primary action at the inline end, further actions as outline buttons before it).
 2. List pages: one card holding filter bar, table and footer with paging, in that order, using `DataTableFrame`'s filter and footer areas. Stacked rows under 600px are switched on for each table here: the first cell is the card title and every other cell shows its column label above its value. Row actions stay reachable and at least 44px tall.
 3. Form pages: one card of titled sections on the 12-column grid (fields span 6, short fields 4, long fields 12), action bar at the card foot with the primary action last. On a phone the fields stack in one column.
 4. Record a visit: two-column from a 1024px viewport, stacked below it with the form first. The draft summary is in the side column and stays in view while the form scrolls (sticky) from 1024px. If the page has no separate summary block today, do not invent one: report it as an open point and lay the page out as a form.
@@ -53,26 +53,41 @@ Estimate: 650 production, 750 tests. Stop and report if code plus tests passes 2
 
 ## Implementation notes
 
+Two rounds: the first delivery, then correction round 1 after the independent review (findings P1-1 to P3-9). The notes show the state after round 1.
+
 ### What moved, per page
 
-| Page | What moved | Test that proves the structure |
+| Page | What moved | Tests that prove the structure |
 |---|---|---|
-| Package types | `PageShell list`; `PackageTypesListPanel` now owns one `DataTableFrame stacked` with the paging in its footer; loading, error and empty states render inside the card; the table is bare with explicit roles and `data-cell-label` on every cell after the first | `catalog/pages/package-types-page.spec.tsx` (new) |
-| Add package type | `PageShell form`; one card, titled section «Package details» (new key `catalogPackageTypes.basics`) on the 12-column grid (names span 6, price and validity span 4), services section keeps its own legend, save action last in the card foot | `catalog/pages/create-package-type-page-layout.spec.tsx` (new) |
-| Categories (business view) | one `PageShell list` at `ServiceCategoriesScreen`; status tabs moved into the card's filter area; list, table and paging in one card; stacked rows | `catalog/pages/service-categories-layout.spec.tsx` (new) |
-| Categories (branch view) | a `PageHeader` (title, lead, the same outline create button) replaces the bare lead and button row; view tabs in the filter area; table and paging in one card; stacked rows | same spec |
-| Day list | `PageShell list` (keeps `dir`); one card holds the date and late filter, the visit cards and the «Load more» action in the footer; a refused day keeps the filter bar in the card beside the message and its retry | `orders/pages/service-session-day-layout.spec.tsx` (new) |
-| Customer packages | `PageShell list` with `PageHeader`; the package cards and the load-more or retry action sit in one card; the unreadable-customer and proof-pending messages stay plain messages under the header | `orders/pages/customer-packages-page-layout.spec.tsx` (new) |
-| Sell a package | `PageShell form`; the fields sit in one card, the sell action is last at the card foot, the sale result moved out of the card to below it | `orders/pages/package-sale-page.spec.tsx` (new) |
-| Record a visit | `PageShell two-column` rendered by `RecordServiceSessionForm` (the form provider wraps both columns); the draft summary moved from between the recorder field and the lines to the side column, sticky from 1024px; the discount limit state moved from `SessionRecordingHeader` to the form so it travels with the summary; refusal and loading states render in `PageShell form` | `orders/pages/record-service-session-layout.spec.tsx` (new) |
+| Package types | `PageShell list`; `PackageTypesListPanel` owns one `DataTableFrame stacked` with paging in its footer; loading, error and empty render inside the card; bare table with explicit roles; labels on every cell that has content | `catalog/pages/package-types-page.spec.tsx` |
+| Add package type | `PageShell form`; one card; titled section «Package details» on the 12-column grid (names 6, price and validity 4); the services section rows (service 6, sessions 4, remove 2) on the grid from the create page only; save last at the card foot | `catalog/pages/create-package-type-page-layout.spec.tsx` |
+| Categories | One `PageShell list` at `ServiceCategoriesScreen` with one header first in every state (no-branch state too), then the scope select, then the card; the status or view tabs, the table and the paging in one card; create action in the header; stacked rows | `catalog/pages/service-categories-layout.spec.tsx` |
+| Day list | `PageShell list` (keeps `dir`); one card in one stable position holds the date and late filter, the visits and Load more in the footer; a refused read swaps only the card content and keeps the same filter inputs and their focus | `orders/pages/service-session-day-layout.spec.tsx` |
+| Customer packages | `PageShell list` with `PageHeader`; package cards and the load-more or retry action in one card; proof-gating messages unchanged | `orders/pages/customer-packages-page-layout.spec.tsx` |
+| Sell a package | `PageShell form`; one card with titled sections «Package» and «Payment» on the 12-column grid (recorder 6, customer and package type 12, price, method and seller 4 each); sale action last at the foot; the result below the card | `orders/pages/package-sale-page.spec.tsx` |
+| Record a visit | `PageShell two-column` built by `RecordVisitColumns` (the form provider wraps both columns); the draft summary sits in the side column; the side column stretches to the row height so the sticky summary has room to move | `orders/pages/record-service-session-layout.spec.tsx` |
+
+### Correction round 1: finding by finding
+
+| Finding | Result | Proving test |
+|---|---|---|
+| P1-1 sticky summary had no room | Fixed. The template grid aligns its items `items-start`, so the side wrapper was only content tall. `RecordVisitColumns` passes `lg:[&>div:last-child]:items-stretch` to the shell root, which stretches the grid items from 1024px; the sticky summary stays a direct child of the side grid item. No `packages/ui` change. | `record-service-session-layout.spec.tsx`, «puts the sticky summary directly in the side grid item, and stretches that item to the row» (structure only) |
+| P1-2 form template | Fixed for Sell a package (sections and 12-column cells; every field, label and message is one cell) and for the Add package type service row (opt-in `grid` prop; the edit panel is unchanged). Record a visit unchanged. | `package-sale-page.spec.tsx` (sections order, 4-column cells), `create-package-type-page-layout.spec.tsx` (row spans) |
+| P2-3 Day list focus | Fixed. The page owns one `ServiceSessionDayFrame`; only its content and footer change. The body reports its load-more function to the page. | «keeps the same date input, and keyboard focus on it, when a later read is refused» |
+| P2-4 branch actions label | Fixed. «Actions» label on the cell, visually hidden header (the header was empty). Stacked tests now cover every cell of all three tables. | `service-categories-layout.spec.tsx`, `package-types-page.spec.tsx` |
+| P2-5 Categories header | Fixed. One header first in every state (the no-branch state included), then the scope select. The header and its create action belong to the screen; each view registers its create handler through `useRegisterCreateAction` when it is the visible one. A page or section rendered alone keeps its own header. The scope select stays one element, so its focus survives a view switch. | «a branch membership with no active branch still shows the page heading», «keeps the very same scope select, and its focus» |
+| P2-6 one component per file | Fixed. Split: `ServiceSessionDayFrame`, `ServiceSessionDayLoadMore`, `ServiceSessionDayVisitSlot` (out of the list file), `PackageTypeName`, `PackageTypeSellingCell`, `BranchServiceCategoryMarks`, `ServiceCategoriesHeader`, `BranchServiceCategoriesHeader`. A scan of every file created or edited found no other file with two components. | lint (`max-lines-per-function`), typecheck |
+| P3-7 price direction | Fixed: `<bdi dir="ltr">` around the number; the cell has no `dir`. | «isolates the price number as left-to-right» |
+| P3-8 action-only cells | Fixed. Cells whose only content is a button (Edit, Open) carry no label. The Selling cell and the branch marks cell carry a label only when they have content, and are hidden under 600px when empty. The merged Services reference page labels its Edit cell with the header text, a duplicate of its button; it was not touched (brief). | «renders no label for a selling cell whose button is hidden», the stacked-row tests |
+| P3-9 implementation-pinned tests | Partly. Width and `mx-auto` class checks were removed; headings, region order, labels and control presence are asserted instead. Kept as structure where nothing visible distinguishes it: the template identity (`data-page-shell`), the card (the frame has no landmark), the stacked classes on the table wrapper (so the tests fail if `stacked` is removed), the 12-column span classes. | the specs above |
 
 ### Changed assertions and fixtures
 
-All assertions on these pages stay. Two fixtures and one selector changed because the DOM moved:
+All assertions on the seven pages stay. Fixtures and selectors changed because the DOM moved:
 
-- `orders/pages/service-session-day-page.spec.tsx`, «uses the locale direction on the day list»: the selector `container.querySelector('section')` became `'[data-page-shell="list"]'`. The `dir` still sits on the page root, which is now the shell instead of a `section`.
-- `orders/ui/session-tips-dialog.spec.tsx`: removed the props `hasNext` and `onMore` from the `ServiceSessionDayList` fixture. The load-more action moved to the card footer in `ServiceSessionDayBody`, so the list no longer takes them. No assertion touched.
-- `orders/ui/session-recording-header.spec.tsx`: the harness now holds the limit state and renders `SessionDraftSummary` beside the header, because the header no longer renders the summary. The four assertions are unchanged.
+- `service-session-day-page.spec.tsx`, «uses the locale direction on the day list»: `querySelector('section')` became `'[data-page-shell="list"]'`; `dir` is still on the page root.
+- `session-tips-dialog.spec.tsx`: removed the props `hasNext` and `onMore` from the `ServiceSessionDayList` fixture (Load more moved to the page card footer). No assertion touched.
+- `session-recording-header.spec.tsx`: the harness holds the limit state and renders `SessionDraftSummary` beside the header. The assertions are unchanged.
 
 ### `packages/ui` changes
 
@@ -80,24 +95,27 @@ None.
 
 ### Other production changes outside the seven pages' own files
 
-- `packages/i18n/src/catalog-package-types.ts`: one key, `basics`, in `ar` and `en` (the «Package details» section title).
-- `BranchServiceCategoriesFrame` renamed `BranchServiceCategoriesGrid` (it is a bare table now).
-- New `catalog/ui/list-query-states.tsx`: the loading, error and empty states shared by the three catalog list cards (keeps each panel under the 60-line function rule).
-- New `orders/ui/record-visit-columns.tsx`: owns the form provider, the two-column shell and the discount-limit state for Record a visit (keeps `RecordServiceSessionForm` under the 60-line rule). `PackageTypeBasicsFields` takes an optional `grid` prop so the edit panel keeps its stacked fields.
+- i18n: `catalogPackageTypes.basics`, `catalogServiceCategoryBranches.actionsColumn`, `packageSale.sectionPackage` and `packageSale.sectionPayment`, each in `ar` and `en`.
+- `BranchServiceCategoriesFrame` renamed `BranchServiceCategoriesGrid` (a bare table now).
+- New: `catalog/ui/list-query-states.tsx` (loading, error and empty states shared by the three catalog lists), `catalog/model/use-register-create-action.ts`, `orders/ui/record-visit-columns.tsx`, `orders/ui/service-session-day-list-props.ts`.
+- `PackageTypeBasicsFields`, `PackageComponentsFields` and `PackageComponentRow` take an optional `grid` prop; the package type edit panel keeps stacked fields.
+
+### Decisions by the owning session
+
+- The header description is optional and used only where an existing key fits (requirement 1 amended). Add package type, Day list, Customer packages, Sell a package and Record a visit have a title only; no new copy was written.
+- `PageHeader` makes the page title `text-2xl font-bold`. That is the intended template heading, not a font change.
+- The inline edit panels (Services, Package types, Categories editor) stay below their list card. Day list and Customer packages are card lists with no table, so no stacked rows exist there; none was invented.
 
 ### Open points
 
-1. **No tables on the two Sales lists.** Day list and Customer packages are lists of cards, not tables, so there are no stacked rows to switch on and acceptance 2 does not apply to them. No table was invented. Stacked-row labels are proved for the three real tables: Package types, Categories (business) and Categories (branch).
-2. **12-column grid and section titles on Sell a package and Record a visit.** Not done. Their fields are label, input and message fragments shared with the recovery and replay logic, so a grid would need a wrapper per field and would touch dense shared components. Both pages keep one column inside their card or column. A follow-up can do it per field component.
-3. **Page descriptions.** Five of the seven pages have a title only; no description keys were added (the brief allows only section titles and stacked-row labels). Pages without a description: Add package type, Day list, Customer packages, Sell a package, Record a visit.
-4. **Categories header order.** The scope select (branch or whole business) still sits above the header, because it switches between two page bodies that each own their header and their create action. Lifting it would move create and selection state, which this slice does not touch.
-5. **Inline edit panels stay where they are.** The Services edit panel (requirement 7), the Package types edit panel and the Categories editor are still rendered below the list card; no document says where they move.
-6. **Component rows in Add package type** (the «Sessions» input) stay stacked in their bordered row, not on the grid: the row is shared with the edit panel.
+1. The Categories create action moved from each view into the screen header. Its handler still lives in the view and is reached through the registration hook. A page or section rendered alone keeps its own header, which is how their specs render them.
+2. Sell a package keeps its customer and package-type pickers as full-width cells; their internals are untouched.
+3. Record a visit has no inner 12-column grid (two-column template), as the review decided.
 
 ### Not verified in a browser
 
-Widths, the 12-column grid spans, the sticky side column and its `top-4` offset under the final frame, stacking under 600px, 44px targets, the look of a nested card in Sell a package, Day list and Customer packages (cards inside the frame card), dialogs inside the Day list card (not clipped by its `overflow-hidden`), and the Arabic layout. They are CSS outcomes a DOM test cannot measure and wait for the browser pass after the 074-7b release.
+Widths, the 12-column spans, the sticky behaviour of the summary (the stretch override and the `top-4` offset are CSS outcomes that only the browser pass can confirm), stacking under 600px and 44px targets, how cards nested inside the frame card look, dialogs inside the Day list card (not clipped by `overflow-hidden`), whether the registered create button keeps its focus ring across a view switch, and the Arabic layout. They wait for the browser pass after the 074-7b release.
 
 ### Sizes (against `origin/main`)
 
-Production +527 / −384, tests +704 / −4, i18n +2, docs notes excluded. About 1,600 lines added plus removed outside docs, below the 2,800 stop line.
+Production +962 / −560, tests +869 / −4, i18n +8, docs excluded. 2,403 lines added plus removed outside docs after round 1 (1,621 after the first delivery), below the 2,800 stop line.
