@@ -71,29 +71,50 @@ transaction, FR-053); the reminder job it schedules later reads the company's bu
 `pospay_app`.
 
 **Consecutive keyset pages are not a snapshot** (each is its own READ COMMITTED statement), so the pass states exactly
-what it certifies. **The cut-off rule, in three lines:**
+what it certifies. **One protocol for the cut-off `C`, the same for the worker and for the operator command (point 7):**
 
-1. **The cut-off `C` is the PostgreSQL `clock_timestamp()` read just before the pass's last listing starts**, a listing
-   that adds nothing new: every id it returns was already rebuilt (the pass lists from the start up to five times; if the
-   fifth listing still adds a company the round fails and the next slot retries). A
-   statement that begins after `C` sees every company whose creating transaction committed before `C`, so **the pass
-   certifies exactly the companies committed before `C`**, whenever they were created or whatever their id order.
-2. **A company committed after `C` is not part of this certificate.** It is covered by the worker `commissions`
-   consumer of `CompanyCreated` that 56b-1 registers (FR-053, ADR-0037 precedent; the module map's `CompanyCreated` row,
-   consumed today by `staff`, gains `commissions`), the same as a company created a day after any recovery.
-3. **The consumer's failure is never silent.** The sentinel records `C`. A `CompanyCreated` event of the outbox that
-   **parks after `C`** (its deliveries ran out) makes `/ready` degraded, raises the alert
-   `COMMISSION_REMINDER_COMPANY_SCHEDULING_PARKED` and starts a new automatic pass (point 4); that pass lists every
-   company again, so a parked delivery never leaves a company unscheduled for good, and its new `C` is later than the
-   park. A delivery still being retried is not a failure yet; it is repaired by its own retry.
+1. **`C` is read first, from PostgreSQL, in a statement of its own** (`SELECT statement_timestamp()`), and **one complete
+   listing follows, every page statement of which starts after that statement has ended.** Under READ COMMITTED a
+   statement sees every transaction that had committed when its snapshot was taken, and snapshots only move forward, so
+   **every page sees every company that was committed before the snapshot of the `C` statement, including one committed
+   behind the cursor's id** (UUID v7 is time-ordered but API instances can skew). A company that commits after that
+   snapshot may or may not be returned by the listing; if it is, it is rebuilt like any other (harmless, and counted);
+   if it is not, it is not part of the certificate. The listing is one keyset pass that ends at a short page: it has no
+   «repeat until nothing new» condition, so steady onboarding cannot keep it from finishing.
+2. **The pass certifies exactly the companies committed before `C`, and it publishes (and clears) only after every
+   company the listing returned has succeeded.** The sentinel records `C`. A company committed after `C` is covered by the
+   worker `commissions` consumer of `CompanyCreated` that 56b-1 registers (FR-053, ADR-0037 precedent; the module map's
+   `CompanyCreated` row, consumed today by `staff`, gains `commissions`), the same as a company created a day after any
+   recovery.
+3. **The consumer's failure is never silent: the predicate P.** `CompanyCreated` has two consumers (`staff` and
+   `commissions`) and the dispatcher parks the **whole event** (`apps/worker/src/outbox/deliver.ts`), so a park alone does
+   not say which consumer failed. **P(C) is true when a `CompanyCreated` event has parked after `C` and the commission
+   scheduler of that event's company does not exist in Redis.** A park after which the scheduler exists (the `staff`
+   consumer failed) makes P false: no degradation, no alert, no pass. When P is true, `/ready` is degraded, the alert
+   `COMMISSION_REMINDER_COMPANY_SCHEDULING_PARKED` is raised, and detection starts a pass (point 4) whose new `C'` is
+   later than the park. A delivery still being retried is not a failure yet.
 
-**The consumer's registration** follows the ADR-0037 pattern. The Redis upsert of the scheduler runs **outside the
-database transaction and before the consumer's dedupe mark** (`markEventConsumed`, `apps/worker/src/outbox/deliver.ts`,
-which the deliverer calls inside `withTenant`): a Redis failure is a retryable delivery outcome, so **nothing is marked**
-when the registration fails and **the retry sees an unmarked event** and registers again (the upsert is idempotent). Only
-a successful registration is followed by the mark. A parked event keeps its row (`parked_at`, `last_error`), which is what
-the sentinel check above reads: no new table, role or grant (the dispatcher already reads and marks `outbox`, ADR-0003
-§3). The pass's own rebuild is the same idempotent upsert and takes no mark at all.
+**Which clock orders `C` and `parked_at`.** Both are the clock of the one PostgreSQL server: the dispatcher sets
+`parked_at = clock_timestamp()` when it parks an event (`packages/db/src/dispatcher.ts`), and `statement_timestamp()` is
+taken when the `C` statement starts, **before** its snapshot. A company that the snapshot did not see committed after it,
+hence after `C`; its event is delivered only after that commit and parks later still, so its `parked_at > C`. (A failover
+to a host with a different wall clock is outside this ordering; the next process start's pass repairs it.) P reads the
+parked events through the dispatcher facade (`outbox`, which the role already reads, ADR-0003 §3), bounded to 100 rows;
+**more than 100 parked rows after `C` count as P true.**
+
+**What P reads, and why no grant is needed.** The scheduler's existence is the fact that matters; a mark in
+`consumed_events` would only say that a registration once succeeded. The dispatcher cannot read that table at all: only
+`pospay_app` can, per company and under `withTenant` (migration 0006: `GRANT SELECT, INSERT ON consumed_events TO
+pospay_app`, the dispatcher holds `outbox` only). A predicate on the consumer's mark through the dispatcher would
+therefore need a new grant, which is an owner matter and is **not adopted** (see «Alternatives considered»); the
+existence check needs none.
+
+**The consumer's registration** follows the ADR-0037 pattern, in this order: the Redis upsert of the scheduler runs
+**outside the database transaction and before the consumer's dedupe mark** (`markEventConsumed`, which
+`apps/worker/src/outbox/deliver.ts` calls inside `withTenant`); a Redis failure is a retryable delivery outcome, so
+**nothing is marked when the registration fails and the retry sees an unmarked event** and registers again (the upsert is
+idempotent). **The mark is written only after a successful registration, so a mark can be trusted** to mean that the
+registration succeeded at that moment. The pass's own rebuild is the same idempotent upsert and takes no mark at all.
 
 - **A single scheduler lost while the Redis process and the sentinel survive is out of scope of this ADR** (it is not a
   recovery event). It is repaired by every `commissions.project-inputs` delivery (FR-053, CM-57b) and by the next process
@@ -116,12 +137,13 @@ command keeps its own identity.
 
 ### 4. (c) One key, one rule, one pass
 
-**Two Redis keys.**
+**Three Redis keys.**
 
 | Key | Meaning | Value |
 | --- | --- | --- |
 | **recovery key** `commissions:reminders:recovery` | "this pass owns the recovery": lease and marker in **one** key with a 120 s TTL | `{ incident_id, run_id, pass_id }`: the incident (null until known), the Redis `run_id` at the start (`R0`), a unique `pass_id` (UUID v7 from the injected `IdGenerator`, new for every pass) |
 | **readiness sentinel** `commissions:reminders:sentinel` (FR-053) | "this generation was fully rebuilt and verified for the companies committed before `cutoff`" | `{ release, run_id, pass_id, cutoff }`: the `pass_id` of the pass that published it and its cut-off `C` (point 2); the release is diagnostic only |
+| **pacing record** `commissions:reminders:recovery-slot` | "which retry slot (point 5) was last attempted for this incident", shared by every replica and by the operator | `{ incident_id, anchor, slot }`: the incident (null for an incident-free pass), the anchor of the schedule and the last slot attempted; written only by the script of step 1, deleted by the publish script, with a 24 h TTL as a safety net; **a pacing record, not a correctness input** |
 
 **The one rule: ownership is checked immediately before every shared write, and a pass that fails the check stops and
 does nothing else.** The shared writes are the incident-id update of the key, raising the flag, the clear, and the
@@ -131,48 +153,59 @@ write or delete); creation is `NX`. A key lost to TTL or a flush means ownership
 from duplicating work; correctness rests on the `pass_id` compare.
 
 **Detection and readiness (one rule: the incident wins).** Recovery is **needed** when the sentinel is missing or its
-`run_id` differs from the server's, **or a flag of the code `COMMISSION_REMINDER_SCHEDULES_LOST` is open**, **or a
-`CompanyCreated` event has parked after the sentinel's `C`** (point 2), and at every worker process start. **Every read
-and every adoption here is restricted to that one code**: a flag of another code never triggers this recovery, is never
-adopted, never invalidates the reminder sentinel and is never sent through the clear function (which refuses it anyway,
-point 3); `/ready` still reports it degraded as an incident of the worker, and its own owner repairs it. **`/ready` is healthy only
-when the sentinel is valid, no recovery key exists and no flag is open**, read in one fixed order so that observations
-on opposite sides of a clear or of a late insert are never combined (no new store). The probe does three things:
-**(i)** an **atomic Redis snapshot** of the sentinel, the recovery key and the server's `run_id`; **(ii)** the read of
-the open incidents in PostgreSQL; **(iii)** a **final atomic Redis check** of the same three. «Atomic» means a Lua
-script or a `MULTI`/`EXEC` transaction, as Redis documents under
+`run_id` differs from the server's, **or a flag of the code `COMMISSION_REMINDER_SCHEDULES_LOST` is open**, **or the
+parked-event predicate P is true** (point 2), and at every worker process start. **Reminder recovery's detection, adoption
+and clearing are restricted to that one code**: a flag of another code never starts this recovery, is never adopted, never
+invalidates the reminder sentinel and is never sent through the clear function (which refuses it anyway, point 3).
+**Readiness is not restricted: `/ready` is degraded while an incident of ANY code is open**, because the worker is not
+healthy with it, even though the reminder path does not touch it and its own owner repairs it. **`/ready` is healthy only
+when the sentinel is valid, no recovery key exists, no incident of any code is open and P is false**, read in one fixed
+order so that observations on opposite sides of a clear or of a late insert are never combined (no new store). The probe
+does three things: **(i)** an **atomic Redis snapshot** of the sentinel, the recovery key and the server's `run_id`;
+**(ii)** one PostgreSQL read through the dispatcher facade of **the open incidents of every code** and of the
+`CompanyCreated` events parked after the sentinel's `C` (`C` taken from (i), at most 100 rows); **(iii)** a **final atomic
+Redis check** of the same three, which also reads whether **the scheduler of each parked company listed by (ii) exists**.
+«Atomic» means a Lua script or a `MULTI`/`EXEC` transaction, as Redis documents under
 [transactions](https://redis.io/docs/latest/develop/using-commands/transactions/); a plain pipeline is not atomic. It
 reports healthy only if **(i)** showed a valid sentinel (its `run_id` equals the server's) and no recovery key, **(ii)**
-found no open incident of the reminder code and no `CompanyCreated` event parked after the sentinel's `C` (one
-statement through the dispatcher facade, `C` taken from (i)), and **(iii)** confirms **the same certificate** (the same `pass_id` and `run_id` as in (i)), a
-`run_id` equal to the server's, and no recovery key. A new certificate between (i) and (iii) therefore makes this probe
-degraded (it was published by a real recovery, and the next probe is healthy); an incident that raises, invalidates the
-sentinel and clears, then stops or crashes before publishing, leaves the sentinel absent at (iii). **The probe's
-result applies to the moment of the PostgreSQL read (ii), with the Redis certificate proven stable around it (the same
-certificate, the same `run_id` and no recovery key at (i) and at (iii)); an incident opened after that moment is
-reflected by the next probe, and the result is not a guarantee that extends to the final Redis check or to the moment
-the response is sent.**
-A valid sentinel together with an open incident does not make the worker ready. The recovery and the close stay **automatic** (CS-Q32): a new pass adopts the open incident, re-verifies
-every company's scheduler and closes it by the normal path (clear, then publish); the operator command is only the
-fallback. A pass has an incident iff it finds a loss: a missing or stale
-sentinel, an open flag **of the reminder code**, a changed `run_id`, or — in the start-up pass — **any company without
-its scheduler** (this is also CM-57b's first-deploy case). A pass that finds none (including one started by a parked
-`CompanyCreated`) is a plain re-certification, with no ledger incident.
+found no open incident of any code and no more than 100 parked rows, and **(iii)** confirms **the same certificate** (the
+same `pass_id` and `run_id` as in (i)), a `run_id` equal to the server's, no recovery key, and a scheduler for every parked
+company listed. A new certificate between (i) and (iii) therefore makes this probe degraded (it was published by a real
+recovery, and the next probe is healthy); an incident that raises, invalidates the sentinel and clears, then stops or
+crashes before publishing, leaves the sentinel absent at (iii). **The probe's result applies to the moment of the
+PostgreSQL read (ii), with the Redis certificate proven stable around it (the same certificate, the same `run_id` and no
+recovery key at (i) and at (iii)); an incident opened after that moment is reflected by the next probe, and the result is
+not a guarantee that extends to the final Redis check or to the moment the response is sent.**
+A valid sentinel together with an open incident does not make the worker ready. The recovery and the close stay
+**automatic** (CS-Q32): a new pass adopts the open incident, re-verifies every company's scheduler and closes it by the
+normal path (clear, then publish); the operator command is only the fallback. A pass has an incident iff it finds a loss:
+a missing or stale sentinel, an open flag **of the reminder code**, a changed `run_id`, or — in the start-up pass or a
+pass started by P — **any company without its scheduler** (this is also CM-57b's first-deploy case). A pass that finds none
+is a plain re-certification, with no ledger incident; it still rebuilds every company of its listing.
 
 **One pass.**
 
-1. **Own.** Create the key (`NX`); if it exists another pass owns it: wait and re-detect later, raise nothing.
-2. **Decide the incident, under ownership.** Re-read the sentinel and the open flags **of the reminder code only**:
-   nothing needed → delete the key and stop; an open flag of that code → adopt its id; a loss → `INSERT … ON CONFLICT DO
-   NOTHING` raises the flag (one open flag per code), `/ready` turns degraded, the alert is raised. **When the insert
-   returns no row (another insert won the conflict, for example a superseded pass's late insert), the pass reads the open
-   flag of the reminder code in a fresh statement and adopts that id under the same ownership guard; if that flag has
-   already been cleared, it re-runs detection from the start of this step.** A re-certification with no loss continues
-   without incident. Update the key's `incident_id`. **When the pass adopts or raises an incident and a sentinel still exists, it
-   invalidates the sentinel first — a guarded delete (only if the key holds this `pass_id`) — before the clear path.** An
-   old valid sentinel therefore can never outlive the incident it predates: whatever the clear then does (true, false,
-   unknown, or a superseded winner), `/ready` returns to healthy only after a new publication.
-3. **Rebuild** every company (point 2). **Renew the key on a time basis while working, not after a whole page**: a
+1. **Own and pace, in one Redis script.** Given the candidate anchor (the open flag's `raised_at`, or the PostgreSQL time
+   for an incident-free pass), the incident id (or null) and the PostgreSQL time, the script: **(a)** refuses when the
+   recovery key exists (another pass owns it: wait and re-detect later, raise nothing); **(b)** reads the pacing record (an
+   absent record, or one with another `incident_id`, is a new record with this anchor and `slot = -1`), computes the latest
+   **due slot `n`** of the schedule of point 5, and **refuses when `slot ≥ n`** (the slot was already attempted: the pass
+   waits for the next one); **(c)** otherwise records `slot = n` and creates the recovery key by `NX`. A process start's
+   first pass and the operator command skip (b) (a person or a new process asked for it now) and still record the slot.
+2. **Decide the incident, under ownership.** Re-read, under the key, the sentinel, the open flags **of the reminder code
+   only** and the predicate P (point 2, `C` taken from the sentinel). **The reason that started the pass is part of this
+   decision and is never reduced to «nothing needed».** Nothing needed (a valid sentinel, no reminder flag, P false) →
+   delete the key and stop. **P true with a valid sentinel and no flag → the pass continues as a plain re-certification:
+   step 3 reads a new `C'` and rebuilds every company of one complete listing.** An open flag of the reminder code → adopt
+   its id; a loss → `INSERT … ON CONFLICT DO NOTHING` raises the flag (one open flag per code), `/ready` turns degraded,
+   the alert is raised. **When the insert returns no row (another insert won the conflict, for example a superseded pass's
+   late insert), the pass reads the open flag of the reminder code in a fresh statement and adopts that id under the same
+   ownership guard; if that flag has already been cleared, it re-runs detection from the start of this step.** Update the
+   key's `incident_id` (and the pacing record's, keeping its slot). **When the pass adopts or raises an incident and a
+   sentinel still exists, it invalidates the sentinel first — a guarded delete (only if the key holds this `pass_id`) —
+   before the clear path.** An old valid sentinel therefore can never outlive the incident it predates: whatever the clear
+   then does (true, false, unknown, or a superseded winner), `/ready` returns to healthy only after a new publication.
+3. **Read `C`, then rebuild** every company of one complete listing (point 2). **Renew the key on a time basis while working, not after a whole page**: a
    timer renews under the ownership guard **at most every third of the TTL (40 s of the 120 s)**, and also before each
    page, so a page of up to 1000 companies slower than the TTL does not lose the key; **every renewal also re-checks
    that the server's `run_id` is still `R0`**. **A renewal is not progress: the renewal only holds the key while the work
@@ -190,14 +223,15 @@ its scheduler** (this is also CM-57b's first-deploy case). A pass that finds non
      taken by `NX` create — which needs no mechanism beyond the operations above.
    - **A missing scheduler found while ownership and `R0` still hold** is the only conversion: a re-certification that
      finds one continues as an incident recovery under the same key (step 2: raise or adopt, invalidate the sentinel).
-4. **Before the clear**, the same ownership and `run_id` check. Then call the clear (incident passes only); no incident
-   → skip.
+4. **Before the clear**, every company the listing returned has succeeded and the same ownership and `run_id` check holds.
+   Then call the clear (incident passes only); no incident → skip.
    - **true** → step 5. **false** (already cleared elsewhere, or not this code's) → publish nothing, delete the key,
      stop. **unknown** (timeout, lost response) → **treated as not-mine**: publish nothing, delete the key, stop; the
      flag is not read to credit this pass (a closed flag plus an intact key cannot prove this pass committed).
    - A false or unknown answer never raises a flag by itself; the next detection decides.
 5. **Publish**, guarded in one Redis script: write the sentinel `{ release, run_id: R0, pass_id, cutoff: C }` only if the key still holds
-   this `pass_id` and incident and the server's `run_id` is still `R0`, and delete the key in the same script.
+   this `pass_id` and incident and the server's `run_id` is still `R0`, and delete the key and the pacing record in the same
+   script.
 
 Every stop leaves `/ready` degraded while an incident is open or the sentinel is not healthy; a worker that has not yet
 completed its start-up pass is also degraded, so the deploy probe waits. A failing incident-free pass retries on the
@@ -236,15 +270,19 @@ it; any rule that closes an incident in PostgreSQL on a Redis check has it). Rem
 
 While a flag is open: `/ready` degraded; the alert `COMMISSION_REMINDER_SCHEDULES_LOST` is raised on every start and
 repeats on every round. **The retry state lives in the incident, not in the pass.** Its anchor is the flag row's
-`raised_at` (no new column): rounds are time slots of one schedule counted from `raised_at` — 1, 3, 7 and 15 minutes
-after it, then every 15 minutes. A pass starts a round only when the next slot is due, so a new `pass_id`, a takeover or
-a process restart **continues the same schedule**; which companies still fail is recomputed by each pass (upserts are
-idempotent). **After a restart or a takeover the interval is derived from `raised_at` alone, as the elapsed slots,
-downtime included:** the new worker computes the latest slot that is already due and starts a round for it
-at once (it cannot tell whether an earlier pass already ran that slot, and one extra round is harmless), then waits for
-the next slot. **A slot is a pace,
-not an attempt count:** under Reading A (no cap) the schedule only decides when the next round runs and never exhausts the
-retries; a long downtime shortens the next wait, it never ends the repair. A new incident starts a new schedule; an incident-free pass is anchored on its process start.
+`raised_at` (no new column): rounds are time slots of one schedule counted from the anchor — **slot 0 at once, then 1, 3, 7
+and 15 minutes after the anchor, then every 15 minutes**. **Which slot was last attempted is recorded in the shared
+pacing record** (point 4, step 1), by the script that creates the recovery key. A pass starts a round only when a slot
+newer than the recorded one is due, so **a new `pass_id`, a takeover, a second replica or a process restart continues the
+same schedule and cannot run a slot that was already attempted**, even when ownership is lost repeatedly; which companies
+still fail is recomputed by each pass (upserts are idempotent). **After a restart or a takeover the interval is derived
+from the anchor, as the elapsed slots, downtime included:** the successor runs the latest due slot if it has not been
+attempted, otherwise it waits for the next one. **A slot is a pace, not an attempt count:** under Reading A (no cap) the
+schedule only decides when the next round runs and never exhausts the retries; a long downtime shortens the next wait, it
+never ends the repair. If Redis itself was lost the pacing record is lost with it, and the first round runs at once, which
+is right because everything was lost. A new incident starts a new schedule (the record is keyed by incident); an
+incident-free pass (a re-certification, including one started by P) is anchored on the PostgreSQL time of its first
+attempt.
 
 The owner record («عدد محاولات محدود») and FR-053 («bounded backoff») can be read two ways. **Waleed chose Reading A on
 2026-11-22 (CS-Q53, point 2, «بإعادة المحاولة المستمرة»); Reading B is kept below only as the accurate description of the
@@ -258,14 +296,11 @@ alternative that was not chosen:**
 
 Counting the attempts actually made (so that downtime does not consume them) needs durable accounting of every attempt
 (a new column or table); **it is not part of this ADR and was not chosen.** **Adopted: Reading A** (Waleed, 2026-11-22).
-Because the schedule is anchored on `raised_at` alone, a successor cannot tell whether an earlier pass already attempted
-the current slot, and does not need to: a pass that starts in a slot that is due runs, and one extra attempt in a slot is
-harmless (the upserts are idempotent).
 
 ### 6. (e) Clear only when every company succeeded
 
 The flag clears only in a pass in which **every** company the pass read succeeded (including one created mid-pass that a
-later page or listing read) and the guards held. One failed company keeps the flag open, `/ready` degraded, the alert
+later page of the listing returned) and the guards held. One failed company keeps the flag open, `/ready` degraded, the alert
 repeating (Waleed's note, owner-questions §32). The certificate covers the companies committed before `C` (point 2);
 companies after `C` are the consumer's, and their failure to register shows as the parked-event check of point 4, never
 as a silent gap. **CM-57c:** a quiet business is part of the pass like any other: its scheduler is rebuilt from the id, and on
@@ -275,23 +310,27 @@ scheduler (the job ends without writing, FR-053).
 
 ### 7. Fallback: the operator command
 
-For a worker that cannot reach the database function or a company that cannot be rebuilt. It runs as the owner role and
-**does not depend on outbox consumer marks**: it **first creates the same recovery key** (its own `pass_id`, the incident
-it names, the current `run_id`); then lists every company id (the owner reads `companies.id`, the same list as the
-definer's) and verifies each company's scheduler, **upserting the missing ones itself with the same idempotent upsert**;
-**while it lists and upserts it renews the key under the same ownership guard and on the same time basis as the worker
-(at most every third of the TTL, each renewal re-checking that the server's `run_id` is still `R0`)**, so a scan longer
-than the TTL does not lose the key; **it uses the same per-operation deadlines and the same maximum interval without
-progress as the worker (point 4, step 3), so a stalled read or upsert ends the scan, frees the key by compare-and-set and
-clears nothing**; it aborts at once on a failed renewal, a lost key, a changed `run_id` or a failed upsert (clearing and
-publishing nothing). **Like the worker
-(step 2 of point 4), once it adopts or names the incident it invalidates an existing sentinel with the same guarded
-delete, before it clears**: an abort or a crash after the clear then leaves the sentinel absent and `/ready` degraded,
-never healthy on the old certificate. Only then does it clear the incident by id (audited) and publish the sentinel
-with the same guarded script. A worker pass that owns the key
-makes the operator wait or stop that worker first. Replaying `CompanyCreated` is no longer part of this primary path: it
-stays a documented secondary tool (a consumer's mark in `consumed_events` makes a replay skip a company, so it can never
-be relied on to rebuild).
+For a worker that cannot reach the database function or a company that cannot be rebuilt. **It runs the same pass routine
+as the worker (point 4, steps 1–5), with three differences only:** it runs as the owner role and reads `companies.id`
+directly, in the same keyset order and page size as the definer's listing; it clears with its own identity (audited)
+instead of `system:worker`; and it skips the pacing check of step 1 (a person asked for it now) while still recording the
+slot. **So the cut-off protocol is the worker's, not a variant: the command reads `C` from PostgreSQL
+(`SELECT statement_timestamp()`) before its one complete listing, verifies each company's scheduler and upserts the
+missing ones with the same idempotent upsert, and publishes that `C`, only after every company the listing returned
+succeeded.** It never samples `C` after the scan or at publication. A company that commits after `C`, behind the
+command's cursor, belongs to the consumer; if its delivery fails until the outbox parks it, P is true (the parked event is
+after `C` and its scheduler is missing), so readiness degrades and a new pass follows. It **does not depend on outbox
+consumer marks**: it **first creates the same recovery key** (its own `pass_id`, the incident it names, the current
+`run_id`); it renews the key under the same ownership guard, on the same time basis (at most every third of the TTL, each
+renewal re-checking that the server's `run_id` is still `R0`), with the same per-operation deadlines and the same maximum
+interval without progress as the worker (point 4, step 3), so a scan longer than the TTL does not lose the key and a
+stalled read or upsert ends the scan, frees the key by compare-and-set and clears nothing; it aborts at once on a failed
+renewal, a lost key, a changed `run_id` or a failed upsert (clearing and publishing nothing). **Like the worker (step 2 of
+point 4), once it adopts or names the incident it invalidates an existing sentinel with the same guarded delete, before it
+clears**: an abort or a crash after the clear then leaves the sentinel absent and `/ready` degraded, never healthy on the
+old certificate. A worker pass that owns the key makes the operator wait or stop that worker first. Replaying
+`CompanyCreated` is no longer part of this primary path: it stays a documented secondary tool (a consumer's mark in
+`consumed_events` makes a replay skip a company, so it can never be relied on to rebuild).
 
 ## What the code PR must amend
 
@@ -299,12 +338,13 @@ be relied on to rebuild).
 inserts flags by column; both recorded as exceptions beside the outbox dispatcher and the migration data step); ADR-0003
 §3 (the `pospay_dispatcher` row, the two owner roles, a section «global operational flags»); ADR-0054 §2 (_Access_ and
 _Clearing_ point here; `INSERT (id, code, raised_at)`); `docs/runbook.md` (automatic recovery first, the operator command
-as fallback, the two keys, the rollout rule); `packages/db/src/roles.ts`, `dispatcher.ts` (`raiseRecoveryFlag`,
+as fallback, the three keys, the rollout rule); `packages/db/src/roles.ts`, `dispatcher.ts` (`raiseRecoveryFlag`,
 `openRecoveryFlags`, `companyIdPage`, `clearRecoveryFlag`); the privilege inventory (`function-inventory.ts`,
 `table-grants.ts`, `privileges.spec.ts`: attributes, ownership of exactly one function each, no schema `CREATE`,
 effective privileges); the module map (the worker `commissions` recovery reader and the `CompanyCreated` consumer row); the dispatcher facade's
-read of `outbox.parked_at` and `event_type` for the parked-event check (the role already reads and marks `outbox`; the code
-PR confirms the column grants and adds nothing else); the sentinel's `cutoff` field and the alert
+read of `outbox` (`parked_at`, `event_type`, `company_id`) for the parked-event list (the role already reads and marks
+`outbox`; the code PR confirms the column grants and adds nothing else; **no grant on `consumed_events` and no other
+grant is needed**); the sentinel's `cutoff` field, the pacing record and the alert
 `COMMISSION_REMINDER_COMPANY_SCHEDULING_PARKED` in `docs/runbook.md`.
 
 ## Tests the code PR must carry
@@ -351,29 +391,44 @@ Recovery cases (CS-Q32), each with its own expected result:
   incident then wins as point 4 defines; **(c)** a clear followed by
   a crash before the publish, interleaved between the steps → degraded (sentinel absent at iii); **(d)** a completed
   recovery that publishes a new certificate between i and iii → degraded on this probe (the certificate changed),
-  healthy on the next; an open flag with a valid sentinel and no key → degraded.
+  healthy on the next; an open flag with a valid sentinel and no key → degraded; **an open incident of any other code
+  with a valid sentinel and no key → degraded** (without starting a reminder pass); **a parked `CompanyCreated` whose
+  company has its scheduler (the `staff` consumer failed) → healthy; a parked one whose scheduler is missing, or more than
+  100 parked rows → degraded.**
 - **Renewal:** **a page slower than the TTL does not lose the key** (renewals every ≤ TTL/3 while working, each
   re-checking `run_id` = `R0`); **a failed renewal mid-page stops the pass at once** with no further upsert or shared
   write.
-- **Retry (Reading A):** across successive `pass_id`s, takeovers and restarts the schedule continues from `raised_at`
-  and never ends while the incident is open; a pass that starts in a due slot runs even if an earlier pass already
-  attempted it.
+- **Retry and pacing (Reading A):** across successive `pass_id`s, takeovers and restarts the schedule continues from the
+  anchor and never ends while the incident is open; **a successor that takes the key after a pass lost it mid-slot waits
+  for the next slot and does not run the slot again, also when ownership is lost several times in a row; two replicas
+  contending for the same due slot run it once; a Redis flush loses the record and the first round runs at once; the
+  operator command and a process start's first pass skip the wait and record the slot.**
 - **Start-up:** a process start (also after a rollback to the same release) runs a pass; `/ready` is degraded until it
   publishes; a missing scheduler found while ownership and `R0` hold turns it into an incident recovery under the same
   key; **a changed `run_id` during the scan, with the key still present or lost, stops that pass without clearing or
   publishing and a new pass (fresh `R0`, new `pass_id`) recovers the incident**; a failing incident-free pass retries and
   raises `COMMISSION_REMINDER_RECERTIFICATION_FAILED` with no ledger incident.
-- **Operator fallback:** creates the key before it touches any scheduler; **an old valid sentinel is invalidated before
-  the clear, and an abort or a crash after the clear leaves `/ready` degraded**; with an already-consumed `CompanyCreated`
-  event and a missing scheduler it still restores the scheduler; **ownership lost during the operator's scan (a failed
-  renewal, a lost key) aborts it without a clear or a publication; a scan longer than the TTL does not lose the key**;
-  aborts on a changed `run_id` without clearing or publishing; on success the next heartbeat is healthy and no incident reopens.
-- **Coverage and the cut-off `C`:** a company created between two pages ends with a scheduler — one the pass reads
-  (counted), one it does not read (id below the cursor; after the last page, via the `CompanyCreated` consumer); a quiet
-  company is part of the pass (CM-57c); **a quiet company committed after `C` whose `CompanyCreated` registration fails
-  until the outbox parks it: `/ready` is degraded, `COMMISSION_REMINDER_COMPANY_SCHEDULING_PARKED` is raised and a new pass
-  (new `C`) schedules it; a delivery still being retried does not degrade readiness**; a company committed before `C` is
-  always read by the last listing.
+- **Operator fallback (the same pass routine, point 7):** creates the key before it touches any scheduler; **an old valid
+  sentinel is invalidated before the clear, and an abort or a crash after the clear leaves `/ready` degraded**; with an
+  already-consumed `CompanyCreated` event and a missing scheduler it still restores the scheduler; **ownership lost during
+  the operator's scan (a failed renewal, a lost key) aborts it without a clear or a publication; a scan longer than the TTL
+  does not lose the key**; aborts on a changed `run_id` without clearing or publishing; on success the next heartbeat is
+  healthy and no incident reopens; **the operator reads `C` before its listing and publishes that `C`, never one taken
+  after the scan or at publication: a company that commits after `C`, behind the operator's cursor, whose delivery fails
+  until it parks before the operator publishes is not lost: P is true, `/ready` is degraded and a new pass schedules it.**
+- **Coverage and the cut-off `C` (one protocol):** a company committed before `C` is returned by the one complete listing
+  **even when its id is below the cursor** (a company committed before the `C` statement's snapshot, with an id below the
+  cursor, is read); **a company that commits after `C`, behind the cursor, whose `CompanyCreated` delivery fails until it
+  parks: `/ready` is degraded, `COMMISSION_REMINDER_COMPANY_SCHEDULING_PARKED` is raised and a new pass (new `C'`)
+  schedules it; the same company with a delivery still being retried does not degrade readiness**; the pass publishes only
+  after every company the listing returned succeeded; **under steady onboarding (companies committed during the listing)
+  the listing still finishes and certifies**; a quiet company is part of the pass (CM-57c); `parked_at > C` holds for a
+  company the `C` snapshot did not see.
+- **The reason that started the pass (step 2):** **a valid sentinel, no reminder flag and P true does not take the «nothing
+  needed» exit: the pass rebuilds every company with a new `C'`, finds the missing scheduler, converts to an incident (or
+  repairs it) and ends with a sentinel carrying `C'`**; P false with a valid sentinel exits «nothing needed».
+- **Consumer specificity:** a parked event whose commission scheduler exists (the `staff` consumer failed) neither
+  degrades readiness, nor raises the alert, nor starts a pass; a parked event whose scheduler is missing does all three.
 - **Consumer registration (ADR-0037 pattern):** the upsert runs outside the transaction and before the dedupe mark; a Redis
   failure leaves **no mark** and the retry registers again; success is followed by the mark.
 - **Code-restricted detection:** **an open flag of another code neither triggers a rebuild, nor is adopted, nor
@@ -395,6 +450,10 @@ Recovery cases (CS-Q32), each with its own expected result:
   owner roles are smaller and auditable.
 - **A real snapshot of the company list:** a long cross-tenant transaction or a new table; the coverage rule gives the
   same result with the consumers that exist.
+- **A parked-event predicate on the commissions consumer's mark in `consumed_events`, read by the dispatcher:** the
+  dispatcher cannot read that table (migration 0006 grants it to `pospay_app` only, per company), so this needs a new
+  grant, an owner matter; not adopted. Reading the mark as `pospay_app` under `withTenant` per parked company needs none
+  but proves less than the scheduler's existence (a registration that once succeeded can be lost with Redis).
 - **Reading company ids from `outbox` events; operator-only recovery:** only the dispatcher reads `outbox`, old events
   may be gone; operator-only is superseded by CS-Q32.
 
@@ -403,7 +462,7 @@ Recovery cases (CS-Q32), each with its own expected result:
 - **The residual window of point 4** (question vi): **accepted by Waleed on 2026-11-22 exactly as described in point 4**
   (the incident can close on a Redis check that is already stale; readiness is never published for the lost generation and
   a new incident is raised at the first heartbeat after the connection returns). It is not widened by anything else in this
-  ADR: the cut-off, the parked-event check and the retry add no closing path.
+  ADR: the cut-off, the parked-event check, the pacing record and the retry add no closing path.
 - **A single lost scheduler with a surviving Redis process and sentinel** is out of scope here; periodic verification of
   scheduler coverage is tracked in [issue #1220](https://github.com/lolotam/PayPos.systems/issues/1220).
 - **A pause between the ownership check and the flag insert** can still let a superseded pass insert an incident after a
