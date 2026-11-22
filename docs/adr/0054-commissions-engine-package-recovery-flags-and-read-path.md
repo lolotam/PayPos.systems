@@ -289,7 +289,7 @@ coverage readers of the 2026-11-12 addendum get theirs in sub-PR 50-3c, the PR t
 orders-owned `readServiceLineCoveragePage`) and `SalaryCoverageReader` (the staff-owned `readSalaryCoveragePage`); both are
 owned by `commissions` and bound at the worker composition root `apps/worker/src/report-commission-coverage.ts`. The comparison
 is the pure `compareCoverage` in `packages/commissions-engine`: a projection revision >= the source revision is covered, a key
-with no projection row is missing, and a lower revision is stale; 53-2's api binding reuses it later with api-side readers. The
+with no projection row is missing, and a lower revision is stale; the comparison stays in the worker's report, and 53-2's approval does not recompute it with api-side readers: it reads a stored bootstrap coverage proof (addendum 2026-11-22, CS-Q54). The
 Port rows are added to `docs/module-map.md` §3; there is no import arrow, no migration, no new role and no new grant. The
 retained-event check (the events without the consumer's mark) reads the outbox only through `commissionInputReplayPage` as
 `pospay_dispatcher` and reads the consumer's marks through `pospay_app` `withTenant`. The third coverage reader port is
@@ -607,3 +607,189 @@ it with the round-trip test CM-34e.
   `operational_recovery_flags` table, or does the owner want a new narrow role `pospay_recovery`?) was decided on
   2026-10-23: the dispatcher role, as recommended (Waleed and Abu Salem).
   Link: [../specs/059-commissions-statements/owner-questions.ar.md](../specs/059-commissions-statements/owner-questions.ar.md)
+
+## Addendum 2026-11-22 (decision T3 = CS-Q54, row 53-2): the bootstrap coverage proof — **Proposed**
+
+**Status: Proposed.** Written by the 53-2 implementer lane; it needs Waleed's acceptance of the three technical security
+choices in section 11 before any code of the gate. It opens approval for no company (section 9). No migration number is
+taken here: the proof tables' migration takes a turn in the 53-2 slot of the queue, after 52-1.
+
+**Decision (owner, CS-Q54, 2026-11-22, verbatim):** «إثبات تأسيسي مخزّن (المقترح)، بشرط تقييد إصداره وإبطاله عند تغيّر
+شروط التغطية». Record: [owner-questions.ar.md §63](../specs/059-commissions-statements/owner-questions.ar.md) and
+[research.md R11](../specs/059-commissions-statements/51-56-statements-delivery/research.md).
+
+**What changes in this ADR.** Section 4's sentence «53-2's api binding reuses `compareCoverage` later with api-side
+readers» is superseded. The comparison stays where it is, in the worker's coverage report (the issuer's run, 50-3c and
+the #1032 rules). The approval transaction does **not** recompute it: it reads one stored proof and the ADR-0012 count
+(section 6). The reason is measured, not assumed (research R11): the live comparison cost 76 ms for 1 000 lines and
+2 083 ms for 20 000; salaries 3 688 ms for 3 000 rows of one employee; package sales 2 833 ms for 5 000; tips were not
+measured; none of it was restricted to one business and month.
+
+**What the proof is for.** After the bootstrap every input arrives as a counted event, and the ADR-0012 count already
+keeps approval closed while one has no consumer mark. The one thing the count cannot see is a source row **whose event
+never existed**. The proof closes that gap once per company; it is a «bootstrap verified» fact with a version, not a
+per-approval check.
+
+### 1. The objects
+
+| Object | Definition |
+| --- | --- |
+| `COMMISSION_COVERAGE_PROOF_VERSION` | An integer constant in `packages/domain`, starting at 1, read by the issuer and by the approval check. It is bumped in the same PR that changes any coverage condition (section 4). |
+| `commission_coverage_proofs` | Tenant table, **insert-only**, PK `(company_id, id)`, `ENABLE` and `FORCE` RLS, index `(company_id, issued_at DESC, id DESC)` for the one read of section 6. Columns: `version`; `business_ids uuid[]` (every business of the company at issue time, sorted, non-empty); `tip_from`, `tip_to` (the tip day range the run checked); `counted_types text[]` (the six names) and `consumer_id` (`commissions.project-inputs`), both written by the issue function from its own constants; `replay_bound uuid` (the highest counted retained event id, computed by the function); `epoch bigint` (the state epoch at issue); `scope_read_at timestamptz` (the function's `clock_timestamp()` when it read the business set); `issued_at`; `run_id` and `release` (caller labels, at most 100 characters); `issued_by` (`session_user`). |
+| `commission_coverage_state` | Tenant table, one row per company, PK `(company_id)`, `ENABLE` and `FORCE` RLS: `epoch bigint NOT NULL DEFAULT 0`, `bumped_at`, `reason` (a fixed code). It is the invalidation switch (section 4). |
+| `public.issue_commission_coverage_proof(...)` | The only way a proof row is written (section 2). `SECURITY DEFINER`, `VOLATILE` (it writes), `search_path = pg_catalog, pg_temp`, `row_security = on`, qualified names, owned by a `NOLOGIN` role. |
+| `public.current_commission_coverage_epoch(company_id)` | `SECURITY DEFINER` read of the state epoch for the issuer's caller (section 8, the stale-run race). |
+
+### 2. Issuance is separated from the API by database privilege (the owner's first condition)
+
+A facade running with the API's role is **not** a fence and is not proposed. `pospay_app` is the role of both the API and
+the worker today, so the separation has to come from a role the API does not connect as. Facts read from the repository:
+the API's compose environment holds `DATABASE_URL` (`pospay_app`), `AUTH_DATABASE_URL` and the platform-notifications URL
+and **no** `DISPATCHER_DATABASE_URL` (`deploy/docker-compose.staging-shared.yml`); only the worker, and the coverage
+CLI run by an operator, hold the dispatcher URL (`apps/worker/src/main.ts`, `report-commission-coverage.ts`); ADR-0003
+§3 says no membership or `PUBLIC` path lets another role acquire `pospay_dispatcher`.
+
+Three real alternatives. The **difference is in the right-hand columns**.
+
+| | Who calls | What the caller can read and write after the change | What is new | What the API role (`pospay_app`) still cannot do |
+| --- | --- | --- | --- | --- |
+| **1 (recommended). A definer function executable by `pospay_dispatcher`** | The coverage CLI / worker, on the dispatcher pool it already uses (the CLI already requires `DISPATCHER_DATABASE_URL`) | `pospay_dispatcher` keeps exactly its present table privileges (`outbox` `SELECT` and the five-column `UPDATE`) and gains `EXECUTE` on two functions, the same shape as the idempotency sweep. It reads and writes no proof table directly. | One `NOLOGIN` function-owner role `pospay_coverage_issuer` (owns only the two functions; column `SELECT` on `outbox (company_id, id, event_type)`, `consumed_events (company_id, consumer_id, event_id)`, `businesses (company_id, id, created_at)`; `INSERT` on the proof table and `INSERT`/`UPDATE` on the state table; role-scoped RLS policies for it). Two functions, two `EXECUTE` grants to `pospay_dispatcher`. **No new pool, no new secret, no new login role.** | `EXECUTE` the functions (revoked from `PUBLIC` and `pospay_app`); `INSERT`, `UPDATE` or `DELETE` the proof table; `SET ROLE` to the function owner or to `pospay_dispatcher`. A write attempted with the API's role is refused by the database. |
+| **2. A new `LOGIN` role `pospay_coverage` with its own pool and secret** | The coverage CLI, on a new `COVERAGE_DATABASE_URL` | The same function and the same owner role; the dispatcher gains nothing. | Everything of 1, plus a login role, a password in Dokploy secrets, a pool and an env var in the worker compose. ADR-0054 section 2 rejected a new login role for the flags table for these costs (D-24). | The same as 1, and additionally a compromise of the dispatcher credential cannot issue a proof. |
+| **3. Issuance only by an operator command as `pospay_owner`** (like `pnpm platform:grant`) | A human with the owner credential, never a running container | The superuser credential, for the length of one command. The function may still be used for its checks, but a superuser can bypass it. | An operator script; no runtime role, no runtime grant. | Everything: the API never holds the owner secret. The cost is that the strongest credential joins an operational procedure and the checks are advisory. |
+
+**Recommendation: 1.** It gives a real privilege difference with the least new surface and uses the credential the
+operator's report run already needs. Choosing it amends the dispatcher sentence of CLAUDE.md §5 and the roles table of
+ADR-0003 §3 («plus `EXECUTE` on the proof functions»); both are amended in the 53-2 code PR, as 56b-1 does for its grant.
+
+### 3. What the issue function re-verifies, and what it cannot
+
+The caller may only pass labels and claims. The function **computes** the rest, under one serialisation (section 7), so a
+caller cannot issue a proof for a scope it did not check:
+
+1. The company exists and is not deleted.
+2. The supplied business list equals **exactly** the company's businesses read inside the function (a run that does not
+   name every business issues nothing: `COVERAGE_SCOPE_INCOMPLETE`). `scope_read_at` is taken here.
+3. The replay bound is **the function's own** maximum counted retained event id for the company; no counted retained event
+   at or below it lacks the `commissions.project-inputs` mark (else `COVERAGE_UNMARKED_EVENTS`); the counted types and the
+   consumer id are the function's constants.
+4. `expected_epoch` (section 8) equals the state epoch under the lock (else `COVERAGE_EPOCH_MOVED`).
+5. `tip_from <= tip_to`, both real calendar dates.
+
+**What it cannot verify, and says so:** (a) that the lines, salaries, package sales and tips revisions in the projection
+match their source tables — that comparison needs the orders and staff tables, which the function owner is not granted
+and which module boundaries keep out of SQL, so it stays in the worker's report and the function **trusts the caller for
+it**; (b) that the run was taken in the quiet window; (c) that `version` is the running release's constant; (d) that the
+tip range reaches every business day with inputs. The mitigations are recorded, not hidden: `run_id`, `release` and
+`issued_by` are stored, the approval check requires the version to equal **its own** release's constant, and a proof
+issued by an older release is therefore never accepted by a newer one. The residual trust is: the holder of the
+dispatcher credential (the worker release or the operator) is honest about (a) to (d). This is the owner's choice in
+section 11.
+
+### 4. Invalidation fails closed (the owner's second condition)
+
+A proof is valid only if **all** of these hold: it exists; its `version` equals the constant; its `epoch` equals the
+company's current `commission_coverage_state.epoch` and that row exists; its `counted_types` and `consumer_id` equal the
+current constants. **Any other case, including a missing state row, is closed.**
+
+| Coverage condition that changes | What invalidates the proof | When |
+| --- | --- | --- |
+| The counted event types, the consumer id, the set of bootstrapped input kinds (lines, tips, salaries, sales), or the proof's own rules | **The version constant is bumped** in the same PR. A catalogue test hashes (the six types, the consumer id, the input kinds, the proof schema version rule) next to the constant; changing any of them without changing the constant fails the test. | At merge, by the test |
+| A data-level change that writes source rows (service lines, line performers, sold package rows, employee salaries, tip revisions) **without** a counted event: a repair, an import or a migration data step (ADR-0038) | **The epoch is bumped** (`commission_coverage_state.epoch + 1`, a fixed reason code) **in the same transaction as, and before, the breaking write.** | Before the write |
+| A purge of counted outbox rows that have no mark | A row-level `AFTER DELETE` trigger on `outbox` for the six counted types bumps the epoch of that company. No runtime role has `DELETE` on `outbox`; this trigger forces the bump even for an operator purge as `pospay_owner`. | In the delete's own transaction |
+| A worker rollback to a release without a handler | **Not an invalidator.** The ADR-0012 count closes approval by itself (CS-Q43). | — |
+
+**How a migration data step is forced to declare its effect.** Every step registered in
+`packages/db/src/data-steps/index.ts` must carry a required field `coverage: 'NONE' | 'INVALIDATES'` (a type error if it
+is missing). The step runner bumps the epoch of every company it processes, before that step's tenant effects, for each
+step marked `'INVALIDATES'`. A test lists the registered steps against an allowlist so a new step cannot be added without
+a reviewed declaration. This is forced by the registry's type and a test, **not by the database**: the database-level net
+exists only for the outbox purge, and the ADR says so rather than claiming more. Every API write path that writes one of
+the listed source tables without a counted event must be listed by the 53-2 code PR, with its own test, and either emit the
+event or bump the epoch (alternative B below forbids the second).
+
+**Who may bump the epoch — a second choice for the owner (section 11).**
+
+| | Who invalidates | What is new | What the API role can do |
+| --- | --- | --- | --- |
+| **A (recommended).** Plain write to the state table | `pospay_app`, which is what migration data steps and API write paths run as | `INSERT`/`UPDATE` on `commission_coverage_state (epoch, bumped_at, reason)` for `pospay_app` | It can **only bump**, never write a proof, so it can close approval and never open it. A compromised API can deny approvals; it could already do that by other writes. |
+| **B.** Only a definer function | `pospay_dispatcher` and `pospay_owner`; the migration runner calls it on the owner connection | A third function and `EXECUTE` to the dispatcher; no table grant to the app role | Nothing at all. Cost: an API write path that writes a listed source table without an event can neither bump nor be allowed, so each such path is forbidden or must emit the event. |
+
+Recommendation **A**: the owner's condition is that the API cannot **open** approval, and a bump is the closing direction.
+
+### 5. A business created after the proof
+
+A business that is not in `business_ids` is admitted iff `businesses.created_at >= scope_read_at` of the proof. The rule's
+reason: a business that did not exist (or was not visible) when the issuer read the set has no pre-bootstrap source rows,
+so its inputs can only have arrived as counted events, which the ADR-0012 count covers; an import into it that writes
+source rows without events is a data-level change and bumps the epoch (section 4). Approval reads the statement's
+business row by primary key inside its transaction. A business whose creating transaction began before `scope_read_at`
+and committed after it has `created_at < scope_read_at` and is not in the set: it is **refused** (closed), and the
+operator issues a new proof. The same rule covers months: a statement month `M` is admitted iff `M` lies within
+`[tip_from, tip_to]`, or `M` starts after the business-local date of `issued_at`; a month between `tip_to` and the issue day
+is refused, so the operator's tip range must reach the issue day.
+
+### 6. The approval-time check
+
+Inside the approval transaction, **after** the period lock of FR-032 and **before** the ADR-0012 count:
+
+1. Read the current proof: `SELECT … FROM commission_coverage_proofs WHERE company_id = app_company_id() ORDER BY issued_at DESC, id DESC LIMIT 1` (one indexed read, no scan).
+2. Read `commission_coverage_state` for the company `FOR SHARE`.
+3. Require section 4's validity, then section 5's business and month admission.
+4. Then run the ADR-0012 count. **Both must pass.**
+
+A failure answers **422 `COMMISSION_COVERAGE_NOT_PROVEN`** (**proposed**; spec 059 §6 has no code that fits, and 409
+`COMMISSION_UPDATES_PENDING` is retryable while this refusal persists until an operator acts). English message: «this
+company's earlier commission data has not been verified yet, so approval is not available»; the Arabic text is written in
+the 53-2 PR with the i18n keys. Nothing is frozen, no audit entry is written.
+
+### 7. Races
+
+- **Invalidation racing an approval.** The global lock order is: period locks, then the state row. The approval holds its
+  period locks and reads the state row `FOR SHARE`. An invalidator holds the state row `UPDATE` lock until it commits with the
+  breaking write. Either the approval locks first (the invalidator waits, so the approved statement precedes the breaking
+  write) or the invalidator locks first (the approval waits, then reads the new epoch and refuses). An invalidator that also
+  needs period locks takes them **before** the state row. A barrier test covers both orders.
+- **Two issuers.** The function first does `INSERT INTO commission_coverage_state … ON CONFLICT DO NOTHING`, then
+  `SELECT … FOR UPDATE` on the row; two issuers serialise on it. The second one sees the first's proof and may issue its own
+  (insert-only; the latest wins).
+- **An issue racing an invalidation.** Both take the same state row lock. If the invalidation commits first the issuer reads
+  the higher epoch; if the issue commits first the later bump makes that proof invalid at once.
+
+### 8. The stale-run race
+
+The caller's comparison (lines, salaries, sales, tips) runs before the function. So the CLI first calls
+`current_commission_coverage_epoch(company)`, **then** runs the report, then calls the issue function with that value as
+`expected_epoch`; the function refuses when the epoch moved in between (`COVERAGE_EPOCH_MOVED`). A breaking write that
+committed during the run therefore cannot be proven by a run that predates it.
+
+### 9. Opening approval is a separate decision
+
+The proof is **necessary, not sufficient.** This delivery designs no enablement switch: approval stays closed for every
+company by the existing gate until a decision records otherwise (the manager for a staging company; Waleed for any
+production company or a first run, PP-201 rule 4 and issue #1032), as `plan.md` _Three states_ says. Shipping the 53-2 code
+opens approval nowhere.
+
+### 10. Tests the 53-2 code PR must carry
+
+1. **No proof** → 422 `COMMISSION_COVERAGE_NOT_PROVEN`, nothing frozen.
+2. A proof of an **older version**; a proof whose `counted_types` or `consumer_id` differ; a proof with a **stale epoch**; a missing state row.
+3. A proof with a **narrower business set**; a business created after `scope_read_at` (admitted); one created before it and absent from the set (refused); a month outside the tip range (refused); a month after the issue day (admitted).
+4. **Another company's proof** (isolation) and the negative RLS tests for both tables.
+5. **A write to the proof table with the API's role is refused by the database** (`INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`), and `EXECUTE` of both functions as `pospay_app` and as every other runtime role except the chosen caller is refused; `SET ROLE` to the owner and to the dispatcher is refused.
+6. The issue function: refuses an incomplete business list, an unmarked counted event at or below the bound, a moved `expected_epoch`, an unknown company; computes the bound itself; the effective privileges of the owner role (as in 53-1).
+7. **An invalidation concurrent with an approval**, in both lock orders, with barriers and no sleeps (the approval either precedes the breaking write or refuses).
+8. Two concurrent issuers; an issue racing an invalidation.
+9. The outbox `AFTER DELETE` trigger bumps the epoch; no runtime role holds `DELETE` on `outbox`.
+10. The catalogue hash test of section 4 and the registered data steps against their allowlist.
+11. **ADR-0012 group 5 still passes** with a valid proof, and a valid proof does not lower or bypass the count.
+
+### 11. Choices that go to the owner (technical, Waleed only, like ADR-0061)
+
+1. **Issuance:** option 1, 2 or 3 of section 2 (recommended: 1, which adds `EXECUTE` on two functions to `pospay_dispatcher` and one `NOLOGIN` owner role, and no new pool or secret).
+2. **Invalidation:** A or B of section 4 (recommended: A).
+3. **The residual trust of section 3:** accept that the dispatcher-credential holder is trusted for the revision comparison, or ask for more in-database verification (which would grant the function owner read access to the orders and staff tables).
+
+### 12. Evidence read for this addendum (no code was changed)
+
+- **Does any release mark a counted type it does not handle as consumed? No.** In `apps/worker/src/outbox/deliver.ts` the mark and the handler run in one tenant transaction (lines 67–73): `if (!consumer.eventTypes.includes(event.eventType)) continue;` then `if (await markEventConsumed(tx, consumer.id, event.id)) await consumer.handle(tx, event);`. A failing handler rolls the mark back with it. The manager's reading is right about the **other** direction: a *known* event type with **no** registered consumer (`KNOWN_EVENT_TYPES`, `known-event-types.ts`) is skipped by the `continue`, the delivery still returns `delivered: true`, `published_at` is set and **no mark exists**; a type that is not known throws `unknownEventType()` and ends parked. On `main` all six counted types are registered (`commissions.module.ts`), so they are marked when handled. From git history, the consumer registered `ServiceSessionRecorded` and the line types on 2026-11-02 (50-1, #790), `SessionTipsChanged` and `SalaryChanged` on 2026-11-11 (row 50-2), and `PackageSaleChanged` on 2026-11-21 (50-4, #1149); before each date that type was published without a mark, which the ADR-0012 count treats as pending forever (the 2026-10-08 and 2026-10-22 amendments), so that period **fails closed**, never open. The delivery code with the mark in the loop dates from 2026-09-23 (#24).
+- **Does any job delete or expire `outbox` rows? No.** A search of the application, worker and `packages/db` sources and migrations (excluding tests) finds no `DELETE` on `outbox` and no retention job for it; the dispatcher role has `UPDATE` on five columns only, and ADR-0012 forbids deleting an outbox row before its consumers commit. The only cleanup jobs found are for files and for idempotency keys (a different table). The trigger of section 4 is therefore a safety net, not a response to an existing purge.

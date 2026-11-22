@@ -810,8 +810,10 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   `transaction_timestamp()` captured before the lock → lock → recheck ended month, permission, status REVIEWED, fingerprint =
   `reviewed_fingerprint` = `expected_fingerprint`, the statement fingerprint the builder gives now =
   `reviewed_statement_fingerprint` = `expected_statement_fingerprint` (the early refusal for a label or branch-link change;
-  the builder runs **once** in this transaction and the freeze below inserts exactly the rows of that run, D-26), no blocking issue, no unresolved blocked correction, D-14, **every
-  bootstrapped input type (lines, tips, salaries, package sales) meets its coverage rule (D-15, FR-020)** → the count →
+  the builder runs **once** in this transaction and the freeze below inserts exactly the rows of that run, D-26), no blocking issue, no unresolved blocked correction, D-14, **the
+  company's current bootstrap coverage proof is valid** (it exists, carries the current version, its epoch is current, and its scope
+  covers this business and month: ADR-0054 addendum «Bootstrap coverage proof», CS-Q54, which replaces re-checking coverage at
+  every approval) → the count →
   **one** update of the statement row to APPROVED with `approved_by`, `approved_at`, `input_fingerprint` and
   `statement_fingerprint` = `reviewed_statement_fingerprint` (FR-034) → freeze (the insert triggers accept rows only for a
   statement this transaction set to APPROVED) → the statement fingerprint recomputed from the rows read back must equal
