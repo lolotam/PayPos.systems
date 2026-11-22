@@ -1,6 +1,6 @@
 {
-  "id": "80bee235-74a8-4f44-825b-d5c3ace293fc",
-  "prevId": "785a82f5-e8b1-4da8-a065-40413c4d3450",
+  "id": "b4e9bf89-606e-40f2-ad4e-f3cf243929ee",
+  "prevId": "db429327-0da6-4e8e-b711-1958d34cc624",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -15284,6 +15284,12 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "document_number": {
+          "name": "document_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -15540,6 +15546,10 @@
         "employee_documents_replaced_after_record": {
           "name": "employee_documents_replaced_after_record",
           "value": "\"employee_documents\".\"replaced_at\" IS NULL OR \"employee_documents\".\"replaced_at\" >= \"employee_documents\".\"recorded_at\""
+        },
+        "employee_documents_document_number": {
+          "name": "employee_documents_document_number",
+          "value": "\"employee_documents\".\"document_number\" IS NULL OR (char_length(\"employee_documents\".\"document_number\") BETWEEN 1 AND 64 AND \"employee_documents\".\"document_number\" = btrim(\"employee_documents\".\"document_number\") AND \"employee_documents\".\"document_number\" !~ '[\\u0001-\\u001f\\u007f-\\u009f]' AND \"employee_documents\".\"document_number\" !~ '^[\\s\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]' AND \"employee_documents\".\"document_number\" !~ '[\\s\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]$')"
         }
       },
       "isRLSEnabled": false

@@ -46,7 +46,7 @@ it('grants the read permission to the approved global roles', async () => {
 it('never grants the read permission to the device role', async () => {
   const device = SYSTEM_ROLES.find((role) => role.code === 'device');
   const rows = await owner`SELECT 1 FROM role_permissions
-    WHERE role_id = ${device?.id}::uuid AND permission_code = ${PERMISSION}`;
+    WHERE role_id = ${device?.id ?? ''}::uuid AND permission_code = ${PERMISSION}`;
   expect(rows).toHaveLength(0);
 });
 
