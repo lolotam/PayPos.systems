@@ -5,13 +5,17 @@ import { useCallback, useRef, useSyncExternalStore } from 'react';
 export function useNavigationMedia(query: string): boolean {
   const subscribe = useCallback(
     (callback: () => void) => {
+      if (typeof window.matchMedia !== 'function') return () => undefined;
       const media = window.matchMedia(query);
       media.addEventListener('change', callback);
       return () => media.removeEventListener('change', callback);
     },
     [query],
   );
-  const getSnapshot = useCallback(() => window.matchMedia(query).matches, [query]);
+  const getSnapshot = useCallback(
+    () => (typeof window.matchMedia === 'function' ? window.matchMedia(query).matches : false),
+    [query],
+  );
   return useSyncExternalStore(subscribe, getSnapshot, () => false);
 }
 
@@ -26,6 +30,7 @@ export function useHydratedNavigationMedia(query: string): HydratedMediaSnapshot
   const snapshotRef = useRef<HydratedMediaSnapshot>(SERVER_MEDIA_SNAPSHOT);
   const subscribe = useCallback(
     (callback: () => void) => {
+      if (typeof window.matchMedia !== 'function') return () => undefined;
       const media = window.matchMedia(query);
       media.addEventListener('change', callback);
       return () => media.removeEventListener('change', callback);
@@ -33,7 +38,8 @@ export function useHydratedNavigationMedia(query: string): HydratedMediaSnapshot
     [query],
   );
   const getSnapshot = useCallback(() => {
-    const matches = window.matchMedia(query).matches;
+    const matches =
+      typeof window.matchMedia === 'function' ? window.matchMedia(query).matches : false;
     const snapshot = snapshotRef.current;
     if (!snapshot.ready || snapshot.matches !== matches) {
       snapshotRef.current = { matches, ready: true };

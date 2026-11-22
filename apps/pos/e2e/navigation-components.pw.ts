@@ -306,7 +306,9 @@ for (const dir of DIRECTIONS) {
       const currentWorkspace = rail.getByRole('button', { name: LABELS.business }).first();
       await expectVisibleNavRailCurrentMarker(currentWorkspace);
 
-      const panel = page.getByRole('complementary', { name: LABELS.panelNavigation });
+      const panel = page.getByRole(width >= 1024 ? 'complementary' : 'dialog', {
+        name: LABELS.panelNavigation,
+      });
       await expect(panel).toBeVisible();
       await expect(panel.getByRole('link', { name: LABELS.columns })).toBeVisible();
 

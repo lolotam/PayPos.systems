@@ -9,6 +9,11 @@ import {
   type NavigationWorkspace,
 } from './navigation-presentation.js';
 import { cn } from './shared/cn.js';
+import { useNavigationMedia } from './use-navigation-media.js';
+
+const TABLET_OVERLAY_QUERY = '(min-width: 600px) and (width < 1024px)';
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 function isFocusTargetEligible(target: HTMLElement | undefined): target is HTMLElement {
   if (
@@ -30,6 +35,69 @@ function isFocusTargetEligible(target: HTMLElement | undefined): target is HTMLE
     }
   }
   return true;
+}
+
+function getPanelFocusableElements(panel: HTMLElement | null): HTMLElement[] {
+  if (!panel) return [];
+  return Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((element) =>
+    isFocusTargetEligible(element),
+  );
+}
+
+function isInsideAnotherDialog(panel: HTMLElement | null, target: Element | null): boolean {
+  const dialog = target?.closest('[role="dialog"]');
+  return Boolean(dialog && panel && !panel.contains(dialog) && dialog !== panel.parentElement);
+}
+
+function handleOverlayKeyDown(
+  event: KeyboardEvent,
+  panel: HTMLElement | null,
+  onClose: () => void,
+) {
+  if (isInsideAnotherDialog(panel, document.activeElement)) return;
+  if (event.key === 'Escape' && !event.isComposing) {
+    event.preventDefault();
+    onClose();
+    return;
+  }
+  if (event.key !== 'Tab') return;
+  const focusable = getPanelFocusableElements(panel);
+  if (focusable.length === 0) {
+    event.preventDefault();
+    return;
+  }
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = document.activeElement;
+  if (event.shiftKey) {
+    if (active === first || !panel?.contains(active)) {
+      event.preventDefault();
+      last?.focus();
+    }
+  } else if (active === last || !panel?.contains(active)) {
+    event.preventDefault();
+    first?.focus();
+  }
+}
+
+function useFloatingPanelOverlay(
+  panelRef: RefObject<HTMLDivElement | null>,
+  active: boolean,
+  onClose: () => void,
+) {
+  const wasActive = useRef(false);
+  useEffect(() => {
+    const justActivated = active && !wasActive.current;
+    wasActive.current = active;
+    if (!active) return;
+    if (justActivated && !panelRef.current?.contains(document.activeElement)) {
+      getPanelFocusableElements(panelRef.current)[0]?.focus();
+    }
+    const onKeyDown = (event: KeyboardEvent) =>
+      handleOverlayKeyDown(event, panelRef.current, onClose);
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [active, onClose, panelRef]);
 }
 
 const PENDING_FOCUS_ATTRIBUTES = [
@@ -96,6 +164,7 @@ function useOutsideFocusTracker(
 
 function usePanelReturnFocus(
   panelRef: RefObject<HTMLDivElement | null>,
+  panelOpen: boolean,
   openerRef: RefObject<HTMLElement | null> | undefined,
   fallbackRef: RefObject<HTMLButtonElement | null> | undefined,
 ) {
@@ -127,7 +196,6 @@ function usePanelReturnFocus(
       restoringFocusRef.current = false;
     }
   }, []);
-
   const attemptRestore = useCallback(() => {
     const opener = openerRef?.current ?? observedOpenerRef.current;
     if ((opener && tryFocus(opener)) || (fallbackRef?.current && tryFocus(fallbackRef.current))) {
@@ -136,23 +204,24 @@ function usePanelReturnFocus(
     }
     return false;
   }, [cancelPendingFocus, fallbackRef, observedOpenerRef, openerRef, tryFocus]);
-
   useEffect(() => {
     onMutationRef.current = () => {
       if (pendingFocusRef.current) attemptRestore();
     };
   }, [attemptRestore]);
-
-  const requestFocus = useCallback(() => {
-    pendingFocusRef.current = true;
-    if (!attemptRestore()) startObserving();
-  }, [attemptRestore, startObserving]);
-
-  const retryFocus = () => {
+  const wasOpen = useRef(panelOpen);
+  useEffect(() => {
+    const didClose = wasOpen.current && !panelOpen;
+    wasOpen.current = panelOpen;
+    if (panelOpen) cancelPendingFocus();
+    else if (didClose) {
+      pendingFocusRef.current = true;
+      if (!attemptRestore()) startObserving();
+    }
+  }, [attemptRestore, cancelPendingFocus, panelOpen, startObserving]);
+  useEffect(() => {
     if (pendingFocusRef.current) attemptRestore();
-  };
-
-  return { requestFocus, cancelPendingFocus, retryFocus };
+  });
 }
 
 export type ContextPanelProps = {
@@ -181,25 +250,10 @@ export function ContextPanel({
   onClose,
 }: ContextPanelProps) {
   const dir = useDirection();
+  const isFloatingOverlay = useNavigationMedia(TABLET_OVERLAY_QUERY);
   const panelRef = useRef<HTMLDivElement>(null);
-  const { requestFocus, cancelPendingFocus, retryFocus } = usePanelReturnFocus(
-    panelRef,
-    openerRef,
-    returnFocusRef,
-  );
-  const wasOpen = useRef(panelOpen);
-  useEffect(() => {
-    const didClose = wasOpen.current && !panelOpen;
-    wasOpen.current = panelOpen;
-    if (panelOpen) {
-      cancelPendingFocus();
-    } else if (didClose) {
-      requestFocus();
-    }
-  }, [panelOpen, cancelPendingFocus, requestFocus]);
-  useEffect(() => {
-    retryFocus();
-  });
+  usePanelReturnFocus(panelRef, panelOpen, openerRef, returnFocusRef);
+  useFloatingPanelOverlay(panelRef, panelOpen && isFloatingOverlay, onClose);
   if (!panelOpen) return null;
   const inspectedId = resolveInspectedWorkspaceId({
     currentWorkspaceId,
@@ -210,6 +264,8 @@ export function ContextPanel({
   return (
     <aside
       dir={dir}
+      role={isFloatingOverlay ? 'dialog' : undefined}
+      aria-modal={isFloatingOverlay ? 'true' : undefined}
       aria-label={labels.navigation}
       className={cn(
         'hidden min-[600px]:fixed min-[600px]:inset-y-0 min-[600px]:start-21 min-[600px]:z-20 min-[600px]:flex min-[600px]:w-68 min-[600px]:border-e min-[600px]:border-sidebar-border min-[600px]:bg-sidebar min-[600px]:text-sidebar-foreground min-[600px]:shadow-lg',
