@@ -33,6 +33,18 @@ describe('CM-28c the two GET response shapes (FR-025, two Zod schemas, never opt
   );
 });
 
+describe('the read path that feeds the input fingerprint (from review round 1 of 1a-i)', () => {
+  it.todo(
+    'passes the revision of the selected salary row (commission_salaries.revision) into the canonical input, proven by a revision-only change moving the fingerprint',
+  );
+  it.todo(
+    'proves and reports a correction of a line whose projection head is missing before any behaviour is chosen',
+  );
+  it.todo(
+    'proves the statement fingerprint through the real serializer on read: built rows equal stored rows',
+  );
+});
+
 describe('CM-29 a month that has not ended', () => {
   it.todo('refuses generate with 422 COMMISSION_PERIOD_NOT_ENDED and keeps the estimate readable');
 });
