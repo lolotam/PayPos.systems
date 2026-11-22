@@ -90,6 +90,9 @@ export function fullRows(): StatementMonthRows {
   const base = octoberRows();
   return {
     ...base,
+    lines: base.lines.map((line) =>
+      line.lineId === 'line-2' ? { ...line, ruleSnapshot: { kind: 'FOLLOW_PLAN' as const } } : line,
+    ),
     sales: [
       ...base.sales,
       {
@@ -119,6 +122,14 @@ export function fullRows(): StatementMonthRows {
         effectiveFrom: '2026-10-03',
         createdAt: 1_789_000_000_000_005n,
         rule: { kind: 'FIXED', value: 1_000n },
+      },
+      {
+        ...at(base.overrides, 0),
+        id: 'override-3',
+        serviceId: 'service-7',
+        effectiveFrom: '2026-10-04',
+        createdAt: 1_789_000_000_000_006n,
+        rule: { kind: 'ZERO' },
       },
     ],
     corrections: correctionsOf(base),
@@ -210,7 +221,7 @@ const SARA_LINES = [
     net_share: '50.000',
     share_bps: '10000',
     counts: true,
-    rule_snapshot: rule('PCT', '500'),
+    rule_snapshot: rule('FOLLOW_PLAN'),
   },
 ];
 
@@ -317,6 +328,13 @@ const SARA_ENTRY = {
       effective_from: '2026-10-03',
       created_at: '2026-09-10T00:26:40.000005Z',
       rule: rule('FIXED', '1.000'),
+    },
+    {
+      id: 'override-3',
+      service_id: 'service-7',
+      effective_from: '2026-10-04',
+      created_at: '2026-09-10T00:26:40.000006Z',
+      rule: rule('ZERO'),
     },
   ],
   corrections: [

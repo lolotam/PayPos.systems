@@ -4,31 +4,84 @@ import { fullRows } from './canonical-input-expected.ts';
 import { PERIOD, type StatementMonthRows } from './statement-fixtures.ts';
 
 /**
- * تعديل واحد على حقل: `run` بيرجّع نص المدخل بعد التعديل. `alsoChanges` بيسمّي الأوراق اللي
- * بتتغير حتماً مع الحقل (قيمة القاعدة بتتكتب حسب نوعها، وحقل اتشال بيشيل أوراقه)؛ أي ورقة تانية
- * بتتغير بتفشل الاختبار. `moves` لتعديل بينقل صفاً لموظفة تانية فمفيش عزل ممكن.
+ * تعديل واحد على حقل واحد من `fullRows()`.
+ * - `field`: مسار الورقة العام (`[]` لكل عنصر قايمة)، وبيتقارن بأوراق القيمة المكتوبة بإيدي.
+ * - `ids`: هوية الصف الأساسية لكل `[]` في `field` بالترتيب (الموظفة، ثم الصف، ثم خطوة الشريحة).
+ * - `row`: مسار الصف العام، وبتتبني عليه `alsoChanges`.
+ * - `alsoChanges`: الأوراق (نسبةً للصف) اللي بتتغير حتماً مع الحقل: قيمة القاعدة بتتكتب حسب
+ *   نوعها، وحقل اتشال بيشيل أوراقه. أي ورقة غيرها بتتغير بتفشل الاختبار.
+ * - `moves`: التعديل بينقل صفاً لموظفة تانية، فمفيش عزل ممكن وله اختباره.
  */
 export interface FieldMutation {
+  readonly field: string;
+  readonly label?: string;
   readonly run: () => string;
+  readonly ids: readonly string[];
+  readonly row: string;
   readonly alsoChanges?: readonly string[];
   readonly moves?: true;
 }
 
+type Extra = {
+  alsoChanges?: readonly string[];
+  moves?: true;
+  label?: string;
+  stepIds?: readonly string[];
+};
+
+const ROW_PATH: Record<keyof StatementMonthRows, string> = {
+  lines: 'employees[].lines[]',
+  sales: 'employees[].sales[]',
+  tips: 'employees[].tips[]',
+  salaries: 'employees[]',
+  versions: 'employees[].versions[]',
+  overrides: 'employees[].overrides[]',
+  corrections: 'employees[].corrections[]',
+  blocked: 'employees[].blocked_corrections[]',
+  carries: 'employees[].carries[]',
+};
+
 /**
- * يعدّل عنصر واحد في قايمة من `fullRows()` بتعديل واحد، ويرجّع نص المدخل القياسي بعده.
+ * هوية الصف الأساسية كما بتتكتب في المسارات: الموظفة، ثم الصف.
  *
+ * @param key القايمة
+ * @param row الصف من `fullRows()`
+ * @returns الهويات بالترتيب
+ */
+function identitiesOf(key: keyof StatementMonthRows, row: Record<string, unknown>): string[] {
+  const employee = String(row['employeeId'] ?? row['sellerEmployeeId']);
+  const rowId: Record<keyof StatementMonthRows, string> = {
+    lines: String(row['lineId']),
+    sales: String(row['saleId']),
+    tips: `${String(row['sessionId'])}:${String(row['method'])}`,
+    salaries: '',
+    versions: String(row['version']),
+    overrides: String(row['id']),
+    corrections: `${String(row['sourcePeriod'])}|${String(row['sourceRef'])}|${String(row['generation'])}`,
+    blocked: String(row['sourcePeriod']),
+    carries: `${String(row['sourceStatementId'])}:${String(row['kind'])}`,
+  };
+  return key === 'salaries' ? [employee] : [employee, rowId[key]];
+}
+
+/**
+ * يعدّل عنصر واحد في قايمة من `fullRows()` بتعديل واحد.
+ *
+ * @param field مسار الورقة العام
  * @param key القايمة
  * @param index موضع العنصر في `fullRows()`
  * @param change الحقل أو الحقول اللي بتتغير
- * @param extra الأوراق اللي بتتغير حتماً مع الحقل، أو `moves`
+ * @param extra الأوراق اللي بتتغير حتماً مع الحقل، أو `moves`، أو هوية الخطوات
  * @returns التعديل
  */
 function edit<K extends keyof StatementMonthRows>(
+  field: string,
   key: K,
   index: number,
   change: Partial<StatementMonthRows[K][number]>,
-  extra: Omit<FieldMutation, 'run'> = {},
+  extra: Extra = {},
 ): FieldMutation {
+  const base: readonly object[] = fullRows()[key];
   const run = () => {
     const rows = fullRows();
     const list: readonly object[] = rows[key];
@@ -37,14 +90,20 @@ function edit<K extends keyof StatementMonthRows>(
       buildCanonicalInput(PERIOD, { ...rows, [key]: next } as StatementMonthRows),
     );
   };
-  return { run, ...extra };
+  const target = base[index] as Record<string, unknown>;
+  const { stepIds = [], ...rest } = extra;
+  return {
+    field,
+    run,
+    ids: [...identitiesOf(key, target), ...stepIds],
+    row: ROW_PATH[key],
+    ...rest,
+  };
 }
 
 const SARA_VERSION = 0;
 const NOOR_VERSION = 3;
 const V = 'employees[].versions[].';
-
-/** خطوتا شرائح نور كما في `fullRows()`، عشان كل تعديل يمس حقلاً واحداً. */
 const FIRST_STEP = {
   from: { kind: 'AMOUNT', value: 100_000n },
   calc: { kind: 'PCT', value: 500n },
@@ -53,15 +112,25 @@ const SECOND_STEP = {
   from: { kind: 'AMOUNT', value: 200_000n },
   calc: { kind: 'FIXED', value: 3_000n },
 } as const;
+const STEP_LEAVES = [0, 1].flatMap((step) =>
+  ['from.kind', 'from.value', 'calc.kind', 'calc.value'].map(
+    (leaf) => `tiers.steps[${step}].${leaf}`,
+  ),
+);
 
 /**
- * يعدّل شرائح إصدار نور بتعديل واحد.
+ * تعديل شرائح إصدار نور بتعديل واحد.
  *
+ * @param field مسار الورقة العام
  * @param change الحقل أو الحقول اللي بتتغير في الشرائح
- * @param extra الأوراق اللي بتتغير حتماً مع الحقل
+ * @param extra الأوراق اللي بتتغير حتماً مع الحقل، وهوية الخطوة
  * @returns التعديل
  */
-function noorTiers(change: Record<string, unknown>, extra: readonly string[] = []): FieldMutation {
+function noorTiers(
+  field: string,
+  change: Record<string, unknown>,
+  extra: Extra = {},
+): FieldMutation {
   const tiers = {
     enabled: true,
     mode: 'MARGINAL',
@@ -69,55 +138,84 @@ function noorTiers(change: Record<string, unknown>, extra: readonly string[] = [
     steps: [FIRST_STEP, SECOND_STEP],
     ...change,
   };
-  return edit(
-    'versions',
-    NOOR_VERSION,
-    { tiers } as Partial<CommissionPlanVersion>,
-    extra.length === 0 ? {} : { alsoChanges: extra.map((leaf) => `${V}tiers.${leaf}`) },
-  );
+  return edit(field, 'versions', NOOR_VERSION, { tiers } as Partial<CommissionPlanVersion>, extra);
 }
 
 /**
- * تعديلات البنود والبيع والبقشيش والراتب. المعرّفات بتتبدّل لقيمة بتفضل في نفس موضع الترتيب،
- * وطريقة دفع البقشيش بتتعدّل في بقشيش جلسته الوحيدة.
+ * تعديلات البنود؛ وقاعدة البند بتتنقل بين نوع بقيمة ونوع بلا قيمة (ZERO وFOLLOW_PLAN) والعكس.
  *
  * @returns التعديلات
  */
-function rowMutations(): Record<string, FieldMutation> {
+function lineMutations(): FieldMutation[] {
   const L = 'employees[].lines[].';
-  const S = 'employees[].sales[].';
-  const T = 'employees[].tips[].';
-  const salary = 'employees[].salary';
-  const salaryLeaves = [`${salary}.effective_from`, `${salary}.amount`, `${salary}.revision`];
-  return {
-    'employees[].employee_id': edit('lines', 0, { employeeId: 'employee-zed' }, { moves: true }),
-    [`${L}line_id`]: edit('lines', 0, { lineId: 'line-1b' }),
-    [`${L}revision`]: edit('lines', 0, { revision: 5n }),
-    [`${L}occurred_at`]: edit('lines', 0, { occurredAt: 1_790_000_000_000_009n }),
-    [`${L}recorded_at`]: edit('lines', 0, { recordedAt: 1_790_000_000_000_009n }),
-    [`${L}business_date`]: edit('lines', 0, { businessDate: '2026-10-06' }),
-    [`${L}service_id`]: edit('lines', 0, { serviceId: 'service-9' }),
-    [`${L}net_share`]: edit('lines', 0, { netShare: 100_001n }),
-    [`${L}share_bps`]: edit('lines', 0, { shareBps: 9_999n }),
-    [`${L}counts`]: edit('lines', 0, { counts: false }),
-    [`${L}rule_snapshot.kind`]: edit(
+  const kind = `${L}rule_snapshot.kind`;
+  const value = ['rule_snapshot.value'];
+  return [
+    edit('employees[].employee_id', 'lines', 0, { employeeId: 'employee-zed' }, { moves: true }),
+    edit(`${L}line_id`, 'lines', 0, { lineId: 'line-1b' }),
+    edit(`${L}revision`, 'lines', 0, { revision: 5n }),
+    edit(`${L}occurred_at`, 'lines', 0, { occurredAt: 1_790_000_000_000_009n }),
+    edit(`${L}recorded_at`, 'lines', 0, { recordedAt: 1_790_000_000_000_009n }),
+    edit(`${L}business_date`, 'lines', 0, { businessDate: '2026-10-06' }),
+    edit(`${L}service_id`, 'lines', 0, { serviceId: 'service-9' }),
+    edit(`${L}net_share`, 'lines', 0, { netShare: 100_001n }),
+    edit(`${L}share_bps`, 'lines', 0, { shareBps: 9_999n }),
+    edit(`${L}counts`, 'lines', 0, { counts: false }),
+    edit(
+      kind,
       'lines',
       0,
       { ruleSnapshot: { kind: 'FIXED', value: 500n } },
-      { alsoChanges: [`${L}rule_snapshot.value`] },
+      { alsoChanges: value, label: 'PCT to FIXED' },
     ),
-    [`${L}rule_snapshot.value`]: edit('lines', 0, { ruleSnapshot: { kind: 'PCT', value: 501n } }),
-    [`${S}sale_id`]: edit('sales', 0, { saleId: 'sale-1b' }),
-    [`${S}revision`]: edit('sales', 0, { revision: 7n }),
-    [`${S}business_date`]: edit('sales', 0, { businessDate: '2026-10-11' }),
-    [`${S}price_paid`]: edit('sales', 0, { pricePaid: 50_001n }),
-    [`${S}refunded_amount`]: edit('sales', 0, { refundedAmount: 10_001n }),
-    [`${T}session_id`]: edit('tips', 0, { sessionId: 'session-0' }),
-    [`${T}revision`]: edit('tips', 0, { revision: 2n }),
-    [`${T}method`]: edit('tips', 2, { method: 'CASH' }),
-    [`${T}business_date`]: edit('tips', 0, { businessDate: '2026-10-06' }),
-    [`${T}amount`]: edit('tips', 0, { amount: 6_001n }),
-    [salary]: {
+    edit(
+      kind,
+      'lines',
+      0,
+      { ruleSnapshot: { kind: 'ZERO' } },
+      { alsoChanges: value, label: 'PCT to ZERO, the value goes' },
+    ),
+    edit(
+      kind,
+      'lines',
+      1,
+      { ruleSnapshot: { kind: 'PCT', value: 500n } },
+      { alsoChanges: value, label: 'FOLLOW_PLAN to PCT, a value appears' },
+    ),
+    edit(`${L}rule_snapshot.value`, 'lines', 0, { ruleSnapshot: { kind: 'PCT', value: 501n } }),
+  ];
+}
+
+/**
+ * تعديلات البيع والبقشيش والراتب. المعرّفات بتتبدّل لقيمة بتفضل في نفس موضع الترتيب، وطريقة دفع
+ * البقشيش بتتعدّل في بقشيش جلسته الوحيدة.
+ *
+ * @returns التعديلات
+ */
+function saleTipSalaryMutations(): FieldMutation[] {
+  const S = 'employees[].sales[].';
+  const T = 'employees[].tips[].';
+  const salary = 'employees[].salary';
+  return [
+    edit(`${S}sale_id`, 'sales', 0, { saleId: 'sale-1b' }),
+    edit(`${S}revision`, 'sales', 0, { revision: 7n }),
+    edit(`${S}business_date`, 'sales', 0, { businessDate: '2026-10-11' }),
+    edit(`${S}price_paid`, 'sales', 0, { pricePaid: 50_001n }),
+    edit(`${S}refunded_amount`, 'sales', 0, { refundedAmount: 10_001n }),
+    edit(`${T}session_id`, 'tips', 0, { sessionId: 'session-0' }),
+    edit(`${T}revision`, 'tips', 0, { revision: 2n }),
+    edit(`${T}method`, 'tips', 2, { method: 'CASH' }),
+    edit(`${T}business_date`, 'tips', 0, { businessDate: '2026-10-06' }),
+    edit(`${T}amount`, 'tips', 0, { amount: 6_001n }),
+    {
+      ...edit(
+        salary,
+        'salaries',
+        0,
+        {},
+        { alsoChanges: ['salary.effective_from', 'salary.amount', 'salary.revision'] },
+      ),
+      ids: ['employee-noor'],
       run: () => {
         const rows = fullRows();
         const extra = {
@@ -130,45 +228,38 @@ function rowMutations(): Record<string, FieldMutation> {
           buildCanonicalInput(PERIOD, { ...rows, salaries: [...rows.salaries, extra] }),
         );
       },
-      alsoChanges: salaryLeaves,
     },
-    [`${salary}.effective_from`]: edit('salaries', 0, { effectiveFrom: '2026-10-02' }),
-    [`${salary}.amount`]: edit('salaries', 0, { amount: 400_001n }),
-    [`${salary}.revision`]: edit('salaries', 0, { revision: 4n }),
-  };
+    edit(`${salary}.effective_from`, 'salaries', 0, { effectiveFrom: '2026-10-02' }),
+    edit(`${salary}.amount`, 'salaries', 0, { amount: 400_001n }),
+    edit(`${salary}.revision`, 'salaries', 0, { revision: 4n }),
+  ];
 }
 
 /**
- * تعديلات إصدار سارة الأول.
+ * تعديلات إصدار سارة الأول: تواريخه وعلاماته وبيع الباقة.
  *
  * @returns التعديلات
  */
-function saraPlanMutations(): Record<string, FieldMutation> {
-  const sara = (change: Partial<CommissionPlanVersion>, also: readonly string[] = []) =>
-    edit(
-      'versions',
-      SARA_VERSION,
-      change,
-      also.length === 0 ? {} : { alsoChanges: also.map((leaf) => `${V}${leaf}`) },
-    );
-  return {
-    [`${V}version`]: sara({ version: 2n }),
-    [`${V}effective_from`]: sara({ effectiveFrom: '2026-09-30' }),
-    [`${V}whole_period`]: sara({ wholePeriod: true }),
-    [`${V}repair_period`]: sara({ repairPeriod: PERIOD }),
-    [`${V}created_at`]: sara({ createdAt: 1_789_000_000_000_002n }),
-    [`${V}package_sale.enabled`]: sara({ packageSale: { enabled: false } }, [
+function saraPlanMutations(): FieldMutation[] {
+  const p = (field: string, change: Partial<CommissionPlanVersion>, extra: Extra = {}) =>
+    edit(`${V}${field}`, 'versions', SARA_VERSION, change, extra);
+  const sale = ['package_sale.calc.kind', 'package_sale.calc.value'];
+  return [
+    p('version', { version: 2n }),
+    p('effective_from', { effectiveFrom: '2026-09-30' }),
+    p('whole_period', { wholePeriod: true }),
+    p('repair_period', { repairPeriod: PERIOD }),
+    p('created_at', { createdAt: 1_789_000_000_000_002n }),
+    p('package_sale.enabled', { packageSale: { enabled: false } }, { alsoChanges: sale }),
+    p(
       'package_sale.calc.kind',
-      'package_sale.calc.value',
-    ]),
-    [`${V}package_sale.calc.kind`]: sara(
       { packageSale: { enabled: true, calc: { kind: 'FIXED', value: 1_000n } } },
-      ['package_sale.calc.value'],
+      { alsoChanges: ['package_sale.calc.value'] },
     ),
-    [`${V}package_sale.calc.value`]: sara({
+    p('package_sale.calc.value', {
       packageSale: { enabled: true, calc: { kind: 'PCT', value: 1_001n } },
     }),
-  };
+  ];
 }
 
 /**
@@ -176,99 +267,121 @@ function saraPlanMutations(): Record<string, FieldMutation> {
  *
  * @returns التعديلات
  */
-function noorPlanMutations(): Record<string, FieldMutation> {
-  const noor = (change: Partial<CommissionPlanVersion>, also: readonly string[] = []) =>
-    edit(
-      'versions',
-      NOOR_VERSION,
-      change,
-      also.length === 0 ? {} : { alsoChanges: also.map((leaf) => `${V}${leaf}`) },
-    );
-  return {
-    [`${V}base.enabled`]: noor({ base: { enabled: false } }, ['base.calc.kind', 'base.calc.value']),
-    [`${V}base.calc.kind`]: noor(
+function noorPlanMutations(): FieldMutation[] {
+  const n = (field: string, change: Partial<CommissionPlanVersion>, extra: Extra = {}) =>
+    edit(`${V}${field}`, 'versions', NOOR_VERSION, change, extra);
+  const step = { stepIds: ['0'] };
+  return [
+    n(
+      'base.enabled',
+      { base: { enabled: false } },
+      { alsoChanges: ['base.calc.kind', 'base.calc.value'] },
+    ),
+    n(
+      'base.calc.kind',
       { base: { enabled: true, calc: { kind: 'FIXED', value: 300n } } },
-      ['base.calc.value'],
+      { alsoChanges: ['base.calc.value'] },
     ),
-    [`${V}base.calc.value`]: noor({ base: { enabled: true, calc: { kind: 'PCT', value: 301n } } }),
-    [`${V}tiers.enabled`]: noor({ tiers: { enabled: false } }, [
-      'tiers.mode',
-      'tiers.accumulator',
-      'tiers.steps[].from.kind',
-      'tiers.steps[].from.value',
-      'tiers.steps[].calc.kind',
-      'tiers.steps[].calc.value',
-    ]),
-    [`${V}tiers.mode`]: noorTiers({ mode: 'WHOLE' }),
-    [`${V}tiers.accumulator`]: noorTiers({ accumulator: 'SESSIONS' }),
-    [`${V}tiers.steps[].from.kind`]: noorTiers(
+    n('base.calc.value', { base: { enabled: true, calc: { kind: 'PCT', value: 301n } } }),
+    n(
+      'tiers.enabled',
+      { tiers: { enabled: false } },
+      { alsoChanges: ['tiers.mode', 'tiers.accumulator', ...STEP_LEAVES] },
+    ),
+    noorTiers(`${V}tiers.mode`, { mode: 'WHOLE' }),
+    noorTiers(`${V}tiers.accumulator`, { accumulator: 'SESSIONS' }),
+    noorTiers(
+      `${V}tiers.steps[].from.kind`,
       { steps: [{ ...FIRST_STEP, from: { kind: 'SESSIONS', value: 100_000n } }, SECOND_STEP] },
-      ['steps[].from.value'],
+      { ...step, alsoChanges: ['tiers.steps[0].from.value'] },
     ),
-    [`${V}tiers.steps[].from.value`]: noorTiers({
-      steps: [{ ...FIRST_STEP, from: { kind: 'AMOUNT', value: 100_001n } }, SECOND_STEP],
-    }),
-    [`${V}tiers.steps[].calc.kind`]: noorTiers(
+    noorTiers(
+      `${V}tiers.steps[].from.value`,
+      { steps: [{ ...FIRST_STEP, from: { kind: 'AMOUNT', value: 100_001n } }, SECOND_STEP] },
+      step,
+    ),
+    noorTiers(
+      `${V}tiers.steps[].calc.kind`,
       { steps: [{ ...FIRST_STEP, calc: { kind: 'FIXED', value: 500n } }, SECOND_STEP] },
-      ['steps[].calc.value'],
+      { ...step, alsoChanges: ['tiers.steps[0].calc.value'] },
     ),
-    [`${V}tiers.steps[].calc.value`]: noorTiers({
-      steps: [{ ...FIRST_STEP, calc: { kind: 'PCT', value: 501n } }, SECOND_STEP],
-    }),
-  };
+    noorTiers(
+      `${V}tiers.steps[].calc.value`,
+      { steps: [{ ...FIRST_STEP, calc: { kind: 'PCT', value: 501n } }, SECOND_STEP] },
+      step,
+    ),
+  ];
 }
 
 /**
- * تعديلات التجاوزات والتصحيحات والموقوفة والمرحّلات.
+ * تعديلات التجاوزات والتصحيحات والموقوفة والمرحّلات؛ وقاعدة التجاوز بتتنقل بين نوع بقيمة ونوع
+ * بلا قيمة والعكس.
  *
  * @returns التعديلات
  */
-function adjustmentMutations(): Record<string, FieldMutation> {
+function adjustmentMutations(): FieldMutation[] {
   const O = 'employees[].overrides[].';
   const C = 'employees[].corrections[].';
   const B = 'employees[].blocked_corrections[].';
   const R = 'employees[].carries[].';
-  return {
-    [`${O}id`]: edit('overrides', 0, { id: 'override-1b' }),
-    [`${O}service_id`]: edit('overrides', 0, { serviceId: 'service-8' }),
-    [`${O}effective_from`]: edit('overrides', 0, { effectiveFrom: '2026-10-02' }),
-    [`${O}created_at`]: edit('overrides', 0, { createdAt: 1_789_000_000_000_009n }),
-    [`${O}rule.kind`]: edit(
+  const value = ['rule.value'];
+  return [
+    edit(`${O}id`, 'overrides', 0, { id: 'override-1b' }),
+    edit(`${O}service_id`, 'overrides', 0, { serviceId: 'service-8' }),
+    edit(`${O}effective_from`, 'overrides', 0, { effectiveFrom: '2026-10-02' }),
+    edit(`${O}created_at`, 'overrides', 0, { createdAt: 1_789_000_000_000_009n }),
+    edit(
+      `${O}rule.kind`,
       'overrides',
       0,
       { rule: { kind: 'FIXED', value: 1_500n } },
-      { alsoChanges: [`${O}rule.value`] },
+      { alsoChanges: value, label: 'PCT to FIXED' },
     ),
-    [`${O}rule.value`]: edit('overrides', 0, { rule: { kind: 'PCT', value: 1_501n } }),
-    [`${C}source_period`]: edit('corrections', 0, { sourcePeriod: '2026-08' }),
-    [`${C}source_ref`]: edit('corrections', 0, { sourceRef: 'line:old-1b' }),
-    [`${C}kind`]: edit('corrections', 0, { kind: 'SALE' }),
-    [`${C}amount`]: edit('corrections', 0, { amount: 3_001n }),
-    [`${C}previous_amount`]: edit('corrections', 0, { previousAmount: 1n }),
-    [`${C}new_amount`]: edit('corrections', 0, { newAmount: 3_001n }),
-    [`${C}generation`]: edit('corrections', 0, { generation: 2n }),
-    [`${B}source_period`]: edit('blocked', 0, { sourcePeriod: '2026-09' }),
-    [`${B}code`]: edit('blocked', 0, { code: 'NO_SALARY' }),
-    [`${R}source_statement_id`]: edit('carries', 2, { sourceStatementId: 'statement-aug2' }),
-    [`${R}kind`]: edit('carries', 2, { kind: 'TIP_CARD' }),
-    [`${R}amount`]: edit('carries', 2, { amount: -1_001n }),
-  };
+    edit(
+      `${O}rule.kind`,
+      'overrides',
+      0,
+      { rule: { kind: 'ZERO' } },
+      { alsoChanges: value, label: 'PCT to ZERO, the value goes' },
+    ),
+    edit(
+      `${O}rule.kind`,
+      'overrides',
+      2,
+      { rule: { kind: 'FIXED', value: 1_000n } },
+      { alsoChanges: value, label: 'ZERO to FIXED, a value appears' },
+    ),
+    edit(`${O}rule.value`, 'overrides', 0, { rule: { kind: 'PCT', value: 1_501n } }),
+    edit(`${C}source_period`, 'corrections', 0, { sourcePeriod: '2026-08' }),
+    edit(`${C}source_ref`, 'corrections', 0, { sourceRef: 'line:old-1b' }),
+    edit(`${C}kind`, 'corrections', 0, { kind: 'SALE' }),
+    edit(`${C}amount`, 'corrections', 0, { amount: 3_001n }),
+    edit(`${C}previous_amount`, 'corrections', 0, { previousAmount: 1n }),
+    edit(`${C}new_amount`, 'corrections', 0, { newAmount: 3_001n }),
+    edit(`${C}generation`, 'corrections', 0, { generation: 2n }),
+    edit(`${B}source_period`, 'blocked', 0, { sourcePeriod: '2026-09' }),
+    edit(`${B}code`, 'blocked', 0, { code: 'NO_SALARY' }),
+    edit(`${R}source_statement_id`, 'carries', 2, { sourceStatementId: 'statement-aug2' }),
+    edit(`${R}kind`, 'carries', 2, { kind: 'TIP_CARD' }),
+    edit(`${R}amount`, 'carries', 2, { amount: -1_001n }),
+  ];
 }
 
 /**
- * كل حقل بتبصمه بصمة المدخلات، تعديله لوحده، بمفتاح مسار الورقة في القيمة القياسية (ما عدا `period`
- * وله اختباره). اختبار اكتمال القايمة بيقارن مفاتيحها بأوراق القيمة المكتوبة بإيدي، فحقل اتشال من
- * المنشئ بيفضل له مفتاح هنا ويفشل الاختبار.
+ * كل حقل بتبصمه بصمة المدخلات، تعديله لوحده (وللقاعدة أكتر من تعديل بين نوع بقيمة وبلا قيمة).
+ * اختبار اكتمال القايمة بيقارن حقولها بأوراق القيمة المكتوبة بإيدي (ما عدا `period` وله اختباره)،
+ * فحقل اتشال من المنشئ بيفضل له تعديل هنا ويفشل الاختبار.
  *
- * @returns تعديل لكل حقل
+ * @returns التعديلات
  */
-export function canonicalMutations(): Record<string, FieldMutation> {
-  return {
-    ...rowMutations(),
+export function canonicalMutations(): FieldMutation[] {
+  return [
+    ...lineMutations(),
+    ...saleTipSalaryMutations(),
     ...saraPlanMutations(),
     ...noorPlanMutations(),
     ...adjustmentMutations(),
-  };
+  ];
 }
 
 /**

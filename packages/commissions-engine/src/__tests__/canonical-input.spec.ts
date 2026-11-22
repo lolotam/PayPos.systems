@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { microsToIso, sortedBy } from '../canonical-format.ts';
+import { microsToIso } from '../canonical-format.ts';
 import { buildCanonicalInput } from '../canonical-input.ts';
 import { assembleCommissionPeriodInput } from '../period-input-assembly.ts';
 import { EXPECTED_CANONICAL_INPUT, fullRows } from './canonical-input-expected.ts';
 import { canonicalMutations, interleaved, reversed } from './canonical-input-mutations.ts';
+import { changedPaths, fill, leafPaths, type Row } from './canonical-input-paths.ts';
 import { at, PERIOD, SARA, type StatementMonthRows } from './statement-fixtures.ts';
 
 /** النص الثابت لمدخل البصمة؛ `JSON.stringify` بيرمي على أي bigint، فنجاحه دليل إن مفيش bigint هرب. */
@@ -34,42 +35,11 @@ function saraOf(rows: StatementMonthRows): Canonical['employees'][number] {
   return found;
 }
 
-/** مسارات الأوراق (leaves) في قيمة JSON، والعنصر في القايمة بيتكتب `[]`. */
-function leafPaths(value: unknown, path = ''): string[] {
-  if (Array.isArray(value)) return value.flatMap((item) => leafPaths(item, `${path}[]`));
-  if (value !== null && typeof value === 'object') {
-    return Object.entries(value).flatMap(([key, item]) =>
-      leafPaths(item, path === '' ? key : `${path}.${key}`),
-    );
-  }
-  return [path];
-}
-
-/** كل ورقة بمسارها الفعلي (بالموضع) وقيمتها. */
-function leafValues(
-  value: unknown,
-  path = '',
-  out = new Map<string, unknown>(),
-): Map<string, unknown> {
-  if (Array.isArray(value))
-    value.forEach((item, index) => leafValues(item, `${path}[${index}]`, out));
-  else if (value !== null && typeof value === 'object') {
-    for (const [key, item] of Object.entries(value))
-      leafValues(item, path === '' ? key : `${path}.${key}`, out);
-  } else out.set(path, value);
-  return out;
-}
-
-/** الأوراق اللي اختلفت بين قيمتين (أو اتضافت أو اتشالت)، بمسارها العام. */
-function changedLeaves(before: unknown, after: unknown): Set<string> {
-  const a = leafValues(before);
-  const b = leafValues(after);
-  const changed = new Set<string>();
-  for (const key of new Set([...a.keys(), ...b.keys()])) {
-    if (!a.has(key) || !b.has(key) || a.get(key) !== b.get(key))
-      changed.add(key.replace(/\[\d+\]/g, '[]'));
-  }
-  return changed;
+/** التعديل المطلوب بحقله (وتسميته لو للحقل أكتر من تعديل). */
+function mutationOf(field: string, label?: string) {
+  const found = canonicalMutations().find((m) => m.field === field && m.label === label);
+  if (found === undefined) throw new RangeError(`no mutation for ${field}`);
+  return found;
 }
 
 describe('the input fingerprint canonical input, written by hand (D-26)', () => {
@@ -79,26 +49,92 @@ describe('the input fingerprint canonical input, written by hand (D-26)', () => 
 
   it('has a mutation for every fingerprinted field and no field the hand-written value lacks', () => {
     const fields = [...new Set(leafPaths(EXPECTED_CANONICAL_INPUT))].filter((p) => p !== 'period');
-    expect(Object.keys(canonicalMutations()).sort()).toEqual(fields.sort());
+    const covered = [...new Set(canonicalMutations().map((mutation) => mutation.field))];
+    expect(covered.sort()).toEqual(fields.sort());
   });
 
-  it.each(Object.entries(canonicalMutations()))(
-    'changes exactly %s when only that field changes',
-    (field, mutation) => {
+  it.each(
+    canonicalMutations().map(
+      (mutation) => [mutation.label ?? '', mutation.field, mutation] as const,
+    ),
+  )(
+    'changes exactly the expected paths when only the field changes: %s %s',
+    (_label, field, mutation) => {
       const after = JSON.parse(mutation.run());
       expect(JSON.stringify(after)).not.toBe(BASE);
       if (mutation.moves) return;
-      const allowed = new Set([field, ...(mutation.alsoChanges ?? [])]);
-      const changed = changedLeaves(JSON.parse(BASE), after);
-      expect(changed.has(field)).toBe(true);
-      expect([...changed].filter((leaf) => !allowed.has(leaf))).toEqual([]);
+      const row = fill(
+        mutation.row,
+        mutation.ids.slice(0, (mutation.row.match(/\[\]/g) ?? []).length),
+      );
+      const expected = [
+        fill(field, mutation.ids),
+        ...(mutation.alsoChanges ?? []).map((leaf) => `${row}.${leaf}`),
+      ];
+      expect(changedPaths(JSON.parse(BASE), after)).toEqual(expected.sort());
     },
   );
 });
 
+describe('the path comparison keeps the identity of the changed row', () => {
+  it('tells a sibling row whose leaf also changed apart from the targeted row', () => {
+    const before = {
+      employees: [
+        {
+          employee_id: 'e1',
+          lines: [
+            { line_id: 'a', revision: '1' },
+            { line_id: 'b', revision: '1' },
+          ],
+        },
+      ],
+    };
+    const both = {
+      employees: [
+        {
+          employee_id: 'e1',
+          lines: [
+            { line_id: 'a', revision: '2' },
+            { line_id: 'b', revision: '2' },
+          ],
+        },
+      ],
+    };
+    expect(changedPaths(before, both)).toEqual([
+      'employees[e1].lines[a].revision',
+      'employees[e1].lines[b].revision',
+    ]);
+    const one = {
+      employees: [
+        {
+          employee_id: 'e1',
+          lines: [
+            { line_id: 'a', revision: '2' },
+            { line_id: 'b', revision: '1' },
+          ],
+        },
+      ],
+    };
+    expect(changedPaths(before, one)).toEqual(['employees[e1].lines[a].revision']);
+  });
+});
+
+describe('rules without a value', () => {
+  it('writes ZERO and FOLLOW_PLAN as an object holding only the kind', () => {
+    const [noor, sara] = (
+      JSON.parse(BASE) as { employees: Array<{ lines: Row[]; overrides: Row[] }> }
+    ).employees;
+    expect(noor).toBeDefined();
+    expect(at(sara?.lines ?? [], 1)['rule_snapshot']).toEqual({ kind: 'FOLLOW_PLAN' });
+    expect(Object.keys(at(sara?.lines ?? [], 1)['rule_snapshot'] as Row)).toEqual(['kind']);
+    expect(at(sara?.overrides ?? [], 2)['rule']).toEqual({ kind: 'ZERO' });
+    expect(Object.keys(at(sara?.overrides ?? [], 2)['rule'] as Row)).toEqual(['kind']);
+  });
+});
+
 describe('the new value of the fields that matter most', () => {
   it('writes the new salary revision, the new repair period, the new generation and the new carry kind', () => {
-    const run = (field: string) => JSON.parse(canonicalMutations()[field]?.run() ?? 'null');
+    const run = (field: string) => JSON.parse(mutationOf(field).run());
     expect(run('employees[].salary.revision').employees[1].salary.revision).toBe('4');
     expect(run('employees[].versions[].repair_period').employees[1].versions[0].repair_period).toBe(
       PERIOD,
@@ -324,18 +360,5 @@ describe('what canonicalJson accepts and how timestamps are written', () => {
     expect(microsToIso(1_700_000_000_123_456n)).toBe('2023-11-14T22:13:20.123456Z');
     expect(microsToIso(1_700_000_000_000_001n)).not.toBe(microsToIso(1_700_000_000_000_002n));
     expect(microsToIso(-1n)).toBe('1969-12-31T23:59:59.999999Z');
-  });
-
-  it('sorts by a composite text key with the later parts breaking ties', () => {
-    const items = [
-      { a: 'b', b: '1' },
-      { a: 'a', b: '2' },
-      { a: 'a', b: '1' },
-    ];
-    expect(sortedBy(items, (item) => [item.a, item.b])).toEqual([
-      { a: 'a', b: '1' },
-      { a: 'a', b: '2' },
-      { a: 'b', b: '1' },
-    ]);
   });
 });
