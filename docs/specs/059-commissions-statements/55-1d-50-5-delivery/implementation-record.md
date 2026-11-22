@@ -192,3 +192,37 @@ round-2 receipt plus D-57. Dispositions:
   green.
 - The full api and worker suites were not run locally; `ci-gate` on the pushed head decides them
   (PP-113).
+
+## Round-3 correction after the panel on `22c01f3d6` (2026-11-22)
+
+One consolidated round against the three new MergePilot threads and one CodeRabbit follow-up.
+
+1. **The API test harness forwards the member transaction's options.** `withMember`'s fourth
+   argument reached the database only in production; the harness proxy dropped it, so the route
+   tests ran the default transaction. The proxy now forwards it, and for a read-only request it
+   records what PostgreSQL itself reports (`transaction_read_only`, `transaction_isolation`). A route
+   test asserts one `on` / `repeatable read` transaction for the estimate.
+2. **Cancelled or out-of-month sources no longer create candidates.** The candidate scan uses the
+   shared assembler's predicate (active, business date inside the month) for lines and sales. An
+   unattached employee whose only source is cancelled is absent; an attached one still shows a real
+   zero, and tips and received corrections still count.
+3. **Attachment bounds are clipped to the month in SQL.** `employee_branches` accepts a date beyond
+   year 9999 (no constraint forbids it), and such an end sorts before a four-digit year as text in
+   the engine. The estimate's attachment reader now returns `GREATEST("from", month start)` and a
+   NULL end when the end is on or after the first day of the next month, compared as dates. No
+   schema or migration change. The second-branch route case stores an end of `10000-01-01` and was
+   run against the previous reader, where it fails (`OK` instead of `NO_PLAN`), and against the new
+   one, where it passes.
+4. **CodeRabbit's signed-amount request.** A database-free engine test keeps a negative received
+   correction and the tips out of the commission subtotal.
+
+`0239` was untouched, and no migration, deploy or target operation came from this round.
+
+### Gates of the round-3 head
+
+- packages/commissions-engine 24 files / 534 tests; four estimate route specs of apps/api (estimate,
+  access, hidden-plan, refused-rows) 4 files / 38 tests — green on one PostgreSQL lane.
+- typecheck and lint clean for commissions-engine and api; `lint:docs` green.
+- The full api and worker suites were not run locally; `ci-gate` on the pushed head decides them
+  (PP-113).
+

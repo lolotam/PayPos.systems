@@ -181,7 +181,8 @@ function groupMonthByEmployee(
     if (sale.sellerEmployeeId !== null) of(sale.sellerEmployeeId).sales.push(sale);
   }
   for (const tip of month.tips) of(tip.employeeId).tips.push(tip);
-  for (const correction of month.corrections) of(correction.employeeId).corrections.push(correction);
+  for (const correction of month.corrections)
+    of(correction.employeeId).corrections.push(correction);
   for (const salary of month.salaries) of(salary.employeeId).salaries.push(salary);
   for (const version of month.versions) of(version.employeeId).versions.push(version);
   for (const override of month.overrides) of(override.employeeId).overrides.push(override);
@@ -207,7 +208,20 @@ function groupAttachmentsByEmployee(
 }
 
 /**
- * الموظفات المرشحات: كل موظفة عندها نشاط في الشهر — بند أو بيع أو بقشيش أو
+ * هل المصدر بيدخل تسعير الشهر؟ نفس شرط `assembleCommissionPeriodInput`: ساري
+ * وتاريخ عمله جوه الشهر.
+ *
+ * @param status حالة المصدر في الإسقاط
+ * @param businessDate تاريخ العمل بصيغة YYYY-MM-DD
+ * @param period الشهر بصيغة YYYY-MM
+ * @returns هل المصدر ساري وفي الشهر
+ */
+function countsInPeriod(status: string, businessDate: string, period: string): boolean {
+  return status === 'ACTIVE' && businessDate.slice(0, 7) === period;
+}
+
+/**
+ * الموظفات المرشحات: كل موظفة عندها نشاط في الشهر — بند أو بيع ساري أو بقشيش أو
  * تصحيح — وكل موظفة مرتبطة بفرع من نطاق القارئ في أي يوم من الشهر (CS-Q20).
  * الارتباط لوحده بيجعل الموظفة مرئية، فموظفة مرتبطة بلا عمل في الشهر بتظهر
  * بصفر حقيقي مش بتختفي، وصف راتب أو خطة أو تجاوز لوحده من غير نشاط أو ارتباط
@@ -226,9 +240,14 @@ function candidateIds(
   period: string,
 ): readonly string[] {
   const ids = new Set<string>();
-  for (const line of month.lines) ids.add(line.employeeId);
+  // نفس شرط المجمّع المشترك: البند أو البيع الملغي أو اللي بره الشهر ما بيتسعّرش،
+  // فما ينفعش يخلّي صاحبته مرشحة بصفر.
+  for (const line of month.lines) {
+    if (countsInPeriod(line.status, line.businessDate, period)) ids.add(line.employeeId);
+  }
   for (const sale of month.sales) {
-    if (sale.sellerEmployeeId !== null) ids.add(sale.sellerEmployeeId);
+    if (sale.sellerEmployeeId === null) continue;
+    if (countsInPeriod(sale.status, sale.businessDate, period)) ids.add(sale.sellerEmployeeId);
   }
   for (const tip of month.tips) ids.add(tip.employeeId);
   for (const correction of month.corrections) ids.add(correction.employeeId);

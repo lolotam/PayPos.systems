@@ -1,0 +1,121 @@
+import { expect, it } from 'vitest';
+
+import {
+  projectCommissionEstimate,
+  type CommissionEstimateCorrection,
+  type CommissionEstimateLine,
+} from '../estimate-projection.ts';
+
+const EMPLOYEE = '01920000-0000-7000-8000-0000000000e1';
+const BRANCH = '01920000-0000-7000-8000-0000000000c1';
+const PERIOD = '2026-11';
+
+/** بند ساري بنسبة عشرة بالمئة في الفرع، بيتسعّر من غير خطة. */
+const LINE: CommissionEstimateLine = {
+  employeeId: EMPLOYEE,
+  serviceId: 'service-a',
+  lineId: 'line-a',
+  occurredAt: 1n,
+  recordedAt: 1n,
+  businessDate: '2026-11-05',
+  netShare: 100000n,
+  shareBps: 10000n,
+  counts: true,
+  ruleSnapshot: { kind: 'PCT', value: 1000n },
+  status: 'ACTIVE',
+  branchId: BRANCH,
+};
+
+/** تصحيح مستلم بيسحب عمولة شهر مقفول: مبلغه سالب. */
+const NEGATIVE_CORRECTION: CommissionEstimateCorrection = {
+  employeeId: EMPLOYEE,
+  sourcePeriod: '2026-10',
+  targetPeriod: PERIOD,
+  sourceRef: 'line:old-a',
+  kind: 'COMMISSION',
+  amount: -3000n,
+  previousAmount: 3000n,
+  newAmount: 0n,
+  generation: 1n,
+  sourceBranchId: BRANCH,
+  sourceBusinessDate: '2026-10-05',
+  attachedBranchIds: [BRANCH],
+};
+
+it('keeps a negative correction and the tips out of the commission subtotal', () => {
+  // المجموع عمولة البنود والبيع بس؛ التصحيح السالب والبقشيش بيتعرضوا جنبه من
+  // غير ما يتجمعوا عليه (D-1، FR-040).
+  const result = projectCommissionEstimate({
+    scope: { businessWide: false, branchIds: [BRANCH] },
+    period: PERIOD,
+    employeeIds: [EMPLOYEE],
+    attachments: [{ employeeId: EMPLOYEE, branchId: BRANCH, from: '2026-11-01', to: null }],
+    month: {
+      lines: [LINE],
+      sales: [],
+      tips: [
+        {
+          sessionId: 'tip-a',
+          employeeId: EMPLOYEE,
+          businessDate: '2026-11-05',
+          method: 'CARD',
+          amount: 2500n,
+          branchId: BRANCH,
+        },
+      ],
+      salaries: [],
+      versions: [],
+      overrides: [],
+      corrections: [NEGATIVE_CORRECTION],
+    },
+  });
+
+  expect(result.employees[0]?.status).toBe('OK');
+  expect(result.employees[0]?.total).toBe(10000n);
+  expect(result.total).toBe(10000n);
+  expect(result.employees[0]?.corrections.map((row) => row.amount)).toEqual([-3000n]);
+  expect(result.employees[0]?.tips).toEqual({ card: 2500n, cash: 0n });
+});
+
+it('leaves out an unattached employee whose only source is cancelled', () => {
+  // المجمّع المشترك بيسقط البند الملغي قبل التسعير، فما يبقاش للموظفة أي نشاط
+  // ولا ارتباط يخليها تظهر بصفر لقارئ النشاط كله.
+  const result = projectCommissionEstimate({
+    scope: { businessWide: true, branchIds: [] },
+    period: PERIOD,
+    employeeIds: [EMPLOYEE],
+    attachments: [],
+    month: {
+      lines: [{ ...LINE, status: 'CANCELLED' }],
+      sales: [],
+      tips: [],
+      salaries: [],
+      versions: [],
+      overrides: [],
+      corrections: [],
+    },
+  });
+
+  expect(result.employees).toEqual([]);
+});
+
+it('keeps an attached employee whose only source is cancelled as a real zero', () => {
+  const result = projectCommissionEstimate({
+    scope: { businessWide: true, branchIds: [] },
+    period: PERIOD,
+    employeeIds: [EMPLOYEE],
+    attachments: [{ employeeId: EMPLOYEE, branchId: BRANCH, from: '2026-11-01', to: null }],
+    month: {
+      lines: [{ ...LINE, status: 'CANCELLED' }],
+      sales: [],
+      tips: [],
+      salaries: [],
+      versions: [],
+      overrides: [],
+      corrections: [],
+    },
+  });
+
+  expect(result.employees).toHaveLength(1);
+  expect(result.employees[0]?.total).toBe(0n);
+});

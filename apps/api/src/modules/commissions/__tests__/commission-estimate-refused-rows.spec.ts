@@ -54,7 +54,12 @@ async function refusedRowsFixture(): Promise<RefusedRowsFixture> {
     await seedTransferAttachments(h, company, business, employee, branch, secondBranch);
     await seedSourceRows(db, { ...tenant, employee, branch }, secondBranch);
     await seedTips(db, { ...tenant, employee }, branch, secondBranch);
-    await seedCorrections(h, db, { ...base, tenant: { ...tenant, employee, branch } }, secondBranch);
+    await seedCorrections(
+      h,
+      db,
+      { ...base, tenant: { ...tenant, employee, branch } },
+      secondBranch,
+    );
     const branchCookie = await branchManager({ h, company, business, branch });
     const secondBranchCookie = await branchManager({
       h,
@@ -63,7 +68,18 @@ async function refusedRowsFixture(): Promise<RefusedRowsFixture> {
       branch: secondBranch,
       suffix: '_second',
     });
-    return { h, db, cookie, branchCookie, secondBranchCookie, company, business, branch, secondBranch, employee };
+    return {
+      h,
+      db,
+      cookie,
+      branchCookie,
+      secondBranchCookie,
+      company,
+      business,
+      branch,
+      secondBranch,
+      employee,
+    };
   } catch (error) {
     await db.close().catch(() => undefined);
     await h.close().catch(() => undefined);
@@ -82,11 +98,14 @@ async function seedTransferAttachments(
 ): Promise<void> {
   for (const [branchId, from, to] of [
     [branch, '2026-11-01', '2026-11-15'],
-    [secondBranch, '2026-11-15', null],
+    // نهاية في سنة بخمس أرقام: القارئ بيقصّها على الشهر في SQL، فترتيبها النصي
+    // ما بيوصلش للمحرك. التاريخ بيتبعت كنص عشان الـ driver ما يحولوش لـ Date
+    // ويرجّعه 9999-12-31.
+    [secondBranch, '2026-11-15', '10000-01-01'],
   ] as const) {
     await h.owner`INSERT INTO employee_branches(
       company_id,id,business_id,employee_id,branch_id,"from","to")
-      VALUES (${company},${ids.newId()},${business},${employee},${branchId},${from}::date,${to}::date)`;
+      VALUES (${company},${ids.newId()},${business},${employee},${branchId},${from}::text::date,${to}::text::date)`;
   }
 }
 
@@ -107,18 +126,13 @@ async function seedSourceRows(
     }),
   );
   await db.withTenant(first.company, (tx) =>
-    insertCommissionLineProjection(
-      tx,
-      { ...first, branch: secondBranch },
-      ids,
-      {
-        lineId: ids.newId(),
-        businessDate: '2026-11-20',
-        period: PERIOD,
-        net: '10.000',
-        ruleKind: 'FOLLOW_PLAN',
-      },
-    ),
+    insertCommissionLineProjection(tx, { ...first, branch: secondBranch }, ids, {
+      lineId: ids.newId(),
+      businessDate: '2026-11-20',
+      period: PERIOD,
+      net: '10.000',
+      ruleKind: 'FOLLOW_PLAN',
+    }),
   );
 }
 
@@ -132,23 +146,33 @@ async function seedTips(
   const card = ids.newId();
   const cash = ids.newId();
   await db.withTenant(tenant.company, async (tx) => {
-    await insertTipSalary(tx, 'commission_tip_heads', { ...tenant, branch }, {
-      session: card,
-      businessDate: '2026-11-05',
-      period: PERIOD,
-      branch,
-    });
+    await insertTipSalary(
+      tx,
+      'commission_tip_heads',
+      { ...tenant, branch },
+      {
+        session: card,
+        businessDate: '2026-11-05',
+        period: PERIOD,
+        branch,
+      },
+    );
     await insertTipSalary(tx, 'commission_tips', tenant, {
       session: card,
       method: 'CARD',
       amount: '2.500',
     });
-    await insertTipSalary(tx, 'commission_tip_heads', { ...tenant, branch: secondBranch }, {
-      session: cash,
-      businessDate: '2026-11-20',
-      period: PERIOD,
-      branch: secondBranch,
-    });
+    await insertTipSalary(
+      tx,
+      'commission_tip_heads',
+      { ...tenant, branch: secondBranch },
+      {
+        session: cash,
+        businessDate: '2026-11-20',
+        period: PERIOD,
+        branch: secondBranch,
+      },
+    );
     await insertTipSalary(tx, 'commission_tips', tenant, {
       session: cash,
       method: 'CASH',
@@ -171,7 +195,8 @@ async function seedCorrections(
   },
   secondBranch: string,
 ): Promise<void> {
-  const [membership] = await h.owner`SELECT id FROM memberships WHERE company_id=${base.company} LIMIT 1`;
+  const [membership] =
+    await h.owner`SELECT id FROM memberships WHERE company_id=${base.company} LIMIT 1`;
   const [author] = await h.owner`SELECT id FROM "user" LIMIT 1`;
   const statementId = await walkCommissionStatement(db, {
     tenant: { ...base.tenant, membership: membership?.['id'] as string },
@@ -189,19 +214,13 @@ async function seedCorrections(
         previousAmount: '0.000',
         newAmount: '5.000',
       }),
-      insertCommissionCorrection(
-        tx,
-        { ...base.tenant, branch: secondBranch },
-        ids,
-        statementId,
-        {
-          targetPeriod: PERIOD,
-          attachedBranchIds: [secondBranch],
-          amount: '3.000',
-          previousAmount: '0.000',
-          newAmount: '3.000',
-        },
-      ),
+      insertCommissionCorrection(tx, { ...base.tenant, branch: secondBranch }, ids, statementId, {
+        targetPeriod: PERIOD,
+        attachedBranchIds: [secondBranch],
+        amount: '3.000',
+        previousAmount: '0.000',
+        newAmount: '3.000',
+      }),
     ]),
   );
 }
@@ -275,4 +294,15 @@ it('keeps only the in-scope tips and corrections of the branch reader who sees t
   expect(body.employees[0]?.sales).toEqual([]);
   expect(body.employees[0]?.tips).toEqual({ card: '0.000', cash: '1.000' });
   expect(body.employees[0]?.corrections.map((correction) => correction.amount)).toEqual(['3.000']);
+});
+
+it('reads the estimate in one read-only repeatable-read transaction', async () => {
+  fixture.h.calls.memberSnapshots.length = 0;
+
+  const response = await get(fixture.cookie);
+
+  expect(response.status).toBe(200);
+  expect(fixture.h.calls.memberSnapshots).toEqual([
+    { readOnly: 'on', isolation: 'repeatable read' },
+  ]);
 });

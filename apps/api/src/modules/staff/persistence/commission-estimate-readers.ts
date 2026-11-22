@@ -55,7 +55,10 @@ export async function readCommissionEstimateEmployees(
 /**
  * يقرأ ارتباطات الموظفات بالفروع بتاريخها الحيّة، وهي مفتاح الفلترة باليوم في
  * نطاق الفروع (CS-Q20 = PP-20.1). المدّة `[from, to)` زي مدّة جدول
- * `employee_branches` نفسها، والنهاية الفارغة ارتباط مفتوح للمستقبل.
+ * `employee_branches` نفسها، والنهاية الفارغة ارتباط مفتوح للمستقبل. الحدّين
+ * بيتقصّوا على الشهر المطلوب هنا كتواريخ: بداية قبل الشهر بترجع أول يوم فيه،
+ * ونهاية بعده بترجع فارغة، عشان المحرك بيقارنهم كنصوص وسنة بخمس أرقام ترتيبها
+ * النصي غلط.
  *
  * @param tx معاملة القراءة الحالية
  * @param companyId الشركة المؤكدة
@@ -79,7 +82,9 @@ export async function readCommissionBranchAttachments(
     from: string;
     to: string | null;
   }>(sql`SELECT employee_id AS "employeeId", branch_id AS "branchId",
-      "from"::text AS "from", "to"::text AS "to"
+      GREATEST("from", (${period} || '-01')::date)::text AS "from",
+      CASE WHEN "to" >= (${period} || '-01')::date + interval '1 month' THEN NULL
+        ELSE "to"::text END AS "to"
     FROM employee_branches
     WHERE company_id=${companyId} AND business_id=${businessId}
       AND employee_id = ANY(ARRAY[${sql.join(
