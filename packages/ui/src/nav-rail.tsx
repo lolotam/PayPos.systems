@@ -16,7 +16,7 @@ export type NavRailProps = {
   currentWorkspaceId?: string | undefined;
   inspectedWorkspaceId?: string | undefined;
   panelOpen: boolean;
-  onInspect: (workspaceId: string) => void;
+  onInspect: (workspaceId: string, opener: HTMLButtonElement) => void;
 };
 
 type RailWorkspaceButtonProps = {
@@ -24,7 +24,7 @@ type RailWorkspaceButtonProps = {
   labels: NavigationChromeLabels;
   isCurrent: boolean;
   inspected: boolean;
-  onInspect: (workspaceId: string) => void;
+  onInspect: (workspaceId: string, opener: HTMLButtonElement) => void;
 };
 
 function RailWorkspaceButton({
@@ -47,7 +47,7 @@ function RailWorkspaceButton({
         .join(' ')}
       aria-pressed={inspected}
       data-current={isCurrent ? '' : undefined}
-      onClick={() => onInspect(workspace.id)}
+      onClick={(event) => onInspect(workspace.id, event.currentTarget)}
       className={cn(
         'min-h-15 w-15 flex-col gap-1 p-1 text-xs',
         isCurrent && 'font-semibold underline decoration-2 underline-offset-4',

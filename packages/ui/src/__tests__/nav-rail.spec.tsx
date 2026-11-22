@@ -36,7 +36,9 @@ it('keeps the 84px rail, current marker and panel toggle state', () => {
   expect(inspected.getAttribute('data-current')).toBe('');
   expect(inspected.className).toContain('bg-sidebar-primary');
   fireEvent.click(inspected);
-  expect(onInspect).toHaveBeenCalledExactlyOnceWith('stock');
+  expect(onInspect).toHaveBeenCalledTimes(1);
+  expect(onInspect.mock.calls[0]?.[0]).toBe('stock');
+  expect(onInspect.mock.calls[0]?.[1]).toBe(inspected);
   expect(view.container.querySelectorAll('button')).toHaveLength(workspaces.length);
 });
 

@@ -213,6 +213,7 @@ function DrawerScene() {
 function ContextScene() {
   const [inspectedWorkspaceId, setInspectedWorkspaceId] = useState<string | undefined>('business');
   const [panelOpen, setPanelOpen] = useState(true);
+  const panelOpenerRef = useRef<HTMLButtonElement>(null);
   const panelReturnFocusRef = useRef<HTMLButtonElement>(null);
   return (
     <div className="flex min-h-screen">
@@ -222,7 +223,8 @@ function ContextScene() {
         currentWorkspaceId="business"
         inspectedWorkspaceId={inspectedWorkspaceId}
         panelOpen={panelOpen}
-        onInspect={(workspaceId) => {
+        onInspect={(workspaceId, opener) => {
+          panelOpenerRef.current = opener;
           setInspectedWorkspaceId(workspaceId);
           setPanelOpen(true);
         }}
@@ -234,6 +236,7 @@ function ContextScene() {
         inspectedWorkspaceId={inspectedWorkspaceId}
         panelOpen={panelOpen}
         activePageId="columns"
+        openerRef={panelOpenerRef}
         returnFocusRef={panelReturnFocusRef}
         onClose={() => setPanelOpen(false)}
       />

@@ -10,36 +10,96 @@ import {
 } from './navigation-presentation.js';
 import { cn } from './shared/cn.js';
 
+function isFocusTargetEligible(target: HTMLElement | undefined): target is HTMLElement {
+  if (
+    !target?.isConnected ||
+    target === document.body ||
+    target === document.documentElement ||
+    target.closest('[aria-hidden="true"], [hidden], [inert]')
+  ) {
+    return false;
+  }
+  for (let node: HTMLElement | null = target; node; node = node.parentElement) {
+    const style = getComputedStyle(node);
+    if (
+      style.display === 'none' ||
+      style.visibility === 'hidden' ||
+      style.visibility === 'collapse'
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function usePanelReturnFocus(
   panelRef: RefObject<HTMLDivElement | null>,
+  openerRef: RefObject<HTMLElement | null> | undefined,
   fallbackRef: RefObject<HTMLButtonElement | null> | undefined,
 ) {
-  const openerRef = useRef<HTMLElement | undefined>(undefined);
-  // Track the last focus outside the panel so the close commit can restore it.
-  useEffect(() => {
-    const rememberFocus = (target: EventTarget | null) => {
-      if (
-        target instanceof HTMLElement &&
-        target !== document.body &&
-        !panelRef.current?.contains(target)
-      ) {
-        openerRef.current = target;
-      }
-    };
-    const onFocusIn = (event: FocusEvent) => rememberFocus(event.target);
-    document.addEventListener('focusin', onFocusIn);
-    rememberFocus(document.activeElement);
-    return () => document.removeEventListener('focusin', onFocusIn);
-  }, [panelRef]);
-  return useCallback(() => {
-    const opener = openerRef.current;
-    if (opener?.isConnected) {
-      opener.focus();
-      if (document.activeElement === opener) return;
+  const observedOpenerRef = useRef<HTMLElement | undefined>(undefined);
+  const pendingFocusRef = useRef(false);
+  const restoringFocusRef = useRef(false);
+
+  const tryFocus = useCallback((target: HTMLElement | undefined) => {
+    if (!isFocusTargetEligible(target)) return false;
+    restoringFocusRef.current = true;
+    try {
+      target.focus();
+      return document.activeElement === target;
+    } finally {
+      restoringFocusRef.current = false;
+    }
+  }, []);
+
+  const focusReturnTarget = useCallback(() => {
+    const opener = openerRef?.current ?? observedOpenerRef.current;
+    if (opener && tryFocus(opener)) {
+      pendingFocusRef.current = false;
+      return;
     }
     const fallback = fallbackRef?.current;
-    if (fallback?.isConnected) fallback.focus();
-  }, [fallbackRef]);
+    if (fallback && tryFocus(fallback)) pendingFocusRef.current = false;
+  }, [fallbackRef, openerRef, tryFocus]);
+
+  // Track focus only as a fallback for callers that cannot supply the opener.
+  useEffect(() => {
+    const rememberOpener = (target: EventTarget | null) => {
+      if (
+        !openerRef &&
+        target instanceof HTMLElement &&
+        target !== document.body &&
+        target !== document.documentElement &&
+        !panelRef.current?.contains(target)
+      ) {
+        observedOpenerRef.current = target;
+      }
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      if (restoringFocusRef.current) return;
+      if (pendingFocusRef.current) pendingFocusRef.current = false;
+      rememberOpener(event.target);
+    };
+    document.addEventListener('focusin', onFocusIn);
+    rememberOpener(document.activeElement);
+    return () => document.removeEventListener('focusin', onFocusIn);
+  }, [openerRef, panelRef]);
+
+  const requestFocus = useCallback(() => {
+    pendingFocusRef.current = true;
+    focusReturnTarget();
+  }, [focusReturnTarget]);
+
+  const cancelPendingFocus = useCallback(() => {
+    pendingFocusRef.current = false;
+  }, []);
+
+  // Run after every committed render: a later commit may mount the fallback.
+  const retryFocus = () => {
+    if (pendingFocusRef.current) focusReturnTarget();
+  };
+
+  return { requestFocus, cancelPendingFocus, retryFocus };
 }
 
 export type ContextPanelProps = {
@@ -50,6 +110,7 @@ export type ContextPanelProps = {
   panelOpen: boolean;
   activePageId?: string | undefined;
   visiblePageIds?: readonly string[] | undefined;
+  openerRef?: RefObject<HTMLElement | null> | undefined;
   returnFocusRef?: RefObject<HTMLButtonElement | null> | undefined;
   onClose: () => void;
 };
@@ -62,18 +123,30 @@ export function ContextPanel({
   panelOpen,
   activePageId,
   visiblePageIds,
+  openerRef,
   returnFocusRef,
   onClose,
 }: ContextPanelProps) {
   const dir = useDirection();
   const panelRef = useRef<HTMLDivElement>(null);
-  const restoreFocus = usePanelReturnFocus(panelRef, returnFocusRef);
+  const { requestFocus, cancelPendingFocus, retryFocus } = usePanelReturnFocus(
+    panelRef,
+    openerRef,
+    returnFocusRef,
+  );
   const wasOpen = useRef(panelOpen);
   useEffect(() => {
     const didClose = wasOpen.current && !panelOpen;
     wasOpen.current = panelOpen;
-    if (didClose) restoreFocus();
-  }, [panelOpen, restoreFocus]);
+    if (panelOpen) {
+      cancelPendingFocus();
+    } else if (didClose) {
+      requestFocus();
+    }
+  }, [panelOpen, cancelPendingFocus, requestFocus]);
+  useEffect(() => {
+    retryFocus();
+  });
   if (!panelOpen) return null;
   const inspectedId = resolveInspectedWorkspaceId({
     currentWorkspaceId,
