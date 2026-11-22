@@ -53,3 +53,29 @@ The read-only transaction option is the shared one from `main` (PR #1171's corre
 and the bounded path, so the scope, the attachments and the full-month reads share one snapshot. This
 delivery keeps the proof that a change committed by another transaction after the snapshot was taken
 stays invisible to the reader.
+
+## Independent review answers
+
+The independent defensive review (Codex `gpt-6.2-sol`, `reasoningEffort=medium`, read-only) returned
+BLOCK. The answers:
+
+- **Critical — an unpriced month read as zero.** A month the engine cannot price (`NO_PLAN` or
+  `NO_SALARY`) now reports a null commission total, on the employee and on the activity, so an
+  unknown amount never reads as a real zero (FR-021). The known tips and corrections still show, and
+  the status still says why the month was not priced.
+- **An attached employee with no work was invisible.** The attachment alone now makes an employee a
+  candidate, so a branch reader sees the employees attached to her branches even when the month has
+  no rows for them (CS-Q20).
+- **The estimate opened two company transactions.** The company now comes from the header, and the
+  membership, the permission, the feature and every data read happen inside one read-only snapshot.
+  The device refusal and the selected-company verification stay.
+- **The owner protection versus CS-Q20.** The owner protection (ADR-0025) wins: a canonical owner
+  keeps the business-wide scope even when a sibling membership carries a current DENY. The rule is
+  pinned in the scope reader and in a test.
+- **The migration upgrade proof.** The reference-data migration is now proved as an upgrade: the
+  permission and its grants are removed, a legacy company and its memberships are kept, the migration
+  file is applied alone with no reseed, and the approved roles hold the grant while the others do not.
+- **Service names.** The catalog exposes a public service-names reader, and every visible estimate
+  line carries its service name; a row outside the reader's scope never reveals the name behind it.
+- **Coverage added.** A paid month corrects like an approved one, and a failure after the sale write
+  in a closed month leaves nothing behind before a redelivery projects once.
