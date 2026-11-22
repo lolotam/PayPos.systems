@@ -22112,11 +22112,8 @@
           },
           "total": {
             "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CommissionEstimateMoney"
-              }
-            ]
+            "type": "string",
+            "pattern": "^-?(0|[1-9]\\d{0,10})\\.\\d{3}$"
           },
           "sources": {
             "type": "array",
@@ -22176,11 +22173,8 @@
           },
           "total": {
             "nullable": true,
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/CommissionEstimateMoney"
-              }
-            ]
+            "type": "string",
+            "pattern": "^-?(0|[1-9]\\d{0,10})\\.\\d{3}$"
           }
         },
         "required": [

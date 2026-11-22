@@ -3780,7 +3780,7 @@ export interface components {
             /** @enum {string} */
             status: "OK" | "NO_PLAN" | "NO_SALARY";
             partial: boolean;
-            total: components["schemas"]["CommissionEstimateMoney"] | null;
+            total: string | null;
             sources: components["schemas"]["CommissionEstimateSource"][];
             sales: components["schemas"]["CommissionEstimateSale"][];
             tips: components["schemas"]["CommissionEstimateTips"];
@@ -3792,7 +3792,7 @@ export interface components {
             period: components["schemas"]["CommissionEstimatePeriod"];
             employees: components["schemas"]["CommissionEstimateEmployee"][];
             partial: boolean;
-            total: components["schemas"]["CommissionEstimateMoney"] | null;
+            total: string | null;
         };
         /** @enum {string} */
         EmployeeDocumentStatus: "NO_EXPIRY" | "VALID" | "EXPIRING" | "EXPIRED";

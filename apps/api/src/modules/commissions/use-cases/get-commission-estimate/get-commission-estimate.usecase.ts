@@ -1,12 +1,21 @@
+import { projectCommissionEstimate } from '@pospay/commissions-engine';
 import type { CommissionEstimate } from '@pospay/contracts';
 
 import type { CommissionEstimateReader } from '../../ports/commission-estimate.port.ts';
-import {
-  buildCommissionEstimate,
-  type CommissionEstimateRequest,
-} from './estimate-assembly.ts';
+import { estimateContract } from './estimate-mapping.ts';
 
 export type { CommissionEstimateReader };
+
+/** طلب التقدير: النشاط والشهر والموظفة المطلوبة اختيارياً. */
+export interface CommissionEstimateRequest {
+  /** الشركة المؤكدة من الجلسة، مش من العميل. */
+  readonly companyId: string;
+  /** المستخدم البشري الفاعل، من الجلسة. */
+  readonly userId: string;
+  readonly businessId: string;
+  readonly period: string;
+  readonly employeeId: string | null;
+}
 
 /** أسباب رفض التقدير: الرفض الموحّد والميزة المقفولة، وبيترجموا لخطأ API معروف. */
 export type CommissionEstimateErrorCode = 'FORBIDDEN' | 'FEATURE_DISABLED';
@@ -45,9 +54,24 @@ export class GetCommissionEstimateUseCase {
       userId: request.userId,
       businessId: request.businessId,
       period: request.period,
+      employeeId: request.employeeId,
     });
     if (read.kind === 'forbidden') throw new CommissionEstimateError('FORBIDDEN');
     if (read.kind === 'feature_disabled') throw new CommissionEstimateError('FEATURE_DISABLED');
-    return buildCommissionEstimate(read.inputs, request);
+    const inputs = read.inputs;
+    const projection = projectCommissionEstimate({
+      scope: { businessWide: inputs.businessWide, branchIds: inputs.branchIds },
+      period: request.period,
+      employeeIds: inputs.employees.map((employee) => employee.employeeId),
+      month: inputs.month,
+      attachments: inputs.attachments,
+    });
+    return estimateContract(
+      request.businessId,
+      request.period,
+      projection,
+      new Map(inputs.employees.map((employee) => [employee.employeeId, employee])),
+      inputs.serviceNames,
+    );
   }
 }

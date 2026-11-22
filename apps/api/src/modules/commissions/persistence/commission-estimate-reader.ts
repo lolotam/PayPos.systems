@@ -1,18 +1,18 @@
 import type { TenantWrappers, Tx } from '@pospay/db';
 
-import type {
-  CommissionEstimateMonthRows,
-  CommissionEstimateProviders,
-  CommissionEstimateReader,
-} from '../ports/commission-estimate.port.ts';
-import { createCommissionEstimateReads } from './commission-estimate-readers.ts';
+import type { CommissionEstimateMonthRows } from '@pospay/commissions-engine';
 
-/** طلب القراءة: الشركة والمستخدم والنشاط والشهر. */
+import type { CommissionEstimateReader } from '../ports/commission-estimate.port.ts';
+import type { CommissionEstimateProviders } from './commission-estimate-providers.ts';
+import { readEstimateMonth } from './commission-estimate-readers.ts';
+
+/** طلب القراءة: الشركة والمستخدم والنشاط والشهر والموظفة المطلوبة اختيارياً. */
 interface EstimateReadRequest {
   readonly companyId: string;
   readonly userId: string;
   readonly businessId: string;
   readonly period: string;
+  readonly employeeId: string | null;
 }
 
 /**
@@ -48,18 +48,33 @@ async function readEstimateInputs(
   request: EstimateReadRequest,
   providers: CommissionEstimateProviders,
 ): ReturnType<CommissionEstimateReader['read']> {
-  const reads = createCommissionEstimateReads(tx, request.companyId, providers);
-  const scope = await reads.scope(request.companyId, request.userId, request.businessId);
+  const scope = await providers.scope(tx, request.companyId, request.userId, request.businessId);
   if (scope.kind === 'forbidden') return { kind: 'forbidden' };
   if (scope.kind === 'feature_disabled') return { kind: 'feature_disabled' };
-  if (!(await reads.featureEnabled(request.companyId))) return { kind: 'feature_disabled' };
-  const employees = await reads.employees(request.businessId);
-  const month = await reads.month(request.businessId, request.period);
-  const attachments = await reads.attachments(
+  if (!(await providers.featureEnabled(tx, request.companyId))) return { kind: 'feature_disabled' };
+  const employees = await providers.employees(
+    tx,
+    request.companyId,
+    request.businessId,
+    request.employeeId,
+  );
+  const month = await readEstimateMonth(
+    tx,
+    request.companyId,
+    request.businessId,
+    request.period,
+    request.employeeId,
+  );
+  const attachments = await providers.attachments(
+    tx,
+    request.companyId,
     request.businessId,
     candidateIds(employees, month),
+    request.period,
   );
-  const serviceNames = await reads.serviceNames(
+  const serviceNames = await providers.serviceNames(
+    tx,
+    request.companyId,
     request.businessId,
     [...new Set(month.lines.map((line) => line.serviceId))],
   );

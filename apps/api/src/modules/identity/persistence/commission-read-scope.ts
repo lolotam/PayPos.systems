@@ -66,16 +66,33 @@ export async function readCommissionScope(
     WHERE company_id=${companyId} AND business_id=${businessId} ORDER BY id`);
   const branchIds = rows.map((row) => row.id);
   const businessWideAllow = allows.some((grant) => coversBusiness(grant, companyId, businessId));
-  // القارئ على مستوى النشاط يبقى محدوداً لو فيه DENY ساري من أي نطاق، فالمفاضلة
-  // بتنتقل لفلتر الفروع بدل ما يشوف كل النشاط (CM-23g).
-  if (businessWideAllow && denies.length === 0) {
+  // DENY بيخص النشاط المطلوب بس: denial على نشاط شقيق أو فرع تاني مش بيخصم
+  // من صلاحية النشاط ده. Denial على الشركة أو على النشاط ده بغيّر النطاق من
+  // مستوى النشاط لفرع (CM-23g).
+  const relevantDenies = denies.filter((deny) => coversRequest(deny, companyId, businessId, branchIds));
+  if (businessWideAllow && relevantDenies.length === 0) {
     return { kind: 'scope', scope: { businessWide: true, branchIds } };
   }
-  const denied = deniedBranches(denies, companyId, businessId, branchIds);
+  const denied = deniedBranches(relevantDenies, companyId, businessId, branchIds);
   const allowed = allowedBranches(allows, companyId, businessId, branchIds);
   const effective = [...allowed].filter((id) => !denied.has(id)).sort();
   if (effective.length === 0) return { kind: 'forbidden' };
   return { kind: 'scope', scope: { businessWide: false, branchIds: effective } };
+}
+
+/**
+ * DENY بيخص الطلب: نطاق الشركة أو النشاط المطلوب بيغطي الطلب كله، ونطاق الفرع
+ * بيخص الطلب لو الفرع من فروع النشاط المطلوب. أي denial تاني (نشاط شقيق أو
+ * فرع تاني) مش بخص الطلب ده.
+ */
+function coversRequest(
+  deny: { readonly scopeType: string; readonly scopeId: string },
+  companyId: string,
+  businessId: string,
+  branchIds: readonly string[],
+): boolean {
+  if (coversBusiness(deny, companyId, businessId)) return true;
+  return deny.scopeType === 'BRANCH' && branchIds.includes(deny.scopeId);
 }
 
 /** منح على مستوى الشركة أو النشاط بيغطي كل فروع النشاط. */

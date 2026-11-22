@@ -1,6 +1,23 @@
 // المحرك النقي للعمولات — يشترك فيه الـ API والـ worker بلا نسخ لقواعد الفلوس (ADR-0054).
 export { advanceAmountAccumulator } from './amount-accumulator.ts';
 export { computeCalcNumerator } from './commission-calc.ts';
+export { projectCommissionEstimate } from './estimate-projection.ts';
+export type {
+  CommissionEstimateAttachment,
+  CommissionEstimateCorrection,
+  CommissionEstimateCorrectionProjection,
+  CommissionEstimateEmployeeProjection,
+  CommissionEstimateLine,
+  CommissionEstimateMonthRows,
+  CommissionEstimateProjection,
+  CommissionEstimateProjectionInput,
+  CommissionEstimateSale,
+  CommissionEstimateSaleProjection,
+  CommissionEstimateScope,
+  CommissionEstimateSourceProjection,
+  CommissionEstimateStatus,
+  CommissionEstimateTip,
+} from './estimate-projection.ts';
 export type {
   AmountTierStep,
   CommissionCalc,
@@ -43,7 +60,11 @@ export { allocateLineShares } from './line-shares.ts';
 export { computeMarginalTierNumerator, findActiveTierStep } from './marginal-tiers.ts';
 export { computePackageSaleCommission } from './package-sale-commission.ts';
 export { projectPackageSaleStatus } from './package-sale-status.ts';
-export { computePeriod } from './period-commission.ts';
+export { computePeriod, computePeriodDetailed } from './period-commission.ts';
+export type {
+  CommissionPeriodDetailedResult,
+  CommissionPricingFailure,
+} from './period-commission.ts';
 export { assembleCommissionPeriodInput } from './period-input-assembly.ts';
 export type {
   AssembledCommissionPeriod,

@@ -9,17 +9,15 @@ import {
 } from '@pospay/commissions-engine';
 import { parseMoney } from '@pospay/domain';
 import type { Tx } from '@pospay/db';
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 
 import type {
   CommissionEstimateCorrection,
   CommissionEstimateLine,
   CommissionEstimateMonthRows,
-  CommissionEstimateProviders,
-  CommissionEstimateReads,
   CommissionEstimateSale,
   CommissionEstimateTip,
-} from '../ports/commission-estimate.port.ts';
+} from '@pospay/commissions-engine';
 
 type LineRow = {
   employeeId: string;
@@ -100,46 +98,39 @@ type CorrectionRow = {
 };
 
 /**
- * يبني قراءات تقدير العمولة على معاملة القراءة نفسها: النطاق والميزة والاسم
- * والارتباطات من مزوديهم، وصفوف الشهر من إسقاط العمولة نفسه.
+ * شرط الموظفة الواحد: من غير موظفة بيفضل الشرط فاضي، ومع موظفة بيقصر القراءة
+ * على شهرها هي بس من غير ما narrowed التسعير (CS-Q24).
+ */
+function employeeFilter(alias: string, column: string, employeeId: string | null): SQL {
+  if (employeeId === null) return sql``;
+  return sql`AND ${sql.identifier(alias)}.${sql.identifier(column)} = ${employeeId}::uuid`;
+}
+
+/**
+ * يقرأ صفوف شهر النشاط من إسقاط العمولة نفسه، كلها في نفس المعاملة عشان الأرقام
+ * تيجي من لقطة واحدة.
  *
  * @param tx معاملة القراءة الحالية
  * @param companyId الشركة المؤكدة
- * @param providers مزودو النطاق والاسم والارتباطات المربوطين في جذر التطبيق
- * @returns قراءات التقدير مربوطة بالمعاملة
+ * @param businessId النشاط المطلوب
+ * @param period الشهر المطلوب بصيغة YYYY-MM
+ * @param employeeId موظفة واحدة اختيارية
+ * @returns صفوف الشهر
  */
-export function createCommissionEstimateReads(
-  tx: Tx,
-  companyId: string,
-  providers: CommissionEstimateProviders,
-): CommissionEstimateReads {
-  return {
-    scope: (scopeCompanyId, userId, businessId) =>
-      providers.scope(tx, scopeCompanyId, userId, businessId),
-    featureEnabled: (featureCompanyId) =>
-      providers.featureEnabled(tx, featureCompanyId),
-    employees: (businessId) => providers.employees(tx, companyId, businessId),
-    attachments: (businessId, employeeIds) =>
-      providers.attachments(tx, companyId, businessId, employeeIds),
-    serviceNames: (businessId, serviceIds) =>
-      providers.serviceNames(tx, companyId, businessId, serviceIds),
-    month: (businessId, period) => readEstimateMonth(tx, companyId, businessId, period),
-  };
-}
-
-async function readEstimateMonth(
+export async function readEstimateMonth(
   tx: Tx,
   companyId: string,
   businessId: string,
   period: string,
+  employeeId: string | null,
 ): Promise<CommissionEstimateMonthRows> {
-  const lines = await readLines(tx, companyId, businessId, period);
-  const sales = await readSales(tx, companyId, businessId, period);
-  const tips = await readTips(tx, companyId, businessId, period);
-  const salaries = await readSalaries(tx, companyId, businessId, period);
-  const versions = await readPlanVersions(tx, companyId, businessId, period);
-  const overrides = await readOverrides(tx, companyId, businessId, period);
-  const corrections = await readCorrections(tx, companyId, businessId, period);
+  const lines = await readLines(tx, companyId, businessId, period, employeeId);
+  const sales = await readSales(tx, companyId, businessId, period, employeeId);
+  const tips = await readTips(tx, companyId, businessId, period, employeeId);
+  const salaries = await readSalaries(tx, companyId, businessId, period, employeeId);
+  const versions = await readPlanVersions(tx, companyId, businessId, period, employeeId);
+  const overrides = await readOverrides(tx, companyId, businessId, period, employeeId);
+  const corrections = await readCorrections(tx, companyId, businessId, period, employeeId);
   return { lines, sales, tips, salaries, versions, overrides, corrections };
 }
 
@@ -148,6 +139,7 @@ async function readLines(
   companyId: string,
   businessId: string,
   period: string,
+  employeeId: string | null,
 ): Promise<CommissionEstimateLine[]> {
   const rows = await tx.execute<LineRow>(sql`SELECT
     l.employee_id AS "employeeId", l.service_id AS "serviceId",
@@ -162,6 +154,7 @@ async function readLines(
     JOIN commission_line_heads h ON h.company_id = l.company_id AND h.line_id = l.line_id
     WHERE l.company_id = ${companyId} AND l.business_id = ${businessId}::uuid
       AND l.period = ${period}
+      ${employeeFilter('l', 'employee_id', employeeId)}
     ORDER BY l.employee_id, l.line_id`);
   return rows.map((row) => ({
     employeeId: row.employeeId,
@@ -184,6 +177,7 @@ async function readSales(
   companyId: string,
   businessId: string,
   period: string,
+  employeeId: string | null,
 ): Promise<CommissionEstimateSale[]> {
   const rows = await tx.execute<SaleRow>(sql`SELECT
     sale_id AS "saleId", seller_employee_id AS "sellerEmployeeId", branch_id AS "branchId",
@@ -192,6 +186,7 @@ async function readSales(
     FROM commission_sales
     WHERE company_id = ${companyId} AND business_id = ${businessId}::uuid
       AND period = ${period}
+      ${employeeFilter('commission_sales', 'seller_employee_id', employeeId)}
     ORDER BY seller_employee_id, sale_id`);
   return rows.map((row) => ({
     saleId: row.saleId,
@@ -209,6 +204,7 @@ async function readTips(
   companyId: string,
   businessId: string,
   period: string,
+  employeeId: string | null,
 ): Promise<CommissionEstimateTip[]> {
   const rows = await tx.execute<TipRow>(sql`SELECT
     t.session_id AS "sessionId", t.employee_id AS "employeeId", h.branch_id AS "branchId",
@@ -218,6 +214,7 @@ async function readTips(
       AND h.business_id = t.business_id AND h.session_id = t.session_id
     WHERE t.company_id = ${companyId} AND t.business_id = ${businessId}::uuid
       AND h.period = ${period}
+      ${employeeFilter('t', 'employee_id', employeeId)}
     ORDER BY t.employee_id, t.session_id, t.method`);
   return rows.map((row) => ({
     sessionId: row.sessionId,
@@ -234,12 +231,14 @@ async function readSalaries(
   companyId: string,
   businessId: string,
   period: string,
+  employeeId: string | null,
 ): Promise<CommissionSalary[]> {
   const rows = await tx.execute<SalaryRow>(sql`SELECT
     employee_id AS "employeeId", effective_from::text AS "effectiveFrom", amount::text AS amount
     FROM commission_salaries
     WHERE company_id = ${companyId} AND business_id = ${businessId}::uuid
       AND effective_from <= (date_trunc('month', (${period} || '-01')::date) + interval '1 month - 1 day')::date
+      ${employeeFilter('commission_salaries', 'employee_id', employeeId)}
     ORDER BY employee_id, effective_from`);
   return rows.map((row) => ({
     employeeId: row.employeeId,
@@ -253,7 +252,11 @@ async function readPlanVersions(
   companyId: string,
   businessId: string,
   period: string,
+  employeeId: string | null,
 ): Promise<CommissionPlanVersion[]> {
+  // نسخة الإصلاح (repair_period) بتبقى فعّالة في شهرها بس، وقاعدة البيانات بتربط
+  // تاريخ سريانها بأول يوم في الشهر ده. الفلتر بيحافظ عليها صراحةً عشان Motors
+  // تختارها بنفس الشهر، والفلتر في التجميع المشترك بيفضل متطابق (D-12, CS-Q11).
   const rows = await tx.execute<PlanVersionRow>(sql`SELECT
     employee_id AS "employeeId", version AS "version",
     effective_from::text AS "effectiveFrom", whole_period AS "wholePeriod",
@@ -261,7 +264,9 @@ async function readPlanVersions(
     (extract(epoch from created_at)*1000000)::bigint::text AS "createdAt"
     FROM commission_plan_versions
     WHERE company_id = ${companyId} AND business_id = ${businessId}::uuid
-      AND effective_from <= (date_trunc('month', (${period} || '-01')::date) + interval '1 month - 1 day')::date
+      AND (effective_from <= (date_trunc('month', (${period} || '-01')::date) + interval '1 month - 1 day')::date
+        OR repair_period = ${period})
+      ${employeeFilter('commission_plan_versions', 'employee_id', employeeId)}
     ORDER BY employee_id, version`);
   return rows.map(commissionPlanVersionOf);
 }
@@ -271,6 +276,7 @@ async function readOverrides(
   companyId: string,
   businessId: string,
   period: string,
+  employeeId: string | null,
 ): Promise<ServiceCommissionOverride[]> {
   const rows = await tx.execute<OverrideRow>(sql`SELECT
     id AS "id", employee_id AS "employeeId", service_id AS "serviceId",
@@ -280,6 +286,7 @@ async function readOverrides(
     FROM commission_service_overrides
     WHERE company_id = ${companyId} AND business_id = ${businessId}::uuid
       AND effective_from <= (date_trunc('month', (${period} || '-01')::date) + interval '1 month - 1 day')::date
+      ${employeeFilter('commission_service_overrides', 'employee_id', employeeId)}
     ORDER BY employee_id, created_at, id`);
   return rows.map(commissionOverrideOf);
 }
@@ -289,6 +296,7 @@ async function readCorrections(
   companyId: string,
   businessId: string,
   period: string,
+  employeeId: string | null,
 ): Promise<CommissionEstimateCorrection[]> {
   const rows = await tx.execute<CorrectionRow>(sql`SELECT
     employee_id AS "employeeId", source_period AS "sourcePeriod",
@@ -300,6 +308,7 @@ async function readCorrections(
     FROM commission_corrections
     WHERE company_id = ${companyId} AND business_id = ${businessId}::uuid
       AND target_period = ${period}
+      ${employeeFilter('commission_corrections', 'employee_id', employeeId)}
     ORDER BY employee_id, source_ref, generation`);
   return rows.map((row) => ({
     employeeId: row.employeeId,

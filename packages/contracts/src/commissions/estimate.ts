@@ -9,11 +9,21 @@ export const commissionEstimatePeriod = z
   .regex(/^(?!0000-)\d{4}-(0[1-9]|1[0-2])$/)
   .meta({ id: 'CommissionEstimatePeriod' });
 
+/** نمط المبلغ بالدينار: نص بخانة عشرية واحدة وثلاث منازل، والسالب محفوظ. */
+const estimateMoneyPattern = /^-?(0|[1-9]\d{0,10})\.\d{3}$/;
+
 /** مبلغ بالدينار: نص بخانة عشرية واحدة وثلاث منازل، والسالب محفوظ لأن العمولة ممكن تكون سالبة. */
 export const commissionEstimateMoney = z
   .string()
-  .regex(/^-?(0|[1-9]\d{0,10})\.\d{3}$/)
+  .regex(estimateMoneyPattern)
   .meta({ id: 'CommissionEstimateMoney' });
+
+/**
+ * نفس نمط المبلغ لكن مضمّن ومش `$ref`: OpenAPI 3.0 مش بيقبل `nullable` فوق
+ * `allOf` فيه `$ref`، فالمجموع اللي ممكن يكون null لازم يطلع بنوعه ونمطه في
+ * نفس السكيما. القيم-null والنمط زي ما هما في عقدة Zod.
+ */
+const commissionEstimateNullableMoney = z.string().regex(estimateMoneyPattern).nullable();
 
 /** يوم العمل بصيغة YYYY-MM-DD؛ تاريخ العمل هو مفتاح الفلترة باليوم في نطاق الفروع. */
 const estimateBusinessDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -22,10 +32,13 @@ const estimateBusinessDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
  * استعلام التقدير: الموظفة اختيارية. من غيرها بيرجع كل موظفات النشاط المرئية،
  * ومعها بيرجع الموظفة دي لو كانت مرئية أصلاً؛ الموظفة غير المرئية مفيش رد يفرق بينها
  * وبين موظفة مش موجودة (CM-23h).
+ *
+ * معرّف الموظفة بيتطبّع بحروف صغيرة عند الطلب، فالأحرف الكبيرة والصغيرة بتوصل
+ * لنفس الموظفة بنفس النتيجة.
  */
 export const commissionEstimateQuery = z
   .strictObject({
-    employee_id: id.optional(),
+    employee_id: id.toLowerCase().optional(),
   })
   .meta({ id: 'CommissionEstimateQuery' });
 
@@ -86,7 +99,7 @@ export const commissionEstimateEmployee = responseObject({
   employee_number: z.number().int().min(1).max(999999),
   status: z.enum(['OK', 'NO_PLAN', 'NO_SALARY']),
   partial: z.boolean(),
-  total: commissionEstimateMoney.nullable(),
+  total: commissionEstimateNullableMoney,
   sources: z.array(commissionEstimateSource),
   sales: z.array(commissionEstimateSale),
   tips: commissionEstimateTips,
@@ -103,7 +116,7 @@ export const commissionEstimate = responseObject({
   period: commissionEstimatePeriod,
   employees: z.array(commissionEstimateEmployee),
   partial: z.boolean(),
-  total: commissionEstimateMoney.nullable(),
+  total: commissionEstimateNullableMoney,
 }).meta({ id: 'CommissionEstimate' });
 
 export const commissionEstimateSchemas = [

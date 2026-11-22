@@ -9,6 +9,7 @@ import {
   permissionOverride,
   secondMembership,
   seedBusiness,
+  seedBusinessWithoutBranches,
   seedCatalogue,
   seedEmployees,
   seedLines,
@@ -101,13 +102,15 @@ it('refuses a device session', async () => {
   });
   const token = (claimed.json() as { device_token: string }).device_token;
 
+  // الجهاز بيتسلّم بicard "Device" مش "Bearer"، والحارس بيحلّه كجهاز مسجّل.
   const response = await fixture.h.app.inject({
     method: 'GET',
     url: estimatePath(fixture.business),
-    headers: { 'x-company-id': fixture.company, authorization: `Bearer ${token}` },
+    headers: { 'x-company-id': fixture.company, authorization: `Device ${token}` },
   });
 
-  expect(response.statusCode).not.toBe(200);
+  expect(response.statusCode).toBe(403);
+  expect(response.json().code).toBe('FORBIDDEN');
 });
 
 it('refuses the estimate when the commissions feature is off', async () => {
@@ -134,6 +137,20 @@ it('ignores an expired permission override', async () => {
   const response = await get(fixture, member.cookie);
 
   expect(response.status).toBe(403);
+});
+
+it('lets an explicit grant open the estimate to a non-default system role', async () => {
+  const member = await globalRoleMember(fixture, 'viewer', 'BUSINESS');
+  const overrideId = await permissionOverride(fixture, member.membershipId, 'ALLOW', {
+    type: 'BUSINESS',
+    id: fixture.business,
+  });
+  expect((await get(fixture, member.cookie)).status).toBe(200);
+
+  await fixture.h.owner`DELETE FROM permission_overrides
+    WHERE company_id=${fixture.company} AND id=${overrideId}::uuid`;
+
+  expect((await get(fixture, member.cookie)).status).toBe(403);
 });
 
 it('lets an explicit grant open the estimate to a custom role without the default', async () => {
@@ -214,6 +231,62 @@ it('filters a business-wide holder that carries any current DENY', async () => {
   const body = response.body as { employees: { employee_id: string }[]; total: string };
   expect(body.employees.map((employee) => employee.employee_id)).toEqual([fixture.employee]);
   expect(body.total).toBe('1.000');
+});
+
+it('keeps the business-wide scope when the DENY belongs to a sibling business', async () => {
+  // DENY على نشاط شقيق مش بيخص النشاط المطلوب، فالقارئ يفضل شايف النشاط كله.
+  const sibling = await seedBusiness(fixture.h, fixture.cookie, fixture.company, 'deny-sibling');
+  const member = await globalRoleMember(fixture, 'general_manager', 'BUSINESS');
+  await permissionOverride(fixture, member.membershipId, 'DENY', {
+    type: 'BUSINESS',
+    id: sibling.business,
+  });
+  const response = await get(fixture, member.cookie);
+
+  expect(response.status).toBe(200);
+  const body = response.body as { employees: unknown[]; total: string };
+  expect(body.employees).toHaveLength(2);
+  expect(body.total).toBe('2.000');
+});
+
+it('keeps the business-wide scope when the DENY belongs to a branch of a sibling business', async () => {
+  const sibling = await seedBusiness(fixture.h, fixture.cookie, fixture.company, 'deny-sibling-branch');
+  const member = await globalRoleMember(fixture, 'general_manager', 'BUSINESS');
+  await permissionOverride(fixture, member.membershipId, 'DENY', {
+    type: 'BRANCH',
+    id: sibling.branch,
+  });
+  const response = await get(fixture, member.cookie);
+
+  expect(response.status).toBe(200);
+  const body = response.body as { employees: unknown[]; total: string };
+  expect(body.employees).toHaveLength(2);
+  expect(body.total).toBe('2.000');
+});
+
+it('keeps the business-wide scope of a business without branches', async () => {
+  // نشاط من غير فروع: رفض موحّد كان بيطلع بسبب DENY على نشاط تاني.
+  const branchless = await seedBusinessWithoutBranches(
+    fixture.h,
+    fixture.cookie,
+    fixture.company,
+    'deny-branchless',
+  );
+  const member = await globalRoleMember(
+    fixture,
+    'general_manager',
+    'BUSINESS',
+    branchless.business,
+  );
+  await permissionOverride(fixture, member.membershipId, 'DENY', {
+    type: 'BUSINESS',
+    id: fixture.business,
+  });
+  const response = await get(fixture, member.cookie, branchless.business);
+
+  expect(response.status).toBe(200);
+  const body = response.body as { employees: unknown[] };
+  expect(body.employees).toEqual([]);
 });
 
 it('never shows an employee of another company', async () => {

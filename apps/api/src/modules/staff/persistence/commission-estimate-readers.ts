@@ -24,12 +24,14 @@ export interface CommissionBranchAttachmentRow {
  * @param tx معاملة القراءة الحالية
  * @param companyId الشركة المؤكدة
  * @param businessId النشاط المطلوب
+ * @param employeeId موظفة واحدة اختيارية؛ من غيرها كل موظفات النشاط
  * @returns موظفات النشاط مرتبة بالهوية
  */
 export async function readCommissionEstimateEmployees(
   tx: Tx,
   companyId: string,
   businessId: string,
+  employeeId: string | null,
 ): Promise<readonly CommissionEstimateEmployeeRow[]> {
   const rows = await tx.execute<{
     employeeId: string;
@@ -40,6 +42,7 @@ export async function readCommissionEstimateEmployees(
       employee_number AS "employeeNumber"
     FROM employees
     WHERE company_id=${companyId} AND business_id=${businessId}
+      ${employeeId === null ? sql`` : sql`AND id = ${employeeId}::uuid`}
     ORDER BY id`);
   return rows.map((row) => ({
     employeeId: row.employeeId,
@@ -58,13 +61,15 @@ export async function readCommissionEstimateEmployees(
  * @param companyId الشركة المؤكدة
  * @param businessId النشاط المطلوب
  * @param employeeIds الموظفات المطلوب ارتباطاتهن
- * @returns الارتباطات مرتبة بالموظفة ثم الفرع ثم البداية
+ * @param period الشهر المطلوب بصيغة YYYY-MM
+ * @returns الارتباطات التي تغطي الشهر، مرتبة بالموظفة ثم الفرع ثم البداية
  */
 export async function readCommissionBranchAttachments(
   tx: Tx,
   companyId: string,
   businessId: string,
   employeeIds: readonly string[],
+  period: string,
 ): Promise<readonly CommissionBranchAttachmentRow[]> {
   if (employeeIds.length === 0) return [];
   const ids = [...new Set(employeeIds)].sort();
@@ -81,6 +86,8 @@ export async function readCommissionBranchAttachments(
         ids.map((id) => sql`${id}::uuid`),
         sql`, `,
       )}]::uuid[])
+      AND "from" <= (${period} || '-01')::date + interval '1 month - 1 day'
+      AND ("to" IS NULL OR "to" > (${period} || '-01')::date)
     ORDER BY employee_id, branch_id, "from"`);
   return rows.map((row) => ({
     employeeId: row.employeeId,

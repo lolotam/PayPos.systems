@@ -13,7 +13,7 @@ import {
   CommissionEstimateController,
 } from './http/commission-estimate.controller.ts';
 import { createCommissionEstimateReader } from './persistence/commission-estimate-reader.ts';
-import type { CommissionEstimateProviders } from './ports/commission-estimate.port.ts';
+import type { CommissionEstimateProviders } from './persistence/commission-estimate-providers.ts';
 import {
   createCommissionServiceOverrideListReaders,
   type CommissionServiceOverrideListReadProviders,

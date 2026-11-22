@@ -79,3 +79,70 @@ BLOCK. The answers:
   line carries its service name; a row outside the reader's scope never reveals the name behind it.
 - **Coverage added.** A paid month corrects like an approved one, and a failure after the sale write
   in a closed month leaves nothing behind before a redelivery projects once.
+
+## Correction round after the panel review (2026-11-22)
+
+One consolidated round on top of the published head `cd8bbd5a7`, against the ten deduplicated groups
+the manager sent plus the two later items (the employee-id normalisation and the OpenAPI nullable
+totals) and the `Tx` port finding. Dispositions:
+
+1. **Aggregation moved to the engine.** The estimate's pricing, visibility and bigint aggregation
+   live in `packages/commissions-engine` (`estimate-projection.ts` and `estimate-visibility.ts`); the
+   API use case orchestrates the read and maps the projection to the contract, with no arithmetic in
+   `use-cases/`.
+2. **Only relevant DENYs narrow a business-wide grant.** A DENY scoped to a sibling business or to a
+   branch of one no longer downgrades the requested business; a business without branches keeps its
+   business-wide scope. Owner protection (ADR-0025) and real same-business denials stay, and the
+   route tests cover the sibling business, the sibling branch and the applicable deny.
+3. **A hidden source's pricing failure no longer hides the visible amounts.** The engine reports the
+   pricing failures per source (`computePeriodDetailed`); a branch-scoped reader loses nothing that
+   her scope prices, keeps the full-month accumulator and never sees the cause of a failure she
+   cannot see. A failure on a visible source still refuses the month with a null total (D-57), and
+   the worker's atomic no-partial contract is untouched.
+4. **A sale is priced independently of the service-tier salary.** The engine selects the plan version
+   for a sale without resolving the salary-based service tiers (D-51: the package sale is independent
+   of the accumulator; the sale rule is a percentage or a fixed amount of the price). A sale-only
+   month with a salary-multiple plan and no salary now prices the sale (or pays zero when the package
+   rule is disabled) instead of blocking, so the closed-month path publishes the refund delta. A
+   service line on `FOLLOW_PLAN` without a salary still refuses the month with `NO_SALARY`, and the
+   engine's D-57 test was narrowed to that service case.
+5. **The device refusal test uses the real scheme.** The paired device authenticates with
+   `Device <token>` and the estimate answers 403 `FORBIDDEN`.
+6. **Performance.** The optional employee filter is pushed into the tenant-safe reads (the month rows
+   and the names), the in-memory rows and attachments are grouped once, the branch-coverage scan is
+   skipped for a business-wide reader, and the attachment reads are constrained to the requested
+   month. No new migration and no pagination change.
+7. **Repair plans.** `commission_plan_versions_repair_matches_effective_from` forces a repair
+   version's `effective_from` to its repair month's first day, so both prefilters (the SQL and the
+   shared assembly) keep a repair version whose `repair_period` matches the requested month. The
+   estimate test prices a month through its repair plan and the worker recomputes through the same
+   shared assembly.
+8. **The top-level `partial` flag.** A branch-scoped aggregate is always labelled partial,
+   independently of the employee rows, and the flag is the same for an absent and an inaccessible
+   employee filter; nothing in the response depends on hidden data.
+9. **The permission is delegatable.** `read:commissions:business` joined `OWNER_GRANTED_PERMISSIONS`
+   in `packages/db` and in the API's permission editor, so the owner can grant it to any global human
+   role and revoke it, while the device stays forbidden. No new default, grant migration or role.
+10. **The request log binds the verified company.** The controller binds the company after the read
+    proved the membership, through the shared `bindVerifiedCompany` helper; a refused reader binds
+    nothing.
+11. **`employee_id` is normalised at the request boundary.** The query schema lowercases the UUID, so
+    an uppercase and a lowercase id return the same in-scope result.
+12. **The OpenAPI 3.0 totals admit null.** The two totals are emitted as inline
+    `nullable` string schemas with the monetary pattern instead of `nullable` over `allOf` wrapping a
+    `$ref`, and the contracts test pins the emitted shape with the null accepted and the malformed
+    money refused.
+13. **`Tx` left the port.** `commission-estimate.port.ts` is database-agnostic; the `Tx`-taking
+    provider shape lives in `persistence/commission-estimate-providers.ts` and the composition root
+    binds it, on the same single read-only transaction with the membership proven before the tenant
+    context.
+
+`0239` was untouched, and no migration, deploy or target operation came from this round.
+
+### Gates of the correction head
+
+- packages/db 175 files / 3228 tests; packages/commissions-engine 23 files / 517 tests; packages/contracts
+  95 files / 1360 tests; apps/worker commissions 61 files / 575 tests; apps/api commissions 31 files /
+  245 tests — all green on one PostgreSQL lane.
+- typecheck and lint clean for db, commissions-engine, contracts, api and worker; `lint:docs`,
+  `module-map:check`, `migration-chain:check` and the three client `api:check` scripts green.

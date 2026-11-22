@@ -25,6 +25,7 @@ const get = (f: EstimateFixture, query = '', actor = f.cookie) =>
 type EstimateBody = {
   period: string;
   employees: { employee_id: string; total: string; status: string; partial: boolean }[];
+  partial: boolean;
   total: string;
 };
 
@@ -43,6 +44,28 @@ it('prices the month for the business-wide owner and leaves the database unchang
   expect(body.employees.every((employee) => employee.total === '1.000')).toBe(true);
   expect(body.total).toBe('2.000');
   expect(await countRows(fixture)).toEqual(before);
+});
+
+it('marks the branch aggregate partial and the business aggregate complete', async () => {
+  const branch = await get(fixture, '', fixture.branchCookie);
+  const business = await get(fixture);
+
+  const branchBody = branch.body as EstimateBody;
+  const businessBody = business.body as EstimateBody;
+  // القارئ على مستوى الفروع بيشوف مجموع جزئي من النشاط كله، حتى لو صف الموظفة
+  // الظاهر كامل (CM-23g).
+  expect(branchBody.partial).toBe(true);
+  expect(branchBody.employees[0]?.partial).toBe(false);
+  expect(businessBody.partial).toBe(false);
+});
+
+it('gives the same in-scope result for an uppercase employee id', async () => {
+  const lower = await get(fixture, `?employee_id=${fixture.employee}`);
+  const upper = await get(fixture, `?employee_id=${fixture.employee.toUpperCase()}`);
+
+  expect(lower.status).toBe(200);
+  expect(upper.status).toBe(200);
+  expect(upper.body).toEqual(lower.body);
 });
 
 it('shows a branch reader only the days she was attached to her branch', async () => {

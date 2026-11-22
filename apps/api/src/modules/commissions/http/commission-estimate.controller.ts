@@ -11,6 +11,7 @@ import type { FastifyRequest } from 'fastify';
 import { Authenticated } from '../../../shared/access.decorators.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import { COMPANY_HEADER } from '../../../shared/company-header.ts';
+import { bindVerifiedCompany } from '../../../shared/request-context.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import {
   CommissionEstimateError,
@@ -58,13 +59,17 @@ export class CommissionEstimateController {
     if (this.useCase === null) throw new ApiError('NOT_READY');
     const actor = commissionEstimateActor(request);
     try {
-      return await this.useCase.execute({
+      const estimate = await this.useCase.execute({
         companyId: actor.companyId,
         userId: actor.userId,
         businessId,
         period,
         employeeId: query.employee_id ?? null,
       });
+      // الشركة بتتسجل في سياق السجل بعد إثبات العضوية جوّه المعاملة، فمش
+      // بنسجل هيدر غير مثبوت.
+      bindVerifiedCompany(actor.companyId);
+      return estimate;
     } catch (error) {
       if (error instanceof CommissionEstimateError) throw new ApiError(error.code);
       throw error;

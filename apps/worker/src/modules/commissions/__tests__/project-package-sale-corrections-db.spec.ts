@@ -393,3 +393,36 @@ it('leaves nothing behind when the correction write fails in a closed month, and
   expect(await ledger()).toHaveLength(1);
   expect(await marks()).toHaveLength(1);
 });
+
+it('publishes the refund delta of a sale-only month whose service tiers need a salary', async () => {
+  // عمولة البيع مستقلة عن شرائح الخدمات (D-51): الخطة بتحتاج راتب للشرائح بس
+  // الشهر مفيهوش بند خدمة، فالبيع بيتسعّر والكشف بينشر فرق المرتجع.
+  await owner`DELETE FROM commission_plan_versions WHERE company_id=${A.company}`;
+  await db.withTenant(A.company, async (tx) => {
+    await insertCommissionPlanVersion(tx, A, ids, {
+      effectiveFrom: '2026-10-01',
+      plan: {
+        base: { enabled: false },
+        tiers: {
+          enabled: true,
+          mode: 'MARGINAL',
+          accumulator: 'AMOUNT',
+          steps: [{ from: { kind: 'SALARY_MULTIPLE', value: '2.00' }, calc: { kind: 'PCT', bps: 500 } }],
+        },
+        package_sale: { enabled: true, calc: { kind: 'PCT', bps: 1000 } },
+      },
+    });
+  });
+
+  expect(await deliver(saleEvent())).toMatchObject({ delivered: true });
+  expect(failures.size).toBe(0);
+  const rows = await ledger();
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    sourceRef: `sale:${SALE_ID}`,
+    kind: 'SALE',
+    amount: '-1.000',
+    previousAmount: '3.000',
+    newAmount: '2.000',
+  });
+});

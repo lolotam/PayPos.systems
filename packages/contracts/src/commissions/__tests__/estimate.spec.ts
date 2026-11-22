@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { buildOpenApiDocument } from '../../openapi.js';
 import {
   commissionEstimate,
   commissionEstimateMoney,
@@ -106,5 +107,44 @@ describe('commissionEstimate', () => {
         total: '3.000',
       }).success,
     ).toBe(false);
+  });
+
+  it('accepts a null total for the business and for the employee', () => {
+    const business = commissionEstimate.safeParse({
+      business_id: '01920000-0000-7000-8000-0000000000b1',
+      period: '2026-10',
+      employees: [{ ...employee, status: 'NO_PLAN', total: null }],
+      partial: false,
+      total: null,
+    });
+    expect(business.success).toBe(true);
+
+    const malformed = commissionEstimate.safeParse({
+      business_id: '01920000-0000-7000-8000-0000000000b1',
+      period: '2026-10',
+      employees: [employee],
+      partial: false,
+      total: '3.00',
+    });
+    expect(malformed.success).toBe(false);
+  });
+});
+
+describe('the estimate totals in the OpenAPI document', () => {
+  it('admits null on both totals with the monetary pattern kept', () => {
+    const document = buildOpenApiDocument();
+    const schemas = (
+      document['components'] as { schemas: Record<string, { properties?: Record<string, unknown> }> }
+    ).schemas;
+    for (const name of ['CommissionEstimate', 'CommissionEstimateEmployee']) {
+      const total = schemas[name]?.['properties']?.['total'];
+      // OpenAPI 3.0 بيقبل null بس مع type في نفس السكيما؛ الـ allOf فوق $ref
+      // ما كانش بيقبل null خالص.
+      expect(total).toEqual({
+        nullable: true,
+        type: 'string',
+        pattern: '^-?(0|[1-9]\\d{0,10})\\.\\d{3}$',
+      });
+    }
   });
 });

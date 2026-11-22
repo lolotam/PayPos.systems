@@ -1,6 +1,7 @@
 import { employeeNameMatchKey } from '@pospay/domain';
 import { createDatabase, SYSTEM_ROLES } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
+import type { DestinationStream } from '@pospay/observability';
 
 import {
   insertCommissionLineProjection,
@@ -34,8 +35,8 @@ export type EstimateFixture = {
  * يبني نشاطاً بموظفتين وارتباطات فروع، عشان التقدير يتسعّر بنداً ويقفل
  * الفلترة باليوم على نطاق الفروع (CS-Q20).
  */
-export async function estimateFixture(): Promise<EstimateFixture> {
-  const h = await startHarness();
+export async function estimateFixture(options: { logs?: DestinationStream } = {}): Promise<EstimateFixture> {
+  const h = await startHarness(options);
   const cookie = await h.signedInOperator('commission-estimate-owner@example.test');
   const company = await h.onboard(cookie, 'Commission estimate employer');
   const { business, branch, secondBranch } = await seedBusiness(h, cookie, company);
@@ -88,6 +89,25 @@ export async function seedBusiness(
     branch: branchResponse.body['id'] as string,
     secondBranch: secondResponse.body['id'] as string,
   };
+}
+
+/**
+ * نشاط من غير فروع، عشان إثبات إن DENY على نشاط تاني ما بيخصّش نشاط من غير
+ * فروع (القارئ على مستوى النشاط بيشوف نشاط كله).
+ */
+export async function seedBusinessWithoutBranches(
+  h: EstimateHarness,
+  cookie: string,
+  company: string,
+  key = 'estimate-branchless-business',
+): Promise<{ business: string }> {
+  const response = await h.send('POST', '/v1/businesses', {
+    cookie,
+    company,
+    key,
+    body: { vertical_type: 'salon', name_en: 'Estimate branchless salon', timezone: 'Asia/Kuwait' },
+  });
+  return { business: response.body['id'] as string };
 }
 
 export async function seedEmployees(
@@ -234,18 +254,20 @@ export async function globalRoleMember(
   },
   roleCode: string,
   scopeType: 'COMPANY' | 'BUSINESS' | 'BRANCH',
+  scopeId?: string,
 ): Promise<{ cookie: string; userId: string; membershipId: string }> {
   const email = `commission-estimate-global-${roleCode}-${ids.newId()}@example.test`;
   const cookie = await f.h.signedInOperator(email);
   const [user] = await f.h.owner`SELECT id FROM "user" WHERE email=${email}`;
   const role = SYSTEM_ROLES.find((entry) => entry.code === roleCode)?.id ?? '';
   const membershipId = ids.newId();
-  const scopeId =
-    scopeType === 'COMPANY' ? f.company : scopeType === 'BUSINESS' ? f.business : f.branch;
+  const scope =
+    scopeId ??
+    (scopeType === 'COMPANY' ? f.company : scopeType === 'BUSINESS' ? f.business : f.branch);
   await f.h.owner`INSERT INTO memberships(
     company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
     VALUES (${f.company},${membershipId},${user?.['id']},${role}::uuid,'global',
-      ${scopeType},${scopeId}::uuid)`;
+      ${scopeType},${scope}::uuid)`;
   return { cookie, userId: user?.['id'] as string, membershipId };
 }
 
