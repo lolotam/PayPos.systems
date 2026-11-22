@@ -66,7 +66,7 @@ function TopNavHeader({
             visiblePageIds={visiblePageIds}
             triggerRef={module.id === focusModuleId ? moduleTriggerRef : undefined}
             onCloseAutoFocus={state.onCloseAutoFocus}
-            onOpenChange={(open) => state.setMenuOpen(open ? module.id : undefined)}
+            onOpenChange={(next, opener) => state.setMenuOpen(next ? module.id : undefined, opener)}
             onSwitchModule={state.switchModule}
             onNavigate={onNavigate}
           />

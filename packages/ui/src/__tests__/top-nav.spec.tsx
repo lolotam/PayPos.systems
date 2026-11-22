@@ -78,6 +78,25 @@ it('returns focus to the original opener after switching modules in an open menu
   expect(document.activeElement).toBe(opener);
 });
 
+it('records the clicked module trigger when the pointer does not move focus', async () => {
+  stubMedia(() => false);
+  render(tree({ currentModuleId: 'sell' }));
+  const opener = screen.getByRole('button', { name: /Business/ });
+  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  expect(document.activeElement).toBe(document.body);
+
+  fireEvent.click(opener);
+  fireEvent.click(
+    within(screen.getByRole('dialog', { name: 'Business' })).getByRole('button', { name: /People/ }),
+  );
+  await waitForOnlyDialog('People');
+
+  const peopleDialog = screen.getByRole('dialog', { name: 'People' });
+  fireEvent.keyDown(document.activeElement ?? peopleDialog, { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(document.activeElement).toBe(opener);
+});
+
 it('keeps the original opener after an intermediate module close finishes', async () => {
   stubMedia(() => false);
   render(tree({ currentModuleId: 'business' }));

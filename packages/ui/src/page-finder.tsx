@@ -92,6 +92,13 @@ function isVisibleFinderLink(link: HTMLAnchorElement): boolean {
   return true;
 }
 
+function isRestorableFocusTarget(element: Element | null): element is HTMLElement {
+  if (!(element instanceof HTMLElement) || !element.isConnected) return false;
+  if (element === document.body || element === document.documentElement) return false;
+  if (element.hasAttribute('disabled') || element.getAttribute('aria-disabled') === 'true') return false;
+  return element.tabIndex >= 0 || element.isContentEditable;
+}
+
 function onFinderInputKeyDown(
   event: KeyboardEvent<HTMLInputElement>,
   listRef: RefObject<HTMLUListElement | null>,
@@ -176,12 +183,15 @@ function useFinderShortcut(open: boolean, close: () => void, begin: () => void) 
   }, [open, close, begin]);
 }
 
-type FinderControllerInput = Pick<PageFinderProps, 'workspaces' | 'visiblePageIds' | 'onNavigate'>;
+type FinderControllerInput = Pick<PageFinderProps, 'workspaces' | 'visiblePageIds' | 'onNavigate'> & {
+  triggerRef: RefObject<HTMLButtonElement | null>;
+};
 
 function usePageFinderController({
   workspaces,
   visiblePageIds,
   onNavigate,
+  triggerRef,
 }: FinderControllerInput) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -198,11 +208,12 @@ function usePageFinderController({
   }, []);
   const beginShortcut = useCallback(() => {
     openedBy.current = 'shortcut';
-    restoreFocus.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+    restoreFocus.current = isRestorableFocusTarget(document.activeElement)
+      ? document.activeElement
+      : (triggerRef.current ?? undefined);
     setQuery('');
     setOpen(true);
-  }, []);
+  }, [triggerRef]);
   const markTriggerOpened = useCallback(() => {
     openedBy.current = 'trigger';
   }, []);
@@ -247,11 +258,13 @@ export function PageFinder({
   onNavigate,
 }: PageFinderProps) {
   const dir = useDirection();
-  const controller = usePageFinderController({ workspaces, visiblePageIds, onNavigate });
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const controller = usePageFinderController({ workspaces, visiblePageIds, onNavigate, triggerRef });
   return (
     <Dialog.Root open={controller.open} onOpenChange={controller.onOpenChange}>
       <Dialog.Trigger asChild>
         <Button
+          ref={triggerRef}
           variant="ghost"
           size="icon"
           aria-label={labels.trigger}

@@ -134,6 +134,21 @@ it('returns focus after a shortcut close but not after a trigger close', async (
   await waitFor(() => expect(document.activeElement).toBe(trigger));
 });
 
+it('restores focus to the finder trigger when a shortcut starts from BODY', async () => {
+  render(tree('ltr'));
+  if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  expect(document.activeElement).toBe(document.body);
+
+  const dialog = openWithShortcut('k', 'ctrlKey');
+  fireEvent.keyDown(document.activeElement ?? dialog, { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() =>
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: finderLabels.trigger }),
+    ),
+  );
+});
+
 it('ignores unrelated keys and toggles closed on a second shortcut', async () => {
   render(tree('ltr'));
   fireEvent.keyDown(window, { key: 'k' });

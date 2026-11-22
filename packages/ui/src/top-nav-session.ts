@@ -12,7 +12,7 @@ import {
 
 export type TopNavSessionState = {
   openId: string | undefined;
-  setMenuOpen: (id: string | undefined) => void;
+  setMenuOpen: (id: string | undefined, opener?: HTMLElement) => void;
   switchModule: (id: string) => void;
   drawerOpen: boolean;
   setDrawerOpen: (open: boolean) => void;
@@ -100,8 +100,7 @@ function useBreakpointFocus({
   return target;
 }
 
-function openMenu(setSession: SetSession, id: string | undefined) {
-  const opener = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+function openMenu(setSession: SetSession, id: string | undefined, opener?: HTMLElement) {
   setSession((previous) => ({
     ...previous,
     openId: id,
@@ -238,7 +237,7 @@ function createSessionHandlers({
 }: SessionHandlersArgs): TopNavSessionState {
   return {
     openId: latestSessionRef.current.openId,
-    setMenuOpen: (id) => openMenu(setSession, id),
+    setMenuOpen: (id, opener) => openMenu(setSession, id, opener),
     switchModule: (id) => switchModule(setSession, id),
     drawerOpen: latestSessionRef.current.drawerOpen,
     setDrawerOpen: (open) => toggleDrawer(setSession, open),

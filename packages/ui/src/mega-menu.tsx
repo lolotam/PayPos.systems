@@ -2,7 +2,7 @@
 
 import { XIcon } from '@phosphor-icons/react/dist/ssr';
 import { Dialog } from 'radix-ui';
-import { type KeyboardEvent, type Ref } from 'react';
+import { useCallback, useRef, type KeyboardEvent, type Ref } from 'react';
 import { Button } from './button.js';
 import { useDirection } from './direction-provider.js';
 import {
@@ -25,10 +25,37 @@ export type MegaMenuProps = {
   visiblePageIds?: readonly string[] | undefined;
   triggerRef?: Ref<HTMLButtonElement> | undefined;
   onCloseAutoFocus?: ((event: Event, moduleId: string) => void) | undefined;
-  onOpenChange: (open: boolean) => void;
+  onOpenChange: (open: boolean, opener?: HTMLElement) => void;
   onSwitchModule: (moduleId: string) => void;
   onNavigate?: (() => void) | undefined;
 };
+
+function assignTriggerRef(ref: Ref<HTMLButtonElement> | undefined, node: HTMLButtonElement | null) {
+  if (typeof ref === 'function') {
+    ref(node);
+    return;
+  }
+  if (ref) (ref as { current: HTMLButtonElement | null }).current = node;
+}
+
+function useMegaMenuTrigger(
+  triggerRef: Ref<HTMLButtonElement> | undefined,
+  onOpenChange: (open: boolean, opener?: HTMLElement) => void,
+) {
+  const localTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const setTriggerRef = useCallback(
+    (node: HTMLButtonElement | null) => {
+      localTriggerRef.current = node;
+      assignTriggerRef(triggerRef, node);
+    },
+    [triggerRef],
+  );
+  const handleOpenChange = useCallback(
+    (next: boolean) => onOpenChange(next, next ? (localTriggerRef.current ?? undefined) : undefined),
+    [localTriggerRef, onOpenChange],
+  );
+  return { setTriggerRef, handleOpenChange };
+}
 
 type MegaMenuSectionProps = {
   section: NavigationSection;
@@ -214,15 +241,16 @@ export function MegaMenu({
   onSwitchModule,
   onNavigate,
 }: MegaMenuProps) {
+  const { setTriggerRef, handleOpenChange } = useMegaMenuTrigger(triggerRef, onOpenChange);
   const select = () => {
     onNavigate?.();
     onOpenChange(false);
   };
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Trigger asChild>
         <Button
-          ref={triggerRef}
+          ref={setTriggerRef}
           variant="ghost"
           size="sm"
           aria-current={current ? 'page' : undefined}
