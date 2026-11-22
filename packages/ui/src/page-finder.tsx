@@ -196,8 +196,11 @@ function FinderDialog({
 function useFinderShortcut(open: boolean, close: () => void, begin: () => void) {
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLocaleLowerCase() !== 'k') return;
+      // على لوحة مفاتيح عربية event.key بيرجع «ن» مش k، فبنقبل الزر الفعلي KeyK كمان.
+      const isFinderKey = event.code === 'KeyK' || event.key.toLocaleLowerCase() === 'k';
+      if (!(event.ctrlKey || event.metaKey) || !isFinderKey) return;
       event.preventDefault();
+      if (event.repeat) return;
       if (open) close();
       else begin();
     };

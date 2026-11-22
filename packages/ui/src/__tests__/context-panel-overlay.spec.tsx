@@ -299,3 +299,36 @@ it('keeps the single remaining workspace switchable when the inspected workspace
   expect(screen.getByRole('heading', { name: 'Team' })).toBeTruthy();
   expect(screen.getByRole('link', { name: 'الموظفون' })).toBeTruthy();
 });
+
+it.each(['dialog', 'alertdialog'] as const)(
+  'leaves a separate %s usable while the tablet modal is open',
+  (role) => {
+    stubViewportWidth(820);
+    const confirm = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <DirectionProvider dir="ltr">
+        <ContextPanel
+          workspaces={workspaces}
+          labels={contextLabels}
+          currentWorkspaceId="business"
+          panelOpen
+          onClose={onClose}
+        />
+        <div role={role} aria-label="Confirm">
+          <button type="button" onClick={confirm}>
+            Confirm action
+          </button>
+        </div>
+      </DirectionProvider>,
+    );
+    const confirmButton = screen.getByRole('button', { name: 'Confirm action' });
+    confirmButton.focus();
+    expect(document.activeElement).toBe(confirmButton);
+
+    fireEvent.keyDown(confirmButton, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(confirmButton);
+    expect(confirm).toHaveBeenCalledTimes(1);
+  },
+);

@@ -45,7 +45,7 @@ function getPanelFocusableElements(panel: HTMLElement | null): HTMLElement[] {
 }
 
 function isInsideAnotherDialog(panel: HTMLElement | null, target: Element | null): boolean {
-  const dialog = target?.closest('[role="dialog"]');
+  const dialog = target?.closest('[role="dialog"], [role="alertdialog"]');
   return Boolean(dialog && panel && !panel.contains(dialog) && dialog !== panel.parentElement);
 }
 

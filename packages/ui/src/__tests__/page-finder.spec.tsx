@@ -228,3 +228,12 @@ it('ignores unrelated keys and toggles closed on a second shortcut', async () =>
   fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
 });
+
+it('opens from the physical K key on an Arabic layout and ignores key auto-repeat', () => {
+  render(tree('rtl'));
+  fireEvent.keyDown(window, { key: 'ن', code: 'KeyK', ctrlKey: true });
+  expect(screen.getByRole('dialog', { name: finderLabels.title })).toBeTruthy();
+
+  fireEvent.keyDown(window, { key: 'ن', code: 'KeyK', ctrlKey: true, repeat: true });
+  expect(screen.getByRole('dialog', { name: finderLabels.title })).toBeTruthy();
+});
