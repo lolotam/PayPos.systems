@@ -1,4 +1,4 @@
-import { shellNavLinkClass } from '@pospay/ui';
+import { cn, shellNavLinkClass } from '@pospay/ui';
 
 import type { ResolvedTopLevel } from '../menu/resolve-top-levels';
 
@@ -32,7 +32,10 @@ export function MoreSheet({
                     <a
                       href={page.href}
                       aria-current={page.id === currentPageId ? 'page' : undefined}
-                      className={`${shellNavLinkClass} ${page.id === currentPageId ? 'font-semibold' : ''}`}
+                      className={cn(
+                        shellNavLinkClass,
+                        page.id === currentPageId && 'font-semibold',
+                      )}
                     >
                       <span className="truncate">{page.label}</span>
                       {page.status ? (
