@@ -34,12 +34,12 @@ export function BranchServiceCategoryRow({
   const marks = branchCategoryMarks(item, branchId);
   const actions = branchCategoryActions(item, branchId, view);
   return (
-    <tr>
-      <td>{locale === 'ar' ? item.name_ar : item.name_en}</td>
-      <td>
+    <tr role="row">
+      <td role="cell">{locale === 'ar' ? item.name_ar : item.name_en}</td>
+      <td role="cell" data-cell-label={t(locale, 'catalogServiceCategories.visibility')}>
         <Badge variant="neutral">{t(locale, VISIBILITY_LABEL[item.visibility])}</Badge>
       </td>
-      <td>
+      <td role="cell" data-cell-label={t(locale, 'catalogServiceCategoryBranches.branchColumn')}>
         <div className="flex flex-wrap gap-2">
           {marks.ownedHere ? (
             <Badge variant="neutral">{t(locale, 'catalogServiceCategoryBranches.ownedHere')}</Badge>
@@ -51,7 +51,7 @@ export function BranchServiceCategoryRow({
           ) : null}
         </div>
       </td>
-      <td>
+      <td role="cell">
         <div className="flex flex-wrap gap-2">
           <BranchServiceCategoryStateButton
             view={view}

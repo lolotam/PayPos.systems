@@ -183,7 +183,7 @@ export function ServiceCategoriesPage({ companyId, business, userId }: ServiceCa
     setCreating(false);
   };
   return (
-    <section className="flex min-w-0 flex-col gap-8 text-start">
+    <div className="flex min-w-0 flex-col gap-4 text-start md:gap-6">
       <ServiceCategoryPageControls
         status={status}
         onCreate={() => {
@@ -228,6 +228,6 @@ export function ServiceCategoriesPage({ companyId, business, userId }: ServiceCa
         }}
         onClose={() => select('')}
       />
-    </section>
+    </div>
   );
 }

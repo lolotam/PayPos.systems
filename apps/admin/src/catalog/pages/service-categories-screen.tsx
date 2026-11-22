@@ -1,7 +1,7 @@
 'use client';
 import type { WorkspaceBranch, WorkspaceBusinessRead, WorkspaceCompanyRead } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { EmptyState, Store } from '@pospay/ui';
+import { EmptyState, PageShell, Store } from '@pospay/ui';
 import { useState } from 'react';
 import { BranchServiceCategoriesSection } from './branch-service-categories-section';
 import { ServiceCategoriesPage } from './service-categories-page';
@@ -57,7 +57,7 @@ export function ServiceCategoriesScreen({
   const businessReach = scope !== 'BRANCH';
   const branchScopeEmpty = scope === 'BRANCH' && activeBranches.length === 0;
   return (
-    <section className="flex min-w-0 flex-col gap-8 text-start">
+    <PageShell layout="list">
       <ServiceCategoryScopeSelect
         branches={activeBranches}
         includeBusiness={businessReach}
@@ -94,6 +94,6 @@ export function ServiceCategoriesScreen({
           ) : null}
         </>
       )}
-    </section>
+    </PageShell>
   );
 }

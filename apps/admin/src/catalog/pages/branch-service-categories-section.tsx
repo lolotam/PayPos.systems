@@ -6,7 +6,7 @@ import type {
   ServiceCategoryBranchView,
 } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
-import { Button } from '@pospay/ui';
+import { Button, PageHeader } from '@pospay/ui';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useBranchServiceCategories } from '../api/use-branch-service-categories';
@@ -72,6 +72,7 @@ function useSectionState() {
     selected,
     outcome,
     lead,
+    title: t(locale, 'catalogServiceCategories.listTitle'),
     createLabel: t(locale, 'catalogServiceCategories.create'),
     changePage,
     setSelected,
@@ -175,14 +176,16 @@ export function BranchServiceCategoriesSection(scope: BranchSectionScope) {
   const outcomes = useSectionOutcomes(scope, list, section);
   const saving = useBranchServiceCategorySavePending(scope);
   return (
-    <fieldset disabled={saving} className="flex min-w-0 flex-col gap-4 text-start">
-      <p>{section.lead}</p>
-      <div className="flex flex-wrap items-center gap-2">
-        <BranchServiceCategoryViewTabs value={section.view} onChange={section.switchView} />
-        <Button variant="outline" size="sm" onClick={section.openCreate}>
-          {section.createLabel}
-        </Button>
-      </div>
+    <fieldset disabled={saving} className="flex min-w-0 flex-col gap-4 text-start md:gap-6">
+      <PageHeader
+        title={section.title}
+        description={section.lead}
+        action={
+          <Button variant="outline" size="sm" onClick={section.openCreate}>
+            {section.createLabel}
+          </Button>
+        }
+      />
       <BranchServiceCategoryOutcome outcome={section.outcome} />
       {section.creating ? (
         <BranchServiceCategoryForm
@@ -206,6 +209,7 @@ export function BranchServiceCategoriesSection(scope: BranchSectionScope) {
       ) : null}
       <BranchServiceCategoriesTable
         list={list}
+        filter={<BranchServiceCategoryViewTabs value={section.view} onChange={section.switchView} />}
         branchId={scope.branchId}
         view={section.view}
         pending={outcomes.pending}

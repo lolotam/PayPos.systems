@@ -37,9 +37,9 @@ export function ServiceCategoryPageControls({
         description={t(locale, 'catalogServiceCategories.listLead')}
         action={<Button onClick={onCreate}>{t(locale, 'catalogServiceCategories.create')}</Button>}
       />
-      <ServiceCategoryStatusTabs value={status} onChange={onStatus} />
       <ServiceCategoriesListPanel
         list={list}
+        filter={<ServiceCategoryStatusTabs value={status} onChange={onStatus} />}
         selectedId={selectedId}
         cursor={cursor}
         tracked={tracked}

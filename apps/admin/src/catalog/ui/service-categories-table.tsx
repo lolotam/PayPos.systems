@@ -1,13 +1,13 @@
 'use client';
 import type { ServiceCategoryListItem } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { DataTableFrame } from '@pospay/ui';
 import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { useMemo } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { TrackedServiceCategoryClosing } from '../model/service-category-closing';
 import { ServiceCategoryRow } from './service-category-row';
 
+// الجدول بلا كرت: كرت القائمة يملكه الـ`ServiceCategoriesListPanel` عشان التبويبات والتذييل تجلس معه.
 export function ServiceCategoriesTable({
   items,
   selectedId,
@@ -35,31 +35,30 @@ export function ServiceCategoriesTable({
     manualPagination: true,
   });
   return (
-    <DataTableFrame title={t(locale, 'catalogServiceCategories.listTitle')}>
-      <table>
-        <thead>
-          {table.getHeaderGroups().map((group) => (
-            <tr key={group.id}>
-              {group.headers.map((header) => (
-                <th key={header.id} scope="col">
-                  {flexRender(header.column.columnDef.header, header.getContext())}
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {table.getRowModel().rows.map(({ original }) => (
-            <ServiceCategoryRow
-              key={original.id}
-              item={original}
-              selected={selectedId === original.id}
-              pendingAction={tracked[original.id]?.action ?? null}
-              onSelect={onSelect}
-            />
-          ))}
-        </tbody>
-      </table>
-    </DataTableFrame>
+    // الأدوار صريحة تبقى معتمدة بعد أن يغيّر التكديس عرض العناصر تحت 600px.
+    <table role="table">
+      <thead role="rowgroup">
+        {table.getHeaderGroups().map((group) => (
+          <tr key={group.id} role="row">
+            {group.headers.map((header) => (
+              <th key={header.id} scope="col" role="columnheader">
+                {flexRender(header.column.columnDef.header, header.getContext())}
+              </th>
+            ))}
+          </tr>
+        ))}
+      </thead>
+      <tbody role="rowgroup">
+        {table.getRowModel().rows.map(({ original }) => (
+          <ServiceCategoryRow
+            key={original.id}
+            item={original}
+            selected={selectedId === original.id}
+            pendingAction={tracked[original.id]?.action ?? null}
+            onSelect={onSelect}
+          />
+        ))}
+      </tbody>
+    </table>
   );
 }

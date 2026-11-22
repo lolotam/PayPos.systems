@@ -28,8 +28,10 @@ export function PackageTypeTableRow({
     mutationKey: ['package-type-selling', companyId, businessId, userId],
   });
   return (
-    <tr className={selected ? 'bg-secondary/50' : ''}>
-      <td>
+    // الأدوار صريحة: بعد أن تصبح الصفوف بلوك تحت 600px يبقى قارئ الشاشة يقرأها
+    // صفوف جدول ويربط كل خلية بترويسة عمودها بالترتيب نفسه.
+    <tr role="row" className={selected ? 'bg-secondary/50' : ''}>
+      <td role="cell">
         {locale === 'ar' ? (item.name_ar ?? item.name_en) : item.name_en}
         {item.selling_stopped_at !== null ? (
           <span className="ms-2 rounded-md bg-secondary px-2 py-1 text-xs text-secondary-foreground">
@@ -37,10 +39,16 @@ export function PackageTypeTableRow({
           </span>
         ) : null}
       </td>
-      <td dir="ltr">{item.price}</td>
-      <td>{item.validity_days}</td>
-      <td>{item.component_count}</td>
-      <td>
+      <td role="cell" dir="ltr" data-cell-label={t(locale, 'catalogPackageTypes.price')}>
+        {item.price}
+      </td>
+      <td role="cell" data-cell-label={t(locale, 'catalogPackageTypes.validity')}>
+        {item.validity_days}
+      </td>
+      <td role="cell" data-cell-label={t(locale, 'catalogPackageTypes.componentCount')}>
+        {item.component_count}
+      </td>
+      <td role="cell" data-cell-label={t(locale, 'catalogPackageTypes.selling')}>
         <PackageTypeSellingToggle
           item={item}
           canManage={canManage && !selected}
@@ -49,7 +57,7 @@ export function PackageTypeTableRow({
           userId={userId}
         />
       </td>
-      <td>
+      <td role="cell" data-cell-label={t(locale, 'catalogPackageTypes.edit')}>
         <Button
           variant="outline"
           size="sm"

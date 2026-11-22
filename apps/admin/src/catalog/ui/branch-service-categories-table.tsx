@@ -6,13 +6,14 @@ import type {
   ServiceCategoryBranchView,
 } from '@pospay/contracts';
 import type { UseQueryResult } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { t, type Locale } from '@pospay/i18n';
-import { CircleAlert, EmptyState, LoaderCircle, Store } from '@pospay/ui';
+import { CircleAlert, DataTableFrame, EmptyState, LoaderCircle, Store } from '@pospay/ui';
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { useMemo } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
-import { BranchServiceCategoriesFrame } from './branch-service-categories-frame';
+import { BranchServiceCategoriesGrid } from './branch-service-categories-grid';
 import { ServicesPageNavigation } from './services-page-navigation';
 
 const columns = (locale: Locale) => [
@@ -24,6 +25,7 @@ const columns = (locale: Locale) => [
 
 export function BranchServiceCategoriesTable({
   list,
+  filter,
   branchId,
   view,
   pending,
@@ -33,6 +35,8 @@ export function BranchServiceCategoriesTable({
   onManage,
 }: {
   list: UseQueryResult<ServiceCategoryBranchPage>;
+  /** تبويبات العرض داخل كرت القائمة فوق الجدول، وتبقى ظاهرة أثناء التحميل والخطأ والفراغ. */
+  filter: ReactNode;
   branchId: string;
   view: ServiceCategoryBranchView;
   pending: boolean;
@@ -51,21 +55,33 @@ export function BranchServiceCategoriesTable({
     getCoreRowModel: getCoreRowModel(),
     manualPagination: true,
   });
-  if (list.isPending)
-    return <EmptyState role="status" icon={<LoaderCircle />} title={t(locale, 'admin.loading')} />;
-  if (list.isError)
-    return (
-      <EmptyState
-        role="alert"
-        tone="danger"
-        icon={<CircleAlert />}
-        title={envelopeMessage(list.error, locale)}
-      />
-    );
   return (
-    <div className="flex flex-col gap-4">
-      {list.data.items.length ? (
-        <BranchServiceCategoriesFrame
+    <DataTableFrame
+      stacked
+      title={t(locale, 'catalogServiceCategories.listTitle')}
+      filters={filter}
+      footer={
+        list.isSuccess ? (
+          <ServicesPageNavigation cursor={cursor} next={list.data.next_cursor} onChange={onPage} />
+        ) : undefined
+      }
+    >
+      {list.isPending ? (
+        <EmptyState role="status" icon={<LoaderCircle />} title={t(locale, 'admin.loading')} />
+      ) : null}
+      {list.isError ? (
+        <EmptyState
+          role="alert"
+          tone="danger"
+          icon={<CircleAlert />}
+          title={envelopeMessage(list.error, locale)}
+        />
+      ) : null}
+      {list.isSuccess && list.data.items.length === 0 ? (
+        <EmptyState icon={<Store />} title={t(locale, 'catalogServiceCategories.empty')} />
+      ) : null}
+      {list.isSuccess && list.data.items.length > 0 ? (
+        <BranchServiceCategoriesGrid
           table={table}
           branchId={branchId}
           view={view}
@@ -73,10 +89,7 @@ export function BranchServiceCategoriesTable({
           onState={onState}
           onManage={onManage}
         />
-      ) : (
-        <EmptyState icon={<Store />} title={t(locale, 'catalogServiceCategories.empty')} />
-      )}
-      <ServicesPageNavigation cursor={cursor} next={list.data.next_cursor} onChange={onPage} />
-    </div>
+      ) : null}
+    </DataTableFrame>
   );
 }

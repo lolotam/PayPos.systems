@@ -22,12 +22,12 @@ export function ServiceCategoryRow({
 }) {
   const locale = useLocale();
   return (
-    <tr className={selected ? 'bg-secondary/50' : ''}>
-      <td>{locale === 'ar' ? item.name_ar : item.name_en}</td>
-      <td>
+    <tr role="row" className={selected ? 'bg-secondary/50' : ''}>
+      <td role="cell">{locale === 'ar' ? item.name_ar : item.name_en}</td>
+      <td role="cell" data-cell-label={t(locale, 'catalogServiceCategories.visibility')}>
         <Badge variant="neutral">{t(locale, VISIBILITY_LABEL[item.visibility])}</Badge>
       </td>
-      <td>
+      <td role="cell" data-cell-label={t(locale, 'catalogServiceCategories.state')}>
         <div className="flex flex-wrap gap-2">
           <Badge variant={item.closed_at === null ? 'success' : 'neutral'}>
             {t(
@@ -49,7 +49,7 @@ export function ServiceCategoryRow({
           ) : null}
         </div>
       </td>
-      <td>
+      <td role="cell" data-cell-label={t(locale, 'catalogServiceCategories.manage')}>
         <Button
           variant="outline"
           size="sm"
