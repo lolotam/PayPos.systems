@@ -132,7 +132,6 @@ it('hides and blocks the background while the tablet modal is open and closes on
     expect(screen.queryByRole('dialog', { name: contextLabels.navigation })).toBeNull();
   });
   expect(document.activeElement).toBe(railButton);
-  expect(outsideAction).not.toHaveBeenCalled();
 
   fireEvent.click(screen.getByRole('button', { name: 'Outside destructive action' }));
   expect(outsideAction).toHaveBeenCalledTimes(1);
@@ -174,7 +173,7 @@ it('keeps focus inside the tablet dialog when visiblePageIds removes the focused
   await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
 });
 
-it('preserves the original observed opener across outside clicks while the tablet modal is open', () => {
+it('preserves the original observed opener across outside focus attempts while the tablet modal is open', () => {
   stubViewportWidth(820);
   function Harness() {
     const [open, setOpen] = useState(false);
@@ -390,4 +389,31 @@ it('keeps the focus a destination page took in the same commit that closes the t
 
   expect(screen.queryByRole('dialog', { name: contextLabels.navigation })).toBeNull();
   expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Destination page' }));
+});
+
+it('ignores Escape during IME composition in the tablet filter and still closes on a plain Escape', async () => {
+  stubViewportWidth(820);
+  const onClose = vi.fn();
+  render(
+    <DirectionProvider dir="rtl">
+      <ContextPanel
+        workspaces={workspaces}
+        labels={contextLabels}
+        currentWorkspaceId="business"
+        panelOpen
+        onClose={onClose}
+      />
+    </DirectionProvider>,
+  );
+  const filter = screen.getByRole('searchbox', { name: contextLabels.filterPages });
+  filter.focus();
+  fireEvent.change(filter, { target: { value: 'الأع' } });
+
+  fireEvent.keyDown(filter, { key: 'Escape', isComposing: true });
+  expect(onClose).not.toHaveBeenCalled();
+  expect(screen.getByRole('dialog', { name: contextLabels.navigation })).toBeTruthy();
+  expect((filter as HTMLInputElement).value).toBe('الأع');
+
+  fireEvent.keyDown(filter, { key: 'Escape' });
+  await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
 });

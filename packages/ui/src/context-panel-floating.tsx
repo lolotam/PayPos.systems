@@ -33,6 +33,10 @@ export function ContextPanelFloating({
         <Dialog.Content
           asChild
           aria-describedby={undefined}
+          onEscapeKeyDown={(event) => {
+            // Escape وسط كتابة IME بيلغي التركيب بس، مش المفروض يقفل اللوحة ويضيّع نص التصفية.
+            if (event.isComposing) event.preventDefault();
+          }}
           onCloseAutoFocus={(event) => event.preventDefault()}
         >
           <aside dir={dir} aria-modal="true" className={className}>

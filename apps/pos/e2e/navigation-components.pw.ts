@@ -267,6 +267,23 @@ for (const dir of DIRECTIONS) {
     }
   });
 
+  test(`C tablet modal swallows a press on a background rail control (${dir})`, async ({ page }) => {
+    await page.setViewportSize({ width: 820, height: 900 });
+    await openScene(page, 'context', dir);
+    const panel = page.getByRole('dialog', { name: LABELS.panelNavigation });
+    await expect(panel).toBeVisible();
+    const team = page
+      .getByRole('navigation', { name: LABELS.navigation, includeHidden: true })
+      .getByRole('button', { name: LABELS.people, includeHidden: true })
+      .first();
+    const box = await requiredBox(team);
+
+    // A real pointer press at the rail button's position: it may dismiss the modal, never inspect.
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await expect(panel).toBeHidden();
+    await expect(team).not.toHaveAttribute('aria-pressed', 'true');
+  });
+
   test(`finder keyboard activation and localized empty state (${dir})`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await openScene(page, 'context', dir);
