@@ -15,16 +15,20 @@ export interface PlanNode {
 export type Planned = { statement: string; plan: PlanNode }[];
 
 export const TABLES = ['service_sessions', 'service_lines', 'line_performers'];
-// أعمدة كلها مسموحة: أثقل إسقاط، وجمل الصفحة الخمس كلها تُنفَّذ (بلا ملغي، فلا جملة إلغاءات).
-export const STATEMENTS_PER_PAGE = 5;
+// جمل صفحة غير فارغة: صفوف المنفذة، السطور، الزيارات، التفاصيل (أربع ثابتة)، ثم جملة أسماء العملاء لو العمود مسموح،
+// وجملة الإلغاءات لو في الصفحة سطر ملغي؛ فالحد الأقصى ستّ جمل في أثقل تركيبة، وليس خمساً.
+export const BASE_PAGE_STATEMENTS = 4;
+export const statementsFor = (page: { names: boolean; cancelled: boolean }) =>
+  BASE_PAGE_STATEMENTS + Number(page.names) + Number(page.cancelled);
+export const MAX_OWN_LINES_STATEMENTS = statementsFor({ names: true, cancelled: true });
 export const nodes = (node: PlanNode): PlanNode[] => [node, ...(node.Plans ?? []).flatMap(nodes)];
 const flat = (text: string) => text.replace(/\s+/g, ' ').slice(0, 60);
 
 // البند 3 (أ): عدد الجمل ثابت، لا join، لا Seq Scan، ولا جدول يُقرأ أكثر من مرة (Actual Loops = 1) في أي جملة.
-export function planViolations(label: string, plans: Planned) {
+export function planViolations(label: string, plans: Planned, expected: number) {
   const found: string[] = [];
-  if (plans.length !== STATEMENTS_PER_PAGE)
-    found.push(`${label}: ${plans.length} statements planned`);
+  if (plans.length !== expected)
+    found.push(`${label}: ${plans.length} statements planned, expected ${expected}`);
   for (const { statement, plan } of plans) {
     const all = nodes(plan);
     if (all.some((node) => /Join|Nested Loop/.test(node['Node Type'])))

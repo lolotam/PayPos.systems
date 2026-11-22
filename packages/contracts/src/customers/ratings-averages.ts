@@ -4,6 +4,8 @@ import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 
+import { periodIsValid } from './ratings-period.js';
+
 /**
  * فلاتر متوسطات التقييم في الأدمن: نفس فلاتر القائمة بدون المؤشر والحد. `from` شاملة و`to` حصرية على `submitted_at`،
  * ولو الاتنين غايبين الفترة هي الشهر الميلادي الحالي بتوقيت النشاط (D-B12)، ولو واحد منهم موجود الفترة مفتوحة من الناحية التانية.
@@ -15,10 +17,7 @@ export const ratingAveragesQuery = z
     from: timestamp.optional(),
     to: timestamp.optional(),
   })
-  .refine(
-    (q) => q.from === undefined || q.to === undefined || Date.parse(q.from) < Date.parse(q.to),
-    { message: 'from must be before to', path: ['from'] },
-  );
+  .refine(periodIsValid, { message: 'from must be before to', path: ['from'] });
 export type RatingAveragesQuery = z.infer<typeof ratingAveragesQuery>;
 
 /**

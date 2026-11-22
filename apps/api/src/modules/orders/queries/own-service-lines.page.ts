@@ -22,6 +22,7 @@ const newestFirst = (a: OwnLineKey, b: OwnLineKey) =>
 /**
  * يقطع صفحة من مجموعة سطور الموظفة المرتبة بـ (business_date, occurred_at, line_id) تنازلياً.
  * العضوية في المجموعة هي التحقق الوحيد من المؤشر: سطر مجهول أو اتشال منها أو من شهر تاني أو نشاط تاني → null.
+ * العقد يقبل uuid بحروف كبيرة وقاعدة البيانات تخزّنه بحروف صغيرة، فالمؤشر يتحوّل لحروف صغيرة قبل المقارنة.
  *
  * @param owned كل سطور الموظفة الحالية في الشهر المطلوب، بأي ترتيب
  * @param cursor line_id آخر صف في الصفحة السابقة، أو undefined للصفحة الأولى
@@ -34,7 +35,8 @@ export function pageOwnLines(
   limit: number,
 ): OwnLinePage | null {
   const ordered = [...owned].sort(newestFirst);
-  const anchor = cursor === undefined ? -1 : ordered.findIndex((key) => key.lineId === cursor);
+  const wanted = cursor?.toLowerCase();
+  const anchor = wanted === undefined ? -1 : ordered.findIndex((key) => key.lineId === wanted);
   if (cursor !== undefined && anchor < 0) return null;
   const start = anchor + 1;
   const keys = ordered.slice(start, start + limit);

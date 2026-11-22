@@ -281,3 +281,31 @@ it('rejects an unknown or inverted filter with 400 and a request without a sessi
   });
   expect(anonymous.statusCode).toBe(401);
 });
+
+it('accepts a range inside one millisecond over HTTP, keeps its microseconds, and refuses an equal or inverted one (F4)', async () => {
+  const rating = await seedRating(db, tenant, {
+    stars: 5,
+    at: new Date('2026-07-01T12:00:00.123Z'),
+    performers: [tenant.employees[0]],
+    date: '2026-07-01',
+  });
+  const edge = '2026-07-01T12:00:00';
+  const miss = `from=${edge}.123001Z&to=${edge}.123999Z`;
+  const hit = `from=${edge}.122999Z&to=${edge}.123001Z`;
+  const same = `from=${edge}.123001Z&to=${edge}.123001Z`;
+  const inverted = `from=${edge}.123999Z&to=${edge}.123001Z`;
+  const idsOf = (body: Record<string, unknown>) =>
+    (body['items'] as { id: string }[]).map((i) => i.id);
+  const listMiss = await get(ownerCookie, url(business, `?${miss}`));
+  expect([listMiss.status, idsOf(listMiss.body)]).toEqual([200, []]);
+  const listHit = await get(ownerCookie, url(business, `?${hit}`));
+  expect([listHit.status, idsOf(listHit.body)]).toEqual([200, [rating]]);
+  const averagesMiss = await get(ownerCookie, averagesUrl(`?${miss}`));
+  expect([averagesMiss.status, averagesMiss.body]).toEqual([200, { items: [] }]);
+  const averagesHit = await get(ownerCookie, averagesUrl(`?${hit}`));
+  expect([averagesHit.status, averagesHit.body]).toEqual([200, { items: [entry(0, '5.0', 1)] }]);
+  for (const query of [same, inverted]) {
+    expect((await get(ownerCookie, url(business, `?${query}`))).status).toBe(400);
+    expect((await get(ownerCookie, averagesUrl(`?${query}`))).status).toBe(400);
+  }
+});

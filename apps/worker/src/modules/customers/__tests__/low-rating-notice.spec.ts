@@ -203,3 +203,42 @@ it('an event naming another request of the same tenant never matches the stored 
   expect((await f.deliver(input)).delivered).toBe(false);
   expect(await f.notices(row.ratingId)).toHaveLength(0);
 });
+
+/** يسجل مفاتيح الصفوف التي رجعت من كل `execute`، فنعرف هل دخل نص التعليق ذاكرة الـ worker. */
+async function consumeRecordingRowKeys(input: Parameters<typeof f.consume>[0]) {
+  const keys: string[] = [];
+  await f.db.withTenant(input.companyId, (tx) =>
+    f.consumer.handle(
+      new Proxy(tx, {
+        get: (target, prop, receiver) =>
+          prop === 'execute'
+            ? async (query: SQL) => {
+                const rows = (await target.execute(query)) as Record<string, unknown>[];
+                for (const row of rows) keys.push(...Object.keys(row));
+                return rows;
+              }
+            : Reflect.get(target, prop, receiver),
+      }) as Tx,
+      input,
+    ),
+  );
+  return keys;
+}
+
+it('F3: the comment text never reaches worker memory when the rule is off', async () => {
+  await saveRule(false);
+  try {
+    const row = await f.rating(2, COMMENT);
+    expect(await consumeRecordingRowKeys(await f.event(row))).not.toContain('comment');
+  } finally {
+    await clearRules();
+  }
+});
+
+it('F3: a lost claim reads no comment text, a won claim with readers reads it exactly once', async () => {
+  const row = await f.rating(2, COMMENT);
+  const first = await f.event(row);
+  expect((await consumeRecordingRowKeys(first)).filter((key) => key === 'comment')).toHaveLength(1);
+  const replay = await f.event(row);
+  expect(await consumeRecordingRowKeys(replay)).not.toContain('comment');
+});

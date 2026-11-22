@@ -43,9 +43,12 @@ export class RequestLowRatingNotice {
       recipientCount: users.length,
     });
     if (!won || branch === null || users.length === 0) return;
-    const comment = noticeComment(stored.comment);
-    const readers =
-      comment === null ? [] : await this.ports.recipients.commentReaders(event, users, decidedAt);
+    const { comment, readers } = await this.commentForReaders(
+      event,
+      stored.hasComment,
+      users,
+      decidedAt,
+    );
     const customer = await this.ports.repository.readCustomer(event, stored.customerId);
     if (customer === null) throw new Error('LOW_RATING_CONTEXT_MISSING');
     const details = lowRatingDetails({
@@ -61,5 +64,18 @@ export class RequestLowRatingNotice {
         branch_id: event.branchId,
         notification_recipients: noticeRecipients(group, details),
       });
+  }
+
+  /** نص التعليق لا يُقرأ إلا لما يوجد تعليق وقارئ مخوّل؛ غير ذلك يبقى النص خارج الذاكرة. */
+  private async commentForReaders(
+    event: LowRatingEvent,
+    hasComment: boolean,
+    users: readonly string[],
+    decidedAt: Date,
+  ): Promise<{ comment: string | null; readers: readonly string[] }> {
+    if (!hasComment) return { comment: null, readers: [] };
+    const readers = await this.ports.recipients.commentReaders(event, users, decidedAt);
+    if (readers.length === 0) return { comment: null, readers };
+    return { comment: noticeComment(await this.ports.repository.readComment(event)), readers };
   }
 }

@@ -7,9 +7,13 @@ flag or raised timeout was added or used. The route, OpenAPI operation and clien
 
 ## Status and manager decision
 
-- Items 1 and 2 (200 ms, stale and normal statistics): met at the approved fixture and at the scaled run below.
-- Item 3 (a) (fixed statement count, no join, no sequential scan, no table scanned more than once per statement):
-  met, asserted in the suite.
+- Items 1 and 2 (200 ms, stale and normal statistics): met at the approved fixture and at the scaled run below for the
+  pages those runs measured (no cancelled line on any page, 5 statements). The maximum-statement case (6 statements,
+  a cancelled line on the page) was added afterwards and is **not yet met**: one sample at 203.6 ms, see «Maximum
+  statement case» below. The scaled run has not been repeated with it.
+- Item 3 (a) (bounded statement count, no join, no sequential scan, no table scanned more than once per statement):
+  met, asserted in the suite. The count is not a constant five: it is 4, 5 or 6 for a non-empty page by column and
+  cancellation combination, with a maximum of 6 (below).
 - Item 3 (b): **the literal Index Cond check is not claimed.** Under stale statistics the id lists are filters in
   every id statement (below). Manager design decision, 2026-11-22, option 1 (binding): §5.3(3)(b) is read as
   requiring indexed per-id probes where such probes are repeated per outer row. A single bounded batch statement
@@ -60,9 +64,13 @@ time) grow linearly with tenant size (measured below). (A) was deleted.
 
 ## Plan evidence
 
-Recorded as JSON by the spec (`57-2b plans`). Final reader, per page, five single-table statements: performer rows by
-employee, lines by id, sessions by id (+ month window), line details, customer names (only when the column is
-allowed), cancellations (only when a listed line is cancelled).
+Recorded as JSON by the spec (`57-2b plans`). Final reader, per page, single-table statements counted after the shared
+authority reads: four always (performer rows by employee, lines by id, sessions by id (+ month window), line details),
+plus customer names only when the `customer_name` column is allowed, plus cancellations only when a listed line is
+cancelled. A non-empty page therefore runs 4, 5 (names alone or a cancelled line alone) or 6 (both) statements; the
+maximum is **6**. Empty paths: 1 when she has no performer rows, 3 when none of her lines falls in the month or the
+cursor is refused. `own-service-lines-statements.spec.ts` asserts the count for every combination and the maximum. The
+shared authority reads (context, months window, allowed columns) are a fixed extra count outside these numbers.
 
 Stale statistics (target absent from the MCV lists), each statement one pass, no join node anywhere:
 
@@ -137,7 +145,8 @@ valid in both runs; no retry was needed. Normal statistics: one `ANALYZE` of the
 part (MCV then lists three ids, `reltuples` about 72,000).
 
 Samples (ms, `withTenant` including begin/commit and driver materialisation; first run then five warm runs each;
-5 statements in every sample):
+5 statements in every sample, all columns allowed and no cancelled line on any page, so these are 5-statement samples,
+not the maximum case):
 
 | Run / statistics | page | samples | max |
 |---|---|---|---|
@@ -167,7 +176,8 @@ EXPLAIN (ANALYZE, BUFFERS) facts for the batched id statements, stale statistics
 | customer names (100) | `service_sessions_recorder_idx`, id list as Filter | 100 | 65,900 | 1 | 1,792 | 12.3 |
 
 Each table is scanned exactly once per statement (loops 1, no join, no per-id repeat, no sequential scan), and the
-statement count is asserted at exactly 5 per page (independent of page size and tenant size). The examined rows are
+statement count of these pages is 5 (names allowed, nothing cancelled; independent of page size and tenant size; the
+general rule is 4 to 6, above). The examined rows are
 linear in tenant size, as the previous section warned: 65,400 rows removed per statement at this size, against about
 6,600 at the approved fixture, with about 10 ms per statement. With normal statistics at the same size, run 2 showed
 the id list as an Index Cond in every id statement (`service_lines_company_id_id_pk`, `service_sessions_company_id_id_pk`,
@@ -181,7 +191,60 @@ window; the remedies (index, statistics, planner setting) stay out of scope with
 Run 4 (final code, after the contract output parse was added): stale statistics max 93.4 ms (first-20), the three
 other pages 62–74 ms; normal statistics 20.7–38.5 ms; target absent from all three MCV lists before and after
 (two ids listed, `n_mod_since_analyze` 66,000 then 66,001, one autoanalyse at 13:56:10, before the target insert);
-5 statements per sample. All four scaled runs (2, 3, 4 and the one summarised above) passed every 200 ms assertion.
+5 statements per sample (no cancelled line on any page). All four scaled runs (2, 3, 4 and the one summarised above)
+passed every 200 ms assertion for those 5-statement pages.
+
+## Maximum statement case (6 statements): regular fixture, open finding
+
+The earlier text counted a fixed five statements. That was a fixture result: customer names and cancellations each add
+an independent statement. Per request, after the shared authority reads (9 statements, fixed, outside the numbers
+below): empty paths run 1 (no performer rows) or 3 (none of her lines in the month, or a refused cursor); a non-empty
+page runs 4 (no names, nothing cancelled), 5 (names alone, or a cancelled line alone) or 6 (names allowed **and** a
+cancelled line on the page). The maximum is **6**. `own-service-lines-statements.spec.ts` asserts every combination
+and the maximum through the real reader (`1,3,3,4,5,5,6` plus a page with a cancelled line off the page = 5 and on the
+page = 6).
+
+Measured on the regular fixture (600 own visits, 602 own lines, 6,020 colleague lines; spec
+`own-service-lines-performance.spec.ts`, one sample per page, `warm: 0`, first run only). The fixture cancels two of her
+lines (positions 250 and 450 in the newest-first order, through the real cancellation path: line status plus one
+`service_line_cancellations` row each, no `ANALYZE`), so the three new pages carry a cancelled line and run 6
+statements; the four original pages are unchanged and still run 5:
+
+| Page (statements) | stale ms | normal ms |
+|---|---|---|
+| first-20 (5) | 66.6 | 73.7 |
+| first-100 (5) | 73.9 | 71.7 |
+| cursor-100 (5) | 78.6 | 49.0 |
+| deep-cursor-100 (5) | 84.6 | 49.5 |
+| cancelled-20 (6) | 96.5 | 46.8 |
+| cancelled-100 (6) | **203.6** | 52.3 |
+| cancelled-deep-100 (6) | 68.8 | 63.1 |
+
+**One maximum-case sample is over the 200 ms bound: `cancelled-100`, stale statistics, 203.6 ms.** The spec failed on
+it, as designed. Per the stop rule nothing was changed (no index, setting, statistics target or timeout), the run was
+not repeated to obtain a green result, and the scaled 66,002-line run (`POSPAY_57_2B_SCALE=1`) with the maximum case
+was **not** run. The statement-level evidence from the same run does not show a slow statement: under EXPLAIN
+(ANALYZE) the five original statements took 2.3, 5.3, 4.7, 3.5 and 3.4 ms (stale) and the sixth, cancellations by
+`line_id`, was an `Index Scan` on `slc_membership_idx` (`company_id` as Index Cond, the id list as Filter), 1 row,
+loops 1, 0.14 ms (stale) / 0.21 ms (normal), so the page's database time is about 20 ms and the 203.6 ms sample is wall
+time around it (begin/commit, driver materialisation, scheduling). The machine was not otherwise quiet in the later part
+of the session (CPU at 100 % with another session's work; two unrelated specs of this suite failed once on statement
+timeouts and passed when rerun), but the load during this particular sample was not recorded, so this is a hypothesis,
+not a finding. The cancellations table held two rows in this fixture, so the cost of the sixth statement at tenant scale
+(many cancellations) is unmeasured; `service_line_cancellations` is not in the plan checks' table list (no
+sequential-scan or loop assertion for it); its plan above is read by hand. The item 3 (b) result is unchanged: the id
+list is a filter, the literal Index Cond check is not claimed.
+
+**Three further runs of the regular spec by the owner session (same head, same lane, no change), 2026-11-22.** Runs 1
+and 2 passed: every page, the three maximum-statement pages included, was under 200 ms (the spec prints samples only
+when it fails, so their values are not recorded). Run 3 failed on every page in both statistics states, the already
+proven five-statement pages included: stale 257–1,043 ms, normal 162–711 ms (first-20 215, first-100 162, cursor-100
+711), against 22–41 ms for those same normal-statistics pages in the earlier runs. The machine's processor load read
+100 % immediately after run 3; other sessions share this machine. Reading: wall time on this host is not reproducible
+under that load, so neither the 203.6 ms sample nor run 3 measures the query, and the passing runs cannot be presented
+as a clean maximum-case proof either. **Open:** the maximum-statement case has no accepted measurement yet, at fixture
+or at 66,002-line scale; it needs a run on a quiet host, or an acceptance rule that separates database time from wall
+time, decided by the design approver. The route was exposed on the five-statement evidence above.
 
 ## Phase 3: route exposed
 

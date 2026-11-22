@@ -1,3 +1,4 @@
+import { cancelServiceLine } from '../../../../../../packages/db/test/service-line-cancellation.ts';
 import { ids, must, type TipFixture } from '../../../../test/session-tips.fixture.ts';
 
 export interface PerfScope {
@@ -7,6 +8,7 @@ export interface PerfScope {
   employeeIds: string[];
   sampleSessionId: string;
   sampleLineId: string;
+  membershipId: string;
 }
 
 // نشاط تركيبي كامل لشركة جديدة (نشاط، فرع، عميل، خدمة، أربعة موظفين، عضوية مسجِّلة)، ثم زيارة عينة بالاستخدام الحقيقي.
@@ -61,6 +63,7 @@ export async function newPerfScope(f: TipFixture, name: string): Promise<PerfSco
     employeeIds,
     sampleSessionId: saved.session.id,
     sampleLineId: must(saved.session.lines[0]).id,
+    membershipId,
   };
 }
 
@@ -73,6 +76,7 @@ export function homePerfScope(f: TipFixture, sessionId: string, lineId: string):
     employeeIds: f.employees,
     sampleSessionId: sessionId,
     sampleLineId: lineId,
+    membershipId: f.membership,
   };
 }
 
@@ -154,4 +158,22 @@ export async function secondLines(f: TipFixture, s: PerfScope, employeeId: strin
     SELECT $1::uuid,gen_random_uuid(),$2::uuid,added.id,$3::uuid,1,10000,'Perf performer',NULL,false,false FROM added`,
     [s.companyId, s.businessId, employeeId, count, s.sampleLineId],
   );
+}
+
+// يلغي سطوراً محددة بالمسار الحقيقي للإلغاء (سطر + صف إلغاء)، فتظهر في الصفحة ملغاة وبلحظة إلغاء. لا ANALYZE ولا تغيير إحصاءات.
+export async function cancelPerfLines(f: TipFixture, s: PerfScope, lineIds: readonly string[]) {
+  for (const lineId of lineIds)
+    await f.db.withTenant(
+      s.companyId,
+      (tx) =>
+        cancelServiceLine(tx, {
+          companyId: s.companyId,
+          lineId,
+          expectedRevision: 1,
+          cancelledBy: f.userId,
+          membershipId: s.membershipId,
+          cancellationId: ids.newId(),
+        }),
+      { userId: f.userId },
+    );
 }

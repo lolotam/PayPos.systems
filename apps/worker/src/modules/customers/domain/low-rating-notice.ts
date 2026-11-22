@@ -13,9 +13,9 @@ export interface LowRatingFacts {
   readonly stars: number;
 }
 
-/** التقييم المحفوظ كما يقرؤه المستهلك داخل المستأجر. */
+/** التقييم المحفوظ كما يقرؤه المستهلك داخل المستأجر؛ نص التعليق لا يدخل الذاكرة هنا، وجوده فقط. */
 export interface StoredRating extends LowRatingFacts {
-  readonly comment: string | null;
+  readonly hasComment: boolean;
   readonly businessDate: string;
   readonly customerId: string;
 }

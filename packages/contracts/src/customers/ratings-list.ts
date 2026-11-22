@@ -5,6 +5,7 @@ import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 
+import { periodIsValid } from './ratings-period.js';
 import { ratingStars } from './ratings.js';
 
 /**
@@ -20,13 +21,7 @@ export const ratingsListQuery = z
     cursor: z.string().min(1).max(512).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
   })
-  .refine(
-    (q) => q.from === undefined || q.to === undefined || Date.parse(q.from) < Date.parse(q.to),
-    {
-      message: 'from must be before to',
-      path: ['from'],
-    },
-  );
+  .refine(periodIsValid, { message: 'from must be before to', path: ['from'] });
 export type RatingsListQuery = z.infer<typeof ratingsListQuery>;
 
 /**

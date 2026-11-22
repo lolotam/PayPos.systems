@@ -26,7 +26,7 @@ const STORED: StoredRating = {
   businessId: EVENT.businessId,
   branchId: EVENT.branchId,
   stars: 2,
-  comment: null,
+  hasComment: false,
   businessDate: '2026-11-07',
   customerId: uuid(7),
 };
@@ -50,6 +50,7 @@ interface Setup {
   readonly readers?: readonly string[];
   readonly branch?: { nameAr: string | null; nameEn: string | null } | null;
   readonly claim?: boolean;
+  readonly comment?: string | null;
 }
 
 function build(setup: Setup = {}) {
@@ -72,6 +73,7 @@ function build(setup: Setup = {}) {
         } | null,
     ),
     claim: vi.fn<LowRatingPorts['repository']['claim']>(async () => setup.claim ?? true),
+    comment: vi.fn(async () => setup.comment ?? null),
   };
   const ports: LowRatingPorts = {
     rules: { rule: mocks.rule },
@@ -79,6 +81,7 @@ function build(setup: Setup = {}) {
     place: { companyOpen: mocks.open, forBranch: mocks.branch },
     repository: {
       readRating: mocks.rating,
+      readComment: mocks.comment,
       readCustomer: mocks.customer,
       performers: async () => [{ nameAr: 'ليلى', nameEn: 'Laila' }],
       claim: mocks.claim,
@@ -134,6 +137,7 @@ describe('the decision ledger', () => {
     expect(claimed(t)).toMatchObject({ recipientCount: 0, decidedAt: AT });
     expect(t.appended).toEqual([]);
     expect(t.mocks.readers).not.toHaveBeenCalled();
+    expect(t.mocks.comment).not.toHaveBeenCalled();
   });
 
   it('an off rule makes no identity or place-name read', async () => {
@@ -144,9 +148,10 @@ describe('the decision ledger', () => {
   });
 
   it('a lost claim returns with no reader read, customer read or notice', async () => {
-    const t = build({ claim: false, stored: { ...STORED, comment: 'x' } });
+    const t = build({ claim: false, stored: { ...STORED, hasComment: true }, comment: 'x' });
     await t.run();
     expect(t.mocks.readers).not.toHaveBeenCalled();
+    expect(t.mocks.comment).not.toHaveBeenCalled();
     expect(t.mocks.customer).not.toHaveBeenCalled();
     expect(t.appended).toEqual([]);
   });
@@ -176,7 +181,8 @@ describe('composition and emission', () => {
   it('a reader gets the comment as written, a DENY-holder gets the notice without it', async () => {
     const comment = 'اتصلوا بيا على 99887766';
     const t = build({
-      stored: { ...STORED, comment },
+      stored: { ...STORED, hasComment: true },
+      comment,
       managers: [uuid(10), uuid(11)],
       readers: [uuid(11)],
     });
@@ -208,5 +214,52 @@ describe('composition and emission', () => {
     const t = build();
     t.mocks.customer.mockResolvedValueOnce(null);
     await expect(t.run()).rejects.toThrow('LOW_RATING_CONTEXT_MISSING');
+  });
+});
+
+describe('the comment text is read last (F3)', () => {
+  const COMMENT_TEXT = 'نص تعليق حساس';
+  const withComment = { stored: { ...STORED, hasComment: true }, comment: COMMENT_TEXT } as const;
+
+  it('never reads the text when the rule is off, there is no candidate or the claim is lost', async () => {
+    for (const setup of [
+      { ...withComment, rule: { enabled: false } },
+      { ...withComment, managers: [] },
+      { ...withComment, branch: null },
+      { ...withComment, claim: false },
+    ]) {
+      const t = build(setup);
+      await t.run();
+      expect(t.mocks.comment).not.toHaveBeenCalled();
+    }
+  });
+
+  it('never reads the text when no candidate may read comments, and sends the plain notice', async () => {
+    const t = build({ ...withComment, managers: [uuid(10), uuid(11)], readers: [] });
+    await t.run();
+    expect(t.mocks.readers).toHaveBeenCalledTimes(1);
+    expect(t.mocks.comment).not.toHaveBeenCalled();
+    expect(JSON.stringify(t.appended)).not.toContain(COMMENT_TEXT);
+    expect(
+      t.appended.flatMap((e) => e.payload.notification_recipients.map((r) => r.template_key)),
+    ).toEqual(['low_rating', 'low_rating']);
+  });
+
+  it('reads the text exactly once, after the reader check, when a reader exists', async () => {
+    const t = build({ ...withComment, readers: [uuid(10)] });
+    await t.run();
+    expect(t.mocks.comment).toHaveBeenCalledTimes(1);
+    expect(t.mocks.readers.mock.invocationCallOrder[0]).toBeLessThan(
+      t.mocks.comment.mock.invocationCallOrder[0] ?? 0,
+    );
+    expect(JSON.stringify(t.appended)).toContain(COMMENT_TEXT);
+  });
+
+  it('treats a stored empty text as no comment: plain notice for everyone', async () => {
+    const t = build({ ...withComment, comment: '', readers: [uuid(10)] });
+    await t.run();
+    expect(
+      t.appended.flatMap((e) => e.payload.notification_recipients.map((r) => r.template_key)),
+    ).toEqual(['low_rating']);
   });
 });

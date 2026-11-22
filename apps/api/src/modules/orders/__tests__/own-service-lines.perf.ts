@@ -1,55 +1,25 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { performance } from 'node:perf_hooks';
-import type { StaffColumnCode } from '@pospay/contracts';
-import type { Tx } from '@pospay/db';
-import { sql, type SQL } from 'drizzle-orm';
-import { PgDialect } from 'drizzle-orm/pg-core';
-import { readOwnLinesPage, type OwnLinesRequest } from '../queries/own-service-lines.query.ts';
 import {
   must,
   recordVisit,
   tipFixture,
   type TipFixture,
 } from '../../../../test/session-tips.fixture.ts';
+import { measure, type PerfConfig, type Target } from './own-service-lines.measure.ts';
 import {
   bulkVisits,
+  cancelPerfLines,
   homePerfScope,
   newPerfScope,
   secondLines,
   type PerfScope,
 } from './own-service-lines.seed.ts';
-import {
-  STATEMENTS_PER_PAGE,
-  compactPlans,
-  idListFilters,
-  planViolations,
-  type PlanNode,
-  type Planned,
-} from './own-service-lines.plans.ts';
 
-// plan §5.3 البنود 1–3: موظفة بـ600 زيارة/602 سطراً، وزميلات في نفس النشاط بحجم `colleagues` سطراً.
-export interface PerfConfig {
-  colleagues: number;
-  warm: number;
-  background: number;
-}
-interface Target {
-  scope: PerfScope;
-  her: string;
-  oracle: string[];
-}
-const ALL: ReadonlySet<StaffColumnCode> = new Set([
-  'date',
-  'time',
-  'service',
-  'customer_name',
-  'list_price',
-  'discount',
-  'net',
-  'share',
-]);
-const dialect = new PgDialect();
-const options = (f: TipFixture) => ({ userId: f.ownerId, readOnly: true });
+export type { PerfConfig } from './own-service-lines.measure.ts';
+
+// سطران ملغيان داخل الترتيب المرجعي، خارج كل صفحة من الصفحات الأربع الأصلية (0–19، 0–99، 100–199، 300–399):
+// صفحات «الملغي» وحدها هي التي تنفّذ جملة الإلغاءات، وهي حالة الحد الأقصى من الجمل (ست).
+const CANCELLED_AT = [250, 450] as const;
 
 async function statistics(f: TipFixture, companyId: string) {
   const rows = await f.h
@@ -108,144 +78,10 @@ async function seedTarget(f: TipFixture, attempt: number, config: PerfConfig): P
   const others = scope.employeeIds.slice(1);
   await bulkVisits(f, scope, home ? config.colleagues : config.colleagues - 1, others);
   await secondLines(f, scope, her, 2);
-  return { scope, her, oracle: await oracle(f, scope, her, config) };
-}
-
-const request = (t: Target, extra: Partial<OwnLinesRequest>): OwnLinesRequest => ({
-  employeeId: t.her,
-  month: '2026-10',
-  cursor: undefined,
-  limit: 20,
-  allowed: ALL,
-  branches: [{ id: t.scope.branchId, name_ar: null, name_en: 'Synthetic perf branch' }],
-  ...extra,
-});
-const ctx = (f: TipFixture, s: PerfScope) => ({
-  companyId: s.companyId,
-  businessId: s.businessId,
-  userId: f.ownerId,
-});
-
-// يعدّ الجمل المنفّذة في الطلب الواحد من نفس اللقطة؛ العدد ثابت لا يتبع حجم الصفحة ولا حجم المستأجر.
-async function timed(f: TipFixture, t: Target, req: OwnLinesRequest) {
-  let statements = 0;
-  const before = process.memoryUsage();
-  const started = performance.now();
-  const page = await f.db.withTenant(
-    t.scope.companyId,
-    (tx) =>
-      readOwnLinesPage(
-        new Proxy(tx, {
-          get: (target, property, receiver) =>
-            property === 'execute'
-              ? (query: SQL) => {
-                  statements++;
-                  return target.execute(query);
-                }
-              : Reflect.get(target, property, receiver),
-        }) as Tx,
-        ctx(f, t.scope),
-        req,
-      ),
-    options(f),
-  );
-  const elapsed = performance.now() - started;
-  const after = process.memoryUsage();
-  return {
-    page,
-    elapsed,
-    statements,
-    heap: after.heapUsed - before.heapUsed,
-    rss: after.rss - before.rss,
-  };
-}
-
-// كل جملة تُشرح وتُنفَّذ بنفس معاملاتها داخل نفس اللقطة؛ الخطط تُسجَّل ولا تدخل في زمن القياس.
-async function planned(f: TipFixture, t: Target, req: OwnLinesRequest) {
-  const plans: Planned = [];
-  await f.db.withTenant(
-    t.scope.companyId,
-    (tx) =>
-      readOwnLinesPage(
-        new Proxy(tx, {
-          get: (target, property, receiver) =>
-            property === 'execute'
-              ? async (query: SQL) => {
-                  const explained = await target.execute<{ 'QUERY PLAN': { Plan: PlanNode }[] }>(
-                    sql`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query}`,
-                  );
-                  plans.push({
-                    statement: dialect.sqlToQuery(query).sql,
-                    plan: must(must(explained[0])['QUERY PLAN'][0]).Plan,
-                  });
-                  return target.execute(query);
-                }
-              : Reflect.get(target, property, receiver),
-        }) as Tx,
-        ctx(f, t.scope),
-        req,
-      ),
-    options(f),
-  );
-  return plans;
-}
-
-async function measure(
-  f: TipFixture,
-  label: string,
-  t: Target,
-  config: PerfConfig,
-  violations: string[],
-) {
-  await f.db.withTenant(f.otherCompany, (tx) => tx.execute(sql`SELECT 1`));
-  const first = await timed(f, t, request(t, { limit: 100 }));
-  const pages: [string, OwnLinesRequest, string[]][] = [
-    ['first-20', request(t, { limit: 20 }), t.oracle.slice(0, 20)],
-    ['first-100', request(t, { limit: 100 }), t.oracle.slice(0, 100)],
-    [
-      'cursor-100',
-      request(t, { limit: 100, cursor: must(first.page.next_cursor) }),
-      t.oracle.slice(100, 200),
-    ],
-    [
-      'deep-cursor-100',
-      request(t, { limit: 100, cursor: must(t.oracle[299]) }),
-      t.oracle.slice(300, 400),
-    ],
-  ];
-  for (const [page, req, expected] of pages)
-    for (let sample = 0; sample <= config.warm; sample++) {
-      const run = await timed(f, t, req);
-      const name = sample === 0 ? 'first-run' : `warm-${sample}`;
-      console.info(
-        '57-2b measurement',
-        JSON.stringify({
-          label,
-          page,
-          sample: name,
-          elapsed_ms: run.elapsed,
-          statements: run.statements,
-          heap_delta_bytes: run.heap,
-          rss_delta_bytes: run.rss,
-        }),
-      );
-      expect(run.page.items.map((item) => item.line_id)).toEqual(expected);
-      if (run.statements !== STATEMENTS_PER_PAGE)
-        violations.push(`${label} ${page}: ${run.statements} statements`);
-      if (run.elapsed >= 200) violations.push(`${label} ${page} ${name}: ${run.elapsed} ms`);
-    }
-  const deep = request(t, { limit: 100, cursor: must(t.oracle[299]) });
-  const firstPlans = await planned(f, t, request(t, { limit: 100 }));
-  const deepPlans = await planned(f, t, deep);
-  console.info(
-    '57-2b plans',
-    JSON.stringify({ label, plans: compactPlans([...firstPlans, ...deepPlans]) }),
-  );
-  console.info(
-    '57-2b item-3b',
-    JSON.stringify({ label, id_list_as_filter: idListFilters([...firstPlans, ...deepPlans]) }),
-  );
-  violations.push(...planViolations(label, firstPlans), ...planViolations(label, deepPlans));
+  const ordered = await oracle(f, scope, her, config);
+  const cancelled = CANCELLED_AT.map((index) => must(ordered[index]));
+  await cancelPerfLines(f, scope, cancelled);
+  return { scope, her, oracle: ordered, cancelled: new Set(cancelled) };
 }
 
 export function perfSuite(config: PerfConfig) {

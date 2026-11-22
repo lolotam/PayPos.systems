@@ -224,3 +224,20 @@ it(
     }
   },
 );
+
+it('binds the window bounds with their microseconds and accepts a range inside one millisecond (F4)', async () => {
+  await rate(4, '2026-07-01T12:00:00.123Z', [sara]);
+  const edge = '2026-07-01T12:00:00';
+  const within = async (from: string, to: string) =>
+    summary(await averages({ from, to, employee_id: sara }));
+  expect(await within(`${edge}.123001Z`, `${edge}.123999Z`)).toEqual([]);
+  expect(await within(`${edge}.122999Z`, `${edge}.123001Z`)).toEqual([[sara, '4.0', 1]]);
+  expect(await within(`${edge}.122001Z`, `${edge}.122999Z`)).toEqual([]);
+  expect(await within(`${edge}.122999Z`, `${edge}.123000Z`)).toEqual([]);
+  expect(await refusal(averages({ from: `${edge}.123001Z`, to: `${edge}.123001Z` }))).toBe(
+    'VALIDATION_FAILED',
+  );
+  expect(await refusal(averages({ from: `${edge}.123999Z`, to: `${edge}.123001Z` }))).toBe(
+    'VALIDATION_FAILED',
+  );
+});

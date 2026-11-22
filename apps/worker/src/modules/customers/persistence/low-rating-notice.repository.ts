@@ -1,6 +1,7 @@
 import { appendOutboxEvent, type Tx } from '@pospay/db';
 import { lowRatingReceived } from '@pospay/contracts';
 import { sql } from 'drizzle-orm';
+import type { StoredRating } from '../domain/low-rating-notice.ts';
 import type { LowRatingOutbox, LowRatingRepository } from '../ports/low-rating-notice.ports.ts';
 import { performerNameAdapter } from './performer-name.adapter.ts';
 
@@ -9,30 +10,40 @@ type RatingRow = {
   readonly business_id: string;
   readonly branch_id: string;
   readonly stars: number;
-  readonly comment: string | null;
+  readonly has_comment: boolean;
   readonly business_date: string;
   readonly customer_id: string;
 };
+
+function storedRating(row: RatingRow): StoredRating {
+  return {
+    requestId: row.request_id,
+    businessId: row.business_id,
+    branchId: row.branch_id,
+    stars: row.stars,
+    hasComment: row.has_comment,
+    businessDate: row.business_date,
+    customerId: row.customer_id,
+  };
+}
 
 export function lowRatingRepository(tx: Tx): LowRatingRepository {
   return {
     readRating: async (event) => {
       const [row] = await tx.execute<RatingRow>(sql`SELECT r.request_id, r.business_id, r.branch_id,
-          r.stars, r.comment, q.business_date::text AS business_date, q.customer_id
+          r.stars, (r.comment IS NOT NULL AND length(r.comment) > 0) AS has_comment,
+          q.business_date::text AS business_date, q.customer_id
         FROM ratings r
         JOIN rating_requests q ON q.company_id = r.company_id AND q.id = r.request_id
         WHERE r.company_id = ${event.companyId} AND r.id = ${event.ratingId}`);
-      return row === undefined
-        ? null
-        : {
-            requestId: row.request_id,
-            businessId: row.business_id,
-            branchId: row.branch_id,
-            stars: row.stars,
-            comment: row.comment,
-            businessDate: row.business_date,
-            customerId: row.customer_id,
-          };
+      return row === undefined ? null : storedRating(row);
+    },
+    readComment: async (event) => {
+      const [row] = await tx.execute<{ comment: string | null }>(
+        sql`SELECT comment FROM ratings
+          WHERE company_id = ${event.companyId} AND id = ${event.ratingId}`,
+      );
+      return row?.comment ?? null;
     },
     readCustomer: async (event, customerId) => {
       const [row] = await tx.execute<{ name: string; phone: string }>(

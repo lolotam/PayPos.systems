@@ -259,3 +259,25 @@ it(
       }
   },
 );
+
+it('binds the window bounds with their microseconds and accepts a range inside one millisecond (F4)', async () => {
+  const rating = await seedRating(db, A, {
+    stars: 3,
+    at: new Date('2026-07-01T12:00:00.123Z'),
+    performers: [sara],
+    date: '2026-07-01',
+  });
+  const within = async (from: string, to: string) => idsOf(await page({ from, to }));
+  const edge = '2026-07-01T12:00:00';
+  expect(await within(`${edge}.123001Z`, `${edge}.123999Z`)).toEqual([]);
+  expect(await within(`${edge}.122999Z`, `${edge}.123001Z`)).toEqual([rating]);
+  expect(await within(`${edge}.122001Z`, `${edge}.122999Z`)).toEqual([]);
+  expect(await within(`${edge}.122999Z`, `${edge}.123000Z`)).toEqual([]);
+  expect(await within(`${edge}.123000Z`, `${edge}.123001Z`)).toEqual([rating]);
+  expect(await refusal(page({ from: `${edge}.123001Z`, to: `${edge}.123001Z` }))).toBe(
+    'VALIDATION_FAILED',
+  );
+  expect(await refusal(page({ from: `${edge}.123999Z`, to: `${edge}.123001Z` }))).toBe(
+    'VALIDATION_FAILED',
+  );
+});
