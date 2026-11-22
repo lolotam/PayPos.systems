@@ -59,12 +59,14 @@ export function useEmployeeDocuments(
   }, [scope, resetRecord, resetOpen]);
   const saved = record.data;
   const data = saved && active(saved.operation) ? saved.document : undefined;
+  // إقرار الطلب يمسح المسودة حتى لو فشل تحديث القائمة بعد نجاح الكتابة.
+  const recordedTicket = saved?.operation.scope === scope ? record.variables : undefined;
   return {
     view,
     get documents() {
       return open.documents();
     },
-    record: { ...record, data },
+    record: { ...record, data, recordedTicket },
     open,
     phase,
   };
@@ -327,7 +329,7 @@ async function recordEmployeeDocument(
     },
   );
   if (result.error) throw result.error;
-  if (!active(operation)) return undefined;
+  if (!active(operation)) return { operation };
   return { document: employeeDocument.parse(result.data), operation };
 }
 

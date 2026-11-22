@@ -96,8 +96,9 @@ function useUploadDraft(
     view.data?.can_manage === false ||
     uploadError === 'UNAUTHENTICATED' ||
     uploadError === 'FORBIDDEN' ||
+    uploadError === 'NOT_FOUND' ||
     uploadError === 'FEATURE_DISABLED';
-  const saved = record.data === undefined ? undefined : record.variables;
+  const saved = record.recordedTicket;
   const reset =
     draft.identity !== identity ||
     (draft.number !== '' && denied) ||
