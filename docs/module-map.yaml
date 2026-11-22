@@ -129,6 +129,8 @@ reads:
   - { from: customers, to: identity, symbol: readOwnRatingsAccess, file: apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts }
   - { from: customers, to: tenancy, symbol: activeBusinessTimeZone, file: apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts }
   - { from: customers, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts }
+  - { from: customers, to: identity, symbol: readRatingsReadAccess, file: apps/api/src/modules/customers/persistence/ratings-list-reads.adapter.ts }
+  - { from: customers, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/customers/persistence/ratings-list-reads.adapter.ts }
   - { from: staff, to: settings, symbol: readStaffColumns, file: apps/api/src/modules/staff/persistence/staff-columns.adapter.ts }
   - { from: staff, to: settings, symbol: readAlertRule, file: apps/api/src/modules/staff/persistence/attendance-change-alert-rule.adapter.ts }
   - { from: staff, to: settings, symbol: alertRule, file: apps/worker/src/modules/staff/persistence/alert-rule.adapter.ts }

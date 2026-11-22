@@ -18,6 +18,7 @@ import {
   createRatingViewTransactions,
 } from './persistence/drizzle-rating-submission-transactions.ts';
 import { ownRatingContext } from './persistence/own-rating-context.adapter.ts';
+import { ratingsListReads } from './persistence/ratings-list-reads.adapter.ts';
 import { ratingTokenHash } from './persistence/rating-token-hash.adapter.ts';
 import { staffColumns } from './persistence/staff-columns.adapter.ts';
 import { branchBusiness, workspaceNames } from './persistence/workspace-names.adapter.ts';
@@ -26,6 +27,8 @@ import {
   type CustomerProfileContext,
 } from './queries/customer-profile.query.ts';
 import { OWN_RATING_READS } from './queries/own-rating-context.ts';
+import { RATINGS_LIST_READS } from './queries/ratings-list-reads.ts';
+import { RatingsController, RATINGS_LIST_CLOCK } from './http/ratings.controller.ts';
 import {
   OwnRatingSummaryController,
   OWN_RATING_CLOCK,
@@ -44,6 +47,7 @@ export const customersControllers = [
   RatingViewController,
   RatingSubmitController,
   OwnRatingSummaryController,
+  RatingsController,
 ];
 
 /** أقصى عمر لمعاملة رابط التقييم — رفض أو إرسال؛ القفل ما يعلّقش الطلب على زائر. */
@@ -59,6 +63,12 @@ const ownRatingProviders = (clock: Clock): Provider[] => [
     useValue: { context: ownRatingContext, allowed: staffColumns.allowed },
   },
   { provide: OWN_RATING_CLOCK, useValue: clock },
+];
+
+/** قراءة قائمة التقييمات في الأدمن: الصلاحية الحالية وأسماء الفروع على معاملة القراءة نفسها (61-2b). */
+const ratingsListProviders = (clock: Clock): Provider[] => [
+  { provide: RATINGS_LIST_READS, useValue: ratingsListReads },
+  { provide: RATINGS_LIST_CLOCK, useValue: clock },
 ];
 
 export function customersProviders(
@@ -114,5 +124,6 @@ export function customersProviders(
       useValue: submit === null ? null : new SubmitRatingUseCase(submit, ratingTokenHash(), clock),
     },
     ...ownRatingProviders(clock),
+    ...ratingsListProviders(clock),
   ];
 }

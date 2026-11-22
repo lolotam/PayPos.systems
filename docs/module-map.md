@@ -194,6 +194,7 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | worker `customers` | `LowRatingPlacePort` | worker `tenancy` | `branchPlace` names and `companyOpen` eligibility on the consumer transaction (ADR-0010 addendum A-2, 61-1h) |
 | API `customers` | own rating-summary authority (`OwnRatingReads.context`) | API `staff`, API `identity`, API `tenancy` | the business and its active branches (`describeWorkspaces`), the caller's own eligible employee (`readOwnEmployee`), membership + feature `customers` + `read:ratings:own` (`readOwnRatingsAccess`), and the business timezone (`activeBusinessTimeZone`), all on the read transaction (ADR-0010 addendum 2026-11-21, spec 060 FR-A05/FR-B14, 61-2a) |
 | API `customers` | `StaffColumnsPort.allowed` (first use by a route) | API `settings` | the `rating_average` gate of the rating summary; the `reads` line already exists (ADR-0010 addendum 2026-10-21) |
+| API `customers` | admin ratings-list reads (`RatingsListReads.access`, `RatingsListReads.branchNames`) | API `identity`, API `tenancy` | the branches the caller reads now (`readRatingsReadAccess`: current system role among the four managers, `read:ratings:branch` effective with DENY, customers feature) and the business's branch names (`describeWorkspaces`), both on the one read-only snapshot of `GET /v1/businesses/:businessId/ratings` (ADR-0010 addendum A-2, spec 060 FR-B15, 61-2b) |
 | `customers`                         | `DaySessionsPort`                                                                       | `orders`    | the customer's active lines and performers for a business day — read at claim time, the authoritative boundary for rating attribution (ADR-0010)                     |
 | `customers`                         | `BusinessNamesPort`                                                                     | `tenancy`   | the business's Arabic and English name, shown on the public rating page (spec 060 D-B9, 60-1)                                                                    |
 | `staff` | `EmployeeDocumentScope.file` | `files` | a READY file uploaded by the recorder for this employee and business, read in the same tenant transaction; staff keeps the verified key only (ADR-0031) |
@@ -496,6 +497,8 @@ reads:
   - customers -> identity.readOwnRatingsAccess @ apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts
   - customers -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts
   - customers -> tenancy.describeWorkspaces @ apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts
+  - customers -> identity.readRatingsReadAccess @ apps/api/src/modules/customers/persistence/ratings-list-reads.adapter.ts
+  - customers -> tenancy.describeWorkspaces @ apps/api/src/modules/customers/persistence/ratings-list-reads.adapter.ts
   - staff -> settings.readStaffColumns @ apps/api/src/modules/staff/persistence/staff-columns.adapter.ts
   - staff -> settings.readAlertRule @ apps/api/src/modules/staff/persistence/attendance-change-alert-rule.adapter.ts
   - staff -> settings.alertRule @ apps/worker/src/modules/staff/persistence/alert-rule.adapter.ts

@@ -1,0 +1,238 @@
+import { ratingsListPage, type RatingsListPage } from '@pospay/contracts';
+import { createDatabase, type Database } from '@pospay/db';
+import { systemUuidV7 } from '@pospay/ids';
+import { sql } from 'drizzle-orm';
+import postgres from 'postgres';
+import { afterAll, beforeAll, expect, it } from 'vitest';
+import {
+  RATING_TENANT,
+  seedRatingTenants,
+} from '../../../../../../../packages/db/test/rating-fixtures.ts';
+import {
+  createTestDatabase,
+  type TestDatabase,
+} from '../../../../../../../packages/db/test/test-database.ts';
+import { ApiError } from '../../../../shared/errors.ts';
+import { seedRating } from './ratings-list.fixture.ts';
+import { ratingsListStatement, readRatingsList } from '../ratings-list.query.ts';
+import type { RatingsListReads, RatingsListScope } from '../ratings-list-reads.ts';
+
+let testDb: TestDatabase;
+let owner: postgres.Sql;
+let db: Database;
+const ids = systemUuidV7();
+const { A, B } = RATING_TENANT;
+const [sara, hend] = A.employees;
+const second = '01920000-0000-7000-8000-000000000a93';
+const at = (day: number, hour = 12) => new Date(Date.UTC(2026, 5, day, hour));
+const context: RatingsListScope = {
+  companyId: A.company,
+  businessId: A.business,
+  userId: ids.newId(),
+};
+const everything: readonly string[] = [A.branch, second];
+let access = everything;
+const reads: RatingsListReads = {
+  access: async () => access,
+  branchNames: async () =>
+    new Map([
+      [A.branch, { name_ar: 'السالمية', name_en: 'Salmiya' }],
+      [second, { name_ar: null, name_en: 'Hawalli' }],
+    ]),
+};
+const page = (query: object = {}, scope = context) =>
+  db.withTenant(scope.companyId, (tx) => readRatingsList(tx, scope, query, new Date(), reads), {
+    readOnly: true,
+  });
+const idsOf = (result: RatingsListPage) => result.items.map((item) => item.id);
+const refusal = (run: Promise<unknown>) =>
+  run.then(
+    () => 'accepted',
+    (error: unknown) => (error instanceof ApiError ? error.code : 'other'),
+  );
+
+beforeAll(async () => {
+  testDb = await createTestDatabase();
+  await seedRatingTenants(testDb.ownerUrl);
+  owner = postgres(testDb.ownerUrl, { max: 1, onnotice: () => undefined });
+  db = createDatabase({ url: testDb.appUrl, ids });
+  await owner`INSERT INTO branches(company_id,id,business_id,name_en)
+    VALUES (${A.company},${second},${A.business},'Hawalli')`;
+});
+afterAll(async () => {
+  await owner.end();
+  await db.close();
+  await testDb.drop();
+});
+
+it('returns stars, instants, business date, branch, performers and the comment exactly as written', async () => {
+  const comment = 'Great <b>service</b>, call 55512345 https://example.test';
+  const rating = await seedRating(db, A, {
+    stars: 2,
+    at: new Date('2026-06-10T09:30:15.123Z'),
+    performers: [hend, sara],
+    comment,
+    date: '2026-06-10',
+  });
+  const result = await page({ from: '2026-06-10T00:00:00Z', to: '2026-06-11T00:00:00Z' });
+  expect(ratingsListPage.parse(result)).toEqual(result);
+  expect(result).toEqual({
+    items: [
+      {
+        id: rating,
+        stars: 2,
+        submitted_at: '2026-06-10T09:30:15.123000Z',
+        business_date: '2026-06-10',
+        branch: { id: A.branch, name_ar: 'السالمية', name_en: 'Salmiya' },
+        performers: [sara, hend].sort().map((employee_id) => ({ employee_id })),
+        comment,
+      },
+    ],
+    next_cursor: null,
+  });
+});
+
+it('pages newest first without a duplicate or a gap when ratings share a submitted_at', async () => {
+  const tied: string[] = [];
+  for (let n = 0; n < 5; n += 1)
+    tied.push(
+      await seedRating(db, A, { stars: 3, at: at(20), performers: [sara], date: '2026-06-20' }),
+    );
+  const newest = await seedRating(db, A, { stars: 4, at: at(21), performers: [sara] });
+  const oldest = await seedRating(db, A, { stars: 4, at: at(19), performers: [sara] });
+  const window = { from: at(19).toISOString(), to: at(22).toISOString() };
+  const seen: string[] = [];
+  let cursor: string | undefined;
+  do {
+    const next: RatingsListPage = await page({
+      ...window,
+      limit: 2,
+      ...(cursor === undefined ? {} : { cursor }),
+    });
+    expect(next.items.length).toBeLessThanOrEqual(2);
+    seen.push(...idsOf(next));
+    cursor = next.next_cursor ?? undefined;
+  } while (cursor !== undefined);
+  expect(seen).toEqual([newest, ...[...tied].sort().reverse(), oldest]);
+});
+
+it('narrows by branch, employee and the half-open time window', async () => {
+  const hawalli = await seedRating(db, A, {
+    stars: 5,
+    at: at(5),
+    performers: [hend],
+    branch: second,
+  });
+  expect(idsOf(await page({ branch_id: second }))).toEqual([hawalli]);
+  const day = { from: at(5).toISOString(), to: at(6).toISOString() };
+  expect(idsOf(await page({ employee_id: hend, ...day }))).toEqual([hawalli]);
+  expect(idsOf(await page({ employee_id: hend, to: at(5).toISOString() }))).not.toContain(hawalli);
+  expect(idsOf(await page({ from: at(5, 13).toISOString(), to: at(6).toISOString() }))).toEqual([]);
+});
+
+it('never returns a branch outside the scope, with or without the branch filter', async () => {
+  access = [A.branch];
+  try {
+    const all = await page({ limit: 100 });
+    expect(all.items.length).toBeGreaterThan(0);
+    expect(all.items.every((item) => item.branch.id === A.branch)).toBe(true);
+    expect(await page({ branch_id: second })).toEqual({ items: [], next_cursor: null });
+  } finally {
+    access = everything;
+  }
+});
+
+it('refuses with FORBIDDEN when no branch is readable', async () => {
+  access = [];
+  try {
+    expect(await refusal(page())).toBe('FORBIDDEN');
+  } finally {
+    access = everything;
+  }
+});
+
+it('returns nothing of another tenant, even when the business id belongs to it', async () => {
+  await seedRating(db, B, { stars: 1, at: at(12), performers: [B.employees[0]] });
+  const empty = { items: [], next_cursor: null };
+  expect(await page({}, { ...context, businessId: B.business })).toEqual(empty);
+  expect((await page({ limit: 100 })).items.every((item) => item.stars !== 1)).toBe(true);
+});
+
+it('rejects a malformed cursor and an unknown key uniformly', async () => {
+  expect(await refusal(page({ cursor: 'not-a-cursor' }))).toBe('BAD_REQUEST');
+  const forged = Buffer.from(JSON.stringify({ at: 'x', id: 'y' })).toString('base64url');
+  expect(await refusal(page({ cursor: forged }))).toBe('BAD_REQUEST');
+  expect(await refusal(page({ business_id: B.business }))).toBe('VALIDATION_FAILED');
+});
+
+// خطة كل تركيبة فلتر بتتثبت بخصائص مش بأسماء فهارس على فيكستشر صغير: مفيش Seq Scan على الجدولين الكبار، وكل مسح بيبدأ من
+// الفهرس بشرط الشركة والنشاط/الموظف وحد المؤشر على submitted_at، وصفوف التقييمات المقروءة بحجم الصفحة مش بحجم النشاط.
+// قياس الـ 50,000 تقييم (61-remaining/plan.md §6) اتعمل خارج الـ repo ونتيجته في تقرير 61-2b.
+interface PlanNode {
+  'Node Type': string;
+  'Relation Name'?: string;
+  'Index Cond'?: string;
+  'Actual Rows': number;
+  Plans?: PlanNode[];
+}
+const flatten = (node: PlanNode): PlanNode[] => [node, ...(node.Plans ?? []).flatMap(flatten)];
+const LIMIT = 5;
+const explain = (filter: Partial<Parameters<typeof ratingsListStatement>[0]>) =>
+  db.withTenant(A.company, async (tx) => {
+    await tx.execute(sql`SET LOCAL enable_seqscan=off`);
+    await tx.execute(sql`SET LOCAL enable_bitmapscan=off`);
+    const statement = ratingsListStatement({
+      companyId: A.company,
+      businessId: A.business,
+      branchIds: [A.branch, second],
+      cursor: null,
+      limit: LIMIT,
+      ...filter,
+    });
+    const [row] = Array.from(await tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${statement}`));
+    const plan = row?.['QUERY PLAN'];
+    const parsed = (typeof plan === 'string' ? JSON.parse(plan) : plan) as { Plan: PlanNode }[];
+    return flatten((parsed[0] as { Plan: PlanNode }).Plan).filter((n) =>
+      ['ratings', 'rating_attributions'].includes(n['Relation Name'] ?? ''),
+    );
+  });
+
+it(
+  'keeps each filter combination on index conditions bounded by the page',
+  { timeout: 120_000 },
+  async () => {
+    for (let n = 0; n < 60; n += 1)
+      await seedRating(db, A, {
+        stars: (n % 5) + 1,
+        at: at(1 + (n % 28), n % 24),
+        performers: [n % 3 === 0 ? hend : sara],
+        branch: n % 2 === 0 ? second : A.branch,
+      });
+    await owner`ANALYZE ratings`;
+    await owner`ANALYZE rating_attributions`;
+    const cursor = { at: at(15).toISOString(), id: '01920000-0000-7000-8000-0000000000ff' };
+    const combos = {
+      businessWide: {},
+      oneBranch: { branchIds: [A.branch] },
+      wideEmployee: { employeeId: hend },
+      branchEmployee: { branchIds: [second], employeeId: hend },
+    };
+    for (const [name, filter] of Object.entries(combos))
+      for (const after of [null, cursor]) {
+        const scans = await explain({ ...filter, cursor: after });
+        const label = `${name} ${after === null ? 'first' : 'cursor'}`;
+        expect(scans.length, label).toBeGreaterThan(0);
+        if (after !== null)
+          expect(
+            scans.some((n) => n['Index Cond']?.includes('submitted_at <=')),
+            label,
+          ).toBe(true);
+        for (const scan of scans) {
+          expect(scan['Node Type'], label).toMatch(/^Index (Only )?Scan( Backward)?$/);
+          expect(scan['Index Cond'], label).toContain('company_id');
+          if (scan['Relation Name'] === 'ratings' && !('employeeId' in filter))
+            expect(scan['Actual Rows'], label).toBeLessThanOrEqual(LIMIT + 2);
+        }
+      }
+  },
+);

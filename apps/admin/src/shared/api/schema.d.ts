@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/ratings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Newest-first keyset page of the ratings of one business. Only a caller whose current role is owner, general manager, business manager or branch manager and who holds read:ratings:branch reads it; rows are limited to the branches inside that scope. from is inclusive and to is exclusive on submitted_at. The comment is the customer text as written. Cache-Control: no-store. */
+        get: operations["listRatings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/staff/me/attendance": {
         parameters: {
             query?: never;
@@ -9468,6 +9485,96 @@ export interface operations {
                 };
             };
             /** @description VALIDATION_FAILED */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description UNAUTHENTICATED */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description FORBIDDEN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description NOT_READY */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listRatings: {
+        parameters: {
+            query?: {
+                branch_id?: string;
+                employee_id?: string;
+                from?: string;
+                to?: string;
+                cursor?: string;
+                limit?: number;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of ratings and the cursor of the next page, or null on the last */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            stars: number;
+                            /** Format: date-time */
+                            submitted_at: string;
+                            /** Format: date */
+                            business_date: string;
+                            branch: {
+                                /** Format: uuid */
+                                id: string;
+                                name_ar: string | null;
+                                name_en: string;
+                            };
+                            performers: {
+                                /** Format: uuid */
+                                employee_id: string;
+                            }[];
+                            comment: string | null;
+                        }[];
+                        next_cursor: string | null;
+                    };
+                };
+            };
+            /** @description VALIDATION_FAILED or a malformed cursor */
             400: {
                 headers: {
                     [name: string]: unknown;

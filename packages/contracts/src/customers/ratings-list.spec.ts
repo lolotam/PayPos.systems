@@ -1,0 +1,49 @@
+import { expect, it } from 'vitest';
+import { ratingsListItem, ratingsListPage, ratingsListQuery } from './ratings-list.js';
+
+const uuid = '018f0000-0000-7000-8000-000000000001';
+const item = {
+  id: uuid,
+  stars: 2,
+  submitted_at: '2026-06-15T12:00:00.123456Z',
+  business_date: '2026-06-15',
+  branch: { id: uuid, name_ar: null, name_en: 'Salmiya' },
+  performers: [{ employee_id: uuid }],
+  comment: 'Rated 2 <b>as written</b> 0501234567',
+};
+
+it('defaults the limit and accepts every filter', () => {
+  expect(ratingsListQuery.parse({}).limit).toBe(20);
+  const parsed = ratingsListQuery.parse({
+    branch_id: uuid,
+    employee_id: uuid,
+    from: '2026-06-01T00:00:00Z',
+    to: '2026-07-01T00:00:00Z',
+    cursor: 'abc',
+    limit: '50',
+  });
+  expect(parsed.limit).toBe(50);
+});
+
+it.each([
+  { business_id: uuid },
+  { company_id: uuid },
+  { limit: '0' },
+  { limit: '101' },
+  { branch_id: 'x' },
+  { from: '2026-07-01T00:00:00Z', to: '2026-06-01T00:00:00Z' },
+  { from: '2026-06-01', to: '2026-07-01T00:00:00Z' },
+])('refuses the query %j', (query) => {
+  expect(ratingsListQuery.safeParse(query).success).toBe(false);
+});
+
+it('returns the comment as written, or null, and the page cursor', () => {
+  expect(ratingsListItem.parse(item).comment).toBe(item.comment);
+  expect(ratingsListItem.parse({ ...item, comment: null }).comment).toBeNull();
+  expect(ratingsListPage.parse({ items: [item], next_cursor: null }).items).toHaveLength(1);
+});
+
+it('refuses a star count outside 1 to 5 and a missing performers list', () => {
+  expect(ratingsListItem.safeParse({ ...item, stars: 6 }).success).toBe(false);
+  expect(ratingsListItem.safeParse({ ...item, performers: undefined }).success).toBe(false);
+});
