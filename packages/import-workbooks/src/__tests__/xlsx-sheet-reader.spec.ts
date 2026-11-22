@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { expect, it } from 'vitest';
-import { INVALID_CELL, readSheet, readWorkbookMatrix } from '../index.ts';
+import { INVALID_CELL, readSheet, readWorkbookMatrix, readWorkbookSheet } from '../index.ts';
 
 const bounds = { maxBytes: 2 * 1024 * 1024, maxDataRows: 500, maxColumns: 68, maxWorksheets: 4 };
 async function workbook(fill: (sheet: ExcelJS.Worksheet, book: ExcelJS.Workbook) => void) {
@@ -62,4 +62,33 @@ it('refuses excessive worksheets and columns without weakening other callers bou
   await expect(readWorkbookMatrix(columns, bounds)).rejects.toMatchObject({
     code: 'IMPORT_FILE_CONTENT_INVALID',
   });
+});
+
+it('returns aligned number formats from the same guarded pass and keeps the plain caller intact', async () => {
+  const bytes = await workbook((sheet) => {
+    sheet.getCell(2, 1).value = 12.5;
+    sheet.getCell(2, 1).numFmt = '0.00%';
+    sheet.getCell(2, 2).value = 3;
+  });
+  const plain = await readWorkbookMatrix(bytes, bounds);
+  expect(plain[1]).toEqual([12.5, 3]);
+  const result = await readWorkbookSheet(bytes, bounds);
+  expect(result.matrix[1]).toEqual([12.5, 3]);
+  expect(result.formats).toHaveLength(result.matrix.length);
+  expect(result.formats[1]?.[0]).toBe('0.00%');
+  expect(result.formats[1]?.[1]).toBeUndefined();
+  expect(result.formats[0]).toEqual([undefined, undefined]);
+  expect(result.matrix.sourceRows).toEqual([1, 2]);
+});
+
+it('keeps formats aligned across skipped blank rows and sparse columns', async () => {
+  const bytes = await workbook((sheet) => {
+    sheet.getCell(3, 1).value = 7;
+    sheet.getCell(3, 1).numFmt = '#,##0';
+    sheet.getCell(5, 2).value = 9;
+  });
+  const result = await readWorkbookSheet(bytes, bounds);
+  expect(result.matrix.sourceRows).toEqual([1, 3, 5]);
+  expect(result.formats[1]?.[0]).toBe('#,##0');
+  expect(result.formats[2]?.[1]).toBeUndefined();
 });

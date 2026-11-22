@@ -1,4 +1,11 @@
+import { normalizeServiceCategoryName, serviceCategoryKey } from '@pospay/domain';
+
 import { ServiceCategoryError } from './errors.ts';
+
+// التطبيع والمفتاح يعيشان في packages/domain (A-11: البيت المشترك المسموح بين API والworker)،
+// وتُعاد تصديرها هنا ليبقى مسار استدعاء الكتالوج كما هو بلا نسخة ثانية بتعبر سلوكها:
+// التطبيع يوحّد الاسم كما يشترطه قيد القاعدة، والمفتاح هو تعبير الفهرس الفريد على الاسم المخزّن.
+export { normalizeServiceCategoryName, serviceCategoryKey };
 
 /** مستوى ظهور التصنيف: مشترك بين فروع النشاط كلها، أو خاص بفرع الإنشاء. */
 export type ServiceCategoryVisibility = 'BUSINESS' | 'BRANCH';
@@ -50,30 +57,6 @@ export interface ServiceCategoryRenameRequest {
 export interface ServiceCategoryRenamePlan {
   readonly after: ServiceCategoryRecord;
   readonly changed: boolean;
-}
-
-/**
- * يوحّد الاسم بالشكل الذي يشترطه القيد في قاعدة البيانات: تُشال المسافات البادئة والمؤخرة، وكل
- * تتابع مسافات — بما فيها المسافات غير اللاتينية كـ NBSP — يصير مسافة واحدة. القيد في القاعدة
- * يطابق `[[:space:]]`، فأي مسافة يطابقها هناك لازم تطابقها هنا؛ الاختلاف بين التطبيع هنا
- * والتطبيع هناك يجعل الكتابة مرفوضة بخطأ خادم.
- *
- * @param name الاسم كما جاء من العميل
- * @returns الاسم المطبّع
- */
-export function normalizeServiceCategoryName(name: string): string {
-  return name.replace(/\s+/gu, ' ').replace(/^\s+|\s+$/gu, '');
-}
-
-/**
- * مفتاح التصنيف على مستوى النشاط: الاسم الإنجليزي المخزّن مطبّعاً ثم بحروف صغيرة. هو نفسه
- * الفهرس الفريد `service_categories_business_name_uq`، فالتطبيع وحالة الحروف يقرّران التشابه.
- *
- * @param nameEn الاسم الإنجليزي
- * @returns المفتاح على مستوى النشاط
- */
-export function serviceCategoryKey(nameEn: string): string {
-  return normalizeServiceCategoryName(nameEn).toLowerCase();
 }
 
 /**

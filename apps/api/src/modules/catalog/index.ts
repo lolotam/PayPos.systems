@@ -1,4 +1,8 @@
 export { catalogControllers, catalogProviders } from './catalog.module.ts';
+export {
+  bindServiceImportFiles,
+  createServiceImportSheetReader,
+} from './persistence/service-import-adapters.ts';
 export { readSessionServices } from './persistence/session-services.reader.ts';
 export { readCommissionOverrideServices } from './persistence/commission-override-services.reader.ts';
 export { readPackageTypeForSale } from './persistence/package-type-sale.reader.ts';

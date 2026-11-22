@@ -32,6 +32,20 @@ const COLUMNS = [
   'unexpected_column',
 ] as const;
 
+// نصوص ورقة المرجع في القالب (32b-2 P-3): عناوين الأعمدة الخمسة وقواعد العمولة الأربع وكتابات الاحتساب.
+const REFERENCE_LABELS = [
+  'reference_category_en',
+  'reference_category_ar',
+  'reference_commission_rule',
+  'reference_commission_value',
+  'reference_counts_toward_threshold',
+  'reference_rule_follow_plan',
+  'reference_rule_zero',
+  'reference_rule_pct',
+  'reference_rule_fixed',
+  'reference_boolean_spellings',
+] as const;
+
 describe('service-import catalog (A-3)', () => {
   it('carries both languages for every row error code and column name', () => {
     for (const code of ERROR_CODES) {
@@ -42,6 +56,10 @@ describe('service-import catalog (A-3)', () => {
       expect(serviceImportEn[`column_${column}`]).toMatch(/\S/);
       expect(serviceImportAr[`column_${column}`]).toMatch(/\S/);
     }
+    for (const label of REFERENCE_LABELS) {
+      expect(serviceImportEn[label]).toMatch(/\S/);
+      expect(serviceImportAr[label]).toMatch(/\S/);
+    }
   });
 
   it('registers the section in both catalogs under the same keys', () => {
@@ -49,7 +67,7 @@ describe('service-import catalog (A-3)', () => {
       Object.keys(en.catalogServiceImport).sort(),
     );
     expect(Object.keys(en.catalogServiceImport).length).toBe(
-      ERROR_CODES.length + COLUMNS.length,
+      ERROR_CODES.length + COLUMNS.length + REFERENCE_LABELS.length,
     );
   });
 });
