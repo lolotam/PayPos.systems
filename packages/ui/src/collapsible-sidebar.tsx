@@ -43,15 +43,17 @@ function useSidebarBreakpointFocus(
       };
     };
     // ضغطة على جزء غير قابل للتركيز برا الشريط بتودّي التركيز للـ body من غير focusin جديد.
+    // بنستنى pointerup عشان نتأكد إن التركيز ساب الشريط فعلاً: عنصر برا ممكن يمنع نقل التركيز.
     const forgetOnOutsidePress = (event: PointerEvent) => {
-      const outside = event.target instanceof Node && !asideRef.current?.contains(event.target);
-      if (outside) focusOrigin.current = undefined;
+      const aside = asideRef.current;
+      const outside = event.target instanceof Node && !aside?.contains(event.target);
+      if (outside && !aside?.contains(document.activeElement)) focusOrigin.current = undefined;
     };
     document.addEventListener('focusin', rememberFocus);
-    document.addEventListener('pointerdown', forgetOnOutsidePress, true);
+    document.addEventListener('pointerup', forgetOnOutsidePress, true);
     return () => {
       document.removeEventListener('focusin', rememberFocus);
-      document.removeEventListener('pointerdown', forgetOnOutsidePress, true);
+      document.removeEventListener('pointerup', forgetOnOutsidePress, true);
     };
   }, [asideRef]);
 

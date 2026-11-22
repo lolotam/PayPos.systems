@@ -243,7 +243,9 @@ it('shows a supplied status and keeps the finder open on a modified click', () =
   render(tree('ltr', { onNavigate }));
   const dialog = openWithShortcut('k', 'ctrlKey');
   const offers = within(dialog).getByRole('link', { name: /العروض/ });
-  expect(offers.textContent).toContain('Soon');
+  const status = within(offers).getByText('Soon');
+  expect(status.className).toContain('shrink-0');
+  expect(status.className).not.toContain('truncate');
 
   fireEvent.click(offers, { ctrlKey: true });
   expect(onNavigate).not.toHaveBeenCalled();

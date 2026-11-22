@@ -94,3 +94,14 @@ it('shows no rail button for a workspace whose pages are all hidden', () => {
   expect(screen.getByRole('button', { name: /^Team/ })).toBeTruthy();
   expect(screen.queryByRole('button', { name: /^Business/ })).toBeNull();
 });
+
+it('keeps focus in the rail when a visibility update removes the focused workspace', () => {
+  const view = render(tree('ltr', { currentWorkspaceId: 'business' }));
+  const team = screen.getByRole('button', { name: /^Team/ });
+  team.focus();
+
+  view.rerender(tree('ltr', { currentWorkspaceId: 'business', visiblePageIds: ['columns'] }));
+
+  expect(screen.queryByRole('button', { name: /^Team/ })).toBeNull();
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Business/ }));
+});

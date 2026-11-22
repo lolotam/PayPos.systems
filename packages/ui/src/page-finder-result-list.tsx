@@ -32,10 +32,14 @@ export function FinderResultList({ results, labels, activePageId, listRef, onSel
               SIDEBAR_GHOST_CLASSES,
             )}
           >
-            <span className="truncate font-medium">{result.page.label}</span>
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="truncate font-medium">{result.page.label}</span>
+              {result.page.status ? (
+                <span className="shrink-0 text-xs opacity-80">{result.page.status}</span>
+              ) : null}
+            </span>
             <span className="truncate text-xs text-muted-foreground">
               {result.workspace.label} · {result.section.label}
-              {result.page.status ? ` · ${result.page.status}` : ''}
               {result.page.id === activePageId ? ` · ${labels.current}` : ''}
             </span>
           </a>

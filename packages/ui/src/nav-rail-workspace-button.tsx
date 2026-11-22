@@ -33,6 +33,7 @@ export function RailWorkspaceButton({
         .join(' ')}
       aria-pressed={inspected}
       data-current={isCurrent ? '' : undefined}
+      data-workspace-id={workspace.id}
       onClick={(event) => onInspect(workspace.id, event.currentTarget)}
       className={cn(
         'min-h-15 w-15 flex-col gap-1 p-1 text-xs',

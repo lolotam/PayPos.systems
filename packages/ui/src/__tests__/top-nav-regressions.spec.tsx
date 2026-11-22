@@ -176,8 +176,8 @@ it('leaves focus alone across 700px after the user clicked away from the navigat
   moduleTrigger.blur();
   // Page content may stop propagation; the press must still count as leaving the navigation.
   const outside = screen.getByRole('textbox', { name: 'Outside field' });
-  outside.addEventListener('pointerdown', (event) => event.stopPropagation());
-  fireEvent.pointerDown(outside);
+  outside.addEventListener('pointerup', (event) => event.stopPropagation());
+  fireEvent.pointerUp(outside);
 
   width.value = 699;
   view.rerender(tree({ currentModuleId: 'people' }));

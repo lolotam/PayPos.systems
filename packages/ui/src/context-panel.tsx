@@ -14,7 +14,9 @@ import { useNavigationMedia } from './use-navigation-media.js';
 
 const TABLET_OVERLAY_QUERY = '(min-width: 600px) and (width < 1024px)';
 
-function isFocusTargetEligible(target: HTMLElement | undefined): target is HTMLElement {
+type FocusTarget = HTMLElement | SVGElement;
+
+function isFocusTargetEligible(target: FocusTarget | undefined): target is FocusTarget {
   if (
     !target?.isConnected ||
     target === document.body ||
@@ -23,7 +25,7 @@ function isFocusTargetEligible(target: HTMLElement | undefined): target is HTMLE
   ) {
     return false;
   }
-  for (let node: HTMLElement | null = target; node; node = node.parentElement) {
+  for (let node: Element | null = target; node; node = node.parentElement) {
     const style = getComputedStyle(node);
     if (
       style.display === 'none' ||
@@ -122,7 +124,8 @@ function useOutsideFocusTracker({
 // وساعتها بس بنرجّعه للزر الفاتح أو البديل.
 function hasLiveExternalFocus(): boolean {
   const active = document.activeElement;
-  return active instanceof HTMLElement && isFocusTargetEligible(active);
+  const focusable = active instanceof HTMLElement || active instanceof SVGElement;
+  return focusable && isFocusTargetEligible(active);
 }
 
 // عند 1024px شجرة الـ modal بتتشال وبتتبدل بلوحة ثابتة، فالتركيز اللي كان محبوس جواها بيقع على body.
