@@ -1,6 +1,6 @@
 'use client';
 import { t } from '@pospay/i18n';
-import { Button, PageHeader } from '@pospay/ui';
+import { Button, DataTableFrame, PageHeader, PageShell } from '@pospay/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
@@ -48,11 +48,11 @@ export function ServiceSessionDayPage({ scope, timezone }: { scope: SessionServi
     client.removeQueries({ queryKey: ['service-line-performer-changes', companyId, businessId, branchId, userId] });
     client.removeQueries({ queryKey: ['session-tips', companyId, businessId, branchId, userId] });
   }, [isBlocked, client, companyId, businessId, branchId, userId]);
-  return <section className="grid gap-4 text-start" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+  const filters = <ServiceSessionDayFilters date={date} lateOnly={lateOnly} onDate={setDate} onLate={setLateOnly} />;
+  return <PageShell layout="list" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
     <PageHeader title={t(locale, 'serviceLineEdit.title')} />
     {connectivity === false ? <p role="status">{t(locale, 'serviceSessions.offline')}</p> : null}
-    <ServiceSessionDayFilters date={date} lateOnly={lateOnly} onDate={setDate} onLate={setLateOnly} />
-    {blocked ? <p role="alert">{blocked.message} <Button type="button" variant="outline" onClick={() => { setDenied(null); void capability.refetch(); }}>{t(locale, 'serviceLineEdit.retry')}</Button></p>
-      : <ServiceSessionDayBody scope={scope} date={date} lateOnly={lateOnly} online={online} timezone={timezone} canCancel={cancelAllowed} canChangePerformers={changeAllowed} canRecord={canRecord} tipAttempts={tipAttempts} onAccessDenied={onAccessDenied} />}
-  </section>;
+    {blocked ? <DataTableFrame filters={filters}><p role="alert" className="p-4">{blocked.message} <Button type="button" variant="outline" onClick={() => { setDenied(null); void capability.refetch(); }}>{t(locale, 'serviceLineEdit.retry')}</Button></p></DataTableFrame>
+      : <ServiceSessionDayBody scope={scope} date={date} lateOnly={lateOnly} online={online} timezone={timezone} canCancel={cancelAllowed} canChangePerformers={changeAllowed} canRecord={canRecord} tipAttempts={tipAttempts} onAccessDenied={onAccessDenied} filters={filters} />}
+  </PageShell>;
 }

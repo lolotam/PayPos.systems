@@ -33,9 +33,7 @@ export type ServiceSessionDayListProps = {
   canRecord: boolean;
   loadError: string | null;
   empty: boolean;
-  hasNext: boolean;
   onRetry: () => void;
-  onMore: () => void;
   refetchPages: () => Promise<Pages | null>;
   mounted: RefObject<boolean>;
   onAccessDenied: (message: string) => void;
@@ -191,11 +189,6 @@ export function ServiceSessionDayList(props: ServiceSessionDayListProps) {
         />
       ) : null}
       <ServiceSessionDayPerformers list={props} actions={actions} />
-      {props.hasNext ? (
-        <Button type="button" variant="outline" onClick={props.onMore}>
-          {t(props.locale, 'serviceLineEdit.loadMore')}
-        </Button>
-      ) : null}
     </>
   );
 }

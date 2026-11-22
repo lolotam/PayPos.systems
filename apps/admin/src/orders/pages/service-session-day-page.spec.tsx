@@ -186,7 +186,7 @@ it('uses the locale direction on the day list', async () => {
   state.online = true; state.locale = 'ar'; state.get.mockReset();
   state.get.mockResolvedValue({ data: { items: [], next_cursor: null }, response: { status: 200 } });
   const view = renderPage();
-  expect(view.container.querySelector('section')?.getAttribute('dir')).toBe('rtl');
+  expect(view.container.querySelector('[data-page-shell="list"]')?.getAttribute('dir')).toBe('rtl');
   expect(await screen.findByRole('heading', { name: t('ar', 'serviceLineEdit.title') })).toBeTruthy();
   state.locale = 'en';
 });
