@@ -4,7 +4,10 @@ import { DirectionProvider } from '../direction-provider.js';
 import { TopNav, type TopNavProps } from '../top-nav.js';
 import { chromeLabels, modules } from './navigation-fixtures.js';
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 function tree(props: Partial<TopNavProps> = {}) {
   return (
@@ -58,4 +61,38 @@ it('keeps a visible current marker in the drawer after expanding another module'
   fireEvent.click(within(dialog).getByRole('button', { name: /People/ }));
   expect(current.getAttribute('aria-expanded')).toBe('false');
   expect(current.querySelector('[data-current-marker]')).toBeTruthy();
+});
+
+it('falls back to the current trigger when a hidden opener refuses focus', async () => {
+  stubPhoneBoundary({ value: 1200 });
+  render(tree({ currentModuleId: 'sell' }));
+  const opener = screen.getByRole('button', { name: /Business/ });
+  opener.focus();
+  fireEvent.click(opener);
+  const dialog = screen.getByRole('dialog', { name: 'Business' });
+
+  opener.style.display = 'none';
+  // jsdom still focuses display:none elements, unlike a real browser.
+  vi.spyOn(opener, 'focus').mockImplementation(() => {});
+
+  fireEvent.keyDown(document.activeElement ?? dialog, { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: /Sell/ }));
+});
+
+it('keeps a short local page label at a 44px touch target', () => {
+  stubPhoneBoundary({ value: 1200 });
+  const shortLabelModules = modules.map((module) =>
+    module.id === 'sell'
+      ? {
+          ...module,
+          sections: [
+            { id: 'sell-short', label: 'Orders', pages: [{ id: 'ai', label: 'AI', href: '#ai' }] },
+          ],
+        }
+      : module,
+  );
+  render(tree({ modules: shortLabelModules, currentModuleId: 'sell', visiblePageIds: ['ai'] }));
+  const local = screen.getByRole('navigation', { name: chromeLabels.localNavigation });
+  expect(within(local).getByRole('link', { name: 'AI' }).className).toContain('min-w-11');
 });

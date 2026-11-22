@@ -152,13 +152,14 @@ function focusTarget(
   setSession: SetSession,
 ) {
   if (!target.isConnected) return false;
+  target.focus();
+  if (document.activeElement !== target) return false;
   event.preventDefault();
   setSession((previous) => ({
     ...previous,
     opener: undefined,
     switchCloseIds: previous.switchCloseIds.filter((pendingId) => pendingId !== moduleId),
   }));
-  target.focus();
   return true;
 }
 

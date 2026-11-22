@@ -33,7 +33,7 @@ export function LocalNav({
                 aria-current={page.id === activePageId ? 'page' : undefined}
                 onClick={onNavigate}
                 className={cn(
-                  'flex min-h-11 items-center gap-2 whitespace-nowrap rounded-interactive px-3 py-2 text-sm',
+                  'flex min-h-11 min-w-11 items-center gap-2 whitespace-nowrap rounded-interactive px-3 py-2 text-sm',
                   page.id === activePageId
                     ? 'bg-sidebar-primary font-medium text-sidebar-primary-foreground'
                     : SIDEBAR_GHOST_CLASSES,

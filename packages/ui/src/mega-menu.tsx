@@ -6,6 +6,7 @@ import { useCallback, useRef, type KeyboardEvent, type Ref } from 'react';
 import { Button } from './button.js';
 import { useDirection } from './direction-provider.js';
 import {
+  moduleHasVisiblePages,
   visiblePages,
   type NavigationChromeLabels,
   type NavigationModule,
@@ -13,6 +14,11 @@ import {
 } from './navigation-presentation.js';
 import { cn } from './shared/cn.js';
 import { SIDEBAR_GHOST_CLASSES } from './sidebar-classes.js';
+
+const OVERVIEW_LINK_CLASSES = cn(
+  'flex min-h-11 items-center rounded-interactive px-3 py-2 text-sm font-medium',
+  SIDEBAR_GHOST_CLASSES,
+);
 
 export type MegaMenuProps = {
   modules: readonly NavigationModule[];
@@ -147,7 +153,7 @@ function ModuleSwitcher({
             onClick={() => onSwitchModule(item.id)}
             onKeyDown={(event) => switchOnKeyboard(event, item.id, onSwitchModule)}
             className={cn(
-              'min-h-11 max-w-full gap-1',
+              'min-h-11 min-w-11 max-w-full gap-1',
               isCurrent
                 ? 'bg-sidebar-primary font-semibold text-sidebar-primary-foreground'
                 : SIDEBAR_GHOST_CLASSES,
@@ -177,6 +183,8 @@ function MegaMenuContent({
   onSelect,
 }: MegaMenuContentProps) {
   const dir = useDirection();
+  const visibleModules = modules.filter((item) => moduleHasVisiblePages(item, visiblePageIds));
+  const hasVisiblePages = moduleHasVisiblePages(module, visiblePageIds);
   return (
     <Dialog.Content
       dir={dir}
@@ -194,21 +202,14 @@ function MegaMenuContent({
         </Dialog.Close>
       </div>
       <ModuleSwitcher
-        modules={modules}
+        modules={visibleModules}
         currentModuleId={currentModuleId}
         labels={labels}
         onSwitchModule={onSwitchModule}
       />
       <div className="grid gap-4 min-[700px]:grid-cols-2 min-[1024px]:grid-cols-3">
-        {module.href ? (
-          <a
-            href={module.href}
-            onClick={onSelect}
-            className={cn(
-              'flex min-h-11 items-center rounded-interactive px-3 py-2 text-sm font-medium',
-              SIDEBAR_GHOST_CLASSES,
-            )}
-          >
+        {module.href && hasVisiblePages ? (
+          <a href={module.href} onClick={onSelect} className={OVERVIEW_LINK_CLASSES}>
             {labels.overview}
           </a>
         ) : null}
@@ -255,7 +256,7 @@ export function MegaMenu({
           size="sm"
           aria-current={current ? 'page' : undefined}
           className={cn(
-            'min-h-11 gap-1 rounded-none px-3',
+            'min-h-11 min-w-11 gap-1 rounded-none px-3',
             current && 'font-semibold underline decoration-2 underline-offset-4',
           )}
         >

@@ -191,8 +191,8 @@ export function CollapsibleSidebar({
 }: CollapsibleSidebarProps) {
   const dir = useDirection();
   const [expanded, setExpanded] = useState(true);
-  const isPhone = useNavigationMedia('(max-width: 599px)');
-  const isTablet = useNavigationMedia('(min-width: 600px) and (max-width: 1023px)');
+  const isPhone = useNavigationMedia('(width < 600px)');
+  const isTablet = useNavigationMedia('(600px <= width < 1024px)');
   const asideRef = useRef<HTMLElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   useSidebarBreakpointFocus(isTablet, asideRef, toggleRef);

@@ -6,18 +6,20 @@ import { chromeLabels, groups } from './navigation-fixtures.js';
 
 afterEach(() => vi.unstubAllGlobals());
 
-type MediaState = { phone?: boolean; tablet?: boolean };
+type MediaState = { width?: number };
 
 function stubMedia(state: MediaState | (() => MediaState) = {}) {
   const read = () => (typeof state === 'function' ? state() : state);
   vi.stubGlobal('matchMedia', (query: string) => {
-    const { phone = false, tablet = false } = read();
+    const { width = 1200 } = read();
+    const matches =
+      query === '(width < 600px)'
+        ? width < 600
+        : query === '(600px <= width < 1024px)'
+          ? width >= 600 && width < 1024
+          : false;
     return {
-      matches: query.includes('max-width: 599px')
-        ? phone
-        : query.includes('max-width: 1023px')
-          ? tablet
-          : false,
+      matches,
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     };
@@ -59,7 +61,7 @@ it('collapses and expands while keeping the current group, focus and page conten
 });
 
 it('uses a tablet rail and leaves the phone shell to a later integration', () => {
-  stubMedia({ tablet: true });
+  stubMedia({ width: 800 });
   const tablet = render(tree('ltr', { currentGroupId: 'home' }));
   expect(tablet.container.querySelector('aside')?.getAttribute('data-collapsed')).toBe('');
   expect(tablet.container.querySelector('aside')?.className).toContain('w-20');
@@ -68,7 +70,7 @@ it('uses a tablet rail and leaves the phone shell to a later integration', () =>
   );
   tablet.unmount();
 
-  stubMedia({ phone: true });
+  stubMedia({ width: 500 });
   const phone = render(tree('ltr'));
   expect(phone.container.querySelector('aside')).toBeNull();
   expect(screen.getByText('page content')).toBeTruthy();
@@ -110,25 +112,25 @@ it('removes hidden header and footer slot controls from the tab order when raile
 });
 
 it('transfers focus from the desktop toggle to a visible rail link at 1024 to 1023', async () => {
-  let tablet = false;
-  stubMedia(() => ({ tablet }));
+  let width = 1200;
+  stubMedia(() => ({ width }));
   const view = render(tree('ltr', { currentGroupId: 'home' }));
   const toggle = screen.getByRole('button', { name: chromeLabels.collapse });
   toggle.focus();
-  tablet = true;
+  width = 800;
   view.rerender(tree('ltr', { currentGroupId: 'home' }));
   await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: /Home/ })));
 
   const firstLinkAfterRail = screen.getByRole('link', { name: /Home/ });
   firstLinkAfterRail.focus();
-  tablet = false;
+  width = 1200;
   view.rerender(tree('ltr', { currentGroupId: 'home' }));
   await waitFor(() => expect(document.activeElement).toBe(firstLinkAfterRail));
 });
 
 it('transfers focus from a hidden header slot to a rail link at 1024 to 1023', async () => {
-  let tablet = false;
-  stubMedia(() => ({ tablet }));
+  let width = 1200;
+  stubMedia(() => ({ width }));
   const view = render(
     tree('ltr', {
       currentGroupId: 'home',
@@ -139,7 +141,7 @@ it('transfers focus from a hidden header slot to a rail link at 1024 to 1023', a
   headerAction.focus();
   expect(document.activeElement).toBe(headerAction);
 
-  tablet = true;
+  width = 800;
   view.rerender(
     tree('ltr', {
       currentGroupId: 'home',
@@ -150,17 +152,40 @@ it('transfers focus from a hidden header slot to a rail link at 1024 to 1023', a
 });
 
 it('keeps focus outside the sidebar when the tablet breakpoint changes', async () => {
-  let tablet = false;
-  stubMedia(() => ({ tablet }));
+  let width = 1200;
+  stubMedia(() => ({ width }));
   const view = render(tree('ltr', { currentGroupId: 'home' }));
   const outside = screen.getByRole('textbox', { name: 'Outside field' });
   outside.focus();
 
-  tablet = true;
+  width = 800;
   view.rerender(tree('ltr', { currentGroupId: 'home' }));
   await waitFor(() => expect(document.activeElement).toBe(outside));
 
-  tablet = false;
+  width = 1200;
   view.rerender(tree('ltr', { currentGroupId: 'home' }));
   await waitFor(() => expect(document.activeElement).toBe(outside));
+});
+
+it('transfers focus at the fractional 1024 to 1023.5 sidebar boundary', async () => {
+  let width = 1024;
+  stubMedia(() => ({ width }));
+  const view = render(tree('ltr', { currentGroupId: 'home' }));
+  screen.getByRole('button', { name: chromeLabels.collapse }).focus();
+
+  width = 1023.5;
+  view.rerender(tree('ltr', { currentGroupId: 'home' }));
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: /Home/ })));
+  expect(view.container.querySelector('aside')?.getAttribute('data-collapsed')).toBe('');
+});
+
+it('leaves the sidebar shell at the fractional 600 to 599.5 phone boundary', () => {
+  let width = 600;
+  stubMedia(() => ({ width }));
+  const view = render(tree('ltr'));
+  expect(view.container.querySelector('aside')).toBeTruthy();
+
+  width = 599.5;
+  view.rerender(tree('ltr'));
+  expect(view.container.querySelector('aside')).toBeNull();
 });
