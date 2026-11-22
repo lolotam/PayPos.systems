@@ -1,5 +1,5 @@
 import { act, fireEvent, screen } from '@testing-library/react';
-import { expect } from 'vitest';
+import { expect, vi } from 'vitest';
 import { t } from '@pospay/i18n';
 import { fullLine, hiddenTips, linesPage } from '@/my-work/ui/work-fixtures';
 import { installFetch, json, replaceFetch, renderWork } from '@/my-work/ui/work-test-kit';
@@ -28,6 +28,7 @@ type Handler = (request: Request, url: URL) => Answer;
 export type Handlers = {
   open?: Handler;
   touch?: Handler;
+  close?: Handler;
   lines?: Handler;
   tips?: Handler;
 };
@@ -35,6 +36,9 @@ export type Handlers = {
 /** سيرفر مزيف لنافذة العرض الخاص؛ كل معالج ممكن يرجّع Promise لتأجيل الرد. */
 export function serve(handlers: Handlers = {}) {
   const requests: Request[] = [];
+  // الإلغاء بيتراقب من AbortController نفسه: إشارة الـ Request المشتقة في undici مربوطة بمرجع ضعيف،
+  // ولو جامع الذاكرة شال المتحكّم الداخلي الإشارة دي مش بتتلغى، فالتأكيد عليها بيفشل عشوائياً.
+  const aborted = vi.spyOn(AbortController.prototype, 'abort');
   installFetch(() => undefined);
   replaceFetch(async (request) => {
     requests.push(request);
@@ -44,7 +48,8 @@ export function serve(handlers: Handlers = {}) {
       return (
         handlers.touch ?? (() => json({ idle_remaining_ms: 60_000, cap_remaining_ms: 250_000 }))
       )(request, url);
-    if (path.endsWith('/private-view/close')) return new Response(null, { status: 204 });
+    if (path.endsWith('/private-view/close'))
+      return (handlers.close ?? (() => new Response(null, { status: 204 })))(request, url);
     if (path.endsWith('/private-view'))
       return (handlers.open ?? (() => json(opened())))(request, url);
     if (path.endsWith('/service-lines'))
@@ -54,7 +59,12 @@ export function serve(handlers: Handlers = {}) {
   });
   const paths = (suffix: string) =>
     requests.filter((r) => new URL(r.url).pathname.endsWith(suffix));
-  return { requests, paths, closes: () => paths('/private-view/close') };
+  return {
+    requests,
+    paths,
+    closes: () => paths('/private-view/close'),
+    aborts: () => aborted.mock.calls.length,
+  };
 }
 
 /** بوابة بتأجّل رد لحد ما الاختبار يفتحها. */
@@ -64,16 +74,10 @@ export function gate() {
   return { opened, open };
 }
 
-export const mountEntries = () =>
-  renderWork(
-    <ReceptionOwnEntries
-      session={session}
-      epoch={0}
-      branchId={id(5)}
-      deviceId={id(6)}
-      zone={null}
-    />,
-  );
+export const entries = (operator = session) => (
+  <ReceptionOwnEntries session={operator} epoch={0} branchId={id(5)} deviceId={id(6)} zone={null} />
+);
+export const mountEntries = () => renderWork(entries());
 
 export const openScreen = () =>
   fireEvent.click(screen.getByRole('button', { name: label('myWork.title') }));
@@ -102,5 +106,35 @@ export const EXITS: Record<string, () => void> = {
   'persisted pageshow': () =>
     window.dispatchEvent(Object.assign(new Event('pageshow'), { persisted: true })),
 };
+/** هدف كل خروج واسمه، عشان الاختبار يركّب مستمعاً بعد مستمع المتحكم على نفس الحدث. */
+export const EXIT_EVENTS: Record<string, [EventTarget, string]> = {
+  'tab hidden': [document, 'visibilitychange'],
+  pagehide: [window, 'pagehide'],
+  freeze: [document, 'freeze'],
+  resume: [document, 'resume'],
+  'window blur': [window, 'blur'],
+  'persisted pageshow': [window, 'pageshow'],
+};
 export const exit = (name: string) => act(() => EXITS[name]?.());
+
+/** نفس الخروج من غير act: الفترة بين الحدث وبين ما React يطبّق التغيير اللي act بتخبّيها. */
+export function exitRaw(name: string, onLater: () => void): void {
+  const [target, type] = EXIT_EVENTS[name] ?? [window, name];
+  target.addEventListener(type, onLater);
+  const flag = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+  flag.IS_REACT_ACT_ENVIRONMENT = false;
+  try {
+    EXITS[name]?.();
+  } finally {
+    flag.IS_REACT_ACT_ENVIRONMENT = true;
+    target.removeEventListener(type, onLater);
+  }
+}
+
+/** العنصر ده (أو أي أب ليه) مخفي بالـ hidden أو display:none، يعني مفيش حاجة منه ظاهرة. */
+export function isConcealed(node: Element): boolean {
+  for (let el: Element | null = node; el; el = el.parentElement)
+    if (el.hasAttribute('hidden') || (el as HTMLElement).style.display === 'none') return true;
+  return false;
+}
 export const restoreVisibility = () => Reflect.deleteProperty(document, 'visibilityState');

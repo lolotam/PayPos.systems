@@ -5,8 +5,8 @@ import {
   touchedDeadlines,
 } from './private-view-deadline';
 
-/** سبب الرجوع لخطوة الـ PIN: PIN غلط، فشل الفتح، أو خروج من الواجهة (انتهاء/إخفاء/تغيير). */
-export type PinProblem = 'invalid' | 'failed' | 'expired' | null;
+/** سبب الرجوع لخطوة الـ PIN: PIN غلط، فشل الفتح، خروج من الواجهة أو انتهاء، أو رفض صلاحية من السيرفر. */
+export type PinProblem = 'invalid' | 'failed' | 'expired' | 'refused' | null;
 
 /** خدمات الشهر زي ما الشاشة بتعرضها، لوضع الموبايل الشخصي (react-query) وجهاز الاستقبال (المتحكم). */
 export type LinesView = {
@@ -27,15 +27,20 @@ export type WorkData = {
 };
 
 export type PrivateWindowState =
-  | { phase: 'pin'; problem: PinProblem }
-  | { phase: 'opening' }
+  /**
+   * `epoch` بيتغيّر مع كل خروج من الواجهة، والنموذج بيتركّب بيه فبيتفرّغ، والمتحكم بيرفض أي إرسال من epoch قديم.
+   * `waiting` = طلب فتح لسه ما رجعش، فمفيش إرسال جديد لحد ما يرجع.
+   */
+  | { phase: 'pin'; problem: PinProblem; epoch: number; waiting: boolean }
+  | { phase: 'opening'; epoch: number }
   | { phase: 'open'; windowId: string; deadlines: PrivateViewDeadlines; data: WorkData }
   | { phase: 'leave' };
 
 export type PrivateWindowAction =
   | { type: 'opening' }
   | { type: 'opened'; windowId: string; deadlines: PrivateViewDeadlines }
-  | { type: 'closed'; problem: PinProblem }
+  | { type: 'closed'; problem: PinProblem; epoch: number; waiting: boolean }
+  | { type: 'settled' }
   | { type: 'left' }
   | { type: 'touched'; sentAt: number; remaining: PrivateViewRemaining }
   | { type: 'month'; month: string }
@@ -106,7 +111,7 @@ export function reducePrivateWindow(
 ): PrivateWindowState {
   switch (action.type) {
     case 'opening':
-      return { phase: 'opening' };
+      return { phase: 'opening', epoch: state.phase === 'pin' ? state.epoch : 0 };
     case 'opened':
       return {
         phase: 'open',
@@ -115,7 +120,14 @@ export function reducePrivateWindow(
         data: EMPTY_DATA,
       };
     case 'closed':
-      return { phase: 'pin', problem: action.problem };
+      return {
+        phase: 'pin',
+        problem: action.problem,
+        epoch: action.epoch,
+        waiting: action.waiting,
+      };
+    case 'settled':
+      return state.phase === 'pin' && state.waiting ? { ...state, waiting: false } : state;
     case 'left':
       return { phase: 'leave' };
     default:

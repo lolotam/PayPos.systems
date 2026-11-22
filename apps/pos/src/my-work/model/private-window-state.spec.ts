@@ -10,13 +10,18 @@ const page = (month: string, next: string | null = null): OwnServiceLines => ({
 });
 const deadlines = { sentAt: 0, idleAt: 60_000, capAt: 300_000 };
 const open = (): PrivateWindowState =>
-  reducePrivateWindow({ phase: 'opening' }, { type: 'opened', windowId: 'w', deadlines });
+  reducePrivateWindow({ phase: 'opening', epoch: 0 }, { type: 'opened', windowId: 'w', deadlines });
 
 it('drops every piece of private data when the window closes and starts empty on the next open', () => {
   let state = open();
   state = reducePrivateWindow(state, { type: 'linesLoaded', page: page('2026-11'), append: false });
-  state = reducePrivateWindow(state, { type: 'closed', problem: 'expired' });
-  expect(state).toEqual({ phase: 'pin', problem: 'expired' });
+  state = reducePrivateWindow(state, {
+    type: 'closed',
+    problem: 'expired',
+    epoch: 1,
+    waiting: false,
+  });
+  expect(state).toEqual({ phase: 'pin', problem: 'expired', epoch: 1, waiting: false });
   const again = reducePrivateWindow(state, { type: 'opened', windowId: 'w2', deadlines });
   expect(again.phase === 'open' && again.data.lines.pages).toEqual([]);
 });
@@ -41,7 +46,7 @@ it('records the server month as home only for the current-month first page and a
 });
 
 it('ignores data actions when no window is open', () => {
-  const pin: PrivateWindowState = { phase: 'pin', problem: null };
+  const pin: PrivateWindowState = { phase: 'pin', problem: null, epoch: 0, waiting: false };
   expect(
     reducePrivateWindow(pin, { type: 'linesLoaded', page: page('2026-11'), append: false }),
   ).toBe(pin);
@@ -65,4 +70,21 @@ it('only shortens the cap on a touch and takes the idle time from the server', (
     idleAt: 70_000,
     capAt: 300_000,
   });
+});
+
+it('lifts the wait without touching the form epoch or the message, and ignores it when nothing waits', () => {
+  const waiting: PrivateWindowState = { phase: 'pin', problem: 'expired', epoch: 3, waiting: true };
+  expect(reducePrivateWindow(waiting, { type: 'settled' })).toEqual({
+    phase: 'pin',
+    problem: 'expired',
+    epoch: 3,
+    waiting: false,
+  });
+  const idle: PrivateWindowState = { ...waiting, waiting: false };
+  expect(reducePrivateWindow(idle, { type: 'settled' })).toBe(idle);
+});
+
+it('keeps the form epoch from the PIN step into the opening step', () => {
+  const pin: PrivateWindowState = { phase: 'pin', problem: null, epoch: 4, waiting: false };
+  expect(reducePrivateWindow(pin, { type: 'opening' })).toEqual({ phase: 'opening', epoch: 4 });
 });

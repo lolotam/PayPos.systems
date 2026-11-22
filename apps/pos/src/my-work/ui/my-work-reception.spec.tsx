@@ -186,12 +186,15 @@ it('leaves the private screen entirely when a read answers 401', async () => {
   await waitFor(() => expect(fetched.paths('/private-view/close').length).toBe(1));
 });
 
-it('shows a refused state and keeps the window when a read is forbidden', async () => {
-  serve({ lines: () => json({ code: 'FORBIDDEN' }, 403) });
-  open();
+it('closes the window and shows the PIN step with the refused message when a read is forbidden', async () => {
+  const fetched = serve({ lines: () => json({ code: 'FORBIDDEN' }, 403) });
+  const onLeave = vi.fn();
+  open(onLeave);
   await enterPin();
   expect(await screen.findByText(label('myWork.refused'))).toBeTruthy();
-  expect(screen.queryByLabelText(label('myWork.pinLabel'))).toBeNull();
+  expect(screen.getByLabelText(label('myWork.pinLabel'))).toBeTruthy();
+  expect(onLeave).not.toHaveBeenCalled();
+  await waitFor(() => expect(fetched.paths('/private-view/close').length).toBe(1));
 });
 
 it('closes the window and clears the cache when the screen is left', async () => {

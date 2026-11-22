@@ -1,41 +1,62 @@
-import { closeAt, openedDeadlines } from '../model/private-view-deadline';
+import type { PrivateViewWindow } from '@pospay/contracts';
+import {
+  type PrivateViewDeadlines,
+  closeAt,
+  openedDeadlines,
+  touchedDeadlines,
+} from '../model/private-view-deadline';
 import {
   type PinProblem,
   type PrivateWindowAction,
   type PrivateWindowState,
   reducePrivateWindow,
 } from '../model/private-window-state';
-import { WorkHttpError, sessionEnded, windowExpired } from '../model/work-error';
-import { CLOCK_DRIFT_MS, type PrivateWindowDeps, TICK_MS } from './private-window-env';
+import { WorkHttpError, sessionEnded, windowRefusal } from '../model/work-error';
+import { PairedClock } from './private-window-clock';
+import { concealPrivateRoot } from './private-window-conceal';
+import type { PrivateWindowDeps } from './private-window-env';
 import type { Scope, WindowHost } from './private-window-host';
 import { attachWindowListeners } from './private-window-listeners';
 import { loadLines, loadTips } from './private-window-reads';
+import { WindowTimers } from './private-window-timers';
 import { TouchScheduler } from './private-window-touch';
 
 /**
  * متحكم النافذة الخاصة على جهاز الاستقبال. القاعدة الوحيدة: أي خروج من الواجهة يقفل النافذة ويطلب الرقم السري.
  * (إخفاء، pagehide، freeze، resume، pageshow راجعة، blur، فك التركيب، تغيّر المشغّلة، موعد القفل،
- * رفض أو انتهاء من السيرفر، أو أي خطأ جوّاه): كل ده `close` بيرفع الجيل ويمسح الذاكرة فوراً
+ * رفض أو انتهاء من السيرفر، أو أي خطأ جوّاه): كل ده `close` بيرفع الجيل ويخفّي الحاوية فوراً ويمسح الذاكرة
  * ويلغي الطلبات والمؤقتات ويرجع لخطوة الـ PIN ويبعت إغلاق للسيرفر بأفضل جهد. أي رد بيوصل بجيل قديم
  * بيترمي (ورد الفتح القديم بيتقفل في السيرفر برقمه ومبيتعرضش)، وأي رد بيتطبّق بس لو الجيل هو
- * الحالي والموعد المؤكَّد ما فاتش وقت التطبيق. مفيش تخزين ولا كاش ولا تابات مشتركة.
+ * الحالي والموعد (اللي هيتحسب بعد الرد) ما فاتش والساعتين متفقتين وقت التطبيق. مفيش تخزين ولا كاش ولا تابات مشتركة.
+ *
+ * طلب الفتح واحد في المرة: السيرفر بيستبدل النافذة بآخر فتح بيوصله، فطلب قديم لسه ماردش ممكن يوصل بعد الجديد
+ * ويقفله. عشان كده مفيش إرسال تاني لحد ما القديم يرد (وإغلاق نافذته القديمة يتجرّب)؛ وخطوة الـ PIN بتبان منتظرة.
  */
 export class PrivateWindowController implements WindowHost {
   private gen = 0;
+  private epoch = 0;
   private readSeq = 0;
   private abort = new AbortController();
   private alive = false;
-  private state: PrivateWindowState = { phase: 'pin', problem: null };
+  private openInFlight = false;
+  private state: PrivateWindowState = { phase: 'pin', problem: null, epoch: 0, waiting: false };
+  private expiredView: { source: PrivateWindowState; view: PrivateWindowState } | undefined;
+  private root: HTMLElement | null = null;
   private readonly listeners = new Set<() => void>();
-  private deadlineTimer: unknown;
-  private tickTimer: unknown;
-  private tickBase = { mono: 0, wall: 0 };
+  private readonly clock: PairedClock;
+  private readonly timers: WindowTimers;
   private readonly touches: TouchScheduler;
 
   constructor(
     readonly deps: PrivateWindowDeps,
     private readonly onLeave: () => void,
   ) {
+    this.clock = new PairedClock(deps.env);
+    this.timers = new WindowTimers(
+      deps.env,
+      () => this.state.phase === 'open' && this.dueAt(this.state.deadlines),
+      () => this.close('expired'),
+    );
     this.touches = new TouchScheduler(this, () => this.armDeadline());
   }
 
@@ -44,7 +65,30 @@ export class PrivateWindowController implements WindowHost {
     return () => this.listeners.delete(listener);
   };
 
-  getState = (): PrivateWindowState => this.state;
+  /**
+   * الحالة اللي الشاشة تعرضها (لقطة المتجر نفسها): النافذة المفتوحة بعد موعدها أو بعد نوم الجهاز بتظهر خطوة PIN
+   * حتى لو المؤقت لسه ما اشتغلش، فأي رندر أو فحص تطابق قبل الـ commit بيشوفها. اللقطة ثابتة المرجع لنفس الحالة.
+   * الحالة الخام الداخلية (`this.state`) هي اللي المؤقت والإغلاق بيشتغلوا عليها، فإغلاقه بيبلّغ المشتركين.
+   */
+  getState = (): PrivateWindowState => {
+    const state = this.state;
+    if (state.phase !== 'open' || !this.dueAt(state.deadlines)) return state;
+    if (this.expiredView?.source !== state) {
+      const view: PrivateWindowState = {
+        phase: 'pin',
+        problem: 'expired',
+        epoch: this.epoch + 1,
+        waiting: false,
+      };
+      this.expiredView = { source: state, view };
+    }
+    return this.expiredView.view;
+  };
+
+  /** بتسجّل حاوية العرض الخاص عشان القفل يخفّيها في نفس الحدث قبل ما React يطبّق. */
+  attachRoot = (element: HTMLElement | null): void => {
+    this.root = element;
+  };
 
   /** بيركّب المستمعين من أول mount؛ والدالة المرجعة بتقفل وتشيل كل حاجة (فك التركيب). */
   start(): () => void {
@@ -54,44 +98,42 @@ export class PrivateWindowController implements WindowHost {
       () => this.touches.input(),
     );
     return () => {
-      this.close(null);
       this.alive = false;
+      this.close(null);
       detach();
     };
   }
 
-  /** الحالة اللي الشاشة تعرضها: النافذة المفتوحة بعد موعدها (والمؤقت لسه ما اشتغلش) مبتتعرضش. */
-  visible(state: PrivateWindowState): PrivateWindowState {
-    if (state.phase === 'open' && this.deps.env.mono() >= closeAt(state.deadlines))
-      return { phase: 'pin', problem: 'expired' };
-    return state;
-  }
-
-  /** فتح النافذة بالـ PIN؛ الرد بيتطبّق بس لو الجيل لسه هو اللي بدأ. */
-  async submitPin(pin: string): Promise<void> {
-    const { env, calls } = this.deps;
-    if (this.state.phase !== 'pin' || !env.online()) return;
+  /**
+   * فتح النافذة بالـ PIN. الإرسال بيتقبل بس من نموذج دورته هي الحالية (بعد أي خروج النموذج القديم بيترفض)،
+   * ومن غير طلب فتح تاني لسه مارجعش؛ والرد بيتطبّق بس لو الجيل لسه هو اللي بدأ.
+   *
+   * @param pin الأربع أرقام
+   * @param epoch دورة النموذج اللي بعت
+   */
+  async submitPin(pin: string, epoch: number): Promise<void> {
+    if (!this.canOpen(epoch)) return;
     const gen = this.gen;
-    const sentAt = env.mono();
+    const sentAt = this.clock.capture();
+    this.openInFlight = true;
     this.dispatch({ type: 'opening' });
+    let opened: PrivateViewWindow;
     try {
-      const opened = await calls.open(pin);
-      if (gen !== this.gen) return void calls.close(opened.window_id);
-      const deadlines = openedDeadlines(sentAt, opened);
-      if (closeAt(deadlines) <= env.mono()) {
-        void calls.close(opened.window_id);
-        return this.close('expired');
-      }
-      this.dispatch({ type: 'opened', windowId: opened.window_id, deadlines });
-      this.touches.reset(sentAt);
-      this.armDeadline();
-      this.startTick();
-      this.loadMonth(this.scope(true));
+      opened = await this.deps.calls.open(pin);
     } catch (error) {
-      if (gen !== this.gen) return;
-      if (sessionEnded(error)) return this.leave();
-      const wrong = error instanceof WorkHttpError && error.code === 'PIN_INVALID';
-      this.close(wrong ? 'invalid' : 'failed');
+      this.settleOpen();
+      if (gen === this.gen) this.openFailed(error);
+      return;
+    }
+    if (gen !== this.gen) {
+      await this.closeRemote(opened.window_id);
+      return this.settleOpen();
+    }
+    this.settleOpen();
+    try {
+      this.applyOpened(opened, sentAt);
+    } catch {
+      this.close('failed');
     }
   }
 
@@ -133,7 +175,11 @@ export class PrivateWindowController implements WindowHost {
     const state = this.state;
     if (scope.gen !== this.gen || state.phase !== 'open') return false;
     if (scope.readSeq !== undefined && scope.readSeq !== this.readSeq) return false;
-    if (this.deps.env.mono() >= closeAt(state.deadlines)) {
+    const next =
+      action.type === 'touched'
+        ? touchedDeadlines(state.deadlines, action.sentAt, action.remaining)
+        : state.deadlines;
+    if (this.dueAt(state.deadlines) || this.dueAt(next)) {
       this.close('expired');
       return false;
     }
@@ -143,24 +189,80 @@ export class PrivateWindowController implements WindowHost {
 
   refused = (scope: Scope, error: unknown): boolean => {
     if (scope.gen !== this.gen) return true;
-    if (windowExpired(error)) this.close('expired');
-    else if (sessionEnded(error)) this.leave();
-    else return false;
+    const refusal = windowRefusal(error);
+    if (refusal === null) return false;
+    if (refusal === 'leave') this.leave();
+    else this.close(refusal);
     return true;
   };
 
   fail = (): void => this.close('failed');
 
-  /** القفل: ذاكرة، طلبات، مؤقتات، ثم خطوة الـ PIN، ثم إغلاق السيرفر بأفضل جهد. */
+  /** الموعد فات أو الساعتين اتفرقوا: أي واحد منهم يعني إن الموعد مبقاش يعتمد عليه. */
+  private dueAt(deadlines: PrivateViewDeadlines): boolean {
+    return this.clock.drifted() || this.deps.env.mono() >= closeAt(deadlines);
+  }
+
+  private canOpen(epoch: number): boolean {
+    const state = this.state;
+    return (
+      state.phase === 'pin' && state.epoch === epoch && !this.openInFlight && this.deps.env.online()
+    );
+  }
+
+  /** الموعد بيتحسب كامل قبل أي نشر: لو فات بالفعل بنقفل مباشرة من غير ما نعرض الحالة المفتوحة. */
+  private applyOpened(opened: PrivateViewWindow, sentAt: number): void {
+    const deadlines = openedDeadlines(sentAt, opened);
+    if (this.dueAt(deadlines)) {
+      void this.closeRemote(opened.window_id);
+      return this.close('expired');
+    }
+    this.dispatch({ type: 'opened', windowId: opened.window_id, deadlines });
+    this.touches.reset(sentAt);
+    this.armDeadline();
+    this.timers.startTick();
+    this.loadMonth(this.scope(true));
+  }
+
+  private openFailed(error: unknown): void {
+    if (sessionEnded(error)) return this.leave();
+    const wrong = error instanceof WorkHttpError && error.code === 'PIN_INVALID';
+    this.close(wrong ? 'invalid' : 'failed');
+  }
+
+  /** الطلب رجع (نجح أو فشل): بيفتح الإرسال من جديد وبيشيل حالة الانتظار من غير ما يغيّر دورة النموذج. */
+  private settleOpen(): void {
+    this.openInFlight = false;
+    this.dispatch({ type: 'settled' });
+  }
+
+  /**
+   * القفل: جيل جديد، حاوية مخفية، ذاكرة، طلبات، مؤقتات، ثم خطوة الـ PIN، ثم إغلاق السيرفر بأفضل جهد.
+   * دورة النموذج بتتغيّر مع أي إغلاق (حتى وإحنا في خطوة الـ PIN)، فالحقل بيتفرّغ؛ إلا فشل المحاولة نفسها وهي
+   * بتفتح (PIN غلط أو فشل فتح) لأن النموذج لسه هو هو والحقل اتفرّغ لحظة الإرسال.
+   */
   private close(problem: PinProblem): void {
+    const previous = this.state;
     this.gen += 1;
+    if (!(previous.phase === 'opening' && (problem === 'invalid' || problem === 'failed')))
+      this.epoch += 1;
     this.abort.abort();
     this.abort = new AbortController();
-    this.clearTimers();
-    const previous = this.state;
-    if (previous.phase === 'open' || previous.phase === 'opening')
-      this.dispatch({ type: 'closed', problem });
-    if (previous.phase === 'open') void this.deps.calls.close(previous.windowId);
+    this.timers.clear();
+    this.touches.cancel();
+    if (this.root !== null) concealPrivateRoot(this.root);
+    if (previous.phase === 'leave') return;
+    this.dispatch({
+      type: 'closed',
+      problem: previous.phase === 'pin' ? previous.problem : problem,
+      epoch: this.epoch,
+      waiting: this.openInFlight,
+    });
+    if (previous.phase === 'open') void this.closeRemote(previous.windowId);
+  }
+
+  private closeRemote(windowId: string): Promise<void> {
+    return this.deps.calls.close(windowId).catch(() => undefined);
   }
 
   private leave(): void {
@@ -180,44 +282,13 @@ export class PrivateWindowController implements WindowHost {
   }
 
   private dispatch(action: PrivateWindowAction): void {
-    this.state = reducePrivateWindow(this.state, action);
+    const next = reducePrivateWindow(this.state, action);
+    if (next === this.state) return;
+    this.state = next;
     if (this.alive) for (const listener of this.listeners) listener();
   }
 
   private armDeadline(): void {
-    const { env } = this.deps;
-    if (this.deadlineTimer !== undefined) env.clearTimer(this.deadlineTimer);
-    this.deadlineTimer = undefined;
-    if (this.state.phase !== 'open') return;
-    const wait = Math.max(0, closeAt(this.state.deadlines) - env.mono());
-    this.deadlineTimer = env.setTimer(() => this.close('expired'), wait);
-  }
-
-  private startTick(): void {
-    const { env } = this.deps;
-    this.tickBase = { mono: env.mono(), wall: env.wall() };
-    this.tickTimer = env.setTimer(() => this.tick(), TICK_MS);
-  }
-
-  /** كل ثانية: الساعة الجدارية اتحرّكت غير الرتيبة (نوم أو تغيير ساعة)، أو الموعد فات، يبقى قفل. */
-  private tick(): void {
-    const { env } = this.deps;
-    const state = this.state;
-    if (state.phase !== 'open') return;
-    const mono = env.mono();
-    const wall = env.wall();
-    const drift = Math.abs(wall - this.tickBase.wall - (mono - this.tickBase.mono));
-    if (drift > CLOCK_DRIFT_MS || mono >= closeAt(state.deadlines)) return this.close('expired');
-    this.tickBase = { mono, wall };
-    this.tickTimer = env.setTimer(() => this.tick(), TICK_MS);
-  }
-
-  private clearTimers(): void {
-    const { env } = this.deps;
-    for (const timer of [this.deadlineTimer, this.tickTimer])
-      if (timer !== undefined) env.clearTimer(timer);
-    this.deadlineTimer = undefined;
-    this.tickTimer = undefined;
-    this.touches.cancel();
+    this.timers.arm(this.state.phase === 'open' ? closeAt(this.state.deadlines) : undefined);
   }
 }

@@ -29,3 +29,21 @@ export function monthOutOfRange(error: unknown): boolean {
 export function workForbidden(error: unknown): boolean {
   return error instanceof WorkHttpError && error.status === 403 && !windowExpired(error);
 }
+
+/** ما يعمله جهاز الاستقبال لما قراءة أو لمسة على النافذة الخاصة بتترفض بصلاحية. */
+export type WindowRefusal = 'leave' | 'expired' | 'refused';
+
+/**
+ * تصنيف رد مرفوض على قراءة أو لمسة جوّا نافذة جهاز الاستقبال، في مكان واحد.
+ * أي 401 بيخرّج الموظفة، وأي 403 بيقفل النافذة كلها (انتهاء النافذة بسببه الخاص، وأي صلاحية تانية بـ «refused»).
+ * الشهر خارج الحد (422) وأعطال النقل والسيرفر مبتتصنفش هنا: بتفضل جوّا النافذة.
+ *
+ * @param error الخطأ اللي رجع من الطلب
+ * @returns التصرف المطلوب، أو null لو الخطأ مش رفض صلاحية
+ */
+export function windowRefusal(error: unknown): WindowRefusal | null {
+  if (!(error instanceof WorkHttpError) || monthOutOfRange(error)) return null;
+  if (error.status === 401) return 'leave';
+  if (error.status === 403) return windowExpired(error) ? 'expired' : 'refused';
+  return null;
+}

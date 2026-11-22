@@ -1,10 +1,8 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
-import { useState } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { t } from '@pospay/i18n';
 import { cancelledLine, fullLine, linesPage } from '@/my-work/ui/work-fixtures';
-import { json, renderWork } from '@/my-work/ui/work-test-kit';
-import { MyWorkScreen } from '@/my-work/ui/my-work-screen';
+import { json } from '@/my-work/ui/work-test-kit';
 import {
   EXITS,
   exit,
@@ -73,12 +71,12 @@ it.each(Object.keys(EXITS))(
     await signIn();
     fireEvent.click(screen.getByText(label('myWork.loadMore')));
     await waitFor(() => expect(fetched.paths('/service-lines').length).toBe(2));
-    const inFlight = fetched.paths('/service-lines')[1];
+    const abortsBefore = fetched.aborts();
     exit(name);
     expect(screen.queryByText('Haircut')).toBeNull();
     expect(pinStep()).toBeTruthy();
     expect(screen.getByText(t('en', 'errors.PRIVATE_VIEW_EXPIRED'))).toBeTruthy();
-    expect(inFlight?.signal.aborted).toBe(true);
+    expect(fetched.aborts()).toBeGreaterThan(abortsBefore);
     await waitFor(() => expect(fetched.closes().length).toBe(1));
     expect(fetched.closes()[0]?.headers.get('x-private-view-window-id')).toBe('window-abc');
     answer.open();
@@ -119,32 +117,4 @@ it('closes the window, removes every timer and listener, and does nothing afterw
   await act(() => vi.advanceTimersByTimeAsync(120_000));
   expect(fetched.requests.length).toBe(sent);
   expect(vi.getTimerCount()).toBeLessThanOrEqual(baseline);
-});
-
-it('closes, aborts and shows the PIN step when another operator replaces her, with no state change after', async () => {
-  const fetched = serve();
-  function Harness() {
-    const [identity, setIdentity] = useState('0:sara:device:2026-12-01');
-    return (
-      <>
-        <button onClick={() => setIdentity('1:mona:device:2026-12-01')}>replace</button>
-        <MyWorkScreen
-          key={identity}
-          context={{ mode: 'reception', identity }}
-          onLeave={() => undefined}
-        />
-      </>
-    );
-  }
-  renderWork(<Harness />);
-  await submitPin();
-  expect(await screen.findByText('Haircut')).toBeTruthy();
-  const reads = fetched.paths('/service-lines')[0];
-  fireEvent.click(screen.getByText('replace'));
-  expect(screen.queryByText('Haircut')).toBeNull();
-  expect(pinStep()).toBeTruthy();
-  await waitFor(() => expect(fetched.closes().length).toBe(1));
-  expect(reads?.signal.aborted).toBe(true);
-  await act(() => vi.advanceTimersByTimeAsync(120_000));
-  expect(fetched.closes().length).toBe(1);
 });

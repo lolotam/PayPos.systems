@@ -10,29 +10,35 @@ const PROBLEM_KEYS = {
   expired: 'errors.PRIVATE_VIEW_EXPIRED',
   failed: 'myWork.pinFailed',
   invalid: 'myWork.pinInvalid',
+  refused: 'myWork.refused',
 } as const;
 
 /**
- * خطوة الـ PIN على جهاز الاستقبال: الحقل بيتمسح بعد كل محاولة والـ PIN مش بيتحفظ في أي مكان.
+ * خطوة الـ PIN على جهاز الاستقبال: الحقل بيتفرّغ في نفس لحظة الإرسال والـ PIN مش بيتحفظ في أي مكان. المتحكم
+ * بيركّب النموذج بدورة جديدة (`key`) مع أي خروج من الواجهة، فأي حاجة مكتوبة فيه بتروح، وبيرفض أي إرسال جاي من
+ * نموذج قديم (حتى لو فك التركيب حصل والتحقق لسه ماخلصش).
  *
- * @param props.problem سبب الرجوع للخطوة دي: PIN غلط، فشل الفتح، أو خروج من الواجهة قفل النافذة
+ * @param props.problem سبب الرجوع للخطوة دي: PIN غلط، فشل الفتح، خروج من الواجهة، أو رفض صلاحية
  * @param props.pending هل المحاولة شغالة
+ * @param props.waiting هل محاولة قديمة لسه ما ردتش، فالإرسال مقفول لحد ما تخلص
  * @param props.onSubmit بتستلم الـ PIN
  */
 export function PrivateViewPinForm({
   problem,
   pending,
+  waiting,
   onSubmit,
 }: {
   problem: PinProblem;
   pending: boolean;
-  onSubmit: (pin: string) => Promise<void>;
+  waiting: boolean;
+  onSubmit: (pin: string) => void;
 }) {
   const locale = useLocale();
   const form = useForm<PrivateViewOpenInput>({ resolver: zodResolver(privateViewOpenInput) });
-  const submit = async (input: PrivateViewOpenInput) => {
-    await onSubmit(input.pin);
+  const submit = (input: PrivateViewOpenInput) => {
     form.resetField('pin');
+    onSubmit(input.pin);
   };
   const key =
     problem === null
@@ -41,6 +47,7 @@ export function PrivateViewPinForm({
         : null
       : PROBLEM_KEYS[problem];
   const message = key === null ? null : t(locale, key);
+  const locked = pending || waiting;
   return (
     <form className="flex flex-col gap-4" onSubmit={form.handleSubmit(submit)}>
       <p className="text-base">{t(locale, 'myWork.pinTitle')}</p>
@@ -53,7 +60,7 @@ export function PrivateViewPinForm({
         inputMode="numeric"
         autoComplete="off"
         maxLength={4}
-        disabled={pending}
+        disabled={locked}
         {...form.register('pin')}
       />
       {message === null ? null : (
@@ -61,7 +68,8 @@ export function PrivateViewPinForm({
           {message}
         </p>
       )}
-      <Button size="touch" type="submit" disabled={pending}>
+      {waiting ? <p role="status">{t(locale, 'myWork.pinWaiting')}</p> : null}
+      <Button size="touch" type="submit" disabled={locked}>
         {t(locale, 'myWork.pinSubmit')}
       </Button>
     </form>
