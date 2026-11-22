@@ -158,3 +158,16 @@ The round spec 059 requires before 53-1 and 53-2. Its findings, and what this de
 | A8 | The new package must itself be allowed to import the engine's root entry point: `packages_restricted` governs who imports the posting package, and the engine's boundary test refuses a sibling package today. Update the ADR, ESLint, the static, dynamic and relative import tests, `exports` and the package maps; a direct `drizzle-orm` import needs its dependency declared in the new manifest | adopted: lane A's brief, addendum |
 | A9 | Lane D must pass #486 first (53-2 waits for 52-1, which waits for #486), and the shared-file table missed ADR-0054 and the generated module-map YAML | adopted: plan.md |
 | A10 | The `approve` contract missed 409 `COMMISSION_PERIOD_CLOSED` for a second approver after the wait | adopted: contracts |
+
+## R10 — Line detail on a correction row (51-1 PR 1a-ii)
+
+- **Decision (PosPay manager's technical ruling, 2026-11-22):** the `commission_statement_lines` row of spec 059 §6
+  _Schema changes_ is applied literally. A `CORRECTION` row whose source is a `line:<id>` carries the frozen line detail
+  that row and D-20 list (`line_id`, `session_id`, `service_id`, the service names, `customer_id`, `customer_name`,
+  `business_date`); the correction's own id stays its `source_ref`, as FR-033 says. The builder, the statement
+  fingerprint and CM-34e carry the detail.
+- **Rationale:** §6 names the detail for «a `CORRECTION` of a `line:<id>`» outright, while FR-033 only says the row's
+  source is the correction's id; the two do not conflict once read together.
+- **Limits:** sale and tip corrections carry no line detail; no new field is exposed. CS-Q9 fixes the columns of the
+  corrections section, CS-Q30 hides the customer's name from the employee, and management reads and the export stay
+  within the existing permission.
