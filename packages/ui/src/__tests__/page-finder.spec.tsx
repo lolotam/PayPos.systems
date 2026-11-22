@@ -149,6 +149,34 @@ it('restores focus to the finder trigger when a shortcut starts from BODY', asyn
   );
 });
 
+it('restores focus to the finder trigger when the shortcut opener is disabled while open', async () => {
+  render(tree('ltr'));
+  const outside = screen.getByRole('button', { name: 'outside target' });
+  outside.focus();
+  const dialog = openWithShortcut('k', 'ctrlKey');
+  outside.setAttribute('disabled', '');
+
+  fireEvent.keyDown(document.activeElement ?? dialog, { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() =>
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: finderLabels.trigger }),
+    ),
+  );
+});
+
+it('restores shortcut focus to an opener that is programmatically focusable with tabIndex -1', async () => {
+  render(tree('ltr'));
+  const outside = screen.getByRole('button', { name: 'outside target' });
+  outside.tabIndex = -1;
+  outside.focus();
+  const dialog = openWithShortcut('k', 'ctrlKey');
+
+  fireEvent.keyDown(document.activeElement ?? dialog, { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() => expect(document.activeElement).toBe(outside));
+});
+
 it('ignores unrelated keys and toggles closed on a second shortcut', async () => {
   render(tree('ltr'));
   fireEvent.keyDown(window, { key: 'k' });

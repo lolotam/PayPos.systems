@@ -31,6 +31,8 @@ export type PageFinderProps = {
   onNavigate?: (() => void) | undefined;
 };
 
+type FinderOpenOrigin = 'trigger' | 'shortcut';
+
 type FinderResultListProps = {
   results: readonly FinderResult[];
   labels: NavigationFinderLabels;
@@ -77,8 +79,8 @@ type FinderDialogProps = {
   onCloseAutoFocus: (event: Event) => void;
 };
 
-function isVisibleFinderLink(link: HTMLAnchorElement): boolean {
-  for (let node: HTMLElement | null = link; node; node = node.parentElement) {
+function isVisibleElement(element: HTMLElement): boolean {
+  for (let node: HTMLElement | null = element; node; node = node.parentElement) {
     if (node.hasAttribute('hidden')) return false;
     const style = getComputedStyle(node);
     if (
@@ -92,11 +94,31 @@ function isVisibleFinderLink(link: HTMLAnchorElement): boolean {
   return true;
 }
 
-function isRestorableFocusTarget(element: Element | null): element is HTMLElement {
+function isRestorableFocusTarget(element: Element | null | undefined): element is HTMLElement {
   if (!(element instanceof HTMLElement) || !element.isConnected) return false;
   if (element === document.body || element === document.documentElement) return false;
   if (element.hasAttribute('disabled') || element.getAttribute('aria-disabled') === 'true') return false;
-  return element.tabIndex >= 0 || element.isContentEditable;
+  if (!isVisibleElement(element)) return false;
+  return element.tabIndex >= 0 || element.hasAttribute('tabindex') || element.isContentEditable;
+}
+
+function restoreFinderFocusOnClose(
+  event: Event,
+  openedBy: FinderOpenOrigin | undefined,
+  previous: HTMLElement | undefined,
+  trigger: HTMLButtonElement | null,
+) {
+  let restored = false;
+  if (openedBy === 'shortcut') {
+    for (const candidate of [previous, trigger]) {
+      if (!isRestorableFocusTarget(candidate)) continue;
+      candidate.focus();
+      if (document.activeElement !== candidate) continue;
+      restored = true;
+      break;
+    }
+  }
+  if (restored) event.preventDefault();
 }
 
 function onFinderInputKeyDown(
@@ -106,7 +128,7 @@ function onFinderInputKeyDown(
   if (event.key !== 'Enter') return;
   const firstVisible = Array.from(
     listRef.current?.querySelectorAll<HTMLAnchorElement>('a[data-finder-result]') ?? [],
-  ).find(isVisibleFinderLink);
+  ).find(isVisibleElement);
   if (!firstVisible) return;
   event.preventDefault();
   firstVisible.click();
@@ -183,6 +205,29 @@ function useFinderShortcut(open: boolean, close: () => void, begin: () => void) 
   }, [open, close, begin]);
 }
 
+function useFinderFocusRestore(triggerRef: RefObject<HTMLButtonElement | null>) {
+  const openedBy = useRef<FinderOpenOrigin | undefined>(undefined);
+  const restoreFocus = useRef<HTMLElement | undefined>(undefined);
+  const captureShortcutFocus = useCallback(() => {
+    openedBy.current = 'shortcut';
+    restoreFocus.current = isRestorableFocusTarget(document.activeElement)
+      ? document.activeElement
+      : (triggerRef.current ?? undefined);
+  }, [triggerRef]);
+  const markTriggerOpened = useCallback(() => {
+    openedBy.current = 'trigger';
+  }, []);
+  const onCloseAutoFocus = useCallback(
+    (event: Event) => {
+      restoreFinderFocusOnClose(event, openedBy.current, restoreFocus.current, triggerRef.current);
+      restoreFocus.current = undefined;
+      openedBy.current = undefined;
+    },
+    [triggerRef],
+  );
+  return { captureShortcutFocus, markTriggerOpened, onCloseAutoFocus };
+}
+
 type FinderControllerInput = Pick<PageFinderProps, 'workspaces' | 'visiblePageIds' | 'onNavigate'> & {
   triggerRef: RefObject<HTMLButtonElement | null>;
 };
@@ -195,8 +240,8 @@ function usePageFinderController({
 }: FinderControllerInput) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const openedBy = useRef<'trigger' | 'shortcut' | undefined>(undefined);
-  const restoreFocus = useRef<HTMLElement | undefined>(undefined);
+  const { captureShortcutFocus, markTriggerOpened, onCloseAutoFocus } =
+    useFinderFocusRestore(triggerRef);
   const results = useMemo(
     () => collectFinderResults(workspaces, visiblePageIds, query),
     [workspaces, visiblePageIds, query],
@@ -207,29 +252,16 @@ function usePageFinderController({
     setQuery('');
   }, []);
   const beginShortcut = useCallback(() => {
-    openedBy.current = 'shortcut';
-    restoreFocus.current = isRestorableFocusTarget(document.activeElement)
-      ? document.activeElement
-      : (triggerRef.current ?? undefined);
+    captureShortcutFocus();
     setQuery('');
     setOpen(true);
-  }, [triggerRef]);
-  const markTriggerOpened = useCallback(() => {
-    openedBy.current = 'trigger';
-  }, []);
+  }, [captureShortcutFocus]);
   useFinderShortcut(open, close, beginShortcut);
 
   const select = useCallback(() => {
     onNavigate?.();
     close();
   }, [onNavigate, close]);
-  const onCloseAutoFocus = useCallback((event: Event) => {
-    const previous = restoreFocus.current;
-    if (openedBy.current !== 'shortcut' || !previous?.isConnected) return;
-    event.preventDefault();
-    previous.focus();
-    openedBy.current = undefined;
-  }, []);
   const onOpenChange = useCallback(
     (next: boolean) => {
       if (next) setOpen(true);
