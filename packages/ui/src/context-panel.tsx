@@ -1,5 +1,6 @@
 'use client';
 
+import type { RefObject } from 'react';
 import { useDirection } from './direction-provider.js';
 import { ContextPanelBody } from './context-panel-body.js';
 import {
@@ -17,6 +18,7 @@ export type ContextPanelProps = {
   panelOpen: boolean;
   activePageId?: string | undefined;
   visiblePageIds?: readonly string[] | undefined;
+  returnFocusRef?: RefObject<HTMLButtonElement | null> | undefined;
   onClose: () => void;
 };
 
@@ -28,6 +30,7 @@ export function ContextPanel({
   panelOpen,
   activePageId,
   visiblePageIds,
+  returnFocusRef,
   onClose,
 }: ContextPanelProps) {
   const dir = useDirection();
@@ -52,6 +55,7 @@ export function ContextPanel({
         labels={labels}
         activePageId={activePageId}
         visiblePageIds={visiblePageIds}
+        returnFocusRef={returnFocusRef}
         onClose={onClose}
       />
     </aside>

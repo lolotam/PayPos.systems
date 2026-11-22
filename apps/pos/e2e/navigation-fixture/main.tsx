@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   CollapsibleSidebar,
@@ -213,6 +213,7 @@ function DrawerScene() {
 function ContextScene() {
   const [inspectedWorkspaceId, setInspectedWorkspaceId] = useState<string | undefined>('business');
   const [panelOpen, setPanelOpen] = useState(true);
+  const panelReturnFocusRef = useRef<HTMLButtonElement>(null);
   return (
     <div className="flex min-h-screen">
       <NavRail
@@ -233,9 +234,13 @@ function ContextScene() {
         inspectedWorkspaceId={inspectedWorkspaceId}
         panelOpen={panelOpen}
         activePageId="columns"
+        returnFocusRef={panelReturnFocusRef}
         onClose={() => setPanelOpen(false)}
       />
       <main className="min-w-0 flex-1 p-4">
+        <button ref={panelReturnFocusRef} type="button" onClick={() => setPanelOpen(true)}>
+          إعادة فتح لوحة مساحة العمل
+        </button>
         <PageFinder
           workspaces={workspaces}
           labels={finderLabels}

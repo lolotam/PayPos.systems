@@ -12,7 +12,10 @@ import {
   type NavigationWorkspace,
 } from './navigation-presentation.js';
 
-function usePanelReturnFocus(panelRef: RefObject<HTMLDivElement | null>) {
+function usePanelReturnFocus(
+  panelRef: RefObject<HTMLDivElement | null>,
+  fallbackRef: RefObject<HTMLButtonElement | null> | undefined,
+) {
   const returnFocusRef = useRef<HTMLElement | undefined>(undefined);
   // Track the last focus outside the panel so closing can restore it after unmount.
   useEffect(() => {
@@ -32,8 +35,13 @@ function usePanelReturnFocus(panelRef: RefObject<HTMLDivElement | null>) {
   }, [panelRef]);
   return useCallback(() => {
     const opener = returnFocusRef.current;
-    if (opener?.isConnected) opener.focus();
-  }, []);
+    if (opener?.isConnected) {
+      opener.focus();
+      if (document.activeElement === opener) return;
+    }
+    const fallback = fallbackRef?.current;
+    if (fallback?.isConnected) fallback.focus();
+  }, [fallbackRef]);
 }
 
 export type ContextPanelBodyProps = {
@@ -41,6 +49,7 @@ export type ContextPanelBodyProps = {
   labels: ContextPanelLabels;
   activePageId?: string | undefined;
   visiblePageIds?: readonly string[] | undefined;
+  returnFocusRef?: RefObject<HTMLButtonElement | null> | undefined;
   onClose: () => void;
 };
 
@@ -49,12 +58,13 @@ export function ContextPanelBody({
   labels,
   activePageId,
   visiblePageIds,
+  returnFocusRef,
   onClose,
 }: ContextPanelBodyProps) {
   const dir = useDirection();
   const [query, setQuery] = useState('');
   const panelRef = useRef<HTMLDivElement>(null);
-  const restoreFocus = usePanelReturnFocus(panelRef);
+  const restoreFocus = usePanelReturnFocus(panelRef, returnFocusRef);
   const sections = workspace?.sections ?? [];
   const hasVisiblePages = sections.some(
     (section) =>

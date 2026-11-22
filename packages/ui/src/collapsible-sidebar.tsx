@@ -6,7 +6,7 @@ import { AppSidebarGroup } from './app-sidebar-group.js';
 import { AppSidebarItem } from './app-sidebar-item.js';
 import { Button } from './button.js';
 import { useDirection } from './direction-provider.js';
-import { groupIsCurrent, visiblePages, type NavigationGroup } from './navigation-presentation.js';
+import { visiblePages, type NavigationGroup } from './navigation-presentation.js';
 import { cn } from './shared/cn.js';
 import { useNavigationMedia } from './use-navigation-media.js';
 
@@ -172,6 +172,10 @@ function SidebarGroups({
   const shownGroups = groups
     .map((group) => ({ ...group, pages: visiblePages(group.pages, visiblePageIds) }))
     .filter((group) => group.pages.length > 0);
+  const explicitCurrent = shownGroups.some((group) => group.id === currentGroupId);
+  const activeGroupId = explicitCurrent
+    ? currentGroupId
+    : shownGroups.find((group) => group.pages.some((page) => page.id === currentPageId))?.id;
   return (
     <nav aria-label={title} className="flex-1 px-2 pb-4">
       <div className="flex flex-col gap-1">
@@ -180,7 +184,7 @@ function SidebarGroups({
             key={group.id}
             group={group}
             rail={rail}
-            active={groupIsCurrent(group, currentGroupId, currentPageId)}
+            active={group.id === activeGroupId}
           />
         ))}
       </div>

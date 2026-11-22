@@ -189,6 +189,28 @@ it('shows group labels in the rail when no icons are supplied', () => {
   ).toBe(true);
 });
 
+it('marks only the explicitly current group when the active page is in another group', () => {
+  stubMedia();
+  render(tree('ltr', { currentGroupId: 'sales', currentPageId: 'approvals' }));
+  const current = screen.getAllByRole('link').filter((link) => link.getAttribute('aria-current') === 'page');
+  expect(current).toHaveLength(1);
+  expect(current).toEqual([screen.getByRole('link', { name: /Sales/ })]);
+});
+
+it('falls back to the page group when the explicit current group is hidden', () => {
+  stubMedia();
+  render(
+    tree('ltr', {
+      visiblePageIds: ['approvals'],
+      currentGroupId: 'sales',
+      currentPageId: 'approvals',
+    }),
+  );
+  const homeLink = screen.getByRole('link', { name: /Home/ });
+  expect(screen.getAllByRole('link')).toEqual([homeLink]);
+  expect(homeLink.getAttribute('aria-current')).toBe('page');
+});
+
 it('leaves the sidebar shell at the fractional 600 to 599.5 phone boundary', () => {
   let width = 600;
   stubMedia(() => ({ width }));
