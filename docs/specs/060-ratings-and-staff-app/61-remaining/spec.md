@@ -277,6 +277,11 @@ the checkpoint (plan §7).
 - **AC-57-4-7** Loading, empty («no lines this month») and error states are visible; every string is an i18n key
   (ar/en); layout uses logical properties; nothing is stored offline (FR-A09).
 - **AC-57-4-8** The screen lives in `apps/pos/src/my-work/` and fetches only through generated client hooks.
+- **AC-57-4-9 (D-A9; clarified 2026-11-22)** A line's time and its cancellation date are shown in the business time
+  zone on the personal phone and on the reception device alike; the device's own zone is never used. The zone comes
+  from the own service-lines response.
+- **AC-57-4-10 (clarified 2026-11-22)** On the reception device a reloaded or newly opened tab always shows the PIN
+  step, even while another tab's window is live; no tab picks a window up from shared storage.
 - **Not in this checkpoint:** the estimate amount (57-5), «حضوري» changes, any API change.
 - **Starts after:** checkpoint 12 (57-2b) in this PR.
 
@@ -288,6 +293,8 @@ the checkpoint (plan §7).
   with no rating it shows «لسه مفيش تقييمات».
 - **AC-3-3 (RT-25)** With the column hidden there is no card at all; the card never shows a comment, a customer, a
   star list or another employee's number.
+- **AC-3-4 (clarified 2026-11-22)** The rating card is shown on the personal session only. On the reception device
+  «شغلي» shows no rating card and sends no rating request; showing it there is a separate follow-up.
 - **Starts after:** checkpoints 1 (61-2a) and 13 (57-4); 57c-2 is merged (#553).
 
 ## 5. Edge cases (all slices)
@@ -370,5 +377,11 @@ answered in the sources of §3; no `[NEEDS CLARIFICATION]` marker remains.
   the earlier reading (57-4 + 61-3 only, PP-215) is superseded.
 - Q: 57-4 depends on the unbuilt 57-2b; what happens to it? → A: 57-2b is built inside this PR, before 57-4.
   The manager approved local proof, and acceptance is required before the API is exposed (plan §5).
+- Q: Does the «تقييمك هذا الشهر» card also show when she opens «شغلي» on the reception device with her PIN? → A:
+  Personal phone only in this PR; the reception device is a separate follow-up (Waleed, 2026-11-22).
+- Q: On the personal phone, in which time zone are a line's time and cancellation date shown? → A: Always the
+  business time zone, supplied by the server in the own service-lines response (Waleed, 2026-11-22).
+- Q: After a reload or in a new tab on the reception device, while the window is still live, is the PIN asked
+  again? → A: Yes, always (Waleed, 2026-11-22); stricter than ADR-0019's addendum item 6 on that one point.
 - Q: Can the producer of 61-1i merge together with its consumer and renderer? → A: Yes. Keep the current
   issuance lock and apply the release and activation evidence in plan §4 (PP-219).
