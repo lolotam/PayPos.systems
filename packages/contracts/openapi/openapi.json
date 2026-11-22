@@ -12840,13 +12840,13 @@
             }
           }
         ],
-        "description": "Requires create:customers:company and the customers feature. Existing name and locale are preserved."
+        "description": "Requires create:customers:company and the customers feature. Existing name and locale are preserved. Gender may be omitted to look up an existing customer, including a legacy NULL; a new customer requires a supported gender and a miss without one is refused before writing."
       }
     },
     "/v1/businesses/{businessId}/customers/find-or-create": {
       "post": {
         "operationId": "findOrCreateBusinessCustomer",
-        "description": "Requires create:customers:business at the verified context and the customers feature. Customer identity remains company-scoped.",
+        "description": "Requires create:customers:business at the verified context and the customers feature. Customer identity remains company-scoped. Gender may be omitted to look up an existing customer, including a legacy NULL; a new customer requires a supported gender and a miss without one is refused before any note or audit write.",
         "requestBody": {
           "required": true,
           "content": {
@@ -12904,7 +12904,7 @@
     "/v1/branches/{branchId}/customers/find-or-create": {
       "post": {
         "operationId": "findOrCreateBranchCustomer",
-        "description": "Requires create:customers:branch at the verified context and the customers feature. Customer identity remains company-scoped.",
+        "description": "Requires create:customers:branch at the verified context and the customers feature. Customer identity remains company-scoped. Gender may be omitted to look up an existing customer, including a legacy NULL; a new customer requires a supported gender and a miss without one is refused before any note or audit write.",
         "requestBody": {
           "required": true,
           "content": {
@@ -28953,7 +28953,8 @@
           "name",
           "locale"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "Gender may be omitted to look up an existing customer. Creating a new customer requires a supported gender; a missing gender on a miss fails validation without writing anything."
       },
       "FindOrCreateScopedCustomerInput": {
         "type": "object",
@@ -29048,7 +29049,8 @@
           "name",
           "locale"
         ],
-        "additionalProperties": false
+        "additionalProperties": false,
+        "description": "Gender may be omitted to look up an existing customer. Creating a new customer requires a supported gender; a missing gender on a miss fails validation without writing anything."
       },
       "RatingView": {
         "type": "object",

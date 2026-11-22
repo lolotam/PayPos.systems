@@ -1,7 +1,10 @@
 # 10 · Find or create a customer by phone — البحث عن عميل أو إضافته برقم الموبايل
 
-**Status / الحالة:** shipped in #71 (PR 34). **API only** — the reception form with the country selector arrives
-with PR 35. Local only.
+**Status / الحالة:** shipped in #71 (PR 34). 34-pre-2 adds a conditional rule: **gender is required when a new customer
+is created** but may be omitted to find an existing customer, including a legacy row with a NULL gender. An unsupported
+supplied gender is still refused by the input contract, and a miss without gender writes no customer, note or audit row.
+The reception forms ([47](47-record-visit-reception.md)) use the same three find-or-create routes with the `customers`
+feature. Local only.
 
 **Before you start / قبل ما تبدأ:**
 - [00 Local setup](00-local-setup.md), signed in to the admin as a user of the demo company

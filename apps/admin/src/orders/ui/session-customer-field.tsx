@@ -1,18 +1,20 @@
 'use client';
-import { zodResolver } from '@hookform/resolvers/zod';
-import {
-  findOrCreateCustomerInput,
-  type Customer,
-  type FindOrCreateCustomerInput,
-} from '@pospay/contracts';
+import type { Customer } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button, Card, Input, Label } from '@pospay/ui';
-import { useId, useLayoutEffect, useRef } from 'react';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
-import { useSessionCustomer, type SessionCustomerEntryScope } from '../api/use-session-customer';
+import {
+  useSessionCustomer,
+  type SessionCustomerEntryScope,
+  type SessionCustomerFormValues,
+} from '../api/use-session-customer';
+import type { SessionCustomerProfileEntry } from '../api/use-session-customer-profile';
 import { CustomerPackagesLink } from './customer-packages-link';
+import { CustomerProfileInputs, sessionCustomerResolver } from './customer-profile-inputs';
+import { SessionCustomerProfileCard } from './session-customer-profile-card';
 
 export type SessionCustomerSelection = Pick<Customer, 'id' | 'name' | 'phone'>;
 
@@ -31,8 +33,8 @@ type SessionCustomerFieldProps = {
   disabled?: boolean;
   packagesScope?: PackagesLinkScope | null;
 };
-type SessionCustomerLocale = FindOrCreateCustomerInput['locale'];
-type SessionCustomerForm = UseFormReturn<FindOrCreateCustomerInput>;
+type SessionCustomerLocale = SessionCustomerFormValues['locale'];
+type SessionCustomerForm = UseFormReturn<SessionCustomerFormValues>;
 type SessionCustomerMutation = ReturnType<typeof useSessionCustomer>;
 type SessionCustomerRegistration = ReturnType<SessionCustomerForm['register']>;
 type PublishSessionCustomer = (next: SessionCustomerSelection | null) => void;
@@ -52,6 +54,7 @@ type SessionCustomerResolutionOptions = {
   mutation: SessionCustomerMutation;
   locale: SessionCustomerLocale;
   publish: PublishSessionCustomer;
+  onGenderNeeded: () => void;
 };
 type SessionCustomerContactOptions = {
   prefix: string;
@@ -64,7 +67,7 @@ type SessionCustomerContactOptions = {
   invalidate: () => void;
 };
 
-function customerEntry(name: string, locale: SessionCustomerLocale): FindOrCreateCustomerInput {
+function customerEntry(name: string, locale: SessionCustomerLocale): SessionCustomerFormValues {
   return { name, phone: { calling_code: '', national_number: '' }, locale };
 }
 
@@ -108,21 +111,36 @@ function useSessionCustomerResolution({
   mutation,
   locale,
   publish,
+  onGenderNeeded,
 }: SessionCustomerResolutionOptions) {
   return () => {
     const captured = mutation.captureScope();
-    void form.handleSubmit(async (input) => {
-      if (!mutation.isCurrentScope(captured)) return;
-      try {
-        const saved = await mutation.mutateAsync({ ...input, locale });
+    void form.handleSubmit(
+      async (input) => {
         if (!mutation.isCurrentScope(captured)) return;
-        publish({ id: saved.id, name: saved.name, phone: saved.phone });
-        form.reset(customerEntry(saved.name, locale));
-        mutation.reset();
-      } catch {
-        return;
-      }
-    })();
+        try {
+          const saved = await mutation.mutateAsync({ ...input, locale });
+          if (!mutation.isCurrentScope(captured)) return;
+          publish({ id: saved.id, name: saved.name, phone: saved.phone });
+          form.reset(customerEntry(saved.name, locale));
+          mutation.reset();
+        } catch (error) {
+          // النوع اختياري في العقد عشان البحث؛ الرفض وقت الإنشاء بيجي من الـ domain.
+          // من غير ما ندّعي إن كل رفض معناه إن الهاتف جديد، بنرشد لاختيار النوع لو فاضي.
+          const gender = form.getValues('gender');
+          if (
+            (error as { code?: string } | null)?.code === 'VALIDATION_FAILED' &&
+            (gender === undefined || gender === null)
+          )
+            onGenderNeeded();
+          return;
+        }
+      },
+      () => {
+        if (form.getValues('gender') === undefined || form.getValues('gender') === null)
+          onGenderNeeded();
+      },
+    )();
   };
 }
 
@@ -135,10 +153,11 @@ function useSessionCustomerEntry({
   value,
   onChange,
   locale,
-}: SessionCustomerEntryOptions) {
+  onGenderNeeded,
+}: SessionCustomerEntryOptions & { onGenderNeeded: () => void }) {
   const mutation = useSessionCustomer(companyId, branchId, userId, entryScope, businessId);
-  const form = useForm<FindOrCreateCustomerInput>({
-    resolver: zodResolver(findOrCreateCustomerInput),
+  const form = useForm<SessionCustomerFormValues>({
+    resolver: sessionCustomerResolver,
     defaultValues: customerEntry(value?.name ?? '', locale),
   });
   const scope = JSON.stringify([companyId, branchId, userId, businessId, entryScope]);
@@ -150,7 +169,7 @@ function useSessionCustomerEntry({
     value,
     onChange,
   });
-  const resolve = useSessionCustomerResolution({ form, mutation, locale, publish });
+  const resolve = useSessionCustomerResolution({ form, mutation, locale, publish, onGenderNeeded });
   const invalidate = () => {
     publish(null);
     mutation.reset();
@@ -227,17 +246,20 @@ function sessionCustomerContact({
   );
 }
 
-function sessionCustomerCard(
-  value: SessionCustomerSelection | null,
-  locale: SessionCustomerLocale,
-  packages: { companyId: string; businessId: string; branchId: string; userId: string } | null,
-) {
-  if (!value) return null;
+type SelectedCardProps = {
+  value: SessionCustomerSelection;
+  locale: SessionCustomerLocale;
+  packages: PackagesLinkScope | null;
+  profile: Omit<SessionCustomerProfileEntry, 'customerId'>;
+};
+
+function SelectedCustomerCard({ value, locale, packages, profile }: SelectedCardProps) {
   return (
     <Card role="status" className="p-3">
       <p>{t(locale, 'serviceSessions.selected')}</p>
       <p>{value.name}</p>
       <bdi>{value.phone}</bdi>
+      <SessionCustomerProfileCard customerId={value.id} locale={locale} {...profile} />
       {/* رابط باقات العميلة يظهر بس لما النموذج يمرر نطاق النشاط والفرع، ويفتح في تبويب جديد
           مع تلميحات النطاق (ids بس) عشان الراووت يتحقق منها ضد خيارات الجلسة. */}
       {packages !== null ? (
@@ -255,31 +277,59 @@ function sessionCustomerCard(
   );
 }
 
-export function SessionCustomerField({
-  companyId,
-  branchId,
-  userId,
-  businessId,
-  entryScope = 'branch',
-  value,
-  onChange,
-  onBlur,
-  disabled = false,
-  packagesScope = null,
-}: SessionCustomerFieldProps) {
+function SessionCustomerFeedback({
+  prefix,
+  locale,
+  invalid,
+  genderHint,
+  hasValue,
+  mutation,
+}: {
+  prefix: string;
+  locale: SessionCustomerLocale;
+  invalid: boolean;
+  genderHint: boolean;
+  hasValue: boolean;
+  mutation: SessionCustomerMutation;
+}) {
+  return (
+    <>
+      {invalid ? (
+        <p id={`${prefix}-error`} role="alert">
+          {t(locale, 'serviceSessions.invalidCustomer')}
+        </p>
+      ) : null}
+      {genderHint && !hasValue ? (
+        <p role="status">{t(locale, 'serviceSessions.genderNeededHint')}</p>
+      ) : null}
+      {mutation.isError ? <p role="alert">{envelopeMessage(mutation.error, locale)}</p> : null}
+    </>
+  );
+}
+
+function useSessionCustomerFieldState(props: SessionCustomerFieldProps) {
+  const { companyId, branchId, userId, businessId, entryScope = 'branch', value, onChange } = props;
   const locale = useLocale();
   const prefix = useId();
-  const { form, mutation, invalid, nameEntry, callingCode, nationalNumber, resolve, invalidate } =
-    useSessionCustomerEntry({
-      companyId,
-      branchId,
-      userId,
-      ...(businessId === undefined ? {} : { businessId }),
-      entryScope,
-      value,
-      onChange,
-      locale,
-    });
+  const [genderHint, setGenderHint] = useState(false);
+  const entry = useSessionCustomerEntry({
+    companyId,
+    branchId,
+    userId,
+    ...(businessId === undefined ? {} : { businessId }),
+    entryScope,
+    value,
+    onChange,
+    locale,
+    onGenderNeeded: () => setGenderHint(true),
+  });
+  return { locale, prefix, genderHint, ...entry };
+}
+
+export function SessionCustomerField(props: SessionCustomerFieldProps) {
+  const { companyId, branchId, userId, businessId, onBlur, disabled = false, packagesScope = null, value, entryScope = 'branch' } = props;
+  const { locale, prefix, genderHint, form, mutation, invalid, nameEntry, callingCode, nationalNumber, resolve, invalidate } =
+    useSessionCustomerFieldState(props);
   return (
     <fieldset
       disabled={disabled || mutation.isPending || form.formState.isSubmitting}
@@ -297,16 +347,33 @@ export function SessionCustomerField({
         nationalNumber,
         invalidate,
       })}
+      <CustomerProfileInputs
+        prefix={prefix}
+        locale={locale}
+        form={form}
+        entryScope={entryScope}
+        invalid={invalid}
+        invalidate={invalidate}
+      />
       <Button type="button" disabled={!!value} onClick={() => void resolve()}>
         {t(locale, 'serviceSessions.findOrCreate')}
       </Button>
-      {invalid ? (
-        <p id={`${prefix}-error`} role="alert">
-          {t(locale, 'serviceSessions.invalidCustomer')}
-        </p>
-      ) : null}
-      {mutation.isError ? <p role="alert">{envelopeMessage(mutation.error, locale)}</p> : null}
-      {sessionCustomerCard(value, locale, packagesScope)}
+      <SessionCustomerFeedback
+        prefix={prefix}
+        locale={locale}
+        invalid={invalid}
+        genderHint={genderHint}
+        hasValue={value !== null}
+        mutation={mutation}
+      />
+      {value === null ? null : (
+        <SelectedCustomerCard
+          value={value}
+          locale={locale}
+          packages={packagesScope}
+          profile={{ companyId, branchId, businessId, userId, entryScope }}
+        />
+      )}
     </fieldset>
   );
 }

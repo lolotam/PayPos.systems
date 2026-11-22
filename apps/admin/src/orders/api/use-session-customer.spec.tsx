@@ -78,6 +78,71 @@ it('retains status and refusal details without retry or permission fallback', as
   expect(post).toHaveBeenCalledTimes(1);
 });
 
+it('sends one typed scoped body and omits blank optional controls and an unknown year', async () => {
+  post.mockClear();
+  post.mockResolvedValueOnce({ data: saved });
+  const hook = renderHook(() => useSessionCustomer('company', 'branch', 'actor', 'business', 'business'), {
+    wrapper,
+  });
+  await act(async () => {
+    await hook.result.current.mutateAsync({
+      ...input,
+      gender: 'female',
+      birthday: { day: 5, month: 3 },
+      email: 'a@b.test',
+      note: 'a first line\na second line',
+    });
+  });
+  expect(post).toHaveBeenCalledWith('/v1/businesses/{businessId}/customers/find-or-create', {
+    params: { header: { 'x-company-id': 'company' }, path: { businessId: 'business' } },
+    body: {
+      ...input,
+      name: 'Synthetic customer',
+      gender: 'female',
+      birthday: { day: 5, month: 3 },
+      email: 'a@b.test',
+      note: 'a first line\na second line',
+    },
+  });
+});
+
+it('keeps blank and supplied-year controls out of the body and allows a genderless lookup', async () => {
+  post.mockClear();
+  post.mockResolvedValueOnce({ data: saved });
+  const hook = renderHook(() => useSessionCustomer('company', 'branch', 'actor'), { wrapper });
+  await act(async () => {
+    await hook.result.current.mutateAsync({
+      ...input,
+      gender: undefined,
+      birthday: { day: 5, month: 3, year: 1990 },
+      email: '',
+      note: '',
+    });
+  });
+  const body = post.mock.lastCall?.[1].body;
+  expect(body).toEqual({
+    ...input,
+    name: 'Synthetic customer',
+    birthday: { day: 5, month: 3, year: 1990 },
+  });
+  expect(body).not.toHaveProperty('gender');
+  expect(body).not.toHaveProperty('email');
+  expect(body).not.toHaveProperty('note');
+});
+
+it('refuses a company note before HTTP instead of dropping it', async () => {
+  post.mockClear();
+  const hook = renderHook(() => useSessionCustomer('company', 'branch', 'actor', 'company'), {
+    wrapper,
+  });
+  await act(async () => {
+    await expect(
+      hook.result.current.mutateAsync({ ...input, note: 'Synthetic note' }),
+    ).rejects.toThrow('CUSTOMER_NOTE_NOT_ALLOWED');
+  });
+  expect(post).not.toHaveBeenCalled();
+});
+
 it('rejects invalid entry before HTTP and refuses an unmasked response', async () => {
   post.mockClear();
   const hook = renderHook(() => useSessionCustomer('company', 'branch', 'actor'), { wrapper });

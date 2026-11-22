@@ -1,11 +1,10 @@
 # 81 · A customer's profile and per-business notes — ملف العميلة وملاحظات كل نشاط
 
 **Status / الحالة:** shipped in #766 (34-pre-1: gender, birthday and email on a customer, one note per business, and
-the profile read; migration 0198), merged. It prepares the customers import of spec 073. **API only:** no screen
-shows or edits the new fields yet. The recording screen ([47](47-record-visit-reception.md)) still sends only the
-phone, the name and the language when it finds or creates a customer ([10](10-customer-find-or-create.md)). The routes
-are on staging and need the `customers` feature. **Not built:** the customers import itself, and making the gender
-required for a new customer (34-pre-2, owner answer CI-Q10).
+the profile read; migration 0198), then extended by 34-pre-2 (delivered here): the reception form ([47](47-record-visit-reception.md))
+now sends gender, birthday, email and the scoped note, and opens the customer card. Gender is **required for a new
+customer only** (owner answer CI-Q10); an existing customer with a NULL gender still opens unchanged. The routes need
+the `customers` feature. **Not built:** the customers import itself (34b), self-registration and profile editing.
 
 **Before you start / قبل ما تبدأ:**
 - [00 Local setup](00-local-setup.md) with the API, then `pnpm db:migrate` (0198) and `pnpm db:seed`; or staging with
@@ -32,6 +31,7 @@ API بس، لسه مفيش شاشة.
 7. **إيميل غلط:** من غير `@` أو من غير نقطة، أو أقصر من 3 أو أطول من 254 ← بيترفض.
 8. **ملاحظة غلط:** فاضية، أو أطول من 500 حرف ← بيترفض.
 9. **عميلة شركة تانية:** رقم عميلة من شركة تانية ← مش موجودة (كأنها مش موجودة خالص).
+10. **من شاشة الاستقبال:** في «تسجيل زيارة» أو بيع الباقة اختاري النوع للعميل الجديد، وادخلي الميلاد والإيميل والملاحظة (في مسار النشاط أو الفرع). البطاقة بعد الاختيار بتعرض النوع والميلاد والإيميل وملاحظات الأنشطة كلها باسم كل نشاط. عميل موجود من غير نوع بيتفتح من غير ما يتعدّل.
 
 **ممنوع يحصل:**
 - رقم العميلة الكامل يظهر في رد، أو في سجل التدقيق، أو في اللوج.
@@ -61,6 +61,7 @@ API only, no screen yet.
 7. **A bad email:** no `@` or no dot, shorter than 3 or longer than 254 characters → refused.
 8. **A bad note:** empty, or longer than 500 characters → refused.
 9. **Another company's customer:** the id of a customer of another company → not found (as if she did not exist).
+10. **From reception:** in Record a visit or Package sale, choose a gender for a new customer and enter the birthday, email and note (business or branch entry only). The selected card shows gender, birthday, email and the notes of every business labelled with its name. An existing customer with no gender opens without any edit.
 
 **Must NOT happen:**
 - The customer's full phone in an answer, the audit log or the technical logs.
@@ -71,7 +72,9 @@ API only, no screen yet.
 
 ## For an agent
 
-- **Screens:** none for the new fields.
+- **Screens:** `apps/admin/src/orders/ui/session-customer-field.tsx` (shared by the visit and package-sale forms) with
+  `customer-profile-inputs.tsx` and `session-customer-profile-card.tsx`; reads use `use-session-customer-profile.ts`
+  on the same scoped profile route as entry. The company route has no note field.
 - **API** (`apps/api/src/modules/customers/http/`, the `customers` feature, `x-company-id`):
   - Find or create (`customers.controller.ts`): `POST /v1/customers/find-or-create` (`create:customers:company`, no
     `note`) · `POST /v1/businesses/<BUSINESS_ID>/customers/find-or-create` (`create:customers:business`) ·

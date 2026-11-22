@@ -2014,7 +2014,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Requires create:customers:company and the customers feature. Existing name and locale are preserved. */
+        /** @description Requires create:customers:company and the customers feature. Existing name and locale are preserved. Gender may be omitted to look up an existing customer, including a legacy NULL; a new customer requires a supported gender and a miss without one is refused before writing. */
         post: operations["findOrCreateCustomer"];
         delete?: never;
         options?: never;
@@ -2031,7 +2031,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Requires create:customers:business at the verified context and the customers feature. Customer identity remains company-scoped. */
+        /** @description Requires create:customers:business at the verified context and the customers feature. Customer identity remains company-scoped. Gender may be omitted to look up an existing customer, including a legacy NULL; a new customer requires a supported gender and a miss without one is refused before any note or audit write. */
         post: operations["findOrCreateBusinessCustomer"];
         delete?: never;
         options?: never;
@@ -2048,7 +2048,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Requires create:customers:branch at the verified context and the customers feature. Customer identity remains company-scoped. */
+        /** @description Requires create:customers:branch at the verified context and the customers feature. Customer identity remains company-scoped. Gender may be omitted to look up an existing customer, including a legacy NULL; a new customer requires a supported gender and a miss without one is refused before any note or audit write. */
         post: operations["findOrCreateBranchCustomer"];
         delete?: never;
         options?: never;
@@ -5385,6 +5385,7 @@ export interface components {
                 created_at: string;
             }[];
         };
+        /** @description Gender may be omitted to look up an existing customer. Creating a new customer requires a supported gender; a missing gender on a miss fails validation without writing anything. */
         FindOrCreateCustomerInput: {
             phone: {
                 calling_code: string;
@@ -5403,6 +5404,7 @@ export interface components {
             /** @description Between 3 and 254 code points; a literal @ and a dot are required; control characters are refused. */
             email?: string;
         };
+        /** @description Gender may be omitted to look up an existing customer. Creating a new customer requires a supported gender; a missing gender on a miss fails validation without writing anything. */
         FindOrCreateScopedCustomerInput: {
             phone: {
                 calling_code: string;

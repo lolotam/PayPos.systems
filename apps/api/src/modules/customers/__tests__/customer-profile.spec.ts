@@ -16,6 +16,7 @@ const payload = {
   phone: { calling_code: '1', national_number: '2025550131' },
   name: 'Profile A',
   locale: 'ar' as const,
+  gender: 'female' as const,
 };
 let h: Harness;
 let cookieA: string;
@@ -66,6 +67,12 @@ afterAll(async () => {
 
 const send = (path: string, body: object, cookie = cookieA, company = A) =>
   h.send('POST', path, { cookie, company, body });
+
+function genderless(body: typeof payload): Omit<typeof payload, 'gender'> {
+  const { gender, ...rest } = body;
+  void gender;
+  return rest;
+}
 
 it('creates through the business route with every field and a note', async () => {
   const result = await send(BUSINESS_PATH, {
@@ -154,15 +161,21 @@ it('the company route takes the scalar fields and refuses a note', async () => {
   ).toHaveLength(0);
 });
 
-it('an omitted gender is stored as NULL', async () => {
+it('a legacy row with a NULL gender is opened by a genderless find, with no writes', async () => {
+  const legacyId = '01920000-0000-7000-8000-0000000000fd';
+  await h.owner`INSERT INTO customers (company_id, id, name, phone, locale, gender, created_at, updated_at)
+    VALUES (${A}, ${legacyId}, 'Legacy profile', '+12025550135', 'ar', NULL, now(), now())`;
+  const auditsBefore = await h.owner`SELECT 1 FROM audit_log WHERE company_id = ${A}`;
+  const lookup = genderless(payload);
   const result = await send(COMPANY_PATH, {
-    ...payload,
+    ...lookup,
     phone: { calling_code: '1', national_number: '2025550135' },
   });
   expect(result.status).toBe(200);
-  const body = customer.parse(result.body);
+  expect(customer.parse(result.body)).toMatchObject({ id: legacyId, name: 'Legacy profile' });
+  expect(await h.owner`SELECT 1 FROM audit_log WHERE company_id = ${A}`).toEqual(auditsBefore);
   expect(
-    await h.owner`SELECT gender FROM customers WHERE company_id = ${A} AND id = ${body.id}`,
+    await h.owner`SELECT gender FROM customers WHERE company_id = ${A} AND id = ${legacyId}`,
   ).toEqual([{ gender: null }]);
 });
 
@@ -214,7 +227,7 @@ it('an existing customer keeps everything: no field, no note and no audit', asyn
   expect(row).toEqual([
     {
       name: 'Profile A',
-      gender: null,
+      gender: 'female',
       birth_day: null,
       birth_month: null,
       birth_year: null,
@@ -287,7 +300,10 @@ it('the profile of another tenant is NOT_FOUND', async () => {
   expect(result.body).toMatchObject({ code: 'NOT_FOUND' });
 });
 
-it('R-2 the old admin body creates a customer through the branch route', async () => {
+it('R-2 an old genderless admin body still finds an existing customer through the branch route', async () => {
+  const legacyId = '01920000-0000-7000-8000-0000000000fc';
+  await h.owner`INSERT INTO customers (company_id, id, name, phone, locale, gender, created_at, updated_at)
+    VALUES (${A}, ${legacyId}, 'Old admin body', '+12025550140', 'ar', NULL, now(), now())`;
   const old = findOrCreateCustomerInput.parse({
     phone: { calling_code: '1', national_number: '2025550140' },
     name: 'Old admin body',
@@ -296,11 +312,11 @@ it('R-2 the old admin body creates a customer through the branch route', async (
   const result = await send(BRANCH_PATH, old);
   expect(result.status).toBe(200);
   const body = customer.parse(result.body);
+  expect(body.id).toBe(legacyId);
   expect(body.name).toBe('Old admin body');
   expect(
-    await h.owner`SELECT gender, birth_day, birth_month, birth_year, email
-      FROM customers WHERE company_id = ${A} AND id = ${body.id}`,
-  ).toEqual([{ gender: null, birth_day: null, birth_month: null, birth_year: null, email: null }]);
+    await h.owner`SELECT gender FROM customers WHERE company_id = ${A} AND id = ${body.id}`,
+  ).toEqual([{ gender: null }]);
 });
 
 it('concurrent callers with different notes leave one customer, one note and one audit', async () => {

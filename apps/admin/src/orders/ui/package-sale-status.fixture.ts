@@ -180,6 +180,13 @@ export function packageSaleAnswerRead(
   if (path.includes('/sellable-package-types')) {
     return { data: { items: [packageSaleType], next_cursor: null }, response: { status: 200 } };
   }
+  // بطاقة الزبونة قراءة مستقلة عن البيع؛ رد صالح يمنع تنبيه قراءة إضافي في اختبارات البيع.
+  if (path.includes('/customers/') && path.endsWith('/profile')) {
+    return {
+      data: { ...packageSaleCustomer, birthday: null, gender: null, email: null, notes: [] },
+      response: { status: 200 },
+    };
+  }
   if (path.endsWith('/package-sales/context')) return contextRead(state);
   if (path.endsWith('/package-sales/seller-options')) return sellerRead(state, query);
   const data =
