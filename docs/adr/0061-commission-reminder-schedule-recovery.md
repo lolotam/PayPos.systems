@@ -112,12 +112,14 @@ pretend otherwise and defines one coverage rule, stated identically in point 6:
   the company's scheduler (FR-053, CM-57b).
 - A consumer delivery that fails is retried by the outbox dispatcher; a parked event raises the existing parked-event
   alert.
-- **Mixed-version rollout.** An older worker that does not know the new consumer can acknowledge `CompanyCreated`
-  without scheduling. Therefore (i) the first pass that certifies readiness starts only after workers of the previous
-  version have stopped (the staging service runs one worker replica and the runbook's deploy receipt lists the replicas;
-  production follows the same rule), and (ii) the sentinel records the **worker release** that wrote it (point 4): a
-  worker whose release differs from the sentinel's runs a silent re-certification pass (below), so a rollback followed
-  by a re-upgrade, or a rolling deploy, is always re-scanned and never inherits an old certificate.
+- **Mixed-version rollout and rollback.** An older worker that does not know the new consumer can acknowledge
+  `CompanyCreated` without scheduling. Therefore (i) the first pass that certifies readiness starts only after workers
+  of the previous version have stopped (the staging service runs one worker replica and the runbook's deploy receipt
+  lists the replicas; production follows the same rule), and (ii) **every worker process start runs one
+  re-certification pass** before the process reports ready (point 4), whatever the release: a rollback to an older
+  worker followed by a return to the **same** release A is a new process start, so it is always re-scanned and never
+  inherits the certificate it wrote earlier. The release is recorded for diagnosis only; it is not what triggers the
+  pass.
 
 ### 3. (b) The clear: one transaction, one incident, one code, one fixed identity
 
@@ -135,82 +137,115 @@ writes nothing and returns false. A failed audit insert rolls back the clear: a 
 one), and the `CHECK ((cleared_at IS NULL) = (cleared_by IS NULL))` still holds. The operator's audited command keeps its
 own identity, so the ledger shows whether a machine or a person cleared an incident.
 
-### 4. (c) Passes, the recovery marker and the readiness sentinel
+### 4. (c) One ownership key, a pass identity, the readiness sentinel
 
 FR-053 starts from a Redis with **no sentinel**: a first deploy, or a Redis lost while the worker was down. A guard that
-required the sentinel to clear would make a first recovery impossible. So the worker keeps three Redis keys with three
-jobs, and every rebuild pass has an identity of its own:
+required the sentinel to clear would make a first recovery impossible. So the worker keeps two Redis keys with two jobs,
+and every rebuild pass has an identity of its own:
 
-| Key | Meaning | Written by | Value |
-| --- | --- | --- | --- |
-| **recovery lease** `commissions:reminders:recovery:lock` | "one worker is running a pass" | the worker starting a pass (`SET NX PX 120000`), renewed by its heartbeat | the worker's id |
-| **recovery marker** `commissions:reminders:recovery` | "this is the pass that is recovering this generation" | the pass, first thing | `{ incident_id, run_id, pass_id }`: the incident, the Redis `run_id` read at the start (`R0`), and a **unique `pass_id`** (a UUID v7 from the worker's injected `IdGenerator`, new for every pass, even for the same incident and the same `run_id`) |
-| **readiness sentinel** `commissions:reminders:sentinel` (FR-053) | "this generation was fully rebuilt and verified by this release" | the worker, only by the guarded write of step 6 | `{ release, run_id }`: the worker release (image identity) and the `run_id` it vouches for |
+| Key | Meaning | Value |
+| --- | --- | --- |
+| **recovery key** `commissions:reminders:recovery` | "this pass owns the recovery of this generation": it is **both the lease and the marker**, one key with a TTL (120 s), never two | `{ incident_id, run_id, pass_id }`: the incident (null until raised, step 1), the Redis `run_id` read at the start (`R0`), and a **unique `pass_id`** (a UUID v7 from the worker's injected `IdGenerator`, new for every pass, even for the same incident and the same `run_id`) |
+| **readiness sentinel** `commissions:reminders:sentinel` (FR-053) | "this generation was fully rebuilt and verified" | `{ release, run_id }`; the release is diagnostic only |
 
-**Single flight, and fencing.** At most one worker runs a pass at a time (the lease; a replica that does not hold it
-only waits, and takes it over after the lease expires). The lease can itself vanish with a flush, so it is **not** what
-protects correctness: the **`pass_id` in the marker is the fencing token**. A new pass overwrites the marker with its
-own `pass_id`; every guard below compares the marker's `pass_id` with the pass's own, so an older pass whose marker
-disappeared and was written again by a newer pass (same `incident_id`, same `run_id`) sees a different `pass_id`, is
-**superseded**, stops, and neither clears nor publishes.
+**Who may do what to the recovery key — every operation is a compare-and-set on the same `pass_id`, in one Redis
+script; none is an unconditional write or delete:**
 
-The heartbeat judges readiness **healthy** only when the sentinel exists, its `run_id` equals the current Redis
-`run_id`, **and** its `release` equals the worker's own. A missing sentinel, or a `run_id` that differs, is a **loss**
-(FR-053: a changed `run_id` alone raises the flag; a false positive costs one idempotent rebuild). A sentinel whose
-`release` differs while `run_id` matches is **not** a loss: the worker runs a **silent re-certification pass** — the same
-steps with no incident, no flag, no alert and `/ready` unchanged, and with step 5 (the clear) skipped — and then writes
-the sentinel with its own release.
+| Operation | Who | Condition |
+| --- | --- | --- |
+| **create** (acquire the lease and write the marker, atomically) | a worker or the operator command starting a pass | the key does not exist (`NX`); it is written with the pass's own `{ incident_id, R0, pass_id }` and the TTL |
+| **update the incident id** | the same pass, once the incident is known | the stored `pass_id` equals the caller's |
+| **renew** (heartbeat) | the same pass | the stored `pass_id` equals the caller's; otherwise the pass is superseded and must stop |
+| **delete** (release) | the same pass, at publication or when it abandons | the stored `pass_id` equals the caller's |
+| **expire** | Redis, by TTL | nobody else deletes or overwrites another pass's key |
+
+Because acquisition and marker are one atomic write, there is no instant at which a worker holds the lease without the
+marker, and a worker that pauses and returns finds its key missing or owned by another `pass_id`: its **every**
+operation then fails closed. The lease only keeps replicas from duplicating work; **correctness rests on the `pass_id`
+compare-and-set**, because a flush can erase the key at any time.
+
+**Takeover.** Worker P1 owns the key and stops renewing (a pause, a stall): the TTL lapses. Worker P2 creates the key
+with its own `pass_id`. From that instant P1 is **superseded**: P1 may still run code, but its renew, its pre-clear
+check, its incident-id update, its delete and its publish all fail the `pass_id` compare, so it can neither disturb
+P2's key nor publish readiness, and it stops. The one thing P1 can still do is call the clear function if it was already
+past its last check (the race below): the database cannot tell a superseded pass from a current one.
+
+**Detection.** The heartbeat judges readiness **healthy** only when the sentinel exists and its `run_id` equals the
+current Redis `run_id`. A missing sentinel, or a different `run_id`, is a **loss** (FR-053: a changed `run_id` alone
+raises the flag; a false positive costs one idempotent rebuild).
 
 **One pass, in order:**
 
-1. Detection (start-up or the heartbeat) of a loss: `INSERT … ON CONFLICT DO NOTHING` raises the flag (the partial
-   unique index keeps one open flag; its id is **the incident id**, the existing open one when there is one),
-   `/ready` turns degraded, the alert is raised.
-2. Take the lease; read `R0`; generate `pass_id`; write the **marker** `{ incident_id, R0, pass_id }`.
-3. Rebuild every company (point 2). After every page the pass checks that the marker still holds **its own** `pass_id`
-   and `R0`, and that the server's `run_id` is still `R0`. If the marker holds another `pass_id` the pass is
-   **superseded** and stops (a newer pass owns the incident). If the marker vanished or the `run_id` changed, the pass is
-   abandoned and a **new** pass starts from step 2 (a new `pass_id`); it never clears.
-4. Immediately before the clear, check the same things again.
-5. Call the clear with the incident id, `R0` and the pass id. **Readiness depends on its answer:**
-   - **true** — this call cleared this incident: go to step 6.
-   - **false** — the incident was not cleared by this call (it was already cleared, by another pass or by the operator
-     command, or it is not this code's): publish nothing; read the flag and the open flags; if a **newer** incident is
-     open, keep `/ready` degraded and let that pass own it. A false answer **never raises a new flag by itself**.
-   - **unknown** (timeout, lost connection, lost response): keep `/ready` degraded; read the incident row by id; if it is
-     still open, repeat from step 4 (the guards are re-verified); if it is cleared and the marker still holds this
-     pass's `pass_id`, treat it as acknowledged and go to step 6; otherwise stop.
-6. Publish readiness, **guarded in Redis in one script**: it writes `{ release, run_id: R0 }` to the sentinel only if
-   the marker still holds this pass's `pass_id` and `incident_id` and the server's `run_id` is still `R0`; then it
-   deletes the marker and the lease. If the guard refuses, nothing is published.
+1. **Detect, and take ownership before raising anything.** On a loss the worker tries to **create** the recovery key
+   (`incident_id` null). If the key exists (another pass owns it), it only waits and re-checks later; it raises nothing.
+   If it created the key, it **re-reads the sentinel and the open flags under ownership**: if the sentinel is now
+   healthy it deletes its key and stops; if a flag is open it adopts that incident id; otherwise it
+   `INSERT … ON CONFLICT DO NOTHING` raises the flag (the partial unique index keeps one open flag), `/ready` turns
+   degraded and the alert is raised. It then updates the key's `incident_id`. A flag is therefore only ever raised by the
+   owner of the key, never by a replica that merely saw the sentinel missing between a clear and a publication.
+2. Rebuild every company (point 2). After every page the pass **renews** the key (the compare-and-set above) and checks
+   that the server's `run_id` is still `R0`. A failed renew means the key is gone or owned by another pass: if the key
+   is gone the pass is abandoned and a **new** pass (new `pass_id`) starts after the backoff; if it is owned by another
+   `pass_id` the pass is **superseded** and stops. It never clears.
+3. Immediately before the clear, check the same things again. A failed re-verification abandons the pass the same way:
+   it deletes its key (compare-and-set), `/ready` **stays degraded** (the incident is open), and the next pass follows
+   the backoff of point 5; it counts as a failed round.
+4. Call the clear with the incident id, `R0` and the pass id. **Readiness depends on its answer:**
+   - **true** — this call cleared this incident: go to step 5.
+   - **false** — this call did not clear it (already cleared by another pass or by the operator command, or not this
+     code's): publish nothing, delete the key (compare-and-set) and stop; `/ready` stays degraded until the sentinel is
+     healthy. A false answer **never raises a new flag by itself**.
+   - **unknown** (timeout, lost connection, lost response) — **adopted rule: unknown is treated as not-mine.** The
+     worker publishes nothing, deletes its key (compare-and-set), keeps `/ready` degraded and stops. It does **not**
+     read the flag and credit itself: a closed flag plus its own key cannot prove that **this** pass committed the
+     clear (after a takeover the superseded pass may have won while this one lost its response; the ledger's fixed
+     identity cannot tell them apart and the dispatcher cannot read the audit row). The next heartbeat re-detects: the
+     sentinel is missing, so the owner of the next key re-reads the flags under ownership — an open incident is adopted
+     and rebuilt again, a closed one is replaced by a **new** incident (step 1) — and a new pass certifies the
+     generation. The cost is one extra full idempotent pass and, if the first call had committed, one extra audit row.
+5. **Publish readiness**, guarded in Redis in one script: it writes `{ release, run_id: R0 }` to the sentinel only if the
+   recovery key still holds this pass's `pass_id` and incident and the server's `run_id` is still `R0`; in the same
+   script it deletes the key (compare-and-set). If the guard refuses, nothing is published.
 
-**Two workers racing.** If two workers both reach step 5 for the same incident (one after a takeover, one superseded
-too late), exactly one `UPDATE` changes the row: that call gets true; the other gets false. The loser publishes no
-readiness (step 6's guard also fails: the winner deleted or replaced the marker), raises **no** new flag for that reason
-alone, and stops. The winner's audit row names its `rebuilt_pass_id`.
+**The race between the clear and the publication, with both winner orderings.** The clear is one `UPDATE`: exactly one
+call changes the row.
 
-**Walk-through (expected outcome of each case):**
+| Ordering | What happens | Outcome |
+| --- | --- | --- |
+| **W1: the pass that owns the key wins the clear** | its call returns true; step 5's guard holds; the sentinel is published | readiness restored, credited to this pass (its `pass_id` is in the audit row) |
+| **W2: a superseded pass wins the clear** (it was past its last check when the new pass created the key) | the superseded call returns true but its step-5 compare fails (the key holds the other `pass_id`): it publishes nothing; the owner's call returns false: it publishes nothing and deletes its key | **neither pass publishes**, `/ready` stays degraded, the sentinel is missing. This is the explicit transition **back to loss detection**: the next heartbeat re-detects, an owner is elected, the flag is found closed, a **new incident** is raised and a new full pass certifies the generation. Readiness is restored by the new pass, never credited to the stale one |
+| **A loss between step 3 and step 4, or after the clear and before the publish** | the clear may commit; the guard in step 5 finds the key gone or the `run_id` changed and refuses | sentinel missing, `/ready` degraded, the next heartbeat raises a new incident (see the residual window) |
+| **A worker restart between the clear and the publish** | the sentinel is missing at start-up | detection takes ownership, finds the flag closed, raises a new incident, one more full pass; `/ready` degraded meanwhile |
+
+**Walk-through (expected outcome of each case; an open incident or any mismatch keeps `/ready` degraded in every case):**
 
 | Case | What happens | Outcome |
 | --- | --- | --- |
-| **First run on an empty Redis** (CM-57b, first deploy) | step 1 finds no sentinel and raises the flag (incident `I1`); marker `{I1, R0, P1}`; every company rebuilt; guards hold; clear `I1` returns true; guarded publish succeeds | flag cleared, sentinel = `{release, R0}`, `/ready` healthy; the audit row names `R0`, `P1` and the count |
-| **The marker is lost in the middle of a rebuild while `run_id` stays the same** (a `FLUSHDB` without a restart, which also deletes the schedulers already upserted) | the check after a page sees the marker missing → the pass is abandoned; the flag is unchanged (still open, same incident) | a new pass `P2` from step 2 rebuilds **all** companies again (the earlier upserts are gone) and only then clears; `P1` never clears |
-| **An older pass whose marker disappears and is written again by a newer pass** with the same `incident_id` and `run_id` | `P1` still runs; `P2` writes the marker `{I1, R0, P2}`; `P1`'s next check (or step 4, or step 6's script) sees `pass_id` `P2` ≠ `P1` | `P1` is superseded: it does not clear and does not publish; `P2` owns the incident and clears only after its own full rebuild |
-| **A worker restart between the clear and the write of the sentinel** | the flag is cleared but the sentinel is missing; at start-up step 1 raises a **new** flag (incident `I2`) | one more full idempotent pass and a second audit row; safe and conservative, `/ready` degraded for the length of one pass |
-| **A loss between step 4 and step 5**, or after the clear and before the publish | the clear may still happen (the database cannot know); step 6's guard finds the marker gone and refuses to publish | the sentinel stays missing, so the next heartbeat raises a new incident and a new pass runs: the loss is **never absorbed** and readiness never looks healthy (see the residual window below) |
-| **A worker restart in the middle of a pass** | start-up finds no sentinel; the open flag is the incident; a new marker with a new `pass_id` overwrites the old | a new pass from step 2; the old pass is simply discarded |
-| **A deploy of a new worker release** (`run_id` unchanged, sentinel present) | the sentinel's `release` differs | a silent re-certification pass; no flag, no alert, `/ready` unchanged |
-| **The operator fallback** (the worker cannot use the clear) | after the `CompanyCreated` replay the operator command clears the incident by id (owner role, audited) **and** writes the sentinel `{ release: 'operator', run_id: <current> }` using the same guarded script | the next heartbeat finds the sentinel with a matching `run_id`; the release differs, so one silent re-certification pass follows; no incident is reopened |
+| **First run on an empty Redis** (CM-57b, first deploy) | step 1 creates the key, finds no sentinel and no flag, raises incident `I1`; every company rebuilt; guards hold; the clear returns true; the guarded publish succeeds | flag cleared, sentinel written, `/ready` healthy; the audit row names `R0`, the pass and the count |
+| **The key is lost in the middle of a rebuild while `run_id` stays the same** (a `FLUSHDB` without a restart, which also deletes the schedulers already upserted) | the next renew fails (key missing) → the pass is abandoned; the flag is unchanged (still open) | a new pass `P2` rebuilds **all** companies again (the earlier upserts are gone) and only then clears; `P1` never clears; `/ready` degraded throughout |
+| **An older pass whose key disappears and is written again by a newer pass** with the same `incident_id` and `run_id` | `P2` creates the key with `pass_id` `P2`; every compare of `P1` fails | `P1` is superseded: it does not clear (it stops at its next renew or check; ordering W2 covers the sliver after its last check) and does not publish |
+| **A worker restart in the middle of a pass** | start-up finds no sentinel; the old key expires after its TTL or is replaced; the open flag is the incident | a new pass with a new `pass_id` from step 1; the old pass is discarded; `/ready` degraded |
+| **A deploy, or a rollback followed by a return to the same release A** (`run_id` unchanged, sentinel present) | every worker **process start** runs one re-certification pass (point 2): no incident, no flag; it takes ownership of the key, rebuilds, skips step 4, and publishes with step 5 | `/ready` is **degraded** while the pass is pending or failing (the worker is not yet certified), so the deploy probe waits; it turns healthy when the pass publishes. A **failed** re-certification retries with the backoff of point 5 and raises its own alert `COMMISSION_REMINDER_RECERTIFICATION_FAILED` (a distinct code, repeating each round); it opens **no** ledger incident because no loss was detected |
+| **A failed re-verification** (step 3 finds the key lost or changed) | the pass deletes its key if it is still its own and stops | `/ready` degraded (incident open), a new pass after the backoff, counted as a failed round |
+| **The operator fallback** (the worker cannot use the clear) | the command **first** creates the same recovery key (its own `pass_id`, the incident it names, the current `run_id`) and **then** replays `CompanyCreated`; it verifies that every company has its scheduler, aborts on any missing schedule, lost key or changed `run_id` (clearing and publishing nothing), and only then clears the incident by id (owner role, audited) and publishes with the same guarded script | the next heartbeat finds a healthy sentinel; no incident is reopened; if a worker pass owns the key the operator waits or stops that worker first; `/ready` stays degraded until the sentinel is published |
 
 **The residual window, stated outright.** Redis and PostgreSQL are two stores and cannot be committed together. Between
-the last Redis check (step 4) and the commit of the clear there is a window of milliseconds in which Redis can be lost
-**after** the database has recorded the clear. CS-Q32 says a loss during recovery must restart the rebuild and not close
-the incident; this design keeps the **safety** property (readiness is never published for a lost generation, the
-alarm is raised again within one heartbeat) but the **record** of the incident can be closed one pass too early, with
-its audit row stating what was verified (`R0`, the pass, the count) and a new incident opened right after. Accepting
-this ADR accepts that split-store exception and its audit semantics; if Waleed does not accept it, the alternative is to
-keep the incident open until the **next** heartbeat has re-verified the published generation, at the cost of one more
-Redis round trip and a longer degraded period.
+the last Redis check (step 3) and the commit of the clear there is a window of milliseconds in which Redis can be lost
+**after** the check but **before** the database records the clear. In that case the incident is **closed on
+information that is already stale**; readiness is **not** published for the lost generation (step 5 refuses); and a
+**new incident is raised at the first successful heartbeat after the connection returns**, which runs a new pass.
+CS-Q32 says a loss during recovery must restart the rebuild and not close the incident; this design cannot satisfy that
+to the letter for this window, and **no variant removes it**: delaying the clear until a later heartbeat only moves the
+same window to after that heartbeat's check, and any rule that closes an incident in PostgreSQL on the strength of a
+Redis check has it. Only a different incident contract — one that can represent «completion not yet confirmed» — would
+remove it; that needs a new column and a new ledger state and is **not adopted** here. Accepting this ADR accepts the
+window; question (vi) below asks Waleed for it explicitly.
+
+**Options for an unknown clear that are not adopted.** (a) Make the clear idempotent for the same pass: the flag row
+would store the clearing `pass_id` (a new column `cleared_pass_id`, granted to the clearer role) and a second call with
+the same pass would return true — it removes the extra pass after an unknown outcome at the price of a new column and a
+widened privilege. (b) A narrow read function over `platform_audit_log` that tells whether this `pass_id` cleared — a
+new definer and a new privilege. Neither is adopted without a decision.
 
 The worker **keeps** the `run_id` it rebuilt for; a change its heartbeat sees afterwards raises a new flag (the partial
 unique index allows it once the old one is cleared).
@@ -226,8 +261,8 @@ read two ways; this ADR does not choose between them for Waleed:
 | | **Reading A — a cap on the wait between attempts, none on their number** (the author's proposal) | **Reading B — a cap on the number of attempts** |
 | --- | --- | --- |
 | Rule | backoff 1, 2, 4, 8 then 15 minutes per round, repeating at 15 minutes until the pass completes | the same backoff, stopped after `N` failed rounds of the same pass (e.g. 10, about 1 hour 45 minutes) |
-| When exhausted | never exhausted: the incident stays open, `/ready` degraded and the alert repeating until the cause is repaired | the worker stops retrying, the flag stays open and `/ready` degraded, a distinct alert («recovery exhausted») is raised once, and nothing more happens until an operator restarts the worker (a new count) or runs the fallback command and the `CompanyCreated` replay |
-| Risk | a permanently broken company causes endless rounds (cheap at 15 minutes) | reminders stay off for every company after exhaustion until someone acts |
+| When exhausted | never exhausted: the incident stays open, `/ready` degraded and the alert repeating until the cause is repaired | the worker stops **repairing the companies that have not recovered yet**; the flag stays open and `/ready` degraded, a distinct alert («recovery exhausted») is raised once, and nothing more is repaired until an operator restarts the worker (a new count) or runs the fallback command and the `CompanyCreated` replay. **The schedules of the companies that already succeeded keep running and keep sending reminders** |
+| Risk | a permanently broken company causes endless rounds (cheap at 15 minutes) | the companies that did not recover stay without reminders until someone acts, and the incomplete recovery stays degraded |
 
 **Recommendation: Reading A**, because the loss is silent and reminders matter for money (late approval): stopping
 automatic recovery after a number of tries trades a visible-but-retrying incident for a visible-and-stalled one. The
@@ -251,9 +286,11 @@ without writing, FR-053).
 
 The owner-role operator command (audited clear by incident id, `platform_audit_log` in the same transaction) and the
 controlled operator replay of `CompanyCreated` stay as the **documented fallback**, for a worker that cannot reach the
-database function or a company that cannot be rebuilt. They are not the primary path any more. The command finishes by
-publishing the sentinel as described in the walk-through, so a successful operator recovery leaves readiness healthy
-and does not reopen the incident.
+database function or a company that cannot be rebuilt. They are not the primary path any more. The command **starts the
+same guard before it replays** (it creates the recovery key with its own `pass_id` first, point 4), verifies every
+company's scheduler, and only then clears and publishes the sentinel with the same guarded script; any lost key,
+changed `run_id` or missing schedule aborts it without clearing or publishing. A successful operator recovery leaves
+readiness healthy and does not reopen the incident.
 
 ## What the code PR must amend
 
@@ -275,8 +312,12 @@ row gaining the `commissions` consumer, point 2).
 
 ## Tests the code PR must carry
 
-CM-57, CM-57b, CM-57c, CM-58, CM-R09 (spec 059) and, specific to this ADR (CM-58b stays the recipient-authorization
-case of the reminders; the cases below are CS-Q32 cases):
+CM-57, CM-57b, CM-57c, CM-58, CM-R09 (spec 059), and **CM-58b as its own required test** — the recipient-authorization
+case of the reminders, which stays as spec 059 words it and as CS-Q52 (= PP-227) settles the recipients: an approval
+reminder goes to those who can approve at that time (holders of `approve:commissions:business` who are business-wide
+readers, evaluated when the reminder is appended), a review reminder to the review holders who are business-wide readers,
+the alert rule's roles do not select recipients, and the recipient filter and the review and approve guards call the
+same predicate. The cases below are the CS-Q32 recovery cases specific to this ADR:
 
 - Each function refuses `PUBLIC`, `pospay_app`, `pospay_auth`, `pospay_notifications` (no `EXECUTE`); the reader returns
   ids only, only of live companies, in order, and the dispatcher still cannot `SELECT` from `companies`;
@@ -286,15 +327,26 @@ case of the reminders; the cases below are CS-Q32 cases):
   rejected with 22023 before any update; it never touches another flag; its audit row exists exactly when the flag was
   cleared, and a forced audit failure leaves the flag open; `pospay_dispatcher` cannot `UPDATE` or `DELETE` the flag
   table; the facade exposes no raw client.
-- The life cycle of point 4 on a real Redis: the first run on an empty Redis ends healthy; a marker deleted mid-pass
-  restarts the pass and never clears the aborted one; **an old pass whose marker disappears and is written again by a
-  newer pass with the same `incident_id` and `run_id` must NOT clear and must NOT publish**; two workers racing on one
-  incident: exactly one clear returns true, the other returns false, publishes nothing and raises no new flag; a clear
-  that returns false or has an unknown outcome publishes no readiness; a loss between the guard and the clear leaves
+- The life cycle of point 4 on a real Redis: the first run on an empty Redis ends healthy; a key deleted mid-pass
+  restarts the pass and never clears the aborted one; **an old pass whose key disappears and is written again by a newer
+  pass with the same `incident_id` and `run_id` must NOT clear and must NOT publish**; **lease takeover**: a pass that
+  pauses past its TTL and returns cannot renew, update the incident id, delete the successor's key or publish; **both
+  winner orderings of the race**: W1 (the key owner wins the clear, readiness restored) and W2 (a superseded pass wins
+  the clear: neither publishes, `/ready` stays degraded, a new incident is raised and the new pass restores readiness
+  without crediting the stale one); a clear that returns false publishes nothing and raises no flag by itself; **an
+  unknown clear outcome publishes nothing, does not credit the pass from reading a closed flag and an intact key, and
+  converges through a new pass**; a failed re-verification keeps `/ready` degraded; a replica that sees the sentinel
+  missing between a clear and a publication raises no second incident; a loss between the guard and the clear leaves
   the sentinel missing and raises a new incident; a restart between the clear and the sentinel write raises a new
-  incident and ends healthy after one more pass; a release change runs a silent re-certification (no flag, no alert);
-  the operator completion path leaves the next heartbeat healthy without reopening the incident; one failing company
-  keeps the flag open.
+  incident and ends healthy after one more pass.
+- **Re-certification**: a process start (including a rollback followed by a return to the **same** release) runs a pass,
+  `/ready` is degraded until it publishes, a failing pass retries and raises `COMMISSION_REMINDER_RECERTIFICATION_FAILED`
+  and opens no ledger incident.
+- **The operator fallback** creates the recovery key before the replay, aborts on a lost key, a changed `run_id` or a
+  missing scheduler without clearing or publishing, and on success leaves the next heartbeat healthy without reopening
+  the incident.
+- One failing company keeps the flag open and `/ready` degraded; under Reading B, once the cap is reached the repair of
+  the unrecovered companies stops while the schedulers of the successful ones keep running.
 - **A company created between two pages ends with a scheduler**: one the pass reads (counted) and one it does not read —
   an id below the current cursor, one created after the last page (covered by the `CompanyCreated` consumer) — and a
   quiet company is part of the pass (CM-57c).
@@ -326,9 +378,10 @@ case of the reminders; the cases below are CS-Q32 cases):
 - A migration adds the two roles, their grants and policy, and the two functions; the flag table itself is 56b-1's.
 - A worker that cannot reach Redis cannot clear; a worker that cannot reach the database cannot rebuild; both leave
   the incident open and `/ready` degraded.
-- A restart at the wrong moment costs one extra pass and one extra audit row, never a missed recovery; every deploy
-  costs one silent re-certification pass (one idempotent upsert per company).
-- The split-store residual window of point 4 is an explicit, accepted exception.
+- A restart at the wrong moment costs one extra pass and one extra audit row, never a missed recovery; every worker process
+  start costs one re-certification pass (one idempotent upsert per company) and `/ready` is degraded until it ends.
+- The split-store residual window of point 4 is an explicit exception that Waleed accepts or rejects (question vi).
+- The unknown-outcome rule costs one extra pass instead of a new privilege; the options that would avoid it are described and not adopted.
 
 ## Open questions for Waleed (technical, answered by him only)
 
@@ -344,6 +397,8 @@ Recorded in `owner-questions.ar.md` §62 (CS-Q53) as `PENDING`. Each is asked se
 4. **(iv) The fixed system identity.** The constant uuid `00000000-0000-7000-8000-000000000061` as `cleared_by`, with no
    foreign key on that column.
 5. **(v) The audit texts.** `actor = 'system:worker'` and `action = 'recovery.flag_cleared'` in `platform_audit_log`.
-
-Accepting the ADR also accepts the split-store residual window of point 4 (not a sixth question: it is part of the
-design this ADR proposes).
+6. **(vi) The contract for closing an incident across Redis and PostgreSQL.** The residual window of point 4: the
+   incident can be closed on information that is already stale; readiness is not published for the lost generation; a
+   new incident is raised at the first successful heartbeat after the connection returns. Choice 1: accept this window
+   (recommended: no variant removes it, and the safety property holds). Choice 2: reject it and ask for a different
+   design that meets the CS-Q32 contract (it would need a new incident state and a new column).
