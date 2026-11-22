@@ -1,7 +1,7 @@
 'use client';
 import type { WorkspaceBusinessRead } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { Button, PageHeader } from '@pospay/ui';
+import { Button, PageHeader, PageShell } from '@pospay/ui';
 import Link from 'next/link';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -27,7 +27,7 @@ export function PackageTypesPage({
     setPackageTypeId('');
   };
   return (
-    <section className="flex min-w-0 flex-col gap-8 text-start">
+    <PageShell layout="list">
       <PageHeader
         title={t(locale, 'catalogPackageTypes.listTitle')}
         description={t(locale, 'catalogPackageTypes.listLead')}
@@ -59,6 +59,6 @@ export function PackageTypesPage({
           onClose={() => setPackageTypeId('')}
         />
       ) : null}
-    </section>
+    </PageShell>
   );
 }

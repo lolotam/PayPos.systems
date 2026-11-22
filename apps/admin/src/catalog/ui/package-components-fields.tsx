@@ -17,15 +17,15 @@ type Props = {
   businessId: string;
   userId: string;
   initial?: PackageTypeDetail['components'];
+  /** صفوف الخدمات على الشبكة (نموذج الإضافة فقط). */
+  grid?: boolean;
 };
 
-export function PackageComponentsFields({ companyId, businessId, userId, initial = [] }: Props) {
+export function PackageComponentsFields({ companyId, businessId, userId, initial = [], grid = false }: Props) {
   const locale = useLocale();
-  const {
-    control,
-    formState: { errors },
-  } = useFormContext<CreatePackageTypeInput>();
-  const invalidCount = !!(errors.components?.root ?? errors.components?.message);
+  const { control, formState } = useFormContext<CreatePackageTypeInput>();
+  const { components } = formState.errors;
+  const invalidCount = !!(components?.root ?? components?.message);
   const { fields, append, remove } = useFieldArray({ control, name: 'components' });
   const query = usePackageServices(companyId, businessId, userId);
   const services = serviceOptions(initial, query.data);
@@ -55,6 +55,7 @@ export function PackageComponentsFields({ companyId, businessId, userId, initial
           key={field.id}
           index={index}
           services={services}
+          grid={grid}
           onRemove={() => remove(index)}
         />
       ))}

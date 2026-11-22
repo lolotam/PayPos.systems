@@ -1,9 +1,12 @@
 import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
+import type { RecordingDiscountLimit } from '@pospay/contracts';
+import { useState } from 'react';
 import { FormProvider, useForm } from 'react-hook-form';
 import { expect, it, vi } from 'vitest';
 import { createSessionDraft, type SessionDraftForm } from '../model/session-drafts';
+import { SessionDraftSummary } from './session-draft-summary';
 import { SessionRecordingHeader } from './session-recording-header';
 
 const get = vi.hoisted(() => vi.fn());
@@ -20,7 +23,8 @@ const context = {
 
 function Harness() {
   const form = useForm<SessionDraftForm>({ defaultValues: { lines: [{ ...createSessionDraft('kept'), price: '7.125' }], recorder_membership_id: membershipId } });
-  return <FormProvider {...form}><SessionRecordingHeader scope={scope} disabled={false} /></FormProvider>;
+  const [limit, setLimit] = useState<RecordingDiscountLimit | null>(null);
+  return <FormProvider {...form}><SessionRecordingHeader scope={scope} disabled={false} onLimitChange={setLimit} /><SessionDraftSummary limit={limit} /></FormProvider>;
 }
 
 it('shows the resolved limit in the draft summary', async () => {

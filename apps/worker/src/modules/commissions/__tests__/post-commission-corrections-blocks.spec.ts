@@ -1,29 +1,26 @@
 import { expect, it } from 'vitest';
 
-import type { CommissionAttachmentInterval } from '../domain/commission-correction-attribution.ts';
-import type { CommissionOpenBlock } from '../domain/commission-blocked-correction.ts';
-import type {
-  CommissionCorrectionDraft,
-  CommissionFrozenSource,
-  CommissionPostedCorrection,
-} from '../domain/commission-correction-step.ts';
-import { CommissionPeriodClosedError } from '../domain/errors.ts';
-import type { CommissionPeriodEmployee } from '../domain/commission-line-types.ts';
-import type { CommissionCorrectionCandidate } from '../domain/commission-correction-target.ts';
-import type {
-  CommissionBlockCodeUpdateInput,
-  CommissionBlockInsertInput,
-  CommissionBlockResolutionInput,
-  CommissionCorrectionInsertInput,
-  CommissionCorrectionScope,
-  CommissionMonthProjection,
-  CommissionMonthProjectionInput,
-  CommissionOpenBlockInput,
-} from '../ports/commission-correction.port.ts';
 import {
+  type CommissionAttachmentInterval,
+  type CommissionOpenBlock,
+  type CommissionCorrectionDraft,
+  type CommissionFrozenSource,
+  type CommissionPostedCorrection,
+  CommissionBlockNoticesMissingError,
+  CommissionPeriodClosedError,
+  type CommissionCorrectionCandidate,
+  type CommissionBlockCodeUpdateInput,
+  type CommissionBlockInsertInput,
+  type CommissionBlockResolutionInput,
+  type CommissionCorrectionInsertInput,
+  type CommissionCorrectionScope,
+  type CommissionMonthProjection,
+  type CommissionMonthProjectionInput,
+  type CommissionOpenBlockInput,
   postCommissionCorrections,
   selectCommissionCorrectionTargets,
-} from '../use-cases/post-commission-corrections/post-commission-corrections.ts';
+} from '@pospay/commissions-posting';
+import type { CommissionPeriodEmployee } from '../domain/commission-line-types.ts';
 import { noCommissionBlockNotices } from './commission-block-notice.fakes.ts';
 import { ProjectSalary } from '../use-cases/project-salary/project-salary.ts';
 import {
@@ -304,4 +301,54 @@ it('U7 a closed month with no DRAFT target still refuses before any write', () =
   expect(() => selectCommissionCorrectionTargets(locked, ['2026-10'], '2026-12')).toThrowError(
     CommissionPeriodClosedError,
   );
+});
+
+const runWithoutNotices = (scope: CommissionCorrectionScope): Promise<void> =>
+  postCommissionCorrections({
+    scope,
+    businessId: 'business-a',
+    companyId: 'company-a',
+    eventId: EVENT,
+    targets: [target()],
+    employees: [{ period: '2026-10', employeeId: employeeA }],
+  });
+
+it('U8 a caller with no notice writer still posts a priced month and resolves its open block', async () => {
+  const corrections = new PerKeyCorrections();
+  corrections.projection(employeeA, '2026-10', { lines: [line(employeeA, '2026-10')] });
+  corrections.openBlocks.set(projectionKey(employeeA, '2026-10'), {
+    id: 'block-1',
+    code: 'NO_PLAN',
+  });
+
+  await runWithoutNotices(corrections);
+
+  expect(corrections.drafts).toHaveLength(1);
+  expect(corrections.drafts[0]).toMatchObject({
+    employeeId: employeeA,
+    sourceRef: `line:line-${employeeA}-2026-10`,
+    amount: 10_000n,
+    targetPeriod: '2026-11',
+    targetStatementId: 'statement-nov',
+  });
+  expect(corrections.resolutions).toEqual([{ blockId: 'block-1', generation: 1 }]);
+  expect(corrections.blocks).toEqual([]);
+});
+
+it('U9 a caller with no notice writer refuses to record a new block instead of silently skipping the bell', async () => {
+  const corrections = new PerKeyCorrections();
+  corrections.projection(employeeA, '2026-10', {
+    versions: [],
+    lines: [line(employeeA, '2026-10')],
+  });
+
+  await expect(runWithoutNotices(corrections)).rejects.toBeInstanceOf(
+    CommissionBlockNoticesMissingError,
+  );
+  // الرفض جاي قبل كتابة صف التوقف مباشرة، فرفع الجيل ممكن يكون حصل. إلغاؤه مع باقي المعاملة بيتثبّت
+  // في commission-correction-no-notices-db.spec.ts على معاملة Postgres حقيقية، مش هنا على الـ fake.
+  expect(corrections.calls).not.toContain('insertBlock');
+  expect(corrections.calls).not.toContain('insertCorrections');
+  expect(corrections.blocks).toEqual([]);
+  expect(corrections.drafts).toEqual([]);
 });

@@ -19,6 +19,7 @@ import { USER } from '../../../../packages/db/test/tenancy-fixtures.ts';
 import {
   createCommissionCoverageReport,
   runCommissionInputReplay,
+  type CommissionCoverageScope,
 } from '../modules/commissions/index.ts';
 import {
   fakeBusinessTimeZone,
@@ -27,9 +28,13 @@ import {
   commissionSalaryEvent,
   commissionSaleEvent,
 } from '../modules/commissions/__tests__/commission-tip-salary-events.ts';
-import { listCurrentPackageSales, readServiceLineCoveragePage } from '../modules/orders/index.ts';
+import {
+  listCurrentPackageSales,
+  readCurrentSessionTips,
+  readServiceLineCoveragePage,
+} from '../modules/orders/index.ts';
 import { readSalaryCoveragePage } from '../modules/staff/index.ts';
-import { companyOpen } from '../modules/tenancy/index.ts';
+import { businessTimeZone, companyOpen } from '../modules/tenancy/index.ts';
 import { createDeliverer } from '../outbox/deliver.ts';
 import { createTestCommissionInputsConsumer } from './commission-inputs-consumer.ts';
 
@@ -99,7 +104,9 @@ afterEach(async () => {
   });
 });
 
-function coverageReport() {
+const TIP_RANGE = { from: '2026-01-01', to: '2026-12-31' };
+
+function rawCoverageReport() {
   return createCommissionCoverageReport({
     database: db,
     lines: { readPage: readServiceLineCoveragePage },
@@ -107,7 +114,25 @@ function coverageReport() {
     sales: { readPage: listCurrentPackageSales },
     retained: dispatcher,
     companies: { isOpen: companyOpen },
+    businesses: {
+      isInCompany: async (tx, companyId, businessId) =>
+        (await businessTimeZone(tx, companyId, businessId)) !== null,
+    },
+    tipsReader: { readPage: readCurrentSessionTips },
   });
+}
+
+// COVERED لا تُطبع بدون نطاق بقشيش (issue #1032)، فكل تشغيل هنا يحمل نشاط الشركة المفحوصة ما لم يُحدَّد نطاق.
+function coverageReport() {
+  const report = rawCoverageReport();
+  return (scope: CommissionCoverageScope) =>
+    report({
+      tips: {
+        businessIds: [scope.companyId === B.company ? B.business : A.business],
+        ...TIP_RANGE,
+      },
+      ...scope,
+    });
 }
 
 async function replayCompanyA(scope: 'FOUR_TYPE' | 'SIX_TYPE' = 'FOUR_TYPE'): Promise<void> {
@@ -386,4 +411,29 @@ it('writes nothing while it reports and keeps the payload values out of the repo
 
   expect(await snapshot()).toEqual(before);
   expect(JSON.stringify(result)).not.toContain('10.000');
+});
+
+it('refuses a business of another company and an unknown business before reading anything', async () => {
+  await seedLine(A, { id: FIRST, ordinal: 1, revision: 1, kind: 'session' });
+  const unknown = '01920000-0000-7000-8000-0000000f0e99';
+
+  for (const businessIds of [[B.business], [A.business, B.business], [unknown]]) {
+    await expect(
+      rawCoverageReport()({
+        companyId: A.company,
+        throughId: null,
+        tips: { businessIds, ...TIP_RANGE },
+      }),
+    ).rejects.toMatchObject({ code: 'COMMISSION_COVERAGE_SCOPE_INVALID' });
+  }
+});
+
+it('prints COVERED only for a checked tip scope, and names that scope', async () => {
+  const withoutScope = await rawCoverageReport()({ companyId: A.company, throughId: null });
+  const withScope = await coverageReport()({ companyId: A.company, throughId: null });
+
+  expect(withoutScope.status).toBe('NOT_COVERED');
+  expect(withoutScope.tipScope).toBeNull();
+  expect(withScope.status).toBe('COVERED');
+  expect(withScope.tipScope).toEqual({ businessIds: [A.business], ...TIP_RANGE });
 });

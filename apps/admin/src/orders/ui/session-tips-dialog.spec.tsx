@@ -197,9 +197,7 @@ it('does not read tips until the visit button opens the dialog', () => {
       canRecord={false}
       loadError={null}
       empty
-      hasNext={false}
       onRetry={() => undefined}
-      onMore={() => undefined}
       refetchPages={async () => null}
       mounted={{ current: true }}
       onAccessDenied={() => undefined}

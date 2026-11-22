@@ -22,6 +22,7 @@
     "@nestjs/platform-fastify": "12.0.3",
     "@pospay/auth": "workspace:*",
     "@pospay/commissions-engine": "workspace:*",
+    "@pospay/commissions-posting": "workspace:*",
     "@pospay/contracts": "workspace:*",
     "@pospay/db": "workspace:*",
     "@pospay/domain": "workspace:*",

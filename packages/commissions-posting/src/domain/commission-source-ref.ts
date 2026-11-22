@@ -1,5 +1,7 @@
 import type { CommissionCorrectionKind } from './commission-correction-step.ts';
-import type { CommissionTipMethod } from './commission-tip-salary-inputs.ts';
+
+/** طريقة دفع البقشيش: الكارت داخل صافي الكشف والكاش للعلم فقط. */
+export type CommissionTipMethod = 'CASH' | 'CARD';
 
 /** بادئة مرجع مصدر البند: نفس المفتاح اللي بيبنيه محرك العمولة لكل بند مسعَّر. */
 export const COMMISSION_LINE_SOURCE_PREFIX = 'line:';

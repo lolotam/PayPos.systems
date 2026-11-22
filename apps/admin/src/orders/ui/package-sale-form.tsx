@@ -8,7 +8,7 @@ import {
 } from '@pospay/contracts';
 import { moneyToString, parseMoney } from '@pospay/domain';
 import { normalizeKwdInput, t } from '@pospay/i18n';
-import { Button, Label, NativeSelect } from '@pospay/ui';
+import { Button, Card, CardContent, CardFooter, Label, NativeSelect } from '@pospay/ui';
 import { useCallback, useState } from 'react';
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -202,32 +202,56 @@ function packageSaleResult(
   ) : null;
 }
 
+// الحقول الطويلة 12 عمودًا والمتوسطة 6 (design.md §6)، وتتكدس كلها في عمود واحد على الهاتف.
+const FULL_CELL = 'col-span-12 min-w-0';
+const HALF_CELL = 'col-span-12 flex min-w-0 flex-col gap-3 md:col-span-6';
+
 export function PackageSaleForm({ scope }: { scope: SessionServiceScope }) {
   const locale = useLocale();
   const { entryScope, contextPending, customer, selectCustomer, recorderField, saleRequestId, form, mutation, status, pending, locked, picker, quoteStale, onSubmit, setType, onProfileAccessDenied } = usePackageSaleFormState(scope, locale);
   return (
-    <form noValidate onSubmit={onSubmit} className="grid gap-5 text-start">
-      {recorderField}
-      {contextPending ? null : entryScope == null ? (
-        <p role="alert">{t(locale, 'packageSale.customerUnavailable')}</p>
-      ) : (
-        <SessionCustomerField
-          {...scope}
-          packagesScope={scope}
-          entryScope={entryScope}
-          value={customer}
-          onChange={selectCustomer}
-          onAccessDenied={onProfileAccessDenied}
-          disabled={locked}
-        />
-      )}
-      <PackageSaleTypeField picker={picker} disabled={locked} onReconfirm={setType} />
-      <PackageSaleFields scope={scope} form={form} disabled={locked} />
-      {form.formState.errors.root ? <p role="alert">{form.formState.errors.root.message}</p> : null}
-      <PackageSaleRecoveryNotice mutation={mutation} status={status.data?.status} />
-      <Button type="submit" disabled={pending || mutation.restoring || mutation.verificationRequired || quoteStale || saleRequestId !== null || (!entryScope && !mutation.recoveryRequired) || status.data?.status === 'completed'}>
-        {packageSaleSubmitLabel(locale, pending, mutation.recoveryRequired)}
-      </Button>
+    <form noValidate onSubmit={onSubmit} className="grid gap-4 text-start">
+      <Card>
+        <CardContent className="grid gap-6">
+          <section className="grid gap-4">
+            <h2 className="text-lg font-semibold">{t(locale, 'serviceSessions.packagePicker')}</h2>
+            <div className="grid grid-cols-12 gap-4">
+              {recorderField ? <div className={HALF_CELL}>{recorderField}</div> : null}
+              <div className={FULL_CELL}>
+                {contextPending ? null : entryScope == null ? (
+                  <p role="alert">{t(locale, 'packageSale.customerUnavailable')}</p>
+                ) : (
+                  <SessionCustomerField
+                    {...scope}
+                    packagesScope={scope}
+                    entryScope={entryScope}
+                    value={customer}
+                    onChange={selectCustomer}
+                    onAccessDenied={onProfileAccessDenied}
+                    disabled={locked}
+                  />
+                )}
+              </div>
+              <div className={FULL_CELL}>
+                <PackageSaleTypeField picker={picker} disabled={locked} onReconfirm={setType} />
+              </div>
+            </div>
+          </section>
+          <section className="grid gap-4">
+            <h2 className="text-lg font-semibold">{t(locale, 'packageSale.sectionPayment')}</h2>
+            <PackageSaleFields scope={scope} form={form} disabled={locked} />
+          </section>
+          {form.formState.errors.root ? (
+            <p role="alert">{form.formState.errors.root.message}</p>
+          ) : null}
+          <PackageSaleRecoveryNotice mutation={mutation} status={status.data?.status} />
+        </CardContent>
+        <CardFooter>
+          <Button className="ms-auto" type="submit" disabled={pending || mutation.restoring || mutation.verificationRequired || quoteStale || saleRequestId !== null || (!entryScope && !mutation.recoveryRequired) || status.data?.status === 'completed'}>
+            {packageSaleSubmitLabel(locale, pending, mutation.recoveryRequired)}
+          </Button>
+        </CardFooter>
+      </Card>
       {packageSaleResult(status, saleRequestId)}
     </form>
   );

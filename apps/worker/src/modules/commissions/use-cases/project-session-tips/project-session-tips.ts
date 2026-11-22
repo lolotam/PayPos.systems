@@ -16,22 +16,22 @@ import {
 } from '../../domain/commission-tip-salary-inputs.ts';
 import {
   CommissionBusinessMissingError,
-  CommissionPeriodClosedError,
   CommissionPeriodRolledOverError,
   CommissionTipSalaryInputInvalidError,
 } from '../../domain/errors.ts';
-import type { CommissionCorrectionScope } from '../../ports/commission-correction.port.ts';
-import type { CommissionBlockNotices } from '../../ports/commission-block-notice.port.ts';
+import {
+  CommissionPeriodClosedError,
+  type CommissionCorrectionScope,
+  type CommissionBlockNotices,
+  postCommissionCorrections,
+  selectCommissionCorrectionTargets,
+} from '@pospay/commissions-posting';
 import type { CommissionInputEventEnvelope } from '../../ports/commission-line-projection.port.ts';
 import type {
   Clock,
   CommissionTipProjectionScope,
   IdGenerator,
 } from '../../ports/commission-tip-salary-projection.port.ts';
-import {
-  postCommissionCorrections,
-  selectCommissionCorrectionTargets,
-} from '../post-commission-corrections/post-commission-corrections.ts';
 
 export interface ProjectSessionTipsInput extends CommissionTipInputEvent {
   readonly companyId: string;

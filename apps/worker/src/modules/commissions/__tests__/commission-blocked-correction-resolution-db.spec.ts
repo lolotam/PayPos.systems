@@ -28,7 +28,7 @@ import {
   tipHeads,
   SALARY_THRESHOLD_PLAN,
 } from './commission-blocked-corrections-db.fixture.ts';
-import { createCommissionCorrectionScope } from '../persistence/commission-correction.scope.ts';
+import { createCommissionCorrectionScope } from '@pospay/commissions-posting';
 
 const clock = { now: () => new Date(CURRENT) };
 

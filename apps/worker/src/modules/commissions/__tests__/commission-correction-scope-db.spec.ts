@@ -2,7 +2,7 @@ import { lockStatementPeriods } from '@pospay/db';
 import { expect, it } from 'vitest';
 
 import { expectPgError } from '../../../../../../packages/db/test/commission-statement-fixtures.ts';
-import { createCommissionCorrectionScope } from '../persistence/commission-correction.scope.ts';
+import { createCommissionCorrectionScope } from '@pospay/commissions-posting';
 import {
   A,
   clock,
