@@ -90,7 +90,7 @@ export async function expectVisibleNavRailCurrentMarker(target: Locator): Promis
 
 // الـ tap بيودّي التركيز للـ body بعد pointerup. نفي "التركيز رجع للتنقل" مش بيتأكد بالانتظار لوحده،
 // فبنعدّ كل focusin على زر الدرج من قبل تصغير الشاشة: أي سحب للتركيز، حتى لو لحظي، بيتسجّل.
-// ظهور الزر بييجي من CSS مش من React، فبنستنى دورتين رسم قبل القراءة (إشارة أدق في #1207).
+// ظهور الزر بييجي من CSS مش من React، فبنستنى علامة data-settled-layout اللي TopNav بيكتبها بعد قرار التركيز.
 export async function expectTapAwayKeepsFocusOut(page: Page, trigger: Locator): Promise<void> {
   await trigger.focus();
   await expect(trigger).toBeFocused();
@@ -120,9 +120,7 @@ export async function expectTapAwayKeepsFocusOut(page: Page, trigger: Locator): 
   await page.setViewportSize({ width: 390, height: 844 });
   const drawerOpener = page.getByRole('button', { name: LABELS.drawerOpen });
   await expect(drawerOpener).toBeVisible();
-  await page.evaluate(
-    () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
-  );
+  await expect(page.locator('[data-settled-layout="phone"]')).toBeAttached();
   await expect(page.locator('body')).toBeFocused();
   await expect(page.locator('html')).toHaveAttribute('data-opener-focus-count', '0');
 }

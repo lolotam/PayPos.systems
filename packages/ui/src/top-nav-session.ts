@@ -142,6 +142,11 @@ function useBreakpointFocus({
     moduleTriggerRef,
     rootRef,
   ]);
+  // ظهور الأزرار عند نقطة التحول بييجي من CSS قبل ما React يعالج التغيير. العلامة دي بتتكتب بعد
+  // effect نقل التركيز في نفس الدورة، فأي فاحص خارجي يقدر يستنى قرار التركيز الفعلي (#1207).
+  useEffect(() => {
+    rootRef.current?.setAttribute('data-settled-layout', layout);
+  }, [layout, rootRef]);
   return target;
 }
 

@@ -206,3 +206,20 @@ it('leaves focus alone across 700px when a touch tap moved focus after pointerup
   );
   expect(document.activeElement).toBe(document.body);
 });
+
+it('marks the layout it has settled on after each breakpoint focus decision', async () => {
+  const width = { value: 820 };
+  stubBreakpoints(width);
+  const view = render(tree({ currentModuleId: 'people' }));
+  expect(view.container.querySelector('[data-settled-layout="tablet"]')).not.toBeNull();
+  screen.getByRole('button', { name: /People/ }).focus();
+
+  width.value = 699;
+  view.rerender(tree({ currentModuleId: 'people' }));
+
+  await waitFor(() =>
+    expect(view.container.querySelector('[data-settled-layout="phone"]')).not.toBeNull(),
+  );
+  // The marker is written after the focus transfer, so focus has already reached the drawer opener.
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: chromeLabels.drawerOpen }));
+});
