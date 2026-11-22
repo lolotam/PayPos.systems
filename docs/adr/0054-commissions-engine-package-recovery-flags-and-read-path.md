@@ -274,6 +274,18 @@ that tenant until then. There is no new port, no import arrow, no new role and n
 tips reader reuses an existing port, and the third coverage reader port remains `CoverageCompanyReader` (owned by `commissions`,
 bound at the worker composition root to the tenancy `companyOpen`).
 
+**Amendment 2026-11-22 (issue #1032, the coverage report cannot print a false `COVERED`).** The report keeps every check it has
+(missing and stale revisions, retained counted events without the consumer's mark, unhandled types) and adds to them. The overall
+status is `COVERED` only when lines, salaries, sales and tips were all checked and no check failed; a run with no tip scope reports the
+tips as not checked (`tips: null` and its `tipsNote`), is `NOT_COVERED` and exits non-zero. There is no default to all businesses. The
+use case refuses, before any scan, an empty business list, a range whose `from` is after its `to`, and a business that is not the
+company's, with the existing `COMMISSION_COVERAGE_SCOPE_INVALID`. The fourth coverage reader port is `CoverageBusinessReader`:
+owned by `commissions`, bound at the worker composition root to the existing tenancy `businessTimeZone` on the report's tenant
+transaction (`pospay_app` under `withTenant`); its Port row is in `docs/module-map.md`. The printed result names the business ids and
+the date range the tip check covered (`tipScope`): `COVERED` proves that scope only, and opening approval for a company needs a run
+whose scope is every business of the company and every business day with inputs, which the runbook requires of the operator and the
+tool does not infer. No import arrow, no migration, no new role and no new grant.
+
 **The rule from D-16:** if a reader cannot be bound at the root, the sub-PR that needs it stops and adds an ADR and the
 module-map row first.
 

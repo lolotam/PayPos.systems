@@ -173,6 +173,7 @@ function harness(options: HarnessOptions) {
     }),
     retained: retainedReader(options.events ?? []),
     companies: { isOpen: vi.fn(async () => true) },
+    businesses: { isInCompany: vi.fn(async () => true) },
     consumerId: CONSUMER,
     handledTypes: HANDLED_TYPES,
     tipsReader: tipsReader(options.sessions ?? []),
@@ -193,14 +194,15 @@ const run = (
   runCommissionCoverageReport(deps, { companyId: COMPANY, throughId: null, ...scope });
 
 describe('runCommissionCoverageReport: the tip coverage by revision', () => {
-  it('says the tips were NOT checked when no tip scope was supplied', async () => {
+  it('says the tips were NOT checked when no tip scope was supplied, and is not COVERED', async () => {
     const { deps } = harness({});
 
     const report = await run(deps);
 
     expect(report.tips).toBeNull();
     expect(report.tipsNote).toBe(TIPS_NOT_CHECKED);
-    expect(report.status).toBe('COVERED');
+    expect(report.tipScope).toBeNull();
+    expect(report.status).toBe('NOT_COVERED');
   });
 
   it('counts a missing session, a stale revision and a covered one and refuses coverage', async () => {
@@ -234,6 +236,7 @@ describe('runCommissionCoverageReport: the tip coverage by revision', () => {
       stale: { total: 0, ids: [] },
     });
     expect(report.tipsNote).toBeNull();
+    expect(report.tipScope).toEqual(tipScope);
     expect(report.status).toBe('COVERED');
   });
 });
@@ -276,7 +279,7 @@ describe('runCommissionCoverageReport: the six-type retained events', () => {
       marked: new Set([markedEvent.id.toLowerCase()]),
     });
 
-    const report = await run(deps);
+    const report = await run(deps, { tips: tipScope });
 
     expect(report.notHandled.total).toBe(0);
     expect(report.unmarked.total).toBe(0);
