@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { expect, it } from 'vitest';
 import { BottomSheet } from '../bottom-sheet.js';
 import { DirectionProvider } from '../direction-provider.js';
@@ -7,8 +7,16 @@ import { DirectionProvider } from '../direction-provider.js';
 function Host({ dir = 'ltr' }: { dir?: 'ltr' | 'rtl' }) {
   const [open, setOpen] = useState(false);
   const openerRef = useRef<HTMLButtonElement>(null);
+  const destinationRef = useRef<HTMLHeadingElement>(null);
+  const [navigated, setNavigated] = useState(false);
+  useEffect(() => {
+    if (navigated) destinationRef.current?.focus();
+  }, [navigated]);
   return (
     <DirectionProvider dir={dir}>
+      <h1 ref={destinationRef} tabIndex={-1}>
+        Destination
+      </h1>
       <input aria-label="Outside field" />
       <button ref={openerRef} type="button" onClick={() => setOpen(true)}>
         More
@@ -20,7 +28,15 @@ function Host({ dir = 'ltr' }: { dir?: 'ltr' | 'rtl' }) {
         title="More sections"
         closeLabel="Close sheet"
       >
-        <a href="#reports">Reports</a>
+        <a
+          href="#reports"
+          onClick={() => {
+            setOpen(false);
+            setNavigated(true);
+          }}
+        >
+          Reports
+        </a>
       </BottomSheet>
     </DirectionProvider>
   );
@@ -85,4 +101,13 @@ it('returns focus to the button that opened it even when the click did not move 
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'More' })),
   );
   expect(document.activeElement).not.toBe(field);
+});
+
+it('leaves focus on the destination that took it while the sheet closed after a navigation', async () => {
+  render(<Host />);
+  fireEvent.click(screen.getByRole('button', { name: 'More' }));
+  fireEvent.click(screen.getByRole('link', { name: 'Reports' }));
+  expect(screen.queryByRole('dialog')).toBeNull();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(document.activeElement).toBe(screen.getByRole('heading'));
 });

@@ -1,5 +1,5 @@
 import { t } from '@pospay/i18n';
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resolveTopLevels } from '../menu/resolve-top-levels';
@@ -7,6 +7,7 @@ import {
   frameState,
   renderFrame,
   resetFrameState,
+  resizeTo,
   selectBusiness,
   stubViewport,
 } from './frame-test-support';
@@ -124,6 +125,20 @@ describe('style A More sheet on a phone', () => {
     expect(screen.getByRole('dialog')).toBeTruthy();
     fireEvent.click(own());
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('sends focus to the visible current section link when widening hides the More button', async () => {
+    frameState.pathname = '/staff';
+    renderFrame(<StyleAFrame>Page body</StyleAFrame>);
+    moreButton().focus();
+    fireEvent.click(moreButton());
+    resizeTo(820);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    const section = () =>
+      within(screen.getByRole('complementary')).getByRole('link', {
+        name: label('adminNav.groupATeam'),
+      });
+    await waitFor(() => expect(document.activeElement).toBe(section()));
   });
 
   it('does not mark More while the current page is on the bottom bar', () => {

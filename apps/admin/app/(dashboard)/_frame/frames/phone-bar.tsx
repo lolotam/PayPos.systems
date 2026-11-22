@@ -12,6 +12,11 @@ import { useRouteScopedState } from './use-route-scoped-state';
 
 const PHONE_QUERY = '(width < 600px)';
 
+// بعد تجاوز عرض الهاتف يختفي زر «المزيد» بـ CSS، فيذهب التركيز إلى رابط القسم الحالي في الشريط الجانبي الظاهر.
+const visibleSectionLink = () =>
+  document.querySelector<HTMLElement>('aside a[aria-current="page"]') ??
+  document.querySelector<HTMLElement>('aside a[href]');
+
 /**
  * الشريط السفلي لهاتف النمط A: أربعة أقسام و«المزيد» الذي يفتح ورقة بقية الأقسام.
  * فتح الورقة حالة عابرة تُمحى عند كل تغيّر في المسار، فلا تعود مفتوحة عند الرجوع، وتُغلق أيضًا
@@ -23,6 +28,7 @@ export function PhoneBar({ view, pathname }: { view: StyleAView; pathname: strin
   const phone = useMediaQuery(PHONE_QUERY);
   const [moreOpen, setMoreOpen] = useRouteScopedState(pathname, false);
   const openerRef = useRef<HTMLButtonElement>(null);
+  const closeFocusTarget = () => (phone ? undefined : visibleSectionLink());
   useEffect(() => {
     if (!phone) setMoreOpen(false);
   }, [phone, setMoreOpen]);
@@ -39,6 +45,7 @@ export function PhoneBar({ view, pathname }: { view: StyleAView; pathname: strin
           currentGroupId={view.currentGroupId}
           currentLabel={labels.chrome.current}
           openerRef={openerRef}
+          closeFocusTarget={closeFocusTarget}
         />
         <BottomNav
           items={view.bottom}

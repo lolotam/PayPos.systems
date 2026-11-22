@@ -22,6 +22,7 @@ export function MoreSheet({
   currentGroupId,
   currentLabel,
   openerRef,
+  closeFocusTarget,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -32,6 +33,7 @@ export function MoreSheet({
   currentGroupId: string | undefined;
   currentLabel: string;
   openerRef: RefObject<HTMLElement | null>;
+  closeFocusTarget: () => HTMLElement | null | undefined;
 }) {
   return (
     <BottomSheet
@@ -40,6 +42,7 @@ export function MoreSheet({
       title={title}
       closeLabel={closeLabel}
       openerRef={openerRef}
+      closeFocusTarget={closeFocusTarget}
     >
       {groups.map((group) => (
         <section key={group.id} aria-labelledby={`more-${group.id}`} className="mb-3">
