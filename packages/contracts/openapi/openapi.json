@@ -2916,6 +2916,123 @@
         }
       }
     },
+    "/v1/businesses/{businessId}/employees/{employeeId}/commission-period-repairs": {
+      "post": {
+        "operationId": "createCommissionPeriodRepair",
+        "description": "Repairs a closed month that has an open NO_PLAN blocked correction (FR-047): stores one repair plan version that applies only inside that month, recomputes the month, posts the corrections into the target the earliest-DRAFT rule chooses and resolves the block, all in one transaction under one ascending statement-lock call. If the recompute then needs a missing salary, the same block row becomes NO_SALARY, nothing is posted and the version and its audit entry stay (CM-52b). Requires manage:commission-plans:business and the commissions feature; a device session is refused. A change of the business month while waiting for the locks is refused with TRANSACTION_RETRY_REQUIRED; retry the request.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "employeeId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCommissionPeriodRepairInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The repair version and the block",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommissionPeriodRepair"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Uniform 403 refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "TRANSACTION_RETRY_REQUIRED (the month rolled over), IDEMPOTENCY_KEY_IN_PROGRESS",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "COMMISSION_REPAIR_NOT_ALLOWED when no open NO_PLAN block exists for the employee and month (including a NO_SALARY block or a resolved one), COMMISSION_PLAN_INVALID with details.code, or IDEMPOTENCY_KEY_REUSED.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/CommissionRepairNotAllowedError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommissionPlanInvalidError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CommissionPlanIdempotencyKeyReusedError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual refusal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/businesses/{businessId}/employees/{employeeId}/commission-overrides": {
       "post": {
         "operationId": "createCommissionServiceOverride",
@@ -21528,6 +21645,109 @@
             "type": "string",
             "enum": [
               "IDEMPOTENCY_KEY_REUSED"
+            ]
+          },
+          "message_ar": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message_en": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "code",
+          "message_ar",
+          "message_en"
+        ],
+        "additionalProperties": false
+      },
+      "CommissionRepairPlan": {
+        "type": "object",
+        "properties": {
+          "base": {
+            "$ref": "#/components/schemas/CommissionPlanComponent"
+          },
+          "tiers": {
+            "$ref": "#/components/schemas/CommissionPlanTiers"
+          },
+          "package_sale": {
+            "$ref": "#/components/schemas/CommissionPlanComponent"
+          }
+        },
+        "required": [
+          "base",
+          "tiers",
+          "package_sale"
+        ],
+        "additionalProperties": false
+      },
+      "CreateCommissionPeriodRepairInput": {
+        "type": "object",
+        "properties": {
+          "period": {
+            "$ref": "#/components/schemas/CommissionRepairPeriod"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/CommissionRepairPlan"
+          }
+        },
+        "required": [
+          "period",
+          "plan"
+        ],
+        "additionalProperties": false
+      },
+      "CommissionPeriodRepairBlock": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "NO_PLAN",
+              "NO_SALARY"
+            ]
+          },
+          "resolved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "resolved"
+        ],
+        "additionalProperties": false
+      },
+      "CommissionPeriodRepair": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/CommissionPlanVersion"
+          },
+          "blocked_correction": {
+            "$ref": "#/components/schemas/CommissionPeriodRepairBlock"
+          }
+        },
+        "required": [
+          "version",
+          "blocked_correction"
+        ],
+        "additionalProperties": false
+      },
+      "CommissionRepairNotAllowedError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "COMMISSION_REPAIR_NOT_ALLOWED"
             ]
           },
           "message_ar": {

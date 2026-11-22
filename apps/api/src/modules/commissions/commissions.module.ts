@@ -4,6 +4,7 @@ import type { IdGenerator, TenantWrappers } from '@pospay/db';
 import type { Clock } from '../../shared/ports/clock.port.ts';
 import { systemClock } from '../../shared/adapters/system-clock.ts';
 import { CommissionPlanVersionsController } from './http/commission-plan-versions.controller.ts';
+import { CommissionPeriodRepairsController } from './http/commission-period-repairs.controller.ts';
 import { CommissionPlanEmployeesController } from './http/commission-plan-employees.controller.ts';
 import { CommissionServiceOverridesController } from './http/commission-service-overrides.controller.ts';
 import { CommissionOverrideServicesController } from './http/commission-override-services.controller.ts';
@@ -18,6 +19,7 @@ import {
   createCommissionServiceOverrideListReaders,
   type CommissionServiceOverrideListReadProviders,
 } from './persistence/commission-service-override-list-readers.ts';
+import { createCommissionPeriodRepairTransactions } from './persistence/drizzle-commission-period-repair-transactions.ts';
 import { createCommissionPlanVersionTransactions } from './persistence/drizzle-commission-plan-version-transactions.ts';
 import { createCommissionServiceOverrideTransactions } from './persistence/drizzle-commission-service-override-transactions.ts';
 import type { CommissionPlanVersionReaders } from './persistence/commission-plan-version-scope.ts';
@@ -36,12 +38,14 @@ import {
   createCommissionBlockedCorrectionList,
   type CommissionBlockedCorrectionListReads,
 } from './queries/commission-blocked-corrections.query.ts';
+import { RepairCommissionPeriodUseCase } from './use-cases/repair-commission-period/repair-commission-period.usecase.ts';
 import { CreateCommissionPlanVersionUseCase } from './use-cases/create-commission-plan-version/create-commission-plan-version.usecase.ts';
 import { CreateCommissionServiceOverrideUseCase } from './use-cases/create-commission-service-override/create-commission-service-override.usecase.ts';
 import { GetCommissionEstimateUseCase } from './use-cases/get-commission-estimate/get-commission-estimate.usecase.ts';
 
 export const commissionsControllers = [
   CommissionPlanVersionsController,
+  CommissionPeriodRepairsController,
   CommissionServiceOverridesController,
   CommissionOverrideServicesController,
   CommissionPlanEmployeesController,
@@ -82,7 +86,7 @@ export function commissionsProviders(
   ];
 }
 
-/** مزودو الكتابة: إصدار الخطة وتجاوز الخدمة، وهما كل واحد في معاملته. */
+/** مزودو الكتابة: إصدار الخطة وإصلاح الشهر وتجاوز الخدمة، وكل واحد في معاملته. */
 function commissionWriteProviders(
   database: TenantWrappers | undefined,
   ids: IdGenerator,
@@ -97,6 +101,17 @@ function commissionWriteProviders(
           ? null
           : new CreateCommissionPlanVersionUseCase(
               createCommissionPlanVersionTransactions(database, ids, readers),
+              ids,
+              clock,
+            ),
+    },
+    {
+      provide: RepairCommissionPeriodUseCase,
+      useValue:
+        database === undefined
+          ? null
+          : new RepairCommissionPeriodUseCase(
+              createCommissionPeriodRepairTransactions(database, ids, readers, clock),
               ids,
               clock,
             ),

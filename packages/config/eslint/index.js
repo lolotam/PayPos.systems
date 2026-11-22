@@ -15,6 +15,8 @@ import {
   COMMISSIONS_ENGINE_SYNTAX,
   COMMISSIONS_ENGINE_VALIDATION_ONLY_BAN,
   COMMISSIONS_ENGINE_VALIDATION_ONLY_SYNTAX,
+  COMMISSIONS_POSTING_FACTORY_PATH,
+  COMMISSIONS_POSTING_FACTORY_SYNTAX,
   COMMISSIONS_POSTING_PATH_BAN,
   COMMISSIONS_POSTING_PATH_SYNTAX,
   COMMISSIONS_POSTING_PATTERNS,
@@ -205,9 +207,15 @@ const ADMIN_ENGINE_SYNTAX = [
  * @param {{ regex: string, message: string }[]} restricted the bans every block keeps: the engine's
  *   subpath and path, and the posting package's bans minus the root where the root is lifted
  * @param {unknown[]} syntax the matching dynamic-import selectors
+ * @param {{ paths: unknown[], syntax: unknown[] }} [useCaseGuards] extra bans of the use-cases/ layer only
  * @returns {import('eslint').Linter.Config[]} the four blocks of the layers
  */
-const commissionsLayerBlocks = (prefix, restricted, syntax) => [
+const commissionsLayerBlocks = (
+  prefix,
+  restricted,
+  syntax,
+  useCaseGuards = { paths: [], syntax: [] },
+) => [
   {
     // ADR-0054 §1 — the commissions use-cases/ lift the root entry and nothing else.
     files: [`${prefix}/use-cases/**/*.ts`],
@@ -215,7 +223,7 @@ const commissionsLayerBlocks = (prefix, restricted, syntax) => [
       'no-restricted-imports': [
         'error',
         {
-          paths: CREDENTIAL_PATHS,
+          paths: [...CREDENTIAL_PATHS, ...useCaseGuards.paths],
           patterns: [
             ...CREDENTIAL_PATTERNS,
             ...OPERATOR_PATTERNS,
@@ -224,7 +232,10 @@ const commissionsLayerBlocks = (prefix, restricted, syntax) => [
           ],
         },
       ],
-      'no-restricted-syntax': restrictedSyntax({ userText: false, engine: syntax }),
+      'no-restricted-syntax': restrictedSyntax({
+        userText: false,
+        engine: [...syntax, ...useCaseGuards.syntax],
+      }),
     },
   },
   {
@@ -237,7 +248,10 @@ const commissionsLayerBlocks = (prefix, restricted, syntax) => [
       `${prefix}/use-cases/test/**`,
     ],
     rules: {
-      'no-restricted-syntax': restrictedSyntax({ userText: true, engine: syntax }),
+      'no-restricted-syntax': restrictedSyntax({
+        userText: true,
+        engine: [...syntax, ...useCaseGuards.syntax],
+      }),
     },
   },
   {
@@ -315,6 +329,10 @@ export const allowCommissionsEngineBackend = (options = {}) => [
       COMMISSIONS_POSTING_PATH_BAN,
     ],
     APP_RESTRICTED_SYNTAX,
+    {
+      paths: [COMMISSIONS_POSTING_FACTORY_PATH],
+      syntax: COMMISSIONS_POSTING_FACTORY_SYNTAX,
+    },
   ),
   ...commissionsWiringBlocks('**/modules/commissions', options.facades ?? null),
 ];

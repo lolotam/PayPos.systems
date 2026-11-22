@@ -130,6 +130,30 @@ export const COMMISSIONS_POSTING_PATH_SYNTAX = engineSyntax(
   COMMISSIONS_POSTING_PATH_BAN.message,
 );
 
+const FACTORY_MESSAGE =
+  'The correction scope factory belongs to the module wiring and persistence/, never to a use case: a use case receives the scope through its transactions port (ADR-0054 §1 addendum, #1217).';
+
+/** The one persistence export of the posting package: an app's use-cases/ may not import it by name (#1217). */
+export const COMMISSIONS_POSTING_FACTORY_PATH = {
+  name: '@pospay/commissions-posting',
+  importNames: ['createCommissionCorrectionScope'],
+  message: FACTORY_MESSAGE,
+};
+
+/**
+ * A use case that loads the posting root dynamically, by require() or by import-equals could take the factory
+ * under any name, so those forms are refused for the root in use-cases/; static imports stay allowed (the step).
+ */
+export const COMMISSIONS_POSTING_FACTORY_SYNTAX = [
+  // The import-type selector is left out: a type reference cannot construct a scope.
+  ...engineSyntax('/^@pospay\\/commissions-posting$/', FACTORY_MESSAGE).slice(0, 2),
+  {
+    selector:
+      "TSImportEqualsDeclaration[moduleReference.expression.value='@pospay/commissions-posting']",
+    message: FACTORY_MESSAGE,
+  },
+];
+
 /** The full posting ban, dynamic and static, for the blocks that lift nothing. */
 export const COMMISSIONS_POSTING_SYNTAX = [
   ...COMMISSIONS_POSTING_ROOT_SYNTAX,

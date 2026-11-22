@@ -68,7 +68,7 @@ export const commissionPlanDate = z.iso
   .date()
   .regex(/^(?!0000)/)
   .meta({ id: 'CommissionPlanDate' });
-const commissionRepairPeriod = z
+export const commissionRepairPeriod = z
   .string()
   .regex(/^(?!0000-)[0-9]{4}-(0[1-9]|1[0-2])$/)
   .meta({ id: 'CommissionRepairPeriod' });

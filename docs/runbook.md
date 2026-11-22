@@ -253,10 +253,12 @@ land, approval stays closed. Never reset or delete `published_at`, `attempts`, `
    rows into the earliest DRAFT month, and the manager owns that case. Since 55-2c a replayed event whose closed month cannot be
    priced (`NO_PLAN`/`NO_SALARY`) is consumed and recorded as one open blocked correction for that employee and month (FR-046); it is
    resolved later by a dated salary or by a period repair, which posts the correction normally.
-   An open `NO_SALARY` block resolves itself when a later dated salary makes the month price. An open `NO_PLAN` block has no
-   resolution path yet: the period repair that clears it is 55-2f, which waits on CS-Q46 and CS-Q47, so the row stays open
-   until that row ships. Until the bell of 55-2d and the list of 55-2e land, nothing in the product exposes these rows:
-   no notification rings and no screen lists them. To see the open blocks, run this read-only query as `pospay_owner`:
+   An open `NO_SALARY` block resolves itself when a later dated salary makes the month price. An open `NO_PLAN` block is cleared
+   by the period repair of 55-2f (`POST /v1/businesses/:businessId/employees/:employeeId/commission-period-repairs`, permission
+   `manage:commission-plans:business`): one repair plan version that applies only inside that month, a recompute, the posted
+   corrections and the resolved block, all in one transaction. If the recompute then needs a missing salary, the same row becomes
+   `NO_SALARY` and nothing is posted (the repair version and its audit entry stay). The bell of 55-2d and the list of 55-2e
+   (`GET …/commission-blocked-corrections`) expose these rows. To see the open blocks directly, run this read-only query as `pospay_owner`:
 
     ```sql
     SELECT id, employee_id, source_period, code, first_event_id, target_period, target_statement_id, created_at

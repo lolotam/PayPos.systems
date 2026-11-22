@@ -6,14 +6,22 @@ import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
  * import type, and a relative specifier that leaves the package's src folder, so every specifier is
  * resolved here against the importing file instead of being matched by its spelling.
  *
- * @param {{ src: string, packages?: string[], folders?: string[], typeOnlyPackages?: string[], message: string }} options
+ * @param {{ src: string, packages?: string[], folders?: string[], typeOnlyPackages?: string[], relativeTypeOnly?: boolean, message: string }} options
  *   src: the absolute path of the package's src folder; packages: the package names it may import;
  *   folders: when given, a relative import must also land inside one of these first-level folders of src
  *   (a layer rule for a package that is not a module); typeOnlyPackages: packages in `packages` that may be imported
- *   as types only (`import type`, `export type`, an import type), never as a runtime value; message: the text of the report.
+ *   as types only (`import type`, `export type`, an import type), never as a runtime value; relativeTypeOnly: the same
+ *   for every relative import (a layer that declares interfaces only); message: the text of the report.
  * @returns {import('eslint').Rule.RuleModule} the rule
  */
-export const ownFilesOnly = ({ src, packages = [], folders, typeOnlyPackages = [], message }) => ({
+export const ownFilesOnly = ({
+  src,
+  packages = [],
+  folders,
+  typeOnlyPackages = [],
+  relativeTypeOnly = false,
+  message,
+}) => ({
   meta: {
     type: 'problem',
     schema: [],
@@ -42,6 +50,8 @@ export const ownFilesOnly = ({ src, packages = [], folders, typeOnlyPackages = [
       }
       if (folders !== undefined && !folders.includes(target.split(sep)[0])) {
         context.report({ node: source, messageId: 'outside' });
+      } else if (relativeTypeOnly && !isType) {
+        context.report({ node: source, messageId: 'outside' });
       }
     };
     const checkRequire = (node) => {
@@ -58,6 +68,12 @@ export const ownFilesOnly = ({ src, packages = [], folders, typeOnlyPackages = [
       ExportAllDeclaration: (node) => check(node.source, node.exportKind === 'type'),
       ImportExpression: (node) => check(node.source),
       TSImportType: (node) => check(node.argument?.literal, true),
+      // `import x = require('y')` is its own node, not an ImportDeclaration or a CallExpression.
+      TSImportEqualsDeclaration: (node) => {
+        if (node.moduleReference.type === 'TSExternalModuleReference') {
+          check(node.moduleReference.expression, node.importKind === 'type');
+        }
+      },
       CallExpression: checkRequire,
     };
   },

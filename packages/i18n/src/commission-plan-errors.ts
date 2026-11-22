@@ -5,6 +5,7 @@ export const commissionPlanErrorsAr = {
   COMMISSION_EFFECTIVE_FROM_PAST: 'تاريخ البداية لازم يكون النهارده أو بعده.',
   COMMISSION_PERIOD_BEFORE_BUSINESS:
     'الشهر ده قبل ما النشاط يبدأ على PosPay، اختار شهر بعد بداية النشاط.',
+  COMMISSION_REPAIR_NOT_ALLOWED: 'مفيش تصحيح موقوف بسبب عدم وجود خطة للموظفة دي في الشهر ده.',
   COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE:
     'تعذّر تحميل قائمة الموظفين بسبب بيانات محفوظة تحتاج إصلاحًا. تواصل مع الدعم.',
   EMPLOYEE_NOT_FOUND: 'الموظفة غير موجودة في النشاط ده.',
@@ -18,6 +19,8 @@ export const commissionPlanErrorsEn = {
   COMMISSION_EFFECTIVE_FROM_PAST: 'The start date must be today or later.',
   COMMISSION_PERIOD_BEFORE_BUSINESS:
     'This month is before the business started on PosPay; choose a later month.',
+  COMMISSION_REPAIR_NOT_ALLOWED:
+    'There is no plan-missing blocked correction for this employee and month.',
   COMMISSION_PLAN_EMPLOYEE_CURSOR_UNAVAILABLE:
     'The employee list cannot be loaded because stored data needs repair. Contact support.',
   EMPLOYEE_NOT_FOUND: 'The employee was not found in this business.',
