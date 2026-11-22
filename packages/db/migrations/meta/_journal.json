@@ -1667,6 +1667,20 @@
       "when": 1795307571274,
       "tag": "0239_2026-11-22_commissions-read-permission",
       "breakpoints": true
+    },
+    {
+      "idx": 240,
+      "version": "7",
+      "when": 1795355926891,
+      "tag": "0240_2026-11-22_ratings-read-permission",
+      "breakpoints": true
+    },
+    {
+      "idx": 241,
+      "version": "7",
+      "when": 1795355944310,
+      "tag": "0241_2026-11-22_low-rating-notices",
+      "breakpoints": true
     }
   ]
 }

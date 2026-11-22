@@ -5,6 +5,7 @@ import * as db from '../index.ts';
 import * as operator from '../operator/staging-staff.ts';
 
 const PUBLIC_EXPORTS = [
+  'ALERT_KINDS_LIST',
   'EmployeeNumberExhaustedError',
   'FEATURE_FLAGS',
   'IdempotencyKeyBusyError',

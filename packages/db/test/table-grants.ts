@@ -117,6 +117,8 @@ export const ALLOWED_TABLE_GRANTS: Record<string, string[]> = {
     'line_performers:DELETE',
     'line_performers:INSERT',
     'line_performers:SELECT',
+    'low_rating_notices:INSERT',
+    'low_rating_notices:SELECT',
     'memberships:DELETE',
     'memberships:INSERT',
     'memberships:SELECT',

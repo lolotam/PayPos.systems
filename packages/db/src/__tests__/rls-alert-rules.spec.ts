@@ -124,8 +124,24 @@ it('the business rule cannot be deleted; a branch override can', async () => {
   ).toHaveLength(1);
 });
 
+it('a LOW_RATING rule and its branch override are stored (61-1d widened alert_rules_kind)', async () => {
+  const businessRule = ids.newId();
+  const branchRule = ids.newId();
+  await asA(insert(A.company, A.business, null, 'LOW_RATING', businessRule));
+  await asA(insert(A.company, A.business, A.branch, 'LOW_RATING', branchRule));
+  const rows = await asA(
+    sql`SELECT id,kind,branch_id FROM alert_rules WHERE kind='LOW_RATING' ORDER BY branch_id NULLS FIRST`,
+  );
+  expect(rows).toEqual([
+    { id: businessRule, kind: 'LOW_RATING', branch_id: null },
+    { id: branchRule, kind: 'LOW_RATING', branch_id: A.branch },
+  ]);
+  await rejected(asA(insert(A.company, A.business, null, 'LOW_RATING')), '23505');
+  await asA(sql`DELETE FROM alert_rules WHERE id=${branchRule}`);
+});
+
 it('checks refuse an unknown kind or role, a non-app channel and a document lead', async () => {
-  await rejected(asA(insert(A.company, A.business, null, 'LOW_RATING')), '23514', 'alert_rules_kind');
+  await rejected(asA(insert(A.company, A.business, null, 'NOT_A_KIND')), '23514', 'alert_rules_kind');
   await rejected(
     asA(insert(A.company, A.business, null, 'LATE_SERVICE_SESSION', ids.newId(), { roles: "ARRAY['cashier']::text[]" })),
     '23514',
