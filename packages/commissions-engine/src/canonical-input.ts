@@ -3,7 +3,7 @@ import { moneyToString } from '@pospay/domain';
 import { microsToIso, ruleJson, sortedBy } from './canonical-format.ts';
 import { overrideJson, planVersionJson } from './canonical-plan.ts';
 import type { ServiceCommissionOverride } from './commission-types.ts';
-import { assembleCommissionPeriodInput } from './period-input-assembly.ts';
+import { assembleCommissionPeriodInput, assertCommissionPeriod } from './period-input-assembly.ts';
 import type {
   IncomingCommissionCarry,
   ProjectedCommissionLine,
@@ -28,6 +28,11 @@ export interface RevisedTip extends ProjectedCommissionTip {
   readonly revision: bigint;
 }
 
+/** سجل الراتب مع `revision` الإدخال: الراتب بيتعرّف بالموظفة وتاريخ السريان ونسخة الإدخال (D-10). */
+export interface RevisedSalary extends CommissionSalary {
+  readonly revision: bigint;
+}
+
 /** تصحيح موقوف مفتوح كشفه المحتجز هو كشف الشهر ده (FR-046). */
 export interface OpenBlockedCorrection {
   readonly employeeId: string;
@@ -40,7 +45,7 @@ export interface CanonicalInputRows {
   readonly lines: readonly RevisedLine[];
   readonly sales: readonly RevisedSale[];
   readonly tips: readonly RevisedTip[];
-  readonly salaries: readonly CommissionSalary[];
+  readonly salaries: readonly RevisedSalary[];
   readonly versions: readonly CommissionPlanVersion[];
   readonly overrides: readonly ServiceCommissionOverride[];
   readonly corrections: readonly ReceivedCommissionCorrection[];
@@ -59,23 +64,82 @@ function numberKey(value: bigint): string {
 }
 
 /**
- * كل موظفة ظهرت في أي قائمة، بلا فلترة بالنشاط: كتابة خطة أو تجاوز أو راتب لازم تحرّك البصمة.
+ * يجمّع قائمة بالموظفة مرة واحدة؛ الصف اللي مالوش موظفة (بيع باقة مستورد) بيتسيب.
+ *
+ * @param items صفوف القائمة
+ * @param employeeOf معرّف الموظفة المرتبط بالصف أو null
+ * @returns صفوف كل موظفة بترتيبها الأصلي
+ */
+function groupBy<T>(items: readonly T[], employeeOf: (item: T) => string | null): Map<string, T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const item of items) {
+    const employeeId = employeeOf(item);
+    if (employeeId === null) continue;
+    const bucket = grouped.get(employeeId);
+    if (bucket === undefined) grouped.set(employeeId, [item]);
+    else bucket.push(item);
+  }
+  return grouped;
+}
+
+/** كل قائمة مجمّعة بالموظفة مرة واحدة، فبناء كل موظفة بيمر على صفوفها هي بس. */
+type GroupedRows = {
+  readonly [K in keyof CanonicalInputRows]: Map<string, CanonicalInputRows[K][number][]>;
+};
+
+/**
+ * يجمّع كل قوائم الشهر بالموظفة مرة واحدة بدل ما كل موظفة تمسح القوائم كلها.
  *
  * @param rows صفوف النشاط في الشهر
+ * @returns القوائم مجمّعة بالموظفة
+ */
+function groupRows(rows: CanonicalInputRows): GroupedRows {
+  return {
+    lines: groupBy(rows.lines, (line) => line.employeeId),
+    sales: groupBy(rows.sales, (sale) => sale.sellerEmployeeId),
+    tips: groupBy(rows.tips, (tip) => tip.employeeId),
+    salaries: groupBy(rows.salaries, (salary) => salary.employeeId),
+    versions: groupBy(rows.versions, (version) => version.employeeId),
+    overrides: groupBy(rows.overrides, (override) => override.employeeId),
+    corrections: groupBy(rows.corrections, (correction) => correction.employeeId),
+    blocked: groupBy(rows.blocked, (block) => block.employeeId),
+    carries: groupBy(rows.carries, (carry) => carry.employeeId),
+  };
+}
+
+/**
+ * كل موظفة ظهرت في أي قائمة، بلا فلترة بالنشاط: كتابة خطة أو تجاوز أو راتب لازم تحرّك البصمة.
+ *
+ * @param grouped القوائم مجمّعة بالموظفة
  * @returns معرّفات الموظفات مرتبة
  */
-function employeeIdsOf(rows: CanonicalInputRows): string[] {
+function employeeIdsOf(grouped: GroupedRows): string[] {
   const ids = new Set<string>();
-  for (const line of rows.lines) ids.add(line.employeeId);
-  for (const sale of rows.sales) if (sale.sellerEmployeeId !== null) ids.add(sale.sellerEmployeeId);
-  for (const tip of rows.tips) ids.add(tip.employeeId);
-  for (const salary of rows.salaries) ids.add(salary.employeeId);
-  for (const version of rows.versions) ids.add(version.employeeId);
-  for (const override of rows.overrides) ids.add(override.employeeId);
-  for (const correction of rows.corrections) ids.add(correction.employeeId);
-  for (const block of rows.blocked) ids.add(block.employeeId);
-  for (const carry of rows.carries) ids.add(carry.employeeId);
+  for (const byEmployee of Object.values(grouped)) {
+    for (const employeeId of byEmployee.keys()) ids.add(employeeId);
+  }
   return [...ids].sort();
+}
+
+/**
+ * قوائم موظفة واحدة من التجميع.
+ *
+ * @param grouped القوائم مجمّعة بالموظفة
+ * @param employeeId الموظفة
+ * @returns صفوفها هي بس من كل قائمة
+ */
+function rowsOfEmployee(grouped: GroupedRows, employeeId: string): CanonicalInputRows {
+  return {
+    lines: grouped.lines.get(employeeId) ?? [],
+    sales: grouped.sales.get(employeeId) ?? [],
+    tips: grouped.tips.get(employeeId) ?? [],
+    salaries: grouped.salaries.get(employeeId) ?? [],
+    versions: grouped.versions.get(employeeId) ?? [],
+    overrides: grouped.overrides.get(employeeId) ?? [],
+    corrections: grouped.corrections.get(employeeId) ?? [],
+    blocked: grouped.blocked.get(employeeId) ?? [],
+    carries: grouped.carries.get(employeeId) ?? [],
+  };
 }
 
 /**
@@ -168,7 +232,7 @@ function carryJson(carry: IncomingCommissionCarry): object {
  *
  * @param period الشهر بصيغة YYYY-MM
  * @param employeeId الموظفة
- * @param rows صفوف النشاط في الشهر من غير تصفية
+ * @param rows صفوف الموظفة هي بس من كل قائمة
  * @returns إدخال الموظفة أو null
  */
 function employeeEntry(
@@ -178,7 +242,7 @@ function employeeEntry(
 ): object | null {
   const assembled = assembleCommissionPeriodInput({ employeeId, period, ...rows });
   const { input } = assembled;
-  const blocked = rows.blocked.filter((block) => block.employeeId === employeeId);
+  const blocked = rows.blocked;
   const salary = assembled.salary;
   const entry = {
     employee_id: employeeId,
@@ -188,7 +252,11 @@ function employeeEntry(
     salary:
       salary === null
         ? null
-        : { effective_from: salary.effectiveFrom, amount: moneyToString(salary.amount) },
+        : {
+            effective_from: salary.effectiveFrom,
+            amount: moneyToString(salary.amount),
+            revision: salary.revision.toString(),
+          },
     versions: sortedBy(input.versions, (version) => [numberKey(version.version)]).map(
       planVersionJson,
     ),
@@ -218,7 +286,11 @@ function employeeEntry(
  * والتصحيحات المستلمة والتصحيحات الموقوفة المفتوحة (CS-Q38) والمرحّلات الداخلة (D-22).
  *
  * العقد الكامل (ثابت، وأي تغيير فيه يغيّر كل البصمات المخزنة):
- * - الاختيار بنفس المجمّع المشترك `assembleCommissionPeriodInput`، فمفيش مسار تاني للاختيار.
+ * - الشهر بيتتحقق منه الأول قبل أي شغل: شهر غلط بيترفض حتى لو كل القوائم فاضية.
+ * - الاختيار بنفس المجمّع المشترك `assembleCommissionPeriodInput`، فمفيش مسار تاني للاختيار؛ نسخة
+ *   إصلاح (`repair_period`) شهر تاني ما بتدخلش، لأن التسعير بيتجاهلها.
+ * - الراتب المختار بيدخل بتاريخ سريانه ومبلغه و`revision` إدخاله (D-10: الراتب بيتعرّف بالموظفة
+ *   وتاريخ السريان ونسخة الإدخال، قرار فني على عقد 51-1).
  * - المبالغ نصوص KWD بثلاث منازل، والأعداد الصحيحة (revision وgeneration وshare_bps وversion)
  *   نصوص عشرية، والأوقات ISO بست منازل كسرية، والتواريخ YYYY-MM-DD، والغائب `null`.
  * - كل قائمة مرتبة بهويتها: البند بـ line_id، البيع بـ sale_id، البقشيش بـ (session_id, method)،
@@ -236,9 +308,11 @@ export function buildCanonicalInput(
   period: string,
   rows: CanonicalInputRows,
 ): { readonly period: string; readonly employees: readonly object[] } {
+  assertCommissionPeriod(period);
+  const grouped = groupRows(rows);
   const employees: object[] = [];
-  for (const employeeId of employeeIdsOf(rows)) {
-    const entry = employeeEntry(period, employeeId, rows);
+  for (const employeeId of employeeIdsOf(grouped)) {
+    const entry = employeeEntry(period, employeeId, rowsOfEmployee(grouped, employeeId));
     if (entry !== null) employees.push(entry);
   }
   return { period, employees };

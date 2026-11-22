@@ -5,6 +5,7 @@ export type {
   CanonicalInputRows,
   OpenBlockedCorrection,
   RevisedLine,
+  RevisedSalary,
   RevisedSale,
   RevisedTip,
 } from './canonical-input.ts';

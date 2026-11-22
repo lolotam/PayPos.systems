@@ -157,7 +157,7 @@ function octoberSalesAndTips(): Pick<StatementMonthRows, 'sales' | 'tips'> {
  */
 function octoberPlanning(): Pick<StatementMonthRows, 'salaries' | 'versions' | 'overrides'> {
   return {
-    salaries: [{ employeeId: SARA, effectiveFrom: '2026-10-01', amount: 400_000n }],
+    salaries: [{ employeeId: SARA, effectiveFrom: '2026-10-01', amount: 400_000n, revision: 3n }],
     versions: [
       {
         employeeId: SARA,

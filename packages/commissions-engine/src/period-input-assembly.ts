@@ -7,11 +7,26 @@ import type {
   ProjectedPackageSale,
   ReceivedCommissionCorrection,
 } from './period-input-types.ts';
-import type { CommissionPeriodInput, CommissionPlanVersion, CommissionSalary } from './plan-types.ts';
+import type {
+  CommissionPeriodInput,
+  CommissionPlanVersion,
+  CommissionSalary,
+} from './plan-types.ts';
 import { selectSalaryEntryOnLastDay } from './salary-thresholds.ts';
 
 const PERIOD_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
+
+/**
+ * يرفض أي شهر مش بصيغة YYYY-MM بشهر صالح، قبل أي شغل على الصفوف.
+ *
+ * @param period الشهر المطلوب
+ */
+export function assertCommissionPeriod(period: string): void {
+  if (!PERIOD_PATTERN.test(period)) {
+    throw new RangeError('Commission period must use YYYY-MM with a valid month');
+  }
+}
 
 function getPeriodLastDay(period: string): string {
   const year = Number(period.slice(0, 4));
@@ -58,7 +73,10 @@ function appliesToPeriod(
   period: string,
 ): boolean {
   if (version.employeeId !== employeeId) return false;
-  return version.effectiveFrom <= periodLastDay || version.repairPeriod === period;
+  // نسخة الإصلاح تخص شهرها بس، فنسخة إصلاح شهر تاني ما بتدخلش حتى لو تاريخ سريانها قبل آخر يوم.
+  return version.repairPeriod === null
+    ? version.effectiveFrom <= periodLastDay
+    : version.repairPeriod === period;
 }
 
 /**
@@ -80,9 +98,7 @@ export function assembleCommissionPeriodInput<
 >(
   projection: CommissionPeriodProjection<L, S, Sal, T, C, Cr>,
 ): AssembledCommissionPeriod<L, S, Sal, T, C, Cr> {
-  if (!PERIOD_PATTERN.test(projection.period)) {
-    throw new RangeError('Commission period must use YYYY-MM with a valid month');
-  }
+  assertCommissionPeriod(projection.period);
   const periodLastDay = getPeriodLastDay(projection.period);
   const salary = selectSalaryEntryOnLastDay(
     projection.employeeId,
