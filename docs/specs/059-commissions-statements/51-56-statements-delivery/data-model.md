@@ -43,7 +43,12 @@ reason is never logged. **Isolation test:** CM-33c.
   that same statement (a guard, tested with a same-company employee absent from the statement). The «same transaction» proof is its own
   column on the statement, set by the APPROVED → PAID transition and compared by the insert guard with
   `pg_current_xact_id()`, the mechanism the freeze uses with `approval_xact_id`; a check of `status` alone would accept
-  a late insert. Mark-paid verifies that the set of rows is complete before it commits. `paid_amount` = `exact_payable` rounded half up to 0.005 KWD
+  a late insert. **Completeness is enforced by the database, not only by the use case:** membership of each row in the frozen set does
+  not prove the set is whole. The transition to `PAID` is refused at commit unless the employees of the payment rows
+  are exactly the employees of the statement's frozen `EMPLOYEE` lines. Because the status is updated before the rows
+  are inserted (the insert guard needs the `PAID` proof), the check is deferred to commit (a deferred constraint
+  trigger on the statement, in the same migration as the table). Test: mark-paid with one row left out fails and the
+  statement is still `APPROVED` with no payment row. `paid_amount` = `exact_payable` rounded half up to 0.005 KWD
   when the method is cash, else equal (CS-Q12, D-19). The statement's paid total is the sum of `paid_amount`.
   **Isolation test:** named by the part and added to spec 059's table of named isolation tests in the same PR.
 

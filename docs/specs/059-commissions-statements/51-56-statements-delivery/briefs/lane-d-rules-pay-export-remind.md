@@ -77,8 +77,9 @@ Remove the `PAID` refusal in the worker's `read-commission-statement-export`; re
 54-1's record; pass the paid-cash column to the workbook only for a cash payment, and only for an employee whose
 whole month the export shows: a branch-scoped export must never carry a whole-month paid amount for an employee it
 shows in part (CS-Q23). Take the partial case from plan-56-1b.md; if it is not defined there, write `TODO(spec)`, omit
-her paid amount and report. Tests: an export for every payment method; APPROVED → PAID while the job waits; the
-partial-month case. Then the export button on the statement screen. Size 80–150.
+her paid amount and report. Tests: an export for every payment method; APPROVED → PAID while the job waits; a
+branch-scoped export in both cases — her paid amount appears when her whole month is visible to the reader, and is
+withheld when part of her month is outside the reader's scope. Then the export button on the statement screen. Size 80–150.
 
 ## Part 13 — 56b-1: reminders (Heavy: migration, security) — after 52-1 is merged and ADR-0061 is accepted
 
@@ -109,5 +110,10 @@ The repair route, the carries table, generate, review, the pending count, approv
 - **54-1, the «same transaction» proof:** the payment rows are accepted only in the transaction that sets the statement
   `PAID`. Give the statement its own proof column, set by the APPROVED → PAID transition trigger, and have the insert
   guard compare it with `pg_current_xact_id()`, as the freeze guard does with `approval_xact_id` in migration `0183`.
-  Checking `status = 'PAID'` alone would accept a late insert. Mark-paid verifies the set of rows is complete (one per
-  frozen `EMPLOYEE` line) before it commits.
+  Checking `status = 'PAID'` alone would accept a late insert. 
+- **54-1, completeness:** membership of each row does not prove the set is whole. The transition to `PAID` must be
+  refused at commit unless the employees of the payment rows are exactly the employees of the statement's frozen
+  `EMPLOYEE` lines. The status is updated before the rows are inserted (the insert guard needs the `PAID` proof), so
+  enforce it with a check deferred to commit (a deferred constraint trigger on the statement, in the same migration as
+  the table), not only in the use case. Test: mark-paid with one row left out fails, and the statement is still
+  `APPROVED` with no payment row.

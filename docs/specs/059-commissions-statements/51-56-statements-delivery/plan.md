@@ -122,7 +122,8 @@ CM-30…CM-32, the review parts of CM-33, CM-33b, CM-33c, CM-33d, the FR-029b UI
 the approve code, the refusal of FR-048 at review. **Size:** 350–480. **Depends on:** 51-1 PR 2; #486 merged. Recipients
 of the notice follow CS-Q52 = PP-227: everyone who can approve at the time of the event (the FR-030 predicate shared
 with the guard: the permission and the business-wide scope); the alert rule decides only whether the kind is on and
-its channel. Return is open to a holder of review **or** approve (FR-031).
+its channel. Return is open to a holder of review **or** approve who is a business-wide reader (FR-031, CS-Q26); a
+holder whose branch grants together cover every branch is refused with the uniform 403 (CM-33d, CM-38b).
 
 ### Lane C — count and approve
 
@@ -176,7 +177,9 @@ CM-55d, CM-55e, the export part of CM-23d…CM-23h, on statements seeded APPROVE
 its merge is after 53-2 (manager's ruling M3, _Open decisions_).
 
 **11. 54-1 (Heavy: money, permission, migration).** Research R7. The payment columns, the per-employee payment table
-with RLS, its negative test and a guard that accepts a row only for an employee frozen in that statement, the widened column grant and the replaced `commission_statements_update_guard` (today
+with RLS, its negative test, a guard that accepts a row only for an employee frozen in that statement, and a
+commit-time check that refuses the transition to `PAID` unless the set of payment rows equals the set of frozen
+`EMPLOYEE` lines (test: one row left out, the whole transaction rolls back), the widened column grant and the replaced `commission_statements_update_guard` (today
 APPROVED → PAID may change only `status`), `pay:commissions:business` (owner, general_manager, accountant; grantable),
 `use-cases/mark-statement-paid/` + HTTP, rounding as a pure function in the engine with exhaustive unit tests (half up
 to 0.005 KWD), the screen button on 53-3's screen. Error codes `COMMISSION_STATEMENT_NOT_APPROVED`,
@@ -184,8 +187,10 @@ to 0.005 KWD), the screen button on 53-3's screen. Error codes `COMMISSION_STATE
 **Size:** 250–350 (the table adds about 80). **Depends on:** 53-2; the button on 53-3.
 
 **12b. #716 (Medium).** Remove the `PAID` refusal in the worker's `read-commission-statement-export`, read the paid
-amount from 54-1's record, pass the paid-cash column to the workbook only for cash. The paid amount is shown only for an employee whose whole month the export shows (research R7). **Tests:** every
-payment method; APPROVED → PAID while the job waits; a branch-scoped export never carries a whole-month paid amount. **Size:** 80–150. **Depends on:** 54-1, 56-1c API.
+amount from 54-1's record, pass the paid-cash column to the workbook only for cash. The paid amount is shown only for an employee whose whole month the export shows (research R7); the partial case is
+taken from plan-56-1b.md, else `TODO(spec)` and omitted. **Tests:** every payment method; APPROVED → PAID while the
+job waits; a branch-scoped export in both cases — her paid amount appears when her whole month is visible to the
+reader, and is withheld when part of her month is outside the reader's scope. **Size:** 80–150. **Depends on:** 54-1, 56-1c API.
 
 **13. 56b-1 (Heavy: migration, security).** First ADR-0061 (research R8), docs-only, to Waleed. Then:
 `commission_statement_reminders` + RLS (CM-R09), `operational_recovery_flags` with CS-Q31's grants and the ADR's

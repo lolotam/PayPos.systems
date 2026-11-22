@@ -227,7 +227,7 @@ ones missing at the base are named per part in plan.md.
 Spec 059 §6 _Permissions_, unchanged: `manage:commission-plans:business` (55-2f, as 55-2e's guard under CS-Q48),
 `read:commissions:business` (GET statement, export), `review:commissions:business` (generate, review;
 registered by 51-1 PR 2), `approve:commissions:business` (registered by 52-1, guarded in 53-2); return is open to a
-holder of either (FR-031),
+holder of either who is a business-wide reader (FR-031, CS-Q26; a union of branch grants is refused with 403),
 `pay:commissions:business` (54-1). Review and approve are owner-grantable only and usable only by a business-wide
 reader (CS-Q26, FR-029, FR-036). All behind the `commissions` feature; all refused to devices.
 

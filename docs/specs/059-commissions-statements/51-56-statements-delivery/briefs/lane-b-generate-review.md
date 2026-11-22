@@ -66,7 +66,7 @@ nothing); the statement-view part of CM-23d…CM-23h; the statement-view clauses
 ## Part 6 — 52-1 (Heavy: permission, migration) — after PR 2 and issue #486 are merged
 
 **Scope.** `commission_statement_returns` with RLS and CM-33c; `use-cases/review-statement/` (stores both
-fingerprints, FR-029) and `use-cases/return-statement/` (open to a holder of review **or** approve, FR-031) calling the merged pure planner
+fingerprints, FR-029) and `use-cases/return-statement/` (open to a holder of review **or** approve **who is a business-wide reader**, FR-031 with CS-Q26: a holder whose branch grants together cover every branch is refused with the uniform 403, as CM-33d and CM-38b require; reuse the guards' predicate) calling the merged pure planner
 `planCommissionStatementReturn` (`domain/statement-return-plan.ts`) — reason validation, authorization, locking,
 persistence, audit and outbox are yours; the refusal of FR-048 at review; `approve:commissions:business` registered
 exactly like the review code but owner only; the FR-029b warning on the grant screen
