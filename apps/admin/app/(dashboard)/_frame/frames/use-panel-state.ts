@@ -23,7 +23,10 @@ export interface PanelState {
  * وهي طافية تُفتح لمسار واحد فقط، فأي انتقال في نفس التبويب يغيّر المسار فتُغلق من تلقاء نفسها،
  * أما الضغطة بمفتاح تعديل فلا تغيّر المسار فتبقى مفتوحة. المساحة المعاينة تُنسى عند تغيّر المسار أيضًا.
  */
-export function usePanelState(pathname: string, currentWorkspaceId: string | undefined): PanelState {
+export function usePanelState(
+  pathname: string,
+  currentWorkspaceId: string | undefined,
+): PanelState {
   const floating = useMediaQuery(FLOATING_QUERY);
   const [hidden, setHidden] = useState(false);
   const [floatingPath, setFloatingPath] = useState<string | null>(null);

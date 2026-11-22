@@ -13,13 +13,34 @@ import {
 import { StyleCFrame } from './style-c-frame';
 
 vi.mock('next/navigation', async () => (await import('./frame-test-support')).navigationMock);
-vi.mock('@/shared/locale/locale-context', async () => (await import('./frame-test-support')).localeMock);
-vi.mock('../menu/use-visible-page-ids', async () => (await import('./frame-test-support')).visibleMock);
-vi.mock('@/workspace/model/workspace-provider', async () => (await import('./frame-test-support')).workspaceMock);
-vi.mock('@/session/api/use-session', async () => (await import('./frame-test-support')).sessionMock);
-vi.mock('@/session/api/use-sign-out', async () => (await import('./frame-test-support')).signOutMock);
-vi.mock('@/notifications/ui/notification-bell', async () => (await import('./frame-test-support')).bellMock);
-vi.mock('@/shared/locale/locale-switch', async () => (await import('./frame-test-support')).localeSwitchMock);
+vi.mock(
+  '@/shared/locale/locale-context',
+  async () => (await import('./frame-test-support')).localeMock,
+);
+vi.mock(
+  '../menu/use-visible-page-ids',
+  async () => (await import('./frame-test-support')).visibleMock,
+);
+vi.mock(
+  '@/workspace/model/workspace-provider',
+  async () => (await import('./frame-test-support')).workspaceMock,
+);
+vi.mock(
+  '@/session/api/use-session',
+  async () => (await import('./frame-test-support')).sessionMock,
+);
+vi.mock(
+  '@/session/api/use-sign-out',
+  async () => (await import('./frame-test-support')).signOutMock,
+);
+vi.mock(
+  '@/notifications/ui/notification-bell',
+  async () => (await import('./frame-test-support')).bellMock,
+);
+vi.mock(
+  '@/shared/locale/locale-switch',
+  async () => (await import('./frame-test-support')).localeSwitchMock,
+);
 
 const label = (key: Parameters<typeof t>[1]) => t('en', key);
 const railButton = (name: RegExp) => screen.getByRole('button', { name });
@@ -48,17 +69,35 @@ describe.each(['ltr', 'rtl'] as const)('style C in %s', (dir) => {
     expect(team.getAttribute('aria-label')).toContain(label('adminNav.currentStyleBadge'));
     expect(team.hasAttribute('data-current')).toBe(true);
     const panel = screen.getByRole('complementary', { name: label('adminNav.localNavigation') });
-    expect(within(panel).getByRole('link', { name: /Import employees/ }).getAttribute('aria-current')).toBe('page');
-    expect(within(panel).getByRole('link', { name: /^Employees/ }).getAttribute('aria-current')).toBeNull();
-    expect(screen.getAllByRole('navigation').some((nav) => nav.getAttribute('dir') === dir)).toBe(true);
+    expect(
+      within(panel)
+        .getByRole('link', { name: /Import employees/ })
+        .getAttribute('aria-current'),
+    ).toBe('page');
+    expect(
+      within(panel)
+        .getByRole('link', { name: /^Employees/ })
+        .getAttribute('aria-current'),
+    ).toBeNull();
+    expect(screen.getAllByRole('navigation').some((nav) => nav.getAttribute('dir') === dir)).toBe(
+      true,
+    );
   });
 
   it('keeps Staff app columns out of Employees', () => {
     frameState.pathname = '/staff-app-columns';
     renderFrame(<StyleCFrame>Page body</StyleCFrame>, dir);
     const panel = screen.getByRole('complementary', { name: label('adminNav.localNavigation') });
-    expect(within(panel).getByRole('link', { name: /Staff app columns/ }).getAttribute('aria-current')).toBe('page');
-    expect(railButton(new RegExp(`^${label('adminNav.workspaceCBusiness')}`)).hasAttribute('data-current')).toBe(true);
+    expect(
+      within(panel)
+        .getByRole('link', { name: /Staff app columns/ })
+        .getAttribute('aria-current'),
+    ).toBe('page');
+    expect(
+      railButton(new RegExp(`^${label('adminNav.workspaceCBusiness')}`)).hasAttribute(
+        'data-current',
+      ),
+    ).toBe(true);
   });
 });
 
@@ -66,9 +105,13 @@ describe('style C visibility', () => {
   it('omits a workspace and a panel section whose pages are all hidden', () => {
     frameState.visible = ['dashboard', 'record-visit'];
     renderFrame(<StyleCFrame>Page body</StyleCFrame>);
-    expect(screen.queryByRole('button', { name: new RegExp(`^${label('adminNav.workspaceCTeam')}`) })).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: new RegExp(`^${label('adminNav.workspaceCTeam')}`) }),
+    ).toBeNull();
     expect(screen.queryByText(label('adminNav.submenuPay'))).toBeNull();
-    expect(screen.getByRole('button', { name: new RegExp(`^${label('adminNav.workspaceCFrontDesk')}`) })).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: new RegExp(`^${label('adminNav.workspaceCFrontDesk')}`) }),
+    ).toBeTruthy();
   });
 
   it('finds a restaurant-only page by name with its Soon mark, and loses it for a salon', () => {
@@ -91,7 +134,8 @@ describe('style C visibility', () => {
 });
 
 describe('style C on a tablet', () => {
-  const openPanel = () => fireEvent.click(railButton(new RegExp(`^${label('adminNav.workspaceCTeam')}`)));
+  const openPanel = () =>
+    fireEvent.click(railButton(new RegExp(`^${label('adminNav.workspaceCTeam')}`)));
   const panel = () => screen.queryByRole('dialog', { name: label('adminNav.localNavigation') });
 
   beforeEach(() => stubViewport(820));
@@ -109,7 +153,11 @@ describe('style C on a tablet', () => {
     openPanel();
     expect(panel()).toBeTruthy();
     frameState.pathname = '/staff/import';
-    rerenderFrame(<StyleCFrame><Destination /></StyleCFrame>);
+    rerenderFrame(
+      <StyleCFrame>
+        <Destination />
+      </StyleCFrame>,
+    );
     expect(panel()).toBeNull();
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Destination page' }));
   });
@@ -140,7 +188,11 @@ describe('style C on a phone', () => {
     renderFrame(<StyleCFrame>Page body</StyleCFrame>);
     const tabs = screen.getByRole('navigation', { name: label('adminNav.workspacesLabel') });
     expect(within(tabs).getAllByRole('link')).toHaveLength(5);
-    expect(within(tabs).getByRole('link', { name: label('adminNav.workspaceCStock') }).getAttribute('aria-current')).toBe('page');
+    expect(
+      within(tabs)
+        .getByRole('link', { name: label('adminNav.workspaceCStock') })
+        .getAttribute('aria-current'),
+    ).toBe('page');
   });
 
   it('keeps the page finder reachable', () => {
@@ -153,9 +205,15 @@ describe('style C on a phone', () => {
 it('toggles the desktop panel from the top bar button', () => {
   renderFrame(<StyleCFrame>Page body</StyleCFrame>);
   const toggle = screen.getByRole('button', { name: label('adminNav.togglePanel') });
-  expect(screen.getByRole('complementary', { name: label('adminNav.localNavigation') })).toBeTruthy();
+  expect(
+    screen.getByRole('complementary', { name: label('adminNav.localNavigation') }),
+  ).toBeTruthy();
   act(() => toggle.click());
-  expect(screen.queryByRole('complementary', { name: label('adminNav.localNavigation') })).toBeNull();
+  expect(
+    screen.queryByRole('complementary', { name: label('adminNav.localNavigation') }),
+  ).toBeNull();
   act(() => toggle.click());
-  expect(screen.getByRole('complementary', { name: label('adminNav.localNavigation') })).toBeTruthy();
+  expect(
+    screen.getByRole('complementary', { name: label('adminNav.localNavigation') }),
+  ).toBeTruthy();
 });

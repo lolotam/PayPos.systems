@@ -14,12 +14,27 @@ const signOut = vi.hoisted(() => ({
 }));
 
 vi.mock('next/navigation', async () => (await import('./frame-test-support')).navigationMock);
-vi.mock('@/shared/locale/locale-context', async () => (await import('./frame-test-support')).localeMock);
-vi.mock('@/workspace/model/workspace-provider', async () => (await import('./frame-test-support')).workspaceMock);
-vi.mock('@/session/api/use-session', async () => (await import('./frame-test-support')).sessionMock);
+vi.mock(
+  '@/shared/locale/locale-context',
+  async () => (await import('./frame-test-support')).localeMock,
+);
+vi.mock(
+  '@/workspace/model/workspace-provider',
+  async () => (await import('./frame-test-support')).workspaceMock,
+);
+vi.mock(
+  '@/session/api/use-session',
+  async () => (await import('./frame-test-support')).sessionMock,
+);
 vi.mock('@/session/api/use-sign-out', () => ({ useSignOut: () => signOut }));
-vi.mock('@/notifications/ui/notification-bell', async () => (await import('./frame-test-support')).bellMock);
-vi.mock('@/shared/locale/locale-switch', async () => (await import('./frame-test-support')).localeSwitchMock);
+vi.mock(
+  '@/notifications/ui/notification-bell',
+  async () => (await import('./frame-test-support')).bellMock,
+);
+vi.mock(
+  '@/shared/locale/locale-switch',
+  async () => (await import('./frame-test-support')).localeSwitchMock,
+);
 
 const label = (key: Parameters<typeof t>[1]) => t('en', key);
 
@@ -48,11 +63,15 @@ describe('account menu', () => {
     const menu = openMenu();
     expect(within(menu).getByText('Sara Ali')).toBeTruthy();
     expect(within(menu).getByText('sara@example.test')).toBeTruthy();
-    expect(within(menu).getByRole('menuitem', { name: label('admin.enrolLink') }).getAttribute('href')).toBe(
-      '/security/two-factor',
-    );
     expect(
-      within(menu).getByRole('menuitem', { name: label('adminNav.appearanceTitle') }).getAttribute('href'),
+      within(menu)
+        .getByRole('menuitem', { name: label('admin.enrolLink') })
+        .getAttribute('href'),
+    ).toBe('/security/two-factor');
+    expect(
+      within(menu)
+        .getByRole('menuitem', { name: label('adminNav.appearanceTitle') })
+        .getAttribute('href'),
     ).toBe('/appearance');
     expect(within(menu).getAllByRole('menuitem')).toHaveLength(9);
   });
@@ -65,7 +84,9 @@ describe('account menu', () => {
       </>,
     );
     let menu = openMenu();
-    const styleItems = within(menu).getAllByRole('menuitem', { name: new RegExp(label('adminNav.accountMenuStyle')) });
+    const styleItems = within(menu).getAllByRole('menuitem', {
+      name: new RegExp(label('adminNav.accountMenuStyle')),
+    });
     expect(styleItems.map((item) => item.textContent)).toEqual([
       `${label('adminNav.accountMenuStyle')}: ${label('adminNav.styleALabel')}`,
       `${label('adminNav.accountMenuStyle')}: ${label('adminNav.styleBLabel')}`,
@@ -75,7 +96,9 @@ describe('account menu', () => {
     expect(screen.getByText('Style in use: A')).toBeTruthy();
     menu = openMenu();
     expect(
-      within(menu).getByRole('menuitem', { name: new RegExp(`${label('adminNav.styleALabel')} — `) }),
+      within(menu).getByRole('menuitem', {
+        name: new RegExp(`${label('adminNav.styleALabel')} — `),
+      }),
     ).toBeTruthy();
   });
 

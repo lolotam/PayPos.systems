@@ -12,13 +12,34 @@ import {
 import { StyleBFrame } from './style-b-frame';
 
 vi.mock('next/navigation', async () => (await import('./frame-test-support')).navigationMock);
-vi.mock('@/shared/locale/locale-context', async () => (await import('./frame-test-support')).localeMock);
-vi.mock('../menu/use-visible-page-ids', async () => (await import('./frame-test-support')).visibleMock);
-vi.mock('@/workspace/model/workspace-provider', async () => (await import('./frame-test-support')).workspaceMock);
-vi.mock('@/session/api/use-session', async () => (await import('./frame-test-support')).sessionMock);
-vi.mock('@/session/api/use-sign-out', async () => (await import('./frame-test-support')).signOutMock);
-vi.mock('@/notifications/ui/notification-bell', async () => (await import('./frame-test-support')).bellMock);
-vi.mock('@/shared/locale/locale-switch', async () => (await import('./frame-test-support')).localeSwitchMock);
+vi.mock(
+  '@/shared/locale/locale-context',
+  async () => (await import('./frame-test-support')).localeMock,
+);
+vi.mock(
+  '../menu/use-visible-page-ids',
+  async () => (await import('./frame-test-support')).visibleMock,
+);
+vi.mock(
+  '@/workspace/model/workspace-provider',
+  async () => (await import('./frame-test-support')).workspaceMock,
+);
+vi.mock(
+  '@/session/api/use-session',
+  async () => (await import('./frame-test-support')).sessionMock,
+);
+vi.mock(
+  '@/session/api/use-sign-out',
+  async () => (await import('./frame-test-support')).signOutMock,
+);
+vi.mock(
+  '@/notifications/ui/notification-bell',
+  async () => (await import('./frame-test-support')).bellMock,
+);
+vi.mock(
+  '@/shared/locale/locale-switch',
+  async () => (await import('./frame-test-support')).localeSwitchMock,
+);
 
 const label = (key: Parameters<typeof t>[1]) => t('en', key);
 const localList = () => screen.getByRole('navigation', { name: label('adminNav.localNavigation') });
@@ -34,11 +55,21 @@ describe.each(['ltr', 'rtl'] as const)('style B in %s', (dir) => {
     frameState.pathname = '/staff/import';
     renderFrame(<StyleBFrame>Page body</StyleBFrame>, dir);
     const bar = screen.getByRole('navigation', { name: label('shell.navigation') });
-    const people = within(bar).getByRole('button', { name: new RegExp(label('adminNav.moduleBPeople')) });
+    const people = within(bar).getByRole('button', {
+      name: new RegExp(label('adminNav.moduleBPeople')),
+    });
     expect(people.getAttribute('aria-current')).toBe('page');
     expect(people.querySelector('[data-current-marker]')).toBeTruthy();
-    expect(within(localList()).getByRole('link', { name: /Import employees/ }).getAttribute('aria-current')).toBe('page');
-    expect(within(localList()).getByRole('link', { name: /^Employees/ }).getAttribute('aria-current')).toBeNull();
+    expect(
+      within(localList())
+        .getByRole('link', { name: /Import employees/ })
+        .getAttribute('aria-current'),
+    ).toBe('page');
+    expect(
+      within(localList())
+        .getByRole('link', { name: /^Employees/ })
+        .getAttribute('aria-current'),
+    ).toBeNull();
   });
 
   it('marks the Business module for Staff app columns', () => {
@@ -46,7 +77,9 @@ describe.each(['ltr', 'rtl'] as const)('style B in %s', (dir) => {
     renderFrame(<StyleBFrame>Page body</StyleBFrame>, dir);
     const bar = screen.getByRole('navigation', { name: label('shell.navigation') });
     expect(
-      within(bar).getByRole('button', { name: new RegExp(label('adminNav.moduleBBusiness')) }).getAttribute('aria-current'),
+      within(bar)
+        .getByRole('button', { name: new RegExp(label('adminNav.moduleBBusiness')) })
+        .getAttribute('aria-current'),
     ).toBe('page');
   });
 });
@@ -61,8 +94,12 @@ describe('style B layout', () => {
     expect(list.nextElementSibling).toBe(main);
     expect(list.parentElement?.className).toContain('min-[1024px]:flex-row');
     expect(list.className).toContain('min-[1024px]:w-60');
-    expect(screen.getAllByRole('navigation', { name: label('adminNav.localNavigation') })).toHaveLength(1);
-    expect(screen.getByRole('navigation', { name: label('shell.navigation') }).contains(list)).toBe(false);
+    expect(
+      screen.getAllByRole('navigation', { name: label('adminNav.localNavigation') }),
+    ).toHaveLength(1);
+    expect(screen.getByRole('navigation', { name: label('shell.navigation') }).contains(list)).toBe(
+      false,
+    );
   });
 
   it('keeps the workspace switcher and the account controls in the bar', () => {
@@ -77,13 +114,17 @@ describe('style B layout', () => {
     renderFrame(<StyleBFrame>Page body</StyleBFrame>);
     const list = localList();
     expect(list.parentElement?.className).toContain('flex-col');
-    expect(list.compareDocumentPosition(screen.getByRole('main')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      list.compareDocumentPosition(screen.getByRole('main')) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it('draws no local list on a route outside every module', () => {
     frameState.pathname = '/nowhere';
     renderFrame(<StyleBFrame>Page body</StyleBFrame>);
-    expect(screen.queryByRole('navigation', { name: label('adminNav.localNavigation') })).toBeNull();
+    expect(
+      screen.queryByRole('navigation', { name: label('adminNav.localNavigation') }),
+    ).toBeNull();
   });
 });
 
@@ -117,7 +158,13 @@ describe('style B on a phone', () => {
     renderFrame(<StyleBFrame>Page body</StyleBFrame>);
     fireEvent.click(screen.getByRole('button', { name: label('shell.openNavigation') }));
     const drawer = screen.getByRole('dialog', { name: label('adminNav.drawerTitle') });
-    fireEvent.click(within(drawer).getByRole('button', { name: new RegExp(label('adminNav.moduleBPeople')) }));
-    expect(within(drawer).getByRole('link', { name: /Import employees/ }).getAttribute('href')).toBe('/staff/import');
+    fireEvent.click(
+      within(drawer).getByRole('button', { name: new RegExp(label('adminNav.moduleBPeople')) }),
+    );
+    expect(
+      within(drawer)
+        .getByRole('link', { name: /Import employees/ })
+        .getAttribute('href'),
+    ).toBe('/staff/import');
   });
 });

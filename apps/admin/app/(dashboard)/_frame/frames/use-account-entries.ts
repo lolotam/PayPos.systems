@@ -37,7 +37,11 @@ const THEMES: readonly (readonly [ThemePreference, MessageKey])[] = [
 export function useAccountEntries(): AccountMenuEntry[] {
   const locale = useLocale();
   const { style, setStyle } = useNavStyle();
-  const theme = useSyncExternalStore(subscribeToThemePreference, readThemePreference, () => 'system');
+  const theme = useSyncExternalStore(
+    subscribeToThemePreference,
+    readThemePreference,
+    () => 'system',
+  );
   const signOut = useSignOut();
   const mark = (text: string, current: boolean) =>
     current ? `${text} — ${t(locale, 'adminNav.currentStyleBadge')}` : text;
@@ -46,7 +50,10 @@ export function useAccountEntries(): AccountMenuEntry[] {
     { id: 'appearance', label: t(locale, 'adminNav.appearanceTitle'), href: APPEARANCE_HREF },
     ...NAVIGATION_STYLES.map((option) => ({
       id: `style-${option}`,
-      label: mark(`${t(locale, 'adminNav.accountMenuStyle')}: ${t(locale, STYLE_LABELS[option])}`, option === style),
+      label: mark(
+        `${t(locale, 'adminNav.accountMenuStyle')}: ${t(locale, STYLE_LABELS[option])}`,
+        option === style,
+      ),
       onSelect: () => setStyle(option),
     })),
     ...THEMES.map(([option, key]) => ({

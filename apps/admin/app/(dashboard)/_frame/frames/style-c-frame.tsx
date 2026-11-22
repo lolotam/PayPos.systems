@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  BottomNav,
-  Button,
-  ContextPanel,
-  NavRail,
-  PageFinder,
-} from '@pospay/ui';
+import { BottomNav, Button, ContextPanel, NavRail, PageFinder } from '@pospay/ui';
 import { t } from '@pospay/i18n';
 import { useMemo, type ReactNode } from 'react';
 

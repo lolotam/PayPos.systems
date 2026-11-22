@@ -91,7 +91,8 @@ export const adminNavEn = {
   workspaceCStock: 'Stock',
   workspaceCStockDesc: 'Catalog definitions, inventory stores and production.',
   workspaceCCustomers: 'Customers',
-  workspaceCCustomersDesc: 'Customer profiles, appointments, online channels, marketing and loyalty.',
+  workspaceCCustomersDesc:
+    'Customer profiles, appointments, online channels, marketing and loyalty.',
   workspaceCTeam: 'Team',
   workspaceCTeamDesc: 'Employees, schedules, attendance, leave and pay.',
   workspaceCBusiness: 'Business',

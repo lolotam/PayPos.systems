@@ -6,13 +6,34 @@ import { frameState, renderFrame, resetFrameState, stubViewport } from './frame-
 import { StyleAFrame } from './style-a-frame';
 
 vi.mock('next/navigation', async () => (await import('./frame-test-support')).navigationMock);
-vi.mock('@/shared/locale/locale-context', async () => (await import('./frame-test-support')).localeMock);
-vi.mock('../menu/use-visible-page-ids', async () => (await import('./frame-test-support')).visibleMock);
-vi.mock('@/workspace/model/workspace-provider', async () => (await import('./frame-test-support')).workspaceMock);
-vi.mock('@/session/api/use-session', async () => (await import('./frame-test-support')).sessionMock);
-vi.mock('@/session/api/use-sign-out', async () => (await import('./frame-test-support')).signOutMock);
-vi.mock('@/notifications/ui/notification-bell', async () => (await import('./frame-test-support')).bellMock);
-vi.mock('@/shared/locale/locale-switch', async () => (await import('./frame-test-support')).localeSwitchMock);
+vi.mock(
+  '@/shared/locale/locale-context',
+  async () => (await import('./frame-test-support')).localeMock,
+);
+vi.mock(
+  '../menu/use-visible-page-ids',
+  async () => (await import('./frame-test-support')).visibleMock,
+);
+vi.mock(
+  '@/workspace/model/workspace-provider',
+  async () => (await import('./frame-test-support')).workspaceMock,
+);
+vi.mock(
+  '@/session/api/use-session',
+  async () => (await import('./frame-test-support')).sessionMock,
+);
+vi.mock(
+  '@/session/api/use-sign-out',
+  async () => (await import('./frame-test-support')).signOutMock,
+);
+vi.mock(
+  '@/notifications/ui/notification-bell',
+  async () => (await import('./frame-test-support')).bellMock,
+);
+vi.mock(
+  '@/shared/locale/locale-switch',
+  async () => (await import('./frame-test-support')).localeSwitchMock,
+);
 
 const label = (key: Parameters<typeof t>[1]) => t('en', key);
 
@@ -28,20 +49,44 @@ describe.each(['ltr', 'rtl'] as const)('style A in %s', (dir) => {
     renderFrame(<StyleAFrame>Page body</StyleAFrame>, dir);
     const sidebar = screen.getByRole('complementary');
     expect(sidebar.getAttribute('dir')).toBe(dir);
-    expect(within(sidebar).getByRole('link', { name: label('adminNav.groupATeam') }).getAttribute('aria-current')).toBe('page');
+    expect(
+      within(sidebar)
+        .getByRole('link', { name: label('adminNav.groupATeam') })
+        .getAttribute('aria-current'),
+    ).toBe('page');
     const tabs = screen.getByRole('navigation', { name: label('adminNav.tabsLabel') });
-    expect(within(tabs).getByRole('link', { name: label('adminNav.submenuEmployees') }).getAttribute('aria-current')).toBe('page');
+    expect(
+      within(tabs)
+        .getByRole('link', { name: label('adminNav.submenuEmployees') })
+        .getAttribute('aria-current'),
+    ).toBe('page');
     const pills = screen.getByRole('navigation', { name: label('adminNav.pillsLabel') });
-    expect(within(pills).getByRole('link', { name: /Import employees/ }).getAttribute('aria-current')).toBe('page');
-    expect(within(pills).getByRole('link', { name: /Document types/ }).getAttribute('aria-current')).toBeNull();
+    expect(
+      within(pills)
+        .getByRole('link', { name: /Import employees/ })
+        .getAttribute('aria-current'),
+    ).toBe('page');
+    expect(
+      within(pills)
+        .getByRole('link', { name: /Document types/ })
+        .getAttribute('aria-current'),
+    ).toBeNull();
   });
 
   it('marks Staff app columns under Setup, not under Employees', () => {
     frameState.pathname = '/staff-app-columns';
     renderFrame(<StyleAFrame>Page body</StyleAFrame>, dir);
     const sidebar = screen.getByRole('complementary');
-    expect(within(sidebar).getByRole('link', { name: label('adminNav.groupASetup') }).getAttribute('aria-current')).toBe('page');
-    expect(within(sidebar).getByRole('link', { name: label('adminNav.groupATeam') }).getAttribute('aria-current')).toBeNull();
+    expect(
+      within(sidebar)
+        .getByRole('link', { name: label('adminNav.groupASetup') })
+        .getAttribute('aria-current'),
+    ).toBe('page');
+    expect(
+      within(sidebar)
+        .getByRole('link', { name: label('adminNav.groupATeam') })
+        .getAttribute('aria-current'),
+    ).toBeNull();
   });
 });
 
@@ -51,10 +96,11 @@ describe('style A visibility', () => {
     frameState.pathname = '/staff';
     renderFrame(<StyleAFrame>Page body</StyleAFrame>);
     const sidebar = screen.getByRole('complementary');
-    expect(within(sidebar).getAllByRole('link').map((link) => link.textContent)).toEqual([
-      label('adminNav.groupAHome'),
-      label('adminNav.groupATeam'),
-    ]);
+    expect(
+      within(sidebar)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual([label('adminNav.groupAHome'), label('adminNav.groupATeam')]);
     expect(screen.queryByRole('navigation', { name: label('adminNav.tabsLabel') })).toBeNull();
   });
 
@@ -62,7 +108,9 @@ describe('style A visibility', () => {
     frameState.pathname = '/orders/service-sessions';
     renderFrame(<StyleAFrame>Page body</StyleAFrame>);
     const pills = screen.getByRole('navigation', { name: label('adminNav.pillsLabel') });
-    const soon = within(pills).getByRole('link', { name: new RegExp(label('adminNavPages.unassignedServices')) });
+    const soon = within(pills).getByRole('link', {
+      name: new RegExp(label('adminNavPages.unassignedServices')),
+    });
     expect(soon.textContent).toContain(label('adminNav.soonBadge'));
     expect(soon.getAttribute('href')).toBe('/soon/unassigned-services');
   });
@@ -105,13 +153,21 @@ describe('style A on a phone', () => {
     renderFrame(<StyleAFrame>Page body</StyleAFrame>);
     expect(screen.queryByRole('complementary')).toBeNull();
     const bar = screen.getByRole('navigation', { name: label('adminNav.bottomNavLabel') });
-    expect(within(bar).getAllByRole('link').map((link) => link.textContent)).toEqual([
+    expect(
+      within(bar)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual([
       label('adminNav.groupAHome'),
       label('adminNav.groupASales'),
       label('adminNav.groupACatalog'),
       label('adminNav.groupATeam'),
     ]);
-    expect(within(bar).getByRole('link', { name: label('adminNav.groupATeam') }).getAttribute('aria-current')).toBe('page');
+    expect(
+      within(bar)
+        .getByRole('link', { name: label('adminNav.groupATeam') })
+        .getAttribute('aria-current'),
+    ).toBe('page');
     expect(within(bar).getByRole('button', { name: label('adminNav.more') })).toBeTruthy();
   });
 
@@ -120,9 +176,15 @@ describe('style A on a phone', () => {
     expect(screen.queryByRole('region', { name: label('adminNav.more') })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: label('adminNav.more') }));
     const sheet = screen.getByRole('region', { name: label('adminNav.more') });
-    expect(within(sheet).getByRole('heading', { name: label('adminNav.groupAReports') })).toBeTruthy();
-    expect(within(sheet).getByRole('heading', { name: label('adminNav.submenuStaffReports') })).toBeTruthy();
-    expect(within(sheet).getByRole('link', { name: /Monthly attendance report|Attendance report/i })).toBeTruthy();
+    expect(
+      within(sheet).getByRole('heading', { name: label('adminNav.groupAReports') }),
+    ).toBeTruthy();
+    expect(
+      within(sheet).getByRole('heading', { name: label('adminNav.submenuStaffReports') }),
+    ).toBeTruthy();
+    expect(
+      within(sheet).getByRole('link', { name: /Monthly attendance report|Attendance report/i }),
+    ).toBeTruthy();
   });
 
   it('closes More when the route changes', () => {
@@ -139,7 +201,9 @@ describe('links', () => {
     frameState.pathname = '/staff';
     renderFrame(<StyleAFrame>Page body</StyleAFrame>);
     const tabs = screen.getByRole('navigation', { name: label('adminNav.tabsLabel') });
-    const attendance = within(tabs).getByRole('link', { name: label('adminNav.submenuAttendance') });
+    const attendance = within(tabs).getByRole('link', {
+      name: label('adminNav.submenuAttendance'),
+    });
     fireEvent.click(attendance, { metaKey: true });
     expect(frameState.push).not.toHaveBeenCalled();
     fireEvent.click(attendance);
