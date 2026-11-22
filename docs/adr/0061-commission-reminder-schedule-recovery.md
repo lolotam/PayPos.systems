@@ -113,16 +113,17 @@ from duplicating work; correctness rests on the `pass_id` compare.
 **Detection and readiness (one rule: the incident wins).** Recovery is **needed** when the sentinel is missing or its
 `run_id` differs from the server's, **or a flag is open**, and at every worker process start. **`/ready` is healthy only
 when the sentinel is valid, no recovery key exists and no flag is open**, read in one fixed order so that observations
-on opposite sides of a clear are never combined (no new store): the probe reads **the open flags first, and then, as
-its last read, one atomic Redis snapshot** (a single script or pipeline) **of the sentinel, the recovery key and the
-server's `run_id`**. It reports healthy only if **no flag is open, no recovery key exists, the sentinel exists and its
-`run_id` equals the server's**. This is equivalent to «read the sentinel before, re-read everything, then re-check the
-same certificate» with fewer reads: an earlier sentinel read adds nothing, because only the sentinel at the last read
-matters, and an incident that opens, invalidates the sentinel, clears and then publishes, stops or crashes between the
-probe's reads leaves the sentinel absent, the key present, or a newly published sentinel (a real proof, whose `pass_id`
-ties it to its audit row); in particular the **clear followed by a crash before the publish** leaves the sentinel absent,
-so a probe that read the flags before the incident and a sentinel before its invalidation still reports degraded at
-its final Redis read. **The probe is a point-in-time check: it proves the state at its last read, nothing later.**
+on opposite sides of a clear or of a late insert are never combined (no new store). The probe does three things:
+**(i)** an **atomic Redis snapshot** of the sentinel, the recovery key and the server's `run_id`; **(ii)** the read of
+the open incidents in PostgreSQL; **(iii)** a **final atomic Redis check** of the same three. «Atomic» means a Lua
+script or a `MULTI`/`EXEC` transaction, as Redis documents under
+[transactions](https://redis.io/docs/latest/develop/using-commands/transactions/); a plain pipeline is not atomic. It
+reports healthy only if **(i)** showed a valid sentinel (its `run_id` equals the server's) and no recovery key, **(ii)**
+found no open incident, and **(iii)** confirms **the same certificate** (the same `pass_id` and `run_id` as in (i)), a
+`run_id` equal to the server's, and no recovery key. A new certificate between (i) and (iii) therefore makes this probe
+degraded (it was published by a real recovery, and the next probe is healthy); an incident that raises, invalidates the
+sentinel and clears, then stops or crashes before publishing, leaves the sentinel absent at (iii). **The probe is
+consistent at a moment, not a guarantee that extends until its response is sent.**
 A valid sentinel together with an open incident does not make the worker ready. The recovery and the close stay **automatic** (CS-Q32): a new pass adopts the open incident, re-verifies
 every company's scheduler and closes it by the normal path (clear, then publish); the operator command is only the
 fallback. A pass has an incident iff it finds a loss: a missing or stale
@@ -290,10 +291,12 @@ Recovery cases (CS-Q32), each with its own expected result:
   and the clear leaves the sentinel missing and raises a new incident; a restart between clear and publish raises a new
   incident and ends healthy after one pass; a replica that sees the sentinel missing between a clear and a publication
   raises no second incident.
-- **Readiness reads:** **the scenario «the incident is raised, the sentinel invalidated and the incident cleared, then the
-  worker crashes before publishing», interleaved between the probe's flag read and its final Redis snapshot, reports
-  degraded** (sentinel absent); the same with a close and an invalidation only; an open flag with a valid sentinel and no
-  key reports degraded; a freshly published sentinel after a completed recovery reports healthy.
+- **Readiness reads** (the probe's three steps i, ii, iii): **(a)** a late incident insert that lands after the first
+  snapshot and before the incident read → degraded; **(b)** a late insert that lands after the incident read: the probe
+  reports healthy (it proves the state at its last read) and the **next probe is degraded**; **(c)** a clear followed by
+  a crash before the publish, interleaved between the steps → degraded (sentinel absent at iii); **(d)** a completed
+  recovery that publishes a new certificate between i and iii → degraded on this probe (the certificate changed),
+  healthy on the next; an open flag with a valid sentinel and no key → degraded.
 - **Renewal:** **a page slower than the TTL does not lose the key** (renewals every ≤ TTL/3 while working, each
   re-checking `run_id` = `R0`); **a failed renewal mid-page stops the pass at once** with no further upsert or shared
   write.
