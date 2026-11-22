@@ -45,10 +45,14 @@ export const documentTypeList = responseObject({ items: z.array(documentType) })
 // الشكل المحفوظ نفسه هو حكم القارئ: مقطّط الطرفين، بلا تحكم، ومن 1 إلى 64 نقطة — نفس قيد قاعدة البيانات.
 const isControlCodePoint = (codePoint: number) =>
   codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f);
+const isDocumentNumberCodePoint = (character: string) => {
+  const point = character.codePointAt(0);
+  return point !== undefined && !isControlCodePoint(point) && (point < 0xd800 || point > 0xdfff);
+};
 const documentNumberShape = (value: string) => {
   const codePoints = [...value];
   return (
-    codePoints.every((character) => !isControlCodePoint(character.codePointAt(0) as number)) &&
+    codePoints.every(isDocumentNumberCodePoint) &&
     value.trim() === value &&
     value.length > 0 &&
     codePoints.length <= 64

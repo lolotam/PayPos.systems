@@ -98,6 +98,17 @@ it('the record input treats omitted and null as no number and refuses blank, lon
   }
 });
 
+it('refuses isolated UTF-16 surrogates but keeps supplementary characters unchanged', () => {
+  const base = { type_code: 'civil_id', file_id: fileId, expires_on: null };
+  for (const document_number of ['A\ud800B', 'A\udfffB']) {
+    expect(recordEmployeeDocumentInput.safeParse({ ...base, document_number }).success).toBe(false);
+  }
+  const document_number = 'A\u{1f4c4}B';
+  expect(recordEmployeeDocumentInput.parse({ ...base, document_number }).document_number).toBe(
+    document_number,
+  );
+});
+
 it('the list item carries the number while the record response keeps none of it', () => {
   const number = 'SYN-DOC-0001';
   const document = {

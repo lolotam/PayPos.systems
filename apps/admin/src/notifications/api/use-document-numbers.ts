@@ -5,7 +5,7 @@ import { employeeDocumentNumbers } from '@pospay/contracts';
 import { useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
-import { documentIdOf } from '../model/render-notification';
+import { documentIdOf, type DocumentNumbersByBusiness } from '../model/render-notification';
 
 // أرقام المستندات في الذاكرة فقط ما دام الجرس مفتوحاً: الإغلاق أو تغيّر الهوية أو النشاط أو مجموعة المعرّفات
 // يلغي الطلب ويحذف القيم، والنتائج المتأخرة تُهمل، وأي فشل أو انتظار يعيد نص اليوم (62-2e، FR-D09).
@@ -35,7 +35,7 @@ async function fetchBusinessNumbers(
   return numbers;
 }
 
-const noNumbers: ReadonlyMap<string, string> = new Map();
+const noNumbers: DocumentNumbersByBusiness = new Map();
 
 /** أنشطة الأجراس المفتوحة التي تحتاج أرقامًا: نشاط + معرّفاته الحالية مرتّبة. */
 interface DocumentNumberScope {
@@ -75,7 +75,7 @@ export function useDocumentNumbers({
   businessId: string | undefined;
   inboxRead: number | null;
   items: readonly InAppNotification[];
-}): ReadonlyMap<string, string> {
+}): DocumentNumbersByBusiness {
   const scopes = useMemo(() => numberScopes(inboxRead, items), [inboxRead, items]);
   const enabled =
     inboxRead !== null && scopes.length > 0 && companyId !== undefined && userId !== null;
@@ -103,11 +103,12 @@ export function useDocumentNumbers({
   });
   return useMemo(() => {
     if (!enabled) return noNumbers;
-    const numbers = new Map<string, string>();
-    for (const query of queries) {
-      if (!query.isSuccess || !query.isFetchedAfterMount || query.fetchStatus !== 'idle') continue;
-      for (const [id, number] of query.data) numbers.set(id, number);
+    const byBusiness = new Map<string, ReadonlyMap<string, string>>();
+    for (const [index, scope] of scopes.entries()) {
+      const query = queries[index];
+      if (!query?.isSuccess || !query.isFetchedAfterMount || query.fetchStatus !== 'idle') continue;
+      byBusiness.set(scope.businessId, query.data);
     }
-    return numbers;
-  }, [queries, enabled]);
+    return byBusiness;
+  }, [scopes, queries, enabled]);
 }

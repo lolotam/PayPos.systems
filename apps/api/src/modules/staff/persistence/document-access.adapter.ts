@@ -19,8 +19,10 @@ export function createEmployeeDocumentReadAccess(clock: DocumentClock) {
   return {
     check: async (tx: Tx, companyId: string, userId: string, businessId: string) => {
       const access = await documentAccess(tx, companyId, userId, businessId);
-      if (!access.read) return { read: false, manage: false, featureEnabled: false, today: '' };
-      const today = documentToday(clock.now(), await documentTimeZone(tx, companyId, businessId));
+      const timeZone = access.read ? await businessTimeZone(tx, companyId, businessId) : null;
+      if (timeZone === null)
+        return { read: false, manage: false, featureEnabled: false, today: '' };
+      const today = documentToday(clock.now(), timeZone);
       return {
         read: true,
         manage: access.manage,

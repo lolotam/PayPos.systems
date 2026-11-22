@@ -34,7 +34,7 @@ it('N8 renders the blocked-correction bell in the viewer locale with the month',
     createElement(NotificationItem, {
       item,
       locale: 'ar',
-      documentNumbers: new Map<string, string>(),
+      documentNumbers: new Map(),
       pending: false,
       onRead: () => {},
     }),

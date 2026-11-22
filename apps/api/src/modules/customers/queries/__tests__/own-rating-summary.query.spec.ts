@@ -238,6 +238,29 @@ it.each(monthWindowCases)(
   },
 );
 
+it('counts each rating in its local month when clocks roll back across the boundary', async () => {
+  currentTimeZone = 'America/St_Johns';
+  try {
+    await seedStars([
+      { stars: 5, at: new Date('2009-11-01T02:30:30Z') },
+      { stars: 2, at: new Date('2009-11-01T02:45:00Z') },
+      { stars: 3, at: new Date('2009-11-01T03:30:00Z') },
+    ]);
+    expect(await summary(new Date('2009-10-15T12:00:00Z'))).toEqual({
+      visibility: 'VISIBLE',
+      average: '2.0',
+      count: 1,
+    });
+    expect(await summary(new Date('2009-11-15T12:00:00Z'))).toEqual({
+      visibility: 'VISIBLE',
+      average: '4.0',
+      count: 2,
+    });
+  } finally {
+    currentTimeZone = 'Asia/Kuwait';
+  }
+});
+
 it('does not count another employee or another company', async () => {
   const month = at(8, 15, 12);
   await seedStars([{ stars: 4, at: month }], { employeeId: A.employees[1] });
@@ -258,12 +281,13 @@ it(
   { timeout: 60_000 },
   async () => {
     const now = at(6, 15, 12);
-    // الشرط بيقارن العمود المجرد submitted_at بالنطاق المحسوب، مش بيلف العمود في AT TIME ZONE.
+    // شرط الفهرس على submitted_at المجرد، وفلتر الشهر المحلي يحسم الصفوف داخل النطاق الواسع.
     const statementText = new PgDialect().sqlToQuery(
       ownRatingSummaryStatement(context, employeeId, now, 'Asia/Kuwait'),
     ).sql;
     expect(statementText).toMatch(/submitted_at >=/);
-    expect(statementText).not.toMatch(/submitted_at\s+AT\s+TIME\s+ZONE/);
+    expect(statementText).toMatch(/submitted_at </);
+    expect(statementText).toContain("date_trunc('month', a.submitted_at AT TIME ZONE");
     await seedStars(
       Array.from({ length: 300 }, (_, index) => ({
         stars: (index % 5) + 1,
@@ -277,6 +301,8 @@ it(
         sql`EXPLAIN (ANALYZE, FORMAT JSON) ${ownRatingSummaryStatement(context, employeeId, now, 'Asia/Kuwait')}`,
       );
     });
-    expect(JSON.stringify(plan)).toContain('rating_attributions_employee_idx');
+    const planText = JSON.stringify(plan);
+    expect(planText).toContain('rating_attributions_employee_idx');
+    expect(planText).toMatch(/"Index Cond":"[^"]*submitted_at >=[^"]*submitted_at </);
   },
 );

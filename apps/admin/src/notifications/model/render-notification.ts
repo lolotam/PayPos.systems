@@ -84,6 +84,8 @@ function renderAttendanceChange(item: InAppNotification, viewerLocale?: Locale):
   return fill(t(locale, `inApp.${item.template_key}`), values);
 }
 
+export type DocumentNumbersByBusiness = ReadonlyMap<string, ReadonlyMap<string, string>>;
+
 /** معرف المستند من المعاملات الآمنة؛ يبقى خارج النص ولا يُستخدم إلا كمفتاح للقراءة الموثقة. */
 export function documentIdOf(item: InAppNotification): string | null {
   return item.safe_parameters.find((parameter) => parameter.name === 'document_id')?.value ?? null;

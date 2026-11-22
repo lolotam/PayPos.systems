@@ -278,7 +278,7 @@ it('clears the previous number when changing business inside the same company', 
   request.resolve(response({ items: [] }));
 });
 
-it('isolates a per-activity denial: the refused business falls back while the authorized one keeps its number', async () => {
+it('shows a number only in the authorized activity even when notifications reuse the document id', async () => {
   const otherBusiness = '01920000-0000-7000-8000-0000000000df';
   const sibling = vi.fn<(signal: AbortSignal) => void>();
   const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
@@ -299,12 +299,8 @@ it('isolates a per-activity denial: the refused business falls back while the au
           ...documentItem(),
           id: '01920000-0000-7000-8000-0000000000c5',
           business_id: otherBusiness,
-          safe_parameters: documentItem().safe_parameters.map((parameter) =>
-            parameter.name === 'document_id'
-              ? { ...parameter, value: '01920000-0000-7000-8000-0000000000c9' }
-              : parameter,
-          ),
         },
+        { ...documentItem(), id: '01920000-0000-7000-8000-0000000000c6', business_id: null },
       ],
       next_cursor: null,
     });
@@ -313,9 +309,8 @@ it('isolates a per-activity denial: the refused business falls back while the au
   fireEvent.click(screen.getByRole('button', { name: t('en', 'inApp.title') }));
   expect(await screen.findByText(numberedText)).not.toBeNull();
   expect(sibling).toHaveBeenCalledTimes(1);
-  expect(screen.getAllByText(todayText)).toHaveLength(1);
-  const deniedTexts = screen.getAllByText(todayText);
-  expect(deniedTexts[0]).toBeTruthy();
+  expect(screen.getAllByText(numberedText)).toHaveLength(1);
+  expect(screen.getAllByText(todayText)).toHaveLength(2);
   expect(numbersFetchCount(fetchSpy)).toBe(2);
 });
 

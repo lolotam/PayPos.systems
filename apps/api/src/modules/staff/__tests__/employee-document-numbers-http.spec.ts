@@ -90,6 +90,16 @@ it('DN-13 a membership without read:files:business gets the same 404 for every s
   expect(bodies.size).toBe(1);
 });
 
+it('refuses missing and foreign businesses uniformly for a company-scoped reader', async () => {
+  expect((await read(f.business, numberedId)).statusCode).toBe(200);
+  const missing = await read(documentIds.newId(), numberedId);
+  const foreign = await read(f.foreignBusiness, numberedId);
+  expect(missing.statusCode).toBe(404);
+  expect(foreign.statusCode).toBe(404);
+  expect(missing.json().code).toBe('NOT_FOUND');
+  expect(foreign.json()).toEqual(missing.json());
+});
+
 it('DN-13b shape validation precedes the permission check for every caller', async () => {
   for (const cookie of [f.cookie, otherCookie]) {
     const response = await read(f.business, 'not-a-uuid', cookie);

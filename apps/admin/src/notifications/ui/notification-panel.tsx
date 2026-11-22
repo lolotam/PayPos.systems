@@ -11,13 +11,14 @@ import {
   Inbox,
   LoaderCircle,
 } from '@pospay/ui';
+import type { DocumentNumbersByBusiness } from '../model/render-notification';
 import { NotificationItem } from './notification-item';
 
 type Props = {
   id: string;
   locale: Locale;
   items: readonly InAppNotification[];
-  documentNumbers: ReadonlyMap<string, string>;
+  documentNumbers: DocumentNumbersByBusiness;
   loading: boolean;
   error: boolean;
   pending: boolean;
