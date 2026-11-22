@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/staff/me/rating-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Own rating summary for the current business-timezone month. The employee comes from the personal session; any subject key in the query is a 403. Live authority (membership, customers feature, read:ratings:own) is checked before the rating_average column gate; HIDDEN contains only visibility and reads no rating row. The personal staff session only. Cache-Control: no-store. */
+        get: operations["ownRatingSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/staff/me/attendance": {
         parameters: {
             query?: never;
@@ -9332,6 +9349,71 @@ export interface operations {
             };
             /** @description MY_PERIOD_OUT_OF_RANGE */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    ownRatingSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description HIDDEN, or the own VISIBLE average and count; count = 0 iff average = null */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        visibility: "HIDDEN";
+                    } | {
+                        /** @enum {string} */
+                        visibility: "VISIBLE";
+                        average: string | null;
+                        count: number;
+                    };
+                };
+            };
+            /** @description VALIDATION_FAILED */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description UNAUTHENTICATED */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description FORBIDDEN */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description NOT_READY */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

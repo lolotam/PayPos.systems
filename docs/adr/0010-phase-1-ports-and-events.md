@@ -681,3 +681,18 @@ writes it. The orders-worker rows are the template.
   comments and adds `# Planned` comments for the worker reads. Those comments leave generated
   `docs/module-map.yaml` unchanged. Spec 060's D-B9, FR-B13, FR-B14, FR-B15, BR-B4 and the 61-x sub-PR rows are updated by the same docs PR (61-1a); its gates
   are `pnpm format:check`, `pnpm lint:docs` and `pnpm module-map:check`, with no source file change.
+
+## Addendum 2026-11-21 — 61-2a: the staff rating summary's own-read authority
+
+Scope: the API read `GET /v1/staff/me/rating-summary` (spec 060 FR-A05, FR-B14; `plan-61.md` §6). The preceding A-2 addendum declares the ports.
+This entry documents the 61-2a implementation.
+
+- API `customers` resolves its authority through reads on already-declared arrows, on the read transaction:
+  `tenancy.describeWorkspaces` (the business and its active branches), `staff.readOwnEmployee` (the caller's own
+  eligible employee), the new `identity.readOwnRatingsAccess` (membership, feature `customers`, `read:ratings:own`)
+  and `tenancy.activeBusinessTimeZone` (the month window of D-B12).
+- The route accepts the ADR-0027 personal staff session only.
+- It is the same shape ADR-0041 records for orders' own-work reads; no interface is shared between the two modules.
+- No import arrow is added. `customers → tenancy, settings, staff, identity` are already declared.
+- The `rating_average` column gate is read through customers' existing `StaffColumnsPort` and stays off until 61-3.
+- No event is added or changed.
