@@ -345,8 +345,10 @@ it('U9 a caller with no notice writer refuses to record a new block instead of s
   await expect(runWithoutNotices(corrections)).rejects.toBeInstanceOf(
     CommissionBlockNoticesMissingError,
   );
-  // الرفض قبل أي كتابة: لا رفع جيل ولا إدخال توقف ولا تصحيحات، وقراءات فقط.
-  expect(corrections.calls).toEqual(['readMonthProjection', 'readOpenBlock']);
+  // الرفض جاي قبل كتابة صف التوقف مباشرة، فرفع الجيل ممكن يكون حصل. إلغاؤه مع باقي المعاملة بيتثبّت
+  // في commission-correction-no-notices-db.spec.ts على معاملة Postgres حقيقية، مش هنا على الـ fake.
+  expect(corrections.calls).not.toContain('insertBlock');
+  expect(corrections.calls).not.toContain('insertCorrections');
   expect(corrections.blocks).toEqual([]);
   expect(corrections.drafts).toEqual([]);
 });

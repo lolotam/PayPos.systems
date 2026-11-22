@@ -109,7 +109,11 @@ export class CommissionCorrectionStepInputError extends Error {
   }
 }
 
-/** تسجيل توقف جديد محتاج جرساً لكن المنفذ ما اتمرّرش؛ الخطوة بترفض بدل ما تسجّل توقفاً بلا إشعار. */
+/**
+ * تسجيل توقف جديد محتاج جرساً لكن المنفذ ما اتمرّرش؛ الخطوة بترفض قبل كتابة صف التوقف بدل ما تسجّله بلا
+ * إشعار. لازم الخطأ يخرج من معاملة المستأجر ليتلغى كل اللي اتكتب فيها (رفع جيل الشهر)، ومينفعش المستدعي
+ * يمسكه جوّه المعاملة ويكمّل.
+ */
 export class CommissionBlockNoticesMissingError extends Error {
   readonly code = 'COMMISSION_BLOCK_NOTICES_MISSING';
   readonly employeeId: string;

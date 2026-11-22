@@ -58,4 +58,57 @@ export default [
     },
     rules: { 'posting-domain/own-files-only': 'error' },
   },
+  /**
+   * The module layer rules the shared matrix applies to modules/* only (CLAUDE.architecture.md §3.1, §4.2): a use case
+   * reaches its own domain/ and ports/, @pospay/domain and the engine, never persistence/, the database or the network;
+   * a port is an interface and types over its own domain/, @pospay/domain, @pospay/ids and the engine's types.
+   */
+  {
+    files: ['src/use-cases/**/*.ts'],
+    ignores: ['src/use-cases/**/__tests__/**', 'src/use-cases/**/*.spec.ts'],
+    plugins: {
+      'posting-use-cases': {
+        rules: {
+          'own-files-only': ownFilesOnly({
+            src: SRC,
+            packages: ['@pospay/commissions-engine', '@pospay/domain'],
+            folders: ['domain', 'ports', 'use-cases'],
+            message:
+              'packages/commissions-posting use-cases/ may import only its own domain/, ports/ and use-cases/, @pospay/domain and @pospay/commissions-engine (CLAUDE.md §4.2).',
+          }),
+        },
+      },
+    },
+    rules: {
+      'posting-use-cases/own-files-only': 'error',
+      // Node exposes fetch as a global, so an import ban alone would miss it.
+      'no-restricted-globals': [
+        'error',
+        {
+          globals: [
+            { name: 'fetch', message: 'use-cases/ reach the network only through a port.' },
+          ],
+          checkGlobalObject: true,
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/ports/**/*.ts'],
+    ignores: ['src/ports/**/__tests__/**', 'src/ports/**/*.spec.ts'],
+    plugins: {
+      'posting-ports': {
+        rules: {
+          'own-files-only': ownFilesOnly({
+            src: SRC,
+            packages: ['@pospay/commissions-engine', '@pospay/domain', '@pospay/ids'],
+            folders: ['domain', 'ports'],
+            message:
+              'packages/commissions-posting ports/ may import only its own domain/ and ports/, @pospay/domain, @pospay/ids and @pospay/commissions-engine types (CLAUDE.architecture.md §3.1).',
+          }),
+        },
+      },
+    },
+    rules: { 'posting-ports/own-files-only': 'error' },
+  },
 ];

@@ -1,4 +1,4 @@
-import { dirname, isAbsolute, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 
 /**
  * The purity rule of a package that runs in the browser: it may import only its own files and the
@@ -6,12 +6,13 @@ import { dirname, isAbsolute, relative, resolve } from 'node:path';
  * import type, and a relative specifier that leaves the package's src folder, so every specifier is
  * resolved here against the importing file instead of being matched by its spelling.
  *
- * @param {{ src: string, packages?: string[], message: string }} options
+ * @param {{ src: string, packages?: string[], folders?: string[], message: string }} options
  *   src: the absolute path of the package's src folder; packages: the package names it may import;
- *   message: the text of the report.
+ *   folders: when given, a relative import must also land inside one of these first-level folders of src
+ *   (a layer rule for a package that is not a module); message: the text of the report.
  * @returns {import('eslint').Rule.RuleModule} the rule
  */
-export const ownFilesOnly = ({ src, packages = [], message }) => ({
+export const ownFilesOnly = ({ src, packages = [], folders, message }) => ({
   meta: {
     type: 'problem',
     schema: [],
@@ -33,6 +34,10 @@ export const ownFilesOnly = ({ src, packages = [], message }) => ({
       }
       const target = relative(src, resolve(dirname(context.filename), source.value));
       if (target.startsWith('..') || isAbsolute(target)) {
+        context.report({ node: source, messageId: 'outside' });
+        return;
+      }
+      if (folders !== undefined && !folders.includes(target.split(sep)[0])) {
         context.report({ node: source, messageId: 'outside' });
       }
     };

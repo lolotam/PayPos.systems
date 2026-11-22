@@ -138,8 +138,11 @@ pricing paths. CS-Q46 chose a shared home; this addendum fixes it.
 - **Its dependencies.** `@pospay/commissions-engine` (root entry), `@pospay/domain`, `@pospay/db`, `@pospay/ids` and `drizzle-orm`.
   `persistence/` uses the transaction type of `@pospay/db` and the Drizzle `sql` tag only; no raw client is exported
   (CLAUDE.md §5). The one signature change of the move: the block-notice writer is an optional input of the step. A
-  caller that cannot record a block (the repair, which runs only while a block is open) omits it, and the step throws if
-  a new block would have to ring the bell without one.
+  caller that cannot record a block (the repair, which runs only while a block is open) omits it, and the step throws
+  `CommissionBlockNoticesMissingError` immediately before it would insert a new block without one. The generation bump of
+  that month may already have happened in the same transaction, so the caller's obligation is part of the contract: the
+  whole scope the step receives is bound to one tenant transaction, and the error must leave that transaction's callback
+  before any mapping to a response, so everything rolls back; a caller never catches it inside the transaction.
 - **Who may import it.** `@pospay/commissions-posting` (root entry only; `"exports"` lists `"."` and nothing else) only
   from the `commissions` modules of `apps/api` and `apps/worker`: their `use-cases/`, `ports/` and `persistence/`, the
   layers that may import the engine, plus the module's wiring file (`commissions.module.ts`) and its module-level

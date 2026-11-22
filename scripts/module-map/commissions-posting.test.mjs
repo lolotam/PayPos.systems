@@ -60,7 +60,10 @@ const RESTRICTIONS = [
   'no-restricted-syntax',
   'posting/own-files-only',
   'posting-domain/own-files-only',
+  'posting-use-cases/own-files-only',
+  'posting-ports/own-files-only',
   'engine/own-files-only',
+  'no-restricted-globals',
 ];
 
 async function restricted(eslint, filePath, source) {
@@ -256,6 +259,67 @@ for (const [formName, form] of FORMS) {
     ['./commission-correction-step.ts', 'its own files'],
   ]) {
     add('posting', `${P}/domain/probe.ts`, form(spec), ALLOWED, `domain may ${formName} ${what}`);
+  }
+}
+// A use case reaches its own domain/ and ports/, @pospay/domain and the engine: never persistence/, the database or the network.
+const USE_CASE_ONLY = 'use-cases/ may import only';
+const USE_CASE = `${P}/use-cases/probe/probe.ts`;
+for (const [formName, form] of FORMS) {
+  for (const [spec, what] of [
+    ['../../persistence/commission-correction.scope.ts', 'persistence'],
+    ['@pospay/db', '@pospay/db'],
+    ['drizzle-orm', 'drizzle-orm'],
+    ['@pospay/ids', '@pospay/ids'],
+  ]) {
+    add('posting', USE_CASE, form(spec), USE_CASE_ONLY, `a use case may not ${formName} ${what}`);
+  }
+  for (const [spec, what] of [
+    ['../../domain/commission-correction-step.ts', 'its domain/'],
+    ['../../ports/commission-correction.port.ts', 'its ports/'],
+    ['./sibling.ts', 'a sibling file'],
+    ['@pospay/domain', '@pospay/domain'],
+  ]) {
+    add('posting', USE_CASE, form(spec), ALLOWED, `a use case may ${formName} ${what}`);
+  }
+}
+const NETWORK = 'reach the network only through a port';
+const callFetch = (callee) => `export const probe = () => ${callee}('https://example.invalid');\n`;
+add('posting', USE_CASE, callFetch('fetch'), NETWORK, 'a use case may not call the global fetch');
+add(
+  'posting',
+  USE_CASE,
+  callFetch('globalThis.fetch'),
+  NETWORK,
+  'a use case may not call globalThis.fetch',
+);
+add(
+  'posting',
+  `${P}/persistence/probe.adapter.ts`,
+  callFetch('fetch'),
+  ALLOWED,
+  'the global fetch rule belongs to use-cases/ only',
+);
+
+// A port is an interface and types over its own domain/, @pospay/domain, @pospay/ids and the engine's types.
+const PORT_ONLY = 'ports/ may import only';
+const PORT = `${P}/ports/probe.port.ts`;
+for (const [formName, form] of FORMS) {
+  for (const [spec, what] of [
+    ['@pospay/db', '@pospay/db'],
+    ['drizzle-orm', 'drizzle-orm'],
+    ['../persistence/commission-correction.scope.ts', 'persistence'],
+    ['../use-cases/commission-month-recompute.ts', 'a use case'],
+  ]) {
+    add('posting', PORT, form(spec), PORT_ONLY, `a port may not ${formName} ${what}`);
+  }
+  for (const [spec, what] of [
+    ['../domain/commission-correction-step.ts', 'its domain/'],
+    ['./commission-correction.port.ts', 'a sibling port'],
+    ['@pospay/domain', '@pospay/domain'],
+    ['@pospay/ids', '@pospay/ids'],
+    [ENGINE, 'the engine root'],
+  ]) {
+    add('posting', PORT, form(spec), ALLOWED, `a port may ${formName} ${what}`);
   }
 }
 add(

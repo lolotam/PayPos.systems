@@ -64,7 +64,9 @@ interface PostCommissionCorrectionsInput {
   readonly employees: readonly CommissionPeriodEmployee[];
   /**
    * منفذ جرس أصحاب صلاحية خطط العمولة. اختياري لأن الإصلاح بيشتغل بس وفيه توقف مفتوح فمش هيسجّل
-   * توقفاً جديداً؛ لو اتسجّل توقف من غير منفذ الخطوة بترمي بدل ما تسكت (ADR-0054 §1 addendum).
+   * توقفاً جديداً. لو الخطوة هتسجّل توقفاً جديداً من غير منفذ بترمي CommissionBlockNoticesMissingError
+   * قبل كتابة صف التوقف مباشرة (رفع جيل الشهر ممكن يكون حصل). الخطأ لازم يخرج من معاملة المستأجر
+   * فيتلغي كل حاجة، ومينفعش المستدعي يمسكه جوّه المعاملة ويكمّل (ADR-0054 §1 addendum).
    */
   readonly notices?: CommissionBlockNotices;
   /** الشركة المالكة للتوقف؛ قارئ حاملي الصلاحية بيحتاجها لتحديد المستلمين. */
@@ -94,7 +96,6 @@ async function postEmployeeCorrections(
   employeeId: string,
 ): Promise<void> {
   const { scope, businessId } = input;
-  await refuseUnrecordableBlock(input, target, employeeId);
   const generation = await scope.bumpGeneration({
     businessId,
     employeeId,
@@ -117,33 +118,6 @@ async function postEmployeeCorrections(
   await postPricedCorrections(input, target, employeeId, generation, result.sources);
   if (decision.kind === 'RESOLVE') {
     await scope.resolveBlock({ blockId: decision.blockId, generation });
-  }
-}
-
-/**
- * لو الاستدعاء من غير منفذ جرس وهيحتاج تسجيل توقف جديد، بيرفض قبل أي كتابة (رفع الجيل
- * ولا إدخال التوقف ولا التصحيحات) عشان معاملة الإصلاح ما تسيبش أثر نصف مكتمل. القراءات دي
- * بتتم بس لما المنفذ غايب؛ الـ worker بيمرّره دايماً فمساره وترتيب نداءاته ما اتغيّروش.
- */
-async function refuseUnrecordableBlock(
-  input: PostCommissionCorrectionsInput,
-  target: CommissionCorrectionTarget,
-  employeeId: string,
-): Promise<void> {
-  if (input.notices !== undefined) return;
-  const projection = await input.scope.readMonthProjection({
-    businessId: input.businessId,
-    employeeId,
-    period: target.sourcePeriod,
-  });
-  const result = recomputeCommissionMonth(projection);
-  if (result.ok) return;
-  const open = await input.scope.readOpenBlock({
-    employeeId,
-    sourcePeriod: target.sourcePeriod,
-  });
-  if (decideCommissionBlock(open, result).kind === 'RECORD') {
-    throw new CommissionBlockNoticesMissingError(employeeId, target.sourcePeriod);
   }
 }
 
