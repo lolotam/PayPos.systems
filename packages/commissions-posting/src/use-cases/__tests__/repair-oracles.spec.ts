@@ -85,6 +85,12 @@ const recomputedAmounts = (projection: CommissionMonthProjection): Record<string
   return Object.fromEntries(result.sources.map((source) => [source.sourceRef, source.amount]));
 };
 
+const amountOf = (amounts: Record<string, bigint>, sourceRef: string): bigint => {
+  const amount = amounts[sourceRef];
+  if (amount === undefined) throw new Error(`no recomputed amount for ${sourceRef}`);
+  return amount;
+};
+
 /** V1 للمثال O2: الأساسي مقفول والشرائح هامشية على المبلغ بحد 400.000 يدفع 10%. */
 const tieredPlan = (): CommissionPlanVersion =>
   version({
@@ -147,11 +153,11 @@ it('O2 the corrections against the frozen September are +10.000 for each of the 
       {
         sourceRef: 'line:L1',
         kind: 'COMMISSION',
-        amount: amounts['line:L1']!,
+        amount: amountOf(amounts, 'line:L1'),
         attribution: attribution('2026-09-10'),
       },
-      { sourceRef: 'line:L2', kind: 'COMMISSION', amount: amounts['line:L2']! },
-      { sourceRef: 'line:L3', kind: 'COMMISSION', amount: amounts['line:L3']! },
+      { sourceRef: 'line:L2', kind: 'COMMISSION', amount: amountOf(amounts, 'line:L2') },
+      { sourceRef: 'line:L3', kind: 'COMMISSION', amount: amountOf(amounts, 'line:L3') },
     ],
   });
 
