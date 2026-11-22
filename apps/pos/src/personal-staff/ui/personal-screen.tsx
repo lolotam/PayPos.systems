@@ -8,6 +8,7 @@ import { LocaleSwitch } from '@/shared/locale/locale-switch';
 import { usePersonalSession } from '../api/use-personal-session';
 import { PersonalSignIn } from './personal-sign-in';
 import { EnrolPasskeyScreen } from './enrol-passkey-screen';
+import { PersonalWorkEntry } from './own-work-entry';
 
 interface PersonalScreenProps {
   workspace?: Pick<PersonalOtpRequestInput, 'company_id' | 'business_id'>;
@@ -61,6 +62,9 @@ export function PersonalScreen({
                 onSignOut={state.signOut}
               />
               {state.privateReady ? ownLeave?.(state.session, state.epoch) : null}
+              {state.privateReady ? (
+                <PersonalWorkEntry session={state.session} epoch={state.epoch} />
+              ) : null}
             </>
           ))
         ) : hint ? (

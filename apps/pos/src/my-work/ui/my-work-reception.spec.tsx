@@ -1,0 +1,248 @@
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { t } from '@pospay/i18n';
+import type { WorkContext } from '../model/work-context';
+import { MyWorkScreen } from './my-work-screen';
+import { fullLine, hiddenTips, linesPage } from './work-fixtures';
+import {
+  installFetch,
+  json,
+  myWorkEntries,
+  renderWork,
+  replaceFetch,
+  type Route,
+} from './work-test-kit';
+
+vi.mock('@/shared/api/device-auth', () => ({ currentDeviceToken: async () => 'paired-device' }));
+
+const WINDOW = 'window-abc';
+const PIN = '4321';
+const context: WorkContext = { mode: 'reception', identity: '0:sara:device:2026-12-01' };
+const label = (key: Parameters<typeof t>[1]) => t('en', key);
+const window_ = {
+  window_id: WINDOW,
+  window_seq: '1',
+  session_ref: 'ref',
+  idle_remaining_ms: 60_000,
+  cap_remaining_ms: 300_000,
+};
+type Overrides = { open?: Route; lines?: Route; touch?: Route };
+
+function serve(overrides: Overrides = {}) {
+  return installFetch((request, url) => {
+    if (url.pathname.endsWith('/private-view/touch'))
+      return (
+        overrides.touch?.(request, url) ?? json({ idle_remaining_ms: 60_000, cap_remaining_ms: 1 })
+      );
+    if (url.pathname.endsWith('/private-view/close')) return new Response(null, { status: 204 });
+    if (url.pathname.endsWith('/private-view'))
+      return overrides.open?.(request, url) ?? json(window_);
+    if (url.pathname.endsWith('/service-lines'))
+      return overrides.lines?.(request, url) ?? json(linesPage([fullLine]));
+    if (url.pathname.endsWith('/tips')) return json(hiddenTips());
+    return undefined;
+  });
+}
+const open = (onLeave: () => void = () => undefined) =>
+  renderWork(<MyWorkScreen context={context} onLeave={onLeave} />);
+const enterPin = async (pin = PIN) => {
+  fireEvent.change(await screen.findByLabelText(label('myWork.pinLabel')), {
+    target: { value: pin },
+  });
+  fireEvent.click(screen.getByText(label('myWork.pinSubmit')));
+};
+const signIn = async () => {
+  await enterPin();
+  expect(await screen.findByText('Haircut')).toBeTruthy();
+};
+const touches = (fetched: ReturnType<typeof serve>) => fetched.paths('/private-view/touch');
+
+beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }));
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
+
+it('asks for her PIN first, reads nothing before it, and then shows her lines under the window', async () => {
+  const fetched = serve();
+  open();
+  expect(await screen.findByText(label('myWork.pinTitle'))).toBeTruthy();
+  expect((screen.getByLabelText(label('myWork.pinLabel')) as HTMLInputElement).type).toBe(
+    'password',
+  );
+  expect(fetched.paths('/service-lines').length).toBe(0);
+  await signIn();
+  const opening = fetched.paths('/private-view').find((request) => request.method === 'POST');
+  expect(await opening?.clone().json()).toEqual({ pin: PIN });
+  expect(fetched.paths('/service-lines')[0]?.headers.get('x-private-view-window-id')).toBe(WINDOW);
+  expect(fetched.paths('/tips')[0]?.headers.get('x-private-view-window-id')).toBe(WINDOW);
+  expect(screen.queryByLabelText(label('myWork.pinLabel'))).toBeNull();
+});
+
+it('keeps the PIN step with a message and a cleared field after a wrong PIN', async () => {
+  const fetched = serve({ open: () => json({ code: 'PIN_INVALID' }, 401) });
+  open();
+  await enterPin('0000');
+  expect(await screen.findByText(label('myWork.pinInvalid'))).toBeTruthy();
+  expect((screen.getByLabelText(label('myWork.pinLabel')) as HTMLInputElement).value).toBe('');
+  expect(fetched.paths('/service-lines').length).toBe(0);
+});
+
+it('refuses a malformed PIN on the screen without calling the server', async () => {
+  const fetched = serve();
+  open();
+  await enterPin('12');
+  expect(await screen.findByText(label('myWork.pinInvalid'))).toBeTruthy();
+  expect(fetched.paths('/private-view').length).toBe(0);
+});
+
+it('leaves the private screen when the session ended while the PIN was being checked', async () => {
+  const onLeave = vi.fn();
+  serve({ open: () => json({ code: 'UNAUTHENTICATED' }, 401) });
+  open(onLeave);
+  await enterPin();
+  await waitFor(() => expect(onLeave).toHaveBeenCalledTimes(1));
+  expect(screen.queryByText('Haircut')).toBeNull();
+});
+
+it('returns to the PIN step after 60 seconds without input and leaves nothing of hers behind', async () => {
+  const fetched = serve();
+  const view = open();
+  await signIn();
+  await act(() => vi.advanceTimersByTimeAsync(59_000));
+  expect(screen.getByText('Haircut')).toBeTruthy();
+  await act(() => vi.advanceTimersByTimeAsync(1_500));
+  expect(await screen.findByText(label('myWork.pinTitle'))).toBeTruthy();
+  expect(screen.getByText(t('en', 'errors.PRIVATE_VIEW_EXPIRED'))).toBeTruthy();
+  expect(screen.queryByText('Haircut')).toBeNull();
+  expect(myWorkEntries(view.client).length).toBe(0);
+  await waitFor(() => expect(fetched.paths('/private-view/close').length).toBe(1));
+  expect(fetched.paths('/private-view/close')[0]?.headers.get('x-private-view-window-id')).toBe(
+    WINDOW,
+  );
+});
+
+it('lets input push the 60 second limit back', async () => {
+  serve();
+  open();
+  await signIn();
+  await act(() => vi.advanceTimersByTimeAsync(50_000));
+  fireEvent.keyDown(document.body, { key: 'a' });
+  await act(() => vi.advanceTimersByTimeAsync(50_000));
+  expect(screen.getByText('Haircut')).toBeTruthy();
+});
+
+it('sends the activity touch at most once every 20 seconds and only because of input', async () => {
+  const fetched = serve();
+  open();
+  await signIn();
+  await act(() => vi.advanceTimersByTimeAsync(40_000));
+  expect(touches(fetched).length).toBe(0);
+  fireEvent.keyDown(document.body, { key: 'a' });
+  fireEvent.keyDown(document.body, { key: 'b' });
+  fireEvent.pointerDown(document.body);
+  await waitFor(() => expect(touches(fetched).length).toBe(1));
+  expect(touches(fetched)[0]?.headers.get('x-private-view-window-id')).toBe(WINDOW);
+  await act(() => vi.advanceTimersByTimeAsync(5_000));
+  fireEvent.keyDown(document.body, { key: 'c' });
+  await act(() => vi.advanceTimersByTimeAsync(1_000));
+  expect(touches(fetched).length).toBe(1);
+  await act(() => vi.advanceTimersByTimeAsync(15_000));
+  expect(touches(fetched).length).toBe(2);
+});
+
+it('goes back to the PIN step when a touch says the window expired', async () => {
+  serve({ touch: () => json({ code: 'PRIVATE_VIEW_EXPIRED' }, 403) });
+  const view = open();
+  await signIn();
+  await act(() => vi.advanceTimersByTimeAsync(21_000));
+  fireEvent.keyDown(document.body, { key: 'a' });
+  expect(await screen.findByText(t('en', 'errors.PRIVATE_VIEW_EXPIRED'))).toBeTruthy();
+  expect(screen.queryByText('Haircut')).toBeNull();
+  expect(myWorkEntries(view.client).length).toBe(0);
+});
+
+it('returns to the PIN step when a read answers PRIVATE_VIEW_EXPIRED, with her still the operator', async () => {
+  const onLeave = vi.fn();
+  serve({ lines: () => json({ code: 'PRIVATE_VIEW_EXPIRED' }, 403) });
+  const view = open(onLeave);
+  await enterPin();
+  expect(await screen.findByText(t('en', 'errors.PRIVATE_VIEW_EXPIRED'))).toBeTruthy();
+  expect(screen.getByLabelText(label('myWork.pinLabel'))).toBeTruthy();
+  expect(onLeave).not.toHaveBeenCalled();
+  expect(myWorkEntries(view.client).length).toBe(0);
+});
+
+it('leaves the private screen entirely when a read answers 401', async () => {
+  const onLeave = vi.fn();
+  const fetched = serve({ lines: () => json({ code: 'UNAUTHENTICATED' }, 401) });
+  const view = open(onLeave);
+  await enterPin();
+  await waitFor(() => expect(onLeave).toHaveBeenCalledTimes(1));
+  expect(screen.queryByText('Haircut')).toBeNull();
+  expect(myWorkEntries(view.client).length).toBe(0);
+  await waitFor(() => expect(fetched.paths('/private-view/close').length).toBe(1));
+});
+
+it('shows a refused state and keeps the window when a read is forbidden', async () => {
+  serve({ lines: () => json({ code: 'FORBIDDEN' }, 403) });
+  open();
+  await enterPin();
+  expect(await screen.findByText(label('myWork.refused'))).toBeTruthy();
+  expect(screen.queryByLabelText(label('myWork.pinLabel'))).toBeNull();
+});
+
+it('closes the window and clears the cache when the screen is left', async () => {
+  const fetched = serve();
+  const view = open();
+  await signIn();
+  view.unmount();
+  expect(myWorkEntries(view.client).length).toBe(0);
+  await waitFor(() => expect(fetched.paths('/private-view/close').length).toBe(1));
+  expect(fetched.paths('/private-view/close')[0]?.headers.get('x-private-view-window-id')).toBe(
+    WINDOW,
+  );
+});
+
+it('never lets a late read repopulate the screen after the idle close', async () => {
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  replaceFetch(async (request: Request) => {
+    const url = new URL(request.url);
+    if (url.pathname.endsWith('/service-lines')) {
+      await gate;
+      return json(linesPage([fullLine]));
+    }
+    if (url.pathname.endsWith('/private-view/close')) return new Response(null, { status: 204 });
+    if (url.pathname.endsWith('/private-view')) return json(window_);
+    return json(hiddenTips());
+  });
+  const view = open();
+  await enterPin();
+  expect(await screen.findByText(label('myWork.loading'))).toBeTruthy();
+  await act(() => vi.advanceTimersByTimeAsync(61_000));
+  expect(await screen.findByText(label('myWork.pinTitle'))).toBeTruthy();
+  release();
+  await act(() => vi.advanceTimersByTimeAsync(1_000));
+  expect(screen.queryByText('Haircut')).toBeNull();
+  expect(myWorkEntries(view.client).length).toBe(0);
+});
+
+it('starts from the PIN step again when another operator replaces her', async () => {
+  serve();
+  function Harness() {
+    const [identity, setIdentity] = useState(context.identity);
+    return (
+      <>
+        <button onClick={() => setIdentity('1:mona:device:2026-12-01')}>replace</button>
+        <MyWorkScreen key={identity} context={{ ...context, identity }} onLeave={() => undefined} />
+      </>
+    );
+  }
+  renderWork(<Harness />);
+  await signIn();
+  fireEvent.click(screen.getByText('replace'));
+  expect(await screen.findByText(label('myWork.pinTitle'))).toBeTruthy();
+  expect(screen.queryByText('Haircut')).toBeNull();
+});
