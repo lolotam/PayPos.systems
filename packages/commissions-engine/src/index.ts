@@ -9,7 +9,7 @@ export type {
   RevisedSale,
   RevisedTip,
 } from './canonical-input.ts';
-export { buildStatement } from './statement-builder.ts';
+export { buildStatement, StatementCardConflictError } from './statement-builder.ts';
 export {
   statementAttachmentFromStored,
   statementFingerprintInput,

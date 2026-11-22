@@ -215,7 +215,9 @@ const CORRECTION_KINDS: Record<ReceivedCommissionCorrection['kind'], StatementRo
  * الصف بياخد تفاصيل البند كلها زي صف COMMISSION: line_id وsession_id وservice_id وأسماء الخدمة
  * وcustomer_id واسم العميل وbusiness_date، من رأس إسقاط البند وأسماء الخدمة والعميل (جدول §6،
  * D-20، وقرار المدير التقني على بند التصحيح). التصحيح اللي مصدره بيع أو بقشيش ما بياخدش تفاصيل
- * بند. لو رأس البند مش موجود، التفاصيل بتفضل null ومش بتتخترع.
+ * بند. لو رأس البند مش موجود، التفاصيل بتفضل null ومش بتتخترع؛ والحالة دي ممثَّلة في النموذج بس:
+ * جدول §6 وD-20 وR10 بيطلبوا تفاصيل البند متجمّدة، فقارئ PR 2 لازم يثبت هل الحالة دي ممكن توصله
+ * فعلًا ويبلّغ قبل ما يتحدد سلوك الفشل أو البديل.
  *
  * @param ctx سياق الموظفة
  * @param correction التصحيح المستلم
@@ -239,6 +241,7 @@ export function correctionRow(
     correction.attachedBranchIds,
   );
   const lineId = correction.sourceRef.startsWith('line:') ? correction.sourceRef.slice(5) : null;
+  // TODO(spec): رأس البند ممكن يكون غايب؛ سلوك الفشل أو البديل بيتحدد بعد إثبات قارئ 51-1 PR 2
   const head = lineId === null ? undefined : ctx.correctionLineDetails.get(lineId);
   const service = head === undefined ? undefined : ctx.names.services.get(head.serviceId);
   const customerId = head?.customerId ?? null;
