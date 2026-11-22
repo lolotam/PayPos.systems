@@ -1,8 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { closeAt, openedDeadlines } from '../model/private-view-deadline';
 import { WorkHttpError, sessionEnded, windowExpired } from '../model/work-error';
 import { privateViewCalls } from './private-view-calls';
-import { usePrivateViewInput } from './use-private-view-input';
+import { type ConfirmedWindow, monotonicNow, usePrivateViewInput } from './use-private-view-input';
 
 /** اللي الشاشة الخاصة بتديه للقراءات: رقم النافذة (جهاز الاستقبال بس) ومعالج الرفض. */
 export type PrivateViewAccess = {
@@ -17,10 +18,16 @@ type Options = {
   onLeave: () => void;
 };
 
-/** نتيجة محاولة فتح النافذة بالـ PIN. */
+/** نتيجة محاولة فتح النافذة بالـ PIN؛ المواعيد بتتحسب من لحظة إرسال الطلب. */
 async function attemptOpen(pin: string) {
+  const sentAt = monotonicNow();
   try {
-    return { kind: 'opened', windowId: (await privateViewCalls.open(pin)).window_id } as const;
+    const opened = await privateViewCalls.open(pin);
+    const confirmed: ConfirmedWindow = {
+      windowId: opened.window_id,
+      deadlines: openedDeadlines(sentAt, opened),
+    };
+    return { kind: 'opened', confirmed } as const;
   } catch (error) {
     if (sessionEnded(error)) return { kind: 'ended' } as const;
     const wrong = error instanceof WorkHttpError && error.code === 'PIN_INVALID';
@@ -29,7 +36,10 @@ async function attemptOpen(pin: string) {
 }
 
 /** مسح الكاش وقفل النافذة عند الانتهاء أو الخروج، ومعالج الرفض اللي بيقرر ترجع لـ PIN ولا تخرج. */
-function usePrivateViewLock(options: Options, setWindowId: (id: string | undefined) => void) {
+function usePrivateViewLock(
+  options: Options,
+  setConfirmed: (window: ConfirmedWindow | undefined) => void,
+) {
   const cache = useQueryClient();
   const [problem, setProblem] = useState<Problem>(null);
   const live = useRef<string | undefined>(undefined);
@@ -45,11 +55,11 @@ function usePrivateViewLock(options: Options, setWindowId: (id: string | undefin
   }, [cache]);
   const lock = useCallback(
     (reason: Problem) => {
-      setWindowId(undefined);
+      setConfirmed(undefined);
       setProblem(reason);
       release();
     },
-    [release, setWindowId],
+    [release, setConfirmed],
   );
   const refused = useCallback(
     (error: unknown) => {
@@ -61,13 +71,14 @@ function usePrivateViewLock(options: Options, setWindowId: (id: string | undefin
     },
     [lock],
   );
-  const idle = useCallback(() => lock('expired'), [lock]);
-  return { live, latest, problem, setProblem, release, refused, idle };
+  const expire = useCallback(() => lock('expired'), [lock]);
+  return { live, latest, problem, setProblem, release, refused, expire };
 }
 
 /**
- * القطعة المشتركة لأي شاشة خاصة (شغلي، وبعدها حضوري): خطوة الـ PIN على جهاز الاستقبال، قفل بعد
- * 60 ثانية من غير إدخال، لمس السيرفر كل 20 ثانية على الأكتر، ومسح الكاش عند القفل أو الخروج.
+ * القطعة المشتركة لأي شاشة خاصة (شغلي، وبعدها حضوري): خطوة الـ PIN على جهاز الاستقبال، قفل في
+ * الأبكر بين موعد الخمول المؤكَّد من السيرفر والسقف المطلق، لمس السيرفر كل 20 ثانية على الأكتر
+ * (الموعد بيتحرك لما اللمسة تنجح بس)، ومسح الكاش عند القفل أو الخروج.
  * الموبايل الشخصي ما بيحتاجش نافذة: بيتفتح على طول.
  *
  * @param options.mode موبايلها الشخصي أو جهاز الاستقبال
@@ -77,10 +88,10 @@ function usePrivateViewLock(options: Options, setWindowId: (id: string | undefin
  */
 export function usePrivateView(options: Options) {
   const reception = options.mode === 'reception';
-  const [windowId, setWindowId] = useState<string>();
+  const [confirmed, setConfirmed] = useState<ConfirmedWindow>();
   const [pending, setPending] = useState(false);
   const mounted = useRef(true);
-  const lock = usePrivateViewLock(options, setWindowId);
+  const lock = usePrivateViewLock(options, setConfirmed);
   const { release } = lock;
   useEffect(() => {
     mounted.current = true;
@@ -89,20 +100,26 @@ export function usePrivateView(options: Options) {
       release();
     };
   }, [release]);
-  usePrivateViewInput(reception ? windowId : undefined, lock.idle, lock.refused);
+  usePrivateViewInput(reception ? confirmed : undefined, lock.expire, lock.refused);
+  const windowId = confirmed?.windowId;
   const submitPin = async (pin: string) => {
     if (pending || !navigator.onLine) return;
     setPending(true);
     lock.setProblem(null);
     const outcome = await attemptOpen(pin);
     if (!mounted.current) {
-      if (outcome.kind === 'opened') void privateViewCalls.close(outcome.windowId);
+      if (outcome.kind === 'opened') void privateViewCalls.close(outcome.confirmed.windowId);
       return;
     }
     setPending(false);
     if (outcome.kind === 'opened') {
-      lock.live.current = outcome.windowId;
-      setWindowId(outcome.windowId);
+      if (closeAt(outcome.confirmed.deadlines) <= monotonicNow()) {
+        void privateViewCalls.close(outcome.confirmed.windowId);
+        lock.setProblem('expired');
+        return;
+      }
+      lock.live.current = outcome.confirmed.windowId;
+      setConfirmed(outcome.confirmed);
     } else if (outcome.kind === 'ended') lock.latest.current.onLeave();
     else lock.setProblem(outcome.kind);
   };

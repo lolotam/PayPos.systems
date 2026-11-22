@@ -1,4 +1,4 @@
-import type { PrivateViewWindow } from '@pospay/contracts';
+import type { PrivateViewTouch, PrivateViewWindow } from '@pospay/contracts';
 import { staffApiClient } from '@/shared/api/client';
 import { WorkHttpError } from '../model/work-error';
 
@@ -28,12 +28,19 @@ export const privateViewCalls = {
     if (result.data === undefined) throw refused(result);
     return result.data;
   },
-  touch: async (windowId: string): Promise<void> => {
+  /**
+   * بيلمس النافذة بعد إدخال؛ الرد هو الوقتين المتبقيين اللي الشاشة بتبني عليهم موعد القفل.
+   *
+   * @param windowId رقم النافذة المفتوحة
+   * @returns الوقت المتبقي على الخمول وعلى السقف، وغير كده بيرمي WorkHttpError بالكود
+   */
+  touch: async (windowId: string): Promise<PrivateViewTouch> => {
     const result = await staffApiClient().POST('/v1/staff/me/private-view/touch', {
       params: { header: { [HEADER]: windowId } },
       cache: 'no-store',
     });
     if (result.data === undefined) throw refused(result);
+    return result.data;
   },
   /** إغلاق بأفضل جهد: الرد 204 دايماً، وفشل الشبكة ما بيمنعش مسح الشاشة. */
   close: async (windowId: string): Promise<void> => {

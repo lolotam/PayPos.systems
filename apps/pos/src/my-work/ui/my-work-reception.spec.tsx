@@ -33,7 +33,8 @@ function serve(overrides: Overrides = {}) {
   return installFetch((request, url) => {
     if (url.pathname.endsWith('/private-view/touch'))
       return (
-        overrides.touch?.(request, url) ?? json({ idle_remaining_ms: 60_000, cap_remaining_ms: 1 })
+        overrides.touch?.(request, url) ??
+        json({ idle_remaining_ms: 60_000, cap_remaining_ms: 250_000 })
       );
     if (url.pathname.endsWith('/private-view/close')) return new Response(null, { status: 204 });
     if (url.pathname.endsWith('/private-view'))
