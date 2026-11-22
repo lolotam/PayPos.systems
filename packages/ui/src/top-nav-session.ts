@@ -177,12 +177,15 @@ type RestoreFocusArgs = {
   breakpointTargetRef: RefObject<HTMLElement | undefined>;
 };
 
-function focusBreakpointTarget({ event, breakpointTargetRef }: RestoreFocusArgs) {
+function focusBreakpointTarget({ event, breakpointTargetRef, setSession }: RestoreFocusArgs) {
   const target = breakpointTargetRef.current;
   if (!target) return;
   event.preventDefault();
   breakpointTargetRef.current = undefined;
   target.focus();
+  // Breakpoint focus replaces the stored opener; leaving it would reuse the
+  // old trigger for the next menu opened after the layout change.
+  setSession((previous) => ({ ...previous, opener: undefined }));
 }
 
 function isIntermediateClose({ moduleId, current }: RestoreFocusArgs) {
@@ -274,7 +277,8 @@ export function useTopNavSession({
       ...previous,
       openId: undefined,
       drawerOpen: false,
-      opener: undefined,
+      // Keep the opener until onCloseAutoFocus consumes it; clearing it here
+      // makes breakpoint close restore focus to the current module instead.
       switchCloseIds: [],
     }));
   }, []);

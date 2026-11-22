@@ -48,19 +48,46 @@ it('releases an open menu and moves focus at the fractional 699.5px phone bounda
   await waitFor(() => expect(document.activeElement).toBe(drawerTrigger));
 });
 
-it('closes an open menu and restores focus at the fractional 1023.5/1024 boundary', async () => {
+it('closes an open menu and restores focus to its opener at the fractional 1023.5/1024 boundary', async () => {
   const width = { value: 1024 };
   stubBreakpoints(width);
-  const view = render(tree({ currentModuleId: 'business' }));
-  const opener = screen.getByRole('button', { name: /Business/ });
+  const view = render(tree({ currentModuleId: 'sell' }));
+  const opener = screen.getByRole('button', { name: /People/ });
+  const currentTrigger = screen.getByRole('button', { name: /Sell/ });
   opener.focus();
   fireEvent.click(opener);
-  expect(screen.getByRole('dialog', { name: 'Business' }).contains(document.activeElement)).toBe(true);
+  expect(screen.getByRole('dialog', { name: 'People' }).contains(document.activeElement)).toBe(true);
 
   width.value = 1023.5;
-  view.rerender(tree({ currentModuleId: 'business' }));
+  view.rerender(tree({ currentModuleId: 'sell' }));
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   await waitFor(() => expect(document.activeElement).toBe(opener));
+  expect(document.activeElement).not.toBe(currentTrigger);
+});
+
+it('does not reuse a pre-breakpoint opener for a new menu after returning to desktop', async () => {
+  const width = { value: 1024 };
+  stubBreakpoints(width);
+  const view = render(tree({ currentModuleId: 'sell' }));
+  const firstOpener = screen.getByRole('button', { name: /People/ });
+  firstOpener.focus();
+  fireEvent.click(firstOpener);
+
+  width.value = 699;
+  view.rerender(tree({ currentModuleId: 'sell' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+  width.value = 1024;
+  view.rerender(tree({ currentModuleId: 'sell' }));
+  const nextOpener = screen.getByRole('button', { name: /Grow/ });
+  nextOpener.focus();
+  fireEvent.click(nextOpener);
+  const dialog = screen.getByRole('dialog', { name: 'Grow' });
+  expect(dialog.contains(document.activeElement)).toBe(true);
+  fireEvent.keyDown(document.activeElement ?? dialog, { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() => expect(document.activeElement).toBe(nextOpener));
+  expect(document.activeElement).not.toBe(firstOpener);
 });
 
 it('keeps a visible current marker in the drawer after expanding another module', () => {

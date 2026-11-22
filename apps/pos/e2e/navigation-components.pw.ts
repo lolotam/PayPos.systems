@@ -299,31 +299,33 @@ for (const dir of DIRECTIONS) {
   });
 
   test(`C rail inspects another workspace and filters the panel (${dir})`, async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await openScene(page, 'context', dir);
-    const rail = page.getByRole('navigation', { name: LABELS.navigation });
-    const currentWorkspace = rail.getByRole('button', { name: LABELS.business }).first();
-    await expectVisibleNavRailCurrentMarker(currentWorkspace);
+    for (const width of [1280, 820]) {
+      await page.setViewportSize({ width, height: 900 });
+      await openScene(page, 'context', dir);
+      const rail = page.getByRole('navigation', { name: LABELS.navigation });
+      const currentWorkspace = rail.getByRole('button', { name: LABELS.business }).first();
+      await expectVisibleNavRailCurrentMarker(currentWorkspace);
 
-    const panel = page.getByRole('complementary', { name: LABELS.panelNavigation });
-    await expect(panel).toBeVisible();
-    await expect(panel.getByRole('link', { name: LABELS.columns })).toBeVisible();
+      const panel = page.getByRole('complementary', { name: LABELS.panelNavigation });
+      await expect(panel).toBeVisible();
+      await expect(panel.getByRole('link', { name: LABELS.columns })).toBeVisible();
 
-    const team = rail.getByRole('button', { name: LABELS.people }).first();
-    await team.click();
-    await expectVisibleNavRailCurrentMarker(currentWorkspace);
-    await expect(team).not.toHaveAttribute('data-current', '');
-    await expect(team).toHaveAttribute('aria-pressed', 'true');
-    await expect(panel.getByRole('link', { name: LABELS.employees })).toBeVisible();
-    await expect(panel.getByRole('link', { name: LABELS.columns })).toHaveCount(0);
+      const team = rail.getByRole('button', { name: LABELS.people }).first();
+      await team.click();
+      await expectVisibleNavRailCurrentMarker(currentWorkspace);
+      await expect(team).not.toHaveAttribute('data-current', '');
+      await expect(team).toHaveAttribute('aria-pressed', 'true');
+      await expect(panel.getByRole('link', { name: LABELS.employees })).toBeVisible();
+      await expect(panel.getByRole('link', { name: LABELS.columns })).toHaveCount(0);
 
-    const closePanel = panel.getByRole('button', { name: LABELS.panelClose });
-    await closePanel.focus();
-    await page.keyboard.press('Enter');
-    await expect(panel).toBeHidden();
-    await expect(team).toBeFocused();
-    await team.click();
-    await expect(panel).toBeVisible();
+      const closePanel = panel.getByRole('button', { name: LABELS.panelClose });
+      await closePanel.focus();
+      await page.keyboard.press('Enter');
+      await expect(panel).toBeHidden();
+      await expect(team).toBeFocused();
+      await team.click();
+      await expect(panel).toBeVisible();
+    }
   });
 
   test(`finder keyboard activation and localized empty state (${dir})`, async ({ page }) => {
