@@ -185,6 +185,19 @@ export type CoverageRetainedPageReader = Pick<
   'commissionRetainedEventPage'
 >;
 
+/** انتماء النشاط للشركة؛ التقرير يرفض نشاطاً ليس لها بدل أن يطبع COVERED عن نطاق يقرأ منه صفراً. */
+export interface CoverageBusinessReader {
+  /**
+   * هل النشاط من أنشطة الشركة داخل معاملة المستأجر؛ نشاط شركة أخرى أو غير موجود يعيد false.
+   *
+   * @param tx معاملة الشركة التي يقرأ منها التقرير
+   * @param companyId هوية الشركة المفحوصة
+   * @param businessId هوية النشاط المطلوب في نطاق البقشيش
+   * @returns هل النشاط موجود ضمن الشركة
+   */
+  isInCompany(tx: CoverageTx, companyId: string, businessId: string): Promise<boolean>;
+}
+
 /** وجود الشركة وغياب حذفها؛ التقرير يرفض أي نطاق لشركة غير موجودة بدل أن يغطّي نطاقاً فارغاً. */
 export interface CoverageCompanyReader {
   /**

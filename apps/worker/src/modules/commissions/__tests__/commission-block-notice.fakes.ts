@@ -1,4 +1,4 @@
-import type { CommissionBlockNotices } from '../ports/commission-block-notice.port.ts';
+import type { CommissionBlockNotices } from '@pospay/commissions-posting';
 
 /**
  * منفذ جرس صامت للاختبارات اللي مش مهمها الجرس: صفر مستلمين وبلا كتابة،

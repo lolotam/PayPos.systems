@@ -27,8 +27,12 @@ import {
   CommissionLineEventInvalidError,
   CommissionPeriodRolledOverError,
 } from '../../domain/errors.ts';
-import type { CommissionCorrectionScope } from '../../ports/commission-correction.port.ts';
-import type { CommissionBlockNotices } from '../../ports/commission-block-notice.port.ts';
+import {
+  type CommissionCorrectionScope,
+  type CommissionBlockNotices,
+  postCommissionCorrections,
+  selectCommissionCorrectionTargets,
+} from '@pospay/commissions-posting';
 import type {
   Clock,
   CommissionInputEventEnvelope,
@@ -37,10 +41,6 @@ import type {
   CommissionLineReplacement,
   IdGenerator,
 } from '../../ports/commission-line-projection.port.ts';
-import {
-  postCommissionCorrections,
-  selectCommissionCorrectionTargets,
-} from '../post-commission-corrections/post-commission-corrections.ts';
 import { readCommissionLineCorrectionEmployees } from './post-line-corrections.ts';
 
 type CommissionInputEventPayload =

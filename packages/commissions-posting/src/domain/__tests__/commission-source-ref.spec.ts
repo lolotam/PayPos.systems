@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
 
-import type { CommissionTipMethod } from '../commission-tip-salary-inputs.ts';
-
 import {
   COMMISSION_LINE_SOURCE_PREFIX,
   COMMISSION_SALE_SOURCE_PREFIX,
@@ -9,6 +7,7 @@ import {
   commissionLineSourceRef,
   commissionSourceKind,
   commissionTipSourceRef,
+  type CommissionTipMethod,
 } from '../commission-source-ref.ts';
 
 describe('commission source prefixes', () => {

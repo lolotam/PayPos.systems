@@ -560,3 +560,42 @@ describe('ADR-0054 commissions engine import', () => {
     );
   }
 });
+
+describe('ADR-0054 addendum commissions posting import', () => {
+  const postingMap = {
+    ...MAP,
+    packagesRestricted: { ...MAP.packagesRestricted, 'commissions-posting': ['commissions'] },
+  };
+  const code =
+    "import { postCommissionCorrections } from '@pospay/commissions-posting'; void postCommissionCorrections;\n";
+  const workerPackage = {
+    'apps/worker/package.json': '{"name":"@pospay/worker","dependencies":{}}',
+  };
+
+  for (const [file, expected, source = code] of [
+    ['apps/api/src/modules/commissions/use-cases/posting.ts', ''],
+    ['apps/worker/src/modules/commissions/persistence/posting.ts', ''],
+    ['apps/api/src/modules/staff/persistence/sneak.ts', /may be imported only by commissions/],
+    [
+      'apps/worker/src/modules/staff/persistence/type-sneak.ts',
+      /may be imported only by commissions/,
+      "export type Step = import('@pospay/commissions-posting').CommissionCorrectionTarget;\n",
+    ],
+  ]) {
+    it(
+      expected === ''
+        ? `allows ${file} to import the posting package`
+        : `refuses the posting package in ${file}`,
+      () => {
+        const problems = checkModules(repo({ ...workerPackage, [file]: source }), postingMap).join(
+          '\n',
+        );
+        if (expected === '') {
+          assert.equal(problems, '');
+          return;
+        }
+        assert.match(problems, expected);
+      },
+    );
+  }
+});

@@ -15,12 +15,13 @@ import {
   createCommissionLineProjectionScope,
   type BusinessTimeZoneReader,
 } from './persistence/commission-line-projection.scope.ts';
-import { createCommissionCorrectionScope } from './persistence/commission-correction.scope.ts';
+import { createCommissionCorrectionScope } from '@pospay/commissions-posting';
 import { createCommissionBlockNotices } from './persistence/commission-block-notice.outbox.ts';
 import { markCommissionEventConsumed } from './persistence/commission-event-consumption.ts';
 import { createCoverageProjectionReader } from './persistence/commission-coverage.reads.ts';
 import type { CommissionPermissionHoldersReader } from './ports/commission-block-notice.port.ts';
 import type {
+  CoverageBusinessReader,
   CoverageCompanyReader,
   CoverageRetainedPageReader,
   PackageSaleCoverageReader,
@@ -188,6 +189,7 @@ export function createCommissionCoverageReport(dependencies: {
   readonly sales: PackageSaleCoverageReader;
   readonly retained: CoverageRetainedPageReader;
   readonly companies: CoverageCompanyReader;
+  readonly businesses: CoverageBusinessReader;
   readonly tipsReader?: CurrentTipSessionsReader;
 }): (scope: CommissionCoverageScope) => Promise<CommissionCoverageReport> {
   return (scope) =>
@@ -200,6 +202,7 @@ export function createCommissionCoverageReport(dependencies: {
         projection: createCoverageProjectionReader(),
         retained: dependencies.retained,
         companies: dependencies.companies,
+        businesses: dependencies.businesses,
         consumerId: COMMISSION_INPUTS_CONSUMER_ID,
         handledTypes: new Set(COMMISSION_INPUT_EVENT_TYPES),
         ...(dependencies.tipsReader === undefined ? {} : { tipsReader: dependencies.tipsReader }),

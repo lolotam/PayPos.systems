@@ -167,8 +167,11 @@ the attachment snapshot; the post-freeze statement-fingerprint recompute; carrie
 the shared home; the approval guard (FR-036); HTTP. Error codes `COMMISSION_UPDATES_PENDING` and the 409 family.
 **Tests:** the approval part of CM-33, CM-34, CM-34b…CM-34e (integration), CM-35, CM-37, CM-38, CM-38b, ADR-0012
 group 5, the carry cases of spec 059 §7 row 53-2, the statement-view clause of CM-54. **Size:** 400–550. **Depends
-on:** 52-1, 53-1, 55-2f, #1032 merged; the two open gaps of research decided in the design-advisor round. It adds the parked-event owner alert (A4) and a staff employment-dates reader for the departed rule (A6). No
-migration of its own unless T3 chooses the stored coverage proof.
+on:** 52-1, 53-1, 55-2f, #1032 merged. It adds the parked-event owner alert (A4, design accepted by the PosPay manager:
+raised after the committed park, deduped by a `commissions.park-alert` consumer mark, to the company's owners) and a
+staff employment-dates reader for the departed rule (A6). **The coverage gate is a stored bootstrap proof (T3 =
+CS-Q54, Waleed 2026-11-22):** 53-2 has a migration for the proof (its turn in the queue follows 52-1), and an ADR-0054
+addendum with the FR-032 amendment is written and reviewed before the gate's code (research R11).
 
 **10. 53-3 (Medium: screen and tests).** CM-36 barrier tests on a harness where a real API approval races the worker
 consumer (ADR-0012 group 6); the admin statement screen under `apps/admin/src/commissions/` (view, review, return,
@@ -259,8 +262,9 @@ migrations on their own private cluster and **take a number, run `pnpm db:genera
 3. #486 (data step + CHECK)
 4. 51-1 PR 2 (review permission)
 5. 52-1 (returns table, approve permission)
-6. 54-1 (payment columns, payment table, pay permission)
-7. 56b-1 (reminders, recovery flags)
+6. 53-2 (the bootstrap coverage proof, CS-Q54) — no number reserved; never ahead of 52-1, 53-1 or 55-2f
+7. 54-1 (payment columns, payment table, pay permission)
+8. 56b-1 (reminders, recovery flags)
 
 A branch that fails the chain check with «expected first parent» is stale and is updated, never renumbered by hand.
 
@@ -309,7 +313,7 @@ A branch that fails the chain check with «expected first parent» is stale and 
 | --- | --- | --- | --- | --- |
 | T1 | Home of the moved correction step (research R1) | Waleed — **answered, PP-226:** the restricted package `packages/commissions-posting` with an ADR-0054 addendum | nothing | 55-2f-0 opens after its review and gates |
 | T2 | ADR-0061's security choices (research R8) | Waleed (technical) | 56b-1 code | ADR drafted |
-| T3 | The shape of 53-2's coverage gate: a live comparison inside the approval transaction, or a stored proof written by the worker report and checked by approval (design round A3) | Waleed (technical), after lane C's measurement | writing 53-2's gate; a stored proof adds a migration and an ADR-0054 addendum | lane C measures |
+| T3 | The shape of 53-2's coverage gate (design round A3) | Waleed — **answered 2026-11-22, CS-Q54:** «إثبات تأسيسي مخزّن (المقترح)، بشرط تقييد إصداره وإبطاله عند تغيّر شروط التغطية» | nothing; the design contract (research R11) is written before the gate's code | lane C writes the ADR-0054 addendum |
 | F1 | CS-Q52: who receives statement notices (DR-008) | both owners, batch 100 — **Waleed answered, PP-227:** everyone who can approve; the rule controls on/off and channel. Abu Salem pending; his pick binds if it differs | nothing: work follows Waleed's pick (CLAUDE.md §1 5b) | 52-1 and 56b-1 implement it |
 | M1 | 51-1 PR 1 merges before or after 55-2f (research R4) | PosPay manager — **ruled 2026-11-22:** build and test locally; open after its migration turn and the gates; merge after 55-2f (PP-101.2) | merge of 51-1 PR 1 | built locally |
 | M2 | Migration order against row 61 | PosPay manager — **ruled 2026-11-22:** row 61 first; the order in _Migration queue_ is a proposal by readiness and dependency, not a grant and not a reservation of numbers | every migration push | private clusters |
