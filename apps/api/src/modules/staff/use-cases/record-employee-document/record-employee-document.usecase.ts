@@ -5,6 +5,7 @@ import {
   documentView,
   replaceCurrentDocument,
   requireDocumentFile,
+  storedDocumentNumber,
   validateDocumentRecord,
 } from '../../domain/employee-documents.ts';
 import type { DocumentClock, DocumentIds } from '../../ports/document-types.port.ts';
@@ -43,7 +44,7 @@ export class RecordEmployeeDocumentUseCase {
         recorded_at: now.toISOString(),
         replaced_at: null,
       });
-      await scope.save(replaced, recorded);
+      await scope.save(replaced, recorded, storedDocumentNumber(input.document_number));
       return documentView(recorded, type, documentToday(now, scope.timeZone));
     });
   }

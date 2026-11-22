@@ -20,6 +20,7 @@ export function employeeDocumentsStatement(companyId: string, employeeId: string
   return sql`SELECT
     COALESCE((SELECT jsonb_agg(jsonb_build_object('id',d.id,'employee_id',d.employee_id,'type_code',d.type_code,
       'type_name_en',t.name_en,'type_name_ar',t.name_ar,'object_key',d.object_key,
+      'document_number',d.document_number,
       'expires_on',to_char(d.expires_on,'YYYY-MM-DD'),'uploaded_by',d.uploaded_by,
       'recorded_at',to_char(d.recorded_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
       'status',CASE WHEN d.expires_on IS NULL THEN 'NO_EXPIRY'

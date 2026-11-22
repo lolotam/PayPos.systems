@@ -15,7 +15,8 @@ export const inAppEn = {
   generic_employee: 'Employee',
   generic_branch: 'Branch',
   generic_document: 'Document',
-  late_service_session: 'A late service session dated {{business_date}} was recorded at {{branch_name_en}}.',
+  late_service_session:
+    'A late service session dated {{business_date}} was recorded at {{branch_name_en}}.',
   service_line_price_edited:
     '{{editor_name_en}} edited {{service_name_en}} at {{branch_name_en}} dated {{business_date}}: the net was {{previous_net}} KWD and is now {{new_net}} KWD.',
   service_line_cancelled:
@@ -35,11 +36,12 @@ export const inAppEn = {
     '{{employee_name_en}} has not clocked in for the {{shift_start}} shift at {{branch_name_en}}',
   break_not_returned:
     '{{employee_name_en}} has not clocked back in from the break that ended at {{break_end}} at {{branch_name_en}}',
-  break_returned_other_branch:
-    '{{employee_name_en}} returned from the break at {{branch_name_en}}',
+  break_returned_other_branch: '{{employee_name_en}} returned from the break at {{branch_name_en}}',
   attendance_exception_raised:
     '{{employee_name_en}} clocked in at {{branch_name_en}} on {{clock_in_date}} at {{clock_in_time}} and has not clocked out',
   document_expiring: "{{employee_name_en}}'s {{document_type_en}} expires on {{expires_on}}",
+  document_expiring_numbered:
+    "{{employee_name_en}}'s {{document_type_en}} expires on {{expires_on}} · document no. {{document_number}}",
 };
 
 export const inAppAr = {
@@ -76,9 +78,11 @@ export const inAppAr = {
     'لم يُسجَّل حضور {{employee_name_ar}} لشفت الساعة {{shift_start}} في {{branch_name_ar}}',
   break_not_returned:
     'لم يُسجَّل رجوع {{employee_name_ar}} من البريك المنتهي الساعة {{break_end}} في {{branch_name_ar}}',
-  break_returned_other_branch:
-    '{{employee_name_ar}} رجعت من البريك في فرع {{branch_name_ar}}',
+  break_returned_other_branch: '{{employee_name_ar}} رجعت من البريك في فرع {{branch_name_ar}}',
   attendance_exception_raised:
     '{{employee_name_ar}} سجّلت دخول في {{branch_name_ar}} يوم {{clock_in_date}} الساعة {{clock_in_time}} ولم تسجّل خروج',
-  document_expiring: 'مستند {{document_type_ar}} الخاص بـ {{employee_name_ar}} ينتهي يوم {{expires_on}}',
+  document_expiring:
+    'مستند {{document_type_ar}} الخاص بـ {{employee_name_ar}} ينتهي يوم {{expires_on}}',
+  document_expiring_numbered:
+    'مستند {{document_type_ar}} الخاص بـ {{employee_name_ar}} ينتهي يوم {{expires_on}} — رقم المستند {{document_number}}',
 };

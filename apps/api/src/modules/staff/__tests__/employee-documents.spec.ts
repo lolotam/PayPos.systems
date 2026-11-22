@@ -162,3 +162,55 @@ it('concurrent records of one type serialize: one current document, the other ke
   expect(stored.filter((r) => r['replaced_at'] === null)).toHaveLength(1);
   expect(results.map((r) => r.id).sort()).toEqual(stored.map((r) => r['id']).sort());
 });
+
+it('DN-01 stores the trimmed number, returns none of it, and the list shows it', async () => {
+  const fileId = await documentFile(f);
+  const result = await f.record.execute(
+    recordCommand(f, fileId, { type_code: 'work_contract', document_number: 'SYN-DOC-0001' }),
+  );
+  expect(result).not.toHaveProperty('document_number');
+  const [row] = await f.h
+    .owner`SELECT document_number FROM employee_documents WHERE company_id=${f.company} AND id=${result.id}`;
+  expect(row?.['document_number']).toBe('SYN-DOC-0001');
+});
+
+it('DN-02 stores NULL when the number is omitted or null on record and replace', async () => {
+  const omitted = await f.record.execute(
+    recordCommand(f, await documentFile(f), { type_code: 'work_contract' }),
+  );
+  const nulled = await f.record.execute(
+    recordCommand(f, await documentFile(f), {
+      type_code: 'work_contract',
+      document_number: null,
+    }),
+  );
+  const stored = await f.h
+    .owner`SELECT id,document_number FROM employee_documents WHERE company_id=${f.company} AND id IN (${omitted.id},${nulled.id})`;
+  for (const row of stored) expect(row['document_number']).toBeNull();
+});
+
+it('DN-03 a replace without a number leaves the new row NULL and the replaced row keeps its own number', async () => {
+  const first = await f.record.execute(
+    recordCommand(f, await documentFile(f), { document_number: 'SYN-DOC-KEEP-1' }),
+  );
+  const second = await f.record.execute(
+    recordCommand(f, await documentFile(f), { document_number: null }),
+  );
+  const stored = await f.h
+    .owner`SELECT id,document_number,replaced_at FROM employee_documents WHERE company_id=${f.company} AND id IN (${first.id},${second.id})`;
+  const replacedRow = stored.find((row) => row['id'] === first.id);
+  const currentRow = stored.find((row) => row['id'] === second.id);
+  expect(replacedRow?.['document_number']).toBe('SYN-DOC-KEEP-1');
+  expect(replacedRow?.['replaced_at']).not.toBeNull();
+  expect(currentRow?.['document_number']).toBeNull();
+  expect(currentRow?.['replaced_at']).toBeNull();
+});
+
+it('DN-04 legacy rows read NULL and keep working in the list', async () => {
+  await f.h
+    .owner`INSERT INTO employee_documents(company_id,id,business_id,employee_id,type_code,object_key,uploaded_by,recorded_at)
+    VALUES (${f.company},${documentIds.newId()},${f.business},${f.other.id},'passport','legacy-key-62e',${f.userId},'2026-01-01T00:00:00Z'::timestamptz)`;
+  const [legacy] = await f.h
+    .owner`SELECT id,document_number FROM employee_documents WHERE company_id=${f.company} AND object_key='legacy-key-62e'`;
+  expect(legacy?.['document_number']).toBeNull();
+});

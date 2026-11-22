@@ -1646,6 +1646,20 @@
       "when": 1795268353078,
       "tag": "0236_2026-11-21_imported-refunds-permission",
       "breakpoints": true
+    },
+    {
+      "idx": 237,
+      "version": "7",
+      "when": 1795290781960,
+      "tag": "0237_2026-11-21_employee-document-number",
+      "breakpoints": true
+    },
+    {
+      "idx": 238,
+      "version": "7",
+      "when": 1795290787072,
+      "tag": "0238_2026-11-21_employee-document-number-validate",
+      "breakpoints": true
     }
   ]
 }

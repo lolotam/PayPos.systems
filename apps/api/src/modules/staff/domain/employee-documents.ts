@@ -118,6 +118,17 @@ export function replaceCurrentDocument(
 }
 
 /**
+ * رقم المستند المخزّن: «غير موجود أو null» يعني «بلا رقم»، والقيمة الصالحة تمر كما هي.
+ * FR-D04: الرقم لا يُنسخ أبداً من الوثيقة المستبدَلة؛ كل تسجيل يبدأ بلا رقم إلا إذا كُتب في نفس الرفع.
+ *
+ * @param documentNumber رقم المستند من العقد (omitted أو null أو نص صالح مقتطع)
+ * @returns الرقم المحفوظ أو null
+ */
+export function storedDocumentNumber(documentNumber: string | null | undefined): string | null {
+  return documentNumber ?? null;
+}
+
+/**
  * تاريخ اليوم بتوقيت النشاط من الساعة المحقونة، فلا تتغير الشارة مع مكان الخادم أو المدير.
  *
  * @param now اللحظة المحقونة

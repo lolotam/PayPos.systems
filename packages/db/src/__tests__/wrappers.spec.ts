@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm';
+import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { createTestDatabase, type TestDatabase } from '../../test/test-database.ts';
@@ -58,6 +59,29 @@ describe('withTenant', () => {
   it('rejects a malformed id before touching the database', async () => {
     await expect(database.withTenant('not-a-uuid', readContext)).rejects.toThrow(TypeError);
   });
+});
+
+it('uses one read-only snapshot from tenant setup through the final read', async () => {
+  const owner = postgres(testDb.ownerUrl, { max: 1 });
+  const code = 'read:synthetic-snapshot:business';
+  const permissions = (tx: Tx) => tx.execute(sql`SELECT code FROM permissions WHERE code=${code}`);
+  try {
+    await database.withTenant(
+      COMPANY_A,
+      async (tx) => {
+        await owner`INSERT INTO permissions(code) VALUES (${code})`;
+        expect(await permissions(tx)).toHaveLength(0);
+        const [mode] = await tx.execute(
+          sql`SELECT current_setting('transaction_read_only') AS read_only`,
+        );
+        expect(mode?.['read_only']).toBe('on');
+      },
+      { readOnly: true },
+    );
+    expect(await database.withTenant(COMPANY_A, permissions)).toEqual([{ code }]);
+  } finally {
+    await owner.end();
+  }
 });
 
 describe('ping', () => {

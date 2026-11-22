@@ -86,8 +86,11 @@ export async function documentExpiryFixture() {
     override: (input: OverrideInput) => newOverride(owner, ids, input),
     type: (tenant: Tenant, code: string, alertDays = 30, requiresExpiry = true) =>
       newType(owner, ids.newId(), tenant, code, alertDays, requiresExpiry),
-    document: (tenant: Tenant, employeeId: string, typeCode: string, expiresOn: string | null) =>
-      newDocument(owner, ids.newId(), tenant, employeeId, typeCode, expiresOn, userId),
+    document: (
+      tenant: Tenant, employeeId: string, typeCode: string,
+      expiresOn: string | null, documentNumber?: string,
+    ) =>
+      newDocument(owner, ids.newId(), tenant, employeeId, typeCode, expiresOn, userId, documentNumber),
     replace: (
       tenant: Tenant,
       employeeId: string,
@@ -200,10 +203,11 @@ async function newDocument(
   typeCode: string,
   expiresOn: string | null,
   uploadedBy: string,
+  documentNumber?: string,
 ) {
-  await owner`INSERT INTO employee_documents(company_id,id,business_id,employee_id,type_code,object_key,expires_on,uploaded_by,recorded_at)
+  await owner`INSERT INTO employee_documents(company_id,id,business_id,employee_id,type_code,object_key,expires_on,uploaded_by,recorded_at,document_number)
     VALUES(${tenant.company},${id},${tenant.business},${employeeId},${typeCode},${`synthetic/${id}.pdf`},
-      ${expiresOn}::date,${uploadedBy},clock_timestamp())`;
+      ${expiresOn}::date,${uploadedBy},clock_timestamp(),${documentNumber ?? null})`;
   return id;
 }
 

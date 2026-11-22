@@ -11,8 +11,8 @@ export const documentIds = systemUuidV7();
 export const documentClock = { now: () => new Date('2026-10-04T21:30:00Z') };
 export const KUWAIT_TODAY = '2026-10-05';
 
-export async function documentsFixture() {
-  const f = await employeesFixture();
+export async function documentsFixture(options: Parameters<typeof employeesFixture>[0] = {}) {
+  const f = await employeesFixture(options);
   await grantEmployeeCreation(f);
   const command = { companyId: f.company, userId: f.userId, businessId: f.business };
   const employee = await f.useCase.execute({ ...command, input: termsFor(f) });
@@ -78,7 +78,11 @@ export async function documentFile(
 export const recordCommand = (
   f: DocumentsFixture,
   fileId: string,
-  input: { type_code?: string; expires_on?: string | null } = {},
+  input: {
+    type_code?: string;
+    expires_on?: string | null;
+    document_number?: string | null;
+  } = {},
   employeeId = f.employee.id,
 ) => ({
   companyId: f.company,
@@ -91,5 +95,6 @@ export const recordCommand = (
     type_code: input.type_code ?? 'civil_id',
     file_id: fileId,
     expires_on: input.expires_on === undefined ? '2026-10-20' : input.expires_on,
+    ...(input.document_number === undefined ? {} : { document_number: input.document_number }),
   },
 });

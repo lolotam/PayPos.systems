@@ -77,3 +77,18 @@ it('falls back to the English employee name in the document bell too', () => {
     'مستند إقامة الخاص بـ Sara ينتهي يوم 2026-11-04',
   );
 });
+
+it('DN-22 shows the number only when a current lookup supplied it, and never the document id', () => {
+  expect(renderNotification(document(), 'ar', 'SYN-DOC-0009')).toBe(
+    'مستند إقامة الخاص بـ سارة ينتهي يوم 2026-11-04 — رقم المستند \u2068SYN-DOC-0009\u2069',
+  );
+  expect(renderNotification(document(), 'en', 'SYN-DOC-0009')).toBe(
+    "Sara's Residency expires on 2026-11-04 · document no. \u2068SYN-DOC-0009\u2069",
+  );
+  const numbered = renderNotification(document(), 'en', 'س\u202eYN-DOC-0009');
+  expect(numbered).toContain('\u2068سYN-DOC-0009\u2069');
+  expect(numbered).not.toContain('\u202e');
+  expect(numbered).not.toContain(DOCUMENT);
+  const attendanceWithNumber = renderNotification(exception(), 'ar', 'SYN-DOC-0009');
+  expect(attendanceWithNumber).not.toContain('SYN-DOC-0009');
+});

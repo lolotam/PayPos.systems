@@ -70,17 +70,53 @@ export const employeeDocumentPaths = {
     get: {
       operationId: 'listEmployeeDocuments',
       description:
-        'Current document per type with its expiry status in the business timezone. Requires read:files:business and the staff feature.',
+        'Current document per type with its expiry status and document number in the business timezone. Requires read:files:business and the staff feature.',
       parameters: employeePath,
       responses: responses('200', 'EmployeeDocumentsView'),
     },
     post: {
       operationId: 'recordEmployeeDocument',
       description:
-        'Binds a READY file the caller uploaded for this employee; replaces the current document of the type. Row, audit and EmployeeDocumentRecorded commit together.',
+        'Binds a READY file the caller uploaded for this employee; replaces the current document of the type. Row, audit and EmployeeDocumentRecorded commit together. The optional document_number is stored only; the response carries none.',
       parameters: [...employeePath, idempotency],
       requestBody: { required: true, content: json('RecordEmployeeDocumentInput') },
       responses: responses('200', 'EmployeeDocument'),
+    },
+  },
+  '/v1/businesses/{businessId}/employee-document-numbers': {
+    get: {
+      operationId: 'employeeDocumentNumbers',
+      description:
+        'Current document numbers by id, one CSV of 1 to 20 distinct UUIDs (case-insensitive; repeated query parameters refused). Invalid query shape returns 400. For valid ids, the staff feature and read:files:business are checked before reading any document row. A missing or inaccessible business returns a uniform 404. Authorized lookups return 200, omitting unknown or foreign ids, replaced documents, deleted employees, and documents without a number. When nothing matches, items is empty. Cache-Control: no-store.',
+      parameters: [
+        company,
+        { in: 'path', name: 'businessId', required: true, schema: uuid },
+        {
+          in: 'query',
+          name: 'ids',
+          required: true,
+          schema: { type: 'string', description: 'Comma-separated UUIDs' },
+        },
+      ],
+      responses: {
+        200: {
+          description: 'EmployeeDocumentNumbers',
+          headers: { 'Cache-Control': { schema: { type: 'string', enum: ['no-store'] } } },
+          content: json('EmployeeDocumentNumbers'),
+        },
+        400: {
+          description: 'Invalid query shape',
+          content: json('ErrorEnvelope'),
+        },
+        404: {
+          description: 'Uniform refusal for a missing or inaccessible business with valid ids',
+          content: json('ErrorEnvelope'),
+        },
+        default: {
+          description: 'Bilingual error envelope',
+          content: json('ErrorEnvelope'),
+        },
+      },
     },
   },
 };

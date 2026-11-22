@@ -20,6 +20,7 @@ const view = {
       type_name_en: 'Civil ID',
       type_name_ar: null,
       object_key: storageKey,
+      document_number: null,
       expires_on: '2026-10-20',
       uploaded_by: id,
       recorded_at: '2026-10-04T08:00:00.000Z',

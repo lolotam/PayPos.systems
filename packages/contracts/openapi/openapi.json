@@ -3790,7 +3790,7 @@
     "/v1/businesses/{businessId}/employees/{employeeId}/documents": {
       "get": {
         "operationId": "listEmployeeDocuments",
-        "description": "Current document per type with its expiry status in the business timezone. Requires read:files:business and the staff feature.",
+        "description": "Current document per type with its expiry status and document number in the business timezone. Requires read:files:business and the staff feature.",
         "parameters": [
           {
             "in": "header",
@@ -3845,7 +3845,7 @@
       },
       "post": {
         "operationId": "recordEmployeeDocument",
-        "description": "Binds a READY file the caller uploaded for this employee; replaces the current document of the type. Row, audit and EmployeeDocumentRecorded commit together.",
+        "description": "Binds a READY file the caller uploaded for this employee; replaces the current document of the type. Row, audit and EmployeeDocumentRecorded commit together. The optional document_number is stored only; the response carries none.",
         "parameters": [
           {
             "in": "header",
@@ -3908,6 +3908,93 @@
           },
           "default": {
             "description": "Bilingual refusal; unknown and inaccessible share NOT_FOUND",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/businesses/{businessId}/employee-document-numbers": {
+      "get": {
+        "operationId": "employeeDocumentNumbers",
+        "description": "Current document numbers by id, one CSV of 1 to 20 distinct UUIDs (case-insensitive; repeated query parameters refused). Invalid query shape returns 400. For valid ids, the staff feature and read:files:business are checked before reading any document row. A missing or inaccessible business returns a uniform 404. Authorized lookups return 200, omitting unknown or foreign ids, replaced documents, deleted employees, and documents without a number. When nothing matches, items is empty. Cache-Control: no-store.",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-company-id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ids",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Comma-separated UUIDs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "EmployeeDocumentNumbers",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeDocumentNumbers"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid query shape",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Uniform refusal for a missing or inaccessible business with valid ids",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Bilingual error envelope",
             "content": {
               "application/json": {
                 "schema": {
@@ -21928,6 +22015,10 @@
                 "pattern": "^(?!0000)"
               }
             ]
+          },
+          "document_number": {
+            "nullable": true,
+            "type": "string"
           }
         },
         "required": [
@@ -22005,6 +22096,123 @@
           "status"
         ]
       },
+      "EmployeeDocumentListItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "employee_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "type_code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,63}$"
+          },
+          "type_name_en": {
+            "type": "string"
+          },
+          "type_name_ar": {
+            "nullable": true,
+            "type": "string"
+          },
+          "object_key": {
+            "type": "string"
+          },
+          "expires_on": {
+            "nullable": true,
+            "type": "string",
+            "allOf": [
+              {
+                "type": "string",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!0000)"
+              }
+            ]
+          },
+          "uploaded_by": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "recorded_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EmployeeDocumentStatus"
+          },
+          "document_number": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "employee_id",
+          "type_code",
+          "type_name_en",
+          "type_name_ar",
+          "object_key",
+          "expires_on",
+          "uploaded_by",
+          "recorded_at",
+          "status",
+          "document_number"
+        ]
+      },
+      "EmployeeDocumentNumbersQuery": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "additionalProperties": false
+      },
+      "EmployeeDocumentNumber": {
+        "type": "object",
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "document_number": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "document_id",
+          "document_number"
+        ],
+        "additionalProperties": false
+      },
+      "EmployeeDocumentNumbers": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmployeeDocumentNumber"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
       "EmployeeDocumentsView": {
         "type": "object",
         "properties": {
@@ -22024,7 +22232,7 @@
           "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/EmployeeDocument"
+              "$ref": "#/components/schemas/EmployeeDocumentListItem"
             }
           },
           "types": {

@@ -118,6 +118,7 @@ export function documents(employeeId: string, omit: string) {
     type_name_en: key === CIVIL ? 'Civil ID' : 'Passport',
     type_name_ar: null,
     object_key: key,
+    document_number: null,
     expires_on: null,
     uploaded_by: USER,
     recorded_at: '2026-01-01T00:00:00Z',

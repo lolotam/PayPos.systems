@@ -11,9 +11,14 @@ import {
 let f: DocumentsFixture;
 let documentId: string;
 let typeId: string;
+const pinnedNumber = 'SYN-RLS-PIN';
 beforeAll(async () => {
   f = await documentsFixture();
-  documentId = (await f.record.execute(recordCommand(f, await documentFile(f)))).id;
+  documentId = (
+    await f.record.execute(
+      recordCommand(f, await documentFile(f), { document_number: pinnedNumber }),
+    )
+  ).id;
   const [type] = await f.h
     .owner`SELECT id FROM document_types WHERE company_id=${f.company} AND code='civil_id'`;
   typeId = type?.['id'] as string;
@@ -66,6 +71,7 @@ it('runtime cannot delete, rehome or rewrite recorded identity, key, expiry or a
     sql`UPDATE employee_documents SET company_id=${f.otherCompany} WHERE id=${documentId}`,
     sql`UPDATE document_types SET code='renamed' WHERE id=${typeId}`,
     sql`UPDATE document_types SET company_id=${f.otherCompany} WHERE id=${typeId}`,
+    sql`UPDATE employee_documents SET document_number='SYN-REWRITE' WHERE id=${documentId}`,
   ])
     await expect(asOwnCompany(statement)).rejects.toThrow();
   const tables = await f.h.owner`SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class
@@ -74,6 +80,22 @@ it('runtime cannot delete, rehome or rewrite recorded identity, key, expiry or a
     ['document_types', true, true],
     ['employee_documents', true, true],
   ]);
+});
+
+it('DN-18 the owner reads the pinned number, another tenant reads no value and no role can rewrite it', async () => {
+  expect(
+    await asOwnCompany(sql`SELECT document_number FROM employee_documents WHERE id=${documentId}`),
+  ).toEqual([{ document_number: pinnedNumber }]);
+  expect(
+    await asOther(
+      sql`SELECT document_number FROM employee_documents WHERE id=${documentId} AND document_number IS NOT NULL`,
+    ),
+  ).toHaveLength(0);
+  await expect(
+    asOther(
+      sql`UPDATE employee_documents SET document_number='SYN-FOREIGN' WHERE id=${documentId} RETURNING document_number`,
+    ),
+  ).rejects.toThrow();
 });
 
 it('one current document per employee and type, and one record per file, hold in the database too', async () => {

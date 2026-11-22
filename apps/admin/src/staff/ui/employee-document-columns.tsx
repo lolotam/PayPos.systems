@@ -1,8 +1,9 @@
 'use client';
-import type { EmployeeDocument } from '@pospay/contracts';
+import type { EmployeeDocumentListItem } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import type { ColumnDef } from '@tanstack/react-table';
+import { documentNumberText } from '@/shared/model/document-number-text';
 import { DocumentStatusBadge } from './document-status-badge';
 
 export interface DocumentRowActions {
@@ -15,7 +16,7 @@ export interface DocumentRowActions {
 export function documentColumns(
   locale: Locale,
   actions: DocumentRowActions,
-): ColumnDef<EmployeeDocument>[] {
+): ColumnDef<EmployeeDocumentListItem>[] {
   return [
     {
       id: 'type',
@@ -24,6 +25,14 @@ export function documentColumns(
         locale === 'ar'
           ? (row.original.type_name_ar ?? row.original.type_name_en)
           : row.original.type_name_en,
+    },
+    {
+      id: 'number',
+      header: t(locale, 'employeeDocuments.documentNumber'),
+      cell: ({ row }) => {
+        const number = documentNumberText(row.original.document_number);
+        return number === undefined ? '—' : <bdi>{number}</bdi>;
+      },
     },
     {
       id: 'expires',

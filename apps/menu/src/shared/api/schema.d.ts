@@ -574,11 +574,28 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Current document per type with its expiry status in the business timezone. Requires read:files:business and the staff feature. */
+        /** @description Current document per type with its expiry status and document number in the business timezone. Requires read:files:business and the staff feature. */
         get: operations["listEmployeeDocuments"];
         put?: never;
-        /** @description Binds a READY file the caller uploaded for this employee; replaces the current document of the type. Row, audit and EmployeeDocumentRecorded commit together. */
+        /** @description Binds a READY file the caller uploaded for this employee; replaces the current document of the type. Row, audit and EmployeeDocumentRecorded commit together. The optional document_number is stored only; the response carries none. */
         post: operations["recordEmployeeDocument"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employee-document-numbers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Current document numbers by id, one CSV of 1 to 20 distinct UUIDs (case-insensitive; repeated query parameters refused). Invalid query shape returns 400. For valid ids, the staff feature and read:files:business are checked before reading any document row. A missing or inaccessible business returns a uniform 404. Authorized lookups return 200, omitting unknown or foreign ids, replaced documents, deleted employees, and documents without a number. When nothing matches, items is empty. Cache-Control: no-store. */
+        get: operations["employeeDocumentNumbers"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3735,6 +3752,7 @@ export interface components {
             /** Format: uuid */
             file_id: string;
             expires_on: (string & (string)) | null;
+            document_number?: string | null;
         };
         EmployeeDocument: {
             /** Format: uuid */
@@ -3752,9 +3770,37 @@ export interface components {
             recorded_at: string;
             status: components["schemas"]["EmployeeDocumentStatus"];
         };
+        EmployeeDocumentListItem: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            employee_id: string;
+            type_code: string;
+            type_name_en: string;
+            type_name_ar: string | null;
+            object_key: string;
+            expires_on: (string & (string)) | null;
+            /** Format: uuid */
+            uploaded_by: string;
+            /** Format: date-time */
+            recorded_at: string;
+            status: components["schemas"]["EmployeeDocumentStatus"];
+            document_number: string | null;
+        };
+        EmployeeDocumentNumbersQuery: {
+            ids: string;
+        };
+        EmployeeDocumentNumber: {
+            /** Format: uuid */
+            document_id: string;
+            document_number: string;
+        };
+        EmployeeDocumentNumbers: {
+            items: components["schemas"]["EmployeeDocumentNumber"][];
+        };
         EmployeeDocumentsView: {
             today: string & (string);
-            items: components["schemas"]["EmployeeDocument"][];
+            items: components["schemas"]["EmployeeDocumentListItem"][];
             types: components["schemas"]["DocumentType"][];
             can_manage: boolean;
         };
@@ -11312,6 +11358,60 @@ export interface operations {
                 };
             };
             /** @description Bilingual refusal; unknown and inaccessible share NOT_FOUND */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    employeeDocumentNumbers: {
+        parameters: {
+            query: {
+                ids: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description EmployeeDocumentNumbers */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeDocumentNumbers"];
+                };
+            };
+            /** @description Invalid query shape */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform refusal for a missing or inaccessible business with valid ids */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual error envelope */
             default: {
                 headers: {
                     [name: string]: unknown;

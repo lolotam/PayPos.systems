@@ -129,19 +129,29 @@ export function usePermissions(
     queryFn: ({ signal }) =>
       fetchPermissions(companyId, membershipId, cursor, signal, historyCursor, businessId),
     enabled: membershipId !== '',
+    // بعد الحفظ أو السحب، القرار يحتاج رد القراءة حتى لو المتصفح أعلن انقطاع الاتصال.
+    networkMode: 'always',
+    refetchOnReconnect: true,
     refetchInterval: 30_000,
   });
   const save = useMutation({
     mutationFn: (body: PermissionOverrideInput) =>
       saveOverride(companyId, membershipId, body, businessId),
     onMutate: () => ({ queryKey: key(companyId, userId, businessId) }),
-    onSuccess: (_saved, _body, context) => client.invalidateQueries({ queryKey: context.queryKey }),
+    // تغيير صلاحية = تغيّر معروف يستهلكه جرس انتهاء المستند في إعادة التحقق من الرقم.
+    onSuccess: (_saved, _body, context) => {
+      void client.resetQueries({ queryKey: ['me', 'document-numbers'] });
+      return client.invalidateQueries({ queryKey: context.queryKey });
+    },
   });
   const revoke = useMutation({
     mutationFn: ({ overrideId, reason }: { overrideId: string; reason: string }) =>
       revokeOverride(companyId, membershipId, overrideId, { reason }, businessId),
     onMutate: () => ({ queryKey: key(companyId, userId, businessId) }),
-    onSuccess: (_saved, _body, context) => client.invalidateQueries({ queryKey: context.queryKey }),
+    onSuccess: (_saved, _body, context) => {
+      void client.resetQueries({ queryKey: ['me', 'document-numbers'] });
+      return client.invalidateQueries({ queryKey: context.queryKey });
+    },
   });
   return { detail, save, revoke };
 }

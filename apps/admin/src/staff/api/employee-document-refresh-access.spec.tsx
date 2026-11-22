@@ -1,5 +1,5 @@
 import { t } from '@pospay/i18n';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -10,12 +10,15 @@ const api = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 afterEach(() => {
+  onlineManager.setOnline(true);
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 const id = '01920000-0000-7000-8000-0000000000a2';
 const fileId = '01920000-0000-7000-8000-0000000000f9';
 const prefix = ['employee-documents', id, id, id, id];
+// النسخة القديمة من API لا تقبل مفتاح الرقم في طلب الرفع.
+const legacyRecordBody = { type_code: 'civil_id', file_id: fileId, expires_on: '2026-10-20' };
 const document = {
   id,
   employee_id: id,
@@ -30,7 +33,7 @@ const document = {
 };
 const view = (canManage: boolean) => ({
   today: '2026-10-05',
-  items: [document],
+  items: [{ ...document, document_number: null }],
   can_manage: canManage,
   types: [
     {
@@ -43,59 +46,153 @@ const view = (canManage: boolean) => ({
       active: true,
       revision: 1,
     },
+    {
+      id: fileId,
+      code: 'passport',
+      name_en: 'Passport',
+      name_ar: null,
+      alert_days: 30,
+      requires_expiry: true,
+      active: true,
+      revision: 1,
+    },
   ],
 });
 
-it('suppresses a completed upload success after write access is revoked during its refresh', async () => {
-  let refreshStarted = false;
-  let resolveRefresh!: (value: { data: ReturnType<typeof view> }) => void;
-  const refresh = new Promise<{ data: ReturnType<typeof view> }>((resolve) => {
-    resolveRefresh = resolve;
-  });
-  api.GET.mockImplementation(async (path: string) => {
-    if (path === '/v1/files/{id}')
-      return {
-        data: { id: fileId, status: 'READY', content_type: 'application/pdf', size_bytes: 3 },
-      };
-    return refreshStarted ? refresh : { data: view(true) };
-  });
-  api.POST.mockImplementation(async (path: string) => {
-    if (path === '/v1/businesses/{businessId}/files/uploads')
-      return {
-        data: {
-          id: fileId,
-          upload_url: 'https://storage.test/upload',
-          expires_in: 120,
-          headers: { 'content-type': 'application/pdf', 'content-length': '3' },
-        },
-      };
-    if (path === '/v1/files/{id}/confirm') return { data: { id: fileId, status: 'QUEUED' } };
-    refreshStarted = true;
-    return { data: document };
-  });
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function renderDocumentsSection(client: QueryClient) {
   render(
     <QueryClientProvider client={client}>
       <EmployeeDocumentsSection companyId={id} businessId={id} userId={id} employeeId={id} />
     </QueryClientProvider>,
   );
-  fireEvent.change(await screen.findByLabelText(t('en', 'employeeDocuments.file')), {
-    target: { files: [new File(['pdf'], 'civil.pdf', { type: 'application/pdf' })] },
-  });
-  fireEvent.change(screen.getByLabelText(t('en', 'employeeDocuments.expiresOn')), {
-    target: { value: '2026-10-20' },
-  });
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeDocuments.upload') }));
-  await waitFor(() => expect(client.isFetching({ queryKey: prefix })).toBe(1));
-  await act(async () => resolveRefresh({ data: view(false) }));
-  await waitFor(() => expect(client.isMutating()).toBe(0));
-  expect(screen.queryByText(t('en', 'employeeDocuments.recorded'))).toBeNull();
-  expect(screen.queryByLabelText(t('en', 'employeeDocuments.file'))).toBeNull();
-  act(() => client.setQueryData(prefix, view(true)));
-  expect(await screen.findByLabelText(t('en', 'employeeDocuments.file'))).toBeTruthy();
-  expect(screen.queryByText(t('en', 'employeeDocuments.recorded'))).toBeNull();
+}
+
+it('renders a document returned by an API version that omits the number', async () => {
+  api.GET.mockResolvedValue({ data: { ...view(false), items: [document] } });
+  renderDocumentsSection(new QueryClient());
+  expect(await screen.findByText('Civil ID')).toBeTruthy();
+  expect(screen.getByRole('button', { name: t('en', 'employeeDocuments.open') })).toBeTruthy();
 });
+
+it.each([
+  ['transport failure', 'SYN-OFFLINE'],
+  ['confirmed save', ''],
+  ['access denied', ''],
+] as const)(
+  'handles the retry type and number after %s and an offline list refresh',
+  async (outcome, number) => {
+    api.GET.mockImplementation(async (path: string) => {
+      if (!onlineManager.isOnline()) throw new Error('Offline');
+      if (path === '/v1/files/{id}')
+        return {
+          data: { id: fileId, status: 'READY', content_type: 'application/pdf', size_bytes: 3 },
+        };
+      return { data: view(true) };
+    });
+    api.POST.mockImplementation(async (path: string) => {
+      if (path === '/v1/businesses/{businessId}/files/uploads')
+        return {
+          data: {
+            id: fileId,
+            upload_url: 'https://storage.test/upload',
+            expires_in: 120,
+            headers: { 'content-type': 'application/pdf', 'content-length': '3' },
+          },
+        };
+      if (path === '/v1/files/{id}/confirm') return { data: { id: fileId, status: 'QUEUED' } };
+      onlineManager.setOnline(false);
+      if (outcome === 'confirmed save') return { data: document };
+      if (outcome === 'access denied')
+        return { error: { code: 'NOT_FOUND' }, response: { status: 404 } };
+      throw new Error('Offline');
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
+    renderDocumentsSection(new QueryClient());
+    fireEvent.change(await screen.findByLabelText(t('en', 'employeeDocuments.file')), {
+      target: { files: [new File(['pdf'], 'civil.pdf', { type: 'application/pdf' })] },
+    });
+    fireEvent.change(screen.getByLabelText(t('en', 'employeeDocuments.expiresOn')), {
+      target: { value: '2026-10-20' },
+    });
+    const numberLabel = t('en', 'employeeDocuments.documentNumber');
+    const typeLabel = t('en', 'employeeDocuments.type');
+    fireEvent.change(screen.getByLabelText(typeLabel), { target: { value: 'passport' } });
+    fireEvent.change(screen.getByLabelText(numberLabel), { target: { value: 'SYN-OFFLINE' } });
+    fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeDocuments.upload') }));
+
+    await screen.findByRole('alert');
+    expect(screen.queryByLabelText(numberLabel)).toBeNull();
+    act(() => onlineManager.setOnline(true));
+    expect(await screen.findByLabelText(numberLabel)).toHaveProperty('value', number);
+    expect(screen.getByLabelText(typeLabel)).toHaveProperty(
+      'value',
+      outcome === 'transport failure' ? 'passport' : 'civil_id',
+    );
+    fireEvent.change(screen.getByLabelText(typeLabel), { target: { value: 'civil_id' } });
+    expect(screen.getByLabelText(numberLabel)).toHaveProperty('value', '');
+  },
+);
+
+it.each([true, false])(
+  'waits for the write-access refresh when browser online status is %s',
+  async (onlineDuringRefresh) => {
+    let refreshStarted = false;
+    let resolveRefresh!: (value: { data: ReturnType<typeof view> }) => void;
+    const refresh = new Promise<{ data: ReturnType<typeof view> }>((resolve) => {
+      resolveRefresh = resolve;
+    });
+    api.GET.mockImplementation(async (path: string) => {
+      if (path === '/v1/files/{id}')
+        return {
+          data: { id: fileId, status: 'READY', content_type: 'application/pdf', size_bytes: 3 },
+        };
+      return refreshStarted ? refresh : { data: view(true) };
+    });
+    api.POST.mockImplementation(async (path: string, request: { body: unknown }) => {
+      if (path === '/v1/businesses/{businessId}/files/uploads')
+        return {
+          data: {
+            id: fileId,
+            upload_url: 'https://storage.test/upload',
+            expires_in: 120,
+            headers: { 'content-type': 'application/pdf', 'content-length': '3' },
+          },
+        };
+      if (path === '/v1/files/{id}/confirm') return { data: { id: fileId, status: 'QUEUED' } };
+      expect(request.body).toEqual(legacyRecordBody);
+      refreshStarted = true;
+      onlineManager.setOnline(onlineDuringRefresh);
+      return { data: document };
+    });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderDocumentsSection(client);
+    fireEvent.change(await screen.findByLabelText(t('en', 'employeeDocuments.file')), {
+      target: { files: [new File(['pdf'], 'civil.pdf', { type: 'application/pdf' })] },
+    });
+    fireEvent.change(screen.getByLabelText(t('en', 'employeeDocuments.expiresOn')), {
+      target: { value: '2026-10-20' },
+    });
+    fireEvent.change(screen.getByLabelText(t('en', 'employeeDocuments.documentNumber')), {
+      target: { value: onlineDuringRefresh ? '' : '   ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeDocuments.upload') }));
+    await waitFor(() => expect(client.isFetching({ queryKey: prefix })).toBe(1));
+    expect(
+      screen
+        .getByRole('button', { name: t('en', 'employeeDocuments.upload') })
+        .matches(':disabled'),
+    ).toBe(true);
+    expect(screen.queryByText(t('en', 'employeeDocuments.recorded'))).toBeNull();
+    await act(async () => resolveRefresh({ data: view(false) }));
+    await waitFor(() => expect(client.isMutating()).toBe(0));
+    expect(screen.queryByText(t('en', 'employeeDocuments.recorded'))).toBeNull();
+    expect(screen.queryByLabelText(t('en', 'employeeDocuments.file'))).toBeNull();
+    act(() => client.setQueryData(prefix, view(true)));
+    expect(await screen.findByLabelText(t('en', 'employeeDocuments.file'))).toBeTruthy();
+    expect(screen.queryByText(t('en', 'employeeDocuments.recorded'))).toBeNull();
+  },
+);
 
 type OpenCallback = (storageKey: string) => void;
 function HookButton({ retain }: { retain: (callback: OpenCallback) => void }) {

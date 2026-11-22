@@ -29,7 +29,12 @@ export interface TenantOptions {
   readonly timeoutMs?: number;
   /** يملك اتصالاً منفصلاً ويصرف الإلغاء قبل الرجوع، لقراءات تجهيز OTP فقط. */
   readonly drainOnTimeout?: boolean;
+  /** قراءة فقط بلقطة واحدة ثابتة من أول استعلام، لفحص الصلاحية والبيانات معًا. */
+  readonly readOnly?: boolean;
 }
+
+/** يضبط لقطة القراءة قبل أول استعلام، بما فيه تجهيز سياق RLS. */
+export const consistentReadTransaction = sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY`;
 
 /**
  * نقط الدخول للداتابيز (ADR-0003 §3) — كلها transaction-local.
@@ -194,14 +199,15 @@ export function createTenantWrappers(db: PostgresJsDatabase, ids: IdGenerator): 
     companyId: string,
     userId: string,
     fn: (tx: Tx) => Promise<T>,
-    timeoutMs?: number,
+    options: TenantOptions = {},
     gate: DeadlineGate = OPEN_GATE,
   ): Promise<T> =>
     db.transaction(async (tx) => {
       gate.onStart();
+      if (options.readOnly) await tx.execute(consistentReadTransaction);
       const [row] = await tx.execute<{ privileged: boolean }>(
         sql`SELECT set_config('app.company_id', ${companyId}, true),
-                   set_config('app.user_id', ${userId}, true)${limits(timeoutMs)},
+                   set_config('app.user_id', ${userId}, true)${limits(options.timeoutMs)},
                    (SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user) AS privileged`,
       );
       if (row?.privileged !== false) {
@@ -221,8 +227,8 @@ export function createTenantWrappers(db: PostgresJsDatabase, ids: IdGenerator): 
       const user = options.userId === undefined ? '' : assertUuid(options.userId, 'userId');
       const timeoutMs = validTimeout(options.timeoutMs);
       return timeoutMs === undefined
-        ? run(company, user, fn)
-        : withDeadline(timeoutMs, (gate) => run(company, user, fn, timeoutMs, gate));
+        ? run(company, user, fn, options)
+        : withDeadline(timeoutMs, (gate) => run(company, user, fn, options, gate));
     },
     withUser: async (userId, fn) => run('', assertUuid(userId, 'userId'), fn),
     withNewTenant: async (userId, fn) => {

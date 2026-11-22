@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   Inject,
   Param,
@@ -42,6 +43,7 @@ export class EmployeeDocumentsController {
   @Get()
   @Authenticated()
   @UseGuards(SelectedCompanyGuard)
+  @Header('Cache-Control', 'no-store')
   async list(
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
     @Param('employeeId', new ZodValidationPipe(id)) employeeId: string,
@@ -53,7 +55,7 @@ export class EmployeeDocumentsController {
     const result = await this.database.withTenant(
       context.companyId,
       (tx) => employeeDocuments(tx, context, access),
-      { userId: context.userId },
+      { userId: context.userId, readOnly: true },
     );
     if (result === null) throw new ApiError('NOT_FOUND');
     if (result === 'FEATURE_DISABLED') throw new ApiError('FEATURE_DISABLED');
