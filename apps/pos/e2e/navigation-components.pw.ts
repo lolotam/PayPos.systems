@@ -439,8 +439,8 @@ test.describe('touch tap away from the navigation', () => {
     test(`B touch tap away forgets the focus origin at 699/700 (${dir})`, async ({ page }) => {
       await page.setViewportSize({ width: 820, height: 900 });
       await openScene(page, 'top', dir);
-      await page.getByRole('button', { name: LABELS.business }).first().focus();
-      await expectTapAwayKeepsFocusOut(page);
+      const trigger = page.getByRole('button', { name: LABELS.business }).first();
+      await expectTapAwayKeepsFocusOut(page, trigger);
     });
   }
 });

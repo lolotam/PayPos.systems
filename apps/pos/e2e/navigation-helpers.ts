@@ -90,8 +90,11 @@ export async function expectVisibleNavRailCurrentMarker(target: Locator): Promis
 
 // الـ tap بيودّي التركيز للـ body بعد pointerup. نفي "التركيز رجع للتنقل" مش بيتأكد بالانتظار،
 // فبنستنى دورتين رسم بعد تصغير الشاشة عشان الـ effect يكون اشتغل فعلاً قبل الفحص.
-export async function expectTapAwayKeepsFocusOut(page: Page): Promise<void> {
+export async function expectTapAwayKeepsFocusOut(page: Page, trigger: Locator): Promise<void> {
+  await trigger.focus();
+  await expect(trigger).toBeFocused();
   await page.locator('main h1').tap();
+  await expect(page.locator('body')).toBeFocused();
   await page.setViewportSize({ width: 390, height: 844 });
   const drawerOpener = page.getByRole('button', { name: LABELS.drawerOpen });
   await expect(drawerOpener).toBeVisible();
