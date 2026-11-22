@@ -311,3 +311,50 @@ it('returns focus to the rail button captured from a click without focus transfe
   fireEvent.click(close);
   expect(document.activeElement).toBe(railButton);
 });
+
+it('keeps focus in a page field when the parent closes the non-modal desktop panel', () => {
+  function Harness() {
+    const openerRef = useRef<HTMLButtonElement>(null);
+    const [open, setOpen] = useState(false);
+    return (
+      <DirectionProvider dir="ltr">
+        <NavRail
+          workspaces={workspaces}
+          labels={chromeLabels}
+          currentWorkspaceId="business"
+          panelOpen={open}
+          onInspect={(_workspaceId, opener) => {
+            openerRef.current = opener;
+            setOpen(true);
+          }}
+        />
+        <ContextPanel
+          workspaces={workspaces}
+          labels={contextLabels}
+          currentWorkspaceId="business"
+          panelOpen={open}
+          openerRef={openerRef}
+          onClose={() => setOpen(false)}
+        />
+        <input
+          aria-label="Page field"
+          onKeyDown={(event) => {
+            if (event.key === 'F6') setOpen(false);
+          }}
+        />
+      </DirectionProvider>
+    );
+  }
+
+  render(<Harness />);
+  fireEvent.click(screen.getByRole('button', { name: 'Business Current Inspect' }));
+  const pageField = screen.getByRole('textbox', { name: 'Page field' });
+  pageField.focus();
+  fireEvent.change(pageField, { target: { value: 'draft' } });
+
+  fireEvent.keyDown(pageField, { key: 'F6' });
+
+  expect(screen.queryByRole('complementary', { name: contextLabels.navigation })).toBeNull();
+  expect(document.activeElement).toBe(pageField);
+  expect((pageField as HTMLInputElement).value).toBe('draft');
+});

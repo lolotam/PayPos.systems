@@ -41,12 +41,8 @@ export { ModuleDrawerSection, type ModuleDrawerSectionProps } from './module-dra
 export { NavRail, type NavRailProps } from './nav-rail.js';
 export { ContextPanel, type ContextPanelProps } from './context-panel.js';
 export { ContextPanelBody, type ContextPanelBodyProps } from './context-panel-body.js';
-export {
-  ContextPanelSection,
-  ContextPanelEmpty,
-  type ContextPanelSectionProps,
-  type ContextPanelEmptyProps,
-} from './context-panel-section.js';
+export { ContextPanelSection, type ContextPanelSectionProps } from './context-panel-section.js';
+export { ContextPanelEmpty, type ContextPanelEmptyProps } from './context-panel-empty.js';
 export { PageFinder, type PageFinderProps } from './page-finder.js';
 export {
   collectFinderResults,

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, type RefObject } from 'react';
 import { useDirection } from './direction-provider.js';
+import { ContextPanelBackdrop } from './context-panel-backdrop.js';
 import { ContextPanelBody } from './context-panel-body.js';
 import {
   resolveInspectedWorkspaceId,
@@ -215,10 +216,18 @@ function useOutsideFocusTracker({
   return observedOpenerRef;
 }
 
+// اللوحة الثابتة مش modal: لو الأب قفلها والمستخدم بيكتب في حقل في الصفحة، التركيز يفضل مكانه.
+// لما التركيز كان جوه اللوحة بيرجع للـ body بعد إزالتها، وساعتها بس بنرجّعه للزر الفاتح.
+function hasLiveExternalFocus(): boolean {
+  const active = document.activeElement;
+  return active instanceof HTMLElement && isFocusTargetEligible(active);
+}
+
 type PanelReturnFocusInput = {
   panelRef: RefObject<HTMLDivElement | null>;
   panelOpen: boolean;
   freezeObservedOpener: boolean;
+  modal: boolean;
   openerRef: RefObject<HTMLElement | null> | undefined;
   fallbackRef: RefObject<HTMLButtonElement | null> | undefined;
 };
@@ -227,6 +236,7 @@ function usePanelReturnFocus({
   panelRef,
   panelOpen,
   freezeObservedOpener,
+  modal,
   openerRef,
   fallbackRef,
 }: PanelReturnFocusInput) {
@@ -272,11 +282,11 @@ function usePanelReturnFocus({
     const didClose = wasOpen.current && !panelOpen;
     wasOpen.current = panelOpen;
     if (panelOpen) cancelPendingFocus();
-    else if (didClose) {
+    else if (didClose && (modal || !hasLiveExternalFocus())) {
       pendingFocusRef.current = true;
       if (!attemptRestore()) startObserving();
     }
-  }, [attemptRestore, cancelPendingFocus, panelOpen, startObserving]);
+  }, [attemptRestore, cancelPendingFocus, modal, panelOpen, startObserving]);
   useEffect(() => {
     if (pendingFocusRef.current) attemptRestore();
   });
@@ -286,17 +296,6 @@ const PANEL_CLASS_NAME = cn(
   'hidden min-[600px]:fixed min-[600px]:inset-y-0 min-[600px]:start-21 min-[600px]:z-20 min-[600px]:flex min-[600px]:w-68 min-[600px]:border-e min-[600px]:border-sidebar-border min-[600px]:bg-sidebar min-[600px]:text-sidebar-foreground min-[600px]:shadow-lg',
   'min-[1024px]:static min-[1024px]:z-auto min-[1024px]:shadow-none',
 );
-
-function ContextPanelBackdrop({ onClose }: { onClose: () => void }) {
-  return (
-    <div
-      aria-hidden="true"
-      data-context-panel-backdrop=""
-      onClick={onClose}
-      className="fixed inset-0 z-10 bg-black/40 min-[1024px]:hidden"
-    />
-  );
-}
 
 export type ContextPanelProps = {
   workspaces: readonly NavigationWorkspace[];
@@ -338,6 +337,7 @@ export function ContextPanel({
     panelRef,
     panelOpen,
     freezeObservedOpener: floatingActive,
+    modal: isFloatingOverlay,
     openerRef,
     fallbackRef: returnFocusRef,
   });

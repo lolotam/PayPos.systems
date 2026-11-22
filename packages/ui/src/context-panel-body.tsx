@@ -3,7 +3,9 @@
 import { XIcon } from '@phosphor-icons/react/dist/ssr';
 import { useRef, useState, type RefObject } from 'react';
 import { Button } from './button.js';
-import { ContextPanelEmpty, ContextPanelSection } from './context-panel-section.js';
+import { ContextPanelEmpty } from './context-panel-empty.js';
+import { ContextPanelSection } from './context-panel-section.js';
+import { ContextPanelWorkspaceSwitcher } from './context-panel-workspace-switcher.js';
 import { useDirection } from './direction-provider.js';
 import { Input } from './input.js';
 import {
@@ -11,7 +13,6 @@ import {
   type ContextPanelLabels,
   type NavigationWorkspace,
 } from './navigation-presentation.js';
-import { cn } from './shared/cn.js';
 
 export type ContextPanelBodyProps = {
   panelRef?: RefObject<HTMLDivElement | null> | undefined;
@@ -24,62 +25,6 @@ export type ContextPanelBodyProps = {
   onInspect?: ((workspaceId: string) => void) | undefined;
   onClose: () => void;
 };
-
-type WorkspaceSwitcherProps = {
-  workspaces?: readonly NavigationWorkspace[] | undefined;
-  visiblePageIds?: readonly string[] | undefined;
-  inspectedId?: string | undefined;
-  currentWorkspaceId?: string | undefined;
-  onInspect?: ((workspaceId: string) => void) | undefined;
-};
-
-function ContextPanelWorkspaceSwitcher({
-  workspaces,
-  visiblePageIds,
-  inspectedId,
-  currentWorkspaceId,
-  onInspect,
-}: WorkspaceSwitcherProps) {
-  if (!onInspect || !workspaces) return null;
-  const visible = workspaces.filter((item) =>
-    item.sections.some(
-      (section) => visiblePagesMatchingQuery(section.pages, visiblePageIds, '').length > 0,
-    ),
-  );
-  if (visible.length === 0 || (visible.length === 1 && visible[0]?.id === inspectedId)) return null;
-  return (
-    <div className="flex shrink-0 flex-wrap gap-1">
-      {visible.map((item) => {
-        const inspected = item.id === inspectedId;
-        const isCurrent = item.id === currentWorkspaceId;
-        return (
-          <Button
-            key={item.id}
-            variant={inspected ? 'secondary' : 'sidebar'}
-            size="sm"
-            aria-pressed={inspected}
-            aria-current={isCurrent ? 'page' : undefined}
-            data-current={isCurrent ? '' : undefined}
-            onClick={() => onInspect(item.id)}
-            className={cn(
-              'min-h-11 min-w-11 max-w-full gap-1.5 px-2.5 text-xs',
-              isCurrent && 'font-semibold underline decoration-2 underline-offset-4',
-            )}
-          >
-            <span className="truncate">{item.label}</span>
-            {isCurrent ? (
-              <span
-                aria-hidden="true"
-                data-current-marker=""
-                className="size-1.5 shrink-0 rounded-full bg-current"
-              />
-            ) : null}
-          </Button>
-        );
-      })}
-    </div>
-  );
-}
 
 export function ContextPanelBody({
   panelRef: panelRefProp,

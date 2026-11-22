@@ -1,10 +1,6 @@
 'use client';
 
-import {
-  visiblePagesMatchingQuery,
-  type ContextPanelLabels,
-  type NavigationSection,
-} from './navigation-presentation.js';
+import { visiblePagesMatchingQuery, type NavigationSection } from './navigation-presentation.js';
 import { cn } from './shared/cn.js';
 import { SIDEBAR_GHOST_CLASSES } from './sidebar-classes.js';
 
@@ -47,12 +43,4 @@ export function ContextPanelSection({
       </ul>
     </section>
   );
-}
-
-export type ContextPanelEmptyProps = {
-  labels: ContextPanelLabels;
-};
-
-export function ContextPanelEmpty({ labels }: ContextPanelEmptyProps) {
-  return <p className="px-2 text-sm text-muted-foreground">{labels.empty}</p>;
 }

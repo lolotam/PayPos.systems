@@ -23,6 +23,8 @@ The target routes/groupings come from the [Management map](https://github.com/lo
 
 **Constitution check.** Reusable React/TypeScript presentation in packages/ui; resolved copy from packages/i18n via caller; icons follow ADR-0060. No app imports, data reads, external search, new packages, redesign, DB, API, migration, security policy or cross-project synchronization. No generation step. Router integration in 074-7 owns link adaptation and focus transfer after route navigation.
 
+**074-7 live-host acceptance (carried forward).** ContextPanel page links stay plain, route-neutral links here: the component does not close itself on selection and leaves modified clicks (new tab, new window) to the browser. At 600–1023px the live Admin host closes the floating panel after a successful same-tab navigation, and must not move focus back to the panel opener once the destination page owns focus.
+
 ## File and size estimate
 
 Estimated added or materially rewritten lines, before implementation. Paths below are relative to `packages/ui/src/`. Filenames for new components are proposed. Each numeric entry corresponds to the file at the same position. Counts budget distinct increment responsibilities; shared edits are counted once.
