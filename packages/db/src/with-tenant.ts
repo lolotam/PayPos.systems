@@ -51,14 +51,14 @@ export interface TenantWrappers {
    * @param userId    المستخدم اللي بيثبت عضويته
    * @param companyId الشركة المطلوب دخولها
    * @param fn        الشغل بعد الإثبات، جوه نفس الـ transaction
-   * @param options   خيارات المعاملة، و`readOnly` بيخليها بلقطة قراءة واحدة
+   * @param options   `readOnly` بيخلي المعاملة بلقطة قراءة واحدة؛ باقي الخيارات مش مطبقة هنا
    * @returns نتيجة fn، أو null لو العضوية مش سارية
    */
   withMember<T>(
     userId: string,
     companyId: string,
     fn: (tx: Tx) => Promise<T>,
-    options?: TenantOptions,
+    options?: Pick<TenantOptions, 'readOnly'>,
   ): Promise<T | null>;
 }
 
