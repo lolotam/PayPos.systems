@@ -278,10 +278,13 @@ bound at the worker composition root to the tenancy `companyOpen`).
 (missing and stale revisions, retained counted events without the consumer's mark, unhandled types) and adds to them. The overall
 status is `COVERED` only when lines, salaries, sales and tips were all checked and no check failed; a run with no tip scope reports the
 tips as not checked (`tips: null` and its `tipsNote`), is `NOT_COVERED` and exits non-zero. There is no default to all businesses. The
-use case refuses, before any scan, an empty business list, a business id that is not a UUID, a range whose `from` is after its `to`, and a
+use case refuses, before any scan, a company that does not exist, an empty business list, a business id that is not a UUID, a range whose `from` is after its `to`, and a
 business that is not the company's, with the existing `COMMISSION_COVERAGE_SCOPE_INVALID`; the command line refuses the malformed forms
 earlier, while parsing its arguments, with `COMMISSION_COVERAGE_CONFIGURATION`, so it prints `SCOPE_INVALID` only for a company that does not exist, a business
-that is not the company's and a bad `--through`. The fourth coverage reader port is `CoverageBusinessReader`:
+that is not the company's (both before any scan) and a bad `--through`, which is refused later, after the scan, because it compares the last event read
+with the bound. The retained-event mark check ends at the printed `throughId` (the newest counted retained event at the start of the run when no
+`--through` is given) and looks at nothing after it; the run used as evidence to open approval is therefore taken in the quiet window without
+`--through`, or repeated without it with the same `throughId` required, so that no counted event exists beyond the bound. The fourth coverage reader port is `CoverageBusinessReader`:
 owned by `commissions`, bound at the worker composition root to the existing tenancy `businessTimeZone` on the report's tenant
 transaction (`pospay_app` under `withTenant`); its Port row is in `docs/module-map.md`. The printed result names the business ids and
 the date range the tip check covered (`tipScope`): `COVERED` proves that scope only, and opening approval for a company needs a run

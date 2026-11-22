@@ -344,6 +344,14 @@ no `published_at`, no `attempts`, no mark and no projection change.
    ```
 
    Run it after the 50-3a replay and the 50-3b bootstrap finished, and use the same `--through` as the replay.
+   `--through` is optional: without it the command bounds the mark check by the newest counted retained event of the company at the start of
+   the run and prints it as `throughId`.
+   **The retained-event mark check ends at the printed `throughId` and nothing after it is looked at.** A counted event created after that
+   bound can lack its consumer mark while the tip, line, salary and sale revisions already match the source, and the report still prints
+   `COVERED`. So the run that is used as evidence to open approval must also establish that no counted event exists beyond the bound:
+   take it in the quiet window (below) **with no `--through`**, and if the run was bounded by the replay's `--through`, run it once more
+   without `--through` in the same window and require the same `throughId` to be printed. A different, newer `throughId` means events were
+   created after the replay's bound: replay again with a new bound before relying on the result.
    The tip flags are all three or none, and **only a run that carries them can print `COVERED`**: they add the tip coverage by revision
    over the business ids and the business-day range the operator supplies (at most 200 business ids, `from` not after `to`). A run
    without them still checks lines, salaries, sales and the retained events, but it prints `NOT_COVERED` with `tips: null` and the
@@ -376,7 +384,7 @@ no `published_at`, no `attempts`, no mark and no projection change.
 5. **Limits.** The retained-event check covers the six counted types (`ServiceSessionRecorded`, `ServiceSessionLinesAdded`,
    `ServiceLineChanged`, `SalaryChanged`, `SessionTipsChanged` and `PackageSaleChanged`), and every retained `SessionTipsChanged` event id
    must carry the consumer's mark: that is the tip event-id check. The tip coverage by revision is bounded by the operator's scope, so the
-   company-wide guarantee stays with the retained-event check. The report is **not a point-in-time snapshot**: lines,
+   company-wide guarantee stays with the retained-event check, up to the printed `throughId`. The report is **not a point-in-time snapshot**: lines,
    salaries, sales, the retained events and the tips are read in separate transactions, and each page in its own. With a fixed `--through`
    a concurrent write can make it print `COVERED` although no single moment had every section covered; a row written while it runs is
    delivered by the live consumer. A consistent proof is the subject of the open design decision for the approval gate (53-2).
@@ -389,12 +397,16 @@ no `published_at`, no `attempts`, no mark and no projection change.
    - **The command line** prints `COMMISSION_COVERAGE_CONFIGURATION` and reads nothing for a malformed or partial tip scope while parsing its
      arguments, before the report runs: a business id that is not a UUID, an empty `--businesses`, a date that is not `YYYY-MM-DD`, `from`
      after `to`, more than 200 business ids, or only some of the three flags.
-   - **The report itself** refuses with the fixed code `COMMISSION_COVERAGE_SCOPE_INVALID`, prints no report and exits 1, before any scan, when
-     the company does not exist, when a business in `--businesses` is not a business of that company (another company's or an unknown id), or
-     when `--through` is not a retained event of that company among `ServiceSessionRecorded`, `ServiceSessionLinesAdded`,
-     `ServiceLineChanged`, `SalaryChanged`, `SessionTipsChanged` and `PackageSaleChanged`. A direct caller of the use case also gets
-     `COMMISSION_COVERAGE_SCOPE_INVALID` for an empty list, a business id that is not a UUID and `from` after `to`, which the command line
-     has already refused with the other code.
+   - **The report itself** refuses with the fixed code `COMMISSION_COVERAGE_SCOPE_INVALID`, prints no report and exits 1. It does so
+     **before any scan** for the company and business validation: the company does not exist, or a business in `--businesses` is not a
+     business of that company (another company's or an unknown id). A direct caller of the use case also gets `COMMISSION_COVERAGE_SCOPE_INVALID`,
+     before any scan, for an empty list, a business id that is not a UUID and `from` after `to`, which the command line has already refused
+     with the other code.
+   - **A replay bound that is no retained event is refused later, after the scan.** An otherwise valid `--through` that is not the last
+     retained event of that company at or below the bound among `ServiceSessionRecorded`, `ServiceSessionLinesAdded`, `ServiceLineChanged`,
+     `SalaryChanged`, `SessionTipsChanged` and `PackageSaleChanged` is refused with `COMMISSION_COVERAGE_SCOPE_INVALID` only after the report
+     has scanned the lines, the salaries, the sales and the retained-event range, because the check compares the last event it read with the
+     bound. It prints no report and exits 1; it is not a cheap pre-check.
 
 ## 50-3d: replay all six counted types after a rollback (spec 059, CS-Q43)
 
