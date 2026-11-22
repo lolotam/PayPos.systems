@@ -3,10 +3,7 @@ import type { StatementMonthRows } from './statement-types.ts';
 
 /** صفوف الشهر مجمّعة بالموظفة مرة واحدة؛ كل قائمة مفتاحها معرّف الموظفة. */
 export type GroupedMonth = {
-  readonly [K in keyof Omit<StatementMonthRows, 'blocked'>]: Map<
-    string,
-    StatementMonthRows[K][number][]
-  >;
+  readonly [K in keyof StatementMonthRows]: Map<string, StatementMonthRows[K][number][]>;
 };
 
 /**
@@ -36,10 +33,7 @@ export function groupMonth(month: StatementMonthRows): GroupedMonth {
  * @param employeeId الموظفة
  * @returns صفوفها هي بس من كل قائمة
  */
-export function monthOfEmployee(
-  grouped: GroupedMonth,
-  employeeId: string,
-): Omit<StatementMonthRows, 'blocked'> {
+export function monthOfEmployee(grouped: GroupedMonth, employeeId: string): StatementMonthRows {
   return {
     lines: grouped.lines.get(employeeId) ?? [],
     sales: grouped.sales.get(employeeId) ?? [],

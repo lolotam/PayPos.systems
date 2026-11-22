@@ -6,13 +6,7 @@ import type {
   CommissionEstimateTip,
 } from './estimate-projection.ts';
 import type { ServiceCommissionOverride } from './commission-types.ts';
-import type {
-  OpenBlockedCorrection,
-  RevisedLine,
-  RevisedSale,
-  RevisedSalary,
-  RevisedTip,
-} from './canonical-input.ts';
+import type { RevisedLine, RevisedSale, RevisedSalary, RevisedTip } from './canonical-input.ts';
 import type { IncomingCommissionCarry } from './period-input-types.ts';
 import type { CommissionPlanVersion } from './plan-types.ts';
 
@@ -106,7 +100,10 @@ export interface StatementCorrectionSource extends CommissionEstimateCorrection 
   readonly id: string;
 }
 
-/** كل صفوف النشاط في الشهر اللي بيبني منها الكشف وبصمة المدخلات. */
+/**
+ * صفوف النشاط في الشهر اللي بيبني منها الكشف. التصحيحات الموقوفة المفتوحة مش هنا: الباني ما بيقراهاش،
+ * ومراجعة الكشف واعتماده بيفحصوها بنفسهم (FR-027، FR-048)، وهي بتدخل بصمة المدخلات بس.
+ */
 export interface StatementMonthRows {
   readonly lines: readonly StatementLineSource[];
   readonly sales: readonly StatementSaleSource[];
@@ -115,7 +112,6 @@ export interface StatementMonthRows {
   readonly versions: readonly CommissionPlanVersion[];
   readonly overrides: readonly ServiceCommissionOverride[];
   readonly corrections: readonly StatementCorrectionSource[];
-  readonly blocked: readonly OpenBlockedCorrection[];
   readonly carries: readonly IncomingCommissionCarry[];
 }
 

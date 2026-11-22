@@ -136,7 +136,6 @@ function smallInput(): StatementBuildInput {
     sales: [],
     tips: [],
     overrides: [],
-    blocked: [],
     carries: [],
   };
   const input = octoberInput(month);

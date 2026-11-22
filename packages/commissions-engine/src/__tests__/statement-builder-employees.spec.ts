@@ -79,7 +79,7 @@ describe('the statement builder period check', () => {
   it.each(['2026-13', '2026-00', '0000-05', '2026-1', 'October'])(
     'refuses period %s even when the month and the scope are empty',
     (period) => {
-      const empty = { ...noSources(), salaries: [], versions: [], overrides: [], blocked: [] };
+      const empty = { ...noSources(), salaries: [], versions: [], overrides: [] };
       const input = { ...octoberInput(empty), period, employees: [], attachments: [] };
       expect(() => buildStatement(input)).toThrow('Commission period must use YYYY-MM');
     },
@@ -180,8 +180,26 @@ describe('the statement builder employees that exist only through a correction o
     const withoutNoor = octoberInput({
       ...rows,
       lines: rows.lines.filter((line) => line.employeeId !== NOOR),
-      blocked: [],
     });
     expect(rowsOf(buildStatement(withoutNoor).rows, SARA)).toEqual(rowsOf(full.rows, SARA));
+  });
+});
+
+describe('what the builder does not read', () => {
+  it('returns no failure for a month whose only issue is an open blocked correction', () => {
+    const rows = octoberRows();
+    expect(rows.blocked).toEqual([{ employeeId: NOOR, sourcePeriod: '2026-08', code: 'NO_PLAN' }]);
+    expect(buildStatement(octoberInput(rows)).failures).toEqual([]);
+  });
+});
+
+describe('the month bounds used to clip the attachments', () => {
+  it('clips an open link to the last day of a leap February', () => {
+    const input = octoberInput(noSources());
+    const links = [{ employeeId: NOOR, branchId: SALMIYA, from: '2028-02-10', to: null }];
+    const built = buildStatement({ ...input, period: '2028-02', attachments: links });
+    expect(built.attachments).toEqual([
+      { employeeId: NOOR, branchId: SALMIYA, attachedFrom: '2028-02-10', attachedTo: '2028-02-29' },
+    ]);
   });
 });

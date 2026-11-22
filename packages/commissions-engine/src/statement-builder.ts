@@ -1,4 +1,3 @@
-import { attachedDuring, daysInMonth } from './estimate-visibility.ts';
 import type { CommissionEstimateAttachment } from './estimate-projection.ts';
 import { computePeriodDetailed } from './period-commission.ts';
 import { assembleForLastDay, commissionPeriodLastDay } from './period-input-assembly.ts';
@@ -81,23 +80,28 @@ function previousDay(isoDate: string): string {
   return day.toISOString().slice(0, 10);
 }
 
+/** أول يوم وآخر يوم في الشهر بصيغة YYYY-MM-DD، بيتحسبوا مرة واحدة لكل بناء. */
+interface MonthBounds {
+  readonly first: string;
+  readonly last: string;
+}
+
 /**
  * ارتباط حيّ بيتقص على الشهر: البداية مش قبل أول يوم، والنهاية آخر يوم داخل مش بعد آخر يوم.
+ * ارتباط ما بيغطيش أي يوم (بعد الشهر، أو قبله، أو من نفس اليوم للنفس) بيطلع فيه آخر يوم قبل
+ * أول يوم فيرجع null، فمفيش اختبار تقاطع منفصل.
  *
- * @param period الشهر بصيغة YYYY-MM
+ * @param bounds أول يوم وآخر يوم في الشهر
  * @param attachment الارتباط الحيّ
  * @returns المرفق المقصوص أو null لما ما بيغطيش أي يوم
  */
 function clipped(
-  period: string,
+  bounds: MonthBounds,
   attachment: CommissionEstimateAttachment,
 ): StatementAttachmentRow | null {
-  if (!attachedDuring(attachment, period)) return null;
-  const monthStart = `${period}-01`;
-  const monthEnd = `${period}-${String(daysInMonth(period)).padStart(2, '0')}`;
-  const from = attachment.from < monthStart ? monthStart : attachment.from;
-  const last = attachment.to === null ? monthEnd : previousDay(attachment.to);
-  const to = last > monthEnd ? monthEnd : last;
+  const from = attachment.from < bounds.first ? bounds.first : attachment.from;
+  const last = attachment.to === null ? bounds.last : previousDay(attachment.to);
+  const to = last > bounds.last ? bounds.last : last;
   if (to < from) return null;
   return {
     employeeId: attachment.employeeId,
@@ -110,20 +114,20 @@ function clipped(
 /**
  * ارتباطات الموظفات داخل النطاق بعد القص على الشهر؛ دي اللي بتتجمّد مع الكشف (FR-033).
  *
- * @param period الشهر بصيغة YYYY-MM
+ * @param bounds أول يوم وآخر يوم في الشهر
  * @param labels الموظفات داخل النطاق
  * @param attachments الارتباطات الحيّة
  * @returns المرفقات مرتبة
  */
 function frozenAttachments(
-  period: string,
+  bounds: MonthBounds,
   labels: ReadonlyMap<string, StatementEmployeeLabel>,
   attachments: readonly CommissionEstimateAttachment[],
 ): StatementAttachmentRow[] {
   const rows: StatementAttachmentRow[] = [];
   for (const attachment of attachments) {
     if (!labels.has(attachment.employeeId)) continue;
-    const row = clipped(period, attachment);
+    const row = clipped(bounds, attachment);
     if (row !== null) rows.push(row);
   }
   return sortedBy(rows, (row) => [row.employeeId, row.branchId, row.attachedFrom]);
@@ -270,13 +274,20 @@ function employeeRows(
  *   الحالة دي ممثَّلة في النموذج بس: جدول §6 وD-20 وR10 بيطلبوا تفاصيل البند متجمّدة، فقارئ
  *   PR 2 لازم يثبت هل الحالة دي ممكن توصله فعلًا ويبلّغ قبل ما يتحدد سلوك الفشل أو البديل.
  *
+ * التزامان على المستدعي:
+ * - `failures` لازم تبقى فاضية قبل أي تجميد. الباني بيرجّع الصفوف الجزئية جنب الفشل عن قصد،
+ *   عشان العرض يقدر يوريها.
+ * - التصحيحات الموقوفة المفتوحة مش مدخل هنا ومش بتظهر في `failures`: المراجعة والاعتماد بيفحصوها
+ *   بنفسهم (FR-027، FR-048)، فشهر فشله الوحيد تصحيح موقوف بيرجع `failures` فاضية.
+ *
  * @param input الشهر وصفوفه والموظفات داخل النطاق وارتباطاتهن والأسماء
  * @returns الصفوف والمرفقات وفشل التسعير لكل موظفة
  */
 export function buildStatement(input: StatementBuildInput): StatementBuild {
   const periodLastDay = commissionPeriodLastDay(input.period);
   const labels = cardsById(input.employees);
-  const frozen = frozenAttachments(input.period, labels, input.attachments);
+  const bounds = { first: `${input.period}-01`, last: periodLastDay };
+  const frozen = frozenAttachments(bounds, labels, input.attachments);
   assertUniqueAttachments(frozen);
   const scope: BuildScope = {
     period: input.period,

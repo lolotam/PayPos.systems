@@ -1,10 +1,14 @@
+import type { OpenBlockedCorrection } from '../canonical-input.ts';
 import type {
   StatementBuildInput,
   StatementLineSource,
-  StatementMonthRows,
+  StatementMonthRows as BuilderMonthRows,
 } from '../statement-types.ts';
 
-export type { StatementMonthRows } from '../statement-types.ts';
+/** صفوف الشهر كاملة لبصمة المدخلات: صفوف الباني مع التصحيحات الموقوفة اللي الباني ما بيقراهاش. */
+export type StatementMonthRows = BuilderMonthRows & {
+  readonly blocked: readonly OpenBlockedCorrection[];
+};
 
 export const PERIOD = '2026-10';
 export const SARA = 'employee-sara';
@@ -212,7 +216,7 @@ export function octoberRows(): StatementMonthRows {
  * @param month صفوف الشهر، وافتراضها أكتوبر الكامل
  * @returns مدخل الباني
  */
-export function octoberInput(month: StatementMonthRows = octoberRows()): StatementBuildInput {
+export function octoberInput(month: BuilderMonthRows = octoberRows()): StatementBuildInput {
   return {
     period: PERIOD,
     month,
