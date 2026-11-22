@@ -1,6 +1,5 @@
-import type { IdGenerator } from '@pospay/db';
 import type { Clock } from '../../ports/clock.port.ts';
-import type { ServiceImportCommitTransactions } from '../../ports/service-import-commit.port.ts';
+import type { IdGenerator, ServiceImportCommitTransactions } from '../../ports/service-import-commit.port.ts';
 import type { ImportedServiceRecord } from '../../domain/service-import-commit.ts';
 import {
   requireServiceImportRequestLive,

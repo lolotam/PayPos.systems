@@ -1,5 +1,7 @@
 import { expect, it } from 'vitest';
 
+import type { TenantWrappers } from '@pospay/db';
+
 import {
   previewCommand,
   serviceImportFixture,
@@ -7,6 +9,37 @@ import {
   type ImportRow,
   type ServiceImportFixture,
 } from './service-import.fixture.ts';
+
+// فشل المطابقة والحفظ بعد قراءة البايتات لا يمسح تدقيق الوصول للملف الخاص: التدقيق في معاملته
+// المستقلة المثبتة قبل أي عمل آخر (CLAUDE.md §8، P2 مراجعة 1186).
+it('keeps the private-file access audit even when match-and-save fails', async () => {
+  const f = await serviceImportFixture();
+  try {
+    const fileId = await f.upload(
+      await serviceWorkbook([['Audit Survivor', null, 1, null, null, null, null, null]]),
+    );
+    let calls = 0;
+    const failing = {
+      withTenant: (
+        companyId: string,
+        work: (tx: unknown) => Promise<unknown>,
+        options?: { readonly userId?: string },
+      ): Promise<unknown> => {
+        calls += 1;
+        if (calls >= 3) return Promise.reject(new Error('MATCH_SAVE_DOWN'));
+        return f.db.withTenant(companyId, work as never, options as never);
+      },
+    } as unknown as TenantWrappers;
+    await expect(f.previewWith(failing).execute(previewCommand(f, fileId))).rejects.toThrow(
+      'SERVICE_IMPORT_PERSISTENCE_FAILED',
+    );
+    const audits =
+      await f.h.owner`SELECT action FROM audit_log WHERE company_id=${f.company} AND entity='file' AND entity_id=${fileId} AND action='access'`;
+    expect(audits).toHaveLength(1);
+  } finally {
+    await f.close();
+  }
+});
 
 // معاينة واحدة على معاملة مستأجر واحدة: صفوف مطبّعة وأخطاء مسمّاة، بلا كتابة أي خدمة أو تدقيق.
 

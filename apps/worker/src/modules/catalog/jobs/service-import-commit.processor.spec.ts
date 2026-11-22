@@ -45,7 +45,6 @@ it(
     expect(await processor.deliver(event)).toEqual({ delivered: true });
     const job = await queue.getJob(event.id);
     expect(job?.data).toEqual({ companyId: event.companyId, previewId });
-    expect(job?.attemptsMade ?? 0).toBe(0);
     await vi.waitFor(() => expect(fail).toHaveBeenCalledWith(event.companyId, previewId), {
       timeout: 60_000,
     });
@@ -96,6 +95,14 @@ it(
           retryInMs: null,
         });
         expect(await processor.deliver({ ...base, payload: {} })).toEqual({
+          delivered: false,
+          error: 'SERVICE_IMPORT_COMMIT_EVENT_INVALID',
+          retryInMs: null,
+        });
+        // الحمولة السليمة التي تشير لمعاينة غير صف الطلب نفسه تُرفض كذلك: الطلب في outbox هو الهوية.
+        expect(
+          await processor.deliver({ ...base, payload: { preview_id: ids.newId() } }),
+        ).toEqual({
           delivered: false,
           error: 'SERVICE_IMPORT_COMMIT_EVENT_INVALID',
           retryInMs: null,

@@ -14005,7 +14005,7 @@
     "/v1/businesses/{businessId}/services/import/previews": {
       "post": {
         "operationId": "previewServiceImport",
-        "description": "Previews one verified private upload against the business: file ownership, READY status, XLSX type and the 2 MiB and 500-row limits are checked before reading the bytes once outside any database transaction; category labels are matched in one PostgreSQL batch against open categories of the business and English names against all stored services. Returns every error with its original sheet row and column, and only error-free normalized rows. The preview, its errors and its rows are saved in one tenant transaction and no service or audit is written. Requires manage:services:business and the catalog feature.",
+        "description": "Previews one verified private upload against the business: file ownership, READY status and XLSX type are checked before the bytes are read once outside any database transaction, and the 2 MiB and 500-row limits are enforced by the guarded reader on those bytes; category labels are matched in one PostgreSQL batch against open categories of the business and English names are compared against all stored services with the same PostgreSQL fold on both sides. Returns every error with its original sheet row and column, and only error-free normalized rows. The preview, its errors and its rows are saved in one tenant transaction; no service and no service audit is written, and the private-file access itself is recorded once in its own audit entry. Requires manage:services:business and the catalog feature.",
         "parameters": [
           {
             "in": "header",

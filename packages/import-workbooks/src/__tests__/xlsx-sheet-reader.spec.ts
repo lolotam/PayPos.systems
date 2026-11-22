@@ -105,3 +105,18 @@ it('keeps cells and formats beyond the last header so importers can reject them'
   expect(result.formats[1]?.[2]).toBe('0.000');
   expect(result.matrix[2]?.[3]).toBe(INVALID_CELL);
 });
+
+it('pads short rows to the header width with nulls while keeping overflow columns', async () => {
+  const bytes = await workbook((sheet) => {
+    sheet.getCell(2, 1).value = 'only first';
+    sheet.getCell(3, 1).value = 'a';
+    sheet.getCell(3, 3).value = 'overflow';
+  });
+  const legacy = await readWorkbookMatrix(bytes, bounds);
+  // المتصل القديم يقرأ حقل الخانة الأخيرة فارغاً كـ null لا undefined، كما وعد القارئ القديم.
+  expect(legacy[1]).toEqual(['only first', null]);
+  expect(legacy[2]).toEqual(['a', null, 'overflow']);
+  const result = await readWorkbookSheet(bytes, bounds);
+  expect(result.matrix[1]).toEqual(['only first', null]);
+  expect(result.formats[1]).toEqual([undefined, undefined]);
+});

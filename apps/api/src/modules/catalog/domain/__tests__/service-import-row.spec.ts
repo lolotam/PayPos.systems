@@ -201,26 +201,26 @@ describe('commission refusals and unexpected data of 072', () => {
   });
 });
 
-describe('in-file duplicates inside a sheet (A-10)', () => {
-  it('reports IMPORT_DUPLICATE_IN_FILE on every member including rows with other errors', () => {
+describe('duplicate names are carried unjudged to PostgreSQL (FR-007, HIGH مراجعة 1186)', () => {
+  it('carries every valid name raw without deciding duplicates in JavaScript', () => {
     const result = mapRows([
       { row: 2, cells: goodRow('Hair Cut', { price: text('1.000') }) },
       { row: 3, cells: goodRow('hair  CUT', { price: bool(true) }) },
       { row: 4, cells: goodRow('Nails') },
     ]);
-    expect(codes(result.errors)).toEqual([
-      '2:name_en:IMPORT_DUPLICATE_IN_FILE',
-      '3:name_en:IMPORT_DUPLICATE_IN_FILE',
-      '3:price:IMPORT_PRICE_INVALID',
+    // لا رمز تكرار من المماسّر: القرار كله بتعبير الطي الواحد في PostgreSQL (A-12).
+    expect(codes(result.errors)).toEqual(['3:price:IMPORT_PRICE_INVALID']);
+    expect(result.rows.map((row) => row.row)).toEqual([2, 4]);
+    expect(result.keys).toEqual([
+      { row: 2, name: 'Hair Cut' },
+      { row: 3, name: 'hair  CUT' },
+      { row: 4, name: 'Nails' },
     ]);
-    // الصف الرابع اسمه مختلف، فهو الوحيد اللي بيعدي من المجموعة المتكررة لالصفوف المطبّعة.
-    expect(result.rows.map((row) => row.row)).toEqual([4]);
-    expect(result.rows[0]).toMatchObject({ name_en: 'Nails', price: '12.500' });
   });
 });
 
-describe('exposed keys carried to 32b-2 (A-11)', () => {
-  it('gives a key to every row with a valid name, including rows that never normalize', () => {
+describe('exposed names carried to 32b-2 (A-11)', () => {
+  it('gives a raw name to every row with a valid name, including rows that never normalize', () => {
     const result = mapRows([
       { row: 2, cells: goodRow('Hair Cut', { price: bool(true) }) },
       { row: 3, cells: goodRow('hair  cut') },
@@ -228,15 +228,13 @@ describe('exposed keys carried to 32b-2 (A-11)', () => {
       { row: 5, cells: { price: text('1.000') } },
     ]);
     expect(result.keys).toEqual([
-      { row: 2, key: 'hair cut', name: 'Hair Cut' },
-      { row: 3, key: 'hair cut', name: 'hair  cut' },
-      { row: 4, key: 'nails', name: 'Nails' },
+      { row: 2, name: 'Hair Cut' },
+      { row: 3, name: 'hair  cut' },
+      { row: 4, name: 'Nails' },
     ]);
-    expect(result.rows.map((row) => row.row)).toEqual([4]);
+    expect(result.rows.map((row) => row.row)).toEqual([3, 4]);
     expect(codes(result.errors)).toEqual([
-      '2:name_en:IMPORT_DUPLICATE_IN_FILE',
       '2:price:IMPORT_PRICE_INVALID',
-      '3:name_en:IMPORT_DUPLICATE_IN_FILE',
       '5:name_en:IMPORT_REQUIRED_CELL',
     ]);
   });
@@ -345,14 +343,12 @@ const SHUFFLED_HEADERS = [
 ];
 
 const MIXED_ERRORS = [
-  '2:name_en:IMPORT_DUPLICATE_IN_FILE',
-  '3:name_en:IMPORT_DUPLICATE_IN_FILE',
   '4:category:IMPORT_CATEGORY_NOT_FOUND',
   '4:duration_minutes:IMPORT_DURATION_INVALID',
 ];
 
 describe('mixed shuffled headers with duplicates and independent errors across rows', () => {
-  it('keeps per-row header order, sheet row order and duplicate diagnostics together', () => {
+  it('keeps per-row header order and sheet row order together, names carried raw for PostgreSQL', () => {
     const result = mapRows(
       [
         {
@@ -394,14 +390,14 @@ describe('mixed shuffled headers with duplicates and independent errors across r
       ],
       SHUFFLED_HEADERS,
     );
-    // أخطاء الصفوف 2 و3 و4 بترتيب الورقة، والتصنيف يسبق المدة حسب ترتيب الأعمدة.
+    // أخطاء الصفوف بترتيب الورقة، والتصنيف يسبق المدة حسب ترتيب الأعمدة، وبلا رموز تكرار JS.
     expect(codes(result.errors)).toEqual(MIXED_ERRORS);
-    // الصفان 2 و3 مكرران فيشيلهم الاتنان من الصفوف المطبّعة، والصف 4 غلط في عمودين، فالنتيجة بلا صفوف.
-    expect(result.rows).toEqual([]);
+    // الصفان 2 و3 يحملان أسماءهما المطلقة لقرار PostgreSQL ويعودان صفوفاً مطبّعة، والصف 4 غلط في عمودين.
+    expect(result.rows.map((row) => row.row)).toEqual([2, 3]);
     expect(result.keys).toEqual([
-      { row: 2, key: 'duo', name: 'Duo' },
-      { row: 3, key: 'duo', name: 'duo' },
-      { row: 4, key: 'solo', name: 'Solo' },
+      { row: 2, name: 'Duo' },
+      { row: 3, name: 'duo' },
+      { row: 4, name: 'Solo' },
     ]);
   });
 });

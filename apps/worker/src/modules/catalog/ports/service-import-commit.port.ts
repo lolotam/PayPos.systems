@@ -1,7 +1,14 @@
+import type { IdGenerator } from '@pospay/db';
 import type {
   ImportedServiceRecord,
   ServiceImportNormalizedRow,
 } from '../domain/service-import-commit.ts';
+
+/**
+ * مولّد المعرفات يُحقن من التركيب؛ نوعه يستورد في المنفذ (نفس سابقة منافذ staff/commissions)
+ * فلا تستورد حالة الاستخدام حزمة قاعدة البيانات مباشرة (مصفوفة الطبقات).
+ */
+export type { IdGenerator };
 
 /** المعاينة المقفولة كما يقرأها العامل داخل معاملة الالتزام، بلا صفوف لو الحالة ليست طلباً حياً. */
 export interface ServiceImportCommitPreview {

@@ -66,13 +66,16 @@ export interface ServiceImportPreviewScope {
    */
   matchCategories(labels: readonly string[]): Promise<readonly ServiceImportCategoryMatch[]>;
   /**
-   * يقرأ نصوص أسماء الخدمات الموجودة في النشاط من الأسماء المطلقة الممرّرة، المفتوحة والمقفولة
-   * معاً، بالطيّ نفسه على الطرفين داخل PostgreSQL (A-11/HIGH مراجعة 1186) بلا اشتقاق مفتاح في JS.
+   * يقارن أسماء الصفوف المطلّقة داخل PostgreSQL بتعبير الطي الواحد على الطرفين: التكرار داخل
+   * الملف والوجود في النشاط (المفتوحة والمقفولة معاً) قرار واحد من قاعدة البيانات (FR-007،
+   * HIGH مراجعة 1186) بلا اشتقاق مفتاح في JS.
    *
-   * @param labels أسماء الصفوف المطلّقة بعد تشذيب المحوّل
-   * @returns الأسماء المطلّقة المتصادمة في النشاط
+   * @param labels أسماء الصفوف المطلّقة بعد تشذيب المحوّل، بترتيب الصفوف ومع تكرارها
+   * @returns حالة كل اسم بترتيب الإدخال نفسه
    */
-  existingServiceKeys(labels: readonly string[]): Promise<readonly string[]>;
+  matchServiceNames(
+    labels: readonly string[],
+  ): Promise<readonly { readonly duplicate_in_file: boolean; readonly exists: boolean }[]>;
   /**
    * يحفظ المعاينة الجاهزة وصفوفها وأخطاءها في كتابة مستأجر واحدة دون كتابة أي خدمة.
    *
@@ -114,7 +117,7 @@ export interface ServiceImportTransactions {
     work: (
       scope: Pick<
         ServiceImportPreviewScope,
-        'matchCategories' | 'existingServiceKeys' | 'save' | 'auditFileAccess'
+        'matchCategories' | 'matchServiceNames' | 'save'
       >,
     ) => Promise<T>,
   ): Promise<T>;

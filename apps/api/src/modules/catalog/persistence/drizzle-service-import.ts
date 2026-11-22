@@ -72,48 +72,60 @@ function resolveCategoryMatches(
 }
 
 /** القراءة الحاسمة للأسماء داخل النشاط، المفتوحة والمقفولة معاً — الطرفان يُطويان بتعبير PostgreSQL
- * واحد (طيّ المسافات والتشذيب والحروف الصغيرة) مطابق لمعادلة فهرس التصنيفات، فلا يبقى اختلاف
- * بين مطوي JavaScript والمخزن (HIGH مراجعة 1186)؛ فرق Unicode المتبقى موثّق في متجهات A-11. */
-async function readExistingServiceKeys(
+ * واحد (طيّ المسافات والتشذيب والحروف الصغيرة)، والتكرار داخل الملف حساب نافذة على المدخل نفسه،
+ * فقرار التكرار والوجود كله من قاعدة البيانات بلا مفتاح جافاسكربت يعارضها (FR-007، HIGH مراجعة 1186)؛
+ * فرق Unicode المتبقى موثّق في متجهات A-11. */
+async function matchServiceNames(
   tx: Tx,
   companyId: string,
   businessId: string,
   labels: readonly string[],
-): Promise<readonly string[]> {
+): Promise<readonly { duplicate_in_file: boolean; exists: boolean }[]> {
   if (labels.length === 0) return [];
-  const rows = await tx.execute<{ label: string }>(sql`
+  const rows = await tx.execute<{ duplicate_in_file: boolean; exists_stored: boolean }>(sql`
     WITH input AS (
-      SELECT label, lower(btrim(regexp_replace(label, '[[:space:]]+', ' ', 'g'))) AS lookup_key
-      FROM unnest(ARRAY[${sql.join(labels.map((label) => sql`${label}`), sql`, `)}]::text[]) AS t(label)
+      SELECT ord, lower(btrim(regexp_replace(label, '[[:space:]]+', ' ', 'g'))) AS lookup_key
+      FROM unnest(ARRAY[${sql.join(labels.map((label) => sql`${label}`), sql`, `)}]::text[])
+        WITH ORDINALITY AS t(label, ord)
+    ),
+    folded AS (
+      SELECT ord, lookup_key,
+        count(*) OVER (PARTITION BY lookup_key) > 1 AS duplicate_in_file
+      FROM input
     )
-    SELECT i.label
-    FROM input i
-    JOIN services s
-      ON s.company_id = ${companyId}
-     AND s.business_id = ${businessId}
-     AND lower(btrim(regexp_replace(s.name_en, '[[:space:]]+', ' ', 'g'))) = i.lookup_key`);
-  return rows.map((row) => row.label);
+    SELECT f.duplicate_in_file, (s.name_en IS NOT NULL) AS exists_stored
+    FROM folded f
+    LEFT JOIN LATERAL (
+      SELECT 1 AS name_en FROM services s
+      WHERE s.company_id = ${companyId}
+       AND s.business_id = ${businessId}
+       AND lower(btrim(regexp_replace(s.name_en, '[[:space:]]+', ' ', 'g'))) = f.lookup_key
+      LIMIT 1
+    ) s ON TRUE
+    ORDER BY f.ord`);
+  return rows.map((row) => ({
+    duplicate_in_file: row.duplicate_in_file,
+    exists: row.exists_stored,
+  }));
 }
 
-/** بنية نطاق المطابقة والحفظ على معاملة واحدة: المطابقات والأسماء والقراءة والتدقيق والحفظ. */
+/** بنية نطاق المطابقة والحفظ على معاملة واحدة: المطابقات والأسماء والقراءة والحفظ. */
 interface MatchAndSaveScopeArgs {
   readonly tx: Tx;
   readonly companyId: string;
   readonly businessId: string;
   readonly userId: string;
-  readonly ids: IdGenerator;
 }
 
 /** يبني نطاق المطابقة والحفظ، فاصلٌ ليبقى سهام المعاملات تحت حد الأسطر (CLAUDE.md §3). */
 function matchAndSaveScope(args: MatchAndSaveScopeArgs) {
-  const { tx, companyId, businessId, userId, ids } = args;
+  const { tx, companyId, businessId, userId } = args;
   return {
     matchCategories: (labels: readonly string[]) =>
       matchCategoryLabels(tx, companyId, businessId, labels),
-    existingServiceKeys: (labels: readonly string[]) =>
-      readExistingServiceKeys(tx, companyId, businessId, labels),
+    matchServiceNames: (labels: readonly string[]) =>
+      matchServiceNames(tx, companyId, businessId, labels),
     save: (input: SaveServiceImportPreviewInput) => savePreview(tx, companyId, userId, input),
-    auditFileAccess: (fileId: string) => auditFileAccess(tx, fileId, ids.newId()),
   };
 }
 
@@ -189,8 +201,7 @@ export function createServiceImportTransactions(
       try {
         return await database.withTenant(
           companyId,
-          async (tx) =>
-            work(matchAndSaveScope({ tx, companyId, businessId, userId, ids })),
+          async (tx) => work(matchAndSaveScope({ tx, companyId, businessId, userId })),
           { userId },
         );
       } catch (error) {

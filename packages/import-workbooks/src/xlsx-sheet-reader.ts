@@ -127,8 +127,11 @@ async function loadSheet(bytes: Uint8Array, bounds: WorkbookBounds): Promise<Wor
     row.eachCell({ includeEmpty: false }, (_cell, column) => {
       lastColumn = Math.max(lastColumn, column);
     });
-    const values: ImportCell[] = Array.from({ length: lastColumn }, () => null);
-    const rowFormats: (string | undefined)[] = Array.from({ length: lastColumn }, () => undefined);
+    // الصفوف القصيرة تُكمل عرض العناوين بقيم null كما في القارئ القديم، وأعمدة الفائض بعد
+    // العناوين تبقى محفوظة ليرصدها المطبّع IMPORT_COLUMN_UNEXPECTED (072 FR-003).
+    const rowLength = Math.max(width, lastColumn);
+    const values: ImportCell[] = Array.from({ length: rowLength }, () => null);
+    const rowFormats: (string | undefined)[] = Array.from({ length: rowLength }, () => undefined);
     row.eachCell({ includeEmpty: false }, (cell, column) => {
       values[column - 1] = cellValue(cell.value);
       rowFormats[column - 1] = cell.numFmt ?? undefined;

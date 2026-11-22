@@ -1,4 +1,4 @@
-import { Queue, Worker } from 'bullmq';
+import { Queue, Worker, DelayedError, type Job } from 'bullmq';
 import { Redis } from 'ioredis';
 import { serviceImportCommitJob, serviceImportCommitRequested } from '@pospay/contracts';
 import type { ClaimedEvent, DeliveryOutcome } from '@pospay/db';
@@ -8,6 +8,81 @@ export const SERVICE_IMPORT_QUEUE = 'service-import-commit';
 
 // FR-009: محاولة أولى وثلاث إعادات للفشل غير المتوقع، ثم فشل تثبيت مُسمّى شرطي على الطلب الحي فقط.
 const SERVICE_IMPORT_ATTEMPTS = 4;
+
+/**
+ * مؤشر مرحلة الإنهاء على صف الطابور: يمنع إعادة تشغيل الاستيراد بعد خلاص المحاولات،
+ * وتبقى كتابة رمز الفشل على الطلب مؤجَّلة قابلة لإعادة المحاولة إن رفضت القاعدة (نمط قفل التصنيفات).
+ */
+async function persistFailure(
+  useCase: CommitServiceImport,
+  job: Job,
+  token: string | undefined,
+  companyId: string,
+  previewId: string,
+): Promise<void> {
+  try {
+    await useCase.fail(companyId, previewId);
+  } catch {
+    // كتابة الفشل نفسها رفضت: المهمة تتأجل لحظةً بدل أن يبقى الطلب عالقاً في commit_requested.
+    await job.moveToDelayed(Date.now() + 2000, token);
+    throw new DelayedError();
+  }
+}
+
+/** معالج صف الالتزام: إعادة التحقق كلها، وإنهاء الفشل غير المتوقع بعد آخر محاولة بلا إعادة تشغيل. */
+function commitHandler(useCase: CommitServiceImport) {
+  return async (job: Job, token?: string): Promise<void> => {
+    const parsed = serviceImportCommitJob.safeParse(job.data);
+    if (!parsed.success) throw new Error('SERVICE_IMPORT_JOB_INVALID');
+    const { companyId, previewId } = parsed.data;
+    // محاولة بعد التأخير الذي أجّلناه لكتابة الفشل: نُكمل الإنهاء بلا إعادة تشغيل الاستيراد.
+    if (job.progress !== null && typeof job.progress === 'object' && 'stage' in job.progress)
+      return persistFailure(useCase, job, token, companyId, previewId);
+    try {
+      await useCase.execute(companyId, previewId);
+    } catch (error) {
+      // آخر محاولة للفشل غير المتوقع تُنهي الطلب الحي برمز التثبيت الفاشل بعد تراجع المعاملة (FR-009).
+      if (job.attemptsMade + 1 >= (job.opts.attempts ?? 1)) {
+        await job.updateProgress({ stage: 'finalizing-service-import-commit-failure' }).catch(() => undefined);
+        return persistFailure(useCase, job, token, companyId, previewId);
+      }
+      throw error;
+    }
+  };
+}
+
+/** يسلّم حدث الالتزام للطابور بعد فحص الحمولة الصارم ومطابقة صف الطلب في outbox نفسه. */
+async function deliverCommit(
+  queue: Queue,
+  event: ClaimedEvent,
+): Promise<DeliveryOutcome> {
+  try {
+    // عقد الحمولة الصارم يُفحص قبل بناء الوظيفة: حقول زائدة أو preview_id ناقص رفض مسمّى
+    // غير قابل لإعادة السحب، لأن إعادة السحب لن تصلح حدثًا شكله غلط (P2 مراجعة 32b-2)،
+    // وpreview_id في الحمولة يجب أن يطابق صف الطلب في outbox نفسه (نمط قفل التصنيفات).
+    const payload = serviceImportCommitRequested.safeParse(event.payload);
+    const data = serviceImportCommitJob.safeParse({
+      companyId: event.companyId,
+      previewId: payload.success ? payload.data.preview_id : event.aggregateId,
+    });
+    if (
+      !payload.success ||
+      !data.success ||
+      payload.data.preview_id.toLowerCase() !== event.aggregateId.toLowerCase()
+    )
+      return { delivered: false, error: 'SERVICE_IMPORT_COMMIT_EVENT_INVALID', retryInMs: null };
+    await queue.add('commit', data.data, {
+      jobId: event.id,
+      attempts: SERVICE_IMPORT_ATTEMPTS,
+      backoff: { type: 'exponential', delay: 2000 },
+      removeOnComplete: true,
+      removeOnFail: 100,
+    });
+    return { delivered: true };
+  } catch {
+    return { delivered: false, error: 'SERVICE_IMPORT_QUEUE_RETRY', retryInMs: 2000 };
+  }
+}
 
 // ADR-0018: النشر إلى Redis خارج معاملة outbox؛ jobId ثابت يزيل أثر إعادة التسليم.
 export function startServiceImportProcessor(
@@ -21,48 +96,21 @@ export function startServiceImportProcessor(
   producer.on('error', () => undefined);
   const queue = new Queue(SERVICE_IMPORT_QUEUE, { connection: producer, prefix });
   queue.on('error', () => undefined);
-  const worker = new Worker(
-    SERVICE_IMPORT_QUEUE,
-    async (job) => {
-      const parsed = serviceImportCommitJob.safeParse(job.data);
-      if (!parsed.success) throw new Error('SERVICE_IMPORT_JOB_INVALID');
-      const { companyId, previewId } = parsed.data;
-      try {
-        await useCase.execute(companyId, previewId);
-      } catch (error) {
-        // آخر محاولة للفشل غير المتوقع تُنهي الطلب الحي برمز التثبيت الفاشل بعد تراجع المعاملة (FR-009).
-        if (job.attemptsMade + 1 >= (job.opts.attempts ?? 1))
-          await useCase.fail(companyId, previewId);
-        throw error;
-      }
-    },
-    { connection, concurrency: 1, prefix },
-  );
+  const worker = new Worker(SERVICE_IMPORT_QUEUE, commitHandler(useCase), {
+    connection,
+    concurrency: 1,
+    prefix,
+  });
   worker.on('error', () => undefined);
+  worker.on('failed', (job) => {
+    // BullMQ أقفل الصف بلا معالج (تجاوز حد التوقف): إنهاء طلب حي بكتابة شرطية أخيرة.
+    if (job === undefined || job === null) return;
+    const parsed = serviceImportCommitJob.safeParse(job.data);
+    if (!parsed.success || typeof job.finishedOn !== 'number') return;
+    void useCase.fail(parsed.data.companyId, parsed.data.previewId).catch(() => undefined);
+  });
   return {
-    deliver: async (event: ClaimedEvent): Promise<DeliveryOutcome> => {
-      try {
-        // عقد الحمولة الصارم يُفحص قبل بناء الوظيفة: حقول زائدة أو preview_id ناقص رفض مسمّى
-        // غير قابل لإعادة السحب، لأن إعادة السحب لن تصلح حدثًا شكله غلط (P2 مراجعة 32b-2).
-        const payload = serviceImportCommitRequested.safeParse(event.payload);
-        if (!payload.success)
-          return { delivered: false, error: 'SERVICE_IMPORT_COMMIT_EVENT_INVALID', retryInMs: null };
-        const data = serviceImportCommitJob.parse({
-          companyId: event.companyId,
-          previewId: payload.data.preview_id,
-        });
-        await queue.add('commit', data, {
-          jobId: event.id,
-          attempts: SERVICE_IMPORT_ATTEMPTS,
-          backoff: { type: 'exponential', delay: 2000 },
-          removeOnComplete: true,
-          removeOnFail: 100,
-        });
-        return { delivered: true };
-      } catch {
-        return { delivered: false, error: 'SERVICE_IMPORT_QUEUE_RETRY', retryInMs: 2000 };
-      }
-    },
+    deliver: (event: ClaimedEvent) => deliverCommit(queue, event),
     ready: () => worker.waitUntilReady().then(() => undefined),
     close: async () => {
       await worker.close();

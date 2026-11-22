@@ -29,6 +29,28 @@ const option = (name: string): ServiceImportCategoryOption => ({
   name_ar: null,
 });
 
+/** نصوص صفوف ورقة بالكامل كما يقرأها ExcelJS، لفحص ورقة المرجع بعد جولة الحارس. */
+function sheetTextRows(book: ExcelJS.Workbook, name: string): string[][] | undefined {
+  const sheet = book.getWorksheet(name);
+  if (sheet === undefined) return undefined;
+  const rows: string[][] = [];
+  sheet.eachRow((row) => {
+    const values: string[] = [];
+    row.eachCell({ includeEmpty: false }, (cell) => values.push(String(cell.value ?? '')));
+    rows.push(values);
+  });
+  return rows;
+}
+
+/** نص تعليق خلية عنوان في ورقة البيانات بموضعه المرجعي من رؤوس القالب، بنص أو بمصفوفة ExcelJS. */
+function cellNote(book: ExcelJS.Workbook, sheetName: string, header: string): string {
+  const position = (SERVICE_IMPORT_TEMPLATE_HEADERS as readonly string[]).indexOf(header) + 1;
+  const note: unknown = book.getWorksheet(sheetName)?.getCell(1, position).note;
+  if (typeof note === 'string') return note;
+  const texts = (note as { texts?: readonly { text: string }[] } | undefined)?.texts ?? [];
+  return texts.map((part) => part.text).join(' ');
+}
+
 describe('template reference capacity (P-3)', () => {
   it.each([
     [0, true],
@@ -59,23 +81,20 @@ describe('template workbook round-trip', () => {
     expect(roundTrip.formats).toHaveLength(roundTrip.matrix.length);
     const book = new ExcelJS.Workbook();
     await book.xlsx.load(bytes as unknown as Parameters<typeof book.xlsx.load>[0]);
-    const referenceSheet = book.getWorksheet('reference');
-    expect(referenceSheet).toBeDefined();
-    const rows: string[][] = [];
-    referenceSheet?.eachRow((row) => {
-      const values: string[] = [];
-      row.eachCell({ includeEmpty: false }, (cell) => values.push(String(cell.value ?? '')));
-      rows.push(values);
-    });
+    const rows = sheetTextRows(book, 'reference');
+    expect(rows).toBeDefined();
     // الصف الأول عناوين المرجع، وأربع قواعد العمولة بعده، ثم سطر كتابات الاحتساب، وكل تصنيف صف.
-    expect(rows[1]).toContain('FOLLOW_PLAN');
-    expect(rows[2]).toContain('ZERO');
-    expect(rows[3]).toContain('PCT');
-    expect(rows[4]).toContain('FIXED');
-    const texts = rows.flat().join('\n');
+    expect(rows?.[1]).toContain('FOLLOW_PLAN');
+    expect(rows?.[2]).toContain('ZERO');
+    expect(rows?.[3]).toContain('PCT');
+    expect(rows?.[4]).toContain('FIXED');
+    const texts = (rows ?? []).flat().join('\n');
     expect(texts).toContain('true / false');
     expect(texts).toContain('Hair');
     expect(texts).toContain('Nails');
+    // FR-006: تعليق عمود قيمة العمولة يشرح إدخال النسبة الصريحة (20 تعني 20٪) على خلية العنوان نفسها.
+    const note = cellNote(book, 'services', 'commission_value');
+    expect(note).toContain('20');
   });
 
 it('refuses the download at the use-case gate without building a workbook', async () => {

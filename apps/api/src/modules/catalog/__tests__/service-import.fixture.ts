@@ -1,4 +1,4 @@
-import { createDatabase, type Tx } from '@pospay/db';
+import { createDatabase, type TenantWrappers, type Tx } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import ExcelJS from 'exceljs';
 import { sql } from 'drizzle-orm';
@@ -201,6 +201,15 @@ export async function serviceImportFixture() {
       ids,
       { now: () => clock.value },
     ),
+    // حالة استخدام ثانية على بوابة مستأجر يحددها الاختبار: لاختبار إحكام التدقيق عند فشل المعاملة.
+    previewWith: (database: TenantWrappers) =>
+      new PreviewServiceImportUseCase(
+        createServiceImportTransactions(database, files.fileFacts, ids),
+        files.bytes as NonNullable<typeof files.bytes>,
+        createServiceImportSheetReader(),
+        ids,
+        { now: () => clock.value },
+      ),
     status: (businessId: string, previewId: string) =>
       serviceImportStatusQuery(db, company, userId, businessId, previewId),
     rows: (businessId: string, previewId: string, cursor?: string, limit?: number) =>

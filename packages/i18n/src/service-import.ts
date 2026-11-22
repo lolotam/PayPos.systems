@@ -41,7 +41,7 @@ export const serviceImportAr = {
   column_duration_minutes: 'المدة (بالدقائق)',
   column_category: 'التصنيف',
   column_commission_rule: 'قاعدة العمولة',
-  column_commission_value: 'قيمة العمولة',
+  column_commission_value: 'قيمة العمولة — اكتب 20 ليعني 20٪، ومبلغ FIXED بالدينار مثل 1.500',
   column_counts_toward_threshold: 'تُحتسب في المجمّع',
   column_unexpected_column: 'عمود غير متوقع',
   reference_category_en: 'التصنيف (بالإنجليزية) — انسخ واحداً منها في عمود التصنيف',
