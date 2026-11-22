@@ -274,6 +274,29 @@ that tenant until then. There is no new port, no import arrow, no new role and n
 tips reader reuses an existing port, and the third coverage reader port remains `CoverageCompanyReader` (owned by `commissions`,
 bound at the worker composition root to the tenancy `companyOpen`).
 
+**Amendment 2026-11-22 (issue #1032, the coverage report cannot print a false `COVERED`).** The report keeps every check it has
+(missing and stale revisions, retained counted events without the consumer's mark, unhandled types) and adds to them. The overall
+status is `COVERED` only when lines, salaries, sales and tips were all checked and no check failed; a run with no tip scope reports the
+tips as not checked (`tips: null` and its `tipsNote`), is `NOT_COVERED` and exits non-zero. There is no default to all businesses. The
+use case refuses, before any scan, a company that does not exist, an empty business list, a business id that is not a UUID, a range whose `from` is after its `to`, and a
+business that is not the company's, with the existing `COMMISSION_COVERAGE_SCOPE_INVALID`; the command line refuses the malformed forms
+earlier, while parsing its arguments, with `COMMISSION_COVERAGE_CONFIGURATION`, so it prints `SCOPE_INVALID` only for a company that does not exist, a business
+that is not the company's (both before any scan) and a bad `--through`, which is refused later, after the scan, because it compares the last event read
+with the bound. The retained-event mark check ends at the printed `throughId` and looks at nothing after it. Without `--through` that bound is not taken when
+the command starts: lines, salaries and sales are scanned first, then the bound is the highest id among all of the company's retained events of the six counted
+types, read once before the first retained-event page is fetched (not the maximum of the first page), so `throughId` is not a start-up cutoff. The replay's cutoff and the proof's cutoff are different things: the 50-3a replay bound is chosen over
+four event types and this report's over six, so the two values can legitimately differ and are not required to match. The evidence used to open
+approval is one run with no `--through`, taken in the quiet window and naming every business; its printed `throughId` is the bound it proved up to
+and is recorded with the proof; `throughId` values are compared as UUIDs ignoring letter case. If it reports unmarked retained events the remedy is the six-type
+retained replay (50-3d) and a new run; a `notHandled` event (`COMMISSION_EVENT_TYPE_NOT_HANDLED`) keeps approval closed and is not fixed by a replay, which
+delivers only the types the consumer registers: the worker release or handler registration is corrected first, then the replay, then a new run. A run
+that cannot prove the whole scope leaves approval closed. The fourth coverage reader port is `CoverageBusinessReader`:
+owned by `commissions`, bound at the worker composition root to the existing tenancy `businessTimeZone` on the report's tenant
+transaction (`pospay_app` under `withTenant`); its Port row is in `docs/module-map.md`. The printed result names the business ids and
+the date range the tip check covered (`tipScope`): `COVERED` proves that scope only, and opening approval for a company needs a run
+whose scope is every business of the company and every business day with inputs, which the runbook requires of the operator and the
+tool does not infer. No import arrow, no migration, no new role and no new grant.
+
 **The rule from D-16:** if a reader cannot be bound at the root, the sub-PR that needs it stops and adds an ADR and the
 module-map row first.
 

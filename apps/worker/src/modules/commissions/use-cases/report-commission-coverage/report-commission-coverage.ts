@@ -7,6 +7,7 @@ import {
 } from '@pospay/commissions-engine';
 
 import type {
+  CoverageBusinessReader,
   CoverageCompanyReader,
   CoverageProjectionReader,
   CoverageRetainedPageReader,
@@ -25,11 +26,22 @@ import {
 } from './check-retained-events.ts';
 import { checkSaleCoverage } from './check-sale-coverage.ts';
 import { checkTipCoverage, type TipCoverageResult } from './check-tip-coverage.ts';
+import {
+  assertCoverageScope,
+  CommissionCoverageScopeInvalidError,
+  normalizeTipScope,
+  type CommissionCoverageTipScope,
+} from './coverage-scope.ts';
 
 export { CommissionCoverageEventInvalidError } from './check-retained-events.ts';
+export {
+  CommissionCoverageScopeInvalidError,
+  isCommissionCoverageCalendarDate,
+  type CommissionCoverageTipScope,
+} from './coverage-scope.ts';
 
 const SOURCE_PAGE_SIZE = 200;
-// النص يشرح أن البقشيش لم يُفحص وكيف يفحصه المشغّل، فلا يُقرأ كنتيجة نجاح.
+// النص يشرح أن البقشيش لم يُفحص وكيف يفحصه المشغّل؛ ومعه تكون الحالة NOT_COVERED فلا يُقرأ كنجاح.
 const TIPS_NOT_CHECKED_NOTE =
   'Tip coverage by revision was NOT checked: pass --businesses <uuid>[,<uuid>...] --from YYYY-MM-DD --to YYYY-MM-DD to check it.';
 
@@ -37,12 +49,11 @@ const TIPS_NOT_CHECKED_NOTE =
 export interface CommissionCoverageScope {
   readonly companyId: string;
   readonly throughId: string | null;
-  /** نطاق فحص البقشيش بالمراجعة؛ بدونه لا يُفحص البقشيش ويقول التقرير ذلك صراحة. */
-  readonly tips?: {
-    readonly businessIds: readonly string[];
-    readonly from: string;
-    readonly to: string;
-  };
+  /**
+   * نطاق فحص البقشيش بالمراجعة. بدونه لا يُفحص البقشيش، ويقول التقرير ذلك صراحة
+   * وتكون الحالة NOT_COVERED؛ ولا افتراض لكل الأنشطة.
+   */
+  readonly tips?: CommissionCoverageTipScope;
 }
 
 /** قائمة هويات محدودة للمشغّل مع العدد الكامل حتى لا يخفي السقف حجم الفجوة. */
@@ -51,8 +62,12 @@ export interface CoverageIdList {
   readonly ids: readonly string[];
 }
 
-/** نتيجة التغطية الخالية من الحمولات والمبالغ والأسماء، مع حالة الاعتماد وسقف القوائم. */
+/**
+ * نتيجة التغطية الخالية من الحمولات والمبالغ والأسماء، مع حالة الاعتماد وسقف القوائم.
+ * COVERED تثبت النطاق المطبوع في `tipScope` فقط؛ نطاق جزئي من أنشطة الشركة أو أيامها ليس إثباتاً لها كلها.
+ */
 export interface CommissionCoverageReport {
+  /** COVERED فقط حين فُحصت الأقسام الأربعة وسلمت كل الفحوص؛ أي نتيجة غيرها تنهي التشغيل بخروج غير صفري. */
   readonly status: 'COVERED' | 'NOT_COVERED';
   readonly throughId: string | null;
   readonly lines: {
@@ -86,6 +101,8 @@ export interface CommissionCoverageReport {
     readonly stale: CoverageIdList;
   } | null;
   readonly tipsNote: string | null;
+  /** الأنشطة والتاريخان اللذان فُحص بهما البقشيش، أو null حين لم يُفحص. */
+  readonly tipScope: CommissionCoverageTipScope | null;
   readonly truncated: boolean;
 }
 
@@ -98,6 +115,8 @@ export interface CommissionCoverageDeps {
   readonly projection: CoverageProjectionReader;
   readonly retained: CoverageRetainedPageReader;
   readonly companies: CoverageCompanyReader;
+  /** انتماء أنشطة نطاق البقشيش للشركة قبل أي مسح. */
+  readonly businesses: CoverageBusinessReader;
   readonly consumerId: string;
   /** أنواع الأحداث التي يسجّلها المستهلك؛ الحدث من نوع آخر لا يُفحص في العلامات ولا يُسلّم. */
   readonly handledTypes: ReadonlySet<string>;
@@ -105,47 +124,15 @@ export interface CommissionCoverageDeps {
   readonly tipsReader?: CurrentTipSessionsReader;
 }
 
-/** نطاق لا يمكن التقرير عنه: شركة غير موجودة أو حد أعلى ليس حدثاً محتفظاً بها. */
-export class CommissionCoverageScopeInvalidError extends Error {
-  readonly code = 'COMMISSION_COVERAGE_SCOPE_INVALID';
-
-  constructor() {
-    super('COMMISSION_COVERAGE_SCOPE_INVALID');
-    this.name = 'CommissionCoverageScopeInvalidError';
-  }
-}
-
-const CALENDAR_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-/**
- * يرفض التواريخ التي يقبلها شكل YYYY-MM-DD ولا وجود لها في التقويم، لأن فحص البقشيش
- * بنطاق محوّل تلقائياً إلى يوم آخر يعطي المشغّل نتيجة تغطية عن نطاق لم يطلبه.
- *
- * @param value التاريخ النصي المطلوب فحصه
- * @returns true فقط لتاريخ تقويمي حقيقي بصيغة YYYY-MM-DD، للسنوات 0001-9999 لأن PostgreSQL لا يحتوي على سنة صفرية
- */
-export function isCommissionCoverageCalendarDate(value: string): boolean {
-  const match = CALENDAR_DATE.exec(value);
-  if (match === null) return false;
-  const year = Number(match[1]);
-  if (year === 0) return false;
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const date = new Date(Date.UTC(2000, 0, 1));
-  date.setUTCFullYear(year, month - 1, day);
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
-}
-
 interface CheckContext {
   readonly deps: CommissionCoverageDeps;
   readonly companyId: string;
 }
 
-/** تحسب حالة الاعتماد: كل قسم مغطى، ولا حدث غير مستهلك ولا نوع غير مسجَّل ولا بقشيش متأخر. */
+/**
+ * تحسب حالة الاعتماد. كل الفحوص السابقة باقية: قسم ناقص أو متأخر، وحدث محتفظ به بلا علامة المستهلك،
+ * ونوع غير مسجَّل. ويُضاف إليها أن البقشيش فُحص فعلاً؛ بقشيش غير مفحوص (null) لا يكفي للتغطية.
+ */
 function coverageStatus(
   parts: readonly { missing: { total: number }; stale: { total: number } }[],
   unmarkedTotal: number,
@@ -159,16 +146,20 @@ function coverageStatus(
     sectionsCovered &&
     unmarkedTotal === 0 &&
     notHandledTotal === 0 &&
-    (tips === null || (tips.missing.total === 0 && tips.stale.total === 0))
+    tips !== null &&
+    tips.missing.total === 0 &&
+    tips.stale.total === 0
   );
 }
 
-/** يرفض نطاق بقشيش بتواريخ غير تقويمية قبل أي قراءة، لأن تحويله التلقائي يفحص نطاقاً آخر. */
-function assertTipScopeCalendar(scope: CommissionCoverageScope): void {
-  if (scope.tips !== undefined &&
-    (!isCommissionCoverageCalendarDate(scope.tips.from) ||
-      !isCommissionCoverageCalendarDate(scope.tips.to)))
-    throw new CommissionCoverageScopeInvalidError();
+/**
+ * رمز خروج التشغيل: صفر للتغطية الكاملة فقط، وواحد لأي نتيجة أخرى بما فيها بقشيش لم يُفحص.
+ *
+ * @param report نتيجة التقرير بعد تشغيله
+ * @returns 0 حين تكون الحالة COVERED وإلا 1
+ */
+export function commissionCoverageExitCode(report: Pick<CommissionCoverageReport, 'status'>): 0 | 1 {
+  return report.status === 'COVERED' ? 0 : 1;
 }
 
 /** يرفض حدّاً أعلى لا يساوي آخر حدث مقروء، لأن الاستئناف بنطاق مختلف يضيّع أحداثاً بين الحدين. */
@@ -183,28 +174,25 @@ function assertStableThroughId(lastEventId: string | null, requestedThroughId: s
  * يثبت أن بنود الخدمة والرواتب والبيع والأحداث المحتفظ بها مغطاة قبل اعتماد كشف العمولة.
  * ثبوت الحد الأعلى من أول صفحة يمنع الأحداث الجديدة من تغيير نطاق الفحص أثناء تشغيله.
  *
- * @param deps قارئات المصدر والإسقاط والأحداث المحتفظ بها ومعرّف المستهلك وأنواعه
- * @param scope الشركة والحد الأعلى الاختياري لفحص الأحداث المحتفظ بها ونطاق البقشيش الاختياري
- * @returns حالة التغطية والأعداد والهويات الناقصة أو المتأخرة أو غير المستهلكة
+ * @param deps قارئات المصدر والإسقاط والأحداث المحتفظ بها وقارئا الشركة والنشاط ومعرّف المستهلك وأنواعه
+ * @param scope الشركة والحد الأعلى الاختياري لفحص الأحداث المحتفظ بها ونطاق البقشيش
+ * @returns حالة التغطية والأعداد والهويات الناقصة أو المتأخرة أو غير المستهلكة، ونطاق البقشيش المفحوص
+ * @throws CommissionCoverageScopeInvalidError لنطاق بقشيش غير صالح أو فارغ أو نشاط ليس من الشركة، قبل أي مسح
  */
 export async function runCommissionCoverageReport(
   deps: CommissionCoverageDeps,
   scope: CommissionCoverageScope,
 ): Promise<CommissionCoverageReport> {
-  assertTipScopeCalendar(scope);
+  const tipScope = normalizeTipScope(scope.tips);
   const companyId = scope.companyId.toLowerCase();
-  const open = await deps.withTenant(companyId, (tx) => deps.companies.isOpen(tx, companyId));
-  if (!open) throw new CommissionCoverageScopeInvalidError();
-  const context: CheckContext = {
-    deps,
-    companyId,
-  };
+  await assertCoverageScope(deps, companyId, tipScope);
+  const context: CheckContext = { deps, companyId };
   const lineTotals = await checkLines(context);
   const salaryTotals = await checkSalaries(context);
   const saleTotals = await checkSales(context);
   const unmarked = await checkUnmarked(context, scope.throughId);
   assertStableThroughId(unmarked.lastEventId, scope.throughId);
-  const tips = await checkTips(context, scope);
+  const tips = await checkTips(context, tipScope);
   const covered = coverageStatus(
     [lineTotals, salaryTotals, saleTotals],
     unmarked.totals.unmarked.total,
@@ -230,11 +218,9 @@ export async function runCommissionCoverageReport(
       total: unmarked.notHandled.unmarked.total,
       events: unmarked.notHandled.unmarked.items,
     },
-    tips:
-      tips === null
-        ? null
-        : { checked: tips.checked, missing: tips.missing, stale: tips.stale },
+    tips: tips === null ? null : { checked: tips.checked, missing: tips.missing, stale: tips.stale },
     tipsNote: tips === null ? TIPS_NOT_CHECKED_NOTE : null,
+    tipScope: tipScope ?? null,
     truncated:
       lineTotals.missing.truncated ||
       lineTotals.stale.truncated ||
@@ -327,12 +313,12 @@ async function checkSales(
   });
 }
 
-/** يفحص البقشيش بالمراجعة إذا طلب المشغّل نطاقاً؛ بدون نطاق لا فحص والورقة تشرح ذلك. */
+/** يفحص البقشيش بالمراجعة إذا طلب المشغّل نطاقاً؛ بدونه لا فحص، والتقرير يقول ذلك ولا يعدّه تغطية. */
 async function checkTips(
   context: CheckContext,
-  scope: CommissionCoverageScope,
+  tipScope: CommissionCoverageTipScope | undefined,
 ): Promise<TipCoverageResult | null> {
-  if (scope.tips === undefined) return null;
+  if (tipScope === undefined) return null;
   const tipsReader = context.deps.tipsReader;
   if (tipsReader === undefined) throw new CommissionCoverageScopeInvalidError();
   return checkTipCoverage({
@@ -340,7 +326,7 @@ async function checkTips(
     projection: context.deps.projection,
     tipsReader,
     companyId: context.companyId,
-    scope: scope.tips,
+    scope: tipScope,
   });
 }
 

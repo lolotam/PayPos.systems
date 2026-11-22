@@ -340,40 +340,85 @@ no `published_at`, no `attempts`, no mark and no projection change.
    (`pospay_dispatcher`):
 
    ```sh
-   node dist/report-commission-coverage.js --company <uuid> [--through <uuid>]
    node dist/report-commission-coverage.js --company <uuid> [--through <uuid>] --businesses <uuid>[,<uuid>...] --from YYYY-MM-DD --to YYYY-MM-DD
    ```
 
-   Run it after the 50-3a replay and the 50-3b bootstrap finished, and use the same `--through` as the replay.
-   The tip flags are all three or none: they add the tip coverage by revision over the business ids and the business-day range the operator
-   supplies (at most 200 business ids, `from` not after `to`). Without them the tip coverage is not checked at all, and the report says so.
-3. **Output.** One JSON line: `status` (`COVERED` or `NOT_COVERED`), `throughId`, `lines` and `salaries` (each with `checked`,
-   `missing` and `stale`, each list carrying its `total` and at most 200 ids; a salary id is `employeeId|YYYY-MM-DD`), `unmarked`
+   Run it after the 50-3a replay and the 50-3b bootstrap finished.
+   **The replay's cutoff and the coverage proof's cutoff are two different things.** The 50-3a replay bound (its `--through`) is chosen
+   over four event types; this report chooses its bound over six, so the two `throughId` values can legitimately differ (a retained tip or
+   package-sale event with a higher id that existed before the replay and is already marked). Do not require them to match, and a
+   difference is not a reason to replay again.
+   `--through` here makes a **bounded** check, useful to verify a given replay up to that id. **The evidence used to open approval is ONE
+   run with no `--through`, taken in the quiet window (below), naming every business;** the printed `throughId` is the bound it proved up
+   to, and it is what is recorded with the proof. The two findings have **different remedies**. An `unmarked` retained event is replayed (the
+   six-type retained replay of 50-3d, not the four-type one) and the report is run again. A `notHandled` event
+   (`COMMISSION_EVENT_TYPE_NOT_HANDLED`) keeps approval closed and is **not** fixed by a replay, because the replay delivers only the event
+   types the consumer registers: first correct the worker release or the handler registration so that the type is handled, then replay,
+   then run the report again. After 50-4 a `notHandled` event is a configuration gap, never an expected wait. If a run cannot prove the
+   whole scope, approval stays closed.
+   Without `--through` the bound is **not** taken when the command starts: lines, salaries and sales are scanned first, then the bound is
+   the highest id among **all** of the company's retained events of the six counted types, read once before the first retained-event page is
+   fetched (not the maximum of the first page). Do not treat `throughId` as a start-up cutoff; that is one more
+   reason to take the run in the quiet window. Compare `throughId` values as UUIDs, ignoring letter case: a supplied `--through` is
+   printed as typed, while an automatic one comes from PostgreSQL in lower case.
+   **The retained-event mark check ends at the printed `throughId` and nothing after it is looked at.** A counted event created after that
+   bound can lack its consumer mark while the tip, line, salary and sale revisions already match the source, and the report still prints
+   `COVERED`; the quiet window is what guarantees that nothing counted is created after the bound.
+   The tip flags are all three or none, and **only a run that carries them can print `COVERED`**: they add the tip coverage by revision
+   over the business ids and the business-day range the operator supplies (at most 200 business ids, `from` not after `to`). A run
+   without them still checks lines, salaries, sales and the retained events, but it prints `NOT_COVERED` with `tips: null` and the
+   `tipsNote`, and exits 1: tips that were not checked are never counted as covered. There is no default to all businesses: the operator
+   names the scope.
+   **`COVERED` proves the printed scope only** (`tipScope`: the business ids and the business-day range that were checked). A run over
+   some of the company's businesses, or over part of the business days that have inputs, is not a proof for the company. The
+   report cannot infer completeness, so the operator step that opens approval requires a run whose `--businesses` lists **every business of
+   the company** and whose range covers **every business day that has inputs**; the enablement decision checks `tipScope` against that.
+   One run must name every business: nothing composes several runs into a company-wide `COVERED`. `--businesses` takes at most 200 ids and
+   the code has no limit on how many businesses a company can have (`create-business` counts nothing and `plans` carries feature flags
+   only), so a company with more than 200 businesses cannot be proved by this tool: approval stays closed for it and the case is escalated;
+   do not raise the limit and do not split the run.
+   **Take the run that opens approval while the company's inputs are quiet:** the consumer has caught up and no session, tip, salary or
+   package-sale write is in flight. The sections are read in separate transactions (see item 5), so a run taken during writes proves nothing.
+3. **Output.** One JSON line: `status` (`COVERED` only when lines, salaries, sales and tips were all checked and no check found a gap,
+   an unmarked retained event or an unhandled type; otherwise `NOT_COVERED`), `throughId`, `lines`, `salaries` and `sales` (each with `checked`,
+   `missing` and `stale`, each list carrying its `total` and at most 200 ids; a salary id is `employeeId|YYYY-MM-DD`, a sale id is the entitlement id), `unmarked`
    (`checked`, `total` and `events` with `eventId` and `type`, at most 200), `notHandled` (`total` and `events` with `eventId`, `type`
    and the fixed `reason` `COMMISSION_EVENT_TYPE_NOT_HANDLED`, at most 200), `tips` (`checked`, `missing` and `stale` with the same
    shape as the lines, or `null` when no tip scope was supplied), `tipsNote` (one line saying the tip coverage was NOT checked and how to
-   check it, or `null` when it was) and `truncated`. Ids and counts only,
+   check it, or `null` when it was), `tipScope` (`businessIds`, `from` and `to` that the tip check covered, or `null` when it did not run)
+   and `truncated`. Ids and counts only,
    never an amount and never a name. The exit code is 0 only for `COVERED`.
 4. **Remedy.** A `missing` or a `stale` line or salary, or an unmarked event whose retained event exists: re-run the 50-3d six-type
-   replay (`--types six`) for the company with its `--through`, then re-run this report. Do not use the 50-3a four-type run for this: it
+   replay (`--types six`) for the company with a bound captured as that section describes, then re-run this report with no `--through`. Do not use the 50-3a four-type run for this: it
    is filtered to the four origin types and cannot replay a retained `SessionTipsChanged` (or `PackageSaleChanged`) event. If a line or a salary stays missing and no retained event exists
    for it, the replay cannot recover it: approval stays closed and the manager investigates (re-emitting an event is not designed).
    Do not insert a mark or an event by hand.
 5. **Limits.** The retained-event check covers the six counted types (`ServiceSessionRecorded`, `ServiceSessionLinesAdded`,
    `ServiceLineChanged`, `SalaryChanged`, `SessionTipsChanged` and `PackageSaleChanged`), and every retained `SessionTipsChanged` event id
    must carry the consumer's mark: that is the tip event-id check. The tip coverage by revision is bounded by the operator's scope, so the
-   company-wide guarantee stays with the retained-event check. A clean report is a
-   point-in-time read: a row written while it runs is delivered by the live consumer.
+   company-wide guarantee stays with the retained-event check, up to the printed `throughId`. The report is **not a point-in-time snapshot**: lines,
+   salaries, sales, the retained events and the tips are read in separate transactions, and each page in its own. With a fixed `--through`
+   a concurrent write can make it print `COVERED` although no single moment had every section covered; a row written while it runs is
+   delivered by the live consumer. A consistent proof is the subject of the open design decision for the approval gate (53-2).
    **A tenant with any retained `PackageSaleChanged` event is now checked like the other counted types (50-4 registered the handler)**:
    since 50-4 the sale type is registered by the consumer, so a retained sale event without its mark is listed under `unmarked` like any other
    counted type, and the report's `sales` section compares every sold package's revision with the projection (`missing`/`stale`). `notHandled` is
    reserved for a type the consumer does not register at all — after 50-4 that is a real configuration gap, not an expected wait. While any sale
    stays missing or stale, the 55-1b R5 prerequisite ("coverage shows no gap before the first correction posts") is blocked for the tenant.
-6. **Refusal.** The report refuses with the fixed code `COMMISSION_COVERAGE_SCOPE_INVALID`, prints no report and exits 1 when the
-   company does not exist or `--through` is not a retained event of that company among `ServiceSessionRecorded`,
-   `ServiceSessionLinesAdded`, `ServiceLineChanged`, `SalaryChanged`, `SessionTipsChanged` and `PackageSaleChanged`.
-   A malformed or partial tip scope (a business id that is not a UUID, a date that is not `YYYY-MM-DD`, `from` after `to`, more than 200
-   business ids, or only some of the three flags) prints `COMMISSION_COVERAGE_CONFIGURATION` and reads nothing.
+6. **Refusal.** Two layers, with two codes.
+   - **The command line** prints `COMMISSION_COVERAGE_CONFIGURATION` and reads nothing for a malformed or partial tip scope while parsing its
+     arguments, before the report runs: a business id that is not a UUID, an empty `--businesses`, a date that is not `YYYY-MM-DD`, `from`
+     after `to`, more than 200 business ids, or only some of the three flags.
+   - **The report itself** refuses with the fixed code `COMMISSION_COVERAGE_SCOPE_INVALID`, prints no report and exits 1. It does so
+     **before any scan** for the company and business validation: the company does not exist, or a business in `--businesses` is not a
+     business of that company (another company's or an unknown id). A direct caller of the use case also gets `COMMISSION_COVERAGE_SCOPE_INVALID`,
+     before any scan, for an empty list, a business id that is not a UUID and `from` after `to`, which the command line has already refused
+     with the other code.
+   - **A replay bound that is no retained event is refused later, after the scan.** An otherwise valid `--through` that is not the last
+     retained event of that company at or below the bound among `ServiceSessionRecorded`, `ServiceSessionLinesAdded`, `ServiceLineChanged`,
+     `SalaryChanged`, `SessionTipsChanged` and `PackageSaleChanged` is refused with `COMMISSION_COVERAGE_SCOPE_INVALID` only after the report
+     has scanned the lines, the salaries, the sales and the retained-event range, because the check compares the last event it read with the
+     bound. It prints no report and exits 1; it is not a cheap pre-check.
 
 ## 50-3d: replay all six counted types after a rollback (spec 059, CS-Q43)
 
@@ -400,7 +445,8 @@ six-type facade `commissionRetainedEventPage` and its own partial index. It neve
    the replay path: the runner mutates no dispatcher lifecycle column, so an event that live dispatch has parked stays parked — a replay mark
    here is not evidence that a live park was cleared (section 50-3a item 6). A type the consumer does not register at all is
    still listed with `COMMISSION_EVENT_TYPE_NOT_HANDLED` — after 50-4 that means a configuration gap, never an expected wait.
-4. **Coverage.** Run the 50-3c coverage report after the replay. The report now checks the sales section too: every sold package of the company
+4. **Coverage.** Run the 50-3c coverage report after the replay, with the tip scope flags (every business of the company, every business
+   day with inputs; without them it cannot print `COVERED`). The report now checks the sales section too: every sold package of the company
    must have a `commission_sales` row at the revision orders holds (CS-Q51 answer, 2026-11-21: the replay projects and marks, the reader proves
    coverage). While a sale is `missing` or `stale`, the report is `NOT_COVERED` and the 55-1b R5 prerequisite stays blocked for that tenant.
 5. **Do not** insert a mark or an event by hand, do not reset any outbox column, and do not widen the range beyond the fixed bound.
@@ -416,7 +462,7 @@ six-type replay (owner answer CS-Q51, 2026-11-21: the replay projects and marks,
    (section 50-3d). A sale whose month is closed is refused with `COMMISSION_PERIOD_CLOSED` and stays unmarked
    until 55-1d. The replay lists it under `undelivered` and leaves the dispatcher state intact. A live park
    requires a separate dispatcher recovery decision.
-4. Run the 50-3c coverage report. Require `COVERED`, `sales.missing.total = 0`, `sales.stale.total = 0`, and no
+4. Run the 50-3c coverage report with the tip scope flags (every business of the company, every business day with inputs). Require `COVERED`, `sales.missing.total = 0`, `sales.stale.total = 0`, and no
    `PackageSaleChanged` under `unmarked` or `notHandled`. Migration 0234 creates an empty `commission_sales` table,
    and 0235 adds its indexes and access controls. The replay fills the table.
 5. If the replay returns `COMPLETE` but a sale is missing or stale, keep approval closed for that company.

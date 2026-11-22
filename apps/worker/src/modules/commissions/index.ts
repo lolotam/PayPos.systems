@@ -55,6 +55,7 @@ export { createCommissionCoverageReport } from './commissions.module.ts';
 export {
   CommissionCoverageEventInvalidError,
   CommissionCoverageScopeInvalidError,
+  commissionCoverageExitCode,
   isCommissionCoverageCalendarDate,
   runCommissionCoverageReport,
 } from './use-cases/report-commission-coverage/report-commission-coverage.ts';
@@ -62,9 +63,11 @@ export type {
   CommissionCoverageDeps,
   CommissionCoverageReport,
   CommissionCoverageScope,
+  CommissionCoverageTipScope,
   CoverageIdList,
 } from './use-cases/report-commission-coverage/report-commission-coverage.ts';
 export type {
+  CoverageBusinessReader,
   CoverageCompanyReader,
   CoverageProjectionReader,
   CoverageRetainedPageReader,
