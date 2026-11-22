@@ -123,7 +123,6 @@ async function postRepairCorrections(
   }
 }
 
-/** يقرأ حالة التصحيح الموقوف بعد الخطوة ويكتب التدقيق وحدث الإصلاح في نفس المعاملة، ويرجّع الرد. */
 async function recordRepair(
   scope: CommissionPeriodRepairScope,
   command: CommissionPeriodRepairCommand,

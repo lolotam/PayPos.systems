@@ -4,8 +4,8 @@ import { id } from '../scalars/id.js';
 import { commissionRepairPeriod } from './plan-versions.js';
 
 /**
- * حمولة حدث حفظ إصلاح شهر مقفول: معرفات وحالة بس، من غير محتوى الخطة ولا مبالغ ولا بيانات شخصية.
- * `resolved` هي نتيجة التصحيح الموقوف بعد الإصلاح: true لو اتحل، وfalse لو فضل موقوف (NO_SALARY, CM-52b).
+ * حمولة حدث حفظ إصلاح شهر مقفول: معرفات ونتيجة التصحيح الموقوف بس، من غير خطة ولا مبالغ ولا بيانات شخصية.
+ * `resolved` false لو فضل الموقوف (NO_SALARY, CM-52b).
  */
 export const commissionPeriodRepairSaved = z.strictObject({
   business_id: id,

@@ -11,7 +11,11 @@ import { insertCommissionLineProjection } from '../../../../../../packages/db/te
 import { insertTipSalary } from '../../../../../../packages/db/test/commission-tip-salary-fixtures.ts';
 import { createCommissionPeriodRepairScope } from '../persistence/commission-period-repair-scope.ts';
 import { repairCommissionPeriod } from '../use-cases/repair-commission-period/repair-commission-period.usecase.ts';
-import { COMMISSION_NOW, ids } from './commission-plan-versions.fixture.ts';
+import {
+  COMMISSION_NOW,
+  ids,
+  memberWithoutPlanPermission,
+} from './commission-plan-versions.fixture.ts';
 import {
   blockRows,
   correctionRows,
@@ -312,4 +316,60 @@ it('the notice-invariant failure leaves the transaction and rolls the version ba
   expect(failure).toBeInstanceOf(CommissionBlockNoticesMissingError);
   expect(await repairWrites(r)).toEqual(before);
   expect(await events()).toEqual([]);
+});
+
+it('a repair version never prices another month: an October line is estimated by the ordinary plan at 10%, not by the 5% repair', async () => {
+  await seedFlat([{ id: LB, date: '2026-09-10', net: '200.000' }]);
+  const repaired = await r.repair(body, 'other-month');
+  const OCTOBER_LINE = ids.newId();
+  await r.db.withTenant(r.company, (tx) =>
+    insertCommissionLineProjection(tx, r.tenant, ids, {
+      lineId: OCTOBER_LINE,
+      businessDate: '2026-10-05',
+      occurredAt: '2026-10-05T09:00:00Z',
+      recordedAt: '2026-10-05T09:00:00Z',
+      period: '2026-10',
+      net: '200.000',
+      ruleKind: 'FOLLOW_PLAN',
+      sessionId: ids.newId(),
+    }),
+  );
+
+  const estimate = await r.h.send(
+    'GET',
+    `/v1/businesses/${r.business}/commissions/periods/2026-10/estimate`,
+    { cookie: r.cookie, company: r.company },
+  );
+
+  expect(repaired.status).toBe(201);
+  expect(estimate.status).toBe(200);
+  const employees = estimate.body['employees'] as {
+    employee_id: string;
+    sources: { source_ref: string; amount: string }[];
+  }[];
+  const source = employees
+    .find((employee) => employee.employee_id === r.employee)
+    ?.sources.find((row) => row.source_ref === `line:${OCTOBER_LINE}`);
+  expect(source?.amount).toBe('20.000');
+});
+
+it('a member granted the plan permission repairs once; after the grant is revoked the stored replay is refused before any body is returned', async () => {
+  await seedFlat([{ id: LB, date: '2026-09-10', net: '200.000' }]);
+  const member = await memberWithoutPlanPermission(r);
+  const grant = ids.newId();
+  await r.h.owner`INSERT INTO permission_overrides(
+    company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+    VALUES (${r.company},${grant}::uuid,${member.membershipId}::uuid,
+      'manage:commission-plans:business','ALLOW','BUSINESS',${r.business}::uuid,
+      'repair replay proof',${r.userId})`;
+
+  const first = await r.repair(body, 'revoked-replay', r.employee, member.cookie);
+  await r.h
+    .owner`DELETE FROM permission_overrides WHERE company_id=${r.company} AND id=${grant}::uuid`;
+  const replay = await r.repair(body, 'revoked-replay', r.employee, member.cookie);
+
+  expect(first.status).toBe(201);
+  expect([replay.status, replay.body['code']]).toEqual([403, 'FORBIDDEN']);
+  expect(replay.body['version']).toBeUndefined();
+  expect(await repairWrites(r)).toEqual([1, 1, 1, 1]);
 });
