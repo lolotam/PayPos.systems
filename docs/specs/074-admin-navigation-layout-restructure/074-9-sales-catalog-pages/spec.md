@@ -110,6 +110,8 @@ Four steps: the first delivery, correction round 1 (findings P1-1 to P3-9), corr
 - Invalidation and reconnect refetches skip disabled observers, so a closed screen is not refetched by them.
 - Not exercised by a test: the 401 and FEATURE_DISABLED variants of the capability refusal (the guard is the same expression as for 403), and a window-focus refetch.
 
+**Gate result (round 3, after merging `origin/main` `7119bf103`, docs only).** `pnpm typecheck`, `pnpm lint` (0 errors), `pnpm lint:docs` (0 errors, 30 warnings) and `pnpm module-map:check` passed. `pnpm --filter @pospay/admin test` at the default settings: 333 of 333 files, 2,630 of 2,630 tests, no timeouts.
+
 **Weakened-assertion audit** (every spec touched in round 1, diffed against `530cbe053`). Found and restored: the Categories business and branch "inside the card" assertions, the "no nested shell" check, and the branch heading-inside-shell check. Removed on purpose, as the owning session asked: width and `mx-auto` class pins (P3-9), and the «Edit» cell label (P3-8). Equivalent rewrites: the Package types «Edit» button check (now inside the sixth cell), the Record a visit heading-in-shell check and the limit-text check (now on the summary card). Stronger than before: the stacked-row tests (every cell, not only the ones after the first), plus the table-wrapper stacked token.
 
 **i18n duplicate audit** (both languages, whole catalog). `actionsColumn` duplicated `attendanceActions.actions` («Actions» / «الإجراءات») and `sectionPackage` duplicated `serviceSessions.packagePicker` («Package» / «الباقة»): both removed. `catalogPackageTypes.basics` («Package details» / «بيانات الباقة») and `packageSale.sectionPayment` («Payment» / «الدفع») have no match in either language and stay.
