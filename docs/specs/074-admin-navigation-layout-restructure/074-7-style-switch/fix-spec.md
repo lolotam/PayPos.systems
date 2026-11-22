@@ -1,0 +1,58 @@
+# 074-7a-fix — Review fixes for the unmounted navigation frames: delivery spec and plan
+
+Parent: [`spec.md`](./spec.md) and [`plan.md`](./plan.md) of this folder (074-7a), [`../spec.md`](../spec.md) (FR-020, FR-024), [`../design.md`](../design.md) §4, [`../app-map.md`](../app-map.md). Source of the work: issue #1225, items 1 to 14.
+
+## Owner decision
+
+Waleed, card of 2026-11-23, «PR صغير مستقل قبل 7b (Recommended)», recorded as PP-233: PR #1226 (074-7a) merges as reviewed under its 5,000-line cap, and the findings left by its reviews are fixed here, in one separate PR that merges before 074-7b starts. Tier Medium. Cap: 900 added plus removed lines of code and tests, docs counted separately. Review pipeline PP-228. The Next `Link` prefetch finding is not part of this slice (#1227).
+
+## What changes for a user
+
+Nothing. The frames are still mounted nowhere. This slice makes them correct before 074-7b mounts them.
+
+## Requirements
+
+Each item is fixed with a test that fails without the fix. Paths are under `apps/admin/app/(dashboard)/_frame/` unless stated.
+
+1. **Soon mark when style A hides a lone tab.** For a role whose sub-menu has a single not-built page (reproduced: `accountant`, restaurant, Kuwait, `/soon/customer-wallet`), the tab row is hidden and nothing visible marks the page. The mark is shown on the visible link that leads to the page. FR-020.
+2. **Focus after the «More» sheet closes on a width change.** When the opener is no longer visible, focus goes to the visible link of the current section, not to a hidden button. FR-024.
+3. **Link boundary.** `frames/frame-chrome.tsx` leaves pure-fragment links and any link with an explicit `target` to the browser.
+4. **One component per file in two spec files** (`style-a-frame.spec.tsx`, `style-c-frame.spec.tsx`): move or merge the test helpers.
+5. **Workspace switcher trigger is named** before a business is selected: a translated prompt, or the company name, as its accessible name and visible text.
+6. **Choosing the current page's own link closes** the floating panel and the «More» sheet on a plain same-tab activation; a modified click leaves them open.
+7. **Account menu and workspace switcher close on navigation**, including Back and Forward, without remounting their triggers.
+8. **Current-section cue behind More (style A phone).** «More» is marked current when it contains the current group, and that group is marked inside the sheet.
+9. **«More» links carry the Soon mark** when their destination page is not built.
+10. **The floating panel does not reopen** after the viewport leaves 600–1023px and returns.
+11. **Desktop panel visibility and the tablet modal state are separate.** A desktop open or inspect action never opens the tablet modal later.
+12. **Approvals inbox states.** While the permission probes are loading it shows a loading state; if they fail it says the list could not be checked; the settled empty text does not claim that nothing is pending.
+13. **Closing the sheet on navigation does not take focus back** from a destination that already holds it; a dismissal (Escape, backdrop) still returns focus to the opener.
+14. **`LocalNav` scroll-to-current scrolls only its own container.** The B frame bounds the local list's height; the page itself never scrolls because of it.
+
+## Rules
+
+Same as 074-7a: no `page.tsx` or `layout.tsx`, nothing mounted, no `*-nav-item.tsx`, `staff-navigation.tsx`, `dashboard-*.tsx` or `app-frame.tsx` edited, no new dependency, no colour, font, radius or button-variant change, strings through `packages/i18n` in `ar` and `en`, logical CSS properties only, one component per file, 60 lines per function, UI tests assert what the user sees. `packages/ui` changes are allowed where an item names a ui file or needs an optional, backward-compatible prop; each one is listed in the PR. No scope beyond the fourteen items.
+
+## Acceptance
+
+1. Each of the fourteen items has a test that fails without its fix, named in the implementation notes.
+2. Every existing spec passes unchanged, except a test the item itself says is wrong; each changed assertion is listed with its reason.
+3. `pnpm typecheck`, `pnpm lint`, `pnpm lint:docs`, `pnpm module-map:check`, `pnpm --filter @pospay/admin test`, `pnpm --filter @pospay/ui test` and `pnpm --filter @pospay/i18n test` pass.
+4. Size at or under 900 lines of code and tests.
+5. Not browser-verified here: real focus movement, scroll containment and breakpoint behaviour are confirmed in the 074-7b browser pass (#1192).
+
+## Plan
+
+1. Menu and marks: items 1, 8, 9.
+2. Open-state lifecycle: items 6, 7, 10, 11.
+3. Focus: items 2, 13.
+4. Links and scroll: items 3, 14.
+5. Naming and inbox states: items 5, 12.
+6. Test hygiene: item 4.
+7. Gates, guards, size.
+
+Estimate: 330 production, 480 tests. If the count passes 800 before step 6, stop and report what remains.
+
+## Implementation notes
+
+*(filled by the implementer: per item the fix, the proving test, `packages/ui` changes, changed assertions, sizes, open points)*
