@@ -55,6 +55,22 @@ it('switches modules from visible controls inside the open menu by pointer and k
   expect(currentSwitcher.className).toContain('bg-sidebar-primary');
 });
 
+it('returns focus to the original opener after switching modules in an open menu', async () => {
+  stubMedia(() => false);
+  render(tree({ currentModuleId: 'sell' }));
+  const opener = screen.getByRole('button', { name: /Sell/ });
+  opener.focus();
+  fireEvent.click(opener);
+
+  const sellDialog = screen.getByRole('dialog', { name: 'Sell' });
+  fireEvent.click(within(sellDialog).getByRole('button', { name: /Grow/ }));
+  const growDialog = screen.getByRole('dialog', { name: 'Grow' });
+  fireEvent.keyDown(document.activeElement ?? growDialog, { key: 'Escape' });
+
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(document.activeElement).toBe(opener);
+});
+
 it('renders overview, supplied destinations and a scrollable short-window menu', async () => {
   stubMedia(() => false);
   const onNavigate = vi.fn();
@@ -220,6 +236,40 @@ it('does not reopen a menu when its module returns after a partial visibility ch
   view.rerender(tree({ currentModuleId: 'business', visiblePageIds: ['columns', 'employees'] }));
   await waitFor(() => expect(screen.getByRole('button', { name: /Business/ })).toBeTruthy());
   expect(screen.queryByRole('dialog')).toBeNull();
+});
+
+it('does not reopen a menu when prefiltered modules change without visiblePageIds', async () => {
+  stubMedia(() => false);
+  const withoutPeoplePages = modules.map((module) =>
+    module.id === 'people'
+      ? {
+          ...module,
+          sections: module.sections.map((section) => ({ ...section, pages: [] })),
+        }
+      : module,
+  );
+  const view = render(tree({ currentModuleId: 'business' }));
+  fireEvent.click(screen.getByRole('button', { name: /Business/ }));
+  expect(screen.getByRole('dialog', { name: 'Business' })).toBeTruthy();
+
+  view.rerender(tree({ currentModuleId: 'business', modules: withoutPeoplePages }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+  view.rerender(tree({ currentModuleId: 'business' }));
+  expect(screen.queryByRole('dialog')).toBeNull();
+});
+
+it('keeps focus on a visible module trigger when another module loses its only page', async () => {
+  stubMedia(() => false);
+  const view = render(
+    tree({ currentModuleId: 'business', visiblePageIds: ['columns', 'employees'] }),
+  );
+  screen.getByRole('button', { name: /Business/ }).focus();
+
+  view.rerender(tree({ currentModuleId: 'business', visiblePageIds: ['columns'] }));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /Business/ })),
+  );
 });
 
 it('returns focus to the reopened menu trigger after a breakpoint round trip', async () => {

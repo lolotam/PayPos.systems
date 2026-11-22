@@ -24,7 +24,7 @@ export type MegaMenuProps = {
   activePageId?: string | undefined;
   visiblePageIds?: readonly string[] | undefined;
   triggerRef?: Ref<HTMLButtonElement> | undefined;
-  onCloseAutoFocus?: ((event: Event) => void) | undefined;
+  onCloseAutoFocus?: ((event: Event, moduleId: string) => void) | undefined;
   onOpenChange: (open: boolean) => void;
   onSwitchModule: (moduleId: string) => void;
   onNavigate?: (() => void) | undefined;
@@ -78,7 +78,7 @@ type MegaMenuContentProps = {
   activePageId?: string | undefined;
   visiblePageIds?: readonly string[] | undefined;
   onSwitchModule: (moduleId: string) => void;
-  onCloseAutoFocus?: ((event: Event) => void) | undefined;
+  onCloseAutoFocus?: ((event: Event, moduleId: string) => void) | undefined;
   onSelect: () => void;
 };
 
@@ -153,7 +153,7 @@ function MegaMenuContent({
       dir={dir}
       aria-modal="true"
       aria-describedby={undefined}
-      onCloseAutoFocus={onCloseAutoFocus}
+      onCloseAutoFocus={(event) => onCloseAutoFocus?.(event, module.id)}
       className="fixed inset-x-2 top-14 z-50 max-h-[min(70vh,32rem)] overflow-y-auto rounded-card bg-card p-4 text-card-foreground shadow-lg min-[1024px]:top-16"
     >
       <div className="mb-4 flex items-center gap-2">

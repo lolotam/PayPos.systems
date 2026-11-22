@@ -1,14 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useMemo, useRef, type RefObject } from 'react';
 import { LocalNav } from './local-nav.js';
 import { MegaMenu } from './mega-menu.js';
 import { ModuleDrawer } from './module-drawer.js';
 import {
   moduleHasVisiblePages,
+  visiblePages,
   type NavigationChromeLabels,
   type NavigationModule,
 } from './navigation-presentation.js';
+import { useTopNavSession, type TopNavSessionState } from './top-nav-session.js';
 import { useNavigationMedia } from './use-navigation-media.js';
 
 export type TopNavProps = {
@@ -25,19 +27,11 @@ type TopNavRefs = {
   moduleTriggerRef: RefObject<HTMLButtonElement | null>;
 };
 
-type TopNavState = {
-  openId: string | undefined;
-  setOpenId: (id: string | undefined) => void;
-  drawerOpen: boolean;
-  setDrawerOpen: (open: boolean) => void;
-  onCloseAutoFocus: (event: Event) => void;
-};
-
 type TopNavHeaderProps = Omit<TopNavProps, 'modules'> & TopNavRefs & {
   visibleModules: readonly NavigationModule[];
   focusModuleId: string | undefined;
   openModuleId: string | undefined;
-  state: TopNavState;
+  state: TopNavSessionState;
 };
 
 function TopNavHeader({
@@ -72,8 +66,8 @@ function TopNavHeader({
             visiblePageIds={visiblePageIds}
             triggerRef={module.id === focusModuleId ? moduleTriggerRef : undefined}
             onCloseAutoFocus={state.onCloseAutoFocus}
-            onOpenChange={(open) => state.setOpenId(open ? module.id : undefined)}
-            onSwitchModule={state.setOpenId}
+            onOpenChange={(open) => state.setMenuOpen(open ? module.id : undefined)}
+            onSwitchModule={state.switchModule}
             onNavigate={onNavigate}
           />
         ))}
@@ -98,7 +92,7 @@ type TopNavChromeProps = Omit<TopNavProps, 'modules'> &
   TopNavRefs & {
     rootRef: RefObject<HTMLDivElement | null>;
     visibleModules: readonly NavigationModule[];
-    state: TopNavState;
+    state: TopNavSessionState;
   };
 
 function TopNavChrome({
@@ -152,42 +146,26 @@ function TopNavChrome({
 
 type TopNavContentProps = Omit<TopNavProps, 'modules'> & {
   isPhone: boolean;
+  visibilityKey: string;
   visibleModules: readonly NavigationModule[];
 };
 
-function TopNavContent({ isPhone, visibleModules, ...chromeProps }: TopNavContentProps) {
-  const [openId, setOpenId] = useState<string>();
-  const [drawerOpen, setDrawerOpen] = useState(false);
+function TopNavContent({
+  isPhone,
+  visibilityKey,
+  visibleModules,
+  ...chromeProps
+}: TopNavContentProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const drawerTriggerRef = useRef<HTMLButtonElement>(null);
   const moduleTriggerRef = useRef<HTMLButtonElement>(null);
-  const previousIsPhone = useRef(isPhone);
-  const breakpointFocusTarget = useRef<HTMLElement | undefined>(undefined);
-
-  useEffect(() => {
-    const wasPhone = previousIsPhone.current;
-    if (wasPhone === isPhone) return;
-    previousIsPhone.current = isPhone;
-    const active = document.activeElement;
-    const wasOpen = Boolean(openId || drawerOpen);
-    const focusInNav =
-      wasOpen ||
-      (rootRef.current !== null && active !== null && rootRef.current.contains(active));
-    const target = isPhone ? drawerTriggerRef.current : moduleTriggerRef.current;
-    breakpointFocusTarget.current = wasOpen ? (target ?? undefined) : undefined;
-    setOpenId(undefined);
-    setDrawerOpen(false);
-    if (!wasOpen && focusInNav) target?.focus();
-  }, [drawerOpen, isPhone, openId]);
-
-  const onCloseAutoFocus = (event: Event) => {
-    const target = breakpointFocusTarget.current;
-    if (!target) return;
-    event.preventDefault();
-    breakpointFocusTarget.current = undefined;
-    target.focus();
-  };
-
+  const state = useTopNavSession({
+    visibilityKey,
+    isPhone,
+    rootRef,
+    drawerTriggerRef,
+    moduleTriggerRef,
+  });
   return (
     <TopNavChrome
       {...chromeProps}
@@ -195,9 +173,24 @@ function TopNavContent({ isPhone, visibleModules, ...chromeProps }: TopNavConten
       drawerTriggerRef={drawerTriggerRef}
       moduleTriggerRef={moduleTriggerRef}
       visibleModules={visibleModules}
-      state={{ openId, setOpenId, drawerOpen, setDrawerOpen, onCloseAutoFocus }}
+      state={state}
     />
   );
+}
+
+function visibleNavigationKey(
+  modules: readonly NavigationModule[],
+  visiblePageIds?: readonly string[],
+): string {
+  return modules
+    .map((module) => {
+      const pageIds = module.sections
+        .flatMap((section) => visiblePages(section.pages, visiblePageIds))
+        .map((page) => page.id)
+        .join('\u0001');
+      return `${module.id}\u0002${pageIds}`;
+    })
+    .join('\u0000');
 }
 
 export function TopNav({ modules, visiblePageIds, ...chromeProps }: TopNavProps) {
@@ -206,18 +199,14 @@ export function TopNav({ modules, visiblePageIds, ...chromeProps }: TopNavProps)
     () => modules.filter((module) => moduleHasVisiblePages(module, visiblePageIds)),
     [modules, visiblePageIds],
   );
-  const moduleIdKey = useMemo(
-    () => modules.map((module) => module.id).sort().join('\u0000'),
-    [modules],
-  );
-  const visiblePageKey = useMemo(
-    () => (visiblePageIds ? [...visiblePageIds].sort().join('\u0000') : 'all'),
-    [visiblePageIds],
+  const visibilityKey = useMemo(
+    () => visibleNavigationKey(visibleModules, visiblePageIds),
+    [visibleModules, visiblePageIds],
   );
   return (
     <TopNavContent
-      key={`${moduleIdKey}|${visiblePageKey}`}
       isPhone={isPhone}
+      visibilityKey={visibilityKey}
       visiblePageIds={visiblePageIds}
       visibleModules={visibleModules}
       {...chromeProps}

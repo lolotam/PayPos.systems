@@ -86,6 +86,15 @@ async function expectVisibleCurrentMarker(target: Locator): Promise<void> {
   );
 }
 
+async function expectVisibleCurrentModuleSwitcher(target: Locator): Promise<void> {
+  await expect(target).toHaveAttribute('aria-current', 'page');
+  await expect(target.locator('[data-current-marker]')).toBeVisible();
+  const background = await target.evaluate(
+    (element) => getComputedStyle(element).backgroundColor,
+  );
+  expect(background, 'current module must keep a visible background').not.toBe('rgba(0, 0, 0, 0)');
+}
+
 async function expectVisibleNavRailCurrentMarker(target: Locator): Promise<void> {
   await expect(target).toHaveAttribute('data-current', '');
   await expect(target.locator('[data-current-marker]')).toBeVisible();
@@ -229,11 +238,7 @@ for (const dir of DIRECTIONS) {
       const currentSwitcher = dialog.getByRole('button', {
         name: new RegExp(`${LABELS.business}.*${LABELS.current}`),
       });
-      await expectVisibleCurrentMarker(currentSwitcher);
-      const background = await currentSwitcher.evaluate(
-        (element) => getComputedStyle(element).backgroundColor,
-      );
-      expect(background, 'current module must keep a visible background').not.toBe('rgba(0, 0, 0, 0)');
+      await expectVisibleCurrentModuleSwitcher(currentSwitcher);
       await expect(dialog.getByRole('button', { name: LABELS.people })).not.toHaveAttribute(
         'aria-current',
         'page',
