@@ -49,6 +49,22 @@ it('omits excluded modules and their overview from a standalone mega menu', () =
   expect(within(dialog).getByRole('button', { name: /Sell/ })).toBeTruthy();
 });
 
+it('keeps a long module label inside its trigger instead of overflowing a neighbour', () => {
+  const longModule: NavigationModule = {
+    ...visibleModule,
+    id: 'long',
+    label: 'إدارة المخزون والتقارير التفصيلية'.repeat(10),
+  };
+  render(menuTree([longModule, excludedModule], longModule, false));
+  // jsdom has no layout engine; the CI browser fixture measures the real overflow.
+  const trigger = screen.getByRole('button', { name: new RegExp('إدارة المخزون') });
+  expect(trigger.className).toContain('shrink-0');
+  expect(trigger.className).toContain('max-w-64');
+  const label = trigger.querySelector('span');
+  expect(label?.className).toContain('min-w-0');
+  expect(label?.className).toContain('truncate');
+});
+
 it('keeps short module and switcher labels at 44px touch targets', () => {
   const shortModule: NavigationModule = {
     id: 'ai',

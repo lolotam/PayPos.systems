@@ -2,7 +2,7 @@
 
 import { ListIcon, XIcon } from '@phosphor-icons/react/dist/ssr';
 import { Dialog } from 'radix-ui';
-import { useState, type Ref } from 'react';
+import { useEffect, useRef, useState, type Ref } from 'react';
 import { Button } from './button.js';
 import { useDirection } from './direction-provider.js';
 import {
@@ -11,6 +11,7 @@ import {
   type NavigationModule,
 } from './navigation-presentation.js';
 import { ModuleDrawerSection } from './module-drawer-section.js';
+import { useNavigationMedia } from './use-navigation-media.js';
 
 export type ModuleDrawerProps = {
   modules: readonly NavigationModule[];
@@ -89,6 +90,13 @@ export function ModuleDrawer({
   onOpenChange,
   onNavigate,
 }: ModuleDrawerProps) {
+  const isPhone = useNavigationMedia('(width < 700px)');
+  const wasPhone = useRef(isPhone);
+  useEffect(() => {
+    const crossedToDesktop = wasPhone.current && !isPhone;
+    wasPhone.current = isPhone;
+    if (crossedToDesktop && open) onOpenChange(false);
+  }, [isPhone, onOpenChange, open]);
   const select = () => {
     onNavigate?.();
     onOpenChange(false);

@@ -251,6 +251,53 @@ for (const dir of DIRECTIONS) {
     }
   });
 
+  test(`B standalone drawer closes and releases focus at 699/700 (${dir})`, async ({ page }) => {
+    await page.setViewportSize({ width: 699, height: 844 });
+    await openScene(page, 'drawer', dir);
+    const dialog = page.getByRole('dialog', { name: LABELS.drawerTitle });
+    await expect(dialog).toBeVisible();
+
+    await page.setViewportSize({ width: 700, height: 844 });
+    await expect(dialog).toBeHidden();
+    const outside = page.locator('[data-fixture-outside-input]');
+    await outside.focus();
+    await expect(outside).toBeFocused();
+  });
+
+  test(`B mega menu closes at the 1023/1024 boundary (${dir})`, async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await openScene(page, 'top', dir);
+    const opener = page.getByRole('button', { name: LABELS.business }).first();
+    await opener.focus();
+    await opener.click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+
+    await page.setViewportSize({ width: 1023, height: 900 });
+    await expect(page.getByRole('dialog')).toBeHidden();
+    await expect(opener).toBeFocused();
+  });
+
+  test(`B long module labels stay inside their trigger (${dir})`, async ({ page }) => {
+    await page.setViewportSize({ width: 820, height: 900 });
+    await openScene(page, 'top', dir, '&longLabel=true');
+    const triggers = page.locator('header nav button');
+    expect(await triggers.count(), 'fixture must supply more than one module').toBeGreaterThan(1);
+    const first = triggers.nth(0);
+    const second = triggers.nth(1);
+    const firstBox = await requiredBox(first);
+    const secondBox = await requiredBox(second);
+    const overlap =
+      Math.min(firstBox.x + firstBox.width, secondBox.x + secondBox.width) -
+      Math.max(firstBox.x, secondBox.x);
+    expect(overlap, 'adjacent module triggers must not overlap').toBeLessThanOrEqual(1);
+    const truncated = await first
+      .locator('span')
+      .first()
+      .evaluate((element) => element.scrollWidth > element.clientWidth);
+    expect(truncated, 'the long label must truncate inside its own trigger').toBe(true);
+    await expectNoHorizontalOverflow(page);
+  });
+
   test(`C rail inspects another workspace and filters the panel (${dir})`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await openScene(page, 'context', dir);
@@ -270,8 +317,11 @@ for (const dir of DIRECTIONS) {
     await expect(panel.getByRole('link', { name: LABELS.employees })).toBeVisible();
     await expect(panel.getByRole('link', { name: LABELS.columns })).toHaveCount(0);
 
-    await panel.getByRole('button', { name: LABELS.panelClose }).click();
+    const closePanel = panel.getByRole('button', { name: LABELS.panelClose });
+    await closePanel.focus();
+    await page.keyboard.press('Enter');
     await expect(panel).toBeHidden();
+    await expect(team).toBeFocused();
     await team.click();
     await expect(panel).toBeVisible();
   });

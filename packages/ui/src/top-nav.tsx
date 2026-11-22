@@ -10,7 +10,11 @@ import {
   type NavigationChromeLabels,
   type NavigationModule,
 } from './navigation-presentation.js';
-import { useTopNavSession, type TopNavSessionState } from './top-nav-session.js';
+import {
+  useTopNavSession,
+  type NavigationLayout,
+  type TopNavSessionState,
+} from './top-nav-session.js';
 import { useNavigationMedia } from './use-navigation-media.js';
 
 export type TopNavProps = {
@@ -145,13 +149,13 @@ function TopNavChrome({
 }
 
 type TopNavContentProps = Omit<TopNavProps, 'modules'> & {
-  isPhone: boolean;
+  layout: NavigationLayout;
   visibilityKey: string;
   visibleModules: readonly NavigationModule[];
 };
 
 function TopNavContent({
-  isPhone,
+  layout,
   visibilityKey,
   visibleModules,
   ...chromeProps
@@ -161,7 +165,7 @@ function TopNavContent({
   const moduleTriggerRef = useRef<HTMLButtonElement>(null);
   const state = useTopNavSession({
     visibilityKey,
-    isPhone,
+    layout,
     rootRef,
     drawerTriggerRef,
     moduleTriggerRef,
@@ -195,6 +199,8 @@ function visibleNavigationKey(
 
 export function TopNav({ modules, visiblePageIds, ...chromeProps }: TopNavProps) {
   const isPhone = useNavigationMedia('(width < 700px)');
+  const isCompact = useNavigationMedia('(width < 1024px)');
+  const layout = isPhone ? 'phone' : isCompact ? 'tablet' : 'desktop';
   const visibleModules = useMemo(
     () => modules.filter((module) => moduleHasVisiblePages(module, visiblePageIds)),
     [modules, visiblePageIds],
@@ -205,7 +211,7 @@ export function TopNav({ modules, visiblePageIds, ...chromeProps }: TopNavProps)
   );
   return (
     <TopNavContent
-      isPhone={isPhone}
+      layout={layout}
       visibilityKey={visibilityKey}
       visiblePageIds={visiblePageIds}
       visibleModules={visibleModules}

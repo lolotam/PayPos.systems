@@ -18,9 +18,14 @@ function tree(props: Partial<TopNavProps> = {}) {
   );
 }
 
-function stubPhoneBoundary(width: { value: number }) {
+function stubBreakpoints(width: { value: number }) {
   vi.stubGlobal('matchMedia', (query: string) => ({
-    matches: query === '(width < 700px)' ? width.value < 700 : false,
+    matches:
+      query === '(width < 700px)'
+        ? width.value < 700
+        : query === '(width < 1024px)'
+          ? width.value < 1024
+          : false,
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
   }));
@@ -28,7 +33,7 @@ function stubPhoneBoundary(width: { value: number }) {
 
 it('releases an open menu and moves focus at the fractional 699.5px phone boundary', async () => {
   const width = { value: 700 };
-  stubPhoneBoundary(width);
+  stubBreakpoints(width);
   const view = render(tree({ currentModuleId: 'business' }));
   const opener = screen.getByRole('button', { name: /Business/ });
   opener.focus();
@@ -41,6 +46,21 @@ it('releases an open menu and moves focus at the fractional 699.5px phone bounda
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   const drawerTrigger = screen.getByRole('button', { name: chromeLabels.drawerOpen });
   await waitFor(() => expect(document.activeElement).toBe(drawerTrigger));
+});
+
+it('closes an open menu and restores focus at the fractional 1023.5/1024 boundary', async () => {
+  const width = { value: 1024 };
+  stubBreakpoints(width);
+  const view = render(tree({ currentModuleId: 'business' }));
+  const opener = screen.getByRole('button', { name: /Business/ });
+  opener.focus();
+  fireEvent.click(opener);
+  expect(screen.getByRole('dialog', { name: 'Business' }).contains(document.activeElement)).toBe(true);
+
+  width.value = 1023.5;
+  view.rerender(tree({ currentModuleId: 'business' }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() => expect(document.activeElement).toBe(opener));
 });
 
 it('keeps a visible current marker in the drawer after expanding another module', () => {
@@ -64,7 +84,7 @@ it('keeps a visible current marker in the drawer after expanding another module'
 });
 
 it('falls back to the current trigger when a hidden opener refuses focus', async () => {
-  stubPhoneBoundary({ value: 1200 });
+  stubBreakpoints({ value: 1200 });
   render(tree({ currentModuleId: 'sell' }));
   const opener = screen.getByRole('button', { name: /Business/ });
   opener.focus();
@@ -81,7 +101,7 @@ it('falls back to the current trigger when a hidden opener refuses focus', async
 });
 
 it('keeps a short local page label at a 44px touch target', () => {
-  stubPhoneBoundary({ value: 1200 });
+  stubBreakpoints({ value: 1200 });
   const shortLabelModules = modules.map((module) =>
     module.id === 'sell'
       ? {

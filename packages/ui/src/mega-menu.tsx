@@ -256,11 +256,11 @@ export function MegaMenu({
           size="sm"
           aria-current={current ? 'page' : undefined}
           className={cn(
-            'min-h-11 min-w-11 gap-1 rounded-none px-3',
+            'min-h-11 min-w-11 max-w-64 shrink-0 gap-1 rounded-none px-3',
             current && 'font-semibold underline decoration-2 underline-offset-4',
           )}
         >
-          <span>{module.label}</span>
+          <span className="min-w-0 truncate">{module.label}</span>
           {current ? (
             <span aria-hidden="true" data-current-marker="" className="size-1.5 shrink-0 rounded-full bg-current" />
           ) : null}

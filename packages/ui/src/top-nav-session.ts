@@ -10,6 +10,8 @@ import {
   type SetStateAction,
 } from 'react';
 
+export type NavigationLayout = 'phone' | 'tablet' | 'desktop';
+
 export type TopNavSessionState = {
   openId: string | undefined;
   setMenuOpen: (id: string | undefined, opener?: HTMLElement) => void;
@@ -37,7 +39,7 @@ type FocusTargets = {
 
 type UseTopNavSessionArgs = FocusTargets & {
   visibilityKey: string;
-  isPhone: boolean;
+  layout: NavigationLayout;
 };
 
 function freshSession(visibilityKey: string): Session {
@@ -70,33 +72,35 @@ function useVisibilitySession(visibilityKey: string): [Session, SetSession] {
 }
 
 type BreakpointFocusArgs = FocusTargets & {
-  isPhone: boolean;
+  layout: NavigationLayout;
   hasOpenDialog: boolean;
   closeDialogs: () => void;
 };
 
 function useBreakpointFocus({
-  isPhone,
+  layout,
   rootRef,
   drawerTriggerRef,
   moduleTriggerRef,
   hasOpenDialog,
   closeDialogs,
 }: BreakpointFocusArgs) {
-  const previousIsPhone = useRef(isPhone);
+  const previousLayout = useRef(layout);
   const target = useRef<HTMLElement | undefined>(undefined);
   useEffect(() => {
-    if (previousIsPhone.current === isPhone) return;
-    previousIsPhone.current = isPhone;
+    if (previousLayout.current === layout) return;
+    const crossedPhone = (previousLayout.current === 'phone') !== (layout === 'phone');
+    previousLayout.current = layout;
     const active = document.activeElement;
     const focusInNav =
       hasOpenDialog ||
       (rootRef.current !== null && active !== null && rootRef.current.contains(active));
-    const breakpointTarget = isPhone ? drawerTriggerRef.current : moduleTriggerRef.current;
-    target.current = hasOpenDialog ? (breakpointTarget ?? undefined) : undefined;
+    const breakpointTarget = layout === 'phone' ? drawerTriggerRef.current : moduleTriggerRef.current;
+    // Tablet <-> desktop keeps the opener visible, so ordinary close-focus restoration applies.
+    target.current = crossedPhone && hasOpenDialog ? (breakpointTarget ?? undefined) : undefined;
     closeDialogs();
-    if (!hasOpenDialog && focusInNav) breakpointTarget?.focus();
-  }, [closeDialogs, drawerTriggerRef, hasOpenDialog, isPhone, moduleTriggerRef, rootRef]);
+    if (crossedPhone && !hasOpenDialog && focusInNav) breakpointTarget?.focus();
+  }, [closeDialogs, drawerTriggerRef, hasOpenDialog, layout, moduleTriggerRef, rootRef]);
   return target;
 }
 
@@ -257,7 +261,7 @@ function createSessionHandlers({
 
 export function useTopNavSession({
   visibilityKey,
-  isPhone,
+  layout,
   rootRef,
   drawerTriggerRef,
   moduleTriggerRef,
@@ -275,7 +279,7 @@ export function useTopNavSession({
     }));
   }, []);
   const breakpointTarget = useBreakpointFocus({
-    isPhone,
+    layout,
     rootRef,
     drawerTriggerRef,
     moduleTriggerRef,
@@ -285,7 +289,7 @@ export function useTopNavSession({
   return createSessionHandlers({
     latestSessionRef,
     setSession,
-    isPhone,
+    isPhone: layout === 'phone',
     targets: { rootRef, drawerTriggerRef, moduleTriggerRef },
     breakpointTargetRef: breakpointTarget,
   });

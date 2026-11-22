@@ -4,6 +4,7 @@ import {
   CollapsibleSidebar,
   ContextPanel,
   DirectionProvider,
+  ModuleDrawer,
   NavRail,
   PageFinder,
   TopNav,
@@ -22,6 +23,7 @@ const dir = params.get('dir') === 'ltr' ? 'ltr' : 'rtl';
 const scene = params.get('scene') ?? 'top';
 const finderHideFirst = params.get('finderHideFirst') === 'true';
 if (finderHideFirst) document.body.classList.add('fixture-hide-finder-first');
+const longLabel = params.get('longLabel') === 'true';
 
 const chromeLabels: NavigationChromeLabels = {
   navigation: 'التنقل',
@@ -171,7 +173,15 @@ function TopScene() {
     <div className="min-h-screen">
       <input data-fixture-outside-input="" aria-label="حقل خارجي" />
       <TopNav
-        modules={modules}
+        modules={
+          longLabel
+            ? modules.map((item, index) =>
+                index === 0
+                  ? { ...item, label: 'إدارة المخزون والتقارير التفصيلية'.repeat(10) }
+                  : item,
+              )
+            : modules
+        }
         labels={chromeLabels}
         currentModuleId="business"
         activePageId="columns"
@@ -180,6 +190,22 @@ function TopScene() {
       <main className="min-w-0 p-4">
         <h1 className="text-xl font-semibold">الأعمدة والتنسيقات المتقدمة</h1>
       </main>
+    </div>
+  );
+}
+
+function DrawerScene() {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="min-h-screen">
+      <input data-fixture-outside-input="" aria-label="حقل خارجي" />
+      <ModuleDrawer
+        modules={modules}
+        labels={chromeLabels}
+        open={open}
+        currentModuleId="business"
+        onOpenChange={setOpen}
+      />
     </div>
   );
 }
@@ -230,6 +256,8 @@ createRoot(root).render(
     <div dir={dir} data-fixture-ready="true" data-scene={scene} className="min-h-screen bg-background text-foreground">
       {scene === 'sidebar' ? (
         <SidebarScene />
+      ) : scene === 'drawer' ? (
+        <DrawerScene />
       ) : scene === 'context' ? (
         <ContextScene />
       ) : (

@@ -1,7 +1,7 @@
 'use client';
 
 import { XIcon } from '@phosphor-icons/react/dist/ssr';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { Button } from './button.js';
 import { ContextPanelEmpty, ContextPanelSection } from './context-panel-section.js';
 import { useDirection } from './direction-provider.js';
@@ -11,6 +11,22 @@ import {
   type ContextPanelLabels,
   type NavigationWorkspace,
 } from './navigation-presentation.js';
+
+function usePanelReturnFocus(panelRef: RefObject<HTMLDivElement | null>) {
+  const returnFocusRef = useRef<HTMLElement | undefined>(undefined);
+  // Track the last focus outside the panel so closing can restore it after unmount.
+  useEffect(() => {
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLElement &&
+      active !== document.body &&
+      !panelRef.current?.contains(active)
+    ) {
+      returnFocusRef.current = active;
+    }
+  });
+  return useCallback(() => returnFocusRef.current?.focus(), []);
+}
 
 export type ContextPanelBodyProps = {
   workspace?: NavigationWorkspace | undefined;
@@ -29,18 +45,24 @@ export function ContextPanelBody({
 }: ContextPanelBodyProps) {
   const dir = useDirection();
   const [query, setQuery] = useState('');
+  const panelRef = useRef<HTMLDivElement>(null);
+  const restoreFocus = usePanelReturnFocus(panelRef);
   const sections = workspace?.sections ?? [];
   const hasVisiblePages = sections.some(
     (section) =>
       visiblePagesMatchingQuery(section.pages, visiblePageIds, query).length > 0,
   );
+  const close = () => {
+    restoreFocus();
+    onClose();
+  };
   return (
-    <div dir={dir} className="flex h-full flex-col gap-2 overflow-y-auto p-2">
+    <div ref={panelRef} dir={dir} className="flex h-full flex-col gap-2 overflow-y-auto p-2">
       <div className="flex shrink-0 items-center gap-2 ps-2">
         <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
           {workspace?.label ?? labels.empty}
         </h2>
-        <Button variant="sidebar" size="icon" aria-label={labels.close} onClick={onClose}>
+        <Button variant="sidebar" size="icon" aria-label={labels.close} onClick={close}>
           <XIcon aria-hidden="true" />
         </Button>
       </div>

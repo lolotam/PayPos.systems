@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { useState } from 'react';
 import { expect, it, vi } from 'vitest';
 import { ContextPanel, type ContextPanelProps } from '../context-panel.js';
 import { DirectionProvider } from '../direction-provider.js';
@@ -42,6 +43,36 @@ it.each(['rtl', 'ltr'] as const)(
     expect(onClose).toHaveBeenCalledTimes(1);
   },
 );
+
+it('returns focus to the inspected workspace control after the panel closes', () => {
+  function Harness() {
+    const [open, setOpen] = useState(true);
+    const [inspected, setInspected] = useState('business');
+    return (
+      <DirectionProvider dir="ltr">
+        <button type="button" onClick={() => setInspected('team')}>Inspect team</button>
+        <ContextPanel
+          workspaces={workspaces}
+          labels={contextLabels}
+          panelOpen={open}
+          currentWorkspaceId="business"
+          inspectedWorkspaceId={inspected}
+          onClose={() => setOpen(false)}
+        />
+      </DirectionProvider>
+    );
+  }
+
+  render(<Harness />);
+  const inspect = screen.getByRole('button', { name: 'Inspect team' });
+  inspect.focus();
+  fireEvent.click(inspect);
+  const close = screen.getByRole('button', { name: contextLabels.close });
+  close.focus();
+  fireEvent.click(close);
+  expect(screen.queryByRole('complementary', { name: contextLabels.navigation })).toBeNull();
+  expect(document.activeElement).toBe(inspect);
+});
 
 it('falls back to the current workspace and filters hidden pages', () => {
   render(tree('ltr', { currentWorkspaceId: 'business', visiblePageIds: ['offers'] }));
