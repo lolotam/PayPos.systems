@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Profiler, type ReactNode } from 'react';
 import type { ServiceCategoryListItem, WorkspaceBusiness } from '@pospay/contracts';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -41,16 +41,20 @@ function ok(items: unknown[], cursor: string | null = null) {
 function renderScreen(
   scope: 'COMPANY' | 'BRANCH',
   workspace: WorkspaceBusiness = business([branch(), secondBranch()]),
+  onCommit?: () => void,
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(
+  const screenElement = (
     <ServiceCategoriesScreen
       companyId={companyId}
       business={workspace}
       userId={userId}
       scope={scope}
       rememberedBranchId={undefined}
-    />,
+    />
+  );
+  render(
+    onCommit ? <Profiler id="categories" onRender={onCommit}>{screenElement}</Profiler> : screenElement,
     {
       wrapper: ({ children }: { children: ReactNode }) => (
         <QueryClientProvider client={client}>{children}</QueryClientProvider>
@@ -208,9 +212,15 @@ it('shows the business lead and the create action only in the business view', as
   expect(screen.getAllByRole('button', { name: 'Add category' })).toHaveLength(1);
 });
 
-it('has a working create button on the very first render, before any data arrives', () => {
+// الـProfiler يستدعي بعد أول commit والـDOM محدَّث؛ أما render في Testing Library فيفرّغ التأثيرات الخاملة داخل act
+// فلا يكشف زرًا يتأخر تسجيله إلى تأثير، ولذلك نلتقط وجود الزر في أول commit نفسه.
+it('has the create button in the very first commit, and it works', () => {
   get.mockReturnValue(new Promise(() => undefined));
-  renderScreen('COMPANY');
+  const present: boolean[] = [];
+  renderScreen('COMPANY', undefined, () => {
+    present.push(screen.queryAllByRole('button', { name: 'Add category' }).length > 0);
+  });
+  expect(present[0]).toBe(true);
   const create = screen.getByRole('button', { name: 'Add category' });
   expect((create as HTMLButtonElement).disabled).toBe(false);
   fireEvent.click(create);

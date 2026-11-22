@@ -31,8 +31,10 @@ export function ServiceSessionDayPage({ scope, timezone }: { scope: SessionServi
   // القدرات الثلاثة من نفس القراءة، فبتتجاب دايماً وهي online؛ تجاوز واحدة منها كان بيوقف الاتنين التانيين (PP-19).
   const asked = online && denied === null;
   const capability = useServiceSessionCapabilities(scope, asked);
-  // الصفحة تراقب استعلام اليوم نفسه (الجسم يراقبه أيضًا فلا طلب إضافي) كي تعرف الرفض والصفحة التالية في رندرها هي، لا من تأثير متأخر.
-  const dayQuery = useBranchDaySessions(scope, date, lateOnly, asked);
+  const capabilityRefused = serviceSessionAccessRevoked(capability.error);
+  // الصفحة تراقب استعلام اليوم نفسه (الجسم يراقبه أيضًا فلا طلب إضافي) كي تعرف الرفض والصفحة التالية في رندرها هي، لا من تأثير متأخر؛
+  // وتوقف مراقبتها عند رفض القدرة كي لا تقرأ اليوم والشاشة مقفولة قبل نجاح الإعادة، كما كان الجسم المفكوك لا يقرأ.
+  const dayQuery = useBranchDaySessions(scope, date, lateOnly, asked && !capabilityRefused);
   // زرار البقشيش من can_record_sessions، مش من نجاح قراءة سياق التسجيل: القراءة دي بقت مفتوحة لصلاحية تغيير المنفّذين (PP-19).
   // البيانات بتفضل بعد فشل إعادة جلب، فانقطاع مؤقت ما بيخفيش الزرار؛ 401/403 بيقفل الصفحة كلها.
   const canRecord = capability.data?.can_record_sessions === true;
@@ -43,7 +45,7 @@ export function ServiceSessionDayPage({ scope, timezone }: { scope: SessionServi
   const onAccessDenied = useCallback((message: string) => { setDenied({ message }); }, []);
   // رفض القدرة 401/403/FEATURE_DISABLED معناه إن قراءة اليوم نفسها اتسحبت، مش الإلغاء بس؛ الشاشة تتقفل زي باقي القراءات.
   const dayRefused = serviceSessionAccessRevoked(dayQuery.error) ? { message: envelopeMessage(dayQuery.error, locale) } : null;
-  const blocked = denied ?? (serviceSessionAccessRevoked(capability.error) ? { message: envelopeMessage(capability.error, locale) } : dayRefused);
+  const blocked = denied ?? (capabilityRefused ? { message: envelopeMessage(capability.error, locale) } : dayRefused);
   // مسح الاستعلامات يمحو خطأ الرفض من المراقب، فنثبّته في الحالة أثناء الرندر نفسه (قبل أي commit) كي لا تنفتح الصفحة وحدها وتعيد القراءة المرفوضة.
   if (dayRefused && denied === null) setDenied(dayRefused);
   // المسح بعد فك تركيب القائمة؛ لو اتمسح والكويري لسه متراقب TanStack بيعيد بناؤه ويجيبه من غير زر.

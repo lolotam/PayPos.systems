@@ -114,3 +114,28 @@ it('never commits a render that shows Load more beside a refused or emptied list
   await waitFor(() => expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull());
   expect(stale).toEqual([]);
 });
+
+const dayReads = () => state.get.mock.calls.filter(([path]) => !String(path).includes('/capabilities')).length;
+
+it('makes no day request while a refused capability read keeps the screen closed, until Retry succeeds', async () => {
+  const allowed = { data: { can_cancel_lines: true, can_change_performers: false, can_record_sessions: false }, response: { status: 200 } };
+  const refused = { error: { code: 'FORBIDDEN', message_ar: 'Denied AR', message_en: 'Denied EN' }, response: { status: 403 } };
+  let capability: unknown = allowed;
+  state.get.mockImplementation((path: string) => Promise.resolve(String(path).includes('/capabilities') ? capability : page(null)));
+  const view = renderPage();
+  await screen.findByText('Synthetic customer');
+  capability = refused;
+  await act(async () => { await view.client.refetchQueries({ queryKey: ['service-session-capabilities'] }); });
+  expect((await screen.findByRole('alert')).textContent).toContain('Denied EN');
+  await waitFor(() => expect(screen.queryByText('Synthetic customer')).toBeNull());
+  const before = dayReads();
+  fireEvent.change(screen.getByLabelText('Date'), { target: { value: '2026-10-14' } });
+  fireEvent.click(screen.getByLabelText('Late only'));
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)); });
+  expect(dayReads()).toBe(before);
+  capability = allowed;
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  expect(await screen.findByText('Synthetic customer')).toBeTruthy();
+  expect(dayReads()).toBeGreaterThan(before);
+  expect(screen.queryByRole('alert')).toBeNull();
+});
