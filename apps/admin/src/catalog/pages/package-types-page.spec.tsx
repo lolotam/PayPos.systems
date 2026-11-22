@@ -103,7 +103,7 @@ it('keeps the card while loading, on error and when the page is empty', async ()
 
 it('shows the refusal inside the card when the read fails', async () => {
   get.mockResolvedValue({
-    error: { code: 'FORBIDDEN', message_ar: 'ممنوع', message_en: 'Not allowed here' },
+    error: { code: 'FORBIDDEN', message_ar: 'Not allowed here AR', message_en: 'Not allowed here' },
     response: { status: 403 },
   });
   renderPage();

@@ -6,6 +6,20 @@ import { useIsMutating } from '@tanstack/react-query';
 import { useLocale } from '@/shared/locale/locale-context';
 import { PackageTypeSellingToggle } from './package-type-selling-toggle';
 
+function PackageTypeName({ item }: { item: PackageTypeListItem }) {
+  const locale = useLocale();
+  return (
+    <>
+      {locale === 'ar' ? (item.name_ar ?? item.name_en) : item.name_en}
+      {item.selling_stopped_at !== null ? (
+        <span className="ms-2 rounded-md bg-secondary px-2 py-1 text-xs text-secondary-foreground">
+          {t(locale, 'catalogPackageTypes.notOnSale')}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 export function PackageTypeTableRow({
   item,
   canManage,
@@ -32,12 +46,7 @@ export function PackageTypeTableRow({
     // صفوف جدول ويربط كل خلية بترويسة عمودها بالترتيب نفسه.
     <tr role="row" className={selected ? 'bg-secondary/50' : ''}>
       <td role="cell">
-        {locale === 'ar' ? (item.name_ar ?? item.name_en) : item.name_en}
-        {item.selling_stopped_at !== null ? (
-          <span className="ms-2 rounded-md bg-secondary px-2 py-1 text-xs text-secondary-foreground">
-            {t(locale, 'catalogPackageTypes.notOnSale')}
-          </span>
-        ) : null}
+        <PackageTypeName item={item} />
       </td>
       <td role="cell" dir="ltr" data-cell-label={t(locale, 'catalogPackageTypes.price')}>
         {item.price}

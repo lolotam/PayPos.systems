@@ -3,9 +3,9 @@ import type { ServiceCategoryPage } from '@pospay/contracts';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { t } from '@pospay/i18n';
-import { CircleAlert, DataTableFrame, EmptyState, LoaderCircle, Store } from '@pospay/ui';
-import { envelopeMessage } from '@/shared/api/api-error';
+import { DataTableFrame } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
+import { ListQueryStates } from './list-query-states';
 import type { TrackedServiceCategoryClosing } from '../model/service-category-closing';
 import { ServiceCategoriesTable } from './service-categories-table';
 import { ServicesPageNavigation } from './services-page-navigation';
@@ -40,28 +40,16 @@ export function ServiceCategoriesListPanel({
         ) : undefined
       }
     >
-      {list.isPending ? (
-        <EmptyState role="status" icon={<LoaderCircle />} title={t(locale, 'admin.loading')} />
-      ) : null}
-      {list.isError ? (
-        <EmptyState
-          role="alert"
-          tone="danger"
-          icon={<CircleAlert />}
-          title={envelopeMessage(list.error, locale)}
-        />
-      ) : null}
-      {list.isSuccess && list.data.items.length === 0 ? (
-        <EmptyState icon={<Store />} title={t(locale, 'catalogServiceCategories.empty')} />
-      ) : null}
-      {list.isSuccess && list.data.items.length > 0 ? (
-        <ServiceCategoriesTable
-          items={list.data.items}
-          selectedId={selectedId}
-          tracked={tracked}
-          onSelect={onSelect}
-        />
-      ) : null}
+      <ListQueryStates list={list} emptyTitle={t(locale, 'catalogServiceCategories.empty')}>
+        {(data) => (
+          <ServiceCategoriesTable
+            items={data.items}
+            selectedId={selectedId}
+            tracked={tracked}
+            onSelect={onSelect}
+          />
+        )}
+      </ListQueryStates>
     </DataTableFrame>
   );
 }

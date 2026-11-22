@@ -1,9 +1,9 @@
 'use client';
-import type { RecordingContext, RecordingDiscountLimit } from '@pospay/contracts';
+import type { RecordingContext } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { Button, PageShell } from '@pospay/ui';
+import { Button } from '@pospay/ui';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { FormProvider, useForm, useWatch, type UseFormReset } from 'react-hook-form';
+import { useForm, useWatch, type UseFormReset } from 'react-hook-form';
 import { useRevokeOwnRecording } from '../api/use-own-recordings';
 import type { SessionServiceScope } from '../api/use-session-services';
 import type { ExpiredRecoveryProof, SessionAttemptJournal } from '../model/session-attempt-journal';
@@ -14,9 +14,9 @@ import { reportSessionSubmitError } from '../model/session-submit-error';
 import type { SessionRecordingController } from '../model/use-session-recording';
 import { useServerAnchoredValue } from '../model/use-server-anchored-now';
 import { useLocale } from '@/shared/locale/locale-context';
+import { RecordVisitColumns } from './record-visit-columns';
 import { RecordVisitCustomerField } from './record-visit-customer-field';
 import { SessionDraftLines } from './session-draft-lines';
-import { SessionDraftSummary } from './session-draft-summary';
 import { SessionRecordingHeader } from './session-recording-header';
 import { SessionRejectedLines } from './session-rejected-lines';
 import { SessionSavedResult } from './session-saved-result';
@@ -99,7 +99,6 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   const editBusy = editsInFlight > 0;
   const beginLineEdit = () => { setEditsInFlight((count) => count + 1); };
   const endLineEdit = () => { setEditsInFlight((count) => count - 1); };
-  const [limit, setLimit] = useState<RecordingDiscountLimit | null>(null);
   const form = useForm<SessionDraftForm>({ defaultValues: seed });
   const draftedAt = useWatch({ control: form.control, name: 'occurred_at' });
   const occurredAt = savedAt ?? draftedAt;
@@ -108,7 +107,7 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
   useDraftReset(form.reset, result.drafts, savedAt);
   const rootError = form.formState.errors.root?.message;
   const unknownLeave = leaveFailure?.source === result ? leaveFailure.feedback : null;
-  const main = <>
+  return <RecordVisitColumns form={form} top={top} main={(onLimitChange) => <>
     <form className="grid gap-4 text-start" noValidate onSubmit={form.handleSubmit(async (drafts) => {
       if (editBusy) return;
       try { await recording.submit(drafts); } catch (error) { reportSessionSubmitError(form.setError, error, locale); }
@@ -121,7 +120,7 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
         <Button type="button" variant="outline" disabled={!journal || editBusy} onClick={() => { if (editBusy) return; leaveUnknownTimeVisit(result, journal, recording.replaceResult, (feedback) => setLeaveFailure({ source: result, feedback })); }}>{t(locale, 'serviceSessions.newVisitSameCustomer')}</Button>
         {unknownLeave ? <SessionWriteFeedback result={{ ...result, feedback: unknownLeave, attempt: null }} /> : null}
       </div> : <SessionTimeField context={context} disabled={locked} />}
-      <SessionRecordingHeader scope={scope} disabled={!online || frozen} readOnly={membershipFixed} onLimitChange={setLimit} />
+      <SessionRecordingHeader scope={scope} disabled={!online || frozen} readOnly={membershipFixed} onLimitChange={onLimitChange} />
       <SessionDraftLines scope={scope} customerId={result.customerId} {...(occurredAt !== undefined ? { occurredAt } : {})} visitDate={visitDate} disabled={!online || frozen || timeUnknown} />
       <SessionRejectedLines result={result} onEdit={focusDraftPrice} scope={scope} online={online} />
       {rootError ? <p role="alert">{rootError}</p> : null}
@@ -132,9 +131,5 @@ export function RecordServiceSessionForm({ scope, context, online, recording, on
       </Button>
     </form>
     {journal ? <SessionSavedResult result={result} journal={journal} onNewVisit={recording.replaceResult} hideCustomer={hideCustomer} scope={scope} online={online} editBusy={editBusy} onRequestStart={beginLineEdit} onRequestEnd={endLineEdit} /> : null}
-  </>;
-  // الملخص يقرأ المسودة من سياق النموذج، فالمزوّد يلف العمودين معًا؛ والعمود الجانبي يثبت أثناء تمرير النموذج من 1024px.
-  return <FormProvider {...form}>
-    <PageShell layout="two-column" main={main} side={<div className="lg:sticky lg:top-4"><SessionDraftSummary limit={limit} /></div>}>{top}</PageShell>
-  </FormProvider>;
+  </>} />;
 }

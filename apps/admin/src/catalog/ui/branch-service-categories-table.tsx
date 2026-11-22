@@ -8,12 +8,12 @@ import type {
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { t, type Locale } from '@pospay/i18n';
-import { CircleAlert, DataTableFrame, EmptyState, LoaderCircle, Store } from '@pospay/ui';
+import { DataTableFrame } from '@pospay/ui';
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { useMemo } from 'react';
-import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { BranchServiceCategoriesGrid } from './branch-service-categories-grid';
+import { ListQueryStates } from './list-query-states';
 import { ServicesPageNavigation } from './services-page-navigation';
 
 const columns = (locale: Locale) => [
@@ -66,30 +66,18 @@ export function BranchServiceCategoriesTable({
         ) : undefined
       }
     >
-      {list.isPending ? (
-        <EmptyState role="status" icon={<LoaderCircle />} title={t(locale, 'admin.loading')} />
-      ) : null}
-      {list.isError ? (
-        <EmptyState
-          role="alert"
-          tone="danger"
-          icon={<CircleAlert />}
-          title={envelopeMessage(list.error, locale)}
-        />
-      ) : null}
-      {list.isSuccess && list.data.items.length === 0 ? (
-        <EmptyState icon={<Store />} title={t(locale, 'catalogServiceCategories.empty')} />
-      ) : null}
-      {list.isSuccess && list.data.items.length > 0 ? (
-        <BranchServiceCategoriesGrid
-          table={table}
-          branchId={branchId}
-          view={view}
-          pending={pending}
-          onState={onState}
-          onManage={onManage}
-        />
-      ) : null}
+      <ListQueryStates list={list} emptyTitle={t(locale, 'catalogServiceCategories.empty')}>
+        {() => (
+          <BranchServiceCategoriesGrid
+            table={table}
+            branchId={branchId}
+            view={view}
+            pending={pending}
+            onState={onState}
+            onManage={onManage}
+          />
+        )}
+      </ListQueryStates>
     </DataTableFrame>
   );
 }

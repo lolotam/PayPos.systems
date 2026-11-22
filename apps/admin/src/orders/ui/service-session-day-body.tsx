@@ -42,6 +42,21 @@ function DayFrame({
   );
 }
 
+function DayLoadMore({ onMore }: { onMore: () => Promise<unknown> }) {
+  const locale = useLocale();
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={() => {
+        void onMore();
+      }}
+    >
+      {t(locale, 'serviceLineEdit.loadMore')}
+    </Button>
+  );
+}
+
 export function ServiceSessionDayBody({
   scope,
   date,
@@ -75,19 +90,7 @@ export function ServiceSessionDayBody({
   return (
     <DayFrame
       filters={filters}
-      footer={
-        query.hasNextPage === true ? (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              void query.fetchNextPage();
-            }}
-          >
-            {t(locale, 'serviceLineEdit.loadMore')}
-          </Button>
-        ) : undefined
-      }
+      footer={query.hasNextPage === true ? <DayLoadMore onMore={query.fetchNextPage} /> : undefined}
     >
       <ServiceSessionDayList
         scope={scope}

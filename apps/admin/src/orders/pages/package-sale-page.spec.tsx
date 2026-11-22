@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import {
   choosePackageSaleCustomer,
@@ -70,6 +70,6 @@ it('shows the sale result below the card, never inside the action foot', async (
   const card = submit.closest('.rounded-card') as HTMLElement;
   await submitPackageSale(state);
   const pending = await screen.findByText('Processing');
-  await waitFor(() => expect(card.contains(pending)).toBe(false));
+  expect(card.contains(pending)).toBe(false);
   expect(card.compareDocumentPosition(pending) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
