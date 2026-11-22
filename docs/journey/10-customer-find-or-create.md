@@ -27,9 +27,10 @@ feature. Local only.
 ## العربي
 
 1. **عميل جديد:** ابعت `POST /v1/customers/find-or-create` مع الهيدر `x-company-id` والجسم
-   `{ "name": "عميل تجربة", "locale": "ar", "phone": { "calling_code": "965", "national_number": "9xxxxxxx" } }`
+   `{ "name": "عميل تجربة", "locale": "ar", "gender": "female", "phone": { "calling_code": "965", "national_number": "9xxxxxxx" } }`
    (8 أرقام لرقم كويتي) ← رد **200** فيه `id` والاسم واللغة و`opted_out: false`، والموبايل **مخفي** (`***` + آخر 3 أرقام).
-2. **نفس الرقم تاني:** ابعت نفس الطلب باسم مختلف ← **نفس الـ `id`**، والاسم القديم **ما بيتغيرش**.
+   رقم جديد من غير `gender` ← **400** (`VALIDATION_FAILED`) ومفيش حاجة اتحفظت.
+2. **نفس الرقم تاني:** ابعت نفس الطلب باسم مختلف **ومن غير نوع** ← **نفس الـ `id`**، والاسم القديم **ما بيتغيرش**. ده بيشمل كمان عميل قديم نوعه NULL.
 3. **صيغة الرقم:** الـ API بيقبل **أرقام بس** في `national_number` — مسافة أو قوس أو شرطة ← **400** (`INVALID_CUSTOMER_PHONE`). الأصفار في أول الرقم بتتشال: `"09xxxxxxx"` = نفس العميل.
 4. **رقم كويتي غلط:** 7 أرقام، أو 9 أرقام مش بادئة بصفر، مع `965` ← **400** برسالة **اختر رمز اتصال بلد صالحاً وأدخل أرقام الهاتف الوطني؛ الكويت
    تتطلب ثمانية أرقام** — والرقم نفسه مش موجود في الرد.
@@ -44,10 +45,11 @@ feature. Local only.
 ## English
 
 1. **New customer:** `POST /v1/customers/find-or-create` with header `x-company-id` and body
-   `{ "name": "Test customer", "locale": "en", "phone": { "calling_code": "965", "national_number": "9xxxxxxx" } }`
+   `{ "name": "Test customer", "locale": "en", "gender": "female", "phone": { "calling_code": "965", "national_number": "9xxxxxxx" } }`
    (8 digits for Kuwait) → **200** with `id`, name, locale and `opted_out: false`; the phone is **masked** (`***` and
-   the last 3 digits).
-2. **Same phone again** with another name → the **same `id`**; the stored name is **not** changed.
+   the last 3 digits). A new phone without `gender` → **400** (`VALIDATION_FAILED`) and nothing is written.
+2. **Same phone again** with another name and **no gender** → the **same `id`**; the stored name is **not** changed.
+   This also opens an older customer whose stored gender is NULL.
 3. **Number format:** the API accepts **digits only** in `national_number` — a space, bracket or dash → **400**
    (`INVALID_CUSTOMER_PHONE`). Leading zeros are removed:
    `"09xxxxxxx"` is the same customer.

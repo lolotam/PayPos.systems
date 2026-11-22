@@ -69,7 +69,16 @@ type SessionCustomerContactOptions = {
 };
 
 function customerEntry(name: string, locale: SessionCustomerLocale): SessionCustomerFormValues {
-  return { name, phone: { calling_code: '', national_number: '' }, locale };
+  // كل حقل مسجّل له قيمة صريحة عشان reset يمسح اللي قبلها من DOM بدل ما يسيبه ظاهر.
+  return {
+    name,
+    phone: { calling_code: '', national_number: '' },
+    locale,
+    gender: undefined,
+    birthday: undefined,
+    email: '',
+    note: '',
+  };
 }
 
 function useSessionCustomerSynchronization({
@@ -289,6 +298,7 @@ function SessionCustomerFeedback({
   prefix,
   locale,
   invalid,
+  profileInvalid,
   genderHint,
   hasValue,
   mutation,
@@ -296,15 +306,16 @@ function SessionCustomerFeedback({
   prefix: string;
   locale: SessionCustomerLocale;
   invalid: boolean;
+  profileInvalid: boolean;
   genderHint: boolean;
   hasValue: boolean;
   mutation: SessionCustomerMutation;
 }) {
   return (
     <>
-      {invalid ? (
+      {invalid || profileInvalid ? (
         <p id={`${prefix}-error`} role="alert">
-          {t(locale, 'serviceSessions.invalidCustomer')}
+          {t(locale, invalid ? 'serviceSessions.invalidCustomer' : 'serviceSessions.invalidProfileFields')}
         </p>
       ) : null}
       {genderHint && !hasValue ? (
@@ -340,11 +351,12 @@ export function SessionCustomerField(props: SessionCustomerFieldProps) {
   const { locale, prefix, genderHint, form, mutation, invalid, nameEntry, callingCode, nationalNumber, resolve, invalidate } =
     useSessionCustomerFieldState(props);
   return (
-    <fieldset
-      disabled={disabled || mutation.isPending || form.formState.isSubmitting}
-      onBlur={onBlur}
-      className="flex flex-col gap-3 text-start"
-    >
+    <>
+      <fieldset
+        disabled={disabled || mutation.isPending || form.formState.isSubmitting}
+        onBlur={onBlur}
+        className="flex flex-col gap-3 text-start"
+      >
       <legend>{t(locale, 'serviceSessions.customer')}</legend>
       {sessionCustomerContact({
         prefix,
@@ -371,10 +383,18 @@ export function SessionCustomerField(props: SessionCustomerFieldProps) {
         prefix={prefix}
         locale={locale}
         invalid={invalid}
+        profileInvalid={
+          !!form.formState.errors.gender ||
+          !!form.formState.errors.birthday ||
+          !!form.formState.errors.email ||
+          !!form.formState.errors.note
+        }
         genderHint={genderHint}
         hasValue={value !== null}
         mutation={mutation}
       />
+      </fieldset>
+      {/* البطاقة للقراءة فقط؛ برّه fieldset التعريف عشان زر إعادة التحميل يشتغل بعد قفل الزيارة. */}
       {value === null ? null : (
         <SelectedCustomerCard
           value={value}
@@ -383,6 +403,6 @@ export function SessionCustomerField(props: SessionCustomerFieldProps) {
           profile={{ companyId, branchId, businessId, userId, entryScope }}
         />
       )}
-    </fieldset>
+    </>
   );
 }

@@ -14,7 +14,7 @@ the `customers` feature. **Not built:** the customers import itself (34b), self-
 
 ## العربي
 
-API بس، لسه مفيش شاشة.
+من شاشة الاستقبال تقدري تسجلي البيانات وتفتحي البطاقة (شوف الخطوة 10).
 
 1. **عميلة جديدة ببياناتها:** من مسار النشاط، اطلب «دوّر أو أضف» برقم جديد واسم ولغة، ومعاهم **النوع** (`female` أو
    `male`)، و**عيد الميلاد** (يوم وشهر، والسنة اختيارية)، و**الإيميل**، و**ملاحظة** ← العميلة بتتضاف، والرد فيه
@@ -42,7 +42,7 @@ API بس، لسه مفيش شاشة.
 
 ## English
 
-API only, no screen yet.
+The reception form can now enter these fields and open the card (see step 10).
 
 1. **A new customer with her details:** on the business route, call find-or-create with a new phone, a name and a
    language, plus a **gender** (`female` or `male`), a **birthday** (day and month; the year is optional), an

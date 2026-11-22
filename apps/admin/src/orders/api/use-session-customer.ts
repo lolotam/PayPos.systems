@@ -3,6 +3,7 @@ import {
   customer,
   findOrCreateCustomerInput,
   findOrCreateScopedCustomerInput,
+  type FindOrCreateScopedCustomerInput,
 } from '@pospay/contracts';
 import { useCallback, useLayoutEffect, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
@@ -11,16 +12,8 @@ import type { components } from '@/shared/api/schema';
 
 export type SessionCustomerEntryScope = 'company' | 'business' | 'branch';
 
-/** قيم النموذج بعد تنظيف الحقول الفاضية؛ السنة والملاحظة والبريد والنوع اختيارية. */
-export type SessionCustomerFormValues = {
-  name: string;
-  phone: { calling_code: string; national_number: string };
-  locale: 'ar' | 'en';
-  gender?: 'female' | 'male' | undefined;
-  birthday?: { day: number; month: number; year?: number | undefined } | undefined;
-  email?: string | undefined;
-  note?: string | undefined;
-};
+/** قيم النموذج بعد تنظيف الحقول الفاضية — نفس نوع العقد، مفيش تعريف تاني يتخلف عن السكيما. */
+export type SessionCustomerFormValues = FindOrCreateScopedCustomerInput;
 
 type CustomerBody = components['schemas']['FindOrCreateScopedCustomerInput'];
 

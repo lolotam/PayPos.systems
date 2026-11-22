@@ -153,7 +153,7 @@ export async function findOrCreateCustomer(
     })
     .check();
   await fieldset.getByRole('button', { name: t(locale, 'serviceSessions.findOrCreate') }).click();
-  await expect(fieldset.getByRole('status')).toContainText(t(locale, 'serviceSessions.selected'));
+  await expect(page.getByRole('status').filter({ hasText: t(locale, 'serviceSessions.selected') })).toContainText(name);
 }
 
 export async function expectCustomerCard(

@@ -68,6 +68,8 @@ export function useSessionCustomerProfile(entry: SessionCustomerProfileEntry) {
     retry: false,
     gcTime: 0,
     staleTime: 0,
+    // مفيش إرسال لوحده بعد رجوع النت؛ إعادة القراءة بتكون بقرار المستخدم (زرار البطاقة).
+    refetchOnReconnect: false,
     queryFn: async ({ signal }) => {
       if (customerId === null) throw new Error('CUSTOMER_SELECTION_MISSING');
       return fetchProfile(entry, customerId, signal);
