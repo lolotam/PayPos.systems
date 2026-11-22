@@ -1,5 +1,9 @@
 import { Controller, Get, Header, Inject, Param, Query, Req, UseGuards } from '@nestjs/common';
-import { id, employeeDocumentNumbersQuery } from '@pospay/contracts';
+import {
+  id,
+  employeeDocumentNumbersQuery,
+  type EmployeeDocumentNumbersQuery,
+} from '@pospay/contracts';
 import type { TenantWrappers } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 import { Authenticated } from '../../../shared/access.decorators.ts';
@@ -26,7 +30,7 @@ export class EmployeeDocumentNumbersController {
   @Header('Cache-Control', 'no-store')
   numbers(
     @Param('businessId', new ZodValidationPipe(id)) businessId: string,
-    @Query(new ZodValidationPipe(employeeDocumentNumbersQuery)) query: { ids: string[] },
+    @Query(new ZodValidationPipe(employeeDocumentNumbersQuery)) query: EmployeeDocumentNumbersQuery,
     @Req() request: FastifyRequest,
   ) {
     if (this.database === null || this.access === null) throw new ApiError('NOT_READY');

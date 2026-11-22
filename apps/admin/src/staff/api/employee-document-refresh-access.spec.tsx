@@ -64,6 +64,47 @@ it('renders a document returned by an API version that omits the number', async 
   expect(screen.getByRole('button', { name: t('en', 'employeeDocuments.open') })).toBeTruthy();
 });
 
+it('restores the entered number after a failed upload and an offline list refresh', async () => {
+  api.GET.mockImplementation(async (path: string) => {
+    if (!onlineManager.isOnline()) throw new Error('Offline');
+    if (path === '/v1/files/{id}')
+      return {
+        data: { id: fileId, status: 'READY', content_type: 'application/pdf', size_bytes: 3 },
+      };
+    return { data: view(true) };
+  });
+  api.POST.mockImplementation(async (path: string) => {
+    if (path === '/v1/businesses/{businessId}/files/uploads')
+      return {
+        data: {
+          id: fileId,
+          upload_url: 'https://storage.test/upload',
+          expires_in: 120,
+          headers: { 'content-type': 'application/pdf', 'content-length': '3' },
+        },
+      };
+    if (path === '/v1/files/{id}/confirm') return { data: { id: fileId, status: 'QUEUED' } };
+    onlineManager.setOnline(false);
+    throw new Error('Offline');
+  });
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
+  renderDocumentsSection(new QueryClient());
+  fireEvent.change(await screen.findByLabelText(t('en', 'employeeDocuments.file')), {
+    target: { files: [new File(['pdf'], 'civil.pdf', { type: 'application/pdf' })] },
+  });
+  fireEvent.change(screen.getByLabelText(t('en', 'employeeDocuments.expiresOn')), {
+    target: { value: '2026-10-20' },
+  });
+  const numberLabel = t('en', 'employeeDocuments.documentNumber');
+  fireEvent.change(screen.getByLabelText(numberLabel), { target: { value: 'SYN-OFFLINE' } });
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeDocuments.upload') }));
+
+  await screen.findByRole('alert');
+  expect(screen.queryByLabelText(numberLabel)).toBeNull();
+  act(() => onlineManager.setOnline(true));
+  expect(await screen.findByLabelText(numberLabel)).toHaveProperty('value', 'SYN-OFFLINE');
+});
+
 it.each([true, false])(
   'waits for the write-access refresh when browser online status is %s',
   async (onlineDuringRefresh) => {

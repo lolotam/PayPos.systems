@@ -45,7 +45,8 @@ export const documentTypeList = responseObject({ items: z.array(documentType) })
 // الشكل المحفوظ نفسه هو حكم القارئ: مقطّط الطرفين، بلا تحكم، ومن 1 إلى 64 نقطة — نفس قيد قاعدة البيانات.
 const isControlCodePoint = (codePoint: number) =>
   codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f);
-const hasControlCodePoint = (value: string) =>
+const hasInputControl = (value: string) =>
+  /\p{Bidi_Control}/u.test(value) ||
   [...value].some((character) => isControlCodePoint(character.codePointAt(0) as number));
 const isDocumentNumberCodePoint = (character: string) => {
   const point = character.codePointAt(0);
@@ -62,7 +63,7 @@ const documentNumberShape = (value: string) => {
 };
 export const documentNumberInput = z
   .string()
-  .refine((value) => !hasControlCodePoint(value), { message: 'DOCUMENT_NUMBER_CONTROL_CHARACTER' })
+  .refine((value) => !hasInputControl(value), { message: 'DOCUMENT_NUMBER_CONTROL_CHARACTER' })
   .transform((value) => value.trim())
   .pipe(z.string().refine(documentNumberShape, { message: 'DOCUMENT_NUMBER_INVALID' }));
 export const documentNumber = z
@@ -124,7 +125,7 @@ export const employeeDocumentFormInput = z.strictObject({
   document_number: z
     .union([
       documentNumberInput,
-      z.string().refine((value) => value.trim() === '' && !hasControlCodePoint(value)),
+      z.string().refine((value) => value.trim() === '' && !hasInputControl(value)),
     ])
     .optional(),
 });

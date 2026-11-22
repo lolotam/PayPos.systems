@@ -7,7 +7,7 @@ import {
 } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button, Input, Label } from '@pospay/ui';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { DocumentSubmission } from '../api/use-employee-documents';
@@ -20,7 +20,7 @@ type EmployeeDocumentFormProps = {
   types: DocumentType[];
   typeCode?: string;
   pending: boolean;
-  recorded?: boolean;
+  initialNumber?: string;
   onSubmit: (submission: DocumentSubmission) => void;
 };
 
@@ -28,7 +28,7 @@ export function EmployeeDocumentForm({
   types,
   typeCode,
   pending,
-  recorded = false,
+  initialNumber = '',
   onSubmit,
 }: EmployeeDocumentFormProps) {
   const locale = useLocale();
@@ -39,13 +39,9 @@ export function EmployeeDocumentForm({
     defaultValues: {
       type_code: typeCode ?? types[0]?.code ?? '',
       expires_on: '',
-      document_number: '',
+      document_number: initialNumber,
     },
   });
-  const { resetField } = form;
-  useEffect(() => {
-    if (recorded) resetField('document_number');
-  }, [recorded, resetField]);
   const code = useWatch({ control: form.control, name: 'type_code' });
   const requiresExpiry = types.find((type) => type.code === code)?.requires_expiry ?? false;
   // خطأ رقم المستند بيظهر محليًا جنب الخانة نفسها؛ التنبيه العام لمصالح الوثيقة التانية بس.

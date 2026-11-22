@@ -91,7 +91,16 @@ it('the record input treats omitted and null as no number and refuses blank, lon
   expect(
     recordEmployeeDocumentInput.parse({ ...base, document_number: 'خ'.repeat(64) }).document_number,
   ).toBe('خ'.repeat(64));
-  for (const bad of ['', '   ', 'خ'.repeat(65), 'A\u0007B', 'A\u0081B', 42]) {
+  for (const bad of [
+    '',
+    '   ',
+    'خ'.repeat(65),
+    'A\u0007B',
+    'A\u0081B',
+    'A\u202eB',
+    'A\u2066B',
+    42,
+  ]) {
     expect(recordEmployeeDocumentInput.safeParse({ ...base, document_number: bad }).success).toBe(
       false,
     );

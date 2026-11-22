@@ -7,6 +7,13 @@ import { useEmployeeDocuments } from '../api/use-employee-documents';
 import { EmployeeDocumentForm } from './employee-document-form';
 import { EmployeeDocumentsTable } from './employee-documents-table';
 
+type UploadDraft = {
+  identity: string;
+  saved: object | undefined;
+  number: string;
+  revision: number;
+};
+
 const PHASES: Record<string, MessageKey | undefined> = {
   uploading: 'employeeDocuments.uploading',
   verifying: 'employeeDocuments.verifying',
@@ -33,6 +40,7 @@ export function EmployeeDocumentsSection(props: {
     props.userId,
     props.employeeId,
   );
+  const draft = useUploadDraft(JSON.stringify([identity, typeCode]), view, record);
   if (view.isError) return <p role="alert">{envelopeMessage(view.error, locale)}</p>;
   // العرض والفتح يشتركان في دليل قراءة حقيقية للعمر والـquery الحالية، مش بيانات cache وحدها.
   if (!documents) return null;
@@ -53,18 +61,12 @@ export function EmployeeDocumentsSection(props: {
       {open.isError ? <p role="alert">{envelopeMessage(open.error, locale)}</p> : null}
       {documents.can_manage && documents.types.length > 0 ? (
         <EmployeeDocumentForm
-          key={JSON.stringify([
-            props.companyId,
-            props.businessId,
-            props.userId,
-            props.employeeId,
-            typeCode,
-          ])}
+          key={draft.revision}
           types={documents.types}
           {...(typeCode === undefined ? {} : { typeCode })}
           pending={record.isPending}
-          recorded={recorded}
-          onSubmit={(submission) => record.mutate(submission)}
+          initialNumber={draft.number}
+          onSubmit={draft.submit}
         />
       ) : null}
       {progress !== undefined ? <p role="status">{t(locale, progress)}</p> : null}
@@ -72,6 +74,45 @@ export function EmployeeDocumentsSection(props: {
       {recorded ? <p role="status">{t(locale, 'employeeDocuments.recorded')}</p> : null}
     </section>
   );
+}
+
+function useUploadDraft(
+  identity: string,
+  view: ReturnType<typeof useEmployeeDocuments>['view'],
+  record: ReturnType<typeof useEmployeeDocuments>['record'],
+) {
+  const [draft, setDraft] = useState<UploadDraft>({
+    identity,
+    saved: undefined,
+    number: '',
+    revision: 0,
+  });
+  const status = (view.error as { status?: number } | null)?.status;
+  const uploadError = (record.error as { code?: unknown } | null)?.code;
+  const denied =
+    status === 401 ||
+    status === 403 ||
+    status === 404 ||
+    view.data?.can_manage === false ||
+    uploadError === 'UNAUTHENTICATED' ||
+    uploadError === 'FORBIDDEN' ||
+    uploadError === 'FEATURE_DISABLED';
+  const saved = record.data === undefined ? undefined : record.variables;
+  const reset =
+    draft.identity !== identity ||
+    (draft.number !== '' && denied) ||
+    (saved !== undefined && saved !== draft.saved);
+  // الخطأ العابر يخفي النموذج، مع إبقاء الرقم المحلي للمحاولة بعد قراءة مصرح بها.
+  const current = reset ? { identity, number: '', revision: draft.revision + 1, saved } : draft;
+  if (reset) setDraft(current);
+  return {
+    number: current.number,
+    revision: current.revision,
+    submit: (submission: Parameters<typeof record.mutate>[0]) => {
+      setDraft({ ...current, number: submission.values.document_number ?? '' });
+      record.mutate(submission);
+    },
+  };
 }
 
 function useReplacementType(identity: string) {

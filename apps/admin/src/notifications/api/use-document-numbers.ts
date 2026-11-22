@@ -2,8 +2,8 @@
 
 import type { InAppNotification } from '@pospay/contracts';
 import { employeeDocumentNumbers } from '@pospay/contracts';
-import { useMemo } from 'react';
-import { useQueries } from '@tanstack/react-query';
+import { useMemo, useSyncExternalStore } from 'react';
+import { onlineManager, useQueries } from '@tanstack/react-query';
 import { apiClient } from '@/shared/api/client';
 import { documentIdOf, type DocumentNumbersByBusiness } from '../model/render-notification';
 
@@ -36,6 +36,9 @@ async function fetchBusinessNumbers(
 }
 
 const noNumbers: DocumentNumbersByBusiness = new Map();
+const subscribeOnline = onlineManager.subscribe.bind(onlineManager);
+const isOnline = () => onlineManager.isOnline();
+const serverOnline = () => false;
 
 /** أنشطة الأجراس المفتوحة التي تحتاج أرقامًا: نشاط + معرّفاته الحالية مرتّبة. */
 interface DocumentNumberScope {
@@ -76,7 +79,9 @@ export function useDocumentNumbers({
   inboxRead: number | null;
   items: readonly InAppNotification[];
 }): DocumentNumbersByBusiness {
-  const scopes = useMemo(() => numberScopes(inboxRead, items), [inboxRead, items]);
+  const online = useSyncExternalStore(subscribeOnline, isOnline, serverOnline);
+  const visibleInbox = online ? inboxRead : null;
+  const scopes = useMemo(() => numberScopes(visibleInbox, items), [visibleInbox, items]);
   const enabled =
     inboxRead !== null && scopes.length > 0 && companyId !== undefined && userId !== null;
   // استعلام مستقل لكل نشاط: رفض نشاط واحد يخفي أرقامه هو فقط، والأرقام المتحقق منها تبقى ظاهرة.

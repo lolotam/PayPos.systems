@@ -19,5 +19,7 @@ export function documentFailure(error: unknown, operation: string): Error {
   // تسجيل نفس الملف مرتين يصطدم بالمفتاح الفريد حتى لو فاته الفحص المسبق.
   if (code === '23505' && operation === 'record-employee-document')
     return new DocumentError('DOCUMENT_FILE_ALREADY_RECORDED');
-  return new Error('DOCUMENT_PERSISTENCE_FAILED', { cause: error });
+  // خطأ Drizzle الأصلي ممكن يحتوي رقم المستند ضمن معاملات الاستعلام.
+  const sqlState = code !== null && /^[A-Z0-9]{5}$/.test(code) ? code : 'UNKNOWN';
+  return new Error(`DOCUMENT_PERSISTENCE_FAILED (${operation}, SQLSTATE ${sqlState})`);
 }

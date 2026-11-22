@@ -3,6 +3,7 @@ import type { EmployeeDocumentListItem } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import type { ColumnDef } from '@tanstack/react-table';
+import { documentNumberText } from '@/shared/model/document-number-text';
 import { DocumentStatusBadge } from './document-status-badge';
 
 export interface DocumentRowActions {
@@ -28,7 +29,10 @@ export function documentColumns(
     {
       id: 'number',
       header: t(locale, 'employeeDocuments.documentNumber'),
-      cell: ({ row }) => row.original.document_number ?? '—',
+      cell: ({ row }) => {
+        const number = documentNumberText(row.original.document_number);
+        return number === undefined ? '—' : <bdi>{number}</bdi>;
+      },
     },
     {
       id: 'expires',

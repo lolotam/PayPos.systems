@@ -1,6 +1,7 @@
 import { employeeDocumentFormInput, type EmployeeDocumentFormValues } from '@pospay/contracts';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { EmployeeDocumentForm } from './employee-document-form';
 import { documentColumns } from './employee-document-columns';
@@ -125,9 +126,13 @@ it('DN-21 the table shows the number and an em dash placeholder', () => {
   const numberColumn = columns.find((column) => column.id === 'number');
   const get = (row: typeof base) =>
     numberColumn &&
-    (numberColumn.cell as (context: { row: { original: typeof base } }) => unknown)({
+    (numberColumn.cell as (context: { row: { original: typeof base } }) => ReactNode)({
       row: { original: row },
     });
-  expect(get({ ...base, document_number: 'SYN-DOC-0022' })).toBe('SYN-DOC-0022');
+  const arabicLetter = String.fromCodePoint(0x633);
+  const rendered = render(
+    <div>{get({ ...base, document_number: `${arabicLetter}\u202eYN-DOC-0022` })}</div>,
+  );
+  expect(rendered.container.querySelector('bdi')?.textContent).toBe(`${arabicLetter}YN-DOC-0022`);
   expect(get({ ...base, document_number: null })).toBe('—');
 });

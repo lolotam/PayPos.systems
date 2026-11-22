@@ -168,9 +168,7 @@ async function startUpload(documentNumber?: string) {
 it('lists current documents with their badge only after a fresh read and evicts them on close', async () => {
   api.GET.mockResolvedValueOnce({ data: view(false) });
   const { client, unmount } = setup();
-  await waitFor(() =>
-    expect(screen.getByText(t('en', 'employeeDocuments.status_EXPIRING'))).toBeTruthy(),
-  );
+  expect(await screen.findByText(t('en', 'employeeDocuments.status_EXPIRING'))).toBeTruthy();
   expect(screen.queryByRole('button', { name: t('en', 'employeeDocuments.upload') })).toBeNull();
   unmount();
   expect(client.getQueryCache().findAll({ queryKey: prefix })).toEqual([]);
@@ -191,6 +189,13 @@ it('keeps the document number for a retry and clears it for the next upload afte
   await startUpload();
   expect(await screen.findByText(t('en', 'employeeDocuments.recorded'))).toBeTruthy();
   await waitFor(() => expect(number()).toHaveProperty('value', ''));
+  expect(screen.getByLabelText(t('en', 'employeeDocuments.file'))).toHaveProperty(
+    'files.length',
+    0,
+  );
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeDocuments.upload') }));
+  expect(await screen.findByRole('alert')).toBeTruthy();
+  expect(record).toHaveBeenCalledTimes(2);
 
   await startUpload();
   await waitFor(() => expect(record).toHaveBeenCalledTimes(3));
@@ -243,8 +248,7 @@ it('uploads through files, waits for READY, then records by file id with an idem
 it('refuses a missing required expiry or an unsupported file before any upload', async () => {
   api.GET.mockResolvedValue({ data: view() });
   setup();
-  const input = await screen.findByLabelText(t('en', 'employeeDocuments.file'));
-  fireEvent.change(input, {
+  fireEvent.change(await screen.findByLabelText(t('en', 'employeeDocuments.file')), {
     target: { files: [new File(['x'], 'x.webp', { type: 'image/webp' })] },
   });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeDocuments.upload') }));

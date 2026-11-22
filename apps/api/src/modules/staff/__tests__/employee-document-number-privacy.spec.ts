@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { documentFailure } from '../persistence/document-failures.ts';
 import {
   documentFile,
   documentIds,
@@ -10,6 +11,16 @@ import {
 let f: DocumentsFixture;
 let capturedLogs = '';
 const SYNTHETIC = 'SYN-PRIV-777';
+
+it('drops query errors and their bound values before they can reach an error serializer', () => {
+  const postgres = Object.assign(new Error(`Bad value: ${SYNTHETIC}`), { code: 'P0001' });
+  const query = new Error(`Query parameters: ${SYNTHETIC}`, { cause: postgres });
+  const error = documentFailure(query, 'record-employee-document');
+  expect(error.message).toBe(
+    'DOCUMENT_PERSISTENCE_FAILED (record-employee-document, SQLSTATE P0001)',
+  );
+  expect(error).not.toHaveProperty('cause');
+});
 beforeAll(async () => {
   f = await documentsFixture({
     logs: {

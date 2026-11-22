@@ -1,5 +1,6 @@
 import type { InAppNotification } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
+import { documentNumberText } from '@/shared/model/document-number-text';
 
 /** نص الجرس. generic_notice يبقى على locale الصف؛ تنبيهات الحضور والجلسات وتعديل السعر والإلغاء وتغيير المنفّذين وطلب موافقة الخصم وموافقة المنفّذ وتوقف تصحيح العمولة تتبع لغة الواجهة، والعربي الغائب يرجع للإنجليزي. */
 export function renderNotification(
@@ -99,10 +100,14 @@ function renderStaffAlert(
 ): string {
   const locale = viewerLocale ?? item.locale;
   const values = staffAlertValues(item.safe_parameters);
-  const numbered = item.template_key === 'document_expiring' && typeof documentNumber === 'string';
-  if (numbered) values['document_number'] = documentNumber;
+  const number =
+    item.template_key === 'document_expiring' ? documentNumberText(documentNumber) : undefined;
+  if (number !== undefined) values['document_number'] = `\u2068${number}\u2069`;
   return fill(
-    t(locale, numbered ? 'inApp.document_expiring_numbered' : `inApp.${item.template_key}`),
+    t(
+      locale,
+      number !== undefined ? 'inApp.document_expiring_numbered' : `inApp.${item.template_key}`,
+    ),
     values,
   );
 }

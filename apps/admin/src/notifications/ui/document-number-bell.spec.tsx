@@ -2,7 +2,7 @@ import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-li
 import { t } from '@pospay/i18n';
 import { DirectionProvider } from '@pospay/ui';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClientProvider } from '@tanstack/react-query';
 import { createQueryClient } from '@/shared/api/query-client';
 import * as clientModule from '@/shared/api/client';
 import { clearSelection } from '@/shared/api/selection-cookie';
@@ -24,6 +24,7 @@ beforeEach(() => {
   vi.spyOn(clientModule, 'apiClient').mockImplementation(clientModule.createApiClient);
 });
 afterEach(() => {
+  onlineManager.setOnline(true);
   vi.restoreAllMocks();
   clearSelection();
 });
@@ -86,18 +87,21 @@ const numberedText = t('en', 'inApp.document_expiring_numbered')
   .replace('{{employee_name_en}}', 'Synthetic employee')
   .replace('{{document_type_en}}', 'passport')
   .replace('{{expires_on}}', '2026-12-01')
-  .replace('{{document_number}}', 'SYN-BELL-0001');
+  .replace('{{document_number}}', '\u2068SYN-BELL-0001\u2069');
 const numbersPath = (path: string) => path.includes('employee-document-numbers');
 
-it('DN-22 makes no number request while the panel is closed, then shows the number when the lookup returns it', async () => {
+it('DN-22 shows numbers only in an open, connected bell with a fresh lookup', async () => {
   const numbersFetch = vi.fn();
+  const reconnect = deferred<Response>();
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
     const request = input as Request;
     const path = new URL(request.url).pathname;
     if (numbersPath(path)) {
       numbersFetch(path);
       expect(request.signal.aborted).toBe(false);
-      return response({ items: [{ document_id: documentId, document_number: 'SYN-BELL-0001' }] });
+      return numbersFetch.mock.calls.length === 1
+        ? response({ items: [{ document_id: documentId, document_number: 'SYN-BELL-0001' }] })
+        : reconnect.promise;
     }
     return defaultBellResponse(path);
   });
@@ -106,6 +110,21 @@ it('DN-22 makes no number request while the panel is closed, then shows the numb
   fireEvent.click(screen.getByRole('button', { name: t('en', 'inApp.title') }));
   expect(await screen.findByText(numberedText)).not.toBeNull();
   expect(screen.queryByText(new RegExp(documentId))).toBeNull();
+  act(() => onlineManager.setOnline(false));
+  expect(await screen.findByText(todayText)).not.toBeNull();
+  act(() => onlineManager.setOnline(true));
+  expect(screen.queryByText(numberedText)).toBeNull();
+  await waitFor(() => expect(numbersFetch).toHaveBeenCalledTimes(2));
+  await act(async () =>
+    reconnect.resolve(
+      response({
+        items: [{ document_id: documentId, document_number: 'SYN-BELL-FRESH' }],
+      }),
+    ),
+  );
+  expect(
+    await screen.findByText(numberedText.replace('SYN-BELL-0001', 'SYN-BELL-FRESH')),
+  ).toBeTruthy();
 });
 
 it('DN-22 falls back to today’s text when the lookup finds nothing for the id', async () => {
