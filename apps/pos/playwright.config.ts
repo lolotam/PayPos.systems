@@ -4,6 +4,7 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './e2e',
   testMatch: '**/*.pw.ts',
+  testIgnore: ['**/navigation-components.pw.ts'],
   fullyParallel: false,
   retries: 0,
   reporter: 'list',

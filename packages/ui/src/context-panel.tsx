@@ -108,11 +108,28 @@ function useFloatingPanelOverlay(
         containFocus();
       }
     };
+    const onClickCapture = (event: MouseEvent) => {
+      const panel = panelRef.current;
+      const target = event.target instanceof Element ? event.target : null;
+      if (
+        !panel ||
+        !target ||
+        panel.contains(target) ||
+        target.hasAttribute('data-context-panel-backdrop') ||
+        isInsideAnotherDialog(panel, target)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('click', onClickCapture, true);
     return () => {
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('click', onClickCapture, true);
     };
   }, [active, containFocus, onClose, panelRef]);
 }
@@ -265,6 +282,22 @@ function usePanelReturnFocus({
   });
 }
 
+const PANEL_CLASS_NAME = cn(
+  'hidden min-[600px]:fixed min-[600px]:inset-y-0 min-[600px]:start-21 min-[600px]:z-20 min-[600px]:flex min-[600px]:w-68 min-[600px]:border-e min-[600px]:border-sidebar-border min-[600px]:bg-sidebar min-[600px]:text-sidebar-foreground min-[600px]:shadow-lg',
+  'min-[1024px]:static min-[1024px]:z-auto min-[1024px]:shadow-none',
+);
+
+function ContextPanelBackdrop({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      aria-hidden="true"
+      data-context-panel-backdrop=""
+      onClick={onClose}
+      className="fixed inset-0 z-10 bg-black/40 min-[1024px]:hidden"
+    />
+  );
+}
+
 export type ContextPanelProps = {
   workspaces: readonly NavigationWorkspace[];
   labels: ContextPanelLabels;
@@ -312,27 +345,27 @@ export function ContextPanel({
   if (!panelOpen) return null;
   const workspace = workspaces.find((item) => item.id === inspectedId);
   return (
-    <aside
-      dir={dir}
-      role={isFloatingOverlay ? 'dialog' : undefined}
-      aria-modal={isFloatingOverlay ? 'true' : undefined}
-      aria-label={labels.navigation}
-      className={cn(
-        'hidden min-[600px]:fixed min-[600px]:inset-y-0 min-[600px]:start-21 min-[600px]:z-20 min-[600px]:flex min-[600px]:w-68 min-[600px]:border-e min-[600px]:border-sidebar-border min-[600px]:bg-sidebar min-[600px]:text-sidebar-foreground min-[600px]:shadow-lg',
-        'min-[1024px]:static min-[1024px]:z-auto min-[1024px]:shadow-none',
-      )}
-    >
-      <ContextPanelBody
-        panelRef={panelRef}
-        workspace={workspace}
-        workspaces={isFloatingOverlay ? workspaces : undefined}
-        currentWorkspaceId={currentWorkspaceId}
-        labels={labels}
-        activePageId={activePageId}
-        visiblePageIds={visiblePageIds}
-        onInspect={isFloatingOverlay ? onInspect : undefined}
-        onClose={onClose}
-      />
-    </aside>
+    <>
+      {isFloatingOverlay ? <ContextPanelBackdrop onClose={onClose} /> : null}
+      <aside
+        dir={dir}
+        role={isFloatingOverlay ? 'dialog' : undefined}
+        aria-modal={isFloatingOverlay ? 'true' : undefined}
+        aria-label={labels.navigation}
+        className={PANEL_CLASS_NAME}
+      >
+        <ContextPanelBody
+          panelRef={panelRef}
+          workspace={workspace}
+          workspaces={isFloatingOverlay ? workspaces : undefined}
+          currentWorkspaceId={currentWorkspaceId}
+          labels={labels}
+          activePageId={activePageId}
+          visiblePageIds={visiblePageIds}
+          onInspect={isFloatingOverlay ? onInspect : undefined}
+          onClose={onClose}
+        />
+      </aside>
+    </>
   );
 }

@@ -110,7 +110,9 @@ const modules: readonly NavigationModule[] = [
 const workspaces: readonly NavigationWorkspace[] = [
   {
     id: 'business',
-    label: 'الأعمال والإعدادات',
+    label: longLabel
+      ? 'الأعمال والإعدادات الإدارية المتقدمة والتفصيلية جدًا'
+      : 'الأعمال والإعدادات',
     sections: [
       {
         id: 'business-setup',

@@ -73,23 +73,24 @@ it('traps Tab and Shift+Tab, closes on Escape from filter input, and restores op
   expect(document.activeElement).toBe(railButton);
 });
 
-it('returns focus inside the tablet dialog immediately when switching workspaces from NavRail', () => {
+it('blocks background button activation while the tablet modal is open and closes on backdrop click', () => {
   stubViewportWidth(820);
+  const outsideAction = vi.fn();
   function Harness() {
     const openerRef = useRef<HTMLButtonElement>(null);
-    const [inspectedWorkspaceId, setInspectedWorkspaceId] = useState<string>('business');
-    const [open, setOpen] = useState(true);
+    const [open, setOpen] = useState(false);
     return (
       <DirectionProvider dir="ltr">
+        <button type="button" onClick={outsideAction}>
+          Outside destructive action
+        </button>
         <NavRail
           workspaces={workspaces}
           labels={chromeLabels}
           currentWorkspaceId="business"
-          inspectedWorkspaceId={inspectedWorkspaceId}
           panelOpen={open}
-          onInspect={(workspaceId, opener) => {
+          onInspect={(_workspaceId, opener) => {
             openerRef.current = opener;
-            setInspectedWorkspaceId(workspaceId);
             setOpen(true);
           }}
         />
@@ -97,7 +98,6 @@ it('returns focus inside the tablet dialog immediately when switching workspaces
           workspaces={workspaces}
           labels={contextLabels}
           currentWorkspaceId="business"
-          inspectedWorkspaceId={inspectedWorkspaceId}
           panelOpen={open}
           openerRef={openerRef}
           onClose={() => setOpen(false)}
@@ -107,102 +107,63 @@ it('returns focus inside the tablet dialog immediately when switching workspaces
   }
 
   render(<Harness />);
-  const teamRailButton = screen.getByRole('button', { name: 'Team Inspect' });
-  teamRailButton.focus();
-  fireEvent.click(teamRailButton);
+  const railButton = screen.getByRole('button', { name: 'Business Current Inspect' });
+  fireEvent.click(railButton);
 
   const dialog = screen.getByRole('dialog', { name: contextLabels.navigation });
   const closeButton = screen.getByRole('button', { name: contextLabels.close });
+  const outsideButton = screen.getByRole('button', { name: 'Outside destructive action' });
+  outsideButton.focus();
+  fireEvent.click(outsideButton);
+  expect(outsideAction).not.toHaveBeenCalled();
   expect(dialog.contains(document.activeElement)).toBe(true);
   expect(document.activeElement).toBe(closeButton);
+
+  const backdrop = document.querySelector('[data-context-panel-backdrop]');
+  expect(backdrop).toBeTruthy();
+  if (backdrop) fireEvent.click(backdrop);
+  expect(screen.queryByRole('dialog', { name: contextLabels.navigation })).toBeNull();
+  expect(document.activeElement).toBe(railButton);
+
+  fireEvent.click(outsideButton);
+  expect(outsideAction).toHaveBeenCalledTimes(1);
 });
 
 it('keeps focus inside the tablet dialog when visiblePageIds removes the focused link', () => {
   stubViewportWidth(820);
-  function Harness() {
-    const [visiblePageIds, setVisiblePageIds] = useState<string[] | undefined>(['columns', 'offers']);
-    return (
-      <DirectionProvider dir="ltr">
-        <button type="button" onClick={() => setVisiblePageIds(['offers'])}>
-          Hide columns
-        </button>
-        <ContextPanel
-          workspaces={workspaces}
-          labels={contextLabels}
-          currentWorkspaceId="business"
-          visiblePageIds={visiblePageIds}
-          panelOpen
-          onClose={() => undefined}
-        />
-      </DirectionProvider>
-    );
-  }
-
-  render(<Harness />);
+  const { rerender } = render(
+    <DirectionProvider dir="ltr">
+      <ContextPanel
+        workspaces={workspaces}
+        labels={contextLabels}
+        currentWorkspaceId="business"
+        visiblePageIds={['columns', 'offers']}
+        panelOpen
+        onClose={() => undefined}
+      />
+    </DirectionProvider>,
+  );
   const columnsLink = screen.getByRole('link', { name: 'الأعمدة' });
   columnsLink.focus();
   expect(document.activeElement).toBe(columnsLink);
 
-  fireEvent.click(screen.getByRole('button', { name: 'Hide columns' }));
+  rerender(
+    <DirectionProvider dir="ltr">
+      <ContextPanel
+        workspaces={workspaces}
+        labels={contextLabels}
+        currentWorkspaceId="business"
+        visiblePageIds={['offers']}
+        panelOpen
+        onClose={() => undefined}
+      />
+    </DirectionProvider>,
+  );
 
   const dialog = screen.getByRole('dialog', { name: contextLabels.navigation });
   expect(screen.queryByRole('link', { name: 'الأعمدة' })).toBeNull();
   expect(dialog.contains(document.activeElement)).toBe(true);
   expect(document.activeElement).toBe(screen.getByRole('button', { name: contextLabels.close }));
-});
-
-it('contains focus on an outside no-op click while preserving NavRail workspace switching at 820px', () => {
-  stubViewportWidth(820);
-  function Harness() {
-    const openerRef = useRef<HTMLButtonElement>(null);
-    const [inspectedWorkspaceId, setInspectedWorkspaceId] = useState<string>('business');
-    const [open, setOpen] = useState(true);
-    return (
-      <DirectionProvider dir="ltr">
-        <button type="button" onClick={() => setOpen(true)}>
-          Reopen panel
-        </button>
-        <NavRail
-          workspaces={workspaces}
-          labels={chromeLabels}
-          currentWorkspaceId="business"
-          inspectedWorkspaceId={inspectedWorkspaceId}
-          panelOpen={open}
-          onInspect={(workspaceId, opener) => {
-            openerRef.current = opener;
-            setInspectedWorkspaceId(workspaceId);
-            setOpen(true);
-          }}
-        />
-        <ContextPanel
-          workspaces={workspaces}
-          labels={contextLabels}
-          currentWorkspaceId="business"
-          inspectedWorkspaceId={inspectedWorkspaceId}
-          panelOpen={open}
-          openerRef={openerRef}
-          onClose={() => setOpen(false)}
-        />
-      </DirectionProvider>
-    );
-  }
-
-  render(<Harness />);
-  const dialog = screen.getByRole('dialog', { name: contextLabels.navigation });
-  const closeButton = screen.getByRole('button', { name: contextLabels.close });
-
-  const reopenButton = screen.getByRole('button', { name: 'Reopen panel' });
-  reopenButton.focus();
-  fireEvent.click(reopenButton);
-  expect(dialog.contains(document.activeElement)).toBe(true);
-  expect(document.activeElement).toBe(closeButton);
-
-  const teamRailButton = screen.getByRole('button', { name: 'Team Inspect' });
-  teamRailButton.focus();
-  fireEvent.click(teamRailButton);
-  expect(screen.getByRole('heading', { name: 'Team' })).toBeTruthy();
-  expect(dialog.contains(document.activeElement)).toBe(true);
-  expect(document.activeElement).toBe(closeButton);
 });
 
 it('preserves the original observed opener across outside clicks while the tablet modal is open', () => {

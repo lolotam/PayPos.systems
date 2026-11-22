@@ -289,50 +289,49 @@ for (const dir of DIRECTIONS) {
   test(`C rail inspects another workspace and filters the panel (${dir})`, async ({ page }) => {
     for (const width of [1280, 820]) {
       await page.setViewportSize({ width, height: 900 });
-      await openScene(page, 'context', dir);
+      await openScene(page, 'context', dir, width < 1024 ? '&longLabel=true' : '');
       const rail = page.getByRole('navigation', { name: LABELS.navigation });
-      const currentWorkspace = rail.getByRole('button', { name: LABELS.business }).first();
+      const currentWorkspace = rail.getByRole('button', { name: new RegExp(LABELS.business) }).first();
       await expectVisibleNavRailCurrentMarker(currentWorkspace);
-
       const panel = page.getByRole(width >= 1024 ? 'complementary' : 'dialog', {
         name: LABELS.panelNavigation,
       });
       await expect(panel).toBeVisible();
       await expect(panel.getByRole('link', { name: LABELS.columns })).toBeVisible();
-
       const team = rail.getByRole('button', { name: LABELS.people }).first();
-      await team.click();
-      await expectVisibleNavRailCurrentMarker(currentWorkspace);
-      await expect(team).not.toHaveAttribute('data-current', '');
-      await expect(team).toHaveAttribute('aria-pressed', 'true');
-      await expect(panel.getByRole('link', { name: LABELS.employees })).toBeVisible();
-      await expect(panel.getByRole('link', { name: LABELS.columns })).toHaveCount(0);
-
       const closePanel = panel.getByRole('button', { name: LABELS.panelClose });
-      if (width < 1024) {
-        await expect(closePanel).toBeFocused();
-        const biz = panel.getByRole('button', { name: LABELS.business });
+      if (width >= 1024) {
+        await team.click();
+        await expectVisibleNavRailCurrentMarker(currentWorkspace);
+        await expect(team).not.toHaveAttribute('data-current', '');
+        await expect(team).toHaveAttribute('aria-pressed', 'true');
+        await expect(panel.getByRole('link', { name: LABELS.employees })).toBeVisible();
+        await expect(panel.getByRole('link', { name: LABELS.columns })).toHaveCount(0);
+        await closePanel.focus();
+        await page.keyboard.press('Enter');
+        await expect(panel).toBeHidden();
+        await expect(team).toBeFocused();
+      } else {
+        const biz = panel.getByRole('button', { name: new RegExp(LABELS.business) });
         const ppl = panel.getByRole('button', { name: LABELS.people });
-        await expectMinTarget(biz);
-        await expectMinTarget(ppl);
+        for (const target of [biz, ppl]) await expectMinTarget(target);
         await expectVisibleCurrentMarker(biz);
         const [pBox, bBox] = await Promise.all([requiredBox(panel), requiredBox(biz)]);
-        expect(bBox.x + bBox.width, 'switcher inside panel').toBeLessThanOrEqual(pBox.x + pBox.width + 1);
+        expect(bBox.x, 'switcher left edge inside panel').toBeGreaterThanOrEqual(pBox.x - 1);
+        expect(bBox.x + bBox.width, 'switcher right edge').toBeLessThanOrEqual(pBox.x + pBox.width + 1);
+        await closePanel.focus();
         await page.keyboard.press('Tab');
         await expect(biz).toBeFocused();
-        await page.keyboard.press('Enter');
-        await expect(panel.getByRole('link', { name: LABELS.columns })).toBeVisible();
         await page.keyboard.press('Tab');
         await page.keyboard.press('Tab');
         await expect(ppl).toBeFocused();
         await page.keyboard.press('Enter');
         await expect(panel.getByRole('link', { name: LABELS.employees })).toBeVisible();
         await expectVisibleCurrentMarker(biz);
+        await page.keyboard.press('Escape');
+        await expect(panel).toBeHidden();
+        await expect(page.getByRole('button', { name: /إعادة فتح لوحة/ })).toBeFocused();
       }
-      await closePanel.focus();
-      await page.keyboard.press('Enter');
-      await expect(panel).toBeHidden();
-      await expect(team).toBeFocused();
       await team.click();
       await expect(panel).toBeVisible();
     }
