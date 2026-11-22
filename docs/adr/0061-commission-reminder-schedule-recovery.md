@@ -39,7 +39,7 @@ or secret.
 
 | Function | Owner role | Returns | Reads / writes |
 | --- | --- | --- | --- |
-| `public.recovery_company_ids(after_id uuid, page_size integer)` | `pospay_recovery_company_reader` | one page of live company ids, ascending, `page_size` clamped to 1…1000 | `SELECT (id)` on `companies` where `deleted_at IS NULL` |
+| `public.recovery_company_ids(after_id uuid, page_size integer)` | `pospay_recovery_company_reader` | one page of company ids, ascending, `page_size` clamped to 1…1000; only live companies are visible to the role (the RLS policy below) | `SELECT (id)` on `companies`; the body selects, filters by the cursor and orders on `id` only and reads no other column |
 | `public.clear_reminder_schedules_lost_flag(flag_id uuid, rebuilt_run_id text, rebuilt_pass_id uuid, companies_rebuilt integer, audit_id uuid)` | `pospay_recovery_flag_clearer` | `boolean`: true when this call cleared the flag | `UPDATE (cleared_at, cleared_by)` on `operational_recovery_flags`; `INSERT` on `platform_audit_log` |
 
 Both: `SECURITY DEFINER`, not `LEAKPROOF`, `SET search_path = pg_catalog, pg_temp`, `SET row_security = on`, qualified
@@ -49,7 +49,7 @@ migration transaction, with no schema `CREATE` left on the owner roles. Effectiv
 
 | Grantee | Exact privilege |
 | --- | --- |
-| `pospay_recovery_company_reader` | `USAGE ON SCHEMA public`; `SELECT (id) ON public.companies`; policy `companies_recovery_select … TO pospay_recovery_company_reader USING (deleted_at IS NULL)` (`companies` has forced RLS with policies for `pospay_app` only, migration 0002; this is a role-scoped exception like ADR-0003's for the dispatcher on `outbox`) |
+| `pospay_recovery_company_reader` | `USAGE ON SCHEMA public`; `SELECT (id) ON public.companies`; policy `companies_recovery_select … TO pospay_recovery_company_reader USING (deleted_at IS NULL)` — **the only place `deleted_at` is referenced**; the role has no `SELECT (deleted_at)` grant and the function does not filter on it (`companies` has forced RLS with policies for `pospay_app` only, migration 0002; this is a role-scoped exception like ADR-0003's for the dispatcher on `outbox`) |
 | `pospay_recovery_flag_clearer` | `USAGE ON SCHEMA public`; `SELECT, UPDATE (cleared_at, cleared_by) ON public.operational_recovery_flags`; `INSERT ON public.platform_audit_log` |
 | `pospay_dispatcher` (CS-Q31, narrowed) | `SELECT` and **`INSERT (id, code, raised_at)`** on `operational_recovery_flags` (a column-level `INSERT`: it can raise a flag, never insert one already cleared); `EXECUTE` on the two functions |
 
@@ -125,11 +125,18 @@ sentinel, an open flag, a changed `run_id`, or — in the start-up pass — **an
 2. **Decide the incident, under ownership.** Re-read the sentinel and the open flags: nothing needed → delete the key
    and stop; an open flag → adopt its id; a loss → `INSERT … ON CONFLICT DO NOTHING` raises the flag (one open flag
    per code), `/ready` turns degraded, the alert is raised. A re-certification with no loss continues without incident.
-   Update the key's `incident_id`.
-3. **Rebuild** every company (point 2). After every page: renew and check the `run_id` is still `R0`. If the pass finds
-   a loss it had not seen (a missing scheduler, a lost key or changed `run_id`) it goes back to step 2 under the same
-   key if it still owns it — **a re-certification that meets a loss continues as an incident recovery, under the same
-   key** — and stops if it does not.
+   Update the key's `incident_id`. **When the pass adopts or raises an incident and a sentinel still exists, it
+   invalidates the sentinel first — a guarded delete (only if the key holds this `pass_id`) — before the clear path.** An
+   old valid sentinel therefore can never outlive the incident it predates: whatever the clear then does (true, false,
+   unknown, or a superseded winner), `/ready` returns to healthy only after a new publication.
+3. **Rebuild** every company (point 2). After every page: renew the key and check the `run_id` is still `R0`.
+   - **A changed `run_id`, a failed renew or a lost key ends the pass, even if the key is still there** (Redis can restore
+     it from persistence after a restart, so «the key still holds my `pass_id`» is not enough): the pass stops, **deletes
+     its own key by compare-and-set** (the delete is the one that frees it at once; if the worker is dead the 120 s TTL
+     does), and does not clear or publish. The next detection starts a **new pass** — fresh `R0`, new `pass_id`, the key
+     taken by `NX` create — which needs no mechanism beyond the operations above.
+   - **A missing scheduler found while ownership and `R0` still hold** is the only conversion: a re-certification that
+     finds one continues as an incident recovery under the same key (step 2: raise or adopt, invalidate the sentinel).
 4. **Before the clear**, the same ownership and `run_id` check. Then call the clear (incident passes only); no incident
    → skip.
    - **true** → step 5. **false** (already cleared elsewhere, or not this code's) → publish nothing, delete the key,
@@ -149,7 +156,7 @@ was found).
 | Ordering | Outcome |
 | --- | --- |
 | **W1** — the key owner wins | true; step 5's guard holds; published; credited to this pass (`pass_id` in the audit row) |
-| **W2** — a pass that lost the key after its last check wins | its call is true but step 5's compare fails: it publishes nothing; the owner's call is false: it publishes nothing and deletes its key. **Neither publishes**; the sentinel is missing and the flag closed, so the next detection raises a new incident and a new pass certifies the generation, never crediting the stale one |
+| **W2** — a pass that lost the key after its last check wins | its call is true but step 5's compare fails: it publishes nothing; the owner's call is false: it publishes nothing and deletes its key. **Neither publishes**; the sentinel was invalidated at step 2 and the flag is closed, so the next detection raises a new incident and a new pass certifies the generation, never crediting the stale one |
 
 **Walk-through (an open incident or any mismatch keeps `/ready` degraded in every case):**
 
@@ -157,10 +164,12 @@ was found).
 | --- | --- |
 | **First run on an empty Redis** | every scheduler missing → incident `I1` raised and adopted under the key; full rebuild; clear true; publish; `/ready` healthy |
 | **Key lost mid-rebuild, same `run_id`** (a `FLUSHDB`; earlier upserts are gone) | the next renew fails → the pass stops; a new pass (new `pass_id`) rebuilds **all** companies and only then clears |
+| **`run_id` changed mid-pass, the key still present** (Redis restarted and restored the key from persistence) | the next check sees `run_id` ≠ `R0`: the pass stops and deletes its own key; a new pass with a fresh `R0` and `pass_id` creates the key and rebuilds **all** companies; the old pass never clears or publishes |
+| **`run_id` changed mid-pass, the key lost** | the renew fails → the pass stops; the same new pass follows (a key left by a dead worker is taken after its TTL) |
 | **Takeover:** P1 stops renewing, the TTL lapses, P2 creates the key | P1's every later check fails: it raises, clears and publishes nothing; if P1 was already past its last check it may win the clear (W2) but cannot publish |
 | **Restart mid-pass / between the clear and the publish** | no sentinel at start-up → detection takes ownership and finds either the open flag (adopted) or a closed one (a new incident); one more full pass |
 | **Deploy, or a rollback and return to the same release** | the process start runs a pass; all schedulers present → re-certification, no incident; missing ones → incident recovery in the same pass |
-| **An open flag with a valid sentinel** (for example a stale insert that landed after a newer pass had published, because the ownership check and the PostgreSQL insert are not atomic) | `/ready` stays degraded (the incident wins); a new pass adopts the incident, re-verifies every company's scheduler, clears it and publishes; readiness returns only then |
+| **An open flag with a valid sentinel** (for example a stale insert that landed after a newer pass had published, because the ownership check and the PostgreSQL insert are not atomic) | `/ready` stays degraded (the incident wins); a new pass adopts the incident, invalidates the old sentinel, re-verifies every company's scheduler, clears it and publishes; readiness returns only then |
 
 **The residual window.** Redis and PostgreSQL cannot be committed together. Between the last Redis check (step 4) and the
 commit of the clear, Redis can be lost. Then the incident is **closed on information that is already stale**; readiness
@@ -236,7 +245,8 @@ binds if it differs).
 
 Recovery cases (CS-Q32), each with its own expected result:
 
-- **Privileges:** each function refuses `PUBLIC`, `pospay_app`, `pospay_auth`, `pospay_notifications`; the reader returns
+- **Privileges:** the reader role has no `SELECT (deleted_at)` and the function reads only `id` (deleted companies are
+  absent through the policy); each function refuses `PUBLIC`, `pospay_app`, `pospay_auth`, `pospay_notifications`; the reader returns
   ids only, live companies, in order; the dispatcher cannot `SELECT` from `companies` nor insert a flag with
   `cleared_at`/`cleared_by` set, nor `UPDATE`/`DELETE` the flag table; the facade exposes no raw client.
 - **Clear function:** unknown and already-cleared ids return false; **an open incident of another code is not cleared and
@@ -246,7 +256,9 @@ Recovery cases (CS-Q32), each with its own expected result:
   past its TTL and returns cannot raise, update the incident id, clear, delete the successor's key or publish; (b)
   **W1** — the key owner wins the clear: published, credited, `/ready` healthy; (c) **W2** — a successor takes the key
   **after** the old pass's last check and the old pass wins the clear: neither publishes, `/ready` stays degraded, a new
-  incident is raised and the new pass restores readiness; (d) an old pass whose key disappears and is rewritten by a
+  incident is raised and the new pass restores readiness; **(c1) adoption with a valid old sentinel followed by a `false`
+  or `unknown` clear never returns `/ready` to healthy without a new publication; (c2) the same with a superseded
+  winner (W2)**; (d) an old pass whose key disappears and is rewritten by a
   newer pass with the same `incident_id` and `run_id` never clears or publishes before its last check; (e) **a pass
   paused before the flag insert until a successor has published** lands its insert after the successor has published, leaving an
   open flag with a valid sentinel: `/ready` is degraded, a new pass adopts that incident, re-verifies every company's
@@ -260,8 +272,10 @@ Recovery cases (CS-Q32), each with its own expected result:
 - **Retry:** across successive `pass_id`s the schedule continues; under Reading B exhaustion is reached across pass
   changes and a restart, the unrecovered companies stop being repaired and the successful schedulers keep running.
 - **Start-up:** a process start (also after a rollback to the same release) runs a pass; `/ready` is degraded until it
-  publishes; Redis lost during the start-up scan turns it into an incident recovery under the same key; a failing
-  incident-free pass retries and raises `COMMISSION_REMINDER_RECERTIFICATION_FAILED` with no ledger incident.
+  publishes; a missing scheduler found while ownership and `R0` hold turns it into an incident recovery under the same
+  key; **a changed `run_id` during the scan, with the key still present or lost, stops that pass without clearing or
+  publishing and a new pass (fresh `R0`, new `pass_id`) recovers the incident**; a failing incident-free pass retries and
+  raises `COMMISSION_REMINDER_RECERTIFICATION_FAILED` with no ledger incident.
 - **Operator fallback:** creates the key before it touches any scheduler; with an already-consumed `CompanyCreated`
   event and a missing scheduler it still restores the scheduler; aborts on a lost key or changed `run_id` without
   clearing or publishing; on success the next heartbeat is healthy and no incident reopens.
