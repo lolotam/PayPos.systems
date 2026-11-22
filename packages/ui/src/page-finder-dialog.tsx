@@ -56,7 +56,7 @@ export function FinderDialog({
         input.current?.focus();
       }}
       onCloseAutoFocus={onCloseAutoFocus}
-      className="fixed inset-x-2 top-8 z-50 max-h-[min(80vh,36rem)] overflow-y-auto rounded-card bg-card p-4 text-card-foreground shadow-lg"
+      className="fixed inset-x-2 top-8 z-50 max-h-[min(80vh,36rem)] overflow-y-auto min-[600px]:mx-auto min-[600px]:max-w-lg rounded-card bg-card p-4 text-card-foreground shadow-lg"
     >
       <div className="mb-3 flex items-center gap-2">
         <Dialog.Title className="text-base font-semibold">{labels.title}</Dialog.Title>

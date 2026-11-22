@@ -24,7 +24,7 @@ export function CollapseToggle({
   onToggle,
 }: CollapseToggleProps) {
   return (
-    <div className="flex shrink-0 items-center justify-end p-2">
+    <div className={cn('flex shrink-0 items-center p-2', expanded ? 'justify-end' : 'justify-center')}>
       <Button
         ref={toggleRef}
         variant="sidebar"

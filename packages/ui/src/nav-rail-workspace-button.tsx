@@ -32,6 +32,7 @@ export function RailWorkspaceButton({
         .filter(Boolean)
         .join(' ')}
       aria-pressed={inspected}
+      title={workspace.icon ? workspace.label : undefined}
       data-current={isCurrent ? '' : undefined}
       data-workspace-id={workspace.id}
       onClick={(event) => onInspect(workspace.id, event.currentTarget)}

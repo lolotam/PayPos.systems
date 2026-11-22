@@ -186,3 +186,40 @@ it('leaves focus alone across 700px after the user clicked away from the navigat
   );
   expect(document.activeElement).toBe(document.body);
 });
+
+it('leaves focus alone across 700px when a touch tap moved focus after pointerup', async () => {
+  const width = { value: 820 };
+  stubBreakpoints(width);
+  const view = render(tree({ currentModuleId: 'people' }));
+  const moduleTrigger = screen.getByRole('button', { name: /People/ });
+  moduleTrigger.focus();
+  // Touch browsers apply the tap's focus change after pointerup, so the trigger is still focused here.
+  fireEvent.pointerUp(document.body);
+  expect(document.activeElement).toBe(moduleTrigger);
+  moduleTrigger.blur();
+  fireEvent.click(document.body);
+
+  width.value = 699;
+  view.rerender(tree({ currentModuleId: 'people' }));
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: chromeLabels.drawerOpen })).toBeTruthy(),
+  );
+  expect(document.activeElement).toBe(document.body);
+});
+
+it('marks the layout it has settled on after each breakpoint focus decision', async () => {
+  const width = { value: 820 };
+  stubBreakpoints(width);
+  const view = render(tree({ currentModuleId: 'people' }));
+  expect(view.container.querySelector('[data-settled-layout="tablet"]')).not.toBeNull();
+  screen.getByRole('button', { name: /People/ }).focus();
+
+  width.value = 699;
+  view.rerender(tree({ currentModuleId: 'people' }));
+
+  await waitFor(() =>
+    expect(view.container.querySelector('[data-settled-layout="phone"]')).not.toBeNull(),
+  );
+  // The marker is written after the focus transfer, so focus has already reached the drawer opener.
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: chromeLabels.drawerOpen }));
+});
