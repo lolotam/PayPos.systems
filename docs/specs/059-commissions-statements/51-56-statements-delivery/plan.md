@@ -102,6 +102,21 @@ both fingerprints is fixed here, with the open blocked corrections in the input 
 the estimate with a carry. **Size:** about 390 (PP-192). **Depends on:** nothing unmerged to build; opened after its migration turn, merged after
 55-2f (R4, ruling M1).
 
+**3 (split, PP-229).** Built, part 3 measured about 1 570 new production lines against the planned 390: the plan had not
+counted the statement builder that D-26 and FR-033 require. Waleed's answer to card PP-229 (2026-11-22, verbatim):
+«3 PRs للجزء الأول (المقترح): المدخلات والبصمة ~455، بناء الكشف وبصمته ~803، الجدول وربط التقدير ~426». Part 3 is
+therefore delivered as three PRs, and part 4 stays a separate PR:
+
+| PR | Content | Limit (new production lines; refused above twice) | Migration | Depends on |
+| --- | --- | --- | --- | --- |
+| 51-1 PR 1a-i | canonical input, input fingerprint, the FR-022 assembly change, unit tests | about 455 | no | — |
+| 51-1 PR 1a-ii | statement builder, statement fingerprint, CM-34e pure half | about 803 | no | 1a-i (stacked) |
+| 51-1 PR 1b | `commission_carries` + RLS + CM-R11, hash port and adapter, carries in the estimate | about 426 (314 new + 112 moved verbatim) | yes | 1a-i |
+
+Each PR states its measured numbers split into new logic, verbatim moves, tests, SQL and generated files. 1a-i opens
+after its gates; 1a-ii after 1a-i is reviewed; 1b stays local until its migration turn. All of 51-1 still merges after
+55-2f (PP-101.2).
+
 **4. 51-1 PR 2 (Heavy: permission, migration).** `use-cases/generate-statement/`, `use-cases/get-statement/` (reader
 ports only, `READ ONLY` transaction, D-25), the statement controller, statement contracts; the root-bound branch-names
 and customer-names reader ports with their module-map Port rows; `review:commissions:business`: reference-data
@@ -240,7 +255,7 @@ migrations on their own private cluster and **take a number, run `pnpm db:genera
 `--delete-branch`). Proposed order, each waiting for the one before it to merge:
 
 1. 53-1 (function file, then the index file)
-2. 51-1 PR 1 (`commission_carries`)
+2. 51-1 PR 1b (`commission_carries`)
 3. #486 (data step + CHECK)
 4. 51-1 PR 2 (review permission)
 5. 52-1 (returns table, approve permission)

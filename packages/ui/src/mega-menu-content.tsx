@@ -47,12 +47,14 @@ export function MegaMenuContent({
   const visibleModules = modules.filter((item) => moduleHasVisiblePages(item, visiblePageIds));
   const hasVisiblePages = moduleHasVisiblePages(module, visiblePageIds);
   return (
+    // السقف = ارتفاع النافذة ناقص شريط الأعلى (56px، و64px من 1024) ناقص هامش سفلي 16px:
+    // القائمة تكبر مع الشاشة وتمرّر داخليًا فقط حين تقصر النافذة عن محتواها.
     <Dialog.Content
       dir={dir}
       aria-modal="true"
       aria-describedby={undefined}
       onCloseAutoFocus={(event) => onCloseAutoFocus?.(event, module.id)}
-      className="fixed inset-x-2 top-14 z-50 max-h-[min(70vh,32rem)] overflow-y-auto rounded-card bg-card p-4 text-card-foreground shadow-lg min-[1024px]:top-16"
+      className="fixed inset-x-2 top-14 z-50 max-h-[calc(100dvh-4.5rem)] overflow-y-auto rounded-card bg-card p-4 text-card-foreground shadow-lg min-[1024px]:top-16 min-[1024px]:max-h-[calc(100dvh-5rem)]"
     >
       <div className="mb-4 flex items-center gap-2">
         <Dialog.Title className="text-base font-semibold">{module.label}</Dialog.Title>
