@@ -102,10 +102,12 @@ it('does not use the old customer when switching between two authorized scopes',
 });
 
 it('drops the active selection and rechecks context on an explicit profile denial', async () => {
-  serveProfile(() => ({ error: { code: 'FORBIDDEN' }, response: { status: 403 } }));
+  let release!: (value: unknown) => void;
+  serveProfile(() => new Promise((done) => { release = done; }));
   renderForm();
   await chooseCustomer(state);
   const contextsBefore = state.get.mock.calls.filter(([path]) => String(path).endsWith('/package-sales/context')).length;
+  await act(async () => { release({ error: { code: 'FORBIDDEN' }, response: { status: 403 } }); });
   await waitFor(() => expect(screen.queryAllByText(packageSaleCustomer.name)).toHaveLength(0));
   expect(screen.queryByRole('region', { name: profileName })).toBeNull();
   await waitFor(() => expect(state.get.mock.calls.filter(([path]) => String(path).endsWith('/package-sales/context')).length).toBeGreaterThan(contextsBefore));

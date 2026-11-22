@@ -205,6 +205,40 @@ it('keeps a rejected CR/LF paste authoritative through focus, blur and submit un
   await waitFor(() => expect(state.post).toHaveBeenCalledTimes(1));
 });
 
+it('a rejected paste invalidates an already selected unsaved customer', async () => {
+  state.post.mockClear();
+  state.locale = 'en';
+  state.post.mockResolvedValue({ data: saved });
+  scopedMount();
+  fill();
+  resolve();
+  await screen.findByRole('status');
+  const email = screen.getByLabelText(t('en', 'serviceSessions.email'));
+  fireEvent.paste(email, { clipboardData: { getData: () => 'a\r\nb' } });
+  await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+  expect(screen.getByText(t('en', 'serviceSessions.invalidProfileFields'))).toBeTruthy();
+});
+
+it('explicitly omits a rejected optional email and registers without it', async () => {
+  state.post.mockClear();
+  state.locale = 'en';
+  state.post.mockResolvedValue({ data: saved });
+  scopedMount();
+  fill();
+  const email = screen.getByLabelText(t('en', 'serviceSessions.email'));
+  fireEvent.focus(email);
+  fireEvent.paste(email, { clipboardData: { getData: () => '\r\n' } });
+  fireEvent.blur(email);
+  expect(screen.getByText(t('en', 'serviceSessions.invalidProfileFields'))).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.emailOmit') }));
+  await waitFor(() => expect(screen.queryByText(t('en', 'serviceSessions.invalidProfileFields'))).toBeNull());
+  expect((email as HTMLInputElement).value).toBe('');
+  fireEvent.click(screen.getByRole('radio', { name: t('en', 'serviceSessions.genderFemale') }));
+  resolve();
+  await waitFor(() => expect(state.post).toHaveBeenCalledTimes(1));
+  expect(state.post.mock.lastCall?.[1].body).not.toHaveProperty('email');
+});
+
 it('refuses raw control characters in email without writing', async () => {
   state.post.mockClear();
   state.locale = 'en';

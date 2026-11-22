@@ -116,6 +116,7 @@ type CustomerProfileInputsProps = {
   emailRejected: boolean;
   onEmailRejected: () => void;
   onEmailEdit: () => void;
+  onOmitEmail: () => void;
 };
 
 export function CustomerProfileInputs({
@@ -128,6 +129,7 @@ export function CustomerProfileInputs({
   emailRejected,
   onEmailRejected,
   onEmailEdit,
+  onOmitEmail,
 }: CustomerProfileInputsProps) {
   const generated = useId();
   const id = `${prefix}-${generated}`;
@@ -155,9 +157,11 @@ export function CustomerProfileInputs({
         email={changed(form.register('email'), () => { invalidate(); onEmailEdit(); })}
         note={changed(form.register('note'), invalidate)}
         emailInvalid={emailRejected || !!form.formState.errors.email}
+        emailRejected={emailRejected}
         noteInvalid={!!form.formState.errors.note}
         scoped={entryScope !== 'company'}
         onRejectedPaste={onEmailRejected}
+        onOmitEmail={onOmitEmail}
       />
     </>
   );

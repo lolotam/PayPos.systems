@@ -311,7 +311,7 @@ export function SessionCustomerField(props: SessionCustomerFieldProps) {
       <fieldset disabled={disabled || mutation.isPending || form.formState.isSubmitting} onBlur={onBlur} className="flex flex-col gap-3 text-start">
       <legend>{t(locale, 'serviceSessions.customer')}</legend>
       {sessionCustomerContact({ prefix, locale, form, invalid: contactInvalid, nameEntry, callingCode, nationalNumber, invalidate })}
-      <CustomerProfileInputs prefix={prefix} locale={locale} form={form} entryScope={entryScope} describedBy={profileInvalid ? `${prefix}-profile-error` : undefined} emailRejected={emailRejected} invalidate={invalidate} onEmailRejected={() => setEmailRejected(true)} onEmailEdit={() => setEmailRejected(false)} />
+      <CustomerProfileInputs prefix={prefix} locale={locale} form={form} entryScope={entryScope} describedBy={profileInvalid ? `${prefix}-profile-error` : undefined} emailRejected={emailRejected} invalidate={invalidate} onEmailRejected={() => { invalidate(); setEmailRejected(true); }} onEmailEdit={() => setEmailRejected(false)} onOmitEmail={() => { form.resetField('email'); setEmailRejected(false); }} />
       <Button type="button" disabled={!!value || online !== true} onClick={() => { if (online === true) void resolve(); }}>
         {t(locale, 'serviceSessions.findOrCreate')}
       </Button>

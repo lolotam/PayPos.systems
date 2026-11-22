@@ -98,19 +98,28 @@ it('blocks a card first seen offline until Retry, and does not auto-read on reco
   state.query = { data: undefined, isError: false, refetch: vi.fn() };
   const view = render(<SessionCustomerProfileCard {...entry} locale="en" online={false} />);
   expect(state.canRead).toBe(false);
+  expect(screen.getByText(t('en', 'serviceSessions.profileOffline'))).toBeTruthy();
+  const retry = () => screen.getByRole('button', { name: t('en', 'serviceSessions.profileRetry') }) as HTMLButtonElement;
+  expect(retry().disabled).toBe(true);
   view.rerender(<SessionCustomerProfileCard {...entry} locale="en" online={true} />);
   expect(state.canRead).toBe(false);
+  expect(screen.getByText(t('en', 'serviceSessions.profileOffline'))).toBeTruthy();
+  expect(retry().disabled).toBe(false);
   expect(state.query.refetch).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.profileRetry') }));
+  fireEvent.click(retry());
   expect(state.canRead).toBe(true);
+  expect(screen.getByText(t('en', 'serviceSessions.profileLoading'))).toBeTruthy();
 });
 
 it('does not permanently block an unknown hydration state', () => {
   state.query = { data: undefined, isError: false, refetch: vi.fn() };
   const view = render(<SessionCustomerProfileCard {...entry} locale="en" online={null} />);
   expect(state.canRead).toBe(false);
+  expect(screen.getByText(t('en', 'serviceSessions.profileOffline'))).toBeTruthy();
+  expect((screen.getByRole('button', { name: t('en', 'serviceSessions.profileRetry') }) as HTMLButtonElement).disabled).toBe(true);
   view.rerender(<SessionCustomerProfileCard {...entry} locale="en" online={true} />);
   expect(state.canRead).toBe(true);
+  expect(screen.getByText(t('en', 'serviceSessions.profileLoading'))).toBeTruthy();
 });
 
 it('shows a loading state until the selected profile arrives', () => {

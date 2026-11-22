@@ -72,6 +72,14 @@ it('keeps an offline card blocked until Retry, then issues one scoped GET and sh
   expect(await screen.findByText('private@example.test')).toBeTruthy();
 });
 
+it('does not send a GET from an initial stale online render while the browser is offline', async () => {
+  online = false;
+  render(card(true));
+  expect(await screen.findByText(t('en', 'serviceSessions.profileLoadFailed'))).toBeTruthy();
+  expect(screen.getByRole('button', { name: t('en', 'serviceSessions.profileRetry') })).toBeTruthy();
+  expect(get).not.toHaveBeenCalled();
+});
+
 it('does not send a GET when browser connectivity drops before the UI snapshot updates', async () => {
   online = false;
   const view = mount();
