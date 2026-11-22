@@ -12,6 +12,14 @@ import { RecordServiceSessionForm } from './record-service-session-form';
 
 const state = vi.hoisted(() => ({ patch: vi.fn(), get: vi.fn(), post: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => ({ PATCH: state.patch, GET: state.get, POST: state.post }) }));
+vi.mock('../api/use-session-customer-profile', () => ({
+  useSessionCustomerProfile: () => ({
+    data: undefined,
+    isError: false,
+    isPending: true,
+    refetch: vi.fn(),
+  }),
+}));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 
 const context = {
