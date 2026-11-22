@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, type RefObject } from 'react';
 import { useDirection } from './direction-provider.js';
-import { ContextPanelBackdrop } from './context-panel-backdrop.js';
 import { ContextPanelBody } from './context-panel-body.js';
+import { ContextPanelFloating } from './context-panel-floating.js';
 import {
   resolveInspectedWorkspaceId,
   type ContextPanelLabels,
@@ -13,8 +13,6 @@ import { cn } from './shared/cn.js';
 import { useNavigationMedia } from './use-navigation-media.js';
 
 const TABLET_OVERLAY_QUERY = '(min-width: 600px) and (width < 1024px)';
-const FOCUSABLE_SELECTOR =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 function isFocusTargetEligible(target: HTMLElement | undefined): target is HTMLElement {
   if (
@@ -36,103 +34,6 @@ function isFocusTargetEligible(target: HTMLElement | undefined): target is HTMLE
     }
   }
   return true;
-}
-
-function getPanelFocusableElements(panel: HTMLElement | null): HTMLElement[] {
-  if (!panel) return [];
-  return Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((element) =>
-    isFocusTargetEligible(element),
-  );
-}
-
-function isInsideAnotherDialog(panel: HTMLElement | null, target: Element | null): boolean {
-  const dialog = target?.closest('[role="dialog"], [role="alertdialog"]');
-  return Boolean(dialog && panel && !panel.contains(dialog) && dialog !== panel.parentElement);
-}
-
-function handleOverlayKeyDown(
-  event: KeyboardEvent,
-  panel: HTMLElement | null,
-  onClose: () => void,
-) {
-  if (isInsideAnotherDialog(panel, document.activeElement)) return;
-  if (event.key === 'Escape' && !event.isComposing) {
-    event.preventDefault();
-    onClose();
-    return;
-  }
-  if (event.key !== 'Tab') return;
-  const focusable = getPanelFocusableElements(panel);
-  if (focusable.length === 0) {
-    event.preventDefault();
-    return;
-  }
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-  const active = document.activeElement;
-  if (event.shiftKey) {
-    if (active === first || !panel?.contains(active)) {
-      event.preventDefault();
-      last?.focus();
-    }
-  } else if (active === last || !panel?.contains(active)) {
-    event.preventDefault();
-    first?.focus();
-  }
-}
-
-function useFloatingPanelOverlay(
-  panelRef: RefObject<HTMLDivElement | null>,
-  active: boolean,
-  onClose: () => void,
-) {
-  const containFocus = useCallback(() => {
-    const panel = panelRef.current;
-    const activeEl = document.activeElement;
-    if (panel && !panel.contains(activeEl) && !isInsideAnotherDialog(panel, activeEl)) {
-      getPanelFocusableElements(panel)[0]?.focus();
-    }
-  }, [panelRef]);
-
-  useEffect(() => {
-    if (active) containFocus();
-  });
-
-  useEffect(() => {
-    if (!active) return;
-    const onKeyDown = (event: KeyboardEvent) =>
-      handleOverlayKeyDown(event, panelRef.current, onClose);
-    const onFocusIn = (event: FocusEvent) => {
-      const panel = panelRef.current;
-      const target = event.target instanceof Element ? event.target : document.activeElement;
-      if (panel && !panel.contains(target) && !isInsideAnotherDialog(panel, target)) {
-        containFocus();
-      }
-    };
-    const onClickCapture = (event: MouseEvent) => {
-      const panel = panelRef.current;
-      const target = event.target instanceof Element ? event.target : null;
-      if (
-        !panel ||
-        !target ||
-        panel.contains(target) ||
-        target.hasAttribute('data-context-panel-backdrop') ||
-        isInsideAnotherDialog(panel, target)
-      ) {
-        return;
-      }
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    };
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('focusin', onFocusIn);
-    document.addEventListener('click', onClickCapture, true);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('focusin', onFocusIn);
-      document.removeEventListener('click', onClickCapture, true);
-    };
-  }, [active, containFocus, onClose, panelRef]);
 }
 
 const PENDING_FOCUS_ATTRIBUTES = [
@@ -331,39 +232,42 @@ export function ContextPanel({
     inspectedWorkspaceId,
     panelOpen,
   });
-  const floatingActive = panelOpen && isFloatingOverlay;
   usePanelReturnFocus({
     panelRef,
     panelOpen,
-    freezeObservedOpener: floatingActive,
+    freezeObservedOpener: panelOpen && isFloatingOverlay,
     openerRef,
     fallbackRef: returnFocusRef,
   });
-  useFloatingPanelOverlay(panelRef, floatingActive, onClose);
   if (!panelOpen) return null;
-  const workspace = workspaces.find((item) => item.id === inspectedId);
-  return (
-    <>
-      {isFloatingOverlay ? <ContextPanelBackdrop onClose={onClose} /> : null}
-      <aside
+  const body = (
+    <ContextPanelBody
+      panelRef={panelRef}
+      workspace={workspaces.find((item) => item.id === inspectedId)}
+      workspaces={isFloatingOverlay ? workspaces : undefined}
+      currentWorkspaceId={currentWorkspaceId}
+      labels={labels}
+      activePageId={activePageId}
+      visiblePageIds={visiblePageIds}
+      onInspect={isFloatingOverlay ? onInspect : undefined}
+      onClose={onClose}
+    />
+  );
+  if (isFloatingOverlay) {
+    return (
+      <ContextPanelFloating
         dir={dir}
-        role={isFloatingOverlay ? 'dialog' : undefined}
-        aria-modal={isFloatingOverlay ? 'true' : undefined}
-        aria-label={labels.navigation}
+        title={labels.navigation}
         className={PANEL_CLASS_NAME}
+        onClose={onClose}
       >
-        <ContextPanelBody
-          panelRef={panelRef}
-          workspace={workspace}
-          workspaces={isFloatingOverlay ? workspaces : undefined}
-          currentWorkspaceId={currentWorkspaceId}
-          labels={labels}
-          activePageId={activePageId}
-          visiblePageIds={visiblePageIds}
-          onInspect={isFloatingOverlay ? onInspect : undefined}
-          onClose={onClose}
-        />
-      </aside>
-    </>
+        {body}
+      </ContextPanelFloating>
+    );
+  }
+  return (
+    <aside dir={dir} aria-label={labels.navigation} className={PANEL_CLASS_NAME}>
+      {body}
+    </aside>
   );
 }

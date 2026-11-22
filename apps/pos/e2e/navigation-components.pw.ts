@@ -54,12 +54,12 @@ for (const viewport of VIEWPORTS) {
 
       await openScene(page, 'context', dir);
       await expectNoHorizontalOverflow(page);
-      const rail = page.getByRole('navigation', { name: LABELS.navigation });
+      const rail = page.getByRole('navigation', { name: LABELS.navigation, includeHidden: true });
       await expect(rail).toBeVisible();
       const railBox = await requiredBox(rail);
       expect(railBox.width, 'rail width').toBeGreaterThanOrEqual(44);
       expectAtInlineStart(railBox, dir, viewport.width);
-      const currentWorkspace = rail.getByRole('button', { name: LABELS.business }).first();
+      const currentWorkspace = rail.getByRole('button', { name: LABELS.business, includeHidden: true }).first();
       await expectMinTarget(currentWorkspace);
       await expectVisibleNavRailCurrentMarker(currentWorkspace);
       await expectNoHorizontalOverflow(page);
@@ -219,15 +219,16 @@ for (const dir of DIRECTIONS) {
     for (const width of [1280, 820]) {
       await page.setViewportSize({ width, height: 900 });
       await openScene(page, 'context', dir, width < 1024 ? '&longLabel=true' : '');
-      const rail = page.getByRole('navigation', { name: LABELS.navigation });
-      const currentWorkspace = rail.getByRole('button', { name: new RegExp(LABELS.business) }).first();
+      // At 600-1023px the open panel is modal, so the rail behind it is hidden from assistive tech.
+      const rail = page.getByRole('navigation', { name: LABELS.navigation, includeHidden: true });
+      const currentWorkspace = rail.getByRole('button', { name: new RegExp(LABELS.business), includeHidden: true }).first();
       await expectVisibleNavRailCurrentMarker(currentWorkspace);
       const panel = page.getByRole(width >= 1024 ? 'complementary' : 'dialog', {
         name: LABELS.panelNavigation,
       });
       await expect(panel).toBeVisible();
       await expect(panel.getByRole('link', { name: LABELS.columns })).toBeVisible();
-      const team = rail.getByRole('button', { name: LABELS.people }).first();
+      const team = rail.getByRole('button', { name: LABELS.people, includeHidden: true }).first();
       const closePanel = panel.getByRole('button', { name: LABELS.panelClose });
       if (width >= 1024) {
         await team.click();

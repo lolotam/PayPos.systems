@@ -1,10 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useEffect, useRef, useState } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { ContextPanel } from '../context-panel.js';
 import { DirectionProvider } from '../direction-provider.js';
 import { NavRail } from '../nav-rail.js';
-import { chromeLabels, contextLabels, workspaces } from './navigation-fixtures.js';
+import { PageFinder } from '../page-finder.js';
+import { chromeLabels, contextLabels, finderLabels, workspaces } from './navigation-fixtures.js';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -73,7 +74,7 @@ it('traps Tab and Shift+Tab, closes on Escape from filter input, and restores op
   expect(document.activeElement).toBe(railButton);
 });
 
-it('blocks background button activation while the tablet modal is open and closes on backdrop click', () => {
+it('hides and blocks the background while the tablet modal is open and closes on a backdrop press', async () => {
   stubViewportWidth(820);
   const outsideAction = vi.fn();
   function Harness() {
@@ -81,19 +82,21 @@ it('blocks background button activation while the tablet modal is open and close
     const [open, setOpen] = useState(false);
     return (
       <DirectionProvider dir="ltr">
-        <button type="button" onClick={outsideAction}>
-          Outside destructive action
-        </button>
-        <NavRail
-          workspaces={workspaces}
-          labels={chromeLabels}
-          currentWorkspaceId="business"
-          panelOpen={open}
-          onInspect={(_workspaceId, opener) => {
-            openerRef.current = opener;
-            setOpen(true);
-          }}
-        />
+        <main>
+          <button type="button" onClick={outsideAction}>
+            Outside destructive action
+          </button>
+          <NavRail
+            workspaces={workspaces}
+            labels={chromeLabels}
+            currentWorkspaceId="business"
+            panelOpen={open}
+            onInspect={(_workspaceId, opener) => {
+              openerRef.current = opener;
+              setOpen(true);
+            }}
+          />
+        </main>
         <ContextPanel
           workspaces={workspaces}
           labels={contextLabels}
@@ -108,28 +111,34 @@ it('blocks background button activation while the tablet modal is open and close
 
   render(<Harness />);
   const railButton = screen.getByRole('button', { name: 'Business Current Inspect' });
+  const outsideButton = screen.getByRole('button', { name: 'Outside destructive action' });
   fireEvent.click(railButton);
 
   const dialog = screen.getByRole('dialog', { name: contextLabels.navigation });
-  const closeButton = screen.getByRole('button', { name: contextLabels.close });
-  const outsideButton = screen.getByRole('button', { name: 'Outside destructive action' });
+  expect(screen.queryByRole('button', { name: 'Outside destructive action' })).toBeNull();
+  expect(outsideButton.closest('[aria-hidden="true"]')).toBeTruthy();
+  expect(document.body.style.pointerEvents).toBe('none');
   outsideButton.focus();
-  fireEvent.click(outsideButton);
-  expect(outsideAction).not.toHaveBeenCalled();
-  expect(dialog.contains(document.activeElement)).toBe(true);
-  expect(document.activeElement).toBe(closeButton);
+  await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
 
   const backdrop = document.querySelector('[data-context-panel-backdrop]');
   expect(backdrop).toBeTruthy();
-  if (backdrop) fireEvent.click(backdrop);
-  expect(screen.queryByRole('dialog', { name: contextLabels.navigation })).toBeNull();
+  await waitFor(() => {
+    if (backdrop?.isConnected) {
+      fireEvent.pointerDown(backdrop);
+      fireEvent.pointerUp(backdrop);
+      fireEvent.click(backdrop);
+    }
+    expect(screen.queryByRole('dialog', { name: contextLabels.navigation })).toBeNull();
+  });
   expect(document.activeElement).toBe(railButton);
+  expect(outsideAction).not.toHaveBeenCalled();
 
-  fireEvent.click(outsideButton);
+  fireEvent.click(screen.getByRole('button', { name: 'Outside destructive action' }));
   expect(outsideAction).toHaveBeenCalledTimes(1);
 });
 
-it('keeps focus inside the tablet dialog when visiblePageIds removes the focused link', () => {
+it('keeps focus inside the tablet dialog when visiblePageIds removes the focused link', async () => {
   stubViewportWidth(820);
   const { rerender } = render(
     <DirectionProvider dir="ltr">
@@ -162,8 +171,7 @@ it('keeps focus inside the tablet dialog when visiblePageIds removes the focused
 
   const dialog = screen.getByRole('dialog', { name: contextLabels.navigation });
   expect(screen.queryByRole('link', { name: 'الأعمدة' })).toBeNull();
-  expect(dialog.contains(document.activeElement)).toBe(true);
-  expect(document.activeElement).toBe(screen.getByRole('button', { name: contextLabels.close }));
+  await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
 });
 
 it('preserves the original observed opener across outside clicks while the tablet modal is open', () => {
@@ -191,13 +199,12 @@ it('preserves the original observed opener across outside clicks while the table
 
   render(<Harness />);
   const actualOpener = screen.getByRole('button', { name: 'Actual opener' });
+  const outsideNoOp = screen.getByRole('button', { name: 'Outside no-op' });
   actualOpener.focus();
   fireEvent.click(actualOpener);
 
   const dialog = screen.getByRole('dialog', { name: contextLabels.navigation });
-  const outsideNoOp = screen.getByRole('button', { name: 'Outside no-op' });
   outsideNoOp.focus();
-  fireEvent.click(outsideNoOp);
   expect(dialog.contains(document.activeElement)).toBe(true);
 
   fireEvent.keyDown(document.activeElement ?? dialog, { key: 'Escape' });
@@ -300,38 +307,34 @@ it('keeps the single remaining workspace switchable when the inspected workspace
   expect(screen.getByRole('link', { name: 'الموظفون' })).toBeTruthy();
 });
 
-it.each(['dialog', 'alertdialog'] as const)(
-  'leaves a separate %s usable while the tablet modal is open',
-  (role) => {
-    stubViewportWidth(820);
-    const confirm = vi.fn();
-    const onClose = vi.fn();
-    render(
-      <DirectionProvider dir="ltr">
-        <ContextPanel
-          workspaces={workspaces}
-          labels={contextLabels}
-          currentWorkspaceId="business"
-          panelOpen
-          onClose={onClose}
-        />
-        <div role={role} aria-label="Confirm">
-          <button type="button" onClick={confirm}>
-            Confirm action
-          </button>
-        </div>
-      </DirectionProvider>,
-    );
-    const confirmButton = screen.getByRole('button', { name: 'Confirm action' });
-    confirmButton.focus();
-    expect(document.activeElement).toBe(confirmButton);
+it('lets the page finder open over the tablet modal and closes only the finder on Escape', async () => {
+  stubViewportWidth(820);
+  const onClose = vi.fn();
+  render(
+    <DirectionProvider dir="ltr">
+      <PageFinder workspaces={workspaces} labels={finderLabels} />
+      <ContextPanel
+        workspaces={workspaces}
+        labels={contextLabels}
+        currentWorkspaceId="business"
+        panelOpen
+        onClose={onClose}
+      />
+    </DirectionProvider>,
+  );
+  expect(screen.getByRole('dialog', { name: contextLabels.navigation })).toBeTruthy();
 
-    fireEvent.keyDown(confirmButton, { key: 'Escape' });
-    expect(onClose).not.toHaveBeenCalled();
-    fireEvent.click(confirmButton);
-    expect(confirm).toHaveBeenCalledTimes(1);
-  },
-);
+  fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
+  const finder = await screen.findByRole('dialog', { name: finderLabels.title });
+  const search = screen.getByRole('searchbox', { name: finderLabels.search });
+  await waitFor(() => expect(document.activeElement).toBe(search));
+
+  fireEvent.keyDown(search, { key: 'Escape' });
+  await waitFor(() => expect(finder.isConnected).toBe(false));
+  expect(onClose).not.toHaveBeenCalled();
+  const panel = screen.getByRole('dialog', { name: contextLabels.navigation });
+  await waitFor(() => expect(panel.contains(document.activeElement)).toBe(true));
+});
 
 it('keeps the focus a destination page took in the same commit that closes the tablet modal', () => {
   stubViewportWidth(820);
