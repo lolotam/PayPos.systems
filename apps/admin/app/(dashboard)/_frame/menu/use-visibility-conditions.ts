@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import { planScope, usePlanAccess } from '@/commissions/api/plan-access';
 import { useCommissionPlanEmployees } from '@/commissions/api/use-commission-plan-employees';
 import { useBusinessIdentityAccess } from '@/business-identity/api/use-business-identity-access';
+import { useRatingsAccess } from '@/ratings/api/use-ratings-access';
 import { useSessionUser } from '@/session/api/use-session';
 import { useAlertRules } from '@/settings/alert-rules/api/use-alert-rules';
 import { useRatingSettings } from '@/settings/alert-rules/api/use-rating-settings';
@@ -42,6 +43,7 @@ export function useVisibilityConditions(): VisibilityConditions {
   const refunds = useImportedRefunds(companyId, userId, businessId);
   const leave = useLeaveReportAccess(companyId, businessId, userId);
   const columns = useStaffColumns(companyId, userId, businessId);
+  const ratings = useRatingsAccess(companyId, userId, businessId);
   const open = ready !== null && userId !== null;
   const alertsOrRating = open && (alerts.isSuccess || rating.isSuccess);
   // كما في business-identity-nav-item: قراءة فاشلة بعد نجاح سابق تُخفي المدخل حتى لو بقيت data القديمة true.
@@ -51,6 +53,7 @@ export function useVisibilityConditions(): VisibilityConditions {
   const refundsAccess = open && readAccessProof(refunds) === 'granted';
   const leaveAccess = open && leave.allowed;
   const columnsAccess = open && !columns.isPending && !columns.isError;
+  const ratingsAccess = open && readAccessProof(ratings) === 'granted';
   return useMemo(
     () => ({
       always: true,
@@ -60,6 +63,7 @@ export function useVisibilityConditions(): VisibilityConditions {
       'employee-app-link-access': appLinkAccess,
       'imported-refunds-access': refundsAccess,
       'leave-report-access': leaveAccess,
+      'ratings-access': ratingsAccess,
       'staff-app-columns-access': columnsAccess,
     }),
     [
@@ -69,6 +73,7 @@ export function useVisibilityConditions(): VisibilityConditions {
       appLinkAccess,
       refundsAccess,
       leaveAccess,
+      ratingsAccess,
       columnsAccess,
     ],
   );

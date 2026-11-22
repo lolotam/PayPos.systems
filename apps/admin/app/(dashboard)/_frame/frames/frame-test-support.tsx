@@ -17,6 +17,7 @@ const OPEN: VisibilityConditions = {
   'employee-app-link-access': true,
   'imported-refunds-access': true,
   'leave-report-access': true,
+  'ratings-access': true,
   'staff-app-columns-access': true,
 };
 
