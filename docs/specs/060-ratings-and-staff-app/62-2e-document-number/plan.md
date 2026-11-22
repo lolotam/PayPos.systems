@@ -1,8 +1,8 @@
 # 62-2e Employee document number implementation plan
 
 1. Add the nullable column and unvalidated constraint in `0237`. Validate the constraint in the separate `0238` migration.
-2. Accept the number when recording or replacing a document. Authorize the document list and business lookup before reading document rows. Use a canonical business UUID for access decisions.
-3. Add the upload input, the document table column and the on-demand bell lookup. Reset the bell's read on known access or document changes. Wait for the upload's document refresh and refetch after connectivity returns.
+2. Accept the number when recording or replacing a document. The list and business lookup use one read-only PostgreSQL snapshot for authorization and document rows. Use a canonical business UUID for access decisions.
+3. Add the upload input, the document table column and the on-demand bell lookup. Reset the bell's read on known access or document changes. Wait for the upload's document refresh and refetch after connectivity returns. Clear the form number after success and preserve it on failure so the user can retry.
 4. Regenerate OpenAPI and the Admin, Menu and POS clients. Verify old document lists and verify that uploads without a number send the prior request shape.
 
 ```text

@@ -7,7 +7,7 @@ import {
 } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button, Input, Label } from '@pospay/ui';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { DocumentSubmission } from '../api/use-employee-documents';
@@ -16,17 +16,21 @@ import { ExpiryHint } from './document-expiry-hint';
 import { DocumentNumberField } from './document-number-field';
 import { DocumentTypeField } from './document-type-field';
 
+type EmployeeDocumentFormProps = {
+  types: DocumentType[];
+  typeCode?: string;
+  pending: boolean;
+  recorded?: boolean;
+  onSubmit: (submission: DocumentSubmission) => void;
+};
+
 export function EmployeeDocumentForm({
   types,
   typeCode,
   pending,
+  recorded = false,
   onSubmit,
-}: {
-  types: DocumentType[];
-  typeCode?: string;
-  pending: boolean;
-  onSubmit: (submission: DocumentSubmission) => void;
-}) {
+}: EmployeeDocumentFormProps) {
   const locale = useLocale();
   const [file, setFile] = useState<File | null>(null);
   const [invalid, setInvalid] = useState(false);
@@ -38,6 +42,10 @@ export function EmployeeDocumentForm({
       document_number: '',
     },
   });
+  const { resetField } = form;
+  useEffect(() => {
+    if (recorded) resetField('document_number');
+  }, [recorded, resetField]);
   const code = useWatch({ control: form.control, name: 'type_code' });
   const requiresExpiry = types.find((type) => type.code === code)?.requires_expiry ?? false;
   // خطأ رقم المستند بيظهر محليًا جنب الخانة نفسها؛ التنبيه العام لمصالح الوثيقة التانية بس.

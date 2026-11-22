@@ -175,23 +175,36 @@ it('lists current documents with their badge only after a fresh read and evicts 
   unmount();
   expect(client.getQueryCache().findAll({ queryKey: prefix })).toEqual([]);
 });
+
+it('keeps the document number for a retry and clears it for the next upload after success', async () => {
+  mockDocuments(Promise.resolve(readyFile), () => ({ data: view() }));
+  const record = vi.fn<() => Promise<unknown>>(async () => ({ data: recordedDocument }));
+  record.mockResolvedValueOnce(failure('Try the upload again'));
+  mockUpload(record);
+  setup();
+
+  await startUpload('SYN-DOC-RETRY');
+  expect(await screen.findByText('Try the upload again')).toBeTruthy();
+  const number = () => screen.getByLabelText(t('en', 'employeeDocuments.documentNumber'));
+  expect(number()).toHaveProperty('value', 'SYN-DOC-RETRY');
+
+  await startUpload();
+  expect(await screen.findByText(t('en', 'employeeDocuments.recorded'))).toBeTruthy();
+  await waitFor(() => expect(number()).toHaveProperty('value', ''));
+
+  await startUpload();
+  await waitFor(() => expect(record).toHaveBeenCalledTimes(3));
+  const bodies = api.POST.mock.calls.filter(([path]) => path === recordPath).map(([, r]) => r.body);
+  expect(bodies[1]).toMatchObject({ document_number: 'SYN-DOC-RETRY' });
+  expect(bodies[2]).not.toHaveProperty('document_number');
+});
 it('uploads through files, waits for READY, then records by file id with an idempotency key', async () => {
   api.GET.mockImplementation(async (path: string) =>
     path === '/v1/files/{id}' ? readyFile : { data: view() },
   );
   mockUpload();
   const { client, unmount } = setup();
-  const input = await screen.findByLabelText(t('en', 'employeeDocuments.file'));
-  fireEvent.change(input, {
-    target: { files: [new File(['pdf'], 'civil.pdf', { type: 'application/pdf' })] },
-  });
-  fireEvent.change(screen.getByLabelText(t('en', 'employeeDocuments.expiresOn')), {
-    target: { value: '2026-10-20' },
-  });
-  fireEvent.change(screen.getByLabelText(t('en', 'employeeDocuments.documentNumber')), {
-    target: { value: 'SYN-DOC-01' },
-  });
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeDocuments.upload') }));
+  await startUpload('SYN-DOC-01');
   await waitFor(() => expect(screen.getByText(t('en', 'employeeDocuments.recorded'))).toBeTruthy());
   expect(api.POST.mock.calls.map((call) => call[0])).toEqual([
     '/v1/businesses/{businessId}/files/uploads',

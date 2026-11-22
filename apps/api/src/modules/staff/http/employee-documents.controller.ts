@@ -55,7 +55,7 @@ export class EmployeeDocumentsController {
     const result = await this.database.withTenant(
       context.companyId,
       (tx) => employeeDocuments(tx, context, access),
-      { userId: context.userId },
+      { userId: context.userId, readOnly: true },
     );
     if (result === null) throw new ApiError('NOT_FOUND');
     if (result === 'FEATURE_DISABLED') throw new ApiError('FEATURE_DISABLED');

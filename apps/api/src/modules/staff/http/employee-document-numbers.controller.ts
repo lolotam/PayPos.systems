@@ -35,7 +35,7 @@ export class EmployeeDocumentNumbersController {
     return this.database.withTenant(
       context.companyId,
       (tx) => readEmployeeDocumentNumbers(tx, context, query.ids, access),
-      { userId: context.userId },
+      { userId: context.userId, readOnly: true },
     );
   }
 }

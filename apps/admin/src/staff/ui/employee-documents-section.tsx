@@ -37,6 +37,7 @@ export function EmployeeDocumentsSection(props: {
   // العرض والفتح يشتركان في دليل قراءة حقيقية للعمر والـquery الحالية، مش بيانات cache وحدها.
   if (!documents) return null;
   const progress = PHASES[phase];
+  const recorded = record.isSuccess && record.data !== undefined;
   return (
     <section aria-label={t(locale, 'employeeDocuments.title')} className="flex flex-col gap-4">
       <h3 className="font-bold">{t(locale, 'employeeDocuments.title')}</h3>
@@ -62,14 +63,13 @@ export function EmployeeDocumentsSection(props: {
           types={documents.types}
           {...(typeCode === undefined ? {} : { typeCode })}
           pending={record.isPending}
+          recorded={recorded}
           onSubmit={(submission) => record.mutate(submission)}
         />
       ) : null}
       {progress !== undefined ? <p role="status">{t(locale, progress)}</p> : null}
       {record.isError ? <p role="alert">{envelopeMessage(record.error, locale)}</p> : null}
-      {record.isSuccess && record.data !== undefined ? (
-        <p role="status">{t(locale, 'employeeDocuments.recorded')}</p>
-      ) : null}
+      {recorded ? <p role="status">{t(locale, 'employeeDocuments.recorded')}</p> : null}
     </section>
   );
 }

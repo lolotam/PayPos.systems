@@ -1,5 +1,10 @@
 import { sql } from 'drizzle-orm';
-import { assertUuid, type TenantOptions, type Tx } from './with-tenant.ts';
+import {
+  assertUuid,
+  consistentReadTransaction,
+  type TenantOptions,
+  type Tx,
+} from './with-tenant.ts';
 import type { boundedPostgres } from './bounded-postgres.ts';
 
 /** نفس withTenant وRLS، باتصال مملوك ومصرف بالكامل لطلبات تجهيز OTP المحدودة. */
@@ -16,6 +21,7 @@ export function boundedTenant<T>(
     throw new Error('BOUNDED_TENANT_INVALID');
   return pool.run(
     async (tx) => {
+      if (options.readOnly) await tx.execute(consistentReadTransaction);
       const [role] = await tx.execute<{ valid: boolean }>(sql`SELECT
       set_config('app.company_id',${company},true),set_config('app.user_id',${actor},true),
       set_config('statement_timeout',${`${Math.min(timeout, 100)}ms`},true),
