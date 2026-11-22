@@ -1,6 +1,6 @@
 'use client';
 import { t } from '@pospay/i18n';
-import { Button, DataTableFrame, PageHeader, PageShell } from '@pospay/ui';
+import { Button, PageHeader, PageShell } from '@pospay/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
@@ -14,6 +14,8 @@ import { useSessionQueryLifecycle } from '../model/use-session-query-lifecycle';
 import { ServiceSessionDayBody } from '../ui/service-session-day-body';
 import { useTipAttemptMemory } from '../ui/use-tip-attempt-memory';
 import { ServiceSessionDayFilters } from '../ui/service-session-day-filters';
+import { ServiceSessionDayFrame } from '../ui/service-session-day-frame';
+import { ServiceSessionDayLoadMore } from '../ui/service-session-day-load-more';
 
 export function ServiceSessionDayPage({ scope, timezone }: { scope: SessionServiceScope; timezone: string }) {
   const locale = useLocale();
@@ -25,6 +27,8 @@ export function ServiceSessionDayPage({ scope, timezone }: { scope: SessionServi
   const [date, setDate] = useState(() => sessionLocalTime(new Date().toISOString(), timezone).slice(0, 10));
   const [lateOnly, setLateOnly] = useState(false);
   const [denied, setDenied] = useState<{ message: string } | null>(null);
+  const [loadMore, setLoadMore] = useState<(() => Promise<unknown>) | null>(null);
+  const onMore = useCallback((more: (() => Promise<unknown>) | null) => { setLoadMore(() => more); }, []);
   // القدرات الثلاثة من نفس القراءة، فبتتجاب دايماً وهي online؛ تجاوز واحدة منها كان بيوقف الاتنين التانيين (PP-19).
   const asked = online && denied === null;
   const capability = useServiceSessionCapabilities(scope, asked);
@@ -52,7 +56,9 @@ export function ServiceSessionDayPage({ scope, timezone }: { scope: SessionServi
   return <PageShell layout="list" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
     <PageHeader title={t(locale, 'serviceLineEdit.title')} />
     {connectivity === false ? <p role="status">{t(locale, 'serviceSessions.offline')}</p> : null}
-    {blocked ? <DataTableFrame filters={filters}><p role="alert" className="p-4">{blocked.message} <Button type="button" variant="outline" onClick={() => { setDenied(null); void capability.refetch(); }}>{t(locale, 'serviceLineEdit.retry')}</Button></p></DataTableFrame>
-      : <ServiceSessionDayBody scope={scope} date={date} lateOnly={lateOnly} online={online} timezone={timezone} canCancel={cancelAllowed} canChangePerformers={changeAllowed} canRecord={canRecord} tipAttempts={tipAttempts} onAccessDenied={onAccessDenied} filters={filters} />}
+    <ServiceSessionDayFrame filters={filters} footer={!blocked && loadMore ? <ServiceSessionDayLoadMore onMore={loadMore} /> : undefined}>
+      {blocked ? <p role="alert">{blocked.message} <Button type="button" variant="outline" onClick={() => { setDenied(null); void capability.refetch(); }}>{t(locale, 'serviceLineEdit.retry')}</Button></p>
+        : <ServiceSessionDayBody scope={scope} date={date} lateOnly={lateOnly} online={online} timezone={timezone} canCancel={cancelAllowed} canChangePerformers={changeAllowed} canRecord={canRecord} tipAttempts={tipAttempts} onAccessDenied={onAccessDenied} onMore={onMore} />}
+    </ServiceSessionDayFrame>
   </PageShell>;
 }

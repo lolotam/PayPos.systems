@@ -20,7 +20,13 @@ const columns = (locale: Locale) => [
   { id: 'name', header: t(locale, 'catalogServiceCategories.listTitle') },
   { id: 'visibility', header: t(locale, 'catalogServiceCategories.visibility') },
   { id: 'marks', header: t(locale, 'catalogServiceCategoryBranches.branchColumn') },
-  { id: 'actions', header: '' },
+  {
+    id: 'actions',
+    // الترويسة كانت فارغة؛ النص مخفي بصريًا فيبقى سطح الجدول كما هو ويكتسب العمود اسمًا لقارئ الشاشة.
+    header: () => (
+      <span className="sr-only">{t(locale, 'catalogServiceCategoryBranches.actionsColumn')}</span>
+    ),
+  },
 ];
 
 export function BranchServiceCategoriesTable({

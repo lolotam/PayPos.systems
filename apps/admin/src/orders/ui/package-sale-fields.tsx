@@ -16,6 +16,9 @@ export type PackageSaleFieldValues = {
   seller_employee_id: string;
 };
 
+// كل حقل (تسمية وعنصر تحكم ورسالته) وحدة واحدة على شبكة الـ12 عمودًا: الحقول القصيرة 4 أعمدة، وتتكدس على الهاتف.
+const SHORT_CELL = 'col-span-12 flex min-w-0 flex-col gap-3 md:col-span-4';
+
 function packageSaleSellerFailure(
   query: ReturnType<typeof usePackageSaleSellers>,
   locale: 'ar' | 'en',
@@ -166,21 +169,25 @@ export function PackageSaleFields({
   const locale = useLocale();
   const sellers = usePackageSaleSellerField(scope, disabled, form);
   return (
-    <fieldset disabled={disabled} className="grid gap-3 text-start">
-      <Label htmlFor="package-sale-price">{t(locale, 'packageSale.pricePaid')}</Label>
-      <Input
-        id="package-sale-price"
-        dir="ltr"
-        inputMode="decimal"
-        autoComplete="off"
-        {...form.register('price_paid')}
-      />
-      <Label htmlFor="package-sale-method">{t(locale, 'packageSale.paymentMethod')}</Label>
-      <NativeSelect id="package-sale-method" {...form.register('paid_method')}>
-        <option value="CASH">{t(locale, 'packageSale.cash')}</option>
-        <option value="CARD">{t(locale, 'packageSale.card')}</option>
-      </NativeSelect>
-      {sellers}
+    <fieldset disabled={disabled} className="grid grid-cols-12 gap-4 text-start">
+      <div className={SHORT_CELL}>
+        <Label htmlFor="package-sale-price">{t(locale, 'packageSale.pricePaid')}</Label>
+        <Input
+          id="package-sale-price"
+          dir="ltr"
+          inputMode="decimal"
+          autoComplete="off"
+          {...form.register('price_paid')}
+        />
+      </div>
+      <div className={SHORT_CELL}>
+        <Label htmlFor="package-sale-method">{t(locale, 'packageSale.paymentMethod')}</Label>
+        <NativeSelect id="package-sale-method" {...form.register('paid_method')}>
+          <option value="CASH">{t(locale, 'packageSale.cash')}</option>
+          <option value="CARD">{t(locale, 'packageSale.card')}</option>
+        </NativeSelect>
+      </div>
+      <div className={SHORT_CELL}>{sellers}</div>
     </fieldset>
   );
 }

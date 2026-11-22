@@ -6,12 +6,13 @@ import type {
   ServiceCategoryBranchView,
 } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
-import { Button, PageHeader } from '@pospay/ui';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useBranchServiceCategories } from '../api/use-branch-service-categories';
 import { useBranchServiceCategorySavePending } from '../api/use-branch-service-category-save';
 import { useBranchServiceCategoryState } from '../api/use-branch-service-category-state';
+import type { CreateEmbed } from '../model/use-register-create-action';
+import { BranchServiceCategoriesHeader } from '../ui/branch-service-categories-header';
 import { BranchServiceCategoriesTable } from '../ui/branch-service-categories-table';
 import { BranchServiceCategoryForm } from '../ui/branch-service-category-form';
 import {
@@ -164,7 +165,13 @@ function useSectionOutcomes(
   };
 }
 
-export function BranchServiceCategoriesSection(scope: BranchSectionScope) {
+export function BranchServiceCategoriesSection({
+  embed,
+  ...scope
+}: BranchSectionScope & {
+  /** حين تضمّ الشاشة القسم تملك هي الترويسة وزرّ الإضافة، فيسجّل القسم إجراءه بدل رسم ترويسته. */
+  embed?: CreateEmbed;
+}) {
   const section = useSectionState();
   const list = useBranchServiceCategories(
     scope.companyId,
@@ -177,15 +184,7 @@ export function BranchServiceCategoriesSection(scope: BranchSectionScope) {
   const saving = useBranchServiceCategorySavePending(scope);
   return (
     <fieldset disabled={saving} className="flex min-w-0 flex-col gap-4 text-start md:gap-6">
-      <PageHeader
-        title={section.title}
-        description={section.lead}
-        action={
-          <Button variant="outline" size="sm" onClick={section.openCreate}>
-            {section.createLabel}
-          </Button>
-        }
-      />
+      <BranchServiceCategoriesHeader section={section} saving={saving} embed={embed} />
       <BranchServiceCategoryOutcome outcome={section.outcome} />
       {section.creating ? (
         <BranchServiceCategoryForm

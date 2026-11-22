@@ -12,6 +12,7 @@ import type {
   ServiceCategoryClosingMutationResult,
   TrackedServiceCategoryClosing,
 } from '../model/service-category-closing';
+import type { CreateEmbed } from '../model/use-register-create-action';
 import type { NoticeInput } from '../ui/service-category-closing-notice';
 import { ServiceCategoryEditor } from '../ui/service-category-editor';
 import { ServiceCategoryPageControls } from '../ui/service-category-page-controls';
@@ -20,6 +21,8 @@ type ServiceCategoriesPageProps = {
   companyId: string;
   business: WorkspaceBusinessRead;
   userId: string;
+  /** حين تضمّ الشاشة الصفحة تملك هي الترويسة وزرّ الإضافة، فتسجّل الصفحة إجراءها بدل رسم ترويستها. */
+  embed?: CreateEmbed;
 };
 type CategoryClosingState = {
   tracked: Readonly<Record<string, TrackedServiceCategoryClosing>>;
@@ -171,11 +174,13 @@ function closingNotice(
   return jobs.closingFor(selectedId)?.data ?? { action: tracked.action, status: 'pending' };
 }
 
-export function ServiceCategoriesPage({ companyId, business, userId }: ServiceCategoriesPageProps) {
+export function ServiceCategoriesPage(props: ServiceCategoriesPageProps) {
+  const { companyId, business, userId, embed } = props;
   const [status, setStatus] = useState<'open' | 'closed' | 'all'>('open');
   const [cursor, setCursor] = useState<string>();
   const [selectedId, setSelectedId] = useState('');
   const [creating, setCreating] = useState(false);
+  const startCreate = () => { setCreating(true); setSelectedId(''); };
   const jobs = usePageClosing(companyId, business.id, userId);
   const list = useServiceCategoryList(companyId, business.id, userId, { status, cursor });
   const select = (id: string) => {
@@ -186,10 +191,8 @@ export function ServiceCategoriesPage({ companyId, business, userId }: ServiceCa
     <div className="flex min-w-0 flex-col gap-4 text-start md:gap-6">
       <ServiceCategoryPageControls
         status={status}
-        onCreate={() => {
-          setCreating(true);
-          setSelectedId('');
-        }}
+        embed={embed}
+        onCreate={startCreate}
         onStatus={(next) => {
           setStatus(next);
           setCursor(undefined);

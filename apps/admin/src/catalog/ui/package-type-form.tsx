@@ -50,6 +50,7 @@ export function PackageTypeForm({
                 companyId={companyId}
                 businessId={businessId}
                 userId={userId}
+                grid
               />
             </CardContent>
             <CardFooter>

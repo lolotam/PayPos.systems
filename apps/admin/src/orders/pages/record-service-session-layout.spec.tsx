@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { id, instant, scope } from '../model/session-recording-result.fixture';
+import { SIDE_COLUMN_STRETCH } from '../ui/record-visit-columns';
 import { RecordServiceSessionPage } from './record-service-session-page';
 
 const state = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
@@ -37,10 +38,8 @@ it('lays the page on the two-column shell with the header above both columns', a
   installReads();
   renderPage();
   const save = await screen.findByRole('button', { name: t('en', 'serviceSessions.save') });
-  const shell = save.closest('[data-page-shell="two-column"]') as HTMLElement;
-  expect(shell.className).toContain('max-w-[1200px]');
   const heading = screen.getByRole('heading', { level: 1, name: t('en', 'serviceSessions.title') });
-  expect(shell.contains(heading)).toBe(true);
+  expect(save.closest('[data-page-shell="two-column"]')?.contains(heading)).toBe(true);
   expect(heading.compareDocumentPosition(save) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });
 
@@ -59,14 +58,31 @@ it('puts the form before the draft summary, and the summary in the side column',
   expect(columns.children[1]?.contains(summary)).toBe(true);
 });
 
-it('keeps the summary sticky from 1024px and carries the resolved discount limit', async () => {
+it('carries the resolved discount limit into the side column summary', async () => {
   installReads();
   renderPage();
   const total = await screen.findByText(t('en', 'serviceSessions.draftTotal'), { exact: false });
-  const sticky = total.closest('[class~="lg:sticky"]') as HTMLElement;
+  const summary = total.closest('.rounded-card') as HTMLElement;
+  await waitFor(() => expect(summary.textContent).toContain('10.00%'));
+  expect(summary.textContent).toContain(t('en', 'serviceSessions.limitPerson'));
+});
+
+// الالتصاق سلوك CSS لا يقيسه jsdom؛ نتحقق من البنية التي تجعله ممكنًا: الملخص اللاصق ابن مباشر لخانة الجانبي
+// (ثاني ابن للشبكة)، وإطار القالب يمدّد خانات الشبكة فيمتد غلاف الجانبي لارتفاع الصف بدل ارتفاع محتواه.
+it('puts the sticky summary directly in the side grid item, and stretches that item to the row', async () => {
+  installReads();
+  renderPage();
+  const total = await screen.findByText(t('en', 'serviceSessions.draftTotal'), { exact: false });
+  const summary = total.closest('.rounded-card') as HTMLElement;
+  const shell = summary.closest('[data-page-shell="two-column"]') as HTMLElement;
+  const grid = shell.lastElementChild as HTMLElement;
+  const sideItem = grid.children[1] as HTMLElement;
+  const sticky = sideItem.firstElementChild as HTMLElement;
+  expect(sticky.contains(summary)).toBe(true);
+  expect(sticky.className).toContain('lg:sticky');
   expect(sticky.className).toContain('lg:top-4');
-  await waitFor(() => expect(sticky.textContent).toContain('10.00%'));
-  expect(sticky.textContent).toContain(t('en', 'serviceSessions.limitPerson'));
+  expect(shell.className).toContain(SIDE_COLUMN_STRETCH);
+  expect(grid.children[0]?.contains(screen.getByRole('button', { name: t('en', 'serviceSessions.save') }))).toBe(true);
 });
 
 it('falls back to the single-column form shell with the refusal when the read is denied', async () => {

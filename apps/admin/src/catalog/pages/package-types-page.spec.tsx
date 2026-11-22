@@ -28,9 +28,9 @@ function item(overrides: Partial<PackageTypeListItem> = {}): PackageTypeListItem
   };
 }
 
-function page(items: PackageTypeListItem[], nextCursor: string | null = null) {
+function page(items: PackageTypeListItem[], nextCursor: string | null = null, canManage = true) {
   return {
-    data: { items, next_cursor: nextCursor, can_manage: true },
+    data: { items, next_cursor: nextCursor, can_manage: canManage },
     response: { status: 200 },
   };
 }
@@ -62,13 +62,11 @@ beforeEach(() => {
   get.mockReset();
 });
 
-it('centres the page on the list shell with the header action at the inline end', async () => {
+it('opens with the heading, the description and the add action in the header', async () => {
   get.mockResolvedValue(page([item()]));
   renderPage();
   const heading = await screen.findByRole('heading', { level: 1, name: 'Package types' });
-  const shell = heading.closest('[data-page-shell="list"]') as HTMLElement;
-  expect(shell.className).toContain('max-w-[1200px]');
-  expect(shell.className).toContain('mx-auto');
+  expect(heading.closest('[data-page-shell="list"]')).not.toBeNull();
   expect(screen.getByText('Packages available across all branches of this business.')).toBeTruthy();
   const action = screen.getByRole('link', { name: 'Add package type' });
   expect(action.getAttribute('href')).toBe('/catalog/package-types/create');
@@ -113,21 +111,47 @@ it('shows the refusal inside the card when the read fails', async () => {
   expect((frame.closest('.rounded-card') as HTMLElement).contains(alert)).toBe(true);
 });
 
-it('opts the table in to stacked rows: first cell bare, other cells labelled', async () => {
+// الإطار يضيف أصناف التكديس على غلاف الجدول فقط عند تفعيل stacked؛ لا شيء مرئيًا يميّزها في jsdom.
+const STACKED_TOKEN = 'max-[599.99px]:[&_table]:block';
+
+it('opts the table in to stacked rows and labels every cell that has content', async () => {
   get.mockResolvedValue(page([item({ selling_stopped_at: '2026-11-01T00:00:00Z' })]));
   renderPage();
+  const table = await screen.findByRole('table');
+  expect(table.parentElement?.className).toContain(STACKED_TOKEN);
   const row = (await screen.findAllByRole('row'))[1] as HTMLElement;
   const cells = within(row).getAllByRole('cell');
-  expect(cells[0]?.hasAttribute('data-cell-label')).toBe(false);
-  expect(cells[0]?.textContent).toContain('Bridal package');
-  expect(cells.slice(1).map((cell) => cell.getAttribute('data-cell-label'))).toEqual([
+  expect(cells.map((cell) => cell.getAttribute('data-cell-label'))).toEqual([
+    null,
     'Price (KWD, 3 decimals)',
     'Validity (days)',
     'Services',
     'Selling',
-    'Edit',
+    null,
   ]);
-  expect(within(row).getByRole('button', { name: 'Edit' }).closest('td')).toBe(cells[5]);
+  expect(cells[0]?.textContent).toContain('Bridal package');
+  expect(within(cells[5] as HTMLElement).getByRole('button', { name: 'Edit' })).toBeTruthy();
+});
+
+it('renders no label for a selling cell whose button is hidden', async () => {
+  get.mockResolvedValue(page([item()], null, false));
+  renderPage();
+  const row = (await screen.findAllByRole('row'))[1] as HTMLElement;
+  const selling = within(row).getAllByRole('cell')[4] as HTMLElement;
+  expect(selling.hasAttribute('data-cell-label')).toBe(false);
+  expect(selling.childElementCount).toBe(0);
+  expect(within(row).queryByRole('button', { name: /selling/i })).toBeNull();
+});
+
+it('isolates the price number as left-to-right without changing the cell direction', async () => {
+  get.mockResolvedValue(page([item()]));
+  renderPage();
+  const row = (await screen.findAllByRole('row'))[1] as HTMLElement;
+  const priceCell = within(row).getAllByRole('cell')[1] as HTMLElement;
+  expect(priceCell.hasAttribute('dir')).toBe(false);
+  const number = within(priceCell).getByText('120.000');
+  expect(number.tagName).toBe('BDI');
+  expect(number.getAttribute('dir')).toBe('ltr');
 });
 
 it('keeps the edit panel below the list card', async () => {

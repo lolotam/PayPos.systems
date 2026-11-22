@@ -49,7 +49,7 @@ export function ServiceCategoryRow({
           ) : null}
         </div>
       </td>
-      <td role="cell" data-cell-label={t(locale, 'catalogServiceCategories.manage')}>
+      <td role="cell">
         <Button
           variant="outline"
           size="sm"

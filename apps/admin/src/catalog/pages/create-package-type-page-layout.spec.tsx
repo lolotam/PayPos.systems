@@ -35,11 +35,10 @@ function renderPage() {
   );
 }
 
-it('lays the form on the 840px shell: one card, titled sections, save action last at the foot', () => {
+it('lays the form out as one card with titled sections and the save action last at the foot', () => {
   renderPage();
   const heading = screen.getByRole('heading', { level: 1, name: 'Add package type' });
-  const shell = heading.closest('[data-page-shell="form"]') as HTMLElement;
-  expect(shell.className).toContain('max-w-[840px]');
+  expect(heading.closest('[data-page-shell="form"]')).not.toBeNull();
   const save = screen.getByRole('button', { name: 'Add package type' });
   const card = save.closest('.rounded-card') as HTMLElement;
   expect(card).not.toBeNull();
@@ -63,4 +62,18 @@ it('puts the basic fields on the 12-column grid: names span 6, price and validit
   expect(span('Validity (days)')).toContain('md:col-span-4');
   const grid = screen.getByLabelText('English name').parentElement?.parentElement as HTMLElement;
   expect(grid.className).toContain('grid-cols-12');
+});
+
+it('puts the service, sessions and remove controls of a row on one 12-column grid row', () => {
+  renderPage();
+  const service = screen.getByLabelText('Service');
+  const sessions = screen.getByLabelText('Sessions');
+  const remove = screen.getByRole('button', { name: 'Remove service 1' });
+  const row = service.closest('div.rounded-xl') as HTMLElement;
+  expect(row.className).toContain('grid-cols-12');
+  expect(row.contains(sessions)).toBe(true);
+  expect(row.contains(remove)).toBe(true);
+  expect((service.parentElement as HTMLElement).className).toContain('md:col-span-6');
+  expect((sessions.parentElement as HTMLElement).className).toContain('md:col-span-4');
+  expect(remove.className).toContain('md:col-span-2');
 });

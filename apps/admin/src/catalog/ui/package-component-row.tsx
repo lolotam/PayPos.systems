@@ -11,19 +11,29 @@ export function PackageComponentRow({
   index,
   services,
   onRemove,
+  grid = false,
 }: {
   index: number;
   services: PackageTypeDetail['components'];
   onRemove: () => void;
+  /** صف الخدمة والجلسات على شبكة الـ12 عمودًا (نموذج الإضافة)؛ لوحة التعديل تبقى متتالية. */
+  grid?: boolean;
 }) {
   const locale = useLocale();
   const { control } = useFormContext<CreatePackageTypeInput>();
   const selected = useWatch({ control, name: `components.${index}.service_id` });
   const service = services.find((s) => s.service_id === selected);
   return (
-    <div className="flex flex-col gap-2 rounded-xl border p-3">
-      <PackageServiceField index={index} services={services} />
+    <div
+      className={`rounded-xl border p-3 ${grid ? 'grid grid-cols-12 gap-3' : 'flex flex-col gap-2'}`}
+    >
+      <PackageServiceField
+        index={index}
+        services={services}
+        span={grid ? 'col-span-12 md:col-span-6' : ''}
+      />
       <PackageTypeInput
+        span={grid ? 'col-span-12 md:col-span-4' : ''}
         id={`package-sessions-${index}`}
         name={`components.${index}.sessions`}
         label="catalogPackageTypes.sessions"
@@ -35,11 +45,12 @@ export function PackageComponentRow({
         options={{ valueAsNumber: true }}
       />
       {service?.price === '0.000' ? (
-        <p role="status">{t(locale, 'catalogPackageTypes.freeWarning')}</p>
+        <p role="status" className="col-span-12">{t(locale, 'catalogPackageTypes.freeWarning')}</p>
       ) : null}
       <Button
         type="button"
         variant="ghost"
+        className={grid ? 'col-span-12 md:col-span-2 md:self-end' : ''}
         onClick={onRemove}
         aria-label={t(locale, 'catalogPackageTypes.removeComponentRow').replace(
           '{row}',

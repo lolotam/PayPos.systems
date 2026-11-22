@@ -3,8 +3,10 @@ import type { WorkspaceBranch, WorkspaceBusinessRead, WorkspaceCompanyRead } fro
 import { t } from '@pospay/i18n';
 import { EmptyState, PageShell, Store } from '@pospay/ui';
 import { useState } from 'react';
+import type { CreateAction } from '../model/use-register-create-action';
 import { BranchServiceCategoriesSection } from './branch-service-categories-section';
 import { ServiceCategoriesPage } from './service-categories-page';
+import { ServiceCategoriesHeader } from '../ui/service-categories-header';
 import { ServiceCategoryScopeSelect } from '../ui/service-category-scope-select';
 import { useLocale } from '@/shared/locale/locale-context';
 
@@ -40,6 +42,8 @@ function openingBranch(
   return remembered?.id ?? activeBranches[0]?.id ?? null;
 }
 
+// عضوية الفرع أوسع من فرع واحد بس، فمفيش طريقة تعرف منها إذن الوصول لمستوى النشاط
+// على نشاط مختار — القرار ده مؤجل لقرار المالك (issue #1133) والسلوك الحالي بيفضل زي ما هو.
 export function ServiceCategoriesScreen({
   companyId,
   business,
@@ -52,12 +56,13 @@ export function ServiceCategoriesScreen({
   const [branchId, setBranchId] = useState<string | null>(() =>
     openingBranch(scope, activeBranches, rememberedBranchId),
   );
-  // عضوية الفرع أوسع من فرع واحد بس، فمفيش طريقة تعرف منها إذن الوصول لمستوى النشاط
-  // على نشاط مختار — القرار ده مؤجل لقرار المالك (issue #1133) والسلوك الحالي بيفضل زي ما هو.
   const businessReach = scope !== 'BRANCH';
   const branchScopeEmpty = scope === 'BRANCH' && activeBranches.length === 0;
+  const [createAction, setCreateAction] = useState<CreateAction | null>(null);
+  const businessView = branchId === null;
   return (
     <PageShell layout="list">
+      <ServiceCategoriesHeader businessView={businessView} showLead={businessView && !branchScopeEmpty} action={createAction} />
       <ServiceCategoryScopeSelect
         branches={activeBranches}
         includeBusiness={businessReach}
@@ -80,6 +85,7 @@ export function ServiceCategoriesScreen({
                 companyId={companyId}
                 business={business}
                 userId={userId}
+                embed={{ register: setCreateAction, active: businessView }}
               />
             </div>
           ) : null}
@@ -90,6 +96,7 @@ export function ServiceCategoriesScreen({
               businessId={business.id}
               userId={userId}
               branchId={branchId}
+              embed={{ register: setCreateAction, active: true }}
             />
           ) : null}
         </>

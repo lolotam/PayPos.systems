@@ -1,7 +1,5 @@
 'use client';
-import { t } from '@pospay/i18n';
-import { Button, DataTableFrame } from '@pospay/ui';
-import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useBranchDaySessions } from '../api/use-branch-day-sessions';
@@ -21,41 +19,9 @@ type ServiceSessionDayBodyProps = {
   canRecord: boolean;
   onAccessDenied: (message: string) => void;
   tipAttempts: RefObject<Map<string, UnresolvedTip>>;
-  /** شريط التاريخ والتأخير داخل كرت القائمة فوق الزيارات، يبقى ظاهرًا مع رفض الوصول. */
-  filters: ReactNode;
+  /** يبلّغ الصفحة بدالة «المزيد» عند وجود صفحة تالية، أو null؛ كي يبقى التذييل في كرت الصفحة الثابت. */
+  onMore: (more: (() => Promise<unknown>) | null) => void;
 };
-
-// كرت واحد للتصفية والزيارات وزر «المزيد»؛ الزيارات نفسها كروت داخله، فالحشوة والفجوة هنا.
-function DayFrame({
-  filters,
-  footer,
-  children,
-}: {
-  filters: ReactNode;
-  footer?: ReactNode;
-  children?: ReactNode;
-}) {
-  return (
-    <DataTableFrame filters={filters} footer={footer}>
-      <div className="flex flex-col gap-3 p-4">{children}</div>
-    </DataTableFrame>
-  );
-}
-
-function DayLoadMore({ onMore }: { onMore: () => Promise<unknown> }) {
-  const locale = useLocale();
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      onClick={() => {
-        void onMore();
-      }}
-    >
-      {t(locale, 'serviceLineEdit.loadMore')}
-    </Button>
-  );
-}
 
 export function ServiceSessionDayBody({
   scope,
@@ -68,7 +34,7 @@ export function ServiceSessionDayBody({
   canRecord,
   onAccessDenied,
   tipAttempts,
-  filters,
+  onMore,
 }: ServiceSessionDayBodyProps) {
   const locale = useLocale();
   const mounted = useRef(true);
@@ -85,35 +51,36 @@ export function ServiceSessionDayBody({
   useEffect(() => {
     if (revoked) onAccessDenied(envelopeMessage(query.error, locale));
   }, [revoked, query.error, locale, onAccessDenied]);
-  if (revoked) return <DayFrame filters={filters} />;
+  const hasNext = query.hasNextPage === true && !revoked;
+  const { fetchNextPage } = query;
+  useEffect(() => {
+    onMore(hasNext ? fetchNextPage : null);
+    return () => onMore(null);
+  }, [hasNext, fetchNextPage, onMore]);
+  if (revoked) return null;
   const visits = query.data?.pages.flatMap((page) => page.items) ?? [];
   return (
-    <DayFrame
-      filters={filters}
-      footer={query.hasNextPage === true ? <DayLoadMore onMore={query.fetchNextPage} /> : undefined}
-    >
-      <ServiceSessionDayList
-        scope={scope}
-        visits={visits}
-        locale={locale}
-        online={online}
-        timezone={timezone}
-        canCancel={canCancel}
-        canChangePerformers={canChangePerformers}
-        canRecord={canRecord}
-        loadError={query.isError ? envelopeMessage(query.error, locale) : null}
-        empty={query.isSuccess && visits.length === 0}
-        onRetry={() => {
-          void query.refetch();
-        }}
-        refetchPages={async () => {
-          const fresh = await query.refetch();
-          return fresh.isSuccess ? fresh.data.pages : null;
-        }}
-        mounted={mounted}
-        onAccessDenied={onAccessDenied}
-        tipAttempts={tipAttempts}
-      />
-    </DayFrame>
+    <ServiceSessionDayList
+      scope={scope}
+      visits={visits}
+      locale={locale}
+      online={online}
+      timezone={timezone}
+      canCancel={canCancel}
+      canChangePerformers={canChangePerformers}
+      canRecord={canRecord}
+      loadError={query.isError ? envelopeMessage(query.error, locale) : null}
+      empty={query.isSuccess && visits.length === 0}
+      onRetry={() => {
+        void query.refetch();
+      }}
+      refetchPages={async () => {
+        const fresh = await query.refetch();
+        return fresh.isSuccess ? fresh.data.pages : null;
+      }}
+      mounted={mounted}
+      onAccessDenied={onAccessDenied}
+      tipAttempts={tipAttempts}
+    />
   );
 }

@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
-import type { ServiceCategoryListItem } from '@pospay/contracts';
+import type { ServiceCategoryListItem, WorkspaceBusiness } from '@pospay/contracts';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import {
   branch,
   branchCategory,
+  branchId,
   business,
   companyId,
   secondBranch,
@@ -19,8 +20,9 @@ vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' as cons
 
 const businessListPath = '/v1/businesses/{businessId}/service-categories';
 const branchListPath = '/v1/businesses/{businessId}/branches/{branchId}/service-categories';
-
 const nextCursor = JSON.stringify(['Hair', '01920000-0000-7000-8000-0000000000a1']);
+// الإطار يضيف أصناف التكديس على غلاف الجدول فقط عند تفعيل stacked؛ لا شيء مرئيًا يميّزها في jsdom.
+const STACKED_TOKEN = 'max-[599.99px]:[&_table]:block';
 
 const category: ServiceCategoryListItem = {
   id: '01920000-0000-7000-8000-0000000000a1',
@@ -32,16 +34,19 @@ const category: ServiceCategoryListItem = {
   revision: 1,
 };
 
-function ok(items: unknown[], nextCursor: string | null = null) {
-  return { data: { items, next_cursor: nextCursor }, response: { status: 200 } };
+function ok(items: unknown[], cursor: string | null = null) {
+  return { data: { items, next_cursor: cursor }, response: { status: 200 } };
 }
 
-function renderScreen(scope: 'COMPANY' | 'BRANCH') {
+function renderScreen(
+  scope: 'COMPANY' | 'BRANCH',
+  workspace: WorkspaceBusiness = business([branch(), secondBranch()]),
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <ServiceCategoriesScreen
       companyId={companyId}
-      business={business([branch(), secondBranch()])}
+      business={workspace}
       userId={userId}
       scope={scope}
       rememberedBranchId={undefined}
@@ -54,28 +59,37 @@ function renderScreen(scope: 'COMPANY' | 'BRANCH') {
   );
 }
 
+function follows(first: Node, second: Node) {
+  return Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+}
+
+function branchReads(items: unknown[], cursor: string | null = null) {
+  get.mockImplementation((path: string) =>
+    Promise.resolve(path === branchListPath ? ok(items, cursor) : ok([])),
+  );
+}
+
 beforeEach(() => {
   get.mockReset();
 });
 
-it('business view: one list shell with filter tabs, table and paging in one card, in that order', async () => {
+it('business view: header, then the scope select, then the card with filter, table and paging', async () => {
   get.mockResolvedValue(ok([category], nextCursor));
   renderScreen('COMPANY');
   const table = await screen.findByRole('table');
-  const shell = table.closest('[data-page-shell="list"]') as HTMLElement;
-  expect(shell.className).toContain('max-w-[1200px]');
-  expect(shell.querySelectorAll('[data-page-shell]')).toHaveLength(0);
-  const card = table.closest('.rounded-card') as HTMLElement;
-  const filter = within(card).getByRole('group');
-  const next = within(card).getByRole('button', { name: 'Next page' });
-  expect(filter.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(table.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(screen.getByRole('heading', { level: 1, name: 'Categories' })).toBeTruthy();
-  const create = screen.getByRole('button', { name: 'Add category' });
-  expect(create.closest('header')?.querySelector('.ms-auto')).not.toBeNull();
+  const heading = screen.getByRole('heading', { level: 1, name: 'Categories' });
+  const select = screen.getByLabelText('Show categories for');
+  const filter = screen.getByRole('group');
+  const next = screen.getByRole('button', { name: 'Next page' });
+  expect(follows(heading, select)).toBe(true);
+  expect(follows(select, filter)).toBe(true);
+  expect(follows(filter, table)).toBe(true);
+  expect(follows(table, next)).toBe(true);
+  expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+  expect(heading.closest('[data-page-shell="list"]')?.contains(table)).toBe(true);
 });
 
-it('business view: keeps the filter inside the card while loading and when empty', async () => {
+it('business view: keeps the filter inside the card while empty', async () => {
   get.mockResolvedValue(ok([]));
   renderScreen('COMPANY');
   const empty = await screen.findByText('No categories on this page.');
@@ -84,47 +98,101 @@ it('business view: keeps the filter inside the card while loading and when empty
   expect(screen.queryByRole('table')).toBeNull();
 });
 
-it('business view: stacked rows label every cell after the first', async () => {
+it('business view: stacked rows label every cell with content and leave the action cell bare', async () => {
   get.mockResolvedValue(ok([category]));
   renderScreen('COMPANY');
-  const row = (await screen.findAllByRole('row'))[1] as HTMLElement;
-  const cells = within(row).getAllByRole('cell');
-  expect(cells[0]?.hasAttribute('data-cell-label')).toBe(false);
-  expect(cells.slice(1).map((cell) => cell.getAttribute('data-cell-label'))).toEqual([
+  const table = await screen.findByRole('table');
+  expect(table.parentElement?.className).toContain(STACKED_TOKEN);
+  const cells = within((await screen.findAllByRole('row'))[1] as HTMLElement).getAllByRole('cell');
+  expect(cells.map((cell) => cell.getAttribute('data-cell-label'))).toEqual([
+    null,
     'Visibility',
     'State',
-    'Open',
+    null,
   ]);
+  expect(within(cells[3] as HTMLElement).getByRole('button', { name: 'Open' })).toBeTruthy();
 });
 
-it('branch view: header, filter tabs, table and paging sit in the same list shell', async () => {
-  get.mockImplementation((path: string) =>
-    Promise.resolve(
-      path === branchListPath
-        ? ok([branchCategory()], nextCursor)
-        : ok([]),
-    ),
-  );
+it('branch view: header, then the scope select, then the card with tabs, table and paging', async () => {
+  branchReads([branchCategory()], nextCursor);
   renderScreen('BRANCH');
   const table = await screen.findByRole('table');
-  const shell = table.closest('[data-page-shell="list"]') as HTMLElement;
-  const card = table.closest('.rounded-card') as HTMLElement;
-  const heading = within(shell).getAllByRole('heading', { level: 1, name: 'Categories' });
-  expect(heading.length).toBeGreaterThan(0);
-  const tabs = within(card).getByRole('button', { name: /In use/ });
-  expect(tabs.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  expect(within(card).getByRole('button', { name: 'Next page' })).toBeTruthy();
+  const heading = screen.getAllByRole('heading', { level: 1, name: 'Categories' })[0] as HTMLElement;
+  const select = screen.getByLabelText('Show categories for');
+  const tabs = screen.getByRole('button', { name: /In use/ });
+  const next = screen.getByRole('button', { name: 'Next page' });
+  expect(follows(heading, select)).toBe(true);
+  expect(follows(select, tabs)).toBe(true);
+  expect(follows(tabs, table)).toBe(true);
+  expect(follows(table, next)).toBe(true);
   expect(get.mock.calls.some(([path]) => path === businessListPath)).toBe(false);
 });
 
-it('branch view: stacked rows label the visibility and in-this-branch cells', async () => {
-  get.mockImplementation((path: string) =>
-    Promise.resolve(path === branchListPath ? ok([branchCategory()]) : ok([])),
-  );
+it('branch view: stacked rows label the visibility, branch marks and actions cells', async () => {
+  branchReads([branchCategory({ visibility: 'BRANCH', owner_branch_id: branchId })]);
   renderScreen('BRANCH');
-  const row = (await screen.findAllByRole('row'))[1] as HTMLElement;
-  const cells = within(row).getAllByRole('cell');
-  expect(cells[0]?.hasAttribute('data-cell-label')).toBe(false);
-  expect(cells[1]?.getAttribute('data-cell-label')).toBe('Visibility');
-  expect(cells[2]?.getAttribute('data-cell-label')).toBe('In this branch');
+  const table = await screen.findByRole('table');
+  expect(table.parentElement?.className).toContain(STACKED_TOKEN);
+  const cells = within((await screen.findAllByRole('row'))[1] as HTMLElement).getAllByRole('cell');
+  expect(cells.map((cell) => cell.getAttribute('data-cell-label'))).toEqual([
+    null,
+    'Visibility',
+    'In this branch',
+    'Actions',
+  ]);
+  expect(screen.getByRole('columnheader', { name: 'Actions' })).toBeTruthy();
+});
+
+it('branch view: a row without marks renders an empty, unlabelled marks cell', async () => {
+  branchReads([branchCategory()]);
+  renderScreen('BRANCH');
+  const cells = within((await screen.findAllByRole('row'))[1] as HTMLElement).getAllByRole('cell');
+  expect(cells[2]?.hasAttribute('data-cell-label')).toBe(false);
+  expect(cells[2]?.childElementCount).toBe(0);
+});
+
+it('a branch membership with no active branch still shows the page heading above the message', async () => {
+  renderScreen('BRANCH', business([branch({ is_active: false })]));
+  const heading = await screen.findByRole('heading', { level: 1, name: 'Categories' });
+  const message = screen.getByText('No active branch to show categories for.');
+  expect(follows(heading, message)).toBe(true);
+  expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+  expect(get).not.toHaveBeenCalled();
+});
+
+it('keeps the very same scope select, and its focus, when it switches the view', async () => {
+  get.mockResolvedValue(ok([]));
+  renderScreen('COMPANY');
+  await screen.findByText('No categories on this page.');
+  const select = screen.getByLabelText('Show categories for');
+  select.focus();
+  fireEvent.change(select, { target: { value: branchId } });
+  await waitFor(() => expect(screen.getByRole('button', { name: /In use/ })).toBeTruthy());
+  expect(screen.getByLabelText('Show categories for')).toBe(select);
+  expect(document.activeElement).toBe(select);
+  expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+});
+
+it('offers one create action in the header and opens the branch form from it', async () => {
+  branchReads([branchCategory()]);
+  renderScreen('BRANCH');
+  await screen.findByRole('table');
+  const heading = screen.getByRole('heading', { level: 1, name: 'Categories' });
+  const create = screen.getByRole('button', { name: 'Add category' });
+  expect(heading.closest('header')?.contains(create)).toBe(true);
+  expect(screen.getAllByRole('button', { name: 'Add category' })).toHaveLength(1);
+  fireEvent.click(create);
+  expect(await screen.findByRole('form', { name: 'Add category' })).toBeTruthy();
+});
+
+it('shows the business lead and the create action only in the business view', async () => {
+  get.mockResolvedValue(ok([]));
+  renderScreen('COMPANY');
+  await screen.findByText('No categories on this page.');
+  expect(screen.getByText('Manage service categories, their visibility and their open state.')).toBeTruthy();
+  const select = screen.getByLabelText('Show categories for');
+  fireEvent.change(select, { target: { value: branchId } });
+  await screen.findByRole('button', { name: /In use/ });
+  expect(screen.queryByText('Manage service categories, their visibility and their open state.')).toBeNull();
+  expect(screen.getAllByRole('button', { name: 'Add category' })).toHaveLength(1);
 });

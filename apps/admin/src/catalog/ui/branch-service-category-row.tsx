@@ -8,6 +8,7 @@ import { t, type MessageKey } from '@pospay/i18n';
 import { Badge, Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { branchCategoryActions, branchCategoryMarks } from '../model/service-category-branch';
+import { BranchServiceCategoryMarks } from './branch-service-category-marks';
 import { BranchServiceCategoryStateButton } from './branch-service-category-state-button';
 
 const VISIBILITY_LABEL: Record<ServiceCategoryBranchListItem['visibility'], MessageKey> = {
@@ -33,25 +34,21 @@ export function BranchServiceCategoryRow({
   const locale = useLocale();
   const marks = branchCategoryMarks(item, branchId);
   const actions = branchCategoryActions(item, branchId, view);
+  const hasMarks = marks.ownedHere || marks.hiddenHere;
   return (
     <tr role="row">
       <td role="cell">{locale === 'ar' ? item.name_ar : item.name_en}</td>
       <td role="cell" data-cell-label={t(locale, 'catalogServiceCategories.visibility')}>
         <Badge variant="neutral">{t(locale, VISIBILITY_LABEL[item.visibility])}</Badge>
       </td>
-      <td role="cell" data-cell-label={t(locale, 'catalogServiceCategoryBranches.branchColumn')}>
-        <div className="flex flex-wrap gap-2">
-          {marks.ownedHere ? (
-            <Badge variant="neutral">{t(locale, 'catalogServiceCategoryBranches.ownedHere')}</Badge>
-          ) : null}
-          {marks.hiddenHere ? (
-            <Badge variant="neutral">
-              {t(locale, 'catalogServiceCategoryBranches.hiddenHere')}
-            </Badge>
-          ) : null}
-        </div>
+      <td
+        role="cell"
+        data-cell-label={hasMarks ? t(locale, 'catalogServiceCategoryBranches.branchColumn') : undefined}
+        className="max-[599.99px]:empty:hidden"
+      >
+        {hasMarks ? <BranchServiceCategoryMarks {...marks} /> : null}
       </td>
-      <td role="cell">
+      <td role="cell" data-cell-label={t(locale, 'catalogServiceCategoryBranches.actionsColumn')}>
         <div className="flex flex-wrap gap-2">
           <BranchServiceCategoryStateButton
             view={view}

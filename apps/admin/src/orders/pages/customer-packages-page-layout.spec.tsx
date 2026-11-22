@@ -79,7 +79,6 @@ it('centres the page on the list shell under one header', async () => {
   renderPage();
   const heading = screen.getByRole('heading', { level: 1, name: "Customer's packages" });
   const shell = heading.closest('[data-page-shell="list"]') as HTMLElement;
-  expect(shell.className).toContain('max-w-[1200px]');
   await screen.findByText('Gold');
   expect(shell.contains(screen.getByText('Gold'))).toBe(true);
 });

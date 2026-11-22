@@ -4,21 +4,8 @@ import { t } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
 import { useIsMutating } from '@tanstack/react-query';
 import { useLocale } from '@/shared/locale/locale-context';
-import { PackageTypeSellingToggle } from './package-type-selling-toggle';
-
-function PackageTypeName({ item }: { item: PackageTypeListItem }) {
-  const locale = useLocale();
-  return (
-    <>
-      {locale === 'ar' ? (item.name_ar ?? item.name_en) : item.name_en}
-      {item.selling_stopped_at !== null ? (
-        <span className="ms-2 rounded-md bg-secondary px-2 py-1 text-xs text-secondary-foreground">
-          {t(locale, 'catalogPackageTypes.notOnSale')}
-        </span>
-      ) : null}
-    </>
-  );
-}
+import { PackageTypeName } from './package-type-name';
+import { PackageTypeSellingCell } from './package-type-selling-cell';
 
 export function PackageTypeTableRow({
   item,
@@ -48,8 +35,8 @@ export function PackageTypeTableRow({
       <td role="cell">
         <PackageTypeName item={item} />
       </td>
-      <td role="cell" dir="ltr" data-cell-label={t(locale, 'catalogPackageTypes.price')}>
-        {item.price}
+      <td role="cell" data-cell-label={t(locale, 'catalogPackageTypes.price')}>
+        <bdi dir="ltr">{item.price}</bdi>
       </td>
       <td role="cell" data-cell-label={t(locale, 'catalogPackageTypes.validity')}>
         {item.validity_days}
@@ -57,16 +44,14 @@ export function PackageTypeTableRow({
       <td role="cell" data-cell-label={t(locale, 'catalogPackageTypes.componentCount')}>
         {item.component_count}
       </td>
-      <td role="cell" data-cell-label={t(locale, 'catalogPackageTypes.selling')}>
-        <PackageTypeSellingToggle
-          item={item}
-          canManage={canManage && !selected}
-          companyId={companyId}
-          businessId={businessId}
-          userId={userId}
-        />
-      </td>
-      <td role="cell" data-cell-label={t(locale, 'catalogPackageTypes.edit')}>
+      <PackageTypeSellingCell
+        item={item}
+        shown={canManage && !selected}
+        companyId={companyId}
+        businessId={businessId}
+        userId={userId}
+      />
+      <td role="cell">
         <Button
           variant="outline"
           size="sm"

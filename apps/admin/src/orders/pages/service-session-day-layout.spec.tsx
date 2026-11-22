@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import type { ServiceSessionDayPage as DayPage } from '@pospay/contracts';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { id, instant, scope } from '../model/session-recording-result.fixture';
 import { ServiceSessionDayPage } from './service-session-day-page';
@@ -29,7 +29,7 @@ const page = (nextCursor: string | null) => ({ data: { items: [visit], next_curs
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-  return render(<ServiceSessionDayPage scope={scope} timezone="Asia/Kuwait" />, { wrapper });
+  return { client, ...render(<ServiceSessionDayPage scope={scope} timezone="Asia/Kuwait" />, { wrapper }) };
 }
 
 beforeEach(() => {
@@ -49,7 +49,7 @@ it('holds the filter bar, the visits and the load-more action in one card, in th
   expect(date.compareDocumentPosition(customer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(customer.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   const heading = screen.getByRole('heading', { level: 1, name: 'Day list' });
-  expect(heading.closest('[data-page-shell="list"]')?.className).toContain('max-w-[1200px]');
+  expect(heading.closest('[data-page-shell="list"]')?.contains(card)).toBe(true);
 });
 
 it('shows no load-more action on the last page', async () => {
@@ -70,4 +70,22 @@ it('keeps the filter bar in the card when access is refused and the retry action
   expect(within(card).getByLabelText('Date')).toBeTruthy();
   expect(within(card).getByRole('button', { name: 'Retry' })).toBeTruthy();
   expect(screen.queryByText('Synthetic customer')).toBeNull();
+});
+
+it('keeps the same date input, and keyboard focus on it, when a later read is refused', async () => {
+  state.get.mockResolvedValue(page(null));
+  const view = renderPage();
+  await screen.findByText('Synthetic customer');
+  const date = screen.getByLabelText('Date');
+  date.focus();
+  state.get.mockResolvedValue({
+    error: { code: 'FORBIDDEN', message_ar: 'Denied AR', message_en: 'Denied EN' },
+    response: { status: 403 },
+  });
+  await act(async () => {
+    await view.client.refetchQueries({ queryKey: ['branch-day-sessions'] });
+  });
+  expect((await screen.findByRole('alert')).textContent).toContain('Denied EN');
+  expect(screen.getByLabelText('Date')).toBe(date);
+  expect(document.activeElement).toBe(date);
 });
