@@ -83,30 +83,23 @@ function handleOverlayKeyDown(
 function useFloatingPanelOverlay(
   panelRef: RefObject<HTMLDivElement | null>,
   active: boolean,
-  inspectedId: string | undefined,
   onClose: () => void,
 ) {
-  const previousRef = useRef<{ active: boolean; inspectedId: string | undefined }>({
-    active: false,
-    inspectedId: undefined,
+  useEffect(() => {
+    if (!active) return;
+    const panel = panelRef.current;
+    const activeEl = document.activeElement;
+    if (panel && !panel.contains(activeEl) && !isInsideAnotherDialog(panel, activeEl)) {
+      getPanelFocusableElements(panel)[0]?.focus();
+    }
   });
   useEffect(() => {
-    const prev = previousRef.current;
-    const shouldFocusPanel = active && (!prev.active || prev.inspectedId !== inspectedId);
-    previousRef.current = { active, inspectedId };
     if (!active) return;
-    if (
-      shouldFocusPanel &&
-      !panelRef.current?.contains(document.activeElement) &&
-      !isInsideAnotherDialog(panelRef.current, document.activeElement)
-    ) {
-      getPanelFocusableElements(panelRef.current)[0]?.focus();
-    }
     const onKeyDown = (event: KeyboardEvent) =>
       handleOverlayKeyDown(event, panelRef.current, onClose);
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [active, inspectedId, onClose, panelRef]);
+  }, [active, onClose, panelRef]);
 }
 
 const PENDING_FOCUS_ATTRIBUTES = [
@@ -267,7 +260,7 @@ export function ContextPanel({
     panelOpen,
   });
   usePanelReturnFocus(panelRef, panelOpen, openerRef, returnFocusRef);
-  useFloatingPanelOverlay(panelRef, panelOpen && isFloatingOverlay, inspectedId, onClose);
+  useFloatingPanelOverlay(panelRef, panelOpen && isFloatingOverlay, onClose);
   if (!panelOpen) return null;
   const workspace = workspaces.find((item) => item.id === inspectedId);
   return (
