@@ -14,8 +14,8 @@ type GroupLinkProps = {
 
 export function CollapsibleGroupLink({ group, rail, active }: GroupLinkProps) {
   // icon نوعه ReactNode، فممكن ييجي false أو مصفوفة فاضية من شرط. toArray بيسيب اللي React هيرسمه
-  // فعلاً بس (ومنه الرقم 0)، ونفس النتيجة بتحكم العنوان والبديل النصي.
-  const hasIcon = Children.toArray(group.icon).length > 0;
+  // فعلاً بس (ومنه الرقم 0)، والنص الفاضي مش بيظهر، ونفس النتيجة بتحكم العنوان والبديل النصي.
+  const hasIcon = Children.toArray(group.icon).some((child) => child !== '');
   return (
     <AppSidebarGroup role="group" aria-label={group.label} className="gap-0">
       <AppSidebarItem
@@ -46,7 +46,7 @@ export function CollapsibleGroupLink({ group, rail, active }: GroupLinkProps) {
         }
         className={cn(
           'min-h-12',
-          rail && 'mx-auto min-h-15 w-15 max-w-full justify-center gap-0 ps-0 pe-0 [&>span:first-child]:hidden',
+          rail && 'mx-auto min-h-15 w-15 min-w-11 max-w-full justify-center gap-0 ps-0 pe-0 [&>span:first-child]:hidden',
         )}
       />
     </AppSidebarGroup>

@@ -288,10 +288,11 @@ it('falls back to the visible label when a rail icon is conditionally false', ()
   stubMedia({ width: 800 });
   const conditional = groups.map((group) => {
     if (group.id === 'home') return { ...group, icon: false };
-    return group.id === 'sales' ? { ...group, icon: [false, null] } : group;
+    if (group.id === 'sales') return { ...group, icon: [false, null] };
+    return group.id === 'team' ? { ...group, icon: '' } : group;
   });
   render(tree('ltr', { groups: conditional }));
-  for (const name of ['Home', 'Sales']) {
+  for (const name of ['Home', 'Sales', 'Team']) {
     const link = screen.getByRole('link', { name });
     expect(link.hasAttribute('title')).toBe(false);
     expect(within(link).getAllByText(name).some((node) => !node.className.includes('sr-only'))).toBe(true);
@@ -304,6 +305,7 @@ it('centres rail links on the same line as the collapse toggle', () => {
   const home = screen.getByRole('link', { name: 'Home' });
   expect(home.className).toContain('mx-auto');
   expect(home.className).toContain('max-w-full');
+  expect(home.className).toContain('min-w-11');
   expect(home.className).toContain('gap-0');
   expect(home.className).not.toContain('gap-2');
 });
