@@ -44,6 +44,7 @@ const payload = {
   phone: { calling_code: '1', national_number: '2025550130' },
   name: 'Synthetic customer',
   locale: 'en',
+  gender: 'female' as const,
 };
 const branchPath = (id: string) => `/v1/branches/${id}/customers/find-or-create`;
 const businessPath = (id: string) => `/v1/businesses/${id}/customers/find-or-create`;

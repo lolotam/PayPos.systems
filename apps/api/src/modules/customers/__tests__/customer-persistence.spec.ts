@@ -29,6 +29,7 @@ const input = {
   phone: PHONE,
   name: 'Synthetic\u0000name',
   locale: 'ar' as const,
+  gender: 'female' as const,
   at: new Date('2026-10-01T00:00:00Z'),
 };
 let testDb: TestDatabase;

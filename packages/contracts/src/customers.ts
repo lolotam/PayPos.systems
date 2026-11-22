@@ -23,6 +23,7 @@ const phone = z.strictObject({
 const customerName = withoutControlChars(z.string()).trim().min(1).max(200);
 
 // النوع بيتخزن بالكود الإنجليزي؛ «ذكر» و«أنثى» نصوص عرض للشاشة في 34-pre-2، مش قيم مخزنة.
+// العقد سيبه اختياري عشان البحث عن عميل قديم يفضل شغال؛ إجباري على إنشاء جديد بس (CI-Q10).
 const customerGender = z.enum(['female', 'male']);
 
 // يوم وشهر مع بعض، والسنة اختيارية: سنة من غير يوم وشهر معناها تاريخ مش معروف (CIM-13).
@@ -79,11 +80,19 @@ const customerIdentityFields = {
 
 export const findOrCreateCustomerInput = z
   .strictObject(customerIdentityFields)
-  .meta({ id: 'FindOrCreateCustomerInput' });
+  .meta({
+    id: 'FindOrCreateCustomerInput',
+    description:
+      'Gender may be omitted to look up an existing customer. Creating a new customer requires a supported gender; a missing gender on a miss fails validation without writing anything.',
+  });
 
 export const findOrCreateScopedCustomerInput = z
   .strictObject({ ...customerIdentityFields, note: customerNote.optional() })
-  .meta({ id: 'FindOrCreateScopedCustomerInput' });
+  .meta({
+    id: 'FindOrCreateScopedCustomerInput',
+    description:
+      'Gender may be omitted to look up an existing customer. Creating a new customer requires a supported gender; a missing gender on a miss fails validation without writing anything.',
+  });
 
 export const customer = responseObject({
   id,

@@ -74,3 +74,15 @@ export function isNoteShape(value: string): boolean {
   const length = noteLength(trimmed);
   return length >= 1 && length <= 500;
 }
+
+/**
+ * بيمنع إنشاء عميل جديد من غير نوع: النوع اختياري في العقد عشان البحث عن عميل قديم يفضل شغال،
+ * بس أول ما الدور على الهاتف يطلع miss لازم النوع يتختار قبل أي معرّف أو وقت أو كتابة (CI-Q10).
+ *
+ * @param gender النوع كما وصل من العقد، أو undefined لو اتساب فاضي
+ * @returns النوع المختار بعد التأكد إنه موجود وقيمته مدعومة
+ */
+export function requireCustomerGender(gender: 'female' | 'male' | undefined): 'female' | 'male' {
+  if (gender === undefined) throw new InvalidCustomerProfileError();
+  return gender;
+}

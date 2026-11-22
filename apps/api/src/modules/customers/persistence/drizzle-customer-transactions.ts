@@ -65,7 +65,7 @@ async function create(
     INSERT INTO customers (company_id, id, name, phone, locale, birth_month, birth_day, birth_year, gender, email, created_at, updated_at)
     VALUES (${companyId}, ${input.id}, ${input.name}, ${input.phone}, ${input.locale},
       ${input.birthday?.month ?? null}, ${input.birthday?.day ?? null}, ${input.birthday?.year ?? null},
-      ${input.gender ?? null}, ${input.email ?? null}, ${at}, ${at})
+      ${input.gender}, ${input.email ?? null}, ${at}, ${at})
     ON CONFLICT (company_id, phone) DO NOTHING
     RETURNING id, name, phone, locale, opted_out_at`);
   if (inserted !== undefined) return { customer: mapCustomer(inserted), created: true };
