@@ -51,3 +51,9 @@ export const visibleTips = (month = '2026-11') => ({
   total_card: '7.250',
 });
 export const hiddenTips = (month = '2026-11') => ({ month, status: 'HIDDEN' });
+export const visibleRating = (average: string | null, count: number) => ({
+  visibility: 'VISIBLE' as const,
+  average,
+  count,
+});
+export const hiddenRating = () => ({ visibility: 'HIDDEN' as const });

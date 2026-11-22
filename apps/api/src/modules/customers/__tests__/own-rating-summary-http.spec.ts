@@ -16,13 +16,11 @@ const staffHeaders = () => ({
   authorization: 'Device synthetic-device-token',
   origin: personalOrigin,
 });
-const allowColumn = (reads: OwnRatingReads) => {
-  const original = reads.allowed;
-  reads.allowed = async () => new Set(['rating_average'] as const);
-  return () => {
-    reads.allowed = original;
-  };
-};
+// المدير بيحفظ الأعمدة في إعدادات النشاط؛ null = افتراضي MY-Q3 اللي فيه rating_average (61-3).
+const saveColumns = (columns: string[] | null) => f.h.owner`
+  INSERT INTO business_settings (company_id, business_id, staff_columns)
+  VALUES (${f.company}, ${f.business}, ${columns})
+  ON CONFLICT (company_id, business_id) DO UPDATE SET staff_columns = EXCLUDED.staff_columns`;
 
 beforeAll(async () => {
   f = await ownRatingFixture();
@@ -32,20 +30,32 @@ afterAll(async () => {
   await f?.h.close();
 });
 
-it('RS-05 answers exactly HIDDEN with ratings present while the column gate is off', async () => {
+it('RS-05 answers exactly HIDDEN with ratings present while the manager left rating_average out', async () => {
   await f.seedStars([
     { employeeId: f.employeeId, stars: 4, at: at(2) },
     { employeeId: f.employeeId, stars: 5, at: at(3) },
   ]);
-  const response = await read();
-  expect(response.statusCode).toBe(200);
-  expect(response.json()).toEqual({ visibility: 'HIDDEN' });
-  expect(response.body).not.toMatch(/average|count|comment|customer|employee_id|stars/);
+  await saveColumns(['date', 'tip']);
+  try {
+    const response = await read();
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ visibility: 'HIDDEN' });
+    expect(response.body).not.toMatch(/average|count|comment|customer|employee_id|stars/);
+  } finally {
+    await saveColumns(null);
+  }
 });
 
-it('RS-06 shows the average and count once the column gate is allowed by the reads token', async () => {
-  const reads = f.h.app.get<OwnRatingReads>(OWN_RATING_READS);
-  const restore = allowColumn(reads);
+it('RS-05a a saved set that names rating_average makes the same ratings VISIBLE', async () => {
+  await saveColumns(['rating_average']);
+  try {
+    expect((await read()).json()).toEqual({ visibility: 'VISIBLE', average: '4.5', count: 2 });
+  } finally {
+    await saveColumns(null);
+  }
+});
+
+it('RS-06 shows the average and count with the MY-Q3 default, which includes rating_average', async () => {
   try {
     f.setNow(new Date(Date.UTC(2026, 6, 15, 12)));
     await f.seedStars([
@@ -62,18 +72,15 @@ it('RS-06 shows the average and count once the column gate is allowed by the rea
     ]);
     expect((await read()).json()).toEqual({ visibility: 'VISIBLE', average: '4.3', count: 4 });
   } finally {
-    restore();
+    f.setNow(at(10));
   }
 });
 
 it('RS-07 answers VISIBLE with null average and count zero for a month without ratings', async () => {
-  const reads = f.h.app.get<OwnRatingReads>(OWN_RATING_READS);
-  const restore = allowColumn(reads);
   f.setNow(new Date(Date.UTC(2026, 8, 15, 12)));
   try {
     expect((await read()).json()).toEqual({ visibility: 'VISIBLE', average: null, count: 0 });
   } finally {
-    restore();
     f.setNow(at(10));
   }
 });
@@ -163,8 +170,6 @@ it('RS-10a refuses a valid admin session on the personal route with no rating fi
 });
 
 it('RS-11 never counts another employee or another company', async () => {
-  const reads = f.h.app.get<OwnRatingReads>(OWN_RATING_READS);
-  const restore = allowColumn(reads);
   f.setNow(new Date(Date.UTC(2026, 9, 15, 12)));
   try {
     await f.seedStars([
@@ -179,7 +184,6 @@ it('RS-11 never counts another employee or another company', async () => {
     );
     expect((await read()).json()).toEqual({ visibility: 'VISIBLE', average: '5.0', count: 1 });
   } finally {
-    restore();
     f.setNow(at(10));
   }
 });

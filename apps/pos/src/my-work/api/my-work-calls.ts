@@ -1,4 +1,4 @@
-import type { OwnServiceLines, OwnTips } from '@pospay/contracts';
+import type { OwnRatingSummary, OwnServiceLines, OwnTips } from '@pospay/contracts';
 import { personalApiClient, staffApiClient } from '@/shared/api/client';
 import type { WorkContext } from '../model/work-context';
 import { WorkHttpError } from '../model/work-error';
@@ -52,5 +52,10 @@ export const workCalls = {
         cache: 'no-store',
         params: { header: windowHeader(read), query: read.month ? { month: read.month } : {} },
       }),
+    ),
+  // مسار التقييم للجلسة الشخصية بس (RS-10)، فمفيش نافذة ولا توكن جهاز.
+  ratingSummary: async (signal: AbortSignal): Promise<OwnRatingSummary> =>
+    value(
+      await personalApiClient().GET('/v1/staff/me/rating-summary', { signal, cache: 'no-store' }),
     ),
 };

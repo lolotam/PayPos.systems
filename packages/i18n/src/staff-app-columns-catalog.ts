@@ -32,6 +32,8 @@ export const staffAppColumnsEn = {
   example_estimated_commission: '1.150 KWD',
   label_tip: 'Tip',
   example_tip: '0.500 KWD',
+  label_rating_average: 'Rating average',
+  example_rating_average: '4.5 (12)',
 };
 
 /** نفس مفاتيح الشاشة بالعربي. */
@@ -67,4 +69,6 @@ export const staffAppColumnsAr: Record<keyof typeof staffAppColumnsEn, string> =
   example_estimated_commission: '1.150 د.ك',
   label_tip: 'البقشيش',
   example_tip: '0.500 د.ك',
+  label_rating_average: 'متوسط التقييم',
+  example_rating_average: '4.5 (12)',
 };

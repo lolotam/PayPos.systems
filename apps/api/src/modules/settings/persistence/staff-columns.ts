@@ -50,8 +50,8 @@ async function readStoredStaffColumns(
 const snapshots = new WeakMap<Tx, Map<string, Promise<StaffColumnsSetting>>>();
 
 /**
- * The public read the consumer adapters call on their own transaction: the effective columns, postponed codes
- * removed, and the effective months back, read once per transaction and business.
+ * The public read the consumer adapters call on their own transaction: the effective columns and
+ * the effective months back, read once per transaction and business.
  *
  * @param tx         the caller's tenant transaction
  * @param companyId  the verified company

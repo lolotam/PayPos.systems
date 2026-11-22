@@ -1,17 +1,20 @@
 import { useState } from 'react';
 import type { PrivateViewAccess } from '../api/use-private-view';
-import { useWorkLines, useWorkTips } from '../api/use-my-work';
+import { useRatingSummary, useWorkLines, useWorkTips } from '../api/use-my-work';
 import { monthOutOfRange } from '../model/work-error';
 import type { WorkContext } from '../model/work-context';
 import { nextMonth, previousMonth } from '../model/work-month';
 import { EstimateCard } from './estimate-card';
 import { MonthStepper } from './month-stepper';
+import { RatingSummaryCard } from './rating-summary-card';
 import { TipsBlock } from './tips-block';
 import { WorkLines } from './work-lines';
 
 /**
- * محتوى «شغلي» جوّا البوابة الخاصة: الشهر، كارت التقدير، الإكراميات، وخدمات الشهر.
- * كارت التقييم (61-3) بيتضاف هنا بعد EstimateCard وياخد نفس `access` عشان يفضل جوّا النافذة.
+ * محتوى «شغلي» جوّا البوابة الخاصة: الشهر، كارت التقدير، كارت التقييم، الإكراميات، وخدمات الشهر.
+ * كارت التقييم بياخد نفس `access` عشان يفضل جوّا النافذة، وبيتقرا للموبايل الشخصي بس.
+ * TODO(spec): مسار rating-summary للجلسة الشخصية بس (جهاز الاستقبال بياخد 401، وread:ratings:own ممنوعة للأجهزة)،
+ * فمفيش كارت تقييم على جهاز الاستقبال لحد ما المالك يقرر (S-11 بتقول «ريسبشن زي أي موظفة»).
  *
  * @param props.context مين بيفتح الشاشة
  * @param props.access رقم النافذة ومعالج الرفض من البوابة
@@ -31,6 +34,7 @@ export function MyWorkCards({
   const [home, setHome] = useState<string>();
   const lines = useWorkLines(context, month, access);
   const tips = useWorkTips(context, month, access);
+  const rating = useRatingSummary(context, access, context.mode === 'personal');
   const serverMonth = lines.data?.pages[0]?.month;
   if (month === undefined && serverMonth !== undefined && home !== serverMonth)
     setHome(serverMonth);
@@ -45,6 +49,7 @@ export function MyWorkCards({
         onNext={() => shown && setMonth(nextMonth(shown))}
       />
       <EstimateCard allowed={estimateAllowed} />
+      <RatingSummaryCard summary={rating.data} />
       <TipsBlock tips={tips.data} />
       <WorkLines query={lines} {...(context.timezone ? { timezone: context.timezone } : {})} />
     </div>

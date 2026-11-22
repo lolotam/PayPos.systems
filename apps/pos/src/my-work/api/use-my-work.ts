@@ -56,6 +56,23 @@ export function useWorkLines(
 }
 
 /**
+ * متوسط تقييمها وعدده في الشهر الحالي؛ الرد بيحدد لوحده لو العمود مخفي (HIDDEN).
+ *
+ * @param context مين بيفتح الشاشة
+ * @param view رقم النافذة ومعالج الرفض
+ * @param enabled false على جهاز الاستقبال: المسار شخصي بس فمفيش طلب
+ * @returns استعلام ملخص التقييم
+ */
+export function useRatingSummary(context: WorkContext, view: PrivateViewAccess, enabled: boolean) {
+  return useQuery({
+    ...PRIVATE_READ,
+    enabled,
+    queryKey: ['my-work', context.identity, 'rating-summary'],
+    queryFn: ({ signal }) => guarded(() => workCalls.ratingSummary(signal), signal, view),
+  });
+}
+
+/**
  * إكراميات الشهر حسب الطريقة؛ لو العمود مخفي الرد HIDDEN ومفيش بلوك.
  *
  * @param context مين بيفتح الشاشة
