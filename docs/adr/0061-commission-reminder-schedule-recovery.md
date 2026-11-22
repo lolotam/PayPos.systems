@@ -122,8 +122,11 @@ reports healthy only if **(i)** showed a valid sentinel (its `run_id` equals the
 found no open incident, and **(iii)** confirms **the same certificate** (the same `pass_id` and `run_id` as in (i)), a
 `run_id` equal to the server's, and no recovery key. A new certificate between (i) and (iii) therefore makes this probe
 degraded (it was published by a real recovery, and the next probe is healthy); an incident that raises, invalidates the
-sentinel and clears, then stops or crashes before publishing, leaves the sentinel absent at (iii). **The probe is
-consistent at a moment, not a guarantee that extends until its response is sent.**
+sentinel and clears, then stops or crashes before publishing, leaves the sentinel absent at (iii). **The probe's
+result applies to the moment of the PostgreSQL read (ii), with the Redis certificate proven stable around it (the same
+certificate, the same `run_id` and no recovery key at (i) and at (iii)); an incident opened after that moment is
+reflected by the next probe, and the result is not a guarantee that extends to the final Redis check or to the moment
+the response is sent.**
 A valid sentinel together with an open incident does not make the worker ready. The recovery and the close stay **automatic** (CS-Q32): a new pass adopts the open incident, re-verifies
 every company's scheduler and closes it by the normal path (clear, then publish); the operator command is only the
 fallback. A pass has an incident iff it finds a loss: a missing or stale
@@ -292,8 +295,9 @@ Recovery cases (CS-Q32), each with its own expected result:
   incident and ends healthy after one pass; a replica that sees the sentinel missing between a clear and a publication
   raises no second incident.
 - **Readiness reads** (the probe's three steps i, ii, iii): **(a)** a late incident insert that lands after the first
-  snapshot and before the incident read → degraded; **(b)** a late insert that lands after the incident read: the probe
-  reports healthy (it proves the state at its last read) and the **next probe is degraded**; **(c)** a clear followed by
+  snapshot and before the incident read → degraded; **(b)** a late insert that commits after (ii), whether before or
+  after (iii): this probe does not see it (healthy for the moment of (ii)); the **next probe is degraded**, and the
+  incident then wins as point 4 defines; **(c)** a clear followed by
   a crash before the publish, interleaved between the steps → degraded (sentinel absent at iii); **(d)** a completed
   recovery that publishes a new certificate between i and iii → degraded on this probe (the certificate changed),
   healthy on the next; an open flag with a valid sentinel and no key → degraded.
