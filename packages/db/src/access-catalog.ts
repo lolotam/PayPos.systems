@@ -9,6 +9,8 @@ export const PERMISSIONS = [
   'read:commissions:own',
   'read:attendance:own',
   'read:ratings:own',
+  // قراءة تقييمات النشاط: للمديرين الأربعة ضمن نطاقاتهم، والجهاز ممنوع منها أبداً (RT-Q7، FR-B15).
+  'read:ratings:branch',
   'record:service-sessions:branch',
   'read:service-sessions:branch',
   'edit:service-line-prices:branch',

@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { SYSTEM_ROLES } from '@pospay/db';
 import {
   newMember,
   permissionFixture,
@@ -12,12 +11,6 @@ let f: PermissionFixture;
 
 beforeAll(async () => {
   f = await permissionFixture();
-  // الكتالوج لسه بدون الكود (61-1c هيزرعه)؛ بنضيفه هنا بس عشان مسار المنح يوصل للحارس.
-  await f.h.owner`INSERT INTO permissions(code) VALUES (${code})`;
-  const owner = SYSTEM_ROLES.find((role) => role.code === 'owner');
-  if (owner === undefined) throw new Error('Missing owner role');
-  await f.h.owner`INSERT INTO role_permissions(role_id,role_owner_key,permission_code)
-    VALUES (${owner.id},'global',${code})`;
 });
 afterAll(async () => {
   await f?.db.close();
@@ -27,7 +20,7 @@ afterAll(async () => {
 /**
  * عضوية حيّة بالدور المطلوب على الفرع؛ المنح الشخصي بيجي بنطاق العضوية نفسها.
  * خانات الأدوار النظامية جاية من `systemRolePolicy` في الكود مش من صفوف القاعدة،
- * فقبل ما 61-1c تزوّد الافتراضيات، مسار الرفض المسمّى (422) بيتوصل عن طريق دور مخصص خاناته null.
+ * فبيانة خانة المدير بتوصل من الافتراضيات مش من منحة.
  */
 async function memberWithRole(roleCode: string): Promise<string> {
   const member = await newMember(f, roleCode);
@@ -47,6 +40,19 @@ async function state() {
   };
 }
 
+it('the fresh seed gives the ratings read to the four manager roles only', async () => {
+  const holders = await f.h.owner`SELECT r.code FROM role_permissions rp
+    JOIN roles r ON r.id=rp.role_id AND r.owner_key=rp.role_owner_key
+    WHERE rp.role_owner_key='global' AND rp.permission_code=${code}
+    ORDER BY r.code`;
+  expect(Array.from(holders).map((row) => row['code'])).toEqual([
+    'branch_manager',
+    'business_manager',
+    'general_manager',
+    'owner',
+  ]);
+});
+
 it.each(['synthetic_viewer'])(
   'the %s custom role is refused with 422 PERMISSION_ROLE_NOT_ELIGIBLE and nothing is written',
   async (roleCode) => {
@@ -60,8 +66,15 @@ it.each(['synthetic_viewer'])(
   },
 );
 
-it('refuses a branch manager today with the generic slot 403 until 61-1c gives the defaults', async () => {
+it('a branch manager holds the permission by default, so the grant is saved', async () => {
   const member = await memberWithRole('branch_manager');
+  const granted = await grant(member, 'ALLOW');
+  expect(granted.status).toBe(201);
+  expect(granted.body['permission_code']).toBe(code);
+});
+
+it('a device can never hold the ratings read and the refusal writes nothing', async () => {
+  const member = await newMember(f, 'device');
   const before = await state();
   const refused = await grant(member, 'ALLOW');
   expect(refused.status).toBe(403);
