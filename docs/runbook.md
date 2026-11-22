@@ -353,9 +353,15 @@ no `published_at`, no `attempts`, no mark and no projection change.
    some of the company's businesses, or over part of the business days that have inputs, is not a proof for the company. The
    report cannot infer completeness, so the operator step that opens approval requires a run whose `--businesses` lists **every business of
    the company** and whose range covers **every business day that has inputs**; the enablement decision checks `tipScope` against that.
+   One run must name every business: nothing composes several runs into a company-wide `COVERED`. `--businesses` takes at most 200 ids and
+   the code has no limit on how many businesses a company can have (`create-business` counts nothing and `plans` carries feature flags
+   only), so a company with more than 200 businesses cannot be proved by this tool: approval stays closed for it and the case is escalated;
+   do not raise the limit and do not split the run.
+   **Take the run that opens approval while the company's inputs are quiet:** the consumer has caught up and no session, tip, salary or
+   package-sale write is in flight. The sections are read in separate transactions (see item 5), so a run taken during writes proves nothing.
 3. **Output.** One JSON line: `status` (`COVERED` only when lines, salaries, sales and tips were all checked and no check found a gap,
-   an unmarked retained event or an unhandled type; otherwise `NOT_COVERED`), `throughId`, `lines` and `salaries` (each with `checked`,
-   `missing` and `stale`, each list carrying its `total` and at most 200 ids; a salary id is `employeeId|YYYY-MM-DD`), `unmarked`
+   an unmarked retained event or an unhandled type; otherwise `NOT_COVERED`), `throughId`, `lines`, `salaries` and `sales` (each with `checked`,
+   `missing` and `stale`, each list carrying its `total` and at most 200 ids; a salary id is `employeeId|YYYY-MM-DD`, a sale id is the entitlement id), `unmarked`
    (`checked`, `total` and `events` with `eventId` and `type`, at most 200), `notHandled` (`total` and `events` with `eventId`, `type`
    and the fixed `reason` `COMMISSION_EVENT_TYPE_NOT_HANDLED`, at most 200), `tips` (`checked`, `missing` and `stale` with the same
    shape as the lines, or `null` when no tip scope was supplied), `tipsNote` (one line saying the tip coverage was NOT checked and how to
@@ -370,20 +376,25 @@ no `published_at`, no `attempts`, no mark and no projection change.
 5. **Limits.** The retained-event check covers the six counted types (`ServiceSessionRecorded`, `ServiceSessionLinesAdded`,
    `ServiceLineChanged`, `SalaryChanged`, `SessionTipsChanged` and `PackageSaleChanged`), and every retained `SessionTipsChanged` event id
    must carry the consumer's mark: that is the tip event-id check. The tip coverage by revision is bounded by the operator's scope, so the
-   company-wide guarantee stays with the retained-event check. A clean report is a
-   point-in-time read: a row written while it runs is delivered by the live consumer.
+   company-wide guarantee stays with the retained-event check. The report is **not a point-in-time snapshot**: lines,
+   salaries, sales, the retained events and the tips are read in separate transactions, and each page in its own. With a fixed `--through`
+   a concurrent write can make it print `COVERED` although no single moment had every section covered; a row written while it runs is
+   delivered by the live consumer. A consistent proof is the subject of the open design decision for the approval gate (53-2).
    **A tenant with any retained `PackageSaleChanged` event is now checked like the other counted types (50-4 registered the handler)**:
    since 50-4 the sale type is registered by the consumer, so a retained sale event without its mark is listed under `unmarked` like any other
    counted type, and the report's `sales` section compares every sold package's revision with the projection (`missing`/`stale`). `notHandled` is
    reserved for a type the consumer does not register at all — after 50-4 that is a real configuration gap, not an expected wait. While any sale
    stays missing or stale, the 55-1b R5 prerequisite ("coverage shows no gap before the first correction posts") is blocked for the tenant.
-6. **Refusal.** The report refuses with the fixed code `COMMISSION_COVERAGE_SCOPE_INVALID`, prints no report and exits 1 when the
-   company does not exist or `--through` is not a retained event of that company among `ServiceSessionRecorded`,
-   `ServiceSessionLinesAdded`, `ServiceLineChanged`, `SalaryChanged`, `SessionTipsChanged` and `PackageSaleChanged`.
-   It refuses the same way, before any scan, when a business in `--businesses` is not a business of that company (another company's or an
-   unknown id), when the list is empty, or when `from` is after `to`.
-   A malformed or partial tip scope (a business id that is not a UUID, a date that is not `YYYY-MM-DD`, `from` after `to`, more than 200
-   business ids, or only some of the three flags) prints `COMMISSION_COVERAGE_CONFIGURATION` and reads nothing.
+6. **Refusal.** Two layers, with two codes.
+   - **The command line** prints `COMMISSION_COVERAGE_CONFIGURATION` and reads nothing for a malformed or partial tip scope while parsing its
+     arguments, before the report runs: a business id that is not a UUID, an empty `--businesses`, a date that is not `YYYY-MM-DD`, `from`
+     after `to`, more than 200 business ids, or only some of the three flags.
+   - **The report itself** refuses with the fixed code `COMMISSION_COVERAGE_SCOPE_INVALID`, prints no report and exits 1, before any scan, when
+     the company does not exist, when a business in `--businesses` is not a business of that company (another company's or an unknown id), or
+     when `--through` is not a retained event of that company among `ServiceSessionRecorded`, `ServiceSessionLinesAdded`,
+     `ServiceLineChanged`, `SalaryChanged`, `SessionTipsChanged` and `PackageSaleChanged`. A direct caller of the use case also gets
+     `COMMISSION_COVERAGE_SCOPE_INVALID` for an empty list, a business id that is not a UUID and `from` after `to`, which the command line
+     has already refused with the other code.
 
 ## 50-3d: replay all six counted types after a rollback (spec 059, CS-Q43)
 
