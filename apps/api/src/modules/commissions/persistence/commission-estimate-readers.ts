@@ -121,6 +121,8 @@ export function createCommissionEstimateReads(
     employees: (businessId) => providers.employees(tx, companyId, businessId),
     attachments: (businessId, employeeIds) =>
       providers.attachments(tx, companyId, businessId, employeeIds),
+    serviceNames: (businessId, serviceIds) =>
+      providers.serviceNames(tx, companyId, businessId, serviceIds),
     month: (businessId, period) => readEstimateMonth(tx, companyId, businessId, period),
   };
 }

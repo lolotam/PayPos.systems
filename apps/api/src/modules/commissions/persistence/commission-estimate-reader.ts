@@ -48,7 +48,7 @@ async function readEstimateInputs(
   const reads = createCommissionEstimateReads(tx, request.companyId, providers);
   // إثبات العضوية بيحصل في اللقطة نفسها قبل أي قراءة بيانات، فمفيش معاملة ثانية
   // ولا حالة مقروءة بره المعاملة دي.
-  if (!(await hasActiveMembership(tx, request.companyId, request.userId))) {
+  if (!(await hasActiveMembership(tx, request.userId))) {
     return { kind: 'forbidden' };
   }
   const scope = await reads.scope(request.companyId, request.userId, request.businessId);
@@ -61,6 +61,10 @@ async function readEstimateInputs(
     request.businessId,
     candidateIds(employees, month),
   );
+  const serviceNames = await reads.serviceNames(
+    request.businessId,
+    [...new Set(month.lines.map((line) => line.serviceId))],
+  );
   return {
     kind: 'ok',
     inputs: {
@@ -69,12 +73,13 @@ async function readEstimateInputs(
       employees,
       attachments,
       month,
+      serviceNames,
     },
   };
 }
 
 /** عضوية سارية للمستخدم في الشركة، مثبتة جوه لقطة القراءة نفسها. */
-async function hasActiveMembership(tx: Tx, companyId: string, userId: string): Promise<boolean> {
+async function hasActiveMembership(tx: Tx, userId: string): Promise<boolean> {
   const rows = await tx.execute<{ present: number }>(sql`SELECT 1 AS present
     FROM memberships
     WHERE company_id = app_company_id() AND user_id = ${userId}

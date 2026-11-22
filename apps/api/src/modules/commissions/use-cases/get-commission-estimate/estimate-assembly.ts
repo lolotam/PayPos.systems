@@ -186,12 +186,15 @@ function visibleLines(
     const amount = priced.perSource.get(`line:${line.lineId}`);
     if (amount === undefined) continue;
     total += amount;
+    const service = inputs.serviceNames.get(line.serviceId);
     sources.push({
       source_ref: `line:${line.lineId}`,
       kind: 'COMMISSION',
       amount: moneyToString(amount),
       source_branch_id: line.branchId,
       source_business_date: line.businessDate,
+      service_id: line.serviceId,
+      service_name: service?.nameEn ?? null,
     });
   }
   return { sources, total, outside };
@@ -226,6 +229,8 @@ function visibleSales(
       amount: moneyToString(amount),
       source_branch_id: sale.branchId,
       source_business_date: sale.businessDate,
+      service_id: null,
+      service_name: null,
     });
     sales.push({
       sale_id: sale.saleId,

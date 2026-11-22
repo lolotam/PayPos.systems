@@ -32,6 +32,7 @@ export const commissionEstimateQuery = z
 /**
  * مصدر مسعَّر واحد: البند أو بيع الباقة، بمبلغه وفرع عمله ويومه. الفرع هنا هو
  *"Where the work happened" وهو بيتبان دايماً ومش بيتفلتر عليه (CS-Q24).
+ * `service_id` و`service_name` بيتبانوا للصف المرئي بس: بيع الباقة مالوش خدمة.
  */
 export const commissionEstimateSource = responseObject({
   source_ref: z.string().min(1),
@@ -39,6 +40,8 @@ export const commissionEstimateSource = responseObject({
   amount: commissionEstimateMoney,
   source_branch_id: id,
   source_business_date: estimateBusinessDate,
+  service_id: id.nullable(),
+  service_name: z.string().nullable(),
 }).meta({ id: 'CommissionEstimateSource' });
 
 /** بيع الباقة المسعَّر: بائعته شايف بيعها بس لو اليوم كان ليه ارتباط بفرع من نطاقه. */

@@ -78,6 +78,7 @@ const inputs = (overrides: Partial<CommissionEstimateReadResult> = {}): Commissi
   employees: names,
   attachments: [],
   month: emptyMonth,
+  serviceNames: new Map(),
   ...overrides,
 });
 
@@ -253,7 +254,7 @@ describe('buildCommissionEstimate for rows outside the reader scope', () => {
   });
 });
 
-describe('buildCommissionEstimate statuses and the employee filter', () => {
+describe('buildCommissionEstimate statuses', () => {
   it('reports NO_PLAN with a null total and keeps the tips split by method', () => {
     const estimate = buildCommissionEstimate(
       inputs({
@@ -309,7 +310,9 @@ describe('buildCommissionEstimate statuses and the employee filter', () => {
     expect(unpriced).toMatchObject({ status: 'NO_PLAN', total: null });
     expect(estimate.total).toBeNull();
   });
+});
 
+describe('buildCommissionEstimate visibility', () => {
   it('shows an employee attached to the scope even when the month has no work for her', () => {
     const estimate = buildCommissionEstimate(
       inputs({

@@ -3746,6 +3746,9 @@ export interface components {
             /** Format: uuid */
             source_branch_id: string;
             source_business_date: string;
+            /** Format: uuid */
+            service_id: string | null;
+            service_name: string | null;
         };
         CommissionEstimateSale: {
             /** Format: uuid */

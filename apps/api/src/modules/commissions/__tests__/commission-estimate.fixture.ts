@@ -175,11 +175,15 @@ export async function seedLines(
       rulePctBps: 1000,
     }),
   );
-  // موظفة تانية بتبني بدنها في الفرع التاني، عشان مدير الفرع الأول ما يشوفهاش.
+  // موظفة تانية بتبني بدنها في الفرع التاني، عشان مدير الفرع الأول ما يشوفهاش؛
+  // وخدمتها مختلفة عشان اسم الخدمة المحجوب ما يظهرش في رد القارئ.
+  const secondService = ids.newId();
+  await h.owner`INSERT INTO services(company_id,id,business_id,name_en,price,commission_rule_kind)
+    VALUES (${company},${secondService},${tenant.business},'Hidden service',1.000,'ZERO')`;
   await db.withTenant(company, (tx) =>
     insertCommissionLineProjection(
       tx,
-      { ...tenant, employee: secondEmployee, branch: secondBranch },
+      { ...tenant, employee: secondEmployee, branch: secondBranch, service: secondService },
       ids,
       {
         lineId: ids.newId(),

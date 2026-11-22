@@ -68,6 +68,20 @@ it('cannot reveal an inaccessible employee through the employee filter', async (
   expect(hidden.body).toEqual(absent.body);
 });
 
+it('shows the service name of a visible row and never of a hidden one', async () => {
+  const visible = await get(fixture);
+  const visibleBody = visible.body as {
+    employees: { employee_id: string; sources: { service_name: string | null }[] }[];
+  };
+  const own = visibleBody.employees.find(
+    (employee) => employee.employee_id === fixture.employee,
+  );
+  expect(own?.sources[0]?.service_name).toBe('Estimate service');
+
+  const hidden = await get(fixture, '', fixture.branchCookie);
+  expect(JSON.stringify(hidden.body)).not.toContain('Hidden service');
+});
+
 it('withholds the customer name from the estimate', async () => {
   const response = await get(fixture);
   const text = JSON.stringify(response.body);

@@ -116,6 +116,17 @@ export interface CommissionEstimateReads {
     employeeIds: readonly string[],
   ): Promise<readonly CommissionEstimateAttachment[]>;
   /**
+   * بيرجّع أسماء خدمات النشاط، فالصف المرئي بيعرض العمل اللي earned العمولة (FR-023).
+   *
+   * @param businessId النشاط المطلوب
+   * @param serviceIds معرّفات الخدمات المطلوبة
+   * @returns اسم كل خدمة موجودة
+   */
+  serviceNames(
+    businessId: string,
+    serviceIds: readonly string[],
+  ): Promise<ReadonlyMap<string, { readonly nameEn: string; readonly nameAr: string | null }>>;
+  /**
    * بيرجّع صفوف الشهر كلها مرة واحدة: البنود والبيع والبقشيش والرواتب والإصدارات
    * والتجاوزات والتصحيحات المستلمة.
    *
@@ -181,6 +192,21 @@ export interface CommissionEstimateReads {
     businessId: string,
     employeeIds: readonly string[],
   ): Promise<readonly CommissionEstimateAttachment[]>;
+  /**
+   * بيرجّع أسماء خدمات النشاط، لأن التقدير بيعرض العمل اللي earned العمولة (FR-023).
+   *
+   * @param tx معاملة القراءة الحالية
+   * @param companyId الشركة المؤكدة
+   * @param businessId النشاط المطلوب
+   * @param serviceIds معرّفات الخدمات المطلوبة
+   * @returns اسم كل خدمة موجودة
+   */
+  serviceNames(
+    tx: Tx,
+    companyId: string,
+    businessId: string,
+    serviceIds: readonly string[],
+  ): Promise<ReadonlyMap<string, { readonly nameEn: string; readonly nameAr: string | null }>>;
 }
 
 /** مدخلات التقدير المقروءة كلها من لقطة القراءة الواحدة. */
@@ -191,6 +217,8 @@ export interface CommissionEstimateReadResult {
   readonly employees: readonly CommissionEstimateEmployee[];
   readonly attachments: readonly CommissionEstimateAttachment[];
   readonly month: CommissionEstimateMonthRows;
+  /** أسماء الخدمات، وقت ما تكون موجودة في الكتالوج. */
+  readonly serviceNames: ReadonlyMap<string, { readonly nameEn: string; readonly nameAr: string | null }>;
 }
 
 /**

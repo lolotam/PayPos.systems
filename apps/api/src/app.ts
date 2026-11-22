@@ -56,6 +56,7 @@ import {
   catalogControllers,
   catalogProviders,
   readCommissionOverrideServices,
+  readCommissionServiceNames,
   readSessionServices,
 } from './modules/catalog/index.ts';
 import { ordersControllers, ordersProviders } from './modules/orders/index.ts';
@@ -205,6 +206,7 @@ function commissionBindings(deps: AppDependencies) {
       featureEnabled: readCommissionFeatureEnabled,
       employees: readCommissionEstimateEmployees,
       attachments: readCommissionBranchAttachments,
+      serviceNames: readCommissionServiceNames,
     },
     deps.commissionsClock,
   );
