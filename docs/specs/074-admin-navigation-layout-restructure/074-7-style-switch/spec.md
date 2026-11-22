@@ -4,7 +4,7 @@ Parent: [`spec.md`](../spec.md), [`design.md`](../design.md), [`pr-sequence.md`]
 
 ## Owner decision
 
-Row 7 is delivered as two PRs. Waleed, in the project chat, 2026-11-22, on the card «مهمة 074-7 … نسلّمها إزاي؟»: **«PR-ين: 7a ثم 7b (Recommended)»**. Caps on that card: 4,500 added plus removed lines of code and tests for 7a, and 4,500 for 7b (docs and `.github` counted separately). Tier Medium for both. The three styles still appear to users together, in 7b, so NAV-Q8 holds.
+Row 7 is delivered as two PRs (PP-224 in `docs/owner-decisions.ar.md`). Waleed, in the project chat, 2026-11-22, on the card «مهمة 074-7 … نسلّمها إزاي؟»: **«PR-ين: 7a ثم 7b (Recommended)»**. Caps on that card: 4,500 added plus removed lines of code and tests for 7a, and 4,500 for 7b (docs and `.github` counted separately). Tier Medium for both. The three styles still appear to users together, in 7b, so NAV-Q8 holds.
 
 ## 7a — Build, nothing visible
 
