@@ -1,3 +1,7 @@
+import {
+  commissionCorrectionBlockedNoticeGroupSize,
+  commissionCorrectionBlockedNoticeRequested,
+} from '@pospay/contracts';
 import { createDatabase, type Database } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
@@ -26,6 +30,15 @@ import type { OutboxConsumer } from '../../../outbox/consumer.ts';
 import { commissionSaleEvent } from './commission-tip-salary-events.ts';
 import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
 import { recordCommissionFailureCodes } from '../index.ts';
+import { createCommissionSaleProjectionScope } from '../persistence/commission-sale-projection.scope.ts';
+import { createCommissionCorrectionScope } from '../persistence/commission-correction.scope.ts';
+import { createCommissionBlockNotices } from '../persistence/commission-block-notice.outbox.ts';
+import { onCommissionInputEvent } from '../events/handlers/on-commission-input-event.handler.ts';
+import type { CommissionInputUseCases } from '../events/handlers/on-commission-input-event.handler.ts';
+import { ProjectPackageSale } from '../use-cases/project-package-sale/project-package-sale.ts';
+
+/** قارئ حاملي الصلاحية ما بيتنادىش في اختبارات البيع؛ بيحتاج identity وده ممنوع جوه الموديول. */
+const noPermissionHolders = async (): Promise<readonly string[]> => [];
 
 let testDb: TestDatabase;
 let owner: postgres.Sql;
@@ -111,12 +124,12 @@ async function seedSaleProjection(): Promise<void> {
 }
 
 /** يجمّد كشف شهر المصدر مع صف بيع مجمّد بثلاثة دنانير ولقطة ارتباط الموظفة. */
-async function seedFrozenStatement(): Promise<void> {
+async function seedFrozenStatement(status: 'APPROVED' | 'PAID' = 'APPROVED'): Promise<void> {
   await walkCommissionStatement(db, {
     tenant: A,
     period: SOURCE_PERIOD,
     ids,
-    to: 'APPROVED',
+    to: status,
     afterApproved: async (tx, statementId) => {
       await insertCommissionLine(tx, A, statementId, ids, {
         kind: 'SALE',
@@ -150,6 +163,18 @@ const ledger = () =>
     attached_branch_ids AS "attachedBranchIds"
     FROM commission_corrections WHERE company_id=${A.company}
     ORDER BY generation, source_ref`;
+
+const saleRow = () =>
+  owner`SELECT sale_id AS "saleId", status, price_paid::text AS "pricePaid",
+    refunded_amount::text AS "refundedAmount", revision, period
+    FROM commission_sales WHERE company_id=${A.company} AND sale_id=${SALE_ID}`;
+
+const generations = () =>
+  owner`SELECT generation FROM commission_period_generations WHERE company_id=${A.company}`;
+
+const marks = () =>
+  owner`SELECT event_id FROM consumed_events
+    WHERE consumer_id='commissions.project-inputs' ORDER BY event_id`;
 
 it('records -1.000 for a partial refund against the frozen 3.000', async () => {
   expect(await deliver(saleEvent())).toMatchObject({ delivered: true });
@@ -281,4 +306,72 @@ it('records a block and no correction when the seller has no applicable plan', a
   const blocks = await owner`SELECT code, source_period AS "sourcePeriod", target_period AS "targetPeriod"
     FROM commission_blocked_corrections WHERE company_id=${A.company}`;
   expect(blocks).toEqual([{ code: 'NO_PLAN', sourcePeriod: SOURCE_PERIOD, targetPeriod: TARGET_PERIOD }]);
+});
+
+it('corrects a paid month the same way it corrects an approved one', async () => {
+  // الشهر المدفوع بيتجمّد من الأول، فالكشف المعتمد بيتشال الأول.
+  await owner`DELETE FROM commission_statement_attachments`;
+  await owner`DELETE FROM commission_statement_lines`;
+  await owner`DELETE FROM commission_statements`;
+  await seedFrozenStatement('PAID');
+  expect(await deliver(saleEvent())).toMatchObject({ delivered: true });
+
+  const rows = await ledger();
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    sourceRef: `sale:${SALE_ID}`,
+    kind: 'SALE',
+    amount: '-1.000',
+    previousAmount: '3.000',
+    newAmount: '2.000',
+    sourcePeriod: SOURCE_PERIOD,
+    targetPeriod: TARGET_PERIOD,
+  });
+});
+
+/**
+ * مستهلك بيفشل عند كتابة التصحيح بعد ما صف البيع اتكتب، عشان يثبت إن
+ * المعاملة رجعت بالكامل: مفيش صف ولا جيل ولا تصحيح ولا علامة استهلاك.
+ */
+function failingCorrectionConsumer(): OutboxConsumer {
+  return {
+    id: consumer.id,
+    eventTypes: consumer.eventTypes,
+    handle: async (tx, event) => {
+      const scope = createCommissionSaleProjectionScope(tx, fakeBusinessTimeZone(A.business), ids);
+      const corrections = createCommissionCorrectionScope(tx, ids, clock);
+      const failing = {
+        ...corrections,
+        insertCorrections: async (): Promise<void> => {
+          throw new Error('injected correction failure');
+        },
+      };
+      const notices = createCommissionBlockNotices(tx, ids, clock, {
+        groupSize: commissionCorrectionBlockedNoticeGroupSize,
+        parsePayload: (payload: unknown) => commissionCorrectionBlockedNoticeRequested.parse(payload),
+        permissionHolders: noPermissionHolders,
+      });
+      const sales = new ProjectPackageSale(scope, clock, ids, failing, notices);
+      const useCases = { lines: null, tips: null, salary: null, sales } as unknown as CommissionInputUseCases;
+      await onCommissionInputEvent(useCases, event);
+    },
+  };
+}
+
+it('leaves nothing behind when the correction write fails in a closed month, and a redelivery projects once', async () => {
+  const failing = createDeliverer(db, [failingCorrectionConsumer()], createLogger('silent'), {
+    knownEventTypes: consumer.eventTypes,
+  });
+  const event = saleEvent();
+
+  await failing(event);
+  expect(await saleRow()).toHaveLength(1);
+  expect(await ledger()).toHaveLength(0);
+  expect(await generations()).toHaveLength(0);
+  expect(await marks()).toHaveLength(0);
+
+  expect(await deliver(event)).toMatchObject({ delivered: true });
+  expect(await saleRow()).toHaveLength(1);
+  expect(await ledger()).toHaveLength(1);
+  expect(await marks()).toHaveLength(1);
 });

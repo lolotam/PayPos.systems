@@ -254,7 +254,7 @@ describe('buildCommissionEstimate for rows outside the reader scope', () => {
 });
 
 describe('buildCommissionEstimate statuses and the employee filter', () => {
-  it('reports NO_PLAN and keeps the tips split by method', () => {
+  it('reports NO_PLAN with a null total and keeps the tips split by method', () => {
     const estimate = buildCommissionEstimate(
       inputs({
         month: {
@@ -285,10 +285,47 @@ describe('buildCommissionEstimate statuses and the employee filter', () => {
 
     expect(estimate.employees[0]).toMatchObject({
       status: 'NO_PLAN',
-      total: '0.000',
+      total: null,
       tips: { card: '1.500', cash: '0.500' },
     });
-    expect(estimate.total).toBe('0.000');
+    expect(estimate.total).toBeNull();
+  });
+
+  it('keeps a priced employee total apart from an unpriced one', () => {
+    const estimate = buildCommissionEstimate(
+      inputs({
+        month: {
+          ...emptyMonth,
+          lines: [line(OTHER, 'line-2', '2026-10-06')],
+          sales: [sale(EMPLOYEE, 'sale-1', '2026-10-05')],
+        },
+      }),
+      request,
+    );
+
+    const priced = estimate.employees.find((employee) => employee.employee_id === OTHER);
+    const unpriced = estimate.employees.find((employee) => employee.employee_id === EMPLOYEE);
+    expect(priced).toMatchObject({ status: 'OK', total: '1.000' });
+    expect(unpriced).toMatchObject({ status: 'NO_PLAN', total: null });
+    expect(estimate.total).toBeNull();
+  });
+
+  it('shows an employee attached to the scope even when the month has no work for her', () => {
+    const estimate = buildCommissionEstimate(
+      inputs({
+        businessWide: false,
+        branchIds: [BRANCH_A],
+        attachments: [attachment(OTHER, BRANCH_A, '2026-10-01', null)],
+        month: {
+          ...emptyMonth,
+          lines: [line(EMPLOYEE, 'line-1', '2026-10-05')],
+        },
+      }),
+      request,
+    );
+
+    expect(estimate.employees.map((employee) => employee.employee_id)).toEqual([OTHER]);
+    expect(estimate.employees[0]).toMatchObject({ status: 'OK', total: '0.000' });
   });
 
   it('cannot reveal an inaccessible employee through the employee filter', () => {

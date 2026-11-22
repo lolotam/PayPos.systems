@@ -1,4 +1,5 @@
 import type { TenantWrappers, Tx } from '@pospay/db';
+import { sql } from 'drizzle-orm';
 
 import type {
   CommissionEstimateMonthRows,
@@ -45,6 +46,11 @@ async function readEstimateInputs(
   providers: CommissionEstimateProviders,
 ): ReturnType<CommissionEstimateReader['read']> {
   const reads = createCommissionEstimateReads(tx, request.companyId, providers);
+  // إثبات العضوية بيحصل في اللقطة نفسها قبل أي قراءة بيانات، فمفيش معاملة ثانية
+  // ولا حالة مقروءة بره المعاملة دي.
+  if (!(await hasActiveMembership(tx, request.companyId, request.userId))) {
+    return { kind: 'forbidden' };
+  }
   const scope = await reads.scope(request.companyId, request.userId, request.businessId);
   if (scope.kind === 'forbidden') return { kind: 'forbidden' };
   if (scope.kind === 'feature_disabled') return { kind: 'feature_disabled' };
@@ -65,6 +71,16 @@ async function readEstimateInputs(
       month,
     },
   };
+}
+
+/** عضوية سارية للمستخدم في الشركة، مثبتة جوه لقطة القراءة نفسها. */
+async function hasActiveMembership(tx: Tx, companyId: string, userId: string): Promise<boolean> {
+  const rows = await tx.execute<{ present: number }>(sql`SELECT 1 AS present
+    FROM memberships
+    WHERE company_id = app_company_id() AND user_id = ${userId}
+      AND starts_at <= now() AND (ends_at IS NULL OR ends_at > now())
+    LIMIT 1`);
+  return rows.length > 0;
 }
 
 /** الموظفات اللي ممكن يكون ليهن مدخل في الشهر: مرشحات التقدير كلهن. */

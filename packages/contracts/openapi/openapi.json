@@ -22099,7 +22099,12 @@
             "type": "boolean"
           },
           "total": {
-            "$ref": "#/components/schemas/CommissionEstimateMoney"
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CommissionEstimateMoney"
+              }
+            ]
           },
           "sources": {
             "type": "array",
@@ -22158,7 +22163,12 @@
             "type": "boolean"
           },
           "total": {
-            "$ref": "#/components/schemas/CommissionEstimateMoney"
+            "nullable": true,
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CommissionEstimateMoney"
+              }
+            ]
           }
         },
         "required": [

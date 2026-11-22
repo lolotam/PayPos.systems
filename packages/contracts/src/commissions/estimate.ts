@@ -68,9 +68,13 @@ export const commissionEstimateTips = responseObject({
 }).meta({ id: 'CommissionEstimateTips' });
 
 /**
- * تقدير موظفة واحدة: مصادرها المسعَّرة وبيعها وبقشيشها وتصحيحاتها المستلمة ومجموعها
+ * تقدير موظفة لشهر واحد: مصادرها المسعَّرة وبيعها وبقشيشها وتصحيحاتها المستلمة ومجموعها
  * وحالتها. `partial` بتقول إن أرقامها جزئية لأن صف من شهرها خارج نطاق فروع القارئ
  * أو إنها كانت مرتبطة بفرع من نطاقه في بعض أيام الشهر بس (CS-Q20).
+ *
+ * `total` هو مجموع جانب العمولة بس (البنود والبيع)، وهو null لما الشهر ما تسعّرش
+ * (NO_PLAN أو NO_SALARY): المبلغ غير المحسوب بيفضل null مش صفر، عشان الصفر
+ * الصحيح ما يختلطش بمبلغ ما اتحسبش (FR-021).
  */
 export const commissionEstimateEmployee = responseObject({
   employee_id: id,
@@ -79,7 +83,7 @@ export const commissionEstimateEmployee = responseObject({
   employee_number: z.number().int().min(1).max(999999),
   status: z.enum(['OK', 'NO_PLAN', 'NO_SALARY']),
   partial: z.boolean(),
-  total: commissionEstimateMoney,
+  total: commissionEstimateMoney.nullable(),
   sources: z.array(commissionEstimateSource),
   sales: z.array(commissionEstimateSale),
   tips: commissionEstimateTips,
@@ -88,14 +92,15 @@ export const commissionEstimateEmployee = responseObject({
 
 /**
  * تقدير النشاط لشهر واحد: الموظفات المرئيات فقط، ومجموعهن المرئي. الموظفة
- * غير المرئية مش موجودة في الرد، مش بصفر (CS-Q20).
+ * غير المرئية مش موجودة في الرد، مش بصفر (CS-Q20). المجموع null لو أي موظفة
+ * مرئية ما تسعّرش شهرها، فالمبلغ الجزئي ما يتصدقش إنه المجموع.
  */
 export const commissionEstimate = responseObject({
   business_id: id,
   period: commissionEstimatePeriod,
   employees: z.array(commissionEstimateEmployee),
   partial: z.boolean(),
-  total: commissionEstimateMoney,
+  total: commissionEstimateMoney.nullable(),
 }).meta({ id: 'CommissionEstimate' });
 
 export const commissionEstimateSchemas = [

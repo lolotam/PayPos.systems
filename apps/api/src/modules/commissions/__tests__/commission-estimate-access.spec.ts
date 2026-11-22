@@ -166,6 +166,21 @@ it('subtracts a branch denied by another membership of the same reader', async (
   expect((response.body as { code: string }).code).toBe('FORBIDDEN');
 });
 
+it('keeps the business-wide scope for an owner whose sibling membership carries a DENY', async () => {
+  // حماية المالك (ADR-0025) بتلغي DENY من العضوية الشقيقة لما تكون عضوية المالك سارية،
+  // وده المتعارض المقصود مع النص المطلق في CS-Q20.
+  const owner = await globalRoleMember(fixture, 'owner', 'COMPANY');
+  const sibling = await secondMembership(fixture, owner.userId, 'viewer', 'BUSINESS');
+  await permissionOverride(fixture, sibling, 'DENY', {
+    type: 'BRANCH',
+    id: fixture.branch,
+  });
+  const response = await get(fixture, owner.cookie);
+
+  expect(response.status).toBe(200);
+  expect((response.body as { employees: unknown[] }).employees).toHaveLength(2);
+});
+
 it('filters a business-wide holder that carries any current DENY', async () => {
   const member = await globalRoleMember(fixture, 'general_manager', 'BUSINESS');
   await permissionOverride(fixture, member.membershipId, 'DENY', {

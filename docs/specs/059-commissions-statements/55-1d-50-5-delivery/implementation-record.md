@@ -1,6 +1,7 @@
 # Implementation record — 55-1d and 50-5
 
-Base `aa1c79569a371c101400d2c895d17351694833c9` (PR #1162, 42-4 + 46-2a-S). Provider: OpenCode
+Base `aa1c79569a371c101400d2c895d17351694833c9` (PR #1162, 42-4 + 46-2a-S), restacked on
+`55ae0a3a1c6d771d7b73cc759afa63ef3cb4ef72` (main after PR #1171 / 62-2e). Provider: OpenCode
 `minimax-coding-plan/MiniMax-M3.1-Flash`, available default, no explicit variant. Tier: Heavy, one PR.
 
 ## 55-1d — the closed source month is corrected, not refused
@@ -43,7 +44,12 @@ Base `aa1c79569a371c101400d2c895d17351694833c9` (PR #1162, 42-4 + 46-2a-S). Prov
 ## Migration lane
 
 `0239_2026-11-22_commissions-read-permission.sql` with its snapshot and the journal entry at
-`idx 239`. The numbers `0237` and `0238` belong to PR #1171, so the local `migration-chain:check`
-reports the gap `entries[235].idx: expected 237, actual 239` until that PR is merged and this branch
-is rebased on it. The order to apply is: merge PR #1171 first, then rebase this branch; the numbering
-stays valid as it is.
+`idx 239`, on top of PR #1171's `0237`/`0238` (`idx 237` and `238`). The snapshot is regenerated with
+`pnpm db:generate` on the combined schema, so `0239.prevId` is `0238`'s id and the
+`employee_documents.document_number` column from `0237` survives. The chain check is green.
+
+The read-only transaction option is the shared one from `main` (PR #1171's correction): it sets
+`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY` before the tenant context on the regular
+and the bounded path, so the scope, the attachments and the full-month reads share one snapshot. This
+delivery keeps the proof that a change committed by another transaction after the snapshot was taken
+stays invisible to the reader.

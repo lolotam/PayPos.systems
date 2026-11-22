@@ -76,26 +76,29 @@ export function buildCommissionEstimate(
   const scope = inputs.businessWide ? null : new Set(inputs.branchIds);
   const employees: CommissionEstimateEmployee[] = [];
   let total = 0n;
-  for (const employeeId of candidateEmployees(inputs.month)) {
+  let unpriced = false;
+  for (const employeeId of candidateEmployees(inputs.month, inputs.attachments, scope, request.period)) {
     if (request.employeeId !== null && employeeId !== request.employeeId) continue;
     const entry = estimateEmployee(inputs, scope, employeeId, request);
     if (entry === null) continue;
     employees.push(entry.employee);
-    total += entry.total;
+    if (entry.total === null) unpriced = true;
+    else total += entry.total;
   }
   return {
     business_id: request.businessId,
     period: request.period,
     employees,
     partial: employees.some((employee) => employee.partial),
-    total: moneyToString(total),
+    total: unpriced ? null : moneyToString(total),
   };
 }
 
 /** تقدير موظفة واحدة مع المجموع المرئي، أو null لما تكون خارج النطاق. */
 interface EmployeeEstimate {
   readonly employee: CommissionEstimateEmployee;
-  readonly total: bigint;
+  /** null لما ما تسعّرش شهرها، فالمبلغ المجهول ما يتصدقش إنه صفر. */
+  readonly total: bigint | null;
 }
 
 function estimateEmployee(
@@ -124,13 +127,13 @@ function estimateEmployee(
     employee_number: name.employeeNumber,
     status: priced.status,
     partial,
-    total: moneyToString(rows.total),
+    total: priced.status === 'OK' ? moneyToString(rows.total) : null,
     sources: rows.sources,
     sales: rows.sales,
     tips: { card: moneyToString(rows.card), cash: moneyToString(rows.cash) },
     corrections: rows.corrections,
   };
-  return { employee, total: rows.total };
+  return { employee, total: priced.status === 'OK' ? rows.total : null };
 }
 
 /** الصفوف المرئية للموظفة: التسعير بيحصل على الشهر كله والفلترة بتحصل بعده. */
@@ -284,15 +287,38 @@ function visible(branches: readonly string[], scope: ReadonlySet<string> | null)
 
 /**
  * الموظفات المرشحات: كل موظفة عندها مدخل في الشهر أو استلمت تصحيحاً فيه،
- * والموظفة المنتهية بتبقى مرشحة لو استلمت تصحيحاً (CM-23c).
+ * وكل موظفة مرتبطة بفرع من نطاق القارئ في أي يوم من الشهر (CS-Q20). الارتباط
+ * لوحده بيجعل الموظفة مرئية، فموظفة مرتبطة بلا عمل في الشهر بتظهر بصفر
+ * حقيقي مش بتختفي. والموظفة المنتهية بتبقى مرشحة لو استلمت تصحيحاً (CM-23c).
  */
-function candidateEmployees(month: CommissionEstimateMonthRows): readonly string[] {
+function candidateEmployees(
+  month: CommissionEstimateMonthRows,
+  attachments: readonly CommissionEstimateAttachment[],
+  scope: ReadonlySet<string> | null,
+  period: string,
+): readonly string[] {
   const ids = new Set<string>();
   for (const line of month.lines) ids.add(line.employeeId);
   for (const sale of month.sales) if (sale.sellerEmployeeId !== null) ids.add(sale.sellerEmployeeId);
   for (const tip of month.tips) ids.add(tip.employeeId);
   for (const correction of month.corrections) ids.add(correction.employeeId);
+  for (const attachment of attachments) {
+    if (!attachedDuring(attachment, period)) continue;
+    if (scope !== null && !scope.has(attachment.branchId)) continue;
+    ids.add(attachment.employeeId);
+  }
   return [...ids].sort();
+}
+
+/** هل الارتباط بيغطي أي يوم من الشهر؟ البداية داخلة والنهاية خارجة. */
+function attachedDuring(
+  attachment: CommissionEstimateAttachment,
+  period: string,
+): boolean {
+  const periodStart = `${period}-01`;
+  const periodEnd = `${period}-${String(daysInMonth(period)).padStart(2, '0')}`;
+  if (attachment.from > periodEnd) return false;
+  return attachment.to === null || attachment.to > periodStart;
 }
 
 /**
