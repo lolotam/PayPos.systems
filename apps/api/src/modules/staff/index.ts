@@ -18,6 +18,10 @@ export { lockEmployeeForUpdate } from './persistence/lock-employee.ts';
 export { employeeExistsInBusiness } from './persistence/employee-exists.ts';
 export { readCommissionPlanEmployeeNames } from './persistence/commission-plan-employee-names.ts';
 export { employeeNamesByUser } from './persistence/employee-names.ts';
+export {
+  readEmployeeDisplayNames,
+  type EmployeeDisplayName,
+} from './persistence/employee-display-names.ts';
 export { createActivePasskeyBindings } from './queries/active-passkey-bindings.query.ts';
 export type { AttendanceChangeRequested, AttendanceChangeDecided } from './events/published.ts';
 import { createSessionReaders } from './persistence/session-readers.ts';

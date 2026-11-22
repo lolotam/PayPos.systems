@@ -8,7 +8,7 @@ const item = {
   submitted_at: '2026-06-15T12:00:00.123456Z',
   business_date: '2026-06-15',
   branch: { id: uuid, name_ar: null, name_en: 'Salmiya' },
-  performers: [{ employee_id: uuid }],
+  performers: [{ employee_id: uuid, name_ar: 'سارة', name_en: 'Sara' }],
   comment: 'Rated 2 <b>as written</b> 0501234567',
 };
 
@@ -41,6 +41,11 @@ it('returns the comment as written, or null, and the page cursor', () => {
   expect(ratingsListItem.parse(item).comment).toBe(item.comment);
   expect(ratingsListItem.parse({ ...item, comment: null }).comment).toBeNull();
   expect(ratingsListPage.parse({ items: [item], next_cursor: null }).items).toHaveLength(1);
+});
+
+it('refuses a performer without her English name', () => {
+  const nameless = [{ employee_id: uuid, name_ar: null }];
+  expect(ratingsListItem.safeParse({ ...item, performers: nameless }).success).toBe(false);
 });
 
 it('refuses a star count outside 1 to 5 and a missing performers list', () => {

@@ -4,6 +4,7 @@ import { leaveHistoryReportApiPaths } from './staff/leave-history-report-api-ope
 import { ownTipsPaths } from './orders/own-tips-openapi.js';
 import { ownRatingSummaryPaths } from './customers/own-rating-summary-openapi.js';
 import { ratingsListPaths } from './customers/ratings-list-openapi.js';
+import { ratingAveragesPaths } from './customers/ratings-averages-openapi.js';
 import { personalBranchesPaths } from './staff/personal-branches-openapi.js';
 import { ownAttendancePaths } from './staff/own-attendance-openapi.js';
 import { z } from 'zod';
@@ -61,6 +62,7 @@ const PATHS = {
   ...ownTipsPaths,
   ...ownRatingSummaryPaths,
   ...ratingsListPaths,
+  ...ratingAveragesPaths,
   ...ownAttendancePaths,
   ...personalBranchesPaths,
   ...businessCountryPaths,

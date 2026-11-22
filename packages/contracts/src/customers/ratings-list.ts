@@ -30,7 +30,7 @@ export const ratingsListQuery = z
 export type RatingsListQuery = z.infer<typeof ratingsListQuery>;
 
 /**
- * صف تقييم واحد لقارئ التقييمات: النجوم ووقت التسجيل ويوم النشاط والفرع والمنفّذات المسجّلة وقت المطالبة.
+ * صف تقييم واحد لقارئ التقييمات: النجوم ووقت التسجيل ويوم النشاط والفرع والمنفّذات المسجّلة وقت المطالبة باسميهم.
  * التعليق نص العميل كما كُتب (RT-Q17) أو null، ولا يخرج لأي قارئ غير حاملي `read:ratings:branch`.
  */
 export const ratingsListItem = responseObject({
@@ -39,7 +39,9 @@ export const ratingsListItem = responseObject({
   submitted_at: timestamp,
   business_date: z.iso.date(),
   branch: responseObject({ id, name_ar: z.string().nullable(), name_en: z.string() }),
-  performers: z.array(responseObject({ employee_id: id })),
+  performers: z.array(
+    responseObject({ employee_id: id, name_ar: z.string().nullable(), name_en: z.string() }),
+  ),
   comment: z.string().nullable(),
 });
 export type RatingsListItem = z.infer<typeof ratingsListItem>;

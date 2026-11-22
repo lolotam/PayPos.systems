@@ -119,14 +119,23 @@ export async function readRatingsList(
       }),
     ),
   );
+  const pageRows = rows.slice(0, q.limit);
   const names = await reads.branchNames(tx, c.businessId);
-  const items = rows.slice(0, q.limit).map((row) => ({
+  const people = await reads.employeeNames(tx, c.companyId, [
+    ...new Set(pageRows.flatMap((row) => row.performer_ids)),
+  ]);
+  const items = pageRows.map((row) => ({
     id: row.id,
     stars: row.stars,
     submitted_at: row.submitted_at,
     business_date: row.business_date,
     branch: { id: row.branch_id, name_ar: null, name_en: '', ...names.get(row.branch_id) },
-    performers: row.performer_ids.map((employee_id) => ({ employee_id })),
+    performers: row.performer_ids.map((employee_id) => ({
+      employee_id,
+      name_ar: null,
+      name_en: '',
+      ...people.get(employee_id),
+    })),
     comment: row.comment,
   }));
   const last = items.at(-1);

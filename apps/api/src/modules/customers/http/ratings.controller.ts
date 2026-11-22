@@ -1,6 +1,6 @@
 import { Controller, Get, Header, Inject, Param, Query, Req, UseGuards } from '@nestjs/common';
 import { id } from '@pospay/contracts';
-import type { TenantWrappers } from '@pospay/db';
+import type { TenantWrappers, Tx } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 import { Authenticated } from '../../../shared/access.decorators.ts';
 import { actorOf } from '../../../shared/actor.ts';
@@ -9,7 +9,12 @@ import { ApiError } from '../../../shared/errors.ts';
 import type { Clock } from '../../../shared/ports/clock.port.ts';
 import { SelectedCompanyGuard } from '../../../shared/selected-company.guard.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
-import { RATINGS_LIST_READS, type RatingsListReads } from '../queries/ratings-list-reads.ts';
+import { readRatingAverages } from '../queries/rating-averages.query.ts';
+import {
+  RATINGS_LIST_READS,
+  type RatingsListReads,
+  type RatingsListScope,
+} from '../queries/ratings-list-reads.ts';
 import { readRatingsList } from '../queries/ratings-list.query.ts';
 
 export const RATINGS_LIST_CLOCK = Symbol('RATINGS_LIST_CLOCK');
@@ -35,14 +40,36 @@ export class RatingsController {
     @Query() query: unknown,
     @Req() request: FastifyRequest,
   ) {
+    return this.read(businessId, request, (tx, context, now) =>
+      readRatingsList(tx, context, query, now, this.reads),
+    );
+  }
+
+  @Get('businesses/:businessId/ratings/averages')
+  @Authenticated()
+  @Header('Cache-Control', 'no-store')
+  averages(
+    @Param('businessId', new ZodValidationPipe(id)) businessId: string,
+    @Query() query: unknown,
+    @Req() request: FastifyRequest,
+  ) {
+    return this.read(businessId, request, (tx, context, now) =>
+      readRatingAverages(tx, context, query, now, this.reads),
+    );
+  }
+
+  private read<T>(
+    businessId: string,
+    request: FastifyRequest,
+    run: (tx: Tx, context: RatingsListScope, now: Date) => Promise<T>,
+  ): Promise<T> {
     if (this.database === null) throw new ApiError('NOT_READY');
     const actor = actorOf(request);
     const context = { ...actor, businessId: businessId.toLowerCase() };
     const now = this.clock.now();
-    return this.database.withTenant(
-      actor.companyId,
-      (tx) => readRatingsList(tx, context, query, now, this.reads),
-      { userId: actor.userId, readOnly: true },
-    );
+    return this.database.withTenant(actor.companyId, (tx) => run(tx, context, now), {
+      userId: actor.userId,
+      readOnly: true,
+    });
   }
 }

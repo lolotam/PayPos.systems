@@ -32,6 +32,7 @@ const context: RatingsListScope = {
 };
 const everything: readonly string[] = [A.branch, second];
 let access = everything;
+const requestedNames: string[][] = [];
 const reads: RatingsListReads = {
   access: async () => access,
   branchNames: async () =>
@@ -39,6 +40,14 @@ const reads: RatingsListReads = {
       [A.branch, { name_ar: 'السالمية', name_en: 'Salmiya' }],
       [second, { name_ar: null, name_en: 'Hawalli' }],
     ]),
+  timeZone: async () => 'Asia/Kuwait',
+  employeeNames: async (_tx, _company, employeeIds) => {
+    requestedNames.push([...employeeIds]);
+    return new Map([
+      [sara, { name_ar: 'سارة', name_en: 'Sara' }],
+      [hend, { name_ar: null, name_en: 'Hend' }],
+    ]);
+  },
 };
 const page = (query: object = {}, scope = context) =>
   db.withTenant(scope.companyId, (tx) => readRatingsList(tx, scope, query, new Date(), reads), {
@@ -84,12 +93,26 @@ it('returns stars, instants, business date, branch, performers and the comment e
         submitted_at: '2026-06-10T09:30:15.123000Z',
         business_date: '2026-06-10',
         branch: { id: A.branch, name_ar: 'السالمية', name_en: 'Salmiya' },
-        performers: [sara, hend].sort().map((employee_id) => ({ employee_id })),
+        performers: [sara, hend].sort().map((employee_id) => ({
+          employee_id,
+          name_ar: employee_id === sara ? 'سارة' : null,
+          name_en: employee_id === sara ? 'Sara' : 'Hend',
+        })),
         comment,
       },
     ],
     next_cursor: null,
   });
+});
+
+it('resolves the names of the page performers only, in one read', async () => {
+  requestedNames.length = 0;
+  await page({ from: '2026-06-10T00:00:00Z', to: '2026-06-11T00:00:00Z' });
+  expect(requestedNames).toHaveLength(1);
+  expect([...(requestedNames[0] ?? [])].sort()).toEqual([sara, hend].sort());
+  requestedNames.length = 0;
+  await page({ branch_id: second, from: '2026-07-01T00:00:00Z' });
+  expect(requestedNames).toEqual([[]]);
 });
 
 it('pages newest first without a duplicate or a gap when ratings share a submitted_at', async () => {

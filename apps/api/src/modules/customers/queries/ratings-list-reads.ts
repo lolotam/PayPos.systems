@@ -7,6 +7,12 @@ export interface RatingsListScope {
   readonly userId: string;
 }
 
+/** اسما الموظفة كما يجيوا من staff: العربي اختياري والإنجليزي لازم. */
+export interface RatingEmployeeName {
+  readonly name_ar: string | null;
+  readonly name_en: string;
+}
+
 /** اسم الفرع كما يجي من tenancy: العربي اختياري والإنجليزي لازم. */
 export interface RatingBranchName {
   readonly name_ar: string | null;
@@ -16,8 +22,8 @@ export interface RatingBranchName {
 export const RATINGS_LIST_READS = Symbol('RATINGS_LIST_READS');
 
 /**
- * قراءات قائمة التقييمات في الأدمن اللي مش تبع customers: الصلاحية الحالية من identity وأسماء الفروع من tenancy،
- * وكلها على نفس معاملة القراءة عشان الصلاحية والصفحة يطلعوا من لقطة واحدة (FR-B15).
+ * قراءات قائمة التقييمات ومتوسطاتها في الأدمن اللي مش تبع customers: الصلاحية الحالية من identity وأسماء الفروع وتوقيت
+ * النشاط من tenancy وأسماء الموظفات من staff، وكلها على نفس معاملة القراءة عشان الصلاحية والنتيجة يطلعوا من لقطة واحدة (FR-B15).
  */
 export interface RatingsListReads {
   /**
@@ -37,4 +43,25 @@ export interface RatingsListReads {
    * @returns اسم كل فرع بمعرّفه
    */
   branchNames(tx: Tx, businessId: string): Promise<ReadonlyMap<string, RatingBranchName>>;
+  /**
+   * بيرجّع توقيت النشاط عشان الشهر الحالي في المتوسطات يتحدد بيه، من غير ما customers تقرأ جدول النشاط.
+   *
+   * @param tx    معاملة القراءة على الشركة
+   * @param scope الشركة والنشاط والمستخدم
+   * @returns اسم المنطقة الزمنية، أو null لو النشاط مش موجود
+   */
+  timeZone(tx: Tx, scope: RatingsListScope): Promise<string | null>;
+  /**
+   * بيرجّع أسماء الموظفات المعروضات في الصفحة بمعرّفاتها في قراءة واحدة، من غير ما customers تقرأ جداول staff.
+   *
+   * @param tx          معاملة القراءة على الشركة
+   * @param companyId   الشركة المؤكدة من الجلسة
+   * @param employeeIds معرّفات الموظفات المعروضات
+   * @returns الاسمان لكل موظفة موجودة بمعرّفها
+   */
+  employeeNames(
+    tx: Tx,
+    companyId: string,
+    employeeIds: readonly string[],
+  ): Promise<ReadonlyMap<string, RatingEmployeeName>>;
 }

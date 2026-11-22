@@ -107,7 +107,9 @@ it('gives a branch manager in scope the stars, instant, date, branch, performers
         submitted_at: expect.stringMatching(/^2026-06-10T12:00:00\.\d{6}Z$/),
         business_date: '2026-06-10',
         branch: { id: branch, name_ar: null, name_en: 'Synthetic branch' },
-        performers: [{ employee_id: tenant.employees[0] }],
+        performers: [
+          { employee_id: tenant.employees[0], name_ar: null, name_en: 'Synthetic rated 0' },
+        ],
         comment,
       },
     ],
@@ -196,4 +198,86 @@ it('refuses a request without a session', async () => {
     headers: { 'x-company-id': company },
   });
   expect(response.statusCode).toBe(401);
+});
+
+const averagesUrl = (query = '', businessId = business) =>
+  `/v1/businesses/${businessId}/ratings/averages${query}`;
+const entry = (index: number, average: string, count: number) => ({
+  employee_id: tenant.employees[index],
+  name_ar: null,
+  name_en: `Synthetic rated ${index}`,
+  average,
+  count,
+});
+
+it('averages per employee, counting a two-performer rating for both, over every branch for the owner', async () => {
+  const [first, second] = tenant.employees;
+  await seedRating(db, tenant, { stars: 5, at: at(25, 12), performers: [first, second] });
+  await seedRating(db, tenant, { stars: 4, at: at(25, 13), performers: [first] });
+  await seedRating(db, tenant, {
+    stars: 1,
+    at: at(25, 14),
+    performers: [second],
+    branch: siblingBranch,
+  });
+  const window = `?from=${at(25, 0).toISOString()}&to=${at(26, 0).toISOString()}`;
+  const response = await get(ownerCookie, averagesUrl(window));
+  expect(response.status).toBe(200);
+  expect(response.headers['cache-control']).toBe('no-store');
+  expect(response.body).toEqual({ items: [entry(0, '4.5', 2), entry(1, '3.0', 2)] });
+});
+
+it('limits the averages of a branch manager to her branch, with or without the branch filter', async () => {
+  const window = `from=${at(25, 0).toISOString()}&to=${at(26, 0).toISOString()}`;
+  const scoped = await get(layla.cookie, averagesUrl(`?${window}`));
+  expect(scoped.status).toBe(200);
+  expect(scoped.body).toEqual({ items: [entry(0, '4.5', 2), entry(1, '5.0', 1)] });
+  const sibling = await get(layla.cookie, averagesUrl(`?${window}&branch_id=${siblingBranch}`));
+  expect(sibling.body).toEqual({ items: [] });
+  const only = await get(ownerCookie, averagesUrl(`?${window}&employee_id=${tenant.employees[1]}`));
+  expect(only.body).toEqual({ items: [entry(1, '3.0', 2)] });
+});
+
+it('defaults to the current calendar month in the business time zone', async () => {
+  const day = 24 * 60 * 60 * 1000;
+  await seedRating(db, tenant, {
+    stars: 3,
+    at: new Date(Date.now() - 60_000),
+    performers: [tenant.employees[0]],
+  });
+  await seedRating(db, tenant, {
+    stars: 1,
+    at: new Date(Date.now() - 62 * day),
+    performers: [tenant.employees[0]],
+  });
+  const response = await get(ownerCookie, averagesUrl(`?employee_id=${tenant.employees[0]}`));
+  expect(response.status).toBe(200);
+  const [item] = response.body['items'] as { average: string; count: number }[];
+  expect(item?.average).toBe('3.0');
+  expect(item?.count).toBe(1);
+});
+
+it('refuses the averages with 403 to a cashier, a custom role, a stranger and a foreign business', async () => {
+  const cashier = await operatorWith('cashier-averages@example.test', 'cashier');
+  expect((await get(cashier.cookie, averagesUrl())).status).toBe(403);
+  const custom = await operatorWith('custom-averages@example.test', 'branch_manager_copy', true);
+  expect((await get(custom.cookie, averagesUrl())).status).toBe(403);
+  const outsider = await h.signedInOperator('outsider-averages@example.test');
+  expect((await get(outsider, averagesUrl())).status).toBe(403);
+  const foreign = await get(ownerCookie, averagesUrl('', foreignBusiness));
+  expect(foreign.status).toBe(403);
+  expect(foreign.body).not.toHaveProperty('items');
+  expect((await get(ownerCookie, averagesUrl(), otherCompany)).status).toBe(403);
+});
+
+it('rejects an unknown or inverted filter with 400 and a request without a session with 401', async () => {
+  expect((await get(ownerCookie, averagesUrl('?limit=5'))).status).toBe(400);
+  const inverted = `?from=${at(26).toISOString()}&to=${at(25).toISOString()}`;
+  expect((await get(ownerCookie, averagesUrl(inverted))).status).toBe(400);
+  const anonymous = await h.app.inject({
+    method: 'GET',
+    url: averagesUrl(),
+    headers: { 'x-company-id': company },
+  });
+  expect(anonymous.statusCode).toBe(401);
 });
