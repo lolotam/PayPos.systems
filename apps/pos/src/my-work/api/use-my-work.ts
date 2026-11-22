@@ -15,11 +15,13 @@ const PRIVATE_READ = {
 
 /**
  * قراءة خاصة محروسة. على جهاز الاستقبال الرد الناجح ما بيوصلش للكاش إلا لو نافذة الطلب لسه هي
- * الحالية (المفتاح المشترك والمواعيد)، من غير انتظار إشارة التخزين اللي ممكن توصل بعد الرد؛ وإلا بيترمى
- * والتاب بيتقفل (ADR-0019 البند 6: التاب بيعرض رد نافذته الحالية بس).
+ * الحالية (المفتاح المشترك والمواعيد) والتاب متحقَّق منه في الدورة اللي اتبعت فيها الطلب، من غير
+ * انتظار إشارة التخزين اللي ممكن توصل بعد الرد؛ وإلا بيترمى (والتاب بيتقفل لو النافذة راحت)
+ * (ADR-0019 البند 6: التاب بيعرض رد نافذته الحالية بس).
  */
 async function guarded<T>(read: () => Promise<T>, signal: AbortSignal, view: PrivateViewAccess) {
   const windowId = view.windowId;
+  const epoch = view.epoch();
   let data: T;
   try {
     data = await read();
@@ -27,7 +29,7 @@ async function guarded<T>(read: () => Promise<T>, signal: AbortSignal, view: Pri
     if (!signal.aborted) view.refused(error);
     throw error;
   }
-  if (windowId !== undefined && !view.fence(windowId)) throw new PrivateViewRetiredError();
+  if (windowId !== undefined && !view.fence(windowId, epoch)) throw new PrivateViewRetiredError();
   return data;
 }
 

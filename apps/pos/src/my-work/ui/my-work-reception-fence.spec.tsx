@@ -1,4 +1,4 @@
-import { act, fireEvent, screen } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { t } from '@pospay/i18n';
 import type { WorkContext } from '../model/work-context';
@@ -128,4 +128,62 @@ it('fails closed when the shared key cannot be written, and retires the older ta
   expect(myWorkEntries(view.client).length).toBe(0);
   await vi.waitFor(() => expect(fetched.paths('/private-view/close').length).toBe(1));
   expect(heard).toEqual([{ windowId: 'window-old' }]);
+});
+
+it('retires the tab and publishes nothing when the shared key turns unreadable before a delayed read', async () => {
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  replaceFetch(async (request: Request) => {
+    const url = new URL(request.url);
+    if (url.pathname.endsWith('/private-view/close')) return new Response(null, { status: 204 });
+    if (url.pathname.endsWith('/private-view')) return json(opened);
+    await gate;
+    return url.pathname.endsWith('/tips') ? json(hiddenTips()) : json(linesPage([fullLine]));
+  });
+  const view = open();
+  const published: unknown[] = [];
+  view.client.getQueryCache().subscribe((event) => {
+    if (event.type === 'updated' && event.action.type === 'success')
+      published.push(event.query.queryKey);
+  });
+  await enterPin();
+  expect(await screen.findByText(label('myWork.loading'))).toBeTruthy();
+  vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    throw new Error('denied');
+  });
+  release();
+  await act(() => vi.advanceTimersByTimeAsync(500));
+  expect(published).toEqual([]);
+  expect(screen.queryByText('Haircut')).toBeNull();
+  expect(myWorkEntries(view.client).length).toBe(0);
+  expect(await screen.findByText(label('myWork.pinTitle'))).toBeTruthy();
+});
+
+it('returns an older tab to the PIN step when a newer opening cannot write the key and no channel exists', async () => {
+  vi.stubGlobal('BroadcastChannel', undefined);
+  let openings = 0;
+  installFetch((_request, url) => {
+    if (url.pathname.endsWith('/private-view/close')) return new Response(null, { status: 204 });
+    if (url.pathname.endsWith('/private-view'))
+      return json(
+        ++openings === 1 ? opened : { ...opened, window_id: 'window-two', window_seq: '2' },
+      );
+    if (url.pathname.endsWith('/tips')) return json(hiddenTips());
+    if (url.pathname.endsWith('/service-lines')) return json(linesPage([fullLine]));
+    return undefined;
+  });
+  const older = open();
+  await enterPin();
+  expect(await within(older.container).findByText('Haircut')).toBeTruthy();
+  vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+    throw new Error('denied');
+  });
+  const newer = open();
+  await enterPin();
+  expect(await within(newer.container).findByText(label('myWork.pinUnavailable'))).toBeTruthy();
+  await act(() => vi.advanceTimersByTimeAsync(5_000));
+  expect(await within(older.container).findByText(label('myWork.pinTitle'))).toBeTruthy();
+  expect(within(older.container).queryByText('Haircut')).toBeNull();
+  expect(myWorkEntries(older.client).length).toBe(0);
+  expect(localStorage.getItem(KEY)).toBeNull();
 });

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  announceKeyedWindowReplaced,
   announceWindowClosed,
   claimSharedKey,
   extendSharedKey,
@@ -208,5 +209,48 @@ describe('what a tab does with signals from other tabs', () => {
     storageEvent({ oldValue: raw({ windowId: 'win-a' }), newValue: null });
     expect(retire).not.toHaveBeenCalled();
     expect(FakeChannel.all.every((channel) => channel.closed)).toBe(true);
+  });
+});
+
+describe('a replaced window whose successor could not write the key', () => {
+  const received = () => {
+    const heard: unknown[] = [];
+    const listener = new FakeChannel('pospay-private-view-close');
+    listener.onmessage = (event) => heard.push(event.data);
+    return heard;
+  };
+
+  it('removes the old key and announces it, so a tab with no channel still finds the key gone', () => {
+    claimSharedKey(key(), NOW);
+    const heard = received();
+    announceKeyedWindowReplaced();
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+    expect(heard).toEqual([{ windowId: 'win-a' }]);
+  });
+
+  it('still announces when the removal itself is refused, and never throws', () => {
+    claimSharedKey(key(), NOW);
+    const heard = received();
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
+      throw new Error('denied');
+    });
+    expect(() => announceKeyedWindowReplaced()).not.toThrow();
+    expect(heard).toEqual([{ windowId: 'win-a' }]);
+  });
+
+  it('does nothing when no key is readable', () => {
+    const heard = received();
+    announceKeyedWindowReplaced();
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('denied');
+    });
+    announceKeyedWindowReplaced();
+    expect(heard).toEqual([]);
+  });
+
+  it('never removes the key of a newer window', () => {
+    claimSharedKey(key({ windowId: 'win-new', windowSeq: '2' }), NOW);
+    removeSharedKey('win-a');
+    expect(readSharedKey()).toMatchObject({ windowId: 'win-new' });
   });
 });

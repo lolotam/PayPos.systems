@@ -40,11 +40,11 @@ export function MyWorkCards({
   if (month === undefined && serverMonth !== undefined && home !== serverMonth)
     setHome(serverMonth);
   const shown = month ?? serverMonth;
-  // نافذة اتبدلت من تاب تاني قبل وصول إشارة التخزين: مفيش عرض، والتاب بيتقفل (ADR-0019 البند 6).
+  // نافذة اتبدلت أو دورة ظهور مش متحقَّق منها: مفيش عرض، والتاب بيتقفل لو النافذة راحت (ADR-0019 البند 6).
   const windowId = access.windowId;
   const current = windowId === undefined || access.isCurrent(windowId);
   useEffect(() => {
-    if (!current && windowId !== undefined) access.fence(windowId);
+    if (!current && windowId !== undefined) access.fence(windowId, access.epoch());
   }, [current, windowId, access]);
   if (!current) return null;
   return (

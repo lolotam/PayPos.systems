@@ -261,8 +261,8 @@ timing receipt for the maximum case is still open and unchanged by this section)
 
 - The target tenant now has three cancelled lines of hers, at positions 50, 250 and 450 of the newest-first order, plus
   47 cancelled lines of colleagues, all through the real cancellation path: **50 rows in `service_line_cancellations`**
-  (asserted by the run's `57-2b cancellations table` log line: 50 tenant rows, never analysed, `n_mod_since_analyze`
-  50). Position 50 lies inside `first-100` and outside `first-20`, so `first-20` stays a five-statement first page,
+  (logged, not asserted, by the run's `57-2b cancellations table` line, which the recorded run reads as: 50 tenant rows,
+  never analysed, `n_mod_since_analyze` 50). Position 50 lies inside `first-100` and outside `first-20`, so `first-20` stays a five-statement first page,
   `first-100` becomes a six-statement first page, `cursor-100` and `deep-cursor-100` stay five-statement cursor pages,
   and `cancelled-20`, `cancelled-100` and `cancelled-deep-100` are six-statement cursor pages.
 - The suite records each sample's page kind (first page or cursor) and fails, per statistics state, unless a first page

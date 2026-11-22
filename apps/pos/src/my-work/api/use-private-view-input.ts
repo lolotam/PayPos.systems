@@ -15,7 +15,8 @@ export type { ConfirmedWindow } from './private-view-clock';
  *
  * @param confirmed النافذة المفتوحة ومواعيدها، أو undefined لو مفيش نافذة (الساعة واقفة)
  * @param handlers ردود الفعل: إخفاء، إظهار، قفل بنطاقه، ورفض السيرفر
- * @returns سياج النافذة الحالية: `fence` بيقفل لو النافذة مش الحالية (من غير ساعة شغالة بيقول لأ فأي رد
+ * @returns سياج النافذة الحالية: `epoch` رقم دورة الظهور وقت إرسال القراءة، و`fence` بيقفل لو النافذة
+ *   مش الحالية وبيقول لأ لو الدورة مش متحقَّق منها أو اتغيّرت (ومن غير ساعة شغالة بيقول لأ فأي رد
  *   يترمي)، و`isCurrent` بيفحص من غير قفل
  */
 export function usePrivateViewInput(
@@ -39,12 +40,17 @@ export function usePrivateViewInput(
       if (running.current === clock) running.current = undefined;
     };
   }, [confirmed]);
-  const fence = useCallback((windowId: string) => running.current?.fence(windowId) ?? false, []);
+  // أول قراءة بعد الفتح ممكن تتبعت قبل ما تأثير الساعة يشتغل: وقتها الدورة هي الصفر.
+  const epoch = useCallback(() => running.current?.epoch() ?? 0, []);
+  const fence = useCallback(
+    (windowId: string, readEpoch: number) => running.current?.fence(windowId, readEpoch) ?? false,
+    [],
+  );
   // أول رسم بعد الفتح بييجي قبل ما تأثير الساعة يشتغل: وقتها النافذة المؤكَّدة هي الحالية.
   const isCurrent = useCallback(
     (windowId: string) =>
       running.current ? running.current.isCurrent(windowId) : windowId === confirmed?.windowId,
     [confirmed],
   );
-  return { fence, isCurrent };
+  return { epoch, fence, isCurrent };
 }

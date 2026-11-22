@@ -19,8 +19,10 @@ import { usePrivateViewLock } from './use-private-view-lock';
 export type PrivateViewAccess = {
   windowId: string | undefined;
   refused: (error: unknown) => void;
-  /** سياج الرد: false = النافذة مش الحالية، التاب اتقفل والرد يترمي قبل الكاش. */
-  fence: (windowId: string) => boolean;
+  /** رقم دورة الظهور وقت إرسال القراءة، بيتمرر للسياج وقت الرد. */
+  epoch: () => number;
+  /** سياج الرد: false = النافذة مش الحالية أو الدورة مش متحقَّق منها، والرد يترمي قبل الكاش. */
+  fence: (windowId: string, epoch: number) => boolean;
   /** نفس الفحص من غير قفل، لمنع عرض نافذة اتبدلت قبل وصول إشارة التخزين. */
   isCurrent: (windowId: string) => boolean;
 };
@@ -41,7 +43,6 @@ async function attemptOpen(pin: string) {
       windowId: opened.window_id,
       deadlines: openedDeadlines(sentAt, opened),
       sentWall,
-      shared: false,
     };
     const key: SharedKey = {
       windowId: opened.window_id,
@@ -116,7 +117,7 @@ export function usePrivateView(options: Options) {
         return;
       }
       lock.live.current = opened.windowId;
-      setConfirmed({ ...opened, shared: true });
+      setConfirmed(opened);
     } else if (outcome.kind === 'ended') lock.latest.current.onLeave();
     else lock.setProblem(outcome.kind);
   };

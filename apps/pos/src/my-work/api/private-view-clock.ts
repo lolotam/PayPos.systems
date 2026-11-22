@@ -1,3 +1,16 @@
+/*
+ * الثابت الوحيد اللي الساعة دي بتفرضه (ADR-0019 addendum 2026-10-21، البند 6 و7):
+ *
+ * صفوف العرض الخاص ما بتتنشرش في الكاش ولا بتتعرض إلا لما التلاتة دول يتحققوا مع بعض:
+ *   (1) المفتاح المشترك مقروء ويسمّي رقم نافذة التاب ده.
+ *   (2) موعد الخمول اللي أكّده السيرفر والسقف المطلق لسه ما عدّوش.
+ *   (3) التاب «متحقَّق منه في دورة ظهوره الحالية»: من آخر حد إخفاء أو pagehide أو freeze أو صحيان
+ *       غير مضمون، لازم لمسة اتبعتت بعد الحد ده تكون نجحت.
+ * أي حاجة غير كده (مفتاح مش مقروء، مفقود، لنافذة تانية، موعد عدّى، دورة مش متحقَّق منها، أو أي
+ * استثناء وقت الفحص) = إخفاء ومسح كاش، ولو النافذة راحت = خطوة الـ PIN. كل فحص بيفشل مغلقاً.
+ * مفيش قاعدة وقت: مفيش فاصل ولا دمج بالزمن. أحداث نفس الدورة (visibilitychange وfocus وpageshow
+ * اللي بتيجي مع بعض) بتتشارك لمسة واحدة، وكل دورة جديدة لازم لمسة جديدة بتتبعت بعد حدّها.
+ */
 import {
   closeAt,
   touchedDeadlines,
@@ -12,66 +25,26 @@ import {
 } from '../model/private-view-key';
 import { sessionEnded, windowExpired } from '../model/work-error';
 import { privateViewCalls } from './private-view-calls';
+import {
+  type ClockEnv,
+  type ClockHandlers,
+  type CloseScope,
+  type ConfirmedWindow,
+  type PrivateViewClockHandle,
+  PRIVATE_VIEW_TICK_MS,
+  PRIVATE_VIEW_TOUCH_MS,
+  monotonicNow,
+  wallNow,
+} from './private-view-clock-types';
 
-/** أقل فاصل بين لمستين للسيرفر. */
-export const PRIVATE_VIEW_TOUCH_MS = 20_000;
-/** فاصل الفحص الدوري للمواعيد الجدارية والمفتاح المشترك. */
-export const PRIVATE_VIEW_TICK_MS = 5_000;
-/** حدث رجوع (ظهور/تركيز/bfcache) بعد تحقق بدأ من أقل من كده ما بيطلبش لمسة تانية. */
-export const PRIVATE_VIEW_VERIFY_COALESCE_MS = 1_000;
+export * from './private-view-clock-types';
+
 const INPUT_EVENTS = ['pointerdown', 'keydown', 'touchstart', 'wheel', 'scroll'] as const;
-
-/** الساعة الرتيبة للتاب: المصدر الوحيد للوقت في النافذة، والاختبارات بتتحكم فيها بالمؤقتات المزيفة. */
-export const monotonicNow = (): number => performance.now();
-/** الساعة الجدارية المشتركة بين التابات، للمفتاح المشترك وفحص ساعة الجهاز بس. */
-export const wallNow = (): number => Date.now();
-
-/**
- * نافذة مفتوحة ومواعيدها اللي أكّدها السيرفر في رد الفتح.
- * `sentWall` الساعة الجدارية لحظة إرسال آخر طلب نجح (في الذاكرة بس)؛ و`shared` معناها إن المفتاح
- * المشترك اتكتب وإن التاب بيتابعه.
- */
-export type ConfirmedWindow = {
-  windowId: string;
-  deadlines: PrivateViewDeadlines;
-  sentWall: number;
-  shared: boolean;
-};
-
-/**
- * `all`: النافذة خلصت لكل التابات (قفل في السيرفر ومسح المفتاح وبلاغ). `self`: خلصت من برّه
- * (تاب تاني قفلها أو نافذة أحدث خدت مكانها) فالتاب بيمسح نفسه بس.
- */
-export type CloseScope = 'all' | 'self';
-
-export type ClockHandlers = {
-  /** إخفاء الشاشة ومسح كاشها لحد ما لمسة تتأكد. */
-  hide: () => void;
-  /** اللمسة نجحت: الشاشة ترجع. */
-  show: () => void;
-  close: (scope: CloseScope) => void;
-  /** رفض السيرفر للمسة (النافذة أو الجلسة خلصت). */
-  refused: (error: unknown) => void;
-};
-
-export type ClockEnv = { mono: () => number; wall: () => number };
-
-/** اللي الساعة بتديه للشاشة: الإيقاف، وسياج النافذة الحالية قبل أي نشر أو عرض. */
-export type PrivateViewClockHandle = {
-  stop: () => void;
-  /** بيفحص ويقفل التاب لو النافذة مش الحالية؛ false = ارمي الرد. */
-  fence: (windowId: string) => boolean;
-  /** نفس الفحص من غير ما يقفل حاجة، لمنع العرض أثناء الرسم. */
-  isCurrent: (windowId: string) => boolean;
-};
-
 const realEnv: ClockEnv = { mono: monotonicNow, wall: wallNow };
 
 /**
  * ساعة النافذة المفتوحة على جهاز الاستقبال. الشاشة بتتقفل في الأبكر بين موعد الخمول المؤكَّد من
- * السيرفر والسقف المطلق، وبتتفحص كمان على نبضة دورية وعلى `visibilitychange` و`focus` و`pageshow`
- * ضد المواعيد الرتيبة والمفتاح المشترك. تاب رجع ظاهر بعد ما كان مخفي، أو أخد تركيز، أو رجع من الـ bfcache،
- * مبيعرضش حاجة قبل ما لمسة تنجح (الصحيان ممكن يوصل بتركيز لوحده)، والأحداث المتداخلة بتبعت لمسة واحدة.
+ * السيرفر والسقف المطلق، وبتتفحص على نبضة دورية وعلى `visibilitychange` و`focus` و`pageshow`.
  * الإدخال بيطلب لمسة (مرة كل 20 ثانية على الأكتر) ومبيمددش بنفسه.
  */
 class PrivateViewClock {
@@ -79,9 +52,12 @@ class PrivateViewClock {
   private sentWall: number;
   private lastTouch: number;
   private done = false;
-  private wasHidden = false;
-  private verifying = false;
-  private lastVerifyAt = Number.NEGATIVE_INFINITY;
+  /** رقم دورة الظهور؛ كل حد (إخفاء، pagehide، freeze، صحيان غير مضمون) بيزوده. */
+  private cycle = 0;
+  /** الدورة الحالية اتحقق منها بلمسة اتبعتت بعد حدّها (الفتح بالـ PIN بيحقق الدورة صفر). */
+  private verified = true;
+  /** رقم الدورة اللي لمسة تحقق ليها في الطريق، عشان أحداث نفس الدورة تتشارك لمسة. */
+  private verifying: number | undefined;
   private expiry: ReturnType<typeof setTimeout> | undefined;
   private trailing: ReturnType<typeof setTimeout> | undefined;
   private tick: ReturnType<typeof setInterval> | undefined;
@@ -100,14 +76,22 @@ class PrivateViewClock {
   start(): PrivateViewClockHandle {
     this.arm();
     this.tick = setInterval(this.check, PRIVATE_VIEW_TICK_MS);
-    // إشارات القفل (القناة والتخزين) بتتتابع دايماً، حتى لو كتابة المفتاح فشلت: أحدث نافذة لازم توصل لأقدم تاب.
+    // إشارات القفل (القناة والتخزين) بتتتابع دايماً: أحدث نافذة لازم توصل لأقدم تاب.
     this.stopSignals = observeWindowSignals(this.opened.windowId, () => this.end('self'));
     for (const event of INPUT_EVENTS)
       document.addEventListener(event, this.input, { capture: true, passive: true });
     document.addEventListener('visibilitychange', this.visibility);
-    window.addEventListener('focus', this.focus);
+    document.addEventListener('freeze', this.boundary);
+    document.addEventListener('resume', this.untrusted);
+    window.addEventListener('focus', this.untrusted);
     window.addEventListener('pageshow', this.pageshow);
-    return { stop: this.dispose, fence: this.fence, isCurrent: this.isCurrent };
+    window.addEventListener('pagehide', this.boundary);
+    return {
+      stop: this.dispose,
+      epoch: () => this.cycle,
+      fence: this.fence,
+      isCurrent: this.isCurrent,
+    };
   }
 
   private readonly dispose = () => {
@@ -118,8 +102,11 @@ class PrivateViewClock {
     this.stopSignals?.();
     for (const event of INPUT_EVENTS) document.removeEventListener(event, this.input, true);
     document.removeEventListener('visibilitychange', this.visibility);
-    window.removeEventListener('focus', this.focus);
+    document.removeEventListener('freeze', this.boundary);
+    document.removeEventListener('resume', this.untrusted);
+    window.removeEventListener('focus', this.untrusted);
     window.removeEventListener('pageshow', this.pageshow);
+    window.removeEventListener('pagehide', this.boundary);
   };
 
   private end(scope: CloseScope) {
@@ -135,18 +122,22 @@ class PrivateViewClock {
   }
 
   /**
-   * بيقارن مواعيد التاب: الرتيبة أولاً، وبعدين الساعة الجدارية (أقدم من لحظة الإرسال معناها إنها
-   * اتحركت لورا)، وبعدين المفتاح المشترك (مفقود أو لنافذة تانية = ما بينّاش، وموعده خلص أو بعيد
-   * زيادة = قفل للكل). بيرجّع نطاق القفل المطلوب، أو null لو النافذة لسه الحالية. من غير أي أثر جانبي.
+   * بيطبّق الشرطين (1) و(2) من غير أي أثر جانبي: المواعيد الرتيبة، وبعدين الساعة الجدارية (أقدم من
+   * لحظة الإرسال معناها إنها اتحركت لورا)، وبعدين المفتاح المشترك. مفتاح مش مقروء أو مفقود أو
+   * لنافذة تانية = `self`؛ موعده خلص أو بعيد زيادة = `all`. أي استثناء = `self`. null = النافذة
+   * الحالية. الدورة (الشرط 3) بتتفحص في `fence` و`isCurrent` و`accepted`.
    */
   private status(): CloseScope | null {
-    const wall = this.env.wall();
-    if (closeAt(this.deadlines) <= this.env.mono() || wall < this.sentWall) return 'all';
-    if (!this.opened.shared) return null;
-    const key = readSharedKey();
-    if (key === 'unavailable') return null;
-    if (key === null || key.windowId !== this.opened.windowId) return 'self';
-    return wallStatus(key, wall) === 'live' ? null : 'all';
+    try {
+      const wall = this.env.wall();
+      if (closeAt(this.deadlines) <= this.env.mono() || wall < this.sentWall) return 'all';
+      const key = readSharedKey();
+      if (key === 'unavailable' || key === null || key.windowId !== this.opened.windowId)
+        return 'self';
+      return wallStatus(key, wall) === 'live' ? null : 'all';
+    } catch {
+      return 'self';
+    }
   }
 
   /** بينفّذ `status`: بيقفل التاب لو لازم، وبيرجّع true لو التاب اتقفل. */
@@ -158,29 +149,38 @@ class PrivateViewClock {
   };
 
   /**
-   * سياج الرد: رد قراءة ناجح ما بيتنشر ولا بيتعرض إلا لو نافذته هي الحالية دلوقتي (المفتاح المشترك
-   * والمواعيد المؤكَّدة)، من غير انتظار إشارة التخزين اللي ممكن توصل بعد الرد (ADR-0019 البند 6).
+   * سياج الرد: رد قراءة ناجح ما بيتنشر إلا لو نافذته هي الحالية (شرط 1 و2 من غير انتظار إشارة
+   * التخزين)، والتاب متحقَّق منه (شرط 3)، ودورة الطلب هي الحالية. بيقفل التاب لو (1) أو (2) فشلوا.
    */
-  private readonly fence = (windowId: string): boolean =>
-    windowId === this.opened.windowId && !this.check();
+  private readonly fence = (windowId: string, epoch: number): boolean =>
+    windowId === this.opened.windowId && !this.check() && this.verified && epoch === this.cycle;
 
   private readonly isCurrent = (windowId: string): boolean =>
-    windowId === this.opened.windowId && !this.done && this.status() === null;
+    windowId === this.opened.windowId && !this.done && this.status() === null && this.verified;
 
-  private readonly visibility = () => {
-    if (document.visibilityState === 'hidden') {
-      this.wasHidden = true;
-      return;
-    }
-    if (!this.wasHidden) {
-      this.check();
-      return;
-    }
-    this.wasHidden = false;
-    this.untrusted();
+  /** حد دورة: إخفاء، pagehide، freeze، أو صحيان غير مضمون. الشاشة تتخفي والدورة الجديدة لازم لمسة. */
+  private readonly boundary = () => {
+    if (this.done) return;
+    this.cycle += 1;
+    this.verified = false;
+    // لمسة الإدخال المؤجلة بتتلغي: مبتتبعتش بعد الحد من غير ما تعدّي على التحقق.
+    clearTimeout(this.trailing);
+    this.trailing = undefined;
+    this.handlers.hide();
   };
 
-  private readonly focus = () => this.untrusted();
+  private readonly visibility = () => {
+    if (document.visibilityState === 'hidden') this.boundary();
+    else if (this.verified) this.check();
+    else this.verify();
+  };
+
+  /** تركيز أو resume أو رجوع من bfcache: وقته مش مضمون (الصحيان ممكن يوصل بتركيز لوحده). */
+  private readonly untrusted = () => {
+    if (this.check()) return;
+    if (this.verified) this.boundary();
+    this.verify();
+  };
 
   private readonly pageshow = (event: Event) => {
     if ((event as PageTransitionEvent).persisted) this.untrusted();
@@ -188,65 +188,79 @@ class PrivateViewClock {
   };
 
   /**
-   * رجوع وقته مش مضمون (ظهور بعد إخفاء، تركيز، bfcache): بعد الصحيان ممكن الساعة الرتيبة تكون واقفة
-   * والجدارية متراجعة جزئياً فالاتنين يبانوا سليمين والسيرفر قفل، فمفيش حدث منهم بيتصدّق لوحده.
-   * `visibilitychange` و`focus` و`pageshow` المتداخلة بتبعت لمسة واحدة (`verifying` وفاصل قصير).
+   * بيبعت لمسة التحقق للدورة الحالية لو مفيش واحدة لنفس الدورة في الطريق. من غير أي قاعدة وقت:
+   * لمسة دورة قديمة (قبل حد النوم مثلاً) مبتحققش دورة جديدة، فبتتبعت لمسة جديدة.
    */
-  private untrusted() {
-    if (this.check()) return;
-    if (this.env.mono() - this.lastVerifyAt < PRIVATE_VIEW_VERIFY_COALESCE_MS) return;
-    this.verify();
-  }
-
-  /** سياق وقته مش مضمون: الشاشة تتخفي وكاشها يتمسح، ومتظهرش تاني إلا بعد لمسة ناجحة. */
   private verify() {
-    if (this.verifying) return;
-    this.verifying = true;
-    this.lastVerifyAt = this.env.mono();
-    this.handlers.hide();
-    this.send(() => {
-      this.verifying = false;
-      this.handlers.show();
-    });
+    if (this.check()) return;
+    if (document.visibilityState === 'hidden' || this.verifying === this.cycle) return;
+    this.verifying = this.cycle;
+    this.send();
   }
 
   private readonly input = () => {
-    if (this.verifying) return;
+    if (!this.verified) return;
     const wait = this.lastTouch + PRIVATE_VIEW_TOUCH_MS - this.env.mono();
     if (wait <= 0) this.send();
     else this.trailing ??= setTimeout(() => this.send(), wait);
   };
 
-  private send(onPass?: () => void) {
+  private send() {
     if (this.done) return;
     // لمسة الإدخال المؤجلة بتتلغي هنا؛ لو اتسابت شغالة كانت هتبعت تاني خلال 20 ثانية أو بعد الإيقاف.
     clearTimeout(this.trailing);
     this.trailing = undefined;
+    const cycle = this.cycle;
     const sentAt = this.env.mono();
     const sentWall = this.env.wall();
     this.lastTouch = sentAt;
-    privateViewCalls.touch(this.opened.windowId).then(
+    let call: Promise<PrivateViewRemaining>;
+    try {
+      call = privateViewCalls.touch(this.opened.windowId);
+    } catch (error) {
+      call = Promise.reject(error);
+    }
+    call.then(
       (remaining) => {
-        if (!this.done && this.confirm(sentAt, sentWall, remaining)) onPass?.();
+        if (!this.done) this.accepted(cycle, sentAt, sentWall, remaining);
       },
       (error: unknown) => {
-        if (this.done) return;
-        if (windowExpired(error) || sessionEnded(error)) this.handlers.refused(error);
-        else if (onPass) this.end('self');
+        if (!this.done) this.rejected(cycle, error);
       },
     );
+  }
+
+  /** لمسة نجحت: المواعيد بتتحدّث دايماً، والتحقق بيتسجل بس لو اللمسة اتبعتت في الدورة الحالية. */
+  private accepted(
+    cycle: number,
+    sentAt: number,
+    sentWall: number,
+    remaining: PrivateViewRemaining,
+  ) {
+    if (!this.confirm(sentAt, sentWall, remaining)) return;
+    if (cycle !== this.cycle || this.verified) return;
+    if (this.check()) return;
+    this.verified = true;
+    this.verifying = undefined;
+    this.handlers.show();
+  }
+
+  /** لمسة فشلت: رفض السيرفر قاطع، وأي فشل تاني في دورة مش متحقَّق منها بيقفل التاب بس. */
+  private rejected(cycle: number, error: unknown) {
+    if (windowExpired(error) || sessionEnded(error)) this.handlers.refused(error);
+    else if (cycle === this.cycle && !this.verified) this.end('self');
   }
 
   private confirm(sentAt: number, sentWall: number, remaining: PrivateViewRemaining): boolean {
     this.deadlines = touchedDeadlines(this.deadlines, sentAt, remaining);
     this.sentWall = Math.max(this.sentWall, sentWall);
-    if (this.opened.shared) {
+    try {
       const idle = sentWall + remaining.idle_remaining_ms;
       const cap = sentWall + remaining.cap_remaining_ms;
-      if (extendSharedKey(this.opened.windowId, idle, cap) === 'mismatch') {
-        this.end('self');
-        return false;
-      }
+      if (extendSharedKey(this.opened.windowId, idle, cap) !== 'updated') throw new Error('key');
+    } catch {
+      this.end('self');
+      return false;
     }
     this.arm();
     return true;
@@ -259,7 +273,7 @@ class PrivateViewClock {
  * @param confirmed النافذة المفتوحة ومواعيدها
  * @param handlers ردود الفعل: إخفاء، إظهار، قفل بنطاقه، ورفض السيرفر
  * @param env الساعتين (للاختبار)
- * @returns الإيقاف وسياج النافذة الحالية
+ * @returns الإيقاف ورقم الدورة وسياج النافذة الحالية
  */
 export function startPrivateViewClock(
   confirmed: ConfirmedWindow,

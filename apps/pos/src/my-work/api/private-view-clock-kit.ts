@@ -6,8 +6,8 @@ import { type ClockHandlers, startPrivateViewClock } from './private-view-clock'
 export const WALL0 = 1_700_000_000_000;
 export const remaining = { idle_remaining_ms: 60_000, cap_remaining_ms: 300_000 };
 
-/** تاب واحد: ساعتين بيتحركوا بإيدينا، وردود فعل مراقَبة، ومفتاح مشترك اتكتب بالفتح. */
-export function openTab(options: { windowId?: string; shared?: boolean } = {}) {
+/** تاب واحد: ساعتين بيتحركوا بإيدينا، وردود فعل مراقَبة، ومفتاح مشترك اتكتب بالفتح (إلا لو `writeKey: false`). */
+export function openTab(options: { windowId?: string; writeKey?: boolean } = {}) {
   const windowId = options.windowId ?? 'win-a';
   const clock = { mono: 0, wall: WALL0 };
   const handlers = {
@@ -16,8 +16,7 @@ export function openTab(options: { windowId?: string; shared?: boolean } = {}) {
     close: vi.fn(),
     refused: vi.fn(),
   } satisfies ClockHandlers;
-  const shared = options.shared ?? true;
-  if (shared)
+  if (options.writeKey ?? true)
     claimSharedKey(
       {
         windowId,
@@ -33,12 +32,18 @@ export function openTab(options: { windowId?: string; shared?: boolean } = {}) {
       windowId,
       deadlines: openedDeadlines(0, remaining),
       sentWall: WALL0,
-      shared,
     },
     handlers,
     { mono: () => clock.mono, wall: () => clock.wall },
   );
-  return { clock, handlers, stop: handle.stop, fence: handle.fence, isCurrent: handle.isCurrent };
+  return {
+    clock,
+    handlers,
+    stop: handle.stop,
+    epoch: handle.epoch,
+    fence: handle.fence,
+    isCurrent: handle.isCurrent,
+  };
 }
 
 export const visibility = (state: 'visible' | 'hidden') => {

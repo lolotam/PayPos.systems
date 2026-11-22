@@ -102,7 +102,7 @@ describe('a tab that returns after a deadline has passed', () => {
     elapse(tab, 61_000);
     trigger();
     expect(tab.handlers.close).toHaveBeenCalledExactlyOnceWith('all');
-    expect(tab.handlers.hide).not.toHaveBeenCalled();
+    expect(tab.handlers.show).not.toHaveBeenCalled();
     expect(touch).not.toHaveBeenCalled();
   });
 
@@ -164,14 +164,11 @@ describe('a tab compares itself with the shared key', () => {
     expect(tab.handlers.close).toHaveBeenCalledExactlyOnceWith('self');
   });
 
-  it('keeps running beside an unavailable storage and trusts only its own deadlines', () => {
-    const tab = openTab({ shared: false });
-    touch.mockResolvedValue(remaining);
+  it('retires itself when it never had a key, instead of trusting only its own deadlines', () => {
+    const tab = openTab({ writeKey: false });
     window.dispatchEvent(new Event('focus'));
-    expect(tab.handlers.close).not.toHaveBeenCalled();
-    elapse(tab, 61_000);
-    window.dispatchEvent(new Event('focus'));
-    expect(tab.handlers.close).toHaveBeenCalledExactlyOnceWith('all');
+    expect(tab.handlers.close).toHaveBeenCalledExactlyOnceWith('self');
+    expect(touch).not.toHaveBeenCalled();
   });
 
   it('discards a passing touch whose window is no longer the key window', async () => {

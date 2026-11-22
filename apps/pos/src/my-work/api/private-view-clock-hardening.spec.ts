@@ -81,12 +81,10 @@ describe('a wake that reaches the tab through focus alone', () => {
     expect(touch).toHaveBeenCalledOnce();
     expect(tab.handlers.hide).toHaveBeenCalledOnce();
     await vi.advanceTimersByTimeAsync(0);
-    elapse(tab, 100);
-    focus();
-    expect(touch).toHaveBeenCalledOnce();
-    elapse(tab, 1_000);
+    expect(tab.handlers.show).toHaveBeenCalledOnce();
     focus();
     expect(touch).toHaveBeenCalledTimes(2);
+    expect(tab.handlers.hide).toHaveBeenCalledTimes(2);
     tab.stop();
   });
 });
@@ -133,13 +131,13 @@ describe('a trailing input touch that verification overtakes', () => {
 
 describe('close signals do not depend on the shared key having been written', () => {
   it('retires a tab whose key write failed when its own window is announced closed', () => {
-    const tab = openTab({ shared: false });
+    const tab = openTab({ writeKey: false });
     new FakeChannel('pospay-private-view-close').postMessage({ windowId: 'win-a' });
     expect(tab.handlers.close).toHaveBeenCalledExactlyOnceWith('self');
   });
 
   it('retires a tab whose key write failed when another window takes the storage key', () => {
-    const tab = openTab({ shared: false });
+    const tab = openTab({ writeKey: false });
     window.dispatchEvent(
       new StorageEvent('storage', {
         key: 'pospay-private-view-window',
@@ -160,8 +158,8 @@ describe('close signals do not depend on the shared key having been written', ()
 describe('the current-window fence', () => {
   it('lets a live window through and refuses a response of another window id without closing', () => {
     const tab = openTab();
-    expect(tab.fence('win-a')).toBe(true);
-    expect(tab.fence('win-old')).toBe(false);
+    expect(tab.fence('win-a', tab.epoch())).toBe(true);
+    expect(tab.fence('win-old', tab.epoch())).toBe(false);
     expect(tab.handlers.close).not.toHaveBeenCalled();
     tab.stop();
   });
@@ -171,21 +169,21 @@ describe('the current-window fence', () => {
     newerWindow();
     expect(tab.isCurrent('win-a')).toBe(false);
     expect(tab.handlers.close).not.toHaveBeenCalled();
-    expect(tab.fence('win-a')).toBe(false);
+    expect(tab.fence('win-a', tab.epoch())).toBe(false);
     expect(tab.handlers.close).toHaveBeenCalledExactlyOnceWith('self');
   });
 
   it('closes for every tab when the confirmed deadline has passed', () => {
     const tab = openTab();
     elapse(tab, 61_000);
-    expect(tab.fence('win-a')).toBe(false);
+    expect(tab.fence('win-a', tab.epoch())).toBe(false);
     expect(tab.handlers.close).toHaveBeenCalledExactlyOnceWith('all');
   });
 
   it('refuses everything after the tab has been stopped', () => {
     const tab = openTab();
     tab.stop();
-    expect(tab.fence('win-a')).toBe(false);
+    expect(tab.fence('win-a', 0)).toBe(false);
     expect(tab.isCurrent('win-a')).toBe(false);
   });
 });
