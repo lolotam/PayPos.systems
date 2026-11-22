@@ -50,7 +50,8 @@ export const defaultCalls: PrivateWindowCalls = {
 };
 
 /**
- * بيفتح النافذة بمهلة: لو الرد اتأخر عن المهلة الطلب بيتلغى وبيترمي خطأ، فقفل الإرسال بيتفك.
+ * بيفتح النافذة بمهلة: بعد المهلة الطلب بيتلغى والانتظار نفسه بيترفض، حتى لو الاستدعاء ما بيسمعش الإلغاء
+ * (مثلاً واقف على قراءة قبل الإرسال)، فقفل الإرسال بيتفك. لو الفتح نجح بعد كده نافذته بتتقفل على السيرفر.
  * الإلغاء في العميل مش بيأكد إن السيرفر ما نفّذش الفتح؛ النافذة اللي ممكن تكون اتفتحت بتنتهي بمهلة الخمول على السيرفر.
  *
  * @param deps الساعات والاستدعاءات
@@ -59,9 +60,17 @@ export const defaultCalls: PrivateWindowCalls = {
  */
 export async function openWithin(deps: PrivateWindowDeps, pin: string): Promise<PrivateViewWindow> {
   const stop = new AbortController();
-  const timer = deps.env.setTimer(() => stop.abort(), OPEN_TIMEOUT_MS);
+  const opening = deps.calls.open(pin, stop.signal);
+  let timer: unknown;
+  const limit = new Promise<never>((_resolve, reject) => {
+    timer = deps.env.setTimer(() => {
+      stop.abort();
+      void opening.then((late) => deps.calls.close(late.window_id)).catch(() => undefined);
+      reject(new Error('private view open timed out'));
+    }, OPEN_TIMEOUT_MS);
+  });
   try {
-    return await deps.calls.open(pin, stop.signal);
+    return await Promise.race([opening, limit]);
   } finally {
     deps.env.clearTimer(timer);
   }

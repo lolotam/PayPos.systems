@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import type { PrivateViewWindow } from '@pospay/contracts';
 import { OPEN_TIMEOUT_MS } from './private-window-env';
+import { windowShell } from './use-private-window';
 import {
   blur,
   build,
@@ -97,4 +98,37 @@ it('cancels an open that never answers after the limit and lets her try again', 
   await submit(t, '2222');
   expect(t.calls.open).toHaveBeenCalledTimes(2);
   expect(t.controller.getState()).toMatchObject({ phase: 'open' });
+});
+
+it('gives the always-mounted screen a snapshot of the open window that carries none of her data', async () => {
+  const t = make();
+  const rows = { ...page(), items: [] as never[] };
+  t.calls.lines.mockImplementation(async () => rows);
+  const shell = windowShell(t.controller);
+  await submit(t);
+  await t.flush();
+  const open = shell();
+  expect(open).toEqual({ phase: 'open' });
+  expect(shell()).toBe(open);
+  expect(holds(open, rows)).toBe(false);
+  blur();
+  expect(shell()).toMatchObject({ phase: 'pin', problem: 'expired' });
+});
+
+it('frees the form at the limit even when the open call ignores the abort, and closes a window that opens late', async () => {
+  const t = make();
+  const stalled = deferred<PrivateViewWindow>();
+  t.calls.open.mockImplementationOnce(() => stalled.promise);
+  void submit(t, '1111');
+  t.advance(OPEN_TIMEOUT_MS);
+  await t.flush();
+  expect(t.controller.getState()).toMatchObject({
+    phase: 'pin',
+    problem: 'failed',
+    waiting: false,
+  });
+  stalled.resolve(window_('late'));
+  await t.flush();
+  expect(t.calls.close).toHaveBeenCalledWith('late');
+  expect(t.controller.getState()).toMatchObject({ phase: 'pin' });
 });
