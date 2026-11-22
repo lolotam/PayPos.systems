@@ -228,9 +228,9 @@ it('leaves focus alone at the tablet breakpoint after a press outside the sideba
   const view = render(tree('ltr', { currentGroupId: 'home' }));
   const toggle = screen.getByRole('button', { name: chromeLabels.collapse });
   toggle.focus();
-  // A press on non-focusable content drops focus to body without a new focusin.
+  // A press on non-focusable content drops focus to body; the release may even land in the sidebar.
   toggle.blur();
-  fireEvent.pointerUp(screen.getByText('page content'));
+  fireEvent.pointerUp(screen.getByRole('link', { name: /Home/ }));
 
   width = 800;
   view.rerender(tree('ltr', { currentGroupId: 'home' }));

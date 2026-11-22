@@ -103,5 +103,11 @@ it('keeps focus in the rail when a visibility update removes the focused workspa
   view.rerender(tree('ltr', { currentWorkspaceId: 'business', visiblePageIds: ['columns'] }));
 
   expect(screen.queryByRole('button', { name: /^Team/ })).toBeNull();
-  expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Business/ }));
+  const business = screen.getByRole('button', { name: /^Business/ });
+  expect(document.activeElement).toBe(business);
+
+  // After a click-away (blur) a later removal must not pull focus back into the rail.
+  business.blur();
+  view.rerender(tree('ltr', { currentWorkspaceId: 'business', visiblePageIds: ['employees'] }));
+  expect(document.activeElement).toBe(document.body);
 });

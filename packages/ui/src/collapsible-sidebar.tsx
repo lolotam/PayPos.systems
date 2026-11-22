@@ -42,12 +42,10 @@ function useSidebarBreakpointFocus(
         inSidebar: asideRef.current?.contains(target) ?? false,
       };
     };
-    // ضغطة على جزء غير قابل للتركيز برا الشريط بتودّي التركيز للـ body من غير focusin جديد.
-    // بنستنى pointerup عشان نتأكد إن التركيز ساب الشريط فعلاً: عنصر برا ممكن يمنع نقل التركيز.
-    const forgetOnOutsidePress = (event: PointerEvent) => {
-      const aside = asideRef.current;
-      const outside = event.target instanceof Node && !aside?.contains(event.target);
-      if (outside && !aside?.contains(document.activeElement)) focusOrigin.current = undefined;
+    // ضغطة على جزء غير قابل للتركيز بتودّي التركيز للـ body من غير focusin جديد. بعد أي pointerup
+    // بنسأل سؤال واحد: التركيز لسه جوه الشريط؟ مكان الضغط أو الإفلات مش مهم.
+    const forgetOnOutsidePress = () => {
+      if (!asideRef.current?.contains(document.activeElement)) focusOrigin.current = undefined;
     };
     document.addEventListener('focusin', rememberFocus);
     document.addEventListener('pointerup', forgetOnOutsidePress, true);

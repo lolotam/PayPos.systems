@@ -82,10 +82,9 @@ function useLastFocusInNav(rootRef: RefObject<HTMLDivElement | null>) {
     const onFocusIn = (event: FocusEvent) => {
       lastFocusInNav.current = isInNav(event);
     };
-    // pointerup مش pointerdown: عنصر برا ممكن يمنع نقل التركيز، وساعتها التركيز لسه جوه التنقل.
-    const onPointerUp = (event: PointerEvent) => {
-      const stillInNav = rootRef.current?.contains(document.activeElement) ?? false;
-      if (!isInNav(event) && !stillInNav) lastFocusInNav.current = false;
+    // بعد أي pointerup بنسأل سؤال واحد: التركيز لسه جوه التنقل؟ مكان الضغط أو الإفلات مش مهم.
+    const onPointerUp = () => {
+      if (!rootRef.current?.contains(document.activeElement)) lastFocusInNav.current = false;
     };
     // capture: محتوى الصفحة ممكن يوقف انتشار الحدث، ولازم نشوفه برضه.
     document.addEventListener('focusin', onFocusIn, true);

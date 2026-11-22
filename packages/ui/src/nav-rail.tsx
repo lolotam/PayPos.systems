@@ -57,8 +57,8 @@ export function NavRail({
       onFocus={(event) => {
         focusedId.current = event.target.closest<HTMLElement>('[data-workspace-id]')?.dataset['workspaceId'];
       }}
-      onBlur={(event) => {
-        if (event.relatedTarget) focusedId.current = undefined;
+      onBlur={() => {
+        focusedId.current = undefined;
       }}
       className="flex w-21 shrink-0 flex-col items-center gap-1 bg-sidebar p-2"
     >
