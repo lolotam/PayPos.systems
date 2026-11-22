@@ -10,6 +10,12 @@ import {
   documentExpiringParameters,
   documentExpiringRecipient,
 } from './staff-alert-notifications.js';
+import {
+  lowRatingCommentParameters,
+  lowRatingCommentRecipient,
+  lowRatingParameters,
+  lowRatingRecipient,
+} from './low-rating-notifications.js';
 
 const safeText = z
   .string()
@@ -267,6 +273,8 @@ export const inAppRecipient = z.discriminatedUnion('template_key', [
   }),
   attendanceExceptionRaisedRecipient,
   documentExpiringRecipient,
+  lowRatingRecipient,
+  lowRatingCommentRecipient,
 ]);
 const inAppNotificationBase = {
   id,
@@ -355,6 +363,16 @@ export const inAppNotification = z
       ...inAppNotificationBase,
       template_key: z.literal('document_expiring'),
       safe_parameters: documentExpiringParameters,
+    }),
+    responseObject({
+      ...inAppNotificationBase,
+      template_key: z.literal('low_rating'),
+      safe_parameters: lowRatingParameters,
+    }),
+    responseObject({
+      ...inAppNotificationBase,
+      template_key: z.literal('low_rating_with_comment'),
+      safe_parameters: lowRatingCommentParameters,
     }),
   ])
   .meta({ id: 'InAppNotification' });

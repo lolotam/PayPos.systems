@@ -8879,6 +8879,88 @@ export interface components {
                 /** Format: uuid */
                 value: string;
             })[];
+        } | {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string | null;
+            /** Format: uuid */
+            branch_id: string | null;
+            /** Format: uuid */
+            source_event_id: string;
+            /** @enum {number} */
+            template_revision: 1;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** @enum {string} */
+            template_key: "low_rating";
+            safe_parameters: {
+                /** @enum {string} */
+                name: "details";
+                /** @enum {string} */
+                type: "details";
+                value: {
+                    stars: 1 | 2;
+                    branch_name_ar: string | null;
+                    branch_name_en: string | null;
+                    /** Format: date */
+                    business_date: string;
+                    performers: {
+                        name_ar: string | null;
+                        name_en: string | null;
+                    }[];
+                    customer_name: string | null;
+                    phone_last3: string;
+                };
+            }[];
+        } | {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            company_id: string;
+            /** Format: uuid */
+            business_id: string | null;
+            /** Format: uuid */
+            branch_id: string | null;
+            /** Format: uuid */
+            source_event_id: string;
+            /** @enum {number} */
+            template_revision: 1;
+            /** @enum {string} */
+            locale: "ar" | "en";
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            read_at: string | null;
+            /** @enum {string} */
+            template_key: "low_rating_with_comment";
+            safe_parameters: {
+                /** @enum {string} */
+                name: "details";
+                /** @enum {string} */
+                type: "details";
+                value: {
+                    stars: 1 | 2;
+                    branch_name_ar: string | null;
+                    branch_name_en: string | null;
+                    /** Format: date */
+                    business_date: string;
+                    performers: {
+                        name_ar: string | null;
+                        name_en: string | null;
+                    }[];
+                    customer_name: string | null;
+                    phone_last3: string;
+                    /** @description Max 1000 chars; no URLs, HTML tags, Markdown link/image, known-TLD hosts; LF, CR, tab only. */
+                    comment: string;
+                };
+            }[];
         };
         InAppNotificationPage: {
             items: components["schemas"]["InAppNotification"][];

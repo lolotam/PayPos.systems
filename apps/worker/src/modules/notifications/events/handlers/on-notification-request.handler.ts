@@ -11,7 +11,11 @@ import type { OutboxConsumer } from '../../../../outbox/consumer.ts';
 import type { AuthorizeNotification } from '../../use-cases/authorize-notification/authorize-notification.ts';
 import type { StoreInAppNotification } from '../../use-cases/store-in-app-notification/store-in-app-notification.ts';
 import type { StorePushAttempts } from '../../use-cases/store-push-attempts/store-push-attempts.ts';
-import { validInAppTemplate, sanitizePushParameters } from '@pospay/notifications';
+import {
+  validInAppTemplate,
+  validLowRatingTemplate,
+  sanitizePushParameters,
+} from '@pospay/notifications';
 type EmailRecipient = Extract<NotificationRecipient, { channel: 'email' }>;
 type EmailScope = {
   business_id?: string | null | undefined;
@@ -168,15 +172,7 @@ function storeRecipient(
   recipient: InAppRecipient,
   scope: { business_id?: string | null | undefined; branch_id?: string | null | undefined },
 ) {
-  if (
-    !validInAppTemplate(
-      recipient.template_key,
-      recipient.template_revision,
-      recipient.locale,
-      recipient.safe_parameters,
-    )
-  )
-    throw new Error('NOTIFICATION_REQUEST_INVALID');
+  if (!validTemplate(recipient)) throw new Error('NOTIFICATION_REQUEST_INVALID');
   return store.execute({
     companyId: event.companyId,
     sourceEventId: event.id,
@@ -188,6 +184,14 @@ function storeRecipient(
     locale: recipient.locale,
     safeParameters: recipient.safe_parameters,
   });
+}
+
+// جرس التقييم المنخفض معامله كائن تفاصيل، فله مدقق خاص؛ باقي القوالب معاملاتها نصية ومدققها العام ما اتغيرش.
+function validTemplate(recipient: InAppRecipient): boolean {
+  const { template_key: key, template_revision: revision, locale } = recipient;
+  if (key === 'low_rating' || key === 'low_rating_with_comment')
+    return validLowRatingTemplate(key, revision, locale, recipient.safe_parameters);
+  return validInAppTemplate(key, revision, locale, recipient.safe_parameters);
 }
 
 // مسار الدفع: القالب بيتأكد قبل أي كتابة، والمرسل غير المهيّأ بيسيب الطلب عادي من غير خطأ.
