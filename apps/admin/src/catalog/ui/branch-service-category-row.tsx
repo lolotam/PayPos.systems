@@ -44,7 +44,7 @@ export function BranchServiceCategoryRow({
       <td
         role="cell"
         data-cell-label={hasMarks ? t(locale, 'catalogServiceCategoryBranches.branchColumn') : undefined}
-        className="max-[599.99px]:empty:hidden"
+        className="max-[599.99px]:empty:py-0"
       >
         {hasMarks ? <BranchServiceCategoryMarks {...marks} /> : null}
       </td>

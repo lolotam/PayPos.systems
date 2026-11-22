@@ -2,15 +2,15 @@
 import { useEffect, useRef, type RefObject } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
-import { useBranchDaySessions } from '../api/use-branch-day-sessions';
+import type { useBranchDaySessions } from '../api/use-branch-day-sessions';
 import type { UnresolvedTip } from '../api/use-record-session-tips';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { ServiceSessionDayList } from './service-session-day-list';
 
 type ServiceSessionDayBodyProps = {
   scope: SessionServiceScope;
-  date: string;
-  lateOnly: boolean;
+  /** نتيجة استعلام اليوم الوحيد الذي تراقبه الصفحة؛ الجسم لا يشترك فيه كي تُشتق الصفوف والرفض والتذييل من لقطة واحدة. */
+  query: ReturnType<typeof useBranchDaySessions>;
   online: boolean;
   timezone: string;
   canCancel: boolean;
@@ -22,8 +22,7 @@ type ServiceSessionDayBodyProps = {
 
 export function ServiceSessionDayBody({
   scope,
-  date,
-  lateOnly,
+  query,
   online,
   timezone,
   canCancel,
@@ -34,8 +33,6 @@ export function ServiceSessionDayBody({
 }: ServiceSessionDayBodyProps) {
   const locale = useLocale();
   const mounted = useRef(true);
-  const query = useBranchDaySessions(scope, date, lateOnly, online);
-  // رفض الوصول على قراءة اليوم تلتقطه الصفحة من نفس الاستعلام في رندرها هي، فلا يبقى هذا الجسم ولا تذييله لحظة بعده.
   useEffect(() => {
     mounted.current = true;
     return () => {

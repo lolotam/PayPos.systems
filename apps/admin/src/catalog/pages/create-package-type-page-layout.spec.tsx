@@ -82,8 +82,8 @@ it('puts the service, sessions and remove controls of a row on one 12-column gri
   expect(row.contains(sessions)).toBe(true);
   expect(row.contains(remove)).toBe(true);
   expect((service.parentElement as HTMLElement).className).toContain('md:col-span-6');
-  expect((sessions.parentElement as HTMLElement).className).toContain('md:col-span-4');
-  expect(remove.className).toContain('md:col-span-2');
+  expect((sessions.parentElement as HTMLElement).className).toContain('md:col-span-3');
+  expect(remove.className).toContain('md:col-span-3');
 });
 
 it('keeps service, sessions and remove together and shows the free-service warning after the remove button', () => {

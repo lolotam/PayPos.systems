@@ -32,7 +32,7 @@ export function ServiceSessionDayPage({ scope, timezone }: { scope: SessionServi
   const asked = online && denied === null;
   const capability = useServiceSessionCapabilities(scope, asked);
   const capabilityRefused = serviceSessionAccessRevoked(capability.error);
-  // الصفحة تراقب استعلام اليوم نفسه (الجسم يراقبه أيضًا فلا طلب إضافي) كي تعرف الرفض والصفحة التالية في رندرها هي، لا من تأثير متأخر؛
+  // الصفحة هي المراقب الوحيد لاستعلام اليوم وتمرّر نتيجته للجسم، فيُشتق الرفض والصفوف والتذييل من لقطة واحدة في رندر واحد؛
   // وتوقف مراقبتها عند رفض القدرة كي لا تقرأ اليوم والشاشة مقفولة قبل نجاح الإعادة، كما كان الجسم المفكوك لا يقرأ.
   const dayQuery = useBranchDaySessions(scope, date, lateOnly, asked && !capabilityRefused);
   // زرار البقشيش من can_record_sessions، مش من نجاح قراءة سياق التسجيل: القراءة دي بقت مفتوحة لصلاحية تغيير المنفّذين (PP-19).
@@ -64,7 +64,7 @@ export function ServiceSessionDayPage({ scope, timezone }: { scope: SessionServi
     {connectivity === false ? <p role="status">{t(locale, 'serviceSessions.offline')}</p> : null}
     <ServiceSessionDayFrame filters={filters} footer={!blocked && dayQuery.hasNextPage ? <ServiceSessionDayLoadMore onMore={dayQuery.fetchNextPage} /> : undefined}>
       {blocked ? <p role="alert">{blocked.message} <Button type="button" variant="outline" onClick={() => { setDenied(null); void capability.refetch(); }}>{t(locale, 'serviceLineEdit.retry')}</Button></p>
-        : <ServiceSessionDayBody scope={scope} date={date} lateOnly={lateOnly} online={online} timezone={timezone} canCancel={cancelAllowed} canChangePerformers={changeAllowed} canRecord={canRecord} tipAttempts={tipAttempts} onAccessDenied={onAccessDenied} />}
+        : <ServiceSessionDayBody scope={scope} query={dayQuery} online={online} timezone={timezone} canCancel={cancelAllowed} canChangePerformers={changeAllowed} canRecord={canRecord} tipAttempts={tipAttempts} onAccessDenied={onAccessDenied} />}
     </ServiceSessionDayFrame>
   </PageShell>;
 }

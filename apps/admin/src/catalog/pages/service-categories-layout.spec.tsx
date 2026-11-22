@@ -22,7 +22,7 @@ const businessListPath = '/v1/businesses/{businessId}/service-categories';
 const branchListPath = '/v1/businesses/{businessId}/branches/{branchId}/service-categories';
 const nextCursor = JSON.stringify(['Hair', '01920000-0000-7000-8000-0000000000a1']);
 // الإطار يضيف أصناف التكديس على غلاف الجدول فقط عند تفعيل stacked؛ لا شيء مرئيًا يميّزها في jsdom.
-const STACKED_TOKEN = 'max-[599.99px]:[&_table]:block';
+const STACKED_CLASS = 'max-[599.99px]:[&_table]:block';
 
 const category: ServiceCategoryListItem = {
   id: '01920000-0000-7000-8000-0000000000a1',
@@ -112,7 +112,7 @@ it('business view: stacked rows label every cell with content and leave the acti
   get.mockResolvedValue(ok([category]));
   renderScreen('COMPANY');
   const table = await screen.findByRole('table');
-  expect(table.parentElement?.className).toContain(STACKED_TOKEN);
+  expect(table.parentElement?.className).toContain(STACKED_CLASS);
   const cells = within((await screen.findAllByRole('row'))[1] as HTMLElement).getAllByRole('cell');
   expect(cells.map((cell) => cell.getAttribute('data-cell-label'))).toEqual([
     null,
@@ -147,7 +147,7 @@ it('branch view: stacked rows label the visibility, branch marks and actions cel
   branchReads([branchCategory({ visibility: 'BRANCH', owner_branch_id: branchId })]);
   renderScreen('BRANCH');
   const table = await screen.findByRole('table');
-  expect(table.parentElement?.className).toContain(STACKED_TOKEN);
+  expect(table.parentElement?.className).toContain(STACKED_CLASS);
   const cells = within((await screen.findAllByRole('row'))[1] as HTMLElement).getAllByRole('cell');
   expect(cells.map((cell) => cell.getAttribute('data-cell-label'))).toEqual([
     null,
@@ -164,6 +164,9 @@ it('branch view: a row without marks renders an empty, unlabelled marks cell', a
   const cells = within((await screen.findAllByRole('row'))[1] as HTMLElement).getAllByRole('cell');
   expect(cells[2]?.hasAttribute('data-cell-label')).toBe(false);
   expect(cells[2]?.childElementCount).toBe(0);
+  expect(cells[2]?.className).toContain('max-[599.99px]:empty:py-0');
+  expect(cells[2]?.className.split(' ')).not.toContain('max-[599.99px]:empty:hidden');
+  expect(cells).toHaveLength(4);
 });
 
 it('a branch membership with no active branch still shows the page heading above the message', async () => {

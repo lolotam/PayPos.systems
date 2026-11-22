@@ -6,7 +6,8 @@ import { PackageTypeSellingToggle } from './package-type-selling-toggle';
 
 /**
  * خلية «البيع»: التسمية تظهر فوق الزر في الصف المكدّس فقط حين يوجد زر؛
- * ومن غيره تبقى الخلية فارغة فتُخفى تحت 600px بدل أن تترك تسمية وحدها.
+ * ومن غيره تبقى الخلية فارغة وتنكمش بصريًا تحت 600px (بلا حشوة) بدل أن تترك تسمية وحدها؛
+ * وتبقى في شجرة الإتاحة كي لا تنزاح الخلايا التالية عن ترويسات أعمدتها.
  */
 export function PackageTypeSellingCell({
   item,
@@ -26,7 +27,7 @@ export function PackageTypeSellingCell({
     <td
       role="cell"
       data-cell-label={shown ? t(locale, 'catalogPackageTypes.selling') : undefined}
-      className="max-[599.99px]:empty:hidden"
+      className="max-[599.99px]:empty:py-0"
     >
       <PackageTypeSellingToggle
         item={item}

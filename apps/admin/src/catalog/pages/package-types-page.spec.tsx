@@ -112,13 +112,13 @@ it('shows the refusal inside the card when the read fails', async () => {
 });
 
 // الإطار يضيف أصناف التكديس على غلاف الجدول فقط عند تفعيل stacked؛ لا شيء مرئيًا يميّزها في jsdom.
-const STACKED_TOKEN = 'max-[599.99px]:[&_table]:block';
+const STACKED_CLASS = 'max-[599.99px]:[&_table]:block';
 
 it('opts the table in to stacked rows and labels every cell that has content', async () => {
   get.mockResolvedValue(page([item({ selling_stopped_at: '2026-11-01T00:00:00Z' })]));
   renderPage();
   const table = await screen.findByRole('table');
-  expect(table.parentElement?.className).toContain(STACKED_TOKEN);
+  expect(table.parentElement?.className).toContain(STACKED_CLASS);
   const row = (await screen.findAllByRole('row'))[1] as HTMLElement;
   const cells = within(row).getAllByRole('cell');
   expect(cells.map((cell) => cell.getAttribute('data-cell-label'))).toEqual([
@@ -140,6 +140,10 @@ it('renders no label for a selling cell whose button is hidden', async () => {
   const selling = within(row).getAllByRole('cell')[4] as HTMLElement;
   expect(selling.hasAttribute('data-cell-label')).toBe(false);
   expect(selling.childElementCount).toBe(0);
+  // تنكمش بصريًا تحت 600px لكنها تبقى في شجرة الإتاحة (لا hidden) كي لا تنزاح الخلايا التالية عن ترويساتها.
+  expect(selling.className).toContain('max-[599.99px]:empty:py-0');
+  expect(selling.className.split(' ')).not.toContain('max-[599.99px]:empty:hidden');
+  expect(within(row).getAllByRole('cell')).toHaveLength(6);
   expect(within(row).queryByRole('button', { name: /selling/i })).toBeNull();
 });
 

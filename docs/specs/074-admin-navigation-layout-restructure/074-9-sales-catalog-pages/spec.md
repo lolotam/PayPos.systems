@@ -60,7 +60,7 @@ Four steps: the first delivery, correction round 1 (findings P1-1 to P3-9), corr
 | Page | What moved | Tests that prove the structure |
 |---|---|---|
 | Package types | `PageShell list`; `PackageTypesListPanel` owns one `DataTableFrame stacked` with paging in its footer; loading, error and empty render inside the card; bare table with explicit roles; labels on every cell that has content | `catalog/pages/package-types-page.spec.tsx` |
-| Add package type | `PageShell form`; one card; titled section «Package details» on the 12-column grid (names 6, price and validity 4); the services section rows (service 6, sessions 4, remove 2) on the grid from the create page only; save last at the card foot | `catalog/pages/create-package-type-page-layout.spec.tsx` |
+| Add package type | `PageShell form`; one card; titled section «Package details» on the 12-column grid (names 6, price and validity 4); the services section rows (service 6, sessions 3, remove 3) on the grid from the create page only; save last at the card foot | `catalog/pages/create-package-type-page-layout.spec.tsx` |
 | Categories | One `PageShell list` at `ServiceCategoriesScreen` with one header first in every state (no-branch state too), then the scope select, then the card; the status or view tabs, the table and the paging in one card; create action in the header; stacked rows | `catalog/pages/service-categories-layout.spec.tsx` |
 | Day list | `PageShell list` (keeps `dir`); one card in one stable position holds the date and late filter, the visits and Load more in the footer; a refused read swaps only the card content and keeps the same filter inputs and their focus | `orders/pages/service-session-day-layout.spec.tsx` |
 | Customer packages | `PageShell list` with `PageHeader`; package cards and the load-more or retry action in one card; proof-gating messages unchanged | `orders/pages/customer-packages-page-layout.spec.tsx` |
@@ -78,7 +78,7 @@ Four steps: the first delivery, correction round 1 (findings P1-1 to P3-9), corr
 | P2-5 Categories header | Fixed. One header first in every state (the no-branch state included), then the scope select. The header and its create action belong to the screen, which derives the button in the render; each view hands over its create handler through `useRegisterCreateAction` when it is the visible one. A page or section rendered alone keeps its own header. The scope select stays one element, so its focus survives a view switch. | «a branch membership with no active branch still shows the page heading», «keeps the very same scope select, and its focus» |
 | P2-6 one component per file | Fixed. Split: `ServiceSessionDayFrame`, `ServiceSessionDayLoadMore`, `ServiceSessionDayVisitSlot` (out of the list file), `PackageTypeName`, `PackageTypeSellingCell`, `BranchServiceCategoryMarks`, `ServiceCategoriesHeader`, `BranchServiceCategoriesHeader`. A scan of every file created or edited found no other file with two components. | lint (`max-lines-per-function`), typecheck |
 | P3-7 price direction | Fixed: `<bdi dir="ltr">` around the number; the cell has no `dir`. | «isolates the price number as left-to-right» |
-| P3-8 action-only cells | Fixed. Cells whose only content is a button (Edit, Open) carry no label. The Selling cell and the branch marks cell carry a label only when they have content, and are hidden under 600px when empty. The merged Services reference page labels its Edit cell with the header text, a duplicate of its button; it was not touched (brief). | «renders no label for a selling cell whose button is hidden», the stacked-row tests |
+| P3-8 action-only cells | Fixed. Cells whose only content is a button (Edit, Open) carry no label. The Selling cell and the branch marks cell carry a label only when they have content, and, when empty, collapse visually under 600px but stay in the accessibility tree. The merged Services reference page labels its Edit cell with the header text, a duplicate of its button; it was not touched (brief). | «renders no label for a selling cell whose button is hidden», the stacked-row tests |
 | P3-9 implementation-pinned tests | Partly. Width and `mx-auto` class checks were removed; headings, region order, labels and control presence are asserted instead. Kept as structure where nothing visible distinguishes it: the template identity (`data-page-shell`), the card (the frame has no landmark), the stacked classes on the table wrapper (so the tests fail if `stacked` is removed), the 12-column span classes. | the specs above |
 
 ### Correction round 2: item by item
@@ -118,6 +118,16 @@ Four steps: the first delivery, correction round 1 (findings P1-1 to P3-9), corr
 
 **Gate note (round 2).** `pnpm typecheck`, `pnpm lint`, `pnpm lint:docs` and `pnpm module-map:check` passed. The full admin suite did not pass cleanly at the default 5 s timeout on this loaded machine, in two complete runs (the second with `--maxWorkers=4`): 8 tests in 7 or 8 files timed out, all heavy specs this slice does not touch (the record-visit, draft-lines, alert-rules, employee-number and commission-overrides specs). The same 7 files pass (77 tests) with `--testTimeout=60000`. The first full run of round 1 passed 333 of 333.
 
+### PR review round 1 (MergePilot panel, PR #1224)
+
+| Item | Result | Proving test |
+|---|---|---|
+| 1 two day observers | Fixed. The page is the only observer of the day query and passes its result to the body (`query` prop); the refusal, the rows and the Load more footer come from one snapshot in one render. | «never commits a visit row together with, or after, a refusal that arrives on a background refetch» (`Profiler`; the day request count grows by exactly one) and «sends one day request on first mount». Not shown failing against the two-observer structure, because that race depends on commit order. |
+| 2 empty cells under 600px | Fixed. The marks cell and the Selling cell no longer use `display: none`; an empty one drops its padding (`max-[599.99px]:empty:py-0`) and keeps its place in the accessibility tree, so the next cell stays under its own column header. The stacked look is unchanged. | the empty-cell tests in `package-types-page.spec.tsx` and `service-categories-layout.spec.tsx` (class present, no `hidden`, cell count unchanged) |
+| 3 remove button width | Fixed. Service 6, sessions 3, remove 3 at `md`, full width below. | the row-spans test in `create-package-type-page-layout.spec.tsx` |
+| 4 `STACKED_TOKEN` | Renamed `STACKED_CLASS` in both specs (a false positive of the secret scanner; no secret). | typecheck, lint |
+| 5 notes | The edit-panel sentence corrected (see «Decisions by the owning session»). | none |
+
 ### Changed assertions and fixtures
 
 All assertions on the seven pages stay. Fixtures and selectors changed because the DOM moved:
@@ -141,7 +151,7 @@ None.
 
 - The header description is optional and used only where an existing key fits (requirement 1 amended). Add package type, Day list, Customer packages, Sell a package and Record a visit have a title only; no new copy was written.
 - `PageHeader` makes the page title `text-2xl font-bold`. That is the intended template heading, not a font change.
-- The inline edit panels (Services, Package types, Categories editor) stay below their list card. Day list and Customer packages are card lists with no table, so no stacked rows exist there; none was invented.
+- Each inline edit panel stays where it is on `origin/main`: below the list card for Services, Package types and the business Categories view, above the table for the branch Categories view. None was moved. Day list and Customer packages are card lists with no table, so no stacked rows exist there; none was invented.
 
 ### Open points
 

@@ -40,7 +40,7 @@ export function PackageComponentRow({
         span={grid ? 'col-span-12 md:col-span-6' : ''}
       />
       <PackageTypeInput
-        span={grid ? 'col-span-12 md:col-span-4' : ''}
+        span={grid ? 'col-span-12 md:col-span-3' : ''}
         id={`package-sessions-${index}`}
         name={`components.${index}.sessions`}
         label="catalogPackageTypes.sessions"
@@ -55,7 +55,7 @@ export function PackageComponentRow({
       <Button
         type="button"
         variant="ghost"
-        className={grid ? 'col-span-12 md:col-span-2 md:self-end' : ''}
+        className={grid ? 'col-span-12 md:col-span-3 md:self-end' : ''}
         onClick={onRemove}
         aria-label={t(locale, 'catalogPackageTypes.removeComponentRow').replace(
           '{row}',

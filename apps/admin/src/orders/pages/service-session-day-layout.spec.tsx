@@ -139,3 +139,36 @@ it('makes no day request while a refused capability read keeps the screen closed
   expect(dayReads()).toBeGreaterThan(before);
   expect(screen.queryByRole('alert')).toBeNull();
 });
+
+it('never commits a visit row together with, or after, a refusal that arrives on a background refetch', async () => {
+  state.get.mockResolvedValue(page(null));
+  const violations: string[] = [];
+  let refused = false;
+  let sawAlert = false;
+  const view = renderPage(() => {
+    if (!refused) return;
+    const alert = screen.queryByRole('alert') !== null;
+    sawAlert = sawAlert || alert;
+    const rows = screen.queryByText('Synthetic customer') !== null || screen.queryAllByText('9.000').length > 0;
+    if (rows && (alert || sawAlert)) violations.push(document.body.textContent ?? '');
+  });
+  await screen.findByText('Synthetic customer');
+  const reads = dayReads();
+  state.get.mockResolvedValue({
+    error: { code: 'FORBIDDEN', message_ar: 'Denied AR', message_en: 'Denied EN' },
+    response: { status: 403 },
+  });
+  refused = true;
+  await act(async () => { await view.client.refetchQueries({ queryKey: ['branch-day-sessions'] }); });
+  expect((await screen.findByRole('alert')).textContent).toContain('Denied EN');
+  expect(screen.queryByText('Synthetic customer')).toBeNull();
+  expect(violations).toEqual([]);
+  expect(dayReads() - reads).toBe(1);
+});
+
+it('sends one day request on first mount, so a single observer does not change the request count', async () => {
+  state.get.mockResolvedValue(page(null));
+  renderPage();
+  await screen.findByText('Synthetic customer');
+  expect(dayReads()).toBe(1);
+});
