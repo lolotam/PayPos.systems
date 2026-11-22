@@ -93,6 +93,7 @@ export const serviceSessionsEn = {
   profileNoNotes: 'No notes for this customer',
   profileNoteFrom: 'From:',
   profileLoading: 'Loading card…',
+  profileOffline: 'The card will load when the connection returns.',
 };
 export const serviceSessionsAr: Record<keyof typeof serviceSessionsEn, string> = {
   saved: 'اتحفظت الزيارة', saving: 'جاري حفظ الزيارة…', partial: 'اتحفظت الخدمات الصحيحة. عدّلي المسودات المرفوضة بس.',
@@ -189,4 +190,5 @@ export const serviceSessionsAr: Record<keyof typeof serviceSessionsEn, string> =
   profileNoNotes: 'لا توجد ملاحظات لهذه الزبونة',
   profileNoteFrom: 'من:',
   profileLoading: 'جاري تحميل البطاقة…',
+  profileOffline: 'البطاقة هتحمل لما الاتصال يرجع.',
 };

@@ -15,10 +15,7 @@ import {
 import type { SessionCustomerProfileEntry } from '../api/use-session-customer-profile';
 import { CustomerPackagesLink } from './customer-packages-link';
 import { CustomerProfileInputs, sessionCustomerResolver } from './customer-profile-inputs';
-import {
-  RecoveredCustomerCard,
-  SessionCustomerProfileCard,
-} from './session-customer-profile-card';
+import { SessionCustomerProfileCard } from './session-customer-profile-card';
 
 export type SessionCustomerSelection = Pick<Customer, 'id' | 'name' | 'phone'>;
 
@@ -407,8 +404,8 @@ export function SessionCustomerField(props: SessionCustomerFieldProps) {
           online={online}
         />
       )}
-      {value !== null || profileCustomerId === null ? null : (
-        <RecoveredCustomerCard customerId={profileCustomerId} locale={locale} online={online} companyId={companyId} branchId={branchId} businessId={businessId} userId={userId} entryScope={entryScope} />
+      {value !== null || profileCustomerId === null || form.formState.isDirty ? null : (
+        <SessionCustomerProfileCard customerId={profileCustomerId} locale={locale} online={online} companyId={companyId} branchId={branchId} businessId={businessId} userId={userId} entryScope={entryScope} />
       )}
     </>
   );
