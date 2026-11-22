@@ -343,15 +343,22 @@ no `published_at`, no `attempts`, no mark and no projection change.
    node dist/report-commission-coverage.js --company <uuid> [--through <uuid>] --businesses <uuid>[,<uuid>...] --from YYYY-MM-DD --to YYYY-MM-DD
    ```
 
-   Run it after the 50-3a replay and the 50-3b bootstrap finished, and use the same `--through` as the replay.
-   `--through` is optional: without it the command bounds the mark check by the newest counted retained event of the company at the start of
-   the run and prints it as `throughId`.
+   Run it after the 50-3a replay and the 50-3b bootstrap finished.
+   **The replay's cutoff and the coverage proof's cutoff are two different things.** The 50-3a replay bound (its `--through`) is chosen
+   over four event types; this report chooses its bound over six, so the two `throughId` values can legitimately differ (a retained tip or
+   package-sale event with a higher id that existed before the replay and is already marked). Do not require them to match, and a
+   difference is not a reason to replay again.
+   `--through` here makes a **bounded** check, useful to verify a given replay up to that id. **The evidence used to open approval is ONE
+   run with no `--through`, taken in the quiet window (below), naming every business;** the printed `throughId` is the bound it proved up
+   to, and it is what is recorded with the proof. If that run reports unmarked or unhandled retained events, the remedy is the six-type
+   retained replay (50-3d), not the four-type one. If a run cannot prove the whole scope, approval stays closed.
+   Without `--through` the bound is **not** taken when the command starts: lines, salaries and sales are scanned first, then the bound is
+   the highest counted retained-event id on the first retained-event page. Do not treat `throughId` as a start-up cutoff; that is one more
+   reason to take the run in the quiet window. Compare `throughId` values as UUIDs, ignoring letter case: a supplied `--through` is
+   printed as typed, while an automatic one comes from PostgreSQL in lower case.
    **The retained-event mark check ends at the printed `throughId` and nothing after it is looked at.** A counted event created after that
    bound can lack its consumer mark while the tip, line, salary and sale revisions already match the source, and the report still prints
-   `COVERED`. So the run that is used as evidence to open approval must also establish that no counted event exists beyond the bound:
-   take it in the quiet window (below) **with no `--through`**, and if the run was bounded by the replay's `--through`, run it once more
-   without `--through` in the same window and require the same `throughId` to be printed. A different, newer `throughId` means events were
-   created after the replay's bound: replay again with a new bound before relying on the result.
+   `COVERED`; the quiet window is what guarantees that nothing counted is created after the bound.
    The tip flags are all three or none, and **only a run that carries them can print `COVERED`**: they add the tip coverage by revision
    over the business ids and the business-day range the operator supplies (at most 200 business ids, `from` not after `to`). A run
    without them still checks lines, salaries, sales and the retained events, but it prints `NOT_COVERED` with `tips: null` and the
@@ -377,7 +384,7 @@ no `published_at`, no `attempts`, no mark and no projection change.
    and `truncated`. Ids and counts only,
    never an amount and never a name. The exit code is 0 only for `COVERED`.
 4. **Remedy.** A `missing` or a `stale` line or salary, or an unmarked event whose retained event exists: re-run the 50-3d six-type
-   replay (`--types six`) for the company with its `--through`, then re-run this report. Do not use the 50-3a four-type run for this: it
+   replay (`--types six`) for the company with a bound captured as that section describes, then re-run this report with no `--through`. Do not use the 50-3a four-type run for this: it
    is filtered to the four origin types and cannot replay a retained `SessionTipsChanged` (or `PackageSaleChanged`) event. If a line or a salary stays missing and no retained event exists
    for it, the replay cannot recover it: approval stays closed and the manager investigates (re-emitting an event is not designed).
    Do not insert a mark or an event by hand.

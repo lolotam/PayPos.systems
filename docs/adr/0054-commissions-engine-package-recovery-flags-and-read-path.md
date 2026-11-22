@@ -282,9 +282,13 @@ use case refuses, before any scan, a company that does not exist, an empty busin
 business that is not the company's, with the existing `COMMISSION_COVERAGE_SCOPE_INVALID`; the command line refuses the malformed forms
 earlier, while parsing its arguments, with `COMMISSION_COVERAGE_CONFIGURATION`, so it prints `SCOPE_INVALID` only for a company that does not exist, a business
 that is not the company's (both before any scan) and a bad `--through`, which is refused later, after the scan, because it compares the last event read
-with the bound. The retained-event mark check ends at the printed `throughId` (the newest counted retained event at the start of the run when no
-`--through` is given) and looks at nothing after it; the run used as evidence to open approval is therefore taken in the quiet window without
-`--through`, or repeated without it with the same `throughId` required, so that no counted event exists beyond the bound. The fourth coverage reader port is `CoverageBusinessReader`:
+with the bound. The retained-event mark check ends at the printed `throughId` and looks at nothing after it. Without `--through` that bound is not taken when
+the command starts: lines, salaries and sales are scanned first, then the bound is the highest counted retained-event id on the first retained-event
+page, so `throughId` is not a start-up cutoff. The replay's cutoff and the proof's cutoff are different things: the 50-3a replay bound is chosen over
+four event types and this report's over six, so the two values can legitimately differ and are not required to match. The evidence used to open
+approval is one run with no `--through`, taken in the quiet window and naming every business; its printed `throughId` is the bound it proved up to
+and is recorded with the proof; `throughId` values are compared as UUIDs ignoring letter case. If it reports unmarked or unhandled retained events
+the remedy is the six-type retained replay (50-3d), and a run that cannot prove the whole scope leaves approval closed. The fourth coverage reader port is `CoverageBusinessReader`:
 owned by `commissions`, bound at the worker composition root to the existing tenancy `businessTimeZone` on the report's tenant
 transaction (`pospay_app` under `withTenant`); its Port row is in `docs/module-map.md`. The printed result names the business ids and
 the date range the tip check covered (`tipScope`): `COVERED` proves that scope only, and opening approval for a company needs a run
