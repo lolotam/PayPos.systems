@@ -286,6 +286,13 @@ the checkpoint (plan §7).
   from the own service-lines response.
 - **AC-57-4-10 (clarified 2026-11-22)** On the reception device a reloaded or newly opened tab always shows the PIN
   step, even while another tab's window is live; no tab picks a window up from shared storage.
+- **AC-57-4-11 (owner decision 2026-11-22, after four local review rounds)** On the reception device the private
+  view is single-tab and never resumes: any exit from the foreground (the tab hidden, `pagehide`, freeze or resume,
+  a restored page, the window losing focus), the server-confirmed deadline, a refused or expired answer, an operator
+  change or an unmount closes the window at once, drops her data from memory and shows the PIN step. Her data is
+  held only in the screen's own memory, never in browser storage or a shared query cache; no cross-tab key or
+  channel exists. A response for a closed window is discarded and its window is closed on the server. This
+  replaces, for «شغلي» on the reception device, the cross-tab client design of ADR-0019's addendum items 6–7.
 - **Not in this checkpoint:** the estimate amount (57-5), «حضوري» changes, any API change.
 - **Starts after:** checkpoint 12 (57-2b) in this PR.
 
@@ -397,5 +404,9 @@ answered in the sources of §3; no `[NEEDS CLARIFICATION]` marker remains.
   2026-11-22).
 - Q: Does opening the PR wait for that receipt? → A: No. The PR is opened after the third local review session and
   states the open measurement; the merge waits for the receipt on the delivery head (Waleed, 2026-11-22).
+- Q: How does the reception private view behave across tabs and on leaving the foreground? → A: Simplified by
+  the owner after four review rounds kept finding races: single-tab, no shared storage or channel, and any exit
+  from the foreground closes the window and asks for the PIN again (Waleed, 2026-11-22; AC-57-4-11). This
+  supersedes the same day's earlier answer to build cross-tab closing per ADR-0019.
 - Q: Can the producer of 61-1i merge together with its consumer and renderer? → A: Yes. Keep the current
   issuance lock and apply the release and activation evidence in plan §4 (PP-219).
