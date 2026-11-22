@@ -34,10 +34,18 @@ const LABELS = {
   employees: 'قائمة الموظفين النشطة',
   stock: 'المخزون وأصناف المنتجات',
   stockPage: 'أصناف المخزون المتاحة',
+  outsideField: 'حقل خارجي',
+  headerAction: 'إجراء الرأس',
+  footerAction: 'إجراء التذييل',
 } as const;
 
-async function openScene(page: Page, scene: string, dir: Direction): Promise<void> {
-  await page.goto(`/?dir=${dir}&scene=${scene}`);
+async function openScene(
+  page: Page,
+  scene: string,
+  dir: Direction,
+  extraQuery = '',
+): Promise<void> {
+  await page.goto(`/?dir=${dir}&scene=${scene}${extraQuery}`);
   await expect(page.locator('[data-fixture-ready="true"]')).toBeVisible();
 }
 
@@ -52,8 +60,8 @@ async function expectNoHorizontalOverflow(page: Page): Promise<void> {
   ).toBeLessThanOrEqual(metrics.clientWidth);
 }
 
-function expectAtInlineStart(box: Box, dir: Direction): void {
-  const edge = dir === 'rtl' ? box.x + box.width : box.x;
+function expectAtInlineStart(box: Box, dir: Direction, viewportWidth: number): void {
+  const edge = dir === 'rtl' ? viewportWidth - (box.x + box.width) : box.x;
   expect(Math.abs(edge), `${dir} inline-start edge`).toBeLessThanOrEqual(2);
 }
 
@@ -76,6 +84,13 @@ async function expectVisibleCurrentMarker(target: Locator): Promise<void> {
   expect(decoration, 'current item must be visibly marked, not only aria-current or sr-only').toContain(
     'underline',
   );
+}
+
+async function expectVisibleNavRailCurrentMarker(target: Locator): Promise<void> {
+  await expect(target).toHaveAttribute('data-current', '');
+  await expect(target.locator('[data-current-marker]')).toBeVisible();
+  const decoration = await target.evaluate((element) => getComputedStyle(element).textDecorationLine);
+  expect(decoration, 'current workspace must be visibly marked in the rail').toContain('underline');
 }
 
 for (const viewport of VIEWPORTS) {
@@ -107,7 +122,7 @@ for (const viewport of VIEWPORTS) {
         await expect(drawer).toBeVisible();
         const box = await requiredBox(drawer);
         expect(box.width, 'drawer stays within 304px').toBeLessThanOrEqual(305);
-        expectAtInlineStart(box, dir);
+        expectAtInlineStart(box, dir, viewport.width);
         await expectNoHorizontalOverflow(page);
         await page.keyboard.press('Escape');
         await expect(drawer).toBeHidden();
@@ -119,10 +134,10 @@ for (const viewport of VIEWPORTS) {
       await expect(rail).toBeVisible();
       const railBox = await requiredBox(rail);
       expect(railBox.width, 'rail width').toBeGreaterThanOrEqual(44);
-      expectAtInlineStart(railBox, dir);
+      expectAtInlineStart(railBox, dir, viewport.width);
       const currentWorkspace = rail.getByRole('button', { name: LABELS.business }).first();
       await expectMinTarget(currentWorkspace);
-      await expectVisibleCurrentMarker(currentWorkspace);
+      await expectVisibleNavRailCurrentMarker(currentWorkspace);
       await expectNoHorizontalOverflow(page);
 
       if (viewport.width >= 600) {
@@ -131,7 +146,7 @@ for (const viewport of VIEWPORTS) {
         const aside = page.locator('aside').first();
         await expect(aside).toBeVisible();
         const asideBox = await requiredBox(aside);
-        expectAtInlineStart(asideBox, dir);
+        expectAtInlineStart(asideBox, dir, viewport.width);
         const expectedWidth = viewport.width >= 1024 ? 264 : 80;
         expect(asideBox.width, 'A sidebar width').toBeGreaterThanOrEqual(expectedWidth - 2);
         expect(asideBox.width, 'A sidebar width').toBeLessThanOrEqual(expectedWidth + 2);
@@ -231,7 +246,7 @@ for (const dir of DIRECTIONS) {
     await openScene(page, 'context', dir);
     const rail = page.getByRole('navigation', { name: LABELS.navigation });
     const currentWorkspace = rail.getByRole('button', { name: LABELS.business }).first();
-    await expectVisibleCurrentMarker(currentWorkspace);
+    await expectVisibleNavRailCurrentMarker(currentWorkspace);
 
     const panel = page.getByRole('complementary', { name: LABELS.panelNavigation });
     await expect(panel).toBeVisible();
@@ -239,6 +254,9 @@ for (const dir of DIRECTIONS) {
 
     const team = rail.getByRole('button', { name: LABELS.people }).first();
     await team.click();
+    await expectVisibleNavRailCurrentMarker(currentWorkspace);
+    await expect(team).not.toHaveAttribute('data-current', '');
+    await expect(team).toHaveAttribute('aria-pressed', 'true');
     await expect(panel.getByRole('link', { name: LABELS.employees })).toBeVisible();
     await expect(panel.getByRole('link', { name: LABELS.columns })).toHaveCount(0);
 
@@ -267,6 +285,50 @@ for (const dir of DIRECTIONS) {
     await input.fill('غير موجود');
     await expect(dialog.getByText(LABELS.finderEmpty)).toBeVisible();
   });
+
+  test(`finder Enter skips a CSS-hidden result (${dir})`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openScene(page, 'context', dir, '&finderHideFirst=true');
+    const trigger = page.getByRole('button', { name: LABELS.finderTrigger });
+    await trigger.click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    const links = dialog.locator('[data-finder-result]');
+    expect(await links.count(), 'fixture must supply at least two finder results').toBeGreaterThan(1);
+    await expect(links.first()).toBeHidden();
+    await expect(links.nth(1)).toBeVisible();
+
+    await links.first().evaluate((element) => {
+      element.addEventListener('click', () => {
+        document.body.dataset['hiddenFinderClicked'] = 'true';
+      });
+    });
+    await links.nth(1).evaluate((element) => {
+      element.addEventListener('click', () => {
+        document.body.dataset['visibleFinderClicked'] = 'true';
+      });
+    });
+
+    const input = dialog.getByRole('searchbox', { name: LABELS.finderSearch });
+    await input.press('Enter');
+    await expect(dialog).toBeHidden();
+    await expect(page.locator('body')).not.toHaveAttribute('data-hidden-finder-clicked', 'true');
+    await expect(page.locator('body')).toHaveAttribute('data-visible-finder-clicked', 'true');
+    await expect(page.locator('body')).toHaveAttribute('data-navigated', 'true');
+  });
+
+  test(`navigation keeps focus outside when crossing 699 and 700 (${dir})`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openScene(page, 'top', dir);
+    const outside = page.locator('[data-fixture-outside-input]');
+    await outside.focus();
+    await expect(outside).toBeFocused();
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(outside).toBeFocused();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(outside).toBeFocused();
+  });
 }
 
 for (const dir of DIRECTIONS) {
@@ -285,7 +347,39 @@ for (const dir of DIRECTIONS) {
     await expect(firstLink).toBeVisible();
 
     await page.setViewportSize({ width: 1280, height: 900 });
-    await expect(toggle).toBeFocused();
+    await expect(firstLink).toBeFocused();
     await expect(firstLink).toBeVisible();
+  });
+
+  test(`A sidebar transfers hidden slot focus at 1024 to 1023 (${dir})`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openScene(page, 'sidebar', dir);
+    const firstLink = page.locator('aside nav a[href]').first();
+    const headerAction = page.getByRole('button', { name: LABELS.headerAction });
+    const footerAction = page.getByRole('button', { name: LABELS.footerAction });
+
+    await headerAction.focus();
+    await expect(headerAction).toBeFocused();
+    await page.setViewportSize({ width: 820, height: 900 });
+    await expect(firstLink).toBeFocused();
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await footerAction.focus();
+    await expect(footerAction).toBeFocused();
+    await page.setViewportSize({ width: 820, height: 900 });
+    await expect(firstLink).toBeFocused();
+  });
+
+  test(`A sidebar keeps focus outside when crossing 1024 and 1023 (${dir})`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openScene(page, 'sidebar', dir);
+    const outside = page.locator('[data-fixture-outside-input]');
+    await outside.focus();
+    await expect(outside).toBeFocused();
+
+    await page.setViewportSize({ width: 820, height: 900 });
+    await expect(outside).toBeFocused();
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(outside).toBeFocused();
   });
 }

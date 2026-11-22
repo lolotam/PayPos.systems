@@ -93,24 +93,52 @@ function CollapseToggle({
   );
 }
 
+type SidebarFocusOrigin = {
+  element: Element;
+  inSidebar: boolean;
+};
+
 function useSidebarBreakpointFocus(
   isTablet: boolean,
   asideRef: RefObject<HTMLElement | null>,
   toggleRef: RefObject<HTMLButtonElement | null>,
 ) {
   const previousTablet = useRef(isTablet);
+  const focusOrigin = useRef<SidebarFocusOrigin | undefined>(undefined);
+
+  useEffect(() => {
+    const rememberFocus = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      focusOrigin.current = {
+        element: target,
+        inSidebar: asideRef.current?.contains(target) ?? false,
+      };
+    };
+    document.addEventListener('focusin', rememberFocus);
+    return () => document.removeEventListener('focusin', rememberFocus);
+  }, [asideRef]);
+
   useEffect(() => {
     const wasTablet = previousTablet.current;
     if (wasTablet === isTablet) return;
     previousTablet.current = isTablet;
+
     const active = document.activeElement;
+    const origin =
+      active !== null && asideRef.current?.contains(active)
+        ? { element: active, inSidebar: true }
+        : focusOrigin.current;
+    if (!origin?.inSidebar) return;
+
     if (isTablet) {
-      if (active === toggleRef.current || asideRef.current?.contains(active)) {
-        asideRef.current?.querySelector<HTMLAnchorElement>('nav a[href]')?.focus();
-      }
+      if (origin.element.isConnected && origin.element !== toggleRef.current) return;
+      asideRef.current?.querySelector<HTMLAnchorElement>('nav a[href]')?.focus();
       return;
     }
-    if (asideRef.current?.contains(active)) toggleRef.current?.focus();
+    if (origin.element === toggleRef.current || !origin.element.isConnected) {
+      toggleRef.current?.focus();
+    }
   }, [asideRef, isTablet, toggleRef]);
 }
 

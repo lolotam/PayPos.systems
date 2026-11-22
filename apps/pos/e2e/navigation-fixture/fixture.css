@@ -10,3 +10,7 @@ body,
 body {
   margin: 0;
 }
+
+body.fixture-hide-finder-first li:first-child [data-finder-result] {
+  display: none;
+}

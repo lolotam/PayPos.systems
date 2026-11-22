@@ -17,6 +17,7 @@ function stubMedia(isPhone: () => boolean) {
 function tree(props: Partial<TopNavProps> = {}, dir: 'rtl' | 'ltr' = 'ltr') {
   return (
     <DirectionProvider dir={dir}>
+      <input aria-label="Outside field" />
       <TopNav modules={modules} labels={chromeLabels} {...props} />
     </DirectionProvider>
   );
@@ -192,4 +193,34 @@ it('revokes open chrome when visibility changes to zero', async () => {
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   expect(screen.queryByRole('button', { name: /Business/ })).toBeNull();
   expect(screen.queryByRole('navigation', { name: chromeLabels.localNavigation })).toBeNull();
+});
+
+it('does not reopen a hidden menu when its module becomes visible again', async () => {
+  stubMedia(() => false);
+  const view = render(tree({ currentModuleId: 'business', visiblePageIds: ['columns'] }));
+  fireEvent.click(screen.getByRole('button', { name: /Business/ }));
+  expect(screen.getByRole('dialog', { name: 'Business' })).toBeTruthy();
+  view.rerender(tree({ currentModuleId: 'business', visiblePageIds: [] }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+  view.rerender(tree({ currentModuleId: 'business', visiblePageIds: ['columns'] }));
+  await waitFor(() => expect(screen.getByRole('button', { name: /Business/ })).toBeTruthy());
+  expect(screen.queryByRole('dialog')).toBeNull();
+});
+
+it('keeps focus outside the navigation when the phone breakpoint changes', async () => {
+  let phone = true;
+  stubMedia(() => phone);
+  const view = render(tree({ currentModuleId: 'people' }));
+  const outside = screen.getByRole('textbox', { name: 'Outside field' });
+  outside.focus();
+  expect(document.activeElement).toBe(outside);
+
+  phone = false;
+  view.rerender(tree({ currentModuleId: 'people' }));
+  await waitFor(() => expect(document.activeElement).toBe(outside));
+
+  phone = true;
+  view.rerender(tree({ currentModuleId: 'people' }));
+  await waitFor(() => expect(document.activeElement).toBe(outside));
 });

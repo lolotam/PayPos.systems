@@ -20,6 +20,8 @@ import './fixture.css';
 const params = new URLSearchParams(window.location.search);
 const dir = params.get('dir') === 'ltr' ? 'ltr' : 'rtl';
 const scene = params.get('scene') ?? 'top';
+const finderHideFirst = params.get('finderHideFirst') === 'true';
+if (finderHideFirst) document.body.classList.add('fixture-hide-finder-first');
 
 const chromeLabels: NavigationChromeLabels = {
   navigation: 'التنقل',
@@ -145,6 +147,7 @@ function markNavigated() {
 function SidebarScene() {
   return (
     <div className="flex min-h-screen">
+      <input data-fixture-outside-input="" aria-label="حقل خارجي" />
       <CollapsibleSidebar
         title={chromeLabels.navigation}
         collapseLabel={chromeLabels.collapse}
@@ -152,6 +155,8 @@ function SidebarScene() {
         groups={groups}
         currentGroupId="reports"
         currentPageId="summary"
+        header={<button type="button">إجراء الرأس</button>}
+        footer={<button type="button">إجراء التذييل</button>}
       />
       <main className="min-w-0 flex-1 p-4">
         <h1 className="text-xl font-semibold">التقارير التفصيلية اليومية والمؤشرات التشغيلية</h1>
@@ -163,6 +168,7 @@ function SidebarScene() {
 function TopScene() {
   return (
     <div className="min-h-screen">
+      <input data-fixture-outside-input="" aria-label="حقل خارجي" />
       <TopNav
         modules={modules}
         labels={chromeLabels}

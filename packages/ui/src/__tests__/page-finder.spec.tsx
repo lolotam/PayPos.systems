@@ -77,6 +77,35 @@ it('activates the first visible query result through its link and restores short
   await waitFor(() => expect(document.activeElement).toBe(outside));
 });
 
+it.each([
+  ['display', 'none'],
+  ['visibility', 'hidden'],
+] as const)('activates the first result with visible %s when an earlier link is CSS hidden', async (property, value) => {
+  const onNavigate = vi.fn();
+  render(tree('ltr', { onNavigate }));
+  const dialog = openWithShortcut('k', 'ctrlKey');
+  const input = within(dialog).getByRole('searchbox', { name: finderLabels.search });
+  const links = within(dialog).getAllByRole('link');
+  const activated: string[] = [];
+  for (const link of links) {
+    link.addEventListener(
+      'click',
+      () => {
+        activated.push(link.textContent ?? '');
+      },
+      { capture: true },
+    );
+  }
+  links[0]?.style.setProperty(property, value);
+  const expected = links[1]?.textContent ?? '';
+  expect(expected).not.toBe('');
+
+  fireEvent.keyDown(input, { key: 'Enter' });
+
+  expect(activated).toEqual([expected]);
+  expect(onNavigate).toHaveBeenCalledTimes(1);
+});
+
 it('filters hidden destinations and shows the empty state', () => {
   render(tree('ltr', { visiblePageIds: ['products'] }));
   const dialog = openWithShortcut('k', 'ctrlKey');

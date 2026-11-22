@@ -27,6 +27,7 @@ function stubMedia(state: MediaState | (() => MediaState) = {}) {
 function tree(dir: 'rtl' | 'ltr', props: Partial<CollapsibleSidebarProps> = {}) {
   return (
     <DirectionProvider dir={dir}>
+      <input aria-label="Outside field" />
       <CollapsibleSidebar
         title="Navigation"
         collapseLabel={chromeLabels.collapse}
@@ -118,9 +119,48 @@ it('transfers focus from the desktop toggle to a visible rail link at 1024 to 10
   view.rerender(tree('ltr', { currentGroupId: 'home' }));
   await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: /Home/ })));
 
+  const firstLinkAfterRail = screen.getByRole('link', { name: /Home/ });
+  firstLinkAfterRail.focus();
   tablet = false;
   view.rerender(tree('ltr', { currentGroupId: 'home' }));
-  await waitFor(() =>
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: chromeLabels.collapse })),
+  await waitFor(() => expect(document.activeElement).toBe(firstLinkAfterRail));
+});
+
+it('transfers focus from a hidden header slot to a rail link at 1024 to 1023', async () => {
+  let tablet = false;
+  stubMedia(() => ({ tablet }));
+  const view = render(
+    tree('ltr', {
+      currentGroupId: 'home',
+      header: <button type="button">Header action</button>,
+    }),
   );
+  const headerAction = screen.getByRole('button', { name: 'Header action' });
+  headerAction.focus();
+  expect(document.activeElement).toBe(headerAction);
+
+  tablet = true;
+  view.rerender(
+    tree('ltr', {
+      currentGroupId: 'home',
+      header: <button type="button">Header action</button>,
+    }),
+  );
+  await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: /Home/ })));
+});
+
+it('keeps focus outside the sidebar when the tablet breakpoint changes', async () => {
+  let tablet = false;
+  stubMedia(() => ({ tablet }));
+  const view = render(tree('ltr', { currentGroupId: 'home' }));
+  const outside = screen.getByRole('textbox', { name: 'Outside field' });
+  outside.focus();
+
+  tablet = true;
+  view.rerender(tree('ltr', { currentGroupId: 'home' }));
+  await waitFor(() => expect(document.activeElement).toBe(outside));
+
+  tablet = false;
+  view.rerender(tree('ltr', { currentGroupId: 'home' }));
+  await waitFor(() => expect(document.activeElement).toBe(outside));
 });

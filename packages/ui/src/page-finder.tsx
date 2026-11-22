@@ -77,6 +77,21 @@ type FinderDialogProps = {
   onCloseAutoFocus: (event: Event) => void;
 };
 
+function isVisibleFinderLink(link: HTMLAnchorElement): boolean {
+  for (let node: HTMLElement | null = link; node; node = node.parentElement) {
+    if (node.hasAttribute('hidden')) return false;
+    const style = getComputedStyle(node);
+    if (
+      style.display === 'none' ||
+      style.visibility === 'hidden' ||
+      style.visibility === 'collapse'
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function onFinderInputKeyDown(
   event: KeyboardEvent<HTMLInputElement>,
   listRef: RefObject<HTMLUListElement | null>,
@@ -84,7 +99,7 @@ function onFinderInputKeyDown(
   if (event.key !== 'Enter') return;
   const firstVisible = Array.from(
     listRef.current?.querySelectorAll<HTMLAnchorElement>('a[data-finder-result]') ?? [],
-  ).find((link) => !link.hasAttribute('hidden') && !link.closest('[hidden]'));
+  ).find(isVisibleFinderLink);
   if (!firstVisible) return;
   event.preventDefault();
   firstVisible.click();
