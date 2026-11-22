@@ -1,5 +1,6 @@
 'use client';
 
+import { Children } from 'react';
 import { AppSidebarGroup } from './app-sidebar-group.js';
 import { AppSidebarItem } from './app-sidebar-item.js';
 import type { NavigationGroup } from './navigation-presentation.js';
@@ -12,8 +13,9 @@ type GroupLinkProps = {
 };
 
 export function CollapsibleGroupLink({ group, rail, active }: GroupLinkProps) {
-  // icon نوعه ReactNode، فممكن ييجي false من شرط. نفس الفحص لازم يحكم العنوان والبديل النصي.
-  const hasIcon = Boolean(group.icon);
+  // icon نوعه ReactNode، فممكن ييجي false أو مصفوفة فاضية من شرط. toArray بيسيب اللي React هيرسمه
+  // فعلاً بس (ومنه الرقم 0)، ونفس النتيجة بتحكم العنوان والبديل النصي.
+  const hasIcon = Children.toArray(group.icon).length > 0;
   return (
     <AppSidebarGroup role="group" aria-label={group.label} className="gap-0">
       <AppSidebarItem
@@ -44,7 +46,7 @@ export function CollapsibleGroupLink({ group, rail, active }: GroupLinkProps) {
         }
         className={cn(
           'min-h-12',
-          rail && 'mx-auto min-h-15 w-15 justify-center gap-0 ps-0 pe-0 [&>span:first-child]:hidden',
+          rail && 'mx-auto min-h-15 w-15 max-w-full justify-center gap-0 ps-0 pe-0 [&>span:first-child]:hidden',
         )}
       />
     </AppSidebarGroup>

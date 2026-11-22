@@ -286,11 +286,16 @@ it('centres the collapse toggle in the rail and keeps it at the inline end when 
 
 it('falls back to the visible label when a rail icon is conditionally false', () => {
   stubMedia({ width: 800 });
-  const conditional = groups.map((group) => (group.id === 'home' ? { ...group, icon: false } : group));
+  const conditional = groups.map((group) => {
+    if (group.id === 'home') return { ...group, icon: false };
+    return group.id === 'sales' ? { ...group, icon: [false, null] } : group;
+  });
   render(tree('ltr', { groups: conditional }));
-  const home = screen.getByRole('link', { name: 'Home' });
-  expect(home.hasAttribute('title')).toBe(false);
-  expect(within(home).getAllByText('Home').some((node) => !node.className.includes('sr-only'))).toBe(true);
+  for (const name of ['Home', 'Sales']) {
+    const link = screen.getByRole('link', { name });
+    expect(link.hasAttribute('title')).toBe(false);
+    expect(within(link).getAllByText(name).some((node) => !node.className.includes('sr-only'))).toBe(true);
+  }
 });
 
 it('centres rail links on the same line as the collapse toggle', () => {
@@ -298,6 +303,7 @@ it('centres rail links on the same line as the collapse toggle', () => {
   render(tree('ltr', { groups: homeWithIcon() }));
   const home = screen.getByRole('link', { name: 'Home' });
   expect(home.className).toContain('mx-auto');
+  expect(home.className).toContain('max-w-full');
   expect(home.className).toContain('gap-0');
   expect(home.className).not.toContain('gap-2');
 });
