@@ -1,4 +1,5 @@
 import { employeeNameMatchKey } from '@pospay/domain';
+import postgres from 'postgres';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 
 import { insertCommissionLineProjection } from '../../../../../../packages/db/test/commission-line-fixtures.ts';
@@ -113,15 +114,50 @@ it('an October line before any ordinary plan stays NO_PLAN after a September rep
   expect(employees.find((employee) => employee.employee_id === r.employee)?.status).toBe('NO_PLAN');
 });
 
-it('a revocation committed while a duplicate waits on the in-flight key refuses the stored replay with the uniform 403', async () => {
-  await seedFlat();
-  const member = await memberWithoutPlanPermission(r);
+const CLAIM_TIMEOUT_MS = 5_000;
+
+/** يستنى لحد ما الشرط يتحقق، أو يرجّع false عند انتهاء المهلة أو لما الطلب الأول يفشل (فالمحاولة تنتهي فوراً). */
+async function observed(
+  condition: () => Promise<boolean>,
+  failed: () => boolean,
+): Promise<boolean> {
+  const deadline = performance.now() + CLAIM_TIMEOUT_MS;
+  while (performance.now() < deadline && !failed()) {
+    if (await condition()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  return false;
+}
+
+async function grantPlanPermission(membershipId: string): Promise<string> {
   const grant = ids.newId();
   await r.h.owner`INSERT INTO permission_overrides(
     company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
-    VALUES (${r.company},${grant}::uuid,${member.membershipId}::uuid,
+    VALUES (${r.company},${grant}::uuid,${membershipId}::uuid,
       'manage:commission-plans:business','ALLOW','BUSINESS',${r.business}::uuid,
-      'replay barrier proof',${r.userId})`;
+      'repair barrier proof',${r.userId})`;
+  return grant;
+}
+
+// حدّ: السحب بيتم بـ SQL مباشر، فبيتخطى أقفال مسار إدارة الصلاحيات العادي؛ الاختبار بيثبت ترتيب الفحص بعد الانتظار مش مسار الإدارة.
+const revokePlanPermission = (grant: string) =>
+  r.h.owner`DELETE FROM permission_overrides WHERE company_id=${r.company} AND id=${grant}::uuid`;
+
+/** الطلب التاني بالذات (استعلام الـ claim على idempotency_keys) واقف بسبب جلسة الأول اللي ماسكة معاملتها عند البوابة. */
+const claimWaiterObserved = (failed: () => boolean) =>
+  observed(async () => {
+    const [row] = await r.h.owner`SELECT count(*)::int AS n
+      FROM pg_stat_activity waiting
+      JOIN pg_stat_activity holder ON holder.pid = ANY(pg_blocking_pids(waiting.pid))
+      WHERE waiting.datname = current_database() AND waiting.wait_event_type = 'Lock'
+        AND waiting.query ILIKE '%idempotency_keys%' AND holder.state = 'idle in transaction'`;
+    return (row?.['n'] as number) > 0;
+  }, failed);
+
+it('a revocation committed while a duplicate waits on the in-flight key refuses the stored replay with the uniform 403', async () => {
+  await seedFlat();
+  const member = await memberWithoutPlanPermission(r);
+  const grant = await grantPlanPermission(member.membershipId);
   const clock = { now: () => COMMISSION_NOW };
   const transactions = createCommissionPeriodRepairTransactions(r.db, ids, r.readers, clock);
   const command = {
@@ -141,36 +177,86 @@ it('a revocation committed while a duplicate waits on the in-flight key refuses 
   const firstDone = new Promise<void>((resolve) => {
     repaired = resolve;
   });
+  let firstFailure: unknown;
   const first = transactions.run(command, async (scope) => {
     const result = await repairCommissionPeriod(scope, command, ids, clock);
     repaired();
     await gate;
     return result;
   });
-  const second = transactions.run(command, async () => {
-    throw new Error('a duplicate of an in-flight key must replay, never run');
+  first.catch((error: unknown) => {
+    firstFailure = error;
   });
-  const secondOutcome = second.then(
-    () => 'answered',
-    (error: unknown) => (error as { code?: string }).code,
-  );
-  try {
-    await firstDone;
-    const deadline = performance.now() + 15_000;
-    while (performance.now() < deadline) {
-      const [row] = await r.h.owner`SELECT count(*)::int AS waiting FROM pg_stat_activity
-        WHERE datname = current_database() AND wait_event_type = 'Lock'
-          AND query ILIKE '%idempotency_keys%'`;
-      if ((row?.['waiting'] as number) > 0) break;
-      await new Promise((resolve) => setTimeout(resolve, 20));
+  const secondOutcome = transactions
+    .run(command, async () => {
+      throw new Error('a duplicate of an in-flight key must replay, never run');
+    })
+    .then(
+      () => 'answered',
+      (error: unknown) => (error as { code?: string }).code,
+    );
+  const blocked = await (async () => {
+    try {
+      await Promise.race([firstDone, first.catch(() => undefined)]);
+      const seen = await claimWaiterObserved(() => firstFailure !== undefined);
+      if (seen) await revokePlanPermission(grant);
+      return seen;
+    } finally {
+      release();
     }
-    await r.h
-      .owner`DELETE FROM permission_overrides WHERE company_id=${r.company} AND id=${grant}::uuid`;
-  } finally {
-    release();
-  }
+  })();
 
   await first;
+  expect(blocked, 'the duplicate was never observed waiting on the in-flight claim').toBe(true);
   expect(await secondOutcome).toBe('FORBIDDEN');
   expect(await repairWrites(r)).toEqual([1, 1, 1, 1]);
+});
+
+it('a revocation committed while the request waits on the employee row lock answers the uniform 403, never a block-state 422', async () => {
+  const member = await memberWithoutPlanPermission(r);
+  const grant = await grantPlanPermission(member.membershipId);
+  // اتصال مستقل للماسك: r.h.owner اتصال واحد فقط ولو اتحجز الاستعلامات بتاعة المراقبة هتستنى.
+  const holderDb = postgres(r.h.ownerUrl, { max: 1, onnotice: () => undefined });
+  let holderPid = 0;
+  let releaseLock: () => void = () => undefined;
+  const lockReleased = new Promise<void>((resolve) => {
+    releaseLock = resolve;
+  });
+  let holding: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    holding = resolve;
+  });
+  const holder = holderDb.begin(async (tx) => {
+    const [backend] = await tx`SELECT pg_backend_pid() AS pid`;
+    holderPid = backend?.['pid'] as number;
+    await tx`SELECT id FROM employees WHERE company_id=${r.company} AND id=${r.employee} FOR NO KEY UPDATE`;
+    holding();
+    await lockReleased;
+  });
+  await held;
+  const request = r.repair(body, 'employee-lock-wait', r.employee, member.cookie);
+  const waiting = await (async () => {
+    try {
+      const seen = await observed(
+        async () => {
+          const [row] = await r.h.owner`SELECT count(*)::int AS n FROM pg_stat_activity waiting
+            WHERE waiting.datname = current_database() AND waiting.wait_event_type = 'Lock'
+              AND waiting.query ILIKE '%employees%'
+              AND ${holderPid} = ANY(pg_blocking_pids(waiting.pid))`;
+          return (row?.['n'] as number) > 0;
+        },
+        () => false,
+      );
+      if (seen) await revokePlanPermission(grant);
+      return seen;
+    } finally {
+      releaseLock();
+    }
+  })();
+  const response = await request;
+  await holder;
+  await holderDb.end();
+
+  expect(waiting, 'the request was never observed waiting on the employee row lock').toBe(true);
+  expect([response.status, response.body['code']]).toEqual([403, 'FORBIDDEN']);
 });

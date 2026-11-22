@@ -204,7 +204,6 @@ it('locks the employee, then one ascending call from the source month to the cur
   expect(s.locks).toEqual([['2026-09', '2026-10']]);
   expect(s.calls.filter((call) => !call.includes(':'))).toEqual([
     'lockEmployee',
-    'readOpenBlock',
     'lockPeriods',
     'recheckAccess',
     'readOpenBlock',
@@ -235,7 +234,6 @@ it.each([
 
   expect(s.calls).not.toContain('insert');
   expect(s.calls).not.toContain('corrections');
-  expect(s.locks).toEqual([]);
 });
 
 it.each(['0001-01', '2025-12', '2026-10', '2027-03'])(
@@ -262,7 +260,8 @@ it('refuses a change of month after the lock as TRANSACTION_RETRY_REQUIRED, with
   ).rejects.toMatchObject({ code: 'TRANSACTION_RETRY_REQUIRED' });
 
   expect(s.locks).toHaveLength(1);
-  expect(s.calls).toEqual(['lockEmployee', 'readOpenBlock', 'lockPeriods']);
+  expect(s.calls).not.toContain('readOpenBlock');
+  expect(s.calls).not.toContain('insert');
 });
 
 it('checks access after the locks and before it reads the block', async () => {
@@ -270,7 +269,7 @@ it('checks access after the locks and before it reads the block', async () => {
 
   await expect(run(s)).rejects.toMatchObject({ code: 'FORBIDDEN' });
 
-  expect(s.calls).toEqual(['lockEmployee', 'readOpenBlock', 'lockPeriods', 'recheckAccess']);
+  expect(s.calls).toEqual(['lockEmployee', 'lockPeriods', 'recheckAccess']);
 });
 
 it('validates the plan first: an invalid plan touches no lock', async () => {
@@ -383,23 +382,5 @@ it('answers 409 COMMISSION_PERIOD_CLOSED when the step finds no DRAFT month to p
   ).rejects.toMatchObject({ code: 'COMMISSION_PERIOD_CLOSED' });
 
   expect(s.calls).not.toContain('audit');
-  expect(s.events).toEqual([]);
-});
-
-it('still refuses under the locks when the block is gone after the pre-check: the decision that matters is the post-lock read', async () => {
-  const s = setup({});
-  let reads = 0;
-  const racing = {
-    ...s.scope,
-    readOpenBlock: async () =>
-      ++reads === 1 ? { id: 'block-a', code: 'NO_PLAN' as const, firstEventId: 'event-a' } : null,
-  };
-
-  await expect(
-    repairCommissionPeriod(racing, COMMAND, ids, { now: () => october }),
-  ).rejects.toMatchObject({ code: 'COMMISSION_REPAIR_NOT_ALLOWED' });
-
-  expect(s.locks).toHaveLength(1);
-  expect(s.calls).not.toContain('insert');
   expect(s.events).toEqual([]);
 });

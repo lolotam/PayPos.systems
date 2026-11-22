@@ -59,7 +59,7 @@ export interface CommissionPeriodRepairScope extends CommissionInputLockScope {
    */
   latestVersion(): Promise<number | null>;
   /**
-   * بيقرأ التصحيح الموقوف المفتوح للموظفة في شهر المصدر، بعد أقفال الشهور.
+   * بيقرأ التصحيح الموقوف المفتوح للموظفة في شهر المصدر تحت أقفال الشهور: دي القراءة الوحيدة اللي بتقرر السماح بالإصلاح، ومفيش قراءة قبل الأقفال.
    *
    * @param period شهر المصدر YYYY-MM
    * @returns الصف المفتوح أو null لو مفيش

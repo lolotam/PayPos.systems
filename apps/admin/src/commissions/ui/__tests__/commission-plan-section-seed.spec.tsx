@@ -129,8 +129,9 @@ it('keeps the editor hidden until both the seed read and the first history page 
   );
   mount();
 
-  await waitFor(() => expect(api.GET.mock.calls.length).toBeGreaterThanOrEqual(2));
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  // الدليل إن القراءتين بدأوا وإن البذرة نجحت في الكاش فعلاً والتاريخ لسه معلّق: بعدها بس نتأكد إن الحفظ مش ظاهر.
+  await waitFor(() => expect(client.getQueryData(planSeedKey(scope, EMP_A_ID))).toBeTruthy());
+  expect(client.isFetching({ queryKey: [...scope, 'versions', EMP_A_ID] })).toBe(1);
   expect(screen.queryByRole('button', { name: B.save })).toBeNull();
   history.resolve(ok(versionPage([ordinary], null)));
 

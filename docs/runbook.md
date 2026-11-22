@@ -258,9 +258,8 @@ land, approval stays closed. Never reset or delete `published_at`, `attempts`, `
    `manage:commission-plans:business`): one repair plan version that applies only inside that month, a recompute, the posted
    corrections and the resolved block, all in one transaction. If the recompute then needs a missing salary, the same row becomes
    `NO_SALARY` and nothing is posted (the repair version and its audit entry stay). Each saved repair also appends one
-   `CommissionPeriodRepairSaved` outbox event (ids and the block outcome only). Deploy order: every worker replica first (an old
-   worker retries the unknown type with backoff and parks it; re-queue a parked row after the worker is updated), then the API that
-   emits it, then the admin (an old API answers 400 to the `kind=ordinary` read the new admin sends). The bell of 55-2d and the list of 55-2e
+   `CommissionPeriodRepairSaved` outbox event (ids and the block outcome only). **Required step of the deploy that ships
+   55-2f** (read the next paragraph before deploying). The bell of 55-2d and the list of 55-2e
    (`GET …/commission-blocked-corrections`) expose these rows. To see the open blocks directly, run this read-only query as `pospay_owner`:
 
     ```sql
@@ -269,6 +268,24 @@ land, approval stays closed. Never reset or delete `published_at`, `attempts`, `
     WHERE resolved_at IS NULL
     ORDER BY created_at, id;
     ```
+
+   **Deploy condition for a release that adds an event type or a query parameter (55-2f).** What the staging template does today:
+   `deploy/docker-compose.staging-shared.yml` pins every service to one `${IMAGE_TAG}` per release (header, lines 9-11; image lines
+   55, 68, 107, 149, 158), and `api` and `worker` each wait only for `migrate` (`depends_on`, lines 100-102 and 139-141), so one compose
+   upload starts the new `api` and the new `worker` together and nothing orders the worker before the API. `admin` waits only for
+   `api` to be started (lines 151-153). The condition this release needs: every new worker replica is running and knows
+   `CommissionPeriodRepairSaved` **before the API that emits it is made available**, then the new API, then the admin (an old API
+   answers 400 to the `kind=ordinary` read the new admin sends). Confirm it with the image tag of every worker container and the
+   PP-133 worker readiness receipt (top of this file). If the template cannot order them, prepare the order first (for example an
+   operator-side variant of the uploaded file that pins only `worker` to the new SHA, confirmed, then the whole file); no deploy file
+   changes in the PR that ships the event.
+   If the condition is not met: an old worker does not know the type, so `apps/worker/src/outbox/deliver.ts` fails the delivery,
+   retries with backoff and parks the row after the last attempt (it logs «outbox event parked»). The row has no consumer and no
+   business effect, and the type is not one of the six counted by ADR-0012, so approval is not affected. This runbook documents
+   **no** operator path to re-queue a parked outbox event (the rule near the top of the replay section forbids resetting
+   `published_at`, `attempts`, `parked_at` or `consumed_events` for the counted events, and the dispatcher only parks and retries
+   by itself, `packages/db/src/dispatcher.ts`); a parked `CommissionPeriodRepairSaved` can stay parked without losing anything
+   today, and re-queuing one later is a reviewed one-off, not a documented step.
 
    One refusal remains (FR-015):
    `COMMISSION_PERIOD_CLOSED` when no DRAFT target month exists after the source, or when the tips bootstrap touches a closed month

@@ -42,9 +42,11 @@ const monthOf = (clock: Clock, timeZone: string): string =>
   sessionBusinessDate(clock.now(), timeZone).slice(0, 7);
 
 /**
- * الخطوات بترتيبها الإلزامي: التحقق، قفل الموظفة، رفض شهر خارج مدى النشاط قبل أي قفل، نداء قفل واحد تصاعدي من شهر المصدر للشهر الحالي، إعادة قراءة
- * الشهر الحالي (لو اتغيّر نرفض قابل لإعادة المحاولة بلا نداء قفل تاني)، فحص الصلاحية، شرط التصحيح الموقوف
- * NO_PLAN، تخزين النسخة، الخطوة المشتركة، التدقيق، حدث الـ outbox. أي خطأ بيخرج من الـ callback فيتلغي كل اللي اتكتب.
+ * الخطوات بترتيبها الإلزامي: التحقق، رفض شهر خارج مدى النشاط (قبل أي قفل لأنه مبني على التقويم مش على حالة بتتغيّر)، قفل الموظفة،
+ * نداء قفل واحد تصاعدي من شهر المصدر للشهر الحالي، إعادة قراءة الشهر الحالي (لو اتغيّر نرفض قابل لإعادة المحاولة بلا نداء قفل تاني)،
+ * فحص الصلاحية، ثم شرط التصحيح الموقوف NO_PLAN: القرار الحاسم بيجي من القراءة تحت الأقفال بس، لأن الـ worker ممكن يكون ماسك الشهر
+ * وبيسجّل التوقف أو بيقلب كوده، فأي قراءة قبل الأقفال بتشوف آخر حالة متثبتة وبتغيّر القرار. بعد كده تخزين النسخة، الخطوة المشتركة،
+ * التدقيق، حدث الـ outbox. أي خطأ بيخرج من الـ callback فيتلغي كل اللي اتكتب (بما فيه كشوف DRAFT اللي الأقفال أنشأها).
  */
 export async function repairCommissionPeriod(
   scope: CommissionPeriodRepairScope,
@@ -68,10 +70,6 @@ export async function repairCommissionPeriod(
     throw new CommissionPlanVersionError('COMMISSION_REPAIR_NOT_ALLOWED');
   }
   if (!(await scope.lockEmployee())) throw new CommissionPlanVersionError('EMPLOYEE_NOT_FOUND');
-  // فحص قراءة بس قبل الأقفال: طلب من غير توقف NO_PLAN مفتوح بيترفض من غير ما ياخد أقفال الشهور؛ القرار الحاسم بعد الأقفال.
-  if ((await scope.readOpenBlock(period))?.code !== 'NO_PLAN') {
-    throw new CommissionPlanVersionError('COMMISSION_REPAIR_NOT_ALLOWED');
-  }
   const locked = await scope.lockPeriods(
     commissionPlanMonthsToLock(`${period}-01`, `${current}-01`),
   );

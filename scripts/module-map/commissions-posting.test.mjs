@@ -576,6 +576,13 @@ for (const app of ['api', 'worker']) {
       FACTORY,
       `a use-case test may not take the scope factory by ${formName}`,
     );
+    add(
+      app,
+      `${M}/ports/__tests__/probe.spec.ts`,
+      source,
+      FACTORY,
+      `a port test may not take the scope factory by ${formName}`,
+    );
   }
   // The same root stays importable by name for the step: only the factory is refused.
   add(
