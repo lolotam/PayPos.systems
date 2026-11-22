@@ -32,12 +32,14 @@ export const privateViewCalls = {
    * بيلمس النافذة بعد إدخال؛ الرد هو الوقتين المتبقيين اللي الشاشة بتبني عليهم موعد القفل.
    *
    * @param windowId رقم النافذة المفتوحة
+   * @param signal بيلغي الطلب لما الواجهة تتقفل
    * @returns الوقت المتبقي على الخمول وعلى السقف، وغير كده بيرمي WorkHttpError بالكود
    */
-  touch: async (windowId: string): Promise<PrivateViewTouch> => {
+  touch: async (windowId: string, signal?: AbortSignal): Promise<PrivateViewTouch> => {
     const result = await staffApiClient().POST('/v1/staff/me/private-view/touch', {
       params: { header: { [HEADER]: windowId } },
       cache: 'no-store',
+      ...(signal ? { signal } : {}),
     });
     if (result.data === undefined) throw refused(result);
     return result.data;

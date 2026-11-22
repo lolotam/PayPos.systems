@@ -4,11 +4,10 @@ import { t } from '@pospay/i18n';
 import { Button, Input, Label } from '@pospay/ui';
 import { useForm } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
-import type { PrivateViewProblem } from '../api/use-private-view-lock';
+import type { PinProblem } from '../model/private-window-state';
 
 const PROBLEM_KEYS = {
   expired: 'errors.PRIVATE_VIEW_EXPIRED',
-  unavailable: 'myWork.pinUnavailable',
   failed: 'myWork.pinFailed',
   invalid: 'myWork.pinInvalid',
 } as const;
@@ -16,7 +15,7 @@ const PROBLEM_KEYS = {
 /**
  * خطوة الـ PIN على جهاز الاستقبال: الحقل بيتمسح بعد كل محاولة والـ PIN مش بيتحفظ في أي مكان.
  *
- * @param props.problem سبب الرجوع للخطوة دي: PIN غلط، فشل الفتح، انتهاء النافذة، أو تعذّر سياج التابات (التخزين مقفول)
+ * @param props.problem سبب الرجوع للخطوة دي: PIN غلط، فشل الفتح، أو خروج من الواجهة قفل النافذة
  * @param props.pending هل المحاولة شغالة
  * @param props.onSubmit بتستلم الـ PIN
  */
@@ -25,7 +24,7 @@ export function PrivateViewPinForm({
   pending,
   onSubmit,
 }: {
-  problem: PrivateViewProblem;
+  problem: PinProblem;
   pending: boolean;
   onSubmit: (pin: string) => Promise<void>;
 }) {

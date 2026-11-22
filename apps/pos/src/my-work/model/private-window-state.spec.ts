@@ -1,0 +1,68 @@
+import { expect, it } from 'vitest';
+import type { OwnServiceLines } from '@pospay/contracts';
+import { reducePrivateWindow, shownMonth, type PrivateWindowState } from './private-window-state';
+
+const page = (month: string, next: string | null = null): OwnServiceLines => ({
+  items: [],
+  next_cursor: next,
+  month,
+  time_zone: 'Asia/Kuwait',
+});
+const deadlines = { sentAt: 0, idleAt: 60_000, capAt: 300_000 };
+const open = (): PrivateWindowState =>
+  reducePrivateWindow({ phase: 'opening' }, { type: 'opened', windowId: 'w', deadlines });
+
+it('drops every piece of private data when the window closes and starts empty on the next open', () => {
+  let state = open();
+  state = reducePrivateWindow(state, { type: 'linesLoaded', page: page('2026-11'), append: false });
+  state = reducePrivateWindow(state, { type: 'closed', problem: 'expired' });
+  expect(state).toEqual({ phase: 'pin', problem: 'expired' });
+  const again = reducePrivateWindow(state, { type: 'opened', windowId: 'w2', deadlines });
+  expect(again.phase === 'open' && again.data.lines.pages).toEqual([]);
+});
+
+it('records the server month as home only for the current-month first page and appends later pages', () => {
+  let state = open();
+  state = reducePrivateWindow(state, {
+    type: 'linesLoaded',
+    page: page('2026-11', 'c'),
+    append: false,
+  });
+  state = reducePrivateWindow(state, { type: 'linesLoaded', page: page('2026-11'), append: true });
+  if (state.phase !== 'open') throw new Error('not open');
+  expect(state.data.home).toBe('2026-11');
+  expect(state.data.lines.pages.length).toBe(2);
+  expect(shownMonth(state.data)).toBe('2026-11');
+  state = reducePrivateWindow(state, { type: 'month', month: '2026-10' });
+  if (state.phase !== 'open') throw new Error('not open');
+  expect(state.data.lines.status).toBe('pending');
+  expect(state.data.home).toBe('2026-11');
+  expect(shownMonth(state.data)).toBe('2026-10');
+});
+
+it('ignores data actions when no window is open', () => {
+  const pin: PrivateWindowState = { phase: 'pin', problem: null };
+  expect(
+    reducePrivateWindow(pin, { type: 'linesLoaded', page: page('2026-11'), append: false }),
+  ).toBe(pin);
+  expect(
+    reducePrivateWindow(pin, {
+      type: 'touched',
+      sentAt: 1,
+      remaining: { idle_remaining_ms: 1, cap_remaining_ms: 1 },
+    }),
+  ).toBe(pin);
+});
+
+it('only shortens the cap on a touch and takes the idle time from the server', () => {
+  const state = reducePrivateWindow(open(), {
+    type: 'touched',
+    sentAt: 10_000,
+    remaining: { idle_remaining_ms: 60_000, cap_remaining_ms: 900_000 },
+  });
+  expect(state.phase === 'open' && state.deadlines).toEqual({
+    sentAt: 10_000,
+    idleAt: 70_000,
+    capAt: 300_000,
+  });
+});

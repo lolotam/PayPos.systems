@@ -1,7 +1,7 @@
 import { t } from '@pospay/i18n';
 import { Button, EmptyState } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
-import type { useWorkLines } from '../api/use-my-work';
+import type { LinesView } from '../model/private-window-state';
 import { monthOutOfRange, workForbidden } from '../model/work-error';
 import { WorkLineRow } from './work-line-row';
 
@@ -10,28 +10,38 @@ import { WorkLineRow } from './work-line-row';
  *
  * الوقت وتاريخ الإلغاء بيتعرضوا بتوقيت النشاط اللي جاي مع كل صفحة، مش بتوقيت الجهاز (AC-57-4-9).
  *
- * @param props.query استعلام الصفحات
+ * @param props.lines حالة الصفحات (react-query أو المتحكم)
+ * @param props.onRetry إعادة تحميل الصفحة الأولى
+ * @param props.onLoadMore الصفحة التالية بالـ cursor
  */
-export function WorkLines({ query }: { query: ReturnType<typeof useWorkLines> }) {
+export function WorkLines({
+  lines,
+  onRetry,
+  onLoadMore,
+}: {
+  lines: LinesView;
+  onRetry: () => void;
+  onLoadMore: () => void;
+}) {
   const locale = useLocale();
   const status = (key: 'loading' | 'outOfRange' | 'refused' | 'empty') => (
     <p role="status">{t(locale, `myWork.${key}`)}</p>
   );
-  if (query.isPending) return status('loading');
-  if (query.isError) {
-    if (monthOutOfRange(query.error)) return status('outOfRange');
-    if (workForbidden(query.error)) return status('refused');
+  if (lines.status === 'pending') return status('loading');
+  if (lines.status === 'error') {
+    if (monthOutOfRange(lines.error)) return status('outOfRange');
+    if (workForbidden(lines.error)) return status('refused');
     return (
       <EmptyState
         role="alert"
         tone="danger"
         icon={null}
         title={t(locale, 'myWork.failed')}
-        action={<Button onClick={() => void query.refetch()}>{t(locale, 'myWork.retry')}</Button>}
+        action={<Button onClick={onRetry}>{t(locale, 'myWork.retry')}</Button>}
       />
     );
   }
-  const items = query.data.pages.flatMap((page) =>
+  const items = lines.pages.flatMap((page) =>
     page.items.map((item) => ({ item, timeZone: page.time_zone })),
   );
   if (items.length === 0) return status('empty');
@@ -42,12 +52,8 @@ export function WorkLines({ query }: { query: ReturnType<typeof useWorkLines> })
           <WorkLineRow key={item.line_id} item={item} timeZone={timeZone} />
         ))}
       </ul>
-      {query.hasNextPage ? (
-        <Button
-          variant="outline"
-          disabled={query.isFetchingNextPage}
-          onClick={() => void query.fetchNextPage()}
-        >
+      {lines.pages.at(-1)?.next_cursor ? (
+        <Button variant="outline" disabled={lines.fetchingMore} onClick={onLoadMore}>
           {t(locale, 'myWork.loadMore')}
         </Button>
       ) : null}

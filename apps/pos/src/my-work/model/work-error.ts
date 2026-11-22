@@ -8,16 +8,6 @@ export class WorkHttpError extends Error {
   }
 }
 
-/**
- * رد قراءة ناجح اترمى لأن نافذته مش الحالية (نافذة أحدث خدت مكانها أو موعدها فات) قبل ما يتنشر في الكاش.
- * مفيش بيانات فيه ولا كود سيرفر: الشاشة اتقفلت أصلاً بالفعل.
- */
-export class PrivateViewRetiredError extends Error {
-  constructor() {
-    super('PRIVATE_VIEW_RETIRED');
-  }
-}
-
 /** النافذة الخاصة انتهت: الجلسة لسه عايشة وشاشة الـ PIN هي اللي تظهر (D-A13). */
 export function windowExpired(error: unknown): boolean {
   return (

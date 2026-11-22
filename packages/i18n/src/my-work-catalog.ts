@@ -37,7 +37,6 @@ export const myWorkEn = {
   pinSubmit: 'Show my work',
   pinInvalid: 'The PIN is incorrect.',
   pinFailed: 'Unable to open your work. Try again.',
-  pinUnavailable: 'Your work cannot be shown on this device right now. Ask the manager for help.',
 };
 export const myWorkAr: Record<keyof typeof myWorkEn, string> = {
   title: 'شغلي',
@@ -78,5 +77,4 @@ export const myWorkAr: Record<keyof typeof myWorkEn, string> = {
   pinSubmit: 'اعرضي شغلي',
   pinInvalid: 'الرقم السري غير صحيح.',
   pinFailed: 'تعذر فتح شغلك. حاولي مرة أخرى.',
-  pinUnavailable: 'تعذر عرض شغلك على الجهاز ده دلوقتي. اطلبي المساعدة من المديرة.',
 };

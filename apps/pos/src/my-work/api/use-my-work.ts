@@ -1,11 +1,9 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type { WorkContext } from '../model/work-context';
-import { PrivateViewRetiredError } from '../model/work-error';
 import { workCalls } from './my-work-calls';
-import type { PrivateViewAccess } from './use-private-view';
 
-// القراءات الخاصة ما بتتجددش لوحدها: على جهاز الاستقبال كل طلب بيمدد النافذة، فالتجديد التلقائي كان هيسيبها مفتوحة.
-const PRIVATE_READ = {
+// القراءات ما بتتجددش لوحدها ولا بتفضل في الكاش بعد ما الشاشة تتقفل.
+const PERSONAL_READ = {
   gcTime: 0,
   staleTime: 0,
   retry: false,
@@ -13,41 +11,33 @@ const PRIVATE_READ = {
   refetchOnReconnect: false,
 } as const;
 
-/**
- * قراءة خاصة محروسة. على جهاز الاستقبال الرد الناجح ما بيوصلش للكاش إلا لو نافذة الطلب لسه هي
- * الحالية (المفتاح المشترك والمواعيد) والتاب متحقَّق منه في الدورة اللي اتبعت فيها الطلب، من غير
- * انتظار إشارة التخزين اللي ممكن توصل بعد الرد؛ وإلا بيترمى (والتاب بيتقفل لو النافذة راحت)
- * (ADR-0019 البند 6: التاب بيعرض رد نافذته الحالية بس).
- */
-async function guarded<T>(read: () => Promise<T>, signal: AbortSignal, view: PrivateViewAccess) {
-  const windowId = view.windowId;
-  const epoch = view.epoch();
-  let data: T;
+/** رفض السيرفر على موبايلها الشخصي: بس انتهاء الجلسة (401) بيتعالج، وباقي الأخطاء بتظهر في الشاشة. */
+export type OnRefused = (error: unknown) => void;
+
+async function guarded<T>(read: () => Promise<T>, signal: AbortSignal, onRefused: OnRefused) {
   try {
-    data = await read();
+    return await read();
   } catch (error) {
-    if (!signal.aborted) view.refused(error);
+    if (!signal.aborted) onRefused(error);
     throw error;
   }
-  if (windowId !== undefined && !view.fence(windowId, epoch)) throw new PrivateViewRetiredError();
-  return data;
 }
 
 /**
- * خدمات الشهر بالأحدث أول، صفحة بصفحة؛ من غير شهر السيرفر بيحدد الشهر الحالي.
+ * خدمات الشهر بالأحدث أول، صفحة بصفحة، على موبايلها الشخصي (جهاز الاستقبال بيستعمل المتحكم).
  *
  * @param context مين بيفتح الشاشة
  * @param month الشهر المطلوب أو undefined للحالي
- * @param view رقم النافذة ومعالج الرفض
+ * @param onRefused معالج رفض السيرفر
  * @returns استعلام الصفحات
  */
 export function useWorkLines(
   context: WorkContext,
   month: string | undefined,
-  view: PrivateViewAccess,
+  onRefused: OnRefused,
 ) {
   return useInfiniteQuery({
-    ...PRIVATE_READ,
+    ...PERSONAL_READ,
     queryKey: ['my-work', context.identity, 'lines', month ?? 'current'],
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam, signal }) =>
@@ -56,12 +46,12 @@ export function useWorkLines(
           workCalls.lines({
             mode: context.mode,
             month,
-            windowId: view.windowId,
+            windowId: undefined,
             cursor: pageParam,
             signal,
           }),
         signal,
-        view,
+        onRefused,
       ),
     getNextPageParam: (page) => page.next_cursor ?? undefined,
   });
@@ -71,16 +61,14 @@ export function useWorkLines(
  * متوسط تقييمها وعدده في الشهر الحالي؛ الرد بيحدد لوحده لو العمود مخفي (HIDDEN).
  *
  * @param context مين بيفتح الشاشة
- * @param view رقم النافذة ومعالج الرفض
- * @param enabled false على جهاز الاستقبال: المسار شخصي بس فمفيش طلب
+ * @param onRefused معالج رفض السيرفر
  * @returns استعلام ملخص التقييم
  */
-export function useRatingSummary(context: WorkContext, view: PrivateViewAccess, enabled: boolean) {
+export function useRatingSummary(context: WorkContext, onRefused: OnRefused) {
   return useQuery({
-    ...PRIVATE_READ,
-    enabled,
+    ...PERSONAL_READ,
     queryKey: ['my-work', context.identity, 'rating-summary'],
-    queryFn: ({ signal }) => guarded(() => workCalls.ratingSummary(signal), signal, view),
+    queryFn: ({ signal }) => guarded(() => workCalls.ratingSummary(signal), signal, onRefused),
   });
 }
 
@@ -89,22 +77,18 @@ export function useRatingSummary(context: WorkContext, view: PrivateViewAccess, 
  *
  * @param context مين بيفتح الشاشة
  * @param month الشهر المطلوب أو undefined للحالي
- * @param view رقم النافذة ومعالج الرفض
+ * @param onRefused معالج رفض السيرفر
  * @returns استعلام الإكراميات
  */
-export function useWorkTips(
-  context: WorkContext,
-  month: string | undefined,
-  view: PrivateViewAccess,
-) {
+export function useWorkTips(context: WorkContext, month: string | undefined, onRefused: OnRefused) {
   return useQuery({
-    ...PRIVATE_READ,
+    ...PERSONAL_READ,
     queryKey: ['my-work', context.identity, 'tips', month ?? 'current'],
     queryFn: ({ signal }) =>
       guarded(
-        () => workCalls.tips({ mode: context.mode, month, windowId: view.windowId, signal }),
+        () => workCalls.tips({ mode: context.mode, month, windowId: undefined, signal }),
         signal,
-        view,
+        onRefused,
       ),
   });
 }

@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { t } from '@pospay/i18n';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { WorkContext } from '../model/work-context';
-import { MyWorkCards } from './my-work-cards';
-import { PrivateViewGate } from './private-view-gate';
+import { PersonalWork } from './personal-work';
+import { ReceptionWork } from './reception-work';
 
 /**
- * شاشة «شغلي»: بوابة الـ PIN على جهاز الاستقبال ثم خدمات الشهر. من غير إنترنت مفيش بيانات
+ * شاشة «شغلي»: جهاز الاستقبال بيدخل بالـ PIN عن طريق متحكم النافذة، وموبايلها الشخصي على طول. من غير إنترنت مفيش بيانات
  * ولا بنحفظ منها حاجة محلياً (FR-A09).
  *
  * @param props.context مين بيفتح الشاشة وهويته
@@ -41,15 +41,11 @@ export function MyWorkScreen({
     >
       <h2>{t(locale, 'myWork.title')}</h2>
       {online ? (
-        <PrivateViewGate
-          mode={context.mode}
-          cachePrefix={['my-work', context.identity]}
-          onLeave={onLeave}
-        >
-          {(access) => (
-            <MyWorkCards context={context} access={access} estimateAllowed={estimateAllowed} />
-          )}
-        </PrivateViewGate>
+        context.mode === 'reception' ? (
+          <ReceptionWork onLeave={onLeave} estimateAllowed={estimateAllowed} />
+        ) : (
+          <PersonalWork context={context} onLeave={onLeave} estimateAllowed={estimateAllowed} />
+        )
       ) : (
         <p role="status">{t(locale, 'myWork.offline')}</p>
       )}
