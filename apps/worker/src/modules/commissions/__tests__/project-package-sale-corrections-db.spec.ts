@@ -258,16 +258,16 @@ it('revokes the old seller and adds the new seller in the same closed month', as
   await deliver(saleEvent({ sellerEmployeeId: COMMISSION_LINE_IDS.secondEmployee }));
   const rows = await ledger();
   expect(rows).toHaveLength(2);
-  expect(rows.map((row) => [row.employeeId, row.amount])).toEqual([
-    [A.employee, '-3.000'],
-    [COMMISSION_LINE_IDS.secondEmployee, '3.000'],
-  ]);
+  const pairs = rows.map((row) => [row.employeeId, row.amount] as const);
+  expect(pairs).toContainEqual([A.employee, '-3.000']);
+  // البائع الجديد بياخد المبلغ المعاد حسابه بعد المرتجع: (30.000 - 10.000) بنسبة 10% = 2.000.
+  expect(pairs).toContainEqual([COMMISSION_LINE_IDS.secondEmployee, '2.000']);
   const [added] = rows.filter((row) => row.employeeId === COMMISSION_LINE_IDS.secondEmployee);
   expect(added).toMatchObject({
     sourceRef: `sale:${SALE_ID}`,
     kind: 'SALE',
     previousAmount: '0.000',
-    newAmount: '3.000',
+    newAmount: '2.000',
     sourceBranchId: A.branch,
     sourceBusinessDate: SALE_DATE,
     attachedBranchIds: [],
