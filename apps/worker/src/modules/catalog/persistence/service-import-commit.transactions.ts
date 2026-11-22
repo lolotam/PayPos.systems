@@ -30,7 +30,7 @@ async function readExistingNameKeys(
   if (names.length === 0) return [];
   const rows = await tx.execute<{ lookup_key: string }>(sql`
     WITH input AS (
-      SELECT name, lower(btrim(regexp_replace(name, '\\s+', ' ', 'g'))) AS lookup_key
+      SELECT name, lower(btrim(regexp_replace(name, '[[:space:]]+', ' ', 'g'))) AS lookup_key
       FROM unnest(ARRAY[${sql.join(names.map((name) => sql`${name}`), sql`, `)}]::text[]) AS t(name)
     )
     SELECT DISTINCT i.lookup_key
@@ -38,7 +38,7 @@ async function readExistingNameKeys(
     JOIN services s
       ON s.company_id = ${companyId}
      AND s.business_id = ${businessId}
-     AND lower(btrim(regexp_replace(s.name_en, '\\s+', ' ', 'g'))) = i.lookup_key`);
+     AND lower(btrim(regexp_replace(s.name_en, '[[:space:]]+', ' ', 'g'))) = i.lookup_key`);
   return rows.map((row) => row.lookup_key);
 }
 

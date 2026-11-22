@@ -165,7 +165,7 @@ function conflictingRows(
       .map((issue) => issue.row),
   );
   return mapping.keys
-    .filter(({ key, row }) => existing.has(key) && !inFileDuplicates.has(row))
+    .filter(({ name, row }) => existing.has(name) && !inFileDuplicates.has(row))
     .map(({ row }) => row);
 }
 

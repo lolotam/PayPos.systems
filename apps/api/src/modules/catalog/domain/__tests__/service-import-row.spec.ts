@@ -228,9 +228,9 @@ describe('exposed keys carried to 32b-2 (A-11)', () => {
       { row: 5, cells: { price: text('1.000') } },
     ]);
     expect(result.keys).toEqual([
-      { row: 2, key: 'hair cut' },
-      { row: 3, key: 'hair cut' },
-      { row: 4, key: 'nails' },
+      { row: 2, key: 'hair cut', name: 'Hair Cut' },
+      { row: 3, key: 'hair cut', name: 'hair  cut' },
+      { row: 4, key: 'nails', name: 'Nails' },
     ]);
     expect(result.rows.map((row) => row.row)).toEqual([4]);
     expect(codes(result.errors)).toEqual([
@@ -399,9 +399,9 @@ describe('mixed shuffled headers with duplicates and independent errors across r
     // الصفان 2 و3 مكرران فيشيلهم الاتنان من الصفوف المطبّعة، والصف 4 غلط في عمودين، فالنتيجة بلا صفوف.
     expect(result.rows).toEqual([]);
     expect(result.keys).toEqual([
-      { row: 2, key: 'duo' },
-      { row: 3, key: 'duo' },
-      { row: 4, key: 'solo' },
+      { row: 2, key: 'duo', name: 'Duo' },
+      { row: 3, key: 'duo', name: 'duo' },
+      { row: 4, key: 'solo', name: 'Solo' },
     ]);
   });
 });

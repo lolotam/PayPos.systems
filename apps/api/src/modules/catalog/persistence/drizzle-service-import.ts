@@ -54,7 +54,14 @@ async function matchCategoryLabels(
      AND c.business_id = ${businessId}
      AND lower(c.name_en) = i.lookup_key
      AND c.closed_at IS NULL`);
-  // المفتاح الفريد على (الشركة، النشاط، lower(name_en)) يضمن حلّاً واحداً لكل نص قانوني.
+  return resolveCategoryMatches(labels, rows);
+}
+
+/** يعيد ربط حلول قاعدة البيانات بالتسميات المطلوبة بترتيبها الأصلي؛ الفهرس الفريد يضمن حلّاً واحداً لكل نص. */
+function resolveCategoryMatches(
+  labels: readonly string[],
+  rows: readonly { label: string; id: string; name_en: string }[],
+): readonly ServiceImportCategoryMatch[] {
   const byLabel = new Map(rows.map((row) => [normalizeServiceCategoryName(row.label), row]));
   return labels.flatMap((label) => {
     const row = byLabel.get(normalizeServiceCategoryName(label));
@@ -76,7 +83,7 @@ async function readExistingServiceKeys(
   if (labels.length === 0) return [];
   const rows = await tx.execute<{ label: string }>(sql`
     WITH input AS (
-      SELECT label, lower(btrim(regexp_replace(label, '\\s+', ' ', 'g'))) AS lookup_key
+      SELECT label, lower(btrim(regexp_replace(label, '[[:space:]]+', ' ', 'g'))) AS lookup_key
       FROM unnest(ARRAY[${sql.join(labels.map((label) => sql`${label}`), sql`, `)}]::text[]) AS t(label)
     )
     SELECT i.label
@@ -84,8 +91,30 @@ async function readExistingServiceKeys(
     JOIN services s
       ON s.company_id = ${companyId}
      AND s.business_id = ${businessId}
-     AND lower(btrim(regexp_replace(s.name_en, '\\s+', ' ', 'g'))) = i.lookup_key`);
+     AND lower(btrim(regexp_replace(s.name_en, '[[:space:]]+', ' ', 'g'))) = i.lookup_key`);
   return rows.map((row) => row.label);
+}
+
+/** بنية نطاق المطابقة والحفظ على معاملة واحدة: المطابقات والأسماء والقراءة والتدقيق والحفظ. */
+interface MatchAndSaveScopeArgs {
+  readonly tx: Tx;
+  readonly companyId: string;
+  readonly businessId: string;
+  readonly userId: string;
+  readonly ids: IdGenerator;
+}
+
+/** يبني نطاق المطابقة والحفظ، فاصلٌ ليبقى سهام المعاملات تحت حد الأسطر (CLAUDE.md §3). */
+function matchAndSaveScope(args: MatchAndSaveScopeArgs) {
+  const { tx, companyId, businessId, userId, ids } = args;
+  return {
+    matchCategories: (labels: readonly string[]) =>
+      matchCategoryLabels(tx, companyId, businessId, labels),
+    existingServiceKeys: (labels: readonly string[]) =>
+      readExistingServiceKeys(tx, companyId, businessId, labels),
+    save: (input: SaveServiceImportPreviewInput) => savePreview(tx, companyId, userId, input),
+    auditFileAccess: (fileId: string) => auditFileAccess(tx, fileId, ids.newId()),
+  };
 }
 
 async function savePreview(
@@ -161,13 +190,7 @@ export function createServiceImportTransactions(
         return await database.withTenant(
           companyId,
           async (tx) =>
-            work({
-              matchCategories: (labels) => matchCategoryLabels(tx, companyId, businessId, labels),
-              existingServiceKeys: (labels) =>
-                readExistingServiceKeys(tx, companyId, businessId, labels),
-              save: (input) => savePreview(tx, companyId, userId, input),
-              auditFileAccess: (fileId) => auditFileAccess(tx, fileId, ids.newId()),
-            }),
+            work(matchAndSaveScope({ tx, companyId, businessId, userId, ids })),
           { userId },
         );
       } catch (error) {

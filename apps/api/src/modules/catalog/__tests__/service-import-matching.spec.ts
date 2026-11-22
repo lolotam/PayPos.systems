@@ -1,3 +1,27 @@
+/** تهيئة مشتركة لاختبارات خطة التنفيذ: نشاط وملف و500 صف معاينة ثم ANALYZE لدقة إحصاءات المُخطط. */
+async function seedExplainWorkspace(h: Awaited<ReturnType<typeof startHarness>>) {
+  const ids = systemUuidV7();
+  const { company, business, userId } = await seedCatalogWorkspace(h, ids);
+  const file = ids.newId();
+  await h.owner`INSERT INTO file_objects
+    (company_id,id,business_id,owner_module,owner_entity_id,staging_key,storage_key,content_type,size_bytes,required_permission,created_by,created_at,status)
+    VALUES (${company},${file},${business},'catalog',${business},'staging/x','verified/x',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',100,'read:files:business',${userId},now(),'READY')`;
+  const keys = Array.from({ length: 500 }, () => ids.newId());
+  const seeded = ids.newId();
+  await h.owner`INSERT INTO import_previews
+    (company_id,id,business_id,entity,file_id,created_by,created_at,expires_at,row_count,error_count,rows,errors,status)
+    VALUES (${company},${seeded},${business},'services',${file},${userId},now(),
+      now() + interval '24 hours',1,0,'[]'::jsonb,'[]'::jsonb,'ready')`;
+  await h.owner`INSERT INTO import_previews
+    (company_id,id,business_id,entity,file_id,created_by,created_at,expires_at,row_count,error_count,rows,errors,status)
+    SELECT p.company_id,k.id,p.business_id,p.entity,p.file_id,p.created_by,p.created_at,p.expires_at,p.row_count,p.error_count,p.rows,p.errors,p.status
+    FROM (SELECT company_id,business_id,entity,file_id,created_by,created_at,expires_at,row_count,error_count,rows,errors,status
+      FROM import_previews WHERE id=${seeded} LIMIT 1) p CROSS JOIN unnest(${keys}::uuid[]) k(id)`;
+  await h.owner`ANALYZE import_previews`;
+  return { company, business, userId, seeded };
+}
+
 import { expect, it } from 'vitest';
 import { systemUuidV7 } from '@pospay/ids';
 import keyVectors from '../domain/__tests__/service-import-key-vectors.json' with { type: 'json' };
@@ -46,27 +70,7 @@ it('agrees with Postgres lower() on the checked-in vectors, documenting collatio
 it('scans the scoped unique index for category matching and the business index for names', async () => {
   const h = await startHarness();
   try {
-    // صفوف قليلة تُحيي إحصاءات الجدول حتى يختار المُخطط مفتاح company_id+id الفريد بوضوح.
-    const ids = systemUuidV7();
-    const { company, business, userId } = await seedCatalogWorkspace(h, ids);
-    const file = ids.newId();
-    await h.owner`INSERT INTO file_objects
-      (company_id,id,business_id,owner_module,owner_entity_id,staging_key,storage_key,content_type,size_bytes,required_permission,created_by,created_at,status)
-      VALUES (${company},${file},${business},'catalog',${business},'staging/x','verified/x',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',100,'read:files:business',${userId},now(),'READY')`;
-    // 500 صفاً مع ANALYZE تجعل إحصاءات الجدول حقيقية، فيختار المُخطط مفتاح company_id+id الفريد (نفس مهيأ الموظفين).
-    const keys = Array.from({ length: 500 }, () => ids.newId());
-    const seeded = ids.newId();
-    await h.owner`INSERT INTO import_previews
-      (company_id,id,business_id,entity,file_id,created_by,created_at,expires_at,row_count,error_count,rows,errors,status)
-      VALUES (${company},${seeded},${business},'services',${file},${userId},now(),
-        now() + interval '24 hours',1,0,'[]'::jsonb,'[]'::jsonb,'ready')`;
-    await h.owner`INSERT INTO import_previews
-      (company_id,id,business_id,entity,file_id,created_by,created_at,expires_at,row_count,error_count,rows,errors,status)
-      SELECT p.company_id,k.id,p.business_id,p.entity,p.file_id,p.created_by,p.created_at,p.expires_at,p.row_count,p.error_count,p.rows,p.errors,p.status
-      FROM (SELECT company_id,business_id,entity,file_id,created_by,created_at,expires_at,row_count,error_count,rows,errors,status
-        FROM import_previews WHERE id=${seeded} LIMIT 1) p CROSS JOIN unnest(${keys}::uuid[]) k(id)`;
-    await h.owner`ANALYZE import_previews`;
+    const { company, business, userId, seeded } = await seedExplainWorkspace(h);
     const [categoryPlan] = await h.owner`EXPLAIN (FORMAT JSON) SELECT c.id
       FROM unnest(ARRAY['hair']) WITH ORDINALITY AS t(label, ord)
       JOIN service_categories c
@@ -79,13 +83,13 @@ it('scans the scoped unique index for category matching and the business index f
     // القراءة الحاسمة الحالية: الطرفان يُطويان بتعبير PostgreSQL واحد كما تشغّله المعاينة والعامل.
     const [namePlan] = await h.owner`EXPLAIN (FORMAT JSON) SELECT DISTINCT i.lookup_key
       FROM (
-        SELECT label, lower(btrim(regexp_replace(label, '\\s+', ' ', 'g'))) AS lookup_key
+        SELECT label, lower(btrim(regexp_replace(label, '[[:space:]]+', ' ', 'g'))) AS lookup_key
         FROM unnest(ARRAY['hair cut']::text[]) AS t(label)
       ) i
       JOIN services s
         ON s.company_id = ${company}
        AND s.business_id = ${business}
-       AND lower(btrim(regexp_replace(s.name_en, '\\s+', ' ', 'g'))) = i.lookup_key`;
+       AND lower(btrim(regexp_replace(s.name_en, '[[:space:]]+', ' ', 'g'))) = i.lookup_key`;
     const nameText = JSON.stringify(namePlan?.[0] ?? namePlan);
     expect(nameText).toContain('services_company_business_id_key');
     // استعلام الصفحات نفسه (صفوف JSONB) يجب أن يمشي على المفتاح (company_id, id) — خطة التنفيذ إلزامية.
