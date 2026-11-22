@@ -89,7 +89,7 @@ async function seedOwnRatingStaff(
   h: Harness,
   company: string,
   branch: string,
-): Promise<{ userId: string; membershipId: string }> {
+): Promise<{ userId: string; membershipId: string; ownerCookie: string }> {
   const ownerCookie = await h.signedInOperator('rating-owner@example.test');
   await h.signedInOperator('rating-staff@example.test');
   const [holder] = await h.owner`SELECT id FROM "user" WHERE email='rating-staff@example.test'`;
@@ -99,8 +99,7 @@ async function seedOwnRatingStaff(
     SELECT ${company},${membershipId},${userId},id,'global','BRANCH',${branch},'2026-01-01'
     FROM roles WHERE code='staff' AND company_id IS NULL`;
   await h.owner`UPDATE "user" SET phone_number=${phone} WHERE id=${userId}`;
-  void ownerCookie;
-  return { userId, membershipId };
+  return { userId, membershipId, ownerCookie };
 }
 
 /** يصدر جلسة staff ثم جلسة شخصية للمستخدم نفسه؛ جلسة operator قبل الشخصية لأن إصدارها بيلغي ما قبلها. */
@@ -144,7 +143,7 @@ export async function ownRatingFixture(options: Parameters<typeof startHarness>[
   const A = RATING_TENANT.A;
   const B = RATING_TENANT.B;
   await seedRatingTenants(h.ownerUrl);
-  const { userId, membershipId } = await seedOwnRatingStaff(h, A.company, A.branch);
+  const { userId, membershipId, ownerCookie } = await seedOwnRatingStaff(h, A.company, A.branch);
   const employeeId = A.employees[0];
   const otherCompanyEmployeeId = B.employees[0];
   await h.owner`UPDATE employees SET user_id=${userId} WHERE company_id=${A.company} AND id=${employeeId}`;
@@ -183,7 +182,7 @@ export async function ownRatingFixture(options: Parameters<typeof startHarness>[
     employeeId,
     otherEmployeeId: A.employees[1],
     otherCompanyEmployeeId,
-    ownerCookie: '',
+    ownerCookie,
     personalCookie,
     staffCookie,
     setNow: (at: Date) => {

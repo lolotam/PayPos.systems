@@ -1,33 +1,19 @@
 'use client';
 
 import { t } from '@pospay/i18n';
-import { Badge, Bell, Button } from '@pospay/ui';
+import { Bell, Button } from '@pospay/ui';
 import { useId, useRef, useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useNotifications } from '../api/use-notifications';
 import { useDocumentNumbers } from '../api/use-document-numbers';
 import { NotificationPanel } from './notification-panel';
+import { UnreadBadge } from './notification-unread-badge';
 import { useOutsideDismiss } from '../model/use-outside-dismiss';
 
 interface NotificationBellProps {
   companyId: string | undefined;
   userId: string | null;
   businessId?: string | undefined;
-}
-
-/** شارة عدد غير المقروء؛ استُخرجت لإبقاء الجرس تحت سقف طول الدالة. */
-function UnreadBadge({ unread, locale }: { unread: number; locale: 'ar' | 'en' | undefined }) {
-  if (unread <= 0) return null;
-  return (
-    <Badge
-      variant="brand"
-      className="tabular-nums"
-      aria-live="polite"
-      aria-label={`${t(locale ?? 'en', 'inApp.unread')}: ${unread}`}
-    >
-      {unread}
-    </Badge>
-  );
 }
 
 export function NotificationBell({ companyId, userId, businessId }: NotificationBellProps) {

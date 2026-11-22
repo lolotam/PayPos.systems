@@ -132,12 +132,8 @@ it('RS-09 refuses client subjects with 403 and any other unknown key with VALIDA
   expect(unknown.headers['cache-control']).toBe('no-store');
 });
 
-it('RS-10 accepts only the personal session and is 401 for the admin and reception sessions', async () => {
-  for (const requestHeaders of [
-    undefined,
-    { cookie: f.ownerCookie, origin: personalOrigin },
-    staffHeaders(),
-  ]) {
+it('RS-10 refuses anonymous and reception sessions on the personal route', async () => {
+  for (const requestHeaders of [undefined, staffHeaders()]) {
     const response = await f.h.app.inject({
       method: 'GET',
       url: '/v1/staff/me/rating-summary',
@@ -151,6 +147,8 @@ it('RS-10 accepts only the personal session and is 401 for the admin and recepti
 
 it('RS-10a refuses a valid admin session on the personal route with no rating fields in the answer', async () => {
   // جلسة المالك صالحة تمامًا على مسارات admin، والمسار الشخصي بيرفضها 401 قبل أي قراءة تقييم.
+  const workspace = await f.h.send('GET', '/v1/me/workspaces', { cookie: f.ownerCookie });
+  expect(workspace.status).toBe(200);
   const admin = await f.h.app.inject({
     method: 'GET',
     url: '/v1/staff/me/rating-summary',

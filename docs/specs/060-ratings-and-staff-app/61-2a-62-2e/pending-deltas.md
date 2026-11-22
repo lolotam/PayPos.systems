@@ -3,33 +3,10 @@
 Proposed changes to canonical documents for the implementation PR. Recheck against the implementation base.
 Section 1 belongs to the manager. Sections 2 to 4 are implementation handoff. The approved scope and review tier are recorded in PP-213.
 
-## 1. Owner question DN-Q1 — append to `docs/specs/060-ratings-and-staff-app/owner-questions.ar.md`
+## 1. Owner question DN-Q1
 
-Next free item number at the pin: **36** (the last is «35. شروط الجرس تتقيّم إمتى؟»). Kind: **feature** (product
-behaviour), so it also goes on the decisions page as a new numbered batch; the manager assigns the PP number and the
-batch. This session contacted no owner and published nothing.
-
-```markdown
-### 36. تعديل رقم مستند موجود من غير رفع ملف جديد؟ (DN-Q1، متابعة لـ AL-Q8c، اتضاف مع خطة 61-2a + 62-2e)
-
-**الخلفية:** بند 62-2e بيضيف خانة اختيارية «رقم المستند». سطر البند في المواصفة بيقول «عقود الرفع والتعديل»، بس
-النظام النهارده مفيهوش «تعديل مستند» أصلًا: فيه «رفع» و«استبدال» بس، والاستبدال لازم معاه ملف جديد. وقاعدة
-البيانات بتسمح للتطبيق يكتب سطر المستند مرة واحدة.
-**مثال:** إقامة سارة مرفوعة من الشهر اللي فات من غير رقم. المديرة عايزة تكتب الرقم دلوقتي. تكتبه إزاي؟
-
-- ⭐ **لأ، مش دلوقتي:** الرقم بيتكتب وقت الرفع أو الاستبدال بس. اللي عايزة تضيف رقم لمستند قديم تعمل «استبدال»
-  وترفع الملف تاني.
-  **ليه:** ده اللي النظام بيعمله النهارده، ومفيش شغل زيادة، وإجابة AL-Q8c قالت إن المستندات القديمة تفضل شغالة من
-  غير ما حد يرجعلها.
-- **أيوه، خانة تعديل للرقم لوحده:** المديرة تكتب أو تغيّر الرقم من غير ملف جديد.
-  **ليه:** أسهل للمديرة، بس محتاج شريحة جديدة: أمر كتابة جديد، وصلاحية كتابة جديدة في قاعدة البيانات، وتسجيل
-  في الـ audit من غير الرقم نفسه.
-- **أيوه، ومعاه مسح الرقم:** زي اللي فوق، وتقدر كمان تمسح الرقم.
-
-**البند المستني:** ولا حاجة في الـ PR ده. الـ PR بيبني الرقم وقت الرفع والاستبدال في الحالتين. لو الإجابة «أيوه»
-يبقى فيه شريحة جديدة بعده.
-**الإجابة:** PENDING
-```
+DN-Q1 is recorded as PENDING in [the canonical owner-question record](../owner-questions.ar.md).
+The manager retains responsibility for the product decision and any decisions-page batch.
 
 Rule in the spec: `spec.md` BR-D3 keeps its `[NEEDS CLARIFICATION]` marker until the answer is recorded here verbatim.
 

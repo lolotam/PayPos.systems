@@ -23,7 +23,6 @@ const document = {
   type_name_en: 'Civil ID',
   type_name_ar: null,
   object_key: 'synthetic/verified',
-  document_number: null,
   expires_on: '2026-10-20',
   uploaded_by: id,
   recorded_at: '2026-10-04T08:00:00.000Z',
@@ -31,7 +30,7 @@ const document = {
 };
 const view = (canManage: boolean) => ({
   today: '2026-10-05',
-  items: [document],
+  items: [{ ...document, document_number: null }],
   can_manage: canManage,
   types: [
     {
@@ -45,6 +44,17 @@ const view = (canManage: boolean) => ({
       revision: 1,
     },
   ],
+});
+
+it('renders a document returned by an API version that omits the number', async () => {
+  api.GET.mockResolvedValue({ data: { ...view(false), items: [document] } });
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <EmployeeDocumentsSection companyId={id} businessId={id} userId={id} employeeId={id} />
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByText('Civil ID')).toBeTruthy();
+  expect(screen.getByRole('button', { name: t('en', 'employeeDocuments.open') })).toBeTruthy();
 });
 
 it('suppresses a completed upload success after write access is revoked during its refresh', async () => {
@@ -89,6 +99,10 @@ it('suppresses a completed upload success after write access is revoked during i
   });
   fireEvent.click(screen.getByRole('button', { name: t('en', 'employeeDocuments.upload') }));
   await waitFor(() => expect(client.isFetching({ queryKey: prefix })).toBe(1));
+  expect(
+    screen.getByRole('button', { name: t('en', 'employeeDocuments.upload') }).matches(':disabled'),
+  ).toBe(true);
+  expect(screen.queryByText(t('en', 'employeeDocuments.recorded'))).toBeNull();
   await act(async () => resolveRefresh({ data: view(false) }));
   await waitFor(() => expect(client.isMutating()).toBe(0));
   expect(screen.queryByText(t('en', 'employeeDocuments.recorded'))).toBeNull();

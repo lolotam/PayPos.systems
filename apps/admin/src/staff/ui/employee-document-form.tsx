@@ -12,42 +12,9 @@ import { useForm, useWatch } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { DocumentSubmission } from '../api/use-employee-documents';
 import { acceptableDocumentFile } from '../model/document-file';
+import { ExpiryHint } from './document-expiry-hint';
+import { DocumentNumberField } from './document-number-field';
 import { DocumentTypeField } from './document-type-field';
-
-/** خانة رقم المستند الاختياري وخطؤها المحلي؛ استُخرجت لإبقاء النموذج تحت سقف طول الدالة. */
-function DocumentNumberField({
-  locale,
-  numberInvalid,
-  register,
-}: {
-  locale: 'ar' | 'en';
-  numberInvalid: boolean;
-  register: ReturnType<typeof useForm<EmployeeDocumentFormValues>>['register'];
-}) {
-  return (
-    <>
-      <Label htmlFor="document-number">{t(locale, 'employeeDocuments.documentNumber')}</Label>
-      <Input id="document-number" type="text" autoComplete="off" {...register('document_number')} />
-      {numberInvalid ? (
-        <p role="alert" className="text-sm text-destructive">
-          {t(locale, 'employeeDocuments.numberInvalid')}
-        </p>
-      ) : null}
-    </>
-  );
-}
-
-/** تنبيه حالة الانتهاء: إلزامي أو اختياري حسب نوع الوثيقة. */
-function ExpiryHint({ locale, requiresExpiry }: { locale: 'ar' | 'en'; requiresExpiry: boolean }) {
-  return (
-    <p className="text-sm text-muted-foreground">
-      {t(
-        locale,
-        requiresExpiry ? 'employeeDocuments.expiryRequired' : 'employeeDocuments.expiryOptional',
-      )}
-    </p>
-  );
-}
 
 export function EmployeeDocumentForm({
   types,

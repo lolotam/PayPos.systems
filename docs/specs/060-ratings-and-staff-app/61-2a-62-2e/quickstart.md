@@ -40,7 +40,19 @@ pnpm --filter @pospay/pos api:check
 pnpm --filter @pospay/menu api:check
 ```
 
-Then only this delivery's own test files (the list in `plan.md` §6), not the full API suite and not Playwright.
+Run the focused validation with the private Postgres lane from §2. The remaining slice suites are listed in `plan.md`
+§6. The full API suite and Playwright run in CI.
+
+```text
+pnpm --filter @pospay/api exec vitest run --no-file-parallelism src/modules/customers/__tests__/own-rating-summary-http.spec.ts src/modules/staff/__tests__/employee-document-numbers-http.spec.ts
+pnpm --filter @pospay/admin exec vitest run src/notifications/ui/document-number-bell.spec.tsx src/staff/api/employee-document-refresh-access.spec.tsx src/staff/ui/employee-document-form.spec.tsx
+```
+
+The personal session receives the rating summary. An authenticated Admin session receives `401` on that route.
+For a valid document lookup, an authorized reader sees only current numbered documents. An authorized lookup with
+no matches returns an empty list, and an inaccessible or missing business returns the same `404`. Invalid query
+shape returns `400` before document access evaluation. The Admin specs verify that an older document response stays
+visible, uploads remain pending until the document refresh completes, and the bell falls back after access is lost.
 If `api:check` fails, run `api:generate` in that app and commit the regenerated `schema.d.ts`.
 
 Report: «implementation complete, pending `ci-gate`». The slice is done only when `ci-gate` is green on the exact head.
@@ -53,7 +65,7 @@ Report: «implementation complete, pending `ci-gate`». The slice is done only w
 3. The number never leaves `employee_documents` except through the two permission-checked reads: search the diff for
    `document_number` in `events/`, `appendOutboxEvent`, `appendAuditLog`, `safe_parameters`, logger calls, the `POST`
    response type and anything under `apps/worker`.
-4. The lookup: access decided before any document row is read; one refusal for every id set; business, tenant,
+4. The lookup: access decided before any document row is read; one refusal for shape-valid requests to missing or inaccessible businesses; business, tenant,
    current-document and live-employee predicates all present; id count bounded.
 5. Admin: numbers are not cached after the panel closes; the bell falls back to today's text on every failure.
 6. Migration: expand only, nullable, no backfill, `NOT VALID` then `VALIDATE` in a second file, no grant change.

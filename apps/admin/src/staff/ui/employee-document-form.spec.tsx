@@ -44,6 +44,7 @@ it('DN-21 trims the typed number before submitting and sends an empty field as a
   fireEvent.change(number, { target: { value: '  SYN-DOC-0021  ' } });
   fireEvent.click(screen.getByRole('button', { name: 'Upload and record' }));
   await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+  expect(screen.queryByRole('alert')).toBeNull();
   expect(onSubmit).toHaveBeenCalledWith(
     expect.objectContaining({
       values: expect.objectContaining({ document_number: 'SYN-DOC-0021' }),
@@ -52,29 +53,33 @@ it('DN-21 trims the typed number before submitting and sends an empty field as a
   fireEvent.change(number, { target: { value: '   ' } });
   fireEvent.click(screen.getByRole('button', { name: 'Upload and record' }));
   await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
+  expect(screen.queryByRole('alert')).toBeNull();
   expect(onSubmit).toHaveBeenLastCalledWith(
     expect.objectContaining({ values: expect.objectContaining({ document_number: '   ' }) }),
   );
 });
 
-it('DN-21 shows the field-specific translated error for a control character and submits nothing', async () => {
-  const onSubmit = vi.fn();
-  renderForm(onSubmit);
-  attachFile();
-  const number = screen.getByLabelText('Document number (optional)');
-  fireEvent.change(number, { target: { value: 'SYN\u0007DOC' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Upload and record' }));
-  const fieldError = await screen.findByRole('alert');
-  expect(fieldError.textContent).toBe('The document number is invalid.');
-  expect(onSubmit).not.toHaveBeenCalled();
-  expect(
-    employeeDocumentFormInput.safeParse({
-      type_code: 'civil_id',
-      expires_on: '',
-      document_number: 'SYN\u0007DOC',
-    }).success,
-  ).toBe(false);
-});
+it.each(['SYN\u0007DOC', '\t'])(
+  'DN-21 refuses raw control characters with a field-specific error',
+  async (value) => {
+    const onSubmit = vi.fn();
+    renderForm(onSubmit);
+    attachFile();
+    const number = screen.getByLabelText('Document number (optional)');
+    fireEvent.change(number, { target: { value } });
+    fireEvent.click(screen.getByRole('button', { name: 'Upload and record' }));
+    const fieldError = await screen.findByRole('alert');
+    expect(fieldError.textContent).toBe('The document number is invalid.');
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(
+      employeeDocumentFormInput.safeParse({
+        type_code: 'civil_id',
+        expires_on: '',
+        document_number: value,
+      }).success,
+    ).toBe(false);
+  },
+);
 
 it('DN-21 shows a translated field-specific error, then submits successfully once corrected', async () => {
   const onSubmit = vi.fn();

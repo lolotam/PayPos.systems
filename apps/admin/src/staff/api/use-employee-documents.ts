@@ -1,6 +1,7 @@
 'use client';
 import {
   employeeDocument,
+  employeeDocumentListItem,
   employeeDocumentsView,
   type EmployeeDocumentFormValues,
 } from '@pospay/contracts';
@@ -265,12 +266,10 @@ function useDocumentRecord(
     onSettled: (_data, _error, _variables, context) => {
       if (context?.scope === current.current.scope && current.current.mounted)
         recordContext.onPhase('idle');
-      if (context) {
-        client.invalidateQueries({ queryKey: context.key });
-        // تسجيل/استبدال وثيقة = تغيّر معروف في المستند الحالي؛ جرس انتهاء المستند يعيد التحقق من الرقم.
-        void client.resetQueries({ queryKey: ['me', 'document-numbers'] });
-      }
-      return undefined;
+      if (!context) return undefined;
+      // تسجيل/استبدال وثيقة = تغيّر معروف في المستند الحالي؛ جرس انتهاء المستند يعيد التحقق من الرقم.
+      void client.resetQueries({ queryKey: ['me', 'document-numbers'] });
+      return client.invalidateQueries({ queryKey: context.key });
     },
   });
   const ticketFor = (submission: DocumentSubmission) => {
@@ -334,6 +333,13 @@ async function recordEmployeeDocument(
   return { document: employeeDocument.parse(result.data), operation };
 }
 
+// الواجهة تقرأ النسخة القديمة من API أثناء النشر أو الرجوع. الرد الجديد يحتفظ بالحقل الصريح.
+const compatibleEmployeeDocumentsView = employeeDocumentsView.extend({
+  items: employeeDocumentListItem
+    .extend({ document_number: employeeDocumentListItem.shape.document_number.default(null) })
+    .array(),
+});
+
 function useDocumentsView(
   companyId: string,
   businessId: string,
@@ -355,7 +361,7 @@ function useDocumentsView(
         },
       );
       if (result.error) throw { ...result.error, status: result.response.status };
-      return employeeDocumentsView.parse(result.data);
+      return compatibleEmployeeDocumentsView.parse(result.data);
     },
   });
   // مفاتيح الوثائق لا تبقى في الذاكرة بعد إغلاق الموظف أو سحب الإذن.
