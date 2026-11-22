@@ -42,7 +42,7 @@ chooses (`ar` or `en`, CS-Q33; never a server default). See plan-56-1.md §3 for
 `APPROVED` through `packages/db/test/commission-statement-fixtures.ts`. Do not touch the `PAID` refusal yet (that is
 #716). Size 300–420. Merge order is your manager's call (the canonical row names 53-2).
 
-## ADR-0061 — the schedule-recovery ADR (docs only) — **write now; it is your first open PR**
+## ADR-0061 — the schedule-recovery ADR (docs only) — **draft locally now; #486 is your first open PR, and this one opens only on your manager's word**
 
 `research.md` R8 and FR-053 _CS-Q32_. Write `docs/adr/0061-…md` as **Proposed**: the worker's narrow read of company
 ids; the clear of the flag, in one transaction with its audit record and a fixed system identity; the guard on the

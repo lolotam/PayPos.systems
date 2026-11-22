@@ -143,8 +143,9 @@ exported constant read by the worker registration and the catalogue test (resear
 groups 1, 2, 3, 4 and 7 (CM-39). **Size:** 350–500. **Depends on:** the design-advisor round, done
 2026-11-22 (research A1, A2): the brief pins ADR-0012 §1–§2 in full and the tests prove the effective privileges.
 
-**9. 53-2 (Heavy: money, permission).** `use-cases/approve-statement/`: one lock call; the coverage gate through
-api-side coverage readers bound at `app.ts` and the engine's `compareCoverage`; the pending count with the server's
+**9. 53-2 (Heavy: money, permission).** `use-cases/approve-statement/`: one lock call; the coverage gate, **whose shape is
+open (T3)**: a live comparison with the engine's `compareCoverage` is the path being measured, not a decided
+implementation, and no coverage reader, proof table or migration is written before the answer; the pending count with the server's
 own transaction timestamp; the statement builder called once feeding the pre-freeze comparison and the freeze insert;
 the attachment snapshot; the post-freeze statement-fingerprint recompute; carries by D-22 with the D-13 selector from
 the shared home; the approval guard (FR-036); HTTP. Error codes `COMMISSION_UPDATES_PENDING` and the 409 family.

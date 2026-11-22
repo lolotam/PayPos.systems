@@ -61,8 +61,10 @@ and paged; tips need a business and date scope) and report the numbers — your 
 the design advisors before you write it. Also report how ADR-0012 §3's alert for a parked counted event is produced
 today, if at all.
 
-Scope as `plan.md` part 9: `use-cases/approve-statement/` with one lock call; the coverage gate through API-side
-coverage readers bound in `apps/api/src/app.ts` and the engine's `compareCoverage`; the pending count called with the
+Scope as `plan.md` part 9: `use-cases/approve-statement/` with one lock call; the coverage gate, **whose
+shape is open (T3, see the Addendum)**: the live comparison with the engine's `compareCoverage` is what you measure,
+not what you build, and you write no coverage reader, proof table or migration before your manager sends the
+answer; the pending count called with the
 server's own transaction timestamp as lossless text; the statement builder called **once**, feeding both the
 pre-freeze comparison and the freeze insert (D-26); the attachment snapshot (one staff reader call, one multi-row
 insert, FR-033); the post-freeze statement-fingerprint recompute from the rows read back; carries by D-22, with the
