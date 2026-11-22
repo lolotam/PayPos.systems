@@ -323,6 +323,14 @@ it('U8 a caller with no notice writer still posts a priced month and resolves it
 
   await runWithoutNotices(corrections);
 
+  expect(corrections.drafts).toHaveLength(1);
+  expect(corrections.drafts[0]).toMatchObject({
+    employeeId: employeeA,
+    sourceRef: `line:line-${employeeA}-2026-10`,
+    amount: 10_000n,
+    targetPeriod: '2026-11',
+    targetStatementId: 'statement-nov',
+  });
   expect(corrections.resolutions).toEqual([{ blockId: 'block-1', generation: 1 }]);
   expect(corrections.blocks).toEqual([]);
 });
@@ -337,4 +345,8 @@ it('U9 a caller with no notice writer refuses to record a new block instead of s
   await expect(runWithoutNotices(corrections)).rejects.toBeInstanceOf(
     CommissionBlockNoticesMissingError,
   );
+  // الرفض قبل أي كتابة: لا رفع جيل ولا إدخال توقف ولا تصحيحات، وقراءات فقط.
+  expect(corrections.calls).toEqual(['readMonthProjection', 'readOpenBlock']);
+  expect(corrections.blocks).toEqual([]);
+  expect(corrections.drafts).toEqual([]);
 });

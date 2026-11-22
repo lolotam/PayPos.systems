@@ -94,6 +94,7 @@ async function postEmployeeCorrections(
   employeeId: string,
 ): Promise<void> {
   const { scope, businessId } = input;
+  await refuseUnrecordableBlock(input, target, employeeId);
   const generation = await scope.bumpGeneration({
     businessId,
     employeeId,
@@ -116,6 +117,33 @@ async function postEmployeeCorrections(
   await postPricedCorrections(input, target, employeeId, generation, result.sources);
   if (decision.kind === 'RESOLVE') {
     await scope.resolveBlock({ blockId: decision.blockId, generation });
+  }
+}
+
+/**
+ * لو الاستدعاء من غير منفذ جرس وهيحتاج تسجيل توقف جديد، بيرفض قبل أي كتابة (رفع الجيل
+ * ولا إدخال التوقف ولا التصحيحات) عشان معاملة الإصلاح ما تسيبش أثر نصف مكتمل. القراءات دي
+ * بتتم بس لما المنفذ غايب؛ الـ worker بيمرّره دايماً فمساره وترتيب نداءاته ما اتغيّروش.
+ */
+async function refuseUnrecordableBlock(
+  input: PostCommissionCorrectionsInput,
+  target: CommissionCorrectionTarget,
+  employeeId: string,
+): Promise<void> {
+  if (input.notices !== undefined) return;
+  const projection = await input.scope.readMonthProjection({
+    businessId: input.businessId,
+    employeeId,
+    period: target.sourcePeriod,
+  });
+  const result = recomputeCommissionMonth(projection);
+  if (result.ok) return;
+  const open = await input.scope.readOpenBlock({
+    employeeId,
+    sourcePeriod: target.sourcePeriod,
+  });
+  if (decideCommissionBlock(open, result).kind === 'RECORD') {
+    throw new CommissionBlockNoticesMissingError(employeeId, target.sourcePeriod);
   }
 }
 
@@ -175,6 +203,10 @@ async function applyBlockedOutcome(
   decision: Extract<CommissionBlockDecision, { kind: 'RECORD' | 'UPDATE_CODE' | 'KEEP' }>,
 ): Promise<void> {
   if (decision.kind === 'RECORD') {
+    const { notices } = input;
+    if (notices === undefined) {
+      throw new CommissionBlockNoticesMissingError(employeeId, target.sourcePeriod);
+    }
     const blockId = await input.scope.insertBlock({
       businessId: input.businessId,
       employeeId,
@@ -184,7 +216,7 @@ async function applyBlockedOutcome(
       targetPeriod: target.targetPeriod,
       targetStatementId: target.targetStatementId,
     });
-    await ringBlockBell(input, blockId, target.sourcePeriod);
+    await ringBlockBell(input, notices, blockId, target.sourcePeriod);
     return;
   }
   if (decision.kind === 'UPDATE_CODE') {
@@ -202,11 +234,10 @@ async function applyBlockedOutcome(
  */
 async function ringBlockBell(
   input: PostCommissionCorrectionsInput,
+  notices: CommissionBlockNotices,
   blockId: string,
   sourcePeriod: string,
 ): Promise<void> {
-  const { notices } = input;
-  if (notices === undefined) throw new CommissionBlockNoticesMissingError(blockId);
   const groups = await notices.recipientGroups(input.companyId, input.businessId, notices.now());
   for (const [groupIndex, group] of groups.entries()) {
     await notices.append({

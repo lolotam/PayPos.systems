@@ -112,16 +112,19 @@ export class CommissionCorrectionStepInputError extends Error {
 /** تسجيل توقف جديد محتاج جرساً لكن المنفذ ما اتمرّرش؛ الخطوة بترفض بدل ما تسجّل توقفاً بلا إشعار. */
 export class CommissionBlockNoticesMissingError extends Error {
   readonly code = 'COMMISSION_BLOCK_NOTICES_MISSING';
-  readonly blockId: string;
+  readonly employeeId: string;
+  readonly sourcePeriod: string;
 
   /**
-   * يحتفظ بهوية التوقف اللي كان محتاج جرساً حتى يصل صاحب الاستدعاء للمسار اللي نسي المنفذ.
+   * يحتفظ بالموظفة والشهر اللي كانوا هيسجّلوا توقفاً محتاجاً جرساً، حتى يصل صاحب الاستدعاء للمسار اللي نسي المنفذ.
    *
-   * @param blockId هوية التوقف الذي لم يجد منفذ جرس
+   * @param employeeId الموظفة التي كان سيُسجَّل لها توقف
+   * @param sourcePeriod شهر المصدر الذي كان سيُحتجز
    */
-  constructor(blockId: string) {
-    super(`A new commission block needs a notice writer: ${blockId}`);
+  constructor(employeeId: string, sourcePeriod: string) {
+    super(`A new commission block needs a notice writer: ${employeeId} ${sourcePeriod}`);
     this.name = 'CommissionBlockNoticesMissingError';
-    this.blockId = blockId;
+    this.employeeId = employeeId;
+    this.sourcePeriod = sourcePeriod;
   }
 }

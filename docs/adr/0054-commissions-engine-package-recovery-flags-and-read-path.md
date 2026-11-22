@@ -135,7 +135,7 @@ pricing paths. CS-Q46 chose a shared home; this addendum fixes it.
   the pure files it uses (`domain/commission-correction-*.ts`, `commission-source-ref.ts`,
   `commission-blocked-correction.ts`), its port, its Drizzle persistence and the four error classes it throws. The shape
   is the module shape of CLAUDE.md §2.2 (`domain/`, `ports/`, `persistence/`, `use-cases/`).
-- **Its dependencies.** `@pospay/commissions-engine` (root entry), `@pospay/domain`, `@pospay/db` and `drizzle-orm`.
+- **Its dependencies.** `@pospay/commissions-engine` (root entry), `@pospay/domain`, `@pospay/db`, `@pospay/ids` and `drizzle-orm`.
   `persistence/` uses the transaction type of `@pospay/db` and the Drizzle `sql` tag only; no raw client is exported
   (CLAUDE.md §5). The one signature change of the move: the block-notice writer is an optional input of the step. A
   caller that cannot record a block (the repair, which runs only while a block is open) omits it, and the step throws if
@@ -151,7 +151,7 @@ pricing paths. CS-Q46 chose a shared home; this addendum fixes it.
   names this one package: its `domain/` is as bound as any module's, a sibling package still may not import the engine,
   and the subpath and relative-path bans stay in force for it. The package's own ESLint config
   (`allowCommissionsEnginePackage`) lifts exactly that, adds an own-files rule (the engine, `@pospay/db`,
-  `@pospay/domain`, `drizzle-orm` and its own files), and `packages/config/eslint/boundaries.js` carries the three
+  `@pospay/domain`, `@pospay/ids`, `drizzle-orm` and its own files), and `packages/config/eslint/boundaries.js` carries the three
   `COMMISSIONS_POSTING_*` bans in every block next to the engine's. `scripts/module-map/commissions-posting.test.mjs`
   proves each of these, statically, dynamically and by relative path.
 - **Not here.** The bell adapter (outbox, identity reader) stays in `apps/worker`. The engine stays pure. A third

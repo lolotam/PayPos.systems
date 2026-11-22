@@ -22,13 +22,40 @@ export default [
         rules: {
           'own-files-only': ownFilesOnly({
             src: SRC,
-            packages: ['@pospay/commissions-engine', '@pospay/db', '@pospay/domain', 'drizzle-orm'],
+            packages: [
+              '@pospay/commissions-engine',
+              '@pospay/db',
+              '@pospay/domain',
+              '@pospay/ids',
+              'drizzle-orm',
+            ],
             message:
-              'packages/commissions-posting may import only @pospay/commissions-engine, @pospay/db, @pospay/domain, drizzle-orm and its own files (ADR-0054 §1 addendum).',
+              'packages/commissions-posting may import only @pospay/commissions-engine, @pospay/db, @pospay/domain, @pospay/ids, drizzle-orm and its own files (ADR-0054 §1 addendum).',
           }),
         },
       },
     },
     rules: { 'posting/own-files-only': 'error' },
+  },
+  /**
+   * Its domain/ is as bound as any module's (CLAUDE.architecture.md §3.1): @pospay/domain and files inside
+   * domain/ only. No domain file needs the engine, so it is not named here.
+   */
+  {
+    files: ['src/domain/**/*.ts'],
+    ignores: ['src/domain/**/__tests__/**', 'src/domain/**/*.spec.ts'],
+    plugins: {
+      'posting-domain': {
+        rules: {
+          'own-files-only': ownFilesOnly({
+            src: resolve(SRC, 'domain'),
+            packages: ['@pospay/domain'],
+            message:
+              'packages/commissions-posting domain/ may import only @pospay/domain and files inside domain/ (CLAUDE.architecture.md §3.1).',
+          }),
+        },
+      },
+    },
+    rules: { 'posting-domain/own-files-only': 'error' },
   },
 ];

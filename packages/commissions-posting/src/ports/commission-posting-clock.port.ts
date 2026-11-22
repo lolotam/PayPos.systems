@@ -1,4 +1,4 @@
-export type { IdGenerator } from '@pospay/db';
+export type { IdGenerator } from '@pospay/ids';
 
 /** ساعة محقونة لخطوة التصحيح: وقت التسجيل يجي من هنا مش من الساعة العالمية عشان يبقى قابل للاختبار. */
 export interface Clock {

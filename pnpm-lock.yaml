@@ -769,6 +769,9 @@ importers:
       '@pospay/domain':
         specifier: workspace:*
         version: link:../domain
+      '@pospay/ids':
+        specifier: workspace:*
+        version: link:../ids
       drizzle-orm:
         specifier: 0.45.2
         version: 0.45.2(kysely@0.29.6)(postgres@3.4.9(patch_hash=8d9701312739097739235b63e6efd6d6a76d73801da8959087d23f809e992a50))

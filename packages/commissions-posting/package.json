@@ -21,6 +21,7 @@
     "@pospay/commissions-engine": "workspace:*",
     "@pospay/db": "workspace:*",
     "@pospay/domain": "workspace:*",
+    "@pospay/ids": "workspace:*",
     "drizzle-orm": "0.45.2"
   },
   "devDependencies": {

@@ -59,6 +59,7 @@ const RESTRICTIONS = [
   'no-restricted-imports',
   'no-restricted-syntax',
   'posting/own-files-only',
+  'posting-domain/own-files-only',
   'engine/own-files-only',
 ];
 
@@ -124,6 +125,19 @@ for (const app of ['api', 'worker']) {
     for (const [file, layer] of ENGINE_REFUSED_LAYERS) {
       add(app, file, form(ENGINE), E, `a ${layer} may not ${formName} the engine root`);
     }
+  }
+}
+
+// Only the wiring file named in the ADR lifts the posting root: any other *.module.ts of a commissions module is refused.
+for (const app of ['api', 'worker']) {
+  for (const [formName, form] of FORMS) {
+    add(
+      app,
+      `${M}/other.module.ts`,
+      form(POSTING),
+      E,
+      `another module file may not ${formName} the posting root`,
+    );
   }
 }
 
@@ -220,6 +234,44 @@ for (const [formName, form] of FORMS) {
     `the package may not ${formName} its own root`,
   );
 }
+// The package's domain/ is as bound as any module's: @pospay/domain and files inside domain/ only.
+const DOMAIN_ONLY = 'domain/ may import only';
+for (const [formName, form] of FORMS) {
+  for (const [spec, what] of [
+    ['@pospay/db', '@pospay/db'],
+    ['drizzle-orm', 'drizzle-orm'],
+    ['../persistence/commission-correction.scope.ts', 'persistence'],
+    ['../ports/commission-correction.port.ts', 'a port'],
+  ]) {
+    add(
+      'posting',
+      `${P}/domain/probe.ts`,
+      form(spec),
+      DOMAIN_ONLY,
+      `domain may not ${formName} ${what}`,
+    );
+  }
+  for (const [spec, what] of [
+    ['@pospay/domain', '@pospay/domain'],
+    ['./commission-correction-step.ts', 'its own files'],
+  ]) {
+    add('posting', `${P}/domain/probe.ts`, form(spec), ALLOWED, `domain may ${formName} ${what}`);
+  }
+}
+add(
+  'posting',
+  `${P}/persistence/probe.adapter.ts`,
+  staticImport('@pospay/ids'),
+  ALLOWED,
+  'persistence may import @pospay/ids',
+);
+add(
+  'posting',
+  `${P}/ports/probe.port.ts`,
+  staticImport('@pospay/ids'),
+  ALLOWED,
+  'a port may import @pospay/ids',
+);
 add(
   'posting',
   `${P}/persistence/probe.adapter.ts`,

@@ -280,7 +280,7 @@ const commissionsLayerBlocks = (prefix, restricted, syntax) => [
  */
 const commissionsWiringBlocks = (prefix, facades) => [
   {
-    files: [`${prefix}/*.module.ts`],
+    files: [`${prefix}/commissions.module.ts`],
     rules: {
       'no-restricted-imports': facadeRule(facades, false, WIRING_RESTRICTED),
       'no-restricted-syntax': restrictedSyntax({ userText: false, engine: WIRING_SYNTAX }),

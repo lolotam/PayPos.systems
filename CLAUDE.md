@@ -125,10 +125,12 @@ packages/
   ids             UUID v7 generator with injected time + entropy. ZERO dependencies — api, worker, POS.
   commissions-engine  The pure commissions engine (plan types, plan validation, computePeriod, the fingerprint
                   builders). ONE dependency: packages/domain. Imported only by the `commissions` modules of
-                  api and worker; apps/admin imports only its `/validation` entry point (ADR-0054 §1).
-  commissions-posting  The commission correction step (month recompute, posting, target choice, Drizzle persistence)
-                  that api and worker both run. Dependencies: commissions-engine, domain, db, drizzle-orm. Imported
-                  only by the `commissions` modules of api and worker (ADR-0054 §1 addendum).
+                  api and worker and by packages/commissions-posting (ADR-0054 §1 addendum); apps/admin imports
+                  only its `/validation` entry point (ADR-0054 §1).
+  commissions-posting  The commission correction step (month recompute, posting, target choice, Drizzle persistence).
+                  The worker runs it today; the API starts calling it in 55-2f. Dependencies: commissions-engine,
+                  domain, db, ids, drizzle-orm. Imported only by the `commissions` modules of api and worker
+                  (ADR-0054 §1 addendum).
   db              Drizzle schema (TS) + drizzle-kit migrations + RLS policies (SQL) + seed
                   /sql/reports/*.sql  raw SQL for heavy reports (tested + EXPLAIN-checked)
   contracts       Zod schemas + TS types shared by api/admin/pos/menu (+ generated OpenAPI)
