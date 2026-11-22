@@ -80,8 +80,11 @@ const COMPANY = {
   scope: 'COMPANY' as const,
 };
 
-/** يضبط النشاط المحدد ويحسب الصفحات المرئية لمالك في الكويت بكل الشروط مفتوحة. */
-export function selectBusiness(businessType: 'salon' | 'restaurant'): void {
+/** يضبط النشاط المحدد ويحسب الصفحات المرئية لدور (المالك افتراضيًا) في الكويت بكل الشروط مفتوحة. */
+export function selectBusiness(
+  businessType: 'salon' | 'restaurant',
+  role = COMPANY.role_code,
+): void {
   const business = {
     id: 'business-1',
     name_ar: null,
@@ -99,17 +102,17 @@ export function selectBusiness(businessType: 'salon' | 'restaurant'): void {
   };
   frameState.workspace = {
     status: 'ready',
-    company: { ...COMPANY, businesses: [business] },
+    company: { ...COMPANY, role_code: role, businesses: [business] },
     business,
     branch,
-    companies: [{ ...COMPANY, businesses: [business] }],
+    companies: [{ ...COMPANY, role_code: role, businesses: [business] }],
     choose: vi.fn(),
   };
   frameState.visible = visiblePageIds(NAVIGATION_PAGES, {
     conditions: OPEN,
     businessType,
     country: 'KW',
-    role: 'owner',
+    role,
   });
 }
 

@@ -34,6 +34,8 @@ export function PhoneBar({ view, pathname }: { view: StyleAView; pathname: strin
         title={labels.more}
         closeLabel={labels.chrome.close}
         currentPageId={view.currentPageId}
+        currentGroupId={view.currentGroupId}
+        currentLabel={labels.chrome.current}
         openerRef={openerRef}
       />
       <BottomNav
@@ -42,6 +44,7 @@ export function PhoneBar({ view, pathname }: { view: StyleAView; pathname: strin
         extra={{
           id: 'more',
           label: labels.more,
+          current: view.more.some((group) => group.id === view.currentGroupId),
           onPress: (event) => {
             openerRef.current = event.currentTarget;
             setMoreOpen(true);

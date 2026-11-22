@@ -28,6 +28,8 @@ export function StyleAFrame({ children }: { children: ReactNode }) {
   const labels = useFrameLabels();
   const ctx = useMenuContext();
   const view = useMemo(() => buildStyleAView(ctx), [ctx]);
+  // صف التبويب الوحيد يُخفى إلا إذا حمل علامة «قريبًا»: هو الرابط المرئي الذي يوصل إلى الصفحة غير المبنية.
+  const showTabs = view.tabs.length > 1 || view.tabs.some((tab) => tab.status !== undefined);
   return (
     <>
       <div className="group relative flex min-h-dvh">
@@ -55,7 +57,7 @@ export function StyleAFrame({ children }: { children: ReactNode }) {
               <BrandMark title={t(locale, 'brand.title')} className="size-9 min-[600px]:hidden" />
             }
           />
-          {view.tabs.length > 1 ? (
+          {showTabs ? (
             <FrameChrome>
               <NavTabs items={view.tabs} labels={labels.tabs} />
             </FrameChrome>
