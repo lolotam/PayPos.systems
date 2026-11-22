@@ -1,9 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { LockedCommissionPeriod } from '../../domain/commission-line-types.ts';
 import {
   CommissionBusinessMissingError,
-  CommissionPeriodClosedError,
   CommissionPeriodRolledOverError,
   CommissionSaleInputInvalidError,
 } from '../../domain/errors.ts';
@@ -11,11 +10,20 @@ import type { CommissionSaleProjectionRow } from '../../domain/commission-sale-i
 import type {
   CommissionSaleProjectionScope,
 } from '../../ports/commission-sale-projection.port.ts';
+import type { CommissionCorrectionScope } from '../../ports/commission-correction.port.ts';
+import type { CommissionBlockNotices } from '../../ports/commission-block-notice.port.ts';
 import { ProjectPackageSale } from './project-package-sale.ts';
 
 const COMPANY = '01920000-0000-7000-8000-0000000000a0';
 const BUSINESS = '01920000-0000-7000-8000-0000000000b1';
 const SALE = '01970000-0000-7000-8000-000000000001';
+
+/** نداءات نطاق التصحيح ومنفذ الجرس في آخر اختبار، عشان كل اختبار يبدأ نظيف. */
+const correctionCalls: string[] = [];
+
+beforeEach(() => {
+  correctionCalls.length = 0;
+});
 
 const input = (overrides: Record<string, unknown> = {}) => ({
   companyId: COMPANY,
@@ -77,8 +85,7 @@ function fakeScope(overrides: FakeOverrides = {}): {
   readonly scope: CommissionSaleProjectionScope;
   readonly calls: CallLog;
   readonly clock: { now: () => Date };
-} {
-  const calls: CallLog = [];
+} {  const calls: CallLog = [];
   const scope: CommissionSaleProjectionScope = {
     lockSale: vi.fn(async () => {
       calls.push('lockSale');
@@ -105,12 +112,81 @@ function fakeScope(overrides: FakeOverrides = {}): {
   return { scope, calls, clock: fakeClock(overrides.rolledOverTo) };
 }
 
-describe('ProjectPackageSale order (FR-015)', () => {
-  it('locks the sale identity before reading and writes after the period lock', async () => {
+/**
+ * نطاق تصحيح مسجّل: بيرجّع قيم فاضية صالحة فالمسار المغلق بيوصل لآخره،
+ * وسجل نداءاته بيقول هل التصحيح اشتغل أو لا.
+ */
+function fakeCorrections(calls: string[]): CommissionCorrectionScope {
+  return {
+    readFrozenSources: async () => {
+      calls.push('readFrozenSources');
+      return [];
+    },
+    readPostedCorrections: async () => {
+      calls.push('readPostedCorrections');
+      return [];
+    },
+    readAttachmentSnapshot: async () => {
+      calls.push('readAttachmentSnapshot');
+      return [];
+    },
+    readMonthProjection: async () => {
+      calls.push('readMonthProjection');
+      return {
+        employeeId: '01920000-0000-7000-8000-0000000000e1',
+        period: '2026-10',
+        lines: [],
+        sales: [],
+        salaries: [],
+        versions: [],
+        overrides: [],
+        tips: [],
+        corrections: [],
+      };
+    },
+    bumpGeneration: async () => {
+      calls.push('bumpGeneration');
+      return 1;
+    },
+    insertCorrections: async () => {
+      calls.push('insertCorrections');
+    },
+    readOpenBlock: async () => {
+      calls.push('readOpenBlock');
+      return null;
+    },
+    insertBlock: async () => {
+      calls.push('insertBlock');
+      return '01980000-0000-7000-8000-0000000000f2';
+    },
+    updateBlockCode: async () => {
+      calls.push('updateBlockCode');
+    },
+    resolveBlock: async () => {
+      calls.push('resolveBlock');
+    },
+  };
+}
+
+/** منفذ جرس مسجّل؛ بيتنادى بس لما التصحيح يتوقف فعلاً. */
+function fakeNotices(calls: string[]): CommissionBlockNotices {
+  return {
+    now: () => new Date('2026-11-05T09:00:00Z'),
+    recipientGroups: async () => {
+      calls.push('recipientGroups');
+      return [];
+    },
+    append: async () => {
+      calls.push('append');
+    },
+  };
+}
+
+describe('ProjectPackageSale order (FR-015)', () => {  it('locks the sale identity before reading and writes after the period lock', async () => {
     const { scope, calls, clock } = fakeScope({
       locked: [locked('2026-11', 'DRAFT')],
     });
-    await new ProjectPackageSale(scope, clock, { newId: () => '01980000-0000-7000-8000-0000000000f1' }).execute(input());
+    await new ProjectPackageSale(scope, clock, { newId: () => '01980000-0000-7000-8000-0000000000f1' }, fakeCorrections(correctionCalls), fakeNotices(correctionCalls)).execute(input());
 
     expect(calls[0]).toBe('lockSale');
     expect(calls[1]).toBe('readSale');
@@ -121,7 +197,7 @@ describe('ProjectPackageSale order (FR-015)', () => {
 
   it('drops an equal or older revision before any calendar read or write', async () => {
     const { scope, calls } = fakeScope({ held: heldRow(2) });
-    await new ProjectPackageSale(scope, { now: () => new Date('2026-11-05T09:00:00Z') }, { newId: () => '01980000-0000-7000-8000-0000000000f1' }).execute(input({ revision: 2 }));
+    await new ProjectPackageSale(scope, { now: () => new Date('2026-11-05T09:00:00Z') }, { newId: () => '01980000-0000-7000-8000-0000000000f1' }, fakeCorrections(correctionCalls), fakeNotices(correctionCalls)).execute(input({ revision: 2 }));
 
     expect(calls).toEqual(['lockSale', 'readSale']);
     expect(scope.upsertSale).not.toHaveBeenCalled();
@@ -132,7 +208,7 @@ describe('ProjectPackageSale order (FR-015)', () => {
       held: heldRow(1),
       locked: [locked('2026-10', 'DRAFT'), locked('2026-11', 'DRAFT')],
     });
-    await new ProjectPackageSale(scope, clock, { newId: () => '01980000-0000-7000-8000-0000000000f1' }).execute(
+    await new ProjectPackageSale(scope, clock, { newId: () => '01980000-0000-7000-8000-0000000000f1' }, fakeCorrections(correctionCalls), fakeNotices(correctionCalls)).execute(
       input({ revision: 2, businessDate: '2026-10-20', refundedAmount: '5.000' }),
     );
 
@@ -140,17 +216,18 @@ describe('ProjectPackageSale order (FR-015)', () => {
     expect(lockCall).toBe('lockPeriods:2026-10,2026-11');
   });
 
-  it('refuses a closed affected month before any write and marks nothing', async () => {
+  it('posts a correction for the closed affected month instead of refusing it (55-1d)', async () => {
     const { scope, calls, clock } = fakeScope({
       locked: [locked('2026-10', 'APPROVED'), locked('2026-11', 'DRAFT')],
     });
-    const work = new ProjectPackageSale(scope, clock, { newId: () => '01980000-0000-7000-8000-0000000000f1' }).execute(
+    await new ProjectPackageSale(scope, clock, { newId: () => '01980000-0000-7000-8000-0000000000f1' }, fakeCorrections(correctionCalls), fakeNotices(correctionCalls)).execute(
       input({ revision: 2, businessDate: '2026-10-20' }),
     );
 
-    await expect(work).rejects.toThrow(CommissionPeriodClosedError);
-    expect(calls.includes('upsertSale')).toBe(false);
-    expect(calls.some((entry) => entry.startsWith('reopenReviewed:'))).toBe(false);
+    expect(calls.includes('upsertSale')).toBe(true);
+    expect(correctionCalls).toContain('bumpGeneration');
+    expect(correctionCalls).toContain('readMonthProjection');
+    expect(correctionCalls).toContain('insertCorrections');
   });
 });
 
@@ -160,7 +237,7 @@ describe('ProjectPackageSale refusals (FR-015)', () => {
       locked: [locked('2026-11', 'DRAFT')],
       rolledOverTo: '2026-12',
     });
-    const work = new ProjectPackageSale(scope, clock, { newId: () => '01980000-0000-7000-8000-0000000000f1' }).execute(input());
+    const work = new ProjectPackageSale(scope, clock, { newId: () => '01980000-0000-7000-8000-0000000000f1' }, fakeCorrections(correctionCalls), fakeNotices(correctionCalls)).execute(input());
 
     await expect(work).rejects.toThrow(CommissionPeriodRolledOverError);
     expect(scope.upsertSale).not.toHaveBeenCalled();
@@ -168,7 +245,7 @@ describe('ProjectPackageSale refusals (FR-015)', () => {
 
   it('throws the business-missing error for an unknown business and writes nothing', async () => {
     const { scope, calls, clock } = fakeScope({ timeZone: null });
-    const work = new ProjectPackageSale(scope, clock, { newId: () => '01980000-0000-7000-8000-0000000000f1' }).execute(input());
+    const work = new ProjectPackageSale(scope, clock, { newId: () => '01980000-0000-7000-8000-0000000000f1' }, fakeCorrections(correctionCalls), fakeNotices(correctionCalls)).execute(input());
 
     await expect(work).rejects.toThrow(CommissionBusinessMissingError);
     expect(calls.includes('upsertSale')).toBe(false);
@@ -178,7 +255,7 @@ describe('ProjectPackageSale refusals (FR-015)', () => {
     const { scope, calls, clock } = fakeScope({
       locked: [locked('2026-10', 'REVIEWED'), locked('2026-11', 'DRAFT')],
     });
-    await new ProjectPackageSale(scope, clock, { newId: () => '01980000-0000-7000-8000-0000000000f1' }).execute(
+    await new ProjectPackageSale(scope, clock, { newId: () => '01980000-0000-7000-8000-0000000000f1' }, fakeCorrections(correctionCalls), fakeNotices(correctionCalls)).execute(
       input({ revision: 2, businessDate: '2026-10-20' }),
     );
 

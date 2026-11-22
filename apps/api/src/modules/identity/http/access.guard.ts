@@ -4,6 +4,7 @@ import { updateRequestContext } from '@pospay/observability';
 import type { FastifyRequest } from 'fastify';
 
 import { ApiError } from '../../../shared/errors.ts';
+import { COMPANY_HEADER } from '../../../shared/company-header.ts';
 import { PUBLIC_ROUTE } from '../../../shared/public.decorator.ts';
 import { AuthorizePlatform } from '../use-cases/authorize-platform/authorize-platform.ts';
 import {
@@ -20,7 +21,7 @@ import {
 } from '../../../shared/access.decorators.ts';
 
 /** The header a client uses to ask for a company; the session's own hint is the fallback. */
-export const COMPANY_HEADER = 'x-company-id';
+export { COMPANY_HEADER };
 
 // الطلب نفسه هو المفتاح: لا يستطيع header أو body تزوير نتيجة الميزة، ولا تعبر إلى طلب آخر.
 const accessFeatures = new WeakMap<

@@ -6,6 +6,7 @@ import {
   currentBusinessPeriod,
 } from '../../domain/commission-periods.ts';
 import {
+  affectedCommissionSaleEmployees,
   assertSaleIdentityUnchanged,
   reduceCommissionSale,
   saleAffectedPeriods,
@@ -13,16 +14,21 @@ import {
 } from '../../domain/commission-sale-inputs.ts';
 import {
   CommissionBusinessMissingError,
-  CommissionPeriodClosedError,
   CommissionPeriodRolledOverError,
   CommissionSaleInputInvalidError,
 } from '../../domain/errors.ts';
+import type { CommissionBlockNotices } from '../../ports/commission-block-notice.port.ts';
+import type { CommissionCorrectionScope } from '../../ports/commission-correction.port.ts';
 import type { CommissionInputEventEnvelope } from '../../ports/commission-line-projection.port.ts';
 import type {
   Clock,
   CommissionSaleProjectionScope,
   IdGenerator,
 } from '../../ports/commission-sale-projection.port.ts';
+import {
+  postCommissionCorrections,
+  selectCommissionCorrectionTargets,
+} from '../post-commission-corrections/post-commission-corrections.ts';
 
 export interface ProjectPackageSaleInput extends CommissionSaleInputEvent {
   readonly companyId: string;
@@ -31,14 +37,18 @@ export interface ProjectPackageSaleInput extends CommissionSaleInputEvent {
 
 /**
  * يطبّق أحدث بيع باقة على إسقاط العمولة بالترتيب الذي يحدده FR-015: قفل الهوية قبل أي قراءة،
- * ثم إسقاط المراجعة الأقدم أو المساوية، ثم قفل الشهور وتصنيفها، ثم كتابة الصف وإعادة فتح المراجع.
- * ما بيكتبش تصحيحاً ولا جرس توقف: تصحيح البيع للشهر المغلقة بند 55-1d، فالشهر المغلق بيرفض قبل أي كتابة.
+ * ثم إسقاط المراجعة الأقدم أو المساوية، ثم قفل الشهور وتصنيفها، ثم كتابة الصف، ثم نشر
+ * تصحيحات الشهور المغلقة وإعادة فتح المراجع.
+ * الشهر المغلق ما بيرفضش الإسقاط بقى (55-1d): البيع بيتّساب في شهره الجديد، والشهر
+ * المغلق بياخد تصحيحاً بالفرق بين المبلغ الجديد والمبلغ المجمّد زائد ما نُشر قبل كده.
  */
 export class ProjectPackageSale {
   constructor(
     private readonly scope: CommissionSaleProjectionScope,
     private readonly clock: Clock,
     private readonly ids: IdGenerator,
+    private readonly corrections: CommissionCorrectionScope,
+    private readonly notices: CommissionBlockNotices,
   ) {}
 
   async execute(input: ProjectPackageSaleInput): Promise<void> {
@@ -65,9 +75,21 @@ export class ProjectPackageSale {
       throw new CommissionPeriodRolledOverError(plannedPeriod, currentPeriod);
     }
     const { closed, reviewed } = classifyCommissionPeriods(locked, plan.affectedPeriods);
-    // الشهر المغلق بيرفض قبل أي كتابة؛ تصحيح البيع بند 55-1d مش هذا البند (FR-A06).
-    if (closed.length > 0) throw new CommissionPeriodClosedError(closed);
+    // الهدف بيتختار من لقطة الأقفال قبل أي كتابة، والهدف الأول هو أول شهر DRAFT بعد الشهر
+    // المصدر؛ reopenReviewed بييجي بعد التصحيح فكيفي على ترتيب D-5.
+    const targets = selectCommissionCorrectionTargets(locked, closed, currentPeriod);
+    // أزواج الموظفة والشهر المتأثرة: البائع القديم وشهره القديم، والبائع الجديد وشهره الجديد.
+    const employees = affectedCommissionSaleEmployees(held, row, closed);
     await this.scope.upsertSale({ ...row, id: this.ids.newId() });
+    await postCommissionCorrections({
+      scope: this.corrections,
+      businessId: input.businessId,
+      eventId: input.eventId,
+      targets,
+      employees,
+      companyId: input.companyId,
+      notices: this.notices,
+    });
     await this.scope.reopenReviewed({ businessId: input.businessId, periods: reviewed });
   }
 }

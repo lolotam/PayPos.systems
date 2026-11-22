@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  affectedCommissionSaleEmployees,
   assertSaleIdentityUnchanged,
   reduceCommissionSale,
   saleAffectedPeriods,
@@ -128,8 +129,56 @@ describe('saleAffectedPeriods', () => {
   });
 });
 
-describe('assertSaleIdentityUnchanged', () => {
-  it('accepts a first revision with no held row', () => {
+describe('affectedCommissionSaleEmployees', () => {
+  const row = (overrides: Partial<CommissionSaleInputEvent> = {}) => {
+    const reduced = reduceCommissionSale(null, saleEvent(overrides)).row;
+    if (reduced === null) throw new Error('the sale row is missing after the reduction');
+    return reduced;
+  };
+
+  it('returns the new seller and month alone for a first sale', () => {
+    expect(affectedCommissionSaleEmployees(null, row(), ['2026-11'])).toEqual([
+      { period: '2026-11', employeeId: '01920000-0000-7000-8000-0000000000e1' },
+    ]);
+  });
+
+  it('keeps only the closed months because an open month needs no correction generation', () => {
+    expect(affectedCommissionSaleEmployees(null, row(), ['2026-12'])).toEqual([]);
+  });
+
+  it('adds the previous seller and month whose sale disappeared', () => {
+    const held = row();
+    const moved = row({ businessDate: '2026-12-01', revision: 2 });
+    expect(affectedCommissionSaleEmployees(held, moved, ['2026-11', '2026-12'])).toEqual([
+      { period: '2026-11', employeeId: '01920000-0000-7000-8000-0000000000e1' },
+      { period: '2026-12', employeeId: '01920000-0000-7000-8000-0000000000e1' },
+    ]);
+  });
+
+  it('deduplicates the pair when the seller and the month did not change', () => {
+    const held = row();
+    const next = row({ revision: 2, refundedAmount: '10.000' });
+    expect(affectedCommissionSaleEmployees(held, next, ['2026-11'])).toEqual([
+      { period: '2026-11', employeeId: '01920000-0000-7000-8000-0000000000e1' },
+    ]);
+  });
+
+  it('lists both sellers when only the seller changed inside the same closed month', () => {
+    const held = row();
+    const moved = row({ sellerEmployeeId: '01920000-0000-7000-8000-0000000000e2', revision: 2 });
+    expect(affectedCommissionSaleEmployees(held, moved, ['2026-11'])).toEqual([
+      { period: '2026-11', employeeId: '01920000-0000-7000-8000-0000000000e1' },
+      { period: '2026-11', employeeId: '01920000-0000-7000-8000-0000000000e2' },
+    ]);
+  });
+
+  it('drops a sale without a seller because no month can price it', () => {
+    const withoutSeller = { ...row(), sellerEmployeeId: null };
+    expect(affectedCommissionSaleEmployees(null, withoutSeller, ['2026-11'])).toEqual([]);
+  });
+});
+
+describe('assertSaleIdentityUnchanged', () => {  it('accepts a first revision with no held row', () => {
     expect(() => assertSaleIdentityUnchanged(null, saleEvent())).not.toThrow();
   });
 

@@ -5,6 +5,8 @@ export {
 } from './persistence/service-import-adapters.ts';
 export { readSessionServices } from './persistence/session-services.reader.ts';
 export { readCommissionOverrideServices } from './persistence/commission-override-services.reader.ts';
+export { readCommissionServiceNames } from './persistence/commission-service-names.reader.ts';
+export type { CommissionServiceName } from './persistence/commission-service-names.reader.ts';
 export { readPackageTypeForSale } from './persistence/package-type-sale.reader.ts';
 import { sessionServiceOptionsPage } from './queries/session-service-options.query.ts';
 import { sessionServiceCursorCodec } from './persistence/session-options.reader.ts';

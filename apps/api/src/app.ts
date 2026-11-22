@@ -33,6 +33,8 @@ import {
   identityProviders,
   readCommissionPlanAccess,
   readCommissionPlanListAccess,
+  readCommissionFeatureEnabled,
+  readCommissionScope,
 } from './modules/identity/index.ts';
 import { settingsControllers, settingsProviders } from './modules/settings/index.ts';
 import { notificationsControllers, notificationsProviders } from './modules/notifications/index.ts';
@@ -55,6 +57,7 @@ import {
   catalogControllers,
   catalogProviders,
   readCommissionOverrideServices,
+  readCommissionServiceNames,
   readSessionServices,
 } from './modules/catalog/index.ts';
 import { ordersControllers, ordersProviders } from './modules/orders/index.ts';
@@ -62,6 +65,8 @@ import { enableApiCors } from './shared/cors.ts';
 import {
   employeeExistsInBusiness,
   lockEmployeeForUpdate,
+  readCommissionBranchAttachments,
+  readCommissionEstimateEmployees,
   readCommissionPlanEmployeeNames,
   staffControllers,
   staffProviders,
@@ -192,6 +197,23 @@ function commissionBindings(deps: AppDependencies) {
       employeeNames: readCommissionPlanEmployeeNames,
     },
     { access: readCommissionPlanListAccess },
+    {
+      // تقدير العمولة (50-5): النطاق الفعّال من identity، والاسم والارتباطات من staff.
+      scope: async (tx, companyId, userId, businessId) => {
+        const scope = await readCommissionScope(tx, companyId, userId, businessId);
+        if (scope.kind === 'forbidden') return { kind: 'forbidden' };
+        if (scope.kind === 'feature_disabled') return { kind: 'feature_disabled' };
+        return {
+          kind: 'scope',
+          businessWide: scope.scope.businessWide,
+          branchIds: scope.scope.branchIds,
+        };
+      },
+      featureEnabled: readCommissionFeatureEnabled,
+      employees: readCommissionEstimateEmployees,
+      attachments: readCommissionBranchAttachments,
+      serviceNames: readCommissionServiceNames,
+    },
     deps.commissionsClock,
   );
 }

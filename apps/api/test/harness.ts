@@ -13,7 +13,7 @@ import {
   type TenantWrappers,
   type Tx,
 } from '@pospay/db';
-import type { SQL } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { systemUuidV7 } from '@pospay/ids';
 import { phoneLockKey } from '@pospay/notifications';
@@ -33,7 +33,10 @@ import { API_LOG_EVENTS } from '../src/shared/log-events.ts';
 import { createPersonalEligibility } from '../src/modules/staff/index.ts';
 import type { FilesRuntime } from '../src/modules/files/index.ts';
 
-export { readSessionServices, readCommissionOverrideServices } from '../src/modules/catalog/index.ts';
+export {
+  readSessionServices,
+  readCommissionOverrideServices,
+} from '../src/modules/catalog/index.ts';
 // جملة الـ EXPLAIN للاختبارات بس: استيراد معامل من ملف الـ persistence، مش من السطح العام للوحدة.
 export { commissionOverrideServicesStatement } from '../src/modules/catalog/persistence/commission-override-services.reader.ts';
 export {
@@ -66,6 +69,11 @@ export interface Harness {
     user: string[];
     newTenant: string[];
     statements: { wrapper: 'tenant' | 'user' | 'new-tenant'; sql: string; params: unknown[] }[];
+    /**
+     * The mode PostgreSQL itself reports inside every `withMember` transaction that asked for a read-only
+     * snapshot — read from the server, so a dropped option or a regressed wrapper shows up here.
+     */
+    memberSnapshots: { readOnly: string; isolation: string }[];
   };
   signedInOperator(email: string): Promise<string>;
   onboard(cookie: string, name: string): Promise<string>;
@@ -116,6 +124,15 @@ export function testRedis(): Redis {
   return new Redis(url, { keyPrefix: `test:${randomBytes(6).toString('hex')}:` });
 }
 
+// What the server says about the open transaction, not what the caller asked for.
+async function transactionMode(tx: Tx): Promise<{ readOnly: string; isolation: string }> {
+  const [row] = await tx.execute<{ readOnly: string; isolation: string }>(
+    sql`SELECT current_setting('transaction_read_only') AS "readOnly",
+      current_setting('transaction_isolation') AS "isolation"`,
+  );
+  return { readOnly: row?.readOnly ?? '', isolation: row?.isolation ?? '' };
+}
+
 function spied(database: Database, calls: Harness['calls']): TenantWrappers {
   return {
     withUser: (userId, fn) => {
@@ -130,11 +147,17 @@ function spied(database: Database, calls: Harness['calls']): TenantWrappers {
       calls.tenant.push(companyId);
       return database.withTenant(companyId, (tx) => fn(recording(tx, 'tenant', calls)), options);
     },
-    withMember: (userId, companyId, fn) =>
-      database.withMember(userId, companyId, (tx) => {
-        calls.tenant.push(companyId);
-        return fn(recording(tx, 'tenant', calls));
-      }),
+    withMember: (userId, companyId, fn, options) =>
+      database.withMember(
+        userId,
+        companyId,
+        async (tx) => {
+          calls.tenant.push(companyId);
+          if (options?.readOnly === true) calls.memberSnapshots.push(await transactionMode(tx));
+          return fn(recording(tx, 'tenant', calls));
+        },
+        options,
+      ),
   };
 }
 
@@ -260,7 +283,13 @@ async function prepareHarness(
   );
   await database.ping();
   const redis = cleanup.own(testRedis(), (value) => value.quit());
-  const calls: Harness['calls'] = { tenant: [], user: [], newTenant: [], statements: [] };
+  const calls: Harness['calls'] = {
+    tenant: [],
+    user: [],
+    newTenant: [],
+    statements: [],
+    memberSnapshots: [],
+  };
   const wrappers = spied(database, calls);
   const staffOtp = options.staffOtpFactory?.(auth, testDb.authUrl, wrappers, redis);
   if (staffOtp !== undefined) cleanup.own(staffOtp, (value) => value.close());

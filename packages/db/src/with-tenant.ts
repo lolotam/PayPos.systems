@@ -46,13 +46,20 @@ export interface TenantWrappers {
   /**
    * بيثبت عضوية المستخدم في الشركة دي قبل أي سياق tenant.
    * الحارس محتاجه عشان يفتح اتصال واحد: لو مفيش عضوية سارية بيرجع null من غير app.company_id، وبعد الإثبات بس بيدخل fn.
+   * مع `readOnly` بيفتح المعاملة بلقطة واحدة للقراءة فقط، وإثبات العضوية والقراءات بتشارك اللقطة دي.
    *
    * @param userId    المستخدم اللي بيثبت عضويته
    * @param companyId الشركة المطلوب دخولها
    * @param fn        الشغل بعد الإثبات، جوه نفس الـ transaction
+   * @param options   `readOnly` بيخلي المعاملة بلقطة قراءة واحدة؛ باقي الخيارات مش مطبقة هنا
    * @returns نتيجة fn، أو null لو العضوية مش سارية
    */
-  withMember<T>(userId: string, companyId: string, fn: (tx: Tx) => Promise<T>): Promise<T | null>;
+  withMember<T>(
+    userId: string,
+    companyId: string,
+    fn: (tx: Tx) => Promise<T>,
+    options?: Pick<TenantOptions, 'readOnly'>,
+  ): Promise<T | null>;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -157,8 +164,11 @@ async function runAsMember<T>(
   userId: string,
   companyId: string,
   fn: (tx: Tx) => Promise<T>,
+  readOnly = false,
 ): Promise<T | null> {
   return db.transaction(async (tx) => {
+    // أوضاع المعاملة بتتحدد قبل أي قراءة، فإثبات العضوية وكل القراءات جواها بتشارك لقطة واحدة.
+    if (readOnly) await tx.execute(consistentReadTransaction);
     const [role] = await tx.execute<{ privileged: boolean }>(
       sql`SELECT set_config('app.company_id', '', true),
                  set_config('app.user_id', ${userId}, true),
@@ -235,7 +245,13 @@ export function createTenantWrappers(db: PostgresJsDatabase, ids: IdGenerator): 
       const companyId = assertUuid(ids.newId(), 'generated companyId');
       return run(companyId, assertUuid(userId, 'userId'), (tx) => fn(tx, companyId));
     },
-    withMember: async (userId, companyId, fn) =>
-      runAsMember(db, assertUuid(userId, 'userId'), assertUuid(companyId, 'companyId'), fn),
+    withMember: async (userId, companyId, fn, options = {}) =>
+      runAsMember(
+        db,
+        assertUuid(userId, 'userId'),
+        assertUuid(companyId, 'companyId'),
+        fn,
+        options.readOnly === true,
+      ),
   };
 }

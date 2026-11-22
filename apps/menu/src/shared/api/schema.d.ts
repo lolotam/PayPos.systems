@@ -498,6 +498,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/commissions/periods/{period}/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The live commission estimate of a business month (FR-021). One full-month engine run per candidate employee, computed on read in a read-only transaction and never stored. Requires read:commissions:business and the commissions feature; a device session is refused. A holder sees only the employees of her effective branch set (CS-Q20): a company- or business-scoped grant without any current DENY sees every employee, while a branch-scoped reader sees only the days she was attached to her branches and her figures are labelled partial. Tips and received corrections pass through unpriced. Reads only. */
+        get: operations["getCommissionEstimate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/document-types": {
         parameters: {
             query?: never;
@@ -3782,6 +3799,68 @@ export interface components {
         CommissionBlockedCorrectionList: {
             items: components["schemas"]["CommissionBlockedCorrection"][];
             next_cursor: string | null;
+        };
+        CommissionEstimatePeriod: string;
+        CommissionEstimateMoney: string;
+        CommissionEstimateQuery: {
+            /** Format: uuid */
+            employee_id?: string;
+        };
+        CommissionEstimateSource: {
+            source_ref: string;
+            /** @enum {string} */
+            kind: "COMMISSION" | "SALE";
+            amount: components["schemas"]["CommissionEstimateMoney"];
+            /** Format: uuid */
+            source_branch_id: string;
+            source_business_date: string;
+            /** Format: uuid */
+            service_id: string | null;
+            service_name: string | null;
+        };
+        CommissionEstimateSale: {
+            /** Format: uuid */
+            sale_id: string;
+            amount: components["schemas"]["CommissionEstimateMoney"];
+            /** Format: uuid */
+            source_branch_id: string;
+            source_business_date: string;
+        };
+        CommissionEstimateCorrection: {
+            source_ref: string;
+            /** @enum {string} */
+            kind: "COMMISSION" | "SALE" | "TIP_CARD" | "TIP_CASH";
+            amount: components["schemas"]["CommissionEstimateMoney"];
+            /** Format: uuid */
+            source_branch_id: string;
+            source_business_date: string;
+        };
+        CommissionEstimateTips: {
+            card: components["schemas"]["CommissionEstimateMoney"];
+            cash: components["schemas"]["CommissionEstimateMoney"];
+        };
+        CommissionEstimateEmployee: {
+            /** Format: uuid */
+            employee_id: string;
+            name_ar: string | null;
+            name_en: string;
+            employee_number: number;
+            /** @enum {string} */
+            status: "OK" | "NO_PLAN" | "NO_SALARY";
+            partial: boolean;
+            total: string | null;
+            sources: components["schemas"]["CommissionEstimateSource"][];
+            sales: components["schemas"]["CommissionEstimateSale"][];
+            tips: components["schemas"]["CommissionEstimateTips"];
+            corrections: components["schemas"]["CommissionEstimateCorrection"][];
+        };
+        CommissionEstimate: {
+            /** Format: uuid */
+            business_id: string;
+            period: components["schemas"]["CommissionEstimatePeriod"];
+            employees: components["schemas"]["CommissionEstimateEmployee"][];
+            partial: boolean;
+            total: string | null;
         };
         /** @enum {string} */
         EmployeeDocumentStatus: "NO_EXPIRY" | "VALID" | "EXPIRING" | "EXPIRED";
@@ -11165,6 +11244,69 @@ export interface operations {
                 };
             };
             /** @description Refused with two distinct envelope codes: FORBIDDEN when a valid session holds no manage:commission-plans:business on that business, or names a missing or foreign business (a device session is a valid non-user principal and answers FORBIDDEN the same way), and FEATURE_DISABLED when the commissions feature is off for the company */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getCommissionEstimate: {
+        parameters: {
+            query?: {
+                employee_id?: string;
+            };
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                period: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The visible employees of the month with their priced sources */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionEstimate"];
+                };
+            };
+            /** @description Invalid business id, period or employee id */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No individual session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform 403 refusal */
             403: {
                 headers: {
                     [name: string]: unknown;

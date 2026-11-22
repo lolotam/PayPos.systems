@@ -3,6 +3,7 @@ import { assembleCommissionPeriodInput, computePeriod } from '@pospay/commission
 import type { CommissionRecomputedSource } from '../domain/commission-correction-step.ts';
 import {
   commissionLineSourceRef,
+  commissionSaleSourceRef,
   commissionSourceKind,
   commissionTipSourceRef,
 } from '../domain/commission-source-ref.ts';
@@ -33,6 +34,8 @@ function bySourceRef(left: CommissionRecomputedSource, right: CommissionRecomput
  * يعيد حساب شهر الموظفة بمدخلاتها الحالية (D-1): يجمع مدخل المحرك من الإسقاط
  * ويسعّره، والبِقشيش بيعدّي من غير تسعير لأن المحرك ما بيسعّرش البقشيش.
  * البند الملغى ما بيوصلش للتسعير، فمش بيبقى في المصادر المعادة.
+ * بيع الباقة بيتسعّر زي ما هو، وفروعه ويوم عمله بيسافروا معاه عشان نسبة
+ * التصحيح تتبنى من أصلها من غير ما تتفلس.
  * سبب الرفض بيرجع زي ما جه من المحرك، لأن شهر ناقص الإعداد ما ينفعش ينشر تصحيح.
  *
  * @param projection إسقاط الموظفة وشهرها كما يقرأه النطاق
@@ -49,15 +52,22 @@ export function recomputeCommissionMonth(
   const lines = new Map(
     assembled.lines.map((line) => [commissionLineSourceRef(line.lineId), line] as const),
   );
+  const sales = new Map(
+    assembled.sales.map((sale) => [commissionSaleSourceRef(sale.saleId), sale] as const),
+  );
   for (const [sourceRef, amount] of computed.perSource) {
     const kind = commissionSourceKind(sourceRef);
     const line = lines.get(sourceRef);
+    const sale = sales.get(sourceRef);
     sources.push({
       sourceRef,
       kind,
       amount,
       ...(kind === 'COMMISSION' && line !== undefined
         ? { sourceBranchId: line.branchId, sourceBusinessDate: line.businessDate }
+        : {}),
+      ...(kind === 'SALE' && sale !== undefined
+        ? { sourceBranchId: sale.branchId, sourceBusinessDate: sale.businessDate }
         : {}),
     });
   }

@@ -4,6 +4,7 @@ import type {
   ReceivedCommissionCorrection,
   ServiceCommissionOverride,
 } from '@pospay/commissions-engine';
+import { projectPackageSaleStatus } from '@pospay/commissions-engine';
 import { parseMoney } from '@pospay/domain';
 import type { Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
@@ -13,6 +14,7 @@ import type {
   CommissionMonthLine,
   CommissionMonthProjection,
   CommissionMonthProjectionInput,
+  CommissionMonthSale,
   CommissionMonthTip,
 } from '../ports/commission-correction.port.ts';
 import {
@@ -55,6 +57,16 @@ type SalaryRow = {
   amount: string;
 };
 
+type SaleRow = {
+  saleId: string;
+  sellerEmployeeId: string | null;
+  branchId: string;
+  businessDate: string;
+  pricePaid: string;
+  refundedAmount: string;
+  status: string;
+};
+
 type ReceivedCorrectionRow = {
   employeeId: string;
   sourcePeriod: string;
@@ -92,6 +104,26 @@ function projectedTip(row: TipRow): CommissionMonthTip {
     businessDate: row.businessDate,
     method: row.method === 'CASH' ? 'CASH' : 'CARD',
     amount: parseMoney(row.amount),
+  };
+}
+
+/**
+ * يحوّل صف بيع الباقة المحفوظ إلى شكل المحرك: الحالة المحفوظة 'SOLD' بتتحوّل
+ * صريحاً لـ 'ACTIVE'، وسعر البيع المدفوع والمرتجع التراكمي بيفضلوا كما هما
+ * عشان المحرك هو اللي يملك حساب المرتجع التناسبي والتقريب.
+ *
+ * @param row صف البيع المحفوظ في إسقاط العمولة
+ * @returns صف البيع بشكل محرك العمولة مع فرع البيع وتاريخ عمله
+ */
+function projectedSale(row: SaleRow): CommissionMonthSale {
+  return {
+    saleId: row.saleId,
+    sellerEmployeeId: row.sellerEmployeeId,
+    branchId: row.branchId,
+    businessDate: row.businessDate,
+    pricePaid: parseMoney(row.pricePaid),
+    refundedAmount: parseMoney(row.refundedAmount),
+    status: projectPackageSaleStatus(row.status),
   };
 }
 
@@ -184,6 +216,21 @@ async function readOverrides(
   return rows.map(commissionOverrideOf);
 }
 
+async function readSales(
+  tx: Tx,
+  input: CommissionMonthProjectionInput,
+): Promise<CommissionMonthSale[]> {
+  const rows = await tx.execute<SaleRow>(sql`SELECT
+    sale_id AS "saleId", seller_employee_id AS "sellerEmployeeId", branch_id AS "branchId",
+    business_date::text AS "businessDate", price_paid::text AS "pricePaid",
+    refunded_amount::text AS "refundedAmount", status AS "status"
+    FROM commission_sales
+    WHERE company_id = app_company_id() AND business_id = ${input.businessId}::uuid
+      AND seller_employee_id = ${input.employeeId}::uuid AND period = ${input.period}
+    ORDER BY sale_id`);
+  return rows.map(projectedSale);
+}
+
 async function readReceivedCorrections(
   tx: Tx,
   input: CommissionMonthProjectionInput,
@@ -212,7 +259,9 @@ async function readReceivedCorrections(
 
 /**
  * يرجع إسقاط الموظفة وشهرها كما يفهمه محرك العمولة.
- * صفوف بيع الباقة موجودة من 50-4، وقراءتها هنا بند 55-1d الذي يوصل الإسقاط بالتصحيح.
+ * صفوف بيع الباقة موجودة من 50-4، وتقرأ هنا بند 55-1d اللي يوصل الإسقاط بالتصحيح:
+ * حالة البيع المحفوظة بتتحوّل لحالة المحرك صراحةً، وسعرها ومرتجعها التراكمي
+ * بيفضلوا كما هما عشان المحرك يملك حساب المرتجع والتناسبي والتقريب.
  *
  * @param tx معاملة withTenant الحالية؛ ما ينفع تفتح معاملة تانية
  * @param input النشاط والموظفة والشهر
@@ -226,7 +275,7 @@ export async function readMonthProjection(
     employeeId: input.employeeId,
     period: input.period,
     lines: await readLines(tx, input),
-    sales: [],
+    sales: await readSales(tx, input),
     salaries: await readSalaries(tx, input),
     versions: await readPlanVersions(tx, input),
     overrides: await readOverrides(tx, input),

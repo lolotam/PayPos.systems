@@ -5,9 +5,15 @@ import postgres from 'postgres';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
 
 import {
+  commissionCorrectionBlockedNoticeGroupSize,
+  commissionCorrectionBlockedNoticeRequested,
+} from '@pospay/contracts';
+
+import {
   COMMISSION_LINE_TENANTS,
   seedCommissionLineTenants,
 } from '../../../../../../packages/db/test/commission-line-fixtures.ts';
+import { insertCommissionPlanVersion } from '../../../../../../packages/db/test/commission-plan-version-fixtures.ts';
 import {
   OTHER_COMMISSION_IDS,
   walkCommissionStatement,
@@ -22,10 +28,15 @@ import { createDeliverer } from '../../../outbox/deliver.ts';
 import type { OutboxConsumer } from '../../../outbox/consumer.ts';
 import { fakeBusinessTimeZone } from './commission-line-projection-time-zone.ts';
 import { createCommissionSaleProjectionScope } from '../persistence/commission-sale-projection.scope.ts';
+import { createCommissionCorrectionScope } from '../persistence/commission-correction.scope.ts';
+import { createCommissionBlockNotices } from '../persistence/commission-block-notice.outbox.ts';
 import { ProjectPackageSale } from '../use-cases/project-package-sale/project-package-sale.ts';
 import { onCommissionInputEvent } from '../events/handlers/on-commission-input-event.handler.ts';
 import type { CommissionInputUseCases } from '../events/handlers/on-commission-input-event.handler.ts';
 import { recordCommissionFailureCodes } from '../index.ts';
+
+/** قارئ حاملي الصلاحية ما بيتنادىش في اختبارات البيع؛ بيحتاج identity وده ممنوع جوه الموديول. */
+const noPermissionHolders = async (): Promise<readonly string[]> => [];
 
 let testDb: TestDatabase;
 let owner: postgres.Sql;
@@ -50,6 +61,17 @@ beforeAll(async () => {
   deliver = createDeliverer(db, [recordCommissionFailureCodes(consumer, failures)], createLogger('silent'), {
     knownEventTypes: consumer.eventTypes,
   });
+  // خطة تسعّر بيع الباقة بنسبة عشرة بالمئة، فبيع بثلاثين دينار بيساوي ثلاثة دنانير.
+  await db.withTenant(A.company, (tx) =>
+    insertCommissionPlanVersion(tx, A, ids, {
+      effectiveFrom: '2026-10-01',
+      plan: {
+        base: { enabled: false },
+        tiers: { enabled: false },
+        package_sale: { enabled: true, calc: { kind: 'PCT', bps: 1000 } },
+      },
+    }),
+  );
 });
 
 afterAll(async () => {
@@ -142,16 +164,19 @@ it('returns a reviewed month to draft in the same transaction (D-5)', async () =
   expect((await saleRow(SALE)).length).toBe(1);
 });
 
-it('refuses an approved month before any write: no row, no mark, no correction, no block', async () => {
+it('projects into an approved month and publishes the difference instead of refusing it', async () => {
   await walkCommissionStatement(db, { tenant: A, period: '2026-11', ids, to: 'APPROVED' });
   const event = saleEvent(SALE);
-  expect(await deliver(event)).toMatchObject({ delivered: false });
-  expect(failures.get(event.id)).toBe('COMMISSION_PERIOD_CLOSED');
-  expect(await saleRow(SALE)).toHaveLength(0);
-  expect((await marks()).length).toBe(0);
-  const corrections = await owner`SELECT 1 FROM commission_corrections`;
+  expect(await deliver(event)).toMatchObject({ delivered: true });
+  expect(failures.size).toBe(0);
+  expect(await saleRow(SALE)).toHaveLength(1);
+  expect((await marks()).length).toBe(1);
+  const corrections = await owner`SELECT amount::text AS amount, kind, source_period AS "sourcePeriod",
+    target_period AS "targetPeriod" FROM commission_corrections WHERE company_id=${A.company}`;
+  expect(corrections).toEqual([
+    { amount: '3.000', kind: 'SALE', sourcePeriod: '2026-11', targetPeriod: '2026-12' },
+  ]);
   const blocks = await owner`SELECT 1 FROM commission_blocked_corrections`;
-  expect(corrections).toHaveLength(0);
   expect(blocks).toHaveLength(0);
 });
 
@@ -201,6 +226,12 @@ it('throws the sale input error out of the handler inside the tenant transaction
       createCommissionSaleProjectionScope(tx, fakeBusinessTimeZone(A.business), ids),
       clock,
       ids,
+      createCommissionCorrectionScope(tx, ids, clock),
+      createCommissionBlockNotices(tx, ids, clock, {
+        groupSize: commissionCorrectionBlockedNoticeGroupSize,
+        parsePayload: (payload: unknown) => commissionCorrectionBlockedNoticeRequested.parse(payload),
+        permissionHolders: noPermissionHolders,
+      }),
     );
     const useCases = {
       lines: null,
@@ -233,6 +264,12 @@ function failingReopenConsumer(): OutboxConsumer {
         },
         clock,
         ids,
+        createCommissionCorrectionScope(tx, ids, clock),
+        createCommissionBlockNotices(tx, ids, clock, {
+          groupSize: commissionCorrectionBlockedNoticeGroupSize,
+          parsePayload: (payload: unknown) => commissionCorrectionBlockedNoticeRequested.parse(payload),
+          permissionHolders: noPermissionHolders,
+        }),
       );
       const useCases = { lines: null, tips: null, salary: null, sales } as unknown as CommissionInputUseCases;
       await onCommissionInputEvent(useCases, event);
