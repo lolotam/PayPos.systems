@@ -15,7 +15,7 @@ import {
   createCommissionLineProjectionScope,
   type BusinessTimeZoneReader,
 } from './persistence/commission-line-projection.scope.ts';
-import { createCommissionCorrectionScope } from './persistence/commission-correction.scope.ts';
+import { createCommissionCorrectionScope } from '@pospay/commissions-posting';
 import { createCommissionBlockNotices } from './persistence/commission-block-notice.outbox.ts';
 import { markCommissionEventConsumed } from './persistence/commission-event-consumption.ts';
 import { createCoverageProjectionReader } from './persistence/commission-coverage.reads.ts';
