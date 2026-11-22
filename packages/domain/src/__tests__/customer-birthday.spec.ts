@@ -29,7 +29,7 @@ describe('isValidCustomerBirthdayCalendar', () => {
     ['a year of zero', { day: 1, month: 1, year: 0 }],
     ['a year above four digits', { day: 1, month: 1, year: 10000 }],
     ['29 February in a century that is not a leap year', { day: 29, month: 2, year: 1900 }],
-    ['29 February in a non-leap year', { day: 29, month: 2, year: 2100 }],
+    ['29 February in an ordinary non-leap year', { day: 29, month: 2, year: 2023 }],
     ['a string day', { day: '5', month: 3 }],
   ])('refuses %s', (_case, birthday) => {
     expect(isValidCustomerBirthdayCalendar(birthday as never)).toBe(false);
