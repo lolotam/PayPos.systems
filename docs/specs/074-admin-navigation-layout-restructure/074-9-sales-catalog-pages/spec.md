@@ -53,7 +53,7 @@ Estimate: 650 production, 750 tests. Stop and report if code plus tests passes 2
 
 ## Implementation notes
 
-Two rounds: the first delivery, then correction round 1 after the independent review (findings P1-1 to P3-9). The notes show the state after round 1.
+Three steps: the first delivery, correction round 1 (findings P1-1 to P3-9) and correction round 2 (items 1 to 7). The notes show the state after round 2.
 
 ### What moved, per page
 
@@ -75,11 +75,29 @@ Two rounds: the first delivery, then correction round 1 after the independent re
 | P1-2 form template | Fixed for Sell a package (sections and 12-column cells; every field, label and message is one cell) and for the Add package type service row (opt-in `grid` prop; the edit panel is unchanged). Record a visit unchanged. | `package-sale-page.spec.tsx` (sections order, 4-column cells), `create-package-type-page-layout.spec.tsx` (row spans) |
 | P2-3 Day list focus | Fixed. The page owns one `ServiceSessionDayFrame`; only its content and footer change. The body reports its load-more function to the page. | «keeps the same date input, and keyboard focus on it, when a later read is refused» |
 | P2-4 branch actions label | Fixed. «Actions» label on the cell, visually hidden header (the header was empty). Stacked tests now cover every cell of all three tables. | `service-categories-layout.spec.tsx`, `package-types-page.spec.tsx` |
-| P2-5 Categories header | Fixed. One header first in every state (the no-branch state included), then the scope select. The header and its create action belong to the screen; each view registers its create handler through `useRegisterCreateAction` when it is the visible one. A page or section rendered alone keeps its own header. The scope select stays one element, so its focus survives a view switch. | «a branch membership with no active branch still shows the page heading», «keeps the very same scope select, and its focus» |
+| P2-5 Categories header | Fixed. One header first in every state (the no-branch state included), then the scope select. The header and its create action belong to the screen, which derives the button in the render; each view hands over its create handler through `useRegisterCreateAction` when it is the visible one. A page or section rendered alone keeps its own header. The scope select stays one element, so its focus survives a view switch. | «a branch membership with no active branch still shows the page heading», «keeps the very same scope select, and its focus» |
 | P2-6 one component per file | Fixed. Split: `ServiceSessionDayFrame`, `ServiceSessionDayLoadMore`, `ServiceSessionDayVisitSlot` (out of the list file), `PackageTypeName`, `PackageTypeSellingCell`, `BranchServiceCategoryMarks`, `ServiceCategoriesHeader`, `BranchServiceCategoriesHeader`. A scan of every file created or edited found no other file with two components. | lint (`max-lines-per-function`), typecheck |
 | P3-7 price direction | Fixed: `<bdi dir="ltr">` around the number; the cell has no `dir`. | «isolates the price number as left-to-right» |
 | P3-8 action-only cells | Fixed. Cells whose only content is a button (Edit, Open) carry no label. The Selling cell and the branch marks cell carry a label only when they have content, and are hidden under 600px when empty. The merged Services reference page labels its Edit cell with the header text, a duplicate of its button; it was not touched (brief). | «renders no label for a selling cell whose button is hidden», the stacked-row tests |
 | P3-9 implementation-pinned tests | Partly. Width and `mx-auto` class checks were removed; headings, region order, labels and control presence are asserted instead. Kept as structure where nothing visible distinguishes it: the template identity (`data-page-shell`), the card (the frame has no landmark), the stacked classes on the table wrapper (so the tests fail if `stacked` is removed), the 12-column span classes. | the specs above |
+
+### Correction round 2: item by item
+
+| Item | Result | Proving test |
+|---|---|---|
+| 1 weakened tests | Fixed. The Categories business and branch tests assert again that the filter or tabs and the paging are inside the table's card, that the scope select is outside it, that no nested shell exists, and that the shell holds the card; the order assertions stay beside them. Audit below. | `service-categories-layout.spec.tsx`, both order tests |
+| 2 free-service warning | Fixed. In grid mode the warning is rendered after the remove button; the edit panel keeps the old order. | «keeps service, sessions and remove together and shows the free-service warning after the remove button» |
+| 3 i18n duplicates | Fixed. Audit below. | typecheck (keys are typed) |
+| 4 imported constant | Fixed. The test compares against the literal class and checks that the sticky element is a direct child of the last grid item. | «puts the sticky summary directly in the side grid item, and stretches that item to the row» |
+| 5 Day list stale footer | Fixed. The page now observes the day query itself (the body shares it, so no extra request) and derives the refusal and the next page in its own render; the refusal is latched in the same render. The load-more callback plumbing was removed. | «never commits a render that shows Load more beside a refused or emptied list»: a `Profiler` checks the DOM after every commit. It failed before the fix (one stale commit). |
+| 6 create action | Fixed. The screen derives the button's presence and its disabled state in the render itself (`useScreenCreateAction`, from the saving state); a view only hands over its handler, in a layout effect, so no button exists without a handler. | «has a working create button on the very first render, before any data arrives», «opens the form of the view now shown when create is clicked after switching views» |
+| 7 remaining pins | Fixed where a structural assertion exists: `rounded-xl` replaced by the DOM relationship of the row, `ms-auto` by "the header contains the action", the imported constant by a literal. Kept: `data-page-shell` (template identity), `.rounded-card` (the frame has no landmark), the stacked-class token (so the tests fail without `stacked`), the span classes (the 12-column spec), `lg:sticky` and the stretch class (CSS-only behaviour). | the specs above |
+
+**Weakened-assertion audit** (every spec touched in round 1, diffed against `530cbe053`). Found and restored: the Categories business and branch "inside the card" assertions, the "no nested shell" check, and the branch heading-inside-shell check. Removed on purpose, as the owning session asked: width and `mx-auto` class pins (P3-9), and the «Edit» cell label (P3-8). Equivalent rewrites: the Package types «Edit» button check (now inside the sixth cell), the Record a visit heading-in-shell check and the limit-text check (now on the summary card). Stronger than before: the stacked-row tests (every cell, not only the ones after the first), plus the table-wrapper stacked token.
+
+**i18n duplicate audit** (both languages, whole catalog). `actionsColumn` duplicated `attendanceActions.actions` («Actions» / «الإجراءات») and `sectionPackage` duplicated `serviceSessions.packagePicker` («Package» / «الباقة»): both removed. `catalogPackageTypes.basics` («Package details» / «بيانات الباقة») and `packageSale.sectionPayment` («Payment» / «الدفع») have no match in either language and stay.
+
+**Gate note (round 2).** `pnpm typecheck`, `pnpm lint`, `pnpm lint:docs` and `pnpm module-map:check` passed. The full admin suite did not pass cleanly at the default 5 s timeout on this loaded machine, in two complete runs (the second with `--maxWorkers=4`): 8 tests in 7 or 8 files timed out, all heavy specs this slice does not touch (the record-visit, draft-lines, alert-rules, employee-number and commission-overrides specs). The same 7 files pass (77 tests) with `--testTimeout=60000`. The first full run of round 1 passed 333 of 333.
 
 ### Changed assertions and fixtures
 
@@ -95,7 +113,7 @@ None.
 
 ### Other production changes outside the seven pages' own files
 
-- i18n: `catalogPackageTypes.basics`, `catalogServiceCategoryBranches.actionsColumn`, `packageSale.sectionPackage` and `packageSale.sectionPayment`, each in `ar` and `en`.
+- i18n: `catalogPackageTypes.basics` and `packageSale.sectionPayment`, each in `ar` and `en` (round 2 removed `actionsColumn` and `sectionPackage`: the page now uses `attendanceActions.actions` and `serviceSessions.packagePicker`).
 - `BranchServiceCategoriesFrame` renamed `BranchServiceCategoriesGrid` (a bare table now).
 - New: `catalog/ui/list-query-states.tsx` (loading, error and empty states shared by the three catalog lists), `catalog/model/use-register-create-action.ts`, `orders/ui/record-visit-columns.tsx`, `orders/ui/service-session-day-list-props.ts`.
 - `PackageTypeBasicsFields`, `PackageComponentsFields` and `PackageComponentRow` take an optional `grid` prop; the package type edit panel keeps stacked fields.
@@ -108,7 +126,7 @@ None.
 
 ### Open points
 
-1. The Categories create action moved from each view into the screen header. Its handler still lives in the view and is reached through the registration hook. A page or section rendered alone keeps its own header, which is how their specs render them.
+1. The Categories create action moved from each view into the screen header. Its handler still lives in the view and is reached through the registration hook (the button itself no longer depends on it). A page or section rendered alone keeps its own header, which is how their specs render them.
 2. Sell a package keeps its customer and package-type pickers as full-width cells; their internals are untouched.
 3. Record a visit has no inner 12-column grid (two-column template), as the review decided.
 
@@ -118,4 +136,4 @@ Widths, the 12-column spans, the sticky behaviour of the summary (the stretch ov
 
 ### Sizes (against `origin/main`)
 
-Production +962 / −560, tests +869 / −4, i18n +8, docs excluded. 2,403 lines added plus removed outside docs after round 1 (1,621 after the first delivery), below the 2,800 stop line.
+Production +982 / −571, tests +961 / −4, i18n +4, docs excluded. 2,522 lines added plus removed outside docs after round 2 (1,621 after the first delivery, 2,403 after round 1), below the 2,800 stop line.
