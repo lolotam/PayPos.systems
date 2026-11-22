@@ -74,7 +74,7 @@ export const catalogPaths = {
         {
           in: 'query',
           name: 'cursor',
-          schema: { type: 'string', pattern: '^(?:[2-9]|[1-9][0-9]{0,5}|104[0-7][0-9]{3}|1048[0-4][0-9]{2}|10485[0-6][0-9]|104857[0-6])$' },
+          schema: { $ref: '#/components/schemas/ServiceImportRowsCursor' },
           description: 'Original Excel row number of the last returned row; omit for the first page.',
         },
         {

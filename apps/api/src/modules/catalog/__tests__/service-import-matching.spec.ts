@@ -76,11 +76,12 @@ it('scans the scoped unique index for category matching and the business index f
        AND c.closed_at IS NULL`;
     const categoryText = JSON.stringify(categoryPlan?.[0] ?? categoryPlan);
     expect(categoryText).toContain('service_categories_business_name_uq');
-    const [namePlan] = await h.owner`EXPLAIN (FORMAT JSON) SELECT DISTINCT lower(name_en) AS key
+    // القراءة الحاسمة الحالية: تعبير التطبيع المخزّن نفسه الذي تشغّله المعاينة والعامل (P1 مراجعة 32b-2).
+    const [namePlan] = await h.owner`EXPLAIN (FORMAT JSON) SELECT DISTINCT lower(btrim(regexp_replace(name_en, '\\s+', ' ', 'g'))) AS key
       FROM services
       WHERE company_id = ${company}
         AND business_id = ${business}
-        AND lower(name_en) = ANY(ARRAY['hair cut']::text[])`;
+        AND lower(btrim(regexp_replace(name_en, '\\s+', ' ', 'g'))) = ANY(ARRAY['hair cut']::text[])`;
     const nameText = JSON.stringify(namePlan?.[0] ?? namePlan);
     expect(nameText).toContain('services_company_business_id_key');
     const previewPlan = await h.owner`EXPLAIN ANALYZE SELECT id AS preview_id,status,created_count,error_code

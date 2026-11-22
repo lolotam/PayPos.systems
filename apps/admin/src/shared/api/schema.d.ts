@@ -17234,7 +17234,11 @@ export interface operations {
     };
     getServiceImportRows: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Original Excel row number of the last returned row; omit for the first page. */
+                cursor?: components["schemas"]["ServiceImportRowsCursor"];
+                limit?: number;
+            };
             header: {
                 "x-company-id": string;
             };
