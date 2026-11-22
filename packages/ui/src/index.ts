@@ -29,6 +29,36 @@ export { BrandWordmark, type BrandWordmarkProps } from './brand-wordmark.js';
 export { BrandLockup, type BrandLockupProps } from './brand-lockup.js';
 export { AppSidebar, type AppSidebarProps } from './app-sidebar.js';
 export { AppSidebarItem, type AppSidebarItemProps } from './app-sidebar-item.js';
+export {
+  CollapsibleSidebar,
+  type CollapsibleSidebarProps,
+} from './collapsible-sidebar.js';
+export { TopNav, type TopNavProps } from './top-nav.js';
+export { MegaMenu, type MegaMenuProps } from './mega-menu.js';
+export { LocalNav, type LocalNavProps } from './local-nav.js';
+export { ModuleDrawer, type ModuleDrawerProps } from './module-drawer.js';
+export { ModuleDrawerSection, type ModuleDrawerSectionProps } from './module-drawer-section.js';
+export { NavRail, type NavRailProps } from './nav-rail.js';
+export { ContextPanel, type ContextPanelProps } from './context-panel.js';
+export { ContextPanelBody, type ContextPanelBodyProps } from './context-panel-body.js';
+export { ContextPanelSection, type ContextPanelSectionProps } from './context-panel-section.js';
+export { ContextPanelEmpty, type ContextPanelEmptyProps } from './context-panel-empty.js';
+export { PageFinder, type PageFinderProps } from './page-finder.js';
+export {
+  collectFinderResults,
+  groupIsCurrent,
+  matchesPageQuery,
+  visiblePages,
+  type ContextPanelLabels,
+  type FinderResult,
+  type NavigationChromeLabels,
+  type NavigationFinderLabels,
+  type NavigationGroup,
+  type NavigationModule,
+  type NavigationPage,
+  type NavigationSection,
+  type NavigationWorkspace,
+} from './navigation-presentation.js';
 export { PageHeader, type PageHeaderProps } from './page-header.js';
 export { EmptyState, type EmptyStateProps } from './empty-state.js';
 export { Stat, type StatProps } from './stat.js';
