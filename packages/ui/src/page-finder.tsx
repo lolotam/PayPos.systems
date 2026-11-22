@@ -23,6 +23,8 @@ export type PageFinderProps = {
   visiblePageIds?: readonly string[] | undefined;
   activePageId?: string | undefined;
   onNavigate?: (() => void) | undefined;
+  /** يغيّره المستضيف عند كل انتقال ليُغلق الباحث ويُمحى بحثه دون إعادة بنائه؛ الغياب لا يغيّر شيئًا. */
+  resetKey?: string | undefined;
 };
 
 function useFinderShortcut(open: boolean, close: () => void, begin: () => void) {
@@ -64,7 +66,10 @@ function useFinderFocusRestore(triggerRef: RefObject<HTMLButtonElement | null>) 
   return { captureShortcutFocus, markTriggerOpened, onCloseAutoFocus };
 }
 
-type FinderControllerInput = Pick<PageFinderProps, 'workspaces' | 'visiblePageIds' | 'onNavigate'> & {
+type FinderControllerInput = Pick<
+  PageFinderProps,
+  'workspaces' | 'visiblePageIds' | 'onNavigate' | 'resetKey'
+> & {
   triggerRef: RefObject<HTMLButtonElement | null>;
 };
 
@@ -72,10 +77,17 @@ function usePageFinderController({
   workspaces,
   visiblePageIds,
   onNavigate,
+  resetKey,
   triggerRef,
 }: FinderControllerInput) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [seenResetKey, setSeenResetKey] = useState(resetKey);
+  if (seenResetKey !== resetKey) {
+    setSeenResetKey(resetKey);
+    setOpen(false);
+    setQuery('');
+  }
   const { captureShortcutFocus, markTriggerOpened, onCloseAutoFocus } =
     useFinderFocusRestore(triggerRef);
   const results = useMemo(
@@ -124,10 +136,17 @@ export function PageFinder({
   visiblePageIds,
   activePageId,
   onNavigate,
+  resetKey,
 }: PageFinderProps) {
   const dir = useDirection();
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const controller = usePageFinderController({ workspaces, visiblePageIds, onNavigate, triggerRef });
+  const controller = usePageFinderController({
+    workspaces,
+    visiblePageIds,
+    onNavigate,
+    resetKey,
+    triggerRef,
+  });
   return (
     <Dialog.Root open={controller.open} onOpenChange={controller.onOpenChange}>
       <Dialog.Trigger asChild>

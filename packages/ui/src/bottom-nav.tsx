@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react';
 import { cn } from './shared/cn.js';
 import { shellNavCountClass, type ShellNavItem } from './shell-nav-item.js';
 
@@ -10,7 +11,8 @@ export type BottomNavLabels = {
 export type BottomNavExtra = {
   id: string;
   label: string;
-  onPress: () => void;
+  /** يستلم الضغطة ليعرف المستدعي الزر الذي فتح الورقة فيعيد إليه التركيز عند الإغلاق. */
+  onPress: (event: MouseEvent<HTMLButtonElement>) => void;
 };
 
 export type BottomNavProps = {
