@@ -399,7 +399,7 @@ no `published_at`, no `attempts`, no mark and no projection change.
    company-wide guarantee stays with the retained-event check, up to the printed `throughId`. The report is **not a point-in-time snapshot**: lines,
    salaries, sales, the retained events and the tips are read in separate transactions, and each page in its own. With a fixed `--through`
    a concurrent write can make it print `COVERED` although no single moment had every section covered; a row written while it runs is
-   delivered by the live consumer. A consistent proof is the subject of the open design decision for the approval gate (53-2).
+   delivered by the live consumer. Approval does not rely on this report at approval time: the approval gate (53-2) reads a stored bootstrap coverage proof, issued only from a full `COVERED` run in the quiet window and invalidated when the coverage conditions change (ADR-0054 addendum 2026-11-22, CS-Q54).
    **A tenant with any retained `PackageSaleChanged` event is now checked like the other counted types (50-4 registered the handler)**:
    since 50-4 the sale type is registered by the consumer, so a retained sale event without its mark is listed under `unmarked` like any other
    counted type, and the report's `sales` section compares every sold package's revision with the projection (`missing`/`stale`). `notHandled` is
