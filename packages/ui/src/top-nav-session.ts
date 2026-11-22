@@ -82,16 +82,19 @@ function useLastFocusInNav(rootRef: RefObject<HTMLDivElement | null>) {
     const onFocusIn = (event: FocusEvent) => {
       lastFocusInNav.current = isInNav(event);
     };
-    // بعد أي pointerup بنسأل سؤال واحد: التركيز لسه جوه التنقل؟ مكان الضغط أو الإفلات مش مهم.
-    const onPointerUp = () => {
+    // بعد pointerup وبعد click بنسأل سؤال واحد: التركيز لسه جوه التنقل؟ مكان الضغط أو الإفلات مش مهم.
+    // click ضروري لأن متصفحات اللمس بتطبّق تغيير التركيز بعد pointerup، وقت أحداث الماوس المتوافقة.
+    const forgetWhenFocusLeft = () => {
       if (!rootRef.current?.contains(document.activeElement)) lastFocusInNav.current = false;
     };
     // capture: محتوى الصفحة ممكن يوقف انتشار الحدث، ولازم نشوفه برضه.
     document.addEventListener('focusin', onFocusIn, true);
-    document.addEventListener('pointerup', onPointerUp, true);
+    document.addEventListener('pointerup', forgetWhenFocusLeft, true);
+    document.addEventListener('click', forgetWhenFocusLeft, true);
     return () => {
       document.removeEventListener('focusin', onFocusIn, true);
-      document.removeEventListener('pointerup', onPointerUp, true);
+      document.removeEventListener('pointerup', forgetWhenFocusLeft, true);
+      document.removeEventListener('click', forgetWhenFocusLeft, true);
     };
   }, [rootRef]);
   return lastFocusInNav;
@@ -139,6 +142,11 @@ function useBreakpointFocus({
     moduleTriggerRef,
     rootRef,
   ]);
+  // ظهور الأزرار عند نقطة التحول بييجي من CSS قبل ما React يعالج التغيير. العلامة دي بتتكتب بعد
+  // effect نقل التركيز في نفس الدورة، فأي فاحص خارجي يقدر يستنى قرار التركيز الفعلي (#1207).
+  useEffect(() => {
+    rootRef.current?.setAttribute('data-settled-layout', layout);
+  }, [layout, rootRef]);
   return target;
 }
 

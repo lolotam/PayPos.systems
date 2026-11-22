@@ -87,3 +87,40 @@ export async function expectVisibleNavRailCurrentMarker(target: Locator): Promis
   const decoration = await target.evaluate((el) => getComputedStyle(el).textDecorationLine);
   expect(decoration, 'current workspace must be visibly marked in the rail').toContain('underline');
 }
+
+// الـ tap بيودّي التركيز للـ body بعد pointerup. نفي "التركيز رجع للتنقل" مش بيتأكد بالانتظار لوحده،
+// فبنعدّ كل focusin على زر الدرج من قبل تصغير الشاشة: أي سحب للتركيز، حتى لو لحظي، بيتسجّل.
+// ظهور الزر بييجي من CSS مش من React، فبنستنى علامة data-settled-layout اللي TopNav بيكتبها بعد قرار التركيز.
+export async function expectTapAwayKeepsFocusOut(page: Page, trigger: Locator): Promise<void> {
+  await trigger.focus();
+  await expect(trigger).toBeFocused();
+  // لازم نثبت إن التركيز لسه على الزر وقت pointerup، وإلا الاختبار ينجح من غير فحص click.
+  await trigger.evaluate((el) => {
+    const snapshot = () => {
+      document.documentElement.dataset['focusAtPointerUp'] = String(document.activeElement === el);
+    };
+    window.addEventListener('pointerup', snapshot, { capture: true, once: true });
+  });
+  await page.locator('main h1').tap();
+  await expect(page.locator('html')).toHaveAttribute('data-focus-at-pointer-up', 'true');
+  await expect(page.locator('body')).toBeFocused();
+  await page.evaluate((openerName) => {
+    const root = document.documentElement;
+    root.dataset['openerFocusCount'] = '0';
+    document.addEventListener(
+      'focusin',
+      (event) => {
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        if (target?.getAttribute('aria-label') !== openerName) return;
+        root.dataset['openerFocusCount'] = String(Number(root.dataset['openerFocusCount']) + 1);
+      },
+      true,
+    );
+  }, LABELS.drawerOpen);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const drawerOpener = page.getByRole('button', { name: LABELS.drawerOpen });
+  await expect(drawerOpener).toBeVisible();
+  await expect(page.locator('[data-settled-layout="phone"]')).toBeAttached();
+  await expect(page.locator('body')).toBeFocused();
+  await expect(page.locator('html')).toHaveAttribute('data-opener-focus-count', '0');
+}

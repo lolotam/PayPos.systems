@@ -4,6 +4,7 @@ import {
   LABELS,
   VIEWPORTS,
   expectAtInlineStart,
+  expectTapAwayKeepsFocusOut,
   expectMinTarget,
   expectNoHorizontalOverflow,
   expectVisibleCurrentMarker,
@@ -430,3 +431,16 @@ for (const dir of DIRECTIONS) {
     await expect(outside).toBeFocused();
   });
 }
+
+test.describe('touch tap away from the navigation', () => {
+  test.use({ hasTouch: true });
+
+  for (const dir of DIRECTIONS) {
+    test(`B touch tap away forgets the focus origin at 699/700 (${dir})`, async ({ page }) => {
+      await page.setViewportSize({ width: 820, height: 900 });
+      await openScene(page, 'top', dir);
+      const trigger = page.getByRole('button', { name: LABELS.business }).first();
+      await expectTapAwayKeepsFocusOut(page, trigger);
+    });
+  }
+});

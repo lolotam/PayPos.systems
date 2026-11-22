@@ -252,3 +252,22 @@ it('still transfers focus at the tablet breakpoint when an outside press left fo
   view.rerender(tree('ltr', { currentGroupId: 'home' }));
   await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: /Home/ })));
 });
+
+it('leaves focus alone at the tablet breakpoint when a touch tap moved focus after pointerup', async () => {
+  let width = 1200;
+  stubMedia(() => ({ width }));
+  const view = render(tree('ltr', { currentGroupId: 'home' }));
+  const toggle = screen.getByRole('button', { name: chromeLabels.collapse });
+  toggle.focus();
+  const content = screen.getByText('page content');
+  // Touch browsers apply the tap's focus change after pointerup, so the toggle is still focused here.
+  fireEvent.pointerUp(content);
+  expect(document.activeElement).toBe(toggle);
+  toggle.blur();
+  fireEvent.click(content);
+
+  width = 800;
+  view.rerender(tree('ltr', { currentGroupId: 'home' }));
+  await waitFor(() => expect(screen.getByRole('link', { name: /Home/ })).toBeTruthy());
+  expect(document.activeElement).toBe(document.body);
+});
