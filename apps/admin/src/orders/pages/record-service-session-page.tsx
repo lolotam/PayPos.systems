@@ -1,6 +1,6 @@
 'use client';
 import { t } from '@pospay/i18n';
-import { Button, PageHeader } from '@pospay/ui';
+import { Button, PageHeader, PageShell } from '@pospay/ui';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { useRecordingContext } from '../api/use-recording-context';
 import { useRevokeOwnRecording } from '../api/use-own-recordings';
@@ -36,17 +36,20 @@ export function RecordServiceSessionPage({ scope }: { scope: SessionServiceScope
     && (context.isError || (sessionResultFrozen(recording.result) && !context.isFetching));
   const expiredConfirm = recording.journal && recording.result.expiredAttempt
     ? bindExpiredConfirm(recording, (proof) => revoke.mutateAsync(proof)) : null;
-  return <section className="grid gap-4 text-start">
+  const top = <>
     <PageHeader title={t(locale, 'serviceSessions.title')} />
     {connectivity === false ? <p role="status">{t(locale, 'serviceSessions.offline')}</p> : null}
     {refusal ? <p role="alert">{envelopeMessage(refusal, locale)}</p> : null}
     {permission.failed && !refusal ? <p role="alert">{envelopeMessage(permission.failed, locale)} <Button type="button" variant="outline"
       disabled={!online} onClick={permission.retry}>{t(locale, 'serviceSessions.retryServices')}</Button></p> : null}
     {contextRetry ? <Button type="button" variant="outline" onClick={() => { void context.refetch(); }}>{t(locale, 'serviceSessions.retryContext')}</Button> : null}
-    {editor ? <RecordServiceSessionForm scope={scope} context={editor} online={online} recording={recording}
-      onRefreshScope={() => { void context.refetch(); }} /> : null}
-    {editor || (forbidden && !expiredConfirm) ? null : <SessionWriteFeedback result={recording.result}
+  </>;
+  if (editor) return <RecordServiceSessionForm scope={scope} context={editor} online={online} recording={recording} top={top}
+    onRefreshScope={() => { void context.refetch(); }} />;
+  return <PageShell layout="form">
+    {top}
+    {forbidden && !expiredConfirm ? null : <SessionWriteFeedback result={recording.result}
       {...(online ? { onReplay: () => { void recording.retry(); } } : {})}
       {...(expiredConfirm ? { scope, onConfirm: expiredConfirm } : {})} />}
-  </section>;
+  </PageShell>;
 }

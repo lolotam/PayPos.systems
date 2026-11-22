@@ -1,5 +1,6 @@
 'use client';
 import { t } from '@pospay/i18n';
+import { PageHeader, PageShell } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { SessionServiceScope } from '../api/use-session-services';
 import { parsePackageRouteId } from '../model/customer-package-view';
@@ -27,8 +28,8 @@ export function CustomerPackagesPage({ scope, customerId, selection }: CustomerP
   const validCustomerId = parsePackageRouteId(customerId);
   const { proof, canShowPackages, listProps } = usePackagePageList(scope, validCustomerId);
   return (
-    <section className="grid gap-4 text-start">
-      <h1 className="text-lg font-semibold">{t(locale, 'customerPackages.title')}</h1>
+    <PageShell layout="list">
+      <PageHeader title={t(locale, 'customerPackages.title')} />
       {validCustomerId === null ? (
         <p role="alert">{t(locale, 'customerPackages.notFound')}</p>
       ) : proof === 'refused' ? (
@@ -49,6 +50,6 @@ export function CustomerPackagesPage({ scope, customerId, selection }: CustomerP
           ) : null}
         </>
       )}
-    </section>
+    </PageShell>
   );
 }
