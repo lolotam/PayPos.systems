@@ -23,6 +23,7 @@ export function PrivateViewGate({
   children: (access: PrivateViewAccess) => ReactNode;
 }) {
   const view = usePrivateView({ mode, cachePrefix, onLeave });
+  if (view.verifying) return null;
   if (!view.open)
     return (
       <PrivateViewPinForm problem={view.problem} pending={view.pending} onSubmit={view.submitPin} />
