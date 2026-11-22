@@ -52,7 +52,10 @@ commit → every service created in one transaction with its audit row, and the 
 - SI-06: commit requires an `Idempotency-Key`; a repeat returns the stored acceptance without a second import.
 - SI-07: permission is `manage:services:business` and the `catalog` feature, checked by the same guard the services
   controller uses; a Device never holds it.
-- SI-08: a workbook over 2 MiB or over 500 data rows is refused before any write.
+- SI-08: a workbook over 2 MiB or over 500 data rows is refused before any write. The one documented exception is the
+  mandatory private-file access audit (CLAUDE.md §8): the bytes have already been read from private storage when the
+  guarded reader refuses them, so the access audit commits in its own transaction while no preview, service or any
+  other state is written; a row-limit refusal therefore persists only that audit entry.
 - SI-09 (SI-Q1, SI-Q2): a row whose `name_en` equals an existing service of the business, or equals
   another row of the same file, is a named row error; nothing is skipped silently and nothing is updated.
 - SI-11: before committing, the manager sees every error-free row as the server resolved it (names, price, the commission rule

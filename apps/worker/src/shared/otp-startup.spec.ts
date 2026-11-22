@@ -76,11 +76,12 @@ vi.mock('bullmq', async (original) => {
     (kind: string) =>
     (target: unknown, args: unknown[]): object => {
       resources.bullmq.constructed.push({ kind, name: String(args[0]) });
-      // طوابير البيع وتثبيت الاستيراد ومسحيهما وقفل التصنيفات تُبنى فعليًا؛ بدل Redis حقيقي مقبض جاهز.
+      // طوابير البيع وتثبيت استيراد الباقات والخدمات ومسحيهما وقفل التصنيفات تُبنى فعليًا؛ بدل Redis حقيقي مقبض جاهز.
       const queueName = String(args[0]);
       if (
         (queueName.startsWith('package-') && queueName !== 'package-import-preview') ||
-        queueName === 'service-category-closing'
+        queueName === 'service-category-closing' ||
+        queueName === 'service-import-commit'
       )
         return { on: vi.fn(), waitUntilReady: async () => undefined, close: async () => undefined };
       if (args[0] === 'package-import-preview')
