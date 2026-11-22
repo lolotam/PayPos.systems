@@ -1,5 +1,13 @@
 // المحرك النقي للعمولات — يشترك فيه الـ API والـ worker بلا نسخ لقواعد الفلوس (ADR-0054).
 export { advanceAmountAccumulator } from './amount-accumulator.ts';
+export { buildCanonicalInput } from './canonical-input.ts';
+export type {
+  CanonicalInputRows,
+  OpenBlockedCorrection,
+  RevisedLine,
+  RevisedSale,
+  RevisedTip,
+} from './canonical-input.ts';
 export { computeCalcNumerator } from './commission-calc.ts';
 export { projectCommissionEstimate } from './estimate-projection.ts';
 export type {
@@ -70,6 +78,7 @@ export type {
   AssembledCommissionPeriod,
   CommissionPeriodProjection,
   CommissionProjectionStatus,
+  IncomingCommissionCarry,
   ProjectedCommissionLine,
   ProjectedCommissionTip,
   ProjectedPackageSale,

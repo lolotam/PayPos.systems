@@ -1,6 +1,7 @@
 import type {
   AssembledCommissionPeriod,
   CommissionPeriodProjection,
+  IncomingCommissionCarry,
   ProjectedCommissionLine,
   ProjectedCommissionTip,
   ProjectedPackageSale,
@@ -22,6 +23,22 @@ function getPeriodLastDay(period: string): string {
   }
   const days = month === 2 && isLeapYear ? 29 : monthDays;
   return `${period}-${String(days).padStart(2, '0')}`;
+}
+
+/**
+ * المصدر بيدخل تسعير الشهر لو ساري وتاريخ عمله جوه الشهر.
+ *
+ * @param source البند أو البيع بحالة إسقاطه وتاريخ عمله
+ * @param source.status حالة الإسقاط
+ * @param source.businessDate تاريخ العمل بصيغة YYYY-MM-DD
+ * @param period الشهر بصيغة YYYY-MM
+ * @returns هل المصدر ساري وفي الشهر
+ */
+function countsInPeriod(
+  source: { readonly status: string; readonly businessDate: string },
+  period: string,
+): boolean {
+  return source.status === 'ACTIVE' && source.businessDate.slice(0, 7) === period;
 }
 
 /**
@@ -48,6 +65,7 @@ function appliesToPeriod(
  * يجمع مدخل computePeriod لموظفة وشهر من إسقاط أوسع دون تسعير أي مصدر.
  * لا يدخل المحرك إلا بنود وبيع ACTIVE للموظفة والشهر، وتمر الإكراميات والتصحيحات بلا تسعير وفق D-1.
  * تحفظ الأنواع العامة حقول المستدعي مثل revision والفرع لأن البصمة وفلتر الفروع يحتاجانها.
+ * المرحّلات (D-22) بتعدّي زي التصحيحات بلا تسعير: اللي هدفها الشهر ده وللموظفة دي.
  *
  * @param projection صفوف الموظفة والفترة مع المرشحين من بقية الموظفين والشهور
  * @returns مدخل المحرك والصفوف المختارة بأنواع المستدعي والإكراميات والتصحيحات بترتيبها
@@ -58,9 +76,10 @@ export function assembleCommissionPeriodInput<
   Sal extends CommissionSalary = CommissionSalary,
   T extends ProjectedCommissionTip = ProjectedCommissionTip,
   C extends ReceivedCommissionCorrection = ReceivedCommissionCorrection,
+  Cr extends IncomingCommissionCarry = IncomingCommissionCarry,
 >(
-  projection: CommissionPeriodProjection<L, S, Sal, T, C>,
-): AssembledCommissionPeriod<L, S, Sal, T, C> {
+  projection: CommissionPeriodProjection<L, S, Sal, T, C, Cr>,
+): AssembledCommissionPeriod<L, S, Sal, T, C, Cr> {
   if (!PERIOD_PATTERN.test(projection.period)) {
     throw new RangeError('Commission period must use YYYY-MM with a valid month');
   }
@@ -71,16 +90,11 @@ export function assembleCommissionPeriodInput<
     projection.salaries,
   );
   const lines = projection.lines.filter(
-    (line) =>
-      line.status === 'ACTIVE' &&
-      line.employeeId === projection.employeeId &&
-      line.businessDate.slice(0, 7) === projection.period,
+    (line) => line.employeeId === projection.employeeId && countsInPeriod(line, projection.period),
   );
   const sales = projection.sales.filter(
     (sale) =>
-      sale.status === 'ACTIVE' &&
-      sale.sellerEmployeeId === projection.employeeId &&
-      sale.businessDate.slice(0, 7) === projection.period,
+      sale.sellerEmployeeId === projection.employeeId && countsInPeriod(sale, projection.period),
   );
   const versions = projection.versions.filter((version) =>
     appliesToPeriod(version, projection.employeeId, periodLastDay, projection.period),
@@ -99,6 +113,10 @@ export function assembleCommissionPeriodInput<
       correction.employeeId === projection.employeeId &&
       correction.targetPeriod === projection.period,
   );
+  const carries = (projection.carries ?? []).filter(
+    (carry) =>
+      carry.employeeId === projection.employeeId && carry.targetPeriod === projection.period,
+  );
   const input: CommissionPeriodInput = {
     employeeId: projection.employeeId,
     period: projection.period,
@@ -109,5 +127,5 @@ export function assembleCommissionPeriodInput<
     overrides,
     salaries: salary === null ? [] : [salary],
   };
-  return { input, lines, sales, salary, tips, corrections };
+  return { input, lines, sales, salary, tips, corrections, carries };
 }
