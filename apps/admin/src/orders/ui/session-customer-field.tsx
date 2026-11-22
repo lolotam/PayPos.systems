@@ -52,6 +52,7 @@ type SessionCustomerSynchronizationOptions = {
   value: SessionCustomerSelection | null;
   onChange: (value: SessionCustomerSelection | null) => void;
   onReset: () => void;
+  onScopeReset: () => void;
   recoveryId: string | null;
 };
 type SessionCustomerResolutionOptions = {
@@ -93,6 +94,7 @@ function useSessionCustomerSynchronization({
   value,
   onChange,
   onReset,
+  onScopeReset,
   recoveryId,
 }: SessionCustomerSynchronizationOptions): PublishSessionCustomer {
   const previousScope = useRef(scope);
@@ -106,7 +108,8 @@ function useSessionCustomerSynchronization({
     resetEntry(customerEntry('', locale));
     resetMutation();
     onReset();
-  }, [scope, locale, onChange, onReset, resetEntry, resetMutation]);
+    onScopeReset();
+  }, [scope, locale, onChange, onReset, onScopeReset, resetEntry, resetMutation]);
   // استعادة زيارة بمعرّف بس لازم تمسح مسودة قديمة كانت هتخفي بطاقة الزبونة المستعادة.
   useLayoutEffect(() => {
     if (previousRecovery.current === recoveryId) return;
@@ -182,10 +185,12 @@ function useSessionCustomerEntry({
   profileCustomerId,
   onGenderNeeded,
   onReset,
+  onScopeReset,
 }: SessionCustomerEntryOptions & {
   profileCustomerId: string | null;
   onGenderNeeded: () => void;
   onReset: () => void;
+  onScopeReset: () => void;
 }) {
   const mutation = useSessionCustomer(companyId, branchId, userId, entryScope, businessId);
   const form = useForm<SessionCustomerFormValues>({
@@ -201,6 +206,7 @@ function useSessionCustomerEntry({
     value,
     onChange,
     onReset,
+    onScopeReset,
     recoveryId: value === null ? profileCustomerId : null,
   });
   const resolve = useSessionCustomerResolution({ form, mutation, locale, publish, onGenderNeeded });
@@ -325,6 +331,8 @@ function useSessionCustomerFieldState(props: SessionCustomerFieldProps) {
   const locale = useLocale();
   const prefix = useId();
   const [genderHint, setGenderHint] = useState(false);
+  const [suppressedRecovery, setSuppressedRecovery] = useState<string | null>(null);
+  const recoveryId = suppressedRecovery === profileCustomerId ? null : profileCustomerId;
   const entry = useSessionCustomerEntry({
     companyId,
     branchId,
@@ -334,17 +342,18 @@ function useSessionCustomerFieldState(props: SessionCustomerFieldProps) {
     value,
     onChange,
     locale,
-    profileCustomerId,
+    profileCustomerId: recoveryId,
     onGenderNeeded: () => setGenderHint(true),
     onReset: () => setGenderHint(false),
+    onScopeReset: () => setSuppressedRecovery(profileCustomerId),
   });
-  return { locale, prefix, genderHint, ...entry };
+  return { locale, prefix, genderHint, recoveryId, ...entry };
 }
 
 export function SessionCustomerField(props: SessionCustomerFieldProps) {
-  const { companyId, branchId, userId, businessId, onBlur, disabled = false, packagesScope = null, profileCustomerId = null, value, entryScope = 'branch' } = props;
+  const { companyId, branchId, userId, businessId, onBlur, disabled = false, packagesScope = null, value, entryScope = 'branch' } = props;
   const online = useBrowserConnectivity() ?? false;
-  const { locale, prefix, genderHint, form, mutation, invalid, nameEntry, callingCode, nationalNumber, resolve, invalidate } =
+  const { locale, prefix, genderHint, recoveryId, form, mutation, invalid, nameEntry, callingCode, nationalNumber, resolve, invalidate } =
     useSessionCustomerFieldState(props);
   return (
     <>
@@ -394,8 +403,8 @@ export function SessionCustomerField(props: SessionCustomerFieldProps) {
           online={online}
         />
       )}
-      {value !== null || profileCustomerId === null || form.formState.isDirty ? null : (
-        <SessionCustomerProfileCard customerId={profileCustomerId} locale={locale} online={online} companyId={companyId} branchId={branchId} businessId={businessId} userId={userId} entryScope={entryScope} />
+      {value !== null || recoveryId === null || form.formState.isDirty ? null : (
+        <SessionCustomerProfileCard customerId={recoveryId} locale={locale} online={online} companyId={companyId} branchId={branchId} businessId={businessId} userId={userId} entryScope={entryScope} />
       )}
     </>
   );
