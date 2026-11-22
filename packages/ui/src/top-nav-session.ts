@@ -50,11 +50,23 @@ function freshSession(visibilityKey: string): Session {
   };
 }
 
+function invalidatedSession(visibilityKey: string, previous: Session): Session {
+  const opener = previous.opener?.isConnected ? previous.opener : undefined;
+  return {
+    ...freshSession(visibilityKey),
+    opener,
+    switchCloseIds: opener ? previous.switchCloseIds : [],
+  };
+}
+
 function useVisibilitySession(visibilityKey: string): [Session, SetSession] {
   const [session, setSession] = useState(() => freshSession(visibilityKey));
-  if (session.visibilityKey !== visibilityKey) setSession(freshSession(visibilityKey));
-  const current = session.visibilityKey === visibilityKey ? session : freshSession(visibilityKey);
-  return [current, setSession];
+  if (session.visibilityKey !== visibilityKey) {
+    const invalidated = invalidatedSession(visibilityKey, session);
+    setSession(invalidated);
+    return [invalidated, setSession];
+  }
+  return [session, setSession];
 }
 
 type BreakpointFocusArgs = FocusTargets & {

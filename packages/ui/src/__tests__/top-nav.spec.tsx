@@ -128,6 +128,22 @@ it('focuses a visible trigger when the switched-to module disappears', async () 
   );
 });
 
+it('restores a connected opener when visibility filtering closes the open module', async () => {
+  stubMedia(() => false);
+  const view = render(tree({ currentModuleId: 'sell' }));
+  const opener = screen.getByRole('button', { name: /Business/ });
+  opener.focus();
+  fireEvent.click(opener);
+  fireEvent.click(
+    within(screen.getByRole('dialog', { name: 'Business' })).getByRole('button', { name: /People/ }),
+  );
+  await waitForOnlyDialog('People');
+
+  view.rerender(tree({ currentModuleId: 'sell', visiblePageIds: ['orders', 'columns'] }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  await waitFor(() => expect(document.activeElement).toBe(opener));
+});
+
 it('renders overview, supplied destinations and a scrollable short-window menu', async () => {
   stubMedia(() => false);
   const onNavigate = vi.fn();
