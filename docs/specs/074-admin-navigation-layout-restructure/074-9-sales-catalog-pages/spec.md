@@ -53,7 +53,7 @@ Estimate: 650 production, 750 tests. Stop and report if code plus tests passes 2
 
 ## Implementation notes
 
-Three steps: the first delivery, correction round 1 (findings P1-1 to P3-9) and correction round 2 (items 1 to 7). The notes show the state after round 2.
+Four steps: the first delivery, correction round 1 (findings P1-1 to P3-9), correction round 2 (items 1 to 7) and correction round 3 (two items). The notes show the state after round 3.
 
 ### What moved, per page
 
@@ -92,6 +92,23 @@ Three steps: the first delivery, correction round 1 (findings P1-1 to P3-9) and 
 | 5 Day list stale footer | Fixed. The page now observes the day query itself (the body shares it, so no extra request) and derives the refusal and the next page in its own render; the refusal is latched in the same render. The load-more callback plumbing was removed. | «never commits a render that shows Load more beside a refused or emptied list»: a `Profiler` checks the DOM after every commit. It failed before the fix (one stale commit). |
 | 6 create action | Fixed. The screen derives the button's presence and its disabled state in the render itself (`useScreenCreateAction`, from the saving state); a view only hands over its handler, in a layout effect, so no button exists without a handler. | «has a working create button on the very first render, before any data arrives», «opens the form of the view now shown when create is clicked after switching views» |
 | 7 remaining pins | Fixed where a structural assertion exists: `rounded-xl` replaced by the DOM relationship of the row, `ms-auto` by "the header contains the action", the imported constant by a literal. Kept: `data-page-shell` (template identity), `.rounded-card` (the frame has no landmark), the stacked-class token (so the tests fail without `stacked`), the span classes (the 12-column spec), `lg:sticky` and the stretch class (CSS-only behaviour). | the specs above |
+
+### Correction round 3
+
+| Item | Result | Proving test |
+|---|---|---|
+| P1 day observer | Fixed. The round-2 page observer is disabled whenever the capability read says access is revoked (`asked && !capabilityRefused`), so a refused screen makes no day request until Retry succeeds, as on `origin/main` where the closed screen unmounts the only observer. | «makes no day request while a refused capability read keeps the screen closed, until Retry succeeds»: the day request count does not grow after a date change and a Late-only toggle, and grows after Retry. It fails without the fix (3 requests instead of 1). The Profiler test «never commits a render that shows Load more…» stays green. |
+| P2 first commit | Fixed. The test captures the create button's presence in the first commit through a `Profiler`, then clicks it. | «has the create button in the very first commit, and it works» |
+
+**What was re-checked for the day observer against `origin/main`** (where the only observer is the body, mounted only while the screen is not closed and read only while online):
+- Capability refused (401, 403, FEATURE_DISABLED): the observer is off, same as main. This was the one real gap.
+- A child (history, tips, cancel, performers) reports access denied: `denied` is set, so `asked` is false and both observers are off, same as main; Retry clears `denied` and the read resumes with the capability refetch.
+- The day read itself refused: the refusal is latched in the render, the queries are cleared, the observer is off; nothing refetches until Retry.
+- Capability failing with a non-access error (500): not closed, the day read goes on, same as main.
+- Offline: both observers disabled, same as main.
+- First mount: the page and the body share one query key, so there is one day request, not two.
+- Invalidation and reconnect refetches skip disabled observers, so a closed screen is not refetched by them.
+- Not exercised by a test: the 401 and FEATURE_DISABLED variants of the capability refusal (the guard is the same expression as for 403), and a window-focus refetch.
 
 **Weakened-assertion audit** (every spec touched in round 1, diffed against `530cbe053`). Found and restored: the Categories business and branch "inside the card" assertions, the "no nested shell" check, and the branch heading-inside-shell check. Removed on purpose, as the owning session asked: width and `mx-auto` class pins (P3-9), and the «Edit» cell label (P3-8). Equivalent rewrites: the Package types «Edit» button check (now inside the sixth cell), the Record a visit heading-in-shell check and the limit-text check (now on the summary card). Stronger than before: the stacked-row tests (every cell, not only the ones after the first), plus the table-wrapper stacked token.
 
@@ -136,4 +153,4 @@ Widths, the 12-column spans, the sticky behaviour of the summary (the stretch ov
 
 ### Sizes (against `origin/main`)
 
-Production +982 / −571, tests +961 / −4, i18n +4, docs excluded. 2,522 lines added plus removed outside docs after round 2 (1,621 after the first delivery, 2,403 after round 1), below the 2,800 stop line.
+Production +984 / −571, tests +996 / −4, i18n +4, docs excluded. 2,559 lines added plus removed outside docs after round 3 (1,621 after the first delivery, 2,403 after round 1, 2,522 after round 2), below the 2,800 stop line.
