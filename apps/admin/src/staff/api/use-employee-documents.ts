@@ -351,6 +351,8 @@ function useDocumentsView(
     queryKey: ['employee-documents', companyId, businessId, userId, employeeId],
     staleTime: 0,
     refetchOnMount: 'always',
+    // الحفظ ينتظر رد تحقق حقيقي، بدل انتهاء الوعد بينما القراءة متوقفة بسبب حالة الاتصال.
+    networkMode: 'always',
     retry: false,
     queryFn: async ({ signal }) => {
       const result = await apiClient().GET(

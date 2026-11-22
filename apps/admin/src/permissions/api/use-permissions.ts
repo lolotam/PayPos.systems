@@ -129,6 +129,8 @@ export function usePermissions(
     queryFn: ({ signal }) =>
       fetchPermissions(companyId, membershipId, cursor, signal, historyCursor, businessId),
     enabled: membershipId !== '',
+    // بعد الحفظ أو السحب، القرار يحتاج رد القراءة حتى لو المتصفح أعلن انقطاع الاتصال.
+    networkMode: 'always',
     refetchInterval: 30_000,
   });
   const save = useMutation({
