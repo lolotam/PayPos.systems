@@ -150,3 +150,57 @@ it('keeps focus inside the tablet dialog when visiblePageIds removes the focused
   expect(dialog.contains(document.activeElement)).toBe(true);
   expect(document.activeElement).toBe(screen.getByRole('button', { name: contextLabels.close }));
 });
+
+it('contains focus on an outside no-op click while preserving NavRail workspace switching at 820px', () => {
+  stubViewportWidth(820);
+  function Harness() {
+    const openerRef = useRef<HTMLButtonElement>(null);
+    const [inspectedWorkspaceId, setInspectedWorkspaceId] = useState<string>('business');
+    const [open, setOpen] = useState(true);
+    return (
+      <DirectionProvider dir="ltr">
+        <button type="button" onClick={() => setOpen(true)}>
+          Reopen panel
+        </button>
+        <NavRail
+          workspaces={workspaces}
+          labels={chromeLabels}
+          currentWorkspaceId="business"
+          inspectedWorkspaceId={inspectedWorkspaceId}
+          panelOpen={open}
+          onInspect={(workspaceId, opener) => {
+            openerRef.current = opener;
+            setInspectedWorkspaceId(workspaceId);
+            setOpen(true);
+          }}
+        />
+        <ContextPanel
+          workspaces={workspaces}
+          labels={contextLabels}
+          currentWorkspaceId="business"
+          inspectedWorkspaceId={inspectedWorkspaceId}
+          panelOpen={open}
+          openerRef={openerRef}
+          onClose={() => setOpen(false)}
+        />
+      </DirectionProvider>
+    );
+  }
+
+  render(<Harness />);
+  const dialog = screen.getByRole('dialog', { name: contextLabels.navigation });
+  const closeButton = screen.getByRole('button', { name: contextLabels.close });
+
+  const reopenButton = screen.getByRole('button', { name: 'Reopen panel' });
+  reopenButton.focus();
+  fireEvent.click(reopenButton);
+  expect(dialog.contains(document.activeElement)).toBe(true);
+  expect(document.activeElement).toBe(closeButton);
+
+  const teamRailButton = screen.getByRole('button', { name: 'Team Inspect' });
+  teamRailButton.focus();
+  fireEvent.click(teamRailButton);
+  expect(screen.getByRole('heading', { name: 'Team' })).toBeTruthy();
+  expect(dialog.contains(document.activeElement)).toBe(true);
+  expect(document.activeElement).toBe(closeButton);
+});

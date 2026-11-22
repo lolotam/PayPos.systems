@@ -85,21 +85,36 @@ function useFloatingPanelOverlay(
   active: boolean,
   onClose: () => void,
 ) {
-  useEffect(() => {
-    if (!active) return;
+  const containFocus = useCallback(() => {
     const panel = panelRef.current;
     const activeEl = document.activeElement;
     if (panel && !panel.contains(activeEl) && !isInsideAnotherDialog(panel, activeEl)) {
       getPanelFocusableElements(panel)[0]?.focus();
     }
+  }, [panelRef]);
+
+  useEffect(() => {
+    if (active) containFocus();
   });
+
   useEffect(() => {
     if (!active) return;
     const onKeyDown = (event: KeyboardEvent) =>
       handleOverlayKeyDown(event, panelRef.current, onClose);
+    const onFocusIn = (event: FocusEvent) => {
+      const panel = panelRef.current;
+      const target = event.target instanceof Element ? event.target : document.activeElement;
+      if (panel && !panel.contains(target) && !isInsideAnotherDialog(panel, target)) {
+        containFocus();
+      }
+    };
     document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [active, onClose, panelRef]);
+    document.addEventListener('focusin', onFocusIn);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('focusin', onFocusIn);
+    };
+  }, [active, containFocus, onClose, panelRef]);
 }
 
 const PENDING_FOCUS_ATTRIBUTES = [
