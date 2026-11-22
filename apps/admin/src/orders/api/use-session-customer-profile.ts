@@ -74,6 +74,8 @@ export function useSessionCustomerProfile(entry: SessionCustomerProfileEntry, ca
     networkMode: 'always',
     queryFn: async ({ signal }) => {
       if (customerId === null) throw new Error('CUSTOMER_SELECTION_MISSING');
+      // فحص حي قبل النقل: مفيش GET حتى لو حالة المتصفح اتغيرت قبل تحديث الرندر.
+      if (typeof navigator !== 'undefined' && !navigator.onLine) throw { code: 'OFFLINE', status: 0 };
       return fetchProfile(entry, customerId, signal);
     },
   });

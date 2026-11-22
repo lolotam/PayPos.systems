@@ -2,18 +2,20 @@
 import type { CustomerProfile } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 import { Button } from '@pospay/ui';
-import { useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 
 import {
   useSessionCustomerProfile,
   type SessionCustomerProfileEntry,
 } from '../api/use-session-customer-profile';
+import { serviceSessionAccessRevoked } from '../model/service-session-access';
 import { ProfileField } from './profile-field';
 
 type SessionCustomerProfileCardProps = SessionCustomerProfileEntry & {
   locale: Locale;
   /** null = hydration لم تكتمل؛ لا قراءة ولا حجب دائم في هذه الحالة. */
   online?: boolean | null;
+  onAccessDenied?: (() => void) | undefined;
 };
 
 function birthdayText(birthday: CustomerProfile['birthday']): string | null {
@@ -44,10 +46,13 @@ function useProfileReadGate(online: boolean | null, customerId: string | null) {
   return { canRead: online === true && !blocked, blocked, unblock: () => setBlocked(false) };
 }
 
-export function SessionCustomerProfileCard({ locale, online = true, ...entry }: SessionCustomerProfileCardProps) {
+export function SessionCustomerProfileCard({ locale, online = true, onAccessDenied, ...entry }: SessionCustomerProfileCardProps) {
   const { canRead, blocked, unblock } = useProfileReadGate(online, entry.customerId);
   const query = useSessionCustomerProfile(entry, canRead);
+  // رفض صريح للوصول لازم يلغي اختيار البيع فوراً ويعيد فحص السياق؛ الفشل العادي يفضل زي ما هو.
+  useLayoutEffect(() => { if (serviceSessionAccessRevoked(query.error)) onAccessDenied?.(); }, [query.error, onAccessDenied]);
   const retry = () => {
+    if (online !== true || !navigator.onLine) return;
     if (blocked) unblock();
     else void query.refetch();
   };
@@ -74,7 +79,6 @@ export function SessionCustomerProfileCard({ locale, online = true, ...entry }: 
         )}
       </div>
     );
-  const birthday = birthdayText(profile.birthday);
   const empty = t(locale, 'serviceSessions.profileEmpty');
   const gender =
     profile.gender === null
@@ -85,7 +89,7 @@ export function SessionCustomerProfileCard({ locale, online = true, ...entry }: 
       <ProfileField label={t(locale, 'serviceSessions.name')} value={profile.name} empty={empty} />
       <ProfileField label={t(locale, 'serviceSessions.phone')} value={profile.phone} empty={empty} ltr />
       <ProfileField label={t(locale, 'serviceSessions.gender')} value={gender} empty={empty} />
-      <ProfileField label={t(locale, 'serviceSessions.birthday')} value={birthday} empty={empty} />
+      <ProfileField label={t(locale, 'serviceSessions.birthday')} value={birthdayText(profile.birthday)} empty={empty} />
       <ProfileField label={t(locale, 'serviceSessions.email')} value={profile.email} empty={empty} />
       {profile.notes.length === 0 ? (
         <p>{t(locale, 'serviceSessions.profileNoNotes')}</p>

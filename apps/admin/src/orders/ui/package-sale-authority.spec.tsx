@@ -37,7 +37,7 @@ const profileResponse = {
   response: { status: 200 },
 };
 
-function serveProfile(reply: (signal: AbortSignal) => typeof profileResponse | Promise<typeof profileResponse>) {
+function serveProfile(reply: (signal: AbortSignal) => unknown | Promise<unknown>) {
   const read = state.get.getMockImplementation();
   if (!read) throw new Error('Missing package sale network fixture');
   state.get.mockImplementation((path: string, init: { signal: AbortSignal }) => {
@@ -88,6 +88,28 @@ it.each(['unavailable scope', 'HTTP refusal'] as const)(
     expect(screen.queryByText('private@example.test')).toBeNull();
   },
 );
+
+it('does not use the old customer when switching between two authorized scopes', async () => {
+  serveProfile(() => profileResponse);
+  const view = renderForm();
+  await chooseCustomer(state);
+  const before = state.get.mock.calls.filter(([path]) => String(path).endsWith('/profile')).length;
+  state.entryScope = 'BUSINESS';
+  await refreshContext(view);
+  await waitFor(() => expect(screen.queryAllByText(packageSaleCustomer.name)).toHaveLength(0));
+  expect(screen.queryByRole('region', { name: profileName })).toBeNull();
+  expect(state.get.mock.calls.filter(([path]) => String(path).endsWith('/profile')).length).toBe(before);
+});
+
+it('drops the active selection and rechecks context on an explicit profile denial', async () => {
+  serveProfile(() => ({ error: { code: 'FORBIDDEN' }, response: { status: 403 } }));
+  renderForm();
+  await chooseCustomer(state);
+  const contextsBefore = state.get.mock.calls.filter(([path]) => String(path).endsWith('/package-sales/context')).length;
+  await waitFor(() => expect(screen.queryAllByText(packageSaleCustomer.name)).toHaveLength(0));
+  expect(screen.queryByRole('region', { name: profileName })).toBeNull();
+  await waitFor(() => expect(state.get.mock.calls.filter(([path]) => String(path).endsWith('/package-sales/context')).length).toBeGreaterThan(contextsBefore));
+});
 
 it('cancels a held scoped profile read when authority is revoked', async () => {
   let finish!: (value: typeof profileResponse) => void;

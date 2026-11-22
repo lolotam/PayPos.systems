@@ -14,25 +14,21 @@ export function ContactFields({
   emailInvalid,
   noteInvalid,
   scoped,
-  setEmailValue,
+  onRejectedPaste,
 }: FieldProps & {
   email: Registration;
   note: Registration;
   emailInvalid: boolean;
   noteInvalid: boolean;
   scoped: boolean;
-  setEmailValue: (value: string) => void;
+  onRejectedPaste: () => void;
 }) {
-  // المتصفح يقص CR/LF من لصق البريد؛ نوقف اللصق ونحط القيمة الخام كاملة في النموذج،
-  // والعقد هو اللي يقرر صحتها — مفيش نسخة تانية من قواعد البريد هنا.
+  // المتصفح يقص CR/LF من لصق البريد؛ نرفض اللصق ونمسك الرفض عند بوابة الإرسال،
+  // عشان الـ blur ما يرجّعش قيمة صالحة بعد ما المتصفح عدّل الخام.
   const onEmailPaste = (event: ClipboardEvent<HTMLInputElement>) => {
-    const raw = event.clipboardData.getData('text');
-    if (!/[\r\n]/.test(raw)) return;
+    if (!/[\r\n]/.test(event.clipboardData.getData('text'))) return;
     event.preventDefault();
-    const input = event.currentTarget;
-    const start = input.selectionStart ?? input.value.length;
-    const end = input.selectionEnd ?? start;
-    setEmailValue(input.value.slice(0, start) + raw + input.value.slice(end));
+    onRejectedPaste();
   };
   return (
     <>

@@ -113,6 +113,9 @@ type CustomerProfileInputsProps = {
   entryScope: SessionCustomerEntryScope;
   describedBy: string | undefined;
   invalidate: () => void;
+  emailRejected: boolean;
+  onEmailRejected: () => void;
+  onEmailEdit: () => void;
 };
 
 export function CustomerProfileInputs({
@@ -122,6 +125,9 @@ export function CustomerProfileInputs({
   entryScope,
   describedBy,
   invalidate,
+  emailRejected,
+  onEmailRejected,
+  onEmailEdit,
 }: CustomerProfileInputsProps) {
   const generated = useId();
   const id = `${prefix}-${generated}`;
@@ -146,15 +152,12 @@ export function CustomerProfileInputs({
         id={id}
         locale={locale}
         describedBy={describedBy}
-        email={changed(form.register('email'), invalidate)}
+        email={changed(form.register('email'), () => { invalidate(); onEmailEdit(); })}
         note={changed(form.register('note'), invalidate)}
-        emailInvalid={!!form.formState.errors.email}
+        emailInvalid={emailRejected || !!form.formState.errors.email}
         noteInvalid={!!form.formState.errors.note}
         scoped={entryScope !== 'company'}
-        setEmailValue={(value) => {
-          form.setValue('email', value, { shouldValidate: true, shouldDirty: true });
-          invalidate();
-        }}
+        onRejectedPaste={onEmailRejected}
       />
     </>
   );

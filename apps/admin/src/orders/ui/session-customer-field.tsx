@@ -34,6 +34,7 @@ type SessionCustomerFieldProps = {
   packagesScope?: PackagesLinkScope | null;
   /** معرّف زبونة مستعاد من زيارة محفوظة؛ البطاقة تُقرأ به حتى لو ملخص الزبونة مش موجود. */
   profileCustomerId?: string | null;
+  onAccessDenied?: () => void;
 };
 type SessionCustomerLocale = SessionCustomerFormValues['locale'];
 type SessionCustomerForm = UseFormReturn<SessionCustomerFormValues>;
@@ -50,7 +51,7 @@ type SessionCustomerSynchronizationOptions = {
   locale: SessionCustomerLocale;
   value: SessionCustomerSelection | null;
   onChange: (value: SessionCustomerSelection | null) => void;
-  onReset: () => void;
+  onFullReset: () => void;
   onScopeReset: () => void;
   recoveryId: string | null;
 };
@@ -60,6 +61,7 @@ type SessionCustomerResolutionOptions = {
   locale: SessionCustomerLocale;
   publish: PublishSessionCustomer;
   onGenderNeeded: () => void;
+  emailRejected: boolean;
 };
 type SessionCustomerContactOptions = {
   prefix: string;
@@ -92,7 +94,7 @@ function useSessionCustomerSynchronization({
   locale,
   value,
   onChange,
-  onReset,
+  onFullReset,
   onScopeReset,
   recoveryId,
 }: SessionCustomerSynchronizationOptions): PublishSessionCustomer {
@@ -106,15 +108,19 @@ function useSessionCustomerSynchronization({
     onChange(null);
     resetEntry(customerEntry('', locale));
     resetMutation();
-    onReset();
+    onFullReset();
     onScopeReset();
-  }, [scope, locale, onChange, onReset, onScopeReset, resetEntry, resetMutation]);
+  }, [scope, locale, onChange, onFullReset, onScopeReset, resetEntry, resetMutation]);
   // استعادة زيارة بمعرّف بس لازم تمسح مسودة قديمة كانت هتخفي بطاقة الزبونة المستعادة.
   useLayoutEffect(() => {
     if (previousRecovery.current === recoveryId) return;
     previousRecovery.current = recoveryId;
-    if (recoveryId !== null) { resetEntry(customerEntry('', locale)); resetMutation(); onReset(); }
-  }, [recoveryId, locale, onReset, resetEntry, resetMutation]);
+    if (recoveryId !== null) {
+      resetEntry(customerEntry('', locale));
+      resetMutation();
+      onFullReset();
+    }
+  }, [recoveryId, locale, onFullReset, resetEntry, resetMutation]);
   const observed = useRef(value),
     emitted = useRef<SessionCustomerSelection | null | undefined>(undefined);
   useLayoutEffect(() => {
@@ -123,9 +129,10 @@ function useSessionCustomerSynchronization({
     if (emitted.current !== value) {
       resetEntry(customerEntry(value?.name ?? '', locale));
       resetMutation();
+      onFullReset();
     }
     emitted.current = undefined;
-  }, [value, locale, resetEntry, resetMutation]);
+  }, [value, locale, onFullReset, resetEntry, resetMutation]);
   return (next) => {
     emitted.current = next;
     onChange(next);
@@ -138,11 +145,14 @@ function useSessionCustomerResolution({
   locale,
   publish,
   onGenderNeeded,
+  emailRejected,
 }: SessionCustomerResolutionOptions) {
   return () => {
     const captured = mutation.captureScope();
     void form.handleSubmit(
       async (input) => {
+        // رفض اللصق الخام يفضل ملزم لحد تعديل حقيقي للبريد، حتى لو الـ blur رجّع قيمة صالحة.
+        if (emailRejected) return;
         if (!mutation.isCurrentScope(captured)) return;
         try {
           const saved = await mutation.mutateAsync({ ...input, locale });
@@ -184,14 +194,18 @@ function useSessionCustomerEntry({
   profileCustomerId,
   online,
   onGenderNeeded,
-  onReset,
+  onFieldEdit,
+  onFullReset,
   onScopeReset,
+  emailRejected,
 }: SessionCustomerEntryOptions & {
   profileCustomerId: string | null;
   online: boolean | null;
   onGenderNeeded: () => void;
-  onReset: () => void;
+  onFieldEdit: () => void;
+  onFullReset: () => void;
   onScopeReset: () => void;
+  emailRejected: boolean;
 }) {
   const mutation = useSessionCustomer(companyId, branchId, userId, entryScope, businessId, online);
   const form = useForm<SessionCustomerFormValues>({
@@ -199,22 +213,12 @@ function useSessionCustomerEntry({
     defaultValues: customerEntry(value?.name ?? '', locale),
   });
   const scope = JSON.stringify([companyId, branchId, userId, businessId, entryScope]);
-  const publish = useSessionCustomerSynchronization({
-    form,
-    mutation,
-    scope,
-    locale,
-    value,
-    onChange,
-    onReset,
-    onScopeReset,
-    recoveryId: value === null ? profileCustomerId : null,
-  });
-  const resolve = useSessionCustomerResolution({ form, mutation, locale, publish, onGenderNeeded });
+  const publish = useSessionCustomerSynchronization({ form, mutation, scope, locale, value, onChange, onFullReset, onScopeReset, recoveryId: value === null ? profileCustomerId : null });
+  const resolve = useSessionCustomerResolution({ form, mutation, locale, publish, onGenderNeeded, emailRejected });
   const invalidate = () => {
     publish(null);
     mutation.reset();
-    onReset();
+    onFieldEdit();
   };
   const invalid = Object.keys(form.formState.errors).length > 0;
   const nameEntry = form.register('name'),
@@ -268,6 +272,7 @@ function useSessionCustomerFieldState(props: SessionCustomerFieldProps) {
   const prefix = useId();
   const browserOnline = useBrowserConnectivity();
   const [genderHint, setGenderHint] = useState(false);
+  const [emailRejected, setEmailRejected] = useState(false);
   const [suppressedRecovery, setSuppressedRecovery] = useState<string | null>(null);
   const [previousRecoveryProp, setPreviousRecoveryProp] = useState(profileCustomerId);
   if (previousRecoveryProp !== profileCustomerId) {
@@ -287,24 +292,26 @@ function useSessionCustomerFieldState(props: SessionCustomerFieldProps) {
     profileCustomerId: recoveryId,
     online: browserOnline,
     onGenderNeeded: () => setGenderHint(true),
-    onReset: () => setGenderHint(false),
+    onFieldEdit: () => setGenderHint(false),
+    onFullReset: () => { setGenderHint(false); setEmailRejected(false); },
     onScopeReset: () => setSuppressedRecovery(profileCustomerId),
+    emailRejected,
   });
-  return { locale, prefix, genderHint, recoveryId, online: browserOnline, ...entry };
+  return { locale, prefix, genderHint, recoveryId, online: browserOnline, emailRejected, setEmailRejected, ...entry };
 }
 
 export function SessionCustomerField(props: SessionCustomerFieldProps) {
-  const { companyId, branchId, userId, businessId, onBlur, disabled = false, packagesScope = null, value, entryScope = 'branch' } = props;
-  const { locale, prefix, genderHint, recoveryId, online, form, mutation, nameEntry, callingCode, nationalNumber, resolve, invalidate } =
+  const { companyId, branchId, userId, businessId, onBlur, disabled = false, packagesScope = null, value, entryScope = 'branch', onAccessDenied } = props;
+  const { locale, prefix, genderHint, recoveryId, online, emailRejected, setEmailRejected, form, mutation, nameEntry, callingCode, nationalNumber, resolve, invalidate } =
     useSessionCustomerFieldState(props);
-  const profileInvalid = !!form.formState.errors.gender || !!form.formState.errors.birthday || !!form.formState.errors.email || !!form.formState.errors.note;
+  const profileInvalid = emailRejected || !!form.formState.errors.gender || !!form.formState.errors.birthday || !!form.formState.errors.email || !!form.formState.errors.note;
   const contactInvalid = !!form.formState.errors.name || !!form.formState.errors.phone || !!form.formState.errors.locale;
   return (
     <>
       <fieldset disabled={disabled || mutation.isPending || form.formState.isSubmitting} onBlur={onBlur} className="flex flex-col gap-3 text-start">
       <legend>{t(locale, 'serviceSessions.customer')}</legend>
       {sessionCustomerContact({ prefix, locale, form, invalid: contactInvalid, nameEntry, callingCode, nationalNumber, invalidate })}
-      <CustomerProfileInputs prefix={prefix} locale={locale} form={form} entryScope={entryScope} describedBy={profileInvalid ? `${prefix}-profile-error` : undefined} invalidate={invalidate} />
+      <CustomerProfileInputs prefix={prefix} locale={locale} form={form} entryScope={entryScope} describedBy={profileInvalid ? `${prefix}-profile-error` : undefined} emailRejected={emailRejected} invalidate={invalidate} onEmailRejected={() => setEmailRejected(true)} onEmailEdit={() => setEmailRejected(false)} />
       <Button type="button" disabled={!!value || online !== true} onClick={() => { if (online === true) void resolve(); }}>
         {t(locale, 'serviceSessions.findOrCreate')}
       </Button>
@@ -325,10 +332,11 @@ export function SessionCustomerField(props: SessionCustomerFieldProps) {
           packages={packagesScope}
           profile={{ companyId, branchId, businessId, userId, entryScope }}
           online={online}
+          onAccessDenied={onAccessDenied}
         />
       )}
       {value !== null || recoveryId === null || form.formState.isDirty ? null : (
-        <SessionCustomerProfileCard customerId={recoveryId} locale={locale} online={online} companyId={companyId} branchId={branchId} businessId={businessId} userId={userId} entryScope={entryScope} />
+        <SessionCustomerProfileCard customerId={recoveryId} locale={locale} online={online} companyId={companyId} branchId={branchId} businessId={businessId} userId={userId} entryScope={entryScope} onAccessDenied={onAccessDenied} />
       )}
     </>
   );

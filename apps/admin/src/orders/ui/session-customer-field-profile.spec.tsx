@@ -183,22 +183,26 @@ it('sends no POST from an offline press or reconnect until a fresh press', async
   await waitFor(() => expect(state.post).toHaveBeenCalledTimes(1));
 });
 
-it('keeps a partial paste and validates the full raw value when CR/LF would be stripped', async () => {
+it('keeps a rejected CR/LF paste authoritative through focus, blur and submit until a real email edit', async () => {
   state.post.mockClear();
   state.locale = 'en';
   state.post.mockResolvedValue({ data: saved });
   scopedMount();
   fill();
   const email = screen.getByLabelText(t('en', 'serviceSessions.email'));
-  fireEvent.change(email, { target: { value: 'a' } });
-  // لصق جزئي من غير CR/LF ما يتقاطعش مع المتصفح.
-  expect(fireEvent.paste(email, { clipboardData: { getData: () => '@b.test' } })).toBe(true);
-  // CR/LF يوصل للعقد بدل ما المتصفح يقصّه، فيظهر خطأ البريد ويمنع الإرسال.
-  expect(fireEvent.paste(email, { clipboardData: { getData: () => 'c\r\nd' } })).toBe(false);
-  await waitFor(() => expect(screen.getByText(t('en', 'serviceSessions.invalidProfileFields'))).toBeTruthy());
+  fireEvent.change(email, { target: { value: 'valid@example.test' } });
+  expect(fireEvent.paste(email, { clipboardData: { getData: () => '@part' } })).toBe(true);
+  fireEvent.focus(email);
+  expect(fireEvent.paste(email, { clipboardData: { getData: () => '\r\n' } })).toBe(false);
+  fireEvent.blur(email);
   fireEvent.click(screen.getByRole('radio', { name: t('en', 'serviceSessions.genderFemale') }));
   resolve();
-  expect(state.post).not.toHaveBeenCalled();
+  await waitFor(() => expect(state.post).not.toHaveBeenCalled());
+  expect(screen.getByText(t('en', 'serviceSessions.invalidProfileFields'))).toBeTruthy();
+  fireEvent.change(email, { target: { value: 'valid2@example.test' } });
+  await waitFor(() => expect(screen.queryByText(t('en', 'serviceSessions.invalidProfileFields'))).toBeNull());
+  resolve();
+  await waitFor(() => expect(state.post).toHaveBeenCalledTimes(1));
 });
 
 it('refuses raw control characters in email without writing', async () => {

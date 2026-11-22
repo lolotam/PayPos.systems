@@ -133,6 +133,23 @@ it('keeps blank and supplied-year controls out of the body and allows a genderle
   expect(body).not.toHaveProperty('note');
 });
 
+it('discards a scheduled POST across reset and still accepts the new submission', async () => {
+  post.mockClear();
+  post.mockResolvedValueOnce({ data: saved });
+  const hook = renderHook(() => useSessionCustomer('company', 'branch', 'actor'), { wrapper });
+
+  await act(async () => {
+    const stale = hook.result.current.mutateAsync(input);
+    const rejected = expect(stale).rejects.toMatchObject({ code: 'STALE_SCOPE' });
+    hook.result.current.reset();
+    const current = hook.result.current.mutateAsync({ ...input, name: 'Current synthetic customer' });
+    await rejected;
+    await expect(current).resolves.toEqual(saved);
+  });
+  expect(post).toHaveBeenCalledTimes(1);
+  expect(post.mock.lastCall?.[1].body.name).toBe('Current synthetic customer');
+});
+
 it('aborts an in-flight request when the entry is reset', async () => {
   post.mockClear();
   let captured: AbortSignal | undefined;

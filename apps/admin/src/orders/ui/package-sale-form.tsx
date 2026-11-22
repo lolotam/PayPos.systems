@@ -9,14 +9,13 @@ import {
 import { moneyToString, parseMoney } from '@pospay/domain';
 import { normalizeKwdInput, t } from '@pospay/i18n';
 import { Button, Label, NativeSelect } from '@pospay/ui';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import { usePackageSaleContext } from '../api/use-package-sale-context';
 import { usePackageSaleStatus } from '../api/use-package-sale-status';
 import { useSellPackage } from '../api/use-sell-package';
 import type { SessionServiceScope } from '../api/use-session-services';
-import type { SessionCustomerEntryScope } from '../api/use-session-customer';
 import { serviceSessionAccessRevoked } from '../model/service-session-access';
 import { SessionCustomerField, type SessionCustomerSelection } from './session-customer-field';
 import { PackageSaleFields, type PackageSaleFieldValues } from './package-sale-fields';
@@ -113,21 +112,14 @@ const saleDefaults: PackageSaleFieldValues = {
   seller_employee_id: '',
 };
 
-function useClearSaleOnLostScope(entryScope: SessionCustomerEntryScope | null | undefined, hasSelection: boolean, clear: () => void) {
-  const [previous, setPrevious] = useState(entryScope);
-  if (previous !== entryScope) {
-    setPrevious(entryScope);
-    // حتى وقت الاسترجاع، فقدان الصلاحية يمسح اختيار العميل المؤقت؛ حمولة الاسترجاع نفسها ما تتلمسش.
-    if (entryScope == null && hasSelection) clear();
-  }
-}
-
 function usePackageSaleFormState(scope: SessionServiceScope, locale: 'ar' | 'en') {
-  const [customer, setCustomer] = useState<SessionCustomerSelection | null>(null);
+  const [selection, setSelection] = useState<{
+    customer: SessionCustomerSelection;
+    scopeKey: string;
+  } | null>(null);
   const [type, setType] = useState<SellablePackageType | null>(null);
   const [saleRequestId, setSaleRequestId] = useState<string | null>(null);
-  const context = usePackageSaleContext(scope);
-  const recorders = context.data?.recorders ?? [];
+  const { data: context, error: contextError, isPending: contextPending, refetch: refreshContext } = usePackageSaleContext(scope);
   const form = useForm<PackageSaleFieldValues>({ defaultValues: saleDefaults });
   const mutation = useSellPackage(scope);
   const knownSaleId = saleRequestId ?? mutation.restoredSaleId;
@@ -136,15 +128,21 @@ function usePackageSaleFormState(scope: SessionServiceScope, locale: 'ar' | 'en'
   const status = { ...statusQuery, data: statusQuery.data ?? failure };
   const pending = mutation.isPending || (knownSaleId !== null && status.data?.status !== 'completed' && status.data?.status !== 'failed');
   const locked = pending || mutation.recoveryRequired || mutation.restoring;
-  const { recorder, recorderField } = usePackageSaleRecorderField(recorders, locale, locked);
+  const { recorder, recorderField } = usePackageSaleRecorderField(context?.recorders ?? [], locale, locked);
   const submitSale = packageSaleSubmission(form, locale, mutation, setSaleRequestId);
-  const entryScope = serviceSessionAccessRevoked(context.error) ? null : context.data?.customer_entry_scope;
-  // السياق لو رجع فاضي بعد تحديث الصلاحية، أي اختيار قديم لازم يختفي فوراً من غير مسار بديل.
-  useClearSaleOnLostScope(entryScope, customer !== null, () => setCustomer(null));
-  const selectType = (selected: SellablePackageType) => {
-    setType(selected);
-    form.setValue('price_paid', selected.price, { shouldDirty: true });
+  const entryScope = serviceSessionAccessRevoked(contextError) ? null : context?.customer_entry_scope;
+  const scopeKey = [scope.companyId, scope.userId, scope.businessId, scope.branchId, entryScope ?? ''].join('|');
+  // اختيار قديم من نطاق تاني ما يتعرضش ولا يبدأ قراءة تحت النطاق الجديد.
+  const customer = selection?.scopeKey === scopeKey ? selection.customer : null;
+  if (selection !== null && customer === null) setSelection(null);
+  const selectCustomer = (next: SessionCustomerSelection | null) => {
+    setSelection(next === null ? null : { customer: next, scopeKey });
   };
+  const onProfileAccessDenied = useCallback(() => {
+    setSelection(null);
+    void refreshContext();
+  }, [refreshContext]);
+  const selectType = (selected: SellablePackageType) => { setType(selected); form.setValue('price_paid', selected.price, { shouldDirty: true }); };
   const picker = usePackageSaleTypeOptions(scope, type, selectType, locked);
   // استرجاع البيع الأصلي بيبعت الطلب المحفوظ، فالعرض المحدّث ما بيمنعهوش
   const quoteStale = picker.quoteChanged && !mutation.recoveryRequired;
@@ -159,7 +157,7 @@ function usePackageSaleFormState(scope: SessionServiceScope, locale: 'ar' | 'en'
   });
   return {
     entryScope,
-    contextPending: context.isPending,
+    contextPending,
     customer,
     recorderField,
     saleRequestId: knownSaleId,
@@ -171,8 +169,9 @@ function usePackageSaleFormState(scope: SessionServiceScope, locale: 'ar' | 'en'
     picker,
     quoteStale,
     onSubmit,
-    setCustomer,
+    selectCustomer,
     setType,
+    onProfileAccessDenied,
   };
 }
 
@@ -205,7 +204,7 @@ function packageSaleResult(
 
 export function PackageSaleForm({ scope }: { scope: SessionServiceScope }) {
   const locale = useLocale();
-  const { entryScope, contextPending, customer, recorderField, saleRequestId, form, mutation, status, pending, locked, picker, quoteStale, onSubmit, setCustomer, setType } = usePackageSaleFormState(scope, locale);
+  const { entryScope, contextPending, customer, selectCustomer, recorderField, saleRequestId, form, mutation, status, pending, locked, picker, quoteStale, onSubmit, setType, onProfileAccessDenied } = usePackageSaleFormState(scope, locale);
   return (
     <form noValidate onSubmit={onSubmit} className="grid gap-5 text-start">
       {recorderField}
@@ -217,7 +216,8 @@ export function PackageSaleForm({ scope }: { scope: SessionServiceScope }) {
           packagesScope={scope}
           entryScope={entryScope}
           value={customer}
-          onChange={setCustomer}
+          onChange={selectCustomer}
+          onAccessDenied={onProfileAccessDenied}
           disabled={locked}
         />
       )}

@@ -99,6 +99,15 @@ async function postCustomer(
   });
 }
 
+function supersede(
+  epoch: { current: number },
+  pending: { current: AbortController | null },
+) {
+  epoch.current += 1;
+  pending.current?.abort();
+  pending.current = null;
+}
+
 export function useSessionCustomer(
   companyId: string,
   branchId: string,
@@ -113,14 +122,7 @@ export function useSessionCustomer(
   const onlineRef = useRef(online);
   onlineRef.current = online;
   useLayoutEffect(() => {
-    epoch.current += 1;
-    pending.current?.abort();
-    pending.current = null;
-    return () => {
-      epoch.current += 1;
-      pending.current?.abort();
-      pending.current = null;
-    };
+    return () => supersede(epoch, pending);
   }, [companyId, branchId, userId, entryScope, businessId]);
   const mutation = useMutation({
     mutationKey: ['session-customer', companyId, branchId, userId, entryScope, businessId],
@@ -128,18 +130,18 @@ export function useSessionCustomer(
     gcTime: 0,
     // طلب موقوف قبل بدء mutationFn مفيش AbortController يتلغي؛ نخليه يفشل فوراً بدل ما يتبعت عند رجوع النت.
     networkMode: 'always',
-    mutationFn: async (input: SessionCustomerFormValues) => {
+    mutationFn: async ({ input, startedIn }: { input: SessionCustomerFormValues; startedIn: number }) => {
+      // كل طلب يحتفظ بنطاقه من لحظة الجدولة، حتى لو المستخدم بدأ طلب أحدث بعد إعادة الضبط.
+      if (startedIn !== epoch.current) throw { code: 'STALE_SCOPE', status: 0 };
       // فحص قبل النقل: مفيش enqueue ولا replay، والطلب ما يبدأش وهو offline — حتى لو الرندر لسه ما اتحدّثش.
       if (onlineRef.current !== true || (typeof navigator !== 'undefined' && !navigator.onLine))
         throw { code: 'OFFLINE', status: 0 };
+      // طلب واحد فقط في الطيران؛ الجديد يلغي القديم بدل ما يسيب controller بلا مالك.
+      pending.current?.abort();
       const controller = new AbortController();
       pending.current = controller;
       try {
-        const result = await postCustomer(
-          { companyId, branchId, businessId, entryScope },
-          input,
-          controller.signal,
-        );
+        const result = await postCustomer({ companyId, branchId, businessId, entryScope }, input, controller.signal);
         if (result.error) throw { ...result.error, status: result.response.status };
         return customer.parse(result.data);
       } finally {
@@ -148,13 +150,15 @@ export function useSessionCustomer(
     },
   });
   const reset = useCallback(() => {
-    epoch.current += 1;
-    pending.current?.abort();
-    pending.current = null;
+    supersede(epoch, pending);
     mutation.reset();
   }, [mutation.reset]);
   return {
-    ...mutation,
+    error: mutation.error,
+    isError: mutation.isError,
+    isPending: mutation.isPending,
+    mutateAsync: (input: SessionCustomerFormValues) =>
+      mutation.mutateAsync({ input, startedIn: epoch.current }),
     reset,
     captureScope: () => epoch.current,
     isCurrentScope: (captured: number) => epoch.current === captured,

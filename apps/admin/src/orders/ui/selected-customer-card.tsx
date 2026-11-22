@@ -13,15 +13,16 @@ type SelectedCardProps = {
   packages: { companyId: string; businessId: string; branchId: string; userId: string } | null;
   profile: Omit<SessionCustomerProfileEntry, 'customerId'>;
   online: boolean | null;
+  onAccessDenied?: (() => void) | undefined;
 };
 
-export function SelectedCustomerCard({ value, locale, packages, profile, online }: SelectedCardProps) {
+export function SelectedCustomerCard({ value, locale, packages, profile, online, onAccessDenied }: SelectedCardProps) {
   return (
     <Card role="status" className="p-3">
       <p>{t(locale, 'serviceSessions.selected')}</p>
       <p>{value.name}</p>
       <bdi>{value.phone}</bdi>
-      <SessionCustomerProfileCard customerId={value.id} locale={locale} online={online} {...profile} />
+      <SessionCustomerProfileCard customerId={value.id} locale={locale} online={online} onAccessDenied={onAccessDenied} {...profile} />
       {/* رابط الباقات يظهر بس لما النموذج يمرر نطاق النشاط والفرع؛ التلميحات معرّفات بس. */}
       {packages !== null ? (
         <CustomerPackagesLink
