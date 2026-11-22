@@ -14,10 +14,15 @@ const shape = findOrCreateScopedCustomerInput.shape;
 
 const DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31] as const;
 
-function numeric(value: unknown): number | undefined {
-  if (value === '' || value === null || value === undefined) return undefined;
-  const parsed = Number(value);
-  return Number.isInteger(parsed) ? parsed : undefined;
+type NumericField = { readonly state: 'empty' } | { readonly state: 'invalid' } | { readonly state: 'value'; readonly value: number };
+
+// فاضي معناه مفيش قيمة، وغير صالح معناه إن المستخدم كتب حاجة لازم ترفضها بدل ما تضيع صامتة.
+function numericField(value: unknown): NumericField {
+  if (value === '' || value === null || value === undefined) return { state: 'empty' };
+  const text = String(value).trim();
+  if (!/^\d+$/.test(text)) return { state: 'invalid' };
+  const parsed = Number(text);
+  return Number.isInteger(parsed) ? { state: 'value', value: parsed } : { state: 'invalid' };
 }
 
 function isCalendarBirthday(birthday: {
@@ -44,6 +49,32 @@ function omitted(value: unknown): boolean {
  * النموذج بيستخدم عقود @pospay/contracts كما هي: مفيش نسخة تانية من قواعد البريد والملاحظة،
  * واليوم والشهر لازم مع بعض والسنة اختيارية من غير ما نخترع 2000. رسائل الحقول من غير بيانات مدخلة.
  */
+type BirthdayValue = NonNullable<SessionCustomerFormValues['birthday']>;
+
+function resolveBirthday(raw: unknown): { value?: BirthdayValue; invalid: boolean } {
+  const birthday =
+    raw && typeof raw === 'object'
+      ? (raw as { day?: unknown; month?: unknown; year?: unknown })
+      : undefined;
+  const fields = [
+    numericField(birthday?.day),
+    numericField(birthday?.month),
+    numericField(birthday?.year),
+  ] as const;
+  if (fields.some((field) => field.state === 'invalid')) return { invalid: true };
+  const numbers = fields.map((field) => (field.state === 'value' ? field.value : undefined));
+  const [day, month, year] = numbers as [number | undefined, number | undefined, number | undefined];
+  if (day === undefined && month === undefined && year === undefined) return { invalid: false };
+  if (
+    day === undefined ||
+    month === undefined ||
+    !shape.birthday.safeParse({ day, month, ...(year === undefined ? {} : { year }) }).success ||
+    !isCalendarBirthday({ day, month, year })
+  )
+    return { invalid: true };
+  return { value: { day, month, ...(year === undefined ? {} : { year }) }, invalid: false };
+}
+
 export const sessionCustomerResolver: Resolver<SessionCustomerFormValues> = async (values) => {
   const errors: FieldErrors<SessionCustomerFormValues> = {};
   if (!shape.name.safeParse(values.name).success) errors.name = { ...issue };
@@ -54,28 +85,10 @@ export const sessionCustomerResolver: Resolver<SessionCustomerFormValues> = asyn
   const gender = omitted(values.gender) ? undefined : values.gender;
   if (gender !== undefined && !shape.gender.safeParse(gender).success) errors.gender = { ...issue };
 
-  const rawBirthday = (values as Record<string, unknown>)['birthday'];
-  const birthday =
-    rawBirthday && typeof rawBirthday === 'object'
-      ? (rawBirthday as { day?: unknown; month?: unknown; year?: unknown })
-      : undefined;
-  const day = numeric(birthday?.day);
-  const month = numeric(birthday?.month);
-  const year = numeric(birthday?.year);
-  const hasBirthday = day !== undefined || month !== undefined || year !== undefined;
-  let parsedBirthday: SessionCustomerFormValues['birthday'];
-  if (hasBirthday) {
-    if (
-      day === undefined ||
-      month === undefined ||
-      !shape.birthday.safeParse({ day, month, ...(year === undefined ? {} : { year }) }).success ||
-      !isCalendarBirthday({ day, month, year })
-    ) {
-      errors.birthday = { day: { ...issue }, month: { ...issue } };
-    } else {
-      parsedBirthday = { day, month, ...(year === undefined ? {} : { year }) };
-    }
-  }
+  const birthdayResult = resolveBirthday((values as Record<string, unknown>)['birthday']);
+  if (birthdayResult.invalid)
+    errors.birthday = { day: { ...issue }, month: { ...issue }, year: { ...issue } };
+  const parsedBirthday = birthdayResult.value;
 
   const email = omitted(values.email) ? undefined : values.email;
   if (email !== undefined && !shape.email.safeParse(email).success) errors.email = { ...issue };
@@ -103,7 +116,7 @@ type CustomerProfileInputsProps = {
   locale: Locale;
   form: UseFormReturn<SessionCustomerFormValues>;
   entryScope: SessionCustomerEntryScope;
-  invalid: boolean;
+  describedBy: string | undefined;
   invalidate: () => void;
 };
 
@@ -126,7 +139,13 @@ type FieldProps = {
   describedBy: string | undefined;
 };
 
-function GenderChoice({ id, locale, describedBy, registration }: FieldProps & { registration: Registration }) {
+function GenderChoice({
+  id,
+  locale,
+  describedBy,
+  registration,
+  invalid,
+}: FieldProps & { registration: Registration; invalid: boolean }) {
   return (
     <>
       <div role="radiogroup" aria-label={t(locale, 'serviceSessions.gender')} className="flex flex-wrap gap-4">
@@ -136,6 +155,7 @@ function GenderChoice({ id, locale, describedBy, registration }: FieldProps & { 
               type="radio"
               id={`${id}-gender-${value}`}
               value={value}
+              aria-invalid={invalid}
               aria-describedby={describedBy}
               {...registration}
             />
@@ -154,17 +174,18 @@ function BirthdayFields({
   id,
   locale,
   describedBy,
+  invalid,
   day,
   month,
   year,
-}: FieldProps & { day: Registration; month: Registration; year: Registration }) {
+}: FieldProps & { day: Registration; month: Registration; year: Registration; invalid: boolean }) {
   return (
     <>
       <Label htmlFor={`${id}-day`}>{t(locale, 'serviceSessions.birthday')}</Label>
       <div className="flex gap-2">
-        <Input id={`${id}-day`} inputMode="numeric" autoComplete="off" aria-label={t(locale, 'serviceSessions.birthdayDay')} aria-describedby={describedBy} {...day} />
-        <Input id={`${id}-month`} inputMode="numeric" autoComplete="off" aria-label={t(locale, 'serviceSessions.birthdayMonth')} aria-describedby={describedBy} {...month} />
-        <Input id={`${id}-year`} inputMode="numeric" autoComplete="off" aria-label={t(locale, 'serviceSessions.birthdayYear')} aria-describedby={describedBy} {...year} />
+        <Input id={`${id}-day`} inputMode="numeric" autoComplete="off" aria-label={t(locale, 'serviceSessions.birthdayDay')} aria-invalid={invalid} aria-describedby={describedBy} {...day} />
+        <Input id={`${id}-month`} inputMode="numeric" autoComplete="off" aria-label={t(locale, 'serviceSessions.birthdayMonth')} aria-invalid={invalid} aria-describedby={describedBy} {...month} />
+        <Input id={`${id}-year`} inputMode="numeric" autoComplete="off" aria-label={t(locale, 'serviceSessions.birthdayYear')} aria-invalid={invalid} aria-describedby={describedBy} {...year} />
       </div>
     </>
   );
@@ -206,19 +227,19 @@ export function CustomerProfileInputs({
   locale,
   form,
   entryScope,
-  invalid,
+  describedBy,
   invalidate,
 }: CustomerProfileInputsProps) {
   const generated = useId();
   const id = `${prefix}-${generated}`;
-  const describedBy = invalid ? `${id}-error` : undefined;
   return (
     <>
-      <GenderChoice id={id} locale={locale} describedBy={describedBy} registration={changed(form.register('gender'), invalidate)} />
+      <GenderChoice id={id} locale={locale} describedBy={describedBy} registration={changed(form.register('gender'), invalidate)} invalid={!!form.formState.errors.gender} />
       <BirthdayFields
         id={id}
         locale={locale}
         describedBy={describedBy}
+        invalid={!!form.formState.errors.birthday}
         day={changed(form.register('birthday.day'), invalidate)}
         month={changed(form.register('birthday.month'), invalidate)}
         year={changed(form.register('birthday.year'), invalidate)}

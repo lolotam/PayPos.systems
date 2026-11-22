@@ -24,14 +24,16 @@ function Field({
   label,
   value,
   empty,
+  ltr = false,
 }: {
   label: string;
   value: string | null;
   empty: string;
+  ltr?: boolean;
 }) {
   return (
     <p>
-      <b>{label}</b> {value ?? empty}
+      <b>{label}</b> {value === null ? empty : ltr ? <bdi dir="ltr">{value}</bdi> : value}
     </p>
   );
 }
@@ -59,7 +61,7 @@ export function SessionCustomerProfileCard({ locale, ...entry }: SessionCustomer
   return (
     <section aria-label={t(locale, 'serviceSessions.profileCard')} className="flex flex-col gap-1">
       <Field label={t(locale, 'serviceSessions.name')} value={profile.name} empty={empty} />
-      <Field label={t(locale, 'serviceSessions.phone')} value={profile.phone} empty={empty} />
+      <Field label={t(locale, 'serviceSessions.phone')} value={profile.phone} empty={empty} ltr />
       <Field label={t(locale, 'serviceSessions.gender')} value={gender} empty={empty} />
       <Field label={t(locale, 'serviceSessions.birthday')} value={birthday} empty={empty} />
       <Field label={t(locale, 'serviceSessions.email')} value={profile.email} empty={empty} />
@@ -71,7 +73,7 @@ export function SessionCustomerProfileCard({ locale, ...entry }: SessionCustomer
             <li key={`${note.business_id}-${note.created_at}`}>
               <b>{t(locale, 'serviceSessions.profileNoteFrom')}</b>{' '}
               <span>{noteBusinessName(note, locale)}</span>
-              <p>{note.note}</p>
+              <p className="whitespace-pre-wrap">{note.note}</p>
             </li>
           ))}
         </ul>

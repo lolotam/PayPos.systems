@@ -295,6 +295,8 @@ it.each([
   ['a year alone', { birthdayDay: '', birthdayMonth: '', birthdayYear: '1990' }],
   ['the thirtieth of February', { birthdayDay: '30', birthdayMonth: '2', birthdayYear: '' }],
   ['a non-leap twenty-ninth of February', { birthdayDay: '29', birthdayMonth: '2', birthdayYear: '1900' }],
+  ['a nonnumeric day', { birthdayDay: 'abc', birthdayMonth: '', birthdayYear: '' }],
+  ['a fractional year', { birthdayDay: '5', birthdayMonth: '3', birthdayYear: '1990.5' }],
 ])('refuses %s before any request', async (_case, birth) => {
   state.post.mockClear();
   state.locale = 'en';

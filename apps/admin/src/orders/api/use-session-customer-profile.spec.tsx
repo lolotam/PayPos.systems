@@ -58,6 +58,7 @@ it.each([
     path,
     expect.objectContaining({
       params: { header: { 'x-company-id': 'company' }, path: pathParams },
+      cache: 'no-store',
     }),
   );
 });

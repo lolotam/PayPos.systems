@@ -262,6 +262,7 @@ it('the profile shows the notes of every business of the company with their name
   ]) {
     const result = await h.send('GET', path, { cookie: cookieA, company: A });
     expect(result.status).toBe(200);
+    expect(result.headers['cache-control']).toBe('private, no-store');
     const profile = customerProfile.parse(result.body);
     expect(profile).toMatchObject({
       id: created.id,

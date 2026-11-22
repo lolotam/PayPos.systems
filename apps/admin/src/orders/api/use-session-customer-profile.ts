@@ -24,6 +24,7 @@ async function fetchProfile(
     const result = await apiClient().GET('/v1/customers/{customerId}/profile', {
       params: { header, path: { customerId } },
       signal,
+      cache: 'no-store',
     });
     if (result.error) throw { ...result.error, status: result.response.status };
     return customerProfile.parse(result.data);
@@ -33,6 +34,7 @@ async function fetchProfile(
     const result = await apiClient().GET('/v1/businesses/{businessId}/customers/{customerId}/profile', {
       params: { header, path: { businessId: entry.businessId, customerId } },
       signal,
+      cache: 'no-store',
     });
     if (result.error) throw { ...result.error, status: result.response.status };
     return customerProfile.parse(result.data);
@@ -40,6 +42,7 @@ async function fetchProfile(
   const result = await apiClient().GET('/v1/branches/{branchId}/customers/{customerId}/profile', {
     params: { header, path: { branchId: entry.branchId, customerId } },
     signal,
+    cache: 'no-store',
   });
   if (result.error) throw { ...result.error, status: result.response.status };
   return customerProfile.parse(result.data);

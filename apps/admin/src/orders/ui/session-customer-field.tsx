@@ -48,6 +48,7 @@ type SessionCustomerSynchronizationOptions = {
   locale: SessionCustomerLocale;
   value: SessionCustomerSelection | null;
   onChange: (value: SessionCustomerSelection | null) => void;
+  onReset: () => void;
 };
 type SessionCustomerResolutionOptions = {
   form: SessionCustomerForm;
@@ -78,6 +79,7 @@ function useSessionCustomerSynchronization({
   locale,
   value,
   onChange,
+  onReset,
 }: SessionCustomerSynchronizationOptions): PublishSessionCustomer {
   const previousScope = useRef(scope);
   const { reset: resetEntry } = form;
@@ -88,7 +90,8 @@ function useSessionCustomerSynchronization({
     onChange(null);
     resetEntry(customerEntry('', locale));
     resetMutation();
-  }, [scope, locale, onChange, resetEntry, resetMutation]);
+    onReset();
+  }, [scope, locale, onChange, onReset, resetEntry, resetMutation]);
   const observed = useRef(value),
     emitted = useRef<SessionCustomerSelection | null | undefined>(undefined);
   useLayoutEffect(() => {
@@ -125,6 +128,8 @@ function useSessionCustomerResolution({
           form.reset(customerEntry(saved.name, locale));
           mutation.reset();
         } catch (error) {
+          // رفض متأخر من سياق قديم ما يظهرش تلميحاً للمستخدم الحالي.
+          if (!mutation.isCurrentScope(captured)) return;
           // النوع اختياري في العقد عشان البحث؛ الرفض وقت الإنشاء بيجي من الـ domain.
           // من غير ما ندّعي إن كل رفض معناه إن الهاتف جديد، بنرشد لاختيار النوع لو فاضي.
           const gender = form.getValues('gender');
@@ -154,7 +159,8 @@ function useSessionCustomerEntry({
   onChange,
   locale,
   onGenderNeeded,
-}: SessionCustomerEntryOptions & { onGenderNeeded: () => void }) {
+  onReset,
+}: SessionCustomerEntryOptions & { onGenderNeeded: () => void; onReset: () => void }) {
   const mutation = useSessionCustomer(companyId, branchId, userId, entryScope, businessId);
   const form = useForm<SessionCustomerFormValues>({
     resolver: sessionCustomerResolver,
@@ -168,11 +174,13 @@ function useSessionCustomerEntry({
     locale,
     value,
     onChange,
+    onReset,
   });
   const resolve = useSessionCustomerResolution({ form, mutation, locale, publish, onGenderNeeded });
   const invalidate = () => {
     publish(null);
     mutation.reset();
+    onReset();
   };
   const invalid = Object.keys(form.formState.errors).length > 0;
   const nameEntry = form.register('name'),
@@ -322,6 +330,7 @@ function useSessionCustomerFieldState(props: SessionCustomerFieldProps) {
     onChange,
     locale,
     onGenderNeeded: () => setGenderHint(true),
+    onReset: () => setGenderHint(false),
   });
   return { locale, prefix, genderHint, ...entry };
 }
@@ -352,7 +361,7 @@ export function SessionCustomerField(props: SessionCustomerFieldProps) {
         locale={locale}
         form={form}
         entryScope={entryScope}
-        invalid={invalid}
+        describedBy={invalid ? `${prefix}-error` : undefined}
         invalidate={invalidate}
       />
       <Button type="button" disabled={!!value} onClick={() => void resolve()}>
