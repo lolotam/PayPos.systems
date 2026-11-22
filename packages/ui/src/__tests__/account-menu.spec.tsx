@@ -135,3 +135,13 @@ it('closes on Escape and returns the focus to the trigger', async () => {
   await waitFor(() => expect(screen.queryByRole('menu')).toBeNull());
   await waitFor(() => expect(document.activeElement).toBe(trigger));
 });
+
+it('keeps an 8px gutter from the viewport edge on every side', async () => {
+  render(menu({ name: 'Sara', email: 'sara@example.com' }));
+  openAccountMenu();
+  await screen.findByRole('menu', { name: 'Account menu' });
+  const wrapper = document.querySelector<HTMLElement>('[data-radix-popper-content-wrapper]');
+  // jsdom has a zero-size viewport, so the space Radix reports is 0 minus the 8px padding on both sides.
+  expect(wrapper?.style.getPropertyValue('--radix-popper-available-width')).toBe('-16px');
+  expect(wrapper?.style.getPropertyValue('--radix-popper-available-height')).toBe('-16px');
+});

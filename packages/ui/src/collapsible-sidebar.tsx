@@ -42,16 +42,19 @@ function useSidebarBreakpointFocus(
         inSidebar: asideRef.current?.contains(target) ?? false,
       };
     };
-    // ضغطة على جزء غير قابل للتركيز بتودّي التركيز للـ body من غير focusin جديد. بعد أي pointerup
-    // بنسأل سؤال واحد: التركيز لسه جوه الشريط؟ مكان الضغط أو الإفلات مش مهم.
+    // ضغطة على جزء غير قابل للتركيز بتودّي التركيز للـ body من غير focusin جديد. بعد pointerup
+    // وبعد click بنسأل سؤال واحد: التركيز لسه جوه الشريط؟ مكان الضغط أو الإفلات مش مهم.
+    // click ضروري لأن متصفحات اللمس بتطبّق تغيير التركيز بعد pointerup، وقت أحداث الماوس المتوافقة.
     const forgetOnOutsidePress = () => {
       if (!asideRef.current?.contains(document.activeElement)) focusOrigin.current = undefined;
     };
     document.addEventListener('focusin', rememberFocus);
     document.addEventListener('pointerup', forgetOnOutsidePress, true);
+    document.addEventListener('click', forgetOnOutsidePress, true);
     return () => {
       document.removeEventListener('focusin', rememberFocus);
       document.removeEventListener('pointerup', forgetOnOutsidePress, true);
+      document.removeEventListener('click', forgetOnOutsidePress, true);
     };
   }, [asideRef]);
 

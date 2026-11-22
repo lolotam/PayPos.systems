@@ -1,5 +1,6 @@
 'use client';
 
+import { Children } from 'react';
 import { AppSidebarGroup } from './app-sidebar-group.js';
 import { AppSidebarItem } from './app-sidebar-item.js';
 import type { NavigationGroup } from './navigation-presentation.js';
@@ -12,20 +13,24 @@ type GroupLinkProps = {
 };
 
 export function CollapsibleGroupLink({ group, rail, active }: GroupLinkProps) {
+  // icon نوعه ReactNode، فممكن ييجي false أو مصفوفة فاضية من شرط. toArray بيسيب اللي React هيرسمه
+  // فعلاً بس (ومنه الرقم 0)، والنص الفاضي مش بيظهر، ونفس النتيجة بتحكم العنوان والبديل النصي.
+  const hasIcon = Children.toArray(group.icon).some((child) => child !== '');
   return (
     <AppSidebarGroup role="group" aria-label={group.label} className="gap-0">
       <AppSidebarItem
         href={group.href}
         aria-label={rail ? group.label : undefined}
+        title={rail && hasIcon ? group.label : undefined}
         icon={
-          group.icon ?? (
-            rail ? (
-              <span className="line-clamp-2 break-words text-center text-[10px] leading-tight">
-                {group.label}
-              </span>
-            ) : (
-              <span aria-hidden="true" className="size-4" />
-            )
+          hasIcon ? (
+            group.icon
+          ) : rail ? (
+            <span className="line-clamp-2 break-words text-center text-[10px] leading-tight">
+              {group.label}
+            </span>
+          ) : (
+            <span aria-hidden="true" className="size-4" />
           )
         }
         active={active}
@@ -41,7 +46,7 @@ export function CollapsibleGroupLink({ group, rail, active }: GroupLinkProps) {
         }
         className={cn(
           'min-h-12',
-          rail && 'min-h-15 w-15 justify-center ps-0 pe-0 [&>span:first-child]:hidden',
+          rail && 'mx-auto min-h-15 w-15 min-w-11 max-w-full justify-center gap-0 ps-0 pe-0 [&>span:first-child]:hidden',
         )}
       />
     </AppSidebarGroup>

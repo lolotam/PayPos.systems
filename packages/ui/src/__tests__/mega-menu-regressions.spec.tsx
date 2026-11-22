@@ -79,3 +79,14 @@ it('keeps short module and switcher labels at 44px touch targets', () => {
   const dialog = screen.getByRole('dialog', { name: 'AI' });
   expect(within(dialog).getByRole('button', { name: /AI/ }).className).toContain('min-w-11');
 });
+
+it('caps the menu by the window height instead of a fixed pixel size', () => {
+  render(menuTree([visibleModule], visibleModule, true));
+  const dialog = screen.getByRole('dialog', { name: 'Sell' });
+  // jsdom has no layout engine; the class is what lets a tall window show the whole menu.
+  expect(dialog.className).toContain('max-h-[calc(100dvh-4.5rem)]');
+  expect(dialog.className).toContain('min-[1024px]:max-h-[calc(100dvh-5rem)]');
+  expect(dialog.className).toContain('overflow-y-auto');
+  expect(dialog.className).not.toContain('32rem');
+  expect(dialog.className).not.toContain('70vh');
+});
