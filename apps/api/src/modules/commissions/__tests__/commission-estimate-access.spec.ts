@@ -5,6 +5,7 @@ import {
   estimateFixture,
   estimatePath,
   globalRoleMember,
+  ids,
   permissionOverride,
   secondMembership,
   seedBusiness,
@@ -45,6 +46,26 @@ it.each(DEFAULT_ROLES)(
     expect((response.body as { employees: unknown[] }).employees).toHaveLength(visible);
   },
 );
+
+it('refuses a reader with no membership in the company', async () => {
+  const stranger = await fixture.h.signedInOperator(
+    `commission-estimate-stranger-${ids.newId()}@example.test`,
+  );
+  const response = await get(fixture, stranger);
+
+  expect(response.status).toBe(403);
+  expect((response.body as { code: string }).code).toBe('FORBIDDEN');
+});
+
+it('refuses an invalid company header with a 400', async () => {
+  const response = await fixture.h.send('GET', estimatePath(fixture.business), {
+    cookie: fixture.cookie,
+    company: fixture.company,
+    headers: { 'x-company-id': 'not-a-uuid' },
+  });
+
+  expect(response.status).toBe(400);
+});
 
 it('refuses a member without the permission with the uniform 403', async () => {
   const member = await globalRoleMember(fixture, 'viewer', 'BUSINESS');

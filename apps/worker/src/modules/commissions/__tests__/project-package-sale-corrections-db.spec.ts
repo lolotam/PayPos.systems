@@ -365,13 +365,31 @@ it('leaves nothing behind when the correction write fails in a closed month, and
   const event = saleEvent();
 
   await failing(event);
-  expect(await saleRow()).toHaveLength(1);
+  expect(await saleRow()).toEqual([
+    {
+      saleId: SALE_ID,
+      status: 'SOLD',
+      pricePaid: '30.000',
+      refundedAmount: '0.000',
+      revision: 1,
+      period: SOURCE_PERIOD,
+    },
+  ]);
   expect(await ledger()).toHaveLength(0);
   expect(await generations()).toHaveLength(0);
   expect(await marks()).toHaveLength(0);
 
   expect(await deliver(event)).toMatchObject({ delivered: true });
-  expect(await saleRow()).toHaveLength(1);
+  expect(await saleRow()).toEqual([
+    {
+      saleId: SALE_ID,
+      status: 'SOLD',
+      pricePaid: '30.000',
+      refundedAmount: '10.000',
+      revision: 2,
+      period: SOURCE_PERIOD,
+    },
+  ]);
   expect(await ledger()).toHaveLength(1);
   expect(await marks()).toHaveLength(1);
 });

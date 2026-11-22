@@ -1,5 +1,4 @@
 import type { TenantWrappers, Tx } from '@pospay/db';
-import { sql } from 'drizzle-orm';
 
 import type {
   CommissionEstimateMonthRows,
@@ -30,12 +29,16 @@ export function createCommissionEstimateReader(
   providers: CommissionEstimateProviders,
 ): CommissionEstimateReader {
   return {
-    read: (input) =>
-      database.withTenant(
+    read: async (input) =>
+      // معاملة واحدة: إثبات العضوية تحت سياق المستخدم، ثم تفعيل سياق الشركة، وكل
+      // القراءات بتشارك لقطة القراءة (ADR-0003 §4). معاملة من غير عضوية سارية
+      // بترجع null، وده رفض موحّد.
+      (await database.withMember(
+        input.userId,
         input.companyId,
         (tx) => readEstimateInputs(tx, input, providers),
-        { userId: input.userId, readOnly: true },
-      ),
+        { readOnly: true },
+      )) ?? { kind: 'forbidden' },
   };
 }
 
@@ -46,11 +49,6 @@ async function readEstimateInputs(
   providers: CommissionEstimateProviders,
 ): ReturnType<CommissionEstimateReader['read']> {
   const reads = createCommissionEstimateReads(tx, request.companyId, providers);
-  // إثبات العضوية بيحصل في اللقطة نفسها قبل أي قراءة بيانات، فمفيش معاملة ثانية
-  // ولا حالة مقروءة بره المعاملة دي.
-  if (!(await hasActiveMembership(tx, request.userId))) {
-    return { kind: 'forbidden' };
-  }
   const scope = await reads.scope(request.companyId, request.userId, request.businessId);
   if (scope.kind === 'forbidden') return { kind: 'forbidden' };
   if (scope.kind === 'feature_disabled') return { kind: 'feature_disabled' };
@@ -76,16 +74,6 @@ async function readEstimateInputs(
       serviceNames,
     },
   };
-}
-
-/** عضوية سارية للمستخدم في الشركة، مثبتة جوه لقطة القراءة نفسها. */
-async function hasActiveMembership(tx: Tx, userId: string): Promise<boolean> {
-  const rows = await tx.execute<{ present: number }>(sql`SELECT 1 AS present
-    FROM memberships
-    WHERE company_id = app_company_id() AND user_id = ${userId}
-      AND starts_at <= now() AND (ends_at IS NULL OR ends_at > now())
-    LIMIT 1`);
-  return rows.length > 0;
 }
 
 /** الموظفات اللي ممكن يكون ليهن مدخل في الشهر: مرشحات التقدير كلهن. */

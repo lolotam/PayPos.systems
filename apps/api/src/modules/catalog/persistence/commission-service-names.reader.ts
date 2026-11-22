@@ -7,6 +7,9 @@ export interface CommissionServiceName {
   readonly nameAr: string | null;
 }
 
+/** حجم الدفعة الواحدة من أسماء الخدمات؛ الطلب بيقسّم المعرفات على دفعات جوّه نفس المعاملة. */
+const SERVICE_NAME_BATCH = 200;
+
 /**
  * أسماء خدمات النشاط لصفوف تقدير العمولة: الاسم الحيّ من الكتالوج، لأن التقدير
  * بيعرض العمل زي ما هو مش لقطة متجمدة (spec 059 D-16, FR-023). الخدمة المقفولة
@@ -24,21 +27,32 @@ export async function readCommissionServiceNames(
   businessId: string,
   serviceIds: readonly string[],
 ): Promise<ReadonlyMap<string, CommissionServiceName>> {
-  if (serviceIds.length === 0) return new Map();
   const ids = [...new Set(serviceIds)].sort();
-  if (ids.length > 500) throw new RangeError('Commission service name batch size');
-  const rows = await tx.execute<{
-    id: string;
-    nameEn: string;
-    nameAr: string | null;
-  }>(sql`SELECT id, name_en AS "nameEn", name_ar AS "nameAr"
+  const names = new Map<string, CommissionServiceName>();
+  for (const batch of batches(ids, SERVICE_NAME_BATCH)) {
+    const rows = await tx.execute<{
+      id: string;
+      nameEn: string;
+      nameAr: string | null;
+    }>(sql`SELECT id, name_en AS "nameEn", name_ar AS "nameAr"
     FROM services WHERE company_id=${companyId} AND business_id=${businessId}
       AND id = ANY(ARRAY[${sql.join(
-        ids.map((id) => sql`${id}`),
+        batch.map((id) => sql`${id}`),
         sql`,`,
       )}]::uuid[])
     ORDER BY id`);
-  return new Map(
-    rows.map((row) => [row.id, { nameEn: row.nameEn, nameAr: row.nameAr }] as const),
-  );
+    for (const row of rows) {
+      names.set(row.id, { nameEn: row.nameEn, nameAr: row.nameAr });
+    }
+  }
+  return names;
+}
+
+/** تقسيم المعرفات على دفعات، عشان شهر كبير ما يوقفش الطلب. */
+function batches(ids: readonly string[], size: number): readonly (readonly string[])[] {
+  const result: string[][] = [];
+  for (let index = 0; index < ids.length; index += size) {
+    result.push(ids.slice(index, index + size));
+  }
+  return result;
 }
