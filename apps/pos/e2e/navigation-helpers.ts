@@ -88,8 +88,9 @@ export async function expectVisibleNavRailCurrentMarker(target: Locator): Promis
   expect(decoration, 'current workspace must be visibly marked in the rail').toContain('underline');
 }
 
-// الـ tap بيودّي التركيز للـ body بعد pointerup. نفي "التركيز رجع للتنقل" مش بيتأكد بالانتظار،
-// فبنستنى دورتين رسم بعد تصغير الشاشة عشان الـ effect يكون اشتغل فعلاً قبل الفحص.
+// الـ tap بيودّي التركيز للـ body بعد pointerup. نفي "التركيز رجع للتنقل" مش بيتأكد بالانتظار لوحده،
+// فبنعدّ كل focusin على زر الدرج، وبعدين نعمل عبور إيجابي معروف نتيجته: الـ effects بتشتغل بالترتيب،
+// فلما العبور الأخير ينقل التركيز يبقى effect العبور الأول اشتغل، والعدّاد لازم يكون 1 بس.
 export async function expectTapAwayKeepsFocusOut(page: Page, trigger: Locator): Promise<void> {
   await trigger.focus();
   await expect(trigger).toBeFocused();
@@ -103,12 +104,30 @@ export async function expectTapAwayKeepsFocusOut(page: Page, trigger: Locator): 
   await page.locator('main h1').tap();
   await expect(page.locator('html')).toHaveAttribute('data-focus-at-pointer-up', 'true');
   await expect(page.locator('body')).toBeFocused();
+  await page.evaluate((openerName) => {
+    const root = document.documentElement;
+    root.dataset['openerFocusCount'] = '0';
+    document.addEventListener(
+      'focusin',
+      (event) => {
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        if (target?.getAttribute('aria-label') !== openerName) return;
+        root.dataset['openerFocusCount'] = String(Number(root.dataset['openerFocusCount']) + 1);
+      },
+      true,
+    );
+  }, LABELS.drawerOpen);
   await page.setViewportSize({ width: 390, height: 844 });
   const drawerOpener = page.getByRole('button', { name: LABELS.drawerOpen });
   await expect(drawerOpener).toBeVisible();
   await page.evaluate(
     () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
   );
-  await expect(drawerOpener).not.toBeFocused();
-  expect(await page.evaluate(() => document.activeElement === document.body), 'focus stays on body').toBe(true);
+  await expect(page.locator('body')).toBeFocused();
+
+  await page.setViewportSize({ width: 820, height: 900 });
+  await trigger.focus();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(drawerOpener).toBeFocused();
+  await expect(page.locator('html')).toHaveAttribute('data-opener-focus-count', '1');
 }
