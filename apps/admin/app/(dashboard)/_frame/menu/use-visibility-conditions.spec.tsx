@@ -114,6 +114,13 @@ it('opens business identity only when the capability read says true', () => {
   expect(conditions()['business-identity-access']).toBe(false);
 });
 
+it('hides business identity after a failed refetch even though the cached answer was true', () => {
+  state.identity = { data: true, isPending: false, isError: true };
+  expect(conditions()['business-identity-access']).toBe(false);
+  state.identity = { data: true, isPending: false, isError: false };
+  expect(conditions()['business-identity-access']).toBe(true);
+});
+
 it('opens commission plans on saved employees and closes them when access is denied', () => {
   state.employees = { data: [] };
   expect(conditions()['commission-plans-access']).toBe(true);

@@ -44,7 +44,8 @@ export function useVisibilityConditions(): VisibilityConditions {
   const columns = useStaffColumns(companyId, userId, businessId);
   const open = ready !== null && userId !== null;
   const alertsOrRating = open && (alerts.isSuccess || rating.isSuccess);
-  const identityAccess = open && identity.data === true;
+  // كما في business-identity-nav-item: قراءة فاشلة بعد نجاح سابق تُخفي المدخل حتى لو بقيت data القديمة true.
+  const identityAccess = open && !identity.isPending && !identity.isError && identity.data === true;
   const plansAccess = open && planEmployees.data !== undefined && !planAccess.denied;
   const appLinkAccess = open && appLink.isSuccess;
   const refundsAccess = open && readAccessProof(refunds) === 'granted';
