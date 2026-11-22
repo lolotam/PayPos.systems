@@ -1,11 +1,18 @@
 import { expect, it } from 'vitest';
 
-import type { CommissionAttachmentInterval } from '../domain/commission-correction-attribution.ts';
 import type {
+  CommissionAttachmentInterval,
   CommissionCorrectionDraft,
   CommissionFrozenSource,
   CommissionPostedCorrection,
-} from '../domain/commission-correction-step.ts';
+  CommissionMonthProjection,
+  CommissionCorrectionScope,
+  CommissionCorrectionInsertInput,
+  CommissionBlockInsertInput,
+  CommissionBlockCodeUpdateInput,
+  CommissionBlockResolutionInput,
+  CommissionOpenBlock,
+} from '@pospay/commissions-posting';
 import type {
   CommissionLineEventInput,
   CommissionLinePerformerPeriod,
@@ -14,14 +21,6 @@ import type {
   LockedCommissionPeriod,
 } from '../domain/commission-line-types.ts';
 import type {
-  CommissionMonthProjection,
-  CommissionCorrectionScope,
-  CommissionCorrectionInsertInput,
-  CommissionBlockInsertInput,
-  CommissionBlockCodeUpdateInput,
-  CommissionBlockResolutionInput,
-} from '../ports/commission-correction.port.ts';
-import type {
   CommissionLineProjectionScope,
   CommissionLineReplacement,
   CommissionPeriodLockInput,
@@ -29,7 +28,6 @@ import type {
 } from '../ports/commission-line-projection.port.ts';
 import { ProjectServiceLines } from '../use-cases/project-service-lines/project-service-lines.ts';
 import { noCommissionBlockNotices } from './commission-block-notice.fakes.ts';
-import type { CommissionOpenBlock } from '../domain/commission-blocked-correction.ts';
 
 const line = (patch: Partial<CommissionLineSnapshot> = {}): CommissionLineSnapshot => ({
   lineId: 'line-a',

@@ -52,7 +52,7 @@ Anything not in this table is a CI failure. Every arrow points **down** this lis
 
 **Every module may import:** `packages/domain`, `packages/contracts`, `packages/db` (from `persistence/` and `queries/` only), `packages/observability`.
 **Technical workbook surface (47-1b):** `packages/import-workbooks` owns bounded XLSX/ZIP/XML parsing. Only outer adapters and API shared compatibility facades import it; `domain/` and `use-cases/` cannot import it. Staff bounds and error mapping are unchanged.
-**Only the owning module may import:** `packages/auth` (→ `identity`), `packages/payments` (→ `payments`), `packages/storage` (→ `files`), `packages/notifications` (→ `notifications`), `packages/documents` (→ `reporting`; the worker composition root `apps/worker/src/main.ts` wires it, and only `apps/worker/src/documents/` uses it), `packages/commissions-engine` (→ `commissions`, in `apps/api` and `apps/worker`; its root entry only. `apps/admin/src/commissions` may import the `/validation` entry point and nothing else, which the module-map check cannot see, so it is enforced by the ESLint scopes in `packages/config/eslint/boundaries.js` and `packages/config/eslint/index.js`, by `apps/admin/eslint.config.js` and by the package `exports`; the row is declared by 59-0, ADR-0054 §1).
+**Only the owning module may import:** `packages/auth` (→ `identity`), `packages/payments` (→ `payments`), `packages/storage` (→ `files`), `packages/notifications` (→ `notifications`), `packages/documents` (→ `reporting`; the worker composition root `apps/worker/src/main.ts` wires it, and only `apps/worker/src/documents/` uses it), `packages/commissions-engine` (→ `commissions`, in `apps/api` and `apps/worker`; its root entry only. `apps/admin/src/commissions` may import the `/validation` entry point and nothing else, which the module-map check cannot see, so it is enforced by the ESLint scopes in `packages/config/eslint/boundaries.js` and `packages/config/eslint/index.js`, by `apps/admin/eslint.config.js` and by the package `exports`; the row is declared by 59-0, ADR-0054 §1), `packages/commissions-posting` (→ `commissions`, in `apps/api` and `apps/worker`; its root entry only, the commission correction step the period repair and the worker projectors share; it may itself import the engine's root entry, nothing else outside the commissions layers may — ADR-0054 §1 addendum, CS-Q46 = PP-205.1, PP-226).
 
 Application composition roots (`apps/api/src/{app,main}.ts`, `apps/worker/src/{main,worker}.ts`) may wire
 notifications and restricted auth facades for ADR-0019 staff OTP. This is wiring
@@ -381,6 +381,7 @@ packages_restricted:
   notifications: [notifications]
   documents: [reporting]
   commissions-engine: [commissions]
+  commissions-posting: [commissions]
 
 # Application composition roots may wire restricted packages (ADR-0018); never a business-module permission.
 composition_roots:

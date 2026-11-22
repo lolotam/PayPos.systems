@@ -2,7 +2,7 @@ import type { Tx } from '@pospay/db';
 import { moneyToString } from '@pospay/domain';
 import { sql, type SQL } from 'drizzle-orm';
 
-import type { Clock, IdGenerator } from '../ports/commission-line-projection.port.ts';
+import type { Clock, IdGenerator } from '../ports/commission-posting-clock.port.ts';
 import type {
   CommissionCorrectionInsertInput,
   CommissionGenerationInput,

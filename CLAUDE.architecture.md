@@ -143,6 +143,10 @@ enforcement statement above does not claim coverage of these supplemental restri
 `packages/commissions-engine` counts as the `commissions` module's own `domain/` in this table: only that module's
 `use-cases/`, `ports/` and `persistence/` may import it. The one other importer is `apps/admin/src/commissions/`, and
 only its `/validation` entry point, so the builder screen runs the API's validator (ADR-0054 §1, spec 059 D-17).
+`packages/commissions-posting` is the other restricted package of the `commissions` module: its root entry may be
+imported only by the `use-cases/`, `ports/` and `persistence/` of the `commissions` modules of `apps/api` and
+`apps/worker`, their wiring file and module-level tests; it may itself import the engine's root entry, nothing else
+may (ADR-0054 §1 addendum, CS-Q46).
 
 ---
 

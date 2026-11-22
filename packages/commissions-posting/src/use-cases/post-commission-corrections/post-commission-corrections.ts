@@ -10,7 +10,10 @@ import {
   type CommissionCorrectionCandidate,
 } from '../../domain/commission-correction-target.ts';
 import type { CommissionPeriodEmployee } from '../../domain/commission-line-types.ts';
-import { CommissionPeriodClosedError } from '../../domain/errors.ts';
+import {
+  CommissionBlockNoticesMissingError,
+  CommissionPeriodClosedError,
+} from '../../domain/errors.ts';
 import {
   decideCommissionBlock,
   type CommissionBlockDecision,
@@ -59,8 +62,11 @@ interface PostCommissionCorrectionsInput {
   readonly eventId: string;
   readonly targets: readonly CommissionCorrectionTarget[];
   readonly employees: readonly CommissionPeriodEmployee[];
-  /** منفذ جرس أصحاب صلاحية خطط العمولة؛ الاختبارات اللي مش مهمها الجرس بتبني منفذ صامت صريح. */
-  readonly notices: CommissionBlockNotices;
+  /**
+   * منفذ جرس أصحاب صلاحية خطط العمولة. اختياري لأن الإصلاح بيشتغل بس وفيه توقف مفتوح فمش هيسجّل
+   * توقفاً جديداً؛ لو اتسجّل توقف من غير منفذ الخطوة بترمي بدل ما تسكت (ADR-0054 §1 addendum).
+   */
+  readonly notices?: CommissionBlockNotices;
   /** الشركة المالكة للتوقف؛ قارئ حاملي الصلاحية بيحتاجها لتحديد المستلمين. */
   readonly companyId: string;
 }
@@ -199,13 +205,11 @@ async function ringBlockBell(
   blockId: string,
   sourcePeriod: string,
 ): Promise<void> {
-  const groups = await input.notices.recipientGroups(
-    input.companyId,
-    input.businessId,
-    input.notices.now(),
-  );
+  const { notices } = input;
+  if (notices === undefined) throw new CommissionBlockNoticesMissingError(blockId);
+  const groups = await notices.recipientGroups(input.companyId, input.businessId, notices.now());
   for (const [groupIndex, group] of groups.entries()) {
-    await input.notices.append({
+    await notices.append({
       blockId,
       groupIndex,
       businessId: input.businessId,

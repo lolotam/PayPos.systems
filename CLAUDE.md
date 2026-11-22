@@ -30,6 +30,7 @@
 >
 > **Changelog**
 >
+> - **V3.27 (2026-11-22)** — §2.1: the restricted package `packages/commissions-posting`, the commission correction step shared by the `commissions` modules of api and worker so the period repair runs in the API in one transaction (CS-Q46 = PP-205.1; home confirmed as PP-226; ADR-0054 §1 addendum).
 > - **V3.26 (2026-11-21)** — §8: narrow recorded audit-log exception for a user changing their own personal cosmetic navigation-style preference (`user.nav_style` via planned `PUT /v1/me/preferences`, spec 074 step 12), which writes no `AuditLog` entry because it changes no business setting, tenant data, money or permission (Waleed, PP-214, NAV-Q16, `docs/owner-decisions.ar.md` item 131).
 > - **V3.25 (2026-11-19)** — §7: icons move from lucide-react to Phosphor through `@phosphor-icons/react` (PP-193.3, ADR-0060).
 > - **V3.24 (2026-11-17)** — §10: `build` and `admin-document-popup` start alongside the independent test jobs; Docker target builds are bounded to two processes and staging variants are main-only. `ci-gate` still requires every current job before merge (Waleed, owner authorization in `docs/owner-decisions.ar.md`, section «اعتماد خطوتي CI المتبقيتين في PR مستقل (ANSWERED، 2026-11-17)»).
@@ -125,6 +126,9 @@ packages/
   commissions-engine  The pure commissions engine (plan types, plan validation, computePeriod, the fingerprint
                   builders). ONE dependency: packages/domain. Imported only by the `commissions` modules of
                   api and worker; apps/admin imports only its `/validation` entry point (ADR-0054 §1).
+  commissions-posting  The commission correction step (month recompute, posting, target choice, Drizzle persistence)
+                  that api and worker both run. Dependencies: commissions-engine, domain, db, drizzle-orm. Imported
+                  only by the `commissions` modules of api and worker (ADR-0054 §1 addendum).
   db              Drizzle schema (TS) + drizzle-kit migrations + RLS policies (SQL) + seed
                   /sql/reports/*.sql  raw SQL for heavy reports (tested + EXPLAIN-checked)
   contracts       Zod schemas + TS types shared by api/admin/pos/menu (+ generated OpenAPI)
