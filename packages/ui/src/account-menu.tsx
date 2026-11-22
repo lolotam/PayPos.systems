@@ -52,6 +52,7 @@ export function AccountMenu({ labels, name, email, entries, className }: Account
         <DropdownMenu.Content
           align="end"
           sideOffset={8}
+          collisionPadding={8}
           className="z-50 min-w-56 max-w-[var(--radix-dropdown-menu-content-available-width)] max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto rounded-card border border-border bg-card p-1 text-card-foreground shadow-sm"
         >
           {name || email ? (

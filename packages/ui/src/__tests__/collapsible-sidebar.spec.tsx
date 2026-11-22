@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { CollapsibleSidebar, type CollapsibleSidebarProps } from '../collapsible-sidebar.js';
 import { DirectionProvider } from '../direction-provider.js';
+import type { NavigationGroup } from '../navigation-presentation.js';
 import { chromeLabels, groups } from './navigation-fixtures.js';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -251,6 +252,62 @@ it('still transfers focus at the tablet breakpoint when an outside press left fo
   width = 800;
   view.rerender(tree('ltr', { currentGroupId: 'home' }));
   await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('link', { name: /Home/ })));
+});
+
+function homeWithIcon(): readonly NavigationGroup[] {
+  return groups.map((group) => (group.id === 'home' ? { ...group, icon: <svg /> } : group));
+}
+
+it('gives icon-only rail links a native title and omits it when the label is visible', () => {
+  stubMedia({ width: 800 });
+  render(tree('ltr', { groups: homeWithIcon() }));
+  expect(screen.getByRole('link', { name: 'Home' }).getAttribute('title')).toBe('Home');
+  // no icon: the label itself is the visible content of the rail link
+  expect(screen.getByRole('link', { name: 'Sales' }).hasAttribute('title')).toBe(false);
+});
+
+it('omits the title when the sidebar is expanded and shows the label as text', () => {
+  stubMedia();
+  render(tree('ltr', { groups: homeWithIcon() }));
+  expect(screen.getByRole('link', { name: /Home/ }).hasAttribute('title')).toBe(false);
+});
+
+it('centres the collapse toggle in the rail and keeps it at the inline end when expanded', () => {
+  stubMedia();
+  render(tree('ltr', { currentGroupId: 'home' }));
+  const expandedRow = screen.getByRole('button', { name: chromeLabels.collapse }).parentElement;
+  expect(expandedRow?.className).toContain('justify-end');
+  expect(expandedRow?.className).not.toContain('justify-center');
+  fireEvent.click(screen.getByRole('button', { name: chromeLabels.collapse }));
+  const railRow = screen.getByRole('button', { name: chromeLabels.expand }).parentElement;
+  expect(railRow?.className).toContain('justify-center');
+  expect(railRow?.className).not.toContain('justify-end');
+});
+
+it('falls back to the visible label when a rail icon is conditionally false', () => {
+  stubMedia({ width: 800 });
+  const conditional = groups.map((group) => {
+    if (group.id === 'home') return { ...group, icon: false };
+    if (group.id === 'sales') return { ...group, icon: [false, null] };
+    return group.id === 'team' ? { ...group, icon: '' } : group;
+  });
+  render(tree('ltr', { groups: conditional }));
+  for (const name of ['Home', 'Sales', 'Team']) {
+    const link = screen.getByRole('link', { name });
+    expect(link.hasAttribute('title')).toBe(false);
+    expect(within(link).getAllByText(name).some((node) => !node.className.includes('sr-only'))).toBe(true);
+  }
+});
+
+it('centres rail links on the same line as the collapse toggle', () => {
+  stubMedia({ width: 800 });
+  render(tree('ltr', { groups: homeWithIcon() }));
+  const home = screen.getByRole('link', { name: 'Home' });
+  expect(home.className).toContain('mx-auto');
+  expect(home.className).toContain('max-w-full');
+  expect(home.className).toContain('min-w-11');
+  expect(home.className).toContain('gap-0');
+  expect(home.className).not.toContain('gap-2');
 });
 
 it('leaves focus alone at the tablet breakpoint when a touch tap moved focus after pointerup', async () => {
