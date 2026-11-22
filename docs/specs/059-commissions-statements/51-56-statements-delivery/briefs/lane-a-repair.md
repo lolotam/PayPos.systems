@@ -12,9 +12,8 @@ Read `COMMON.md` first. Your parts are 1 and 2 of `plan.md` _Lane A_. Private da
 ## Part 1 — 55-2f-0: move the correction step (Heavy, no migration, no logic change)
 
 **Goal.** The correction step leaves `apps/worker/src/modules/commissions` for a home that both `commissions` modules
-import. The proposed home is a new restricted package `packages/commissions-posting` (`research.md` R1). **Waleed has
-not confirmed the home yet.** You build on the proposal; you open the PR only when your manager says the home is
-confirmed.
+import. The home is a new restricted package `packages/commissions-posting` with an ADR-0054 addendum, confirmed by
+Waleed (PP-226, `research.md` R1). Open the PR when the move is green and your guard pass is done.
 
 **Do now.**
 
@@ -71,3 +70,12 @@ plan-employees list, the admin screens' data) — report what you find before ch
 Statement generate, review, approve, the carries table, the pending count, payments, exports, reminders, alert rules.
 53-2 will import the D-13 target selector from the package you create; keep its export stable and say its name in
 your report.
+
+## Addendum — design-advisor round (research.md A8)
+
+The new package must itself be allowed to import the engine's root entry point. `packages_restricted` only governs who
+may import `packages/commissions-posting`; the engine's own boundary test (`scripts/module-map/commissions-engine.test.mjs`)
+refuses a sibling package today. So 55-2f-0 also: adds the narrow exception for this one package (ADR-0054 addendum,
+ESLint, the static, dynamic and relative import tests), lists only the package's entry point in `exports`, updates the
+package maps, and declares every direct dependency (`drizzle-orm` included, if imported directly) in the new manifest.
+The exception names this package and nothing else.

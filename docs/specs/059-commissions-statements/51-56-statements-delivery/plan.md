@@ -33,7 +33,7 @@ uses its own cluster from `node scripts/test-db/lane.mjs up <lane>` (`docs/runbo
 | Gate | Result |
 | --- | --- |
 | One use case per slice; spec before code | Pass: each part is one canonical row or issue; this spec precedes code |
-| No guessed business rule | Pass with one marker: DR-008 / CS-Q52 gates only the emitter subtasks of 52-1 and 56b-1 |
+| No guessed business rule | Pass: DR-008 follows CS-Q52 = PP-227 (Waleed's pick; Abu Salem pending) |
 | Tenant table ⇒ RLS + negative test in the same PR | Planned per part (_Parts_) |
 | No new package or arrow without an ADR | 55-2f-0 ships the ADR-0054 addendum for R1; 56b-1 ships ADR-0061 first (R8) |
 | Money never a `number`; arithmetic only in `domain/` or the engine | Planned; checked by the final review |
@@ -53,7 +53,7 @@ decision, never a merge.
 | 51-1, 52-1 | merged | — | staging deploy: manager |
 | #1032 | merged | makes the proof trustworthy | — |
 | 53-1 | merged; the function exists and counts | ADR-0012 groups 1–4, 7 in CI | staging migrate with a PP-129 snapshot: manager |
-| 53-2 | merged; approval refuses without coverage | per company on staging: the six-type replay, then the fixed report prints `COVERED` (runbook 50-3, 50-4) | opening approval for a staging company: manager. Any production company or first run: Waleed (PP-201 rule 4; issue #1032) |
+| 53-2 | merged; approval refuses without coverage | per company on staging: the six-type replay, then the fixed report prints `COVERED` for a scope that is every business of the company and every business day with inputs (runbook 50-3, 50-4; research R9) | opening approval for a staging company: manager. Any production company or first run: Waleed (PP-201 rule 4; issue #1032) |
 | 53-3, 54-1, 56-1c | merged | — | staging deploy: manager |
 | 56b-1 | ADR accepted, then merged | CM-58b on a lost Redis in CI | reminders reach real owners only after deploy: manager; production: Waleed |
 | #486, 62-2c | merged | — | the #486 data step runs in `migrate`: manager, with a PP-129 snapshot |
@@ -65,8 +65,8 @@ Sizes are hand-written lines with tests. A delivery over twice its size is refus
 
 ### Lane A — repair
 
-**1. 55-2f-0 (Heavy: money path; no migration).** Move the correction step to its shared home (research R1, pending
-Waleed). Moved: the worker's `domain/commission-correction-step.ts`, `commission-correction-attribution.ts`,
+**1. 55-2f-0 (Heavy: money path; no migration).** Move the correction step to its shared home (research R1, confirmed by
+Waleed, PP-226). Moved: the worker's `domain/commission-correction-step.ts`, `commission-correction-attribution.ts`,
 `commission-correction-target.ts`, `commission-source-ref.ts`, `commission-blocked-correction.ts`, the types they
 import, `use-cases/post-commission-corrections/`, `use-cases/commission-month-recompute.ts`,
 `ports/commission-correction.port.ts`, `persistence/commission-correction-*.ts` and
@@ -74,7 +74,7 @@ import, `use-cases/post-commission-corrections/`, `use-cases/commission-month-re
 `commissions.module.ts`, both apps' `package.json`, `packages/config/eslint/boundaries.js`, `docs/module-map.md`
 (`packages_restricted`), `scripts/module-map` tests, `CLAUDE.md` §2.1, the ADR-0054 addendum. **Accept:** DR-002 —
 the worker commission suite passes with no assertion changed; `pnpm module-map:check` and lint pass. **Size:** about
-1 500 moved lines (plan-55-2.md §9.1), under 150 new. **Depends on:** R1's answer to merge.
+1 500 moved lines (plan-55-2.md §9.1), under 150 new. **Depends on:** nothing.
 
 **2. 55-2f (Heavy: money, permission).** `POST /v1/businesses/:businessId/employees/:employeeId/commission-period-repairs`
 (contract in `contracts/statement-flow.md`). New: the contract and OpenAPI entry, `use-cases/repair-commission-period/`,
@@ -119,13 +119,14 @@ FR-029b grant-screen warning in `apps/admin/src/permissions/ui/`; `StatementAwai
 registrations, and its recipients through a commissions `AlertRulesPort` adapter in the API (DR-003). Error codes
 `COMMISSION_FINGERPRINT_STALE`, `COMMISSION_RETURN_REASON_INVALID`, `COMMISSION_STATEMENT_NOT_REVIEWED`. **Tests:**
 CM-30…CM-32, the review parts of CM-33, CM-33b, CM-33c, CM-33d, the FR-029b UI test, the migrate-only regression for
-the approve code, the refusal of FR-048 at review. **Size:** 350–480. **Depends on:** 51-1 PR 2; #486 merged; the
-emitter subtask alone waits for CS-Q52 (it ships with the rule default, the owner, behind the answer — see _Open
-decisions_).
+the approve code, the refusal of FR-048 at review. **Size:** 350–480. **Depends on:** 51-1 PR 2; #486 merged. Recipients
+of the notice follow CS-Q52 = PP-227: everyone who can approve at the time of the event (the FR-030 predicate shared
+with the guard: the permission and the business-wide scope); the alert rule decides only whether the kind is on and
+its channel. Return is open to a holder of review **or** approve (FR-031).
 
 ### Lane C — count and approve
 
-**8. #1032 (Medium; no migration, no money write).** Research R9. Files: the worker's
+**8. #1032 (Medium; no migration, no money write).** Research R9; every check the report has today stays and the new rules are added to them. Files: the worker's
 `use-cases/report-commission-coverage/` (`report-commission-coverage.ts`, `check-tip-coverage.ts`),
 `ports/commission-coverage.port.ts`, worker `commissions.module.ts`, the CLI root
 `apps/worker/src/report-commission-coverage.ts`, their specs and the two `-db` specs, `docs/runbook.md` (coverage
@@ -139,9 +140,8 @@ business is refused. **Size:** 150–250. **Depends on:** nothing. **Starts now.
 grants, revokes; the index `(company_id, event_type, created_at, id)` alone in a `CONCURRENTLY` migration;
 `function-inventory.ts`, `table-grants.ts`, `privileges.spec.ts`, `schema/outbox.ts`; the six type names as one
 exported constant read by the worker registration and the catalogue test (research _Open gaps_). **Tests:** ADR-0012
-groups 1, 2, 3, 4 and 7 (CM-39). **Size:** 350–500. **Depends on:** the design-advisor round (spec 059 header;
-PP-195 Heavy debate) before the function is written. Preparation (fixtures, test skeletons, the catalogue test)
-starts now.
+groups 1, 2, 3, 4 and 7 (CM-39). **Size:** 350–500. **Depends on:** the design-advisor round, done
+2026-11-22 (research A1, A2): the brief pins ADR-0012 §1–§2 in full and the tests prove the effective privileges.
 
 **9. 53-2 (Heavy: money, permission).** `use-cases/approve-statement/`: one lock call; the coverage gate through
 api-side coverage readers bound at `app.ts` and the engine's `compareCoverage`; the pending count with the server's
@@ -150,8 +150,8 @@ the attachment snapshot; the post-freeze statement-fingerprint recompute; carrie
 the shared home; the approval guard (FR-036); HTTP. Error codes `COMMISSION_UPDATES_PENDING` and the 409 family.
 **Tests:** the approval part of CM-33, CM-34, CM-34b…CM-34e (integration), CM-35, CM-37, CM-38, CM-38b, ADR-0012
 group 5, the carry cases of spec 059 §7 row 53-2, the statement-view clause of CM-54. **Size:** 400–550. **Depends
-on:** 52-1, 53-1, 55-2f, #1032 merged; the two open gaps of research decided in the design-advisor round. No
-migration of its own.
+on:** 52-1, 53-1, 55-2f, #1032 merged; the two open gaps of research decided in the design-advisor round. It adds the parked-event owner alert (A4) and a staff employment-dates reader for the departed rule (A6). No
+migration of its own unless T3 chooses the stored coverage proof.
 
 **10. 53-3 (Medium: screen and tests).** CM-36 barrier tests on a harness where a real API approval races the worker
 consumer (ADR-0012 group 6); the admin statement screen under `apps/admin/src/commissions/` (view, review, return,
@@ -166,7 +166,8 @@ registered in `packages/db/src/data-steps/index.ts`, its migration. **Tests:** t
 statement kind that accepts roles and still accepts it elsewhere; the data step is idempotent, per tenant, audited; the CHECK refuses a direct
 insert. **Size:** 120–200. **Depends on:** nothing. **Starts now.**
 
-**12a. 56-1c API (Medium).** Request, poll and collect use cases, the controller, contracts and OpenAPI, the
+**12a. 56-1c API (Medium).** The request stores the scope, `branch_ids`, `employee_ids` and the caller's language
+(FR-050, CS-Q33). Request, poll and collect use cases, the controller, contracts and OpenAPI, the
 collect-time re-check, the audit entry `commission_statement.exported`, the rate limit, admission through
 `documentKindNeedsRenderer`; modelled on the staff attendance-statement request and collect use cases. **Tests:**
 CM-55d, CM-55e, the export part of CM-23d…CM-23h, on statements seeded APPROVED through
@@ -174,7 +175,7 @@ CM-55d, CM-55e, the export part of CM-23d…CM-23h, on statements seeded APPROVE
 its merge is after 53-2 (manager's ruling M3, _Open decisions_).
 
 **11. 54-1 (Heavy: money, permission, migration).** Research R7. The payment columns, the per-employee payment table
-with RLS and its negative test, the widened column grant and the replaced `commission_statements_update_guard` (today
+with RLS, its negative test and a guard that accepts a row only for an employee frozen in that statement, the widened column grant and the replaced `commission_statements_update_guard` (today
 APPROVED → PAID may change only `status`), `pay:commissions:business` (owner, general_manager, accountant; grantable),
 `use-cases/mark-statement-paid/` + HTTP, rounding as a pure function in the engine with exhaustive unit tests (half up
 to 0.005 KWD), the screen button on 53-3's screen. Error codes `COMMISSION_STATEMENT_NOT_APPROVED`,
@@ -182,17 +183,18 @@ to 0.005 KWD), the screen button on 53-3's screen. Error codes `COMMISSION_STATE
 **Size:** 250–350 (the table adds about 80). **Depends on:** 53-2; the button on 53-3.
 
 **12b. #716 (Medium).** Remove the `PAID` refusal in the worker's `read-commission-statement-export`, read the paid
-amount from 54-1's record, pass the paid-cash column to the workbook only for cash. **Tests:** every payment method;
-APPROVED → PAID while the job waits. **Size:** 80–150. **Depends on:** 54-1, 56-1c API.
+amount from 54-1's record, pass the paid-cash column to the workbook only for cash. The paid amount is shown only for an employee whose whole month the export shows (research R7). **Tests:** every
+payment method; APPROVED → PAID while the job waits; a branch-scoped export never carries a whole-month paid amount. **Size:** 80–150. **Depends on:** 54-1, 56-1c API.
 
 **13. 56b-1 (Heavy: migration, security).** First ADR-0061 (research R8), docs-only, to Waleed. Then:
 `commission_statement_reminders` + RLS (CM-R09), `operational_recovery_flags` with CS-Q31's grants and the ADR's
 functions, the `CompanyCreated` scheduler registration (pattern: the staff not-clocked-in processor), the sentinel and
 heartbeat, `/ready` degraded, the rebuild with its guarded self-clear and bounded retry, the fallback operator command,
 the reminder job with recipients through `AlertRulesPort` (DR-003), amendments to CLAUDE.md §5, ADR-0003, ADR-0054 §2,
-the runbook, the module-map event row. **Tests:** CM-57, CM-57b, CM-58, CM-58b, the privilege inventory. **Size:**
+the runbook, the module-map event row. **Tests:** CM-57, CM-57b, CM-57c (a quiet business still gets its reminder; the
+worker stays degraded until every company is rebuilt), CM-58, CM-58b, the privilege inventory. **Size:**
 300–420 plus the ADR. **Depends on:** 52-1 merged (the notification files are shared, one at a time); ADR-0061
-accepted; CS-Q52 for the recipients.
+accepted. Recipients of the approval reminder follow CS-Q52 = PP-227, as in 52-1.
 
 **14. 62-2c (Medium).** Tests only for the wiring that 52-1 and 56b-1 shipped: each statement kind off → no
 recipients; master switch off → none; defaults → today's recipients (RT-26); the statement kinds listed in
@@ -203,9 +205,10 @@ recipients; master switch off → none; defaults → today's recipients (RT-26);
 
 | State | Parts |
 | --- | --- |
-| Starts now, can merge when green | #1032, #486 |
-| Starts now, merge waits for a named answer or merge | 55-2f-0 (R1), 51-1 PR 1 (55-2f), 56-1c API (ruling), ADR-0061 draft (Waleed) |
-| Preparation only until its dependency | 53-1 (design-advisor round), 55-2f, 51-1 PR 2, 52-1, 53-2, 53-3, 54-1, #716, 56b-1 code, 62-2c |
+| Starts now, can merge when green | #1032, #486 (its migration turn), 55-2f-0 |
+| Starts now, merge waits for a named answer or merge | 51-1 PR 1 (its migration turn, then 55-2f), 56-1c API (53-2), ADR-0061 draft (Waleed) |
+| Starts now, merge waits for its migration turn | 53-1 |
+| Preparation only until its dependency | 55-2f, 51-1 PR 2, 52-1, 53-2, 53-3, 54-1, #716, 56b-1 code, 62-2c |
 
 Preparation means: reading, fixtures, pure functions with their unit tests, test skeletons. It never means opening a
 PR for the dependent code or writing a migration number.
@@ -254,8 +257,11 @@ A branch that fails the chain check with «expected first parent» is stale and 
 | Notification files (`packages/contracts/src/in-app-notifications.ts`, `packages/notifications/src/`, `packages/i18n/src/in-app-catalog.ts`, admin `render-notification.ts`) | 52-1 then 56b-1 | one at a time (spec 059 §7 _File overlap_) |
 | `docs/module-map.md` | 55-2f-0, #1032, 51-1 PR 2, 56b-1, 62-2c | each adds its own rows; `pnpm module-map:check` after rebasing |
 | `apps/admin/src/commissions/` | 53-3, then 54-1's button, then the export button | 53-3 owns the folder until merged |
+| Open PRs | every lane | one open delivery PR per lane at a time; each counts in the coordinated cap (ruling M4); a second one needs the manager's word |
 | `CLAUDE.md` | 55-2f-0 (§2.1), 56b-1 (§5) | separate sections |
 | `docs/runbook.md` | 55-2f, #1032, 56b-1 | separate sections |
+| `docs/adr/0054-…md` | 55-2f-0 (§1 addendum), #1032 (§4 text), 56b-1 (§2) | separate sections; rebase before the push |
+| The generated module-map YAML | every part that edits `docs/module-map.md` | regenerate after rebasing, never hand-merge |
 
 ## Route
 
@@ -280,15 +286,16 @@ A branch that fails the chain check with «expected first parent» is stale and 
 
 | # | Decision | Who | Blocks | Meanwhile |
 | --- | --- | --- | --- | --- |
-| T1 | Home of the moved correction step (research R1) | Waleed (technical) | **opening** and merge of 55-2f-0 | built locally on the proposal |
+| T1 | Home of the moved correction step (research R1) | Waleed — **answered, PP-226:** the restricted package `packages/commissions-posting` with an ADR-0054 addendum | nothing | 55-2f-0 opens after its review and gates |
 | T2 | ADR-0061's security choices (research R8) | Waleed (technical) | 56b-1 code | ADR drafted |
-| F1 | CS-Q52: who receives statement notices (DR-008) | both owners, decisions page (the manager publishes it in the next batch) | the emitter subtask of 52-1 and 56b-1 | 52-1 is completed without its notice subtask |
+| T3 | The shape of 53-2's coverage gate: a live comparison inside the approval transaction, or a stored proof written by the worker report and checked by approval (design round A3) | Waleed (technical), after lane C's measurement | writing 53-2's gate; a stored proof adds a migration and an ADR-0054 addendum | lane C measures |
+| F1 | CS-Q52: who receives statement notices (DR-008) | both owners, batch 100 — **Waleed answered, PP-227:** everyone who can approve; the rule controls on/off and channel. Abu Salem pending; his pick binds if it differs | nothing: work follows Waleed's pick (CLAUDE.md §1 5b) | 52-1 and 56b-1 implement it |
 | M1 | 51-1 PR 1 merges before or after 55-2f (research R4) | PosPay manager — **ruled 2026-11-22:** build and test locally; open after its migration turn and the gates; merge after 55-2f (PP-101.2) | merge of 51-1 PR 1 | built locally |
 | M2 | Migration order against row 61 | PosPay manager — **ruled 2026-11-22:** row 61 first; the order in _Migration queue_ is a proposal by readiness and dependency, not a grant and not a reservation of numbers | every migration push | private clusters |
 | M3 | 56-1c API merges before 53-2 | PosPay manager — **ruled 2026-11-22:** local tests on fixtures are allowed; merge after 53-2 (plan-56-1.md); `PAID` support after 54-1 | merge of 56-1c API | built on fixtures |
 | M4 | The session cap (PP-118) with four implementers under one manager session | PosPay manager — **ruled 2026-11-22:** the four run under this session as Waleed asked; every open delivery PR counts in the coordinated cap; a design review is not a delivery | nothing | — |
 | M5 | Record Waleed's Sonnet sentence as a PP item | PosPay manager — **ruled 2026-11-22:** being recorded as PP-225, for this delivery only | nothing | quoted in spec.md |
-| D1 | Design-advisor round for 53-1 and 53-2 (the function; the carry ledger; the parked-event alert; coverage cost) | this session, one round | writing the 53-1 function | 53-1 preparation |
+| D1 | Design-advisor round for 53-1 and 53-2 | **done 2026-11-22** (research _Design-advisor round_): 53-1's function may be written against the pinned contract; one point stays open as T3 | nothing | — |
 
 ## Project Structure
 
@@ -314,7 +321,7 @@ apps/api/src/modules/commissions/      use-cases/{repair-commission-period,gener
                                        request|poll|collect statement export}, ports/, persistence/, http/, events/
 apps/worker/src/modules/commissions/   use-cases/report-commission-coverage (fix), jobs/ reminders, imports of the
                                        shared correction step
-packages/commissions-posting/          the moved correction step (R1, proposed)
+packages/commissions-posting/          the moved correction step (R1, PP-226)
 packages/commissions-engine/src/       canonical input, statement builder, fingerprints, cash rounding
 packages/db/                           schema + migrations + roles + inventories + data step
 packages/contracts/src/commissions/    statement, repair, payment, export contracts
@@ -324,7 +331,7 @@ apps/admin/src/permissions/ui/         FR-029b warning
 docs/adr/                              ADR-0054 addendum (55-2f-0), ADR-0061 (56b-1), ADR-0012 unchanged
 ```
 
-**Structure Decision**: the existing module shape of CLAUDE.md §2.2; one new restricted package, pending T1.
+**Structure Decision**: the existing module shape of CLAUDE.md §2.2; one new restricted package (PP-226).
 
 ## Complexity Tracking
 

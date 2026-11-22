@@ -122,7 +122,7 @@ after payment.
 The owner is reminded on the 3rd and the 5th while a month is not approved. Who receives statement notices follows the
 alert rules of row 62, and a branch manager can never be chosen for them.
 
-**Independent Test**: CM-57, CM-57b, CM-58, CM-58b; RT-26 of spec 060; the #486 validator and cleanup tests.
+**Independent Test**: CM-57, CM-57b, CM-57c, CM-58, CM-58b; RT-26 of spec 060; the #486 validator and cleanup tests.
 
 **Acceptance Scenarios**:
 
@@ -164,17 +164,18 @@ requirements below bind how they are shipped; none changes a rule.
   listing of the statement kinds on the screen and the module-map line; it re-implements no wiring.
 - **DR-004** #486 merges before any part that emits a `STATEMENT_*` notice.
 - **DR-005** Issue #1032 is closed before any company's approval is opened on staging and before any production first
-  run. The coverage report distinguishes «covered», «not covered» and «not checked», and exits non-zero unless every
-  section was checked and covered.
+  run. The coverage report keeps every check it has, distinguishes «covered», «not covered» and «not checked», exits
+  non-zero unless every section was checked and covered, and names the scope it checked; `COVERED` proves that scope
+  only.
 - **DR-006** Approval (53-2) stays closed for a company until its bootstrap coverage is proven by the fixed report
   (FR-020, ADR-0012 _Amendment_). Shipping the approval code does not open approval anywhere.
 - **DR-007** No part deploys to staging or production, and no part opens approval for a production company. Each is
   the PosPay manager's or Waleed's separate decision (PP-201 rule 4).
-- **DR-008** Statement notices' recipients: [NEEDS CLARIFICATION: FR-030 sends the approval notice to holders of
-  `approve:commissions:business` who are business-wide readers, while the alert rule default for
-  `STATEMENT_AWAITING_APPROVAL` is the role `owner` and is editable by role (`packages/domain/src/alert-rules.ts`). Which set receives the notice when the
-  owner has granted approval to another person, and how do the rule's roles combine with the permission holders?
-  Recorded as CS-Q52 in owner-questions.ar.md. It gates only the emitter subtask of 52-1 and of 56b-1.]
+- **DR-008** The approval notice and its reminder go to everyone who can approve the statement at the time of the
+  event: the holders of `approve:commissions:business` who are business-wide readers, by the same predicate as the
+  guard (FR-030). The alert rule of `STATEMENT_AWAITING_APPROVAL` decides only whether the notice is on and its
+  channel; its roles do not select the recipients of this kind. Decided by CS-Q52 = PP-227 (Waleed, 2026-11-22;
+  Abu Salem's pick is pending on batch 100 and binds if it differs, CLAUDE.md §1 5b).
 
 ### Key Entities *(include if feature involves data)*
 
@@ -224,8 +225,9 @@ ones missing at the base are named per part in plan.md.
 ### Permissions
 
 Spec 059 §6 _Permissions_, unchanged: `manage:commission-plans:business` (55-2f, as 55-2e's guard under CS-Q48),
-`read:commissions:business` (GET statement, export), `review:commissions:business` (generate, review, return;
-registered by 51-1 PR 2), `approve:commissions:business` (registered by 52-1, guarded in 53-2),
+`read:commissions:business` (GET statement, export), `review:commissions:business` (generate, review;
+registered by 51-1 PR 2), `approve:commissions:business` (registered by 52-1, guarded in 53-2); return is open to a
+holder of either (FR-031),
 `pay:commissions:business` (54-1). Review and approve are owner-grantable only and usable only by a business-wide
 reader (CS-Q26, FR-029, FR-036). All behind the `commissions` feature; all refused to devices.
 
@@ -264,8 +266,8 @@ SC-001…SC-006 of spec 059 §8, plus for this delivery:
   Waleed merge card of PP-195 for Heavy PRs. The `CLAUDE.md` banner still words the older card; the conflict is
   reported to the manager, not resolved here.
 - Technical choices this delivery makes, each revocable by Waleed, are listed with their reasons in
-  [research.md](research.md) (R1…R9). Two of them wait for his answer before the code that depends on them merges:
-  the home of the moved correction step (R1) and the security choices of the schedule-recovery ADR (R8).
+  [research.md](research.md) (R1…R9). The home of the moved correction step (R1) was confirmed by him as PP-226; the security choices of the
+  schedule-recovery ADR (R8) wait for his answer before the 56b-1 code is written.
 - Phase 1 has no production data (spec 059 §9); the bootstrap and the coverage proof run on staging before approval
   opens there.
 - CS-Q45, CS-Q49 and CS-Q50 are still pending at the base and affect none of the fourteen parts.

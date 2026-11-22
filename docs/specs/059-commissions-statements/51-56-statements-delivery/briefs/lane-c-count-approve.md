@@ -21,9 +21,12 @@ The coverage report must never print a false `COVERED` (`research.md` R9):
    through a commissions-owned port bound at the CLI root to the worker tenancy reader, on `pospay_app` under
    `withTenant` — no new role, no new grant. Add its Port row to `docs/module-map.md`.
 2. An empty business list is refused in the use case too, not only in the CLI.
-3. A run with no tip scope reports tips as «not checked». The overall status is `COVERED` only when lines, salaries,
-   sales and tips were all checked and covered; every other outcome exits non-zero. There is no default to all
-   businesses.
+3. A run with no tip scope reports tips as «not checked». **Every check the report has today stays** (missing, stale,
+   and retained counted events without the consumer's mark); the overall status is `COVERED` only when none of them
+   fails **and** lines, salaries, sales and tips were all checked; every other outcome exits non-zero. There is no
+   default to all businesses.
+4. The printed result names the businesses and the date range it checked. `COVERED` proves that scope only; say so in
+   the runbook text, which already has the operator supply a scope covering every business day with inputs.
 
 Files: the worker's `use-cases/report-commission-coverage/`, `ports/commission-coverage.port.ts`, the worker
 `commissions.module.ts`, `apps/worker/src/report-commission-coverage.ts`, their specs and the two `-db` specs, the
@@ -85,3 +88,42 @@ the pay and export buttons to your screen after it merges: leave a named slot fo
 ## Not yours
 
 Generate, review, the carries table, payments, exports, reminders, alert rules, the repair route.
+
+## Addendum — design-advisor round (research.md A1–A6). 53-1's function may now be written.
+
+**53-1, the contract pinned (ADR-0012 §1–§2 — every item is a test, not a comment):**
+
+- The role `pospay_approval_reader`: every attribute ADR-0012 §2 lists, a member of nothing and with no members, owner
+  of this function and of nothing else; `USAGE` on schema `public` and `EXECUTE` on `public.app_company_id()`; no
+  `CREATE` left anywhere.
+- Column `SELECT` only on `outbox (company_id, id, event_type, created_at)` and
+  `consumed_events (company_id, consumer_id, event_id)`.
+- The function: `SECURITY DEFINER`, `STABLE`, `NOT LEAKPROOF`, `search_path = pg_catalog, pg_temp`,
+  `row_security = on`, every name schema-qualified, the company predicate inside the query as well as in the policy.
+- `ENABLE` and `FORCE` RLS stay on both tables, with the tenant policy for the new role.
+- The ownership transfer, the `REVOKE ALL` from `PUBLIC` and from the four runtime roles ADR-0012 names, and the single
+  `EXECUTE` grant to `pospay_app` happen in one transaction.
+- Tests prove the **effective** privileges (not only the catalogue rows) and the refusal of a missing or malformed
+  tenant context **even when the tables are empty**. `function-inventory` checks only the name, `prosecdef` and
+  `proconfig`; it is not that proof.
+- The six type names and the consumer id `commissions.project-inputs` become dependency-free constants in
+  `packages/domain`, read by the worker's consumer registration. Keep an independent test of the actual registration,
+  and test the installed function with one row per counted type, a non-counted type, another consumer's mark, and the
+  strict `<` bound on `created_at`. Reading one constant on both sides does not catch a wrong SQL list.
+
+**53-2:**
+
+- **The coverage gate is not designed yet (T3).** FR-020 and FR-032 oblige the check after the lock and before the
+  count for lines, tips, salaries and package sales. Measure the live comparison (`compareCoverage` with API-side
+  readers) on representative data and report the numbers; your manager takes the choice between a live comparison and a
+  stored proof to the owner. Do not write the gate, a proof table or a migration before the answer.
+- **The parked-event alert is yours** (ADR-0012 §3, group 5): today both parking paths only log
+  (`apps/worker/src/outbox/deliver.ts`, `dispatch-loop.ts`). Implement the owner alert at the worker and notifications
+  boundary, for both paths, independent of the approval's rollback. A parked event still counts as pending.
+- **Locks:** one ascending call from the source month through the current month; choose the carry target from the
+  statuses that call returned; after the wait, re-check status, access and both fingerprints; never take an employee
+  lock after the month locks. A second approver after the wait gets 409 `COMMISSION_PERIOD_CLOSED`.
+- **The departed rule** needs data the API does not read today: add a staff-owned reader, bound at the root behind a
+  commissions port with its module-map Port row, that gives the employee's employment dates (or the overlap with a
+  month). The balance arrives once; when the month that received it is approved, it is not carried again if her
+  employment does not overlap that month (D-22, CS-Q8, CS-Q28).

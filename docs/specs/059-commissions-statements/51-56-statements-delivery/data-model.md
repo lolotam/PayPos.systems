@@ -39,7 +39,11 @@ reason is never logged. **Isolation test:** CM-33c.
   `statement_id`, `employee_id`, `exact_payable numeric(14,3)`, `paid_amount numeric(14,3)`. One row per frozen
   `EMPLOYEE` line of the statement. `UNIQUE (company_id, statement_id, employee_id)`; `CHECK (exact_payable >= 0)`,
   `CHECK (paid_amount >= 0)`; a tenant-and-business qualified FK to the statement; insert-only; an insert is accepted
-  only in the transaction that sets the statement `PAID`. `paid_amount` = `exact_payable` rounded half up to 0.005 KWD
+  only in the transaction that sets the statement `PAID`, and only for an employee who has a frozen `EMPLOYEE` line in
+  that same statement (a guard, tested with a same-company employee absent from the statement). The «same transaction» proof is its own
+  column on the statement, set by the APPROVED → PAID transition and compared by the insert guard with
+  `pg_current_xact_id()`, the mechanism the freeze uses with `approval_xact_id`; a check of `status` alone would accept
+  a late insert. Mark-paid verifies that the set of rows is complete before it commits. `paid_amount` = `exact_payable` rounded half up to 0.005 KWD
   when the method is cash, else equal (CS-Q12, D-19). The statement's paid total is the sum of `paid_amount`.
   **Isolation test:** named by the part and added to spec 059's table of named isolation tests in the same PR.
 

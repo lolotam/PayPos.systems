@@ -50,7 +50,7 @@ complete, pending `ci-gate`», and is done only when `ci-gate` is green on the e
 | 53-3 | CM-36 with barriers; component tests on visible outcomes |
 | 54-1 | CM-40…CM-42; rounding units |
 | 56-1c, #716 | CM-55d, CM-55e; an export of a paid statement for every method |
-| 56b-1 | CM-57, CM-57b, CM-58, CM-58b |
+| 56b-1 | CM-57, CM-57b, CM-57c, CM-58, CM-58b |
 | 62-2c | RT-26 and the off-switch cases |
 
 ## Failure paths worth running by hand

@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain — **one remains: DR-008 (CS-Q52, who receives statement notices)**
+- [x] No [NEEDS CLARIFICATION] markers remain (DR-008 was answered: CS-Q52 = PP-227)
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -32,8 +32,6 @@
 
 ## Notes
 
-- The open marker is a business rule and is not guessed. It gates **only** the emitter subtask of 52-1 and the
-  recipients of 56b-1; no implementer may write that subtask until CS-Q52 is answered. Every other part does not read
-  the rule. Planning proceeded for the other parts on that basis, by Waleed's instruction to raise a specific card and
-  continue the independent parts.
-- The two technical confirmations (plan.md _Open decisions_ T1, T2) are not business rules and carry no marker.
+- DR-008 was raised as CS-Q52 and answered by Waleed on 2026-11-22 (PP-227). Abu Salem's pick is pending on batch 100;
+  work follows Waleed's pick until then, and his pick replaces it if it differs (CLAUDE.md §1 5b).
+- T1 was confirmed (PP-226). T2 (plan.md _Open decisions_) is technical and carries no marker.
