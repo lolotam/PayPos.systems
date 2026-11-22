@@ -1,4 +1,15 @@
+import { describe } from 'vitest';
 import { perfSuite } from './own-service-lines.perf.ts';
 
 // plan §5.3 البنود 1–3 على الحجم المعتمد: 600 زيارة/602 سطراً لها، وزميلات بعشرة أضعافها (6,020 سطراً).
-perfSuite({ colleagues: 6020, warm: 0, background: 1500 });
+// التشغيل العادي يتأكد من الصحة والخطط وعدد الاستعلامات ويسجّل العينات بلا حكم زمني (AC-57-2b-9).
+perfSuite({ colleagues: 6020, warm: 0, background: 1500, timing: false });
+
+// تشغيل الأداء الصريح المعزول على نفس الحجم: حد الـ200ms المطلق، ولا يعمل إلا بالمتغير POSPAY_57_2B_PERF=1
+// على مضيف حمله منخفض (قرار المدير 2026-11-22).
+describe.skipIf(process.env['POSPAY_57_2B_PERF'] !== '1')(
+  '57-2b explicit timing run (regular fixture)',
+  () => {
+    perfSuite({ colleagues: 6020, warm: 5, background: 1500, timing: true });
+  },
+);

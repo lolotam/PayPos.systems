@@ -23,6 +23,8 @@ export interface PerfConfig {
   colleagues: number;
   warm: number;
   background: number;
+  // حد الـ200ms المطلق يتأكد في تشغيل الأداء الصريح المعزول فقط (AC-57-2b-9)؛ التشغيل العادي يسجّل العينات ولا يحكم بها.
+  timing: boolean;
 }
 export interface Target {
   scope: PerfScope;
@@ -185,7 +187,8 @@ async function samplePages(
       );
       observed.add(run.statements);
       violations.push(...pageViolations(label, name, t, run, expected));
-      if (run.elapsed >= 200) violations.push(`${label} ${name} ${sampleName}: ${run.elapsed} ms`);
+      if (config.timing && run.elapsed >= 200)
+        violations.push(`${label} ${name} ${sampleName}: ${run.elapsed} ms`);
     }
   if (Math.max(...observed) !== MAX_OWN_LINES_STATEMENTS)
     violations.push(`${label}: no page ran the maximum ${MAX_OWN_LINES_STATEMENTS} statements`);

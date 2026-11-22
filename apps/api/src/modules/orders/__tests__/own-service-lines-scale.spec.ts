@@ -6,6 +6,6 @@ import { perfSuite } from './own-service-lines.perf.ts';
 describe.skipIf(process.env['POSPAY_57_2B_SCALE'] !== '1')(
   '57-2b scaled run (~66,000 lines)',
   () => {
-    perfSuite({ colleagues: 65_400, warm: 5, background: 3000 });
+    perfSuite({ colleagues: 65_400, warm: 5, background: 3000, timing: true });
   },
 );
