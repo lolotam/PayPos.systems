@@ -18,12 +18,14 @@ export const privateViewCalls = {
    * بيفتح النافذة بعد PIN جديد؛ الـ PIN بيتبعت مرة واحدة ومش بيتخزن.
    *
    * @param pin الأربع أرقام
+   * @param signal بيلغي الطلب لو الرد اتأخر عن المهلة
    * @returns النافذة المفتوحة، وغير كده بيرمي WorkHttpError بالكود
    */
-  open: async (pin: string): Promise<PrivateViewWindow> => {
+  open: async (pin: string, signal?: AbortSignal): Promise<PrivateViewWindow> => {
     const result = await staffApiClient().POST('/v1/staff/me/private-view', {
       body: { pin },
       cache: 'no-store',
+      ...(signal ? { signal } : {}),
     });
     if (result.data === undefined) throw refused(result);
     return result.data;

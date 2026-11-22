@@ -1,3 +1,4 @@
+import type { PrivateViewWindow } from '@pospay/contracts';
 import { privateViewCalls } from './private-view-calls';
 import { workCalls } from './my-work-calls';
 
@@ -7,6 +8,8 @@ export const TOUCH_INTERVAL_MS = 20_000;
 export const TICK_MS = 1_000;
 /** أقصى فرق بين تقدّم الساعة الجدارية والرتيبة بين فحصين قبل ما نعتبر الجهاز نام أو الساعة اتغيّرت. */
 export const CLOCK_DRIFT_MS = 1_500;
+/** أقصى انتظار لرد فتح النافذة؛ بعده الطلب بيتلغى والنموذج يتفتح تاني بدل ما يفضل مقفول على رد مش جاي. */
+export const OPEN_TIMEOUT_MS = 20_000;
 
 /** الساعات والمؤقتات: بتتحقن في الاختبارات، والافتراضي بيقرا الـ globals وقت الاستعمال (يتماشى مع المؤقتات المزيفة). */
 export type PrivateWindowEnv = {
@@ -39,9 +42,27 @@ export const defaultEnv: PrivateWindowEnv = {
 };
 
 export const defaultCalls: PrivateWindowCalls = {
-  open: (pin) => privateViewCalls.open(pin),
+  open: (pin, signal) => privateViewCalls.open(pin, signal),
   touch: (windowId, signal) => privateViewCalls.touch(windowId, signal),
   close: (windowId) => privateViewCalls.close(windowId),
   lines: (read) => workCalls.lines(read),
   tips: (read) => workCalls.tips(read),
 };
+
+/**
+ * بيفتح النافذة بمهلة: لو الرد اتأخر عن المهلة الطلب بيتلغى وبيترمي خطأ، فقفل الإرسال بيتفك.
+ * الإلغاء في العميل مش بيأكد إن السيرفر ما نفّذش الفتح؛ النافذة اللي ممكن تكون اتفتحت بتنتهي بمهلة الخمول على السيرفر.
+ *
+ * @param deps الساعات والاستدعاءات
+ * @param pin الأربع أرقام
+ * @returns النافذة المفتوحة
+ */
+export async function openWithin(deps: PrivateWindowDeps, pin: string): Promise<PrivateViewWindow> {
+  const stop = new AbortController();
+  const timer = deps.env.setTimer(() => stop.abort(), OPEN_TIMEOUT_MS);
+  try {
+    return await deps.calls.open(pin, stop.signal);
+  } finally {
+    deps.env.clearTimer(timer);
+  }
+}

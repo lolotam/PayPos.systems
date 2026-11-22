@@ -14,7 +14,7 @@ import {
 import { WorkHttpError, sessionEnded, windowRefusal } from '../model/work-error';
 import { PairedClock } from './private-window-clock';
 import { concealPrivateRoot } from './private-window-conceal';
-import type { PrivateWindowDeps } from './private-window-env';
+import { openWithin, type PrivateWindowDeps } from './private-window-env';
 import type { Scope, WindowHost } from './private-window-host';
 import { attachWindowListeners } from './private-window-listeners';
 import { loadLines, loadTips } from './private-window-reads';
@@ -40,7 +40,8 @@ export class PrivateWindowController implements WindowHost {
   private alive = false;
   private openInFlight = false;
   private state: PrivateWindowState = { phase: 'pin', problem: null, epoch: 0, waiting: false };
-  private expiredView: { source: PrivateWindowState; view: PrivateWindowState } | undefined;
+  // لقطة «انتهى الموعد» متسجّلة بدورة النموذج بس، من غير أي مرجع للحالة المفتوحة: بياناتها لازم تسيب الذاكرة مع القفل.
+  private expiredView: { epoch: number; view: PrivateWindowState } | undefined;
   private root: HTMLElement | null = null;
   private readonly listeners = new Set<() => void>();
   private readonly clock: PairedClock;
@@ -73,14 +74,14 @@ export class PrivateWindowController implements WindowHost {
   getState = (): PrivateWindowState => {
     const state = this.state;
     if (state.phase !== 'open' || !this.dueAt(state.deadlines)) return state;
-    if (this.expiredView?.source !== state) {
+    if (this.expiredView?.epoch !== this.epoch) {
       const view: PrivateWindowState = {
         phase: 'pin',
         problem: 'expired',
         epoch: this.epoch + 1,
         waiting: false,
       };
-      this.expiredView = { source: state, view };
+      this.expiredView = { epoch: this.epoch, view };
     }
     return this.expiredView.view;
   };
@@ -119,14 +120,14 @@ export class PrivateWindowController implements WindowHost {
     this.dispatch({ type: 'opening' });
     let opened: PrivateViewWindow;
     try {
-      opened = await this.deps.calls.open(pin);
+      opened = await openWithin(this.deps, pin);
     } catch (error) {
       this.settleOpen();
       if (gen === this.gen) this.openFailed(error);
       return;
     }
     if (gen !== this.gen) {
-      await this.closeRemote(opened.window_id);
+      void this.closeRemote(opened.window_id);
       return this.settleOpen();
     }
     this.settleOpen();
@@ -250,6 +251,7 @@ export class PrivateWindowController implements WindowHost {
     this.abort = new AbortController();
     this.timers.clear();
     this.touches.cancel();
+    this.expiredView = undefined;
     if (this.root !== null) concealPrivateRoot(this.root);
     if (previous.phase === 'leave') return;
     this.dispatch({
