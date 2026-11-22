@@ -1,25 +1,24 @@
 'use client';
 
-import { BottomNav, Button, ContextPanel, NavRail, PageFinder } from '@pospay/ui';
-import { t } from '@pospay/i18n';
-import { useMemo, type ReactNode } from 'react';
-
-import { useLocale } from '@/shared/locale/locale-context';
+import { BottomNav, ContextPanel, NavRail } from '@pospay/ui';
+import { useMemo, useRef, type ReactNode } from 'react';
 
 import { useMenuContext } from '../menu/use-menu-context';
 import { buildStyleCView } from '../menu/style-views';
 import { FrameLinks } from './frame-links';
 import { FrameTopBar } from './frame-top-bar';
+import { PanelToolbar } from './panel-toolbar';
 import { useFrameLabels } from './use-frame-labels';
 import { usePanelState } from './use-panel-state';
 
 /** النمط C (الافتراضي): شريط مساحات العمل ولوحة صفحاتها وباحث الصفحات، وعلى الهاتف تبويبات سفلية. */
 export function StyleCFrame({ children }: { children: ReactNode }) {
-  const locale = useLocale();
   const labels = useFrameLabels();
   const ctx = useMenuContext();
   const view = useMemo(() => buildStyleCView(ctx), [ctx]);
-  const panel = usePanelState(ctx.pathname, view.currentWorkspaceId);
+  const openerRef = useRef<HTMLButtonElement>(null);
+  const returnFocusRef = useRef<HTMLButtonElement>(null);
+  const panel = usePanelState(ctx.pathname, view.currentWorkspaceId, openerRef);
   return (
     <FrameLinks>
       <div className="flex min-h-dvh">
@@ -42,32 +41,21 @@ export function StyleCFrame({ children }: { children: ReactNode }) {
           panelOpen={panel.open}
           activePageId={view.activePageId}
           visiblePageIds={ctx.visibleIds}
-          openerRef={panel.openerRef}
-          returnFocusRef={panel.returnFocusRef}
+          openerRef={openerRef}
+          returnFocusRef={returnFocusRef}
           onInspect={panel.inspectOnly}
           onClose={panel.hide}
         />
         <div className="flex min-w-0 flex-1 flex-col pb-16 min-[600px]:pb-0">
           <FrameTopBar
             start={
-              <>
-                <Button
-                  ref={panel.returnFocusRef}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="hidden min-[600px]:inline-flex"
-                  onClick={panel.open ? panel.hide : panel.show}
-                >
-                  {t(locale, 'adminNav.togglePanel')}
-                </Button>
-                <PageFinder
-                  workspaces={view.workspaces}
-                  labels={labels.finder}
-                  visiblePageIds={ctx.visibleIds}
-                  activePageId={view.activePageId}
-                />
-              </>
+              <PanelToolbar
+                view={view}
+                visibleIds={ctx.visibleIds}
+                panelOpen={panel.open}
+                onToggle={panel.open ? panel.hide : panel.show}
+                toggleRef={returnFocusRef}
+              />
             }
           />
           <main className="min-w-0 flex-1 px-4 py-6 min-[768px]:px-6">{children}</main>

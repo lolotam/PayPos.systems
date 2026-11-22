@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, type RefObject } from 'react';
+import { useState, type RefObject } from 'react';
 
 import { useMediaQuery } from './use-media-query';
 
@@ -10,8 +10,6 @@ const FLOATING_QUERY = '(min-width: 600px) and (width < 1024px)';
 export interface PanelState {
   open: boolean;
   inspectedId: string | undefined;
-  openerRef: RefObject<HTMLButtonElement | null>;
-  returnFocusRef: RefObject<HTMLButtonElement | null>;
   inspect: (workspaceId: string, opener: HTMLButtonElement) => void;
   inspectOnly: (workspaceId: string) => void;
   show: () => void;
@@ -26,13 +24,12 @@ export interface PanelState {
 export function usePanelState(
   pathname: string,
   currentWorkspaceId: string | undefined,
+  openerRef: RefObject<HTMLButtonElement | null>,
 ): PanelState {
   const floating = useMediaQuery(FLOATING_QUERY);
   const [hidden, setHidden] = useState(false);
   const [floatingPath, setFloatingPath] = useState<string | null>(null);
   const [inspected, setInspected] = useState<{ path: string; id: string } | null>(null);
-  const openerRef = useRef<HTMLButtonElement | null>(null);
-  const returnFocusRef = useRef<HTMLButtonElement | null>(null);
   const open = floating ? floatingPath === pathname : !hidden;
   const inspectedId = inspected?.path === pathname ? inspected.id : undefined;
   const show = () => {
@@ -46,9 +43,12 @@ export function usePanelState(
   const inspectOnly = (workspaceId: string) => setInspected({ path: pathname, id: workspaceId });
   const inspect = (workspaceId: string, opener: HTMLButtonElement) => {
     openerRef.current = opener;
-    if (open && (inspectedId ?? currentWorkspaceId) === workspaceId) return hide();
+    if (open && (inspectedId ?? currentWorkspaceId) === workspaceId) {
+      hide();
+      return;
+    }
     inspectOnly(workspaceId);
     show();
   };
-  return { open, inspectedId, openerRef, returnFocusRef, inspect, inspectOnly, show, hide };
+  return { open, inspectedId, inspect, inspectOnly, show, hide };
 }

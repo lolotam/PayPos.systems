@@ -1,6 +1,6 @@
 import type { WorkspaceController } from '@/workspace/model/workspace-provider';
 import { renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 
 import { useVisibilityConditions } from './use-visibility-conditions';
 
@@ -86,73 +86,71 @@ beforeEach(() => {
 
 const conditions = () => renderHook(() => useVisibilityConditions()).result.current;
 
-describe('useVisibilityConditions', () => {
-  it('keeps every guarded condition closed while the reads are loading', () => {
-    expect(conditions()).toEqual({
-      always: true,
-      'alert-rules-or-rating-access': false,
-      'business-identity-access': false,
-      'commission-plans-access': false,
-      'employee-app-link-access': false,
-      'imported-refunds-access': false,
-      'leave-report-access': false,
-      'staff-app-columns-access': false,
-    });
+it('keeps every guarded condition closed while the reads are loading', () => {
+  expect(conditions()).toEqual({
+    always: true,
+    'alert-rules-or-rating-access': false,
+    'business-identity-access': false,
+    'commission-plans-access': false,
+    'employee-app-link-access': false,
+    'imported-refunds-access': false,
+    'leave-report-access': false,
+    'staff-app-columns-access': false,
   });
+});
 
-  it('opens the alert-rules condition when either read succeeds', () => {
-    state.rating = { isSuccess: true };
-    expect(conditions()['alert-rules-or-rating-access']).toBe(true);
-    state.rating = { isSuccess: false };
-    state.alerts = { isSuccess: true };
-    expect(conditions()['alert-rules-or-rating-access']).toBe(true);
-  });
+it('opens the alert-rules condition when either read succeeds', () => {
+  state.rating = { isSuccess: true };
+  expect(conditions()['alert-rules-or-rating-access']).toBe(true);
+  state.rating = { isSuccess: false };
+  state.alerts = { isSuccess: true };
+  expect(conditions()['alert-rules-or-rating-access']).toBe(true);
+});
 
-  it('opens business identity only when the capability read says true', () => {
-    state.identity = { data: true };
-    expect(conditions()['business-identity-access']).toBe(true);
-    state.identity = { data: false };
-    expect(conditions()['business-identity-access']).toBe(false);
-  });
+it('opens business identity only when the capability read says true', () => {
+  state.identity = { data: true };
+  expect(conditions()['business-identity-access']).toBe(true);
+  state.identity = { data: false };
+  expect(conditions()['business-identity-access']).toBe(false);
+});
 
-  it('opens commission plans on saved employees and closes them when access is denied', () => {
-    state.employees = { data: [] };
-    expect(conditions()['commission-plans-access']).toBe(true);
-    state.denied = true;
-    expect(conditions()['commission-plans-access']).toBe(false);
-  });
+it('opens commission plans on saved employees and closes them when access is denied', () => {
+  state.employees = { data: [] };
+  expect(conditions()['commission-plans-access']).toBe(true);
+  state.denied = true;
+  expect(conditions()['commission-plans-access']).toBe(false);
+});
 
-  it('opens imported refunds only after a fresh granted read', () => {
-    state.refunds = { isSuccess: true, isFetchedAfterMount: false };
-    expect(conditions()['imported-refunds-access']).toBe(false);
-    state.refunds = { isSuccess: true, isFetchedAfterMount: true };
-    expect(conditions()['imported-refunds-access']).toBe(true);
-  });
+it('opens imported refunds only after a fresh granted read', () => {
+  state.refunds = { isSuccess: true, isFetchedAfterMount: false };
+  expect(conditions()['imported-refunds-access']).toBe(false);
+  state.refunds = { isSuccess: true, isFetchedAfterMount: true };
+  expect(conditions()['imported-refunds-access']).toBe(true);
+});
 
-  it('opens staff app columns unless the read is pending or failed', () => {
-    state.columns = { isPending: false, isError: false };
-    expect(conditions()['staff-app-columns-access']).toBe(true);
-    state.columns = { isPending: false, isError: true };
-    expect(conditions()['staff-app-columns-access']).toBe(false);
-  });
+it('opens staff app columns unless the read is pending or failed', () => {
+  state.columns = { isPending: false, isError: false };
+  expect(conditions()['staff-app-columns-access']).toBe(true);
+  state.columns = { isPending: false, isError: true };
+  expect(conditions()['staff-app-columns-access']).toBe(false);
+});
 
-  it('opens the app link and leave report conditions from their own reads', () => {
-    state.appLink = { isSuccess: true };
-    state.leave = { allowed: true };
-    const result = conditions();
-    expect(result['employee-app-link-access']).toBe(true);
-    expect(result['leave-report-access']).toBe(true);
-  });
+it('opens the app link and leave report conditions from their own reads', () => {
+  state.appLink = { isSuccess: true };
+  state.leave = { allowed: true };
+  const result = conditions();
+  expect(result['employee-app-link-access']).toBe(true);
+  expect(result['leave-report-access']).toBe(true);
+});
 
-  it('closes every guarded condition when no business is selected or nobody is signed in', () => {
-    state.identity = { data: true };
-    state.appLink = { isSuccess: true };
-    state.userId = null;
-    expect(conditions()['business-identity-access']).toBe(false);
-    state.userId = 'user';
-    state.workspace = { status: 'choose', companies: [], choose: vi.fn() };
-    const result = conditions();
-    expect(result['employee-app-link-access']).toBe(false);
-    expect(result.always).toBe(true);
-  });
+it('closes every guarded condition when no business is selected or nobody is signed in', () => {
+  state.identity = { data: true };
+  state.appLink = { isSuccess: true };
+  state.userId = null;
+  expect(conditions()['business-identity-access']).toBe(false);
+  state.userId = 'user';
+  state.workspace = { status: 'choose', companies: [], choose: vi.fn() };
+  const result = conditions();
+  expect(result['employee-app-link-access']).toBe(false);
+  expect(result.always).toBe(true);
 });

@@ -23,7 +23,6 @@ function softNavigationTarget(event: MouseEvent<HTMLElement>): string | null {
 export function FrameLinks({ children }: { children: ReactNode }) {
   const router = useRouter();
   return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- الجذر لا يتفاعل بنفسه، يلتقط ضغطات الروابط التي بداخله فقط.
     <div
       className="contents"
       onClick={(event) => {

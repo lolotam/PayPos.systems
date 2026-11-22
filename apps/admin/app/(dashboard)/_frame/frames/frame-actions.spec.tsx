@@ -1,7 +1,7 @@
 import { t } from '@pospay/i18n';
 import { readThemePreference, setThemePreference } from '@pospay/ui';
 import { act, fireEvent, screen, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 
 import { useNavStyle } from '../nav-style/nav-style-context';
 import { FrameActions } from './frame-actions';
@@ -57,78 +57,76 @@ beforeEach(() => {
   setThemePreference('system');
 });
 
-describe('account menu', () => {
-  it('shows the name, email, links and every choice in order', () => {
-    renderFrame(<FrameActions />);
-    const menu = openMenu();
-    expect(within(menu).getByText('Sara Ali')).toBeTruthy();
-    expect(within(menu).getByText('sara@example.test')).toBeTruthy();
-    expect(
-      within(menu)
-        .getByRole('menuitem', { name: label('admin.enrolLink') })
-        .getAttribute('href'),
-    ).toBe('/security/two-factor');
-    expect(
-      within(menu)
-        .getByRole('menuitem', { name: label('adminNav.appearanceTitle') })
-        .getAttribute('href'),
-    ).toBe('/appearance');
-    expect(within(menu).getAllByRole('menuitem')).toHaveLength(9);
-  });
+it('shows the name, email, links and every choice in order', () => {
+  renderFrame(<FrameActions />);
+  const menu = openMenu();
+  expect(within(menu).getByText('Sara Ali')).toBeTruthy();
+  expect(within(menu).getByText('sara@example.test')).toBeTruthy();
+  expect(
+    within(menu)
+      .getByRole('menuitem', { name: label('admin.enrolLink') })
+      .getAttribute('href'),
+  ).toBe('/security/two-factor');
+  expect(
+    within(menu)
+      .getByRole('menuitem', { name: label('adminNav.appearanceTitle') })
+      .getAttribute('href'),
+  ).toBe('/appearance');
+  expect(within(menu).getAllByRole('menuitem')).toHaveLength(9);
+});
 
-  it('marks the current style in words and switches it without a reload', () => {
-    renderFrame(
-      <>
-        <FrameActions />
-        <Probe />
-      </>,
-    );
-    let menu = openMenu();
-    const styleItems = within(menu).getAllByRole('menuitem', {
-      name: new RegExp(label('adminNav.accountMenuStyle')),
-    });
-    expect(styleItems.map((item) => item.textContent)).toEqual([
-      `${label('adminNav.accountMenuStyle')}: ${label('adminNav.styleALabel')}`,
-      `${label('adminNav.accountMenuStyle')}: ${label('adminNav.styleBLabel')}`,
-      `${label('adminNav.accountMenuStyle')}: ${label('adminNav.styleCLabel')} — ${label('adminNav.currentStyleBadge')}`,
-    ]);
-    fireEvent.click(styleItems[0] as HTMLElement);
-    expect(screen.getByText('Style in use: A')).toBeTruthy();
-    menu = openMenu();
-    expect(
-      within(menu).getByRole('menuitem', {
-        name: new RegExp(`${label('adminNav.styleALabel')} — `),
-      }),
-    ).toBeTruthy();
+it('marks the current style in words and switches it without a reload', () => {
+  renderFrame(
+    <>
+      <FrameActions />
+      <Probe />
+    </>,
+  );
+  let menu = openMenu();
+  const styleItems = within(menu).getAllByRole('menuitem', {
+    name: new RegExp(label('adminNav.accountMenuStyle')),
   });
+  expect(styleItems.map((item) => item.textContent)).toEqual([
+    `${label('adminNav.accountMenuStyle')}: ${label('adminNav.styleALabel')}`,
+    `${label('adminNav.accountMenuStyle')}: ${label('adminNav.styleBLabel')}`,
+    `${label('adminNav.accountMenuStyle')}: ${label('adminNav.styleCLabel')} — ${label('adminNav.currentStyleBadge')}`,
+  ]);
+  fireEvent.click(styleItems[0] as HTMLElement);
+  expect(screen.getByText('Style in use: A')).toBeTruthy();
+  menu = openMenu();
+  expect(
+    within(menu).getByRole('menuitem', {
+      name: new RegExp(`${label('adminNav.styleALabel')} — `),
+    }),
+  ).toBeTruthy();
+});
 
-  it('applies the theme choice and marks the current one', () => {
-    renderFrame(<FrameActions />);
-    const menu = openMenu();
-    fireEvent.click(within(menu).getByRole('menuitem', { name: new RegExp(label('theme.dark')) }));
-    expect(readThemePreference()).toBe('dark');
-    const reopened = openMenu();
-    expect(
-      within(reopened).getByRole('menuitem', { name: new RegExp(`${label('theme.dark')} — `) }),
-    ).toBeTruthy();
-  });
+it('applies the theme choice and marks the current one', () => {
+  renderFrame(<FrameActions />);
+  const menu = openMenu();
+  fireEvent.click(within(menu).getByRole('menuitem', { name: new RegExp(label('theme.dark')) }));
+  expect(readThemePreference()).toBe('dark');
+  const reopened = openMenu();
+  expect(
+    within(reopened).getByRole('menuitem', { name: new RegExp(`${label('theme.dark')} — `) }),
+  ).toBeTruthy();
+});
 
-  it('signs out from the last entry and shows a failure in its text', () => {
-    const { rerenderFrame } = renderFrame(<FrameActions />);
-    fireEvent.click(within(openMenu()).getByRole('menuitem', { name: label('admin.signOut') }));
-    expect(signOut.submit).toHaveBeenCalledTimes(1);
-    signOut.failed = true;
-    act(() => rerenderFrame(<FrameActions />));
-    expect(
-      within(openMenu()).getByRole('menuitem', {
-        name: `${label('admin.signOut')} — ${label('admin.unexpected')}`,
-      }),
-    ).toBeTruthy();
-  });
+it('signs out from the last entry and shows a failure in its text', () => {
+  const { rerenderFrame } = renderFrame(<FrameActions />);
+  fireEvent.click(within(openMenu()).getByRole('menuitem', { name: label('admin.signOut') }));
+  expect(signOut.submit).toHaveBeenCalledTimes(1);
+  signOut.failed = true;
+  act(() => rerenderFrame(<FrameActions />));
+  expect(
+    within(openMenu()).getByRole('menuitem', {
+      name: `${label('admin.signOut')} — ${label('admin.unexpected')}`,
+    }),
+  ).toBeTruthy();
+});
 
-  it('keeps the other frame controls beside the menu', () => {
-    renderFrame(<FrameActions />);
-    expect(screen.getByRole('button', { name: 'Notifications' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Switch language' })).toBeTruthy();
-  });
+it('keeps the other frame controls beside the menu', () => {
+  renderFrame(<FrameActions />);
+  expect(screen.getByRole('button', { name: 'Notifications' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Switch language' })).toBeTruthy();
 });

@@ -7,10 +7,8 @@ import { UnderDevelopmentPage } from './under-development-page';
 const state = vi.hoisted(() => ({ locale: 'en' as 'en' | 'ar' }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => state.locale }));
 
-describe.each([
-  ['en', 'Kitchen screens'],
-  ['ar', 'شاشات المطبخ'],
-] as const)('Under development in %s', (locale, name) => {
+describe.each(['en', 'ar'] as const)('Under development in %s', (locale) => {
+  const name = t(locale, 'adminNavPages.kitchenScreens');
   it('shows the entry name, one line and a way back to Home, with no date or phase', () => {
     state.locale = locale;
     render(<UnderDevelopmentPage name={name} homeHref="/" />);
