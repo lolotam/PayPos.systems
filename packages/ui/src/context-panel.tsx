@@ -147,13 +147,23 @@ function usePendingFocusObserver(onMutation: () => void) {
   return { startObserving, stopObserving };
 }
 
-function useOutsideFocusTracker(
-  panelRef: RefObject<HTMLDivElement | null>,
-  openerRef: RefObject<HTMLElement | null> | undefined,
-  restoringFocusRef: RefObject<boolean>,
-  pendingFocusRef: RefObject<boolean>,
-  cancelPendingFocus: () => void,
-) {
+type OutsideFocusTrackerInput = {
+  panelRef: RefObject<HTMLDivElement | null>;
+  openerRef: RefObject<HTMLElement | null> | undefined;
+  freezeObservedOpener: boolean;
+  restoringFocusRef: RefObject<boolean>;
+  pendingFocusRef: RefObject<boolean>;
+  cancelPendingFocus: () => void;
+};
+
+function useOutsideFocusTracker({
+  panelRef,
+  openerRef,
+  freezeObservedOpener,
+  restoringFocusRef,
+  pendingFocusRef,
+  cancelPendingFocus,
+}: OutsideFocusTrackerInput) {
   const observedOpenerRef = useRef<HTMLElement | undefined>(undefined);
   useEffect(() => {
     const rememberOpener = (target: EventTarget | null) => {
@@ -170,21 +180,39 @@ function useOutsideFocusTracker(
     const onFocusIn = (event: FocusEvent) => {
       if (restoringFocusRef.current) return;
       if (pendingFocusRef.current) cancelPendingFocus();
-      rememberOpener(event.target);
+      if (!freezeObservedOpener) rememberOpener(event.target);
     };
     document.addEventListener('focusin', onFocusIn);
-    rememberOpener(document.activeElement);
+    if (!freezeObservedOpener || !observedOpenerRef.current) {
+      rememberOpener(document.activeElement);
+    }
     return () => document.removeEventListener('focusin', onFocusIn);
-  }, [cancelPendingFocus, openerRef, panelRef, pendingFocusRef, restoringFocusRef]);
+  }, [
+    cancelPendingFocus,
+    freezeObservedOpener,
+    openerRef,
+    panelRef,
+    pendingFocusRef,
+    restoringFocusRef,
+  ]);
   return observedOpenerRef;
 }
 
-function usePanelReturnFocus(
-  panelRef: RefObject<HTMLDivElement | null>,
-  panelOpen: boolean,
-  openerRef: RefObject<HTMLElement | null> | undefined,
-  fallbackRef: RefObject<HTMLButtonElement | null> | undefined,
-) {
+type PanelReturnFocusInput = {
+  panelRef: RefObject<HTMLDivElement | null>;
+  panelOpen: boolean;
+  freezeObservedOpener: boolean;
+  openerRef: RefObject<HTMLElement | null> | undefined;
+  fallbackRef: RefObject<HTMLButtonElement | null> | undefined;
+};
+
+function usePanelReturnFocus({
+  panelRef,
+  panelOpen,
+  freezeObservedOpener,
+  openerRef,
+  fallbackRef,
+}: PanelReturnFocusInput) {
   const pendingFocusRef = useRef(false);
   const restoringFocusRef = useRef(false);
   const onMutationRef = useRef<() => void>(() => undefined);
@@ -195,13 +223,9 @@ function usePanelReturnFocus(
     pendingFocusRef.current = false;
     stopObserving();
   }, [stopObserving]);
-  const observedOpenerRef = useOutsideFocusTracker(
-    panelRef,
-    openerRef,
-    restoringFocusRef,
-    pendingFocusRef,
-    cancelPendingFocus,
-  );
+  const observedOpenerRef = useOutsideFocusTracker({
+    panelRef, openerRef, freezeObservedOpener, restoringFocusRef, pendingFocusRef, cancelPendingFocus,
+  });
 
   const tryFocus = useCallback((target: HTMLElement | undefined) => {
     if (!isFocusTargetEligible(target)) return false;
@@ -274,8 +298,15 @@ export function ContextPanel({
     inspectedWorkspaceId,
     panelOpen,
   });
-  usePanelReturnFocus(panelRef, panelOpen, openerRef, returnFocusRef);
-  useFloatingPanelOverlay(panelRef, panelOpen && isFloatingOverlay, onClose);
+  const floatingActive = panelOpen && isFloatingOverlay;
+  usePanelReturnFocus({
+    panelRef,
+    panelOpen,
+    freezeObservedOpener: floatingActive,
+    openerRef,
+    fallbackRef: returnFocusRef,
+  });
+  useFloatingPanelOverlay(panelRef, floatingActive, onClose);
   if (!panelOpen) return null;
   const workspace = workspaces.find((item) => item.id === inspectedId);
   return (

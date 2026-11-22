@@ -204,3 +204,42 @@ it('contains focus on an outside no-op click while preserving NavRail workspace 
   expect(dialog.contains(document.activeElement)).toBe(true);
   expect(document.activeElement).toBe(closeButton);
 });
+
+it('preserves the original observed opener across outside clicks while the tablet modal is open', () => {
+  stubViewportWidth(820);
+  function Harness() {
+    const [open, setOpen] = useState(false);
+    return (
+      <DirectionProvider dir="ltr">
+        <button type="button" onClick={() => setOpen(true)}>
+          Actual opener
+        </button>
+        <button type="button" onClick={() => setOpen(true)}>
+          Outside no-op
+        </button>
+        <ContextPanel
+          workspaces={workspaces}
+          labels={contextLabels}
+          currentWorkspaceId="business"
+          panelOpen={open}
+          onClose={() => setOpen(false)}
+        />
+      </DirectionProvider>
+    );
+  }
+
+  render(<Harness />);
+  const actualOpener = screen.getByRole('button', { name: 'Actual opener' });
+  actualOpener.focus();
+  fireEvent.click(actualOpener);
+
+  const dialog = screen.getByRole('dialog', { name: contextLabels.navigation });
+  const outsideNoOp = screen.getByRole('button', { name: 'Outside no-op' });
+  outsideNoOp.focus();
+  fireEvent.click(outsideNoOp);
+  expect(dialog.contains(document.activeElement)).toBe(true);
+
+  fireEvent.keyDown(document.activeElement ?? dialog, { key: 'Escape' });
+  expect(screen.queryByRole('dialog', { name: contextLabels.navigation })).toBeNull();
+  expect(document.activeElement).toBe(actualOpener);
+});
