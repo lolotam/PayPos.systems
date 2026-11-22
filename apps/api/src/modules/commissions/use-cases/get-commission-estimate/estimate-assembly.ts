@@ -112,13 +112,16 @@ function estimateEmployee(
   const priced = priceEmployee(inputs.month, employeeId, request.period);
   const rows = visibleRows(inputs, scope, employeeId, priced);
   const name = inputs.employees.find((employee) => employee.employeeId === employeeId);
+  // موظفة بلا صف موظفين في النشاط ده مالهاش اسم يتعرض، فتتشال من الرد بدل ما يتعرض
+  // اسم فاضي: الرد ما بيقدرش يكشف موظفة من نشاط تاني.
+  if (name === undefined) return null;
   const partial =
     inputs.businessWide ? false : rows.outside || attachedDays.size < daysInMonth(request.period);
   const employee: CommissionEstimateEmployee = {
     employee_id: employeeId,
-    name_ar: name?.nameAr ?? null,
-    name_en: name?.nameEn ?? '',
-    employee_number: name?.employeeNumber ?? 0,
+    name_ar: name.nameAr,
+    name_en: name.nameEn,
+    employee_number: name.employeeNumber,
     status: priced.status,
     partial,
     total: moneyToString(rows.total),
