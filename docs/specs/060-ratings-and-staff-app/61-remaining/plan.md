@@ -19,6 +19,10 @@ former slices become **ordered checkpoints (commits) inside that PR**. 57-2b is 
 **Owner transfer (2026-11-22, manager):** MiniMax M3.1 Flash delivered checkpoint 61-2a (`c362b10f3`) and the
 61-1c seed (`5adee26f1`, transferred as `bfe92d16b`) before its quota ran out; GLM 5.3 Flash continues the same
 thread, worktree, plan and checkpoints with no scope change.
+**Second transfer (2026-11-22, Waleed, in the delivery thread: «كمل أكتب الكود كلة ونراجع في الاخر»):** GLM 5.3
+Flash delivered checkpoint 61-1d (`ab25b78ca`); Claude on the Claude Code harness (Opus 5.5, then Fable 5.2)
+continues from checkpoint 61-1e in the same thread, worktree, plan and checkpoints, with no scope change. Guard
+skills and the code review run once, after checkpoint 14.
 
 | Earlier rule or record | What the instruction does to it | Still binding |
 |---|---|---|
@@ -325,7 +329,8 @@ Calibration from merged work (production / test / generated): #1135 67 / 342 / 7
 
 1. One OpenCode owner session owns the whole build, continuously, in its
    worktree, through reviews and merge — GLM 5.3 Flash since the 2026-11-22 quota transfer; MiniMax M3.1 Flash
-   delivered 61-2a and the 61-1c seed before it. No second implementer and no extra slot.
+   delivered 61-2a and the 61-1c seed before it. From checkpoint 61-1e the owner is Claude on the Claude Code
+   harness (§1, second transfer). No second implementer and no extra slot.
 2. PP-218 adds Heavy review to this one Medium delivery. Run `clean-code-guard`, `test-guard`, `docs-guard`,
    `review-agent`, `requesting-code-review` and the relevant API, architecture and i18n skills. Run focused
    tests and the slice's acceptance proofs in the private lane. Unrelated heavy suites remain in CI under PP-113.
@@ -350,7 +355,8 @@ Calibration from merged work (production / test / generated): #1135 67 / 342 / 7
 ### ملخص للمالك (بالعربي)
 
 > **نقل التنفيذ (2026-11-22):** MiniMax 3.1 سلّم شريحة 61-2a وبذرة 61-1c قبل نفاد حصته، وكمل GLM 5.3 Flash
-> نفس الجلسة ونفس الخطة ونفس الـ checkpoints من غير أي تغيير في النطاق.
+> نفس الجلسة ونفس الخطة ونفس الـ checkpoints من غير أي تغيير في النطاق. وبعد 61-1d طلب وليد إن Claude يكمل
+> كتابة باقي الكود في نفس الجلسة، والمراجعة مرة واحدة في الآخر.
 
 - كل الشغل الباقي بقى PR واحد بمنفّذ واحد على OpenCode (Medium) زي ما طلبت، والشرايح بقت 14 خطوة
   مرتبة جوه نفس الـ PR: 61-2a ثم 61-1c…i ثم 61-2b…d ثم 57-2b ثم 57-4 ثم 61-3.
