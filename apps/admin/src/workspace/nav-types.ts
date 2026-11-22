@@ -83,6 +83,7 @@ export type NavigationVisibilityCondition =
   | 'employee-app-link-access'
   | 'imported-refunds-access'
   | 'leave-report-access'
+  | 'ratings-access'
   | 'staff-app-columns-access';
 
 /** مصادر عدّادات الاعتمادات المخططة للخطوة 7 فقط حيث توفرها قراءة قائمة رخيصة (FR-026، R10). */
