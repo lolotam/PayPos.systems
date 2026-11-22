@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type { WorkContext } from '../model/work-context';
+import { PrivateViewRetiredError } from '../model/work-error';
 import { workCalls } from './my-work-calls';
 import type { PrivateViewAccess } from './use-private-view';
 
@@ -12,13 +13,22 @@ const PRIVATE_READ = {
   refetchOnReconnect: false,
 } as const;
 
+/**
+ * قراءة خاصة محروسة. على جهاز الاستقبال الرد الناجح ما بيوصلش للكاش إلا لو نافذة الطلب لسه هي
+ * الحالية (المفتاح المشترك والمواعيد)، من غير انتظار إشارة التخزين اللي ممكن توصل بعد الرد؛ وإلا بيترمى
+ * والتاب بيتقفل (ADR-0019 البند 6: التاب بيعرض رد نافذته الحالية بس).
+ */
 async function guarded<T>(read: () => Promise<T>, signal: AbortSignal, view: PrivateViewAccess) {
+  const windowId = view.windowId;
+  let data: T;
   try {
-    return await read();
+    data = await read();
   } catch (error) {
     if (!signal.aborted) view.refused(error);
     throw error;
   }
+  if (windowId !== undefined && !view.fence(windowId)) throw new PrivateViewRetiredError();
+  return data;
 }
 
 /**

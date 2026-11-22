@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { PrivateViewAccess } from '../api/use-private-view';
 import { useRatingSummary, useWorkLines, useWorkTips } from '../api/use-my-work';
 import { monthOutOfRange } from '../model/work-error';
@@ -40,6 +40,13 @@ export function MyWorkCards({
   if (month === undefined && serverMonth !== undefined && home !== serverMonth)
     setHome(serverMonth);
   const shown = month ?? serverMonth;
+  // نافذة اتبدلت من تاب تاني قبل وصول إشارة التخزين: مفيش عرض، والتاب بيتقفل (ADR-0019 البند 6).
+  const windowId = access.windowId;
+  const current = windowId === undefined || access.isCurrent(windowId);
+  useEffect(() => {
+    if (!current && windowId !== undefined) access.fence(windowId);
+  }, [current, windowId, access]);
+  if (!current) return null;
   return (
     <div className="grid gap-4">
       <MonthStepper

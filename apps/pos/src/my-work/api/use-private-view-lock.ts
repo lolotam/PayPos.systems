@@ -5,7 +5,7 @@ import { sessionEnded, windowExpired } from '../model/work-error';
 import type { CloseScope } from './private-view-clock';
 import { privateViewCalls } from './private-view-calls';
 
-export type PrivateViewProblem = 'invalid' | 'failed' | 'expired' | null;
+export type PrivateViewProblem = 'invalid' | 'failed' | 'expired' | 'unavailable' | null;
 export type PrivateViewLockOptions = {
   cachePrefix: readonly unknown[];
   onLeave: () => void;

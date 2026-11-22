@@ -167,6 +167,16 @@ export function announceWindowClosed(windowId: string): void {
   }
 }
 
+/**
+ * فتح جديد ما قدرش يكتب المفتاح (الكتابة فشلت) فاتقفل: النافذة الأقدم اللي المفتاح لسه بيسمّيها
+ * اتبدلت في السيرفر، فبنبلّغ تابها بالقناة عشان تتقفل فوراً بدل ما تستنى الخمول. مفيش مفتاح مقروء =
+ * مفيش حد نبلّغه، وتابات تانية بتتقفل بمواعيدها ورفض السيرفر.
+ */
+export function announceKeyedWindowReplaced(): void {
+  const key = readSharedKey();
+  if (key !== null && key !== 'unavailable') announceWindowClosed(key.windowId);
+}
+
 function closedWindowId(data: unknown): string | null {
   if (typeof data !== 'object' || data === null) return null;
   const { windowId } = data as { windowId?: unknown };

@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { closeAt, openedDeadlines } from '../model/private-view-deadline';
-import { claimSharedKey, type SharedKey } from '../model/private-view-key';
+import {
+  announceKeyedWindowReplaced,
+  claimSharedKey,
+  type SharedKey,
+} from '../model/private-view-key';
 import { WorkHttpError, sessionEnded } from '../model/work-error';
 import { privateViewCalls } from './private-view-calls';
 import {
@@ -15,6 +19,10 @@ import { usePrivateViewLock } from './use-private-view-lock';
 export type PrivateViewAccess = {
   windowId: string | undefined;
   refused: (error: unknown) => void;
+  /** سياج الرد: false = النافذة مش الحالية، التاب اتقفل والرد يترمي قبل الكاش. */
+  fence: (windowId: string) => boolean;
+  /** نفس الفحص من غير قفل، لمنع عرض نافذة اتبدلت قبل وصول إشارة التخزين. */
+  isCurrent: (windowId: string) => boolean;
 };
 
 type Options = {
@@ -56,6 +64,8 @@ async function attemptOpen(pin: string) {
  * (الموعد بيتحرك لما اللمسة تنجح بس)، ومسح الكاش عند القفل أو الخروج. المفتاح المشترك بيخلّي أي
  * فتح أحدث يقفل التابات الأقدم، وقفل النافذة في تاب بيوصل لباقي التابات برقمها (ADR-0019).
  * الموبايل الشخصي ما بيحتاجش نافذة: بيتفتح على طول.
+ * لو المفتاح المشترك ما اتكتبش (التخزين مقفول) الفتح بيتقفل ومبيعرضش بيانات: من غير سياج بين التابات
+ * تاب أقدم ممكن يفضل عارض نافذة اتبدلت.
  *
  * @param options.mode موبايلها الشخصي أو جهاز الاستقبال
  * @param options.cachePrefix بداية مفاتيح الكاش اللي بتتمسح مع النافذة
@@ -76,7 +86,7 @@ export function usePrivateView(options: Options) {
       release();
     };
   }, [release]);
-  usePrivateViewInput(reception ? confirmed : undefined, lock);
+  const fences = usePrivateViewInput(reception ? confirmed : undefined, lock);
   const windowId = confirmed?.windowId;
   const submitPin = async (pin: string) => {
     if (pending || !navigator.onLine) return;
@@ -96,19 +106,24 @@ export function usePrivateView(options: Options) {
         return;
       }
       const claim = claimSharedKey(key, wallNow());
-      if (claim === 'older') {
-        lock.setProblem('expired');
+      if (claim !== 'written') {
+        // مفتاح مشترك مش متكتب = مفيش سياج بين التابات: النافذة ما بتتعرضش (تقفل مغلقة) وبتتقفل في السيرفر.
+        if (claim === 'unavailable') {
+          void privateViewCalls.close(opened.windowId);
+          announceKeyedWindowReplaced();
+        }
+        lock.setProblem(claim === 'older' ? 'expired' : 'unavailable');
         return;
       }
       lock.live.current = opened.windowId;
-      setConfirmed({ ...opened, shared: claim === 'written' });
+      setConfirmed({ ...opened, shared: true });
     } else if (outcome.kind === 'ended') lock.latest.current.onLeave();
     else lock.setProblem(outcome.kind);
   };
   return {
     open: !reception || windowId !== undefined,
     verifying: lock.verifying,
-    access: { windowId, refused: lock.refused } satisfies PrivateViewAccess,
+    access: { windowId, refused: lock.refused, ...fences } satisfies PrivateViewAccess,
     pending,
     problem: lock.problem,
     submitPin,

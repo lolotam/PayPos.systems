@@ -1,77 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { openedDeadlines } from '../model/private-view-deadline';
 import { claimSharedKey, readSharedKey } from '../model/private-view-key';
 import { WorkHttpError } from '../model/work-error';
-import { type ClockHandlers, startPrivateViewClock } from './private-view-clock';
 import { privateViewCalls } from './private-view-calls';
+import {
+  FakeChannel,
+  WALL0,
+  elapse,
+  openTab,
+  pageshow,
+  remaining,
+  visibility,
+} from './private-view-clock-kit';
 
 vi.mock('./private-view-calls', () => ({ privateViewCalls: { touch: vi.fn(), close: vi.fn() } }));
 
 const touch = vi.mocked(privateViewCalls.touch);
-const WALL0 = 1_700_000_000_000;
-const remaining = { idle_remaining_ms: 60_000, cap_remaining_ms: 300_000 };
-
-/** تاب واحد: ساعتين بيتحركوا بإيدينا، وردود فعل مراقَبة، ومفتاح مشترك اتكتب بالفتح. */
-function openTab(options: { windowId?: string; shared?: boolean } = {}) {
-  const windowId = options.windowId ?? 'win-a';
-  const clock = { mono: 0, wall: WALL0 };
-  const handlers = {
-    hide: vi.fn(),
-    show: vi.fn(),
-    close: vi.fn(),
-    refused: vi.fn(),
-  } satisfies ClockHandlers;
-  const shared = options.shared ?? true;
-  if (shared)
-    claimSharedKey(
-      {
-        windowId,
-        sessionRef: 'session-1',
-        windowSeq: '1',
-        idleWallAt: WALL0 + remaining.idle_remaining_ms,
-        capWallAt: WALL0 + remaining.cap_remaining_ms,
-      },
-      WALL0,
-    );
-  const stop = startPrivateViewClock(
-    {
-      windowId,
-      deadlines: openedDeadlines(0, remaining),
-      sentWall: WALL0,
-      shared,
-    },
-    handlers,
-    { mono: () => clock.mono, wall: () => clock.wall },
-  );
-  return { clock, handlers, stop };
-}
-
-const visibility = (state: 'visible' | 'hidden') => {
-  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
-  document.dispatchEvent(new Event('visibilitychange'));
-};
-const pageshow = (persisted: boolean) =>
-  window.dispatchEvent(Object.assign(new Event('pageshow'), { persisted }));
-const elapse = (tab: ReturnType<typeof openTab>, ms: number) => {
-  tab.clock.mono += ms;
-  tab.clock.wall += ms;
-};
-
-class FakeChannel {
-  static all: FakeChannel[] = [];
-  onmessage: ((event: MessageEvent) => void) | null = null;
-  closed = false;
-  constructor(readonly name: string) {
-    FakeChannel.all.push(this);
-  }
-  postMessage(data: unknown) {
-    for (const other of FakeChannel.all)
-      if (other !== this && !other.closed) other.onmessage?.({ data } as MessageEvent);
-  }
-  close() {
-    this.closed = true;
-  }
-}
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -223,6 +166,7 @@ describe('a tab compares itself with the shared key', () => {
 
   it('keeps running beside an unavailable storage and trusts only its own deadlines', () => {
     const tab = openTab({ shared: false });
+    touch.mockResolvedValue(remaining);
     window.dispatchEvent(new Event('focus'));
     expect(tab.handlers.close).not.toHaveBeenCalled();
     elapse(tab, 61_000);
