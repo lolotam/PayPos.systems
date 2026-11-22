@@ -6,6 +6,8 @@ import { WorkspaceSwitcherField } from './workspace-switcher-field.js';
 import type { SelectOption } from './select.js';
 
 export type WorkspaceSwitcherLabels = {
+  /** الاسم المتاح لقائمة مبدّل مساحة العمل نفسها — من المستدعي المترجم. */
+  switcher: string;
   company: string;
   business: string;
   branch: string;
@@ -37,9 +39,12 @@ export function WorkspaceSwitcherContent({
   branch: WorkspaceSwitcherFieldState;
 }) {
   return (
+    // الاسم المتاح من المستدعي يسمّي الحوار: قارئ الشاشة يدخل اللوحة النمطية
+    // ويسمع اسمها قبل الحقول الثلاثة.
     <Popover.Content
       align="start"
       sideOffset={8}
+      aria-label={labels.switcher}
       className="z-50 flex w-72 flex-col gap-3 rounded-card border border-border bg-card p-4 shadow-sm focus-visible:outline-none"
     >
       <WorkspaceSwitcherField

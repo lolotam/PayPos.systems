@@ -23,9 +23,13 @@ it('renders a named pill strip whose current pill is highlighted and single', ()
   expect(current).toHaveLength(1);
   expect(current[0]?.className).toContain('bg-primary');
   expect(current[0]?.textContent).toContain('Employees');
-  // الحبوب تلتف على سطور وكل هدف 44px على الأقل
+  // الحبوب تلتف على سطور وكل هدف 44px على الأقل في الاتجاهين
   expect(landmark.firstElementChild?.className).toContain('flex-wrap');
-  expect(links.every((link) => link.className.includes('min-h-11'))).toBe(true);
+  expect(
+    links.every(
+      (link) => link.className.includes('min-h-11') && link.className.includes('min-w-11'),
+    ),
+  ).toBe(true);
 });
 
 it('shows a count beside its item and omits the chip when it is missing', () => {

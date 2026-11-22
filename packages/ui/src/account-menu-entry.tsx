@@ -31,7 +31,13 @@ export function AccountMenuEntryItem({ entry }: { entry: AccountMenuEntry }) {
   if (entry.href !== undefined) {
     return (
       <DropdownMenu.Item asChild disabled={disabled}>
-        <a href={entry.href} data-account-entry={entry.id} className={ITEM_CLASS}>
+        {/* حالة التعطيل تُسقط href نفسه لا الستايل فقط: الرابط بلا href لا يُفعِّله
+            الضغط ولا Enter، حتى لو كان العنصر على التركيز لحظة تعطُّله. */}
+        <a
+          href={disabled ? undefined : entry.href}
+          data-account-entry={entry.id}
+          className={ITEM_CLASS}
+        >
           {pendingMark}
           <span className="truncate">{entry.label}</span>
         </a>

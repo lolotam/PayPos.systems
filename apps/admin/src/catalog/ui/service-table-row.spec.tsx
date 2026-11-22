@@ -51,6 +51,26 @@ it('does not show the closed badge when closed_at is null (open service)', () =>
   expect(screen.queryByText(t('en', 'catalogServiceCategories.closed'))).toBeNull();
 });
 
+it('carries explicit table roles so the stacked card stays a row of named cells', () => {
+  // الأدوار الصريحة تبقى معتمدة بعد أن يغيّر التكديس عرض الصفوف والخلايا تحت 600px
+  const { container } = renderRow(makeService());
+  const row = container.querySelector('tbody tr');
+  expect(row?.getAttribute('role')).toBe('row');
+  const cells = Array.from(row?.querySelectorAll('td') ?? []);
+  expect(cells.length).toBeGreaterThan(0);
+  cells.forEach((cell) => expect(cell.getAttribute('role')).toBe('cell'));
+});
+
+it('lets the name shrink and wrap inside its flex wrapper so an unbroken token cannot overflow', () => {
+  // اسم حتى 255 حرفًا بلا فواصل اسم مشروع؛ الاسم مع min-w-0 والخلية المكدسة
+  // تحمل overflow-wrap:anywhere فلا تمرير جانبي في بطاقة 390px.
+  const longName = 'A'.repeat(255);
+  renderRow(makeService({ name_en: longName, name_ar: longName }));
+  const nameSpan = screen.getByText(longName);
+  expect(nameSpan.className).toContain('min-w-0');
+  expect(nameSpan.parentElement?.className).toContain('flex-wrap');
+});
+
 it.each(['en', 'ar'] as const)(
   'renders bilingual service name and closed badge in %s',
   (locale) => {

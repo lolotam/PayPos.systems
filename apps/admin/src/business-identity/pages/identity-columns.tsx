@@ -19,8 +19,9 @@ type Scope = { companyId: string; userId: string; businessId: string };
  * قالب هوية النشاط ثنائي الأعمدة: الأسماء الرسمية في العمود الرئيسي (2fr)
  * والشعار في الجانبي (1fr) من 1024px، متكدين الرئيسي أولًا تحته؛ ومن غير
  * كتلة الأسماء يأخذ الشعار العمود الرئيسي كاملًا ولا يترك في الضيق.
- * قراءة الشعار هنا لا في اللوحة نفسها، لأن اللوحة تنتقل بين العمودين لما
- * تظهر الأسماء أو تختفي، وحالة الرفع الجارٍ لازم تعيش في موضع ثابت.
+ * قراءة الشعار هنا لا في اللوحة نفسها، لأن حالة الرفع الجارٍ لازم تعيش في موضع ثابت،
+ * واللوحة نفسها تُركَّب دائمًا في خانة الجانبي مهما تغيّرت الأعمدة — انتقالها بين
+ * الوالدَين يهدم ملفها المختار وتأكيد الحذف المفتوح، فموضعها يقرره ترتيب الشبكة في `PageShell`.
  */
 export function IdentityColumns({
   scope,
@@ -49,22 +50,20 @@ export function IdentityColumns({
     <PageShell
       layout="two-column"
       main={
-        showEditor ? (
-          namesVisible ? (
-            <IdentityEditor
-              baseline={baseline}
-              saved={names.data ?? null}
-              namesPending={names.isPending}
-              namesSaved={names.isSuccess}
-              namesError={names.isError ? names.error : null}
-              onSave={(body) => names.mutate(body)}
-            />
-          ) : (
-            logoPanel
-          )
-        ) : null
+        showEditor && namesVisible ? (
+          <IdentityEditor
+            baseline={baseline}
+            saved={names.data ?? null}
+            namesPending={names.isPending}
+            namesSaved={names.isSuccess}
+            namesError={names.isError ? names.error : null}
+            onSave={(body) => names.mutate(body)}
+          />
+        ) : undefined
       }
-      side={showEditor && namesVisible ? logoPanel : undefined}
+      // الشعار في خانة واحدة ثابتة (الجانبي)؛ ومن غير كتلة أسماء يقع في أول عمود
+      // بترتيب الشبكة بدل أن ينتقل بين الوالدَين فيفقد ملفه المختار وتأكيد الحذف.
+      side={showEditor ? logoPanel : undefined}
     >
       <PageHeader
         title={t(locale, 'businessIdentity.title')}

@@ -35,19 +35,21 @@ export function ServicesTable({
     manualPagination: true,
   });
   return (
-    <table>
-      <thead>
+    // الأدوار صريحة تبقى معتمدة بعد أن يغيّر التكديس عرض العناصر تحت 600px،
+    // وتربط كل خلية بترويسة عمودها لقارئ الشاشة حتى والترويسة مخفية بصريًا.
+    <table role="table">
+      <thead role="rowgroup">
         {table.getHeaderGroups().map((group) => (
-          <tr key={group.id}>
+          <tr key={group.id} role="row">
             {group.headers.map((header) => (
-              <th key={header.id} scope="col">
+              <th key={header.id} scope="col" role="columnheader">
                 {flexRender(header.column.columnDef.header, header.getContext())}
               </th>
             ))}
           </tr>
         ))}
       </thead>
-      <tbody>
+      <tbody role="rowgroup">
         {table.getRowModel().rows.map(({ original }) => (
           <ServiceTableRow
             key={original.id}

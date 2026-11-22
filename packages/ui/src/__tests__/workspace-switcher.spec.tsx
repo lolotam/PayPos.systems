@@ -11,7 +11,12 @@ if (typeof window !== 'undefined') {
   window.HTMLElement.prototype.releasePointerCapture = () => undefined;
 }
 
-const labels = { company: 'Company', business: 'Business', branch: 'Branch' };
+const labels = {
+  switcher: 'Workspaces',
+  company: 'Company',
+  business: 'Business',
+  branch: 'Branch',
+};
 const companyOptions = [{ value: 'c1', label: 'One company' }];
 const businessOptions = [{ value: 'b1', label: 'One business' }];
 const branchOptions = [
@@ -53,6 +58,8 @@ it('shows the business and the branch on the trigger and opens the three fields'
   expect(trigger.textContent).toContain('Salmiya');
   fireEvent.click(trigger);
   expect(await screen.findByText('Company')).toBeTruthy();
+  // الحوار المفتوح يحمل اسمًا متاحًا من المستدعي، فقارئ الشاشة يعرف ماذا فتح
+  expect(screen.getByRole('dialog', { name: 'Workspaces' })).toBeTruthy();
   expect(screen.getByRole('combobox', { name: 'Company' })).toBeTruthy();
   expect(screen.getByRole('combobox', { name: 'Business' })).toBeTruthy();
   expect(screen.getByRole('combobox', { name: 'Branch' })).toBeTruthy();

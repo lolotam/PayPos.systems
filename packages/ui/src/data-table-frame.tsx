@@ -15,10 +15,12 @@ export type DataTableFrameProps = Omit<ComponentProps<'div'>, 'title'> & {
 
 // عناصر مكدّسة الصفوف: كلها تحت 600px (الحدّ 599.99px يشمل العروض الكسورية
 // تحت الستين)، والخلية لا تعرض تسميتها إلا إذا حملت data-cell-label —
-// فالخلية الأولى تظل عنوان البطاقة بلا تسمية فارغة فوقها.
+// فالخلية الأولى تظل عنوان البطاقة بلا تسمية فارغة فوقها. التفاف النص الطويل
+// بلا فواصل داخل كل خلية مكدّسة (ويرثه النص داخل الأغلفة المرنة)، والترويسة
+// تبقى مخفية بصريًا لا محذوفة كي تحفظ الأدوار الصريحة ارتباط العمود بخليته لقارئ الشاشة.
 const STACKED_CLASS = [
   'max-[599.99px]:[&_table]:block',
-  'max-[599.99px]:[&_thead]:hidden',
+  'max-[599.99px]:[&_thead]:sr-only',
   'max-[599.99px]:[&_tbody]:block',
   'max-[599.99px]:[&_tbody_tr]:mb-2',
   'max-[599.99px]:[&_tbody_tr]:block',
@@ -28,6 +30,7 @@ const STACKED_CLASS = [
   'max-[599.99px]:[&_tbody_tr]:p-2',
   'max-[599.99px]:[&_tbody_tr:last-child]:mb-0',
   'max-[599.99px]:[&_tbody_td]:block',
+  'max-[599.99px]:[&_tbody_td]:[overflow-wrap:anywhere]',
   'max-[599.99px]:[&_tbody_td]:px-0',
   'max-[599.99px]:[&_tbody_td]:py-1.5',
   'max-[599.99px]:[&_tbody_td:first-child]:text-base',

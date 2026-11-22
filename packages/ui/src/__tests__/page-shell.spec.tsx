@@ -66,6 +66,21 @@ it('keeps a lone block in the main column with no side column', () => {
   expect(screen.queryByText('side column')).toBeNull();
 });
 
+it('puts a lone side block first in the grid, so it takes the main column and not the narrow one', () => {
+  // حالة هوية النشاط بلا كتلة أسماء: الشعار يبقى في خانته الثابتة، ومن غير خانة
+  // رئيسية قبله يقع في أول عمود (2fr) بترتيب الشبكة.
+  render(
+    <PageShell layout="two-column" side={<p>logo alone in side slot</p>} data-testid="lone-side">
+      <span>header</span>
+    </PageShell>,
+  );
+  const columns = screen.getByText('logo alone in side slot').parentElement
+    ?.parentElement as HTMLElement;
+  expect(columns.className).toContain('lg:grid-cols-[2fr_1fr]');
+  expect(columns.children).toHaveLength(1);
+  expect(columns.firstElementChild?.textContent).toBe('logo alone in side slot');
+});
+
 it.each(['rtl', 'ltr'] as const)(
   'caps the page header description to 65 characters only inside the shell in %s',
   (dir) => {
@@ -80,6 +95,8 @@ it.each(['rtl', 'ltr'] as const)(
     expect(description.hasAttribute('data-page-header-description')).toBe(true);
     const shell = description.closest('[data-page-shell]');
     expect(shell?.className).toContain('[&_[data-page-header-description]]:max-w-[65ch]');
+    // سطر واحد بنقطة حذف تحت نفس محدِّد القالب نفسه
+    expect(shell?.className).toContain('[&_[data-page-header-description]]:truncate');
   },
 );
 

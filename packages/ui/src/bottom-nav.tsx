@@ -59,12 +59,16 @@ export function BottomNav({ items, labels, extra, onNavigate, className }: Botto
               {item.icon}
             </span>
           ) : null}
-          <span className="min-w-0 max-w-full truncate">{item.label}</span>
-          {item.status ? (
-            <span className="shrink-0 rounded-full border border-border px-1.5 py-0 text-[10px] font-medium text-muted-foreground">
-              {item.status}
-            </span>
-          ) : null}
+          {/* الاسم والعلامة على سطر واحد: سطر ثالث تحت الأيقونة يتجاوز ارتفاع الشريط 64px،
+              والعلامة مسقوفة بنصف الخانة فلا تزيح الاسم كله ولا تفيض أفقيًا. */}
+          <span className="flex min-w-0 max-w-full items-center gap-1">
+            <span className="min-w-0 truncate">{item.label}</span>
+            {item.status ? (
+              <span className="max-w-[50%] shrink-0 truncate rounded-full border border-border px-1.5 py-0 text-[10px] font-medium text-muted-foreground">
+                {item.status}
+              </span>
+            ) : null}
+          </span>
           {item.count ? (
             <span className={cn(shellNavCountClass, 'absolute end-2 top-1')}>{item.count}</span>
           ) : null}

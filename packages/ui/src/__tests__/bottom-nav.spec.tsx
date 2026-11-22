@@ -64,3 +64,30 @@ it('carries the supplied Soon mark on its entry', () => {
   );
   expect(screen.getByText('Soon')).toBeTruthy();
 });
+
+it('keeps a long status mark on the label line and cuts it inside its cell', () => {
+  // العلامة بجانب الاسم لا تحته (سطر ثالث يتجاوز ارتفاع الشريط 64px)، ومسقوفة بنصف الخانة
+  render(
+    <DirectionProvider dir="rtl">
+      <BottomNav
+        items={[
+          {
+            id: 'reports',
+            label: 'Reports',
+            href: '#reports',
+            status: 'Soon — under development for now',
+          },
+        ]}
+        labels={{ label: 'Workspace pages' }}
+      />
+    </DirectionProvider>,
+  );
+  const badge = screen.getByText('Soon — under development for now');
+  expect(badge.className).toContain('truncate');
+  expect(badge.className).toContain('max-w-[50%]');
+  const line = badge.parentElement as HTMLElement;
+  expect(line.className).toContain('items-center');
+  expect(line.className).not.toContain('flex-col');
+  expect(line.firstElementChild?.textContent).toBe('Reports');
+  expect(line.firstElementChild?.className).toContain('truncate');
+});

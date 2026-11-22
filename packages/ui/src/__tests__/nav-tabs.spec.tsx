@@ -56,6 +56,22 @@ it('cuts a long label with an ellipsis and keeps the row scrolling inside itself
   expect(longLabel.className).toContain('truncate');
 });
 
+it('gives every link target the 44px minimum in both directions while its label stays shrinkable', () => {
+  // min-w-11 مع min-h-11: هدف لمس كامل ولو كان النص قصيرًا، والقصّ على الشارة الداخلية
+  render(tabs('ltr'));
+  const landmark = screen.getByRole('navigation', { name: 'Catalog pages' });
+  const links = Array.from(landmark.querySelectorAll('a'));
+  expect(links.length).toBeGreaterThan(0);
+  links.forEach((link) => {
+    expect(link.className).toContain('min-h-11');
+    expect(link.className).toContain('min-w-11');
+    expect(link.className).toContain('max-w-full');
+    const label = link.querySelector('span');
+    expect(label?.className).toContain('min-w-0');
+    expect(label?.className).toContain('truncate');
+  });
+});
+
 it.each(['rtl', 'ltr'] as const)('marks the current page in %s', (dir) => {
   render(tabs(dir));
   const landmark = screen.getByRole('navigation', { name: 'Catalog pages' });

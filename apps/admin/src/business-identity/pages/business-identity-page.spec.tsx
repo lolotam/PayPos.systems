@@ -354,3 +354,80 @@ it('keeps a running logo upload alive when the identity read recovers and the lo
   await screen.findByText(t('en', 'businessIdentity.ready'));
   expect(api.PUT.mock.calls.at(-1)?.[1].body).toEqual({ file_id: fileId });
 });
+
+// نتيجة مراجعة 074-3+08 (الجولة الثانية): اللوحة في موضع React ثابت، فالملف المختار
+// الذي لم يُرفع بعد يبقى مكانه وتأكيد الحذف المفتوح يبقى مفتوحًا بعد تعافي قراءة الهوية.
+it('keeps a selected-but-not-uploaded file after the identity read recovers and Upload still works', async () => {
+  const refusal = { error: { code: 'STORAGE_UNAVAILABLE' }, response: { status: 503 } };
+  let identityFailing = true;
+  api.GET.mockImplementation(async (path: string) => {
+    if (path === '/v1/businesses/{businessId}/settings/identity') {
+      return identityFailing ? refusal : { data: settings(null) };
+    }
+    if (path === '/v1/files/{id}') {
+      return { data: { id: fileId, status: 'READY', content_type: 'image/png', size_bytes: 3 } };
+    }
+    return { data: settings(null) };
+  });
+  api.POST.mockImplementation(async (path: string) => {
+    if (path === '/v1/businesses/{businessId}/files/uploads') return { data: ticket(fileId) };
+    if (path === '/v1/files/{id}/confirm') return { data: { id: fileId, status: 'QUEUED' } };
+    return { data: { download_url: 'https://files.test/logo', expires_in: 60 } };
+  });
+  api.PUT.mockResolvedValue({ data: { logo_file_id: fileId } });
+  const { client } = renderPage();
+  await screen.findByLabelText(t('en', 'businessIdentity.logoFile'));
+  fireEvent.change(screen.getByLabelText(t('en', 'businessIdentity.logoFile')), {
+    target: { files: [new File(['png'], 'logo.png', { type: 'image/png' })] },
+  });
+
+  identityFailing = false;
+  await client.invalidateQueries({ queryKey: ['business-identity', id, id, id] });
+  await screen.findByLabelText(t('en', 'businessIdentity.nameEn'));
+
+  // الاختيار لم يُفقد: نفس الملف ما زال في الخانة، والرفع يعمل بعده
+  const stillSelected = screen.getByLabelText(
+    t('en', 'businessIdentity.logoFile'),
+  ) as HTMLInputElement;
+  expect(stillSelected.files?.[0]?.name).toBe('logo.png');
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'businessIdentity.upload') }));
+  await screen.findByText(t('en', 'businessIdentity.ready'));
+  expect(api.PUT.mock.calls.at(-1)?.[1].body).toEqual({ file_id: fileId });
+});
+
+it('keeps the open removal confirmation after the identity read recovers', async () => {
+  const refusal = { error: { code: 'STORAGE_UNAVAILABLE' }, response: { status: 503 } };
+  let identityFailing = true;
+  let logo: string | null = fileId;
+  api.GET.mockImplementation(async (path: string) => {
+    if (path === '/v1/businesses/{businessId}/settings/identity') {
+      return identityFailing ? refusal : { data: settings(logo) };
+    }
+    if (path === '/v1/files/{id}') {
+      return { data: { id: fileId, status: 'READY', content_type: 'image/png', size_bytes: 3 } };
+    }
+    return { data: settings(logo) };
+  });
+  api.POST.mockResolvedValue({ data: { download_url: 'https://files.test/logo', expires_in: 60 } });
+  api.PUT.mockImplementation(async () => {
+    logo = null;
+    return { data: { logo_file_id: null } };
+  });
+  const { client } = renderPage();
+  await screen.findByLabelText(t('en', 'businessIdentity.logoFile'));
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'businessIdentity.remove') }));
+  expect(await screen.findByText(t('en', 'businessIdentity.removeLead'))).toBeTruthy();
+
+  identityFailing = false;
+  await client.invalidateQueries({ queryKey: ['business-identity', id, id, id] });
+  await screen.findByLabelText(t('en', 'businessIdentity.nameEn'));
+
+  // تأكيد الحذف ما زال مفتوحًا بعد التعافي وبقاؤه داخل اللوحة نفسها
+  expect(screen.getByText(t('en', 'businessIdentity.removeLead'))).toBeTruthy();
+  expect(
+    screen.getByRole('button', { name: t('en', 'businessIdentity.removeConfirm') }),
+  ).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'businessIdentity.removeConfirm') }));
+  await screen.findByText(t('en', 'businessIdentity.removed'));
+  expect(api.PUT.mock.calls[0]?.[1].body).toEqual({ file_id: null });
+});

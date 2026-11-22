@@ -81,6 +81,50 @@ it('disables a pending entry and shows it as waiting', async () => {
   );
 });
 
+it('drops the native activation of a focused link entry while it is disabled', async () => {
+  // رابط يتعطّل وهو مفتوح: من غير href لا توجد وجهة يتبعها Enter أو الضغط
+  const view = render(menu({ entries: [{ id: 'signout', label: 'Sign out', href: '/sign-out' }] }));
+  openAccountMenu();
+  const signOut = await screen.findByRole('menuitem', { name: 'Sign out' });
+  expect(signOut.getAttribute('href')).toBe('/sign-out');
+  view.rerender(
+    <DirectionProvider dir="rtl">
+      <AccountMenu
+        labels={{ label: 'Account menu' }}
+        entries={[{ id: 'signout', label: 'Sign out', href: '/sign-out', pending: true }]}
+      />
+    </DirectionProvider>,
+  );
+  const pendingRow = screen.getByRole('menuitem', { name: 'Sign out' });
+  expect(pendingRow.getAttribute('href')).toBeNull();
+  expect(pendingRow.getAttribute('aria-disabled')).toBe('true');
+  // وعند رجوع الحالة الرابط يستعيد وجهته من جديد
+  view.rerender(
+    <DirectionProvider dir="rtl">
+      <AccountMenu
+        labels={{ label: 'Account menu' }}
+        entries={[{ id: 'signout', label: 'Sign out', href: '/sign-out' }]}
+      />
+    </DirectionProvider>,
+  );
+  expect(screen.getByRole('menuitem', { name: 'Sign out' }).getAttribute('href')).toBe('/sign-out');
+});
+
+it('bounds the menu to the available viewport with internal scrolling and a capped width', async () => {
+  render(menu({ name: 'Sara', email: 'sara@example.com' }));
+  openAccountMenu();
+  const content = await screen.findByRole('menu', { name: 'Account menu' });
+  // الارتفاع محدود بالمساحة المتاحة من Radix مع تمرير داخلي، فلا يخرج Sign out عن الشاشة
+  expect(content.className).toContain(
+    'max-h-[var(--radix-dropdown-menu-content-available-height)]',
+  );
+  expect(content.className).toContain('overflow-y-auto');
+  // والعرض مُسقوف بالمساحة المتاحة كي لا يوسّع بريد طويل بلا فواصل القائمة عن الشاشة
+  expect(content.className).toContain('max-w-[var(--radix-dropdown-menu-content-available-width)]');
+  // نص الهوية يُقصّ داخل العرض المسقوف بدل أن يفرض عرضًا أكبر
+  expect(screen.getByText('sara@example.com').className).toContain('truncate');
+});
+
 it('closes on Escape and returns the focus to the trigger', async () => {
   render(menu({ name: 'Sara' }));
   const trigger = openAccountMenu();

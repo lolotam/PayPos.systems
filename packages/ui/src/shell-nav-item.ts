@@ -23,12 +23,13 @@ export type ShellNavItem = {
 };
 
 /**
- * أساس رابط التنقّل المشترك: هدف لمس 44px على الأقل، قصّ النص الطويل بنقطة حذف
- * بدل توسيع الصف، وخواص منطقية فقط حتى يعمل نفس الصنف في RTL وLTR.
- * `min-w-0 max-w-full` يربط الرابط بعرض العنصر الحامل حتى يعمل القصّ فعلًا.
+ * أساس رابط التنقّل المشترك: هدف لمس 44px على الأقل في الاتجاهين، قصّ النص الطويل
+ * بنقطة حذف بدل توسيع الصف، وخواص منطقية فقط حتى يعمل نفس الصنف في RTL وLTR.
+ * `min-w-11` حدّ العرض الأدنى (هدف لمس كامل ولو كان النص قصيرًا)،
+ * و`max-w-full` يربط الرابط بعرض العنصر الحامل حتى يعمل القصّ فعلًا.
  */
 export const shellNavLinkClass =
-  'inline-flex min-h-11 min-w-0 max-w-full items-center gap-2 rounded-interactive text-start text-sm font-medium whitespace-nowrap transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+  'inline-flex min-h-11 min-w-11 max-w-full items-center gap-2 rounded-interactive text-start text-sm font-medium whitespace-nowrap transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
 /**
  * عدّاد التنقّل المشترك: شريحة صغيرة بلون النداء تُعرض بجانب العنصر فقط

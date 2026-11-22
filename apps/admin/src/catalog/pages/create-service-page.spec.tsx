@@ -12,8 +12,21 @@ vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' as cons
 const companyId = '01920000-0000-7000-8000-000000000001';
 const businessId = '01920000-0000-7000-8000-000000000002';
 const userId = '01920000-0000-7000-8000-000000000003';
+const categoryId = '01920000-0000-7000-8000-0000000000c9';
 const listRoute = '/v1/businesses/{businessId}/service-categories';
 const createRoute = '/v1/businesses/{businessId}/services';
+
+function category() {
+  return {
+    id: categoryId,
+    name_en: 'Hair',
+    name_ar: 'Hair AR',
+    visibility: 'BUSINESS',
+    owner_branch_id: null,
+    closed_at: null,
+    revision: 1,
+  };
+}
 
 function wrapper(client: QueryClient) {
   return ({ children }: { children: ReactNode }) => (
@@ -33,7 +46,7 @@ function renderPage() {
       business={{
         id: businessId,
         name_en: 'Business',
-        name_ar: null,
+        name_ar: 'Hair AR',
         business_type: 'salon',
         country: null,
         branches: [],
@@ -47,7 +60,10 @@ function renderPage() {
 beforeEach(() => {
   get.mockReset();
   post.mockReset();
-  get.mockResolvedValue({ data: { items: [], next_cursor: null }, response: { status: 200 } });
+  get.mockResolvedValue({
+    data: { items: [category()], next_cursor: null },
+    response: { status: 200 },
+  });
 });
 
 it('lays the form on the 840px shell with all fields and the save action in one card', async () => {
@@ -75,7 +91,7 @@ it('saves through the same path and reports the created service', async () => {
       id: '01920000-0000-7000-8000-0000000000c1',
       business_id: businessId,
       name_en: 'New service',
-      name_ar: null,
+      name_ar: 'Hair AR',
       price: '10.000',
       commission_rule: { kind: 'FOLLOW_PLAN' },
       counts_toward_threshold: true,
@@ -114,4 +130,8 @@ it('refuses no list route other than the categories read', async () => {
   await screen.findByLabelText('English name');
   expect(get.mock.calls.map((call) => call[0])).toEqual([listRoute]);
   expect(get.mock.calls.map((call) => call[0])).not.toContain(createRoute);
+  // والطلب يغذّي الانتقاء الظاهر: خيار التصنيف المترجم ظاهر داخل المُنتقي نفسه
+  const option = await screen.findByRole('option', { name: 'Hair' });
+  const picker = screen.getByRole('combobox', { name: 'Category' });
+  expect(picker.contains(option)).toBe(true);
 });

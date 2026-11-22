@@ -2,7 +2,7 @@
 
 **Delivery** 074-3 + 074-8, one implementation PR. Parent documents: [spec.md](../spec.md) (FR-002, FR-015, FR-016, FR-024), [design.md](../design.md) §4, §6 and §7, [pr-sequence.md](../pr-sequence.md) rows 3 and 8. See the [implementation plan](plan.md).
 
-**Status of the grouping.** The manager's assignment of 2026-11-22 states that the owner approved 074-3 and 074-8 in one PR, with the 074-7 release separate. That approval is not yet written in `owner-questions.ar.md` or `docs/owner-decisions.ar.md` on `main` at `a32a6a211`, and `pr-sequence.md` still lists steps 3 and 8 as two PRs with step 8 after step 7. The manager records the verbatim answer and its PP number; this spec does not quote it.
+**Status of the grouping.** The manager's assignment of 2026-11-22 states that the owner approved 074-3 and 074-8 in one PR, with the 074-7 release separate. That approval is recorded as **PP-216** in `docs/owner-decisions.ar.md`, added by this same PR with the verbatim answer and its date.
 
 ## What changes for a user
 
