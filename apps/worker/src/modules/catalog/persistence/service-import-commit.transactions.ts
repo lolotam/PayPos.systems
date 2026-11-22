@@ -1,5 +1,5 @@
-import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 import { sql } from 'drizzle-orm';
+import type { IdGenerator, TenantWrappers, Tx } from '@pospay/db';
 
 import type { ServiceImportNormalizedRow } from '../domain/service-import-commit.ts';
 import type {
@@ -18,25 +18,28 @@ async function businessExists(tx: Tx, companyId: string, businessId: string): Pr
   return rows.length > 0;
 }
 
-/** القراءة الحاسمة للأسماء داخل النشاط، المفتوحة والمقفولة معاً، بمفاتيح المطبّع نفسها (A-11/SI-Q1). */
+/** القراءة الحاسمة للأسماء داخل النشاط، المفتوحة والمقفولة معاً — الطرفان يُطويان بتعبير PostgreSQL
+ * واحد (طيّ المسافات والتشذيب والحروف الصغيرة) مطابق لما تشغّله المعاينة، فلا يبقى اختلاف بين
+ * مطوي JavaScript والمخزن (HIGH مراجعة 1186)؛ فرق Unicode المتبقى موثّق في متجهات A-11. */
 async function readExistingNameKeys(
   tx: Tx,
   companyId: string,
   businessId: string,
-  keys: readonly string[],
+  names: readonly string[],
 ): Promise<readonly string[]> {
-  if (keys.length === 0) return [];
-  // الاسم المخزّن يتطبع بتعبير واحد يوازي ثبيت المطبّع المشترك (طيّ المسافات والتشذيب والحروف
-  // الصغيرة) حتى لا يتسرب تكرار بين «Hair Cut» المستورد و«Hair  Cut» المخزّن يدويًا؛ فرق
-  // Unicode المتبقى بين \s في JS وPostgreSQL موثّق في متجهات A-11 ولا يُعالَج هنا (A-11).
-
-  const rows = await tx.execute<{ key: string }>(sql`
-    SELECT DISTINCT lower(btrim(regexp_replace(name_en, '\\s+', ' ', 'g'))) AS key
-    FROM services
-    WHERE company_id = ${companyId}
-      AND business_id = ${businessId}
-      AND lower(btrim(regexp_replace(name_en, '\\s+', ' ', 'g'))) = ANY(ARRAY[${sql.join(keys.map((key) => sql`${key}`), sql`, `)}]::text[])`);
-  return rows.map((row) => row.key);
+  if (names.length === 0) return [];
+  const rows = await tx.execute<{ lookup_key: string }>(sql`
+    WITH input AS (
+      SELECT name, lower(btrim(regexp_replace(name, '\\s+', ' ', 'g'))) AS lookup_key
+      FROM unnest(ARRAY[${sql.join(names.map((name) => sql`${name}`), sql`, `)}]::text[]) AS t(name)
+    )
+    SELECT DISTINCT i.lookup_key
+    FROM input i
+    JOIN services s
+      ON s.company_id = ${companyId}
+     AND s.business_id = ${businessId}
+     AND lower(btrim(regexp_replace(s.name_en, '\\s+', ' ', 'g'))) = i.lookup_key`);
+  return rows.map((row) => row.lookup_key);
 }
 
 /** قفل التصنيفات المُحالة بترتيب صاعد FOR SHARE ثم إعادة حالتها للتحقق قبل الإدخال (FR-009). */
@@ -86,8 +89,9 @@ function commitScope(tx: Tx, companyId: string, ids: IdGenerator): ServiceImport
     insert: async (records) => insertImportedServices(tx, companyId, ids, records),
     complete: async (preview, count, at) => {
       await tx.execute(
+        // بند الكيان إلزامي في كل تحديث معاينة كتالوج: الجدول المشترك لا يفرز عزل الكيانات (072 D-1).
         sql`UPDATE import_previews SET status='committed',committed_at=${at},created_count=${count}
-          WHERE company_id=app_company_id() AND id=${preview.id}`,
+          WHERE company_id=app_company_id() AND id=${preview.id} AND entity='services'`,
       );
     },
   };

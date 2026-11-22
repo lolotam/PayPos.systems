@@ -76,14 +76,29 @@ it('scans the scoped unique index for category matching and the business index f
        AND c.closed_at IS NULL`;
     const categoryText = JSON.stringify(categoryPlan?.[0] ?? categoryPlan);
     expect(categoryText).toContain('service_categories_business_name_uq');
-    // القراءة الحاسمة الحالية: تعبير التطبيع المخزّن نفسه الذي تشغّله المعاينة والعامل (P1 مراجعة 32b-2).
-    const [namePlan] = await h.owner`EXPLAIN (FORMAT JSON) SELECT DISTINCT lower(btrim(regexp_replace(name_en, '\\s+', ' ', 'g'))) AS key
-      FROM services
-      WHERE company_id = ${company}
-        AND business_id = ${business}
-        AND lower(btrim(regexp_replace(name_en, '\\s+', ' ', 'g'))) = ANY(ARRAY['hair cut']::text[])`;
+    // القراءة الحاسمة الحالية: الطرفان يُطويان بتعبير PostgreSQL واحد كما تشغّله المعاينة والعامل.
+    const [namePlan] = await h.owner`EXPLAIN (FORMAT JSON) SELECT DISTINCT i.lookup_key
+      FROM (
+        SELECT label, lower(btrim(regexp_replace(label, '\\s+', ' ', 'g'))) AS lookup_key
+        FROM unnest(ARRAY['hair cut']::text[]) AS t(label)
+      ) i
+      JOIN services s
+        ON s.company_id = ${company}
+       AND s.business_id = ${business}
+       AND lower(btrim(regexp_replace(s.name_en, '\\s+', ' ', 'g'))) = i.lookup_key`;
     const nameText = JSON.stringify(namePlan?.[0] ?? namePlan);
     expect(nameText).toContain('services_company_business_id_key');
+    // استعلام الصفحات نفسه (صفوف JSONB) يجب أن يمشي على المفتاح (company_id, id) — خطة التنفيذ إلزامية.
+    const rowsPlan = await h.owner`EXPLAIN ANALYZE SELECT rows
+      FROM import_previews
+      WHERE company_id=${company}
+        AND business_id=${business}
+        AND created_by=${userId}
+        AND id=${seeded} AND entity='services'`;
+    const rowsText = (rowsPlan as unknown as { 'QUERY PLAN': string }[])
+      .map((row) => row['QUERY PLAN'])
+      .join('\n');
+    expect(rowsText).toMatch(/import_previews_pkey/);
     const previewPlan = await h.owner`EXPLAIN ANALYZE SELECT id AS preview_id,status,created_count,error_code
       FROM import_previews
       WHERE company_id=${company}

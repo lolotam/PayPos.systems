@@ -2,6 +2,7 @@ import type {
   ImportedServiceRecord,
   ServiceImportNormalizedRow,
 } from '../domain/service-import-commit.ts';
+
 /** المعاينة المقفولة كما يقرأها العامل داخل معاملة الالتزام، بلا صفوف لو الحالة ليست طلباً حياً. */
 export interface ServiceImportCommitPreview {
   readonly id: string;
@@ -29,13 +30,14 @@ export interface ServiceImportCommitScope {
    */
   businessExists(businessId: string): Promise<boolean>;
   /**
-   * يقرأ مفاتيح أسماء الخدمات الموجودة فعلاً في النشاط، المفتوحة والمقفولة معاً، بالقراءة الحاسمة.
+   * يقرأ مفاتيح أسماء الخدمات الموجودة فعلاً في النشاط، المفتوحة والمقفولة معاً، بالقراءة الحاسمة
+   * المطولة على الطرفين داخل PostgreSQL (A-11/HIGH مراجعة 1186).
    *
    * @param businessId النشاط صاحب الخدمات
-   * @param keys       مفاتيح أسماء صفوف المعاينة
-   * @returns المفاتيح المتصادمة في النشاط
+   * @param names      أسماء صفوف المعاينة المطلقة بعد تشذيب المحوّل
+   * @returns مفاتيح الأسماء المتصادمة في النشاط
    */
-  existingNameKeys(businessId: string, keys: readonly string[]): Promise<readonly string[]>;
+  existingNameKeys(businessId: string, names: readonly string[]): Promise<readonly string[]>;
   /**
    * يقفل التصنيفات المُحالة بترتيبها الصاعد FOR SHARE ويعيد حالة كل تصنيف مطلوب (FR-009).
    *

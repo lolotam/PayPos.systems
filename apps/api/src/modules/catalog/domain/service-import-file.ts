@@ -6,6 +6,7 @@ import { ServiceImportError } from './errors.ts';
 export interface ServiceImportFileFacts {
   readonly business_id: string;
   readonly created_by: string;
+  readonly owner_module: string;
   readonly content_type: string;
   readonly size_bytes: number;
   readonly status: 'PENDING' | 'VERIFYING' | 'READY' | 'REJECTED';
@@ -13,6 +14,9 @@ export interface ServiceImportFileFacts {
   readonly purged: boolean;
   readonly purge_started: boolean;
 }
+
+/** الغرض الوحيد المقبول لملف معاينة الاستيراد؛ رفع غير مخصص للكتالوج رفض «غير موجود». */
+export const SERVICE_IMPORT_OWNER_MODULE = 'catalog';
 
 /**
  * بيثبت ملكية الملف ووثوقه قبل قراءة بايتاته: الملف المجهول أو الخارج عن النشاط أو غير منشئه
@@ -34,6 +38,8 @@ export function validateServiceImportFile(
     facts.purged ||
     // بدء الحذف يخفي الملف عن حالة files فورًا؛ المعاينة ترفضه قبل قراءة أي بايت (P2 مراجعة 32b-2).
     facts.purge_started ||
+    // غرض الرفع: ملفات رفعها workflow آخر لا تصل لقارئ الكتالوج حتى لو طابقت المالك والنوع (P2 مراجعة 1186).
+    facts.owner_module !== SERVICE_IMPORT_OWNER_MODULE ||
     facts.business_id !== businessId ||
     facts.created_by !== userId
   )

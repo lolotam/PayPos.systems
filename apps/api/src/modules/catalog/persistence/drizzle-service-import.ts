@@ -1,7 +1,11 @@
 import { sql } from 'drizzle-orm';
-import type { TenantWrappers, Tx } from '@pospay/db';
+import { appendAuditLog, type IdGenerator, type TenantWrappers, type Tx } from '@pospay/db';
 
 import { normalizeServiceCategoryName } from '../domain/service-category.ts';
+import {
+  SERVICE_IMPORT_TEMPLATE_MAX_REFERENCE_ROWS,
+  SERVICE_IMPORT_TEMPLATE_REFERENCE_FIXED_ROWS,
+} from '../domain/service-import-template.ts';
 import type { ServiceImportFileFacts } from '../domain/service-import-file.ts';
 import { ServiceImportError } from '../domain/errors.ts';
 import type {
@@ -11,7 +15,8 @@ import type {
   ServiceImportTransactions,
 } from '../ports/service-import.port.ts';
 
-/** تصنيفات النشاط المفتوحة للاستعلام المشترك بين القالب والمعاينة (FR-004). */
+/** تصنيفات النشاط المفتوحة للاستعلام المشترك؛ الحد أعلى من سقف القالب بصف واحد ليكشف التجاوز
+ * دون مادةلة قائمة كاملة لنشاط فوق السقف (P2 مراجعة 1186). */
 async function readOpenCategories(
   tx: Tx,
   companyId: string,
@@ -23,7 +28,8 @@ async function readOpenCategories(
     WHERE company_id = ${companyId}
       AND business_id = ${businessId}
       AND closed_at IS NULL
-    ORDER BY name_en`);
+    ORDER BY name_en
+    LIMIT ${SERVICE_IMPORT_TEMPLATE_MAX_REFERENCE_ROWS - SERVICE_IMPORT_TEMPLATE_REFERENCE_FIXED_ROWS + 1}`);
 }
 
 /** نصوص التصنيفات تُطابَق دفعة واحدة على التصنيفات المفتوحة بمساواة الفهرس نفسها (A-12). */
@@ -58,25 +64,28 @@ async function matchCategoryLabels(
   });
 }
 
-/** القراءة الحاسمة للأسماء داخل النشاط، المفتوحة والمقفولة معاً بمفاتيح المماسّر نفسها (A-11). */
+/** القراءة الحاسمة للأسماء داخل النشاط، المفتوحة والمقفولة معاً — الطرفان يُطويان بتعبير PostgreSQL
+ * واحد (طيّ المسافات والتشذيب والحروف الصغيرة) مطابق لمعادلة فهرس التصنيفات، فلا يبقى اختلاف
+ * بين مطوي JavaScript والمخزن (HIGH مراجعة 1186)؛ فرق Unicode المتبقى موثّق في متجهات A-11. */
 async function readExistingServiceKeys(
   tx: Tx,
   companyId: string,
   businessId: string,
-  keys: readonly string[],
+  labels: readonly string[],
 ): Promise<readonly string[]> {
-  if (keys.length === 0) return [];
-  // الاسم المخزّن يتطبع بتعبير واحد يوازي ثبيت المطبّع المشترك (طيّ المسافات والتشذيب والحروف
-  // الصغيرة) حتى لا يتسرب تكرار بين «Hair Cut» المستورد و«Hair  Cut» المخزّن يدويًا؛ فرق
-  // Unicode المتبقى بين \s في JS وPostgreSQL موثّق في متجهات A-11 ولا يُعالَج هنا (A-11).
-
-  const rows = await tx.execute<{ key: string }>(sql`
-    SELECT DISTINCT lower(btrim(regexp_replace(name_en, '\\s+', ' ', 'g'))) AS key
-    FROM services
-    WHERE company_id = ${companyId}
-      AND business_id = ${businessId}
-      AND lower(btrim(regexp_replace(name_en, '\\s+', ' ', 'g'))) = ANY(ARRAY[${sql.join(keys.map((key) => sql`${key}`), sql`, `)}]::text[])`);
-  return rows.map((row) => row.key);
+  if (labels.length === 0) return [];
+  const rows = await tx.execute<{ label: string }>(sql`
+    WITH input AS (
+      SELECT label, lower(btrim(regexp_replace(label, '\\s+', ' ', 'g'))) AS lookup_key
+      FROM unnest(ARRAY[${sql.join(labels.map((label) => sql`${label}`), sql`, `)}]::text[]) AS t(label)
+    )
+    SELECT i.label
+    FROM input i
+    JOIN services s
+      ON s.company_id = ${companyId}
+     AND s.business_id = ${businessId}
+     AND lower(btrim(regexp_replace(s.name_en, '\\s+', ' ', 'g'))) = i.lookup_key`);
+  return rows.map((row) => row.label);
 }
 
 async function savePreview(
@@ -103,17 +112,29 @@ function cleanImportError(error: unknown): never {
   throw new Error('SERVICE_IMPORT_PERSISTENCE_FAILED', { cause: error });
 }
 
+/** يسجّل دخولًا تدقيقيًا على الوصول للملف الخاص في مسار المعاينة (CLAUDE.md §8). */
+async function auditFileAccess(tx: Tx, fileId: string, id: string): Promise<void> {
+  await appendAuditLog(tx, id, {
+    entity: 'file',
+    entityId: fileId,
+    action: 'access',
+    after: { purpose: 'services_import_preview' },
+  });
+}
+
 /**
  * يبني معاملات معاينة الخدمات على التفاف المستأجر، بحقائق الملف تُقرأ في معاملة أولى
  * والمطابقة والحفظ في معاملة ثانية واحدة، بينما قراءة التخزين خارجهما تماماً (072 D-4).
  *
  * @param database  بوابة المستأجر
  * @param fileFacts منفذ حقائق الملف المربوط عند التركيب في app.ts بلا سهم نحو files
+ * @param ids       مولّد معرّفات سطر التدقيق المحقون
  * @returns معاملات المعاينة
  */
 export function createServiceImportTransactions(
   database: TenantWrappers,
   fileFacts: ServiceImportFileFactsPort | null,
+  ids: IdGenerator,
 ): ServiceImportTransactions {
   return {
     runFacts: async ({ companyId, userId }, work) => {
@@ -127,6 +148,7 @@ export function createServiceImportTransactions(
                   ? Promise.resolve(null)
                   : fileFacts.facts(tx, companyId, fileId),
               categories: (businessId) => readOpenCategories(tx, companyId, businessId),
+              auditFileAccess: (fileId) => auditFileAccess(tx, fileId, ids.newId()),
             }),
           { userId },
         );
@@ -141,8 +163,10 @@ export function createServiceImportTransactions(
           async (tx) =>
             work({
               matchCategories: (labels) => matchCategoryLabels(tx, companyId, businessId, labels),
-              existingServiceKeys: (keys) => readExistingServiceKeys(tx, companyId, businessId, keys),
+              existingServiceKeys: (labels) =>
+                readExistingServiceKeys(tx, companyId, businessId, labels),
               save: (input) => savePreview(tx, companyId, userId, input),
+              auditFileAccess: (fileId) => auditFileAccess(tx, fileId, ids.newId()),
             }),
           { userId },
         );

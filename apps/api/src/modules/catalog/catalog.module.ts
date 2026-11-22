@@ -87,8 +87,14 @@ function serviceImportProviders(
   ids: IdGenerator,
   files: ServiceImportFilesBinding | null,
 ): Provider[] {
-  if (database === undefined) return [];
-  const transactions = createServiceImportTransactions(database, files?.fileFacts ?? null);
+  // الكترولر مسجّل دائمًا، فيجب تسجيل الرمزين دائمًا — بلا قاعدة بيانات يكونان null
+  // لتقف المسارات على NOT_READY/STORAGE_NOT_CONFIGURED بدل كسر إقلاع Nest (P1 مراجعة 1186).
+  if (database === undefined)
+    return [
+      { provide: GetServiceImportTemplateUseCase, useValue: null },
+      { provide: PreviewServiceImportUseCase, useValue: null },
+    ];
+  const transactions = createServiceImportTransactions(database, files?.fileFacts ?? null, ids);
   const bytes = files?.bytes ?? null;
   return [
     {

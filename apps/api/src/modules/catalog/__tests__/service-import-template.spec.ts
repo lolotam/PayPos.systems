@@ -1,7 +1,8 @@
 import ExcelJS from 'exceljs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { readWorkbookSheet } from '../../../shared/import/xlsx-sheet-reader.ts';import { ServiceImportError } from '../domain/errors.ts';
+import { readWorkbookSheet } from '../../../shared/import/xlsx-sheet-reader.ts';
+import { ServiceImportError } from '../domain/errors.ts';
 import { SERVICE_IMPORT_MAX_BYTES, SERVICE_IMPORT_MAX_COLUMNS, SERVICE_IMPORT_MAX_DATA_ROWS } from '../domain/service-import.ts';
 import {
   SERVICE_IMPORT_TEMPLATE_HEADERS,
@@ -10,7 +11,8 @@ import {
   serviceImportTemplateCapacity,
 } from '../domain/service-import-template.ts';
 import { createServiceImportTemplateBuilder } from '../persistence/service-import-template.ts';
-import type { ServiceImportCategoryOption } from '../ports/service-import.port.ts';
+import type { ServiceImportCategoryOption, ServiceImportTransactions } from '../ports/service-import.port.ts';
+import { GetServiceImportTemplateUseCase } from '../use-cases/get-service-import-template/get-service-import-template.usecase.ts';
 
 // القالب نفسه يجب أن يجتاز القارئ المحمي نفسه، وسعة المرجع تُرفض قبل أي بناء (P-3).
 
@@ -76,7 +78,22 @@ describe('template workbook round-trip', () => {
     expect(texts).toContain('Nails');
   });
 
-  it('refuses the download when the open categories exceed the reference ceiling', async () => {
+it('refuses the download at the use-case gate without building a workbook', async () => {
+  const transactions = {
+    runFacts: async (
+      _actor: unknown,
+      work: (scope: { categories: () => Promise<readonly unknown[]> }) => Promise<unknown>,
+    ) => work({ categories: async () => Array.from({ length: 6_547 }, (_: unknown, i: number) => ({ id: String(i), name_en: `C${i}`, name_ar: null })) }),
+  } as unknown as ServiceImportTransactions;
+  const notCalled = vi.fn(async () => '');
+  const useCase = new GetServiceImportTemplateUseCase(transactions, { build: notCalled } as never);
+  await expect(
+    useCase.execute({ companyId: 'c', userId: 'u', businessId: 'b' }),
+  ).rejects.toBeInstanceOf(ServiceImportError);
+  expect(notCalled).not.toHaveBeenCalled();
+});
+
+it('refuses the download when the open categories exceed the reference ceiling', async () => {
     // سقف حارس القارئ لورقة المرجع هو floor(65,536/10) = 6,553 صفاً، فالمعاينة التي تتجاوزه تُرفض هنا أيضاً.
     const build = createServiceImportTemplateBuilder();
     const categories = Array.from({ length: 6_600 }, (_: unknown, index: number) =>

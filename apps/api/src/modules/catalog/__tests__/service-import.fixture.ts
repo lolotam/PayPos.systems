@@ -19,10 +19,14 @@ import { serviceImportRowsPage } from '../queries/service-import-rows.query.ts';
 
 export type ImportRow = readonly (string | number | boolean | null)[];
 
-/** مصنف اختباري بعناوين القالب المرجعية وصفوف يحددها الاختبار. */
+/** مصنف اختباري بعناوين القالب المرجعية وصفوف يحددها الاختبار، مع تنسيقات أرقام اختيارية لخلية. */
 export async function serviceWorkbook(
   rows: readonly ImportRow[],
-  options: { headers?: readonly string[]; worksheetName?: string } = {},
+  options: {
+    headers?: readonly string[];
+    worksheetName?: string;
+    numericFormats?: readonly { readonly row: number; readonly col: number; readonly numFmt: string }[];
+  } = {},
 ): Promise<Uint8Array> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet(options.worksheetName ?? 'services');
@@ -34,6 +38,9 @@ export async function serviceWorkbook(
       if (value !== null) sheet.getCell(rowIndex + 2, columnIndex + 1).value = value;
     }),
   );
+  for (const format of options.numericFormats ?? []) {
+    sheet.getCell(format.row + 2, format.col + 1).numFmt = format.numFmt;
+  }
   return new Uint8Array(await workbook.xlsx.writeBuffer());
 }
 
@@ -41,6 +48,7 @@ export async function serviceWorkbook(
 type FactsRow = {
   business_id: string;
   created_by: string;
+  owner_module: string;
   content_type: string;
   size_bytes: number;
   status: 'PENDING' | 'VERIFYING' | 'READY' | 'REJECTED';
@@ -55,7 +63,7 @@ async function testFileFacts(
   fileId: string,
 ): Promise<ServiceImportFileFacts | null> {
   const rows = await (tx as Tx).execute<FactsRow>(sql`
-    SELECT business_id, created_by, content_type, size_bytes::int AS size_bytes, status,
+    SELECT business_id, created_by, owner_module, content_type, size_bytes::int AS size_bytes, status,
       CASE WHEN status='READY' THEN storage_key END AS storage_key,
       purged_at IS NOT NULL AS purged, purge_started_at IS NOT NULL AS purge_started
     FROM file_objects WHERE company_id=${companyId} AND id=${fileId}`);
@@ -174,7 +182,7 @@ export async function serviceImportFixture() {
     },
     testFileFacts,
   );
-  const transactions = createServiceImportTransactions(db, files.fileFacts);
+  const transactions = createServiceImportTransactions(db, files.fileFacts, ids);
   const helpers = dataHelpers(scope);
   return {
     h,
@@ -201,7 +209,10 @@ export async function serviceImportFixture() {
     category: helpers.category,
     service: helpers.service,
     previewRow: helpers.previewRow,
-    close: () => db.close(),
+    close: async () => {
+      await db.close();
+      await h.close();
+    },
   };
 }
 

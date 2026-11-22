@@ -1,7 +1,7 @@
 import type { ServiceImportPreview } from '@pospay/contracts';
 
 import { tagCells, type TaggedImportMatrix } from '../../../../shared/import/tag-cells.ts';
-import { readSheet } from '../../../../shared/import/import-sheet.ts';
+import { readSheet, type SheetIssue } from '../../../../shared/import/import-sheet.ts';
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import type { IdGenerator } from '../../../../shared/ports/id-generator.port.ts';
 import { ServiceImportError } from '../../domain/errors.ts';
@@ -34,7 +34,27 @@ function nextCursor(
   return page.length < rows.length && last !== undefined ? String((last as { row: number }).row) : null;
 }
 
-export interface PreviewServiceImportCommand {  readonly companyId: string;
+/** نتيجة التحليل المحمي: العناوين وصفوف البيانات الموسومة بأرقامها الأصلية. */
+interface ParsedSheet {
+  readonly sheet: Exclude<ReturnType<typeof readSheet>, SheetIssue>;
+  readonly tagged: TaggedImportMatrix;
+}
+
+/** بيطبّع بايتات الورقة المقروءة مرة واحدة: عناوين متوقعة، ثم حدود الصفوف، ثم الربط بالأرقام الأصلية. */
+function parseSheet(
+  sheetResult: Awaited<ReturnType<ServiceImportSheetReader['read']>>,
+): ParsedSheet {
+  const tagged: TaggedImportMatrix = tagCells(sheetResult.matrix, sheetResult.formats);
+  const expected = serviceImportExpectedHeaders(sheetResult.matrix[0] ?? []);
+  const sheet = readSheet(sheetResult.matrix, expected, SERVICE_IMPORT_MAX_DATA_ROWS);
+  if (sheet === 'IMPORT_HEADER_INVALID') throw new ServiceImportError('IMPORT_HEADER_INVALID');
+  if (sheet === 'IMPORT_ROW_LIMIT_EXCEEDED')
+    throw new ServiceImportError('IMPORT_ROW_LIMIT_EXCEEDED');
+  return { sheet, tagged };
+}
+
+export interface PreviewServiceImportCommand {
+  readonly companyId: string;
   readonly userId: string;
   readonly businessId: string;
   readonly fileId: string;
@@ -85,23 +105,29 @@ export class PreviewServiceImportUseCase {
       return validateServiceImportFile(facts, command.businessId, command.userId);
     });
     const bytes = await this.bytes.read(storageKey, SERVICE_IMPORT_MAX_BYTES + 1);
-    const sheetResult = await this.sheets.read(bytes);
-    const tagged: TaggedImportMatrix = tagCells(sheetResult.matrix, sheetResult.formats);
-    const expected = serviceImportExpectedHeaders(sheetResult.matrix[0] ?? []);
-    const sheet = readSheet(sheetResult.matrix, expected, SERVICE_IMPORT_MAX_DATA_ROWS);
-    if (sheet === 'IMPORT_HEADER_INVALID') throw new ServiceImportError('IMPORT_HEADER_INVALID');
-    if (sheet === 'IMPORT_ROW_LIMIT_EXCEEDED')
-      throw new ServiceImportError('IMPORT_ROW_LIMIT_EXCEEDED');
-    const input = joinTaggedSheetRows(sheet, tagged);
+    // دخول تدقيقي حتى لو رفض التحليل البايتات بعدها: الوصول للملف الخاص وقع فعلاً (CLAUDE.md §8).
+    let parsed: ParsedSheet;
+    try {
+      parsed = parseSheet(await this.sheets.read(bytes));
+    } catch (error) {
+      await this.transactions.runFacts(command, async (scope) => {
+        await scope.auditFileAccess(command.fileId);
+      });
+      throw error;
+    }
+    const input = joinTaggedSheetRows(parsed.sheet, parsed.tagged);
     const labels = distinctCategoryLabels(input);
     const previewId = this.ids.newId();
     const at = this.clock.now();
     const expiresAt = new Date(at.getTime() + PREVIEW_TTL_MS).toISOString();
     return this.transactions.runMatchAndSave({ ...command }, async (scope) => {
+      // الوصول للملف الخاص تدقيق إلزامي في معاملة الحفظ على مسار النجاح (CLAUDE.md §8).
+      await scope.auditFileAccess(command.fileId);
       const matches = await scope.matchCategories(labels);
       const resolved = new Map(matches.map((match) => [match.label, match]));
       const mapping = mapServiceImportRows(input, (lookupText) => resolved.get(lookupText) ?? null);
-      const existing = new Set(await scope.existingServiceKeys(mapping.keys.map(({ key }) => key)));
+      // المقارنة على الأسماء المطلقة: الطرفان يُطويان داخل PostgreSQL بتعبير واحد (HIGH مراجعة 1186).
+      const existing = new Set(await scope.existingServiceKeys(mapping.keys.map(({ name }) => name)));
       const conflicts = conflictingRows(mapping, existing);
       const errors = mergeServiceExistsErrors(input, mapping.errors, conflicts);
       const rows = cleanRows(mapping, conflicts);

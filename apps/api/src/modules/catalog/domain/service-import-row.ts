@@ -28,6 +28,8 @@ export interface ServiceImportRowIssue {
 export interface ServiceImportRowKey {
   readonly row: number;
   readonly key: string;
+  /** الاسم المطلق كما ورد في الخلية؛ مقارنة الأسماء المخزنة تُحسم في PostgreSQL على الطرفين (A-12). */
+  readonly name: string;
 }
 
 /** مدخل المماسّر الثابت هنا (A-12): الخلايا الموسومة بأرقام الصفوف الأصلية بعد إزالة الفارغ. */
@@ -91,8 +93,8 @@ export function mapServiceImportRows(
   const keys: ServiceImportRowKey[] = [];
   for (const source of sheet.rows) {
     const outcome = mapSheetRow(source, layout, resolveCategory, errors);
-    if (outcome.key !== null) keys.push({ row: source.row, key: outcome.key });
-    if (outcome.row !== null) rows.push(outcome.row);
+    if (outcome.key !== null)
+      keys.push({ row: source.row, key: outcome.key, name: outcome.name ?? '' });    if (outcome.row !== null) rows.push(outcome.row);
   }
   const duplicates = serviceImportDuplicateRows(keys);
   for (const row of duplicates)
@@ -116,10 +118,11 @@ interface SheetLayout {
   readonly headerCount: number;
 }
 
-/** نتيجة صف واحد: الصف المطبّع أو فراغه، ومفتاح اسمه إن كان سليماً؛ أخطاؤه اتكتبت في القائمة. */
+/** نتيجة صف واحد: الصف المطبّع أو فراغه، ومفتاح اسمه مع اسمه المطلق إن كان سليماً؛ أخطاؤه اتكتبت في القائمة. */
 interface SheetRowOutcome {
   readonly row: ServiceImportNormalizedRow | null;
   readonly key: string | null;
+  readonly name: string | null;
 }
 
 // بيتحول صف واحد: التوسيم فوق آخر عنوان، ثم كل عمود بيتجمع خطأه، ثم الإخراج بترتيب أعمدة الورقة
@@ -152,7 +155,8 @@ function mapSheetRow(
   const unexpected = perColumn.get('unexpected_column');
   if (unexpected !== undefined)
     errors.push({ row: source.row, column: 'unexpected_column', code: unexpected });
-  if (perColumn.size > 0) return { row: null, key };
+  if (perColumn.size > 0)
+    return { row: null, key, name: cells.nameEn.ok ? cells.nameEn.value : null };
   // باب التضييق النوعي: وصلنا بكل الحقول مقبولة، فالسطر ده حرفياً نفس معنى perColumn فاضية.
   if (
     !(
@@ -164,7 +168,7 @@ function mapSheetRow(
       cells.counts.ok
     )
   )
-    return { row: null, key };
+    return { row: null, key, name: cells.nameEn.ok ? cells.nameEn.value : null };
   const final = buildNormalizedRow(source.row, {
     nameEn: cells.nameEn.value ?? '',
     nameAr: cells.nameAr.ok ? cells.nameAr.value : null,
@@ -175,9 +179,9 @@ function mapSheetRow(
     defaulted: cells.commission.defaulted,
     counts: cells.counts.value,
   });
-  if (final.ok) return { row: final.row, key };
+  if (final.ok) return { row: final.row, key, name: cells.nameEn.value };
   errors.push({ row: source.row, column: final.column, code: final.code });
-  return { row: null, key };
+  return { row: null, key, name: cells.nameEn.value };
 }
 
 /** نتائج تحويل خلايا الصف الثمانية كما خرجت من محوّلاتها، وأخطاؤها متجمعة لكل عمود. */

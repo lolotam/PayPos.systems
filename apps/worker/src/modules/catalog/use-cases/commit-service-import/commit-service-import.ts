@@ -5,7 +5,6 @@ import type { ImportedServiceRecord } from '../../domain/service-import-commit.t
 import {
   requireServiceImportRequestLive,
   serviceImportCategoryIds,
-  serviceImportRowKeys,
   ServiceImportCommitError,
 } from '../../domain/service-import-commit.ts';
 
@@ -36,7 +35,7 @@ export class CommitServiceImport {
         await scope.lockImport(preview.business_id);
         const conflicts = await scope.existingNameKeys(
           preview.business_id,
-          serviceImportRowKeys(preview.rows),
+          preview.rows.map((row) => row.name_en),
         );
         if (conflicts.length > 0) throw new ServiceImportCommitError('IMPORT_SERVICE_EXISTS');
         const locked = await scope.lockCategories(

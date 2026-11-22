@@ -53,6 +53,12 @@ export interface ServiceImportPreviewScope {
    */
   categories(businessId: string): Promise<readonly ServiceImportCategoryOption[]>;
   /**
+   * يسجّل دخولًا تدقيقيًا على الوصول للملف الخاص داخل المعاملة الجارية (CLAUDE.md §8).
+   *
+   * @param fileId معرّف الملف المقروء
+   */
+  auditFileAccess(fileId: string): Promise<void>;
+  /**
    * يطابق نصوص التصنيفات المطلّقة دفعة واحدة على تصنيفات النشاط المفتوحة في Postgres (A-12).
    *
    * @param labels نصوص خلايا التصنيف بعد التشذيب فقط، بلا تكرار
@@ -60,13 +66,13 @@ export interface ServiceImportPreviewScope {
    */
   matchCategories(labels: readonly string[]): Promise<readonly ServiceImportCategoryMatch[]>;
   /**
-   * يقرأ مفاتيح أسماء الخدمات الموجودة في النشاط من مفتاح الاسم المطلق من المماسّر (A-11)،
-   * المفتوحة والمقفولة معاً، بلا اشتقاق المفتاح ثانية.
+   * يقرأ نصوص أسماء الخدمات الموجودة في النشاط من الأسماء المطلقة الممرّرة، المفتوحة والمقفولة
+   * معاً، بالطيّ نفسه على الطرفين داخل PostgreSQL (A-11/HIGH مراجعة 1186) بلا اشتقاق مفتاح في JS.
    *
-   * @param keys مفاتيح أسماء الصفوف المطلّقة
-   * @returns المفاتيح الموجودة فعلاً في النشاط
+   * @param labels أسماء الصفوف المطلّقة بعد تشذيب المحوّل
+   * @returns الأسماء المطلّقة المتصادمة في النشاط
    */
-  existingServiceKeys(keys: readonly string[]): Promise<readonly string[]>;
+  existingServiceKeys(labels: readonly string[]): Promise<readonly string[]>;
   /**
    * يحفظ المعاينة الجاهزة وصفوفها وأخطاءها في كتابة مستأجر واحدة دون كتابة أي خدمة.
    *
@@ -89,7 +95,9 @@ export interface ServiceImportTransactions {
    */
   runFacts<T>(
     actor: { companyId: string; userId: string },
-    work: (scope: Pick<ServiceImportPreviewScope, 'fileFacts' | 'categories'>) => Promise<T>,
+    work: (
+      scope: Pick<ServiceImportPreviewScope, 'fileFacts' | 'categories' | 'auditFileAccess'>,
+    ) => Promise<T>,
   ): Promise<T>;
   /**
    * يدخل الشركة مرة واحدة لمطابقة التصنيفات والأسماء وحفظ المعاينة في نفس المعاملة.
@@ -106,7 +114,7 @@ export interface ServiceImportTransactions {
     work: (
       scope: Pick<
         ServiceImportPreviewScope,
-        'matchCategories' | 'existingServiceKeys' | 'save'
+        'matchCategories' | 'existingServiceKeys' | 'save' | 'auditFileAccess'
       >,
     ) => Promise<T>,
   ): Promise<T>;

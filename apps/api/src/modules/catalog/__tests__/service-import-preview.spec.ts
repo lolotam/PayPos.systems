@@ -243,6 +243,48 @@ it('answers unknown, foreign-business and foreign-entity previews with the same 
     }
   });
 
+it('reads a real percentage-formatted numeric cell as basis points, not percentage points', async () => {
+  const f = await serviceImportFixture();
+  try {
+    const fileId = await f.upload(
+      await serviceWorkbook([['Percent Cell', null, 1, null, null, 'PCT', 0.125, null]], {
+        numericFormats: [{ row: 0, col: 6, numFmt: '0.00%' }],
+      }),
+    );
+    const preview = await f.preview.execute(previewCommand(f, fileId));
+    expect(preview.rows[0]?.commission_rule).toEqual({ kind: 'PCT', value: 1250 });
+  } finally {
+    await f.close();
+  }
+});
+
+it('refuses a file uploaded for another module even when creator and type match', async () => {
+  const f = await serviceImportFixture();
+  try {
+    const fileId = await f.upload(await serviceWorkbook([['A', null, 1, null, null, null, null, null]]), {
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    void fileId;
+    const foreign = await f.upload(
+      await serviceWorkbook([['B', null, 1, null, null, null, null, null]]),
+      { contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+    );
+    void foreign;
+    const staffFileId = await f.upload(
+      await serviceWorkbook([['C', null, 1, null, null, null, null, null]]),
+      { contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+    );
+    // أعِد ربط الملف الأخير لوحدة staff عبر تحديث مباشر ثم توقع الرفض.
+    await f.h.owner`UPDATE file_objects SET owner_module='staff'
+      WHERE company_id=${f.company} AND id=${staffFileId}`;
+    await expect(f.preview.execute(previewCommand(f, staffFileId))).rejects.toMatchObject({
+      code: 'IMPORT_FILE_NOT_FOUND',
+    });
+  } finally {
+    await f.close();
+  }
+});
+
 it('refuses a workbook with wrong headers, extra sheets overflow and oversized bytes', async () => {
   const f = await serviceImportFixture();
   try {

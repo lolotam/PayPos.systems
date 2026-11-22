@@ -1,5 +1,3 @@
-import { serviceCategoryKey } from '@pospay/domain';
-
 /** الصف المطبّع كما حُفظ في المعاينة، بنفس شكل عقد ServiceImportRow وبرقم الصف الأصلي. */
 export interface ServiceImportNormalizedRow {
   readonly row: number;
@@ -66,19 +64,6 @@ export function requireServiceImportRequestLive(preview: {
 }): void {
   if (new Date(preview.requested_at).getTime() >= new Date(preview.expires_at).getTime())
     throw new ServiceImportCommitError('IMPORT_PREVIEW_EXPIRED');
-}
-
-/**
- * بيجمع مفاتيح أسماء صفوف المعاينة بلا تكرار من المطبّع نفسه في packages/domain (A-11)،
- * فالقراءة الحاسمة في المعاينة والالتزام بالتعبير الواحد وبلا اشتقاق ثانٍ لسلوك مختلف.
- *
- * @param rows صفوف المعاينة المطبّعة
- * @returns المفاتيح المطلّقة
- */
-export function serviceImportRowKeys(
-  rows: readonly { readonly name_en: string }[],
-): readonly string[] {
-  return [...new Set(rows.map((row) => serviceCategoryKey(row.name_en)))];
 }
 
 /**
