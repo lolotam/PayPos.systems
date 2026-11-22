@@ -332,6 +332,11 @@ function useSessionCustomerFieldState(props: SessionCustomerFieldProps) {
   const prefix = useId();
   const [genderHint, setGenderHint] = useState(false);
   const [suppressedRecovery, setSuppressedRecovery] = useState<string | null>(null);
+  const [previousRecoveryProp, setPreviousRecoveryProp] = useState(profileCustomerId);
+  if (previousRecoveryProp !== profileCustomerId) {
+    setPreviousRecoveryProp(profileCustomerId);
+    setSuppressedRecovery(null);
+  }
   const recoveryId = suppressedRecovery === profileCustomerId ? null : profileCustomerId;
   const entry = useSessionCustomerEntry({
     companyId,
