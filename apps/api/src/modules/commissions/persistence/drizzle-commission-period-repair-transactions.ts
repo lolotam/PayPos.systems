@@ -34,6 +34,11 @@ export function createCommissionPeriodRepairTransactions(
             },
             async () => ({ status: 201, body: await work(scope) }),
           );
+          // الرد المخزّن ممكن يرجع بعد انتظار على نفس المفتاح، فالصلاحية بتتفحص تاني قبل ما نرجّعه.
+          if (result.replayed) {
+            const replayFailure = await scope.recheckAccess();
+            if (replayFailure !== null) throw new CommissionPlanVersionError(replayFailure);
+          }
           return result.body as Awaited<ReturnType<typeof work>>;
         },
         { userId: command.userId },

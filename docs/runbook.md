@@ -257,7 +257,10 @@ land, approval stays closed. Never reset or delete `published_at`, `attempts`, `
    by the period repair of 55-2f (`POST /v1/businesses/:businessId/employees/:employeeId/commission-period-repairs`, permission
    `manage:commission-plans:business`): one repair plan version that applies only inside that month, a recompute, the posted
    corrections and the resolved block, all in one transaction. If the recompute then needs a missing salary, the same row becomes
-   `NO_SALARY` and nothing is posted (the repair version and its audit entry stay). The bell of 55-2d and the list of 55-2e
+   `NO_SALARY` and nothing is posted (the repair version and its audit entry stay). Each saved repair also appends one
+   `CommissionPeriodRepairSaved` outbox event (ids and the block outcome only). Deploy order: every worker replica first (an old
+   worker retries the unknown type with backoff and parks it; re-queue a parked row after the worker is updated), then the API that
+   emits it, then the admin (an old API answers 400 to the `kind=ordinary` read the new admin sends). The bell of 55-2d and the list of 55-2e
    (`GET …/commission-blocked-corrections`) expose these rows. To see the open blocks directly, run this read-only query as `pospay_owner`:
 
     ```sql

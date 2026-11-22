@@ -546,6 +546,16 @@ export type Probe = typeof ${FACTORY_NAME};
     `export { ${FACTORY_NAME} } from '${POSTING}';
 `,
   ],
+  [
+    'type query of the factory',
+    `export type Probe = typeof import('${POSTING}').${FACTORY_NAME};
+`,
+  ],
+  [
+    'import type of the factory',
+    `export type Probe = import('${POSTING}').${FACTORY_NAME};
+`,
+  ],
   ['dynamic import', dynamicImport(POSTING)],
   ['require', requireCall(POSTING)],
   [

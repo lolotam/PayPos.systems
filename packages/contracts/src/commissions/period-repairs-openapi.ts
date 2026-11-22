@@ -41,12 +41,12 @@ export const commissionPeriodRepairPaths = {
         '403': { description: 'Uniform 403 refusal', content: json('ErrorEnvelope') },
         '409': {
           description:
-            'TRANSACTION_RETRY_REQUIRED (the month rolled over), IDEMPOTENCY_KEY_IN_PROGRESS',
+            'TRANSACTION_RETRY_REQUIRED (the month rolled over), COMMISSION_PERIOD_CLOSED (no DRAFT month to post into), IDEMPOTENCY_KEY_IN_PROGRESS',
           content: json('ErrorEnvelope'),
         },
         '422': {
           description:
-            'COMMISSION_REPAIR_NOT_ALLOWED when no open NO_PLAN block exists for the employee and month (including a NO_SALARY block or a resolved one), COMMISSION_PLAN_INVALID with details.code, or IDEMPOTENCY_KEY_REUSED.',
+            'COMMISSION_REPAIR_NOT_ALLOWED when no open NO_PLAN block exists for the employee and month (including a NO_SALARY block or a resolved one, and a month before the business started or not yet closed), COMMISSION_PLAN_INVALID with details.code, or IDEMPOTENCY_KEY_REUSED.',
           content: oneOfJson(
             'CommissionRepairNotAllowedError',
             'CommissionPlanInvalidError',

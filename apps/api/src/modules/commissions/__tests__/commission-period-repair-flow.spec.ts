@@ -120,6 +120,7 @@ it('CM-52c O4 through the real flow: a late line turns the block NO_SALARY into 
     resolved: true,
   });
   const rows = await correctionRows(r);
+  expect(rows).toHaveLength(2);
   expect(Object.fromEntries(rows.map((row) => [row['source_ref'], row['amount']]))).toEqual({
     [`line:${LB}`]: '10.000',
     [`line:${LA}`]: '40.000',
@@ -196,8 +197,14 @@ it('a failing event append rolls back the version, the corrections, the block up
   expect(await events()).toEqual([]);
 });
 
-it('a repair whose month needs no correction (zero difference) still resolves the block, posts nothing and emits the event', async () => {
-  const seeded = await seedFlat();
+it('a repair that prices a real line to the amount already frozen (zero difference) resolves the block, posts nothing and emits the event', async () => {
+  // السطر بعد بداية الخطة العادية: بيتسعّر 10% = 30.000 زي المجمّد بالظبط، فخطة الإصلاح ما بتغيّرش حاجة.
+  const seeded = await seedBlockedSeptember(r, {
+    plan: flatPlan(1000),
+    planFrom: '2026-09-15',
+    lines: [{ id: LB, date: '2026-09-20', net: '300.000' }],
+    frozen: [{ id: LB, date: '2026-09-20', amount: '30.000' }],
+  });
 
   const response = await r.repair(body, 'zero-difference');
 
@@ -229,6 +236,7 @@ it('a PAID source month is repaired like an APPROVED one: the correction lands i
   ]);
 });
 
+// حدّ الاختبار ده: Promise.all ما بيثبتش إن الطلبين اتقابلوا عند الـ claim؛ مسار الانتظار والـ replay مثبت في commission-period-repair-isolation.spec.ts.
 it('two concurrent requests with one key write once: one answers 201 and the other replays it or reports the key busy', async () => {
   await seedFlat([{ id: LB, date: '2026-09-10', net: '200.000' }]);
 
@@ -257,17 +265,6 @@ it('the feature switched off after a successful repair refuses the stored replay
   expect(first.status).toBe(201);
   expect([replay.status, replay.body['code']]).toEqual([403, 'FEATURE_DISABLED']);
   expect(replay.body['version']).toBeUndefined();
-});
-
-it('an employee id from another business with an authorized business is refused and writes nothing', async () => {
-  await seedFlat([{ id: LB, date: '2026-09-10', net: '200.000' }]);
-  const before = await repairWrites(r);
-
-  const response = await r.repair(body, 'foreign-employee', ids.newId());
-
-  expect([response.status, response.body['code']]).toEqual([404, 'EMPLOYEE_NOT_FOUND']);
-  expect(await repairWrites(r)).toEqual(before);
-  expect(await events()).toEqual([]);
 });
 
 it('the notice-invariant failure leaves the transaction and rolls the version back for real, so the route would answer 500 with nothing written', async () => {

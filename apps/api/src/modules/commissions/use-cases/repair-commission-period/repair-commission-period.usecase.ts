@@ -57,15 +57,19 @@ export async function repairCommissionPeriod(
   if (!validation.ok) {
     throw new CommissionPlanVersionError('COMMISSION_PLAN_INVALID', { code: validation.code });
   }
-  if (!(await scope.lockEmployee())) throw new CommissionPlanVersionError('EMPLOYEE_NOT_FOUND');
   const calendar = await scope.calendar();
   if (calendar === null) throw new Error('The employee business has no timezone');
   const current = monthOf(clock, calendar.timeZone);
-  // لا تصحيح موقوف قبل أول شهر للنشاط ولا في الشهر الحالي أو بعده، ونرفض قبل أي قفل لأن القفل بينشئ كشفاً لكل شهر في المدى.
+  // لا تصحيح موقوف قبل أول شهر للنشاط ولا في الشهر الحالي أو بعده، ونرفض قبل قفل الموظفة وقبل أي قفل شهور، لأن القفل بينشئ كشفاً لكل شهر في المدى.
   if (
     period < sessionBusinessDate(calendar.createdAt, calendar.timeZone).slice(0, 7) ||
     period >= current
   ) {
+    throw new CommissionPlanVersionError('COMMISSION_REPAIR_NOT_ALLOWED');
+  }
+  if (!(await scope.lockEmployee())) throw new CommissionPlanVersionError('EMPLOYEE_NOT_FOUND');
+  // فحص قراءة بس قبل الأقفال: طلب من غير توقف NO_PLAN مفتوح بيترفض من غير ما ياخد أقفال الشهور؛ القرار الحاسم بعد الأقفال.
+  if ((await scope.readOpenBlock(period))?.code !== 'NO_PLAN') {
     throw new CommissionPlanVersionError('COMMISSION_REPAIR_NOT_ALLOWED');
   }
   const locked = await scope.lockPeriods(

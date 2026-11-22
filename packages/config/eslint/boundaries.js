@@ -151,6 +151,12 @@ export const COMMISSIONS_POSTING_FACTORY_SYNTAX = [
   ...engineSyntax('/^@pospay\\/commissions-posting$/', FACTORY_MESSAGE).filter(
     ({ selector }) => !selector.startsWith('TSImportType'),
   ),
+  // A type reference to the factory itself (`typeof import('...').createCommissionCorrectionScope`) is refused too.
+  {
+    selector:
+      "TSImportType[argument.literal.value='@pospay/commissions-posting'][qualifier.name='createCommissionCorrectionScope']",
+    message: FACTORY_MESSAGE,
+  },
   // `export * from` the root hands every export, the factory included, to the importers of this file.
   {
     selector: "ExportAllDeclaration[source.value='@pospay/commissions-posting']",

@@ -63,6 +63,7 @@ export async function denyPlanAccess(client: QueryClient, scope: PlanScope): Pro
   await client.cancelQueries({ queryKey: scope }, { revert: false });
   client.removeQueries({ queryKey: planEmployeesKey(scope) });
   client.removeQueries({ queryKey: [...scope, 'versions'] });
+  client.removeQueries({ queryKey: [...scope, 'seed-version'] });
   client.removeQueries({ queryKey: [...scope, 'override-services'] });
   client.removeQueries({ queryKey: [...scope, 'override-history'] });
 }

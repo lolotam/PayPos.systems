@@ -44,8 +44,9 @@ export function CommissionPlanSection({
   const notFound = failure !== null && isPlanNotFound(failure);
   const seedVersion = seed.data;
   const initial = useMemo(
-    () => (seedVersion === undefined ? null : sectionDraft(seedVersion, timeZone)),
-    [seedVersion, timeZone],
+    () =>
+      seedVersion === undefined || versions.isPending ? null : sectionDraft(seedVersion, timeZone),
+    [seedVersion, versions.isPending, timeZone],
   );
   // مفتاح النموذج من آخر نسخة محفوظة ناجحة بس: الحفظ اللي بيستنى أو بيرفض ما بيغيّرش المفتاح
   // فالمحرّر ما بيتركّبش من جديد وتعديلات المدير بتفضل مكانها لحد ما نجاح حقيقي يعيد الأساس.

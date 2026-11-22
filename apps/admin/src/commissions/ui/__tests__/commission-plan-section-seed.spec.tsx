@@ -1,11 +1,12 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { t } from '@pospay/i18n';
 import { createQueryClient } from '@/shared/api/query-client';
-import { planScope } from '../../api/plan-access';
+import { denyPlanAccess, planScope, planSeedKey } from '../../api/plan-access';
 import {
+  deferredAnswer,
   EMP_A as EMP_A_ID,
   employeeItem,
   ok,
@@ -80,7 +81,7 @@ const bps = () =>
   ).value;
 
 it('a first history page that is all repairs still seeds the editor from the older ordinary version, and the repairs are labelled', async () => {
-  route(ok(versionPage([ordinary], null)), ok(versionPage([repair(3), repair(2), ordinary], null)));
+  route(ok(versionPage([ordinary], null)), ok(versionPage([repair(3), repair(2)], 1)));
   mount();
 
   await screen.findByRole('button', { name: B.save });
@@ -117,4 +118,34 @@ it('an ordinary version of the history that is not a repair carries no repair la
   await screen.findByRole('button', { name: B.save });
 
   expect(screen.queryByText(new RegExp(B.repairOf))).toBeNull();
+});
+
+it('keeps the editor hidden until both the seed read and the first history page have settled', async () => {
+  const history = deferredAnswer();
+  routeGet(api.GET, async (_path, options) =>
+    options?.params?.query?.['kind'] === 'ordinary'
+      ? ok(versionPage([ordinary], null))
+      : history.promise,
+  );
+  mount();
+
+  await waitFor(() => expect(api.GET.mock.calls.length).toBeGreaterThanOrEqual(2));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(screen.queryByRole('button', { name: B.save })).toBeNull();
+  history.resolve(ok(versionPage([ordinary], null)));
+
+  await screen.findByRole('button', { name: B.save });
+});
+
+it('a 403 removes the cached seed with the other plan caches, so the editor disappears and nothing stays cached', async () => {
+  route(ok(versionPage([ordinary], null)), ok(versionPage([ordinary], null)));
+  mount();
+  await screen.findByRole('button', { name: B.save });
+
+  await act(async () => {
+    await denyPlanAccess(client, scope);
+  });
+
+  await waitFor(() => expect(screen.queryByRole('button', { name: B.save })).toBeNull());
+  expect(client.getQueryData(planSeedKey(scope, EMP_A_ID))).toBeUndefined();
 });

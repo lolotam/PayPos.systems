@@ -10852,6 +10852,7 @@ export interface operations {
             query?: {
                 cursor?: number;
                 limit?: number;
+                kind?: "ordinary";
             };
             header: {
                 "x-company-id": string;
@@ -10996,7 +10997,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description TRANSACTION_RETRY_REQUIRED (the month rolled over), IDEMPOTENCY_KEY_IN_PROGRESS */
+            /** @description TRANSACTION_RETRY_REQUIRED (the month rolled over), COMMISSION_PERIOD_CLOSED (no DRAFT month to post into), IDEMPOTENCY_KEY_IN_PROGRESS */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11005,7 +11006,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
-            /** @description COMMISSION_REPAIR_NOT_ALLOWED when no open NO_PLAN block exists for the employee and month (including a NO_SALARY block or a resolved one), COMMISSION_PLAN_INVALID with details.code, or IDEMPOTENCY_KEY_REUSED. */
+            /** @description COMMISSION_REPAIR_NOT_ALLOWED when no open NO_PLAN block exists for the employee and month (including a NO_SALARY block or a resolved one, and a month before the business started or not yet closed), COMMISSION_PLAN_INVALID with details.code, or IDEMPOTENCY_KEY_REUSED. */
             422: {
                 headers: {
                     [name: string]: unknown;
