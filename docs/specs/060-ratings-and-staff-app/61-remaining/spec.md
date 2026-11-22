@@ -77,7 +77,7 @@ card is sent now, because the row-61 scope is explicit and can be completed.
 | M3, M4 (PP-207.4) | Permission in two stages (guard, then seed after the guard is on staging); migrations generated in their lane turn | `../plan-61.md` §3.1 | Manager (PP-124, PP-130) |
 | MY-Q1 (PP-18.1) | «شغلي» opens on the personal phone and on the reception device after the PIN (D-A13) | `../spec.md` A.1 | Waleed |
 | MY-Q8 (PP-18.8) | A cancelled line is shown struck through | `../spec.md` MY-07 | Waleed |
-| **One PR, one owner, Medium** | Every remaining unit ships in **one PR**, built by **one** MiniMax 3.1 OpenCode owner to the end, tier **Medium** with Heavy review | Waleed, 2026-11-22: «لية هما شرايح انا عايزهم كلهم في PR واحد بشريحة واحة Minimax 3.1 open code حتي النهاية medium» and «خلي fabel يعدل الخطة ويضيفة ضمن الخطة الجديدة وال spec ويطحط في دورة المظبوط» | PP-217 and PP-218 (local manager records) |
+| **One PR, one owner, Medium** | Every remaining unit ships in **one PR**, built by **one** OpenCode owner to the end, tier **Medium** with Heavy review (MiniMax 3.1 delivered 61-2a/61-1c; GLM 5.3 continues after the 2026-11-22 quota transfer) | Waleed, 2026-11-22: «لية هما شرايح انا عايزهم كلهم في PR واحد بشريحة واحة Minimax 3.1 open code حتي النهاية medium» and «خلي fabel يعدل الخطة ويضيفة ضمن الخطة الجديدة وال spec ويطحط في دورة المظبوط» | PP-217 and PP-218 (local manager records) |
 | **61-1i release** | Keep the current issuance lock in the combined PR. Prove no active links before release and verify worker and Admin deployment and staging delivery before wider activation of 59b-3. | Waleed, 2026-11-22, chose the existing lock on the gate card | PP-219 (local manager record) |
 | Order and 57-4 (history) | Implement one by one, 57-4 before 61-3 | Waleed, 2026-11-22: «add all these sub tasks to the spec and plane so will implement in order one by one so 57-4. wii be before 57-4.61-3 … add these two 57-4. and 61-3» | PP-215 (local manager record); the order still holds |
 | One PR for 57-4 + 61-3 (history) | Only those two in one PR | Waleed: «all in one PR», scoped then to the two slices | PP-215; **superseded** by the row above |
@@ -361,8 +361,9 @@ answered in the sources of §3; no `[NEEDS CLARIFICATION]` marker remains.
 - Q: When are recipients, comment access and the rule's state decided? → A: At the worker's decision instant
   (PP-207.3).
 - Q: Does this work include row 62's 62-2c? → A: No (manager decision, 2026-11-22; §1).
-- Q: What does «all in one PR» cover? → A: Everything remaining, in one PR with one MiniMax owner, Medium (Waleed's
-  later instruction, §3); the earlier reading (57-4 + 61-3 only, PP-215) is superseded.
+- Q: What does «all in one PR» cover? → A: Everything remaining, in one PR with one OpenCode owner, Medium
+  (Waleed's later instruction, §3; MiniMax 3.1 then GLM 5.3 after the 2026-11-22 quota transfer);
+  the earlier reading (57-4 + 61-3 only, PP-215) is superseded.
 - Q: 57-4 depends on the unbuilt 57-2b; what happens to it? → A: 57-2b is built inside this PR, before 57-4.
   The manager approved local proof, and acceptance is required before the API is exposed (plan §5).
 - Q: Can the producer of 61-1i merge together with its consumer and renderer? → A: Yes. Keep the current

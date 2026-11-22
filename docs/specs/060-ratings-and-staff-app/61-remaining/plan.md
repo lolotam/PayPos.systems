@@ -14,15 +14,18 @@
 Relayed by the manager on 2026-11-22, verbatim: «لية هما شرايح انا عايزهم كلهم في PR واحد بشريحة واحة Minimax 3.1 open
 code حتي النهاية medium» and «خلي fabel يعدل الخطة ويضيفة ضمن الخطة الجديدة وال spec ويطحط في دورة المظبوط».
 
-**Settled:** one PR; one implementation owner, MiniMax M3.1 Flash on OpenCode, from start to merge; tier Medium. The
+**Settled:** one PR; one implementation owner on OpenCode, from start to merge; tier Medium. The
 former slices become **ordered checkpoints (commits) inside that PR**. 57-2b is added in its right place.
+**Owner transfer (2026-11-22, manager):** MiniMax M3.1 Flash delivered checkpoint 61-2a (`c362b10f3`) and the
+61-1c seed (`5adee26f1`, transferred as `bfe92d16b`) before its quota ran out; GLM 5.3 Flash continues the same
+thread, worktree, plan and checkpoints with no scope change.
 
 | Earlier rule or record | What the instruction does to it | Still binding |
 |---|---|---|
 | One slice per PR (`CLAUDE.md` §10; the 14-row split of `../plan-61.md` §4) | Replaced by one PR for this work | Each checkpoint keeps its own behaviour, stop line and tests |
 | PP-192 (600–900 hand-written production lines, and only without a migration or a sensitive permission) | Overridden for this PR | PP-112: the brief states an expected size, and twice that is refused (§8) |
 | PP-195 tier rule (a migration or a permission makes a task Heavy) | The owner names Medium | PP-129 for staging migration (§6); PP-198's guard skills; no open P0/P1 at merge |
-| 57-2 two-PR authorization (`../57-2a-manager-authorization.ar.md`: A then B, the same Codex session) | B is delivered inside this PR by the MiniMax owner | Everything else in it: B's design approval before any B code or experiment, P1 fixed before the route is exposed, the 200 ms bound, no migration/index/config, B's size bounds (§5.5) |
+| 57-2 two-PR authorization (`../57-2a-manager-authorization.ar.md`: A then B, the same Codex session) | B is delivered inside this PR by the implementation owner | Everything else in it: B's design approval before any B code or experiment, P1 fixed before the route is exposed, the 200 ms bound, no migration/index/config, B's size bounds (§5.5) |
 | This thread's earlier answers («57-4 + 61-3 في PR واحد», «57-4 يستنى 57-2b زي ما هو») | Superseded: everything is one PR, and 57-2b is inside it | The order 57-2b → 57-4 → 61-3 |
 | Waves, X1/X2/X3 pairings and per-slice tier proposals of the previous revision | Withdrawn | — |
 
@@ -320,8 +323,9 @@ Calibration from merged work (production / test / generated): #1135 67 / 342 / 7
 
 ## 10. Owner session and review path (from the manager's brief, 2026-11-22)
 
-1. The existing MiniMax M3.1 Flash OpenCode session that owns 61-2a owns the whole build, continuously, in its
-   worktree, through reviews and merge. No second implementer and no extra slot.
+1. One OpenCode owner session owns the whole build, continuously, in its
+   worktree, through reviews and merge — GLM 5.3 Flash since the 2026-11-22 quota transfer; MiniMax M3.1 Flash
+   delivered 61-2a and the 61-1c seed before it. No second implementer and no extra slot.
 2. PP-218 adds Heavy review to this one Medium delivery. Run `clean-code-guard`, `test-guard`, `docs-guard`,
    `review-agent`, `requesting-code-review` and the relevant API, architecture and i18n skills. Run focused
    tests and the slice's acceptance proofs in the private lane. Unrelated heavy suites remain in CI under PP-113.
@@ -345,7 +349,10 @@ Calibration from merged work (production / test / generated): #1135 67 / 342 / 7
 
 ### ملخص للمالك (بالعربي)
 
-- كل الشغل الباقي بقى PR واحد بمنفّذ واحد (MiniMax 3.1 على OpenCode، Medium) زي ما طلبت، والشرايح بقت 14 خطوة
+> **نقل التنفيذ (2026-11-22):** MiniMax 3.1 سلّم شريحة 61-2a وبذرة 61-1c قبل نفاد حصته، وكمل GLM 5.3 Flash
+> نفس الجلسة ونفس الخطة ونفس الـ checkpoints من غير أي تغيير في النطاق.
+
+- كل الشغل الباقي بقى PR واحد بمنفّذ واحد على OpenCode (Medium) زي ما طلبت، والشرايح بقت 14 خطوة
   مرتبة جوه نفس الـ PR: 61-2a ثم 61-1c…i ثم 61-2b…d ثم 57-2b ثم 57-4 ثم 61-3.
 - 57-2b قبل شاشة «شغلي». التصميم معتمد للإثبات المحلي، وإتاحة الـAPI تنتظر نجاح الاختبارات والأداء.
 - اختار وليد قفل الإصدار الحالي في PP-219. الدمج يحصل والقفل مقفول. قبل النشر تُفحص البيئة المستهدفة للروابط السارية،
