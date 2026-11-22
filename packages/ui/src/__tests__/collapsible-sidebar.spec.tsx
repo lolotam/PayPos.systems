@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { CollapsibleSidebar, type CollapsibleSidebarProps } from '../collapsible-sidebar.js';
 import { DirectionProvider } from '../direction-provider.js';
@@ -282,4 +282,22 @@ it('centres the collapse toggle in the rail and keeps it at the inline end when 
   const railRow = screen.getByRole('button', { name: chromeLabels.expand }).parentElement;
   expect(railRow?.className).toContain('justify-center');
   expect(railRow?.className).not.toContain('justify-end');
+});
+
+it('falls back to the visible label when a rail icon is conditionally false', () => {
+  stubMedia({ width: 800 });
+  const conditional = groups.map((group) => (group.id === 'home' ? { ...group, icon: false } : group));
+  render(tree('ltr', { groups: conditional }));
+  const home = screen.getByRole('link', { name: 'Home' });
+  expect(home.hasAttribute('title')).toBe(false);
+  expect(within(home).getAllByText('Home').some((node) => !node.className.includes('sr-only'))).toBe(true);
+});
+
+it('centres rail links on the same line as the collapse toggle', () => {
+  stubMedia({ width: 800 });
+  render(tree('ltr', { groups: homeWithIcon() }));
+  const home = screen.getByRole('link', { name: 'Home' });
+  expect(home.className).toContain('mx-auto');
+  expect(home.className).toContain('gap-0');
+  expect(home.className).not.toContain('gap-2');
 });

@@ -12,21 +12,23 @@ type GroupLinkProps = {
 };
 
 export function CollapsibleGroupLink({ group, rail, active }: GroupLinkProps) {
+  // icon نوعه ReactNode، فممكن ييجي false من شرط. نفس الفحص لازم يحكم العنوان والبديل النصي.
+  const hasIcon = Boolean(group.icon);
   return (
     <AppSidebarGroup role="group" aria-label={group.label} className="gap-0">
       <AppSidebarItem
         href={group.href}
         aria-label={rail ? group.label : undefined}
-        title={rail && group.icon ? group.label : undefined}
+        title={rail && hasIcon ? group.label : undefined}
         icon={
-          group.icon ?? (
-            rail ? (
-              <span className="line-clamp-2 break-words text-center text-[10px] leading-tight">
-                {group.label}
-              </span>
-            ) : (
-              <span aria-hidden="true" className="size-4" />
-            )
+          hasIcon ? (
+            group.icon
+          ) : rail ? (
+            <span className="line-clamp-2 break-words text-center text-[10px] leading-tight">
+              {group.label}
+            </span>
+          ) : (
+            <span aria-hidden="true" className="size-4" />
           )
         }
         active={active}
@@ -42,7 +44,7 @@ export function CollapsibleGroupLink({ group, rail, active }: GroupLinkProps) {
         }
         className={cn(
           'min-h-12',
-          rail && 'min-h-15 w-15 justify-center ps-0 pe-0 [&>span:first-child]:hidden',
+          rail && 'mx-auto min-h-15 w-15 justify-center gap-0 ps-0 pe-0 [&>span:first-child]:hidden',
         )}
       />
     </AppSidebarGroup>
