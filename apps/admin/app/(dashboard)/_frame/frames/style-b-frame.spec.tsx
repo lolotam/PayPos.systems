@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   frameState,
+  goTo,
   renderFrame,
   resetFrameState,
   selectBusiness,
@@ -43,6 +44,9 @@ vi.mock(
 
 const label = (key: Parameters<typeof t>[1]) => t('en', key);
 const localList = () => screen.getByRole('navigation', { name: label('adminNav.localNavigation') });
+const barNav = () => screen.getByRole('navigation', { name: label('shell.navigation') });
+const module = (name: string) =>
+  within(barNav()).getByRole('button', { name: new RegExp(`^${name}`) });
 
 beforeEach(() => {
   resetFrameState();
@@ -54,33 +58,20 @@ describe.each(['ltr', 'rtl'] as const)('style B in %s', (dir) => {
   it('marks the current module in the bar and the current page in the local list', () => {
     frameState.pathname = '/staff/import';
     renderFrame(<StyleBFrame>Page body</StyleBFrame>, dir);
-    const bar = screen.getByRole('navigation', { name: label('shell.navigation') });
-    const people = within(bar).getByRole('button', {
-      name: new RegExp(label('adminNav.moduleBPeople')),
-    });
+    const people = module(label('adminNav.moduleBPeople'));
     expect(people.getAttribute('aria-current')).toBe('page');
     expect(people.querySelector('[data-current-marker]')).toBeTruthy();
-    expect(
-      within(localList())
-        .getByRole('link', { name: /Import employees/ })
-        .getAttribute('aria-current'),
-    ).toBe('page');
-    expect(
-      within(localList())
-        .getByRole('link', { name: /^Employees/ })
-        .getAttribute('aria-current'),
-    ).toBeNull();
+    const list = within(localList());
+    expect(list.getByRole('link', { name: /Import employees/ }).getAttribute('aria-current')).toBe(
+      'page',
+    );
+    expect(list.getByRole('link', { name: /^Employees/ }).getAttribute('aria-current')).toBeNull();
   });
 
   it('marks the Business module for Staff app columns', () => {
     frameState.pathname = '/staff-app-columns';
     renderFrame(<StyleBFrame>Page body</StyleBFrame>, dir);
-    const bar = screen.getByRole('navigation', { name: label('shell.navigation') });
-    expect(
-      within(bar)
-        .getByRole('button', { name: new RegExp(label('adminNav.moduleBBusiness')) })
-        .getAttribute('aria-current'),
-    ).toBe('page');
+    expect(module(label('adminNav.moduleBBusiness')).getAttribute('aria-current')).toBe('page');
   });
 });
 
@@ -97,9 +88,20 @@ describe('style B layout', () => {
     expect(
       screen.getAllByRole('navigation', { name: label('adminNav.localNavigation') }),
     ).toHaveLength(1);
-    expect(screen.getByRole('navigation', { name: label('shell.navigation') }).contains(list)).toBe(
-      false,
-    );
+    expect(barNav().contains(list)).toBe(false);
+  });
+
+  it('groups the local list under the section headings of the module', () => {
+    frameState.pathname = '/staff';
+    renderFrame(<StyleBFrame>Page body</StyleBFrame>);
+    const headings = within(localList())
+      .getAllByRole('heading')
+      .map((heading) => heading.textContent);
+    expect(headings.slice(0, 3)).toEqual([
+      label('adminNav.submenuEmployees'),
+      label('adminNav.submenuSchedules'),
+      label('adminNav.submenuAttendance'),
+    ]);
   });
 
   it('keeps the workspace switcher and the account controls in the bar', () => {
@@ -126,14 +128,30 @@ describe('style B layout', () => {
       screen.queryByRole('navigation', { name: label('adminNav.localNavigation') }),
     ).toBeNull();
   });
+
+  it('keeps the module and its local list on the overview address the model generates', () => {
+    renderFrame(<StyleBFrame>Page body</StyleBFrame>);
+    fireEvent.click(module(label('adminNav.moduleBPeople')));
+    const overview = within(screen.getByRole('dialog')).getByRole('link', {
+      name: label('adminNav.overview'),
+    });
+    const href = overview.getAttribute('href') ?? '';
+    expect(href).toBe('/overview/people');
+    goTo(href);
+    expect(module(label('adminNav.moduleBPeople')).getAttribute('aria-current')).toBe('page');
+    const list = within(localList());
+    expect(list.getByRole('link', { name: /Import employees/ })).toBeTruthy();
+    expect(
+      list.getAllByRole('link').filter((item) => item.hasAttribute('aria-current')),
+    ).toHaveLength(0);
+  });
 });
 
 describe('style B visibility', () => {
   it('omits a module whose pages are all hidden', () => {
     frameState.visible = ['dashboard', 'record-visit'];
     renderFrame(<StyleBFrame>Page body</StyleBFrame>);
-    const bar = screen.getByRole('navigation', { name: label('shell.navigation') });
-    const modules = within(bar).getAllByRole('button');
+    const modules = within(barNav()).getAllByRole('button');
     expect(modules).toHaveLength(2);
     expect(modules[0]?.textContent).toContain(label('adminNav.moduleBToday'));
     expect(modules[1]?.textContent).toContain(label('adminNav.moduleBSell'));
@@ -148,6 +166,31 @@ describe('style B visibility', () => {
     rerenderFrame(<StyleBFrame>Page body</StyleBFrame>);
     expect(within(localList()).queryByRole('link', { name: /Kitchen screens/ })).toBeNull();
     expect(within(localList()).getByRole('link', { name: /Record a visit/ })).toBeTruthy();
+  });
+});
+
+describe('style B open state across routes', () => {
+  it('closes an open mega menu on navigation and does not reopen it on the way back', () => {
+    frameState.pathname = '/staff';
+    renderFrame(<StyleBFrame>Page body</StyleBFrame>);
+    fireEvent.click(module(label('adminNav.moduleBPeople')));
+    expect(screen.getByRole('dialog', { name: label('adminNav.moduleBPeople') })).toBeTruthy();
+    goTo('/leave');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    goTo('/staff');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('closes the phone drawer on navigation and does not reopen it on the way back', () => {
+    stubViewport(390);
+    frameState.pathname = '/';
+    renderFrame(<StyleBFrame>Page body</StyleBFrame>);
+    fireEvent.click(screen.getByRole('button', { name: label('shell.openNavigation') }));
+    expect(screen.getByRole('dialog', { name: label('adminNav.drawerTitle') })).toBeTruthy();
+    goTo('/staff');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    goTo('/');
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
 

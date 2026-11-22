@@ -72,3 +72,59 @@ it('does not fail where scrolling into view is not available', () => {
   render(<LocalNav module={sell} labels={chromeLabels} activePageId="orders" />);
   expect(screen.getByRole('link', { name: /Sales orders/ })).toBeTruthy();
 });
+
+const twoSections = {
+  ...sell,
+  sections: [
+    { id: 'first', label: 'First group', pages: [{ id: 'one', label: 'One', href: '#one' }] },
+    { id: 'second', label: 'Second group', pages: [{ id: 'two', label: 'Two', href: '#two' }] },
+  ],
+};
+
+it('groups the vertical list under its section headings, the horizontal strip hiding them', () => {
+  render(<LocalNav module={twoSections} labels={chromeLabels} activePageId="one" />);
+  const list = screen.getByRole('list');
+  const names = [...list.children].map((item) => item.textContent);
+  expect(names).toEqual(['First group', 'One', 'Second group', 'Two']);
+  const heading = screen.getByRole('heading', { name: 'First group' });
+  expect(heading.closest('li')?.className).toContain('hidden');
+  expect(heading.closest('li')?.className).toContain('min-[1024px]:block');
+});
+
+it('leaves out the heading of a section with no visible page', () => {
+  render(
+    <LocalNav
+      module={twoSections}
+      labels={chromeLabels}
+      activePageId="one"
+      visiblePageIds={['one']}
+    />,
+  );
+  expect(screen.queryByRole('heading', { name: 'Second group' })).toBeNull();
+  expect(screen.getByRole('heading', { name: 'First group' })).toBeTruthy();
+});
+
+it('scrolls to the current page when permissions reveal it after the first draw', () => {
+  const scroll = vi.fn();
+  Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: scroll });
+  const { rerender } = render(
+    <LocalNav
+      module={twoSections}
+      labels={chromeLabels}
+      activePageId="two"
+      visiblePageIds={['one']}
+    />,
+  );
+  expect(scroll).not.toHaveBeenCalled();
+  rerender(
+    <LocalNav
+      module={twoSections}
+      labels={chromeLabels}
+      activePageId="two"
+      visiblePageIds={['one', 'two']}
+    />,
+  );
+  expect(scroll).toHaveBeenCalledTimes(1);
+  expect(scroll.mock.contexts[0]).toBe(screen.getByRole('link', { name: 'Two' }));
+  Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+});

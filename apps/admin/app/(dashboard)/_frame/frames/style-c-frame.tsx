@@ -53,7 +53,9 @@ export function StyleCFrame({ children }: { children: ReactNode }) {
                 view={view}
                 visibleIds={ctx.visibleIds}
                 panelOpen={panel.open}
-                onToggle={panel.open ? panel.hide : panel.show}
+                routeKey={ctx.pathname}
+                onShow={panel.show}
+                onHide={panel.hide}
                 toggleRef={returnFocusRef}
               />
             }

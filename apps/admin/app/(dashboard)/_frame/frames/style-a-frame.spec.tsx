@@ -1,8 +1,9 @@
 import { t } from '@pospay/i18n';
-import { fireEvent, screen, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { usePathname } from 'next/navigation';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { frameState, renderFrame, resetFrameState, stubViewport } from './frame-test-support';
+import { frameState, goTo, renderFrame, resetFrameState, stubViewport } from './frame-test-support';
 import { StyleAFrame } from './style-a-frame';
 
 vi.mock('next/navigation', async () => (await import('./frame-test-support')).navigationMock);
@@ -36,6 +37,23 @@ vi.mock(
 );
 
 const label = (key: Parameters<typeof t>[1]) => t('en', key);
+const link = (scope: HTMLElement, name: string | RegExp) =>
+  within(scope).getByRole('link', { name });
+const tabsNav = () => screen.getByRole('navigation', { name: label('adminNav.tabsLabel') });
+const pillsNav = () => screen.getByRole('navigation', { name: label('adminNav.pillsLabel') });
+
+function CurrentRoute() {
+  return <p>Route: {usePathname()}</p>;
+}
+
+function PageContent() {
+  return (
+    <>
+      <CurrentRoute />
+      <a href="/staff/attendance-board">Link written by the page</a>
+    </>
+  );
+}
 
 beforeEach(() => {
   resetFrameState();
@@ -49,44 +67,20 @@ describe.each(['ltr', 'rtl'] as const)('style A in %s', (dir) => {
     renderFrame(<StyleAFrame>Page body</StyleAFrame>, dir);
     const sidebar = screen.getByRole('complementary');
     expect(sidebar.getAttribute('dir')).toBe(dir);
-    expect(
-      within(sidebar)
-        .getByRole('link', { name: label('adminNav.groupATeam') })
-        .getAttribute('aria-current'),
-    ).toBe('page');
-    const tabs = screen.getByRole('navigation', { name: label('adminNav.tabsLabel') });
-    expect(
-      within(tabs)
-        .getByRole('link', { name: label('adminNav.submenuEmployees') })
-        .getAttribute('aria-current'),
-    ).toBe('page');
-    const pills = screen.getByRole('navigation', { name: label('adminNav.pillsLabel') });
-    expect(
-      within(pills)
-        .getByRole('link', { name: /Import employees/ })
-        .getAttribute('aria-current'),
-    ).toBe('page');
-    expect(
-      within(pills)
-        .getByRole('link', { name: /Document types/ })
-        .getAttribute('aria-current'),
-    ).toBeNull();
+    expect(link(sidebar, label('adminNav.groupATeam')).getAttribute('aria-current')).toBe('page');
+    expect(link(tabsNav(), label('adminNav.submenuEmployees')).getAttribute('aria-current')).toBe(
+      'page',
+    );
+    expect(link(pillsNav(), /Import employees/).getAttribute('aria-current')).toBe('page');
+    expect(link(pillsNav(), /Document types/).getAttribute('aria-current')).toBeNull();
   });
 
   it('marks Staff app columns under Setup, not under Employees', () => {
     frameState.pathname = '/staff-app-columns';
     renderFrame(<StyleAFrame>Page body</StyleAFrame>, dir);
     const sidebar = screen.getByRole('complementary');
-    expect(
-      within(sidebar)
-        .getByRole('link', { name: label('adminNav.groupASetup') })
-        .getAttribute('aria-current'),
-    ).toBe('page');
-    expect(
-      within(sidebar)
-        .getByRole('link', { name: label('adminNav.groupATeam') })
-        .getAttribute('aria-current'),
-    ).toBeNull();
+    expect(link(sidebar, label('adminNav.groupASetup')).getAttribute('aria-current')).toBe('page');
+    expect(link(sidebar, label('adminNav.groupATeam')).getAttribute('aria-current')).toBeNull();
   });
 });
 
@@ -99,7 +93,7 @@ describe('style A visibility', () => {
     expect(
       within(sidebar)
         .getAllByRole('link')
-        .map((link) => link.textContent),
+        .map((item) => item.textContent),
     ).toEqual([label('adminNav.groupAHome'), label('adminNav.groupATeam')]);
     expect(screen.queryByRole('navigation', { name: label('adminNav.tabsLabel') })).toBeNull();
   });
@@ -107,10 +101,7 @@ describe('style A visibility', () => {
   it('shows the Soon mark with the page name in the pills', () => {
     frameState.pathname = '/orders/service-sessions';
     renderFrame(<StyleAFrame>Page body</StyleAFrame>);
-    const pills = screen.getByRole('navigation', { name: label('adminNav.pillsLabel') });
-    const soon = within(pills).getByRole('link', {
-      name: new RegExp(label('adminNavPages.unassignedServices')),
-    });
+    const soon = link(pillsNav(), new RegExp(label('adminNavPages.unassignedServices')));
     expect(soon.textContent).toContain(label('adminNav.soonBadge'));
     expect(soon.getAttribute('href')).toBe('/soon/unassigned-services');
   });
@@ -143,10 +134,20 @@ describe('style A at tablet width and collapsed', () => {
     expect(column.className).toContain('min-[600px]:ms-20');
     expect(column.parentElement?.className).toContain('group');
   });
+
+  it('keeps the sidebar collapsed after a pill click, because the frame does not reload', () => {
+    frameState.pathname = '/staff';
+    renderFrame(<StyleAFrame>Page body</StyleAFrame>);
+    fireEvent.click(screen.getByRole('button', { name: label('adminNav.collapseNavigation') }));
+    fireEvent.click(link(pillsNav(), /Import employees/));
+    expect(screen.getByRole('complementary').hasAttribute('data-collapsed')).toBe(true);
+    expect(link(pillsNav(), /Import employees/).getAttribute('aria-current')).toBe('page');
+  });
 });
 
 describe('style A on a phone', () => {
   beforeEach(() => stubViewport(390));
+  const moreButton = () => screen.getByRole('button', { name: label('adminNav.more') });
 
   it('shows four sections and More on the bottom bar', () => {
     frameState.pathname = '/staff';
@@ -156,57 +157,116 @@ describe('style A on a phone', () => {
     expect(
       within(bar)
         .getAllByRole('link')
-        .map((link) => link.textContent),
+        .map((item) => item.textContent),
     ).toEqual([
       label('adminNav.groupAHome'),
       label('adminNav.groupASales'),
       label('adminNav.groupACatalog'),
       label('adminNav.groupATeam'),
     ]);
-    expect(
-      within(bar)
-        .getByRole('link', { name: label('adminNav.groupATeam') })
-        .getAttribute('aria-current'),
-    ).toBe('page');
-    expect(within(bar).getByRole('button', { name: label('adminNav.more') })).toBeTruthy();
+    expect(link(bar, label('adminNav.groupATeam')).getAttribute('aria-current')).toBe('page');
   });
 
-  it('opens the other sections with their sub-menus under More and closes after navigation', () => {
+  it('opens a labelled modal sheet with the other sections and their sub-menus as direct links', () => {
     renderFrame(<StyleAFrame>Page body</StyleAFrame>);
-    expect(screen.queryByRole('region', { name: label('adminNav.more') })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: label('adminNav.more') }));
-    const sheet = screen.getByRole('region', { name: label('adminNav.more') });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    moreButton().focus();
+    fireEvent.click(moreButton());
+    const sheet = screen.getByRole('dialog', { name: label('adminNav.more') });
+    expect(sheet.contains(document.activeElement)).toBe(true);
     expect(
       within(sheet).getByRole('heading', { name: label('adminNav.groupAReports') }),
     ).toBeTruthy();
+    const staffReports = link(sheet, label('adminNav.submenuStaffReports'));
+    expect(staffReports.getAttribute('href')).toBe('/staff/attendance-report');
     expect(
-      within(sheet).getByRole('heading', { name: label('adminNav.submenuStaffReports') }),
-    ).toBeTruthy();
-    expect(
-      within(sheet).getByRole('link', { name: /Monthly attendance report|Attendance report/i }),
-    ).toBeTruthy();
+      within(sheet).queryByRole('heading', { name: label('adminNav.submenuStaffReports') }),
+    ).toBeNull();
   });
 
-  it('closes More when the route changes', () => {
-    const { rerenderFrame } = renderFrame(<StyleAFrame>Page body</StyleAFrame>);
-    fireEvent.click(screen.getByRole('button', { name: label('adminNav.more') }));
-    frameState.pathname = '/permissions';
-    rerenderFrame(<StyleAFrame>Page body</StyleAFrame>);
-    expect(screen.queryByRole('region', { name: label('adminNav.more') })).toBeNull();
+  it('closes the sheet on Escape and returns focus to More', async () => {
+    renderFrame(<StyleAFrame>Page body</StyleAFrame>);
+    moreButton().focus();
+    fireEvent.click(moreButton());
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(moreButton()));
+  });
+
+  it('follows a sub-menu link to its page, and the sheet is gone on the new route', () => {
+    frameState.pathname = '/';
+    renderFrame(
+      <StyleAFrame>
+        <CurrentRoute />
+      </StyleAFrame>,
+    );
+    fireEvent.click(moreButton());
+    fireEvent.click(link(screen.getByRole('dialog'), label('adminNav.submenuStaffReports')));
+    expect(screen.getByText('Route: /staff/attendance-report')).toBeTruthy();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('does not reopen the sheet when the user goes back to the page it was opened on', () => {
+    frameState.pathname = '/staff';
+    renderFrame(<StyleAFrame>Page body</StyleAFrame>);
+    fireEvent.click(moreButton());
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    goTo('/leave');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    goTo('/staff');
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
 
 describe('links', () => {
-  it('moves a plain click on a tab to the router and leaves a modified click to the browser', () => {
+  const renderWithContent = () =>
+    renderFrame(
+      <StyleAFrame>
+        <PageContent />
+      </StyleAFrame>,
+    );
+
+  beforeEach(() => {
     frameState.pathname = '/staff';
-    renderFrame(<StyleAFrame>Page body</StyleAFrame>);
-    const tabs = screen.getByRole('navigation', { name: label('adminNav.tabsLabel') });
-    const attendance = within(tabs).getByRole('link', {
-      name: label('adminNav.submenuAttendance'),
-    });
-    fireEvent.click(attendance, { metaKey: true });
-    expect(frameState.push).not.toHaveBeenCalled();
-    fireEvent.click(attendance);
-    expect(frameState.push).toHaveBeenCalledWith('/staff/attendance');
   });
+
+  it('opens a tab through the router: the route and the current tab change, no reload', () => {
+    renderWithContent();
+    fireEvent.click(link(tabsNav(), label('adminNav.submenuAttendance')));
+    expect(screen.getByText('Route: /staff/attendance')).toBeTruthy();
+    expect(link(tabsNav(), label('adminNav.submenuAttendance')).getAttribute('aria-current')).toBe(
+      'page',
+    );
+  });
+
+  it('leaves a modified click on a tab to the browser', () => {
+    renderWithContent();
+    fireEvent.click(link(tabsNav(), label('adminNav.submenuAttendance')), { metaKey: true });
+    expect(screen.getByText('Route: /staff')).toBeTruthy();
+  });
+
+  it('opens a pill through the router even though the pills sit inside the page area', () => {
+    renderWithContent();
+    fireEvent.click(link(pillsNav(), /Import employees/));
+    expect(screen.getByText('Route: /staff/import')).toBeTruthy();
+  });
+
+  it('leaves a link written by the page content to the browser', () => {
+    renderWithContent();
+    fireEvent.click(screen.getByRole('link', { name: 'Link written by the page' }));
+    expect(screen.getByText('Route: /staff')).toBeTruthy();
+    expect(frameState.push).not.toHaveBeenCalled();
+  });
+
+  it.each(['//evil.example/x', 'https://evil.example/x', String.raw`/\evil.example/x`])(
+    'leaves the other-origin address %s to the browser',
+    (href) => {
+      renderWithContent();
+      const tab = link(tabsNav(), label('adminNav.submenuAttendance'));
+      tab.setAttribute('href', href);
+      fireEvent.click(tab);
+      expect(screen.getByText('Route: /staff')).toBeTruthy();
+      expect(frameState.push).not.toHaveBeenCalled();
+    },
+  );
 });

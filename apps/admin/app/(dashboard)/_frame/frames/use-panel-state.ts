@@ -3,6 +3,7 @@
 import { useState, type RefObject } from 'react';
 
 import { useMediaQuery } from './use-media-query';
+import { useRouteScopedState } from './use-route-scoped-state';
 
 // نفس استعلام ContextPanel: بين 600 و1023px تطفو اللوحة فوق الصفحة بدل أن تأخذ مكانًا.
 const FLOATING_QUERY = '(min-width: 600px) and (width < 1024px)';
@@ -12,14 +13,15 @@ export interface PanelState {
   inspectedId: string | undefined;
   inspect: (workspaceId: string, opener: HTMLButtonElement) => void;
   inspectOnly: (workspaceId: string) => void;
-  show: () => void;
+  show: (opener: HTMLButtonElement) => void;
   hide: () => void;
 }
 
 /**
  * حالة لوحة نمط C. على الحاسوب يخفيها المستخدم أو يظهرها وتبقى كذلك بين الصفحات.
- * وهي طافية تُفتح لمسار واحد فقط، فأي انتقال في نفس التبويب يغيّر المسار فتُغلق من تلقاء نفسها،
- * أما الضغطة بمفتاح تعديل فلا تغيّر المسار فتبقى مفتوحة. المساحة المعاينة تُنسى عند تغيّر المسار أيضًا.
+ * وهي طافية تُفتح للصفحة الحالية فقط، والمساحة المعاينة كذلك: كل تغيّر مرحلي في المسار، بما فيه
+ * الرجوع، يُغلق الطافية ويعيد المعاينة إلى المساحة الحالية. الضغطة بمفتاح تعديل لا تغيّر المسار فتبقى مفتوحة.
+ * كل فتح يسجّل الزر الذي فتح به (الشريط أو الأداة العلوية) ليعود إليه التركيز عند الإغلاق.
  */
 export function usePanelState(
   pathname: string,
@@ -28,27 +30,29 @@ export function usePanelState(
 ): PanelState {
   const floating = useMediaQuery(FLOATING_QUERY);
   const [hidden, setHidden] = useState(false);
-  const [floatingPath, setFloatingPath] = useState<string | null>(null);
-  const [inspected, setInspected] = useState<{ path: string; id: string } | null>(null);
-  const open = floating ? floatingPath === pathname : !hidden;
-  const inspectedId = inspected?.path === pathname ? inspected.id : undefined;
-  const show = () => {
+  const [floatingOpen, setFloatingOpen] = useRouteScopedState(pathname, false);
+  const [inspectedId, setInspectedId] = useRouteScopedState<string | undefined>(
+    pathname,
+    undefined,
+  );
+  const open = floating ? floatingOpen : !hidden;
+  const show = (opener: HTMLButtonElement) => {
+    openerRef.current = opener;
     setHidden(false);
-    setFloatingPath(pathname);
+    setFloatingOpen(true);
   };
   const hide = () => {
     setHidden(true);
-    setFloatingPath(null);
+    setFloatingOpen(false);
   };
-  const inspectOnly = (workspaceId: string) => setInspected({ path: pathname, id: workspaceId });
   const inspect = (workspaceId: string, opener: HTMLButtonElement) => {
-    openerRef.current = opener;
     if (open && (inspectedId ?? currentWorkspaceId) === workspaceId) {
+      openerRef.current = opener;
       hide();
       return;
     }
-    inspectOnly(workspaceId);
-    show();
+    setInspectedId(workspaceId);
+    show(opener);
   };
-  return { open, inspectedId, inspect, inspectOnly, show, hide };
+  return { open, inspectedId, inspect, inspectOnly: setInspectedId, show, hide };
 }

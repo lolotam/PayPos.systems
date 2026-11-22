@@ -1,6 +1,6 @@
 import { DirectionProvider } from '@pospay/ui';
-import { render } from '@testing-library/react';
-import type { ReactElement } from 'react';
+import { act, render } from '@testing-library/react';
+import { useSyncExternalStore, type ReactElement } from 'react';
 import { vi } from 'vitest';
 
 import type { WorkspaceController } from '@/workspace/model/workspace-provider';
@@ -20,17 +20,37 @@ const OPEN: VisibilityConditions = {
   'staff-app-columns-access': true,
 };
 
+const listeners = new Set<() => void>();
+
+function setPathname(path: string): void {
+  frameState.pathname = path;
+  for (const listener of listeners) listener();
+}
+
 /** حالة قابلة للتعديل تقرؤها محاكيات الاختبار؛ كل ملف اختبار إطار يربطها بنفس الأسماء. */
 export const frameState = {
   pathname: '/',
   locale: 'en' as 'en' | 'ar',
   visible: [] as readonly string[],
-  push: vi.fn(),
+  push: vi.fn(setPathname),
   workspace: undefined as WorkspaceController | undefined,
 };
 
+/** يغيّر المسار كأنه انتقال مكتمل (أمامًا أو رجوعًا) والإطار باقٍ مركّبًا. */
+export function goTo(path: string): void {
+  act(() => setPathname(path));
+}
+
 export const navigationMock = {
-  usePathname: () => frameState.pathname,
+  usePathname: () =>
+    useSyncExternalStore(
+      (callback) => {
+        listeners.add(callback);
+        return () => listeners.delete(callback);
+      },
+      () => frameState.pathname,
+      () => frameState.pathname,
+    ),
   useRouter: () => ({ push: frameState.push, refresh: () => undefined }),
 };
 export const localeMock = {
@@ -127,6 +147,7 @@ export function resetFrameState(): void {
   frameState.pathname = '/';
   frameState.locale = 'en';
   frameState.push.mockReset();
+  frameState.push.mockImplementation(setPathname);
   vi.unstubAllGlobals();
   selectBusiness('restaurant');
 }

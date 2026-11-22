@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import type { NavigationPageEntry } from '@/workspace/nav-types';
+
 import { NAVIGATION_PAGES } from '../navigation-model';
 import { visiblePageIds, type VisibilityConditions } from './visible-page-ids';
 
@@ -72,5 +74,28 @@ describe('visiblePageIds', () => {
     const ids = idsFor({ conditions: open, businessType: 'restaurant' });
     expect(ids).toContain('imported-refunds');
     expect(ids.length).toBeGreaterThan(idsFor({}).length);
+  });
+});
+
+describe('a built page limited to one business type', () => {
+  const built: NavigationPageEntry = {
+    id: 'restaurant-only-built',
+    labelKey: 'adminNavPages.kitchenScreens',
+    icon: 'Monitor',
+    state: 'live',
+    route: '/restaurant-only',
+    visible: 'always',
+    section: 'sales',
+    submenu: 'restaurant',
+    businessTypes: ['restaurant'],
+    appMapEntry: false,
+  };
+  const idsFor = (businessType: 'salon' | 'restaurant' | null) =>
+    visiblePageIds([built], { conditions: closed, businessType, country: 'KW', role: 'owner' });
+
+  it('is shown for a restaurant, hidden for a salon, and hidden while the type is unknown', () => {
+    expect(idsFor('restaurant')).toEqual(['restaurant-only-built']);
+    expect(idsFor('salon')).toEqual([]);
+    expect(idsFor(null)).toEqual([]);
   });
 });

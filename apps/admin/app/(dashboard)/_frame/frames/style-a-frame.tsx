@@ -2,7 +2,7 @@
 
 import { t } from '@pospay/i18n';
 import { BottomNav, BrandLockup, BrandMark, CollapsibleSidebar, NavTabs, Pills } from '@pospay/ui';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 
 import { useLocale } from '@/shared/locale/locale-context';
 
@@ -12,6 +12,7 @@ import { FrameLinks } from './frame-links';
 import { FrameTopBar } from './frame-top-bar';
 import { MoreSheet } from './more-sheet';
 import { useFrameLabels } from './use-frame-labels';
+import { useRouteScopedState } from './use-route-scoped-state';
 
 // عمود الصفحة يتبع عرض الشريط الجانبي: 80px مطويًا أو على التابلت، و264px موسّعًا من 1024px.
 // الشريط ثابت ويحمل data-collapsed حين يطوى، فنقرأ ذلك بـ CSS دون نسخ حالته إلى هنا.
@@ -28,8 +29,7 @@ export function StyleAFrame({ children }: { children: ReactNode }) {
   const labels = useFrameLabels();
   const ctx = useMenuContext();
   const view = useMemo(() => buildStyleAView(ctx), [ctx]);
-  const [moreOpenAt, setMoreOpenAt] = useState<string | null>(null);
-  const moreOpen = moreOpenAt === ctx.pathname;
+  const [moreOpen, setMoreOpen] = useRouteScopedState(ctx.pathname, false);
   return (
     <FrameLinks>
       <div className="group relative flex min-h-dvh">
@@ -58,23 +58,30 @@ export function StyleAFrame({ children }: { children: ReactNode }) {
           {view.tabs.length > 1 ? <NavTabs items={view.tabs} labels={labels.tabs} /> : null}
           <main className="min-w-0 flex-1 px-4 pt-4 pb-20 min-[600px]:pb-6 min-[768px]:px-6">
             {view.pills.length > 0 ? (
-              <Pills items={view.pills} labels={labels.pills} className="mb-4" />
+              <div data-frame-chrome="" className="mb-4">
+                <Pills items={view.pills} labels={labels.pills} />
+              </div>
             ) : null}
             {children}
           </main>
         </div>
       </div>
       <div className="fixed inset-x-0 bottom-0 z-30 min-[600px]:hidden">
-        {moreOpen ? (
-          <MoreSheet groups={view.more} label={labels.more} currentPageId={view.currentPageId} />
-        ) : null}
+        <MoreSheet
+          open={moreOpen}
+          onOpenChange={setMoreOpen}
+          groups={view.more}
+          title={labels.more}
+          closeLabel={labels.chrome.close}
+          currentPageId={view.currentPageId}
+        />
         <BottomNav
           items={view.bottom}
           labels={labels.bottom}
           extra={{
             id: 'more',
             label: labels.more,
-            onPress: () => setMoreOpenAt(moreOpen ? null : ctx.pathname),
+            onPress: () => setMoreOpen(true),
           }}
         />
       </div>

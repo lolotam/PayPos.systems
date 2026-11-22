@@ -1,7 +1,10 @@
 import { t } from '@pospay/i18n';
 import { DirectionProvider, readThemePreference, setThemePreference } from '@pospay/ui';
 import { fireEvent, render, screen, within } from '@testing-library/react';
+import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { NavigationStyle } from '@/workspace/nav-types';
 
 import { AppearancePage } from './appearance-page';
 
@@ -14,17 +17,23 @@ const NAMES = {
   C: 'adminNav.styleCLabel',
 } as const;
 
-function renderPage(style: 'A' | 'B' | 'C', onChoose = vi.fn()) {
-  render(
-    <DirectionProvider dir={state.locale === 'ar' ? 'rtl' : 'ltr'}>
-      <AppearancePage style={style} onChoose={onChoose} />
-    </DirectionProvider>,
-  );
-  return onChoose;
+/** مضيف يحتفظ بالنمط كما يفعل إطار لوحة الإدارة، فيُرى أثر الضغط في الصفحة نفسها. */
+function Host({ initial }: { initial: NavigationStyle }) {
+  const [style, setStyle] = useState(initial);
+  return <AppearancePage style={style} onChoose={setStyle} />;
 }
 
-const cardOf = (locale: 'en' | 'ar', style: 'A' | 'B' | 'C') =>
-  screen.getByRole('heading', { name: t(locale, NAMES[style]) }).closest('[aria-current], div');
+function renderPage(initial: NavigationStyle) {
+  render(
+    <DirectionProvider dir={state.locale === 'ar' ? 'rtl' : 'ltr'}>
+      <Host initial={initial} />
+    </DirectionProvider>,
+  );
+}
+
+const card = (_locale: 'en' | 'ar', style: NavigationStyle) =>
+  document.querySelector<HTMLElement>(`[data-style="${style}"]`);
+const isMarkedCurrent = (style: NavigationStyle) => card('en', style)?.hasAttribute('aria-current');
 
 beforeEach(() => {
   state.locale = 'en';
@@ -38,11 +47,10 @@ describe.each(['en', 'ar'] as const)('Appearance in %s', (locale) => {
     for (const key of Object.values(NAMES)) {
       expect(screen.getByRole('heading', { name: t(locale, key) })).toBeTruthy();
     }
-    const current = screen
-      .getByRole('heading', { name: t(locale, NAMES.C) })
-      .closest('[aria-current]');
-    expect(current?.textContent).toContain(t(locale, 'adminNav.currentStyleBadge'));
-    expect(within(current as HTMLElement).queryByRole('button')).toBeNull();
+    const current = card(locale, 'C') as HTMLElement;
+    expect(current.getAttribute('aria-current')).toBe('true');
+    expect(current.textContent).toContain(t(locale, 'adminNav.currentStyleBadge'));
+    expect(within(current).queryByRole('button')).toBeNull();
     const choices = screen.getAllByRole('button', {
       name: new RegExp(t(locale, 'adminNav.chooseStyleAction')),
     });
@@ -51,19 +59,22 @@ describe.each(['en', 'ar'] as const)('Appearance in %s', (locale) => {
 });
 
 describe('Appearance choices', () => {
-  it('calls the setter with the style of the card that was chosen', () => {
-    const onChoose = renderPage('C');
+  it('moves the current mark to the card that was chosen and gives the old one its button back', () => {
+    renderPage('C');
+    expect(isMarkedCurrent('A')).toBe(false);
     fireEvent.click(screen.getByRole('button', { name: new RegExp(t('en', NAMES.A)) }));
-    expect(onChoose).toHaveBeenCalledExactlyOnceWith('A');
+    expect(isMarkedCurrent('A')).toBe(true);
+    expect(isMarkedCurrent('C')).toBe(false);
+    expect(within(card('en', 'A') as HTMLElement).queryByRole('button')).toBeNull();
+    expect(within(card('en', 'C') as HTMLElement).getByRole('button')).toBeTruthy();
   });
 
-  it('puts the current mark on the style that is in use', () => {
-    renderPage('B');
-    const current = screen
-      .getByRole('heading', { name: t('en', NAMES.B) })
-      .closest('[aria-current]');
-    expect(current?.textContent).toContain(t('en', 'adminNav.currentStyleBadge'));
-    expect(cardOf('en', 'A')?.getAttribute('aria-current')).toBeNull();
+  it('can be switched again and again, ending on the last choice', () => {
+    renderPage('C');
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t('en', NAMES.A)) }));
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(t('en', NAMES.B)) }));
+    expect(isMarkedCurrent('B')).toBe(true);
+    expect(isMarkedCurrent('A')).toBe(false);
   });
 
   it('offers the theme switch and applies the choice', () => {

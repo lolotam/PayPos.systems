@@ -25,6 +25,7 @@ export function StyleBFrame({ children }: { children: ReactNode }) {
         <div className="flex items-center border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
           <div className="min-w-0 flex-1">
             <TopNav
+              key={ctx.pathname}
               modules={view.modules}
               labels={labels.chrome}
               currentModuleId={view.currentModuleId}

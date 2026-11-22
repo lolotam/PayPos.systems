@@ -1,54 +1,54 @@
-import { cn, shellNavLinkClass } from '@pospay/ui';
+'use client';
+
+import { BottomSheet, cn, shellNavLinkClass } from '@pospay/ui';
 
 import type { ResolvedTopLevel } from '../menu/resolve-top-levels';
 
 /**
- * ورقة «المزيد» على هاتف النمط A: بقية الأقسام وقوائمها الفرعية كروابط.
- * @pospay/ui لا تصدّر ورقة سفلية والمواصفة تمنع مكتبة جديدة، فهي منطقة عادية فوق الشريط السفلي.
+ * ورقة «المزيد» على هاتف النمط A: بقية الأقسام، وقوائمها الفرعية روابط مباشرة (app-map.md)،
+ * فالطريق «المزيد ثم القائمة الفرعية ثم الصفحة» ثلاث ضغطات. الورقة مودالية تحبس التركيز
+ * وتُغلق بالهروب ويعود التركيز إلى زر «المزيد»، وإغلاقها عند الانتقال يتولاه الإطار بتغيّر المسار.
  */
 export function MoreSheet({
+  open,
+  onOpenChange,
   groups,
-  label,
+  title,
+  closeLabel,
   currentPageId,
 }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   groups: readonly ResolvedTopLevel[];
-  label: string;
+  title: string;
+  closeLabel: string;
   currentPageId: string | undefined;
 }) {
   return (
-    <section
-      aria-label={label}
-      className="max-h-[60dvh] overflow-y-auto border-t border-border bg-card px-4 py-3 min-[600px]:hidden"
-    >
+    <BottomSheet open={open} onOpenChange={onOpenChange} title={title} closeLabel={closeLabel}>
       {groups.map((group) => (
-        <div key={group.id} className="mb-3">
-          <h2 className="text-sm font-semibold">{group.label}</h2>
-          {group.lists.map((list) => (
-            <div key={list.id}>
-              <h3 className="mt-2 text-xs text-muted-foreground">{list.label}</h3>
-              <ul>
-                {list.pages.map((page) => (
-                  <li key={page.id}>
-                    <a
-                      href={page.href}
-                      aria-current={page.id === currentPageId ? 'page' : undefined}
-                      className={cn(
-                        shellNavLinkClass,
-                        page.id === currentPageId && 'font-semibold',
-                      )}
-                    >
-                      <span className="truncate">{page.label}</span>
-                      {page.status ? (
-                        <span className="text-xs text-muted-foreground">{page.status}</span>
-                      ) : null}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
+        <section key={group.id} aria-labelledby={`more-${group.id}`} className="mb-3">
+          <h2 id={`more-${group.id}`} className="text-sm font-semibold">
+            {group.label}
+          </h2>
+          <ul>
+            {group.lists.map((list) => {
+              const current = list.pages.some((page) => page.id === currentPageId);
+              return (
+                <li key={list.id}>
+                  <a
+                    href={list.href}
+                    aria-current={current ? 'page' : undefined}
+                    className={cn(shellNavLinkClass, current && 'font-semibold')}
+                  >
+                    {list.label}
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       ))}
-    </section>
+    </BottomSheet>
   );
 }

@@ -27,7 +27,7 @@ export function StyleCard({
   const locale = useLocale();
   const name = t(locale, TEXT[style].name);
   return (
-    <Card aria-current={current ? 'true' : undefined} className="flex flex-col">
+    <Card data-style={style} aria-current={current ? 'true' : undefined} className="flex flex-col">
       <CardHeader>
         <CardTitle>{name}</CardTitle>
       </CardHeader>

@@ -86,9 +86,14 @@ export function buildStyleAView(ctx: MenuContext): StyleAView {
 
 /** النمط B: وحدات الشريط العلوي، لكل وحدة أعمدتها وصفحة نظرة عامة. */
 export function buildStyleBView(ctx: MenuContext): StyleBView {
-  const place = currentPlace('B', ctx.pathname);
+  const top = resolveTopLevels('B', ctx);
+  const place = currentPlace(
+    'B',
+    ctx.pathname,
+    top.map((item) => item.id),
+  );
   return {
-    modules: resolveTopLevels('B', ctx).map((item) => ({
+    modules: top.map((item) => ({
       id: item.id,
       label: item.label,
       href: overviewHref(item.id),
@@ -99,10 +104,17 @@ export function buildStyleBView(ctx: MenuContext): StyleBView {
   };
 }
 
-/** النمط C: مساحات العمل على الشريط، وأقسام كل مساحة، وتبويبات الهاتف السفلية. */
+/**
+ * النمط C: مساحات العمل على الشريط، وأقسام كل مساحة، وتبويبات الهاتف السفلية.
+ * تبويب الهاتف يفتح صفحة نظرة عامة للمساحة (design.md §4)، لا أول صفحة فيها.
+ */
 export function buildStyleCView(ctx: MenuContext): StyleCView {
   const top = resolveTopLevels('C', ctx);
-  const place = currentPlace('C', ctx.pathname);
+  const place = currentPlace(
+    'C',
+    ctx.pathname,
+    top.map((item) => item.id),
+  );
   return {
     workspaces: top.map((item) => ({
       id: item.id,
@@ -112,6 +124,9 @@ export function buildStyleCView(ctx: MenuContext): StyleCView {
     })),
     currentWorkspaceId: place.topLevelId,
     activePageId: place.pageId,
-    bottom: top.map((item) => topLevelItem(item, item.id === place.topLevelId, ctx)),
+    bottom: top.map((item) => ({
+      ...topLevelItem(item, item.id === place.topLevelId, ctx),
+      href: overviewHref(item.id),
+    })),
   };
 }
