@@ -19,3 +19,11 @@ export {
   decideBusinessPermissionHolders,
   type BusinessPermissionGrant,
 } from './domain/business-permission-access.ts';
+export {
+  ratingCommentReaders,
+  ratingCommentReadersStatement,
+} from './persistence/rating-comment-readers.ts';
+export {
+  decideRatingCommentReaders,
+  type RatingCommentGrant,
+} from './domain/rating-comment-access.ts';
