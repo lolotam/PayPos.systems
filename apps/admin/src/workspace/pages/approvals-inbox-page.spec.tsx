@@ -27,8 +27,26 @@ it('lists each kind of approval as a link to its page', () => {
   expect(screen.queryByText(t('en', 'adminNav.approvalsInboxEmpty'))).toBeNull();
 });
 
-it('says nothing is waiting when the user may see no approval page', () => {
+it('says no approval list is available once the checks finish and the user may see none', () => {
   render(<ApprovalsInboxPage kinds={[]} />);
-  expect(screen.getByText(t('en', 'adminNav.approvalsInboxEmpty'))).toBeTruthy();
+  const empty = screen.getByText(t('en', 'adminNav.approvalsInboxEmpty'));
+  expect(empty.textContent).not.toMatch(/waiting|pending|nothing/i);
   expect(screen.queryAllByRole('link')).toHaveLength(0);
+});
+
+it('shows a loading state, not the empty text, while the permission checks are running', () => {
+  render(<ApprovalsInboxPage kinds={[]} state="loading" />);
+  expect(screen.getByRole('status').textContent).toBe(t('en', 'admin.loading'));
+  expect(screen.queryByText(t('en', 'adminNav.approvalsInboxEmpty'))).toBeNull();
+});
+
+it('says the lists could not be checked when a check failed, and still lists the kinds it has', () => {
+  render(
+    <ApprovalsInboxPage
+      kinds={[{ id: 'leave-approvals', label: 'Leave approvals', href: '/leave' }]}
+      state="failed"
+    />,
+  );
+  expect(screen.getByRole('alert').textContent).toBe(t('en', 'adminNav.approvalsInboxFailed'));
+  expect(screen.getByRole('link', { name: 'Leave approvals' })).toBeTruthy();
 });

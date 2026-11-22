@@ -157,3 +157,18 @@ it('closes the workspace switcher on every navigation, Back included, and keeps 
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(screen.getByRole('button', { name: /Synthetic business/ })).toBe(trigger);
 });
+
+it('names the workspace switcher by a prompt until a company and a business are selected', () => {
+  frameState.workspace = { status: 'choose', companies: [], choose: vi.fn() };
+  const { rerenderFrame } = renderFrame(<FrameWorkspaceSwitcher />);
+  expect(screen.getByRole('button', { name: label('admin.chooseCompany') })).toBeTruthy();
+  const company = { id: 'company-1', name_ar: null, name_en: 'Synthetic company' };
+  frameState.workspace = {
+    status: 'ready',
+    company: { ...company, role_code: 'owner', scope: 'COMPANY', businesses: [] },
+    companies: [],
+    choose: vi.fn(),
+  };
+  rerenderFrame(<FrameWorkspaceSwitcher />);
+  expect(screen.getByRole('button', { name: label('admin.chooseBusiness') })).toBeTruthy();
+});

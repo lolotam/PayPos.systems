@@ -1,6 +1,6 @@
 'use client';
 
-import type { Locale } from '@pospay/i18n';
+import { t, type Locale } from '@pospay/i18n';
 import { WorkspaceSwitcher } from '@pospay/ui';
 import { usePathname } from 'next/navigation';
 
@@ -19,7 +19,10 @@ const optionsOf = (items: readonly Named[], locale: Locale) =>
 const nameOf = (item: Named | undefined, locale: Locale) =>
   item === undefined ? '' : displayName(item, locale);
 
-/** مبدّل الشركة والنشاط والفرع في زر واحد، بنفس اختيارات WorkspaceSelector الحالي وبنفس الكوكي. */
+/**
+ * مبدّل الشركة والنشاط والفرع في زر واحد، بنفس اختيارات WorkspaceSelector الحالي وبنفس الكوكي.
+ * قبل اختيار النشاط لا اسم تجاري يظهر على الزر، فيحمل نص الدعوة إلى الاختيار ليكون له اسم مرئي وللقارئ الشاشي.
+ */
 export function FrameWorkspaceSwitcher() {
   const locale = useLocale();
   const labels = useFrameLabels();
@@ -34,7 +37,11 @@ export function FrameWorkspaceSwitcher() {
   return (
     <WorkspaceSwitcher
       labels={labels.switcher}
-      businessName={nameOf(business, locale)}
+      businessName={
+        business === undefined
+          ? t(locale, company === undefined ? 'admin.chooseCompany' : 'admin.chooseBusiness')
+          : nameOf(business, locale)
+      }
       branchName={nameOf(branch, locale)}
       companyValue={company?.id ?? ''}
       businessValue={business?.id ?? ''}

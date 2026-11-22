@@ -2,17 +2,23 @@
 
 import { useSessionUser } from '@/session/api/use-session';
 import { useMounted } from '@/shared/browser/use-mounted';
-import { useApprovalKindAccess } from '@/staff/api/use-approval-kind-access';
+import {
+  approvalAccessOf,
+  approvalStateOf,
+  useApprovalKindProbes,
+  type ApprovalProbeState,
+} from '@/staff/api/use-approval-kind-access';
 import { useWorkspace } from '@/workspace/model/workspace-provider';
 
 import { buildApprovalKinds, type ApprovalKindItem } from './approval-kinds';
 import { useMenuContext } from './use-menu-context';
 
 /**
- * أنواع الاعتماد التي يستطيع المستخدم فتح صفحتها الآن، للصفحة التي ستضيفها 7b.
+ * أنواع الاعتماد التي يستطيع المستخدم فتح صفحتها الآن مع حال التحقق منها، للصفحة التي ستضيفها 7b.
  * الفرع المستعمل هو فرع مساحة العمل ثم أول فرع للنشاط، كما تفعل مساراتا الحضور.
+ * بلا نطاق (مساحة العمل أو الجلسة لم تصلا بعد) يبقى الحال «ينتظر» حتى لا يُعرض فراغ قبل أوانه.
  */
-export function useApprovalKinds(): ApprovalKindItem[] {
+export function useApprovalInbox(): { kinds: ApprovalKindItem[]; state: ApprovalProbeState } {
   const ctx = useMenuContext();
   const userId = useSessionUser(useMounted());
   const workspace = useWorkspace();
@@ -24,6 +30,14 @@ export function useApprovalKinds(): ApprovalKindItem[] {
     companyId !== undefined && business && userId !== null
       ? { companyId, businessId: business.id, branchId, userId }
       : null;
-  const access = useApprovalKindAccess(scope);
-  return buildApprovalKinds(ctx, access);
+  const probes = useApprovalKindProbes(scope);
+  const waiting = scope === null && (workspace.status === 'loading' || userId === null);
+  return {
+    kinds: buildApprovalKinds(ctx, approvalAccessOf(probes)),
+    state: waiting ? 'loading' : approvalStateOf(probes),
+  };
+}
+
+export function useApprovalKinds(): ApprovalKindItem[] {
+  return useApprovalInbox().kinds;
 }

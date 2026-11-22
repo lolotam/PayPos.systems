@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook, waitFor } from '@testing-library/react';
+import { cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { beforeEach, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { frameState, selectBusiness } from '../frames/frame-test-support';
-import { useApprovalKinds } from './use-approval-kinds';
+import { useApprovalInbox, useApprovalKinds } from './use-approval-kinds';
 
 const api = vi.hoisted(() => ({ GET: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
@@ -42,12 +42,14 @@ const bodies: Record<string, unknown> = {
   [EXCEPTIONS]: { items: [], next_cursor: null },
 };
 
-function renderKinds() {
+function renderKinds<T = ReturnType<typeof useApprovalKinds>>(
+  hook: () => T = useApprovalKinds as () => T,
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
-  return renderHook(() => useApprovalKinds(), { wrapper });
+  return renderHook(hook, { wrapper });
 }
 
 beforeEach(() => {
@@ -85,4 +87,37 @@ it('lists all three kinds once every page read succeeds', async () => {
   );
   const { result } = renderKinds();
   await waitFor(() => expect(result.current).toHaveLength(3));
+});
+
+describe('the inbox state', () => {
+  it('is loading while the reads run, and failed when a read fails other than by refusal', async () => {
+    api.GET.mockReturnValue(new Promise(() => undefined));
+    expect(renderKinds(useApprovalInbox).result.current.state).toBe('loading');
+    api.GET.mockImplementation((path: string) =>
+      Promise.resolve(
+        path === EXCEPTIONS
+          ? { error: { code: 'BOOM' }, response: { status: 500 } }
+          : { data: bodies[path], response: { status: 200 } },
+      ),
+    );
+    const { result } = renderKinds(useApprovalInbox);
+    await waitFor(() => expect(result.current.state).toBe('failed'));
+    expect(result.current.kinds).toHaveLength(2);
+  });
+
+  it('settles when every read is refused, and ignores reads the missing branch turns off', async () => {
+    api.GET.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
+    const refused = renderKinds(useApprovalInbox);
+    await waitFor(() => expect(refused.result.current.state).toBe('settled'));
+    expect(refused.result.current.kinds).toEqual([]);
+    cleanup();
+    selectBusiness('restaurant');
+    if (frameState.workspace?.status === 'ready') frameState.workspace.branch = undefined;
+    api.GET.mockImplementation((path: string) =>
+      Promise.resolve({ data: bodies[path], response: { status: 200 } }),
+    );
+    const noBranch = renderKinds(useApprovalInbox);
+    await waitFor(() => expect(noBranch.result.current.kinds).toHaveLength(1));
+    expect(noBranch.result.current.state).toBe('settled');
+  });
 });
