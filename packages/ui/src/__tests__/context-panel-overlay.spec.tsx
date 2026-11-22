@@ -243,3 +243,58 @@ it('preserves the original observed opener across outside clicks while the table
   expect(screen.queryByRole('dialog', { name: contextLabels.navigation })).toBeNull();
   expect(document.activeElement).toBe(actualOpener);
 });
+
+it('allows switching workspaces by keyboard inside the open tablet modal', () => {
+  stubViewportWidth(820);
+  function Harness() {
+    const openerRef = useRef<HTMLButtonElement>(null);
+    const [inspectedWorkspaceId, setInspectedWorkspaceId] = useState<string>('business');
+    const [open, setOpen] = useState(false);
+    return (
+      <DirectionProvider dir="ltr">
+        <NavRail
+          workspaces={workspaces}
+          labels={chromeLabels}
+          currentWorkspaceId="business"
+          inspectedWorkspaceId={inspectedWorkspaceId}
+          panelOpen={open}
+          onInspect={(workspaceId, opener) => {
+            openerRef.current = opener;
+            setInspectedWorkspaceId(workspaceId);
+            setOpen(true);
+          }}
+        />
+        <ContextPanel
+          workspaces={workspaces}
+          labels={contextLabels}
+          currentWorkspaceId="business"
+          inspectedWorkspaceId={inspectedWorkspaceId}
+          panelOpen={open}
+          openerRef={openerRef}
+          onInspect={(workspaceId) => setInspectedWorkspaceId(workspaceId)}
+          onClose={() => setOpen(false)}
+        />
+      </DirectionProvider>
+    );
+  }
+
+  render(<Harness />);
+  const businessRail = screen.getByRole('button', { name: 'Business Current Inspect' });
+  businessRail.focus();
+  fireEvent.click(businessRail);
+
+  const dialog = screen.getByRole('dialog', { name: contextLabels.navigation });
+  const teamSwitcher = screen.getByRole('button', { name: 'Team' });
+  expect(dialog.contains(teamSwitcher)).toBe(true);
+  teamSwitcher.focus();
+  expect(document.activeElement).toBe(teamSwitcher);
+  fireEvent.click(teamSwitcher);
+
+  expect(screen.getByRole('heading', { name: 'Team' })).toBeTruthy();
+  expect(teamSwitcher.getAttribute('aria-pressed')).toBe('true');
+  expect(dialog.contains(document.activeElement)).toBe(true);
+
+  fireEvent.keyDown(document.activeElement ?? dialog, { key: 'Escape' });
+  expect(screen.queryByRole('dialog', { name: contextLabels.navigation })).toBeNull();
+  expect(document.activeElement).toBe(businessRail);
+});

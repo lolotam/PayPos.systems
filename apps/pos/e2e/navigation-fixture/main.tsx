@@ -238,6 +238,7 @@ function ContextScene() {
         activePageId="columns"
         openerRef={panelOpenerRef}
         returnFocusRef={panelReturnFocusRef}
+        onInspect={(workspaceId) => setInspectedWorkspaceId(workspaceId)}
         onClose={() => setPanelOpen(false)}
       />
       <main className="min-w-0 flex-1 p-4">

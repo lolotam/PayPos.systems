@@ -275,6 +275,7 @@ export type ContextPanelProps = {
   visiblePageIds?: readonly string[] | undefined;
   openerRef?: RefObject<HTMLElement | null> | undefined;
   returnFocusRef?: RefObject<HTMLButtonElement | null> | undefined;
+  onInspect?: ((workspaceId: string) => void) | undefined;
   onClose: () => void;
 };
 
@@ -288,6 +289,7 @@ export function ContextPanel({
   visiblePageIds,
   openerRef,
   returnFocusRef,
+  onInspect,
   onClose,
 }: ContextPanelProps) {
   const dir = useDirection();
@@ -323,9 +325,12 @@ export function ContextPanel({
       <ContextPanelBody
         panelRef={panelRef}
         workspace={workspace}
+        workspaces={isFloatingOverlay ? workspaces : undefined}
+        currentWorkspaceId={currentWorkspaceId}
         labels={labels}
         activePageId={activePageId}
         visiblePageIds={visiblePageIds}
+        onInspect={isFloatingOverlay ? onInspect : undefined}
         onClose={onClose}
       />
     </aside>
