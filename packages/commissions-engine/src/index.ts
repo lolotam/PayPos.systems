@@ -96,6 +96,8 @@ export { computeMarginalTierNumerator, findActiveTierStep } from './marginal-tie
 export { computePackageSaleCommission } from './package-sale-commission.ts';
 export { projectPackageSaleStatus } from './package-sale-status.ts';
 export { computePeriod, computePeriodDetailed } from './period-commission.ts';
+export { computeStatementPayable } from './statement-payable.ts';
+export type { PayableRow, StatementPayable } from './statement-payable.ts';
 export type {
   CommissionPeriodDetailedResult,
   CommissionPricingFailure,

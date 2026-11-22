@@ -1,0 +1,48 @@
+import { describe, it } from 'vitest';
+
+// تجهيز 51-1 PR 2: هياكل اختبار بس، من غير كود إنتاج؛ كل بند هيتحوّل لاختبار حقيقي مع use case الـ generate والـ GET.
+
+describe('CM-27 generate a month that has ended', () => {
+  it.todo(
+    'creates the DRAFT row and returns per employee: commission per source, sales, card tips, cash tips, corrections, total and payable',
+  );
+  it.todo('shows a negative commission total as negative and pays zero commission (CS-Q7)');
+  it.todo(
+    'lists the blocking issues NO_PLAN, NO_SALARY and the unresolved blocked corrections by employee',
+  );
+});
+
+describe('CM-28b GET of a month never generated (current_fingerprint IS NULL, research R6)', () => {
+  it.todo(
+    'returns the computed view with generated: false and leaves no statement row, no fingerprint and no lock behind',
+  );
+});
+
+describe('CM-28c the two GET response shapes (FR-025, two Zod schemas, never optional fields on one)', () => {
+  it.todo(
+    'gives a business-wide reader both fingerprints, reviewed_* and the changed-since-review flag with its cause',
+  );
+  it.todo(
+    'gives a branch-scoped reader the status and her filtered rows only: no fingerprint of any kind, no changed flag or cause',
+  );
+  it.todo(
+    'leaves a branch reader response unchanged when a customer of another branch is renamed, while the business-wide response shows STATEMENT',
+  );
+  it.todo(
+    'picks the shape with the same predicate as the guards, so a union of branch grants covering every branch gets the branch-scoped shape',
+  );
+});
+
+describe('CM-29 a month that has not ended', () => {
+  it.todo('refuses generate with 422 COMMISSION_PERIOD_NOT_ENDED and keeps the estimate readable');
+});
+
+describe('CM-33 and CM-33d the generate part', () => {
+  it.todo('refuses generate without review:commissions:business with 403');
+  it.todo(
+    'lets the default holders (owner, general manager, business manager) generate, and the owner grant and revoke take effect on the next request',
+  );
+  it.todo(
+    'refuses a branch manager who holds review, and a business-wide holder with a DENY, with the uniform 403 and no audit entry',
+  );
+});
