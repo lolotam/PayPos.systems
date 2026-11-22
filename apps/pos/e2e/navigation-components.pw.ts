@@ -281,7 +281,11 @@ for (const dir of DIRECTIONS) {
     // A real pointer press at the rail button's position: it may dismiss the modal, never inspect.
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     await expect(panel).toBeHidden();
-    await expect(team).not.toHaveAttribute('aria-pressed', 'true');
+    // A leaked press would have inspected Team before the dismissal; reopening must still show Business.
+    await page.getByRole('button', { name: /إعادة فتح لوحة/ }).click();
+    await expect(panel).toBeVisible();
+    await expect(panel.getByRole('link', { name: LABELS.columns })).toBeVisible();
+    await expect(panel.getByRole('link', { name: LABELS.employees })).toHaveCount(0);
   });
 
   test(`finder keyboard activation and localized empty state (${dir})`, async ({ page }) => {
