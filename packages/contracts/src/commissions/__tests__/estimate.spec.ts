@@ -22,6 +22,8 @@ const employee = {
       amount: '3.000',
       source_branch_id: '01920000-0000-7000-8000-0000000000c1',
       source_business_date: '2026-10-15',
+      service_id: '01920000-0000-7000-8000-0000000000d1',
+      service_name: 'Manicure',
     },
   ],
   sales: [],
