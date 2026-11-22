@@ -284,17 +284,57 @@ it('allows switching workspaces by keyboard inside the open tablet modal', () =>
   fireEvent.click(businessRail);
 
   const dialog = screen.getByRole('dialog', { name: contextLabels.navigation });
+  const businessSwitcher = screen.getByRole('button', { name: 'Business' });
   const teamSwitcher = screen.getByRole('button', { name: 'Team' });
   expect(dialog.contains(teamSwitcher)).toBe(true);
+  expect(businessSwitcher.className).toContain('min-h-11');
+  expect(businessSwitcher.className).toContain('min-w-11');
+  expect(businessSwitcher.className).toContain('max-w-full');
+  expect(businessSwitcher.getAttribute('aria-current')).toBe('page');
+  expect(businessSwitcher.querySelector('[data-current-marker]')).toBeTruthy();
+
   teamSwitcher.focus();
   expect(document.activeElement).toBe(teamSwitcher);
   fireEvent.click(teamSwitcher);
 
   expect(screen.getByRole('heading', { name: 'Team' })).toBeTruthy();
   expect(teamSwitcher.getAttribute('aria-pressed')).toBe('true');
+  expect(teamSwitcher.getAttribute('aria-current')).toBeNull();
+  expect(businessSwitcher.getAttribute('aria-pressed')).toBe('false');
+  expect(businessSwitcher.getAttribute('aria-current')).toBe('page');
+  expect(businessSwitcher.querySelector('[data-current-marker]')).toBeTruthy();
   expect(dialog.contains(document.activeElement)).toBe(true);
 
   fireEvent.keyDown(document.activeElement ?? dialog, { key: 'Escape' });
   expect(screen.queryByRole('dialog', { name: contextLabels.navigation })).toBeNull();
   expect(document.activeElement).toBe(businessRail);
+});
+
+it('keeps the single remaining workspace switchable when the inspected workspace becomes empty', () => {
+  stubViewportWidth(820);
+  function Harness() {
+    const [inspectedWorkspaceId, setInspectedWorkspaceId] = useState<string>('business');
+    return (
+      <DirectionProvider dir="ltr">
+        <ContextPanel
+          workspaces={workspaces}
+          labels={contextLabels}
+          currentWorkspaceId="business"
+          inspectedWorkspaceId={inspectedWorkspaceId}
+          visiblePageIds={['employees']}
+          panelOpen
+          onInspect={(workspaceId) => setInspectedWorkspaceId(workspaceId)}
+          onClose={() => undefined}
+        />
+      </DirectionProvider>
+    );
+  }
+
+  render(<Harness />);
+  const dialog = screen.getByRole('dialog', { name: contextLabels.navigation });
+  const teamSwitcher = screen.getByRole('button', { name: 'Team' });
+  expect(dialog.contains(teamSwitcher)).toBe(true);
+  fireEvent.click(teamSwitcher);
+  expect(screen.getByRole('heading', { name: 'Team' })).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'الموظفون' })).toBeTruthy();
 });

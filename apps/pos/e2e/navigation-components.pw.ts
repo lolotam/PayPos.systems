@@ -39,25 +39,17 @@ const LABELS = {
   footerAction: 'إجراء التذييل',
 } as const;
 
-async function openScene(
-  page: Page,
-  scene: string,
-  dir: Direction,
-  extraQuery = '',
-): Promise<void> {
+async function openScene(page: Page, scene: string, dir: Direction, extraQuery = ''): Promise<void> {
   await page.goto(`/?dir=${dir}&scene=${scene}${extraQuery}`);
   await expect(page.locator('[data-fixture-ready="true"]')).toBeVisible();
 }
 
 async function expectNoHorizontalOverflow(page: Page): Promise<void> {
-  const metrics = await page.evaluate(() => ({
+  const m = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
     clientWidth: document.documentElement.clientWidth,
   }));
-  expect(
-    metrics.scrollWidth,
-    `horizontal document overflow: scroll=${metrics.scrollWidth} client=${metrics.clientWidth}`,
-  ).toBeLessThanOrEqual(metrics.clientWidth);
+  expect(m.scrollWidth, `overflow: scroll=${m.scrollWidth} client=${m.clientWidth}`).toBeLessThanOrEqual(m.clientWidth);
 }
 
 function expectAtInlineStart(box: Box, dir: Direction, viewportWidth: number): void {
@@ -80,25 +72,21 @@ async function expectMinTarget(target: Locator, min = 44): Promise<void> {
 async function expectVisibleCurrentMarker(target: Locator): Promise<void> {
   await expect(target).toHaveAttribute('aria-current', 'page');
   await expect(target.locator('[data-current-marker]')).toBeVisible();
-  const decoration = await target.evaluate((element) => getComputedStyle(element).textDecorationLine);
-  expect(decoration, 'current item must be visibly marked, not only aria-current or sr-only').toContain(
-    'underline',
-  );
+  const decoration = await target.evaluate((el) => getComputedStyle(el).textDecorationLine);
+  expect(decoration, 'current item must be visibly marked').toContain('underline');
 }
 
 async function expectVisibleCurrentModuleSwitcher(target: Locator): Promise<void> {
   await expect(target).toHaveAttribute('aria-current', 'page');
   await expect(target.locator('[data-current-marker]')).toBeVisible();
-  const background = await target.evaluate(
-    (element) => getComputedStyle(element).backgroundColor,
-  );
+  const background = await target.evaluate((el) => getComputedStyle(el).backgroundColor);
   expect(background, 'current module must keep a visible background').not.toBe('rgba(0, 0, 0, 0)');
 }
 
 async function expectVisibleNavRailCurrentMarker(target: Locator): Promise<void> {
   await expect(target).toHaveAttribute('data-current', '');
   await expect(target.locator('[data-current-marker]')).toBeVisible();
-  const decoration = await target.evaluate((element) => getComputedStyle(element).textDecorationLine);
+  const decoration = await target.evaluate((el) => getComputedStyle(el).textDecorationLine);
   expect(decoration, 'current workspace must be visibly marked in the rail').toContain('underline');
 }
 
@@ -321,7 +309,26 @@ for (const dir of DIRECTIONS) {
       await expect(panel.getByRole('link', { name: LABELS.columns })).toHaveCount(0);
 
       const closePanel = panel.getByRole('button', { name: LABELS.panelClose });
-      if (width < 1024) await expect(closePanel).toBeFocused();
+      if (width < 1024) {
+        await expect(closePanel).toBeFocused();
+        const biz = panel.getByRole('button', { name: LABELS.business });
+        const ppl = panel.getByRole('button', { name: LABELS.people });
+        await expectMinTarget(biz);
+        await expectMinTarget(ppl);
+        await expectVisibleCurrentMarker(biz);
+        const [pBox, bBox] = await Promise.all([requiredBox(panel), requiredBox(biz)]);
+        expect(bBox.x + bBox.width, 'switcher inside panel').toBeLessThanOrEqual(pBox.x + pBox.width + 1);
+        await page.keyboard.press('Tab');
+        await expect(biz).toBeFocused();
+        await page.keyboard.press('Enter');
+        await expect(panel.getByRole('link', { name: LABELS.columns })).toBeVisible();
+        await page.keyboard.press('Tab');
+        await page.keyboard.press('Tab');
+        await expect(ppl).toBeFocused();
+        await page.keyboard.press('Enter');
+        await expect(panel.getByRole('link', { name: LABELS.employees })).toBeVisible();
+        await expectVisibleCurrentMarker(biz);
+      }
       await closePanel.focus();
       await page.keyboard.press('Enter');
       await expect(panel).toBeHidden();
@@ -354,28 +361,20 @@ for (const dir of DIRECTIONS) {
   test(`finder Enter skips a CSS-hidden result (${dir})`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await openScene(page, 'context', dir, '&finderHideFirst=true');
-    const trigger = page.getByRole('button', { name: LABELS.finderTrigger });
-    await trigger.click();
+    await page.getByRole('button', { name: LABELS.finderTrigger }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     const links = dialog.locator('[data-finder-result]');
     expect(await links.count(), 'fixture must supply at least two finder results').toBeGreaterThan(1);
     await expect(links.first()).toBeHidden();
     await expect(links.nth(1)).toBeVisible();
-
-    await links.first().evaluate((element) => {
-      element.addEventListener('click', () => {
-        document.body.dataset['hiddenFinderClicked'] = 'true';
-      });
+    await links.first().evaluate((el) => {
+      el.addEventListener('click', () => { document.body.dataset['hiddenFinderClicked'] = 'true'; });
     });
-    await links.nth(1).evaluate((element) => {
-      element.addEventListener('click', () => {
-        document.body.dataset['visibleFinderClicked'] = 'true';
-      });
+    await links.nth(1).evaluate((el) => {
+      el.addEventListener('click', () => { document.body.dataset['visibleFinderClicked'] = 'true'; });
     });
-
-    const input = dialog.getByRole('searchbox', { name: LABELS.finderSearch });
-    await input.press('Enter');
+    await dialog.getByRole('searchbox', { name: LABELS.finderSearch }).press('Enter');
     await expect(dialog).toBeHidden();
     await expect(page.locator('body')).not.toHaveAttribute('data-hidden-finder-clicked', 'true');
     await expect(page.locator('body')).toHaveAttribute('data-visible-finder-clicked', 'true');
