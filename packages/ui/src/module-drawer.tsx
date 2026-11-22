@@ -11,7 +11,7 @@ import {
   type NavigationModule,
 } from './navigation-presentation.js';
 import { ModuleDrawerSection } from './module-drawer-section.js';
-import { useNavigationMedia } from './use-navigation-media.js';
+import { useHydratedNavigationMedia } from './use-navigation-media.js';
 
 export type ModuleDrawerProps = {
   modules: readonly NavigationModule[];
@@ -90,11 +90,11 @@ export function ModuleDrawer({
   onOpenChange,
   onNavigate,
 }: ModuleDrawerProps) {
-  const isPhone = useNavigationMedia('(width < 700px)');
+  const { matches: isPhone, ready: mediaReady } = useHydratedNavigationMedia('(width < 700px)');
   const dialogOpen = open && isPhone;
   useEffect(() => {
-    if (open && !isPhone) onOpenChange(false);
-  }, [isPhone, onOpenChange, open]);
+    if (mediaReady && open && !isPhone) onOpenChange(false);
+  }, [isPhone, mediaReady, onOpenChange, open]);
   const select = () => {
     onNavigate?.();
     onOpenChange(false);

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { useRef, useState } from 'react';
+import { startTransition, useRef, useState } from 'react';
 import { expect, it, vi } from 'vitest';
 import { ContextPanel, type ContextPanelProps } from '../context-panel.js';
 import { DirectionProvider } from '../direction-provider.js';
@@ -178,6 +178,49 @@ it('restores focus to a fallback that appears only after the panel closes', asyn
   const opener = screen.getByRole('button', { name: 'Temporary opener' });
   opener.focus();
   fireEvent.click(opener);
+  const close = screen.getByRole('button', { name: contextLabels.close });
+  close.focus();
+  fireEvent.click(close);
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Reopen panel' })),
+  );
+});
+
+it('restores focus after a transitioned close removes the opener', async () => {
+  function Harness() {
+    const fallbackRef = useRef<HTMLButtonElement>(null);
+    const [open, setOpen] = useState(true);
+    const [showOpener, setShowOpener] = useState(true);
+    const [showFallback, setShowFallback] = useState(false);
+    return (
+      <DirectionProvider dir="ltr">
+        {showOpener ? <button type="button">Temporary opener</button> : null}
+        {showFallback ? (
+          <button ref={fallbackRef} type="button">
+            Reopen panel
+          </button>
+        ) : null}
+        <ContextPanel
+          workspaces={workspaces}
+          labels={contextLabels}
+          panelOpen={open}
+          currentWorkspaceId="business"
+          returnFocusRef={fallbackRef}
+          onClose={() =>
+            startTransition(() => {
+              setOpen(false);
+              setShowOpener(false);
+              setShowFallback(true);
+            })
+          }
+        />
+      </DirectionProvider>
+    );
+  }
+
+  render(<Harness />);
+  const opener = screen.getByRole('button', { name: 'Temporary opener' });
+  opener.focus();
   const close = screen.getByRole('button', { name: contextLabels.close });
   close.focus();
   fireEvent.click(close);
