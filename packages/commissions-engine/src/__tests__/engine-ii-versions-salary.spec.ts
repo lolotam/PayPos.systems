@@ -7,7 +7,7 @@ import {
   resolveCommissionPlan,
   selectSalaryOnLastDay,
 } from '../salary-thresholds.ts';
-import { fixed, line, pct, period, version } from './engine-ii-fixtures.ts';
+import { fixed, line, pct, period, sale, version } from './engine-ii-fixtures.ts';
 
 const salaryPlan = version({
   base: { enabled: false },
@@ -183,14 +183,18 @@ it('business date at 21:30 UTC uses the next Kuwait date for version eligibility
   ).toEqual({ ok: true, perSource: new Map([['line:a', 10000n]]), total: 10000n });
 });
 
-it('D-57 missing salary rejects a service line even when its value is zero', () => {
-  const input = period({
-    versions: [salaryPlan],
-    lines: [line({ netShare: 0n })],
-  });
-  expect(computePeriod(input)).toEqual({ ok: false, code: 'NO_SALARY' });
-  expect(resolveCommissionPlan(salaryPlan, null)).toEqual({ ok: false, code: 'NO_SALARY' });
-});
+it.each(['line', 'sale'] as const)(
+  'D-57 missing salary rejects a %s even when its value is zero',
+  (kind) => {
+    const input = period({
+      versions: [salaryPlan],
+      lines: kind === 'line' ? [line({ netShare: 0n })] : [],
+      sales: kind === 'sale' ? [sale({ pricePaid: 0n })] : [],
+    });
+    expect(computePeriod(input)).toEqual({ ok: false, code: 'NO_SALARY' });
+    expect(resolveCommissionPlan(salaryPlan, null)).toEqual({ ok: false, code: 'NO_SALARY' });
+  },
+);
 
 it('a zero salary exists and disabled tiers do not require salary', () => {
   // راتب صفر يجعل الحد صفر؛ 100000 × 10% = 10000.

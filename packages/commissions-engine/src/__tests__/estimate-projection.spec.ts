@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   projectCommissionEstimate,
   type CommissionEstimateAttachment,
+  type CommissionEstimateCorrection,
   type CommissionEstimateLine,
+  type CommissionEstimateTip,
   type CommissionEstimateMonthRows,
   type CommissionEstimateProjectionInput,
 } from '../estimate-projection.ts';
@@ -67,6 +69,40 @@ function attachment(patch: Partial<CommissionEstimateAttachment> = {}): Commissi
 /** ارتباطات الموظفة: أول نصف الشهر في الفرع الأول وباقيته في الفرع التاني. */
 function transferredAttachments(): readonly CommissionEstimateAttachment[] {
   return [attachment({ to: '2026-11-15' }), attachment({ branchId: BRANCH_B, from: '2026-11-15' })];
+}
+
+/** بقشيش كارت في الفرع الأول أول الشهر. */
+function tip(patch: Partial<CommissionEstimateTip> = {}): CommissionEstimateTip {
+  return {
+    sessionId: 'tip-a',
+    employeeId: EMPLOYEE,
+    businessDate: '2026-11-05',
+    method: 'CARD',
+    amount: 2500n,
+    branchId: BRANCH_A,
+    ...patch,
+  };
+}
+
+/** تصحيح مستلم في الشهر عن مصدر من شهر مقفول، مربوط بالفرع الأول. */
+function correction(
+  patch: Partial<CommissionEstimateCorrection> = {},
+): CommissionEstimateCorrection {
+  return {
+    employeeId: EMPLOYEE,
+    sourcePeriod: '2026-10',
+    targetPeriod: PERIOD,
+    sourceRef: 'line:old-a',
+    kind: 'COMMISSION',
+    amount: 5000n,
+    previousAmount: 0n,
+    newAmount: 5000n,
+    generation: 1n,
+    sourceBranchId: BRANCH_A,
+    sourceBusinessDate: '2026-10-05',
+    attachedBranchIds: [BRANCH_A],
+    ...patch,
+  };
 }
 
 function month(patch: Partial<CommissionEstimateMonthRows> = {}): CommissionEstimateMonthRows {
@@ -190,6 +226,29 @@ describe('the pricing failures of the estimate', () => {
     expect(result.employees[0]?.sources).toEqual([]);
     expect(result.total).toBeNull();
   });
+
+  it('keeps only the visible tips and corrections of a refused month', () => {
+    // البقشيش والتصحيح بيعدّوا من غير تسعير (D-1)، فرفض التسعير ما بيمسحهمش،
+    // واللي على الفرع التاني يفضل مخفي عن قارئ الفرع الأول (CS-Q20).
+    const result = projectCommissionEstimate(
+      projection({
+        month: month({
+          lines: [planLine()],
+          tips: [tip(), tip({ sessionId: 'tip-b', businessDate: '2026-11-20', method: 'CASH' })],
+          corrections: [
+            correction(),
+            correction({ sourceRef: 'line:old-b', attachedBranchIds: [BRANCH_B], amount: 3000n }),
+          ],
+        }),
+        attachments: transferredAttachments(),
+      }),
+    );
+
+    expect(result.employees[0]?.status).toBe('NO_PLAN');
+    expect(result.employees[0]?.total).toBeNull();
+    expect(result.employees[0]?.tips).toEqual({ card: 2500n, cash: 0n });
+    expect(result.employees[0]?.corrections.map((row) => row.sourceRef)).toEqual(['line:old-a']);
+  });
 });
 
 describe('the candidates of the estimate', () => {
@@ -224,5 +283,134 @@ describe('the candidates of the estimate', () => {
     );
 
     expect(result.employees).toEqual([]);
+  });
+
+  it('does not add a result for a salary row alone', () => {
+    const result = projectCommissionEstimate(
+      projection({
+        employeeIds: [OTHER],
+        month: month({
+          salaries: [{ employeeId: OTHER, effectiveFrom: '2026-11-01', amount: 500000n }],
+        }),
+      }),
+    );
+
+    expect(result.employees).toEqual([]);
+  });
+
+  it('shows a departed employee who only received a visible correction', () => {
+    // موظفة ارتباطها خلص قبل الشهر ولسه مستلمة تصحيح على فرع القارئ: بتظهر
+    // بصف التصحيح من غير أي عمل في الشهر (FR-040).
+    const result = projectCommissionEstimate(
+      projection({
+        month: month({ corrections: [correction()] }),
+        attachments: [attachment({ to: '2026-10-31' })],
+      }),
+    );
+
+    expect(result.employees).toHaveLength(1);
+    expect(result.employees[0]?.total).toBe(0n);
+    expect(result.employees[0]?.corrections.map((row) => row.amount)).toEqual([5000n]);
+  });
+});
+
+describe('the covered days of the estimate', () => {
+  it('covers a whole month clipped from an attachment ending after it', () => {
+    // الارتباط نصف مفتوح وبيتقصّ على الشهر: نهاية في سنة بعديّة بتغطي باقي
+    // الشهر كله، فصف الموظفة ما بيتعلّمش جزئي (CS-Q23).
+    const result = projectCommissionEstimate(
+      projection({
+        month: month({ lines: [fixedLine()], versions: [plan()] }),
+        attachments: [attachment({ to: '2027-03-01' })],
+      }),
+    );
+
+    expect(result.employees[0]?.partial).toBe(false);
+    expect(result.employees[0]?.total).toBe(10000n);
+  });
+
+  it('covers nothing for an attachment that ended before the month', () => {
+    const result = projectCommissionEstimate(
+      projection({
+        month: month({ lines: [fixedLine()], versions: [plan()] }),
+        attachments: [attachment({ to: '2026-10-31' })],
+      }),
+    );
+
+    expect(result.employees).toEqual([]);
+  });
+
+  it('covers nothing for an attachment that starts after the month', () => {
+    const result = projectCommissionEstimate(
+      projection({
+        month: month({ lines: [fixedLine()], versions: [plan()] }),
+        attachments: [attachment({ from: '2026-12-01' })],
+      }),
+    );
+
+    expect(result.employees).toEqual([]);
+  });
+});
+
+describe('the sale under a salary-multiple plan', () => {
+  /** خطة بحد راتب مضاعف وقاعدة بيع باقة بنسبة عشرة بالمئة (D-57). */
+  function salaryPlan(): CommissionPlanVersion {
+    return {
+      ...plan(),
+      tiers: {
+        enabled: true,
+        mode: 'MARGINAL',
+        accumulator: 'AMOUNT',
+        steps: [
+          { from: { kind: 'SALARY_MULTIPLE', value: 200n }, calc: { kind: 'PCT', value: 500n } },
+        ],
+      },
+      packageSale: { enabled: true, calc: { kind: 'PCT', value: 1000n } },
+    };
+  }
+
+  function saleMonth(salaries: CommissionEstimateMonthRows['salaries']) {
+    return month({
+      sales: [
+        {
+          saleId: 'sale-a',
+          sellerEmployeeId: EMPLOYEE,
+          businessDate: '2026-11-05',
+          pricePaid: 30000n,
+          refundedAmount: 10000n,
+          status: 'ACTIVE',
+          branchId: BRANCH_A,
+        },
+      ],
+      versions: [salaryPlan()],
+      salaries,
+    });
+  }
+
+  const salary = [{ employeeId: EMPLOYEE, effectiveFrom: '2026-11-01', amount: 500000n }];
+
+  it('refuses a sale-only month whose salary-multiple plan has no salary', () => {
+    // D-57 (SPEC §5، 012 requirement 6): حتى لو المصدر بيع، الخطة المختارة
+    // بحدود راتب مضاعف بتحتاج راتب.
+    const result = projectCommissionEstimate(
+      projection({ scope: { businessWide: true, branchIds: [BRANCH_A] }, month: saleMonth([]) }),
+    );
+
+    expect(result.employees[0]?.status).toBe('NO_SALARY');
+    expect(result.employees[0]?.total).toBeNull();
+    expect(result.total).toBeNull();
+  });
+
+  it('prices the sale when the salary exists', () => {
+    const result = projectCommissionEstimate(
+      projection({
+        scope: { businessWide: true, branchIds: [BRANCH_A] },
+        month: saleMonth(salary),
+      }),
+    );
+
+    expect(result.employees[0]?.status).toBe('OK');
+    expect(result.employees[0]?.total).toBe(2000n);
+    expect(result.total).toBe(2000n);
   });
 });

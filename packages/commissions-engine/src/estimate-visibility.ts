@@ -80,32 +80,24 @@ export function attachedDuring(
 }
 
 /**
- * رقم اليوم في الشهر من تاريخ كامل، أو 1 لما التاريخ قبل الشهر.
+ * الشهر اللي بعد الشهر المطلوب، بصيغة YYYY-MM.
  *
- * @param date تاريخ كامل بصيغة YYYY-MM-DD
  * @param period الشهر بصيغة YYYY-MM
- * @returns رقم اليوم
+ * @returns الشهر التالي
  */
-function dayOf(date: string, period: string): number {
-  if (!date.startsWith(period)) return 1;
-  return Number(date.slice(8, 10));
-}
-
-/**
- * آخر يوم داخل الشهر من تاريخ نهاية، أو آخر الشهر لما النهاية مفتوحة.
- *
- * @param date تاريخ نهاية أو null
- * @param period الشهر بصيغة YYYY-MM
- * @returns رقم آخر يوم
- */
-function dayBefore(date: string | null, period: string): number {
-  if (date === null) return daysInMonth(period);
-  if (!date.startsWith(period)) return 0;
-  return Number(date.slice(8, 10)) - 1;
+function nextMonth(period: string): string {
+  const year = Number(period.slice(0, 4));
+  const month = Number(period.slice(5, 7));
+  return month === 12
+    ? `${year + 1}-01`
+    : `${period.slice(0, 5)}${String(month + 1).padStart(2, '0')}`;
 }
 
 /**
  * أيام الشهر اللي الموظفة كانت مربوطة بفرع من نطاق القارئ فيها (CS-Q23).
+ * الارتباط نصف مفتوح `[from, to)` وبيتقصّ على الشهر: نهاية في شهر أو سنة
+ * بعديّة بتغطي باقي الشهر، والنهاية الماضية والبداية المستقبلية ما بتغطوش
+ * حاجة.
  *
  * @param attachments ارتباطات الموظفة
  * @param scope فروع القارئ
@@ -119,11 +111,18 @@ export function coveredDays(
 ): ReadonlySet<number> {
   const days = new Set<number>();
   const total = daysInMonth(period);
+  const monthStart = `${period}-01`;
+  const monthEnd = `${nextMonth(period)}-01`;
   for (const attachment of attachments) {
     if (!scope.has(attachment.branchId)) continue;
-    const from = Math.max(1, dayOf(attachment.from, period));
-    const to = Math.min(total, dayBefore(attachment.to, period));
-    for (let day = from; day <= to; day += 1) days.add(day);
+    if (attachment.from >= monthEnd) continue;
+    if (attachment.to !== null && attachment.to <= monthStart) continue;
+    const firstDay = attachment.from <= monthStart ? 1 : Number(attachment.from.slice(8, 10));
+    const lastDay =
+      attachment.to === null || attachment.to >= monthEnd
+        ? total
+        : Number(attachment.to.slice(8, 10)) - 1;
+    for (let day = firstDay; day <= lastDay; day += 1) days.add(day);
   }
   return days;
 }

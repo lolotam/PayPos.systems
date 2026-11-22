@@ -207,23 +207,31 @@ function groupAttachmentsByEmployee(
 }
 
 /**
- * الموظفات المرشحات: كل موظفة عندها مدخل في الشهر، وكل موظفة مرتبطة بفرع من
- * نطاق القارئ في أي يوم من الشهر (CS-Q20). الارتباط لوحده بيجعل الموظفة
- * مرئية، فموظفة مرتبطة بلا عمل في الشهر بتظهر بصفر حقيقي مش بتختفي.
+ * الموظفات المرشحات: كل موظفة عندها نشاط في الشهر — بند أو بيع أو بقشيش أو
+ * تصحيح — وكل موظفة مرتبطة بفرع من نطاق القارئ في أي يوم من الشهر (CS-Q20).
+ * الارتباط لوحده بيجعل الموظفة مرئية، فموظفة مرتبطة بلا عمل في الشهر بتظهر
+ * بصفر حقيقي مش بتختفي، وصف راتب أو خطة أو تجاوز لوحده من غير نشاط أو ارتباط
+ * ما بيزودش نتيجة.
  *
- * @param monthByEmployee صفوف الشهر مجمّعة
+ * @param month صفوف الشهر المقروءة
  * @param attachmentsByEmployee ارتباطات مجمّعة
  * @param scope فروع القارئ أو null لنطاق النشاط كله
  * @param period الشهر بصيغة YYYY-MM
  * @returns معرّفات الموظفات المرشحات
  */
 function candidateIds(
-  monthByEmployee: ReadonlyMap<string, EmployeeMonth>,
+  month: CommissionEstimateMonthRows,
   attachmentsByEmployee: ReadonlyMap<string, readonly CommissionEstimateAttachment[]>,
   scope: ReadonlySet<string> | null,
   period: string,
 ): readonly string[] {
-  const ids = new Set<string>(monthByEmployee.keys());
+  const ids = new Set<string>();
+  for (const line of month.lines) ids.add(line.employeeId);
+  for (const sale of month.sales) {
+    if (sale.sellerEmployeeId !== null) ids.add(sale.sellerEmployeeId);
+  }
+  for (const tip of month.tips) ids.add(tip.employeeId);
+  for (const correction of month.corrections) ids.add(correction.employeeId);
   for (const [employeeId, attachments] of attachmentsByEmployee) {
     const relevant = attachments.some(
       (attachment) =>
@@ -253,7 +261,7 @@ export function projectCommissionEstimate(
   let total = 0n;
   let unpriced = false;
   for (const employeeId of candidateIds(
-    monthByEmployee,
+    input.month,
     attachmentsByEmployee,
     allowed,
     input.period,
@@ -316,8 +324,16 @@ function projectEmployee(
   // بيشوف كل الأيام فما بيحتاجش الفحص (CM-23g).
   const covered = scope === null ? new Set<number>() : coveredDays(attachments, scope, period);
   if (scope !== null && !correctionVisible && covered.size === 0) return null;
-  const failure = visibleFailure(scope, attachments, assembled.lines, assembled.sales, priced);
-  if (failure !== null) return refusedMonth(employeeId, failure);
+  // تاريخ كل مصدر بيتفهرس مرة واحدة، ففشل التسعير ما بيمسحش المصفوفات كل مرة.
+  const sourceDates = new Map<string, string>();
+  for (const line of assembled.lines) sourceDates.set(`line:${line.lineId}`, line.businessDate);
+  for (const sale of assembled.sales) sourceDates.set(`sale:${sale.saleId}`, sale.businessDate);
+  const failure = visibleFailure(scope, attachments, sourceDates, priced);
+  if (failure !== null) {
+    const tips = collectTips(scope, attachments, assembled.tips);
+    const corrections = collectCorrections(scope, assembled.corrections);
+    return refusedMonth(employeeId, failure, tips, corrections);
+  }
   const sources = collectSources(scope, attachments, assembled.lines, assembled.sales, priced);
   const tips = collectTips(scope, attachments, assembled.tips);
   const corrections = collectCorrections(scope, assembled.corrections);
@@ -335,16 +351,24 @@ function projectEmployee(
 }
 
 /**
- * شهر موظفة ما تسعّرش: مصدر ظاهر ناقص خطة أو راتب، فالنتيجة الجزئية ممنوعة
- * (D-57) والمبلغ المجهول بيفضل null مش صفر.
+ * شهر موظفة ما تسعّرت عمولته: مصدر ظاهر ناقص خطة أو راتب، فالمجموع المجهول
+ * بيفضل null من غير صرف أي عمولة جزئية (D-57)، والبقشاش والتصحيحات المعروفة
+ * للقارئ بيفضلوا ظاهرين لأنهم بيعدّوا من غير تسعير (D-1).
  *
  * @param employeeId الموظفة
  * @param failure سبب منع التسعير
+ * @param tips البقشيش المرئي للقارئ
+ * @param tips.card مجموع بقشيش الكارت المرئي
+ * @param tips.cash مجموع بقشيش الكاش المرئي
+ * @param corrections التصحيحات المرئية للقارئ
+ * @param corrections.corrections تصحيحات الشهر المرئية
  * @returns إسقاط الموظفة المرفوضة
  */
 function refusedMonth(
   employeeId: string,
   failure: 'NO_PLAN' | 'NO_SALARY',
+  tips: { readonly card: bigint; readonly cash: bigint },
+  corrections: { readonly corrections: readonly CommissionEstimateCorrectionProjection[] },
 ): CommissionEstimateEmployeeProjection {
   return {
     employeeId,
@@ -353,8 +377,8 @@ function refusedMonth(
     total: null,
     sources: [],
     sales: [],
-    tips: { card: 0n, cash: 0n },
-    corrections: [],
+    tips: { card: tips.card, cash: tips.cash },
+    corrections: corrections.corrections,
   };
 }
 
@@ -365,40 +389,20 @@ function refusedMonth(
  *
  * @param scope فروع القارئ أو null لنطاق النشاط كله
  * @param attachments ارتباطات الموظفة
- * @param lines بنود الشهر
- * @param sales بيعات الشهر
+ * @param sourceDates تاريخ نشاط كل مصدر، مفهرس بمرجعه
  * @param priced نتيجة التسعير المفصّلة
  * @returns سبب المنع أو null
  */
 function visibleFailure(
   scope: ReadonlySet<string> | null,
   attachments: readonly CommissionEstimateAttachment[],
-  lines: readonly CommissionEstimateLine[],
-  sales: readonly CommissionEstimateSale[],
+  sourceDates: ReadonlyMap<string, string>,
   priced: CommissionPeriodDetailedResult,
 ): 'NO_PLAN' | 'NO_SALARY' | null {
   for (const failure of priced.failures) {
-    const date = failureDate(failure.sourceRef, lines, sales);
-    if (date === null) continue;
+    const date = sourceDates.get(failure.sourceRef);
+    if (date === undefined) continue;
     if (visibleTo(branchesOn(attachments, date), scope)) return failure.code;
   }
-  return null;
-}
-
-/**
- * تاريخ النشاط لمصدر فشل: البند أو بيع الباقة.
- *
- * @param sourceRef مرجع المصدر
- * @param lines بنود الشهر
- * @param sales بيعات الشهر
- * @returns تاريخ النشاط أو null
- */
-function failureDate(
-  sourceRef: string,
-  lines: readonly CommissionEstimateLine[],
-  sales: readonly CommissionEstimateSale[],
-): string | null {
-  for (const line of lines) if (sourceRef === `line:${line.lineId}`) return line.businessDate;
-  for (const sale of sales) if (sourceRef === `sale:${sale.saleId}`) return sale.businessDate;
   return null;
 }

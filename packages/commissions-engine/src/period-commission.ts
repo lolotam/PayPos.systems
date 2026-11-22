@@ -94,6 +94,7 @@ function priceLines(
 
 function priceSales(
   input: CommissionPeriodInput,
+  salary: bigint | null,
   perSource: Map<string, bigint>,
   failures: CommissionPricingFailure[],
 ): void {
@@ -104,15 +105,16 @@ function priceSales(
     ) {
       continue;
     }
-    // عمولة البيع مستقلة عن شرائح الخدمات (D-51، D-55): القاعدة بتتبع خطة
-    // الموظفة بس مش محتاجة راتب، فبنختار الإصدار من غير ما نحل حدود الشرائح.
-    // غياب الخطة نفسها يفضل NO_PLAN حتى للبيع المجاني.
-    const version = selectCommissionPlanVersion(input.employeeId, sale.businessDate, input.versions);
-    if (version === null) {
-      failures.push({ sourceRef: `sale:${sale.saleId}`, code: 'NO_PLAN' });
+    // D-57 (SPEC §5، 012 requirement 6): خطة مختارة بحدود راتب مضاعف بتحتاج
+    // راتب حتى لو المصدر بيع، وغياب الخطة يفضل NO_PLAN حتى للبيع المجاني.
+    // الفشل بيتسجل بمصدره عشان القارئ على مستوى الفروع يفصل فشل مصدر ظاهر عن
+    // فشل مصدر مخفي (CS-Q20) من غير ما يمس المجمّع (CS-Q24).
+    const selected = resolveForSource(input, sale.businessDate, salary);
+    if (!selected.ok) {
+      failures.push({ sourceRef: `sale:${sale.saleId}`, code: selected.code });
       continue;
     }
-    const priced = computePackageSaleCommission(sale, version);
+    const priced = computePackageSaleCommission(sale, selected.version);
     if (!priced.ok) {
       failures.push({ sourceRef: `sale:${sale.saleId}`, code: priced.code });
       continue;
@@ -142,7 +144,7 @@ export function computePeriodDetailed(
   const perSource = new Map<string, bigint>();
   const failures: CommissionPricingFailure[] = [];
   priceLines(input, lines, salary, perSource, failures);
-  priceSales(input, perSource, failures);
+  priceSales(input, salary, perSource, failures);
   const total = [...perSource.values()].reduce((sum, amount) => sum + amount, 0n);
   return { perSource, total, failures };
 }

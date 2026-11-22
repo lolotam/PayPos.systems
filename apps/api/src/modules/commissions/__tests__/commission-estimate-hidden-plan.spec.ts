@@ -43,27 +43,33 @@ type HiddenPlanFixture = {
 async function hiddenPlanFixture(): Promise<HiddenPlanFixture> {
   const h = await startHarness();
   const db = createDatabase({ url: h.urls.app, ids });
-  const cookie = await h.signedInOperator('commission-estimate-hidden-plan@example.test');
-  const company = await h.onboard(cookie, 'Hidden plan employer');
-  const { business, branch, secondBranch } = await seedBusiness(h, cookie, company);
-  const { employee } = await seedEmployees(h, company, business, branch);
-  const tenant = await seedCatalogue(h, company, business, branch, employee);
-  await seedTransfer(h, company, business, employee, branch, secondBranch);
-  await seedRows(db, company, tenant, employee, branch, secondBranch);
-  const branchCookie = await branchManager({ h, company, business, branch });
-  return {
-    h,
-    db,
-    ids,
-    cookie,
-    branchCookie,
-    company,
-    business,
-    branch,
-    secondBranch,
-    employee,
-    tenant,
-  };
+  try {
+    const cookie = await h.signedInOperator('commission-estimate-hidden-plan@example.test');
+    const company = await h.onboard(cookie, 'Hidden plan employer');
+    const { business, branch, secondBranch } = await seedBusiness(h, cookie, company);
+    const { employee } = await seedEmployees(h, company, business, branch);
+    const tenant = await seedCatalogue(h, company, business, branch, employee);
+    await seedTransfer(h, company, business, employee, branch, secondBranch);
+    await seedRows(db, company, tenant, employee, branch, secondBranch);
+    const branchCookie = await branchManager({ h, company, business, branch });
+    return {
+      h,
+      db,
+      ids,
+      cookie,
+      branchCookie,
+      company,
+      business,
+      branch,
+      secondBranch,
+      employee,
+      tenant,
+    };
+  } catch (error) {
+    await db.close().catch(() => undefined);
+    await h.close().catch(() => undefined);
+    throw error;
+  }
 }
 
 /** ارتباطات الموظفة: أول نصف الشهر في الفرع الأول وباقيته في الفرع التاني. */
@@ -126,6 +132,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
+  await fixture?.db.close().catch(() => undefined);
   await fixture?.h.close();
 });
 
