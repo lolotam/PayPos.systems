@@ -105,9 +105,13 @@ export function useSessionCustomer(
   userId: string,
   entryScope: SessionCustomerEntryScope = 'branch',
   businessId?: string,
+  online: boolean | null = true,
 ) {
   const epoch = useRef(0);
   const pending = useRef<AbortController | null>(null);
+  // ما نعتمدش على قيمة الرندر وقت الإرسال؛ المستخدم ممكن ينقطع بين الضغط وبدء الطلب.
+  const onlineRef = useRef(online);
+  onlineRef.current = online;
   useLayoutEffect(() => {
     epoch.current += 1;
     pending.current?.abort();
@@ -125,6 +129,9 @@ export function useSessionCustomer(
     // طلب موقوف قبل بدء mutationFn مفيش AbortController يتلغي؛ نخليه يفشل فوراً بدل ما يتبعت عند رجوع النت.
     networkMode: 'always',
     mutationFn: async (input: SessionCustomerFormValues) => {
+      // فحص قبل النقل: مفيش enqueue ولا replay، والطلب ما يبدأش وهو offline — حتى لو الرندر لسه ما اتحدّثش.
+      if (onlineRef.current !== true || (typeof navigator !== 'undefined' && !navigator.onLine))
+        throw { code: 'OFFLINE', status: 0 };
       const controller = new AbortController();
       pending.current = controller;
       try {

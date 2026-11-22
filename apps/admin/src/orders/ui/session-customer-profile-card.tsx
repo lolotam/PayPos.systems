@@ -8,10 +8,12 @@ import {
   useSessionCustomerProfile,
   type SessionCustomerProfileEntry,
 } from '../api/use-session-customer-profile';
+import { ProfileField } from './profile-field';
 
 type SessionCustomerProfileCardProps = SessionCustomerProfileEntry & {
   locale: Locale;
-  online?: boolean;
+  /** null = hydration لم تكتمل؛ لا قراءة ولا حجب دائم في هذه الحالة. */
+  online?: boolean | null;
 };
 
 function birthdayText(birthday: CustomerProfile['birthday']): string | null {
@@ -24,39 +26,22 @@ function noteBusinessName(note: CustomerProfile['notes'][number], locale: Locale
   return (locale === 'ar' && note.business_name_ar) || note.business_name_en;
 }
 
-function Field({
-  label,
-  value,
-  empty,
-  ltr = false,
-}: {
-  label: string;
-  value: string | null;
-  empty: string;
-  ltr?: boolean;
-}) {
-  return (
-    <p>
-      <b>{label}</b> {value === null ? empty : ltr ? <bdi dir="ltr">{value}</bdi> : value}
-    </p>
-  );
-}
-
 // لو القراءة اتوقفت أو فشلت، رجوع النت ما يعيدهاش لوحده؛ المستخدم يضغط Retry أو يختار زبونة تانية.
 // ضبط الحالة أثناء الرندر هو نمط React الموصى به لتغيّر props، ويتجنّب setState في effect.
-function useProfileReadGate(online: boolean, customerId: string | null) {
-  const [blocked, setBlocked] = useState(false);
+function useProfileReadGate(online: boolean | null, customerId: string | null) {
+  // اختيار ظهر وهو offline لازم يفضل محجوب لحد Retry؛ hydration مجهولة ما تحجبش دائماً.
+  const [blocked, setBlocked] = useState(online === false);
   const [previousCustomer, setPreviousCustomer] = useState(customerId);
   const [previousOnline, setPreviousOnline] = useState(online);
   if (previousCustomer !== customerId) {
     setPreviousCustomer(customerId);
-    setBlocked(false);
+    setBlocked(online === false);
   }
   if (previousOnline !== online) {
     setPreviousOnline(online);
-    if (!online) setBlocked(true);
+    if (online === false) setBlocked(true);
   }
-  return { canRead: online && !blocked, blocked, unblock: () => setBlocked(false) };
+  return { canRead: online === true && !blocked, blocked, unblock: () => setBlocked(false) };
 }
 
 export function SessionCustomerProfileCard({ locale, online = true, ...entry }: SessionCustomerProfileCardProps) {
@@ -70,7 +55,7 @@ export function SessionCustomerProfileCard({ locale, online = true, ...entry }: 
     return (
       <div role="alert" className="flex flex-col gap-2">
         <p>{t(locale, 'serviceSessions.profileLoadFailed')}</p>
-        <Button type="button" disabled={!online} onClick={retry}>
+        <Button type="button" disabled={online !== true} onClick={retry}>
           {t(locale, 'serviceSessions.profileRetry')}
         </Button>
       </div>
@@ -83,7 +68,7 @@ export function SessionCustomerProfileCard({ locale, online = true, ...entry }: 
           {t(locale, canRead ? 'serviceSessions.profileLoading' : 'serviceSessions.profileOffline')}
         </p>
         {canRead ? null : (
-          <Button type="button" disabled={!online} onClick={retry}>
+          <Button type="button" disabled={online !== true} onClick={retry}>
             {t(locale, 'serviceSessions.profileRetry')}
           </Button>
         )}
@@ -97,11 +82,11 @@ export function SessionCustomerProfileCard({ locale, online = true, ...entry }: 
       : t(locale, profile.gender === 'female' ? 'serviceSessions.genderFemale' : 'serviceSessions.genderMale');
   return (
     <section aria-label={t(locale, 'serviceSessions.profileCard')} className="flex flex-col gap-1">
-      <Field label={t(locale, 'serviceSessions.name')} value={profile.name} empty={empty} />
-      <Field label={t(locale, 'serviceSessions.phone')} value={profile.phone} empty={empty} ltr />
-      <Field label={t(locale, 'serviceSessions.gender')} value={gender} empty={empty} />
-      <Field label={t(locale, 'serviceSessions.birthday')} value={birthday} empty={empty} />
-      <Field label={t(locale, 'serviceSessions.email')} value={profile.email} empty={empty} />
+      <ProfileField label={t(locale, 'serviceSessions.name')} value={profile.name} empty={empty} />
+      <ProfileField label={t(locale, 'serviceSessions.phone')} value={profile.phone} empty={empty} ltr />
+      <ProfileField label={t(locale, 'serviceSessions.gender')} value={gender} empty={empty} />
+      <ProfileField label={t(locale, 'serviceSessions.birthday')} value={birthday} empty={empty} />
+      <ProfileField label={t(locale, 'serviceSessions.email')} value={profile.email} empty={empty} />
       {profile.notes.length === 0 ? (
         <p>{t(locale, 'serviceSessions.profileNoNotes')}</p>
       ) : (

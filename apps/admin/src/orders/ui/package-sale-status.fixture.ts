@@ -238,7 +238,7 @@ export function renderPackageSaleForm() {
 }
 
 export async function choosePackageSaleCustomer(state: PackageSaleFormTestState) {
-  const findOrCreate = screen.getByRole('button', {
+  const findOrCreate = await screen.findByRole('button', {
     name: t(state.locale, 'serviceSessions.findOrCreate'),
   });
   await waitFor(() => expect(findOrCreate.closest('fieldset')).toHaveProperty('disabled', false));
@@ -252,7 +252,7 @@ export async function choosePackageSaleCustomer(state: PackageSaleFormTestState)
     });
   }
   fireEvent.click(findOrCreate);
-  await screen.findByText(packageSaleCustomer.name);
+  await screen.findAllByText(packageSaleCustomer.name);
 }
 
 export async function choosePackageSaleTypeAndSeller(state: PackageSaleFormTestState) {

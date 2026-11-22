@@ -6,9 +6,13 @@ import { SessionCustomerProfileCard } from './session-customer-profile-card';
 
 const state = vi.hoisted(() => ({
   query: { data: undefined as unknown, isError: false, refetch: vi.fn() },
+  canRead: null as boolean | null,
 }));
 vi.mock('../api/use-session-customer-profile', () => ({
-  useSessionCustomerProfile: () => state.query,
+  useSessionCustomerProfile: (_entry: unknown, canRead: boolean) => {
+    state.canRead = canRead;
+    return state.query;
+  },
 }));
 
 const id = '01920000-0000-7000-8000-0000000000b1';
@@ -88,6 +92,25 @@ it('offers a retry on a failed read without a placeholder of earlier data', () =
   expect(screen.queryByText('First synthetic note')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: t('ar', 'serviceSessions.profileRetry') }));
   expect(refetch).toHaveBeenCalledTimes(1);
+});
+
+it('blocks a card first seen offline until Retry, and does not auto-read on reconnect', () => {
+  state.query = { data: undefined, isError: false, refetch: vi.fn() };
+  const view = render(<SessionCustomerProfileCard {...entry} locale="en" online={false} />);
+  expect(state.canRead).toBe(false);
+  view.rerender(<SessionCustomerProfileCard {...entry} locale="en" online={true} />);
+  expect(state.canRead).toBe(false);
+  expect(state.query.refetch).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: t('en', 'serviceSessions.profileRetry') }));
+  expect(state.canRead).toBe(true);
+});
+
+it('does not permanently block an unknown hydration state', () => {
+  state.query = { data: undefined, isError: false, refetch: vi.fn() };
+  const view = render(<SessionCustomerProfileCard {...entry} locale="en" online={null} />);
+  expect(state.canRead).toBe(false);
+  view.rerender(<SessionCustomerProfileCard {...entry} locale="en" online={true} />);
+  expect(state.canRead).toBe(true);
 });
 
 it('shows a loading state until the selected profile arrives', () => {

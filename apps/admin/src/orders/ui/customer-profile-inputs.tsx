@@ -1,8 +1,7 @@
 'use client';
 import { findOrCreateScopedCustomerInput } from '@pospay/contracts';
 import { isValidCustomerBirthdayCalendar } from '@pospay/domain';
-import { t, type Locale } from '@pospay/i18n';
-import { Input, Label } from '@pospay/ui';
+import { type Locale } from '@pospay/i18n';
 import { useId } from 'react';
 import type { FieldErrors, Resolver, UseFormReturn } from 'react-hook-form';
 
@@ -10,6 +9,10 @@ import type {
   SessionCustomerEntryScope,
   SessionCustomerFormValues,
 } from '../api/use-session-customer';
+import { changed } from './customer-profile-controls';
+import { BirthdayFields } from './customer-profile-birthday';
+import { ContactFields } from './customer-profile-contact';
+import { GenderChoice } from './customer-profile-gender';
 
 const shape = findOrCreateScopedCustomerInput.shape;
 
@@ -37,10 +40,6 @@ function omitted(value: unknown): boolean {
   return value === null || value === '' || value === undefined;
 }
 
-/**
- * النموذج بيستخدم عقود @pospay/contracts كما هي: مفيش نسخة تانية من قواعد البريد والملاحظة،
- * واليوم والشهر لازم مع بعض والسنة اختيارية من غير ما نخترع 2000. رسائل الحقول من غير بيانات مدخلة.
- */
 type BirthdayValue = NonNullable<SessionCustomerFormValues['birthday']>;
 
 function resolveBirthday(raw: unknown): { value?: BirthdayValue; invalid: boolean } {
@@ -67,6 +66,10 @@ function resolveBirthday(raw: unknown): { value?: BirthdayValue; invalid: boolea
   return { value: { day, month, ...(year === undefined ? {} : { year }) }, invalid: false };
 }
 
+/**
+ * النموذج بيستخدم عقود @pospay/contracts كما هي: مفيش نسخة تانية من قواعد البريد والملاحظة،
+ * واليوم والشهر لازم مع بعض والسنة اختيارية من غير ما نخترع 2000. رسائل الحقول من غير بيانات مدخلة.
+ */
 export const sessionCustomerResolver: Resolver<SessionCustomerFormValues> = async (values) => {
   const errors: FieldErrors<SessionCustomerFormValues> = {};
   if (!shape.name.safeParse(values.name).success) errors.name = { ...issue };
@@ -112,113 +115,6 @@ type CustomerProfileInputsProps = {
   invalidate: () => void;
 };
 
-type Registration = ReturnType<UseFormReturn<SessionCustomerFormValues>['register']>;
-
-function changed(
-  registration: Registration,
-  invalidate: () => void,
-  revalidate?: () => void,
-): Registration {
-  return {
-    ...registration,
-    onChange: (...args: Parameters<Registration['onChange']>) => {
-      const submitted = registration.onChange(...args);
-      invalidate();
-      if (revalidate !== undefined) void Promise.resolve(submitted).then(revalidate);
-      return submitted;
-    },
-  };
-}
-
-type FieldProps = {
-  id: string;
-  locale: Locale;
-  describedBy: string | undefined;
-};
-
-function GenderChoice({
-  id,
-  locale,
-  describedBy,
-  registration,
-  invalid,
-}: FieldProps & { registration: Registration; invalid: boolean }) {
-  return (
-    <>
-      <div role="radiogroup" aria-label={t(locale, 'serviceSessions.gender')} className="flex flex-wrap gap-4">
-        {(['female', 'male'] as const).map((value) => (
-          <span key={value} className="flex items-center gap-1">
-            <input
-              type="radio"
-              id={`${id}-gender-${value}`}
-              value={value}
-              aria-invalid={invalid}
-              aria-describedby={describedBy}
-              {...registration}
-            />
-            <Label htmlFor={`${id}-gender-${value}`}>
-              {t(locale, value === 'female' ? 'serviceSessions.genderFemale' : 'serviceSessions.genderMale')}
-            </Label>
-          </span>
-        ))}
-      </div>
-      <p className="text-xs opacity-80">{t(locale, 'serviceSessions.genderRequiredForNew')}</p>
-    </>
-  );
-}
-
-function BirthdayFields({
-  id,
-  locale,
-  describedBy,
-  invalid,
-  day,
-  month,
-  year,
-}: FieldProps & { day: Registration; month: Registration; year: Registration; invalid: boolean }) {
-  return (
-    <>
-      <Label htmlFor={`${id}-day`}>{t(locale, 'serviceSessions.birthday')}</Label>
-      <div className="flex gap-2">
-        <Input id={`${id}-day`} inputMode="numeric" autoComplete="off" aria-label={t(locale, 'serviceSessions.birthdayDay')} aria-invalid={invalid} aria-describedby={describedBy} {...day} />
-        <Input id={`${id}-month`} inputMode="numeric" autoComplete="off" aria-label={t(locale, 'serviceSessions.birthdayMonth')} aria-invalid={invalid} aria-describedby={describedBy} {...month} />
-        <Input id={`${id}-year`} inputMode="numeric" autoComplete="off" aria-label={t(locale, 'serviceSessions.birthdayYear')} aria-invalid={invalid} aria-describedby={describedBy} {...year} />
-      </div>
-    </>
-  );
-}
-
-function ContactFields({
-  id,
-  locale,
-  describedBy,
-  email,
-  note,
-  emailInvalid,
-  noteInvalid,
-  scoped,
-}: FieldProps & {
-  email: Registration;
-  note: Registration;
-  emailInvalid: boolean;
-  noteInvalid: boolean;
-  scoped: boolean;
-}) {
-  return (
-    <>
-      <Label htmlFor={`${id}-email`}>{t(locale, 'serviceSessions.email')}</Label>
-      <Input id={`${id}-email`} type="email" autoComplete="off" dir="ltr" aria-invalid={emailInvalid} aria-describedby={describedBy} {...email} />
-      {!scoped ? null : (
-        <>
-          <Label htmlFor={`${id}-note`}>{t(locale, 'serviceSessions.note')}</Label>
-          <textarea id={`${id}-note`} rows={3} aria-invalid={noteInvalid} aria-describedby={describedBy} className="min-h-20 w-full rounded-md border bg-transparent p-2" {...note} />
-          <p className="text-xs opacity-80">{t(locale, 'serviceSessions.notePrivacy')}</p>
-        </>
-      )}
-    </>
-  );
-}
-
 export function CustomerProfileInputs({
   prefix,
   locale,
@@ -230,7 +126,6 @@ export function CustomerProfileInputs({
   const generated = useId();
   const id = `${prefix}-${generated}`;
   // خطأ التقويم بيشمل المجموعة؛ بعد أول محاولة، تصحيح خانة يمسح أخطاء باقي الخانات.
-  // قبل أول محاولة مفيش تحقق عشان ما تظهرش أخطاء والمستخدم لسه بيكتب تاريخ صحيح.
   const revalidateBirthday = () => {
     if (!form.formState.isSubmitted) return;
     void form.trigger(['birthday.day', 'birthday.month', 'birthday.year']);
@@ -256,6 +151,10 @@ export function CustomerProfileInputs({
         emailInvalid={!!form.formState.errors.email}
         noteInvalid={!!form.formState.errors.note}
         scoped={entryScope !== 'company'}
+        setEmailValue={(value) => {
+          form.setValue('email', value, { shouldValidate: true, shouldDirty: true });
+          invalidate();
+        }}
       />
     </>
   );

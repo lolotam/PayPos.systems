@@ -1,9 +1,9 @@
 import { useEffect } from 'react';
 import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Controller, useForm } from 'react-hook-form';
-import { expect, it, vi } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 
 import { SessionCustomerField, type SessionCustomerSelection } from './session-customer-field';
 
@@ -19,6 +19,11 @@ const saved = {
   opted_out: false,
   phone: '***001',
 };
+let online = true;
+beforeEach(() => {
+  online = true;
+  Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => online });
+});
 
 function Harness({
   externalValue,
@@ -158,6 +163,57 @@ it('clears every profile control when the scope changes', () => {
   expect((screen.getByLabelText(t('en', 'serviceSessions.birthdayDay')) as HTMLInputElement).value).toBe('');
   expect((screen.getByLabelText(t('en', 'serviceSessions.email')) as HTMLInputElement).value).toBe('');
   expect((screen.getByLabelText(t('en', 'serviceSessions.note')) as HTMLInputElement).value).toBe('');
+});
+
+it('sends no POST from an offline press or reconnect until a fresh press', async () => {
+  state.post.mockClear();
+  state.locale = 'en';
+  online = false;
+  state.post.mockResolvedValue({ data: saved });
+  scopedMount();
+  fill();
+  const button = () => screen.getByRole('button', { name: t('en', 'serviceSessions.findOrCreate') }) as HTMLButtonElement;
+  await waitFor(() => expect(button().disabled).toBe(true));
+  fireEvent.click(button());
+  online = true;
+  fireEvent(window, new Event('online'));
+  await waitFor(() => expect(button().disabled).toBe(false));
+  expect(state.post).not.toHaveBeenCalled();
+  fireEvent.click(button());
+  await waitFor(() => expect(state.post).toHaveBeenCalledTimes(1));
+});
+
+it('keeps a partial paste and validates the full raw value when CR/LF would be stripped', async () => {
+  state.post.mockClear();
+  state.locale = 'en';
+  state.post.mockResolvedValue({ data: saved });
+  scopedMount();
+  fill();
+  const email = screen.getByLabelText(t('en', 'serviceSessions.email'));
+  fireEvent.change(email, { target: { value: 'a' } });
+  // لصق جزئي من غير CR/LF ما يتقاطعش مع المتصفح.
+  expect(fireEvent.paste(email, { clipboardData: { getData: () => '@b.test' } })).toBe(true);
+  // CR/LF يوصل للعقد بدل ما المتصفح يقصّه، فيظهر خطأ البريد ويمنع الإرسال.
+  expect(fireEvent.paste(email, { clipboardData: { getData: () => 'c\r\nd' } })).toBe(false);
+  await waitFor(() => expect(screen.getByText(t('en', 'serviceSessions.invalidProfileFields'))).toBeTruthy());
+  fireEvent.click(screen.getByRole('radio', { name: t('en', 'serviceSessions.genderFemale') }));
+  resolve();
+  expect(state.post).not.toHaveBeenCalled();
+});
+
+it('refuses raw control characters in email without writing', async () => {
+  state.post.mockClear();
+  state.locale = 'en';
+  state.post.mockResolvedValue({ data: saved });
+  scopedMount();
+  fill();
+  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.email')), {
+    target: { value: 'a\tb@c.test' },
+  });
+  fireEvent.click(screen.getByRole('radio', { name: t('en', 'serviceSessions.genderFemale') }));
+  resolve();
+  expect(await screen.findByText(t('en', 'serviceSessions.invalidProfileFields'))).toBeTruthy();
+  expect(state.post).not.toHaveBeenCalled();
 });
 
 it('guides the next attempt when validation fails with no gender without claiming the phone is new', async () => {
