@@ -92,17 +92,28 @@ it('scans the scoped unique index for category matching and the business index f
        AND lower(btrim(regexp_replace(s.name_en, '[[:space:]]+', ' ', 'g'))) = i.lookup_key`;
     const nameText = JSON.stringify(namePlan?.[0] ?? namePlan);
     expect(nameText).toContain('services_company_business_id_key');
-    // استعلام الصفحات نفسه (صفوف JSONB) يجب أن يمشي على المفتاح (company_id, id) — خطة التنفيذ إلزامية.
-    const rowsPlan = await h.owner`EXPLAIN ANALYZE SELECT rows
-      FROM import_previews
-      WHERE company_id=${company}
-        AND business_id=${business}
-        AND created_by=${userId}
-        AND id=${seeded} AND entity='services'`;
-    const rowsText = (rowsPlan as unknown as { 'QUERY PLAN': string }[])
-      .map((row) => row['QUERY PLAN'])
-      .join('\n');
-    expect(rowsText).toMatch(/import_previews_pkey/);
+    // استعلام الصفحات الإنتاجي نفسه (توسيع JSONB والترتيب والصفحة داخل SQL) يجب أن يمشي
+    // على المفتاح (company_id, id) — الخطة إلزامية على شكل الاستعلام الحقيقي لا على تقليده.
+    const rowsPlan = await h.owner`EXPLAIN (FORMAT JSON)
+      WITH preview AS (
+        SELECT rows FROM import_previews
+        WHERE company_id=${company} AND business_id=${business}
+          AND created_by=${userId} AND id=${seeded} AND entity='services'
+      ),
+      page_rows AS (
+        SELECT (r.value->>'row')::int AS row_no, r.value AS data
+        FROM preview p, jsonb_array_elements(p.rows) AS r(value)
+        WHERE (r.value->>'row')::int > 1
+        ORDER BY 1
+        LIMIT 21
+      )
+      SELECT
+        (SELECT EXISTS (SELECT 1 FROM preview)) AS found,
+        (SELECT COALESCE(jsonb_agg(data ORDER BY row_no), '[]'::jsonb) FROM (SELECT row_no, data FROM page_rows ORDER BY row_no LIMIT 20) t) AS items,
+        (SELECT max(row_no) FROM (SELECT row_no FROM page_rows ORDER BY row_no LIMIT 20) t) AS last_row_no,
+        EXISTS (SELECT 1 FROM page_rows OFFSET 20) AS has_more`;
+    const rowsText = JSON.stringify((rowsPlan as unknown as { 'QUERY PLAN': unknown }[])?.[0] ?? rowsPlan);
+    expect(rowsText).toContain('import_previews_pkey');
     const previewPlan = await h.owner`EXPLAIN ANALYZE SELECT id AS preview_id,status,created_count,error_code
       FROM import_previews
       WHERE company_id=${company}

@@ -33,6 +33,8 @@ export function validateServiceImportFile(
   businessId: string,
   userId: string,
 ): string {
+  // مطابقة المعرفات بأحرف صغيرة: الـguard يقبل UUID بأي حالة والقاعدة تخزنها صغيرة،
+  // فطلب بأحرف مختلطة يطابق الملكية فعلاً ولا يُرفض 404 خطأً (P2 مراجعة 1186).
   if (
     facts === null ||
     facts.purged ||
@@ -40,8 +42,8 @@ export function validateServiceImportFile(
     facts.purge_started ||
     // غرض الرفع: ملفات رفعها workflow آخر لا تصل لقارئ الكتالوج حتى لو طابقت المالك والنوع (P2 مراجعة 1186).
     facts.owner_module !== SERVICE_IMPORT_OWNER_MODULE ||
-    facts.business_id !== businessId ||
-    facts.created_by !== userId
+    facts.business_id.toLowerCase() !== businessId.toLowerCase() ||
+    facts.created_by.toLowerCase() !== userId.toLowerCase()
   )
     throw new ServiceImportError('IMPORT_FILE_NOT_FOUND');
   if (facts.status !== 'READY') throw new ServiceImportError('IMPORT_FILE_NOT_READY');

@@ -73,8 +73,8 @@ function resolveCategoryMatches(
 
 /** القراءة الحاسمة للأسماء داخل النشاط، المفتوحة والمقفولة معاً — الطرفان يُطويان بتعبير PostgreSQL
  * واحد (طيّ المسافات والتشذيب والحروف الصغيرة)، والتكرار داخل الملف حساب نافذة على المدخل نفسه،
- * فقرار التكرار والوجود كله من قاعدة البيانات بلا مفتاح جافاسكربت يعارضها (FR-007، HIGH مراجعة 1186)؛
- * فرق Unicode المتبقى موثّق في متجهات A-11. */
+ * والوجود انضمام نصف واحد على المفاتيح المُفرَّدة فمسح واحد لخدمات النشاط مهما كان عدد الصفوف
+ * (FR-007، HIGH مراجعة 1186)؛ فرق Unicode المتبقى موثّق في متجهات A-11. */
 async function matchServiceNames(
   tx: Tx,
   companyId: string,
@@ -92,16 +92,18 @@ async function matchServiceNames(
       SELECT ord, lookup_key,
         count(*) OVER (PARTITION BY lookup_key) > 1 AS duplicate_in_file
       FROM input
-    )
-    SELECT f.duplicate_in_file, (s.name_en IS NOT NULL) AS exists_stored
-    FROM folded f
-    LEFT JOIN LATERAL (
-      SELECT 1 AS name_en FROM services s
+    ),
+    stored AS (
+      SELECT DISTINCT lower(btrim(regexp_replace(s.name_en, '[[:space:]]+', ' ', 'g'))) AS lookup_key
+      FROM services s
+      JOIN (SELECT DISTINCT lookup_key FROM input) k
+        ON lower(btrim(regexp_replace(s.name_en, '[[:space:]]+', ' ', 'g'))) = k.lookup_key
       WHERE s.company_id = ${companyId}
        AND s.business_id = ${businessId}
-       AND lower(btrim(regexp_replace(s.name_en, '[[:space:]]+', ' ', 'g'))) = f.lookup_key
-      LIMIT 1
-    ) s ON TRUE
+    )
+    SELECT f.duplicate_in_file, (s.lookup_key IS NOT NULL) AS exists_stored
+    FROM folded f
+    LEFT JOIN stored s ON s.lookup_key = f.lookup_key
     ORDER BY f.ord`);
   return rows.map((row) => ({
     duplicate_in_file: row.duplicate_in_file,

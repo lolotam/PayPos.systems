@@ -1,14 +1,15 @@
-import type { IdGenerator } from '@pospay/db';
+/**
+ * مولّد معرفات UUID v7 واجهة محلية صغرى: التركيب يمدّ المولّد الحالي بنيوياً (نمط
+ * منفذ files للعامل)، فلا يعتمد منفذ التطبيق على حزمة قاعدة البيانات إطلاقاً.
+ */
+export interface IdGenerator {
+  /** ينتج معرفاً جديداً بترقيم UUID v7 مرتّب زمنياً. */
+  newId(): string;
+}
 import type {
   ImportedServiceRecord,
   ServiceImportNormalizedRow,
 } from '../domain/service-import-commit.ts';
-
-/**
- * مولّد المعرفات يُحقن من التركيب؛ نوعه يستورد في المنفذ (نفس سابقة منافذ staff/commissions)
- * فلا تستورد حالة الاستخدام حزمة قاعدة البيانات مباشرة (مصفوفة الطبقات).
- */
-export type { IdGenerator };
 
 /** المعاينة المقفولة كما يقرأها العامل داخل معاملة الالتزام، بلا صفوف لو الحالة ليست طلباً حياً. */
 export interface ServiceImportCommitPreview {

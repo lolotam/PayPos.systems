@@ -35,8 +35,14 @@ function commitHandler(useCase: CommitServiceImport) {
     const parsed = serviceImportCommitJob.safeParse(job.data);
     if (!parsed.success) throw new Error('SERVICE_IMPORT_JOB_INVALID');
     const { companyId, previewId } = parsed.data;
+    // استنفاد الميزانية يعني أن كل محاولات التشغيل الحقيقية فشلت: أي تفعيل بعدها — تأخيرنا
+    // أو stall أثناء الإنهاء مع ضياع المؤشر — ينهي الطلب فقط ولا يُعيد تشغيل الاستيراد
+    // محاولة خامسة خارج الميزانية الموثّقة (FR-009، مراجعة 1186).
+    const budgetExhausted = job.attemptsMade >= (job.opts.attempts ?? 1);
     // محاولة بعد التأخير الذي أجّلناه لكتابة الفشل: نُكمل الإنهاء بلا إعادة تشغيل الاستيراد.
-    if (job.progress !== null && typeof job.progress === 'object' && 'stage' in job.progress)
+    const finalizing =
+      job.progress !== null && typeof job.progress === 'object' && 'stage' in job.progress;
+    if (finalizing || budgetExhausted)
       return persistFailure(useCase, job, token, companyId, previewId);
     try {
       await useCase.execute(companyId, previewId);

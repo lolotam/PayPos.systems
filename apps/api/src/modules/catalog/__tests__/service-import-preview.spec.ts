@@ -233,7 +233,28 @@ it('pages the clean rows by original row numbers and closes with a null cursor',
   }
 });
 
-it('answers unknown, foreign-business and foreign-entity previews with the same refusal', async () => {
+// SI-08 مع الاستثناء الموثّق: الرفض قبل أي كتابة حالة؛ تدقيق الوصول وحده يُثبَّت لأن القراءة وقعت فعلاً (CLAUDE.md §8).
+it('refuses a 501-row workbook before any state write, keeping only the access audit', async () => {
+  const f = await serviceImportFixture();
+  try {
+    // صف بيانات رقم 501: الحد 500 صف بيانات، فالرفض قبل أي كتابة حالة (SI-08 مع الاستثناء الموثّق).
+    const filler = Array.from({ length: 501 }, (_: unknown, index: number) => [`Row ${index + 1}`, null, 1, null, null, null, null, null]);
+    const fileId = await f.upload(await serviceWorkbook(filler));
+    await expect(f.preview.execute(previewCommand(f, fileId))).rejects.toMatchObject({
+      code: 'IMPORT_ROW_LIMIT_EXCEEDED',
+    });
+    const previews =
+      await f.h.owner`SELECT id FROM import_previews WHERE company_id=${f.company} AND file_id=${fileId}`;
+    expect(previews).toHaveLength(0);
+    const audits =
+      await f.h.owner`SELECT action FROM audit_log WHERE company_id=${f.company} AND entity='file' AND entity_id=${fileId} AND action='access'`;
+    expect(audits).toHaveLength(1);
+  } finally {
+    await f.close();
+  }
+});
+
+it('answers unknown, foreign-business, foreign-entity and foreign-creator previews identically', async () => {
   const f = await serviceImportFixture();
   try {
     const fileId = await f.upload(await serviceWorkbook([['A', null, 1, null, null, null, null, null]]));
@@ -244,10 +265,30 @@ it('answers unknown, foreign-business and foreign-entity previews with the same 
       created_count: 0,
       error_code: null,
     });
+    // معرّف عشوائي غير موجود: نفس الرفض على مساري القراءة.
+    const unknown = f.ids.newId();
+    await expect(f.status(f.business, unknown)).rejects.toMatchObject({
+      code: 'IMPORT_PREVIEW_NOT_FOUND',
+    });
+    await expect(f.rows(f.business, unknown)).rejects.toMatchObject({
+      code: 'IMPORT_PREVIEW_NOT_FOUND',
+    });
     await expect(f.status(f.secondBusiness, preview.preview_id)).rejects.toMatchObject({
       code: 'IMPORT_PREVIEW_NOT_FOUND',
     });
     await expect(f.rows(f.secondBusiness, preview.preview_id)).rejects.toMatchObject({
+      code: 'IMPORT_PREVIEW_NOT_FOUND',
+    });
+    // كيان أجنبي (employees) داخل نفس النشاط والشركة: نفس الرفض.
+    const foreignEntity = f.ids.newId();
+    await f.h.owner`INSERT INTO import_previews
+      (company_id,id,business_id,entity,file_id,created_by,created_at,expires_at,row_count,error_count,rows,errors,status)
+      VALUES (${f.company},${foreignEntity},${f.business},'employees',${fileId},${f.userId},now(),
+        now() + interval '24 hours',1,0,'[]'::jsonb,'[]'::jsonb,'ready')`;
+    await expect(f.status(f.business, foreignEntity)).rejects.toMatchObject({
+      code: 'IMPORT_PREVIEW_NOT_FOUND',
+    });
+    await expect(f.rows(f.business, foreignEntity)).rejects.toMatchObject({
       code: 'IMPORT_PREVIEW_NOT_FOUND',
     });
     const fileId2 = await f.upload(await serviceWorkbook([['B', null, 1, null, null, null, null, null]]), {
@@ -256,6 +297,36 @@ it('answers unknown, foreign-business and foreign-entity previews with the same 
     const other = await f.preview.execute(previewCommand(f, fileId2, f.secondBusiness));
     await expect(f.status(f.secondBusiness, other.preview_id)).resolves.toMatchObject({
       preview_id: other.preview_id,
+    });
+  } finally {
+    await f.close();
+  }
+});
+
+it('hides a creator preview from another authorized manager in the same business', async () => {
+  const f = await serviceImportFixture();
+  try {
+    const fileId = await f.upload(await serviceWorkbook([['A', null, 1, null, null, null, null, null]]));
+    const preview = await f.preview.execute(previewCommand(f, fileId));
+    await f.h.signedInOperator('import-second-manager@example.test');
+    const [secondUser] =
+      await f.h.owner`SELECT id FROM "user" WHERE email='import-second-manager@example.test'`;
+    const secondUserId = secondUser?.['id'] as string;
+    const role = f.ids.newId();
+    await f.h.owner`INSERT INTO roles(id,company_id,code,name_en)
+      VALUES (${role},${f.company},'import_second_manager','Import second manager')`;
+    const secondMembership = f.ids.newId();
+    await f.h.owner`INSERT INTO memberships(company_id,id,user_id,role_id,role_owner_key,scope_type,scope_id)
+      VALUES (${f.company},${secondMembership},${secondUserId},${role},${f.company},'COMPANY',${f.company})`;
+    // المدير الثاني مخوّل بالصلاحية نفسها: الرفض إذن عزل منشئ لا حجب صلاحية (مراجعة 1186).
+    await f.h.owner`INSERT INTO permission_overrides
+      (company_id,id,membership_id,permission_code,effect,scope_type,scope_id,reason,granted_by)
+      VALUES (${f.company},${f.ids.newId()},${secondMembership},'manage:services:business','ALLOW','BUSINESS',${f.business},'creator isolation test',${f.userId})`;
+    await expect(f.statusFor(secondUserId, f.business, preview.preview_id)).rejects.toMatchObject({
+      code: 'IMPORT_PREVIEW_NOT_FOUND',
+    });
+    await expect(f.rowsFor(secondUserId, f.business, preview.preview_id)).rejects.toMatchObject({
+      code: 'IMPORT_PREVIEW_NOT_FOUND',
     });
   } finally {
     await f.close();

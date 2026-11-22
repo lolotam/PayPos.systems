@@ -16,6 +16,14 @@ it('previews a full 500-row workbook under the 200 ms warm median', async () => 
     await f.category('Hair', 'شعر');
     await f.category('Nails', 'أظافر');
     await f.service('Existing One');
+    // كتالوج قائم ممثِّل: 300 خدمة موجودة تجعل القراءة الحاسمة تمسح نشاطاً حقيقياً لا نشاطاً شبه فارغ.
+    const existing = Array.from({ length: 300 }, (_: unknown, index: number) =>
+      f.service(`Catalog Standing ${String(index + 1).padStart(3, '0')}`),
+    );
+    await Promise.all(existing);
+    // سيناريو الموازنة الموثّق (خطة 32b-2/32b-3): 500 صف كاملة على كتالوج قائم بـ300 خدمة.
+    // قياس مسجّل بأسماء 255 حرفاً (الحد الأقصى) على نفس الكتالوج: median 277.896ms على جهاز
+    // محمّل بعامل تشويش ×3 — قرار الموازنة مع الحد الأقصى للمالك (تشغيل 964ms تحته حملاً شديداً).
     const rows: ImportRow[] = Array.from({ length: 500 }, (_: unknown, index: number) => [
       `Imported Service ${String(index + 1).padStart(3, '0')}`,
       index % 2 === 0 ? `خدمة ${index + 1}` : null,

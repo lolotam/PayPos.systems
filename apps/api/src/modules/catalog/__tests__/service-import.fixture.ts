@@ -164,6 +164,26 @@ function dataHelpers(scope: FixtureScope) {
   };
 }
 
+/** مساعدات مسارات القراءة: حالة وصفوف معاينة لمنشئ محدد، لاختبارات العزل بين المنشئين. */
+function queryHelpers(scope: FixtureScope, db: ReturnType<typeof createDatabase>) {
+  return {
+    status: (businessId: string, previewId: string) =>
+      serviceImportStatusQuery(db, scope.company, scope.userId, businessId, previewId),
+    statusFor: (forUserId: string, businessId: string, previewId: string) =>
+      serviceImportStatusQuery(db, scope.company, forUserId, businessId, previewId),
+    rows: (businessId: string, previewId: string, cursor?: string, limit?: number) =>
+      serviceImportRowsPage(db, scope.company, scope.userId, businessId, previewId, cursor, limit ?? 20),
+    rowsFor: (
+      forUserId: string,
+      businessId: string,
+      previewId: string,
+      cursor?: string,
+      limit?: number,
+    ) =>
+      serviceImportRowsPage(db, scope.company, forUserId, businessId, previewId, cursor, limit ?? 20),
+  };
+}
+
 export async function serviceImportFixture() {
   const h = await startHarness();
   const ids = systemUuidV7();
@@ -184,6 +204,7 @@ export async function serviceImportFixture() {
   );
   const transactions = createServiceImportTransactions(db, files.fileFacts, ids);
   const helpers = dataHelpers(scope);
+  const queries = queryHelpers(scope, db);
   return {
     h,
     db,
@@ -210,10 +231,10 @@ export async function serviceImportFixture() {
         ids,
         { now: () => clock.value },
       ),
-    status: (businessId: string, previewId: string) =>
-      serviceImportStatusQuery(db, company, userId, businessId, previewId),
-    rows: (businessId: string, previewId: string, cursor?: string, limit?: number) =>
-      serviceImportRowsPage(db, company, userId, businessId, previewId, cursor, limit ?? 20),
+    status: queries.status,
+    statusFor: queries.statusFor,
+    rows: queries.rows,
+    rowsFor: queries.rowsFor,
     upload: uploadHelper(scope),
     category: helpers.category,
     service: helpers.service,
