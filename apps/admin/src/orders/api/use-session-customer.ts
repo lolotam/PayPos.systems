@@ -74,25 +74,28 @@ type CustomerEntry = {
   entryScope: SessionCustomerEntryScope;
 };
 
-async function postCustomer(entry: CustomerEntry, input: SessionCustomerFormValues) {
+async function postCustomer(
+  entry: CustomerEntry,
+  input: SessionCustomerFormValues,
+  signal: AbortSignal,
+) {
   const body = customerBody(input, entry.entryScope);
   const header = { 'x-company-id': entry.companyId };
   if (entry.entryScope === 'company') {
-    return apiClient().POST('/v1/customers/find-or-create', {
-      params: { header },
-      body,
-    });
+    return apiClient().POST('/v1/customers/find-or-create', { params: { header }, body, signal });
   }
   if (entry.entryScope === 'business') {
     if (entry.businessId === undefined) throw new Error('CUSTOMER_BUSINESS_REQUIRED');
     return apiClient().POST('/v1/businesses/{businessId}/customers/find-or-create', {
       params: { header, path: { businessId: entry.businessId } },
       body,
+      signal,
     });
   }
   return apiClient().POST('/v1/branches/{branchId}/customers/find-or-create', {
     params: { header, path: { branchId: entry.branchId } },
     body,
+    signal,
   });
 }
 
@@ -104,10 +107,15 @@ export function useSessionCustomer(
   businessId?: string,
 ) {
   const epoch = useRef(0);
+  const pending = useRef<AbortController | null>(null);
   useLayoutEffect(() => {
     epoch.current += 1;
+    pending.current?.abort();
+    pending.current = null;
     return () => {
       epoch.current += 1;
+      pending.current?.abort();
+      pending.current = null;
     };
   }, [companyId, branchId, userId, entryScope, businessId]);
   const mutation = useMutation({
@@ -115,13 +123,25 @@ export function useSessionCustomer(
     retry: false,
     gcTime: 0,
     mutationFn: async (input: SessionCustomerFormValues) => {
-      const result = await postCustomer({ companyId, branchId, businessId, entryScope }, input);
-      if (result.error) throw { ...result.error, status: result.response.status };
-      return customer.parse(result.data);
+      const controller = new AbortController();
+      pending.current = controller;
+      try {
+        const result = await postCustomer(
+          { companyId, branchId, businessId, entryScope },
+          input,
+          controller.signal,
+        );
+        if (result.error) throw { ...result.error, status: result.response.status };
+        return customer.parse(result.data);
+      } finally {
+        if (pending.current === controller) pending.current = null;
+      }
     },
   });
   const reset = useCallback(() => {
     epoch.current += 1;
+    pending.current?.abort();
+    pending.current = null;
     mutation.reset();
   }, [mutation.reset]);
   return {

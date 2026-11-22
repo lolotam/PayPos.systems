@@ -6,6 +6,7 @@ import { useId, useLayoutEffect, useRef, useState } from 'react';
 import { useForm, type UseFormReturn } from 'react-hook-form';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
+import { useBrowserConnectivity } from '../model/use-browser-connectivity';
 import {
   useSessionCustomer,
   type SessionCustomerEntryScope,
@@ -69,13 +70,13 @@ type SessionCustomerContactOptions = {
 };
 
 function customerEntry(name: string, locale: SessionCustomerLocale): SessionCustomerFormValues {
-  // كل حقل مسجّل له قيمة صريحة عشان reset يمسح اللي قبلها من DOM بدل ما يسيبه ظاهر.
+  // undefined بيخلي RHF يقرأ قيمة قديمة من DOM وقت إعادة التسجيل؛ null بيمسح الحقول فعلياً.
   return {
     name,
     phone: { calling_code: '', national_number: '' },
     locale,
-    gender: undefined,
-    birthday: undefined,
+    gender: null as unknown as SessionCustomerFormValues['gender'],
+    birthday: { day: '', month: '', year: '' } as unknown as SessionCustomerFormValues['birthday'],
     email: '',
     note: '',
   };
@@ -268,15 +269,16 @@ type SelectedCardProps = {
   locale: SessionCustomerLocale;
   packages: PackagesLinkScope | null;
   profile: Omit<SessionCustomerProfileEntry, 'customerId'>;
+  online: boolean;
 };
 
-function SelectedCustomerCard({ value, locale, packages, profile }: SelectedCardProps) {
+function SelectedCustomerCard({ value, locale, packages, profile, online }: SelectedCardProps) {
   return (
     <Card role="status" className="p-3">
       <p>{t(locale, 'serviceSessions.selected')}</p>
       <p>{value.name}</p>
       <bdi>{value.phone}</bdi>
-      <SessionCustomerProfileCard customerId={value.id} locale={locale} {...profile} />
+      <SessionCustomerProfileCard customerId={value.id} locale={locale} online={online} {...profile} />
       {/* رابط باقات العميلة يظهر بس لما النموذج يمرر نطاق النشاط والفرع، ويفتح في تبويب جديد
           مع تلميحات النطاق (ids بس) عشان الراووت يتحقق منها ضد خيارات الجلسة. */}
       {packages !== null ? (
@@ -315,7 +317,7 @@ function SessionCustomerFeedback({
     <>
       {invalid || profileInvalid ? (
         <p id={`${prefix}-error`} role="alert">
-          {t(locale, invalid ? 'serviceSessions.invalidCustomer' : 'serviceSessions.invalidProfileFields')}
+          {t(locale, profileInvalid ? 'serviceSessions.invalidProfileFields' : 'serviceSessions.invalidCustomer')}
         </p>
       ) : null}
       {genderHint && !hasValue ? (
@@ -348,6 +350,7 @@ function useSessionCustomerFieldState(props: SessionCustomerFieldProps) {
 
 export function SessionCustomerField(props: SessionCustomerFieldProps) {
   const { companyId, branchId, userId, businessId, onBlur, disabled = false, packagesScope = null, value, entryScope = 'branch' } = props;
+  const online = useBrowserConnectivity() ?? false;
   const { locale, prefix, genderHint, form, mutation, invalid, nameEntry, callingCode, nationalNumber, resolve, invalidate } =
     useSessionCustomerFieldState(props);
   return (
@@ -383,24 +386,19 @@ export function SessionCustomerField(props: SessionCustomerFieldProps) {
         prefix={prefix}
         locale={locale}
         invalid={invalid}
-        profileInvalid={
-          !!form.formState.errors.gender ||
-          !!form.formState.errors.birthday ||
-          !!form.formState.errors.email ||
-          !!form.formState.errors.note
-        }
+        profileInvalid={!!form.formState.errors.gender || !!form.formState.errors.birthday || !!form.formState.errors.email || !!form.formState.errors.note}
         genderHint={genderHint}
         hasValue={value !== null}
         mutation={mutation}
       />
       </fieldset>
-      {/* البطاقة للقراءة فقط؛ برّه fieldset التعريف عشان زر إعادة التحميل يشتغل بعد قفل الزيارة. */}
       {value === null ? null : (
         <SelectedCustomerCard
           value={value}
           locale={locale}
           packages={packagesScope}
           profile={{ companyId, branchId, businessId, userId, entryScope }}
+          online={online}
         />
       )}
     </>

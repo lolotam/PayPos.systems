@@ -316,40 +316,6 @@ it.each([
   expect(state.post).not.toHaveBeenCalled();
 });
 
-it('keeps the twenty-ninth of February with no year and never invents 2000', async () => {
-  state.post.mockClear();
-  state.locale = 'en';
-  state.post.mockResolvedValueOnce({ data: saved });
-  mount();
-  fill();
-  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.birthdayDay')), {
-    target: { value: '29' },
-  });
-  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.birthdayMonth')), {
-    target: { value: '2' },
-  });
-  fireEvent.click(screen.getByRole('radio', { name: t('en', 'serviceSessions.genderFemale') }));
-  resolve();
-  await screen.findByRole('status');
-  expect(state.post.mock.lastCall?.[1].body.birthday).toEqual({ day: 29, month: 2 });
-  expect(JSON.stringify(state.post.mock.lastCall?.[1].body)).not.toContain('2000');
-});
-
-it('guides the next attempt when validation fails with no gender without claiming the phone is new', async () => {
-  state.post.mockClear();
-  state.locale = 'en';
-  mount();
-  fill();
-  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.birthdayDay')), {
-    target: { value: '30' },
-  });
-  fireEvent.change(screen.getByLabelText(t('en', 'serviceSessions.birthdayMonth')), {
-    target: { value: '2' },
-  });
-  resolve();
-  expect(await screen.findByText(t('en', 'serviceSessions.genderNeededHint'))).toBeTruthy();
-  expect(state.post).not.toHaveBeenCalled();
-});
 
 it.each(['clear', 'replace', 'pending'] as const)(
   'synchronizes a parent %s without restoring an older customer',

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
 import { useSessionCustomer } from './use-session-customer';
 
@@ -25,6 +25,7 @@ it('uses the branch route by default with company header, validation and respons
   expect(post).toHaveBeenLastCalledWith('/v1/branches/{branchId}/customers/find-or-create', {
     params: { header: { 'x-company-id': 'company' }, path: { branchId: 'branch' } },
     body: { ...input, name: 'Synthetic customer' },
+    signal: expect.any(AbortSignal),
   });
   expect(client.getMutationCache().getAll().at(-1)?.options.mutationKey).toEqual([
     'session-customer',
@@ -58,6 +59,7 @@ it.each([
         ...(Object.keys(pathParams).length ? { path: pathParams } : {}),
       },
       body: { ...input, name: 'Synthetic customer' },
+      signal: expect.any(AbortSignal),
     });
   },
 );
@@ -103,6 +105,7 @@ it('sends one typed scoped body and omits blank optional controls and an unknown
       email: 'a@b.test',
       note: 'a first line\na second line',
     },
+    signal: expect.any(AbortSignal),
   });
 });
 
@@ -128,6 +131,21 @@ it('keeps blank and supplied-year controls out of the body and allows a genderle
   expect(body).not.toHaveProperty('gender');
   expect(body).not.toHaveProperty('email');
   expect(body).not.toHaveProperty('note');
+});
+
+it('aborts an in-flight request when the entry is reset', async () => {
+  post.mockClear();
+  let captured: AbortSignal | undefined;
+  post.mockImplementationOnce((_path, init) => {
+    captured = init.signal as AbortSignal;
+    return new Promise(() => undefined);
+  });
+  const hook = renderHook(() => useSessionCustomer('company', 'branch', 'actor'), { wrapper });
+  const pending = hook.result.current.mutateAsync(input);
+  await waitFor(() => expect(captured).toBeDefined());
+  hook.result.current.reset();
+  expect(captured?.aborted).toBe(true);
+  void pending.catch(() => undefined);
 });
 
 it('refuses a company note before HTTP instead of dropping it', async () => {

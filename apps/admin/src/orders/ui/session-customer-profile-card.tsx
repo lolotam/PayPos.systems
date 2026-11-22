@@ -8,7 +8,10 @@ import {
   type SessionCustomerProfileEntry,
 } from '../api/use-session-customer-profile';
 
-type SessionCustomerProfileCardProps = SessionCustomerProfileEntry & { locale: Locale };
+type SessionCustomerProfileCardProps = SessionCustomerProfileEntry & {
+  locale: Locale;
+  online?: boolean;
+};
 
 function birthdayText(birthday: CustomerProfile['birthday']): string | null {
   if (birthday === null) return null;
@@ -38,13 +41,13 @@ function Field({
   );
 }
 
-export function SessionCustomerProfileCard({ locale, ...entry }: SessionCustomerProfileCardProps) {
+export function SessionCustomerProfileCard({ locale, online = true, ...entry }: SessionCustomerProfileCardProps) {
   const query = useSessionCustomerProfile(entry);
   if (query.isError)
     return (
       <div role="alert" className="flex flex-col gap-2">
         <p>{t(locale, 'serviceSessions.profileLoadFailed')}</p>
-        <Button type="button" onClick={() => void query.refetch()}>
+        <Button type="button" disabled={!online} onClick={() => void query.refetch()}>
           {t(locale, 'serviceSessions.profileRetry')}
         </Button>
       </div>

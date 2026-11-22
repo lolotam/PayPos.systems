@@ -19,7 +19,13 @@ type NumericField = { readonly state: 'empty' } | { readonly state: 'invalid' } 
 // فاضي معناه مفيش قيمة، وغير صالح معناه إن المستخدم كتب حاجة لازم ترفضها بدل ما تضيع صامتة.
 function numericField(value: unknown): NumericField {
   if (value === '' || value === null || value === undefined) return { state: 'empty' };
-  const text = String(value).trim();
+  // لوحة المفاتيح العربية بتكتب أرقام عربية-هندية؛ نوحّدها قبل الفحص عشان ما نرفضش تاريخ صحيح.
+  const text = String(value)
+    .trim()
+    .replace(/[\u0660-\u0669\u06f0-\u06f9]/g, (digit) => {
+      const point = digit.codePointAt(0) ?? 0;
+      return String(point - (point <= 0x0669 ? 0x0660 : 0x06f0));
+    });
   if (!/^\d+$/.test(text)) return { state: 'invalid' };
   const parsed = Number(text);
   return Number.isInteger(parsed) ? { state: 'value', value: parsed } : { state: 'invalid' };
@@ -122,12 +128,17 @@ type CustomerProfileInputsProps = {
 
 type Registration = ReturnType<UseFormReturn<SessionCustomerFormValues>['register']>;
 
-function changed(registration: Registration, invalidate: () => void): Registration {
+function changed(
+  registration: Registration,
+  invalidate: () => void,
+  revalidate?: () => void,
+): Registration {
   return {
     ...registration,
     onChange: (...args: Parameters<Registration['onChange']>) => {
       const submitted = registration.onChange(...args);
       invalidate();
+      if (revalidate !== undefined) void Promise.resolve(submitted).then(revalidate);
       return submitted;
     },
   };
@@ -232,6 +243,10 @@ export function CustomerProfileInputs({
 }: CustomerProfileInputsProps) {
   const generated = useId();
   const id = `${prefix}-${generated}`;
+  // خطأ التقويم بيشمل المجموعة؛ تصحيح خانة واحدة لازم يمسح أخطاء باقي الخانات فوراً.
+  const revalidateBirthday = () => {
+    void form.trigger(['birthday.day', 'birthday.month', 'birthday.year']);
+  };
   return (
     <>
       <GenderChoice id={id} locale={locale} describedBy={describedBy} registration={changed(form.register('gender'), invalidate)} invalid={!!form.formState.errors.gender} />
@@ -240,9 +255,9 @@ export function CustomerProfileInputs({
         locale={locale}
         describedBy={describedBy}
         invalid={!!form.formState.errors.birthday}
-        day={changed(form.register('birthday.day'), invalidate)}
-        month={changed(form.register('birthday.month'), invalidate)}
-        year={changed(form.register('birthday.year'), invalidate)}
+        day={changed(form.register('birthday.day'), invalidate, revalidateBirthday)}
+        month={changed(form.register('birthday.month'), invalidate, revalidateBirthday)}
+        year={changed(form.register('birthday.year'), invalidate, revalidateBirthday)}
       />
       <ContactFields
         id={id}
