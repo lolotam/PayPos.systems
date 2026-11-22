@@ -99,7 +99,8 @@ totals) and the `Tx` port finding. Dispositions:
    her scope prices, keeps the full-month accumulator and never sees the cause of a failure she
    cannot see. A failure on a visible source still refuses the month with a null total (D-57), and
    the worker's atomic no-partial contract is untouched.
-4. **A sale is priced independently of the service-tier salary.** The engine selects the plan version
+4. **Superseded by D-57 in the round-2 correction below; the text is kept as history.** A sale is
+   priced independently of the service-tier salary. The engine selects the plan version
    for a sale without resolving the salary-based service tiers (D-51: the package sale is independent
    of the accumulator; the sale rule is a percentage or a fixed amount of the price). A sale-only
    month with a salary-multiple plan and no salary now prices the sale (or pays zero when the package
@@ -146,3 +147,40 @@ totals) and the `Tx` port finding. Dispositions:
   245 tests — all green on one PostgreSQL lane.
 - typecheck and lint clean for db, commissions-engine, contracts, api and worker; `lint:docs`,
   `module-map:check`, `migration-chain:check` and the three client `api:check` scripts green.
+
+## Round-2 correction after the MergePilot receipt (2026-11-22)
+
+One consolidated round on top of the published head `8c2b8eb34`, against the five groups of the
+round-2 receipt plus D-57. Dispositions:
+
+1. **A refused month keeps what is known without pricing.** When a visible source refuses the month
+   (`NO_PLAN` or `NO_SALARY`), the row keeps the reader's scoped card and cash tips and her received
+   corrections; the commission total stays null, the sources and sales stay empty, and nothing is
+   paid partially.
+2. **D-57 restored for sales (supersedes round-1 item 4).** A sale under a plan whose tiers use a
+   salary multiple needs the salary, like a service line. A sale-only month with such a plan and no
+   salary refuses with `NO_SALARY`; in the worker's closed-month path it records a
+   `commission_blocked_corrections` row and publishes no ledger correction. A missing plan stays
+   `NO_PLAN`. With the salary present the sale prices.
+3. **Month coverage is clipped.** An attachment is half-open `[from, to)` and is clipped to the
+   month: an end in a later month or year covers the rest of the month, a past end and a future start
+   cover nothing.
+4. **Candidates come from activity and attachments.** A line, a sale, a tip or a received correction
+   in the month, or a dated in-scope attachment, makes an employee a candidate. A salary, plan or
+   override row alone adds no result.
+5. **Source dates are indexed once per employee** instead of scanning the lines and sales for every
+   pricing failure.
+6. **The fixture database pool is closed** in `afterAll` and when the fixture setup fails, in the
+   hidden-plan and refused-rows route specs.
+
+`0239` was untouched, and no migration, deploy or target operation came from this round.
+
+### Gates of the round-2 head
+
+- packages/commissions-engine 23 files / 527 tests; the three estimate route specs of apps/api
+  3 files / 13 tests; the worker spec `project-package-sale-corrections-db.spec.ts` 1 file / 10 tests,
+  run against a freshly built engine `dist` — all green on one PostgreSQL lane.
+- typecheck and lint clean for commissions-engine, api and worker; `lint:docs` and `module-map:check`
+  green.
+- The full api and worker suites were not run locally; `ci-gate` on the pushed head decides them
+  (PP-113).

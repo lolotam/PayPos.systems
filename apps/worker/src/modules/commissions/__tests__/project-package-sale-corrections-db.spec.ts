@@ -394,9 +394,9 @@ it('leaves nothing behind when the correction write fails in a closed month, and
   expect(await marks()).toHaveLength(1);
 });
 
-it('publishes the refund delta of a sale-only month whose service tiers need a salary', async () => {
-  // عمولة البيع مستقلة عن شرائح الخدمات (D-51): الخطة بتحتاج راتب للشرائح بس
-  // الشهر مفيهوش بند خدمة، فالبيع بيتسعّر والكشف بينشر فرق المرتجع.
+it('records a block and no correction when a salary-multiple plan has no salary', async () => {
+  // D-57: الخطة المختارة بحدود راتب مضاعف بتحتاج راتب حتى لو الشهر بيع بس،
+  // فالتصحيح بيتحجب كله بـ NO_SALARY ومفيش فرق جزئي بيتنشر.
   await owner`DELETE FROM commission_plan_versions WHERE company_id=${A.company}`;
   await db.withTenant(A.company, async (tx) => {
     await insertCommissionPlanVersion(tx, A, ids, {
@@ -415,14 +415,10 @@ it('publishes the refund delta of a sale-only month whose service tiers need a s
   });
 
   expect(await deliver(saleEvent())).toMatchObject({ delivered: true });
-  expect(failures.size).toBe(0);
-  const rows = await ledger();
-  expect(rows).toHaveLength(1);
-  expect(rows[0]).toMatchObject({
-    sourceRef: `sale:${SALE_ID}`,
-    kind: 'SALE',
-    amount: '-1.000',
-    previousAmount: '3.000',
-    newAmount: '2.000',
-  });
+  expect(await ledger()).toHaveLength(0);
+  const blocks = await owner`SELECT code, source_period AS "sourcePeriod", target_period AS "targetPeriod"
+    FROM commission_blocked_corrections WHERE company_id=${A.company}`;
+  expect(blocks).toEqual([
+    { code: 'NO_SALARY', sourcePeriod: SOURCE_PERIOD, targetPeriod: TARGET_PERIOD },
+  ]);
 });
