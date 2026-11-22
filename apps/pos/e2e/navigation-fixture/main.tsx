@@ -227,8 +227,13 @@ if (!root) throw new Error('navigation fixture root is missing');
 createRoot(root).render(
   <DirectionProvider dir={dir}>
     <div dir={dir} data-fixture-ready="true" data-scene={scene} className="min-h-screen bg-background text-foreground">
-      {scene === 'sidebar' ? <SidebarScene /> : null}
-      {scene === 'context' ? <ContextScene /> : <TopScene />}
+      {scene === 'sidebar' ? (
+        <SidebarScene />
+      ) : scene === 'context' ? (
+        <ContextScene />
+      ) : (
+        <TopScene />
+      )}
     </div>
   </DirectionProvider>,
 );

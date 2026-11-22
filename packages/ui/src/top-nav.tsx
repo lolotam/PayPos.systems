@@ -169,14 +169,15 @@ function TopNavContent({ isPhone, visibleModules, ...chromeProps }: TopNavConten
     if (wasPhone === isPhone) return;
     previousIsPhone.current = isPhone;
     const active = document.activeElement;
+    const wasOpen = Boolean(openId || drawerOpen);
     const focusInNav =
-      Boolean(openId || drawerOpen) ||
+      wasOpen ||
       (rootRef.current !== null && active !== null && rootRef.current.contains(active));
     const target = isPhone ? drawerTriggerRef.current : moduleTriggerRef.current;
-    breakpointFocusTarget.current = focusInNav ? (target ?? undefined) : undefined;
+    breakpointFocusTarget.current = wasOpen ? (target ?? undefined) : undefined;
     setOpenId(undefined);
     setDrawerOpen(false);
-    if (!openId && !drawerOpen && focusInNav) target?.focus();
+    if (!wasOpen && focusInNav) target?.focus();
   }, [drawerOpen, isPhone, openId]);
 
   const onCloseAutoFocus = (event: Event) => {
@@ -205,9 +206,17 @@ export function TopNav({ modules, visiblePageIds, ...chromeProps }: TopNavProps)
     () => modules.filter((module) => moduleHasVisiblePages(module, visiblePageIds)),
     [modules, visiblePageIds],
   );
+  const moduleIdKey = useMemo(
+    () => modules.map((module) => module.id).sort().join('\u0000'),
+    [modules],
+  );
+  const visiblePageKey = useMemo(
+    () => (visiblePageIds ? [...visiblePageIds].sort().join('\u0000') : 'all'),
+    [visiblePageIds],
+  );
   return (
     <TopNavContent
-      key={visibleModules.length > 0 ? 'visible' : 'hidden'}
+      key={`${moduleIdKey}|${visiblePageKey}`}
       isPhone={isPhone}
       visiblePageIds={visiblePageIds}
       visibleModules={visibleModules}

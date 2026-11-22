@@ -226,13 +226,18 @@ for (const dir of DIRECTIONS) {
       await peopleSwitcher.focus();
       await page.keyboard.press('Enter');
       await expect(dialog.getByRole('heading', { name: LABELS.people })).toBeVisible();
-      const currentSwitcher = dialog.getByRole('button', { name: new RegExp(`${LABELS.people}.*${LABELS.current}`) });
-      await expect(currentSwitcher).toHaveAttribute('aria-current', 'page');
-      await expect(currentSwitcher.locator('[data-current-marker]')).toBeVisible();
+      const currentSwitcher = dialog.getByRole('button', {
+        name: new RegExp(`${LABELS.business}.*${LABELS.current}`),
+      });
+      await expectVisibleCurrentMarker(currentSwitcher);
       const background = await currentSwitcher.evaluate(
         (element) => getComputedStyle(element).backgroundColor,
       );
-      expect(background, 'current module must have a visible background').not.toBe('rgba(0, 0, 0, 0)');
+      expect(background, 'current module must keep a visible background').not.toBe('rgba(0, 0, 0, 0)');
+      await expect(dialog.getByRole('button', { name: LABELS.people })).not.toHaveAttribute(
+        'aria-current',
+        'page',
+      );
 
       await dialog.getByRole('link', { name: LABELS.employees }).click();
       await expect(dialog).toBeHidden();

@@ -208,6 +208,49 @@ it('does not reopen a hidden menu when its module becomes visible again', async 
   expect(screen.queryByRole('dialog')).toBeNull();
 });
 
+it('does not reopen a menu when its module returns after a partial visibility change', async () => {
+  stubMedia(() => false);
+  const view = render(tree({ currentModuleId: 'business', visiblePageIds: ['columns', 'employees'] }));
+  fireEvent.click(screen.getByRole('button', { name: /Business/ }));
+  expect(screen.getByRole('dialog', { name: 'Business' })).toBeTruthy();
+
+  view.rerender(tree({ currentModuleId: 'business', visiblePageIds: ['employees'] }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+
+  view.rerender(tree({ currentModuleId: 'business', visiblePageIds: ['columns', 'employees'] }));
+  await waitFor(() => expect(screen.getByRole('button', { name: /Business/ })).toBeTruthy());
+  expect(screen.queryByRole('dialog')).toBeNull();
+});
+
+it('returns focus to the reopened menu trigger after a breakpoint round trip', async () => {
+  let phone = false;
+  stubMedia(() => phone);
+  const view = render(tree({ currentModuleId: 'business' }));
+  screen.getByRole('button', { name: /Business/ }).focus();
+
+  phone = true;
+  view.rerender(tree({ currentModuleId: 'business' }));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: chromeLabels.drawerOpen })),
+  );
+
+  phone = false;
+  view.rerender(tree({ currentModuleId: 'business' }));
+  await waitFor(() =>
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /Business/ })),
+  );
+
+  const people = screen.getByRole('button', { name: /People/ });
+  people.focus();
+  fireEvent.click(people);
+  const dialog = screen.getByRole('dialog', { name: 'People' });
+  expect(dialog.contains(document.activeElement)).toBe(true);
+
+  fireEvent.keyDown(document.activeElement ?? dialog, { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(document.activeElement).toBe(people);
+});
+
 it('keeps focus outside the navigation when the phone breakpoint changes', async () => {
   let phone = true;
   stubMedia(() => phone);
