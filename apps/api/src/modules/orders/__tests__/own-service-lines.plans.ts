@@ -14,7 +14,9 @@ export interface PlanNode {
 }
 export type Planned = { statement: string; plan: PlanNode }[];
 
-export const TABLES = ['service_sessions', 'service_lines', 'line_performers'];
+export const CANCELLATIONS_TABLE = 'service_line_cancellations';
+// الجداول الأربعة التي تقرؤها جمل القارئ: الزيارات والسطور والمنفذات، وجدول الإلغاءات للجملة السادسة.
+export const TABLES = ['service_sessions', 'service_lines', 'line_performers', CANCELLATIONS_TABLE];
 // جمل صفحة غير فارغة: صفوف المنفذة، السطور، الزيارات، التفاصيل (أربع ثابتة)، ثم جملة أسماء العملاء لو العمود مسموح،
 // وجملة الإلغاءات لو في الصفحة سطر ملغي؛ فالحد الأقصى ستّ جمل في أثقل تركيبة، وليس خمساً.
 export const BASE_PAGE_STATEMENTS = 4;
@@ -22,15 +24,33 @@ export const statementsFor = (page: { names: boolean; cancelled: boolean }) =>
   BASE_PAGE_STATEMENTS + Number(page.names) + Number(page.cancelled);
 export const MAX_OWN_LINES_STATEMENTS = statementsFor({ names: true, cancelled: true });
 export const nodes = (node: PlanNode): PlanNode[] => [node, ...(node.Plans ?? []).flatMap(nodes)];
+const readsCancellations = (all: PlanNode[]) =>
+  all.some((node) => node['Relation Name'] === CANCELLATIONS_TABLE);
+// شروط الفهرس لكل عقد الجملة (عقدة الجدول نفسها لا تحمل شرط فهرسها في Bitmap Heap Scan بل عقدة الفهرس تحتها).
+const indexConditions = (all: PlanNode[]) => all.map((node) => node['Index Cond'] ?? '').join(' ');
 const flat = (text: string) => text.replace(/\s+/g, ' ').slice(0, 60);
 
-// البند 3 (أ): عدد الجمل ثابت، لا join، لا Seq Scan، ولا جدول يُقرأ أكثر من مرة (Actual Loops = 1) في أي جملة.
-export function planViolations(label: string, plans: Planned, expected: number) {
+// البند 3 (أ): عدد الجمل ثابت، لا join، لا Seq Scan، ولا جدول يُقرأ أكثر من مرة (Actual Loops = 1) في أي جملة، على الجداول الأربعة
+// (TABLES). وجملة الإلغاءات تظهر مرة واحدة بالضبط حين تكون في الصفحة سطر ملغي وإلا فلا، وشرط فهرسها يحوي `company_id`.
+// هذا فحص `company_id` وحده: شرط الفهرس الحرفي على المعرفات لا يُعدّ ناجحاً هنا (انظر idListFilters).
+export function planViolations(
+  label: string,
+  plans: Planned,
+  page: { names: boolean; cancelled: boolean },
+) {
   const found: string[] = [];
+  const expected = statementsFor(page);
   if (plans.length !== expected)
     found.push(`${label}: ${plans.length} statements planned, expected ${expected}`);
+  const reading = plans.filter(({ plan }) => readsCancellations(nodes(plan)));
+  if (reading.length !== Number(page.cancelled))
+    found.push(
+      `${label}: ${reading.length} cancellation statements planned, expected ${Number(page.cancelled)}`,
+    );
   for (const { statement, plan } of plans) {
     const all = nodes(plan);
+    if (readsCancellations(all) && !/company_id/.test(indexConditions(all)))
+      found.push(`${label}: no company_id Index Cond in ${flat(statement)}`);
     if (all.some((node) => /Join|Nested Loop/.test(node['Node Type'])))
       found.push(`${label}: join in ${flat(statement)}`);
     const scans = all.filter((node) => TABLES.includes(node['Relation Name'] ?? ''));
@@ -46,14 +66,7 @@ export function planViolations(label: string, plans: Planned, expected: number) 
 export const idListFilters = (plans: Planned) =>
   plans
     .filter(({ statement }) => /=\s*ANY/i.test(statement))
-    .filter(
-      ({ plan }) =>
-        !/ANY/.test(
-          nodes(plan)
-            .map((node) => node['Index Cond'] ?? '')
-            .join(' '),
-        ),
-    )
+    .filter(({ plan }) => !/ANY/.test(indexConditions(nodes(plan))))
     .map(({ statement }) => flat(statement));
 
 export const compactPlans = (plans: Planned) =>

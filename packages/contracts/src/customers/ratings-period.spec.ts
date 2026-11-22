@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { ratingAveragesQuery } from './ratings-averages.js';
-import { isPeriodForward, periodIsValid } from './ratings-period.js';
+import { isPeriodForward, periodIsValid, PERIOD_FRACTION_DIGITS } from './ratings-period.js';
 import { ratingsListQuery } from './ratings-list.js';
 
 const base = '2026-06-15T12:00:00';
@@ -9,7 +9,7 @@ it.each([
   [`${base}.123001Z`, `${base}.123999Z`],
   [`${base}.000001Z`, `${base}.000002Z`],
   [`${base}.5Z`, `${base}.500001Z`],
-  [`${base}.123456Z`, `${base}.1234561Z`],
+  [`${base}.123456Z`, `${base}.123457Z`],
   [`${base}Z`, `${base}.000001Z`],
   ['2026-06-15T15:00:00.5+03:00', `${base}.500001Z`],
   [`${base}.999999Z`, '2026-06-15T12:00:01Z'],
@@ -41,5 +41,38 @@ it('leaves a half-open or absent period valid and keeps the error on from', () =
   for (const schema of [ratingsListQuery, ratingAveragesQuery]) {
     const refused = schema.safeParse({ from: `${base}.2Z`, to: `${base}.1Z` });
     expect(refused.success ? [] : refused.error.issues.map((i) => i.path)).toEqual([['from']]);
+  }
+});
+
+it.each([
+  `${base}.1234561Z`,
+  `${base}.1234567Z`,
+  `${base}.12345600Z`,
+  '2026-06-15T15:00:00.1234561+03:00',
+])('refuses more than six fractional digits on either bound: %s', (long) => {
+  expect(PERIOD_FRACTION_DIGITS).toBe(6);
+  for (const schema of [ratingsListQuery, ratingAveragesQuery]) {
+    expect(schema.safeParse({ from: long }).success).toBe(false);
+    expect(schema.safeParse({ to: long }).success).toBe(false);
+    expect(schema.safeParse({ from: `${base}.123456Z`, to: long }).success).toBe(false);
+    expect(schema.safeParse({ from: long, to: `${base}.123457Z` }).success).toBe(false);
+  }
+});
+
+it('names the bound whose fraction is too long, not the order of the range', () => {
+  for (const schema of [ratingsListQuery, ratingAveragesQuery]) {
+    const longFrom = schema.safeParse({ from: `${base}.1234561Z`, to: `${base}.9Z` });
+    expect(longFrom.success ? [] : longFrom.error.issues.map((i) => [i.path, i.message])).toEqual([
+      [['from'], 'fractional seconds must have at most 6 digits (microsecond precision)'],
+    ]);
+    const longTo = schema.safeParse({ from: `${base}.1Z`, to: `${base}.1234561Z` });
+    expect(longTo.success ? [] : longTo.error.issues.map((i) => i.path)).toEqual([['to']]);
+  }
+});
+
+it('still accepts exactly six digits and a whole-second or short fraction', () => {
+  for (const schema of [ratingsListQuery, ratingAveragesQuery]) {
+    expect(schema.safeParse({ from: `${base}.123456Z`, to: `${base}.123457Z` }).success).toBe(true);
+    expect(schema.safeParse({ from: `${base}Z`, to: `${base}.1Z` }).success).toBe(true);
   }
 });

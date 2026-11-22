@@ -10,10 +10,15 @@ flag or raised timeout was added or used. The route, OpenAPI operation and clien
 - Items 1 and 2 (200 ms, stale and normal statistics): met at the approved fixture and at the scaled run below for the
   pages those runs measured (no cancelled line on any page, 5 statements). The maximum-statement case (6 statements,
   a cancelled line on the page) was added afterwards and is **not yet met**: one sample at 203.6 ms, see «Maximum
-  statement case» below. The scaled run has not been repeated with it.
+  statement case» below. The scaled run has not been repeated with it. **The maximum-statement case has no accepted
+  timing yet**, on a first page or on a cursor page, at either size; the fixture now supplies both page kinds (see
+  «Fixture revised») but no timing run has been made on it.
 - Item 3 (a) (bounded statement count, no join, no sequential scan, no table scanned more than once per statement):
-  met, asserted in the suite. The count is not a constant five: it is 4, 5 or 6 for a non-empty page by column and
-  cancellation combination, with a maximum of 6 (below).
+  met, asserted in the suite on exactly four tables: `service_sessions`, `service_lines`, `line_performers` and
+  `service_line_cancellations` (the sixth statement; for it the suite also asserts that `company_id` is in the Index
+  Cond, against a fixture of 50 cancelled lines in the target tenant). The shared authority reads (context, months
+  window, allowed columns) are not planned by this check. The count is not a constant five: it is 4, 5 or 6 for a non-empty page by column and cancellation
+  combination, with a maximum of 6 (below).
 - Item 3 (b): **the literal Index Cond check is not claimed.** Under stale statistics the id lists are filters in
   every id statement (below). Manager design decision, 2026-11-22, option 1 (binding): §5.3(3)(b) is read as
   requiring indexed per-id probes where such probes are repeated per outer row. A single bounded batch statement
@@ -204,11 +209,12 @@ cancelled line on the page). The maximum is **6**. `own-service-lines-statements
 and the maximum through the real reader (`1,3,3,4,5,5,6` plus a page with a cancelled line off the page = 5 and on the
 page = 6).
 
-Measured on the regular fixture (600 own visits, 602 own lines, 6,020 colleague lines; spec
-`own-service-lines-performance.spec.ts`, one sample per page, `warm: 0`, first run only). The fixture cancels two of her
-lines (positions 250 and 450 in the newest-first order, through the real cancellation path: line status plus one
-`service_line_cancellations` row each, no `ANALYZE`), so the three new pages carry a cancelled line and run 6
-statements; the four original pages are unchanged and still run 5:
+Measured on the regular fixture **as it was then** (600 own visits, 602 own lines, 6,020 colleague lines; spec
+`own-service-lines-performance.spec.ts`, one sample per page, `warm: 0`, first run only). That fixture cancelled two of
+her lines (positions 250 and 450 in the newest-first order, through the real cancellation path: line status plus one
+`service_line_cancellations` row each, no `ANALYZE`), so the three new pages carried a cancelled line and ran 6
+statements; the four original pages ran 5. **No first page (first-20, first-100) carried a cancelled line, so every
+six-statement sample of this table is a cursor page; see «Fixture revised» below:**
 
 | Page (statements) | stale ms | normal ms |
 |---|---|---|
@@ -230,10 +236,10 @@ loops 1, 0.14 ms (stale) / 0.21 ms (normal), so the page's database time is abou
 time around it (begin/commit, driver materialisation, scheduling). The machine was not otherwise quiet in the later part
 of the session (CPU at 100 % with another session's work; two unrelated specs of this suite failed once on statement
 timeouts and passed when rerun), but the load during this particular sample was not recorded, so this is a hypothesis,
-not a finding. The cancellations table held two rows in this fixture, so the cost of the sixth statement at tenant scale
-(many cancellations) is unmeasured; `service_line_cancellations` is not in the plan checks' table list (no
-sequential-scan or loop assertion for it); its plan above is read by hand. The item 3 (b) result is unchanged: the id
-list is a filter, the literal Index Cond check is not claimed.
+not a finding. The cancellations table held two rows in this fixture, so the cost of the sixth statement against a table of many
+cancellations was unmeasured, and `service_line_cancellations` was not in the plan checks' table list; both are changed
+in «Fixture revised» below. The item 3 (b) result is unchanged: the id list is a filter, the literal Index Cond check is
+not claimed.
 
 **Three further runs of the regular spec by the owner session (same head, same lane, no change), 2026-11-22.** Runs 1
 and 2 passed: every page, the three maximum-statement pages included, was under 200 ms (the spec prints samples only
@@ -245,6 +251,37 @@ under that load, so neither the 203.6 ms sample nor run 3 measures the query, an
 as a clean maximum-case proof either. **Open:** the maximum-statement case has no accepted measurement yet, at fixture
 or at 66,002-line scale; it needs a run on a quiet host, or an acceptance rule that separates database time from wall
 time, decided by the design approver. The route was exposed on the five-statement evidence above.
+
+### Fixture revised (review findings G4 and G7): first-page and cursor evidence, and the cancellations table
+
+The acceptance decision asks for the six-statement case on a first page **and** on a cursor page. The timing numbers
+above do not answer that for the first page. The fixture and the suite are therefore changed (test code only, no
+product code, index, setting, statistics target or timeout; **no timing run was made with this revision**, so the
+timing receipt for the maximum case is still open and unchanged by this section):
+
+- The target tenant now has three cancelled lines of hers, at positions 50, 250 and 450 of the newest-first order, plus
+  47 cancelled lines of colleagues, all through the real cancellation path: **50 rows in `service_line_cancellations`**
+  (asserted by the run's `57-2b cancellations table` log line: 50 tenant rows, never analysed, `n_mod_since_analyze`
+  50). Position 50 lies inside `first-100` and outside `first-20`, so `first-20` stays a five-statement first page,
+  `first-100` becomes a six-statement first page, `cursor-100` and `deep-cursor-100` stay five-statement cursor pages,
+  and `cancelled-20`, `cancelled-100` and `cancelled-deep-100` are six-statement cursor pages.
+- The suite records each sample's page kind (first page or cursor) and fails, per statistics state, unless a first page
+  and a cursor page each ran exactly 5 statements and exactly 6 statements. This is asserted in the regular untimed
+  suite and in both explicit timing suites (regular and 66,002-line, which share this code). The timed 200 ms judgment
+  stays gated by `timing`.
+- The plan checks (no join, no Seq Scan, every scanned table loops = 1) now cover **four tables**:
+  `service_sessions`, `service_lines`, `line_performers` and `service_line_cancellations`. For the sixth statement they
+  also assert that it appears exactly once on a page with a cancelled line and not otherwise, and that `company_id` is in
+  its Index Cond. The `first-100`, `deep` and `cancelled` pages are planned; the first and the cancelled page carry the
+  sixth statement. Observed in the regular untimed run, both statistics states: `Index Scan` on `slc_membership_idx`,
+  `company_id` as Index Cond, `line_id = ANY(...)` and `business_id` as Filter, 1 row returned, 49 removed by filter,
+  loops 1. This is the same id-list-as-filter shape as the other id statements, so the literal Index Cond check on ids
+  is still **not** claimed.
+- Residual risk of this check, stated plainly: with 50 rows the table sits exactly at the autovacuum analyse threshold
+  (50 modifications, strict greater-than needed), so it stays un-analysed in a single attempt. A second stale-statistics
+  attempt in the same run adds 50 more rows and could let autovacuum analyse the table; a table that small, once
+  analysed, can legitimately be read by a sequential scan, which this check would then report. The run logs the table's
+  analyse state so such a failure is readable.
 
 ## Phase 3: route exposed
 

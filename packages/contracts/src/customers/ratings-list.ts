@@ -5,7 +5,7 @@ import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 
-import { periodIsValid } from './ratings-period.js';
+import { periodInstant, periodIsValid } from './ratings-period.js';
 import { ratingStars } from './ratings.js';
 
 /**
@@ -16,8 +16,8 @@ export const ratingsListQuery = z
   .strictObject({
     branch_id: id.optional(),
     employee_id: id.optional(),
-    from: timestamp.optional(),
-    to: timestamp.optional(),
+    from: periodInstant.optional(),
+    to: periodInstant.optional(),
     cursor: z.string().min(1).max(512).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
   })

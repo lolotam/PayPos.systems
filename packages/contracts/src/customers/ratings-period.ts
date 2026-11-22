@@ -1,3 +1,20 @@
+import { timestamp } from '../scalars/timestamp.js';
+
+/** أقصى عدد خانات عشرية في كسر الثانية؛ قاعدة البيانات بتخزن الميكروثانية وبتقرّب القراءة لها، فأي خانة بعدها بتخبّي فرق مش موجود. */
+export const PERIOD_FRACTION_DIGITS = 6;
+
+/**
+ * لحظة حد الفترة: `timestamp` العادي بشرط إن كسر الثانية يبقى ست خانات أو أقل. القارئان في SQL بيحوّلوا الحد لـ`timestamptz`
+ * بدقة الميكروثانية، فلو اتقبل `.1234561Z` بعد `.123456Z` الفترة تبان مرتّبة في التحقق وهي في القاعدة نافذة فاضية (نفس اللحظة).
+ * الرفض هنا بيطلع 400 واضح عند التحقق بدل نتيجة فاضية صامتة.
+ */
+export const periodInstant = timestamp.refine(
+  (value) => (/\.(\d+)/.exec(value)?.[1] ?? '').length <= PERIOD_FRACTION_DIGITS,
+  {
+    message: `fractional seconds must have at most ${PERIOD_FRACTION_DIGITS} digits (microsecond precision)`,
+  },
+);
+
 /** الثواني الكاملة والكسر العشري كما كُتبا، بدون الاعتماد على دقة الملّي ثانية في `Date`. */
 function instantParts(value: string): { seconds: number; fraction: string } {
   const fraction = /\.(\d+)/.exec(value)?.[1] ?? '';

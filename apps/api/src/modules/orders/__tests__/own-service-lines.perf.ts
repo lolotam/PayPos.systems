@@ -8,6 +8,7 @@ import {
 import { measure, type PerfConfig, type Target } from './own-service-lines.measure.ts';
 import {
   bulkVisits,
+  cancelColleagueLines,
   cancelPerfLines,
   homePerfScope,
   newPerfScope,
@@ -17,9 +18,12 @@ import {
 
 export type { PerfConfig } from './own-service-lines.measure.ts';
 
-// سطران ملغيان داخل الترتيب المرجعي، خارج كل صفحة من الصفحات الأربع الأصلية (0–19، 0–99، 100–199، 300–399):
-// صفحات «الملغي» وحدها هي التي تنفّذ جملة الإلغاءات، وهي حالة الحد الأقصى من الجمل (ست).
-const CANCELLED_AT = [250, 450] as const;
+// ثلاثة سطور ملغاة داخل الترتيب المرجعي لها. الموضع 50 يقع في الصفحة الأولى ذات المئة (0-99) وخارج الأولى ذات العشرين (0-19)
+// وخارج صفحتي المؤشر الأصليتين (100-199، 300-399)، فتبقى «first-20» والمؤشرتان الأصليتان بخمس جمل وتصير «first-100» بست جمل؛
+// والموضعان 250 و450 يقعان في صفحات المؤشر «الملغاة» (ست جمل). فالحد الأقصى (ست جمل) مقيس على صفحة أولى وعلى صفحة مؤشر.
+const CANCELLED_AT = [50, 250, 450] as const;
+// ويُلغى معها 47 سطراً لزميلاتها بالمسار الحقيقي نفسه، فيحمل جدول الإلغاءات خمسين صفاً في المستأجر الهدف لا ثلاثة.
+const COLLEAGUE_CANCELLATIONS = 47;
 
 async function statistics(f: TipFixture, companyId: string) {
   const rows = await f.h
@@ -81,6 +85,7 @@ async function seedTarget(f: TipFixture, attempt: number, config: PerfConfig): P
   const ordered = await oracle(f, scope, her, config);
   const cancelled = CANCELLED_AT.map((index) => must(ordered[index]));
   await cancelPerfLines(f, scope, cancelled);
+  await cancelColleagueLines(f, scope, her, COLLEAGUE_CANCELLATIONS);
   return { scope, her, oracle: ordered, cancelled: new Set(cancelled) };
 }
 

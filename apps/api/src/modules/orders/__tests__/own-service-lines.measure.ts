@@ -126,13 +126,21 @@ async function planned(f: TipFixture, t: Target, req: OwnLinesRequest) {
 }
 
 type Timed = Awaited<ReturnType<typeof timed>>;
-type Page = readonly [name: string, req: OwnLinesRequest, expected: string[]];
+type PageKind = 'first' | 'cursor';
+type Page = readonly [name: string, req: OwnLinesRequest, expected: string[], kind: PageKind];
 
-// الصفحات الأربع الأصلية بلا سطر ملغي (خمس جمل)، ثم ثلاث صفحات فيها سطر ملغي: جملة الإلغاءات السادسة، وهي الحد الأقصى.
+// الصفحة الأولى بلا مؤشر وصفحة المؤشر بعدها؛ الحد الأقصى (ست جمل) مطلوب على النوعين معاً، وكذلك الخمس.
+// الصفحتان الأوليان: «first-20» بخمس جمل، و«first-100» فيها السطر الملغى في الموضع 50 فهي بست؛ صفحتا المؤشر الأصليتان بخمس،
+// وصفحات «cancelled-*» فيها السطران الملغيان في الموضعين 250 و450 فهي بست.
 function pagesOf(t: Target, primed: OwnLinesPage): Page[] {
   const at = (index: number) => must(t.oracle[index]);
   const page = (name: string, limit: number, after: string | undefined, from: number, to: number) =>
-    [name, request(t, { limit, cursor: after }), t.oracle.slice(from, to)] as const;
+    [
+      name,
+      request(t, { limit, cursor: after }),
+      t.oracle.slice(from, to),
+      after === undefined ? 'first' : 'cursor',
+    ] as const;
   return [
     page('first-20', 20, undefined, 0, 20),
     page('first-100', 100, undefined, 0, 100),
@@ -142,6 +150,17 @@ function pagesOf(t: Target, primed: OwnLinesPage): Page[] {
     page('cancelled-100', 100, at(199), 200, 300),
     page('cancelled-deep-100', 100, at(399), 400, 500),
   ];
+}
+
+// النوعان معاً يجب أن يمرّا بخمس وبست جمل في هذه الحالة الإحصائية، وإلا لقاس التشغيل الزمني الحد الأقصى على نوع واحد فقط
+// مع أن قرار القبول يطلب صفحة أولى وصفحة مؤشر (AC-57-2b-9). الشرط على العدد المرصود لا على اسم الصفحة.
+function kindViolations(label: string, observed: ReadonlyMap<PageKind, ReadonlySet<number>>) {
+  const found: string[] = [];
+  for (const kind of ['first', 'cursor'] as const)
+    for (const wanted of [MAX_OWN_LINES_STATEMENTS - 1, MAX_OWN_LINES_STATEMENTS])
+      if (!observed.get(kind)?.has(wanted))
+        found.push(`${label}: no ${kind} page ran exactly ${wanted} statements`);
+  return found;
 }
 
 // يتحقق من محتوى الصفحة المقاسة ومن عدد جملها المتوقع، ويرجع المخالفات.
@@ -168,8 +187,11 @@ async function samplePages(
   violations: string[],
 ) {
   const primed = await timed(f, t, request(t, { limit: 100 }));
-  const observed = new Set<number>();
-  for (const [name, req, expected] of pagesOf(t, primed.page))
+  const observed = new Map<PageKind, Set<number>>([
+    ['first', new Set()],
+    ['cursor', new Set()],
+  ]);
+  for (const [name, req, expected, kind] of pagesOf(t, primed.page))
     for (let sample = 0; sample <= config.warm; sample++) {
       const run = await timed(f, t, req);
       const sampleName = sample === 0 ? 'first-run' : `warm-${sample}`;
@@ -185,13 +207,22 @@ async function samplePages(
           rss_delta_bytes: run.rss,
         }),
       );
-      observed.add(run.statements);
+      observed.get(kind)?.add(run.statements);
       violations.push(...pageViolations(label, name, t, run, expected));
       if (config.timing && run.elapsed >= 200)
         violations.push(`${label} ${name} ${sampleName}: ${run.elapsed} ms`);
     }
-  if (Math.max(...observed) !== MAX_OWN_LINES_STATEMENTS)
-    violations.push(`${label}: no page ran the maximum ${MAX_OWN_LINES_STATEMENTS} statements`);
+  violations.push(...kindViolations(label, observed));
+}
+
+// حالة جدول الإلغاءات وقت الخطط: صفوفه، وهل حلّله autovacuum؛ تُسجَّل ليُقرأ بها أي Seq Scan عليه.
+async function cancellationTable(f: TipFixture, t: Target) {
+  const [row] = await f.h.owner`SELECT
+    (SELECT count(*)::int FROM service_line_cancellations WHERE company_id=${t.scope.companyId}) AS tenant_rows,
+    c.reltuples::float8 AS reltuples, s.n_live_tup, s.n_mod_since_analyze, s.last_analyze, s.last_autoanalyze
+    FROM pg_class c JOIN pg_stat_all_tables s ON s.relid=c.oid
+    WHERE c.relname='service_line_cancellations' AND c.relnamespace='public'::regnamespace`;
+  return row;
 }
 
 export async function measure(
@@ -203,7 +234,9 @@ export async function measure(
 ) {
   await f.db.withTenant(f.otherCompany, (tx) => tx.execute(sql`SELECT 1`));
   await samplePages(f, label, t, config, violations);
-  const plain = statementsFor({ names: true, cancelled: false });
+  const plain = { names: true, cancelled: false };
+  const maximum = { names: true, cancelled: true };
+  console.info('57-2b cancellations table', JSON.stringify(await cancellationTable(f, t)));
   const firstPlans = await planned(f, t, request(t, { limit: 100 }));
   const deepPlans = await planned(f, t, request(t, { limit: 100, cursor: must(t.oracle[299]) }));
   const cancelledPlans = await planned(
@@ -227,8 +260,8 @@ export async function measure(
     }),
   );
   violations.push(
-    ...planViolations(label, firstPlans, plain),
+    ...planViolations(label, firstPlans, maximum),
     ...planViolations(label, deepPlans, plain),
-    ...planViolations(label, cancelledPlans, MAX_OWN_LINES_STATEMENTS),
+    ...planViolations(label, cancelledPlans, maximum),
   );
 }

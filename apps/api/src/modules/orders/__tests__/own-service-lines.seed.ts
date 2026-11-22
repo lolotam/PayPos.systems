@@ -1,3 +1,4 @@
+import { expect } from 'vitest';
 import { cancelServiceLine } from '../../../../../../packages/db/test/service-line-cancellation.ts';
 import { ids, must, type TipFixture } from '../../../../test/session-tips.fixture.ts';
 
@@ -157,6 +158,25 @@ export async function secondLines(f: TipFixture, s: PerfScope, employeeId: strin
       not_clocked_in_warning,approved_leave_warning)
     SELECT $1::uuid,gen_random_uuid(),$2::uuid,added.id,$3::uuid,1,10000,'Perf performer',NULL,false,false FROM added`,
     [s.companyId, s.businessId, employeeId, count, s.sampleLineId],
+  );
+}
+
+// سطور الزميلات الملغاة: تملأ جدول الإلغاءات بصفوف شركائها في المستأجر نفسه، فجملة الإلغاءات السادسة تُفحص على جدول
+// فيه عشرات الصفوف لا صفان. تمر بنفس المسار الحقيقي ولا تدخل في الترتيب المرجعي لها.
+export async function cancelColleagueLines(
+  f: TipFixture,
+  s: PerfScope,
+  her: string,
+  count: number,
+) {
+  const rows = await f.h.owner`SELECT line_id FROM line_performers
+    WHERE company_id=${s.companyId} AND business_id=${s.businessId} AND employee_id<>${her}
+    ORDER BY line_id LIMIT ${count}`;
+  expect(rows.length).toBe(count);
+  await cancelPerfLines(
+    f,
+    s,
+    rows.map((row) => String(row['line_id'])),
   );
 }
 

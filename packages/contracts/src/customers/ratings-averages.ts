@@ -2,9 +2,8 @@ import { z } from 'zod';
 
 import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
-import { timestamp } from '../scalars/timestamp.js';
 
-import { periodIsValid } from './ratings-period.js';
+import { periodInstant, periodIsValid } from './ratings-period.js';
 
 /**
  * فلاتر متوسطات التقييم في الأدمن: نفس فلاتر القائمة بدون المؤشر والحد. `from` شاملة و`to` حصرية على `submitted_at`،
@@ -14,8 +13,8 @@ export const ratingAveragesQuery = z
   .strictObject({
     branch_id: id.optional(),
     employee_id: id.optional(),
-    from: timestamp.optional(),
-    to: timestamp.optional(),
+    from: periodInstant.optional(),
+    to: periodInstant.optional(),
   })
   .refine(periodIsValid, { message: 'from must be before to', path: ['from'] });
 export type RatingAveragesQuery = z.infer<typeof ratingAveragesQuery>;

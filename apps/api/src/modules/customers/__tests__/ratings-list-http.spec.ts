@@ -309,3 +309,38 @@ it('accepts a range inside one millisecond over HTTP, keeps its microseconds, an
     expect((await get(ownerCookie, averagesUrl(`?${query}`))).status).toBe(400);
   }
 });
+
+it('refuses more than six fractional digits on a bound with 400 on both endpoints, and answers a valid microsecond range inside one millisecond with 200 (G6)', async () => {
+  const rating = await seedRating(db, tenant, {
+    stars: 4,
+    at: new Date('2026-07-02T12:00:00.123Z'),
+    performers: [tenant.employees[0]],
+    date: '2026-07-02',
+  });
+  const edge = '2026-07-02T12:00:00';
+  const idsOf = (body: Record<string, unknown>) =>
+    (body['items'] as { id: string }[]).map((i) => i.id);
+  const tooLong = [
+    `from=${edge}.123456Z&to=${edge}.1234561Z`,
+    `from=${edge}.1234561Z&to=${edge}.123457Z`,
+    `from=${edge}.1234561Z`,
+    `to=${edge}.1234561Z`,
+  ];
+  for (const query of tooLong) {
+    const listed = await get(ownerCookie, url(business, `?${query}`));
+    const averaged = await get(ownerCookie, averagesUrl(`?${query}`));
+    expect([query, listed.status, averaged.status]).toEqual([query, 400, 400]);
+    expect(listed.body).not.toHaveProperty('items');
+    expect(averaged.body).not.toHaveProperty('items');
+  }
+  const hit = `from=${edge}.123000Z&to=${edge}.123001Z`;
+  const miss = `from=${edge}.123456Z&to=${edge}.123457Z`;
+  const listHit = await get(ownerCookie, url(business, `?${hit}`));
+  expect([listHit.status, idsOf(listHit.body)]).toEqual([200, [rating]]);
+  const listMiss = await get(ownerCookie, url(business, `?${miss}`));
+  expect([listMiss.status, idsOf(listMiss.body)]).toEqual([200, []]);
+  const averagesHit = await get(ownerCookie, averagesUrl(`?${hit}`));
+  expect([averagesHit.status, averagesHit.body]).toEqual([200, { items: [entry(0, '4.0', 1)] }]);
+  const averagesMiss = await get(ownerCookie, averagesUrl(`?${miss}`));
+  expect([averagesMiss.status, averagesMiss.body]).toEqual([200, { items: [] }]);
+});
