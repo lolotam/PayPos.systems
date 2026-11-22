@@ -1,6 +1,14 @@
 import type { InAppNotification } from '@pospay/contracts';
 import { t, type Locale } from '@pospay/i18n';
 import { documentNumberText } from '@/shared/model/document-number-text';
+import {
+  isLowRatingNotice,
+  renderLowRatingNotice,
+  type ScalarNotification,
+} from './low-rating-notice';
+
+// معاملات الجرس القديمة كلها نصوص؛ جرسا التقييم المنخفض معاملهما كائن details وبيتعرضوا في ملفهم.
+type ScalarParameters = ScalarNotification['safe_parameters'];
 
 /** نص الجرس. generic_notice يبقى على locale الصف؛ تنبيهات الحضور والجلسات وتعديل السعر والإلغاء وتغيير المنفّذين وطلب موافقة الخصم وموافقة المنفّذ وتوقف تصحيح العمولة تتبع لغة الواجهة، والعربي الغائب يرجع للإنجليزي. */
 export function renderNotification(
@@ -8,6 +16,7 @@ export function renderNotification(
   viewerLocale?: Locale,
   documentNumber?: string,
 ): string {
+  if (isLowRatingNotice(item)) return renderLowRatingNotice(item, viewerLocale ?? item.locale);
   const serviceLine = renderServiceLineNotice(item, viewerLocale);
   if (serviceLine !== null) return serviceLine;
   if (
@@ -40,17 +49,15 @@ export function renderNotification(
   ) {
     return renderAttendanceChange(item, viewerLocale);
   }
-  if (item.template_key === 'shift_not_clocked_in') {
-    const locale = viewerLocale ?? item.locale;
-    return fill(t(locale, 'inApp.shift_not_clocked_in'), shiftValues(item.safe_parameters));
-  }
-  if (item.template_key === 'break_not_returned') {
-    const locale = viewerLocale ?? item.locale;
-    return fill(t(locale, 'inApp.break_not_returned'), shiftValues(item.safe_parameters));
-  }
-  if (item.template_key === 'break_returned_other_branch') {
-    const locale = viewerLocale ?? item.locale;
-    return fill(t(locale, 'inApp.break_returned_other_branch'), shiftValues(item.safe_parameters));
+  if (
+    item.template_key === 'shift_not_clocked_in' ||
+    item.template_key === 'break_not_returned' ||
+    item.template_key === 'break_returned_other_branch'
+  ) {
+    return fill(
+      t(viewerLocale ?? item.locale, `inApp.${item.template_key}`),
+      shiftValues(item.safe_parameters),
+    );
   }
   if (
     item.template_key === 'attendance_exception_raised' ||
@@ -65,7 +72,7 @@ export function renderNotification(
 }
 
 /** طلبات تعديل الحضور وقراراتها: التغيير والقرار بيتقروا بلغة الواجهة. */
-function renderAttendanceChange(item: InAppNotification, viewerLocale?: Locale): string {
+function renderAttendanceChange(item: ScalarNotification, viewerLocale?: Locale): string {
   const locale = viewerLocale ?? item.locale;
   const values = Object.fromEntries(item.safe_parameters.map((p) => [p.name, p.value]));
   values['change'] = t(
@@ -89,12 +96,13 @@ export type DocumentNumbersByBusiness = ReadonlyMap<string, ReadonlyMap<string, 
 
 /** معرف المستند من المعاملات الآمنة؛ يبقى خارج النص ولا يُستخدم إلا كمفتاح للقراءة الموثقة. */
 export function documentIdOf(item: InAppNotification): string | null {
+  if (isLowRatingNotice(item)) return null;
   return item.safe_parameters.find((parameter) => parameter.name === 'document_id')?.value ?? null;
 }
 
 /** جرسا استثناء الحضور وانتهاء المستند: لغة الواجهة، والعربي الغائب يرجع للإنجليزي، ومعرّف المستند ما يظهرش؛ رقم المستند الحالي فقط إذا وصل من القراءة الموثقة. */
 function renderStaffAlert(
-  item: InAppNotification,
+  item: ScalarNotification,
   viewerLocale?: Locale,
   documentNumber?: string,
 ): string {
@@ -112,7 +120,7 @@ function renderStaffAlert(
   );
 }
 
-function renderServiceLineNotice(item: InAppNotification, viewerLocale?: Locale): string | null {
+function renderServiceLineNotice(item: ScalarNotification, viewerLocale?: Locale): string | null {
   if (item.template_key === 'service_line_price_edited') {
     return fill(
       t(viewerLocale ?? item.locale, 'inApp.service_line_price_edited'),
@@ -134,7 +142,7 @@ function renderServiceLineNotice(item: InAppNotification, viewerLocale?: Locale)
   return null;
 }
 
-function priceEditValues(parameters: InAppNotification['safe_parameters']): Record<string, string> {
+function priceEditValues(parameters: ScalarParameters): Record<string, string> {
   const read = (name: string) => parameters.find((item) => item.name === name)?.value ?? '';
   const arabic = (name: string, english: string) => {
     const value = read(name).trim();
@@ -156,9 +164,7 @@ function priceEditValues(parameters: InAppNotification['safe_parameters']): Reco
   };
 }
 
-function cancelledLineValues(
-  parameters: InAppNotification['safe_parameters'],
-): Record<string, string> {
+function cancelledLineValues(parameters: ScalarParameters): Record<string, string> {
   const read = (name: string) => parameters.find((item) => item.name === name)?.value ?? '';
   const arabic = (name: string, english: string) => {
     const value = read(name).trim();
@@ -176,9 +182,7 @@ function cancelledLineValues(
   };
 }
 
-function performersChangedValues(
-  parameters: InAppNotification['safe_parameters'],
-): Record<string, string> {
+function performersChangedValues(parameters: ScalarParameters): Record<string, string> {
   const read = (name: string) => parameters.find((item) => item.name === name)?.value ?? '';
   const arabic = (name: string, english: string) => {
     const value = read(name).trim();
@@ -196,9 +200,7 @@ function performersChangedValues(
   };
 }
 
-function discountApprovalValues(
-  parameters: InAppNotification['safe_parameters'],
-): Record<string, string> {
+function discountApprovalValues(parameters: ScalarParameters): Record<string, string> {
   const read = (name: string) => parameters.find((item) => item.name === name)?.value ?? '';
   const arabic = (name: string, english: string) => {
     const value = read(name).trim();
@@ -213,7 +215,7 @@ function discountApprovalValues(
   return values;
 }
 
-function shiftValues(parameters: InAppNotification['safe_parameters']): Record<string, string> {
+function shiftValues(parameters: ScalarParameters): Record<string, string> {
   const read = (name: string) => parameters.find((item) => item.name === name)?.value ?? '';
   const employeeEn = read('employee_name_en');
   const branchEn = read('branch_name_en');
@@ -230,9 +232,7 @@ function shiftValues(parameters: InAppNotification['safe_parameters']): Record<s
 }
 
 /** قيم جرسَي الاستثناء والمستند: العربي الغائب يرجع للإنجليزي، ومعرّف المستند ما بيتبعتش للنص. */
-function staffAlertValues(
-  parameters: InAppNotification['safe_parameters'],
-): Record<string, string> {
+function staffAlertValues(parameters: ScalarParameters): Record<string, string> {
   const read = (name: string) => parameters.find((item) => item.name === name)?.value ?? '';
   const arabic = (name: string, english: string) => {
     const value = read(name).trim();
