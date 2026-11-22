@@ -60,35 +60,63 @@ export async function readCommissionScope(
   const rows = await tx.execute<{ id: string }>(sql`SELECT id FROM branches
     WHERE company_id=${companyId} AND business_id=${businessId} ORDER BY id`);
   const branchIds = rows.map((row) => row.id);
-  const inBusiness = new Set(branchIds);
-  const businessWideAllow = allows.some(
-    (grant) =>
-      grant.scopeType === 'COMPANY' ||
-      (grant.scopeType === 'BUSINESS' && grant.scopeId === businessId),
-  );
+  const businessWideAllow = allows.some((grant) => coversBusiness(grant, companyId, businessId));
   // القارئ على مستوى النشاط يبقى محدوداً لو فيه DENY ساري من أي نطاق، فالمفاضلة
   // بتنتقل لفلتر الفروع بدل ما يشوف كل النشاط (CM-23g).
   if (businessWideAllow && denies.length === 0) {
     return { kind: 'scope', scope: { businessWide: true, branchIds } };
   }
-  const denied = new Set<string>();
-  for (const deny of denies) {
-    if (deny.scopeType === 'COMPANY') for (const id of branchIds) denied.add(id);
-    else if (deny.scopeType === 'BUSINESS' && deny.scopeId === businessId)
-      for (const id of branchIds) denied.add(id);
-    else if (deny.scopeType === 'BRANCH' && inBusiness.has(deny.scopeId)) denied.add(deny.scopeId);
-  }
-  const allowed = new Set<string>();
-  for (const allow of allows) {
-    if (allow.scopeType === 'COMPANY') for (const id of branchIds) allowed.add(id);
-    else if (allow.scopeType === 'BUSINESS' && allow.scopeId === businessId)
-      for (const id of branchIds) allowed.add(id);
-    else if (allow.scopeType === 'BRANCH' && inBusiness.has(allow.scopeId))
-      allowed.add(allow.scopeId);
-  }
+  const denied = deniedBranches(denies, companyId, businessId, branchIds);
+  const allowed = allowedBranches(allows, companyId, businessId, branchIds);
   const effective = [...allowed].filter((id) => !denied.has(id)).sort();
   if (effective.length === 0) return { kind: 'forbidden' };
   return { kind: 'scope', scope: { businessWide: false, branchIds: effective } };
+}
+
+/** منح على مستوى الشركة أو النشاط بيغطي كل فروع النشاط. */
+function coversBusiness(
+  grant: { readonly scopeType: string; readonly scopeId: string },
+  companyId: string,
+  businessId: string,
+): boolean {
+  if (grant.scopeType === 'COMPANY') return grant.scopeId === companyId;
+  return grant.scopeType === 'BUSINESS' && grant.scopeId === businessId;
+}
+
+/** الفروع اللي غطاها DENY ساري: نطاق الشركة أو النشاط بيغطي الفروع كلها. */
+function deniedBranches(
+  denies: readonly { readonly scopeType: string; readonly scopeId: string }[],
+  companyId: string,
+  businessId: string,
+  branchIds: readonly string[],
+): Set<string> {
+  const denied = new Set<string>();
+  for (const deny of denies) {
+    if (coversBusiness(deny, companyId, businessId)) {
+      for (const id of branchIds) denied.add(id);
+      continue;
+    }
+    if (deny.scopeType === 'BRANCH' && branchIds.includes(deny.scopeId)) denied.add(deny.scopeId);
+  }
+  return denied;
+}
+
+/** الفروع اللي سمح بها ALLOW ساري: نطاق الشركة أو النشاط بيغطي الفروع كلها. */
+function allowedBranches(
+  allows: readonly { readonly scopeType: string; readonly scopeId: string }[],
+  companyId: string,
+  businessId: string,
+  branchIds: readonly string[],
+): Set<string> {
+  const allowed = new Set<string>();
+  for (const allow of allows) {
+    if (coversBusiness(allow, companyId, businessId)) {
+      for (const id of branchIds) allowed.add(id);
+      continue;
+    }
+    if (allow.scopeType === 'BRANCH' && branchIds.includes(allow.scopeId)) allowed.add(allow.scopeId);
+  }
+  return allowed;
 }
 
 /**

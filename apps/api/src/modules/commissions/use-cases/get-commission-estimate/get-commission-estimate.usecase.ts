@@ -9,7 +9,7 @@ import {
 export type { CommissionEstimateReader };
 
 /** أسباب رفض التقدير: الرفض الموحّد والميزة المقفولة، وبيترجموا لخطأ API معروف. */
-export type CommissionEstimateErrorCode = 'FORBIDDEN' | 'FEATURE_DISABLED' | 'VALIDATION_FAILED';
+export type CommissionEstimateErrorCode = 'FORBIDDEN' | 'FEATURE_DISABLED';
 
 /** رفض التقدير بكود مستقل عن HTTP، وتفاصيل كود المحرك عند الحاجة. */
 export class CommissionEstimateError extends Error {
