@@ -1,12 +1,37 @@
-import type { CommissionPlanVersion, CreateCommissionPeriodRepairInput } from '@pospay/contracts';
+import type { CommissionPlanWire } from '@pospay/commissions-engine';
 import type { CommissionCorrectionScope } from '@pospay/commissions-posting';
 
+import type { OutboxWriter } from '../../../shared/ports/outbox-writer.port.ts';
 import type { CommissionInputLockScope } from './commission-input-lock-scope.port.ts';
 import type { CommissionPlanVersionActor } from './commission-plan-version-transactions.port.ts';
 
+/** جسم طلب الإصلاح: الشهر المحجوز والخطة بصيغة العقد، وطبقة http هي اللي بتحوّل من DTO العقد لهنا. */
+export interface CommissionPeriodRepairInput {
+  readonly period: string;
+  readonly plan: CommissionPlanWire;
+}
+
+/** إصدار الإصلاح كما يُخزَّن ويُرجَع: الخطة بصيغة العقد مع هويته وتاريخ سريانه وشهر الإصلاح. */
+export interface CommissionRepairVersion extends CommissionPlanWire {
+  readonly id: string;
+  readonly employee_id: string;
+  readonly version: number;
+  readonly effective_from: string;
+  readonly whole_period: boolean;
+  readonly repair_period: string | null;
+  readonly created_at: string;
+  readonly created_by: string;
+}
+
+/** نتيجة الإصلاح: الإصدار المخزّن وحالة التصحيح الموقوف بعده. */
+export interface CommissionPeriodRepairResult {
+  readonly version: CommissionRepairVersion;
+  readonly blocked_correction: CommissionRepairBlockState;
+}
+
 /** طلب إصلاح شهر بهوية الفاعل والمفتاح والبصمة، لأن إعادة الإرسال لازم تتفرّق بين نفس الطلب وطلب مختلف بنفس المفتاح. */
 export interface CommissionPeriodRepairCommand extends CommissionPlanVersionActor {
-  readonly input: CreateCommissionPeriodRepairInput;
+  readonly input: CommissionPeriodRepairInput;
   readonly key: string;
   readonly fingerprint: string;
 }
@@ -46,7 +71,7 @@ export interface CommissionPeriodRepairScope extends CommissionInputLockScope {
    * @param record الإصدار كامل المعرف والتوقيت وشهر الإصلاح
    * @returns الصف المخزن
    */
-  insert(record: CommissionPlanVersion): Promise<CommissionPlanVersion>;
+  insert(record: CommissionRepairVersion): Promise<CommissionRepairVersion>;
   /**
    * بيرجّع نطاق خطوة التصحيح المربوط بنفس المعاملة، علشان الإصلاح والتصحيحات ينجحوا أو يتلغوا معاً.
    *
@@ -67,7 +92,9 @@ export interface CommissionPeriodRepairScope extends CommissionInputLockScope {
    * @param block حالة التصحيح الموقوف بعد الإصلاح
    * @returns اكتمال التدقيق
    */
-  audit(record: CommissionPlanVersion, block: CommissionRepairBlockState): Promise<void>;
+  audit(record: CommissionRepairVersion, block: CommissionRepairBlockState): Promise<void>;
+  /** كاتب الـ outbox المربوط بنفس المعاملة، لحدث حفظ الإصلاح اللي بيطلع مع الكتابات أو بيتلغى معاها. */
+  readonly outbox: OutboxWriter;
 }
 
 /** حد المعاملة الذرية وإعادة الإرسال لإصلاح الشهر. */

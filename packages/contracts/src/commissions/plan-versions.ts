@@ -115,6 +115,7 @@ export const commissionPlanVersionListQuery = z
   .strictObject({
     cursor: z.coerce.number().int().min(1).max(COMMISSION_PLAN_VERSION_CURSOR_MAX).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
+    kind: z.enum(['ordinary']).optional(),
   })
   .meta({ id: 'CommissionPlanVersionListQuery' });
 

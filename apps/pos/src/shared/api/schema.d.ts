@@ -3611,6 +3611,8 @@ export interface components {
             cursor?: number;
             /** @default 20 */
             limit: number;
+            /** @enum {string} */
+            kind?: "ordinary";
         };
         CommissionPlanInvalidError: {
             /** @enum {string} */

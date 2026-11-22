@@ -21537,6 +21537,12 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 100
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "ordinary"
+            ]
           }
         },
         "additionalProperties": false

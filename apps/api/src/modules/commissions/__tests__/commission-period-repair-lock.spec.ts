@@ -1,4 +1,5 @@
 import { lockStatementPeriods } from '@pospay/db';
+import { sql } from 'drizzle-orm';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 
 import { insertCommissionLineProjection } from '../../../../../../packages/db/test/commission-line-fixtures.ts';
@@ -36,15 +37,17 @@ const seed = () =>
     frozen: [],
   });
 
-const waitUntilBlockedOnTheStatementLock = async (): Promise<void> => {
+// يثبت الانتظار على حامل القفل نفسه: الجلسة اللي بتنادي مساعد القفل ومتوقفة بسبب pid الكاتب المتزامن بالذات.
+const waitUntilBlockedBy = async (holderPid: number): Promise<void> => {
   const deadline = performance.now() + 10_000;
   while (performance.now() < deadline) {
     const [row] = await r.h.owner`SELECT count(*)::int AS waiting FROM pg_stat_activity
-      WHERE wait_event_type = 'Lock' AND query LIKE ${`%${LOCK_STATEMENT_PERIODS_MARKER}%`}`;
+      WHERE query LIKE ${`%${LOCK_STATEMENT_PERIODS_MARKER}%`}
+        AND ${holderPid} = ANY(pg_blocking_pids(pid))`;
     if ((row?.['waiting'] as number) > 0) return;
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
-  throw new Error('the repair never waited on the statement lock');
+  throw new Error('the repair never waited on the lock held by the concurrent writer');
 };
 
 it('a late line that lands while the repair waits for the statement lock is read after the wait and priced', async () => {
@@ -53,8 +56,8 @@ it('a late line that lands while the repair waits for the statement lock is read
   const gate = new Promise<void>((resolve) => {
     release = resolve;
   });
-  let holding: () => void = () => undefined;
-  const held = new Promise<void>((resolve) => {
+  let holding: (pid: number) => void = () => undefined;
+  const held = new Promise<number>((resolve) => {
     holding = resolve;
   });
   const concurrentWriter = r.db.withTenant(r.company, async (tx) => {
@@ -69,14 +72,18 @@ it('a late line that lands while the repair waits for the statement lock is read
       ruleKind: 'FOLLOW_PLAN',
       sessionId: ids.newId(),
     });
-    holding();
+    const [backend] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`);
+    holding(backend?.pid ?? 0);
     await gate;
   });
-  await held;
-
-  const repair = r.repair(body, 'barrier-late-line');
-  await waitUntilBlockedOnTheStatementLock();
-  release();
+  const holderPid = await held;
+  let repair: ReturnType<typeof r.repair> | undefined;
+  try {
+    repair = r.repair(body, 'barrier-late-line');
+    await waitUntilBlockedBy(holderPid);
+  } finally {
+    release();
+  }
   await concurrentWriter;
   const response = await repair;
 

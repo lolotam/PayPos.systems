@@ -1,5 +1,6 @@
 import { Body, Controller, HttpCode, Inject, Param, Post, Req } from '@nestjs/common';
 import {
+  commissionPeriodRepair,
   createCommissionPeriodRepairInput,
   id,
   type CommissionPeriodRepair,
@@ -36,13 +37,15 @@ export class CommissionPeriodRepairsController {
   ): Promise<CommissionPeriodRepair> {
     if (this.repair === null) throw new ApiError('NOT_READY');
     try {
-      return await this.repair.execute({
-        ...actorOf(request),
-        businessId,
-        employeeId,
-        input,
-        ...idem,
-      });
+      return commissionPeriodRepair.parse(
+        await this.repair.execute({
+          ...actorOf(request),
+          businessId,
+          employeeId,
+          input,
+          ...idem,
+        }),
+      );
     } catch (error) {
       return mapCommissionWriteError(error);
     }

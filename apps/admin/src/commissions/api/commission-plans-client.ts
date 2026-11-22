@@ -60,6 +60,24 @@ export async function fetchCommissionPlanVersions(
   return commissionPlanVersionList.parse(result.data);
 }
 
+/** بيجيب أحدث نسخة عادية (من غير نسخ الإصلاح) من السيرفر نفسه، أو null لو مفيش نسخة عادية خالص. */
+export async function fetchLatestOrdinaryCommissionPlanVersion(
+  scope: PlanScope,
+  employeeId: string,
+  signal: AbortSignal,
+): Promise<CommissionPlanVersion | null> {
+  const result = await apiClient().GET(versionsPath, {
+    params: {
+      header: { 'x-company-id': scope[1] },
+      path: { businessId: scope[2], employeeId },
+      query: { limit: 1, kind: 'ordinary' },
+    },
+    signal,
+  });
+  if (!result.response.ok) throw refusal(result.error ?? {}, result.response.status);
+  return commissionPlanVersionList.parse(result.data).items[0] ?? null;
+}
+
 /** بيحفظ نسخة جديدة بمفتاح Idempotency ويرجّع النسخة المخزّنة بعد تحليلها بسكيما العقد. */
 export async function createCommissionPlanVersion(
   scope: PlanScope,

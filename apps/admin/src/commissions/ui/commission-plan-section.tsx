@@ -1,12 +1,9 @@
 'use client';
 
-import type {
-  CommissionPlanEmployeeListItem,
-  CommissionPlanVersion,
-  CommissionPlanVersionList,
-} from '@pospay/contracts';
+import type { CommissionPlanEmployeeListItem, CommissionPlanVersion } from '@pospay/contracts';
 import { useEffect, useMemo, useState } from 'react';
 import { isPlanNotFound, type PlanScope } from '../api/plan-access';
+import { useCommissionPlanSeed } from '../api/use-commission-plan-seed';
 import { useCommissionPlanVersions } from '../api/use-commission-plan-versions';
 import { useSaveCommissionPlan, type PlanAttemptMemory } from '../api/use-save-commission-plan';
 import type { PlanDraft } from '../model/plan-draft';
@@ -16,16 +13,15 @@ import { planRefusalMessage } from './plan-server-messages';
 import { PlanBuilderForm } from './plan-builder-form';
 import { PlanHistoryTable } from './plan-history-table';
 
-/** مسودة بلوك الموظفة: أحدث نسخة مخزّنة، أو مسودة فاضية بيوم النشاط لو التاريخ لسه فاضي. */
-function sectionDraft(page: CommissionPlanVersionList, timeZone: string): PlanDraft {
-  const newest = page.items[0];
-  return newest !== undefined ? draftFromVersion(newest) : emptyPlanDraft(timeZone, new Date());
+/** مسودة بلوك الموظفة: أحدث نسخة عادية، أو مسودة فاضية بيوم النشاط لما القراءة تأكد إن مفيش نسخة عادية. */
+function sectionDraft(newest: CommissionPlanVersion | null, timeZone: string): PlanDraft {
+  return newest !== null ? draftFromVersion(newest) : emptyPlanDraft(timeZone, new Date());
 }
 
 /**
- * بلوك موظفة واحدة: المحرّر بيركب بس بعد نجاح أول صفحة تاريخ، وقيم النموذج بتعيش جوّه الفورم
- * نفسها فما بتتأثرش بإعادة جلب ولا تحميل صفحات أكتر؛ الحفظ الناجح بس هو اللي بيصفّر التاريخ
- * ويرجّع يركّب المحرّر على النسخة المخزّنة بعد ما الصفحة الأولى ترجع منها.
+ * بلوك موظفة واحدة: المحرّر بيركب بس بعد نجاح قراءة أحدث نسخة عادية (مش من أول صفحة تاريخ، لأنها
+ * ممكن تبقى كلها إصلاحات)، وفشل القراءة بيظهر رسالة من غير محرّر، وقيم النموذج بتعيش جوّه الفورم
+ * نفسها فما بتتأثرش بإعادة جلب ولا تحميل صفحات أكتر؛ الحفظ الناجح بس هو اللي بيرجّع يركّب المحرّر.
  */
 export function CommissionPlanSection({
   scope,
@@ -43,12 +39,13 @@ export function CommissionPlanSection({
   const locale = useLocale();
   const versions = useCommissionPlanVersions(scope, employee.id);
   const save = useSaveCommissionPlan(scope, employee.id, memory);
-  const failure = versions.isError ? versions.error : null;
+  const seed = useCommissionPlanSeed(scope, employee.id);
+  const failure = versions.isError ? versions.error : seed.isError ? seed.error : null;
   const notFound = failure !== null && isPlanNotFound(failure);
-  const firstPage = versions.data?.pages[0];
+  const seedVersion = seed.data;
   const initial = useMemo(
-    () => (firstPage === undefined ? null : sectionDraft(firstPage, timeZone)),
-    [firstPage, timeZone],
+    () => (seedVersion === undefined ? null : sectionDraft(seedVersion, timeZone)),
+    [seedVersion, timeZone],
   );
   // مفتاح النموذج من آخر نسخة محفوظة ناجحة بس: الحفظ اللي بيستنى أو بيرفض ما بيغيّرش المفتاح
   // فالمحرّر ما بيتركّبش من جديد وتعديلات المدير بتفضل مكانها لحد ما نجاح حقيقي يعيد الأساس.

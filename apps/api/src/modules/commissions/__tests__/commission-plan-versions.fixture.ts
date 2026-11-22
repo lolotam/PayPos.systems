@@ -103,7 +103,7 @@ export async function commissionPlanVersionsFixture(clock?: () => Date) {
         cookie: actor,
         company,
       }),
-    list: (query: { limit: number; cursor?: number }) =>
+    list: (query: { limit: number; cursor?: number; kind?: 'ordinary' }) =>
       db.withTenant(company, (tx) =>
         listCommissionPlanVersions(tx, company, business, employee, query),
       ),

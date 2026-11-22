@@ -3,8 +3,8 @@
 // module's use-cases/, ports/ and persistence/ (plus its wiring file and module tests) alone, and the package itself
 // is the one package besides those layers that may import the engine's root entry.
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
-import { readdirSync } from 'node:fs';
+import { after, describe, it } from 'node:test';
+import { readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { ESLint } from 'eslint';
@@ -83,9 +83,9 @@ const add = (at, file, source, expect, what) => {
 for (const app of ['api', 'worker']) {
   for (const [formName, form] of FORMS) {
     for (const [file, layer] of ALLOWED_LAYERS) {
-      // A use case may not load the root dynamically or by require(): that could take the scope factory (#1217).
+      // A use case or a port may not load the root dynamically or by require(): that could take the scope factory (#1217).
       const useCaseLoadsAtRuntime =
-        layer === 'use case' && ['dynamic import', 'require'].includes(formName);
+        ['use case', 'port'].includes(layer) && ['dynamic import', 'require'].includes(formName);
       add(
         app,
         file,
@@ -626,6 +626,94 @@ add(
   'ports/ may import only',
   'a port may not import its own domain by import-equals (a runtime import)',
 );
+
+// #1217 point 3, the indirect routes: a layer that may import the root must not hand the factory on, a computed
+// specifier is refused where it cannot be analysed, and import-equals is judged like every other form.
+const UNANALYSABLE = 'loads only modules it can name';
+const COMPUTED_FORMS = [
+  ['computed import', 'export const probe = (name: string) => import(name);\n'],
+  [
+    'template-literal import',
+    'export const probe = () => import(`${"@pospay"}/commissions-posting`);\n',
+  ],
+  ['computed require', 'export const probe = (name: string) => require(name);\n'],
+  ['argument-less require', 'export const probe = () => require();\n'],
+];
+const REEXPORT_ALL = `export * from '${POSTING}';\n`;
+for (const app of ['api', 'worker']) {
+  for (const [file, layer] of [
+    [`${M}/use-cases/probe/probe.ts`, 'use case'],
+    [`${M}/ports/probe.port.ts`, 'port'],
+  ]) {
+    for (const [formName, source] of FACTORY_FORMS) {
+      if (layer === 'port') {
+        add(app, file, source, FACTORY, `a port may not take the scope factory by ${formName}`);
+      }
+    }
+    add(app, file, REEXPORT_ALL, FACTORY, `a ${layer} may not re-export the whole posting root`);
+    for (const [formName, source] of COMPUTED_FORMS) {
+      add(app, file, source, UNANALYSABLE, `a ${layer} may not use a ${formName}`);
+    }
+  }
+  // A literal specifier of another package stays loadable: only what cannot be analysed is refused.
+  add(
+    app,
+    `${M}/use-cases/probe/probe.ts`,
+    "export const probe = () => import('./helper.ts');\n",
+    ALLOWED,
+    'a use case may still load a literal specifier that the other rules judge',
+  );
+  // import-equals of a relative path or a subpath, which the bare-name selector missed.
+  for (const [file, layer] of ALLOWED_LAYERS) {
+    for (const [what, spec, target] of [
+      ['a posting subpath', `${POSTING}/dist/index.js`, E],
+      [
+        'the posting package by a relative path',
+        '../../../../../../packages/commissions-posting/src/index.ts',
+        E,
+      ],
+      ['an engine subpath', `${ENGINE}/dist/index.js`, E],
+      [
+        'the engine by a relative path',
+        '../../../../../../packages/commissions-engine/src/index.ts',
+        E,
+      ],
+    ]) {
+      add(
+        app,
+        file,
+        `import dep = require('${spec}');\nexport const probe = dep;\n`,
+        target,
+        `a ${layer} may not import ${what} by import-equals`,
+      );
+    }
+  }
+}
+
+// Two real files: a barrel inside persistence/ that re-exports the factory, and a use case importing the barrel.
+const BARREL = 'zz-probe-factory-barrel.ts';
+const barrelPaths = ['api', 'worker'].map((app) => ({
+  app,
+  path: cwd(`../../apps/${app}/src/modules/commissions/persistence/${BARREL}`),
+}));
+for (const { path } of barrelPaths) {
+  writeFileSync(path, `export { createCommissionCorrectionScope } from '${POSTING}';\n`);
+}
+after(() => {
+  for (const { path } of barrelPaths) rmSync(path, { force: true });
+});
+for (const { app } of barrelPaths) {
+  it(`${app}: a use case may not reach the factory through a barrel of persistence/`, async () => {
+    const source = `import { createCommissionCorrectionScope as make } from '../../persistence/${BARREL}';\nexport const probe = make;\n`;
+    const [result] = await linters[app].lintText(source, {
+      filePath: `${M}/use-cases/probe/probe.ts`,
+    });
+    assert.ok(
+      result.messages.some((message) => message.ruleId === 'boundaries/dependencies'),
+      JSON.stringify(result.messages),
+    );
+  });
+}
 
 // Files the lint config does not reach cannot carry a layer rule: the package holds .ts files only.
 it('keeps every source file of the posting package a .ts file the layer rules reach', () => {

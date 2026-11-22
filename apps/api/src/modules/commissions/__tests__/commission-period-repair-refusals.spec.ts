@@ -57,18 +57,17 @@ it('CM-52 with no blocked correction at all the repair is 422 COMMISSION_REPAIR_
   expect(await repairWrites(r)).toEqual(before);
 });
 
-it('CM-52c: a NO_SALARY block is refused, and once the recompute turns it into NO_PLAN the same request is allowed', async () => {
-  await seed('NO_SALARY');
+it('CM-52c: a NO_SALARY block is refused with 422 and the version, audit, corrections and event stay unwritten (the NO_PLAN turn and the repair itself are proved through the real flow in commission-period-repair-flow.spec.ts)', async () => {
+  const seeded = await seed('NO_SALARY');
   const before = await repairWrites(r);
 
   const refusedBlock = await r.repair(body, 'cm-52c-no-salary');
-  await r.h
-    .owner`UPDATE commission_blocked_corrections SET code='NO_PLAN' WHERE resolved_at IS NULL`;
-  const allowed = await r.repair(body, 'cm-52c-no-plan');
 
   expect(refused(refusedBlock)).toEqual([422, 'COMMISSION_REPAIR_NOT_ALLOWED']);
-  expect((await repairWrites(r))[0]).toBe((before[0] ?? 0) + 1);
-  expect(allowed.status).toBe(201);
+  expect(await repairWrites(r)).toEqual(before);
+  expect(await blockRows(r)).toEqual([
+    expect.objectContaining({ id: seeded.blockId, code: 'NO_SALARY', resolved: false }),
+  ]);
 });
 
 it('CM-52 a resolved block is refused: a second repair of the same month is 422', async () => {

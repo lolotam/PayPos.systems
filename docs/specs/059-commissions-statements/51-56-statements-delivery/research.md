@@ -54,8 +54,14 @@ canonical documents leave open. None is a money, permission or tenant rule. R1 w
 
 - **Decision:** the block's `first_event_id`, as plan-55-2.md §1 already proposes; the block reader is widened to
   return it. The reply is 201 `{ version, blocked_correction: { id, code, resolved } }`.
-- **Rationale:** `commission_corrections.event_id` is `NOT NULL` and a repair has no event of its own; the block's
-  first event is the change the correction answers. plan-55-2.md marks this as provisional; it is confirmed here.
+- **Rationale:** `commission_corrections.event_id` is `NOT NULL`; the correction's `event_id` is not the repair's own
+  event but the block's first event, the change the correction answers. plan-55-2.md marks this as provisional; it is
+  confirmed here.
+- **Correction (PosPay manager, PR #1221, 2026-11-22):** an earlier wording said the repair has no event of its own.
+  That was wrong: CLAUDE.md §6 requires an outbox event in the same transaction for an endpoint with money effects, so
+  the repair appends its own `CommissionPeriodRepairSaved` (a repair saved, never the block closed: under CM-52b the
+  block can stay `NO_SALARY`). Payload: ids and the block's outcome only; it is not one of the six counted types of
+  ADR-0012 and no consumer re-runs a correction.
 - **Alternatives considered:** a synthetic id (breaks the meaning of the column); a nullable column (a migration and a
   weaker invariant).
 

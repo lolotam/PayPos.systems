@@ -25,6 +25,11 @@ export function planVersionsKey(scope: PlanScope, employeeId: string) {
   return [...scope, 'versions', employeeId] as const;
 }
 
+/** مفتاح قراءة أحدث نسخة عادية للمحرّر: خارج مفتاح التاريخ عشان إضافة النسخة الجديدة للتاريخ ما تلمسوش. */
+export function planSeedKey(scope: PlanScope, employeeId: string) {
+  return [...scope, 'seed-version', employeeId] as const;
+}
+
 /** مفتاح جدول خدمات الشاشة: خدمات النشاط مع التجاوز الحالي لكل خدمة. */
 export function planOverrideServicesKey(scope: PlanScope, employeeId: string) {
   return [...scope, 'override-services', employeeId] as const;

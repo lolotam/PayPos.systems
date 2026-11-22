@@ -1,6 +1,5 @@
-import { appendAuditLog, type IdGenerator, type Tx } from '@pospay/db';
+import { appendAuditLog, appendOutboxEvent, type IdGenerator, type Tx } from '@pospay/db';
 import { createCommissionCorrectionScope } from '@pospay/commissions-posting';
-import type { CommissionPlanVersion } from '@pospay/contracts';
 import { sql } from 'drizzle-orm';
 
 import type { Clock } from '../../../shared/ports/clock.port.ts';
@@ -8,6 +7,7 @@ import type {
   CommissionPeriodRepairScope,
   CommissionRepairBlockState,
   CommissionRepairOpenBlock,
+  CommissionRepairVersion,
 } from '../ports/commission-period-repair-transactions.port.ts';
 import type { CommissionPlanVersionActor } from '../ports/commission-plan-version-transactions.port.ts';
 import {
@@ -50,7 +50,8 @@ export function createCommissionPeriodRepairScope(
       if (row === undefined) throw new Error('The repaired blocked correction is gone');
       return row;
     },
-    audit: (record: CommissionPlanVersion, block) =>
+    outbox: { append: (event) => appendOutboxEvent(tx, ids.newId(), event) },
+    audit: (record: CommissionRepairVersion, block) =>
       appendAuditLog(tx, ids.newId(), {
         entity: 'commission_plan',
         entityId: record.id,

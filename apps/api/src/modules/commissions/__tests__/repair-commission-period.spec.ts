@@ -1,4 +1,3 @@
-import type { CommissionPlanVersion } from '@pospay/contracts';
 import {
   CommissionBlockNoticesMissingError,
   type CommissionCorrectionScope,
@@ -9,6 +8,7 @@ import { expect, it } from 'vitest';
 
 import { CommissionPlanVersionError } from '../domain/errors.ts';
 import { mapCommissionWriteError } from '../http/commission-input-errors.ts';
+import type { DomainEvent } from '../../../shared/ports/outbox-writer.port.ts';
 import type {
   CommissionPeriodRepairCommand,
   CommissionPeriodRepairScope,
@@ -108,10 +108,33 @@ function fakeCorrections(
   };
 }
 
+const recordingOutbox = (
+  calls: string[],
+  events: DomainEvent[],
+): CommissionPeriodRepairScope['outbox'] => ({
+  append: async (event) => {
+    calls.push('outbox');
+    events.push(event);
+  },
+});
+
+const fakeLock =
+  (calls: string[], locks: (readonly string[])[]): CommissionPeriodRepairScope['lockPeriods'] =>
+  async (periods) => {
+    calls.push('lockPeriods');
+    locks.push(periods);
+    return periods.map((period, index) => ({
+      period,
+      statementId: `statement-${index}`,
+      status: period === '2026-10' ? ('DRAFT' as const) : ('APPROVED' as const),
+    }));
+  };
+
 interface Setup {
   readonly scope: CommissionPeriodRepairScope;
   readonly calls: string[];
   readonly locks: (readonly string[])[];
+  readonly events: DomainEvent[];
 }
 
 function setup(options: {
@@ -119,9 +142,11 @@ function setup(options: {
   readonly block?: { id: string; code: 'NO_PLAN' | 'NO_SALARY'; firstEventId: string } | null;
   readonly stepOpen?: CommissionOpenBlock | null;
   readonly access?: 'FORBIDDEN' | 'FEATURE_DISABLED' | null;
+  readonly after?: 'NO_SALARY';
 }): Setup {
   const calls: string[] = [];
   const locks: (readonly string[])[] = [];
+  const events: DomainEvent[] = [];
   const block =
     options.block === undefined
       ? { id: 'block-a', code: 'NO_PLAN' as const, firstEventId: 'event-a' }
@@ -132,15 +157,7 @@ function setup(options: {
       return true;
     },
     calendar: async () => ({ timeZone: 'Asia/Kuwait', createdAt: new Date('2026-01-01') }),
-    lockPeriods: async (periods) => {
-      calls.push('lockPeriods');
-      locks.push(periods);
-      return periods.map((period, index) => ({
-        period,
-        statementId: `statement-${index}`,
-        status: period === '2026-10' ? ('DRAFT' as const) : ('APPROVED' as const),
-      }));
-    },
+    lockPeriods: fakeLock(calls, locks),
     reopenReviewed: async () => undefined,
     recheckAccess: async () => {
       calls.push('recheckAccess');
@@ -163,12 +180,17 @@ function setup(options: {
         calls,
       );
     },
-    readBlock: async (id) => ({ id, code: 'NO_PLAN', resolved: true }),
+    readBlock: async (id) => ({
+      id,
+      code: options.after ?? 'NO_PLAN',
+      resolved: options.after === undefined,
+    }),
     audit: async () => {
       calls.push('audit');
     },
+    outbox: recordingOutbox(calls, events),
   };
-  return { scope, calls, locks };
+  return { scope, calls, locks, events };
 }
 
 const run = (s: Setup, now: () => Date = () => october) =>
@@ -190,9 +212,10 @@ it('locks the employee, then one ascending call from the source month to the cur
     'bumpGeneration',
     'resolveBlock',
     'audit',
+    'outbox',
   ]);
   expect(s.calls).toContain('insertCorrections:1');
-  const stored: CommissionPlanVersion = result.version;
+  const stored = result.version;
   expect([
     stored.repair_period,
     stored.effective_from,
@@ -300,4 +323,64 @@ it('lets CommissionBlockNoticesMissingError leave unmapped, so the route answers
     mapped = error;
   }
   expect(mapped).toBe(failure);
+});
+
+it('appends one CommissionPeriodRepairSaved with ids and the outcome only, on the new version as its aggregate', async () => {
+  const s = setup({});
+
+  await run(s);
+
+  expect(s.events).toEqual([
+    {
+      aggregateType: 'commission_plan_version',
+      aggregateId: 'new-id',
+      eventType: 'CommissionPeriodRepairSaved',
+      payload: {
+        business_id: 'business-a',
+        employee_id: 'employee-a',
+        period: '2026-09',
+        version_id: 'new-id',
+        blocked_correction_id: 'block-a',
+        resolved: true,
+      },
+    },
+  ]);
+});
+
+it('still appends the event when the block flips to NO_SALARY (CM-52b): the repair was saved, not the block closed', async () => {
+  const s = setup({ after: 'NO_SALARY' });
+
+  await run(s);
+
+  expect(s.events.map((event) => event.payload)).toEqual([
+    expect.objectContaining({ resolved: false }),
+  ]);
+});
+
+it('appends no event when the repair is refused', async () => {
+  const s = setup({ block: null });
+
+  await run(s).catch(() => undefined);
+
+  expect(s.events).toEqual([]);
+});
+
+it('answers 409 COMMISSION_PERIOD_CLOSED when the step finds no DRAFT month to post into, before the audit and the event', async () => {
+  const s = setup({});
+  const closed = {
+    ...s.scope,
+    lockPeriods: async (periods: readonly string[]) =>
+      periods.map((period, index) => ({
+        period,
+        statementId: `statement-${index}`,
+        status: 'APPROVED' as const,
+      })),
+  };
+
+  await expect(
+    repairCommissionPeriod(closed, COMMAND, ids, { now: () => october }),
+  ).rejects.toMatchObject({ code: 'COMMISSION_PERIOD_CLOSED' });
+
+  expect(s.calls).not.toContain('audit');
+  expect(s.events).toEqual([]);
 });

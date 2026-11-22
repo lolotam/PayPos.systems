@@ -23,6 +23,7 @@ import {
   COMMISSIONS_POSTING_SUBPATH_BAN,
   COMMISSIONS_POSTING_SUBPATH_SYNTAX,
   COMMISSIONS_POSTING_SYNTAX,
+  COMMISSIONS_UNANALYSABLE_SYNTAX,
   USE_CASES_INFRASTRUCTURE_PATTERN,
 } from './boundaries.js';
 import {
@@ -197,6 +198,9 @@ const ADMIN_ENGINE_SYNTAX = [
   ...COMMISSIONS_POSTING_SYNTAX,
 ];
 
+/** A no-restricted-imports rule with more paths, for the layers that carry the scope-factory guard. */
+const withPaths = (rule, paths) => [rule[0], { ...rule[1], paths: [...rule[1].paths, ...paths] }];
+
 /**
  * The four blocks of a commissions module's layers that lift a restricted package's root entry: the
  * use-cases/, ports/ and persistence/ — the layers CLAUDE.architecture.md §3.1 lets import a module's
@@ -207,7 +211,7 @@ const ADMIN_ENGINE_SYNTAX = [
  * @param {{ regex: string, message: string }[]} restricted the bans every block keeps: the engine's
  *   subpath and path, and the posting package's bans minus the root where the root is lifted
  * @param {unknown[]} syntax the matching dynamic-import selectors
- * @param {{ paths: unknown[], syntax: unknown[] }} [useCaseGuards] extra bans of the use-cases/ layer only
+ * @param {{ paths: unknown[], syntax: unknown[] }} [useCaseGuards] extra bans of the use-cases/ and ports/ layers only
  * @returns {import('eslint').Linter.Config[]} the four blocks of the layers
  */
 const commissionsLayerBlocks = (
@@ -255,11 +259,23 @@ const commissionsLayerBlocks = (
     },
   },
   {
-    // ADR-0054 §1 — the commissions ports/ and persistence/ lift the root entry only.
-    files: [`${prefix}/ports/**/*.ts`, `${prefix}/persistence/**/*.ts`],
+    // ADR-0054 §1 — the commissions persistence/ lifts the root entry only.
+    files: [`${prefix}/persistence/**/*.ts`],
     rules: {
       'no-restricted-imports': facadeRule(null, false, restricted),
       'no-restricted-syntax': restrictedSyntax({ userText: false, engine: syntax }),
+    },
+  },
+  {
+    // #1217 — a port may import the posting root, so it carries the use cases' guards: a re-export of the scope
+    // factory from here would hand it to every use case, which may import ports/.
+    files: [`${prefix}/ports/**/*.ts`],
+    rules: {
+      'no-restricted-imports': withPaths(facadeRule(null, false, restricted), useCaseGuards.paths),
+      'no-restricted-syntax': restrictedSyntax({
+        userText: false,
+        engine: [...syntax, ...useCaseGuards.syntax],
+      }),
     },
   },
   {
@@ -278,6 +294,22 @@ const commissionsLayerBlocks = (
     ],
     rules: {
       'no-restricted-syntax': restrictedSyntax({ userText: true, engine: syntax }),
+    },
+  },
+  {
+    // #1217 — a commissions port test keeps the Arabic-text exemption and the use cases' guards.
+    files: [
+      `${prefix}/ports/**/__tests__/**`,
+      `${prefix}/ports/__tests__/**`,
+      `${prefix}/ports/**/*.spec.ts`,
+      `${prefix}/ports/**/test/**`,
+      `${prefix}/ports/test/**`,
+    ],
+    rules: {
+      'no-restricted-syntax': restrictedSyntax({
+        userText: true,
+        engine: [...syntax, ...useCaseGuards.syntax],
+      }),
     },
   },
 ];
@@ -331,7 +363,7 @@ export const allowCommissionsEngineBackend = (options = {}) => [
     APP_RESTRICTED_SYNTAX,
     {
       paths: [COMMISSIONS_POSTING_FACTORY_PATH],
-      syntax: COMMISSIONS_POSTING_FACTORY_SYNTAX,
+      syntax: [...COMMISSIONS_POSTING_FACTORY_SYNTAX, ...COMMISSIONS_UNANALYSABLE_SYNTAX],
     },
   ),
   ...commissionsWiringBlocks('**/modules/commissions', options.facades ?? null),

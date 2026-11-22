@@ -86,6 +86,8 @@ const engineSyntax = (pattern, message) => [
   { selector: `ImportExpression[source.value=${pattern}]`, message },
   { selector: `CallExpression[callee.name='require'][arguments.0.value=${pattern}]`, message },
   { selector: `TSImportType[argument.literal.value=${pattern}]`, message },
+  // `import x = require('...')` is its own node, so a relative or subpath specifier needs its own selector.
+  { selector: `TSImportEqualsDeclaration[moduleReference.expression.value=${pattern}]`, message },
 ];
 
 /** The dynamic-import, require() and import-type selectors of the engine's root entry. */
@@ -146,11 +148,25 @@ export const COMMISSIONS_POSTING_FACTORY_PATH = {
  */
 export const COMMISSIONS_POSTING_FACTORY_SYNTAX = [
   // The import-type selector is left out: a type reference cannot construct a scope.
-  ...engineSyntax('/^@pospay\\/commissions-posting$/', FACTORY_MESSAGE).slice(0, 2),
+  ...engineSyntax('/^@pospay\\/commissions-posting$/', FACTORY_MESSAGE).filter(
+    ({ selector }) => !selector.startsWith('TSImportType'),
+  ),
+  // `export * from` the root hands every export, the factory included, to the importers of this file.
   {
-    selector:
-      "TSImportEqualsDeclaration[moduleReference.expression.value='@pospay/commissions-posting']",
+    selector: "ExportAllDeclaration[source.value='@pospay/commissions-posting']",
     message: FACTORY_MESSAGE,
+  },
+];
+
+const UNANALYSABLE_MESSAGE =
+  'A use case or a port loads only modules it can name: a computed import() or require() hides what it takes, so it is refused (ADR-0054 §1 addendum, #1217).';
+
+/** A computed import() or require() in a layer that may not take the scope factory: what cannot be analysed is refused. */
+export const COMMISSIONS_UNANALYSABLE_SYNTAX = [
+  { selector: 'ImportExpression:not([source.type="Literal"])', message: UNANALYSABLE_MESSAGE },
+  {
+    selector: "CallExpression[callee.name='require']:not([arguments.0.type='Literal'])",
+    message: UNANALYSABLE_MESSAGE,
   },
 ];
 
