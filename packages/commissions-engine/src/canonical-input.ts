@@ -1,6 +1,6 @@
 import { moneyToString } from '@pospay/domain';
 
-import { microsToIso, ruleJson, sortedBy } from './canonical-format.ts';
+import { groupByKey, microsToIso, ruleJson, sortedBy } from './canonical-format.ts';
 import { overrideJson, planVersionJson } from './canonical-plan.ts';
 import type { ServiceCommissionOverride } from './commission-types.ts';
 import { assembleForLastDay, commissionPeriodLastDay } from './period-input-assembly.ts';
@@ -63,25 +63,6 @@ function numberKey(value: bigint): string {
   return value.toString().padStart(24, '0');
 }
 
-/**
- * يجمّع قائمة بالموظفة مرة واحدة؛ الصف اللي مالوش موظفة (بيع باقة مستورد) بيتسيب.
- *
- * @param items صفوف القائمة
- * @param employeeOf معرّف الموظفة المرتبط بالصف أو null
- * @returns صفوف كل موظفة بترتيبها الأصلي
- */
-function groupBy<T>(items: readonly T[], employeeOf: (item: T) => string | null): Map<string, T[]> {
-  const grouped = new Map<string, T[]>();
-  for (const item of items) {
-    const employeeId = employeeOf(item);
-    if (employeeId === null) continue;
-    const bucket = grouped.get(employeeId);
-    if (bucket === undefined) grouped.set(employeeId, [item]);
-    else bucket.push(item);
-  }
-  return grouped;
-}
-
 /** كل قائمة مجمّعة بالموظفة مرة واحدة، فبناء كل موظفة بيمر على صفوفها هي بس. */
 type GroupedRows = {
   readonly [K in keyof CanonicalInputRows]: Map<string, CanonicalInputRows[K][number][]>;
@@ -95,15 +76,15 @@ type GroupedRows = {
  */
 function groupRows(rows: CanonicalInputRows): GroupedRows {
   return {
-    lines: groupBy(rows.lines, (line) => line.employeeId),
-    sales: groupBy(rows.sales, (sale) => sale.sellerEmployeeId),
-    tips: groupBy(rows.tips, (tip) => tip.employeeId),
-    salaries: groupBy(rows.salaries, (salary) => salary.employeeId),
-    versions: groupBy(rows.versions, (version) => version.employeeId),
-    overrides: groupBy(rows.overrides, (override) => override.employeeId),
-    corrections: groupBy(rows.corrections, (correction) => correction.employeeId),
-    blocked: groupBy(rows.blocked, (block) => block.employeeId),
-    carries: groupBy(rows.carries, (carry) => carry.employeeId),
+    lines: groupByKey(rows.lines, (line) => line.employeeId),
+    sales: groupByKey(rows.sales, (sale) => sale.sellerEmployeeId),
+    tips: groupByKey(rows.tips, (tip) => tip.employeeId),
+    salaries: groupByKey(rows.salaries, (salary) => salary.employeeId),
+    versions: groupByKey(rows.versions, (version) => version.employeeId),
+    overrides: groupByKey(rows.overrides, (override) => override.employeeId),
+    corrections: groupByKey(rows.corrections, (correction) => correction.employeeId),
+    blocked: groupByKey(rows.blocked, (block) => block.employeeId),
+    carries: groupByKey(rows.carries, (carry) => carry.employeeId),
   };
 }
 

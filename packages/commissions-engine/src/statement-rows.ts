@@ -16,6 +16,7 @@ import type {
   StatementTipSource,
 } from './statement-types.ts';
 import type { IncomingCommissionCarry } from './period-input-types.ts';
+import { carryRef, correctionRef, lineRef, saleRef, tipRef } from './statement-refs.ts';
 
 /** سياق بناء صفوف موظفة واحدة: بطاقتها وارتباطاتها الحيّة والأسماء. */
 export interface EmployeeRowContext {
@@ -138,7 +139,7 @@ export function commissionRow(
   line: StatementLineSource,
   amount: bigint,
 ): StatementRow {
-  const base = blank(ctx.label, 'COMMISSION', `line:${line.lineId}`, amount);
+  const base = blank(ctx.label, 'COMMISSION', lineRef(line), amount);
   const service = ctx.names.services.get(line.serviceId);
   const customer = line.customerId === null ? null : ctx.names.customers.get(line.customerId);
   return {
@@ -173,7 +174,7 @@ export function saleRow(
   sale: StatementSaleSource,
   amount: bigint,
 ): StatementRow {
-  const base = blank(ctx.label, 'SALE', `sale:${sale.saleId}`, amount);
+  const base = blank(ctx.label, 'SALE', saleRef(sale), amount);
   return placed(
     base,
     ctx,
@@ -192,7 +193,7 @@ export function saleRow(
  */
 export function tipRow(ctx: EmployeeRowContext, tip: StatementTipSource): StatementRow {
   const kind = tip.method === 'CARD' ? 'TIP_CARD' : 'TIP_CASH';
-  const base = blank(ctx.label, kind, `tip:${tip.sessionId}:${tip.method}`, tip.amount);
+  const base = blank(ctx.label, kind, tipRef(tip), tip.amount);
   return placed(
     base,
     ctx,
@@ -230,7 +231,7 @@ export function correctionRow(
   const base = blank(
     ctx.label,
     CORRECTION_KINDS[correction.kind],
-    `correction:${correction.id}`,
+    correctionRef(correction),
     correction.amount,
   );
   const placedRow = placed(
@@ -271,11 +272,6 @@ export function correctionRow(
  */
 export function carryRow(ctx: EmployeeRowContext, carry: IncomingCommissionCarry): StatementRow {
   const kind = carry.kind === 'COMMISSION' ? 'CARRY_COMMISSION' : 'CARRY_TIP_CARD';
-  const base = blank(
-    ctx.label,
-    kind,
-    `carry:${carry.sourceStatementId}:${carry.kind}`,
-    carry.amount,
-  );
+  const base = blank(ctx.label, kind, carryRef(carry), carry.amount);
   return { ...base, sourcePeriod: carry.sourcePeriod };
 }

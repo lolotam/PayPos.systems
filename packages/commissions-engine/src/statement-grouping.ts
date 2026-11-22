@@ -1,3 +1,4 @@
+import { groupByKey } from './canonical-format.ts';
 import type { StatementMonthRows } from './statement-types.ts';
 
 /** صفوف الشهر مجمّعة بالموظفة مرة واحدة؛ كل قائمة مفتاحها معرّف الموظفة. */
@@ -9,28 +10,6 @@ export type GroupedMonth = {
 };
 
 /**
- * يجمّع عناصر بمعرّف موظفة؛ العنصر بلا موظفة (بيع من غير بائعة) بيتساب.
- *
- * @param items العناصر
- * @param employeeOf معرّف الموظفة أو null
- * @returns العناصر مجمّعة بالموظفة بترتيبها الأصلي
- */
-export function groupByEmployee<T>(
-  items: readonly T[],
-  employeeOf: (item: T) => string | null,
-): Map<string, T[]> {
-  const grouped = new Map<string, T[]>();
-  for (const item of items) {
-    const employeeId = employeeOf(item);
-    if (employeeId === null) continue;
-    const bucket = grouped.get(employeeId);
-    if (bucket === undefined) grouped.set(employeeId, [item]);
-    else bucket.push(item);
-  }
-  return grouped;
-}
-
-/**
  * يجمّع كل قوائم الشهر اللي بيحتاجها المجمّع المشترك بالموظفة مرة واحدة، فكل موظفة بتاخد
  * صفوفها هي بس بدل ما كل واحدة تمسح الشهر كله.
  *
@@ -39,14 +18,14 @@ export function groupByEmployee<T>(
  */
 export function groupMonth(month: StatementMonthRows): GroupedMonth {
   return {
-    lines: groupByEmployee(month.lines, (line) => line.employeeId),
-    sales: groupByEmployee(month.sales, (sale) => sale.sellerEmployeeId),
-    tips: groupByEmployee(month.tips, (tip) => tip.employeeId),
-    salaries: groupByEmployee(month.salaries, (salary) => salary.employeeId),
-    versions: groupByEmployee(month.versions, (version) => version.employeeId),
-    overrides: groupByEmployee(month.overrides, (override) => override.employeeId),
-    corrections: groupByEmployee(month.corrections, (correction) => correction.employeeId),
-    carries: groupByEmployee(month.carries, (carry) => carry.employeeId),
+    lines: groupByKey(month.lines, (line) => line.employeeId),
+    sales: groupByKey(month.sales, (sale) => sale.sellerEmployeeId),
+    tips: groupByKey(month.tips, (tip) => tip.employeeId),
+    salaries: groupByKey(month.salaries, (salary) => salary.employeeId),
+    versions: groupByKey(month.versions, (version) => version.employeeId),
+    overrides: groupByKey(month.overrides, (override) => override.employeeId),
+    corrections: groupByKey(month.corrections, (correction) => correction.employeeId),
+    carries: groupByKey(month.carries, (carry) => carry.employeeId),
   };
 }
 
@@ -82,5 +61,5 @@ export function monthOfEmployee(
 export function groupAttachments<T extends { readonly employeeId: string }>(
   attachments: readonly T[],
 ): Map<string, T[]> {
-  return groupByEmployee(attachments, (attachment) => attachment.employeeId);
+  return groupByKey(attachments, (attachment) => attachment.employeeId);
 }

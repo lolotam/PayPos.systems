@@ -10,6 +10,7 @@ export type {
   RevisedTip,
 } from './canonical-input.ts';
 export { buildStatement, StatementCardConflictError } from './statement-builder.ts';
+export { StatementDuplicateKeyError } from './statement-uniqueness.ts';
 export {
   statementAttachmentFromStored,
   statementFingerprintInput,

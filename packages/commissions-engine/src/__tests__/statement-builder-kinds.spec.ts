@@ -90,25 +90,27 @@ describe('the statement builder correction row kinds', () => {
 });
 
 describe('the statement builder signs and zero amounts', () => {
-  it('keeps a negative commission, a negative carry and positive card tips as separate rows (BR-06)', () => {
+  it('keeps a negative commission subtotal, a negative carry and positive card tips as separate rows (BR-06)', () => {
     const rows = octoberRows();
     const refund = {
-      ...at(rows.lines, 1),
-      lineId: 'line-refund',
-      netShare: -100_000n,
-      businessDate: '2026-10-12',
+      ...at(rows.corrections, 0),
+      id: 'c-refund',
+      sourceRef: 'line:old-1',
+      amount: -3_000n,
+      previousAmount: 3_000n,
+      newAmount: 0n,
     };
     const input = octoberInput({
       ...rows,
-      lines: [refund],
+      lines: [],
       sales: [],
-      corrections: [],
+      corrections: [refund],
       carries: [at(rows.carries, 0)],
     });
     const mine = saraRows(buildStatement(input).rows).filter((row) => row.kind !== 'EMPLOYEE');
     expect(mine.map((row) => [row.kind, row.sourceRef, row.amount])).toEqual([
       ['CARRY_COMMISSION', 'carry:statement-sep:COMMISSION', '-5.000'],
-      ['COMMISSION', 'line:line-refund', '-5.000'],
+      ['CORRECTION', 'correction:c-refund', '-3.000'],
       ['TIP_CARD', 'tip:session-1:CARD', '6.000'],
       ['TIP_CASH', 'tip:session-1:CASH', '2.000'],
     ]);

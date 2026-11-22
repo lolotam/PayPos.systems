@@ -3,12 +3,15 @@ import type { CommissionEstimateAttachment } from './estimate-projection.ts';
 import { computePeriodDetailed } from './period-commission.ts';
 import { assembleForLastDay, commissionPeriodLastDay } from './period-input-assembly.ts';
 import { sortedBy } from './canonical-format.ts';
+import type { RevisedSalary } from './canonical-input.ts';
+import type { AssembledCommissionPeriod, IncomingCommissionCarry } from './period-input-types.ts';
 import {
   groupAttachments,
   groupMonth,
   monthOfEmployee,
   type GroupedMonth,
 } from './statement-grouping.ts';
+import { lineRef, saleRef } from './statement-refs.ts';
 import {
   carryRow,
   commissionRow,
@@ -18,13 +21,18 @@ import {
   tipRow,
   type EmployeeRowContext,
 } from './statement-rows.ts';
+import { assertUniqueAttachments, assertUniqueSources } from './statement-uniqueness.ts';
 import type {
   StatementAttachmentRow,
   StatementBuild,
   StatementBuildInput,
+  StatementCorrectionSource,
   StatementEmployeeLabel,
+  StatementLineSource,
   StatementPricingFailure,
   StatementRow,
+  StatementSaleSource,
+  StatementTipSource,
 } from './statement-types.ts';
 
 /**
@@ -50,6 +58,16 @@ interface BuildScope {
   readonly grouped: GroupedMonth;
   readonly frozenOf: ReadonlyMap<string, readonly StatementAttachmentRow[]>;
 }
+
+/** مصادر موظفة بعد الاختيار المشترك، بأنواع المصادر اللي الكشف بيحتاجها. */
+type AssembledEmployee = AssembledCommissionPeriod<
+  StatementLineSource,
+  StatementSaleSource,
+  RevisedSalary,
+  StatementTipSource,
+  StatementCorrectionSource,
+  IncomingCommissionCarry
+>;
 
 /**
  * اليوم اللي قبل تاريخ YYYY-MM-DD؛ النهاية الحيّة نصف مفتوحة والمخزّنة آخر يوم داخل.
@@ -146,7 +164,7 @@ function assertLabelled(
   scope: BuildScope,
   labels: ReadonlyMap<string, StatementEmployeeLabel>,
 ): void {
-  const { grouped, period, periodLastDay } = scope;
+  const { grouped } = scope;
   const ids = new Set<string>();
   const buckets = [
     grouped.lines,
@@ -160,13 +178,24 @@ function assertLabelled(
   }
   for (const employeeId of ids) {
     if (labels.has(employeeId)) continue;
-    const rows = monthOfEmployee(grouped, employeeId);
-    const assembled = assembleForLastDay({ employeeId, period, ...rows }, periodLastDay);
+    const assembled = assembleEmployee(scope, employeeId);
     const has = assembled.lines.length + assembled.sales.length + assembled.tips.length;
     if (has + assembled.corrections.length + assembled.carries.length > 0) {
       throw new RangeError('Statement employee label is missing');
     }
   }
+}
+
+/**
+ * اختيار مصادر موظفة واحدة من تجميع الشهر بالمجمّع المشترك.
+ *
+ * @param scope مجمّعات الشهر
+ * @param employeeId الموظفة
+ * @returns مصادرها ومدخل تسعيرها
+ */
+function assembleEmployee(scope: BuildScope, employeeId: string): AssembledEmployee {
+  const rows = monthOfEmployee(scope.grouped, employeeId);
+  return assembleForLastDay({ employeeId, period: scope.period, ...rows }, scope.periodLastDay);
 }
 
 /**
@@ -191,25 +220,23 @@ function monthlyBranches(
  *
  * @param scope مجمّعات الشهر
  * @param ctx سياق الموظفة
+ * @param assembled مصادرها بعد الاختيار المشترك
  * @returns صفوفها وفشل تسعيرها
  */
 function employeeRows(
   scope: BuildScope,
   ctx: EmployeeRowContext,
+  assembled: AssembledEmployee,
 ): { rows: StatementRow[]; failures: StatementPricingFailure[] } {
   const employeeId = ctx.label.employeeId;
-  const assembled = assembleForLastDay(
-    { employeeId, period: scope.period, ...monthOfEmployee(scope.grouped, employeeId) },
-    scope.periodLastDay,
-  );
   const priced = computePeriodDetailed(assembled.input);
   const rows: StatementRow[] = [];
   for (const line of assembled.lines) {
-    const amount = priced.perSource.get(`line:${line.lineId}`);
+    const amount = priced.perSource.get(lineRef(line));
     if (amount !== undefined) rows.push(commissionRow(ctx, line, amount));
   }
   for (const sale of assembled.sales) {
-    const amount = priced.perSource.get(`sale:${sale.saleId}`);
+    const amount = priced.perSource.get(saleRef(sale));
     if (amount !== undefined) rows.push(saleRow(ctx, sale, amount));
   }
   for (const tip of assembled.tips) rows.push(tipRow(ctx, tip));
@@ -233,6 +260,8 @@ function employeeRows(
  *   والاعتماد بيترفضوا (FR-027).
  * - بطاقة الموظفة بتتحدد بمعرّفها: بطاقة مكررة مطابقة بتنضم، ومختلفة بترمي
  *   `StatementCardConflictError`.
+ * - مفتاح صف (الموظفة، مرجع المصدر) أو مرفق (الموظفة، الفرع، بداية الارتباط) متكرر في المدخل
+ *   بيرمي `StatementDuplicateKeyError` قبل أي تسعير، لأن القاعدة هترفضه عند التجميد.
  * - لكل موظفة داخل النطاق صف EMPLOYEE بصفر، حتى من غير أي مصدر، وفروعه هي فروع المرفقات
  *   المقصوصة اللي بتتجمّد مع فروع تصحيحاتها.
  * - فروع كل مصدر (`attachedBranchIds`) من ارتباطات الموظفة في يوم عمله، بنصف مفتوح `[from, to)`.
@@ -248,6 +277,7 @@ export function buildStatement(input: StatementBuildInput): StatementBuild {
   const periodLastDay = commissionPeriodLastDay(input.period);
   const labels = cardsById(input.employees);
   const frozen = frozenAttachments(input.period, labels, input.attachments);
+  assertUniqueAttachments(frozen);
   const scope: BuildScope = {
     period: input.period,
     periodLastDay,
@@ -256,16 +286,21 @@ export function buildStatement(input: StatementBuildInput): StatementBuild {
   };
   assertLabelled(scope, labels);
   const liveOf = groupAttachments(input.attachments);
-  const rows: StatementRow[] = [];
-  const failures: StatementPricingFailure[] = [];
-  for (const label of sortedBy([...labels.values()], (card) => [card.employeeId])) {
+  const prepared = sortedBy([...labels.values()], (card) => [card.employeeId]).map((label) => {
     const ctx: EmployeeRowContext = {
       label,
       attachments: liveOf.get(label.employeeId) ?? [],
       names: input.names,
       correctionLineDetails: input.correctionLineDetails,
     };
-    const built = employeeRows(scope, ctx);
+    const assembled = assembleEmployee(scope, label.employeeId);
+    assertUniqueSources(label.employeeId, assembled);
+    return { ctx, assembled };
+  });
+  const rows: StatementRow[] = [];
+  const failures: StatementPricingFailure[] = [];
+  for (const { ctx, assembled } of prepared) {
+    const built = employeeRows(scope, ctx, assembled);
     rows.push(...built.rows);
     failures.push(...built.failures);
   }
