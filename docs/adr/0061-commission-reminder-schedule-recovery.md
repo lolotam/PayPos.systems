@@ -101,7 +101,7 @@ command keeps its own identity.
 | Key | Meaning | Value |
 | --- | --- | --- |
 | **recovery key** `commissions:reminders:recovery` | "this pass owns the recovery": lease and marker in **one** key with a 120 s TTL | `{ incident_id, run_id, pass_id }`: the incident (null until known), the Redis `run_id` at the start (`R0`), a unique `pass_id` (UUID v7 from the injected `IdGenerator`, new for every pass) |
-| **readiness sentinel** `commissions:reminders:sentinel` (FR-053) | "this generation was fully rebuilt and verified" | `{ release, run_id }` (the release is diagnostic only) |
+| **readiness sentinel** `commissions:reminders:sentinel` (FR-053) | "this generation was fully rebuilt and verified" | `{ release, run_id, pass_id }`: the `pass_id` of the pass that published it (the release is diagnostic only) |
 
 **The one rule: ownership is checked immediately before every shared write, and a pass that fails the check stops and
 does nothing else.** The shared writes are the incident-id update of the key, raising the flag, the clear, and the
@@ -112,8 +112,13 @@ from duplicating work; correctness rests on the `pass_id` compare.
 
 **Detection and readiness (one rule: the incident wins).** Recovery is **needed** when the sentinel is missing or its
 `run_id` differs from the server's, **or a flag is open**, and at every worker process start. **`/ready` is healthy only
-when the sentinel is valid and no flag is open**: a valid sentinel together with an open incident does not make the
-worker ready. The recovery and the close stay **automatic** (CS-Q32): a new pass adopts the open incident, re-verifies
+when the sentinel is valid and no flag is open**, read in one fixed order so that two observations on opposite sides of
+a clear are never combined (no new store): the probe reads **the open flags, then the sentinel, then the server's
+`run_id`, then the sentinel and the open flags again**, and reports healthy only if **both flag reads are empty, both
+sentinel reads are the same value** (it carries the publishing pass's `pass_id`, so a re-publication differs from an
+old sentinel even with the same `run_id`) **and that value's `run_id` equals the server's**. An incident that opens,
+invalidates the sentinel and closes between the reads changes or removes the sentinel, so the probe reports degraded.
+A valid sentinel together with an open incident does not make the worker ready. The recovery and the close stay **automatic** (CS-Q32): a new pass adopts the open incident, re-verifies
 every company's scheduler and closes it by the normal path (clear, then publish); the operator command is only the
 fallback. A pass has an incident iff it finds a loss: a missing or stale
 sentinel, an open flag, a changed `run_id`, or — in the start-up pass — **any company without its scheduler**
@@ -129,8 +134,13 @@ sentinel, an open flag, a changed `run_id`, or — in the start-up pass — **an
    invalidates the sentinel first — a guarded delete (only if the key holds this `pass_id`) — before the clear path.** An
    old valid sentinel therefore can never outlive the incident it predates: whatever the clear then does (true, false,
    unknown, or a superseded winner), `/ready` returns to healthy only after a new publication.
-3. **Rebuild** every company (point 2). After every page: renew the key and check the `run_id` is still `R0`.
-   - **A changed `run_id`, a failed renew or a lost key ends the pass, even if the key is still there** (Redis can restore
+3. **Rebuild** every company (point 2). **Renew the key on a time basis while working, not after a whole page**: a
+   timer renews under the ownership guard **at most every third of the TTL (40 s of the 120 s)**, and also before each
+   page, so a page of up to 1000 companies slower than the TTL does not lose the key; **every renewal also re-checks
+   that the server's `run_id` is still `R0`**.
+   - **A changed `run_id`, a failed renew or a lost key ends the pass at once, even mid-page and even if the key is
+     still there** (the company in flight finishes or aborts and no further upsert or shared write is made; the upserts
+     already done are idempotent and harmless) (Redis can restore
      it from persistence after a restart, so «the key still holds my `pass_id`» is not enough): the pass stops, **deletes
      its own key by compare-and-set** (the delete is the one that frees it at once; if the worker is dead the 120 s TTL
      does), and does not clear or publish. The next detection starts a **new pass** — fresh `R0`, new `pass_id`, the key
@@ -143,7 +153,7 @@ sentinel, an open flag, a changed `run_id`, or — in the start-up pass — **an
      stop. **unknown** (timeout, lost response) → **treated as not-mine**: publish nothing, delete the key, stop; the
      flag is not read to credit this pass (a closed flag plus an intact key cannot prove this pass committed).
    - A false or unknown answer never raises a flag by itself; the next detection decides.
-5. **Publish**, guarded in one Redis script: write the sentinel `{ release, run_id: R0 }` only if the key still holds
+5. **Publish**, guarded in one Redis script: write the sentinel `{ release, run_id: R0, pass_id }` only if the key still holds
    this `pass_id` and incident and the server's `run_id` is still `R0`, and delete the key in the same script.
 
 Every stop leaves `/ready` degraded while an incident is open or the sentinel is not healthy; a worker that has not yet
@@ -214,8 +224,11 @@ For a worker that cannot reach the database function or a company that cannot be
 **does not depend on outbox consumer marks**: it **first creates the same recovery key** (its own `pass_id`, the incident
 it names, the current `run_id`); then lists every company id (the owner reads `companies.id`, the same list as the
 definer's) and verifies each company's scheduler, **upserting the missing ones itself with the same idempotent upsert**;
-it aborts on a lost key, a changed `run_id` or a failed upsert (clearing and publishing nothing); only then does it
-clear the incident by id (audited) and publish the sentinel with the same guarded script. A worker pass that owns the key
+it aborts on a lost key, a changed `run_id` or a failed upsert (clearing and publishing nothing). **Like the worker
+(step 2 of point 4), once it adopts or names the incident it invalidates an existing sentinel with the same guarded
+delete, before it clears**: an abort or a crash after the clear then leaves the sentinel absent and `/ready` degraded,
+never healthy on the old certificate. Only then does it clear the incident by id (audited) and publish the sentinel
+with the same guarded script. A worker pass that owns the key
 makes the operator wait or stop that worker first. Replaying `CompanyCreated` is no longer part of this primary path: it
 stays a documented secondary tool (a consumer's mark in `consumed_events` makes a replay skip a company, so it can never
 be relied on to rebuild).
@@ -269,6 +282,12 @@ Recovery cases (CS-Q32), each with its own expected result:
   and the clear leaves the sentinel missing and raises a new incident; a restart between clear and publish raises a new
   incident and ends healthy after one pass; a replica that sees the sentinel missing between a clear and a publication
   raises no second incident.
+- **Readiness reads:** **a close and an invalidation interleaved between the probe's reads (flags, sentinel, `run_id`,
+  sentinel and flags again) make the probe report degraded**, never healthy on a sentinel read before the close; a
+  re-publication with the same `run_id` is told apart by its `pass_id`.
+- **Renewal:** **a page slower than the TTL does not lose the key** (renewals every ≤ TTL/3 while working, each
+  re-checking `run_id` = `R0`); **a failed renewal mid-page stops the pass at once** with no further upsert or shared
+  write.
 - **Retry:** across successive `pass_id`s the schedule continues; under Reading B exhaustion is reached across pass
   changes and a restart, the unrecovered companies stop being repaired and the successful schedulers keep running.
 - **Start-up:** a process start (also after a rollback to the same release) runs a pass; `/ready` is degraded until it
@@ -276,7 +295,8 @@ Recovery cases (CS-Q32), each with its own expected result:
   key; **a changed `run_id` during the scan, with the key still present or lost, stops that pass without clearing or
   publishing and a new pass (fresh `R0`, new `pass_id`) recovers the incident**; a failing incident-free pass retries and
   raises `COMMISSION_REMINDER_RECERTIFICATION_FAILED` with no ledger incident.
-- **Operator fallback:** creates the key before it touches any scheduler; with an already-consumed `CompanyCreated`
+- **Operator fallback:** creates the key before it touches any scheduler; **an old valid sentinel is invalidated before
+  the clear, and an abort or a crash after the clear leaves `/ready` degraded**; with an already-consumed `CompanyCreated`
   event and a missing scheduler it still restores the scheduler; aborts on a lost key or changed `run_id` without
   clearing or publishing; on success the next heartbeat is healthy and no incident reopens.
 - **Coverage:** a company created between two pages ends with a scheduler — one the pass reads (counted), one it does
