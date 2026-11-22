@@ -71,3 +71,6 @@ export function ratingRequestReadyPayload(input: RatingRequestReadyInput): Ratin
     ],
   });
 }
+
+/** يلحقه عامل customers مرة لكل مجموعة مستلمين بحد أقصى 100 وبقالب واحد، داخل معاملة المستهلك التي تحجز دفتر low_rating_notices، وفقط عندما يكون التقييم نجمة أو نجمتين والقاعدة LOW_RATING فعّالة بقناة داخل التطبيق ويوجد مدير مؤهل واحد على الأقل؛ aggregateType 'rating' وaggregateId هو معرّف التقييم. */
+export type { LowRatingReceived } from '@pospay/contracts';

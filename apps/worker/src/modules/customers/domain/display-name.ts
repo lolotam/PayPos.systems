@@ -23,3 +23,17 @@ export function displaySafeFirstWord(value: string | null): string | null {
   if (DISPLAY_NAME_UNSAFE.test(first)) return null;
   return first;
 }
+
+/**
+ * يقبل اسمًا كاملًا للعرض بحد بوحدات الـ code point، ويرفض الرابط ورقم الهاتف والرمز المرقّم.
+ * الحد بالـ code point مثل حدود الجدول، فاسم إيموجي مسموح في القاعدة ما يترفضش في الجرس.
+ *
+ * @param value الاسم كما هو مخزّن، أو null
+ * @param maxCodePoints أقصى عدد code points للحقل (حد عمود الجدول)
+ * @returns الاسم بعد قص الفراغ، أو null لما لا اسم صالح للعرض
+ */
+export function displaySafeName(value: string | null, maxCodePoints: number): string | null {
+  const trimmed = value?.trim() ?? '';
+  if (trimmed.length === 0 || Array.from(trimmed).length > maxCodePoints) return null;
+  return DISPLAY_NAME_UNSAFE.test(trimmed) ? null : trimmed;
+}

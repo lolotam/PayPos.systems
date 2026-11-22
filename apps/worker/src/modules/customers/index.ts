@@ -1,6 +1,7 @@
 export {
   closedRatingClaimsLifecycle,
   createClaimRatingRequest,
+  createLowRatingNoticeConsumer,
   createRatingBootstrap,
   createRatingClaimsRuntime,
   createRatingSchedulingConsumer,

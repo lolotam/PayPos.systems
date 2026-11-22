@@ -50,6 +50,7 @@ import {
 } from './modules/orders/index.ts';
 import {
   closedRatingClaimsLifecycle,
+  createLowRatingNoticeConsumer,
   createRatingSchedulingConsumer,
 } from './modules/customers/index.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
@@ -177,6 +178,7 @@ const businessDeliver = createDeliverer(
     createPerformersChangeNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
     createDiscountApprovalNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
     createDiscountSelfApprovalNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
+    createLowRatingNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
     createRatingSchedulingConsumer({
       ids: systemUuidV7(),
       clock: { now: () => new Date() },

@@ -404,13 +404,6 @@ composition_roots:
 # (ADR-0010 addendum 2026-10-31).
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
-# A-2 planned worker reads (ADR-0010 addendum 2026-11); each lands as a real reads line WITH its adapter in 61-1h
-# (the identity ratingCommentReaders reader is built in 61-1g; 61-2's API access readers land with their own adapters).
-# Planned: customers -> settings.alertRule @ apps/worker/src/modules/customers/persistence/alert-rule.adapter.ts
-# Planned: customers -> identity.branchManagerRecipients @ apps/worker/src/modules/customers/persistence/low-rating-recipients.adapter.ts
-# Planned: customers -> identity.ratingCommentReaders @ apps/worker/src/modules/customers/persistence/low-rating-recipients.adapter.ts
-# Planned: customers -> tenancy.branchPlace @ apps/worker/src/modules/customers/persistence/low-rating-place.adapter.ts
-# Planned: customers -> tenancy.companyOpen @ apps/worker/src/modules/customers/persistence/low-rating-place.adapter.ts
 reads:
   - orders -> staff.readOwnEmployee @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
   - orders -> identity.readOwnServiceSessionsAccess @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
@@ -455,6 +448,11 @@ reads:
   - customers -> tenancy.branchScheduleHours @ apps/worker/src/modules/customers/persistence/branch-schedule-hours.adapter.ts
   - customers -> tenancy.businessNames @ apps/worker/src/modules/customers/persistence/business-names.adapter.ts
   - customers -> staff.readEmployeeDisplayNames @ apps/worker/src/modules/customers/persistence/performer-name.adapter.ts
+  - customers -> settings.alertRule @ apps/worker/src/modules/customers/persistence/alert-rule.adapter.ts
+  - customers -> identity.branchManagerRecipients @ apps/worker/src/modules/customers/persistence/low-rating-recipients.adapter.ts
+  - customers -> identity.ratingCommentReaders @ apps/worker/src/modules/customers/persistence/low-rating-recipients.adapter.ts
+  - customers -> tenancy.branchPlace @ apps/worker/src/modules/customers/persistence/low-rating-place.adapter.ts
+  - customers -> tenancy.companyOpen @ apps/worker/src/modules/customers/persistence/low-rating-place.adapter.ts
   - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/price-edit-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/price-edit-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/price-edit-place.adapter.ts
