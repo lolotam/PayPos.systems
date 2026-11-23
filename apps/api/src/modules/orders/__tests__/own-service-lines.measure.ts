@@ -91,6 +91,8 @@ export async function timed(f: TipFixture, t: Target, req: OwnLinesRequest) {
 
 // كل جملة تُشرح وتُنفَّذ بنفس معاملاتها داخل نفس لقطة القراءة (withTenant بخيار readOnly) التي يقرأ بها القارئ؛ تُسجَّل الخطة وExecution Time
 // وPlanning Time من أعلى مستوى في ناتج EXPLAIN، والصفحة المرجعة لتتحقق منها الاختبارات.
+// TIMING OFF (قرار المدير 2026-11-23): يوقف ساعة كل صف في كل node ويبقي إجمالي Execution Time للاستعلام؛
+// تشغيل TIMING ON على 66,002 سطر سجّل مجاميع أعلى من الزمن الكلي لنفس الصفحات.
 export async function planned(f: TipFixture, t: Target, req: OwnLinesRequest) {
   const plans: TimedPlanned = [];
   const page = await f.db.withTenant(
@@ -102,7 +104,7 @@ export async function planned(f: TipFixture, t: Target, req: OwnLinesRequest) {
             property === 'execute'
               ? async (query: SQL) => {
                   const explained = await target.execute<ExplainRow>(
-                    sql`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query}`,
+                    sql`EXPLAIN (ANALYZE, TIMING OFF, BUFFERS, FORMAT JSON) ${query}`,
                   );
                   const top = must(must(explained[0])['QUERY PLAN'][0]);
                   plans.push({

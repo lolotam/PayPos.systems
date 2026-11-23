@@ -441,3 +441,37 @@ fixture is measured and under the bound in both states for five- and six-stateme
 
 Raw files (outside the repository): `F:/Dev/Temp/57-2b/dbtime-regular-7d9e6d20d.jsonl` and
 `F:/Dev/Temp/57-2b/dbtime-scale-7d9e6d20d.jsonl`.
+
+## Measurement tool corrected after the failing run: `TIMING OFF` (manager decision 2026-11-23) — method fixed before the run
+
+The result above (per-node timing on: 4 of 21 samples at or above 200 ms at 66,002 lines with stale statistics, worst
+350.8 ms) **stands as recorded**. It is not withdrawn, and this section does not claim that the cause of that failure
+is established. The judged statement was changed AFTER that failing run, and that order is stated here on purpose.
+
+**Decision (manager, design approver, 2026-11-23, option (a)).** The judged `EXPLAIN` runs with per-node timing off:
+`EXPLAIN (ANALYZE, TIMING OFF, BUFFERS, FORMAT JSON)`. The PostgreSQL 16 documentation of `EXPLAIN` states that
+`TIMING OFF` disables the per-node start-up and total timing — whose clock reads can slow the statement
+significantly on some systems — while the total run time of the statement is still measured
+(https://www.postgresql.org/docs/16/sql-explain.html). The total `Execution Time` is therefore still reported and is
+what is summed.
+
+**Method, fixed before running (nothing below may be changed after seeing a result):**
+
+- One run per fixture with the new statement, on the private lane, in an announced heavy-DB window: the regular
+  fixture (600 / 602 / 6,020) with `POSPAY_57_2B_PERF=1`, then the 66,002-line fixture with `POSPAY_57_2B_SCALE=1`.
+- The same cases in the same order as the run above: stale statistics first (state proven by the tightened rule: the
+  target absent from the three MCV lists and unchanged analyse stamps before and after the judged phase), then normal
+  statistics; the same seven pages; first page and cursor page; five- and six-statement pages both required.
+- For every sample the sum of `Execution Time` over the page's statements is computed, and **every sample must be
+  under 200 ms** (three samples per page; no best-of; no rerun to obtain a different result).
+- Recorded for diagnosis only: the plan of each statement (node types, rows, loops, rows removed by filter, buffers —
+  per-node times are absent by construction), `Planning Time`, the wall-clock samples, and the host processor load
+  before each run. Host load is NOT a condition of the run.
+- The two cases no longer share a violations list: a stale-statistics violation is no longer counted again in the
+  normal-statistics case (the harness defect noted above).
+- If any sample is at or above 200 ms, AC-57-2b-9 stays FAILED and the merge stays blocked; the report then names the
+  heaviest plan nodes with their row counts and the smallest remedy that needs a decision. No repeated measuring and
+  no index or setting change on our own initiative.
+
+### Result of the `TIMING OFF` run — to be filled from that run (no numbers recorded here yet)
+

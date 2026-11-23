@@ -109,7 +109,6 @@ async function seedTarget(f: TipFixture, attempt: number, config: PerfConfig): P
 export function perfSuite(config: PerfConfig) {
   let f: TipFixture;
   let target: Target | null = null;
-  const violations: string[] = [];
   beforeAll(async () => {
     f = await tipFixture();
   }, 120_000);
@@ -118,6 +117,8 @@ export function perfSuite(config: PerfConfig) {
   });
 
   it('stale statistics: a new tenant absent from the three MCV lists, no ANALYZE after its insert (AC 1, 3)', async () => {
+    // لكل حالة قائمة مخالفاتها: مخالفة في الإحصاءات القديمة لا تُحسب مرة ثانية على الحالة العادية.
+    const violations: string[] = [];
     for (let n = 0; n < 2; n++) {
       const background = await newPerfScope(f, `Synthetic perf background ${n}`);
       await bulkVisits(f, background, config.background, background.employeeIds.slice(1));
@@ -148,6 +149,7 @@ export function perfSuite(config: PerfConfig) {
 
   it('normal statistics: the same fixture after ANALYZE prepared only this run (AC 2, 3)', async () => {
     // الحالة العادية لا تعتمد على الحالة القديمة: لو شُغّلت وحدها (تصفية بالاسم) تزرع هدفها بنفسها.
+    const violations: string[] = [];
     const t = target ?? (await seedTarget(f, 99, config));
     await f.h.owner.unsafe('ANALYZE service_sessions,service_lines,line_performers');
     const normal = await statistics(f, t.scope.companyId);
