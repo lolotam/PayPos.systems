@@ -97,7 +97,7 @@ owner chose each grouping on 2026-11-21 from three options per section (`owner-q
 | Customers | Customers | 2 | Soon | every business type | Owner, General manager, Business manager, Branch manager, Marketing |
 | Customers | Tags and blocks | 2 | Soon | every business type | Owner, General manager, Business manager, Branch manager, Marketing |
 | Customers | Customer wallet (prepaid balance) | — | Soon | every business type | Owner, General manager, Accountant, Business manager, Branch manager |
-| Customers | Ratings and reviews | 1 | Live | every business type | By page permission |
+| Customers | Ratings and reviews | 1 | Live | every business type | Owner, General manager, Business manager, Branch manager, Marketing |
 | Appointments | Calendar | 4 | Soon | Salon, spa, barber, clinic, services company | Owner, General manager, Business manager, Branch manager |
 | Appointments | Resources (chairs, rooms) | 4 | Soon | Salon, spa, barber, clinic, services company | Owner, General manager, Business manager, Branch manager |
 | Appointments | Waitlist | 4 | Soon | Salon, spa, barber, clinic, services company | Owner, General manager, Business manager, Branch manager |

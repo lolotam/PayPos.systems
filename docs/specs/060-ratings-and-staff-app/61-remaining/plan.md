@@ -318,10 +318,13 @@ Calibration from merged work (production / test / generated): #1135 67 / 342 / 7
 ## 9. Release and rollback
 
 - One release carries API, worker, admin and POS from the same merge SHA, after §6's backup and snapshot steps.
-- While rating sends are dormant no `LowRatingSubmitted` and no `low_rating*` row exists, so rolling the whole
-  release back is safe; the additive migrations stay.
-- Once 59b-3 is active the floors of `../plan-61.md` §4 apply to that later state: API and worker not below this PR
-  while a notice row exists; worker and admin not below this PR while the producer is live.
+- The floors of `../plan-61.md` §4 follow the stored data, not the issuance lock: **API and worker not below this
+  PR while any `low_rating` or `low_rating_with_comment` inbox row exists**, in any environment and whether issuance
+  is open or closed (a controlled delivery test on staging leaves such rows); worker and admin not below this PR
+  while the producer is live. A pre-61-1e API fails the whole inbox page on such a row.
+- Rolling the whole release back is safe only where no such row exists. Before a rollback below this PR, a
+  read-only check counts the `low_rating*` inbox rows of the target; the count and the check time are recorded,
+  without row data. With a count above zero the rollback stops at the floor. The additive migrations stay.
 - API not below 61-1b while the permission rows exist.
 - A rollback that would cross a floor is the manager's decision; a production, server or secret change is Waleed's.
 
@@ -339,7 +342,8 @@ Calibration from merged work (production / test / generated): #1135 67 / 342 / 7
 4. It opens the one PR. GitHub starts CI automatically and runs it in parallel with Codex and the four MergePilot
    reviewers. Consolidate findings under PP-119.1. CodeRabbit is optional for merge under PP-208.
 5. The manager merges under PP-201 after reviews, the required `ci-gate` on the exact final head and the current
-   tested base, and the gates in §4 and §6. Other deliveries continue in their own slots. No branch-protection
+   tested base, the gates in §4 and §6, **and Waleed's approval on a card (PP-195): this PR carries two migrations
+   and a permission seed, and the Medium tier the owner named does not remove that approval**. Other deliveries continue in their own slots. No branch-protection
    settings or workflow changes are part of this task.
 
 ## 11. Open items

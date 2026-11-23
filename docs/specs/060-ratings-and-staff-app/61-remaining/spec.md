@@ -158,8 +158,10 @@ the checkpoint (plan §7).
 - **AC-1g-2** A covering `DENY` from **any** of the user's active memberships removes the user (including a `DENY`
   on a sibling non-manager membership).
 - **AC-1g-3** The canonical owner ignores a `DENY` but is not returned without an `ALLOW` source.
-- **AC-1g-4** A user whose role changed to cashier after a grant, a custom role with a historic `ALLOW`, an expired
-  membership and an expired override are all excluded.
+- **AC-1g-4** A user whose role changed to cashier after a grant and a custom role with a historic `ALLOW` are
+  excluded. An expired membership and an expired override contribute no decision at all: a user whose only `ALLOW`
+  came from an expired override or an expired membership is excluded, and a manager with a valid default `ALLOW` and
+  an expired `DENY` keeps her access.
 - **AC-1g-5** Users of another company or another branch scope are never returned; an empty input returns `[]`
   without a query; the result is sorted and unique; one set-based statement.
 - **Not in this checkpoint:** a consumer of the reader; any API identity change.
@@ -255,10 +257,14 @@ the checkpoint (plan §7).
 - **AC-57-2b-8** The route and its OpenAPI operation appear only after AC-57-2b-6 passes locally, and the PR links
   the #894 review thread with the proof.
 - **Not in this checkpoint:** any screen; the estimate (57-3, 57-5); a change to the tips route.
-- **AC-57-2b-9 (clarified 2026-11-22)** The regular suite asserts correctness, read privacy and the statement count
-  per combination (4, 5 or 6; maximum 6). The absolute 200 ms assertion runs only in an explicit, isolated
-  performance run and is proven on the delivery head before merge, for the six-statement combination too, at
-  fixture and at 66,002-line scale. Until that receipt exists the maximum-statement case is not accepted.
+- **AC-57-2b-9 (clarified 2026-11-22; metric changed by the owner 2026-11-23)** The regular suite asserts
+  correctness, read privacy, plans and the statement count per combination (4, 5 or 6; maximum 6). The 200 ms bound
+  is judged on **measured PostgreSQL execution time**: the sum of `Execution Time` from `EXPLAIN (ANALYZE)` over the
+  page's statements, under 200 ms for every judged page, in an explicit performance run on the delivery head before
+  merge — the six-statement combination included, first page and cursor page, stale and normal statistics, on the
+  regular fixture and at 66,002 lines. Wall-clock time including the driver is recorded as a diagnostic only and
+  the host-load rule no longer gates the run. Earlier wording, kept as history: the bound was judged on wall-clock
+  time in one isolated run at low host load.
 
 ### 57-4 — the «شغلي» screen (checkpoint 13)
 
@@ -291,7 +297,9 @@ the checkpoint (plan §7).
   a restored page, the window losing focus), the server-confirmed deadline, a refused or expired answer, an operator
   change or an unmount closes the window at once, drops her data from memory and shows the PIN step. Her data is
   held only in the screen's own memory, never in browser storage or a shared query cache; no cross-tab key or
-  channel exists. A response for a closed window is discarded and its window is closed on the server. This
+  channel exists. A response for a closed window is discarded and its window is closed on the server. Every
+  refusal conceals and clears first; then a `401` (the session itself ended) leaves the private screen as
+  AC-57-4-5 says, while an expired window, a `403` and every other close return to the PIN step. This
   replaces, for «شغلي» on the reception device, the cross-tab client design of ADR-0019's addendum items 6–7.
 - **Not in this checkpoint:** the estimate amount (57-5), «حضوري» changes, any API change.
 - **Starts after:** checkpoint 12 (57-2b) in this PR.
@@ -402,6 +410,10 @@ answered in the sources of §3; no `[NEEDS CLARIFICATION]` marker remains.
 - Q: What counts as low host load for that run? → A: Mean processor load under 40 % over twelve samples in 60
   seconds, checked before the run; above it the run does not start and the proof is reported as waiting (Waleed,
   2026-11-22).
+- Q: On what is 57-2b's 200 ms bound judged? → A: On measured PostgreSQL execution time, not wall-clock time with
+  the driver (Waleed, 2026-11-23, relayed by the manager, verbatim: «نعم نقبل  القياس و نقبل وقت PostgreSQL
+  لتسريع الشغل  (دا تصريح مني)»). The ceiling, the six-statement case, both fixtures, both statistics states and
+  both page kinds are unchanged; this supersedes the two answers above on the wall-clock run and the load rule.
 - Q: Does opening the PR wait for that receipt? → A: No. The PR is opened after the third local review session and
   states the open measurement; the merge waits for the receipt on the delivery head (Waleed, 2026-11-22).
 - Q: How does the reception private view behave across tabs and on leaving the foreground? → A: Simplified by
