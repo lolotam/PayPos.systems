@@ -151,6 +151,12 @@ describe('style A More sheet, current section and focus', () => {
 describe('style A More sheet and address changes', () => {
   beforeEach(() => stubViewport(390));
 
+  it('does not mark More while the current page is on the bottom bar', () => {
+    frameState.pathname = '/staff';
+    renderFrame(<StyleAFrame>Page body</StyleAFrame>);
+    expect(moreButton().getAttribute('aria-current')).toBeNull();
+  });
+
   it('closes the sheet when only the query of the address changes', () => {
     frameState.pathname = '/staff';
     renderFrame(<StyleAFrame>Page body</StyleAFrame>);
@@ -158,6 +164,10 @@ describe('style A More sheet and address changes', () => {
     goTo('/staff?filter=1');
     expect(screen.queryByRole('dialog')).toBeNull();
   });
+});
+
+describe('style A More sheet focus target', () => {
+  beforeEach(() => stubViewport(390));
 
   it.each([
     ['visible', false],
@@ -206,11 +216,5 @@ describe('style A More sheet and address changes', () => {
     await waitFor(() =>
       expect(document.activeElement).toBe(within(sidebar).getAllByRole('link')[0]),
     );
-  });
-
-  it('does not mark More while the current page is on the bottom bar', () => {
-    frameState.pathname = '/staff';
-    renderFrame(<StyleAFrame>Page body</StyleAFrame>);
-    expect(moreButton().getAttribute('aria-current')).toBeNull();
   });
 });
