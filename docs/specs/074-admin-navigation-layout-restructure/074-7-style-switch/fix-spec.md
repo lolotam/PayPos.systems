@@ -4,7 +4,7 @@ Parent: [`spec.md`](./spec.md) and [`plan.md`](./plan.md) of this folder (074-7a
 
 ## Owner decision
 
-Waleed, card of 2026-11-23, «PR صغير مستقل قبل 7b (Recommended)», recorded as PP-233: PR #1226 (074-7a) merges as reviewed under its 5,000-line cap, and the findings left by its reviews are fixed here, in one separate PR that merges before 074-7b starts. Tier Medium. Cap: 900 added plus removed lines of code and tests, docs counted separately. Review pipeline PP-228. The cap was raised once, to 1,050 added plus removed lines of code and tests, by the owner's card of 2026-11-23 («رفع السقف إلى 1,050 ونقفل كل الـ 14 بند (Recommended)»), so that all fourteen items close in this PR. The Next `Link` prefetch finding is not part of this slice (#1227).
+Waleed, card of 2026-11-23, «PR صغير مستقل قبل 7b (Recommended)», recorded as PP-233: PR #1226 (074-7a) merges as reviewed under its 5,000-line cap, and the findings left by its reviews are fixed here, in one separate PR that merges before 074-7b starts. Tier Medium. Cap: 900 added plus removed lines of code and tests, docs counted separately. Review pipeline PP-228. The cap was raised twice, both times by the owner's cards of 2026-11-23: to 1,050 added plus removed lines of code and tests («رفع السقف إلى 1,050 ونقفل كل الـ 14 بند (Recommended)») and then to 1,300 («رفع السقف إلى 1,300 ونقفل البندين هنا (Recommended)»), so that all fourteen items close in this PR. The Next `Link` prefetch finding is not part of this slice (#1227).
 
 ## What changes for a user
 
@@ -55,13 +55,14 @@ Estimate: 330 production, 480 tests. If the count passes 800 before step 6, stop
 
 ## Implementation notes
 
-**Base:** `origin/main` (it already contains 074-7a). **Status: items 1–3 and 5–14 done; item 4 not done.** The size stop of the brief (800 before plan step 6) was passed after step 5, so step 6 (item 4, test helper components in `style-a-frame.spec.tsx` and `style-c-frame.spec.tsx`) is left for a follow-up. Its planned fix: merge `CurrentRoute`/`PageContent` into one helper file and `DestinationHeading`/`Destination` into one.
+**Base:** `origin/main` (it already contains 074-7a). **Status: all fourteen items are closed** (item 4 in correction round 1, second part, below).
 
 | # | Fix | Proving test | Red check |
 |---|---|---|---|
 | 1 | `style-a-frame.tsx` keeps a lone tab when it carries the Soon mark | `style-a-frame-fixes.spec.tsx` (accountant, `/soon/customer-wallet`) | red run before the fix |
 | 2 | `BottomSheet` `closeFocusTarget`; `phone-bar.tsx` sends focus to the sidebar link when not phone | `style-a-frame-fixes.spec.tsx` (widen to 820) | red run before the fix (focus ended on More) |
 | 3 | `frame-chrome.tsx`: `#…` links and any `target` left to the browser | new `frame-chrome.spec.tsx` (`fireEvent.click` returns true) | red run before the fix (`#` and `_self`) |
+| 4 | one component per file: `current-route.tsx` and `focus-destination.tsx` (test helpers) replace the four local components of the two specs | the two specs, unchanged assertions | scan of the 30 `.tsx` files of the branch for a second top-level component: none |
 | 5 | `frame-workspace-switcher.tsx`: prompt (`admin.chooseCompany` / `admin.chooseBusiness`, existing keys) | `frame-actions.spec.tsx` | red run before the fix |
 | 6 | `FrameChrome onCurrentPage` (plain click whose path equals the current path), wired in `rail-and-panel.tsx` and `phone-bar.tsx`; `closeFloating` in `use-panel-state.ts` | `style-c-frame-panel.spec.tsx`, `style-a-frame-fixes.spec.tsx` (plain closes, ctrl-click stays) | red run before the fix |
 | 7 | optional `resetKey` on `AccountMenu` and `WorkspaceSwitcher`, passed the pathname | `frame-actions.spec.tsx` (two navigations each, same trigger element) | red run before the fix |
@@ -79,17 +80,14 @@ Estimate: 330 production, 480 tests. If the count passes 800 before step 6, stop
 
 **Other notes.** The approval probes now throw `{ ...error, status }` like `imported-refunds-client.ts`; before, a 403 carried no status and `readAccessProof` read it as a failure, which the new «could not be checked» state would have shown to refused users. `approvalsInboxEmpty` now says no approval list is available, because the inbox never knew how many approvals wait. Two max-lines errors found by lint in my own code were fixed (`MoreSheet` props interface, a spec `describe` split).
 
-**Closing step.** `origin/main` (`8a3a360fe`) was merged without conflict. Item 4 was tried: moving the helpers into two small helper files nets +31 added and −32 removed lines (63 against the cap), which would take the total from 888 to 951, so it was reverted and **item 4 stays open on #1225**. Guards (PP-198): `clean-code-guard` found nothing needing a code change (see the report); `test-guard` found two tests in `use-approval-kinds.spec.tsx` holding two scenarios each, now split into four.
+**Closing step.** `origin/main` was merged without conflict. Guards (PP-198): `clean-code-guard` found nothing needing a code change; `test-guard` found two tests in `use-approval-kinds.spec.tsx` holding two scenarios each, now split into four.
 
-**Open points.**
-- Item 4 (above).
-- Item 2 finds its target with `aside a[aria-current="page"]` document-wide. Scoping it to the frame root needs a ref or the navigation label passed down, which is more than a one-line change, so it is left.
-- Item 6 compares the pathname only. A link that differs from the current page only by its query string is therefore treated as the same page, and the panel or sheet closes (the router still pushes the new query).
+**Open points (after round 1).**
 - After Back closes an open account menu or workspace switcher, focus lands on its trigger (Radix default), not on the destination. Known behaviour, to be checked in the #1192 browser pass.
-- The reset-on-key code (a `resetKey` compared during render) is now written in `AccountMenu`, `WorkspaceSwitcher`, `PageFinder` and `TopNav`; extracting one hook was not done to stay inside the cap.
-- `useApprovalKinds` and `useApprovalKindAccess` have no production caller yet (7b will call `useApprovalInbox`); they stay because existing specs pin their shapes.
-
-Not verified: real-browser focus, scroll containment (item 14 uses stubbed rects) and breakpoint behaviour (#1192).
+- Item 6 compares the pathname only. A link that differs from the current page only by its query string is treated as the same page, and the panel or sheet closes (the router still pushes the new query).
+- The reset-on-key code (a `resetKey` compared during render) is written in `AccountMenu`, `WorkspaceSwitcher`, `PageFinder` and `TopNav`; one shared hook was not extracted, to stay inside the cap.
+- `useApprovalKinds` and `useApprovalKindAccess` have no production caller yet (7b will call `useApprovalInbox`); existing specs pin their shapes.
+- Not verified: real-browser focus, scroll containment (item 14 uses stubbed rects), breakpoints, real Next navigation (#1192).
 
 ## Correction round 1 (PP-228 review of head e65171ef5)
 
@@ -102,4 +100,11 @@ Main moved (`a3e52e119`, 55-2f) and was merged without conflict.
 3. **Workspace and identity failures (item 12, P1).** `useSessionIdentity` (new, in `use-session.ts`) passes the identity query state (`pending`, `failed`, `settled`). With no scope the inbox state is `failed` when the workspace status is `error` or the identity read failed, `loading` while either is pending, `settled` otherwise. Tests in `use-approval-kinds.spec.tsx` (workspace error; identity failed and pending). The spec's mock of `use-session` now provides `useSessionIdentity` instead of `useSessionUser`.
 4. **Loading beside known links (item 12, P1).** The page shows its `role="status"` loading text whenever `state` is `loading`, also with links. Test: one kind with state `loading`; red before the fix.
 
-**Not done (size).** The cap of 1,050 was passed after points 1–4 (1,105), so work stopped as the brief says. Left: point 5 (scope the fallback focus target of item 2 to the frame's own root, with a test holding an earlier `<aside>`), point 6 (item 4: one component per file in the two spec files; measured earlier at +31 −32 lines), and the three small points. For the small points: `BottomSheet`'s guard can drop the `instanceof HTMLElement` test (`document.activeElement` is an `Element`, so an SVG destination is covered); `WorkspaceSwitcher`'s reset close not calling `onOpenChange` is already stated in the prop's doc comment; the B local list's `max-h-dvh` adds to the header height, so on a short viewport the last items can need a page scroll, to be checked in the #1192 browser pass.
+**Second part (cap raised to 1,300; sizes 1,136 → 1,260).**
+
+- **Point 5 (item 2, P2).** `PhoneBar` takes `frameRef`, set on the root `div` of `StyleAFrame`, and looks for the fallback link only inside it, no longer document-wide. Test (`style-a-frame-fixes.spec.tsx`): an earlier `<aside>` holding a current link, visible and hidden; after widening with the sheet open, focus lands on the frame's own current link. Both variants failed with the document-wide query (focus ended on the other link).
+- **Point 6 (item 4).** Done as planned: `frames/current-route.tsx` (`CurrentRoute`, now taking children, replacing `CurrentRoute` and `PageContent`) and `frames/focus-destination.tsx` (one `Destination`, focusing on each new path, replacing `DestinationHeading` and `Destination`). A scan of all 30 `.tsx` files the branch touched found no second top-level component.
+- **`BottomSheet` guard.** It now tests `active !== null && active !== document.body`, so a focusable SVG destination also keeps focus. `bottom-sheet.spec.tsx` runs the navigation test for a heading and for a `<svg tabindex>`; the SVG case failed with the `HTMLElement` guard. Escape and backdrop dismissal are unchanged (focus is on `body` then).
+- **Item 12 honesty.** The three inbox-state tests run with `useSessionIdentity` mocked. One mutation each was run and reported red: dropping `workspace.status === 'error'` fails the workspace-error test; dropping `identity === 'failed'` fails the identity-failed test; dropping `identity === 'pending'` fails the identity-pending test. The real hook is covered by `session-account.spec.tsx`.
+- **`useSearchParams` and Suspense (for 7b).** Callers added by this branch: only `frames/use-navigation-key.ts`, reached through `FrameActions`, `FrameWorkspaceSwitcher`, `StyleAFrame`, `StyleBFrame` and `StyleCFrame`. No route imports any of them yet, so nothing in `pnpm --filter @pospay/admin build` changes today. Existing callers on main: `src/orders/model/use-package-route-selection.ts` and `app/(dashboard)/_frame/customer-packages-route.tsx`, both client components with no `Suspense` around them, both under the dashboard layout, and the build is fine on main. Reading the layout: `app/(dashboard)/layout.tsx` wraps the page in `SessionGate`, an async server component that reads `cookies()` and fetches with `cache: 'no-store'`, and the root layout reads the locale cookie through `cookies()`; every dashboard route is therefore rendered per request, and `useSearchParams` does not force a client-side bailout there. What 7b must do: mount the frame only inside the dashboard layout (dynamic), where no `Suspense` is needed, and confirm with the CI `build` job. If a frame is ever mounted on a statically rendered route (for example a public or login page), wrap it in a `Suspense` boundary or read the query in a small client component under one. No production build was run.
+- **Still open from the small points:** the B local list's `max-h-dvh` adds to the header height, so on a short viewport the last items can need a page scroll (#1192). The `WorkspaceSwitcher` reset close not calling `onOpenChange` is stated in the prop's doc comment.
