@@ -9,6 +9,31 @@ export type {
   RevisedSale,
   RevisedTip,
 } from './canonical-input.ts';
+export { buildStatement, StatementCardConflictError } from './statement-builder.ts';
+export { StatementDuplicateKeyError } from './statement-uniqueness.ts';
+export {
+  statementAttachmentFromStored,
+  statementFingerprintInput,
+  statementRowFromStored,
+} from './statement-fingerprint.ts';
+export type { StoredStatementAttachment, StoredStatementLine } from './statement-fingerprint.ts';
+export type {
+  StatementAttachmentRow,
+  StatementBuild,
+  StatementBuildInput,
+  StatementCorrectionSource,
+  StatementEmployeeLabel,
+  StatementLineHead,
+  StatementLineSource,
+  StatementMonthRows,
+  StatementName,
+  StatementNames,
+  StatementPricingFailure,
+  StatementRow,
+  StatementRowKind,
+  StatementSaleSource,
+  StatementTipSource,
+} from './statement-types.ts';
 export { computeCalcNumerator } from './commission-calc.ts';
 export { projectCommissionEstimate } from './estimate-projection.ts';
 export type {
