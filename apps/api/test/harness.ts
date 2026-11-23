@@ -46,6 +46,7 @@ export {
   readCommissionPlanListAccess,
   readCommissionReviewAccess,
   readCommissionScope,
+  readCommissionStatementPayAccess,
 } from '../src/modules/identity/index.ts';
 export {
   employeeExistsInBusiness,
