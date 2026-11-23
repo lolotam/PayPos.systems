@@ -6,7 +6,6 @@ import {
   type WorkspaceBranch,
 } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { Button } from '@pospay/ui';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import {
@@ -16,10 +15,7 @@ import {
 } from '../model/use-create-employee-number';
 import { useNameCheckedSubmit } from '../model/use-name-checked-submit';
 import { DuplicateNameWarning } from './duplicate-name-warning';
-import { EmployeeContractFields } from './employee-contract-fields';
-import { EmployeeNameFields } from './employee-name-fields';
-import { EmployeeNumberField } from './employee-number-field';
-import { EmployeePlacementFields } from './employee-placement-fields';
+import { CreateEmployeeFormCard } from './create-employee-form-card';
 
 type CreateEmployeeFormProps = {
   companyId: string;
@@ -75,24 +71,15 @@ export function CreateEmployeeForm(props: CreateEmployeeFormProps) {
         onSubmit={submitCreateEmployeeForm(form, number.shown, number.pending, (values) =>
           submit.submit(values),
         )}
-        className="flex flex-col gap-3 text-start"
+        className="grid gap-4 text-start"
       >
-        <fieldset
+        <CreateEmployeeFormCard
+          branches={props.branches}
           disabled={props.pending || submit.checking || !!submit.warning}
-          className="flex flex-col gap-3"
-        >
-          <EmployeeNameFields />
-          <EmployeePlacementFields branches={props.branches} />
-          <EmployeeContractFields />
-          <EmployeeNumberField
-            shown={number.shown}
-            hidden={number.pending}
-            message={number.message}
-          />
-          <Button type="submit" disabled={number.pending}>
-            {t(locale, 'staff.create')}
-          </Button>
-        </fieldset>
+          numberShown={number.shown}
+          numberHidden={number.pending}
+          numberMessage={number.message}
+        />
         {submit.warning ? (
           <DuplicateNameWarning
             matches={submit.warning}

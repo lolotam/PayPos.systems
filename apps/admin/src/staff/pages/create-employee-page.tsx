@@ -1,6 +1,7 @@
 'use client';
 import type { WorkspaceBusinessRead } from '@pospay/contracts';
 import { t, formatDate } from '@pospay/i18n';
+import { PageHeader, PageShell } from '@pospay/ui';
 import { useState } from 'react';
 import { envelopeMessage } from '@/shared/api/api-error';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -24,8 +25,8 @@ export function CreateEmployeePage({
   const numberRefusal =
     numberShown && save.isError && isEmployeeNumberRefusal(save.error, numberSent);
   return (
-    <section className="mx-auto flex w-full max-w-xl flex-col gap-4 text-start">
-      <h1 className="text-xl font-semibold">{t(locale, 'staff.title')}</h1>
+    <PageShell layout="form">
+      <PageHeader title={t(locale, 'staff.title')} />
       <CreateEmployeeForm
         companyId={companyId}
         businessId={business.id}
@@ -53,6 +54,6 @@ export function CreateEmployeePage({
           })}
         </p>
       ) : null}
-    </section>
+    </PageShell>
   );
 }

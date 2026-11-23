@@ -3,7 +3,7 @@
 import { planScope, restorePlanAccess, usePlanAccess } from '../api/plan-access';
 import { useOverrideAttemptMemory } from '../api/use-save-commission-override';
 import { t } from '@pospay/i18n';
-import { PageHeader } from '@pospay/ui';
+import { PageHeader, PageShell } from '@pospay/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -27,7 +27,7 @@ export function CommissionOverridesPage({ companyId, userId, businessId }: Commi
     if (access.denied) memory.current.clear();
   }, [access.denied, memory]);
   return (
-    <div className="flex flex-col gap-4">
+    <PageShell layout="list">
       <PageHeader title={t(locale, 'commissionOverrides.pageTitle')} />
       {access.denied ? (
         <CommissionPlansDenied onRetry={() => restorePlanAccess(client, scope)} />
@@ -39,6 +39,6 @@ export function CommissionOverridesPage({ companyId, userId, businessId }: Commi
           )}
         />
       )}
-    </div>
+    </PageShell>
   );
 }
