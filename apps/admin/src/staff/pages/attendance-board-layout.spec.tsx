@@ -14,14 +14,20 @@ import { cardOf, cellLabels, follows, headerTexts } from './stacked-layout.helpe
 const api = vi.hoisted(() => ({ GET: vi.fn() }));
 vi.mock('@/shared/api/client', () => ({ apiClient: () => api }));
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
-vi.mock('@/staff/api/use-attendance-capabilities', () => ({
-  useAttendanceCapabilities: () => ({
-    isPending: false,
-    capabilities: { correct: true, resolve: true, request_change: true, decide: true },
-  }),
-}));
 
+const allowed = { correct: true, resolve: true, request_change: true, decide: true };
 let client: QueryClient;
+
+function answer(path: string, board: unknown = boardFixture) {
+  if (path.endsWith('attendance-capabilities')) return allowed;
+  return path.endsWith('refusals') ? refusalFixture : board;
+}
+
+function boardAndRefusalReads() {
+  return api.GET.mock.calls.filter(
+    ([path]) => !(path as string).endsWith('attendance-capabilities'),
+  );
+}
 
 function renderPage() {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -40,9 +46,7 @@ function renderPage() {
 
 beforeEach(() => {
   api.GET.mockReset();
-  api.GET.mockImplementation(async (path: string) => ({
-    data: path.endsWith('refusals') ? refusalFixture : boardFixture,
-  }));
+  api.GET.mockImplementation(async (path: string) => ({ data: answer(path) }));
 });
 afterEach(() => {
   cleanup();
@@ -99,11 +103,11 @@ it('labels every stacked cell that has content with its column header, and not t
 
 it('collapses the exceptions cell of a session with none and leaves it without a label', async () => {
   const [session] = boardFixture.sessions;
-  api.GET.mockImplementation(async (path: string) => ({
-    data: path.endsWith('refusals')
-      ? refusalFixture
-      : { ...boardFixture, sessions: [{ ...session, open_exceptions: [], corrected: false }] },
-  }));
+  const board = {
+    ...boardFixture,
+    sessions: [{ ...session, open_exceptions: [], corrected: false }],
+  };
+  api.GET.mockImplementation(async (path: string) => ({ data: answer(path, board) }));
   renderPage();
   const table = await screen.findByRole('table');
   const index = headerTexts(table).indexOf(t('en', 'attendanceBoard.exceptions'));
@@ -119,13 +123,13 @@ it('reads the board and the refusals once each on first mount, and no refusals w
   renderPage();
   await screen.findByRole('table');
   await screen.findByRole('heading', { name: t('en', 'attendanceBoard.refusals') });
-  expect(api.GET).toHaveBeenCalledTimes(2);
+  expect(boardAndRefusalReads()).toHaveLength(2);
   cleanup();
   api.GET.mockReset();
   api.GET.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
   renderPage();
   await screen.findByRole('alert');
-  expect(api.GET).toHaveBeenCalledTimes(1);
+  expect(boardAndRefusalReads()).toHaveLength(1);
   expect(screen.queryByRole('table')).toBeNull();
   expect(screen.getByLabelText(t('en', 'attendanceBoard.branch'))).toBeTruthy();
 });
