@@ -80,7 +80,7 @@ export async function memberWithGrants(
   const [user] = await f.h.owner`SELECT id FROM "user" WHERE email=${email}`;
   const userId = user?.['id'] as string;
   const membershipIds: string[] = [];
-  for (const [index, grant] of grants.entries()) {
+  for (const grant of grants) {
     const role = ids.newId();
     const membership = ids.newId();
     await f.h.owner`INSERT INTO roles(id,company_id,code,name_en)
