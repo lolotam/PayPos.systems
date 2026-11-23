@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   frameState,
+  goTo,
   renderFrame,
   resetFrameState,
   resizeTo,
@@ -94,5 +95,32 @@ describe('style C floating panel and the desktop preference', () => {
     expect(
       screen.getByRole('complementary', { name: label('adminNav.localNavigation') }),
     ).toBeTruthy();
+  });
+});
+
+describe('style C overlays on a query-only move', () => {
+  it('closes the floating panel', () => {
+    stubViewport(820);
+    renderFrame(<StyleCFrame>Page body</StyleCFrame>);
+    fireEvent.click(rail('adminNav.workspaceCTeam'));
+    goTo('/staff?filter=1');
+    expect(floatingPanel()).toBeNull();
+  });
+
+  it('closes the page finder', () => {
+    stubViewport(1280);
+    renderFrame(<StyleCFrame>Page body</StyleCFrame>);
+    fireEvent.click(screen.getByRole('button', { name: label('adminNav.pageFinderLabel') }));
+    goTo('/staff?filter=1');
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('keeps the workspace a desktop user is previewing, because only a filter changed', () => {
+    stubViewport(1280);
+    renderFrame(<StyleCFrame>Page body</StyleCFrame>);
+    fireEvent.click(rail('adminNav.workspaceCStock'));
+    goTo('/staff?filter=2');
+    const panel = screen.getByRole('complementary', { name: label('adminNav.localNavigation') });
+    expect(within(panel).getByRole('link', { name: /^Services/ })).toBeTruthy();
   });
 });

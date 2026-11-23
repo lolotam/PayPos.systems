@@ -23,10 +23,10 @@ const visibleSectionLink = () =>
  * عند عبور عرض الهاتف: الشريط وزره يختفيان بـ CSS لكن Radix يُبقي الورقة والغطاء في body فتغطّيان واجهة التابلت.
  * الزر الذي ضُغط يُسجَّل ليعود إليه التركيز، فالضغط قد لا ينقل التركيز إليه.
  */
-export function PhoneBar({ view, pathname }: { view: StyleAView; pathname: string }) {
+export function PhoneBar({ view, routeKey }: { view: StyleAView; routeKey: string }) {
   const labels = useFrameLabels();
   const phone = useMediaQuery(PHONE_QUERY);
-  const [moreOpen, setMoreOpen] = useRouteScopedState(pathname, false);
+  const [moreOpen, setMoreOpen] = useRouteScopedState(routeKey, false);
   const openerRef = useRef<HTMLButtonElement>(null);
   const closeFocusTarget = () => (phone ? undefined : visibleSectionLink());
   useEffect(() => {

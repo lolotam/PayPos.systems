@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveTopLevels } from '../menu/resolve-top-levels';
 import {
   frameState,
+  goTo,
   renderFrame,
   resetFrameState,
   resizeTo,
@@ -144,6 +145,14 @@ describe('style A More sheet, current section and focus', () => {
         name: label('adminNav.groupATeam'),
       });
     await waitFor(() => expect(document.activeElement).toBe(section()));
+  });
+
+  it('closes the sheet when only the query of the address changes', () => {
+    frameState.pathname = '/staff';
+    renderFrame(<StyleAFrame>Page body</StyleAFrame>);
+    openSheet();
+    goTo('/staff?filter=1');
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('does not mark More while the current page is on the bottom bar', () => {

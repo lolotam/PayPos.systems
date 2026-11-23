@@ -12,6 +12,7 @@ import { FrameChrome } from './frame-chrome';
 import { FrameTopBar } from './frame-top-bar';
 import { PhoneBar } from './phone-bar';
 import { useFrameLabels } from './use-frame-labels';
+import { useNavigationKey } from './use-navigation-key';
 
 // عمود الصفحة يتبع عرض الشريط الجانبي: 80px مطويًا أو على التابلت، و264px موسّعًا من 1024px.
 // الشريط ثابت ويحمل data-collapsed حين يطوى، فنقرأ ذلك بـ CSS دون نسخ حالته إلى هنا.
@@ -27,6 +28,7 @@ export function StyleAFrame({ children }: { children: ReactNode }) {
   const locale = useLocale();
   const labels = useFrameLabels();
   const ctx = useMenuContext();
+  const navigationKey = useNavigationKey();
   const view = useMemo(() => buildStyleAView(ctx), [ctx]);
   // صف التبويب الوحيد يُخفى إلا إذا حمل علامة «قريبًا»: هو الرابط المرئي الذي يوصل إلى الصفحة غير المبنية.
   const showTabs = view.tabs.length > 1 || view.tabs.some((tab) => tab.status !== undefined);
@@ -72,7 +74,7 @@ export function StyleAFrame({ children }: { children: ReactNode }) {
           </main>
         </div>
       </div>
-      <PhoneBar view={view} pathname={ctx.pathname} />
+      <PhoneBar view={view} routeKey={navigationKey} />
     </>
   );
 }

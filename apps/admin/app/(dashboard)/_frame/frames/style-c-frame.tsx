@@ -10,16 +10,18 @@ import { FrameTopBar } from './frame-top-bar';
 import { PanelToolbar } from './panel-toolbar';
 import { RailAndPanel } from './rail-and-panel';
 import { useFrameLabels } from './use-frame-labels';
+import { useNavigationKey } from './use-navigation-key';
 import { usePanelState } from './use-panel-state';
 
 /** النمط C (الافتراضي): شريط مساحات العمل ولوحة صفحاتها وباحث الصفحات، وعلى الهاتف تبويبات سفلية. */
 export function StyleCFrame({ children }: { children: ReactNode }) {
   const labels = useFrameLabels();
   const ctx = useMenuContext();
+  const navigationKey = useNavigationKey();
   const view = useMemo(() => buildStyleCView(ctx), [ctx]);
   const openerRef = useRef<HTMLButtonElement>(null);
   const returnFocusRef = useRef<HTMLButtonElement>(null);
-  const panel = usePanelState(ctx.pathname, view.currentWorkspaceId, openerRef);
+  const panel = usePanelState(navigationKey, ctx.pathname, view.currentWorkspaceId, openerRef);
   return (
     <>
       <div className="flex min-h-dvh">
@@ -37,7 +39,7 @@ export function StyleCFrame({ children }: { children: ReactNode }) {
                 view={view}
                 visibleIds={ctx.visibleIds}
                 panelOpen={panel.open}
-                routeKey={ctx.pathname}
+                routeKey={navigationKey}
                 onShow={panel.show}
                 onHide={panel.hide}
                 toggleRef={returnFocusRef}

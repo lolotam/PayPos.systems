@@ -20,20 +20,22 @@ export interface PanelState {
 
 /**
  * حالة لوحة نمط C. على الحاسوب يخفيها المستخدم أو يظهرها وتبقى كذلك بين الصفحات.
- * وهي طافية تُفتح للصفحة الحالية فقط، والمساحة المعاينة كذلك: كل تغيّر مرحلي في المسار، بما فيه
- * الرجوع، يُغلق الطافية ويعيد المعاينة إلى المساحة الحالية. الضغطة بمفتاح تعديل لا تغيّر المسار فتبقى مفتوحة.
+ * وهي طافية تُفتح للرابط الحالي فقط (مفتاح الانتقال: المسار مع الاستعلام)، والمساحة المعاينة للمسار فقط: كل تغيّر
+ * مرحلي، بما فيه الرجوع، يُغلق الطافية، ويعيد تغيّر المسار المعاينة إلى المساحة الحالية؛ أما مرشّح صفحة
+ * (استعلام) فلا يمسّ معاينة اللوحة الدائمة على الحاسوب. الضغطة بمفتاح تعديل لا تغيّر المسار فتبقى مفتوحة.
  * كل فتح يسجّل الزر الذي فتح به (الشريط أو الأداة العلوية) ليعود إليه التركيز عند الإغلاق.
  * ظهور اللوحة على الحاسوب وفتحها الطافي حالتان منفصلتان: فعل أحدهما لا يمسّ الآخر، والطافية تُمحى عند
  * مغادرة عرض التابلت فلا تعود مفتوحة عند الرجوع إليه.
  */
 export function usePanelState(
+  navigationKey: string,
   pathname: string,
   currentWorkspaceId: string | undefined,
   openerRef: RefObject<HTMLButtonElement | null>,
 ): PanelState {
   const floating = useMediaQuery(FLOATING_QUERY);
   const [hidden, setHidden] = useState(false);
-  const [floatingOpen, setFloatingOpen] = useRouteScopedState(pathname, false);
+  const [floatingOpen, setFloatingOpen] = useRouteScopedState(navigationKey, false);
   const [inspectedId, setInspectedId] = useRouteScopedState<string | undefined>(
     pathname,
     undefined,

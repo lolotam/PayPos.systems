@@ -1,6 +1,6 @@
 import { DirectionProvider } from '@pospay/ui';
 import { act, render } from '@testing-library/react';
-import { useSyncExternalStore, type ReactElement } from 'react';
+import { useMemo, useSyncExternalStore, type ReactElement } from 'react';
 import { vi } from 'vitest';
 
 import type { WorkspaceController } from '@/workspace/model/workspace-provider';
@@ -23,13 +23,16 @@ const OPEN: VisibilityConditions = {
 const listeners = new Set<() => void>();
 
 function setPathname(path: string): void {
-  frameState.pathname = path;
+  const [pathname = '', search = ''] = path.split('?');
+  frameState.pathname = pathname;
+  frameState.search = search;
   for (const listener of listeners) listener();
 }
 
 /** حالة قابلة للتعديل تقرؤها محاكيات الاختبار؛ كل ملف اختبار إطار يربطها بنفس الأسماء. */
 export const frameState = {
   pathname: '/',
+  search: '',
   locale: 'en' as 'en' | 'ar',
   visible: [] as readonly string[],
   push: vi.fn(setPathname),
@@ -41,16 +44,23 @@ export function goTo(path: string): void {
   act(() => setPathname(path));
 }
 
+function useExternal<T>(read: () => T): T {
+  return useSyncExternalStore(
+    (callback) => {
+      listeners.add(callback);
+      return () => listeners.delete(callback);
+    },
+    read,
+    read,
+  );
+}
+
 export const navigationMock = {
-  usePathname: () =>
-    useSyncExternalStore(
-      (callback) => {
-        listeners.add(callback);
-        return () => listeners.delete(callback);
-      },
-      () => frameState.pathname,
-      () => frameState.pathname,
-    ),
+  usePathname: () => useExternal(() => frameState.pathname),
+  useSearchParams: () => {
+    const search = useExternal(() => frameState.search);
+    return useMemo(() => new URLSearchParams(search), [search]);
+  },
   useRouter: () => ({ push: frameState.push, refresh: () => undefined }),
 };
 export const localeMock = {
@@ -158,6 +168,7 @@ export function renderFrame(ui: ReactElement, dir: 'ltr' | 'rtl' = 'ltr') {
 
 export function resetFrameState(): void {
   frameState.pathname = '/';
+  frameState.search = '';
   frameState.locale = 'en';
   frameState.push.mockReset();
   frameState.push.mockImplementation(setPathname);

@@ -2,7 +2,6 @@
 
 import { t, type Locale } from '@pospay/i18n';
 import { WorkspaceSwitcher } from '@pospay/ui';
-import { usePathname } from 'next/navigation';
 
 import type { SelectionChoice } from '@/shared/api/selection-cookie';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -10,6 +9,7 @@ import { displayName } from '@/workspace/model/display-name';
 import { useWorkspace } from '@/workspace/model/workspace-provider';
 
 import { useFrameLabels } from './use-frame-labels';
+import { useNavigationKey } from './use-navigation-key';
 
 type Named = { id: string; name_ar: string | null; name_en: string };
 
@@ -27,7 +27,7 @@ export function FrameWorkspaceSwitcher() {
   const locale = useLocale();
   const labels = useFrameLabels();
   const workspace = useWorkspace();
-  const pathname = usePathname();
+  const navigationKey = useNavigationKey();
   if (workspace.status !== 'choose' && workspace.status !== 'ready') return null;
   const ready = workspace.status === 'ready' ? workspace : undefined;
   const company = ready?.company;
@@ -56,7 +56,7 @@ export function FrameWorkspaceSwitcher() {
       onBranchChange={(branchId) =>
         choose({ companyId: company?.id, businessId: business?.id, branchId })
       }
-      resetKey={pathname}
+      resetKey={navigationKey}
       className="max-w-56"
     />
   );

@@ -9,6 +9,7 @@ import { FrameActions } from './frame-actions';
 import { FrameChrome } from './frame-chrome';
 import { FrameWorkspaceSwitcher } from './frame-workspace-switcher';
 import { useFrameLabels } from './use-frame-labels';
+import { useNavigationKey } from './use-navigation-key';
 
 /**
  * النمط B: شريط علوي بوحدات وقوائم واسعة. قائمة الوحدة الحالية المحلية بجانب الصفحة من 1024px
@@ -18,6 +19,7 @@ import { useFrameLabels } from './use-frame-labels';
 export function StyleBFrame({ children }: { children: ReactNode }) {
   const labels = useFrameLabels();
   const ctx = useMenuContext();
+  const navigationKey = useNavigationKey();
   const view = useMemo(() => buildStyleBView(ctx), [ctx]);
   const currentModule = view.modules.find((item) => item.id === view.currentModuleId);
   return (
@@ -32,7 +34,7 @@ export function StyleBFrame({ children }: { children: ReactNode }) {
               activePageId={view.activePageId}
               visiblePageIds={ctx.visibleIds}
               localNav="none"
-              resetKey={ctx.pathname}
+              resetKey={navigationKey}
             />
           </div>
           <div className="flex shrink-0 items-center gap-2 px-2">
