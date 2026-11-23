@@ -1,56 +1,25 @@
 'use client';
 
-import { t } from '@pospay/i18n';
-import type { ReactNode } from 'react';
-import { usePathname } from 'next/navigation';
-import { CircleAlert, EmptyState } from '@pospay/ui';
+import type { ReactElement, ReactNode } from 'react';
 
-import { useSession, useSessionAccount } from '@/session/api/use-session';
-import { useMounted } from '@/shared/browser/use-mounted';
-import { useLocale } from '@/shared/locale/locale-context';
-import { LocaleSwitch } from '@/shared/locale/locale-switch';
-import { WorkspaceBody } from '@/workspace/ui/workspace-body';
-import { useWorkspace } from '@/workspace/model/workspace-provider';
-import { NotificationBell } from '@/notifications/ui/notification-bell';
+import type { NavigationStyle } from '@/workspace/nav-types';
 
-import { AppFrame } from '@/shared/frame/app-frame';
-import { DashboardSidebar } from './dashboard-sidebar';
+import { DashboardContent } from './dashboard-content';
+import { StyleAFrame } from './frames/style-a-frame';
+import { StyleBFrame } from './frames/style-b-frame';
+import { StyleCFrame } from './frames/style-c-frame';
+import { useNavStyle } from './nav-style/nav-style-context';
 
+const FRAMES: Readonly<Record<NavigationStyle, (props: { children: ReactNode }) => ReactElement>> =
+  { A: StyleAFrame, B: StyleBFrame, C: StyleCFrame };
+
+/** يرسم الصفحة داخل إطار النمط الحالي؛ تغيير النمط يبدّل الإطار فقط دون إعادة تحميل ولا تغيير العنوان. */
 export function DashboardFrame({ children }: { children: ReactNode }) {
-  const locale = useLocale();
-  const mounted = useMounted();
-  const session = useSession(mounted);
-  const account = useSessionAccount(mounted);
-  const userId = account?.id ?? null;
-  const workspace = useWorkspace();
-  const allowsLinkedWorkspace = /^\/orders\/customers\/[^/]+\/packages\/?$/.test(usePathname());
-  const companyId = workspace.status === 'ready' ? workspace.company.id : undefined;
+  const { style } = useNavStyle();
+  const Frame = FRAMES[style];
   return (
-    <AppFrame
-      brand={t(locale, 'admin.appName')}
-      sidebar={<DashboardSidebar account={account} />}
-      actions={
-        <>
-          <NotificationBell
-            key={`${companyId ?? 'unselected'}:${userId ?? 'anonymous'}`}
-            companyId={companyId}
-            userId={userId}
-            businessId={workspace.status === 'ready' ? workspace.business?.id : undefined}
-          />
-          <LocaleSwitch />
-        </>
-      }
-    >
-      {session.isError ? (
-        <EmptyState
-          role="alert"
-          className="mb-12"
-          tone="danger"
-          icon={<CircleAlert />}
-          title={t(locale, 'admin.unexpected')}
-        />
-      ) : null}
-      <WorkspaceBody allowsLinkedWorkspace={allowsLinkedWorkspace}>{children}</WorkspaceBody>
-    </AppFrame>
+    <Frame>
+      <DashboardContent>{children}</DashboardContent>
+    </Frame>
   );
 }

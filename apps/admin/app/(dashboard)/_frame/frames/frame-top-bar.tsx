@@ -1,18 +1,16 @@
 import type { ReactNode } from 'react';
 
-import { FrameActions } from './frame-actions';
+import { FrameBarEnd } from './frame-bar-end';
 import { FrameChrome } from './frame-chrome';
-import { FrameWorkspaceSwitcher } from './frame-workspace-switcher';
 
-/** الشريط العلوي للنمطين A وC: ما في بدايته يعطيه الإطار، والنهاية مبدّل مساحة العمل وإجراءات الحساب. */
+/** الشريط العلوي للنمطين A وC: ما في بدايته يعطيه الإطار، والنهاية طرف مشترك يلتف عند ضيق العرض. */
 export function FrameTopBar({ start }: { start?: ReactNode }) {
   return (
     <FrameChrome>
-      <header className="flex min-h-14 shrink-0 items-center gap-2 border-b border-border bg-card px-4">
+      <header className="flex min-h-14 shrink-0 items-center gap-2 border-b border-border bg-card px-4 py-2">
         {start}
-        <div className="ms-auto flex min-w-0 items-center gap-2">
-          <FrameWorkspaceSwitcher />
-          <FrameActions />
+        <div className="ms-auto min-w-0">
+          <FrameBarEnd />
         </div>
       </header>
     </FrameChrome>

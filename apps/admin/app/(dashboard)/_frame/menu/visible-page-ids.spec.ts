@@ -100,3 +100,26 @@ describe('a built page limited to one business type', () => {
     expect(idsFor(null)).toEqual([]);
   });
 });
+
+describe('a built entry keeps the audience the app map gave it', () => {
+  it.each(['owner', 'general_manager', 'business_manager', 'branch_manager'])(
+    'lists the Approvals inbox for the %s',
+    (role) => {
+      expect(idsFor({ role })).toContain('approvals-inbox');
+    },
+  );
+
+  it.each(['accountant', 'cashier', 'viewer', 'custom_admin', ''])(
+    'hides the Approvals inbox from the role %j',
+    (role) => {
+      expect(idsFor({ role })).not.toContain('approvals-inbox');
+    },
+  );
+
+  it.each(['owner', 'cashier', 'viewer', 'custom_admin', ''])(
+    'lists Appearance for the role %j, with no workspace data at all',
+    (role) => {
+      expect(idsFor({ role, businessType: null, country: null })).toContain('appearance');
+    },
+  );
+});
