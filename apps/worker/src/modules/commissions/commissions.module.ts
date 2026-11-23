@@ -3,6 +3,7 @@ import {
   commissionCorrectionBlockedNoticeRequested,
 } from '@pospay/contracts';
 import type { TenantWrappers, Tx } from '@pospay/db';
+import { COMMISSION_INPUT_EVENT_TYPES, COMMISSION_INPUTS_CONSUMER_ID } from '@pospay/domain';
 
 import type { OutboxConsumer } from '../../outbox/consumer.ts';
 import { onCommissionInputEvent } from './events/handlers/on-commission-input-event.handler.ts';
@@ -71,18 +72,9 @@ export function createCommissionStatementExportReader(
   ): Promise<CommissionStatementExportData> => useCase.execute(companyId, renderId, signal);
 }
 
-/** هوية المستهلك الثابتة؛ التهيئة تستعمل نفس الهوية فتُحسم أحداث البقشيش مرة واحدة. */
-export const COMMISSION_INPUTS_CONSUMER_ID = 'commissions.project-inputs';
-
-/** أنواع أحداث مدخلات العمولة التي يسجّلها المستهلك؛ التقرير يقارنها بنفس القائمة. */
-const COMMISSION_INPUT_EVENT_TYPES = [
-  'ServiceSessionRecorded',
-  'ServiceSessionLinesAdded',
-  'ServiceLineChanged',
-  'SessionTipsChanged',
-  'SalaryChanged',
-  'PackageSaleChanged',
-];
+// الهوية والأنواع الستة ثوابت في @pospay/domain يقرؤها التسجيل هنا. دالة العدّ كُتبت قيمها حرفيًا في SQL، واختبار الدالة
+// المثبّتة يقارن تلك القيم بهذه الثوابت؛ التهيئة والتقرير يستعملان نفس الهوية.
+export { COMMISSION_INPUTS_CONSUMER_ID };
 
 export interface CommissionInputsConsumerDependencies {
   readonly ids: IdGenerator;

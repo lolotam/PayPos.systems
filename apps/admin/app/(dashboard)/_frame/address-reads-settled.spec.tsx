@@ -29,6 +29,7 @@ vi.mock(
 );
 
 const IDENTITY_PATH = '/v1/businesses/{businessId}/settings/identity-capability';
+const RATINGS_LIST_PATH = '/v1/businesses/{businessId}/ratings';
 const refusal = {
   error: { code: 'FORBIDDEN', message_ar: 'x', message_en: 'x' },
   response: { status: 403 },
@@ -61,6 +62,22 @@ beforeEach(() => {
 });
 
 describe('an address that depends on a read that has not answered yet', () => {
+  it('forwards the old Soon address of ratings only after its read is granted', async () => {
+    const late = deferredAnswer();
+    carriedApi.GET.mockImplementation((path: string) =>
+      path === IDENTITY_PATH || path === RATINGS_LIST_PATH ? late.promise : Promise.resolve(refusal),
+    );
+    renderRoute('soon', 'ratings-and-reviews');
+    await waitFor(() => expect(carriedApi.GET).toHaveBeenCalled());
+    expect(screen.getByRole('status').textContent).toBe(t('en', 'admin.loading'));
+    expect(screen.queryByText('Not found')).toBeNull();
+    expect(frameState.replace).not.toHaveBeenCalled();
+    await act(async () => {
+      late.resolve({ data: { items: [], next_cursor: null }, response: { status: 200, ok: true } });
+    });
+    await waitFor(() => expect(frameState.pathname).toBe('/ratings'));
+  });
+
   it('goes to the built page, not to the not-built page that is first before the read arrives', async () => {
     const late = answerWithLateIdentity();
     renderRoute('overview', 'setup');

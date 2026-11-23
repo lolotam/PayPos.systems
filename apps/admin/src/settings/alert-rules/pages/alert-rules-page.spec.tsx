@@ -38,6 +38,7 @@ const listedKinds = [
   'DISCOUNT_SELF_APPROVED',
   'ATTENDANCE_CHANGE_REQUESTED',
   'ATTENDANCE_CHANGE_DECIDED',
+  'LOW_RATING',
 ] as const;
 
 function businessView() {
@@ -56,7 +57,7 @@ beforeEach(() => {
   api.DELETE.mockReset();
 });
 
-it('shows only the thirteen listed kinds with their server values', async () => {
+it('shows only the fourteen listed kinds with their server values', async () => {
   mockGet(() => ({ data: businessView() }));
   renderPage();
   const first = (await screen.findByRole('switch', {
@@ -64,7 +65,7 @@ it('shows only the thirteen listed kinds with their server values', async () => 
   })) as HTMLInputElement;
   expect(first.checked).toBe(true);
   expect(kindSwitch('SERVICE_LINE_CANCELLED').checked).toBe(false);
-  expect(screen.getAllByRole('switch')).toHaveLength(14);
+  expect(screen.getAllByRole('switch')).toHaveLength(15);
   const names = [
     t('en', 'alertRules.masterLabel'),
     ...listedKinds.map((kind) => t('en', `alertRules.kind_${kind}`)),

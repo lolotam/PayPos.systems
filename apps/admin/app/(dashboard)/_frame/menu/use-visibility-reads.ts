@@ -5,6 +5,7 @@ import { useCommissionPlanEmployees } from '@/commissions/api/use-commission-pla
 import { useBusinessIdentityAccess } from '@/business-identity/api/use-business-identity-access';
 import { useAlertRules } from '@/settings/alert-rules/api/use-alert-rules';
 import { useRatingSettings } from '@/settings/alert-rules/api/use-rating-settings';
+import { useRatingsAccess } from '@/ratings/api/use-ratings-access';
 import { useImportedRefunds } from '@/settings/imported-refunds/api/use-imported-refunds';
 import { useStaffColumns } from '@/settings/staff-app-columns/api/use-staff-columns';
 import { useEmployeeAppLink } from '@/staff/api/use-employee-app-link';
@@ -21,6 +22,7 @@ export interface VisibilityReads {
   planEmployees: ReturnType<typeof useCommissionPlanEmployees>;
   appLink: ReturnType<typeof useEmployeeAppLink>;
   refunds: ReturnType<typeof useImportedRefunds>;
+  ratings: ReturnType<typeof useRatingsAccess>;
   leave: ReturnType<typeof useLeaveReportAccess>;
   columns: ReturnType<typeof useStaffColumns>;
 }
@@ -50,6 +52,7 @@ export function useVisibilityReads(userId: string | null): VisibilityReads {
     planEmployees: useCommissionPlanEmployees(scope),
     appLink: useEmployeeAppLink(companyId, userId, businessId),
     refunds: useImportedRefunds(companyId, userId, businessId),
+    ratings: useRatingsAccess(companyId, userId, businessId),
     leave: useLeaveReportAccess(companyId, businessId, userId),
     columns: useStaffColumns(companyId, userId, businessId),
   };

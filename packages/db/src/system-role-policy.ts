@@ -20,6 +20,8 @@ const deviceForbidden = [
   'read:commissions:own',
   'read:attendance:own',
   'read:ratings:own',
+  // الجهاز لا يقرأ تقييمات النشاط أبداً؛ قراءة التقييمات للمديرين الأربعة وحدهم (RT-Q7).
+  'read:ratings:branch',
   'record:service-sessions:branch',
   'read:service-sessions:branch',
   'edit:service-line-prices:branch',

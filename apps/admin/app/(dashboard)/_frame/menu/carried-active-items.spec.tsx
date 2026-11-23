@@ -137,6 +137,7 @@ describe('catalog, sales and the entries that never had a read (was the nav item
       'employee-app-link-access': false,
       'imported-refunds-access': false,
       'leave-report-access': false,
+      'ratings-access': false,
       'staff-app-columns-access': false,
     } as const;
     const ids = visiblePageIds(NAVIGATION_PAGES, {

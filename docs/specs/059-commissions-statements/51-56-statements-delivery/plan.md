@@ -153,8 +153,8 @@ business is refused. **Size:** 150–250. **Depends on:** nothing. **Starts now.
 **7. 53-1 (Heavy: migration, security).** ADR-0012 exactly: `pospay_approval_reader` (created in
 `packages/db/src/roles.ts`, as `pospay_suppression_reader` is), the function
 `statement_pending_commission_events(approval_started_at)` over the six types, the two `SELECT` policies, column
-grants, revokes; the index `(company_id, event_type, created_at, id)` alone in a `CONCURRENTLY` migration;
-`function-inventory.ts`, `table-grants.ts`, `privileges.spec.ts`, `schema/outbox.ts`; the six type names as one
+grants, revokes; no dedicated index (withdrawn by CS-Q56, ADR-0012 addendum 2026-11-23);
+`function-inventory.ts`, `table-grants.ts`, `privileges.spec.ts`; the six type names as one
 exported constant read by the worker registration and the catalogue test (research _Open gaps_). **Tests:** ADR-0012
 groups 1, 2, 3, 4 and 7 (CM-39). **Size:** 350–500. **Depends on:** the design-advisor round, done
 2026-11-22 (research A1, A2): the brief pins ADR-0012 §1–§2 in full and the tests prove the effective privileges.
@@ -257,7 +257,7 @@ migrations on their own private cluster and **take a number, run `pnpm db:genera
 (PP-130: a second open migration PR is stacked on the first's branch; the manager retargets it before
 `--delete-branch`). Proposed order, each waiting for the one before it to merge:
 
-1. 53-1 (function file, then the index file)
+1. 53-1 (the function file only; the index file was withdrawn by CS-Q56, ADR-0012 addendum 2026-11-23)
 2. 51-1 PR 1b (`commission_carries`)
 3. #486 (data step + CHECK)
 4. 51-1 PR 2 (review permission)

@@ -1,4 +1,4 @@
-import { OwnLeaveEntry } from './own-leave-entry';
+import { ReceptionOwnEntries } from './reception-own-entries';
 import { StaffLoginPanel } from '@/staff-login/ui/staff-login-panel';
 import { useStaffLogin } from '@/staff-login/api/use-staff-login';
 import { AttendanceHome } from '@/attendance/ui/attendance-home';
@@ -57,18 +57,15 @@ export function ReceptionBody({
     <div className="mx-auto grid w-full max-w-6xl items-start gap-12 lg:grid-cols-2">
       <StaffLoginPanel
         login={operator}
-        ownLeave={(session, epoch) =>
-          !deviceId || session.branch_id !== branchId || session.device_id !== deviceId ? null : (
-            <OwnLeaveEntry
-              context={{
-                mode: 'reception',
-                ...session,
-                sessionEpoch: epoch,
-                ...(branchZone?.id === branchId ? { timezone: branchZone.timezone } : {}),
-              }}
-            />
-          )
-        }
+        ownLeave={(session, epoch) => (
+          <ReceptionOwnEntries
+            session={session}
+            epoch={epoch}
+            branchId={branchId}
+            deviceId={deviceId}
+            zone={branchZone}
+          />
+        )}
       />
       <AttendanceHome branchId={branchId} onRejected={retry} onBranchTimezone={setBranchZone} />
       <CardClockAvailability

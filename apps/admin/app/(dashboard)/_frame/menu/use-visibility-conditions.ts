@@ -12,7 +12,7 @@ import type { VisibilityConditions } from './visible-page-ids';
 /** كل شرط ظهور قديم من حالة قراءته، بنفس القواعد التي كانت في ملفات *-nav-item.tsx. */
 function conditionsOf(reads: VisibilityReads): VisibilityConditions {
   const { open, alerts, rating, identity, planAccess, planEmployees } = reads;
-  const { appLink, refunds, leave, columns } = reads;
+  const { appLink, refunds, ratings, leave, columns } = reads;
   return {
     always: true,
     'alert-rules-or-rating-access': open && (alerts.isSuccess || rating.isSuccess),
@@ -23,6 +23,7 @@ function conditionsOf(reads: VisibilityReads): VisibilityConditions {
     'employee-app-link-access': open && appLink.isSuccess,
     'imported-refunds-access': open && readAccessProof(refunds) === 'granted',
     'leave-report-access': open && leave.allowed,
+    'ratings-access': open && readAccessProof(ratings) === 'granted',
     'staff-app-columns-access': open && !columns.isPending && !columns.isError,
   };
 }

@@ -54,7 +54,8 @@ it('never exposes A inbox or badge under B while the same QueryClient survives a
   const { result, rerender, unmount } = renderHook(
     ({ user }) => {
       const value = useNotifications(company, true, user);
-      observed.push({ user, subject: value.list.data?.items[0]?.safe_parameters[0].value });
+      const first = value.list.data?.items[0]?.safe_parameters[0].value;
+      observed.push({ user, subject: typeof first === 'string' ? first : undefined });
       return value;
     },
     {

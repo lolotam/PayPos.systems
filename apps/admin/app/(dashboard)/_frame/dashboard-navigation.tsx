@@ -10,6 +10,7 @@ import { ImportedRefundsNavItem } from './imported-refunds-nav-item';
 import { CatalogNavItem } from './catalog-nav-item';
 import { CommissionPlansNavItem } from './commission-plans-nav-item';
 import { PackageSaleNavItem } from './package-sale-nav-item';
+import { RatingsNavItem } from './ratings-nav-item';
 import { SessionDayNavItem } from './session-day-nav-item';
 import { SessionNavItem } from './session-nav-item';
 import { StaffAppColumnsNavItem } from './staff-app-columns-nav-item';
@@ -62,6 +63,7 @@ export function DashboardNavigation() {
       <StaffAppColumnsNavItem />
       <AlertRulesNavItem />
       <CommissionPlansNavItem />
+      <RatingsNavItem />
     </AppSidebarGroup>
   );
 }

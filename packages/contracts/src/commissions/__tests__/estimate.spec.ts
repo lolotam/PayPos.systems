@@ -30,6 +30,7 @@ const employee = {
   sales: [],
   tips: { card: '1.500', cash: '0.500' },
   corrections: [],
+  carries: { commission: '0.000', tip_card: '0.000' },
 };
 
 describe('commissionEstimatePeriod', () => {
@@ -127,6 +128,23 @@ describe('commissionEstimate', () => {
       total: '3.00',
     });
     expect(malformed.success).toBe(false);
+  });
+});
+
+describe('the estimate carries', () => {
+  it('accepts a negative carry of each kind and refuses a missing or malformed one', () => {
+    const parse = (carries: unknown) =>
+      commissionEstimate.safeParse({
+        business_id: '01920000-0000-7000-8000-0000000000b1',
+        period: '2026-10',
+        employees: [{ ...employee, carries }],
+        partial: false,
+        total: '3.000',
+      }).success;
+    expect(parse({ commission: '-5.000', tip_card: '-2.000' })).toBe(true);
+    expect(parse(undefined)).toBe(false);
+    expect(parse({ commission: '-5.000' })).toBe(false);
+    expect(parse({ commission: -5, tip_card: '0.000' })).toBe(false);
   });
 });
 

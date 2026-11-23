@@ -123,9 +123,8 @@ Run against real PostgreSQL as the restricted roles (ADR-0006), with two synthet
 6. Concurrency with barriers rather than sleeps: consumer before/after approval, two approvers, producer begun
    before cutoff but committing after the check, session/redemption/refund/salary/tip events, and plan/override
    writers. Each input lands in the frozen result or a correction; plan/override writers recheck closed status.
-7. Result-shape and EXPLAIN assertion on the count, including a large synthetic tenant. PR 53 adds an index on
-   `(company_id, event_type, created_at, id)`; the existing consumed-events PK covers its anti-join. Generate a new
-   migration and update the privilege/definer inventory allowlists; do not rewrite existing migrations or tests
+7. Result-shape and EXPLAIN assertion on the count, including a large synthetic tenant. No dedicated index is added (withdrawn by the addendum of 2026-11-23, CS-Q56).
+   Update the privilege/definer inventory allowlists; do not rewrite existing migrations or tests
    to permit arbitrary future definers.
 
 ### 5. Owner decisions — 2026-10-02
@@ -150,7 +149,7 @@ Run against real PostgreSQL as the restricted roles (ADR-0006), with two synthet
   not expand. The reader role is part of the definer/ACL inventory, not a new runtime login or raw DB facade.
 - A relevant backlog anywhere in the company can block a business's approval. Parked commission events require
   operational repair; they are never ignored to make the count zero.
-- PR 53 must deliver the function, policies/grants, index, adapter and listed tests together. G2 accepts that
+- PR 53 must deliver the function, policies/grants, adapter and listed tests together. G2 accepts that
   design contract; this document does not claim implementation or runtime correctness.
 
 ## Open questions for the owner
@@ -184,8 +183,9 @@ placeholder consumer mark or weaken the pending count to treat publication as co
 function signature, the cutoff rule and the consumer id `commissions.project-inputs` are unchanged. Wherever section 1
 says "the four input event types", read "the six".
 
-**Sections 2, 3 and section 4's group 7 index are otherwise unchanged.** Section 2 (the function owner, the grants and
-the RLS policies), section 3 (the approval transaction flow) and the index of section 4 group 7 keep their text. One
+**Sections 2 and 3 are otherwise unchanged.** Section 2 (the function owner, the grants and
+the RLS policies) and section 3 (the approval transaction flow) keep their text; the index of section 4 group 7 is
+withdrawn by the addendum of 2026-11-23 (CS-Q56). One
 addition to section 3: **after the freeze**, approval reads the frozen rows back, builds the statement fingerprint in
 the same canonical shape and compares it with `reviewed_statement_fingerprint`; a difference rolls the whole approval
 back with 409 `COMMISSION_FINGERPRINT_STALE` (ADR-0054 §6). The post-freeze check compares statement fingerprints only:
@@ -257,3 +257,34 @@ for coverage. The retained-event scan independently verifies the marks. A sale r
 is closed stays unmarked until the sale correction path in 55-1d is available. Rollback
 is not blocked at deploy level. (e): the legacy event is delivered to the same consumer, which
 resolves the business through the root-bound staff reader; a null result leaves it unmarked and approval closed.
+
+## Addendum — 2026-11-23: the mandated index is withdrawn (CS-Q56, technical; Waleed, via the PosPay manager)
+
+Section 4 group 7 required an index on `outbox (company_id, event_type, created_at, id)` ("PR 53 adds an index"). It is
+withdrawn: PR #1233 ships no index migration and no `schema/outbox.ts` change.
+
+- **Measured, not assumed.** On a tenant with 30,000 fully consumed six-type events before the cutoff, each with its
+  `commissions.project-inputs` mark, plus 25,000 other events per company, with `ANALYZE` run after seeding, the count
+  returns 0 and the plan is the same with and without the index: a Bitmap Index Scan on the existing partial
+  `outbox_commission_retained_replay_idx` (migration 0229), then a Hash Join with a sequential scan of the tenant's marks, 30,000
+  rows examined, about 26–29 ms across the runs (80 ms on the first cold one). The new index and `consumed_events_pkey` were not used, so the sentence "the
+  existing consumed-events PK covers its anti-join" did not hold at that size. Measured at 30,000 rows only; nothing is
+  extrapolated.
+- **The shape the index served does not occur in production.** It helps only when many counted events are created
+  after the cutoff. The cutoff is the approval transaction's own start, and the outbox writer
+  (`packages/db/src/outbox.ts`) does not set `created_at`, so it defaults to the writing transaction's start: such events
+  can come only from producers that began after approval did.
+- **CLAUDE.md §5** ("the migration that adds a query adds its index") is met by migration 0229, which already indexes
+  the six counted types for the retained scan.
+- **What stays true.** The count is linear in the tenant's retained six-type history, and no retention rule bounds
+  that history: no runtime role holds `DELETE` on `outbox` and no purge job exists (the database refusal of such deletes
+  is planned in ADR-0054's addendum and not implemented). The CLAUDE.md §6 budget (anything expected to exceed 200 ms
+  is a worker job, never a synchronous wait) still applies to the count inside the approval. Issue #1223 carries a binding
+  item for it (comment 7100155600, 2026-11-23): before 53-2 merges, verify the approval time and the cost of this count
+  on a representative, fully consumed history.
+- **Later.** If a measurement on a representative history justifies an index, it is added then with
+  `CREATE INDEX CONCURRENTLY` in its own migration.
+
+The tests keep the pending meaning, the cutoff, the role, the policies and tenant isolation, and assert for the large
+consumed history only what is true of every acceptable plan: count 0, no sequential scan of `outbox`, and rows examined at
+most the six-type history. The plan, rows and timing are printed as evidence.

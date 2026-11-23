@@ -18,6 +18,7 @@ export function visibilityReadsPending(reads: VisibilityReads): boolean {
     (!reads.planAccess.denied && reads.planEmployees.isPending) ||
     reads.appLink.isPending ||
     readAccessProof(reads.refunds) === 'pending' ||
+    readAccessProof(reads.ratings) === 'pending' ||
     reads.leave.isPending ||
     reads.columns.isPending
   );

@@ -325,3 +325,32 @@ describe('staff app columns (was staff-app-columns-nav-item.spec)', () => {
     expect(screen.getByRole('list', { name: 'Visible pages' })).toBeTruthy();
   });
 });
+
+describe('ratings and reviews (was ratings-nav-item.spec, added by #1228)', () => {
+  const ID = { label: 'ratings.title', href: '/ratings' } as const;
+  const listAnswer = { data: { items: [], next_cursor: null }, response: { status: 200 } };
+  const readsOneRatingsRow = () =>
+    carriedApi.GET.mock.calls.some(
+      ([, options]) => JSON.stringify(options?.params?.query) === JSON.stringify({ limit: 1 }),
+    );
+
+  it('shows the link to the ratings page once the list read succeeds, reading one row', async () => {
+    carriedApi.GET.mockResolvedValue(listAnswer);
+    renderVisible();
+    await expectListed(ID);
+    expect(readsOneRatingsRow()).toBe(true);
+  });
+
+  it('keeps the link hidden while the read is pending', () => {
+    carriedApi.GET.mockReturnValue(new Promise(() => undefined));
+    renderVisible();
+    expect(isListed(ID)).toBe(false);
+  });
+
+  it.each([403, 500])('hides the link when the list answers %i', async (status) => {
+    carriedApi.GET.mockResolvedValue(refusalAnswer(status));
+    const { client } = renderVisible();
+    await expectHiddenOnceSettled(client, ID);
+  });
+});
+

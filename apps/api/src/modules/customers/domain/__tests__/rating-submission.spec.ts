@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { isRatingViewable, ratingBusinessName, ratingViewStateOf } from '../rating-submission.ts';
+import {
+  isLowRating,
+  isRatingViewable,
+  ratingBusinessName,
+  ratingViewStateOf,
+} from '../rating-submission.ts';
 
 const EXPIRES_AT = new Date('2026-06-08T00:00:00Z');
 
@@ -40,5 +45,17 @@ const BUSINESS_NAMES: readonly {
 describe('the rating business name', () => {
   it.each(BUSINESS_NAMES)('picks the $locale name', ({ locale, nameAr, nameEn, expected }) => {
     expect(ratingBusinessName(locale, nameAr, nameEn)).toBe(expected);
+  });
+});
+
+describe('the low rating check', () => {
+  it.each([
+    { stars: 1, expected: true },
+    { stars: 2, expected: true },
+    { stars: 3, expected: false },
+    { stars: 4, expected: false },
+    { stars: 5, expected: false },
+  ])('$stars stars is low: $expected', ({ stars, expected }) => {
+    expect(isLowRating(stars)).toBe(expected);
   });
 });

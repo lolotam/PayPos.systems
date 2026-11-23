@@ -19,6 +19,15 @@ import {
 import { branchScheduleHoursAdapter } from './persistence/branch-schedule-hours.adapter.ts';
 import { businessNames } from './persistence/business-names.adapter.ts';
 import { performerNameAdapter } from './persistence/performer-name.adapter.ts';
+import { alertRules } from './persistence/alert-rule.adapter.ts';
+import { lowRatingPlace } from './persistence/low-rating-place.adapter.ts';
+import { lowRatingRecipients } from './persistence/low-rating-recipients.adapter.ts';
+import {
+  lowRatingOutbox,
+  lowRatingRepository,
+} from './persistence/low-rating-notice.repository.ts';
+import { onLowRatingSubmitted } from './events/handlers/on-low-rating-submitted.handler.ts';
+import { RequestLowRatingNotice } from './use-cases/request-low-rating-notice/request-low-rating-notice.ts';
 import { ratingClaimDiagnostics } from './persistence/rating-claim-diagnostics.ts';
 import { ratingClaimRepository } from './persistence/rating-claim.repository.ts';
 import { ratingClaimTransactions } from './persistence/rating-claim.transactions.ts';
@@ -41,6 +50,33 @@ interface RatingScheduleDeps {
   clock: Clock;
   daySessions: DaySessionsPort;
   ratingSwitch?: RatingRequestsSwitchPort;
+}
+
+/**
+ * مستهلك جرس التقييم المنخفض: يقرر ويركّب الإشعار ويلحق `LowRatingReceived` في معاملة التسليم نفسها.
+ *
+ * @param ids مولّد المعرفات لصف الدفتر وأحداث المجموعات
+ * @param clock الساعة التي تحدد لحظة قرار الـ worker
+ * @returns مستهلك الأوتبوكس لحدث `LowRatingSubmitted`
+ */
+export function createLowRatingNoticeConsumer(ids: IdGenerator, clock: Clock): OutboxConsumer {
+  const bind = (tx: Tx) =>
+    new RequestLowRatingNotice(
+      {
+        rules: alertRules(tx),
+        recipients: lowRatingRecipients(tx),
+        place: lowRatingPlace(tx),
+        repository: lowRatingRepository(tx),
+        outbox: lowRatingOutbox(tx),
+      },
+      ids,
+      clock,
+    );
+  return {
+    id: 'customers.low-rating-notice-v1',
+    eventTypes: ['LowRatingSubmitted'],
+    handle: (tx, event) => onLowRatingSubmitted(bind(tx), event),
+  };
 }
 
 /**

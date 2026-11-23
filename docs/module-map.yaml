@@ -82,6 +82,11 @@ reads:
   - { from: customers, to: tenancy, symbol: branchScheduleHours, file: apps/worker/src/modules/customers/persistence/branch-schedule-hours.adapter.ts }
   - { from: customers, to: tenancy, symbol: businessNames, file: apps/worker/src/modules/customers/persistence/business-names.adapter.ts }
   - { from: customers, to: staff, symbol: readEmployeeDisplayNames, file: apps/worker/src/modules/customers/persistence/performer-name.adapter.ts }
+  - { from: customers, to: settings, symbol: alertRule, file: apps/worker/src/modules/customers/persistence/alert-rule.adapter.ts }
+  - { from: customers, to: identity, symbol: branchManagerRecipients, file: apps/worker/src/modules/customers/persistence/low-rating-recipients.adapter.ts }
+  - { from: customers, to: identity, symbol: ratingCommentReaders, file: apps/worker/src/modules/customers/persistence/low-rating-recipients.adapter.ts }
+  - { from: customers, to: tenancy, symbol: branchPlace, file: apps/worker/src/modules/customers/persistence/low-rating-place.adapter.ts }
+  - { from: customers, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/customers/persistence/low-rating-place.adapter.ts }
   - { from: orders, to: identity, symbol: branchManagerRecipients, file: apps/worker/src/modules/orders/persistence/price-edit-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: companyOpen, file: apps/worker/src/modules/orders/persistence/price-edit-recipients.adapter.ts }
   - { from: orders, to: tenancy, symbol: branchPlace, file: apps/worker/src/modules/orders/persistence/price-edit-place.adapter.ts }
@@ -121,6 +126,14 @@ reads:
   - { from: customers, to: tenancy, symbol: businessNames, file: apps/api/src/modules/customers/persistence/business-names.adapter.ts }
   - { from: customers, to: tenancy, symbol: businessNamesByIds, file: apps/api/src/modules/customers/persistence/workspace-names.adapter.ts }
   - { from: customers, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/customers/persistence/workspace-names.adapter.ts }
+  - { from: customers, to: staff, symbol: readOwnEmployee, file: apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts }
+  - { from: customers, to: identity, symbol: readOwnRatingsAccess, file: apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts }
+  - { from: customers, to: tenancy, symbol: activeBusinessTimeZone, file: apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts }
+  - { from: customers, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts }
+  - { from: customers, to: identity, symbol: readRatingsReadAccess, file: apps/api/src/modules/customers/persistence/ratings-list-reads.adapter.ts }
+  - { from: customers, to: tenancy, symbol: describeWorkspaces, file: apps/api/src/modules/customers/persistence/ratings-list-reads.adapter.ts }
+  - { from: customers, to: tenancy, symbol: businessTimeZone, file: apps/api/src/modules/customers/persistence/ratings-list-reads.adapter.ts }
+  - { from: customers, to: staff, symbol: readEmployeeDisplayNames, file: apps/api/src/modules/customers/persistence/ratings-list-reads.adapter.ts }
   - { from: staff, to: settings, symbol: readStaffColumns, file: apps/api/src/modules/staff/persistence/staff-columns.adapter.ts }
   - { from: staff, to: settings, symbol: readAlertRule, file: apps/api/src/modules/staff/persistence/attendance-change-alert-rule.adapter.ts }
   - { from: staff, to: settings, symbol: alertRule, file: apps/worker/src/modules/staff/persistence/alert-rule.adapter.ts }

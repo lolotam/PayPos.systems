@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { NAVIGATION_PAGES, NAVIGATION_STYLES } from '../navigation-model';
+import { NAVIGATION_PAGES } from '../navigation-model';
 import type { MenuContext } from './menu-context';
 import { resolveOverviewTarget } from './overview-target';
 import { resolveSoonTarget } from './soon-target';
@@ -15,6 +15,7 @@ const CLOSED: VisibilityConditions = {
   'employee-app-link-access': false,
   'imported-refunds-access': false,
   'leave-report-access': false,
+  'ratings-access': false,
   'staff-app-columns-access': false,
 };
 const OPEN: VisibilityConditions = Object.fromEntries(
@@ -37,23 +38,6 @@ function contextFor(
     }),
   };
 }
-
-const ROLES = [
-  'owner',
-  'general_manager',
-  'accountant',
-  'business_manager',
-  'branch_manager',
-  'shift_supervisor',
-  'cashier',
-  'waiter',
-  'kitchen',
-  'storekeeper',
-  'staff',
-  'marketing',
-  'viewer',
-  'custom_admin',
-];
 
 describe('what an overview address does', () => {
   it('shows the overview of a group that is in the current style', () => {
@@ -82,17 +66,6 @@ describe('what an overview address does', () => {
     expect(resolveOverviewTarget('C', 'team', nothing)).toEqual({ kind: 'replace', href: '/' });
     expect(resolveOverviewTarget('C', 'sell', nothing)).toEqual({ kind: 'replace', href: '/' });
   });
-
-  it.each(ROLES)(
-    'never loses a group of the %s that a pending read could still reveal (no loading flag needed)',
-    (role) => {
-      for (const style of NAVIGATION_STYLES) {
-        const waiting = resolveTopLevels(style, contextFor(CLOSED, role)).map((item) => item.id);
-        const settled = resolveTopLevels(style, contextFor(OPEN, role)).map((item) => item.id);
-        expect(waiting).toEqual(settled);
-      }
-    },
-  );
 });
 
 describe('what a Soon address does', () => {
@@ -127,15 +100,5 @@ describe('what a Soon address does', () => {
     ['approvals-inbox', '/approvals'],
   ])('forwards the old address of the built entry %s to %s', (id, href) => {
     expect(resolveSoonTarget(id, owner)).toEqual({ kind: 'forward', href });
-  });
-
-  it('keeps every built entry that has an old Soon address visible without a read', () => {
-    const aliased = NAVIGATION_PAGES.filter(
-      (entry) => entry.state === 'live' && entry.formerSoonId !== undefined,
-    );
-    expect(aliased.length).toBeGreaterThan(0);
-    for (const entry of aliased) {
-      expect(entry.state === 'live' && entry.visible).toBe('always');
-    }
   });
 });

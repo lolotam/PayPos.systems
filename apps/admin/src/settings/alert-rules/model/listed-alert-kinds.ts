@@ -15,14 +15,14 @@ const LISTED_ALERT_KINDS = [
   'DISCOUNT_SELF_APPROVED',
   'ATTENDANCE_CHANGE_REQUESTED',
   'ATTENDANCE_CHANGE_DECIDED',
+  'LOW_RATING',
 ] as const;
 
 export type ListedAlertKind = (typeof LISTED_ALERT_KINDS)[number];
 export type AlertRuleView = AlertRules['rules'][number];
 export type ListedAlertRuleView = AlertRuleView & { kind: ListedAlertKind };
 
-// الأنواع دي بس اللي المُرسِلات بتاعتها بتقري AlertRulesPort النهارده؛ 62-2c بيضيف STATEMENT_*،
-// و61-1 نوع LOW_RATING لما المُرسِلات تنتقل للمنفذ.
+// الأنواع دي بس اللي المُرسِلات بتاعتها بتقري AlertRulesPort النهارده؛ 62-2c بيضيف STATEMENT_*.
 export function listedAlertKinds(
   rules: readonly AlertRuleView[],
   branchView: boolean,

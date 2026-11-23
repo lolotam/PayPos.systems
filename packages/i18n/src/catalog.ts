@@ -1,4 +1,5 @@
 import { myLeaveAr, myLeaveEn } from './my-leave-catalog.js';
+import { myWorkAr, myWorkEn } from './my-work-catalog.js';
 import { leaveHistoryAr, leaveHistoryEn } from './leave-history-catalog.js';
 import { alertRulesAr, alertRulesEn } from './alert-rules-catalog.js';
 import { adminNavAr, adminNavEn, schedulesAr, schedulesEn } from './admin-nav-catalog.js';
@@ -17,6 +18,7 @@ import { packageSaleAr, packageSaleEn } from './package-sale-catalog.js';
 import { customerPackagesAr, customerPackagesEn } from './customer-packages-catalog.js';
 import { importedRefundsAr, importedRefundsEn } from './imported-refunds-catalog.js';
 import { ratingRequestAr, ratingRequestEn } from './rating-catalog.js';
+import { ratingsAr, ratingsEn } from './ratings-catalog.js';
 import { publicRatingAr, publicRatingEn } from './public-rating-catalog.js';
 import { sessionTipsAr, sessionTipsEn } from './session-tips-catalog.js';
 import { serviceLineCancelAr, serviceLineCancelEn } from './service-line-cancel-catalog.js';
@@ -42,6 +44,7 @@ export type Catalog = { readonly [S in keyof typeof en]: Record<keyof (typeof en
 
 type RegisteredCatalog = Catalog & {
   readonly myLeave: Record<keyof typeof myLeaveEn, string>;
+  readonly myWork: Record<keyof typeof myWorkEn, string>;
   readonly leaveHistory: Record<keyof typeof leaveHistoryEn, string>;
   readonly publicRating: Record<keyof typeof publicRatingEn, string>;
   readonly alertRules: Record<keyof typeof alertRulesEn, string>;
@@ -60,6 +63,7 @@ type RegisteredCatalog = Catalog & {
   readonly nativeShell: Record<keyof typeof nativeShellEn, string>;
   readonly packageSale: Record<keyof typeof packageSaleEn, string>;
   readonly ratingRequest: Record<keyof typeof ratingRequestEn, string>;
+  readonly ratings: Record<keyof typeof ratingsEn, string>;
   readonly customerPackages: Record<keyof typeof customerPackagesEn, string>;
   readonly importedRefunds: Record<keyof typeof importedRefundsEn, string>;
   readonly schedules: Record<keyof typeof schedulesEn, string>;
@@ -78,6 +82,7 @@ export type ErrorMessageCode = keyof typeof en.errors;
 const CATALOGS: Record<Locale, RegisteredCatalog> = {
   ar: {
     myLeave: myLeaveAr,
+    myWork: myWorkAr,
     leaveHistory: leaveHistoryAr,
     publicRating: publicRatingAr,
     ...ar,
@@ -97,6 +102,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     nativeShell: nativeShellAr,
     packageSale: packageSaleAr,
     ratingRequest: ratingRequestAr,
+    ratings: ratingsAr,
     customerPackages: customerPackagesAr,
     importedRefunds: importedRefundsAr,
     schedules: schedulesAr,
@@ -105,6 +111,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
   },
   en: {
     myLeave: myLeaveEn,
+    myWork: myWorkEn,
     leaveHistory: leaveHistoryEn,
     publicRating: publicRatingEn,
     ...en,
@@ -124,6 +131,7 @@ const CATALOGS: Record<Locale, RegisteredCatalog> = {
     nativeShell: nativeShellEn,
     packageSale: packageSaleEn,
     ratingRequest: ratingRequestEn,
+    ratings: ratingsEn,
     customerPackages: customerPackagesEn,
     importedRefunds: importedRefundsEn,
     schedules: schedulesEn,

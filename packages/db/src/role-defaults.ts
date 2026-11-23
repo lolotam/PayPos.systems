@@ -68,6 +68,8 @@ export const ROLE_DEFAULTS = {
   'read:commissions:own': humans,
   'read:attendance:own': humans,
   'read:ratings:own': humans,
+  // spec 060 RT-Q7: المديرون الأربعة افتراضياً ضمن نطاقاتهم؛ الأدوار المخصصة بتفويض المالك وحده (FR-B15).
+  'read:ratings:branch': [...managers, 'branch_manager'],
   'record:service-sessions:branch': [...managers, 'branch_manager', 'cashier'],
   'read:service-sessions:branch': [...managers, 'branch_manager'],
   'edit:service-line-prices:branch': [...managers, 'branch_manager'],

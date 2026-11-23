@@ -7,6 +7,7 @@ import { systemUuidV7 } from '@pospay/ids';
 import { createLogger } from '@pospay/observability';
 import { Redis } from 'ioredis';
 
+import { businessConsumers } from './business-consumers.ts';
 import { createDeliverer } from './outbox/deliver.ts';
 import { knownEventTypes } from './outbox/known-event-types.ts';
 import {
@@ -30,28 +31,18 @@ import {
 import { reportRatingTokenCapability } from './rating-token-capability.ts';
 import {
   createAttendanceStatementReader,
-  createStaffDocumentDefaults,
   readEmployeeBusiness,
   startStaffWorker,
 } from './modules/staff/index.ts';
 import { startCatalogWorker } from './modules/catalog/index.ts';
 import { businessPermissionHolders } from './modules/identity/index.ts';
 import {
-  createLateServiceSessionNoticeConsumer,
-  createLineCancelNoticeConsumer,
-  createPerformersChangeNoticeConsumer,
-  createPriceEditNoticeConsumer,
-  createDiscountApprovalNoticeConsumer,
-  createDiscountSelfApprovalNoticeConsumer,
   daySessionsReader,
   startPackagePreviewWorker,
   startPackageSaleWorker,
   startPackageImportCommitWorker,
 } from './modules/orders/index.ts';
-import {
-  closedRatingClaimsLifecycle,
-  createRatingSchedulingConsumer,
-} from './modules/customers/index.ts';
+import { closedRatingClaimsLifecycle } from './modules/customers/index.ts';
 import { closeOptional, optionalWithin } from './shared/optional-capability.ts';
 import {
   beginDocumentRendering,
@@ -61,10 +52,7 @@ import {
 import { DocumentSourceRegistry } from './documents/source-registry.ts';
 import { createAttendanceStatementSource } from './documents/sources/attendance-statement.source.ts';
 import { createCommissionStatementSource } from './documents/sources/commission-statement.source.ts';
-import {
-  createCommissionInputsConsumer,
-  createCommissionStatementExportReader,
-} from './modules/commissions/index.ts';
+import { createCommissionStatementExportReader } from './modules/commissions/index.ts';
 import { businessCalendar, businessTimeZone } from './modules/tenancy/index.ts';
 import { drainDispatchAndDocuments } from './documents/shutdown-drain.ts';
 
@@ -164,31 +152,19 @@ let maintenance: OptionalCapabilities['maintenance'];
 const businessDeliver = createDeliverer(
   app,
   [
-    files.consumer,
-    ...(notifications === null
-      ? inApp === null
-        ? []
-        : [inApp.consumer]
-      : [notifications.consumer]),
-    createStaffDocumentDefaults(systemUuidV7()),
-    createLateServiceSessionNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
-    createPriceEditNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
-    createLineCancelNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
-    createPerformersChangeNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
-    createDiscountApprovalNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
-    createDiscountSelfApprovalNoticeConsumer(systemUuidV7(), { now: () => new Date() }),
-    createRatingSchedulingConsumer({
-      ids: systemUuidV7(),
+    ...businessConsumers({
+      files: files.consumer,
+      notifications: notifications?.consumer ?? null,
+      inApp: inApp?.consumer ?? null,
+      newIds: systemUuidV7,
       clock: { now: () => new Date() },
       daySessions: daySessionsReader,
-    }),
-    createCommissionInputsConsumer({
-      ids: systemUuidV7(),
-      clock: { now: () => new Date() },
-      businessTimeZone,
-      employeeBusiness: readEmployeeBusiness,
-      businessCalendar,
-      permissionHolders: businessPermissionHolders,
+      commissions: {
+        businessTimeZone,
+        employeeBusiness: readEmployeeBusiness,
+        businessCalendar,
+        permissionHolders: businessPermissionHolders,
+      },
     }),
   ],
   logger,

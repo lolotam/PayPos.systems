@@ -897,6 +897,16 @@ so the window is recorded here before any code (57-0); sub-PR 57-1 builds it.
 - The column setting (D-A2) and the months-back setting (D-A14). They apply the same way on both paths and are read
   through `StaffColumnsPort` (ADR-0010 addendum 2026-10-21).
 
+### Note 2026-11-22 — «شغلي» on the reception device uses a simpler client (spec 060, AC-57-4-11)
+
+Decision items 6–7 above describe a client that shares one `localStorage` key between tabs, closes for all tabs by
+`BroadcastChannel`, and re-shows data after a passing touch on return to the foreground. Row 57-4 built it and four
+local review rounds each found new privacy races in it. The owner (Waleed, 2026-11-22) chose a simpler client for
+the «شغلي» screen: single-tab, no shared key or channel, the data held only in the screen's memory, and any exit
+from the foreground, the confirmed deadline or a refused answer closes the window and asks for the PIN again. The
+server contract of this addendum (open, touch, close, the idle and cap limits, one live window per session) is
+unchanged. A later screen that needs items 6–7 as written reopens this note.
+
 ## Addendum 2026-10-23 — explicit, idempotent staff sign-out (spec 067, issue #554 item 2)
 
 - **Status:** Accepted with sub-PR 067-1 (2026-10-24).

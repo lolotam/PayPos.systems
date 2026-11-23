@@ -21,7 +21,9 @@ but does not list (the per-employee payment record, research R7).
 
 Columns and constraints as spec 059 §6: `employee_id`, `kind` (`COMMISSION`, `TIP_CARD`), `amount` (< 0),
 `source_statement_id`, `source_period`, `target_period` (> source), `target_statement_id`, `created_at`.
-`UNIQUE (company_id, source_statement_id, employee_id, kind)`; the two composite statement FKs and the employee FK,
+`UNIQUE (company_id, source_statement_id, employee_id, kind)`; `CHECK (kind IN ('COMMISSION', 'TIP_CARD'))`
+(`commission_carries_kind`: the ledger is append-only for the app role, so a row with another kind could never be
+repaired and would break every estimate that reads it); the two composite statement FKs and the employee FK,
 each with an index on its exact columns. Insert-only. **State:** a carry is written once at approval of its source
 month and read by its target month's estimate, fingerprint and freeze. **Isolation test:** CM-R11.
 
@@ -56,8 +58,7 @@ reason is never logged. **Isolation test:** CM-33c.
 
 No table. Role `pospay_approval_reader` (NOLOGIN, member of nothing); function
 `public.statement_pending_commission_events(approval_started_at timestamptz) RETURNS bigint`; `SELECT` policies for
-that role on `outbox` and `consumed_events`; column-level grants; the index `(company_id, event_type, created_at, id)`
-on `outbox`. Everything as ADR-0012 §1–§2 states; this file adds nothing to it.
+that role on `outbox` and `consumed_events`; column-level grants; no new index (withdrawn by CS-Q56, ADR-0012 addendum 2026-11-23). Everything as ADR-0012 §1–§2 states; this file adds nothing to it.
 
 ### Reminders — 56b-1
 

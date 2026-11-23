@@ -1,4 +1,4 @@
-import type { CommissionEstimateAttachment } from './estimate-projection.ts';
+import type { CommissionEstimateAttachment } from './estimate-projection-types.ts';
 import { computePeriodDetailed } from './period-commission.ts';
 import { assembleForLastDay, commissionPeriodLastDay } from './period-input-assembly.ts';
 import { sortedBy } from './canonical-format.ts';

@@ -42,6 +42,16 @@ BEGIN
   END LOOP;
 END $$`;
 
+const APPROVAL_READER_MEMBERSHIPS_SQL = `
+DO $$ DECLARE m record; BEGIN
+  FOR m IN SELECT granted.rolname AS granted, member.rolname AS member, grantor.rolname AS grantor
+    FROM pg_auth_members a JOIN pg_roles granted ON granted.oid = a.roleid
+    JOIN pg_roles member ON member.oid = a.member JOIN pg_roles grantor ON grantor.oid = a.grantor
+    WHERE member.rolname = 'pospay_approval_reader' OR granted.rolname = 'pospay_approval_reader' LOOP
+    EXECUTE format('REVOKE %I FROM %I GRANTED BY %I CASCADE', m.granted, m.member, m.grantor);
+  END LOOP;
+END $$`;
+
 /**
  * بيعمل pospay_app و pospay_auth و pospay_dispatcher لو مش موجودين، ويثبّت صفاتهم حسب ADR-0003 §3.
  * لازم يتشغّل كـ pospay_owner قبل الـ migrations، لأن الـ GRANTs فيها بتشاور على الـ roles دي.
@@ -69,7 +79,13 @@ export async function bootstrapRoles(sql: Sql, passwords: RolePasswords): Promis
       IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pospay_suppression_reader') THEN
         CREATE ROLE pospay_suppression_reader NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
       END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'pospay_approval_reader') THEN
+        CREATE ROLE pospay_approval_reader NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
+      END IF;
+      ALTER ROLE pospay_approval_reader WITH NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
     END $$`);
+    // دور دالة العدّ لا يعضو في أي دور ولا أحد يعضو فيه؛ يُشال أي ربط قديم في الاتجاهين تحت نفس القفل، مع GRANTED BY و CASCADE كما أعلاه.
+    await tx.unsafe(APPROVAL_READER_MEMBERSHIPS_SQL);
     if (passwords.notifications !== undefined) {
       if (passwords.notifications.length < 16)
         throw new Error('POSTGRES_NOTIFICATIONS_PASSWORD_INVALID');

@@ -95,6 +95,9 @@ export {
   type StatementStatus,
 } from './statement-periods.ts';
 export type { IdGenerator, TenantOptions, TenantWrappers, Tx } from './with-tenant.ts';
+// مصدر قائمة أنواع التنبيهات في قيد CHECK (spec 060 §B.4)؛ مُصدَّر عشان اختبار التطابق بين الـ domain
+// والـ contracts والـ SQL يقرا نفس القائمة من مكانها الحقيقي.
+export { ALERT_KINDS_LIST } from '../schema/settings.ts';
 export { OWNER_DERIVED_PERMISSIONS, OWNER_GRANTED_PERMISSIONS } from './role-defaults.ts';
 export { FEATURE_FLAGS, PROVISIONAL_PLAN_ID, type FeatureFlag } from './seed.ts';
 export {

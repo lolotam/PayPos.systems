@@ -20,7 +20,7 @@ export const staffColumnCode = z
   ])
   .meta({ id: 'StaffColumnCode' });
 
-// القيم الفعلية: المحفوظ أو الافتراضي (MY-Q3، MY-Q9). rating_average مش بيرجع لحد ما التقييم يرجع (FR-A08).
+// القيم الفعلية: المحفوظ أو الافتراضي (MY-Q3، MY-Q9). rating_average كود عادي زي باقي الأعمدة (FR-A08، D-A7).
 export const staffColumnsSettings = responseObject({
   business_id: id,
   columns: z.array(staffColumnCode),

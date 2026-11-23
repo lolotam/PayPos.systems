@@ -1,5 +1,5 @@
 /**
- * أنواع تنبيهات الفريق اللي ليها قاعدة (spec 060 §B.4). LOW_RATING بيدخل مع مسار التقييم المتأجّل (RT-Q1).
+ * أنواع تنبيهات الفريق اللي ليها قاعدة (spec 060 §B.4). LOW_RATING تابع لمسار التقييم المتأجّل (RT-Q1).
  */
 export const ALERT_KINDS = [
   'SHIFT_NOT_CLOCKED_IN',
@@ -17,6 +17,7 @@ export const ALERT_KINDS = [
   'STATEMENT_AWAITING_REVIEW',
   'STATEMENT_AWAITING_APPROVAL',
   'DISCOUNT_SELF_APPROVED',
+  'LOW_RATING',
 ] as const;
 /** نوع تنبيه من الكتالوج. */
 export type AlertKind = (typeof ALERT_KINDS)[number];
@@ -133,6 +134,9 @@ export const ALERT_KIND_DEFINITIONS: Readonly<Record<AlertKind, AlertKindDefinit
   DISCOUNT_SELF_APPROVED: managersInApp({
     defaults: { enabled: true, recipientRoles: ['owner'], channels: IN_APP, delayMinutes: null, leadMinutes: null },
   }),
+  // تنبيه التقييم الواطي على قاعدة RT-Q8 الافتراضية (شغّال، داخل التطبيق، المديرون الأربعة في نطاق فرع الزيارة).
+  // مُدرج في شاشة قواعد التنبيهات من 61-1i، مع المُرسِل نفسه (RT-26 وSC-005).
+  LOW_RATING: managersInApp(),
 };
 
 /** مصدر القاعدة الفعلية: الافتراضي، قاعدة النشاط، أو قاعدة الفرع. */

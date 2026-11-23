@@ -187,3 +187,19 @@ Estimate: 650 production, 1,150 tests, about 100 removed. Stop and report if cod
 6. `/overview/setup` in style C with the owner on a slow network: loading status, then the address ends at `/business-identity`, never `/soon/branches`; `/soon/no-such-page` shows loading and then the not-found page.
 7. `/security/two-factor` after the session cookie is removed in another tab and a client-side navigation to it: redirected to sign-in.
 8. `/approvals` typed by hand as a cashier: not found; as a branch manager: the inbox.
+
+## Integration of `main` after #1228 (ratings, row 61)
+
+**What #1228 added to navigation.** The entry `ratings-and-reviews` is now `live` (`route: '/ratings'`, `formerSoonId`, `visible: 'ratings-access'`, no role list), a new visibility condition `ratings-access` in `NavigationVisibilityCondition`, the read `useRatingsAccess` (one row, `staleTime: 0`, refetch on mount), `ratings-nav-item.tsx` with its spec, `ratings-route.tsx`, `app/(dashboard)/ratings/page.tsx`, and the `src/ratings/**` page. It also edited the generated `app-map.md` by hand (Ratings row Soon to Live) without the shared source.
+
+**Conflict 1, `menu/use-visibility-conditions.ts`.** Kept this branch's structure (`conditionsOf` over `use-visibility-reads.ts`) and carried the new read into it: `useRatingsAccess` is a field of `VisibilityReads`, `'ratings-access': open && readAccessProof(ratings) === 'granted'` is in `conditionsOf`, and `readAccessProof(ratings) === 'pending'` is in `visibilityReadsPending`, so `useVisibilitySettled` waits for the first ratings answer (a grant, a 403 or any error counts as answered). The merged 7a spec of the conditions hook (it mocks `@/ratings/api/use-ratings-access`) passes unchanged.
+
+**Conflict 2, `app-map.md`.** Not hand-merged. `app-map.shared.mjs` was changed so the row `Customers / Ratings and reviews` is `L` (074 state) and `app-map.md` was regenerated with the script (33 Live, 0 New, 95 Soon). **For the manager:** #1228 edited `app-map.md` only; the matching change to the shared source is in this PR, and the `lolotam/lovable-pospay` copy needs its docs PR.
+
+**Placement.** The model puts Ratings in Customers › Customers (style A: group Customers, tab Customers, pill; B: module Grow; C: workspace Customers). `ratings-entry.spec.tsx` renders the three styles for four roles that get the read and four that do not: the entry is a link to `/ratings` with `aria-current` when granted and absent when not, and the page finder finds it only when granted.
+
+**Carried from `ratings-nav-item.spec.tsx`** (the file itself is untouched; 7c folds it): its three blocks, four cases, are in `menu/carried-hide-conditions.spec.tsx`, describe «ratings and reviews»: link shown with name and `href` `/ratings` once the one-row list read succeeds and the call asks for `limit: 1`; hidden while pending; hidden on 403 and on 500. `/soon/ratings-and-reviews` forwards to `/ratings` only after the read is granted (`address-reads-settled.spec`), which replaces the earlier test that every aliased entry was `visible: 'always'` (no longer true, and no longer needed since the address rules wait for the reads). The earlier «no group changes between closed and open reads» test was removed for the same reason: with `ratings-access` a group can now depend on a read, which `useVisibilitySettled` handles.
+
+| Old spec | Old blocks | New tests |
+|---|---|---|
+| ratings-nav-item | 3 (one `it.each` of 403 and 500) | hide-conditions «ratings and reviews» (4) |

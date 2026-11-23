@@ -95,7 +95,7 @@ const MANAGE = [
     ['Customers', 'Customers', '2', S, S, '', R_MKT_OPS],
     ['Customers', 'Tags and blocks', '2', S, S, '', R_MKT_OPS],
     ['Customers', 'Customer wallet (prepaid balance)', '—', S, S, '', R_FIN_OPS],
-    ['Customers', 'Ratings and reviews', '1', S, S, '', R_MKT_OPS],
+    ['Customers', 'Ratings and reviews', '1', L, S, '', R_MKT_OPS],
     ['Appointments', 'Calendar', '4', S, S, 'Salon, spa, barber, clinic, services company', R_OPS_MGR],
     ['Appointments', 'Resources (chairs, rooms)', '4', S, S, 'Salon, spa, barber, clinic, services company', R_OPS_MGR],
     ['Appointments', 'Waitlist', '4', S, S, 'Salon, spa, barber, clinic, services company', R_OPS_MGR],

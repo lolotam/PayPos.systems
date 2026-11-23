@@ -13,6 +13,7 @@ const closed: VisibilityConditions = {
   'employee-app-link-access': false,
   'imported-refunds-access': false,
   'leave-report-access': false,
+  'ratings-access': false,
   'staff-app-columns-access': false,
 };
 const open = Object.fromEntries(

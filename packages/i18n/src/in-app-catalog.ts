@@ -42,6 +42,13 @@ export const inAppEn = {
   document_expiring: "{{employee_name_en}}'s {{document_type_en}} expires on {{expires_on}}",
   document_expiring_numbered:
     "{{employee_name_en}}'s {{document_type_en}} expires on {{expires_on}} · document no. {{document_number}}",
+  low_rating_summary:
+    'Low rating: {{stars}} at {{branch}} on {{business_date}}. Performed by {{performers}}. Customer: {{customer}}, phone ending {{phone_last3}}.',
+  low_rating_stars_1: '1 star',
+  low_rating_stars_2: '2 stars',
+  low_rating_generic_customer: 'A customer',
+  low_rating_names_separator: ', ',
+  low_rating_comment_label: 'Customer comment',
 };
 
 export const inAppAr = {
@@ -85,4 +92,11 @@ export const inAppAr = {
     'مستند {{document_type_ar}} الخاص بـ {{employee_name_ar}} ينتهي يوم {{expires_on}}',
   document_expiring_numbered:
     'مستند {{document_type_ar}} الخاص بـ {{employee_name_ar}} ينتهي يوم {{expires_on}} — رقم المستند {{document_number}}',
+  low_rating_summary:
+    'تقييم منخفض: {{stars}} في {{branch}} بتاريخ {{business_date}}. المنفّذون: {{performers}}. العميل: {{customer}}، الهاتف المنتهي بـ {{phone_last3}}.',
+  low_rating_stars_1: 'نجمة واحدة',
+  low_rating_stars_2: 'نجمتان',
+  low_rating_generic_customer: 'عميل',
+  low_rating_names_separator: '، ',
+  low_rating_comment_label: 'تعليق العميل',
 };

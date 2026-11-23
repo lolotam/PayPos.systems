@@ -54,7 +54,12 @@ import {
   createNotificationModule,
   createInAppNotificationModule,
 } from '../../modules/notifications/index.ts';
-import { createStaffDocumentDefaults, startStaffWorker } from '../../modules/staff/index.ts';
+import { startStaffWorker } from '../../modules/staff/index.ts';
+import { businessConsumers } from '../../business-consumers.ts';
+import { businessPermissionHolders } from '../../modules/identity/index.ts';
+import { daySessionsReader } from '../../modules/orders/index.ts';
+import { readEmployeeBusiness } from '../../modules/staff/index.ts';
+import { businessCalendar, businessTimeZone } from '../../modules/tenancy/index.ts';
 import { createDeliverer } from '../deliver.ts';
 import { KNOWN_EVENT_TYPES, knownEventTypes } from '../known-event-types.ts';
 import { emittedEventTypes } from './emitted-event-types.ts';
@@ -103,10 +108,29 @@ const imports = startPackageImportCommitWorker(database, ids, {
   transactionTimeoutMs: 5000,
 });
 const catalog = startCatalogWorker(database, ids, 'synthetic', clock);
+const productionConsumers = () =>
+  businessConsumers({
+    files: { id: 'files.upload', eventTypes: [], handle: async () => undefined },
+    notifications: notifications.consumer,
+    inApp: null,
+    newIds: () => ids,
+    clock,
+    daySessions: daySessionsReader,
+    commissions: {
+      businessTimeZone,
+      employeeBusiness: readEmployeeBusiness,
+      businessCalendar,
+      permissionHolders: businessPermissionHolders,
+    },
+  });
 
 it('recognizes every event emitted by API and worker, including finite template expansions', () => {
   const emitted = emittedEventTypes();
-  const consumers = [notifications.consumer, createStaffDocumentDefaults(ids)];
+  // المستهلكون من نفس دالة التركيب اللي يسجّل بها main.ts، فنسيان تسجيل مستهلك في الإقلاع (مثل الجرس المنخفض) يفشل هنا.
+  // LowRatingSubmitted له مستهلك حقيقي مسجَّل، فلا يدخل قائمة الأنواع المعروفة بلا مستهلك (plan 61 §2).
+  const consumers = productionConsumers();
+  expect(consumers.flatMap((consumer) => consumer.eventTypes)).toContain('LowRatingSubmitted');
+  expect(KNOWN_EVENT_TYPES).not.toContain('LowRatingSubmitted');
   const supported = new Set([
     ...knownEventTypes(staff, notifications, null, previews, sales, imports, catalog),
     ...consumers.flatMap((consumer) => consumer.eventTypes),

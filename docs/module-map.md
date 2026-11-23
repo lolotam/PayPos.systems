@@ -194,6 +194,9 @@ The consumer owns the interface. The adapter lives in the consumer's `persistenc
 | worker `customers` | `AlertRulePort` | worker `settings` | the effective `LOW_RATING` rule (branch override, otherwise the business rule, master switch applied), read at the worker's decision instant (ADR-0010 addendum A-2, spec 060 D-B9, 61-1h) |
 | worker `customers` | `LowRatingRecipientsPort` | worker `identity` | `branchManagerRecipients` for the rule's roles and the new `ratingCommentReaders` for the comment partition, deduplicated and sorted at the decision instant (ADR-0010 addendum A-2, BR-B4, reader 61-1g, adapter 61-1h) |
 | worker `customers` | `LowRatingPlacePort` | worker `tenancy` | `branchPlace` names and `companyOpen` eligibility on the consumer transaction (ADR-0010 addendum A-2, 61-1h) |
+| API `customers` | own rating-summary authority (`OwnRatingReads.context`) | API `staff`, API `identity`, API `tenancy` | the business and its active branches (`describeWorkspaces`), the caller's own eligible employee (`readOwnEmployee`), membership + feature `customers` + `read:ratings:own` (`readOwnRatingsAccess`), and the business timezone (`activeBusinessTimeZone`), all on the read transaction (ADR-0010 addendum 2026-11-21, spec 060 FR-A05/FR-B14, 61-2a) |
+| API `customers` | `StaffColumnsPort.allowed` (first use by a route) | API `settings` | the `rating_average` gate of the rating summary; the `reads` line already exists (ADR-0010 addendum 2026-10-21) |
+| API `customers` | admin ratings reads (`RatingsListReads.access`, `.branchNames`, `.timeZone`, `.employeeNames`) | API `identity`, API `tenancy`, API `staff` | the branches the caller reads now (`readRatingsReadAccess`: a current manager membership among the four roles that covers the branch and itself carries the `read:ratings:branch` ALLOW, any covering DENY from an active membership removing it, the canonical owner ignoring DENY, customers feature; the same rule as the worker's `ratingCommentReaders`, owner decision 2026-11-22), the business's branch names (`describeWorkspaces`), the business time zone for the default month (`businessTimeZone`) and the names of the employees shown (`readEmployeeDisplayNames`), all on the one read-only snapshot of `GET /v1/businesses/:businessId/ratings` and `/ratings/averages` (ADR-0010 addendum A-2, spec 060 FR-B15, 61-2b, 61-2c) |
 | `customers`                         | `DaySessionsPort`                                                                       | `orders`    | the customer's active lines and performers for a business day — read at claim time, the authoritative boundary for rating attribution (ADR-0010)                     |
 | `customers`                         | `BusinessNamesPort`                                                                     | `tenancy`   | the business's Arabic and English name, shown on the public rating page (spec 060 D-B9, 60-1)                                                                    |
 | `staff` | `EmployeeDocumentScope.file` | `files` | a READY file uploaded by the recorder for this employee and business, read in the same tenant transaction; staff keeps the verified key only (ADR-0031) |
@@ -406,13 +409,6 @@ composition_roots:
 # (ADR-0010 addendum 2026-10-31).
 sync_writes:
   - identity -> tenancy.registerCompany @ apps/api/src/modules/identity/persistence/tenancy-company-registry.adapter.ts
-# A-2 planned worker reads (ADR-0010 addendum 2026-11); each lands as a real reads line WITH its adapter in 61-1h
-# (the identity ratingCommentReaders reader is built in 61-1g; 61-2's API access readers land with their own adapters).
-# Planned: customers -> settings.alertRule @ apps/worker/src/modules/customers/persistence/alert-rule.adapter.ts
-# Planned: customers -> identity.branchManagerRecipients @ apps/worker/src/modules/customers/persistence/low-rating-recipients.adapter.ts
-# Planned: customers -> identity.ratingCommentReaders @ apps/worker/src/modules/customers/persistence/low-rating-recipients.adapter.ts
-# Planned: customers -> tenancy.branchPlace @ apps/worker/src/modules/customers/persistence/low-rating-place.adapter.ts
-# Planned: customers -> tenancy.companyOpen @ apps/worker/src/modules/customers/persistence/low-rating-place.adapter.ts
 reads:
   - orders -> staff.readOwnEmployee @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
   - orders -> identity.readOwnServiceSessionsAccess @ apps/api/src/modules/orders/persistence/own-work-context.adapter.ts
@@ -457,6 +453,11 @@ reads:
   - customers -> tenancy.branchScheduleHours @ apps/worker/src/modules/customers/persistence/branch-schedule-hours.adapter.ts
   - customers -> tenancy.businessNames @ apps/worker/src/modules/customers/persistence/business-names.adapter.ts
   - customers -> staff.readEmployeeDisplayNames @ apps/worker/src/modules/customers/persistence/performer-name.adapter.ts
+  - customers -> settings.alertRule @ apps/worker/src/modules/customers/persistence/alert-rule.adapter.ts
+  - customers -> identity.branchManagerRecipients @ apps/worker/src/modules/customers/persistence/low-rating-recipients.adapter.ts
+  - customers -> identity.ratingCommentReaders @ apps/worker/src/modules/customers/persistence/low-rating-recipients.adapter.ts
+  - customers -> tenancy.branchPlace @ apps/worker/src/modules/customers/persistence/low-rating-place.adapter.ts
+  - customers -> tenancy.companyOpen @ apps/worker/src/modules/customers/persistence/low-rating-place.adapter.ts
   - orders -> identity.branchManagerRecipients @ apps/worker/src/modules/orders/persistence/price-edit-recipients.adapter.ts
   - orders -> tenancy.companyOpen @ apps/worker/src/modules/orders/persistence/price-edit-recipients.adapter.ts
   - orders -> tenancy.branchPlace @ apps/worker/src/modules/orders/persistence/price-edit-place.adapter.ts
@@ -496,6 +497,14 @@ reads:
   - customers -> tenancy.businessNames @ apps/api/src/modules/customers/persistence/business-names.adapter.ts
   - customers -> tenancy.businessNamesByIds @ apps/api/src/modules/customers/persistence/workspace-names.adapter.ts
   - customers -> tenancy.describeWorkspaces @ apps/api/src/modules/customers/persistence/workspace-names.adapter.ts
+  - customers -> staff.readOwnEmployee @ apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts
+  - customers -> identity.readOwnRatingsAccess @ apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts
+  - customers -> tenancy.activeBusinessTimeZone @ apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts
+  - customers -> tenancy.describeWorkspaces @ apps/api/src/modules/customers/persistence/own-rating-context.adapter.ts
+  - customers -> identity.readRatingsReadAccess @ apps/api/src/modules/customers/persistence/ratings-list-reads.adapter.ts
+  - customers -> tenancy.describeWorkspaces @ apps/api/src/modules/customers/persistence/ratings-list-reads.adapter.ts
+  - customers -> tenancy.businessTimeZone @ apps/api/src/modules/customers/persistence/ratings-list-reads.adapter.ts
+  - customers -> staff.readEmployeeDisplayNames @ apps/api/src/modules/customers/persistence/ratings-list-reads.adapter.ts
   - staff -> settings.readStaffColumns @ apps/api/src/modules/staff/persistence/staff-columns.adapter.ts
   - staff -> settings.readAlertRule @ apps/api/src/modules/staff/persistence/attendance-change-alert-rule.adapter.ts
   - staff -> settings.alertRule @ apps/worker/src/modules/staff/persistence/alert-rule.adapter.ts
