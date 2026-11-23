@@ -71,6 +71,11 @@ export const adminEn = {
   nameEnRequired: 'Enter the company name in English.',
   nameTooLong: 'Use at most 255 characters.',
   createCompanyForbidden: 'This account is not allowed to create a company. Contact PosPay support.',
+  createCompanyRetryNotice:
+    'Your previous attempt may have gone through. The same request will be sent again safely.',
+  createCompanyRetry: 'Try again',
+  createCompanyCreatedStatus: 'The company was created. Loading its workspace.',
+  createCompanyReload: 'Reload',
 };
 
 /** نصوص قسم الإدارة (ar). */
@@ -144,4 +149,8 @@ export const adminAr = {
   nameEnRequired: 'أدخل اسم الشركة بالإنجليزية.',
   nameTooLong: 'استخدم ٢٥٥ حرفًا كحد أقصى.',
   createCompanyForbidden: 'هذا الحساب غير مسموح له بإنشاء شركة. تواصل مع دعم PosPay.',
+  createCompanyRetryNotice: 'قد تكون المحاولة السابقة نفذت بالفعل. سيعاد إرسال نفس الطلب بأمان.',
+  createCompanyRetry: 'إعادة المحاولة',
+  createCompanyCreatedStatus: 'تم إنشاء الشركة. جارٍ تحميل مساحة عملها.',
+  createCompanyReload: 'إعادة التحميل',
 };

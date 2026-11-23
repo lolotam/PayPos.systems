@@ -8,6 +8,10 @@ import { clearSelection, writeSelection } from '@/shared/api/selection-cookie';
 import { QueryProvider } from '@/shared/api/query-provider';
 import { LocaleProvider } from '@/shared/locale/locale-context';
 
+vi.mock('@/session/api/use-session', () => ({
+  useSessionIdentity: () => ({ userId: 'user-1', status: 'settled' as const }),
+}));
+
 import { WorkspaceProvider } from '../model/workspace-provider';
 import { BranchLabel } from './branch-label';
 import { WorkspaceBody } from './workspace-body';

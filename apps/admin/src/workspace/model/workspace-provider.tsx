@@ -46,7 +46,11 @@ function viewOf(
 ): WorkspaceController {
   const shared = { companies, choose };
   if (!mounted || pending) return { ...shared, status: 'loading' };
-  if (isError) return { ...shared, status: 'error', message: envelopeMessage(error, locale) };
+  // فشل إعادة الجلب والليستة القديمة موجودة ما يهدمش الصفحة: فشل أول تحميل بس هو اللي
+  // بيعرض حالة الخطأ، ولتّما شاشة إنشاء الشركة بتكمل بإعادة التحميل بتاعتها (077).
+  if (isError && companies.length === 0) {
+    return { ...shared, status: 'error', message: envelopeMessage(error, locale) };
+  }
   if (resolved.status === 'empty') return { ...shared, status: 'empty' };
   if (resolved.status === 'choose' || !resolved.company) return { ...shared, status: 'choose' };
   return {

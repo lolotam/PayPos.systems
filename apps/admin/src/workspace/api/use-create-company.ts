@@ -2,53 +2,55 @@
 
 import type { CreateCompanyInput } from '@pospay/contracts';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
 
+import {
+  isUndecided,
+  readAttempt,
+  removeAttempt,
+  writeAttempt,
+} from '../model/create-company-attempt';
 import { createCompany } from './create-company-client';
 
-/** محاولة لسه نتيجتها مجهولة: المفتاح بيفضل محفوظ لحد ما نجاح أو رفض قاطع بيأكده. */
-export type HeldAttempt = { key: string; fingerprint: string };
-
-/** الردود اللي شكلها رفض بس الجواب فيها مش قاطع: الطلب الأول بمفتاحه لسه ممكن يكون شغال أو متقبل. */
-const UNCERTAIN_STATUSES = new Set([408, 409, 429]);
+/** نداء الإنشاء: إرسال جديد بالقيم المكتوبة، أو إعادة بنفس المفتاح والجسم المخزّنين لمحاولة غير محسومة. */
+export type CreateCompanyCall = { kind: 'new'; body: CreateCompanyInput } | { kind: 'retry' };
 
 /**
- * الجواب القاطع هو النجاح أو رفض 4xx غير معلّق: السيرفر جاوب جواب نهائي إن مفيش شركة اتأنشأت
- * فالمفتاح بيتشرح. 408 و409 و429 مش قاطعين — 409 بيجي وما زال الطلب الأول بمفتاحه شغالًا على
- * السيرفر (IDEMPOTENCY_KEY_IN_PROGRESS)، والاتنين التانيين ممكن يكون الطلب اتقبل فعلًا —
- * فزي فشل الشبكة والـ 5xx المفتاح بيفضل محفوظ للإعادة عشان الإعادة ما تعملش شركة تانية.
+ * محاولة واحدة غير محسومة في كل لحظة: بتتكتب في التخزين قبل ما الطلب يسيب المتصفح، وما بتتشالش
+ * غير بجواب قاطع (201 أو رفض 4xx غير 408/409/429)؛ فشل الشبكة والـ 5xx والتلاتة دول بيبقوا
+ * المحاولة محفوظة عشان «إعادة المحاولة» تبعت نفس المفتاح ونفس الجسم وما تعرفش تعمل شركة تانية.
  */
-function decided(refusal: unknown): boolean {
-  const status = (refusal as { status?: unknown }).status;
-  return (
-    typeof status === 'number' && status >= 400 && status < 500 && !UNCERTAIN_STATUSES.has(status)
-  );
-}
-
-/**
- * بيحفظ مفتاح المحاولة الجاري: نفس القيم بعد فشل مجهول بتعيد نفس المفتاح، والجواب القاطع
- * أو تغيير القيم بيشرحه، وعلى النجاح قراءة مساحات العمل بتتعمل invalidation عشان
- * مزوّد مساحة العمل يختار الشركة الجديدة ويفتح لوحتها من غير إعادة تحميل للصفحة.
- */
-export function useCreateCompany() {
+export function useCreateCompany(userId: string | undefined) {
   const client = useQueryClient();
-  const [held] = useState(() => ({ current: null as HeldAttempt | null }));
   return useMutation({
     mutationKey: ['companies', 'create'],
     retry: false,
     gcTime: 0,
-    mutationFn: async (input: CreateCompanyInput) => {
-      const fingerprint = JSON.stringify(input);
-      const key =
-        held.current?.fingerprint === fingerprint ? held.current.key : crypto.randomUUID();
-      held.current = { key, fingerprint };
+    // عند انقطاع الاتصال الطلب بيفشل فورًا كفشل شبكة (والمحاولة تفضل محفوظة) بدل ما يترصّن صامتًا.
+    networkMode: 'always',
+    mutationFn: async (call: CreateCompanyCall) => {
+      if (userId === undefined) throw new TypeError('the signed-in user is not known yet');
+      let key: string;
+      let body: CreateCompanyInput;
+      if (call.kind === 'retry') {
+        const stored = readAttempt(userId);
+        if (stored === null) throw new TypeError('no undecided attempt to retry');
+        key = stored.key;
+        body = stored.body;
+      } else {
+        if (readAttempt(userId) !== null) {
+          throw new TypeError('an earlier attempt is still undecided');
+        }
+        key = crypto.randomUUID();
+        body = call.body;
+        writeAttempt({ userId, key, body, startedAt: new Date().toISOString() });
+      }
       try {
-        const created = await createCompany(key, input);
-        held.current = null;
+        const created = await createCompany(key, body);
+        removeAttempt();
         await client.invalidateQueries({ queryKey: ['me', 'workspaces'] });
         return created;
       } catch (error) {
-        if (decided(error)) held.current = null;
+        if (!isUndecided(error)) removeAttempt();
         throw error;
       }
     },
