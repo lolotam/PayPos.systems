@@ -14,6 +14,7 @@ export function AttendanceReportFilterBar({
   allowAllBranches,
   sorting,
   onSortingChange,
+  sortDisabled,
   onMonth,
   onBranch,
 }: {
@@ -23,6 +24,7 @@ export function AttendanceReportFilterBar({
   allowAllBranches: boolean;
   sorting: SortingState;
   onSortingChange: (updater: Updater<SortingState>) => void;
+  sortDisabled: boolean;
   onMonth: (month: string) => void;
   onBranch: (branchId: string) => void;
 }) {
@@ -36,7 +38,11 @@ export function AttendanceReportFilterBar({
         onMonth={onMonth}
         onBranch={onBranch}
       />
-      <AttendanceReportSortControl sorting={sorting} onSortingChange={onSortingChange} />
+      <AttendanceReportSortControl
+        sorting={sorting}
+        onSortingChange={onSortingChange}
+        disabled={sortDisabled}
+      />
       <AttendanceReportDownloadMessages
         key={`${scope.branchId}:${month}`}
         scope={scope}

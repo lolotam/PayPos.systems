@@ -6,8 +6,9 @@ import type { AttendanceBoardScope } from './use-attendance-board';
 
 /**
  * قائمة الطلبات كانت تعيش مع وجود منطقة زمنية للفرع فقط: لما تغيب تُفكّ القائمة بمحرّر القرار
- * المفتوح وكاش طلباتها، ولما ترجع تبدأ من قراءة جديدة. الكرت صار ثابتًا بتصفيته، فنربط عمر
- * هذه الأشياء الثلاثة بحضور المنطقة الزمنية هنا بنفس اللحظة: تفريغ الاختيار ومسح الكاش.
+ * المفتوح وكاش طلباتها، ولما ترجع تبدأ من قراءة جديدة. الكرت صار ثابتًا بتصفيته، فنربط هنا
+ * الشيئين بما كان يربطهما: انتهاء الاختيار بغياب المنطقة الزمنية وحده، أما مسح كاش النطاق السابق
+ * فيتم عند تغيّر النطاق أيضًا ولا ينهي الاختيار، فيعود المحرّر إن عاد الطلب نفسه بالمراجعة نفسها.
  */
 export function useAttendanceRequestsLifetime(
   scope: AttendanceBoardScope,
@@ -18,11 +19,14 @@ export function useAttendanceRequestsLifetime(
   const { companyId, businessId, branchId, userId } = scope;
   useEffect(() => {
     if (!present) return;
+    return onEnd;
+  }, [present, onEnd]);
+  useEffect(() => {
+    if (!present) return;
     return () => {
-      onEnd();
       client.removeQueries({
         queryKey: [...attendanceActionKey({ companyId, businessId, branchId, userId }), 'requests'],
       });
     };
-  }, [client, present, onEnd, companyId, businessId, branchId, userId]);
+  }, [client, present, companyId, businessId, branchId, userId]);
 }

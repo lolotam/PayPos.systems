@@ -38,7 +38,7 @@ export function AttendanceReportPage({
   const visible = report.data && !boardAccessLost(report.error);
   const branchName = reportBranchName(branches, selected.branchId, locale);
   const resetKey = `${selected.branchId}:${month}`;
-  const { sorting, onSortingChange } = useAttendanceReportSorting(resetKey);
+  const { sorting, onSortingChange } = useAttendanceReportSorting(visible ? resetKey : null);
   return (
     <PageShell layout="list">
       <PageHeader
@@ -63,6 +63,7 @@ export function AttendanceReportPage({
             allowAllBranches={allowAllBranches}
             sorting={sorting}
             onSortingChange={onSortingChange}
+            sortDisabled={!visible}
             onMonth={setMonth}
             onBranch={(branchId) => {
               setAll(branchId === 'all');

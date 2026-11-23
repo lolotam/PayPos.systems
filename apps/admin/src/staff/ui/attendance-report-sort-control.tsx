@@ -12,9 +12,12 @@ import { attendanceReportSortOptions } from './attendance-report-columns';
 export function AttendanceReportSortControl({
   sorting,
   onSortingChange,
+  disabled,
 }: {
   sorting: SortingState;
   onSortingChange: (updater: Updater<SortingState>) => void;
+  /** لا جدول ظاهر الآن (رفض أو تحميل): لا شيء يُفرز. */
+  disabled: boolean;
 }) {
   const locale = useLocale();
   const current = sorting[0];
@@ -25,12 +28,13 @@ export function AttendanceReportSortControl({
       <NativeSelect
         id="report-sort"
         value={value}
+        disabled={disabled}
         onChange={(event) => {
           const [id, direction] = event.target.value.split(':');
           onSortingChange(id ? [{ id, desc: direction === 'desc' }] : []);
         }}
       >
-        <option value="">—</option>
+        <option value="">{t(locale, 'catalogServices.missingValue')}</option>
         {attendanceReportSortOptions(locale).flatMap(({ id, label }) =>
           (['asc', 'desc'] as const).map((direction) => (
             <option key={`${id}:${direction}`} value={`${id}:${direction}`}>

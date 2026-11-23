@@ -1,9 +1,9 @@
 import { t } from '@pospay/i18n';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { Profiler } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { attendanceTestClient, boardScope, requestPage } from '../api/attendance-actions.fixture';
-import { boardBranches } from '../api/attendance-board.fixture';
+import { boardBranches, otherBoardId } from '../api/attendance-board.fixture';
 import { AttendanceRequestsPage } from './attendance-requests-page';
 
 const api = vi.hoisted(() => ({ GET: vi.fn() }));
@@ -41,10 +41,14 @@ function recordCommit() {
   });
 }
 
-function page(branches: typeof boardBranches) {
+function page(branches: typeof boardBranches, branchId = boardScope.branchId) {
   return (
     <Profiler id="requests" onRender={recordCommit}>
-      <AttendanceRequestsPage scope={boardScope} branches={branches} onBranch={vi.fn()} />
+      <AttendanceRequestsPage
+        scope={{ ...boardScope, branchId }}
+        branches={branches}
+        onBranch={vi.fn()}
+      />
     </Profiler>
   );
 }
@@ -56,6 +60,7 @@ function renderPage() {
     client: test.client,
     withoutZone: () => view.rerender(page(noZone)),
     withZone: () => view.rerender(page(boardBranches)),
+    withBranch: (branchId: string) => view.rerender(page(boardBranches, branchId)),
   };
 }
 
@@ -121,4 +126,31 @@ it('shows no old row while the new read is pending after the time zone returns',
   expect(screen.queryByRole('dialog', { hidden: true })).toBeNull();
   expect(screen.getByLabelText(t('en', 'attendanceBoard.status'))).toBe(status);
   expect(document.activeElement).toBe(status);
+});
+
+it('shows the same request again, and ends nothing, when the workspace branch changes and the new read returns it', async () => {
+  const view = await openDecision();
+  let release: (value: unknown) => void = () => undefined;
+  listAnswer = () =>
+    new Promise((resolve) => {
+      release = resolve;
+    });
+  seen = [];
+  const readsBefore = listReads().length;
+  view.withBranch(otherBoardId);
+  await waitFor(() => expect(listReads().length).toBe(readsBefore + 1));
+  expect(screen.queryByRole('dialog', { hidden: true })).toBeNull();
+  release({ data: requestPage });
+  const dialog = await screen.findByRole('dialog', { hidden: true });
+  expect(dialog.textContent).toContain('Synthetic employee');
+  expect(dialog.textContent).toContain('Synthetic request reason');
+});
+
+it('shows the request row again but no editor after a lost time zone returns and the read succeeds', async () => {
+  const view = await openDecision();
+  view.withoutZone();
+  view.withZone();
+  await screen.findByRole('table');
+  expect(screen.queryAllByText(/Synthetic employee/).length).toBeGreaterThan(0);
+  expect(screen.queryByRole('dialog', { hidden: true })).toBeNull();
 });
