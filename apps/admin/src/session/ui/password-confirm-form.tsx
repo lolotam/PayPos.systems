@@ -7,6 +7,7 @@ import { t } from '@pospay/i18n';
 import { Button, EmptyState, CircleAlert } from '@pospay/ui';
 import { useForm } from 'react-hook-form';
 
+import { useMounted } from '@/shared/browser/use-mounted';
 import { useLocale } from '@/shared/locale/locale-context';
 
 import { TextField } from './text-field';
@@ -21,12 +22,18 @@ export function PasswordConfirmForm({
   onSubmit: (values: ConfirmPasswordInput) => Promise<void>;
 }) {
   const locale = useLocale();
+  const mounted = useMounted();
   const form = useForm<ConfirmPasswordInput>({
     resolver: zodResolver(confirmPasswordInput),
     defaultValues: { password: '' },
   });
   return (
-    <form className="flex flex-col gap-4" noValidate onSubmit={form.handleSubmit(onSubmit)}>
+    <form
+      method="post"
+      className="flex flex-col gap-4"
+      noValidate
+      onSubmit={form.handleSubmit(onSubmit)}
+    >
       <TextField
         id="enrol-password"
         type="password"
@@ -45,7 +52,7 @@ export function PasswordConfirmForm({
           className="p-4"
         />
       ) : null}
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" disabled={pending || !mounted}>
         {t(locale, 'admin.enrolContinue')}
       </Button>
     </form>
