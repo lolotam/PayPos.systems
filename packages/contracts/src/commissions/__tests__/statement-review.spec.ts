@@ -38,11 +38,13 @@ it('the review request refuses a fingerprint that is not a lowercase sha-256 hex
   ).toBe(false);
 });
 
-it('the return request trims the reason and refuses an empty one', () => {
-  expect(commissionStatementReturnInput.parse({ reason: '  سبب  ' }).reason).toBe('سبب');
-  expect(commissionStatementReturnInput.safeParse({ reason: '   ' }).success).toBe(false);
-  expect(commissionStatementReturnInput.safeParse({ reason: 'x'.repeat(501) }).success).toBe(false);
-  expect(commissionStatementReturnInput.safeParse({ reason: 'x'.repeat(500) }).success).toBe(true);
+it('the return request carries the reason unbounded; the rule lives in the api domain', () => {
+  // بلا حدّ شكلي ولا قصّ في العقد (نفس قاعدة سبب رفض الخصم): السبب الفارغ بعد القص أو الأطول من
+  // 500 حرف لازم يوصل النطاق فيرد 422 COMMISSION_RETURN_REASON_INVALID لا 400.
+  expect(commissionStatementReturnInput.parse({ reason: '  سبب  ' }).reason).toBe('  سبب  ');
+  expect(commissionStatementReturnInput.safeParse({ reason: '' }).success).toBe(true);
+  expect(commissionStatementReturnInput.safeParse({ reason: 'x'.repeat(501) }).success).toBe(true);
+  expect(commissionStatementReturnInput.safeParse({ reason: 5 }).success).toBe(false);
 });
 
 it('the review result names the reviewed status and both reviewed fingerprints', () => {

@@ -2,7 +2,10 @@ import type { CommissionStatementReturnResult } from '@pospay/contracts';
 
 import type { Clock } from '../../../../shared/ports/clock.port.ts';
 import { CommissionPlanVersionError } from '../../domain/errors.ts';
-import { planCommissionStatementReturn } from '../../domain/statement-return-plan.ts';
+import {
+  normalizeStatementReturnReason,
+  planCommissionStatementReturn,
+} from '../../domain/statement-return-plan.ts';
 import type {
   CommissionStatementReturnCommand,
   CommissionStatementReviewScope,
@@ -28,10 +31,11 @@ export class ReturnCommissionStatementUseCase {
 }
 
 /**
- * الخطوات بترتيبها الإلزامي: قفل الشهر مع رفض APPROVED وPAID، إعادة فحص الصلاحية بعد القفل (صاحب
- * مراجعة أو صاحب اعتماد، وقارئ على مستوى النشاط كله)، قراءة حالة الكشف، ثم خطة الإرجاع: الإرجاع
- * مسموح لحالة REVIEWED وحدها. السبب بيتحقق في العقد ويتنضّد هنا، وهو يعيش في سطر الإرجاع وحده
- * فمفيش سبب في حدث ولا في نص تدقيق ولا في سجل تشغيلي.
+ * الخطوات بترتيبها الإلزامي: تطبيع السبب وفحصه قبل أي قفل، ثم قفل الشهر مع رفض APPROVED وPAID،
+ * إعادة فحص الصلاحية بعد القفل (صاحب مراجعة أو صاحب اعتماد، وقارئ على مستوى النشاط كله)، قراءة
+ * حالة الكشف، ثم خطة الإرجاع: الإرجاع مسموح لحالة REVIEWED وحدها. العقد بيحمل السبب بلا حدّ شكلي،
+ * والقاعدة بتتحقق في النطاق (FR-031)، وهو يعيش في سطر الإرجاع وحده فمفيش سبب في حدث ولا في نص
+ * تدقيق ولا في سجل تشغيلي.
  *
  * @param scope خطوات الكتابة على المعاملة
  * @param command هوية الفاعل والشهر والسبب
@@ -44,10 +48,7 @@ export async function returnStatement(
   clock: Clock,
 ): Promise<CommissionStatementReturnResult> {
   const { period } = command;
-  const reason = command.reason.trim();
-  if (reason.length < 1 || reason.length > 500) {
-    throw new CommissionPlanVersionError('COMMISSION_RETURN_REASON_INVALID');
-  }
+  const reason = normalizeStatementReturnReason(command.reason);
   await scope.lockPeriod(period);
   const failure = await scope.recheckAccess();
   if (failure !== null) throw new CommissionPlanVersionError(failure);

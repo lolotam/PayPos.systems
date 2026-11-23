@@ -189,6 +189,9 @@ describe('CM-33 the review permission', () => {
   });
 
   it('refuses a member with review on a branch only, and writes nothing (CM-33d)', async () => {
+    // سيناريو CM-33d: الكشف موجود الأول (مولَّد للشهر)، وبعدها محاولة المراجعة بترجع 403 موحّدة
+    // والكشف بيفضل مسودة، بلا بصمة ولا تدقيق.
+    expect((await generateStatement(f, f.cookie, 'generate-may', '2026-05')).status).toBe(200);
     const member = await memberWithGrants(f, 'branch-review', [
       { permission: 'review:commissions:business', scope: 'BRANCH' },
     ]);

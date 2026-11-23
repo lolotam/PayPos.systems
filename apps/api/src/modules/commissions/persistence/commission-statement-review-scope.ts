@@ -121,7 +121,7 @@ async function storeReview(
     reviewed_statement_fingerprint = ${transition.review.statementFingerprint},
     reviewed_by = ${transition.review.actorUserId}::uuid,
     reviewed_membership_id = ${transition.review.actorMembershipId}::uuid,
-    reviewed_at = ${transition.review.recordedAt}
+    reviewed_at = ${transition.review.recordedAt.toISOString()}::timestamptz
     WHERE company_id = app_company_id() AND business_id = ${actor.businessId}::uuid
       AND id = ${transition.statementId}::uuid AND period = ${period}`);
 }
@@ -150,7 +150,7 @@ async function storeReturnRecord(
     company_id, id, business_id, statement_id, returned_by, returned_membership_id, reason, created_at)
     VALUES (app_company_id(), ${ids.newId()}::uuid, ${actor.businessId}::uuid,
       ${record.statementId}::uuid, ${record.actorUserId}::uuid,
-      ${record.actorMembershipId}::uuid, ${record.reason}, ${record.recordedAt})`);
+      ${record.actorMembershipId}::uuid, ${record.reason}, ${record.recordedAt.toISOString()}::timestamptz)`);
 }
 
 /** تدقيق المراجعة: البصمتان والشهر، من غير أي مبلغ ولا اسم. */

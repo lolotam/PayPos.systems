@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
+import { CommissionPlanVersionError } from '../errors.ts';
 import {
+  normalizeStatementReturnReason,
   planCommissionStatementReturn,
   type CommissionStatementReturnInput,
 } from '../statement-return-plan.ts';
@@ -123,5 +125,31 @@ describe('statement return input preservation', () => {
     expect(result.privateReturn.actorMembershipId).toBe('membership-2');
     expect(result.transition.review.actorUserId).toBeNull();
     expect(result.transition.review.actorMembershipId).toBeNull();
+  });
+});
+
+describe('normalizeStatementReturnReason', () => {
+  it('normalizes the reason by trimming and counts code points, not utf-16 units', () => {
+    expect(normalizeStatementReturnReason('  سبب  ')).toBe('سبب');
+    // 500 حرف code points — عند الحدّ بالظبط مقبول.
+    expect(Array.from(normalizeStatementReturnReason('ا'.repeat(500))).length).toBe(500);
+    // 300 إيموجي = 300 code points لكن 600 utf-16 unit؛ الحدّ بالأحرف زي CHECK القاعدة.
+    expect(Array.from(normalizeStatementReturnReason('😀'.repeat(300))).length).toBe(300);
+    // 500 إيموجي = 500 code points بالظبط — على الحدّ ومقبولة، ولو العدّ بـ utf-16 كانت هتترفض غلط.
+    expect(Array.from(normalizeStatementReturnReason('😀'.repeat(500))).length).toBe(500);
+  });
+
+  it.each([
+    ['empty', ''],
+    ['whitespace only', '   '],
+    ['501 code points', 'ا'.repeat(501)],
+    ['501 astral code points', '😀'.repeat(501)],
+  ])('refuses a %s reason with COMMISSION_RETURN_REASON_INVALID', (_label, reason) => {
+    expect(() => normalizeStatementReturnReason(reason)).toThrow(CommissionPlanVersionError);
+    try {
+      normalizeStatementReturnReason(reason);
+    } catch (error) {
+      expect((error as CommissionPlanVersionError).code).toBe('COMMISSION_RETURN_REASON_INVALID');
+    }
   });
 });

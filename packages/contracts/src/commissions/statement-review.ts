@@ -16,12 +16,14 @@ export const commissionStatementReviewInput = z
   .meta({ id: 'CommissionStatementReviewInput' });
 
 /**
- * طلب إرجاع كشف مراجَع للمسودة (FR-031): السبب مطلوب ومقصوصة، من حرف لحد 500.
- * السبب بيتحقق في العقد، فالسطر الفاضي أو الطويل بيرجع 422 قبل أي قفل.
+ * طلب إرجاع كشف مراجَع للمسودة (FR-031): السبب مطلوب عملياً.
+ * بلا حدّ شكلي ولا قصّ هنا، حتى يصل السبب الفارغ بعد القص أو الأطول من 500 حرف للنطاق
+ * فيرد 422 COMMISSION_RETURN_REASON_INVALID لا 400 — نفس قاعدة سبب رفض الخصم (FR-017، D-12)،
+ * والتحقق قبل أي قفل في حالة الاستخدام.
  */
 export const commissionStatementReturnInput = z
   .strictObject({
-    reason: z.string().trim().min(1).max(500),
+    reason: z.string(),
   })
   .meta({ id: 'CommissionStatementReturnInput' });
 
