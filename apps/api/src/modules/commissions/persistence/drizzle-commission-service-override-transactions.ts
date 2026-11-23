@@ -1,4 +1,9 @@
-import { runIdempotent, type IdGenerator, type TenantWrappers } from '@pospay/db';
+import {
+  IdempotencyKeyReusedError,
+  runIdempotent,
+  type IdGenerator,
+  type TenantWrappers,
+} from '@pospay/db';
 
 import { CommissionPlanVersionError } from '../domain/errors.ts';
 import type { CommissionServiceOverrideTransactions } from '../ports/commission-service-override-transactions.port.ts';
@@ -20,11 +25,11 @@ export function createCommissionServiceOverrideTransactions(
         command.companyId,
         async (tx) => {
           const scope = createCommissionServiceOverrideScope(tx, command, ids, readers);
-          // الصلاحية بتتأكد قبل مطالبة المفتاح، فالمحفوظ كمان بيرفض لو سحبت الصلاحية بعده.
-          const accessFailure = await scope.recheckAccess();
-          if (accessFailure !== null) {
-            throw new CommissionPlanVersionError(accessFailure);
-          }
+          const assertAccess = async () => {
+            const failure = await scope.recheckAccess();
+            if (failure !== null) throw new CommissionPlanVersionError(failure);
+          };
+          await assertAccess();
           const result = await runIdempotent(
             tx,
             {
@@ -34,7 +39,13 @@ export function createCommissionServiceOverrideTransactions(
               fingerprint: command.fingerprint,
             },
             async () => ({ status: 201, body: await work(scope) }),
-          );
+          ).catch(async (error: unknown) => {
+            // طلب مختلف على نفس المفتاح بعد الانتظار: الـ 403 الموحّد بيسبق تعارض المفتاح.
+            if (error instanceof IdempotencyKeyReusedError) await assertAccess();
+            throw error;
+          });
+          // الرد المخزّن ممكن يرجع بعد انتظار على نفس المفتاح، فالصلاحية بتتفحص تاني قبل ما نرجّعه.
+          if (result.replayed) await assertAccess();
           return result.body as Awaited<ReturnType<typeof work>>;
         },
         { userId: command.userId },
