@@ -1,6 +1,6 @@
 'use client';
 
-import type { Locale } from '@pospay/i18n';
+import { t, type Locale } from '@pospay/i18n';
 import { WorkspaceSwitcher } from '@pospay/ui';
 
 import type { SelectionChoice } from '@/shared/api/selection-cookie';
@@ -9,6 +9,7 @@ import { displayName } from '@/workspace/model/display-name';
 import { useWorkspace } from '@/workspace/model/workspace-provider';
 
 import { useFrameLabels } from './use-frame-labels';
+import { useNavigationKey } from './use-navigation-key';
 
 type Named = { id: string; name_ar: string | null; name_en: string };
 
@@ -18,11 +19,15 @@ const optionsOf = (items: readonly Named[], locale: Locale) =>
 const nameOf = (item: Named | undefined, locale: Locale) =>
   item === undefined ? '' : displayName(item, locale);
 
-/** مبدّل الشركة والنشاط والفرع في زر واحد، بنفس اختيارات WorkspaceSelector الحالي وبنفس الكوكي. */
+/**
+ * مبدّل الشركة والنشاط والفرع في زر واحد، بنفس اختيارات WorkspaceSelector الحالي وبنفس الكوكي.
+ * قبل اختيار النشاط لا اسم تجاري يظهر على الزر، فيحمل نص الدعوة إلى الاختيار ليكون له اسم مرئي وللقارئ الشاشي.
+ */
 export function FrameWorkspaceSwitcher() {
   const locale = useLocale();
   const labels = useFrameLabels();
   const workspace = useWorkspace();
+  const navigationKey = useNavigationKey();
   if (workspace.status !== 'choose' && workspace.status !== 'ready') return null;
   const ready = workspace.status === 'ready' ? workspace : undefined;
   const company = ready?.company;
@@ -32,7 +37,11 @@ export function FrameWorkspaceSwitcher() {
   return (
     <WorkspaceSwitcher
       labels={labels.switcher}
-      businessName={nameOf(business, locale)}
+      businessName={
+        business === undefined
+          ? t(locale, company === undefined ? 'admin.chooseCompany' : 'admin.chooseBusiness')
+          : nameOf(business, locale)
+      }
       branchName={nameOf(branch, locale)}
       companyValue={company?.id ?? ''}
       businessValue={business?.id ?? ''}
@@ -47,6 +56,7 @@ export function FrameWorkspaceSwitcher() {
       onBranchChange={(branchId) =>
         choose({ companyId: company?.id, businessId: business?.id, branchId })
       }
+      resetKey={navigationKey}
       className="max-w-56"
     />
   );

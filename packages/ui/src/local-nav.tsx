@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { LocalNavLink } from './local-nav-link.js';
+import { cn } from './shared/cn.js';
 import {
   visiblePages,
   type NavigationChromeLabels,
@@ -14,12 +15,29 @@ export type LocalNavProps = {
   activePageId?: string | undefined;
   visiblePageIds?: readonly string[] | undefined;
   onNavigate?: (() => void) | undefined;
+  /** يضيفه المستضيف إلى معلم التنقّل، كحدّ لارتفاع القائمة العمودية فتتمرر داخل نفسها بدل أن تطول الصفحة. */
+  className?: string | undefined;
 };
+
+// أقرب إزاحة تُظهر العنصر داخل الحاوية: صفر إن كان ظاهرًا أصلًا. الفرق بين إحداثيات العرض لا يتأثر بالاتجاه.
+function nearestOffset(start: number, end: number, boxStart: number, boxEnd: number): number {
+  if (start < boxStart) return start - boxStart;
+  return end > boxEnd ? end - boxEnd : 0;
+}
+
+// scrollIntoView يحرّك كل سلف قابل للتمرير ومنه الصفحة نفسها، فنحرّك القائمة وحدها.
+function revealInside(nav: HTMLElement, item: Element): void {
+  const area = nav.getBoundingClientRect();
+  const rect = item.getBoundingClientRect();
+  nav.scrollTop += nearestOffset(rect.top, rect.bottom, area.top, area.bottom);
+  nav.scrollLeft += nearestOffset(rect.left, rect.right, area.left, area.right);
+}
 
 /**
  * القائمة المحلية للوحدة الحالية: شريط أفقي مسطّح بين 700 و1023px، وقائمة عمودية من 1024px
  * تجمع الصفحات تحت عنوان كل قسم (app-map.md). العنوان مخفي في الشريط الأفقي.
- * الصفحة الحالية تُحرَّك إلى الشاشة عند تغيّرها أو عند ظهورها متأخرة بعد وصول الصلاحيات.
+ * الصفحة الحالية تُظهَر داخل القائمة نفسها عند تغيّرها أو عند ظهورها متأخرة بعد وصول الصلاحيات،
+ * ولا تتحرك الصفحة المحيطة بسبب ذلك.
  */
 export function LocalNav({
   module,
@@ -27,6 +45,7 @@ export function LocalNav({
   activePageId,
   visiblePageIds,
   onNavigate,
+  className,
 }: LocalNavProps) {
   const navRef = useRef<HTMLElement>(null);
   const sections = module.sections
@@ -34,16 +53,18 @@ export function LocalNav({
     .filter(({ pages }) => pages.length > 0);
   const visibleKey = sections.flatMap(({ pages }) => pages.map((page) => page.id)).join('\u0000');
   useEffect(() => {
-    const current = navRef.current?.querySelector('[aria-current="page"]');
-    if (typeof current?.scrollIntoView === 'function') {
-      current.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    }
+    const nav = navRef.current;
+    const current = nav?.querySelector('[aria-current="page"]');
+    if (nav && current) revealInside(nav, current);
   }, [activePageId, visibleKey]);
   return (
     <nav
       ref={navRef}
       aria-label={labels.localNavigation}
-      className="hidden overflow-x-auto px-2 py-2 min-[700px]:block min-[1024px]:w-60 min-[1024px]:shrink-0 min-[1024px]:overflow-y-auto min-[1024px]:px-4"
+      className={cn(
+        'hidden overflow-x-auto px-2 py-2 min-[700px]:block min-[1024px]:w-60 min-[1024px]:shrink-0 min-[1024px]:overflow-y-auto min-[1024px]:px-4',
+        className,
+      )}
     >
       <ul className="flex items-center gap-1 min-[1024px]:flex-col min-[1024px]:items-stretch">
         {sections.flatMap(({ section, pages }) => [

@@ -24,7 +24,7 @@ export function RailAndPanel({
 }) {
   const labels = useFrameLabels();
   return (
-    <FrameChrome>
+    <FrameChrome onCurrentPage={panel.closeFloating}>
       <div className="sticky top-0 hidden h-dvh min-[600px]:flex">
         <NavRail
           workspaces={view.workspaces}

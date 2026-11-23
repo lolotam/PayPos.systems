@@ -1,13 +1,14 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createQueryClient } from '@/shared/api/query-client';
-import { useSessionAccount, useSessionUser } from './use-session';
+import { useSessionAccount, useSessionIdentity, useSessionUser } from './use-session';
 
 const getSession = vi.hoisted(() => vi.fn());
 vi.mock('./browser-client', () => ({ browserAuthClient: () => ({ getSession }) }));
 afterEach(() => getSession.mockReset());
+afterEach(() => onlineManager.setOnline(true));
 
 it('shares the existing session query and replaces account presentation with the verified identity', async () => {
   const client = createQueryClient();
@@ -43,4 +44,49 @@ it('shares the existing session query and replaces account presentation with the
   expect(result.current.id).toBeNull();
   unmount();
   client.clear();
+});
+
+it.each([
+  [
+    'a signed-in user',
+    { data: { user: { id: 'user-1' } } },
+    { userId: 'user-1', status: 'settled' },
+  ],
+  ['an anonymous visitor', { error: { status: 401 } }, { userId: null, status: 'settled' }],
+  ['a failed read', { error: { status: 500 } }, { userId: null, status: 'failed' }],
+])('reports the identity read of %s', async (_name, answer, expected) => {
+  const client = createQueryClient();
+  getSession.mockResolvedValue(answer);
+  const { result, unmount } = renderHook(() => useSessionIdentity(true), {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  });
+  expect(result.current).toEqual({ userId: null, status: 'pending' });
+  await waitFor(() => expect(result.current).toEqual(expected));
+  unmount();
+  client.clear();
+});
+
+it('stays pending while the identity read is not enabled', () => {
+  const { result } = renderHook(() => useSessionIdentity(false), {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={createQueryClient()}>{children}</QueryClientProvider>
+    ),
+  });
+  expect(result.current).toEqual({ userId: null, status: 'pending' });
+});
+
+it('reports an identity read paused offline as failed, then settles when the connection returns', async () => {
+  onlineManager.setOnline(false);
+  getSession.mockResolvedValue({ data: { user: { id: 'user-1' } } });
+  const { result, unmount } = renderHook(() => useSessionIdentity(true), {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={createQueryClient()}>{children}</QueryClientProvider>
+    ),
+  });
+  await waitFor(() => expect(result.current).toEqual({ userId: null, status: 'failed' }));
+  act(() => onlineManager.setOnline(true));
+  await waitFor(() => expect(result.current).toEqual({ userId: 'user-1', status: 'settled' }));
+  unmount();
 });

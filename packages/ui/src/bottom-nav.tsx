@@ -11,6 +11,8 @@ export type BottomNavLabels = {
 export type BottomNavExtra = {
   id: string;
   label: string;
+  /** المدخل يضم الصفحة الحالية؛ يُعلَّم بـ aria-current وبخط أثقل فلا يعتمد على اللون وحده. */
+  current?: boolean;
   /** يستلم الضغطة ليعرف المستدعي الزر الذي فتح الورقة فيعيد إليه التركيز عند الإغلاق. */
   onPress: (event: MouseEvent<HTMLButtonElement>) => void;
 };
@@ -79,7 +81,13 @@ export function BottomNav({ items, labels, extra, onNavigate, className }: Botto
         <button
           type="button"
           onClick={extra.onPress}
-          className={cn(CELL_CLASS, 'text-muted-foreground hover:text-foreground')}
+          aria-current={extra.current ? 'true' : undefined}
+          className={cn(
+            CELL_CLASS,
+            extra.current
+              ? 'font-semibold text-foreground'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
         >
           {extra.label}
         </button>

@@ -14,6 +14,8 @@ export type BottomSheetProps = {
   closeLabel: string;
   /** الزر الذي فتح الورقة بحسب المستدعي؛ إليه يعود التركيز عند الإغلاق. الغياب يعيده إلى ما كان عليه التركيز لحظة الفتح. */
   openerRef?: RefObject<HTMLElement | null> | undefined;
+  /** يُستدعى لحظة الإغلاق ويعيد العنصر الذي يأخذ التركيز بدل الفتّاح، كأن يكون الفتّاح قد اختفى بتغيّر العرض؛ لا شيء يعني الفتّاح. */
+  closeFocusTarget?: (() => HTMLElement | null | undefined) | undefined;
   children: ReactNode;
 };
 
@@ -22,6 +24,8 @@ export type BottomSheetProps = {
  * إلى الزر الذي فتحها. الورقة بلا زر فتح خاص بها (يفتحها المستدعي من زر في مكان آخر مثل «المزيد»)،
  * فيعطيها المستدعي ذلك الزر في openerRef. ما كان عليه التركيز لحظة الفتح لا يصلح وحده بديلًا لأن
  * الضغط قد لا ينقل التركيز إلى الزر فيعود إلى حقل آخر.
+ * التركيز الذي انتقل فعلًا إلى عنصر خارج الورقة (صفحة وصلت أثناء الإغلاق بالتنقّل) يبقى مكانه؛ الإغلاق بالهروب
+ * أو بالغطاء يُسقط التركيز على body فيعود إلى الفتّاح.
  */
 export function BottomSheet({
   open,
@@ -29,6 +33,7 @@ export function BottomSheet({
   title,
   closeLabel,
   openerRef,
+  closeFocusTarget,
   children,
 }: BottomSheetProps) {
   const dir = useDirection();
@@ -45,7 +50,9 @@ export function BottomSheet({
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            const target = openerRef?.current ?? opener.current;
+            const active = document.activeElement;
+            if (active !== null && active !== document.body) return;
+            const target = closeFocusTarget?.() ?? openerRef?.current ?? opener.current;
             if (target instanceof HTMLElement && target.isConnected) target.focus();
           }}
           className="fixed inset-x-0 bottom-0 z-50 flex max-h-[80dvh] flex-col overflow-y-auto rounded-t-card border-t border-border bg-card text-card-foreground"

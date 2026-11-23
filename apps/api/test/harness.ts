@@ -235,6 +235,8 @@ interface HarnessOptions {
   /** من غير Redis مفيش حدّ على المسارات العامة، فبترد NOT_READY. */
   omitRedis?: boolean;
   commissionsClock?: { now(): Date };
+  /** يلفّ غلاف قاعدة التطبيق، عشان اختبار يسجّل اتصالات معاملات الطلبات الحقيقية. */
+  wrapDatabase?: (database: TenantWrappers) => TenantWrappers;
   staffOtpFactory?: (
     auth: AuthService,
     authUrl: string,
@@ -290,7 +292,8 @@ async function prepareHarness(
     statements: [],
     memberSnapshots: [],
   };
-  const wrappers = spied(database, calls);
+  const spiedDatabase = spied(database, calls);
+  const wrappers = options.wrapDatabase?.(spiedDatabase) ?? spiedDatabase;
   const staffOtp = options.staffOtpFactory?.(auth, testDb.authUrl, wrappers, redis);
   if (staffOtp !== undefined) cleanup.own(staffOtp, (value) => value.close());
   const app = cleanup.own(

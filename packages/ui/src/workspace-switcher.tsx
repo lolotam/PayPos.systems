@@ -1,7 +1,7 @@
 'use client';
 
 import { Popover } from 'radix-ui';
-import { useId } from 'react';
+import { useId, useState } from 'react';
 
 import {
   WorkspaceSwitcherContent,
@@ -32,6 +32,8 @@ export type WorkspaceSwitcherProps = {
   onBranchChange: (value: string) => void;
   /** إشعار بالفتح والإغلاق؛ الإغلاق بالهروب يرجع التركيز إلى الزر تلقائيًا. */
   onOpenChange?: (open: boolean) => void;
+  /** يغيّره المستضيف عند كل انتقال فتُغلق القائمة دون إعادة بناء زرها؛ الإغلاق به لا يستدعي onOpenChange. */
+  resetKey?: string | undefined;
   className?: string;
 };
 
@@ -42,10 +44,20 @@ export type WorkspaceSwitcherProps = {
  */
 export function WorkspaceSwitcher(props: WorkspaceSwitcherProps) {
   const id = useId();
+  const [open, setOpen] = useState(false);
+  const [seenResetKey, setSeenResetKey] = useState(props.resetKey);
+  if (seenResetKey !== props.resetKey) {
+    setSeenResetKey(props.resetKey);
+    setOpen(false);
+  }
   return (
     <Popover.Root
       modal
-      {...(props.onOpenChange === undefined ? {} : { onOpenChange: props.onOpenChange })}
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        props.onOpenChange?.(next);
+      }}
     >
       <Popover.Trigger asChild>
         <WorkspaceSwitcherTrigger

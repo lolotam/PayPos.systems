@@ -31,6 +31,7 @@ import {
   commissionPlanVersionsFixture,
   ids,
   type CommissionPlanFixture,
+  type DatabaseWrap,
 } from './commission-plan-versions.fixture.ts';
 
 /** يوم الكتابة في معيار النشاط: نفس ساعة writers الإصدارات عشان القواعد تتقارن. */
@@ -90,8 +91,8 @@ function overrideHttp(plan: CommissionPlanFixture) {
   };
 }
 
-export async function commissionServiceOverridesFixture() {
-  const plan = await commissionPlanVersionsFixture();
+export async function commissionServiceOverridesFixture(wrapDatabase?: DatabaseWrap) {
+  const plan = await commissionPlanVersionsFixture(undefined, wrapDatabase);
   const { h } = plan;
   const service = await seedService(h, plan.company, plan.business, 'Override service');
   const otherBusinessResponse = await h.send('POST', '/v1/businesses', {
