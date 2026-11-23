@@ -112,8 +112,14 @@ it('CM-R11: company B reads none of the carries of company A and cannot insert o
 });
 
 it('CM-R11: B can neither update nor delete a carry of A, and A cannot either (insert-only)', async () => {
-  const [row] = await asA(sql`SELECT id FROM commission_carries LIMIT 1`);
-  const id = String(row?.['id']);
+  const a = await statementsOf(A);
+  const id = await db.withTenant(A.company, (tx) =>
+    insertCommissionCarry(tx, A, ids, {
+      sourceStatementId: a.source,
+      targetStatementId: a.target,
+      kind: 'TIP_CARD',
+    }),
+  );
   await expectPgError(
     asB(sql`UPDATE commission_carries SET amount = -1 WHERE id = ${id}`),
     '42501',

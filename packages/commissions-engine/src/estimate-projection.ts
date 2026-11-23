@@ -138,7 +138,11 @@ function candidateIds(
   for (const tip of month.tips) ids.add(tip.employeeId);
   for (const correction of month.corrections) ids.add(correction.employeeId);
   // المرحّل مالوش فرع (D-22): بيخلّي الموظفة مرشحة للقارئ على مستوى النشاط بس.
-  if (scope === null) for (const carry of month.carries ?? []) ids.add(carry.employeeId);
+  if (scope === null) {
+    for (const carry of month.carries ?? []) {
+      if (carry.targetPeriod === period) ids.add(carry.employeeId);
+    }
+  }
   for (const [employeeId, attachments] of attachmentsByEmployee) {
     const relevant = attachments.some(
       (attachment) =>

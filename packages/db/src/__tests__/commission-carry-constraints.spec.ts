@@ -55,6 +55,13 @@ describe('the commission_carries constraints (D-22)', () => {
     await expectPgError(insert({ ...base, amount: '5.000' }), '23514', 'commission_carries_amount');
   });
 
+  it('refuses a kind other than COMMISSION and TIP_CARD, which an append-only ledger could never repair', async () => {
+    const base = { sourceStatementId: source, targetStatementId: target };
+    await expectPgError(insert({ ...base, kind: 'TIP_CASH' }), '23514', 'commission_carries_kind');
+    await expectPgError(insert({ ...base, kind: 'commission' }), '23514', 'commission_carries_kind');
+    await expectPgError(insert({ ...base, kind: '' }), '23514', 'commission_carries_kind');
+  });
+
   it('refuses a target month that is not after the source month', async () => {
     await expectPgError(
       insert({

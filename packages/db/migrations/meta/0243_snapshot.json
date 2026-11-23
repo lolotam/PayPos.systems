@@ -1,5 +1,5 @@
 {
-  "id": "ce9b1c4d-e6c5-43c2-9ec5-7810f540c3c9",
+  "id": "657cb3bc-1f9d-41c7-8012-51fc9bf910b2",
   "prevId": "d4c2b508-26c0-463e-a247-16d06df84c33",
   "version": "7",
   "dialect": "postgresql",
@@ -31165,6 +31165,10 @@
       },
       "policies": {},
       "checkConstraints": {
+        "commission_carries_kind": {
+          "name": "commission_carries_kind",
+          "value": "\"commission_carries\".\"kind\" IN ('COMMISSION', 'TIP_CARD')"
+        },
         "commission_carries_amount": {
           "name": "commission_carries_amount",
           "value": "\"commission_carries\".\"amount\" < 0"

@@ -127,6 +127,19 @@ describe('the incoming carries for a branch-scoped reader and edge cases', () =>
     });
   });
 
+});
+
+describe('the carries as a reason to list an employee', () => {
+  it('does not list an employee whose only input is a carry aimed at another month', () => {
+    const none = projectCommissionEstimate(
+      input({
+        month: month({ lines: [], carries: [carry({ targetPeriod: '2026-12' })] }),
+        attachments: [],
+      }),
+    );
+    expect(none.employees).toEqual([]);
+  });
+
   it('does not make a carry alone a reason to show an employee to a branch-scoped reader', () => {
     const none = projectCommissionEstimate(
       input({ scope: branchScope, month: month({ lines: [] }), attachments: [] }),

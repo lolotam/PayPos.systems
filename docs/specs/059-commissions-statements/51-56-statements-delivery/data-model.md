@@ -21,7 +21,9 @@ but does not list (the per-employee payment record, research R7).
 
 Columns and constraints as spec 059 §6: `employee_id`, `kind` (`COMMISSION`, `TIP_CARD`), `amount` (< 0),
 `source_statement_id`, `source_period`, `target_period` (> source), `target_statement_id`, `created_at`.
-`UNIQUE (company_id, source_statement_id, employee_id, kind)`; the two composite statement FKs and the employee FK,
+`UNIQUE (company_id, source_statement_id, employee_id, kind)`; `CHECK (kind IN ('COMMISSION', 'TIP_CARD'))`
+(`commission_carries_kind`: the ledger is append-only for the app role, so a row with another kind could never be
+repaired and would break every estimate that reads it); the two composite statement FKs and the employee FK,
 each with an index on its exact columns. Insert-only. **State:** a carry is written once at approval of its source
 month and read by its target month's estimate, fingerprint and freeze. **Isolation test:** CM-R11.
 

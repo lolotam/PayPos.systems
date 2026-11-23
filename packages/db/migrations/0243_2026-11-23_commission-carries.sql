@@ -1,3 +1,4 @@
+-- الفهارس هنا من غير CONCURRENTLY عن قصد: الجدول جديد وفاضي ومتعمل في نفس الملف، فمفيش قراءة ولا كتابة ممكن تتعطل (زي 0232).
 CREATE TABLE "commission_carries" (
 	"company_id" uuid NOT NULL,
 	"id" uuid NOT NULL,
@@ -12,6 +13,7 @@ CREATE TABLE "commission_carries" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "commission_carries_pkey" PRIMARY KEY("company_id","id"),
 	CONSTRAINT "commission_carries_source_key" UNIQUE("company_id","source_statement_id","employee_id","kind"),
+	CONSTRAINT "commission_carries_kind" CHECK ("commission_carries"."kind" IN ('COMMISSION', 'TIP_CARD')),
 	CONSTRAINT "commission_carries_amount" CHECK ("commission_carries"."amount" < 0),
 	CONSTRAINT "commission_carries_target_after_source" CHECK ("commission_carries"."target_period" > "commission_carries"."source_period")
 );

@@ -79,6 +79,8 @@ const carriesRelations = (t: CarriesSelf) => [
 ];
 
 const carriesChecks = (t: CarriesSelf) => [
+  // نوعان بس (D-22، spec §6): الدفتر للإضافة فقط، فصف بنوع غريب مستحيل يتصلّح وبيكسر كل تقدير بيقراه.
+  check('commission_carries_kind', sql`${t.kind} IN ('COMMISSION', 'TIP_CARD')`),
   // الرصيد المرحّل سالب دايماً؛ الموجب بيتدفع والصفر ما بيترحّلش.
   check('commission_carries_amount', sql`${t.amount} < 0`),
   check('commission_carries_target_after_source', sql`${t.targetPeriod} > ${t.sourcePeriod}`),
