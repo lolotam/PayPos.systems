@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -90,34 +90,39 @@ it('lists all three kinds once every page read succeeds', async () => {
 });
 
 describe('the inbox state', () => {
-  it('is loading while the reads run, and failed when a read fails other than by refusal', async () => {
-    api.GET.mockReturnValue(new Promise(() => undefined));
-    expect(renderKinds(useApprovalInbox).result.current.state).toBe('loading');
-    api.GET.mockImplementation((path: string) =>
+  const answerExcept = (path: string, status: number, code: string) =>
+    api.GET.mockImplementation((requested: string) =>
       Promise.resolve(
-        path === EXCEPTIONS
-          ? { error: { code: 'BOOM' }, response: { status: 500 } }
-          : { data: bodies[path], response: { status: 200 } },
+        requested === path
+          ? { error: { code }, response: { status } }
+          : { data: bodies[requested], response: { status: 200 } },
       ),
     );
+
+  it('is loading while the reads run', () => {
+    api.GET.mockReturnValue(new Promise(() => undefined));
+    expect(renderKinds(useApprovalInbox).result.current.state).toBe('loading');
+  });
+
+  it('is failed, and still lists the other kinds, when a read fails other than by refusal', async () => {
+    answerExcept(EXCEPTIONS, 500, 'BOOM');
     const { result } = renderKinds(useApprovalInbox);
     await waitFor(() => expect(result.current.state).toBe('failed'));
     expect(result.current.kinds).toHaveLength(2);
   });
 
-  it('settles when every read is refused, and ignores reads the missing branch turns off', async () => {
+  it('settles with no kinds when every read is refused', async () => {
     api.GET.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
-    const refused = renderKinds(useApprovalInbox);
-    await waitFor(() => expect(refused.result.current.state).toBe('settled'));
-    expect(refused.result.current.kinds).toEqual([]);
-    cleanup();
-    selectBusiness('restaurant');
+    const { result } = renderKinds(useApprovalInbox);
+    await waitFor(() => expect(result.current.state).toBe('settled'));
+    expect(result.current.kinds).toEqual([]);
+  });
+
+  it('settles without waiting for the reads a missing branch turns off', async () => {
     if (frameState.workspace?.status === 'ready') frameState.workspace.branch = undefined;
-    api.GET.mockImplementation((path: string) =>
-      Promise.resolve({ data: bodies[path], response: { status: 200 } }),
-    );
-    const noBranch = renderKinds(useApprovalInbox);
-    await waitFor(() => expect(noBranch.result.current.kinds).toHaveLength(1));
-    expect(noBranch.result.current.state).toBe('settled');
+    answerExcept('none', 200, 'NONE');
+    const { result } = renderKinds(useApprovalInbox);
+    await waitFor(() => expect(result.current.kinds).toHaveLength(1));
+    expect(result.current.state).toBe('settled');
   });
 });

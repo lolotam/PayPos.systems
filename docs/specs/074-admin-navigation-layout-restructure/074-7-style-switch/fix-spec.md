@@ -79,4 +79,14 @@ Estimate: 330 production, 480 tests. If the count passes 800 before step 6, stop
 
 **Other notes.** The approval probes now throw `{ ...error, status }` like `imported-refunds-client.ts`; before, a 403 carried no status and `readAccessProof` read it as a failure, which the new «could not be checked» state would have shown to refused users. `approvalsInboxEmpty` now says no approval list is available, because the inbox never knew how many approvals wait. Two max-lines errors found by lint in my own code were fixed (`MoreSheet` props interface, a spec `describe` split).
 
-**Open points.** Item 4. Focus after an account menu or switcher is closed by Back lands on its trigger (Radix default); not guarded here. Item 2 finds the target with `aside a[aria-current="page"]` in the document. The current-page check of item 6 compares the pathname only. Not verified: real-browser focus, scroll containment (item 14 uses stubbed rects) and breakpoint behaviour (#1192).
+**Closing step.** `origin/main` (`8a3a360fe`) was merged without conflict. Item 4 was tried: moving the helpers into two small helper files nets +31 added and −32 removed lines (63 against the cap), which would take the total from 888 to 951, so it was reverted and **item 4 stays open on #1225**. Guards (PP-198): `clean-code-guard` found nothing needing a code change (see the report); `test-guard` found two tests in `use-approval-kinds.spec.tsx` holding two scenarios each, now split into four.
+
+**Open points.**
+- Item 4 (above).
+- Item 2 finds its target with `aside a[aria-current="page"]` document-wide. Scoping it to the frame root needs a ref or the navigation label passed down, which is more than a one-line change, so it is left.
+- Item 6 compares the pathname only. A link that differs from the current page only by its query string is therefore treated as the same page, and the panel or sheet closes (the router still pushes the new query).
+- After Back closes an open account menu or workspace switcher, focus lands on its trigger (Radix default), not on the destination. Known behaviour, to be checked in the #1192 browser pass.
+- The reset-on-key code (a `resetKey` compared during render) is now written in `AccountMenu`, `WorkspaceSwitcher`, `PageFinder` and `TopNav`; extracting one hook was not done to stay inside the cap.
+- `useApprovalKinds` and `useApprovalKindAccess` have no production caller yet (7b will call `useApprovalInbox`); they stay because existing specs pin their shapes.
+
+Not verified: real-browser focus, scroll containment (item 14 uses stubbed rects) and breakpoint behaviour (#1192).
