@@ -10,6 +10,7 @@ import { passkeyPolicy, registrationPlugin, isPasskeyRoute } from './passkey-pol
 import { createPasskeyFacade, type ActivePasskeyBindings, type PasskeyFacade } from './passkeys.ts';
 import { sessionFromRecord } from './staff-session-fence.ts';
 import { createStaffSessions, type StaffSessions } from './staff-sessions.ts';
+import { createStaffUserAccess, STAFF_USER_RESERVED_DOMAIN, type StaffUserAccess } from './staff-access-users.ts';
 
 /**
  * ما يحتاجه Better Auth: الـ pool على pospay_auth، السر، العنوان، الـ origins المسموحة، ومولّد الـ ids.
@@ -74,6 +75,8 @@ export interface AuthService {
   readonly personal: PersonalSessions;
   readonly passkeys: PasskeyFacade;
   readonly privateView: PrivateViewFacade;
+  /** حساب الموظفة: الإنشاء والإيجاد والإلغاء بمعرّف العملية — ومفيهوش أي مسار credential (spec 076 F1). */
+  readonly staffUsers: StaffUserAccess;
   /** بيرد على /v1/auth/* (sign-in، sign-out، الـ TOTP…). */
   handler(request: Request): Promise<Response>;
   /** بيرجّع الـ session لو الـ cookie صالح (ومعاها cookies التجديد)، وإلا null. */
@@ -112,13 +115,19 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
   if (options.secret.length < 32)
     throw new Error('BETTER_AUTH_SECRET must be at least 32 characters');
   const database = createAuthDatabase({ url: options.databaseUrl });
+  const staffUsers = createStaffUserAccess({
+    databaseUrl: options.databaseUrl,
+    phoneLockKey: options.staffPhoneLockKey,
+    ids: options.ids,
+  });
   try {
     await database.ping();
   } catch (error) {
     await database.close();
+    await staffUsers.close();
     throw error;
   }
-  const auth = buildBetterAuth(options, database);
+  const auth = buildBetterAuth(options, database, staffUsers);
   const staff = staffSessions(options, auth, database);
   const personal = personalSessions(options, auth, database);
   const passkeys = configuredPasskeys(options, auth, database);
@@ -126,6 +135,7 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
     staff,
     personal,
     passkeys,
+    staffUsers,
     privateView: configuredPrivateView(options, database),
     handler: async (request) => {
       if (
@@ -154,8 +164,11 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
       };
     },
     provisionUser: async (input) => provision(await auth.$context, input),
-    issuePasswordSetLink: async (userId, redirectTo) =>
-      issueSetPasswordLink(await auth.$context, userId, redirectTo),
+    issuePasswordSetLink: async (userId, redirectTo) => {
+      // حساب الموظفة بلا كلمة سر أبداً (D8): الرابط لا يُصدر له حتى لو حصل token من مسار آخر.
+      if (await staffUsers.isStaffUser(userId)) throw new Error('STAFF_USER_CREDENTIAL_REFUSED');
+      return issueSetPasswordLink(await auth.$context, userId, redirectTo);
+    },
     discardUser: async (userId) => {
       await (await auth.$context).internalAdapter.deleteUser(userId);
     },
@@ -163,7 +176,7 @@ export async function createAuth(options: AuthOptions): Promise<AuthService> {
       database.recordPlatformAction({ id: options.ids.newId(), ...entry }),
     ping: () => database.ping(),
     close: async () => {
-      await Promise.all([database.close(), staff.close(), personal.close()]);
+      await Promise.all([database.close(), staffUsers.close(), staff.close(), personal.close()]);
     },
   };
 }
@@ -174,6 +187,9 @@ async function provision(
   context: AuthContext,
   input: { email: string; name: string; password: string },
 ): Promise<string> {
+  // النطاق المحجوز لحسابات الموظفات فقط (D8): ما حدش يقدر يعمل مستخدم عادي ببريد اصطناعي.
+  if (input.email.toLowerCase().endsWith(`@${STAFF_USER_RESERVED_DOMAIN}`))
+    throw new RangeError('email domain is reserved for staff users');
   const { minPasswordLength, maxPasswordLength } = context.password.config;
   if (input.password.length < minPasswordLength || input.password.length > maxPasswordLength) {
     throw new RangeError(`password must be ${minPasswordLength}–${maxPasswordLength} characters`);
@@ -231,6 +247,7 @@ type StaffAuthConfiguration = BetterAuthOptions & {
 export function buildBetterAuth(
   options: AuthOptions,
   database: ReturnType<typeof createAuthDatabase>,
+  staffUsers: StaffUserAccess,
 ): ReturnType<typeof betterAuth<StaffAuthConfiguration>> {
   return betterAuth<StaffAuthConfiguration>({
     appName: 'PosPay',
@@ -246,6 +263,39 @@ export function buildBetterAuth(
       twoFactor({ issuer: 'PosPay' }),
       registrationPlugin(passkeyPolicy(options.baseURL, options.trustedOrigins)),
     ],
+    // D8 (spec 076): حساب الموظفة مقفول على كل مسار تعامل — لا account يتعمل ولا يتغير، ولا جلسة
+    // عادية (بلا purpose) تتعمل له. جلسات STAFF_POS/STAFF_PERSONAL بتيجي من internalAdapter مباشرة.
+    databaseHooks: {
+      account: {
+        create: {
+          before: async (data) => {
+            if (await staffUsers.isStaffUser(String(data.userId)))
+              throw new Error('STAFF_USER_CREDENTIAL_REFUSED');
+            return { data };
+          },
+        },
+        update: {
+          before: async (data) => {
+            if (data.userId !== undefined && (await staffUsers.isStaffUser(String(data.userId))))
+              throw new Error('STAFF_USER_CREDENTIAL_REFUSED');
+            return { data };
+          },
+        },
+      },
+      session: {
+        create: {
+          before: async (data) => {
+            const purpose = (data as { purpose?: string | null }).purpose ?? null;
+            if (
+              purpose === null &&
+              (await staffUsers.isStaffUser(String(data.userId)))
+            )
+              throw new Error('STAFF_USER_SESSION_REFUSED');
+            return { data };
+          },
+        },
+      },
+    },
     advanced: {
       cookiePrefix: 'pospay',
       useSecureCookies: options.secureCookies,

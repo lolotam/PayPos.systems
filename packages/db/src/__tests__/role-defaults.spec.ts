@@ -133,6 +133,7 @@ const expectations: Record<string, readonly string[]> = {
     'read:service-categories:branch',
     'manage:service-categories:branch',
     'read:commissions:business',
+    'manage:staff-access:branch',
   ],
   shift_supervisor: ['read:branches:branch', 'clock:attendance:branch'],
   cashier: [

@@ -37,17 +37,26 @@ export const user = pgTable(
     phoneNumberVerified: boolean('phone_number_verified'),
     // ربط معتمد عبر واجهة المنصة المراجعة، وليس تغيير مدير الشركة للهاتف العام.
     phoneBindingApprovedAt: timestamp('phone_binding_approved_at', { withTimezone: true }),
+    // شركة حساب الموظفة التي أنشأه «إعطاء الدخول» — لا يكتبه إلا packages/auth ولا يحمل عضوية في شركة ثانية (spec 076 D2).
+    staffAccessCompanyId: uuid('staff_access_company_id'),
+    // معرّف العملية الذي يُعاد به إيجاد الحساب بعد أي انقطاع (FR-F1-6)؛ فريد على مستوى النظام كله.
+    staffAccessOperationId: uuid('staff_access_operation_id'),
     ...timestamps,
   },
   (t) => [
     uniqueIndex('user_email_key').on(t.email),
     uniqueIndex('user_phone_number_key').on(t.phoneNumber),
+    uniqueIndex('user_staff_access_operation_id_key').on(t.staffAccessOperationId),
     check(
       'user_phone_number_e164',
       sql`${t.phoneNumber} IS NULL OR ${t.phoneNumber} ~ '^[+][1-9][0-9]{6,14}$'`,
     ),
     check('user_email_length', sql`char_length(${t.email}) BETWEEN 3 AND 320`),
     check('user_name_length', sql`char_length(${t.name}) BETWEEN 1 AND 255`),
+    check(
+      'user_staff_access_together',
+      sql`(${t.staffAccessCompanyId} IS NULL) = (${t.staffAccessOperationId} IS NULL)`,
+    ),
   ],
 );
 

@@ -1,5 +1,6 @@
-import type { TenantWrappers, Tx } from '@pospay/db';
+import { StaffPhoneTakenError, type TenantWrappers } from '@pospay/db';
 import { sql } from 'drizzle-orm';
+import type { Tx } from '@pospay/db';
 
 import {
   cancelStaffUser,
@@ -8,6 +9,7 @@ import {
   readStaffAccessAuthority,
 } from '../../identity/index.ts';
 import type { StaffUserFacade } from '../../identity/index.ts';
+import { StaffAccessError } from '../domain/errors.ts';
 import { transactionWriters } from '../../../shared/adapters/transaction-writers.ts';
 import type { AuditTrail } from '../../../shared/ports/audit-trail.port.ts';
 import type { StaffAccessRecordRow } from '../domain/staff-access.ts';
@@ -28,35 +30,44 @@ interface CancelInput {
 
 /**
  * خطوة auth في «إعطاء الدخول»: الإنشاء أو الإيجاد بمعرّف العملية وتصوير الرقم السري عبر identity —
- * سهم staff → identity المعلن، وpackages/auth لا يراه staff أبداً (plan §2.1).
+ * سهم staff → identity المعلن، وpackages/auth لا يراه staff أبداً (plan §2.1). رفض الهاتف المملوك
+ * لغيره بيتترجم هنا لخطأ staff معروف بلا أي تفاصيل عن الحساب الآخر (FR-F1-5).
  *
  * @param auth واجهة packages/auth على pospay_auth
  * @returns الخطوة الثانية بإنشاء المستخدم وتصوير الرقم
  */
 export function createStaffAccessUserSteps(auth: StaffUserFacade): StaffAccessUserSteps {
   return {
-    provision: (input) =>
-      provisionStaffUser(auth, {
-        operationId: input.operationId,
-        companyId: input.companyId,
-        phone: input.phone,
-        name: input.name,
-        actorUserId: input.actorUserId,
-        ids: input.ids,
-      }),
+    provision: async (input) => {
+      try {
+        return await provisionStaffUser(auth, {
+          operationId: input.operationId,
+          companyId: input.companyId,
+          phone: input.phone,
+          name: input.name,
+          actorUserId: input.actorUserId,
+          ids: input.ids,
+        });
+      } catch (error) {
+        if (error instanceof StaffPhoneTakenError)
+          throw new StaffAccessError('STAFF_ACCESS_PHONE_TAKEN');
+        throw error;
+      }
+    },
     hash: (pin) => hashStaffPin(pin),
   };
 }
 
 /**
- * إلغاء مستخدم الموظفة عبر identity — المسار الوحيد لحذف هذا الحساب (FR-F1-6).
+ * إلغاء مستخدم الموظفة عبر identity — المسار الوحيد لحذف هذا الحساب (FR-F1-6)، ورفض identity
+ * المتوقع بيتترجم لخطأ staff معروف قبل ما يوصل الـ use case.
  *
  * @param auth  واجهة packages/auth على pospay_auth
- * @param input معرّف العملية والشركة
+ * @param input معرّف العملية والشركة والمانح ومولّد المعرّفات
  */
-export function cancelStaffUserThroughIdentity(
+export async function cancelStaffUserThroughIdentity(
   auth: StaffUserFacade,
-  input: { operationId: string; companyId: string },
+  input: { operationId: string; companyId: string; actorUserId: string; ids: { newId(): string } },
 ): Promise<void> {
   return cancelStaffUser(auth, input);
 }

@@ -37,6 +37,12 @@ const fakeAuth: AuthService = {
   personal: {} as AuthService['personal'],
   passkeys: {} as AuthService['passkeys'],
   privateView: {} as AuthService['privateView'],
+  staffUsers: {
+    provision: async () => ({ userId: '' }),
+    cancel: async () => undefined,
+    read: async () => null,
+    isStaffUser: async () => false,
+  },
   staff: refusingStaffSessions,
   handler: async (request) => {
     seen = {

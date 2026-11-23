@@ -40,6 +40,8 @@ const deviceForbidden = [
   'manage:memberships:company',
   'read:memberships:business',
   'manage:memberships:business',
+  // إعطاء الدخول قرار إداري للموارد البشرية؛ الجهاز لا يحمله أبداً (قرار D3).
+  'manage:staff-access:branch',
   'read:businesses:company',
   'create:businesses:company',
   'create:branches:business',

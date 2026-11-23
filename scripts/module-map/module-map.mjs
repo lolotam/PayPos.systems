@@ -459,7 +459,7 @@ export function checkModules(root, map) {
           !dep.typeOnly &&
           !(map.compositionRoots['staff-otp-db'] ?? []).includes(rel) &&
           dep.names.some((name) =>
-            ['createStaffOtpDatabase', 'createAuthDatabase', '*'].includes(name),
+            ['createStaffOtpDatabase', 'createStaffAccessDatabase', 'createAuthDatabase', '*'].includes(name),
           )
         ) {
           problems.push(`${rel}: auth database facades are private to packages/auth (ADR-0019)`);

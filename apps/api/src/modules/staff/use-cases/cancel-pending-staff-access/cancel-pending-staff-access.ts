@@ -22,6 +22,8 @@ export class CancelPendingStaffAccessUseCase {
     private readonly cancelUser: (input: {
       operationId: string;
       companyId: string;
+      actorUserId: string;
+      ids: StaffAccessIds;
     }) => Promise<void>,
     private readonly clock: Clock,
     private readonly ids: StaffAccessIds,
@@ -52,7 +54,12 @@ export class CancelPendingStaffAccessUseCase {
         throw new StaffAccessError('STAFF_ACCESS_NOT_ALLOWED');
       return record;
     });
-    await this.cancelUser({ operationId: locked.operationId, companyId: command.companyId });
+    await this.cancelUser({
+      operationId: locked.operationId,
+      companyId: command.companyId,
+      actorUserId: command.userId,
+      ids: this.ids,
+    });
     await this.steps.run(actor, input, async (scope) => {
       if (!(await scope.deleteRecord(locked.id)))
         throw new StaffAccessError('STAFF_ACCESS_ALREADY_GRANTED');

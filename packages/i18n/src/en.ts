@@ -231,6 +231,11 @@ export const en = {
     EMPLOYEE_CONTRACT_END_BEFORE_HIRE: 'The contract end must be on or after the hire date.',
     EMPLOYEE_USER_ALREADY_LINKED:
       'This user already has an active employee record in this business.',
+    STAFF_ACCESS_PHONE_TAKEN:
+      'This phone number belongs to another account. Check the number or ask the employee.',
+    STAFF_ACCESS_ALREADY_GRANTED: 'This employee already has active access.',
+    STAFF_ACCESS_NOT_ALLOWED:
+      'You are not allowed to grant or cancel access for this employee on her primary branch.',
     ...employeeNumberErrorsEn,
     EMPLOYEE_CARD_CODE_UNAVAILABLE: "This card code can't be used. Choose another code.",
     ...employeeImportErrorsEn,

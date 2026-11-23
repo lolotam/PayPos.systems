@@ -66,6 +66,8 @@ export const PERMISSIONS = [
   'create:customers:company',
   'create:customers:business',
   'create:customers:branch',
+  // إعطاء/إيقاف دخول الموظفة على فرعها الأساسي: المالك ومدير الفرع افتراضياً (قرار D3)، والجهاز ممنوع منها.
+  'manage:staff-access:branch',
   'manage:memberships:company',
   'manage:memberships:business',
   'manage:discounts:company',

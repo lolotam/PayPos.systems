@@ -14,6 +14,13 @@ export {
   type IdentitySchema,
   type PlatformAuditEntry,
 } from './auth-database.ts';
+export {
+  createStaffAccessDatabase,
+  staffSyntheticEmail,
+  StaffPhoneTakenError,
+  type StaffAccessDatabase,
+  type StaffUserProvisionInput,
+} from './staff-access-database.ts';
 export { appendAuditLog, appendAuditLogs, type AuditEntry } from './audit-log.ts';
 export {
   attendanceMonthlyInputsStatement,

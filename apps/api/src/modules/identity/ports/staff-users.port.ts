@@ -2,8 +2,8 @@ import type { IdGenerator } from '@pospay/db';
 
 /**
  * واجهة خطوة المستخدم على pospay_auth (ADR-0003 §4): الحساب يتعلم أو يتمسح بمعرّف العملية فقط،
- * ولا مسار تعامل (credential) بيتفتح له أبداً. التنفيذ الحقيقي على AuthService في packages/auth،
- * وidentity هو المدخل الوحيد له — staff بيوصل له من خلال الدوال المصدَّرة في index.ts.
+ * ولا مسار تعامل (credential) بيتفتح له أبداً. التنفيذ الحقيقي هو `AuthService.staffUsers` من
+ * packages/auth، وidentity هو المدخل الوحيد له — staff بيوصل له من خلال الدوال المصدَّرة في index.ts.
  */
 
 /** مدخل إنشاء مستخدم الموظفة أو إيجاده مرة أخرى بمعرّف العملية. */
@@ -31,6 +31,10 @@ export interface StaffUserProvisioned {
 export interface StaffUserCancelInput {
   readonly operationId: string;
   readonly companyId: string;
+  /** المانح الملغي — بيتسجل في تدقيق المنصة. */
+  readonly actorUserId: string;
+  /** مولّد UUID v7 لصف التدقيق. */
+  readonly ids: IdGenerator;
 }
 
 /** حالة مستخدم الموظفة للقراءة: المعرف وآخر ثلاثة أرقام من الهاتف فقط — لا هاتف كامل ولا بريد. */
@@ -50,18 +54,18 @@ export interface StaffUserFacade {
    * @param input معرّف العملية والشركة والهاتف والاسم والمانح
    * @returns معرف المستخدم بعد الإنشاء أو الإيجاد، ورفض الهاتف المملوك غيره
    */
-  provisionStaffUser(input: StaffUserProvisionInput): Promise<StaffUserProvisioned>;
+  provision(input: StaffUserProvisionInput): Promise<StaffUserProvisioned>;
   /**
    * يحذف مستخدم الموظفة بمعرّف العملية (إلغاء سجل انتظار متجاوز للمدة).
    *
-   * @param input معرّف العملية وشركته — حساب شركة أخرى لا يُلمس
+   * @param input معرّف العملية وشركته واسم الملغي — حساب شركة أخرى لا يُلمس
    */
-  cancelStaffUser(input: StaffUserCancelInput): Promise<void>;
+  cancel(input: StaffUserCancelInput): Promise<void>;
   /**
    * يقرأ مستخدم الموظفة بمعرّف العملية للعرض.
    *
    * @param operationId معرّف العملية
    * @returns المعرف وآخر ثلاثة أرقام من الهاتف، أو null لما مفيش حساب
    */
-  readStaffUser(operationId: string): Promise<StaffUserRead | null>;
+  read(operationId: string): Promise<StaffUserRead | null>;
 }

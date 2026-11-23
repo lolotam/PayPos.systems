@@ -26,7 +26,7 @@ export async function provisionStaffUser(
   auth: StaffUserFacade,
   input: StaffUserProvisionInput,
 ): Promise<StaffUserProvisioned> {
-  return auth.provisionStaffUser(input);
+  return auth.provision(input);
 }
 
 /**
@@ -39,7 +39,7 @@ export async function cancelStaffUser(
   auth: StaffUserFacade,
   input: StaffUserCancelInput,
 ): Promise<void> {
-  return auth.cancelStaffUser(input);
+  return auth.cancel(input);
 }
 
 /**
@@ -53,7 +53,7 @@ export async function readStaffUser(
   auth: StaffUserFacade,
   operationId: string,
 ): Promise<StaffUserRead | null> {
-  return auth.readStaffUser(operationId);
+  return auth.read(operationId);
 }
 
 /**
