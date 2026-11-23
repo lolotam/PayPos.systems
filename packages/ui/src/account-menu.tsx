@@ -4,6 +4,7 @@ import { DropdownMenu } from 'radix-ui';
 import { useState } from 'react';
 
 import { AccountMenuEntryItem, type AccountMenuEntry } from './account-menu-entry.js';
+import { AccountMenuIdentity } from './account-menu-identity.js';
 import { UserRound } from './icons.js';
 import { cn } from './shared/cn.js';
 
@@ -25,8 +26,6 @@ export type AccountMenuProps = {
   resetKey?: string | undefined;
   className?: string;
 };
-
-const SEPARATOR_CLASS = 'my-1 h-px bg-border';
 
 /**
  * قائمة الحساب: الاسم والبريد ثم المداخل بترتيبها المعطى، وباب مغلق بالهروب
@@ -71,23 +70,7 @@ export function AccountMenu({
           collisionPadding={8}
           className="z-50 min-w-56 max-w-[var(--radix-dropdown-menu-content-available-width)] max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto rounded-card border border-border bg-card p-1 text-card-foreground shadow-sm"
         >
-          {name || email ? (
-            <>
-              <div className="flex flex-col gap-0.5 px-3 py-2">
-                {name ? (
-                  <span title={name} className="truncate text-sm font-semibold">
-                    {name}
-                  </span>
-                ) : null}
-                {email ? (
-                  <span dir="ltr" title={email} className="truncate text-xs text-muted-foreground">
-                    {email}
-                  </span>
-                ) : null}
-              </div>
-              <DropdownMenu.Separator className={SEPARATOR_CLASS} />
-            </>
-          ) : null}
+          <AccountMenuIdentity {...(name ? { name } : {})} {...(email ? { email } : {})} />
           {entries.map((entry) => (
             <AccountMenuEntryItem key={entry.id} entry={entry} />
           ))}
