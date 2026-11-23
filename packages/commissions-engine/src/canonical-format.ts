@@ -24,6 +24,28 @@ export function sortedBy<T>(items: readonly T[], key: (item: T) => readonly stri
 }
 
 /**
+ * يجمّع قائمة بمفتاح نصي مرة واحدة؛ العنصر اللي مفتاحه null بيتسيب (بيع باقة بلا بائعة مثلًا).
+ *
+ * @param items عناصر القائمة
+ * @param keyOf المفتاح المرتبط بالعنصر أو null
+ * @returns عناصر كل مفتاح بترتيبها الأصلي
+ */
+export function groupByKey<T>(
+  items: readonly T[],
+  keyOf: (item: T) => string | null,
+): Map<string, T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const item of items) {
+    const key = keyOf(item);
+    if (key === null) continue;
+    const bucket = grouped.get(key);
+    if (bucket === undefined) grouped.set(key, [item]);
+    else bucket.push(item);
+  }
+  return grouped;
+}
+
+/**
  * يحوّل وقت UTC بالـ microseconds لنص ISO بست منازل كسرية. الحساب بأعداد صحيحة بالكامل،
  * لأن `Date` بيقصّ الـ microseconds، ونسختان من بند بينهم microsecond واحدة لازم يطلعوا مختلفين.
  *
