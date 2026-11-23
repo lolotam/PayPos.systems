@@ -51,11 +51,11 @@ function useProbe(
   });
   // إثبات حالي لهذا المراقب: النجاح المخزَّن من زيارة سابقة لا يُظهر نوعًا، فمن سُحبت صلاحيته لا يرى رابطًا يردّ 403.
   const proof = readAccessProof(query);
-  // قراءة أوقفها انقطاع الاتصال قبل أن تبدأ ولا بيانات لها تبقى «ينتظر» طوال الانقطاع، فتُعدّ «تعذّر التحقق»
-  // وتستأنف وحدها عند عودة الاتصال (networkMode بلا تغيير).
-  const pausedWithoutData = query.fetchStatus === 'paused' && query.data === undefined;
+  // قراءة أوقفها انقطاع الاتصال قبل أن تبدأ تبقى «ينتظر» طوال الانقطاع، وقد تحجب فشل غيرها لأن الانتظار يغلب،
+  // فتُعدّ «تعذّر التحقق» وتستأنف وحدها عند عودة الاتصال (networkMode بلا تغيير). النجاح المخزَّن من زيارة سابقة
+  // لا يغيّر ذلك: لا يُعرض رابط منه (الإثبات ما زال pending)، فوجود البيانات لا يُخرج القراءة من الحكم.
   if (!ready) return 'idle';
-  return proof === 'pending' && pausedWithoutData ? 'failed' : proof;
+  return proof === 'pending' && query.fetchStatus === 'paused' ? 'failed' : proof;
 }
 
 /**

@@ -179,4 +179,30 @@ describe('the inbox while the connection is down', () => {
     await waitFor(() => expect(screen.getAllByRole('link')).toHaveLength(3));
     expect(screen.queryByRole('alert')).toBeNull();
   });
+
+  it('does not trust a cached success while the re-check is paused offline, and lists again when the connection returns', async () => {
+    api.GET.mockImplementation((path: string) =>
+      Promise.resolve({ data: bodies[path], response: { status: 200 } }),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const visit = () =>
+      render(
+        <QueryClientProvider client={client}>
+          <ApprovalsInboxHost />
+        </QueryClientProvider>,
+      );
+    const firstVisit = visit();
+    await waitFor(() => expect(screen.getAllByRole('link')).toHaveLength(3));
+    firstVisit.unmount();
+    onlineManager.setOnline(false);
+    visit();
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      t('en', 'adminNav.approvalsInboxFailed'),
+    );
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.queryAllByRole('link')).toHaveLength(0);
+    act(() => onlineManager.setOnline(true));
+    await waitFor(() => expect(screen.getAllByRole('link')).toHaveLength(3));
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
 });

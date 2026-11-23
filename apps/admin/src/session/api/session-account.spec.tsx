@@ -8,6 +8,7 @@ import { useSessionAccount, useSessionIdentity, useSessionUser } from './use-ses
 const getSession = vi.hoisted(() => vi.fn());
 vi.mock('./browser-client', () => ({ browserAuthClient: () => ({ getSession }) }));
 afterEach(() => getSession.mockReset());
+afterEach(() => onlineManager.setOnline(true));
 
 it('shares the existing session query and replaces account presentation with the verified identity', async () => {
   const client = createQueryClient();
@@ -88,5 +89,4 @@ it('reports an identity read paused offline as failed, then settles when the con
   act(() => onlineManager.setOnline(true));
   await waitFor(() => expect(result.current).toEqual({ userId: 'user-1', status: 'settled' }));
   unmount();
-  onlineManager.setOnline(true);
 });
