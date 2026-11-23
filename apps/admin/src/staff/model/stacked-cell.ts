@@ -24,7 +24,7 @@ const LAYOUT_WRAPPERS = new Set([
 
 const ACCESSIBLE_NAME_PROPS = ['aria-label', 'aria-labelledby', 'title', 'role'] as const;
 
-function isEmptyLayoutWrapper(element: ReactElement<Record<string, unknown>>): boolean {
+function isTransparentWrapper(element: ReactElement<Record<string, unknown>>): boolean {
   if (typeof element.type === 'symbol') return true;
   if (typeof element.type !== 'string' || !LAYOUT_WRAPPERS.has(element.type)) return false;
   return ACCESSIBLE_NAME_PROPS.every((name) => element.props[name] === undefined);
@@ -36,7 +36,7 @@ function hasStackedContent(node: ReactNode): boolean {
   }
   if (Array.isArray(node)) return node.some((child: ReactNode) => hasStackedContent(child));
   if (isValidElement<Record<string, unknown>>(node)) {
-    return isEmptyLayoutWrapper(node)
+    return isTransparentWrapper(node)
       ? hasStackedContent(node.props['children'] as ReactNode)
       : true;
   }
