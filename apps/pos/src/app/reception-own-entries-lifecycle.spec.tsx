@@ -99,16 +99,19 @@ it('closes, aborts the read in flight and starts from the PIN step when another 
 
 it('keeps only the tips of the month she is on when an older month answers late', async () => {
   let late: (response: Response) => void = () => undefined;
+  const started = gate();
   serve({
     lines: (request) => json(linesPage([fullLine], null, monthOf(request) ?? '2026-11')),
-    tips: (request) =>
-      monthOf(request) === '2026-10'
-        ? new Promise<Response>((resolve) => (late = resolve))
-        : json({ month: '2026-11', status: 'HIDDEN' }),
+    tips: (request) => {
+      if (monthOf(request) !== '2026-10') return json({ month: '2026-11', status: 'HIDDEN' });
+      started.open();
+      return new Promise<Response>((resolve) => (late = resolve));
+    },
   });
   mountEntries();
   await signIn();
   fireEvent.click(screen.getByText(label('myWork.previousMonth')));
+  await started.opened;
   fireEvent.click(await screen.findByText(label('myWork.nextMonth')));
   await settle();
   late(json({ ...visibleTips(), month: '2026-10' }));

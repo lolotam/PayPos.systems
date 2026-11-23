@@ -8,6 +8,12 @@ import { RatingSummaryCard } from './rating-summary-card';
 import { TipsBlock } from './tips-block';
 import { WorkLines } from './work-lines';
 
+// الوصول لآخر شهر مسجّل بيرجع للطلب من غير شهر: لو الشهر اتغيّر والشاشة مفتوحة السيرفر هو اللي يسمّي الجديد.
+const forward = (month: string, home: string | undefined) => {
+  const next = nextMonth(month);
+  return next === home ? undefined : next;
+};
+
 export type MyWorkCardsProps = {
   /** الشهر المعروض (المطلوب أو شهر السيرفر)، أو undefined قبل أول رد. */
   month: string | undefined;
@@ -20,7 +26,8 @@ export type MyWorkCardsProps = {
   /** ملخص التقييم: موبايلها الشخصي بس (AC-3-4)، وجهاز الاستقبال بيبعت undefined. */
   rating: OwnRatingSummary | undefined;
   estimateAllowed: boolean;
-  onMonth: (month: string) => void;
+  /** undefined = الشهر الحالي من غير شهر صريح، عشان السيرفر يسمّيه تاني لو الشهر اتغيّر والشاشة مفتوحة. */
+  onMonth: (month: string | undefined) => void;
   onRetry: () => void;
   onRetryTips: () => void;
   onLoadMore: () => void;
@@ -46,7 +53,7 @@ export function MyWorkCards(props: MyWorkCardsProps) {
         }
         canGoForward={month !== undefined && home !== undefined && month !== home}
         onPrevious={() => month && props.onMonth(previousMonth(month))}
-        onNext={() => month && props.onMonth(nextMonth(month))}
+        onNext={() => month && props.onMonth(forward(month, home))}
       />
       <EstimateCard allowed={props.estimateAllowed} />
       <RatingSummaryCard summary={props.rating} />

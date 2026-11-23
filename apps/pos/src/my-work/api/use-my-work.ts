@@ -34,15 +34,18 @@ type PageParam = { cursor: string; month: string };
  * @param context مين بيفتح الشاشة
  * @param month الشهر المطلوب أو undefined للحالي
  * @param onRefused معالج رفض السيرفر
+ * @param enabled false بعد رفض الصلاحية، فالقراءة ما بتتعادش ولا بترجع صفحات اتمسحت من الكاش
  * @returns استعلام الصفحات
  */
 export function useWorkLines(
   context: WorkContext,
   month: string | undefined,
   onRefused: OnRefused,
+  enabled = true,
 ) {
   return useInfiniteQuery({
     ...PERSONAL_READ,
+    enabled,
     queryKey: ['my-work', context.identity, 'lines', month ?? 'current'],
     initialPageParam: undefined as PageParam | undefined,
     queryFn: ({ pageParam, signal }) =>

@@ -169,3 +169,34 @@ it.each(MODES)(
     expect((screen.getByText(label('myWork.nextMonth')) as HTMLButtonElement).disabled).toBe(false);
   },
 );
+
+it.each(MODES)(
+  'asks the server for the current month again when next reaches the newest month, so a month rollover is reachable on %s',
+  async (mode) => {
+    let serverMonth = '2026-10';
+    const fetched = serve({
+      tips: tipsByMonth,
+      lines: (url) => {
+        const month = url.searchParams.get('month') ?? serverMonth;
+        return json(linesPage([{ ...fullLine, service_name_en: `Service ${month}` }], null, month));
+      },
+    });
+    await open(mode);
+    expect(await screen.findByText('Service 2026-10')).toBeTruthy();
+    fireEvent.click(screen.getByText(label('myWork.previousMonth')));
+    expect(await screen.findByText('Service 2026-09')).toBeTruthy();
+    serverMonth = '2026-11';
+    const next = screen.getByText(label('myWork.nextMonth')) as HTMLButtonElement;
+    expect(next.disabled).toBe(false);
+    fireEvent.click(next);
+    expect(await screen.findByText('Service 2026-11')).toBeTruthy();
+    expect(screen.getByText('November 2026')).toBeTruthy();
+    expect(screen.queryByText('Service 2026-10')).toBeNull();
+    expect(next.disabled).toBe(true);
+    expect((screen.getByText(label('myWork.previousMonth')) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+    expect(fetched.months('/service-lines')).toEqual([null, '2026-09', null]);
+    await waitFor(() => expect(fetched.months('/tips')).toEqual(['2026-10', '2026-09', '2026-11']));
+  },
+);

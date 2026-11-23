@@ -4,6 +4,7 @@ import { cancelledLine, fullLine, linesPage, visibleTips } from '@/my-work/ui/wo
 import { json, typeInMyWork } from '@/my-work/ui/work-test-kit';
 import {
   exit,
+  gate,
   label,
   mountEntries,
   restoreVisibility,
@@ -98,15 +99,18 @@ it('steps back a month through the controller with the server month as the start
 
 it('keeps only the answer of the month she is on when an older month answers late', async () => {
   let late: (response: Response) => void = () => undefined;
+  const started = gate();
   serve({
-    lines: (request) =>
-      monthOf(request) === '2026-10'
-        ? new Promise<Response>((resolve) => (late = resolve))
-        : json(linesPage([fullLine], null, '2026-11')),
+    lines: (request) => {
+      if (monthOf(request) !== '2026-10') return json(linesPage([fullLine], null, '2026-11'));
+      started.open();
+      return new Promise<Response>((resolve) => (late = resolve));
+    },
   });
   mountEntries();
   await signIn();
   fireEvent.click(screen.getByText(label('myWork.previousMonth')));
+  await started.opened;
   fireEvent.click(await screen.findByText(label('myWork.nextMonth')));
   expect(await screen.findByText('Haircut')).toBeTruthy();
   late(json(linesPage([cancelledLine], null, '2026-10')));

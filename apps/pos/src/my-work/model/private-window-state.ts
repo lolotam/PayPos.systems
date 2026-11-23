@@ -47,7 +47,7 @@ export type PrivateWindowAction =
   | { type: 'settled' }
   | { type: 'left' }
   | { type: 'touched'; sentAt: number; remaining: PrivateViewRemaining }
-  | { type: 'month'; month: string }
+  | { type: 'month'; month: string | undefined }
   | { type: 'retry' }
   | { type: 'linesMore' }
   | { type: 'linesLoaded'; page: OwnServiceLines; append: boolean }

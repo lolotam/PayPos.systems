@@ -71,7 +71,10 @@ export function usePrivateWindow({ onLeave, deps }: PrivateWindowOptions) {
       (pin: string, epoch: number) => controller.submitPin(pin, epoch),
       [controller],
     ),
-    stepMonth: useCallback((month: string) => controller.stepMonth(month), [controller]),
+    stepMonth: useCallback(
+      (month: string | undefined) => controller.stepMonth(month),
+      [controller],
+    ),
     loadMore: useCallback(() => controller.loadMore(), [controller]),
     retry: useCallback(() => controller.retry(), [controller]),
     retryTips: useCallback(() => controller.retryTips(), [controller]),

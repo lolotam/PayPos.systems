@@ -130,7 +130,7 @@ export class PrivateWindowController implements WindowHost {
     }
   }
 
-  stepMonth(month: string): void {
+  stepMonth(month: string | undefined): void {
     this.restartReads({ type: 'month', month });
   }
 

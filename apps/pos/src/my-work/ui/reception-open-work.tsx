@@ -24,7 +24,7 @@ export function ReceptionOpenWork({
 }: {
   controller: PrivateWindowController;
   estimateAllowed: boolean;
-  onMonth: (month: string) => void;
+  onMonth: (month: string | undefined) => void;
   onRetry: () => void;
   onRetryTips: () => void;
   onLoadMore: () => void;
