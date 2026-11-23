@@ -86,32 +86,32 @@ export async function cleanStatementAlertRoles(
  * @returns المقروء والمتغيّر
  */
 async function cleanOneCompany(tx: Tx, companyId: string, ids: IdGenerator) {
-  let read = 0;
   let cleaned = 0;
-  for (const kind of STATEMENT_ALERT_KINDS) {
-    const rows = await tx.execute<RuleRow>(sql`
-      SELECT id, business_id, branch_id, kind, enabled, recipient_roles, channels, delay_minutes, lead_minutes, revision
-      FROM alert_rules
-      WHERE company_id = ${companyId} AND kind = ${kind} AND ${REFUSED_ROLE}::text = ANY(recipient_roles)
-      ORDER BY id FOR UPDATE`);
-    read += rows.length;
-    for (const row of rows) {
-      const remaining = row.recipient_roles.filter((value) => value !== REFUSED_ROLE);
-      const [updated] = await tx.execute<{ revision: number }>(sql`
-        UPDATE alert_rules SET recipient_roles = array_remove(recipient_roles, ${REFUSED_ROLE}::text), revision = revision + 1, updated_at = now()
-        WHERE company_id = ${companyId} AND id = ${row.id} RETURNING revision`);
-      if (updated === undefined)
-        throw new Error('statement alert rule vanished under its own row lock');
-      cleaned += 1;
-      await tx.execute(sql`
-        INSERT INTO audit_log (company_id, id, actor_user_id, entity, entity_id, action, before, after)
-        VALUES (${companyId}, ${ids.newId()}, NULL, 'alert_rule', ${row.branch_id ?? row.business_id},
-          'alert_rule.statement_role_removed',
-          ${JSON.stringify(auditShape(row, row.recipient_roles, row.revision))}::jsonb,
-          ${JSON.stringify(auditShape(row, remaining, updated.revision))}::jsonb)`);
-    }
+  // النوعين في استعلام واحد بترتيب kind ثم id، زي ترتيب قفل القواعد في شاشة الإعدادات: الخطوة والـ API مايقفلوش نفس الصفوف بترتيب مختلف.
+  const rows = await tx.execute<RuleRow>(sql`
+    SELECT id, business_id, branch_id, kind, enabled, recipient_roles, channels, delay_minutes, lead_minutes, revision
+    FROM alert_rules
+    WHERE company_id = ${companyId} AND kind IN (${sql.join(
+      STATEMENT_ALERT_KINDS.map((kind) => sql`${kind}`),
+      sql`, `,
+    )}) AND ${REFUSED_ROLE}::text = ANY(recipient_roles)
+    ORDER BY kind, id FOR UPDATE`);
+  for (const row of rows) {
+    const remaining = row.recipient_roles.filter((value) => value !== REFUSED_ROLE);
+    const [updated] = await tx.execute<{ revision: number }>(sql`
+      UPDATE alert_rules SET recipient_roles = array_remove(recipient_roles, ${REFUSED_ROLE}::text), revision = revision + 1, updated_at = now()
+      WHERE company_id = ${companyId} AND id = ${row.id} RETURNING revision`);
+    if (updated === undefined)
+      throw new Error('statement alert rule vanished under its own row lock');
+    cleaned += 1;
+    await tx.execute(sql`
+      INSERT INTO audit_log (company_id, id, actor_user_id, entity, entity_id, action, before, after)
+      VALUES (${companyId}, ${ids.newId()}, NULL, 'alert_rule', ${row.branch_id ?? row.business_id},
+        'alert_rule.statement_role_removed',
+        ${JSON.stringify(auditShape(row, row.recipient_roles, row.revision))}::jsonb,
+        ${JSON.stringify(auditShape(row, remaining, updated.revision))}::jsonb)`);
   }
-  return { read, cleaned };
+  return { read: rows.length, cleaned };
 }
 
 /** نفس شكل سطر تدقيق حفظ القاعدة من شاشة الإعدادات، عشان قارئ السجل يلاقي شكل واحد. */
