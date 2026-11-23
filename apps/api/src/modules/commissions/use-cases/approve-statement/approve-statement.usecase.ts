@@ -2,6 +2,7 @@ import {
   projectStatementView,
   statementFingerprintInput,
   type OpenBlockedCorrection,
+  type StatementEmployeeLabel,
   type StatementBuild,
 } from '@pospay/commissions-engine';
 import type {
@@ -266,13 +267,17 @@ function assertFingerprintsCurrent(
  * @param build ناتج الباني
  */
 function assertNoBlockers(
-  source: { readonly blocked: readonly OpenBlockedCorrection[] },
+  source: {
+    readonly blocked: readonly OpenBlockedCorrection[];
+    readonly unlisted: readonly StatementEmployeeLabel[];
+  },
   build: StatementBuild,
 ): void {
   const employees = projectStatementView({
     rows: build.rows,
     failures: build.failures,
     blocked: source.blocked,
+    unlisted: source.unlisted,
     scope: BUSINESS_WIDE,
   });
   const issues = approvalBlockingIssues(employees);

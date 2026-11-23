@@ -39,6 +39,7 @@ export function closedStatementView(
     rows: context.rows,
     failures: [],
     blocked: [],
+    unlisted: [],
     scope: context.scope,
   }).map(employeeContract);
   if (!context.scope.businessWide) {

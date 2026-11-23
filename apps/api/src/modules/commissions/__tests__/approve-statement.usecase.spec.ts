@@ -378,6 +378,43 @@ describe('blocking issues (FR-027)', () => {
     expect(calls).not.toContain('countPendingEvents');
   });
 
+});
+
+describe('blocking issues of employees outside the statement', () => {
+  it('refuses a month whose only blocker belongs to a former employee outside the statement (block-only, PR #1254)', async () => {
+    const { source, command } = reviewedSource();
+    const FORMER = '0198aaaa-0000-7000-8000-0000000000f9';
+    const blocked: CommissionStatementSource = {
+      ...source,
+      blocked: [{ employeeId: FORMER, sourcePeriod: '2026-09', code: 'NO_SALARY' }],
+      unlisted: [{ employeeId: FORMER, employeeNumber: 9, nameAr: null, nameEn: 'Former' }],
+    };
+    const computed = computeStatement(PERIOD, blocked, hasher);
+    const reviewed = {
+      ...blocked,
+      statement: statementRecord({
+        status: 'REVIEWED',
+        reviewedFingerprint: computed.inputFingerprint,
+        reviewedStatementFingerprint: computed.statementFingerprint,
+      }),
+    };
+    const { scope } = recordingScope({ source: reviewed });
+
+    const error = await refusal(
+      run(scope, {
+        ...command,
+        expectedFingerprint: computed.inputFingerprint,
+        expectedStatementFingerprint: computed.statementFingerprint,
+      }),
+    );
+
+    expect(error?.code).toBe('COMMISSION_STATEMENT_BLOCKED');
+    expect(error?.details).toEqual({ issues: [{ employee_id: FORMER, code: 'NO_SALARY' }] });
+  });
+
+});
+
+describe('a blocker that appears after the review', () => {
   it('refuses a fingerprint that moved because a blocker appeared after the review (the stale answer wins)', async () => {
     const { source, command } = reviewedSource();
     const blocked: CommissionStatementSource = {
