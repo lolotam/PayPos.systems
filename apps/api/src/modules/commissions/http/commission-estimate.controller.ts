@@ -25,7 +25,7 @@ export const GET_COMMISSION_ESTIMATE = Symbol('GET_COMMISSION_ESTIMATE');
  * الموثقة. إثبات العضوية والشركة بيحصل جوّه معاملة القراءة نفسها، فمفيش
  * معاملتين ولا حالة مقروءة بره اللقطة.
  */
-function commissionEstimateActor(request: FastifyRequest): {
+export function commissionEstimateActor(request: FastifyRequest): {
   companyId: string;
   userId: string;
 } {
