@@ -29,7 +29,7 @@ export function AttendanceReportFilterBar({
   onMonth: (month: string) => void;
   onBranch: (branchId: string) => void;
 }) {
-  useSortFocusHandOver();
+  useSortFocusHandOver(sorting[0]?.id);
   return (
     <div className="flex flex-col gap-3">
       <AttendanceReportFilters

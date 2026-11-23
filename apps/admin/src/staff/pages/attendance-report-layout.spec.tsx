@@ -202,26 +202,34 @@ it('starts in source order when a refusal hides a sorted table and a retry succe
   expect(employeeNames()).toEqual(SOURCE_ORDER);
 });
 
+// يحاكي المتصفح: كل استدعاء لـ matchMedia يعطي كائنًا مستقلًا، والحدث «change» يصل كل كائن بترتيب
+// إنشائه، وبين كائن وتاليه تُفرَّغ تحديثات React (فحص المهام الدقيقة بعد كل مستمع).
 // الاستعلام نفسه يُقارَن بنص ثابت: خلاف شرط الإطار (أصغر تمامًا من 599.99px) لا يطابق.
-// المطابقة تتغير بعد التركيب كما يحدث لما يضيق نافذة المتصفح، ومن يسمع التغيير يُخطَر.
 function stubStackedWidth(initial: boolean) {
-  const listeners = new Set<() => void>();
+  const created: Set<() => void>[] = [];
   let stacked = initial;
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
-    value: (query: string) => ({
-      get matches() {
-        return stacked && query === '(width < 599.99px)';
-      },
-      addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
-      removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
-    }),
+    value: (query: string) => {
+      const listeners = new Set<() => void>();
+      created.push(listeners);
+      return {
+        get matches() {
+          return stacked && query === '(width < 599.99px)';
+        },
+        addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+        removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
+      };
+    },
   });
-  const change = (next: boolean) =>
-    act(() => {
-      stacked = next;
-      listeners.forEach((listener) => listener());
-    });
+  const change = async (next: boolean) => {
+    stacked = next;
+    for (const listeners of [...created]) {
+      await act(async () => {
+        listeners.forEach((listener) => listener());
+      });
+    }
+  };
   return { narrow: () => change(true), widen: () => change(false) };
 }
 
@@ -281,6 +289,28 @@ it('moves the focus from the sort select to the header button of the sorted colu
     name: t('en', 'attendanceReport.daysPresent'),
   });
   expect(document.activeElement).toBe(sorted);
+});
+
+it('lands on the header button of the primary sort column when a secondary sort column comes first in the table', async () => {
+  const width = stubStackedWidth(false);
+  renderPage();
+  const table = await screen.findByRole('table');
+  const worked = within(table).getByRole('button', {
+    name: t('en', 'attendanceReport.workedHours'),
+  });
+  const number = within(table).getByRole('button', {
+    name: t('en', 'attendanceReport.employeeNumber'),
+  });
+  expect(follows(number, worked)).toBe(true);
+  fireEvent.click(worked);
+  fireEvent.click(number, { shiftKey: true });
+  await width.narrow();
+  expect(sortControl().value).toBe('worked_minutes:asc');
+  sortControl().focus();
+  await width.widen();
+  expect(document.activeElement).toBe(
+    within(table).getByRole('button', { name: t('en', 'attendanceReport.workedHours') }),
+  );
 });
 
 it('moves the focus from the sort select to the first header button when the width widens and nothing is sorted', async () => {
