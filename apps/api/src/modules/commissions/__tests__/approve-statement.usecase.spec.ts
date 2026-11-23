@@ -346,6 +346,20 @@ describe('fingerprints (CM-31, CM-34e)', () => {
   });
 });
 
+/** مصادر بصمتاها المحسوبتان هما بصمتا المراجعة نفسهما، لعزل المانع كسبب الرفض الوحيد. */
+function reviewedOf(source: CommissionStatementSource) {
+  const computed = computeStatement(PERIOD, source, hasher);
+  const reviewed = {
+    ...source,
+    statement: statementRecord({
+      status: 'REVIEWED',
+      reviewedFingerprint: computed.inputFingerprint,
+      reviewedStatementFingerprint: computed.statementFingerprint,
+    }),
+  };
+  return { computed, reviewed };
+}
+
 describe('blocking issues (FR-027)', () => {
   it('refuses a month with an open blocked correction, listing it by employee', async () => {
     const { source, command } = reviewedSource();
@@ -354,15 +368,7 @@ describe('blocking issues (FR-027)', () => {
       blocked: [{ employeeId: RANA, sourcePeriod: '2026-09', code: 'NO_PLAN' }],
     };
     // الكشف اتراجع بالمانع نفسه موجود (حالة سباق)، فالبصمتان مطابقتان والمانع هو اللي بيرفض.
-    const computed = computeStatement(PERIOD, blocked, hasher);
-    const reviewed = {
-      ...blocked,
-      statement: statementRecord({
-        status: 'REVIEWED',
-        reviewedFingerprint: computed.inputFingerprint,
-        reviewedStatementFingerprint: computed.statementFingerprint,
-      }),
-    };
+    const { computed, reviewed } = reviewedOf(blocked);
     const { scope, calls } = recordingScope({ source: reviewed });
 
     const error = await refusal(
@@ -389,15 +395,7 @@ describe('blocking issues of employees outside the statement', () => {
       blocked: [{ employeeId: FORMER, sourcePeriod: '2026-09', code: 'NO_SALARY' }],
       unlisted: [{ employeeId: FORMER, employeeNumber: 9, nameAr: null, nameEn: 'Former' }],
     };
-    const computed = computeStatement(PERIOD, blocked, hasher);
-    const reviewed = {
-      ...blocked,
-      statement: statementRecord({
-        status: 'REVIEWED',
-        reviewedFingerprint: computed.inputFingerprint,
-        reviewedStatementFingerprint: computed.statementFingerprint,
-      }),
-    };
+    const { computed, reviewed } = reviewedOf(blocked);
     const { scope } = recordingScope({ source: reviewed });
 
     const error = await refusal(
