@@ -5,6 +5,7 @@ import type { MessageKey } from '@pospay/i18n';
 import { useState } from 'react';
 
 import { loadPage } from '@/shared/browser/load-page';
+import { clearNavStyleCookie } from '@/shared/nav-style/nav-style-cookie';
 
 import { verifyTotpCode } from './session-calls';
 
@@ -21,6 +22,7 @@ export function useVerifyTotp() {
       setError(failure);
       return;
     }
+    clearNavStyleCookie();
     loadPage('/');
   }
 

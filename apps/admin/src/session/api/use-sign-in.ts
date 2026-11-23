@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { loadPage } from '@/shared/browser/load-page';
+import { clearNavStyleCookie } from '@/shared/nav-style/nav-style-cookie';
 
 import { signInWithPassword } from './session-calls';
 
@@ -24,6 +25,7 @@ export function useSignIn() {
       return;
     }
     if (outcome === 'done') {
+      clearNavStyleCookie();
       loadPage('/');
       return;
     }
