@@ -3,7 +3,7 @@
 import type { RatingsListPage } from '@pospay/contracts';
 import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
 import type { RatingsListRange } from '../model/ratings-filters';
-import { ratingsKey, readRatingsPage } from './ratings-client';
+import { epochSuffix, ratingsKey, readRatingsPage } from './ratings-client';
 
 const pageSize = 20;
 
@@ -20,6 +20,7 @@ export function useRatingsList(
   businessId: string,
   range: RatingsListRange | null,
   employeeId: string,
+  epoch = 0,
 ) {
   const query = { ...range, ...(employeeId ? { employee_id: employeeId } : {}), limit: pageSize };
   return useInfiniteQuery<
@@ -29,7 +30,7 @@ export function useRatingsList(
     readonly unknown[],
     NextPage | undefined
   >({
-    queryKey: [...ratingsKey(companyId, userId, businessId), 'list', query],
+    queryKey: [...ratingsKey(companyId, userId, businessId), 'list', query, ...epochSuffix(epoch)],
     enabled: range !== null,
     initialPageParam: undefined,
     getNextPageParam: (page) =>
@@ -48,7 +49,5 @@ export function useRatingsList(
     retry: false,
     refetchOnMount: 'always',
     staleTime: 0,
-    // كل قراءة ناجحة كائن جديد حتى لو نفس الرد، عشان `useRatingsGate` يفرّق قراءة جديدة عن بيانات قديمة.
-    structuralSharing: false,
   });
 }

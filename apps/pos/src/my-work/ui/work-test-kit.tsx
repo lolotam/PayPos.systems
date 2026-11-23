@@ -39,9 +39,12 @@ export function replaceFetch(handler: (request: Request) => Promise<Response>) {
 
 export const json = (body: unknown, status = 200) => Response.json(body, { status });
 
-/** يرندر شاشة جوّا client جديد ولغة محددة، ويرجّع الـ client عشان نفحص الكاش. */
-export function renderWork(ui: ReactNode, locale: Locale = 'en') {
-  const client = new QueryClient();
+/** يرندر شاشة جوّا client جديد (أو client جاهز بكاش متحط فيه بيانات) ولغة محددة، ويرجّع الـ client عشان نفحص الكاش. */
+export function renderWork(
+  ui: ReactNode,
+  locale: Locale = 'en',
+  client: QueryClient = new QueryClient(),
+) {
   const view = (node: ReactNode) => (
     <QueryClientProvider client={client}>
       <LocaleProvider locale={locale} setLocale={() => undefined}>

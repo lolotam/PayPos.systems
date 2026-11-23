@@ -1,0 +1,27 @@
+# syntax=docker/dockerfile:1
+# The production database image (ADR-0062 §2-3): postgres:18 (Debian) plus pgbackrest, nothing else. pgBackRest
+# installs from the PGDG repository the official image already configures (/etc/apt/sources.list.d/pgdg.list,
+# signed with the PostgreSQL Debian key); zstd, which compress-type=zst needs, is already in the base image.
+# No credential and no stanza file is baked in: every pgBackRest option arrives at run time as a PGBACKREST_*
+# variable (deploy/docker-compose.prod.yml). CI builds and pushes this image as pospay-postgres:<commit-sha>;
+# the production compose pins one literal SHA so an application release never restarts the database.
+
+FROM postgres:18
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends pgbackrest; \
+    rm -rf /var/lib/apt/lists/*
+
+# pgBackRest gained PostgreSQL 18 support in v2.55.0 (pgbackrest release notes); an older packaged release cannot
+# archive PostgreSQL 18 WAL. `pgbackrest version` prints "pgBackRest <version>", so the support check strips the
+# prefix and compares as a version floor: the build fails instead of shipping an image whose archive-push would
+# refuse the server's WAL.
+RUN set -eux; \
+    first_pg18='2.55.0'; \
+    installed="$(pgbackrest version | awk '{print $NF}')"; \
+    oldest="$(printf '%s\n%s\n' "$installed" "$first_pg18" | sort -V | head -n1)"; \
+    [ "$oldest" = "$first_pg18" ] || { \
+        echo "pgbackrest $installed predates PostgreSQL 18 support (need >= $first_pg18)" >&2; \
+        exit 1; \
+    }
