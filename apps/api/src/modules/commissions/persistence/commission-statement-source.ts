@@ -13,7 +13,10 @@ import type {
   CommissionStatementRecord,
   CommissionStatementSource,
 } from '../ports/commission-statement.port.ts';
-import type { CommissionStatementProviders } from '../ports/commission-statement-providers.port.ts';
+import type {
+  CommissionStatementEmployeeName,
+  CommissionStatementProviders,
+} from '../ports/commission-statement-providers.port.ts';
 import { readEstimateMonth } from './commission-estimate-readers.ts';
 
 /** طلب قراءة مصادر الكشف: الشركة والنشاط والشهر. */
@@ -189,7 +192,7 @@ async function readNames(
  * @returns بطاقات الموظفات في النطاق مرتبة بالمعرّف
  */
 function inScopeLabels(
-  employees: Awaited<ReturnType<CommissionStatementProviders['employees']>>,
+  employees: readonly CommissionStatementEmployeeName[],
   month: StatementMonthRows,
 ): StatementEmployeeLabel[] {
   const withRows = new Set<string>();
