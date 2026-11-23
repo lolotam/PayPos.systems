@@ -627,3 +627,75 @@ Rule for the experiment, fixed before any run: a statement shape counts only if 
 no tenant-wide filter, on all four id-list reads in three states — stale statistics on a clean fixture, stale
 statistics on the multi-tenant state that failed, and normal statistics — for id lists of 1, about 100 and 602,
 measured as `pospay_app` inside `withTenant` with RLS on. One passing state is not evidence.
+
+### Statement-shape experiment (2026-11-23, local, evidence only): no shape passes
+
+Authorized by the manager as a bounded local experiment; no reader file, index, migration, statistics target or
+planner setting was changed, and `ANALYZE` was used only to prepare the normal-statistics state. Raw data and
+scripts: `F:/Dev/Temp/57-2b/exp/` (outside the repository).
+
+**Environment.** PostgreSQL 16.16 on the private lane, autovacuum on. Measured as `pospay_app` through postgres.js,
+each query in a `REPEATABLE READ, READ ONLY` transaction with `app.company_id` set, so RLS was on — the same SQL as
+`withTenant(…, { readOnly: true })`. `EXPLAIN (ANALYZE, TIMING OFF, BUFFERS, FORMAT JSON)`.
+
+**States, each built once and frozen as a cloned database** (a clone copies `pg_class` and `pg_statistic` and resets
+the modification counters, so autoanalyze cannot fire and the stale state holds; no pair was discarded):
+
+- **A — stale, clean:** two analysed background tenants, then one unanalysed target of 66,002 lines.
+- **B — stale, multi-tenant (the state that failed):** the same background, then five unanalysed tenants of 66,002
+  lines, by design; the target is the last.
+- **C — normal:** a clone of B after `ANALYZE` of the three tables.
+
+In A and B `reltuples` was 6,002 for the three tables and the target was absent from every `company_id` MCV list;
+the planner estimated one row for the tenant (cost 7.7).
+
+**Baseline (the reader as merged in this PR), id lists of 1, 100 and 602:**
+
+| State | Statements | Index, and where the id is | Rows removed | Shared hits | Execution ms |
+| ----- | ---------- | -------------------------- | ------------ | ----------- | ------------ |
+| A | 2–5 | `service_lines_recorder_idx` / `service_sessions_recorder_idx`, id as filter | 65,400–66,001 | 1,792–2,184 | 9–53 |
+| B | 2, 4 | `service_lines_discount_proposal_binding_idx`, id as filter | 65,400–66,001 | 66,976 | 102–164 |
+| B | 3, 5 | `service_sessions_business_day_idx`, id as filter | 65,400–65,999 | 66,813 | 41–173 |
+| C | 2–5 | `*_business_id_key` / `service_lines_id_session_key`, id as index condition | 0 | 4 / about 395 / about 2,370 | 0.1–15 |
+
+Statement 1 (`line_performers` by employee) used `line_performers_employee_idx` with nothing removed in A, B and C
+(550–589 hits); the tenant-wide read of that statement seen in the acceptance run's attempt 0 was not reproduced.
+
+**Candidates, judged by the rule fixed above** (id as an equality index condition on statements 2–5, in A, B and C,
+for 1, 100 and 602 ids). Every candidate returned exactly the baseline rows (588 recorded results, 0 mismatches).
+
+| Shape | A | B | C |
+| ----- | - | - | - |
+| `id = ANY($1::uuid[])` (baseline) | 0 of 4 | 0 of 4 | 4 of 4 |
+| array behind an InitPlan, `ANY((SELECT $1::uuid[]))` | 0 of 4 | 0 of 4 | 4 of 4 |
+| `IN (SELECT unnest(…))`, `JOIN unnest(…)`, with and without `ORDER BY` the key | 0 of 4 | 0 of 4 | 4 of 4 |
+| materialized CTE of the ids joined to the table | 0 of 4 | 0 of 4 | 4 of 4 |
+| `ORDER BY company_id, business_id, id` | 0 of 4 | 0 of 4 | 4 of 4 |
+| row-value `IN (SELECT …)`, `IN (VALUES …)`, `OR` list | 0 of 4 | 0 of 4 | 4 of 4 |
+| `UNION ALL` of per-id equalities | 0 of 4 | 0 of 4 | 4 of 4 |
+| `LATERAL … LIMIT 1` per id (not the rejected `OFFSET 0` form) | 0 of 4 | 0 of 4 | 4 of 4 |
+| range bounds `id >= min AND id <= max` added | 0 of 4 | 0 of 4 | 4 of 4 at 100 and 602 |
+
+Three shapes (`VALUES`, `OR` list, plain `LATERAL`) were stopped at 100 ids because they were already far worse than
+the baseline (up to 6 s in state A at 602 ids in a probe).
+
+**Why no shape can pass.** With the tenant estimated at one row, a read through any `company_id`-leading index costs
+7.7 to the planner, and every plan that probes by id costs more under that estimate (the unique key as a generic
+plan: 50.12; for a tenant that is in the MCV list the same 602-id probe is estimated at 150 rows, cost 2,756, and
+is chosen). The RLS predicate alone gives the planner the tenant-wide path, so removing or reshaping our own
+predicates cannot take it away. A covering select is also read through
+`service_lines_discount_proposal_binding_idx` with the id as a filter, so **a new index would not change the
+choice**: the unique keys the probes need already exist and are not chosen. The app's statement is unnamed and
+planned custom on every execution (bound parameter and literal give the same plan; a named statement stayed on
+custom plans for nine executions), so there is no generic-plan path inside the limits.
+
+**Outcome.** F6 stays **FAIL**; AC-57-2b-9 is not met and the 200 ms bound is not relaxed here. Inside plan §5.1
+nothing closes it. What closes it is the statistics state: in state C the reader as merged passes (0.1–15 ms per
+statement, the id as an index condition). The smallest exception is therefore a **statistics exception** — the
+tenant must be known to `pg_statistic` before its reads — and its mechanism is a decision for the design approver.
+It was not tested: no table setting was altered. Not verified: cold-cache behaviour, and whether a live stale
+window behaves exactly like the clone-held one.
+
+For scale: the finding this work answers (P1 of #894) was a 30 s statement timeout on 600 visits. The reader as
+merged is bounded to one pass over the tenant's rows per statement, at most six statements per page: 9–53 ms per
+statement in state A and 41–173 ms in state B at 66,002 lines, until the next autoanalyze.
