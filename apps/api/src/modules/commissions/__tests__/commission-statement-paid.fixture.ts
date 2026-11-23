@@ -1,10 +1,7 @@
 import { employeeNameMatchKey } from '@pospay/domain';
 import { createDatabase } from '@pospay/db';
 import { systemUuidV7 } from '@pospay/ids';
-import type {
-  CommissionStatementPaidMethod,
-  MarkCommissionStatementPaidInput,
-} from '@pospay/contracts';
+import type { MarkCommissionStatementPaidInput } from '@pospay/contracts';
 
 import { startHarness } from '../../../../test/harness.ts';
 import {
@@ -135,13 +132,6 @@ export async function statementPayFixture(clock: () => Date = () => MARK_PAID_NO
 }
 
 export type StatementPayFixture = Awaited<ReturnType<typeof statementPayFixture>>;
-
-/** صيغة طريقة الصرف من الرد؛ الاختبارات بتستعملها للتكرار بأجسام مختلفة. */
-export const methods: readonly CommissionStatementPaidMethod[] = [
-  'WITH_SALARY',
-  'BANK_TRANSFER',
-  'CASH',
-];
 
 /** عضوية بدور مخصص بلا أي صلاحية، عشان اختبار CM-42 يثبت الرفض الموحّد. */
 export async function memberWithoutPayPermission(f: StatementPayFixture) {
