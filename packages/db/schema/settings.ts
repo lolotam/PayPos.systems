@@ -160,6 +160,12 @@ export const alertRules = pgTable(
       sql`${t.recipientRoles} <@ ARRAY['owner','general_manager','business_manager','branch_manager']::text[]`,
     ),
     check('alert_rules_channels', sql`${t.channels} <@ ARRAY['IN_APP']::text[]`),
+    // مدير الفرع مالوش دور في تنبيهات كشف العمولات (AL-Q7 = PP-29.1، issue #486): الـ validator في packages/domain بيرفضه،
+    // والـ CHECK بيمنع أي كاتب تاني، والصفوف القديمة اتنضّفت بخطوة بيانات في نفس الـ migration.
+    check(
+      'alert_rules_statement_roles',
+      sql`${t.kind} NOT IN ('STATEMENT_AWAITING_REVIEW','STATEMENT_AWAITING_APPROVAL') OR NOT ('branch_manager' = ANY(${t.recipientRoles}))`,
+    ),
     check(
       'alert_rules_delay_minutes',
       sql`${t.delayMinutes} IS NULL OR ${t.delayMinutes} BETWEEN 1 AND 1440`,

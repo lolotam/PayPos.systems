@@ -1702,6 +1702,13 @@
       "when": 1795456222039,
       "tag": "0244_2026-11-23_commission-carries-rls",
       "breakpoints": true
+    },
+    {
+      "idx": 245,
+      "version": "7",
+      "when": 1795457026724,
+      "tag": "0245_2026-11-23_statement-alert-roles-check",
+      "breakpoints": true
     }
   ]
 }
