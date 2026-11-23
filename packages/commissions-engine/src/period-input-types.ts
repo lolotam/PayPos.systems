@@ -42,6 +42,20 @@ export interface ReceivedCommissionCorrection {
   readonly generation: bigint;
 }
 
+/**
+ * رصيد سالب مرحّل من شهر اتعتمد لأول شهر مفتوح بعده (D-22). النوعان منفصلان ولا بيتقاصّوا
+ * (BR-06): COMMISSION رصيد العمولة، وTIP_CARD رصيد بقشيش الكارت. المرحّل بيعدّي من غير تسعير.
+ */
+export interface IncomingCommissionCarry {
+  readonly employeeId: string;
+  readonly kind: 'COMMISSION' | 'TIP_CARD';
+  /** الرصيد السالب كما اتخزن، بمقياس الفلس. */
+  readonly amount: bigint;
+  readonly sourceStatementId: string;
+  readonly sourcePeriod: string;
+  readonly targetPeriod: string;
+}
+
 /** يحفظ حقول المستدعي مثل revision وbranchId للبصمة والفلترة بدلاً من ضياعها عند التجميع. */
 export interface CommissionPeriodProjection<
   L extends ProjectedCommissionLine = ProjectedCommissionLine,
@@ -49,6 +63,7 @@ export interface CommissionPeriodProjection<
   Sal extends CommissionSalary = CommissionSalary,
   T extends ProjectedCommissionTip = ProjectedCommissionTip,
   C extends ReceivedCommissionCorrection = ReceivedCommissionCorrection,
+  Cr extends IncomingCommissionCarry = IncomingCommissionCarry,
 > {
   readonly employeeId: string;
   readonly period: string;
@@ -61,6 +76,8 @@ export interface CommissionPeriodProjection<
   readonly overrides: readonly ServiceCommissionOverride[];
   readonly tips: readonly T[];
   readonly corrections: readonly C[];
+  /** المرحّلات اللي هدفها الشهر ده؛ اختيارية عشان المستدعين اللي ما بيعرفوش المرحّل. */
+  readonly carries?: readonly Cr[];
 }
 
 /** يبقي حقول الصفوف للبصمة وفلتر الفروع بينما يقرأ المحرك مدخل التسعير وحده. */
@@ -70,6 +87,7 @@ export interface AssembledCommissionPeriod<
   Sal extends CommissionSalary = CommissionSalary,
   T extends ProjectedCommissionTip = ProjectedCommissionTip,
   C extends ReceivedCommissionCorrection = ReceivedCommissionCorrection,
+  Cr extends IncomingCommissionCarry = IncomingCommissionCarry,
 > {
   readonly input: CommissionPeriodInput;
   readonly lines: readonly L[];
@@ -78,4 +96,5 @@ export interface AssembledCommissionPeriod<
   readonly salary: Sal | null;
   readonly tips: readonly T[];
   readonly corrections: readonly C[];
+  readonly carries: readonly Cr[];
 }
