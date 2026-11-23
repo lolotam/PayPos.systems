@@ -16,7 +16,7 @@ Seven pages get the layout of the reference pages: a centred page of a fixed max
 | Attendance requests | `/staff/attendance-requests` | `staff/pages/attendance-requests-page.tsx` | List |
 | Attendance exceptions | `/staff/attendance-exceptions` | `staff/pages/attendance-exceptions-page.tsx` | List |
 | Monthly report | `/staff/attendance-report` | `staff/pages/attendance-report-page.tsx` | List |
-| Statement | `/staff/attendance-statement` | `staff/pages/attendance-statement-page.tsx` | List |
+| Statement | `/staff/attendance-statement` | `staff/pages/attendance-statement-page.tsx` | Form (840px) |
 | Leave approvals | `/leave` | `staff/pages/leave-inbox-page.tsx` | List |
 | Leave history report | `/staff/leave-history` | `staff/pages/leave-report-page.tsx` | List |
 
@@ -24,7 +24,7 @@ Not in 11a: the employee leave page (`/staff/[employeeId]/leave`, part of 10b), 
 
 ## Requirements
 
-1. Each page is wrapped in `PageShell` with the list variant (the board uses the list width) and uses `PageHeader` for the title, an optional one-line description where an existing i18n key fits (no new copy), and actions: one primary action at the inline end, further actions as outline buttons before it.
+1. Each page is wrapped in `PageShell`: the list variant for six pages (the board uses the list width) and the form variant (840px) for Statement, whose content is a request form with a short outcome and no table. Each uses `PageHeader` for the title, an optional one-line description where an existing i18n key fits (no new copy), and actions: one primary action at the inline end, further actions as outline buttons before it.
 2. List pages: one card holding filter bar, table and footer with paging, in that order, through `DataTableFrame`'s filter and footer areas. Stacked rows under 600px are switched on for every real table: the first cell is the card title; every other cell that has content shows its column label; a cell whose only content is an action carries no duplicate label; an empty cell collapses without `display: none`, so it stays in the accessibility tree. A list that is a set of cards and not a table keeps its cards and gets no stacked rows.
 3. Board: header, then the filters, then the status blocks («in now», refusals and the like) in their current order, then the sessions table in its card. No block is merged, dropped or reordered beyond what the template names.
 4. Behaviour is unchanged. In particular: a page that is refused keeps exactly the requests `main` makes (no new query observer that fetches while a screen is closed); one query has one observer per screen, so data, refusal and paging come from one snapshot; filters, date and branch pickers keep their React position so focus and their chosen value survive a late refusal, a reload or a decision; polling intervals, approve and reject actions, dialogs and their focus return are untouched.
@@ -58,7 +58,7 @@ Estimate: 600 production, 850 tests. Review rounds roughly doubled 074-9, so sto
 
 ### What moved, per page
 
-All seven pages are now `PageShell layout="list"` with `PageHeader`. One shared piece does the stacked rows: `staff/ui/stacked-table.tsx` (a table with no card, explicit roles, `data-cell-label` on every cell that has content, none on the first cell or on an action-only column, and no content, so a `:empty` cell collapses under 600px with `max-[599.99px]:empty:py-0`, never `display: none`) and `staff/model/stacked-cell.ts` (decides «has content»).
+Six pages are now `PageShell layout="list"` and Statement is `PageShell layout="form"` (840px), all with `PageHeader`. One shared piece does the stacked rows: `staff/ui/stacked-table.tsx` (a table with no card, explicit roles, `data-cell-label` on every cell that has content, none on the first cell or on an action-only column, and no content, so a `:empty` cell collapses under 600px with `max-[599.99px]:empty:py-0`, never `display: none`) and `staff/model/stacked-cell.ts` (decides «has content»).
 
 | Page | What moved | Proving test |
 |---|---|---|
@@ -119,10 +119,11 @@ Each spec asserts the structure with `within(card)` and document order, a stacke
 
 | Item | Result | Proving test |
 |---|---|---|
-| 1 MEDIUM Statement width | The outcome under the form is short text rows and buttons (status, error, download, new request), so the whole page, in the normal and the no-access state, uses the form shell (840px), not the list shell. The open point «Statement is a form at list width» is closed. | `attendance-statement-layout.spec.tsx`: the page shell is `data-page-shell="form"` in both states (fails with the list shell) |
-| 2 MEDIUM hidden sort buttons | At the stacked width the header cells hold plain column text and no sort button (`AttendanceReportHeader` → `AttendanceReportSortButton` only above the width). A focused header button that goes away because the width narrows hands focus to the «Sort by» select (layout-effect cleanup that checks the width). | `attendance-report-layout.spec.tsx`: no button in the header cells and the select sorts; buttons named and sorting above the width; focus on a header button then narrowing lands on the select (the focus test fails without the hand-over) |
+| 1 MEDIUM Statement width | The outcome under the form is short text rows and buttons (status, error, download, new request), so the whole page, in the normal and the no-access state, uses the form shell (840px). This corrects the first delivery, which gave Statement the list shell; the open point «Statement is a form at list width» is closed. | `attendance-statement-layout.spec.tsx`: the page shell is `data-page-shell="form"` in both states (fails with the list shell) |
+| 2 MEDIUM hidden sort buttons | At the stacked width the header cells hold plain column text and no sort button (`AttendanceReportHeader` → `AttendanceReportSortButton` only above the width). A focused header button that goes away because the width narrows hands focus to the «Sort by» select, and a focused select that is hidden because the width widens hands focus to the header button of the sorted column (the first button when nothing is sorted); both directions belong to one owner, `useSortFocusHandOver` (bot review round 2), which notes where focus is when the media query changes and applies the move after the render. | `attendance-report-layout.spec.tsx`: no button in the header cells and the select sorts; buttons named and sorting above the width; focus on a header button then narrowing lands on the select (the focus test fails without the hand-over) |
 | 3 MEDIUM details label | The stacked cell of the details column is labelled by what it holds: `leave.decisionReason` for leave rows and the existing `attendanceStatementScreen.shift` («Shift» / «الشيفت») for unexcused-absence and covered-elsewhere rows. Searched both catalogs for a shift or scheduled-time label: `attendanceStatementScreen.shift` fits; `scheduledHours` («Scheduled hours») means a total; no key added. The desktop header and the column order are unchanged. `StackedTable` takes an optional `cellLabel`. | `leave-report-page-layout.spec.tsx`, row by row for a leave, an absence and a covered row (fails without the override) |
 | 4 LOW childless elements | `hasStackedContent` recurses only into fragments and a fixed list of layout wrappers (`div`, `span`, `p`, `section`, `ul`, `ol`, `li`, `dl`, `dt`, `dd`, `strong`, `em`, `b`, `bdi`) that carry no `aria-label`, `aria-labelledby`, `title` or `role`; every other element (image, field, icon, link) is content even without children. | `stacked-table.spec.tsx`: an `img`, an `input` and a `span` with `role="img"` keep their cells and labels (fails with the old helper) |
+| (bot round 2) widening hand-over | Added: select focused, width widens, focus lands on the sorted column's header button or the first one; the narrowing move now lives in the same hook | `attendance-report-layout.spec.tsx`, two widening tests plus «leaves the focus alone…» (both widening tests fail without the move) |
 | 5 LOW desktop multi-sort | Not in this PR (tracked as a follow-up issue). | none |
 
 ### Changed assertions
@@ -135,7 +136,7 @@ Attendance only (no Team or Pay page uses them): `attendance-actions-table`, `at
 
 ### Open points
 
-1. Statement is a form, though the table calls it «List»: it uses the form shell (840px) and one card for the form (PR review round 1, item 1).
+1. Statement is a request form with a short outcome and no table: it uses the form shell (840px) and one card for the form (PR review round 1, item 1; the first delivery had given it the list shell).
 2. Manual entry (Requests) and Download (Monthly report) are the header actions (the owning session's decision, round 1). The download status and alert stay in the card under the filters.
 3. The leave decision editor and the last-taken line stay inside the card (between the table and the paging, and above the table), where they were in order on `main`.
 4. The first cell is the card title as the template says: the board shows the employee number, Requests the branch, Leave approvals the period, the Monthly report the employee number. A better title needs a column reorder, which this layout-only slice does not do.

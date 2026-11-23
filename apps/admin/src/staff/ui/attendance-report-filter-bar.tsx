@@ -5,6 +5,7 @@ import type { AttendanceReportScope } from '../api/use-attendance-report';
 import { AttendanceReportDownloadMessages } from './attendance-report-download-messages';
 import { AttendanceReportFilters } from './attendance-report-filters';
 import { AttendanceReportSortControl } from './attendance-report-sort-control';
+import { useSortFocusHandOver } from './use-sort-focus-hand-over';
 
 /** تصفية كرت التقرير: الشهر والفرع، مربع الفرز تحت 600px، ثم رسائل التنزيل. */
 export function AttendanceReportFilterBar({
@@ -28,6 +29,7 @@ export function AttendanceReportFilterBar({
   onMonth: (month: string) => void;
   onBranch: (branchId: string) => void;
 }) {
+  useSortFocusHandOver();
   return (
     <div className="flex flex-col gap-3">
       <AttendanceReportFilters

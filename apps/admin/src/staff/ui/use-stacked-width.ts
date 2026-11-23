@@ -2,7 +2,7 @@
 import { useSyncExternalStore } from 'react';
 
 // نفس شرط Tailwind لـ max-[599.99px]: أصغر تمامًا من 599.99px، حتى لا يختلف الإطار عن الخاصية عند التساوي.
-const STACKED_QUERY = '(width < 599.99px)';
+export const STACKED_QUERY = '(width < 599.99px)';
 
 function subscribe(onChange: () => void) {
   if (typeof window.matchMedia !== 'function') return () => undefined;
@@ -11,8 +11,7 @@ function subscribe(onChange: () => void) {
   return () => media.removeEventListener('change', onChange);
 }
 
-/** هل العرض الحالي مكدّس الآن؟ للأكواد خارج الرسم (مثل نقل التركيز لحظة الانتقال). */
-export function isStackedWidth() {
+function isStackedWidth() {
   return typeof window.matchMedia === 'function' && window.matchMedia(STACKED_QUERY).matches;
 }
 

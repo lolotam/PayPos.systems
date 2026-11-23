@@ -217,13 +217,12 @@ function stubStackedWidth(initial: boolean) {
       removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
     }),
   });
-  return {
-    narrow: () =>
-      act(() => {
-        stacked = true;
-        listeners.forEach((listener) => listener());
-      }),
-  };
+  const change = (next: boolean) =>
+    act(() => {
+      stacked = next;
+      listeners.forEach((listener) => listener());
+    });
+  return { narrow: () => change(true), widen: () => change(false) };
 }
 
 function sortButtons(table: HTMLElement) {
@@ -269,6 +268,39 @@ it('moves the focus to the sort select when a focused header button goes away be
   await width.narrow();
   expect(within(table).queryAllByRole('button')).toHaveLength(0);
   expect(document.activeElement).toBe(sortControl());
+});
+
+it('moves the focus from the sort select to the header button of the sorted column when the width widens', async () => {
+  const width = stubStackedWidth(true);
+  renderPage();
+  const table = await screen.findByRole('table');
+  fireEvent.change(sortControl(), { target: { value: 'days_present:desc' } });
+  sortControl().focus();
+  await width.widen();
+  const sorted = within(table).getByRole('button', {
+    name: t('en', 'attendanceReport.daysPresent'),
+  });
+  expect(document.activeElement).toBe(sorted);
+});
+
+it('moves the focus from the sort select to the first header button when the width widens and nothing is sorted', async () => {
+  const width = stubStackedWidth(true);
+  renderPage();
+  const table = await screen.findByRole('table');
+  sortControl().focus();
+  await width.widen();
+  expect(document.activeElement).toBe(sortButtons(table)[0]);
+});
+
+it('leaves the focus alone when the width changes while it is on something else', async () => {
+  const width = stubStackedWidth(true);
+  renderPage();
+  const table = await screen.findByRole('table');
+  const month = screen.getByLabelText(t('en', 'attendanceReport.month'));
+  month.focus();
+  await width.widen();
+  expect(document.activeElement).toBe(month);
+  expect(sortButtons(table).length).toBeGreaterThan(5);
 });
 
 it('names the empty sort option with the translated missing-value text', async () => {
