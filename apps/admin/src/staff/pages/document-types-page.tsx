@@ -8,10 +8,7 @@ export function DocumentTypesPage({ companyId, userId }: { companyId: string; us
   const locale = useLocale();
   return (
     <PageShell layout="list">
-      <PageHeader
-        title={t(locale, 'employeeDocuments.typesTitle')}
-        description={t(locale, 'employeeDocuments.typesLead')}
-      />
+      <PageHeader title={t(locale, 'employeeDocuments.typesTitle')} />
       <DocumentTypesPanel companyId={companyId} userId={userId} />
     </PageShell>
   );

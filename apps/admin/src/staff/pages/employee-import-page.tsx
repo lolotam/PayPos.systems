@@ -17,10 +17,7 @@ export function EmployeeImportPage({
   const locale = useLocale();
   return (
     <PageShell layout="form">
-      <PageHeader
-        title={t(locale, 'employeeImport.title')}
-        description={t(locale, 'employeeImport.lead')}
-      />
+      <PageHeader title={t(locale, 'employeeImport.title')} />
       <EmployeeImportPanel companyId={companyId} businessId={business.id} userId={userId} />
     </PageShell>
   );

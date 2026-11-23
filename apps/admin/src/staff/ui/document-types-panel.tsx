@@ -19,7 +19,15 @@ export function DocumentTypesPanel({ companyId, userId }: { companyId: string; u
     });
   return (
     <>
-      <DataTableFrame stacked title={t(locale, 'employeeDocuments.typesTitle')}>
+      <DataTableFrame
+        stacked
+        title={t(locale, 'employeeDocuments.typesTitle')}
+        filters={
+          <p className="text-sm text-muted-foreground">
+            {t(locale, 'employeeDocuments.typesLead')}
+          </p>
+        }
+      >
         {list.isPending ? (
           <EmptyState icon={<LoaderCircle />} role="status" title={t(locale, 'admin.loading')} />
         ) : null}

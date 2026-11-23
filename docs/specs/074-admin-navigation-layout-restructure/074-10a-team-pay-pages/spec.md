@@ -88,7 +88,7 @@ None. No assertion in an existing spec was deleted or edited.
 
 ### `packages/ui` changes
 
-None. `packages/i18n`: `employeeImport.sectionTemplate`, `employeeImport.sectionFile`, `staff.sectionIdentity`, `staff.sectionEmployment`, each in `ar` and `en`; none had a match in either catalog.
+One class, added in PR review round 1 (see below): `max-w-full` on the secondary-actions wrapper of `PageHeader`. `packages/i18n`: `employeeImport.sectionTemplate`, `employeeImport.sectionFile`, `staff.sectionIdentity`, `staff.sectionEmployment`, each in `ar` and `en`; none had a match in either catalog.
 
 ### Open points
 
@@ -104,6 +104,16 @@ Widths, 12-column spans, stacking under 600px, 44px targets, the Arabic layout, 
 ### Table header look against `origin/main` (correction round 1)
 
 `DataTableFrame` gives its tables a header look (`bg-secondary` header row, `text-xs font-medium text-muted-foreground` cells). Where the table was already in the frame on `main` nothing changes: Employees, Employee numbers, Document types, Plan versions and the override Services table (the first three only had the frame moved up one level, into the panel that owns the card). Only the Import «rows to fix» table was a plain `text-sm` table on `main`; it now restores its header locally with `bg-transparent!` on the header row and `text-sm! font-bold! text-inherit!` on each header cell (Tailwind 4 important suffix, so no `packages/ui` change). Row separators and cell padding still come from the frame: they are layout, and the stacked-row look needs them. Proving test: `employee-import-page-layout.spec.tsx`, «keeps the plain desktop header look…».
+
+### PR review round 1 (MergePilot panel, PR #1232)
+
+| Item | Result | Proving test |
+|---|---|---|
+| 1 header description clipped on phones | `PageShell` truncates the header description to one line of 65ch. Import (72 characters in English) and Document types (83) carried instructions there, so both leads now render in full, wrapping, at the top of the card (same keys: `employeeImport.lead`, `employeeDocuments.typesLead`; no new copy). Document types puts it in the card's filter area above the table, so it also shows while loading and on refusal. | `document-types-page-layout.spec.tsx` and `employee-import-page-layout.spec.tsx`, «shows its full lead in the card, not as the header description» |
+| 2 Employees header actions | Unchanged from `main` in kind: there the actions sat in a `shrink-0` wrapper around an inner `flex-wrap` div, which could not shrink either. Fixed at the cause: `max-w-full` on `PageHeader`'s `actions` wrapper, so its buttons can wrap inside a narrow header. The one allowed `packages/ui` change of the slice (template defect). | `packages/ui/src/__tests__/page-header.spec.tsx`, «caps the secondary-actions wrapper at the header width so its buttons can wrap» |
+| 3 Import file picker target | `main` had a bare native `<input type="file">` with no minimum height. It now uses the shared `Input` (`min-h-12`, `w-full`), the same component as the Business identity logo input; `accept` and `onChange` are unchanged. The file-selector button inside is not sized separately: the reference input does not do so either. | `employee-import-page-layout.spec.tsx`, «sizes the file picker like the shared input and keeps its accepted type» |
+
+Description check per page (both languages): Employees 45 / 32 characters and Employee numbers 57 / 42, descriptive, no instruction, stay in the header. Import 72 / 45 and Document types 83 / 59 moved (the English text is over 65 and carries the instruction). Create employee, Commission plans and Commission overrides have no description.
 
 ### Sizes
 

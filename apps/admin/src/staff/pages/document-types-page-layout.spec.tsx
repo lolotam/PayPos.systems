@@ -39,16 +39,18 @@ beforeEach(() => {
   api.GET.mockReset().mockResolvedValue({ data: { items: [civil] } });
 });
 
-it('opens as a list page with the heading and the description', async () => {
+it('opens as a list page and shows its full lead in the card, not as the header description', async () => {
   renderPage();
   await screen.findByRole('table');
   const heading = screen.getByRole('heading', { level: 1, name: 'Document types' });
   expect(heading.closest('[data-page-shell="list"]')).not.toBeNull();
-  expect(
-    screen.getByText(
-      'Types apply to the whole company. Deactivating a type keeps its recorded documents.',
-    ),
-  ).toBeTruthy();
+  expect(document.querySelector('[data-page-header-description]')).toBeNull();
+  const lead = screen.getByText(
+    'Types apply to the whole company. Deactivating a type keeps its recorded documents.',
+  );
+  expect(heading.closest('header')?.contains(lead)).toBe(false);
+  expect(frameCard().contains(lead)).toBe(true);
+  expect(lead.className.split(' ')).not.toContain('truncate');
 });
 
 it('holds the table in one card and puts the add form after it, below the card', async () => {

@@ -79,13 +79,30 @@ beforeEach(() => {
   state.preview.mutate.mockReset();
 });
 
-it('opens as a form page with the heading and the description', () => {
+it('opens as a form page and shows its full lead in the card, not as the header description', () => {
   renderPage();
   const heading = screen.getByRole('heading', { level: 1, name: 'Import employees' });
   expect(heading.closest('[data-page-shell="form"]')).not.toBeNull();
-  expect(
-    screen.getByText('Download the template, fill it, upload it and preview before committing.'),
-  ).toBeTruthy();
+  expect(document.querySelector('[data-page-header-description]')).toBeNull();
+  const lead = screen.getByText(
+    'Download the template, fill it, upload it and preview before committing.',
+  );
+  const card = screen.getByRole('heading', { level: 2, name: 'Template' }).closest('.rounded-card');
+  expect(heading.closest('header')?.contains(lead)).toBe(false);
+  expect(card?.contains(lead)).toBe(true);
+  expect(follows(lead, screen.getByRole('heading', { level: 2, name: 'Template' }))).toBe(true);
+  expect(lead.className.split(' ')).not.toContain('truncate');
+});
+
+// حجم الحقل من مكوّن Input المشترك (min-h-12، 48px كما في design.md §6)، وهو نفسه حقل شعار النشاط.
+const FILE_INPUT_SIZE_CLASSES = ['min-h-12', 'w-full'];
+
+it('sizes the file picker like the shared input and keeps its accepted type', () => {
+  renderPage();
+  const input = screen.getByLabelText('Choose the filled .xlsx file');
+  FILE_INPUT_SIZE_CLASSES.forEach((name) => expect(input.classList.contains(name)).toBe(true));
+  expect(input.getAttribute('type')).toBe('file');
+  expect(input.getAttribute('accept')).toBe('.xlsx');
 });
 
 it('holds two titled sections in one card, then the actions at the foot with commit last', () => {

@@ -1,6 +1,6 @@
 'use client';
 import { t } from '@pospay/i18n';
-import { Button, Card, CardContent, CardFooter } from '@pospay/ui';
+import { Button, Card, CardContent, CardFooter, Input } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 
 type EmployeeImportFormCardProps = {
@@ -27,6 +27,7 @@ export function EmployeeImportFormCard({
   return (
     <Card>
       <CardContent className="grid gap-6">
+        <p className="text-sm text-muted-foreground">{t(locale, 'employeeImport.lead')}</p>
         <section className="grid gap-4">
           <h2 className="text-lg font-semibold">{t(locale, 'employeeImport.sectionTemplate')}</h2>
           <div className="grid grid-cols-12 gap-4">
@@ -47,7 +48,7 @@ export function EmployeeImportFormCard({
           <div className="grid grid-cols-12 gap-4">
             <label className="col-span-12 flex min-w-0 flex-col gap-2 text-sm">
               {t(locale, 'employeeImport.choose')}
-              <input
+              <Input
                 type="file"
                 accept=".xlsx"
                 onChange={(event) => onSelect(event.target.files?.[0])}
