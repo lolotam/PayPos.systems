@@ -369,14 +369,24 @@ Calibration from merged work (production / test / generated): #1135 67 / 342 / 7
 7. **Review round 2 (2026-11-23), recorded follow-ups, none in this PR:**
    - **Deploy order:** the admin ratings screen takes its month from the `month` field of the averages response, so
      the API of this PR is deployed before the admin; against an older API the month field stays disabled.
-   - **Ratings read rule:** the API now applies the 61-1g rule of the worker: the `read:ratings:branch` ALLOW must be
-     on the covering manager membership itself (owner answer of 2026-11-22). Both sides run one shared case table.
+   - **Ratings read rule (FR-B15, both routes):** `GET …/ratings` and `GET …/ratings/averages` share one read gate,
+     and it now applies the 61-1g rule of the worker: the `read:ratings:branch` ALLOW must be on the covering manager
+     membership itself, so a role from one membership and an ALLOW from another are never combined (owner answer of
+     2026-11-22; accepted by the manager for the API on 2026-11-23). A covering DENY from any active membership still
+     removes the branch and the canonical owner still ignores a DENY. Both sides run one shared 21-case table, and an
+     integration case covers the separate-membership ALLOW (403).
    - **Follow-up migration candidates:** an index on `(company_id, employee_id, branch_id, submitted_at)` to bound the
      employee-filtered ratings page, and a composite foreign key from `low_rating_notices` to the rating's business
      and branch. Migrations 0240 and 0241 are not changed here.
-   - **L2 (accepted P2), second path:** the in-flight open guard of the reception private view is per controller, so
-     a remount (close and reopen, offline and online) can leave an abandoned open that reaches the server last. Same
-     bound as L2: her own rows only, for at most the idle limit.
+   - **L2 (accepted P2), second path (accepted by the manager, 2026-11-23):** the in-flight open guard of the
+     reception private view is per controller, so a remount (close and reopen, offline and online) can leave an
+     abandoned open whose request reaches the server after she left. Two moments are distinct: the operator's exit,
+     at which the screen conceals and drops its data at once, and the arrival of the abandoned request at the server,
+     which may be later. The answer of an abandoned open is never rendered: its controller generation is gone, and a
+     late window is closed by its own id. A window the server may still create is bound to the identity of the same
+     employee by her PIN and ends at the server's idle limit counted from its opening on the server. It widens
+     neither the identity nor the duration and shows no rows again. Evidence: `private-window-controller-memory.spec.ts`
+     (late open closed by its id, no reference to her rows kept) and the controller generation tests.
 
 ### ملخص للمالك (بالعربي)
 
