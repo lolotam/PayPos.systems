@@ -82,7 +82,10 @@ export function planHistoryColumns(
     {
       id: 'version',
       header: t(locale, 'commissionPlanBuilder.colVersion'),
-      cell: ({ row }) => row.original.version,
+      cell: ({ row }) =>
+        row.original.repair_period === null
+          ? row.original.version
+          : `${row.original.version} · ${t(locale, 'commissionPlanBuilder.repairOf')} ${row.original.repair_period}`,
     },
     {
       id: 'effectiveFrom',

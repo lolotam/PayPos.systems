@@ -429,6 +429,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/employees/{employeeId}/commission-period-repairs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Repairs a closed month that has an open NO_PLAN blocked correction (FR-047): stores one repair plan version that applies only inside that month, recomputes the month, posts the corrections into the target the earliest-DRAFT rule chooses and resolves the block, all in one transaction under one ascending statement-lock call. If the recompute then needs a missing salary, the same block row becomes NO_SALARY, nothing is posted and the version and its audit entry stay (CM-52b). Requires manage:commission-plans:business and the commissions feature; a device session is refused. A change of the business month while waiting for the locks is refused with TRANSACTION_RETRY_REQUIRED; retry the request. */
+        post: operations["createCommissionPeriodRepair"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/businesses/{businessId}/employees/{employeeId}/commission-overrides": {
         parameters: {
             query?: never;
@@ -3594,6 +3611,8 @@ export interface components {
             cursor?: number;
             /** @default 20 */
             limit: number;
+            /** @enum {string} */
+            kind?: "ordinary";
         };
         CommissionPlanInvalidError: {
             /** @enum {string} */
@@ -3620,6 +3639,32 @@ export interface components {
         CommissionPlanIdempotencyKeyReusedError: {
             /** @enum {string} */
             code: "IDEMPOTENCY_KEY_REUSED";
+            message_ar: string;
+            message_en: string;
+        };
+        CommissionRepairPlan: {
+            base: components["schemas"]["CommissionPlanComponent"];
+            tiers: components["schemas"]["CommissionPlanTiers"];
+            package_sale: components["schemas"]["CommissionPlanComponent"];
+        };
+        CreateCommissionPeriodRepairInput: {
+            period: components["schemas"]["CommissionRepairPeriod"];
+            plan: components["schemas"]["CommissionRepairPlan"];
+        };
+        CommissionPeriodRepairBlock: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            code: "NO_PLAN" | "NO_SALARY";
+            resolved: boolean;
+        };
+        CommissionPeriodRepair: {
+            version: components["schemas"]["CommissionPlanVersion"];
+            blocked_correction: components["schemas"]["CommissionPeriodRepairBlock"];
+        };
+        CommissionRepairNotAllowedError: {
+            /** @enum {string} */
+            code: "COMMISSION_REPAIR_NOT_ALLOWED";
             message_ar: string;
             message_en: string;
         };
@@ -10807,6 +10852,7 @@ export interface operations {
             query?: {
                 cursor?: number;
                 limit?: number;
+                kind?: "ordinary";
             };
             header: {
                 "x-company-id": string;
@@ -10901,6 +10947,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommissionPlanInvalidError"] | components["schemas"]["CommissionEffectiveFromPastError"] | components["schemas"]["CommissionPeriodBeforeBusinessError"] | components["schemas"]["CommissionPlanIdempotencyKeyReusedError"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createCommissionPeriodRepair: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCommissionPeriodRepairInput"];
+            };
+        };
+        responses: {
+            /** @description The repair version and the block */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionPeriodRepair"];
+                };
+            };
+            /** @description Uniform 403 refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description TRANSACTION_RETRY_REQUIRED (the month rolled over), COMMISSION_PERIOD_CLOSED (no DRAFT month to post into), IDEMPOTENCY_KEY_IN_PROGRESS */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description COMMISSION_REPAIR_NOT_ALLOWED when no open NO_PLAN block exists for the employee and month (including a NO_SALARY block or a resolved one, and a month before the business started or not yet closed), COMMISSION_PLAN_INVALID with details.code, or IDEMPOTENCY_KEY_REUSED. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionRepairNotAllowedError"] | components["schemas"]["CommissionPlanInvalidError"] | components["schemas"]["CommissionPlanIdempotencyKeyReusedError"];
                 };
             };
             /** @description Bilingual refusal */

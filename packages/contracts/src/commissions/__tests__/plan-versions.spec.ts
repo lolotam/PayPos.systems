@@ -179,6 +179,14 @@ it('defaults the list query limit to 20', () => {
   expect(commissionPlanVersionListQuery.parse({})).toEqual({ limit: 20 });
 });
 
+it('accepts only the ordinary-only kind filter and leaves the default list unfiltered', () => {
+  expect(commissionPlanVersionListQuery.parse({ kind: 'ordinary', limit: '1' })).toEqual({
+    kind: 'ordinary',
+    limit: 1,
+  });
+  expect(commissionPlanVersionListQuery.safeParse({ kind: 'repair' }).success).toBe(false);
+});
+
 it.each([1, 2147483647])(
   'accepts a list cursor at the PostgreSQL integer boundary %i',
   (cursor) => {

@@ -8,7 +8,9 @@ export type CommissionPlanVersionErrorCode =
   | 'COMMISSION_EFFECTIVE_FROM_PAST'
   | 'COMMISSION_PERIOD_BEFORE_BUSINESS'
   | 'COMMISSION_PERIOD_NOT_DRAFT'
-  | 'COMMISSION_PERIOD_CLOSED';
+  | 'COMMISSION_PERIOD_CLOSED'
+  | 'COMMISSION_REPAIR_NOT_ALLOWED'
+  | 'TRANSACTION_RETRY_REQUIRED';
 
 /** رفض الكتابة بكود مستقل عن HTTP، وتفاصيل كود المحرك عند الحاجة. */
 export class CommissionPlanVersionError extends Error {
