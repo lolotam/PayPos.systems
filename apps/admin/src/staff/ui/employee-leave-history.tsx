@@ -11,12 +11,14 @@ export function EmployeeLeaveHistory({
   pending = false,
   onCancel,
   includeEmployee = false,
+  stacked = false,
 }: {
   items: Row[];
   scope: LeaveDecisionScope;
   pending?: boolean;
   onCancel?: (row: Row) => void;
   includeEmployee?: boolean;
+  stacked?: boolean;
 }) {
   const mutations = useLeaveDecisions(scope);
   const [selection, setSelection] = useState<LeaveSelection>();
@@ -26,12 +28,17 @@ export function EmployeeLeaveHistory({
     setSelection(next);
   };
   return (
-    <div className="flex flex-col gap-4">
+    <div
+      className={
+        stacked ? 'flex flex-col [&>div:last-child:not(:empty)]:p-4' : 'flex flex-col gap-4'
+      }
+    >
       <LeaveHistoryTable
         items={items}
         pending={pending || mutations.decide.isPending || mutations.revoke.isPending}
         {...(onCancel ? { onCancel } : {})}
         includeEmployee={includeEmployee}
+        stacked={stacked}
         onDecide={(row, action) => select({ row, action })}
         onRevoke={(row) => select({ row, action: 'REVOKE' })}
       />

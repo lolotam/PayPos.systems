@@ -6,6 +6,7 @@ import { flexRender, getCoreRowModel, useReactTable, type ColumnDef } from '@tan
 import { useMemo } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { leaveDecisionColumns, type LeaveDecisionActions } from './leave-decision-columns';
+import { StackedTable } from './stacked-table';
 type Row = LeavePage['items'][number];
 function leaveColumns(
   locale: Locale,
@@ -64,10 +65,13 @@ export function LeaveHistoryTable({
   onDecide,
   onRevoke,
   includeEmployee,
+  stacked = false,
 }: {
   items: Row[];
   pending: boolean;
   onCancel?: (row: Row) => void;
+  /** الصفحة تملك الكرت: جدول بلا كرت بصفوف مكدسة تحت 600px؛ غيابها يترك الرسم الحالي كما هو. */
+  stacked?: boolean;
 } & LeaveDecisionActions) {
   'use no memo';
   const locale = useLocale();
@@ -87,6 +91,7 @@ export function LeaveHistoryTable({
     manualPagination: true,
     getRowId: (r) => r.id,
   });
+  if (stacked) return <StackedTable table={table} unlabelled={['cancel', 'decision']} />;
   return (
     <DataTableFrame>
       <table>
