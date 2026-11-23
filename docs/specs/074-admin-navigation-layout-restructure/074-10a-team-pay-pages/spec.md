@@ -57,4 +57,50 @@ Estimate: 600 production, 800 tests. Review rounds roughly doubled 074-9, so sto
 
 ## Implementation notes
 
-*(filled by the implementer: per page what moved, the proving tests, changed assertions, `packages/ui` changes, open points, sizes)*
+### What moved, per page
+
+| Page | What moved | Tests that prove the structure |
+|---|---|---|
+| Employees | `PageShell list`; header actions: Document types (and the app link when it exists) as outline `actions`, Create employee as the primary `action`; one stacked `DataTableFrame` owned by `EmployeeListPanel` in every state, with the search in its filter area, loading, refusal and empty inside, and paging in its footer; bare table with explicit roles and labels on Name, Role and Primary branch | `staff/pages/employees-page-layout.spec.tsx` |
+| Create employee | `PageShell form`; one card; sections «Employee details» (names, 6 + 6) and «Employment» (branch 6, role 6, hire date 4, contract end 4, user ID 12, employee number 4); every label and control in one cell; create action last at the card foot; fields keep their old DOM order | `staff/pages/create-employee-page-layout.spec.tsx` |
+| Employee numbers | `PageShell list`; one stacked card in every state; the search sits in the card's filter area and is absent only when access is refused (as on `main`); labels on Business and Employee number | `staff/company-numbers/pages/company-employee-numbers-page-layout.spec.tsx` |
+| Import employees | `PageShell form`; one card with sections «Template» and «File», actions at the foot (Preview, then Commit last, both still outline); the rows-to-fix table, the result and the refusal below the card; the errors table is stacked, caption kept | `staff/pages/employee-import-page-layout.spec.tsx` |
+| Document types | `PageShell list`; one stacked card holds loading, refusal or the table; the add/edit form and its messages stay after the table in their own card; the Edit/Deactivate cell has no label (its header text equals its button) | `staff/pages/document-types-page-layout.spec.tsx` |
+| Commission plans | `PageShell list`; the employee picker and the plan form stay where they are; the version history is one stacked card with Load more moved from the title bar to the footer | `commissions/pages/__tests__/commission-plans-page-layout.spec.tsx` |
+| Commission overrides | `PageShell list`; the picker stays before the card; the services table is one stacked card with Load more in the footer; the Edit cell has no label | `commissions/pages/__tests__/commission-overrides-page-layout.spec.tsx` |
+
+### Precedent for the two commission pages
+
+The employee picker chooses whose data the screen shows; it does not narrow rows. It therefore stays between the header and the card, like the scope select of Categories in 074-9, and is asserted to be outside the card. The card is the per-employee table. A frame above the section would need the section's queries lifted into the board, which is the second-observer mistake 074-9 corrected; a frame inside the section would remount the picker. The plan builder form stays between the picker and the history card: no document says where it goes (open point 1).
+
+### Requests and states against `origin/main`
+
+No hook call, query key, enabled flag or request was added, removed or reordered. Each page has the same single owner of each query as on `main`; only wrapper elements moved. States on `main` and now (loading, refusal, denied, empty, data, paging) render the same content; the card now surrounds them where the template says so. Employee numbers still renders no search box while access is refused; Employees and Document types still render no form while the read is pending or refused.
+
+### Shared files
+
+- Opt-in `grid` prop (default off, markup unchanged) on `EmployeeNameFields`, `EmployeePlacementFields`, `EmployeeContractFields` and `EmployeeNumberField`; these are shared with `EditEmployeeForm`, whose panel is unchanged. No `staff/ui` file used by the Attendance or Leave pages was touched.
+- `EmployeeListSearch` and `EmployeePageNavigation` (shared by Employees and Employee numbers) are unchanged.
+
+### Changed assertions
+
+None. No assertion in an existing spec was deleted or edited.
+
+### `packages/ui` changes
+
+None. `packages/i18n`: `employeeImport.sectionTemplate`, `employeeImport.sectionFile`, `staff.sectionIdentity`, `staff.sectionEmployment`, each in `ar` and `en`; none had a match in either catalog.
+
+### Open points
+
+1. The plan builder form (Commission plans) and the add/edit form (Document types) have no stated destination; both stay where they are.
+2. Employees and Employee numbers keep the employee number as the first column, so on a phone it is the card title; no document says to reorder columns.
+3. The inner fields of the Document types form and of the plan builder were not put on the 12-column grid: the spec names only the pages' frames.
+4. Document types keeps its title in both the page header and the card (as Package types does).
+
+### Not verified in a browser
+
+Widths, 12-column spans, stacking under 600px, 44px targets, the Arabic layout, how the form card looks around the disabled fieldset, and the document popup browser job (the popup flow and the `/staff` row and Edit button it reads are unchanged in structure; the job itself was not run).
+
+### Sizes
+
+See the final report; the 1,700 stop line was passed at the end of step 4, before step 5 (gates and guards only).

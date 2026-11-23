@@ -3,11 +3,10 @@ import type { EmployeeNumberPage } from '@pospay/contracts';
 import type { UseQueryResult } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { t } from '@pospay/i18n';
-import { CircleAlert, DataTableFrame, EmptyState, LoaderCircle, UserRound } from '@pospay/ui';
-import { envelopeMessage } from '@/shared/api/api-error';
+import { DataTableFrame, EmptyState, LoaderCircle, UserRound } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { EmployeePageNavigation } from '../../ui/employee-page-navigation';
-import { companyNumbersListDenied } from '../model/company-employee-number-message';
+import { CompanyEmployeeNumbersError } from './company-employee-numbers-error';
 import { CompanyEmployeeNumbersTable } from './company-employee-numbers-table';
 
 type CompanyEmployeeNumbersPanelProps = {
@@ -57,18 +56,7 @@ export function CompanyEmployeeNumbersPanel({
       {list.isPending ? (
         <EmptyState role="status" icon={<LoaderCircle />} title={t(locale, 'admin.loading')} />
       ) : null}
-      {list.isError ? (
-        <EmptyState
-          role="alert"
-          tone="danger"
-          icon={<CircleAlert />}
-          title={
-            companyNumbersListDenied(list.error)
-              ? t(locale, 'companyEmployeeNumbers.noAccess')
-              : envelopeMessage(list.error, locale)
-          }
-        />
-      ) : null}
+      {list.isError ? <CompanyEmployeeNumbersError error={list.error} /> : null}
       {data && data.items.length === 0 ? (
         <EmptyState icon={<UserRound />} title={t(locale, 'companyEmployeeNumbers.empty')} />
       ) : null}

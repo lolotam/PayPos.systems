@@ -6,7 +6,6 @@ import {
   type WorkspaceBranch,
 } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { Button, Card, CardContent, CardFooter } from '@pospay/ui';
 import { FormProvider, useForm, useWatch } from 'react-hook-form';
 import { useLocale } from '@/shared/locale/locale-context';
 import {
@@ -16,7 +15,7 @@ import {
 } from '../model/use-create-employee-number';
 import { useNameCheckedSubmit } from '../model/use-name-checked-submit';
 import { DuplicateNameWarning } from './duplicate-name-warning';
-import { CreateEmployeeSections } from './create-employee-sections';
+import { CreateEmployeeFormCard } from './create-employee-form-card';
 
 type CreateEmployeeFormProps = {
   companyId: string;
@@ -74,26 +73,13 @@ export function CreateEmployeeForm(props: CreateEmployeeFormProps) {
         )}
         className="grid gap-4 text-start"
       >
-        <Card>
-          <fieldset
-            disabled={props.pending || submit.checking || !!submit.warning}
-            className="min-w-0"
-          >
-            <CardContent className="grid gap-6">
-              <CreateEmployeeSections
-                branches={props.branches}
-                numberShown={number.shown}
-                numberHidden={number.pending}
-                numberMessage={number.message}
-              />
-            </CardContent>
-            <CardFooter>
-              <Button className="ms-auto" type="submit" disabled={number.pending}>
-                {t(locale, 'staff.create')}
-              </Button>
-            </CardFooter>
-          </fieldset>
-        </Card>
+        <CreateEmployeeFormCard
+          branches={props.branches}
+          disabled={props.pending || submit.checking || !!submit.warning}
+          numberShown={number.shown}
+          numberHidden={number.pending}
+          numberMessage={number.message}
+        />
         {submit.warning ? (
           <DuplicateNameWarning
             matches={submit.warning}

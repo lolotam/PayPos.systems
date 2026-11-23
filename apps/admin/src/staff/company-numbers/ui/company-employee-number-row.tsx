@@ -12,6 +12,19 @@ function editButtonName(locale: Locale, name: string) {
   return t(locale, 'companyEmployeeNumbers.editName').replace('{name}', name);
 }
 
+// نصوص صف الجدول: اسم الموظفة والنشاط، وتسميتا الخليتين تحت 600px.
+function rowTexts(item: EmployeeNumberListItem, locale: Locale) {
+  return {
+    person: companyEmployeeNumberLabel(item, locale),
+    business: companyEmployeeNumberLabel(
+      { name_ar: item.business_name_ar, name_en: item.business_name_en },
+      locale,
+    ),
+    businessLabel: t(locale, 'companyEmployeeNumbers.business'),
+    numberLabel: t(locale, 'companyEmployeeNumbers.number'),
+  };
+}
+
 function useEditButtonFocus(employeeId: string, editingId: string | undefined) {
   const editButton = useRef<HTMLButtonElement>(null);
   const editorNode = useRef<HTMLFormElement | null>(null);
@@ -52,18 +65,14 @@ export function CompanyEmployeeNumberRow({
   const locale = useLocale();
   const editing = editingId === item.employee_id;
   const { editButton, rootRef } = useEditButtonFocus(item.employee_id, editingId);
-  const person = companyEmployeeNumberLabel(item, locale);
-  const business = companyEmployeeNumberLabel(
-    { name_ar: item.business_name_ar, name_en: item.business_name_en },
-    locale,
-  );
+  const { person, business, businessLabel, numberLabel } = rowTexts(item, locale);
   return (
     <tr role="row">
       <td role="cell">{person}</td>
-      <td role="cell" data-cell-label={t(locale, 'companyEmployeeNumbers.business')}>
+      <td role="cell" data-cell-label={businessLabel}>
         {business}
       </td>
-      <td role="cell" data-cell-label={t(locale, 'companyEmployeeNumbers.number')}>
+      <td role="cell" data-cell-label={numberLabel}>
         <div className="flex flex-col items-start gap-2">
           <span>{displayEmployeeNumber(item.employee_number)}</span>
           {editing ? (
