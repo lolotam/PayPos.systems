@@ -28,7 +28,7 @@ export const commissionStatementApprovalPaths = {
           in: 'path',
           name: 'period',
           required: true,
-          schema: { type: 'string', pattern: '^(?!0000-)\d{4}-(0[1-9]|1[0-2])$' },
+          schema: { type: 'string', pattern: '^(?!0000-)\\d{4}-(0[1-9]|1[0-2])$' },
         },
         {
           in: 'header',
