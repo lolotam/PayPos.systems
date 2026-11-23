@@ -247,6 +247,8 @@ interface HarnessOptions {
   controllers?: readonly Type<unknown>[];
   /** مصدر الجلسة الشخصية؛ من غيره المسار الشخصي مرفوض زي أي طلب بلا جلسة. */
   personalOrigin?: string;
+  /** بادئة اسم cookies الجلسة — للاختبار اللي بي证明了 إن cookie بيئة تانية ما بتتقراش. */
+  cookiePrefix?: string;
 }
 
 export async function startHarness(options: HarnessOptions = {}): Promise<Harness> {
@@ -414,6 +416,7 @@ function harnessAuth(
     trustedOrigins: [ORIGIN, ...(options.staffOrigin === undefined ? [] : [options.staffOrigin])],
     ids,
     secureCookies: false,
+    ...(options.cookiePrefix === undefined ? {} : { cookiePrefix: options.cookiePrefix }),
     onLog: () => undefined,
   });
 }

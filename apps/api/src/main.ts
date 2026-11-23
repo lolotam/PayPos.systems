@@ -150,6 +150,7 @@ try {
     staffPhoneLockKey: phoneLockKey,
     secureCookies: config.BETTER_AUTH_URL.startsWith('https:'),
     cookieDomain: config.COOKIE_DOMAIN,
+    cookiePrefix: config.AUTH_COOKIE_PREFIX,
     // Already stripped of error objects and long values inside packages/auth.
     onLog: ({ level, message, errorNames }) => {
       logger[level]({ authLibrary: { message, errorNames } }, 'auth library event');
