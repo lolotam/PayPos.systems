@@ -47,7 +47,11 @@ beforeEach(async () => {
 });
 
 class RolledBack {
-  constructor(readonly rows: Record<string, unknown>[]) {}
+  readonly rows: Record<string, unknown>[];
+
+  constructor(rows: Record<string, unknown>[]) {
+    this.rows = rows;
+  }
 }
 
 /** يقرأ الإثبات الحالي كما يقرؤه الاعتماد: بدور التطبيق وسياق الشركة، ثم يلغي المعاملة كلها (الضمان يتراجع). */
@@ -80,22 +84,22 @@ async function identity(): Promise<Identity> {
   return { name: row.name, systemId: row.system_id, bound: row.bound };
 }
 
-type IssueOverrides = Partial<{
-  company: string;
-  generation: number;
-  version: number;
-  businesses: string[];
-  tipFrom: string;
-  tipTo: string | null;
-  verifiedBound: string | null;
-  reportThrough: string | null;
-  database: string;
-}>;
+interface IssueOverrides {
+  readonly company?: string;
+  readonly generation?: number;
+  readonly version?: number;
+  readonly businesses?: readonly string[];
+  readonly tipFrom?: string;
+  readonly tipTo?: string | null;
+  readonly verifiedBound?: string | null;
+  readonly reportThrough?: string | null;
+  readonly database?: string;
+}
 
 /** يصدر إثباتًا بدور المرسِل؛ كل معامل يمكن تغييره لإثبات رفض بعينه. */
 async function issue(overrides: IssueOverrides = {}): Promise<number> {
   const id = await identity();
-  const businesses = overrides.businesses ?? [A.business];
+  const businesses = [...(overrides.businesses ?? [A.business])];
   const [row] = await dispatcher<{ generation: string }[]>`SELECT public.issue_commission_coverage_proof(
       ${overrides.company ?? A.company}::uuid, ${PROOF_A}::uuid, ${overrides.generation ?? 0}::bigint,
       ${overrides.version ?? COMMISSION_COVERAGE_PROOF_VERSION}::integer, ${businesses}::uuid[],
@@ -175,6 +179,40 @@ describe('the issuer refusals', () => {
     await markEvent(A.company, eventId(1));
 
     await expect(issue({ reportThrough: eventId(9) })).rejects.toThrow('COVERAGE_REPORT_BOUND_AHEAD');
+  });
+
+});
+
+describe('the bounds of an issuance (#1223 items 2 and 13)', () => {
+  beforeEach(ensureState.bind(null, A.company));
+
+  it('issues for a company with no counted events, storing both bounds as NULL (#1223 item 2)', async () => {
+    expect(await issue()).toBe(1);
+
+    const [proof] = await owner`SELECT report_through_id, verified_through_id FROM commission_coverage_proofs`;
+    expect(proof).toEqual({ report_through_id: null, verified_through_id: null });
+  });
+
+  it('stores the function bound when the report printed none and marked events arrived since (#1223 item 2)', async () => {
+    await seedEvent(A.company, eventId(1), 'SalaryChanged');
+    await markEvent(A.company, eventId(1));
+
+    expect(await issue({ reportThrough: null })).toBe(1);
+
+    const [proof] = await owner`SELECT report_through_id, verified_through_id FROM commission_coverage_proofs`;
+    expect(proof).toEqual({ report_through_id: null, verified_through_id: eventId(1) });
+  });
+
+  it('refuses a report bound when no counted event remains (#1223 item 2)', async () => {
+    await expect(issue({ reportThrough: eventId(1) })).rejects.toThrow('COVERAGE_REPORT_BOUND_AHEAD');
+  });
+
+  it('reports a moved tip bound as such, never masked by the scope refusal (#1223 item 13)', async () => {
+    await expect(
+      issue({ tipFrom: '2020-01-01', verifiedBound: '2020-01-02', tipTo: '2020-01-02' }),
+    ).rejects.toThrow(
+      'COVERAGE_TIP_BOUND_MOVED',
+    );
   });
 
   it('lets exactly one of two issuers on the same generation win', async () => {
