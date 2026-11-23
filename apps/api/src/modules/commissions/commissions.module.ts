@@ -33,6 +33,7 @@ import { createCommissionPlanVersionTransactions } from './persistence/drizzle-c
 import { createCommissionServiceOverrideTransactions } from './persistence/drizzle-commission-service-override-transactions.ts';
 import type { CommissionPlanVersionReaders } from './persistence/commission-plan-version-scope.ts';
 import type { CommissionServiceReaderPort } from './ports/commission-service-reader.port.ts';
+import type { CommissionStatementPayAccessPort } from './ports/commission-statement-pay-access.port.ts';
 import {
   COMMISSION_SERVICE_OVERRIDE_LIST_READS,
   type CommissionServiceOverrideListReadsFactory,
@@ -53,6 +54,8 @@ import { CreateCommissionServiceOverrideUseCase } from './use-cases/create-commi
 import { GetCommissionEstimateUseCase } from './use-cases/get-commission-estimate/get-commission-estimate.usecase.ts';
 import { GenerateCommissionStatementUseCase } from './use-cases/generate-statement/generate-statement.usecase.ts';
 import { GetCommissionStatementUseCase } from './use-cases/get-statement/get-statement.usecase.ts';
+import { MarkCommissionStatementPaidUseCase } from './use-cases/mark-statement-paid/mark-statement-paid.usecase.ts';
+import { createCommissionStatementPayTransactions } from './persistence/drizzle-commission-statement-pay-transactions.ts';
 
 export const commissionsControllers = [
   CommissionPlanVersionsController,
@@ -71,6 +74,7 @@ export const commissionsControllers = [
  */
 export interface CommissionModuleReaders extends CommissionPlanVersionReaders {
   readonly serviceReader: CommissionServiceReaderPort['exists'];
+  readonly payAccess: CommissionStatementPayAccessPort['recheck'];
 }
 
 export function commissionsProviders(
@@ -185,6 +189,19 @@ function commissionWriteProviders(
           : new CreateCommissionServiceOverrideUseCase(
               createCommissionServiceOverrideTransactions(database, ids, readers),
               ids,
+              clock,
+            ),
+    },
+    {
+      provide: MarkCommissionStatementPaidUseCase,
+      useValue:
+        database === undefined
+          ? null
+          : new MarkCommissionStatementPaidUseCase(
+              createCommissionStatementPayTransactions(database, ids, {
+                businessCalendar: readers.businessCalendar,
+                access: readers.payAccess,
+              }),
               clock,
             ),
     },

@@ -104,6 +104,7 @@ export { lockAlertRulesAccess, readAlertRulesAccess } from './persistence/alert-
 export {
   readCommissionPlanAccess,
   readCommissionPlanListAccess,
+  readCommissionStatementPayAccess,
 } from './persistence/commission-plan-access.ts';
 export { readCommissionReviewAccess } from './persistence/commission-review-access.ts';
 export {

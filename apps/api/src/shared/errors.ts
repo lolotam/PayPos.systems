@@ -9,6 +9,7 @@ import {
   LEAVE_HISTORY_REPORT_RAISED_BY_THE_API_ONLY,
   LEAVE_HISTORY_REPORT_STATUS,
 } from './leave-history-report-error-statuses.ts';
+import { COMMISSION_ERROR_STATUS } from './commission-error-codes.ts';
 
 const PACKAGE_TYPE_STATUS = {
   PACKAGE_TYPE_NOT_FOUND: 404,

@@ -33,6 +33,7 @@ import {
   identityProviders,
   readCommissionPlanAccess,
   readCommissionPlanListAccess,
+  readCommissionStatementPayAccess,
   readCommissionFeatureEnabled,
   readCommissionReviewAccess,
   readCommissionScope,
@@ -202,6 +203,7 @@ function commissionBindings(deps: AppDependencies) {
       businessCalendar,
       employeeLock: lockEmployeeForUpdate,
       access: readCommissionPlanAccess,
+      payAccess: readCommissionStatementPayAccess,
       // وجود الخدمة بس: قاعدة الكتالوج الحية مش مرجع تاريخ، واللقطة المحفوظة على السطر هي المرجع.
       serviceReader: async (tx, companyId, businessId, serviceId) =>
         (await readSessionServices(tx, companyId, businessId, [serviceId])).length > 0,
