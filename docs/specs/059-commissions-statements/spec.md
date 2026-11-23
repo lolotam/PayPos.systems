@@ -955,7 +955,8 @@ Named tests; each is an integration test against real Postgres (T2 stack, ADR-00
   same transaction the month is recomputed and the correction posted (FR-039) into the target D-13 chooses then (FR-046),
   under one `lockStatementPeriods` call that locks the source month through the business's current month in ascending
   order (every candidate, the held month among them); the block is resolved when the recompute succeeds and the held
-  month is released. Under CS-Q46 (PP-205.1), move the worker's correction step to a shared location before
+  month is released. The same transaction appends one outbox event `CommissionPeriodRepairSaved` (ids and the block's
+  outcome only), whatever the outcome, since CM-52b keeps the version and the audit when the block stays `NO_SALARY`. Under CS-Q46 (PP-205.1), move the worker's correction step to a shared location before
   implementing this API route (`plan-55-2.md` §9).
 - **FR-048** A month that is the stored `target_statement_id` of an open blocked correction, for any employee, cannot be
   reviewed or approved (SPEC §6); the check reads the stored target, never recomputes it.

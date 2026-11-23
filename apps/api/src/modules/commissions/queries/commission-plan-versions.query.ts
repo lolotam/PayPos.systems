@@ -27,6 +27,11 @@ function cursorClause(cursor: number | undefined) {
   return cursor === undefined ? sql`` : sql`AND version < ${cursor}`;
 }
 
+/** `kind=ordinary` بتشيل نسخ الإصلاح قبل الـ LIMIT، فالمحرّر ياخد أحدث نسخة عادية حتى لو أول صفحة كلها إصلاحات. */
+function kindClause(kind: CommissionPlanVersionListQuery['kind']) {
+  return kind === 'ordinary' ? sql`AND repair_period IS NULL` : sql``;
+}
+
 /** شاشة منشئ الخطة ترفض سجل موظفة غير موجودة في النشاط بدلاً من صفحة فارغة. */
 async function assertEmployeeInBusiness(
   tx: Tx,
@@ -54,7 +59,7 @@ export function listCommissionPlanVersionsStatement(
     to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS created_at,created_by
     FROM commission_plan_versions
     WHERE company_id=${companyId} AND business_id=${businessId} AND employee_id=${employeeId}
-    ${cursorClause(query.cursor)} ORDER BY version DESC LIMIT ${query.limit + 1}`;
+    ${kindClause(query.kind)} ${cursorClause(query.cursor)} ORDER BY version DESC LIMIT ${query.limit + 1}`;
 }
 
 export async function listCommissionPlanVersions(

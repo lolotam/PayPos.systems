@@ -86,6 +86,8 @@ const engineSyntax = (pattern, message) => [
   { selector: `ImportExpression[source.value=${pattern}]`, message },
   { selector: `CallExpression[callee.name='require'][arguments.0.value=${pattern}]`, message },
   { selector: `TSImportType[argument.literal.value=${pattern}]`, message },
+  // `import x = require('...')` is its own node, so a relative or subpath specifier needs its own selector.
+  { selector: `TSImportEqualsDeclaration[moduleReference.expression.value=${pattern}]`, message },
 ];
 
 /** The dynamic-import, require() and import-type selectors of the engine's root entry. */
@@ -129,6 +131,50 @@ export const COMMISSIONS_POSTING_PATH_SYNTAX = engineSyntax(
   '/^\\.{1,2}\\/(?:.*\\/)?commissions-posting(?:\\/.*)?$/',
   COMMISSIONS_POSTING_PATH_BAN.message,
 );
+
+const FACTORY_MESSAGE =
+  'The correction scope factory belongs to the module wiring and persistence/, never to a use case: a use case receives the scope through its transactions port (ADR-0054 §1 addendum, #1217).';
+
+/** The one persistence export of the posting package: an app's use-cases/ may not import it by name (#1217). */
+export const COMMISSIONS_POSTING_FACTORY_PATH = {
+  name: '@pospay/commissions-posting',
+  importNames: ['createCommissionCorrectionScope'],
+  message: FACTORY_MESSAGE,
+};
+
+/**
+ * A use case that loads the posting root dynamically, by require() or by import-equals could take the factory
+ * under any name, so those forms are refused for the root in use-cases/; static imports stay allowed (the step).
+ */
+export const COMMISSIONS_POSTING_FACTORY_SYNTAX = [
+  // The import-type selector is left out: a type reference cannot construct a scope.
+  ...engineSyntax('/^@pospay\\/commissions-posting$/', FACTORY_MESSAGE).filter(
+    ({ selector }) => !selector.startsWith('TSImportType'),
+  ),
+  // A type reference to the factory itself (`typeof import('...').createCommissionCorrectionScope`) is refused too.
+  {
+    selector:
+      "TSImportType[argument.literal.value='@pospay/commissions-posting'][qualifier.name='createCommissionCorrectionScope']",
+    message: FACTORY_MESSAGE,
+  },
+  // `export * from` the root hands every export, the factory included, to the importers of this file.
+  {
+    selector: "ExportAllDeclaration[source.value='@pospay/commissions-posting']",
+    message: FACTORY_MESSAGE,
+  },
+];
+
+const UNANALYSABLE_MESSAGE =
+  'A use case or a port loads only modules it can name: a computed import() or require() hides what it takes, so it is refused (ADR-0054 §1 addendum, #1217).';
+
+/** A computed import() or require() in a layer that may not take the scope factory: what cannot be analysed is refused. */
+export const COMMISSIONS_UNANALYSABLE_SYNTAX = [
+  { selector: 'ImportExpression:not([source.type="Literal"])', message: UNANALYSABLE_MESSAGE },
+  {
+    selector: "CallExpression[callee.name='require']:not([arguments.0.type='Literal'])",
+    message: UNANALYSABLE_MESSAGE,
+  },
+];
 
 /** The full posting ban, dynamic and static, for the blocks that lift nothing. */
 export const COMMISSIONS_POSTING_SYNTAX = [

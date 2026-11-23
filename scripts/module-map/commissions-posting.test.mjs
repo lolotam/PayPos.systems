@@ -3,7 +3,8 @@
 // module's use-cases/, ports/ and persistence/ (plus its wiring file and module tests) alone, and the package itself
 // is the one package besides those layers that may import the engine's root entry.
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { after, describe, it } from 'node:test';
+import { readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { ESLint } from 'eslint';
@@ -12,6 +13,7 @@ const POSTING = '@pospay/commissions-posting';
 const ENGINE = '@pospay/commissions-engine';
 const E = 'ADR-0054';
 const ALLOWED = 'allowed';
+const FACTORY = 'correction scope factory';
 
 const staticImport = (spec) =>
   `import { probe as dep } from '${spec}';\n\nexport const probe = dep;\n`;
@@ -81,12 +83,15 @@ const add = (at, file, source, expect, what) => {
 for (const app of ['api', 'worker']) {
   for (const [formName, form] of FORMS) {
     for (const [file, layer] of ALLOWED_LAYERS) {
+      // A use case or a port may not load the root dynamically or by require(): that could take the scope factory (#1217).
+      const useCaseLoadsAtRuntime =
+        ['use case', 'port'].includes(layer) && ['dynamic import', 'require'].includes(formName);
       add(
         app,
         file,
         form(POSTING),
-        ALLOWED,
-        `a commissions ${layer} may ${formName} the posting root`,
+        useCaseLoadsAtRuntime ? FACTORY : ALLOWED,
+        `a commissions ${layer} may${useCaseLoadsAtRuntime ? ' not' : ''} ${formName} the posting root`,
       );
     }
     for (const [file, layer] of REFUSED_LAYERS) {
@@ -317,11 +322,18 @@ for (const [formName, form] of FORMS) {
   ]) {
     add('posting', PORT, form(spec), PORT_ONLY, `a port may not ${formName} ${what}`);
   }
+  // A port's own domain/ and sibling ports are types only, like the packages it names (#1217).
   for (const [spec, what] of [
     ['../domain/commission-correction-step.ts', 'its domain/'],
     ['./commission-correction.port.ts', 'a sibling port'],
   ]) {
-    add('posting', PORT, form(spec), ALLOWED, `a port may ${formName} ${what}`);
+    add(
+      'posting',
+      PORT,
+      form(spec),
+      formName === 'import type' ? ALLOWED : PORT_ONLY,
+      `a port may ${formName === 'import type' ? '' : 'not '}${formName} ${what}`,
+    );
   }
   // The three packages a port may name are types only: a value import (or a dynamic import, or require) is refused.
   for (const [spec, what] of [
@@ -501,6 +513,235 @@ add(
   ALLOWED,
   'the package may import its own files',
 );
+
+// The scope factory belongs to the module wiring and persistence/: an app's use case may not import it (#1217).
+const FACTORY_NAME = 'createCommissionCorrectionScope';
+const FACTORY_FORMS = [
+  [
+    'import',
+    `import { ${FACTORY_NAME} } from '${POSTING}';
+export const probe = ${FACTORY_NAME};
+`,
+  ],
+  [
+    'aliased import',
+    `import { ${FACTORY_NAME} as make } from '${POSTING}';
+export const probe = make;
+`,
+  ],
+  [
+    'namespace import',
+    `import * as posting from '${POSTING}';
+export const probe = posting;
+`,
+  ],
+  [
+    'import type',
+    `import type { ${FACTORY_NAME} } from '${POSTING}';
+export type Probe = typeof ${FACTORY_NAME};
+`,
+  ],
+  [
+    're-export',
+    `export { ${FACTORY_NAME} } from '${POSTING}';
+`,
+  ],
+  [
+    'type query of the factory',
+    `export type Probe = typeof import('${POSTING}').${FACTORY_NAME};
+`,
+  ],
+  [
+    'import type of the factory',
+    `export type Probe = import('${POSTING}').${FACTORY_NAME};
+`,
+  ],
+  ['dynamic import', dynamicImport(POSTING)],
+  ['require', requireCall(POSTING)],
+  [
+    'import-equals',
+    `import posting = require('${POSTING}');
+export const probe = posting;
+`,
+  ],
+];
+for (const app of ['api', 'worker']) {
+  const useCase = `${M}/use-cases/probe/probe.ts`;
+  for (const [formName, source] of FACTORY_FORMS) {
+    add(app, useCase, source, FACTORY, `a use case may not take the scope factory by ${formName}`);
+    add(
+      app,
+      `${M}/use-cases/__tests__/probe.spec.ts`,
+      source,
+      FACTORY,
+      `a use-case test may not take the scope factory by ${formName}`,
+    );
+    add(
+      app,
+      `${M}/ports/__tests__/probe.spec.ts`,
+      source,
+      FACTORY,
+      `a port test may not take the scope factory by ${formName}`,
+    );
+  }
+  // The same root stays importable by name for the step: only the factory is refused.
+  add(
+    app,
+    useCase,
+    `import { postCommissionCorrections } from '${POSTING}';
+export const probe = postCommissionCorrections;
+`,
+    ALLOWED,
+    'a use case may import the step by name',
+  );
+  add(
+    app,
+    useCase,
+    `import type { CommissionCorrectionScope } from '${POSTING}';
+export type Probe = CommissionCorrectionScope;
+`,
+    ALLOWED,
+    'a use case may import the scope type by name',
+  );
+  // The wiring file, persistence adapters and the module's tests construct the scope.
+  for (const [file, layer] of [
+    [`${M}/commissions.module.ts`, 'the module wiring'],
+    [`${M}/persistence/probe.adapter.ts`, 'a persistence adapter'],
+    [`${M}/__tests__/probe.spec.ts`, 'a module-level test'],
+  ]) {
+    add(app, file, FACTORY_FORMS[0][1], ALLOWED, `${layer} may import the scope factory`);
+  }
+}
+
+// `import x = require()` is its own node: every layer allowlist of the package refuses it (#1217).
+for (const [layer, file] of [
+  ['the package at large', `${P}/probe.ts`],
+  ['domain', `${P}/domain/probe.ts`],
+  ['ports', `${P}/ports/probe.port.ts`],
+  ['use-cases', `${P}/use-cases/probe/probe.ts`],
+  ['persistence', `${P}/persistence/probe.adapter.ts`],
+]) {
+  add(
+    'posting',
+    file,
+    "import dep = require('@pospay/auth');\nexport const probe = dep;\n",
+    'may import only',
+    `${layer} may not import another package by import-equals`,
+  );
+}
+add(
+  'posting',
+  `${P}/domain/probe.ts`,
+  "import dep = require('./commission-correction-step.ts');\nexport const probe = dep;\n",
+  ALLOWED,
+  'domain may import its own file by import-equals',
+);
+add(
+  'posting',
+  `${P}/ports/probe.port.ts`,
+  "import dep = require('../domain/commission-correction-step.ts');\nexport const probe = dep;\n",
+  'ports/ may import only',
+  'a port may not import its own domain by import-equals (a runtime import)',
+);
+
+// #1217 point 3, the indirect routes: a layer that may import the root must not hand the factory on, a computed
+// specifier is refused where it cannot be analysed, and import-equals is judged like every other form.
+const UNANALYSABLE = 'loads only modules it can name';
+const COMPUTED_FORMS = [
+  ['computed import', 'export const probe = (name: string) => import(name);\n'],
+  [
+    'template-literal import',
+    'export const probe = () => import(`${"@pospay"}/commissions-posting`);\n',
+  ],
+  ['computed require', 'export const probe = (name: string) => require(name);\n'],
+  ['argument-less require', 'export const probe = () => require();\n'],
+];
+const REEXPORT_ALL = `export * from '${POSTING}';\n`;
+for (const app of ['api', 'worker']) {
+  for (const [file, layer] of [
+    [`${M}/use-cases/probe/probe.ts`, 'use case'],
+    [`${M}/ports/probe.port.ts`, 'port'],
+  ]) {
+    for (const [formName, source] of FACTORY_FORMS) {
+      if (layer === 'port') {
+        add(app, file, source, FACTORY, `a port may not take the scope factory by ${formName}`);
+      }
+    }
+    add(app, file, REEXPORT_ALL, FACTORY, `a ${layer} may not re-export the whole posting root`);
+    for (const [formName, source] of COMPUTED_FORMS) {
+      add(app, file, source, UNANALYSABLE, `a ${layer} may not use a ${formName}`);
+    }
+  }
+  // A literal specifier of another package stays loadable: only what cannot be analysed is refused.
+  add(
+    app,
+    `${M}/use-cases/probe/probe.ts`,
+    "export const probe = () => import('./helper.ts');\n",
+    ALLOWED,
+    'a use case may still load a literal specifier that the other rules judge',
+  );
+  // import-equals of a relative path or a subpath, which the bare-name selector missed.
+  for (const [file, layer] of ALLOWED_LAYERS) {
+    for (const [what, spec, target] of [
+      ['a posting subpath', `${POSTING}/dist/index.js`, E],
+      [
+        'the posting package by a relative path',
+        '../../../../../../packages/commissions-posting/src/index.ts',
+        E,
+      ],
+      ['an engine subpath', `${ENGINE}/dist/index.js`, E],
+      [
+        'the engine by a relative path',
+        '../../../../../../packages/commissions-engine/src/index.ts',
+        E,
+      ],
+    ]) {
+      add(
+        app,
+        file,
+        `import dep = require('${spec}');\nexport const probe = dep;\n`,
+        target,
+        `a ${layer} may not import ${what} by import-equals`,
+      );
+    }
+  }
+}
+
+// Two real files: a barrel inside persistence/ that re-exports the factory, and a use case importing the barrel.
+const BARREL = 'zz-probe-factory-barrel.ts';
+const barrelPaths = ['api', 'worker'].map((app) => ({
+  app,
+  path: cwd(`../../apps/${app}/src/modules/commissions/persistence/${BARREL}`),
+}));
+for (const { path } of barrelPaths) {
+  writeFileSync(path, `export { createCommissionCorrectionScope } from '${POSTING}';\n`);
+}
+after(() => {
+  for (const { path } of barrelPaths) rmSync(path, { force: true });
+});
+for (const { app } of barrelPaths) {
+  it(`${app}: a use case may not reach the factory through a barrel of persistence/`, async () => {
+    const source = `import { createCommissionCorrectionScope as make } from '../../persistence/${BARREL}';\nexport const probe = make;\n`;
+    const [result] = await linters[app].lintText(source, {
+      filePath: `${M}/use-cases/probe/probe.ts`,
+    });
+    assert.ok(
+      result.messages.some((message) => message.ruleId === 'boundaries/dependencies'),
+      JSON.stringify(result.messages),
+    );
+  });
+}
+
+// Files the lint config does not reach cannot carry a layer rule: the package holds .ts files only.
+it('keeps every source file of the posting package a .ts file the layer rules reach', () => {
+  const root = fileURLToPath(new URL('../../packages/commissions-posting/src', import.meta.url));
+  const stray = readdirSync(root, { recursive: true }).filter(
+    (name) =>
+      /\.(mts|cts|mjs|cjs|js|jsx|tsx)$/.test(String(name)) &&
+      !String(name).includes('node_modules'),
+  );
+  assert.deepEqual(stray, []);
+});
 
 describe('the commissions posting package import bans (ADR-0054 §1 addendum)', () => {
   for (const c of CASES) {
