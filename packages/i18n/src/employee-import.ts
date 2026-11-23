@@ -2,6 +2,8 @@
 export const employeeImportEn = {
   title: 'Import employees',
   lead: 'Download the template, fill it, upload it and preview before committing.',
+  sectionTemplate: 'Template',
+  sectionFile: 'File',
   download: 'Download template',
   choose: 'Choose the filled .xlsx file',
   preview: 'Preview',
@@ -36,6 +38,8 @@ export const employeeImportEn = {
 export const employeeImportAr = {
   title: 'استيراد الموظفين',
   lead: 'نزّل القالب واملأه وارفعه ثم عاينه قبل الحفظ.',
+  sectionTemplate: 'القالب',
+  sectionFile: 'الملف',
   download: 'تنزيل القالب',
   choose: 'اختر ملف xlsx المكتمل',
   preview: 'معاينة',

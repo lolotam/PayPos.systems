@@ -58,10 +58,12 @@ export function CompanyEmployeeNumberRow({
     locale,
   );
   return (
-    <tr>
-      <td>{person}</td>
-      <td>{business}</td>
-      <td>
+    <tr role="row">
+      <td role="cell">{person}</td>
+      <td role="cell" data-cell-label={t(locale, 'companyEmployeeNumbers.business')}>
+        {business}
+      </td>
+      <td role="cell" data-cell-label={t(locale, 'companyEmployeeNumbers.number')}>
         <div className="flex flex-col items-start gap-2">
           <span>{displayEmployeeNumber(item.employee_number)}</span>
           {editing ? (

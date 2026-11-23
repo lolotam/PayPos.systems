@@ -1,0 +1,69 @@
+'use client';
+import { t } from '@pospay/i18n';
+import { Button, Card, CardContent, CardFooter } from '@pospay/ui';
+import { useLocale } from '@/shared/locale/locale-context';
+
+type EmployeeImportFormCardProps = {
+  templateReady: boolean;
+  onDownload: () => void;
+  onSelect: (file: File | undefined) => void;
+  canPreview: boolean;
+  onInspect: () => void;
+  canCommit: boolean;
+  onCommit: () => void;
+};
+
+/** كرت الاستيراد: قسم القالب وقسم الملف على شبكة الـ12 عمودًا، وشريط الإجراءات في ذيله والحفظ آخره. */
+export function EmployeeImportFormCard({
+  templateReady,
+  onDownload,
+  onSelect,
+  canPreview,
+  onInspect,
+  canCommit,
+  onCommit,
+}: EmployeeImportFormCardProps) {
+  const locale = useLocale();
+  return (
+    <Card>
+      <CardContent className="grid gap-6">
+        <section className="grid gap-4">
+          <h2 className="text-lg font-semibold">{t(locale, 'employeeImport.sectionTemplate')}</h2>
+          <div className="grid grid-cols-12 gap-4">
+            <div className="col-span-12 min-w-0">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!templateReady}
+                onClick={onDownload}
+              >
+                {t(locale, 'employeeImport.download')}
+              </Button>
+            </div>
+          </div>
+        </section>
+        <section className="grid gap-4">
+          <h2 className="text-lg font-semibold">{t(locale, 'employeeImport.sectionFile')}</h2>
+          <div className="grid grid-cols-12 gap-4">
+            <label className="col-span-12 flex min-w-0 flex-col gap-2 text-sm">
+              {t(locale, 'employeeImport.choose')}
+              <input
+                type="file"
+                accept=".xlsx"
+                onChange={(event) => onSelect(event.target.files?.[0])}
+              />
+            </label>
+          </div>
+        </section>
+      </CardContent>
+      <CardFooter className="justify-end">
+        <Button type="button" variant="outline" disabled={!canPreview} onClick={onInspect}>
+          {t(locale, 'employeeImport.preview')}
+        </Button>
+        <Button type="button" variant="outline" disabled={!canCommit} onClick={onCommit}>
+          {t(locale, 'employeeImport.commit')}
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
