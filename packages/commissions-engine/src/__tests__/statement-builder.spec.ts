@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { branchesOn } from '../estimate-visibility.ts';
 
 import { buildStatement } from '../statement-builder.ts';
 import type { StatementRow } from '../statement-types.ts';
@@ -232,7 +233,16 @@ describe('the statement builder pricing failures', () => {
       sales: [],
     });
     const built = buildStatement(input);
-    expect(built.failures).toEqual([{ employeeId: SARA, code: 'NO_PLAN' }]);
+    // الفشل بيشيل فروع الموظفة في يوم المصدر الفاشل، لأن المصدر ده ما بيطلعش له صف (قارئ الفروع).
+    const lineDay = at(rows.lines, 0).businessDate;
+    const branches = branchesOn(
+      input.attachments.filter((attachment) => attachment.employeeId === SARA),
+      lineDay,
+    );
+    expect(branches.length).toBeGreaterThan(0);
+    expect(built.failures).toEqual([
+      { employeeId: SARA, code: 'NO_PLAN', attachedBranchIds: [...branches].sort() },
+    ]);
     expect(built.rows.some((row) => row.kind === 'COMMISSION')).toBe(false);
     expect(built.rows.some((row) => row.kind === 'EMPLOYEE' && row.employeeId === SARA)).toBe(true);
   });

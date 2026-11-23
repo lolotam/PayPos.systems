@@ -47,7 +47,9 @@ function salaryInput(withHerOwnSalary: boolean): StatementBuildInput {
 describe('the statement builder with a plan that needs the salary (D-57)', () => {
   it('reports NO_SALARY for the employee whose salary is missing and prices no source of hers', () => {
     const built = buildStatement(salaryInput(false));
-    expect(built.failures).toEqual([{ employeeId: SARA, code: 'NO_SALARY' }]);
+    expect(built.failures).toEqual([
+      { employeeId: SARA, code: 'NO_SALARY', attachedBranchIds: expect.any(Array) },
+    ]);
     const mine = built.rows
       .filter((row) => row.employeeId === SARA)
       .map((row) => row.kind)

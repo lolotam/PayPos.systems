@@ -10,6 +10,7 @@ export type CommissionPlanVersionErrorCode =
   | 'COMMISSION_PERIOD_NOT_DRAFT'
   | 'COMMISSION_PERIOD_CLOSED'
   | 'COMMISSION_REPAIR_NOT_ALLOWED'
+  | 'COMMISSION_PERIOD_NOT_ENDED'
   | 'TRANSACTION_RETRY_REQUIRED';
 
 /** رفض الكتابة بكود مستقل عن HTTP، وتفاصيل كود المحرك عند الحاجة. */

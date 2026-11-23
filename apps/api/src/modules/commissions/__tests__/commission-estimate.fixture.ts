@@ -35,7 +35,9 @@ export type EstimateFixture = {
  * يبني نشاطاً بموظفتين وارتباطات فروع، عشان التقدير يتسعّر بنداً ويقفل
  * الفلترة باليوم على نطاق الفروع (CS-Q20).
  */
-export async function estimateFixture(options: { logs?: DestinationStream } = {}): Promise<EstimateFixture> {
+export async function estimateFixture(
+  options: { logs?: DestinationStream; commissionsClock?: { now(): Date } } = {},
+): Promise<EstimateFixture> {
   const h = await startHarness(options);
   const cookie = await h.signedInOperator('commission-estimate-owner@example.test');
   const company = await h.onboard(cookie, 'Commission estimate employer');

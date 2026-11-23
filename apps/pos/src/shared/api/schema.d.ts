@@ -600,6 +600,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/businesses/{businessId}/commission-statements/{period}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description The statement view of an open (DRAFT or REVIEWED) business month, computed on read in a read-only transaction: no row, fingerprint or lock is created (FR-025, D-25). generated is false until a review holder has generated it. Requires read:commissions:business and the commissions feature; a device session is refused. A business-wide reader (a current company- or business-scoped grant and no DENY) gets the CommissionStatementView with both current fingerprints, the reviewed ones and the changed-since-review flag with its cause; every other reader gets the CommissionStatementBranchView with her visible rows only and no whole-statement field. An APPROVED or PAID month is refused with COMMISSION_PERIOD_CLOSED until the frozen read ships with the approval part. */
+        get: operations["getCommissionStatement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/commission-statements/{period}/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Generates the statement of a business month that has ended in the business timezone: under one statement lock it ensures the DRAFT row, computes the view and both fingerprints and stores current_fingerprint (FR-025). On a REVIEWED month it recomputes and stores current_fingerprint only and never touches the status or the reviewed values. Requires review:commissions:business and a business-wide read of commissions; a branch-scoped reader is refused with the uniform 403. A month that has not ended is refused with COMMISSION_PERIOD_NOT_ENDED and an APPROVED or PAID one with COMMISSION_PERIOD_CLOSED. Audits commission_statement.generated. */
+        post: operations["generateCommissionStatement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/document-types": {
         parameters: {
             query?: never;
@@ -3978,6 +4012,73 @@ export interface components {
             employees: components["schemas"]["CommissionEstimateEmployee"][];
             partial: boolean;
             total: string | null;
+        };
+        /** @enum {string} */
+        CommissionStatementStatus: "DRAFT" | "REVIEWED";
+        CommissionStatementRow: {
+            source_ref: string;
+            /** @enum {string} */
+            kind: "COMMISSION" | "SALE" | "TIP_CARD" | "TIP_CASH" | "CORRECTION" | "CORRECTION_TIP_CARD" | "CORRECTION_TIP_CASH" | "CARRY_COMMISSION" | "CARRY_TIP_CARD";
+            amount: components["schemas"]["CommissionEstimateMoney"];
+            previous_amount: components["schemas"]["CommissionEstimateMoney"] | null;
+            new_amount: components["schemas"]["CommissionEstimateMoney"] | null;
+            source_period: components["schemas"]["CommissionEstimatePeriod"] | null;
+            /** Format: uuid */
+            source_branch_id: string | null;
+            source_branch_name_ar: string | null;
+            source_branch_name_en: string | null;
+            source_business_date: string | null;
+            service_name_ar: string | null;
+            service_name_en: string | null;
+            customer_name: string | null;
+            business_date: string | null;
+        };
+        CommissionStatementIssue: {
+            /** @enum {string} */
+            kind: "PRICING" | "BLOCKED_CORRECTION";
+            /** @enum {string} */
+            code: "NO_PLAN" | "NO_SALARY";
+            source_period: components["schemas"]["CommissionEstimatePeriod"] | null;
+        };
+        CommissionStatementEmployee: {
+            /** Format: uuid */
+            employee_id: string;
+            employee_number: number;
+            name_ar: string | null;
+            name_en: string;
+            partial: boolean;
+            commission_subtotal: components["schemas"]["CommissionEstimateMoney"];
+            tip_side: components["schemas"]["CommissionEstimateMoney"];
+            payable: components["schemas"]["CommissionEstimateMoney"];
+            rows: components["schemas"]["CommissionStatementRow"][];
+            issues: components["schemas"]["CommissionStatementIssue"][];
+        };
+        CommissionStatementView: {
+            /** @enum {string} */
+            reader_scope: "BUSINESS";
+            /** Format: uuid */
+            business_id: string;
+            period: components["schemas"]["CommissionEstimatePeriod"];
+            status: components["schemas"]["CommissionStatementStatus"];
+            generated: boolean;
+            current_fingerprint: string;
+            current_statement_fingerprint: string;
+            reviewed_fingerprint: string | null;
+            reviewed_statement_fingerprint: string | null;
+            changed_since_review: boolean;
+            /** @enum {string|null} */
+            change_cause: "INPUTS" | "STATEMENT" | null;
+            employees: components["schemas"]["CommissionStatementEmployee"][];
+        };
+        CommissionStatementBranchView: {
+            /** @enum {string} */
+            reader_scope: "BRANCHES";
+            /** Format: uuid */
+            business_id: string;
+            period: components["schemas"]["CommissionEstimatePeriod"];
+            status: components["schemas"]["CommissionStatementStatus"];
+            generated: boolean;
+            employees: components["schemas"]["CommissionStatementEmployee"][];
         };
         /** @enum {string} */
         EmployeeDocumentStatus: "NO_EXPIRY" | "VALID" | "EXPIRING" | "EXPIRED";
@@ -11908,6 +12009,138 @@ export interface operations {
             };
             /** @description Uniform 403 refusal */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getCommissionStatement: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+            };
+            path: {
+                businessId: string;
+                period: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The month view, in the shape that matches the reader */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionStatementView"] | components["schemas"]["CommissionStatementBranchView"];
+                };
+            };
+            /** @description Invalid business id or period */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No individual session */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Uniform 403 refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description COMMISSION_PERIOD_CLOSED */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    generateCommissionStatement: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                period: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The generated view */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionStatementView"];
+                };
+            };
+            /** @description Uniform 403 refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description COMMISSION_PERIOD_CLOSED or IDEMPOTENCY_KEY_IN_PROGRESS */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description COMMISSION_PERIOD_NOT_ENDED or IDEMPOTENCY_KEY_REUSED */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

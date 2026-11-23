@@ -1,6 +1,8 @@
 import { commissionOverrideServiceSchemas } from './override-services.js';
 import { commissionEstimatePaths } from './estimate-openapi.js';
 import { commissionEstimateSchemas } from './estimate.js';
+import { commissionStatementPaths } from './statement-openapi.js';
+import { commissionStatementSchemas } from './statement.js';
 import { commissionBlockedCorrectionPaths } from './blocked-corrections-openapi.js';
 import { commissionBlockedCorrectionSchemas } from './blocked-corrections.js';
 import { commissionPlanEmployeePaths } from './plan-employees-openapi.js';
@@ -20,6 +22,7 @@ export const commissionSchemas = [
   ...commissionPlanEmployeeSchemas,
   ...commissionBlockedCorrectionSchemas,
   ...commissionEstimateSchemas,
+  ...commissionStatementSchemas,
 ];
 
 export const commissionPaths = {
@@ -29,4 +32,5 @@ export const commissionPaths = {
   ...commissionPlanEmployeePaths,
   ...commissionBlockedCorrectionPaths,
   ...commissionEstimatePaths,
+  ...commissionStatementPaths,
 };

@@ -139,10 +139,15 @@ export interface StatementBuildInput {
   readonly correctionLineDetails: ReadonlyMap<string, StatementLineHead>;
 }
 
-/** فشل تسعير موظفة: كود المحرك، وبيمنع المراجعة والاعتماد (FR-027). */
+/**
+ * فشل تسعير موظفة: كود المحرك، وبيمنع المراجعة والاعتماد (FR-027). `attachedBranchIds` فروع الموظفة في
+ * يوم عمل كل مصدر فشل بالكود ده (بلا تكرار ومرتبة)، علشان قارئ الفروع ما يشوفش فشل مصدر برا نطاقه؛
+ * المصدر الفاشل ما بيطلعش له صف، فالفروع دي مش بتتقرا من الصفوف.
+ */
 export interface StatementPricingFailure {
   readonly employeeId: string;
   readonly code: 'NO_PLAN' | 'NO_SALARY';
+  readonly attachedBranchIds: readonly string[];
 }
 
 /** ناتج الباني: الصفوف اللي هتتجمّد، ومرفقاتها، وفشل التسعير لكل موظفة. */

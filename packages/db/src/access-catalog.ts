@@ -88,6 +88,8 @@ export const PERMISSIONS = [
   'manage:commission-plans:business',
   // قراءة تقدير العمولة ومعاينة كشفها وتصديره: الصلاحية بتحددها CS-Q14 = PP-17.2.
   'read:commissions:business',
+  // إنشاء كشف العمولة الشهري ومراجعته: المالك وحده يمنحها (CS-Q2، CS-Q2b = PP-25.1، CS-Q37 = PP-101.1).
+  'review:commissions:business',
   'view:notifications:business',
   // صلاحية منصة: بتتدي بـ pnpm platform:grant بس، وعمرها ما بتبقى في role شركة (ADR-0003 §3).
   'create:companies:platform',
