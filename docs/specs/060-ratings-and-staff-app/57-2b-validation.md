@@ -586,3 +586,44 @@ The final measurement (regular fixture and 66,002 lines, stale and normal) is ma
 code. If no shape reaches the bound, the outcome is an evidence card for the smallest index or statistics exception —
 the plan is not edited and the 200 ms bound is not relaxed.
 
+### Re-reading the `TIMING OFF` raw file before the experiment (2026-11-23, no database used)
+
+All 126 `db-time` lines of `timing-off-scale-11c7c3974.jsonl` were tabulated by attempt and statement. Attempts 0–3
+stay discarded as acceptance samples (autoanalyze fired during each); they are read here only for the plan shapes
+they show.
+
+| Attempt | Statement | Samples | Execution ms | Rows removed by filter | Shared hit blocks |
+| ------- | --------- | ------- | ------------ | ---------------------- | ----------------- |
+| 0 | 1 `line_performers` | 21 | 0.5–95.1 | 0 or 65,400 | 24 – 66,476 |
+| 0 | 2 `service_lines` (ids) | 21 | 2.4–51.2 | 0 or 65,400 | 1,812 – 2,258 |
+| 0 | 3 `service_sessions` (ids) | 21 | 3.4–67.5 | 0 or 65,400 | 1,469 – 1,817 |
+| 0 | 4 `service_lines` (page) | 21 | 0.4–43.0 | 0, 65,902 or 65,982 | 80 – 2,258 |
+| 0 | 5 `service_sessions` (page) | 21 | 0.4–49.5 | 0, 65,900 or 65,980 | 70 – 1,792 |
+| 2 | 2–5 | 21 each | up to 251.1 | 0 or about 65,400–65,982 | up to 66,975 |
+| 3 | 2–5 | 21 each | up to 264.7 | 0 or about 65,400–65,982 | up to 66,969 |
+| 4 (accepted) | 2 | 21 | 106.7–231.1 | 65,400 | 66,976 |
+| 4 (accepted) | 3 | 21 | 120.4–270.2 | 65,400 | 66,804 |
+| 4 (accepted) | 4 | 21 | 101.6–244.6 | 65,902 or 65,982 | 66,976 |
+| 4 (accepted) | 5 | 21 | 103.4–194.6 | 65,900–65,980 | 66,804 |
+| 4, normal statistics | 2–5 | 21 each | 0.3–15.4 | 0 | 79 – 2,368 |
+
+What this shows:
+
+1. **The tenant-wide read is not special to attempt 4.** In every attempt, while the statistics were stale, the
+   id-list reads removed about 65,400 rows by filter; the samples with nothing removed in attempts 0–3 come after
+   the autoanalyze of that attempt. The recorded `plans` lines of attempts 0–3 were captured after it and are not
+   stale plans.
+2. **The stale plan has two costs.** Through an index whose order follows the heap it touches about 2,000 blocks
+   (28–67 ms per statement); through `service_lines_discount_proposal_binding_idx` or
+   `service_sessions_business_day_idx` it touches about 67,000 blocks (100–270 ms per statement). Which one is
+   chosen changed between attempts.
+3. **The first statement is not exempt.** In attempt 0, with `reltuples` still 6,002, the `line_performers` read by
+   employee also removed 65,400 rows and touched 66,476 blocks (95.1 ms). It has no id list. A change limited to
+   the four id-list reads may therefore not close F6 in that state; the experiment measures it too and reports it.
+4. **Heaviest reads:** statement 3 (`service_sessions` by ids, 270.2 ms worst) and statements 2 and 4
+   (`service_lines`, 231.1 and 244.6 ms worst).
+
+Rule for the experiment, fixed before any run: a statement shape counts only if the id is an index condition, with
+no tenant-wide filter, on all four id-list reads in three states — stale statistics on a clean fixture, stale
+statistics on the multi-tenant state that failed, and normal statistics — for id lists of 1, about 100 and 602,
+measured as `pospay_app` inside `withTenant` with RLS on. One passing state is not evidence.
