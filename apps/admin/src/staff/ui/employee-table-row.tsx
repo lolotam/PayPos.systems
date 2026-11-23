@@ -18,13 +18,15 @@ export function EmployeeTableRow({
 }) {
   const locale = useLocale();
   return (
-    <tr className={selected ? 'bg-secondary/50' : ''}>
-      <td>{displayEmployeeNumber(item.employee_number)}</td>
-      <td>{locale === 'ar' ? (item.name_ar ?? item.name_en) : item.name_en}</td>
-      <td>
+    <tr role="row" className={selected ? 'bg-secondary/50' : ''}>
+      <td role="cell">{displayEmployeeNumber(item.employee_number)}</td>
+      <td role="cell" data-cell-label={t(locale, 'staff.name')}>
+        {locale === 'ar' ? (item.name_ar ?? item.name_en) : item.name_en}
+      </td>
+      <td role="cell" data-cell-label={t(locale, 'staff.role')}>
         <Badge variant="neutral">{t(locale, `roles.${item.role_code}`)}</Badge>
       </td>
-      <td>
+      <td role="cell" data-cell-label={t(locale, 'staff.primaryBranch')}>
         {branch ? (
           locale === 'ar' ? (
             (branch.name_ar ?? branch.name_en)
@@ -35,7 +37,7 @@ export function EmployeeTableRow({
           <Identifier value={item.primary_branch_id} />
         )}
       </td>
-      <td>
+      <td role="cell">
         <Button
           variant="outline"
           size="sm"

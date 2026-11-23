@@ -321,6 +321,8 @@ export const en = {
     create: 'Create employee',
     created: 'Employee created:',
     invalid: 'Check the employee details, dates and user ID.',
+    sectionIdentity: 'Employee details',
+    sectionEmployment: 'Employment',
   },
   catalogServices: catalogServicesEn,
   catalogServiceImport: serviceImportEn,

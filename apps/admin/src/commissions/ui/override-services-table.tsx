@@ -3,10 +3,11 @@
 import type { CommissionOverrideServiceItem } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { Button, DataTableFrame } from '@pospay/ui';
-import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
+import { getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { useMemo } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { overrideServicesColumns } from './override-services-columns';
+import { StackedCommissionTable } from './stacked-commission-table';
 
 interface OverrideServicesTableProps {
   items: readonly CommissionOverrideServiceItem[];
@@ -43,29 +44,8 @@ export function OverrideServicesTable({
     </Button>
   ) : null;
   return (
-    <DataTableFrame action={loadMore}>
-      <table>
-        <thead>
-          {table.getHeaderGroups().map((group) => (
-            <tr key={group.id}>
-              {group.headers.map((header) => (
-                <th key={header.id} scope="col">
-                  {flexRender(header.column.columnDef.header, header.getContext())}
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {table.getRowModel().rows.map((row) => (
-            <tr key={row.id}>
-              {row.getVisibleCells().map((cell) => (
-                <td key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <DataTableFrame stacked footer={loadMore}>
+      <StackedCommissionTable table={table} />
       {loadMoreError ? <p role="alert" className="px-4 py-3">{t(locale, 'commissionOverrides.couldNotLoadMore')}</p> : null}
     </DataTableFrame>
   );
