@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { act } from 'react';
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { DirectionProvider } from '@pospay/ui';
