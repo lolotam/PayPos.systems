@@ -78,4 +78,71 @@ Estimate: 650 production, 1,150 tests, about 100 removed. Stop and report if cod
 
 ## Implementation notes
 
-*(filled by the implementer: what was mounted and how, the no-workspace rule, each address rule and its test, the carried-assertion table, e2e selectors checked, `packages/ui` changes if any, Suspense outcome, open points, sizes)*
+**What was mounted, and how.** `app/(dashboard)/layout.tsx` is now an async server component: it reads the style with `readRequestNavStyle()` and passes it to `DashboardShell`, which wraps the page in `NavStyleProvider` (initial value) and `WorkspaceProvider`. `DashboardFrame` picks `StyleAFrame`, `StyleBFrame` or `StyleCFrame` from `useNavStyle()` and draws `DashboardContent` inside it. `DashboardContent` keeps, exactly: the session-error alert above the page, the `allowsLinkedWorkspace` rule and the `WorkspaceBody` gate. The `NotificationBell` key and props are the ones in `frames/frame-actions.tsx` (copied from the old frame in 7a: same `companyId:userId` key, same three props) and are now tested through the mounted frame. `DashboardSidebar` and `AppFrame` are no longer mounted by the dashboard.
+
+**No-workspace rule.** `dashboard-content.tsx` holds two named patterns side by side: `LINKED_WORKSPACE_PAGE` (as before) and `NO_WORKSPACE_PAGE` (`/appearance` and `/security/two-factor`). A page matching `NO_WORKSPACE_PAGE` is drawn without `WorkspaceBody`; every other page is still held back (tests: loading shows the loading status, choose shows the prompt).
+
+**Routes added** (each a one-line re-export of a `_frame/*-route.tsx`): `/appearance`, `/approvals`, `/overview/[group]`, `/soon/[page]`, and `/security/two-factor` moved to `app/(dashboard)/security/two-factor/page.tsx` (the old `app/security/two-factor/page.tsx` is deleted). The Authenticator route renders the body of `EnrolPage` (password step, QR, code) inside the frame through `TwoFactorRoute`; it does not read the session again (the layout's `SessionGate` redirects anonymous visitors and shows the unavailable screen). `EnrolPage` could not be reused because it draws `AppFrame` and `src/session/**` is fenced, so its ~15 lines are repeated in `two-factor-route.tsx`; 7c removes `EnrolGate` and `EnrolPage` together with `AppFrame`.
+
+**Address rules and their tests** (pure resolvers in `menu/overview-target.ts` and `menu/soon-target.ts`; rendered tests in `overview-route.spec.tsx` and `soon-route.spec.tsx`; plus `menu/address-targets.spec.ts`):
+
+| Rule | Test |
+|---|---|
+| overview, group in the current style and visible: show it | overview-route.spec «shows the overview of a group that belongs to the current style» |
+| overview, group of another style: replace with its first visible page | «replaces the address of a group that only another style has…»; address-targets.spec «replaces a group of another style…» |
+| overview, style switched on an overview the new style lacks: replace | «follows a style switch made on an overview only the old style has» |
+| overview, unknown group or nothing visible: Home | «sends an unknown group to Home…», «sends a group with nothing visible to Home» (both files) |
+| overview, loading: loading status, no redirect, no not found | «waits while the workspace loads…» (the gate shows the status; the route only ever sees a ready workspace) |
+| soon, unknown id: not found | soon-route.spec «shows not found for an id nobody published» |
+| soon, built entry: forward if visible, else not found | «forwards the old address of the built entry…» (appearance, approvals-inbox), «forwards a built child entry to its parent list»; visibility branch in address-targets.spec |
+| soon, not-built entry hidden by business type or role: not found | «shows not found for an entry the user's role was not planned for»; address-targets.spec «hides a restaurant-only entry from a salon» |
+| soon, otherwise: Under development with the name | «opens the Under development page with the name of a not-built entry» |
+| restaurant-only entry after the workspace becomes a salon (menu, finder, direct link) | the two tests of «a restaurant-only entry after the workspace changes to a salon» |
+
+*Loading and conditional reads.* The route runs only when the workspace is ready (the gate covers loading). Reads behind a visibility condition are not awaited. That is safe today because (1) every built entry with an old `/soon/` address is `visible: 'always'` (test in address-targets.spec), and (2) no group of any style, for any of 14 roles, differs between «every read closed» and «every read open» (test «never loses a group of the <role>…»). If either test fails later, a loading flag is needed.
+
+**Model.** `appearance` and `approvals-inbox` are `state: 'live'`, `visible: 'always'`, with `route` and `formerSoonId` (so `/soon/appearance` and `/soon/approvals-inbox` forward). `plannedRoute`, `PlannedStep7Route`, the `ALL_COMPANY_ROLES` list and the Appearance branch of `isSoonEntryShownForRole` were removed (nothing used them any more). `app-map.shared.mjs`: both rows' 074 state `N` to `L`; `app-map.md` regenerated with `node docs/specs/074-admin-navigation-layout-restructure/app-map.shared.mjs` (32 Live, 0 New, 96 Soon). **For the manager:** the copy in `lolotam/lovable-pospay` needs its matching docs PR (run the script with that file's path to regenerate it); that repository was not touched.
+
+**Sign-in and sign-out.** `src/shared/nav-style/nav-style-cookie.ts` holds `NAV_STYLE_COOKIE`, `navStyleCookieAttributes` and `clearNavStyleCookie` (no business type in it). `_frame/nav-style/nav-style-cookie.ts` keeps `writeNavStyleCookie` and re-exports the name and the clearer (the 7a spec imports them from there and is unchanged). Auth fence: in `src/session/api/` only `use-sign-out.ts`, `use-sign-in.ts` and `use-verify-totp.ts` changed, one import and one call each. Tests: `src/session/api/nav-style-clear.spec.tsx` (7 tests: cleared after a confirmed sign-out, kept when it fails; cleared after password sign-in, kept at the TOTP hand-off and on a wrong password; cleared after the second factor, kept on a refused code). Mutation check: removing the clear call from sign-out fails the sign-out test.
+
+**Carried assertions** (old files untouched and still green). 36 old `it` blocks (an `it.each` counts as one) became 56 new tests in `menu/carried-hide-conditions.spec.tsx` (31; the real read hooks behind `useVisiblePageIds`, mocked at the API client like the old specs) and `menu/carried-active-items.spec.tsx` (25). «Already covered by» is not used.
+
+| Old spec | Old blocks | New tests (file, describe) |
+|---|---|---|
+| alert-rules-nav-item | 4 | hide-conditions «alerts and notifications» (4; one is `it.each` 500/403) |
+| attendance-board-nav-item | 1 | active-items «marks only the attendance entry of /staff/attendance…» and the style A pill test; its address by the route coverage test of navigation-model.spec |
+| attendance-report-nav-item | 1 | same for `/staff/attendance-report` (now listed under Reports › staff reports by the app map, not Attendance) |
+| business-identity-nav-item | 4 | hide-conditions «business identity» (5; «loading or failed» split in two) |
+| commission-plans-nav-item | 6 | hide-conditions «commission plans and overrides» (4: pending, 403 after one request, success shows both after one request, no business; the old «entry» and «both links» pairs merged because one probe feeds both entries) |
+| employee-app-link-nav-item | 2 | «staff app link» (2) |
+| imported-refunds-nav-item | 5 | «imported refunds» (4) and «after a business switch or a refetch» (2); «pending» and «403» split |
+| leave-report-nav-item | 4 | «leave history report» (4) |
+| session-day-nav-item, session-nav-item | 1 + 1 | active-items «marks the day list only on its own path and the reception entry only on its own», «links the day list and the reception entry…», style A pill test |
+| staff-app-columns-nav-item | 3 | «staff app columns» (3) |
+| staff-navigation | 3 (one `it.each` of 5) | active-items «marks only the attendance entry of <path>…» (5), «keeps the live attendance entries adjacent…», «marks employee numbers…», «does not mark the employee list on the staff app link page» |
+| dashboard-account | 1 | active-items «the account block»: name, email, `dir="ltr"`, `truncate`, no raw id. **Not carried:** the `title` attributes (the account menu in `packages/ui` draws none; it caps its width and truncates) |
+| attendance-actions, attendance-statement, catalog, company-employee-numbers, package-sale (no spec) | – | conditions read from code: all unconditional (test «keeps the entries that had no read behind them visible with every read closed»); active rules for exceptions, requests, statement, report, employee numbers, the three catalog prefix rules and package sale are in active-items |
+
+*Behaviour that changed on purpose.* The attendance report and statement used to follow the attendance entries in the flat sidebar; the owner's app map now puts them under Reports › staff reports. The board, requests and exceptions entries are adjacent in the Attendance sub-menu in the model's order (board, requests, exceptions), not the old order (board, exceptions, requests). The tests state the new placement.
+
+**Existing assertions changed** (all in `navigation-model.spec.ts`, because the model changed): the route-coverage test no longer reads `app/security/two-factor/page.tsx` or appends `/security/two-factor` by hand (the page is now under `(dashboard)`), and ignores the two frame-owned host routes `/overview/[group]` and `/soon/[page]`; the app-map test no longer expects two «planned» entries and now expects `fresh === 0` with `appearance` and `approvals-inbox` among the live rows; the Appearance test expects a live entry visible without a workspace instead of a soon entry visible to every role. No other existing assertion changed. Test support (`frames/frame-test-support.tsx`) gained `replace`, `useParams`, `notFound` and a stable router object (production Next returns a stable router; a new object per render made an effect run twice).
+
+**`apps/admin/e2e` check.** Every `*.pw.ts` and helper was read. The tests find the company switch by `#workspace-company` (the old sidebar's `WorkspaceSelector`, `src/workspace/ui/workspace-selector.tsx:49`), and `chooseCompany` in `session-ui.ts:75-84` opens the old drawer with the «shell.openNavigation» button below 768px. The new frames draw the `WorkspaceSwitcher` popover instead, which has no `#workspace-company` and no such drawer button. Affected: `employee-document-popup.pw.ts:16` and `:121`, `service-session-access.pw.ts:72`, and every spec that calls `chooseCompany`. **Expect `admin document popup · production browser` to fail on this head.** They were not changed (Playwright was not run here); the fix is in the e2e helpers: open the switcher button, then pick the company by its label inside the popover. No other selector (sign-in form, TOTP, headings, alerts, buttons) depends on the sidebar.
+
+**`packages/ui`:** no change. **`packages/i18n`:** no change (every key already existed).
+
+**Suspense.** `pnpm build` in `apps/admin` (Next 16.3.7, webpack) succeeds on this head: type check passes and every dashboard route, the five new ones included, is `ƒ` (dynamic), as expected from `SessionGate` reading cookies. No `Suspense` boundary was needed or added.
+
+**Open points for the manager**
+1. **The Approvals entry is now visible to every signed-in user.** A live entry has no role list, and `visible: 'always'` is the only fitting condition; the soon entry was limited to owner, general manager, business manager and branch manager. The page lists only the kinds the user may open, so a viewer sees an empty inbox. If the entry should stay role-limited, a new visibility condition (three probes) or a role field on live entries is needed. The map's Roles column still says managers (by kind).
+2. The Authenticator, Under development, Approvals and overview pages draw plain links outside `FrameChrome`, so a click there is a full page load (the frame's own menus stay soft). Wrapping them in `FrameChrome` is a small follow-up.
+3. Switching style remounts the page (the frame component type changes), so focus is lost after pressing a style card or menu item (it lands on `body`).
+4. `ApprovalsInboxHost` (a 7a test helper) now duplicates `ApprovalsRoute`; it stays because its spec uses it. 7c can point the spec at the route and delete it.
+5. A user with no workspace who opens the old `/soon/appearance` address sees the workspace gate message, not Appearance (only `/appearance` itself bypasses the gate).
+6. The Authenticator and Appearance entries of the account menu carry the word «Current» in their text on their own page (`AccountMenuEntry` has no `current` field and `packages/ui` was not changed).
+
+**What I expect the real-browser pass to find:** the e2e breakage above; a hydration warning or a first-paint jump from the media-query hooks the frames use (the server renders the desktop layout); focus lost after a style switch (open point 3); the 240px B list and the A column offset (`group-has-[aside[data-collapsed]]`) at real widths; the C floating panel at 600 to 1023px; the Authenticator panel's width inside `main`; a `Secure` cookie on http staging.
+
+**Sizes** (`git diff --numstat origin/main...HEAD`, docs excluded): 2,217 added plus removed lines of code and tests (production +317 −101 = 418; tests and test helpers +1,769 −30 = 1,799), against an estimate of 1,900 and a cap of 4,500. Docs: +141 −5. `origin/main` has moved on since the branch point (`920cbf766`); the branch was not rebased.
+
+**Gates run on head** (see the report): typecheck (`tsc --noEmit` and the e2e project) clean; `eslint .` in `apps/admin` 0 errors; `pnpm lint:docs` 0 errors; `pnpm module-map:check` ok; `pnpm build` in `apps/admin` ok; `vitest run` in `apps/admin`: 3,091 tests, every file passes alone; a full parallel run shows 1 to 5 five-second timeouts per run in files this slice did not touch (a different set each run), none when rerun alone.
