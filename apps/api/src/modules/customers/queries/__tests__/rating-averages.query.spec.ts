@@ -66,6 +66,9 @@ beforeAll(async () => {
   db = createDatabase({ url: testDb.appUrl, ids });
   await owner`INSERT INTO branches(company_id,id,business_id,name_en)
     VALUES (${A.company},${second},${A.business},'Hawalli')`;
+  // تقييمات الأساس (10 و11 يونيو) بتتزرع هنا مرة، فأي اختبار يعتمد عليها يشتغل لوحده وبأي ترتيب.
+  await rate(5, '2026-06-10T09:00:00Z', [sara, hend]);
+  await rate(4, '2026-06-11T09:00:00Z', [sara]);
 });
 afterAll(async () => {
   await owner.end();
@@ -74,9 +77,7 @@ afterAll(async () => {
 });
 
 it('counts a rating with two performers for both and averages only the ratings attributed to each (RT-24)', async () => {
-  await rate(5, '2026-06-10T09:00:00Z', [sara, hend]);
-  await rate(4, '2026-06-11T09:00:00Z', [sara]);
-  const result = await averages(june);
+  const result = await averages({ from: '2026-06-10T00:00:00Z', to: '2026-06-12T00:00:00Z' });
   expect(ratingAverages.parse(result)).toEqual(result);
   expect(result).toEqual({
     items: [

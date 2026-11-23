@@ -19,6 +19,10 @@ let siblingBranch: string;
 let foreignBusiness: string;
 let tenant: RatingTenant;
 let layla: { cookie: string; member: string };
+let ownRating: string;
+const ownComment = 'Slow service, call 55512345';
+// نافذة تقييمَي الأساس (10 و11 يونيو) بس: اختبارات القائمة ما تتأثرش بأي تقييم بتزرعه اختبارات تانية في نافذة غيرها.
+const baseWindow = `from=${new Date(Date.UTC(2026, 5, 10)).toISOString()}&to=${new Date(Date.UTC(2026, 5, 12)).toISOString()}`;
 // ساعة الراوت قابلة للتثبيت: اختبارات الشهر الحالي لازم ما تتوقفش على ساعة الجهاز اللي بيشغّلها.
 let clockNow: Date | null = null;
 const at = (day: number, hour = 12) => new Date(Date.UTC(2026, 5, day, hour));
@@ -77,19 +81,12 @@ beforeAll(async () => {
   tenant = { company, business, branch, customer: '', employees };
   db = createDatabase({ url: h.urls.app, ids });
   layla = await operatorWith('layla@example.test', 'branch_manager');
-});
-afterAll(async () => {
-  await db?.close();
-  await h?.close();
-});
-
-it('gives a branch manager in scope the stars, instant, date, branch, performers and comment of her branch only', async () => {
-  const comment = 'Slow service, call 55512345';
-  const own = await seedRating(db, tenant, {
+  // تقييمات الأساس بتتزرع هنا مرة، فأي اختبار يشتغل لوحده وبأي ترتيب.
+  ownRating = await seedRating(db, tenant, {
     stars: 2,
     at: at(10),
     performers: [tenant.employees[0]],
-    comment,
+    comment: ownComment,
     date: '2026-06-10',
   });
   await seedRating(db, tenant, {
@@ -98,13 +95,29 @@ it('gives a branch manager in scope the stars, instant, date, branch, performers
     performers: [tenant.employees[1]],
     branch: siblingBranch,
   });
-  const response = await get(layla.cookie);
+  const [first, second] = tenant.employees;
+  await seedRating(db, tenant, { stars: 5, at: at(25, 12), performers: [first, second] });
+  await seedRating(db, tenant, { stars: 4, at: at(25, 13), performers: [first] });
+  await seedRating(db, tenant, {
+    stars: 1,
+    at: at(25, 14),
+    performers: [second],
+    branch: siblingBranch,
+  });
+});
+afterAll(async () => {
+  await db?.close();
+  await h?.close();
+});
+
+it('gives a branch manager in scope the stars, instant, date, branch, performers and comment of her branch only', async () => {
+  const response = await get(layla.cookie, url(business, `?${baseWindow}`));
   expect(response.status).toBe(200);
   expect(response.headers['cache-control']).toBe('no-store');
   expect(response.body).toEqual({
     items: [
       {
-        id: own,
+        id: ownRating,
         stars: 2,
         submitted_at: expect.stringMatching(/^2026-06-10T12:00:00\.\d{6}Z$/),
         business_date: '2026-06-10',
@@ -112,7 +125,7 @@ it('gives a branch manager in scope the stars, instant, date, branch, performers
         performers: [
           { employee_id: tenant.employees[0], name_ar: null, name_en: 'Synthetic rated 0' },
         ],
-        comment,
+        comment: ownComment,
       },
     ],
     next_cursor: null,
@@ -127,8 +140,14 @@ it('never returns a branch outside her scope, with or without the branch filter'
   expect(filtered.text).not.toContain(siblingBranch);
 });
 
+it('answers a malformed cursor with 400 for a branch outside her scope as well', async () => {
+  const outside = `?branch_id=${siblingBranch}`;
+  expect((await get(layla.cookie, url(business, `${outside}&cursor=garbage`))).status).toBe(400);
+  expect((await get(layla.cookie, url(business, outside))).status).toBe(200);
+});
+
 it('shows the owner every branch of the business, newest first', async () => {
-  const response = await get(ownerCookie);
+  const response = await get(ownerCookie, url(business, `?${baseWindow}`));
   expect(response.status).toBe(200);
   const items = response.body['items'] as { stars: number }[];
   expect(items.map((item) => item.stars)).toEqual([1, 2]);
@@ -251,15 +270,6 @@ const entry = (index: number, average: string, count: number) => ({
 });
 
 it('averages per employee, counting a two-performer rating for both, over every branch for the owner', async () => {
-  const [first, second] = tenant.employees;
-  await seedRating(db, tenant, { stars: 5, at: at(25, 12), performers: [first, second] });
-  await seedRating(db, tenant, { stars: 4, at: at(25, 13), performers: [first] });
-  await seedRating(db, tenant, {
-    stars: 1,
-    at: at(25, 14),
-    performers: [second],
-    branch: siblingBranch,
-  });
   const window = `?from=${at(25, 0).toISOString()}&to=${at(26, 0).toISOString()}`;
   const response = await get(ownerCookie, averagesUrl(window));
   expect(response.status).toBe(200);

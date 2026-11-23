@@ -7,6 +7,7 @@ import {
 } from '../../../../test/session-tips.fixture.ts';
 import type { PerfConfig, Target } from './own-service-lines.measure.ts';
 import { record } from './own-service-lines.dbtime.ts';
+import { isStatisticsDependentFailure } from './own-service-lines.retry.ts';
 import { measureDiagnostics, measureJudged } from './own-service-lines.phases.ts';
 import {
   bulkVisits,
@@ -141,9 +142,11 @@ export function perfSuite(config: PerfConfig) {
       if (!before.absent || stamps(before.rows) !== baseline) continue;
       record('57-2b statistics before', JSON.stringify({ attempt, rows: before.rows }));
       // المرحلة المُحكَّمة أولاً والإحصاءات لسه قديمة؛ والتحقق منها بعدها مباشرة، قبل التشخيص الطويل بالزمن الكلي.
-      // autoanalyze بين الزرع والقياس ممكن يغيّر الخطة لحد المهلة، فخطأ قياس المحاولة دي معناه محاولة مرفوضة مش فشل الاختبار.
+      // autoanalyze بين الزرع والقياس ممكن يغيّر الخطة لحد المهلة، فإلغاء الجملة بالمهلة بس معناه محاولة مرفوضة؛ أي خطأ تاني
+      // (مقارنة بالمرجع وغيرها) بيطلع فوراً حتى لو الإحصاءات اتغيّرت.
       const pages = await measureJudged(f, 'stale statistics', candidate, config, violations).catch(
         async (error: unknown) => {
+          if (!isStatisticsDependentFailure(error)) throw error;
           const during = await statistics(f, candidate.scope.companyId);
           if (during.absent && stamps(during.rows) === baseline) throw error;
           return null;

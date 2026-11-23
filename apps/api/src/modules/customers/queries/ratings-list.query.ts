@@ -89,6 +89,8 @@ export async function readRatingsList(
   const parsed = ratingsListQuery.safeParse(raw);
   if (!parsed.success) throw new ApiError('VALIDATION_FAILED');
   const q = parsed.data;
+  // المؤشر بيتفك قبل أي رد فاضي، فمؤشر مرفوض يطلع 400 حتى لو الفرع المطلوب برّه نطاق القارئ.
+  const cursor = decodeRatingsCursor(q.cursor);
   const wanted = q.branch_id?.toLowerCase();
   const branchIds = wanted === undefined ? allowed : allowed.filter((b) => b === wanted);
   const { period, month } = await resolvePeriod(tx, c, q, now, reads, false);
@@ -100,7 +102,7 @@ export async function readRatingsList(
         branchIds,
         employeeId: q.employee_id?.toLowerCase(),
         period,
-        cursor: decodeRatingsCursor(q.cursor),
+        cursor,
         limit: q.limit,
       }),
     ),

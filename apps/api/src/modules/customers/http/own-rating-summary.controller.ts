@@ -54,10 +54,11 @@ export class OwnRatingSummaryController {
       userId: session.userId,
     };
     const now = this.clock.now();
+    // لقطة قراءة واحدة (REPEATABLE READ, READ ONLY): السلطة وبوابة العمود والمتوسط من نفس الحالة المثبتة.
     return this.database.withTenant(
       context.companyId,
       (tx) => readOwnRatingSummary(tx, context, query, now, this.reads),
-      { userId: context.userId },
+      { userId: context.userId, readOnly: true },
     );
   }
 }

@@ -109,8 +109,9 @@ it('returns stars, instants, business date, branch, performers and the comment e
 });
 
 it('resolves the names of the page performers only, in one read', async () => {
+  await seedRating(db, A, { stars: 3, at: at(8), performers: [hend, sara] });
   requestedNames.length = 0;
-  await page({ from: '2026-06-10T00:00:00Z', to: '2026-06-11T00:00:00Z' });
+  await page({ from: at(8, 0).toISOString(), to: at(9, 0).toISOString() });
   expect(requestedNames).toHaveLength(1);
   expect([...(requestedNames[0] ?? [])].sort()).toEqual([sara, hend].sort());
   requestedNames.length = 0;
@@ -159,6 +160,7 @@ it('narrows by branch, employee and the half-open time window', async () => {
 it('never returns a branch outside the scope, with or without the branch filter', async () => {
   access = [A.branch];
   try {
+    await seedRating(db, A, { stars: 4, at: at(9), performers: [sara] });
     const all = await page({ limit: 100 });
     expect(all.items.length).toBeGreaterThan(0);
     expect(all.items.every((item) => item.branch.id === A.branch)).toBe(true);
@@ -193,6 +195,14 @@ it('rejects a malformed cursor and an unknown key uniformly', async () => {
   const forged = Buffer.from(JSON.stringify({ at: 'x', id: 'y' })).toString('base64url');
   expect(await refusal(page({ cursor: forged }))).toBe('BAD_REQUEST');
   expect(await refusal(page({ business_id: B.business }))).toBe('VALIDATION_FAILED');
+});
+
+it('rejects a malformed cursor the same way when the requested branch is outside the reader scope', async () => {
+  const outside = { branch_id: B.branch };
+  expect(await refusal(page({ ...outside, cursor: 'not-a-cursor' }))).toBe('BAD_REQUEST');
+  const forged = Buffer.from(JSON.stringify({ at: 'x', id: 'y' })).toString('base64url');
+  expect(await refusal(page({ ...outside, cursor: forged }))).toBe('BAD_REQUEST');
+  expect(await page(outside)).toEqual({ items: [], next_cursor: null, month: null });
 });
 
 // خطة كل تركيبة فلتر بتتثبت بخصائص مش بأسماء فهارس على فيكستشر صغير: مفيش Seq Scan على الجدولين الكبار، وكل مسح بيبدأ من

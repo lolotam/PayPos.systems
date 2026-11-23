@@ -24,6 +24,8 @@ const saveColumns = (columns: string[] | null) => f.h.owner`
 
 beforeAll(async () => {
   f = await ownRatingFixture();
+  // ساعة الأساس هي نفسها اللي كل اختبار بيرجّعلها في finally، فالاختبار الأول والأخير بيبدأوا من نفس اللحظة.
+  f.setNow(at(10));
   // التقييمان بيتزرعوا مرة هنا، فكل من RS-05 وRS-05a يقدر يشتغل لوحده وبأي ترتيب.
   await f.seedStars([
     { employeeId: f.employeeId, stars: 4, at: at(2) },
@@ -109,13 +111,10 @@ it('RS-08 refuses a DENY, the customers feature off, and eligibility lost after 
     await f.h
       .owner`DELETE FROM company_feature_overrides WHERE company_id=${f.company} AND flag='customers'`;
   }
+  // الحارس بيمرّر الجلسة، وقارئ الأهلية بعده بيرفض (الارتباط ضاع): الرد 403 من غير أي بيانات.
   const reads = f.h.app.get<OwnRatingReads>(OWN_RATING_READS);
   const original = reads.context;
-  reads.context = async (tx, context, now) => {
-    await f.h
-      .owner`UPDATE employees SET user_id=NULL WHERE company_id=${f.company} AND user_id=${f.userId}`;
-    return original(tx, context, now);
-  };
+  reads.context = async () => null;
   try {
     const unlinked = await read();
     expect(unlinked.statusCode).toBe(403);
@@ -123,9 +122,25 @@ it('RS-08 refuses a DENY, the customers feature off, and eligibility lost after 
     expect(unlinked.headers['cache-control']).toBe('no-store');
   } finally {
     reads.context = original;
-    await f.h
-      .owner`UPDATE employees SET user_id=${f.userId} WHERE company_id=${f.company} AND id=${f.employeeId}`;
   }
+});
+
+it('RS-08a answers from one snapshot: a column setting committed after the read began is not seen by it', async () => {
+  await saveColumns(['date', 'tip']);
+  const reads = f.h.app.get<OwnRatingReads>(OWN_RATING_READS);
+  const original = reads.context;
+  reads.context = async (tx, context, now) => {
+    const live = await original(tx, context, now);
+    await saveColumns(['rating_average']);
+    return live;
+  };
+  try {
+    expect((await read()).json()).toEqual({ visibility: 'HIDDEN' });
+  } finally {
+    reads.context = original;
+    await saveColumns(null);
+  }
+  expect((await read()).json()).toEqual({ visibility: 'VISIBLE', average: '4.5', count: 2 });
 });
 
 it('RS-09 refuses client subjects with 403 and any other unknown key with VALIDATION_FAILED', async () => {

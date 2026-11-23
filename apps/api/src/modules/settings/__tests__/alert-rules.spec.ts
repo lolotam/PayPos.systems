@@ -1,4 +1,4 @@
-import { alertRules, type SetAlertRulesInput } from '@pospay/contracts';
+import { alertKind, alertRules, type SetAlertRulesInput } from '@pospay/contracts';
 import type { AlertKind } from '@pospay/domain';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import {
@@ -352,4 +352,20 @@ it('an unknown business id is a 403, not a screen of defaults', async () => {
   });
   expect(response.status).toBe(403);
   expect(response.body).toMatchObject({ code: 'FORBIDDEN' });
+});
+
+it('one update carrying every alert kind exactly once is accepted and saves each of them', async () => {
+  const read = await f.h.send('GET', path(null), { cookie: f.cookie, company: f.company });
+  const all: RuleValues[] = alertRules.parse(read.body).rules.map((rule) => ({
+    kind: rule.kind,
+    enabled: rule.enabled,
+    recipient_roles: rule.recipient_roles,
+    channels: rule.channels,
+    delay_minutes: rule.delay_minutes,
+    lead_minutes: rule.lead_minutes,
+  }));
+  expect(all).toHaveLength(alertKind.options.length);
+  const saved = await put(null, all);
+  expect(saved.status).toBe(200);
+  expect(alertRules.parse(saved.body).rules.every((rule) => rule.source === 'BUSINESS')).toBe(true);
 });
