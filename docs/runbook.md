@@ -58,6 +58,18 @@ not `up` means readiness is **not verified**: retain the evidence and report the
 through DEP-1's existing release procedure; never replace it with the `/health` result.
 This command performs no deployment or configuration change and grants no new server access.
 
+## Production deploy
+
+Production runs as the Dokploy compose service `pospay-prod` from `deploy/docker-compose.prod.yml`, with its own
+Postgres 18 and Redis 8 containers on the private `pospay-prod-internal` network (ADR-0062 §1). The procedure is the
+pinned-compose upload of the pipeline skill §6, applied to the production file: every `${IMAGE_TAG:?}` line is
+replaced by one staging-proven SHA, and every production deploy needs Waleed's yes. `postgres` is not pinned by
+`IMAGE_TAG` — its `pospay-postgres` image tag is a literal SHA written in the file, changed only in a deliberate
+Postgres release with a PP-129 snapshot right before it. The environment is entered in the Dokploy UI from
+`deploy/prod.env.example` (every secret freshly generated, none copied from staging); compose refuses to run without
+`TRUSTED_PROXY_CIDRS`. First-deploy host preparation, the pgBackRest schedule and the timed restore drill (the
+launch gate before any real data): `deploy/backup/README.md`, Production section, and ADR-0062 §5.
+
 ## Restoring a logical dump
 
 Restore a logical dump only into a **freshly `initdb`'d cluster**, with triggers disabled:
