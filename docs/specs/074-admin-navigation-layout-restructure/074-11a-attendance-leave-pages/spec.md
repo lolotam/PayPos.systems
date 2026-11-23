@@ -4,7 +4,7 @@ Parent: [`spec.md`](../spec.md) (FR-002, FR-008, FR-015, FR-016), [`design.md`](
 
 ## Owner decision
 
-Row 11 is delivered in two parts. Waleed, card of 2026-11-23, «نقسّم: التخطيط دلوقتي والمسارات بعد 7b (Recommended)»: **11a** (this slice) lays the existing Attendance and Leave pages out on the shared templates and adds no route; **11b**, after 074-7b merges, makes Schedule settings its own page, makes the per-page branch pickers read the workspace branch, and lays out the Setup pages (Weekly schedules, Permissions, Alerts, Staff app link, Staff app columns, Imported refunds). Tier Medium. Cap: 2,800 added plus removed lines of code and tests, docs counted separately. Review pipeline PP-228. The PP number is assigned by the manager and added to this file when known.
+Row 11 is delivered in two parts. Waleed, card of 2026-11-23, «نقسّم: التخطيط دلوقتي والمسارات بعد 7b (Recommended)»: **11a** (this slice) lays the existing Attendance and Leave pages out on the shared templates and adds no route; **11b**, after 074-7b merges, makes Schedule settings its own page, makes the per-page branch pickers read the workspace branch, and lays out the Setup pages (Weekly schedules, Permissions, Alerts, Staff app link, Staff app columns, Imported refunds). Tier Medium. Cap: 2,800 added plus removed lines of code and tests, docs counted separately. Review pipeline PP-228. Recorded as PP-234; its block is added to `docs/owner-decisions.ar.md` by the 074-10a PR.
 
 ## What changes for a user
 
