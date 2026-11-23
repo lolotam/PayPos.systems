@@ -240,13 +240,19 @@ jobs:
       - name: integration · RLS negative · EXPLAIN (packages)
         env:
           PACKAGE_GROUP: ${{ matrix.group }}
+          HEAD_BRANCH: ${{ github.head_ref }}
         run: |
+          cache_args=()
+          # Measure a cold task cache in both arms without replacing shared cache entries.
+          if [ "$HEAD_BRANCH" = "ci/parallel-packages-weighted-api" ]; then
+            cache_args+=(--force --cache-dir="$RUNNER_TEMP/benchmark-task-cache")
+          fi
           case "$PACKAGE_GROUP" in
-            all) pnpm turbo run test --filter=!@pospay/domain --filter=!@pospay/api --filter=!@pospay/worker ;;
-            admin) pnpm turbo run test --filter=@pospay/admin ;;
-            pos) pnpm turbo run test --filter=@pospay/pos ;;
+            all) pnpm turbo run test "${cache_args[@]}" --filter=!@pospay/domain --filter=!@pospay/api --filter=!@pospay/worker ;;
+            admin) pnpm turbo run test "${cache_args[@]}" --filter=@pospay/admin ;;
+            pos) pnpm turbo run test "${cache_args[@]}" --filter=@pospay/pos ;;
             libraries)
-              pnpm turbo run test --filter=!@pospay/admin --filter=!@pospay/pos \
+              pnpm turbo run test "${cache_args[@]}" --filter=!@pospay/admin --filter=!@pospay/pos \
                 --filter=!@pospay/domain --filter=!@pospay/api --filter=!@pospay/worker ;;
             *) exit 1 ;;
           esac
