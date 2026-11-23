@@ -66,7 +66,18 @@ const OUTBOX_COLUMN_GRANTS = [
   'outbox.parked_at:pospay_dispatcher:UPDATE',
   'outbox.published_at:pospay_dispatcher:UPDATE',
 ];
+// عدّاد الاعتماد (ADR-0012 §2): قراءة الأعمدة السبعة فقط، وبلا payload ولا أي كتابة.
+const APPROVAL_READER_COLUMN_GRANTS = [
+  'consumed_events.company_id:pospay_approval_reader:SELECT',
+  'consumed_events.consumer_id:pospay_approval_reader:SELECT',
+  'consumed_events.event_id:pospay_approval_reader:SELECT',
+  'outbox.company_id:pospay_approval_reader:SELECT',
+  'outbox.created_at:pospay_approval_reader:SELECT',
+  'outbox.event_type:pospay_approval_reader:SELECT',
+  'outbox.id:pospay_approval_reader:SELECT',
+];
 const REVIEWED_COLUMN_GRANTS = [
+  ...APPROVAL_READER_COLUMN_GRANTS,
   ...COMMISSION_TIP_SALARY_COLUMN_GRANTS,
   ...COMMISSION_SALES_COLUMN_GRANTS,
   ...COMMISSION_CORRECTION_COLUMN_GRANTS,

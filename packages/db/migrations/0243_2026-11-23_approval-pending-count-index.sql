@@ -1,0 +1,1 @@
+CREATE INDEX CONCURRENTLY "outbox_commission_pending_count_idx" ON "outbox" USING btree ("company_id","event_type","created_at","id");
