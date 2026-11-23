@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createQueryClient } from '@/shared/api/query-client';
 import {
   CREATED_COMPANY,
+  ENVELOPE,
   POST_BODY,
   STORAGE_NAME,
   WORKSPACE_COMPANY,
@@ -62,8 +63,8 @@ function testServer500Retry(): void {
     renderScreen('en');
     await waitForForm();
     await fillAndSubmit();
-    expect(await screen.findByRole('status')).not.toBeNull();
-    expect(screen.getByText('First refusal fixture')).not.toBeNull();
+    expect(await screen.findByText('First refusal fixture')).not.toBeNull();
+    expect(screen.getByText(t('en', 'admin.createCompanyRetryNotice'))).not.toBeNull();
     const retry = screen.getByRole('button', { name: t('en', 'admin.createCompanyRetry') });
     expect(retry.getAttribute('disabled')).toBeNull();
     fireEvent.click(retry);
@@ -123,7 +124,7 @@ function testForbiddenAfterUnknown(): void {
     renderScreen('en');
     await waitForForm();
     await fillAndSubmit();
-    expect(await screen.findByRole('status')).not.toBeNull();
+    expect(await screen.findByText(t('en', 'admin.createCompanyRetryNotice'))).not.toBeNull();
     fireEvent.click(screen.getByRole('button', { name: t('en', 'admin.createCompanyRetry') }));
     expect(await screen.findByText(t('en', 'admin.createCompanyForbidden'))).not.toBeNull();
     expect(window.localStorage.getItem(STORAGE_NAME)).toBeNull();

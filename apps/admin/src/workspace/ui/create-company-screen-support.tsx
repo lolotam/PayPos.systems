@@ -15,7 +15,8 @@ vi.mock('@/session/api/use-session', () => ({
   useSessionIdentity: () => ({ userId: USER, status: 'settled' as const }),
 }));
 
-export const USER = vi.hoisted(() => '01920000-0000-7000-8000-0000000000b1');
+const hoistedUser = vi.hoisted(() => '01920000-0000-7000-8000-0000000000b1');
+export const USER = hoistedUser;
 export const PLAN_ID = '01920000-0000-7000-8000-000000000001';
 export const POST_BODY = {
   name_en: 'Rehearsal Salon',
