@@ -1,7 +1,6 @@
 import {
   appendAuditLog,
   appendOutboxEvent,
-  invalidateCommissionCoverage,
   type IdGenerator,
   type TenantWrappers,
   type Tx,
@@ -130,8 +129,6 @@ async function completePreview(
 ) {
   const { tx, ids, companyId, preview } = context;
   const counts = packageCommitCounts(preview.row_count, created);
-  // الاستيراد يكتب صفوف باقات مباعة بلا حدث عمولة محسوب، فإثبات التغطية القائم لم يعد يصف بيانات الشركة (ADR-0054 §5).
-  if (created > 0) await invalidateCommissionCoverage(tx, ids.newId(), 'PACKAGE_IMPORT');
   await appendAuditLog(tx, ids.newId(), {
     entity: 'import_preview',
     entityId: preview.id,
