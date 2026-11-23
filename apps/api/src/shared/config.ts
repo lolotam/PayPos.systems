@@ -1,4 +1,5 @@
 import { isIP } from 'node:net';
+import { AUTH_COOKIE_PREFIX_PATTERN, DEFAULT_AUTH_COOKIE_PREFIX } from '@pospay/auth';
 import { LOG_LEVELS } from '@pospay/observability';
 import { z } from 'zod';
 import { matchesTrustedOrigin } from './trusted-origin-pattern.ts';
@@ -80,6 +81,12 @@ const schema = z.object({
       .string()
       .regex(/^\.[a-z0-9-]+(\.[a-z0-9-]+)+$/)
       .optional(),
+  ),
+  // The prefix of the session cookie name — one per environment, so a production cookie is never read by a
+  // staging host (ADR-0001 §3). Unset: the default prefix, the name production uses today.
+  AUTH_COOKIE_PREFIX: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().regex(AUTH_COOKIE_PREFIX_PATTERN).default(DEFAULT_AUTH_COOKIE_PREFIX),
   ),
   API_HOST: z.string().min(1).default('127.0.0.1'),
   API_PORT: z.coerce.number().int().min(1).max(65_535).default(3000),

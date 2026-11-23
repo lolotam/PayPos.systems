@@ -151,6 +151,17 @@ describe('readConfig', () => {
     );
   });
 
+  it('defaults the session cookie prefix, takes it when set, and refuses one that is not a cookie name', () => {
+    expect(readConfig(valid).AUTH_COOKIE_PREFIX).toBe('pospay');
+    expect(readConfig({ ...valid, AUTH_COOKIE_PREFIX: '' }).AUTH_COOKIE_PREFIX).toBe('pospay');
+    expect(readConfig({ ...valid, AUTH_COOKIE_PREFIX: 'pospay-stg' }).AUTH_COOKIE_PREFIX).toBe(
+      'pospay-stg',
+    );
+    expect(() => readConfig({ ...valid, AUTH_COOKIE_PREFIX: 'PosPay' })).toThrow(
+      /AUTH_COOKIE_PREFIX/,
+    );
+  });
+
   it('names the invalid keys but never echoes a value', () => {
     const attempt = () =>
       readConfig({
