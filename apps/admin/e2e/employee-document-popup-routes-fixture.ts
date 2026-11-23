@@ -172,6 +172,7 @@ function inventory(): Route[] {
         routeOf('denied', `${root}/employee-passkeys`, tenant, { limit: '20' }),
         routeOf('denied', `${root}/commission-plan-employees`, tenant, { limit: '50' }),
         routeOf('denied', `${root}/staff/employee-app-link`, tenant),
+        routeOf('denied', `${root}/ratings`, tenant, { limit: '1' }),
         routeOf('denied', `${root}/leave-history`, tenant, {
           from: '2000-01-01',
           to: '2000-01-01',

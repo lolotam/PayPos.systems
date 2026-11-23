@@ -41,6 +41,7 @@ vi.mock('../../modules/catalog/jobs/service-category-closing.processor.ts', () =
   }),
 }));
 import { startCatalogWorker } from '../../modules/catalog/index.ts';
+import { createLowRatingNoticeConsumer } from '../../modules/customers/index.ts';
 import {
   startPackagePreviewWorker,
   startPackageSaleWorker,
@@ -106,7 +107,12 @@ const catalog = startCatalogWorker(database, ids, 'synthetic', clock);
 
 it('recognizes every event emitted by API and worker, including finite template expansions', () => {
   const emitted = emittedEventTypes();
-  const consumers = [notifications.consumer, createStaffDocumentDefaults(ids)];
+  // LowRatingSubmitted له مستهلك حقيقي مسجَّل في main.ts، فلا يدخل قائمة الأنواع المعروفة بلا مستهلك (plan 61 §2).
+  const consumers = [
+    notifications.consumer,
+    createStaffDocumentDefaults(ids),
+    createLowRatingNoticeConsumer(ids, clock),
+  ];
   const supported = new Set([
     ...knownEventTypes(staff, notifications, null, previews, sales, imports, catalog),
     ...consumers.flatMap((consumer) => consumer.eventTypes),
