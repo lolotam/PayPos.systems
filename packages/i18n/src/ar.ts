@@ -21,6 +21,7 @@ import { attendanceCorrectionErrorsAr } from './attendance-correction-catalog.js
 import { employeeDocumentsAr } from './employee-documents-catalog.js';
 import { personalStaffAr } from './personal-staff-catalog.js';
 import { salaryAr } from './salary-catalog.js';
+import { invitationsAr } from './invitations-catalog.js';
 import { staffLoginAr } from './staff-login-catalog.js';
 import { permissionCodesAr } from './permission-codes-catalog.js';
 import { catalogServicesAr, catalogServiceErrorsAr } from './catalog-services.js';
@@ -159,36 +160,7 @@ export const ar: Catalog = {
     active: 'ساري',
     expired: 'منتهي',
   },
-  invitations: {
-    title: 'دعوة عضو',
-    lead: 'بتدعو مديراً أو محاسباً للوحة الإدارة. الرابط بيظهر مرة واحدة وتبعته بنفسك للشخص.',
-    emailLabel: 'البريد الإلكتروني',
-    nameLabel: 'الاسم',
-    roleLabel: 'الدور',
-    scopeLabel: 'النطاق',
-    scopeCompany: 'الشركة كلها',
-    roleGeneralManager: 'مدير عام',
-    roleBusinessManager: 'مدير نشاط',
-    roleBranchManager: 'مدير فرع',
-    roleAccountant: 'محاسب',
-    confirmLead: 'راجع البريد قبل الإرسال:',
-    confirmTick: 'اتأكدت إن البريد ده صحيح',
-    submit: 'إرسال الدعوة',
-    linkOnceTitle: 'رابط تعيين كلمة المرور — بيظهر مرة واحدة',
-    linkOnceLead: 'انسخه وابعته للشخص؛ مش هيتعرض تاني، والرابط القديم بيبطل لو اتطلع غيره.',
-    copy: 'نسخ الرابط',
-    copied: 'تم النسخ',
-    dismiss: 'اخفي الرابط',
-    existingNoLink: 'البريد ده له حساب بالفعل؛ العضوية اتضافت من غير رابط.',
-    listTitle: 'الدعوات',
-    statePending: 'معلّقة',
-    stateActive: 'نشِطة',
-    stateCancelled: 'ملغاة',
-    reissue: 'إصدار رابط جديد',
-    reissued: 'اتصدر رابط جديد؛ الرابط القديم بقى باطل.',
-    empty: 'مفيش دعوات بعد.',
-    invitedAt: 'تاريخ الدعوة',
-      },
+  invitations: invitationsAr,
   staffLogin: staffLoginAr,
   inApp: inAppAr,
   errors: {

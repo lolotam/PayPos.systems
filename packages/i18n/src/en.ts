@@ -21,6 +21,7 @@ import { employeeDocumentsEn } from './employee-documents-catalog.js';
 import { enPasskeyAdmin } from './passkey-admin.js';
 import { personalStaffEn } from './personal-staff-catalog.js';
 import { salaryEn } from './salary-catalog.js';
+import { invitationsEn } from './invitations-catalog.js';
 import { staffLoginEn } from './staff-login-catalog.js';
 import { catalogServicesEn, catalogServiceErrorsEn } from './catalog-services.js';
 import { serviceImportEn } from './service-import.js';
@@ -154,36 +155,7 @@ export const en = {
     active: 'Active',
     expired: 'Expired',
   },
-  invitations: {
-    title: 'Invite a member',
-    lead: 'Invite a manager or an accountant to the back office. The link is shown once; you send it yourself.',
-    emailLabel: 'Email',
-    nameLabel: 'Name',
-    roleLabel: 'Role',
-    scopeLabel: 'Scope',
-    scopeCompany: 'The whole company',
-    roleGeneralManager: 'General manager',
-    roleBusinessManager: 'Business manager',
-    roleBranchManager: 'Branch manager',
-    roleAccountant: 'Accountant',
-    confirmLead: 'Check the email before sending:',
-    confirmTick: 'I confirmed this email is correct',
-    submit: 'Send the invitation',
-    linkOnceTitle: 'Set-password link — shown once',
-    linkOnceLead: 'Copy it and send it to the person; it is never shown again, and an older link dies when a newer one is issued.',
-    copy: 'Copy the link',
-    copied: 'Copied',
-    dismiss: 'Hide the link',
-    existingNoLink: 'This email already has an account; the membership was added without a link.',
-    listTitle: 'Invitations',
-    statePending: 'Pending',
-    stateActive: 'Active',
-    stateCancelled: 'Cancelled',
-    reissue: 'Issue a new link',
-    reissued: 'A new link was issued; the older one is dead.',
-    empty: 'No invitations yet.',
-    invitedAt: 'Invited at',
-      },
+  invitations: invitationsEn,
   staffLogin: staffLoginEn,
   inApp: inAppEn,
   errors: {
