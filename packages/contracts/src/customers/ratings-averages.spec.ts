@@ -39,3 +39,10 @@ it('refuses an entry without her English name or without the employee', () => {
   expect(ratingAverageItem.safeParse({ ...item, name_en: undefined }).success).toBe(false);
   expect(ratingAverageItem.safeParse({ ...item, employee_id: undefined }).success).toBe(false);
 });
+
+it('carries the resolved month as YYYY-MM or null, and stays valid without it for an older server', () => {
+  expect(ratingAverages.parse({ items: [], month: '2026-06' }).month).toBe('2026-06');
+  expect(ratingAverages.parse({ items: [], month: null }).month).toBeNull();
+  expect(ratingAverages.parse({ items: [] }).month).toBeUndefined();
+  expect(ratingAverages.safeParse({ items: [], month: '2026-13' }).success).toBe(false);
+});

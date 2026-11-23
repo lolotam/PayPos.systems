@@ -8,7 +8,7 @@ import { ApiError } from '../../../shared/errors.ts';
 import type { Clock } from '../../../shared/ports/clock.port.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { readRatingAverages } from '../queries/rating-averages.query.ts';
-import { readAsMemberOfOpenCompany } from '../queries/ratings-member-read.ts';
+import { readAsMemberOfOpenCompany } from '../../../shared/open-company-member-read.ts';
 import {
   RATINGS_LIST_READS,
   type RatingsListReads,

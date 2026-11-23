@@ -101,8 +101,9 @@ export const alertRuleInput = z
   .meta({ id: 'AlertRuleInput' });
 
 // بيكتب الأنواع اللي في الطلب بس؛ الباقي بيفضل زي ما هو.
+// الحد الأقصى بيتشتق من قائمة الأنواع عشان نوع جديد ما يخلّيش طلب فيه كل الأنواع يترفض.
 export const setAlertRulesInput = z
-  .object({ rules: z.array(alertRuleInput).min(1).max(15) })
+  .object({ rules: z.array(alertRuleInput).min(1).max(alertKind.options.length) })
   .strict()
   .refine((input) => new Set(input.rules.map((r) => r.kind)).size === input.rules.length, {
     message: 'Each kind at most once',

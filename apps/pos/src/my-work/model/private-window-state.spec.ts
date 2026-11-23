@@ -99,3 +99,22 @@ it('keeps the form epoch from the PIN step into the opening step', () => {
   const pin: PrivateWindowState = { phase: 'pin', problem: null, epoch: 4, waiting: false };
   expect(reducePrivateWindow(pin, { type: 'opening' })).toEqual({ phase: 'opening', epoch: 4 });
 });
+
+it('drops a tips answer for a month other than the shown one and keeps loaded lines when a later page fails', () => {
+  let state = reducePrivateWindow(open(), {
+    type: 'linesLoaded',
+    page: page('2026-11', 'c'),
+    append: false,
+  });
+  state = reducePrivateWindow(state, {
+    type: 'tipsLoaded',
+    tips: { month: '2026-12', status: 'VISIBLE', total_cash: '1.000', total_card: '1.000' },
+  });
+  expect(state.phase === 'open' && state.data.tips).toBeUndefined();
+  state = reducePrivateWindow(state, { type: 'linesMore' });
+  state = reducePrivateWindow(state, { type: 'linesFailed', error: new Error('down') });
+  if (state.phase !== 'open') throw new Error('not open');
+  expect(state.data.lines.status).toBe('ready');
+  expect(state.data.lines.pages.length).toBe(1);
+  expect(state.data.lines.moreError).toBeInstanceOf(Error);
+});

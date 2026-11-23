@@ -5,7 +5,7 @@ import {
   type RatingsListPage,
 } from '@pospay/contracts';
 import { apiClient } from '@/shared/api/client';
-import type { RatingsPeriodQuery } from '../model/ratings-filters';
+import type { RatingsPageQuery, RatingsPeriodQuery } from '../model/ratings-filters';
 
 const listPath = '/v1/businesses/{businessId}/ratings';
 const averagesPath = '/v1/businesses/{businessId}/ratings/averages';
@@ -17,7 +17,7 @@ export function ratingsKey(companyId: string, userId: string, businessId: string
 export async function readRatingsPage(
   companyId: string,
   businessId: string,
-  query: Partial<RatingsPeriodQuery> & { employee_id?: string; cursor?: string; limit: number },
+  query: RatingsPageQuery,
   signal: AbortSignal,
 ): Promise<RatingsListPage> {
   const response = await apiClient().GET(listPath, {

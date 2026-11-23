@@ -18,7 +18,7 @@ import { openWithin, type PrivateWindowDeps } from './private-window-env';
 import { ExpiredView } from './private-window-expired-view';
 import type { Scope, WindowHost } from './private-window-host';
 import { attachWindowListeners } from './private-window-listeners';
-import { loadLines, loadTips } from './private-window-reads';
+import { loadMonth, loadMoreLines, retryTips } from './private-window-reads';
 import { WindowTimers } from './private-window-timers';
 import { TouchScheduler } from './private-window-touch';
 
@@ -130,28 +130,21 @@ export class PrivateWindowController implements WindowHost {
     }
   }
 
-  stepMonth(month: string): void {
-    if (this.scope(false) === undefined) return;
-    this.readSeq += 1;
-    this.dispatch({ type: 'month', month });
-    this.loadMonth(this.scope(true));
+  stepMonth(month: string | undefined): void {
+    this.restartReads({ type: 'month', month });
   }
 
   retry(): void {
-    if (this.scope(false) === undefined) return;
-    this.readSeq += 1;
-    this.dispatch({ type: 'retry' });
-    this.loadMonth(this.scope(true));
+    this.restartReads({ type: 'retry' });
+  }
+
+  /** إعادة قراءة الإكراميات بس بعد فشلها. */
+  retryTips(): void {
+    if (this.state.phase === 'open') void this.guard(retryTips(this, this.state.data));
   }
 
   loadMore(): void {
-    const scope = this.scope(true);
-    const lines = this.state.phase === 'open' ? this.state.data.lines : undefined;
-    const last = lines?.pages.at(-1);
-    if (scope === undefined || !last?.next_cursor || lines?.fetchingMore) return;
-    this.dispatch({ type: 'linesMore' });
-    // المؤشر بيتبعت مع شهر الصفحة اللي طلّعته: لو الشهر الحالي اتغيّر بين صفحتين مفيش خلط ومؤشر مرفوض.
-    void this.guard(loadLines(this, { ...scope, month: last.month }, last.next_cursor));
+    if (this.state.phase === 'open') void this.guard(loadMoreLines(this, this.state.data.lines));
   }
 
   scope = (forRead: boolean): Scope | undefined => {
@@ -269,10 +262,16 @@ export class PrivateWindowController implements WindowHost {
     this.onLeave();
   }
 
+  /** رقم قراءة جديد بيبطل أي رد متأخر لشهر قبله، وبعدين الشهر بيتقرا من الأول. */
+  private restartReads(action: PrivateWindowAction): void {
+    if (this.scope(false) === undefined) return;
+    this.readSeq += 1;
+    this.dispatch(action);
+    this.loadMonth(this.scope(true));
+  }
+
   private loadMonth(scope: Scope | undefined): void {
-    if (scope === undefined) return;
-    void this.guard(loadLines(this, scope, undefined));
-    void this.guard(loadTips(this, scope));
+    if (scope !== undefined) void this.guard(loadMonth(this, scope));
   }
 
   private guard(work: Promise<void>): Promise<void> {

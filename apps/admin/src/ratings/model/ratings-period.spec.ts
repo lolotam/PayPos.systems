@@ -1,14 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { currentRatingsMonth, parseRatingsMonth } from './ratings-period';
-
-describe('ratings period', () => {
-  it('names the current month by the zone clock, not by UTC', () => {
-    const lateInUtc = new Date('2026-10-31T22:30:00.000Z');
-    expect(currentRatingsMonth(lateInUtc, 'UTC')).toBe('2026-10');
-    expect(currentRatingsMonth(lateInUtc, 'Asia/Kuwait')).toBe('2026-11');
-  });
-});
+import { parseRatingsMonth } from './ratings-period';
 
 describe('ratings month boundaries', () => {
   it.each(['2026-11', '2000-01', '2999-12'])('accepts the complete month %s', (value) => {

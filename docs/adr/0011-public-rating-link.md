@@ -96,7 +96,9 @@ opt-out accessible until expiry; do not return the submitted rating/comment to t
 
 The comment is **optional plain text, at most 1,000 Unicode characters**, with no images, attachments or links.
 Enforce the limit and reject link-bearing content on the server; render accepted text with escaping, never HTML,
-Markdown or automatic linkification. Comments are visible to **every holder of `read:service-sessions:branch`**, within that holder's authorized
+Markdown or automatic linkification. **Superseded by the addendum of 2026-11-22 below: comments follow
+`read:ratings:branch`, held by the four manager roles only; reception is not eligible.** Original text, kept as history:
+comments are visible to **every holder of `read:service-sessions:branch`**, within that holder's authorized
 scope, reception included when granted it; the staff app, public responses and other tenants never expose them (§8,
 2026-10-21; until then the rule was owner/manager only, §7). The owner decided this policy;
 it overrides any earlier staff-comment visibility toggle. The orchestrator requires owner approval of ar/en
@@ -139,7 +141,9 @@ CLAUDE.md amendment; companion-document synchronization belongs to the orchestra
   at 30 requests/minute, bilingual 429/Retry-After and trusted-proxy spoof rejection; unauthenticated routes still
   pass route-access coverage.
 - **Comments:** absent/empty and 1,000-character comments accepted, 1,001 rejected (including Unicode input),
-  links/images rejected and markup never executed; invalid input leaves the token unconsumed. A holder of
+  links/images rejected and markup never executed; invalid input leaves the token unconsumed. **Superseded by the
+  addendum of 2026-11-22: the test is that a current manager holding `read:ratings:branch` reads comments in her
+  scope and reception does not.** Original text, kept as history: a holder of
   `read:service-sessions:branch` reads comments in its scope, reception included (§8); a caller without it, the staff
   app, public and cross-tenant reads cannot reveal comments.
 

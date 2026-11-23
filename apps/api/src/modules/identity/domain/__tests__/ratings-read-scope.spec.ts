@@ -1,65 +1,90 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import type { AccessGrant } from '../access.ts';
-import { readableRatingBranches, type RatingsReadMembership } from '../ratings-read-scope.ts';
-import { RATINGS_READ_PERMISSION } from '../ratings-read-eligibility.ts';
+import { RATINGS_READ_ROLES } from '../ratings-read-eligibility.ts';
+import {
+  readableRatingBranches,
+  type RatingsReadGrant,
+  type RatingsReadMembership,
+} from '../ratings-read-scope.ts';
+import { RULE_CASES } from './ratings-comment-rule-cases.ts';
 
-const scope = { companyId: 'company', businessId: 'business' };
+const scope = { companyId: 'C', businessId: 'B' };
 const branches = ['b1', 'b2', 'b3'];
 const grant = (
-  scopeType: AccessGrant['scopeType'],
+  membershipId: string,
+  scopeType: RatingsReadGrant['scopeType'],
   scopeId: string,
-  effect: AccessGrant['effect'] = 'ALLOW',
-): AccessGrant => ({ permission: RATINGS_READ_PERMISSION, effect, scopeType, scopeId });
+  effect: RatingsReadGrant['effect'] = 'ALLOW',
+): RatingsReadGrant => ({ membershipId, effect, scopeType, scopeId });
 const member = (
+  membershipId: string,
   scopeType: RatingsReadMembership['scopeType'],
   scopeId: string,
   systemRoleCode: string | null,
-): RatingsReadMembership => ({ scopeType, scopeId, systemRoleCode });
-const read = (members: RatingsReadMembership[], grants: AccessGrant[]) =>
-  readableRatingBranches(scope, branches, members, grants);
+): RatingsReadMembership => ({ membershipId, scopeType, scopeId, systemRoleCode });
+const read = (members: RatingsReadMembership[], grants: RatingsReadGrant[], owner = false) =>
+  readableRatingBranches(scope, branches, members, grants, owner);
 
-describe('readableRatingBranches', () => {
-  it('lets a branch manager read her own branch only', () => {
-    expect(read([member('BRANCH', 'b2', 'branch_manager')], [grant('BRANCH', 'b2')])).toEqual([
-      'b2',
+/** بصمة الجدول المشترك؛ نفس القيمة بالحرف في spec الـ worker، فتعديل جانب واحد يكسر الجانب التاني. */
+const TABLE_FINGERPRINT = 'ede383d62237ee519593a30865c7c2b1159f345ced48ab10b80b1376ea47fa3b';
+
+describe('the shared comment-reader rule table', () => {
+  it('is the same table the worker decision is tested against', () => {
+    expect(createHash('sha256').update(JSON.stringify(RULE_CASES)).digest('hex')).toBe(
+      TABLE_FINGERPRINT,
+    );
+  });
+
+  it.each(RULE_CASES.map((c) => [c.name, c] as const))('%s', (_name, c) => {
+    const answer = readableRatingBranches(
+      scope,
+      [c.branch],
+      c.memberships.map((m) => member(m.id, m.scopeType, m.scopeId, m.role)),
+      c.grants.map((g) => grant(g.membership, g.scopeType, g.scopeId, g.effect)),
+      c.owner,
+    );
+    expect(answer).toEqual(c.readable ? [c.branch] : []);
+  });
+
+  it('uses the same four manager roles as the eligibility rule', () => {
+    expect([...RATINGS_READ_ROLES].sort()).toEqual([
+      'branch_manager',
+      'business_manager',
+      'general_manager',
+      'owner',
     ]);
+  });
+});
+
+describe('readableRatingBranches over several branches', () => {
+  it('lets a branch manager read her own branch only', () => {
+    expect(
+      read([member('m1', 'BRANCH', 'b2', 'branch_manager')], [grant('m1', 'BRANCH', 'b2')]),
+    ).toEqual(['b2']);
   });
 
   it.each([
-    ['owner', 'COMPANY', 'company'],
-    ['general_manager', 'COMPANY', 'company'],
-    ['business_manager', 'BUSINESS', 'business'],
+    ['owner', 'COMPANY', 'C'],
+    ['general_manager', 'COMPANY', 'C'],
+    ['business_manager', 'BUSINESS', 'B'],
   ] as const)('lets a %s read every branch of the business', (role, type, id) => {
-    expect(read([member(type, id, role)], [grant(type, id)])).toEqual(branches);
+    expect(read([member('m1', type, id, role)], [grant('m1', type, id)])).toEqual(branches);
   });
 
   it('removes a branch denied at branch level while the business grant stays', () => {
     expect(
       read(
-        [member('BUSINESS', 'business', 'business_manager')],
-        [grant('BUSINESS', 'business'), grant('BRANCH', 'b2', 'DENY')],
+        [member('m1', 'BUSINESS', 'B', 'business_manager')],
+        [grant('m1', 'BUSINESS', 'B'), grant('m1', 'BRANCH', 'b2', 'DENY')],
       ),
     ).toEqual(['b1', 'b3']);
-  });
-
-  it('refuses a role changed to cashier even though the earlier grant is still effective', () => {
-    expect(read([member('BRANCH', 'b1', 'cashier')], [grant('BRANCH', 'b1')])).toEqual([]);
-  });
-
-  it('refuses a custom role whose code looks like a manager role', () => {
-    expect(read([member('COMPANY', 'company', null)], [grant('COMPANY', 'company')])).toEqual([]);
-  });
-
-  it('refuses a manager without an effective grant and a user without memberships', () => {
-    expect(read([member('BRANCH', 'b1', 'branch_manager')], [])).toEqual([]);
-    expect(read([], [grant('COMPANY', 'company')])).toEqual([]);
   });
 
   it('does not let a manager membership elsewhere widen a stale grant on a cashier membership', () => {
     expect(
       read(
-        [member('BRANCH', 'b1', 'cashier'), member('BRANCH', 'b3', 'branch_manager')],
-        [grant('BRANCH', 'b1'), grant('BRANCH', 'b3')],
+        [member('m1', 'BRANCH', 'b1', 'cashier'), member('m2', 'BRANCH', 'b3', 'branch_manager')],
+        [grant('m1', 'BRANCH', 'b1'), grant('m2', 'BRANCH', 'b3')],
       ),
     ).toEqual(['b3']);
   });
@@ -69,8 +94,9 @@ describe('readableRatingBranches', () => {
       readableRatingBranches(
         scope,
         [],
-        [member('COMPANY', 'company', 'owner')],
-        [grant('COMPANY', 'company')],
+        [member('m1', 'COMPANY', 'C', 'owner')],
+        [grant('m1', 'COMPANY', 'C')],
+        true,
       ),
     ).toEqual([]);
   });

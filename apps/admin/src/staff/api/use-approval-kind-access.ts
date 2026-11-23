@@ -17,12 +17,20 @@ export interface ApprovalAccessScope {
 
 export type ApprovalKindAccess = Readonly<Record<ApprovalKindId, boolean>>;
 
+/** نتيجة قراءة نوع واحد؛ idle لقراءة لا تعمل لغياب النطاق (مثل غياب الفرع)، فلا تُعدّ انتظارًا. */
+export type ApprovalProbe = ReturnType<typeof readAccessProof> | 'idle';
+
+export type ApprovalProbes = Readonly<Record<ApprovalKindId, ApprovalProbe>>;
+
+/** حال الصندوق كله: ينتظر إن بقيت قراءة، أو تعذّر التحقق إن فشلت قراءة (الرفض 401/403 جواب لا فشل). */
+export type ApprovalProbeState = 'loading' | 'failed' | 'settled';
+
 function useProbe(
   kind: ApprovalKindId,
   scope: ApprovalAccessScope | null,
   options: { enabled: boolean },
   read: (scope: ApprovalAccessScope, signal: AbortSignal) => Promise<unknown>,
-): boolean {
+): ApprovalProbe {
   const ready = scope !== null && options.enabled;
   const query = useQuery({
     queryKey: [
@@ -42,7 +50,22 @@ function useProbe(
     queryFn: ({ signal }) => read(scope as ApprovalAccessScope, signal),
   });
   // إثبات حالي لهذا المراقب: النجاح المخزَّن من زيارة سابقة لا يُظهر نوعًا، فمن سُحبت صلاحيته لا يرى رابطًا يردّ 403.
-  return ready && readAccessProof(query) === 'granted';
+  const proof = readAccessProof(query);
+  // قراءة أوقفها انقطاع الاتصال قبل أن تبدأ تبقى «ينتظر» طوال الانقطاع، وقد تحجب فشل غيرها لأن الانتظار يغلب،
+  // فتُعدّ «تعذّر التحقق» وتستأنف وحدها عند عودة الاتصال (networkMode بلا تغيير). النجاح المخزَّن من زيارة سابقة
+  // لا يغيّر ذلك: لا يُعرض رابط منه (الإثبات ما زال pending)، فوجود البيانات لا يُخرج القراءة من الحكم.
+  if (!ready) return 'idle';
+  return proof === 'pending' && query.fetchStatus === 'paused' ? 'failed' : proof;
+}
+
+/**
+ * يرفع الخطأ برمز الحالة عند أي رد 4xx/5xx. القرار من رمز الحالة لا من جسم الخطأ: openapi-fetch يعطي
+ * error غير معرّف لرد 403 بلا جسم، فلو اعتمدنا عليه لمرّ الرد إلى المحلل وفشل بلا رمز، وقرأه
+ * readAccessProof فشلًا بدل رفض.
+ */
+function rejectOnHttpError(result: { error?: unknown; response: { status: number } }): void {
+  if (result.response.status < 400) return;
+  throw { ...(result.error as object | undefined), status: result.response.status };
 }
 
 const header = (scope: ApprovalAccessScope) => ({ 'x-company-id': scope.companyId });
@@ -51,8 +74,10 @@ const header = (scope: ApprovalAccessScope) => ({ 'x-company-id': scope.companyI
  * يقول لكل نوع اعتماد هل يستطيع المستخدم فتح صفحته الآن، بنفس القراءة التي تعتمد عليها الصفحة
  * (قائمتها بسجل واحد). الرفض والتحميل والخطأ كلها تعني «لا»، فلا يُخمَّن ظهور نوع لا يُعرف حاله.
  * النوعان الحضوريان يحتاجان فرعًا مختارًا مثل مساريهما.
+ * الخطأ يحمل رمز الحالة ليفرّق readAccessProof بين الرفض (401/403: جواب «لا») والفشل (الجواب مجهول).
+ * هنا النتيجة الخام لكل قراءة؛ `approvalAccessOf` و`approvalStateOf` يشتقان منها الجواب وحال الصندوق.
  */
-export function useApprovalKindAccess(scope: ApprovalAccessScope | null): ApprovalKindAccess {
+export function useApprovalKindProbes(scope: ApprovalAccessScope | null): ApprovalProbes {
   const leave = useProbe(
     'leave-approvals',
     scope,
@@ -62,7 +87,7 @@ export function useApprovalKindAccess(scope: ApprovalAccessScope | null): Approv
         params: { header: header(s), path: { businessId: s.businessId }, query: { limit: 1 } },
         signal,
       });
-      if (result.error) throw result.error;
+      rejectOnHttpError(result);
       return leavePage.parse(result.data);
     },
   );
@@ -82,7 +107,7 @@ export function useApprovalKindAccess(scope: ApprovalAccessScope | null): Approv
           signal,
         },
       );
-      if (result.error) throw result.error;
+      rejectOnHttpError(result);
       return attendanceChangeRequestPage.parse(result.data);
     },
   );
@@ -102,7 +127,7 @@ export function useApprovalKindAccess(scope: ApprovalAccessScope | null): Approv
           signal,
         },
       );
-      if (result.error) throw result.error;
+      rejectOnHttpError(result);
       return attendanceExceptionPage.parse(result.data);
     },
   );
@@ -111,4 +136,23 @@ export function useApprovalKindAccess(scope: ApprovalAccessScope | null): Approv
     'attendance-requests': requests,
     'attendance-exceptions': exceptions,
   };
+}
+
+/** جواب نعم/لا لكل نوع: نعم فقط بعد قراءة ناجحة لهذا المراقب. */
+export function approvalAccessOf(probes: ApprovalProbes): ApprovalKindAccess {
+  return {
+    'leave-approvals': probes['leave-approvals'] === 'granted',
+    'attendance-requests': probes['attendance-requests'] === 'granted',
+    'attendance-exceptions': probes['attendance-exceptions'] === 'granted',
+  };
+}
+
+export function approvalStateOf(probes: ApprovalProbes): ApprovalProbeState {
+  const all = Object.values(probes);
+  if (all.includes('pending')) return 'loading';
+  return all.includes('failed') ? 'failed' : 'settled';
+}
+
+export function useApprovalKindAccess(scope: ApprovalAccessScope | null): ApprovalKindAccess {
+  return approvalAccessOf(useApprovalKindProbes(scope));
 }

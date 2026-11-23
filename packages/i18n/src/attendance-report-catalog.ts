@@ -12,6 +12,7 @@ export const attendanceReportEn = {
   featureDisabled: 'Attendance is disabled for this business.',
   retry: 'Retry',
   refreshError: 'Could not refresh. Showing the last available data.',
+  sortBy: 'Sort by',
   sortAscending: 'Sort ascending',
   sortDescending: 'Sort descending',
   hoursFormat:
@@ -55,6 +56,7 @@ export const attendanceReportAr: Record<keyof typeof attendanceReportEn, string>
   featureDisabled: 'الحضور مش مفعّل للنشاط ده.',
   retry: 'حاول تاني',
   refreshError: 'التحديث ماكملش. بنعرض آخر بيانات متاحة.',
+  sortBy: 'ترتيب حسب',
   sortAscending: 'ترتيب تصاعدي',
   sortDescending: 'ترتيب تنازلي',
   hoursFormat:

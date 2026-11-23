@@ -1,6 +1,6 @@
 import { DirectionProvider } from '@pospay/ui';
 import { act, render } from '@testing-library/react';
-import { useSyncExternalStore, type ReactElement } from 'react';
+import { useMemo, useSyncExternalStore, type ReactElement } from 'react';
 import { vi } from 'vitest';
 
 import type { WorkspaceController } from '@/workspace/model/workspace-provider';
@@ -21,16 +21,31 @@ const OPEN: VisibilityConditions = {
   'staff-app-columns-access': true,
 };
 
+// قراءة التقييمات للمديرين الأربعة فقط في الواقع، فأي دور تاني في الاختبار ما يشوفش صفحتها.
+const RATINGS_ROLES: readonly string[] = [
+  'owner',
+  'general_manager',
+  'business_manager',
+  'branch_manager',
+];
+
 const listeners = new Set<() => void>();
 
 function setPathname(path: string): void {
-  frameState.pathname = path;
+  const [address = '', fragment] = path.split('#');
+  const [pathname = '', search = ''] = address.split('?');
+  frameState.pathname = pathname;
+  frameState.search = search;
+  const hash = fragment === undefined ? '' : `#${fragment}`;
+  window.history.replaceState(null, '', window.location.pathname + hash);
   for (const listener of listeners) listener();
+  window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
 /** حالة قابلة للتعديل تقرؤها محاكيات الاختبار؛ كل ملف اختبار إطار يربطها بنفس الأسماء. */
 export const frameState = {
   pathname: '/',
+  search: '',
   locale: 'en' as 'en' | 'ar',
   visible: [] as readonly string[],
   push: vi.fn(setPathname),
@@ -42,16 +57,23 @@ export function goTo(path: string): void {
   act(() => setPathname(path));
 }
 
+function useExternal<T>(read: () => T): T {
+  return useSyncExternalStore(
+    (callback) => {
+      listeners.add(callback);
+      return () => listeners.delete(callback);
+    },
+    read,
+    read,
+  );
+}
+
 export const navigationMock = {
-  usePathname: () =>
-    useSyncExternalStore(
-      (callback) => {
-        listeners.add(callback);
-        return () => listeners.delete(callback);
-      },
-      () => frameState.pathname,
-      () => frameState.pathname,
-    ),
+  usePathname: () => useExternal(() => frameState.pathname),
+  useSearchParams: () => {
+    const search = useExternal(() => frameState.search);
+    return useMemo(() => new URLSearchParams(search), [search]);
+  },
   useRouter: () => ({ push: frameState.push, refresh: () => undefined }),
 };
 export const localeMock = {
@@ -81,8 +103,11 @@ const COMPANY = {
   scope: 'COMPANY' as const,
 };
 
-/** يضبط النشاط المحدد ويحسب الصفحات المرئية لمالك في الكويت بكل الشروط مفتوحة. */
-export function selectBusiness(businessType: 'salon' | 'restaurant'): void {
+/** يضبط النشاط المحدد ويحسب الصفحات المرئية لدور (المالك افتراضيًا) في الكويت بكل الشروط مفتوحة. */
+export function selectBusiness(
+  businessType: 'salon' | 'restaurant',
+  role = COMPANY.role_code,
+): void {
   const business = {
     id: 'business-1',
     name_ar: null,
@@ -100,17 +125,17 @@ export function selectBusiness(businessType: 'salon' | 'restaurant'): void {
   };
   frameState.workspace = {
     status: 'ready',
-    company: { ...COMPANY, businesses: [business] },
+    company: { ...COMPANY, role_code: role, businesses: [business] },
     business,
     branch,
-    companies: [{ ...COMPANY, businesses: [business] }],
+    companies: [{ ...COMPANY, role_code: role, businesses: [business] }],
     choose: vi.fn(),
   };
   frameState.visible = visiblePageIds(NAVIGATION_PAGES, {
-    conditions: OPEN,
+    conditions: { ...OPEN, 'ratings-access': RATINGS_ROLES.includes(role) },
     businessType,
     country: 'KW',
-    role: 'owner',
+    role,
   });
 }
 
@@ -156,6 +181,8 @@ export function renderFrame(ui: ReactElement, dir: 'ltr' | 'rtl' = 'ltr') {
 
 export function resetFrameState(): void {
   frameState.pathname = '/';
+  frameState.search = '';
+  window.history.replaceState(null, '', window.location.pathname);
   frameState.locale = 'en';
   frameState.push.mockReset();
   frameState.push.mockImplementation(setPathname);

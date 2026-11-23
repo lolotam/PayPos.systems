@@ -34,15 +34,18 @@ type PageParam = { cursor: string; month: string };
  * @param context مين بيفتح الشاشة
  * @param month الشهر المطلوب أو undefined للحالي
  * @param onRefused معالج رفض السيرفر
+ * @param enabled false بعد رفض الصلاحية، فالقراءة ما بتتعادش ولا بترجع صفحات اتمسحت من الكاش
  * @returns استعلام الصفحات
  */
 export function useWorkLines(
   context: WorkContext,
   month: string | undefined,
   onRefused: OnRefused,
+  enabled = true,
 ) {
   return useInfiniteQuery({
     ...PERSONAL_READ,
+    enabled,
     queryKey: ['my-work', context.identity, 'lines', month ?? 'current'],
     initialPageParam: undefined as PageParam | undefined,
     queryFn: ({ pageParam, signal }) =>
@@ -79,17 +82,19 @@ export function useRatingSummary(context: WorkContext, onRefused: OnRefused) {
 }
 
 /**
- * إكراميات الشهر حسب الطريقة؛ لو العمود مخفي الرد HIDDEN ومفيش بلوك.
+ * إكراميات الشهر حسب الطريقة؛ لو العمود مخفي الرد HIDDEN ومفيش بلوك. بتتطلب دايماً بشهر صريح: الشهر
+ * المعروض (شهر أول صفحة خدمات لو الموظفة لسه ما اختارتش)، فمتتحسبش «الحالي» بشكل مستقل عن الخدمات.
  *
  * @param context مين بيفتح الشاشة
- * @param month الشهر المطلوب أو undefined للحالي
+ * @param month الشهر المعروض، أو undefined قبل أول رد خدمات (القراءة بتستنى)
  * @param onRefused معالج رفض السيرفر
  * @returns استعلام الإكراميات
  */
 export function useWorkTips(context: WorkContext, month: string | undefined, onRefused: OnRefused) {
   return useQuery({
     ...PERSONAL_READ,
-    queryKey: ['my-work', context.identity, 'tips', month ?? 'current'],
+    queryKey: ['my-work', context.identity, 'tips', month],
+    enabled: month !== undefined,
     queryFn: ({ signal }) =>
       guarded(
         () => workCalls.tips({ mode: context.mode, month, windowId: undefined, signal }),

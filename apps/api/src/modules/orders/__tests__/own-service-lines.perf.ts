@@ -7,6 +7,7 @@ import {
 } from '../../../../test/session-tips.fixture.ts';
 import type { PerfConfig, Target } from './own-service-lines.measure.ts';
 import { record } from './own-service-lines.dbtime.ts';
+import { isStatisticsDependentFailure } from './own-service-lines.retry.ts';
 import { measureDiagnostics, measureJudged } from './own-service-lines.phases.ts';
 import {
   bulkVisits,
@@ -29,7 +30,17 @@ const COLLEAGUE_CANCELLATIONS = 47;
 // زميلاتها المزروعون قبل إلغاء الـ47: يكفوا لاختيارهم، وأقل من عتبة autoanalyze (50 + 10% من الصفوف) للجداول الثلاثة.
 const EARLY_COLLEAGUES = 100;
 // محاولات تأسيس الحالة القديمة: autoanalyze بيحلّل الجداول خلال دقيقة تقريباً من الزرع، فتُرفض المحاولة اللي حدث فيها تحليل (بصمة الـANALYZE).
+// كل محاولة بعد الأولى على قاعدة جديدة مستنسخة وتزرع هدفها بالحجم الموثّق نفسه، فالمحاولات المرفوضة ما بتتراكمش مستأجرين كبار
+// في الجداول (وإلا الجدول بيكبر مع كل إعادة والمحاولة المقبولة تتقاس على حجم غير الموثّق).
 const MAX_ATTEMPTS = 5;
+// شركتا خلفية تكبّران الجداول لحجم موثّق ثم ANALYZE: الإحصاءات بعدها تعرف الشركات الصغيرة فقط، فالهدف الجديد يبقى غائباً من MCV.
+async function prepareBackground(f: TipFixture, config: PerfConfig) {
+  for (let n = 0; n < 2; n++) {
+    const background = await newPerfScope(f, `Synthetic perf background ${n}`);
+    await bulkVisits(f, background, config.background, background.employeeIds.slice(1));
+  }
+  await f.h.owner.unsafe('ANALYZE service_sessions,service_lines,line_performers');
+}
 
 async function statistics(f: TipFixture, companyId: string) {
   const rows = await f.h
@@ -109,7 +120,6 @@ async function seedTarget(f: TipFixture, attempt: number, config: PerfConfig): P
 export function perfSuite(config: PerfConfig) {
   let f: TipFixture;
   let target: Target | null = null;
-  const violations: string[] = [];
   beforeAll(async () => {
     f = await tipFixture();
   }, 120_000);
@@ -118,22 +128,33 @@ export function perfSuite(config: PerfConfig) {
   });
 
   it('stale statistics: a new tenant absent from the three MCV lists, no ANALYZE after its insert (AC 1, 3)', async () => {
-    for (let n = 0; n < 2; n++) {
-      const background = await newPerfScope(f, `Synthetic perf background ${n}`);
-      await bulkVisits(f, background, config.background, background.employeeIds.slice(1));
-    }
-    await f.h.owner.unsafe('ANALYZE service_sessions,service_lines,line_performers');
+    // لكل حالة قائمة مخالفاتها: مخالفة في الإحصاءات القديمة لا تُحسب مرة ثانية على الحالة العادية.
+    const violations: string[] = [];
     for (let attempt = 0; attempt < MAX_ATTEMPTS && target === null; attempt++) {
+      if (attempt > 0) {
+        await f.close();
+        f = await tipFixture();
+      }
+      await prepareBackground(f, config);
       const baseline = stamps((await statistics(f, '')).rows);
-      const candidate = await seedTarget(f, attempt, config);
+      const candidate = await seedTarget(f, 0, config);
       const before = await statistics(f, candidate.scope.companyId);
       if (!before.absent || stamps(before.rows) !== baseline) continue;
       record('57-2b statistics before', JSON.stringify({ attempt, rows: before.rows }));
       // المرحلة المُحكَّمة أولاً والإحصاءات لسه قديمة؛ والتحقق منها بعدها مباشرة، قبل التشخيص الطويل بالزمن الكلي.
-      const pages = await measureJudged(f, 'stale statistics', candidate, config, violations);
+      // autoanalyze بين الزرع والقياس ممكن يغيّر الخطة لحد المهلة، فإلغاء الجملة بالمهلة بس معناه محاولة مرفوضة؛ أي خطأ تاني
+      // (مقارنة بالمرجع وغيرها) بيطلع فوراً حتى لو الإحصاءات اتغيّرت.
+      const pages = await measureJudged(f, 'stale statistics', candidate, config, violations).catch(
+        async (error: unknown) => {
+          if (!isStatisticsDependentFailure(error)) throw error;
+          const during = await statistics(f, candidate.scope.companyId);
+          if (during.absent && stamps(during.rows) === baseline) throw error;
+          return null;
+        },
+      );
       const after = await statistics(f, candidate.scope.companyId);
       record('57-2b statistics after', JSON.stringify({ attempt, rows: after.rows }));
-      if (!after.absent || stamps(after.rows) !== baseline) {
+      if (pages === null || !after.absent || stamps(after.rows) !== baseline) {
         violations.length = 0;
         continue;
       }
@@ -148,6 +169,7 @@ export function perfSuite(config: PerfConfig) {
 
   it('normal statistics: the same fixture after ANALYZE prepared only this run (AC 2, 3)', async () => {
     // الحالة العادية لا تعتمد على الحالة القديمة: لو شُغّلت وحدها (تصفية بالاسم) تزرع هدفها بنفسها.
+    const violations: string[] = [];
     const t = target ?? (await seedTarget(f, 99, config));
     await f.h.owner.unsafe('ANALYZE service_sessions,service_lines,line_performers');
     const normal = await statistics(f, t.scope.companyId);

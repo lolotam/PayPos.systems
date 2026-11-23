@@ -55,6 +55,7 @@ export const ownServiceLinesPaths = {
         '401': { description: 'UNAUTHENTICATED', content: errorContent },
         '403': { description: 'FORBIDDEN or PRIVATE_VIEW_EXPIRED', content: errorContent },
         '422': { description: 'MY_PERIOD_OUT_OF_RANGE', content: errorContent },
+        '503': { description: 'NOT_READY', content: errorContent },
       },
     },
   },

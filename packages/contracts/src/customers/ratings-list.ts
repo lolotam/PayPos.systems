@@ -10,6 +10,7 @@ import {
   periodInstant,
   periodIsValid,
   ratingsMonth,
+  resolvedRatingsMonth,
 } from './ratings-period.js';
 import { ratingStars } from './ratings.js';
 
@@ -52,5 +53,13 @@ export const ratingsListItem = responseObject({
 });
 export type RatingsListItem = z.infer<typeof ratingsListItem>;
 
-export const ratingsListPage = page(ratingsListItem);
+/** صفحة التقييمات؛ `month` هو الشهر الذي حوّل السيرفر `month` إليه (بتوقيت النشاط)، وnull لما `from`/`to` أو بلا فترة. */
+export const ratingsListPage = page(ratingsListItem).extend({ month: resolvedRatingsMonth });
 export type RatingsListPage = z.infer<typeof ratingsListPage>;
+
+/**
+ * محتوى مؤشر القائمة بعد فك ترميزه: وقت تسجيل آخر تقييم في الصفحة ومعرّفه. الوقت بنفس قاعدة حدود الفترة (`periodInstant`)
+ * عشان مؤشر محرّف بتاريخ ترفضه PostgreSQL (السنة 0000 مثلًا) يترد 400 مش خطأ cast بـ500.
+ */
+export const ratingsCursorKey = z.object({ at: periodInstant, id });
+export type RatingsCursorKey = z.infer<typeof ratingsCursorKey>;

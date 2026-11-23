@@ -45,8 +45,8 @@ export async function readRatingAverages(
   const q = parsed.data;
   const wanted = q.branch_id?.toLowerCase();
   const branchIds = wanted === undefined ? allowed : allowed.filter((b) => b === wanted);
-  if (branchIds.length === 0) return ratingAverages.parse({ items: [] });
-  const period = await resolvePeriod(tx, c, q, now, reads, true);
+  const { period, month } = await resolvePeriod(tx, c, q, now, reads, true);
+  if (branchIds.length === 0) return ratingAverages.parse({ items: [], month });
   const rows = Array.from(
     await tx.execute<{ employee_id: string; average: string; count: number }>(
       ratingAveragesStatement({
@@ -69,5 +69,6 @@ export async function readRatingAverages(
       name_en: '',
       ...names.get(row.employee_id),
     })),
+    month,
   });
 }

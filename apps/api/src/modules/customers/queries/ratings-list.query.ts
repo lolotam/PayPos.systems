@@ -1,14 +1,11 @@
-import { id, ratingsListPage, ratingsListQuery, timestamp } from '@pospay/contracts';
+import { ratingsListPage, ratingsListQuery } from '@pospay/contracts';
 import type { Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 import { ApiError } from '../../../shared/errors.ts';
+import { decodeRatingsCursor, encodeRatingsCursor, type RatingsCursor } from './ratings-cursor.ts';
 import type { RatingsListReads, RatingsListScope } from './ratings-list-reads.ts';
 import { periodPredicate, resolvePeriod, type RatingsPeriod } from './ratings-period.query.ts';
 
-interface Cursor {
-  readonly at: string;
-  readonly id: string;
-}
 export interface RatingsListFilter {
   readonly companyId: string;
   readonly businessId: string;
@@ -17,7 +14,7 @@ export interface RatingsListFilter {
   readonly employeeId?: string | undefined;
   /** الفترة بعد ما اتحددت من `from`/`to` أو `month`؛ مفتوحة لما مفيش حاجة منهم. */
   readonly period: RatingsPeriod;
-  readonly cursor: Cursor | null;
+  readonly cursor: RatingsCursor | null;
   readonly limit: number;
 }
 type RatingRow = {
@@ -29,18 +26,6 @@ type RatingRow = {
   readonly comment: string | null;
   readonly performer_ids: string[];
 };
-
-function decodeCursor(value: string | undefined): Cursor | null {
-  if (value === undefined) return null;
-  try {
-    const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8')) as Partial<Cursor>;
-    if (timestamp.safeParse(parsed.at).success && id.safeParse(parsed.id).success)
-      return { at: parsed.at as string, id: (parsed.id as string).toLowerCase() };
-  } catch {
-    /* محتوى المؤشر ما بيدخلش التشخيصات. */
-  }
-  throw new ApiError('BAD_REQUEST');
-}
 
 /** نطاق الوقت والمؤشر على عمود submitted_at المجرد؛ `<=` الزيادة بتدي الفهرس حد بداية، والمقارنة الصف بتحسم التعادل. */
 function keyset(f: RatingsListFilter, at: SQL, rank: SQL): SQL {
@@ -59,7 +44,9 @@ const branchList = (branchIds: readonly string[]) =>
   );
 
 // الصفحة بدون موظف: أحدث (LIMIT) تقييمات كل فرع من ratings_branch_idx بالعكس، ثم دمجها وقطعها؛ التكلفة بعدد الفروع × الصفحة
-// مش بحجم التاريخ. أما بموظف فالصفحة بتبدأ من rating_attributions_employee_idx وبتجيب ratings بالمفتاح، فمفيش فرز على كل النشاط.
+// مش بحجم التاريخ. أما بموظف فالصفحة بتبدأ من rating_attributions_employee_idx وبتجيب ratings بالمفتاح، فمفيش فرز على كل النشاط؛
+// الفروع المسموحة بتتطبّق كشرط على الصفوف دي (مفيش فهرس على الموظف والفرع معاً)، فتاريخ الموظفة في فروع خارج النطاق بيتمسح ويتصفّى
+// من غير ما يرجع صف منه ولا يأثر على المؤشر؛ تقييده بفهرس مركب موظف+فرع+وقت متابعة بمرحلة هجرة.
 function pageRows(f: RatingsListFilter): SQL {
   const take = f.limit + 1;
   if (f.employeeId !== undefined)
@@ -102,10 +89,12 @@ export async function readRatingsList(
   const parsed = ratingsListQuery.safeParse(raw);
   if (!parsed.success) throw new ApiError('VALIDATION_FAILED');
   const q = parsed.data;
+  // المؤشر بيتفك قبل أي رد فاضي، فمؤشر مرفوض يطلع 400 حتى لو الفرع المطلوب برّه نطاق القارئ.
+  const cursor = decodeRatingsCursor(q.cursor);
   const wanted = q.branch_id?.toLowerCase();
   const branchIds = wanted === undefined ? allowed : allowed.filter((b) => b === wanted);
-  if (branchIds.length === 0) return ratingsListPage.parse({ items: [], next_cursor: null });
-  const period = await resolvePeriod(tx, c, q, now, reads, false);
+  const { period, month } = await resolvePeriod(tx, c, q, now, reads, false);
+  if (branchIds.length === 0) return ratingsListPage.parse({ items: [], next_cursor: null, month });
   const rows = Array.from(
     await tx.execute<RatingRow>(
       ratingsListStatement({
@@ -113,7 +102,7 @@ export async function readRatingsList(
         branchIds,
         employeeId: q.employee_id?.toLowerCase(),
         period,
-        cursor: decodeCursor(q.cursor),
+        cursor,
         limit: q.limit,
       }),
     ),
@@ -142,7 +131,8 @@ export async function readRatingsList(
     items,
     next_cursor:
       rows.length > q.limit && last !== undefined
-        ? Buffer.from(JSON.stringify({ at: last.submitted_at, id: last.id })).toString('base64url')
+        ? encodeRatingsCursor(last.submitted_at, last.id)
         : null,
+    month,
   });
 }

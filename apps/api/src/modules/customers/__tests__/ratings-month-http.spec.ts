@@ -67,10 +67,17 @@ it('month is the business-zone calendar month: 21:30 UTC on the last day of Marc
   });
   const [listMarch, averagesMarch] = months('?month=2031-03');
   expect(instantsOf((await get(listMarch)).body)).toEqual([march]);
-  expect((await get(averagesMarch)).body).toEqual({ items: [entry(0, '2.0', 1)] });
+  expect((await get(listMarch)).body['month']).toBe('2031-03');
+  expect((await get(averagesMarch)).body).toEqual({
+    items: [entry(0, '2.0', 1)],
+    month: '2031-03',
+  });
   const [listApril, averagesApril] = months('?month=2031-04');
   expect(instantsOf((await get(listApril)).body)).toEqual([april]);
-  expect((await get(averagesApril)).body).toEqual({ items: [entry(0, '5.0', 1)] });
+  expect((await get(averagesApril)).body).toEqual({
+    items: [entry(0, '5.0', 1)],
+    month: '2031-04',
+  });
 });
 
 it('the business zone decides the month even when the branches carry other zones', async () => {
@@ -85,10 +92,13 @@ it('the business zone decides the month even when the branches carry other zones
   try {
     const [listJune, averagesJune] = months('?month=2031-06');
     expect(instantsOf((await get(listJune)).body)).toContain(rating);
-    expect((await get(averagesJune)).body).toEqual({ items: [entry(0, '4.0', 1)] });
+    expect((await get(averagesJune)).body).toEqual({
+      items: [entry(0, '4.0', 1)],
+      month: '2031-06',
+    });
     const [listMay, averagesMay] = months('?month=2031-05');
     expect(instantsOf((await get(listMay)).body)).not.toContain(rating);
-    expect((await get(averagesMay)).body).toEqual({ items: [] });
+    expect((await get(averagesMay)).body).toEqual({ items: [], month: '2031-05' });
   } finally {
     await h.owner`UPDATE branches SET timezone=NULL WHERE company_id=${company} AND business_id=${business}`;
   }

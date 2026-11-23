@@ -36,7 +36,8 @@ export const adminNavEn = {
   underDevBackHome: 'Back to Home',
   // Approvals inbox (FR-026, NAV-Q17)
   approvalsInboxLead: 'Pending approvals across your authorized branches in one place.',
-  approvalsInboxEmpty: 'Nothing is waiting for your decision right now.',
+  approvalsInboxEmpty: 'No approval lists are available to you here.',
+  approvalsInboxFailed: 'The approval lists could not be checked. Try again in a moment.',
   // Shared frame labels
   more: 'More',
   overview: 'Overview',
@@ -162,7 +163,8 @@ export const adminNavAr: Record<keyof typeof adminNavEn, string> = {
   underDevBody: 'هذه الصفحة قيد التطوير وغير متاحة بعد.',
   underDevBackHome: 'العودة إلى الرئيسية',
   approvalsInboxLead: 'كل الاعتمادات بانتظار قرارك عبر فروعك المصرح بها في مكان واحد.',
-  approvalsInboxEmpty: 'لا يوجد ما ينتظر قرارك الآن.',
+  approvalsInboxEmpty: 'لا توجد قوائم اعتماد متاحة لك هنا.',
+  approvalsInboxFailed: 'تعذّر التحقق من قوائم الاعتماد. حاول بعد قليل.',
   more: 'المزيد',
   overview: 'نظرة عامة',
   workspacesLabel: 'مساحات العمل',

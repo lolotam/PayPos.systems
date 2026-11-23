@@ -69,8 +69,9 @@ time) grow linearly with tenant size (measured below). (A) was deleted.
 
 **Cost the design accepts, stated explicitly (review comment on `own-service-lines.membership.ts`, MEDIUM).** The first
 statement of every page (her performer rows) has no month predicate and no `LIMIT`: it reads **all of her lifetime
-`line_performers` rows** on every page, grows with her tenure (about 600 rows per year at the fixture's rate, so a
-long-serving employee reads thousands), and sends that id list back as the `ANY(...)` list of the second and third
+`line_performers` rows** on every page, grows with her tenure (the fixture puts 602 of her lines in ONE month, so at
+that rate about 7,200 rows per year; both scaled fixtures keep her own history at 602 lines and grow only the
+colleagues' volume, so no run here measures this growth term), and sends that id list back as the `ANY(...)` list of the second and third
 statements. Month and keyset pagination are applied afterwards, in memory, over those ids. There is no bound that does
 not need a schema change: `line_performers` carries no date (the month lives on `service_sessions`), and a month-first
 read is candidate (A), which was measured and deleted for moving about ten times the rows. A bound would need a date
@@ -441,3 +442,260 @@ fixture is measured and under the bound in both states for five- and six-stateme
 
 Raw files (outside the repository): `F:/Dev/Temp/57-2b/dbtime-regular-7d9e6d20d.jsonl` and
 `F:/Dev/Temp/57-2b/dbtime-scale-7d9e6d20d.jsonl`.
+
+### Correction to the conditions of the run above (learned afterwards, 2026-11-23)
+
+The window of the per-node-timing run was 10:45:41–10:55:18 UTC (13:45:41–13:55:18 Kuwait). The other team sharing
+this host later reported that one of its lanes had a database test process alive on its own cluster
+(`127.0.0.1:55401`) from 10:27 to 10:52 UTC, and started another file at 10:55 UTC. Whether that process was working
+or hung at exit is not known. The overlap may have affected the figures above; its effect is not established. The
+figures are kept exactly as recorded, and **this first run is used neither as acceptance evidence nor for any causal
+comparison** with the run below (manager decision, 2026-11-23). It is not repeated.
+
+## Measurement tool corrected after the failing run: `TIMING OFF` (manager decision 2026-11-23) — method fixed before the run
+
+The result above (per-node timing on: 4 of 21 samples at or above 200 ms at 66,002 lines with stale statistics, worst
+350.8 ms) **stands as recorded**. It is not withdrawn, and this section does not claim that the cause of that failure
+is established. The judged statement was changed AFTER that failing run, and that order is stated here on purpose.
+
+**Decision (manager, design approver, 2026-11-23, option (a)).** The judged `EXPLAIN` runs with per-node timing off:
+`EXPLAIN (ANALYZE, TIMING OFF, BUFFERS, FORMAT JSON)`. The PostgreSQL 16 documentation of `EXPLAIN` states that
+`TIMING OFF` disables the per-node start-up and total timing — whose clock reads can slow the statement
+significantly on some systems — while the total run time of the statement is still measured
+(https://www.postgresql.org/docs/16/sql-explain.html). The total `Execution Time` is therefore still reported and is
+what is summed.
+
+**Method, fixed before running (nothing below may be changed after seeing a result):**
+
+- One run per fixture with the new statement, on the private lane, in an announced heavy-DB window: the regular
+  fixture (600 / 602 / 6,020) with `POSPAY_57_2B_PERF=1`, then the 66,002-line fixture with `POSPAY_57_2B_SCALE=1`.
+- The same cases in the same order as the run above: stale statistics first (state proven by the tightened rule: the
+  target absent from the three MCV lists and unchanged analyse stamps before and after the judged phase), then normal
+  statistics; the same seven pages; first page and cursor page; five- and six-statement pages both required.
+- For every sample the sum of `Execution Time` over the page's statements is computed, and **every sample must be
+  under 200 ms** (three samples per page; no best-of; no rerun to obtain a different result).
+- Recorded for diagnosis only: the plan of each statement (node types, rows, loops, rows removed by filter, buffers —
+  per-node times are absent by construction), `Planning Time`, the wall-clock samples, and the host processor load
+  before each run. Host load is NOT a condition of the run.
+- The two cases no longer share a violations list: a stale-statistics violation is no longer counted again in the
+  normal-statistics case (the harness defect noted above).
+- If any sample is at or above 200 ms, AC-57-2b-9 stays FAILED and the merge stays blocked; the report then names the
+  heaviest plan nodes with their row counts and the smallest remedy that needs a decision. No repeated measuring and
+  no index or setting change on our own initiative.
+
+### Result of the `TIMING OFF` run of 2026-11-23 on `11c7c3974` — regular fixture PASSED, 66,002-line stale case FAILED
+
+**The acceptance is NOT met, and the corrected tool did not change the verdict.** At 66,002 lines with stale statistics
+all 21 judged samples of the accepted attempt were at or above 200 ms (459.4–745.2 ms). No run was repeated.
+
+Head: `11c7c39746a900cf3b021e6b09f987856d0fd38d` (the pushed code of `8f78adffb` plus the `TIMING OFF` statement and the
+separated violation lists; no product code differs). One run per fixture in the announced window, private lane
+`127.0.0.1:55404`. Host processor load before each run: 100 % on 6 of 6 samples, then 100,100,100,99,100,100. Harness
+specs first: 12 of 12. Regular run 14:07:31–14:14:16 Kuwait (11:07:31–11:14:16 UTC), 4 tests passed. Scaled run 14:15:10–14:23:52 Kuwait
+(11:15:10–11:23:52 UTC): the
+stale-statistics test failed with 21 violations; the normal-statistics test passed (the cases are now separate).
+
+`execution_ms_sum` per judged sample, ms. **Bold** = at or above 200.
+
+| Page (statements, kind) | Regular, stale | Regular, normal | 66,002 lines, stale (accepted attempt) | 66,002 lines, normal |
+|---|---|---|---|---|
+| first-20 (5, first) | 24.5, 35.9, 26.8 | 7.9, 5.4, 4.6, 4.2 | **684.3, 660.6, 546.3** | 9.9, 10.7, 10.2 |
+| first-100 (6, first) | 22.8, 41.1, 29.8 | 13.6, 4.7, 6.8, 6.8 | **544.4, 501.8, 533.9** | 12.2, 11.9, 13.4 |
+| cursor-100 (5, cursor) | 21.1, 21.5, 29.7 | 30.5, 6.8, 7.8, 7.2 | **511.8, 515.4, 496.5** | 11.8, 10.2, 12.9 |
+| deep-cursor-100 (5, cursor) | 22.6, 25.0, 20.3 | 10.0, 5.4, 7.6, 8.0 | **528.4, 582.1, 745.2** | 13.4, 10.9, 10.5 |
+| cancelled-20 (6, cursor) | 28.2, 44.9, 22.5 | 15.4, 8.0, 7.2, 6.5 | **621.6, 465.0, 485.2** | 10.8, 10.8, 10.9 |
+| cancelled-100 (6, cursor) | 33.3, 21.5, 29.6 | 10.3, 6.8, 9.4, 8.0 | **479.8, 459.4, 576.9** | 12.2, 18.0, 15.9 |
+| cancelled-deep-100 (6, cursor) | 32.7, 22.0, 28.1 | 26.0, 6.9, 8.7, 8.3 | **563.2, 615.4, 516.9** | 30.6, 21.6, 12.6 |
+| Worst sample | 44.9 | 30.5 | **745.2** | 30.6 |
+
+Regular-fixture stale column: the accepted attempt was the second one (the first was discarded because autoanalyze
+ran during its judged phase); its three samples per page are shown. The four samples of the discarded attempt were
+20.1–62.7 ms.
+
+Stale state of the scaled run. Five attempts were made, each seeding a NEW 66,002-line target tenant in the same
+database. In attempts 0–3 autoanalyze of the three tables fired during the judged phase (stamps moved, about one minute
+after each insert), so they were discarded under the rule fixed beforehand. Attempt 4 is the accepted one: analyse
+stamps identical before and after the judged phase, `n_mod_since_analyze` 66,000 → 66,002. By then the database held
+five target tenants of 66,002 lines each.
+
+Heaviest plan nodes of the accepted attempt (one sample per page shown; the others are alike). All buffers were shared
+hits, none read from disk; every node has loops = 1.
+
+| Statement | Rows returned | Rows removed by filter | Shared hit blocks | `Execution Time`, ms |
+|---|---|---|---|---|
+| 1 `line_performers` by employee (`line_performers_employee_idx`, Index Cond) | 602 | 0 | 548 | 0.6–0.8 |
+| 2 `service_lines` by id list (company-leading index, id list as Filter) | 602 | 65,400 | 66,976 | 106.7–154.6 |
+| 3 `service_sessions` by id list (company-leading index, id list as Filter) | 600 | 65,400 | 66,804 | 123.6–244.8 |
+| 4 `service_lines` details of the page (same shape) | 20 or 100 | 65,902–65,982 | 66,976 | 117.7–244.6 |
+| 5 `service_sessions` customer names (same shape) | 20–100 | 65,900–65,980 | 66,804 | 110.0–133.1 |
+| 6 `service_line_cancellations` | 1 | 49 | 3 | 0.2–0.3 |
+
+What this run shows, and what it corrects:
+
+- **The reading offered after the first run is not supported by this run.** With per-node timing off the scaled
+  stale case is still over the bound. No comparison with the first run's figures is drawn (see the correction
+  above): this run stands on its own.
+- Host conditions of this run: the other team reports its last database test process stopped at 11:11 UTC; the
+  regular run began at 11:07:31 UTC and so overlapped its tail for about four minutes (it passed); the scaled run
+  began at 11:15:10 UTC. The other team then confirmed from its lanes' records: its database test process ran until
+  11:11 UTC, so only the regular run overlapped it; during the scaled run (11:15:10–11:23:52 UTC) none of its lanes
+  ran anything database-backed, one lane ran unit and typecheck gates (processor load, no database work) and one
+  pushed and wrote replies. The scaled result therefore has no known database-test overlap; host processor load
+  was 100 % and is recorded as a diagnostic only.
+- The cost is the stale plan itself: four statements each walk the tenant's ~66,000 rows through a company-leading
+  index and discard all but the wanted ids, about 67,000 buffer hits and 105–245 ms each on this host. On 2026-11-22
+  the same four scans touched 1,792–2,255 blocks and took 9.5–12.3 ms; the fixture seeding order was changed since
+  (colleague cancellations moved earlier) and this database held five large tenants, so the rows a scan visits are no
+  longer physically adjacent. That difference is observed, not explained further here.
+- With refreshed statistics the same pages take 9.9–30.6 ms at 66,002 lines: the id lists become index conditions.
+- Staleness was short-lived in this configuration: in four of five attempts autoanalyze refreshed the three tables
+  within about one minute of a 66,000-row insert, and the discarded attempts' later samples dropped to 8–20 ms.
+- Wall-clock diagnostics of the scaled run (not judged): stale 103–1,342 ms, normal 91–245 ms.
+
+Smallest remedies, each needing a decision; none was tried:
+
+1. Make the id an index condition whatever the statistics say: an index or a statement shape for the four id-list
+   reads (plan §5.1 bars an index, a statistics change and a planner setting without a fresh authorization; a new
+   statement shape would need its own measurement).
+2. Accept a stated limit: under 200 ms at the regular fixture in both statistics states and at 66,002 lines with
+   normal statistics; above it for a tenant of that size only in the window between a bulk insert and the next
+   autoanalyze (about one minute here).
+3. Keep the acceptance as written: 57-2b's route stays unmerged until a remedy from item 1 is authorized and measured.
+
+AC-57-2b-9 stays FAILED and the merge stays blocked. The earlier statement «The maximum-statement case has no accepted
+timing yet» stands for the 66,002-line stale case; for the regular fixture the six-statement pages are measured and
+under the bound in both states, first page and cursor.
+
+Raw files (outside the repository): `F:/Dev/Temp/57-2b/timing-off-regular-11c7c3974.jsonl` and
+`F:/Dev/Temp/57-2b/timing-off-scale-11c7c3974.jsonl`.
+
+### Decision after the `TIMING OFF` run (manager, design approver, 2026-11-23)
+
+The run is not repeated because of the overlap: the other team's database test process ended at 11:11 UTC, during the
+regular run, which passed; the 66,002-line run began at 11:15:10 UTC, 4 min 10 s later, and failed 21 of 21 samples
+(459.4–745.2 ms). **The failure stands.**
+
+Authorized next, and nothing wider: one bounded LOCAL experiment with a new statement shape for the four id-list
+reads, inside plan §5.1 — existing indexes only; company, business, `withTenant` and RLS kept; the same result shape,
+cursor pages, authorized columns and the six-statement maximum; no index, statistics change, planner setting or
+migration; the alternatives already rejected (the `LATERAL` / `OFFSET 0` rewrites of §5.2 and dropping `business_id`)
+are not tried again. Order: the heaviest read first on large data; if the plan shape improves, baseline and candidate
+of all four statements on two identical copies of one fixed fixture, by the same `TIMING OFF` method and statistics
+state, without piling up a new large tenant per attempt; rows, buffers and plans kept; results compared for equality.
+The final measurement (regular fixture and 66,002 lines, stale and normal) is made only after a fix is fixed in the
+code. If no shape reaches the bound, the outcome is an evidence card for the smallest index or statistics exception —
+the plan is not edited and the 200 ms bound is not relaxed.
+
+### Re-reading the `TIMING OFF` raw file before the experiment (2026-11-23, no database used)
+
+All 126 `db-time` lines of `timing-off-scale-11c7c3974.jsonl` were tabulated by attempt and statement. Attempts 0–3
+stay discarded as acceptance samples (autoanalyze fired during each); they are read here only for the plan shapes
+they show.
+
+| Attempt | Statement | Samples | Execution ms | Rows removed by filter | Shared hit blocks |
+| ------- | --------- | ------- | ------------ | ---------------------- | ----------------- |
+| 0 | 1 `line_performers` | 21 | 0.5–95.1 | 0 or 65,400 | 24 – 66,476 |
+| 0 | 2 `service_lines` (ids) | 21 | 2.4–51.2 | 0 or 65,400 | 1,812 – 2,258 |
+| 0 | 3 `service_sessions` (ids) | 21 | 3.4–67.5 | 0 or 65,400 | 1,469 – 1,817 |
+| 0 | 4 `service_lines` (page) | 21 | 0.4–43.0 | 0, 65,902 or 65,982 | 80 – 2,258 |
+| 0 | 5 `service_sessions` (page) | 21 | 0.4–49.5 | 0, 65,900 or 65,980 | 70 – 1,792 |
+| 2 | 2–5 | 21 each | up to 251.1 | 0 or about 65,400–65,982 | up to 66,975 |
+| 3 | 2–5 | 21 each | up to 264.7 | 0 or about 65,400–65,982 | up to 66,969 |
+| 4 (accepted) | 2 | 21 | 106.7–231.1 | 65,400 | 66,976 |
+| 4 (accepted) | 3 | 21 | 120.4–270.2 | 65,400 | 66,804 |
+| 4 (accepted) | 4 | 21 | 101.6–244.6 | 65,902 or 65,982 | 66,976 |
+| 4 (accepted) | 5 | 21 | 103.4–194.6 | 65,900–65,980 | 66,804 |
+| 4, normal statistics | 2–5 | 21 each | 0.3–15.4 | 0 | 79 – 2,368 |
+
+What this shows:
+
+1. **The tenant-wide read is not special to attempt 4.** In every attempt, while the statistics were stale, the
+   id-list reads removed about 65,400 rows by filter; the samples with nothing removed in attempts 0–3 come after
+   the autoanalyze of that attempt. The recorded `plans` lines of attempts 0–3 were captured after it and are not
+   stale plans.
+2. **The stale plan has two costs.** Through an index whose order follows the heap it touches about 2,000 blocks
+   (28–67 ms per statement); through `service_lines_discount_proposal_binding_idx` or
+   `service_sessions_business_day_idx` it touches about 67,000 blocks (100–270 ms per statement). Which one is
+   chosen changed between attempts.
+3. **The first statement is not exempt.** In attempt 0, with `reltuples` still 6,002, the `line_performers` read by
+   employee also removed 65,400 rows and touched 66,476 blocks (95.1 ms). It has no id list. A change limited to
+   the four id-list reads may therefore not close F6 in that state; the experiment measures it too and reports it.
+4. **Heaviest reads:** statement 3 (`service_sessions` by ids, 270.2 ms worst) and statements 2 and 4
+   (`service_lines`, 231.1 and 244.6 ms worst).
+
+Rule for the experiment, fixed before any run: a statement shape counts only if the id is an index condition, with
+no tenant-wide filter, on all four id-list reads in three states — stale statistics on a clean fixture, stale
+statistics on the multi-tenant state that failed, and normal statistics — for id lists of 1, about 100 and 602,
+measured as `pospay_app` inside `withTenant` with RLS on. One passing state is not evidence.
+
+### Statement-shape experiment (2026-11-23, local, evidence only): no shape passes
+
+Authorized by the manager as a bounded local experiment; no reader file, index, migration, statistics target or
+planner setting was changed, and `ANALYZE` was used only to prepare the normal-statistics state. Raw data and
+scripts: `F:/Dev/Temp/57-2b/exp/` (outside the repository).
+
+**Environment.** PostgreSQL 16.16 on the private lane, autovacuum on. Measured as `pospay_app` through postgres.js,
+each query in a `REPEATABLE READ, READ ONLY` transaction with `app.company_id` set, so RLS was on — the same SQL as
+`withTenant(…, { readOnly: true })`. `EXPLAIN (ANALYZE, TIMING OFF, BUFFERS, FORMAT JSON)`.
+
+**States, each built once and frozen as a cloned database** (a clone copies `pg_class` and `pg_statistic` and resets
+the modification counters, so autoanalyze cannot fire and the stale state holds; no pair was discarded):
+
+- **A — stale, clean:** two analysed background tenants, then one unanalysed target of 66,002 lines.
+- **B — stale, multi-tenant (the state that failed):** the same background, then five unanalysed tenants of 66,002
+  lines, by design; the target is the last.
+- **C — normal:** a clone of B after `ANALYZE` of the three tables.
+
+In A and B `reltuples` was 6,002 for the three tables and the target was absent from every `company_id` MCV list;
+the planner estimated one row for the tenant (cost 7.7).
+
+**Baseline (the reader as merged in this PR), id lists of 1, 100 and 602:**
+
+| State | Statements | Index, and where the id is | Rows removed | Shared hits | Execution ms |
+| ----- | ---------- | -------------------------- | ------------ | ----------- | ------------ |
+| A | 2–5 | `service_lines_recorder_idx` / `service_sessions_recorder_idx`, id as filter | 65,400–66,001 | 1,792–2,184 | 9–53 |
+| B | 2, 4 | `service_lines_discount_proposal_binding_idx`, id as filter | 65,400–66,001 | 66,976 | 102–164 |
+| B | 3, 5 | `service_sessions_business_day_idx`, id as filter | 65,400–65,999 | 66,813 | 41–173 |
+| C | 2–5 | `*_business_id_key` / `service_lines_id_session_key`, id as index condition | 0 | 4 / about 395 / about 2,370 | 0.1–15 |
+
+Statement 1 (`line_performers` by employee) used `line_performers_employee_idx` with nothing removed in A, B and C
+(550–589 hits); the tenant-wide read of that statement seen in the acceptance run's attempt 0 was not reproduced.
+
+**Candidates, judged by the rule fixed above** (id as an equality index condition on statements 2–5, in A, B and C,
+for 1, 100 and 602 ids). Every candidate returned exactly the baseline rows (588 recorded results, 0 mismatches).
+
+| Shape | A | B | C |
+| ----- | - | - | - |
+| `id = ANY($1::uuid[])` (baseline) | 0 of 4 | 0 of 4 | 4 of 4 |
+| array behind an InitPlan, `ANY((SELECT $1::uuid[]))` | 0 of 4 | 0 of 4 | 4 of 4 |
+| `IN (SELECT unnest(…))`, `JOIN unnest(…)`, with and without `ORDER BY` the key | 0 of 4 | 0 of 4 | 4 of 4 |
+| materialized CTE of the ids joined to the table | 0 of 4 | 0 of 4 | 4 of 4 |
+| `ORDER BY company_id, business_id, id` | 0 of 4 | 0 of 4 | 4 of 4 |
+| row-value `IN (SELECT …)`, `IN (VALUES …)`, `OR` list | 0 of 4 | 0 of 4 | 4 of 4 |
+| `UNION ALL` of per-id equalities | 0 of 4 | 0 of 4 | 4 of 4 |
+| `LATERAL … LIMIT 1` per id (not the rejected `OFFSET 0` form) | 0 of 4 | 0 of 4 | 4 of 4 |
+| range bounds `id >= min AND id <= max` added | 0 of 4 | 0 of 4 | 4 of 4 at 100 and 602 |
+
+Three shapes (`VALUES`, `OR` list, plain `LATERAL`) were stopped at 100 ids because they were already far worse than
+the baseline (up to 6 s in state A at 602 ids in a probe).
+
+**Why no shape can pass.** With the tenant estimated at one row, a read through any `company_id`-leading index costs
+7.7 to the planner, and every plan that probes by id costs more under that estimate (the unique key as a generic
+plan: 50.12; for a tenant that is in the MCV list the same 602-id probe is estimated at 150 rows, cost 2,756, and
+is chosen). The RLS predicate alone gives the planner the tenant-wide path, so removing or reshaping our own
+predicates cannot take it away. A covering select is also read through
+`service_lines_discount_proposal_binding_idx` with the id as a filter, so **a new index would not change the
+choice**: the unique keys the probes need already exist and are not chosen. The app's statement is unnamed and
+planned custom on every execution (bound parameter and literal give the same plan; a named statement stayed on
+custom plans for nine executions), so there is no generic-plan path inside the limits.
+
+**Outcome.** F6 stays **FAIL**; AC-57-2b-9 is not met and the 200 ms bound is not relaxed here. Inside plan §5.1
+nothing closes it. What closes it is the statistics state: in state C the reader as merged passes (0.1–15 ms per
+statement, the id as an index condition). The smallest exception is therefore a **statistics exception** — the
+tenant must be known to `pg_statistic` before its reads — and its mechanism is a decision for the design approver.
+It was not tested: no table setting was altered. Not verified: cold-cache behaviour, and whether a live stale
+window behaves exactly like the clone-held one.
+
+For scale: the finding this work answers (P1 of #894) was a 30 s statement timeout on 600 visits. The reader as
+merged is bounded to one pass over the tenant's rows per statement, at most six statements per page: 9–53 ms per
+statement in state A and 41–173 ms in state B at 66,002 lines, until the next autoanalyze.

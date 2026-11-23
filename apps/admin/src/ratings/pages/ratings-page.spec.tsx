@@ -55,7 +55,10 @@ const averageRows: RatingAverageItem[] = [
 ];
 
 function answer(items: RatingsListItem[], next: string | null = null) {
-  return Promise.resolve({ data: { items, next_cursor: next }, response: { status: 200 } });
+  return Promise.resolve({
+    data: { items, next_cursor: next, month: '2026-11' },
+    response: { status: 200 },
+  });
 }
 
 function serve(handlers: {
@@ -66,7 +69,10 @@ function serve(handlers: {
     path === listPath
       ? handlers.list(init.params.query)
       : Promise.resolve(
-          handlers.averages ?? { data: { items: averageRows }, response: { status: 200 } },
+          handlers.averages ?? {
+            data: { items: averageRows, month: init.params.query.month ?? '2026-11' },
+            response: { status: 200 },
+          },
         ),
   );
 }
@@ -112,12 +118,12 @@ it('shows the averages best first and the ratings with their comments as plain t
   expect(screen.getByText(t('en', 'ratings.noComment'))).toBeTruthy();
 });
 
-it('asks both endpoints for the month itself and no browser-computed range', async () => {
+it('asks the averages without a month and the list with the month the server named', async () => {
   serve({ list: () => answer([rating('01')]) });
   renderPage();
   await screen.findAllByRole('table');
   expect(queryOf(listPath)).toMatchObject({ month: '2026-11', limit: 20 });
-  expect(queryOf(averagesPath)).toMatchObject({ month: '2026-11' });
+  expect(queryOf(averagesPath)).not.toHaveProperty('month');
   for (const path of [listPath, averagesPath]) {
     expect(queryOf(path)).not.toHaveProperty('from');
     expect(queryOf(path)).not.toHaveProperty('to');
@@ -181,20 +187,32 @@ it('loads the next page with the cursor and hides the button on the last page', 
 });
 
 it('shows the empty texts when the period has no ratings', async () => {
-  serve({ list: () => answer([]), averages: { data: { items: [] }, response: { status: 200 } } });
+  serve({
+    list: () => answer([]),
+    averages: { data: { items: [], month: '2026-11' }, response: { status: 200 } },
+  });
   renderPage();
   expect(await screen.findByText(t('en', 'ratings.emptyList'))).toBeTruthy();
   expect(screen.getByText(t('en', 'ratings.emptyAverages'))).toBeTruthy();
 });
 
-it('shows the error state when a request fails and the refusal text on 403', async () => {
-  const failure = { code: 'FORBIDDEN', message_ar: 'x', message_en: 'Synthetic server failure' };
+it('shows the error state when the list fails', async () => {
+  const failure = { code: 'FAILED', message_ar: 'x', message_en: 'Synthetic server failure' };
+  serve({ list: () => Promise.resolve({ error: failure, response: { status: 500 } }) });
+  renderPage();
+  expect(await screen.findByText('Synthetic server failure')).toBeTruthy();
+  expect(screen.getAllByRole('table')).toHaveLength(1);
+});
+
+it('shows the refusal text on 403 and never reads the list without a known month', async () => {
+  const failure = { code: 'FORBIDDEN', message_ar: 'x', message_en: 'Synthetic refusal' };
   serve({
-    list: () => Promise.resolve({ error: failure, response: { status: 500 } }),
+    list: () => answer([rating('01')]),
     averages: { error: failure, response: { status: 403 } },
   });
   renderPage();
-  expect(await screen.findByText('Synthetic server failure')).toBeTruthy();
-  expect(screen.getByText(t('en', 'ratings.notAllowed'))).toBeTruthy();
-  expect(screen.getAllByRole('alert')).toHaveLength(2);
+  expect(await screen.findByText(t('en', 'ratings.notAllowed'))).toBeTruthy();
+  expect(screen.getAllByRole('alert')).toHaveLength(1);
+  expect(api.GET.mock.calls.some(([path]) => path === listPath)).toBe(false);
+  expect((screen.getByLabelText(t('en', 'ratings.month')) as HTMLInputElement).disabled).toBe(true);
 });

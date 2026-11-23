@@ -10,6 +10,7 @@ import { CommissionPlanVersionError } from '../domain/errors.ts';
 import type { CommissionPeriodRepairTransactions } from '../ports/commission-period-repair-transactions.port.ts';
 import { createCommissionPeriodRepairScope } from './commission-period-repair-scope.ts';
 import type { CommissionPlanVersionReaders } from './commission-plan-version-scope.ts';
+import { refuseAfterBusyClaim } from './refuse-after-busy-claim.ts';
 
 const OPERATION = 'repair-commission-period';
 
@@ -19,7 +20,7 @@ export function createCommissionPeriodRepairTransactions(
   readers: CommissionPlanVersionReaders,
   clock: Clock,
 ): CommissionPeriodRepairTransactions {
-  return {
+  const transactions: CommissionPeriodRepairTransactions = {
     run: async (command, work) =>
       database.withTenant(
         command.companyId,
@@ -49,6 +50,15 @@ export function createCommissionPeriodRepairTransactions(
           return result.body as Awaited<ReturnType<typeof work>>;
         },
         { userId: command.userId },
+      ),
+  };
+  return {
+    run: (command, work) =>
+      refuseAfterBusyClaim(
+        database,
+        command,
+        () => transactions.run(command, work),
+        (tx) => createCommissionPeriodRepairScope(tx, command, ids, readers, clock),
       ),
   };
 }

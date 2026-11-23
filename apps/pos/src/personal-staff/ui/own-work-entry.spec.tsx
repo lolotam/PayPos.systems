@@ -3,7 +3,8 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { t } from '@pospay/i18n';
 import { fullLine, hiddenTips, linesPage } from '@/my-work/ui/work-fixtures';
 import { installFetch, json, renderWork } from '@/my-work/ui/work-test-kit';
-import { PersonalWorkEntry, ReceptionWorkEntry } from './own-work-entry';
+import { PersonalWorkEntry } from './own-work-entry';
+import { ReceptionWorkEntry } from './reception-work-entry';
 
 vi.mock('@/shared/api/device-auth', () => ({ currentDeviceToken: async () => 'paired-device' }));
 

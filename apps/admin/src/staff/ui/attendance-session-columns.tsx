@@ -48,7 +48,10 @@ export function attendanceSessionColumns(
     {
       id: 'exceptions',
       header: t(locale, 'attendanceBoard.exceptions'),
-      cell: ({ row }) => <AttendanceSessionBadges row={row.original} />,
+      cell: ({ row }) =>
+        row.original.open_exceptions.length > 0 || row.original.corrected ? (
+          <AttendanceSessionBadges row={row.original} />
+        ) : null,
     },
     {
       id: 'actions',

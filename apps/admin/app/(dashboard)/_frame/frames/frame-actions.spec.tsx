@@ -5,7 +5,8 @@ import { beforeEach, expect, it, vi } from 'vitest';
 
 import { useNavStyle } from '../nav-style/nav-style-context';
 import { FrameActions } from './frame-actions';
-import { renderFrame, resetFrameState } from './frame-test-support';
+import { frameState, goTo, renderFrame, resetFrameState } from './frame-test-support';
+import { FrameWorkspaceSwitcher } from './frame-workspace-switcher';
 
 const signOut = vi.hoisted(() => ({
   pending: false,
@@ -130,3 +131,79 @@ it('keeps the other frame controls beside the menu', () => {
   expect(screen.getByRole('button', { name: 'Notifications' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Switch language' })).toBeTruthy();
 });
+
+it('closes the account menu on every navigation, Back included, and keeps the same trigger', () => {
+  renderFrame(<FrameActions />);
+  const trigger = screen.getByRole('button', { name: label('adminNav.accountMenuLabel') });
+  openMenu();
+  goTo('/leave');
+  expect(screen.queryByRole('menu')).toBeNull();
+  openMenu();
+  goTo('/');
+  expect(screen.queryByRole('menu')).toBeNull();
+  expect(screen.getByRole('button', { name: label('adminNav.accountMenuLabel') })).toBe(trigger);
+});
+
+it('closes the workspace switcher on every navigation, Back included, and keeps the same trigger', () => {
+  frameState.pathname = '/staff';
+  renderFrame(<FrameWorkspaceSwitcher />);
+  const trigger = screen.getByRole('button', { name: /Synthetic business/ });
+  fireEvent.click(trigger);
+  expect(screen.getByRole('dialog')).toBeTruthy();
+  goTo('/leave');
+  expect(screen.queryByRole('dialog')).toBeNull();
+  fireEvent.click(trigger);
+  goTo('/staff');
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.getByRole('button', { name: /Synthetic business/ })).toBe(trigger);
+});
+
+it('names the workspace switcher by a prompt until a company and a business are selected', () => {
+  frameState.workspace = { status: 'choose', companies: [], choose: vi.fn() };
+  const { rerenderFrame } = renderFrame(<FrameWorkspaceSwitcher />);
+  expect(screen.getByRole('button', { name: label('admin.chooseCompany') })).toBeTruthy();
+  const company = { id: 'company-1', name_ar: null, name_en: 'Synthetic company' };
+  frameState.workspace = {
+    status: 'ready',
+    company: { ...company, role_code: 'owner', scope: 'COMPANY', businesses: [] },
+    companies: [],
+    choose: vi.fn(),
+  };
+  rerenderFrame(<FrameWorkspaceSwitcher />);
+  expect(screen.getByRole('button', { name: label('admin.chooseBusiness') })).toBeTruthy();
+});
+
+it.each([
+  ['account menu', () => <FrameActions />, 'menu'],
+  ['workspace switcher', () => <FrameWorkspaceSwitcher />, 'dialog'],
+])(
+  'closes the %s on a query-only or fragment-only move, Back and Forward included',
+  (_name, frame, role) => {
+    frameState.pathname = '/packages';
+    renderFrame(frame());
+    const trigger = screen.getByRole('button', {
+      name: role === 'menu' ? label('adminNav.accountMenuLabel') : /Synthetic business/,
+    });
+    const open = () => {
+      if (role === 'menu') openMenu();
+      else fireEvent.click(screen.getByRole('button', { name: /Synthetic business/ }));
+      expect(screen.getByRole(role)).toBeTruthy();
+    };
+    open();
+    goTo('/packages?package=1');
+    expect(screen.queryByRole(role)).toBeNull();
+    open();
+    goTo('/packages');
+    expect(screen.queryByRole(role)).toBeNull();
+    open();
+    goTo('/packages?package=2');
+    expect(screen.queryByRole(role)).toBeNull();
+    open();
+    goTo('/packages?package=2#pending');
+    expect(screen.queryByRole(role)).toBeNull();
+    open();
+    goTo('/packages?package=2');
+    expect(screen.queryByRole(role)).toBeNull();
+    expect(trigger.isConnected).toBe(true);
+  },
+);
