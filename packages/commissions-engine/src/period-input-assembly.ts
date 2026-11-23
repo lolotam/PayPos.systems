@@ -52,7 +52,7 @@ function getPeriodLastDay(period: string): string {
  * @param period الشهر بصيغة YYYY-MM
  * @returns هل المصدر ساري وفي الشهر
  */
-function countsInPeriod(
+export function countsInPeriod(
   source: { readonly status: string; readonly businessDate: string },
   period: string,
 ): boolean {

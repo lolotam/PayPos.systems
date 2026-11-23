@@ -97,5 +97,9 @@ function estimateEmployee(
       source_branch_id: correction.sourceBranchId,
       source_business_date: correction.sourceBusinessDate,
     })),
+    carries: {
+      commission: moneyToString(projection.carries.commission),
+      tip_card: moneyToString(projection.carries.tipCard),
+    },
   };
 }

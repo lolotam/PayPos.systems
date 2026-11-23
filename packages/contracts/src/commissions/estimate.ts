@@ -84,6 +84,16 @@ export const commissionEstimateTips = responseObject({
 }).meta({ id: 'CommissionEstimateTips' });
 
 /**
+ * المرحّل الداخل لموظفة في الشهر (D-22، BR-06): رصيد العمولة السالب ورصيد بقشيش الكارت السالب،
+ * كل واحد لوحده وما بيتقاصّوش، وبيعدّوا من غير تسعير ومش داخلين في `total`. المرحّل مالوش فرع، فالقارئ
+ * على مستوى الفروع بيشوف صفرين وأرقامه جزئية.
+ */
+const commissionEstimateCarries = responseObject({
+  commission: commissionEstimateMoney,
+  tip_card: commissionEstimateMoney,
+});
+
+/**
  * تقدير موظفة لشهر واحد: مصادرها المسعَّرة وبيعها وبقشيشها وتصحيحاتها المستلمة ومجموعها
  * وحالتها. `partial` بتقول إن أرقامها جزئية لأن صف من شهرها خارج نطاق فروع القارئ
  * أو إنها كانت مرتبطة بفرع من نطاقه في بعض أيام الشهر بس (CS-Q20).
@@ -104,6 +114,7 @@ export const commissionEstimateEmployee = responseObject({
   sales: z.array(commissionEstimateSale),
   tips: commissionEstimateTips,
   corrections: z.array(commissionEstimateCorrection),
+  carries: commissionEstimateCarries,
 }).meta({ id: 'CommissionEstimateEmployee' });
 
 /**

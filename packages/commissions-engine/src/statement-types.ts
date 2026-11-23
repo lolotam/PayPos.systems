@@ -4,7 +4,7 @@ import type {
   CommissionEstimateLine,
   CommissionEstimateSale,
   CommissionEstimateTip,
-} from './estimate-projection.ts';
+} from './estimate-projection-types.ts';
 import type { ServiceCommissionOverride } from './commission-types.ts';
 import type { RevisedLine, RevisedSale, RevisedSalary, RevisedTip } from './canonical-input.ts';
 import type { IncomingCommissionCarry } from './period-input-types.ts';

@@ -134,6 +134,52 @@ describe('bootstrap re-run (pnpm db:migrate on a persistent cluster)', () => {
   });
 });
 
+describe('bootstrap re-run for the approval reader role', () => {
+  // ترتيب bootstrap ثم migration هو الافتراضي لكل قاعدة جديدة (يغطيه اختبار الدور في statement-pending-count-role.spec.ts)؛
+  // هنا الترتيب المعاكس: دور أُفسد بعد أن طُبّقت الهجرة، ثم يعاد الـ bootstrap فيصلح الدور ولا يمسّ دالته ولا منحه ولا سياساته.
+  it('migrating again restores the approval reader role and leaves its function, grants and policies in place', async () => {
+    const env = readPgTestEnv();
+    const row = await withClusterRoleLock('exclusive', async () => {
+      try {
+        await owner`CREATE ROLE pospay_test_reader_member NOLOGIN`;
+        await owner`ALTER ROLE pospay_approval_reader LOGIN CREATEDB`;
+        await owner`GRANT pg_read_all_data TO pospay_approval_reader WITH ADMIN OPTION`;
+        await owner`GRANT pospay_approval_reader TO pospay_test_reader_member`;
+        await migrateDatabase(testDb.ownerUrl, {
+          app: env.appPassword,
+          auth: env.authPassword,
+          dispatcher: env.dispatcherPassword,
+        });
+        return (
+          await owner`SELECT r.rolcanlogin, r.rolcreatedb, r.rolsuper, r.rolbypassrls, r.rolinherit,
+          (SELECT count(*) FROM pg_auth_members m WHERE r.oid IN (m.roleid, m.member))::int AS links,
+          pg_get_userbyid((SELECT proowner FROM pg_proc WHERE proname = 'statement_pending_commission_events')) AS fn_owner,
+          has_function_privilege('pospay_app', 'public.statement_pending_commission_events(timestamptz)', 'EXECUTE') AS app_executes,
+          has_column_privilege(r.oid, 'public.outbox', 'event_type', 'SELECT') AS reads_outbox,
+          (SELECT count(*) FROM pg_policies WHERE policyname LIKE '%approval_reader%')::int AS policies
+          FROM pg_roles r WHERE r.rolname = 'pospay_approval_reader'`
+        )[0];
+      } finally {
+        await owner`DROP ROLE IF EXISTS pospay_test_reader_member`;
+        await owner`ALTER ROLE pospay_approval_reader NOLOGIN NOCREATEDB`;
+        await owner`REVOKE pg_read_all_data FROM pospay_approval_reader CASCADE`;
+      }
+    });
+    expect(row).toEqual({
+      rolcanlogin: false,
+      rolcreatedb: false,
+      rolsuper: false,
+      rolbypassrls: false,
+      rolinherit: false,
+      links: 0,
+      fn_owner: 'pospay_approval_reader',
+      app_executes: true,
+      reads_outbox: true,
+      policies: 2,
+    });
+  });
+});
+
 describe('context helpers (migration 0000)', () => {
   it('read an unset or empty setting as NULL instead of failing the uuid cast', async () => {
     const rows = await owner.begin(async (tx) => {

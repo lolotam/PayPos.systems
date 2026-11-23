@@ -133,6 +133,12 @@ export const FUNCTION_INVENTORY = [
     proconfig: ['search_path=public, pg_temp'],
   },
   {
+    // عدّاد الاعتماد (ADR-0012): definer يملكه pospay_approval_reader، والمسار والـ RLS مثبّتان في الدالة نفسها.
+    proname: 'statement_pending_commission_events',
+    prosecdef: true,
+    proconfig: ['search_path=pg_catalog, pg_temp', 'row_security=on'],
+  },
+  {
     proname: 'sweep_expired_idempotency_keys',
     prosecdef: true,
     proconfig: ['search_path=pg_catalog, pg_temp'],
