@@ -53,11 +53,13 @@ export function touchedDeadlines(
 }
 
 /**
- * اللحظة اللي الشاشة لازم تتقفل فيها: الأبكر بين موعد الخمول المؤكَّد والسقف المطلق.
+ * اللحظة اللي الشاشة لازم تتقفل فيها: الأبكر بين موعد الخمول المؤكَّد من السيرفر والسقف المطلق وستين ثانية من آخر إدخال فعلي.
+ * موعد السيرفر بيتحسب من إرسال آخر لمسة، واللمسة ممكن تتأجل لحد 20 ثانية بعد الإدخال، فلوحده كان هيمدّ العرض عن الستين.
  *
  * @param deadlines آخر مواعيد مؤكَّدة
+ * @param inputExpiresAt لحظة انتهاء الخمول المحسوبة من آخر إدخال، أو بدونها لو مفيش حساب إدخال
  * @returns لحظة القفل بالساعة الرتيبة
  */
-export function closeAt(deadlines: PrivateViewDeadlines): number {
-  return Math.min(deadlines.idleAt, deadlines.capAt);
+export function closeAt(deadlines: PrivateViewDeadlines, inputExpiresAt = Infinity): number {
+  return Math.min(deadlines.idleAt, deadlines.capAt, inputExpiresAt);
 }

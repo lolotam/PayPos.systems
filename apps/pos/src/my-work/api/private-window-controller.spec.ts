@@ -119,3 +119,38 @@ it('keeps the PIN step usable when the server close fails', async () => {
   await submit(t);
   expect(phase(t.controller)).toBe('open');
 });
+
+it('requests every later page with the month the first page returned, even when no month was asked for', async () => {
+  const t = make();
+  t.calls.lines.mockResolvedValueOnce(page('2026-11', 'c1'));
+  await submit(t);
+  await t.flush();
+  expect(t.calls.lines).toHaveBeenLastCalledWith(expect.objectContaining({ month: undefined }));
+  t.calls.lines.mockResolvedValueOnce(page('2026-11'));
+  t.controller.loadMore();
+  await t.flush();
+  expect(t.calls.lines).toHaveBeenLastCalledWith(
+    expect.objectContaining({ month: '2026-11', cursor: 'c1' }),
+  );
+});
+
+it('hides the tips already shown when a retry refreshes them and that refresh fails', async () => {
+  const t = make();
+  const visible = {
+    month: '2026-11',
+    status: 'VISIBLE',
+    total_cash: '12.500',
+    total_card: '7.250',
+  } as const;
+  t.calls.lines.mockRejectedValueOnce(new WorkHttpError('NOT_READY', 503));
+  t.calls.tips.mockResolvedValueOnce(visible);
+  await submit(t);
+  await t.flush();
+  const shown = t.controller.getState();
+  expect(shown.phase === 'open' && shown.data.tips).toEqual(visible);
+  t.calls.tips.mockRejectedValueOnce(new WorkHttpError('NOT_READY', 503));
+  t.controller.retry();
+  await t.flush();
+  const after = t.controller.getState();
+  expect(after.phase === 'open' && after.data.tips).toBeUndefined();
+});

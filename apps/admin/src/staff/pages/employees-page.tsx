@@ -1,7 +1,8 @@
 'use client';
 import type { WorkspaceBusinessRead } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { PageHeader } from '@pospay/ui';
+import { Button, PageHeader, PageShell } from '@pospay/ui';
+import Link from 'next/link';
 import { useCallback, useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useEmployees } from '../api/use-employees';
@@ -30,16 +31,17 @@ export function EmployeesPage({
     setEmployeeId('');
   };
   return (
-    <section className="flex min-w-0 flex-col gap-12 text-start">
+    <PageShell layout="list">
       <PageHeader
         title={t(locale, 'staff.listTitle')}
         description={t(locale, 'staff.listLead')}
+        actions={
+          <EmployeesHeaderActions companyId={companyId} userId={userId} businessId={business.id} />
+        }
         action={
-          <EmployeesHeaderActions
-            companyId={companyId}
-            userId={userId}
-            businessId={business.id}
-          />
+          <Button asChild>
+            <Link href="/staff/create">{t(locale, 'staff.create')}</Link>
+          </Button>
         }
       />
       <EmployeeNumberStartDialog companyId={companyId} userId={userId} />
@@ -64,6 +66,6 @@ export function EmployeesPage({
           onClose={() => setEmployeeId('')}
         />
       ) : null}
-    </section>
+    </PageShell>
   );
 }

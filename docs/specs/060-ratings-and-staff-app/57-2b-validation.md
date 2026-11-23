@@ -67,6 +67,18 @@ bounded by the employee (her own performer rows), not by the colleagues. The row
 under stale statistics each id statement scans the tenant's rows in its table and filters, so examined rows (and
 time) grow linearly with tenant size (measured below). (A) was deleted.
 
+**Cost the design accepts, stated explicitly (review comment on `own-service-lines.membership.ts`, MEDIUM).** The first
+statement of every page (her performer rows) has no month predicate and no `LIMIT`: it reads **all of her lifetime
+`line_performers` rows** on every page, grows with her tenure (about 600 rows per year at the fixture's rate, so a
+long-serving employee reads thousands), and sends that id list back as the `ANY(...)` list of the second and third
+statements. Month and keyset pagination are applied afterwards, in memory, over those ids. There is no bound that does
+not need a schema change: `line_performers` carries no date (the month lives on `service_sessions`), and a month-first
+read is candidate (A), which was measured and deleted for moving about ten times the rows. A bound would need a date
+column or an index (a migration), which this slice must not add. So an empty month still pays for the full lifetime
+read; this is the manager-accepted single-table design (§5.6, §5.7), not an oversight, and it sits next to the
+residual-risk paragraph below (examined rows grow with tenant size until statistics refresh) as a second, separate
+growth term: lifetime rows per employee.
+
 ## Plan evidence
 
 Recorded as JSON by the spec (`57-2b plans`). Final reader, per page, single-table statements counted after the shared
@@ -293,3 +305,139 @@ placeholder schema and type. The OpenAPI registration in `packages/contracts/src
 clients are the manager's step. HTTP spec `own-service-lines-http.spec.ts` (6 tests: personal session, own lines
 only and a walkable cursor, uniform 400, `STAFF_POS` window expiry and dead operator, scope keys and session-less
 access, DENY and unlinked employee, log privacy) and the contract spec pass.
+
+## Execution-time acceptance metric (owner decision 2026-11-23): method
+
+**Owner decision, verbatim** (relayed by the manager on 2026-11-23): «نعم نقبل  القياس و نقبل وقت PostgreSQL لتسريع الشغل  (دا تصريح مني)».
+
+Meaning, as the manager stated it: AC-57-2b-9 is accepted on the **measured PostgreSQL execution time** instead of the
+wall-clock time that included the driver. Unchanged: the ceiling (< 200 ms), the six-statement case (`customer_name`
+allowed **and** a cancelled line), the regular fixture (600 visits, 602 own lines, 6,020 colleague lines), the 66,002-line
+fixture, stale and normal statistics, a first page and a cursor page. The earlier «mean CPU < 40 %» rule applied to
+starting a wall-clock run and no longer gates the measurement.
+
+**Method difference.**
+
+| | Earlier sections (history) | This metric |
+|---|---|---|
+| What is timed | `withTenant` wall time: begin, every statement, driver round trips and materialisation, commit | The sum, over the statements of one page, of the top-level `Execution Time` that PostgreSQL itself reports in `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` |
+| Sensitive to node-side CPU load | Yes (the 203.6 ms sample and the 257–1,043 ms run above) | Far less; the time is measured inside the server |
+| Statements in the sum | 4, 5 or 6 data statements plus the shared authority reads | The 4, 5 or 6 data statements of the page only (see below) |
+
+What is judged and what is only recorded (`__tests__/own-service-lines.{dbtime,phases,measure,perf}.ts`, driven by the two
+spec entry files):
+
+- **Judged:** for every page (first-20, first-100, cursor-100, deep-cursor-100, cancelled-20, cancelled-100,
+  cancelled-deep-100) in each statistics state, every data statement runs under `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`
+  inside the same `readOnly` tenant transaction the reader uses, and `execution_ms_sum < 200` is asserted. Each page is
+  explained 3 times and **every sample is judged** (no best-of, no retry until green). A sample at 200 ms or more is a
+  recorded violation. The regular (untimed) suite logs the same lines for one sample per page and judges nothing.
+- **Planning time:** `Planning Time` is recorded next to it (`planning_ms_sum` and `execution_plus_planning_ms_sum`)
+  so the reader sees both numbers, but the judgement follows the owner's sentence and uses Execution Time only.
+- **Six statements:** the run fails unless a first page and a cursor page each ran exactly five and exactly six
+  statements in each statistics state (`kindViolations`, checked on the judged samples and on the diagnostic samples).
+- **Diagnostic only, no assertion:** the wall-clock samples of the earlier method (first run and five warm runs per
+  page, `elapsed_ms`, heap and RSS deltas) are still logged as `57-2b measurement`.
+- **Not measured:** the nine shared authority statements of the route (context, months window, allowed columns) are not
+  part of the page sum and are not timed by this harness; they are covered for correctness by
+  `own-service-lines-http.spec.ts` only. The judged number is the page's data statements, as the owner accepted.
+
+Stale-statistics acceptance, tightened (review finding «MCV absence does not prove statistics stayed stale»): an attempt
+counts as stale only if the target tenant is absent from the three MCV lists **and** the `last_analyze` and
+`last_autoanalyze` stamps of `service_sessions`, `service_lines` and `line_performers`, captured immediately before the
+attempt's seeding, are identical before the measurement and again after the judged phase. Autovacuum analyses these
+tables roughly a minute after a large insert, so the judged phase (db-time samples, then the plan checks) runs **first**,
+and the validity check follows it directly; the long wall-clock diagnostic runs after the check and may see refreshed
+statistics (its statistics are logged again as `57-2b statistics after diagnostics`). Up to five attempts are made to
+establish the state; a rejected attempt discards only its own violations and is never a way to hide a slow sample, because
+a sample is only discarded together with an attempt whose statistics were refreshed. The normal-statistics case builds its
+own fixture when it runs without the stale case, so it can run by name.
+
+Fixture-seeding order (same rows, same sizes): the 47 colleague cancellations (one real-path transaction each, the slowest
+part of seeding) now run while the target tenant is still small, before the large batches, so the window between the
+autoanalyze threshold and the judged phase is short. The sample line is excluded from the colleague cancellations
+because the batches copy its status.
+
+Plan checks (statement count, no join, no sequential scan, every scanned table loops = 1, on four tables): unchanged,
+with one tolerance made explicit. When autovacuum has analysed the 50–150-row `service_line_cancellations` table, the planner
+may legitimately read it sequentially, so the «no sequential scan» and «`company_id` Index Cond» checks are skipped for the
+cancellations statement only (the other three tables, the join and loops checks stay). The run logs that table's analyse
+state (`57-2b cancellations table`). The literal Index Cond check on id lists is still **not** claimed.
+
+How to run and what to collect (run on the delivery head, one at a time, in the announced heavy-DB window, with `REDIS_PORT`
+pointing at the private lane Redis; `POSPAY_57_2B_OUT=<file>` makes every recorded line also land in a file, because
+vitest hides the console output of passing tests):
+
+```
+POSPAY_57_2B_PERF=1  POSPAY_57_2B_OUT=<file-1> pnpm --filter @pospay/api exec vitest run src/modules/orders/__tests__/own-service-lines-performance.spec.ts
+POSPAY_57_2B_SCALE=1 POSPAY_57_2B_OUT=<file-2> pnpm --filter @pospay/api exec vitest run src/modules/orders/__tests__/own-service-lines-scale.spec.ts
+```
+
+Lines to collect from each file: `57-2b db-time` (one JSON line per page and sample: `label`, `page`, `sample`, `kind`,
+`statements`, `execution_ms_sum`, `planning_ms_sum`, `execution_plus_planning_ms_sum`, `per_statement`), `57-2b
+statistics before|after|after diagnostics|normal` (stale-state proof), `57-2b cancellations table`, `57-2b fixture`,
+`57-2b measurement` (wall-clock diagnostics) and `57-2b plans`. Host CPU is recorded before each run, for the record only.
+
+### Result of the run of 2026-11-23 on `7d9e6d20d` — regular fixture PASSED, 66,002-line stale case FAILED
+
+**The acceptance is NOT met.** On the 66,002-line fixture with stale statistics, 4 of 21 judged samples were at or above
+200 ms. Nothing was changed and no run was repeated to obtain a different result.
+
+Head: `7d9e6d20d783165899fa54c43feeccbe9a09796a` (round-1 fixes committed, main merged, tree clean; the commit that
+records these numbers is a docs-only child). Each run was made once, in the announced heavy-DB window, on the private
+lane (`127.0.0.1:55404`). Host processor load before each run: 100 % on 6 of 6 samples (other sessions share the
+machine; a repository-wide typecheck of this branch was also still running during the regular run). Regular run
+13:45:41–13:50:17 Kuwait, 4 tests passed. Scaled run 13:51:08–13:55:18 Kuwait, 2 tests failed.
+
+Fixtures: regular 600 own visits / 602 own lines / 6,020 colleague lines; scaled 600 / 602 / 65,400, 66,002 lines in the
+target tenant. Stale state of the scaled run, verified by the tightened rule on attempt 0: the target was absent from
+the three MCV lists before and after the judged phase, `n_mod_since_analyze` went 66,000 → 66,002, and the analyse
+stamps of the three tables were unchanged; autoanalyze ran only later, during the wall-clock diagnostics.
+
+`execution_ms_sum` per sample, in ms (regular: 4 samples per page; scaled: 3). **Bold** = at or above 200.
+
+| Page (statements, kind) | Regular, stale | Regular, normal | 66,002 lines, stale | 66,002 lines, normal |
+|---|---|---|---|---|
+| first-20 (5, first) | 51.5, 27.3, 31.5, 32.5 | 8.1, 8.8, 8.3, 8.4 | 143.5, **350.8**, 116.3 | 9.2, 8.7, 11.5 |
+| first-100 (6, first) | 34.1, 36.7, 57.6, 41.6 | 11.5, 14.8, 15.6, 22.4 | 158.6, 120.5, 128.9 | 19.9, 10.9, 10.4 |
+| cursor-100 (5, cursor) | 36.2, 41.5, 38.1, 30.4 | 10.7, 10.9, 15.0, 15.1 | 109.6, 102.0, 111.7 | 10.6, 11.1, 19.6 |
+| deep-cursor-100 (5, cursor) | 29.9, 40.3, 39.6, 35.0 | 10.1, 12.2, 10.5, 10.5 | 105.1, **224.6**, **237.7** | 10.0, 9.4, 9.3 |
+| cancelled-20 (6, cursor) | 29.3, 39.0, 67.4, 37.9 | 8.4, 11.2, 12.4, 9.9 | **218.7**, 193.4, 121.1 | 9.1, 9.3, 12.0 |
+| cancelled-100 (6, cursor) | 30.2, 42.2, 35.4, 28.1 | 12.0, 15.8, 11.6, 11.6 | 94.6, 101.0, 96.0 | 9.9, 10.0, 9.8 |
+| cancelled-deep-100 (6, cursor) | 27.9, 28.8, 27.7, 28.3 | 12.5, 11.0, 11.2, 10.5 | 111.9, 193.8, 173.1 | 10.1, 9.5, 9.5 |
+| Worst sample | 67.4 | 22.4 | **350.8** | 19.9 |
+
+Planning time per page was 1.9–6.7 ms in every state and does not change any verdict.
+
+Per-statement `Execution Time` of the four failing samples (rows removed by the filter in brackets):
+
+| Sample | 1 `line_performers` | 2 `service_lines` | 3 `service_sessions` | 4 `service_lines` | 5 `service_sessions` | 6 cancellations | Sum |
+|---|---|---|---|---|---|---|---|
+| first-20 | 213.9 (65,400) | 38.2 (65,400) | 52.7 (65,400) | 24.2 (65,982) | 21.9 (65,981) | — | 350.8 |
+| deep-cursor-100 | 0.8 (0) | 42.3 (65,400) | 68.0 (65,400) | 54.8 (65,902) | 58.6 (65,900) | — | 224.6 |
+| deep-cursor-100 | 0.9 (0) | 52.1 (65,400) | 81.3 (65,400) | 51.9 (65,902) | 51.5 (65,900) | — | 237.7 |
+| cancelled-20 | 0.8 (0) | 50.4 (65,400) | 66.7 (65,400) | 47.7 (65,982) | 52.9 (65,981) | 0.3 (49) | 218.7 |
+
+What the numbers show, and what they do not:
+
+- With stale statistics every id-list statement is one pass over the tenant's rows of that table (about 65,400 rows
+  removed by the filter), as the earlier sections state. At 66,002 lines four such passes took 40–80 ms each in this
+  run; the 2026-11-22 run on the same fixture recorded 9.5–12.3 ms for the same scans. The first statement of one
+  sample took 213.9 ms where the other samples of the same statement took 0.8 ms.
+- The wall-clock diagnostics of the same run are LOWER than the instrumented sums for the same pages: cancelled-20
+  85–101 ms wall against 121–219 ms `Execution Time`; deep-cursor-100 78–119 ms against 105–238 ms. `EXPLAIN ANALYZE`
+  times every row of every plan node, and that overhead on 65,000-row scans, on a host at 100 % load, is part of the
+  measured figure. Reading, not a finding: this run does not separate the query's own cost from instrumentation and
+  host load. Whether to judge with per-node timing off (`EXPLAIN (ANALYZE, TIMING OFF)`, which still reports the total
+  `Execution Time`) is a method decision for the design approver and the owner; it was not tried.
+- The scaled run's normal-statistics TEST is also reported as failed, but its own 21 samples are all at or below
+  19.9 ms. The harness shares one `violations` array between the two cases, so the four stale violations were counted
+  again. That is a harness defect to fix; it does not change the stale result.
+- Wall-clock diagnostics (not judged), scaled run: stale 72–364 ms, normal 72–290 ms.
+
+The earlier statement «The maximum-statement case has no accepted timing yet» therefore still stands: the regular
+fixture is measured and under the bound in both states for five- and six-statement pages, first and cursor; the
+66,002-line stale case is over it in four samples.
+
+Raw files (outside the repository): `F:/Dev/Temp/57-2b/dbtime-regular-7d9e6d20d.jsonl` and
+`F:/Dev/Temp/57-2b/dbtime-scale-7d9e6d20d.jsonl`.

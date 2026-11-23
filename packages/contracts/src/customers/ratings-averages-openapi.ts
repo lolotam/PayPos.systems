@@ -13,7 +13,7 @@ export const ratingAveragesPaths = {
     get: {
       operationId: 'listRatingAverages',
       description:
-        'Per-employee average stars of one business over a range, for the same callers and branch scope as the ratings list. average is a one-decimal string rounded half up; a rating with two performers counts for both. from is inclusive and to is exclusive on submitted_at; with neither, the range is the current calendar month in the business time zone. Cache-Control: no-store.',
+        'Per-employee average stars of one business over a range, for the same callers and branch scope as the ratings list. average is a one-decimal string rounded half up; a rating with two performers counts for both. from is inclusive and to is exclusive on submitted_at; month (YYYY-MM) instead selects that calendar month in the business time zone and cannot be combined with from or to; with none of the three, the range is the current calendar month in the business time zone. Cache-Control: no-store.',
       parameters: [
         { in: 'path', name: 'businessId', required: true, schema: uuid },
         { in: 'header', name: 'x-company-id', required: true, schema: uuid },
@@ -21,6 +21,11 @@ export const ratingAveragesPaths = {
         query('employee_id', uuid),
         query('from', instant),
         query('to', instant),
+        query('month', {
+          type: 'string',
+          pattern: '^2[0-9]{3}-(0[1-9]|1[0-2])$',
+          example: '2026-11',
+        }),
       ],
       responses: {
         '200': {

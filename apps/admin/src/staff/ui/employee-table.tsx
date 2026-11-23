@@ -1,7 +1,6 @@
 'use client';
 import type { EmployeeListItem, WorkspaceBranch } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { DataTableFrame } from '@pospay/ui';
 import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table';
 import { useMemo } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
@@ -40,31 +39,30 @@ export function EmployeeTable({
     manualPagination: true,
   });
   return (
-    <DataTableFrame title={t(locale, 'staff.listTitle')}>
-      <table>
-        <thead>
-          {table.getHeaderGroups().map((group) => (
-            <tr key={group.id}>
-              {group.headers.map((header) => (
-                <th key={header.id} scope="col">
-                  {flexRender(header.column.columnDef.header, header.getContext())}
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {table.getRowModel().rows.map(({ original }) => (
-            <EmployeeTableRow
-              key={original.id}
-              item={original}
-              branch={branches.find((branch) => branch.id === original.primary_branch_id)}
-              selected={selectedId === original.id}
-              onSelect={onSelect}
-            />
-          ))}
-        </tbody>
-      </table>
-    </DataTableFrame>
+    // الأدوار صريحة تبقى معتمدة بعد أن يكدّس الإطار الصفوف تحت 600px؛ كرت القائمة تملكه اللوحة.
+    <table role="table">
+      <thead role="rowgroup">
+        {table.getHeaderGroups().map((group) => (
+          <tr key={group.id} role="row">
+            {group.headers.map((header) => (
+              <th key={header.id} scope="col" role="columnheader">
+                {flexRender(header.column.columnDef.header, header.getContext())}
+              </th>
+            ))}
+          </tr>
+        ))}
+      </thead>
+      <tbody role="rowgroup">
+        {table.getRowModel().rows.map(({ original }) => (
+          <EmployeeTableRow
+            key={original.id}
+            item={original}
+            branch={branches.find((branch) => branch.id === original.primary_branch_id)}
+            selected={selectedId === original.id}
+            onSelect={onSelect}
+          />
+        ))}
+      </tbody>
+    </table>
   );
 }

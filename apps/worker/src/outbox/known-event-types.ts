@@ -33,6 +33,8 @@ export const KNOWN_EVENT_TYPES = [
   'BusinessCreated',
   'BranchCreated',
   'BusinessSettingsUpdated',
+  // spec 059 FR-047: حفظ إصلاح شهر مقفول؛ لا مستهلك له، فيُنشر من غير علامة ولا يعيد أي تصحيح (ليس من الستة المعدودة في ADR-0012).
+  'CommissionPeriodRepairSaved',
 ] as const;
 
 // أنواع الوحدات تظل مرتبطة بتفعيلها؛ خصوصاً نقل الإشعارات الذي لا يجوز إقراره عند تعطيل القناة.

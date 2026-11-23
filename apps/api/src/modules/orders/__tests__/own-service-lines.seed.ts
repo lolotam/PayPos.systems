@@ -162,7 +162,7 @@ export async function secondLines(f: TipFixture, s: PerfScope, employeeId: strin
 }
 
 // سطور الزميلات الملغاة: تملأ جدول الإلغاءات بصفوف شركائها في المستأجر نفسه، فجملة الإلغاءات السادسة تُفحص على جدول
-// فيه عشرات الصفوف لا صفان. تمر بنفس المسار الحقيقي ولا تدخل في الترتيب المرجعي لها.
+// فيه عشرات الصفوف لا صفان. تمر بنفس المسار الحقيقي ولا تدخل في الترتيب المرجعي لها. سطر العينة مستبعد لأن الدفعات بتنسخ حالته.
 export async function cancelColleagueLines(
   f: TipFixture,
   s: PerfScope,
@@ -171,6 +171,7 @@ export async function cancelColleagueLines(
 ) {
   const rows = await f.h.owner`SELECT line_id FROM line_performers
     WHERE company_id=${s.companyId} AND business_id=${s.businessId} AND employee_id<>${her}
+      AND line_id<>${s.sampleLineId}
     ORDER BY line_id LIMIT ${count}`;
   expect(rows.length).toBe(count);
   await cancelPerfLines(

@@ -14,6 +14,7 @@ import {
 } from '../../../../../../../packages/db/test/test-database.ts';
 import { ApiError } from '../../../../shared/errors.ts';
 import { ratingAveragesStatement, readRatingAverages } from '../rating-averages.query.ts';
+import { monthPeriod } from '../ratings-period.query.ts';
 import type { RatingsListReads, RatingsListScope } from '../ratings-list-reads.ts';
 import { seedRating } from './ratings-list.fixture.ts';
 
@@ -179,7 +180,7 @@ const explain = (filter: Partial<Parameters<typeof ratingAveragesStatement>[0]>)
       companyId: A.company,
       businessId: A.business,
       branchIds: [A.branch, second],
-      month: { now: NOW, timeZone: 'Asia/Kuwait' },
+      period: monthPeriod('Asia/Kuwait', undefined, NOW),
       ...filter,
     });
     const [row] = Array.from(await tx.execute(sql`EXPLAIN (ANALYZE, FORMAT JSON) ${statement}`));
@@ -206,11 +207,12 @@ it(
       WHERE submitted_at >= '2026-01-01' AND submitted_at < '2026-02-01'`;
     const total = counted?.['total'] as number;
     const january = { from: '2026-01-01T00:00:00Z', to: '2026-02-01T00:00:00Z' };
-    const combos = {
+    const combos: Record<string, Partial<Parameters<typeof ratingAveragesStatement>[0]>> = {
       defaultMonth: {},
-      window: january,
-      oneBranch: { branchIds: [A.branch], from: january.from },
-      employee: { employeeId: hend, ...january },
+      window: { period: { kind: 'range', ...january } },
+      oneBranch: { branchIds: [A.branch], period: { kind: 'range', from: january.from } },
+      employee: { employeeId: hend, period: { kind: 'range', ...january } },
+      monthParam: { period: monthPeriod('Asia/Kuwait', '2026-01', NOW) },
     };
     for (const [name, filter] of Object.entries(combos)) {
       const scans = await explain(filter);
@@ -240,4 +242,79 @@ it('binds the window bounds with their microseconds and accepts a range inside o
   expect(await refusal(averages({ from: `${edge}.123999Z`, to: `${edge}.123001Z` }))).toBe(
     'VALIDATION_FAILED',
   );
+});
+
+it('month selects that calendar month in the business time zone: 21:30 UTC on the last day of March is April in Kuwait', async () => {
+  await rate(2, '2027-03-31T20:30:00Z', [sara]);
+  await rate(5, '2027-03-31T21:30:00Z', [sara]);
+  expect(summary(await averages({ month: '2027-03', employee_id: sara }))).toEqual([
+    [sara, '2.0', 1],
+  ]);
+  expect(summary(await averages({ month: '2027-04', employee_id: sara }))).toEqual([
+    [sara, '5.0', 1],
+  ]);
+  zone = 'UTC';
+  try {
+    expect(summary(await averages({ month: '2027-03', employee_id: sara }))).toEqual([
+      [sara, '3.5', 2],
+    ]);
+  } finally {
+    zone = 'Asia/Kuwait';
+  }
+});
+
+it('keeps the first occurrence of a repeated month-start hour in the month (America/Havana, November 2015: local midnight 00:00 occurs twice)', async () => {
+  await rate(1, '2015-11-01T03:59:00Z', [hend]);
+  await rate(5, '2015-11-01T04:30:00Z', [hend]);
+  await rate(4, '2015-11-01T05:30:00Z', [hend]);
+  await rate(3, '2015-12-01T04:59:00Z', [hend]);
+  await rate(1, '2015-12-01T05:00:00Z', [hend]);
+  zone = 'America/Havana';
+  try {
+    const named = await averages({ month: '2015-11', employee_id: hend });
+    expect(summary(named)).toEqual([[hend, '4.0', 3]]);
+    const current = await averages(
+      { employee_id: hend },
+      context,
+      new Date('2015-11-15T12:00:00Z'),
+    );
+    expect(summary(current)).toEqual([[hend, '4.0', 3]]);
+    expect(summary(await averages({ month: '2015-12', employee_id: hend }))).toEqual([
+      [hend, '1.0', 1],
+    ]);
+  } finally {
+    zone = 'Asia/Kuwait';
+  }
+});
+
+it('keeps the first instant of a month whose local midnight was skipped (America/Asuncion, October 2023)', async () => {
+  await rate(1, '2023-10-01T03:59:00Z', [sara]);
+  await rate(5, '2023-10-01T04:00:00Z', [sara]);
+  await rate(3, '2023-11-01T02:59:00Z', [sara]);
+  await rate(1, '2023-11-01T03:00:00Z', [sara]);
+  zone = 'America/Asuncion';
+  try {
+    expect(summary(await averages({ month: '2023-10', employee_id: sara }))).toEqual([
+      [sara, '4.0', 2],
+    ]);
+    expect(summary(await averages({ month: '2023-11', employee_id: sara }))).toEqual([
+      [sara, '1.0', 1],
+    ]);
+  } finally {
+    zone = 'Asia/Kuwait';
+  }
+});
+
+it('refuses month with from or to, a malformed month, and reads the business zone only for a month window', async () => {
+  expect(await refusal(averages({ month: '2026-06', from: june.from }))).toBe('VALIDATION_FAILED');
+  expect(await refusal(averages({ month: '2026-06', to: june.to }))).toBe('VALIDATION_FAILED');
+  expect(await refusal(averages({ month: '2026-6' }))).toBe('VALIDATION_FAILED');
+  zone = null;
+  try {
+    expect(await refusal(averages({ month: '2026-06' }))).toBe('FORBIDDEN');
+    expect(await refusal(averages({}))).toBe('FORBIDDEN');
+    expect(await refusal(averages(june))).toBe('accepted');
+  } finally {
+    zone = 'Asia/Kuwait';
+  }
 });

@@ -15,6 +15,7 @@ import { WorkHttpError, sessionEnded, windowRefusal } from '../model/work-error'
 import { PairedClock } from './private-window-clock';
 import { concealPrivateRoot } from './private-window-conceal';
 import { openWithin, type PrivateWindowDeps } from './private-window-env';
+import { ExpiredView } from './private-window-expired-view';
 import type { Scope, WindowHost } from './private-window-host';
 import { attachWindowListeners } from './private-window-listeners';
 import { loadLines, loadTips } from './private-window-reads';
@@ -40,8 +41,7 @@ export class PrivateWindowController implements WindowHost {
   private alive = false;
   private openInFlight = false;
   private state: PrivateWindowState = { phase: 'pin', problem: null, epoch: 0, waiting: false };
-  // لقطة «انتهى الموعد» متسجّلة بدورة النموذج بس، من غير أي مرجع للحالة المفتوحة: بياناتها لازم تسيب الذاكرة مع القفل.
-  private expiredView: { epoch: number; view: PrivateWindowState } | undefined;
+  private readonly expired = new ExpiredView();
   private root: HTMLElement | null = null;
   private readonly listeners = new Set<() => void>();
   private readonly clock: PairedClock;
@@ -74,16 +74,7 @@ export class PrivateWindowController implements WindowHost {
   getState = (): PrivateWindowState => {
     const state = this.state;
     if (state.phase !== 'open' || !this.dueAt(state.deadlines)) return state;
-    if (this.expiredView?.epoch !== this.epoch) {
-      const view: PrivateWindowState = {
-        phase: 'pin',
-        problem: 'expired',
-        epoch: this.epoch + 1,
-        waiting: false,
-      };
-      this.expiredView = { epoch: this.epoch, view };
-    }
-    return this.expiredView.view;
+    return this.expired.view(this.epoch);
   };
 
   /** بتسجّل حاوية العرض الخاص عشان القفل يخفّيها في نفس الحدث قبل ما React يطبّق. */
@@ -97,6 +88,7 @@ export class PrivateWindowController implements WindowHost {
     const detach = attachWindowListeners(
       () => this.close('expired'),
       () => this.touches.input(),
+      () => this.root,
     );
     return () => {
       this.alive = false;
@@ -155,10 +147,11 @@ export class PrivateWindowController implements WindowHost {
   loadMore(): void {
     const scope = this.scope(true);
     const lines = this.state.phase === 'open' ? this.state.data.lines : undefined;
-    const cursor = lines?.pages.at(-1)?.next_cursor;
-    if (scope === undefined || !cursor || lines?.fetchingMore) return;
+    const last = lines?.pages.at(-1);
+    if (scope === undefined || !last?.next_cursor || lines?.fetchingMore) return;
     this.dispatch({ type: 'linesMore' });
-    void this.guard(loadLines(this, scope, cursor));
+    // المؤشر بيتبعت مع شهر الصفحة اللي طلّعته: لو الشهر الحالي اتغيّر بين صفحتين مفيش خلط ومؤشر مرفوض.
+    void this.guard(loadLines(this, { ...scope, month: last.month }, last.next_cursor));
   }
 
   scope = (forRead: boolean): Scope | undefined => {
@@ -201,7 +194,10 @@ export class PrivateWindowController implements WindowHost {
 
   /** الموعد فات أو الساعتين اتفرقوا: أي واحد منهم يعني إن الموعد مبقاش يعتمد عليه. */
   private dueAt(deadlines: PrivateViewDeadlines): boolean {
-    return this.clock.drifted() || this.deps.env.mono() >= closeAt(deadlines);
+    return (
+      this.clock.drifted() ||
+      this.deps.env.mono() >= closeAt(deadlines, this.touches.inputExpiresAt())
+    );
   }
 
   private canOpen(epoch: number): boolean {
@@ -214,12 +210,12 @@ export class PrivateWindowController implements WindowHost {
   /** الموعد بيتحسب كامل قبل أي نشر: لو فات بالفعل بنقفل مباشرة من غير ما نعرض الحالة المفتوحة. */
   private applyOpened(opened: PrivateViewWindow, sentAt: number): void {
     const deadlines = openedDeadlines(sentAt, opened);
+    this.touches.reset(sentAt);
     if (this.dueAt(deadlines)) {
       void this.closeRemote(opened.window_id);
       return this.close('expired');
     }
     this.dispatch({ type: 'opened', windowId: opened.window_id, deadlines });
-    this.touches.reset(sentAt);
     this.armDeadline();
     this.timers.startTick();
     this.loadMonth(this.scope(true));
@@ -251,7 +247,7 @@ export class PrivateWindowController implements WindowHost {
     this.abort = new AbortController();
     this.timers.clear();
     this.touches.cancel();
-    this.expiredView = undefined;
+    this.expired.clear();
     if (this.root !== null) concealPrivateRoot(this.root);
     if (previous.phase === 'leave') return;
     this.dispatch({
@@ -291,6 +287,9 @@ export class PrivateWindowController implements WindowHost {
   }
 
   private armDeadline(): void {
-    this.timers.arm(this.state.phase === 'open' ? closeAt(this.state.deadlines) : undefined);
+    const state = this.state;
+    this.timers.arm(
+      state.phase === 'open' ? closeAt(state.deadlines, this.touches.inputExpiresAt()) : undefined,
+    );
   }
 }

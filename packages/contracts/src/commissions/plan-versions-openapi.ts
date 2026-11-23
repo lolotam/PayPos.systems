@@ -72,6 +72,7 @@ export const commissionPlanVersionPaths = {
           name: 'limit',
           schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
         },
+        { in: 'query', name: 'kind', schema: { type: 'string', enum: ['ordinary'] } },
       ],
       responses: {
         '200': {

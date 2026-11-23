@@ -9,9 +9,11 @@ import {
   installFetch,
   json,
   myWorkEntries,
+  pointInMyWork,
   renderWork,
   replaceFetch,
   type Route,
+  typeInMyWork,
 } from './work-test-kit';
 
 vi.mock('@/shared/api/device-auth', () => ({ currentDeviceToken: async () => 'paired-device' }));
@@ -129,9 +131,28 @@ it('lets input push the 60 second limit back', async () => {
   open();
   await signIn();
   await act(() => vi.advanceTimersByTimeAsync(50_000));
-  fireEvent.keyDown(document.body, { key: 'a' });
+  typeInMyWork('a');
   await act(() => vi.advanceTimersByTimeAsync(50_000));
   expect(screen.getByText('Haircut')).toBeTruthy();
+});
+
+it('does not let activity on a sibling reception panel keep her lines on screen past 60 seconds', async () => {
+  const fetched = serve();
+  renderWork(
+    <>
+      <MyWorkScreen context={context} onLeave={() => undefined} />
+      <button type="button">attendance panel</button>
+    </>,
+  );
+  await signIn();
+  const sibling = screen.getByText('attendance panel');
+  await act(() => vi.advanceTimersByTimeAsync(50_000));
+  fireEvent.keyDown(sibling, { key: 'a' });
+  fireEvent.pointerDown(sibling);
+  await act(() => vi.advanceTimersByTimeAsync(11_000));
+  expect(await screen.findByLabelText(label('myWork.pinLabel'))).toBeTruthy();
+  expect(screen.queryByText('Haircut')).toBeNull();
+  expect(touches(fetched).length).toBe(0);
 });
 
 it('sends the activity touch at most once every 20 seconds and only because of input', async () => {
@@ -140,13 +161,13 @@ it('sends the activity touch at most once every 20 seconds and only because of i
   await signIn();
   await act(() => vi.advanceTimersByTimeAsync(40_000));
   expect(touches(fetched).length).toBe(0);
-  fireEvent.keyDown(document.body, { key: 'a' });
-  fireEvent.keyDown(document.body, { key: 'b' });
-  fireEvent.pointerDown(document.body);
+  typeInMyWork('a');
+  typeInMyWork('b');
+  pointInMyWork();
   await waitFor(() => expect(touches(fetched).length).toBe(1));
   expect(touches(fetched)[0]?.headers.get('x-private-view-window-id')).toBe(WINDOW);
   await act(() => vi.advanceTimersByTimeAsync(5_000));
-  fireEvent.keyDown(document.body, { key: 'c' });
+  typeInMyWork('c');
   await act(() => vi.advanceTimersByTimeAsync(1_000));
   expect(touches(fetched).length).toBe(1);
   await act(() => vi.advanceTimersByTimeAsync(15_000));
@@ -158,7 +179,7 @@ it('goes back to the PIN step when a touch says the window expired', async () =>
   const view = open();
   await signIn();
   await act(() => vi.advanceTimersByTimeAsync(21_000));
-  fireEvent.keyDown(document.body, { key: 'a' });
+  typeInMyWork('a');
   expect(await screen.findByText(t('en', 'errors.PRIVATE_VIEW_EXPIRED'))).toBeTruthy();
   expect(screen.queryByText('Haircut')).toBeNull();
   expect(myWorkEntries(view.client).length).toBe(0);

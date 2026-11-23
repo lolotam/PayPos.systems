@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { lowRatingReceived } from '@pospay/contracts';
 
 import {
   isLowRating,
@@ -150,22 +149,26 @@ describe('comment and contract', () => {
     expect(noticeComment('')).toBeNull();
   });
 
-  it('builds recipients that satisfy the LowRatingReceived contract, comment only in its template', () => {
+  it('builds recipients with the fixed notice shape, the comment only in its template', () => {
     const details = lowRatingDetails(input);
     const users = userIds(2);
     const [commentGroup, plainGroup] = recipientGroups(users, [users[0] ?? ''], 'كما كُتب');
     if (commentGroup === undefined || plainGroup === undefined) throw new Error('groups');
-    const request = (group: typeof commentGroup) => ({
-      business_id: users[0],
-      branch_id: users[1],
-      notification_recipients: noticeRecipients(group, details),
-    });
-    expect(lowRatingReceived.safeParse(request(commentGroup)).success).toBe(true);
-    expect(lowRatingReceived.safeParse(request(plainGroup)).success).toBe(true);
     const [withComment] = noticeRecipients(commentGroup, details);
     const [plain] = noticeRecipients(plainGroup, details);
     expect(withComment?.safe_parameters[0].value).toHaveProperty('comment', 'كما كُتب');
     expect(plain?.safe_parameters[0].value).not.toHaveProperty('comment');
+    expect(
+      [withComment, plain].map((r) => [
+        r?.channel,
+        r?.locale,
+        r?.template_key,
+        r?.template_revision,
+      ]),
+    ).toEqual([
+      ['IN_APP', 'ar', 'low_rating_with_comment', 1],
+      ['IN_APP', 'ar', 'low_rating', 1],
+    ]);
   });
 });
 

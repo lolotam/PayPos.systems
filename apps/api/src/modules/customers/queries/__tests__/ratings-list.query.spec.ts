@@ -16,6 +16,7 @@ import { ApiError } from '../../../../shared/errors.ts';
 import { seedRating } from './ratings-list.fixture.ts';
 import { ratingsListStatement, readRatingsList } from '../ratings-list.query.ts';
 import type { RatingsListReads, RatingsListScope } from '../ratings-list-reads.ts';
+import { monthPeriod } from '../ratings-period.query.ts';
 
 let testDb: TestDatabase;
 let owner: postgres.Sql;
@@ -32,6 +33,7 @@ const context: RatingsListScope = {
 };
 const everything: readonly string[] = [A.branch, second];
 let access = everything;
+let zone = 'Asia/Kuwait';
 const requestedNames: string[][] = [];
 const reads: RatingsListReads = {
   access: async () => access,
@@ -40,7 +42,7 @@ const reads: RatingsListReads = {
       [A.branch, { name_ar: 'السالمية', name_en: 'Salmiya' }],
       [second, { name_ar: null, name_en: 'Hawalli' }],
     ]),
-  timeZone: async () => 'Asia/Kuwait',
+  timeZone: async () => zone,
   employeeNames: async (_tx, _company, employeeIds) => {
     requestedNames.push([...employeeIds]);
     return new Map([
@@ -208,6 +210,7 @@ const explain = (filter: Partial<Parameters<typeof ratingsListStatement>[0]>) =>
       companyId: A.company,
       businessId: A.business,
       branchIds: [A.branch, second],
+      period: { kind: 'range' },
       cursor: null,
       limit: LIMIT,
       ...filter,
@@ -234,10 +237,11 @@ it(
     await owner`ANALYZE ratings`;
     await owner`ANALYZE rating_attributions`;
     const cursor = { at: at(15).toISOString(), id: '01920000-0000-7000-8000-0000000000ff' };
-    const combos = {
+    const combos: Record<string, Partial<Parameters<typeof ratingsListStatement>[0]>> = {
       businessWide: {},
       oneBranch: { branchIds: [A.branch] },
       wideEmployee: { employeeId: hend },
+      monthWindow: { period: monthPeriod('Asia/Kuwait', '2026-06', new Date()) },
       branchEmployee: { branchIds: [second], employeeId: hend },
     };
     for (const [name, filter] of Object.entries(combos))
@@ -280,4 +284,51 @@ it('binds the window bounds with their microseconds and accepts a range inside o
   expect(await refusal(page({ from: `${edge}.123999Z`, to: `${edge}.123001Z` }))).toBe(
     'VALIDATION_FAILED',
   );
+});
+
+it('month lists that calendar month of the business zone and the cursor stays valid across its pages', async () => {
+  const kept = [
+    await seedRating(db, A, { stars: 3, at: new Date('2027-03-31T20:30:00Z'), performers: [sara] }),
+    await seedRating(db, A, { stars: 3, at: new Date('2027-03-10T09:00:00Z'), performers: [sara] }),
+    await seedRating(db, A, { stars: 3, at: new Date('2027-03-01T00:00:00Z'), performers: [sara] }),
+  ];
+  const next = await seedRating(db, A, {
+    stars: 4,
+    at: new Date('2027-03-31T21:30:00Z'),
+    performers: [sara],
+  });
+  const march = await page({ month: '2027-03', limit: 1 });
+  const seen: string[] = [];
+  let cursor: string | null = march.next_cursor;
+  seen.push(...idsOf(march));
+  while (cursor !== null) {
+    const following = await page({ month: '2027-03', limit: 1, cursor });
+    seen.push(...idsOf(following));
+    cursor = following.next_cursor;
+  }
+  expect(seen).toEqual([kept[0], kept[1], kept[2]]);
+  expect(idsOf(await page({ month: '2027-04' }))).toEqual([next]);
+  expect(await refusal(page({ month: '2027-03', from: '2027-03-01T00:00:00Z' }))).toBe(
+    'VALIDATION_FAILED',
+  );
+});
+
+it('lists the first occurrence of a repeated month-start hour in the month (America/Havana, November 2015: local midnight 00:00 occurs twice)', async () => {
+  const rate = (stars: number, iso: string) =>
+    seedRating(db, A, { stars, at: new Date(iso), performers: [sara] });
+  await rate(1, '2015-11-01T03:59:00Z');
+  const firstOccurrence = await rate(5, '2015-11-01T04:30:00Z');
+  const secondOccurrence = await rate(4, '2015-11-01T05:30:00Z');
+  const lastMinute = await rate(3, '2015-12-01T04:59:00Z');
+  await rate(1, '2015-12-01T05:00:00Z');
+  zone = 'America/Havana';
+  try {
+    expect(idsOf(await page({ month: '2015-11' }))).toEqual([
+      lastMinute,
+      secondOccurrence,
+      firstOccurrence,
+    ]);
+  } finally {
+    zone = 'Asia/Kuwait';
+  }
 });

@@ -63,3 +63,27 @@ it('leaves no empty description or action gap', () => {
   expect(container.querySelector('p')).toBeNull();
   expect(screen.getByRole('heading', { name: 'Bare header' })).toBeTruthy();
 });
+
+// الغلاف لا ينكمش (shrink-0) فيحدّه max-w-full بعرض الترويسة، وإلا لا تلتف أزراره داخل شاشة ضيقة وتدفع الصفحة جانبًا.
+it('caps the secondary-actions wrapper at the header width so its buttons can wrap', () => {
+  render(
+    <DirectionProvider dir="ltr">
+      <PageHeader
+        title="Page"
+        actions={
+          <>
+            <button type="button">Second</button>
+            <button type="button">Third</button>
+          </>
+        }
+        action={<button type="button">Primary</button>}
+      />
+    </DirectionProvider>,
+  );
+  const wrapper = screen.getByRole('button', { name: 'Second' }).parentElement as HTMLElement;
+  expect(wrapper.contains(screen.getByRole('button', { name: 'Third' }))).toBe(true);
+  expect(wrapper.contains(screen.getByRole('button', { name: 'Primary' }))).toBe(false);
+  const names = wrapper.className.split(' ');
+  expect(names).toContain('max-w-full');
+  expect(names).toContain('flex-wrap');
+});

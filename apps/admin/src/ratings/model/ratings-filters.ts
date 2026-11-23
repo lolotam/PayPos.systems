@@ -1,5 +1,5 @@
 import type { WorkspaceBranch } from '@pospay/contracts';
-import { currentRatingsMonth, ratingsMonthRange } from './ratings-period';
+import { currentRatingsMonth } from './ratings-period';
 
 /** فلاتر الشاشة كما اختارها المستخدم؛ السلسلة الفارغة معناها «الكل». */
 export interface RatingsFilters {
@@ -8,17 +8,27 @@ export interface RatingsFilters {
   month: string;
 }
 
-/** نطاق الاستعلام المبعوت للـ API: الفترة دايمًا صريحة عشان الجدولين يغطّوا نفس الشهر. */
-export interface RatingsRange {
+/**
+ * ما تبعته الشاشة للمسارين لتحديد الفترة: الشهر `YYYY-MM` والفرع (اختياري). الـAPI هو اللي يحوّل الشهر لنافذة لحظات بتوقيت
+ * النشاط (D-B12)، فالمتصفح ما بيحسبش `from` ولا `to` ولا يختار توقيتًا.
+ */
+export interface RatingsPeriodQuery {
   branch_id?: string;
-  from: string;
-  to: string;
+  month: string;
 }
 
-/** توقيت الفرع المحدد، أو الفرع الأول عند «كل الفروع» لأن توقيت النشاط مش متاح هنا. */
-export function ratingsTimeZone(branches: readonly WorkspaceBranch[], branchId: string): string {
-  const branch = branches.find((candidate) => candidate.id === branchId) ?? branches[0];
-  return branch?.effective_timezone ?? 'UTC';
+/**
+ * توقيت اسم الشهر الافتراضي عند فتح الشاشة فقط: التوقيت الأكثر اشتراكًا بين الفروع، والأبجدي عند التعادل. توقيت النشاط نفسه
+ * مش في رد مساحات العمل، فده تقدير لتسمية الشهر الظاهر في الحقل، ومش مصدر لنافذة الطلب (الـAPI بيحسبها بتوقيت النشاط).
+ */
+function defaultMonthTimeZone(branches: readonly WorkspaceBranch[]): string {
+  const counts = new Map<string, number>();
+  for (const branch of branches)
+    counts.set(branch.effective_timezone, (counts.get(branch.effective_timezone) ?? 0) + 1);
+  const ranked = [...counts].sort(
+    ([a, countA], [b, countB]) => countB - countA || a.localeCompare(b),
+  );
+  return ranked[0]?.[0] ?? 'UTC';
 }
 
 export function initialRatingsFilters(
@@ -28,14 +38,13 @@ export function initialRatingsFilters(
   return {
     branchId: '',
     employeeId: '',
-    month: currentRatingsMonth(now, ratingsTimeZone(branches, '')),
+    month: currentRatingsMonth(now, defaultMonthTimeZone(branches)),
   };
 }
 
-export function ratingsRange(
-  filters: RatingsFilters,
-  branches: readonly WorkspaceBranch[],
-): RatingsRange {
-  const range = ratingsMonthRange(filters.month, ratingsTimeZone(branches, filters.branchId));
-  return filters.branchId ? { branch_id: filters.branchId, ...range } : range;
+/** الطلب المشترك للجدولين: الشهر المختار لكل الفروع أو لفرع واحد، بنفس الصيغة. */
+export function ratingsQuery(filters: RatingsFilters): RatingsPeriodQuery {
+  return filters.branchId
+    ? { branch_id: filters.branchId, month: filters.month }
+    : { month: filters.month };
 }

@@ -5,11 +5,17 @@ import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 import { timestamp } from '../scalars/timestamp.js';
 
-import { periodInstant, periodIsValid } from './ratings-period.js';
+import {
+  monthExcludesRange,
+  periodInstant,
+  periodIsValid,
+  ratingsMonth,
+} from './ratings-period.js';
 import { ratingStars } from './ratings.js';
 
 /**
  * فلاتر قائمة التقييمات في الأدمن. `from` شاملة و`to` حصرية على وقت التسجيل `submitted_at`،
+ * و`month` (`YYYY-MM`) بديلهم: السيرفر يحوّله لنافذة الشهر الميلادي بتوقيت النشاط، ومش بيتجمع مع `from`/`to`.
  * والنشاط والشركة من المسار والجلسة وليس من الاستعلام، فأي مفتاح غير معروف بيترفض.
  */
 export const ratingsListQuery = z
@@ -18,10 +24,15 @@ export const ratingsListQuery = z
     employee_id: id.optional(),
     from: periodInstant.optional(),
     to: periodInstant.optional(),
+    month: ratingsMonth.optional(),
     cursor: z.string().min(1).max(512).optional(),
     limit: z.coerce.number().int().min(1).max(100).default(20),
   })
-  .refine(periodIsValid, { message: 'from must be before to', path: ['from'] });
+  .refine(periodIsValid, { message: 'from must be before to', path: ['from'] })
+  .refine(monthExcludesRange, {
+    message: 'month cannot be combined with from or to',
+    path: ['month'],
+  });
 export type RatingsListQuery = z.infer<typeof ratingsListQuery>;
 
 /**

@@ -69,3 +69,21 @@ it('requires the cancellations statement exactly when the page has a cancelled l
     '1 cancellation statements planned, expected 0',
   );
 });
+
+it('tolerates a sequential scan or a missing company_id on the analysed small cancellations table, and nowhere else', () => {
+  const seq = { 'Node Type': 'Seq Scan', 'Index Cond': '(line_id = ANY ($1))' } as const;
+  const tolerated = page(true, [statement(CANCELLATIONS_TABLE, seq)]);
+  expect(planViolations('x', tolerated, maximum, { cancellationsAnalysed: true })).toEqual([]);
+  expect(planViolations('x', tolerated, maximum, { cancellationsAnalysed: false }).length).toBe(2);
+  const other = [
+    statement('service_lines', { 'Node Type': 'Seq Scan' }),
+    ...page(true, [statement(CANCELLATIONS_TABLE)]).slice(1),
+  ];
+  expect(planViolations('x', other, maximum, { cancellationsAnalysed: true }).join('|')).toContain(
+    'sequential scan',
+  );
+  const joined = page(true, [statement(CANCELLATIONS_TABLE, { 'Node Type': 'Nested Loop' })]);
+  expect(planViolations('x', joined, maximum, { cancellationsAnalysed: true }).join('|')).toContain(
+    'join',
+  );
+});

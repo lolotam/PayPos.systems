@@ -8,22 +8,16 @@ import type { OwnServiceLines as OwnLinesPage } from '@pospay/contracts';
 import { readOwnLinesPage, type OwnLinesRequest } from '../queries/own-service-lines.query.ts';
 import { must, type TipFixture } from '../../../../test/session-tips.fixture.ts';
 import type { PerfScope } from './own-service-lines.seed.ts';
-import {
-  MAX_OWN_LINES_STATEMENTS,
-  compactPlans,
-  idListFilters,
-  planViolations,
-  statementsFor,
-  type PlanNode,
-  type Planned,
-} from './own-service-lines.plans.ts';
+import { MAX_OWN_LINES_STATEMENTS, statementsFor } from './own-service-lines.plans.ts';
+import type { ExplainRow, TimedPlanned } from './own-service-lines.dbtime.ts';
 
 // plan §5.3 البنود 1–3: موظفة بـ600 زيارة/602 سطراً، وزميلات في نفس النشاط بحجم `colleagues` سطراً.
 export interface PerfConfig {
   colleagues: number;
   warm: number;
   background: number;
-  // حد الـ200ms المطلق يتأكد في تشغيل الأداء الصريح المعزول فقط (AC-57-2b-9)؛ التشغيل العادي يسجّل العينات ولا يحكم بها.
+  // الحكم بـ200ms (AC-57-2b-9) على مجموع Execution Time في PostgreSQL لجمل الصفحة، في تشغيل الأداء الصريح فقط (قرار المالك 2026-11-23)؛
+  // الزمن الكلي شاملاً السائق يُسجَّل تشخيصاً ولا يُحكَّم به، والتشغيل العادي يسجّل db-time بلا حكم.
   timing: boolean;
 }
 export interface Target {
@@ -45,7 +39,7 @@ const ALL: ReadonlySet<StaffColumnCode> = new Set([
 const dialect = new PgDialect();
 const options = (f: TipFixture) => ({ userId: f.ownerId, readOnly: true });
 
-const request = (t: Target, extra: Partial<OwnLinesRequest>): OwnLinesRequest => ({
+export const request = (t: Target, extra: Partial<OwnLinesRequest>): OwnLinesRequest => ({
   employeeId: t.her,
   month: '2026-10',
   cursor: undefined,
@@ -62,7 +56,7 @@ const ctx = (f: TipFixture, s: PerfScope) => ({
 });
 
 // يعدّ الجمل المنفّذة في الطلب الواحد من نفس اللقطة؛ العدد ثابت لا يتبع حجم الصفحة ولا حجم المستأجر.
-async function timed(f: TipFixture, t: Target, req: OwnLinesRequest) {
+export async function timed(f: TipFixture, t: Target, req: OwnLinesRequest) {
   let statements = 0;
   const before = process.memoryUsage();
   const started = performance.now();
@@ -95,10 +89,11 @@ async function timed(f: TipFixture, t: Target, req: OwnLinesRequest) {
   };
 }
 
-// كل جملة تُشرح وتُنفَّذ بنفس معاملاتها داخل نفس اللقطة؛ الخطط تُسجَّل ولا تدخل في زمن القياس.
-async function planned(f: TipFixture, t: Target, req: OwnLinesRequest) {
-  const plans: Planned = [];
-  await f.db.withTenant(
+// كل جملة تُشرح وتُنفَّذ بنفس معاملاتها داخل نفس لقطة القراءة (withTenant بخيار readOnly) التي يقرأ بها القارئ؛ تُسجَّل الخطة وExecution Time
+// وPlanning Time من أعلى مستوى في ناتج EXPLAIN، والصفحة المرجعة لتتحقق منها الاختبارات.
+export async function planned(f: TipFixture, t: Target, req: OwnLinesRequest) {
+  const plans: TimedPlanned = [];
+  const page = await f.db.withTenant(
     t.scope.companyId,
     (tx) =>
       readOwnLinesPage(
@@ -106,12 +101,15 @@ async function planned(f: TipFixture, t: Target, req: OwnLinesRequest) {
           get: (target, property, receiver) =>
             property === 'execute'
               ? async (query: SQL) => {
-                  const explained = await target.execute<{ 'QUERY PLAN': { Plan: PlanNode }[] }>(
+                  const explained = await target.execute<ExplainRow>(
                     sql`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${query}`,
                   );
+                  const top = must(must(explained[0])['QUERY PLAN'][0]);
                   plans.push({
                     statement: dialect.sqlToQuery(query).sql,
-                    plan: must(must(explained[0])['QUERY PLAN'][0]).Plan,
+                    plan: top.Plan,
+                    executionMs: top['Execution Time'],
+                    planningMs: top['Planning Time'],
                   });
                   return target.execute(query);
                 }
@@ -122,17 +120,22 @@ async function planned(f: TipFixture, t: Target, req: OwnLinesRequest) {
       ),
     options(f),
   );
-  return plans;
+  return { plans, page };
 }
 
-type Timed = Awaited<ReturnType<typeof timed>>;
-type PageKind = 'first' | 'cursor';
-type Page = readonly [name: string, req: OwnLinesRequest, expected: string[], kind: PageKind];
+export type Timed = Awaited<ReturnType<typeof timed>>;
+export type PageKind = 'first' | 'cursor';
+export type Page = readonly [
+  name: string,
+  req: OwnLinesRequest,
+  expected: string[],
+  kind: PageKind,
+];
 
 // الصفحة الأولى بلا مؤشر وصفحة المؤشر بعدها؛ الحد الأقصى (ست جمل) مطلوب على النوعين معاً، وكذلك الخمس.
 // الصفحتان الأوليان: «first-20» بخمس جمل، و«first-100» فيها السطر الملغى في الموضع 50 فهي بست؛ صفحتا المؤشر الأصليتان بخمس،
 // وصفحات «cancelled-*» فيها السطران الملغيان في الموضعين 250 و450 فهي بست.
-function pagesOf(t: Target, primed: OwnLinesPage): Page[] {
+export function pagesOf(t: Target, primed: OwnLinesPage): Page[] {
   const at = (index: number) => must(t.oracle[index]);
   const page = (name: string, limit: number, after: string | undefined, from: number, to: number) =>
     [
@@ -154,7 +157,10 @@ function pagesOf(t: Target, primed: OwnLinesPage): Page[] {
 
 // النوعان معاً يجب أن يمرّا بخمس وبست جمل في هذه الحالة الإحصائية، وإلا لقاس التشغيل الزمني الحد الأقصى على نوع واحد فقط
 // مع أن قرار القبول يطلب صفحة أولى وصفحة مؤشر (AC-57-2b-9). الشرط على العدد المرصود لا على اسم الصفحة.
-function kindViolations(label: string, observed: ReadonlyMap<PageKind, ReadonlySet<number>>) {
+export function kindViolations(
+  label: string,
+  observed: ReadonlyMap<PageKind, ReadonlySet<number>>,
+) {
   const found: string[] = [];
   for (const kind of ['first', 'cursor'] as const)
     for (const wanted of [MAX_OWN_LINES_STATEMENTS - 1, MAX_OWN_LINES_STATEMENTS])
@@ -164,7 +170,13 @@ function kindViolations(label: string, observed: ReadonlyMap<PageKind, ReadonlyS
 }
 
 // يتحقق من محتوى الصفحة المقاسة ومن عدد جملها المتوقع، ويرجع المخالفات.
-function pageViolations(label: string, name: string, t: Target, run: Timed, expected: string[]) {
+export function pageViolations(
+  label: string,
+  name: string,
+  t: Target,
+  run: Pick<Timed, 'page' | 'statements'>,
+  expected: string[],
+) {
   expect(run.page.items.map((item) => item.line_id)).toEqual(expected);
   const cancelledIds = expected.filter((lineId) => t.cancelled.has(lineId));
   expect(
@@ -177,91 +189,4 @@ function pageViolations(label: string, name: string, t: Target, run: Timed, expe
   return run.statements === wanted
     ? []
     : [`${label} ${name}: ${run.statements} statements, expected ${wanted}`];
-}
-
-async function samplePages(
-  f: TipFixture,
-  label: string,
-  t: Target,
-  config: PerfConfig,
-  violations: string[],
-) {
-  const primed = await timed(f, t, request(t, { limit: 100 }));
-  const observed = new Map<PageKind, Set<number>>([
-    ['first', new Set()],
-    ['cursor', new Set()],
-  ]);
-  for (const [name, req, expected, kind] of pagesOf(t, primed.page))
-    for (let sample = 0; sample <= config.warm; sample++) {
-      const run = await timed(f, t, req);
-      const sampleName = sample === 0 ? 'first-run' : `warm-${sample}`;
-      console.info(
-        '57-2b measurement',
-        JSON.stringify({
-          label,
-          page: name,
-          sample: sampleName,
-          elapsed_ms: run.elapsed,
-          statements: run.statements,
-          heap_delta_bytes: run.heap,
-          rss_delta_bytes: run.rss,
-        }),
-      );
-      observed.get(kind)?.add(run.statements);
-      violations.push(...pageViolations(label, name, t, run, expected));
-      if (config.timing && run.elapsed >= 200)
-        violations.push(`${label} ${name} ${sampleName}: ${run.elapsed} ms`);
-    }
-  violations.push(...kindViolations(label, observed));
-}
-
-// حالة جدول الإلغاءات وقت الخطط: صفوفه، وهل حلّله autovacuum؛ تُسجَّل ليُقرأ بها أي Seq Scan عليه.
-async function cancellationTable(f: TipFixture, t: Target) {
-  const [row] = await f.h.owner`SELECT
-    (SELECT count(*)::int FROM service_line_cancellations WHERE company_id=${t.scope.companyId}) AS tenant_rows,
-    c.reltuples::float8 AS reltuples, s.n_live_tup, s.n_mod_since_analyze, s.last_analyze, s.last_autoanalyze
-    FROM pg_class c JOIN pg_stat_all_tables s ON s.relid=c.oid
-    WHERE c.relname='service_line_cancellations' AND c.relnamespace='public'::regnamespace`;
-  return row;
-}
-
-export async function measure(
-  f: TipFixture,
-  label: string,
-  t: Target,
-  config: PerfConfig,
-  violations: string[],
-) {
-  await f.db.withTenant(f.otherCompany, (tx) => tx.execute(sql`SELECT 1`));
-  await samplePages(f, label, t, config, violations);
-  const plain = { names: true, cancelled: false };
-  const maximum = { names: true, cancelled: true };
-  console.info('57-2b cancellations table', JSON.stringify(await cancellationTable(f, t)));
-  const firstPlans = await planned(f, t, request(t, { limit: 100 }));
-  const deepPlans = await planned(f, t, request(t, { limit: 100, cursor: must(t.oracle[299]) }));
-  const cancelledPlans = await planned(
-    f,
-    t,
-    request(t, { limit: 100, cursor: must(t.oracle[199]) }),
-  );
-  console.info(
-    '57-2b plans',
-    JSON.stringify({
-      label,
-      plans: compactPlans([...firstPlans, ...deepPlans]),
-      cancelled_page_plans: compactPlans(cancelledPlans),
-    }),
-  );
-  console.info(
-    '57-2b item-3b',
-    JSON.stringify({
-      label,
-      id_list_as_filter: idListFilters([...firstPlans, ...deepPlans, ...cancelledPlans]),
-    }),
-  );
-  violations.push(
-    ...planViolations(label, firstPlans, maximum),
-    ...planViolations(label, deepPlans, plain),
-    ...planViolations(label, cancelledPlans, maximum),
-  );
 }

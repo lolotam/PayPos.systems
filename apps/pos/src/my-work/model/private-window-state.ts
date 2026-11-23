@@ -78,7 +78,8 @@ function reduceData(data: WorkData, action: PrivateWindowAction): WorkData {
     case 'month':
       return { ...data, month: action.month, lines: PENDING_LINES, tips: undefined };
     case 'retry':
-      return { ...data, lines: PENDING_LINES };
+      // الإعادة بتقرا الخدمات والإكراميات مع بعض، فالإكراميات القديمة بتتشال لحد ما الجديدة توصل (فشلها يفضّل البلوك مخفي)
+      return { ...data, lines: PENDING_LINES, tips: undefined };
     case 'linesMore':
       return { ...data, lines: { ...data.lines, fetchingMore: true } };
     case 'linesLoaded': {

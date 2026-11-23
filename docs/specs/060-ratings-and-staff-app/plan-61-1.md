@@ -78,6 +78,14 @@ Consequences: an old API that meets a new row fails the WHOLE page; an old worke
 
 ### 3.2 The details object (shared by A and B)
 
+> **Amendment 2026-11-23 (PR #1228, review round 1).** In the delivered contract the notice `comment` is NOT
+> `ratingComment`. It is the stored text as plain text, bounded only by the database limit of 1,000 code points
+> (`ratings_comment_length`), so the live public submission rule can never make a stored comment unreadable or
+> suppress the notice: a rejected comment used to fail the outbox parse and park the notice for every manager, and
+> an invalid stored row fails the whole inbox page. The admin renders it as text, never as HTML or a link (RT-21),
+> and RT-Q17 (the comment is shown as written) holds. The lines below that say «exactly `ratingComment`» are kept as
+> the original design.
+
 ```ts
 // proposed, packages/contracts — not written
 const DISPLAY_NAME_UNSAFE =

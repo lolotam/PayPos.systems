@@ -1,7 +1,7 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { cancelledLine, fullLine, linesPage, visibleTips } from '@/my-work/ui/work-fixtures';
-import { json } from '@/my-work/ui/work-test-kit';
+import { json, typeInMyWork } from '@/my-work/ui/work-test-kit';
 import {
   exit,
   label,
@@ -46,7 +46,7 @@ it('writes nothing to localStorage or sessionStorage, builds no BroadcastChannel
   expect(await screen.findByText('Colour')).toBeTruthy();
   fireEvent.click(screen.getByText(label('myWork.previousMonth')));
   await waitFor(() => expect(screen.getByText('October 2026')).toBeTruthy());
-  fireEvent.keyDown(document.body, { key: 'a' });
+  typeInMyWork('a');
   await act(() => vi.advanceTimersByTimeAsync(25_000));
   exit('tab hidden');
   expect(setItem).not.toHaveBeenCalled();

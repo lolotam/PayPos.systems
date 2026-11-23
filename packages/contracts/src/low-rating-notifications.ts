@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-import { ratingComment } from './customers/rating-comment.js';
 import { id } from './scalars/id.js';
 
 // نفس فلتر اسم العرض في in-app-notifications.ts (رابط، هاتف، رمز وحده)، لكن الطول هنا بالـ code points
@@ -25,6 +24,17 @@ const performerName = z.strictObject({
   name_ar: ratingDisplayName(255).nullable(),
   name_en: ratingDisplayName(255).nullable(),
 });
+// التعليق المخزّن في صف الجرس: نص بحد الطول بس، مش قاعدة الإرسال ratingComment. قاعدة الإرسال قابلة للتشديد بمرور الوقت، وقاعدة
+// جرس بتتحكم فيها كانت هتخلي تعليقًا اتقبل وقت التخزين يفشل عند إنشاء الجرس (فمفيش مدير ياخد إشعار) أو صفًا مخزنًا يبطّل يتقرا
+// فتفشل صفحة الجرس كلها. الحد هو قيد قاعدة البيانات ratings_comment_length (1000 code point، يعني 2000 وحدة UTF-16 على الأكتر)،
+// والعارض بيعرضه نص متهرب مش رابط (RT-Q17، ADR-0011 §4). النسخة المطابقة في الحزمة: storedCommentAllowed في @pospay/notifications.
+const storedRatingComment = z
+  .string()
+  .refine((value) => value.length <= 2000 && Array.from(value).length <= 1000)
+  .meta({
+    maxLength: 1000,
+    description: 'The customer comment as stored, shown as plain text; at most 1000 characters.',
+  });
 const detailsBase = {
   stars: z.union([z.literal(1), z.literal(2)]),
   branch_name_ar: ratingDisplayName(255).nullable(),
@@ -39,8 +49,11 @@ const detailsBase = {
 
 /** تفاصيل جرس التقييم المنخفض من غير تعليق: مفتاح comment مرفوض هنا (RT-Q9). */
 export const lowRatingDetailsV1 = z.strictObject(detailsBase);
-/** تفاصيل جرس التقييم المنخفض لقارئ التعليق: التعليق إجباري وبنفس قاعدة ratingComment. */
-export const lowRatingCommentDetailsV1 = z.strictObject({ ...detailsBase, comment: ratingComment });
+/** تفاصيل جرس التقييم المنخفض لقارئ التعليق: التعليق إجباري وحده الأقصى بس (storedRatingComment) عشان قاعدة الإرسال الحالية ما تتحكمش في صف مخزن. */
+export const lowRatingCommentDetailsV1 = z.strictObject({
+  ...detailsBase,
+  comment: storedRatingComment,
+});
 
 /** معامل واحد بالظبط من نوع details؛ مش SafeParameter نصي لأن التفاصيل كائن له شكل ثابت. */
 export const lowRatingParameters = z.tuple([

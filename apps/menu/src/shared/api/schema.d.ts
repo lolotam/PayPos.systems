@@ -62,7 +62,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Newest-first keyset page of the ratings of one business. Only a caller whose current role is owner, general manager, business manager or branch manager and who holds read:ratings:branch reads it; rows are limited to the branches inside that scope. from is inclusive and to is exclusive on submitted_at. The comment is the customer text as written. Cache-Control: no-store. */
+        /** @description Newest-first keyset page of the ratings of one business. Only a caller whose current role is owner, general manager, business manager or branch manager and who holds read:ratings:branch reads it; rows are limited to the branches inside that scope. from is inclusive and to is exclusive on submitted_at; month (YYYY-MM) instead selects that calendar month in the business time zone, resolved by the server, and cannot be combined with from or to. The comment is the customer text as written. Cache-Control: no-store. */
         get: operations["listRatings"];
         put?: never;
         post?: never;
@@ -79,7 +79,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Per-employee average stars of one business over a range, for the same callers and branch scope as the ratings list. average is a one-decimal string rounded half up; a rating with two performers counts for both. from is inclusive and to is exclusive on submitted_at; with neither, the range is the current calendar month in the business time zone. Cache-Control: no-store. */
+        /** @description Per-employee average stars of one business over a range, for the same callers and branch scope as the ratings list. average is a one-decimal string rounded half up; a rating with two performers counts for both. from is inclusive and to is exclusive on submitted_at; month (YYYY-MM) instead selects that calendar month in the business time zone and cannot be combined with from or to; with none of the three, the range is the current calendar month in the business time zone. Cache-Control: no-store. */
         get: operations["listRatingAverages"];
         put?: never;
         post?: never;
@@ -491,6 +491,23 @@ export interface paths {
         get: operations["listCommissionPlanVersions"];
         put?: never;
         post: operations["createCommissionPlanVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/businesses/{businessId}/employees/{employeeId}/commission-period-repairs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Repairs a closed month that has an open NO_PLAN blocked correction (FR-047): stores one repair plan version that applies only inside that month, recomputes the month, posts the corrections into the target the earliest-DRAFT rule chooses and resolves the block, all in one transaction under one ascending statement-lock call. If the recompute then needs a missing salary, the same block row becomes NO_SALARY, nothing is posted and the version and its audit entry stay (CM-52b). Requires manage:commission-plans:business and the commissions feature; a device session is refused. A change of the business month while waiting for the locks is refused with TRANSACTION_RETRY_REQUIRED; retry the request. */
+        post: operations["createCommissionPeriodRepair"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3662,6 +3679,8 @@ export interface components {
             cursor?: number;
             /** @default 20 */
             limit: number;
+            /** @enum {string} */
+            kind?: "ordinary";
         };
         CommissionPlanInvalidError: {
             /** @enum {string} */
@@ -3688,6 +3707,32 @@ export interface components {
         CommissionPlanIdempotencyKeyReusedError: {
             /** @enum {string} */
             code: "IDEMPOTENCY_KEY_REUSED";
+            message_ar: string;
+            message_en: string;
+        };
+        CommissionRepairPlan: {
+            base: components["schemas"]["CommissionPlanComponent"];
+            tiers: components["schemas"]["CommissionPlanTiers"];
+            package_sale: components["schemas"]["CommissionPlanComponent"];
+        };
+        CreateCommissionPeriodRepairInput: {
+            period: components["schemas"]["CommissionRepairPeriod"];
+            plan: components["schemas"]["CommissionRepairPlan"];
+        };
+        CommissionPeriodRepairBlock: {
+            /** Format: uuid */
+            id: string;
+            /** @enum {string} */
+            code: "NO_PLAN" | "NO_SALARY";
+            resolved: boolean;
+        };
+        CommissionPeriodRepair: {
+            version: components["schemas"]["CommissionPlanVersion"];
+            blocked_correction: components["schemas"]["CommissionPeriodRepairBlock"];
+        };
+        CommissionRepairNotAllowedError: {
+            /** @enum {string} */
+            code: "COMMISSION_REPAIR_NOT_ALLOWED";
             message_ar: string;
             message_en: string;
         };
@@ -9155,7 +9200,7 @@ export interface components {
                     }[];
                     customer_name: string | null;
                     phone_last3: string;
-                    /** @description Max 1000 chars; no URLs, HTML tags, Markdown link/image, known-TLD hosts; LF, CR, tab only. */
+                    /** @description The customer comment as stored, shown as plain text; at most 1000 characters. */
                     comment: string;
                 };
             }[];
@@ -9799,6 +9844,7 @@ export interface operations {
                 employee_id?: string;
                 from?: string;
                 to?: string;
+                month?: string;
                 cursor?: string;
                 limit?: number;
             };
@@ -9891,6 +9937,7 @@ export interface operations {
                 employee_id?: string;
                 from?: string;
                 to?: string;
+                month?: string;
             };
             header: {
                 "x-company-id": string;
@@ -11278,6 +11325,7 @@ export interface operations {
             query?: {
                 cursor?: number;
                 limit?: number;
+                kind?: "ordinary";
             };
             header: {
                 "x-company-id": string;
@@ -11372,6 +11420,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CommissionPlanInvalidError"] | components["schemas"]["CommissionEffectiveFromPastError"] | components["schemas"]["CommissionPeriodBeforeBusinessError"] | components["schemas"]["CommissionPlanIdempotencyKeyReusedError"];
+                };
+            };
+            /** @description Bilingual refusal */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createCommissionPeriodRepair: {
+        parameters: {
+            query?: never;
+            header: {
+                "x-company-id": string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                businessId: string;
+                employeeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCommissionPeriodRepairInput"];
+            };
+        };
+        responses: {
+            /** @description The repair version and the block */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionPeriodRepair"];
+                };
+            };
+            /** @description Uniform 403 refusal */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description TRANSACTION_RETRY_REQUIRED (the month rolled over), COMMISSION_PERIOD_CLOSED (no DRAFT month to post into), IDEMPOTENCY_KEY_IN_PROGRESS */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description COMMISSION_REPAIR_NOT_ALLOWED when no open NO_PLAN block exists for the employee and month (including a NO_SALARY block or a resolved one, and a month before the business started or not yet closed), COMMISSION_PLAN_INVALID with details.code, or IDEMPOTENCY_KEY_REUSED. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CommissionRepairNotAllowedError"] | components["schemas"]["CommissionPlanInvalidError"] | components["schemas"]["CommissionPlanIdempotencyKeyReusedError"];
                 };
             };
             /** @description Bilingual refusal */

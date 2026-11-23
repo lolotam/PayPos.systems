@@ -177,6 +177,32 @@ it('loads the next page by cursor and then hides the load-more button', async ()
   );
 });
 
+it('requests the next page with the month the first page returned, not the implicit current month', async () => {
+  const fetched = serve({
+    lines: (url) =>
+      url.searchParams.get('cursor') === 'next-1'
+        ? json(linesPage([cancelledLine], null, '2026-11'))
+        : json(linesPage([fullLine], 'next-1', '2026-11')),
+  });
+  open();
+  fireEvent.click(await screen.findByText(label('myWork.loadMore')));
+  expect(await screen.findByText('Colour')).toBeTruthy();
+  const [first, second] = fetched.paths('/service-lines').map((r) => new URL(r.url).searchParams);
+  expect(first?.get('month')).toBeNull();
+  expect(second?.get('cursor')).toBe('next-1');
+  expect(second?.get('month')).toBe('2026-11');
+});
+
+it('shows a labelled UTC time instead of crashing the list when the business zone is unknown to this device', async () => {
+  serve({
+    lines: () => json(linesPage([fullLine, cancelledLine], null, '2026-11', 'Not/A_Zone')),
+  });
+  open();
+  expect(await screen.findByText('Haircut')).toBeTruthy();
+  expect(screen.getAllByText('10:30 UTC').length).toBe(2);
+  expect(screen.getByText(/Cancelled on\s+November 21, 2026 at 09:00 UTC/)).toBeTruthy();
+});
+
 it('steps back a month with the server month as the start and never past the current month', async () => {
   const fetched = serve({
     lines: (url) => {

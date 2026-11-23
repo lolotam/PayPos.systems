@@ -103,6 +103,7 @@ export default [
             src: SRC,
             packages: ['@pospay/commissions-engine', '@pospay/domain', '@pospay/ids'],
             typeOnlyPackages: ['@pospay/commissions-engine', '@pospay/domain', '@pospay/ids'],
+            relativeTypeOnly: true,
             folders: ['domain', 'ports'],
             message:
               'packages/commissions-posting ports/ may import only its own domain/ and ports/, and types (import type) of @pospay/domain, @pospay/ids and @pospay/commissions-engine (CLAUDE.architecture.md §3.1).',

@@ -1,14 +1,14 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import type { RatingsRange } from '../model/ratings-filters';
+import type { RatingsPeriodQuery } from '../model/ratings-filters';
 import { ratingsKey, readRatingAverages } from './ratings-client';
 
 export function useRatingAverages(
   companyId: string,
   userId: string,
   businessId: string,
-  range: RatingsRange,
+  range: RatingsPeriodQuery,
 ) {
   return useQuery({
     queryKey: [...ratingsKey(companyId, userId, businessId), 'averages', range],

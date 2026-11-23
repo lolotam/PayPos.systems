@@ -1,4 +1,4 @@
-import { ratingCommentAllowed } from './rating-comment-rule.ts';
+import { storedCommentAllowed } from './rating-comment-rule.ts';
 
 /** المعامل الوحيد لجرس التقييم المنخفض: كائن تفاصيل له شكل ثابت، مش SafeParameter نصي. */
 export interface LowRatingDetailsParameter {
@@ -101,7 +101,7 @@ function validDetails(value: unknown, withComment: boolean): boolean {
     nullableName(value['customer_name'], 200) &&
     typeof last3 === 'string' &&
     /^[0-9]{2,3}$/.test(last3) &&
-    (!withComment || ratingCommentAllowed(value['comment']))
+    (!withComment || storedCommentAllowed(value['comment']))
   );
 }
 

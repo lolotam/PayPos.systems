@@ -30,7 +30,9 @@ export function PageHeader({
         ) : null}
       </div>
       {actions ? (
-        <div className="ms-auto flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
+        <div className="ms-auto flex max-w-full shrink-0 flex-wrap items-center gap-2">
+          {actions}
+        </div>
       ) : null}
       {action ? <div className="ms-auto shrink-0">{action}</div> : null}
     </header>
