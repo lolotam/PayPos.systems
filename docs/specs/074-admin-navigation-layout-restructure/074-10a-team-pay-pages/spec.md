@@ -4,7 +4,7 @@ Parent: [`spec.md`](../spec.md) (FR-002, FR-008, FR-015, FR-016), [`design.md`](
 
 ## Owner decision
 
-Row 10 is delivered in two parts. Waleed, card of 2026-11-23, «نقسّم: التخطيط دلوقتي والمسارات بعد 7b (Recommended)»: **10a** (this slice) lays the existing Team and Pay pages out on the shared templates and adds no route; **10b**, after 074-7b merges, adds Employee detail as a tabbed page on its own route. Tier Medium. Cap: 2,800 added plus removed lines of code and tests, docs counted separately. Review pipeline PP-228. The PP number is assigned by the manager and added to this file when known.
+Row 10 is delivered in two parts. Waleed, card of 2026-11-23, «نقسّم: التخطيط دلوقتي والمسارات بعد 7b (Recommended)»: **10a** (this slice) lays the existing Team and Pay pages out on the shared templates and adds no route; **10b**, after 074-7b merges, adds Employee detail as a tabbed page on its own route. Tier Medium. Cap: 2,800 added plus removed lines of code and tests, docs counted separately. Review pipeline PP-228. Recorded as PP-234 in `docs/owner-decisions.ar.md`.
 
 ## What changes for a user
 
