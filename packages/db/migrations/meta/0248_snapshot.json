@@ -1,5 +1,5 @@
 {
-  "id": "f41c88cc-270a-47e9-a9f6-ed9e8521a0b6",
+  "id": "55e5deed-5d7c-4933-9071-e9deb42f20f0",
   "prevId": "b1f31977-7668-47b7-bd05-240beaa3d720",
   "version": "7",
   "dialect": "postgresql",
@@ -26678,6 +26678,10 @@
         "commission_statements_paid_method": {
           "name": "commission_statements_paid_method",
           "value": "\"commission_statements\".\"paid_method\" IS NULL OR \"commission_statements\".\"paid_method\" IN ('WITH_SALARY','BANK_TRANSFER','CASH')"
+        },
+        "commission_statements_paid_note_length": {
+          "name": "commission_statements_paid_note_length",
+          "value": "\"commission_statements\".\"paid_note\" IS NULL OR char_length(\"commission_statements\".\"paid_note\") <= 500"
         },
         "commission_statements_payment_stage": {
           "name": "commission_statements_payment_stage",

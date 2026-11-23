@@ -107,6 +107,11 @@ const statementChecks = (t: StatementSelf) => [
     'commission_statements_paid_method',
     sql`${t.paidMethod} IS NULL OR ${t.paidMethod} IN ('WITH_SALARY','BANK_TRANSFER','CASH')`,
   ),
+  // حد ملاحظة الصرف نفس حد ملاحظة الإجازة في العقود (500 حرف)، عشان المتصفح والقاعدة يتفقوا.
+  check(
+    'commission_statements_paid_note_length',
+    sql`${t.paidNote} IS NULL OR char_length(${t.paidNote}) <= 500`,
+  ),
   // مرحلة الدفع متكاملة: PAID يعني كل أعمدة الصرف موجودة، وأي مرحلة تانية يعني كلها فاضية.
   check(
     'commission_statements_payment_stage',
