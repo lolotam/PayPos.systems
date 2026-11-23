@@ -20,7 +20,7 @@ import type {
 
 const INVITATION_PERMISSION = 'manage:memberships:company';
 
-/** أعمدة صف الدعوة بالحروف اللي الداتابيز بيرجّعها، ومعاها فهرس عام عشان نوع execute بيتقبله. */
+/** الأعمدة بتوصل نصوص من execute الخام؛ السنة بتتحول Date في toRow. */
 interface InvitationRecord extends Record<string, unknown> {
   id: string;
   user_id: string | null;
@@ -30,8 +30,8 @@ interface InvitationRecord extends Record<string, unknown> {
   scope_id: string;
   invited_by: string;
   state: MemberInvitationRow['state'];
-  link_issued_at: Date | null;
-  created_at: Date;
+  link_issued_at: string | null;
+  created_at: string;
 }
 
 const SELECT_INVITATION = sql`
@@ -48,8 +48,9 @@ const toRow = (row: InvitationRecord): MemberInvitationRow => ({
   scopeId: row.scope_id,
   invitedBy: row.invited_by,
   state: row.state,
-  linkIssuedAt: row.link_issued_at,
-  createdAt: row.created_at,
+  // execute الخام بيرجّع التواريخ نصوص ISO، فالتحويل هنا يرجّع نوع المنفذ (Date).
+  linkIssuedAt: row.link_issued_at === null ? null : new Date(row.link_issued_at),
+  createdAt: new Date(row.created_at),
 });
 
 async function authorityAllows(
@@ -100,6 +101,34 @@ async function hasActiveMembership(
   return rows.length > 0;
 }
 
+/** مفتاح فريد (شركة، بصمة إيميل) بيتقابل في السباق على نفس الإيميل — drizzle بيلف الغلط فالكود في الـ cause. */
+const isEmailKeyRace = (error: unknown): boolean => {
+  const source = error as { code?: string; cause?: { code?: string } };
+  return (source.code ?? source.cause?.code) === '23505';
+};
+
+const insertReturningId = async (
+  tx: Tx,
+  input: OpenInvitationInput,
+): Promise<{ id: string }[]> => {
+  // السباق على نفس الإيميل بيبطل المعاملة بعد الغلط، فالـ SAVEPOINT بيشفّها عشان الرد يطلع
+  // 409 نضيف؛ إعادة المحاولة المتسلسلة بعد كده بتلاقي الصف PENDING وتعيد استخدامه.
+  await tx.execute(sql`SAVEPOINT member_invitation_open`);
+  try {
+    return await tx.execute<{ id: string }>(sql`
+      INSERT INTO member_invitations
+        (company_id, id, email_hash, role_code, scope_type, scope_id, invited_by, state, created_at)
+      VALUES (${input.companyId}, ${input.invitationId}, ${input.emailHash}, ${input.roleCode},
+              ${input.scope.type}, ${input.scope.id}, ${input.actorUserId}, 'PENDING',
+              ${input.now.toISOString()}::timestamptz)
+      RETURNING id`);
+  } catch (error) {
+    if (!isEmailKeyRace(error)) throw error;
+    await tx.execute(sql`ROLLBACK TO SAVEPOINT member_invitation_open`);
+    return [];
+  }
+};
+
 /** الخطوة الأولى جوه معاملة واحدة: سلطة المالك، ونطاق تابع للشركة، وكتابة أو إعادة استخدام PENDING. */
 async function openInvitation(
   tx: Tx,
@@ -117,40 +146,33 @@ async function openInvitation(
   ) {
     return { refusal: 'MEMBER_ALREADY_IN_COMPANY' };
   }
-  const insert = await tx.execute<{ id: string }>(sql`
-    INSERT INTO member_invitations
-      (company_id, id, email_hash, role_code, scope_type, scope_id, invited_by, state, created_at)
-    VALUES (${input.companyId}, ${input.invitationId}, ${input.emailHash}, ${input.roleCode},
-            ${input.scope.type}, ${input.scope.id}, ${input.actorUserId}, 'PENDING', ${input.now})
-    RETURNING id`);
-  if (insert.length === 1) return { invitationId: input.invitationId };
-  return reusePendingInvitation(tx, input);
-}
-
-/** سباق على نفس الإيميل: صف PENDING موجود بيتجدد بدور ونطاق الطلب وبيتعاد استخدامه بمعرّفه (D6). */
-async function reusePendingInvitation(
-  tx: Tx,
-  input: OpenInvitationInput,
-): Promise<OpenInvitationOutcome> {
   const [existing] = await tx.execute<InvitationRecord>(sql`
     ${SELECT_INVITATION}
     WHERE company_id = ${input.companyId} AND email_hash = ${input.emailHash}
     FOR UPDATE`);
-  if (existing === undefined || existing.state !== 'PENDING') {
+  if (existing !== undefined && existing.state !== 'PENDING') {
     return { refusal: 'MEMBER_INVITATION_EXISTS' };
   }
-  await tx.execute(sql`
-    UPDATE member_invitations
-    SET role_code = ${input.roleCode}, scope_type = ${input.scope.type}, scope_id = ${input.scope.id}
-    WHERE company_id = ${input.companyId} AND id = ${existing.id}`);
-  return { invitationId: existing.id };
+  if (existing !== undefined) {
+    await tx.execute(sql`
+      UPDATE member_invitations
+      SET role_code = ${input.roleCode}, scope_type = ${input.scope.type}, scope_id = ${input.scope.id}
+      WHERE company_id = ${input.companyId} AND id = ${existing.id}`);
+    return { invitationId: existing.id };
+  }
+  const insert = await insertReturningId(tx, input);
+  if (insert.length === 1) return { invitationId: input.invitationId };
+  return { refusal: 'MEMBER_INVITATION_EXISTS' };
 }
+
+/** سباق على نفس الإيميل: صف PENDING موجود بيتجدد بدور ونطاق الطلب وبيتعاد استخدامه بمعرّفه (D6). */
 
 /** الإتمام لصف انتهى من قبل: بيرد بالحالة الحالية بدون كتابة ولا حدث تاني (زي خطوة 3 في F1). */
 const alreadyCompleteOutcome = (invitation: InvitationRecord): CompleteInvitationOutcome => ({
   done: true,
   alreadyComplete: true,
-  linkIssuedAt: invitation.link_issued_at,
+  linkIssuedAt:
+    invitation.link_issued_at === null ? null : new Date(invitation.link_issued_at),
 });
 
 /** الخطوة الثالثة جوه معاملة واحدة: العضوية، وتحديث الدعوة، وصفوف التدقيق، وحدث MemberInvited. */
@@ -189,7 +211,7 @@ async function insertMembership(tx: Tx, input: CompleteInvitationInput): Promise
     INSERT INTO memberships
       (company_id, id, user_id, role_id, role_owner_key, scope_type, scope_id, starts_at)
     VALUES (${input.companyId}, ${input.membershipId}, ${input.userId}, ${systemRoleId(input.roleCode)}::uuid,
-            'global', ${input.scope.type}, ${input.scope.id}, ${input.now})`);
+            'global', ${input.scope.type}, ${input.scope.id}, ${input.now.toISOString()}::timestamptz)`);
 }
 
 /**
@@ -237,10 +259,19 @@ export function createMemberInvitationTransactions(
       const row = rows[0];
       return row === undefined ? null : toRow(row);
     },
+    claimLink: async ({ companyId, invitationId, at }) => {
+      const claimed = await db.withTenant(companyId, async (tx) =>
+        tx.execute<{ id: string }>(sql`
+          UPDATE member_invitations SET link_issued_at = ${at.toISOString()}::timestamptz
+          WHERE company_id = ${companyId} AND id = ${invitationId} AND link_issued_at IS NULL
+          RETURNING id`),
+      );
+      return claimed.length === 1;
+    },
     stampLink: async ({ companyId, invitationId, at }) => {
       await db.withTenant(companyId, async (tx) => {
         await tx.execute(sql`
-          UPDATE member_invitations SET link_issued_at = ${at}
+          UPDATE member_invitations SET link_issued_at = ${at.toISOString()}::timestamptz
           WHERE company_id = ${companyId} AND id = ${invitationId}`);
       });
     },

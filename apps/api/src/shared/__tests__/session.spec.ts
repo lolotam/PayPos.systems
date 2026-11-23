@@ -34,6 +34,14 @@ class ProtectedProbe {
 
 let seen: { method: string; url: string; body: string; cookie: string | null } | undefined;
 const fakeAuth: AuthService = {
+  members: {
+    hashEmail: () => '',
+    findByEmail: async () => null,
+    findByInvitation: async () => null,
+    createInvitedMember: async () => ({ userId: '', createdByInvitation: false }),
+    readMarker: async () => null,
+    issueInvitationLink: async () => 'http://api.test/unused',
+  },
   personal: {} as AuthService['personal'],
   passkeys: {} as AuthService['passkeys'],
   privateView: {} as AuthService['privateView'],

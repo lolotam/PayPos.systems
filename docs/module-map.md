@@ -268,6 +268,7 @@ The producer appends to the outbox inside its own transaction and knows **none**
 | `AppointmentCompleted`                                                      | `appointments`  | `orders`, `commissions`                                                                           |
 | `StockPosted`                                                               | `inventory`     | `reporting`, `notifications` (low-stock alert), `realtime`                                        |
 | `DeviceRegistered` / `DeviceRevoked`                                        | `identity`      | `realtime`, `notifications`                                                                       |
+| `MemberInvited` | `identity` | None in Phase 1; known to the dispatcher. Ids and the invited role/scope only — no email, no link, no token (spec 076 G1) |
 | `GatewayAccountConnected`                                                   | `payments`      | `notifications`, `platform`                                                                       |
 | `NotificationDelivered` / `NotificationFailed`                              | `notifications` | `reporting`                                                                                       |
 | `NotificationSendAuthorized` (internal, ADR-0018)                           | `notifications` | worker transport publisher → `notifications-send` BullMQ queue, outside database-effect consumers |

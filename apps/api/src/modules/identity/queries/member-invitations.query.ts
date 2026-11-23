@@ -1,5 +1,5 @@
 import { memberInvitationPage, type PageQuery } from '@pospay/contracts';
-import { type TenantWrappers } from '@pospay/db';
+import type { TenantWrappers } from '@pospay/db';
 import { sql } from 'drizzle-orm';
 
 /**
@@ -47,8 +47,9 @@ export async function listMemberInvitations(
       scope_type: row.scope_type,
       scope_id: row.scope_id,
       state: states[position],
-      link_issued_at: row.link_issued_at === null ? null : row.link_issued_at.toISOString(),
-      created_at: row.created_at.toISOString(),
+      // execute الخام بيرجّع التواريخ نصوص ISO، فالتحويل هنا قبل العقد.
+      link_issued_at: row.link_issued_at === null ? null : new Date(row.link_issued_at).toISOString(),
+      created_at: new Date(row.created_at).toISOString(),
     })),
     next_cursor: rows.length > page.limit ? (items.at(-1)?.['id'] ?? null) : null,
   });

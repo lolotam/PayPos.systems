@@ -235,6 +235,8 @@ interface HarnessOptions {
   /** من غير Redis مفيش حدّ على المسارات العامة، فبترد NOT_READY. */
   omitRedis?: boolean;
   commissionsClock?: { now(): Date };
+  /** بوابة مسارات شريحة 076 (plan §1.1): الاختبارات بتفتحها عشان توصل للمسارات الجديدة. */
+  staffAccessRoutes?: boolean;
   /** يلفّ غلاف قاعدة التطبيق، عشان اختبار يسجّل اتصالات معاملات الطلبات الحقيقية. */
   wrapDatabase?: (database: TenantWrappers) => TenantWrappers;
   staffOtpFactory?: (
@@ -308,6 +310,9 @@ async function prepareHarness(
         ...personalWiring(options, auth, database),
         ids,
         ...(options.omitRedis === true ? {} : { redis }),
+        // أصل اللوحة اللي الرابط بيتبنى عليه؛ بوابة المسارات بتتفتح من الاختبارات اللي محتاجاها بس.
+        adminOrigin: ORIGIN,
+        ...(options.staffAccessRoutes === true ? { staffAccessRoutes: true } : {}),
       },
       {
         logger: harnessLogger(options),

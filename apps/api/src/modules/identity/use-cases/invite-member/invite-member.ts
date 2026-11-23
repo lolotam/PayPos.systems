@@ -192,7 +192,7 @@ export class InviteMember {
     return { invitation_id: opened.invitationId, set_password_link: link };
   }
 
-  /** الرابط مرة واحدة: للمدعوّ الجديد فقط، ولو انقطعنا قبل إصداره بيطلع هنا؛ بعده بيطلع null. */
+  /** الرابط مرة واحدة: حجز ذري بيرجّع false لو رابط اتحجز قبل كده، والرابط بيتطلع بعد الحجز بس. */
   async #issueLinkIfNeeded(
     outcome: { linkIssuedAt: Date | null },
     account: { userId: string; createdByInvitation: boolean },
@@ -201,14 +201,14 @@ export class InviteMember {
     now: Date,
   ): Promise<string | null> {
     if (!account.createdByInvitation || outcome.linkIssuedAt !== null) return null;
-    const link = await this.#accounts.issueInvitationLink({
+    const claimed = await this.#transactions.claimLink({ companyId, invitationId, at: now });
+    if (!claimed) return null;
+    return this.#accounts.issueInvitationLink({
       userId: account.userId,
       companyId,
       redirectTo: this.#redirectTo,
       lifetimeMs: MEMBER_INVITATION_LINK_TTL_MS,
       now,
     });
-    await this.#transactions.stampLink({ companyId, invitationId, at: now });
-    return link;
   }
 }

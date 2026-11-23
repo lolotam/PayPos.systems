@@ -384,7 +384,7 @@ Controller guard scanning cannot see routes mounted by Better Auth's handler, so
 | `POST /v1/webhooks/*` (other providers)                          | signature-verified, tenant resolved from the payload (`CLAUDE.md` §6)                                                                                            |
 | `GET  /health` · `GET /ready`                                    | probes                                                                                                                                                           |
 
-Every public route is rate-limited in Redis **except `/health`**, which must report process liveness even when Redis is down or the limit is exhausted — otherwise an orchestrator restarts a healthy API during a Redis incident. `/ready` still reports Redis. Sign-up is **not** public: companies are created by `onboard-company`; users by the operator script `platform:create-user` in Phase 0. Inviting users into a company is a later deliverable (issue #19).
+Every public route is rate-limited in Redis **except `/health`**, which must report process liveness even when Redis is down or the limit is exhausted - otherwise an orchestrator restarts a healthy API during a Redis incident. `/ready` still reports Redis. Sign-up is **not** public: companies are created by `onboard-company`; users by the operator script `platform:create-user` in Phase 0. Inviting users into a company is a later deliverable (issue #19) — delivered by spec 076 (staff access and member invitations, `docs/adr/00NN-staff-access-and-invitations.md`).
 
 ## 6a. Revisions
 

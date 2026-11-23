@@ -122,7 +122,17 @@ export interface MemberInvitationTransactions {
    */
   read(input: { companyId: string; invitationId: string }): Promise<MemberInvitationRow | null>;
   /**
-   * يختم وقت إصدار الرابط.
+   * يحجز حق إصدار الرابط مرة واحدة: تحديث ذري بيشترط إن الرابط لسه ما اتطلعش.
+   *
+   * @param input الشركة ومعرف الدعوة والوقت
+   * @param input.companyId    الشركة
+   * @param input.invitationId معرف الدعوة
+   * @param input.at           وقت الحجز من الساعة المحقونة
+   * @returns true لما الحجز يتم، وfalse لو رابط اتحجز قبل كده (فيه سباق أو انقطاع)
+   */
+  claimLink(input: { companyId: string; invitationId: string; at: Date }): Promise<boolean>;
+  /**
+   * يختم وقت آخر إصدار بلا شرط — مسار إعادة الإصدار بيعيد بالتصميم، فآخر ختم هو الرابط الحي.
    *
    * @param input الشركة ومعرف الدعوة والوقت
    * @param input.companyId    الشركة
