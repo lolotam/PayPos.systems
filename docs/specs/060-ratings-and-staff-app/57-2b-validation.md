@@ -378,21 +378,66 @@ Lines to collect from each file: `57-2b db-time` (one JSON line per page and sam
 statistics before|after|after diagnostics|normal` (stale-state proof), `57-2b cancellations table`, `57-2b fixture`,
 `57-2b measurement` (wall-clock diagnostics) and `57-2b plans`. Host CPU is recorded before each run, for the record only.
 
-### Result of the run on the delivery head — to be filled from that run (no numbers recorded here yet)
+### Result of the run of 2026-11-23 on `7d9e6d20d` — regular fixture PASSED, 66,002-line stale case FAILED
 
-Head: _to be filled_ (`git rev-parse HEAD`). Fixture sizes: _to be filled_. Statistics-state verification: _to be filled_.
-Host load: _to be filled_.
+**The acceptance is NOT met.** On the 66,002-line fixture with stale statistics, 4 of 21 judged samples were at or above
+200 ms. Nothing was changed and no run was repeated to obtain a different result.
 
-| Page (statements) | Regular fixture, stale: samples / max execution_ms_sum (max exec+plan) | Regular, normal | 66,002 lines, stale | 66,002 lines, normal |
+Head: `7d9e6d20d783165899fa54c43feeccbe9a09796a` (round-1 fixes committed, main merged, tree clean; the commit that
+records these numbers is a docs-only child). Each run was made once, in the announced heavy-DB window, on the private
+lane (`127.0.0.1:55404`). Host processor load before each run: 100 % on 6 of 6 samples (other sessions share the
+machine; a repository-wide typecheck of this branch was also still running during the regular run). Regular run
+13:45:41–13:50:17 Kuwait, 4 tests passed. Scaled run 13:51:08–13:55:18 Kuwait, 2 tests failed.
+
+Fixtures: regular 600 own visits / 602 own lines / 6,020 colleague lines; scaled 600 / 602 / 65,400, 66,002 lines in the
+target tenant. Stale state of the scaled run, verified by the tightened rule on attempt 0: the target was absent from
+the three MCV lists before and after the judged phase, `n_mod_since_analyze` went 66,000 → 66,002, and the analyse
+stamps of the three tables were unchanged; autoanalyze ran only later, during the wall-clock diagnostics.
+
+`execution_ms_sum` per sample, in ms (regular: 4 samples per page; scaled: 3). **Bold** = at or above 200.
+
+| Page (statements, kind) | Regular, stale | Regular, normal | 66,002 lines, stale | 66,002 lines, normal |
 |---|---|---|---|---|
-| first-20 | _to be filled_ | _to be filled_ | _to be filled_ | _to be filled_ |
-| first-100 | _to be filled_ | _to be filled_ | _to be filled_ | _to be filled_ |
-| cursor-100 | _to be filled_ | _to be filled_ | _to be filled_ | _to be filled_ |
-| deep-cursor-100 | _to be filled_ | _to be filled_ | _to be filled_ | _to be filled_ |
-| cancelled-20 | _to be filled_ | _to be filled_ | _to be filled_ | _to be filled_ |
-| cancelled-100 | _to be filled_ | _to be filled_ | _to be filled_ | _to be filled_ |
-| cancelled-deep-100 | _to be filled_ | _to be filled_ | _to be filled_ | _to be filled_ |
+| first-20 (5, first) | 51.5, 27.3, 31.5, 32.5 | 8.1, 8.8, 8.3, 8.4 | 143.5, **350.8**, 116.3 | 9.2, 8.7, 11.5 |
+| first-100 (6, first) | 34.1, 36.7, 57.6, 41.6 | 11.5, 14.8, 15.6, 22.4 | 158.6, 120.5, 128.9 | 19.9, 10.9, 10.4 |
+| cursor-100 (5, cursor) | 36.2, 41.5, 38.1, 30.4 | 10.7, 10.9, 15.0, 15.1 | 109.6, 102.0, 111.7 | 10.6, 11.1, 19.6 |
+| deep-cursor-100 (5, cursor) | 29.9, 40.3, 39.6, 35.0 | 10.1, 12.2, 10.5, 10.5 | 105.1, **224.6**, **237.7** | 10.0, 9.4, 9.3 |
+| cancelled-20 (6, cursor) | 29.3, 39.0, 67.4, 37.9 | 8.4, 11.2, 12.4, 9.9 | **218.7**, 193.4, 121.1 | 9.1, 9.3, 12.0 |
+| cancelled-100 (6, cursor) | 30.2, 42.2, 35.4, 28.1 | 12.0, 15.8, 11.6, 11.6 | 94.6, 101.0, 96.0 | 9.9, 10.0, 9.8 |
+| cancelled-deep-100 (6, cursor) | 27.9, 28.8, 27.7, 28.3 | 12.5, 11.0, 11.2, 10.5 | 111.9, 193.8, 173.1 | 10.1, 9.5, 9.5 |
+| Worst sample | 67.4 | 22.4 | **350.8** | 19.9 |
 
-Per-statement numbers of the six-statement pages: _to be filled_. Wall-clock diagnostics: _to be filled_. The earlier
-statement «The maximum-statement case has no accepted timing yet» stays as history until this table is filled and every
-judged sample passed; only then is it marked superseded by this section.
+Planning time per page was 1.9–6.7 ms in every state and does not change any verdict.
+
+Per-statement `Execution Time` of the four failing samples (rows removed by the filter in brackets):
+
+| Sample | 1 `line_performers` | 2 `service_lines` | 3 `service_sessions` | 4 `service_lines` | 5 `service_sessions` | 6 cancellations | Sum |
+|---|---|---|---|---|---|---|---|
+| first-20 | 213.9 (65,400) | 38.2 (65,400) | 52.7 (65,400) | 24.2 (65,982) | 21.9 (65,981) | — | 350.8 |
+| deep-cursor-100 | 0.8 (0) | 42.3 (65,400) | 68.0 (65,400) | 54.8 (65,902) | 58.6 (65,900) | — | 224.6 |
+| deep-cursor-100 | 0.9 (0) | 52.1 (65,400) | 81.3 (65,400) | 51.9 (65,902) | 51.5 (65,900) | — | 237.7 |
+| cancelled-20 | 0.8 (0) | 50.4 (65,400) | 66.7 (65,400) | 47.7 (65,982) | 52.9 (65,981) | 0.3 (49) | 218.7 |
+
+What the numbers show, and what they do not:
+
+- With stale statistics every id-list statement is one pass over the tenant's rows of that table (about 65,400 rows
+  removed by the filter), as the earlier sections state. At 66,002 lines four such passes took 40–80 ms each in this
+  run; the 2026-11-22 run on the same fixture recorded 9.5–12.3 ms for the same scans. The first statement of one
+  sample took 213.9 ms where the other samples of the same statement took 0.8 ms.
+- The wall-clock diagnostics of the same run are LOWER than the instrumented sums for the same pages: cancelled-20
+  85–101 ms wall against 121–219 ms `Execution Time`; deep-cursor-100 78–119 ms against 105–238 ms. `EXPLAIN ANALYZE`
+  times every row of every plan node, and that overhead on 65,000-row scans, on a host at 100 % load, is part of the
+  measured figure. Reading, not a finding: this run does not separate the query's own cost from instrumentation and
+  host load. Whether to judge with per-node timing off (`EXPLAIN (ANALYZE, TIMING OFF)`, which still reports the total
+  `Execution Time`) is a method decision for the design approver and the owner; it was not tried.
+- The scaled run's normal-statistics TEST is also reported as failed, but its own 21 samples are all at or below
+  19.9 ms. The harness shares one `violations` array between the two cases, so the four stale violations were counted
+  again. That is a harness defect to fix; it does not change the stale result.
+- Wall-clock diagnostics (not judged), scaled run: stale 72–364 ms, normal 72–290 ms.
+
+The earlier statement «The maximum-statement case has no accepted timing yet» therefore still stands: the regular
+fixture is measured and under the bound in both states for five- and six-statement pages, first and cursor; the
+66,002-line stale case is over it in four samples.
+
+Raw files (outside the repository): `F:/Dev/Temp/57-2b/dbtime-regular-7d9e6d20d.jsonl` and
+`F:/Dev/Temp/57-2b/dbtime-scale-7d9e6d20d.jsonl`.
