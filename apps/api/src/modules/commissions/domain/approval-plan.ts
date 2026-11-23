@@ -1,0 +1,104 @@
+import {
+  computeStatementPayable,
+  type StatementRow,
+  type StatementViewIssue,
+} from '@pospay/commissions-engine';
+
+import { employmentOverlapsMonth, type EmploymentDates } from './employment-overlap.ts';
+
+/** رصيد سالب يترحّل عند الاعتماد: نوعه ومبلغه كما سيُخزَّن (سالب، بمقياس الفلس) (D-22). */
+export interface PlannedCarry {
+  readonly employeeId: string;
+  readonly kind: 'COMMISSION' | 'TIP_CARD';
+  readonly amount: bigint;
+}
+
+/** سطر بند للتحقق من اكتمال حصص مؤدياته (D-14): معرّف البند وحالته وحصة هذه المؤدية بنقاط الأساس. */
+export interface ShareCheckLine {
+  readonly lineId: string;
+  readonly status: 'ACTIVE' | 'CANCELLED';
+  readonly shareBps: bigint;
+}
+
+const FULL_SHARE = 10000n;
+
+/**
+ * يحسب الأرصدة السالبة التي يكتبها اعتماد الكشف كمرحّلات (D-22): لكل موظفة تُجمع صفوفها المجمّدة بنفس
+ * دالة المستحق، فرصيد العمولة السالب يصير مرحّل `COMMISSION` ورصيد بقشيش الكارت السالب مرحّل `TIP_CARD`،
+ * ولا يتقاصّ النوعان (BR-06). **الموظفة التي لا يتقاطع عملها مع شهر الاعتماد لا يُرحَّل رصيدها مرة ثانية** (CS-Q8،
+ * CS-Q28): رصيدها يبقى سالبًا في الكشف ويسويه المالك خارج النظام. الترتيب ثابت (الموظفة ثم النوع) كي تكون
+ * الكتابة حتمية.
+ *
+ * @param period شهر الكشف المعتمَد بصيغة YYYY-MM
+ * @param rows صفوف الباني كلها (بما فيها صف EMPLOYEE لكل موظفة)
+ * @param employment تواريخ عمل كل موظفة في الكشف؛ غيابها خطأ برمجي لأن كل صاحبة صف لها سجل موظفين
+ * @returns المرحّلات الواجب كتابتها، قائمة فارغة لو لا رصيد سالب
+ * @throws Error لو غابت تواريخ عمل موظفة ذات رصيد سالب
+ */
+export function planApprovalCarries(
+  period: string,
+  rows: readonly StatementRow[],
+  employment: ReadonlyMap<string, EmploymentDates>,
+): PlannedCarry[] {
+  const byEmployee = new Map<string, StatementRow[]>();
+  for (const row of rows) {
+    if (row.kind === 'EMPLOYEE') continue;
+    const list = byEmployee.get(row.employeeId) ?? [];
+    list.push(row);
+    byEmployee.set(row.employeeId, list);
+  }
+  const carries: PlannedCarry[] = [];
+  for (const employeeId of [...byEmployee.keys()].sort()) {
+    const payable = computeStatementPayable(byEmployee.get(employeeId) ?? []);
+    if (payable.commissionCarryOut === 0n && payable.tipCarryOut === 0n) continue;
+    const dates = employment.get(employeeId);
+    if (dates === undefined) {
+      throw new Error(`Employment dates are missing for employee ${employeeId}`);
+    }
+    if (!employmentOverlapsMonth(dates, period)) continue;
+    if (payable.commissionCarryOut < 0n) {
+      carries.push({ employeeId, kind: 'COMMISSION', amount: payable.commissionCarryOut });
+    }
+    if (payable.tipCarryOut < 0n) {
+      carries.push({ employeeId, kind: 'TIP_CARD', amount: payable.tipCarryOut });
+    }
+  }
+  return carries;
+}
+
+/**
+ * يرجّع معرّفات البنود النشطة التي لا يساوي مجموع حصص مؤدياتها 10000 نقطة أساس (D-14). القيد المؤجَّل في
+ * قاعدة البيانات يمنعها عند التسجيل، وهذا فحص دفاعي على ما يقرؤه الاعتماد. البند الملغى لا يدخل الفحص.
+ *
+ * @param lines صفوف البنود المقروءة، صف لكل مؤدية
+ * @returns معرّفات البنود الناقصة أو الزائدة، مرتبة؛ فارغة لو كلها كاملة
+ */
+export function incompleteLineShares(lines: readonly ShareCheckLine[]): string[] {
+  const totals = new Map<string, bigint>();
+  for (const line of lines) {
+    if (line.status !== 'ACTIVE') continue;
+    totals.set(line.lineId, (totals.get(line.lineId) ?? 0n) + line.shareBps);
+  }
+  return [...totals.entries()]
+    .filter(([, total]) => total !== FULL_SHARE)
+    .map(([lineId]) => lineId)
+    .sort();
+}
+
+/**
+ * هل في مشكلة تمنع الاعتماد؟ أي مشكلة تسعير (`NO_PLAN`، `NO_SALARY`) أو تصحيح موقوف مفتوح تُجمع من موظفات
+ * الكشف تمنع المراجعة والاعتماد معًا (FR-027).
+ *
+ * @param employees موظفات الكشف بمشاكلهن، من نفس الإسقاط الذي يعرضه الكشف
+ * @returns المشاكل بموظفتها، فارغة لو لا مانع
+ */
+export function approvalBlockingIssues(
+  employees: readonly {
+    readonly employeeId: string;
+    readonly issues: readonly StatementViewIssue[];
+  }[],
+): { readonly employeeId: string; readonly code: StatementViewIssue['code'] }[] {
+  return employees.flatMap((employee) =>
+    employee.issues.map((issue) => ({ employeeId: employee.employeeId, code: issue.code })),
+  );
+}
