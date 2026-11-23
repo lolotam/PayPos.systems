@@ -39,12 +39,17 @@ export const commissionStatementPaths = {
     get: {
       operationId: 'getCommissionStatement',
       description:
-        'The statement view of an open (DRAFT or REVIEWED) business month, computed on read in a read-only transaction: no row, fingerprint or lock is created (FR-025, D-25). generated is false until a review holder has generated it. Requires read:commissions:business and the commissions feature; a device session is refused. A business-wide reader (a current company- or business-scoped grant and no DENY) gets the CommissionStatementView with both current fingerprints, the reviewed ones and the changed-since-review flag with its cause; every other reader gets the CommissionStatementBranchView with her visible rows only and no whole-statement field. An APPROVED or PAID month is refused with COMMISSION_PERIOD_CLOSED until the frozen read ships with the approval part.',
+        'The statement view of a business month. An open (DRAFT or REVIEWED) month is computed on read in a read-only transaction: no row, fingerprint or lock is created (FR-025, D-25). An APPROVED or PAID month is read from its frozen rows alone, never recomputed (FR-025, FR-033): the business-wide reader gets the CommissionClosedStatementView with the approval time and the two frozen fingerprints, every other reader the CommissionClosedStatementBranchView with her visible rows only. generated is false until a review holder has generated it. Requires read:commissions:business and the commissions feature; a device session is refused. A business-wide reader (a current company- or business-scoped grant and no DENY) gets the CommissionStatementView with both current fingerprints, the reviewed ones and the changed-since-review flag with its cause; every other reader gets the CommissionStatementBranchView with her visible rows only and no whole-statement field.',
       parameters,
       responses: {
         '200': {
           description: 'The month view, in the shape that matches the reader',
-          content: oneOfJson('CommissionStatementView', 'CommissionStatementBranchView'),
+          content: oneOfJson(
+            'CommissionStatementView',
+            'CommissionStatementBranchView',
+            'CommissionClosedStatementView',
+            'CommissionClosedStatementBranchView',
+          ),
         },
         '400': { description: 'Invalid business id or period', content: json('ErrorEnvelope') },
         '401': { description: 'No individual session', content: json('ErrorEnvelope') },
