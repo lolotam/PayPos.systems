@@ -21,6 +21,14 @@ const OPEN: VisibilityConditions = {
   'staff-app-columns-access': true,
 };
 
+// قراءة التقييمات للمديرين الأربعة فقط في الواقع، فأي دور تاني في الاختبار ما يشوفش صفحتها.
+const RATINGS_ROLES: readonly string[] = [
+  'owner',
+  'general_manager',
+  'business_manager',
+  'branch_manager',
+];
+
 const listeners = new Set<() => void>();
 
 function setPathname(path: string): void {
@@ -124,7 +132,7 @@ export function selectBusiness(
     choose: vi.fn(),
   };
   frameState.visible = visiblePageIds(NAVIGATION_PAGES, {
-    conditions: OPEN,
+    conditions: { ...OPEN, 'ratings-access': RATINGS_ROLES.includes(role) },
     businessType,
     country: 'KW',
     role,
