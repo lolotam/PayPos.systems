@@ -13,10 +13,15 @@ import { useRouteScopedState } from './use-route-scoped-state';
 const PHONE_QUERY = '(width < 600px)';
 
 // بعد تجاوز عرض الهاتف يختفي زر «المزيد» بـ CSS، فيذهب التركيز إلى رابط القسم الحالي في الشريط الجانبي الظاهر.
-// البحث داخل جذر الإطار لا في المستند كله: صفحة أو تخطيط قد يرسمان <aside> قبله فيأخذ رابطه التركيز خطأً.
-const visibleSectionLink = (frame: HTMLElement | null) =>
-  frame?.querySelector<HTMLElement>('aside a[aria-current="page"]') ??
-  frame?.querySelector<HTMLElement>('aside a[href]');
+// الشريط الجانبي هو أول <aside> في جذر الإطار لأنه يُرسم قبل عمود الصفحة؛ البحث داخله وحده لأن الصفحة
+// نفسها داخل الجذر وقد ترسم <aside> بروابط وعلامة «الحالي» فتسرق التركيز لو بحثنا في الجذر كله.
+const visibleSectionLink = (frame: HTMLElement | null) => {
+  const sidebar = frame?.querySelector('aside');
+  return (
+    sidebar?.querySelector<HTMLElement>('a[aria-current="page"]') ??
+    sidebar?.querySelector<HTMLElement>('a[href]')
+  );
+};
 
 /**
  * الشريط السفلي لهاتف النمط A: أربعة أقسام و«المزيد» الذي يفتح ورقة بقية الأقسام.

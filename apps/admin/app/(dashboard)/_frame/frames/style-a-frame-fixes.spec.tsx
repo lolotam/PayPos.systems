@@ -188,6 +188,26 @@ describe('style A More sheet and address changes', () => {
     },
   );
 
+  it('picks the navigation sidebar, not an aside the page draws, when the sidebar has no current link', async () => {
+    frameState.pathname = '/not-a-menu-page';
+    renderFrame(
+      <StyleAFrame>
+        <aside>
+          <a href="/page-owned" aria-current="page">
+            Page-owned link
+          </a>
+        </aside>
+      </StyleAFrame>,
+    );
+    moreButton().focus();
+    fireEvent.click(moreButton());
+    resizeTo(820);
+    const sidebar = screen.getByRole('navigation', { name: label('shell.navigation') });
+    await waitFor(() =>
+      expect(document.activeElement).toBe(within(sidebar).getAllByRole('link')[0]),
+    );
+  });
+
   it('does not mark More while the current page is on the bottom bar', () => {
     frameState.pathname = '/staff';
     renderFrame(<StyleAFrame>Page body</StyleAFrame>);

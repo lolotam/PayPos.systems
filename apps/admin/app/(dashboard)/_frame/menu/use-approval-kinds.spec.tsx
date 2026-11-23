@@ -1,9 +1,11 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook, waitFor } from '@testing-library/react';
+import { t } from '@pospay/i18n';
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { frameState, selectBusiness } from '../frames/frame-test-support';
+import { ApprovalsInboxHost } from './approvals-inbox-host';
 import { useApprovalInbox, useApprovalKinds } from './use-approval-kinds';
 
 const api = vi.hoisted(() => ({ GET: vi.fn() }));
@@ -152,5 +154,29 @@ describe('the inbox state', () => {
     const { result } = renderKinds(useApprovalInbox);
     await waitFor(() => expect(result.current.kinds).toHaveLength(1));
     expect(result.current.state).toBe('settled');
+  });
+});
+
+describe('the inbox while the connection is down', () => {
+  afterEach(() => onlineManager.setOnline(true));
+
+  it('says the lists could not be checked instead of loading forever, then lists them when the connection returns', async () => {
+    onlineManager.setOnline(false);
+    api.GET.mockImplementation((path: string) =>
+      Promise.resolve({ data: bodies[path], response: { status: 200 } }),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <ApprovalsInboxHost />
+      </QueryClientProvider>,
+    );
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      t('en', 'adminNav.approvalsInboxFailed'),
+    );
+    expect(screen.queryByRole('status')).toBeNull();
+    act(() => onlineManager.setOnline(true));
+    await waitFor(() => expect(screen.getAllByRole('link')).toHaveLength(3));
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

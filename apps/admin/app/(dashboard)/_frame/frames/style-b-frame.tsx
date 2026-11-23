@@ -14,6 +14,8 @@ import { useNavigationKey } from './use-navigation-key';
 /**
  * النمط B: شريط علوي بوحدات وقوائم واسعة. قائمة الوحدة الحالية المحلية بجانب الصفحة من 1024px
  * (240px عند بداية السطر) وشريط أفقي فوق الصفحة بين 700 و1023px؛ على الهاتف تحل محلها الدرج.
+ * القائمة المحلية من 1024px تبدأ تحت الشريط (ارتفاعه h-16 في TopNav، أي 4rem، وحدّه السفلي 1px) فارتفاعها الأقصى
+ * ما بقي من النافذة بعده، وتلتصق بأعلى النافذة عند التمرير فتتمرر داخل نفسها ولا تطول الصفحة.
  * الشريط العلوي يبقى مركّبًا بين الصفحات ويُغلق منيوه ودرجه بمفتاح المسار، فلا يفقد تمرير الشريط ولا أصل التركيز.
  */
 export function StyleBFrame({ children }: { children: ReactNode }) {
@@ -51,7 +53,7 @@ export function StyleBFrame({ children }: { children: ReactNode }) {
               labels={labels.chrome}
               activePageId={view.activePageId}
               visiblePageIds={ctx.visibleIds}
-              className="min-[1024px]:max-h-dvh"
+              className="min-[1024px]:sticky min-[1024px]:top-0 min-[1024px]:max-h-[calc(100dvh-4rem-1px)]"
             />
           </FrameChrome>
         ) : null}

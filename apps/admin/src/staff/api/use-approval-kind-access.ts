@@ -50,7 +50,12 @@ function useProbe(
     queryFn: ({ signal }) => read(scope as ApprovalAccessScope, signal),
   });
   // إثبات حالي لهذا المراقب: النجاح المخزَّن من زيارة سابقة لا يُظهر نوعًا، فمن سُحبت صلاحيته لا يرى رابطًا يردّ 403.
-  return ready ? readAccessProof(query) : 'idle';
+  const proof = readAccessProof(query);
+  // قراءة أوقفها انقطاع الاتصال قبل أن تبدأ ولا بيانات لها تبقى «ينتظر» طوال الانقطاع، فتُعدّ «تعذّر التحقق»
+  // وتستأنف وحدها عند عودة الاتصال (networkMode بلا تغيير).
+  const pausedWithoutData = query.fetchStatus === 'paused' && query.data === undefined;
+  if (!ready) return 'idle';
+  return proof === 'pending' && pausedWithoutData ? 'failed' : proof;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createQueryClient } from '@/shared/api/query-client';
@@ -74,4 +74,19 @@ it('stays pending while the identity read is not enabled', () => {
     ),
   });
   expect(result.current).toEqual({ userId: null, status: 'pending' });
+});
+
+it('reports an identity read paused offline as failed, then settles when the connection returns', async () => {
+  onlineManager.setOnline(false);
+  getSession.mockResolvedValue({ data: { user: { id: 'user-1' } } });
+  const { result, unmount } = renderHook(() => useSessionIdentity(true), {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={createQueryClient()}>{children}</QueryClientProvider>
+    ),
+  });
+  await waitFor(() => expect(result.current).toEqual({ userId: null, status: 'failed' }));
+  act(() => onlineManager.setOnline(true));
+  await waitFor(() => expect(result.current).toEqual({ userId: 'user-1', status: 'settled' }));
+  unmount();
+  onlineManager.setOnline(true);
 });
