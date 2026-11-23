@@ -15,6 +15,7 @@ export function AttendanceReportHeader({
   return (
     <th
       scope="col"
+      role="columnheader"
       aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none'}
     >
       {header.column.getCanSort() ? (

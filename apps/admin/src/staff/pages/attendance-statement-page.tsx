@@ -1,7 +1,7 @@
 'use client';
 import type { WorkspaceBranch } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { PageHeader } from '@pospay/ui';
+import { Card, PageHeader, PageShell } from '@pospay/ui';
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useAttendanceStatementDownload } from '../api/use-attendance-statement-download';
@@ -126,27 +126,34 @@ export function AttendanceStatementPage(props: Props) {
   const expired = statementExpired(status.error) || statementExpired(download.error);
   const collectRecovery = statementCollectCanRecover(download.error ?? status.error);
   if (statementFormAccessLost(shiftProps.error ?? employees.error, renderFailure, request.error)) {
-    return <p role="alert">{t(locale, 'attendanceStatementScreen.noAccess')}</p>;
+    return (
+      <PageShell layout="list">
+        <PageHeader title={t(locale, 'attendanceStatementScreen.title')} />
+        <p role="alert">{t(locale, 'attendanceStatementScreen.noAccess')}</p>
+      </PageShell>
+    );
   }
   return (
-    <section className="flex min-w-0 flex-col gap-6 text-start">
+    <PageShell layout="list">
       <PageHeader title={t(locale, 'attendanceStatementScreen.title')} />
-      <AttendanceStatementForm
-        branches={props.branches}
-        branchId={props.scope.branchId}
-        draft={draft}
-        {...shiftProps.formProps}
-        employees={employees.data ?? []}
-        employeesLoading={employees.isLoading}
-        employeesError={employees.error}
-        onEmployeesRetry={() => void employees.refetch()}
-        periodValid={periodValid}
-        locked={renderId !== undefined}
-        submitting={request.isPending}
-        onBranch={props.onBranch}
-        onChange={change}
-        onSubmit={submit}
-      />
+      <Card className="p-4 md:p-6">
+        <AttendanceStatementForm
+          branches={props.branches}
+          branchId={props.scope.branchId}
+          draft={draft}
+          {...shiftProps.formProps}
+          employees={employees.data ?? []}
+          employeesLoading={employees.isLoading}
+          employeesError={employees.error}
+          onEmployeesRetry={() => void employees.refetch()}
+          periodValid={periodValid}
+          locked={renderId !== undefined}
+          submitting={request.isPending}
+          onBranch={props.onBranch}
+          onChange={change}
+          onSubmit={submit}
+        />
+      </Card>
       <AttendanceStatementProgress
         state={checkingAgain ? undefined : status.data?.state}
         errorCode={status.data?.error_code}
@@ -161,6 +168,6 @@ export function AttendanceStatementPage(props: Props) {
         onCheckAgain={() => void checkStatementAgain(download, status, setCheckingAgain)}
         onNewRequest={reset}
       />
-    </section>
+    </PageShell>
   );
 }

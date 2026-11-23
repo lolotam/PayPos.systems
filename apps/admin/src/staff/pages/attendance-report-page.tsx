@@ -1,7 +1,7 @@
 'use client';
 import type { WorkspaceBranch } from '@pospay/contracts';
 import { localDate, t } from '@pospay/i18n';
-import { PageHeader } from '@pospay/ui';
+import { DataTableFrame, PageHeader, PageShell } from '@pospay/ui';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useAttendanceReport, type AttendanceReportScope } from '../api/use-attendance-report';
@@ -35,43 +35,53 @@ export function AttendanceReportPage({
   const branchName =
     branch && (locale === 'ar' ? (branch.name_ar ?? branch.name_en) : branch.name_en);
   return (
-    <section className="flex min-w-0 flex-col gap-6 text-start">
+    <PageShell layout="list">
       <PageHeader title={t(locale, 'attendanceReport.title')} />
-      <AttendanceReportFilters
-        branches={branches}
-        allowAllBranches={allowAllBranches}
-        branchId={selected.branchId}
-        month={month}
-        onMonth={setMonth}
-        onBranch={(branchId) => {
-          setAll(branchId === 'all');
-          if (branchId !== 'all') onBranch(branchId);
-        }}
-      />
-      <AttendanceReportDownload
-        key={`${selected.branchId}:${month}`}
-        scope={selected}
-        month={month}
-        branchName={branchName ?? 'all'}
-        disabled={!visible}
-      />
-      <AttendanceReportFeedback
-        error={report.error}
-        hasData={Boolean(visible)}
-        loading={report.isPending}
-        fetching={report.isFetching}
-        onRetry={() => {
-          void report.refetch();
-        }}
-      />
-      {visible ? (
-        <>
-          <p className="text-sm text-muted-foreground">
-            {t(locale, 'attendanceReport.hoursFormat')}
-          </p>
-          <AttendanceReportTable key={`${selected.branchId}:${month}`} rows={report.data.rows} />
-        </>
-      ) : null}
-    </section>
+      <DataTableFrame
+        stacked
+        filters={
+          <div className="flex flex-col gap-3">
+            <AttendanceReportFilters
+              branches={branches}
+              allowAllBranches={allowAllBranches}
+              branchId={selected.branchId}
+              month={month}
+              onMonth={setMonth}
+              onBranch={(branchId) => {
+                setAll(branchId === 'all');
+                if (branchId !== 'all') onBranch(branchId);
+              }}
+            />
+            <AttendanceReportDownload
+              key={`${selected.branchId}:${month}`}
+              scope={selected}
+              month={month}
+              branchName={branchName ?? 'all'}
+              disabled={!visible}
+            />
+          </div>
+        }
+      >
+        <div className="p-4 empty:hidden">
+          <AttendanceReportFeedback
+            error={report.error}
+            hasData={Boolean(visible)}
+            loading={report.isPending}
+            fetching={report.isFetching}
+            onRetry={() => {
+              void report.refetch();
+            }}
+          />
+        </div>
+        {visible ? (
+          <>
+            <p className="p-4 text-sm text-muted-foreground">
+              {t(locale, 'attendanceReport.hoursFormat')}
+            </p>
+            <AttendanceReportTable key={`${selected.branchId}:${month}`} rows={report.data.rows} />
+          </>
+        ) : null}
+      </DataTableFrame>
+    </PageShell>
   );
 }

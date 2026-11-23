@@ -1,7 +1,7 @@
 'use client';
 import type { AttendanceChangeListQuery, WorkspaceBranch } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { PageHeader } from '@pospay/ui';
+import { Button, PageHeader, PageShell } from '@pospay/ui';
 import { useState } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { AttendanceBoardScope } from '../api/use-attendance-board';
@@ -25,33 +25,39 @@ export function AttendanceRequestsPage({
   const inboxAccess = useAttendanceRequestsAccess(scope);
   const allBranches = inboxAccess.canDecideAny && view !== 'branch';
   const timezone = branches.find((branch) => branch.id === scope.branchId)?.effective_timezone;
+  const canCreate = Boolean(timezone) && inboxAccess.canRequest;
   return (
-    <section className="flex min-w-0 flex-col gap-6 text-start">
-      <PageHeader title={t(locale, 'attendanceActions.requests')} />
-      <AttendanceRequestFilters
-        branches={branches}
-        branchId={allBranches ? 'all' : scope.branchId}
-        status={status}
-        canCreate={Boolean(timezone) && inboxAccess.canRequest}
-        allowAllBranches={inboxAccess.canDecideAny}
-        onBranch={(id) => {
-          setManual(false);
-          setView(id === 'all' ? 'all' : 'branch');
-          if (id !== 'all') onBranch(id);
-        }}
-        onStatus={setStatus}
-        onManual={() => setManual(true)}
+    <PageShell layout="list">
+      <PageHeader
+        title={t(locale, 'attendanceActions.requests')}
+        action={
+          canCreate ? (
+            <Button onClick={() => setManual(true)}>{t(locale, 'attendanceActions.manual')}</Button>
+          ) : undefined
+        }
       />
-      {timezone ? (
-        <AttendanceRequestsList
-          scope={scope}
-          status={status}
-          branches={branches}
-          timezone={timezone}
-          allBranches={allBranches}
-          enabled={!inboxAccess.isPending}
-        />
-      ) : null}
+      <AttendanceRequestsList
+        scope={scope}
+        status={status}
+        branches={branches}
+        timezone={timezone}
+        allBranches={allBranches}
+        enabled={!inboxAccess.isPending}
+        filters={
+          <AttendanceRequestFilters
+            branches={branches}
+            branchId={allBranches ? 'all' : scope.branchId}
+            status={status}
+            allowAllBranches={inboxAccess.canDecideAny}
+            onBranch={(id) => {
+              setManual(false);
+              setView(id === 'all' ? 'all' : 'branch');
+              if (id !== 'all') onBranch(id);
+            }}
+            onStatus={setStatus}
+          />
+        }
+      />
       {manual && timezone && inboxAccess.canRequest ? (
         <AttendanceManualEditor
           scope={scope}
@@ -60,6 +66,6 @@ export function AttendanceRequestsPage({
           onClose={() => setManual(false)}
         />
       ) : null}
-    </section>
+    </PageShell>
   );
 }
