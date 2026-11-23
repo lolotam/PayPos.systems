@@ -25,7 +25,7 @@ it('puts the whole request form in one card under the heading, inside the page s
   expect(card.contains(submit)).toBe(true);
   expect(follows(branch, submit)).toBe(true);
   expect(card.contains(heading)).toBe(false);
-  expect(heading.closest('[data-page-shell="list"]')?.contains(card)).toBe(true);
+  expect(heading.closest('[data-page-shell="form"]')?.contains(card)).toBe(true);
   expect(follows(heading, card)).toBe(true);
   view.close();
 });
@@ -43,7 +43,7 @@ it('keeps the heading and the page shell around the no-access message', async ()
   state.shiftsError = { code: 'FORBIDDEN', status: 403 };
   const view = setup();
   await expectStatementNoAccess();
-  const shell = document.querySelector('[data-page-shell="list"]') as HTMLElement;
+  const shell = document.querySelector('[data-page-shell="form"]') as HTMLElement;
   expect(
     within(shell).getByRole('heading', { name: t('en', 'attendanceStatementScreen.title') }),
   ).toBeTruthy();

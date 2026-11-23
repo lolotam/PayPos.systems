@@ -10,10 +10,21 @@ type Props<T> = {
   unlabelled?: readonly string[];
   /** ترويسة خاصة (فرز مثلًا)؛ تغيب فتُرسم ترويسة النص. */
   renderHeader?: (header: Header<T, unknown>) => ReactNode;
+  /** تسمية صف مكدّس تخالف عنوان العمود لخلية بعينها (عمود يحمل معنيين بحسب نوع الصف). */
+  cellLabel?: (cell: Cell<T, unknown>) => string | undefined;
 };
 
-function bodyCell<T>(cell: Cell<T, unknown>, first: boolean, unlabelled: readonly string[]) {
-  const { label, content } = stackedCellContent(cell, first || unlabelled.includes(cell.column.id));
+function bodyCell<T>(
+  cell: Cell<T, unknown>,
+  first: boolean,
+  unlabelled: readonly string[],
+  cellLabel: Props<T>['cellLabel'],
+) {
+  const { label, content } = stackedCellContent(
+    cell,
+    first || unlabelled.includes(cell.column.id),
+    cellLabel?.(cell),
+  );
   return (
     <td key={cell.id} role="cell" data-cell-label={label} className="max-[599.99px]:empty:py-0">
       {content}
@@ -21,10 +32,12 @@ function bodyCell<T>(cell: Cell<T, unknown>, first: boolean, unlabelled: readonl
   );
 }
 
-function bodyRow<T>(row: Row<T>, unlabelled: readonly string[]) {
+function bodyRow<T>(row: Row<T>, unlabelled: readonly string[], cellLabel: Props<T>['cellLabel']) {
   return (
     <tr key={row.id} role="row">
-      {row.getVisibleCells().map((cell, index) => bodyCell(cell, index === 0, unlabelled))}
+      {row
+        .getVisibleCells()
+        .map((cell, index) => bodyCell(cell, index === 0, unlabelled, cellLabel))}
     </tr>
   );
 }
@@ -42,7 +55,13 @@ function headCell<T>(header: Header<T, unknown>) {
  * الأدوار صريحة كي يبقى قارئ الشاشة يقرأه جدولًا بعد أن تتحول الصفوف إلى بلوكات تحت 600px،
  * والترويسة تبقى في الشجرة (مخفية بصريًا هناك) فتربط كل خلية بعمودها.
  */
-export function StackedTable<T>({ table, ariaLabel, unlabelled = [], renderHeader }: Props<T>) {
+export function StackedTable<T>({
+  table,
+  ariaLabel,
+  unlabelled = [],
+  renderHeader,
+  cellLabel,
+}: Props<T>) {
   'use no memo';
   return (
     <table role="table" {...(ariaLabel ? { 'aria-label': ariaLabel } : {})}>
@@ -54,7 +73,7 @@ export function StackedTable<T>({ table, ariaLabel, unlabelled = [], renderHeade
         ))}
       </thead>
       <tbody role="rowgroup">
-        {table.getRowModel().rows.map((row) => bodyRow(row, unlabelled))}
+        {table.getRowModel().rows.map((row) => bodyRow(row, unlabelled, cellLabel))}
       </tbody>
     </table>
   );

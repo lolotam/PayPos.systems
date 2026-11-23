@@ -148,10 +148,10 @@ it('reads once on first mount and keeps the month input and its focus when the r
   renderPage();
   await screen.findByRole('table');
   expect(api.GET).toHaveBeenCalledTimes(1);
-  const month = screen.getByLabelText(t('en', 'attendanceReport.month'));
+  const month = screen.getByLabelText(t('en', 'attendanceReport.month')) as HTMLInputElement;
   month.focus();
   api.GET.mockResolvedValue({ error: { code: 'FORBIDDEN' }, response: { status: 403 } });
-  fireEvent.change(month, { target: { value: '2026-09' } });
+  fireEvent.change(month, { target: { value: anotherMonth(month.value) } });
   const alert = await screen.findByRole('alert');
   expect(screen.getByLabelText(t('en', 'attendanceReport.month'))).toBe(month);
   expect(document.activeElement).toBe(month);
@@ -162,6 +162,11 @@ it('reads once on first mount and keeps the month input and its focus when the r
 });
 
 const SOURCE_ORDER = ['Synthetic employee', 'Other synthetic employee'];
+
+// الصفحة تبدأ بالشهر الحالي: نختار شهرًا غيره أيًّا كان تاريخ التشغيل.
+function anotherMonth(current: string) {
+  return current === '2026-09' ? '2026-08' : '2026-09';
+}
 
 async function sortedByDaysDescending() {
   renderPage();
@@ -174,7 +179,7 @@ it('starts in source order when a sorted month is left for another month and ope
   await sortedByDaysDescending();
   const month = screen.getByLabelText(t('en', 'attendanceReport.month')) as HTMLInputElement;
   const first = month.value;
-  fireEvent.change(month, { target: { value: '2026-09' } });
+  fireEvent.change(month, { target: { value: anotherMonth(first) } });
   await screen.findByRole('table');
   fireEvent.change(month, { target: { value: first } });
   await screen.findByRole('table');
@@ -197,15 +202,28 @@ it('starts in source order when a refusal hides a sorted table and a retry succe
   expect(employeeNames()).toEqual(SOURCE_ORDER);
 });
 
-function stubStackedWidth(matches: boolean) {
+// الاستعلام نفسه يُقارَن بنص ثابت: خلاف شرط الإطار (أصغر تمامًا من 599.99px) لا يطابق.
+// المطابقة تتغير بعد التركيب كما يحدث لما يضيق نافذة المتصفح، ومن يسمع التغيير يُخطَر.
+function stubStackedWidth(initial: boolean) {
+  const listeners = new Set<() => void>();
+  let stacked = initial;
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
-    value: () => ({
-      matches,
-      addEventListener: () => undefined,
-      removeEventListener: () => undefined,
+    value: (query: string) => ({
+      get matches() {
+        return stacked && query === '(width < 599.99px)';
+      },
+      addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+      removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
     }),
   });
+  return {
+    narrow: () =>
+      act(() => {
+        stacked = true;
+        listeners.forEach((listener) => listener());
+      }),
+  };
 }
 
 function sortButtons(table: HTMLElement) {
@@ -214,30 +232,66 @@ function sortButtons(table: HTMLElement) {
     .flatMap((header) => Array.from(header.querySelectorAll('button')));
 }
 
-it('takes the header sort buttons out of the Tab order at the stacked width, keeps the column names, and leaves the select working', async () => {
+it('shows plain column names and no sort button in the header cells at the stacked width, and leaves the select working', async () => {
   stubStackedWidth(true);
   renderPage();
   const table = await screen.findByRole('table');
-  const buttons = sortButtons(table);
-  expect(buttons.length).toBeGreaterThan(5);
-  expect(buttons.every((button) => button.getAttribute('tabindex') === '-1')).toBe(true);
+  expect(within(table).queryAllByRole('button')).toHaveLength(0);
   const names = headerTexts(table);
   expect(names).toContain(t('en', 'attendanceReport.workedHours'));
   expect(names.every((name) => name.trim() !== '')).toBe(true);
   fireEvent.change(sortControl(), { target: { value: 'days_present:desc' } });
   expect(employeeNames()).toEqual(['Other synthetic employee', 'Synthetic employee']);
-  expect(sortButtons(table).every((button) => button.getAttribute('tabindex') === '-1')).toBe(true);
+  expect(sortControl().value).toBe('days_present:desc');
 });
 
-it('keeps the header sort buttons in the Tab order above the stacked width', async () => {
+it('keeps the header sort buttons, named and sorting, above the stacked width', async () => {
   stubStackedWidth(false);
   renderPage();
   const table = await screen.findByRole('table');
-  expect(sortButtons(table).some((button) => button.hasAttribute('tabindex'))).toBe(false);
+  expect(sortButtons(table).length).toBeGreaterThan(5);
+  const worked = within(table).getByRole('button', {
+    name: t('en', 'attendanceReport.workedHours'),
+  });
+  fireEvent.click(worked);
+  expect(sortControl().value).toBe('worked_minutes:asc');
+});
+
+it('moves the focus to the sort select when a focused header button goes away because the width narrows', async () => {
+  const width = stubStackedWidth(false);
+  renderPage();
+  const table = await screen.findByRole('table');
+  const worked = within(table).getByRole('button', {
+    name: t('en', 'attendanceReport.workedHours'),
+  });
+  worked.focus();
+  expect(document.activeElement).toBe(worked);
+  await width.narrow();
+  expect(within(table).queryAllByRole('button')).toHaveLength(0);
+  expect(document.activeElement).toBe(sortControl());
 });
 
 it('names the empty sort option with the translated missing-value text', async () => {
   renderPage();
   await screen.findByRole('table');
   expect(sortControl().options[0]?.textContent).toBe(t('en', 'catalogServices.missingValue'));
+});
+
+it('disables the sort control for a report with no rows, keeps the chosen sort, and applies it when rows arrive for the same month', async () => {
+  await sortedByDaysDescending();
+  api.GET.mockResolvedValue({ data: { ...reportFixture, rows: [] } });
+  await act(async () => {
+    await client.invalidateQueries({ queryKey: ['attendance-report'] });
+  });
+  await screen.findByText(t('en', 'attendanceReport.empty'));
+  expect(sortControl().disabled).toBe(true);
+  expect(sortControl().value).toBe('days_present:desc');
+  api.GET.mockResolvedValue({ data: reportFixture });
+  await act(async () => {
+    await client.invalidateQueries({ queryKey: ['attendance-report'] });
+  });
+  await screen.findByRole('table');
+  expect(sortControl().disabled).toBe(false);
+  expect(sortControl().value).toBe('days_present:desc');
+  expect(employeeNames()).toEqual(['Other synthetic employee', 'Synthetic employee']);
 });

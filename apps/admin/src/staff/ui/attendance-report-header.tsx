@@ -1,9 +1,7 @@
 'use client';
 import type { AttendanceMonthlyReportRow } from '@pospay/contracts';
-import { t } from '@pospay/i18n';
-import { Button } from '@pospay/ui';
 import { flexRender, type Header } from '@tanstack/react-table';
-import { useLocale } from '@/shared/locale/locale-context';
+import { AttendanceReportSortButton } from './attendance-report-sort-button';
 import { useStackedWidth } from './use-stacked-width';
 
 export function AttendanceReportHeader({
@@ -11,7 +9,7 @@ export function AttendanceReportHeader({
 }: {
   header: Header<AttendanceMonthlyReportRow, unknown>;
 }) {
-  const locale = useLocale();
+  // تحت 600px ترويسة الجدول مخفية بصريًا ومربع «الترتيب حسب» هو أداة الفرز الوحيدة، فنص العمود فقط.
   const stacked = useStackedWidth();
   const sorted = header.column.getIsSorted();
   return (
@@ -20,21 +18,8 @@ export function AttendanceReportHeader({
       role="columnheader"
       aria-sort={sorted === 'asc' ? 'ascending' : sorted === 'desc' ? 'descending' : 'none'}
     >
-      {header.column.getCanSort() ? (
-        <Button
-          variant="ghost"
-          // تحت 600px الترويسة مخفية بصريًا ومربع الفرز هو أداة الفرز الوحيدة، فيخرج الزر من ترتيب Tab ويبقى اسم العمود.
-          {...(stacked ? { tabIndex: -1 } : {})}
-          onClick={header.column.getToggleSortingHandler()}
-          title={t(
-            locale,
-            header.column.getNextSortingOrder() === 'desc'
-              ? 'attendanceReport.sortDescending'
-              : 'attendanceReport.sortAscending',
-          )}
-        >
-          {flexRender(header.column.columnDef.header, header.getContext())}
-        </Button>
+      {header.column.getCanSort() && !stacked ? (
+        <AttendanceReportSortButton header={header} />
       ) : (
         flexRender(header.column.columnDef.header, header.getContext())
       )}

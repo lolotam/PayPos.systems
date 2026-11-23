@@ -126,7 +126,7 @@ export function AttendanceStatementPage(props: Props) {
     return <AttendanceStatementNoAccess />;
   }
   return (
-    <PageShell layout="list">
+    <PageShell layout="form">
       <PageHeader title={t(locale, 'attendanceStatementScreen.title')} />
       <Card className="p-4 md:p-6">
         <AttendanceStatementForm

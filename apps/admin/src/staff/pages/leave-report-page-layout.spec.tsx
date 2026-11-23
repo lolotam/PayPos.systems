@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { Profiler } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { leaveId } from '../api/leave-decision.fixture';
-import { absenceRow, historyLeaveRow, historyPage } from '../api/leave-history.fixture';
+import { absenceRow, coveredRow, historyLeaveRow, historyPage } from '../api/leave-history.fixture';
 import { branches, employeeListItem, employeesPage } from '../api/leave-report.fixture';
 import { LeaveReportPage } from './leave-report-page';
 
@@ -68,10 +68,14 @@ it('puts both filters, the table and the paging in one card, in that order, unde
   expect(card.contains(heading)).toBe(false);
 });
 
-it('labels every stacked cell that has content, row by row', async () => {
+it('labels every stacked cell that has content, row by row, naming the details cell by what it holds', async () => {
   route(() => ({
     data: historyPage({
-      items: [historyLeaveRow(), absenceRow({ id: '01920000-0000-7000-8000-000000000a02' })],
+      items: [
+        historyLeaveRow(),
+        absenceRow({ id: '01920000-0000-7000-8000-000000000a02' }),
+        coveredRow({ id: '01920000-0000-7000-8000-000000000a03' }),
+      ],
     }),
   }));
   renderPage();
@@ -81,20 +85,19 @@ it('labels every stacked cell that has content, row by row', async () => {
   expect(screen.getByRole('table').parentElement?.className).toContain(
     'max-[599.99px]:[&_table]:block',
   );
-  const expected = [
-    null,
-    t('en', 'leave.date'),
-    t('en', 'leave.branch'),
-    t('en', 'leave.type'),
-    t('en', 'leave.status'),
-    t('en', 'leave.decisionReason'),
-  ];
-  for (const row of rows.slice(1)) {
-    const labels = within(row)
+  const labelsOf = (row: HTMLElement | undefined) =>
+    within(row as HTMLElement)
       .getAllByRole('cell')
       .map((cell) => cell.getAttribute('data-cell-label'));
-    expect(labels).toEqual(expected);
-  }
+  const common = [null, t('en', 'leave.date'), t('en', 'leave.branch'), t('en', 'leave.type')];
+  const shift = t('en', 'attendanceStatementScreen.shift');
+  expect(labelsOf(rows[1])).toEqual([
+    ...common,
+    t('en', 'leave.status'),
+    t('en', 'leave.decisionReason'),
+  ]);
+  expect(labelsOf(rows[2])).toEqual([...common, t('en', 'leave.status'), shift]);
+  expect(labelsOf(rows[3])).toEqual([...common, null, shift]);
 });
 
 it('sends one history read on first mount', async () => {

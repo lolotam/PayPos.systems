@@ -86,3 +86,29 @@ it('keeps explicit table roles and the header row, and accepts a custom header',
   expect(screen.getAllByRole('rowgroup')).toHaveLength(2);
   expect(screen.getByText('custom name')).toBeTruthy();
 });
+
+it('keeps and labels a cell that holds an image, a form field or a named wrapper, though none has children', () => {
+  render(
+    <>
+      <Harness rows={[row({ extra: <img alt="Synthetic portrait" src="synthetic.png" /> })]} />
+      <Harness rows={[row({ extra: <input aria-label="Synthetic field" /> })]} />
+      <Harness rows={[row({ extra: <span aria-label="Synthetic icon" role="img" /> })]} />
+    </>,
+  );
+  const extras = screen
+    .getAllByRole('row')
+    .filter((_, index) => index % 2 === 1)
+    .map((tableRow) => within(tableRow).getAllByRole('cell')[3] as HTMLElement);
+  expect(extras).toHaveLength(3);
+  for (const cell of extras) {
+    expect(cell.getAttribute('data-cell-label')).toBe('Extra');
+    expect(cell.childElementCount).toBe(1);
+  }
+  expect(
+    within(extras[0] as HTMLElement).getByRole('img', { name: 'Synthetic portrait' }),
+  ).toBeTruthy();
+  expect(within(extras[1] as HTMLElement).getByLabelText('Synthetic field')).toBeTruthy();
+  expect(
+    within(extras[2] as HTMLElement).getByRole('img', { name: 'Synthetic icon' }),
+  ).toBeTruthy();
+});

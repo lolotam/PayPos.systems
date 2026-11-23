@@ -1,7 +1,8 @@
 'use client';
 import { useSyncExternalStore } from 'react';
 
-const STACKED_QUERY = '(max-width: 599.99px)';
+// نفس شرط Tailwind لـ max-[599.99px]: أصغر تمامًا من 599.99px، حتى لا يختلف الإطار عن الخاصية عند التساوي.
+const STACKED_QUERY = '(width < 599.99px)';
 
 function subscribe(onChange: () => void) {
   if (typeof window.matchMedia !== 'function') return () => undefined;
@@ -10,14 +11,15 @@ function subscribe(onChange: () => void) {
   return () => media.removeEventListener('change', onChange);
 }
 
-function stackedNow() {
+/** هل العرض الحالي مكدّس الآن؟ للأكواد خارج الرسم (مثل نقل التركيز لحظة الانتقال). */
+export function isStackedWidth() {
   return typeof window.matchMedia === 'function' && window.matchMedia(STACKED_QUERY).matches;
 }
 
 /**
  * هل الشاشة بعرض الصفوف المكدسة (تحت 600px)؟ الإطار يخفي ترويسة الجدول بصريًا هناك،
- * فتحتاج عناصرها التفاعلية إلى الخروج من ترتيب Tab بخاصية لا بصنف CSS. الخادم والمتصفح بلا matchMedia: خطأ.
+ * فلا تُرسم فيها أزرار فرز. الخادم والمتصفح بلا matchMedia: خطأ.
  */
 export function useStackedWidth(): boolean {
-  return useSyncExternalStore(subscribe, stackedNow, () => false);
+  return useSyncExternalStore(subscribe, isStackedWidth, () => false);
 }

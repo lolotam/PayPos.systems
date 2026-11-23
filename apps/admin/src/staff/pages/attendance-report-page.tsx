@@ -63,7 +63,7 @@ export function AttendanceReportPage({
             allowAllBranches={allowAllBranches}
             sorting={sorting}
             onSortingChange={onSortingChange}
-            sortDisabled={!visible}
+            sortDisabled={!visible || report.data?.rows.length === 0}
             onMonth={setMonth}
             onBranch={(branchId) => {
               setAll(branchId === 'all');
