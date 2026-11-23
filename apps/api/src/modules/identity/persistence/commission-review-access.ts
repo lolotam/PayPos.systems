@@ -44,3 +44,46 @@ export async function readCommissionReviewAccess(
   if (scope.kind !== 'scope' || !scope.scope.businessWide) return 'FORBIDDEN';
   return (await readFeatureEnabled(tx, companyId, 'commissions', at)) ? null : 'FEATURE_DISABLED';
 }
+
+const APPROVE_PERMISSION = 'approve:commissions:business';
+
+/**
+ * نفس قرار «الإنشاء والمراجعة» بالضبط لكن على صلاحية الاعتماد `approve:commissions:business` (ADR-0054 §7 الخطوة 1)، في
+ * دالة مستقلة عن قارئ المراجعة كي لا يتأثر مساره. أقفال الشركة والعضويات تُؤخذ في أول نداء؛ أما إعادة الفحص بعد قفل
+ * الشهور فتمر `locksHeld` فتتخطى القفلين لأن معاملة الاعتماد ما زالت تمسكهما (القفل المشترك يبقى حتى آخر المعاملة)، أما
+ * الساعة والمنح والنطاق والميزة فتُقرأ من جديد في كل نداء لأن الانتظار على القفل قد يطول فتتغير الصلاحية.
+ *
+ * @param tx معاملة الاعتماد الحالية
+ * @param companyId الشركة المؤكدة
+ * @param userId المستخدم البشري الفاعل
+ * @param businessId النشاط المطلوب
+ * @param locksHeld هل أخذ نداء سابق في هذه المعاملة قفلي الشركة والعضويات
+ * @returns سبب الرفض، أو null عند السماح
+ */
+export async function readCommissionApproveAccess(
+  tx: Tx,
+  companyId: string,
+  userId: string,
+  businessId: string,
+  locksHeld = false,
+): Promise<'FORBIDDEN' | 'FEATURE_DISABLED' | null> {
+  if (!locksHeld) {
+    const [company] = await tx.execute(
+      sql`SELECT id FROM companies WHERE id=${companyId} AND deleted_at IS NULL FOR SHARE`,
+    );
+    if (company === undefined) return 'FORBIDDEN';
+    await tx.execute(
+      sql`SELECT id FROM memberships WHERE company_id=${companyId} ORDER BY id FOR SHARE`,
+    );
+  }
+  const [time] = await tx.execute<{ at: Date }>(sql`SELECT clock_timestamp() AS at`);
+  if (time === undefined) return 'FORBIDDEN';
+  const at = new Date(time.at);
+  const access = await readAccessTransaction(tx, companyId, userId, at);
+  if (!evaluateAccess(access.grants, APPROVE_PERMISSION, { companyId, businessId })) {
+    return 'FORBIDDEN';
+  }
+  const scope = await readCommissionScope(tx, companyId, userId, businessId, at);
+  if (scope.kind !== 'scope' || !scope.scope.businessWide) return 'FORBIDDEN';
+  return (await readFeatureEnabled(tx, companyId, 'commissions', at)) ? null : 'FEATURE_DISABLED';
+}

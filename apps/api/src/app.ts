@@ -34,7 +34,9 @@ import {
   readCommissionPlanAccess,
   readCommissionPlanListAccess,
   readCommissionFeatureEnabled,
+  readCommissionApproveAccess,
   readCommissionReviewAccess,
+  readExplicitCompanyFeature,
   readCommissionActorMembership,
   readCommissionApprovers,
   readCommissionReturnAccess,
@@ -73,6 +75,7 @@ import {
   lockEmployeeForUpdate,
   readCommissionBranchAttachments,
   readCommissionEstimateEmployees,
+  readEmployeeEmploymentDates,
   readCommissionStatementEmployees,
   readCommissionPlanEmployeeNames,
   staffControllers,
@@ -81,6 +84,7 @@ import {
 import {
   commissionsControllers,
   commissionsProviders,
+  pendingCommissionEvents,
   type CommissionEstimateProviders,
 } from './modules/commissions/index.ts';
 import { commissionAlertRules } from './modules/commissions/persistence/commission-alert-rule.adapter.ts';
@@ -250,6 +254,11 @@ function commissionBindings(deps: AppDependencies) {
       actorMembership: readCommissionActorMembership,
       approvers: readCommissionApprovers,
       alertRules: commissionAlertRules,
+      // اعتماد الكشف (53-2): صلاحية الاعتماد ومفتاحه الصريح من identity، وتواريخ العمل من staff، والعدّاد من commissions نفسها.
+      approveAccess: readCommissionApproveAccess,
+      explicitFeature: readExplicitCompanyFeature,
+      employment: { employmentDates: readEmployeeEmploymentDates },
+      pending: pendingCommissionEvents,
     },
     deps.commissionsClock,
   );

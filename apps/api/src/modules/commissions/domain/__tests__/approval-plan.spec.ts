@@ -16,7 +16,7 @@ function row(
   employeeId: string,
   kind: StatementRow['kind'],
   amount: string,
-  ref = kind,
+  ref: string = kind,
 ): StatementRow {
   return {
     employeeId,
