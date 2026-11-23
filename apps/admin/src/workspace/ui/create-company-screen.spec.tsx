@@ -367,7 +367,7 @@ function testSuccessWithReload(): void {
     const { posts } = queue(
       [
         emptyWorkspaces,
-        () => jsonResponse({ code: 'UNEXPECTED', message_ar: 'خطأ', message_en: 'Refresh failed fixture' }, 500),
+        () => jsonResponse({ code: 'UNEXPECTED', message_ar: 'Synthetic refusal (ar fixture)', message_en: 'Refresh failed fixture' }, 500),
         () => jsonResponse({ companies: [WORKSPACE_COMPANY] }, 200),
       ],
       [() => jsonResponse(CREATED_COMPANY, 201)],
