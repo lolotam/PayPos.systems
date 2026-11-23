@@ -87,3 +87,21 @@ it('caps the secondary-actions wrapper at the header width so its buttons can wr
   expect(names).toContain('max-w-full');
   expect(names).toContain('flex-wrap');
 });
+
+it('keeps the title block a basis of its own, so crowded actions wrap below it (#1234)', () => {
+  render(
+    <DirectionProvider dir="ltr">
+      <PageHeader
+        title="Employees"
+        actions={<button type="button">Import employees</button>}
+        action={<button type="button">Add employee</button>}
+      />
+    </DirectionProvider>,
+  );
+  const header = screen.getByRole('banner');
+  const titleBlock = screen.getByRole('heading', { name: 'Employees' }).parentElement as HTMLElement;
+  // jsdom does not lay out: this pins the structure; the real widths are checked in a browser.
+  expect(header.className).toContain('flex-wrap');
+  expect(titleBlock.className).toContain('flex-[1_1_14rem]');
+  expect(titleBlock.className).not.toContain('flex-1 ');
+});

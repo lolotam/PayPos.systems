@@ -128,3 +128,21 @@ it('keeps a drawer closed through hydration at 700px', async () => {
     container.remove();
   }
 });
+
+it('never lets a crowded top bar shrink the phone button below its 44px target', () => {
+  render(
+    <DirectionProvider dir="ltr">
+      <ModuleDrawer
+        modules={modules}
+        labels={chromeLabels}
+        open={false}
+        currentModuleId="business"
+        onOpenChange={() => undefined}
+      />
+    </DirectionProvider>,
+  );
+  const trigger = screen.getByRole('button', { name: chromeLabels.drawerOpen });
+  // Structure only: jsdom has no layout. The 44px width under a long business name is a browser check.
+  expect(trigger.className).toContain('size-11');
+  expect(trigger.className).toContain('shrink-0');
+});

@@ -74,9 +74,13 @@ export function AccountMenu({
           {name || email ? (
             <>
               <div className="flex flex-col gap-0.5 px-3 py-2">
-                {name ? <span className="truncate text-sm font-semibold">{name}</span> : null}
+                {name ? (
+                  <span title={name} className="truncate text-sm font-semibold">
+                    {name}
+                  </span>
+                ) : null}
                 {email ? (
-                  <span dir="ltr" className="truncate text-xs text-muted-foreground">
+                  <span dir="ltr" title={email} className="truncate text-xs text-muted-foreground">
                     {email}
                   </span>
                 ) : null}
