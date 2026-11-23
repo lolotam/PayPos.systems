@@ -174,6 +174,15 @@ describe('the issuer refusals', () => {
     expect(await gate(A.company)).toEqual([]);
   });
 
+  it('leaves no state row behind when the generation read names an unknown company (#1223 item 1)', async () => {
+    await expect(
+      dispatcher`SELECT * FROM public.current_commission_coverage_generation(${'01980000-0000-7000-8000-0000000000fe'}::uuid, ${STATE_ID}::uuid)`,
+    ).rejects.toThrow('COVERAGE_COMPANY_NOT_FOUND');
+
+    const [row] = await owner`SELECT count(*)::int AS n FROM commission_coverage_state WHERE company_id = ${'01980000-0000-7000-8000-0000000000fe'}`;
+    expect(row?.['n']).toBe(0);
+  });
+
   it('refuses a company that does not exist', async () => {
     await expect(
       issue({ company: '01980000-0000-7000-8000-0000000000ff' }),

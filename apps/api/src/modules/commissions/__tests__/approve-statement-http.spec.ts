@@ -74,6 +74,9 @@ describe('approval is closed until an operator opens it', () => {
     const response = await approve(f, approver.cookie, 'closed-3', fingerprints);
 
     expect((response.body as { code: string }).code).toBe('FEATURE_DISABLED');
+    const [state] = await f.h.owner`SELECT count(*)::int AS n FROM commission_coverage_state
+      WHERE company_id = ${f.company}`;
+    expect(state?.['n']).toBe(1);
   });
 
   it('refuses a proof that an invalidation made not current', async () => {
