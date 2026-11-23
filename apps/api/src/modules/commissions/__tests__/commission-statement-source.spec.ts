@@ -201,4 +201,17 @@ describe('the salary revision in the input fingerprint (D-10)', () => {
 
     expect(second.current_fingerprint).not.toBe(first.current_fingerprint);
   });
+
+  it('does not move the digest a reviewer without salary access receives when an amount changes under the same revision', async () => {
+    const first = await readStatement(f, f.cookie);
+    await f.h.owner`UPDATE commission_salaries SET amount=777.777 WHERE company_id=${f.company}
+      AND employee_id=${f.employee}`;
+    const second = await readStatement(f, f.cookie);
+
+    expect((second.body as unknown as View).current_fingerprint).toBe(
+      (first.body as unknown as View).current_fingerprint,
+    );
+    // لا المبلغ القديم ولا الجديد في الرد: البصمة مش بتحمل أي مبلغ راتب، والعرض ما بيعرضوش.
+    expect(first.text + second.text).not.toMatch(/300.000|777.777/);
+  });
 });

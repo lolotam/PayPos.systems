@@ -19,6 +19,17 @@ import type {
 } from '../ports/commission-statement-providers.port.ts';
 import { readEstimateMonth } from './commission-estimate-readers.ts';
 
+/**
+ * قائمة معرّفات كمعامل واحد بصيغة مصفوفة Postgres (نص `{a,b}` يتحوّل `uuid[]`)، بدل معامل لكل معرّف اللي
+ * ممكن يعدّي حد 65,535 معامل في شهر كبير. المعرّفات جاية من الداتابيز نفسها فمفيش محتوى حر.
+ *
+ * @param ids معرّفات UUID
+ * @returns نص المصفوفة
+ */
+function uuidArray(ids: readonly string[]): string {
+  return `{${ids.join(',')}}`;
+}
+
 /** طلب قراءة مصادر الكشف: الشركة والنشاط والشهر. */
 export interface CommissionStatementSourceRequest {
   readonly companyId: string;
@@ -111,10 +122,7 @@ async function readCorrectionLineHeads(
   const rows = await tx.execute<HeadRow>(sql`SELECT line_id AS "lineId", session_id AS "sessionId",
     service_id AS "serviceId", customer_id AS "customerId", business_date::text AS "businessDate"
     FROM commission_line_heads
-    WHERE company_id = ${companyId} AND line_id = ANY(ARRAY[${sql.join(
-      lineIds.map((id) => sql`${id}`),
-      sql`,`,
-    )}]::uuid[])`);
+    WHERE company_id = ${companyId} AND line_id = ANY(${uuidArray(lineIds)}::uuid[])`);
   for (const row of rows) {
     heads.set(row.lineId, {
       sessionId: row.sessionId,
@@ -212,6 +220,32 @@ function inScopeLabels(
 }
 
 /**
+ * بطاقات الموظفات اللي عليهن تصحيح موقوف مفتوح وبرا مجموعة الكشف (مفيش لهن مصدر ولا تعيين بيغطي الشهر):
+ * بتظهر لقارئ النشاط كله مع مانعها، من غير ما تتحوّل لصف EMPLOYEE في الكشف المجمّد (FR-027، FR-033).
+ *
+ * @param all موظفات النشاط ببطاقاتهن
+ * @param listed بطاقات مجموعة الكشف
+ * @param blocked التصحيحات الموقوفة المفتوحة
+ * @returns بطاقات الموظفات اللي مانعهن الوحيد تصحيح موقوف
+ */
+function unlistedBlocked(
+  all: readonly CommissionStatementEmployeeName[],
+  listed: readonly StatementEmployeeLabel[],
+  blocked: readonly OpenBlockedCorrection[],
+): StatementEmployeeLabel[] {
+  const listedIds = new Set(listed.map((employee) => employee.employeeId));
+  const blockedIds = new Set(blocked.map((block) => block.employeeId));
+  return all
+    .filter((employee) => blockedIds.has(employee.employeeId) && !listedIds.has(employee.employeeId))
+    .map((employee) => ({
+      employeeId: employee.employeeId,
+      employeeNumber: employee.employeeNumber,
+      nameAr: employee.nameAr,
+      nameEn: employee.nameEn,
+    }));
+}
+
+/**
  * يقرأ كل مصادر كشف الشهر من معاملة واحدة، لقراءة العرض ولكتابة الإنشاء: صفوف الشهر والتصحيحات
  * الموقوفة وبطاقات الموظفات وارتباطاتهن والأسماء ورؤوس البنود وصف الكشف. الاتنين بيستعملوا نفس
  * الدالة علشان بصمة العرض هي بالظبط اللي الإنشاء بيخزّنها.
@@ -235,7 +269,8 @@ export async function readCommissionStatementSource(
     companyId,
     month.corrections.map((correction) => correction.sourceRef),
   );
-  const employees = inScopeLabels(await providers.employees(tx, companyId, businessId, period), month);
+  const allEmployees = await providers.employees(tx, companyId, businessId, period);
+  const employees = inScopeLabels(allEmployees, month);
   const attachments = await providers.attachments(
     tx,
     companyId,
@@ -244,5 +279,15 @@ export async function readCommissionStatementSource(
     period,
   );
   const names = await readNames(tx, request, providers, referencedIds(month, heads));
-  return { statement, employees, attachments, month, blocked, names, correctionLineDetails: heads };
+  const unlisted = unlistedBlocked(allEmployees, employees, blocked);
+  return {
+    statement,
+    employees,
+    attachments,
+    month,
+    blocked,
+    unlisted,
+    names,
+    correctionLineDetails: heads,
+  };
 }

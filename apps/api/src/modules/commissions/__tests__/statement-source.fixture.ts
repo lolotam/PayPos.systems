@@ -27,6 +27,7 @@ export function statementSource(
       carries: [],
     },
     blocked: [],
+    unlisted: [],
     names: { branches: new Map(), services: new Map(), customers: new Map() },
     correctionLineDetails: new Map(),
   };

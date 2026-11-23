@@ -57,6 +57,7 @@ export {
   businessCalendar,
   businessTimeZone,
   readCommissionBranchNames,
+  commissionBranchNamesStatement,
 } from '../src/modules/tenancy/index.ts';
 export { readCommissionCustomerNames } from '../src/modules/customers/index.ts';
 

@@ -28,6 +28,8 @@ export interface CommissionStatementSource {
   readonly attachments: readonly CommissionEstimateAttachment[];
   readonly month: StatementMonthRows;
   readonly blocked: readonly OpenBlockedCorrection[];
+  /** موظفات برا مجموعة الكشف وعليهن تصحيح موقوف مفتوح، بطاقاتهن؛ مش جزء من صفوف الباني ولا من بصمة الكشف. */
+  readonly unlisted: readonly StatementEmployeeLabel[];
   readonly names: StatementNames;
   readonly correctionLineDetails: ReadonlyMap<string, StatementLineHead>;
 }

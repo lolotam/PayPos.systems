@@ -132,6 +132,7 @@ function projectEmployees(context: StatementViewContext): CommissionStatementEmp
     rows: context.computed.build.rows,
     failures: context.computed.build.failures,
     blocked: context.source.blocked,
+    unlisted: context.source.unlisted,
     scope: context.scope,
   }).map(employeeContract);
 }

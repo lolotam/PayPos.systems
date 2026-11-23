@@ -75,8 +75,11 @@ import {
   staffControllers,
   staffProviders,
 } from './modules/staff/index.ts';
-import { commissionsControllers, commissionsProviders } from './modules/commissions/index.ts';
-import type { CommissionEstimateProviders } from './modules/commissions/persistence/commission-estimate-providers.ts';
+import {
+  commissionsControllers,
+  commissionsProviders,
+  type CommissionEstimateProviders,
+} from './modules/commissions/index.ts';
 import {
   documentFileFacts,
   filesControllers,

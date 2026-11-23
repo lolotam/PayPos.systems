@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { projectStatementView, type StatementViewScope } from '../statement-view.ts';
+import {
+  projectStatementView,
+  type StatementViewInput,
+  type StatementViewScope,
+} from '../statement-view.ts';
 import type { StatementRow, StatementRowKind } from '../statement-types.ts';
 
 const SALMIYA = '01920000-0000-7000-8000-0000000000b1';
@@ -59,8 +63,8 @@ const rows: readonly StatementRow[] = [
   row(SARA, 'CARRY_COMMISSION', 'carry:old:COMMISSION', '-3.000', []),
 ];
 
-const project = (scope: StatementViewScope) =>
-  projectStatementView({ rows, failures: [], blocked: [], scope });
+const project = (scope: StatementViewScope, extra: Partial<StatementViewInput> = {}) =>
+  projectStatementView({ rows, failures: [], blocked: [], unlisted: [], scope, ...extra });
 
 describe('the statement view for a reader on the whole business', () => {
   it('shows every employee with every source row and does not mark any partial', () => {
@@ -92,12 +96,7 @@ describe('the statement view for a branch-scoped reader (CS-Q20, CS-Q23)', () =>
   });
 
   it('labels an employee partial when a row of her month is outside the reader scope', () => {
-    const view = projectStatementView({
-      rows,
-      failures: [],
-      blocked: [],
-      scope: { businessWide: false, branchIds: [HAWALLI] },
-    });
+    const view = project({ businessWide: false, branchIds: [HAWALLI] });
     const rana = view.find((employee) => employee.employeeId === RANA);
     // رنا اتضافت لحولي من منتصف الشهر: مدير حولي بيشوف الصف التاني بس، فرقمها جزئي.
     expect(rana?.rows.map((entry) => entry.sourceRef)).toEqual(['line:late']);
@@ -106,12 +105,9 @@ describe('the statement view for a branch-scoped reader (CS-Q20, CS-Q23)', () =>
   });
 
   it('hides the carry from a branch reader and marks that employee partial (D-22)', () => {
-    const sara = projectStatementView({
-      rows,
-      failures: [],
-      blocked: [],
-      scope: { businessWide: false, branchIds: [HAWALLI] },
-    }).find((employee) => employee.employeeId === SARA);
+    const sara = project({ businessWide: false, branchIds: [HAWALLI] }).find(
+      (employee) => employee.employeeId === SARA,
+    );
     expect(sara?.rows.map((entry) => entry.kind)).toEqual(['COMMISSION']);
     expect(sara?.partial).toBe(true);
     expect(sara?.payable.commissionSubtotal).toBe(8_000n);
@@ -124,16 +120,16 @@ describe('the statement view for a branch-scoped reader (CS-Q20, CS-Q23)', () =>
 });
 
 describe('the blocking issues of the view (FR-027)', () => {
+  const blocked = [
+    { employeeId: RANA, sourcePeriod: '2026-09', code: 'NO_PLAN' as const },
+    { employeeId: RANA, sourcePeriod: '2026-08', code: 'NO_SALARY' as const },
+    { employeeId: SARA, sourcePeriod: '2026-09', code: 'NO_PLAN' as const },
+  ];
+
   it('lists the pricing failure and the open blocked corrections of an employee in a fixed order', () => {
-    const view = projectStatementView({
-      rows,
-      failures: [{ employeeId: RANA, code: 'NO_SALARY' }],
-      blocked: [
-        { employeeId: RANA, sourcePeriod: '2026-09', code: 'NO_PLAN' },
-        { employeeId: RANA, sourcePeriod: '2026-08', code: 'NO_SALARY' },
-        { employeeId: SARA, sourcePeriod: '2026-09', code: 'NO_PLAN' },
-      ],
-      scope: ALL_BUSINESS,
+    const view = project(ALL_BUSINESS, {
+      failures: [{ employeeId: RANA, code: 'NO_SALARY', attachedBranchIds: [SALMIYA] }],
+      blocked,
     });
     expect(view.find((employee) => employee.employeeId === RANA)?.issues).toEqual([
       { kind: 'PRICING', code: 'NO_SALARY', sourcePeriod: null },
@@ -144,13 +140,48 @@ describe('the blocking issues of the view (FR-027)', () => {
   });
 
   it('does not show the issues of an employee the reader cannot see', () => {
-    const view = projectStatementView({
-      rows,
-      failures: [{ employeeId: SARA, code: 'NO_PLAN' }],
-      blocked: [],
-      scope: SALMIYA_ONLY,
+    const view = project(SALMIYA_ONLY, {
+      failures: [{ employeeId: SARA, code: 'NO_PLAN', attachedBranchIds: [HAWALLI] }],
     });
     expect(view.map((employee) => employee.employeeId)).toEqual([RANA]);
     expect(view[0]?.issues).toEqual([]);
+  });
+
+  it('shows a branch reader a pricing failure only when its failed source falls on her branch days', () => {
+    const failures = [
+      { employeeId: RANA, code: 'NO_PLAN' as const, attachedBranchIds: [SALMIYA] },
+    ];
+    const salmiya = project(SALMIYA_ONLY, { failures });
+    const hawalli = project({ businessWide: false, branchIds: [HAWALLI] }, { failures });
+    expect(salmiya.find((employee) => employee.employeeId === RANA)?.issues).toHaveLength(1);
+    // رنا ظاهرة لمدير حولي بس بعد 15 الشهر، والمصدر الفاشل قبلها (فرع السالمية بس): الفشل ما يظهرلوش.
+    expect(hawalli.find((employee) => employee.employeeId === RANA)?.issues).toEqual([]);
+  });
+
+  it('never shows an open blocked correction to a branch reader, who cannot tie it to a source she sees', () => {
+    const view = project(SALMIYA_ONLY, { blocked });
+    expect(view.flatMap((employee) => employee.issues)).toEqual([]);
+  });
+
+  it('keeps an employee outside the statement set whose only entry is an open blocker, for the business-wide reader only', () => {
+    const LEFT = '01920000-0000-7000-8000-0000000000e9';
+    const unlisted = [{ employeeId: LEFT, employeeNumber: 9, nameAr: null, nameEn: 'Lina' }];
+    const blockers = [{ employeeId: LEFT, sourcePeriod: '2026-09', code: 'NO_PLAN' as const }];
+
+    const wide = project(ALL_BUSINESS, { unlisted, blocked: blockers });
+    const branch = project(SALMIYA_ONLY, { unlisted, blocked: blockers });
+
+    expect(wide.find((employee) => employee.employeeId === LEFT)).toMatchObject({
+      rows: [],
+      partial: false,
+      issues: [{ kind: 'BLOCKED_CORRECTION', code: 'NO_PLAN', sourcePeriod: '2026-09' }],
+    });
+    expect(branch.map((employee) => employee.employeeId)).not.toContain(LEFT);
+  });
+
+  it('does not list an unlisted employee twice when the builder already has her', () => {
+    const unlisted = [{ employeeId: RANA, employeeNumber: 1, nameAr: null, nameEn: 'Rana' }];
+    const ids = project(ALL_BUSINESS, { unlisted }).map((employee) => employee.employeeId);
+    expect(ids).toEqual([RANA, SARA]);
   });
 });

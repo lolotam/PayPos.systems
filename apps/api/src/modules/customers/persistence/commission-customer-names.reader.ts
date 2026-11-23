@@ -21,11 +21,7 @@ export async function readCommissionCustomerNames(
   if (ids.length === 0) return names;
   const rows = await tx.execute<{ id: string; name: string }>(
     sql`SELECT id, name FROM customers
-      WHERE company_id=${companyId}
-        AND id = ANY(ARRAY[${sql.join(
-          ids.map((id) => sql`${id}`),
-          sql`,`,
-        )}]::uuid[])`,
+      WHERE company_id=${companyId} AND id = ANY(${`{${ids.join(',')}}`}::uuid[])`,
   );
   for (const row of rows) names.set(row.id, row.name);
   return names;

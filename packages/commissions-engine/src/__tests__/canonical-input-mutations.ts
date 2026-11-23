@@ -213,7 +213,7 @@ function saleTipSalaryMutations(): FieldMutation[] {
         'salaries',
         0,
         {},
-        { alsoChanges: ['salary.effective_from', 'salary.amount', 'salary.revision'] },
+        { alsoChanges: ['salary.effective_from', 'salary.revision'] },
       ),
       ids: ['employee-noor'],
       run: () => {
@@ -230,7 +230,6 @@ function saleTipSalaryMutations(): FieldMutation[] {
       },
     },
     edit(`${salary}.effective_from`, 'salaries', 0, { effectiveFrom: '2026-10-02' }),
-    edit(`${salary}.amount`, 'salaries', 0, { amount: 400_001n }),
     edit(`${salary}.revision`, 'salaries', 0, { revision: 4n }),
   ];
 }

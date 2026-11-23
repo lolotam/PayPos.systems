@@ -10,6 +10,7 @@ export { businessDiscountScope } from './queries/business-discount-scope.query.t
 export { businessCalendar, businessTimeZone } from './queries/business-time-zone.query.ts';
 export { businessCountry } from './queries/business-country.query.ts';
 export {
+  commissionBranchNamesStatement,
   readCommissionBranchNames,
   type CommissionBranchName,
 } from './queries/commission-branch-names.query.ts';

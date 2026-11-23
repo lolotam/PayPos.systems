@@ -237,7 +237,6 @@ function employeeEntry(
         ? null
         : {
             effective_from: salary.effectiveFrom,
-            amount: moneyToString(salary.amount),
             revision: salary.revision.toString(),
           },
     versions: sortedBy(input.versions, (version) => [numberKey(version.version)]).map(
@@ -272,8 +271,9 @@ function employeeEntry(
  * - الشهر بيتتحقق منه الأول قبل أي شغل: شهر غلط بيترفض حتى لو كل القوائم فاضية.
  * - الاختيار بنفس المجمّع المشترك `assembleCommissionPeriodInput`، فمفيش مسار تاني للاختيار؛ نسخة
  *   إصلاح (`repair_period`) شهر تاني ما بتدخلش، لأن التسعير بيتجاهلها.
- * - الراتب المختار بيدخل بتاريخ سريانه ومبلغه و`revision` إدخاله (D-10: الراتب بيتعرّف بالموظفة
- *   وتاريخ السريان ونسخة الإدخال، قرار فني على عقد 51-1).
+ * - الراتب المختار بيدخل بتاريخ سريانه و`revision` إدخاله بس، من غير المبلغ (D-10: الراتب بيتعرّف بالموظفة
+ *   وتاريخ السريان ونسخة الإدخال، وأي تغيير في المبلغ بييجي بنسخة أحدث دايماً). البصمة بترجع للمراجع
+ *   اللي ما بيشوفش الرواتب، وهاش من غير مفتاح لمبلغ راتب ممكن يتكسر بتجربة قيم؛ فالمبلغ مش داخل.
  * - المبالغ نصوص KWD بثلاث منازل، والأعداد الصحيحة (revision وgeneration وshare_bps وversion)
  *   نصوص عشرية، والأوقات ISO بست منازل كسرية، والتواريخ YYYY-MM-DD، والغائب `null`.
  * - كل قائمة مرتبة بهويتها: البند بـ line_id، البيع بـ sale_id، البقشيش بـ (session_id, method)،
