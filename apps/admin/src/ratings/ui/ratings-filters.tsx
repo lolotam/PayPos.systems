@@ -23,7 +23,6 @@ export function RatingsFiltersBar({
   return (
     <div className="flex flex-wrap items-end gap-3">
       <RatingsMonthField
-        key={filters.month === null ? 'unknown' : 'known'}
         month={filters.month}
         onChange={(month) => onChange({ month, employeeId: '' })}
       />

@@ -13,6 +13,10 @@ import { RatingsGrid } from './ratings-grid';
 import { RatingsNotice } from './ratings-notice';
 import { RatingsRetryButton } from './ratings-retry-button';
 
+// الافتراضي في TanStack إن fetchNextPage يلغي أي إعادة قراءة شغالة، وإعادة القراءة دي هي اللي بتشيل التعليقات اللي
+// خرجت من نطاق المستخدم، فما نلغيهاش.
+const keepRefetch = { cancelRefetch: false };
+
 export function RatingsListPanel({
   list,
 }: {
@@ -23,7 +27,8 @@ export function RatingsListPanel({
   if (view === 'loading') return <RatingsNotice kind="loading" />;
   const failure = ratingsFailureMessage(list.error, locale);
   // الصفحة التالية الفاشلة بتتعاد بنفس المؤشر؛ أي فشل تاني (إعادة قراءة الصفحات) بتتعاد قراءته كلها.
-  const retry = () => void (list.isFetchNextPageError ? list.fetchNextPage() : list.refetch());
+  const retry = () =>
+    void (list.isFetchNextPageError ? list.fetchNextPage(keepRefetch) : list.refetch());
   const retryButton = <RatingsRetryButton busy={list.isFetching} onRetry={retry} />;
   if (view === 'refused') return <RatingsNotice kind="error" message={failure} />;
   const rows = list.data?.pages.flatMap((page) => page.items) ?? [];
@@ -57,8 +62,8 @@ export function RatingsListPanel({
           type="button"
           variant="outline"
           className="self-center"
-          disabled={list.isFetchingNextPage}
-          onClick={() => void list.fetchNextPage()}
+          disabled={list.isFetching}
+          onClick={() => void list.fetchNextPage(keepRefetch)}
         >
           {t(locale, 'ratings.loadMore')}
         </Button>

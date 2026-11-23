@@ -48,5 +48,7 @@ export function useRatingsList(
     retry: false,
     refetchOnMount: 'always',
     staleTime: 0,
+    // كل قراءة ناجحة كائن جديد حتى لو نفس الرد، عشان `useRatingsGate` يفرّق قراءة جديدة عن بيانات قديمة.
+    structuralSharing: false,
   });
 }

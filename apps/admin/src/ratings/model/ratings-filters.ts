@@ -1,3 +1,5 @@
+import type { RatingAveragesQuery, RatingsListQuery } from '@pospay/contracts';
+
 /**
  * فلاتر الشاشة كما اختارها المستخدم؛ السلسلة الفارغة معناها «الكل». `month` فارغ (null) معناه «لسه ما اخترتش»: الشهر وقتها
  * هو اللي الخادم سمّاه في رد المتوسطات (شهر النشاط الحالي بتوقيت النشاط)، والمتصفح ما بيخمّنش شهر ولا توقيت.
@@ -8,14 +10,20 @@ export interface RatingsFilters {
   month: string | null;
 }
 
+/** نوع العقد بعد استخراجه بلا `undefined` صريح: العميل المولَّد بيرفض `undefined` على مفتاح اختياري. */
+type Defined<T> = { [K in keyof T]?: Exclude<T[K], undefined> };
+
 /**
  * ما تبعته الشاشة للمسارين لتحديد الفترة: الشهر `YYYY-MM` (اختياري) والفرع (اختياري). الـAPI هو اللي يحوّل الشهر لنافذة
  * لحظات بتوقيت النشاط (D-B12)، فالمتصفح ما بيحسبش `from` ولا `to` ولا يختار توقيتًا.
  */
-export interface RatingsPeriodQuery {
-  branch_id?: string;
-  month?: string;
-}
+export type RatingsPeriodQuery = Defined<Pick<RatingAveragesQuery, 'branch_id' | 'month'>>;
+
+/** طلب صفحة القائمة: نفس مفاتيح العقد، لكن من غير `from`/`to` عشان الشاشة ما تحسبهمش (D-B12). */
+export type RatingsPageQuery = Defined<
+  Pick<RatingsListQuery, 'branch_id' | 'month' | 'employee_id' | 'cursor'>
+> &
+  Pick<RatingsListQuery, 'limit'>;
 
 /** الفترة المعروفة الشهر للقائمة؛ بلا شهر ما فيش قراءة قائمة. */
 export type RatingsListRange = RatingsPeriodQuery & { month: string };
