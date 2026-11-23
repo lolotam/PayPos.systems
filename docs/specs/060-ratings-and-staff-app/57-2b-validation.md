@@ -473,5 +473,81 @@ what is summed.
   heaviest plan nodes with their row counts and the smallest remedy that needs a decision. No repeated measuring and
   no index or setting change on our own initiative.
 
-### Result of the `TIMING OFF` run — to be filled from that run (no numbers recorded here yet)
+### Result of the `TIMING OFF` run of 2026-11-23 on `11c7c3974` — regular fixture PASSED, 66,002-line stale case FAILED
+
+**The acceptance is NOT met, and the corrected tool did not change the verdict.** At 66,002 lines with stale statistics
+all 21 judged samples of the accepted attempt were at or above 200 ms (459.4–745.2 ms). No run was repeated.
+
+Head: `11c7c39746a900cf3b021e6b09f987856d0fd38d` (the pushed code of `8f78adffb` plus the `TIMING OFF` statement and the
+separated violation lists; no product code differs). One run per fixture in the announced window, private lane
+`127.0.0.1:55404`. Host processor load before each run: 100 % on 6 of 6 samples, then 100,100,100,99,100,100. Harness
+specs first: 12 of 12. Regular run 14:07:31–14:14:16 Kuwait, 4 tests passed. Scaled run 14:15:10–14:23:52 Kuwait: the
+stale-statistics test failed with 21 violations; the normal-statistics test passed (the cases are now separate).
+
+`execution_ms_sum` per judged sample, ms. **Bold** = at or above 200.
+
+| Page (statements, kind) | Regular, stale | Regular, normal | 66,002 lines, stale (accepted attempt) | 66,002 lines, normal |
+|---|---|---|---|---|
+| first-20 (5, first) | 24.5, 35.9, 26.8 | 7.9, 5.4, 4.6, 4.2 | **684.3, 660.6, 546.3** | 9.9, 10.7, 10.2 |
+| first-100 (6, first) | 22.8, 41.1, 29.8 | 13.6, 4.7, 6.8, 6.8 | **544.4, 501.8, 533.9** | 12.2, 11.9, 13.4 |
+| cursor-100 (5, cursor) | 21.1, 21.5, 29.7 | 30.5, 6.8, 7.8, 7.2 | **511.8, 515.4, 496.5** | 11.8, 10.2, 12.9 |
+| deep-cursor-100 (5, cursor) | 22.6, 25.0, 20.3 | 10.0, 5.4, 7.6, 8.0 | **528.4, 582.1, 745.2** | 13.4, 10.9, 10.5 |
+| cancelled-20 (6, cursor) | 28.2, 44.9, 22.5 | 15.4, 8.0, 7.2, 6.5 | **621.6, 465.0, 485.2** | 10.8, 10.8, 10.9 |
+| cancelled-100 (6, cursor) | 33.3, 21.5, 29.6 | 10.3, 6.8, 9.4, 8.0 | **479.8, 459.4, 576.9** | 12.2, 18.0, 15.9 |
+| cancelled-deep-100 (6, cursor) | 32.7, 22.0, 28.1 | 26.0, 6.9, 8.7, 8.3 | **563.2, 615.4, 516.9** | 30.6, 21.6, 12.6 |
+| Worst sample | 44.9 | 30.5 | **745.2** | 30.6 |
+
+Regular-fixture stale column: the accepted attempt was the second one (the first was discarded because autoanalyze
+ran during its judged phase); its three samples per page are shown. The four samples of the discarded attempt were
+20.1–62.7 ms.
+
+Stale state of the scaled run. Five attempts were made, each seeding a NEW 66,002-line target tenant in the same
+database. In attempts 0–3 autoanalyze of the three tables fired during the judged phase (stamps moved, about one minute
+after each insert), so they were discarded under the rule fixed beforehand. Attempt 4 is the accepted one: analyse
+stamps identical before and after the judged phase, `n_mod_since_analyze` 66,000 → 66,002. By then the database held
+five target tenants of 66,002 lines each.
+
+Heaviest plan nodes of the accepted attempt (one sample per page shown; the others are alike). All buffers were shared
+hits, none read from disk; every node has loops = 1.
+
+| Statement | Rows returned | Rows removed by filter | Shared hit blocks | `Execution Time`, ms |
+|---|---|---|---|---|
+| 1 `line_performers` by employee (`line_performers_employee_idx`, Index Cond) | 602 | 0 | 548 | 0.6–0.8 |
+| 2 `service_lines` by id list (company-leading index, id list as Filter) | 602 | 65,400 | 66,976 | 106.7–154.6 |
+| 3 `service_sessions` by id list (company-leading index, id list as Filter) | 600 | 65,400 | 66,804 | 123.6–244.8 |
+| 4 `service_lines` details of the page (same shape) | 20 or 100 | 65,902–65,982 | 66,976 | 117.7–244.6 |
+| 5 `service_sessions` customer names (same shape) | 20–100 | 65,900–65,980 | 66,804 | 110.0–133.1 |
+| 6 `service_line_cancellations` | 1 | 49 | 3 | 0.2–0.3 |
+
+What this run shows, and what it corrects:
+
+- **The reading offered after the first run is not supported.** Turning per-node timing off did not bring the scaled
+  stale case under the bound; the sums are higher than in the per-node-timing run (100–350 ms). Instrumentation
+  overhead was not the main cost.
+- The cost is the stale plan itself: four statements each walk the tenant's ~66,000 rows through a company-leading
+  index and discard all but the wanted ids, about 67,000 buffer hits and 105–245 ms each on this host. On 2026-11-22
+  the same four scans touched 1,792–2,255 blocks and took 9.5–12.3 ms; the fixture seeding order was changed since
+  (colleague cancellations moved earlier) and this database held five large tenants, so the rows a scan visits are no
+  longer physically adjacent. That difference is observed, not explained further here.
+- With refreshed statistics the same pages take 9.9–30.6 ms at 66,002 lines: the id lists become index conditions.
+- Staleness was short-lived in this configuration: in four of five attempts autoanalyze refreshed the three tables
+  within about one minute of a 66,000-row insert, and the discarded attempts' later samples dropped to 8–20 ms.
+- Wall-clock diagnostics of the scaled run (not judged): stale 103–1,342 ms, normal 91–245 ms.
+
+Smallest remedies, each needing a decision; none was tried:
+
+1. Make the id an index condition whatever the statistics say: an index or a statement shape for the four id-list
+   reads (plan §5.1 bars an index, a statistics change and a planner setting without a fresh authorization; a new
+   statement shape would need its own measurement).
+2. Accept a stated limit: under 200 ms at the regular fixture in both statistics states and at 66,002 lines with
+   normal statistics; above it for a tenant of that size only in the window between a bulk insert and the next
+   autoanalyze (about one minute here).
+3. Keep the acceptance as written: 57-2b's route stays unmerged until a remedy from item 1 is authorized and measured.
+
+AC-57-2b-9 stays FAILED and the merge stays blocked. The earlier statement «The maximum-statement case has no accepted
+timing yet» stands for the 66,002-line stale case; for the regular fixture the six-statement pages are measured and
+under the bound in both states, first page and cursor.
+
+Raw files (outside the repository): `F:/Dev/Temp/57-2b/timing-off-regular-11c7c3974.jsonl` and
+`F:/Dev/Temp/57-2b/timing-off-scale-11c7c3974.jsonl`.
 
