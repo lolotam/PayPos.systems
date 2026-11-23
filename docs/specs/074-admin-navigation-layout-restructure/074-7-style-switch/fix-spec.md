@@ -4,7 +4,7 @@ Parent: [`spec.md`](./spec.md) and [`plan.md`](./plan.md) of this folder (074-7a
 
 ## Owner decision
 
-Waleed, card of 2026-11-23, «PR صغير مستقل قبل 7b (Recommended)», recorded as PP-233: PR #1226 (074-7a) merges as reviewed under its 5,000-line cap, and the findings left by its reviews are fixed here, in one separate PR that merges before 074-7b starts. Tier Medium. Cap: 900 added plus removed lines of code and tests, docs counted separately. Review pipeline PP-228. The cap was raised twice, both times by the owner's cards of 2026-11-23: to 1,050 added plus removed lines of code and tests («رفع السقف إلى 1,050 ونقفل كل الـ 14 بند (Recommended)») and then to 1,300 («رفع السقف إلى 1,300 ونقفل البندين هنا (Recommended)»), so that all fourteen items close in this PR. The Next `Link` prefetch finding is not part of this slice (#1227).
+Waleed, card of 2026-11-23, «PR صغير مستقل قبل 7b (Recommended)», recorded as PP-233: PR #1226 (074-7a) merges as reviewed under its 5,000-line cap, and the findings left by its reviews are fixed here, in one separate PR that merges before 074-7b starts. Tier Medium. Cap: 900 added plus removed lines of code and tests, docs counted separately. Review pipeline PP-228. The cap was raised twice, both times by the owner's cards of 2026-11-23: to 1,050 added plus removed lines of code and tests («رفع السقف إلى 1,050 ونقفل كل الـ 14 بند (Recommended)», PP-235) and then to 1,300 («رفع السقف إلى 1,300 ونقفل البندين هنا (Recommended)», PP-236), so that all fourteen items close in this PR. The Next `Link` prefetch finding is not part of this slice (#1227).
 
 ## What changes for a user
 
