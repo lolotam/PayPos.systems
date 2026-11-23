@@ -4,8 +4,8 @@ import { Button } from '@pospay/ui';
 import { useLocale } from '@/shared/locale/locale-context';
 import { useAttendanceReportCsv } from '../api/use-attendance-report-csv';
 import type { AttendanceReportScope } from '../api/use-attendance-report';
-import { attendanceReportError } from '../model/attendance-report-display';
 
+/** زر التنزيل في ترويسة الصفحة؛ حالة التنزيل وخطؤه يعرضهما AttendanceReportDownloadMessages تحت التصفية. */
 export function AttendanceReportDownload({
   scope,
   month,
@@ -20,19 +20,12 @@ export function AttendanceReportDownload({
   const locale = useLocale();
   const download = useAttendanceReportCsv(scope, month, branchName);
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button
-        disabled={disabled || download.isPending}
-        aria-busy={download.isPending}
-        onClick={() => download.mutate()}
-      >
-        {t(
-          locale,
-          download.isPending ? 'attendanceReport.downloading' : 'attendanceReport.download',
-        )}
-      </Button>
-      {download.isPending ? <p role="status">{t(locale, 'attendanceReport.downloading')}</p> : null}
-      {download.error ? <p role="alert">{attendanceReportError(download.error, locale)}</p> : null}
-    </div>
+    <Button
+      disabled={disabled || download.isPending}
+      aria-busy={download.isPending}
+      onClick={() => download.mutate()}
+    >
+      {t(locale, download.isPending ? 'attendanceReport.downloading' : 'attendanceReport.download')}
+    </Button>
   );
 }

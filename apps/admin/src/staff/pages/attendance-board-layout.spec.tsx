@@ -1,6 +1,7 @@
 import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, render, screen, within } from '@testing-library/react';
+import { Profiler } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import {
   boardBranches,
@@ -29,19 +30,23 @@ function boardAndRefusalReads() {
   );
 }
 
-function renderPage() {
+function renderPage(onRender?: () => void) {
   client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const ui = (date?: string) => (
     <QueryClientProvider client={client}>
-      <AttendanceBoardPage
-        scope={boardScope}
-        branches={boardBranches}
-        date={undefined}
-        onDate={vi.fn()}
-        onBranch={vi.fn()}
-      />
-    </QueryClientProvider>,
+      <Profiler id="board" onRender={onRender ?? (() => undefined)}>
+        <AttendanceBoardPage
+          scope={boardScope}
+          branches={boardBranches}
+          date={date}
+          onDate={vi.fn()}
+          onBranch={vi.fn()}
+        />
+      </Profiler>
+    </QueryClientProvider>
   );
+  const view = render(ui());
+  return { ...view, changeDate: (date: string) => view.rerender(ui(date)) };
 }
 
 beforeEach(() => {
@@ -84,11 +89,19 @@ it('keeps the filters and the status blocks outside any card, and the sessions t
     name: t('en', 'attendanceBoard.refusals'),
   });
   expect(card.contains(refusals)).toBe(false);
+  // عنوان الجدول يحتفظ بمقاس عناوين الكتل الأخرى بدل أن يرث خط الإطار العريض.
+  const title = within(card).getByText(t('en', 'attendanceBoard.sessions'));
+  expect(title.className).toContain('text-lg');
+  expect(title.className).toContain('font-semibold');
 });
 
 it('labels every stacked cell that has content with its column header, and not the first or the action cell', async () => {
   renderPage();
   const table = await screen.findByRole('table');
+  // يُقرأ صنف التكديس من نص ثابت هنا: لو أُزيل stacked من الإطار سقط هذا الاختبار.
+  expect(screen.getByRole('table').parentElement?.className).toContain(
+    'max-[599.99px]:[&_table]:block',
+  );
   const headers = headerTexts(table);
   const row = screen.getAllByRole('row')[1] as HTMLElement;
   const last = headers.length - 1;
@@ -132,4 +145,31 @@ it('reads the board and the refusals once each on first mount, and no refusals w
   expect(boardAndRefusalReads()).toHaveLength(1);
   expect(screen.queryByRole('table')).toBeNull();
   expect(screen.getByLabelText(t('en', 'attendanceBoard.branch'))).toBeTruthy();
+});
+
+it('keeps the filters and their focus when the board is refused without a remount, and shows no board data beside the refusal', async () => {
+  const seen: { sessions: number; inNow: number }[] = [];
+  const view = renderPage(() =>
+    seen.push({
+      sessions: screen.queryAllByText('Synthetic manual employee').length,
+      inNow: screen.queryAllByText('Synthetic employee').length,
+    }),
+  );
+  await screen.findByRole('table');
+  const branch = screen.getByLabelText(t('en', 'attendanceBoard.branch'));
+  branch.focus();
+  api.GET.mockImplementation(async () => ({
+    error: { code: 'FORBIDDEN' },
+    response: { status: 403 },
+  }));
+  seen.length = 0;
+  view.changeDate('2026-10-10');
+  const alert = await screen.findByRole('alert');
+  expect(screen.getByLabelText(t('en', 'attendanceBoard.branch'))).toBe(branch);
+  expect(document.activeElement).toBe(branch);
+  expect(cardOf(alert)).toBeNull();
+  expect(seen.every((commit) => commit.sessions === 0 && commit.inNow === 0)).toBe(true);
+  expect(screen.queryByRole('table')).toBeNull();
+  expect(screen.queryByRole('heading', { name: t('en', 'attendanceBoard.refusals') })).toBeNull();
+  expect(boardAndRefusalReads().filter(([path]) => path.endsWith('refusals'))).toHaveLength(1);
 });

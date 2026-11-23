@@ -1,20 +1,36 @@
 'use client';
 import type { AttendanceMonthlyReportRow } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
-import { getCoreRowModel, getSortedRowModel, useReactTable } from '@tanstack/react-table';
+import {
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type SortingState,
+  type Updater,
+} from '@tanstack/react-table';
 import { useMemo } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import { attendanceReportColumns } from './attendance-report-columns';
 import { AttendanceReportHeader } from './attendance-report-header';
 import { StackedTable } from './stacked-table';
 
-export function AttendanceReportTable({ rows }: { rows: AttendanceMonthlyReportRow[] }) {
+export function AttendanceReportTable({
+  rows,
+  sorting,
+  onSortingChange,
+}: {
+  rows: AttendanceMonthlyReportRow[];
+  sorting: SortingState;
+  onSortingChange: (updater: Updater<SortingState>) => void;
+}) {
   'use no memo';
   const locale = useLocale();
   const columns = useMemo(() => attendanceReportColumns(locale), [locale]);
   const table = useReactTable({
     data: rows,
     columns,
+    state: { sorting },
+    onSortingChange,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     sortDescFirst: false,

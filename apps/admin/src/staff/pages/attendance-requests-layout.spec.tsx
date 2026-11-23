@@ -66,6 +66,10 @@ it('labels every stacked cell that has content with its column header, and not t
   route(false);
   renderPage();
   const table = await screen.findByRole('table');
+  // يُقرأ صنف التكديس من نص ثابت هنا: لو أُزيل stacked من الإطار سقط هذا الاختبار.
+  expect(screen.getByRole('table').parentElement?.className).toContain(
+    'max-[599.99px]:[&_table]:block',
+  );
   const headers = headerTexts(table);
   const labels = cellLabels(screen.getAllByRole('row')[1] as HTMLElement);
   expect(labels).toHaveLength(headers.length);

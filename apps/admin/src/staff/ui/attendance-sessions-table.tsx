@@ -39,7 +39,11 @@ export function AttendanceSessionsTable({
     <section aria-labelledby="attendance-sessions" className="flex min-w-0 flex-col gap-3">
       <DataTableFrame
         stacked
-        title={<span id="attendance-sessions">{t(locale, 'attendanceBoard.sessions')}</span>}
+        title={
+          <span id="attendance-sessions" className="text-lg font-semibold">
+            {t(locale, 'attendanceBoard.sessions')}
+          </span>
+        }
       >
         {board.sessions.length ? (
           <AttendanceActionsTable items={board.sessions} columns={columns} />

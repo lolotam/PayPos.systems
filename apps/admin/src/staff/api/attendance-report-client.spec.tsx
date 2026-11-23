@@ -7,6 +7,7 @@ import { reportFixture, reportMonth, reportScope } from './attendance-report.fix
 import { useAttendanceReport } from './use-attendance-report';
 import { useAttendanceReportCsv } from './use-attendance-report-csv';
 import { AttendanceReportDownload } from '../ui/attendance-report-download';
+import { AttendanceReportDownloadMessages } from '../ui/attendance-report-download-messages';
 vi.mock('@/shared/locale/locale-context', () => ({ useLocale: () => 'en' }));
 const fetcher = vi.fn<(request: Request) => Promise<Response>>();
 afterEach(() => {
@@ -87,6 +88,7 @@ it.each([
           branchName="Synthetic branch"
           disabled={false}
         />
+        <AttendanceReportDownloadMessages scope={reportScope} month={reportMonth} />
       </QueryClientProvider>,
     );
     fireEvent.click(screen.getByRole('button', { name: t('en', 'attendanceReport.download') }));

@@ -50,7 +50,8 @@ export function attendanceReportColumns(locale: Locale): ColumnDef<AttendanceMon
       id: 'leave',
       header: t(locale, 'attendanceReport.leave'),
       enableSorting: false,
-      cell: ({ row }) => <AttendanceReportLeave leave={row.original.leave} />,
+      cell: ({ row }) =>
+        row.original.leave.length > 0 ? <AttendanceReportLeave leave={row.original.leave} /> : null,
     },
     {
       accessorKey: 'difference_minutes',
@@ -63,4 +64,13 @@ export function attendanceReportColumns(locale: Locale): ColumnDef<AttendanceMon
     },
     ...counts.slice(1).map(([key, label]) => countColumn(key, label, locale)),
   ];
+}
+
+/** أعمدة الفرز بمعرّفاتها وعناوينها كما في الترويسة، ليقدّم مربع الفرز تحت 600px الأعمدة نفسها. */
+export function attendanceReportSortOptions(locale: Locale): { id: string; label: string }[] {
+  return attendanceReportColumns(locale).flatMap((column) => {
+    if (column.enableSorting === false || typeof column.header !== 'string') return [];
+    const id = column.id ?? ('accessorKey' in column ? String(column.accessorKey) : undefined);
+    return id ? [{ id, label: column.header }] : [];
+  });
 }

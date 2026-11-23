@@ -1,9 +1,10 @@
 'use client';
 import type { AttendanceChangeListQuery, WorkspaceBranch } from '@pospay/contracts';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useLocale } from '@/shared/locale/locale-context';
 import type { AttendanceBoardScope } from '../api/use-attendance-board';
 import { useAttendanceRequests } from '../api/use-attendance-actions-read';
+import { useAttendanceRequestsLifetime } from '../api/use-attendance-requests-lifetime';
 import { attendancePages, type AttendanceRequestRow } from '../model/attendance-action-display';
 import { boardAccessLost } from '../model/attendance-board-display';
 import { AttendanceActionCard } from './attendance-action-card';
@@ -34,6 +35,8 @@ export function AttendanceRequestsList({
     row: AttendanceRequestRow;
     action: RequestAction;
   }>();
+  const clearSelection = useCallback(() => setSelection(undefined), []);
+  useAttendanceRequestsLifetime(scope, Boolean(timezone), clearSelection);
   const query = useAttendanceRequests(scope, status, allBranches, enabled && Boolean(timezone));
   const columns = useMemo(
     () =>
@@ -47,6 +50,7 @@ export function AttendanceRequestsList({
   const visible = !boardAccessLost(query.error);
   const items = visible ? attendancePages(query.data?.pages) : [];
   const current =
+    timezone &&
     selection &&
     items.find((row) => row.id === selection.row.id && row.revision === selection.row.revision);
   return (

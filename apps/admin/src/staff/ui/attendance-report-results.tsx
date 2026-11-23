@@ -1,6 +1,7 @@
 'use client';
 import type { AttendanceMonthlyReport } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
+import type { SortingState, Updater } from '@tanstack/react-table';
 import { useLocale } from '@/shared/locale/locale-context';
 import { AttendanceReportFeedback } from './attendance-report-feedback';
 import { AttendanceReportTable } from './attendance-report-table';
@@ -10,6 +11,8 @@ export function AttendanceReportResults({
   report,
   visible,
   resetKey,
+  sorting,
+  onSortingChange,
 }: {
   report: {
     data: AttendanceMonthlyReport | undefined;
@@ -20,6 +23,8 @@ export function AttendanceReportResults({
   };
   visible: boolean;
   resetKey: string;
+  sorting: SortingState;
+  onSortingChange: (updater: Updater<SortingState>) => void;
 }) {
   const locale = useLocale();
   return (
@@ -40,7 +45,12 @@ export function AttendanceReportResults({
           <p className="p-4 text-sm text-muted-foreground">
             {t(locale, 'attendanceReport.hoursFormat')}
           </p>
-          <AttendanceReportTable key={resetKey} rows={report.data.rows} />
+          <AttendanceReportTable
+            key={resetKey}
+            rows={report.data.rows}
+            sorting={sorting}
+            onSortingChange={onSortingChange}
+          />
         </>
       ) : null}
     </>

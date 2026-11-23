@@ -1,6 +1,7 @@
 import { t } from '@pospay/i18n';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { Profiler } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import {
   leaveDecisionRecord as record,
@@ -29,10 +30,12 @@ function listed(items: unknown[], nextCursor: string | null = null) {
   api.GET.mockResolvedValue({ data: { items, next_cursor: nextCursor, request_branch_ids: [] } });
 }
 
-function renderPage() {
+function renderPage(onRender: () => void = () => undefined) {
   return render(
     <QueryClientProvider client={client}>
-      <LeaveInboxPage scope={scope} branches={branches} />
+      <Profiler id="inbox" onRender={onRender}>
+        <LeaveInboxPage scope={scope} branches={branches} />
+      </Profiler>
     </QueryClientProvider>,
   );
 }
@@ -72,6 +75,11 @@ it('labels every stacked cell that has content and leaves the action cells witho
   listed([pending, { ...record, decision_reason: null, can_revoke: false }]);
   renderPage();
   await screen.findAllByText('Synthetic employee');
+  // يُقرأ صنف التكديس من نص ثابت هنا: لو أُزيل stacked من الإطار سقط هذا الاختبار.
+  // الجدول هنا داخل غلاف المحرّر، فنبحث عن أقرب سلف يحمل صنف التكديس.
+  expect(
+    screen.getByRole('table').closest('[class*="max-[599.99px]:[&_table]:block"]'),
+  ).not.toBeNull();
   const rows = screen.getAllByRole('row');
   const labels = (row: HTMLElement) =>
     within(row)
@@ -107,23 +115,30 @@ it('sends one inbox request on first mount', async () => {
   expect(api.GET).toHaveBeenCalledTimes(1);
 });
 
-it('keeps the very same filter input, and its focus, when a later read is refused, with no paging beside the refusal', async () => {
-  listed([pending], leaveId);
-  renderPage();
-  await screen.findByText('Synthetic employee');
-  const from = screen.getByLabelText(t('en', 'leave.from'));
-  from.focus();
-  api.GET.mockResolvedValue({
-    error: { code: 'INTERNAL', message_ar: 'Synthetic refusal', message_en: 'Synthetic refusal' },
-    response: { status: 500 },
-  });
-  fireEvent.change(from, { target: { value: '2027-01-01' } });
-  fireEvent.click(screen.getByRole('button', { name: t('en', 'leave.applyFilters') }));
-  const alert = await screen.findByRole('alert');
-  expect(cardOf(alert)).toBe(cardOf(from));
-  expect(screen.getByLabelText(t('en', 'leave.from'))).toBe(from);
-  expect(document.activeElement).toBe(from);
-  await waitFor(() =>
-    expect(screen.queryByRole('button', { name: t('en', 'leave.next') })).toBeNull(),
-  );
-});
+it.each([500, 403])(
+  'keeps the very same filter input and its focus when a later read is refused with %i, with no employee and no paging beside the refusal',
+  async (status) => {
+    listed([pending], leaveId);
+    const seen: number[] = [];
+    renderPage(() => seen.push(screen.queryAllByText('Synthetic employee').length));
+    await screen.findByText('Synthetic employee');
+    const from = screen.getByLabelText(t('en', 'leave.from'));
+    from.focus();
+    api.GET.mockResolvedValue({
+      error: { code: 'REFUSED', message_ar: 'Synthetic refusal', message_en: 'Synthetic refusal' },
+      response: { status },
+    });
+    seen.length = 0;
+    fireEvent.change(from, { target: { value: '2027-01-01' } });
+    fireEvent.click(screen.getByRole('button', { name: t('en', 'leave.applyFilters') }));
+    const alert = await screen.findByRole('alert');
+    expect(cardOf(alert)).toBe(cardOf(from));
+    expect(screen.getByLabelText(t('en', 'leave.from'))).toBe(from);
+    expect(document.activeElement).toBe(from);
+    expect(seen.every((count) => count === 0)).toBe(true);
+    expect(screen.queryByRole('table')).toBeNull();
+    await waitFor(() =>
+      expect(screen.queryByRole('button', { name: t('en', 'leave.next') })).toBeNull(),
+    );
+  },
+);

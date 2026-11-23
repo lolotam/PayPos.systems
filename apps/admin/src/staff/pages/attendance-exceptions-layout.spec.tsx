@@ -40,6 +40,10 @@ it('puts the branch picker, the status tabs, the table and the paging in one car
 it('labels every stacked cell that has content with its column header, and not the action cell', async () => {
   renderPage();
   const table = await screen.findByRole('table');
+  // يُقرأ صنف التكديس من نص ثابت هنا: لو أُزيل stacked من الإطار سقط هذا الاختبار.
+  expect(screen.getByRole('table').parentElement?.className).toContain(
+    'max-[599.99px]:[&_table]:block',
+  );
   const headers = headerTexts(table);
   const row = screen.getAllByRole('row')[1] as HTMLElement;
   const last = headers.length - 1;
