@@ -96,7 +96,7 @@ function testBranchLabel(): void {
 }
 
 function testEmptyState(): void {
-  it('shows empty workspace state in WorkspaceBody when companies list is empty', async () => {
+  it('shows the create-company screen in WorkspaceBody when companies list is empty', async () => {
     mockFetch.mockImplementation(async () => makeResponse({ companies: [] }));
 
     renderApp(
@@ -108,8 +108,10 @@ function testEmptyState(): void {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: t('ar', 'admin.workspaceEmptyTitle') })).not.toBeNull();
-      expect(screen.getByText(t('ar', 'admin.workspaceEmptyBody'))).not.toBeNull();
+      expect(screen.getByRole('heading', { name: t('ar', 'admin.createCompanyTitle') })).not.toBeNull();
+      expect(screen.getByLabelText(t('ar', 'admin.companyNameEnLabel'))).not.toBeNull();
+      expect(screen.getByLabelText(t('ar', 'admin.companyNameArLabel'))).not.toBeNull();
+      expect(screen.getByRole('button', { name: t('ar', 'admin.createCompanySubmit') })).not.toBeNull();
     });
   });
 }

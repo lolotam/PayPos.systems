@@ -2,11 +2,12 @@
 
 import { t } from '@pospay/i18n';
 import type { ReactNode } from 'react';
-import { EmptyState, Building2, CircleAlert, LoaderCircle } from '@pospay/ui';
+import { Building2, CircleAlert, EmptyState, LoaderCircle } from '@pospay/ui';
 
 import { useLocale } from '@/shared/locale/locale-context';
 
 import { useWorkspace } from '../model/workspace-provider';
+import { CreateCompanyScreen } from './create-company-screen';
 
 export function WorkspaceBody({
   children,
@@ -26,13 +27,7 @@ export function WorkspaceBody({
     );
   }
   if (workspace.status === 'empty') {
-    return (
-      <EmptyState
-        icon={<Building2 />}
-        title={t(locale, 'admin.workspaceEmptyTitle')}
-        description={t(locale, 'admin.workspaceEmptyBody')}
-      />
-    );
+    return <CreateCompanyScreen />;
   }
   if (workspace.status === 'choose' && !allowsLinkedWorkspace) {
     return <EmptyState icon={<Building2 />} title={t(locale, 'admin.choosePrompt')} />;
