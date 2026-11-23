@@ -214,6 +214,12 @@ describe('imported refunds (was imported-refunds-nav-item.spec)', () => {
     expect(carriedApi.GET).not.toHaveBeenCalled();
   });
 
+});
+
+describe('imported refunds, after a business switch or a refetch', () => {
+  const ID = 'imported-refunds';
+  const PATH = '/v1/businesses/{businessId}/settings/imported-refunds';
+
   it('is hidden on switching to a previously cached business until its own read authorizes it', async () => {
     const other = '01920000-0000-7000-8000-0000000000b2';
     const client = newClient();

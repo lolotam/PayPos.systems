@@ -114,6 +114,9 @@ describe('which entry is current (was staff-navigation.spec and the session nav 
     expect(currentPlace('C', '/orders').pageId).toBeUndefined();
   });
 
+});
+
+describe('catalog, sales and the entries that never had a read (was the nav items without a spec)', () => {
   it.each([
     ['/catalog', 'services'],
     ['/catalog/create', 'services'],
