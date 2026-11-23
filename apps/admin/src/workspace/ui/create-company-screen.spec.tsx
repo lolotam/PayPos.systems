@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { onlineManager } from '@tanstack/react-query';
 import { t } from '@pospay/i18n';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   ENVELOPE,
@@ -104,7 +104,8 @@ function testFirstRefusal(): void {
     const nameInput = screen.getByLabelText(t('en', 'admin.companyNameEnLabel')) as HTMLInputElement;
     expect(nameInput.value).toBe('Rehearsal Salon');
     expect(posts).toHaveLength(1);
-    expect(reads).toBe(1);
+    // القراءة التانية هي حرس الإرسال (077): قراءة واحدة قبل الـ POST، وما فيش refetch بعد الرفض.
+    expect(reads).toBe(2);
   });
 }
 

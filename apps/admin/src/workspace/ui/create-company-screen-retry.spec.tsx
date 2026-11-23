@@ -79,7 +79,13 @@ function testServer500Retry(): void {
 function testRemountKeepsAttempt(): void {
   it('an undecided attempt survives a remount and its retry reuses the same key', async () => {
     const { posts } = queue(
-      [emptyWorkspaces, emptyWorkspaces, emptyWorkspaces, () => jsonResponse({ companies: [WORKSPACE_COMPANY] }, 200)],
+      [
+        emptyWorkspaces,
+        emptyWorkspaces,
+        emptyWorkspaces,
+        emptyWorkspaces,
+        () => jsonResponse({ companies: [WORKSPACE_COMPANY] }, 200),
+      ],
       [
         () => {
           throw new TypeError('network died');

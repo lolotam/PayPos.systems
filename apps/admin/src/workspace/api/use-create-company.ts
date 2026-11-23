@@ -45,6 +45,8 @@ async function runCreateCall(
     queryKey: ['me', 'workspaces'],
     queryFn: fetchWorkspaces,
     staleTime: 0,
+    // أوفلاين بيفشل فورًا بدل ما يترصّن: الفشل بيرجع للحالة القبلية بلا إرسال (077).
+    networkMode: 'always',
   });
   if (read.companies.length > 0) {
     removeAttempt();
