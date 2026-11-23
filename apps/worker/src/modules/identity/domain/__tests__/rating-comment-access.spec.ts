@@ -136,3 +136,47 @@ it('only candidates are returned, sorted and unique', () => {
     }),
   ).toEqual(['a', 'b']);
 });
+
+/** مصفوفة بتعدّ كل مرة الدالة بتمشي عليها، بأي طريقة، عشان نثبت إن القرار مش بيعيد مسح المنح والعضويات لكل مستلم. */
+class CountingArray<T> extends Array<T> {
+  static scans = 0;
+  static wrap<U>(items: readonly U[]): CountingArray<U> {
+    const counted = new CountingArray<U>();
+    for (const item of items) Array.prototype.push.call(counted, item);
+    return counted;
+  }
+  override filter(...args: Parameters<T[]['filter']>): T[] {
+    CountingArray.scans += 1;
+    return super.filter(...args);
+  }
+  override some(...args: Parameters<T[]['some']>): boolean {
+    CountingArray.scans += 1;
+    return super.some(...args);
+  }
+  override [Symbol.iterator](): ArrayIterator<T> {
+    CountingArray.scans += 1;
+    return super[Symbol.iterator]();
+  }
+}
+
+it('scans the grants and memberships once, however many recipients there are, with the same answer', () => {
+  const users = Array.from({ length: 300 }, (_, index) => `user-${String(index).padStart(3, '0')}`);
+  const memberships = users.map((user) => membership(user, `m-${user}`));
+  const grants = users.map((user) => grant(user, `m-${user}`));
+  const denied = users[7] ?? '';
+  grants.push(
+    grant(denied, `m-${denied}`, {
+      effect: 'DENY',
+      scopeType: 'COMPANY',
+      scopeId: branch.companyId,
+    }),
+  );
+  CountingArray.scans = 0;
+  const readers = decide({
+    userIds: users,
+    memberships: CountingArray.wrap(memberships),
+    grants: CountingArray.wrap(grants),
+  });
+  expect(readers).toEqual(users.filter((user) => user !== denied));
+  expect(CountingArray.scans).toBe(2);
+});

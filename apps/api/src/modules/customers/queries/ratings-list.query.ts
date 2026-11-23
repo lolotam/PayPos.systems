@@ -3,6 +3,7 @@ import type { Tx } from '@pospay/db';
 import { sql, type SQL } from 'drizzle-orm';
 import { ApiError } from '../../../shared/errors.ts';
 import type { RatingsListReads, RatingsListScope } from './ratings-list-reads.ts';
+import { periodPredicate, resolvePeriod, type RatingsPeriod } from './ratings-period.query.ts';
 
 interface Cursor {
   readonly at: string;
@@ -14,8 +15,8 @@ export interface RatingsListFilter {
   /** الفروع المسموحة بعد تقاطعها مع فلتر الفرع، وما تكونش فاضية. */
   readonly branchIds: readonly string[];
   readonly employeeId?: string | undefined;
-  readonly from?: string | undefined;
-  readonly to?: string | undefined;
+  /** الفترة بعد ما اتحددت من `from`/`to` أو `month`؛ مفتوحة لما مفيش حاجة منهم. */
+  readonly period: RatingsPeriod;
   readonly cursor: Cursor | null;
   readonly limit: number;
 }
@@ -43,14 +44,12 @@ function decodeCursor(value: string | undefined): Cursor | null {
 
 /** نطاق الوقت والمؤشر على عمود submitted_at المجرد؛ `<=` الزيادة بتدي الفهرس حد بداية، والمقارنة الصف بتحسم التعادل. */
 function keyset(f: RatingsListFilter, at: SQL, rank: SQL): SQL {
-  const from = f.from === undefined ? sql`` : sql`AND ${at} >= ${f.from}::timestamptz`;
-  const to = f.to === undefined ? sql`` : sql`AND ${at} < ${f.to}::timestamptz`;
   const after =
     f.cursor === null
       ? sql``
       : sql`AND ${at} <= ${f.cursor.at}::timestamptz
           AND (${at}, ${rank}) < (${f.cursor.at}::timestamptz, ${f.cursor.id}::uuid)`;
-  return sql`${from} ${to} ${after}`;
+  return sql`${periodPredicate(at, f.period)} ${after}`;
 }
 
 const branchList = (branchIds: readonly string[]) =>
@@ -106,14 +105,14 @@ export async function readRatingsList(
   const wanted = q.branch_id?.toLowerCase();
   const branchIds = wanted === undefined ? allowed : allowed.filter((b) => b === wanted);
   if (branchIds.length === 0) return ratingsListPage.parse({ items: [], next_cursor: null });
+  const period = await resolvePeriod(tx, c, q, now, reads, false);
   const rows = Array.from(
     await tx.execute<RatingRow>(
       ratingsListStatement({
         ...c,
         branchIds,
         employeeId: q.employee_id?.toLowerCase(),
-        from: q.from,
-        to: q.to,
+        period,
         cursor: decodeCursor(q.cursor),
         limit: q.limit,
       }),

@@ -35,22 +35,33 @@ it('RS-12 returns the branches a membership covers when the own grant and the fe
   }
 });
 
-it('RS-12 refuses the own code for another subject and an ended membership', async () => {
+const deleteOwnGrant = () =>
+  f.h
+    .owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND membership_id=${f.managerMember} AND permission_code='read:ratings:own'`;
+
+it('RS-12 refuses the own code for another subject', async () => {
   await seedOverride(f, f.managerMember, { permission_code: 'read:ratings:own' });
   try {
+    expect(await read()).toEqual([f.branch, f.siblingBranch]);
     expect(await read(f.userId)).toEqual([]);
   } finally {
-    await f.h
-      .owner`DELETE FROM permission_overrides WHERE company_id=${f.company} AND membership_id=${f.managerMember} AND permission_code='read:ratings:own'`;
+    await deleteOwnGrant();
   }
+});
+
+it('RS-12 refuses an ended membership while its own grant is still in place', async () => {
+  // المنحة تفضل مزروعة طول الاختبار: الرفض لازم يجي من انتهاء العضوية وحده، مش من غياب المنحة.
+  await seedOverride(f, f.managerMember, { permission_code: 'read:ratings:own' });
   const now = new Date();
-  await f.h
-    .owner`UPDATE memberships SET starts_at=${new Date(now.getTime() - 3_600_000).toISOString()},ends_at=${new Date(now.getTime() - 60_000).toISOString()} WHERE company_id=${f.company} AND id=${f.managerMember}`;
   try {
+    expect(await read()).toEqual([f.branch, f.siblingBranch]);
+    await f.h
+      .owner`UPDATE memberships SET starts_at=${new Date(now.getTime() - 3_600_000).toISOString()},ends_at=${new Date(now.getTime() - 60_000).toISOString()} WHERE company_id=${f.company} AND id=${f.managerMember}`;
     expect(await read()).toEqual([]);
   } finally {
     await f.h
       .owner`UPDATE memberships SET starts_at=${new Date(now.getTime() - 60_000).toISOString()},ends_at=NULL WHERE company_id=${f.company} AND id=${f.managerMember}`;
+    await deleteOwnGrant();
   }
 });
 

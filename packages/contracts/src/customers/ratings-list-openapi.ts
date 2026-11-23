@@ -13,7 +13,7 @@ export const ratingsListPaths = {
     get: {
       operationId: 'listRatings',
       description:
-        'Newest-first keyset page of the ratings of one business. Only a caller whose current role is owner, general manager, business manager or branch manager and who holds read:ratings:branch reads it; rows are limited to the branches inside that scope. from is inclusive and to is exclusive on submitted_at. The comment is the customer text as written. Cache-Control: no-store.',
+        'Newest-first keyset page of the ratings of one business. Only a caller whose current role is owner, general manager, business manager or branch manager and who holds read:ratings:branch reads it; rows are limited to the branches inside that scope. from is inclusive and to is exclusive on submitted_at; month (YYYY-MM) instead selects that calendar month in the business time zone, resolved by the server, and cannot be combined with from or to. The comment is the customer text as written. Cache-Control: no-store.',
       parameters: [
         { in: 'path', name: 'businessId', required: true, schema: uuid },
         { in: 'header', name: 'x-company-id', required: true, schema: uuid },
@@ -21,6 +21,11 @@ export const ratingsListPaths = {
         query('employee_id', uuid),
         query('from', instant),
         query('to', instant),
+        query('month', {
+          type: 'string',
+          pattern: '^2[0-9]{3}-(0[1-9]|1[0-2])$',
+          example: '2026-11',
+        }),
         query('cursor', { type: 'string', minLength: 1, maxLength: 512 }),
         query('limit', { type: 'integer', minimum: 1, maximum: 100, default: 20 }),
       ],

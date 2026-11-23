@@ -19,6 +19,8 @@ let siblingBranch: string;
 let foreignBusiness: string;
 let tenant: RatingTenant;
 let layla: { cookie: string; member: string };
+// ساعة الراوت قابلة للتثبيت: اختبارات الشهر الحالي لازم ما تتوقفش على ساعة الجهاز اللي بيشغّلها.
+let clockNow: Date | null = null;
 const at = (day: number, hour = 12) => new Date(Date.UTC(2026, 5, day, hour));
 const roleId = (roleCode: string) => SYSTEM_ROLES.find((r) => r.code === roleCode)?.id ?? '';
 const url = (businessId = business, query = '') => `/v1/businesses/${businessId}/ratings${query}`;
@@ -58,7 +60,7 @@ async function operatorWith(email: string, roleCode: string, custom = false) {
 }
 
 beforeAll(async () => {
-  h = await startHarness();
+  h = await startHarness({ customersClock: { now: () => clockNow ?? new Date() } });
   ownerCookie = await h.signedInOperator('ratings-owner@example.test');
   company = await h.onboard(ownerCookie, 'Ratings A');
   otherCompany = await h.onboard(ownerCookie, 'Ratings B');
@@ -238,23 +240,27 @@ it('limits the averages of a branch manager to her branch, with or without the b
   expect(only.body).toEqual({ items: [entry(1, '3.0', 2)] });
 });
 
-it('defaults to the current calendar month in the business time zone', async () => {
+it('defaults to the current calendar month in the business time zone, on a fixed mid-month clock', async () => {
   const day = 24 * 60 * 60 * 1000;
-  await seedRating(db, tenant, {
-    stars: 3,
-    at: new Date(Date.now() - 60_000),
-    performers: [tenant.employees[0]],
-  });
-  await seedRating(db, tenant, {
-    stars: 1,
-    at: new Date(Date.now() - 62 * day),
-    performers: [tenant.employees[0]],
-  });
-  const response = await get(ownerCookie, averagesUrl(`?employee_id=${tenant.employees[0]}`));
-  expect(response.status).toBe(200);
-  const [item] = response.body['items'] as { average: string; count: number }[];
-  expect(item?.average).toBe('3.0');
-  expect(item?.count).toBe(1);
+  const mid = new Date(Date.UTC(2030, 5, 15, 12));
+  clockNow = mid;
+  try {
+    await seedRating(db, tenant, {
+      stars: 3,
+      at: new Date(mid.getTime() - 60_000),
+      performers: [tenant.employees[0]],
+    });
+    await seedRating(db, tenant, {
+      stars: 1,
+      at: new Date(mid.getTime() - 62 * day),
+      performers: [tenant.employees[0]],
+    });
+    const response = await get(ownerCookie, averagesUrl(`?employee_id=${tenant.employees[0]}`));
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ items: [entry(0, '3.0', 1)] });
+  } finally {
+    clockNow = null;
+  }
 });
 
 it('refuses the averages with 403 to a cashier, a custom role, a stranger and a foreign business', async () => {

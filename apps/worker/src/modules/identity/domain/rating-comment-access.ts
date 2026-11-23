@@ -51,28 +51,45 @@ export interface RatingCommentInput {
  */
 export function decideRatingCommentReaders(input: RatingCommentInput): readonly string[] {
   const owners = new Set(input.owners);
+  // فهرسة بالمستخدم مرة واحدة: التكلفة بحجم المدخلات مش المرشحين × المنح، لأن عدد المستلمين مفيش له سقف.
+  const grantsByUser = groupBy(input.grants, (grant) => grant.userId);
+  const membershipsByUser = groupBy(input.memberships, (membership) => membership.userId);
   const readers: string[] = [];
   for (const userId of new Set(input.userIds)) {
-    const grants = input.grants.filter((grant) => grant.userId === userId);
+    const grants = grantsByUser.get(userId) ?? [];
     const denied = grants.some(
       (grant) => grant.effect === 'DENY' && coversBranch(grant, input.branch),
     );
     if (denied && !owners.has(userId)) continue;
-    const allowed = input.memberships.some(
+    const allowing = new Set(
+      grants
+        .filter((grant) => grant.effect === 'ALLOW' && coversBranch(grant, input.branch))
+        .map((grant) => grant.membershipId),
+    );
+    const allowed = (membershipsByUser.get(userId) ?? []).some(
       (membership) =>
-        membership.userId === userId &&
-        membership.manager &&
-        membership.covers &&
-        grants.some(
-          (grant) =>
-            grant.membershipId === membership.membershipId &&
-            grant.effect === 'ALLOW' &&
-            coversBranch(grant, input.branch),
-        ),
+        membership.manager && membership.covers && allowing.has(membership.membershipId),
     );
     if (allowed) readers.push(userId);
   }
   return readers.sort();
+}
+
+/**
+ * يجمّع العناصر بمفتاح في مرور واحد، بنفس ترتيب ظهورها.
+ *
+ * @param items العناصر المراد تجميعها
+ * @param key دالة تستخرج مفتاح التجميع من العنصر
+ * @returns العناصر مجمّعة بالمفتاح
+ */
+function groupBy<T>(items: readonly T[], key: (item: T) => string): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const group = groups.get(key(item));
+    if (group === undefined) groups.set(key(item), [item]);
+    else group.push(item);
+  }
+  return groups;
 }
 
 /**

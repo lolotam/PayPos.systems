@@ -72,24 +72,36 @@ const samples: readonly [string, Key, unknown, boolean][] = [
     false,
   ],
   [
-    'bare domain comment',
+    'bare domain comment is stored text, so it passes',
     'low_rating_with_comment',
     one({ ...details, comment: 'see example.com' }),
-    false,
+    true,
   ],
-  ['markup comment', 'low_rating_with_comment', one({ ...details, comment: '<b>bad</b>' }), false],
   [
-    'markdown link comment',
+    'markup comment is stored text, so it passes',
+    'low_rating_with_comment',
+    one({ ...details, comment: '<b>bad</b>' }),
+    true,
+  ],
+  [
+    'markdown link comment is stored text, so it passes',
     'low_rating_with_comment',
     one({ ...details, comment: '[x](y)' }),
-    false,
+    true,
   ],
   [
-    'control character comment',
+    'control character comment is stored text, so it passes',
     'low_rating_with_comment',
-    one({ ...details, comment: 'a\u0000b' }),
+    one({ ...details, comment: 'a\u0007b' }),
+    true,
+  ],
+  [
+    '1001 ascii comment',
+    'low_rating_with_comment',
+    one({ ...details, comment: 'a'.repeat(1001) }),
     false,
   ],
+  ['non-string comment', 'low_rating_with_comment', one({ ...details, comment: 12345 }), false],
   [
     'sentence break comment',
     'low_rating_with_comment',
@@ -103,17 +115,17 @@ const samples: readonly [string, Key, unknown, boolean][] = [
     true,
   ],
 ];
-// فرع لكل نمط رابط في قاعدة التعليق، عشان النسخة المطابقة في الحزمة ما تسقطش نمط من غير ما الاختبار يلاحظ.
+// كل نمط رابط كان مرفوضًا بقاعدة الإرسال بقى مقبولًا هنا: التعليق المخزّن مش بيتفلتر في الجرس، والاتنين لازم يتفقوا.
 const linkComments: readonly [string, boolean][] = [
-  ['open https://x.test now', false],
-  ['mailto:a@b', false],
-  ['go to www.salon', false],
-  ['see //host.test', false],
-  ['![img]', false],
-  ['10.0.0.1/admin', false],
-  ['visit salon.shop', false],
-  ['write me@salon.local', false],
-  ['ftp://files', false],
+  ['open https://x.test now', true],
+  ['mailto:a@b', true],
+  ['go to www.salon', true],
+  ['see //host.test', true],
+  ['![img]', true],
+  ['10.0.0.1/admin', true],
+  ['visit salon.shop', true],
+  ['write me@salon.local', true],
+  ['ftp://files', true],
   ['ok It.Is fine', true],
 ];
 const allSamples = [

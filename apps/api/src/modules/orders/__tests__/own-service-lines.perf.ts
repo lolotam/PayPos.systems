@@ -5,7 +5,9 @@ import {
   tipFixture,
   type TipFixture,
 } from '../../../../test/session-tips.fixture.ts';
-import { measure, type PerfConfig, type Target } from './own-service-lines.measure.ts';
+import type { PerfConfig, Target } from './own-service-lines.measure.ts';
+import { record } from './own-service-lines.dbtime.ts';
+import { measureDiagnostics, measureJudged } from './own-service-lines.phases.ts';
 import {
   bulkVisits,
   cancelColleagueLines,
@@ -24,6 +26,10 @@ export type { PerfConfig } from './own-service-lines.measure.ts';
 const CANCELLED_AT = [50, 250, 450] as const;
 // ويُلغى معها 47 سطراً لزميلاتها بالمسار الحقيقي نفسه، فيحمل جدول الإلغاءات خمسين صفاً في المستأجر الهدف لا ثلاثة.
 const COLLEAGUE_CANCELLATIONS = 47;
+// زميلاتها المزروعون قبل إلغاء الـ47: يكفوا لاختيارهم، وأقل من عتبة autoanalyze (50 + 10% من الصفوف) للجداول الثلاثة.
+const EARLY_COLLEAGUES = 100;
+// محاولات تأسيس الحالة القديمة: autoanalyze بيحلّل الجداول خلال دقيقة تقريباً من الزرع، فتُرفض المحاولة اللي حدث فيها تحليل (بصمة الـANALYZE).
+const MAX_ATTEMPTS = 5;
 
 async function statistics(f: TipFixture, companyId: string) {
   const rows = await f.h
@@ -37,6 +43,13 @@ async function statistics(f: TipFixture, companyId: string) {
     rows.length === 3 && rows.every((row) => !String(row['company_mcv']).includes(companyId));
   return { rows, absent };
 }
+
+// بصمة آخر ANALYZE وautoanalyze للجداول الثلاثة؛ غياب الشركة من قوائم MCV لا يكفي وحده دليلاً على بقاء الإحصاءات قديمة، فقد يجري
+// autoanalyze أثناء الزرع والمستأجر لسه أقل من أن يظهر في القوائم. القبول يشترط تطابق البصمة قبل الزرع وقبل القياس وبعده.
+const stamps = (rows: readonly Record<string, unknown>[]) =>
+  JSON.stringify(
+    rows.map((row) => [row['tablename'], row['last_analyze'], row['last_autoanalyze']]),
+  );
 
 // المرجع المستقل لا يستعمل join ثلاثياً: تحت إحصاءات قديمة يتجاوز ذلك الـjoin مهلة 30 ثانية حتى على اتصال المالك.
 async function oracle(f: TipFixture, s: PerfScope, her: string, config: PerfConfig) {
@@ -61,7 +74,7 @@ async function oracle(f: TipFixture, s: PerfScope, her: string, config: PerfConf
   expect(counts[0]?.['lines']).toBe(config.colleagues + 602);
   expect(own.length).toBe(602);
   const key = (id: string) => `${dayOf.get(must(sessionOf.get(id)))}|${id}`;
-  console.info(
+  record(
     '57-2b fixture',
     JSON.stringify({ own_lines: own.length, own_visits: visits.length, ...counts[0] }),
   );
@@ -78,14 +91,18 @@ async function seedTarget(f: TipFixture, attempt: number, config: PerfConfig): P
       })()
     : await newPerfScope(f, `Synthetic perf target ${attempt}`);
   const her = must(scope.employeeIds[0]);
-  await bulkVisits(f, scope, home ? 599 : 600, [her]);
   const others = scope.employeeIds.slice(1);
-  await bulkVisits(f, scope, home ? config.colleagues : config.colleagues - 1, others);
+  // الإلغاءات الـ47 بالمسار الحقيقي (معاملة لكل واحد) أبطأ جزء في الزرع، فتتم والمستأجر لسه صغير (أقل من عتبة autoanalyze) ثم تدخل الدفعات
+  // الكبيرة بسرعة؛ فالنافذة بين العتبة والقياس المُحكَّم قصيرة. الصفوف والمحتوى نفسهم، والترتيب فقط هو اللي اتغير.
+  const colleagueBulk = home ? config.colleagues : config.colleagues - 1;
+  await bulkVisits(f, scope, EARLY_COLLEAGUES, others);
+  await cancelColleagueLines(f, scope, her, COLLEAGUE_CANCELLATIONS);
+  await bulkVisits(f, scope, colleagueBulk - EARLY_COLLEAGUES, others);
+  await bulkVisits(f, scope, home ? 599 : 600, [her]);
   await secondLines(f, scope, her, 2);
   const ordered = await oracle(f, scope, her, config);
   const cancelled = CANCELLED_AT.map((index) => must(ordered[index]));
   await cancelPerfLines(f, scope, cancelled);
-  await cancelColleagueLines(f, scope, her, COLLEAGUE_CANCELLATIONS);
   return { scope, her, oracle: ordered, cancelled: new Set(cancelled) };
 }
 
@@ -106,27 +123,37 @@ export function perfSuite(config: PerfConfig) {
       await bulkVisits(f, background, config.background, background.employeeIds.slice(1));
     }
     await f.h.owner.unsafe('ANALYZE service_sessions,service_lines,line_performers');
-    for (let attempt = 0; attempt < 3 && target === null; attempt++) {
+    for (let attempt = 0; attempt < MAX_ATTEMPTS && target === null; attempt++) {
+      const baseline = stamps((await statistics(f, '')).rows);
       const candidate = await seedTarget(f, attempt, config);
       const before = await statistics(f, candidate.scope.companyId);
-      if (!before.absent) continue;
-      console.info('57-2b statistics before', JSON.stringify({ attempt, rows: before.rows }));
-      await measure(f, 'stale statistics', candidate, config, violations);
+      if (!before.absent || stamps(before.rows) !== baseline) continue;
+      record('57-2b statistics before', JSON.stringify({ attempt, rows: before.rows }));
+      // المرحلة المُحكَّمة أولاً والإحصاءات لسه قديمة؛ والتحقق منها بعدها مباشرة، قبل التشخيص الطويل بالزمن الكلي.
+      const pages = await measureJudged(f, 'stale statistics', candidate, config, violations);
       const after = await statistics(f, candidate.scope.companyId);
-      console.info('57-2b statistics after', JSON.stringify({ attempt, rows: after.rows }));
-      if (after.absent) target = candidate;
-      else violations.length = 0;
+      record('57-2b statistics after', JSON.stringify({ attempt, rows: after.rows }));
+      if (!after.absent || stamps(after.rows) !== baseline) {
+        violations.length = 0;
+        continue;
+      }
+      target = candidate;
+      await measureDiagnostics(f, 'stale statistics', candidate, config, violations, pages);
+      const last = await statistics(f, candidate.scope.companyId);
+      record('57-2b statistics after diagnostics', JSON.stringify({ attempt, rows: last.rows }));
     }
     expect(target, 'a tenant absent from every MCV list could not be established').not.toBeNull();
     expect(violations).toEqual([]);
   }, 1_800_000);
 
   it('normal statistics: the same fixture after ANALYZE prepared only this run (AC 2, 3)', async () => {
-    const t = must(target);
+    // الحالة العادية لا تعتمد على الحالة القديمة: لو شُغّلت وحدها (تصفية بالاسم) تزرع هدفها بنفسها.
+    const t = target ?? (await seedTarget(f, 99, config));
     await f.h.owner.unsafe('ANALYZE service_sessions,service_lines,line_performers');
     const normal = await statistics(f, t.scope.companyId);
-    console.info('57-2b statistics normal', JSON.stringify(normal.rows));
-    await measure(f, 'normal statistics', t, config, violations);
+    record('57-2b statistics normal', JSON.stringify(normal.rows));
+    const pages = await measureJudged(f, 'normal statistics', t, config, violations);
+    await measureDiagnostics(f, 'normal statistics', t, config, violations, pages);
     expect(violations).toEqual([]);
   }, 1_800_000);
 }

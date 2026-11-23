@@ -1,30 +1,30 @@
-import { Controller, Get, Header, Inject, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Header, Inject, Param, Query, Req } from '@nestjs/common';
 import { id } from '@pospay/contracts';
 import type { TenantWrappers, Tx } from '@pospay/db';
 import type { FastifyRequest } from 'fastify';
 import { Authenticated } from '../../../shared/access.decorators.ts';
-import { actorOf } from '../../../shared/actor.ts';
 import { DATABASE } from '../../../shared/database.token.ts';
 import { ApiError } from '../../../shared/errors.ts';
 import type { Clock } from '../../../shared/ports/clock.port.ts';
-import { SelectedCompanyGuard } from '../../../shared/selected-company.guard.ts';
 import { ZodValidationPipe } from '../../../shared/zod-validation.pipe.ts';
 import { readRatingAverages } from '../queries/rating-averages.query.ts';
+import { readAsMemberOfOpenCompany } from '../queries/ratings-member-read.ts';
 import {
   RATINGS_LIST_READS,
   type RatingsListReads,
   type RatingsListScope,
 } from '../queries/ratings-list-reads.ts';
 import { readRatingsList } from '../queries/ratings-list.query.ts';
+import { selectedCompanyOf } from './ratings-company.ts';
 
 export const RATINGS_LIST_CLOCK = Symbol('RATINGS_LIST_CLOCK');
 
 /**
  * قراءة التقييمات للمديرين: القرار بيعتمد على دور المستخدم الحالي ونطاقه فالمسار `@Authenticated()`،
- * والفحص والصفحة في معاملة قراءة واحدة بلقطة ثابتة (CLAUDE.md §6، T8).
+ * وإثبات العضوية والشركة المفتوحة والفحص والصفحة في معاملة قراءة واحدة بلقطة ثابتة (CLAUDE.md §6، T8)؛ فمفيش
+ * SelectedCompanyGuard هنا لأنه كان بيفتح معاملة لوحده قبل معاملة القراءة.
  */
 @Controller()
-@UseGuards(SelectedCompanyGuard)
 export class RatingsController {
   constructor(
     @Inject(DATABASE) private readonly database: TenantWrappers | null,
@@ -64,12 +64,9 @@ export class RatingsController {
     run: (tx: Tx, context: RatingsListScope, now: Date) => Promise<T>,
   ): Promise<T> {
     if (this.database === null) throw new ApiError('NOT_READY');
-    const actor = actorOf(request);
-    const context = { ...actor, businessId: businessId.toLowerCase() };
+    const who = selectedCompanyOf(request);
+    const context = { ...who, businessId: businessId.toLowerCase() };
     const now = this.clock.now();
-    return this.database.withTenant(actor.companyId, (tx) => run(tx, context, now), {
-      userId: actor.userId,
-      readOnly: true,
-    });
+    return readAsMemberOfOpenCompany(this.database, who, (tx) => run(tx, context, now));
   }
 }

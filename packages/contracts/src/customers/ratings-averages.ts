@@ -3,11 +3,17 @@ import { z } from 'zod';
 import { responseObject } from '../response-object.js';
 import { id } from '../scalars/id.js';
 
-import { periodInstant, periodIsValid } from './ratings-period.js';
+import {
+  monthExcludesRange,
+  periodInstant,
+  periodIsValid,
+  ratingsMonth,
+} from './ratings-period.js';
 
 /**
  * فلاتر متوسطات التقييم في الأدمن: نفس فلاتر القائمة بدون المؤشر والحد. `from` شاملة و`to` حصرية على `submitted_at`،
  * ولو الاتنين غايبين الفترة هي الشهر الميلادي الحالي بتوقيت النشاط (D-B12)، ولو واحد منهم موجود الفترة مفتوحة من الناحية التانية.
+ * `month` (`YYYY-MM`) بديل عن الاتنين: الشهر الميلادي ده بتوقيت النشاط، ومش بيتجمع مع `from`/`to` (D-B12).
  */
 export const ratingAveragesQuery = z
   .strictObject({
@@ -15,8 +21,13 @@ export const ratingAveragesQuery = z
     employee_id: id.optional(),
     from: periodInstant.optional(),
     to: periodInstant.optional(),
+    month: ratingsMonth.optional(),
   })
-  .refine(periodIsValid, { message: 'from must be before to', path: ['from'] });
+  .refine(periodIsValid, { message: 'from must be before to', path: ['from'] })
+  .refine(monthExcludesRange, {
+    message: 'month cannot be combined with from or to',
+    path: ['month'],
+  });
 export type RatingAveragesQuery = z.infer<typeof ratingAveragesQuery>;
 
 /**

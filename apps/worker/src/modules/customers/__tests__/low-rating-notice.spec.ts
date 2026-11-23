@@ -99,6 +99,23 @@ it('BR-B4/RT-Q17: the comment reaches readers as written and the DENY-holder get
   expect(await f.notices(row.ratingId)).toMatchObject([{ recipient_count: 3 }]);
 });
 
+it('RT-Q17: a stored comment the current public rule would refuse (link, markup, control character) still reaches readers as written and the notice is not suppressed', async () => {
+  const written = 'see https://salon.example/x <b>bad</b>\u0007 [x](y)';
+  const row = await f.rating(2, written);
+  expect(await f.deliver(await f.event(row))).toEqual({ delivered: true });
+  const events = await f.received(row.ratingId);
+  expect(events).toHaveLength(2);
+  const [withComment, plain] = events.map((event) => lowRatingReceived.parse(event['payload']));
+  expect(withComment?.notification_recipients.map((r) => [r.user_id, r.template_key])).toEqual(
+    sorted(f.users.owner, f.users.holder).map((id) => [id, 'low_rating_with_comment']),
+  );
+  expect(withComment?.notification_recipients[0]?.safe_parameters[0].value).toMatchObject({
+    comment: written,
+  });
+  expect(plain?.notification_recipients.map((r) => r.template_key)).toEqual(['low_rating']);
+  expect(await f.notices(row.ratingId)).toMatchObject([{ recipient_count: 3 }]);
+});
+
 it('a redelivered event and a replayed handler make no second ledger row or notice', async () => {
   const row = await f.rating(2);
   const input = await f.event(row);

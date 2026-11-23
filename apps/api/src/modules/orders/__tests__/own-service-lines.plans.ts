@@ -37,6 +37,7 @@ export function planViolations(
   label: string,
   plans: Planned,
   page: { names: boolean; cancelled: boolean },
+  tolerance: { cancellationsAnalysed?: boolean } = {},
 ) {
   const found: string[] = [];
   const expected = statementsFor(page);
@@ -49,12 +50,14 @@ export function planViolations(
     );
   for (const { statement, plan } of plans) {
     const all = nodes(plan);
-    if (readsCancellations(all) && !/company_id/.test(indexConditions(all)))
+    // جدول الإلغاءات الصغير بعد ما autovacuum يحلّله يختار له المخطط Seq Scan بحق؛ فالفحصان على جملته (Index Cond وSeq Scan) يتعفيان وقتها بس.
+    const exempt = tolerance.cancellationsAnalysed === true && readsCancellations(all);
+    if (readsCancellations(all) && !exempt && !/company_id/.test(indexConditions(all)))
       found.push(`${label}: no company_id Index Cond in ${flat(statement)}`);
     if (all.some((node) => /Join|Nested Loop/.test(node['Node Type'])))
       found.push(`${label}: join in ${flat(statement)}`);
     const scans = all.filter((node) => TABLES.includes(node['Relation Name'] ?? ''));
-    if (scans.some((node) => node['Node Type'] === 'Seq Scan'))
+    if (!exempt && scans.some((node) => node['Node Type'] === 'Seq Scan'))
       found.push(`${label}: sequential scan in ${flat(statement)}`);
     if (scans.some((node) => (node['Actual Loops'] ?? 1) !== 1))
       found.push(`${label}: repeated scan in ${flat(statement)}`);
