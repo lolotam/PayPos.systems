@@ -17,6 +17,10 @@ vi.mock(
   async () => (await import('./frames/frame-test-support')).visibleMock,
 );
 vi.mock(
+  './menu/use-visibility-settled',
+  async () => (await import('./frames/frame-test-support')).settledMock,
+);
+vi.mock(
   '@/workspace/model/workspace-provider',
   async () => (await import('./dashboard-mocks')).dashboardWorkspaceMock,
 );

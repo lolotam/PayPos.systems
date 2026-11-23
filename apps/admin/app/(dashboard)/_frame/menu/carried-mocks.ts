@@ -14,7 +14,10 @@ export const carriedState = {
 export const carriedApi = { GET: vi.fn() };
 
 export const apiClientMock = { apiClient: () => carriedApi };
-export const sessionUserMock = { useSessionUser: () => carriedState.userId };
+export const sessionUserMock = {
+  useSessionUser: () => carriedState.userId,
+  useSessionIdentity: () => ({ userId: carriedState.userId, status: 'settled' as const }),
+};
 export const workspaceReadMock = { useWorkspace: () => carriedState.workspace };
 
 export function readyWorkspace(withBusiness = true, id = REF): WorkspaceController {

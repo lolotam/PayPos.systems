@@ -42,6 +42,7 @@ export const frameState = {
   push: vi.fn(setPathname),
   replace: vi.fn(setPathname),
   params: {} as Record<string, string>,
+  settled: true,
   workspace: undefined as WorkspaceController | undefined,
 };
 
@@ -88,6 +89,8 @@ export const localeMock = {
   useLocaleController: () => ({ locale: frameState.locale, setLocale: () => undefined }),
 };
 export const visibleMock = { useVisiblePageIds: () => frameState.visible };
+/** هل استقرت قراءات الظهور؛ الاختبارات التي لا تهمها هذه القراءات تتركها true. */
+export const settledMock = { useVisibilitySettled: () => frameState.settled };
 export const workspaceMock = { useWorkspace: () => frameState.workspace };
 export const sessionMock = {
   useSessionAccount: () => ({ id: 'user-1', name: 'Sara Ali', email: 'sara@example.test' }),
@@ -192,6 +195,7 @@ export function resetFrameState(): void {
   window.history.replaceState(null, '', window.location.pathname);
   frameState.locale = 'en';
   frameState.params = {};
+  frameState.settled = true;
   frameState.push.mockReset();
   frameState.push.mockImplementation(setPathname);
   frameState.replace.mockReset();
