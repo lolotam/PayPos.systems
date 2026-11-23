@@ -10,6 +10,10 @@ import {
 } from './employee-numbers.ts';
 import { MigrationRoleRefusedError, rekeyEmployeeNameKeys } from './employee-name-keys.ts';
 import {
+  cleanStatementAlertRoles,
+  StatementAlertRolesRoleRefusedError,
+} from './statement-alert-roles.ts';
+import {
   discoverRatingClaims,
   RatingDiscoveryRoleRefusedError,
 } from './rating-claims-discovery.ts';
@@ -35,7 +39,8 @@ export function sanitizedStepError(step: string, error: unknown): Error {
     error instanceof MigrationRoleRefusedError ||
     error instanceof RatingDiscoveryRoleRefusedError ||
     error instanceof EmployeeNumbersRoleRefusedError ||
-    error instanceof EmployeeNumbersExhaustedError
+    error instanceof EmployeeNumbersExhaustedError ||
+    error instanceof StatementAlertRolesRoleRefusedError
   )
     return error;
   const codeOf = (value: unknown): unknown =>
@@ -68,6 +73,22 @@ export function migrationDataSteps(
         );
       } catch (error) {
         throw sanitizedStepError('employee-numbers', error);
+      } finally {
+        await app.close();
+      }
+    },
+    'statement-alert-roles': async (owner: postgres.Sql): Promise<void> => {
+      const ids = systemUuidV7();
+      const app = createDatabase({
+        url: appDatabaseUrl(ownerUrl, appPassword),
+        ids,
+        maxConnections: 1,
+      });
+      try {
+        const { companies, read, cleaned } = await cleanStatementAlertRoles(owner, app, ids);
+        console.log(`companies=${companies} read=${read} cleaned=${cleaned}`);
+      } catch (error) {
+        throw sanitizedStepError('statement-alert-roles', error);
       } finally {
         await app.close();
       }

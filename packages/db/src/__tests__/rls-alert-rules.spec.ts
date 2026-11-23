@@ -81,6 +81,7 @@ it('names every constraint', async () => {
     'alert_rules_pkey',
     'alert_rules_recipient_roles',
     'alert_rules_revision',
+    'alert_rules_statement_roles',
     'alert_rules_updated_by_user_id_fk',
   ]);
 });
