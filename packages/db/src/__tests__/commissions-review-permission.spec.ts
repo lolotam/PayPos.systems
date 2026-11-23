@@ -105,7 +105,7 @@ async function grantedRoles(): Promise<readonly string[]> {
 /** جمل ملف الـ migration كما هو، مقسومة على فواصل drizzle. */
 function migrationStatements(): readonly string[] {
   const directory = resolve('migrations');
-  const file = readdirSync(directory).find((name) => name.startsWith('0245_'));
+  const file = readdirSync(directory).find((name) => name.endsWith('_review-commissions-permission.sql'));
   if (file === undefined) throw new Error('the review permission migration file is missing');
   return readFileSync(resolve(directory, file), 'utf8')
     .split('--> statement-breakpoint')
