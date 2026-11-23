@@ -23,6 +23,8 @@ jobs:
     timeout-minutes: 5
     outputs:
       code: ${{ steps.diff.outputs.code }}
+      package-groups: ${{ steps.diff.outputs.package-groups }}
+      timing-control: ${{ steps.diff.outputs.timing-control }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -37,6 +39,8 @@ jobs:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.sha }}
+          HEAD_BRANCH: ${{ github.head_ref }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
           code=true
           files="$(mktemp)"
@@ -53,6 +57,14 @@ jobs:
             done < "$files"
           fi
           echo "code=$code" >> "$GITHUB_OUTPUT"
+          # Temporary paired benchmark: first attempt is the control, reruns use the candidate.
+          if [ "$EVENT" = "pull_request" ] && [ "$HEAD_BRANCH" = "ci/parallel-packages-weighted-api" ] && [ "$RUN_ATTEMPT" = "1" ]; then
+            echo 'timing-control=true' >> "$GITHUB_OUTPUT"
+            echo 'package-groups=["all"]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'timing-control=false' >> "$GITHUB_OUTPUT"
+            echo 'package-groups=["admin","pos","libraries"]' >> "$GITHUB_OUTPUT"
+          fi
 
   check:
     name: typecheck · lint · test · lint:docs
@@ -176,11 +188,15 @@ jobs:
   # Package integration · RLS negative · EXPLAIN, moved out of `check` into its own job.
   # It starts alongside the static gates and app test shards.
   packages-tests:
-    name: integration · packages
+    name: integration · packages / ${{ matrix.group }}
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        group: ${{ fromJSON(needs.changes.outputs.package-groups) }}
     # Per-task duration and cache status for the telemetry report; it does not change any task hash.
     env:
       TURBO_RUN_SUMMARY: 'true'
@@ -215,13 +231,25 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .turbo/cache
-          key: turbo-${{ runner.os }}-packages-${{ github.sha }}
+          key: turbo-${{ runner.os }}-packages-${{ matrix.group }}-${{ github.sha }}
           restore-keys: |
+            turbo-${{ runner.os }}-packages-${{ matrix.group }}-
             turbo-${{ runner.os }}-packages-
             turbo-${{ runner.os }}-
 
       - name: integration · RLS negative · EXPLAIN (packages)
-        run: pnpm turbo run test --filter=!@pospay/domain --filter=!@pospay/api --filter=!@pospay/worker
+        env:
+          PACKAGE_GROUP: ${{ matrix.group }}
+        run: |
+          case "$PACKAGE_GROUP" in
+            all) pnpm turbo run test --filter=!@pospay/domain --filter=!@pospay/api --filter=!@pospay/worker ;;
+            admin) pnpm turbo run test --filter=@pospay/admin ;;
+            pos) pnpm turbo run test --filter=@pospay/pos ;;
+            libraries)
+              pnpm turbo run test --filter=!@pospay/admin --filter=!@pospay/pos \
+                --filter=!@pospay/domain --filter=!@pospay/api --filter=!@pospay/worker ;;
+            *) exit 1 ;;
+          esac
 
       # With `continue-on-error`, a telemetry failure shows as step `outcome: failure` while its
       # `conclusion` is `success`, so the gate steps alone decide the job.
@@ -235,7 +263,7 @@ jobs:
           CI_TELEMETRY_PNPM_VERSION="$(pnpm --version 2>/dev/null || true)"
           CI_TELEMETRY_CHECKOUT_SHA="$(git rev-parse HEAD)"
           export CI_TELEMETRY_PNPM_VERSION CI_TELEMETRY_CHECKOUT_SHA
-          node scripts/ci-telemetry/cli.mjs --label packages-tests --turbo-runs .turbo/runs --out "$RUNNER_TEMP/ci-telemetry"
+          node scripts/ci-telemetry/cli.mjs --label packages-tests-${{ matrix.group }} --turbo-runs .turbo/runs --out "$RUNNER_TEMP/ci-telemetry"
 
       # Best-effort: a hard cancel can skip it, so an artifact is not guaranteed.
       - name: telemetry · upload
@@ -243,7 +271,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: ci-telemetry-packages-tests-${{ github.run_attempt }}
+          name: ci-telemetry-packages-tests-${{ matrix.group }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/ci-telemetry/
           retention-days: 14
           if-no-files-found: warn
@@ -302,7 +330,13 @@ jobs:
         run: pnpm turbo run build --filter=@pospay/api... --filter=@pospay/worker...
 
       - name: api integration · RLS negative · EXPLAIN (shard ${{ matrix.shard }}/8)
-        run: pnpm --filter @pospay/api exec vitest run --shard=${{ matrix.shard }}/8
+        env:
+          TIMING_CONTROL: ${{ needs.changes.outputs.timing-control }}
+          API_SHARD: ${{ matrix.shard }}/8
+        run: |
+          args=(--shard="$API_SHARD")
+          if [ "$TIMING_CONTROL" != "true" ]; then args+=(--config vitest.ci.config.ts); fi
+          pnpm --filter @pospay/api exec vitest run "${args[@]}"
 
       # With `continue-on-error`, a telemetry failure shows as step `outcome: failure` while its
       # `conclusion` is `success`, so the gate steps alone decide the job.
@@ -694,7 +728,17 @@ jobs:
   gate:
     name: ci-gate
     needs:
-      [changes, check, packages-tests, api-tests, worker-tests, build, images, admin-document-popup, navigation-components-browser]
+      [
+        changes,
+        check,
+        packages-tests,
+        api-tests,
+        worker-tests,
+        build,
+        images,
+        admin-document-popup,
+        navigation-components-browser,
+      ]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 2
