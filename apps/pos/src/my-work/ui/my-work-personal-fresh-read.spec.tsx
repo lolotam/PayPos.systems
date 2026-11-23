@@ -7,15 +7,20 @@ import { MyWorkScreen } from './my-work-screen';
 import { fullLine, linesPage, visibleRating, visibleTips } from './work-fixtures';
 import { installFetch, json, renderWork, replaceFetch } from './work-test-kit';
 
-const context: WorkContext = { mode: 'personal', identity: '0:user:employee:2026-12-01' };
+// الشاشة بتقرأ تحت مفاتيح زيارتها هي؛ هنا بنثبّت رقم الزيارة عشان نزرع «كاش زيارة سابقة» تحت نفس المفاتيح
+// اللي هتقرأ منها فعلاً، ونثبت إن إثبات القراءة لوحده بيمنع عرضه (حتى لو مفتاحه اتشارك).
+const SCOPE = vi.hoisted(() => ['my-work', '0:user:employee:2026-12-01', 0] as const);
+vi.mock('../api/use-mount-scope', () => ({ useMountScope: () => SCOPE }));
+
+const context: WorkContext = { mode: 'personal', identity: SCOPE[1] };
 const label = (key: Parameters<typeof t>[1]) => t('en', key);
 type Reply = Response | Promise<Response>;
 
-/** الكاش بيحتفظ بقراءات «زيارة سابقة» بنفس المفاتيح: خدمة، إكرامية، وتقييم باسماء ومبالغ نقدر نتعرف عليها. */
+/** الكاش بيحتفظ بقراءات «زيارة سابقة» تحت نفس مفاتيح الزيارة: خدمة، إكرامية، وتقييم باسماء ومبالغ نقدر نتعرف عليها. */
 function earlierVisit() {
   const client = new QueryClient();
   const seed = (suffix: unknown[], data: unknown) =>
-    client.setQueryData(['my-work', context.identity, ...suffix], data);
+    client.setQueryData([...SCOPE, ...suffix], data);
   seed(['lines', 'current'], {
     pages: [linesPage([{ ...fullLine, service_name_en: 'Seeded service' }], null, '2026-11')],
     pageParams: [undefined],

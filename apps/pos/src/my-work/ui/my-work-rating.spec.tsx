@@ -48,8 +48,11 @@ it('RT-24 shows her average and the number of ratings for the month inside the p
   expect(screen.queryByText(label('myWork.ratingNone'))).toBeNull();
   expect(fetched.paths('/rating-summary').length).toBe(1);
   expect(fetched.paths('/rating-summary')[0]?.headers.get('x-private-view-window-id')).toBeNull();
-  const key = ['my-work', personal.identity, 'rating-summary'];
-  expect(client.getQueryCache().findAll({ queryKey: key })).toHaveLength(1);
+  const ratings = client
+    .getQueryCache()
+    .findAll({ queryKey: ['my-work', personal.identity] })
+    .filter((query) => query.queryKey.includes('rating-summary'));
+  expect(ratings).toHaveLength(1);
   expect(localStorage.length).toBe(0);
 });
 
