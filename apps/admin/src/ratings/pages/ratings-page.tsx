@@ -3,9 +3,10 @@
 import type { WorkspaceBusinessRead } from '@pospay/contracts';
 import { t } from '@pospay/i18n';
 import { PageHeader } from '@pospay/ui';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { readAccessProof } from '@/shared/api/read-access-proof';
 import { useLocale } from '@/shared/locale/locale-context';
+import { ratingsKey } from '../api/ratings-client';
 import { useRatingAverages } from '../api/use-rating-averages';
 import { useRatingsList } from '../api/use-ratings-list';
 import {
@@ -44,7 +45,11 @@ export function RatingsPage({
     listRange(filters, month),
     employeeId,
   );
-  const gate = useRatingsGate(averages, list);
+  const scope = useMemo(
+    () => ratingsKey(companyId, userId, business.id),
+    [companyId, userId, business.id],
+  );
+  const gate = useRatingsGate(scope, averages, list);
   const open = gate === 'open';
   // شهر مجهول بعد فشل المتوسطات: القائمة ما بتقرأش، وخطأ المتوسطات هو اللي بيتعرض.
   const listWaiting = month === null && readAccessProof(averages) !== 'pending';
