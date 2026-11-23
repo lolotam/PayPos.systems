@@ -9,7 +9,7 @@ Row 7's release is delivered in two PRs. Waleed, card of 2026-11-23, Â«074-7b (Ø
 - **7b (this slice):** the release itself with all its tests, including the hide-condition assertions carried over from the old menu specs. The old menu files stay in the repository, unmounted and untouched. Tier Medium. Estimate 1,900 added plus removed lines of code and tests; cap 4,500 (PP-224); fixes requested by reviews may go up to 6,750 without a new card (PP-237 as applied on this card); beyond that it returns to the owner.
 - **7c (next slice, right after 7b merges):** removes the unmounted files and their specs. Estimate 1,600, cap 3,200 (PP-237).
 
-The PP number of this answer is assigned by the manager and added here when known.
+This answer is recorded as PP-240 in `docs/owner-decisions.ar.md`.
 
 ## What changes for a user
 

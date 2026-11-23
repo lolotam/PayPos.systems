@@ -233,3 +233,20 @@ describe('reaching a page behind More on a phone in style A', () => {
     expect(frameState.pathname).toBe('/appearance');
   });
 });
+
+describe('the workspace switcher that the browser tests open', () => {
+  // الأسلوب B يرسم قبل المبدّل أزرار وحدات تفتح حوارات بنص أيضًا، فمحدد الاختبارات يخص C (الافتراضي) وA.
+  it.each(['A', 'C'] as const)(
+    'in style %s, the first dialog button with text opens the Workspaces dialog with a Company field',
+    (style) => {
+      renderDashboard(page(), style);
+      const trigger = [...document.querySelectorAll('button[aria-haspopup="dialog"]')].find(
+        (button) => (button.textContent ?? '').trim() !== '',
+      );
+      expect(trigger?.textContent).toContain('Synthetic business');
+      fireEvent.click(trigger as Element);
+      const dialog = screen.getByRole('dialog', { name: label('adminNav.workspacesLabel') });
+      expect(within(dialog).getByRole('combobox', { name: label('admin.companyLabel') })).toBeTruthy();
+    },
+  );
+});

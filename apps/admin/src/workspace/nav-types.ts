@@ -120,6 +120,11 @@ interface LiveNavigationPageEntry extends BaseNavigationPageEntry {
   readonly visible: NavigationVisibilityCondition;
   /** المعرّف المنشور سابقًا تحت /soon/، حتى لو صارت الصفحة فرعية أو مضمّنة (FR-023). */
   readonly formerSoonId?: string;
+  /**
+   * أدوار تحصر ظهور المدخل الحي في القوائم وباحث الصفحات؛ الغياب يعني كل الأدوار.
+   * مدخل صار مبنيًا يحتفظ بجمهوره المحدد في خريطة التطبيق (BR-006، BR-007) ولا يتسع بالبناء.
+   */
+  readonly roles?: readonly [NavigationRoleCode, ...NavigationRoleCode[]];
 }
 
 /** صفحة حية لها مسار فعلي مبني في apps/admin/app اليوم. */

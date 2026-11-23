@@ -50,6 +50,7 @@ export const WORKSPACE_NAV_PAGES: readonly NavigationPageEntry[] = [
     descriptionKey: 'adminNav.approvalsInboxLead',
     icon: 'Inbox',
     visible: 'always',
+    roles: OPS_MANAGERS,
     state: 'live',
     count: 'approvals-inbox',
     section: 'home',
