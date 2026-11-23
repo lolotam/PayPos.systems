@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from 'node:fs';
+
 import { systemUuidV7 } from '@pospay/ids';
 import postgres from 'postgres';
 import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest';
@@ -15,6 +17,14 @@ const ids = systemUuidV7();
 const { A, B } = TENANT;
 const REVIEW = 'STATEMENT_AWAITING_REVIEW';
 const APPROVAL = 'STATEMENT_AWAITING_APPROVAL';
+const CHECK = 'alert_rules_statement_roles';
+const MIGRATIONS = new URL('../../migrations/', import.meta.url);
+
+const migrationSql = (suffix: string): string => {
+  const file = readdirSync(MIGRATIONS).find((name) => name.endsWith(suffix));
+  if (file === undefined) throw new Error(`migration ${suffix} is missing`);
+  return readFileSync(new URL(file, MIGRATIONS), 'utf8');
+};
 
 beforeAll(async () => {
   testDb = await createTestDatabase();
@@ -153,4 +163,27 @@ it('refuses a migration role with no isolation bypass before reading anything', 
   } finally {
     await restricted.end();
   }
+});
+
+it('closes the race: once 0245 is applied a forbidden write is refused, then the step and 0246 validate cleanly', async () => {
+  const legacy = await insertRule(A, APPROVAL, ['owner', 'branch_manager']);
+  await owner.unsafe(migrationSql('_statement-alert-roles-check.sql'));
+  const [pending] = await owner<{ convalidated: boolean }[]>`
+    SELECT convalidated FROM pg_constraint WHERE conname = ${CHECK} AND conrelid = 'alert_rules'::regclass`;
+  expect(pending).toEqual({ convalidated: false });
+  const refused = { code: '23514', constraint_name: CHECK };
+  await expect(insertRule(A, REVIEW, ['branch_manager'])).rejects.toMatchObject(refused);
+  await expect(
+    owner`UPDATE alert_rules SET enabled = false WHERE id = ${legacy}`,
+  ).rejects.toMatchObject(refused);
+  expect(await cleanStatementAlertRoles(owner, app, ids)).toEqual({
+    companies: 2,
+    read: 1,
+    cleaned: 1,
+  });
+  await owner.unsafe(migrationSql('_statement-alert-roles-validate.sql'));
+  const [validated] = await owner<{ convalidated: boolean }[]>`
+    SELECT convalidated FROM pg_constraint WHERE conname = ${CHECK} AND conrelid = 'alert_rules'::regclass`;
+  expect(validated).toEqual({ convalidated: true });
+  expect(await ruleOf(legacy)).toEqual({ recipient_roles: ['owner'], revision: 2 });
 });
