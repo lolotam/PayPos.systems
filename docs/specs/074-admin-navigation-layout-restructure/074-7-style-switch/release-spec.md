@@ -1,0 +1,81 @@
+# 074-7b — The switch goes live: delivery spec and plan
+
+Parent: [`spec.md`](../spec.md) (User Stories 1, 2 and 5, «Edge Cases», «Test plan»), [`design.md`](../design.md) §4 to §7, [`pr-sequence.md`](../pr-sequence.md) row 7, [`app-map.md`](../app-map.md). Built on: [`spec.md`](./spec.md) and [`plan.md`](./plan.md) of this folder (7a, what exists and its notes) and [`fix-spec.md`](./fix-spec.md) (7a-fix). Where this file is silent, those decide.
+
+## Owner decision
+
+Row 7's release is delivered in two PRs. Waleed, card of 2026-11-23, «074-7b (إصدار الستايلات الثلاثة) نسلّمه إزاي؟», answer verbatim **«PR-ين: 7b ثم 7c (Recommended)»**. This amends PP-224, which put the removal of the old menu files inside 7b.
+
+- **7b (this slice):** the release itself with all its tests, including the hide-condition assertions carried over from the old menu specs. The old menu files stay in the repository, unmounted and untouched. Tier Medium. Estimate 1,900 added plus removed lines of code and tests; cap 4,500 (PP-224); fixes requested by reviews may go up to 6,750 without a new card (PP-237 as applied on this card); beyond that it returns to the owner.
+- **7c (next slice, right after 7b merges):** removes the unmounted files and their specs. Estimate 1,600, cap 3,200 (PP-237).
+
+The PP number of this answer is assigned by the manager and added here when known.
+
+## What changes for a user
+
+After 7b every Admin page is drawn inside one of three frames. The default is C (rail and panel). The user picks A, B or C on the Appearance page or in the account menu, and the frame changes at once without a reload and without changing the address. A reload draws the chosen style first, with no other style shown before it. The menu names the whole Management area: built pages open, not-built entries carry the «Soon» mark and open an Under development page. Home gains a working Approvals inbox. The Authenticator page is drawn inside the frame. The theme switch leaves the sidebar footer and lives on Appearance and in the account menu (ADR-0059 addendum, NAV-Q5).
+
+Until step 12 the choice is kept on the device for the signed-in session only: sign-out clears it and every sign-in clears it, so a user starts on C after each sign-in (NAV-Q12 accepted that saving on the account follows).
+
+## In scope
+
+1. **Mount by style.** `app/(dashboard)/layout.tsx` (server) reads the style with `readRequestNavStyle()` and hands it to the client shell as the initial value of `NavStyleProvider`. `DashboardFrame` draws `StyleAFrame`, `StyleBFrame` or `StyleCFrame` for the current style around the page. Kept from today's `dashboard-frame.tsx`, exactly: the session-error alert above the page, the `allowsLinkedWorkspace` rule for `/orders/customers/[id]/packages`, the `WorkspaceBody` gate around page content, and the `NotificationBell` key and props. `DashboardSidebar` is no longer mounted.
+2. **Pages that need no workspace.** `/appearance` and `/security/two-factor` render for a signed-in user whose workspace is loading, empty, in error or not chosen: they bypass the `WorkspaceBody` gate (a named rule next to `allowsLinkedWorkspace`, not a second gate). The frame itself already draws with no workspace.
+3. **Route files**, each a thin re-export of a `_frame/*-route.tsx` component in the existing pattern:
+   - `/appearance` → `AppearancePage` with the style and setter from `useNavStyle()`.
+   - `/approvals` → the approvals inbox (`menu/approvals-inbox-host.tsx` becomes or feeds the route component).
+   - `/overview/[group]` → `GroupOverviewPage`.
+   - `/soon/[page]` → `UnderDevelopmentPage`.
+   - `/security/two-factor` moves to `app/(dashboard)/security/two-factor/page.tsx`, same address, drawn inside the frame with its account-menu entry current. Its gate is kept: an anonymous visitor is redirected to `/login` and a session read error shows the unavailable screen, as today (the layout's `SessionGate` already does both; do not read the session twice).
+4. **Address rules** (the workspace and the visibility reads resolve on the client, so while they load the page shows the loading status and neither redirects nor shows not-found):
+   - `/overview/<group>`: the group exists in the current style and has a page the user may see → the overview. The group belongs to another style, or the style was just switched → replace the address with the first page of that group the user may see. Unknown group, or nothing visible in it → Home.
+   - `/soon/<page>`: unknown id → the app's not-found page. A built entry → forward to its real address if the user may see it, otherwise not-found. A not-built entry hidden from this business type or role → not-found. Otherwise the Under development page with the entry's name.
+5. **Model.** `/appearance` and `/approvals` become `live` in the page list; `navigation-model.spec.ts` is updated for it. The shared map source `app-map.shared.mjs` is changed to match and both generated `app-map.md` outputs are regenerated by the existing script (never by hand). Report it so the manager opens the matching docs PR in `lolotam/lovable-pospay`.
+6. **Device choice at sign-in and sign-out.** Sign-out clears the cookie after the server confirmed the sign-out, before leaving. Both sign-in paths (password, and the TOTP second step) clear it before entering the dashboard. `src/` may not import from `app/`: the cookie name and `clearNavStyleCookie` move beside `src/shared/locale` (for example `src/shared/nav-style/`), with no business type in that file; the writer, the provider and the server reader stay in `_frame/nav-style/` and import the name. **Auth fence:** in `src/session/**` the only change is the call that clears the cookie. Any other change to the gate, the session calls or the sign-in flow means stop and report, because it changes the tier.
+7. **Carried assertions.** Before any old menu file can be removed in 7c, every hide-condition and active-item assertion of the eleven `*-nav-item.spec.tsx` files, `staff-navigation.spec.tsx` and `dashboard-account.spec.tsx` has an equivalent test against the model, the visibility hook or a frame. The five nav items with no spec (`attendance-actions`, `attendance-statement`, `catalog`, `company-employee-numbers`, `package-sale`) get their conditions from their code. The implementation notes carry a table: old assertion → new test (file and name), or «already covered by» with the test name. The old spec files are not edited and stay green.
+8. **Suspense.** The frames call `useSearchParams`. The dashboard layout is dynamic (`SessionGate` reads `cookies()`), so no boundary should be needed; the CI production build is the check. If Next requires a boundary, add one whose fallback cannot show another style or an empty frame flash, and say what you did.
+9. **Docs in the same PR.** `pr-sequence.md` (the 7b/7c split); ADR-0059 addendum line saying the relocation shipped; a journey file for choosing a style in `docs/journey/` in Arabic and English with the README index (PP-196.4); implementation notes in this file.
+
+## Not in this PR
+
+Removing or editing any `*-nav-item.tsx`, `staff-navigation.tsx`, `dashboard-navigation.tsx`, `dashboard-sidebar.tsx`, `dashboard-account.tsx`, `src/shared/frame/app-frame.tsx` or their specs (7c); the two commission page specs that import `CommissionPlansNavItem` (7c); saving the choice on the account, the delayed-save and failed-account-read tests of the parent test plan (step 12); Employee detail (10b), Schedule settings and branch pickers (11b); the Next `Link` prefetch slot (#1227, open); the offline states of the approvals inbox (#1239, open); any `packages/ui` change unless a defect blocks mounting (listed with its reason); any colour, font, radius or button-variant change; any API, contract, migration, permission or dependency change.
+
+## Acceptance
+
+Rendered tests assert what a user or a screen reader gets, in LTR and RTL where direction matters.
+
+1. Default is C; a missing, empty or unknown stored value shows C; the server-rendered frame matches the stored choice (a test of the layout or shell with each initial value).
+2. One test per style: the visible current item on a real route, through the mounted `DashboardFrame`.
+3. Switching style from Appearance and from the account menu changes the visible frame, keeps the address, does not reload, and writes the cookie.
+4. A user with no permissions, and a user with no ready workspace, can open Appearance and switch.
+5. Sign-out clears the device choice only after a successful sign-out; a failed sign-out keeps it. Each sign-in path clears it before entering the dashboard; the next user starts on C.
+6. `/overview/<group>` and `/soon/<page>`: every branch of rule 4 above, including the loading state, a style switch while on an overview only the old style has, a restaurant-only entry after the workspace changes to a salon (menu, page finder and direct link), and a built entry's old `/soon/...` address.
+7. The Approvals inbox route lists each kind the user may see and opens its page.
+8. The Authenticator page is drawn inside the frame with its entry current; the anonymous redirect and the unavailable screen still apply.
+9. At 390px, style A: a page in a section behind More is reached in three taps from another section.
+10. The session-error alert, the linked-workspace rule and the notification bell behave as on `main` (carry or keep their existing tests).
+11. The carried-assertion table is complete (requirement 7), and every old spec still passes unchanged.
+12. `navigation-model.spec.ts` passes with `/appearance` and `/approvals` live; label keys exist in `ar` and `en`.
+13. `pnpm typecheck`, `pnpm lint`, `pnpm lint:docs`, `pnpm module-map:check`, `pnpm --filter @pospay/admin test`, and `pnpm --filter @pospay/ui test` / `@pospay/i18n test` if touched. CI: `ci-gate`, `build` and `admin document popup · production browser` on the exact head. Read every `apps/admin/e2e/*.pw.ts` first and report any selector that depends on the old sidebar.
+
+Tests do not import production constants to assert against them, do not name a constant «token» or «secret», keep one React component per file (helpers included) and 60 lines per function.
+
+## Real-browser pass
+
+Nothing built since 074-4-6 has been seen in a browser, and this PR turns it on for every user. The checks collected on issue #1192 are a release condition. They run on the first complete delivery of this branch, before the PR's bot rounds, by the owning session; the implementer does not run Playwright locally. List in your report anything you expect that pass to find.
+
+## Plan
+
+1. Read: this file, 7a `spec.md` and `plan.md` notes, `fix-spec.md` notes, `dashboard-frame.tsx`, `workspace-body.tsx`, the three frames, `nav-style/*`, the four page components, `use-sign-in.ts`, `use-verify-totp.ts`, `use-sign-out.ts`, `apps/admin/e2e/*.pw.ts`.
+2. Cookie move and sign-in/sign-out calls, with tests.
+3. Mount by style in the layout, shell and frame; the no-workspace rule; tests 1 to 4 and 10.
+4. Routes and address rules; tests 6 to 8.
+5. Model, map source and generated maps.
+6. Carried assertions and their table.
+7. Docs, gates, guards (`clean-code-guard`, `test-guard` as skills), size.
+
+Estimate: 650 production, 1,150 tests, about 100 removed. Stop and report if code plus tests passes 3,000 before step 7.
+
+## Implementation notes
+
+*(filled by the implementer: what was mounted and how, the no-workspace rule, each address rule and its test, the carried-assertion table, e2e selectors checked, `packages/ui` changes if any, Suspense outcome, open points, sizes)*
